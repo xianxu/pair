@@ -1205,3 +1205,15 @@ to produce it locally, while deterministic generation and drift tests supply
 the review evidence. This removes about 930 KB of redundant bytes from the M5
 Git window without reducing generated-path coverage or release-build behavior
 (ARCH-DRY, ARCH-PURPOSE).
+
+### 2026-08-26 — M5 boundary review round 4
+
+The compact Git-manifest review path ran successfully and exposed the remaining
+constructor-class bypass: `SweepOrphanNvim` built a selected-scope glob while
+its file claimed to be only a resolved consumer. `ScopePaths` now owns Nvim PID
+enumeration, sidecar parsing, and embed-argv parsing; `Paths` likewise owns pane
+sidecar decoding. Mutation tests prove both a top-level command and an internal
+package fail when a false `ResolvedConsumer` label hides construction. The
+atlas/README inventory now names exact methods and bindings for current
+consumers and marks literal filename shapes as compatibility or descriptive
+vocabulary only (ARCH-DRY, ARCH-PURPOSE).

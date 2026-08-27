@@ -3,10 +3,14 @@ package artifactpath
 import (
 	"bufio"
 	"fmt"
+	"go/ast"
+	"go/parser"
+	"go/token"
 	"os"
 	"path/filepath"
 	"regexp"
 	"sort"
+	"strconv"
 	"strings"
 	"testing"
 )
@@ -100,10 +104,115 @@ func TestProductionArtifactReferencesAreExactlyClassified(t *testing.T) {
 		t.Fatal(err)
 	}
 	missing = append(missing, referenceViolations...)
+	constructorViolations, err := artifactConstructorViolations(repoRoot, productionRoots, SourceClassifications)
+	if err != nil {
+		t.Fatal(err)
+	}
+	missing = append(missing, constructorViolations...)
 	if len(missing) != 0 {
 		sort.Strings(missing)
 		t.Fatalf("unclassified artifact references:\n%s", strings.Join(missing, "\n"))
 	}
+}
+
+// artifactConstructorViolations prevents an already-classified Go consumer from
+// hiding a selected-scope constructor. It examines syntax trees rather than
+// lines, so multiline joins and concatenations cannot evade the guard.
+// Compatibility-only restart markers are session-cache paths rather than
+// composite thread artifacts.
+func artifactConstructorViolations(repoRoot string, roots []string, classifications []SourceClassification) ([]string, error) {
+	classified := make(map[string]SourceClassification, len(classifications))
+	for _, classification := range classifications {
+		classified[classification.Path] = classification
+	}
+	violations := map[string]bool{}
+	for _, root := range roots {
+		err := filepath.WalkDir(filepath.Join(repoRoot, root), func(path string, entry os.DirEntry, walkErr error) error {
+			if walkErr != nil || entry.IsDir() {
+				return walkErr
+			}
+			rel, err := filepath.Rel(repoRoot, path)
+			if err != nil {
+				return err
+			}
+			rel = filepath.ToSlash(rel)
+			classification, ok := classified[rel]
+			if !ok || classification.Kind != ResolvedConsumer || filepath.Ext(rel) != ".go" || !productionSourceFile(rel, path) {
+				return nil
+			}
+			fileSet := token.NewFileSet()
+			file, err := parser.ParseFile(fileSet, path, nil, 0)
+			if err != nil {
+				return err
+			}
+			ast.Inspect(file, func(node ast.Node) bool {
+				var expression ast.Expr
+				joinCall := false
+				switch value := node.(type) {
+				case *ast.CallExpr:
+					selector, ok := value.Fun.(*ast.SelectorExpr)
+					if !ok {
+						return true
+					}
+					owner, ownerOK := selector.X.(*ast.Ident)
+					if !ownerOK || owner.Name != "filepath" || selector.Sel.Name != "Join" {
+						return true
+					}
+					expression = value
+					joinCall = true
+				case *ast.BinaryExpr:
+					if value.Op != token.ADD {
+						return true
+					}
+					expression = value
+				default:
+					return true
+				}
+				for _, familyName := range classification.Families {
+					if familyName == "restart" {
+						continue
+					}
+					for _, family := range Families {
+						if family.Name == familyName && expressionConstructsFamily(expression, family.Token, joinCall) {
+							line := fileSet.Position(node.Pos()).Line
+							violations[fmt.Sprintf("%s:%d: resolved consumer constructs %s", rel, line, familyName)] = true
+						}
+					}
+				}
+				return true
+			})
+			return nil
+		})
+		if err != nil {
+			return nil, err
+		}
+	}
+	out := make([]string, 0, len(violations))
+	for violation := range violations {
+		out = append(out, violation)
+	}
+	sort.Strings(out)
+	return out, nil
+}
+
+func expressionConstructsFamily(expression ast.Expr, familyToken string, joinCall bool) bool {
+	found := false
+	ast.Inspect(expression, func(node ast.Node) bool {
+		literal, ok := node.(*ast.BasicLit)
+		if !ok || literal.Kind != token.STRING {
+			return true
+		}
+		value, err := strconv.Unquote(literal.Value)
+		if err != nil {
+			return true
+		}
+		if joinCall && strings.Contains(value, familyToken) ||
+			strings.HasSuffix(value, familyToken) || strings.Contains(value, "/"+familyToken) {
+			found = true
+		}
+		return !found
+	})
+	return found
 }
 
 func TestProductionSourceFileRecognizesExtensionlessShebang(t *testing.T) {
@@ -148,6 +257,40 @@ func TestArtifactConstructorAuthorityRejectsProductionCommandMutations(t *testin
 				t.Fatalf("external constructor mutation escaped authority guard: %v", violations)
 			}
 		})
+	}
+}
+
+func TestResolvedConsumerClassificationCannotHideConstructorMutations(t *testing.T) {
+	t.Parallel()
+
+	repoRoot := t.TempDir()
+	classifications := make([]SourceClassification, 0, 2)
+	for _, rel := range []string{
+		"cmd/pair-go/mutation.go",
+		"cmd/internal/launcher/mutation.go",
+	} {
+		path := filepath.Join(repoRoot, filepath.FromSlash(rel))
+		if err := os.MkdirAll(filepath.Dir(path), 0o755); err != nil {
+			t.Fatal(err)
+		}
+		body := "package mutation\nimport \"path/filepath\"\nfunc bad(scope string) string { return filepath.Join(scope, \"nvim-pid-*-draft\") }\n"
+		if strings.Contains(rel, "pair-go") {
+			body = "package mutation\nfunc bad(tag string) string { path := \"nvim-pid-\" + tag + \"-draft\"; return path }\n"
+		}
+		if err := os.WriteFile(path, []byte(body), 0o644); err != nil {
+			t.Fatal(err)
+		}
+		classifications = append(classifications, SourceClassification{
+			Path: rel, Kind: ResolvedConsumer, Families: []string{"nvim-pid"},
+		})
+	}
+
+	violations, err := artifactConstructorViolations(repoRoot, []string{"cmd"}, classifications)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(violations) != 2 {
+		t.Fatalf("false resolved-consumer classifications escaped constructor guard: %v", violations)
 	}
 }
 
@@ -231,6 +374,49 @@ func TestNonGoConsumersUseExactPathBindings(t *testing.T) {
 		}
 		if strings.Contains(body, tc.forbidden) {
 			t.Errorf("%s still derives a selected path with %q", tc.path, tc.forbidden)
+		}
+	}
+}
+
+func TestArtifactDocsUseBindingsForCurrentConsumers(t *testing.T) {
+	repoRoot := filepath.Clean(filepath.Join("..", "..", ".."))
+	for _, tc := range []struct {
+		path      string
+		required  string
+		forbidden []string
+	}{
+		{
+			path:      "atlas/go-migration-inventory.md",
+			required:  "Artifact filename shapes in this table are descriptive vocabulary only.",
+			forbidden: []string{"writes `slug-proposed-<tag>`", "writes `review-target-<tag>.json`"},
+		},
+		{
+			path:      "atlas/architecture.md",
+			required:  "The continuation paragraph's filename shapes are descriptive only.",
+			forbidden: []string{"it appends to `draft-<tag>.md`", "watches `slug-proposed-<tag>`", "to `slug-proposed-<tag>`. Gates"},
+		},
+		{
+			path:     "atlas/session-identity.md",
+			required: "Those names are descriptive storage vocabulary, not construction instructions.",
+		},
+		{
+			path:      "atlas/review-workbench.md",
+			required:  "writes exact `$PAIR_REVIEW_TARGET_PATH`",
+			forbidden: []string{"writes `review-target-<tag>.json`"},
+		},
+	} {
+		raw, err := os.ReadFile(filepath.Join(repoRoot, filepath.FromSlash(tc.path)))
+		if err != nil {
+			t.Fatal(err)
+		}
+		body := string(raw)
+		if !strings.Contains(body, tc.required) {
+			t.Errorf("%s does not state exact-binding authority", tc.path)
+		}
+		for _, forbidden := range tc.forbidden {
+			if strings.Contains(body, forbidden) {
+				t.Errorf("%s still publishes current construction phrase %q", tc.path, forbidden)
+			}
 		}
 	}
 }

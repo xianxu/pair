@@ -805,16 +805,23 @@ func (r OSRuntime) ReapNvim(tag string) {
 // candidates come from the nvim-pid-* sidecars and a full `ps` argv scan (catches
 // embeds with no pidfile), shell 1117-1158.
 func (r OSRuntime) SweepOrphanNvim(liveTags []string) {
+	scope, err := artifactpath.ResolveSelectedScope(r.DataDir)
+	if err != nil {
+		return
+	}
 	live := make(map[string]bool, len(liveTags))
 	for _, t := range liveTags {
 		live[t] = true
 	}
 	cands := map[string]bool{}
 	for _, kind := range []string{"draft", "scrollback"} {
-		matches, _ := filepath.Glob(filepath.Join(r.DataDir, "nvim-pid-*-"+kind))
+		pattern, err := scope.NvimPIDGlob(kind)
+		if err != nil {
+			continue
+		}
+		matches, _ := filepath.Glob(pattern)
 		for _, m := range matches {
-			tag := strings.TrimSuffix(strings.TrimPrefix(filepath.Base(m), "nvim-pid-"), "-"+kind)
-			if tag != "" {
+			if tag, ok := scope.TagFromNvimPID(m, kind); ok {
 				cands[tag] = true
 			}
 		}
@@ -824,7 +831,7 @@ func (r OSRuntime) SweepOrphanNvim(liveTags []string) {
 			if !strings.Contains(argv, "nvim") || !strings.Contains(argv, "--embed") {
 				continue
 			}
-			if tag := tagFromEmbedArgv(argv, r.DataDir); tag != "" {
+			if tag := scope.TagFromNvimEmbedArgv(argv); tag != "" {
 				cands[tag] = true
 			}
 		}

@@ -364,20 +364,3 @@ func TestLiveTagsForSweep(t *testing.T) {
 		t.Fatalf("liveTagsForSweep = %v", got)
 	}
 }
-
-func TestTagFromEmbedArgv(t *testing.T) {
-	const dd = "/data"
-	cases := map[string]string{
-		"nvim --embed --headless /data/draft-work.md":             "work",
-		"/usr/bin/nvim --embed /data/draft-my-tag.md --more":      "my-tag",
-		"nvim --embed /data/scrollback-work-claude.ansi":          "work",
-		"nvim --embed /data/scrollback-my-tag-codex.ansi":         "my-tag",
-		"nvim --embed /some/other/file":                           "",
-		"nvim --embed /data/scrollback-solo-claude.ansi trailing": "solo",
-	}
-	for argv, want := range cases {
-		if got := tagFromEmbedArgv(argv, dd); got != want {
-			t.Fatalf("tagFromEmbedArgv(%q) = %q, want %q", argv, got, want)
-		}
-	}
-}

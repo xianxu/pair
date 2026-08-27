@@ -176,32 +176,3 @@ func liveTagsForSweep(sessions []Session, index SessionNameIndex, scopeKey strin
 	}
 	return tags
 }
-
-// tagFromEmbedArgv recovers the pair tag from an `nvim --embed …` process argv by
-// matching the draft-/scrollback- sidecar path under dataDir (sweep_orphan_nvim's
-// ps-scan half, shell 1133-1149). "" when the argv references neither. Pure so
-// the sweep's argv parsing is unit-testable; assumes the caller already filtered
-// to nvim --embed lines.
-func tagFromEmbedArgv(argv, dataDir string) string {
-	if marker := dataDir + "/draft-"; strings.Contains(argv, marker) {
-		rest := firstField(argv[strings.LastIndex(argv, marker)+len(marker):])
-		return strings.TrimSuffix(rest, ".md")
-	}
-	if marker := dataDir + "/scrollback-"; strings.Contains(argv, marker) {
-		rest := firstField(argv[strings.LastIndex(argv, marker)+len(marker):])
-		rest = strings.TrimSuffix(rest, ".ansi")
-		if i := strings.LastIndex(rest, "-"); i >= 0 {
-			rest = rest[:i] // strip trailing -<agent> to recover <tag>
-		}
-		return rest
-	}
-	return ""
-}
-
-// firstField returns s up to its first space (the shell's `${x%% *}`).
-func firstField(s string) string {
-	if i := strings.IndexByte(s, ' '); i >= 0 {
-		return s[:i]
-	}
-	return s
-}

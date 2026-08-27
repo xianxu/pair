@@ -67,7 +67,6 @@ func (OSRuntime) PaneFiles(dataDir, tag string) []PaneInfo {
 		return nil
 	}
 	matches, _ := filepath.Glob(paths.PaneGlob())
-	prefix := "pane-" + tag + "-"
 	var out []PaneInfo
 	for _, m := range matches {
 		b, err := os.ReadFile(m)
@@ -80,8 +79,10 @@ func (OSRuntime) PaneFiles(dataDir, tag string) []PaneInfo {
 		if json.Unmarshal(b, &p) != nil {
 			continue
 		}
-		agent := strings.TrimSuffix(filepath.Base(m), ".json")
-		agent = strings.TrimPrefix(agent, prefix)
+		agent, ok := paths.AgentFromPane(m)
+		if !ok {
+			continue
+		}
 		out = append(out, PaneInfo{
 			Agent:  agent,
 			PaneID: p.PaneID,

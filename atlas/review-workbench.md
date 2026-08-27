@@ -147,7 +147,7 @@ proven scrollback/changelog pattern), opened on a file, alongside pair's agent+d
   percentage dims, not `tput`, which measured the wrong pane), replacing any live
   review (single pane).
 - `:PairReview <file>` (in draft `nvim/init.lua`, `complete=file`) — proposes the
-  review target. It writes `review-target-<tag>.json` with `status=proposed`,
+  review target. It writes exact `$PAIR_REVIEW_TARGET_PATH` with `status=proposed`,
   runs `pair-review-readiness --prepare <file>` locally for deterministic
   start-up work (track file / create or resume `review/<slug>` / mark target
   `ready`), then sends the agent only a concise "review prepared; ack" message.

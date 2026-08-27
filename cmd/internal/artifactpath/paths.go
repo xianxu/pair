@@ -162,6 +162,70 @@ func (p ScopePaths) HistoryGlobs() []string {
 	}
 }
 
+// NvimPIDGlob returns the selected-scope enumeration pattern for one nvim
+// surface. Callers may glob this pattern, but must not reconstruct its filename
+// family themselves.
+func (p ScopePaths) NvimPIDGlob(kind string) (string, error) {
+	if err := validateComponent("artifact component", kind); err != nil {
+		return "", err
+	}
+	return filepath.Join(p.scopeDir, "nvim-pid-*-"+kind), nil
+}
+
+// TagFromNvimPID recognizes one selected-scope nvim pid sidecar returned by
+// NvimPIDGlob. It rejects paths from another scope and invalid tag components.
+func (p ScopePaths) TagFromNvimPID(path, kind string) (string, bool) {
+	if err := validateComponent("artifact component", kind); err != nil {
+		return "", false
+	}
+	clean := filepath.Clean(path)
+	if filepath.Dir(clean) != p.scopeDir {
+		return "", false
+	}
+	base := filepath.Base(clean)
+	prefix, suffix := "nvim-pid-", "-"+kind
+	if !strings.HasPrefix(base, prefix) || !strings.HasSuffix(base, suffix) {
+		return "", false
+	}
+	tag := strings.TrimSuffix(strings.TrimPrefix(base, prefix), suffix)
+	if err := validateComponent("pair tag", tag); err != nil {
+		return "", false
+	}
+	return tag, true
+}
+
+// TagFromNvimEmbedArgv recognizes exact draft and scrollback paths under this
+// selected scope. It is the pure parser used by the process-scan fallback when
+// a pid sidecar is missing.
+func (p ScopePaths) TagFromNvimEmbedArgv(argv string) string {
+	if marker := filepath.Join(p.scopeDir, "draft-"); strings.Contains(argv, marker) {
+		rest := firstArgvField(argv[strings.LastIndex(argv, marker)+len(marker):])
+		tag := strings.TrimSuffix(rest, ".md")
+		if validateComponent("pair tag", tag) == nil {
+			return tag
+		}
+		return ""
+	}
+	if marker := filepath.Join(p.scopeDir, "scrollback-"); strings.Contains(argv, marker) {
+		rest := firstArgvField(argv[strings.LastIndex(argv, marker)+len(marker):])
+		rest = strings.TrimSuffix(rest, ".ansi")
+		if i := strings.LastIndex(rest, "-"); i >= 0 {
+			rest = rest[:i]
+		}
+		if validateComponent("pair tag", rest) == nil {
+			return rest
+		}
+	}
+	return ""
+}
+
+func firstArgvField(value string) string {
+	if i := strings.IndexByte(value, ' '); i >= 0 {
+		return value[:i]
+	}
+	return value
+}
+
 func (p ScopePaths) AgentDefault(agent string) (string, error) {
 	if err := validateComponent("artifact component", agent); err != nil {
 		return "", err
@@ -372,6 +436,24 @@ func (p Paths) Pane(agent string) string { return mustPath(p.PaneChecked(agent))
 func (p Paths) PaneGlob() string         { return p.tagged("pane-", "-*.json") }
 func (p Paths) PaneChecked(agent string) (string, error) {
 	return p.taggedComponent("pane-", agent, ".json")
+}
+
+// AgentFromPane recognizes one pane sidecar from this exact work thread.
+func (p Paths) AgentFromPane(path string) (string, bool) {
+	clean := filepath.Clean(path)
+	if filepath.Dir(clean) != p.ScopeDir() {
+		return "", false
+	}
+	base := filepath.Base(clean)
+	prefix := "pane-" + p.tag + "-"
+	if !strings.HasPrefix(base, prefix) || !strings.HasSuffix(base, ".json") {
+		return "", false
+	}
+	agent := strings.TrimSuffix(strings.TrimPrefix(base, prefix), ".json")
+	if err := validateComponent("artifact component", agent); err != nil {
+		return "", false
+	}
+	return agent, true
 }
 
 func (p Paths) NvimPID(kind string) string { return mustPath(p.NvimPIDChecked(kind)) }

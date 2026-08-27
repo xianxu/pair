@@ -1349,3 +1349,19 @@ generation and drift tests prove that it matches the tracked source inputs.
 Coverage still classifies every generated path through the generated manifest,
 but reviewers inspect the authoritative Go, shell, Lua, and KDL sources rather
 than duplicated mirror bytes (ARCH-DRY, ARCH-PURPOSE).
+
+### 2026-08-26 — enforce constructor authority across classified consumers
+
+**Reason:** the fourth M5 review found that a production file already labeled
+`ResolvedConsumer` could still construct a selected-scope enumeration glob,
+and that atlas prose continued to publish current filename formulas after named
+instances were corrected.
+
+**Delta:** every current selected-scope path, enumeration glob, and filename
+parser is produced by `artifactpath`; a `ResolvedConsumer` may only receive an
+already-resolved value. The mutation matrix covers unclassified sources, false
+`Constructor` labels, and false `ResolvedConsumer` labels in both top-level and
+internal command packages. The documentation inventory names exact methods or
+bindings for current consumers; literal filename shapes are explicitly limited
+to compatibility behavior or descriptive storage vocabulary (ARCH-DRY,
+ARCH-PURPOSE).

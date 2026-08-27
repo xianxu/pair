@@ -249,3 +249,55 @@ func TestParameterizedArtifactsRejectUnsafeComponents(t *testing.T) {
 		})
 	}
 }
+
+func TestScopePathsOwnNvimPIDEnumerationAndEmbedParsing(t *testing.T) {
+	scope, err := ResolveSelectedScope("/data/repos/scope")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got, err := scope.NvimPIDGlob("draft"); err != nil || got != "/data/repos/scope/nvim-pid-*-draft" {
+		t.Fatalf("NvimPIDGlob() = %q, %v", got, err)
+	}
+	if _, err := scope.NvimPIDGlob("../draft"); err == nil {
+		t.Fatal("NvimPIDGlob accepted unsafe kind")
+	}
+	if got, ok := scope.TagFromNvimPID("/data/repos/scope/nvim-pid-my-tag-draft", "draft"); !ok || got != "my-tag" {
+		t.Fatalf("TagFromNvimPID() = %q, %v", got, ok)
+	}
+	if _, ok := scope.TagFromNvimPID("/other/nvim-pid-my-tag-draft", "draft"); ok {
+		t.Fatal("TagFromNvimPID accepted path outside selected scope")
+	}
+
+	cases := map[string]string{
+		"nvim --embed --headless /data/repos/scope/draft-work.md":             "work",
+		"/usr/bin/nvim --embed /data/repos/scope/draft-my-tag.md --more":      "my-tag",
+		"nvim --embed /data/repos/scope/scrollback-work-claude.ansi":          "work",
+		"nvim --embed /data/repos/scope/scrollback-my-tag-codex.ansi":         "my-tag",
+		"nvim --embed /some/other/file":                                       "",
+		"nvim --embed /data/repos/scope/scrollback-solo-claude.ansi trailing": "solo",
+	}
+	for argv, want := range cases {
+		if got := scope.TagFromNvimEmbedArgv(argv); got != want {
+			t.Fatalf("TagFromNvimEmbedArgv(%q) = %q, want %q", argv, got, want)
+		}
+	}
+}
+
+func TestPathsOwnPaneSidecarParsing(t *testing.T) {
+	paths, err := ResolveScoped("/data/repos/scope", "work")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got, ok := paths.AgentFromPane("/data/repos/scope/pane-work-codex.json"); !ok || got != "codex" {
+		t.Fatalf("AgentFromPane() = %q, %v", got, ok)
+	}
+	for _, invalid := range []string{
+		"/other/pane-work-codex.json",
+		"/data/repos/scope/pane-other-codex.json",
+		"/data/repos/scope/pane-work-../codex.json",
+	} {
+		if _, ok := paths.AgentFromPane(invalid); ok {
+			t.Fatalf("AgentFromPane accepted %q", invalid)
+		}
+	}
+}

@@ -466,7 +466,7 @@ repo-scoped data dir:
 `${XDG_DATA_HOME:-~/.local/share}/pair/repos/<scope-key>/`. The hidden
 `<scope-key>` keeps two repos with the same tag independent; picker labels and
 public session names show the readable repo/tag instead. Tag-specific
-`config-<tag>-<agent>.json` files keep priority over repo-agent defaults, so
+Exact per-thread `Paths.ConfigChecked` records keep priority over repo-agent defaults, so
 returning to an existing tag preserves its native resume behavior.
 
 ### `resume` vs `continue`

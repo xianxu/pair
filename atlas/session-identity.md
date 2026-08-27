@@ -41,6 +41,10 @@ scrollback-<tag>-<agent>.events.jsonl
 pane-<tag>-<agent>.json
 ```
 
+Those names are descriptive storage vocabulary, not construction instructions.
+Current code obtains them only from the `artifactpath` methods and exact
+environment bindings below.
+
 `cmd/internal/artifactpath` is the constructor authority for the complete
 family list (including review, continuation, PID, parked, image, layout, and
 diagnostic sidecars not repeated above). The launcher resolves the composite
