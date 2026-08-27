@@ -1315,3 +1315,22 @@ proof that the zellij server and panes can no longer write. Standalone records
 therefore remain conservatively occupied until #152 supplies that stateful
 session proof; freeing them here would violate the fail-closed safety invariant
 rather than complete #149 (ARCH-PURPOSE, ARCH-MOCK).
+
+### 2026-08-26 — make artifact constructor closure mechanically exhaustive
+
+**Reason:** the third M5 review confirmed the intended constructor authority
+but showed its enforcement still scanned `cmd/internal` rather than all
+production command packages and allowed any classified source to call itself a
+constructor. The same review found two historical atlas passages that still
+described derived scrollback siblings and session-keyed ready-marker lookup.
+
+**Delta:** the production-source closure now begins at `cmd`, covering every
+top-level command package as well as internal packages, while an independent
+classification invariant rejects `Constructor` anywhere outside
+`cmd/internal/artifactpath`. Mutation tests inject an artifact constructor into
+both `cmd/pair-go` and an internal launcher source and prove that an
+unclassified file fails the complete scan while a self-classified constructor
+fails the authority check. The atlas now states exact scrollback companion
+bindings, exact viewer refresh inputs, session-keyed changelog data, and the
+separate stable `$PAIR_CHANGELOG_READY_PATH` binding throughout (ARCH-DRY,
+ARCH-PURPOSE).

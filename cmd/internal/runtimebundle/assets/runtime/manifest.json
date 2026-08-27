@@ -75,8 +75,8 @@
     {
       "Path": "nvim/init.lua",
       "Mode": 420,
-      "Size": 184456,
-      "Digest": "sha256:3a7c23721f3b1bcb6053642e383ac50b946cbcca8b1dda85091a65d121a72b08"
+      "Size": 184460,
+      "Digest": "sha256:88d6694ff1a0750a0aa6aff8d4d28791f84f3c5b35b83df6018ad061a1b274f3"
     },
     {
       "Path": "nvim/marker_codec.lua",

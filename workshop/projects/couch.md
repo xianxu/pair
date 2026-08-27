@@ -632,3 +632,12 @@ legacy-plus-scoped reader across launch, claim, and quiescence. Verified
 whole-incarnation capacity release remains deliberately in pair#152; #149 does
 not reinterpret client exit or detach as session quiescence (ARCH-PURPOSE,
 ARCH-MOCK).
+
+### 2026-08-26 — pair#149 M5 constructor-closure disposition
+
+Artifact enforcement now scans every production `cmd` package and refuses
+constructor classification outside `artifactpath`; mutation fixtures pin both
+the formerly omitted top-level-command case and an internal-package escape.
+The atlas consistently presents exact companion bindings and the stable
+changelog-ready marker rather than retired global derivation formulas
+(ARCH-DRY, ARCH-PURPOSE).

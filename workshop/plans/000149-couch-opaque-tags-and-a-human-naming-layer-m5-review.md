@@ -208,3 +208,96 @@ Append a `## Revisions` entry recording:
 - The exhaustive companion-path inventory and enforcement strategy.
 - The standalone incarnation lifecycle across create, detach, attach, restart, quit, and external death.
 - The remaining atlas formula sweep.
+
+---
+
+## Re-review — 2026-08-26T21:10:37-07:00 (REWORK)
+
+| field | value |
+|-------|-------|
+| issue | 149 — couch: opaque tags and a human naming layer |
+| repo | pair |
+| issue file | workshop/issues/000149-couch-opaque-tags-and-a-human-naming-layer.md |
+| boundary | milestone M5 |
+| milestone | M5 |
+| window | 6a714336ae3c8356ecdf2019c1ecc35b60719e81..bbdb92a123e479d6657c6fdc449391b1bee8f458 |
+| command | sdlc milestone-close --issue 149 --milestone M5 |
+| reviewer | codex |
+| timestamp | 2026-08-26T21:10:37-07:00 |
+| verdict | REWORK |
+
+## Review
+
+```verdict
+verdict: REWORK
+confidence: high
+```
+
+M5’s migration, scoped-path model, and legacy-index overlap reader are well implemented and fully green under the repository suite. The boundary remains blocked because the artifact coverage test still cannot enforce its claimed single-constructor authority. Documentation also retains contradictory pre-M5 path and changelog behavior. BR-35 is withdrawn because verified incarnation quiescence is explicitly assigned to #152; conservative occupancy is the documented safety contract.
+
+```findings
+dispose:
+  - id: BR-31
+    disposition: addressed
+    note: |
+      One strict legacy-global-then-scoped reader now serves launch, address claim, and quiescence; global-only and malformed-row regressions fail if those callers bypass it.
+  - id: BR-32
+    disposition: not-addressed
+    note: |
+      The named consumers are fixed, but the guard still omits production command packages and permits any classified source to declare itself a Constructor, so it does not enforce artifactpath as the sole constructor.
+  - id: BR-34
+    disposition: not-addressed
+    note: |
+      The principal data-layout section was corrected, but architecture.md still publishes derived scrollback paths and obsolete session-keyed changelog-ready behavior that contradict the exact bindings.
+  - id: BR-35
+    disposition: withdrawn
+    note: |
+      The approved Spec and Plan explicitly assign verified whole-incarnation quiescence and capacity release to pair#152; retaining unknown occupancy in pair#149 is the required fail-closed behavior.
+```
+
+1. Strengths
+
+- `MigrateLegacyRecord` is genuinely pure and preserves occupancy, while `ThreadStore.MigrateLegacyRecords` uses the existing journal authority for atomic, idempotent enrichment ([migration.go](/Users/xianxu/workspace/pair/cmd/internal/couchcore/migration.go:13)).
+- The session-index relocation now has one strict overlap reader, with scoped rows overriding legacy rows and malformed present state failing closed ([session_index.go](/Users/xianxu/workspace/pair/cmd/internal/launcher/session_index.go:202)).
+- Legacy-only claim and quiescence regressions directly exercise production callers ([thread_claim_test.go](/Users/xianxu/workspace/pair/cmd/internal/launcher/thread_claim_test.go:145)).
+- Complete scrollback and changelog companion sets now derive inside `artifactpath`, and the cross-scope integration exercises Go, Bash, Neovim, and both layouts.
+- The M5 Core concepts table now names existing entities at their actual paths; its PURE entities have direct IO-free tests.
+
+2. Critical findings
+
+- **BR-32 — not addressed (ARCH-DRY, ARCH-PURPOSE):** The coverage walks `cmd/internal` rather than all production `cmd` packages, excluding `cmd/couch`, `cmd/pair-go`, and `cmd/pair-launch-helper` ([coverage_test.go](/Users/xianxu/workspace/pair/cmd/internal/artifactpath/coverage_test.go:85)). More fundamentally, it accepts `Constructor` for any classified file without asserting that constructor authority is confined to `cmd/internal/artifactpath` ([coverage_test.go](/Users/xianxu/workspace/pair/cmd/internal/artifactpath/coverage_test.go:53)). A new external constructor can therefore pass by living in an omitted command package or declaring itself a constructor. This is the second finding in family `artifact-construction-single-authority`; do not add another named-site exception. Define the complete production-source set, reject `Constructor` outside `artifactpath`, and add mutation tests proving constructors in both `cmd/pair-go` and an already-scanned source make the suite fail.
+
+3. Important findings
+
+- **BR-34 — not addressed:** [architecture.md](/Users/xianxu/workspace/pair/atlas/architecture.md:615) still says scrollback inputs are derived as `$PAIR_DATA_DIR/scrollback-<tag>-<agent>…`. More seriously, its changelog section says Neovim re-resolves the session ID and polls a session-keyed `.ready` marker ([architecture.md](/Users/xianxu/workspace/pair/atlas/architecture.md:861)), while production now consumes the stable exact `$PAIR_CHANGELOG_READY_PATH`. This is the fourth finding in family `user-facing-policy-docs`; sweep the whole path-policy class rather than only these lines. README needs no M5 update because no user-run command, flag, or keybinding was introduced.
+
+4. Minor findings
+
+None.
+
+5. Test coverage notes
+
+Verified successfully:
+
+- `git diff --check`
+- `go vet ./...`
+- `go test ./... -count=1`
+- `make test`
+
+BR-31’s regressions are load-bearing. BR-32’s named-site tests are useful, but no test currently proves the declared constructor authority is closed over every production source or rejects an externally classified constructor.
+
+6. Architectural notes for upcoming work
+
+- **ARCH-DRY: flag.** `artifactpath` contains the intended authority, but its enforcement admits parallel constructors.
+- **ARCH-PURE: pass.** Path derivation and record migration are deterministic and separated cleanly from IO.
+- **ARCH-PURPOSE: flag.** The milestone promises mechanically enforced sole construction; the current guard delivers only partial detection.
+- **ARCH-MOCK: pass.** No new uncovered external dependency was introduced; relevant integrations use real Bash/Neovim consumers or existing stateful seams. Deferring lifecycle release to #152 is consistent with this principle.
+
+7. Plan revision recommendations
+
+Append a `## Revisions` entry recording:
+
+- the corrected production-source closure, including top-level `cmd/*` packages;
+- the invariant that only `artifactpath` may carry `Constructor`;
+- mutation tests that demonstrate both omitted-root and misclassified-constructor failures;
+- the remaining atlas sweep, including stable changelog-ready binding semantics.

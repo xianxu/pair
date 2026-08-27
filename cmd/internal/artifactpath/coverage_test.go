@@ -11,6 +11,19 @@ import (
 	"testing"
 )
 
+var productionRoots = []string{"cmd", "bin", "nvim", "zellij", "doctor"}
+
+func constructorAuthorityViolations(classifications []SourceClassification) []string {
+	var violations []string
+	for _, classification := range classifications {
+		if classification.Kind == Constructor && !strings.HasPrefix(classification.Path, "cmd/internal/artifactpath/") {
+			violations = append(violations, classification.Path+": constructor authority belongs to cmd/internal/artifactpath")
+		}
+	}
+	sort.Strings(violations)
+	return violations
+}
+
 func TestManifestCoversRequiredArtifactFamilies(t *testing.T) {
 	t.Parallel()
 
@@ -45,7 +58,7 @@ func TestProductionArtifactReferencesAreExactlyClassified(t *testing.T) {
 	}
 
 	classified := make(map[string]SourceClassification, len(SourceClassifications))
-	var missing []string
+	missing := constructorAuthorityViolations(SourceClassifications)
 	for _, classification := range SourceClassifications {
 		if _, exists := classified[classification.Path]; exists {
 			t.Fatalf("duplicate source classification %q", classification.Path)
@@ -82,7 +95,65 @@ func TestProductionArtifactReferencesAreExactlyClassified(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	for _, root := range []string{"cmd/internal", "bin", "nvim", "zellij", "doctor"} {
+	referenceViolations, err := artifactReferenceViolations(repoRoot, productionRoots, classified)
+	if err != nil {
+		t.Fatal(err)
+	}
+	missing = append(missing, referenceViolations...)
+	if len(missing) != 0 {
+		sort.Strings(missing)
+		t.Fatalf("unclassified artifact references:\n%s", strings.Join(missing, "\n"))
+	}
+}
+
+func TestProductionSourceFileRecognizesExtensionlessShebang(t *testing.T) {
+	path := filepath.Join(t.TempDir(), "pair-notify")
+	if err := os.WriteFile(path, []byte("#!/usr/bin/env bash\necho outer-tty-work\n"), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	if !productionSourceFile("bin/pair-notify", path) {
+		t.Fatal("extensionless shebang source escaped production coverage")
+	}
+}
+
+func TestArtifactConstructorAuthorityRejectsProductionCommandMutations(t *testing.T) {
+	t.Parallel()
+
+	for _, rel := range []string{
+		"cmd/pair-go/main.go",
+		"cmd/internal/launcher/mutation.go",
+	} {
+		t.Run(rel, func(t *testing.T) {
+			repoRoot := t.TempDir()
+			path := filepath.Join(repoRoot, filepath.FromSlash(rel))
+			if err := os.MkdirAll(filepath.Dir(path), 0o755); err != nil {
+				t.Fatal(err)
+			}
+			if err := os.WriteFile(path, []byte("package mutation\nvar artifact = \"draft-\"\n"), 0o644); err != nil {
+				t.Fatal(err)
+			}
+			references, err := artifactReferenceViolations(repoRoot, []string{"cmd"}, nil)
+			if err != nil {
+				t.Fatal(err)
+			}
+			if len(references) != 1 || !strings.Contains(references[0], rel) {
+				t.Fatalf("production mutation escaped complete source scan: %v", references)
+			}
+
+			classifications := []SourceClassification{{
+				Path: rel, Kind: Constructor, Families: []string{"draft"},
+			}}
+			violations := constructorAuthorityViolations(classifications)
+			if len(violations) != 1 || !strings.Contains(violations[0], rel) {
+				t.Fatalf("external constructor mutation escaped authority guard: %v", violations)
+			}
+		})
+	}
+}
+
+func artifactReferenceViolations(repoRoot string, roots []string, classified map[string]SourceClassification) ([]string, error) {
+	var violations []string
+	for _, root := range roots {
 		err := filepath.WalkDir(filepath.Join(repoRoot, root), func(path string, entry os.DirEntry, walkErr error) error {
 			if walkErr != nil {
 				return walkErr
@@ -107,7 +178,7 @@ func TestProductionArtifactReferencesAreExactlyClassified(t *testing.T) {
 			}
 			classification, ok := classified[rel]
 			if !ok {
-				missing = append(missing, fmt.Sprintf("%s: %s", rel, strings.Join(found, ", ")))
+				violations = append(violations, fmt.Sprintf("%s: %s", rel, strings.Join(found, ", ")))
 				return nil
 			}
 			declared := make(map[string]bool, len(classification.Families))
@@ -116,28 +187,24 @@ func TestProductionArtifactReferencesAreExactlyClassified(t *testing.T) {
 			}
 			for _, name := range found {
 				if !declared[name] {
-					missing = append(missing, fmt.Sprintf("%s: missing family %s", rel, name))
+					violations = append(violations, fmt.Sprintf("%s: missing family %s", rel, name))
 				}
 			}
 			return nil
 		})
 		if err != nil {
-			t.Fatal(err)
+			return nil, err
 		}
 	}
-	if len(missing) != 0 {
-		sort.Strings(missing)
-		t.Fatalf("unclassified artifact references:\n%s", strings.Join(missing, "\n"))
-	}
+	sort.Strings(violations)
+	return violations, nil
 }
 
-func TestProductionSourceFileRecognizesExtensionlessShebang(t *testing.T) {
-	path := filepath.Join(t.TempDir(), "pair-notify")
-	if err := os.WriteFile(path, []byte("#!/usr/bin/env bash\necho outer-tty-work\n"), 0o755); err != nil {
-		t.Fatal(err)
-	}
-	if !productionSourceFile("bin/pair-notify", path) {
-		t.Fatal("extensionless shebang source escaped production coverage")
+func TestProductionRootsCoverTopLevelCommandPackages(t *testing.T) {
+	t.Parallel()
+
+	if len(productionRoots) == 0 || productionRoots[0] != "cmd" {
+		t.Fatalf("production roots must cover all cmd packages, got %v", productionRoots)
 	}
 }
 
@@ -172,7 +239,7 @@ func TestNoCompanionSuffixConstructionOutsideArtifactpath(t *testing.T) {
 	repoRoot := filepath.Clean(filepath.Join("..", "..", ".."))
 	derived := regexp.MustCompile(`(?:\+|\.\.)\s*["']\.(?:raw|events\.jsonl|ansi|viewport|openlock|anchor|cleaned|distill\.lock|status|ready|done)["']`)
 	var violations []string
-	for _, root := range []string{"cmd/internal", "bin", "nvim", "zellij", "doctor"} {
+	for _, root := range productionRoots {
 		err := filepath.WalkDir(filepath.Join(repoRoot, root), func(path string, entry os.DirEntry, walkErr error) error {
 			if walkErr != nil || entry.IsDir() {
 				return walkErr

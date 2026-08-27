@@ -545,6 +545,28 @@ rounds:
           round: 22
       boundary: M5
       blocked: true
+    - "n": 23
+      timestamp: "2026-08-26T21:10:37-07:00"
+      agent: codex
+      dispose:
+        - id: BR-31
+          disposition: addressed
+          note: One strict legacy-global-then-scoped reader now serves launch, address claim, and quiescence; global-only and malformed-row regressions fail if those callers bypass it.
+          round: 23
+        - id: BR-32
+          disposition: not-addressed
+          note: The named consumers are fixed, but the guard still omits production command packages and permits any classified source to declare itself a Constructor, so it does not enforce artifactpath as the sole constructor.
+          round: 23
+        - id: BR-34
+          disposition: not-addressed
+          note: The principal data-layout section was corrected, but architecture.md still publishes derived scrollback paths and obsolete session-keyed changelog-ready behavior that contradict the exact bindings.
+          round: 23
+        - id: BR-35
+          disposition: withdrawn
+          note: The approved Spec and Plan explicitly assign verified whole-incarnation quiescence and capacity release to pair#152; retaining unknown occupancy in pair#149 is the required fail-closed behavior.
+          round: 23
+      boundary: M5
+      blocked: true
 ---
 
 # Gate ledger — pair#149 (boundary-review)
@@ -804,10 +826,17 @@ later rounds disposed of them. Generated — edit the gate, not this file.
 - **BR-35** [Critical] `incarnation-quiescence-before-capacity-release` Standalone Pair incarnations have no terminal transition and occupy capacity forever
   This is the 3rd finding in family incarnation-quiescence-before-capacity-release. RegisterStandalonePair records the short-lived launcher as live, UpsertStandalonePair accumulates later launchers, and neither detach nor full-quit cleanup marks or removes the incarnation; admission intentionally counts every stored incarnation. State the class rule across create, attach, detach, restart, full quit, and external death, then test the production lifecycle through a stateful session fake so capacity is released only after whole-incarnation quiescence.
 
+## Round 23 — 2026-08-26T21:10:37-07:00 (codex) — BLOCKED
+
+### Disposed
+
+- BR-31 — addressed — One strict legacy-global-then-scoped reader now serves launch, address claim, and quiescence; global-only and malformed-row regressions fail if those callers bypass it.
+- BR-32 — not-addressed — The named consumers are fixed, but the guard still omits production command packages and permits any classified source to declare itself a Constructor, so it does not enforce artifactpath as the sole constructor.
+- BR-34 — not-addressed — The principal data-layout section was corrected, but architecture.md still publishes derived scrollback paths and obsolete session-keyed changelog-ready behavior that contradict the exact bindings.
+- BR-35 — withdrawn — The approved Spec and Plan explicitly assign verified whole-incarnation quiescence and capacity release to pair#152; retaining unknown occupancy in pair#149 is the required fail-closed behavior.
+
 ## Open findings
 
 - **BR-30** [Important] `child-policy-environment-isolation` Inherited repository-default policy can reject a valid remembered path profile
-- **BR-31** [Critical] `durable-index-read-failure-authority` Moving the session-name index strands existing live sessions
 - **BR-32** [Critical] `artifact-construction-single-authority` The artifact coverage guard does not enforce its claimed constructor closure
 - **BR-34** [Important] `user-facing-policy-docs` Atlas documentation still publishes the retired global artifact layout
-- **BR-35** [Critical] `incarnation-quiescence-before-capacity-release` Standalone Pair incarnations have no terminal transition and occupy capacity forever

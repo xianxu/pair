@@ -2956,7 +2956,7 @@ end
 pair_start_pending_fs_watch()
 
 -- Watch the exact change-log binding for the "build complete" marker (#58). The
--- detached distiller drops "changelog-<tag>-<agent>.ready" only when a triggered
+-- detached distiller drops the exact PAIR_CHANGELOG_READY_PATH only when a triggered
 -- build actually changed the log; we flash the statusline + delete the marker
 -- (one-shot). A low-frequency timer poll, NOT fs_event: macOS FSEvents is
 -- unreliable from nvim here (it surfaces EMFILE with a nil filename), and the

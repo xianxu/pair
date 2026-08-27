@@ -612,7 +612,7 @@ The `time` events (one generic `logScrollbackEvent` writer, ARCH-DRY; pure `dueF
 
 The existing `set_winsize()` is the single entry point for both the initial PTY size (called once after `pty.fork`) and every SIGWINCH (the registered handler). Threading `log_scrollback_event()` through it covers both. `SCROLLBACK_BYTES` is bumped after each successful write to the raw fd, so the offset on each resize event demarcates "from this byte onward, apply these new (cols, rows)" — which is what the renderer needs to replay each segment at its correct width. Failure mode is unchanged: any tee or sidecar write error is `debug()`-logged and swallowed; the proxy never blocks the agent on a logging hiccup. Both `zellij/layouts/main-{2,3}.kdl` assets pass the flag by default, so capture runs automatically for every pair session.
 
-**Replay (`bin/pair-scrollback-render`, Go).** Reads `<raw>` and `<events.jsonl>`, feeds the bytes to a `charmbracelet/x/vt` emulator in a single offset-ordered walk over all events (`feedSegments`): write up to each offset, then `Resize` on a resize event or snapshot `Scrollback().Len()` on a `time` event (#59). The emulator runs the same VT100 interpretation zellij does live (width-based wrap, alternate-screen flips, scroll regions), so its row count matches what the user saw in zellij's indicator. After feeding, the renderer walks the scrolled-out history followed by the visible buffer, and emits one ANSI-decorated line per row to `<out.ansi>`: full-reset SGR + per-row attrs + the row's characters + `\x1b[0m`. With `--with-timestamps` (the change-log path only — never the Alt+/ viewer) the pure `interleaveDateMarkers` then inserts `⟦pair:ts DATE⟧` lines at each day boundary from the time snapshots (#59). Built into `bin/pair-scrollback-render` via `make pair-scrollback-render`; single static binary, no runtime dep. Its raw inputs live in `$PAIR_DATA_DIR` as `scrollback-<tag>-<agent>.{raw,events.jsonl}` (RAW VT bytes, NOT in the repo); `:PairTTYRawPath` / `_G.PairTTYRawPath()` (nvim, #56) prints the current session's live `.raw` path on demand and copies it to the `+` register — useful for grabbing the byte stream mid-session, since an Alt+x quit deletes it unless preserved.
+**Replay (`bin/pair-scrollback-render`, Go).** Reads the exact raw and events paths supplied by the launcher, feeds the bytes to a `charmbracelet/x/vt` emulator in a single offset-ordered walk over all events (`feedSegments`): write up to each offset, then `Resize` on a resize event or snapshot `Scrollback().Len()` on a `time` event (#59). The emulator runs the same VT100 interpretation zellij does live (width-based wrap, alternate-screen flips, scroll regions), so its row count matches what the user saw in zellij's indicator. After feeding, the renderer walks the scrolled-out history followed by the visible buffer, and emits one ANSI-decorated line per row to the exact ANSI output path: full-reset SGR + per-row attrs + the row's characters + `\x1b[0m`. With `--with-timestamps` (the change-log path only — never the Alt+/ viewer) the pure `interleaveDateMarkers` then inserts `⟦pair:ts DATE⟧` lines at each day boundary from the time snapshots (#59). Built into `bin/pair-scrollback-render` via `make pair-scrollback-render`; single static binary, no runtime dep. `artifactpath.Paths.ScrollbackArtifacts` constructs the complete set and consumers receive `$PAIR_SCROLLBACK_RAW_PATH`, `$PAIR_SCROLLBACK_EVENTS_PATH`, `$PAIR_SCROLLBACK_ANSI_PATH`, and `$PAIR_SCROLLBACK_VIEWPORT_PATH`; they do not derive siblings or reconstruct tag filenames. `:PairTTYRawPath` / `_G.PairTTYRawPath()` (nvim, #56) prints the bound live raw path on demand and copies it to the `+` register — useful for grabbing the byte stream mid-session, since an Alt+x quit deletes it unless preserved.
 
 **Plain projection (`--plain`, `--max-lines`).** The same emulator state can be emitted *without* SGR: `serializeRow` in plain mode drops the per-row attrs and the trailing `\x1b[0m`, and trims trailing blanks by visible *content* — a bg-only "visible" cell (inverse-video / box fill) is kept in colored mode but dropped in plain (else a bordered region becomes space-padding toward terminal width). This is the **sessionView** abstraction's second decoration: one pipeline, colored for the Alt+/ viewer, plain for distillation — the substrate a `continuation` is built from (see `construct/datatype/continuation.md` and `cmd/pair-continuation`). `--max-lines N` overrides the 2000-row viewer cap (`<=0` = uncapped) so a continuation distills the whole session, not just the viewer window.
 
@@ -630,7 +630,7 @@ The existing `set_winsize()` is the single entry point for both the initial PTY 
 
 **Viewer (`nvim/scrollback.lua`).** Plugin-free init loaded via `nvim -u`. On `BufReadPost`, an SGR state machine walks each line: peels every `\x1b[...m` escape, mutates a running state (fg/bg/bold/italic/underline/reverse/strike/blink), and emits an extmark span for each contiguous run of visible bytes under a single state. Color resolution: 30-37/90-97 fg + 40-47/100-107 bg map through an xterm-default palette; `38;5;n` indexed maps via the standard 256-color formula (16 anchored to the same palette, 16-231 = 6×6×6 cube, 232-255 = greyscale ramp); `38;2;r;g;b` uses RGB directly. State→hl-group cache is keyed by stringified attrs and uses an explicit counter (not `#hl_cache` — that's 0 on string-keyed tables, a bug caught during the test pass). Buffer is locked read-only (`modifiable = false`, `buftype = nofile`, no swapfile); only `<Esc>` quits via `<cmd>qa<CR>` — `q`, `ZZ`, `ZQ` are deliberately shadowed so a fat-fingered `q` (instead of `Alt+q` for the marker comment) can't slam the viewer shut and drop pending markers.
 
-`G` is a semi-live refresh affordance (#84): before jumping to EOF, the viewer derives sibling `.raw` / `.events.jsonl` paths from the current `.ansi`, reruns `pair-scrollback-render`, reloads the same buffer in place, reapplies ANSI extmarks, relocks the read-only options, and then lands at the refreshed bottom. If the user has pending `Alt+q` annotations or an overall footer comment, the render still updates the backing `.ansi` but the visible buffer is not destructively replaced; the next clean refresh or reopen will show the new snapshot after the comment is shipped. Render/read failures warn and keep the existing snapshot visible, so refresh never replaces usable scrollback with a broken buffer. This deliberately reuses the existing floating viewer instead of stacking another `pair-scrollback-open` pane.
+`G` is a semi-live refresh affordance (#84): before jumping to EOF, the viewer consumes the exact raw, events, ANSI, and viewport bindings supplied by the opener, reruns `pair-scrollback-render`, reloads the same buffer in place, reapplies ANSI extmarks, relocks the read-only options, and then lands at the refreshed bottom. It never derives companion paths from the current buffer name. If the user has pending `Alt+q` annotations or an overall footer comment, the render still updates the backing ANSI file but the visible buffer is not destructively replaced; the next clean refresh or reopen will show the new snapshot after the comment is shipped. Render/read failures warn and keep the existing snapshot visible, so refresh never replaces usable scrollback with a broken buffer. This deliberately reuses the existing floating viewer instead of stacking another `pair-scrollback-open` pane.
 
 **Open (`cmd/pair-scrollback-open` / `cmd/internal/opener`, Go — #93 M2).** Resolves the selected `artifactpath.Paths`, renders **in-process** via `scrollbackcmd`, and launches the held Neovim viewer. Raw/ANSI/events/viewport and re-entrancy lock locations derive from that checked value; the viewer receives exact environment bindings. A live lock suppresses duplicate viewers and a stale PID is reclaimed.
 
@@ -857,11 +857,11 @@ one-liner.
   reload (or a `⚠ refresh failed` tip) when the distiller exits. Closing the
   viewer doesn't stop the build.
 - **Notify (build-complete flash)** — a slow build is trigger-and-leave (press
-  `Alt+l`, go back to the agent pane, return later), so the distiller drops a
+  `Alt+l`, go back to the agent pane, return later), so the distiller drops the
   exact `$PAIR_CHANGELOG_READY_PATH` marker on a **real-change**
-  completion (not a no-op press; keyed per session — see State below, #63). The
-  draft nvim (`nvim/init.lua`) re-resolves the session id each tick and polls for
-  the matching marker on a 2s timer — NOT
+  completion (not a no-op press). The ready path is stable for the tag/agent,
+  independent of the native session-keyed log. The draft nvim (`nvim/init.lua`)
+  polls that exact binding on a 2s timer — NOT
   fs_event (macOS FSEvents from nvim is unreliable: EMFILE/nil-filename; the
   scrollback-pending watcher only survives that via a FocusGained fallback this
   signal can't use, since its job is to fire while focus is elsewhere) — and on
@@ -869,29 +869,28 @@ one-liner.
   ready · Alt+l`) for ~2s via `pair_flash_notify`, then reverts to the cheatsheet,
   consuming the marker (one-shot). The draft statusline is always on screen, so the
   flash lands while the operator works in the agent pane (#58).
-- **State** (`$PAIR_DATA_DIR`, per `(tag, agent, session)` — the base is
-  `changelog-<tag>-<agent>-<session_id>`, keyed on the persisted agent session id
-  so a fresh session (Alt+Shift+N) starts an **empty** log and a resume (Alt+n)
-  reopens the **same growing** one; a different id is a different file, which *is*
-  the reset — and each session's own `.anchor` removes the cross-session
-  `FullRedistill` pile-up, #63). The id is resolved the same way by both builders
-  (the opener `bin/pair-changelog-open` and the draft-nvim `.ready` watcher):
-  the exported `PAIR_SESSION_ID` (set by the launcher at launch for claude-fresh /
-  any resume) → the per-tag `config-<tag>-<agent>.json` `session_id` (the
-  `pair session-watch` Codex/Agy/Muse async path) → the **legacy unsuffixed base**
-  when no id is known (backward compat). Files off `<base>`: `.md` (the log,
-  plain markdown; `## YYYY-MM-DD` day headers from real change-time when the
+- **State** — `artifactpath.Paths.ChangelogArtifacts` constructs the complete
+  path set once. The markdown log and its build companions are keyed per
+  `(tag, agent, native session)` so a fresh session (Alt+Shift+N) starts an
+  **empty** log and a resume (Alt+n) reopens the **same growing** one; a
+  different id is a different log, which *is* the reset — and each session's
+  own anchor removes the cross-session `FullRedistill` pile-up (#63). The opener
+  resolves the native id from exported `PAIR_SESSION_ID`, then the per-tag
+  config written by `pair session-watch`, then the legacy unsuffixed fallback.
+  It passes every resulting path explicitly to the detached builder and viewer;
+  Neovim does not repeat that resolution. The set contains the markdown log
+  (plain markdown; `## YYYY-MM-DD` day headers from real change-time when the
   session has `time` events, header-free bullets otherwise — #59), `.anchor` (`turns:<N>` header + content
-  snippet), `.cleaned` (transient rendered TTY), `.status` (distiller batch
-  progress), `.ready` (build-complete marker the draft statusline polls),
-  `.openlock` (viewer), `.distill.lock` (distiller PID). (Old per-tag logs are
-  orphaned on the first post-#63 resume — harmless; reaping them is a follow-up.)
+  snippet), cleaned transcript, status, viewer lock, and distiller lock. The
+  stable exact `$PAIR_CHANGELOG_READY_PATH` is the separate build-complete
+  marker polled by the draft statusline. Old per-tag logs are orphaned on the
+  first post-#63 resume — harmless; reaping them is a follow-up.
 
 Tests: pure core + a process-level fake-model integration test in
 `cmd/pair-changelog`; a headless viewer test (`nvim/changelog_test.lua`) and a
 headless statusline-flash test (`tests/changelog-notify-test.sh`, `make
-test-statusline`, which also covers the watcher's per-session keying — legacy /
-`PAIR_SESSION_ID` / config-resolved, #63); an end-to-end orchestrator smoke
+test-statusline`, which covers the watcher's stable exact ready binding); an
+end-to-end orchestrator smoke
 (`tests/changelog-open-test.sh`) plus a focused per-session keying test
 (`tests/changelog-session-key-test.sh`), both under `make test-changelog`.
 

@@ -1180,3 +1180,19 @@ Disposition verification passes the full `make test` suite (including uncached
 `make test-live`, live Ariadne policy conformance, terminal and Zellij park
 smokes, real start recovery, runtime-bundle determinism, both Zellij layouts,
 issue validation, and `git diff --check`.
+
+### 2026-08-26 — M5 boundary review round 3
+
+The reviewer accepted the strict session-index reader and withdrew BR-35 after
+confirming that verified capacity release belongs to #152. BR-32 remained
+because the source guard omitted top-level `cmd/*` packages and trusted an
+external source's `Constructor` label; BR-34 remained because two atlas
+passages still documented sibling derivation and session-keyed ready lookup.
+
+The guard now scans all production command packages and separately confines
+constructor classification to `cmd/internal/artifactpath`. Temp-repository
+mutations prove both `cmd/pair-go` and an already-scanned internal package fail
+when they introduce a constructor, including the attempted self-classification
+escape. The complete scrollback/changelog atlas class now describes exact
+bindings and distinguishes session-keyed changelog data from the stable ready
+marker (ARCH-DRY, ARCH-PURPOSE).
