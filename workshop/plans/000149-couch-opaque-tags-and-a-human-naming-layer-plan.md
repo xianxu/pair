@@ -1592,3 +1592,22 @@ The bootstrap patch application now distinguishes an empty clean-HEAD diff
 from a real patch before invoking `git apply`; the same committed
 `test-clean-bootstrap` command is the clean-HEAD regression (ARCH-PURPOSE,
 ARCH-MOCK).
+
+### 2026-08-27 — prove exclusive derivation and the M5 concept inventory
+
+**Reason:** the exhaustive source inventory and one positive binding per family
+proved that a file participated, but not that every construction in that file
+used the authority. A classified file could keep a legitimate family witness
+while adding a second split-literal constructor. The reswept Core concepts
+table likewise corrected prose without an executable row contract.
+
+**Delta:** resolved-consumer construction scanning now evaluates Go constant
+concatenation expressions, not only individual literals, and applies the
+family/vocabulary rule to every resulting constant independently of the
+file-level witness. The mutation combines a valid `ResolveScoped`/`Draft`
+return with an illicit `filepath.Join(root, "dra" + "ft-" + tag + ".md")`
+in the same file and must fail. The issue-149 plan contract enumerates every M5
+pure-declaration and integration row as an exact `{entity, kind/path, status}`
+record; table deletion or field mutation for each row must fail. Together these
+tests distinguish participation from exclusive derivation and make the
+whole-diff entity sweep executable (ARCH-DRY, ARCH-PURPOSE).

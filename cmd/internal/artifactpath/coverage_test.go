@@ -225,12 +225,12 @@ func artifactConstructorViolations(repoRoot string, roots []string, classificati
 				return nil
 			}
 			ast.Inspect(file, func(node ast.Node) bool {
-				literal, ok := node.(*ast.BasicLit)
-				if !ok || literal.Kind != token.STRING {
+				expr, ok := node.(ast.Expr)
+				if !ok {
 					return true
 				}
-				value, err := strconv.Unquote(literal.Value)
-				if err != nil {
+				value, ok := constantString(expr)
+				if !ok {
 					return true
 				}
 				for _, familyName := range classification.Families {
@@ -240,7 +240,7 @@ func artifactConstructorViolations(repoRoot string, roots []string, classificati
 					for _, family := range Families {
 						if family.Name == familyName && strings.Contains(value, family.Token) && !classificationAllowsVocabulary(classification, familyName, value) {
 							line := fileSet.Position(node.Pos()).Line
-							violations[fmt.Sprintf("%s:%d: resolved consumer contains %s literal %q", rel, line, familyName, value)] = true
+							violations[fmt.Sprintf("%s:%d: resolved consumer contains %s constant construction %q", rel, line, familyName, value)] = true
 						}
 					}
 				}
@@ -829,6 +829,15 @@ func TestResolvedConsumerRequiresFamilyCorrelatedBinding(t *testing.T) {
 			body: "package mutation\nimport \"github.com/xianxu/pair/cmd/internal/artifactpath\"\n" +
 				"type fake struct{}\nfunc (fake) Draft() string { return \"notes.md\" }\n" +
 				"func bad(root, tag string) string { paths, _ := artifactpath.ResolveScoped(root, tag); _ = paths; return func(paths fake) string { return paths.Draft() }(fake{}) }\n",
+			families:      []string{"draft"},
+			bindingNames:  []string{"scoped-draft"},
+			wantViolation: true,
+		},
+		{
+			name: "valid witness beside split-token constructor",
+			body: "package mutation\nimport (\"path/filepath\"; \"github.com/xianxu/pair/cmd/internal/artifactpath\")\n" +
+				"func good(root, tag string) string { paths, _ := artifactpath.ResolveScoped(root, tag); return paths.Draft() }\n" +
+				"func bad(root, tag string) string { return filepath.Join(root, \"dra\" + \"ft-\" + tag + \".md\") }\n",
 			families:      []string{"draft"},
 			bindingNames:  []string{"scoped-draft"},
 			wantViolation: true,

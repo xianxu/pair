@@ -1269,3 +1269,17 @@ cache authority, source/vocabulary/binding declarations, exhaustive source
 inventory, and standalone registration integration. Mutation tests and the
 committed clean-HEAD bootstrap pin all three review classes (ARCH-DRY,
 ARCH-PURE, ARCH-PURPOSE, ARCH-MOCK).
+
+### 2026-08-27 — M5 boundary review round 8
+
+BR-32's remaining mixed-source bypass is pinned directly: a resolved consumer
+with a valid `Draft` witness plus a second split-literal `filepath.Join`
+constructor must fail. Resolved-source scanning evaluates constant
+concatenations and checks each construction independently, so one legitimate
+witness cannot bless a second path.
+
+BR-37 now has an executable issue-149 plan contract covering every M5
+pure-declaration and integration row. Removing any row or changing its entity,
+kind/path, or status fails the mutation matrix. This turns the whole-diff
+concept sweep into repository evidence rather than review-only prose
+(ARCH-DRY, ARCH-PURPOSE, ARCH-MOCK).

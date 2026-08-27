@@ -683,3 +683,11 @@ witnesses follow the resolver object's lexical identity into a non-discarded
 family-member use. The clean-bootstrap oracle also handles the clean-HEAD
 empty-patch case, and the milestone entity table has been reswept across the
 whole M5 diff (ARCH-DRY, ARCH-PURPOSE, ARCH-MOCK).
+
+### 2026-08-27 — pair#149 M5 exclusive derivation and concept contract
+
+Constant concatenation is checked independently for every resolved consumer,
+so a valid family witness cannot hide a second constructor in the same source.
+The complete M5 Core concepts and integration inventory is now an executable
+exact-row contract with deletion and field-mutation coverage (ARCH-DRY,
+ARCH-PURPOSE).

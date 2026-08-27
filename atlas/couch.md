@@ -34,9 +34,11 @@ uses. Every production source is exhaustively inventoried as one of those
 classes or as a non-artifact source; new files have no implicit default, and Go
 constant concatenation cannot hide artifact vocabulary in the latter class.
 Witnesses track lexical resolver-result identity and require a non-discarded
-member use. Generated-runtime coverage builds a temporary mirror from declared
-source inputs. The clean-bootstrap regression starts without `.git` or that
-mirror and proves the public test target generates it before every consumer.
+member use; constant concatenations in resolved sources are checked separately,
+so one valid witness cannot authorize another construction in the same file.
+Generated-runtime coverage builds a temporary mirror from declared source
+inputs. The clean-bootstrap regression starts without `.git` or that mirror and
+proves the public test target generates it before every consumer.
 
 **The operation set is deliberately not listed here.** `couchcore.Operations()`
 is the closure-free capability schema: typed argument/result family, effect,

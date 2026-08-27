@@ -2242,8 +2242,11 @@ self-declared classification is not evidence that it consumed the authority.
 checked derivation witness from the owning resolver through the family-specific
 member, and make every production source explicitly participate or explicitly
 declare non-participation independent of token discovery. Track lexical value
-identity and reject discarded witnesses. Keep exact protocol/CLI vocabulary in
-a closed, counted allowance that cannot witness path authority. In plans, state
+identity and reject discarded witnesses; then scan each construction
+independently, because one valid witness proves participation but cannot bless
+a second path in the same file. Keep exact protocol/CLI vocabulary in a closed,
+counted allowance that cannot witness path authority. In plans, state
 verification recipes from their initial filesystem and environment state—such
-as no `.git` and no generated assets—so review can reject a proof that silently
-depends on developer residue (ARCH-DRY, ARCH-PURPOSE).
+as no `.git` and no generated assets—and make required architecture rows an
+executable inventory so review can reject proof that depends on developer
+residue or corrected-but-unpinned prose (ARCH-DRY, ARCH-PURPOSE).

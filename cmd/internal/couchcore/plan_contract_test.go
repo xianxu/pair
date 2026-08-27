@@ -8,6 +8,58 @@ import (
 	"testing"
 )
 
+var issue149M5ConceptRows = []string{
+	"| `MigrateLegacyRecord` | pure | `cmd/internal/couchcore/migration.go` | new in M5 |",
+	"| `artifactpath.Address` / `Paths` / `ScopePaths` / `Binding` | pure | `cmd/internal/artifactpath/paths.go` | new in M5 |",
+	"| `artifactpath.PairCachePaths` | pure | `cmd/internal/artifactpath/paths.go` | added in M5 boundary disposition |",
+	"| `artifactpath.ScrollbackArtifactSet` / `ParkedScrollbackArtifactSet` / `ChangelogArtifactSet` | pure | `cmd/internal/artifactpath/paths.go` | added in M5 boundary disposition |",
+	"| `artifactpath.Family` / `SourceKind` / `SourceClassification` / `NonArtifactSources` | pure declarations | `cmd/internal/artifactpath/manifest.go` | new in M5; exhaustive source inventory added in boundary disposition |",
+	"| `artifactpath.VocabularyContext` / `VocabularyAllowance` | pure declarations | `cmd/internal/artifactpath/manifest.go` | added in M5 boundary disposition |",
+	"| `artifactpath.ResolvedBinding` / `ResolvedBindings` | pure declarations | `cmd/internal/artifactpath/manifest.go` | added in M5 boundary disposition |",
+	"| `artifactpath.LegacyRootPaths` / `LegacyPaths` / `TagFromHistorySidecar` | pure | `cmd/internal/artifactpath/paths.go` | added in M5 boundary disposition |",
+	"| `DecodeSessionNameIndex` | pure | `cmd/internal/launcher/session_index.go` | added in M5 boundary disposition |",
+	"| `StandaloneThreadRegistration` / `StandaloneThreadRegistrar` | pure seam types | `cmd/internal/launcher/runtime.go` | new in M5 |",
+	"| `ThreadStore.MigrateLegacyRecords` | `cmd/internal/couchcore/migration.go` | new in M5 | one locked journal transaction over cutover records and manifest completion |",
+	"| `LaunchNativeWithStandaloneRegistrar` / `RegisterStandalonePair` | `cmd/internal/launcher/runcli.go`, `cmd/internal/couchcore/standalone.go`, `cmd/pair-go/main.go` | new in M5 | composition-root injection of direct Pair registration without reversing the launcher→Couch package boundary |",
+	"| `ThreadStore.UpsertStandalonePair` | `cmd/internal/couchcore/standalone.go` | new in M5 | locked/revisioned direct-Pair incarnation publication with metadata preservation |",
+	"| `OSRuntime.ReadSessionNameIndex` | `cmd/internal/launcher/osruntime.go` | modified in M5 and its boundary disposition | strict merge of legacy-global and selected-scope durable bindings; missing files mean empty, malformed/unreadable files fail closed |",
+	"| `readSessionNameIndexes` | `cmd/internal/launcher/session_index.go` | added in M5 boundary disposition | one injected-IO overlap reader used by runtime, address claim, and quiescence |",
+}
+
+func TestIssue149M5CoreConceptInventoryContract(t *testing.T) {
+	root := filepath.Join("..", "..", "..")
+	raw, err := os.ReadFile(findIssue149Plan(t, root))
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, problem := range issue149M5ConceptProblems(string(raw)) {
+		t.Error(problem)
+	}
+}
+
+func TestIssue149M5CoreConceptInventoryRejectsRowMutation(t *testing.T) {
+	complete := strings.Join(issue149M5ConceptRows, "\n")
+	for _, row := range issue149M5ConceptRows {
+		if problems := issue149M5ConceptProblems(strings.Replace(complete, row, "", 1)); len(problems) == 0 {
+			t.Fatalf("row deletion escaped contract: %s", row)
+		}
+		mutated := strings.Replace(row, " | ", " | wrong-", 1)
+		if problems := issue149M5ConceptProblems(strings.Replace(complete, row, mutated, 1)); len(problems) == 0 {
+			t.Fatalf("row field mutation escaped contract: %s", row)
+		}
+	}
+}
+
+func issue149M5ConceptProblems(plan string) []string {
+	var problems []string
+	for _, row := range issue149M5ConceptRows {
+		if strings.Count(plan, row) != 1 {
+			problems = append(problems, "M5 Core concepts row must appear exactly once: "+row)
+		}
+	}
+	return problems
+}
+
 func TestIssue149CurrentCoreConceptKinds(t *testing.T) {
 	root := filepath.Join("..", "..", "..")
 	path := findIssue149Plan(t, root)
