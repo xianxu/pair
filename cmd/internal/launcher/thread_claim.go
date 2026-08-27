@@ -1,14 +1,12 @@
 package launcher
 
 import (
-	"bufio"
 	"encoding/json"
 	"errors"
 	"fmt"
 	"io/fs"
 	"os"
 	"path/filepath"
-	"strings"
 )
 
 var ErrThreadAddressClaimed = errors.New("Pair thread address already claimed")
@@ -72,7 +70,7 @@ func ClaimNewThreadAddress(globalDataDir string, scope RepoScope, tag string) (*
 			return rollback(ErrThreadAddressClaimed)
 		}
 	}
-	collision, err := strictSessionBindingCollision(paths.resolved().SessionBindings(), scope.Key, tag)
+	collision, err := strictSessionBindingCollision(globalDataDir, paths.ScopeDir(), scope.Key, tag)
 	if err != nil {
 		return rollback(err)
 	}
@@ -243,30 +241,9 @@ func QuiesceThreadSession(globalDataDir, scopeKey, tag string, deleter SessionDe
 	if err := paths.Validate(); err != nil {
 		return err
 	}
-	path := paths.resolved().SessionBindings()
-	f, err := os.Open(path)
-	if errors.Is(err, fs.ErrNotExist) {
-		return nil
-	}
+	index, err := readSessionNameIndexes(globalDataDir, paths.ScopeDir(), readTextFile)
 	if err != nil {
-		return fmt.Errorf("read Pair session-name index: %w", err)
-	}
-	defer f.Close()
-	var index SessionNameIndex
-	scanner := bufio.NewScanner(f)
-	for scanner.Scan() {
-		line := strings.TrimSpace(scanner.Text())
-		if line == "" {
-			continue
-		}
-		var entry SessionNameEntry
-		if err := json.Unmarshal([]byte(line), &entry); err != nil {
-			return fmt.Errorf("malformed Pair session-name index: %w", err)
-		}
-		index.Entries = append(index.Entries, entry)
-	}
-	if err := scanner.Err(); err != nil {
-		return fmt.Errorf("read Pair session-name index: %w", err)
+		return err
 	}
 	entry, ok := index.latestFor(scopeKey, tag)
 	if !ok {
@@ -282,31 +259,16 @@ func QuiesceThreadSession(globalDataDir, scopeKey, tag string, deleter SessionDe
 	return nil
 }
 
-func strictSessionBindingCollision(path, scopeKey, tag string) (bool, error) {
-	f, err := os.Open(path)
-	if errors.Is(err, fs.ErrNotExist) {
-		return false, nil
-	}
+func strictSessionBindingCollision(globalDataDir, selectedScopeDir, scopeKey, tag string) (bool, error) {
+	index, err := readSessionNameIndexes(globalDataDir, selectedScopeDir, readTextFile)
 	if err != nil {
-		return false, fmt.Errorf("read Pair session-name index: %w", err)
+		return false, err
 	}
-	defer f.Close()
-	scanner := bufio.NewScanner(f)
-	for scanner.Scan() {
-		line := strings.TrimSpace(scanner.Text())
-		if line == "" {
-			continue
-		}
-		var entry SessionNameEntry
-		if err := json.Unmarshal([]byte(line), &entry); err != nil {
-			return false, fmt.Errorf("malformed Pair session-name index: %w", err)
-		}
-		if entry.ScopeKey == scopeKey && entry.Tag == tag {
-			return true, nil
-		}
-	}
-	if err := scanner.Err(); err != nil {
-		return false, fmt.Errorf("read Pair session-name index: %w", err)
-	}
-	return false, nil
+	_, ok := index.latestFor(scopeKey, tag)
+	return ok, nil
+}
+
+func readTextFile(path string) (string, error) {
+	raw, err := os.ReadFile(path)
+	return string(raw), err
 }

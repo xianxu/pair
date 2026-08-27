@@ -50,6 +50,30 @@ type Binding struct {
 	Path string
 }
 
+type ScrollbackArtifactSet struct {
+	Raw      string
+	Events   string
+	ANSI     string
+	Viewport string
+	OpenLock string
+}
+
+type ChangelogArtifactSet struct {
+	Log         string
+	Anchor      string
+	Cleaned     string
+	OpenLock    string
+	DistillLock string
+	Status      string
+	Ready       string
+}
+
+type ParkedScrollbackArtifactSet struct {
+	Base   string
+	Raw    string
+	Events string
+}
+
 func ResolveLegacyRoot(dataDir string) (LegacyRootPaths, error) {
 	if !filepath.IsAbs(dataDir) {
 		return LegacyRootPaths{}, fmt.Errorf("pair data directory must be absolute")
@@ -309,6 +333,7 @@ func (p Paths) EnvironmentBindings(agent string) ([]Binding, error) {
 		{Name: "PAIR_SCROLLBACK_VIEWPORT_PATH", Path: p.ScrollbackViewport(agent)},
 		{Name: "PAIR_SCROLLBACK_PENDING_PATH", Path: p.ScrollbackPending()},
 		{Name: "PAIR_CHANGELOG_PATH", Path: p.Changelog(agent)},
+		{Name: "PAIR_CHANGELOG_READY_PATH", Path: p.ChangelogReady(agent)},
 		{Name: "PAIR_DRAFT_PANE_PATH", Path: p.DraftPane()},
 		{Name: "PAIR_LAYOUT_MODE_PATH", Path: p.LayoutMode()},
 		{Name: "PAIR_WORKBENCH_LAYOUT_PATH", Path: p.WorkbenchLayout()},
@@ -361,6 +386,14 @@ func (p Paths) ParkedScrollbackChecked(timestamp string) (string, error) {
 	return p.taggedComponent("parked-scrollback-", timestamp, "")
 }
 
+func (p Paths) ParkedScrollbackArtifacts(timestamp string) (ParkedScrollbackArtifactSet, error) {
+	base, err := p.ParkedScrollbackChecked(timestamp)
+	if err != nil {
+		return ParkedScrollbackArtifactSet{}, err
+	}
+	return ParkedScrollbackArtifactSet{Base: base, Raw: base + ".raw", Events: base + ".events.jsonl"}, nil
+}
+
 func (p Paths) Scrollback(agent, suffix string) string {
 	return mustPath(p.ScrollbackChecked(agent, suffix))
 }
@@ -385,6 +418,19 @@ func (p Paths) ScrollbackEvents(agent string) string {
 }
 func (p Paths) ScrollbackViewport(agent string) string { return p.Scrollback(agent, "viewport") }
 
+func (p Paths) ScrollbackArtifacts(agent string) (ScrollbackArtifactSet, error) {
+	if err := validateComponent("artifact component", agent); err != nil {
+		return ScrollbackArtifactSet{}, err
+	}
+	return ScrollbackArtifactSet{
+		Raw:      p.tagged("scrollback-", "-"+agent+".raw"),
+		Events:   p.tagged("scrollback-", "-"+agent+".events.jsonl"),
+		ANSI:     p.tagged("scrollback-", "-"+agent+".ansi"),
+		Viewport: p.tagged("scrollback-", "-"+agent+".viewport"),
+		OpenLock: p.tagged("scrollback-", "-"+agent+".openlock"),
+	}, nil
+}
+
 func (p Paths) Changelog(agent string) string {
 	return p.ChangelogSession(agent, "") + ".md"
 }
@@ -405,6 +451,29 @@ func (p Paths) ChangelogSessionChecked(agent, sessionID string) (string, error) 
 		suffix += "-" + sessionID
 	}
 	return p.tagged("changelog-", suffix), nil
+}
+
+func (p Paths) ChangelogReady(agent string) string {
+	if err := validateComponent("artifact component", agent); err != nil {
+		panic(err)
+	}
+	return p.tagged("changelog-", "-"+agent+".ready")
+}
+
+func (p Paths) ChangelogArtifacts(agent, sessionID string) (ChangelogArtifactSet, error) {
+	base, err := p.ChangelogSessionChecked(agent, sessionID)
+	if err != nil {
+		return ChangelogArtifactSet{}, err
+	}
+	return ChangelogArtifactSet{
+		Log:         base + ".md",
+		Anchor:      base + ".anchor",
+		Cleaned:     base + ".cleaned",
+		OpenLock:    base + ".openlock",
+		DistillLock: base + ".distill.lock",
+		Status:      base + ".status",
+		Ready:       p.ChangelogReady(agent),
+	}, nil
 }
 
 func (p Paths) AgentDraft(agent string) string {

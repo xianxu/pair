@@ -3,6 +3,7 @@ package launcher
 import (
 	"errors"
 	"os"
+	"path/filepath"
 	"sync"
 	"testing"
 )
@@ -141,6 +142,24 @@ func TestClaimNewThreadAddressFailsClosedOnMalformedSessionIndex(t *testing.T) {
 	}
 }
 
+func TestClaimNewThreadAddressRejectsLegacyGlobalBinding(t *testing.T) {
+	global := t.TempDir()
+	scope := RepoScope{Key: "0123456789abcdef", Root: "/repo", DisplayName: "repo"}
+	tag := "couch-0001020304050607"
+	entry := SessionNameEntry{SessionName: "📁repo-work", ScopeKey: scope.Key, RepoRoot: scope.Root, RepoName: scope.DisplayName, Tag: tag}
+	line, err := BuildSessionNameIndexLine(entry)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(global, "session-names.jsonl"), []byte(line+"\n"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	claim, err := ClaimNewThreadAddress(global, scope, tag)
+	if !errors.Is(err, ErrThreadAddressClaimed) || claim != nil {
+		t.Fatalf("legacy global binding claim = %T, %v", claim, err)
+	}
+}
+
 type recordingSessionDeleter struct {
 	deleted []string
 	err     error
@@ -167,7 +186,7 @@ func TestQuiesceThreadSessionDeletesOnlyExactIndexedPairSession(t *testing.T) {
 		t.Fatalf("malformed index quiescence = %v, deleted=%v", err, deleter.deleted)
 	}
 
-	entry := SessionNameEntry{SessionName: "📁pair-couch", ScopeKey: "0123456789abcdef", Tag: "couch-0001020304050607"}
+	entry := SessionNameEntry{SessionName: "📁pair-couch", ScopeKey: "0123456789abcdef", RepoRoot: "/repo", RepoName: "repo", Tag: "couch-0001020304050607"}
 	line, err := BuildSessionNameIndexLine(entry)
 	if err != nil {
 		t.Fatal(err)
@@ -180,5 +199,26 @@ func TestQuiesceThreadSessionDeletesOnlyExactIndexedPairSession(t *testing.T) {
 	}
 	if len(deleter.deleted) != 1 || deleter.deleted[0] != entry.SessionName {
 		t.Fatalf("deleted sessions = %v", deleter.deleted)
+	}
+}
+
+func TestQuiesceThreadSessionUsesLegacyGlobalBinding(t *testing.T) {
+	global := t.TempDir()
+	entry := SessionNameEntry{
+		SessionName: "📁repo-work", ScopeKey: "0123456789abcdef", RepoRoot: "/repo", RepoName: "repo", Tag: "work",
+	}
+	line, err := BuildSessionNameIndexLine(entry)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(global, "session-names.jsonl"), []byte(line+"\n"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	deleter := &recordingSessionDeleter{}
+	if err := QuiesceThreadSession(global, entry.ScopeKey, entry.Tag, deleter); err != nil {
+		t.Fatal(err)
+	}
+	if len(deleter.deleted) != 1 || deleter.deleted[0] != entry.SessionName {
+		t.Fatalf("deleted = %v", deleter.deleted)
 	}
 }

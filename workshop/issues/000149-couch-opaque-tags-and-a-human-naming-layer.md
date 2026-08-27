@@ -1155,3 +1155,28 @@ The disposition rerun passed the full `make test` suite, uncached
 `make test-live`, live Ariadne policy conformance, terminal and Zellij park
 smokes, real start recovery, deterministic runtime generation, both layout
 parsers, issue validation, and `git diff --check`.
+
+### 2026-08-26 — M5 boundary review round 2
+
+The reviewer confirmed the pure migration and initial scoped-path work but
+found BR-31/BR-32/BR-34 were still instance fixes. One strict overlap reader
+now serves ordinary launch, claim, and quiescence and rejects structurally
+incomplete rows. `artifactpath` now returns complete scrollback,
+parked-scrollback, and changelog companion sets; opener, wrapper, renderer,
+cleanup, parking, and Neovim consume exact members. A repository-wide negative
+scan forbids any production source outside `artifactpath` from appending the
+controlled companion suffixes, and the atlas no longer presents global tag
+formulas as current authority (ARCH-DRY, ARCH-PURPOSE).
+
+BR-35 was evaluated against the approved issue split and is out of scope:
+#152—not #149—owns stateful proof that every zellij server/pane in an
+incarnation is quiescent before capacity release. Direct Pair detach, client
+death, and best-effort deletion remain conservatively occupied; treating those
+signals as terminal here would recreate the unsafe capacity-release behavior
+the M1/M2 revisions explicitly removed (ARCH-PURPOSE, ARCH-MOCK).
+
+Disposition verification passes the full `make test` suite (including uncached
+`go test ./...`), focused race tests for artifactpath/launcher/Couch/opener,
+`make test-live`, live Ariadne policy conformance, terminal and Zellij park
+smokes, real start recovery, runtime-bundle determinism, both Zellij layouts,
+issue validation, and `git diff --check`.

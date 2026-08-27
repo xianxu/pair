@@ -75,8 +75,8 @@
     {
       "Path": "nvim/init.lua",
       "Mode": 420,
-      "Size": 185625,
-      "Digest": "sha256:711e44cecbfe0f31bacdeb9d22a853b23c4fb21fe95f994034edb9ebcb9669e1"
+      "Size": 184456,
+      "Digest": "sha256:3a7c23721f3b1bcb6053642e383ac50b946cbcca8b1dda85091a65d121a72b08"
     },
     {
       "Path": "nvim/marker_codec.lua",
@@ -219,8 +219,8 @@
     {
       "Path": "nvim/scrollback.lua",
       "Mode": 420,
-      "Size": 25164,
-      "Digest": "sha256:da774efd9b149bbcc52942599720d31121816cc08fbd1c805fd9523252d0b662"
+      "Size": 25361,
+      "Digest": "sha256:2d3aa79fa61a52e90ab6d0cb536426c578f897907599cdb75cedea6171779ad6"
     },
     {
       "Path": "nvim/slug.lua",

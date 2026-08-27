@@ -59,8 +59,8 @@ func (f *fakeRuntime) FileSize(p string) (int64, bool) {
 }
 func (f *fakeRuntime) Touch(p string) error     { f.touched = append(f.touched, p); return nil }
 func (f *fakeRuntime) Executable(p string) bool { return f.executable[p] }
-func (f *fakeRuntime) RenderScrollback(raw, events, ansi string) error {
-	f.rendered = append(f.rendered, raw+"|"+events+"|"+ansi)
+func (f *fakeRuntime) RenderScrollback(raw, events, ansi, viewport string) error {
+	f.rendered = append(f.rendered, raw+"|"+events+"|"+ansi+"|"+viewport)
 	return f.renderErr
 }
 func (f *fakeRuntime) AgentPaneID() string { return f.agentPaneID }
@@ -97,7 +97,7 @@ func TestRunScrollbackRendersAndOpensViewer(t *testing.T) {
 	if code != 0 {
 		t.Fatalf("code = %d, want 0", code)
 	}
-	if want := "/dd/scrollback-t-claude.raw|/dd/scrollback-t-claude.events.jsonl|/dd/scrollback-t-claude.ansi"; len(rt.rendered) != 1 || rt.rendered[0] != want {
+	if want := "/dd/scrollback-t-claude.raw|/dd/scrollback-t-claude.events.jsonl|/dd/scrollback-t-claude.ansi|/dd/scrollback-t-claude.viewport"; len(rt.rendered) != 1 || rt.rendered[0] != want {
 		t.Fatalf("rendered = %v", rt.rendered)
 	}
 	if rt.wrote["/dd/scrollback-t-claude.viewport"] != "11\n" {
@@ -108,6 +108,16 @@ func TestRunScrollbackRendersAndOpensViewer(t *testing.T) {
 	}
 	if !hasEnv(rt.viewer.env, "PAIR_NVIM_PID_FILE=/dd/nvim-pid-t-scrollback") {
 		t.Fatalf("viewer env missing pid file: %v", rt.viewer.env)
+	}
+	for _, want := range []string{
+		"PAIR_SCROLLBACK_RAW_PATH=/dd/scrollback-t-claude.raw",
+		"PAIR_SCROLLBACK_EVENTS_PATH=/dd/scrollback-t-claude.events.jsonl",
+		"PAIR_SCROLLBACK_ANSI_PATH=/dd/scrollback-t-claude.ansi",
+		"PAIR_SCROLLBACK_VIEWPORT_PATH=/dd/scrollback-t-claude.viewport",
+	} {
+		if !hasEnv(rt.viewer.env, want) {
+			t.Fatalf("viewer env missing exact binding %q: %v", want, rt.viewer.env)
+		}
 	}
 	// Lock written (our pid) then cleared on return.
 	if rt.wrote["/dd/scrollback-t-claude.openlock"] != "100\n" {
@@ -173,7 +183,7 @@ func TestRunChangelogLaunchesDetachedDistillerAndViewer(t *testing.T) {
 	if rt.wrote[base+".distill.lock"] != "999\n" {
 		t.Fatalf("dlock = %q, want distiller pid", rt.wrote[base+".distill.lock"])
 	}
-	if !hasEnv(rt.detachedEnv, "PCL_LOG="+base+".md") || !hasEnv(rt.detachedEnv, "PCL_BIN=/h/bin/pair") {
+	if !hasEnv(rt.detachedEnv, "PCL_LOG="+base+".md") || !hasEnv(rt.detachedEnv, "PCL_READY=/dd/changelog-t-claude.ready") || !hasEnv(rt.detachedEnv, "PCL_BIN=/h/bin/pair") {
 		t.Fatalf("distiller env wrong: %v", rt.detachedEnv)
 	}
 	if rt.viewer == nil || rt.viewer.lua != "/h/nvim/changelog.lua" || rt.viewer.file != base+".md" {

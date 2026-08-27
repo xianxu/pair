@@ -61,7 +61,7 @@ func (d *fakeSessionDeleter) DeleteSession(name string) error {
 func TestScopedArtifactCheckerQuiescesExactIndexedSession(t *testing.T) {
 	global := t.TempDir()
 	address := ThreadAddress{RepoScope: "0123456789abcdef", Tag: "couch-0001020304050607"}
-	entry := launcher.SessionNameEntry{SessionName: "📁pair-couch", ScopeKey: address.RepoScope, Tag: string(address.Tag)}
+	entry := launcher.SessionNameEntry{SessionName: "📁pair-couch", ScopeKey: address.RepoScope, RepoRoot: "/repo", RepoName: "repo", Tag: string(address.Tag)}
 	paths := launcher.NewScopedPaths(global, launcher.RepoScope{Key: address.RepoScope}, string(address.Tag))
 	if err := os.MkdirAll(paths.ScopeDir(), 0o700); err != nil {
 		t.Fatal(err)
@@ -134,7 +134,7 @@ func TestScopedArtifactCollisionCheckerFindsDetachedSessionBinding(t *testing.T)
 		t.Fatal(err)
 	}
 	line, err := launcher.BuildSessionNameIndexLine(launcher.SessionNameEntry{
-		SessionName: "session", ScopeKey: address.RepoScope, Tag: string(address.Tag),
+		SessionName: "📁repo-work", ScopeKey: address.RepoScope, RepoRoot: "/repo", RepoName: "repo", Tag: string(address.Tag),
 	})
 	if err != nil {
 		t.Fatal(err)

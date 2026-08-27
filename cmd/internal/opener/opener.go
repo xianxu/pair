@@ -135,11 +135,11 @@ func changelogBase(dataDir, tag, agent, sid string) string {
 // distillerInner is the detached build pipeline: render the cleaned scrollback,
 // then distill it into the change log + anchor. It references PCL_* env (set by
 // distillerEnv) so the paths need no shell quoting — mirrors the shell exactly.
-const distillerInner = `"$PCL_BIN" scrollback render --plain --max-lines 0 --with-timestamps "$PCL_RAW" "$PCL_EVENTS" "$PCL_CLEANED" && "$PCL_BIN" changelog render --cleaned "$PCL_CLEANED" --log "$PCL_LOG" --anchor "$PCL_ANCHOR" --agent "$PCL_AGENT"`
+const distillerInner = `"$PCL_BIN" scrollback render --plain --max-lines 0 --with-timestamps "$PCL_RAW" "$PCL_EVENTS" "$PCL_CLEANED" && "$PCL_BIN" changelog render --cleaned "$PCL_CLEANED" --log "$PCL_LOG" --anchor "$PCL_ANCHOR" --ready "$PCL_READY" --agent "$PCL_AGENT"`
 
 // distillerEnv builds the PCL_* KEY=VALUE environment the detached distiller
 // reads (paths passed via env, never interpolated into the sh -c string).
-func distillerEnv(binPath, raw, events, cleaned, log, anchor, agent string) []string {
+func distillerEnv(binPath, raw, events, cleaned, log, anchor, ready, agent string) []string {
 	return []string{
 		"PCL_BIN=" + binPath,
 		"PCL_RAW=" + raw,
@@ -147,6 +147,7 @@ func distillerEnv(binPath, raw, events, cleaned, log, anchor, agent string) []st
 		"PCL_CLEANED=" + cleaned,
 		"PCL_LOG=" + log,
 		"PCL_ANCHOR=" + anchor,
+		"PCL_READY=" + ready,
 		"PCL_AGENT=" + agent,
 	}
 }

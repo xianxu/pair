@@ -28,8 +28,8 @@ func (OSRuntime) ProcessAlive(pid string) bool { return procutil.Alive(pid) }
 // RenderScrollback runs `pair scrollback-render` in-process (scrollbackcmd.Run,
 // #92) rather than shelling out — the render is synchronous, so no subprocess is
 // needed (ARCH-DRY; drops the shell's `$PAIR_HOME/bin/pair` dependency here).
-func (OSRuntime) RenderScrollback(raw, events, ansi string) error {
-	if code := scrollbackcmd.Run([]string{raw, events, ansi}, io.Discard, io.Discard); code != 0 {
+func (OSRuntime) RenderScrollback(raw, events, ansi, viewport string) error {
+	if code := scrollbackcmd.Run([]string{"--viewport", viewport, raw, events, ansi}, io.Discard, io.Discard); code != 0 {
 		return &renderError{code: code}
 	}
 	return nil

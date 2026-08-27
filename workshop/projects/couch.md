@@ -623,3 +623,12 @@ cancelled selection nor a failed start changes the remembered preference.
 [pair#149 M3]: #pair-149-m3
 [pair#149 M4]: #pair-149-m4
 [pair#149 M5]: #pair-149-m5
+
+### 2026-08-26 — pair#149 M5 second boundary disposition
+
+The composite artifact sweep now covers complete companion sets and every
+production source shape, while the session-binding relocation has one strict
+legacy-plus-scoped reader across launch, claim, and quiescence. Verified
+whole-incarnation capacity release remains deliberately in pair#152; #149 does
+not reinterpret client exit or detach as session quiescence (ARCH-PURPOSE,
+ARCH-MOCK).

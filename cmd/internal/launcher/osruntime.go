@@ -599,34 +599,7 @@ func (r OSRuntime) AppendLedger(tag string, entry LedgerEntry) error {
 }
 
 func (r OSRuntime) ReadSessionNameIndex() (SessionNameIndex, error) {
-	scope, err := artifactpath.ResolveSelectedScope(r.DataDir)
-	if err != nil {
-		return SessionNameIndex{}, err
-	}
-	legacyRoot, err := artifactpath.ResolveLegacyRoot(r.globalDataDir())
-	if err != nil {
-		return SessionNameIndex{}, err
-	}
-	paths := []string{legacyRoot.SessionBindings()}
-	if scoped := scope.SessionBindings(); scoped != paths[0] {
-		paths = append(paths, scoped)
-	}
-	var merged SessionNameIndex
-	for _, path := range paths {
-		raw, err := r.ReadFile(path)
-		if os.IsNotExist(err) {
-			continue
-		}
-		if err != nil {
-			return SessionNameIndex{}, fmt.Errorf("read session-name index %s: %w", path, err)
-		}
-		index, err := DecodeSessionNameIndex(raw)
-		if err != nil {
-			return SessionNameIndex{}, fmt.Errorf("decode session-name index %s: %w", path, err)
-		}
-		merged.Entries = append(merged.Entries, index.Entries...)
-	}
-	return merged, nil
+	return readSessionNameIndexes(r.globalDataDir(), r.DataDir, r.ReadFile)
 }
 
 func (r OSRuntime) AppendSessionNameIndex(entry SessionNameEntry) error {
@@ -872,26 +845,25 @@ func (r OSRuntime) ParkScrollback(tag, agent string, move bool) (string, bool) {
 	if err != nil {
 		return "", false
 	}
-	rawPath, err := paths.ScrollbackChecked(agent, "raw")
+	scrollback, err := paths.ScrollbackArtifacts(agent)
 	if err != nil {
 		return "", false
 	}
-	base := strings.TrimSuffix(rawPath, ".raw")
-	if size, ok := r.FileSize(base + ".raw"); !ok || size == 0 {
+	if size, ok := r.FileSize(scrollback.Raw); !ok || size == 0 {
 		return "", false
 	}
-	pbase, err := paths.ParkedScrollbackChecked(time.Now().Format("20060102T150405"))
+	parked, err := paths.ParkedScrollbackArtifacts(time.Now().Format("20060102T150405"))
 	if err != nil {
 		return "", false
 	}
-	if !transferFile(base+".raw", pbase+".raw", move) {
+	if !transferFile(scrollback.Raw, parked.Raw, move) {
 		return "", false
 	}
-	if _, ok := r.FileSize(base + ".events.jsonl"); ok {
-		transferFile(base+".events.jsonl", pbase+".events.jsonl", move)
+	if _, ok := r.FileSize(scrollback.Events); ok {
+		transferFile(scrollback.Events, parked.Events, move)
 	}
 	_ = r.Touch(paths.Parked())
-	return pbase, true
+	return parked.Base, true
 }
 
 // transferFile moves (rename, with a cross-device copy+remove fallback) or copies

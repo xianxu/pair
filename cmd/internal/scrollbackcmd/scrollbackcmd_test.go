@@ -25,6 +25,7 @@ func TestRunWritesOutput(t *testing.T) {
 	rawPath := filepath.Join(dir, "in.raw")
 	evPath := filepath.Join(dir, "in.events.jsonl")
 	outPath := filepath.Join(dir, "out.ansi")
+	viewportPath := filepath.Join(dir, "out.viewport")
 	if err := os.WriteFile(rawPath, []byte("hello\r\n"), 0o644); err != nil {
 		t.Fatal(err)
 	}
@@ -34,7 +35,7 @@ func TestRunWritesOutput(t *testing.T) {
 	}
 
 	var stderr bytes.Buffer
-	code := Run([]string{rawPath, evPath, outPath}, io.Discard, &stderr)
+	code := Run([]string{"--viewport", viewportPath, rawPath, evPath, outPath}, io.Discard, &stderr)
 	if code != 0 {
 		t.Fatalf("code = %d, want 0; stderr:\n%s", code, stderr.String())
 	}

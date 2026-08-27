@@ -516,6 +516,35 @@ rounds:
           round: 21
       boundary: M5
       blocked: true
+    - "n": 22
+      timestamp: "2026-08-26T20:40:37-07:00"
+      agent: codex
+      dispose:
+        - id: BR-31
+          disposition: not-addressed
+          note: OSRuntime now merges legacy-global and scoped indexes, but ClaimNewThreadAddress and QuiesceThreadSession still read only the scoped index; their tests seed only that location. DecodeSessionNameIndex also validates JSON syntax but not required binding fields.
+          round: 22
+        - id: BR-32
+          disposition: not-addressed
+          note: 'The named extensionless and image-done sites are pinned, but the constructor class remains open: opener derives scrollback events and changelog companions from other paths, while Neovim derives the changelog ready marker. The coverage guard cannot see these suffix derivations.'
+          round: 22
+        - id: BR-33
+          disposition: addressed
+          note: The complete M5 Core concepts inventory now names existing entities at their actual files, and the pure entities have direct IO-free tests.
+          round: 22
+        - id: BR-34
+          disposition: not-addressed
+          note: The originally cited rows changed, but atlas/architecture.md still presents tag-derived PAIR_DATA_DIR/XDG formulas and calls the retired hardcoded file-family enumeration canonical.
+          round: 22
+      findings:
+        - id: BR-35
+          severity: Critical
+          title: Standalone Pair incarnations have no terminal transition and occupy capacity forever
+          detail: This is the 3rd finding in family incarnation-quiescence-before-capacity-release. RegisterStandalonePair records the short-lived launcher as live, UpsertStandalonePair accumulates later launchers, and neither detach nor full-quit cleanup marks or removes the incarnation; admission intentionally counts every stored incarnation. State the class rule across create, attach, detach, restart, full quit, and external death, then test the production lifecycle through a stateful session fake so capacity is released only after whole-incarnation quiescence.
+          family: incarnation-quiescence-before-capacity-release
+          round: 22
+      boundary: M5
+      blocked: true
 ---
 
 # Gate ledger — pair#149 (boundary-review)
@@ -761,10 +790,24 @@ later rounds disposed of them. Generated — edit the gate, not this file.
 - **BR-34** [Important] `user-facing-policy-docs` Atlas documentation still publishes the retired global artifact layout
   This is the 3rd finding in family user-facing-policy-docs. atlas/architecture.md and the pair-notify row in atlas/go-migration-inventory.md still instruct readers to use global data-dir plus tag formulas. Sweep the documentation class for old artifact formulas and describe exact scoped bindings consistently.
 
+## Round 22 — 2026-08-26T20:40:37-07:00 (codex) — BLOCKED
+
+### Disposed
+
+- BR-31 — not-addressed — OSRuntime now merges legacy-global and scoped indexes, but ClaimNewThreadAddress and QuiesceThreadSession still read only the scoped index; their tests seed only that location. DecodeSessionNameIndex also validates JSON syntax but not required binding fields.
+- BR-32 — not-addressed — The named extensionless and image-done sites are pinned, but the constructor class remains open: opener derives scrollback events and changelog companions from other paths, while Neovim derives the changelog ready marker. The coverage guard cannot see these suffix derivations.
+- BR-33 — addressed — The complete M5 Core concepts inventory now names existing entities at their actual files, and the pure entities have direct IO-free tests.
+- BR-34 — not-addressed — The originally cited rows changed, but atlas/architecture.md still presents tag-derived PAIR_DATA_DIR/XDG formulas and calls the retired hardcoded file-family enumeration canonical.
+
+### Raised
+
+- **BR-35** [Critical] `incarnation-quiescence-before-capacity-release` Standalone Pair incarnations have no terminal transition and occupy capacity forever
+  This is the 3rd finding in family incarnation-quiescence-before-capacity-release. RegisterStandalonePair records the short-lived launcher as live, UpsertStandalonePair accumulates later launchers, and neither detach nor full-quit cleanup marks or removes the incarnation; admission intentionally counts every stored incarnation. State the class rule across create, attach, detach, restart, full quit, and external death, then test the production lifecycle through a stateful session fake so capacity is released only after whole-incarnation quiescence.
+
 ## Open findings
 
 - **BR-30** [Important] `child-policy-environment-isolation` Inherited repository-default policy can reject a valid remembered path profile
 - **BR-31** [Critical] `durable-index-read-failure-authority` Moving the session-name index strands existing live sessions
 - **BR-32** [Critical] `artifact-construction-single-authority` The artifact coverage guard does not enforce its claimed constructor closure
-- **BR-33** [Critical] `core-concept-kind-contract` The M5 Core concepts row names an entity that does not exist at its declared path
 - **BR-34** [Important] `user-facing-policy-docs` Atlas documentation still publishes the retired global artifact layout
+- **BR-35** [Critical] `incarnation-quiescence-before-capacity-release` Standalone Pair incarnations have no terminal transition and occupy capacity forever

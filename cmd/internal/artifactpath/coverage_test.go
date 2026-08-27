@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"regexp"
 	"sort"
 	"strings"
 	"testing"
@@ -149,6 +150,9 @@ func TestNonGoConsumersUseExactPathBindings(t *testing.T) {
 	}{
 		{path: "bin/pair-notify", required: "PAIR_OUTER_TTY_PATH", forbidden: "outer-tty-$tag"},
 		{path: "nvim/init.lua", required: "PAIR_IMAGE_CAPTURE_DONE_PATH", forbidden: "cap_path .. '.done'"},
+		{path: "nvim/init.lua", required: "PAIR_CHANGELOG_READY_PATH", forbidden: "base .. '.ready'"},
+		{path: "cmd/internal/opener/run.go", required: "ChangelogArtifacts", forbidden: "base+\".anchor\""},
+		{path: "cmd/internal/opener/run.go", required: "ScrollbackArtifacts", forbidden: "sb+\".events.jsonl\""},
 	} {
 		raw, err := os.ReadFile(filepath.Join(repoRoot, filepath.FromSlash(tc.path)))
 		if err != nil {
@@ -161,6 +165,44 @@ func TestNonGoConsumersUseExactPathBindings(t *testing.T) {
 		if strings.Contains(body, tc.forbidden) {
 			t.Errorf("%s still derives a selected path with %q", tc.path, tc.forbidden)
 		}
+	}
+}
+
+func TestNoCompanionSuffixConstructionOutsideArtifactpath(t *testing.T) {
+	repoRoot := filepath.Clean(filepath.Join("..", "..", ".."))
+	derived := regexp.MustCompile(`(?:\+|\.\.)\s*["']\.(?:raw|events\.jsonl|ansi|viewport|openlock|anchor|cleaned|distill\.lock|status|ready|done)["']`)
+	var violations []string
+	for _, root := range []string{"cmd/internal", "bin", "nvim", "zellij", "doctor"} {
+		err := filepath.WalkDir(filepath.Join(repoRoot, root), func(path string, entry os.DirEntry, walkErr error) error {
+			if walkErr != nil || entry.IsDir() {
+				return walkErr
+			}
+			rel, err := filepath.Rel(repoRoot, path)
+			if err != nil {
+				return err
+			}
+			rel = filepath.ToSlash(rel)
+			if strings.HasPrefix(rel, "cmd/internal/artifactpath/") || !productionSourceFile(rel, path) {
+				return nil
+			}
+			raw, err := os.ReadFile(path)
+			if err != nil {
+				return err
+			}
+			for lineNumber, line := range strings.Split(string(raw), "\n") {
+				if derived.MatchString(line) {
+					violations = append(violations, fmt.Sprintf("%s:%d: %s", rel, lineNumber+1, strings.TrimSpace(line)))
+				}
+			}
+			return nil
+		})
+		if err != nil {
+			t.Fatal(err)
+		}
+	}
+	if len(violations) != 0 {
+		sort.Strings(violations)
+		t.Fatalf("companion paths constructed outside artifactpath:\n%s", strings.Join(violations, "\n"))
 	}
 }
 

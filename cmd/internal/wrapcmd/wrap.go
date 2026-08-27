@@ -180,11 +180,12 @@ type proxy struct {
 	stderr     io.Writer
 
 	// CLI / config
-	scrollbackLog  string
-	agentBasename  string
-	debugLogPath   string
-	wrapEventsPath string
-	bellFallback   bool
+	scrollbackLog    string
+	scrollbackEvents string
+	agentBasename    string
+	debugLogPath     string
+	wrapEventsPath   string
+	bellFallback     bool
 
 	// Resolved paths (empty when env didn't provide PAIR_TAG)
 	outerTTYFile    string
@@ -2274,6 +2275,7 @@ argsDone:
 	}
 
 	p.agentBasename = filepath.Base(argv[0])
+	p.scrollbackEvents = os.Getenv("PAIR_SCROLLBACK_EVENTS_PATH")
 	p.codexSyncPassthrough = envFlag("PAIR_CODEX_SYNC_PASSTHROUGH")
 	p.resolvePaths()
 	p.codexFilterKKP = envFlag("PAIR_CODEX_FILTER_KKP") || codexFilterKKPFlag()
@@ -2294,25 +2296,26 @@ argsDone:
 		}
 	}
 
-	// Open scrollback log (truncate) + matching .events.jsonl sidecar.
+	// Open the exact scrollback raw/events bindings. The launcher exports both;
+	// pair-wrap never derives one companion from the other.
 	// Disable scrollback entirely on any open failure; never block startup.
 	if p.scrollbackLog != "" {
-		eventsPath := strings.TrimSuffix(p.scrollbackLog, ".raw") + ".events.jsonl"
-		if !strings.HasSuffix(p.scrollbackLog, ".raw") {
-			eventsPath = p.scrollbackLog + ".events.jsonl"
-		}
 		f, err := os.OpenFile(p.scrollbackLog, os.O_WRONLY|os.O_CREATE|os.O_TRUNC, 0644)
 		if err != nil {
 			p.debug("SCROLLBACK-open-fail", fmt.Sprintf("%q: %v", p.scrollbackLog, err))
 		} else {
 			p.scrollbackFD = f
 			p.debug("SCROLLBACK-open", p.scrollbackLog)
-			ef, err := os.OpenFile(eventsPath, os.O_WRONLY|os.O_CREATE|os.O_TRUNC, 0644)
-			if err != nil {
-				p.debug("EVENTS-open-fail", fmt.Sprintf("%q: %v", eventsPath, err))
+			if p.scrollbackEvents == "" {
+				p.debug("EVENTS-open-fail", "PAIR_SCROLLBACK_EVENTS_PATH is empty")
 			} else {
-				p.eventsFD = ef
-				p.debug("EVENTS-open", eventsPath)
+				ef, err := os.OpenFile(p.scrollbackEvents, os.O_WRONLY|os.O_CREATE|os.O_TRUNC, 0644)
+				if err != nil {
+					p.debug("EVENTS-open-fail", fmt.Sprintf("%q: %v", p.scrollbackEvents, err))
+				} else {
+					p.eventsFD = ef
+					p.debug("EVENTS-open", p.scrollbackEvents)
+				}
 			}
 		}
 	}

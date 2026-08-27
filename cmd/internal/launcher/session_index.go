@@ -3,8 +3,12 @@ package launcher
 import (
 	"encoding/json"
 	"fmt"
+	"os"
+	"path/filepath"
 	"strings"
 	"unicode/utf8"
+
+	"github.com/xianxu/pair/cmd/internal/artifactpath"
 )
 
 // minSessionRepoBytes floors the repo token when the ladder has nothing left to
@@ -171,9 +175,62 @@ func DecodeSessionNameIndex(raw string) (SessionNameIndex, error) {
 		if err := json.Unmarshal([]byte(line), &entry); err != nil {
 			return SessionNameIndex{}, fmt.Errorf("session-name index line %d: %w", lineNumber+1, err)
 		}
+		if err := validateSessionNameEntry(entry); err != nil {
+			return SessionNameIndex{}, fmt.Errorf("session-name index line %d: %w", lineNumber+1, err)
+		}
 		index.Entries = append(index.Entries, entry)
 	}
 	return index, nil
+}
+
+func validateSessionNameEntry(entry SessionNameEntry) error {
+	if !isPairSessionName(entry.SessionName) {
+		return fmt.Errorf("invalid Pair session name %q", entry.SessionName)
+	}
+	if err := ValidateRepoScopeKey(entry.ScopeKey); err != nil {
+		return err
+	}
+	if !filepath.IsAbs(entry.RepoRoot) {
+		return fmt.Errorf("repository root must be absolute")
+	}
+	if strings.TrimSpace(entry.RepoName) == "" {
+		return fmt.Errorf("repository name is required")
+	}
+	return ValidatePairTag(entry.Tag)
+}
+
+// readSessionNameIndexes is the one strict compatibility reader for the
+// relocation epoch: legacy-global rows precede selected-scope rows, missing
+// files are empty, and every present file is authoritative and must decode.
+func readSessionNameIndexes(globalDataDir, selectedScopeDir string, readFile func(string) (string, error)) (SessionNameIndex, error) {
+	legacy, err := artifactpath.ResolveLegacyRoot(globalDataDir)
+	if err != nil {
+		return SessionNameIndex{}, err
+	}
+	scope, err := artifactpath.ResolveSelectedScope(selectedScopeDir)
+	if err != nil {
+		return SessionNameIndex{}, err
+	}
+	paths := []string{legacy.SessionBindings()}
+	if scoped := scope.SessionBindings(); scoped != paths[0] {
+		paths = append(paths, scoped)
+	}
+	var merged SessionNameIndex
+	for _, path := range paths {
+		raw, err := readFile(path)
+		if os.IsNotExist(err) {
+			continue
+		}
+		if err != nil {
+			return SessionNameIndex{}, fmt.Errorf("read session-name index %s: %w", path, err)
+		}
+		index, err := DecodeSessionNameIndex(raw)
+		if err != nil {
+			return SessionNameIndex{}, fmt.Errorf("decode session-name index %s: %w", path, err)
+		}
+		merged.Entries = append(merged.Entries, index.Entries...)
+	}
+	return merged, nil
 }
 
 type SessionNameExhausted struct {

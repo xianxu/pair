@@ -253,13 +253,15 @@ end
 
 local function scrollback_paths(bufnr)
   local ansi = vim.api.nvim_buf_get_name(bufnr)
-  if not ansi or ansi == '' or not ansi:match('%.ansi$') then
-    return nil, 'current buffer is not a scrollback .ansi file'
+  local bound_ansi = vim.env.PAIR_SCROLLBACK_ANSI_PATH or ''
+  if not ansi or ansi == '' or bound_ansi == '' or ansi ~= bound_ansi then
+    return nil, 'current buffer does not match the exact scrollback binding'
   end
   return {
-    ansi = ansi,
-    raw = ansi:gsub('%.ansi$', '.raw'),
-    events = ansi:gsub('%.ansi$', '.events.jsonl'),
+    ansi = bound_ansi,
+    raw = vim.env.PAIR_SCROLLBACK_RAW_PATH or '',
+    events = vim.env.PAIR_SCROLLBACK_EVENTS_PATH or '',
+    viewport = vim.env.PAIR_SCROLLBACK_VIEWPORT_PATH or '',
   }
 end
 
@@ -272,7 +274,7 @@ local function renderer_command(paths)
   else
     bin = 'pair'
   end
-  return { bin, 'scrollback', 'render', paths.raw, paths.events, paths.ansi }
+  return { bin, 'scrollback', 'render', '--viewport', paths.viewport, paths.raw, paths.events, paths.ansi }
 end
 
 local function run_renderer(paths, opts)

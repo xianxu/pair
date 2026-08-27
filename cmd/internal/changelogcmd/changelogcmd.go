@@ -50,18 +50,19 @@ func Run(args []string, stderr io.Writer) int {
 func run(args []string, stderr io.Writer) error {
 	fs := flag.NewFlagSet("pair-changelog", flag.ContinueOnError)
 	fs.SetOutput(stderr)
-	var cleanedPath, logPath, anchorPath, agent, modelName string
+	var cleanedPath, logPath, anchorPath, readyPath, agent, modelName string
 	fs.StringVar(&cleanedPath, "cleaned", "", "path to the cleaned-TTY text file")
 	fs.StringVar(&logPath, "log", "", "path to the change-log markdown file")
 	fs.StringVar(&anchorPath, "anchor", "", "path to the content-anchor sidecar")
+	fs.StringVar(&readyPath, "ready", "", "path to the completion marker")
 	fs.StringVar(&agent, "agent", "claude", "session agent (claude|codex|agy)")
 	fs.StringVar(&modelName, "model", "", "model override; default per-agent")
 	if err := fs.Parse(args); err != nil {
 		return err
 	}
 
-	if cleanedPath == "" || logPath == "" || anchorPath == "" {
-		return fmt.Errorf("usage: pair-changelog --cleaned F --log F --anchor F [--agent A]")
+	if cleanedPath == "" || logPath == "" || anchorPath == "" || readyPath == "" {
+		return fmt.Errorf("usage: pair-changelog --cleaned F --log F --anchor F --ready F [--agent A]")
 	}
 
 	cleanedBytes, err := os.ReadFile(cleanedPath)
@@ -168,7 +169,7 @@ func run(args []string, stderr io.Writer) error {
 	// triggered-and-left build actually produced something — not on a no-op press
 	// or a trivial turn. Best-effort: the build already succeeded; the notification
 	// is a bonus, so a write failure isn't fatal.
-	writeReady(logPath)
+	writeReady(readyPath)
 	return nil
 }
 
@@ -176,8 +177,7 @@ func run(args []string, stderr io.Writer) error {
 // fs-watches $PAIR_DATA_DIR for it and, on arrival, flashes its statusline then
 // deletes the marker (one-shot). The timestamp body is for debugging only — the
 // marker's existence is the signal.
-func writeReady(logPath string) {
-	readyPath := strings.TrimSuffix(logPath, ".md") + ".ready"
+func writeReady(readyPath string) {
 	_ = os.WriteFile(readyPath, []byte(time.Now().Format(time.RFC3339)+"\n"), 0o644)
 }
 

@@ -82,13 +82,12 @@ func runCleanup(env Env, rt Runtime, step launchStep, parkTimeout int, out io.Wr
 	// Alt+x is about to discard it — offer to preserve it. Gated on an
 	// interactive tty with a non-empty raw capture, and skipped when a restart is
 	// pending (a restart keeps the work, so re-asking is noise).
-	sbRaw, pathErr := paths.ScrollbackChecked(quitAgent, "raw")
+	scrollback, pathErr := paths.ScrollbackArtifacts(quitAgent)
 	if pathErr != nil {
 		return
 	}
-	sbBase := strings.TrimSuffix(sbRaw, ".raw")
 	parked := false
-	if size, ok := rt.FileSize(sbBase + ".raw"); ok && size > 0 && rt.IsTTY() && !rt.RestartMarkerPresent(step.session) {
+	if size, ok := rt.FileSize(scrollback.Raw); ok && size > 0 && rt.IsTTY() && !rt.RestartMarkerPresent(step.session) {
 		if rt.ConfirmParkNudge(step.session, parkTimeout) {
 			if pbase, ok := rt.ParkScrollback(step.tag, quitAgent, true); ok {
 				parked = true
@@ -111,11 +110,11 @@ func runCleanup(env Env, rt Runtime, step launchStep, parkTimeout int, out io.Wr
 			rt.Remove(path)
 		}
 	}
-	rt.Remove(sbBase + ".ansi")
+	rt.Remove(scrollback.ANSI)
 	// Remove the raw capture only when it wasn't parked (preserved above).
 	if !parked {
-		rt.Remove(sbBase + ".raw")
-		rt.Remove(sbBase + ".events.jsonl")
+		rt.Remove(scrollback.Raw)
+		rt.Remove(scrollback.Events)
 	}
 
 	// Resume hint: a saved config for this (tag, agent) means the resume path

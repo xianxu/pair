@@ -99,3 +99,112 @@ Append `## Revisions` entries covering:
 - the compatibility/migration policy for relocating `session-names.jsonl`;
 - the corrected Core concepts entity name and location after a full M5 table sweep;
 - the actual constructor-classification rule, including extensionless sources and explicit legacy-path authority.
+
+---
+
+## Re-review — 2026-08-26T20:40:37-07:00 (REWORK)
+
+| field | value |
+|-------|-------|
+| issue | 149 — couch: opaque tags and a human naming layer |
+| repo | pair |
+| issue file | workshop/issues/000149-couch-opaque-tags-and-a-human-naming-layer.md |
+| boundary | milestone M5 |
+| milestone | M5 |
+| window | 6a714336ae3c8356ecdf2019c1ecc35b60719e81..8b8d521b4035fc36fa4322fa57a9cf1d4db711db |
+| command | sdlc milestone-close --issue 149 --milestone M5 |
+| reviewer | codex |
+| timestamp | 2026-08-26T20:40:37-07:00 |
+| verdict | REWORK |
+
+## Review
+
+```verdict
+verdict: REWORK
+confidence: high
+```
+
+M5 establishes a strong pure artifact-path layer and robust journaled migration, but it cannot cross the boundary. Two prior Critical classes remain incomplete: legacy-index compatibility bypasses Couch claim/quiescence, and selected companion paths are still derived outside `artifactpath`. Standalone registration also creates live incarnations without any terminal lifecycle, potentially reserving repository capacity forever.
+
+```findings
+dispose:
+  - id: BR-31
+    disposition: not-addressed
+    note: |
+      OSRuntime now merges legacy-global and scoped indexes, but ClaimNewThreadAddress and QuiesceThreadSession still read only the scoped index; their tests seed only that location. DecodeSessionNameIndex also validates JSON syntax but not required binding fields.
+  - id: BR-32
+    disposition: not-addressed
+    note: |
+      The named extensionless and image-done sites are pinned, but the constructor class remains open: opener derives scrollback events and changelog companions from other paths, while Neovim derives the changelog ready marker. The coverage guard cannot see these suffix derivations.
+  - id: BR-33
+    disposition: addressed
+    note: |
+      The complete M5 Core concepts inventory now names existing entities at their actual files, and the pure entities have direct IO-free tests.
+  - id: BR-34
+    disposition: not-addressed
+    note: |
+      The originally cited rows changed, but atlas/architecture.md still presents tag-derived PAIR_DATA_DIR/XDG formulas and calls the retired hardcoded file-family enumeration canonical.
+findings:
+  - id: new
+    severity: Critical
+    family: incarnation-quiescence-before-capacity-release
+    title: |
+      Standalone Pair incarnations have no terminal transition and occupy capacity forever
+    detail: |
+      This is the 3rd finding in family incarnation-quiescence-before-capacity-release. RegisterStandalonePair records the short-lived launcher as live, UpsertStandalonePair accumulates later launchers, and neither detach nor full-quit cleanup marks or removes the incarnation; admission intentionally counts every stored incarnation. State the class rule across create, attach, detach, restart, full quit, and external death, then test the production lifecycle through a stateful session fake so capacity is released only after whole-incarnation quiescence.
+```
+
+1. Strengths
+
+- `MigrateLegacyRecord` is genuinely pure and preserves occupancy; the store migration uses the existing recoverable journal and pins corruption, interruption, and byte-stable reruns.
+- `artifactpath.Paths` validates composite components and exports exact bindings from one value.
+- The cross-scope integration exercises real shell and Neovim consumers plus both layouts.
+- The global-only detached-session test genuinely pins the new `OSRuntime` compatibility merge.
+- Full Go tests, focused race tests, diff checks, and runtime-bundle determinism pass.
+
+2. Critical findings
+
+- **BR-31 — not addressed:** [thread_claim.go:75](/Users/xianxu/workspace/pair/cmd/internal/launcher/thread_claim.go:75) and [thread_claim.go:246](/Users/xianxu/workspace/pair/cmd/internal/launcher/thread_claim.go:246) bypass the overlap reader and open only scoped `session-names.jsonl`. A legacy-only binding therefore neither blocks address reuse nor gets quiesced. Consolidate all readers behind one strict legacy-plus-scoped authority and add global-only claim/quiescence tests.
+
+- **BR-32 — not addressed (ARCH-DRY, ARCH-PURPOSE):** [opener/run.go:167](/Users/xianxu/workspace/pair/cmd/internal/opener/run.go:167) derives events and several changelog companions; [init.lua:2992](/Users/xianxu/workspace/pair/nvim/init.lua:2992) independently reconstructs the ready marker. The negative guard at [coverage_test.go:143](/Users/xianxu/workspace/pair/cmd/internal/artifactpath/coverage_test.go:143) enumerates only the two previously named sites. Move the complete companion family into `artifactpath` and make the guard fail for every external suffix derivation.
+
+- **New — standalone lifecycle:** [standalone.go:50](/Users/xianxu/workspace/pair/cmd/internal/couchcore/standalone.go:50) records every launcher as live, [standalone.go:71](/Users/xianxu/workspace/pair/cmd/internal/couchcore/standalone.go:71) accumulates later incarnations, and cleanup has no ThreadStore transition. Because [admission.go:112](/Users/xianxu/workspace/pair/cmd/internal/couchcore/admission.go:112) conservatively counts all incarnations, a completed direct Pair session can permanently consume capacity.
+
+3. Important findings
+
+- **BR-34 — not addressed:** [architecture.md:338](/Users/xianxu/workspace/pair/atlas/architecture.md:338), [architecture.md:500](/Users/xianxu/workspace/pair/atlas/architecture.md:500), and [architecture.md:672](/Users/xianxu/workspace/pair/atlas/architecture.md:672) retain derived formulas; [architecture.md:981](/Users/xianxu/workspace/pair/atlas/architecture.md:981) still declares the retired hardcoded enumeration canonical. Replace these with exact bindings and `artifactpath` authority. No README update is required because M5 adds no user-run command or flag.
+
+4. Minor findings
+
+None.
+
+5. Test coverage notes
+
+Verified:
+
+- `git diff --check`
+- `go test ./... -count=1`
+- Focused `-race` tests for `artifactpath`, `launcher`, and `couchcore`
+- `make runtimebundle-drift-check`
+
+Missing load-bearing regressions:
+
+- Legacy-global-only address claim and quiescence.
+- Negative coverage for every companion-path derivation.
+- Stateful standalone create → detach/re-attach → full-quit/external-death lifecycle and capacity release.
+
+6. Architectural notes for upcoming work
+
+- **ARCH-DRY: flag.** Durable-index reading and companion construction still have parallel authorities.
+- **ARCH-PURE: pass.** Migration and path derivation are cleanly separated from IO.
+- **ARCH-PURPOSE: flag.** The promised complete constructor and compatibility closures remain partial.
+- **ARCH-MOCK: flag.** Standalone lifecycle lacks a stateful fake covering the production zellij/session boundary.
+
+7. Plan revision recommendations
+
+Append a `## Revisions` entry recording:
+
+- One strict overlap reader/validator for every session-index consumer.
+- The exhaustive companion-path inventory and enforcement strategy.
+- The standalone incarnation lifecycle across create, detach, attach, restart, quit, and external death.
+- The remaining atlas formula sweep.

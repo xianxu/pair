@@ -64,6 +64,7 @@ func TestEveryArtifactPathStaysInsideCompositeScope(t *testing.T) {
 		"scrollback raw":    paths.ScrollbackRaw("codex"),
 		"scrollback events": paths.ScrollbackEvents("codex"),
 		"changelog":         paths.Changelog("codex"),
+		"changelog ready":   paths.ChangelogReady("codex"),
 		"changelog session": paths.ChangelogSession("codex", "019eff64-6ceb-7e72-9d41-a735a97029ac"),
 		"agent draft":       paths.AgentDraft("codex"),
 		"thread claim":      paths.ThreadClaim(),
@@ -183,15 +184,47 @@ func TestEnvironmentBindingsCarryExactResolvedPaths(t *testing.T) {
 		seen[binding.Name] = binding.Path
 	}
 	for name, want := range map[string]string{
-		"PAIR_DRAFT_PATH":          paths.Draft(),
-		"PAIR_AGENT_CONFIG_PATH":   paths.Config("codex"),
-		"PAIR_AGENT_PANE_PATH":     paths.Pane("codex"),
-		"PAIR_SCROLLBACK_RAW_PATH": paths.ScrollbackRaw("codex"),
-		"PAIR_ADAPT_LOG_PATH":      paths.AdaptLog(),
+		"PAIR_DRAFT_PATH":           paths.Draft(),
+		"PAIR_AGENT_CONFIG_PATH":    paths.Config("codex"),
+		"PAIR_AGENT_PANE_PATH":      paths.Pane("codex"),
+		"PAIR_SCROLLBACK_RAW_PATH":  paths.ScrollbackRaw("codex"),
+		"PAIR_ADAPT_LOG_PATH":       paths.AdaptLog(),
+		"PAIR_CHANGELOG_READY_PATH": paths.ChangelogReady("codex"),
 	} {
 		if seen[name] != want {
 			t.Errorf("%s = %q, want %q", name, seen[name], want)
 		}
+	}
+}
+
+func TestCompanionArtifactSetsResolveEverySibling(t *testing.T) {
+	paths, err := ResolveScoped("/data/repos/scope", "work")
+	if err != nil {
+		t.Fatal(err)
+	}
+	scrollback, err := paths.ScrollbackArtifacts("codex")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if scrollback.Raw != "/data/repos/scope/scrollback-work-codex.raw" ||
+		scrollback.Events != "/data/repos/scope/scrollback-work-codex.events.jsonl" ||
+		scrollback.ANSI != "/data/repos/scope/scrollback-work-codex.ansi" ||
+		scrollback.Viewport != "/data/repos/scope/scrollback-work-codex.viewport" ||
+		scrollback.OpenLock != "/data/repos/scope/scrollback-work-codex.openlock" {
+		t.Fatalf("scrollback companions = %+v", scrollback)
+	}
+	changelog, err := paths.ChangelogArtifacts("codex", "sid")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if changelog.Log != "/data/repos/scope/changelog-work-codex-sid.md" ||
+		changelog.Anchor != "/data/repos/scope/changelog-work-codex-sid.anchor" ||
+		changelog.Cleaned != "/data/repos/scope/changelog-work-codex-sid.cleaned" ||
+		changelog.OpenLock != "/data/repos/scope/changelog-work-codex-sid.openlock" ||
+		changelog.DistillLock != "/data/repos/scope/changelog-work-codex-sid.distill.lock" ||
+		changelog.Status != "/data/repos/scope/changelog-work-codex-sid.status" ||
+		changelog.Ready != "/data/repos/scope/changelog-work-codex.ready" {
+		t.Fatalf("changelog companions = %+v", changelog)
 	}
 }
 

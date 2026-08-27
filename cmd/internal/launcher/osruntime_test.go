@@ -451,6 +451,17 @@ func TestOSRuntimeSessionNameIndexRejectsMalformedDurableRows(t *testing.T) {
 	}
 }
 
+func TestOSRuntimeSessionNameIndexRejectsStructurallyIncompleteRows(t *testing.T) {
+	globalDir := t.TempDir()
+	scopedDir := t.TempDir()
+	if err := os.WriteFile(filepath.Join(scopedDir, "session-names.jsonl"), []byte(`{"session_name":"📁repo-work","scope_key":"0123456789abcdef","tag":"work"}`+"\n"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := NewScopedOSRuntime(globalDir, scopedDir, "/pair").ReadSessionNameIndex(); err == nil {
+		t.Fatal("ReadSessionNameIndex accepted a structurally incomplete durable row")
+	}
+}
+
 func timeUnix(sec int64) time.Time { return time.Unix(sec, 0).UTC() }
 
 func TestOSRuntimeReapAndPollerRemovePidfiles(t *testing.T) {

@@ -60,6 +60,7 @@ than adding only the entity named by a review finding.
 | `mergeChildEnvironment` | pure | `cmd/internal/couchcore/runner.go` | authoritative child overlay added in M4 review disposition |
 | `MigrateLegacyRecord` | pure | `cmd/internal/couchcore/migration.go` | new in M5 |
 | `artifactpath.Address` / `Paths` / `ScopePaths` / `Binding` | pure | `cmd/internal/artifactpath/paths.go` | new in M5 |
+| `artifactpath.ScrollbackArtifactSet` / `ParkedScrollbackArtifactSet` / `ChangelogArtifactSet` | pure | `cmd/internal/artifactpath/paths.go` | added in M5 boundary disposition |
 | `artifactpath.Family` / `SourceClassification` | pure | `cmd/internal/artifactpath/manifest.go` | new in M5 |
 | `artifactpath.LegacyRootPaths` / `LegacyPaths` / `TagFromHistorySidecar` | pure | `cmd/internal/artifactpath/paths.go` | added in M5 boundary disposition |
 | `DecodeSessionNameIndex` | pure | `cmd/internal/launcher/session_index.go` | added in M5 boundary disposition |
@@ -106,6 +107,7 @@ than adding only the entity named by a review finding.
 | `LaunchNativeWithStandaloneRegistrar` / `RegisterStandalonePair` | `cmd/internal/launcher/runcli.go`, `cmd/internal/couchcore/standalone.go`, `cmd/pair-go/main.go` | new in M5 | composition-root injection of direct Pair registration without reversing the launcher→Couch package boundary |
 | `ThreadStore.UpsertStandalonePair` | `cmd/internal/couchcore/standalone.go` | new in M5 | locked/revisioned direct-Pair incarnation publication with metadata preservation |
 | `OSRuntime.ReadSessionNameIndex` | `cmd/internal/launcher/osruntime.go` | modified in M5 and its boundary disposition | strict merge of legacy-global and selected-scope durable bindings; missing files mean empty, malformed/unreadable files fail closed |
+| `readSessionNameIndexes` | `cmd/internal/launcher/session_index.go` | added in M5 boundary disposition | one injected-IO overlap reader used by runtime, address claim, and quiescence |
 
 Every integration has a stateful fake or real-process conformance test. In
 particular, namespace/lease tests use independent processes and inherited file
@@ -1284,3 +1286,32 @@ tests start with only a global binding plus a detached session, inject corrupt
 and unreadable indexes through each effect path, discover an extensionless
 constructor, and forbid the two selected-path derivations (ARCH-DRY,
 ARCH-PURE, ARCH-PURPOSE).
+
+### 2026-08-26 — complete the M5 authority classes and preserve the #152 boundary
+
+**Reason:** the second M5 review showed the first disposition fixed named
+instances rather than the complete classes: claim/quiescence still bypassed
+the overlap reader, durable rows lacked structural validation, and other
+scrollback/changelog consumers still derived companion suffixes. It also
+repeated global-layout prose and proposed releasing standalone capacity without
+the whole-session proof explicitly assigned to #152.
+
+**Delta:** every session-binding consumer now calls one strict legacy-global
+then selected-scope reader; required session name, scope, repository root/name,
+and tag fields validate before any identity or destructive decision. Composite
+artifact authority now owns complete scrollback, parked-scrollback, and
+changelog companion sets. A repository-wide negative guard scans all production
+Go, shell, Lua, and KDL sources—including extensionless shebang programs—and
+forbids companion-suffix construction outside `artifactpath`; opener, wrapper,
+renderer, lifecycle cleanup, parking, and draft/viewer notification consume
+exact paths. Atlas prose describes those bindings and the compatibility-only
+legacy rename inventory rather than publishing a second constructor scheme
+(ARCH-DRY, ARCH-PURPOSE).
+
+BR-35 is not imported into M5: the approved issue and plan assign verified
+whole-incarnation quiescence, park, and capacity release to #152. A Pair client
+return, detach, best-effort `DeleteSession`, or external client death is not
+proof that the zellij server and panes can no longer write. Standalone records
+therefore remain conservatively occupied until #152 supplies that stateful
+session proof; freeing them here would violate the fail-closed safety invariant
+rather than complete #149 (ARCH-PURPOSE, ARCH-MOCK).

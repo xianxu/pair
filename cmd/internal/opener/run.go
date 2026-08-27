@@ -36,9 +36,9 @@ type Runtime interface {
 	Touch(path string) error            // `[ -f LOG ] || : > LOG`
 	Executable(path string) bool        // `[ -x FILE ]`
 
-	RenderScrollback(raw, events, ansi string) error // in-process scrollbackcmd.Run (sync)
-	AgentPaneID() string                             // zellij list-panes → agent pane id, "" if none
-	DumpScreen(paneID string) (string, error)        // zellij dump-screen
+	RenderScrollback(raw, events, ansi, viewport string) error // in-process scrollbackcmd.Run (sync)
+	AgentPaneID() string                                       // zellij list-panes → agent pane id, "" if none
+	DumpScreen(paneID string) (string, error)                  // zellij dump-screen
 	// StartDetached launches `sh -c script` in its own session (setsid) with
 	// extraEnv, stderr → statusPath, detached from this process; returns its pid.
 	StartDetached(script string, extraEnv []string, statusPath string) (string, error)
@@ -65,13 +65,13 @@ func RunScrollback(opts Options, rt Runtime, stderr io.Writer) int {
 		fmt.Fprintf(stderr, "pair-scrollback-open: resolve artifact namespace: %v\n", err)
 		return 1
 	}
-	raw, err := paths.ScrollbackChecked(opts.Agent, "raw")
+	scrollback, err := paths.ScrollbackArtifacts(opts.Agent)
 	if err != nil {
 		fmt.Fprintf(stderr, "pair-scrollback-open: resolve scrollback artifact: %v\n", err)
 		return 1
 	}
-	sb := strings.TrimSuffix(raw, ".raw")
-	lock := sb + ".openlock"
+	raw := scrollback.Raw
+	lock := scrollback.OpenLock
 
 	// Re-entrancy: a second Alt+/ while a viewer is up exits (focus falls back).
 	if raw, err := rt.ReadFile(lock); err == nil {
@@ -80,24 +80,28 @@ func RunScrollback(opts Options, rt Runtime, stderr io.Writer) int {
 		}
 	}
 
-	events, ansi := sb+".events.jsonl", sb+".ansi"
+	events, ansi := scrollback.Events, scrollback.ANSI
 	if sz, ok := rt.FileSize(raw); !ok || sz == 0 {
 		fmt.Fprintf(stderr, "pair-scrollback-open: no scrollback yet for %s/%s\n", opts.Tag, opts.Agent)
 		fmt.Fprintf(stderr, "  (capture starts when the agent pane begins emitting output.)\n")
 		rt.Sleep(3 * time.Second)
 		return 0
 	}
-	if err := rt.RenderScrollback(raw, events, ansi); err != nil {
+	if err := rt.RenderScrollback(raw, events, ansi, scrollback.Viewport); err != nil {
 		fmt.Fprintf(stderr, "pair-scrollback-open: scrollback-render failed: %v\n", err)
 		rt.Sleep(5 * time.Second)
 		return 1
 	}
 
-	overlayViewport(opts, rt, sb, ansi)
+	overlayViewport(opts, rt, scrollback.Viewport, ansi)
 
 	env := []string{
 		"PAIR_NVIM_PID_FILE=" + paths.NvimPID("scrollback"),
 		"PAIR_SCROLLBACK_JUMP=" + opts.Jump,
+		"PAIR_SCROLLBACK_RAW_PATH=" + scrollback.Raw,
+		"PAIR_SCROLLBACK_EVENTS_PATH=" + scrollback.Events,
+		"PAIR_SCROLLBACK_ANSI_PATH=" + scrollback.ANSI,
+		"PAIR_SCROLLBACK_VIEWPORT_PATH=" + scrollback.Viewport,
 	}
 	_ = rt.WriteFile(lock, rt.Getpid()+"\n")
 	defer rt.Remove(lock)
@@ -108,7 +112,7 @@ func RunScrollback(opts Options, rt Runtime, stderr io.Writer) int {
 // overlayViewport matches zellij's actual visible content onto the rendered
 // .ansi to record the line the user is looking at. Best-effort: any seam failure
 // leaves the renderer's own .viewport in place.
-func overlayViewport(opts Options, rt Runtime, sb, ansi string) {
+func overlayViewport(opts Options, rt Runtime, viewport, ansi string) {
 	paneID := rt.AgentPaneID()
 	if paneID == "" {
 		return
@@ -128,7 +132,7 @@ func overlayViewport(opts Options, rt Runtime, sb, ansi string) {
 	if line, ok := matchViewport(strings.Split(dump, "\n"), ansiLines); ok {
 		// Atomic (temp + rename), like the shell's `> .tmp && mv -f`: a live
 		// viewer's `G` refresh may re-read .viewport concurrently.
-		_ = rt.WriteAtomic(sb+".viewport", strconv.Itoa(line)+"\n")
+		_ = rt.WriteAtomic(viewport, strconv.Itoa(line)+"\n")
 	}
 }
 
@@ -159,20 +163,19 @@ func RunChangelog(opts Options, rt Runtime, stderr io.Writer) int {
 			sid = resolveSessionID("", []byte(cfg))
 		}
 	}
-	base, pathErr := paths.ChangelogSessionChecked(opts.Agent, sid)
+	changelog, pathErr := paths.ChangelogArtifacts(opts.Agent, sid)
 	if pathErr != nil {
 		fmt.Fprintf(stderr, "pair-changelog-open: resolve changelog artifact: %v\n", pathErr)
 		return 1
 	}
-	rawPath, pathErr := paths.ScrollbackChecked(opts.Agent, "raw")
+	scrollback, pathErr := paths.ScrollbackArtifacts(opts.Agent)
 	if pathErr != nil {
 		fmt.Fprintf(stderr, "pair-changelog-open: resolve scrollback artifact: %v\n", pathErr)
 		return 1
 	}
-	sb := strings.TrimSuffix(rawPath, ".raw")
-	raw, events := sb+".raw", sb+".events.jsonl"
-	log, anchor, cleaned := base+".md", base+".anchor", base+".cleaned"
-	openlock, dlock, status := base+".openlock", base+".distill.lock", base+".status"
+	raw, events := scrollback.Raw, scrollback.Events
+	log, anchor, cleaned := changelog.Log, changelog.Anchor, changelog.Cleaned
+	openlock, dlock, status := changelog.OpenLock, changelog.DistillLock, changelog.Status
 
 	// Viewer re-entrancy.
 	if r, err := rt.ReadFile(openlock); err == nil {
@@ -196,7 +199,7 @@ func RunChangelog(opts Options, rt Runtime, stderr io.Writer) int {
 	bin := opts.PairHome + "/bin/pair"
 	if sz, ok := rt.FileSize(raw); !distillerRunning && ok && sz > 0 && rt.Executable(bin) {
 		_ = rt.WriteFile(status, "")
-		env := distillerEnv(bin, raw, events, cleaned, log, anchor, opts.Agent)
+		env := distillerEnv(bin, raw, events, cleaned, log, anchor, changelog.Ready, opts.Agent)
 		if pid, err := rt.StartDetached(distillerInner, env, status); err == nil {
 			_ = rt.WriteFile(dlock, pid+"\n")
 		}
