@@ -2270,3 +2270,19 @@ disposition; close the audited declaration population mechanically when
 individual detail markers would be noise.
 If those witnesses are absent, the plan is not ready for `change-code`, even
 when its happy-path tests are precise (ARCH-PURPOSE).
+
+## Static enforcement must name its bounded language
+
+`#149` M5 turned a useful repository inventory into a home-grown Go provenance
+analyzer. Each review found another legal construction—ordering, helpers,
+package globals, cross-file flow, builders, then compound assignment—and the
+response kept extending the evaluator while still calling it exhaustive.
+
+**Rule.** A source-analysis test must state exactly which syntax and boundary it
+recognizes. Treat literal and AST scans as defense in depth unless they are
+backed by a real typed semantic model; do not call them proof of arbitrary
+program behavior. Prove the shipped repository with exhaustive current-source
+inventory, positive dependencies, and integration behavior. If a boundary
+review repeats the same family after five rounds, stop and bring the proof
+shape to the operator instead of adding another syntax case (Simplicity First,
+ARCH-DRY, ARCH-PURPOSE).

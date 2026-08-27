@@ -1339,3 +1339,21 @@ closed remainder are the architectural/detail dispositions; changing the set
 fails, and an open set treats an unmarked exported top-level declaration as a
 concept. An exported mutation in `couchcore/migration.go` pins the rule outside
 the artifact package (ARCH-DRY, ARCH-PURPOSE).
+
+### 2026-08-27 — bound M5 artifact evidence to shipped consumers
+
+The operator rejected the review-expanded requirement to prove that no
+arbitrary future Go program can reconstruct an artifact filename. That is an
+open-ended static-analysis problem and is not required for composite
+work-thread isolation.
+
+M5's “proving every artifact lookup” wording is superseded by a bounded shipped-
+repository contract: every current production source participates in the
+artifact inventory; constructors are declared only in `artifactpath`; every
+current resolved consumer has a checked family-specific resolver/member
+witness; exact vocabulary and direct expression scans remain defense in depth;
+and cross-scope integration tests demonstrate isolation through representative
+Go, shell, Neovim, and Zellij consumers. These checks intentionally do not
+claim semantic provenance through arbitrary helper, package, control-flow, or
+string-building programs. The custom package dataflow evaluator is removed
+rather than widened again (Simplicity First, ARCH-DRY, ARCH-PURPOSE).

@@ -21,7 +21,7 @@ type issue149ConceptRequirement struct {
 	kind string
 }
 
-const issue149M5DeclarationDigest = "017b152e0cb4802368dc4fbd87ec7a26456bf22c2e4f9cb663a035601339b79d"
+const issue149M5DeclarationDigest = "31360c21acda0844dc59407e1ff1cc328bacadb6f79e7c83db58b97d68696566"
 
 // issue149M5GoSources is the exhaustive set of Go sources touched by M5. Every
 // declaration in these files receives a disposition: a pair:m5-concept marker

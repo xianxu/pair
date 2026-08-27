@@ -167,29 +167,28 @@ func TestProductionArtifactReferencesAreExactlyClassified(t *testing.T) {
 		t.Fatal(err)
 	}
 	missing = append(missing, inventoryViolations...)
-	constructorViolations, err := artifactConstructorViolations(repoRoot, productionRoots, SourceClassifications)
+	sourceViolations, err := artifactSourceViolations(repoRoot, productionRoots, SourceClassifications)
 	if err != nil {
 		t.Fatal(err)
 	}
-	missing = append(missing, constructorViolations...)
+	missing = append(missing, sourceViolations...)
 	if len(missing) != 0 {
 		sort.Strings(missing)
 		t.Fatalf("unclassified artifact references:\n%s", strings.Join(missing, "\n"))
 	}
 }
 
-// artifactConstructorViolations prevents an already-classified Go consumer from
-// hiding a selected-scope constructor. It examines syntax trees rather than
-// lines, so multiline joins and concatenations cannot evade the guard.
-// Compatibility-only restart markers are session-cache paths rather than
-// composite thread artifacts.
-func artifactConstructorViolations(repoRoot string, roots []string, classifications []SourceClassification) ([]string, error) {
+// artifactSourceViolations checks the bounded source contract: resolved Go
+// consumers use their declared artifactpath bindings, vocabulary is explicitly
+// allowlisted, and direct literal or constant-expression reconstruction is
+// rejected as defense in depth. It intentionally does not prove provenance
+// through arbitrary helpers, packages, builders, or control flow.
+func artifactSourceViolations(repoRoot string, roots []string, classifications []SourceClassification) ([]string, error) {
 	classified := make(map[string]SourceClassification, len(classifications))
 	for _, classification := range classifications {
 		classified[classification.Path] = classification
 	}
 	violations := map[string]bool{}
-	packageCache := map[string]parsedGoPackage{}
 	for _, root := range roots {
 		err := filepath.WalkDir(filepath.Join(repoRoot, root), func(path string, entry os.DirEntry, walkErr error) error {
 			if walkErr != nil || entry.IsDir() {
@@ -214,18 +213,10 @@ func artifactConstructorViolations(repoRoot string, roots []string, classificati
 				}
 				return nil
 			}
-			parsedPackage, exists := packageCache[filepath.Dir(path)]
-			if !exists {
-				parsedPackage, err = parseProductionGoPackage(filepath.Dir(path))
-				if err != nil {
-					return err
-				}
-				packageCache[filepath.Dir(path)] = parsedPackage
-			}
-			fileSet := parsedPackage.fileSet
-			file := parsedPackage.byPath[path]
-			if file == nil {
-				return fmt.Errorf("production Go package omitted %s", path)
+			fileSet := token.NewFileSet()
+			file, err := parser.ParseFile(fileSet, path, nil, 0)
+			if err != nil {
+				return err
 			}
 			for _, violation := range goClassificationViolations(rel, fileSet, file, classification) {
 				violations[violation] = true
@@ -260,12 +251,6 @@ func artifactConstructorViolations(repoRoot string, roots []string, classificati
 				}
 				return true
 			})
-			for _, violation := range resolvedFunctionAssemblyViolations(rel, fileSet, file, classification) {
-				violations[violation] = true
-			}
-			for _, violation := range resolvedDataflowAssemblyViolations(rel, fileSet, file, parsedPackage.files, classification) {
-				violations[violation] = true
-			}
 			return nil
 		})
 		if err != nil {
@@ -278,355 +263,6 @@ func artifactConstructorViolations(repoRoot string, roots []string, classificati
 	}
 	sort.Strings(out)
 	return out, nil
-}
-
-type parsedGoPackage struct {
-	fileSet *token.FileSet
-	files   []*ast.File
-	byPath  map[string]*ast.File
-}
-
-func parseProductionGoPackage(dir string) (parsedGoPackage, error) {
-	entries, err := os.ReadDir(dir)
-	if err != nil {
-		return parsedGoPackage{}, err
-	}
-	fileSet := token.NewFileSet()
-	parsed := parsedGoPackage{fileSet: fileSet, byPath: map[string]*ast.File{}}
-	for _, entry := range entries {
-		if entry.IsDir() || filepath.Ext(entry.Name()) != ".go" || strings.HasSuffix(entry.Name(), "_test.go") {
-			continue
-		}
-		path := filepath.Join(dir, entry.Name())
-		file, err := parser.ParseFile(fileSet, path, nil, 0)
-		if err != nil {
-			return parsedGoPackage{}, err
-		}
-		parsed.files = append(parsed.files, file)
-		parsed.byPath[path] = file
-	}
-	return parsed, nil
-}
-
-type stringFlow struct {
-	classification SourceClassification
-	summaries      map[string]string
-	vars           map[*ast.Object]string
-	packageVars    map[string]string
-	builders       map[*ast.Object]string
-	values         []string
-	returns        []string
-}
-
-func resolvedDataflowAssemblyViolations(rel string, fileSet *token.FileSet, file *ast.File, packageFiles []*ast.File, classification SourceClassification) []string {
-	summaries := map[string]string{}
-	globals := map[string]string{}
-	declarationCount := 0
-	for _, packageFile := range packageFiles {
-		declarationCount += len(packageFile.Decls)
-	}
-	maxIterations := declarationCount + longestFamilyToken() + 1
-	for range maxIterations {
-		changed := false
-		nextGlobals := packageStringValues(packageFiles, classification, summaries, globals)
-		if !sameStringMap(globals, nextGlobals) {
-			globals = nextGlobals
-			changed = true
-		}
-		for _, packageFile := range packageFiles {
-			for _, decl := range packageFile.Decls {
-				function, ok := decl.(*ast.FuncDecl)
-				if !ok || function.Body == nil {
-					continue
-				}
-				flow := newStringFlow(classification, summaries, globals)
-				flow.block(function.Body)
-				summary := strings.Join(flow.returns, "")
-				if summaries[function.Name.Name] != summary {
-					summaries[function.Name.Name] = summary
-					changed = true
-				}
-			}
-		}
-		if !changed {
-			break
-		}
-	}
-
-	var violations []string
-	for _, decl := range file.Decls {
-		function, ok := decl.(*ast.FuncDecl)
-		if !ok || function.Body == nil {
-			continue
-		}
-		flow := newStringFlow(classification, summaries, globals)
-		flow.block(function.Body)
-		for _, value := range flow.values {
-			for _, familyName := range classification.Families {
-				if familyName == "restart" || familyName == "native-session" {
-					continue
-				}
-				for _, family := range Families {
-					if family.Name == familyName && strings.Contains(value, family.Token) {
-						line := fileSet.Position(function.Pos()).Line
-						violations = append(violations, fmt.Sprintf("%s:%d: resolved consumer function %s dataflow assembles %s vocabulary", rel, line, function.Name.Name, familyName))
-					}
-				}
-			}
-		}
-	}
-	return violations
-}
-
-func packageStringValues(files []*ast.File, classification SourceClassification, summaries map[string]string, previous map[string]string) map[string]string {
-	flow := newStringFlow(classification, summaries, previous)
-	for _, file := range files {
-		for _, decl := range file.Decls {
-			gen, ok := decl.(*ast.GenDecl)
-			if !ok || gen.Tok != token.CONST && gen.Tok != token.VAR {
-				continue
-			}
-			for _, spec := range gen.Specs {
-				valueSpec, ok := spec.(*ast.ValueSpec)
-				if !ok {
-					continue
-				}
-				for i, expression := range valueSpec.Values {
-					if i < len(valueSpec.Names) {
-						flow.packageVars[valueSpec.Names[i].Name] = flow.expression(expression)
-					}
-				}
-			}
-		}
-	}
-	return flow.packageVars
-}
-
-func sameStringMap(left, right map[string]string) bool {
-	if len(left) != len(right) {
-		return false
-	}
-	for name, value := range left {
-		if right[name] != value {
-			return false
-		}
-	}
-	return true
-}
-
-func longestFamilyToken() int {
-	longest := 0
-	for _, family := range Families {
-		if len(family.Token) > longest {
-			longest = len(family.Token)
-		}
-	}
-	return longest
-}
-
-func newStringFlow(classification SourceClassification, summaries map[string]string, initial map[string]string) *stringFlow {
-	flow := &stringFlow{
-		classification: classification,
-		summaries:      summaries,
-		vars:           map[*ast.Object]string{},
-		packageVars:    map[string]string{},
-		builders:       map[*ast.Object]string{},
-	}
-	for name, value := range initial {
-		flow.packageVars[name] = value
-	}
-	return flow
-}
-
-func (f *stringFlow) block(block *ast.BlockStmt) {
-	for _, statement := range block.List {
-		f.statement(statement)
-	}
-}
-
-func (f *stringFlow) statement(statement ast.Stmt) {
-	switch typed := statement.(type) {
-	case *ast.AssignStmt:
-		for i, rhs := range typed.Rhs {
-			value := f.expression(rhs)
-			f.record(value)
-			if i < len(typed.Lhs) {
-				if ident, ok := typed.Lhs[i].(*ast.Ident); ok && ident.Obj != nil {
-					f.vars[ident.Obj] = value
-				}
-			}
-		}
-	case *ast.DeclStmt:
-		gen, ok := typed.Decl.(*ast.GenDecl)
-		if !ok {
-			return
-		}
-		for _, spec := range gen.Specs {
-			valueSpec, ok := spec.(*ast.ValueSpec)
-			if !ok {
-				continue
-			}
-			for i, valueExpr := range valueSpec.Values {
-				value := f.expression(valueExpr)
-				f.record(value)
-				if i < len(valueSpec.Names) && valueSpec.Names[i].Obj != nil {
-					f.vars[valueSpec.Names[i].Obj] = value
-				}
-			}
-		}
-	case *ast.ExprStmt:
-		f.record(f.expression(typed.X))
-	case *ast.ReturnStmt:
-		for _, result := range typed.Results {
-			value := f.expression(result)
-			f.record(value)
-			f.returns = append(f.returns, value)
-		}
-	case *ast.IfStmt:
-		if typed.Init != nil {
-			f.statement(typed.Init)
-		}
-		f.expression(typed.Cond)
-		f.block(typed.Body)
-		if typed.Else != nil {
-			f.statement(typed.Else)
-		}
-	case *ast.BlockStmt:
-		f.block(typed)
-	case *ast.ForStmt:
-		if typed.Init != nil {
-			f.statement(typed.Init)
-		}
-		if typed.Cond != nil {
-			f.expression(typed.Cond)
-		}
-		f.block(typed.Body)
-		if typed.Post != nil {
-			f.statement(typed.Post)
-		}
-	case *ast.RangeStmt:
-		f.expression(typed.X)
-		f.block(typed.Body)
-	case *ast.SwitchStmt:
-		if typed.Init != nil {
-			f.statement(typed.Init)
-		}
-		if typed.Tag != nil {
-			f.expression(typed.Tag)
-		}
-		for _, item := range typed.Body.List {
-			clause, _ := item.(*ast.CaseClause)
-			for _, child := range clause.Body {
-				f.statement(child)
-			}
-		}
-	}
-}
-
-func (f *stringFlow) expression(expr ast.Expr) string {
-	switch typed := expr.(type) {
-	case *ast.BasicLit:
-		if typed.Kind != token.STRING {
-			return ""
-		}
-		value, err := strconv.Unquote(typed.Value)
-		if err != nil || classificationAllowsAnyVocabulary(f.classification, value) {
-			return ""
-		}
-		return value
-	case *ast.Ident:
-		if typed.Obj != nil {
-			if value, ok := f.vars[typed.Obj]; ok {
-				return value
-			}
-		}
-		return f.packageVars[typed.Name]
-	case *ast.ParenExpr:
-		return f.expression(typed.X)
-	case *ast.BinaryExpr:
-		return f.expression(typed.X) + f.expression(typed.Y)
-	case *ast.CompositeLit:
-		var out strings.Builder
-		for _, element := range typed.Elts {
-			if keyValue, ok := element.(*ast.KeyValueExpr); ok {
-				out.WriteString(f.expression(keyValue.Value))
-			} else if value, ok := element.(ast.Expr); ok {
-				out.WriteString(f.expression(value))
-			}
-		}
-		return out.String()
-	case *ast.CallExpr:
-		if selector, ok := typed.Fun.(*ast.SelectorExpr); ok {
-			if owner, ok := selector.X.(*ast.Ident); ok && owner.Obj != nil {
-				switch selector.Sel.Name {
-				case "WriteString":
-					for _, arg := range typed.Args {
-						f.builders[owner.Obj] += f.expression(arg)
-					}
-					return ""
-				case "String":
-					if value, exists := f.builders[owner.Obj]; exists {
-						return value
-					}
-				}
-			}
-		}
-		if function, ok := typed.Fun.(*ast.Ident); ok && f.summaries[function.Name] != "" {
-			return f.summaries[function.Name]
-		}
-		var out strings.Builder
-		for _, arg := range typed.Args {
-			out.WriteString(f.expression(arg))
-		}
-		return out.String()
-	case *ast.UnaryExpr:
-		return f.expression(typed.X)
-	case *ast.IndexExpr:
-		return f.expression(typed.X) + f.expression(typed.Index)
-	default:
-		return ""
-	}
-}
-
-func (f *stringFlow) record(value string) {
-	if value != "" {
-		f.values = append(f.values, value)
-	}
-}
-
-func resolvedFunctionAssemblyViolations(rel string, fileSet *token.FileSet, file *ast.File, classification SourceClassification) []string {
-	var violations []string
-	for _, decl := range file.Decls {
-		function, ok := decl.(*ast.FuncDecl)
-		if !ok || function.Body == nil {
-			continue
-		}
-		var fragments []string
-		ast.Inspect(function.Body, func(node ast.Node) bool {
-			literal, ok := node.(*ast.BasicLit)
-			if !ok || literal.Kind != token.STRING {
-				return true
-			}
-			value, err := strconv.Unquote(literal.Value)
-			if err == nil && !classificationAllowsAnyVocabulary(classification, value) {
-				fragments = append(fragments, value)
-			}
-			return true
-		})
-		assembled := strings.Join(fragments, "")
-		for _, familyName := range classification.Families {
-			if familyName == "restart" || familyName == "native-session" {
-				continue
-			}
-			for _, family := range Families {
-				if family.Name == familyName && strings.Contains(assembled, family.Token) {
-					line := fileSet.Position(function.Pos()).Line
-					violations = append(violations, fmt.Sprintf("%s:%d: resolved consumer function %s assembles %s vocabulary across runtime fragments", rel, line, function.Name.Name, familyName))
-				}
-			}
-		}
-	}
-	return violations
 }
 
 const artifactpathImportPath = "github.com/xianxu/pair/cmd/internal/artifactpath"
@@ -1092,7 +728,7 @@ func TestArtifactConstructorAuthorityRejectsProductionCommandMutations(t *testin
 	}
 }
 
-func TestResolvedConsumerClassificationCannotHideConstructorMutations(t *testing.T) {
+func TestResolvedConsumerRejectsDirectArtifactConstruction(t *testing.T) {
 	t.Parallel()
 
 	repoRoot := t.TempDir()
@@ -1119,7 +755,7 @@ func TestResolvedConsumerClassificationCannotHideConstructorMutations(t *testing
 		})
 	}
 
-	violations, err := artifactConstructorViolations(repoRoot, []string{"cmd"}, classifications)
+	violations, err := artifactSourceViolations(repoRoot, []string{"cmd"}, classifications)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -1221,44 +857,6 @@ func TestResolvedConsumerRequiresFamilyCorrelatedBinding(t *testing.T) {
 			wantViolation: true,
 		},
 		{
-			name: "valid witness beside builder-assembled constructor",
-			body: "package mutation\nimport (\"path/filepath\"; \"strings\"; \"github.com/xianxu/pair/cmd/internal/artifactpath\")\n" +
-				"func good(root, tag string) string { paths, _ := artifactpath.ResolveScoped(root, tag); return paths.Draft() }\n" +
-				"func bad(root, tag string) string { var b strings.Builder; b.WriteString(\"dra\"); b.WriteString(\"ft-\"); return filepath.Join(root, b.String() + tag + \".md\") }\n",
-			families:      []string{"draft"},
-			bindingNames:  []string{"scoped-draft"},
-			wantViolation: true,
-		},
-		{
-			name: "valid witness beside reversed-definition constructor",
-			body: "package mutation\nimport (\"path/filepath\"; \"github.com/xianxu/pair/cmd/internal/artifactpath\")\n" +
-				"func good(root, tag string) string { paths, _ := artifactpath.ResolveScoped(root, tag); return paths.Draft() }\n" +
-				"func bad(root, tag string) string { tail := \"ft-\"; head := \"dra\"; return filepath.Join(root, head + tail + tag + \".md\") }\n",
-			families:      []string{"draft"},
-			bindingNames:  []string{"scoped-draft"},
-			wantViolation: true,
-		},
-		{
-			name: "valid witness beside cross-helper constructor",
-			body: "package mutation\nimport (\"path/filepath\"; \"github.com/xianxu/pair/cmd/internal/artifactpath\")\n" +
-				"func good(root, tag string) string { paths, _ := artifactpath.ResolveScoped(root, tag); return paths.Draft() }\n" +
-				"func head() string { return \"dra\" }\nfunc tail() string { return \"ft-\" }\n" +
-				"func bad(root, tag string) string { return filepath.Join(root, head() + tail() + tag + \".md\") }\n",
-			families:      []string{"draft"},
-			bindingNames:  []string{"scoped-draft"},
-			wantViolation: true,
-		},
-		{
-			name: "valid witness beside package-constant constructor",
-			body: "package mutation\nimport (\"path/filepath\"; \"github.com/xianxu/pair/cmd/internal/artifactpath\")\n" +
-				"const draftTail = \"ft-\"\nconst draftHead = \"dra\"\nconst draftPrefix = draftHead + draftTail\n" +
-				"func good(root, tag string) string { paths, _ := artifactpath.ResolveScoped(root, tag); return paths.Draft() }\n" +
-				"func bad(root, tag string) string { return filepath.Join(root, draftPrefix + tag + \".md\") }\n",
-			families:      []string{"draft"},
-			bindingNames:  []string{"scoped-draft"},
-			wantViolation: true,
-		},
-		{
 			name: "resolver and family member",
 			body: "package mutation\nimport ap \"github.com/xianxu/pair/cmd/internal/artifactpath\"\n" +
 				"func good(root, tag string) string { paths, _ := ap.ResolveScoped(root, tag); return paths.Draft() }\n",
@@ -1278,7 +876,7 @@ func TestResolvedConsumerRequiresFamilyCorrelatedBinding(t *testing.T) {
 			if err := os.WriteFile(path, []byte(tc.body), 0o644); err != nil {
 				t.Fatal(err)
 			}
-			violations, err := artifactConstructorViolations(repoRoot, []string{"cmd"}, []SourceClassification{{
+			violations, err := artifactSourceViolations(repoRoot, []string{"cmd"}, []SourceClassification{{
 				Path: rel, Kind: ResolvedConsumer, Families: tc.families, BindingNames: tc.bindingNames,
 			}})
 			if err != nil {
@@ -1288,36 +886,6 @@ func TestResolvedConsumerRequiresFamilyCorrelatedBinding(t *testing.T) {
 				t.Fatalf("violation = %v, want %v: %v", got, tc.wantViolation, violations)
 			}
 		})
-	}
-}
-
-func TestResolvedConsumerRejectsCrossFilePackageConstruction(t *testing.T) {
-	repoRoot := t.TempDir()
-	dir := filepath.Join(repoRoot, "cmd", "internal", "mutation")
-	if err := os.MkdirAll(dir, 0o755); err != nil {
-		t.Fatal(err)
-	}
-	files := map[string]string{
-		"config.go": "package mutation\nconst draftHead = \"dra\"\nfunc draftPrefix() string { return draftHead }\n",
-		"lifecycle.go": "package mutation\nimport (\"path/filepath\"; \"github.com/xianxu/pair/cmd/internal/artifactpath\")\n" +
-			"const draftTail = \"ft-\"\n" +
-			"func good(root, tag string) string { paths, _ := artifactpath.ResolveScoped(root, tag); return paths.Draft() }\n" +
-			"func bad(root, tag string) string { return filepath.Join(root, draftPrefix() + draftTail + tag + \".md\") }\n",
-	}
-	for name, body := range files {
-		if err := os.WriteFile(filepath.Join(dir, name), []byte(body), 0o644); err != nil {
-			t.Fatal(err)
-		}
-	}
-	violations, err := artifactConstructorViolations(repoRoot, []string{"cmd"}, []SourceClassification{{
-		Path: "cmd/internal/mutation/lifecycle.go", Kind: ResolvedConsumer,
-		Families: []string{"draft"}, BindingNames: []string{"scoped-draft"},
-	}})
-	if err != nil {
-		t.Fatal(err)
-	}
-	if len(violations) == 0 {
-		t.Fatal("cross-file package construction escaped artifact authority")
 	}
 }
 
@@ -1433,7 +1001,7 @@ func TestVocabularyConsumerContract(t *testing.T) {
 			if err := os.WriteFile(path, []byte(tc.body), 0o644); err != nil {
 				t.Fatal(err)
 			}
-			violations, err := artifactConstructorViolations(repoRoot, []string{"cmd"}, []SourceClassification{{
+			violations, err := artifactSourceViolations(repoRoot, []string{"cmd"}, []SourceClassification{{
 				Path: rel, Kind: VocabularyConsumer, Families: []string{"native-session"}, Vocabulary: tc.allowances,
 			}})
 			if err != nil {
@@ -1623,10 +1191,11 @@ func constantString(expr ast.Expr) (string, bool) {
 	}
 }
 
-// assembledStringFragments conservatively models runtime string constructors:
-// every literal fragment under one call expression is concatenated in source
-// order. This covers joins, formatters, replacers, builders passed through a
-// helper, and filepath calls without maintaining a parallel constructor list.
+// assembledStringFragments is a bounded defense-in-depth check: literal
+// fragments below one call expression are concatenated in source order. It
+// catches common joins, formatters, replacers, and filepath calls, but makes no
+// semantic-provenance claim across statements, helpers, packages, or control
+// flow.
 func assembledStringFragments(expr ast.Expr, classification SourceClassification) (string, bool) {
 	if _, ok := expr.(*ast.CallExpr); !ok {
 		return "", false

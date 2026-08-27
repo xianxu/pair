@@ -1709,3 +1709,46 @@ breaks the digest; while the set is open, every unmarked exported top-level
 function, type, or catalog variable fails closed into the concept comparison.
 An outside-`artifactpath` mutation in `couchcore/migration.go` pins that rule
 (ARCH-DRY, ARCH-PURPOSE).
+
+### 2026-08-27 — bound artifact enforcement to the repository contract
+
+**Reason:** thirty-four M5 review rounds demonstrated that the phrase
+“constructor closure” had been expanded into a proof over arbitrary future Go
+string programs. The custom AST/dataflow evaluator acquired cases for lexical
+order, helpers, package globals, cross-file flow, builders, and control flow,
+yet every extension exposed another legal syntax outside its model. The
+operator explicitly rejected that proof obligation. It is not necessary to
+deliver composite work-thread isolation and it is not a bounded repository
+test (Simplicity First, ARCH-DRY, ARCH-PURPOSE).
+
+**Delta:** M5 proves the state of the repository it ships, not every program a
+future contributor could write. The executable contract is now:
+
+1. every current production source is explicitly listed as an artifact
+   constructor, resolved consumer, vocabulary-only consumer, generated mirror,
+   or non-artifact source;
+2. `Constructor` classification is confined to `cmd/internal/artifactpath`;
+3. every current `ResolvedConsumer` names and actually consumes the canonical
+   `artifactpath` resolver/member binding for each family it declares;
+4. exact vocabulary allowances and direct literal/constant-expression checks
+   remain bounded defense-in-depth checks; and
+5. cross-scope integration tests prove that the shipped Go, shell, Neovim, and
+   Zellij consumers do not observe or mutate a same-tag thread in another
+   repository scope.
+
+The package-wide string-provenance evaluator and its helper/order/builder/
+cross-file mutation matrix are deleted. The remaining checks do not claim to
+recognize deliberately reconstructed artifact names or prove semantic
+provenance through arbitrary Go control flow. Future enforcement may use a
+typed capability at filesystem sinks or a real SSA analyzer, but neither is an
+M5 requirement. BR-32 is therefore answered by correcting the over-broad
+contract, not by adding another syntax case. BR-37's closed M5 concept
+inventory remains unchanged and load-bearing.
+
+**Execution:** first remove the abandoned uncommitted round-34 experiment;
+then delete only the committed provenance evaluator and the tests that assert
+helper/order/package/control-flow completeness; retain source inventory,
+constructor-location, positive binding, exact vocabulary, direct-expression,
+clean-bootstrap, and cross-scope tests. Run the focused artifact suite, clean
+bootstrap, full/race suites, runtime drift, issue validation, and diff hygiene
+before retrying the M5 boundary.

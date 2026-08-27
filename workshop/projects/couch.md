@@ -725,3 +725,13 @@ inventory closes the complete M5 declaration population with a stable AST
 signature, so any new declaration requires an explicit concept/detail
 disposition and exported additions fail closed across all M5 sources
 (ARCH-DRY, ARCH-PURPOSE).
+
+### 2026-08-27 — pair#149 M5 proof boundary correction
+
+Operator review rejected the emergent requirement to prove artifact-string
+provenance for arbitrary future Go programs. M5 retains exhaustive current-
+source participation, constructor-location enforcement, positive per-family
+bindings, bounded literal checks, and cross-scope consumer integration. The
+custom package dataflow evaluator is removed; a typed filesystem capability or
+SSA analyzer would be separate future work if ever justified (Simplicity
+First, ARCH-DRY, ARCH-PURPOSE).
