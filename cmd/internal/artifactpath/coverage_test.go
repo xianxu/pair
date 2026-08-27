@@ -282,14 +282,21 @@ type stringFlow struct {
 
 func resolvedDataflowAssemblyViolations(rel string, fileSet *token.FileSet, file *ast.File, classification SourceClassification) []string {
 	summaries := map[string]string{}
-	for range 8 {
+	globals := map[*ast.Object]string{}
+	maxIterations := len(file.Decls) + longestFamilyToken() + 1
+	for range maxIterations {
 		changed := false
+		nextGlobals := packageStringValues(file, classification, summaries, globals)
+		if !sameObjectStringMap(globals, nextGlobals) {
+			globals = nextGlobals
+			changed = true
+		}
 		for _, decl := range file.Decls {
 			function, ok := decl.(*ast.FuncDecl)
 			if !ok || function.Body == nil {
 				continue
 			}
-			flow := newStringFlow(classification, summaries)
+			flow := newStringFlow(classification, summaries, globals)
 			flow.block(function.Body)
 			summary := strings.Join(flow.returns, "")
 			if summaries[function.Name.Name] != summary {
@@ -308,7 +315,7 @@ func resolvedDataflowAssemblyViolations(rel string, fileSet *token.FileSet, file
 		if !ok || function.Body == nil {
 			continue
 		}
-		flow := newStringFlow(classification, summaries)
+		flow := newStringFlow(classification, summaries, globals)
 		flow.block(function.Body)
 		for _, value := range flow.values {
 			for _, familyName := range classification.Families {
@@ -327,13 +334,61 @@ func resolvedDataflowAssemblyViolations(rel string, fileSet *token.FileSet, file
 	return violations
 }
 
-func newStringFlow(classification SourceClassification, summaries map[string]string) *stringFlow {
-	return &stringFlow{
+func packageStringValues(file *ast.File, classification SourceClassification, summaries map[string]string, previous map[*ast.Object]string) map[*ast.Object]string {
+	flow := newStringFlow(classification, summaries, previous)
+	for _, decl := range file.Decls {
+		gen, ok := decl.(*ast.GenDecl)
+		if !ok || gen.Tok != token.CONST && gen.Tok != token.VAR {
+			continue
+		}
+		for _, spec := range gen.Specs {
+			valueSpec, ok := spec.(*ast.ValueSpec)
+			if !ok {
+				continue
+			}
+			for i, expression := range valueSpec.Values {
+				if i < len(valueSpec.Names) && valueSpec.Names[i].Obj != nil {
+					flow.vars[valueSpec.Names[i].Obj] = flow.expression(expression)
+				}
+			}
+		}
+	}
+	return flow.vars
+}
+
+func sameObjectStringMap(left, right map[*ast.Object]string) bool {
+	if len(left) != len(right) {
+		return false
+	}
+	for object, value := range left {
+		if right[object] != value {
+			return false
+		}
+	}
+	return true
+}
+
+func longestFamilyToken() int {
+	longest := 0
+	for _, family := range Families {
+		if len(family.Token) > longest {
+			longest = len(family.Token)
+		}
+	}
+	return longest
+}
+
+func newStringFlow(classification SourceClassification, summaries map[string]string, initial map[*ast.Object]string) *stringFlow {
+	flow := &stringFlow{
 		classification: classification,
 		summaries:      summaries,
 		vars:           map[*ast.Object]string{},
 		builders:       map[*ast.Object]string{},
 	}
+	for object, value := range initial {
+		flow.vars[object] = value
+	}
+	return flow
 }
 
 func (f *stringFlow) block(block *ast.BlockStmt) {
@@ -1137,6 +1192,16 @@ func TestResolvedConsumerRequiresFamilyCorrelatedBinding(t *testing.T) {
 				"func good(root, tag string) string { paths, _ := artifactpath.ResolveScoped(root, tag); return paths.Draft() }\n" +
 				"func head() string { return \"dra\" }\nfunc tail() string { return \"ft-\" }\n" +
 				"func bad(root, tag string) string { return filepath.Join(root, head() + tail() + tag + \".md\") }\n",
+			families:      []string{"draft"},
+			bindingNames:  []string{"scoped-draft"},
+			wantViolation: true,
+		},
+		{
+			name: "valid witness beside package-constant constructor",
+			body: "package mutation\nimport (\"path/filepath\"; \"github.com/xianxu/pair/cmd/internal/artifactpath\")\n" +
+				"const draftTail = \"ft-\"\nconst draftHead = \"dra\"\nconst draftPrefix = draftHead + draftTail\n" +
+				"func good(root, tag string) string { paths, _ := artifactpath.ResolveScoped(root, tag); return paths.Draft() }\n" +
+				"func bad(root, tag string) string { return filepath.Join(root, draftPrefix + tag + \".md\") }\n",
 			families:      []string{"draft"},
 			bindingNames:  []string{"scoped-draft"},
 			wantViolation: true,

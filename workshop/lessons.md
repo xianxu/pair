@@ -2262,7 +2262,9 @@ cheapest to find before implementation.
 
 **Rule.** For every exclusivity or whole-diff claim, plan review asks what
 positive witness proves derivation, what exhaustive source enumerates the
-population, and which adversarial mutations vary order, indirection, runtime
-composition, and initial filesystem state. If those witnesses are absent, the
-plan is not ready for `change-code`, even when its happy-path tests are precise
-(ARCH-PURPOSE).
+population, and which adversarial mutations vary lexical scope (package and
+local), order, aliasing, helper indirection, runtime composition, and initial
+filesystem state. Participation must fail closed: a newly exported authority or
+new source cannot silently receive the non-participating/default disposition.
+If those witnesses are absent, the plan is not ready for `change-code`, even
+when its happy-path tests are precise (ARCH-PURPOSE).

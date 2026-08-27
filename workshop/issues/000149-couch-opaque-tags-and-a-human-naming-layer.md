@@ -1315,3 +1315,15 @@ to both plan tables for unique name, kind, path, and M5 status. The plan-review
 contract now requires positive witnesses, reordered/indirected/runtime bypass
 mutations, an executable enumeration source, and an exact initial state
 (ARCH-DRY, ARCH-PURPOSE, ARCH-MOCK).
+
+### 2026-08-27 — M5 boundary review round 11
+
+Round 32 reproduced two remaining opt-outs. Package-scope split constants now
+seed the same fixed-point provenance analysis as local variables and helper
+summaries; the regression includes reordered constants plus a package alias.
+The concept rule now fails closed for every exported type or catalog variable
+added to either wholly M5-created artifact authority file, so an unmarked
+`ReviewAddedAuthority` becomes a required plan concept instead of silently
+becoming detail. A direct AST mutation pins that default, while source markers
+continue to promote architectural unexported seams and integrations elsewhere
+(ARCH-DRY, ARCH-PURPOSE).

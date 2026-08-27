@@ -709,3 +709,11 @@ mutations. The M5 concept contract classifies every declaration in the complete
 milestone Go diff and derives the plan-visible architectural subset from
 source-local markers, including pure, seam, and integration entities outside
 `artifactpath` (ARCH-DRY, ARCH-PURPOSE).
+
+### 2026-08-27 — pair#149 M5 package provenance and fail-closed authorities
+
+The constructor proof now includes package constants/variables and aliases in
+the same fixed point as local helpers and runtime composition. Exported types
+and catalog variables in the M5 artifact authority are concept-by-default, so a
+new unmarked public authority cannot opt out of the plan inventory
+(ARCH-DRY, ARCH-PURPOSE).

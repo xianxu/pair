@@ -1664,3 +1664,25 @@ matrix that changes ordering, indirection, and runtime composition, and unless
 its inventory names the executable enumeration source plus the exact initial
 filesystem state. That is the at-plan application of ARCH-PURPOSE: evidence must
 prove the promised class, not only the most natural implementation shape.
+
+### 2026-08-27 — extend provenance to package scope and fail closed on authorities
+
+**Reason:** the revised proof still seeded dataflow only from function-local
+declarations, so package constants and aliases could construct an artifact
+token before entering an otherwise checked function. The declaration rule also
+treated every absent marker as detail, allowing a newly exported authority type
+to opt itself out of the plan inventory.
+
+**Delta:** package `const`/`var` declarations and local-function return
+summaries now converge in one bounded package-semantic fixed point before each
+function is checked. The adversarial matrix includes reordered package
+fragments, a package alias, local helpers, local reordering, call-based runtime
+assembly, and builder state. For the wholly M5-created `artifactpath/manifest.go`
+and `paths.go` authorities, exported type and catalog-var declarations are
+concept-by-default even without a marker; an unmarked addition therefore fails
+against the plan. Markers remain required to promote unexported seams or
+integration entities elsewhere, while unexported implementation declarations,
+enum members owned by a marked type, methods owned by a marked receiver, and
+non-authority declarations are details by the executable structural rule. A
+direct AST mutation pins the unmarked exported-authority case (ARCH-DRY,
+ARCH-PURPOSE).

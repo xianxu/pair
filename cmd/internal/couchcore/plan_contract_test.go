@@ -86,6 +86,17 @@ func TestIssue149M5CoreConceptInventoryContract(t *testing.T) {
 	}
 }
 
+func TestIssue149M5UnmarkedExportedAuthorityFailsClosed(t *testing.T) {
+	file, err := parser.ParseFile(token.NewFileSet(), "paths.go", "package artifactpath\ntype ReviewAddedAuthority struct{}\n", parser.ParseComments)
+	if err != nil {
+		t.Fatal(err)
+	}
+	requirements := issue149M5ConceptsForDecl(t, file.Name.Name, "cmd/internal/artifactpath/paths.go", file.Decls[0])
+	if len(requirements) != 1 || requirements[0].name != "artifactpath.ReviewAddedAuthority" || requirements[0].kind != "pure" {
+		t.Fatalf("unmarked exported authority disposition = %+v, want one fail-closed pure concept", requirements)
+	}
+}
+
 func TestIssue149M5CoreConceptInventoryRejectsRowMutation(t *testing.T) {
 	root := filepath.Join("..", "..", "..")
 	raw, err := os.ReadFile(findIssue149Plan(t, root))
@@ -309,6 +320,9 @@ func issue149M5ConceptsForDecl(t *testing.T, packageName, rel string, decl ast.D
 				if kind == "" {
 					kind = marker(typed.Doc)
 				}
+				if kind == "" && issue149M5AuthorityDeclarationDefaultsToConcept(rel, item.Name) {
+					kind = "pure"
+				}
 				if kind != "" {
 					out = append(out, issue149ConceptRequirement{name: qualified(item.Name.Name), path: rel, kind: kind})
 				}
@@ -318,8 +332,12 @@ func issue149M5ConceptsForDecl(t *testing.T, packageName, rel string, decl ast.D
 					kind = marker(typed.Doc)
 				}
 				for _, name := range item.Names {
-					if kind != "" {
-						out = append(out, issue149ConceptRequirement{name: qualified(name.Name), path: rel, kind: kind})
+					resolvedKind := kind
+					if resolvedKind == "" && typed.Tok == token.VAR && issue149M5AuthorityDeclarationDefaultsToConcept(rel, name) {
+						resolvedKind = "pure"
+					}
+					if resolvedKind != "" {
+						out = append(out, issue149ConceptRequirement{name: qualified(name.Name), path: rel, kind: resolvedKind})
 					}
 				}
 			}
@@ -329,6 +347,13 @@ func issue149M5ConceptsForDecl(t *testing.T, packageName, rel string, decl ast.D
 		t.Fatalf("unclassified declaration kind %T in %s", decl, rel)
 		return nil
 	}
+}
+
+func issue149M5AuthorityDeclarationDefaultsToConcept(rel string, name *ast.Ident) bool {
+	if !ast.IsExported(name.Name) {
+		return false
+	}
+	return rel == "cmd/internal/artifactpath/manifest.go" || rel == "cmd/internal/artifactpath/paths.go"
 }
 
 func TestIssue149CurrentCoreConceptKinds(t *testing.T) {
