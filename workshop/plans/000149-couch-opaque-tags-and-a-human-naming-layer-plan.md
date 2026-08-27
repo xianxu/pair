@@ -58,6 +58,7 @@ than adding only the entity named by a review finding.
 | `AgentInventory` | pure | `cmd/internal/launcher/agent_defaults.go` | shared inventory added in M4 |
 | `couchLaunchProfileWire` / `BuildCouchLaunchProfile` / `ApplyCouchLaunchProfile` | pure | `cmd/internal/launcher/launch_args_policy.go` | strict one-shot codec added in M4 |
 | `mergeChildEnvironment` | pure | `cmd/internal/couchcore/runner.go` | authoritative child overlay added in M4 review disposition |
+| `MigrateLegacyRecord` | pure | `cmd/internal/couchcore/migration.go` | new in M5 |
 | `ArtifactFamily` | pure | `cmd/internal/artifactpath/paths.go` | new in M5 |
 
 - **`CouchNamespace`** — the absolute physical store path used as the durable
@@ -86,7 +87,7 @@ than adding only the entity named by a review finding.
 | `CouchNamespace` / `ResolveCouchNamespace` | `cmd/internal/couchcore/namespace.go` | new in M1 | startup cwd, mkdir, physical-path resolution |
 | `SupervisorLease` | `cmd/internal/couchcore/supervisorlease.go`, `supervisorlease_unix.go` | new in M1 | non-inheritable OS advisory lock and owner metadata through existing `ProcOps` identity |
 | `PolicyResolver` / `ExecPolicyResolver` | `cmd/internal/couchcore/policyresolver.go`, `policyresolver_exec.go` | new in M1 | `sdlc fleet policy` subprocess |
-| `ThreadStore` | `cmd/internal/couchcore/threadstore.go` | new in M1, widened in M2, M3, and M4 | filesystem lock, per-thread/path-preference records, WAL/manifest |
+| `ThreadStore` | `cmd/internal/couchcore/threadstore.go` | new in M1, widened in M2, M3, M4, and M5 | filesystem lock, per-thread/path-preference records, WAL/manifest, versioned legacy enrichment |
 | `ThreadStore.ApplyThreadMetadata` | `cmd/internal/couchcore/threadmetadata.go` | new in M3 | revision-CAS store transition and reference snapshot |
 | `LaunchHelper` | `cmd/internal/couchcore/launchhelper.go`, `cmd/pair-launch-helper/main.go` | new in M2 | fork/exec acknowledgement boundary |
 | `SessionQuiescence` | `cmd/internal/launcher/session_quiescence.go` | new in M2 | observable zellij session/server teardown |
@@ -96,6 +97,7 @@ than adding only the entity named by a review finding.
 | `OSRuntime.ReadAgentDefault` | `cmd/internal/launcher/osruntime.go` | reused in M4 | Pair-owned scoped argv-default storage |
 | `applyCouchLaunchEnvironment` | `cmd/internal/launcher/runcli.go` | new in M4 | consumes the tag-bound profile and cross-checks repo-default provenance at Pair entry |
 | `ExecRunner` / `buildExecCommand` | `cmd/internal/couchcore/runner.go` | modified in M4 review disposition | one production command path over inherited environment with authoritative child-key overlay |
+| `ThreadStore.MigrateLegacyRecords` | `cmd/internal/couchcore/migration.go` | new in M5 | one locked journal transaction over cutover records and manifest completion |
 
 Every integration has a stateful fake or real-process conformance test. In
 particular, namespace/lease tests use independent processes and inherited file
@@ -704,15 +706,15 @@ inventory, never a couch enum (ARCH-DRY).
 
 **Steps:**
 
-- [ ] **Step 1:** Write `MigrateLegacyRecord` model tests from the strategy table,
+- [x] **Step 1:** Write `MigrateLegacyRecord` model tests from the strategy table,
    beginning with M1 cutover records and treating unreadable legacy input as
    preserved conservative state.
-- [ ] **Step 2:** Under the global lock, write a schema-versioned nonce journal and advance
+- [x] **Step 2:** Under the global lock, write a schema-versioned nonce journal and advance
    idempotently. Preserve every legacy file and unreadable record. Enrich the
    M1 path-derived composite records without changing their admission evidence;
    retain inseparable co-tenants as multiple incarnations that conservatively
    block admission.
-- [ ] **Step 3:** Never rename legacy Pair artifact files. Create distinct composite records
+- [x] **Step 3:** Never rename legacy Pair artifact files. Create distinct composite records
    by scope and verify rerunning migration is byte/state stable.
 
 ### Task 2: Route all Pair artifacts through the composite namespace
@@ -1233,3 +1235,21 @@ normalization and requires exactly one authoritative policy entry; changing
 that production line back to inherited-plus-appended entries makes the test
 fail with both `=1` and empty values. The real subprocess probe remains as
 end-to-end behavior evidence (ARCH-PURE, ARCH-PURPOSE, ARCH-MOCK).
+
+### 2026-08-26 — reuse the ThreadStore journal for M5 legacy enrichment
+
+**Reason:** Task 1 anticipated changes to the old `Store`, but M1 already
+preserved and strictly loaded `registry.json` and atomically cut its actors over
+to composite ThreadStore records. A second migration engine would duplicate
+the transaction authority and risk rewriting the historical input.
+
+**Delta:** `MigrateLegacyRecord` is the pure metadata enrichment over an M1
+cutover record; `ThreadStore.MigrateLegacyRecords` performs the complete
+locked migration with the existing recoverable journal and a versioned
+manifest marker. New journals carry a content-addressed transaction nonce;
+pre-nonce interrupted journals remain readable for compatibility. The old
+Store and registry bytes are never targets, so no `store.go` production change
+is required. Tests retain same-tag cross-scope separation and co-tenant
+occupancy from M1, prove exact metadata enrichment, preserve corrupt bytes and
+an incomplete marker on refusal, recover an interrupted multi-target journal,
+and require byte-stable reruns (ARCH-DRY, ARCH-PURE, ARCH-PURPOSE).

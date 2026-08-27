@@ -1092,3 +1092,15 @@ sanitizer with inherited-plus-appended values makes the test fail with both
 the stale `=1` and authoritative empty entry; current code passes along with
 the real subprocess probe. M4 closed with 1.52 measured hours
 (ARCH-PURE, ARCH-PURPOSE, ARCH-MOCK).
+
+### 2026-08-26 — M5 legacy record enrichment
+
+M5 reuses M1's conservative composite cutover and the ThreadStore journal
+rather than adding a second migration authority. The pure migration fills only
+empty thread name/description fields from the exact legacy tree entry and
+never changes incarnations, policy evidence, origin, or revision. Under the
+global store lock, every readable candidate and after-image is validated before
+one nonce-bearing journal publishes record revisions plus the versioned
+manifest marker. Corrupt input and the preserved registry remain byte-exact;
+interruption rolls forward the whole mutation; rerun is byte-stable
+(ARCH-DRY, ARCH-PURE, ARCH-PURPOSE).

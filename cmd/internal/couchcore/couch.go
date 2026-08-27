@@ -66,6 +66,9 @@ func New(namespace CouchNamespace, r Runner, p PathOps, g GitRunner, proc ProcOp
 	if err := threads.CutoverLegacyActors(reg.Records()); err != nil {
 		return nil, fmt.Errorf("cut over legacy actors: %w", err)
 	}
+	if err := threads.MigrateLegacyRecords(names); err != nil {
+		return nil, fmt.Errorf("migrate legacy thread metadata: %w", err)
+	}
 	result := &Couch{
 		Namespace: namespace,
 		Runner:    r, Path: p, Git: g, Proc: proc, Store: s, Clock: c, IDs: ids,

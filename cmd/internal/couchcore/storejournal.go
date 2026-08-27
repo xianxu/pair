@@ -2,6 +2,8 @@ package couchcore
 
 import (
 	"bytes"
+	"crypto/sha256"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"os"
@@ -12,6 +14,7 @@ import (
 
 type storeJournal struct {
 	SchemaVersion int                 `json:"schema_version"`
+	Nonce         string              `json:"nonce,omitempty"`
 	Entries       []storeJournalEntry `json:"entries"`
 }
 
@@ -22,6 +25,19 @@ type storeJournalEntry struct {
 }
 
 func (s *ThreadStore) journalPath() string { return filepath.Join(s.root, "journal.json") }
+
+func assignStoreJournalNonce(journal storeJournal) (storeJournal, error) {
+	if journal.Nonce != "" {
+		return journal, nil
+	}
+	raw, err := json.Marshal(journal.Entries)
+	if err != nil {
+		return storeJournal{}, err
+	}
+	digest := sha256.Sum256(raw)
+	journal.Nonce = fmt.Sprintf("txn-%x", digest[:16])
+	return journal, nil
+}
 
 func (s *ThreadStore) recoverStoreJournalLocked() error {
 	raw, err := os.ReadFile(s.journalPath())

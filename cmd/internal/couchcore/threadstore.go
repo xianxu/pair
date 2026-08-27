@@ -49,6 +49,9 @@ type threadManifest struct {
 	Generation    uint64          `json:"generation"`
 	Threads       []ThreadAddress `json:"threads"`
 	LegacyCutover bool            `json:"legacy_cutover,omitempty"`
+	// LegacyMigrationVersion records enrichment of M1 cutover records without
+	// rewriting or deleting the preserved registry snapshot.
+	LegacyMigrationVersion int `json:"legacy_migration_version,omitempty"`
 }
 
 type ThreadStore struct {
@@ -810,6 +813,10 @@ func relativeStorePath(root, path string) string {
 }
 
 func (s *ThreadStore) commitJournalLocked(journal storeJournal) error {
+	journal, err := assignStoreJournalNonce(journal)
+	if err != nil {
+		return err
+	}
 	raw, err := json.MarshalIndent(journal, "", "  ")
 	if err != nil {
 		return err
