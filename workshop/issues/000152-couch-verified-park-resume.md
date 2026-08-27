@@ -1,11 +1,12 @@
 ---
 id: 000152
-status: open
+status: working
 deps: [149]
 github_issue:
 created: 2026-08-25
-updated: 2026-08-25
+updated: 2026-08-27
 estimate_hours:
+started: 2026-08-27T12:04:27-07:00
 ---
 
 # couch: verified park and resume lifecycle
