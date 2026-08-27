@@ -416,6 +416,24 @@ rounds:
           round: 16
       boundary: M3
       blocked: false
+    - "n": 17
+      timestamp: "2026-08-26T17:51:53-07:00"
+      agent: codex
+      findings:
+        - id: BR-27
+          severity: Critical
+          title: M4's Core concepts inventory omits and misstates implemented architectural entities
+          detail: 'This is the 4th finding in family `core-concept-kind-contract`. Earlier rounds fixed instances. Do NOT fix only one row: state the rule that every milestone-added or modified architectural entity must have a greppable row with its correct kind, path, and current status, then sweep the full M4 diff. The table at plan line 37 omits LaunchProfile, PathLaunchPreference, and the strict Couch profile-wire integration, while the ThreadRecord and threadrecord.Record statuses do not acknowledge their M4 widening (ARCH-PURE, ARCH-PURPOSE).'
+          family: core-concept-kind-contract
+          round: 17
+        - id: BR-28
+          severity: Important
+          title: An explicitly empty agent selection silently launches the fallback agent
+          detail: bindArgs preserves `--agent=` as a present empty string at couchcmd/run.go:400, but CouchLiveOwnerExecutor passes only the value and ResolveLaunchProfile treats empty as no explicit selection. Reject missing or empty values for value-bearing flags before Spawn, distinguish them from boolean switches, and add public CLI plus generic-dispatch tests that fail without the fix.
+          family: value-bearing-flag-contract
+          round: 17
+      boundary: M4
+      blocked: true
 ---
 
 # Gate ledger — pair#149 (boundary-review)
@@ -609,6 +627,16 @@ later rounds disposed of them. Generated — edit the gate, not this file.
 
 - BR-26 — addressed — Both readers use the complete shared persisted-record decoder, and the real-store mutation test fails when Launcher is reverted to its former partial schema.
 
+## Round 17 — 2026-08-26T17:51:53-07:00 (codex) — BLOCKED
+
+### Raised
+
+- **BR-27** [Critical] `core-concept-kind-contract` M4's Core concepts inventory omits and misstates implemented architectural entities
+  This is the 4th finding in family `core-concept-kind-contract`. Earlier rounds fixed instances. Do NOT fix only one row: state the rule that every milestone-added or modified architectural entity must have a greppable row with its correct kind, path, and current status, then sweep the full M4 diff. The table at plan line 37 omits LaunchProfile, PathLaunchPreference, and the strict Couch profile-wire integration, while the ThreadRecord and threadrecord.Record statuses do not acknowledge their M4 widening (ARCH-PURE, ARCH-PURPOSE).
+- **BR-28** [Important] `value-bearing-flag-contract` An explicitly empty agent selection silently launches the fallback agent
+  bindArgs preserves `--agent=` as a present empty string at couchcmd/run.go:400, but CouchLiveOwnerExecutor passes only the value and ResolveLaunchProfile treats empty as no explicit selection. Reject missing or empty values for value-bearing flags before Spawn, distinguish them from boolean switches, and add public CLI plus generic-dispatch tests that fail without the fix.
+
 ## Open findings
 
-(none — every finding has been disposed)
+- **BR-27** [Critical] `core-concept-kind-contract` M4's Core concepts inventory omits and misstates implemented architectural entities
+- **BR-28** [Important] `value-bearing-flag-contract` An explicitly empty agent selection silently launches the fallback agent

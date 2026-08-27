@@ -36,19 +36,27 @@ remains #153. #149 returns typed refusals for those unavailable outcomes.
 
 ### Core concepts
 
+Inventory rule: every milestone-added or milestone-modified architectural
+entity has one greppable row with its actual kind, path, and latest milestone
+status. Each boundary sweeps the whole milestone diff against this table rather
+than adding only the entity named by a review finding.
+
 | Entity | Kind | Lives in | Status |
 |---|---|---|---|
 | `CouchNamespace` / `ResolveCouchNamespace` | integration | `cmd/internal/couchcore/namespace.go` | new in M1 |
 | `PolicyResult` / `PolicyCapacity` | pure | `cmd/internal/couchcore/policyresolver.go` | new in M1 |
 | `AdmissionDecision` | pure | `cmd/internal/couchcore/admission.go` | new in M1 |
-| `ThreadAddress` / `ThreadRecord` | pure | `cmd/internal/couchcore/thread.go` | new in M1, widened in M2 and M3 |
-| `StartTransaction` | pure | `cmd/internal/couchcore/starttransaction.go` | new in M2 |
+| `ThreadAddress` / `ThreadRecord` | pure | `cmd/internal/couchcore/thread.go` | new in M1, widened in M2, M3, and M4 |
+| `StartTransaction` | pure | `cmd/internal/couchcore/starttransaction.go` | new in M2, widened in M4 |
 | `ThreadMetadataPatch` / `ApplyThreadMetadata` | pure | `cmd/internal/couchcore/threadmetadata_model.go` | new in M3 |
 | `ThreadSummary` / `BuildThreadInventory` | pure | `cmd/internal/couchcore/threadinventory.go` | new in M3 |
-| `Operation` / `Operations` effect-owner declarations | pure | `cmd/internal/couchcore/ops.go` | modified in M1; split from executors in M3 |
-| `threadrecord.Record` / `ValidatePersisted` / `DecodePersisted` | pure | `cmd/internal/threadrecord/record.go` | new in M3 boundary disposition |
+| `Operation` / `ArgSpec` / `Operations` effect-owner declarations | pure | `cmd/internal/couchcore/ops.go` | modified in M1; split from executors in M3; launch selection and value-bearing flags added in M4 |
+| `bindArgs` | pure | `cmd/internal/couchcmd/run.go` | value-bearing flag contract modified in M4 review disposition |
+| `threadrecord.Record` / `ValidatePersisted` / `DecodePersisted` | pure | `cmd/internal/threadrecord/record.go` | new in M3 boundary disposition, widened in M4 |
 | `strictjson.Decode` | pure | `cmd/internal/strictjson/decode.go` | extracted in M3 boundary disposition |
-| `LaunchProfileResolution` | pure | `cmd/internal/couchcore/launchprofile.go` | new in M4 |
+| `LaunchProfile` / `PathLaunchPreference` / `LaunchProfileResolution` | pure | `cmd/internal/couchcore/launchprofile.go` | new in M4 |
+| `AgentInventory` | pure | `cmd/internal/launcher/agent_defaults.go` | shared inventory added in M4 |
+| `couchLaunchProfileWire` / `BuildCouchLaunchProfile` / `ApplyCouchLaunchProfile` | pure | `cmd/internal/launcher/launch_args_policy.go` | strict one-shot codec added in M4 |
 | `ArtifactFamily` | pure | `cmd/internal/artifactpath/paths.go` | new in M5 |
 
 - **`CouchNamespace`** — the absolute physical store path used as the durable
@@ -77,13 +85,15 @@ remains #153. #149 returns typed refusals for those unavailable outcomes.
 | `CouchNamespace` / `ResolveCouchNamespace` | `cmd/internal/couchcore/namespace.go` | new in M1 | startup cwd, mkdir, physical-path resolution |
 | `SupervisorLease` | `cmd/internal/couchcore/supervisorlease.go`, `supervisorlease_unix.go` | new in M1 | non-inheritable OS advisory lock and owner metadata through existing `ProcOps` identity |
 | `PolicyResolver` / `ExecPolicyResolver` | `cmd/internal/couchcore/policyresolver.go`, `policyresolver_exec.go` | new in M1 | `sdlc fleet policy` subprocess |
-| `ThreadStore` | `cmd/internal/couchcore/threadstore.go` | new in M1, widened later | filesystem lock, per-thread records, WAL/manifest |
+| `ThreadStore` | `cmd/internal/couchcore/threadstore.go` | new in M1, widened in M2, M3, and M4 | filesystem lock, per-thread/path-preference records, WAL/manifest |
 | `ThreadStore.ApplyThreadMetadata` | `cmd/internal/couchcore/threadmetadata.go` | new in M3 | revision-CAS store transition and reference snapshot |
 | `LaunchHelper` | `cmd/internal/couchcore/launchhelper.go`, `cmd/pair-launch-helper/main.go` | new in M2 | fork/exec acknowledgement boundary |
 | `SessionQuiescence` | `cmd/internal/launcher/session_quiescence.go` | new in M2 | observable zellij session/server teardown |
 | `DispatchOperation` / `OperationExecutors` / `DirectStoreExecutor` / `CouchLiveOwnerExecutor` | `cmd/internal/couchcore/operationdispatch.go` | new in M3 | validated dispatch, direct-store effects, and optional live-owner effects |
 | `Console.ExecuteConsoleOperation` | `cmd/internal/couchtty/console.go` | new in M3 | terminal-local switch and typed attach effects |
-| `AgentInventory` / repo defaults | `cmd/internal/launcher/agent_defaults.go` | modified in M4 | supported harnesses and scoped argv defaults |
+| `Couch.resolveLaunchProfile` / `RepoAgentDefault` | `cmd/internal/couchcore/couch.go`, `cmd/internal/couchcmd/run.go` | new in M4 | strict path preference reads and injected Pair repo-default reads |
+| `OSRuntime.ReadAgentDefault` | `cmd/internal/launcher/osruntime.go` | reused in M4 | Pair-owned scoped argv-default storage |
+| `applyCouchLaunchEnvironment` | `cmd/internal/launcher/runcli.go` | new in M4 | consumes the tag-bound profile and cross-checks repo-default provenance at Pair entry |
 
 Every integration has a stateful fake or real-process conformance test. In
 particular, namespace/lease tests use independent processes and inherited file
@@ -434,6 +444,9 @@ inventory, never a couch enum (ARCH-DRY).
 - Modify `cmd/internal/couchcore/thread_test.go`
 - Modify `cmd/internal/couchcore/threadstore.go`
 - Modify `cmd/internal/couchcore/threadstore_test.go`
+- Modify `cmd/internal/couchcore/thread.go`
+- Modify `cmd/internal/threadrecord/record.go`
+- Modify `cmd/internal/threadrecord/record_test.go`
 - Modify `cmd/internal/launcher/scope.go`
 - Modify `cmd/internal/launcher/scoped_paths.go`
 - Modify their colocated tests
@@ -629,7 +642,9 @@ inventory, never a couch enum (ARCH-DRY).
 - Modify `cmd/internal/launcher/agent_defaults_test.go`
 - Modify `cmd/internal/launcher/launch_args_policy.go`
 - Modify `cmd/internal/launcher/launch_args_policy_test.go`
-- Modify couchcmd runtime composition/tests
+- Modify `cmd/internal/launcher/args.go`, `rename.go`, `runcli.go`, and tests
+- Modify `cmd/internal/couchcore/ops.go`, `operationdispatch.go`, and `couch.go`
+- Modify couchcmd runtime composition, argument binding, and tests
 
 **Steps:**
 
@@ -646,6 +661,8 @@ inventory, never a couch enum (ARCH-DRY).
 - Modify `cmd/internal/couchcore/starttransaction_test.go`
 - Modify `cmd/internal/couchcore/couch.go`
 - Modify `cmd/internal/couchcore/couch_test.go`
+- Modify `cmd/internal/couchcore/thread.go`, `threadstore.go`, and tests
+- Modify `cmd/internal/threadrecord/record.go` and tests
 
 **Steps:**
 
@@ -660,7 +677,8 @@ inventory, never a couch enum (ARCH-DRY).
 
 **Files:**
 
-- Modify `atlas/couch.md`, issue/project logs
+- Modify `README.md`, `atlas/couch.md`, issue/project logs
+- Modify cross-reader conformance and CLI value-bearing flag tests
 
 **Steps:**
 
@@ -1151,3 +1169,20 @@ and reads this wire type; Launcher projects the same decoded value into
 ThreadIndex. A real-file mutation table changes every enumerated invariant and
 requires both readers to reject it, preventing future acceptance drift
 (ARCH-DRY, ARCH-PURE, ARCH-PURPOSE, ARCH-MOCK).
+
+### 2026-08-26 — align the complete M4 inventory and flag contract
+
+**Reason:** the first M4 boundary review found the architecture inventory named
+only the resolution result even though the milestone added or widened several
+durable, pure, and integration entities. It also found the generic CLI binder
+treated every named flag without `=` as a boolean and therefore turned bare or
+empty explicit agent selection into fallback or synthetic-agent behavior.
+
+**Delta:** the Core concepts contract now states and applies a whole-diff rule:
+every milestone-added or milestone-modified architectural entity gets one
+greppable row with its actual kind, path, and latest milestone status. The M4
+task file inventories likewise name the implemented Couch, Launcher, shared
+wire, store, and CLI surfaces. `ArgSpec.ValueRequired` distinguishes named
+value flags from switches; `bindArgs` rejects both `--agent` and `--agent=`
+before dispatch, with generic-binder and public-CLI regressions proving no
+runner operation occurs (ARCH-PURE, ARCH-PURPOSE).

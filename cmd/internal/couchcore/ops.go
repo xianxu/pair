@@ -15,6 +15,10 @@ type ArgSpec struct {
 	// --name. Use it for switches whose positional interpretation would be
 	// surprising or unsafe.
 	FlagOnly bool `json:"flag_only,omitempty"`
+	// ValueRequired distinguishes named value flags from boolean switches.
+	// Callers must provide --name=<non-empty-value>; absence of '=' or an empty
+	// value is invalid rather than a synthetic boolean or fallback selection.
+	ValueRequired bool `json:"value_required,omitempty"`
 	// Implicit arguments are supplied by a trusted caller context rather than
 	// accepted from CLI argv. The advisor/console dispatch schema can still name
 	// them without exposing a user bypass flag.
@@ -120,7 +124,7 @@ func Operations() []Operation {
 				// A stray positional word must not be able to turn off a whole
 				// layer of terminal ownership.
 				{Name: "no-console", Summary: "inherit couch's stdio instead of allocating a pty (--no-console)", Required: false, FlagOnly: true},
-				{Name: "agent", Summary: "Pair agent to use instead of path/root history (--agent=<name>)", Required: false, FlagOnly: true},
+				{Name: "agent", Summary: "Pair agent to use instead of path/root history (--agent=<name>)", Required: false, FlagOnly: true, ValueRequired: true},
 			},
 		},
 		{

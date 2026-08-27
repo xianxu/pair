@@ -388,18 +388,22 @@ func wireResolver(console *couchtty.Console, c *couchcore.Couch) {
 // --flag=value form for the optional ones.
 func bindArgs(op couchcore.Operation, argv []string) (map[string]string, error) {
 	out := map[string]string{}
-	known := make(map[string]bool, len(op.Args))
+	known := make(map[string]couchcore.ArgSpec, len(op.Args))
 	for _, spec := range op.Args {
 		if !spec.Implicit {
-			known[spec.Name] = true
+			known[spec.Name] = spec
 		}
 	}
 	var positional []string
 	for _, a := range argv {
 		if strings.HasPrefix(a, "--") {
 			name, value, found := strings.Cut(strings.TrimPrefix(a, "--"), "=")
-			if !known[name] {
+			spec, exists := known[name]
+			if !exists {
 				return nil, fmt.Errorf("unknown flag --%s", name)
+			}
+			if spec.ValueRequired && (!found || value == "") {
+				return nil, fmt.Errorf("--%s requires a non-empty value in --%s=<value> form", name, name)
 			}
 			if !found {
 				value = "true"

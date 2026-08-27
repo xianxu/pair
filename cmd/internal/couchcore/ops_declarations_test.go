@@ -36,6 +36,11 @@ func TestOperationDeclarationsAreClosureFreeCompleteAndOwned(t *testing.T) {
 			t.Errorf("%s declaration = execution %v effect %v confirmation %v result %v; want %+v",
 				op.Name, op.Execution, op.Effect, op.Confirmation, op.Result, expected)
 		}
+		for _, arg := range op.Args {
+			if arg.ValueRequired && !arg.FlagOnly {
+				t.Errorf("%s argument %q requires a named value but is not flag-only", op.Name, arg.Name)
+			}
+		}
 	}
 	if len(want) > 0 {
 		t.Fatalf("missing declarations: %v", want)

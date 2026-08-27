@@ -1044,3 +1044,16 @@ repository-identity/physical-path preference together. Failed starts leave no
 preference, and a reconstructed Couch reuses the exact prior agent/argv while
 preserving other agents' path history (ARCH-DRY, ARCH-PURE, ARCH-PURPOSE,
 ARCH-MOCK).
+
+### 2026-08-26 — M4 boundary review round 1
+
+The reviewer confirmed profile resolution, strict tag-bound handoff, atomic
+registration publication, shared inventory, and user/architecture docs, then
+reported BR-27/BR-28. The repeated architectural-inventory class is addressed
+as a rule and complete M4 sweep: every milestone-added or modified entity now
+has a greppable PURE/INTEGRATION row, path, and current status, and the M4 task
+inventories match the delivered files. The value-bearing flag class is
+addressed in the shared operation schema: `ArgSpec.ValueRequired` makes
+`--agent` and `--agent=` invalid before dispatch while preserving boolean
+`--no-console`; generic binder and public CLI tests prove malformed selection
+cannot reach the runner (ARCH-PURE, ARCH-PURPOSE).

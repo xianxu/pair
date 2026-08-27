@@ -437,6 +437,36 @@ func TestBindArgsAcceptsFlagsAndPositionals(t *testing.T) {
 	}
 }
 
+func TestBindArgsRejectsMissingOrEmptyValueBearingFlag(t *testing.T) {
+	var start couchcore.Operation
+	for _, op := range couchcore.Operations() {
+		if op.Name == "start" {
+			start = op
+		}
+	}
+	for _, argv := range [][]string{{"--agent"}, {"--agent="}} {
+		if _, err := bindArgs(start, argv); err == nil {
+			t.Fatalf("bindArgs(%q) accepted agent flag without a value", argv)
+		}
+	}
+}
+
+func TestCLIRejectsMissingOrEmptyExplicitAgentBeforeSpawn(t *testing.T) {
+	for _, argv := range [][]string{{"start", "/repo", "--agent", "--no-console"}, {"start", "/repo", "--agent=", "--no-console"}} {
+		t.Run(strings.Join(argv, "_"), func(t *testing.T) {
+			rt := newRT(t, "/repo")
+			rt.boundedOne("/repo")
+			_, stderr, code := runRT(rt, argv...)
+			if code == 0 || !strings.Contains(stderr, "--agent requires a non-empty value") {
+				t.Fatalf("runRT(%q): code=%d stderr=%q", argv, code, stderr)
+			}
+			if len(rt.runner.Ops) != 0 {
+				t.Fatalf("runRT(%q) reached runner operations %q", argv, rt.runner.Ops)
+			}
+		})
+	}
+}
+
 func TestListShowsANamedTreeWithNoAgent(t *testing.T) {
 	// The forgetting case: a tree that was named and then parked has no actor,
 	// but it is exactly the thread the operator loses track of. It must be a
