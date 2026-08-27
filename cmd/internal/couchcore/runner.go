@@ -6,6 +6,7 @@ import (
 	"os"
 	"os/exec"
 	"strconv"
+	"strings"
 	"syscall"
 	"time"
 
@@ -76,7 +77,7 @@ func startExecChild(dir string, argv, env []string, extraFiles []*os.File) (Hand
 	cmd := exec.Command(argv[0], argv[1:]...)
 	cmd.Dir = dir
 	if env != nil {
-		cmd.Env = append(os.Environ(), env...)
+		cmd.Env = mergeChildEnvironment(os.Environ(), env)
 	}
 	cmd.Stdin, cmd.Stdout, cmd.Stderr = os.Stdin, os.Stdout, os.Stderr
 	cmd.ExtraFiles = extraFiles
@@ -110,6 +111,34 @@ func startExecChild(dir string, argv, env []string, extraFiles []*os.File) (Hand
 		close(h.done)
 	}()
 	return h, nil
+}
+
+// mergeChildEnvironment makes every supplied child key authoritative over the
+// inherited process environment. The last supplied value wins if a caller
+// repeats a key, matching ordinary environment-overlay semantics without
+// leaving duplicate entries for a child runtime to interpret differently.
+func mergeChildEnvironment(inherited, supplied []string) []string {
+	lastSupplied := make(map[string]int, len(supplied))
+	for i, item := range supplied {
+		lastSupplied[environmentKey(item)] = i
+	}
+	merged := make([]string, 0, len(inherited)+len(supplied))
+	for _, item := range inherited {
+		if _, overridden := lastSupplied[environmentKey(item)]; !overridden {
+			merged = append(merged, item)
+		}
+	}
+	for i, item := range supplied {
+		if lastSupplied[environmentKey(item)] == i {
+			merged = append(merged, item)
+		}
+	}
+	return merged
+}
+
+func environmentKey(item string) string {
+	key, _, _ := strings.Cut(item, "=")
+	return key
 }
 
 type execHandle struct {

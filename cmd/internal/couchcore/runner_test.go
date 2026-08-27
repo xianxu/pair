@@ -4,6 +4,7 @@ import (
 	"os"
 	"path/filepath"
 	"reflect"
+	"strings"
 	"testing"
 	"time"
 )
@@ -104,6 +105,55 @@ func TestExecRunnerPropagatesExitCode(t *testing.T) {
 	}
 	if h.PID() == 0 {
 		t.Fatal("PID must be recorded")
+	}
+}
+
+func TestExecRunnerChildEnvironmentOverridesInheritedValue(t *testing.T) {
+	t.Setenv("PAIR_USE_REPO_DEFAULT", "1")
+	output := filepath.Join(t.TempDir(), "child-env")
+	h, err := ExecRunner{}.Start(t.TempDir(), []string{os.Args[0], "-test.run=TestExecRunnerEnvironmentProbe"}, []string{
+		"PAIR_USE_REPO_DEFAULT=",
+		"PAIR_TEST_ENV_PROBE=1",
+		"PAIR_TEST_ENV_OUTPUT=" + output,
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if code := h.Wait(); code != 0 {
+		t.Fatalf("Wait = %d", code)
+	}
+	raw, err := os.ReadFile(output)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if string(raw) != "PAIR_USE_REPO_DEFAULT=" {
+		t.Fatalf("child policy environment = %q, want one authoritative empty entry", raw)
+	}
+}
+
+func TestMergeChildEnvironmentMakesSuppliedKeysUniqueAndAuthoritative(t *testing.T) {
+	got := mergeChildEnvironment(
+		[]string{"KEEP=parent", "PAIR_USE_REPO_DEFAULT=1", "DUP=parent"},
+		[]string{"PAIR_USE_REPO_DEFAULT=", "DUP=first", "DUP=last"},
+	)
+	want := []string{"KEEP=parent", "PAIR_USE_REPO_DEFAULT=", "DUP=last"}
+	if !reflect.DeepEqual(got, want) {
+		t.Fatalf("mergeChildEnvironment = %q, want %q", got, want)
+	}
+}
+
+func TestExecRunnerEnvironmentProbe(t *testing.T) {
+	if os.Getenv("PAIR_TEST_ENV_PROBE") != "1" {
+		return
+	}
+	var entries []string
+	for _, item := range os.Environ() {
+		if strings.HasPrefix(item, "PAIR_USE_REPO_DEFAULT=") {
+			entries = append(entries, item)
+		}
+	}
+	if err := os.WriteFile(os.Getenv("PAIR_TEST_ENV_OUTPUT"), []byte(strings.Join(entries, "\n")), 0o600); err != nil {
+		t.Fatal(err)
 	}
 }
 

@@ -271,8 +271,11 @@ Path preferences are strict revisioned records below
 identity plus canonical physical path while retaining both values in the
 record for validation. The resolved profile travels to Pair as a strict
 tag-bound `PAIR_COUCH_LAUNCH_PROFILE`. `PAIR_USE_REPO_DEFAULT=1` accompanies it
-only for matching repo-default provenance; Pair consumes both before launch and
-does not persist Couch-resolved argv back as a new repository default.
+only for matching repo-default provenance; path provenance supplies one
+authoritative empty value. `ExecRunner` overlays supplied child keys after
+removing inherited duplicates, so stale launch policy cannot cross the process
+boundary. Pair consumes both keys before launch and does not persist
+Couch-resolved argv back as a new repository default.
 
 The pending start claim carries the exact profile across Couch failure, but it
 does not count as history. Established registration promotes that profile onto

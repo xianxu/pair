@@ -57,6 +57,7 @@ than adding only the entity named by a review finding.
 | `LaunchProfile` / `PathLaunchPreference` / `LaunchProfileResolution` | pure | `cmd/internal/couchcore/launchprofile.go` | new in M4 |
 | `AgentInventory` | pure | `cmd/internal/launcher/agent_defaults.go` | shared inventory added in M4 |
 | `couchLaunchProfileWire` / `BuildCouchLaunchProfile` / `ApplyCouchLaunchProfile` | pure | `cmd/internal/launcher/launch_args_policy.go` | strict one-shot codec added in M4 |
+| `mergeChildEnvironment` | pure | `cmd/internal/couchcore/runner.go` | authoritative child overlay added in M4 review disposition |
 | `ArtifactFamily` | pure | `cmd/internal/artifactpath/paths.go` | new in M5 |
 
 - **`CouchNamespace`** — the absolute physical store path used as the durable
@@ -94,6 +95,7 @@ than adding only the entity named by a review finding.
 | `Couch.resolveLaunchProfile` / `RepoAgentDefault` | `cmd/internal/couchcore/couch.go`, `cmd/internal/couchcmd/run.go` | new in M4 | strict path preference reads and injected Pair repo-default reads |
 | `OSRuntime.ReadAgentDefault` | `cmd/internal/launcher/osruntime.go` | reused in M4 | Pair-owned scoped argv-default storage |
 | `applyCouchLaunchEnvironment` | `cmd/internal/launcher/runcli.go` | new in M4 | consumes the tag-bound profile and cross-checks repo-default provenance at Pair entry |
+| `ExecRunner` | `cmd/internal/couchcore/runner.go` | modified in M4 review disposition | inherited process environment with authoritative child-key overlay |
 
 Every integration has a stateful fake or real-process conformance test. In
 particular, namespace/lease tests use independent processes and inherited file
@@ -679,6 +681,7 @@ inventory, never a couch enum (ARCH-DRY).
 
 - Modify `README.md`, `atlas/couch.md`, issue/project logs
 - Modify cross-reader conformance and CLI value-bearing flag tests
+- Modify `cmd/internal/couchcore/runner.go` and production-runner environment tests
 
 **Steps:**
 
@@ -1202,3 +1205,17 @@ public CLI regressions. Boundary verification now finishes with
 `git diff --check <previous-boundary>..HEAD` after every generated review and
 disposition artifact is included, not merely a pre-review working-tree check
 (ARCH-DRY, ARCH-PURE, ARCH-PURPOSE).
+
+### 2026-08-26 — isolate launch policy from inherited child environment
+
+**Reason:** the third M4 boundary review disposed BR-28/BR-29, then showed that
+omitting `PAIR_USE_REPO_DEFAULT` for path-derived argv did not express false at
+the real process boundary: `ExecRunner` inherits Couch's environment, so stale
+parent state could contradict the strict profile.
+
+**Delta:** Couch now supplies exactly one value for the launch-owned key in
+both states, and the production runner overlays all supplied child keys after
+removing inherited and supplied duplicates. A real subprocess probe verifies a
+stale parent `=1` becomes one authoritative empty child entry, while a pure
+merge table fixes last-supplied-wins semantics and the restart scenario pins
+Couch's negative emission (ARCH-DRY, ARCH-PURPOSE, ARCH-MOCK).

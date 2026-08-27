@@ -1068,3 +1068,14 @@ test proves the live owner is never invoked. The exact boundary range is also
 checked after generated review/ledger artifacts, closing the repeated
 verification-window-cleanliness class rather than only trimming the reported
 lines (ARCH-DRY, ARCH-PURE, ARCH-PURPOSE).
+
+### 2026-08-26 — M4 boundary review round 3
+
+The reviewer disposed BR-28/BR-29 and found BR-30: absence of a
+repo-default marker was not an authoritative false state because production
+children inherit Couch's environment. Couch now supplies exactly one launch
+policy entry for both provenance outcomes (`=1` or empty), while `ExecRunner`
+removes inherited duplicates for every supplied child key and makes the final
+supplied value authoritative. A real subprocess probe starts under stale
+parent state and observes one empty child entry; the restart scenario also
+requires Couch to emit that negative state (ARCH-DRY, ARCH-PURPOSE, ARCH-MOCK).

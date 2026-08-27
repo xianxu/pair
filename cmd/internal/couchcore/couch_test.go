@@ -724,7 +724,7 @@ func TestSpawnFailureDoesNotCommitLaunchPreferences(t *testing.T) {
 	}
 }
 
-func TestRestartedCouchUsesLastSuccessfulPathAgentAndArgsWithoutRepoDefaultMarker(t *testing.T) {
+func TestRestartedCouchUsesLastSuccessfulPathAgentAndArgsWithNegativeRepoDefaultPolicy(t *testing.T) {
 	env := newTestEnv(t, "/repo")
 	env.Couch.RootAgent = "codex"
 	env.Couch.RepoAgentDefault = func(_, agent string) (LaunchProfile, bool, error) {
@@ -753,6 +753,15 @@ func TestRestartedCouchUsesLastSuccessfulPathAgentAndArgsWithoutRepoDefaultMarke
 	child := env.Runner.Child(env.Runner.order[1])
 	if got := childEnvValue(child.Env, "PAIR_USE_REPO_DEFAULT"); got != "" {
 		t.Fatalf("path argv emitted repo-default marker %q", got)
+	}
+	policyEntries := 0
+	for _, item := range child.Env {
+		if item == "PAIR_USE_REPO_DEFAULT=" {
+			policyEntries++
+		}
+	}
+	if policyEntries != 1 {
+		t.Fatalf("path argv policy entries = %q, want one authoritative empty value", child.Env)
 	}
 	parsed, err := launcher.ParseArgs([]string{"resume", child.Argv[2], "--layout2"})
 	if err != nil {

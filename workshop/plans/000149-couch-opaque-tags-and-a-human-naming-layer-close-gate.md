@@ -455,6 +455,27 @@ rounds:
           round: 18
       boundary: M4
       blocked: true
+    - "n": 19
+      timestamp: "2026-08-26T18:12:58-07:00"
+      agent: codex
+      dispose:
+        - id: BR-28
+          disposition: addressed
+          note: Shared dispatch now rejects empty value-bearing arguments before executor selection; the generic regression fails when that validation is removed, and public CLI tests pin bare and empty agent flags.
+          round: 19
+        - id: BR-29
+          disposition: addressed
+          note: The complete M4 boundary range, including generated review and ledger artifacts, now passes exact-window git diff --check.
+          round: 19
+      findings:
+        - id: BR-30
+          severity: Important
+          title: Inherited repository-default policy can reject a valid remembered path profile
+          detail: 'ARCH-PURPOSE and ARCH-MOCK: Couch emits PAIR_USE_REPO_DEFAULT only for repository-default provenance, while ExecRunner inherits the parent environment. A stale inherited value of 1 therefore reaches Pair during a path-derived launch and contradicts the otherwise valid profile. Sanitize the inherited launch-owned key and emit one authoritative state for both provenance outcomes, with a production-runner regression that starts under stale parent state.'
+          family: child-policy-environment-isolation
+          round: 19
+      boundary: M4
+      blocked: true
 ---
 
 # Gate ledger — pair#149 (boundary-review)
@@ -669,7 +690,18 @@ later rounds disposed of them. Generated — edit the gate, not this file.
 - **BR-29** [Minor] `verification-window-cleanliness` The M4 disposition commit fails exact-window whitespace verification
   This is the 2nd finding in family `verification-window-cleanliness`. Earlier rounds fixed an instance. Do NOT fix only these lines: state and apply the rule that every boundary and disposition artifact is included in the final exact-window `git diff --check` sweep. The current failure is trailing whitespace at the M4 review artifact lines 62-63.
 
+## Round 19 — 2026-08-26T18:12:58-07:00 (codex) — BLOCKED
+
+### Disposed
+
+- BR-28 — addressed — Shared dispatch now rejects empty value-bearing arguments before executor selection; the generic regression fails when that validation is removed, and public CLI tests pin bare and empty agent flags.
+- BR-29 — addressed — The complete M4 boundary range, including generated review and ledger artifacts, now passes exact-window git diff --check.
+
+### Raised
+
+- **BR-30** [Important] `child-policy-environment-isolation` Inherited repository-default policy can reject a valid remembered path profile
+  ARCH-PURPOSE and ARCH-MOCK: Couch emits PAIR_USE_REPO_DEFAULT only for repository-default provenance, while ExecRunner inherits the parent environment. A stale inherited value of 1 therefore reaches Pair during a path-derived launch and contradicts the otherwise valid profile. Sanitize the inherited launch-owned key and emit one authoritative state for both provenance outcomes, with a production-runner regression that starts under stale parent state.
+
 ## Open findings
 
-- **BR-28** [Important] `value-bearing-flag-contract` An explicitly empty agent selection silently launches the fallback agent
-- **BR-29** [Minor] `verification-window-cleanliness` The M4 disposition commit fails exact-window whitespace verification
+- **BR-30** [Important] `child-policy-environment-isolation` Inherited repository-default policy can reject a valid remembered path profile

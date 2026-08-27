@@ -213,9 +213,10 @@ func (c *Couch) Spawn(args StartArgs) (ActorRecord, Handle, error) {
 		"COUCH_THREAD_SCOPE=" + thread.Address.RepoScope,
 		"COUCH_THREAD_TAG=" + string(thread.Address.Tag),
 		launcher.CouchLaunchProfileEnv + "=" + strings.TrimSpace(profileRaw),
+		"PAIR_USE_REPO_DEFAULT=",
 	}
 	if profile.ArgvSource == ArgvSourceRepoDefault {
-		env = append(env, "PAIR_USE_REPO_DEFAULT=1")
+		env[len(env)-1] = "PAIR_USE_REPO_DEFAULT=1"
 	}
 	h, err := c.Runner.StartBlocked(args.WorkingDir(), argv, env, 10*time.Second)
 	if err != nil {

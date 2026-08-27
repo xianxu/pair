@@ -170,3 +170,90 @@ findings:
     detail: |
       This is the 2nd finding in family `verification-window-cleanliness`. Earlier rounds fixed an instance. Do NOT fix only these lines: state and apply the rule that every boundary and disposition artifact is included in the final exact-window `git diff --check` sweep. The current failure is trailing whitespace at the M4 review artifact lines 62-63.
 ```
+
+---
+
+## Re-review — 2026-08-26T18:12:58-07:00 (FIX-THEN-SHIP)
+
+| field | value |
+|-------|-------|
+| issue | 149 — couch: opaque tags and a human naming layer |
+| repo | pair |
+| issue file | workshop/issues/000149-couch-opaque-tags-and-a-human-naming-layer.md |
+| boundary | milestone M4 |
+| milestone | M4 |
+| window | 6c6e0faaaccbc77e36730ef5bffcf59aa5359f21..6c6e0faaaccbc77e36730ef5bffcf59aa5359f21 |
+| command | sdlc milestone-close --issue 149 --milestone M4 |
+| reviewer | codex |
+| timestamp | 2026-08-26T18:12:58-07:00 |
+| verdict | FIX-THEN-SHIP |
+
+## Review
+
+```verdict
+verdict: FIX-THEN-SHIP
+confidence: high
+```
+
+M4’s profile resolution, transactional persistence, shared agent inventory, documentation, and prior-finding fixes are sound. BR-28 and BR-29 are addressed with load-bearing verification. One Important production-path issue remains: inherited one-shot environment state can incorrectly reject path-derived launches.
+
+## 1. Strengths
+
+- Agent and argv precedence remain independently modeled and defensively copied in [launchprofile.go](/Users/xianxu/workspace/pair/cmd/internal/couchcore/launchprofile.go:59).
+- Registration atomically journals the thread profile, path preference, and manifest update.
+- `AgentInventory` is the shared authority consumed by Couch and artifact renaming.
+- The Core concepts inventory now accurately covers the M4 PURE and INTEGRATION entities.
+- README and atlas cover the new user-facing syntax, precedence, and persistence behavior.
+
+## 2. Critical findings
+
+None.
+
+## 3. Important findings
+
+- [couch.go](/Users/xianxu/workspace/pair/cmd/internal/couchcore/couch.go:210), [runner.go](/Users/xianxu/workspace/pair/cmd/internal/couchcore/runner.go:78), [runcli.go](/Users/xianxu/workspace/pair/cmd/internal/launcher/runcli.go:155) — **ARCH-PURPOSE, ARCH-MOCK:** Couch adds `PAIR_USE_REPO_DEFAULT=1` for repository-default provenance but supplies no authoritative false value for path provenance. The production runner inherits the parent environment, so a stale inherited `PAIR_USE_REPO_DEFAULT=1` contradicts a valid path profile and Pair exits with a provenance error. Sanitize this launch-owned key and provide exactly one authoritative value for both states; add an ExecRunner-level regression with an inherited stale value.
+
+## 4. Minor findings
+
+None.
+
+## 5. Test coverage notes
+
+- `go test ./... -count=1`: passed.
+- Focused M4 packages under `-race`: passed.
+- `go vet ./...`: passed.
+- `git diff --check 328551b..HEAD`: passed; BR-29 is addressed.
+- BR-28’s dispatcher regression is load-bearing: removing the validation in a scratch copy makes `TestDispatchOperationRejectsEmptyValueRequiredArgumentBeforeExecutor` fail because the invalid call reaches the executor.
+- Public CLI regressions cover bare `--agent` and `--agent=`.
+- The supplied `Base == Head` window is empty; the substantive review used the recorded M4 boundary range `328551b..HEAD`.
+
+## 6. Architectural notes for upcoming work
+
+- **ARCH-DRY — pass:** agent inventory and operation declarations are shared authorities.
+- **ARCH-PURE — pass:** resolution and state transitions are pure; storage/process effects remain at injected boundaries.
+- **ARCH-PURPOSE — flag:** launch provenance is not fully authoritative while inherited environment state can override its negative state.
+- **ARCH-MOCK — flag:** the fake runner records supplied environment entries but does not expose production inheritance behavior; the regression should exercise the real runner seam.
+
+## 7. Plan revision recommendations
+
+None; the plan still matches the intended M4 design.
+
+```findings
+dispose:
+  - id: BR-28
+    disposition: addressed
+    note: |
+      Shared dispatch now rejects empty value-bearing arguments before executor selection; the generic regression fails when that validation is removed, and public CLI tests pin bare and empty agent flags.
+  - id: BR-29
+    disposition: addressed
+    note: |
+      The complete M4 boundary range, including generated review and ledger artifacts, now passes exact-window git diff --check.
+findings:
+  - id: new
+    severity: Important
+    family: child-policy-environment-isolation
+    title: |
+      Inherited repository-default policy can reject a valid remembered path profile
+    detail: |
+      ARCH-PURPOSE and ARCH-MOCK: Couch emits PAIR_USE_REPO_DEFAULT only for repository-default provenance, while ExecRunner inherits the parent environment. A stale inherited value of 1 therefore reaches Pair during a path-derived launch and contradicts the otherwise valid profile. Sanitize the inherited launch-owned key and emit one authoritative state for both provenance outcomes, with a production-runner regression that starts under stale parent state.
+```

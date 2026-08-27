@@ -322,9 +322,10 @@ default. Thus switching Claude → Codex → Claude restores each harness's own
 arguments.
 
 Couch sends the exact resolved vector to Pair in a tag-bound one-shot profile,
-so Pair does not reopen its tag-specific saved-config picker. It emits
-`PAIR_USE_REPO_DEFAULT=1` only when repository-default provenance won; Pair
-consumes both values at entry so neither reaches sidecars, Zellij, or panes.
+so Pair does not reopen its tag-specific saved-config picker. It sets
+`PAIR_USE_REPO_DEFAULT=1` only when repository-default provenance won and sends
+an authoritative empty value otherwise; Pair consumes both keys at entry so
+neither reaches sidecars, Zellij, or panes.
 Only successful Pair registration updates the thread profile and path history;
 selection, cancellation, fork failure, and registration failure do not. For
 now, change a repository default by launching Pair directly in that repo with
