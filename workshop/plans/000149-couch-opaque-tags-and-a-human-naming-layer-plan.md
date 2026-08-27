@@ -664,7 +664,7 @@ inventory, never a couch enum (ARCH-DRY).
 
 **Steps:**
 
-- [ ] **Step 1:** Run the end-to-end launch-profile provenance scenario and assert exact
+- [x] **Step 1:** Run the end-to-end launch-profile provenance scenario and assert exact
    argv/source persistence across couch restart.
 - [ ] **Step 2:** Run focused/full suites and `git diff --check`; commit and run
    `sdlc milestone-close --issue 149 --milestone M4`.

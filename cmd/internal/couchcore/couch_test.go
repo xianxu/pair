@@ -724,7 +724,7 @@ func TestSpawnFailureDoesNotCommitLaunchPreferences(t *testing.T) {
 	}
 }
 
-func TestNextSpawnUsesLastSuccessfulPathAgentAndArgsWithoutRepoDefaultMarker(t *testing.T) {
+func TestRestartedCouchUsesLastSuccessfulPathAgentAndArgsWithoutRepoDefaultMarker(t *testing.T) {
 	env := newTestEnv(t, "/repo")
 	env.Couch.RootAgent = "codex"
 	env.Couch.RepoAgentDefault = func(_, agent string) (LaunchProfile, bool, error) {
@@ -737,8 +737,17 @@ func TestNextSpawnUsesLastSuccessfulPathAgentAndArgsWithoutRepoDefaultMarker(t *
 	if _, _, err := env.Couch.Spawn(StartArgs{Worktree: "/repo"}); err != nil {
 		t.Fatal(err)
 	}
-	env.Couch.RootAgent = "claude"
-	if _, _, err := env.Couch.Spawn(StartArgs{Worktree: "/repo"}); err != nil {
+	restarted, err := New(
+		env.Couch.Namespace, env.Runner, env.Couch.Path, env.Git, env.Proc, env.Couch.Store,
+		env.Couch.Clock, NewFixedIDGen("restart"), env.Couch.PolicyResolver,
+		newIncrementingEntropy(), env.Artifacts,
+	)
+	if err != nil {
+		t.Fatal(err)
+	}
+	restarted.RootAgent = "claude"
+	restarted.RepoAgentDefault = env.Couch.RepoAgentDefault
+	if _, _, err := restarted.Spawn(StartArgs{Worktree: "/repo"}); err != nil {
 		t.Fatal(err)
 	}
 	child := env.Runner.Child(env.Runner.order[1])

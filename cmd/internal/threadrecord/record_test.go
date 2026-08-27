@@ -36,7 +36,10 @@ func validRecord() Record {
 		ClaimGeneration: 1,
 		Incarnations: []Incarnation{{
 			PID: 42, Identity: "helper", State: "creating",
-			Start: &StartClaim{Nonce: "nonce", OwnerPID: 7, OwnerIdentity: "owner"},
+			Start: &StartClaim{
+				Nonce: "nonce", OwnerPID: 7, OwnerIdentity: "owner",
+				LaunchProfile: &LaunchProfile{Agent: "codex", Argv: []string{"--sandbox", "workspace-write"}},
+			},
 		}},
 	}
 }
@@ -56,6 +59,8 @@ func TestValidateEnumeratesThreadRecordStructuralInvariants(t *testing.T) {
 		"start nonce":           func(r *Record) { r.Incarnations[0].Start.Nonce = "/" },
 		"start owner pid":       func(r *Record) { r.Incarnations[0].Start.OwnerPID = 0 },
 		"start owner identity":  func(r *Record) { r.Incarnations[0].Start.OwnerIdentity = "" },
+		"pending profile agent": func(r *Record) { r.Incarnations[0].Start.LaunchProfile.Agent = "" },
+		"pending profile argv":  func(r *Record) { r.Incarnations[0].Start.LaunchProfile.Argv = nil },
 		"helper pid pair":       func(r *Record) { r.Incarnations[0].PID = 0 },
 		"helper identity pair":  func(r *Record) { r.Incarnations[0].Identity = "" },
 		"one tracked start": func(r *Record) {
@@ -75,6 +80,33 @@ func TestValidateEnumeratesThreadRecordStructuralInvariants(t *testing.T) {
 			mutate(&record)
 			if err := Validate(record, testValidators); err == nil {
 				t.Fatal("invalid record accepted")
+			}
+		})
+	}
+}
+
+func TestValidateCommittedLaunchProfileRequiresRegistrationAndCompleteProfile(t *testing.T) {
+	tests := map[string]func(*Record){
+		"creating incarnation": func(r *Record) {
+			r.Incarnations[0].LaunchProfile = &LaunchProfile{Agent: "codex", Argv: []string{}}
+		},
+		"missing agent": func(r *Record) {
+			r.Incarnations[0].State = "live"
+			r.Incarnations[0].Start = nil
+			r.Incarnations[0].LaunchProfile = &LaunchProfile{Argv: []string{}}
+		},
+		"missing argv": func(r *Record) {
+			r.Incarnations[0].State = "live"
+			r.Incarnations[0].Start = nil
+			r.Incarnations[0].LaunchProfile = &LaunchProfile{Agent: "codex"}
+		},
+	}
+	for name, mutate := range tests {
+		t.Run(name, func(t *testing.T) {
+			record := validRecord()
+			mutate(&record)
+			if err := Validate(record, testValidators); err == nil {
+				t.Fatal("invalid committed launch profile accepted")
 			}
 		})
 	}

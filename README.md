@@ -313,15 +313,22 @@ your screen** for a status line. The path argument is optional and defaults to
 `.`, so `cd <repo> && couch start` is the usual form — the first session you
 start is "home".
 
-On a cold start, couch uses that repository's saved agent-argument default
-without reopening Pair's tag-specific saved-config picker. If no repo default
-exists, it starts with no user-configured agent arguments (Pair may still add
-its normal runtime flags). For now, change the default by launching Pair
-directly in that repo with `pair -- <agent-arguments>` before returning to
-couch. Couch requests this behavior through a temporary one-shot
-`PAIR_USE_REPO_DEFAULT=1` handoff; Pair consumes the value at entry so it is not
-inherited by sidecars, zellij, or panes. Direct Pair launches keep their normal
-saved-config picker behavior.
+For a new thread, the agent resolves from `--agent=<name>`, then the last agent
+successfully used at that exact physical path, then the root actor's
+`$PAIR_AGENT` (or Claude when Couch was started outside Pair). Arguments resolve
+independently: Couch reuses the selected agent's last successful arguments at
+that path, never another agent's; otherwise it uses that agent's repository
+default. Thus switching Claude → Codex → Claude restores each harness's own
+arguments.
+
+Couch sends the exact resolved vector to Pair in a tag-bound one-shot profile,
+so Pair does not reopen its tag-specific saved-config picker. It emits
+`PAIR_USE_REPO_DEFAULT=1` only when repository-default provenance won; Pair
+consumes both values at entry so neither reaches sidecars, Zellij, or panes.
+Only successful Pair registration updates the thread profile and path history;
+selection, cancellation, fork failure, and registration failure do not. For
+now, change a repository default by launching Pair directly in that repo with
+`pair -- <agent-arguments>` before returning to Couch.
 
 **`Ctrl-Space` belongs to couch while a session is hosted.** It is intercepted
 before the child sees it, in both encodings a terminal may send it (the legacy

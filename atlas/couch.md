@@ -259,13 +259,29 @@ Distinct starts at one policy-unbounded path therefore use distinct Pair
 sessions and artifacts. Layout stays pinned to layout2: couch owns terminal
 switching, so layout3's third pane is the layer couch replaces.
 
-On a COLD create, couch asks Pair to use the repo's saved agent-argument default
-without opening `runConfigPicker`; no default means no user-configured args.
-Pair consumes the temporary `PAIR_USE_REPO_DEFAULT=1` handoff at process entry
-and carries only typed launch policy downstream, so sidecars, zellij, and panes
-cannot inherit it. Existing live sessions still take the attach path unchanged.
-Direct `pair resume <tag>` still owns the saved-config choice, and direct
-`pair -- <agent-arguments>` is the current way to replace the repo default.
+`ResolveLaunchProfile` keeps two provenance axes independent. Agent precedence
+is explicit start selection → the path preference's `last_agent` → the root
+actor's `$PAIR_AGENT`; argv precedence is that selected agent's path entry →
+its Pair-owned repository default. Agent choices derive from
+`launcher.AgentInventory`, so Couch has no harness enum and can never apply one
+agent's argv to another.
+
+Path preferences are strict revisioned records below
+`threadstore/path-preferences/`, addressed by a digest of normalized repository
+identity plus canonical physical path while retaining both values in the
+record for validation. The resolved profile travels to Pair as a strict
+tag-bound `PAIR_COUCH_LAUNCH_PROFILE`. `PAIR_USE_REPO_DEFAULT=1` accompanies it
+only for matching repo-default provenance; Pair consumes both before launch and
+does not persist Couch-resolved argv back as a new repository default.
+
+The pending start claim carries the exact profile across Couch failure, but it
+does not count as history. Established registration promotes that profile onto
+the incarnation and journals the thread record, per-path/per-agent history, and
+manifest generation as one recoverable transaction. Failed fork,
+acknowledgement, or registration paths write neither preference. A restarted
+Couch therefore selects the last successful agent and exact argv at that path
+without reopening Pair's saved-config picker (ARCH-DRY, ARCH-PURE,
+ARCH-PURPOSE).
 
 ## Metadata and standalone Pair lookup
 

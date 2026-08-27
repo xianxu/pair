@@ -166,6 +166,7 @@ gate `#147` and `#148` respectively; `#145` and `#146` do not depend on them.
 - [x] singleton namespace and normalized admission [pair#149 M1]
 - [x] recoverable pre-exec start transaction [pair#149 M2]
 - [x] shared thread metadata, operations, and standalone lookup [pair#149 M3]
+- [ ] remembered per-path agent and argument profiles [pair#149 M4]
 - [ ] hierarchical thread menu [pair#151]
 - [ ] verified park and activity age [pair#152]
 - [ ] managed-worktree lifecycle [pair#153]
@@ -226,6 +227,21 @@ executors, with console-local exact switch/attach and typed #147 refusal when no
 owner is available. Pair's portable read-only ThreadIndex makes names and parked
 threads available to standalone resume/picker flows without mutating opaque
 artifacts or zellij session-name bindings (ARCH-DRY, ARCH-PURE, ARCH-PURPOSE).
+
+<a id="pair-149-m4"></a>
+### pair#149 M4 — remembered per-path agent and argument profiles
+
+**est:** 17.80 (whole issue)
+**status:** implementation ready for boundary review
+
+Couch resolves agent and argv provenance independently, using Pair's shared
+harness inventory and repo-scoped defaults. A successful registration journals
+the exact incarnation profile together with revisioned history keyed by
+normalized repository identity and physical path; failed starts leave history
+unchanged. A restart-level scenario proves the next thread restores the last
+successful agent and that agent's exact arguments without leaking another
+harness's flags or reopening Pair's config picker (ARCH-DRY, ARCH-PURE,
+ARCH-PURPOSE, ARCH-MOCK).
 
 <a id="pair-146-m3"></a>
 ### pair#146 M3 — many children and the panel

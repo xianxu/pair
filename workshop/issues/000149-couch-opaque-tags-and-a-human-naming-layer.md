@@ -1030,3 +1030,17 @@ unknown-field, and trailing-value rejection previously private to Couch. A
 real-store parity table mutates every current structural invariant and requires
 both Couch and standalone Pair to reject each record (ARCH-DRY, ARCH-PURE,
 ARCH-PURPOSE, ARCH-MOCK).
+
+### 2026-08-26 — remember successful launch profiles
+
+M4 now resolves agent and argv provenance independently: explicit selection,
+then path history, then root agent for the harness; selected-agent path argv,
+then that agent's Pair repository default for arguments. Couch uses Pair's
+shared agent inventory and a strict tag-bound one-shot profile, emitting the
+repo-default marker only for matching provenance. The pending start claim keeps
+the exact vector recoverable without treating an attempt as history; only
+established registration journals the incarnation profile and revisioned
+repository-identity/physical-path preference together. Failed starts leave no
+preference, and a reconstructed Couch reuses the exact prior agent/argv while
+preserving other agents' path history (ARCH-DRY, ARCH-PURE, ARCH-PURPOSE,
+ARCH-MOCK).

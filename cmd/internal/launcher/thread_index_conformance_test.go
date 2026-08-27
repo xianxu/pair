@@ -82,6 +82,9 @@ func TestCouchAndStandalonePairRejectTheSameInvalidPersistedRecords(t *testing.T
 	policy := func(record map[string]any) map[string]any {
 		return incarnation(record)["policy"].(map[string]any)
 	}
+	launchProfile := func(record map[string]any) map[string]any {
+		return start(record)["launch_profile"].(map[string]any)
+	}
 	mutations := map[string]mutation{
 		"missing starting path":        func(r map[string]any) { delete(r, "starting_path") },
 		"missing working path":         func(r map[string]any) { delete(r, "working_path") },
@@ -103,6 +106,8 @@ func TestCouchAndStandalonePairRejectTheSameInvalidPersistedRecords(t *testing.T
 		"invalid start nonce":          func(r map[string]any) { start(r)["nonce"] = "/" },
 		"missing start owner pid":      func(r map[string]any) { delete(start(r), "owner_pid") },
 		"missing start owner identity": func(r map[string]any) { delete(start(r), "owner_identity") },
+		"missing launch agent":         func(r map[string]any) { delete(launchProfile(r), "agent") },
+		"null launch argv":             func(r map[string]any) { launchProfile(r)["argv"] = nil },
 		"helper pid without identity":  func(r map[string]any) { delete(incarnation(r), "identity") },
 		"helper identity without pid":  func(r map[string]any) { delete(incarnation(r), "pid") },
 		"two tracked starts": func(r map[string]any) {
@@ -122,6 +127,7 @@ func TestCouchAndStandalonePairRejectTheSameInvalidPersistedRecords(t *testing.T
 		"unknown address field":     func(r map[string]any) { r["address"].(map[string]any)["unknown"] = true },
 		"unknown incarnation field": func(r map[string]any) { incarnation(r)["unknown"] = true },
 		"unknown start field":       func(r map[string]any) { start(r)["unknown"] = true },
+		"unknown launch field":      func(r map[string]any) { launchProfile(r)["unknown"] = true },
 		"unknown policy field":      func(r map[string]any) { policy(r)["unknown"] = true },
 		"unknown capacity field":    func(r map[string]any) { policy(r)["capacity"].(map[string]any)["unknown"] = true },
 	}
@@ -152,7 +158,10 @@ func TestCouchAndStandalonePairRejectTheSameInvalidPersistedRecords(t *testing.T
 				Revision:      1,
 				Incarnations: []couchcore.ThreadIncarnation{{
 					PID: 42, Identity: "helper", State: couchcore.IncarnationCreating,
-					Start: &couchcore.ThreadStartClaim{Nonce: "nonce", OwnerPID: 7, OwnerIdentity: "owner"},
+					Start: &couchcore.ThreadStartClaim{
+						Nonce: "nonce", OwnerPID: 7, OwnerIdentity: "owner",
+						LaunchProfile: &couchcore.LaunchProfile{Agent: "codex", Argv: []string{"--sandbox", "workspace-write"}},
+					},
 					Policy: &couchcore.PolicyResult{
 						PolicyVersion: 1, PolicyDigest: "digest", RepoIdentity: "repo", AdmissionKey: repo,
 						Capacity: couchcore.PolicyCapacity{Kind: couchcore.CapacityUnbounded},

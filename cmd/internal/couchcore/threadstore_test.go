@@ -71,6 +71,49 @@ func TestThreadStoreRejectsPathLaunchPreferenceAtWrongAddress(t *testing.T) {
 	}
 }
 
+func TestThreadStoreRejectsMalformedPathLaunchPreference(t *testing.T) {
+	tests := map[string]func(string) string{
+		"unknown field": func(raw string) string {
+			return strings.Replace(raw, `"revision": 1`, `"revision": 1, "unknown": true`, 1)
+		},
+		"missing last agent": func(raw string) string {
+			return strings.Replace(raw, `"last_agent": "codex",`, `"last_agent": "",`, 1)
+		},
+		"null argv map": func(raw string) string {
+			start := strings.Index(raw, `"argv_by_agent":`)
+			end := strings.Index(raw[start:], `},`)
+			return raw[:start] + `"argv_by_agent": null` + raw[start+end+1:]
+		},
+	}
+	for name, mutate := range tests {
+		t.Run(name, func(t *testing.T) {
+			store, ns := newTestThreadStore(t)
+			preference := PathLaunchPreference{
+				SchemaVersion: PathLaunchPreferenceSchemaVersion,
+				RepoIdentity:  "repo-identity",
+				PhysicalPath:  ns.Dir(),
+				LastAgent:     "codex",
+				ArgvByAgent:   map[string][]string{"codex": {"--sandbox", "workspace-write"}},
+				Revision:      1,
+			}
+			if err := writePathLaunchPreferenceForTest(store, preference); err != nil {
+				t.Fatal(err)
+			}
+			path := store.pathLaunchPreferencePath(preference.RepoIdentity, preference.PhysicalPath)
+			raw, err := os.ReadFile(path)
+			if err != nil {
+				t.Fatal(err)
+			}
+			if err := os.WriteFile(path, []byte(mutate(string(raw))), 0o600); err != nil {
+				t.Fatal(err)
+			}
+			if _, _, err := store.GetPathLaunchPreference(preference.RepoIdentity, preference.PhysicalPath); err == nil {
+				t.Fatal("malformed path preference accepted")
+			}
+		})
+	}
+}
+
 func writePathLaunchPreferenceForTest(store *ThreadStore, preference PathLaunchPreference) error {
 	raw, err := json.MarshalIndent(preference, "", "  ")
 	if err != nil {
