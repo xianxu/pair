@@ -25,6 +25,12 @@ Couch journal-imports its actors into ThreadStore as conservative unknown
 legacy incarnations and marks the cutover. CLI and panel read the same
 one-row-per-composite-thread inventory.
 
+`cmd/internal/artifactpath` is the sole constructor for Pair's tag-bearing
+files. Couch and standalone Pair select `{repo_scope, tag}`; the launcher then
+exports exact paths to Go helpers, shell, Neovim, and both Zellij layouts.
+Source classification covers each family and every generated runtime mirror,
+so adding a filename constructor outside that leaf fails tests.
+
 **The operation set is deliberately not listed here.** `couchcore.Operations()`
 is the closure-free capability schema: typed argument/result family, effect,
 confirmation, and execution owner. `DispatchOperation` validates a call and
@@ -247,11 +253,11 @@ That reserved → established transition writes and fsyncs a sibling temporary
 file, atomically renames it, then syncs the directory, so concurrent recovery
 readers observe one complete state and a crash cannot leave truncated evidence.
 Direct Pair creates an established claim before its first artifact and adopts
-historical tags into the same scheme. Within Pair's owned scope directory, a
-generic delimiter rule recognizes any filename carrying the exact tag, so Go,
-Lua, layout, and future artifact families need no parallel prefix enum. The
-global session binding remains a separately strict check; malformed indexes
-fail closed.
+historical tags into the same scheme. Collision detection uses the exact
+structural tag boundary, while actual access goes only through
+`artifactpath.Paths`; no consumer scans its way to a selected file. The session
+binding index now lives in the same selected repository scope and remains a
+separately strict representation; malformed indexes fail closed.
 
 The child receives the canonical namespace plus `COUCH_THREAD_SCOPE` and
 `COUCH_THREAD_TAG`, and launches as `pair resume <opaque-tag> --layout2`.
@@ -307,6 +313,12 @@ disambiguators rather than collapsing. Existing direct Pair artifacts take
 exact precedence over fuzzy thread matching. `SessionNameEntry` remains only
 the stable zellij socket binding; a mutable human thread name never renames that
 socket or the tag-scoped files.
+
+Standalone Pair creates upsert the same locked/revisioned ThreadStore through a
+composition-root registrar before any workspace child starts. The record keeps
+the direct tag and exact launch profile, preserves existing human metadata, and
+adds or refreshes the PID-reuse-safe incarnation. Couch-owned children bypass
+this path because their pre-exec transaction is already authoritative.
 
 ## Identity and admission
 
@@ -409,8 +421,7 @@ not fidelity to Erlang.
 
 ## Planned, not built
 
-`pair#149` M2-M5 finish recoverable start, shared inventory/naming, launch
-profiles, and artifact migration. `pair#151` adds the hierarchical thread menu;
+`pair#151` adds the hierarchical thread menu;
 `pair#152` verified park/age; `pair#153` managed-worktree lifecycle; `pair#147`
 cluster transport and queries; `pair#148` brain as advisor. Cross-repo enabler
 `ariadne#199` exposes the query API. Ariadne #200's normalized policy provider

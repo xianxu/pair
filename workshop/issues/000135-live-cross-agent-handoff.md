@@ -72,3 +72,22 @@ the exclusive driver under the same tag.
 - Created from the deferred historical M5/live-handoff scope in #115. #115 now
   closes on repo-agent defaults plus explicit-agent continuation routing for
   exited/recent work; this issue owns the remaining live takeover design.
+
+## Revisions
+
+### 2026-08-26 — align handoff with composite work-thread identity
+
+**Reason:** #149 replaced tag-only storage identity with the durable composite
+`{repo_scope, tag}`, centralized tag-bearing paths in `artifactpath`, and made
+ThreadStore the lifecycle authority. The original #135 wording predates that
+boundary and could be read as permission to coordinate from a global tag or
+rename/move files during handoff.
+
+**Delta:** live handoff must select and mutate one exact composite ThreadStore
+record, preserve its immutable tag and starting path, and consume the launcher's
+resolved artifact bindings. Source and target are incarnations of that thread,
+not independent tag owners. #135 owns the cross-agent transition/recovery
+journal; #152 supplies the verified whole-incarnation quiescence and parked
+evidence it consumes. #153 alone may provision a worktree or rebind mutable
+`working_path`. No tag-only lookup, cross-scope artifact fallback, or handoff-
+time path rebinding is permitted (ARCH-DRY, ARCH-PURPOSE).

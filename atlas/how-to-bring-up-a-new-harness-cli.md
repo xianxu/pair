@@ -162,8 +162,8 @@ stops firing. Unit tests can't catch this: they validate our matchers against
 strings we froze, so they pass forever even after the live harness moves.
 
 The **adaptation flight recorder** makes drift observable. Every adaptation appends
-one JSON line per trigger to `$PAIR_DATA_DIR/adapt-<tag>.jsonl` during normal use.
-the native launcher's create flow truncates the file once at session launch; all components then append
+one JSON line per trigger to the launcher's exact `$PAIR_ADAPT_LOG_PATH` during normal use.
+The native launcher's create flow truncates the file once at session launch; all components then append
 (`O_APPEND`, atomic per-line across processes). A user runs `pair` normally; when
 something feels off they run **`doctor/doctor.sh`** (see [`doctor/README.md`](file:///Users/xianxu/workspace/pair/doctor/README.md)),
 which reads the trace and points at the broken aspect — no need to describe the

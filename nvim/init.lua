@@ -1676,7 +1676,7 @@ end
 -- Word completion. Triggered alongside path_complete on every TextChangedI.
 -- Two sources of candidates:
 --   1. The current draft buffer — `[%w_]+` words the user has typed.
---   2. $PAIR_DATA_DIR/agent-output-<tag> — colored spans extracted from
+--   2. $PAIR_AGENT_OUTPUT_PATH — colored spans extracted from
 --      the agent's output by pair-wrap. Each line is
 --      `<color>\t<count>\t<span>`, where <color> is the SGR foreground id
 --      ("36" for cyan, "5;75" for 256-color, "2;R;G;B" for RGB) and
@@ -1700,7 +1700,7 @@ end
 --
 -- Trigger after 1 typed char; candidates filtered to 5+ chars. Override
 -- the default color allowlist with PAIR_AGENT_SPAN_COLORS (csv of color
--- ids — inspect $PAIR_DATA_DIR/agent-output-<tag> to see what's emitted).
+-- ids — inspect $PAIR_AGENT_OUTPUT_PATH to see what's emitted).
 local WORD_TRIGGER_MIN = 1
 local WORD_CANDIDATE_MIN = 5
 local POOL_CAP = 100        -- agent spans eligible for completion
@@ -1723,7 +1723,7 @@ local WORD_TOKEN_RE = '([%w_%-./$+<>{}%[%]]+)$'
 -- `2;177;185;249` for an RGB triple).
 local AGENT_SPAN_DEFAULTS = {
   -- Claude Code (claude.ai's TUI): code spans painted in periwinkle RGB.
-  -- Inspect $PAIR_DATA_DIR/agent-output-<tag> to update.
+  -- Inspect $PAIR_AGENT_OUTPUT_PATH to update.
   claude = { '2;177;185;249' },
 }
 
@@ -2950,7 +2950,7 @@ local function pair_start_pending_fs_watch()
 end
 pair_start_pending_fs_watch()
 
--- Watch $PAIR_DATA_DIR for the change-log "build complete" marker (#58). The
+-- Watch the exact change-log binding for the "build complete" marker (#58). The
 -- detached distiller drops "changelog-<tag>-<agent>.ready" only when a triggered
 -- build actually changed the log; we flash the statusline + delete the marker
 -- (one-shot). A low-frequency timer poll, NOT fs_event: macOS FSEvents is

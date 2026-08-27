@@ -27,20 +27,20 @@
     {
       "Path": "doctor/README.md",
       "Mode": 420,
-      "Size": 5214,
-      "Digest": "sha256:db3abb283eb1285a23d5f85c4f6f5d7ce986597fef728ebae5f9715423aabc19"
+      "Size": 5201,
+      "Digest": "sha256:016dfaacf104b0e2940e0f83ef8cd701753f921f77573705fe8075922955463c"
     },
     {
       "Path": "doctor/SKILL.md",
       "Mode": 420,
-      "Size": 3255,
-      "Digest": "sha256:91e4ee58e51ccd81b49c228ea9f407281f65d98952b3329738041db3cc6032d7"
+      "Size": 3243,
+      "Digest": "sha256:3b301812d6be2a71bde45ad550ef282f7565542e1e94e443e976b304d504a926"
     },
     {
       "Path": "doctor/doctor.sh",
       "Mode": 493,
-      "Size": 8799,
-      "Digest": "sha256:e7d5a3691a17b12dec37f0dc95ea1a1434d6a98e8cb8a18222de5d5fafd83dfe"
+      "Size": 8793,
+      "Digest": "sha256:8bccec5c97d7b05437fe1c87e187fbaa27d9dc2b18ba3a01f3d048cefc7c15fc"
     },
     {
       "Path": "doctor/emitter-health.sh",
@@ -75,8 +75,8 @@
     {
       "Path": "nvim/init.lua",
       "Mode": 420,
-      "Size": 185408,
-      "Digest": "sha256:14b14ee9e6311a9268697200a608505cdb5ca549021733fbf00721099a708c8b"
+      "Size": 185381,
+      "Digest": "sha256:1b035f36072073184b24d549ab8b2e9eca57eae7685bba0101f1934cf909246a"
     },
     {
       "Path": "nvim/marker_codec.lua",

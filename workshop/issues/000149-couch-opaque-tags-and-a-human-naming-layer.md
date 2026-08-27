@@ -601,10 +601,10 @@ total: 17.80
 - [x] M4 — persist per-thread and per-path/per-agent launch profiles; resolve
       explicit/path/root agent defaults and path/repository argument defaults,
       updating preferences only after successful registration.
-- [ ] M5 — migrate legacy tags, artifacts, sessions, registry state, and
+- [x] M5 — migrate legacy tags, artifacts, sessions, registry state, and
       same-tree co-tenants idempotently under the store lock, proving every
       artifact lookup is scoped by the composite address.
-- [ ] Reconcile `#135` with composite work-thread identity; leave verified park,
+- [x] Reconcile `#135` with composite work-thread identity; leave verified park,
       couch resume, and `last_active_at` to `#152`, and managed path rebinding to
       `#153`.
 
@@ -1120,3 +1120,18 @@ prompt but now registers successful create flow state through Couch's locked,
 revisioned `ThreadStore`; Couch-owned starts bypass the adapter because their
 transaction already exists. `make test` and `go test ./... -count=1` pass
 (ARCH-DRY, ARCH-PURE, ARCH-PURPOSE, ARCH-MOCK).
+
+### 2026-08-26 — M5 final reconciliation and verification
+
+Issue #135 now addresses cross-agent handoff as a transition between
+incarnations of one composite work thread; #152 retains verified
+park/resume/activity evidence and #153 retains path provisioning/rebinding.
+The atlas and Couch project map the same ownership and exact artifact-binding
+boundary. Final verification passed `make test` (including uncached
+`go test ./...`), the focused Couch race suite, deterministic runtime-bundle
+generation, Zellij config plus layout2/layout3 parsing, `make test-live`, live
+Ariadne policy conformance, the terminal/Zellij smoke probes, and the real
+start-recovery probe. The only smoke interruption was an empty untracked local
+directory; root-cause inspection showed it was never repository state, and
+removing that empty directory restored the target without a code change
+(ARCH-PURPOSE, ARCH-MOCK).

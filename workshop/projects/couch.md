@@ -244,6 +244,21 @@ successful agent and that agent's exact arguments without leaking another
 harness's flags or reopening Pair's config picker (ARCH-DRY, ARCH-PURE,
 ARCH-PURPOSE, ARCH-MOCK).
 
+<a id="pair-149-m5"></a>
+### pair#149 M5 — legacy migration and composite artifact proof
+
+**est:** 17.80 (whole issue)
+
+Legacy registry metadata is journal-enriched into the existing ThreadStore
+without moving source files or weakening conservative admission. One validated
+`artifactpath` leaf now constructs every tag-bearing Pair path and exports exact
+bindings to Go, shell, Neovim, and both layouts; a checked source/family manifest
+includes the generated runtime mirror. A real two-scope strategy proves the
+same legacy tag cannot observe or mutate the other repository's artifacts.
+Standalone Pair retains its ordinary tag prompt while upserting its incarnation
+through the same locked/revisioned ThreadStore authority (ARCH-DRY, ARCH-PURE,
+ARCH-PURPOSE, ARCH-MOCK).
+
 <a id="pair-146-m3"></a>
 ### pair#146 M3 — many children and the panel
 
@@ -352,6 +367,18 @@ planning after the claim. Read the number as "measured, window not clean"
 rather than as a tight figure.
 
 ## Log
+
+### 2026-08-26 — pair#149 M5 implementation ready for boundary
+
+M5 preserves every legacy source while completing composite addressing all the
+way through runtime consumers. Artifact construction has one checked leaf;
+exact bindings cross process and layout boundaries; direct Pair and Couch now
+publish into one ThreadStore inventory. The repeated-tag integration test uses
+Go, shell, and Neovim mutations plus both layouts as the oracle. The portfolio
+row remains open until the M5 review boundary and final issue close record their
+verdict and measured actual. Full, race, live-process, policy-provider,
+terminal/Zellij, crash-recovery, layout, and bundle-determinism checks are green
+(ARCH-DRY, ARCH-PURE, ARCH-PURPOSE, ARCH-MOCK).
 
 ### 2026-08-26 — pair#149 M3 implementation ready for boundary
 
@@ -587,3 +614,5 @@ cancelled selection nor a failed start changes the remembered preference.
 [pair#149 M1]: #pair-149-m1
 [pair#149 M2]: #pair-149-m2
 [pair#149 M3]: #pair-149-m3
+[pair#149 M4]: #pair-149-m4
+[pair#149 M5]: #pair-149-m5

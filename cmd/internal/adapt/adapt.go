@@ -1,6 +1,6 @@
 // Package adapt writes the per-session adaptation flight recorder: one
-// JSON line per harness-adaptation event into
-// $PAIR_DATA_DIR/adapt-<tag>.jsonl.
+// JSON line per harness-adaptation event into the validated path selected by
+// artifactpath.Paths.AdaptLog.
 //
 // pair adapts each agent harness across a handful of integration aspects
 // (return-key remap, overlay suspension, slug generation, …; see

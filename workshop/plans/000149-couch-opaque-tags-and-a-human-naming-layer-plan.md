@@ -615,7 +615,7 @@ inventory, never a couch enum (ARCH-DRY).
 
 - [x] **Step 1:** Run the M3 end-to-end composite identity/metadata scenario and assert
    offline Pair resolution preserves scoped artifacts.
-- [ ] **Step 2:** Run focused/full suites and `git diff --check`; commit and run
+- [x] **Step 2:** Run focused/full suites and `git diff --check`; commit and run
    `sdlc milestone-close --issue 149 --milestone M3`.
 
 ## Chunk 4: Milestone M4 — remembered agent and argument profiles
@@ -837,13 +837,13 @@ inventory, never a couch enum (ARCH-DRY).
 
 **Steps:**
 
-- [ ] **Step 1:** Reconcile #135 terminology and addressing with composite durable work-thread
+- [x] **Step 1:** Reconcile #135 terminology and addressing with composite durable work-thread
    identity. Record #152 as owner of verified park/resume/`last_active_at` and
    #153 as owner of provisioning/path rebind; do not implement either here.
-- [ ] **Step 2:** Run the Verification commands, repository full suite, race suite, real couch
+- [x] **Step 2:** Run the Verification commands, repository full suite, race suite, real couch
    smoke, and `git diff --check`.
-- [ ] **Step 3:** Update issue/project/atlas evidence and check every issue plan row.
-- [ ] **Step 4:** Commit the final window and run
+- [x] **Step 3:** Update issue/project/atlas evidence and check every issue plan row.
+- [x] **Step 4:** Commit the final window and run
    `sdlc milestone-close --issue 149 --milestone M5`, fixing all boundary
    findings. Then run `sdlc close --issue 149 --verified '<exact evidence>'`;
    let SDLC measure actual time and archive the issue/plan.

@@ -3,15 +3,15 @@
 // Spawned (backgrounded) by pair-wrap at turn-end — pair's agent-agnostic
 // notify point — so it works for claude/codex/agy alike (issue #000027 M3,
 // replacing the earlier claude-only Stop hook). It resolves its own transcript
-// from $PAIR_DATA_DIR/config-<tag>-<agent>.json (session_id) + the per-agent
+// from the launcher's exact config binding (session_id) + the per-agent
 // path, parses the native format into turns, derives the left segment from the
 // git branch, asks a small model for the <focus> right segment over the recent
 // transcript (with a KEEP gate), validates, and writes a candidate to
-// $PAIR_DATA_DIR/slug-proposed-<tag>. nvim applies it (see nvim/slug.lua).
+// exact proposed-slug binding. nvim applies it (see nvim/slug.lua).
 //
 // Inputs (all env / filesystem — no stdin):
 //
-//	PAIR_TAG, PAIR_DATA_DIR   required; identify the session
+//	PAIR_TAG, PAIR_DATA_DIR   required launch identity/scope
 //	PAIR_AGENT                agent name (claude|codex|agy); default claude
 //	PAIR_SLUG_MODEL           small-model override; default depends on agent
 //	PAIR_SLUG_TRANSCRIPT      explicit transcript path, bypassing resolution
