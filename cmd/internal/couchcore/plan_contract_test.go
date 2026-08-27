@@ -2,6 +2,8 @@ package couchcore
 
 import (
 	"bufio"
+	"crypto/sha256"
+	"fmt"
 	"go/ast"
 	"go/parser"
 	"go/token"
@@ -18,6 +20,8 @@ type issue149ConceptRequirement struct {
 	path string
 	kind string
 }
+
+const issue149M5DeclarationDigest = "017b152e0cb4802368dc4fbd87ec7a26456bf22c2e4f9cb663a035601339b79d"
 
 // issue149M5GoSources is the exhaustive set of Go sources touched by M5. Every
 // declaration in these files receives a disposition: a pair:m5-concept marker
@@ -74,6 +78,13 @@ func TestIssue149M5DeclarationDispositionSourceSetMatchesMilestoneDiff(t *testin
 	}
 }
 
+func TestIssue149M5DeclarationDispositionSetIsClosed(t *testing.T) {
+	root := filepath.Join("..", "..", "..")
+	if got := issue149M5SourceDeclarationDigest(t, root); got != issue149M5DeclarationDigest {
+		t.Fatalf("M5 declaration set changed without an explicit concept/detail disposition: got %s, want %s", got, issue149M5DeclarationDigest)
+	}
+}
+
 func TestIssue149M5CoreConceptInventoryContract(t *testing.T) {
 	root := filepath.Join("..", "..", "..")
 	raw, err := os.ReadFile(findIssue149Plan(t, root))
@@ -87,12 +98,12 @@ func TestIssue149M5CoreConceptInventoryContract(t *testing.T) {
 }
 
 func TestIssue149M5UnmarkedExportedAuthorityFailsClosed(t *testing.T) {
-	file, err := parser.ParseFile(token.NewFileSet(), "paths.go", "package artifactpath\ntype ReviewAddedAuthority struct{}\n", parser.ParseComments)
+	file, err := parser.ParseFile(token.NewFileSet(), "migration.go", "package couchcore\ntype ReviewAddedAuthority struct{}\n", parser.ParseComments)
 	if err != nil {
 		t.Fatal(err)
 	}
-	requirements := issue149M5ConceptsForDecl(t, file.Name.Name, "cmd/internal/artifactpath/paths.go", file.Decls[0])
-	if len(requirements) != 1 || requirements[0].name != "artifactpath.ReviewAddedAuthority" || requirements[0].kind != "pure" {
+	requirements := issue149M5ConceptsForDecl(t, file.Name.Name, "cmd/internal/couchcore/migration.go", file.Decls[0], false)
+	if len(requirements) != 1 || requirements[0].name != "ReviewAddedAuthority" || requirements[0].kind != "pure" {
 		t.Fatalf("unmarked exported authority disposition = %+v, want one fail-closed pure concept", requirements)
 	}
 }
@@ -260,6 +271,7 @@ func issue149RowConceptNames(line string) []string {
 
 func issue149M5ConceptRequirements(t *testing.T, root string) []issue149ConceptRequirement {
 	t.Helper()
+	closedSet := issue149M5SourceDeclarationDigest(t, root) == issue149M5DeclarationDigest
 	var requirements []issue149ConceptRequirement
 	for _, rel := range issue149M5GoSources {
 		file, err := parser.ParseFile(token.NewFileSet(), filepath.Join(root, rel), nil, parser.ParseComments)
@@ -267,14 +279,14 @@ func issue149M5ConceptRequirements(t *testing.T, root string) []issue149ConceptR
 			t.Fatal(err)
 		}
 		for _, decl := range file.Decls {
-			requirements = append(requirements, issue149M5ConceptsForDecl(t, file.Name.Name, rel, decl)...)
+			requirements = append(requirements, issue149M5ConceptsForDecl(t, file.Name.Name, rel, decl, closedSet)...)
 		}
 	}
 	sort.Slice(requirements, func(i, j int) bool { return requirements[i].name < requirements[j].name })
 	return requirements
 }
 
-func issue149M5ConceptsForDecl(t *testing.T, packageName, rel string, decl ast.Decl) []issue149ConceptRequirement {
+func issue149M5ConceptsForDecl(t *testing.T, packageName, rel string, decl ast.Decl, closedSet bool) []issue149ConceptRequirement {
 	t.Helper()
 	marker := func(doc *ast.CommentGroup) string {
 		if doc == nil {
@@ -297,6 +309,9 @@ func issue149M5ConceptsForDecl(t *testing.T, packageName, rel string, decl ast.D
 	switch typed := decl.(type) {
 	case *ast.FuncDecl:
 		kind := marker(typed.Doc)
+		if kind == "" && !closedSet && typed.Recv == nil && ast.IsExported(typed.Name.Name) {
+			kind = "pure"
+		}
 		if kind == "" {
 			return nil
 		}
@@ -320,7 +335,7 @@ func issue149M5ConceptsForDecl(t *testing.T, packageName, rel string, decl ast.D
 				if kind == "" {
 					kind = marker(typed.Doc)
 				}
-				if kind == "" && issue149M5AuthorityDeclarationDefaultsToConcept(rel, item.Name) {
+				if kind == "" && !closedSet && ast.IsExported(item.Name.Name) {
 					kind = "pure"
 				}
 				if kind != "" {
@@ -333,7 +348,7 @@ func issue149M5ConceptsForDecl(t *testing.T, packageName, rel string, decl ast.D
 				}
 				for _, name := range item.Names {
 					resolvedKind := kind
-					if resolvedKind == "" && typed.Tok == token.VAR && issue149M5AuthorityDeclarationDefaultsToConcept(rel, name) {
+					if resolvedKind == "" && typed.Tok == token.VAR && !closedSet && ast.IsExported(name.Name) {
 						resolvedKind = "pure"
 					}
 					if resolvedKind != "" {
@@ -349,11 +364,54 @@ func issue149M5ConceptsForDecl(t *testing.T, packageName, rel string, decl ast.D
 	}
 }
 
-func issue149M5AuthorityDeclarationDefaultsToConcept(rel string, name *ast.Ident) bool {
-	if !ast.IsExported(name.Name) {
-		return false
+func issue149M5SourceDeclarationDigest(t *testing.T, root string) string {
+	t.Helper()
+	var keys []string
+	for _, rel := range issue149M5GoSources {
+		file, err := parser.ParseFile(token.NewFileSet(), filepath.Join(root, rel), nil, 0)
+		if err != nil {
+			t.Fatal(err)
+		}
+		for _, decl := range file.Decls {
+			switch typed := decl.(type) {
+			case *ast.FuncDecl:
+				receiver := ""
+				if typed.Recv != nil && len(typed.Recv.List) == 1 {
+					receiver = issue149ReceiverName(typed.Recv.List[0].Type)
+				}
+				keys = append(keys, rel+"|func|"+receiver+"|"+typed.Name.Name)
+			case *ast.GenDecl:
+				for _, spec := range typed.Specs {
+					switch item := spec.(type) {
+					case *ast.TypeSpec:
+						keys = append(keys, rel+"|"+typed.Tok.String()+"|"+item.Name.Name)
+					case *ast.ValueSpec:
+						for _, name := range item.Names {
+							keys = append(keys, rel+"|"+typed.Tok.String()+"|"+name.Name)
+						}
+					}
+				}
+			}
+		}
 	}
-	return rel == "cmd/internal/artifactpath/manifest.go" || rel == "cmd/internal/artifactpath/paths.go"
+	sort.Strings(keys)
+	digest := sha256.Sum256([]byte(strings.Join(keys, "\n")))
+	return fmt.Sprintf("%x", digest)
+}
+
+func issue149ReceiverName(expr ast.Expr) string {
+	switch typed := expr.(type) {
+	case *ast.Ident:
+		return typed.Name
+	case *ast.StarExpr:
+		return "*" + issue149ReceiverName(typed.X)
+	case *ast.IndexExpr:
+		return issue149ReceiverName(typed.X) + "[]"
+	case *ast.IndexListExpr:
+		return issue149ReceiverName(typed.X) + "[]"
+	default:
+		return fmt.Sprintf("%T", expr)
+	}
 }
 
 func TestIssue149CurrentCoreConceptKinds(t *testing.T) {

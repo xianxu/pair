@@ -1686,3 +1686,26 @@ enum members owned by a marked type, methods owned by a marked receiver, and
 non-authority declarations are details by the executable structural rule. A
 direct AST mutation pins the unmarked exported-authority case (ARCH-DRY,
 ARCH-PURPOSE).
+
+### 2026-08-27 — close package and declaration-set boundaries
+
+**Reason:** package declarations were analyzed across lexical scopes but only
+within one Go file, allowing a helper in one file to feed fragments to a sink in
+another file of the same package. Concept defaulting also special-cased two
+authority files, so a new exported type in another M5-created source could opt
+out.
+
+**Delta:** artifact enforcement parses every production Go file in a directory
+as one package unit. Package globals and local-function return summaries from
+all files converge together before each classified consumer is inspected; a
+two-file mutation places one fragment/helper in `config.go` and the remaining
+fragment/sink in `lifecycle.go` and must fail. The M5 declaration inventory now
+hashes the sorted AST signature of every type, const/var name, function, and
+method in every source from the executable milestone file set. That digest
+closes the exact audited population without depending on `.git`: within the
+closed set, concept markers select architectural declarations and every
+unmarked declaration is the explicit detail disposition. Any added declaration
+breaks the digest; while the set is open, every unmarked exported top-level
+function, type, or catalog variable fails closed into the concept comparison.
+An outside-`artifactpath` mutation in `couchcore/migration.go` pins that rule
+(ARCH-DRY, ARCH-PURPOSE).

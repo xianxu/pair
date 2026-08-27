@@ -1327,3 +1327,15 @@ added to either wholly M5-created artifact authority file, so an unmarked
 becoming detail. A direct AST mutation pins that default, while source markers
 continue to promote architectural unexported seams and integrations elsewhere
 (ARCH-DRY, ARCH-PURPOSE).
+
+### 2026-08-27 — M5 boundary review round 12
+
+Round 33 moved both bypasses across a file boundary. Artifact analysis now
+builds one package unit from all production Go files, converging cross-file
+globals and helper summaries before inspecting each classified sink; the new
+two-file mutation fails. The concept contract closes the entire M5 declaration
+population with a Git-independent AST-signature digest. Concept markers and the
+closed remainder are the architectural/detail dispositions; changing the set
+fails, and an open set treats an unmarked exported top-level declaration as a
+concept. An exported mutation in `couchcore/migration.go` pins the rule outside
+the artifact package (ARCH-DRY, ARCH-PURPOSE).

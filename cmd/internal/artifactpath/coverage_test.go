@@ -189,6 +189,7 @@ func artifactConstructorViolations(repoRoot string, roots []string, classificati
 		classified[classification.Path] = classification
 	}
 	violations := map[string]bool{}
+	packageCache := map[string]parsedGoPackage{}
 	for _, root := range roots {
 		err := filepath.WalkDir(filepath.Join(repoRoot, root), func(path string, entry os.DirEntry, walkErr error) error {
 			if walkErr != nil || entry.IsDir() {
@@ -213,10 +214,18 @@ func artifactConstructorViolations(repoRoot string, roots []string, classificati
 				}
 				return nil
 			}
-			fileSet := token.NewFileSet()
-			file, err := parser.ParseFile(fileSet, path, nil, 0)
-			if err != nil {
-				return err
+			parsedPackage, exists := packageCache[filepath.Dir(path)]
+			if !exists {
+				parsedPackage, err = parseProductionGoPackage(filepath.Dir(path))
+				if err != nil {
+					return err
+				}
+				packageCache[filepath.Dir(path)] = parsedPackage
+			}
+			fileSet := parsedPackage.fileSet
+			file := parsedPackage.byPath[path]
+			if file == nil {
+				return fmt.Errorf("production Go package omitted %s", path)
 			}
 			for _, violation := range goClassificationViolations(rel, fileSet, file, classification) {
 				violations[violation] = true
@@ -254,7 +263,7 @@ func artifactConstructorViolations(repoRoot string, roots []string, classificati
 			for _, violation := range resolvedFunctionAssemblyViolations(rel, fileSet, file, classification) {
 				violations[violation] = true
 			}
-			for _, violation := range resolvedDataflowAssemblyViolations(rel, fileSet, file, classification) {
+			for _, violation := range resolvedDataflowAssemblyViolations(rel, fileSet, file, parsedPackage.files, classification) {
 				violations[violation] = true
 			}
 			return nil
@@ -271,37 +280,72 @@ func artifactConstructorViolations(repoRoot string, roots []string, classificati
 	return out, nil
 }
 
+type parsedGoPackage struct {
+	fileSet *token.FileSet
+	files   []*ast.File
+	byPath  map[string]*ast.File
+}
+
+func parseProductionGoPackage(dir string) (parsedGoPackage, error) {
+	entries, err := os.ReadDir(dir)
+	if err != nil {
+		return parsedGoPackage{}, err
+	}
+	fileSet := token.NewFileSet()
+	parsed := parsedGoPackage{fileSet: fileSet, byPath: map[string]*ast.File{}}
+	for _, entry := range entries {
+		if entry.IsDir() || filepath.Ext(entry.Name()) != ".go" || strings.HasSuffix(entry.Name(), "_test.go") {
+			continue
+		}
+		path := filepath.Join(dir, entry.Name())
+		file, err := parser.ParseFile(fileSet, path, nil, 0)
+		if err != nil {
+			return parsedGoPackage{}, err
+		}
+		parsed.files = append(parsed.files, file)
+		parsed.byPath[path] = file
+	}
+	return parsed, nil
+}
+
 type stringFlow struct {
 	classification SourceClassification
 	summaries      map[string]string
 	vars           map[*ast.Object]string
+	packageVars    map[string]string
 	builders       map[*ast.Object]string
 	values         []string
 	returns        []string
 }
 
-func resolvedDataflowAssemblyViolations(rel string, fileSet *token.FileSet, file *ast.File, classification SourceClassification) []string {
+func resolvedDataflowAssemblyViolations(rel string, fileSet *token.FileSet, file *ast.File, packageFiles []*ast.File, classification SourceClassification) []string {
 	summaries := map[string]string{}
-	globals := map[*ast.Object]string{}
-	maxIterations := len(file.Decls) + longestFamilyToken() + 1
+	globals := map[string]string{}
+	declarationCount := 0
+	for _, packageFile := range packageFiles {
+		declarationCount += len(packageFile.Decls)
+	}
+	maxIterations := declarationCount + longestFamilyToken() + 1
 	for range maxIterations {
 		changed := false
-		nextGlobals := packageStringValues(file, classification, summaries, globals)
-		if !sameObjectStringMap(globals, nextGlobals) {
+		nextGlobals := packageStringValues(packageFiles, classification, summaries, globals)
+		if !sameStringMap(globals, nextGlobals) {
 			globals = nextGlobals
 			changed = true
 		}
-		for _, decl := range file.Decls {
-			function, ok := decl.(*ast.FuncDecl)
-			if !ok || function.Body == nil {
-				continue
-			}
-			flow := newStringFlow(classification, summaries, globals)
-			flow.block(function.Body)
-			summary := strings.Join(flow.returns, "")
-			if summaries[function.Name.Name] != summary {
-				summaries[function.Name.Name] = summary
-				changed = true
+		for _, packageFile := range packageFiles {
+			for _, decl := range packageFile.Decls {
+				function, ok := decl.(*ast.FuncDecl)
+				if !ok || function.Body == nil {
+					continue
+				}
+				flow := newStringFlow(classification, summaries, globals)
+				flow.block(function.Body)
+				summary := strings.Join(flow.returns, "")
+				if summaries[function.Name.Name] != summary {
+					summaries[function.Name.Name] = summary
+					changed = true
+				}
 			}
 		}
 		if !changed {
@@ -334,34 +378,36 @@ func resolvedDataflowAssemblyViolations(rel string, fileSet *token.FileSet, file
 	return violations
 }
 
-func packageStringValues(file *ast.File, classification SourceClassification, summaries map[string]string, previous map[*ast.Object]string) map[*ast.Object]string {
+func packageStringValues(files []*ast.File, classification SourceClassification, summaries map[string]string, previous map[string]string) map[string]string {
 	flow := newStringFlow(classification, summaries, previous)
-	for _, decl := range file.Decls {
-		gen, ok := decl.(*ast.GenDecl)
-		if !ok || gen.Tok != token.CONST && gen.Tok != token.VAR {
-			continue
-		}
-		for _, spec := range gen.Specs {
-			valueSpec, ok := spec.(*ast.ValueSpec)
-			if !ok {
+	for _, file := range files {
+		for _, decl := range file.Decls {
+			gen, ok := decl.(*ast.GenDecl)
+			if !ok || gen.Tok != token.CONST && gen.Tok != token.VAR {
 				continue
 			}
-			for i, expression := range valueSpec.Values {
-				if i < len(valueSpec.Names) && valueSpec.Names[i].Obj != nil {
-					flow.vars[valueSpec.Names[i].Obj] = flow.expression(expression)
+			for _, spec := range gen.Specs {
+				valueSpec, ok := spec.(*ast.ValueSpec)
+				if !ok {
+					continue
+				}
+				for i, expression := range valueSpec.Values {
+					if i < len(valueSpec.Names) {
+						flow.packageVars[valueSpec.Names[i].Name] = flow.expression(expression)
+					}
 				}
 			}
 		}
 	}
-	return flow.vars
+	return flow.packageVars
 }
 
-func sameObjectStringMap(left, right map[*ast.Object]string) bool {
+func sameStringMap(left, right map[string]string) bool {
 	if len(left) != len(right) {
 		return false
 	}
-	for object, value := range left {
-		if right[object] != value {
+	for name, value := range left {
+		if right[name] != value {
 			return false
 		}
 	}
@@ -378,15 +424,16 @@ func longestFamilyToken() int {
 	return longest
 }
 
-func newStringFlow(classification SourceClassification, summaries map[string]string, initial map[*ast.Object]string) *stringFlow {
+func newStringFlow(classification SourceClassification, summaries map[string]string, initial map[string]string) *stringFlow {
 	flow := &stringFlow{
 		classification: classification,
 		summaries:      summaries,
 		vars:           map[*ast.Object]string{},
+		packageVars:    map[string]string{},
 		builders:       map[*ast.Object]string{},
 	}
-	for object, value := range initial {
-		flow.vars[object] = value
+	for name, value := range initial {
+		flow.packageVars[name] = value
 	}
 	return flow
 }
@@ -488,7 +535,12 @@ func (f *stringFlow) expression(expr ast.Expr) string {
 		}
 		return value
 	case *ast.Ident:
-		return f.vars[typed.Obj]
+		if typed.Obj != nil {
+			if value, ok := f.vars[typed.Obj]; ok {
+				return value
+			}
+		}
+		return f.packageVars[typed.Name]
 	case *ast.ParenExpr:
 		return f.expression(typed.X)
 	case *ast.BinaryExpr:
@@ -1236,6 +1288,36 @@ func TestResolvedConsumerRequiresFamilyCorrelatedBinding(t *testing.T) {
 				t.Fatalf("violation = %v, want %v: %v", got, tc.wantViolation, violations)
 			}
 		})
+	}
+}
+
+func TestResolvedConsumerRejectsCrossFilePackageConstruction(t *testing.T) {
+	repoRoot := t.TempDir()
+	dir := filepath.Join(repoRoot, "cmd", "internal", "mutation")
+	if err := os.MkdirAll(dir, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	files := map[string]string{
+		"config.go": "package mutation\nconst draftHead = \"dra\"\nfunc draftPrefix() string { return draftHead }\n",
+		"lifecycle.go": "package mutation\nimport (\"path/filepath\"; \"github.com/xianxu/pair/cmd/internal/artifactpath\")\n" +
+			"const draftTail = \"ft-\"\n" +
+			"func good(root, tag string) string { paths, _ := artifactpath.ResolveScoped(root, tag); return paths.Draft() }\n" +
+			"func bad(root, tag string) string { return filepath.Join(root, draftPrefix() + draftTail + tag + \".md\") }\n",
+	}
+	for name, body := range files {
+		if err := os.WriteFile(filepath.Join(dir, name), []byte(body), 0o644); err != nil {
+			t.Fatal(err)
+		}
+	}
+	violations, err := artifactConstructorViolations(repoRoot, []string{"cmd"}, []SourceClassification{{
+		Path: "cmd/internal/mutation/lifecycle.go", Kind: ResolvedConsumer,
+		Families: []string{"draft"}, BindingNames: []string{"scoped-draft"},
+	}})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(violations) == 0 {
+		t.Fatal("cross-file package construction escaped artifact authority")
 	}
 }
 

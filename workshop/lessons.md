@@ -2262,9 +2262,11 @@ cheapest to find before implementation.
 
 **Rule.** For every exclusivity or whole-diff claim, plan review asks what
 positive witness proves derivation, what exhaustive source enumerates the
-population, and which adversarial mutations vary lexical scope (package and
-local), order, aliasing, helper indirection, runtime composition, and initial
+population, and which adversarial mutations vary lexical scope (cross-file
+package and local), order, aliasing, helper indirection, runtime composition, and initial
 filesystem state. Participation must fail closed: a newly exported authority or
-new source cannot silently receive the non-participating/default disposition.
+new source/declaration cannot silently receive the non-participating/default
+disposition; close the audited declaration population mechanically when
+individual detail markers would be noise.
 If those witnesses are absent, the plan is not ready for `change-code`, even
 when its happy-path tests are precise (ARCH-PURPOSE).

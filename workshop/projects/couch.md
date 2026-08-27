@@ -717,3 +717,11 @@ the same fixed point as local helpers and runtime composition. Exported types
 and catalog variables in the M5 artifact authority are concept-by-default, so a
 new unmarked public authority cannot opt out of the plan inventory
 (ARCH-DRY, ARCH-PURPOSE).
+
+### 2026-08-27 — pair#149 M5 package-wide provenance and closed declarations
+
+Artifact provenance now crosses Go files within each package. The concept
+inventory closes the complete M5 declaration population with a stable AST
+signature, so any new declaration requires an explicit concept/detail
+disposition and exported additions fail closed across all M5 sources
+(ARCH-DRY, ARCH-PURPOSE).
