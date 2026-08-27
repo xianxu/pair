@@ -10,7 +10,7 @@
 # propose a concrete fix.
 #
 # Usage: doctor.sh [path-to-adapt.jsonl]
-#   No arg → $PAIR_ADAPT_LOG_PATH when present, else newest adapt-*.jsonl.
+#   No arg → exact $PAIR_ADAPT_LOG_PATH when present.
 # Always exits 0 (diagnostic); prints a NO-DATA notice if nothing is found.
 #
 # Output adapts to the stream: an interactive terminal gets a color-coded,
@@ -36,9 +36,6 @@ f="${1:-}"
 if [ -z "$f" ]; then
     if [ -n "${PAIR_ADAPT_LOG_PATH:-}" ] && [ -f "$PAIR_ADAPT_LOG_PATH" ]; then
         f="$PAIR_ADAPT_LOG_PATH"
-    else
-        # Newest session log as a fallback (e.g. invoked outside a live pane).
-        f="$(ls -t "$DATA_DIR"/adapt-*.jsonl 2>/dev/null | head -1 || true)"
     fi
 fi
 

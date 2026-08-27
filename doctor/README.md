@@ -12,7 +12,7 @@ fix.
 ## Run it
 
 ```bash
-doctor/doctor.sh            # exact current-session path, else newest adapt-*.jsonl
+doctor/doctor.sh            # exact current-session binding
 doctor/doctor.sh <path>     # a specific session's log
 ```
 

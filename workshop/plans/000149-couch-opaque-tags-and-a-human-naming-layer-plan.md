@@ -1365,3 +1365,18 @@ internal command packages. The documentation inventory names exact methods or
 bindings for current consumers; literal filename shapes are explicitly limited
 to compatibility behavior or descriptive storage vocabulary (ARCH-DRY,
 ARCH-PURPOSE).
+
+### 2026-08-27 — make constructor and verification rules syntax-independent
+
+**Reason:** the fifth M5 review showed that recognizing selected Go expression
+forms was not constructor closure, and reproduced a clean-archive failure where
+coverage read ignored generated files left in the developer checkout.
+
+**Delta:** resolved consumers may contain no artifact-family literal except an
+exact, centrally allowlisted non-path protocol/CLI value. The mutation matrix
+now covers concatenation, formatting, joins, builders, replacements, helper
+calls, and `filepath.Join` across top-level and internal command packages.
+Generated-mirror coverage always generates into a temporary directory from
+tracked sources, then checks exact classification in both directions; it never
+reads the ignored working mirror. The tracked-input-only invariant is verified
+from a clean archive before the boundary rerun (ARCH-DRY, ARCH-PURPOSE).

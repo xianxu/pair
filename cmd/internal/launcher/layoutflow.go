@@ -53,7 +53,7 @@ func ClassifyLiveLayout(panes []zellijpane.Pane) (LayoutMode, bool) {
 		switch {
 		case strings.Contains(command, "pair wrap"):
 			agent = true
-		case pane.Title == "draft" || strings.Contains(command, "draft-") && strings.Contains(command, "nvim"):
+		case pane.Title == "draft" || artifactpath.CommandReferencesDraftArtifact(command) && strings.Contains(command, "nvim"):
 			draft = true
 		}
 		if pane.Title == "terminal-filler" || strings.Contains(command, "tail -f /dev/null") {

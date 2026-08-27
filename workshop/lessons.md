@@ -1,5 +1,17 @@
 # Lessons
 
+## Verification must not inherit ignored generated state
+
+A boundary suite passed in the developer checkout because an ignored generated
+runtime mirror was present, while the same focused test failed from a clean
+archive after those files were correctly removed from Git.
+
+**Rule.** Any test that validates generated output must create that output in a
+temporary directory from tracked inputs, then compare it with the manifest in
+both directions. Run the focused gate once from a clean archive or checkout;
+the working tree's ignored build residue is never admissible evidence. Caught
+in #000149 M5 review.
+
 ## Compound event state needs one synchronization owner
 
 An overlay used an atomic boolean plus a separately locked text tail. Enter

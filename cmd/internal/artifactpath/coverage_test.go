@@ -13,9 +13,44 @@ import (
 	"strconv"
 	"strings"
 	"testing"
+
+	"github.com/xianxu/pair/cmd/internal/runtimebundlegen"
 )
 
 var productionRoots = []string{"cmd", "bin", "nvim", "zellij", "doctor"}
+
+// resolvedVocabularyLiterals are exact non-path protocol/CLI strings whose
+// spelling happens to contain an artifact-family token. A resolved consumer may
+// use only these values; any new literal is rejected regardless of the syntax
+// around it.
+var resolvedVocabularyLiterals = map[string]map[string]bool{
+	"cmd/internal/opener/runtime.go": {
+		"scrollback-render exit ": true,
+	},
+	"cmd/internal/scrollbackcmd/scrollbackcmd.go": {
+		"pair-scrollback-render": true,
+		"usage: pair-scrollback-render [--plain] [--viewport F] [--max-lines N] [--with-timestamps] <raw> <events.jsonl> <out>\n": true,
+		"scrollback-render: %v\n": true,
+	},
+	"cmd/internal/slugcmd/slugcmd.go": {
+		"slug-parse": true,
+	},
+	"cmd/internal/titlepoller/runtime.go": {
+		"--pane-id": true,
+	},
+	"cmd/internal/wrapcmd/wrap.go": {
+		"--scrollback-log": true,
+		"usage: pair-wrap [--scrollback-log <path>] <command> [args...]": true,
+		"agent-restart-request": true,
+		"scrollback-write":      true,
+	},
+}
+
+var resolvedNonGoVocabularyLines = map[string]map[string]bool{
+	"nvim/review/record.lua": {
+		"local OPEN = '```review-records'": true,
+	},
+}
 
 func constructorAuthorityViolations(classifications []SourceClassification) []string {
 	var violations []string
@@ -75,28 +110,41 @@ func TestProductionArtifactReferencesAreExactlyClassified(t *testing.T) {
 				t.Fatalf("%s classifies unknown family %q", classification.Path, name)
 			}
 		}
-		if _, err := os.Stat(filepath.Join(repoRoot, filepath.FromSlash(classification.Path))); err != nil {
-			t.Fatalf("classified source %q is absent: %v", classification.Path, err)
+		if classification.Kind != GeneratedMirror {
+			if _, err := os.Stat(filepath.Join(repoRoot, filepath.FromSlash(classification.Path))); err != nil {
+				t.Fatalf("classified source %q is absent: %v", classification.Path, err)
+			}
 		}
 		classified[classification.Path] = classification
 	}
 
-	generatedRoot := filepath.Join(repoRoot, "cmd/internal/runtimebundle/assets/runtime")
+	generatedRoot := filepath.Join(t.TempDir(), "runtime")
+	if _, err := runtimebundlegen.Generate(runtimebundlegen.GenerateOptions{RepoRoot: repoRoot, OutRoot: generatedRoot}); err != nil {
+		t.Fatalf("generate runtime mirror from tracked inputs: %v", err)
+	}
+	seenGenerated := map[string]bool{}
 	if err := filepath.WalkDir(generatedRoot, func(path string, entry os.DirEntry, walkErr error) error {
 		if walkErr != nil || entry.IsDir() {
 			return walkErr
 		}
-		rel, err := filepath.Rel(repoRoot, path)
+		rel, err := filepath.Rel(generatedRoot, path)
 		if err != nil {
 			return err
 		}
-		classification, ok := classified[filepath.ToSlash(rel)]
+		logical := filepath.ToSlash(filepath.Join("cmd/internal/runtimebundle/assets/runtime", rel))
+		classification, ok := classified[logical]
 		if !ok || classification.Kind != GeneratedMirror {
-			missing = append(missing, filepath.ToSlash(rel)+": generated mirror is not exactly classified")
+			missing = append(missing, logical+": generated mirror is not exactly classified")
 		}
+		seenGenerated[logical] = true
 		return nil
 	}); err != nil {
 		t.Fatal(err)
+	}
+	for path, classification := range classified {
+		if classification.Kind == GeneratedMirror && !seenGenerated[path] {
+			missing = append(missing, path+": generated-mirror classification has no generated output")
+		}
 	}
 
 	referenceViolations, err := artifactReferenceViolations(repoRoot, productionRoots, classified)
@@ -137,7 +185,24 @@ func artifactConstructorViolations(repoRoot string, roots []string, classificati
 			}
 			rel = filepath.ToSlash(rel)
 			classification, ok := classified[rel]
-			if !ok || classification.Kind != ResolvedConsumer || filepath.Ext(rel) != ".go" || !productionSourceFile(rel, path) {
+			if !ok || classification.Kind != ResolvedConsumer || !productionSourceFile(rel, path) {
+				return nil
+			}
+			if filepath.Ext(rel) != ".go" {
+				raw, err := os.ReadFile(path)
+				if err != nil {
+					return err
+				}
+				for lineNumber, line := range strings.Split(string(raw), "\n") {
+					trimmed := strings.TrimSpace(line)
+					for _, familyName := range classification.Families {
+						for _, family := range Families {
+							if family.Name == familyName && artifactTokenMentioned(trimmed, family.Token) && !resolvedNonGoVocabularyLines[rel][trimmed] {
+								violations[fmt.Sprintf("%s:%d: resolved consumer contains %s literal", rel, lineNumber+1, familyName)] = true
+							}
+						}
+					}
+				}
 				return nil
 			}
 			fileSet := token.NewFileSet()
@@ -146,36 +211,22 @@ func artifactConstructorViolations(repoRoot string, roots []string, classificati
 				return err
 			}
 			ast.Inspect(file, func(node ast.Node) bool {
-				var expression ast.Expr
-				joinCall := false
-				switch value := node.(type) {
-				case *ast.CallExpr:
-					selector, ok := value.Fun.(*ast.SelectorExpr)
-					if !ok {
-						return true
-					}
-					owner, ownerOK := selector.X.(*ast.Ident)
-					if !ownerOK || owner.Name != "filepath" || selector.Sel.Name != "Join" {
-						return true
-					}
-					expression = value
-					joinCall = true
-				case *ast.BinaryExpr:
-					if value.Op != token.ADD {
-						return true
-					}
-					expression = value
-				default:
+				literal, ok := node.(*ast.BasicLit)
+				if !ok || literal.Kind != token.STRING {
+					return true
+				}
+				value, err := strconv.Unquote(literal.Value)
+				if err != nil {
 					return true
 				}
 				for _, familyName := range classification.Families {
-					if familyName == "restart" {
+					if familyName == "restart" || familyName == "native-session" {
 						continue
 					}
 					for _, family := range Families {
-						if family.Name == familyName && expressionConstructsFamily(expression, family.Token, joinCall) {
+						if family.Name == familyName && strings.Contains(value, family.Token) && !resolvedVocabularyLiterals[rel][value] {
 							line := fileSet.Position(node.Pos()).Line
-							violations[fmt.Sprintf("%s:%d: resolved consumer constructs %s", rel, line, familyName)] = true
+							violations[fmt.Sprintf("%s:%d: resolved consumer contains %s literal %q", rel, line, familyName, value)] = true
 						}
 					}
 				}
@@ -193,26 +244,6 @@ func artifactConstructorViolations(repoRoot string, roots []string, classificati
 	}
 	sort.Strings(out)
 	return out, nil
-}
-
-func expressionConstructsFamily(expression ast.Expr, familyToken string, joinCall bool) bool {
-	found := false
-	ast.Inspect(expression, func(node ast.Node) bool {
-		literal, ok := node.(*ast.BasicLit)
-		if !ok || literal.Kind != token.STRING {
-			return true
-		}
-		value, err := strconv.Unquote(literal.Value)
-		if err != nil {
-			return true
-		}
-		if joinCall && strings.Contains(value, familyToken) ||
-			strings.HasSuffix(value, familyToken) || strings.Contains(value, "/"+familyToken) {
-			found = true
-		}
-		return !found
-	})
-	return found
 }
 
 func TestProductionSourceFileRecognizesExtensionlessShebang(t *testing.T) {
@@ -264,24 +295,26 @@ func TestResolvedConsumerClassificationCannotHideConstructorMutations(t *testing
 	t.Parallel()
 
 	repoRoot := t.TempDir()
-	classifications := make([]SourceClassification, 0, 2)
-	for _, rel := range []string{
-		"cmd/pair-go/mutation.go",
-		"cmd/internal/launcher/mutation.go",
-	} {
+	mutations := map[string]string{
+		"cmd/pair-go/concat.go":                  "package mutation\nfunc bad(tag string) string { return \"draft-\" + tag + \".md\" }\n",
+		"cmd/pair-go/format.go":                  "package mutation\nimport \"fmt\"\nfunc bad(tag string) string { return fmt.Sprintf(\"draft-%s.md\", tag) }\n",
+		"cmd/pair-go/join.go":                    "package mutation\nimport \"strings\"\nfunc bad(tag string) string { return strings.Join([]string{\"draft-\", tag, \".md\"}, \"\") }\n",
+		"cmd/internal/launcher/builder.go":       "package mutation\nfunc bad(b interface{ WriteString(string) }, tag string) { b.WriteString(\"draft-\") }\n",
+		"cmd/internal/launcher/replace.go":       "package mutation\nimport \"strings\"\nfunc bad(tag string) string { return strings.ReplaceAll(\"draft-{tag}.md\", \"{tag}\", tag) }\n",
+		"cmd/internal/launcher/helper.go":        "package mutation\nfunc bad(tag string) string { return artifactName(\"draft-\", tag) }\n",
+		"cmd/internal/launcher/filepath_join.go": "package mutation\nimport \"path/filepath\"\nfunc bad(scope string) string { return filepath.Join(scope, \"draft-*.md\") }\n",
+	}
+	classifications := make([]SourceClassification, 0, len(mutations))
+	for rel, body := range mutations {
 		path := filepath.Join(repoRoot, filepath.FromSlash(rel))
 		if err := os.MkdirAll(filepath.Dir(path), 0o755); err != nil {
 			t.Fatal(err)
-		}
-		body := "package mutation\nimport \"path/filepath\"\nfunc bad(scope string) string { return filepath.Join(scope, \"nvim-pid-*-draft\") }\n"
-		if strings.Contains(rel, "pair-go") {
-			body = "package mutation\nfunc bad(tag string) string { path := \"nvim-pid-\" + tag + \"-draft\"; return path }\n"
 		}
 		if err := os.WriteFile(path, []byte(body), 0o644); err != nil {
 			t.Fatal(err)
 		}
 		classifications = append(classifications, SourceClassification{
-			Path: rel, Kind: ResolvedConsumer, Families: []string{"nvim-pid"},
+			Path: rel, Kind: ResolvedConsumer, Families: []string{"draft"},
 		})
 	}
 
@@ -289,7 +322,7 @@ func TestResolvedConsumerClassificationCannotHideConstructorMutations(t *testing
 	if err != nil {
 		t.Fatal(err)
 	}
-	if len(violations) != 2 {
+	if len(violations) != len(mutations) {
 		t.Fatalf("false resolved-consumer classifications escaped constructor guard: %v", violations)
 	}
 }

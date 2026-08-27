@@ -90,8 +90,6 @@ var SourceClassifications = []SourceClassification{
 	{Path: "cmd/internal/sessionwatch/sessionwatch.go", Kind: ResolvedConsumer, Families: []string{"native-session"}},
 	{Path: "cmd/internal/titlepoller/runtime.go", Kind: ResolvedConsumer, Families: []string{"pane"}},
 	{Path: "cmd/internal/transcript/transcript.go", Kind: ResolvedConsumer, Families: []string{"native-session"}},
-	{Path: "cmd/internal/launcher/history.go", Kind: ResolvedConsumer, Families: []string{"draft", "ledger", "log", "queue"}},
-	{Path: "cmd/internal/launcher/layoutflow.go", Kind: ResolvedConsumer, Families: []string{"draft"}},
 	{Path: "cmd/internal/launcher/legacy_live.go", Kind: ResolvedConsumer, Families: []string{"pane"}},
 	{Path: "cmd/internal/launcher/lifecycle.go", Kind: ResolvedConsumer, Families: []string{"draft", "scrollback"}},
 	{Path: "cmd/internal/launcher/migrate.go", Kind: ResolvedConsumer, Families: []string{"queue"}},
@@ -101,7 +99,6 @@ var SourceClassifications = []SourceClassification{
 	{Path: "cmd/internal/sessionwatch/run.go", Kind: ResolvedConsumer, Families: []string{"native-session"}},
 	{Path: "cmd/internal/slugcmd/slugcmd.go", Kind: ResolvedConsumer, Families: []string{"slug"}},
 	{Path: "cmd/internal/wrapcmd/wrap.go", Kind: ResolvedConsumer, Families: []string{"agent", "scrollback"}},
-	{Path: "doctor/doctor.sh", Kind: ResolvedConsumer, Families: []string{"adapt"}},
 	{Path: "nvim/review/record.lua", Kind: ResolvedConsumer, Families: []string{"review"}},
 
 	{Path: "cmd/internal/runtimebundle/assets/runtime/files/bin/lib/adapt-log.sh", Kind: GeneratedMirror},

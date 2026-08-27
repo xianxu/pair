@@ -1217,3 +1217,16 @@ package fail when a false `ResolvedConsumer` label hides construction. The
 atlas/README inventory now names exact methods and bindings for current
 consumers and marks literal filename shapes as compatibility or descriptive
 vocabulary only (ARCH-DRY, ARCH-PURPOSE).
+
+### 2026-08-27 — M5 boundary review round 5
+
+BR-34 is addressed. The reviewer kept BR-32 open because the first mutation
+guard recognized syntax rather than the source-of-truth invariant, and raised
+BR-36 after a clean archive proved artifact coverage depended on the ignored
+local runtime mirror. The guard now rejects every non-allowlisted family literal
+in a resolved consumer, independent of whether code uses formatting, joining,
+builders, replacement, helper calls, or concatenation. Coverage generates the
+runtime mirror in a temporary directory from tracked inputs and compares every
+generated path against the classification manifest in both directions. A clean
+archive passes the focused artifact suite without any pre-existing mirror
+(ARCH-DRY, ARCH-PURPOSE).

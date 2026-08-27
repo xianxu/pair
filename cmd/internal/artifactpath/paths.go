@@ -127,6 +127,18 @@ func TagFromHistorySidecar(name string) (string, bool) {
 	return "", false
 }
 
+// IsLedgerHistorySidecar distinguishes the ledger member of the history
+// vocabulary without making scanners repeat its filename prefix.
+func IsLedgerHistorySidecar(name string) bool {
+	return strings.HasPrefix(name, "ledger-") && strings.HasSuffix(name, ".jsonl")
+}
+
+// CommandReferencesDraftArtifact recognizes the descriptive draft path token in
+// an external pane command without making layout classifiers own that token.
+func CommandReferencesDraftArtifact(command string) bool {
+	return strings.Contains(command, "draft-")
+}
+
 func (p LegacyRootPaths) Entry(name string) (string, error) {
 	if name == "" || filepath.Base(name) != name {
 		return "", fmt.Errorf("invalid legacy artifact entry %q", name)

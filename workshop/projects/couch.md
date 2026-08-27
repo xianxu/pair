@@ -656,3 +656,10 @@ when the caller is already classified as a resolved consumer. Mutation tests
 pin that label-bypass class, and the documentation inventory distinguishes
 exact current bindings from descriptive or compatibility filename vocabulary
 (ARCH-DRY, ARCH-PURPOSE).
+
+### 2026-08-27 — pair#149 M5 tracked-input constructor proof
+
+Constructor closure is now based on the absence of unapproved family literals,
+not a list of Go expression forms. Generated-path coverage builds its own
+temporary mirror from tracked inputs, so a clean checkout and a developer tree
+exercise the same proof (ARCH-DRY, ARCH-PURPOSE).

@@ -37,7 +37,7 @@ func (s HistorySource) Scan(base string, cutoff time.Time) ([]HistoricalTag, err
 				continue
 			}
 			mtime := info.ModTime()
-			if strings.HasPrefix(filepath.Base(path), "ledger-") {
+			if artifactpath.IsLedgerHistorySidecar(filepath.Base(path)) {
 				if entry, ok := s.latestLedgerEntry(tag); ok && !entry.LastActive.IsZero() {
 					mtime = entry.LastActive
 				}

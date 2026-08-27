@@ -301,3 +301,12 @@ func TestPathsOwnPaneSidecarParsing(t *testing.T) {
 		}
 	}
 }
+
+func TestArtifactVocabularyOwnsExternalDraftCommandRecognition(t *testing.T) {
+	if !CommandReferencesDraftArtifact("nvim /data/draft-work.md") {
+		t.Fatal("draft artifact command was not recognized")
+	}
+	if CommandReferencesDraftArtifact("nvim /tmp/notes.md") {
+		t.Fatal("unrelated command was recognized as a draft artifact")
+	}
+}

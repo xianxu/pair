@@ -22,8 +22,8 @@ edit matcher code silently — surface the finding and the proposed edit first.
 
 ## Procedure
 
-1. **Run it.** The aggregator self-locates the current session's log via
-   `$PAIR_TAG`, falling back to the newest `adapt-*.jsonl`; pass an explicit path
+1. **Run it.** The aggregator uses the current session's exact
+   `$PAIR_ADAPT_LOG_PATH` binding; outside a live Pair pane, pass an explicit path
    as `$1` to inspect a specific session's log:
 
    ```bash
