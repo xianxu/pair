@@ -1752,3 +1752,21 @@ constructor-location, positive binding, exact vocabulary, direct-expression,
 clean-bootstrap, and cross-scope tests. Run the focused artifact suite, clean
 bootstrap, full/race suites, runtime drift, issue validation, and diff hygiene
 before retrying the M5 boundary.
+
+### 2026-08-27 — make every current importer participate positively
+
+**Reason:** round 35 found a finite mismatch within the revised contract:
+twenty shipped Go files imported `artifactpath` but were still declared
+`NonArtifactSources`. Their lookup behavior therefore did not need a positive
+family binding even though the manifest claimed every current consumer had
+one. The atlas also retained the deleted package-dataflow description.
+
+**Delta:** add a direct invariant that a non-artifact Go source cannot import
+`artifactpath`; reclassify all twenty current importers with their exact
+families and resolver/member or direct-resolver witnesses; retain the bounded
+literal/vocabulary checks. Move the stable rename-sidecar enumeration into
+`Paths.RenameArtifacts`, expose the same shape through
+`LegacyPaths.RenameArtifacts`, and make migration select the legacy authority
+explicitly. Correct the atlas to state the bounded contract and its deliberate
+non-goals. Verify the focused artifact and migration tests before the complete
+M5 gate suite (ARCH-DRY, ARCH-PURPOSE, ARCH-MOCK).

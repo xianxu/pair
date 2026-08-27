@@ -24,21 +24,7 @@ func renamePathsFor(tag, dataDir string) []string {
 	if err != nil {
 		return nil
 	}
-	out := []string{
-		paths.OuterTTY(), paths.PairWrapPID(), paths.TitlePID(), paths.Agent(),
-		paths.AgentPID(), paths.AgentOutput(), paths.AgentPicks(), paths.LayoutMode(),
-		paths.WorkbenchLayout(), paths.QueueDir(), paths.Quote(), paths.ImageCapture(),
-		paths.ImageCaptureDone(), paths.Draft(), paths.Log(), paths.Ledger(),
-		paths.NvimPID("draft"), paths.NvimPID("scrollback"),
-	}
-	for _, a := range AgentInventory() {
-		out = append(out,
-			paths.Config(a), paths.Pane(a), paths.ScrollbackANSI(a),
-			paths.ScrollbackRaw(a), paths.ScrollbackViewport(a),
-			paths.ScrollbackEvents(a), paths.AgentDraft(a),
-		)
-	}
-	return out
+	return paths.RenameArtifacts(AgentInventory())
 }
 
 // renamePair is one src→dst move in the rename plan.

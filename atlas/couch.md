@@ -31,13 +31,13 @@ exports exact paths to Go helpers, shell, Neovim, and both Zellij layouts.
 Each resolved-consumer family is tied to a named resolver/member witness;
 closed vocabulary allowances separately cover exact non-path protocol and CLI
 uses. Every production source is exhaustively inventoried as one of those
-classes or as a non-artifact source; new files have no implicit default, and Go
-constant concatenation cannot hide artifact vocabulary in the latter class.
-Witnesses track lexical resolver-result identity and require a non-discarded
-member use; constant concatenations in resolved sources are checked separately,
-and runtime literal fragments are conservatively assembled across calls and
-function bodies, so one valid witness cannot authorize another join/builder
-construction in the same file. The Core concepts contract derives the artifact
+classes or as a non-artifact source; new files have no implicit default, and a
+Go source that imports `artifactpath` cannot remain in the non-artifact class.
+Current resolved consumers have positive family-specific resolver/member (or
+direct resolver) bindings. Exact vocabulary and direct literal or constant-
+expression checks are bounded defense in depth; they do not claim semantic
+provenance through arbitrary helper, package, control-flow, or string-building
+programs. The Core concepts contract derives the artifact
 authority's type/catalog inventory from its exported declarations rather than
 copying a second expected list.
 Generated-runtime coverage builds a temporary mirror from declared source

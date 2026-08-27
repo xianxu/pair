@@ -162,6 +162,35 @@ func TestLegacyFlatPathsAreValidatedByArtifactAuthority(t *testing.T) {
 	}
 }
 
+func TestLegacyAndCurrentRenameArtifactsShareOneShape(t *testing.T) {
+	t.Parallel()
+
+	legacy, err := ResolveLegacyFlat("/pair-data", "thread")
+	if err != nil {
+		t.Fatal(err)
+	}
+	current, err := ResolveScoped("/pair-data/scopes/repo", "thread")
+	if err != nil {
+		t.Fatal(err)
+	}
+	legacyPaths := legacy.RenameArtifacts([]string{"codex"})
+	currentPaths := current.RenameArtifacts([]string{"codex"})
+	if len(legacyPaths) == 0 || len(legacyPaths) != len(currentPaths) {
+		t.Fatalf("rename artifact counts: legacy=%d current=%d", len(legacyPaths), len(currentPaths))
+	}
+	for i := range legacyPaths {
+		if filepath.Base(legacyPaths[i]) != filepath.Base(currentPaths[i]) {
+			t.Fatalf("artifact %d basename mismatch: legacy=%q current=%q", i, legacyPaths[i], currentPaths[i])
+		}
+		if !strings.HasPrefix(legacyPaths[i], "/pair-data/") {
+			t.Fatalf("legacy artifact escaped flat root: %q", legacyPaths[i])
+		}
+		if !strings.HasPrefix(currentPaths[i], "/pair-data/scopes/repo/") {
+			t.Fatalf("current artifact escaped scope root: %q", currentPaths[i])
+		}
+	}
+}
+
 func TestEnvironmentBindingsCarryExactResolvedPaths(t *testing.T) {
 	t.Parallel()
 

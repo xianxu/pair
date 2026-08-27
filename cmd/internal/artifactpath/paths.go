@@ -193,6 +193,13 @@ func (p LegacyPaths) PanePrefix() string { return "pane-" + p.tag + "-" }
 
 func (p LegacyPaths) HistoryGlobs() []string { return p.root.HistoryGlobs() }
 
+// RenameArtifacts enumerates the pre-composite flat sidecars imported during
+// migration. The filename set stays identical to the current scoped set while
+// the legacy type keeps the old root explicit at the call site.
+func (p LegacyPaths) RenameArtifacts(agents []string) []string {
+	return (Paths{scopeDir: p.root.dataDir, tag: p.tag}).RenameArtifacts(agents)
+}
+
 // ResolveSelectedScope validates a scope directory already selected by Pair.
 func ResolveSelectedScope(scopeDir string) (ScopePaths, error) {
 	if !filepath.IsAbs(scopeDir) {
@@ -417,6 +424,27 @@ func (p Paths) ReviewDefinitionResult() string {
 	return p.tagged("review-definition-result-", ".json")
 }
 func (p Paths) CodexFilterKKP() string { return p.tagged("codex-filter-kkp-", "") }
+
+// RenameArtifacts is the stable, exact sidecar inventory used by tag rename
+// and legacy import. Callers supply the harness names because artifactpath is a
+// dependency leaf and does not own the agent inventory.
+func (p Paths) RenameArtifacts(agents []string) []string {
+	out := []string{
+		p.OuterTTY(), p.PairWrapPID(), p.TitlePID(), p.Agent(),
+		p.AgentPID(), p.AgentOutput(), p.AgentPicks(), p.LayoutMode(),
+		p.WorkbenchLayout(), p.QueueDir(), p.Quote(), p.ImageCapture(),
+		p.ImageCaptureDone(), p.Draft(), p.Log(), p.Ledger(),
+		p.NvimPID("draft"), p.NvimPID("scrollback"),
+	}
+	for _, agent := range agents {
+		out = append(out,
+			p.Config(agent), p.Pane(agent), p.ScrollbackANSI(agent),
+			p.ScrollbackRaw(agent), p.ScrollbackViewport(agent),
+			p.ScrollbackEvents(agent), p.AgentDraft(agent),
+		)
+	}
+	return out
+}
 
 // EnvironmentBindings exposes exact resolved paths to shell, Lua, and KDL
 // consumers so they never reconstruct filenames from PAIR_DATA_DIR + PAIR_TAG.

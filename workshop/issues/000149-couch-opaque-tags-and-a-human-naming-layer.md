@@ -1357,3 +1357,18 @@ Go, shell, Neovim, and Zellij consumers. These checks intentionally do not
 claim semantic provenance through arbitrary helper, package, control-flow, or
 string-building programs. The custom package dataflow evaluator is removed
 rather than widened again (Simplicity First, ARCH-DRY, ARCH-PURPOSE).
+
+### 2026-08-27 — close the finite importer inventory
+
+Boundary review round 35 accepted the bounded contract but found a concrete
+hole inside it: twenty production Go files imported `artifactpath` while still
+listed as non-artifact sources, making their positive bindings optional. The
+inventory now rejects that state directly. Every current importer is a
+constructor or resolved consumer, and the twenty-file sweep records its exact
+families and resolver bindings.
+
+Legacy import also stops applying the current-scope rename helper to the old
+global root. `LegacyPaths.RenameArtifacts` and `Paths.RenameArtifacts` expose
+the same stable sidecar shape from their respective authorities; launcher
+rename and migration consume those APIs. The atlas now describes only the
+bounded checks that remain (ARCH-DRY, ARCH-PURPOSE, ARCH-MOCK).

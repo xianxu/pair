@@ -735,3 +735,12 @@ bindings, bounded literal checks, and cross-scope consumer integration. The
 custom package dataflow evaluator is removed; a typed filesystem capability or
 SSA analyzer would be separate future work if ever justified (Simplicity
 First, ARCH-DRY, ARCH-PURPOSE).
+
+### 2026-08-27 — pair#149 M5 finite importer closure
+
+The bounded repository contract now requires every Go source importing
+`artifactpath` to be positively classified; the twenty existing importers have
+exact family and resolver witnesses. Legacy migration and current rename share
+one authority-owned sidecar shape without confusing legacy and scoped roots,
+and the atlas no longer advertises the deleted open-ended provenance analyzer
+(ARCH-DRY, ARCH-PURPOSE, ARCH-MOCK).

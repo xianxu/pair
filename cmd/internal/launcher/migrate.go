@@ -10,8 +10,12 @@ type legacyImportPair struct {
 }
 
 func legacyImportPlan(tag, globalDataDir, scopedDataDir string, exists func(string) bool) []legacyImportPair {
+	legacy, err := artifactpath.ResolveLegacyFlat(globalDataDir, tag)
+	if err != nil {
+		return nil
+	}
 	var pairs []legacyImportPair
-	for _, src := range renamePathsFor(tag, globalDataDir) {
+	for _, src := range legacy.RenameArtifacts(AgentInventory()) {
 		if !exists(src) {
 			continue
 		}

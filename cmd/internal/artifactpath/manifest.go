@@ -54,16 +54,27 @@ type ResolvedBinding struct {
 }
 
 // pair:m5-concept pure
-var ResolvedBindings = []ResolvedBinding{
+var ResolvedBindings = append([]ResolvedBinding{
 	{Name: "cache-restart", Family: "restart", Resolver: "ResolvePairCache", Member: "Restart"},
+	{Name: "direct-draft-command", Family: "draft", Resolver: "CommandReferencesDraftArtifact"},
+	{Name: "direct-draft-history-tag", Family: "draft", Resolver: "TagFromHistorySidecar"},
+	{Name: "direct-ledger-history", Family: "ledger", Resolver: "IsLedgerHistorySidecar"},
+	{Name: "direct-ledger-history-tag", Family: "ledger", Resolver: "TagFromHistorySidecar"},
+	{Name: "direct-log-history-tag", Family: "log", Resolver: "TagFromHistorySidecar"},
 	{Name: "legacy-pane", Family: "pane", Resolver: "ResolveLegacyRoot", Member: "PanePrefix"},
 	{Name: "legacy-queue", Family: "queue", Resolver: "ResolveLegacyFlat", Member: "QueueDir"},
+	{Name: "legacy-history-draft", Family: "draft", Resolver: "ResolveLegacyRoot", Member: "HistoryGlobs"},
+	{Name: "legacy-history-ledger", Family: "ledger", Resolver: "ResolveLegacyRoot", Member: "HistoryGlobs"},
+	{Name: "legacy-history-log", Family: "log", Resolver: "ResolveLegacyRoot", Member: "HistoryGlobs"},
+	{Name: "legacy-session-binding", Family: "session-binding", Resolver: "ResolveLegacyRoot", Member: "SessionBindings"},
 	{Name: "scoped-adapt", Family: "adapt", Resolver: "ResolveScoped", Member: "AdaptLog"},
 	{Name: "scoped-agent", Family: "agent", Resolver: "ResolveScoped", Member: "Agent"},
 	{Name: "scoped-agent-output", Family: "agent", Resolver: "ResolveScoped", Member: "AgentOutput"},
 	{Name: "scoped-agent-pid", Family: "agent-pid", Resolver: "ResolveScoped", Member: "AgentPID"},
 	{Name: "scoped-agent-ready", Family: "agent-ready", Resolver: "ResolveScoped", Member: "AgentReadyChecked"},
+	{Name: "scoped-agent-ready-path", Family: "agent-ready", Resolver: "ResolveScoped", Member: "AgentReady"},
 	{Name: "scoped-changelog", Family: "changelog", Resolver: "ResolveScoped", Member: "ChangelogSessionChecked"},
+	{Name: "scoped-changelog-artifacts", Family: "changelog", Resolver: "ResolveScoped", Member: "ChangelogArtifacts"},
 	{Name: "scoped-config", Family: "config", Resolver: "ResolveScoped", Member: "ConfigChecked"},
 	{Name: "scoped-config-glob", Family: "config", Resolver: "ResolveScoped", Member: "ConfigGlob"},
 	{Name: "scoped-draft", Family: "draft", Resolver: "ResolveScoped", Member: "Draft"},
@@ -77,13 +88,55 @@ var ResolvedBindings = []ResolvedBinding{
 	{Name: "scoped-parked", Family: "parked", Resolver: "ResolveScoped", Member: "Parked"},
 	{Name: "scoped-parked-scrollback", Family: "parked-scrollback", Resolver: "ResolveScoped", Member: "ParkedScrollbackArtifacts"},
 	{Name: "scoped-queue", Family: "queue", Resolver: "ResolveScoped", Member: "QueueDir"},
+	{Name: "scoped-quote", Family: "quote", Resolver: "ResolveScoped", Member: "Quote"},
+	{Name: "scoped-layout", Family: "layout", Resolver: "ResolveScoped", Member: "WorkbenchLayout"},
+	{Name: "scoped-last-left-pane", Family: "last-left-pane", Resolver: "ResolveScoped", Member: "LastLeftPane"},
+	{Name: "scoped-last-terminal-pane", Family: "last-terminal-pane", Resolver: "ResolveScoped", Member: "LastTerminalPane"},
+	{Name: "scoped-picker", Family: "picker", Resolver: "ResolveScoped", Member: "DraftPane"},
+	{Name: "scoped-review", Family: "review", Resolver: "ResolveScoped", Member: "ReviewTarget"},
 	{Name: "scoped-scrollback", Family: "scrollback", Resolver: "ResolveScoped", Member: "ScrollbackArtifacts"},
 	{Name: "scoped-scrollback-pending", Family: "scrollback-pending", Resolver: "ResolveScoped", Member: "ScrollbackPending"},
 	{Name: "scoped-slug", Family: "slug", Resolver: "ResolveScoped", Member: "Slug"},
 	{Name: "scoped-title-pid", Family: "title-pid", Resolver: "ResolveScoped", Member: "TitlePID"},
+	{Name: "scoped-terminal-panes", Family: "terminal-panes", Resolver: "ResolveScoped", Member: "TerminalPanes"},
 	{Name: "scoped-wrap-events", Family: "wrap-events", Resolver: "ResolveScoped", Member: "WrapEvents"},
 	{Name: "selected-nvim-pid", Family: "nvim-pid", Resolver: "ResolveSelectedScope", Member: "NvimPIDGlob"},
+	{Name: "selected-agent-default", Family: "agent-default", Resolver: "ResolveSelectedScope", Member: "AgentDefault"},
+	{Name: "selected-history-draft", Family: "draft", Resolver: "ResolveSelectedScope", Member: "HistoryGlobs"},
+	{Name: "selected-history-ledger", Family: "ledger", Resolver: "ResolveSelectedScope", Member: "HistoryGlobs"},
+	{Name: "selected-history-log", Family: "log", Resolver: "ResolveSelectedScope", Member: "HistoryGlobs"},
 	{Name: "selected-session-binding", Family: "session-binding", Resolver: "ResolveSelectedScope", Member: "SessionBindings"},
+}, generatedResolvedBindings()...)
+
+func generatedResolvedBindings() []ResolvedBinding {
+	var out []ResolvedBinding
+	addFamilies := func(prefix, resolver, member string, families []string) {
+		for _, family := range families {
+			out = append(out, ResolvedBinding{
+				Name: prefix + "-" + family, Family: family, Resolver: resolver, Member: member,
+			})
+		}
+	}
+	environmentFamilies := []string{
+		"adapt", "agent", "agent-pid", "agent-ready", "config", "draft",
+		"image-capture", "ledger", "log", "nvim-pid", "outer-tty", "pair-wrap-pid",
+		"pane", "queue", "quote", "scrollback", "slug",
+	}
+	renameFamilies := []string{
+		"agent", "agent-pid", "config", "draft", "image-capture", "layout",
+		"layout-mode", "ledger", "log", "nvim-pid", "outer-tty", "pair-wrap-pid",
+		"pane", "queue", "quote", "scrollback", "title-pid",
+	}
+	addFamilies("environment", "ResolveScoped", "EnvironmentBindings", environmentFamilies)
+	addFamilies("scoped-rename", "ResolveScoped", "RenameArtifacts", renameFamilies)
+	addFamilies("legacy-rename", "ResolveLegacyFlat", "RenameArtifacts", renameFamilies)
+	addFamilies("scoped-wrapper", "ResolveScoped", "", []string{"last-left-pane", "last-terminal-pane", "terminal-panes"})
+	addFamilies("composite", "Resolve", "", []string{
+		"adapt", "agent", "agent-pid", "agent-ready", "changelog", "config",
+		"draft", "ledger", "log", "nvim-pid", "outer-tty", "pane", "queue",
+		"scrollback", "session-binding", "thread-claim",
+	})
+	return out
 }
 
 // SourceClassification is deliberately exact: Path names one repository file
@@ -102,6 +155,7 @@ type SourceClassification struct {
 // family requires adding its constructor and classifying every source consumer.
 // pair:m5-concept pure
 var Families = []Family{
+	{Name: "agent-default", Token: "agent-default-"},
 	{Name: "draft", Token: "draft-"},
 	{Name: "ledger", Token: "ledger-"},
 	{Name: "log", Token: "log-"},
@@ -146,7 +200,7 @@ var Families = []Family{
 // pair:m5-concept pure
 var SourceClassifications = []SourceClassification{
 	{Path: "cmd/internal/artifactpath/paths.go", Kind: Constructor, Families: []string{
-		"adapt", "agent", "agent-pid", "agent-ready", "changelog", "config",
+		"adapt", "agent", "agent-default", "agent-pid", "agent-ready", "changelog", "config",
 		"continuation", "draft", "image-capture", "layout", "layout-mode",
 		"last-left-pane", "last-terminal-pane", "ledger", "log", "nvim-pid",
 		"outer-tty", "pair-wrap-pid", "pane", "parked", "parked-scrollback",
@@ -156,6 +210,106 @@ var SourceClassifications = []SourceClassification{
 		"codex-filter-kkp",
 	}},
 	{Path: "cmd/internal/artifactpath/manifest.go", Kind: Constructor, Families: familyNames()},
+	{Path: "cmd/internal/adapt/adapt.go", Kind: ResolvedConsumer, Families: []string{"adapt"}, BindingNames: []string{"scoped-adapt"}},
+	{Path: "cmd/internal/agentcmd/restart.go", Kind: ResolvedConsumer, Families: []string{"pair-wrap-pid"}, BindingNames: []string{"scoped-pair-wrap-pid"}},
+	{Path: "cmd/internal/clipcmd/clipcmd.go", Kind: ResolvedConsumer, Families: []string{"quote"}, BindingNames: []string{"scoped-quote"}},
+	{Path: "cmd/internal/codexsid/codexsid.go", Kind: ResolvedConsumer, Families: []string{"agent-pid"}, BindingNames: []string{"scoped-agent-pid"}},
+	{Path: "cmd/internal/contextcmd/contextcmd.go", Kind: ResolvedConsumer, Families: []string{"pane"}, BindingNames: []string{"scoped-pane"}},
+	{Path: "cmd/internal/continuationcmd/continuationcmd.go", Kind: ResolvedConsumer, Families: []string{"draft"}, BindingNames: []string{"scoped-draft"}},
+	{Path: "cmd/internal/draftroute/route.go", Kind: ResolvedConsumer, Families: []string{"picker"}, BindingNames: []string{"scoped-picker"}},
+	{Path: "cmd/internal/launcher/agent_defaults.go", Kind: ResolvedConsumer, Families: []string{"agent-default"}, BindingNames: []string{"selected-agent-default"}},
+	{Path: "cmd/internal/launcher/config.go", Kind: ResolvedConsumer, Families: []string{"config"}, BindingNames: []string{"scoped-config"}},
+	{Path: "cmd/internal/launcher/createflow.go", Kind: ResolvedConsumer,
+		Families: []string{
+			"adapt", "agent", "agent-pid", "agent-ready", "config", "draft",
+			"image-capture", "ledger", "log", "nvim-pid", "outer-tty", "pair-wrap-pid",
+			"pane", "queue", "quote", "scrollback", "slug",
+		},
+		BindingNames: []string{
+			"environment-adapt", "environment-agent", "environment-agent-pid", "environment-agent-ready",
+			"environment-config", "environment-draft", "environment-image-capture", "environment-ledger",
+			"environment-log", "environment-nvim-pid", "environment-outer-tty", "environment-pair-wrap-pid",
+			"environment-pane", "environment-queue", "environment-quote", "environment-scrollback", "environment-slug",
+		},
+		Vocabulary: goCallVocabularyFamilies(continuationBootstrapPrompt, "fmt.Sprintf", 0,
+			"draft", "log", "parked", "parked-scrollback", "queue", "scrollback"),
+	},
+	{Path: "cmd/internal/launcher/history.go", Kind: ResolvedConsumer,
+		Families: []string{"draft", "ledger", "log", "queue"},
+		BindingNames: []string{
+			"direct-draft-history-tag", "direct-ledger-history", "direct-ledger-history-tag", "direct-log-history-tag",
+			"legacy-history-draft", "legacy-history-ledger", "legacy-history-log", "legacy-queue",
+			"scoped-ledger", "scoped-queue", "selected-history-draft", "selected-history-ledger", "selected-history-log",
+		}},
+	{Path: "cmd/internal/launcher/layoutflow.go", Kind: ResolvedConsumer,
+		Families: []string{"draft", "layout"}, BindingNames: []string{"direct-draft-command", "scoped-layout"}},
+	{Path: "cmd/internal/launcher/readiness.go", Kind: ResolvedConsumer, Families: []string{"agent-ready"}, BindingNames: []string{"scoped-agent-ready-path"}},
+	{Path: "cmd/internal/launcher/rename.go", Kind: ResolvedConsumer,
+		Families: []string{
+			"agent", "agent-pid", "config", "draft", "image-capture", "layout", "layout-mode", "ledger", "log",
+			"nvim-pid", "outer-tty", "pair-wrap-pid", "pane", "queue", "quote", "scrollback", "title-pid",
+		},
+		BindingNames: []string{
+			"scoped-rename-agent", "scoped-rename-agent-pid", "scoped-rename-config", "scoped-rename-draft",
+			"scoped-rename-image-capture", "scoped-rename-layout", "scoped-rename-layout-mode", "scoped-rename-ledger",
+			"scoped-rename-log", "scoped-rename-nvim-pid", "scoped-rename-outer-tty", "scoped-rename-pair-wrap-pid",
+			"scoped-rename-pane", "scoped-rename-queue", "scoped-rename-quote", "scoped-rename-scrollback",
+			"scoped-rename-title-pid",
+		}},
+	{Path: "cmd/internal/launcher/scoped_paths.go", Kind: ResolvedConsumer,
+		Families: []string{
+			"adapt", "agent", "agent-pid", "agent-ready", "changelog", "config", "draft", "ledger", "log",
+			"nvim-pid", "outer-tty", "pane", "queue", "scrollback", "session-binding", "thread-claim",
+		},
+		BindingNames: []string{
+			"composite-adapt", "composite-agent", "composite-agent-pid", "composite-agent-ready", "composite-changelog",
+			"composite-config", "composite-draft", "composite-ledger", "composite-log", "composite-nvim-pid",
+			"composite-outer-tty", "composite-pane", "composite-queue", "composite-scrollback",
+			"composite-session-binding", "composite-thread-claim",
+		}},
+	{Path: "cmd/internal/launcher/session_index.go", Kind: ResolvedConsumer,
+		Families: []string{"session-binding"}, BindingNames: []string{"legacy-session-binding", "selected-session-binding"}},
+	{Path: "cmd/internal/opener/run.go", Kind: ResolvedConsumer,
+		Families:     []string{"changelog", "config", "nvim-pid", "scrollback"},
+		BindingNames: []string{"scoped-changelog-artifacts", "scoped-config", "scoped-nvim-pid", "scoped-scrollback"},
+		Vocabulary: append(
+			goCallVocabularyValues("scrollback", "fmt.Fprintf", 1,
+				"pair-scrollback-open: missing PAIR_DATA_DIR / PAIR_TAG / PAIR_AGENT\n",
+				"pair-scrollback-open: resolve artifact namespace: %v\n",
+				"pair-scrollback-open: resolve scrollback artifact: %v\n",
+				"pair-scrollback-open: no scrollback yet for %s/%s\n",
+				"pair-scrollback-open: scrollback-render failed: %v\n"),
+			goCallVocabularyValues("changelog", "fmt.Fprintf", 1,
+				"pair-changelog-open: missing PAIR_DATA_DIR / PAIR_TAG / PAIR_AGENT\n",
+				"pair-changelog-open: resolve artifact namespace: %v\n",
+				"pair-changelog-open: resolve config artifact: %v\n",
+				"pair-changelog-open: resolve changelog artifact: %v\n",
+				"pair-changelog-open: resolve scrollback artifact: %v\n")...),
+	},
+	{Path: "cmd/internal/reviewcmd/run.go", Kind: ResolvedConsumer,
+		Families: []string{"nvim-pid", "review"}, BindingNames: []string{"scoped-nvim-pid", "scoped-review"},
+		Vocabulary: goCallVocabularyValues("review", "fmt.Fprintf", 1,
+			"pair-review-target: status must be proposed|ready\n",
+			"pair-review-target: PAIR_DATA_DIR not set\n",
+			"pair-review-target: resolve artifact namespace: %v\n",
+			"pair-review-definition: PAIR_DATA_DIR not set\n",
+			"pair-review-definition: request id is required\n",
+			"pair-review-definition: definition is required\n",
+			"pair-review-definition: resolve artifact namespace: %v\n",
+			"pair-review-definition: write %s: %v\n",
+			"pair-review-open: needs a file argument\n",
+			"pair-review-open: %s not found\n",
+			"pair-review-open: missing PAIR_DATA_DIR / PAIR_TAG / PAIR_HOME\n",
+			"pair-review-open: resolve artifact namespace: %v\n",
+			"pair-review-open: %v\n",
+			"usage: pair-review-readiness [--prepare] <file>\n",
+			"pair-review-readiness: classify failed (nvim/readiness.lua)\n"),
+	},
+	{Path: "cmd/internal/titlepoller/run.go", Kind: ResolvedConsumer,
+		Families: []string{"draft", "title-pid"}, BindingNames: []string{"scoped-draft", "scoped-title-pid"}},
+	{Path: "cmd/internal/workbenchshortcut/shortcut.go", Kind: ResolvedConsumer,
+		Families:     []string{"last-left-pane", "last-terminal-pane", "terminal-panes"},
+		BindingNames: []string{"scoped-wrapper-last-left-pane", "scoped-wrapper-last-terminal-pane", "scoped-wrapper-terminal-panes"}},
 	{Path: "cmd/internal/continuationcmd/continuation.go", Kind: VocabularyConsumer, Families: []string{"native-session"}, Vocabulary: []VocabularyAllowance{
 		goCallVocabulary("native-session", "session_id: %s\n", "fmt.Fprintf", 1, 1),
 	}},
@@ -187,7 +341,18 @@ var SourceClassifications = []SourceClassification{
 	{Path: "cmd/internal/launcher/lifecycle.go", Kind: ResolvedConsumer,
 		Families:     []string{"adapt", "agent", "draft", "image-capture", "outer-tty", "pair-wrap-pid", "pane", "scrollback"},
 		BindingNames: []string{"scoped-adapt", "scoped-agent", "scoped-draft", "scoped-image-capture", "scoped-outer-tty", "scoped-pair-wrap-pid", "scoped-pane", "scoped-scrollback"}},
-	{Path: "cmd/internal/launcher/migrate.go", Kind: ResolvedConsumer, Families: []string{"queue"}, BindingNames: []string{"legacy-queue", "scoped-queue"}},
+	{Path: "cmd/internal/launcher/migrate.go", Kind: ResolvedConsumer,
+		Families: []string{
+			"agent", "agent-pid", "config", "draft", "image-capture", "layout", "layout-mode", "ledger", "log",
+			"nvim-pid", "outer-tty", "pair-wrap-pid", "pane", "queue", "quote", "scrollback", "title-pid",
+		},
+		BindingNames: []string{
+			"legacy-rename-agent", "legacy-rename-agent-pid", "legacy-rename-config", "legacy-rename-draft",
+			"legacy-rename-image-capture", "legacy-rename-layout", "legacy-rename-layout-mode", "legacy-rename-ledger",
+			"legacy-rename-log", "legacy-rename-nvim-pid", "legacy-rename-outer-tty", "legacy-rename-pair-wrap-pid",
+			"legacy-rename-pane", "legacy-rename-queue", "legacy-rename-quote", "legacy-rename-scrollback",
+			"legacy-rename-title-pid", "scoped-queue",
+		}},
 	{Path: "cmd/internal/launcher/osruntime.go", Kind: ResolvedConsumer,
 		Families:     []string{"agent", "agent-pid", "config", "draft", "ledger", "nvim-pid", "outer-tty", "parked", "parked-scrollback", "restart", "scrollback", "session-binding", "title-pid"},
 		BindingNames: []string{"cache-restart", "scoped-agent", "scoped-agent-pid", "scoped-config-glob", "scoped-draft", "scoped-ledger", "scoped-nvim-pid", "scoped-outer-tty", "scoped-parked", "scoped-parked-scrollback", "scoped-scrollback", "selected-nvim-pid", "selected-session-binding", "scoped-title-pid"},
@@ -285,19 +450,13 @@ var NonArtifactSources = []string{
 	"bin/pair-help",
 	"bin/pair-notify",
 	"cmd/couch/main.go",
-	"cmd/internal/adapt/adapt.go",
-	"cmd/internal/agentcmd/restart.go",
 	"cmd/internal/ansi/ansi.go",
 	"cmd/internal/changelogcmd/changelogcmd.go",
 	"cmd/internal/changelogcmd/distill.go",
 	"cmd/internal/changelogcmd/prompt.go",
-	"cmd/internal/clipcmd/clipcmd.go",
 	"cmd/internal/clipcmd/run.go",
 	"cmd/internal/clipcmd/runcli.go",
 	"cmd/internal/clipcmd/runtime.go",
-	"cmd/internal/codexsid/codexsid.go",
-	"cmd/internal/contextcmd/contextcmd.go",
-	"cmd/internal/continuationcmd/continuationcmd.go",
 	"cmd/internal/continuationcmd/draft.go",
 	"cmd/internal/continuationcmd/git.go",
 	"cmd/internal/couchcmd/errors.go",
@@ -355,7 +514,6 @@ var NonArtifactSources = []string{
 	"cmd/internal/couchtty/reserve.go",
 	"cmd/internal/ctxmeter/ctxmeter.go",
 	"cmd/internal/dispatcher/dispatcher.go",
-	"cmd/internal/draftroute/route.go",
 	"cmd/internal/entrypoint/alias.go",
 	"cmd/internal/entrypoint/asset_root.go",
 	"cmd/internal/entrypoint/mode.go",
@@ -370,33 +528,24 @@ var NonArtifactSources = []string{
 	"cmd/internal/keyhelp/sections.go",
 	"cmd/internal/keyhelp/sources.go",
 	"cmd/internal/keyscmd/keyscmd.go",
-	"cmd/internal/launcher/agent_defaults.go",
 	"cmd/internal/launcher/agentargs.go",
 	"cmd/internal/launcher/args.go",
-	"cmd/internal/launcher/config.go",
 	"cmd/internal/launcher/continuation.go",
-	"cmd/internal/launcher/createflow.go",
 	"cmd/internal/launcher/datadir.go",
 	"cmd/internal/launcher/decision.go",
 	"cmd/internal/launcher/format.go",
 	"cmd/internal/launcher/help.go",
-	"cmd/internal/launcher/history.go",
 	"cmd/internal/launcher/launch_args_policy.go",
 	"cmd/internal/launcher/layout.go",
-	"cmd/internal/launcher/layoutflow.go",
 	"cmd/internal/launcher/list.go",
 	"cmd/internal/launcher/pathenv.go",
 	"cmd/internal/launcher/pick.go",
-	"cmd/internal/launcher/readiness.go",
-	"cmd/internal/launcher/rename.go",
 	"cmd/internal/launcher/restart.go",
 	"cmd/internal/launcher/run.go",
 	"cmd/internal/launcher/runcli.go",
 	"cmd/internal/launcher/runtime.go",
 	"cmd/internal/launcher/scope.go",
-	"cmd/internal/launcher/scoped_paths.go",
 	"cmd/internal/launcher/session.go",
-	"cmd/internal/launcher/session_index.go",
 	"cmd/internal/launcher/session_quiescence.go",
 	"cmd/internal/launcher/tag.go",
 	"cmd/internal/launcher/thread_claim.go",
@@ -406,7 +555,6 @@ var NonArtifactSources = []string{
 	"cmd/internal/layoutcmd/layoutcmd.go",
 	"cmd/internal/layoutcmd/resizeplan.go",
 	"cmd/internal/model/model.go",
-	"cmd/internal/opener/run.go",
 	"cmd/internal/opener/runcli.go",
 	"cmd/internal/osfs/osfs.go",
 	"cmd/internal/procutil/identity_darwin.go",
@@ -420,7 +568,6 @@ var NonArtifactSources = []string{
 	"cmd/internal/ptychild/screen.go",
 	"cmd/internal/readiness/record.go",
 	"cmd/internal/reviewcmd/reviewcmd.go",
-	"cmd/internal/reviewcmd/run.go",
 	"cmd/internal/reviewcmd/runcli.go",
 	"cmd/internal/reviewcmd/runtime.go",
 	"cmd/internal/runtimebundle/cleanup.go",
@@ -441,12 +588,10 @@ var NonArtifactSources = []string{
 	"cmd/internal/termcmd/run.go",
 	"cmd/internal/textwidth/textwidth.go",
 	"cmd/internal/threadrecord/record.go",
-	"cmd/internal/titlepoller/run.go",
 	"cmd/internal/titlepoller/runcli.go",
 	"cmd/internal/titlepoller/titlepoller.go",
 	"cmd/internal/workbenchshortcut/generatecmd/main.go",
 	"cmd/internal/workbenchshortcut/render_lua.go",
-	"cmd/internal/workbenchshortcut/shortcut.go",
 	"cmd/internal/wrapcmd/composer_recognizers.go",
 	"cmd/internal/wrapcmd/harness_tty.go",
 	"cmd/internal/wrapcmd/terminal_model.go",
@@ -508,6 +653,35 @@ func goStructVocabulary(family, value, field string, count int) VocabularyAllowa
 func goCallVocabulary(family, value, callee string, argument, count int) VocabularyAllowance {
 	return VocabularyAllowance{Family: family, Value: value, Context: GoCallArgumentVocabulary, Use: callee, Argument: argument, Count: count}
 }
+
+func goCallVocabularyValues(family, callee string, argument int, values ...string) []VocabularyAllowance {
+	out := make([]VocabularyAllowance, 0, len(values))
+	for _, value := range values {
+		out = append(out, goCallVocabulary(family, value, callee, argument, 1))
+	}
+	return out
+}
+
+func goCallVocabularyFamilies(value, callee string, argument int, families ...string) []VocabularyAllowance {
+	out := make([]VocabularyAllowance, 0, len(families))
+	for _, family := range families {
+		out = append(out, goCallVocabulary(family, value, callee, argument, 1))
+	}
+	return out
+}
+
+const continuationBootstrapPrompt = `Continue Pair tag %s with %s.
+
+The previous driver was %s. No continuation doc was found.
+
+First reconstruct the current work state from this tag's persisted Pair files:
+- draft-%s.md
+- log-%s.md
+- queue-%s/
+- parked-%s and parked-scrollback-%s-*.raw/events.jsonl if present
+
+Create a continuation-quality summary from the available local state before making code changes. Preserve the tag identity; do not create a sibling tag.
+`
 
 func goCaseVocabulary(family, value, function string, count int) VocabularyAllowance {
 	return VocabularyAllowance{Family: family, Value: value, Context: GoCaseValueVocabulary, Use: function, Count: count}

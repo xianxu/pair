@@ -66,7 +66,7 @@ func TestResolvedBindingCatalogIsUniqueAndReferencesKnownFamilies(t *testing.T) 
 	seenNames := make(map[string]bool, len(ResolvedBindings))
 	seenWitnesses := make(map[string]bool, len(ResolvedBindings))
 	for _, binding := range ResolvedBindings {
-		if binding.Name == "" || binding.Family == "" || binding.Resolver == "" || binding.Member == "" {
+		if binding.Name == "" || binding.Family == "" || binding.Resolver == "" {
 			t.Fatalf("incomplete resolved binding: %+v", binding)
 		}
 		if seenNames[binding.Name] {
@@ -325,6 +325,12 @@ func resolvedBindingViolations(rel string, file *ast.File, classification Source
 		if !ok || !claimedFamilies[binding.Family] {
 			continue
 		}
+		if binding.Member == "" {
+			if !artifactResolverCalled(file, artifactAlias, binding.Resolver) {
+				violations = append(violations, fmt.Sprintf("%s: binding %s resolver %s is not called", rel, name, binding.Resolver))
+			}
+			continue
+		}
 		results := resultsByResolver[binding.Resolver]
 		if len(results) == 0 {
 			violations = append(violations, fmt.Sprintf("%s: binding %s resolver %s is not called", rel, name, binding.Resolver))
@@ -335,6 +341,23 @@ func resolvedBindingViolations(rel string, file *ast.File, classification Source
 		}
 	}
 	return violations
+}
+
+func artifactResolverCalled(file *ast.File, artifactAlias, resolver string) bool {
+	found := false
+	ast.Inspect(file, func(node ast.Node) bool {
+		call, ok := node.(*ast.CallExpr)
+		if !ok {
+			return !found
+		}
+		selector, ok := call.Fun.(*ast.SelectorExpr)
+		owner, ownerOK := selectorOwner(selector)
+		if ok && ownerOK && owner == artifactAlias && selector.Sel.Name == resolver {
+			found = true
+		}
+		return !found
+	})
+	return found
 }
 
 func importAliases(file *ast.File) map[string]string {
@@ -922,6 +945,28 @@ func TestProductionSourceInventoryIsIndependentOfArtifactTokens(t *testing.T) {
 	}
 }
 
+func TestNonArtifactSourceCannotImportArtifactpath(t *testing.T) {
+	t.Parallel()
+
+	repoRoot := t.TempDir()
+	rel := "cmd/internal/mutation/importer.go"
+	path := filepath.Join(repoRoot, filepath.FromSlash(rel))
+	if err := os.MkdirAll(filepath.Dir(path), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	body := "package mutation\nimport \"github.com/xianxu/pair/cmd/internal/artifactpath\"\nfunc use(root, tag string) { _, _ = artifactpath.ResolveScoped(root, tag) }\n"
+	if err := os.WriteFile(path, []byte(body), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	violations, err := productionSourceInventoryViolations(repoRoot, []string{"cmd"}, nil, []string{rel})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(violations) != 1 || !strings.Contains(violations[0], "imports artifactpath") {
+		t.Fatalf("non-artifact importer violations = %v, want artifactpath classification failure", violations)
+	}
+}
+
 func TestVocabularyConsumerContract(t *testing.T) {
 	t.Parallel()
 
@@ -1137,6 +1182,9 @@ func nonArtifactSourceViolations(rel, path string) ([]string, error) {
 	file, err := parser.ParseFile(token.NewFileSet(), path, nil, 0)
 	if err != nil {
 		return nil, err
+	}
+	if _, imported := importAliases(file)[artifactpathImportPath]; imported {
+		return []string{rel + ": non-artifact source imports artifactpath"}, nil
 	}
 	seen := map[string]bool{}
 	ast.Inspect(file, func(node ast.Node) bool {
