@@ -601,7 +601,7 @@ total: 17.80
 - [x] M4 — persist per-thread and per-path/per-agent launch profiles; resolve
       explicit/path/root agent defaults and path/repository argument defaults,
       updating preferences only after successful registration.
-- [ ] M5 — migrate legacy tags, artifacts, sessions, registry state, and
+- [x] M5 — migrate legacy tags, artifacts, sessions, registry state, and
       same-tree co-tenants idempotently under the store lock, proving every
       artifact lookup is scoped by the composite address.
 - [x] Reconcile `#135` with composite work-thread identity; leave verified park,
@@ -1219,6 +1219,7 @@ consumers and marks literal filename shapes as compatibility or descriptive
 vocabulary only (ARCH-DRY, ARCH-PURPOSE).
 
 ### 2026-08-27 — M5 boundary review round 5
+- 2026-08-27: closed M5 — bounded artifact contract and docs pin: all current importers positively classified; legacy/current inventories authority-owned; atlas regression proven red on retired claim and green when corrected; full/clean-bootstrap/race/drift suites pass; review verdict: SHIP
 
 BR-34 is addressed. The reviewer kept BR-32 open because the first mutation
 guard recognized syntax rather than the source-of-truth invariant, and raised

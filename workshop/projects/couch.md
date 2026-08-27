@@ -167,7 +167,7 @@ gate `#147` and `#148` respectively; `#145` and `#146` do not depend on them.
 - [x] recoverable pre-exec start transaction [pair#149 M2]
 - [x] shared thread metadata, operations, and standalone lookup [pair#149 M3]
 - [x] remembered per-path agent and argument profiles [pair#149 M4]
-- [ ] legacy migration and composite artifact proof [pair#149 M5]
+- [x] legacy migration and composite artifact proof [pair#149 M5]
 - [ ] hierarchical thread menu [pair#151]
 - [ ] verified park and activity age [pair#152]
 - [ ] managed-worktree lifecycle [pair#153]
@@ -249,6 +249,8 @@ ARCH-PURPOSE, ARCH-MOCK).
 ### pair#149 M5 — legacy migration and composite artifact proof
 
 **est:** 17.80 (whole issue)
+**closed:** 2026-08-27
+**actual:** 12.36h
 
 Legacy registry metadata is journal-enriched into the existing ThreadStore
 without moving source files or weakening conservative admission. One validated
