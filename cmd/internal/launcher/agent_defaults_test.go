@@ -84,3 +84,23 @@ func TestScopedPathsAgentDefaultStaysUnderScopeDir(t *testing.T) {
 		t.Fatalf("unsafe agent default path kept traversal tokens: %q", unsafe)
 	}
 }
+
+func TestAgentInventoryIsTheSingleDefensiveHarnessSet(t *testing.T) {
+	want := []string{"claude", "codex", "agy", "muse"}
+	got := AgentInventory()
+	if !reflect.DeepEqual(got, want) {
+		t.Fatalf("AgentInventory = %q, want %q", got, want)
+	}
+	got[0] = "mutated"
+	if !reflect.DeepEqual(AgentInventory(), want) {
+		t.Fatalf("AgentInventory aliases caller: %q", AgentInventory())
+	}
+	for _, agent := range want {
+		if !IsSupportedAgent(agent) {
+			t.Fatalf("inventory agent %q is not supported", agent)
+		}
+	}
+	if IsSupportedAgent("gemini") || IsSupportedAgent("") {
+		t.Fatal("unsupported agent accepted")
+	}
+}

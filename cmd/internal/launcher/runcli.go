@@ -1,6 +1,7 @@
 package launcher
 
 import (
+	"fmt"
 	"io"
 	"os"
 	"os/exec"
@@ -48,6 +49,8 @@ func newLaunchOptions(args LaunchArgs, env Env, pairHome, dataDir string, useRep
 // to).
 func LaunchNative(launchArgs []string, pairHome string, stdout, stderr io.Writer) (int, error) {
 	useRepoDefault := consumeRepoDefaultPolicy(os.Getenv, os.Unsetenv)
+	couchProfile := os.Getenv(CouchLaunchProfileEnv)
+	_ = os.Unsetenv(CouchLaunchProfileEnv)
 	args, err := ParseArgs(launchArgs)
 	if err != nil {
 		// A genuine usage error (a leading flag that isn't -h/--help, a bad verb
@@ -55,6 +58,13 @@ func LaunchNative(launchArgs []string, pairHome string, stdout, stderr io.Writer
 		// exit 2.
 		_, _ = io.WriteString(stderr, err.Error()+"\n")
 		return 2, nil
+	}
+	if couchProfile != "" {
+		args, err = applyCouchLaunchEnvironment(args, couchProfile, useRepoDefault)
+		if err != nil {
+			_, _ = io.WriteString(stderr, "pair: "+err.Error()+"\n")
+			return 2, nil
+		}
 	}
 
 	// `pair --help` / `pair help` — native usage to stdout (#99 M5c).
@@ -140,6 +150,17 @@ func LaunchNative(launchArgs []string, pairHome string, stdout, stderr io.Writer
 	}
 
 	return RunLaunch(opts, rt, stderr)
+}
+
+func applyCouchLaunchEnvironment(args LaunchArgs, raw string, useRepoDefault bool) (LaunchArgs, error) {
+	resolved, source, err := ApplyCouchLaunchProfile(args, raw)
+	if err != nil {
+		return LaunchArgs{}, err
+	}
+	if (source == "repo-default") != useRepoDefault {
+		return LaunchArgs{}, fmt.Errorf("couch launch profile argv provenance disagrees with PAIR_USE_REPO_DEFAULT")
+	}
+	return resolved, nil
 }
 
 func gitRootOrCwd(cwd string) string {

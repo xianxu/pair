@@ -205,11 +205,18 @@ func TestSpawnStartsPairAndRecordsTheActor(t *testing.T) {
 		t.Fatalf("Ops[0] = %q", got)
 	}
 	child := env.Runner.Child(env.Runner.order[0])
+	profileRaw, err := launcher.BuildCouchLaunchProfile(
+		"couch-0102030405060708", "claude", []string{}, "root", "repo-default",
+	)
+	if err != nil {
+		t.Fatal(err)
+	}
 	wantEnv := []string{
 		"COUCH_TREE=/repo",
 		"COUCH_STORE_DIR=" + env.Dir,
 		"COUCH_THREAD_SCOPE=816fc349d3faebf8",
 		"COUCH_THREAD_TAG=couch-0102030405060708",
+		launcher.CouchLaunchProfileEnv + "=" + strings.TrimSpace(profileRaw),
 		"PAIR_USE_REPO_DEFAULT=1",
 	}
 	if !slices.Equal(child.Env, wantEnv) {

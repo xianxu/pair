@@ -15,6 +15,21 @@ type AgentDefault struct {
 	Args  []string `json:"args"`
 }
 
+var supportedAgents = []string{"claude", "codex", "agy", "muse"}
+
+// AgentInventory is Pair's shared supported-harness set. Couch and artifact
+// maintenance consume this instead of growing their own agent enums.
+func AgentInventory() []string { return append([]string(nil), supportedAgents...) }
+
+func IsSupportedAgent(agent string) bool {
+	for _, candidate := range supportedAgents {
+		if candidate == agent {
+			return true
+		}
+	}
+	return false
+}
+
 func AgentDefaultPath(dataDir, agent string) string {
 	return filepath.Join(dataDir, "agent-default-"+agentDefaultPathComponent(agent)+".json")
 }

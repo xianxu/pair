@@ -37,6 +37,7 @@ type testRT struct {
 	// and no CLI test can hold two distinguishable actors.
 	ids              couchcore.IDGen
 	currentRepoScope string
+	agentDefaults    map[string]launcher.AgentDefault
 }
 
 func (t testRT) Getenv(key string) string { return t.env[key] }
@@ -82,11 +83,20 @@ func (t testRT) NewCouch() (*couchcore.Couch, error) {
 // which BRANCH was taken (console vs --no-console), which is observable in the
 // rendered output, not which concrete runner object was constructed.
 func (t testRT) NewCouchWith(couchcore.Runner, couchcore.CouchNamespace) (*couchcore.Couch, error) {
-	return couchcore.New(
+	c, err := couchcore.New(
 		t.namespace, t.runner, couchcore.NewFakePathOps(nil), t.git, t.proc,
 		couchcore.NewStore(t.dir), couchcore.FixedClock{T: time.Unix(1, 0)}, t.ids, t.policy,
 		rand.Reader, couchcore.NoThreadArtifactCollisions{},
 	)
+	if err != nil {
+		return nil, err
+	}
+	c.RootAgent = t.env["PAIR_AGENT"]
+	c.RepoAgentDefault = func(repoRoot, agent string) (couchcore.LaunchProfile, bool, error) {
+		value, ok := t.agentDefaults[repoRoot+"\x00"+agent]
+		return couchcore.LaunchProfile{Agent: value.Agent, Argv: append([]string(nil), value.Args...)}, ok, nil
+	}
+	return c, nil
 }
 
 // newRT wires a Runtime whose git answers for the given trees.
@@ -124,7 +134,48 @@ func newRT(t *testing.T, trees ...string) testRT {
 		env:              map[string]string{},
 		ids:              couchcore.NewFixedIDGen("ah8d", "b2c1", "c3d2", "e4f5"),
 		currentRepoScope: currentScope,
+		agentDefaults:    map[string]launcher.AgentDefault{},
 	}
+}
+
+func TestStartComposesRootAgentAndMatchingRepoDefaultThroughSharedLauncherProfile(t *testing.T) {
+	rt := newRT(t, "/repo")
+	rt.env["PAIR_AGENT"] = "codex"
+	rt.agentDefaults["/repo\x00codex"] = launcher.AgentDefault{Agent: "codex", Args: []string{"--sandbox", "workspace-write"}}
+	rt.boundedOne("/repo")
+
+	if _, stderr, code := runRT(rt, "start", "/repo", "--no-console"); code != 0 {
+		t.Fatalf("start: code=%d stderr=%q", code, stderr)
+	}
+	child := rt.runner.Child("couch-fake-1")
+	profileRaw := envValue(child.Env, launcher.CouchLaunchProfileEnv)
+	if len(child.Argv) < 3 {
+		t.Fatalf("child argv = %q", child.Argv)
+	}
+	parsed, err := launcher.ParseArgs([]string{"resume", child.Argv[2], "--layout2"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	profileArgs, source, err := launcher.ApplyCouchLaunchProfile(parsed, profileRaw)
+	if err != nil {
+		t.Fatalf("profile env %q: %v", profileRaw, err)
+	}
+	if profileArgs.Agent != "codex" || !reflect.DeepEqual(profileArgs.AgentArgs, []string{"--sandbox", "workspace-write"}) || source != "repo-default" {
+		t.Fatalf("resolved child profile = %+v source=%q", profileArgs, source)
+	}
+	if envValue(child.Env, "PAIR_USE_REPO_DEFAULT") != "1" {
+		t.Fatalf("child env = %q; repo-default provenance marker missing", child.Env)
+	}
+}
+
+func envValue(env []string, key string) string {
+	prefix := key + "="
+	for _, item := range env {
+		if strings.HasPrefix(item, prefix) {
+			return strings.TrimPrefix(item, prefix)
+		}
+	}
+	return ""
 }
 
 func seedThread(t *testing.T, rt testRT, path string) couchcore.ThreadRecord {
@@ -252,7 +303,7 @@ func TestEveryOperationHasASummaryAndDescribedArgs(t *testing.T) {
 func TestOperationArityMatchesExpectation(t *testing.T) {
 	// Declared in the test rather than read from the operation itself, so
 	// this cannot degrade into asserting X == X.
-	want := map[string]int{"start": 2, "list": 0, "show": 2, "stop": 1, "name": 3, "describe": 3, "publish-description": 3, "switch": 2, "attach": 2}
+	want := map[string]int{"start": 3, "list": 0, "show": 2, "stop": 1, "name": 3, "describe": 3, "publish-description": 3, "switch": 2, "attach": 2}
 	for _, op := range couchcore.Operations() {
 		if got := len(op.Args); got != want[op.Name] {
 			t.Errorf("%s has %d args, want %d", op.Name, got, want[op.Name])

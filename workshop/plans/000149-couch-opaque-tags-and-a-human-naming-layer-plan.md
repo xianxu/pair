@@ -633,10 +633,10 @@ inventory, never a couch enum (ARCH-DRY).
 
 **Steps:**
 
-- [ ] **Step 1:** Write failing composition tests against Pair's shared agent/default seam.
-- [ ] **Step 2:** Wire root-agent evidence and resolved argv without a couch agent enum;
+- [x] **Step 1:** Write failing composition tests against Pair's shared agent/default seam.
+- [x] **Step 2:** Wire root-agent evidence and resolved argv without a couch agent enum;
    `PAIR_USE_REPO_DEFAULT` is emitted only for its matching provenance.
-- [ ] **Step 3:** Run launcher/couch focused tests; expect PASS, then commit the wiring slice.
+- [x] **Step 3:** Run launcher/couch focused tests; expect PASS, then commit the wiring slice.
 
 ### Task 3: Commit preferences only on successful registration
 

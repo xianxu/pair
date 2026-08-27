@@ -266,6 +266,7 @@ still works. See [atlas/couch.md](atlas/couch.md).
 ```
 couch start [<repo>]     host a session in this terminal (default: .)
 couch start . --no-console   spawn without taking the terminal (no pty, no row)
+couch start . --agent=codex  explicitly select one Pair-supported agent
 couch list               every durable work thread across all repositories
 couch show <ref>         one current-repository thread by tag, path, or name
 couch name <ref> <name>  set a thread's short human name ("" clears it)

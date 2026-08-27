@@ -82,3 +82,64 @@ func TestDecideLaunchArgsWarnsAndDropsStaleSavedResume(t *testing.T) {
 		t.Fatal("Warnings empty, want stale resume warning")
 	}
 }
+
+func TestApplyCouchLaunchProfilePreservesExactPathArgs(t *testing.T) {
+	args, err := ParseArgs([]string{"resume", "couch-0102030405060708", "--layout2"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	raw := `{"schema_version":1,"tag":"couch-0102030405060708","agent":"codex","argv":["--sandbox","workspace-write"],"agent_source":"explicit","argv_source":"path"}`
+	got, source, err := ApplyCouchLaunchProfile(args, raw)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got.Agent != "codex" || !got.AgentExplicit || !got.AgentArgsExplicit ||
+		!reflect.DeepEqual(got.AgentArgs, []string{"--sandbox", "workspace-write"}) || source != "path" {
+		t.Fatalf("ApplyCouchLaunchProfile = %+v, source=%q", got, source)
+	}
+}
+
+func TestApplyCouchLaunchProfileLeavesRepoDefaultArgsToPair(t *testing.T) {
+	args, err := ParseArgs([]string{"resume", "couch-0102030405060708", "--layout2"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	raw := `{"schema_version":1,"tag":"couch-0102030405060708","agent":"muse","argv":["--model","spark"],"agent_source":"root","argv_source":"repo-default"}`
+	got, source, err := ApplyCouchLaunchProfile(args, raw)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got.Agent != "muse" || !got.AgentExplicit || !got.AgentArgsExplicit ||
+		!reflect.DeepEqual(got.AgentArgs, []string{"--model", "spark"}) || !got.AgentArgsFromCouch || source != "repo-default" {
+		t.Fatalf("ApplyCouchLaunchProfile = %+v, source=%q", got, source)
+	}
+}
+
+func TestDecideLaunchArgsDoesNotRewriteRepoDefaultForCouchResolvedArgs(t *testing.T) {
+	got := DecideLaunchArgs(LaunchArgInputs{
+		Agent: "codex",
+		Args: LaunchArgs{
+			AgentArgs:          []string{"--search"},
+			AgentArgsExplicit:  true,
+			AgentArgsFromCouch: true,
+		},
+	})
+	if !reflect.DeepEqual(got.Args, []string{"--search"}) || got.PersistDefault || got.ClearDefault {
+		t.Fatalf("DecideLaunchArgs = %+v", got)
+	}
+}
+
+func TestApplyCouchLaunchProfileRejectsWrongTagAndUnknownAgent(t *testing.T) {
+	args, err := ParseArgs([]string{"resume", "couch-0102030405060708"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, raw := range []string{
+		`{"schema_version":1,"tag":"couch-1112131415161718","agent":"codex","argv":[],"agent_source":"path","argv_source":"path"}`,
+		`{"schema_version":1,"tag":"couch-0102030405060708","agent":"gemini","argv":[],"agent_source":"path","argv_source":"path"}`,
+	} {
+		if _, _, err := ApplyCouchLaunchProfile(args, raw); err == nil {
+			t.Fatalf("invalid couch launch profile accepted: %s", raw)
+		}
+	}
+}

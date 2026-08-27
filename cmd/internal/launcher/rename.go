@@ -13,11 +13,6 @@ import (
 // brain new` must not touch `*-brain-2-*` files, shell 315-319). The plan build is
 // pure over an injected `exists` predicate; only the mv + journal are effects.
 
-// renameAgents is the hardcoded agent set whose per-(tag,agent) sidecars rename
-// carries (shell 408). A new agent must be added here (and nowhere else — the zip
-// design below needs it in one enumerator only).
-var renameAgents = []string{"claude", "codex", "agy", "muse"}
-
 // renamePathsFor enumerates every candidate sidecar path for a tag, in a stable
 // order (shell rename_paths_for, 396-417). The order is identical for any tag, so
 // zip(renamePathsFor(old), renamePathsFor(new)) yields the (src,dst) pairing
@@ -39,7 +34,7 @@ func renamePathsFor(tag, dataDir string) []string {
 		filepath.Join(dataDir, "nvim-pid-"+tag+"-draft"),
 		filepath.Join(dataDir, "nvim-pid-"+tag+"-scrollback"),
 	)
-	for _, a := range renameAgents {
+	for _, a := range AgentInventory() {
 		out = append(out,
 			filepath.Join(dataDir, "config-"+tag+"-"+a+".json"),
 			filepath.Join(dataDir, "pane-"+tag+"-"+a+".json"),

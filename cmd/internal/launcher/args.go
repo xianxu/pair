@@ -14,7 +14,10 @@ type LaunchArgs struct {
 	SelectedTag       string
 	AgentArgs         []string
 	AgentArgsExplicit bool
-	Layout            LayoutRequest
+	// AgentArgsFromCouch marks exact argv resolved by Couch rather than typed
+	// by the operator. Pair must use them without rewriting the repo default.
+	AgentArgsFromCouch bool
+	Layout             LayoutRequest
 
 	// rename (#99 M5b): `pair rename [--restart-check] <old> <new>`. Raw tags —
 	// normalized + gated in runRename so it owns the operator-facing messages.

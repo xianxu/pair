@@ -89,12 +89,32 @@ func (r OSRuntime) AcquireSupervisor(namespace couchcore.CouchNamespace) (io.Clo
 
 func (r OSRuntime) NewCouchWith(runner couchcore.Runner, namespace couchcore.CouchNamespace) (*couchcore.Couch, error) {
 	dataDir := launcher.ResolveDataDir(r.Getenv("HOME"), r.Getenv("XDG_DATA_HOME"))
-	return couchcore.New(
+	c, err := couchcore.New(
 		namespace, runner, couchcore.OSPathOps{}, couchcore.ExecGit{},
 		couchcore.OSProcOps{}, couchcore.NewStore(namespace.Dir()),
 		couchcore.SystemClock{}, couchcore.NewRandomIDGen(), couchcore.NewExecPolicyResolver("sdlc"), rand.Reader,
 		couchcore.NewScopedThreadArtifactCollisionChecker(dataDir),
 	)
+	if err != nil {
+		return nil, err
+	}
+	c.RootAgent = r.Getenv("PAIR_AGENT")
+	c.RepoAgentDefault = func(repoRoot, agent string) (couchcore.LaunchProfile, bool, error) {
+		scopeDir := launcher.ScopedLaunchDataDir(dataDir, repoRoot)
+		raw, err := os.ReadFile(launcher.AgentDefaultPath(scopeDir, agent))
+		if errors.Is(err, os.ErrNotExist) {
+			return couchcore.LaunchProfile{}, false, nil
+		}
+		if err != nil {
+			return couchcore.LaunchProfile{}, false, err
+		}
+		value, err := launcher.ParseAgentDefault(agent, string(raw))
+		if err != nil {
+			return couchcore.LaunchProfile{}, false, err
+		}
+		return couchcore.LaunchProfile{Agent: value.Agent, Argv: value.Args}, true, nil
+	}
+	return c, nil
 }
 
 // isTerminal reports whether f is a real terminal. Nil-safe: a non-*os.File

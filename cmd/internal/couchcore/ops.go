@@ -120,6 +120,7 @@ func Operations() []Operation {
 				// A stray positional word must not be able to turn off a whole
 				// layer of terminal ownership.
 				{Name: "no-console", Summary: "inherit couch's stdio instead of allocating a pty (--no-console)", Required: false, FlagOnly: true},
+				{Name: "agent", Summary: "Pair agent to use instead of path/root history (--agent=<name>)", Required: false, FlagOnly: true},
 			},
 		},
 		{

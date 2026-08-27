@@ -20,18 +20,20 @@ import (
 // method on it. The terminal UI and (later) the advisor's tools are both
 // clients of these methods -- never of two separate implementations.
 type Couch struct {
-	Namespace      CouchNamespace
-	Runner         Runner
-	Path           PathOps
-	Git            GitRunner
-	Proc           ProcOps
-	Store          Store
-	Clock          Clock
-	IDs            IDGen
-	PolicyResolver PolicyResolver
-	Threads        *ThreadStore
-	Entropy        io.Reader
-	Artifacts      ThreadArtifactController
+	Namespace        CouchNamespace
+	Runner           Runner
+	Path             PathOps
+	Git              GitRunner
+	Proc             ProcOps
+	Store            Store
+	Clock            Clock
+	IDs              IDGen
+	PolicyResolver   PolicyResolver
+	Threads          *ThreadStore
+	Entropy          io.Reader
+	Artifacts        ThreadArtifactController
+	RootAgent        string
+	RepoAgentDefault func(repoRoot, agent string) (LaunchProfile, bool, error)
 
 	reg                   Registry
 	names                 NamingTable
@@ -141,6 +143,12 @@ func (c *Couch) Spawn(args StartArgs) (ActorRecord, Handle, error) {
 	if err != nil {
 		return ActorRecord{}, nil, errors.Join(err, c.releaseClaimIfThreadAbsent(threadAddress))
 	}
+	profile, err := c.resolveLaunchProfile(thread, args)
+	if err != nil {
+		return ActorRecord{}, nil, errors.Join(err, c.rollbackUnforkedStart(thread))
+	}
+	args.Stack = profile.Profile.Agent
+	args.ExtraArgs = cloneArgv(profile.Profile.Argv)
 	owner, err := c.Proc.Current()
 	if err != nil {
 		return ActorRecord{}, nil, errors.Join(fmt.Errorf("identify couch supervisor: %w", err), c.rollbackUnforkedStart(thread))
@@ -186,17 +194,27 @@ func (c *Couch) Spawn(args StartArgs) (ActorRecord, Handle, error) {
 	//
 	// This is a deliberate slice of #149, which makes the tag the space's
 	// durable identity; #146 needs only that re-entry is deterministic.
-	argv := append([]string{"pair", "resume", string(thread.Address.Tag), "--layout2"}, args.ExtraArgs...)
+	argv := []string{"pair", "resume", string(thread.Address.Tag), "--layout2"}
 	// The child is told which tree it is and where couch keeps state, so the
 	// agent inside it can publish its own one-line description. Without this
 	// the description cache has no source: an operator typing `couch describe`
 	// is not "agent-supplied".
+	profileRaw, err := launcher.BuildCouchLaunchProfile(
+		string(thread.Address.Tag), profile.Profile.Agent, profile.Profile.Argv,
+		string(profile.AgentSource), string(profile.ArgvSource),
+	)
+	if err != nil {
+		return ActorRecord{}, nil, errors.Join(err, c.rollbackTrackedStart(thread, nonce))
+	}
 	env := []string{
 		"COUCH_TREE=" + string(tree),
 		"COUCH_STORE_DIR=" + c.Namespace.Dir(),
 		"COUCH_THREAD_SCOPE=" + thread.Address.RepoScope,
 		"COUCH_THREAD_TAG=" + string(thread.Address.Tag),
-		"PAIR_USE_REPO_DEFAULT=1",
+		launcher.CouchLaunchProfileEnv + "=" + strings.TrimSpace(profileRaw),
+	}
+	if profile.ArgvSource == ArgvSourceRepoDefault {
+		env = append(env, "PAIR_USE_REPO_DEFAULT=1")
 	}
 	h, err := c.Runner.StartBlocked(args.WorkingDir(), argv, env, 10*time.Second)
 	if err != nil {
@@ -259,6 +277,47 @@ func (c *Couch) Spawn(args StartArgs) (ActorRecord, Handle, error) {
 		return record, h, c.failPostAckStart(thread.Address, h, fmt.Errorf("persist registry: %w", err))
 	}
 	return record, h, nil
+}
+
+func (c *Couch) resolveLaunchProfile(thread ThreadRecord, args StartArgs) (LaunchProfileResolution, error) {
+	if len(thread.Incarnations) != 1 || thread.Incarnations[0].Policy == nil {
+		return LaunchProfileResolution{}, fmt.Errorf("thread %+v has no admitted repository identity", thread.Address)
+	}
+	repoIdentity := thread.Incarnations[0].Policy.RepoIdentity
+	preference, found, err := c.Threads.GetPathLaunchPreference(repoIdentity, args.Cwd)
+	if err != nil {
+		return LaunchProfileResolution{}, fmt.Errorf("read launch preference: %w", err)
+	}
+	var pathPreference *PathLaunchPreference
+	if found {
+		pathPreference = &preference
+	}
+	rootAgent := c.RootAgent
+	if rootAgent == "" {
+		rootAgent = "claude"
+	}
+	selected, err := ResolveLaunchProfile(LaunchProfileInputs{
+		ExplicitAgent: args.Stack, Path: pathPreference, RootAgent: rootAgent,
+	})
+	if err != nil {
+		return LaunchProfileResolution{}, err
+	}
+	if !launcher.IsSupportedAgent(selected.Profile.Agent) {
+		return LaunchProfileResolution{}, fmt.Errorf("unsupported launch agent %q", selected.Profile.Agent)
+	}
+	var repoDefault *LaunchProfile
+	if c.RepoAgentDefault != nil {
+		value, ok, err := c.RepoAgentDefault(string(args.Worktree), selected.Profile.Agent)
+		if err != nil {
+			return LaunchProfileResolution{}, fmt.Errorf("read %s repository default: %w", selected.Profile.Agent, err)
+		}
+		if ok {
+			repoDefault = &value
+		}
+	}
+	return ResolveLaunchProfile(LaunchProfileInputs{
+		ExplicitAgent: args.Stack, Path: pathPreference, RootAgent: rootAgent, RepoDefault: repoDefault,
+	})
 }
 
 // failPostAckStart owns every error exit after the helper has executed the

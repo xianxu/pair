@@ -177,7 +177,7 @@ func CouchLiveOwnerExecutor(c *Couch) OperationExecutor {
 			if path == "" {
 				path = "."
 			}
-			rec, h, err := c.Spawn(StartArgs{Cwd: path})
+			rec, h, err := c.Spawn(StartArgs{Cwd: path, Stack: a["agent"]})
 			if err != nil {
 				return nil, err
 			}
