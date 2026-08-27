@@ -284,7 +284,7 @@ func visibleRow(em *vt.Emulator, y, width int) uv.Line {
 	return row
 }
 
-func render(rawPath, eventsPath, outPath string, plain bool, maxLines int, withTimestamps bool) error {
+func render(rawPath, eventsPath, outPath, viewportPath string, plain bool, maxLines int, withTimestamps bool) error {
 	events, err := parseEvents(eventsPath)
 	if err != nil {
 		return fmt.Errorf("parse events: %w", err)
@@ -361,7 +361,9 @@ func render(rawPath, eventsPath, outPath string, plain bool, maxLines int, withT
 	// for the plain projection (a continuation distills the text, not a
 	// scroll position), so skip it and don't litter a stray <out>.viewport.
 	if !plain {
-		viewportPath := strings.TrimSuffix(outPath, ".ansi") + ".viewport"
+		if viewportPath == "" {
+			return fmt.Errorf("viewport path is required for ANSI output")
+		}
 		_ = os.WriteFile(viewportPath, []byte(strconv.Itoa(viewportTop)+"\n"), 0o644)
 	}
 
@@ -393,11 +395,12 @@ func Run(argv []string, stdout, stderr io.Writer) int {
 	fs := flag.NewFlagSet("pair-scrollback-render", flag.ContinueOnError)
 	fs.SetOutput(stderr)
 	fs.Usage = func() {
-		fmt.Fprintf(stderr, "usage: pair-scrollback-render [--plain] [--max-lines N] [--with-timestamps] <raw> <events.jsonl> <out>\n")
+		fmt.Fprintf(stderr, "usage: pair-scrollback-render [--plain] [--viewport F] [--max-lines N] [--with-timestamps] <raw> <events.jsonl> <out>\n")
 	}
 	plain := fs.Bool("plain", false, "emit plain text (no SGR) for distillation")
 	maxLines := fs.Int("max-lines", historyRows, "scrollback history rows retained; <=0 = uncapped")
 	withTimestamps := fs.Bool("with-timestamps", false, "interleave ⟦pair:ts DATE⟧ day markers from time events (for the change log; #59)")
+	viewport := fs.String("viewport", "", "exact viewport sidecar path (required for ANSI output)")
 	if err := fs.Parse(argv); err != nil {
 		return 2
 	}
@@ -406,7 +409,7 @@ func Run(argv []string, stdout, stderr io.Writer) int {
 		fs.Usage()
 		return 2
 	}
-	if err := render(args[0], args[1], args[2], *plain, *maxLines, *withTimestamps); err != nil {
+	if err := render(args[0], args[1], args[2], *viewport, *plain, *maxLines, *withTimestamps); err != nil {
 		fmt.Fprintf(stderr, "scrollback-render: %v\n", err)
 		return 1
 	}

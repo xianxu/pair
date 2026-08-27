@@ -24,6 +24,7 @@ pass() { printf '  ok   %s\n' "$1"; }
 fail() { printf '  FAIL %s\n' "$1"; fails=$((fails + 1)); }
 
 export PAIR_TAG=golden PAIR_DATA_DIR="$RT" PAIR_AGENT=codex
+export PAIR_ADAPT_LOG_PATH="$RT/adapt-golden.jsonl"
 DETAIL='press > to continue? (y/n)'
 norm() { jq -c '.ts="TS"'; } # normalize the only field that legitimately varies
 
@@ -58,6 +59,7 @@ fi
 conc="$RT/adapt-conc.jsonl"
 : > "$conc"
 PAIR_TAG=conc
+PAIR_ADAPT_LOG_PATH="$conc"
 N=60
 for i in $(seq 1 "$N"); do
     ( . bin/lib/adapt-log.sh

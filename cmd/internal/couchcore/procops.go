@@ -49,6 +49,7 @@ func (l Liveness) String() string {
 // impersonate the original actor (sessionwatch/run.go:143 re-authorizes for
 // the same reason).
 type ProcOps interface {
+	Current() (ProcessIdentity, error)
 	// Exists distinguishes gone from unknowable, which is the whole point.
 	Exists(pid int) Liveness
 	// Identity returns the kernel start token, or an error if it could not be
@@ -63,6 +64,15 @@ type ProcOps interface {
 type OSProcOps struct{}
 
 var _ ProcOps = OSProcOps{}
+
+func (p OSProcOps) Current() (ProcessIdentity, error) {
+	pid := os.Getpid()
+	identity, err := p.Identity(pid)
+	if err != nil {
+		return ProcessIdentity{}, err
+	}
+	return ProcessIdentity{PID: pid, Identity: identity}, nil
+}
 
 // Exists uses syscall.Kill(pid, 0) directly rather than forking `kill -0`.
 // Forking makes the probe fail whenever spawning is restricted, and a failed
@@ -116,23 +126,35 @@ var TermSignal os.Signal = syscall.SIGTERM
 // FakeProcOps models a pid table, including the case that matters most: a
 // probe that cannot answer.
 type FakeProcOps struct {
-	ids         map[int]string
-	unknown     map[int]bool
-	Signals     map[int][]os.Signal
-	DiesOn      map[int]os.Signal
-	IdentityErr map[int]bool
+	ids            map[int]string
+	unknown        map[int]bool
+	Signals        map[int][]os.Signal
+	DiesOn         map[int]os.Signal
+	IdentityErr    map[int]bool
+	CurrentProcess ProcessIdentity
+	CurrentErr     error
 }
 
 var _ ProcOps = (*FakeProcOps)(nil)
 
 func NewFakeProcOps() *FakeProcOps {
-	return &FakeProcOps{
-		ids:         map[int]string{},
-		unknown:     map[int]bool{},
-		Signals:     map[int][]os.Signal{},
-		DiesOn:      map[int]os.Signal{},
-		IdentityErr: map[int]bool{},
+	fake := &FakeProcOps{
+		ids:            map[int]string{},
+		unknown:        map[int]bool{},
+		Signals:        map[int][]os.Signal{},
+		DiesOn:         map[int]os.Signal{},
+		IdentityErr:    map[int]bool{},
+		CurrentProcess: ProcessIdentity{PID: 900, Identity: "fake-supervisor-token"},
 	}
+	fake.ids[fake.CurrentProcess.PID] = fake.CurrentProcess.Identity
+	return fake
+}
+
+func (f *FakeProcOps) Current() (ProcessIdentity, error) {
+	if f.CurrentErr != nil {
+		return ProcessIdentity{}, f.CurrentErr
+	}
+	return f.CurrentProcess, nil
 }
 
 func (f *FakeProcOps) Set(pid int, identity string) { f.ids[pid] = identity }

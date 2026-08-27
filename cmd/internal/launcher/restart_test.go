@@ -2,6 +2,7 @@ package launcher
 
 import (
 	"bytes"
+	"errors"
 	"strings"
 	"testing"
 )
@@ -80,6 +81,18 @@ func TestRunRestartUsesPairTagForScopedPublicSession(t *testing.T) {
 	}
 	if m.Tag != "bugfix" || m.Agent != "codex" {
 		t.Fatalf("marker = %+v, want repo-local tag bugfix/codex", m)
+	}
+}
+
+func TestRunRestartRefusesUnreadableIndexWhenTagMustBeResolved(t *testing.T) {
+	rt := newFakeRuntime()
+	rt.sessionIndexErr = errors.New("index unreadable")
+	var stderr bytes.Buffer
+	if code := runRestart(rt, LaunchArgs{}, "📁work", "", &stderr); code != 1 {
+		t.Fatalf("code = %d, stderr=%q", code, stderr.String())
+	}
+	if len(rt.writtenMarkers) != 0 || len(rt.killed) != 0 {
+		t.Fatalf("unreadable index must not restart: markers=%v killed=%v", rt.writtenMarkers, rt.killed)
 	}
 }
 

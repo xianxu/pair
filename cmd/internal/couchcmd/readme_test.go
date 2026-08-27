@@ -47,7 +47,10 @@ func TestREADMEDocumentsEveryPanelControl(t *testing.T) {
 // `continue` with a comment pointing at atlas/couch.md, which did not document
 // it either (M2 BR-39). An exemption that names another home has to check that
 // home.
-var agentFacing = map[string]bool{"publish-description": true}
+var agentFacing = map[string]bool{
+	"switch": true,
+	"attach": true,
+}
 
 func documentsCommand(doc, command string) bool {
 	return regexp.MustCompile(regexp.QuoteMeta(command) + "(?:\\s|`|$)").MatchString(doc)
@@ -88,6 +91,28 @@ func TestREADMEDocumentsTheOperatorFacingSurface(t *testing.T) {
 	} {
 		if !strings.Contains(doc, want) {
 			t.Errorf("README does not mention %q", want)
+		}
+	}
+}
+
+func TestREADMEDocumentsM3ThreadSemantics(t *testing.T) {
+	doc := readme(t)
+	for _, want := range []string{
+		"`{repository scope, opaque tag}`",
+		"current directory",
+		"exact opaque tag wins",
+		"human name",
+		"canonical working path",
+		"ambiguous match",
+		"empty string",
+		"parked threads",
+		"duplicate labels",
+		"malformed or incomplete index fails closed",
+		"diagnostic view",
+		"`{repository scope}/{opaque tag}`",
+	} {
+		if !strings.Contains(doc, want) {
+			t.Errorf("README does not document M3 behavior %q", want)
 		}
 	}
 }

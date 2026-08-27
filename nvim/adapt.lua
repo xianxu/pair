@@ -1,7 +1,7 @@
 -- adapt.lua — Lua emitter for the adaptation flight recorder.
 --
--- Writes one JSON line per harness-adaptation event to
--- $PAIR_DATA_DIR/adapt-<tag>.jsonl, byte-identical in schema + field order to
+-- Writes one JSON line per harness-adaptation event to the launcher's exact
+-- $PAIR_ADAPT_LOG_PATH, byte-identical in schema + field order to
 -- the Go (cmd/internal/adapt) and shell (bin/lib/adapt-log.sh) emitters, so
 -- doctor/doctor.sh reads every component's lines uniformly. See
 -- atlas/how-to-bring-up-a-new-harness-cli.md §3.
@@ -29,19 +29,12 @@ local function truncate(s, n)
   return s:sub(1, n)
 end
 
--- log appends one event. No-op when PAIR_TAG is unset (not in a pair session).
+-- log appends one event. No-op when PAIR_ADAPT_LOG_PATH is unset.
 -- comp defaults to 'nvim'. outcome ∈ 'fired'|'bypass'|'near-miss'|'fail'.
 function M.log(aspect, signal, outcome, detail, comp)
-  local tag = vim.env.PAIR_TAG
-  if not tag or tag == '' then return end
+  local path = vim.env.PAIR_ADAPT_LOG_PATH
+  if not path or path == '' then return end
   comp = comp or 'nvim'
-
-  local dir = vim.env.PAIR_DATA_DIR
-  if not dir or dir == '' then
-    local xdg = vim.env.XDG_DATA_HOME
-    local base = (xdg and xdg ~= '') and xdg or ((vim.env.HOME or '') .. '/.local/share')
-    dir = base .. '/pair'
-  end
 
   detail = truncate(detail or '', MAX_DETAIL)
   local ts = os.date('!%Y-%m-%dT%H:%M:%SZ') -- '!' = UTC
@@ -62,7 +55,7 @@ function M.log(aspect, signal, outcome, detail, comp)
   end
   local line = '{' .. table.concat(parts, ',') .. '}\n'
 
-  local f = io.open(dir .. '/adapt-' .. tag .. '.jsonl', 'a')
+  local f = io.open(path, 'a')
   if f then
     f:write(line)
     f:close()

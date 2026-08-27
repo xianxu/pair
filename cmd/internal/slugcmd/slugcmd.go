@@ -3,15 +3,15 @@
 // Spawned (backgrounded) by pair-wrap at turn-end — pair's agent-agnostic
 // notify point — so it works for claude/codex/agy alike (issue #000027 M3,
 // replacing the earlier claude-only Stop hook). It resolves its own transcript
-// from $PAIR_DATA_DIR/config-<tag>-<agent>.json (session_id) + the per-agent
+// from the launcher's exact config binding (session_id) + the per-agent
 // path, parses the native format into turns, derives the left segment from the
 // git branch, asks a small model for the <focus> right segment over the recent
 // transcript (with a KEEP gate), validates, and writes a candidate to
-// $PAIR_DATA_DIR/slug-proposed-<tag>. nvim applies it (see nvim/slug.lua).
+// exact proposed-slug binding. nvim applies it (see nvim/slug.lua).
 //
 // Inputs (all env / filesystem — no stdin):
 //
-//	PAIR_TAG, PAIR_DATA_DIR   required; identify the session
+//	PAIR_TAG, PAIR_DATA_DIR   required launch identity/scope
 //	PAIR_AGENT                agent name (claude|codex|agy); default claude
 //	PAIR_SLUG_MODEL           small-model override; default depends on agent
 //	PAIR_SLUG_TRANSCRIPT      explicit transcript path, bypassing resolution
@@ -32,6 +32,7 @@ import (
 	"strings"
 
 	"github.com/xianxu/pair/cmd/internal/adapt"
+	"github.com/xianxu/pair/cmd/internal/artifactpath"
 	"github.com/xianxu/pair/cmd/internal/model"
 	"github.com/xianxu/pair/cmd/internal/procutil"
 	transcriptpkg "github.com/xianxu/pair/cmd/internal/transcript"
@@ -80,7 +81,11 @@ func repoBase(dir string) string {
 }
 
 func resolveLiveCodexTranscript(dataDir, tag, home string) string {
-	b, err := os.ReadFile(filepath.Join(dataDir, "agent-pid-"+tag))
+	paths, err := artifactpath.ResolveScoped(dataDir, tag)
+	if err != nil {
+		return ""
+	}
+	b, err := os.ReadFile(paths.AgentPID())
 	if err != nil {
 		return ""
 	}
@@ -112,6 +117,11 @@ func Run() int {
 	dataDir := os.Getenv("PAIR_DATA_DIR")
 	if tag == "" || dataDir == "" {
 		logf("no PAIR_TAG/PAIR_DATA_DIR; not inside a pair session")
+		return 0
+	}
+	paths, err := artifactpath.ResolveScoped(dataDir, tag)
+	if err != nil {
+		logf("unsafe artifact namespace: %v", err)
 		return 0
 	}
 	agent := os.Getenv("PAIR_AGENT")
@@ -168,7 +178,7 @@ func Run() int {
 
 	// prev is the effective slug nvim last wrote (includes user edits).
 	prev := ""
-	if b, err := os.ReadFile(filepath.Join(dataDir, "slug-"+tag)); err == nil {
+	if b, err := os.ReadFile(paths.Slug()); err == nil {
 		prev = strings.TrimSpace(string(b))
 	}
 
@@ -199,7 +209,7 @@ func Run() int {
 
 	// Atomic write: nvim is a concurrent reader of slug-proposed-<tag>; write
 	// to a temp sibling then rename so it never observes a torn file.
-	proposed := filepath.Join(dataDir, "slug-proposed-"+tag)
+	proposed := paths.SlugProposed()
 	tmp := proposed + ".tmp"
 	if err := os.WriteFile(tmp, []byte(value+"\n"), 0o644); err != nil {
 		logf("write %q: %v", tmp, err)

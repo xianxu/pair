@@ -87,6 +87,25 @@ func TestNewLaunchOptionsAppliesRepoDefaultPolicy(t *testing.T) {
 	}
 }
 
+func TestApplyCouchLaunchEnvironmentRequiresMatchingRepoDefaultMarker(t *testing.T) {
+	args, err := ParseArgs([]string{"resume", "couch-0102030405060708"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	pathRaw := `{"schema_version":1,"tag":"couch-0102030405060708","agent":"codex","argv":["--search"],"agent_source":"path","argv_source":"path"}`
+	defaultRaw := `{"schema_version":1,"tag":"couch-0102030405060708","agent":"codex","argv":["--search"],"agent_source":"root","argv_source":"repo-default"}`
+	if _, err := applyCouchLaunchEnvironment(args, pathRaw, true); err == nil {
+		t.Fatal("path argv accepted with repo-default marker")
+	}
+	if _, err := applyCouchLaunchEnvironment(args, defaultRaw, false); err == nil {
+		t.Fatal("repo-default argv accepted without repo-default marker")
+	}
+	got, err := applyCouchLaunchEnvironment(args, pathRaw, false)
+	if err != nil || got.Agent != "codex" || !got.AgentArgsFromCouch {
+		t.Fatalf("path profile = %+v, %v", got, err)
+	}
+}
+
 func TestLaunchNativeVersion(t *testing.T) {
 	for _, arg := range []string{"--version", "version"} {
 		t.Run(arg, func(t *testing.T) {

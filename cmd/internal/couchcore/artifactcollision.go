@@ -1,0 +1,98 @@
+package couchcore
+
+import (
+	"errors"
+
+	"github.com/xianxu/pair/cmd/internal/launcher"
+)
+
+// ThreadArtifactClaim is retained when ThreadStore accepts the same address and
+// released only when its subsequent no-replace record claim fails.
+type ThreadArtifactClaim interface {
+	Release() error
+}
+
+// ThreadArtifactClaimer atomically serializes a prospective composite address
+// with every current Pair artifact/session producer.
+type ThreadArtifactClaimer interface {
+	Claim(ThreadAddress) (ThreadArtifactClaim, error)
+}
+
+// ThreadArtifactController owns the full durable Pair-address lifecycle used
+// by Couch. Allocation depends only on the narrower claimer capability.
+type ThreadArtifactController interface {
+	ThreadArtifactClaimer
+	Release(ThreadAddress) error
+	Registration(ThreadAddress) (RegistrationEvidence, error)
+	Quiesce(ThreadAddress) error
+}
+
+type noopThreadArtifactClaim struct{}
+
+func (noopThreadArtifactClaim) Release() error { return nil }
+
+type NoThreadArtifactCollisions struct{}
+
+func (NoThreadArtifactCollisions) Claim(ThreadAddress) (ThreadArtifactClaim, error) {
+	return noopThreadArtifactClaim{}, nil
+}
+func (NoThreadArtifactCollisions) Release(ThreadAddress) error { return nil }
+func (NoThreadArtifactCollisions) Registration(ThreadAddress) (RegistrationEvidence, error) {
+	return RegistrationEstablished, nil
+}
+func (NoThreadArtifactCollisions) Quiesce(ThreadAddress) error { return nil }
+
+type ScopedThreadArtifactCollisionChecker struct {
+	GlobalDataDir string
+	Sessions      launcher.SessionDeleter
+}
+
+func NewScopedThreadArtifactCollisionChecker(globalDataDir string) ScopedThreadArtifactCollisionChecker {
+	return ScopedThreadArtifactCollisionChecker{GlobalDataDir: globalDataDir, Sessions: launcher.OSRuntime{}}
+}
+
+func (c ScopedThreadArtifactCollisionChecker) Claim(address ThreadAddress) (ThreadArtifactClaim, error) {
+	if err := validateThreadAddress(address); err != nil {
+		return nil, err
+	}
+	if c.GlobalDataDir == "" {
+		return nil, errors.New("artifact claimer has no Pair data directory")
+	}
+	claim, err := launcher.ClaimNewThreadAddress(c.GlobalDataDir,
+		launcher.RepoScope{Key: address.RepoScope}, string(address.Tag))
+	if err != nil {
+		return nil, err
+	}
+	return claim, nil
+}
+
+func (c ScopedThreadArtifactCollisionChecker) Release(address ThreadAddress) error {
+	paths := launcher.NewScopedPaths(c.GlobalDataDir,
+		launcher.RepoScope{Key: address.RepoScope}, string(address.Tag))
+	return launcher.ReleaseThreadAddressClaim(paths.ThreadClaim())
+}
+
+func (c ScopedThreadArtifactCollisionChecker) Registration(address ThreadAddress) (RegistrationEvidence, error) {
+	if err := validateThreadAddress(address); err != nil {
+		return RegistrationUnknown, err
+	}
+	established, err := launcher.ThreadAddressEstablished(c.GlobalDataDir,
+		launcher.RepoScope{Key: address.RepoScope}, string(address.Tag))
+	if err != nil {
+		return RegistrationUnknown, err
+	}
+	if established {
+		return RegistrationEstablished, nil
+	}
+	return RegistrationAbsent, nil
+}
+
+func (c ScopedThreadArtifactCollisionChecker) Quiesce(address ThreadAddress) error {
+	if err := validateThreadAddress(address); err != nil {
+		return err
+	}
+	if c.GlobalDataDir == "" {
+		return errors.New("artifact claimer has no Pair data directory")
+	}
+	return launcher.QuiesceThreadSession(c.GlobalDataDir, address.RepoScope, string(address.Tag), c.Sessions)
+}

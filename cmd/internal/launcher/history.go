@@ -6,6 +6,8 @@ import (
 	"sort"
 	"strings"
 	"time"
+
+	"github.com/xianxu/pair/cmd/internal/artifactpath"
 )
 
 // HistorySource scans Pair draft/log/ledger sidecars under the data directory.
@@ -16,13 +18,17 @@ type HistorySource struct {
 
 func (s HistorySource) Scan(base string, cutoff time.Time) ([]HistoricalTag, error) {
 	latest := map[string]time.Time{}
-	for _, pattern := range []string{"draft-*.md", "log-*.md", "ledger-*.jsonl"} {
-		matches, err := filepath.Glob(filepath.Join(s.DataDir, pattern))
+	scope, err := artifactpath.ResolveSelectedScope(s.DataDir)
+	if err != nil {
+		return nil, err
+	}
+	for _, pattern := range scope.HistoryGlobs() {
+		matches, err := filepath.Glob(pattern)
 		if err != nil {
 			return nil, err
 		}
 		for _, path := range matches {
-			tag, ok := tagFromSidecar(filepath.Base(path))
+			tag, ok := artifactpath.TagFromHistorySidecar(filepath.Base(path))
 			if !ok {
 				continue
 			}
@@ -31,7 +37,7 @@ func (s HistorySource) Scan(base string, cutoff time.Time) ([]HistoricalTag, err
 				continue
 			}
 			mtime := info.ModTime()
-			if strings.HasPrefix(filepath.Base(path), "ledger-") {
+			if artifactpath.IsLedgerHistorySidecar(filepath.Base(path)) {
 				if entry, ok := s.latestLedgerEntry(tag); ok && !entry.LastActive.IsZero() {
 					mtime = entry.LastActive
 				}
@@ -74,13 +80,17 @@ func (s HistorySource) Scan(base string, cutoff time.Time) ([]HistoricalTag, err
 
 func (s HistorySource) scanLegacy(base string, cutoff time.Time, scoped map[string]time.Time) ([]HistoricalTag, error) {
 	latest := map[string]time.Time{}
-	for _, pattern := range []string{"draft-*.md", "log-*.md"} {
-		matches, err := filepath.Glob(filepath.Join(s.LegacyDataDir, pattern))
+	root, err := artifactpath.ResolveLegacyRoot(s.LegacyDataDir)
+	if err != nil {
+		return nil, err
+	}
+	for _, pattern := range root.HistoryGlobs()[:2] {
+		matches, err := filepath.Glob(pattern)
 		if err != nil {
 			return nil, err
 		}
 		for _, path := range matches {
-			tag, ok := tagFromSidecar(filepath.Base(path))
+			tag, ok := artifactpath.TagFromHistorySidecar(filepath.Base(path))
 			if !ok || !matchesHistoryBase(tag, base) {
 				continue
 			}
@@ -112,7 +122,11 @@ func (s HistorySource) scanLegacy(base string, cutoff time.Time, scoped map[stri
 // <digits>.md file (queue_count_for, shell 1335). Surfaced as the picker's amber
 // badge so a forgotten queue is visible before resuming.
 func (s HistorySource) queueCount(tag string) int {
-	matches, err := filepath.Glob(filepath.Join(s.DataDir, "queue-"+tag, "[0-9]*.md"))
+	paths, err := artifactpath.ResolveScoped(s.DataDir, tag)
+	if err != nil {
+		return 0
+	}
+	matches, err := filepath.Glob(filepath.Join(paths.QueueDir(), "[0-9]*.md"))
 	if err != nil {
 		return 0
 	}
@@ -120,7 +134,11 @@ func (s HistorySource) queueCount(tag string) int {
 }
 
 func (s HistorySource) legacyQueueCount(tag string) int {
-	matches, err := filepath.Glob(filepath.Join(s.LegacyDataDir, "queue-"+tag, "[0-9]*.md"))
+	legacy, err := artifactpath.ResolveLegacyFlat(s.LegacyDataDir, tag)
+	if err != nil {
+		return 0
+	}
+	matches, err := filepath.Glob(filepath.Join(legacy.QueueDir(), "[0-9]*.md"))
 	if err != nil {
 		return 0
 	}
@@ -128,16 +146,7 @@ func (s HistorySource) legacyQueueCount(tag string) int {
 }
 
 func tagFromSidecar(name string) (string, bool) {
-	switch {
-	case strings.HasPrefix(name, "draft-") && strings.HasSuffix(name, ".md"):
-		return strings.TrimSuffix(strings.TrimPrefix(name, "draft-"), ".md"), true
-	case strings.HasPrefix(name, "log-") && strings.HasSuffix(name, ".md"):
-		return strings.TrimSuffix(strings.TrimPrefix(name, "log-"), ".md"), true
-	case strings.HasPrefix(name, "ledger-") && strings.HasSuffix(name, ".jsonl"):
-		return strings.TrimSuffix(strings.TrimPrefix(name, "ledger-"), ".jsonl"), true
-	default:
-		return "", false
-	}
+	return artifactpath.TagFromHistorySidecar(name)
 }
 
 func matchesHistoryBase(tag, base string) bool {
@@ -145,7 +154,11 @@ func matchesHistoryBase(tag, base string) bool {
 }
 
 func (s HistorySource) latestLedgerEntry(tag string) (LedgerEntry, bool) {
-	raw, err := os.ReadFile(filepath.Join(s.DataDir, "ledger-"+tag+".jsonl"))
+	paths, err := artifactpath.ResolveScoped(s.DataDir, tag)
+	if err != nil {
+		return LedgerEntry{}, false
+	}
+	raw, err := os.ReadFile(paths.Ledger())
 	if err != nil {
 		return LedgerEntry{}, false
 	}

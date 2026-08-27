@@ -91,10 +91,10 @@ func TestChangelogBase(t *testing.T) {
 }
 
 func TestDistillerEnvAndInner(t *testing.T) {
-	env := distillerEnv("/h/bin/pair", "/r.raw", "/e.jsonl", "/c.cleaned", "/l.md", "/a.anchor", "claude")
+	env := distillerEnv("/h/bin/pair", "/r.raw", "/e.jsonl", "/c.cleaned", "/l.md", "/a.anchor", "/l.ready", "claude")
 	want := map[string]bool{
 		"PCL_BIN=/h/bin/pair": true, "PCL_RAW=/r.raw": true, "PCL_EVENTS=/e.jsonl": true,
-		"PCL_CLEANED=/c.cleaned": true, "PCL_LOG=/l.md": true, "PCL_ANCHOR=/a.anchor": true, "PCL_AGENT=claude": true,
+		"PCL_CLEANED=/c.cleaned": true, "PCL_LOG=/l.md": true, "PCL_ANCHOR=/a.anchor": true, "PCL_READY=/l.ready": true, "PCL_AGENT=claude": true,
 	}
 	for _, kv := range env {
 		if _, ok := want[kv]; !ok {

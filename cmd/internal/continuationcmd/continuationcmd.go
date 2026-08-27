@@ -15,6 +15,7 @@ import (
 	"time"
 
 	"github.com/xianxu/pair/cmd/internal/adapt"
+	"github.com/xianxu/pair/cmd/internal/artifactpath"
 )
 
 // ContinuationDir is the repo-relative home for continuation instances (matches
@@ -124,7 +125,11 @@ func run(a runArgs, env runEnv, now func() time.Time, stdin io.Reader, stdout io
 	// otherwise the restart's draft re-seed (createflow.go) discards it. Done
 	// before the HasNextAction guard so folded WIP can round out a thin section.
 	if !a.noRestart && InCompactionContext(env.pairTag, env.zellijSession, env.pairSessionName) {
-		draft := filepath.Join(env.dataDir, "draft-"+env.pairTag+".md")
+		paths, pathErr := artifactpath.ResolveScoped(env.dataDir, env.pairTag)
+		if pathErr != nil {
+			return fmt.Errorf("resolve draft artifact: %w", pathErr)
+		}
+		draft := paths.Draft()
 		if raw, rerr := os.ReadFile(draft); rerr == nil {
 			if wip := StripStickyComments(string(raw)); wip != "" {
 				body = FoldDraftIntoNextAction(body, wip)

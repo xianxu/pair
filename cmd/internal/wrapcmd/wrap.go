@@ -61,6 +61,7 @@ import (
 	"golang.org/x/term"
 
 	"github.com/xianxu/pair/cmd/internal/adapt"
+	"github.com/xianxu/pair/cmd/internal/artifactpath"
 	"github.com/xianxu/pair/cmd/internal/draftroute"
 	"github.com/xianxu/pair/cmd/internal/launcher"
 	"github.com/xianxu/pair/cmd/internal/layoutcmd"
@@ -179,11 +180,12 @@ type proxy struct {
 	stderr     io.Writer
 
 	// CLI / config
-	scrollbackLog  string
-	agentBasename  string
-	debugLogPath   string
-	wrapEventsPath string
-	bellFallback   bool
+	scrollbackLog    string
+	scrollbackEvents string
+	agentBasename    string
+	debugLogPath     string
+	wrapEventsPath   string
+	bellFallback     bool
 
 	// Resolved paths (empty when env didn't provide PAIR_TAG)
 	outerTTYFile    string
@@ -441,16 +443,20 @@ func (p *proxy) resolvePaths() {
 		return
 	}
 	dir := adapt.DataDir()
-	p.outerTTYFile = filepath.Join(dir, "outer-tty-"+tag)
-	if spanExtractionAgents[p.agentBasename] {
-		p.agentOutputFile = filepath.Join(dir, "agent-output-"+tag)
+	paths, err := artifactpath.ResolveScoped(dir, tag)
+	if err != nil {
+		return
 	}
-	p.captureOutPath = filepath.Join(dir, "image-capture-"+tag)
-	p.captureDonePath = p.captureOutPath + ".done"
-	p.capturePIDPath = filepath.Join(dir, "pair-wrap-pid-"+tag)
-	p.agentPIDPath = filepath.Join(dir, "agent-pid-"+tag)
-	p.agentReadyPath = launcher.AgentReadyPath(dir, tag, p.agentBasename)
-	p.wrapEventsPath = filepath.Join(dir, "wrap-events-"+tag+".jsonl")
+	p.outerTTYFile = paths.OuterTTY()
+	if spanExtractionAgents[p.agentBasename] {
+		p.agentOutputFile = paths.AgentOutput()
+	}
+	p.captureOutPath = paths.ImageCapture()
+	p.captureDonePath = paths.ImageCaptureDone()
+	p.capturePIDPath = paths.PairWrapPID()
+	p.agentPIDPath = paths.AgentPID()
+	p.agentReadyPath, _ = paths.AgentReadyChecked(p.agentBasename)
+	p.wrapEventsPath = paths.WrapEvents()
 }
 
 func (p *proxy) publishAgentReady(pid int) error {
@@ -477,12 +483,11 @@ func (p *proxy) publishAgentReady(pid int) error {
 	return os.Rename(tmp, p.agentReadyPath)
 }
 
-func dataDirFlag(name string) bool {
-	tag := os.Getenv("PAIR_TAG")
-	if tag == "" {
+func codexFilterKKPFlag() bool {
+	path := os.Getenv("PAIR_CODEX_FILTER_KKP_PATH")
+	if path == "" {
 		return false
 	}
-	path := filepath.Join(adapt.DataDir(), name+"-"+tag)
 	if _, err := os.Stat(path); err == nil {
 		return true
 	}
@@ -2101,7 +2106,14 @@ func freshAgentInvocation(wrapperExecutable, scrollbackLog string, currentArgv [
 	}
 	tag := envValue(env, "PAIR_TAG")
 	if dataDir != "" && tag != "" {
-		configPath := filepath.Join(dataDir, "config-"+tag+"-"+agent+".json")
+		paths, err := artifactpath.ResolveScoped(dataDir, tag)
+		if err != nil {
+			return nil, err
+		}
+		configPath, err := paths.ConfigChecked(agent)
+		if err != nil {
+			return nil, err
+		}
 		if agent == "claude" {
 			payload, err := sessionwatch.ConfigJSON(sessionwatch.ConfigPayload{
 				Agent: agent, Args: configArgs, SessionID: sessionID,
@@ -2263,9 +2275,10 @@ argsDone:
 	}
 
 	p.agentBasename = filepath.Base(argv[0])
+	p.scrollbackEvents = os.Getenv("PAIR_SCROLLBACK_EVENTS_PATH")
 	p.codexSyncPassthrough = envFlag("PAIR_CODEX_SYNC_PASSTHROUGH")
 	p.resolvePaths()
-	p.codexFilterKKP = envFlag("PAIR_CODEX_FILTER_KKP") || dataDirFlag("codex-filter-kkp")
+	p.codexFilterKKP = envFlag("PAIR_CODEX_FILTER_KKP") || codexFilterKKPFlag()
 
 	// Open the always-on adaptation flight recorder. bin/pair truncates the
 	// file once per session launch, so we append. nil when PAIR_TAG is unset.
@@ -2283,25 +2296,26 @@ argsDone:
 		}
 	}
 
-	// Open scrollback log (truncate) + matching .events.jsonl sidecar.
+	// Open the exact scrollback raw/events bindings. The launcher exports both;
+	// pair-wrap never derives one companion from the other.
 	// Disable scrollback entirely on any open failure; never block startup.
 	if p.scrollbackLog != "" {
-		eventsPath := strings.TrimSuffix(p.scrollbackLog, ".raw") + ".events.jsonl"
-		if !strings.HasSuffix(p.scrollbackLog, ".raw") {
-			eventsPath = p.scrollbackLog + ".events.jsonl"
-		}
 		f, err := os.OpenFile(p.scrollbackLog, os.O_WRONLY|os.O_CREATE|os.O_TRUNC, 0644)
 		if err != nil {
 			p.debug("SCROLLBACK-open-fail", fmt.Sprintf("%q: %v", p.scrollbackLog, err))
 		} else {
 			p.scrollbackFD = f
 			p.debug("SCROLLBACK-open", p.scrollbackLog)
-			ef, err := os.OpenFile(eventsPath, os.O_WRONLY|os.O_CREATE|os.O_TRUNC, 0644)
-			if err != nil {
-				p.debug("EVENTS-open-fail", fmt.Sprintf("%q: %v", eventsPath, err))
+			if p.scrollbackEvents == "" {
+				p.debug("EVENTS-open-fail", "PAIR_SCROLLBACK_EVENTS_PATH is empty")
 			} else {
-				p.eventsFD = ef
-				p.debug("EVENTS-open", eventsPath)
+				ef, err := os.OpenFile(p.scrollbackEvents, os.O_WRONLY|os.O_CREATE|os.O_TRUNC, 0644)
+				if err != nil {
+					p.debug("EVENTS-open-fail", fmt.Sprintf("%q: %v", p.scrollbackEvents, err))
+				} else {
+					p.eventsFD = ef
+					p.debug("EVENTS-open", p.scrollbackEvents)
+				}
 			}
 		}
 	}
@@ -2369,6 +2383,39 @@ argsDone:
 	// Initial winsize copy + SIGWINCH handler.
 	p.setWinsize()
 
+	// Install signal delivery before publishing pair-wrap-pid. The pidfile is a
+	// readiness promise used by Alt+i and agent restart; writing it first left a
+	// real interval where SIGUSR1/SIGUSR2 was sent to the process before Notify
+	// owned those signals.
+	sigCh := make(chan os.Signal, 4)
+	signal.Notify(sigCh, syscall.SIGWINCH, syscall.SIGUSR1, syscall.SIGUSR2)
+	signalDone := make(chan struct{})
+	go func() {
+		defer close(signalDone)
+		for s := range sigCh {
+			switch s {
+			case syscall.SIGWINCH:
+				p.setWinsize()
+			case syscall.SIGUSR1:
+				p.armCapture()
+			case syscall.SIGUSR2:
+				if p.restartFresh.CompareAndSwap(false, true) && p.cmd != nil && p.cmd.Process != nil {
+					p.traceWrap("agent-restart-request", nil)
+					pid := p.cmd.Process.Pid
+					if err := syscall.Kill(-pid, syscall.SIGTERM); err != nil {
+						_ = p.cmd.Process.Kill()
+					}
+					go func() {
+						time.Sleep(time.Second)
+						if p.restartFresh.Load() {
+							_ = syscall.Kill(-pid, syscall.SIGKILL)
+						}
+					}()
+				}
+			}
+		}
+	}()
+
 	// Image-capture wiring. Drop the pidfile so nvim's Alt+i knows where
 	// to send SIGUSR1; only enabled when PAIR_TAG/PAIR_DATA_DIR resolved
 	// a valid output path.
@@ -2421,35 +2468,6 @@ argsDone:
 		}
 	}()
 
-	// Signal handling.
-	sigCh := make(chan os.Signal, 4)
-	signal.Notify(sigCh, syscall.SIGWINCH, syscall.SIGUSR1, syscall.SIGUSR2)
-	signalDone := make(chan struct{})
-	go func() {
-		defer close(signalDone)
-		for s := range sigCh {
-			switch s {
-			case syscall.SIGWINCH:
-				p.setWinsize()
-			case syscall.SIGUSR1:
-				p.armCapture()
-			case syscall.SIGUSR2:
-				if p.restartFresh.CompareAndSwap(false, true) && p.cmd != nil && p.cmd.Process != nil {
-					p.traceWrap("agent-restart-request", nil)
-					pid := p.cmd.Process.Pid
-					if err := syscall.Kill(-pid, syscall.SIGTERM); err != nil {
-						_ = p.cmd.Process.Kill()
-					}
-					go func() {
-						time.Sleep(time.Second)
-						if p.restartFresh.Load() {
-							_ = syscall.Kill(-pid, syscall.SIGKILL)
-						}
-					}()
-				}
-			}
-		}
-	}()
 	defer func() {
 		signal.Stop(sigCh)
 		close(sigCh)

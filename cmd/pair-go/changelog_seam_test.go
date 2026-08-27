@@ -72,7 +72,7 @@ func TestChangelogSeamMarkerSurvival(t *testing.T) {
 
 	// Real distill step over the rendered cleaned, via `pair changelog render`.
 	d := runCommand(t, env, pairGo, "changelog", "render", "--cleaned", cleanedPath,
-		"--log", logPath, "--anchor", anchorPath, "--agent", "claude")
+		"--log", logPath, "--anchor", anchorPath, "--ready", filepath.Join(dir, "changelog.ready"), "--agent", "claude")
 	if d.code != 0 {
 		t.Fatalf("changelog render exit=%d stderr=%q", d.code, d.stderr)
 	}

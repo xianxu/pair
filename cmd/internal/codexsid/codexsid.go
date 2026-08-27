@@ -7,9 +7,9 @@ package codexsid
 
 import (
 	"os"
-	"path/filepath"
 	"strings"
 
+	"github.com/xianxu/pair/cmd/internal/artifactpath"
 	"github.com/xianxu/pair/cmd/internal/procutil"
 	"github.com/xianxu/pair/cmd/internal/transcript"
 )
@@ -19,7 +19,11 @@ import (
 // process's open files for the live rollout jsonl — returning the session UUID,
 // or "" when the pidfile is absent/empty or no rollout is open.
 func ResolveSessionID(dataDir, tag string) string {
-	raw, err := os.ReadFile(filepath.Join(dataDir, "agent-pid-"+tag))
+	paths, err := artifactpath.ResolveScoped(dataDir, tag)
+	if err != nil {
+		return ""
+	}
+	raw, err := os.ReadFile(paths.AgentPID())
 	if err != nil {
 		return ""
 	}

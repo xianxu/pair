@@ -36,6 +36,9 @@ type fakeRuntime struct {
 	files               map[string]string
 	ledger              map[string][]LedgerEntry
 	sessionIndex        SessionNameIndex
+	sessionIndexErr     error
+	threadIndex         ThreadIndex
+	threadIndexErr      error
 	agentSessions       map[string]bool // "agent|sid" -> native artifact exists
 	liveAgentSessions   map[string]string
 	uuids               []string // MintUUID pops these in order
@@ -45,6 +48,8 @@ type fakeRuntime struct {
 	probeErr            error
 	appendLedgerErr     error
 	appendIndexErr      error
+	threadClaimErr      error
+	threadClaims        []string
 	writeFailAt         string
 	inferAgent          map[string]string // tag -> paired agent (for `resume <tag>`)
 	pickFunc            func(header string, options []string) string
@@ -102,6 +107,11 @@ type fakeRuntime struct {
 	parked        []string   // "tag|agent|move" per ParkScrollback
 	killedPollers []string   // tags handed to KillTitlePoller
 	cmuxCleared   int        // ClearCmuxOwner calls
+}
+
+func (f *fakeRuntime) EnsureThreadAddress(scope RepoScope, tag string, couchOwned bool) error {
+	f.threadClaims = append(f.threadClaims, fmt.Sprintf("%s|%s|%t", scope.Key, tag, couchOwned))
+	return f.threadClaimErr
 }
 
 func newFakeRuntime() *fakeRuntime {
@@ -242,7 +252,10 @@ func (f *fakeRuntime) AppendLedger(tag string, entry LedgerEntry) error {
 	return nil
 }
 func (f *fakeRuntime) ReadSessionNameIndex() (SessionNameIndex, error) {
-	return f.sessionIndex, nil
+	return f.sessionIndex, f.sessionIndexErr
+}
+func (f *fakeRuntime) ReadThreadIndex() (ThreadIndex, error) {
+	return f.threadIndex, f.threadIndexErr
 }
 func (f *fakeRuntime) AppendSessionNameIndex(entry SessionNameEntry) error {
 	if f.appendIndexErr != nil {
@@ -250,6 +263,19 @@ func (f *fakeRuntime) AppendSessionNameIndex(entry SessionNameEntry) error {
 	}
 	f.sessionIndex.Entries = append(f.sessionIndex.Entries, entry)
 	return nil
+}
+
+func TestAssignLaunchSessionNamesRefusesUnreadableIndex(t *testing.T) {
+	rt := newFakeRuntime()
+	rt.sessionIndexErr = errors.New("index unreadable")
+	var stderr bytes.Buffer
+	_, _, _, ok := assignLaunchSessionNames(rt, nil, "/repo", "/global", LaunchArgs{ForcedTag: "work"}, "work", &stderr)
+	if ok {
+		t.Fatal("assignLaunchSessionNames accepted an unreadable durable index")
+	}
+	if !strings.Contains(stderr.String(), "index unreadable") {
+		t.Fatalf("stderr = %q, want durable index error", stderr.String())
+	}
 }
 
 func (f *fakeRuntime) RemoveReadyRecord(tag, agent string) {
@@ -437,6 +463,95 @@ func run(t *testing.T, opts LaunchOptions, rt *fakeRuntime) (int, error) {
 		t.Logf("stderr: %s", stderr.String())
 	}
 	return code, err
+}
+
+func TestCreateClaimsThreadAddressBeforeDurableWrites(t *testing.T) {
+	rt := newFakeRuntime()
+	rt.threadClaimErr = errors.New("occupied")
+	code, err := run(t, baseOpts(LaunchArgs{ForcedTag: "work"}), rt)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if code != 1 || len(rt.threadClaims) != 1 {
+		t.Fatalf("code=%d claims=%v", code, rt.threadClaims)
+	}
+	if len(rt.ledger) != 0 || len(rt.files) != 0 || rt.launched != "" {
+		t.Fatalf("claim refusal wrote durable state: ledger=%v files=%v launched=%q", rt.ledger, rt.files, rt.launched)
+	}
+}
+
+func TestCreateIdentifiesExactCouchOwnedClaim(t *testing.T) {
+	rt := newFakeRuntime()
+	opts := baseOpts(LaunchArgs{ForcedTag: "work"})
+	scope, err := ResolveRepoScope(opts.Env.Cwd)
+	if err != nil {
+		t.Fatal(err)
+	}
+	opts.Env.CouchThreadScope = scope.Key
+	opts.Env.CouchThreadTag = "work"
+	if code, err := run(t, opts, rt); err != nil || code != 0 {
+		t.Fatalf("run = %d, %v", code, err)
+	}
+	if got := rt.threadClaims; len(got) != 1 || !strings.HasSuffix(got[0], "|work|true") {
+		t.Fatalf("claims = %v", got)
+	}
+}
+
+func TestStandaloneCreateRegistersCompositeThreadBeforeLaunching(t *testing.T) {
+	rt := newFakeRuntime()
+	var got StandaloneThreadRegistration
+	opts := baseOpts(LaunchArgs{Agent: "codex", ForcedTag: "work", AgentArgs: []string{"--sandbox", "workspace-write"}, AgentArgsExplicit: true})
+	opts.GlobalDataDir = "/global"
+	opts.RegisterStandaloneThread = func(registration StandaloneThreadRegistration) error {
+		if rt.launched != "" {
+			t.Fatal("standalone thread registered after workspace child launched")
+		}
+		got = registration
+		return nil
+	}
+	if code, err := run(t, opts, rt); err != nil || code != 0 {
+		t.Fatalf("run = %d, %v", code, err)
+	}
+	scope, err := ResolveRepoScope(opts.Env.Cwd)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got.RepoScope != scope.Key || got.Tag != "work" || got.WorkingPath != opts.Env.Cwd || got.GlobalDataDir != "/global" {
+		t.Fatalf("registration identity = %+v", got)
+	}
+	if got.Agent != "codex" || !reflect.DeepEqual(got.Argv, []string{"--sandbox", "workspace-write", "--no-alt-screen"}) {
+		t.Fatalf("registration profile = %+v", got)
+	}
+}
+
+func TestStandaloneRegistrationFailureRefusesWorkspaceChild(t *testing.T) {
+	rt := newFakeRuntime()
+	opts := baseOpts(LaunchArgs{Agent: "codex", ForcedTag: "work"})
+	opts.RegisterStandaloneThread = func(StandaloneThreadRegistration) error { return errors.New("store unavailable") }
+	if code, err := run(t, opts, rt); err != nil || code != 1 {
+		t.Fatalf("run = %d, %v", code, err)
+	}
+	if rt.launched != "" || len(rt.watchers) != 0 || len(rt.pollers) != 0 {
+		t.Fatalf("registration failure started workspace effects: launched=%q watchers=%v pollers=%v", rt.launched, rt.watchers, rt.pollers)
+	}
+}
+
+func TestCouchOwnedCreateDoesNotRegisterAsStandalone(t *testing.T) {
+	rt := newFakeRuntime()
+	opts := baseOpts(LaunchArgs{Agent: "codex", ForcedTag: "work"})
+	scope, err := ResolveRepoScope(opts.Env.Cwd)
+	if err != nil {
+		t.Fatal(err)
+	}
+	opts.Env.CouchThreadScope = scope.Key
+	opts.Env.CouchThreadTag = "work"
+	opts.RegisterStandaloneThread = func(StandaloneThreadRegistration) error {
+		t.Fatal("couch-owned create registered twice")
+		return nil
+	}
+	if code, err := run(t, opts, rt); err != nil || code != 0 {
+		t.Fatalf("run = %d, %v", code, err)
+	}
 }
 
 // RunLaunch must front the resolved asset root's bin/ on PATH at entry (#95),
@@ -1449,6 +1564,129 @@ func TestRunLaunchPickInferredAgentMustNotInheritCliArgs(t *testing.T) {
 	}
 	if rt.launched != "📁work-2" {
 		t.Fatalf("launched = %q, want scoped next-free public session name", rt.launched)
+	}
+}
+
+func TestRunLaunchStandaloneResolvesHumanThreadNameToOpaqueTag(t *testing.T) {
+	rt := newFakeRuntime()
+	scope := mustScope(t, "/home/u/work")
+	rt.threadIndex = ThreadIndex{Entries: []ThreadIndexEntry{
+		indexEntry(scope.Key, "couch-0102030405060708", "/home/u/work", "compiler"),
+	}}
+	rt.uuids = []string{"SID"}
+	opts := baseOpts(LaunchArgs{ForcedTag: "compiler"})
+	code, err := run(t, opts, rt)
+	if err != nil || code != 0 {
+		t.Fatalf("code=%d err=%v", code, err)
+	}
+	if got := rt.env["PAIR_TAG"]; got != "couch-0102030405060708" {
+		t.Fatalf("PAIR_TAG = %q, want opaque thread tag", got)
+	}
+}
+
+func TestRunLaunchRefusesCorruptAuthoritativeThreadIndex(t *testing.T) {
+	rt := newFakeRuntime()
+	rt.threadIndexErr = errors.New("decode thread manifest: invalid character")
+	rt.uuids = []string{"SID"}
+
+	code, err := run(t, baseOpts(LaunchArgs{ForcedTag: "compiler"}), rt)
+	if err != nil || code != 1 {
+		t.Fatalf("code=%d err=%v, want handled refusal", code, err)
+	}
+	if rt.launched != "" || rt.env["PAIR_TAG"] != "" {
+		t.Fatalf("corrupt index fell back to legacy launch: launched=%q PAIR_TAG=%q", rt.launched, rt.env["PAIR_TAG"])
+	}
+}
+
+func TestRunLaunchKeepsLegacyBehaviorWhenThreadIndexIsAbsent(t *testing.T) {
+	rt := newFakeRuntime()
+	rt.threadIndexErr = fmt.Errorf("read manifest: %w", ErrThreadIndexAbsent)
+	rt.uuids = []string{"SID"}
+
+	code, err := run(t, baseOpts(LaunchArgs{ForcedTag: "legacy-work"}), rt)
+	if err != nil || code != 0 {
+		t.Fatalf("code=%d err=%v", code, err)
+	}
+	if rt.env["PAIR_TAG"] != "legacy-work" {
+		t.Fatalf("PAIR_TAG = %q, want legacy direct tag", rt.env["PAIR_TAG"])
+	}
+}
+
+func TestRunLaunchKnownDirectPairTagWinsOverThreadFuzzyMatch(t *testing.T) {
+	rt := newFakeRuntime()
+	scope := mustScope(t, "/home/u/work")
+	rt.historical = []HistoricalTag{{Tag: "work", MTime: time.Unix(1_699_900_000, 0)}}
+	rt.threadIndex = ThreadIndex{Entries: []ThreadIndexEntry{
+		indexEntry(scope.Key, "couch-0102030405060708", "/home/u/work", "compiler"),
+	}}
+	rt.uuids = []string{"SID"}
+	code, err := run(t, baseOpts(LaunchArgs{ForcedTag: "work"}), rt)
+	if err != nil || code != 0 {
+		t.Fatalf("code=%d err=%v", code, err)
+	}
+	if got := rt.env["PAIR_TAG"]; got != "work" {
+		t.Fatalf("PAIR_TAG = %q, want existing direct Pair tag", got)
+	}
+}
+
+func TestRunLaunchColdDirectPairTagArtifactWinsOverThreadFuzzyMatch(t *testing.T) {
+	rt := newFakeRuntime()
+	scope := mustScope(t, "/home/u/work")
+	rt.threadIndex = ThreadIndex{Entries: []ThreadIndexEntry{
+		indexEntry(scope.Key, "couch-0102030405060708", "/home/u/work", "compiler"),
+	}}
+	rt.files[NewScopedPaths("/global", scope, "work").Draft()] = "old but durable"
+	rt.uuids = []string{"SID"}
+	opts := baseOpts(LaunchArgs{ForcedTag: "work"})
+	opts.GlobalDataDir = "/global"
+	code, err := run(t, opts, rt)
+	if err != nil || code != 0 {
+		t.Fatalf("code=%d err=%v", code, err)
+	}
+	if got := rt.env["PAIR_TAG"]; got != "work" {
+		t.Fatalf("PAIR_TAG = %q, want cold direct Pair tag", got)
+	}
+}
+
+func TestRunLaunchPickerIncludesNamedParkedThreadFromIndex(t *testing.T) {
+	rt := newFakeRuntime()
+	scope := mustScope(t, "/home/u/work")
+	entry := indexEntry(scope.Key, "couch-0102030405060708", "/home/u/work", "compiler")
+	entry.CreatedAt = time.Unix(1_699_900_000, 0)
+	rt.threadIndex = ThreadIndex{Entries: []ThreadIndexEntry{entry}}
+	rt.uuids = []string{"SID"}
+	rt.pickFunc = func(_ string, options []string) string {
+		for _, option := range options {
+			plain := stripANSI(option)
+			if strings.Contains(plain, "work/compiler") {
+				return plain
+			}
+		}
+		t.Fatalf("picker options = %q, want named parked thread", options)
+		return ""
+	}
+	code, err := run(t, baseOpts(LaunchArgs{Agent: "claude"}), rt)
+	if err != nil || code != 0 {
+		t.Fatalf("code=%d err=%v", code, err)
+	}
+	if got := rt.env["PAIR_TAG"]; got != entry.Address.Tag {
+		t.Fatalf("PAIR_TAG = %q, want %q", got, entry.Address.Tag)
+	}
+}
+
+func TestRunLaunchStandaloneRefusesAmbiguousThreadName(t *testing.T) {
+	rt := newFakeRuntime()
+	scope := mustScope(t, "/home/u/work")
+	rt.threadIndex = ThreadIndex{Entries: []ThreadIndexEntry{
+		indexEntry(scope.Key, "couch-0102030405060708", "/home/u/work/one", "compiler"),
+		indexEntry(scope.Key, "couch-1112131415161718", "/home/u/work/two", "compiler"),
+	}}
+	code, err := run(t, baseOpts(LaunchArgs{ForcedTag: "compiler"}), rt)
+	if err != nil || code != 1 {
+		t.Fatalf("code=%d err=%v", code, err)
+	}
+	if rt.launched != "" {
+		t.Fatalf("ambiguous name launched %q", rt.launched)
 	}
 }
 

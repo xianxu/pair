@@ -11,6 +11,10 @@ export PAIR_DATA_DIR="$tmp/data"
 export PAIR_TAG=t
 export PAIR_AGENT=codex
 mkdir -p "$PAIR_HOME/bin" "$PAIR_DATA_DIR"
+export PAIR_DRAFT_PATH="$tmp/draft.md"
+export PAIR_DRAFT_PANE_PATH="$PAIR_DATA_DIR/draft-pane-t.json"
+export PAIR_LAST_LEFT_PANE_PATH="$PAIR_DATA_DIR/last-left-pane-t"
+export PAIR_LAYOUT_MODE_PATH="$PAIR_DATA_DIR/layout-mode-t"
 cp "$ROOT/bin/pair" "$PAIR_HOME/bin/pair"
 
 fakebin="$tmp/fakebin"

@@ -386,14 +386,14 @@ end
 -- to know a review is open (file-select vs. visibility-toggle branch). Path comes
 -- from the shared seam module so the writer here and the reader in init.lua agree.
 local function state_file()
-  return seam.open_state(vim.env.PAIR_DATA_DIR, vim.env.PAIR_TAG)
+  return seam.open_state(vim.env.PAIR_REVIEW_OPEN_PATH)
 end
 
 local awaiting_since, spinner_tick
 local status_timer_interval = 100
 
 local function current_mode()
-  return seam.read_mode(vim.env.PAIR_DATA_DIR, vim.env.PAIR_TAG)
+  return seam.read_mode(vim.env.PAIR_REVIEW_MODE_PATH)
 end
 
 local function mode_label()
@@ -512,7 +512,7 @@ local function finish_human_turn(buf, file, mode_name, instruction)
   -- (Once ariadne#000121's SKILL recognizes review-mode from these signals, this is
   -- the whole trigger — the M3 `/xx-fix` stopgap is retired here.)
   local m = seam.normalize_mode(mode_name or current_mode())
-  seam.write_mode(vim.env.PAIR_DATA_DIR, vim.env.PAIR_TAG, m)
+  seam.write_mode(vim.env.PAIR_REVIEW_MODE_PATH, m)
   local context_path = write_review_context(buf)
   refresh_statusline()
   if poke.send(poke_bodies.human_finished(vim.fn.fnamemodify(file, ':p'), m,
@@ -528,10 +528,8 @@ local function request_ship(file)
 end
 
 function write_review_context(buf)
-  local data_dir = vim.env.PAIR_DATA_DIR
-  if not data_dir or data_dir == '' then return nil end
-  local tag = (vim.env.PAIR_TAG and vim.env.PAIR_TAG ~= '') and vim.env.PAIR_TAG or 'default'
-  local path = data_dir .. '/review-context-' .. tag .. '.md'
+  local path = vim.env.PAIR_REVIEW_CONTEXT_PATH
+  if not path or path == '' then return nil end
   local tmp = path .. '.tmp'
   local body = define.strip_definition_footnote_footer(buf_content(buf))
   local ok = pcall(vim.fn.writefile, vim.split(body, '\n', { plain = true }), tmp)
@@ -574,7 +572,7 @@ local function pending_definition_range(buf)
 end
 
 local function apply_definition_result(buf)
-  local result = definition_seam.read_result(vim.env.PAIR_DATA_DIR, vim.env.PAIR_TAG)
+  local result = definition_seam.read_result(vim.env.PAIR_REVIEW_DEFINITION_RESULT_PATH)
   if not result or not pending_definition then return false end
   if result.request_id ~= pending_definition.request_id then return false end
   local base = buf_content(buf)
@@ -584,7 +582,7 @@ local function apply_definition_result(buf)
   if current_term ~= pending_definition.term then
     vim.notify('review: definition selection changed; request ignored', vim.log.levels.WARN)
     clear_pending_definition(buf)
-    definition_seam.clear_result(vim.env.PAIR_DATA_DIR, vim.env.PAIR_TAG)
+    definition_seam.clear_result(vim.env.PAIR_REVIEW_DEFINITION_RESULT_PATH)
     clear_awaiting()
     stop_definition_poll()
     return false
@@ -607,7 +605,7 @@ local function apply_definition_result(buf)
     render_active_diagnostic(buf)
   end)
   clear_pending_definition(buf)
-  definition_seam.clear_result(vim.env.PAIR_DATA_DIR, vim.env.PAIR_TAG)
+  definition_seam.clear_result(vim.env.PAIR_REVIEW_DEFINITION_RESULT_PATH)
   clear_awaiting()
   stop_definition_poll()
   pcall(function() vim.cmd('silent keepalt write') end)
@@ -643,7 +641,7 @@ local function request_definition(buf, file, start_pos, end_pos, opts)
     range = { l1 = srow, c1 = scol, l2 = erow, c2 = ecol },
     context = define.strip_definition_footnote_footer(buf_content(buf)),
   }
-  if not definition_seam.write_request(vim.env.PAIR_DATA_DIR, vim.env.PAIR_TAG, request) then
+  if not definition_seam.write_request(vim.env.PAIR_REVIEW_DEFINITION_REQUEST_PATH, request) then
     vim.notify('review: could not write definition request', vim.log.levels.ERROR)
     return nil
   end

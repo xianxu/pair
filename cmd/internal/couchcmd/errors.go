@@ -6,6 +6,6 @@ import (
 	"github.com/xianxu/pair/cmd/internal/couchcore"
 )
 
-func asTreeOccupied(err error, target **couchcore.TreeOccupiedError) bool {
+func asCapacityExceeded(err error, target **couchcore.CapacityExceededError) bool {
 	return errors.As(err, target)
 }

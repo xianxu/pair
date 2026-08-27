@@ -1,6 +1,7 @@
 package launcher
 
 import (
+	"fmt"
 	"io"
 )
 
@@ -24,7 +25,8 @@ func runRestart(rt Runtime, args LaunchArgs, session, pairTag string, stderr io.
 	if tag == "" {
 		index, err := rt.ReadSessionNameIndex()
 		if err != nil {
-			index = SessionNameIndex{}
+			_, _ = fmt.Fprintf(stderr, "pair restart: read session-name index: %v\n", err)
+			return 1
 		}
 		tag, _ = TagForSessionName(index, session)
 	}

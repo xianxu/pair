@@ -4,7 +4,7 @@
 [`../atlas/how-to-bring-up-a-new-harness-cli.md`](../atlas/how-to-bring-up-a-new-harness-cli.md).
 Harnesses update and break those adaptations *silently* — a renamed picker
 string or a changed transcript shape doesn't error, the adaptation just stops
-firing. The **flight recorder** (`$PAIR_DATA_DIR/adapt-<tag>.jsonl`) captures one
+firing. The **flight recorder** (`$PAIR_ADAPT_LOG_PATH`) captures one
 line per adaptation trigger, including **near-misses** (the harness did something
 we half-recognized but no matcher caught). `doctor.sh` turns that trace into a
 fix.
@@ -12,7 +12,7 @@ fix.
 ## Run it
 
 ```bash
-doctor/doctor.sh            # current session ($PAIR_TAG), else newest adapt-*.jsonl
+doctor/doctor.sh            # exact current-session binding
 doctor/doctor.sh <path>     # a specific session's log
 ```
 

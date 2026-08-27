@@ -57,8 +57,11 @@ if [ -z "$tag" ]; then
     exit 0
 fi
 
-data_dir="${PAIR_DATA_DIR:-${XDG_DATA_HOME:-$HOME/.local/share}/pair}"
-tty_file="$data_dir/outer-tty-$tag"
+tty_file="${PAIR_OUTER_TTY_PATH:-}"
+if [ -z "$tty_file" ]; then
+    echo "pair-notify: PAIR_OUTER_TTY_PATH not set; restart the pair session" >&2
+    exit 0
+fi
 
 if [ ! -r "$tty_file" ]; then
     echo "pair-notify: $tty_file missing; outer TTY not recorded" >&2

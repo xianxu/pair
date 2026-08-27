@@ -1,5 +1,17 @@
 # Lessons
 
+## Verification must not inherit ignored generated state
+
+A boundary suite passed in the developer checkout because an ignored generated
+runtime mirror was present, while the same focused test failed from a clean
+archive after those files were correctly removed from Git.
+
+**Rule.** Any test that validates generated output must create that output in a
+temporary directory from tracked inputs, then compare it with the manifest in
+both directions. Run the focused gate once from a clean archive or checkout;
+the working tree's ignored build residue is never admissible evidence. Caught
+in #000149 M5 review.
+
 ## Compound event state needs one synchronization owner
 
 An overlay used an atomic boolean plus a separately locked text tail. Enter
@@ -2018,3 +2030,259 @@ was unavailable.
 the facts independently. Test all resulting states—in this case local-live,
 remote-live, and parked—and authorize an action from the capability it needs,
 not from the absence of a different capability (ARCH-PURPOSE).
+
+## A client PID is not the lifetime of the durable session it views
+
+`#149` M1 initially released bounded-path capacity when the recorded Pair
+client PID died. Pair is only a zellij client, however; the zellij session and
+its workspace-writing panes can survive it, so this admitted a second writer
+while the first durable incarnation was still active.
+
+**Rule.** Release concurrency capacity only from evidence about the complete
+incarnation named by the policy, not a convenient child or client process.
+When a harness has a server/client split, test client death with the server
+still live and retain occupancy until a whole-incarnation quiescence seam says
+otherwise (ARCH-PURPOSE, ARCH-MOCK).
+
+## Uniqueness must cover every durable representation of an identity
+
+`#149` M1 first checked opaque tags only against ThreadStore. Existing Pair
+drafts, configs, logs, and detached-session bindings could therefore already
+own the same composite address even when no ThreadStore record existed.
+
+**Rule.** Before claiming a generated identity, enumerate and check every
+durable representation that can resolve to it. Prefer a structural ownership
+rule that covers the whole namespace (here: an exact tag token with filename
+boundaries inside Pair's owned scope) over a prefix enum: constructors in Go,
+Lua, layouts, and future consumers otherwise drift independently. Keep the
+collision seam explicit until all producers share one transaction (ARCH-DRY,
+ARCH-PURPOSE).
+
+A scan followed by a separate claim is still a collision bug: another producer
+can create state in the interval. The shared authority must be acquired first
+(for files, an O_EXCL marker is sufficient), and every current producer must
+participate before writing its first durable representation. Test simultaneous
+claimers and the reserved-to-established handoff, not only preexisting files.
+
+## A pidfile is a readiness promise, not merely process metadata
+
+The wrapper wrote `pair-wrap-pid-<tag>` before registering its SIGUSR2 handler.
+Tests usually slept long enough to hide the interval, but a loaded full suite
+could observe the pidfile, send restart, and lose the signal before the handler
+owned it.
+
+**Rule.** Install every handler and initialize every state transition that a
+pidfile-triggered caller depends on before publishing the pidfile. Tests should
+act immediately when the file appears; adding sleep only widens the disguise.
+
+## Acknowledgement transfers execution permission, not ownership
+
+`#149` M2 initially acknowledged the pre-exec helper and then returned errors
+from registration, promotion, or cache persistence while the target kept
+running. The caller discarded the handle on error, leaving a workspace writer
+with no supervisor responsible for it.
+
+**Rule.** Treat acknowledgement errors as possibly delivered: a successful
+write followed by a close error cannot be revoked by `Cancel`. Enumerate every
+exit after an acknowledgement attempt and before ownership handoff. Each must
+either transfer ownership or quiesce the whole incarnation—not merely the held
+client when it can leave a server/session and workspace-writing descendants—
+then preserve occupied durable state whenever reconciliation is uncertain.
+Test the complete failure-site table with a real orphanable descendant, not one
+representative branch or a single-process fake. The regression must perform
+cleanup through the production ownership boundary; a fake hook that kills the
+descendant itself proves a capability production may not have. Enumerate every
+pre-handoff process class: keep ordinary descendants and Couch-launched
+sidecars in an actor-owned process group, and clean separately detached servers
+through their exact durable binding. A destructive command returning does not
+prove absence: observe the exact external state afterward, model re-registration
+in the stateful fake, and fail closed on query, deletion, or escalation errors
+without returning ownership. A process-table match is not destructive authority:
+carry PID plus a kernel start token and reauthorize both identity and exact argv
+immediately before signalling. Every stateful external fake also needs a
+committed live target and cadence. Retrying while ownership is retained must
+reuse one wait-result channel for the exact process; a fresh `Wait` goroutine on
+each attempt leaks blocked waiters. A live conformance test must make every
+relied-on external operation load-bearing—for zellij teardown, explicitly
+observe server enumeration, delete dispatch, and exact-server escalation—not
+only assert a final absence that a weaker path can also produce. Instrument the
+lowest injected effect seam, and construct a live target that the preceding
+operation cannot remove, so a higher-level method-entry flag cannot stand in
+for the external effect (ARCH-PURPOSE, ARCH-MOCK).
+
+## Crash-recovery evidence must be atomically published
+
+`#149` M2 changed the durable registration marker from reserved to established
+with `O_TRUNC` followed by write. Concurrent readers could observe empty or
+partial JSON, and a crash could permanently strand malformed evidence.
+
+**Rule.** Publish a state transition used as concurrent or crash-recovery
+evidence by writing and syncing a same-directory temporary file, atomically
+renaming it, then syncing the directory. Synchronize a reader before rename and
+prove it sees the complete old value, then the complete new value—never a
+transient parse error (ARCH-PURPOSE).
+
+## PURE fixtures must be literal at their direct boundary
+
+`#149` called `ThreadRecord` and `StartTransaction` pure, but their shared
+fixture created and resolved temporary directories, and a runner lifecycle test
+sat beside the direct transition tests. The production functions were pure;
+their claimed direct tests were not.
+
+**Rule.** Direct tests for a PURE entity use literal values and no filesystem,
+process, network, or integration fake. Put store/runner conformance in an
+explicitly integration-named file, and mechanically reject integration seams
+from the direct-test files (ARCH-PURE).
+
+## Optional durable indexes need a typed absence state
+
+An optional index reader cannot collapse missing, corrupt, and incomplete into
+one error branch. Once durable authority exists, falling back to legacy lookup
+can silently create a second identity.
+
+**Rule.** Tolerate only a typed absent-store result. Propagate every malformed
+or incomplete authoritative read before any launch or mutation, and test both
+directions through the production decision flow (ARCH-PURPOSE).
+
+## Required string arguments validate presence, not truthiness
+
+Empty strings can be meaningful commands, especially clearing metadata. A
+schema check using `value == ""` erases the distinction a patch type preserved.
+
+**Rule.** Validate required map keys by membership. Let the operation-specific
+executor decide whether an explicitly empty value is valid, and pin every
+declared clearing path.
+
+## Composite references carry their collision domain
+
+A tag, path, or human name is not an address when the same value can occur in
+several repository scopes. Correct storage does not help if one CLI consumer
+drops scope before resolution.
+
+**Rule.** Every composite-address consumer either carries the exact address or
+derives scope at its boundary. Test a repeated tag across scopes at the public
+entry point, including reads as well as writes (ARCH-PURPOSE).
+
+## A declared effect needs one mechanically enforced authority
+
+Routing most calls through a dispatcher still leaves two semantics if a
+startup path can invoke the primitive directly.
+
+**Rule.** Keep the lowest effect primitive private to its executor's package,
+then test the typed declaration emitted by each external wiring path. This
+turns dispatcher bypass into a compile error rather than a review convention
+(ARCH-DRY, ARCH-PURPOSE).
+
+## Durable-read callback types must carry failure
+
+An error-aware store is still fail-open when a UI callback returns only a
+slice: the adapter has no representation except “empty,” so corruption becomes
+indistinguishable from valid absence.
+
+**Rule.** Every callback crossing a durable-record read returns `(value,
+error)`. The consumer preserves the last valid state where possible and shows
+the failure in its owned surface. Test the production adapter with a failing
+real store read as well as the consumer's visible error behavior
+(ARCH-PURPOSE, ARCH-MOCK).
+
+## Compact and diagnostic renderers have different identity duties
+
+Human-first lists reduce noise, but a detail view must still expose immutable
+identity for exact commands and support.
+
+**Rule.** Share row rendering mechanics while making identity visibility an
+explicit mode: compact lists may hide a named system id; diagnostic views must
+always print the full durable address. Pin both halves so one shared renderer
+cannot flatten the distinction (ARCH-DRY, ARCH-PURPOSE).
+
+## A portable projection must share the owner's acceptance contract
+
+A read-only consumer can project fewer fields after validation, but a partial
+shadow decode schema silently defines a second set of valid durable states.
+Missing fields and malformed nested data can then influence decisions even
+while the owning store refuses them.
+
+**Rule.** Put the complete persisted wire shape and structural validator below
+all readers and writers. Project only after that shared decode succeeds. Keep a
+cross-reader mutation table enumerating every required top-level, address,
+nested-record, generation, and path-binding invariant; each reader must reject
+every mutation (ARCH-DRY, ARCH-PURPOSE, ARCH-MOCK).
+
+## Durable index relocation needs an overlap-read epoch
+
+Moving the writer to a scoped location does not move already-live state. A
+reader that switches locations atomically can strand detached sessions even
+though both old and new files are individually valid.
+
+**Rule.** During a durable-index relocation, read and strictly merge every
+prior authoritative location before the new one, while writing only the new
+location. Tolerate missing files only; malformed or unreadable present state
+must stop every identity-dependent or destructive caller. Pin a legacy-only
+live record, a mixed old/new record, and each fail-closed effect path.
+
+## Constructor closure includes source shape and derived companions
+
+An extension-only source scan misses extensionless scripts, and a token scan
+misses `exact_path .. suffix` derivations. Both allow a claimed path authority
+to coexist with real constructors outside it.
+
+**Rule.** Enumerate production source by language extension or shebang, route
+intentional legacy reads through an explicit compatibility API, and test exact
+non-Go bindings against forbidden sibling derivations. When one artifact has
+companions, their derivation belongs in the path authority too
+(ARCH-DRY, ARCH-PURPOSE).
+
+## Negative scans do not prove a single authority
+
+A blacklist can reject known constructor shapes while a split literal, helper,
+or new expression form still derives the same artifact elsewhere. A source's
+self-declared classification is not evidence that it consumed the authority.
+
+**Rule.** For every claimed artifact family, require a positive, mechanically
+checked derivation witness from the owning resolver through the family-specific
+member, and make every production source explicitly participate or explicitly
+declare non-participation independent of token discovery. Track lexical value
+identity and reject discarded witnesses; then scan each construction
+independently, because one valid witness proves participation but cannot bless
+a second path in the same file. Include runtime fragment assembly, not only
+compile-time constants. Keep exact protocol/CLI vocabulary in a closed, counted
+allowance that cannot witness path authority. Derive architecture inventories
+from the owning declarations when the source boundary is mechanically
+enumerable; do not create another expected-row list. In plans, state
+verification recipes from their initial filesystem and environment state—such
+as no `.git` and no generated assets—and make required architecture rows an
+executable inventory so review can reject proof that depends on developer
+residue or corrected-but-unpinned prose (ARCH-DRY, ARCH-PURPOSE).
+
+## Plan review must challenge the proof shape
+
+A plan can name the right authority and still propose evidence that recognizes
+only the author's preferred syntax or selected source files. That defect is
+cheapest to find before implementation.
+
+**Rule.** For every exclusivity or whole-diff claim, plan review asks what
+positive witness proves derivation, what exhaustive source enumerates the
+population, and which adversarial mutations vary lexical scope (cross-file
+package and local), order, aliasing, helper indirection, runtime composition, and initial
+filesystem state. Participation must fail closed: a newly exported authority or
+new source/declaration cannot silently receive the non-participating/default
+disposition; close the audited declaration population mechanically when
+individual detail markers would be noise.
+If those witnesses are absent, the plan is not ready for `change-code`, even
+when its happy-path tests are precise (ARCH-PURPOSE).
+
+## Static enforcement must name its bounded language
+
+`#149` M5 turned a useful repository inventory into a home-grown Go provenance
+analyzer. Each review found another legal construction—ordering, helpers,
+package globals, cross-file flow, builders, then compound assignment—and the
+response kept extending the evaluator while still calling it exhaustive.
+
+**Rule.** A source-analysis test must state exactly which syntax and boundary it
+recognizes. Treat literal and AST scans as defense in depth unless they are
+backed by a real typed semantic model; do not call them proof of arbitrary
+program behavior. Prove the shipped repository with exhaustive current-source
+inventory, positive dependencies, and integration behavior. If a boundary
+review repeats the same family after five rounds, stop and bring the proof
+shape to the operator instead of adding another syntax case (Simplicity First,
+ARCH-DRY, ARCH-PURPOSE).

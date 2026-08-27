@@ -5,7 +5,9 @@ import (
 	"os"
 	"path/filepath"
 	"reflect"
+	"strconv"
 	"strings"
+	"syscall"
 	"testing"
 	"time"
 )
@@ -383,7 +385,7 @@ func TestOSRuntimeSessionNameIndexStore(t *testing.T) {
 	}
 }
 
-func TestOSRuntimeSessionNameIndexUsesGlobalDataDir(t *testing.T) {
+func TestOSRuntimeSessionNameIndexUsesSelectedScopeDir(t *testing.T) {
 	globalDir := t.TempDir()
 	scopedDir := t.TempDir()
 	rt := NewScopedOSRuntime(globalDir, scopedDir, "/pair")
@@ -391,11 +393,72 @@ func TestOSRuntimeSessionNameIndexUsesGlobalDataDir(t *testing.T) {
 	if err := rt.AppendSessionNameIndex(entry); err != nil {
 		t.Fatalf("AppendSessionNameIndex: %v", err)
 	}
-	if _, ok := rt.FileSize(filepath.Join(globalDir, "session-names.jsonl")); !ok {
-		t.Fatalf("session index was not written under global data dir")
+	if _, ok := rt.FileSize(filepath.Join(scopedDir, "session-names.jsonl")); !ok {
+		t.Fatalf("session index was not written under selected scope dir")
 	}
-	if _, ok := rt.FileSize(filepath.Join(scopedDir, "session-names.jsonl")); ok {
-		t.Fatalf("session index must not be written under scoped data dir")
+	if _, ok := rt.FileSize(filepath.Join(globalDir, "session-names.jsonl")); ok {
+		t.Fatalf("session index escaped to global data dir")
+	}
+}
+
+func TestOSRuntimeSessionNameIndexReadsLegacyGlobalEntriesAlongsideScopedEntries(t *testing.T) {
+	globalDir := t.TempDir()
+	scopedDir := t.TempDir()
+	scope := RepoScope{Key: "scope1", Root: "/repo", DisplayName: "pair"}
+	legacy := SessionNameEntry{SessionName: "📁pair-work", ScopeKey: scope.Key, RepoRoot: scope.Root, RepoName: scope.DisplayName, Tag: "work"}
+	line, err := BuildSessionNameIndexLine(legacy)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(globalDir, "session-names.jsonl"), []byte(line+"\n"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+
+	rt := NewScopedOSRuntime(globalDir, scopedDir, "/pair")
+	index, err := rt.ReadSessionNameIndex()
+	if err != nil {
+		t.Fatalf("ReadSessionNameIndex: %v", err)
+	}
+	name, _, err := AssignSessionName(index, []Session{{Name: legacy.SessionName, State: SessionDetached}}, scope, legacy.Tag, acceptAllSessionNames)
+	if err != nil {
+		t.Fatalf("AssignSessionName: %v", err)
+	}
+	if name != legacy.SessionName {
+		t.Fatalf("legacy live session assigned %q, want existing %q", name, legacy.SessionName)
+	}
+
+	scoped := SessionNameEntry{SessionName: "📁pair-next", ScopeKey: scope.Key, RepoRoot: scope.Root, RepoName: scope.DisplayName, Tag: "next"}
+	if err := rt.AppendSessionNameIndex(scoped); err != nil {
+		t.Fatal(err)
+	}
+	index, err = rt.ReadSessionNameIndex()
+	if err != nil {
+		t.Fatalf("ReadSessionNameIndex after scoped append: %v", err)
+	}
+	if len(index.Entries) != 2 || index.Entries[0] != legacy || index.Entries[1] != scoped {
+		t.Fatalf("merged index = %#v, want legacy then scoped", index)
+	}
+}
+
+func TestOSRuntimeSessionNameIndexRejectsMalformedDurableRows(t *testing.T) {
+	globalDir := t.TempDir()
+	scopedDir := t.TempDir()
+	if err := os.WriteFile(filepath.Join(scopedDir, "session-names.jsonl"), []byte("not-json\n"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := NewScopedOSRuntime(globalDir, scopedDir, "/pair").ReadSessionNameIndex(); err == nil {
+		t.Fatal("ReadSessionNameIndex accepted a malformed durable row")
+	}
+}
+
+func TestOSRuntimeSessionNameIndexRejectsStructurallyIncompleteRows(t *testing.T) {
+	globalDir := t.TempDir()
+	scopedDir := t.TempDir()
+	if err := os.WriteFile(filepath.Join(scopedDir, "session-names.jsonl"), []byte(`{"session_name":"📁repo-work","scope_key":"0123456789abcdef","tag":"work"}`+"\n"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := NewScopedOSRuntime(globalDir, scopedDir, "/pair").ReadSessionNameIndex(); err == nil {
+		t.Fatal("ReadSessionNameIndex accepted a structurally incomplete durable row")
 	}
 }
 
@@ -451,4 +514,60 @@ func TestSidecarSpawnArgvSelfExecsPair(t *testing.T) {
 			t.Fatalf("sidecar spawn target must self-exec pair, not a standalone binary: %q", argv[0])
 		}
 	}
+}
+
+func TestSidecarProcessOwnershipFollowsCouchIncarnation(t *testing.T) {
+	if got := sidecarProcessAttributes("0123456789abcdef", "couch-0001020304050607"); got != nil {
+		t.Fatalf("Couch sidecar escaped actor process group: %+v", got)
+	}
+	for _, tc := range []struct{ scope, tag string }{{"", ""}, {"scope", ""}, {"", "tag"}} {
+		got := sidecarProcessAttributes(tc.scope, tc.tag)
+		if got == nil || !got.Setsid {
+			t.Fatalf("direct Pair sidecar attributes for %q/%q = %+v", tc.scope, tc.tag, got)
+		}
+	}
+}
+
+func TestSpawnDetachedKeepsCouchSidecarInOwnedProcessGroup(t *testing.T) {
+	marker := filepath.Join(t.TempDir(), "sidecar-pgid")
+	t.Setenv("COUCH_THREAD_SCOPE", "0123456789abcdef")
+	t.Setenv("COUCH_THREAD_TAG", "couch-0001020304050607")
+	spawnDetached([]string{os.Args[0], "-test.run=^TestSidecarProcessGroupProbe$"}, []string{"PAIR_TEST_SIDECAR_PG_MARKER=" + marker})
+
+	deadline := time.Now().Add(2 * time.Second)
+	var fields []string
+	for time.Now().Before(deadline) {
+		raw, err := os.ReadFile(marker)
+		if err == nil {
+			fields = strings.Fields(string(raw))
+			if len(fields) == 2 {
+				break
+			}
+		}
+		time.Sleep(5 * time.Millisecond)
+	}
+	if len(fields) != 2 {
+		t.Fatalf("sidecar process-group probe = %v", fields)
+	}
+	pid, _ := strconv.Atoi(fields[0])
+	pgid, _ := strconv.Atoi(fields[1])
+	t.Cleanup(func() {
+		if process, err := os.FindProcess(pid); err == nil {
+			_ = process.Kill()
+		}
+	})
+	if pgid != syscall.Getpgrp() {
+		t.Fatalf("Couch sidecar pgid = %d, want inherited actor pgid %d", pgid, syscall.Getpgrp())
+	}
+}
+
+func TestSidecarProcessGroupProbe(t *testing.T) {
+	marker := os.Getenv("PAIR_TEST_SIDECAR_PG_MARKER")
+	if marker == "" {
+		return
+	}
+	if err := os.WriteFile(marker, []byte(fmt.Sprintf("%d %d\n", os.Getpid(), syscall.Getpgrp())), 0o600); err != nil {
+		os.Exit(2)
+	}
+	time.Sleep(30 * time.Second)
 }

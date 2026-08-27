@@ -1,0 +1,29 @@
+name: couch-zellij-conformance
+
+on:
+  workflow_dispatch:
+  schedule:
+    - cron: "41 16 * * 3"
+  pull_request:
+    paths:
+      - "cmd/internal/launcher/session_quiescence*.go"
+      - "cmd/internal/launcher/osruntime.go"
+      - "cmd/internal/couchcore/couch.go"
+      - ".github/workflows/couch-zellij-conformance.yml"
+  push:
+    branches: [main]
+    paths:
+      - "cmd/internal/launcher/session_quiescence*.go"
+      - "cmd/internal/launcher/osruntime.go"
+      - "cmd/internal/couchcore/couch.go"
+      - ".github/workflows/couch-zellij-conformance.yml"
+
+jobs:
+  conformance:
+    runs-on: macos-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install zellij
+        run: brew install zellij
+      - name: Exercise observable zellij teardown
+        run: make test-couch-zellij-live

@@ -22,10 +22,11 @@ type Size struct {
 // Options configures a child. Everything here is what the CALLER knows; nothing
 // about switching policy belongs in it.
 type Options struct {
-	Dir  string
-	Argv []string
-	Env  []string
-	Size Size
+	Dir        string
+	Argv       []string
+	Env        []string
+	Size       Size
+	ExtraFiles []*os.File
 
 	// RingBytes is how much output to keep for a repaint. Zero means
 	// DefaultRingBytes.
@@ -81,6 +82,7 @@ func Start(opts Options) (*Child, error) {
 	if opts.Env != nil {
 		cmd.Env = append(os.Environ(), opts.Env...)
 	}
+	cmd.ExtraFiles = opts.ExtraFiles
 
 	// Size at Start rather than start-then-resize: a child that draws its first
 	// frame at 80x24 and reflows a moment later is a visible flash on every

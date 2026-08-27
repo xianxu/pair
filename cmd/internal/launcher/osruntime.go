@@ -8,11 +8,13 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"regexp"
 	"sort"
 	"strings"
 	"syscall"
 	"time"
 
+	"github.com/xianxu/pair/cmd/internal/artifactpath"
 	"github.com/xianxu/pair/cmd/internal/continuationcmd"
 	"github.com/xianxu/pair/cmd/internal/osfs"
 	"github.com/xianxu/pair/cmd/internal/procutil"
@@ -33,6 +35,11 @@ type OSRuntime struct {
 	DataDir       string
 	GlobalDataDir string
 	PairHome      string
+	CouchStoreDir string
+
+	sessionQuiescence  sessionQuiescenceOps
+	sessionQuiesceWait time.Duration
+	sessionQuiescePoll time.Duration
 }
 
 // NewOSRuntime builds the concrete runtime for a resolved data dir + asset root.
@@ -42,6 +49,10 @@ func NewOSRuntime(dataDir, pairHome string) *OSRuntime {
 
 func NewScopedOSRuntime(globalDataDir, dataDir, pairHome string) *OSRuntime {
 	return &OSRuntime{DataDir: dataDir, GlobalDataDir: globalDataDir, PairHome: pairHome}
+}
+
+func (r OSRuntime) EnsureThreadAddress(scope RepoScope, tag string, couchOwned bool) error {
+	return EnsureThreadAddressForPair(r.GlobalDataDir, scope, tag, couchOwned)
 }
 
 const zjTimeout = 5 * time.Second
@@ -156,7 +167,10 @@ func (r OSRuntime) ListSessions() ([]ListRow, error) {
 	}
 	raw := zj("list-sessions", "--no-formatting")
 	names := pairSessionNames(zj("list-sessions", "--short"))
-	index, _ := r.ReadSessionNameIndex()
+	index, err := r.ReadSessionNameIndex()
+	if err != nil {
+		return nil, fmt.Errorf("read session-name index: %w", err)
+	}
 	return buildListRowsForScope(names, raw, index, scopeKeyFromDataDir(r.GlobalDataDir, r.DataDir), r.InferAgent, func(session string) int {
 		return parseClientCount(zj("--session", session, "action", "list-clients"))
 	}), nil
@@ -356,9 +370,9 @@ func (OSRuntime) DevRebuild(pairHome string) {
 	cmd.Run()
 }
 
-// spawnDetached backgrounds argv[0] in its own session (setsid) with stdio to
-// /dev/null — the Go analogue of the shell's `… </dev/null >/dev/null 2>&1 &`
-// + disown, so the child survives the launcher and never leaks a job line.
+// spawnDetached backgrounds argv[0] with stdio to /dev/null. Direct Pair puts
+// it in its own session (the historical disown behavior); Couch-launched Pair
+// leaves it in the actor-owned process group until ownership handoff.
 func spawnDetached(argv []string, extraEnv []string) {
 	devNull, err := os.Open(os.DevNull)
 	if err != nil {
@@ -368,11 +382,22 @@ func spawnDetached(argv []string, extraEnv []string) {
 	cmd := exec.Command(argv[0], argv[1:]...)
 	cmd.Env = append(os.Environ(), extraEnv...)
 	cmd.Stdin, cmd.Stdout, cmd.Stderr = devNull, devNull, devNull
-	cmd.SysProcAttr = &syscall.SysProcAttr{Setsid: true}
+	cmd.SysProcAttr = sidecarProcessAttributes(os.Getenv("COUCH_THREAD_SCOPE"), os.Getenv("COUCH_THREAD_TAG"))
 	if err := cmd.Start(); err != nil {
 		return
 	}
-	go func() { _ = cmd.Wait() }() // reap our bookkeeping; the child is reparented.
+	go func() { _ = cmd.Wait() }() // reap our bookkeeping when the sidecar exits.
+}
+
+// A Couch-launched Pair already runs in an actor-owned process group. Its
+// pre-handoff sidecars must remain in that group so Couch can quiesce the whole
+// incarnation on a failed start. Direct Pair sidecars retain the historical
+// detached-session behavior.
+func sidecarProcessAttributes(couchScope, couchTag string) *syscall.SysProcAttr {
+	if couchScope != "" && couchTag != "" {
+		return nil
+	}
+	return &syscall.SysProcAttr{Setsid: true}
 }
 
 // --- EnvOps ----------------------------------------------------------------
@@ -402,7 +427,11 @@ func (OSRuntime) CommandExists(name string) bool {
 }
 
 func (r OSRuntime) RecordOuterTTY(tag string) {
-	path := filepath.Join(r.DataDir, "outer-tty-"+tag)
+	paths, err := artifactpath.ResolveScoped(r.DataDir, tag)
+	if err != nil {
+		return
+	}
+	path := paths.OuterTTY()
 	cmd := exec.Command("tty")
 	cmd.Stdin = os.Stdin
 	out, _ := cmd.Output()
@@ -511,17 +540,21 @@ func (r OSRuntime) WriteAgentDefault(agent string, args []string) error {
 // InferAgent reads the agent-<tag> record (primary) or the agent encoded in a
 // config-<tag>-<agent>.json filename (fallback for Alt+x'd sessions).
 func (r OSRuntime) InferAgent(tag string) string {
+	paths, pathErr := artifactpath.ResolveScoped(r.DataDir, tag)
+	if pathErr != nil {
+		return ""
+	}
 	if entries, err := r.ReadLedger(tag); err == nil {
 		if latest, ok := LatestLedgerEntry(entries); ok && latest.Agent != "" {
 			return latest.Agent
 		}
 	}
-	if raw, err := r.ReadFile(filepath.Join(r.DataDir, "agent-"+tag)); err == nil {
+	if raw, err := r.ReadFile(paths.Agent()); err == nil {
 		if a := strings.TrimSpace(raw); a != "" {
 			return a
 		}
 	}
-	matches, _ := filepath.Glob(filepath.Join(r.DataDir, "config-"+tag+"-*.json"))
+	matches, _ := filepath.Glob(paths.ConfigGlob())
 	for _, m := range matches {
 		if raw, err := r.ReadFile(m); err == nil {
 			if cfg, err := parseConfig(raw); err == nil && cfg.Agent != "" {
@@ -533,7 +566,11 @@ func (r OSRuntime) InferAgent(tag string) string {
 }
 
 func (r OSRuntime) ReadLedger(tag string) ([]LedgerEntry, error) {
-	raw, err := r.ReadFile(filepath.Join(r.DataDir, "ledger-"+tag+".jsonl"))
+	paths, err := artifactpath.ResolveScoped(r.DataDir, tag)
+	if err != nil {
+		return nil, err
+	}
+	raw, err := r.ReadFile(paths.Ledger())
 	if err != nil {
 		return nil, err
 	}
@@ -541,7 +578,11 @@ func (r OSRuntime) ReadLedger(tag string) ([]LedgerEntry, error) {
 }
 
 func (r OSRuntime) AppendLedger(tag string, entry LedgerEntry) error {
-	path := filepath.Join(r.DataDir, "ledger-"+tag+".jsonl")
+	paths, err := artifactpath.ResolveScoped(r.DataDir, tag)
+	if err != nil {
+		return err
+	}
+	path := paths.Ledger()
 	var raw string
 	if existing, err := r.ReadFile(path); err == nil {
 		raw = existing
@@ -557,16 +598,17 @@ func (r OSRuntime) AppendLedger(tag string, entry LedgerEntry) error {
 	return r.WriteAtomic(path, raw)
 }
 
+// pair:m5-concept integration
 func (r OSRuntime) ReadSessionNameIndex() (SessionNameIndex, error) {
-	raw, err := r.ReadFile(filepath.Join(r.globalDataDir(), "session-names.jsonl"))
-	if err != nil {
-		return SessionNameIndex{}, err
-	}
-	return ParseSessionNameIndex(raw), nil
+	return readSessionNameIndexes(r.globalDataDir(), r.DataDir, r.ReadFile)
 }
 
 func (r OSRuntime) AppendSessionNameIndex(entry SessionNameEntry) error {
-	path := filepath.Join(r.globalDataDir(), "session-names.jsonl")
+	scope, err := artifactpath.ResolveSelectedScope(r.DataDir)
+	if err != nil {
+		return err
+	}
+	path := scope.SessionBindings()
 	var raw string
 	if existing, err := r.ReadFile(path); err == nil {
 		raw = existing
@@ -580,6 +622,28 @@ func (r OSRuntime) AppendSessionNameIndex(entry SessionNameEntry) error {
 	}
 	raw += line + "\n"
 	return r.WriteAtomic(path, raw)
+}
+
+func (r OSRuntime) ReadThreadIndex() (ThreadIndex, error) {
+	root := r.CouchStoreDir
+	if root == "" {
+		root = filepath.Join(r.globalDataDir(), "couch")
+	}
+	if !filepath.IsAbs(root) {
+		absolute, err := filepath.Abs(root)
+		if err != nil {
+			return ThreadIndex{}, err
+		}
+		root = absolute
+	}
+	threadStoreDir := filepath.Join(root, "threadstore")
+	if _, err := os.Stat(threadStoreDir); err != nil {
+		if os.IsNotExist(err) {
+			return ThreadIndex{}, fmt.Errorf("%w: %v", ErrThreadIndexAbsent, err)
+		}
+		return ThreadIndex{}, fmt.Errorf("inspect thread index store: %w", err)
+	}
+	return LoadThreadIndex(root, r.ReadFile)
 }
 
 func (r OSRuntime) globalDataDir() string {
@@ -612,7 +676,11 @@ func (r OSRuntime) LiveAgentSessionID(agent, tag string) string {
 	if agent != "codex" || tag == "" {
 		return ""
 	}
-	raw, err := r.ReadFile(filepath.Join(r.DataDir, "agent-pid-"+tag))
+	paths, err := artifactpath.ResolveScoped(r.DataDir, tag)
+	if err != nil {
+		return ""
+	}
+	raw, err := r.ReadFile(paths.AgentPID())
 	if err != nil {
 		return ""
 	}
@@ -641,11 +709,32 @@ func (OSRuntime) AttachSession(session, configDir string) (int, error) {
 	return runBlockingHandoff(exec.Command("zellij", "--config-dir", configDir, "attach", session))
 }
 
-// pairCacheDir is where `pair restart`/`pair quit` drop the {quit,restart}-<session> markers.
-func pairCacheDir() string { return filepath.Join(os.Getenv("HOME"), ".cache", "pair") }
+// restartMarkerPath and quitMarkerPath keep compatibility cache paths behind
+// the artifactpath authority while preserving the launcher's fail-closed bool
+// seam for an invalid HOME or session name.
+func restartMarkerPath(session string) (string, bool) {
+	paths, err := artifactpath.ResolvePairCache(os.Getenv("HOME"))
+	if err != nil {
+		return "", false
+	}
+	path, err := paths.Restart(session)
+	return path, err == nil
+}
+
+func quitMarkerPath(session string) (string, bool) {
+	paths, err := artifactpath.ResolvePairCache(os.Getenv("HOME"))
+	if err != nil {
+		return "", false
+	}
+	path, err := paths.Quit(session)
+	return path, err == nil
+}
 
 func (r OSRuntime) TakeQuitMarker(session string) bool {
-	path := filepath.Join(pairCacheDir(), "quit-"+session)
+	path, ok := quitMarkerPath(session)
+	if !ok {
+		return false
+	}
 	if !fileExists(path) {
 		return false
 	}
@@ -654,11 +743,18 @@ func (r OSRuntime) TakeQuitMarker(session string) bool {
 }
 
 func (OSRuntime) RestartMarkerPresent(session string) bool {
-	return fileExists(filepath.Join(pairCacheDir(), "restart-"+session))
+	path, ok := restartMarkerPath(session)
+	if !ok {
+		return false
+	}
+	return fileExists(path)
 }
 
 func (r OSRuntime) TakeRestartMarker(session string) (RestartMarker, bool) {
-	path := filepath.Join(pairCacheDir(), "restart-"+session)
+	path, ok := restartMarkerPath(session)
+	if !ok {
+		return RestartMarker{}, false
+	}
 	raw, err := r.ReadFile(path)
 	if err != nil {
 		return RestartMarker{}, false
@@ -670,11 +766,19 @@ func (r OSRuntime) TakeRestartMarker(session string) (RestartMarker, bool) {
 // WriteRestartMarker + TouchQuitMarker are the in-session compaction write twins
 // (#99 M5b, shell 1052-1058); WriteAtomic/Touch MkdirAll the cache dir.
 func (r OSRuntime) WriteRestartMarker(session string, m RestartMarker) {
-	_ = r.WriteAtomic(filepath.Join(pairCacheDir(), "restart-"+session), serializeRestartMarker(m))
+	path, ok := restartMarkerPath(session)
+	if !ok {
+		return
+	}
+	_ = r.WriteAtomic(path, serializeRestartMarker(m))
 }
 
 func (r OSRuntime) TouchQuitMarker(session string) {
-	_ = r.Touch(filepath.Join(pairCacheDir(), "quit-"+session))
+	path, ok := quitMarkerPath(session)
+	if !ok {
+		return
+	}
+	_ = r.Touch(path)
 }
 
 // ExecKillSession execs `${PAIR_KILL_CMD:-zellij kill-session} <session>` and
@@ -691,16 +795,24 @@ func (OSRuntime) ExecKillSession(session string) {
 	}
 }
 
-// DeleteSession removes the zellij session record, then SIGKILLs a lingering
-// `zellij --server …/<session>` that re-registered the record on a heartbeat.
-func (OSRuntime) DeleteSession(session string) error {
-	ctx, cancel := context.WithTimeout(context.Background(), zjTimeout)
-	defer cancel()
-	if out, err := exec.CommandContext(ctx, "zellij", "delete-session", session, "--force").CombinedOutput(); err != nil {
-		return fmt.Errorf("%s: %w", strings.TrimSpace(string(out)), err)
+// DeleteSession returns success only after both the exact session record and
+// every exact server process are observed absent. A lingering server can
+// re-register the record after delete-session, so attempted deletion alone is
+// not quiescence evidence.
+func (r OSRuntime) DeleteSession(session string) error {
+	ops := r.sessionQuiescence
+	if ops == nil {
+		ops = newOSSessionQuiescenceOps()
 	}
-	pkillF("zellij --server .*/" + session + "$")
-	return nil
+	wait := r.sessionQuiesceWait
+	if wait <= 0 {
+		wait = zjTimeout
+	}
+	poll := r.sessionQuiescePoll
+	if poll <= 0 {
+		poll = 25 * time.Millisecond
+	}
+	return quiesceZellijSession(session, ops, wait, poll)
 }
 
 // pkillF runs `pkill -9 -f <pattern>` (best-effort; macOS pkill -f is BRE).
@@ -709,8 +821,12 @@ func pkillF(pattern string) { _ = exec.Command("pkill", "-9", "-f", pattern).Run
 // ReapNvim kills this tag's nvim --embed children: the deterministic pidfiles
 // first, then a scoped pkill for the missing-pidfile case (shell 1089-1112).
 func (r OSRuntime) ReapNvim(tag string) {
+	paths, err := artifactpath.ResolveScoped(r.DataDir, tag)
+	if err != nil {
+		return
+	}
 	for _, kind := range []string{"draft", "scrollback"} {
-		pf := filepath.Join(r.DataDir, "nvim-pid-"+tag+"-"+kind)
+		pf := paths.NvimPID(kind)
 		if raw, err := r.ReadFile(pf); err == nil {
 			if pid := strings.TrimSpace(raw); pid != "" {
 				_ = exec.Command("kill", "-9", pid).Run()
@@ -718,24 +834,31 @@ func (r OSRuntime) ReapNvim(tag string) {
 			r.Remove(pf)
 		}
 	}
-	pkillF("nvim --embed.*" + r.DataDir + "/draft-" + tag + `\.md$`)
-	pkillF("nvim --embed.*" + r.DataDir + "/scrollback-" + tag + "-")
+	pkillF("nvim --embed.*" + regexp.QuoteMeta(paths.Draft()) + `$`)
+	pkillF("nvim --embed.*" + regexp.QuoteMeta(paths.ScrollbackPrefix()))
 }
 
 // SweepOrphanNvim reaps nvim --embed processes whose Pair session is not live —
 // candidates come from the nvim-pid-* sidecars and a full `ps` argv scan (catches
 // embeds with no pidfile), shell 1117-1158.
 func (r OSRuntime) SweepOrphanNvim(liveTags []string) {
+	scope, err := artifactpath.ResolveSelectedScope(r.DataDir)
+	if err != nil {
+		return
+	}
 	live := make(map[string]bool, len(liveTags))
 	for _, t := range liveTags {
 		live[t] = true
 	}
 	cands := map[string]bool{}
 	for _, kind := range []string{"draft", "scrollback"} {
-		matches, _ := filepath.Glob(filepath.Join(r.DataDir, "nvim-pid-*-"+kind))
+		pattern, err := scope.NvimPIDGlob(kind)
+		if err != nil {
+			continue
+		}
+		matches, _ := filepath.Glob(pattern)
 		for _, m := range matches {
-			tag := strings.TrimSuffix(strings.TrimPrefix(filepath.Base(m), "nvim-pid-"), "-"+kind)
-			if tag != "" {
+			if tag, ok := scope.TagFromNvimPID(m, kind); ok {
 				cands[tag] = true
 			}
 		}
@@ -745,7 +868,7 @@ func (r OSRuntime) SweepOrphanNvim(liveTags []string) {
 			if !strings.Contains(argv, "nvim") || !strings.Contains(argv, "--embed") {
 				continue
 			}
-			if tag := tagFromEmbedArgv(argv, r.DataDir); tag != "" {
+			if tag := scope.TagFromNvimEmbedArgv(argv); tag != "" {
 				cands[tag] = true
 			}
 		}
@@ -762,19 +885,29 @@ func (r OSRuntime) SweepOrphanNvim(liveTags []string) {
 // touches parked-<tag> (shell 696-708). The timestamp is taken here (time.Now is
 // live in OSRuntime, unlike a pure decider).
 func (r OSRuntime) ParkScrollback(tag, agent string, move bool) (string, bool) {
-	base := filepath.Join(r.DataDir, "scrollback-"+tag+"-"+agent)
-	if size, ok := r.FileSize(base + ".raw"); !ok || size == 0 {
+	paths, err := artifactpath.ResolveScoped(r.DataDir, tag)
+	if err != nil {
 		return "", false
 	}
-	pbase := filepath.Join(r.DataDir, "parked-scrollback-"+tag+"-"+time.Now().Format("20060102T150405"))
-	if !transferFile(base+".raw", pbase+".raw", move) {
+	scrollback, err := paths.ScrollbackArtifacts(agent)
+	if err != nil {
 		return "", false
 	}
-	if _, ok := r.FileSize(base + ".events.jsonl"); ok {
-		transferFile(base+".events.jsonl", pbase+".events.jsonl", move)
+	if size, ok := r.FileSize(scrollback.Raw); !ok || size == 0 {
+		return "", false
 	}
-	_ = r.Touch(filepath.Join(r.DataDir, "parked-"+tag))
-	return pbase, true
+	parked, err := paths.ParkedScrollbackArtifacts(time.Now().Format("20060102T150405"))
+	if err != nil {
+		return "", false
+	}
+	if !transferFile(scrollback.Raw, parked.Raw, move) {
+		return "", false
+	}
+	if _, ok := r.FileSize(scrollback.Events); ok {
+		transferFile(scrollback.Events, parked.Events, move)
+	}
+	_ = r.Touch(paths.Parked())
+	return parked.Base, true
 }
 
 // transferFile moves (rename, with a cross-device copy+remove fallback) or copies
@@ -837,7 +970,11 @@ func (OSRuntime) IsTTY() bool {
 
 // KillTitlePoller SIGTERMs (not -9: it self-cleans) + clears the poller pidfile.
 func (r OSRuntime) KillTitlePoller(tag string) {
-	pf := filepath.Join(r.DataDir, "title-pid-"+tag)
+	paths, err := artifactpath.ResolveScoped(r.DataDir, tag)
+	if err != nil {
+		return
+	}
+	pf := paths.TitlePID()
 	if raw, err := r.ReadFile(pf); err == nil {
 		if pid := strings.TrimSpace(raw); pid != "" {
 			_ = exec.Command("kill", pid).Run()

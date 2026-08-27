@@ -18,8 +18,9 @@ tag="${1:?usage: fake-review-agent.sh <tag> [file]}"
 file="${2:-doc.md}"
 dir="${XDG_DATA_HOME:-$HOME/.local/share}/pair"
 mkdir -p "$dir"
-handoff="$dir/review-handoff-$tag.json"
-landed="$dir/review-landed-$tag.json"
+handoff="${PAIR_REVIEW_HANDOFF_PATH:-$dir/review-handoff-$tag.json}"
+landed="${PAIR_REVIEW_LANDED_PATH:-$dir/review-landed-$tag.json}"
+mkdir -p "$(dirname "$handoff")" "$(dirname "$landed")"
 docflow="${DOCFLOW_BIN:-docflow}"
 
 # (1) branch + (2) human round (the nvim saved the incoming edits).

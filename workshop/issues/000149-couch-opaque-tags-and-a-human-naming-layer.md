@@ -1,12 +1,13 @@
 ---
 id: 000149
-status: working
+status: codecomplete
 deps: []
 github_issue:
 created: 2026-08-21
-updated: 2026-08-25
-estimate_hours:
+updated: 2026-08-27
+estimate_hours: 17.80
 started: 2026-08-25T14:21:34-07:00
+actual_hours: 56.46
 ---
 
 # couch: opaque tags and a human naming layer
@@ -412,6 +413,102 @@ verified parked state are #152 outcomes; managed missing-path reprovision and
 working-path rebind are #153 outcomes. Older start/resume and generated-tree
 acceptance text is superseded by this boundary.
 
+### 2026-08-26 — align the first boundary with transactional admission
+
+**Reason:** implementation planning made a dependency in the milestone shorthand
+explicit: M1 cannot count cross-process `creating` occupants safely if the sole
+locked/revisioned store does not exist until M2. A temporary admission store
+would create exactly the shadow authority this issue removes. Plan review also
+made the provider-IO and one-file-per-thread persistence protocols explicit.
+
+**Delta:** M1 introduces the final `ThreadStore` lock/revision transaction
+kernel and the minimal per-thread admission/reservation schema. No legacy
+registry writer participates in admission after M1. M2 widens that same store
+for composite identity, tag claims, journaled start, and the blocked pre-exec
+helper; it does not replace or rebuild the M1 authority.
+
+Provider subprocess IO never runs while holding the global store lock. Admission
+captures relevant record revisions under lock, resolves the candidate and stale
+incumbents outside it, then reacquires the lock and either applies a pure
+prune/group/claim mutation against unchanged revisions or retries. Resolution
+failure remains occupied and no child forks.
+
+The store retains one atomic file per composite work thread. Store-level
+journals/manifests coordinate only mutations spanning multiple records (for
+example thread plus path preference or migration), with idempotent recovery;
+there is no monolithic all-thread snapshot in the final schema. Launch-profile
+resolution records agent provenance (`explicit`, `path`, or `root`) separately
+from argument provenance (`path` or `repo-default`), because those axes combine
+independently.
+
+M1 cuts admission over under the global lock: before the new authority can
+admit, it idempotently imports every legacy registry actor into minimal
+per-thread records, retains same-tree co-tenants as separate conservative
+incarnations, and persists a manifest cutover marker. Corrupt or ambiguous
+legacy input refuses the cutover. M5 later enriches these records and migrates
+metadata/artifact access; it does not first discover live admission occupants.
+During stale-policy refresh, every successful result for one repository must
+share the candidate's provider version and declaration digest. A mixed epoch
+retries the whole cohort; bounded exhaustion fails closed without forking.
+
+### 2026-08-26 — make the couch store the singleton namespace
+
+**Reason:** exposing thread naming to the root advisor raised the ownership
+question directly: if two couch consoles can supervise the same durable store,
+each can create a child the other cannot attach to, and “root” stops naming one
+place. Conversely, making every couch process a new namespace would orphan
+durable threads whenever couch restarts.
+
+**Delta:** the canonical `COUCH_STORE_DIR` is the durable couch namespace. The
+default Pair data store is the one ordinary namespace for this OS user. A
+thread's complete address inside it remains `{repo_scope, tag}`; if multiple
+stores are ever promoted to product behavior, the global address naturally
+becomes `{couch_namespace, repo_scope, tag}` without changing stored records.
+An explicit alternate store remains a test/isolation facility, not v1 UX.
+
+Pair resolves the namespace once at process entry, before constructing the
+lease, store, or local endpoint: make an explicit relative value absolute
+against the startup cwd, normalize it, create the directory if absent, resolve
+all physical symlinks, and reject any failure. That exact absolute physical path
+is used for the lifetime lease, endpoint, ThreadStore, and inherited
+`COUCH_STORE_DIR`; no child reinterprets a relative path from its own cwd.
+
+Exactly one couch process holds the namespace's supervisor lease. The lease is
+an OS advisory lock held for the owner's lifetime on a close-on-exec,
+non-inheritable descriptor, so no spawned or execed child retains ownership.
+Only after acquisition does the owner atomically publish its PID and
+process-start identity for diagnostics; a refusal reports that identity only
+after verifying it still denotes the lock owner. A crash therefore releases
+authority without relying on stale file deletion, even while children survive.
+Restarting couch acquires the same namespace and adopts its
+durable inventory—it does not mint a new namespace. A second supervising
+`couch start`, including consoleless mode, refuses with the current owner
+identity. Read and metadata clients may transact against the locked ThreadStore,
+but an operation that creates or attaches an actor must execute in the owner so
+the resulting child belongs to the console that can route its terminal. Until
+#147 supplies owner routing, an external actor-creating client refuses rather
+than starting an invisible second supervisor (ARCH-PURPOSE, ARCH-MOCK).
+
+The root actor and every child inherit the canonical namespace location plus
+their composite thread address. A couch process incarnation may have an
+ephemeral diagnostic ID, but it is never part of thread identity or artifact
+addressing.
+
+### 2026-08-26 — opaque identity joins admission in M1
+
+**Reason:** the implementation gate found that normalized Brain policy would
+admit two same-path starts in M1 while both still launched Pair's path-derived
+tag. Those nominal threads would attach to one native session and share
+artifacts until M2, violating the identity this issue exists to establish.
+
+**Delta:** M1 allocates and atomically claims the final composite
+`{repo_scope, couch-<16 hex>}` address for every new couch start before policy
+admission/fork. It launches Pair with that exact tag and scoped environment, so
+unbounded same-path starts are distinct from the first milestone. The M1 legacy
+bootstrap alone retains path-derived tags for already-existing actors. M2 no
+longer introduces identity; it widens the same record into the journaled
+blocked-helper start transaction and restart reconciliation (ARCH-PURPOSE).
+
 ## Done when
 
 - A couch-launched work thread gets a generated composite durable address;
@@ -439,30 +536,356 @@ acceptance text is superseded by this boundary.
 - Thread inventory distinguishes multiple threads at one path and exposes exact
   live versus non-live/unknown state; verified parked state, resume, and
   historical-age presentation follow `#152`.
+- Relative and symlinked spellings resolve to one physical couch namespace; one
+  console or consoleless supervisor owns it at a time, a concurrent supervisor
+  refuses with verified owner identity, and killing the owner releases the
+  lease immediately even if its child remains alive.
+
+## Estimate
+
+Produced via `brain/data/life/42shots/velocity/estimate-logic-v3.1.md` against
+`baseline-v3.1.md`. Method A only. `sdlc estimate-source` reports the calibration
+source as stale, so this is provisional but uses the required method. The
+service-scale item is the lock/revision/WAL-backed ThreadStore and recoverable
+start authority; the remaining items separate its OS, policy, UI, migration,
+and integration boundaries.
+
+```estimate
+model: estimate-logic-v3.1
+familiarity: 1.0
+item: issue-spec design=0.80 impl=0.08
+item: smaller-go-module design=0.06 impl=0.16
+item: greenfield-go-module design=0.40 impl=0.32
+item: api-integration design=0.60 impl=0.60
+item: greenfield-service design=2.00 impl=2.80
+item: greenfield-go-module design=0.40 impl=0.32
+item: cross-cutting-refactor design=0.20 impl=0.20
+item: smaller-go-module design=0.06 impl=0.16
+item: greenfield-go-module design=0.40 impl=0.32
+item: greenfield-go-module design=0.40 impl=0.32
+item: smaller-go-module design=0.06 impl=0.16
+item: smaller-go-module design=0.06 impl=0.16
+item: skill-or-dispatcher design=0.40 impl=0.16
+item: tui-screen design=0.40 impl=0.40
+item: smaller-go-module design=0.06 impl=0.16
+item: smaller-go-module design=0.06 impl=0.16
+item: smaller-go-module design=0.06 impl=0.16
+item: greenfield-go-module design=0.40 impl=0.32
+item: cross-cutting-refactor design=0.80 impl=0.20
+item: cross-repo-refactor-small design=0.06 impl=0.12
+item: real-api-discovery design=0.00 impl=0.24
+item: atlas-docs design=0.20 impl=0.16
+item: milestone-review design=0.08 impl=0.12
+item: milestone-review design=0.08 impl=0.12
+item: milestone-review design=0.08 impl=0.12
+item: milestone-review design=0.08 impl=0.12
+item: milestone-review design=0.08 impl=0.12
+design-buffer: 0.15
+total: 17.80
+```
 
 ## Plan
 
-- [ ] M1 — consume ariadne#200's versioned/digested normalized policy through an
-      injected resolver; reconcile stale evidence, account for live/unknown/
-      creating occupants, remove the shadow policy table, and close this exact
-      milestone before ariadne#200 closes.
-- [ ] M2 — build the locked/revisioned `ThreadStore`, composite address, atomic
-      opaque-tag claim, blocked pre-exec handshake, journaled start transaction,
-      and restart reconciliation.
-- [ ] M3 — add mutable name/description/published-summary operations, scoped
+- [x] M1 — introduce the final locked/revisioned `ThreadStore` kernel and its
+      minimal per-thread admission/reservation schema; allocate and atomically
+      claim final composite opaque addresses for new starts; consume
+      ariadne#200's versioned/digested normalized policy through an injected
+      resolver, reconcile stale evidence, account for live/unknown/creating
+      occupants, remove every legacy admission writer and the shadow policy
+      table, enforce one supervisor lease per store namespace, and close this
+      exact milestone before ariadne#200 closes.
+- [x] M2 — widen that same `ThreadStore` for the blocked pre-exec handshake,
+      journaled start transaction, and restart reconciliation.
+- [x] M3 — add mutable name/description/published-summary operations, scoped
       standalone Pair resolution, shared inventory, and common rendering without
       a leading system id.
-- [ ] M4 — persist per-thread and per-path/per-agent launch profiles; resolve
+- [x] M4 — persist per-thread and per-path/per-agent launch profiles; resolve
       explicit/path/root agent defaults and path/repository argument defaults,
       updating preferences only after successful registration.
-- [ ] M5 — migrate legacy tags, artifacts, sessions, registry state, and
+- [x] M5 — migrate legacy tags, artifacts, sessions, registry state, and
       same-tree co-tenants idempotently under the store lock, proving every
       artifact lookup is scoped by the composite address.
-- [ ] Reconcile `#135` with composite work-thread identity; leave verified park,
+- [x] Reconcile `#135` with composite work-thread identity; leave verified park,
       couch resume, and `last_active_at` to `#152`, and managed path rebinding to
       `#153`.
 
 ## Log
+
+### 2026-08-26 — M2 live conformance reaches the OS kill boundary
+- 2026-08-26: closed M4 — make test; go test ./... -count=1; focused M4 race suite; go vet ./...; Zellij checks; transport-neutral flag rejection; Couch authoritative negative repo-default state; pure unique child-env overlay; real ExecRunner stale-parent probe; exact committed M4 range git diff --check; review verdict: FIX-THEN-SHIP
+- 2026-08-26: closed M3 — BR-26: shared persisted thread wire/validator used by ThreadStore writes, Couch reads, and standalone Pair reads; real-file cross-reader mutation parity; focused race suite, make test, go test ./..., go vet, zellij config and layout2/layout3 checks, and git diff --check all pass; review verdict: SHIP
+- 2026-08-26: closed M2 — make test; go test ./... -count=1; race couchcore/launcher/ptychild; real zellij OS-kill and Ariadne live conformance; real-process start recovery; go vet; zellij config/layout2/layout3; git diff --check; review verdict: SHIP
+
+The seventh M2 review accepted reusable wait ownership but showed that observing
+entry into `KillServer` did not prove its guarded `killProcess` operation ran:
+ordinary `delete-session` usually removes the real server first. The live test
+now starts a separate process with exact zellij-server argv that session
+deletion cannot own. Production must discover its real PID/start identity,
+reauthorize it, and dispatch the underlying OS kill before the test accepts
+absence (ARCH-PURPOSE, ARCH-MOCK).
+
+### 2026-08-26 — M2 retry ownership and load-bearing live conformance
+
+The sixth M2 review found that retaining the handle was not sufficient while
+each cleanup retry started another goroutine blocked in `Wait`. Post-ack cleanup
+now creates one wait-result channel for the owned handle and reuses it through
+every TERM/KILL/absence attempt. A delayed-reap regression requires three kill
+attempts while proving exactly one waiter exists, including under the race
+detector.
+
+The real-zellij test now observes the production boundary and requires server
+enumeration, session-record deletion, and exact-server kill dispatch in
+addition to final absence. Removing either the enumeration or escalation path
+therefore breaks live conformance instead of passing through zellij's ordinary
+delete behavior (ARCH-DRY, ARCH-PURPOSE, ARCH-MOCK).
+
+### 2026-08-26 — M2 owned cleanup retries and exact server identity
+
+The fifth M2 review found that cleanup failure still returned ownership to an
+operation caller that discards handles on error. Post-ack cleanup now retries
+under the retained start call stack without a give-up return; only proven group
+and session absence permits `Spawn` to return its original failure.
+
+Server destruction carries PID, kernel start identity, and session. Production
+reauthorizes identity → exact argv → identity immediately before SIGKILL, with
+stateful PID-reuse/exec-away regressions. A real throwaway zellij session now
+checks the complete external seam under `make test-live`, backed by a weekly and
+manual macOS workflow. That live test found zellij may exit 2 after successful
+deletion, so command errors are retained for failure diagnostics while exact
+observed absence alone authorizes success (ARCH-PURPOSE, ARCH-MOCK).
+
+### 2026-08-26 — M2 observable detached-session teardown
+
+The fourth M2 review accepted process-group ownership but found the detached
+zellij cleanup still treated an attempted command as proof. `DeleteSession` now
+delegates through a stateful `SessionQuiescence` boundary: observe the exact
+session/server set, delete, kill exact lingering server PIDs, and require two
+stable absent observations. Any query, deletion, or kill error fails closed.
+
+A stateful fake re-registers the session after its first deletion and requires
+the production orchestrator to kill the server and delete again. Exact process-
+table parsing excludes neighbor sessions and commands that merely mention the
+server argv (ARCH-PURPOSE, ARCH-MOCK).
+
+### 2026-08-26 — M2 production-shaped whole-incarnation quiescence
+
+The third M2 review correctly rejected the descendant regression: its fake
+artifact hook killed the orphan, while production only deleted an indexed
+zellij session. The pre-handoff process inventory is now one owned group for
+the helper/Pair client and Couch-launched watcher/poller sidecars, plus the
+separately detached zellij server/panes addressed by the exact session binding.
+Rollback sends unconditional group KILL after TERM, reaps the client, proves
+the group empty, and only then deletes the session and reconciles state.
+
+The four post-ack failure exits run against real TERM-resistant descendants
+through both stdio and PTY production runners, with no fake cleanup hook. A
+real subprocess regression also proves Couch sidecars inherit the actor group;
+direct Pair retains its historical detached sidecars (ARCH-PURPOSE, ARCH-MOCK).
+
+### 2026-08-26 — M2 second boundary review corrections
+
+Acknowledgement failure is now conservatively “possibly delivered”: even a
+pre-write test error takes the same quiescence path because a successful byte
+write followed by close failure cannot be revoked. Whole-incarnation cleanup
+reaps the exact held client and then resolves and force-deletes only the zellij
+session durably bound to the same `{repo_scope, tag}`. A real-process table
+drives acknowledgement ambiguity plus registration, promotion, and registry-
+save failures through a TERM-resistant shell child and proves both client and
+orphanable descendant are gone before return (ARCH-PURPOSE, ARCH-MOCK).
+
+The reserved → established registration oracle now publishes through a synced
+sibling temporary file, atomic rename, and directory sync. A synchronized
+filesystem test holds publication before rename and reads the marker 100 times,
+observing only complete reserved evidence, then complete established evidence
+(ARCH-PURPOSE). A source contract now requires both production `StartBlocked`
+methods to delegate to `startBlockedChild` and forbids either parallel pipe or
+wrapper construction from returning (ARCH-DRY).
+
+Fresh verification passes: full `make test` and `go test ./... -count=1`; race
+tests for couchcore, launcher, and ptychild; live Ariadne policy conformance;
+real-process start recovery; `go vet ./...`; Zellij config and both layouts;
+and `git diff --check`.
+
+### 2026-08-26 — M2 boundary review corrections
+
+The first M2 review found one ownership gap shared by every error after target
+exec acknowledgement and before `Spawn` handoff. Registration-read failure,
+promotion revision conflict, and registry-cache persistence failure now all
+quiesce and reap the exact handle before returning. Durable reconciliation
+then rolls back only proven-free starts, retains unreadable creating state, or
+marks an established dead incarnation unknown; a table-driven integration test
+covers all three sites and preserves a concurrent description update
+(ARCH-PURPOSE, ARCH-MOCK).
+
+The direct `ThreadRecord` and `StartTransaction` tests now use literal absolute
+paths, while runner/store lifecycle checks are explicitly integration tests; a
+contract test prevents IO and integration fakes from returning to the PURE
+files (ARCH-PURE). ExecRunner and PtyRunner now delegate their complete blocked-
+start pipe protocol to one `startBlockedChild` authority (ARCH-DRY).
+
+Fresh verification passes: `make test`; `go test ./... -count=1`; race tests
+for couchcore, launcher, and ptychild; live Ariadne policy conformance; the real-
+process start-recovery probe; `go vet ./...`; Zellij config plus layout2/layout3
+validation; and `git diff --check`.
+
+### 2026-08-26 — M2 recoverable-start record boundary
+
+The store schema now groups each nonce with the exact supervising process
+identity that created it; the incarnation's existing PID/start-token pair names
+the blocked helper before exec and remains stable across exec. Validation permits
+the pre-fork and helper-recorded creating states, rejects partial identities,
+unsafe nonces, live records carrying an unfinished start, and more than one
+tracked start per thread, while continuing to read M1 and legacy incarnations.
+`launcher.ScopedPaths.Validate` and shared repo-scope/tag validators establish
+the same composite boundary for the upcoming helper instead of duplicating path
+rules (ARCH-DRY, ARCH-PURE, ARCH-PURPOSE).
+
+The initial tests failed to compile before the new model existed. Focused and
+race runs now pass for `./cmd/internal/couchcore ./cmd/internal/launcher`.
+
+### 2026-08-26 — M2 blocked pre-exec helper
+
+`pair-launch-helper` now owns the only pre-exec wait: descriptor 3 carries one
+exact acknowledgement byte, is close-on-exec, and is closed before replacing
+the helper with Pair. EOF, a wrong byte, or a bounded timeout exits without
+target exec. Both stdio and PTY runners pass the same pipe capability and retain
+their existing handle/terminal behavior; `FakeRunner` models blocked, acked,
+cancelled, and exact exec-count state across calls (ARCH-PURE, ARCH-MOCK).
+
+Subprocess regressions observe no target marker before acknowledgement, exactly
+one afterward, and none after cancel/EOF. Focused, race, and command-build tests
+pass for couchcore, couchcmd, ptychild, and `cmd/pair-launch-helper`.
+
+The pure `StartTransaction` projection and `AdvanceStartTransaction` now own
+the legal claim → helper-recorded → registered sequence. Generated interruption
+cases drive `ReconcileStart`: absent evidence rolls back only when the relevant
+owner/helper is proven dead; unknown process or registration evidence remains
+occupied; established Pair evidence promotes a live exact helper to live and a
+gone/unverifiable helper to conservative unknown. The same transition sequence
+runs against `FakeRunner`, pinning zero target execs before durable helper state
+and exactly one after acknowledgement (ARCH-PURE, ARCH-PURPOSE).
+
+### 2026-08-26 — M2 start transaction integrated
+
+Production `Spawn` now persists the nonce and exact supervisor identity, forks
+Pair through `Runner.StartBlocked`, persists the helper PID/start token, and
+only then acknowledges exec. Pair's existing composite address claim changing
+from `reserved` to `established` is the registration oracle; the live
+incarnation transition happens only after that exact evidence. Registration
+failure leaves the helper tuple creating and occupied. Pre-exec fork/ack
+failure cancels and reaps the helper before an exact nonce/revision rollback.
+
+`New` idempotently reconciles every interrupted start: dead plus unregistered
+rolls back and releases its address; an established exact live helper promotes
+live; an established gone helper promotes conservative unknown; any unknown
+process evidence stays occupied. The obsolete helper-less activation method is
+removed so no production or test path can bypass the transaction authority
+(ARCH-DRY, ARCH-PURE, ARCH-PURPOSE).
+
+Focused and race runs pass across couchcore, couchcmd, launcher, and ptychild.
+Regressions inspect ThreadStore from the fake's pre-ack hook to prove the helper
+tuple is durable while target exec count remains zero, then prove exactly one
+exec and registration; restart fixtures cover rollback and promotion.
+
+The committed `make test-couch-start-recovery` probe drives the installed
+helper and real kernel process identities through both restart outcomes. It
+passes: a cancelled pre-exec helper produces EOF and the exact unregistered
+nonce rolls back; an acknowledged target with the matching established Pair
+claim survives reconstruction and promotes live.
+
+M2 close verification passes: `make test`; race tests for couchcore, launcher,
+and ptychild; live Ariadne policy conformance; the committed real-process start
+recovery probe; `go vet ./...`; Zellij config and both layouts; and
+`git diff --check`.
+
+### 2026-08-26 — M1 admission kernel integrated
+- 2026-08-26: closed M1 — make test; go test ./... -count=1; go test -race ./cmd/internal/couchcore ./cmd/internal/launcher -count=1; make test-couch-policy-live SDLC_BIN=../ariadne/bin/sdlc; zellij config and main-2/main-3 layout validation; git diff --check; review verdict: SHIP
+
+Added the locked/revisioned composite ThreadStore, strict normalized fleet
+policy consumer, and optimistic admission reconciliation. New Couch starts now
+claim their final opaque `couch-<16hex>` address before admission, fork only
+after a durable creating incarnation exists, pass the composite scope/tag to
+Pair, and conservatively retain uncertain post-fork state. Proven-dead
+incarnations alone are pruned; unknown and creating occupants fail closed under
+bounded policy. Focused admission tests and the full couchcore suite pass
+(ARCH-DRY, ARCH-MOCK, ARCH-PURE, ARCH-PURPOSE).
+
+Removed the complete local-policy shadow class: `PolicyTable`, repository
+`Mode`, `policy.json`, registry admission, and the public same-path bypass.
+A source sweep now prevents any of those decision surfaces from returning.
+Capacity refusals render normalized provider evidence; provision-worktree
+refusals name #153 and create no path. Removing the bypass also exposed and
+fixed acceptance of undeclared CLI flags. `go test ./... -count=1` passes.
+
+The M1 integration boundary adds a live conformance target against a caller-
+supplied Ariadne `sdlc`, plus weekly/manual and resolver-change CI. It exercised
+bounded→unbounded declaration changes and exact typed refusal using a freshly
+built sibling binary. Full `make test`, focused Couch packages, layout/config
+validation, real supervisor crash/exec/contender probes, exact physical
+namespace inheritance, and `git diff --check` pass. `actionlint` is not
+installed locally; the workflow is also exercised command-for-command outside
+GitHub Actions.
+
+### 2026-08-26 — M1 boundary review corrections
+
+Boundary review corrected a lifecycle conflation in the preceding entry: a
+dead Pair client is not proof that its zellij session is quiescent. M1 now
+retains that incarnation and its capacity until #152 supplies
+whole-incarnation proof. Opaque allocation also rejects collisions with every
+current scoped Pair artifact family and the detached-session binding before
+claiming ThreadStore state. Policy churn makes exactly three attempts before
+returning typed `PolicyUnstableError`; the public README and live conformance
+interface now match provider-owned admission (ARCH-DRY, ARCH-PURPOSE).
+
+Verification passes with `go test ./... -count=1`, `go test -race
+./cmd/internal/couchcore -count=1`, the full `make test`, relative-path
+`make test-couch-policy-live SDLC_BIN=../ariadne/bin/sdlc`, both zellij layout
+dumps, zellij config validation, and `git diff --check`. The first full-suite
+rerun exposed a test-only synchronization race in the panel fixture: focus is
+published before the panel model, while the helper waited for focus alone. The
+helper now waits for both facts, and 50 consecutive couchtty package runs pass.
+
+### 2026-08-26 — M1 atomic address authority
+
+The second boundary review demonstrated a scan/claim interleaving, so the
+sequential artifact checker became a durable O_EXCL address claim shared by
+Couch and native Pair. A Couch reservation blocks direct Pair until the exact
+child establishes it; direct Pair claims before its first artifact; ThreadStore
+failure rolls back only its matching marker. The artifact-family inventory now
+lives beside `ScopedPaths`, including the claim marker, while malformed session
+indexes fail closed. Concurrency, historical adoption, Couch-child adoption,
+all constructor families, and zero-write refusal paths have stateful tests
+(ARCH-DRY, ARCH-MOCK, ARCH-PURPOSE).
+
+The current M1 `Operation` is explicitly integration because it still contains
+effectful `Invoke` closures; a plan-contract test protects every current kind,
+and M3 retains the declaration/executor split. README no longer advertises
+owner-required stop as a second-process command before #147 routing, and M1's
+project close date remains unset until the boundary accepts it.
+
+Verification passes with the full `make test`, `go test ./... -count=1`, race
+tests over Couch and launcher, relative-path live provider conformance, 100
+immediate SIGUSR2 wrapper restarts, zellij config/layout validation, and `git
+diff --check`. The full gate exposed a separate pidfile readiness race: the
+wrapper published its PID before registering SIGUSR2. The handler now owns the
+signal before the pidfile becomes visible (side-quest commit `7dbd8ac`).
+
+### 2026-08-26 — M1 complete collision-domain rule
+
+The third boundary review swept beyond `ScopedPaths` and found active Go/Lua/UI
+families such as `draft-pane`, `image-capture`, parked scrollback, pane memory,
+slug, and review sidecars. Collision recognition now uses a structural rule over
+the Pair-owned scope directory: the exact tag must have a hyphen boundary on
+the left and end/dot/hyphen on the right. This covers every current and future
+family without a duplicated prefix inventory while rejecting neighboring opaque
+tags. Integration tests precreate both current out-of-`ScopedPaths` families and
+an unknown future family and require allocation refusal (ARCH-DRY,
+ARCH-PURPOSE).
+
+A reusable project-state contract now walks every project artifact and rejects
+closed metadata beside an unchecked milestone row. Restoring M1's premature
+`**closed:**` line makes that repository test fail exactly; successful SDLC
+acceptance remains the only point that may check the row and record closure.
 
 ### 2026-08-25 — session summary
 
@@ -519,3 +942,445 @@ issue's model -- the tag as the space's durable identity, with its draft, ledger
 and session surviving revival -- is what would let a couch-launched session
 resume without asking. Whoever implements that should decide whether a
 non-interactive restore is part of it.
+
+### 2026-08-26 — make human thread lookup standalone in Pair
+
+Launcher now owns a portable read-only projection of the durable ThreadStore
+manifest and records. Its scoped exact-tag/name/path matcher is the one
+authority used both by standalone Pair and Couch's richer record adapter, so
+`pair resume <human-name>` preserves the opaque tag without requiring Couch to
+be running. Duplicate names return all candidates and refuse; existing direct
+Pair tags—including cold tags outside the history cutoff—win through their
+durable artifacts before fuzzy thread matching.
+
+The Pair picker merges durable parked records with sidecar history and decorates
+live rows from the same index. Human names lead while selection continues to
+carry the opaque tag; duplicate display names gain tag disambiguators rather
+than collapsing in the fzf lookup map. Mutable thread names remain separate
+from `SessionNameEntry`, the zellij socket binding, and legacy `pair rename`
+never treats a human thread name as permission to move opaque-tag artifacts.
+Full tests and launcher/couchcore race tests pass (ARCH-DRY, ARCH-PURE,
+ARCH-PURPOSE).
+
+### 2026-08-26 — share composite thread inventory with the panel
+
+Thread metadata and resolution now use revision-checked composite addresses;
+an omitted metadata field is distinct from explicitly clearing it, publication
+can update only the current thread's agent summary, and ambiguous human refs
+return every candidate instead of choosing one. CLI list/show and the Couch
+panel consume the same one-row-per-thread inventory, with human name leading,
+opaque tag only as the unnamed fallback, and operator description kept distinct
+from the agent-published summary.
+
+Panel filtering, selection, and live target joins now use `{repo scope, tag}`.
+Two Brain threads in one working path therefore remain distinct and bind only
+their exact hosted actor. Pair #146's `SelectTree` compatibility surface remains
+only as a fail-closed adapter: it refuses a path shared by multiple visible
+threads. Full `go test ./... -count=1` and `git diff --check` pass
+(ARCH-DRY, ARCH-PURPOSE).
+
+### 2026-08-26 — unify human and programmatic operation dispatch
+
+`Operation` is now a closure-free capability declaration with argument,
+result, effect, confirmation, and execution-owner metadata. One generic
+`DispatchOperation` validates the declaration and invokes exactly one injected
+direct-store or live-owner executor. A missing owner returns the typed
+`routing requires #147` refusal before it can fall back, fork, or touch state.
+
+The console's Enter switch and post-start attach are declared operations keyed
+by the exact composite thread address. Their terminal effects exist only in the
+singleton console executor; stale targets fail without changing focus, and
+attach carries a typed `StartResult` whose address must match. CLI and panel
+store/lifecycle effects use the same executors, while external stop/switch/
+attach refuse until #147 supplies transport. Explicit empty descriptions now
+flow through dispatch as a clear rather than a read. The prescribed operation
+suite and full `go test ./... -count=1` pass (ARCH-DRY, ARCH-PURE,
+ARCH-PURPOSE).
+
+### 2026-08-26 — resolve first M3 boundary findings
+
+The REWORK review produced BR-18 through BR-23. ThreadIndex loading now treats
+only a genuinely absent manifest as legacy-compatible; corrupt or incomplete
+authoritative state stops standalone Pair before launch. Required operation
+arguments use presence semantics, preserving explicit-empty clearing for human
+names and agent summaries. CLI show/name/describe derive the current Git-root
+scope and a repeated-tag regression proves they read or mutate only that
+repository's thread. Initial console attachment now dispatches the same typed
+`attach` declaration as panel-start attachment, with the composite pane
+primitive hidden behind the console executor. The plan's architectural entity
+table and README's complete M3 surface were audited rather than patched one
+cell or command at a time (ARCH-DRY, ARCH-PURE, ARCH-PURPOSE).
+
+### 2026-08-26 — resolve second M3 boundary findings
+
+BR-24 separates compact list rendering from diagnostic show rendering: a named
+thread still leads with its human label, but `show` now prints the immutable
+scope/tag address. BR-25 widens both panel durable-read callbacks to propagate
+errors; rebuild and typeahead preserve the last valid rows and display the
+failure instead of presenting corruption as empty state. Tests exercise the
+named CLI detail view, both production callbacks against a corrupted real
+ThreadStore manifest, and visible inventory/reference failures in the hosted
+panel (ARCH-DRY, ARCH-PURPOSE, ARCH-MOCK).
+
+### 2026-08-26 — resolve third M3 boundary finding
+
+BR-26 removed Launcher's partial shadow record. A lower-layer
+`threadrecord.Record` now owns the complete persisted JSON shape and structural
+validation; ThreadStore writes/reads it and Launcher projects it into
+ThreadIndex. The shared `strictjson.Decode` also consolidates duplicate-key,
+unknown-field, and trailing-value rejection previously private to Couch. A
+real-store parity table mutates every current structural invariant and requires
+both Couch and standalone Pair to reject each record (ARCH-DRY, ARCH-PURE,
+ARCH-PURPOSE, ARCH-MOCK).
+
+### 2026-08-26 — remember successful launch profiles
+
+M4 now resolves agent and argv provenance independently: explicit selection,
+then path history, then root agent for the harness; selected-agent path argv,
+then that agent's Pair repository default for arguments. Couch uses Pair's
+shared agent inventory and a strict tag-bound one-shot profile, emitting the
+repo-default marker only for matching provenance. The pending start claim keeps
+the exact vector recoverable without treating an attempt as history; only
+established registration journals the incarnation profile and revisioned
+repository-identity/physical-path preference together. Failed starts leave no
+preference, and a reconstructed Couch reuses the exact prior agent/argv while
+preserving other agents' path history (ARCH-DRY, ARCH-PURE, ARCH-PURPOSE,
+ARCH-MOCK).
+
+### 2026-08-26 — M4 boundary review round 1
+
+The reviewer confirmed profile resolution, strict tag-bound handoff, atomic
+registration publication, shared inventory, and user/architecture docs, then
+reported BR-27/BR-28. The repeated architectural-inventory class is addressed
+as a rule and complete M4 sweep: every milestone-added or modified entity now
+has a greppable PURE/INTEGRATION row, path, and current status, and the M4 task
+inventories match the delivered files. The value-bearing flag class is
+addressed in the shared operation schema: `ArgSpec.ValueRequired` makes
+`--agent` and `--agent=` invalid before dispatch while preserving boolean
+`--no-console`; generic binder and public CLI tests prove malformed selection
+cannot reach the runner (ARCH-PURE, ARCH-PURPOSE).
+
+### 2026-08-26 — M4 boundary review round 2
+
+The reviewer disposed BR-27 and confirmed the CLI portion of BR-28 was
+load-bearing, then found the shared dispatcher did not yet derive the declared
+value constraint. `validateOperationCall` now rejects empty value-bearing
+arguments for every transport before executor selection; a direct dispatcher
+test proves the live owner is never invoked. The exact boundary range is also
+checked after generated review/ledger artifacts, closing the repeated
+verification-window-cleanliness class rather than only trimming the reported
+lines (ARCH-DRY, ARCH-PURE, ARCH-PURPOSE).
+
+### 2026-08-26 — M4 boundary review round 3
+
+The reviewer disposed BR-28/BR-29 and found BR-30: absence of a
+repo-default marker was not an authoritative false state because production
+children inherit Couch's environment. Couch now supplies exactly one launch
+policy entry for both provenance outcomes (`=1` or empty), while `ExecRunner`
+removes inherited duplicates for every supplied child key and makes the final
+supplied value authoritative. A real subprocess probe starts under stale
+parent state and observes one empty child entry; the restart scenario also
+requires Couch to emit that negative state (ARCH-DRY, ARCH-PURPOSE, ARCH-MOCK).
+
+### 2026-08-26 — M4 boundary review round 4 and close disposition
+
+The gate accepted M4 at its four-round cap but correctly kept BR-30's
+FIX-THEN-SHIP obligation: the real Go child probe stayed green when the
+production merge call was removed because `os/exec` normalized duplicates
+before observation. Production command construction now runs through one
+`buildExecCommand` seam whose test inspects raw `exec.Cmd.Env`. Replacing its
+sanitizer with inherited-plus-appended values makes the test fail with both
+the stale `=1` and authoritative empty entry; current code passes along with
+the real subprocess probe. M4 closed with 1.52 measured hours
+(ARCH-PURE, ARCH-PURPOSE, ARCH-MOCK).
+
+### 2026-08-26 — M5 legacy record enrichment
+
+M5 reuses M1's conservative composite cutover and the ThreadStore journal
+rather than adding a second migration authority. The pure migration fills only
+empty thread name/description fields from the exact legacy tree entry and
+never changes incarnations, policy evidence, origin, or revision. Under the
+global store lock, every readable candidate and after-image is validated before
+one nonce-bearing journal publishes record revisions plus the versioned
+manifest marker. Corrupt input and the preserved registry remain byte-exact;
+interruption rolls forward the whole mutation; rerun is byte-stable
+(ARCH-DRY, ARCH-PURE, ARCH-PURPOSE).
+
+### 2026-08-26 — M5 composite artifact authority
+
+A stdlib-only `artifactpath` leaf now validates `{repo_scope, tag}` once and
+owns every tag-bearing Pair artifact family. Go consumers use those checked
+paths directly; the launcher exports exact resolved bindings to shell,
+Neovim, and both Zellij layouts, whose filename reconstruction has been
+removed. An exact source/family manifest fails on new unclassified production
+references and explicitly accounts for every generated runtime file. A real
+two-scope strategy writes through Go, shell, and Neovim with one repeated
+legacy tag and proves neither scope observes the other's mutation while both
+layouts consume only exact bindings. Standalone Pair keeps its existing tag
+prompt but now registers successful create flow state through Couch's locked,
+revisioned `ThreadStore`; Couch-owned starts bypass the adapter because their
+transaction already exists. `make test` and `go test ./... -count=1` pass
+(ARCH-DRY, ARCH-PURE, ARCH-PURPOSE, ARCH-MOCK).
+
+### 2026-08-26 — M5 final reconciliation and verification
+
+Issue #135 now addresses cross-agent handoff as a transition between
+incarnations of one composite work thread; #152 retains verified
+park/resume/activity evidence and #153 retains path provisioning/rebinding.
+The atlas and Couch project map the same ownership and exact artifact-binding
+boundary. Final verification passed `make test` (including uncached
+`go test ./...`), the focused Couch race suite, deterministic runtime-bundle
+generation, Zellij config plus layout2/layout3 parsing, `make test-live`, live
+Ariadne policy conformance, the terminal/Zellij smoke probes, and the real
+start-recovery probe. The only smoke interruption was an empty untracked local
+directory; root-cause inspection showed it was never repository state, and
+removing that empty directory restored the target without a code change
+(ARCH-PURPOSE, ARCH-MOCK).
+
+### 2026-08-26 — M5 boundary review round 1
+
+The fresh review accepted the migration transaction, composite path value,
+cross-scope integration, and standalone registration ordering, then reported
+BR-31–BR-34. The repeated durable-index class now has an overlap-read rule:
+legacy-global and selected-scope bindings merge strictly, absence alone is
+empty, and unreadable state stops orphan cleanup, attachment/name assignment,
+restart, rename, and list rather than becoming an empty index. The constructor
+class now scans extensionless shebang sources, routes legacy flat reads through
+`LegacyRootPaths`/`LegacyPaths`, and pins exact shell/Neovim bindings without
+sibling derivation. A complete M5 entity-table sweep and atlas formula sweep
+replace the nonexistent `ArtifactFamily` claim and global-layout prose
+(ARCH-DRY, ARCH-PURE, ARCH-PURPOSE).
+
+The disposition rerun passed the full `make test` suite, uncached
+`go test ./...`, focused artifact/launcher tests, Couch+launcher race tests,
+`make test-live`, live Ariadne policy conformance, terminal and Zellij park
+smokes, real start recovery, deterministic runtime generation, both layout
+parsers, issue validation, and `git diff --check`.
+
+### 2026-08-26 — M5 boundary review round 2
+
+The reviewer confirmed the pure migration and initial scoped-path work but
+found BR-31/BR-32/BR-34 were still instance fixes. One strict overlap reader
+now serves ordinary launch, claim, and quiescence and rejects structurally
+incomplete rows. `artifactpath` now returns complete scrollback,
+parked-scrollback, and changelog companion sets; opener, wrapper, renderer,
+cleanup, parking, and Neovim consume exact members. A repository-wide negative
+scan forbids any production source outside `artifactpath` from appending the
+controlled companion suffixes, and the atlas no longer presents global tag
+formulas as current authority (ARCH-DRY, ARCH-PURPOSE).
+
+BR-35 was evaluated against the approved issue split and is out of scope:
+#152—not #149—owns stateful proof that every zellij server/pane in an
+incarnation is quiescent before capacity release. Direct Pair detach, client
+death, and best-effort deletion remain conservatively occupied; treating those
+signals as terminal here would recreate the unsafe capacity-release behavior
+the M1/M2 revisions explicitly removed (ARCH-PURPOSE, ARCH-MOCK).
+
+Disposition verification passes the full `make test` suite (including uncached
+`go test ./...`), focused race tests for artifactpath/launcher/Couch/opener,
+`make test-live`, live Ariadne policy conformance, terminal and Zellij park
+smokes, real start recovery, runtime-bundle determinism, both Zellij layouts,
+issue validation, and `git diff --check`.
+
+### 2026-08-26 — M5 boundary review round 3
+
+The reviewer accepted the strict session-index reader and withdrew BR-35 after
+confirming that verified capacity release belongs to #152. BR-32 remained
+because the source guard omitted top-level `cmd/*` packages and trusted an
+external source's `Constructor` label; BR-34 remained because two atlas
+passages still documented sibling derivation and session-keyed ready lookup.
+
+The guard now scans all production command packages and separately confines
+constructor classification to `cmd/internal/artifactpath`. Temp-repository
+mutations prove both `cmd/pair-go` and an already-scanned internal package fail
+when they introduce a constructor, including the attempted self-classification
+escape. The complete scrollback/changelog atlas class now describes exact
+bindings and distinguishes session-keyed changelog data from the stable ready
+marker (ARCH-DRY, ARCH-PURPOSE).
+
+### 2026-08-26 — M5 review-window source correction
+
+The generated runtime mirror is again an ignored build output rather than a
+tracked duplicate of its source files. `make runtimebundle-generate` continues
+to produce it locally, while deterministic generation and drift tests supply
+the review evidence. This removes about 930 KB of redundant bytes from the M5
+Git window without reducing generated-path coverage or release-build behavior
+(ARCH-DRY, ARCH-PURPOSE).
+
+### 2026-08-26 — M5 boundary review round 4
+
+The compact Git-manifest review path ran successfully and exposed the remaining
+constructor-class bypass: `SweepOrphanNvim` built a selected-scope glob while
+its file claimed to be only a resolved consumer. `ScopePaths` now owns Nvim PID
+enumeration, sidecar parsing, and embed-argv parsing; `Paths` likewise owns pane
+sidecar decoding. Mutation tests prove both a top-level command and an internal
+package fail when a false `ResolvedConsumer` label hides construction. The
+atlas/README inventory now names exact methods and bindings for current
+consumers and marks literal filename shapes as compatibility or descriptive
+vocabulary only (ARCH-DRY, ARCH-PURPOSE).
+
+### 2026-08-27 — M5 boundary review round 5
+- 2026-08-27: closed — M1-M5 complete: singleton admission, recoverable starts, shared thread metadata, remembered launch profiles, legacy migration, and bounded composite artifact isolation; all milestone reviews SHIP and full/clean-bootstrap/race/drift verification passes; review verdict: SHIP
+- 2026-08-27: closed M5 — bounded artifact contract and docs pin: all current importers positively classified; legacy/current inventories authority-owned; atlas regression proven red on retired claim and green when corrected; full/clean-bootstrap/race/drift suites pass; review verdict: SHIP
+
+BR-34 is addressed. The reviewer kept BR-32 open because the first mutation
+guard recognized syntax rather than the source-of-truth invariant, and raised
+BR-36 after a clean archive proved artifact coverage depended on the ignored
+local runtime mirror. The guard now rejects every non-allowlisted family literal
+in a resolved consumer, independent of whether code uses formatting, joining,
+builders, replacement, helper calls, or concatenation. Coverage generates the
+runtime mirror in a temporary directory from tracked inputs and compares every
+generated path against the classification manifest in both directions. A clean
+archive passes the focused artifact suite without any pre-existing mirror
+(ARCH-DRY, ARCH-PURPOSE).
+
+### 2026-08-27 — M5 boundary review round 6
+
+BR-32 and BR-36 are addressed at their proof boundaries rather than with
+another syntax blacklist. Every resolved-consumer family now names a canonical
+`{resolver, member}` binding, and the AST check requires that resolver result
+to flow into the declared family member. Exact CLI/protocol vocabulary has a
+separate closed-use allowance with value, syntax context, use site, argument,
+and count; it cannot masquerade as a path derivation. Mutations cover missing
+and wrong-family witnesses, reference-only resolvers, unused members,
+vocabulary laundering, arbitrary call sites, and vocabulary-only imports of
+the constructor authority.
+
+The clean-source generator test no longer discovers inputs with Git. The
+public `make test` contract generates the ignored runtime bundle before any
+consumer, and `test-clean-bootstrap` runs the complete suite from a source
+archive containing neither `.git` nor a pre-existing runtime mirror. That
+exact regression also exposed and pinned the compatibility requirement that
+cache restart/quit markers accept safe Unicode Zellij session basenames such
+as `📁pair-work` while rejecting traversal (ARCH-DRY, ARCH-PURE,
+ARCH-PURPOSE, ARCH-MOCK).
+
+### 2026-08-27 — M5 boundary review round 7
+
+The reviewer found that positive binding validation still began after lexical
+token discovery, so an unlisted split-token source could evade the entire
+boundary. Production participation is now exhaustive: every production source
+is either an artifact classification or an explicit non-artifact entry, and
+new files fail independent of their contents. Non-artifact Go source also gets
+constant-expression scanning, while resolved bindings follow lexical object
+identity from the actual resolver result and reject shadowed, discarded, or
+blank-assigned member calls.
+
+The clean-bootstrap script now skips `git apply` for a clean `HEAD` rather than
+feeding it empty input. The full M5 entity inventory was reswept to include the
+cache authority, source/vocabulary/binding declarations, exhaustive source
+inventory, and standalone registration integration. Mutation tests and the
+committed clean-HEAD bootstrap pin all three review classes (ARCH-DRY,
+ARCH-PURE, ARCH-PURPOSE, ARCH-MOCK).
+
+### 2026-08-27 — M5 boundary review round 8
+
+BR-32's remaining mixed-source bypass is pinned directly: a resolved consumer
+with a valid `Draft` witness plus a second split-literal `filepath.Join`
+constructor must fail. Resolved-source scanning evaluates constant
+concatenations and checks each construction independently, so one legitimate
+witness cannot bless a second path.
+
+BR-37 now has an executable issue-149 plan contract covering every M5
+pure-declaration and integration row. Removing any row or changing its entity,
+kind/path, or status fails the mutation matrix. This turns the whole-diff
+concept sweep into repository evidence rather than review-only prose
+(ARCH-DRY, ARCH-PURPOSE, ARCH-MOCK).
+
+### 2026-08-27 — M5 boundary review round 9
+
+BR-32 now covers runtime construction as a class rather than naming
+`strings.Join`: non-vocabulary literal fragments are conservatively assembled
+within calls and across function bodies, catching join, formatter/replacer,
+helper, and multi-call builder shapes. Valid family witnesses placed beside
+runtime-join and builder constructors do not authorize them.
+
+BR-37's executable inventory is now derived from exported type/catalog
+declarations in the M5-created artifact authority rather than a second list of
+plan rows. Every derived entity must have one correct kind/path/status row, and
+per-entity mutations remove the entity or corrupt each field. The derivation
+surfaced and added the missing `Families` and `SourceClassifications` catalogs
+(ARCH-DRY, ARCH-PURPOSE, ARCH-MOCK).
+
+### 2026-08-27 — M5 boundary review round 10
+
+BR-32's remaining source-order escape is now covered by an intra-file dataflow
+proof. Reversed fragment definitions and local helper returns are evaluated in
+construction order, and both adversarial mutations fail even when the source
+also contains a legitimate family witness.
+
+BR-37 now derives from the complete M5 Go-source diff rather than selected
+packages. Source-local `pair:m5-concept` markers distinguish architectural
+declarations from explicitly non-architectural implementation details; Git
+checks the checked-in source set when available, and clean archives retain the
+same oracle without requiring `.git`. The marked architectural set is compared
+to both plan tables for unique name, kind, path, and M5 status. The plan-review
+contract now requires positive witnesses, reordered/indirected/runtime bypass
+mutations, an executable enumeration source, and an exact initial state
+(ARCH-DRY, ARCH-PURPOSE, ARCH-MOCK).
+
+### 2026-08-27 — M5 boundary review round 11
+
+Round 32 reproduced two remaining opt-outs. Package-scope split constants now
+seed the same fixed-point provenance analysis as local variables and helper
+summaries; the regression includes reordered constants plus a package alias.
+The concept rule now fails closed for every exported type or catalog variable
+added to either wholly M5-created artifact authority file, so an unmarked
+`ReviewAddedAuthority` becomes a required plan concept instead of silently
+becoming detail. A direct AST mutation pins that default, while source markers
+continue to promote architectural unexported seams and integrations elsewhere
+(ARCH-DRY, ARCH-PURPOSE).
+
+### 2026-08-27 — M5 boundary review round 12
+
+Round 33 moved both bypasses across a file boundary. Artifact analysis now
+builds one package unit from all production Go files, converging cross-file
+globals and helper summaries before inspecting each classified sink; the new
+two-file mutation fails. The concept contract closes the entire M5 declaration
+population with a Git-independent AST-signature digest. Concept markers and the
+closed remainder are the architectural/detail dispositions; changing the set
+fails, and an open set treats an unmarked exported top-level declaration as a
+concept. An exported mutation in `couchcore/migration.go` pins the rule outside
+the artifact package (ARCH-DRY, ARCH-PURPOSE).
+
+### 2026-08-27 — bound M5 artifact evidence to shipped consumers
+
+The operator rejected the review-expanded requirement to prove that no
+arbitrary future Go program can reconstruct an artifact filename. That is an
+open-ended static-analysis problem and is not required for composite
+work-thread isolation.
+
+M5's “proving every artifact lookup” wording is superseded by a bounded shipped-
+repository contract: every current production source participates in the
+artifact inventory; constructors are declared only in `artifactpath`; every
+current resolved consumer has a checked family-specific resolver/member
+witness; exact vocabulary and direct expression scans remain defense in depth;
+and cross-scope integration tests demonstrate isolation through representative
+Go, shell, Neovim, and Zellij consumers. These checks intentionally do not
+claim semantic provenance through arbitrary helper, package, control-flow, or
+string-building programs. The custom package dataflow evaluator is removed
+rather than widened again (Simplicity First, ARCH-DRY, ARCH-PURPOSE).
+
+### 2026-08-27 — close the finite importer inventory
+
+Boundary review round 35 accepted the bounded contract but found a concrete
+hole inside it: twenty production Go files imported `artifactpath` while still
+listed as non-artifact sources, making their positive bindings optional. The
+inventory now rejects that state directly. Every current importer is a
+constructor or resolved consumer, and the twenty-file sweep records its exact
+families and resolver bindings.
+
+Legacy import also stops applying the current-scope rename helper to the old
+global root. `LegacyPaths.RenameArtifacts` and `Paths.RenameArtifacts` expose
+the same stable sidecar shape from their respective authorities; launcher
+rename and migration consume those APIs. The atlas now describes only the
+bounded checks that remain (ARCH-DRY, ARCH-PURPOSE, ARCH-MOCK).
+
+### 2026-08-27 — pin current-state artifact documentation
+
+Round 36 confirmed BR-32 and the M5 architecture, then retained BR-38 because
+the corrected atlas prose lacked a regression witness. The existing artifact
+documentation sweep now includes `atlas/couch.md`: it requires the bounded
+contract's explicit non-goal and rejects the two deleted package-dataflow
+claims. Reverting the atlas correction therefore fails the focused suite
+(ARCH-PURPOSE, ARCH-MOCK).

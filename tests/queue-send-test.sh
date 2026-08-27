@@ -44,6 +44,8 @@ setup() {
 run() {
   run_headless --timeout 30 -- \
     env PAIR_DATA_DIR="$RT" PAIR_TAG=test PAIR_AGENT=claude \
+    PAIR_DRAFT_PATH="$RT/draft-test.md" PAIR_LOG_PATH="$RT/log-test.md" \
+    PAIR_QUEUE_DIR="$RT/queue-test" PAIR_LAYOUT_MODE_PATH="$RT/layout-mode-test" \
     nvim --headless -u "$INIT" "$RT/draft-test.md" \
     -c "luafile $RT/driver.lua"
 }
@@ -56,7 +58,11 @@ local dd = os.getenv('PAIR_DATA_DIR')
 local O = io.open(dd..'/result.txt','w')
 local function cm(l)
   local m = vim.fn.maparg(l,'n',false,true)
-  if type(m)=='table' and m.callback then pcall(m.callback) end
+  if type(m)~='table' or not m.callback then O:write('E missing-map '..l..'\n') end
+  if type(m)=='table' and m.callback then
+    local ok, err = pcall(m.callback)
+    if not ok then O:write('E '..l..' '..tostring(err)..'\n') end
+  end
 end
 for _=1,$1 do cm('<M-Right>') end
 cm('<M-CR>')

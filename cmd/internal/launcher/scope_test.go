@@ -5,6 +5,17 @@ import (
 	"testing"
 )
 
+func TestValidateRepoScopeKey(t *testing.T) {
+	if err := ValidateRepoScopeKey("0123456789abcdef"); err != nil {
+		t.Fatalf("valid key rejected: %v", err)
+	}
+	for _, key := range []string{"", "../other", "scope/name", "scope.name"} {
+		if err := ValidateRepoScopeKey(key); err == nil {
+			t.Errorf("unsafe key %q accepted", key)
+		}
+	}
+}
+
 func TestRepoScopeUsesAbsolutePathForHiddenKey(t *testing.T) {
 	a, err := ResolveRepoScope("/Users/alice/work/pair")
 	if err != nil {

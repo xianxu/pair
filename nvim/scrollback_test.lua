@@ -22,6 +22,13 @@ local function tmpdir()
   return base
 end
 
+local function bind_scrollback_paths(ansi)
+  vim.env.PAIR_SCROLLBACK_ANSI_PATH = ansi
+  vim.env.PAIR_SCROLLBACK_RAW_PATH = ansi:gsub('%.ansi$', '.raw')
+  vim.env.PAIR_SCROLLBACK_EVENTS_PATH = ansi:gsub('%.ansi$', '.events.jsonl')
+  vim.env.PAIR_SCROLLBACK_VIEWPORT_PATH = ansi:gsub('%.ansi$', '.viewport')
+end
+
 -- Headless Neovim test: we have the vim API available!
 if vim and vim.api then
   -- Buffer setup must preserve the shared overlay-global mappings. Historical
@@ -134,6 +141,7 @@ if vim and vim.api then
     local buf = vim.api.nvim_create_buf(false, true)
     vim.api.nvim_buf_set_name(buf, ansi)
     ansi = vim.api.nvim_buf_get_name(buf)
+    bind_scrollback_paths(ansi)
     raw = ansi:gsub('%.ansi$', '.raw')
     events = ansi:gsub('%.ansi$', '.events.jsonl')
     vim.api.nvim_buf_set_lines(buf, 0, -1, false, { 'old line' })
@@ -167,6 +175,7 @@ if vim and vim.api then
 
     local buf = vim.api.nvim_create_buf(false, true)
     vim.api.nvim_buf_set_name(buf, ansi)
+    bind_scrollback_paths(vim.api.nvim_buf_get_name(buf))
     vim.api.nvim_buf_set_lines(buf, 0, -1, false, { 'old visible', 'still here' })
     vim.bo[buf].modifiable = false
     vim.bo[buf].readonly = true
@@ -197,6 +206,7 @@ if vim and vim.api then
 
     local buf = vim.api.nvim_create_buf(false, true)
     vim.api.nvim_buf_set_name(buf, ansi)
+    bind_scrollback_paths(vim.api.nvim_buf_get_name(buf))
     ansi = vim.api.nvim_buf_get_name(buf)
     vim.api.nvim_buf_set_lines(buf, 0, -1, false, { 'one', 'two' })
     local win = vim.api.nvim_open_win(buf, true, {
@@ -230,6 +240,7 @@ if vim and vim.api then
 
     local buf = vim.api.nvim_create_buf(false, true)
     vim.api.nvim_buf_set_name(buf, ansi)
+    bind_scrollback_paths(vim.api.nvim_buf_get_name(buf))
     vim.api.nvim_buf_set_lines(buf, 0, -1, false, { 'old line' })
     vim.bo[buf].modifiable = false
     vim.bo[buf].readonly = true
@@ -269,6 +280,7 @@ if vim and vim.api then
 
     local buf = vim.api.nvim_create_buf(false, true)
     vim.api.nvim_buf_set_name(buf, ansi)
+    bind_scrollback_paths(vim.api.nvim_buf_get_name(buf))
     vim.api.nvim_buf_set_lines(buf, 0, -1, false, { 'old line' })
     vim.bo[buf].modifiable = false
     vim.bo[buf].readonly = true
@@ -330,14 +342,17 @@ if vim and vim.api then
   -- removed but this caller kept `scrollback-render` and fell through to launch).
   local saved_home = vim.env.PAIR_HOME
   vim.env.PAIR_HOME = '/opt/pair'
-  local rc = M.renderer_command({ raw = 'R', events = 'E', ansi = 'A' })
+  local rc = M.renderer_command({ raw = 'R', events = 'E', ansi = 'A', viewport = 'V' })
   eq(rc[1], '/opt/pair/bin/pair', 'renderer uses $PAIR_HOME/bin/pair')
   eq(rc[2], 'scrollback', 'renderer passes the scrollback group token')
   eq(rc[3], 'render', 'renderer passes the render leaf token')
-  eq(rc[4], 'R', 'renderer forwards raw path')
-  eq(rc[6], 'A', 'renderer forwards ansi path')
+  eq(rc[4], '--viewport', 'renderer names the exact viewport binding')
+  eq(rc[5], 'V', 'renderer forwards viewport path')
+  eq(rc[6], 'R', 'renderer forwards raw path')
+  eq(rc[7], 'E', 'renderer forwards events path')
+  eq(rc[8], 'A', 'renderer forwards ansi path')
   vim.env.PAIR_HOME = ''
-  local rc2 = M.renderer_command({ raw = 'R', events = 'E', ansi = 'A' })
+  local rc2 = M.renderer_command({ raw = 'R', events = 'E', ansi = 'A', viewport = 'V' })
   eq(rc2[1], 'pair', 'renderer falls back to bare pair on PATH')
   eq(rc2[2], 'scrollback', 'fallback still passes the scrollback group token')
   eq(rc2[3], 'render', 'fallback still passes the render leaf token')

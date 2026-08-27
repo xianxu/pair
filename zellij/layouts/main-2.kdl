@@ -42,7 +42,7 @@ layout {
             // explicit targeting, this would silently rename draft.
             // Errors swallowed: if the IPC call fails we still launch
             // the agent.
-            args "-c" "_pdd=\"${PAIR_DATA_DIR:-${XDG_DATA_HOME:-$HOME/.local/share}/pair}\"; printf '{\"pane_id\":\"%s\",\"cwd\":\"%s\"}\\n' \"$ZELLIJ_PANE_ID\" \"$PWD\" > \"$_pdd/pane-${PAIR_TAG:-${PAIR_AGENT:-claude}}-${PAIR_AGENT:-claude}.json\" 2>/dev/null; zellij action rename-pane --pane-id \"$ZELLIJ_PANE_ID\" \"${PAIR_PANE_TITLE:-agent}\" 2>/dev/null; exec pair wrap --scrollback-log \"${PAIR_DATA_DIR:-${XDG_DATA_HOME:-$HOME/.local/share}/pair}/scrollback-${PAIR_TAG:-${PAIR_AGENT:-claude}}-${PAIR_AGENT:-claude}.raw\" ${PAIR_AGENT:-claude} ${PAIR_AGENT_ARGS:-}"
+            args "-c" "printf '{\"pane_id\":\"%s\",\"cwd\":\"%s\"}\\n' \"$ZELLIJ_PANE_ID\" \"$PWD\" > \"$PAIR_AGENT_PANE_PATH\" 2>/dev/null; zellij action rename-pane --pane-id \"$ZELLIJ_PANE_ID\" \"${PAIR_PANE_TITLE:-agent}\" 2>/dev/null; exec pair wrap --scrollback-log \"$PAIR_SCROLLBACK_RAW_PATH\" ${PAIR_AGENT:-claude} ${PAIR_AGENT_ARGS:-}"
         }
         // Pane name "draft" appears in zellij's OSC 0 terminal title
         // ("<session>: draft") and propagates to the user's terminal /
@@ -64,7 +64,7 @@ layout {
             // deterministically on Alt+x. Without this, the embed nvim
             // (forked off the TUI) can survive zellij's kill-session and
             // accumulate as PPID=1 orphans across quits.
-            args "-c" "DATA_DIR=\"${PAIR_DATA_DIR:-${XDG_DATA_HOME:-$HOME/.local/share}/pair}\" && mkdir -p \"$DATA_DIR\" && export PAIR_NVIM_PID_FILE=\"$DATA_DIR/nvim-pid-${PAIR_TAG:-${PAIR_AGENT:-claude}}-draft\" && exec nvim -u \"$PAIR_HOME/nvim/init.lua\" \"$DATA_DIR/draft-${PAIR_TAG:-${PAIR_AGENT:-claude}}.md\""
+            args "-c" "export PAIR_NVIM_PID_FILE=\"$PAIR_NVIM_DRAFT_PID_PATH\" && exec nvim -u \"$PAIR_HOME/nvim/init.lua\" \"$PAIR_DRAFT_PATH\""
         }
     }
 

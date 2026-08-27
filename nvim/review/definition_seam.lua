@@ -3,14 +3,14 @@ local M = {}
 local here = debug.getinfo(1, 'S').source:match('@?(.*/)') or './'
 local seam = dofile(here .. 'seam.lua')
 
-function M.request_path(data_dir, env_tag)
-  if not data_dir or data_dir == '' then return nil end
-  return data_dir .. '/review-definition-request-' .. seam.tag(env_tag) .. '.json'
+function M.request_path(path)
+  if not path or path == '' then return nil end
+  return path
 end
 
-function M.result_path(data_dir, env_tag)
-  if not data_dir or data_dir == '' then return nil end
-  return data_dir .. '/review-definition-result-' .. seam.tag(env_tag) .. '.json'
+function M.result_path(path)
+  if not path or path == '' then return nil end
+  return path
 end
 
 local function write_json(path, doc)
@@ -27,16 +27,16 @@ local function read_json(path)
   return decoded
 end
 
-function M.write_request(data_dir, env_tag, request)
-  return write_json(M.request_path(data_dir, env_tag), request)
+function M.write_request(path, request)
+  return write_json(M.request_path(path), request)
 end
 
-function M.read_result(data_dir, env_tag)
-  return read_json(M.result_path(data_dir, env_tag))
+function M.read_result(path)
+  return read_json(M.result_path(path))
 end
 
-function M.clear_result(data_dir, env_tag)
-  local path = M.result_path(data_dir, env_tag)
+function M.clear_result(path)
+  path = M.result_path(path)
   if path then pcall(os.remove, path) end
 end
 

@@ -1,10 +1,14 @@
 package couchcore
 
 import (
+	"errors"
 	"fmt"
 	"os"
 	"os/exec"
 	"strconv"
+	"strings"
+	"syscall"
+	"time"
 
 	"github.com/xianxu/pair/cmd/internal/procutil"
 )
@@ -27,6 +31,13 @@ import (
 // "a foreign session is never deleted" passed while the hazard sat untouched.
 type Runner interface {
 	Start(dir string, argv, env []string) (Handle, error)
+	StartBlocked(dir string, argv, env []string, timeout time.Duration) (BlockedHandle, error)
+}
+
+type BlockedHandle interface {
+	Handle
+	Acknowledge() error
+	Cancel() error
 }
 
 type Handle interface {
@@ -41,7 +52,9 @@ type Handle interface {
 	Wait() int
 }
 
-type ExecRunner struct{}
+type ExecRunner struct {
+	LaunchHelper string
+}
 
 var _ Runner = ExecRunner{}
 
@@ -50,15 +63,18 @@ var _ Runner = ExecRunner{}
 // tty passed through the same way ZellijOps.LaunchSession does
 // (runtime.go:31-34). #146 allocates ptys when it takes over routing.
 func (ExecRunner) Start(dir string, argv, env []string) (Handle, error) {
-	if len(argv) == 0 {
-		return nil, fmt.Errorf("start: empty argv")
+	return startExecChild(dir, argv, env, nil)
+}
+
+func (r ExecRunner) StartBlocked(dir string, argv, env []string, timeout time.Duration) (BlockedHandle, error) {
+	return startBlockedChild(startExecChild, r.LaunchHelper, dir, argv, env, timeout)
+}
+
+func startExecChild(dir string, argv, env []string, extraFiles []*os.File) (Handle, error) {
+	cmd, err := buildExecCommand(dir, argv, env, extraFiles)
+	if err != nil {
+		return nil, err
 	}
-	cmd := exec.Command(argv[0], argv[1:]...)
-	cmd.Dir = dir
-	if env != nil {
-		cmd.Env = append(os.Environ(), env...)
-	}
-	cmd.Stdin, cmd.Stdout, cmd.Stderr = os.Stdin, os.Stdout, os.Stderr
 	if err := cmd.Start(); err != nil {
 		return nil, fmt.Errorf("start %s in %s: %w", argv[0], dir, err)
 	}
@@ -86,6 +102,53 @@ func (ExecRunner) Start(dir string, argv, env []string) (Handle, error) {
 	return h, nil
 }
 
+func buildExecCommand(dir string, argv, env []string, extraFiles []*os.File) (*exec.Cmd, error) {
+	if len(argv) == 0 {
+		return nil, fmt.Errorf("start: empty argv")
+	}
+	cmd := exec.Command(argv[0], argv[1:]...)
+	cmd.Dir = dir
+	if env != nil {
+		cmd.Env = mergeChildEnvironment(os.Environ(), env)
+	}
+	cmd.Stdin, cmd.Stdout, cmd.Stderr = os.Stdin, os.Stdout, os.Stderr
+	cmd.ExtraFiles = extraFiles
+	// Every Couch child is the leader of one owned process group. Pair may
+	// start pre-handoff helpers before the zellij session exists; keeping those
+	// helpers in this group gives the handle one production authority over the
+	// complete pre-session incarnation rather than only its direct child.
+	cmd.SysProcAttr = &syscall.SysProcAttr{Setpgid: true}
+	return cmd, nil
+}
+
+// mergeChildEnvironment makes every supplied child key authoritative over the
+// inherited process environment. The last supplied value wins if a caller
+// repeats a key, matching ordinary environment-overlay semantics without
+// leaving duplicate entries for a child runtime to interpret differently.
+func mergeChildEnvironment(inherited, supplied []string) []string {
+	lastSupplied := make(map[string]int, len(supplied))
+	for i, item := range supplied {
+		lastSupplied[environmentKey(item)] = i
+	}
+	merged := make([]string, 0, len(inherited)+len(supplied))
+	for _, item := range inherited {
+		if _, overridden := lastSupplied[environmentKey(item)]; !overridden {
+			merged = append(merged, item)
+		}
+	}
+	for i, item := range supplied {
+		if lastSupplied[environmentKey(item)] == i {
+			merged = append(merged, item)
+		}
+	}
+	return merged
+}
+
+func environmentKey(item string) string {
+	key, _, _ := strings.Cut(item, "=")
+	return key
+}
+
 type execHandle struct {
 	cmd      *exec.Cmd
 	pid      int
@@ -101,21 +164,34 @@ func (h *execHandle) ID() string       { return strconv.Itoa(h.pid) }
 func (h *execHandle) PID() int         { return h.pid }
 func (h *execHandle) Identity() string { return h.identity }
 
-// Alive reports whether the child has been reaped. It deliberately does NOT
-// consult procutil.Alive: `kill -0` succeeds for a zombie, so a child that has
-// exited but not been waited on would read as running.
-func (h *execHandle) Alive() bool {
-	select {
-	case <-h.done:
-		return false
-	default:
-		return true
-	}
-}
+// Alive reports whether any member of this handle's owned process group still
+// exists. The direct child may already be reaped while a pre-handoff sidecar
+// remains, so direct-child liveness is insufficient for rollback.
+func (h *execHandle) Alive() bool { return ownedProcessGroupAlive(h.pid) }
 
-func (h *execHandle) Signal(sig os.Signal) error { return h.cmd.Process.Signal(sig) }
+func (h *execHandle) Signal(sig os.Signal) error { return signalOwnedProcessGroup(h.pid, sig) }
 
 func (h *execHandle) Wait() int {
 	<-h.done
 	return h.code
+}
+
+func signalOwnedProcessGroup(pid int, sig os.Signal) error {
+	unixSignal, ok := sig.(syscall.Signal)
+	if !ok {
+		return fmt.Errorf("signal owned process group %d: unsupported signal %T", pid, sig)
+	}
+	err := syscall.Kill(-pid, unixSignal)
+	if errors.Is(err, syscall.ESRCH) {
+		return nil
+	}
+	return err
+}
+
+func ownedProcessGroupAlive(pid int) bool {
+	if pid <= 0 {
+		return false
+	}
+	err := syscall.Kill(-pid, syscall.Signal(0))
+	return err == nil || errors.Is(err, syscall.EPERM)
 }

@@ -12,6 +12,7 @@ import (
 	"strings"
 
 	"github.com/xianxu/pair/cmd/internal/adapt"
+	"github.com/xianxu/pair/cmd/internal/artifactpath"
 	"github.com/xianxu/pair/cmd/internal/zellijpane"
 )
 
@@ -424,7 +425,13 @@ type LastLeftPaneStore struct {
 	Tag     string
 }
 
-func (s LastLeftPaneStore) Path() string              { return paneIDPath(s.DataDir, s.Tag, "last-left-pane-") }
+func (s LastLeftPaneStore) Path() string {
+	paths, ok := panePaths(s.DataDir, s.Tag)
+	if !ok {
+		return ""
+	}
+	return paths.LastLeftPane()
+}
 func (s LastLeftPaneStore) Read() (string, error)     { return readPaneID(s.Path()) }
 func (s LastLeftPaneStore) Write(paneID string) error { return writePaneID(s.Path(), paneID) }
 
@@ -434,7 +441,11 @@ type LastTerminalPaneStore struct {
 }
 
 func (s LastTerminalPaneStore) Path() string {
-	return paneIDPath(s.DataDir, s.Tag, "last-terminal-pane-")
+	paths, ok := panePaths(s.DataDir, s.Tag)
+	if !ok {
+		return ""
+	}
+	return paths.LastTerminalPane()
 }
 func (s LastTerminalPaneStore) Read() (string, error)     { return readPaneID(s.Path()) }
 func (s LastTerminalPaneStore) Write(paneID string) error { return writePaneID(s.Path(), paneID) }
@@ -452,7 +463,11 @@ type TerminalPaneRegistry struct {
 }
 
 func (r TerminalPaneRegistry) Path() string {
-	return paneIDPath(r.DataDir, r.Tag, "terminal-panes-")
+	paths, ok := panePaths(r.DataDir, r.Tag)
+	if !ok {
+		return ""
+	}
+	return paths.TerminalPanes()
 }
 
 func (r TerminalPaneRegistry) Register(paneID string, pid int) error {
@@ -535,11 +550,12 @@ func DataDirFromEnv() string {
 	return adapt.DataDir()
 }
 
-func paneIDPath(dataDir, tag, prefix string) string {
+func panePaths(dataDir, tag string) (artifactpath.Paths, bool) {
 	if tag == "" {
 		tag = "pair"
 	}
-	return filepath.Join(dataDir, prefix+tag)
+	paths, err := artifactpath.ResolveScoped(dataDir, tag)
+	return paths, err == nil
 }
 
 func readPaneID(path string) (string, error) {

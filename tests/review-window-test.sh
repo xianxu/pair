@@ -12,6 +12,17 @@ ROOT="$(cd "$(dirname "$0")/.." && pwd)"
 . "$ROOT/tests/lib/run-headless.sh"
 RT="$(mktemp -d "${TMPDIR:-/tmp}/pair-window-test.XXXXXX")"
 trap 'rm -rf "$RT"' EXIT
+export PAIR_DRAFT_PATH="$RT/draft.md"
+export PAIR_LAYOUT_MODE_PATH="$RT/layout-mode-test"
+export PAIR_REVIEW_OPEN_PATH="$RT/review-open-test"
+export PAIR_REVIEW_MODE_PATH="$RT/review-mode-test"
+export PAIR_REVIEW_TARGET_PATH="$RT/review-target-test"
+export PAIR_REVIEW_CONTEXT_PATH="$RT/review-context-test"
+export PAIR_REVIEW_HANDOFF_PATH="$RT/review-handoff-test.json"
+export PAIR_REVIEW_LANDED_PATH="$RT/review-landed-test.json"
+export PAIR_REVIEW_DEFINITION_REQUEST_PATH="$RT/review-definition-request-test.json"
+export PAIR_REVIEW_DEFINITION_RESULT_PATH="$RT/review-definition-result-test.json"
+export PAIR_ZELLIJ_ACTIONS_PATH="$RT/zellij-actions-test.jsonl"
 fails=0
 pass() { printf '  ok   %s\n' "$1"; }
 fail() { printf '  FAIL %s\n' "$1"; fails=$((fails + 1)); }

@@ -56,14 +56,13 @@ function M.validate_cached_draft(raw, session, alive)
 end
 
 local function cached_draft_pane()
-  local data_dir = vim.env.PAIR_DATA_DIR
-  local tag = vim.env.PAIR_TAG
+  local path = vim.env.PAIR_DRAFT_PANE_PATH
   local session = vim.env.ZELLIJ_SESSION_NAME
-  if not data_dir or data_dir == '' or not tag or tag == ''
+  if not path or path == ''
       or not session or session == '' then
     return nil
   end
-  local ok, lines = pcall(vim.fn.readfile, data_dir .. '/draft-pane-' .. tag .. '.json')
+  local ok, lines = pcall(vim.fn.readfile, path)
   if not ok then return nil end
   return M.validate_cached_draft(table.concat(lines, '\n'), session, function(pid)
     if not pid then return false end

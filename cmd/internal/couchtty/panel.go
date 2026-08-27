@@ -9,12 +9,13 @@ import (
 
 // PanelRow is one line of couch's own screen.
 type PanelRow struct {
+	Address couchcore.ThreadAddress
 	// Target is the console-local child id to switch to. It is deliberately
-	// separate from Tree: a worktree is human-resolvable, while terminal
-	// routing addresses one hosted child.
+	// separate from Address: durable thread identity and terminal routing
+	// address different layers.
 	Target string
-	// Tree is the stable human-resolution identity. It must not be replaced
-	// with Actor: couch.LookupTrees returns worktrees, not actor ids.
+	// Tree is the working path shown to the operator and used by start. It is
+	// not an identity: Brain-style repositories may host several threads in it.
 	Tree  couchcore.Worktree
 	Label string
 	Desc  string
@@ -25,13 +26,14 @@ type PanelRow struct {
 	Bell bool
 }
 
-// PanelTarget is console-local routing state joined onto Couch's durable tree
+// PanelTarget is console-local routing state joined onto Couch's durable thread
 // summaries. Keeping it separate prevents a hosted-child inventory from
 // becoming a second source for labels, descriptions, or parked rows.
 type PanelTarget struct {
-	Tree   couchcore.Worktree
-	Target string
-	Bell   bool
+	Address couchcore.ThreadAddress
+	Tree    couchcore.Worktree
+	Target  string
+	Bell    bool
 }
 
 // PanelControl is one operator-entered panel surface. The renderer and README
@@ -98,24 +100,19 @@ func (m *PanelModel) Selected() (PanelRow, bool) {
 	return m.shown[m.cursor], true
 }
 
-// NewPanelModel builds the rows from couch's own summaries, so a tree that is
+// NewPanelModel builds the rows from couch's own summaries, so a thread that is
 // PARKED -- named, no live actor -- is listed exactly as `couch list` lists it.
 // That thread is the one this project exists to stop losing, so it is not
 // filtered out for being idle.
-func NewPanelModel(trees []couchcore.TreeSummary) *PanelModel {
-	m := &PanelModel{all: make([]PanelRow, 0, len(trees))}
-	for _, t := range trees {
-		label := t.Name
-		if label == "" {
-			// An unnamed tree still has to be identifiable; an empty chip is
-			// unusable. Same fallback `couch list` renders.
-			label = t.Tree.Repo()
-		}
+func NewPanelModel(threads []couchcore.ThreadSummary) *PanelModel {
+	m := &PanelModel{all: make([]PanelRow, 0, len(threads))}
+	for _, thread := range threads {
 		m.all = append(m.all, PanelRow{
-			Tree:  t.Tree,
-			Label: label,
-			Desc:  t.Desc,
-			Live:  t.Live(),
+			Address: thread.Address,
+			Tree:    couchcore.Worktree(thread.WorkingPath),
+			Label:   thread.Label(),
+			Desc:    thread.DisplaySummary(),
+			Live:    thread.Live(),
 		})
 	}
 	m.shown = m.all
@@ -129,23 +126,23 @@ func NewPanelModel(trees []couchcore.TreeSummary) *PanelModel {
 func (m *PanelModel) Rows() []PanelRow { return m.all }
 
 // BindTargets joins ephemeral console routing onto summary-derived rows.
-// Multiple hosted children on one tree choose the first target deterministically
-// and OR their bell state; the panel remains one row per worktree.
+// Multiple hosted children for one thread choose the first target deterministically
+// and OR their bell state; the panel remains one row per composite thread address.
 func (m *PanelModel) BindTargets(targets []PanelTarget) {
-	selected := m.selectedTree()
-	byTree := map[string]PanelTarget{}
+	selected := m.selectedAddress()
+	byAddress := map[couchcore.ThreadAddress]PanelTarget{}
 	for _, target := range targets {
-		key := target.Tree.Key()
-		joined := byTree[key]
+		key := target.Address
+		joined := byAddress[key]
 		if joined.Target == "" {
 			joined.Tree = target.Tree
 			joined.Target = target.Target
 		}
 		joined.Bell = joined.Bell || target.Bell
-		byTree[key] = joined
+		byAddress[key] = joined
 	}
 	for i := range m.all {
-		if target, ok := byTree[m.all[i].Tree.Key()]; ok {
+		if target, ok := byAddress[m.all[i].Address]; ok {
 			m.all[i].Target = target.Target
 			m.all[i].Bell = target.Bell
 		}
@@ -158,29 +155,29 @@ func (m *PanelModel) Shown() []PanelRow { return m.shown }
 
 // Filter narrows the rows by INJECTING the match rule rather than restating it.
 //
-// resolve is `couch.LookupTrees` in production: one rule serving the CLI, the
-// panel, and #148's advisor. Restating it here is the drift Decision 12 exists
+// resolve is `couch.ResolveThreadReference` in production: one rule serving
+// the CLI, panel, and #148's advisor. Restating it here is the drift Decision 12 exists
 // to prevent -- and the earlier plan text got the rule's own field list wrong,
 // which is what a second copy does.
 //
 // An empty query is not a resolution: it means "show everything", and asking
 // the resolver would make the panel's DEFAULT view depend on a match rule.
-func (m *PanelModel) Filter(query string, resolve func(string) []couchcore.Worktree) []PanelRow {
-	selected := m.selectedTree()
+func (m *PanelModel) Filter(query string, resolve func(string) []couchcore.ThreadAddress) []PanelRow {
+	selected := m.selectedAddress()
 	if query == "" || resolve == nil {
 		m.setShown(m.all, selected)
 		return m.shown
 	}
-	want := map[string]bool{}
-	for _, w := range resolve(query) {
-		want[w.Key()] = true
+	want := map[couchcore.ThreadAddress]bool{}
+	for _, address := range resolve(query) {
+		want[address] = true
 	}
 	// Filtered in the ORIGINAL order rather than the resolver's: numbered
 	// selection is only safe if rows do not move under the operator's fingers,
 	// and a resolver is free to return whatever order it likes.
 	out := make([]PanelRow, 0, len(want))
 	for _, r := range m.all {
-		if want[r.Tree.Key()] {
+		if want[r.Address] {
 			out = append(out, r)
 		}
 	}
@@ -188,17 +185,17 @@ func (m *PanelModel) Filter(query string, resolve func(string) []couchcore.Workt
 	return out
 }
 
-func (m *PanelModel) selectedTree() couchcore.Worktree {
+func (m *PanelModel) selectedAddress() couchcore.ThreadAddress {
 	if row, ok := m.Selected(); ok {
-		return row.Tree
+		return row.Address
 	}
-	return ""
+	return couchcore.ThreadAddress{}
 }
 
-// SelectTree selects a visible row by stable worktree identity.
-func (m *PanelModel) SelectTree(tree couchcore.Worktree) bool {
+// SelectAddress selects a visible row by durable composite thread identity.
+func (m *PanelModel) SelectAddress(address couchcore.ThreadAddress) bool {
 	for i, row := range m.shown {
-		if row.Tree.Key() == tree.Key() {
+		if row.Address == address {
 			m.cursor = i
 			return true
 		}
@@ -206,10 +203,31 @@ func (m *PanelModel) SelectTree(tree couchcore.Worktree) bool {
 	return false
 }
 
-func (m *PanelModel) setShown(rows []PanelRow, selected couchcore.Worktree) {
+// SelectTree is the compatibility boundary retained for Pair #146 callers.
+// A working path is no longer a durable identity, so selection succeeds only
+// when the visible list contains exactly one thread at that path.
+func (m *PanelModel) SelectTree(tree couchcore.Worktree) bool {
+	match := -1
+	for i, row := range m.shown {
+		if row.Tree != tree {
+			continue
+		}
+		if match >= 0 {
+			return false
+		}
+		match = i
+	}
+	if match < 0 {
+		return false
+	}
+	m.cursor = match
+	return true
+}
+
+func (m *PanelModel) setShown(rows []PanelRow, selected couchcore.ThreadAddress) {
 	m.shown = rows
 	m.cursor = -1
-	if selected != "" && m.SelectTree(selected) {
+	if selected != (couchcore.ThreadAddress{}) && m.SelectAddress(selected) {
 		return
 	}
 	if len(rows) > 0 {

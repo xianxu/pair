@@ -2,9 +2,9 @@ package launcher
 
 import (
 	"fmt"
-	"path/filepath"
 	"strings"
 
+	"github.com/xianxu/pair/cmd/internal/artifactpath"
 	"github.com/xianxu/pair/cmd/internal/zellijpane"
 )
 
@@ -14,7 +14,11 @@ type layoutRecordSnapshot struct {
 }
 
 func layoutRecordPath(dataDir, tag string) string {
-	return filepath.Join(dataDir, "workbench-layout-"+tag)
+	paths, err := artifactpath.ResolveScoped(dataDir, tag)
+	if err != nil {
+		return ""
+	}
+	return paths.WorkbenchLayout()
 }
 
 func readLayoutSelection(rt FSOps, dataDir, tag string, request LayoutRequest) (LayoutResolution, layoutRecordSnapshot) {
@@ -49,7 +53,7 @@ func ClassifyLiveLayout(panes []zellijpane.Pane) (LayoutMode, bool) {
 		switch {
 		case strings.Contains(command, "pair wrap"):
 			agent = true
-		case pane.Title == "draft" || strings.Contains(command, "draft-") && strings.Contains(command, "nvim"):
+		case pane.Title == "draft" || artifactpath.CommandReferencesDraftArtifact(command) && strings.Contains(command, "nvim"):
 			draft = true
 		}
 		if pane.Title == "terminal-filler" || strings.Contains(command, "tail -f /dev/null") {

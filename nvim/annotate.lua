@@ -692,10 +692,7 @@ end
 -- feed this to attach() as pending_path (the same file init.lua reads), so
 -- the resolver lives once here rather than copied per viewer (ARCH-DRY).
 function M.default_pending_path()
-  local data_dir = vim.env.PAIR_DATA_DIR
-    or ((vim.env.XDG_DATA_HOME or (vim.env.HOME .. '/.local/share')) .. '/pair')
-  local tag = vim.env.PAIR_TAG or vim.env.PAIR_AGENT or 'claude'
-  return data_dir .. '/scrollback-pending-' .. tag .. '.md'
+  return vim.env.PAIR_SCROLLBACK_PENDING_PATH
 end
 
 -- Extract the buffer's user-added markers (+ footer comment when footer=true)

@@ -2,14 +2,20 @@ package couchcmd
 
 import (
 	"bytes"
+	"crypto/rand"
+	"fmt"
+	"io"
 	"os"
+	"path/filepath"
 	"reflect"
 	"sort"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/creack/pty"
 	"github.com/xianxu/pair/cmd/internal/couchcore"
+	"github.com/xianxu/pair/cmd/internal/launcher"
 )
 
 // testRT builds the domain over fakes. There is deliberately NO production
@@ -18,21 +24,56 @@ import (
 // layout rather than on couch. One such test passed here and failed in a
 // pristine worktree of the same commit.
 type testRT struct {
-	dir    string
-	runner *couchcore.FakeRunner
-	proc   *couchcore.FakeProcOps
-	git    *couchcore.FakeGit
+	dir        string
+	namespace  couchcore.CouchNamespace
+	runner     *couchcore.FakeRunner
+	proc       *couchcore.FakeProcOps
+	git        *couchcore.FakeGit
+	supervisor *fakeSupervisor
+	policy     *couchcore.FakePolicyResolver
+	env        map[string]string
 	// ids is shared across invocations. Minting a fresh generator per
 	// NewCouch restarts the sequence, so two starts both produce couch-ah8d
 	// and no CLI test can hold two distinguishable actors.
-	ids couchcore.IDGen
+	ids              couchcore.IDGen
+	currentRepoScope string
+	agentDefaults    map[string]launcher.AgentDefault
 }
 
-func (t testRT) Getenv(string) string { return "" }
-func (t testRT) StoreDir() string     { return t.dir }
+func (t testRT) Getenv(key string) string { return t.env[key] }
+func (t testRT) StoreDir() string         { return t.dir }
+func (t testRT) CurrentRepoScope() (string, error) {
+	if t.currentRepoScope == "" {
+		return "", fmt.Errorf("test runtime has no current repository scope")
+	}
+	return t.currentRepoScope, nil
+}
+func (t testRT) ResolveNamespace() (couchcore.CouchNamespace, error) {
+	return t.namespace, nil
+}
+func (t testRT) AcquireSupervisor(couchcore.CouchNamespace) (io.Closer, error) {
+	if t.supervisor.err != nil {
+		return nil, t.supervisor.err
+	}
+	t.supervisor.acquired++
+	return fakeSupervisorLease{state: t.supervisor}, nil
+}
+
+type fakeSupervisor struct {
+	acquired int
+	released int
+	err      error
+}
+
+type fakeSupervisorLease struct{ state *fakeSupervisor }
+
+func (l fakeSupervisorLease) Close() error {
+	l.state.released++
+	return nil
+}
 
 func (t testRT) NewCouch() (*couchcore.Couch, error) {
-	return t.NewCouchWith(t.runner)
+	return t.NewCouchWith(t.runner, t.namespace)
 }
 
 // NewCouchWith IGNORES the caller's runner and keeps the fake.
@@ -41,11 +82,21 @@ func (t testRT) NewCouch() (*couchcore.Couch, error) {
 // must still drive the whole dispatch against fakes. What the test asserts is
 // which BRANCH was taken (console vs --no-console), which is observable in the
 // rendered output, not which concrete runner object was constructed.
-func (t testRT) NewCouchWith(couchcore.Runner) (*couchcore.Couch, error) {
-	return couchcore.New(
-		t.runner, couchcore.NewFakePathOps(nil), t.git, t.proc,
-		couchcore.NewStore(t.dir), couchcore.FixedClock{}, t.ids,
+func (t testRT) NewCouchWith(couchcore.Runner, couchcore.CouchNamespace) (*couchcore.Couch, error) {
+	c, err := couchcore.New(
+		t.namespace, t.runner, couchcore.NewFakePathOps(nil), t.git, t.proc,
+		couchcore.NewStore(t.dir), couchcore.FixedClock{T: time.Unix(1, 0)}, t.ids, t.policy,
+		rand.Reader, couchcore.NoThreadArtifactCollisions{},
 	)
+	if err != nil {
+		return nil, err
+	}
+	c.RootAgent = t.env["PAIR_AGENT"]
+	c.RepoAgentDefault = func(repoRoot, agent string) (couchcore.LaunchProfile, bool, error) {
+		value, ok := t.agentDefaults[repoRoot+"\x00"+agent]
+		return couchcore.LaunchProfile{Agent: value.Agent, Argv: append([]string(nil), value.Args...)}, ok, nil
+	}
+	return c, nil
 }
 
 // newRT wires a Runtime whose git answers for the given trees.
@@ -60,12 +111,135 @@ func newRT(t *testing.T, trees ...string) testRT {
 	for _, tr := range trees {
 		replies[couchcore.GitCall{Dir: tr, Args: "rev-parse --show-toplevel"}] = tr
 	}
+	ns, err := couchcore.ResolveCouchNamespace(t.TempDir(), "/unused")
+	if err != nil {
+		t.Fatalf("ResolveCouchNamespace: %v", err)
+	}
+	var currentScope string
+	if len(trees) > 0 {
+		scope, err := launcher.ResolveRepoScope(trees[0])
+		if err != nil {
+			t.Fatal(err)
+		}
+		currentScope = scope.Key
+	}
 	return testRT{
-		dir:    t.TempDir(),
-		runner: runner,
-		proc:   couchcore.NewFakeProcOps(),
-		git:    couchcore.NewFakeGit(replies),
-		ids:    couchcore.NewFixedIDGen("ah8d", "b2c1", "c3d2", "e4f5"),
+		dir:              ns.Dir(),
+		namespace:        ns,
+		runner:           runner,
+		proc:             couchcore.NewFakeProcOps(),
+		git:              couchcore.NewFakeGit(replies),
+		supervisor:       &fakeSupervisor{},
+		policy:           couchcore.NewFakePolicyResolver(),
+		env:              map[string]string{},
+		ids:              couchcore.NewFixedIDGen("ah8d", "b2c1", "c3d2", "e4f5"),
+		currentRepoScope: currentScope,
+		agentDefaults:    map[string]launcher.AgentDefault{},
+	}
+}
+
+func TestStartComposesRootAgentAndMatchingRepoDefaultThroughSharedLauncherProfile(t *testing.T) {
+	rt := newRT(t, "/repo")
+	rt.env["PAIR_AGENT"] = "codex"
+	rt.agentDefaults["/repo\x00codex"] = launcher.AgentDefault{Agent: "codex", Args: []string{"--sandbox", "workspace-write"}}
+	rt.boundedOne("/repo")
+
+	if _, stderr, code := runRT(rt, "start", "/repo", "--no-console"); code != 0 {
+		t.Fatalf("start: code=%d stderr=%q", code, stderr)
+	}
+	child := rt.runner.Child("couch-fake-1")
+	profileRaw := envValue(child.Env, launcher.CouchLaunchProfileEnv)
+	if len(child.Argv) < 3 {
+		t.Fatalf("child argv = %q", child.Argv)
+	}
+	parsed, err := launcher.ParseArgs([]string{"resume", child.Argv[2], "--layout2"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	profileArgs, source, err := launcher.ApplyCouchLaunchProfile(parsed, profileRaw)
+	if err != nil {
+		t.Fatalf("profile env %q: %v", profileRaw, err)
+	}
+	if profileArgs.Agent != "codex" || !reflect.DeepEqual(profileArgs.AgentArgs, []string{"--sandbox", "workspace-write"}) || source != "repo-default" {
+		t.Fatalf("resolved child profile = %+v source=%q", profileArgs, source)
+	}
+	if envValue(child.Env, "PAIR_USE_REPO_DEFAULT") != "1" {
+		t.Fatalf("child env = %q; repo-default provenance marker missing", child.Env)
+	}
+}
+
+func envValue(env []string, key string) string {
+	prefix := key + "="
+	for _, item := range env {
+		if strings.HasPrefix(item, prefix) {
+			return strings.TrimPrefix(item, prefix)
+		}
+	}
+	return ""
+}
+
+func seedThread(t *testing.T, rt testRT, path string) couchcore.ThreadRecord {
+	t.Helper()
+	scope, err := launcher.ResolveRepoScope(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	return seedThreadAtAddress(t, rt, scope.Key, "couch-0102030405060708", path)
+}
+
+func seedThreadAtAddress(t *testing.T, rt testRT, scope, tag, path string) couchcore.ThreadRecord {
+	t.Helper()
+	c, err := rt.NewCouch()
+	if err != nil {
+		t.Fatal(err)
+	}
+	record := couchcore.ThreadRecord{
+		SchemaVersion: couchcore.ThreadSchemaVersion,
+		Address: couchcore.ThreadAddress{
+			RepoScope: scope,
+			Tag:       couchcore.ThreadTag(tag),
+		},
+		StartingPath: path,
+		WorkingPath:  path,
+		CreatedAt:    time.Unix(1, 0).UTC(),
+		Revision:     1,
+	}
+	created, err := c.Threads.CreateThread(record)
+	if err != nil {
+		t.Fatal(err)
+	}
+	return created
+}
+
+func TestStartAcquiresAndReleasesSupervisorLease(t *testing.T) {
+	rt := newRT(t, "/repo")
+	if _, errw, code := runRT(rt, "start", "/repo"); code != 0 {
+		t.Fatalf("start: code=%d stderr=%q", code, errw)
+	}
+	if rt.supervisor.acquired != 1 || rt.supervisor.released != 1 {
+		t.Fatalf("supervisor acquire/release = %d/%d, want 1/1", rt.supervisor.acquired, rt.supervisor.released)
+	}
+}
+
+func TestDirectStoreOperationDoesNotAcquireSupervisorLease(t *testing.T) {
+	rt := newRT(t)
+	if _, errw, code := runRT(rt, "list"); code != 0 {
+		t.Fatalf("list: code=%d stderr=%q", code, errw)
+	}
+	if rt.supervisor.acquired != 0 || rt.supervisor.released != 0 {
+		t.Fatalf("direct-store list touched supervisor lease: %d/%d", rt.supervisor.acquired, rt.supervisor.released)
+	}
+}
+
+func TestHeldSupervisorRefusesBeforeStartingActor(t *testing.T) {
+	rt := newRT(t, "/repo")
+	rt.supervisor.err = fmt.Errorf("namespace is supervised by pid 42")
+	_, errw, code := runRT(rt, "start", "/repo")
+	if code == 0 || !strings.Contains(errw, "pid 42") {
+		t.Fatalf("start: code=%d stderr=%q", code, errw)
+	}
+	if len(rt.runner.Ops) != 0 {
+		t.Fatalf("refused start ran child operations: %v", rt.runner.Ops)
 	}
 }
 
@@ -80,6 +254,17 @@ func (rt testRT) markLive(t *testing.T) {
 	for _, r := range c.List() {
 		rt.proc.Set(r.PID, r.Identity)
 	}
+}
+
+func (rt testRT) boundedOne(path string) {
+	rt.policy.SetDefault(couchcore.PolicyResult{
+		PolicyVersion: 1,
+		PolicyDigest:  strings.Repeat("a", 64),
+		RepoIdentity:  "repo",
+		AdmissionKey:  path,
+		Capacity:      couchcore.PolicyCapacity{Kind: couchcore.CapacityBounded, Limit: 1},
+		OnCapacity:    couchcore.CapacityReject,
+	}, nil)
 }
 
 func runRT(rt testRT, args ...string) (string, string, int) {
@@ -109,8 +294,8 @@ func TestEveryOperationHasASummaryAndDescribedArgs(t *testing.T) {
 				t.Errorf("%s: arg %q has no summary", op.Name, a.Name)
 			}
 		}
-		if op.Invoke == nil {
-			t.Errorf("%s: declared but not invocable", op.Name)
+		if op.Effect == couchcore.EffectUnknown || op.Confirmation == couchcore.ConfirmUnknown || op.Result == couchcore.ResultUnknown {
+			t.Errorf("%s: incomplete declaration", op.Name)
 		}
 	}
 }
@@ -118,7 +303,7 @@ func TestEveryOperationHasASummaryAndDescribedArgs(t *testing.T) {
 func TestOperationArityMatchesExpectation(t *testing.T) {
 	// Declared in the test rather than read from the operation itself, so
 	// this cannot degrade into asserting X == X.
-	want := map[string]int{"start": 3, "list": 0, "show": 1, "stop": 1, "name": 2, "describe": 2, "publish-description": 2}
+	want := map[string]int{"start": 3, "list": 0, "show": 2, "stop": 1, "name": 3, "describe": 3, "publish-description": 3, "switch": 2, "attach": 2}
 	for _, op := range couchcore.Operations() {
 		if got := len(op.Args); got != want[op.Name] {
 			t.Errorf("%s has %d args, want %d", op.Name, got, want[op.Name])
@@ -126,12 +311,58 @@ func TestOperationArityMatchesExpectation(t *testing.T) {
 	}
 }
 
-func TestListOnEmptyRegistry(t *testing.T) {
+func TestPublishDescriptionUsesCompositeThreadEnvironment(t *testing.T) {
+	rt := newRT(t)
+	record := couchcore.ThreadRecord{
+		SchemaVersion: couchcore.ThreadSchemaVersion,
+		Address: couchcore.ThreadAddress{
+			RepoScope: "816fc349d3faebf8",
+			Tag:       "couch-0102030405060708",
+		},
+		StartingPath: "/repo/task",
+		WorkingPath:  "/repo/task",
+		CreatedAt:    time.Unix(1, 0).UTC(),
+		Revision:     1,
+	}
+	c, err := rt.NewCouch()
+	if err != nil {
+		t.Fatal(err)
+	}
+	created, err := c.Threads.CreateThread(record)
+	if err != nil {
+		t.Fatal(err)
+	}
+	rt.env["COUCH_THREAD_SCOPE"] = created.Address.RepoScope
+	rt.env["COUCH_THREAD_TAG"] = string(created.Address.Tag)
+
+	if _, errw, code := runRT(rt, "publish-description", "agent summary"); code != 0 {
+		t.Fatalf("publish-description: code=%d stderr=%q", code, errw)
+	}
+	got, err := c.Threads.GetThread(created.Address)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got.PublishedSummary != "agent summary" || got.Description != "" {
+		t.Fatalf("published thread = %+v", got)
+	}
+	if _, errw, code := runRT(rt, "publish-description", ""); code != 0 {
+		t.Fatalf("clear publish-description: code=%d stderr=%q", code, errw)
+	}
+	got, err = c.Threads.GetThread(created.Address)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got.PublishedSummary != "" {
+		t.Fatalf("empty CLI summary did not clear field: %+v", got)
+	}
+}
+
+func TestListOnEmptyThreadStore(t *testing.T) {
 	out, errw, code := runRT(newRT(t), "list")
 	if code != 0 {
 		t.Fatalf("exit %d, stderr %q", code, errw)
 	}
-	if !strings.Contains(out, "no trees") {
+	if !strings.Contains(out, "no threads") {
 		t.Fatalf("out = %q", out)
 	}
 }
@@ -169,6 +400,27 @@ func TestHelpListsEveryDeclaredOperation(t *testing.T) {
 	}
 }
 
+func TestReadmeDoesNotAdvertiseRemovedAdmissionFlags(t *testing.T) {
+	raw, err := os.ReadFile("../../../README.md")
+	if err != nil {
+		t.Fatal(err)
+	}
+	removed := "--same" + "-tree"
+	if strings.Contains(string(raw), removed) {
+		t.Fatalf("README still advertises removed flag %s", removed)
+	}
+}
+
+func TestReadmeDoesNotAdvertiseOwnerRequiredStopAsExternalCommand(t *testing.T) {
+	raw, err := os.ReadFile("../../../README.md")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if strings.Contains(string(raw), "couch stop <ref>") {
+		t.Fatal("README advertises stop as a second-process command before #147 owner routing exists")
+	}
+}
+
 func TestBindArgsAcceptsFlagsAndPositionals(t *testing.T) {
 	var start couchcore.Operation
 	for _, op := range couchcore.Operations() {
@@ -176,12 +428,42 @@ func TestBindArgsAcceptsFlagsAndPositionals(t *testing.T) {
 			start = op
 		}
 	}
-	got, err := bindArgs(start, []string{"../pair", "--same-tree"})
+	got, err := bindArgs(start, []string{"../pair", "--no-console"})
 	if err != nil {
 		t.Fatalf("bindArgs: %v", err)
 	}
-	if got["path"] != "../pair" || got["same-tree"] != "true" {
+	if got["path"] != "../pair" || got["no-console"] != "true" {
 		t.Fatalf("bound = %v", got)
+	}
+}
+
+func TestBindArgsRejectsMissingOrEmptyValueBearingFlag(t *testing.T) {
+	var start couchcore.Operation
+	for _, op := range couchcore.Operations() {
+		if op.Name == "start" {
+			start = op
+		}
+	}
+	for _, argv := range [][]string{{"--agent"}, {"--agent="}} {
+		if _, err := bindArgs(start, argv); err == nil {
+			t.Fatalf("bindArgs(%q) accepted agent flag without a value", argv)
+		}
+	}
+}
+
+func TestCLIRejectsMissingOrEmptyExplicitAgentBeforeSpawn(t *testing.T) {
+	for _, argv := range [][]string{{"start", "/repo", "--agent", "--no-console"}, {"start", "/repo", "--agent=", "--no-console"}} {
+		t.Run(strings.Join(argv, "_"), func(t *testing.T) {
+			rt := newRT(t, "/repo")
+			rt.boundedOne("/repo")
+			_, stderr, code := runRT(rt, argv...)
+			if code == 0 || !strings.Contains(stderr, "--agent requires a non-empty value") {
+				t.Fatalf("runRT(%q): code=%d stderr=%q", argv, code, stderr)
+			}
+			if len(rt.runner.Ops) != 0 {
+				t.Fatalf("runRT(%q) reached runner operations %q", argv, rt.runner.Ops)
+			}
+		})
 	}
 }
 
@@ -190,6 +472,7 @@ func TestListShowsANamedTreeWithNoAgent(t *testing.T) {
 	// but it is exactly the thread the operator loses track of. It must be a
 	// visible row, not filtered out.
 	rt := newRT(t, "/repo")
+	seedThread(t, rt, "/repo")
 	if _, errw, code := runRT(rt, "name", "/repo", "the pair tree"); code != 0 {
 		t.Fatalf("name failed: %s", errw)
 	}
@@ -205,8 +488,31 @@ func TestListShowsANamedTreeWithNoAgent(t *testing.T) {
 	}
 }
 
+func TestCLIEmptyNameClearsHumanThreadName(t *testing.T) {
+	rt := newRT(t, "/repo")
+	created := seedThread(t, rt, "/repo")
+	if _, errw, code := runRT(rt, "name", string(created.Address.Tag), "compiler"); code != 0 {
+		t.Fatalf("set name: code=%d stderr=%q", code, errw)
+	}
+	if _, errw, code := runRT(rt, "name", string(created.Address.Tag), ""); code != 0 {
+		t.Fatalf("clear name: code=%d stderr=%q", code, errw)
+	}
+	c, err := rt.NewCouch()
+	if err != nil {
+		t.Fatal(err)
+	}
+	got, err := c.Threads.GetThread(created.Address)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got.Name != "" {
+		t.Fatalf("empty CLI name did not clear field: %+v", got)
+	}
+}
+
 func TestShowResolvesANameToItsTreePath(t *testing.T) {
 	rt := newRT(t, "/repo")
+	created := seedThread(t, rt, "/repo")
 	if _, errw, code := runRT(rt, "name", "/repo", "pairtree"); code != 0 {
 		t.Fatalf("name failed: %s", errw)
 	}
@@ -217,16 +523,98 @@ func TestShowResolvesANameToItsTreePath(t *testing.T) {
 	if !strings.Contains(out, "/repo") {
 		t.Fatalf("out = %q; show must print the tree path", out)
 	}
+	if !strings.Contains(out, string(created.Address.Tag)) {
+		t.Fatalf("out = %q; show must retain the immutable thread tag", out)
+	}
+}
+
+func TestCLICompositeReferencesDeriveCurrentRepositoryScope(t *testing.T) {
+	rt := newRT(t, "/repo")
+	localScope, err := launcher.ResolveRepoScope("/repo")
+	if err != nil {
+		t.Fatal(err)
+	}
+	otherScope, err := launcher.ResolveRepoScope("/other")
+	if err != nil {
+		t.Fatal(err)
+	}
+	const repeatedTag = "couch-0102030405060708"
+	local := seedThreadAtAddress(t, rt, localScope.Key, repeatedTag, "/repo")
+	other := seedThreadAtAddress(t, rt, otherScope.Key, repeatedTag, "/other")
+
+	if _, errw, code := runRT(rt, "name", repeatedTag, "local thread"); code != 0 {
+		t.Fatalf("name: code=%d stderr=%q", code, errw)
+	}
+	if _, errw, code := runRT(rt, "describe", repeatedTag, "local description"); code != 0 {
+		t.Fatalf("describe: code=%d stderr=%q", code, errw)
+	}
+	out, errw, code := runRT(rt, "show", repeatedTag)
+	if code != 0 || !strings.Contains(out, "/repo") || strings.Contains(out, "/other") {
+		t.Fatalf("show: code=%d out=%q stderr=%q", code, out, errw)
+	}
+
+	c, err := rt.NewCouch()
+	if err != nil {
+		t.Fatal(err)
+	}
+	gotLocal, err := c.Threads.GetThread(local.Address)
+	if err != nil {
+		t.Fatal(err)
+	}
+	gotOther, err := c.Threads.GetThread(other.Address)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if gotLocal.Name != "local thread" || gotLocal.Description != "local description" {
+		t.Fatalf("local metadata = name %q description %q", gotLocal.Name, gotLocal.Description)
+	}
+	if gotOther.Name != "" || gotOther.Description != "" {
+		t.Fatalf("other repository thread was mutated: %+v", gotOther)
+	}
+}
+
+func TestCurrentRepoScopeUsesGitRootFromSubdirectory(t *testing.T) {
+	git := couchcore.NewFakeGit(map[couchcore.GitCall]string{
+		{Dir: "/repo/subdir", Args: "rev-parse --show-toplevel"}: "/repo",
+	})
+	got, err := resolveCurrentRepoScope("/repo/subdir", git, couchcore.NewFakePathOps(nil))
+	if err != nil {
+		t.Fatal(err)
+	}
+	want, err := launcher.ResolveRepoScope("/repo")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got != want.Key {
+		t.Fatalf("scope = %q, want Git-root scope %q", got, want.Key)
+	}
 }
 
 func TestRenderedOutputHasNoANSIWhenNotATerminal(t *testing.T) {
 	// A bytes.Buffer is not a terminal, so dimming must be suppressed --
 	// otherwise piped or captured output carries escape codes.
 	rt := newRT(t, "/repo")
+	seedThread(t, rt, "/repo")
 	_, _, _ = runRT(rt, "name", "/repo", "plain")
 	out, _, _ := runRT(rt, "list")
 	if strings.Contains(out, "\x1b[") {
 		t.Fatalf("ANSI leaked into non-terminal output: %q", out)
+	}
+}
+
+func TestRenderThreadsIsNameFirstAndKeepsSamePathThreadsDistinct(t *testing.T) {
+	rows := []couchcore.ThreadSummary{
+		{Address: couchcore.ThreadAddress{RepoScope: "816fc349d3faebf8", Tag: "couch-0000000000000001"}, WorkingPath: "/repo", Name: "compiler", PublishedSummary: "agent work"},
+		{Address: couchcore.ThreadAddress{RepoScope: "816fc349d3faebf8", Tag: "couch-0000000000000002"}, WorkingPath: "/repo"},
+	}
+	var out bytes.Buffer
+	renderThreads(&out, rows)
+	text := out.String()
+	if !strings.Contains(text, "compiler") || strings.Contains(strings.Split(text, "\n")[0], "couch-0000000000000001") {
+		t.Fatalf("named row leads with opaque id: %q", text)
+	}
+	if !strings.Contains(text, "couch-0000000000000002") || strings.Count(text, "/repo") != 2 {
+		t.Fatalf("same-path thread rows collapsed: %q", text)
 	}
 }
 
@@ -263,6 +651,7 @@ func TestCLIAcceptsExactlyTheDeclaredOperations(t *testing.T) {
 func TestStartRendersTheRefusalWithThePolicyShapedOffer(t *testing.T) {
 	// Done-when 2's rendering had no reachable test before the Runtime seam.
 	rt := newRT(t, "/repo")
+	rt.boundedOne("/repo")
 	if out, errw, code := runRT(rt, "start", "/repo"); code != 0 {
 		t.Fatalf("first start: code=%d out=%q err=%q", code, out, errw)
 	}
@@ -272,48 +661,51 @@ func TestStartRendersTheRefusalWithThePolicyShapedOffer(t *testing.T) {
 	if code == 0 {
 		t.Fatal("a second start on an occupied tree must fail")
 	}
-	for _, want := range []string{"already has an agent", "share a branch and index", "--same-tree"} {
+	for _, want := range []string{"at capacity 1", `admission key "/repo"`, "couch list"} {
 		if !strings.Contains(errw, want) {
 			t.Errorf("refusal missing %q; got %q", want, errw)
 		}
 	}
 }
 
-func TestStopReportsWhetherItActuallySignalled(t *testing.T) {
+func TestProvisionWorktreeRefusalNames153WithoutInventingAPath(t *testing.T) {
+	var out bytes.Buffer
+	renderError(&out, &couchcore.CapacityExceededError{
+		RepoIdentity: "web", AdmissionKey: "/repo", Limit: 1,
+		Action: couchcore.CapacityProvisionWorktree,
+	})
+	got := out.String()
+	if !strings.Contains(got, "pair#153") || !strings.Contains(got, "no path was created") {
+		t.Fatalf("provision refusal = %q", got)
+	}
+	if strings.Contains(got, "couch start ") {
+		t.Fatalf("provision refusal invented a runnable path: %q", got)
+	}
+}
+
+func TestExternalStopRefusesUntilOwnerRoutingExists(t *testing.T) {
 	rt := newRT(t, "/repo")
 	if _, errw, code := runRT(rt, "start", "/repo"); code != 0 {
 		t.Fatalf("start: %s", errw)
 	}
 	rt.markLive(t)
-	out, errw, code := runRT(rt, "stop", "/repo")
-	if code != 0 {
+	_, errw, code := runRT(rt, "stop", "/repo")
+	if code == 0 || !strings.Contains(errw, "routing requires #147") {
 		t.Fatalf("stop: code=%d err=%q", code, errw)
-	}
-	if !strings.Contains(out, "signalled") {
-		t.Fatalf("out = %q; stop must say it signalled a live child", out)
 	}
 }
 
-func TestGuardBypassCannotBindPositionally(t *testing.T) {
-	// BR-31. `couch start /repo true` bound "true" to same-tree and silently
-	// disabled the one-agent-per-tree refusal.
+func TestRemovedAdmissionBypassCannotBindInAnyForm(t *testing.T) {
 	rt := newRT(t, "/repo")
-	if _, errw, code := runRT(rt, "start", "/repo"); code != 0 {
-		t.Fatalf("first start: %s", errw)
-	}
-	rt.markLive(t)
-
 	_, errw, code := runRT(rt, "start", "/repo", "true")
 	if code == 0 {
-		t.Fatal("a positional word must not enable --same-tree and bypass the guard")
+		t.Fatal("a positional word was accepted as an admission bypass")
 	}
-	if !strings.Contains(errw, "unexpected argument") && !strings.Contains(errw, "already has an agent") {
+	if !strings.Contains(errw, "unexpected argument") {
 		t.Fatalf("stderr = %q", errw)
 	}
-
-	// The explicit flag still works.
-	if _, errw, code := runRT(rt, "start", "/repo", "--same-tree"); code != 0 {
-		t.Fatalf("--same-tree refused: %s", errw)
+	if _, errw, code := runRT(rt, "start", "/repo", "--same-tree"); code == 0 || !strings.Contains(errw, "unknown flag") {
+		t.Fatalf("removed bypass was accepted: code=%d stderr=%q", code, errw)
 	}
 }
 
@@ -321,6 +713,7 @@ func TestOptionalPositionalArgsStillBind(t *testing.T) {
 	// The rule is "guard bypasses are flag-only", NOT "optional args never
 	// bind" -- the broader version broke `couch describe <ref> <text>`.
 	rt := newRT(t, "/repo")
+	seedThread(t, rt, "/repo")
 	if _, errw, code := runRT(rt, "name", "/repo", "thing"); code != 0 {
 		t.Fatalf("name: %s", errw)
 	}
@@ -349,7 +742,7 @@ func TestStartWithNoConsoleAnnouncesTheFallback(t *testing.T) {
 }
 
 // A guard bypass must never bind positionally: a stray word must not be able to
-// turn off the console. Mirrors the same rule's test for --same-tree.
+// turn off the console. It must remain explicitly named.
 func TestNoConsoleNeverBindsPositionally(t *testing.T) {
 	_, errw, code := runRT(newRT(t, "/repo"), "start", "/repo", "no-console")
 	if code == 0 {
@@ -524,8 +917,58 @@ func TestConsoleGetsCouchsOwnResolver(t *testing.T) {
 	if console.Summaries() == nil {
 		t.Fatal("the run path left the panel's summary provider nil — parked trees would disappear")
 	}
-	if got := console.Resolver()("anything"); len(got) != 0 {
-		t.Fatalf("resolver returned %v for an empty registry", got)
+	if got, err := console.Resolver()("anything"); err != nil || len(got) != 0 {
+		t.Fatalf("resolver returned %v, %v for an empty registry", got, err)
+	}
+}
+
+func TestConsoleWiringPropagatesAuthoritativeThreadStoreFailures(t *testing.T) {
+	rt := newRT(t, "/repo")
+	seedThread(t, rt, "/repo")
+	c, err := rt.NewCouch()
+	if err != nil {
+		t.Fatal(err)
+	}
+	console, _ := consoleRunnerFor("start", map[string]string{}, strings.NewReader(""), true, nil, nil)
+	wireResolver(console, c)
+	if err := os.WriteFile(filepath.Join(rt.dir, "threadstore", "manifest.json"), []byte("{corrupt"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := console.Summaries()(); err == nil {
+		t.Fatal("production summary callback swallowed corrupt ThreadStore")
+	}
+	if _, err := console.Resolver()("repo"); err == nil {
+		t.Fatal("production reference callback swallowed corrupt ThreadStore")
+	}
+}
+
+func TestConsoleWiringReturnsEveryAmbiguousHumanMatch(t *testing.T) {
+	rt := newRT(t, "/repo")
+	localScope, err := launcher.ResolveRepoScope("/repo")
+	if err != nil {
+		t.Fatal(err)
+	}
+	otherScope, err := launcher.ResolveRepoScope("/other")
+	if err != nil {
+		t.Fatal(err)
+	}
+	first := seedThreadAtAddress(t, rt, localScope.Key, "couch-0102030405060708", "/repo")
+	second := seedThreadAtAddress(t, rt, otherScope.Key, "couch-1112131415161718", "/other")
+	c, err := rt.NewCouch()
+	if err != nil {
+		t.Fatal(err)
+	}
+	name := "compiler"
+	for _, address := range []couchcore.ThreadAddress{first.Address, second.Address} {
+		if _, err := c.ApplyThreadMetadata(address, couchcore.ThreadMetadataPatch{Name: &name}); err != nil {
+			t.Fatal(err)
+		}
+	}
+	console, _ := consoleRunnerFor("start", map[string]string{}, strings.NewReader(""), true, nil, nil)
+	wireResolver(console, c)
+	matches, err := console.Resolver()(name)
+	if err != nil || len(matches) != 2 {
+		t.Fatalf("ambiguous typeahead matches = %+v, %v", matches, err)
 	}
 }
 
@@ -558,12 +1001,34 @@ func TestConsoleGetsAnActionDispatcher(t *testing.T) {
 	}
 	// It must reach couch's own table: an unknown name is refused rather than
 	// silently succeeding.
-	if _, err := ops("no-such-operation", nil); err == nil {
+	if _, err := ops(couchcore.OperationCall{Name: "no-such-operation"}); err == nil {
 		t.Fatal("the dispatcher accepted an operation couch does not declare")
 	}
 	// And a real one is accepted.
-	if _, err := ops("list", nil); err != nil {
+	if _, err := ops(couchcore.OperationCall{Name: "list"}); err != nil {
 		t.Fatalf("list through the panel dispatcher: %v", err)
+	}
+}
+
+func TestInitialConsoleAttachDispatchesDeclaredOperation(t *testing.T) {
+	console, _ := consoleRunnerFor("start", map[string]string{}, strings.NewReader(""), true, nil, nil)
+	if console == nil {
+		t.Fatal("no console")
+	}
+	wantAddress := couchcore.ThreadAddress{RepoScope: "816fc349d3faebf8", Tag: "couch-0102030405060708"}
+	start := couchcore.StartResult{Record: couchcore.ActorRecord{Thread: wantAddress}}
+	var got couchcore.OperationCall
+	console.SetOperationDispatcher(func(call couchcore.OperationCall) (any, error) {
+		got = call
+		return wantAddress, nil
+	})
+
+	if err := dispatchInitialAttach(console, start); err != nil {
+		t.Fatal(err)
+	}
+	if got.Name != "attach" || !got.Implicit || !reflect.DeepEqual(got.TypedPayload, start) ||
+		got.Args["repo-scope"] != wantAddress.RepoScope || got.Args["tag"] != string(wantAddress.Tag) {
+		t.Fatalf("initial attach call = %+v", got)
 	}
 }
 
@@ -591,13 +1056,9 @@ func TestConsoleExitForgetsThroughCouchRegistry(t *testing.T) {
 
 // A refusal is a next-action spec: every remedy it names must be a command the
 // operator can run.
-//
-// It used to say "switch to it", which couch has no verb for -- attaching to a
-// session another couch process hosts needs pair#147's transport. Advice that
-// cannot be followed pushes the operator to --same-tree, the one option that
-// bypasses the guard.
-func TestTreeOccupiedRefusalNamesRunnableCommands(t *testing.T) {
+func TestCapacityRefusalNamesOnlyRunnableCommands(t *testing.T) {
 	rt := newRT(t, "/repo")
+	rt.boundedOne("/repo")
 	if _, errw, code := runRT(rt, "start", "/repo"); code != 0 {
 		t.Fatalf("first start failed: %d %q", code, errw)
 	}

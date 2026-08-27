@@ -1,6 +1,7 @@
 package launcher
 
 import (
+	"errors"
 	"reflect"
 	"strings"
 	"testing"
@@ -337,6 +338,22 @@ func TestRunLaunchSweepsOnce(t *testing.T) {
 	}
 }
 
+func TestRunLaunchRefusesUnreadableSessionIndexBeforeOrphanSweep(t *testing.T) {
+	rt := newFakeRuntime()
+	rt.sessionIndexErr = errors.New("index unreadable")
+	opts := baseOpts(LaunchArgs{Agent: "claude", ForcedTag: "fresh"})
+	code, err := run(t, opts, rt)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if code != 1 {
+		t.Fatalf("code = %d, want 1", code)
+	}
+	if len(rt.swept) != 0 || rt.launched != "" {
+		t.Fatalf("unreadable index must stop before sweep/launch: swept=%v launched=%q", rt.swept, rt.launched)
+	}
+}
+
 func TestLiveTagsForSweep(t *testing.T) {
 	index := SessionNameIndex{Entries: []SessionNameEntry{
 		{SessionName: "📁work-x", ScopeKey: "scope1", Tag: "x"},
@@ -345,22 +362,5 @@ func TestLiveTagsForSweep(t *testing.T) {
 	got := liveTagsForSweep([]Session{{Name: "📁work-x"}, {Name: "📁work-y"}, {Name: "pair-legacy"}, {Name: "other"}}, index, "scope1")
 	if !reflect.DeepEqual(got, []string{"x", "legacy"}) {
 		t.Fatalf("liveTagsForSweep = %v", got)
-	}
-}
-
-func TestTagFromEmbedArgv(t *testing.T) {
-	const dd = "/data"
-	cases := map[string]string{
-		"nvim --embed --headless /data/draft-work.md":             "work",
-		"/usr/bin/nvim --embed /data/draft-my-tag.md --more":      "my-tag",
-		"nvim --embed /data/scrollback-work-claude.ansi":          "work",
-		"nvim --embed /data/scrollback-my-tag-codex.ansi":         "my-tag",
-		"nvim --embed /some/other/file":                           "",
-		"nvim --embed /data/scrollback-solo-claude.ansi trailing": "solo",
-	}
-	for argv, want := range cases {
-		if got := tagFromEmbedArgv(argv, dd); got != want {
-			t.Fatalf("tagFromEmbedArgv(%q) = %q, want %q", argv, got, want)
-		}
 	}
 }

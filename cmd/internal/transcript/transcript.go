@@ -11,6 +11,8 @@ import (
 	"path/filepath"
 	"regexp"
 	"strings"
+
+	"github.com/xianxu/pair/cmd/internal/artifactpath"
 )
 
 const codexSessionMetaLineLimit = 1 << 20
@@ -88,7 +90,15 @@ func ReadFirstEvent(path string) ([]byte, error) {
 // SessionID reads the session id pair recorded for (tag, agent) in
 // config-<tag>-<agent>.json (written by the launcher / pair session-watch).
 func SessionID(dataDir, tag, agent, home string) string {
-	b, err := os.ReadFile(filepath.Join(dataDir, "config-"+tag+"-"+agent+".json"))
+	paths, err := artifactpath.ResolveScoped(dataDir, tag)
+	if err != nil {
+		return ""
+	}
+	configPath, err := paths.ConfigChecked(agent)
+	if err != nil {
+		return ""
+	}
+	b, err := os.ReadFile(configPath)
 	if err != nil {
 		return ""
 	}

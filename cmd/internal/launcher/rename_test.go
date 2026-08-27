@@ -2,6 +2,7 @@ package launcher
 
 import (
 	"bytes"
+	"errors"
 	"strings"
 	"testing"
 )
@@ -162,6 +163,18 @@ func TestRunRenameHappyPath(t *testing.T) {
 	}
 }
 
+func TestRunRenameRefusesUnreadableSessionIndex(t *testing.T) {
+	rt := renameFake(t)
+	rt.sessionIndexErr = errors.New("index unreadable")
+	var out, errBuf bytes.Buffer
+	if code := runRename(rt, LaunchArgs{RenameOld: "old", RenameNew: "new"}, "/data", &out, &errBuf); code != 1 {
+		t.Fatalf("code=%d stdout=%s stderr=%s", code, out.String(), errBuf.String())
+	}
+	if len(rt.renamed) != 0 {
+		t.Fatalf("unreadable index must not rename: %v", rt.renamed)
+	}
+}
+
 func TestRunRenameOldPublicSessionNameResolvesThroughIndex(t *testing.T) {
 	scope := mustScope(t, "/work/pair")
 	rt := renameFake(t)
@@ -198,6 +211,23 @@ func TestRunRenameUnindexedOldPublicSessionNameRefuses(t *testing.T) {
 	}
 	if len(rt.renamed) != 0 {
 		t.Fatalf("must not move unindexed public session name: %v", rt.renamed)
+	}
+}
+
+func TestRunRenameDoesNotTreatHumanThreadNameAsMutableTag(t *testing.T) {
+	scope := mustScope(t, "/work/pair")
+	rt := newFakeRuntime()
+	rt.files["/data/draft-couch-0102030405060708.md"] = "durable"
+	rt.threadIndex = ThreadIndex{Entries: []ThreadIndexEntry{
+		indexEntry(scope.Key, "couch-0102030405060708", "/work/pair", "compiler"),
+	}}
+	var out, errBuf bytes.Buffer
+	code := runRenameScoped(rt, LaunchArgs{RenameOld: "compiler", RenameNew: "new"}, "/data", scope.Key, &out, &errBuf)
+	if code != 1 {
+		t.Fatalf("code=%d stderr=%s", code, errBuf.String())
+	}
+	if got := rt.files["/data/draft-couch-0102030405060708.md"]; got != "durable" || len(rt.renamed) != 0 {
+		t.Fatalf("human rename mutated opaque tag: files=%v renamed=%v", rt.files, rt.renamed)
 	}
 }
 

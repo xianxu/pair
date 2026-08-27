@@ -4,20 +4,23 @@ import (
 	"fmt"
 	"os"
 	"sync"
+	"time"
 
 	"github.com/xianxu/pair/cmd/internal/ptychild"
 )
 
 // FakeChild is the fake's per-child state, modelled across calls.
 type FakeChild struct {
-	Dir     string
-	Argv    []string
-	Env     []string
-	Signals []os.Signal
-	diesOn  map[os.Signal]int
-	alive   bool
-	code    int
-	done    chan struct{}
+	Dir       string
+	Argv      []string
+	Env       []string
+	Signals   []os.Signal
+	diesOn    map[os.Signal]int
+	alive     bool
+	code      int
+	done      chan struct{}
+	Blocked   bool
+	ExecCount int
 
 	// terminal is the pty double. It is a real *ptychild.Child in its fake
 	// mode -- the SAME type PtyRunner hands out -- so the console cannot be
@@ -30,18 +33,21 @@ type FakeChild struct {
 // Contract, fixed here rather than inferred from tests:
 //   - Start records {argv, dir, env}, marks the child alive, and returns a
 //     handle with a deterministic id (couch-fake-N).
-//   - Signal appends to the child's signal log and does NOT kill it.
+//   - Signal appends to the child's signal log. Catchable signals do not kill
+//     by default; os.Kill always does, matching the kernel contract.
 //   - SetExited(id, code) is the only thing that ends a child; it unblocks Wait.
 //   - Wait blocks until exited; returns immediately if already exited.
 //   - Handles record into the Runner's Ops log, not their own, so ordering
 //     across children is assertable.
 type FakeRunner struct {
-	mu       sync.Mutex
-	children map[string]*FakeChild
-	order    []string
-	failNext error
-	autoExit *int
-	Ops      []string
+	mu                sync.Mutex
+	children          map[string]*FakeChild
+	order             []string
+	failNext          error
+	autoExit          *int
+	Ops               []string
+	BeforeAcknowledge func(id string) error
+	AfterAcknowledge  func(id string) error
 }
 
 var _ Runner = (*FakeRunner)(nil)
@@ -59,6 +65,18 @@ func (f *FakeRunner) FailNextStart(err error) {
 }
 
 func (f *FakeRunner) Start(dir string, argv, env []string) (Handle, error) {
+	return f.start(dir, argv, env, false)
+}
+
+func (f *FakeRunner) StartBlocked(dir string, argv, env []string, _ time.Duration) (BlockedHandle, error) {
+	h, err := f.start(dir, argv, env, true)
+	if err != nil {
+		return nil, err
+	}
+	return &fakeBlockedHandle{fakeHandle: h.(*fakeHandle)}, nil
+}
+
+func (f *FakeRunner) start(dir string, argv, env []string, blocked bool) (Handle, error) {
 	f.mu.Lock()
 	defer f.mu.Unlock()
 	if f.failNext != nil {
@@ -75,11 +93,12 @@ func (f *FakeRunner) Start(dir string, argv, env []string) (Handle, error) {
 		Dir: dir, Argv: argv, Env: env,
 		diesOn: map[os.Signal]int{},
 		alive:  true, done: make(chan struct{}),
+		Blocked:  blocked,
 		terminal: child,
 	}
 	f.order = append(f.order, id)
 	f.Ops = append(f.Ops, "start "+dir+": "+joinArgs(argv))
-	if f.autoExit != nil {
+	if f.autoExit != nil && !blocked {
 		c := f.children[id]
 		c.alive, c.code = false, *f.autoExit
 		close(c.done)
@@ -159,6 +178,62 @@ type fakeHandle struct {
 	id     string
 }
 
+type fakeBlockedHandle struct {
+	*fakeHandle
+}
+
+func (h *fakeBlockedHandle) Acknowledge() error {
+	h.runner.mu.Lock()
+	c, ok := h.runner.children[h.id]
+	if !ok || !c.alive || !c.Blocked {
+		h.runner.mu.Unlock()
+		return fmt.Errorf("fake runner: blocked start %s already resolved", h.id)
+	}
+	hook := h.runner.BeforeAcknowledge
+	h.runner.mu.Unlock()
+	if hook != nil {
+		if err := hook(h.id); err != nil {
+			return err
+		}
+	}
+	h.runner.mu.Lock()
+	c, ok = h.runner.children[h.id]
+	if !ok || !c.alive || !c.Blocked {
+		h.runner.mu.Unlock()
+		return fmt.Errorf("fake runner: blocked start %s already resolved", h.id)
+	}
+	c.Blocked = false
+	c.ExecCount++
+	h.runner.Ops = append(h.runner.Ops, "ack "+h.id)
+	if h.runner.autoExit != nil {
+		c.alive, c.code = false, *h.runner.autoExit
+		close(c.done)
+		c.terminal.Exit(*h.runner.autoExit)
+	}
+	hook = h.runner.AfterAcknowledge
+	h.runner.mu.Unlock()
+	if hook != nil {
+		return hook(h.id)
+	}
+	return nil
+}
+
+func (h *fakeBlockedHandle) Cancel() error {
+	h.runner.mu.Lock()
+	defer h.runner.mu.Unlock()
+	c, ok := h.runner.children[h.id]
+	if !ok || !c.alive || !c.Blocked {
+		return fmt.Errorf("fake runner: blocked start %s already resolved", h.id)
+	}
+	c.Blocked = false
+	c.alive = false
+	c.code = 1
+	close(c.done)
+	c.terminal.Exit(1)
+	h.runner.Ops = append(h.runner.Ops, "cancel "+h.id)
+	return nil
+}
+
 func (h *fakeHandle) ID() string { return h.id }
 
 // Terminal makes the fake handle a TerminalHandle, exactly as PtyRunner's is.
@@ -197,9 +272,14 @@ func (h *fakeHandle) Signal(sig os.Signal) error {
 	}
 	c.Signals = append(c.Signals, sig)
 	h.runner.Ops = append(h.runner.Ops, "signal "+h.id+": "+sig.String())
-	if code, fatal := c.diesOn[sig]; fatal && c.alive {
+	code, fatal := c.diesOn[sig]
+	if sig == os.Kill {
+		code, fatal = -1, true
+	}
+	if fatal && c.alive {
 		c.alive, c.code = false, code
 		close(c.done)
+		c.terminal.Exit(code)
 	}
 	return nil
 }

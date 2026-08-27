@@ -5,6 +5,7 @@ import (
 	"os"
 	"strconv"
 	"sync/atomic"
+	"time"
 
 	"github.com/xianxu/pair/cmd/internal/procutil"
 	"github.com/xianxu/pair/cmd/internal/ptychild"
@@ -19,6 +20,8 @@ import (
 // Couch gets is the composition root's decision; nothing in the domain learns
 // that a terminal exists.
 type PtyRunner struct {
+	LaunchHelper string
+
 	// Size supplies a new child's dimensions, called at Start. A func rather
 	// than a value because the console's size changes: the reserved row means
 	// a child is one row shorter than the host, and the host is resizable.
@@ -45,6 +48,14 @@ type TerminalHandle interface {
 }
 
 func (r *PtyRunner) Start(dir string, argv, env []string) (Handle, error) {
+	return r.start(dir, argv, env, nil)
+}
+
+func (r *PtyRunner) StartBlocked(dir string, argv, env []string, timeout time.Duration) (BlockedHandle, error) {
+	return startBlockedChild(r.start, r.LaunchHelper, dir, argv, env, timeout)
+}
+
+func (r *PtyRunner) start(dir string, argv, env []string, extraFiles []*os.File) (Handle, error) {
 	if len(argv) == 0 {
 		return nil, fmt.Errorf("start: empty argv")
 	}
@@ -64,10 +75,11 @@ func (r *PtyRunner) Start(dir string, argv, env []string) (Handle, error) {
 	// from the pump.
 	h := &ptyHandle{id: fmt.Sprintf("couch-pty-%d", ptySeq.Add(1))}
 	child, err := ptychild.Start(ptychild.Options{
-		Dir:  dir,
-		Argv: argv,
-		Env:  env,
-		Size: size,
+		Dir:        dir,
+		Argv:       argv,
+		Env:        env,
+		Size:       size,
+		ExtraFiles: extraFiles,
 		Sink: func(chunk []byte) {
 			if r.Sink != nil {
 				r.Sink(h.ID(), chunk)
@@ -100,6 +112,6 @@ func (h *ptyHandle) ID() string                 { return h.id }
 func (h *ptyHandle) PID() int                   { return h.pid }
 func (h *ptyHandle) Identity() string           { return h.identity }
 func (h *ptyHandle) Terminal() *ptychild.Child  { return h.child }
-func (h *ptyHandle) Alive() bool                { return !h.child.Done() }
-func (h *ptyHandle) Signal(sig os.Signal) error { return h.child.Signal(sig) }
+func (h *ptyHandle) Alive() bool                { return ownedProcessGroupAlive(h.pid) }
+func (h *ptyHandle) Signal(sig os.Signal) error { return signalOwnedProcessGroup(h.pid, sig) }
 func (h *ptyHandle) Wait() int                  { return h.child.Wait() }

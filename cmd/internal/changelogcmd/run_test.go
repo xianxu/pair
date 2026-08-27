@@ -73,6 +73,7 @@ func runIn(t *testing.T, dir, cleaned, priorLog, priorAnchor string) (log, ancho
 	cleanedPath := filepath.Join(dir, "cleaned.txt")
 	logPath := filepath.Join(dir, "changelog.md")
 	anchorPath := filepath.Join(dir, "changelog.anchor")
+	readyPath := filepath.Join(dir, "changelog.ready")
 	mustWrite(t, cleanedPath, cleaned)
 	if priorLog != "" {
 		mustWrite(t, logPath, priorLog)
@@ -82,7 +83,7 @@ func runIn(t *testing.T, dir, cleaned, priorLog, priorAnchor string) (log, ancho
 	}
 	var stderr bytes.Buffer
 	code := Run([]string{
-		"--cleaned", cleanedPath, "--log", logPath, "--anchor", anchorPath,
+		"--cleaned", cleanedPath, "--log", logPath, "--anchor", anchorPath, "--ready", readyPath,
 		"--agent", "claude",
 	}, &stderr)
 	if code != 0 {

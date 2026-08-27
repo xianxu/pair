@@ -7,6 +7,8 @@
 package couchcmd
 
 import (
+	"crypto/rand"
+	"errors"
 	"fmt"
 	"io"
 	"os"
@@ -28,18 +30,13 @@ import (
 type Runtime interface {
 	Getenv(string) string
 	StoreDir() string
+	CurrentRepoScope() (string, error)
+	ResolveNamespace() (couchcore.CouchNamespace, error)
+	AcquireSupervisor(couchcore.CouchNamespace) (io.Closer, error)
 	// NewCouchWith builds the domain against a caller-supplied Runner. The
 	// console needs a PtyRunner it has already wired its own sink and size
 	// supplier into, which cannot be constructed inside NewCouch.
-	NewCouchWith(couchcore.Runner) (*couchcore.Couch, error)
-	// NewCouch builds the domain with its seams.
-	//
-	// It is on the Runtime rather than inline in RunWithRuntime because
-	// otherwise production and test flow do not share this boundary: with
-	// ExecRunner and friends hard-wired here, no test could reach start, stop
-	// or the refusal rendering. Three Critical findings shipped through that
-	// gap at close review (ARCH-MOCK).
-	NewCouch() (*couchcore.Couch, error)
+	NewCouchWith(couchcore.Runner, couchcore.CouchNamespace) (*couchcore.Couch, error)
 }
 
 type OSRuntime struct{}
@@ -58,16 +55,66 @@ func (r OSRuntime) StoreDir() string {
 	return filepath.Join(launcher.ResolveDataDir(r.Getenv("HOME"), r.Getenv("XDG_DATA_HOME")), "couch")
 }
 
-func (r OSRuntime) NewCouch() (*couchcore.Couch, error) {
-	return r.NewCouchWith(couchcore.ExecRunner{})
+func (r OSRuntime) CurrentRepoScope() (string, error) {
+	cwd, err := os.Getwd()
+	if err != nil {
+		return "", fmt.Errorf("get startup cwd: %w", err)
+	}
+	return resolveCurrentRepoScope(cwd, couchcore.ExecGit{}, couchcore.OSPathOps{})
 }
 
-func (r OSRuntime) NewCouchWith(runner couchcore.Runner) (*couchcore.Couch, error) {
-	return couchcore.New(
-		runner, couchcore.OSPathOps{}, couchcore.ExecGit{},
-		couchcore.OSProcOps{}, couchcore.NewStore(r.StoreDir()),
-		couchcore.SystemClock{}, couchcore.NewRandomIDGen(),
+func resolveCurrentRepoScope(cwd string, git couchcore.GitRunner, paths couchcore.PathOps) (string, error) {
+	tree, err := couchcore.Resolve(cwd, git, paths)
+	if err != nil {
+		return "", err
+	}
+	scope, err := launcher.ResolveRepoScope(string(tree))
+	if err != nil {
+		return "", err
+	}
+	return scope.Key, nil
+}
+
+func (r OSRuntime) ResolveNamespace() (couchcore.CouchNamespace, error) {
+	cwd, err := os.Getwd()
+	if err != nil {
+		return couchcore.CouchNamespace{}, fmt.Errorf("get startup cwd: %w", err)
+	}
+	return couchcore.ResolveCouchNamespace(r.StoreDir(), cwd)
+}
+
+func (r OSRuntime) AcquireSupervisor(namespace couchcore.CouchNamespace) (io.Closer, error) {
+	return couchcore.AcquireSupervisorLease(namespace, couchcore.OSProcOps{})
+}
+
+func (r OSRuntime) NewCouchWith(runner couchcore.Runner, namespace couchcore.CouchNamespace) (*couchcore.Couch, error) {
+	dataDir := launcher.ResolveDataDir(r.Getenv("HOME"), r.Getenv("XDG_DATA_HOME"))
+	c, err := couchcore.New(
+		namespace, runner, couchcore.OSPathOps{}, couchcore.ExecGit{},
+		couchcore.OSProcOps{}, couchcore.NewStore(namespace.Dir()),
+		couchcore.SystemClock{}, couchcore.NewRandomIDGen(), couchcore.NewExecPolicyResolver("sdlc"), rand.Reader,
+		couchcore.NewScopedThreadArtifactCollisionChecker(dataDir),
 	)
+	if err != nil {
+		return nil, err
+	}
+	c.RootAgent = r.Getenv("PAIR_AGENT")
+	c.RepoAgentDefault = func(repoRoot, agent string) (couchcore.LaunchProfile, bool, error) {
+		scopeDir := launcher.ScopedLaunchDataDir(dataDir, repoRoot)
+		raw, err := os.ReadFile(launcher.AgentDefaultPath(scopeDir, agent))
+		if errors.Is(err, os.ErrNotExist) {
+			return couchcore.LaunchProfile{}, false, nil
+		}
+		if err != nil {
+			return couchcore.LaunchProfile{}, false, err
+		}
+		value, err := launcher.ParseAgentDefault(agent, string(raw))
+		if err != nil {
+			return couchcore.LaunchProfile{}, false, err
+		}
+		return couchcore.LaunchProfile{Agent: value.Agent, Argv: value.Args}, true, nil
+	}
+	return c, nil
 }
 
 // isTerminal reports whether f is a real terminal. Nil-safe: a non-*os.File
@@ -120,14 +167,44 @@ func RunWithRuntime(args []string, stdin io.Reader, stdout, stderr io.Writer, rt
 	}
 
 	parsed, err := bindArgs(op, args[1:])
-	// $COUCH_TREE is how a spawned child knows which tree it is, so an agent
-	// can publish a description without being told twice.
-	if op.Name == "publish-description" && parsed != nil && parsed["tree"] == "" {
-		parsed["tree"] = rt.Getenv("COUCH_TREE")
+	// A spawned child receives the exact composite thread address, so an agent
+	// can publish its summary without resolving a mutable path or human label.
+	if op.Name == "publish-description" && parsed != nil {
+		if parsed["repo-scope"] == "" {
+			parsed["repo-scope"] = rt.Getenv("COUCH_THREAD_SCOPE")
+		}
+		if parsed["tag"] == "" {
+			parsed["tag"] = rt.Getenv("COUCH_THREAD_TAG")
+		}
 	}
 	if err != nil {
 		fmt.Fprintf(stderr, "couch %s: %v\n", op.Name, err)
 		return 2
+	}
+	if operationUsesCurrentRepoScope(op.Name) {
+		scope, err := rt.CurrentRepoScope()
+		if err != nil {
+			fmt.Fprintf(stderr, "couch %s: resolve current repository scope: %v\n", op.Name, err)
+			return 1
+		}
+		parsed["repo-scope"] = scope
+	}
+	namespace, err := rt.ResolveNamespace()
+	if err != nil {
+		fmt.Fprintf(stderr, "couch: %v\n", err)
+		return 1
+	}
+	// A fresh `start` invocation becomes the singleton owner. Every other
+	// owner-required CLI call must route to an already-running owner, which is
+	// deliberately unavailable until #147.
+	ownsLive := op.Name == "start"
+	if ownsLive {
+		lease, err := rt.AcquireSupervisor(namespace)
+		if err != nil {
+			renderError(stderr, err)
+			return 1
+		}
+		defer lease.Close()
 	}
 
 	// `start` without --no-console becomes THE CONSOLE: it allocates a pty per
@@ -138,13 +215,19 @@ func RunWithRuntime(args []string, stdin io.Reader, stdout, stderr io.Writer, rt
 	// terminal exists.
 	console, runner := consoleRunner(op.Name, parsed, stdin, stdout)
 
-	c, err := rt.NewCouchWith(runner)
+	c, err := rt.NewCouchWith(runner, namespace)
 	if err != nil {
 		fmt.Fprintf(stderr, "couch: %v\n", err)
 		return 1
 	}
 
-	result, err := op.Invoke(c, parsed)
+	executors := couchcore.OperationExecutors{DirectStore: couchcore.DirectStoreExecutor(c)}
+	if ownsLive {
+		executors.LiveOwner = couchcore.CouchLiveOwnerExecutor(c)
+	}
+	result, err := couchcore.DispatchOperation(executors, couchcore.OperationCall{
+		Name: op.Name, Args: parsed, Implicit: true,
+	})
 	if err != nil {
 		renderError(stderr, err)
 		return 1
@@ -155,6 +238,15 @@ func RunWithRuntime(args []string, stdin io.Reader, stdout, stderr io.Writer, rt
 		}
 	}
 	return render(stdout, op, result)
+}
+
+func operationUsesCurrentRepoScope(name string) bool {
+	switch name {
+	case "show", "name", "describe":
+		return true
+	default:
+		return false
+	}
 }
 
 // consoleRunner decides which Runner this invocation gets, and builds the
@@ -219,7 +311,7 @@ func runConsole(console *couchtty.Console, c *couchcore.Couch, start couchcore.S
 	// and the panel would silently degrade to "show everything".
 	wireResolver(console, c)
 
-	th, ok := start.Handle.(couchcore.TerminalHandle)
+	_, ok := start.Handle.(couchcore.TerminalHandle)
 	if !ok {
 		// A runner that cannot offer a terminal: fall back rather than crash.
 		fmt.Fprintf(stdout, "couch: no terminal available; running without a console\n")
@@ -228,9 +320,27 @@ func runConsole(console *couchtty.Console, c *couchcore.Couch, start couchcore.S
 		}
 		return 1
 	}
-	label := start.Record.Args.Worktree.Repo()
-	console.AttachActor(start.Handle.ID(), start.Record.ID, start.Record.Args.Worktree, label, th.Terminal())
+	if err := dispatchInitialAttach(console, start); err != nil {
+		renderError(stdout, err)
+		return 1
+	}
 	return console.Run()
+}
+
+func dispatchInitialAttach(console *couchtty.Console, start couchcore.StartResult) error {
+	dispatch := console.Ops()
+	if dispatch == nil {
+		return fmt.Errorf("console operation dispatcher is unavailable")
+	}
+	_, err := dispatch(couchcore.OperationCall{
+		Name: "attach",
+		Args: map[string]string{
+			"repo-scope": start.Record.Thread.RepoScope,
+			"tag":        string(start.Record.Thread.Tag),
+		},
+		Implicit: true, TypedPayload: start,
+	})
+	return err
 }
 
 // wireResolver gives the panel couch's OWN match rule.
@@ -239,20 +349,38 @@ func runConsole(console *couchtty.Console, c *couchcore.Couch, start couchcore.S
 // failure mode Decision 12's wiring check names: the panel would silently fall
 // back to "show everything" and typeahead would do nothing.
 func wireResolver(console *couchtty.Console, c *couchcore.Couch) {
-	console.SetResolver(c.LookupTrees)
-	console.SetSummaries(func() []couchcore.TreeSummary { return c.Summarize(nil) })
+	console.SetResolver(func(ref string) ([]couchcore.ThreadAddress, error) {
+		matches, err := c.ResolveThreadReference("", ref)
+		var ambiguous *couchcore.AmbiguousThreadReferenceError
+		if err != nil && !errors.Is(err, couchcore.ErrThreadReferenceNotFound) && !errors.As(err, &ambiguous) {
+			return nil, err
+		}
+		addresses := make([]couchcore.ThreadAddress, len(matches))
+		for i := range matches {
+			addresses[i] = matches[i].Address
+		}
+		return addresses, nil
+	})
+	console.SetSummaries(func() ([]couchcore.ThreadSummary, error) {
+		return c.ThreadInventory()
+	})
 	console.SetForget(c.Forget)
 
 	// The panel's actions run through the SAME declared table the CLI
 	// dispatches: the console names an operation and couchcore performs it, so
 	// there is no operator action the advisor cannot also perform (#148's
 	// design test) and no way for the panel to grow a private verb.
-	console.SetOps(func(name string, args map[string]string) (any, error) {
-		op, ok := Resolve(name)
-		if !ok {
-			return nil, fmt.Errorf("unknown operation %q", name)
-		}
-		return op.Invoke(c, args)
+	couchLive := couchcore.CouchLiveOwnerExecutor(c)
+	console.SetOperationDispatcher(func(call couchcore.OperationCall) (any, error) {
+		return couchcore.DispatchOperation(couchcore.OperationExecutors{
+			DirectStore: couchcore.DirectStoreExecutor(c),
+			LiveOwner: func(call couchcore.OperationCall) (any, error) {
+				if call.Operation.Effect == couchcore.EffectConsole {
+					return console.ExecuteConsoleOperation(call)
+				}
+				return couchLive(call)
+			},
+		}, call)
 	})
 }
 
@@ -260,10 +388,23 @@ func wireResolver(console *couchtty.Console, c *couchcore.Couch) {
 // --flag=value form for the optional ones.
 func bindArgs(op couchcore.Operation, argv []string) (map[string]string, error) {
 	out := map[string]string{}
+	known := make(map[string]couchcore.ArgSpec, len(op.Args))
+	for _, spec := range op.Args {
+		if !spec.Implicit {
+			known[spec.Name] = spec
+		}
+	}
 	var positional []string
 	for _, a := range argv {
 		if strings.HasPrefix(a, "--") {
 			name, value, found := strings.Cut(strings.TrimPrefix(a, "--"), "=")
+			spec, exists := known[name]
+			if !exists {
+				return nil, fmt.Errorf("unknown flag --%s", name)
+			}
+			if spec.ValueRequired && (!found || value == "") {
+				return nil, fmt.Errorf("--%s requires a non-empty value in --%s=<value> form", name, name)
+			}
 			if !found {
 				value = "true"
 			}
@@ -274,6 +415,9 @@ func bindArgs(op couchcore.Operation, argv []string) (map[string]string, error) 
 	}
 	i := 0
 	for _, spec := range op.Args {
+		if spec.Implicit {
+			continue
+		}
 		if _, already := out[spec.Name]; already {
 			continue
 		}
@@ -313,6 +457,12 @@ func render(w io.Writer, op couchcore.Operation, result any) int {
 		return 0
 	case []couchcore.TreeSummary:
 		renderTrees(w, v)
+	case []couchcore.ThreadSummary:
+		if op.Name == "show" {
+			renderThreadDetails(w, v)
+		} else {
+			renderThreads(w, v)
+		}
 	case couchcore.Worktree:
 		fmt.Fprintf(w, "%s\n", v)
 	case couchcore.StopResult:
@@ -331,6 +481,51 @@ func render(w io.Writer, op couchcore.Operation, result any) int {
 		fmt.Fprintf(w, "%v\n", v)
 	}
 	return 0
+}
+
+// renderThreads consumes the same one-row-per-composite-thread inventory as
+// the panel and advisor. Human names lead named rows; only unnamed rows expose
+// the opaque tag as their fallback label.
+func renderThreads(w io.Writer, threads []couchcore.ThreadSummary) {
+	renderThreadRows(w, threads, false)
+}
+
+// renderThreadDetails keeps the immutable composite address available for
+// diagnostics and exact follow-up operations. List intentionally stays
+// name-first and compact; show is the detail view.
+func renderThreadDetails(w io.Writer, threads []couchcore.ThreadSummary) {
+	renderThreadRows(w, threads, true)
+}
+
+func renderThreadRows(w io.Writer, threads []couchcore.ThreadSummary, includeAddress bool) {
+	if len(threads) == 0 {
+		fmt.Fprintln(w, "no threads")
+		return
+	}
+	dim, reset := dimCodes(w)
+	for _, thread := range threads {
+		open, close := dim, reset
+		if thread.Live() {
+			open, close = "", ""
+		}
+		fmt.Fprintf(w, "%s%-22s %s%s\n", open, thread.Label(), thread.WorkingPath, close)
+		if includeAddress {
+			fmt.Fprintf(w, "%s  address: %s/%s%s\n", open, thread.Address.RepoScope, thread.Address.Tag, close)
+		}
+		if summary := thread.DisplaySummary(); summary != "" {
+			fmt.Fprintf(w, "%s  %s%s\n", open, summary, close)
+		}
+		for _, incarnation := range thread.Incarnations {
+			if incarnation.PID > 0 {
+				fmt.Fprintf(w, "%s  %-14s pid %d%s\n", open, incarnation.State, incarnation.PID, close)
+			} else {
+				fmt.Fprintf(w, "%s  %s%s\n", open, incarnation.State, close)
+			}
+		}
+		if len(thread.Incarnations) == 0 {
+			fmt.Fprintf(w, "%s  (no agent running)%s\n", open, close)
+		}
+	}
 }
 
 // renderTrees prints one block per worktree. A tree with no live actor is
@@ -377,35 +572,23 @@ func dimCodes(w io.Writer) (string, string) {
 	return "\x1b[2m", "\x1b[0m"
 }
 
-// renderError gives the tree-occupied refusal the shape the project asks for:
-// a decision at the moment the operator has context, with the offer chosen by
-// the repo's recorded concurrency policy.
+// renderError gives normalized capacity refusal a next-action shape without
+// inventing local policy or mutating paths on the provider's behalf.
 func renderError(w io.Writer, err error) {
-	var occ *couchcore.TreeOccupiedError
-	if !asTreeOccupied(err, &occ) {
+	var full *couchcore.CapacityExceededError
+	if !asCapacityExceeded(err, &full) {
 		fmt.Fprintf(w, "couch: %v\n", err)
 		return
 	}
-	fmt.Fprintf(w, "%s already has an agent:\n", occ.Tree)
-	for _, a := range occ.Incumbents {
-		fmt.Fprintf(w, "  %s (pid %d)\n", a.ID, a.PID)
+	fmt.Fprintf(w, "couch: %s is at capacity %d for admission key %q\n", full.RepoIdentity, full.Limit, full.AdmissionKey)
+	for _, address := range full.Incumbents {
+		fmt.Fprintf(w, "  %s/%s\n", address.RepoScope, address.Tag)
 	}
-	fmt.Fprintf(w, "They would share a branch and index.\n")
-
-	// Offer COMMANDS, not intentions.
-	//
-	// This used to say "switch to it", which names a remedy couch has no verb
-	// for: attaching to a session hosted by another couch process needs the
-	// transport in pair#147. An operator who follows unactionable advice ends up
-	// reaching for --same-tree, which is the one option that bypasses the guard.
-	// A refusal is a next-action spec.
-	ref := occ.Tree.Repo()
-	fmt.Fprintf(w, "  -> couch stop %s        end it, then start again\n", ref)
-	fmt.Fprintf(w, "  -> couch start %s --same-tree   run a second agent anyway (recorded)\n", ref)
-	if occ.Mode == couchcore.WorktreeParallel {
-		fmt.Fprintf(w, "  -> or start in a new worktree, which is cheap in this repo\n")
+	if full.Action == couchcore.CapacityProvisionWorktree {
+		fmt.Fprintln(w, "  -> managed worktree provisioning is tracked by pair#153; no path was created")
+	} else {
+		fmt.Fprintln(w, "  -> couch list   inspect the existing thread")
 	}
-	fmt.Fprintf(w, "  (attaching to a session another couch is hosting needs pair#147)\n")
 }
 
 func usage(w io.Writer, table map[string]couchcore.Operation) {

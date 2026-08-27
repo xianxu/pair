@@ -2,6 +2,7 @@ package couchcore
 
 import (
 	"os"
+	"path/filepath"
 	"strings"
 	"sync"
 	"testing"
@@ -109,5 +110,36 @@ func TestPtyRunnerRejectsEmptyArgv(t *testing.T) {
 	r := &PtyRunner{Size: func() ptychild.Size { return ptychild.Size{Rows: 24, Cols: 80} }}
 	if _, err := r.Start(t.TempDir(), nil, nil); err == nil {
 		t.Fatal("Start with no argv returned nil error")
+	}
+}
+
+func TestPtyRunnerBlockedStartPreservesTerminalAndWaitsForAcknowledgement(t *testing.T) {
+	marker := filepath.Join(t.TempDir(), "target-ran")
+	r := &PtyRunner{
+		LaunchHelper: os.Args[0],
+		Size:         func() ptychild.Size { return ptychild.Size{Rows: 24, Cols: 80} },
+	}
+	h, err := r.StartBlocked(t.TempDir(), []string{"sh", "-c", "printf exec > \"$PAIR_TEST_TARGET_MARKER\""}, []string{
+		"PAIR_TEST_RUNNER_HELPER=1",
+		"PAIR_TEST_TARGET_MARKER=" + marker,
+	}, 2*time.Second)
+	if err != nil {
+		t.Fatalf("StartBlocked: %v", err)
+	}
+	if _, ok := h.(TerminalHandle); !ok {
+		t.Fatal("blocked pty handle lost TerminalHandle capability")
+	}
+	time.Sleep(75 * time.Millisecond)
+	if _, err := os.Stat(marker); !os.IsNotExist(err) {
+		t.Fatalf("target ran before acknowledgement: %v", err)
+	}
+	if err := h.Acknowledge(); err != nil {
+		t.Fatalf("Acknowledge: %v", err)
+	}
+	if code := h.Wait(); code != 0 {
+		t.Fatalf("Wait = %d", code)
+	}
+	if raw, err := os.ReadFile(marker); err != nil || string(raw) != "exec" {
+		t.Fatalf("target marker = %q, %v", raw, err)
 	}
 }

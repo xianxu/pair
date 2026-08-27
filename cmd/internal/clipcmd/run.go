@@ -209,7 +209,11 @@ func RunClipboardToPane(opts ClipboardToPaneOptions, rt Runtime, stderr io.Write
 	// Stage the raw selection for nvim to read.
 	dataDir := pickDataDir(opts.DataDir, opts.XDGDataHome, opts.Home)
 	tag := pickTag(opts.Tag, opts.Agent)
-	qf := quoteFile(dataDir, tag)
+	qf, err := quoteFile(dataDir, tag)
+	if err != nil {
+		fmt.Fprintf(stderr, "clipboard-to-pane: resolve quote artifact: %v\n", err)
+		return 1
+	}
 	if err := rt.WriteFile(qf, clip); err != nil {
 		fmt.Fprintf(stderr, "clipboard-to-pane: staging %s: %v\n", qf, err)
 		return 1

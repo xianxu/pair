@@ -1,11 +1,16 @@
 # Session identity and storage
 
-Pair separates four identities that used to be partly conflated:
+Pair separates identities that used to be partly conflated:
 
 - **Repo scope** — a hidden, stable key derived from the cleaned repo root. It
   owns the scoped data directory and is not shown in user-facing labels.
-- **Display tag** — the repo-local work item name the user types, such as
-  `work` or `bugfix`. Two repos can both have `work`.
+- **Thread tag** — the immutable repo-local storage key. Direct Pair keeps the
+  user-chosen form (`work`, `bugfix`); Couch creates opaque
+  `couch-<16 lowercase hex>` tags.
+- **Human thread name** — optional mutable metadata on the durable ThreadStore
+  record. It is neither a filename nor a zellij socket name.
+- **Public session name** — the stable zellij socket binding recorded in
+  `session-names.jsonl` for one `{scope, tag}`.
 - **Agent** — the resource running under a tag, such as `claude`, `codex`,
   `agy`, or `muse`. A tag can have sessions from more than one agent over time.
 - **Native session id** — the agent's own resumable conversation id, captured by
@@ -20,7 +25,7 @@ Repo-scoped launch state lives under:
 <global>/repos/<scope-key>/
 ```
 
-Tag sidecars keep their readable local names inside that scope:
+Tag sidecars keep their exact durable tag inside that scope:
 
 ```text
 draft-<tag>.md
@@ -36,17 +41,31 @@ scrollback-<tag>-<agent>.events.jsonl
 pane-<tag>-<agent>.json
 ```
 
-Pane and helper consumers must treat inherited `PAIR_DATA_DIR` as authoritative.
-They should not reconstruct the global XDG path unless `PAIR_DATA_DIR` is absent.
+Those names are descriptive storage vocabulary, not construction instructions.
+Current code obtains them only from the `artifactpath` methods and exact
+environment bindings below.
+
+`cmd/internal/artifactpath` is the constructor authority for the complete
+family list (including review, continuation, PID, parked, image, layout, and
+diagnostic sidecars not repeated above). The launcher resolves the composite
+address once, validates every result remains below the selected scope, and
+exports exact `PAIR_*_PATH` bindings. Shell, Neovim, and KDL consumers use those
+bindings directly; they do not combine `PAIR_DATA_DIR` and `PAIR_TAG`.
 
 ## Public session names
 
 Zellij session names are globally visible, so Pair assigns a readable public
-name through `session-names.jsonl` in the global data root. The format is:
+name through `session-names.jsonl` in the selected repository scope. The format
+is:
 
 ```text
 📁{repo}[-{residual tag tokens}]
 ```
+
+Reads merge the former global index before the selected-scope index so live
+pre-M5 sessions remain visible during upgrade; new rows are written only to the
+selected scope. Missing files mean no bindings, while malformed or unreadable
+present files fail closed before attachment, rename, restart, or orphan cleanup.
 
 The first `pair/work` session becomes `📁pair-work`; a `pair` tag in the `pair`
 repo becomes just `📁pair`, because a tag token already carried by the repo is
@@ -123,11 +142,41 @@ migration is never what destroys either.
 Pair cannot rename a live zellij session underneath itself, so a running session
 migrates by being quit and relaunched.
 
+## Durable thread index
+
+Couch's namespace contains `threadstore/manifest.json` plus addressed records
+under `threadstore/records/<scope>/<tag>.json`. Couch and Launcher both decode
+the lower-layer `threadrecord.Record` acceptance contract; Couch maps it to its
+rich lifecycle type, while Launcher maps it to a portable read-only projection
+without importing couchcore or writing recovery state. One strict decoder
+rejects duplicate keys, unknown fields, and trailing values for both. A
+cross-reader mutation table covers every required top-level, address,
+incarnation, start-claim, policy-shape, generation, and path/address invariant.
+Launcher uses the same scoped exact-tag/name/path matcher that Couch adapts to
+its richer records. Missing/corrupt/incomplete stores fail closed and Couch
+retains journal-recovery ownership.
+
+An ordinary Pair create also upserts this same ThreadStore through a registrar
+provided by the `pair` composition root. Launcher stays below Couch in the
+package graph; Couch supplies the locked/revisioned mutation. Couch-owned Pair
+children skip the adapter because their creating/live transaction is already
+durable. Thus direct and supervised Pair sessions appear in one inventory
+without changing the direct launcher's tag prompt.
+
+Human thread names lead standalone resume and picker views, but resolution
+returns the immutable tag. Duplicate names are ambiguous; duplicate picker
+labels expose tag disambiguators. Existing direct Pair artifacts win before
+fuzzy name/path matching, preserving old `pair resume <tag>` behavior. Legacy
+`pair rename` deliberately does not resolve human thread names: it moves tag
+files and must never mutate an opaque thread identity.
+
 ### Session names are also filename components
 
 `quit-<session>` and `restart-<session>` markers embed the name, so `📁` now
-appears in paths under the data root. It is safe on APFS/ext4 and carries no
-shell or glob metacharacters — but that is a property the scheme depends on.
+appears in filenames under `~/.cache/pair`. `artifactpath.ResolvePairCache`
+owns their construction. Its session-name contract accepts Unicode basenames
+while rejecting empty names, traversal, and NUL; strict ASCII validation for
+thread tags remains unchanged.
 
 ## Ledger and caches
 
@@ -173,9 +222,10 @@ only after the launched `pair wrap` child publishes a matching
 
 Default picker/list views are current-repo scoped:
 
-- live sessions are included only when `session-names.jsonl` maps their public
-  name to the current scope key;
-- picker rows show readable `repo/tag  agent` annotations;
+- live sessions are included only when the current scope's
+  `session-names.jsonl` maps their public name to the current scope key;
+- picker rows lead with `repo/human-name  agent` when ThreadIndex has a name,
+  otherwise `repo/tag`; selection always retains the tag;
 - `pair <agent>` marks different-agent live rows unavailable and switches a
   different-agent historical tag to the requested driver, seeding from a
   matching continuation doc when present or an auto-continuation draft over

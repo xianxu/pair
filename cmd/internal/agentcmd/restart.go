@@ -4,12 +4,12 @@ import (
 	"fmt"
 	"io"
 	"os"
-	"path/filepath"
 	"strconv"
 	"strings"
 	"syscall"
 
 	"github.com/xianxu/pair/cmd/internal/adapt"
+	"github.com/xianxu/pair/cmd/internal/artifactpath"
 )
 
 type Runtime interface {
@@ -31,7 +31,12 @@ func RunRestart(args []string, getenv func(string) string, rt Runtime, stderr io
 	if dataDir == "" {
 		dataDir = adapt.DataDir()
 	}
-	raw, err := rt.ReadFile(filepath.Join(dataDir, "pair-wrap-pid-"+tag))
+	paths, err := artifactpath.ResolveScoped(dataDir, tag)
+	if err != nil {
+		fmt.Fprintf(stderr, "pair agent restart: resolve wrapper pid artifact: %v\n", err)
+		return 1
+	}
+	raw, err := rt.ReadFile(paths.PairWrapPID())
 	if err != nil {
 		fmt.Fprintf(stderr, "pair agent restart: read wrapper pid: %v\n", err)
 		return 1

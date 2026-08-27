@@ -46,12 +46,14 @@ big="$RT/big-pair-wrap"
 
 # 2) selection: PATH fallback when no pidfile. Put a fake pair-wrap first on PATH.
 mkdir -p "$RT/pathbin"; cp "$fresh_pw" "$RT/pathbin/pair-wrap"; chmod +x "$RT/pathbin/pair-wrap"
+unset PAIR_PAIR_WRAP_PID_PATH
 got="$( PATH="$RT/pathbin:$PATH" _resolve_emitter pair-wrap "$RT/empty-datadir" "notag" )"
 [ "$got" = "$RT/pathbin/pair-wrap" ] && pass "no pidfile ⇒ resolves via PATH" || fail "PATH fallback wrong: $got"
 
 # 3) selection: running binary preferred via pidfile. Override _pid_exe so the
 #    test needs no live process; the pidfile must win over PATH.
 printf '99999\n' > "$RT/pair-wrap-pid-mytag"
+PAIR_PAIR_WRAP_PID_PATH="$RT/pair-wrap-pid-mytag"
 _pid_exe() { printf '%s\n' "$fresh_pw"; }          # pretend pid 99999's exe is fresh_pw
 got="$( PATH="$RT/pathbin:$PATH" _resolve_emitter pair-wrap "$RT" "mytag" )"
 [ "$got" = "$fresh_pw" ] && pass "pidfile present ⇒ prefers running binary" || fail "pidfile not preferred: $got"

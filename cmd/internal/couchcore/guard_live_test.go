@@ -1,6 +1,7 @@
 package couchcore
 
 import (
+	"crypto/rand"
 	"errors"
 	"os"
 	"os/exec"
@@ -65,10 +66,11 @@ func TestGuardRefusesAgainstARealLiveProcess(t *testing.T) {
 
 	proc := OSProcOps{}
 	rec := ActorRecord{
-		ID:       "couch-livecheck",
-		Args:     StartArgs{Worktree: tree},
-		PID:      child.PID(),
-		Identity: child.Identity(),
+		ID:        "couch-livecheck",
+		Args:      StartArgs{Worktree: tree},
+		PID:       child.PID(),
+		Identity:  child.Identity(),
+		StartedAt: SystemClock{}.Now(),
 	}
 	if rec.Identity == "" {
 		t.Fatal("ExecRunner recorded no identity token for a real child")
@@ -77,12 +79,22 @@ func TestGuardRefusesAgainstARealLiveProcess(t *testing.T) {
 		t.Fatalf("real running child probes as %v -- the guard cannot work", got)
 	}
 
-	store := NewStore(t.TempDir())
+	ns, err := ResolveCouchNamespace(t.TempDir(), "/unused")
+	if err != nil {
+		t.Fatalf("ResolveCouchNamespace: %v", err)
+	}
+	store := NewStore(ns.Dir())
 	if err := store.Save(NewRegistry().Insert(rec), NewNamingTable()); err != nil {
 		t.Fatalf("seed registry: %v", err)
 	}
 
-	c, err := New(runner, OSPathOps{}, ExecGit{}, proc, store, SystemClock{}, NewRandomIDGen())
+	resolver := NewFakePolicyResolver()
+	resolver.SetDefault(PolicyResult{
+		PolicyVersion: 1, PolicyDigest: "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+		RepoIdentity: "live-repo", AdmissionKey: string(tree),
+		Capacity: PolicyCapacity{Kind: CapacityBounded, Limit: 1}, OnCapacity: CapacityReject,
+	}, nil)
+	c, err := New(ns, runner, OSPathOps{}, ExecGit{}, proc, store, SystemClock{}, NewRandomIDGen(), resolver, rand.Reader, NoThreadArtifactCollisions{})
 	if err != nil {
 		t.Fatalf("New: %v", err)
 	}
@@ -91,12 +103,12 @@ func TestGuardRefusesAgainstARealLiveProcess(t *testing.T) {
 	}
 
 	_, _, err = c.Spawn(StartArgs{Worktree: tree, Cwd: string(tree)})
-	var occ *TreeOccupiedError
+	var occ *CapacityExceededError
 	if !errors.As(err, &occ) {
-		t.Fatalf("second spawn err = %v, want *TreeOccupiedError -- a live actor "+
+		t.Fatalf("second spawn err = %v, want *CapacityExceededError -- a live actor "+
 			"must refuse its tree when probed for real", err)
 	}
-	if len(occ.Incumbents) != 1 || occ.Incumbents[0].ID != "couch-livecheck" {
+	if len(occ.Incumbents) != 1 {
 		t.Fatalf("incumbents = %+v", occ.Incumbents)
 	}
 }

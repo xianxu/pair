@@ -52,6 +52,8 @@ vim.cmd('qa!')
 LUA
 
 PAIR_DATA_DIR="$RT" PAIR_TAG=test PAIR_AGENT=claude PAIR_HOME="$ROOT" \
+  PAIR_DRAFT_PATH="$RT/draft-test.md" PAIR_LOG_PATH="$RT/log-test.md" PAIR_QUEUE_DIR="$RT/queue-test" \
+  PAIR_LAYOUT_MODE_PATH="$RT/layout-mode-test" PAIR_REVIEW_MODE_PATH="$RT/review-test.mode" \
   DIR="$REPO" DOC="$REPO/binary-skill-and-dynamic-skill.md" RESULT="$RT/r" \
   run_headless --timeout 30 -- nvim --headless -u "$ROOT/nvim/init.lua" \
     -c "luafile $RT/driver.lua"

@@ -4,6 +4,8 @@ import (
 	"encoding/json"
 	"path/filepath"
 	"strings"
+
+	"github.com/xianxu/pair/cmd/internal/artifactpath"
 )
 
 type legacyPaneMeta struct {
@@ -41,16 +43,28 @@ func legacyLiveSessionsForScope(rt Runtime, live []Session, index SessionNameInd
 }
 
 func legacyPaneAgentForScope(rt Runtime, globalDataDir string, scope RepoScope, tag string) (string, bool) {
+	legacyRoot, err := artifactpath.ResolveLegacyRoot(globalDataDir)
+	if err != nil {
+		return "", false
+	}
+	legacy, err := legacyRoot.ForTag(tag)
+	if err != nil {
+		return "", false
+	}
 	names, err := rt.ReadDir(globalDataDir)
 	if err != nil {
 		return "", false
 	}
-	prefix := "pane-" + tag + "-"
+	prefix := legacy.PanePrefix()
 	for _, name := range names {
 		if !strings.HasPrefix(name, prefix) || !strings.HasSuffix(name, ".json") {
 			continue
 		}
-		raw, err := rt.ReadFile(filepath.Join(globalDataDir, name))
+		path, err := legacyRoot.Entry(name)
+		if err != nil {
+			continue
+		}
+		raw, err := rt.ReadFile(path)
 		if err != nil {
 			continue
 		}

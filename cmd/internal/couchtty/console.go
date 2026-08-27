@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"io"
 	"os"
+	"strings"
 	"sync"
 	"time"
 
@@ -26,6 +27,7 @@ type childExit struct {
 
 type pane struct {
 	tree    couchcore.Worktree
+	thread  couchcore.ThreadAddress
 	actorID couchcore.ActorID
 	label   string
 	desc    string
@@ -74,12 +76,15 @@ type Console struct {
 	// CLI and #148's advisor resolve (Decision 12). Nil degrades to showing
 	// everything rather than to a private match rule.
 	query     string
-	resolve   func(string) []couchcore.Worktree
-	summaries func() []couchcore.TreeSummary
+	resolve   func(string) ([]couchcore.ThreadAddress, error)
+	summaries func() ([]couchcore.ThreadSummary, error)
 
 	// panel is live state, not rebuilt per keystroke: the highlight has to
 	// survive typing, or the cursor resets under the operator's fingers.
 	panel *PanelModel
+	// panelErr is rendered inside the owned screen. Durable-read failures must
+	// never masquerade as an authoritative empty inventory or no-match result.
+	panelErr string
 
 	// prompt is non-empty while the panel is collecting an argument for an
 	// action -- a path for `start`, say. Actions that need input cannot be a
@@ -95,7 +100,7 @@ type Console struct {
 	// Ops dispatches an operator action. Injected so the console never learns
 	// what an operation IS -- it names one and couchcore runs it, which is
 	// what keeps the panel from growing a private verb (#148's design test).
-	ops    func(name string, args map[string]string) (any, error)
+	ops    func(couchcore.OperationCall) (any, error)
 	forget func(couchcore.Worktree, couchcore.ActorID) error
 	feed   *Feed
 	size   ptychild.Size
@@ -170,10 +175,9 @@ func (c *Console) SetForget(f func(couchcore.Worktree, couchcore.ActorID) error)
 	c.forget = f
 }
 
-// SetOps injects the action dispatcher: `couchcmd` passes one that runs
-// couchcore.Operations(). Without it the panel can still switch -- which is
-// read-only -- but its actions refuse loudly rather than doing nothing.
-func (c *Console) SetOps(f func(string, map[string]string) (any, error)) {
+// SetOperationDispatcher installs the typed generic dispatcher. Without it,
+// every effectful panel action refuses loudly rather than taking a private path.
+func (c *Console) SetOperationDispatcher(f func(couchcore.OperationCall) (any, error)) {
 	c.mu.Lock()
 	defer c.mu.Unlock()
 	c.ops = f
@@ -181,15 +185,14 @@ func (c *Console) SetOps(f func(string, map[string]string) (any, error)) {
 
 // Ops returns the injected dispatcher, so a wiring test can assert one was
 // passed -- the panel renders identically without it.
-func (c *Console) Ops() func(string, map[string]string) (any, error) {
+func (c *Console) Ops() func(couchcore.OperationCall) (any, error) {
 	c.mu.Lock()
 	defer c.mu.Unlock()
 	return c.ops
 }
 
-// SetResolver injects the panel's match rule. Production passes
-// `couch.LookupTrees`; without it the seam is one nothing uses.
-func (c *Console) SetResolver(f func(string) []couchcore.Worktree) {
+// SetResolver injects the panel's shared thread-reference match rule.
+func (c *Console) SetResolver(f func(string) ([]couchcore.ThreadAddress, error)) {
 	c.mu.Lock()
 	defer c.mu.Unlock()
 	c.resolve = f
@@ -198,22 +201,22 @@ func (c *Console) SetResolver(f func(string) []couchcore.Worktree) {
 // Resolver returns the injected match rule, so a wiring test can assert one was
 // actually passed -- a nil resolver still renders a panel, so nothing else
 // would notice.
-func (c *Console) Resolver() func(string) []couchcore.Worktree {
+func (c *Console) Resolver() func(string) ([]couchcore.ThreadAddress, error) {
 	c.mu.Lock()
 	defer c.mu.Unlock()
 	return c.resolve
 }
 
-// SetSummaries injects Couch's authoritative panel source. Production passes
-// Couch.Summarize(nil); the console contributes only ephemeral routing data.
-func (c *Console) SetSummaries(f func() []couchcore.TreeSummary) {
+// SetSummaries injects Pair's authoritative thread inventory through Couch;
+// the console contributes only ephemeral routing data.
+func (c *Console) SetSummaries(f func() ([]couchcore.ThreadSummary, error)) {
 	c.mu.Lock()
 	defer c.mu.Unlock()
 	c.summaries = f
 }
 
 // Summaries returns the injected provider for production wiring tests.
-func (c *Console) Summaries() func() []couchcore.TreeSummary {
+func (c *Console) Summaries() func() ([]couchcore.ThreadSummary, error) {
 	c.mu.Lock()
 	defer c.mu.Unlock()
 	return c.summaries
@@ -252,25 +255,31 @@ func (c *Console) Deliver(id string, data []byte) {
 	}
 }
 
-// Attach registers a child using its actor id as a synthetic tree. It remains
-// as a test/helper convenience; production must call AttachTree so typeahead
-// resolves against the real worktree identity.
+// Attach registers a child with a synthetic legacy thread address. It remains
+// as a test/helper convenience; production supplies the durable address.
 func (c *Console) Attach(id, label string, child *ptychild.Child) {
 	c.AttachActor(id, couchcore.ActorID(id), couchcore.Worktree(id), label, child)
 }
 
-// AttachTree registers a child with both identities the panel needs: worktree
-// for human resolution, actor id for deterministic switching.
+// AttachTree registers a child with a synthetic legacy thread address and its
+// working path. It remains for callers predating composite thread identity.
 func (c *Console) AttachTree(id string, tree couchcore.Worktree, label string, child *ptychild.Child) {
 	c.AttachActor(id, couchcore.ActorID(id), tree, label, child)
 }
 
-// AttachActor registers all three identities a hosted pane carries. handleID
-// routes PTY bytes inside this console; actorID is the durable registry identity
-// used by notices and Forget; tree is the human-resolution and concurrency key.
+// AttachActor is the legacy-address test/helper form of attachThreadActor.
 func (c *Console) AttachActor(handleID string, actorID couchcore.ActorID, tree couchcore.Worktree, label string, child *ptychild.Child) {
+	c.attachThreadActor(handleID, actorID, couchcore.ThreadAddress{RepoScope: "legacy", Tag: couchcore.ThreadTag(actorID)}, tree, label, child)
+}
+
+// attachThreadActor registers every identity a hosted pane carries. handleID
+// routes PTY bytes inside this console; actorID identifies the live registry
+// incarnation; thread identifies durable work; tree is only its working path.
+// It stays package-private so production callers cannot bypass the declared
+// attach operation with an exact composite address.
+func (c *Console) attachThreadActor(handleID string, actorID couchcore.ActorID, thread couchcore.ThreadAddress, tree couchcore.Worktree, label string, child *ptychild.Child) {
 	c.mu.Lock()
-	c.panes[handleID] = &pane{tree: tree, actorID: actorID, label: label, child: child}
+	c.panes[handleID] = &pane{tree: tree, thread: thread, actorID: actorID, label: label, child: child}
 	c.order = append(c.order, handleID)
 	if c.active == "" {
 		c.active = handleID
@@ -863,40 +872,66 @@ func (c *Console) actorAlive(id string) bool {
 func (c *Console) rebuildPanel() {
 	c.mu.Lock()
 	provider := c.summaries
-	var fallback []couchcore.TreeSummary
+	var fallback []couchcore.ThreadSummary
 	targets := make([]PanelTarget, 0, len(c.order))
 	for _, id := range c.order {
 		p := c.panes[id]
-		targets = append(targets, PanelTarget{Tree: p.tree, Target: id, Bell: p.bell})
+		targets = append(targets, PanelTarget{Address: p.thread, Tree: p.tree, Target: id, Bell: p.bell})
 		if provider == nil {
-			fallback = append(fallback, couchcore.TreeSummary{
-				Tree: p.tree, Name: p.label, Desc: p.desc,
-				Actors: []couchcore.ActorView{{Live: !p.child.Done()}},
-			})
+			incarnations := []couchcore.ThreadIncarnation{}
+			if !p.child.Done() {
+				incarnations = append(incarnations, couchcore.ThreadIncarnation{State: couchcore.IncarnationLive})
+			}
+			fallback = append(fallback, couchcore.ThreadSummary{Address: p.thread, WorkingPath: string(p.tree), Name: p.label, PublishedSummary: p.desc, Incarnations: incarnations})
 		}
 	}
-	var selected couchcore.Worktree
+	var selected couchcore.ThreadAddress
 	query, resolve := c.query, c.resolve
 	if c.panel != nil {
 		if row, ok := c.panel.Selected(); ok {
-			selected = row.Tree
+			selected = row.Address
 		}
 	}
 	c.mu.Unlock()
 
 	summaries := fallback
 	if provider != nil {
-		summaries = provider()
+		var err error
+		summaries, err = provider()
+		if err != nil {
+			c.mu.Lock()
+			if c.panel == nil {
+				c.panel = NewPanelModel(nil)
+			}
+			c.panelErr = "thread inventory unavailable: " + err.Error()
+			c.mu.Unlock()
+			return
+		}
 	}
 	m := NewPanelModel(summaries)
 	m.BindTargets(targets)
-	m.Filter(query, resolve)
-	if selected != "" {
-		m.SelectTree(selected)
+	if query == "" || resolve == nil {
+		m.Filter(query, nil)
+	} else {
+		addresses, err := resolve(query)
+		if err != nil {
+			c.mu.Lock()
+			if c.panel == nil {
+				c.panel = m
+			}
+			c.panelErr = "thread reference unavailable: " + err.Error()
+			c.mu.Unlock()
+			return
+		}
+		m.Filter(query, func(string) []couchcore.ThreadAddress { return addresses })
+	}
+	if selected != (couchcore.ThreadAddress{}) {
+		m.SelectAddress(selected)
 	}
 
 	c.mu.Lock()
 	c.panel = m
+	c.panelErr = ""
 	c.mu.Unlock()
 }
 
@@ -908,12 +943,36 @@ func (c *Console) showPanel() {
 		c.rebuildPanel()
 		c.mu.Lock()
 	}
-	query, prompt := c.query, c.prompt
-	rows := c.panel.Filter(query, c.resolve)
-	body := RenderPanelWithQuery(query, rows, c.panel.Cursor())
+	query, resolve := c.query, c.resolve
+	c.mu.Unlock()
+
+	var addresses []couchcore.ThreadAddress
+	var resolveErr error
+	if query != "" && resolve != nil {
+		addresses, resolveErr = resolve(query)
+	}
+
+	c.mu.Lock()
+	panel, prompt, panelErr := c.panel, c.prompt, c.panelErr
+	rows := panel.Shown()
+	if query == "" || resolve == nil {
+		rows = panel.Filter(query, nil)
+	} else if resolveErr != nil {
+		panelErr = "thread reference unavailable: " + resolveErr.Error()
+	} else {
+		rows = panel.Filter(query, func(string) []couchcore.ThreadAddress { return addresses })
+		if strings.HasPrefix(panelErr, "thread reference unavailable:") {
+			panelErr = ""
+		}
+	}
+	body := RenderPanelWithQuery(query, rows, panel.Cursor())
+	if panelErr != "" {
+		body += "\r\n  error: " + panelErr + "\r\n"
+	}
 	if prompt != "" {
 		body += "\r\n  " + prompt + "\r\n"
 	}
+	c.panelErr = panelErr
 	c.mu.Unlock()
 	c.takeOverScreen([]byte(body))
 	c.paintNow()
@@ -989,8 +1048,10 @@ func (c *Console) onPanelKey(k PanelKey) {
 			c.runOp("start", map[string]string{"path": string(row.Tree)})
 			break
 		}
-		c.clearQuery()
-		c.forceSwitch(row.Target)
+		c.runOp("switch", map[string]string{
+			"repo-scope": row.Address.RepoScope,
+			"tag":        string(row.Address.Tag),
+		})
 		return
 	case KeyRune:
 		c.appendQuery(k.Rune)
@@ -1047,31 +1108,80 @@ func (c *Console) runOp(name string, args map[string]string) {
 		c.setNotice("no action dispatcher wired")
 		return
 	}
-	result, err := fn(name, args)
+	result, err := fn(couchcore.OperationCall{Name: name, Args: args, Implicit: true})
 	if err != nil {
 		c.setNotice(name + ": " + err.Error())
 		return
 	}
 	if start, ok := result.(couchcore.StartResult); ok {
-		th, terminal := start.Handle.(couchcore.TerminalHandle)
-		if !terminal {
-			c.setNotice("start: child has no terminal to attach")
+		_, err := fn(couchcore.OperationCall{
+			Name: "attach",
+			Args: map[string]string{
+				"repo-scope": start.Record.Thread.RepoScope,
+				"tag":        string(start.Record.Thread.Tag),
+			},
+			Implicit: true, TypedPayload: start,
+		})
+		if err != nil {
+			c.setNotice("attach: " + err.Error())
 			return
 		}
-		c.AttachActor(start.Handle.ID(), start.Record.ID, start.Record.Args.Worktree,
-			start.Record.Args.Worktree.Repo(), th.Terminal())
 		c.clearQuery()
 		c.rebuildPanel()
 		c.mu.Lock()
 		if c.panel != nil {
-			c.panel.SelectTree(start.Record.Args.Worktree)
+			c.panel.SelectAddress(start.Record.Thread)
 		}
 		c.mu.Unlock()
 		c.setNotice(name + ": done")
 		return
 	}
+	if name == "switch" {
+		return
+	}
 	c.setNotice(name + ": done")
 	c.rebuildPanel()
+}
+
+// ExecuteConsoleOperation is the owner-local executor for effects that cannot
+// exist in couchcore: routing the human terminal and attaching its PTY.
+func (c *Console) ExecuteConsoleOperation(call couchcore.OperationCall) (any, error) {
+	address := couchcore.ThreadAddress{RepoScope: call.Args["repo-scope"], Tag: couchcore.ThreadTag(call.Args["tag"])}
+	switch call.Name {
+	case "switch":
+		c.mu.Lock()
+		var target string
+		for id, p := range c.panes {
+			if p.thread == address {
+				target = id
+				break
+			}
+		}
+		c.mu.Unlock()
+		if target == "" {
+			return nil, fmt.Errorf("thread %s/%s is not attached to this console", address.RepoScope, address.Tag)
+		}
+		c.clearQuery()
+		c.forceSwitch(target)
+		return address, nil
+	case "attach":
+		start, ok := call.TypedPayload.(couchcore.StartResult)
+		if !ok {
+			return nil, fmt.Errorf("attach requires a typed start result")
+		}
+		if start.Record.Thread != address {
+			return nil, fmt.Errorf("attach address does not match started thread")
+		}
+		th, ok := start.Handle.(couchcore.TerminalHandle)
+		if !ok {
+			return nil, fmt.Errorf("child has no terminal to attach")
+		}
+		c.attachThreadActor(start.Handle.ID(), start.Record.ID, start.Record.Thread,
+			start.Record.Args.Worktree, start.Record.Args.Worktree.Repo(), th.Terminal())
+		return address, nil
+	default:
+		return nil, fmt.Errorf("%s is not a console-local operation", call.Name)
+	}
 }
 
 func (c *Console) setNotice(text string) {

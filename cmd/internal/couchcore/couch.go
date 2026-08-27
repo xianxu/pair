@@ -1,9 +1,17 @@
 package couchcore
 
 import (
+	"context"
+	"crypto/rand"
+	"encoding/hex"
+	"errors"
 	"fmt"
+	"io"
+	"os"
 	"sort"
 	"strings"
+	"syscall"
+	"time"
 
 	"github.com/xianxu/pair/cmd/internal/launcher"
 )
@@ -12,28 +20,70 @@ import (
 // method on it. The terminal UI and (later) the advisor's tools are both
 // clients of these methods -- never of two separate implementations.
 type Couch struct {
-	Runner Runner
-	Path   PathOps
-	Git    GitRunner
-	Proc   ProcOps
-	Store  Store
-	Clock  Clock
-	IDs    IDGen
+	Namespace        CouchNamespace
+	Runner           Runner
+	Path             PathOps
+	Git              GitRunner
+	Proc             ProcOps
+	Store            Store
+	Clock            Clock
+	IDs              IDGen
+	PolicyResolver   PolicyResolver
+	Threads          *ThreadStore
+	Entropy          io.Reader
+	Artifacts        ThreadArtifactController
+	RootAgent        string
+	RepoAgentDefault func(repoRoot, agent string) (LaunchProfile, bool, error)
 
-	reg    Registry
-	names  NamingTable
-	policy PolicyTable
+	reg                   Registry
+	names                 NamingTable
+	postAckQuiesceTimeout time.Duration
+	postAckRetryDelay     time.Duration
+	sleep                 func(time.Duration)
 }
 
-func New(r Runner, p PathOps, g GitRunner, proc ProcOps, s Store, c Clock, ids IDGen) (*Couch, error) {
-	reg, names, policy, err := s.Load()
+func New(namespace CouchNamespace, r Runner, p PathOps, g GitRunner, proc ProcOps, s Store, c Clock, ids IDGen, resolver PolicyResolver, entropy io.Reader, artifacts ThreadArtifactController) (*Couch, error) {
+	if namespace.Dir() == "" {
+		return nil, fmt.Errorf("new couch: empty namespace")
+	}
+	if s.Dir() != namespace.Dir() {
+		return nil, fmt.Errorf("store directory %q does not match couch namespace %q", s.Dir(), namespace.Dir())
+	}
+	if resolver == nil {
+		return nil, fmt.Errorf("new couch: nil policy resolver")
+	}
+	if entropy == nil {
+		entropy = rand.Reader
+	}
+	if artifacts == nil {
+		return nil, fmt.Errorf("new couch: nil artifact collision checker")
+	}
+	reg, names, err := s.Load()
 	if err != nil {
 		return nil, err
 	}
-	return &Couch{
-		Runner: r, Path: p, Git: g, Proc: proc, Store: s, Clock: c, IDs: ids,
-		reg: reg, names: names, policy: policy,
-	}, nil
+	threads := NewThreadStore(namespace)
+	if err := threads.CutoverLegacyActors(reg.Records()); err != nil {
+		return nil, fmt.Errorf("cut over legacy actors: %w", err)
+	}
+	if err := threads.MigrateLegacyRecords(names); err != nil {
+		return nil, fmt.Errorf("migrate legacy thread metadata: %w", err)
+	}
+	result := &Couch{
+		Namespace: namespace,
+		Runner:    r, Path: p, Git: g, Proc: proc, Store: s, Clock: c, IDs: ids,
+		PolicyResolver: resolver,
+		Threads:        threads, Entropy: entropy,
+		Artifacts: artifacts,
+		reg:       reg, names: names,
+		postAckQuiesceTimeout: 500 * time.Millisecond,
+		postAckRetryDelay:     100 * time.Millisecond,
+		sleep:                 time.Sleep,
+	}
+	if err := result.reconcileInterruptedStarts(); err != nil {
+		return nil, fmt.Errorf("reconcile interrupted starts: %w", err)
+	}
+	return result, nil
 }
 
 // ResolveTree turns an operator-supplied path into a canonical worktree.
@@ -71,7 +121,7 @@ func (c *Couch) Spawn(args StartArgs) (ActorRecord, Handle, error) {
 		args.Cwd = NormalizePath(args.WorkingDir())
 	}
 
-	// Drop records whose process is gone BEFORE consulting the guard.
+	// Keep the transitional registry cache tidy for old list/attach clients.
 	//
 	// Without this the guard refuses on registry membership alone, and since
 	// `couch start` blocks until the child exits and nothing unregisters on
@@ -82,11 +132,45 @@ func (c *Couch) Spawn(args StartArgs) (ActorRecord, Handle, error) {
 		return ActorRecord{}, nil, err
 	}
 
-	// The guard is evaluated before anything is forked: a refused spawn must
-	// not leave a stray child behind.
-	if err := c.reg.CheckAvailable(tree, args.SameTree, c.policy); err != nil {
+	scope, err := launcher.ResolveRepoScope(string(tree))
+	if err != nil {
 		return ActorRecord{}, nil, err
 	}
+	startedAt := c.Clock.Now()
+	thread, err := c.Threads.AllocateThreadTag(scope.Key, args.Cwd, startedAt, c.Entropy, c.Artifacts)
+	if err != nil {
+		return ActorRecord{}, nil, err
+	}
+	threadAddress := thread.Address
+	thread, err = ReconcileAdmission(context.Background(), c.Threads, c.PolicyResolver, threadAddress, startedAt)
+	if err != nil {
+		return ActorRecord{}, nil, errors.Join(err, c.releaseClaimIfThreadAbsent(threadAddress))
+	}
+	profile, err := c.resolveLaunchProfile(thread, args)
+	if err != nil {
+		return ActorRecord{}, nil, errors.Join(err, c.rollbackUnforkedStart(thread))
+	}
+	args.Stack = profile.Profile.Agent
+	args.ExtraArgs = cloneArgv(profile.Profile.Argv)
+	owner, err := c.Proc.Current()
+	if err != nil {
+		return ActorRecord{}, nil, errors.Join(fmt.Errorf("identify couch supervisor: %w", err), c.rollbackUnforkedStart(thread))
+	}
+	nonce, err := allocateStartNonce(c.Entropy)
+	if err != nil {
+		return ActorRecord{}, nil, errors.Join(err, c.rollbackUnforkedStart(thread))
+	}
+	admittedThread := thread
+	startedThread, err := c.Threads.AdvanceStart(thread.Address, thread.Revision, StartEvent{
+		Kind:    StartClaimed,
+		Nonce:   nonce,
+		Owner:   SupervisorOwner{PID: owner.PID, Identity: owner.Identity},
+		Profile: &profile.Profile,
+	})
+	if err != nil {
+		return ActorRecord{}, nil, errors.Join(fmt.Errorf("record start transaction: %w", err), c.rollbackUnforkedStart(admittedThread))
+	}
+	thread = startedThread
 
 	// `pair resume <tag> --layout2` rather than a bare `pair`.
 	//
@@ -94,10 +178,9 @@ func (c *Couch) Spawn(args StartArgs) (ActorRecord, Handle, error) {
 	// detached session exists (decision.go:47), which inside couch's own pty is
 	// an fzf picker waiting on an operator who only asked to start. `resume`
 	// takes the ForcedTag branch -- attach if live or detached, create
-	// otherwise -- and skips the name prompt (help.go:15). It derives from the
-	// TREE, so going back in is deterministic: the same tree always resumes the
-	// same session. `launcher.DefaultTag` is pair's own create-flow derivation,
-	// reused rather than re-implemented.
+	// otherwise -- and skips the name prompt (help.go:15). The final opaque tag
+	// was claimed in ThreadStore before admission, so each accepted start owns a
+	// distinct durable Pair session even when several threads share one path.
 	//
 	// The layout: pinned to layout2 by operator decision 2026-08-22. couch owns
 	// terminal switching now, so layout3's third pane -- pair's own user
@@ -115,38 +198,368 @@ func (c *Couch) Spawn(args StartArgs) (ActorRecord, Handle, error) {
 	//
 	// This is a deliberate slice of #149, which makes the tag the space's
 	// durable identity; #146 needs only that re-entry is deterministic.
-	argv := append([]string{"pair", "resume", launcher.DefaultTag(string(tree)), "--layout2"}, args.ExtraArgs...)
+	argv := []string{"pair", "resume", string(thread.Address.Tag), "--layout2"}
 	// The child is told which tree it is and where couch keeps state, so the
 	// agent inside it can publish its own one-line description. Without this
 	// the description cache has no source: an operator typing `couch describe`
 	// is not "agent-supplied".
+	profileRaw, err := launcher.BuildCouchLaunchProfile(
+		string(thread.Address.Tag), profile.Profile.Agent, profile.Profile.Argv,
+		string(profile.AgentSource), string(profile.ArgvSource),
+	)
+	if err != nil {
+		return ActorRecord{}, nil, errors.Join(err, c.rollbackTrackedStart(thread, nonce))
+	}
 	env := []string{
 		"COUCH_TREE=" + string(tree),
-		"COUCH_STORE_DIR=" + c.Store.Dir(),
-		"PAIR_USE_REPO_DEFAULT=1",
+		"COUCH_STORE_DIR=" + c.Namespace.Dir(),
+		"COUCH_THREAD_SCOPE=" + thread.Address.RepoScope,
+		"COUCH_THREAD_TAG=" + string(thread.Address.Tag),
+		launcher.CouchLaunchProfileEnv + "=" + strings.TrimSpace(profileRaw),
+		"PAIR_USE_REPO_DEFAULT=",
 	}
-	h, err := c.Runner.Start(args.WorkingDir(), argv, env)
+	if profile.ArgvSource == ArgvSourceRepoDefault {
+		env[len(env)-1] = "PAIR_USE_REPO_DEFAULT=1"
+	}
+	h, err := c.Runner.StartBlocked(args.WorkingDir(), argv, env, 10*time.Second)
 	if err != nil {
-		return ActorRecord{}, nil, fmt.Errorf("spawn %s: %w", tree, err)
+		return ActorRecord{}, nil, errors.Join(
+			fmt.Errorf("spawn %s: %w", tree, err),
+			c.rollbackTrackedStart(thread, nonce),
+		)
 	}
+	recorded, err := c.Threads.AdvanceStart(thread.Address, thread.Revision, StartEvent{
+		Kind:   StartHelperRecorded,
+		Nonce:  nonce,
+		Helper: ProcessIdentity{PID: h.PID(), Identity: h.Identity()},
+	})
+	if err != nil {
+		cancelErr := h.Cancel()
+		if cancelErr == nil {
+			_ = h.Wait()
+		}
+		var rollbackErr error
+		if cancelErr == nil && !h.Alive() {
+			rollbackErr = c.rollbackTrackedStart(thread, nonce)
+		}
+		return ActorRecord{}, h, errors.Join(fmt.Errorf("record blocked helper %+v: %w", thread.Address, err), cancelErr, rollbackErr)
+	}
+	thread = recorded
+	if err := h.Acknowledge(); err != nil {
+		// An acknowledgement error is transport-ambiguous: the byte may have
+		// reached the helper before a close error was reported. Treat every
+		// failed attempt as possibly delivered and take the post-ack quiescence
+		// path; Cancel cannot revoke a byte already consumed.
+		cause := fmt.Errorf("acknowledge blocked helper %+v: %w", thread.Address, err)
+		return ActorRecord{}, h, c.failPostAckStart(thread.Address, h, cause)
+	}
+	registrationContext, cancelRegistration := context.WithTimeout(context.Background(), 5*time.Second)
+	err = c.awaitThreadRegistration(registrationContext, thread.Address)
+	cancelRegistration()
+	if err != nil {
+		cause := fmt.Errorf("await Pair registration %+v: %w", thread.Address, err)
+		return ActorRecord{}, h, c.failPostAckStart(thread.Address, h, cause)
+	}
+	registeredThread, err := c.Threads.AdvanceStart(thread.Address, thread.Revision, StartEvent{Kind: StartRegistered, Nonce: nonce})
+	if err != nil {
+		cause := fmt.Errorf("promote registered thread %+v: %w", thread.Address, err)
+		return ActorRecord{}, h, c.failPostAckStart(thread.Address, h, cause)
+	}
+	thread = registeredThread
 
 	record := ActorRecord{
 		ID:        c.IDs.NewID(),
+		Thread:    thread.Address,
 		Args:      args,
-		StartedAt: c.Clock.Now(),
+		StartedAt: startedAt,
 		PID:       h.PID(),
 		Identity:  h.Identity(),
 	}
-	next, err := c.reg.RegisterWithPolicy(record, c.policy)
-	if err != nil {
-		return ActorRecord{}, h, err
-	}
-	c.reg = next
+	c.reg = c.reg.Insert(record)
 
 	if err := c.Store.Save(c.reg, c.names); err != nil {
-		return record, h, fmt.Errorf("persist registry: %w", err)
+		c.reg = c.reg.RemoveActor(args.Worktree, record.ID)
+		return record, h, c.failPostAckStart(thread.Address, h, fmt.Errorf("persist registry: %w", err))
 	}
 	return record, h, nil
+}
+
+func (c *Couch) resolveLaunchProfile(thread ThreadRecord, args StartArgs) (LaunchProfileResolution, error) {
+	if len(thread.Incarnations) != 1 || thread.Incarnations[0].Policy == nil {
+		return LaunchProfileResolution{}, fmt.Errorf("thread %+v has no admitted repository identity", thread.Address)
+	}
+	repoIdentity := thread.Incarnations[0].Policy.RepoIdentity
+	preference, found, err := c.Threads.GetPathLaunchPreference(repoIdentity, args.Cwd)
+	if err != nil {
+		return LaunchProfileResolution{}, fmt.Errorf("read launch preference: %w", err)
+	}
+	var pathPreference *PathLaunchPreference
+	if found {
+		pathPreference = &preference
+	}
+	rootAgent := c.RootAgent
+	if rootAgent == "" {
+		rootAgent = "claude"
+	}
+	selected, err := ResolveLaunchProfile(LaunchProfileInputs{
+		ExplicitAgent: args.Stack, Path: pathPreference, RootAgent: rootAgent,
+	})
+	if err != nil {
+		return LaunchProfileResolution{}, err
+	}
+	if !launcher.IsSupportedAgent(selected.Profile.Agent) {
+		return LaunchProfileResolution{}, fmt.Errorf("unsupported launch agent %q", selected.Profile.Agent)
+	}
+	var repoDefault *LaunchProfile
+	if c.RepoAgentDefault != nil {
+		value, ok, err := c.RepoAgentDefault(string(args.Worktree), selected.Profile.Agent)
+		if err != nil {
+			return LaunchProfileResolution{}, fmt.Errorf("read %s repository default: %w", selected.Profile.Agent, err)
+		}
+		if ok {
+			repoDefault = &value
+		}
+	}
+	return ResolveLaunchProfile(LaunchProfileInputs{
+		ExplicitAgent: args.Stack, Path: pathPreference, RootAgent: rootAgent, RepoDefault: repoDefault,
+	})
+}
+
+// failPostAckStart owns every error exit after the helper has executed the
+// target and before Spawn transfers the handle to its caller. It first proves
+// that exact handle is reaped; only then may durable state be reconciled. If
+// quiescence cannot be proved, the creating/live record remains occupied.
+func (c *Couch) failPostAckStart(address ThreadAddress, h Handle, cause error) error {
+	cleanupErr := c.quiescePostAckStart(address, h)
+
+	reconcileErr := c.reconcileInterruptedStarts()
+	current, getErr := c.Threads.GetThread(address)
+	var markErr error
+	if getErr == nil {
+		expected := ProcessIdentity{PID: h.PID(), Identity: h.Identity()}
+		for _, incarnation := range current.Incarnations {
+			if incarnation.PID == expected.PID && incarnation.Identity == expected.Identity && incarnation.State == IncarnationLive {
+				_, markErr = c.Threads.MarkIncarnationUnknown(address, expected)
+				break
+			}
+		}
+	} else if !errors.Is(getErr, ErrThreadNotFound) {
+		markErr = getErr
+	}
+	return errors.Join(cause, cleanupErr, reconcileErr, markErr)
+}
+
+// quiescePostAckStart retains the live Handle on this call stack and retries
+// every unproven cleanup class. It deliberately has no bounded "give up" path:
+// returning would transfer an error without a supervisor, and the operation
+// caller is allowed to discard handles on error. A persistent external failure
+// therefore leaves the owning start operation blocked and retrying, not a
+// workspace writer merely represented by an occupied durable record.
+func (c *Couch) quiescePostAckStart(address ThreadAddress, h Handle) error {
+	var firstErr error
+	handleQuiet := false
+	handleCleanup := newHandleCleanup(h)
+	for {
+		if !handleQuiet {
+			if err := handleCleanup.attempt(c.postAckQuiesceTimeout); err != nil {
+				if firstErr == nil {
+					firstErr = fmt.Errorf("quiesce post-ack child %d/%q: %w", h.PID(), h.Identity(), err)
+				}
+				c.sleepPostAckRetry()
+				continue
+			}
+			handleQuiet = true
+		}
+		if err := c.Artifacts.Quiesce(address); err != nil {
+			if firstErr == nil {
+				firstErr = fmt.Errorf("quiesce durable Pair session %+v: %w", address, err)
+			}
+			c.sleepPostAckRetry()
+			continue
+		}
+		return firstErr
+	}
+}
+
+func (c *Couch) sleepPostAckRetry() {
+	delay := c.postAckRetryDelay
+	if delay <= 0 {
+		delay = 100 * time.Millisecond
+	}
+	sleep := c.sleep
+	if sleep == nil {
+		sleep = time.Sleep
+	}
+	sleep(delay)
+}
+
+type handleCleanup struct {
+	h            Handle
+	waited       chan int
+	directReaped bool
+}
+
+func newHandleCleanup(h Handle) *handleCleanup {
+	waited := make(chan int, 1)
+	go func() { waited <- h.Wait() }()
+	return &handleCleanup{h: h, waited: waited}
+}
+
+func (q *handleCleanup) attempt(timeout time.Duration) error {
+	if timeout <= 0 {
+		timeout = 500 * time.Millisecond
+	}
+	termErr := q.h.Signal(syscall.SIGTERM)
+	select {
+	case <-q.waited:
+		q.directReaped = true
+	case <-time.After(timeout):
+	}
+	// TERM may reap the direct Pair client while a TERM-resistant sidecar or
+	// child remains in its owned process group. KILL is therefore unconditional:
+	// this path is rollback, not graceful actor shutdown.
+	killErr := q.h.Signal(os.Kill)
+	if !q.directReaped {
+		select {
+		case <-q.waited:
+			q.directReaped = true
+		case <-time.After(timeout):
+			return errors.Join(termErr, killErr, errors.New("timed out waiting for killed child"))
+		}
+	}
+	deadline := time.Now().Add(timeout)
+	for q.h.Alive() && time.Now().Before(deadline) {
+		time.Sleep(5 * time.Millisecond)
+	}
+	if q.h.Alive() {
+		return errors.Join(termErr, killErr, errors.New("owned process group remained alive after reap"))
+	}
+	return errors.Join(termErr, killErr)
+}
+
+func allocateStartNonce(entropy io.Reader) (string, error) {
+	var random [8]byte
+	if _, err := io.ReadFull(entropy, random[:]); err != nil {
+		return "", fmt.Errorf("allocate start nonce: %w", err)
+	}
+	return "start-" + hex.EncodeToString(random[:]), nil
+}
+
+func (c *Couch) rollbackUnforkedStart(thread ThreadRecord) error {
+	deleteErr := c.Threads.DeleteUnstartedThread(thread.Address, thread.Revision)
+	if deleteErr != nil {
+		return deleteErr
+	}
+	return c.releaseClaimIfThreadAbsent(thread.Address)
+}
+
+func (c *Couch) rollbackTrackedStart(thread ThreadRecord, nonce string) error {
+	deleteErr := c.Threads.DeleteStart(thread.Address, thread.Revision, nonce)
+	if deleteErr != nil {
+		return deleteErr
+	}
+	return c.releaseClaimIfThreadAbsent(thread.Address)
+}
+
+func (c *Couch) awaitThreadRegistration(ctx context.Context, address ThreadAddress) error {
+	ticker := time.NewTicker(10 * time.Millisecond)
+	defer ticker.Stop()
+	for {
+		evidence, err := c.Artifacts.Registration(address)
+		if err != nil {
+			return err
+		}
+		switch evidence {
+		case RegistrationEstablished:
+			return nil
+		case RegistrationUnknown:
+			return errors.New("Pair registration evidence is unknown")
+		case RegistrationAbsent:
+		default:
+			return fmt.Errorf("invalid Pair registration evidence %q", evidence)
+		}
+		select {
+		case <-ctx.Done():
+			return ctx.Err()
+		case <-ticker.C:
+		}
+	}
+}
+
+func (c *Couch) reconcileInterruptedStarts() error {
+	snapshot, err := c.Threads.Snapshot()
+	if err != nil {
+		return err
+	}
+	for _, record := range snapshot.Records {
+		transaction, err := CurrentStartTransaction(record)
+		if err != nil {
+			continue
+		}
+		observation := StartObservation{
+			Owner:  observeExactProcess(c.Proc, transaction.Owner),
+			Helper: Dead,
+		}
+		if transaction.Helper != nil {
+			observation.Helper = observeExactProcess(c.Proc, *transaction.Helper)
+		}
+		registration, registrationErr := c.Artifacts.Registration(record.Address)
+		if registrationErr != nil {
+			return fmt.Errorf("read Pair registration for %+v: %w", record.Address, registrationErr)
+		}
+		observation.Registration = registration
+		decision, err := ReconcileStart(record, observation)
+		if err != nil {
+			return err
+		}
+		switch decision.Action {
+		case StartKeepOccupied:
+			continue
+		case StartRollback:
+			if err := c.rollbackTrackedStart(record, decision.Nonce); err != nil {
+				return err
+			}
+		case StartPromoteLive:
+			if _, err := c.Threads.AdvanceStart(record.Address, record.Revision, StartEvent{Kind: StartRegistered, Nonce: decision.Nonce}); err != nil {
+				return err
+			}
+		case StartPromoteUnknown:
+			if _, err := c.Threads.AdvanceStart(record.Address, record.Revision, StartEvent{Kind: StartRecoveredUnknown, Nonce: decision.Nonce}); err != nil {
+				return err
+			}
+		default:
+			return fmt.Errorf("unknown start reconciliation action %q", decision.Action)
+		}
+	}
+	return nil
+}
+
+func observeExactProcess(proc ProcOps, expected ProcessIdentity) Liveness {
+	switch proc.Exists(expected.PID) {
+	case Dead:
+		return Dead
+	case Unknown:
+		return Unknown
+	}
+	identity, err := proc.Identity(expected.PID)
+	if err != nil {
+		return Unknown
+	}
+	if identity != expected.Identity {
+		return Dead
+	}
+	return Live
+}
+
+func (c *Couch) releaseClaimIfThreadAbsent(address ThreadAddress) error {
+	_, err := c.Threads.GetThread(address)
+	if err == nil {
+		return nil
+	}
+	if !errors.Is(err, ErrThreadNotFound) {
+		return err
+	}
+	return c.Artifacts.Release(address)
 }
 
 // Liveness recomputes an actor's state from the persisted {PID, Identity}.
@@ -189,7 +602,6 @@ func (c *Couch) List() []ActorRecord {
 
 func (c *Couch) Get(w Worktree) []ActorRecord { return c.reg.Get(w) }
 func (c *Couch) Entry(w Worktree) NameEntry   { return c.names.Entry(w) }
-func (c *Couch) Policy() PolicyTable          { return c.policy }
 
 func (c *Couch) SetName(w Worktree, name string) error {
 	c.names = c.names.SetName(w, name)
@@ -264,10 +676,8 @@ func (c *Couch) LookupTrees(ref string) []Worktree {
 // ResolveRef turns a human reference into the actors it names.
 //
 // A reference may be an ActorID, a label (operator name, operator description,
-// or the agent's published line), or a path. The ActorID branch exists because
-// --same-tree puts two actors on one tree sharing a path AND a label; without
-// it that state cannot be exited, since stop refuses on ambiguity and the
-// remedy it suggested did not exist.
+// or the agent's published line), or a path. ActorID also distinguishes legacy
+// co-tenants retained during migration.
 func (c *Couch) ResolveRef(ref string) ([]ActorRecord, []Worktree, error) {
 	trimmed := strings.TrimSpace(ref)
 
@@ -304,7 +714,6 @@ func (c *Couch) Views(recs []ActorRecord) []ActorView {
 			State:  c.Liveness(r),
 			Name:   e.Name,
 			Desc:   c.Describe(r.Args.Worktree),
-			Mode:   c.policy.Mode(r.Args.Worktree.Repo()),
 		})
 	}
 	return out
@@ -341,7 +750,6 @@ type TreeSummary struct {
 	Tree   Worktree    `json:"tree"`
 	Name   string      `json:"name,omitempty"`
 	Desc   string      `json:"description,omitempty"`
-	Mode   Mode        `json:"mode"`
 	Actors []ActorView `json:"actors,omitempty"`
 }
 
@@ -366,7 +774,7 @@ func (c *Couch) Summarize(trees []Worktree) []TreeSummary {
 			return s
 		}
 		e := c.names.Entry(w)
-		s := &TreeSummary{Tree: w, Name: e.Name, Desc: c.Describe(w), Mode: c.policy.Mode(w.Repo())}
+		s := &TreeSummary{Tree: w, Name: e.Name, Desc: c.Describe(w)}
 		seen[w.Key()] = s
 		order = append(order, w.Key())
 		return s

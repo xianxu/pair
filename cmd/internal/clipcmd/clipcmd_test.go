@@ -31,8 +31,15 @@ func TestIsNvimCommand(t *testing.T) {
 }
 
 func TestQuoteFile(t *testing.T) {
-	if got := quoteFile("/data/dir", "t"); got != "/data/dir/quote-t" {
+	got, err := quoteFile("/data/dir", "t")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got != "/data/dir/quote-t" {
 		t.Errorf("quoteFile = %q", got)
+	}
+	if _, err := quoteFile("/data/dir", "../t"); err == nil {
+		t.Error("quoteFile accepted unsafe tag")
 	}
 }
 

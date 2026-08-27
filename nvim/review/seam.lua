@@ -14,21 +14,21 @@ function M.tag(env_tag)
 end
 
 -- The open-state file path, or nil when no data dir. Single source of the formula.
-function M.open_state(data_dir, env_tag)
-  if not data_dir or data_dir == '' then return nil end
-  return data_dir .. '/review-' .. M.tag(env_tag) .. '.open'
+function M.open_state(path)
+  if not path or path == '' then return nil end
+  return path
 end
 
 -- The review-target path (seam #6, M4a'): `{file, status: proposed|ready}` — what
 -- to review, set by :PairReview (proposes) + the agent (marks ready), read by Alt+c.
-function M.target_path(data_dir, env_tag)
-  if not data_dir or data_dir == '' then return nil end
-  return data_dir .. '/review-target-' .. M.tag(env_tag) .. '.json'
+function M.target_path(path)
+  if not path or path == '' then return nil end
+  return path
 end
 
-function M.mode_path(data_dir, env_tag)
-  if not data_dir or data_dir == '' then return nil end
-  return data_dir .. '/review-' .. M.tag(env_tag) .. '.mode'
+function M.mode_path(path)
+  if not path or path == '' then return nil end
+  return path
 end
 
 function M.default_mode()
@@ -63,8 +63,8 @@ function M.mode_label(mode)
   return (out:gsub('^%l', string.upper))
 end
 
-function M.read_mode(data_dir, env_tag)
-  local path = M.mode_path(data_dir, env_tag)
+function M.read_mode(path)
+  path = M.mode_path(path)
   if not path then return M.default_mode() end
   local f = io.open(path, 'r')
   if not f then return M.default_mode() end
@@ -73,8 +73,8 @@ function M.read_mode(data_dir, env_tag)
   return M.normalize_mode(body:match('([^\r\n]+)') or '')
 end
 
-function M.write_mode(data_dir, env_tag, mode)
-  local path = M.mode_path(data_dir, env_tag)
+function M.write_mode(path, mode)
+  path = M.mode_path(path)
   if not path then return false end
   local f = io.open(path, 'w')
   if not f then return false end

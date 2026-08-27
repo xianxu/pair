@@ -30,16 +30,14 @@ end
 -- ~0.7s synchronous `zellij action list-panes` call. Consumers validate both
 -- this Zellij session and the live nvim pid before trusting the record.
 do
-  local data_dir = vim.env.PAIR_DATA_DIR
-  local tag = vim.env.PAIR_TAG
   local session = vim.env.ZELLIJ_SESSION_NAME
   local pane_id = vim.env.ZELLIJ_PANE_ID
-  if data_dir and data_dir ~= '' and tag and tag ~= ''
-      and session and session ~= '' and pane_id and pane_id ~= '' then
+  local path = vim.env.PAIR_DRAFT_PANE_PATH
+  if session and session ~= '' and pane_id and pane_id ~= ''
+      and path and path ~= '' then
     vim.api.nvim_create_autocmd('VimEnter', {
       once = true,
       callback = function()
-        local path = data_dir .. '/draft-pane-' .. tag .. '.json'
         local body = vim.json.encode({
           session = session,
           pane_id = pane_id,
@@ -490,11 +488,11 @@ local function pair_data_dir()
 end
 
 local function log_path_for_tag()
-  return pair_data_dir() .. '/log-' .. pair_tag() .. '.md'
+  return vim.env.PAIR_LOG_PATH
 end
 
 local function draft_path_for_tag()
-  return pair_data_dir() .. '/draft-' .. pair_tag() .. '.md'
+  return vim.env.PAIR_DRAFT_PATH
 end
 
 local function read_file(path)
@@ -653,7 +651,7 @@ local QUEUE_KEY_FMT = '%06d'
 local QUEUE_KEY_START = 500000
 
 local function queue_dir()
-  return pair_data_dir() .. '/queue-' .. pair_tag()
+  return vim.env.PAIR_QUEUE_DIR
 end
 
 local function queue_path(key)
@@ -828,8 +826,8 @@ do
     return not (type(t) == 'table' and session and session ~= '' and t.session == session)
   end
 
-  local function config_session_id(data_dir, tag, agent)
-    local cf = io.open(data_dir .. '/config-' .. tag .. '-' .. agent .. '.json', 'r')
+  local function config_session_id()
+    local cf = io.open(vim.env.PAIR_AGENT_CONFIG_PATH or '', 'r')
     if not cf then return nil end
     local body = cf:read('*a'); cf:close()
     local ok, parsed = pcall(vim.json.decode, body)
@@ -842,17 +840,13 @@ do
   local function current_session_id()
     local sid = vim.env.PAIR_SESSION_ID
     if sid and sid ~= '' then return sid end
-    local data_dir = vim.env.PAIR_DATA_DIR
-    if not data_dir or data_dir == '' then return nil end
-    local tag = (vim.env.PAIR_TAG and vim.env.PAIR_TAG ~= '') and vim.env.PAIR_TAG or 'default'
-    local agent = (vim.env.PAIR_AGENT and vim.env.PAIR_AGENT ~= '') and vim.env.PAIR_AGENT or 'claude'
-    sid = config_session_id(data_dir, tag, agent)
+    sid = config_session_id()
     if sid then return sid end
     return nil
   end
 
   local function state_file()
-    return seam.open_state(vim.env.PAIR_DATA_DIR, vim.env.PAIR_TAG)
+    return seam.open_state(vim.env.PAIR_REVIEW_OPEN_PATH)
   end
 
   -- Returns (alive, statefile, file). `file` is the reviewed doc's absolute path.
@@ -869,7 +863,7 @@ do
   -- review-target (seam #6): {file, status: proposed|ready}. :PairReview proposes;
   -- the agent marks ready after prep; Alt+c reads it to decide prompt/open/wait.
   local function read_target()
-    local p = seam.target_path(vim.env.PAIR_DATA_DIR, vim.env.PAIR_TAG)
+    local p = seam.target_path(vim.env.PAIR_REVIEW_TARGET_PATH)
     if not p or vim.fn.filereadable(p) ~= 1 then return nil end
     local ok, t = pcall(vim.json.decode, table.concat(vim.fn.readfile(p), '\n'))
     if not (ok and type(t) == 'table' and t.file and t.file ~= '') then return nil end
@@ -885,7 +879,7 @@ do
     return t
   end
   local function write_target(file, status)
-    local p = seam.target_path(vim.env.PAIR_DATA_DIR, vim.env.PAIR_TAG)
+    local p = seam.target_path(vim.env.PAIR_REVIEW_TARGET_PATH)
     if p then pcall(vim.fn.writefile,
       { vim.json.encode({ file = file, status = status, session = current_session_id() or '' }) }, p) end
   end
@@ -1269,10 +1263,15 @@ local function attach_image()
                vim.log.levels.ERROR)
     return
   end
-  local dd = pair_data_dir()
-  local pid_path = dd .. '/pair-wrap-pid-' .. tag
-  local cap_path = dd .. '/image-capture-' .. tag
-  local done_path = cap_path .. '.done'
+  local pid_path = vim.env.PAIR_PAIR_WRAP_PID_PATH
+  local cap_path = vim.env.PAIR_IMAGE_CAPTURE_PATH
+  local done_path = vim.env.PAIR_IMAGE_CAPTURE_DONE_PATH
+  if not pid_path or pid_path == '' or not cap_path or cap_path == '' or
+      not done_path or done_path == '' then
+    vim.notify('pair: exact image-capture paths unset — restart the pair session',
+               vim.log.levels.ERROR)
+    return
+  end
 
   -- Read pid (file I/O — microseconds). We defer the kill -0 alive check
   -- to the SIGUSR1 below; an explicit kill -0 here would fork a subprocess
@@ -1381,7 +1380,7 @@ local function quote_path()
   local data_dir = os.getenv('PAIR_DATA_DIR')
                 or (os.getenv('XDG_DATA_HOME') or vim.fn.expand('~/.local/share'))
                    .. '/pair'
-  return data_dir .. '/quote-' .. pair_tag()
+  return vim.env.PAIR_QUOTE_PATH
 end
 
 local function clear_flash_after(buf, ms)
@@ -1682,7 +1681,7 @@ end
 -- Word completion. Triggered alongside path_complete on every TextChangedI.
 -- Two sources of candidates:
 --   1. The current draft buffer — `[%w_]+` words the user has typed.
---   2. $PAIR_DATA_DIR/agent-output-<tag> — colored spans extracted from
+--   2. $PAIR_AGENT_OUTPUT_PATH — colored spans extracted from
 --      the agent's output by pair-wrap. Each line is
 --      `<color>\t<count>\t<span>`, where <color> is the SGR foreground id
 --      ("36" for cyan, "5;75" for 256-color, "2;R;G;B" for RGB) and
@@ -1706,7 +1705,7 @@ end
 --
 -- Trigger after 1 typed char; candidates filtered to 5+ chars. Override
 -- the default color allowlist with PAIR_AGENT_SPAN_COLORS (csv of color
--- ids — inspect $PAIR_DATA_DIR/agent-output-<tag> to see what's emitted).
+-- ids — inspect $PAIR_AGENT_OUTPUT_PATH to see what's emitted).
 local WORD_TRIGGER_MIN = 1
 local WORD_CANDIDATE_MIN = 5
 local POOL_CAP = 100        -- agent spans eligible for completion
@@ -1729,7 +1728,7 @@ local WORD_TOKEN_RE = '([%w_%-./$+<>{}%[%]]+)$'
 -- `2;177;185;249` for an RGB triple).
 local AGENT_SPAN_DEFAULTS = {
   -- Claude Code (claude.ai's TUI): code spans painted in periwinkle RGB.
-  -- Inspect $PAIR_DATA_DIR/agent-output-<tag> to update.
+  -- Inspect $PAIR_AGENT_OUTPUT_PATH to update.
   claude = { '2;177;185;249' },
 }
 
@@ -1746,7 +1745,7 @@ local AGENT_SPAN_COLORS = (function()
 end)()
 
 local function agent_output_path()
-  return pair_data_dir() .. '/agent-output-' .. pair_tag()
+  return vim.env.PAIR_AGENT_OUTPUT_PATH
 end
 
 -- ----- pick tracking -------------------------------------------------------
@@ -1763,7 +1762,7 @@ local picks_dirty = false
 local picks_flush_timer = nil
 
 local function agent_picks_path()
-  return pair_data_dir() .. '/agent-picks-' .. pair_tag()
+  return vim.env.PAIR_AGENT_PICKS_PATH
 end
 
 local function picks_load()
@@ -2837,21 +2836,16 @@ vim.api.nvim_create_autocmd('ColorScheme', {
 -- The sidecar is removed only after a successful land (catch failed I/O
 -- so we don't lose comments to a "picked up N" toast that's lying).
 local function pair_pending_path()
-  local data_dir = vim.env.PAIR_DATA_DIR
-    or ((vim.env.XDG_DATA_HOME or (vim.env.HOME .. '/.local/share')) .. '/pair')
-  local tag = vim.env.PAIR_TAG or vim.env.PAIR_AGENT or 'claude'
-  return data_dir .. '/scrollback-pending-' .. tag .. '.md'
+  return vim.env.PAIR_SCROLLBACK_PENDING_PATH
 end
 
 local function pair_draft_file()
-  local data_dir = vim.env.PAIR_DATA_DIR
-    or ((vim.env.XDG_DATA_HOME or (vim.env.HOME .. '/.local/share')) .. '/pair')
-  local tag = vim.env.PAIR_TAG or vim.env.PAIR_AGENT or 'claude'
-  return data_dir .. '/draft-' .. tag .. '.md'
+  return vim.env.PAIR_DRAFT_PATH
 end
 
 local function pair_pickup_scrollback_pending()
   local pending = pair_pending_path()
+  if not pending or pending == '' then return end
   local f = io.open(pending, 'r')
   if not f then return end
   local content = f:read('*a')
@@ -2906,6 +2900,7 @@ local function pair_pickup_scrollback_pending()
     -- to the draft slot reads it. nvim's slot-load reads from disk, so
     -- this is the right hand-off shape for the off-slot case.
     local draft = pair_draft_file()
+    if not draft or draft == '' then return end
     local d = io.open(draft, 'a')
     if d then
       local wrote = pcall(function() d:write(content); d:close() end)
@@ -2938,10 +2933,10 @@ vim.api.nvim_create_autocmd('FocusGained', {
 -- and calls the same pickup function, single source of truth for the
 -- landing logic.
 local function pair_start_pending_fs_watch()
-  local data_dir = vim.env.PAIR_DATA_DIR
-    or ((vim.env.XDG_DATA_HOME or (vim.env.HOME .. '/.local/share')) .. '/pair')
-  local tag = vim.env.PAIR_TAG or vim.env.PAIR_AGENT or 'claude'
-  local target = 'scrollback-pending-' .. tag .. '.md'
+  local pending_path = vim.env.PAIR_SCROLLBACK_PENDING_PATH
+  if not pending_path or pending_path == '' then return end
+  local data_dir = vim.fn.fnamemodify(pending_path, ':h')
+  local target = vim.fn.fnamemodify(pending_path, ':t')
   local handle = vim.loop.new_fs_event()
   if not handle then return end
   local ok = pcall(function()
@@ -2960,8 +2955,8 @@ local function pair_start_pending_fs_watch()
 end
 pair_start_pending_fs_watch()
 
--- Watch $PAIR_DATA_DIR for the change-log "build complete" marker (#58). The
--- detached distiller drops "changelog-<tag>-<agent>.ready" only when a triggered
+-- Watch the exact change-log binding for the "build complete" marker (#58). The
+-- detached distiller drops the exact PAIR_CHANGELOG_READY_PATH only when a triggered
 -- build actually changed the log; we flash the statusline + delete the marker
 -- (one-shot). A low-frequency timer poll, NOT fs_event: macOS FSEvents is
 -- unreliable from nvim here (it surfaces EMFILE with a nil filename), and the
@@ -2970,37 +2965,10 @@ pair_start_pending_fs_watch()
 -- whole job is to flash while the operator works in the *agent* pane (the draft
 -- statusline stays on screen), so it can't depend on focus. One fs_stat every
 -- 2s is negligible; the ≤2s latency is invisible against a slow background build.
--- Resolve the change-log session id (#63): the env var bin/pair exports when the
--- id is known at launch (claude-fresh / any resume), else the per-tag config the
--- session watcher writes (codex/agy discover it async). Mirrors the env->config
--- order in bin/pair-changelog-open so the polled .ready path matches the base the
--- opener builds. A focused reader, not pair_read_saved_config() -- that one is
--- defined later in this file (Lua local-function ordering) and also reads the
--- agent-<tag> file, which is overkill here.
-local function pair_changelog_session_id(data_dir, tag, agent)
-  local sid = vim.env.PAIR_SESSION_ID
-  if sid and sid ~= '' then return sid end
-  local cf = io.open(data_dir .. '/config-' .. tag .. '-' .. agent .. '.json', 'r')
-  if not cf then return nil end
-  local body = cf:read('*a'); cf:close()
-  local ok, parsed = pcall(vim.json.decode, body)
-  if ok and type(parsed) == 'table' and parsed.session_id and parsed.session_id ~= '' then
-    return parsed.session_id
-  end
-  return nil
-end
-
 local function pair_start_changelog_ready_watch()
-  local data_dir = vim.env.PAIR_DATA_DIR
-    or ((vim.env.XDG_DATA_HOME or (vim.env.HOME .. '/.local/share')) .. '/pair')
-  local tag = vim.env.PAIR_TAG or vim.env.PAIR_AGENT or 'claude'
-  local agent = vim.env.PAIR_AGENT or 'claude'
   vim.fn.timer_start(2000, function()
-    -- Re-resolve each tick: a codex/agy id may land in the config mid-session.
-    local sid = pair_changelog_session_id(data_dir, tag, agent)
-    local base = data_dir .. '/changelog-' .. tag .. '-' .. agent
-    if sid then base = base .. '-' .. sid end
-    local marker = base .. '.ready'
+    local marker = vim.env.PAIR_CHANGELOG_READY_PATH or ''
+    if marker == '' then return end
     if not vim.loop.fs_stat(marker) then return end
     os.remove(marker) -- one-shot: consume the marker so the flash fires once
     pair_flash_notify('✓ change log ready · Alt+l')
@@ -3128,17 +3096,15 @@ end
 local function pair_read_saved_config()
   local tag = vim.env.PAIR_TAG
   if not tag or tag == '' then return nil end
-  local data_dir = vim.env.PAIR_DATA_DIR
-    or ((vim.env.XDG_DATA_HOME or (vim.env.HOME .. '/.local/share')) .. '/pair')
 
-  local af = io.open(data_dir .. '/agent-' .. tag, 'r')
+  local af = io.open(vim.env.PAIR_AGENT_PATH or '', 'r')
   if not af then return nil end
   local agent = af:read('*l')
   af:close()
   if not agent or agent == '' then return nil end
 
   local cfg = { tag = tag, agent = agent }
-  local cf = io.open(data_dir .. '/config-' .. tag .. '-' .. agent .. '.json', 'r')
+  local cf = io.open(vim.env.PAIR_AGENT_CONFIG_PATH or '', 'r')
   if cf then
     local body = cf:read('*a')
     cf:close()
@@ -3374,7 +3340,7 @@ function _G.PairTTYRawPath()
     vim.notify('pair: not inside a pair session (PAIR_TAG/PAIR_AGENT unset)', vim.log.levels.WARN)
     return
   end
-  local raw = string.format('%s/scrollback-%s-%s.raw', pair_data_dir(), tag, agent)
+  local raw = vim.env.PAIR_SCROLLBACK_RAW_PATH
   local sz = vim.fn.getfsize(raw)
   local note = (sz >= 0) and string.format(' (%d bytes)', sz) or ' (not present yet)'
   local copied = pcall(vim.fn.setreg, '+', raw)   -- may fail with no clipboard provider
@@ -3401,8 +3367,7 @@ vim.api.nvim_create_user_command('PairTTYRawPath', function() _G.PairTTYRawPath(
 -- and Alt+Up (bigger) maps to prev-swap from {small, minimized}.
 -- The state machine in PairLayoutBigger / PairLayoutSmaller clamps at
 -- the rung extremes so we never wrap past them.
-local LAYOUT_STATE_FILE = pair_data_dir()
-  .. '/layout-mode-' .. (vim.env.PAIR_TAG or vim.env.PAIR_AGENT or 'claude')
+local LAYOUT_STATE_FILE = vim.env.PAIR_LAYOUT_MODE_PATH
 
 -- Read the current rung from nvim's own pane height. The kdl pins each
 -- rung to an exact size (1 / 12 / 33%), so vim.o.lines is a ground-truth
@@ -3549,7 +3514,7 @@ function _G.PairScrollbackOpen()
 end
 
 function _G.PairLastLeftPaneFile()
-  return pair_data_dir() .. '/last-left-pane-' .. (vim.env.PAIR_TAG or 'pair')
+  return vim.env.PAIR_LAST_LEFT_PANE_PATH
 end
 
 function _G.PairRecordLeftPane()
@@ -4113,7 +4078,7 @@ local function pair_slug_mirror_line1()
   -- fires TextChanged → this mirror. The apply already persisted the same
   -- value to slug-<tag>, so skip when unchanged — avoids churning the file
   -- (and the proposer's `prev`) on every machine apply.
-  local path = pair_data_dir() .. '/slug-' .. pair_tag()
+  local path = vim.env.PAIR_SLUG_PATH
   local cur = read_file(path):match('^[^\n]*') or ''
   if cur == line1 then return end
   write_file(path, line1 .. '\n')
@@ -4122,7 +4087,7 @@ end
 local function pair_slug_reconcile()
   if not pair_slug then return end
   local dd, tag = pair_data_dir(), pair_tag()
-  local proposed = read_file(dd .. '/slug-proposed-' .. tag):match('^[^\n]*') or ''
+  local proposed = read_file(vim.env.PAIR_SLUG_PROPOSED_PATH):match('^[^\n]*') or ''
   if proposed == '' then return end
   local buf = pair_slug_draft_buf()
   if not buf then return end
@@ -4142,16 +4107,17 @@ local function pair_slug_reconcile()
   end
   local _, prev = pair_slug.apply(buf, proposed)
   if prev == '' or prev:sub(1, 3) == '===' then
-    write_file(dd .. '/slug-' .. tag, prev .. '\n')
+    write_file(vim.env.PAIR_SLUG_PATH, prev .. '\n')
   end
 end
 
 do
   local handle = vim.loop.new_fs_event()
   if handle then
-    local target = 'slug-proposed-' .. pair_tag()
+    local proposed_path = vim.env.PAIR_SLUG_PROPOSED_PATH
+    local target = proposed_path and vim.fn.fnamemodify(proposed_path, ':t') or nil
     local ok = pcall(function()
-      handle:start(pair_data_dir(), {}, vim.schedule_wrap(function(err, filename)
+      handle:start(vim.fn.fnamemodify(proposed_path, ':h'), {}, vim.schedule_wrap(function(err, filename)
         if err then return end
         if filename and filename ~= target then return end
         pcall(pair_slug_reconcile)
@@ -4238,7 +4204,7 @@ do
   -- The compact draft-side review bar text. 🤖A = agent (robot) rounds, /H = human.
   local function bar_text(file)
     local a, h = counts(file)
-    local m = seam.read_mode(pair_data_dir(), pair_tag())
+    local m = seam.read_mode(vim.env.PAIR_REVIEW_MODE_PATH)
     return string.format('🪄 %s • %s • 🤖 %d/%d', seam.mode_label(m), vim.fn.fnamemodify(file, ':t'), a, h)
   end
   _G._pair_review_bar = bar_text -- exposed for the headless test (plain, unstyled)
@@ -4261,7 +4227,7 @@ do
       local alive, _, file = _G._pair_review.is_alive()
       if alive and file and file ~= '' then
         local a, h = counts(file)
-        local m = seam.read_mode(pair_data_dir(), pair_tag())
+        local m = seam.read_mode(vim.env.PAIR_REVIEW_MODE_PATH)
         local label, name = seam.mode_label(m), vim.fn.fnamemodify(file, ':t')
         seg = string.format('%%#PairReviewBar#🪄 %s • %s •%%*%%=%%#PairReviewBar#🤖 %d/%d%%*',
           label:gsub('%%', '%%%%'), name:gsub('%%', '%%%%'), a, h)

@@ -9,7 +9,7 @@ description: Use when a pair agent-harness adaptation feels off — Enter leakin
 `atlas/how-to-bring-up-a-new-harness-cli.md`. Harnesses update and break those
 adaptations *silently* — a renamed picker string or changed transcript shape
 doesn't error, the adaptation just stops firing. The **flight recorder**
-(`$PAIR_DATA_DIR/adapt-<tag>.jsonl`) captures one line per adaptation trigger,
+(`$PAIR_ADAPT_LOG_PATH`) captures one line per adaptation trigger,
 including **near-misses** (the harness did something we half-recognized but no
 matcher caught). This skill reads that trace and turns it into a fix.
 
@@ -22,8 +22,8 @@ edit matcher code silently — surface the finding and the proposed edit first.
 
 ## Procedure
 
-1. **Run it.** The aggregator self-locates the current session's log via
-   `$PAIR_TAG`, falling back to the newest `adapt-*.jsonl`; pass an explicit path
+1. **Run it.** The aggregator uses the current session's exact
+   `$PAIR_ADAPT_LOG_PATH` binding; outside a live Pair pane, pass an explicit path
    as `$1` to inspect a specific session's log:
 
    ```bash

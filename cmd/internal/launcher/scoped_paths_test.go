@@ -1,6 +1,9 @@
 package launcher
 
-import "testing"
+import (
+	"path/filepath"
+	"testing"
+)
 
 func TestScopedPaths(t *testing.T) {
 	scope, err := ResolveRepoScope("/Users/x/workspace/pair")
@@ -25,6 +28,7 @@ func TestScopedPaths(t *testing.T) {
 		"OuterTTY":          scopeDir + "/outer-tty-work",
 		"NvimDraftPID":      scopeDir + "/nvim-pid-work-draft",
 		"NvimScrollbackPID": scopeDir + "/nvim-pid-work-scrollback",
+		"ThreadClaim":       scopeDir + "/thread-claim-work.json",
 	}
 
 	got := map[string]string{
@@ -42,10 +46,93 @@ func TestScopedPaths(t *testing.T) {
 		"OuterTTY":          paths.OuterTTY(),
 		"NvimDraftPID":      paths.NvimDraftPID(),
 		"NvimScrollbackPID": paths.NvimScrollbackPID(),
+		"ThreadClaim":       paths.ThreadClaim(),
 	}
 	for name, want := range checks {
 		if got[name] != want {
 			t.Fatalf("%s = %q, want %q", name, got[name], want)
+		}
+	}
+}
+
+func TestScopedPathsValidateCompositeBoundary(t *testing.T) {
+	valid := NewScopedPaths("/data", RepoScope{Key: "0123456789abcdef"}, "couch-0123456789abcdef")
+	if err := valid.Validate(); err != nil {
+		t.Fatalf("valid scoped paths rejected: %v", err)
+	}
+	for _, paths := range []ScopedPaths{
+		NewScopedPaths("relative", valid.Scope, valid.Tag),
+		NewScopedPaths("/data", RepoScope{Key: "../scope"}, valid.Tag),
+		NewScopedPaths("/data", valid.Scope, "../tag"),
+	} {
+		if err := paths.Validate(); err == nil {
+			t.Errorf("unsafe scoped paths accepted: %+v", paths)
+		}
+	}
+}
+
+func TestOwnsTagArtifactCoversEveryScopedTagConstructor(t *testing.T) {
+	paths := NewScopedPaths("/data", RepoScope{Key: "0123456789abcdef"}, "work")
+	for _, path := range []string{
+		paths.Ledger(), paths.Draft(), paths.Log(), paths.QueueDir(), paths.Agent(),
+		paths.AgentPID(), paths.AgentOutput(), paths.AgentPicks(), paths.AdaptLog(),
+		paths.OuterTTY(), paths.NvimDraftPID(), paths.NvimScrollbackPID(),
+		paths.Config("codex"), paths.LegacyCodexConfig(), paths.AgentReady("claude"),
+		paths.Pane("codex"), paths.ScrollbackRaw("codex"), paths.ScrollbackANSI("codex"),
+		paths.ScrollbackEvents("codex"), paths.ScrollbackViewport("codex"),
+		paths.Changelog("codex"), paths.AgentDraft("codex"), paths.ThreadClaim(),
+	} {
+		if !OwnsTagArtifact(filepath.Base(path), "work") {
+			t.Errorf("artifact inventory omits %s", filepath.Base(path))
+		}
+	}
+	if OwnsTagArtifact("draft-worker.md", "work") {
+		t.Fatal("artifact inventory matched neighboring tag")
+	}
+}
+
+func TestOwnsTagArtifactCoversCurrentNonScopedPathsAndFutureFamilies(t *testing.T) {
+	tag := "couch-0001020304050607"
+	for _, name := range []string{
+		"draft-pane-" + tag + ".json",
+		"image-capture-" + tag,
+		"image-capture-" + tag + ".done",
+		"pair-wrap-pid-" + tag,
+		"wrap-events-" + tag + ".jsonl",
+		"parked-" + tag,
+		"parked-scrollback-" + tag + "-20260826.raw",
+		"last-left-pane-" + tag,
+		"last-terminal-pane-" + tag,
+		"terminal-panes-" + tag,
+		"title-pid-" + tag,
+		"layout-mode-" + tag,
+		"workbench-layout-" + tag,
+		"quote-" + tag,
+		"slug-" + tag,
+		"slug-proposed-" + tag,
+		"scrollback-pending-" + tag + ".md",
+		"zellij-actions-" + tag + ".jsonl",
+		"review-" + tag + ".open",
+		"review-" + tag + ".mode",
+		"review-target-" + tag + ".json",
+		"review-context-" + tag + ".md",
+		"review-handoff-" + tag + ".json",
+		"review-landed-" + tag + ".json",
+		"review-definition-request-" + tag + ".json",
+		"review-definition-result-" + tag + ".json",
+		"future-consumer-" + tag + "-variant.bin",
+	} {
+		if !OwnsTagArtifact(name, tag) {
+			t.Errorf("generic tag boundary omitted %s", name)
+		}
+	}
+	for _, neighbor := range []string{
+		"draft-" + tag + "0.md",
+		"draft-x" + tag + ".md",
+		"draft-couch-0001020304050608.md",
+	} {
+		if OwnsTagArtifact(neighbor, tag) {
+			t.Errorf("generic tag boundary matched neighbor %s", neighbor)
 		}
 	}
 }

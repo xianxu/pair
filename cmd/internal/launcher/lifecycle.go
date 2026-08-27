@@ -5,6 +5,8 @@ import (
 	"io"
 	"path/filepath"
 	"strings"
+
+	"github.com/xianxu/pair/cmd/internal/artifactpath"
 )
 
 // The attach + quit-cleanup orchestrators behind RunLaunch's in-process restart
@@ -32,7 +34,11 @@ func runAttach(opts LaunchOptions, env Env, rt Runtime, tag, session, agent stri
 	rt.SetEnv("PAIR_SESSION_NAME", session)
 
 	// zellij creates the draft on new-session but not on attach; ensure it.
-	_ = rt.Touch(filepath.Join(env.DataDir, "draft-"+tag+".md"))
+	paths, err := artifactpath.ResolveScoped(env.DataDir, tag)
+	if err != nil {
+		return 1, err
+	}
+	_ = rt.Touch(paths.Draft())
 	rt.SetTerminalTitle(session)
 	rt.RecordOuterTTY(tag)
 	rt.CmuxRename(tag, session)
@@ -56,6 +62,10 @@ func runCleanup(env Env, rt Runtime, step launchStep, parkTimeout int, out io.Wr
 		return
 	}
 	dataDir := env.DataDir
+	paths, err := artifactpath.ResolveScoped(dataDir, step.tag)
+	if err != nil {
+		return
+	}
 	// Resolve the agent this tag was paired with BEFORE the agent-<tag> record is
 	// removed below, so the park path + resume hint name the right binary
 	// (InferAgent reads agent-<tag> first, matching the shell, then falls back to
@@ -72,9 +82,12 @@ func runCleanup(env Env, rt Runtime, step launchStep, parkTimeout int, out io.Wr
 	// Alt+x is about to discard it — offer to preserve it. Gated on an
 	// interactive tty with a non-empty raw capture, and skipped when a restart is
 	// pending (a restart keeps the work, so re-asking is noise).
-	sbBase := filepath.Join(dataDir, "scrollback-"+step.tag+"-"+quitAgent)
+	scrollback, pathErr := paths.ScrollbackArtifacts(quitAgent)
+	if pathErr != nil {
+		return
+	}
 	parked := false
-	if size, ok := rt.FileSize(sbBase + ".raw"); ok && size > 0 && rt.IsTTY() && !rt.RestartMarkerPresent(step.session) {
+	if size, ok := rt.FileSize(scrollback.Raw); ok && size > 0 && rt.IsTTY() && !rt.RestartMarkerPresent(step.session) {
 		if rt.ConfirmParkNudge(step.session, parkTimeout) {
 			if pbase, ok := rt.ParkScrollback(step.tag, quitAgent, true); ok {
 				parked = true
@@ -88,23 +101,20 @@ func runCleanup(env Env, rt Runtime, step launchStep, parkTimeout int, out io.Wr
 	// omitted here — the leak behind #97: a surviving twin misled the frame
 	// poller when the tag was later paired with a different agent. Cleaning it on
 	// quit stops new twins at the source (the poller also filters defensively).
-	for _, rel := range []string{
-		"outer-tty-" + step.tag,
-		"agent-" + step.tag,
-		"agent-output-" + step.tag,
-		"pair-wrap-pid-" + step.tag,
-		"adapt-" + step.tag + ".jsonl",
-		"image-capture-" + step.tag,
-		"image-capture-" + step.tag + ".done",
-		"pane-" + step.tag + "-" + quitAgent + ".json",
+	panePath, _ := paths.PaneChecked(quitAgent)
+	for _, path := range []string{
+		paths.OuterTTY(), paths.Agent(), paths.AgentOutput(), paths.PairWrapPID(),
+		paths.AdaptLog(), paths.ImageCapture(), paths.ImageCaptureDone(), panePath,
 	} {
-		rt.Remove(filepath.Join(dataDir, rel))
+		if path != "" {
+			rt.Remove(path)
+		}
 	}
-	rt.Remove(sbBase + ".ansi")
+	rt.Remove(scrollback.ANSI)
 	// Remove the raw capture only when it wasn't parked (preserved above).
 	if !parked {
-		rt.Remove(sbBase + ".raw")
-		rt.Remove(sbBase + ".events.jsonl")
+		rt.Remove(scrollback.Raw)
+		rt.Remove(scrollback.Events)
 	}
 
 	// Resume hint: a saved config for this (tag, agent) means the resume path
@@ -165,33 +175,4 @@ func liveTagsForSweep(sessions []Session, index SessionNameIndex, scopeKey strin
 		}
 	}
 	return tags
-}
-
-// tagFromEmbedArgv recovers the pair tag from an `nvim --embed …` process argv by
-// matching the draft-/scrollback- sidecar path under dataDir (sweep_orphan_nvim's
-// ps-scan half, shell 1133-1149). "" when the argv references neither. Pure so
-// the sweep's argv parsing is unit-testable; assumes the caller already filtered
-// to nvim --embed lines.
-func tagFromEmbedArgv(argv, dataDir string) string {
-	if marker := dataDir + "/draft-"; strings.Contains(argv, marker) {
-		rest := firstField(argv[strings.LastIndex(argv, marker)+len(marker):])
-		return strings.TrimSuffix(rest, ".md")
-	}
-	if marker := dataDir + "/scrollback-"; strings.Contains(argv, marker) {
-		rest := firstField(argv[strings.LastIndex(argv, marker)+len(marker):])
-		rest = strings.TrimSuffix(rest, ".ansi")
-		if i := strings.LastIndex(rest, "-"); i >= 0 {
-			rest = rest[:i] // strip trailing -<agent> to recover <tag>
-		}
-		return rest
-	}
-	return ""
-}
-
-// firstField returns s up to its first space (the shell's `${x%% *}`).
-func firstField(s string) string {
-	if i := strings.IndexByte(s, ' '); i >= 0 {
-		return s[:i]
-	}
-	return s
 }

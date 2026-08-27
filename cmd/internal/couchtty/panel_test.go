@@ -7,12 +7,16 @@ import (
 	"github.com/xianxu/pair/cmd/internal/couchcore"
 )
 
-func summaries() []couchcore.TreeSummary {
-	return []couchcore.TreeSummary{
-		{Tree: "/w/brain", Name: "brain", Desc: "the advisor"},
-		{Tree: "/w/pair", Name: "pair", Desc: "couch tty switching",
-			Actors: []couchcore.ActorView{{Live: true}}},
-		{Tree: "/w/ariadne", Desc: "sdlc gates"},
+func panelAddress(tag string) couchcore.ThreadAddress {
+	return couchcore.ThreadAddress{RepoScope: "legacy", Tag: couchcore.ThreadTag(tag)}
+}
+
+func summaries() []couchcore.ThreadSummary {
+	return []couchcore.ThreadSummary{
+		{Address: panelAddress("brain"), WorkingPath: "/w/brain", Name: "brain", PublishedSummary: "the advisor"},
+		{Address: panelAddress("pair"), WorkingPath: "/w/pair", Name: "pair", PublishedSummary: "couch tty switching",
+			Incarnations: []couchcore.ThreadIncarnation{{State: couchcore.IncarnationLive}}},
+		{Address: panelAddress("ariadne"), WorkingPath: "/w/ariadne", PublishedSummary: "sdlc gates"},
 	}
 }
 
@@ -22,9 +26,9 @@ func summaries() []couchcore.TreeSummary {
 func TestPanelFilterUsesTheInjectedResolver(t *testing.T) {
 	m := NewPanelModel(summaries())
 	called := ""
-	resolve := func(q string) []couchcore.Worktree {
+	resolve := func(q string) []couchcore.ThreadAddress {
 		called = q
-		return []couchcore.Worktree{"/w/ariadne"}
+		return []couchcore.ThreadAddress{panelAddress("ariadne")}
 	}
 
 	rows := m.Filter("anything", resolve)
@@ -41,7 +45,7 @@ func TestPanelFilterUsesTheInjectedResolver(t *testing.T) {
 func TestPanelFilterWithAnEmptyQueryShowsEverything(t *testing.T) {
 	m := NewPanelModel(summaries())
 	asked := false
-	rows := m.Filter("", func(string) []couchcore.Worktree { asked = true; return nil })
+	rows := m.Filter("", func(string) []couchcore.ThreadAddress { asked = true; return nil })
 	if asked {
 		t.Fatal("an empty query consulted the resolver")
 	}
@@ -85,8 +89,8 @@ func TestPanelFilterPreservesSelectedTree(t *testing.T) {
 	m := NewPanelModel(summaries())
 	m.Filter("", nil)
 	m.Move(2) // ariadne
-	m.Filter("x", func(string) []couchcore.Worktree {
-		return []couchcore.Worktree{"/w/brain", "/w/ariadne"}
+	m.Filter("x", func(string) []couchcore.ThreadAddress {
+		return []couchcore.ThreadAddress{panelAddress("brain"), panelAddress("ariadne")}
 	})
 	got, ok := m.Selected()
 	if !ok || got.Tree != "/w/ariadne" {
@@ -98,8 +102,8 @@ func TestPanelFilterFallsBackToFirstMatch(t *testing.T) {
 	m := NewPanelModel(summaries())
 	m.Filter("", nil)
 	m.Move(1) // pair
-	m.Filter("x", func(string) []couchcore.Worktree {
-		return []couchcore.Worktree{"/w/ariadne"}
+	m.Filter("x", func(string) []couchcore.ThreadAddress {
+		return []couchcore.ThreadAddress{panelAddress("ariadne")}
 	})
 	got, ok := m.Selected()
 	if !ok || got.Tree != "/w/ariadne" {
@@ -109,20 +113,33 @@ func TestPanelFilterFallsBackToFirstMatch(t *testing.T) {
 
 func TestPanelZeroMatchesHaveNoSelection(t *testing.T) {
 	m := NewPanelModel(summaries())
-	m.Filter("x", func(string) []couchcore.Worktree { return nil })
+	m.Filter("x", func(string) []couchcore.ThreadAddress { return nil })
 	if got, ok := m.Selected(); ok {
 		t.Fatalf("selected = %+v, want no selection", got)
 	}
 }
 
-func TestPanelSelectTreeAfterRefresh(t *testing.T) {
+func TestPanelSelectThreadAfterRefresh(t *testing.T) {
 	m := NewPanelModel(summaries())
-	if !m.SelectTree("/w/ariadne") {
-		t.Fatal("SelectTree(/w/ariadne) = false")
+	if !m.SelectAddress(panelAddress("ariadne")) {
+		t.Fatal("SelectAddress(ariadne) = false")
 	}
 	got, ok := m.Selected()
 	if !ok || got.Tree != "/w/ariadne" {
 		t.Fatalf("selected = %+v, %v; want /w/ariadne", got, ok)
+	}
+}
+
+func TestPanelSelectTreeRefusesAmbiguousWorkingPath(t *testing.T) {
+	m := NewPanelModel([]couchcore.ThreadSummary{
+		{Address: panelAddress("one"), WorkingPath: "/w/brain"},
+		{Address: panelAddress("two"), WorkingPath: "/w/brain"},
+	})
+	if m.SelectTree("/w/brain") {
+		t.Fatal("SelectTree selected an ambiguous working path")
+	}
+	if got := m.Cursor(); got != 0 {
+		t.Fatalf("cursor changed after ambiguous SelectTree: %d", got)
 	}
 }
 
@@ -146,9 +163,9 @@ func TestPanelRowLabelFallsBackToTheRepo(t *testing.T) {
 // order left every ordering test green, because the fixtures happened to agree.
 func TestPanelFilterKeepsTheModelsOrderNotTheResolvers(t *testing.T) {
 	m := NewPanelModel(summaries())
-	rows := m.Filter("x", func(string) []couchcore.Worktree {
+	rows := m.Filter("x", func(string) []couchcore.ThreadAddress {
 		// Deliberately reversed relative to the model.
-		return []couchcore.Worktree{"/w/ariadne", "/w/pair", "/w/brain"}
+		return []couchcore.ThreadAddress{panelAddress("ariadne"), panelAddress("pair"), panelAddress("brain")}
 	})
 	want := []couchcore.Worktree{"/w/brain", "/w/pair", "/w/ariadne"}
 	for i := range want {
@@ -165,8 +182,8 @@ func TestPanelFilterKeepsTheModelsOrderNotTheResolvers(t *testing.T) {
 func TestPanelTargetJoinKeepsParkedRowsAndAddsRoutingSeparately(t *testing.T) {
 	m := NewPanelModel(summaries())
 	m.BindTargets([]PanelTarget{
-		{Tree: "/w/brain", Target: "child-brain"},
-		{Tree: "/w/pair", Target: "child-pair", Bell: true},
+		{Address: panelAddress("brain"), Tree: "/w/brain", Target: "child-brain"},
+		{Address: panelAddress("pair"), Tree: "/w/pair", Target: "child-pair", Bell: true},
 	})
 
 	rows := m.Rows()
@@ -184,6 +201,21 @@ func TestPanelTargetJoinKeepsParkedRowsAndAddsRoutingSeparately(t *testing.T) {
 				t.Fatalf("live target join = %+v", row)
 			}
 		}
+	}
+}
+
+func TestPanelKeepsSamePathThreadsDistinctAndBindsExactTarget(t *testing.T) {
+	first := couchcore.ThreadSummary{Address: panelAddress("first"), WorkingPath: "/w/brain", Name: "first"}
+	second := couchcore.ThreadSummary{Address: panelAddress("second"), WorkingPath: "/w/brain", Name: "second"}
+	m := NewPanelModel([]couchcore.ThreadSummary{first, second})
+	m.BindTargets([]PanelTarget{{Address: second.Address, Tree: "/w/brain", Target: "child-second"}})
+	rows := m.Rows()
+	if len(rows) != 2 || rows[0].Target != "" || rows[1].Target != "child-second" {
+		t.Fatalf("same-path target join = %+v", rows)
+	}
+	filtered := m.Filter("second", func(string) []couchcore.ThreadAddress { return []couchcore.ThreadAddress{second.Address} })
+	if len(filtered) != 1 || filtered[0].Address != second.Address {
+		t.Fatalf("same-path exact filter = %+v", filtered)
 	}
 }
 

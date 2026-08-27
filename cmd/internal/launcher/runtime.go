@@ -136,6 +136,11 @@ type LedgerOps interface {
 type SessionNameStoreOps interface {
 	ReadSessionNameIndex() (SessionNameIndex, error)
 	AppendSessionNameIndex(entry SessionNameEntry) error
+	ReadThreadIndex() (ThreadIndex, error)
+}
+
+type ThreadAddressClaimOps interface {
+	EnsureThreadAddress(scope RepoScope, tag string, couchOwned bool) error
 }
 
 type ReadinessOps interface {
@@ -194,9 +199,9 @@ type LifecycleOps interface {
 	// TERMINAL (replaces the process), so the compaction pane dies and the outer
 	// bin/pair regains the tty (shell 1060). PAIR_KILL_CMD overrides for tests.
 	ExecKillSession(session string)
-	// DeleteSession removes the zellij session record (delete-session --force)
-	// and SIGKILLs any lingering `zellij --server …/<session>` process, shell
-	// 1528-1534.
+	// DeleteSession removes the zellij session record, SIGKILLs exact lingering
+	// server processes, and returns success only after record + servers are
+	// observed absent.
 	DeleteSession(session string) error
 	// ReapNvim kills this tag's nvim --embed children (pidfiles + pattern sweep),
 	// shell 1089-1112.
@@ -237,6 +242,7 @@ type Runtime interface {
 	IDOps
 	LedgerOps
 	SessionNameStoreOps
+	ThreadAddressClaimOps
 	ReadinessOps
 	AgentDefaultOps
 	FSOps
@@ -251,6 +257,7 @@ type LaunchOptions struct {
 	Env                  Env
 	PairHome             string
 	GlobalDataDir        string
+	CouchStoreDir        string
 	ContinueDoc          string // seed the draft to read this continuation (create-only)
 	ContinueText         string // seed the draft with generated continuation instructions
 	CodexAltScreenOptOut bool   // PAIR_CODEX_ALT_SCREEN=1: leave codex in alt-screen
@@ -270,4 +277,25 @@ type LaunchOptions struct {
 	// couch requested the repo default at process entry. In either case the
 	// normal saved-config picker must not re-open.
 	SkipConfigPicker bool
+
+	// RegisterStandaloneThread joins an ordinary Pair create to Couch's durable
+	// thread inventory. The composition root supplies the implementation so this
+	// package stays below couchcore in the dependency graph. Couch-owned creates
+	// already have a transactional record and never call this hook.
+	RegisterStandaloneThread StandaloneThreadRegistrar
 }
+
+// pair:m5-concept pure
+type StandaloneThreadRegistration struct {
+	GlobalDataDir string
+	CouchStoreDir string
+	RepoScope     string
+	Tag           string
+	WorkingPath   string
+	CreatedAt     time.Time
+	Agent         string
+	Argv          []string
+}
+
+// pair:m5-concept pure
+type StandaloneThreadRegistrar func(StandaloneThreadRegistration) error

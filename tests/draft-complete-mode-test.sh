@@ -77,6 +77,7 @@ LUA
 
 if ! run_headless --timeout 30 -- \
   env PAIR_DATA_DIR="$RT" PAIR_TAG=test PAIR_AGENT=claude \
+  PAIR_DRAFT_PATH="$RT/draft.md" PAIR_LAYOUT_MODE_PATH="$RT/layout-mode-test" \
   nvim --headless -u "$INIT" "$RT/draft.md" \
   -c "luafile $RT/driver.lua"; then
   echo "draft-complete-mode-test: nvim driver failed"

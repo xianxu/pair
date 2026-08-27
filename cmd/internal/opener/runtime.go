@@ -2,6 +2,7 @@ package opener
 
 import (
 	"encoding/json"
+	"fmt"
 	"io"
 	"os"
 	"os/exec"
@@ -28,8 +29,8 @@ func (OSRuntime) ProcessAlive(pid string) bool { return procutil.Alive(pid) }
 // RenderScrollback runs `pair scrollback-render` in-process (scrollbackcmd.Run,
 // #92) rather than shelling out — the render is synchronous, so no subprocess is
 // needed (ARCH-DRY; drops the shell's `$PAIR_HOME/bin/pair` dependency here).
-func (OSRuntime) RenderScrollback(raw, events, ansi string) error {
-	if code := scrollbackcmd.Run([]string{raw, events, ansi}, io.Discard, io.Discard); code != 0 {
+func (OSRuntime) RenderScrollback(raw, events, ansi, viewport string) error {
+	if code := scrollbackcmd.Run([]string{"--viewport", viewport, raw, events, ansi}, io.Discard, io.Discard); code != 0 {
 		return &renderError{code: code}
 	}
 	return nil
@@ -37,7 +38,7 @@ func (OSRuntime) RenderScrollback(raw, events, ansi string) error {
 
 type renderError struct{ code int }
 
-func (e *renderError) Error() string { return "scrollback-render exit " + strconv.Itoa(e.code) }
+func (e *renderError) Error() string { return fmt.Sprintf("scrollback-render exit %d", e.code) }
 
 // AgentPaneID returns the first non-plugin, non-floating, titled (≠ "draft")
 // pane id from `zellij action list-panes --json`, or "" — the Go port of the

@@ -258,39 +258,78 @@ shell runtime; `zellij`, `nvim`, `fzf`, and the agent CLIs are the only external
 programs.
 
 `make install` also installs a second binary, **`couch`** — a supervisor that
-registers agent sessions one-per-worktree, spawns them, and hosts one in your
-terminal. It is separate from `pair` on purpose: pair is what you sit inside, so
-a supervisor bug must not break your ability to fix it, and launching pair
-directly always still works. See [atlas/couch.md](atlas/couch.md).
+registers durable work threads, spawns them, and hosts one in your terminal. It
+is separate from `pair` on purpose: pair is what you sit inside, so a supervisor
+bug must not break your ability to fix it, and launching pair directly always
+still works. See [atlas/couch.md](atlas/couch.md).
 
 ```
 couch start [<repo>]     host a session in this terminal (default: .)
 couch start . --no-console   spawn without taking the terminal (no pty, no row)
-couch list               every registered actor across all worktrees
-couch show <ref>         the actors on one tree, by path or name
-couch stop <ref>         signal an actor's child and forget it
-couch name <ref> <name>  give a tree a short human name
-couch describe <ref> [<text>]  read or set a tree's one-line description
+couch start . --agent=codex  explicitly select one Pair-supported agent
+couch list               every durable work thread across all repositories
+couch show <ref>         one current-repository thread by tag, path, or name
+couch name <ref> <name>  set a thread's short human name ("" clears it)
+couch describe <ref> [<text>]  read or set its operator description ("" clears)
+couch publish-description <text>  publish this hosted agent's summary ("" clears)
 ```
 
-`couch start` refuses a second agent on a tree that already has one — two agents
-sharing one branch and index is what the registry exists to prevent. `--same-tree`
-overrides it, and the override is recorded.
+`<ref>` resolution for `show`, `name`, and `describe` is scoped to the Git
+repository containing the current directory. An exact opaque tag wins; human
+name and canonical working path are also accepted, and an ambiguous match
+refuses instead of choosing. `list` is intentionally global. It renders one
+row per `{repository scope, opaque tag}` even when several threads share one
+path. A human name leads when present; otherwise the opaque tag is the label.
+The agent-published summary is displayed ahead of the operator description,
+without overwriting it.
+
+`couch list` stays compact and name-first. `couch show` is the diagnostic view:
+it always prints the immutable `{repository scope}/{opaque tag}` address, even
+when a human name is present, so exact follow-up operations never depend on a
+mutable label.
+
+Omit the description from `couch describe <ref>` to read it. Pass an explicit
+empty string to `name`, `describe`, or `publish-description` to clear only that
+field. `publish-description` uses the exact scope and tag injected into a
+couch-hosted session, so it refuses outside one rather than resolving mutable
+human text.
+
+Start, stop, switch, and attach are live-owner operations. The root console
+invokes them through the same declared operation dispatcher used by the CLI and
+future advisor; switch and attach carry exact composite addresses and are
+console-internal. A second `couch` process cannot route these operations while
+the console holds the singleton namespace. The `couch stop`, `switch`, and
+`attach` CLI spellings are therefore not usable against a live root console;
+cross-process owner routing belongs to Pair #147.
+
+Every `couch start` allocates a distinct opaque durable thread. Admission comes
+from the repository's normalized Ariadne fleet policy (`sdlc fleet policy`): a
+bounded key refuses when occupied, while an unbounded path admits concurrent
+threads. A `provision-worktree` policy currently returns a typed refusal; managed
+worktree creation belongs to Pair #153. There is no local admission override.
 
 `couch start` allocates a pty for the session and **reserves the bottom row of
 your screen** for a status line. The path argument is optional and defaults to
 `.`, so `cd <repo> && couch start` is the usual form — the first session you
 start is "home".
 
-On a cold start, couch uses that repository's saved agent-argument default
-without reopening Pair's tag-specific saved-config picker. If no repo default
-exists, it starts with no user-configured agent arguments (Pair may still add
-its normal runtime flags). For now, change the default by launching Pair
-directly in that repo with `pair -- <agent-arguments>` before returning to
-couch. Couch requests this behavior through a temporary one-shot
-`PAIR_USE_REPO_DEFAULT=1` handoff; Pair consumes the value at entry so it is not
-inherited by sidecars, zellij, or panes. Direct Pair launches keep their normal
-saved-config picker behavior.
+For a new thread, the agent resolves from `--agent=<name>`, then the last agent
+successfully used at that exact physical path, then the root actor's
+`$PAIR_AGENT` (or Claude when Couch was started outside Pair). Arguments resolve
+independently: Couch reuses the selected agent's last successful arguments at
+that path, never another agent's; otherwise it uses that agent's repository
+default. Thus switching Claude → Codex → Claude restores each harness's own
+arguments.
+
+Couch sends the exact resolved vector to Pair in a tag-bound one-shot profile,
+so Pair does not reopen its tag-specific saved-config picker. It sets
+`PAIR_USE_REPO_DEFAULT=1` only when repository-default provenance won and sends
+an authoritative empty value otherwise; Pair consumes both keys at entry so
+neither reaches sidecars, Zellij, or panes.
+Only successful Pair registration updates the thread profile and path history;
+selection, cancellation, fork failure, and registration failure do not. For
+now, change a repository default by launching Pair directly in that repo with
+`pair -- <agent-arguments>` before returning to Couch.
 
 **`Ctrl-Space` belongs to couch while a session is hosted.** It is intercepted
 before the child sees it, in both encodings a terminal may send it (the legacy
@@ -317,7 +356,7 @@ identity; Tab is intentionally inactive for now.
 pair                             # default: claude
 pair <agent>                     # claude / codex / agy
 pair <agent> --layout3           # workbench with the user terminal on the right
-pair resume <tag>                # restart a tag with its saved config (native session)
+pair resume <tag-or-thread-name> # restart by opaque tag or scoped human thread name
 pair continue                    # list saved continuations (durable session handoffs)
 pair continue <slug> [agent]     # new session seeded from a continuation doc; prompts
                                  # for the tag, and forwards -- <args> to the agent
@@ -337,6 +376,15 @@ pair keys                        # in-session keybindings (what Alt+h shows)
 pair version, --version          # print launcher version metadata
 pair -h, --help                  # show full help
 ```
+
+Standalone Pair reads Couch's durable thread index without requiring Couch to
+be running. Its resume picker includes parked threads, displays human names
+ahead of opaque tags, and adds the tag when duplicate labels need
+disambiguation; selection still resumes the opaque tag and its existing
+artifacts. An existing direct-Pair tag takes precedence over fuzzy thread-name
+matching. A missing Couch store preserves legacy Pair behavior, while a
+malformed or incomplete index fails closed instead of launching the typed text
+as a new legacy tag.
 
 Use `--` to separate pair's positional from agent flags. Without it, pair only takes `<agent>` as a positional and everything else is rejected.
 
@@ -418,7 +466,7 @@ repo-scoped data dir:
 `${XDG_DATA_HOME:-~/.local/share}/pair/repos/<scope-key>/`. The hidden
 `<scope-key>` keeps two repos with the same tag independent; picker labels and
 public session names show the readable repo/tag instead. Tag-specific
-`config-<tag>-<agent>.json` files keep priority over repo-agent defaults, so
+Exact per-thread `Paths.ConfigChecked` records keep priority over repo-agent defaults, so
 returning to an existing tag preserves its native resume behavior.
 
 ### `resume` vs `continue`

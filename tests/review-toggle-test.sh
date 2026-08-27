@@ -63,7 +63,7 @@ cat > "$RT/driver.lua" <<'LUA'
 local OUT = io.open(os.getenv('RESULT'), 'w')
 local ZLOG = os.getenv('ZLOG')
 local FLOATVIS = os.getenv('FLOATVIS')
-local sf = vim.env.PAIR_DATA_DIR .. '/review-' .. vim.env.PAIR_TAG .. '.open'
+local sf = vim.env.PAIR_REVIEW_OPEN_PATH
 
 local function read_zlog()
   local f = io.open(ZLOG, 'r'); if not f then return {} end
@@ -88,8 +88,8 @@ OUT:write((A(true, true) == 'hide') and 'pure-hide ok\n' or 'pure-hide FAIL\n')
 OUT:write((A(true, false) == 'show') and 'pure-show ok\n' or 'pure-show FAIL\n')
 
 local R = _G._pair_review
-local target = vim.env.PAIR_DATA_DIR .. '/review-target-' .. vim.env.PAIR_TAG .. '.json'
-local draft = vim.env.PAIR_DATA_DIR .. '/draft.md' -- exists (the test wrote it)
+local target = vim.env.PAIR_REVIEW_TARGET_PATH
+local draft = vim.env.PAIR_DRAFT_PATH -- exists (the test wrote it)
 
 -- conversation-scope (#66 smoke #6): a target written under a DIFFERENT session
 -- (PAIR_SESSION_ID=oldsid, pre-written below) is ignored by this session (testsid),
@@ -124,7 +124,7 @@ OUT:write((TS({}, 'testsid') == true) and 'ts-noid ok\n' or 'ts-noid FAIL\n')
 -- stamped; otherwise the second Alt+c falls back to :PairReview again.
 vim.env.PAIR_SESSION_ID = ''
 vim.env.PAIR_AGENT = 'claude'
-os.remove(vim.env.PAIR_DATA_DIR .. '/config-' .. vim.env.PAIR_TAG .. '-claude.json')
+os.remove(vim.env.PAIR_AGENT_CONFIG_PATH)
 vim.fn.writefile({ '{"file":"' .. draft .. '","status":"ready","session":""}' }, target)
 vim.fn.system({ 'touch', '-t', '202001010000', target })
 OUT:write((R.read_target() == nil) and 'old-unscoped-target-stale ok\n' or 'old-unscoped-target-stale FAIL\n')
@@ -137,7 +137,7 @@ vim.fn.writefile({ '{"file":"/stale/prev.md","status":"ready","session":"oldsid"
 -- fall back to config-<tag>-<agent>.json when PAIR_SESSION_ID is empty.
 vim.env.PAIR_SESSION_ID = ''
 vim.fn.writefile({ '{"agent":"claude","args":[],"session_id":"cfgsid"}' },
-  vim.env.PAIR_DATA_DIR .. '/config-' .. vim.env.PAIR_TAG .. '-' .. vim.env.PAIR_AGENT .. '.json')
+  vim.env.PAIR_AGENT_CONFIG_PATH)
 vim.fn.writefile({ '{"file":"' .. draft .. '","status":"ready","session":"cfgsid"}' }, target)
 OUT:write((R.read_target() ~= nil) and 'config-session-read ok\n' or 'config-session-read FAIL\n')
 R.write_target(draft, 'ready')
@@ -148,8 +148,9 @@ vim.fn.writefile({ '{"file":"/stale/prev.md","status":"ready","session":"oldsid"
 
 vim.env.PAIR_SESSION_ID = ''
 vim.env.PAIR_AGENT = 'codex'
-os.remove(vim.env.PAIR_DATA_DIR .. '/config-' .. vim.env.PAIR_TAG .. '-codex.json')
-vim.fn.writefile({ '111' }, vim.env.PAIR_DATA_DIR .. '/agent-pid-' .. vim.env.PAIR_TAG)
+vim.env.PAIR_AGENT_CONFIG_PATH = os.getenv('CODEX_CONFIG')
+os.remove(vim.env.PAIR_AGENT_CONFIG_PATH)
+vim.fn.writefile({ '111' }, vim.env.PAIR_AGENT_PID_PATH)
 vim.fn.writefile({ '{"file":"' .. draft .. '","status":"ready","session":"12345678-1234-1234-1234-123456789abc"}' }, target)
 OUT:write((R.current_session_id() == nil) and 'no-live-codex-fallback ok\n' or 'no-live-codex-fallback FAIL\n')
 OUT:write((R.read_target() == nil) and 'unverified-live-target-stale ok\n' or 'unverified-live-target-stale FAIL\n')
@@ -205,6 +206,10 @@ LUA
 printf '{"file":"/stale/prev.md","status":"ready","session":"oldsid"}\n' > "$RT/review-target-test.json"
 ( cd "$RT" && PATH="$RT/bin:$PATH" \
     PAIR_DATA_DIR="$RT" PAIR_TAG=test PAIR_AGENT=claude PAIR_HOME="$ROOT" PAIR_SESSION_ID=testsid \
+    PAIR_DRAFT_PATH="$RT/draft.md" PAIR_LAYOUT_MODE_PATH="$RT/layout-mode-test" \
+    PAIR_REVIEW_OPEN_PATH="$RT/review-test.open" PAIR_REVIEW_TARGET_PATH="$RT/review-target-test.json" \
+    PAIR_AGENT_CONFIG_PATH="$RT/config-test-claude.json" CODEX_CONFIG="$RT/config-test-codex.json" \
+    PAIR_AGENT_PID_PATH="$RT/agent-pid-test" PAIR_ZELLIJ_ACTIONS_PATH="$RT/zellij-actions-test.jsonl" \
     RESULT="$RESULT" ZLOG="$ZLOG" SYSTEM_CALLS="$SYSTEM_CALLS" FLOATVIS="$FLOATVIS" \
     run_headless --timeout 30 -- nvim --headless -u "$ROOT/nvim/init.lua" "$RT/draft.md" \
       -c "luafile $RT/driver.lua" )

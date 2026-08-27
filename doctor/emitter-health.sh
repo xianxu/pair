@@ -43,8 +43,8 @@ _pid_exe() {
 # so it resolves via PATH only.
 _resolve_emitter() {
     local name="$1" datadir="$2" tag="$3" pidfile pid exe
-    if [ "$name" = "pair-wrap" ] && [ -n "$tag" ]; then
-        pidfile="$datadir/pair-wrap-pid-$tag"
+    if [ "$name" = "pair-wrap" ] && [ -n "${PAIR_PAIR_WRAP_PID_PATH:-}" ]; then
+        pidfile="$PAIR_PAIR_WRAP_PID_PATH"
         if [ -r "$pidfile" ]; then
             pid="$(head -n1 "$pidfile" 2>/dev/null | tr -dc '0-9')"
             exe="$(_pid_exe "$pid")"

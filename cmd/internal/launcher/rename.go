@@ -5,6 +5,8 @@ import (
 	"io"
 	"path/filepath"
 	"strings"
+
+	"github.com/xianxu/pair/cmd/internal/artifactpath"
 )
 
 // The `pair rename <old> <new>` offline subcommand + the inside-session rename
@@ -13,44 +15,16 @@ import (
 // brain new` must not touch `*-brain-2-*` files, shell 315-319). The plan build is
 // pure over an injected `exists` predicate; only the mv + journal are effects.
 
-// renameAgents is the hardcoded agent set whose per-(tag,agent) sidecars rename
-// carries (shell 408). A new agent must be added here (and nowhere else — the zip
-// design below needs it in one enumerator only).
-var renameAgents = []string{"claude", "codex", "agy", "muse"}
-
 // renamePathsFor enumerates every candidate sidecar path for a tag, in a stable
 // order (shell rename_paths_for, 396-417). The order is identical for any tag, so
 // zip(renamePathsFor(old), renamePathsFor(new)) yields the (src,dst) pairing
 // directly — no base-name substitution needed (ARCH-PURE, drops shell 445-486).
 func renamePathsFor(tag, dataDir string) []string {
-	var out []string
-	for _, fam := range []string{
-		"outer-tty", "pair-wrap-pid", "title-pid",
-		"agent", "agent-pid", "agent-output", "agent-picks",
-		"layout-mode", "workbench-layout", "queue", "quote", "image-capture",
-	} {
-		out = append(out, filepath.Join(dataDir, fam+"-"+tag))
+	paths, err := artifactpath.ResolveScoped(dataDir, tag)
+	if err != nil {
+		return nil
 	}
-	out = append(out,
-		filepath.Join(dataDir, "image-capture-"+tag+".done"),
-		filepath.Join(dataDir, "draft-"+tag+".md"),
-		filepath.Join(dataDir, "log-"+tag+".md"),
-		filepath.Join(dataDir, "ledger-"+tag+".jsonl"),
-		filepath.Join(dataDir, "nvim-pid-"+tag+"-draft"),
-		filepath.Join(dataDir, "nvim-pid-"+tag+"-scrollback"),
-	)
-	for _, a := range renameAgents {
-		out = append(out,
-			filepath.Join(dataDir, "config-"+tag+"-"+a+".json"),
-			filepath.Join(dataDir, "pane-"+tag+"-"+a+".json"),
-			filepath.Join(dataDir, "scrollback-"+tag+"-"+a+".ansi"),
-			filepath.Join(dataDir, "scrollback-"+tag+"-"+a+".raw"),
-			filepath.Join(dataDir, "scrollback-"+tag+"-"+a+".viewport"),
-			filepath.Join(dataDir, "scrollback-"+tag+"-"+a+".events.jsonl"),
-			filepath.Join(dataDir, "draft-"+tag+"-"+a+".md"),
-		)
-	}
-	return out
+	return paths.RenameArtifacts(AgentInventory())
 }
 
 // renamePair is one src→dst move in the rename plan.
@@ -165,9 +139,9 @@ func runRenameScoped(rt Runtime, args LaunchArgs, dataDir, scopeKey string, stdo
 	// is what lets the nvim rename prompt drop its own strip + charset twin and
 	// hand the whole question to the binary — see nvim/init.lua.
 	oldRaw := args.RenameOld
-	if resolved, ok := resolveResumeTag(rt, oldRaw); ok {
+	if resolved, ok := resolveSessionNameTag(rt, oldRaw); ok {
 		oldRaw = resolved
-	} else if strings.HasPrefix(oldRaw, sessionPrefix) {
+	} else {
 		fmt.Fprintf(stderr, "pair rename: '%s' is a session name with no ledger entry; rename by its tag instead.\n", oldRaw)
 		return 1
 	}
@@ -185,7 +159,11 @@ func runRenameScoped(rt Runtime, args LaunchArgs, dataDir, scopeKey string, stdo
 	// the shell's `|| true` (gate skipped). --restart-check skips the live-old
 	// gate (the real mv runs post-kill from the restart re-entry).
 	sessions, _ := rt.Sessions()
-	index, _ := rt.ReadSessionNameIndex()
+	index, err := rt.ReadSessionNameIndex()
+	if err != nil {
+		fmt.Fprintf(stderr, "pair rename: read session-name index: %v\n", err)
+		return 1
+	}
 	if !args.RenameCheckOnly && sessionTrackedForTag(sessions, index, scopeKey, old) {
 		fmt.Fprintf(stderr, "pair rename: tag '%s' still has a session tracked by zellij.\n", old)
 		fmt.Fprintf(stderr, "             Quit it first (Alt+x), or use the in-session rename.\n")

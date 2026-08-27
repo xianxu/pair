@@ -1,12 +1,15 @@
 package launcher
 
 import (
+	"errors"
 	"fmt"
 	"io"
 	"os"
 	"path/filepath"
 	"strings"
 	"time"
+
+	"github.com/xianxu/pair/cmd/internal/artifactpath"
 )
 
 // RunLaunch is the native launcher's in-process driver (#99 M2 create + M3
@@ -57,7 +60,11 @@ func RunLaunch(opts LaunchOptions, rt Runtime, stderr io.Writer) (int, error) {
 	// gone (an external kill / reboot leaves no quit marker). Once, up front — a
 	// clean restart below leaves nothing new to sweep.
 	if sessions, err := rt.Sessions(); err == nil {
-		index, _ := rt.ReadSessionNameIndex()
+		index, err := rt.ReadSessionNameIndex()
+		if err != nil {
+			fmt.Fprintf(stderr, "pair: read session-name index: %v\n", err)
+			return 1, nil
+		}
 		rt.SweepOrphanNvim(liveTagsForSweep(sessions, index, scopeKeyFromDataDir(opts.GlobalDataDir, env.DataDir)))
 	}
 
@@ -159,18 +166,47 @@ func runOnce(opts LaunchOptions, env Env, rt Runtime, stderr io.Writer) (launchS
 		fmt.Fprintf(stderr, "pair: failed to scan session history: %v\n", err)
 		return launchStep{code: 1}, nil
 	}
+	scope, scopeErr := ResolveRepoScope(scopeRoot)
+	threadIndex, threadIndexErr := rt.ReadThreadIndex()
+	threadIndexAvailable := threadIndexErr == nil
+	if threadIndexErr != nil && !errors.Is(threadIndexErr, ErrThreadIndexAbsent) {
+		fmt.Fprintf(stderr, "pair: failed to read couch thread index: %v\n", threadIndexErr)
+		return launchStep{code: 1}, nil
+	}
+	if scopeErr == nil && threadIndexAvailable {
+		historical = MergeThreadHistory(historical, threadIndex, scope)
+	}
 	// A 📁 name typed at `pair resume` is still a NAME here; turn it into a tag
 	// before anything keys off it. Both assignLaunchSessionNames and DecideLaunch
 	// read ForcedTag, so the resolution has to land on opts.Args itself (#130).
-	if resolved, ok := resolveResumeTag(rt, opts.Args.ForcedTag); ok {
+	scopeKey := ""
+	if scopeErr == nil {
+		scopeKey = scope.Key
+	}
+	resolved, resolvedOK := opts.Args.ForcedTag, true
+	knownDirectTag := historyContainsTag(historical, opts.Args.ForcedTag)
+	if !knownDirectTag && scopeErr == nil {
+		knownDirectTag = scopedArtifactsContainTag(rt, opts.GlobalDataDir, scope, opts.Args.ForcedTag)
+	}
+	if !knownDirectTag {
+		resolved, resolvedOK = resolveResumeTag(rt, threadIndex, threadIndexAvailable, scopeKey, opts.Args.ForcedTag)
+	}
+	if resolvedOK {
 		opts.Args.ForcedTag = resolved
-	} else if opts.Args.ForcedTag != "" && strings.HasPrefix(opts.Args.ForcedTag, sessionPrefix) {
-		fmt.Fprintf(stderr, "pair: '%s' is a session name with no ledger entry; resume by its tag instead.\n", opts.Args.ForcedTag)
+	} else if opts.Args.ForcedTag != "" {
+		if strings.HasPrefix(opts.Args.ForcedTag, sessionPrefix) {
+			fmt.Fprintf(stderr, "pair: '%s' is a session name with no ledger entry; resume by its tag instead.\n", opts.Args.ForcedTag)
+		} else {
+			fmt.Fprintf(stderr, "pair: thread reference '%s' is ambiguous; resume by its exact tag instead.\n", opts.Args.ForcedTag)
+		}
 		return launchStep{code: 1}, nil
 	}
 	scopedSessions, sessionNames, sessionNameEntries, ok := assignLaunchSessionNames(rt, sessions, scopeRoot, opts.GlobalDataDir, opts.Args, base, stderr)
 	if !ok {
 		return launchStep{code: 1}, nil
+	}
+	if scopeErr == nil && threadIndexAvailable {
+		scopedSessions = DecorateThreadSessions(scopedSessions, threadIndex, scope)
 	}
 	snap := SessionSnapshot{BaseTag: base, Sessions: scopedSessions, Historical: historical, SessionNames: sessionNames}
 	decision, err := DecideLaunch(opts.Args, snap)
@@ -266,6 +302,38 @@ func runOnce(opts LaunchOptions, env Env, rt Runtime, stderr io.Writer) (launchS
 	}
 }
 
+func historyContainsTag(history []HistoricalTag, tag string) bool {
+	if tag == "" {
+		return false
+	}
+	for _, item := range history {
+		if item.Tag == tag {
+			return true
+		}
+	}
+	return false
+}
+
+func scopedArtifactsContainTag(rt Runtime, globalDataDir string, scope RepoScope, tag string) bool {
+	if globalDataDir == "" || tag == "" {
+		return false
+	}
+	return directoryArtifactsContainTag(rt, NewScopedPaths(globalDataDir, scope, tag).ScopeDir(), tag)
+}
+
+func directoryArtifactsContainTag(rt Runtime, dir, tag string) bool {
+	names, err := rt.ReadDir(dir)
+	if err != nil {
+		return false
+	}
+	for _, name := range names {
+		if OwnsTagArtifact(filepath.Base(name), tag) {
+			return true
+		}
+	}
+	return false
+}
+
 func oppositeLayout(mode LayoutMode) LayoutMode {
 	if mode == Layout2 {
 		return Layout3
@@ -280,7 +348,8 @@ func assignLaunchSessionNames(rt Runtime, live []Session, repoRoot, globalDataDi
 	}
 	index, err := rt.ReadSessionNameIndex()
 	if err != nil {
-		index = SessionNameIndex{}
+		fmt.Fprintf(stderr, "pair: read session-name index: %v\n", err)
+		return nil, nil, nil, false
 	}
 	scopedLive := SessionsForScope(live, index, scope)
 	scopedLive = append(scopedLive, legacyLiveSessionsForScope(rt, live, index, scope, globalDataDir)...)
@@ -363,6 +432,16 @@ func runCreate(opts LaunchOptions, env Env, rt Runtime, live []Session, decision
 		fmt.Fprintf(stderr, "      machine's socket path (%s). Pick a shorter tag.\n", session)
 		return launchStep{code: 1}, nil
 	}
+	scope, err := ResolveRepoScope(envScopeRoot(env))
+	if err != nil {
+		fmt.Fprintf(stderr, "pair: cannot resolve thread scope: %v\n", err)
+		return launchStep{code: 1}, nil
+	}
+	couchOwned := env.CouchThreadScope == scope.Key && env.CouchThreadTag == chosenTag
+	if err := rt.EnsureThreadAddress(scope, chosenTag, couchOwned); err != nil {
+		fmt.Fprintf(stderr, "pair: cannot claim thread '%s': %v\n", chosenTag, err)
+		return launchStep{code: 1}, nil
+	}
 	// Free the name (clear a stale EXITED resurrect record) and guard against a
 	// live session unexpectedly occupying it before any source-of-truth writes.
 	if rt.SessionBlocksReuse(session) {
@@ -370,6 +449,11 @@ func runCreate(opts LaunchOptions, env Env, rt Runtime, live []Session, decision
 		return launchStep{code: 1}, nil
 	}
 	dataDir := env.DataDir
+	artifactPaths, pathErr := artifactpath.ResolveScoped(dataDir, chosenTag)
+	if pathErr != nil {
+		fmt.Fprintf(stderr, "pair: cannot resolve artifact namespace: %v\n", pathErr)
+		return launchStep{code: 1}, nil
+	}
 	legacyImported := false
 	if decision.LegacyImport {
 		legacyImported = importLegacyFlatTag(rt, chosenTag, opts.GlobalDataDir, dataDir)
@@ -477,6 +561,21 @@ func runCreate(opts LaunchOptions, env Env, rt Runtime, live []Session, decision
 		fmt.Fprintf(stderr, "pair: failed to record workbench layout for tag '%s': %v\n", chosenTag, err)
 		return launchStep{code: 1}, nil
 	}
+	if !couchOwned && opts.RegisterStandaloneThread != nil {
+		if err := opts.RegisterStandaloneThread(StandaloneThreadRegistration{
+			GlobalDataDir: opts.GlobalDataDir,
+			CouchStoreDir: opts.CouchStoreDir,
+			RepoScope:     scope.Key,
+			Tag:           chosenTag,
+			WorkingPath:   env.Cwd,
+			CreatedAt:     env.Now,
+			Agent:         agent,
+			Argv:          append([]string{}, persistedArgs...),
+		}); err != nil {
+			fmt.Fprintf(stderr, "pair: failed to register thread '%s': %v\n", chosenTag, err)
+			return launchStep{code: 1}, nil
+		}
+	}
 
 	// Env exports every child (watcher, poller, zellij + its panes) inherits.
 	rt.SetEnv("PAIR_HOME", opts.PairHome)
@@ -485,8 +584,16 @@ func runCreate(opts LaunchOptions, env Env, rt Runtime, live []Session, decision
 	rt.SetEnv("PAIR_AGENT", agent)
 	rt.SetEnv("PAIR_SESSION_NAME", session)
 	rt.SetEnv("PAIR_WORKBENCH_LAYOUT", string(layoutResolution.Mode))
+	bindings, bindingErr := artifactPaths.EnvironmentBindings(agent)
+	if bindingErr != nil {
+		fmt.Fprintf(stderr, "pair: cannot resolve artifact bindings: %v\n", bindingErr)
+		return launchStep{code: 1}, nil
+	}
+	for _, binding := range bindings {
+		rt.SetEnv(binding.Name, binding.Path)
+	}
 
-	draft := filepath.Join(dataDir, "draft-"+chosenTag+".md")
+	draft := artifactPaths.Draft()
 	_ = rt.Touch(draft)
 	if opts.ContinueDoc != "" {
 		_ = rt.WriteAtomic(draft, fmt.Sprintf("Read workshop/continuation/%s and continue from its NEXT ACTION.\n", filepath.Base(opts.ContinueDoc)))
@@ -500,7 +607,7 @@ func runCreate(opts LaunchOptions, env Env, rt Runtime, live []Session, decision
 	}
 
 	// Record the agent for `pair list` / the title poller (survives detach).
-	_ = rt.WriteAtomic(filepath.Join(dataDir, "agent-"+chosenTag), agent+"\n")
+	_ = rt.WriteAtomic(artifactPaths.Agent(), agent+"\n")
 	if sessionID != "" {
 		writeConfig(rt, configPath, agent, persistedArgs, sessionID)
 	}
@@ -514,7 +621,7 @@ func runCreate(opts LaunchOptions, env Env, rt Runtime, live []Session, decision
 	rt.SetEnv("PAIR_PANE_TITLE", agent)
 
 	// Truncate the adaptation flight recorder once, before any appender starts.
-	_ = rt.WriteAtomic(filepath.Join(dataDir, "adapt-"+chosenTag+".jsonl"), "")
+	_ = rt.WriteAtomic(artifactPaths.AdaptLog(), "")
 
 	// Spawn the (already-Go) sidecars + set the frame title. agentArgs is the
 	// final resolved vector (post mint / codex / resume compose).
@@ -592,7 +699,8 @@ func assignSingleSessionName(rt Runtime, live []Session, cwd, tag string, stderr
 	}
 	index, err := rt.ReadSessionNameIndex()
 	if err != nil {
-		index = SessionNameIndex{}
+		fmt.Fprintf(stderr, "pair: read session-name index: %v\n", err)
+		return "", SessionNameEntry{}, false
 	}
 	name, updated, err := AssignSessionName(index, live, scope, tag, func(session string) bool {
 		return rt.ProbeSessionName(session) == nil
@@ -772,11 +880,30 @@ func firstNonEmpty(vals ...string) string {
 	return ""
 }
 
-// resolveResumeTag maps a 📁 session name to its tag through the ledger. Bare
-// tags pass through untouched (ok=true); a 📁 name absent from the ledger yields
-// ok=false, because the scheme has no string inverse and guessing would resume
-// the wrong thing.
-func resolveResumeTag(rt Runtime, arg string) (string, bool) {
+// resolveResumeTag resolves both public zellij names and durable thread
+// names/tags. An unknown bare value remains a legacy direct-Pair tag; an
+// ambiguous thread name and a non-invertible unknown 📁 name fail closed.
+func resolveResumeTag(rt Runtime, index ThreadIndex, indexAvailable bool, scopeKey, arg string) (string, bool) {
+	if arg == "" {
+		return "", true
+	}
+	if strings.HasPrefix(arg, sessionPrefix) {
+		return resolveSessionNameTag(rt, arg)
+	}
+	if indexAvailable {
+		matches, resolveErr := ResolveThreadIndexReference(index.Entries, scopeKey, arg)
+		if resolveErr == nil {
+			return matches[0].Address.Tag, true
+		}
+		var ambiguous *AmbiguousThreadIndexReferenceError
+		if errors.As(resolveErr, &ambiguous) {
+			return "", false
+		}
+	}
+	return arg, true
+}
+
+func resolveSessionNameTag(rt Runtime, arg string) (string, bool) {
 	if arg == "" || !strings.HasPrefix(arg, sessionPrefix) {
 		return arg, true
 	}

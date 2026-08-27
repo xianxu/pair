@@ -35,7 +35,6 @@ func NewStore(dir string) Store { return Store{dir: dir} }
 func (s Store) Dir() string { return s.dir }
 
 func (s Store) registryPath() string { return filepath.Join(s.dir, "registry.json") }
-func (s Store) policyPath() string   { return filepath.Join(s.dir, "policy.json") }
 
 // DescDir is where an agent writes its own one-line description.
 func (s Store) DescDir() string { return filepath.Join(s.dir, "desc") }
@@ -61,7 +60,7 @@ func (s Store) Save(reg Registry, names NamingTable) error {
 
 // Load returns empty state and no error when nothing has been written yet:
 // a first run is not a failure.
-func (s Store) Load() (Registry, NamingTable, PolicyTable, error) {
+func (s Store) Load() (Registry, NamingTable, error) {
 	reg, names := NewRegistry(), NewNamingTable()
 
 	raw, err := s.fs.ReadFile(s.registryPath())
@@ -69,12 +68,11 @@ func (s Store) Load() (Registry, NamingTable, PolicyTable, error) {
 	case err == nil:
 		var snap snapshot
 		if err := json.Unmarshal([]byte(raw), &snap); err != nil {
-			return reg, names, PolicyTable{}, fmt.Errorf("decode snapshot: %w", err)
+			return reg, names, fmt.Errorf("decode snapshot: %w", err)
 		}
 		for _, a := range snap.Actors {
 			// Insert, not Register: replay must reproduce what was persisted
-			// without tripping the guard AND without rewriting SameTree, which
-			// is the only record of who actually used the escape hatch.
+			// exactly, including inert legacy fields awaiting migration.
 			reg = reg.Insert(a)
 		}
 		for _, e := range snap.Names {
@@ -91,21 +89,9 @@ func (s Store) Load() (Registry, NamingTable, PolicyTable, error) {
 		// Anything else -- permissions, IO -- must NOT read as an empty
 		// registry, or the next Save silently overwrites a snapshot we simply
 		// failed to read.
-		return reg, names, PolicyTable{}, fmt.Errorf("read snapshot: %w", err)
+		return reg, names, fmt.Errorf("read snapshot: %w", err)
 	}
-
-	pol := PolicyTable{}
-	switch praw, perr := s.fs.ReadFile(s.policyPath()); {
-	case perr == nil:
-		if err := json.Unmarshal([]byte(praw), &pol); err != nil {
-			return reg, names, PolicyTable{}, fmt.Errorf("decode policy: %w", err)
-		}
-	case errors.Is(perr, fs.ErrNotExist):
-		// No recorded policy: every repo defaults to in-place-serial.
-	default:
-		return reg, names, PolicyTable{}, fmt.Errorf("read policy: %w", perr)
-	}
-	return reg, names, pol, nil
+	return reg, names, nil
 }
 
 // ReadDescription reads the one-line description an agent wrote for its tree.

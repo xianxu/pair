@@ -9,14 +9,8 @@ local M = {}
 local here = debug.getinfo(1, 'S').source:match('@?(.*/)') or './'
 local record = dofile(here .. 'record.lua')
 
-local function data_dir()
-  local xdg = vim.env.XDG_DATA_HOME
-  local base = (xdg and xdg ~= '') and xdg or (assert(vim.env.HOME) .. '/.local/share')
-  return base .. '/pair'
-end
-
 function M.path(tag)
-  return data_dir() .. '/review-handoff-' .. tag .. '.json'
+  return vim.env.PAIR_REVIEW_HANDOFF_PATH
 end
 
 -- The landed-artifact (seam #2b, nvim → agent) — the REVERSE channel of the
@@ -25,12 +19,12 @@ end
 -- the agent reads it and commits the agent round verbatim (it owns git; the nvim,
 -- the apply authority, owns the body content — invariants #1 + #3).
 function M.landed_path(tag)
-  return data_dir() .. '/review-landed-' .. tag .. '.json'
+  return vim.env.PAIR_REVIEW_LANDED_PATH
 end
 
 function M.write_landed(tag, landed)
-  vim.fn.mkdir(data_dir(), 'p')
   local p = M.landed_path(tag)
+  vim.fn.mkdir(vim.fn.fnamemodify(p, ':h'), 'p')
   local tmp = p .. '.tmp'
   local f = assert(io.open(tmp, 'w'))
   f:write(vim.json.encode(landed))
@@ -41,8 +35,8 @@ end
 
 -- Write records atomically (temp + rename). Used by the agent / fake / tests.
 function M.write(tag, records)
-  vim.fn.mkdir(data_dir(), 'p')
   local p = M.path(tag)
+  vim.fn.mkdir(vim.fn.fnamemodify(p, ':h'), 'p')
   local tmp = p .. '.tmp'
   local f = assert(io.open(tmp, 'w'))
   f:write(record.encode(records))

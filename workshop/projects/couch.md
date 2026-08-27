@@ -4,9 +4,9 @@ name: couch
 goal: Stop losing track of concurrent work across peer repos by turning agent sessions into addressable actors the operator can enumerate, switch between, and be paged by.
 done_when: The operator works inside a single terminal window, managing a fleet of agents across peer repos, and it works better than today's manual tracking across many tabs.
 status: defined
-mvp_scope: [pair#145, pair#146, pair#147, pair#148, ariadne#199, ariadne#200]
+mvp_scope: [pair#145, pair#146, pair#147, pair#148, pair#149, pair#151, pair#152, pair#153, ariadne#199, ariadne#200]
 created: 2026-08-21
-updated: 2026-08-23
+updated: 2026-08-26
 sources: [brain/workshop/pensive/2026-08-20-01-pensive-couch-agent-switcher.md]
 ---
 
@@ -162,10 +162,106 @@ gate `#147` and `#148` respectively; `#145` and `#146` do not depend on them.
 - [x] console over one child, with the reserved row [pair#146 M2]
 - [x] many children and the panel [pair#146 M3]
 - [x] exits, detach, and what the row says [pair#146 M4]
+- [x] durable work-thread identity, naming, and launch profiles [pair#149]
+- [x] singleton namespace and normalized admission [pair#149 M1]
+- [x] recoverable pre-exec start transaction [pair#149 M2]
+- [x] shared thread metadata, operations, and standalone lookup [pair#149 M3]
+- [x] remembered per-path agent and argument profiles [pair#149 M4]
+- [x] legacy migration and composite artifact proof [pair#149 M5]
+- [ ] hierarchical thread menu [pair#151]
+- [ ] verified park and activity age [pair#152]
+- [ ] managed-worktree lifecycle [pair#153]
 - [ ] expose query API to peer actors [ariadne#199]
 - [ ] fleet thread inventory [ariadne#200]
 - [ ] cluster transport and queries [pair#147]
 - [ ] brain advisor role [pair#148]
+
+<a id="pair-149-m1"></a>
+### pair#149 M1 — singleton namespace and normalized admission
+
+**est:** 17.80
+**closed:** 2026-08-26
+**actual:** 35.47h
+
+Couch now resolves one physical store namespace and protects it with one
+non-inherited supervisor lease. Its locked/revisioned ThreadStore atomically
+claims final composite opaque tags before a child can fork and conservatively
+reconciles creating/live/unknown incarnations against Ariadne #200's normalized
+policy evidence. The surprise worth preserving is that removing the old local
+policy model also required removing registry admission and validating unknown
+CLI flags: deleting one enum without sweeping every decision consumer would
+have left a functioning bypass. Pair owns a scheduled live conformance check
+against the real provider so the stateful fake and strict decoder cannot drift
+silently (ARCH-DRY, ARCH-PURPOSE, ARCH-MOCK).
+
+<a id="pair-149-m2"></a>
+### pair#149 M2 — recoverable pre-exec start transaction
+
+**est:** 17.80 (whole issue)
+**closed:** 2026-08-26
+**actual:** 4.44h
+
+Couch now forks an internal helper that cannot exec Pair until the exact
+nonce/supervisor/helper tuple is durable. Pair's composite address claim is the
+registration oracle, so a successful pipe write or live PID cannot prematurely
+promote the thread. Restart reconciliation preserves the occupied-or-proven-free
+invariant: dead and unregistered rolls back by nonce and revision; established
+survivors promote; unknown evidence stays occupied. The surprising integration
+fact is that the PTY runner had to inherit the same close-on-exec descriptor as
+the stdio runner—otherwise console starts and `--no-console` starts would have
+different crash safety. A committed real-process probe exercises both restart
+outcomes against kernel process identities (ARCH-PURE, ARCH-PURPOSE, ARCH-MOCK).
+
+<a id="pair-149-m3"></a>
+### pair#149 M3 — shared thread metadata, operations, and standalone lookup
+
+**est:** 17.80 (whole issue)
+**closed:** 2026-08-26
+**actual:** 2.40h
+
+Human names, operator descriptions, and agent summaries now live as independent
+revisioned fields on the composite ThreadStore record. CLI and panel render one
+shared inventory; selection and hosted-target joins use `{repo scope, tag}` so
+same-path Brain threads remain separate. A closure-free operation schema routes
+human and future advisor effects through explicit direct-store/live-owner
+executors, with console-local exact switch/attach and typed #147 refusal when no
+owner is available. Pair's portable read-only ThreadIndex makes names and parked
+threads available to standalone resume/picker flows without mutating opaque
+artifacts or zellij session-name bindings (ARCH-DRY, ARCH-PURE, ARCH-PURPOSE).
+
+<a id="pair-149-m4"></a>
+### pair#149 M4 — remembered per-path agent and argument profiles
+
+**est:** 17.80 (whole issue)
+**closed:** 2026-08-26
+**actual:** 1.52h
+
+Couch resolves agent and argv provenance independently, using Pair's shared
+harness inventory and repo-scoped defaults. A successful registration journals
+the exact incarnation profile together with revisioned history keyed by
+normalized repository identity and physical path; failed starts leave history
+unchanged. A restart-level scenario proves the next thread restores the last
+successful agent and that agent's exact arguments without leaking another
+harness's flags or reopening Pair's config picker (ARCH-DRY, ARCH-PURE,
+ARCH-PURPOSE, ARCH-MOCK).
+
+<a id="pair-149-m5"></a>
+### pair#149 M5 — legacy migration and composite artifact proof
+
+**est:** 17.80 (whole issue)
+**closed:** 2026-08-27
+**actual:** 12.36h
+
+Legacy registry metadata is journal-enriched into the existing ThreadStore
+without moving source files or weakening conservative admission. One validated
+`artifactpath` leaf now constructs every tag-bearing Pair path and exports exact
+bindings to Go, shell, Neovim, and both layouts; a checked source/family manifest
+classifies the ignored, deterministically regenerated runtime mirror without
+tracking its duplicate bytes. A real two-scope strategy proves the
+same legacy tag cannot observe or mutate the other repository's artifacts.
+Standalone Pair retains its ordinary tag prompt while upserting its incarnation
+through the same locked/revisioned ThreadStore authority (ARCH-DRY, ARCH-PURE,
+ARCH-PURPOSE, ARCH-MOCK).
 
 <a id="pair-146-m3"></a>
 ### pair#146 M3 — many children and the panel
@@ -276,6 +372,46 @@ rather than as a tight figure.
 
 ## Log
 
+### 2026-08-26 — pair#149 M5 implementation ready for boundary
+
+M5 preserves every legacy source while completing composite addressing all the
+way through runtime consumers. Artifact construction has one checked leaf;
+exact bindings cross process and layout boundaries; direct Pair and Couch now
+publish into one ThreadStore inventory. The repeated-tag integration test uses
+Go, shell, and Neovim mutations plus both layouts as the oracle. The portfolio
+row remains open until the M5 review boundary and final issue close record their
+verdict and measured actual. Full, race, live-process, policy-provider,
+terminal/Zellij, crash-recovery, layout, and bundle-determinism checks are green
+(ARCH-DRY, ARCH-PURE, ARCH-PURPOSE, ARCH-MOCK).
+
+The first boundary review's upgrade and constructor-closure findings are now
+covered by strict old/new index overlap reads, extensionless-source discovery,
+explicit legacy-path authority, exact non-Go bindings, a mechanically truthful
+entity inventory, and an atlas-wide obsolete-formula sweep. Full, race, live,
+policy, terminal, recovery, bundle, and layout checks pass on the disposition.
+
+### 2026-08-26 — pair#149 M3 implementation ready for boundary
+
+The durable naming layer is now usable from Couch and standalone Pair: one
+composite record, one matcher, one inventory, and one declared operation
+surface. The boundary test writes a real Couch ThreadStore record, updates its
+human name, resolves it through launcher with Couch absent, and verifies the
+scoped Pair draft remains under the opaque tag. Duplicate names refuse or gain
+picker-only tag disambiguators; direct Pair tags retain exact precedence. The
+portfolio row stays open until `sdlc milestone-close` records review verdict,
+measured actual, and closure (ARCH-DRY, ARCH-PURE, ARCH-PURPOSE).
+
+### 2026-08-26 — pair#149 M1 implementation ready for boundary
+
+Couch now owns one leased physical namespace and a locked/revisioned
+ThreadStore. New starts claim final composite opaque tags and consume
+Ariadne #200's normalized policy result; Pair no longer has a repo-name policy
+table or same-path admission bypass. Live provider conformance covers bounded,
+unbounded, epoch-change, and typed-refusal behavior. The portfolio row remains
+open because #149 still has M2-M5; measured M1 actual/close evidence is added
+only after `sdlc milestone-close` accepts the boundary (ARCH-DRY,
+ARCH-PURPOSE, ARCH-MOCK).
+
 ### 2026-08-21 — project opened
 
 Promoted from a single root ticket (the former `pair#145`, "couch: agent
@@ -353,6 +489,22 @@ Operator-facing shape, folded into `#145`/`#146`:
 - Everything in couch's TUI is the same operation surface the advisor's tools
   call. `/start ../pair` and the LLM's `start` are two clients, never two
   implementations.
+
+**Scope event — 2026-08-26:** the canonical couch store is the durable namespace
+and has one live supervisor lease. Couch restarts adopt that namespace; a second
+supervisor refuses rather than creating console-invisible actors. Ordinary
+read/metadata clients may share the locked store, while owner-required actions
+route through #147. #148 exposes the same declared operation surface to the root
+agent through a thin Ariadne-distributed skill; Pair remains the authority for
+operations and Ariadne only distributes the adapter.
+
+The namespace is the once-resolved absolute physical store path, not a process
+incarnation or caller spelling. Its lifetime supervisor lease is non-inheritable
+by children. Transport, mailboxes, manifests, and notifications address exact
+composite work threads inside that namespace; a path is only a discovery and
+admission input. Even implicit human actions such as Enter-to-switch dispatch a
+declared owner-required operation available through the same generic advisor
+client.
 
 **Open fork for `#146`, to answer empirically first:** does couch host `pair` as
 it exists (couch → pair → zellij → claude+nvim, three layers of terminal
@@ -469,3 +621,135 @@ cancelled selection nor a failed start changes the remembered preference.
 [pair#146 M1]: #pair-146-m1
 [pair#146 M2]: #pair-146-m2
 [pair#146 M3]: #pair-146-m3
+[pair#149 M1]: #pair-149-m1
+[pair#149 M2]: #pair-149-m2
+[pair#149 M3]: #pair-149-m3
+[pair#149 M4]: #pair-149-m4
+[pair#149 M5]: #pair-149-m5
+
+### 2026-08-26 — pair#149 M5 second boundary disposition
+
+The composite artifact sweep now covers complete companion sets and every
+production source shape, while the session-binding relocation has one strict
+legacy-plus-scoped reader across launch, claim, and quiescence. Verified
+whole-incarnation capacity release remains deliberately in pair#152; #149 does
+not reinterpret client exit or detach as session quiescence (ARCH-PURPOSE,
+ARCH-MOCK).
+
+### 2026-08-26 — pair#149 M5 constructor-closure disposition
+
+Artifact enforcement now scans every production `cmd` package and refuses
+constructor classification outside `artifactpath`; mutation fixtures pin both
+the formerly omitted top-level-command case and an internal-package escape.
+The atlas consistently presents exact companion bindings and the stable
+changelog-ready marker rather than retired global derivation formulas
+(ARCH-DRY, ARCH-PURPOSE).
+
+### 2026-08-26 — pair#149 M5 generated-mirror correction
+
+The runtime bundle remains an ignored generated mirror. Its deterministic
+generator and drift tests preserve build confidence while keeping duplicate
+generated bytes out of the milestone review window (ARCH-DRY, ARCH-PURPOSE).
+
+### 2026-08-26 — pair#149 M5 constructor and documentation closure
+
+Selected-scope enumeration and parsing now remain inside `artifactpath` even
+when the caller is already classified as a resolved consumer. Mutation tests
+pin that label-bypass class, and the documentation inventory distinguishes
+exact current bindings from descriptive or compatibility filename vocabulary
+(ARCH-DRY, ARCH-PURPOSE).
+
+### 2026-08-27 — pair#149 M5 tracked-input constructor proof
+
+Constructor closure is now based on the absence of unapproved family literals,
+not a list of Go expression forms. Generated-path coverage builds its own
+temporary mirror from tracked inputs, so a clean checkout and a developer tree
+exercise the same proof (ARCH-DRY, ARCH-PURPOSE).
+
+### 2026-08-27 — pair#149 M5 positive derivation and clean bootstrap
+
+The source manifest now proves each resolved family through a named
+`artifactpath` resolver/member witness; closed vocabulary allowances account
+only for exact non-path protocol and CLI uses. The clean bootstrap is an
+executable public contract: from an archive with no Git metadata and no
+generated mirror, `make test` generates first and passes the complete suite.
+Compatibility restart/quit markers use the same path authority with a safe
+Unicode-basename contract for public Zellij session names (ARCH-DRY,
+ARCH-PURE, ARCH-PURPOSE, ARCH-MOCK).
+
+### 2026-08-27 — pair#149 M5 exhaustive production participation
+
+Every production source now declares artifact participation or explicit
+non-participation, so a new or split-token file cannot bypass discovery. Binding
+witnesses follow the resolver object's lexical identity into a non-discarded
+family-member use. The clean-bootstrap oracle also handles the clean-HEAD
+empty-patch case, and the milestone entity table has been reswept across the
+whole M5 diff (ARCH-DRY, ARCH-PURPOSE, ARCH-MOCK).
+
+### 2026-08-27 — pair#149 M5 exclusive derivation and concept contract
+
+Constant concatenation is checked independently for every resolved consumer,
+so a valid family witness cannot hide a second constructor in the same source.
+The complete M5 Core concepts and integration inventory is now an executable
+exact-row contract with deletion and field-mutation coverage (ARCH-DRY,
+ARCH-PURPOSE).
+
+### 2026-08-27 — pair#149 M5 runtime assembly and derived inventory
+
+The constructor guard now assembles runtime literal fragments across calls and
+function bodies, covering joins and builders beside otherwise valid witnesses.
+The artifact Core concepts contract derives its entity set directly from the
+M5-created package's exported type/catalog declarations, including `Families`
+and `SourceClassifications`, then mutates every plan consumer field
+(ARCH-DRY, ARCH-PURPOSE).
+
+### 2026-08-27 — pair#149 M5 order-independent proof and diff-wide dispositions
+
+Artifact constructor enforcement now follows runtime string provenance through
+variable use order and local helpers, with reversed-order and cross-helper
+mutations. The M5 concept contract classifies every declaration in the complete
+milestone Go diff and derives the plan-visible architectural subset from
+source-local markers, including pure, seam, and integration entities outside
+`artifactpath` (ARCH-DRY, ARCH-PURPOSE).
+
+### 2026-08-27 — pair#149 M5 package provenance and fail-closed authorities
+
+The constructor proof now includes package constants/variables and aliases in
+the same fixed point as local helpers and runtime composition. Exported types
+and catalog variables in the M5 artifact authority are concept-by-default, so a
+new unmarked public authority cannot opt out of the plan inventory
+(ARCH-DRY, ARCH-PURPOSE).
+
+### 2026-08-27 — pair#149 M5 package-wide provenance and closed declarations
+
+Artifact provenance now crosses Go files within each package. The concept
+inventory closes the complete M5 declaration population with a stable AST
+signature, so any new declaration requires an explicit concept/detail
+disposition and exported additions fail closed across all M5 sources
+(ARCH-DRY, ARCH-PURPOSE).
+
+### 2026-08-27 — pair#149 M5 proof boundary correction
+
+Operator review rejected the emergent requirement to prove artifact-string
+provenance for arbitrary future Go programs. M5 retains exhaustive current-
+source participation, constructor-location enforcement, positive per-family
+bindings, bounded literal checks, and cross-scope consumer integration. The
+custom package dataflow evaluator is removed; a typed filesystem capability or
+SSA analyzer would be separate future work if ever justified (Simplicity
+First, ARCH-DRY, ARCH-PURPOSE).
+
+### 2026-08-27 — pair#149 M5 finite importer closure
+
+The bounded repository contract now requires every Go source importing
+`artifactpath` to be positively classified; the twenty existing importers have
+exact family and resolver witnesses. Legacy migration and current rename share
+one authority-owned sidecar shape without confusing legacy and scoped roots,
+and the atlas no longer advertises the deleted open-ended provenance analyzer
+(ARCH-DRY, ARCH-PURPOSE, ARCH-MOCK).
+
+### 2026-08-27 — pair#149 M5 documentation regression
+
+The artifact documentation sweep now pins Couch's bounded-analysis statement
+and rejects the retired package-dataflow claims, so the atlas cannot silently
+drift back to behavior the implementation no longer provides (ARCH-PURPOSE,
+ARCH-MOCK).

@@ -92,7 +92,7 @@ func TestRenderWithTimestamps(t *testing.T) {
 		fmt.Sprintf(`{"type":"time","offset":%d,"ts":"2026-06-14T10:00:00Z"}`, off35) + "\n"
 	os.WriteFile(evPath, []byte(events), 0o644)
 
-	if err := render(rawPath, evPath, outPath, true, 0, true); err != nil {
+	if err := render(rawPath, evPath, outPath, "", true, 0, true); err != nil {
 		t.Fatal(err)
 	}
 	withTs, _ := os.ReadFile(outPath)
@@ -100,7 +100,7 @@ func TestRenderWithTimestamps(t *testing.T) {
 		t.Fatalf("--with-timestamps: day marker missing:\n%s", withTs)
 	}
 
-	if err := render(rawPath, evPath, outPath, true, 0, false); err != nil {
+	if err := render(rawPath, evPath, outPath, "", true, 0, false); err != nil {
 		t.Fatal(err)
 	}
 	noTs, _ := os.ReadFile(outPath)

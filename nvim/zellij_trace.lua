@@ -8,14 +8,8 @@ local function now_iso()
   return os.date('!%Y-%m-%dT%H:%M:%SZ')
 end
 
-local function data_dir()
-  return vim.env.PAIR_DATA_DIR
-    or ((vim.env.XDG_DATA_HOME or (vim.env.HOME and (vim.env.HOME .. '/.local/share')) or '/tmp') .. '/pair')
-end
-
 local function trace_path()
-  local tag = vim.env.PAIR_TAG or vim.env.PAIR_AGENT or 'unknown'
-  return data_dir() .. '/zellij-actions-' .. tag .. '.jsonl'
+  return vim.env.PAIR_ZELLIJ_ACTIONS_PATH
 end
 
 local function redact_argv(argv, redact)
@@ -40,9 +34,10 @@ end
 
 local function append_record(record)
   if vim.env.PAIR_ZELLIJ_TRACE == '0' then return end
-  local dir = data_dir()
-  pcall(vim.fn.mkdir, dir, 'p')
-  local f = io.open(trace_path(), 'a')
+  local path = trace_path()
+  if not path or path == '' then return end
+  pcall(vim.fn.mkdir, vim.fn.fnamemodify(path, ':h'), 'p')
+  local f = io.open(path, 'a')
   if not f then return end
   f:write(vim.json.encode(record), '\n')
   f:close()

@@ -1,7 +1,7 @@
 # Repo-specific Makefile targets.
 # This file is included by Makefile — add your own targets here.
 
-.PHONY: build install pair runtimebundle-generate runtimebundle-drift-check test-runtimebundle test test-race test-run-headless test-lua test-queue test-autopair test-draft-complete test-cr test-statusline test-doctor test-adapt-schema test-dev-rebuild test-pair-go-install-layout test-pair-embedded-runtime test-pair-restart-quit test-emitter-health test-session-watch test-changelog test-copy-on-select test-term-pane-shortcuts test-pair-title test-zellij-trace test-review
+.PHONY: build install pair runtimebundle-generate runtimebundle-drift-check test-runtimebundle test-clean-bootstrap test test-race test-run-headless test-lua test-queue test-autopair test-draft-complete test-cr test-statusline test-doctor test-adapt-schema test-dev-rebuild test-pair-go-install-layout test-pair-embedded-runtime test-pair-restart-quit test-emitter-health test-session-watch test-changelog test-copy-on-select test-term-pane-shortcuts test-pair-title test-zellij-trace test-review
 
 # Cross-cutting Go-binary targets. Every Go binary lives under cmd/<name>/
 # and ships with the `pair-` prefix so it doesn't collide with anything
@@ -26,8 +26,10 @@
 
 BIN_DIR     := bin
 INSTALL_DIR := $(HOME)/.local/bin
-# The single binary (#104). Every former helper is a `pair <subcommand>`.
-GO_BINS     := pair couch
+# Pair remains the single user-facing toolbox binary (#104). Couch's internal
+# pre-exec helper is installed beside couch because it must exist as a separate
+# blocked process before Pair can safely exec.
+GO_BINS     := pair couch pair-launch-helper
 # BUSYBOX_LINKS: pair invoked under one of these names routes to the matching
 # subcommand (entrypoint busybox dispatch). Only pair-slug survives — the
 # external Claude Stop hook may still call it by bare name. Emitted as symlinks
@@ -47,7 +49,7 @@ RUNTIMEBUNDLE_ASSETS := cmd/internal/runtimebundle/assets/runtime/manifest.json
 # remembered `go run` line (#146 M1 BR-16). Not in `test`: it drives a real
 # terminal child and takes ~20s.
 .PHONY: test-smoke
-test-smoke: $(BIN_DIR)/pair
+test-smoke: $(BIN_DIR)/pair $(BIN_DIR)/pair-launch-helper
 	@for p in probes/*/; do \
 	    echo "==> $$p"; \
 	    go run ./$$p || exit 1; \
@@ -58,6 +60,26 @@ test-live:
 	# Real-process suites share OS-global signal/session resources; package-level
 	# parallelism makes them interfere rather than exercise independent systems.
 	PAIR_LIVE_COUCH=1 go test -p 1 ./cmd/... -count=1
+
+SDLC_BIN ?= sdlc
+
+.PHONY: test-couch-policy-live
+test-couch-policy-live:
+	@sdlc_bin="$(SDLC_BIN)"; \
+	case "$$sdlc_bin" in \
+	  */*) sdlc_bin="$$(cd "$$(dirname "$$sdlc_bin")" && pwd -P)/$$(basename "$$sdlc_bin")" ;; \
+	  *) sdlc_bin="$$(command -v "$$sdlc_bin")" ;; \
+	esac; \
+	test -n "$$sdlc_bin"; \
+	PAIR_LIVE_FLEET_POLICY=1 PAIR_SDLC_BIN="$$sdlc_bin" go test ./cmd/internal/couchcore -run '^TestFleetPolicyResolverConformance$$' -count=1
+
+.PHONY: test-couch-zellij-live
+test-couch-zellij-live:
+	PAIR_LIVE_COUCH=1 go test ./cmd/internal/launcher -run '^TestSessionQuiescenceLive$$' -count=1 -v
+
+.PHONY: test-couch-start-recovery
+test-couch-start-recovery: $(BIN_DIR)/pair-launch-helper
+	go run ./cmd/probes/couchstartrecovery $(CURDIR)/$(BIN_DIR)/pair-launch-helper
 
 build: $(addprefix $(BIN_DIR)/,$(GO_BINS)) $(addprefix $(BIN_DIR)/,$(BUSYBOX_LINKS))
 
@@ -82,7 +104,8 @@ install: build
 pair: $(BIN_DIR)/pair
 
 # Tests
-#   make test       → go test ./... (cache disabled so reruns actually run)
+#   make test       → generate the ignored embed tree, then run every suite
+#                     including go test ./... with its cache disabled.
 #   make test-race  → race-detector run, scoped to packages where the
 #                     suite has actual concurrent code worth checking.
 #                     pair-wrap has translateStdin's goroutine + timer +
@@ -91,8 +114,14 @@ pair: $(BIN_DIR)/pair
 #                     inside the vt.Emulator library API itself, which is
 #                     outside our scope to fix — exclude that package
 #                     here rather than chase a library-level race.
-test: test-run-headless test-lua test-queue test-autopair test-draft-complete test-cr test-statusline test-doctor test-adapt-schema test-dev-rebuild test-pair-go-install-layout test-pair-embedded-runtime test-pair-restart-quit test-emitter-health test-session-watch test-changelog test-copy-on-select test-term-pane-shortcuts test-pair-title test-zellij-trace test-review
+test: runtimebundle-generate test-run-headless test-lua test-queue test-autopair test-draft-complete test-cr test-statusline test-doctor test-adapt-schema test-dev-rebuild test-pair-go-install-layout test-pair-embedded-runtime test-pair-restart-quit test-emitter-health test-session-watch test-changelog test-copy-on-select test-term-pane-shortcuts test-pair-title test-zellij-trace test-review
 	go test ./... -count=1
+
+# Expensive, explicit boundary regression: prove make test from a no-.git
+# archive with the ignored runtime mirror absent. Kept out of test to avoid a
+# recursive full-suite child.
+test-clean-bootstrap:
+	bash tests/clean-bootstrap-test.sh
 
 # pair-title poller (#93 M1, now Go): single-instance guard (identity-checked
 # liveness so a recycled PID can't suppress the respawn) + the #71 frame meter
@@ -309,6 +338,9 @@ $(BIN_DIR)/pair: $(PAIR_GO_SRCS)
 # PAIR_HOME_LDFLAGS -- couch resolves nothing from an asset root.
 $(BIN_DIR)/couch: $(PAIR_GO_SRCS)
 	go build -o $@ ./cmd/couch
+
+$(BIN_DIR)/pair-launch-helper: $(PAIR_GO_SRCS)
+	go build -o $@ ./cmd/pair-launch-helper
 
 # Busybox symlinks (pair-slug → pair): a real target each, so `build` restores a
 # deleted symlink even when bin/pair is already up-to-date (not only when the pair
