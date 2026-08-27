@@ -595,7 +595,7 @@ total: 17.80
       exact milestone before ariadne#200 closes.
 - [x] M2 — widen that same `ThreadStore` for the blocked pre-exec handshake,
       journaled start transaction, and restart reconciliation.
-- [ ] M3 — add mutable name/description/published-summary operations, scoped
+- [x] M3 — add mutable name/description/published-summary operations, scoped
       standalone Pair resolution, shared inventory, and common rendering without
       a leading system id.
 - [ ] M4 — persist per-thread and per-path/per-agent launch profiles; resolve
@@ -611,6 +611,7 @@ total: 17.80
 ## Log
 
 ### 2026-08-26 — M2 live conformance reaches the OS kill boundary
+- 2026-08-26: closed M3 — BR-26: shared persisted thread wire/validator used by ThreadStore writes, Couch reads, and standalone Pair reads; real-file cross-reader mutation parity; focused race suite, make test, go test ./..., go vet, zellij config and layout2/layout3 checks, and git diff --check all pass; review verdict: SHIP
 - 2026-08-26: closed M2 — make test; go test ./... -count=1; race couchcore/launcher/ptychild; real zellij OS-kill and Ariadne live conformance; real-process start recovery; go vet; zellij config/layout2/layout3; git diff --check; review verdict: SHIP
 
 The seventh M2 review accepted reusable wait ownership but showed that observing

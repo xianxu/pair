@@ -165,7 +165,7 @@ gate `#147` and `#148` respectively; `#145` and `#146` do not depend on them.
 - [ ] durable work-thread identity, naming, and launch profiles [pair#149]
 - [x] singleton namespace and normalized admission [pair#149 M1]
 - [x] recoverable pre-exec start transaction [pair#149 M2]
-- [ ] shared thread metadata, operations, and standalone lookup [pair#149 M3]
+- [x] shared thread metadata, operations, and standalone lookup [pair#149 M3]
 - [ ] hierarchical thread menu [pair#151]
 - [ ] verified park and activity age [pair#152]
 - [ ] managed-worktree lifecycle [pair#153]
@@ -214,7 +214,8 @@ outcomes against kernel process identities (ARCH-PURE, ARCH-PURPOSE, ARCH-MOCK).
 ### pair#149 M3 — shared thread metadata, operations, and standalone lookup
 
 **est:** 17.80 (whole issue)
-**status:** implementation ready for boundary review
+**closed:** 2026-08-26
+**actual:** 2.40h
 
 Human names, operator descriptions, and agent summaries now live as independent
 revisioned fields on the composite ThreadStore record. CLI and panel render one

@@ -322,3 +322,79 @@ Append a `## Revisions` entry recording:
 - the complete persisted-record invariant enumeration;
 - the chosen common lower-layer decoder/projection boundary;
 - the Couch-versus-launcher invalid-record conformance regression.
+
+---
+
+## Re-review — 2026-08-26T17:16:34-07:00 (SHIP)
+
+| field | value |
+|-------|-------|
+| issue | 149 — couch: opaque tags and a human naming layer |
+| repo | pair |
+| issue file | workshop/issues/000149-couch-opaque-tags-and-a-human-naming-layer.md |
+| boundary | milestone M3 |
+| milestone | M3 |
+| window | cd7168cb4ac6023f6988b7198099c322a00ec74c..31ecd40745f0ddb8e5f62a6cf7341be20a1abd46 |
+| command | sdlc milestone-close --issue 149 --milestone M3 |
+| reviewer | codex |
+| timestamp | 2026-08-26T17:16:34-07:00 |
+| verdict | SHIP |
+
+## Review
+
+```verdict
+verdict: SHIP
+confidence: high
+```
+
+BR-26 is addressed: Couch and standalone Pair now share one complete persisted-record decoder, and the regression demonstrably fails when Launcher’s former partial decoder is restored. No new findings block M3.
+
+```findings
+dispose:
+  - id: BR-26
+    disposition: addressed
+    note: |
+      Both readers use the complete shared persisted-record decoder, and the real-store mutation test fails when Launcher is reverted to its former partial schema.
+```
+
+### 1. Strengths
+
+- The wire schema and validation are centralized in `threadrecord.Record` and `DecodePersisted` at `cmd/internal/threadrecord/record.go:57`.
+- Couch reads through the shared decoder at `cmd/internal/couchcore/threadstore.go:579`; Launcher uses the same decoder at `cmd/internal/launcher/thread_index.go:97`.
+- The parity test creates real Couch records and mutates persisted invariants before exercising both readers at `cmd/internal/launcher/thread_index_conformance_test.go:74`.
+- Strict duplicate-key, unknown-field, and trailing-value rejection has one shared implementation at `cmd/internal/strictjson/decode.go:13`.
+- README and atlas cover the M3 command, identity, picker, diagnostic, and failure semantics.
+
+### 2. Critical findings
+
+None.
+
+### 3. Important findings
+
+None.
+
+### 4. Minor findings
+
+None.
+
+### 5. Test coverage notes
+
+Passed:
+
+- Focused package tests.
+- `go test ./... -count=1`
+- `go test -race ./cmd/internal/couchcore ./cmd/internal/launcher -count=1`
+- `git diff --check cd7168cb4ac6023f6988b7198099c322a00ec74c..31ecd40745f0ddb8e5f62a6cf7341be20a1abd46`
+
+BR-26 red/green verification was also performed in a scratch copy. Restoring Launcher’s old partial decoder made the conformance test fail across 19 mutation cases, including missing `starting_path`, missing/zero `claim_generation`, invalid nested start state, and unknown nested fields. The current implementation passes.
+
+### 6. Architectural notes for upcoming work
+
+- **ARCH-DRY — pass:** persisted schema, validation, and strict JSON decoding each have one authority.
+- **ARCH-PURE — pass:** validation, metadata transitions, inventory construction, matching, and operation declarations have direct IO-free tests.
+- **ARCH-PURPOSE — pass:** the shadow sweep confirms every ThreadStore writer and both readers derive from the common record contract.
+- **ARCH-MOCK — pass:** integration coverage runs production readers against the portable file-backed store through the same seams used in production.
+
+### 7. Plan revision recommendations
+
+None. The Core concepts table, M3 checklist, and existing revision entries match the implementation.

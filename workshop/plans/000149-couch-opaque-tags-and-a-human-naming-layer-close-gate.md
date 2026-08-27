@@ -406,6 +406,16 @@ rounds:
           round: 15
       boundary: M3
       blocked: true
+    - "n": 16
+      timestamp: "2026-08-26T17:16:34-07:00"
+      agent: codex
+      dispose:
+        - id: BR-26
+          disposition: addressed
+          note: Both readers use the complete shared persisted-record decoder, and the real-store mutation test fails when Launcher is reverted to its former partial schema.
+          round: 16
+      boundary: M3
+      blocked: false
 ---
 
 # Gate ledger — pair#149 (boundary-review)
@@ -593,6 +603,12 @@ later rounds disposed of them. Generated — edit the gate, not this file.
 - **BR-26** [Critical] `durable-index-read-failure-authority` Standalone Pair accepts ThreadStore records that Couch rejects as invalid
   This is the 3rd finding in family `durable-index-read-failure-authority`. The shadow record schema in thread_index.go:54-63 omits required `starting_path` and `claim_generation`, and LoadThreadIndex at lines 99-110 consequently accepts the fixture at thread_index_test.go:49-58 even though Couch rejects that same record at thread.go:73-80 and threadstore.go:578-590. This permits malformed or incomplete authoritative records to resolve human names and launch opaque tags while Couch refuses the store. Do NOT patch only these two fields: state the rule that every durable-record reader shares the authoritative structural acceptance contract, enumerate all persisted invariants, and derive the portable projection from a common lower-layer decoder or enforce acceptance parity with conformance tests (ARCH-DRY, ARCH-PURPOSE).
 
+## Round 16 — 2026-08-26T17:16:34-07:00 (codex) — passed
+
+### Disposed
+
+- BR-26 — addressed — Both readers use the complete shared persisted-record decoder, and the real-store mutation test fails when Launcher is reverted to its former partial schema.
+
 ## Open findings
 
-- **BR-26** [Critical] `durable-index-read-failure-authority` Standalone Pair accepts ThreadStore records that Couch rejects as invalid
+(none — every finding has been disposed)
