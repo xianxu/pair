@@ -1336,6 +1336,14 @@ func TestArtifactDocsUseBindingsForCurrentConsumers(t *testing.T) {
 			required:  "writes exact `$PAIR_REVIEW_TARGET_PATH`",
 			forbidden: []string{"writes `review-target-<tag>.json`"},
 		},
+		{
+			path:     "atlas/couch.md",
+			required: "bounded defense in depth; they do not claim semantic",
+			forbidden: []string{
+				"runtime literal fragments are conservatively assembled across calls and function bodies",
+				"one valid witness cannot authorize another join/builder construction",
+			},
+		},
 	} {
 		raw, err := os.ReadFile(filepath.Join(repoRoot, filepath.FromSlash(tc.path)))
 		if err != nil {

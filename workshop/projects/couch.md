@@ -744,3 +744,10 @@ exact family and resolver witnesses. Legacy migration and current rename share
 one authority-owned sidecar shape without confusing legacy and scoped roots,
 and the atlas no longer advertises the deleted open-ended provenance analyzer
 (ARCH-DRY, ARCH-PURPOSE, ARCH-MOCK).
+
+### 2026-08-27 — pair#149 M5 documentation regression
+
+The artifact documentation sweep now pins Couch's bounded-analysis statement
+and rejects the retired package-dataflow claims, so the atlas cannot silently
+drift back to behavior the implementation no longer provides (ARCH-PURPOSE,
+ARCH-MOCK).

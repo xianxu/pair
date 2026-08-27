@@ -1372,3 +1372,12 @@ global root. `LegacyPaths.RenameArtifacts` and `Paths.RenameArtifacts` expose
 the same stable sidecar shape from their respective authorities; launcher
 rename and migration consume those APIs. The atlas now describes only the
 bounded checks that remain (ARCH-DRY, ARCH-PURPOSE, ARCH-MOCK).
+
+### 2026-08-27 — pin current-state artifact documentation
+
+Round 36 confirmed BR-32 and the M5 architecture, then retained BR-38 because
+the corrected atlas prose lacked a regression witness. The existing artifact
+documentation sweep now includes `atlas/couch.md`: it requires the bounded
+contract's explicit non-goal and rejects the two deleted package-dataflow
+claims. Reverting the atlas correction therefore fails the focused suite
+(ARCH-PURPOSE, ARCH-MOCK).

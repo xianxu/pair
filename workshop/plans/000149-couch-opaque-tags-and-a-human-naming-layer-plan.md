@@ -1770,3 +1770,15 @@ literal/vocabulary checks. Move the stable rename-sidecar enumeration into
 explicitly. Correct the atlas to state the bounded contract and its deliberate
 non-goals. Verify the focused artifact and migration tests before the complete
 M5 gate suite (ARCH-DRY, ARCH-PURPOSE, ARCH-MOCK).
+
+### 2026-08-27 — make documentation currentness executable
+
+**Reason:** round 36 verified the implementation and current atlas text, but
+BR-38 remained unaddressed under the boundary contract because reverting that
+text did not fail a test.
+
+**Delta:** extend the existing artifact-documentation sweep to
+`atlas/couch.md`. Require its explicit bounded-analysis non-goal and forbid the
+retired cross-call/function-body and join/builder claims. This is the finite
+class rule for the current artifact documentation set, and gives the atlas
+correction a failing regression witness (ARCH-PURPOSE, ARCH-MOCK).
