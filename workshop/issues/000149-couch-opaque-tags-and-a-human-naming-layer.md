@@ -1,12 +1,13 @@
 ---
 id: 000149
-status: working
+status: codecomplete
 deps: []
 github_issue:
 created: 2026-08-21
-updated: 2026-08-26
+updated: 2026-08-27
 estimate_hours: 17.80
 started: 2026-08-25T14:21:34-07:00
+actual_hours: 56.46
 ---
 
 # couch: opaque tags and a human naming layer
@@ -1219,6 +1220,7 @@ consumers and marks literal filename shapes as compatibility or descriptive
 vocabulary only (ARCH-DRY, ARCH-PURPOSE).
 
 ### 2026-08-27 — M5 boundary review round 5
+- 2026-08-27: closed — M1-M5 complete: singleton admission, recoverable starts, shared thread metadata, remembered launch profiles, legacy migration, and bounded composite artifact isolation; all milestone reviews SHIP and full/clean-bootstrap/race/drift verification passes; review verdict: SHIP
 - 2026-08-27: closed M5 — bounded artifact contract and docs pin: all current importers positively classified; legacy/current inventories authority-owned; atlas regression proven red on retired claim and green when corrected; full/clean-bootstrap/race/drift suites pass; review verdict: SHIP
 
 BR-34 is addressed. The reviewer kept BR-32 open because the first mutation
