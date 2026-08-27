@@ -1,6 +1,7 @@
 package couchcore
 
 import (
+	"crypto/sha256"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -75,6 +76,11 @@ func (s *ThreadStore) manifestPath() string { return filepath.Join(s.root, "mani
 
 func (s *ThreadStore) recordPath(address ThreadAddress) string {
 	return filepath.Join(s.root, "records", address.RepoScope, string(address.Tag)+".json")
+}
+
+func (s *ThreadStore) pathLaunchPreferencePath(repoIdentity, physicalPath string) string {
+	digest := sha256.Sum256([]byte(repoIdentity + "\x00" + physicalPath))
+	return filepath.Join(s.root, "path-preferences", fmt.Sprintf("%x.json", digest[:]))
 }
 
 func (s *ThreadStore) withLock(fn func() error) (err error) {
@@ -173,6 +179,36 @@ func (s *ThreadStore) GetThread(address ThreadAddress) (ThreadRecord, error) {
 		return nil
 	})
 	return result, err
+}
+
+func (s *ThreadStore) GetPathLaunchPreference(repoIdentity, physicalPath string) (PathLaunchPreference, bool, error) {
+	if repoIdentity == "" {
+		return PathLaunchPreference{}, false, errors.New("path launch preference has no repository identity")
+	}
+	if !filepath.IsAbs(physicalPath) {
+		return PathLaunchPreference{}, false, errors.New("path launch preference path must be absolute")
+	}
+	var result PathLaunchPreference
+	var found bool
+	err := s.withLock(func() error {
+		raw, exists, err := readOptionalFile(s.pathLaunchPreferencePath(repoIdentity, physicalPath))
+		if err != nil || !exists {
+			return err
+		}
+		if err := strictThreadStoreJSON(raw, &result); err != nil {
+			return err
+		}
+		if err := validatePathLaunchPreference(result); err != nil {
+			return err
+		}
+		if result.RepoIdentity != repoIdentity || result.PhysicalPath != physicalPath {
+			return errors.New("path launch preference path/address mismatch")
+		}
+		result = clonePathLaunchPreference(result)
+		found = true
+		return nil
+	})
+	return result, found, err
 }
 
 func (s *ThreadStore) UpdateExistingThread(address ThreadAddress, expectedRevision uint64, mutate func(*ThreadRecord) error) (ThreadRecord, error) {

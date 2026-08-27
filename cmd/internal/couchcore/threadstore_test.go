@@ -1,6 +1,7 @@
 package couchcore
 
 import (
+	"encoding/json"
 	"errors"
 	"os"
 	"reflect"
@@ -8,6 +9,75 @@ import (
 	"sync"
 	"testing"
 )
+
+func TestThreadStoreReadsStrictDefensivePathLaunchPreference(t *testing.T) {
+	store, ns := newTestThreadStore(t)
+	physicalPath := ns.Dir()
+	preference := PathLaunchPreference{
+		SchemaVersion: PathLaunchPreferenceSchemaVersion,
+		RepoIdentity:  "repo-identity",
+		PhysicalPath:  physicalPath,
+		LastAgent:     "codex",
+		ArgvByAgent: map[string][]string{
+			"claude": {"--model", "opus"},
+			"codex":  {"--sandbox", "workspace-write"},
+		},
+		Revision: 3,
+	}
+	if err := writePathLaunchPreferenceForTest(store, preference); err != nil {
+		t.Fatal(err)
+	}
+
+	got, found, err := store.GetPathLaunchPreference(preference.RepoIdentity, physicalPath)
+	if err != nil || !found {
+		t.Fatalf("GetPathLaunchPreference = %+v, %v, %v", got, found, err)
+	}
+	got.ArgvByAgent["codex"][0] = "mutated"
+	again, found, err := store.GetPathLaunchPreference(preference.RepoIdentity, physicalPath)
+	if err != nil || !found || !reflect.DeepEqual(again.ArgvByAgent["codex"], []string{"--sandbox", "workspace-write"}) {
+		t.Fatalf("stored preference aliased caller: %+v, %v, %v", again, found, err)
+	}
+
+	missing, found, err := store.GetPathLaunchPreference("other-repo", physicalPath)
+	if err != nil || found || missing.Revision != 0 {
+		t.Fatalf("missing preference = %+v, %v, %v", missing, found, err)
+	}
+}
+
+func TestThreadStoreRejectsPathLaunchPreferenceAtWrongAddress(t *testing.T) {
+	store, ns := newTestThreadStore(t)
+	preference := PathLaunchPreference{
+		SchemaVersion: PathLaunchPreferenceSchemaVersion,
+		RepoIdentity:  "repo-identity",
+		PhysicalPath:  ns.Dir(),
+		LastAgent:     "codex",
+		ArgvByAgent:   map[string][]string{"codex": {}},
+		Revision:      1,
+	}
+	if err := writePathLaunchPreferenceForTest(store, preference); err != nil {
+		t.Fatal(err)
+	}
+	path := store.pathLaunchPreferencePath(preference.RepoIdentity, preference.PhysicalPath)
+	raw, err := os.ReadFile(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	corrupt := strings.Replace(string(raw), `"physical_path": "`+preference.PhysicalPath+`"`, `"physical_path": "/other"`, 1)
+	if err := os.WriteFile(path, []byte(corrupt), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	if _, _, err := store.GetPathLaunchPreference(preference.RepoIdentity, preference.PhysicalPath); err == nil {
+		t.Fatal("path preference stored at the wrong address was accepted")
+	}
+}
+
+func writePathLaunchPreferenceForTest(store *ThreadStore, preference PathLaunchPreference) error {
+	raw, err := json.MarshalIndent(preference, "", "  ")
+	if err != nil {
+		return err
+	}
+	return writeAtomicBytes(store.pathLaunchPreferencePath(preference.RepoIdentity, preference.PhysicalPath), append(raw, '\n'))
+}
 
 func newTestThreadStore(t *testing.T) (*ThreadStore, CouchNamespace) {
 	t.Helper()
@@ -159,6 +229,39 @@ func TestThreadStorePersistsAndDefensivelyCopiesRecoverableStartClaim(t *testing
 	}
 	if again.Incarnations[0].Start.Nonce != "start-0123456789abcdef" {
 		t.Fatalf("read start claim aliased store: %+v", again.Incarnations[0].Start)
+	}
+}
+
+func TestThreadStorePersistsAndDefensivelyCopiesIncarnationLaunchProfile(t *testing.T) {
+	store, ns := newTestThreadStore(t)
+	record := validThreadRecord(t)
+	record.StartingPath, record.WorkingPath = ns.Dir(), ns.Dir()
+	record.Reservation = false
+	record.Incarnations = []ThreadIncarnation{{
+		PID: 42, Identity: "helper", State: IncarnationLive,
+		LaunchProfile: &LaunchProfile{Agent: "codex", Argv: []string{"--sandbox", "workspace-write"}},
+	}}
+
+	created, err := store.CreateThread(record)
+	if err != nil {
+		t.Fatal(err)
+	}
+	created.Incarnations[0].LaunchProfile.Argv[0] = "mutated"
+	got, err := store.GetThread(created.Address)
+	if err != nil {
+		t.Fatal(err)
+	}
+	want := LaunchProfile{Agent: "codex", Argv: []string{"--sandbox", "workspace-write"}}
+	if got.Incarnations[0].LaunchProfile == nil || !reflect.DeepEqual(*got.Incarnations[0].LaunchProfile, want) {
+		t.Fatalf("stored launch profile = %+v, want %+v", got.Incarnations[0].LaunchProfile, want)
+	}
+	got.Incarnations[0].LaunchProfile.Argv[1] = "mutated"
+	again, err := store.GetThread(created.Address)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !reflect.DeepEqual(*again.Incarnations[0].LaunchProfile, want) {
+		t.Fatalf("read launch profile aliases caller: %+v", again.Incarnations[0].LaunchProfile)
 	}
 }
 

@@ -44,14 +44,20 @@ type Policy struct {
 	OnCapacity    string         `json:"on_capacity,omitempty"`
 }
 
+type LaunchProfile struct {
+	Agent string   `json:"agent"`
+	Argv  []string `json:"argv"`
+}
+
 type Incarnation struct {
-	LegacyActorID string      `json:"legacy_actor_id,omitempty"`
-	PID           int         `json:"pid,omitempty"`
-	Identity      string      `json:"identity,omitempty"`
-	State         string      `json:"state"`
-	StartedAt     time.Time   `json:"started_at,omitempty"`
-	Policy        *Policy     `json:"policy,omitempty"`
-	Start         *StartClaim `json:"start,omitempty"`
+	LegacyActorID string         `json:"legacy_actor_id,omitempty"`
+	PID           int            `json:"pid,omitempty"`
+	Identity      string         `json:"identity,omitempty"`
+	State         string         `json:"state"`
+	StartedAt     time.Time      `json:"started_at,omitempty"`
+	Policy        *Policy        `json:"policy,omitempty"`
+	Start         *StartClaim    `json:"start,omitempty"`
+	LaunchProfile *LaunchProfile `json:"launch_profile,omitempty"`
 }
 
 type Record struct {
@@ -112,6 +118,14 @@ func Validate(record Record, validators Validators) error {
 		}
 		if incarnation.PID < 0 {
 			return fmt.Errorf("incarnation %d has negative pid", i)
+		}
+		if incarnation.LaunchProfile != nil {
+			if incarnation.State == "creating" {
+				return fmt.Errorf("incarnation %d has launch profile before registration", i)
+			}
+			if incarnation.LaunchProfile.Agent == "" || incarnation.LaunchProfile.Argv == nil {
+				return fmt.Errorf("incarnation %d has incomplete launch profile", i)
+			}
 		}
 		if incarnation.Start != nil {
 			trackedStarts++

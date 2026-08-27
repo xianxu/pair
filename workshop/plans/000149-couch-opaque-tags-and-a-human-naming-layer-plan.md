@@ -614,12 +614,12 @@ inventory, never a couch enum (ARCH-DRY).
 
 **Steps:**
 
-- [ ] **Step 1:** Write failing `ResolveLaunchProfile` property tests using the strategy
+- [x] **Step 1:** Write failing `ResolveLaunchProfile` property tests using the strategy
    table; run `go test ./cmd/internal/couchcore -run TestLaunchProfile -count=1`
    and expect FAIL.
-- [ ] **Step 2:** Implement per-thread/path preferences and independent
+- [x] **Step 2:** Implement per-thread/path preferences and independent
    `AgentSource`/`ArgvSource` resolution with the precedence in Architecture.
-- [ ] **Step 3:** Rerun the focused command; expect PASS, then commit the pure profile slice.
+- [x] **Step 3:** Rerun the focused command; expect PASS, then commit the pure profile slice.
 
 ### Task 2: Reuse Pair's shared agent inventory/defaults
 

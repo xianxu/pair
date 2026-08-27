@@ -42,6 +42,7 @@ type ThreadIncarnation struct {
 	StartedAt     time.Time         `json:"started_at,omitempty"`
 	Policy        *PolicyResult     `json:"policy,omitempty"`
 	Start         *ThreadStartClaim `json:"start,omitempty"`
+	LaunchProfile *LaunchProfile    `json:"launch_profile,omitempty"`
 }
 
 type ThreadRecord struct {
@@ -102,6 +103,10 @@ func toPersistedThreadRecord(record ThreadRecord) threadrecord.Record {
 				OnCapacity: string(incarnation.Policy.OnCapacity),
 			}
 		}
+		if incarnation.LaunchProfile != nil {
+			profile := cloneLaunchProfile(*incarnation.LaunchProfile)
+			out.Incarnations[i].LaunchProfile = &threadrecord.LaunchProfile{Agent: profile.Agent, Argv: profile.Argv}
+		}
 	}
 	return out
 }
@@ -133,6 +138,10 @@ func fromPersistedThreadRecord(record threadrecord.Record) ThreadRecord {
 				OnCapacity: CapacityAction(incarnation.Policy.OnCapacity),
 			}
 		}
+		if incarnation.LaunchProfile != nil {
+			profile := LaunchProfile{Agent: incarnation.LaunchProfile.Agent, Argv: cloneArgv(incarnation.LaunchProfile.Argv)}
+			out.Incarnations[i].LaunchProfile = &profile
+		}
 	}
 	return out
 }
@@ -148,6 +157,10 @@ func cloneThreadRecord(record ThreadRecord) ThreadRecord {
 		if record.Incarnations[i].Start != nil {
 			start := *record.Incarnations[i].Start
 			copy.Incarnations[i].Start = &start
+		}
+		if record.Incarnations[i].LaunchProfile != nil {
+			profile := cloneLaunchProfile(*record.Incarnations[i].LaunchProfile)
+			copy.Incarnations[i].LaunchProfile = &profile
 		}
 	}
 	return copy
