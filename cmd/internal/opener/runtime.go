@@ -2,6 +2,7 @@ package opener
 
 import (
 	"encoding/json"
+	"fmt"
 	"io"
 	"os"
 	"os/exec"
@@ -37,7 +38,7 @@ func (OSRuntime) RenderScrollback(raw, events, ansi, viewport string) error {
 
 type renderError struct{ code int }
 
-func (e *renderError) Error() string { return "scrollback-render exit " + strconv.Itoa(e.code) }
+func (e *renderError) Error() string { return fmt.Sprintf("scrollback-render exit %d", e.code) }
 
 // AgentPaneID returns the first non-plugin, non-floating, titled (≠ "draft")
 // pane id from `zellij action list-panes --json`, or "" — the Go port of the

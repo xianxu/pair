@@ -173,8 +173,10 @@ files and must never mutate an opaque thread identity.
 ### Session names are also filename components
 
 `quit-<session>` and `restart-<session>` markers embed the name, so `📁` now
-appears in paths under the data root. It is safe on APFS/ext4 and carries no
-shell or glob metacharacters — but that is a property the scheme depends on.
+appears in filenames under `~/.cache/pair`. `artifactpath.ResolvePairCache`
+owns their construction. Its session-name contract accepts Unicode basenames
+while rejecting empty names, traversal, and NUL; strict ASCII validation for
+thread tags remains unchanged.
 
 ## Ledger and caches
 

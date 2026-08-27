@@ -1380,3 +1380,180 @@ Generated-mirror coverage always generates into a temporary directory from
 tracked sources, then checks exact classification in both directions; it never
 reads the ignored working mirror. The tracked-input-only invariant is verified
 from a clean archive before the boundary rerun (ARCH-DRY, ARCH-PURPOSE).
+
+### 2026-08-27 — replace negative proof with positive bindings and explicit bootstrap
+
+**Reason:** the sixth M5 review demonstrated that a lexical deny-list cannot
+prove constructor closure: a consumer can split a family token across literals.
+It also showed that the verification contract named bare `go test ./...` even
+though Go's compile-time embed requires the ignored runtime mirror to exist
+first. Both gaps were visible at plan time: the plan did not require a positive
+derivation witness for each consumer, and it did not state the initial
+filesystem state for each verification recipe.
+
+**Delta:** `SourceClassification` gains a positive binding witness. Every Go
+`ResolvedConsumer` must name at least one exact exported `artifactpath` selector
+and the source AST must actually call or select it; a false classification can
+no longer turn arbitrary source into an accepted consumer. Files that mention
+only protocol or CLI vocabulary use a separate `VocabularyConsumer` kind and
+remain constrained by exact per-file allowlists. The existing negative source
+scan remains defense in depth, but no longer carries the architectural proof.
+Regression tests first prove that split-token source and a claimed-but-unused
+binding fail, while every production resolved consumer proves its declared
+dependency (ARCH-DRY, ARCH-PURPOSE).
+
+Runtime generation becomes an explicit prerequisite of the repository test
+target and of every documented raw Go verification recipe. The clean-source
+generator regression copies/generates from the generator's declared source
+inputs and must run without `.git`; it no longer uses Git metadata as an
+unstated dependency. A clean archive runs generation before `go test ./...`,
+and that exact sequence is the boundary oracle (ARCH-PURPOSE).
+
+**Implementation sequence:**
+
+1. RED: add split-token, missing-binding, and unused-binding mutations; reproduce
+   the current constructor guard accepting them.
+2. GREEN: add `VocabularyConsumer` and exact Go binding witnesses; validate
+   imported `artifactpath` selector use from the AST and migrate every current
+   classification to the appropriate kind.
+3. RED: reproduce the clean-archive generator test's `.git` dependency and the
+   pre-generation embed failure.
+4. GREEN: make runtime generation an up-front `make test` prerequisite, remove
+   Git discovery from the generator regression, and revise every bare full-Go
+   verification recipe to generate first.
+5. Verify focused tests, a Git-metadata-free archive sequence, `make test`,
+   runtime drift, issue validation, and diff hygiene before retrying M5.
+
+**Plan-review rule:** for every claimed single-authority migration, ask what
+positive dependency or derivation witness a new consumer must supply; a
+self-assigned label is not evidence. For every verification command, state and
+test its starting filesystem/environment state, including generated and ignored
+inputs. These are ARCH-PURPOSE checks, not implementation-stage cleanup.
+
+### 2026-08-27 — correlate witnesses per family and make the clean oracle executable
+
+**Reason:** fresh-context review of the preceding revision found three holes
+before implementation: one unrelated selector could witness several family
+claims, `VocabularyConsumer` did not forbid path IO, and the clean bootstrap
+still named categories rather than executable commands.
+
+**Delta:** canonical binding definitions map one artifact family to an exact Go
+resolver selector and, where the resolver returns an aggregate, the exact
+family-specific result member consumed (for example `ResolveScoped` plus
+`Paths.Draft`). Each `ResolvedConsumer` classification names a binding for
+**every** family it claims. The AST validator resolves the actual import path
+and local alias, requires the resolver as a call expression, follows its local
+result identifier, and requires the declared member in a non-blank consuming
+expression. A missing-family witness, a binding for the wrong family, a bare
+function reference, or a declared selector that is never called fails. This is
+positive derivation evidence plus a defense-in-depth negative scan, not a claim
+to prove arbitrary deliberately obfuscated Go source (ARCH-DRY,
+ARCH-PURPOSE).
+
+`VocabularyConsumer` is valid only with no resolved bindings and an exhaustive
+list of `{family, exact value, syntax context, occurrence count}` allowances.
+Go contexts are parsed string literals (including struct tags); non-Go contexts
+are exact trimmed source lines. Go comments do not count as production
+occurrences. Every token-bearing occurrence must match one allowance, every
+allowance must be observed exactly, and the classification's families must
+equal the allowance families. A vocabulary-only Go file may not import
+`artifactpath` or call filesystem path construction/read/write selectors
+(`path/filepath` or file-affecting `os` APIs); such a file must instead become a
+family-witnessed `ResolvedConsumer` or a constructor. Mixed resolved consumers
+may carry exact vocabulary allowances in addition to their per-family
+bindings, but vocabulary allowances never witness a family. Mutations cover a
+valid vocabulary-only file, an unlisted literal, a vocabulary-labeled
+`filepath.Join`/`os.ReadFile`, and mixed resolved-vocabulary source.
+
+**Exact clean bootstrap contract:** start from a source archive containing the
+current tracked patch, with no `.git` directory and no
+`cmd/internal/runtimebundle/assets/runtime`; all paths enumerated by
+`runtimebundlegen` are present. Run:
+
+```sh
+go run ./cmd/internal/runtimebundle/generatecmd \
+  --repo . --out cmd/internal/runtimebundle/assets/runtime
+go test ./... -count=1
+```
+
+The clean-source generator regression derives its fixture solely from
+`runtimebundlegen`'s declared `explicitAssetPaths` and `assetDirs`, never from
+`git ls-files`. `make test` declares `runtimebundle-generate` as its up-front
+prerequisite. A dedicated non-recursive clean-bootstrap test creates the same
+archive, supplies the repository's resolved base Makefile explicitly (because
+Pair's tracked `Makefile` is a sibling symlink), runs `make test` with a child
+sentinel that prevents the bootstrap test from recursively dispatching itself,
+and proves success from the same absent-mirror state.
+
+The M5 repository verification recipe is superseded by these exact commands:
+
+```sh
+go test ./cmd/internal/artifactpath ./cmd/internal/runtimebundlegen -count=1
+go run ./cmd/internal/runtimebundle/generatecmd \
+  --repo . --out cmd/internal/runtimebundle/assets/runtime
+go test ./... -count=1
+go test -race ./cmd/internal/couchcore -count=1
+make test
+make runtimebundle-drift-check
+sdlc issue validate --issue 149
+git diff --check
+```
+
+In the no-`.git` clean archive, the first two full-tree commands are the direct
+generator then `go test ./...` sequence shown above; `make test` is separately
+proved by the dedicated bootstrap regression using the resolved base Makefile.
+
+### 2026-08-27 — distinguish vocabulary-derived IO from unrelated exact-path IO
+
+**Reason:** implementation enumeration found vocabulary-only commands such as
+`scrollbackcmd` that legitimately read/write exact paths supplied by their
+caller, while the matched `scrollback-render` text is only a CLI command name.
+Likewise, native-session vocabulary files inspect native harness directories
+unrelated to Pair's artifact namespace. A file-wide ban on filesystem APIs
+would therefore reject correct thin IO shells rather than prove artifact
+authority.
+
+**Delta:** `VocabularyConsumer` forbids a vocabulary allowance value from being
+used as, or assembled into, a filesystem/path-construction argument. The AST
+mutation boundary covers direct token-bearing arguments to `path/filepath` and
+file-affecting `os` calls. Unrelated exact-path parameters and native harness
+paths remain legal. Any Pair artifact path must still arrive through a
+family-correlated resolved binding; an exact CLI/protocol allowance never
+witnesses that family. This preserves ARCH-PURE's thin IO shells while the
+positive binding manifest carries ARCH-PURPOSE's derivation proof.
+
+### 2026-08-27 — close vocabulary allowances around non-path AST use sites
+
+**Reason:** follow-up plan review showed that checking only direct
+token-bearing filesystem arguments still permits an allowed literal to be
+stored in a constant/local/helper result and later laundered into a path sink.
+
+**Delta:** every Go vocabulary allowance names a closed AST use site as well as
+its exact file, family, value, and count. Permitted contexts are: a named struct
+field's tag; an exact argument position of an import-qualified standard-library
+callee or named existing logging/trace method; a case value in a named
+function; or a comparison operand in a named parser function. Vocabulary
+literals are rejected in constants, assignments, general returns, arbitrary
+helper calls, and any unlisted context. Where current code returns a diagnostic
+prefix as a concatenated literal, it is changed to an exact `fmt.Sprintf`
+format argument so the non-path use is closed. The validator builds parent and
+enclosing-function context from the AST and requires each occurrence to match
+one declared site exactly. A local/const/helper laundering mutation must fail;
+unrelated caller-supplied exact-path IO remains legal because it contains no
+vocabulary occurrence. Non-Go allowances remain exact trimmed lines.
+
+### 2026-08-27 — pin the public bootstrap entry point
+
+**Reason:** the clean-source package test proves generator independence, but it
+does not by itself prove the command contributors actually run starts from the
+same absent-mirror state. Pair's tracked top-level Makefile is also a sibling
+symlink, so a source archive must declare how that external build layer is
+supplied.
+
+**Delta:** `test-clean-bootstrap` creates the archive from `HEAD` plus the
+current tracked patch, asserts both `.git` and the generated runtime directory
+are absent, reconnects the resolved Ariadne base Makefiles, and invokes
+`make -f Makefile.local test`. Its dry-run assertion requires the runtime
+generator to be the first command. The bootstrap target remains outside
+`test`, preventing recursive full-suite dispatch while making the exact
+starting state executable and reviewable (ARCH-PURPOSE, ARCH-MOCK).

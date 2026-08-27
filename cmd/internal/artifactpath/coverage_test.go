@@ -19,39 +19,6 @@ import (
 
 var productionRoots = []string{"cmd", "bin", "nvim", "zellij", "doctor"}
 
-// resolvedVocabularyLiterals are exact non-path protocol/CLI strings whose
-// spelling happens to contain an artifact-family token. A resolved consumer may
-// use only these values; any new literal is rejected regardless of the syntax
-// around it.
-var resolvedVocabularyLiterals = map[string]map[string]bool{
-	"cmd/internal/opener/runtime.go": {
-		"scrollback-render exit ": true,
-	},
-	"cmd/internal/scrollbackcmd/scrollbackcmd.go": {
-		"pair-scrollback-render": true,
-		"usage: pair-scrollback-render [--plain] [--viewport F] [--max-lines N] [--with-timestamps] <raw> <events.jsonl> <out>\n": true,
-		"scrollback-render: %v\n": true,
-	},
-	"cmd/internal/slugcmd/slugcmd.go": {
-		"slug-parse": true,
-	},
-	"cmd/internal/titlepoller/runtime.go": {
-		"--pane-id": true,
-	},
-	"cmd/internal/wrapcmd/wrap.go": {
-		"--scrollback-log": true,
-		"usage: pair-wrap [--scrollback-log <path>] <command> [args...]": true,
-		"agent-restart-request": true,
-		"scrollback-write":      true,
-	},
-}
-
-var resolvedNonGoVocabularyLines = map[string]map[string]bool{
-	"nvim/review/record.lua": {
-		"local OPEN = '```review-records'": true,
-	},
-}
-
 func constructorAuthorityViolations(classifications []SourceClassification) []string {
 	var violations []string
 	for _, classification := range classifications {
@@ -89,6 +56,34 @@ func TestManifestCoversRequiredArtifactFamilies(t *testing.T) {
 	}
 }
 
+func TestResolvedBindingCatalogIsUniqueAndReferencesKnownFamilies(t *testing.T) {
+	t.Parallel()
+
+	knownFamilies := make(map[string]bool, len(Families))
+	for _, family := range Families {
+		knownFamilies[family.Name] = true
+	}
+	seenNames := make(map[string]bool, len(ResolvedBindings))
+	seenWitnesses := make(map[string]bool, len(ResolvedBindings))
+	for _, binding := range ResolvedBindings {
+		if binding.Name == "" || binding.Family == "" || binding.Resolver == "" || binding.Member == "" {
+			t.Fatalf("incomplete resolved binding: %+v", binding)
+		}
+		if seenNames[binding.Name] {
+			t.Fatalf("duplicate resolved binding name %q", binding.Name)
+		}
+		seenNames[binding.Name] = true
+		if !knownFamilies[binding.Family] {
+			t.Fatalf("binding %q references unknown family %q", binding.Name, binding.Family)
+		}
+		witness := binding.Family + "\x00" + binding.Resolver + "\x00" + binding.Member
+		if seenWitnesses[witness] {
+			t.Fatalf("duplicate resolved binding witness for %s.%s family %s", binding.Resolver, binding.Member, binding.Family)
+		}
+		seenWitnesses[witness] = true
+	}
+}
+
 func TestProductionArtifactReferencesAreExactlyClassified(t *testing.T) {
 	repoRoot := filepath.Clean(filepath.Join("..", "..", ".."))
 	familyByName := make(map[string]Family, len(Families))
@@ -102,13 +97,28 @@ func TestProductionArtifactReferencesAreExactlyClassified(t *testing.T) {
 		if _, exists := classified[classification.Path]; exists {
 			t.Fatalf("duplicate source classification %q", classification.Path)
 		}
-		if classification.Kind != Constructor && classification.Kind != ResolvedConsumer && classification.Kind != GeneratedMirror {
+		if classification.Kind != Constructor && classification.Kind != ResolvedConsumer && classification.Kind != VocabularyConsumer && classification.Kind != GeneratedMirror {
 			t.Fatalf("invalid classification kind for %q: %q", classification.Path, classification.Kind)
 		}
 		for _, name := range classification.Families {
 			if _, ok := familyByName[name]; !ok {
 				t.Fatalf("%s classifies unknown family %q", classification.Path, name)
 			}
+		}
+		seenBindings := map[string]bool{}
+		for _, name := range classification.BindingNames {
+			if seenBindings[name] {
+				t.Fatalf("%s repeats resolved binding %q", classification.Path, name)
+			}
+			seenBindings[name] = true
+		}
+		seenVocabulary := map[string]bool{}
+		for _, allowance := range classification.Vocabulary {
+			key := vocabularyKey(allowance)
+			if seenVocabulary[key] {
+				t.Fatalf("%s repeats vocabulary allowance %+v", classification.Path, allowance)
+			}
+			seenVocabulary[key] = true
 		}
 		if classification.Kind != GeneratedMirror {
 			if _, err := os.Stat(filepath.Join(repoRoot, filepath.FromSlash(classification.Path))); err != nil {
@@ -185,7 +195,7 @@ func artifactConstructorViolations(repoRoot string, roots []string, classificati
 			}
 			rel = filepath.ToSlash(rel)
 			classification, ok := classified[rel]
-			if !ok || classification.Kind != ResolvedConsumer || !productionSourceFile(rel, path) {
+			if !ok || (classification.Kind != ResolvedConsumer && classification.Kind != VocabularyConsumer) || !productionSourceFile(rel, path) {
 				return nil
 			}
 			if filepath.Ext(rel) != ".go" {
@@ -193,15 +203,8 @@ func artifactConstructorViolations(repoRoot string, roots []string, classificati
 				if err != nil {
 					return err
 				}
-				for lineNumber, line := range strings.Split(string(raw), "\n") {
-					trimmed := strings.TrimSpace(line)
-					for _, familyName := range classification.Families {
-						for _, family := range Families {
-							if family.Name == familyName && artifactTokenMentioned(trimmed, family.Token) && !resolvedNonGoVocabularyLines[rel][trimmed] {
-								violations[fmt.Sprintf("%s:%d: resolved consumer contains %s literal", rel, lineNumber+1, familyName)] = true
-							}
-						}
-					}
+				for _, violation := range nonGoClassificationViolations(rel, string(raw), classification) {
+					violations[violation] = true
 				}
 				return nil
 			}
@@ -209,6 +212,12 @@ func artifactConstructorViolations(repoRoot string, roots []string, classificati
 			file, err := parser.ParseFile(fileSet, path, nil, 0)
 			if err != nil {
 				return err
+			}
+			for _, violation := range goClassificationViolations(rel, fileSet, file, classification) {
+				violations[violation] = true
+			}
+			if classification.Kind != ResolvedConsumer {
+				return nil
 			}
 			ast.Inspect(file, func(node ast.Node) bool {
 				literal, ok := node.(*ast.BasicLit)
@@ -224,7 +233,7 @@ func artifactConstructorViolations(repoRoot string, roots []string, classificati
 						continue
 					}
 					for _, family := range Families {
-						if family.Name == familyName && strings.Contains(value, family.Token) && !resolvedVocabularyLiterals[rel][value] {
+						if family.Name == familyName && strings.Contains(value, family.Token) && !classificationAllowsVocabulary(classification, familyName, value) {
 							line := fileSet.Position(node.Pos()).Line
 							violations[fmt.Sprintf("%s:%d: resolved consumer contains %s literal %q", rel, line, familyName, value)] = true
 						}
@@ -244,6 +253,388 @@ func artifactConstructorViolations(repoRoot string, roots []string, classificati
 	}
 	sort.Strings(out)
 	return out, nil
+}
+
+const artifactpathImportPath = "github.com/xianxu/pair/cmd/internal/artifactpath"
+
+func goClassificationViolations(rel string, fileSet *token.FileSet, file *ast.File, classification SourceClassification) []string {
+	var violations []string
+	if classification.Kind == ResolvedConsumer {
+		violations = append(violations, resolvedBindingViolations(rel, file, classification)...)
+	}
+	if classification.Kind == VocabularyConsumer && len(classification.BindingNames) != 0 {
+		violations = append(violations, rel+": vocabulary consumer declares resolved bindings")
+	}
+	if classification.Kind == VocabularyConsumer {
+		if alias, imported := importAliases(file)[artifactpathImportPath]; imported {
+			violations = append(violations, fmt.Sprintf("%s: vocabulary consumer imports artifactpath as %s", rel, alias))
+		}
+	}
+	violations = append(violations, goVocabularyViolations(rel, fileSet, file, classification)...)
+	return violations
+}
+
+func resolvedBindingViolations(rel string, file *ast.File, classification SourceClassification) []string {
+	definitions := make(map[string]ResolvedBinding, len(ResolvedBindings))
+	for _, binding := range ResolvedBindings {
+		definitions[binding.Name] = binding
+	}
+	claimedFamilies := stringSet(classification.Families)
+	bindingsByFamily := make(map[string][]ResolvedBinding)
+	var violations []string
+	for _, name := range classification.BindingNames {
+		binding, ok := definitions[name]
+		if !ok {
+			violations = append(violations, rel+": unknown resolved binding "+name)
+			continue
+		}
+		if !claimedFamilies[binding.Family] {
+			violations = append(violations, fmt.Sprintf("%s: binding %s witnesses unclaimed family %s", rel, name, binding.Family))
+			continue
+		}
+		bindingsByFamily[binding.Family] = append(bindingsByFamily[binding.Family], binding)
+	}
+	for _, family := range classification.Families {
+		if len(bindingsByFamily[family]) == 0 {
+			violations = append(violations, fmt.Sprintf("%s: resolved family %s has no positive binding", rel, family))
+		}
+	}
+
+	aliases := importAliases(file)
+	artifactAlias := aliases[artifactpathImportPath]
+	if artifactAlias == "" {
+		if len(classification.BindingNames) != 0 {
+			violations = append(violations, rel+": resolved bindings require the artifactpath import")
+		}
+		return violations
+	}
+	resultsByResolver := resolverResults(file, artifactAlias)
+	for _, name := range classification.BindingNames {
+		binding, ok := definitions[name]
+		if !ok || !claimedFamilies[binding.Family] {
+			continue
+		}
+		results := resultsByResolver[binding.Resolver]
+		if len(results) == 0 {
+			violations = append(violations, fmt.Sprintf("%s: binding %s resolver %s is not called", rel, name, binding.Resolver))
+			continue
+		}
+		if binding.Member != "" && !resultMemberConsumed(file, results, binding.Member) {
+			violations = append(violations, fmt.Sprintf("%s: binding %s member %s is not consumed", rel, name, binding.Member))
+		}
+	}
+	return violations
+}
+
+func importAliases(file *ast.File) map[string]string {
+	aliases := map[string]string{}
+	for _, spec := range file.Imports {
+		path, err := strconv.Unquote(spec.Path.Value)
+		if err != nil {
+			continue
+		}
+		name := filepath.Base(path)
+		if spec.Name != nil {
+			name = spec.Name.Name
+		}
+		aliases[path] = name
+	}
+	return aliases
+}
+
+func resolverResults(file *ast.File, artifactAlias string) map[string]map[string]bool {
+	results := map[string]map[string]bool{}
+	ast.Inspect(file, func(node ast.Node) bool {
+		assign, ok := node.(*ast.AssignStmt)
+		if !ok {
+			return true
+		}
+		for i, rhs := range assign.Rhs {
+			call, ok := rhs.(*ast.CallExpr)
+			if !ok {
+				continue
+			}
+			selector, ok := call.Fun.(*ast.SelectorExpr)
+			owner, ownerOK := selectorOwner(selector)
+			if !ok || !ownerOK || i >= len(assign.Lhs) {
+				continue
+			}
+			result, ok := assign.Lhs[i].(*ast.Ident)
+			if !ok || result.Name == "_" {
+				continue
+			}
+			resolver := ""
+			if owner == artifactAlias {
+				resolver = selector.Sel.Name
+			} else {
+				for candidate, names := range results {
+					if names[owner] {
+						resolver = candidate
+						break
+					}
+				}
+			}
+			if resolver == "" {
+				continue
+			}
+			if results[resolver] == nil {
+				results[resolver] = map[string]bool{}
+			}
+			results[resolver][result.Name] = true
+		}
+		return true
+	})
+	return results
+}
+
+func selectorOwner(selector *ast.SelectorExpr) (string, bool) {
+	if selector == nil {
+		return "", false
+	}
+	owner, ok := selector.X.(*ast.Ident)
+	if !ok {
+		return "", false
+	}
+	return owner.Name, true
+}
+
+func resultMemberConsumed(file *ast.File, results map[string]bool, member string) bool {
+	found := false
+	ast.Inspect(file, func(node ast.Node) bool {
+		call, ok := node.(*ast.CallExpr)
+		if !ok {
+			return !found
+		}
+		selector, ok := call.Fun.(*ast.SelectorExpr)
+		owner, ownerOK := selectorOwner(selector)
+		if ok && ownerOK && results[owner] && selector.Sel.Name == member {
+			found = true
+		}
+		return !found
+	})
+	return found
+}
+
+func goVocabularyViolations(rel string, fileSet *token.FileSet, file *ast.File, classification SourceClassification) []string {
+	allowances := make(map[string]VocabularyAllowance)
+	seen := make(map[string]int)
+	relevantFamilies := stringSet(classification.Families)
+	parents := astParents(file)
+	var violations []string
+	for _, allowance := range classification.Vocabulary {
+		if allowance.Context != GoStructTagVocabulary && allowance.Context != GoCallArgumentVocabulary &&
+			allowance.Context != GoCaseValueVocabulary && allowance.Context != GoComparisonVocabulary || allowance.Count <= 0 {
+			violations = append(violations, fmt.Sprintf("%s: invalid Go vocabulary allowance %+v", rel, allowance))
+			continue
+		}
+		allowances[vocabularyKey(allowance)] = allowance
+		relevantFamilies[allowance.Family] = true
+	}
+	ast.Inspect(file, func(node ast.Node) bool {
+		literal, ok := node.(*ast.BasicLit)
+		if !ok || literal.Kind != token.STRING {
+			return true
+		}
+		value, err := strconv.Unquote(literal.Value)
+		if err != nil {
+			return true
+		}
+		for _, family := range Families {
+			if !relevantFamilies[family.Name] || !strings.Contains(value, family.Token) {
+				continue
+			}
+			context, use, argument, ok := vocabularyUseForLiteral(file, parents, literal)
+			if !ok {
+				line := fileSet.Position(literal.Pos()).Line
+				violations = append(violations, fmt.Sprintf("%s:%d: %s vocabulary %q is not at a closed use site", rel, line, family.Name, value))
+				continue
+			}
+			candidate := VocabularyAllowance{Family: family.Name, Value: value, Context: context, Use: use, Argument: argument}
+			key := vocabularyKey(candidate)
+			if _, ok := allowances[key]; !ok {
+				line := fileSet.Position(literal.Pos()).Line
+				violations = append(violations, fmt.Sprintf("%s:%d: unlisted %s vocabulary %q at %s %s", rel, line, family.Name, value, context, use))
+				continue
+			}
+			seen[key]++
+		}
+		return true
+	})
+	violations = append(violations, vocabularyAllowanceCoverage(rel, classification, allowances, seen)...)
+	return violations
+}
+
+var permittedVocabularyCallees = map[string]bool{
+	"builtin.append":   true,
+	"errors.New":       true,
+	"flag.NewFlagSet":  true,
+	"fmt.Fprintf":      true,
+	"fmt.Sprintf":      true,
+	"function.logf":    true,
+	"method.Log":       true,
+	"method.traceWrap": true,
+	"os/exec.Command":  true,
+}
+
+func astParents(root ast.Node) map[ast.Node]ast.Node {
+	parents := map[ast.Node]ast.Node{}
+	var stack []ast.Node
+	ast.Inspect(root, func(node ast.Node) bool {
+		if node == nil {
+			stack = stack[:len(stack)-1]
+			return true
+		}
+		if len(stack) != 0 {
+			parents[node] = stack[len(stack)-1]
+		}
+		stack = append(stack, node)
+		return true
+	})
+	return parents
+}
+
+func vocabularyUseForLiteral(file *ast.File, parents map[ast.Node]ast.Node, literal *ast.BasicLit) (VocabularyContext, string, int, bool) {
+	aliases := importAliases(file)
+	aliasPaths := map[string]string{}
+	for path, alias := range aliases {
+		aliasPaths[alias] = path
+	}
+	for node := ast.Node(literal); node != nil; node = parents[node] {
+		switch parent := parents[node].(type) {
+		case *ast.Field:
+			if parent.Tag == literal && len(parent.Names) != 0 {
+				return GoStructTagVocabulary, parent.Names[0].Name, 0, true
+			}
+		case *ast.CallExpr:
+			for argument, expr := range parent.Args {
+				if literal.Pos() < expr.Pos() || literal.End() > expr.End() {
+					continue
+				}
+				callee := canonicalCallee(parent.Fun, aliasPaths)
+				if permittedVocabularyCallees[callee] {
+					return GoCallArgumentVocabulary, callee, argument, true
+				}
+				return "", "", 0, false
+			}
+		case *ast.CaseClause:
+			for _, expr := range parent.List {
+				if literal.Pos() >= expr.Pos() && literal.End() <= expr.End() {
+					return GoCaseValueVocabulary, enclosingFunction(parents, parent), 0, true
+				}
+			}
+		case *ast.BinaryExpr:
+			if parent.Op == token.EQL || parent.Op == token.NEQ {
+				return GoComparisonVocabulary, enclosingFunction(parents, parent), 0, true
+			}
+		}
+	}
+	return "", "", 0, false
+}
+
+func canonicalCallee(expr ast.Expr, aliasPaths map[string]string) string {
+	switch callee := expr.(type) {
+	case *ast.Ident:
+		if callee.Name == "append" {
+			return "builtin.append"
+		}
+		return "function." + callee.Name
+	case *ast.SelectorExpr:
+		owner, ok := callee.X.(*ast.Ident)
+		if ok {
+			if path := aliasPaths[owner.Name]; path != "" {
+				return path + "." + callee.Sel.Name
+			}
+		}
+		return "method." + callee.Sel.Name
+	default:
+		return ""
+	}
+}
+
+func enclosingFunction(parents map[ast.Node]ast.Node, node ast.Node) string {
+	for current := node; current != nil; current = parents[current] {
+		if function, ok := current.(*ast.FuncDecl); ok {
+			return function.Name.Name
+		}
+	}
+	return ""
+}
+
+func nonGoClassificationViolations(rel, body string, classification SourceClassification) []string {
+	allowances := make(map[string]VocabularyAllowance)
+	seen := make(map[string]int)
+	relevantFamilies := stringSet(classification.Families)
+	var violations []string
+	for _, allowance := range classification.Vocabulary {
+		if allowance.Context != ExactLineVocabulary || allowance.Count <= 0 {
+			violations = append(violations, fmt.Sprintf("%s: invalid exact-line vocabulary allowance %+v", rel, allowance))
+			continue
+		}
+		allowances[vocabularyKey(allowance)] = allowance
+		relevantFamilies[allowance.Family] = true
+	}
+	for lineNumber, line := range strings.Split(body, "\n") {
+		trimmed := strings.TrimSpace(line)
+		for _, family := range Families {
+			if !relevantFamilies[family.Name] || !artifactTokenMentioned(trimmed, family.Token) {
+				continue
+			}
+			key := vocabularyKey(VocabularyAllowance{Family: family.Name, Value: trimmed, Context: ExactLineVocabulary})
+			if _, ok := allowances[key]; !ok {
+				violations = append(violations, fmt.Sprintf("%s:%d: unlisted %s vocabulary line", rel, lineNumber+1, family.Name))
+				continue
+			}
+			seen[key]++
+		}
+	}
+	violations = append(violations, vocabularyAllowanceCoverage(rel, classification, allowances, seen)...)
+	return violations
+}
+
+func vocabularyAllowanceCoverage(rel string, classification SourceClassification, allowances map[string]VocabularyAllowance, seen map[string]int) []string {
+	var violations []string
+	allowedFamilies := map[string]bool{}
+	for key, allowance := range allowances {
+		allowedFamilies[allowance.Family] = true
+		if seen[key] != allowance.Count {
+			violations = append(violations, fmt.Sprintf("%s: vocabulary %s %q count = %d, want %d", rel, allowance.Family, allowance.Value, seen[key], allowance.Count))
+		}
+	}
+	if classification.Kind == VocabularyConsumer {
+		claimed := stringSet(classification.Families)
+		for family := range claimed {
+			if !allowedFamilies[family] {
+				violations = append(violations, fmt.Sprintf("%s: vocabulary family %s has no allowance", rel, family))
+			}
+		}
+		for family := range allowedFamilies {
+			if !claimed[family] {
+				violations = append(violations, fmt.Sprintf("%s: vocabulary allowance family %s is unclaimed", rel, family))
+			}
+		}
+	}
+	return violations
+}
+
+func classificationAllowsVocabulary(classification SourceClassification, family, value string) bool {
+	for _, allowance := range classification.Vocabulary {
+		if allowance.Family == family && allowance.Value == value {
+			return true
+		}
+	}
+	return false
+}
+
+func vocabularyKey(allowance VocabularyAllowance) string {
+	return allowance.Family + "\x00" + string(allowance.Context) + "\x00" + allowance.Value + "\x00" + allowance.Use + "\x00" + strconv.Itoa(allowance.Argument)
+}
+
+func stringSet(values []string) map[string]bool {
+	set := make(map[string]bool, len(values))
+	for _, value := range values {
+		set[value] = true
+	}
+	return set
 }
 
 func TestProductionSourceFileRecognizesExtensionlessShebang(t *testing.T) {
@@ -322,8 +713,182 @@ func TestResolvedConsumerClassificationCannotHideConstructorMutations(t *testing
 	if err != nil {
 		t.Fatal(err)
 	}
-	if len(violations) != len(mutations) {
-		t.Fatalf("false resolved-consumer classifications escaped constructor guard: %v", violations)
+	for rel := range mutations {
+		found := false
+		for _, violation := range violations {
+			if strings.HasPrefix(violation, rel+":") {
+				found = true
+				break
+			}
+		}
+		if !found {
+			t.Fatalf("false resolved-consumer classification %s escaped constructor guard: %v", rel, violations)
+		}
+	}
+}
+
+func TestResolvedConsumerRequiresFamilyCorrelatedBinding(t *testing.T) {
+	t.Parallel()
+
+	cases := []struct {
+		name          string
+		body          string
+		families      []string
+		bindingNames  []string
+		wantViolation bool
+	}{
+		{
+			name:          "split token without binding",
+			body:          "package mutation\nfunc bad(tag string) string { return \"dra\" + \"ft-\" + tag + \".md\" }\n",
+			families:      []string{"draft"},
+			wantViolation: true,
+		},
+		{
+			name: "wrong family binding",
+			body: "package mutation\nimport \"github.com/xianxu/pair/cmd/internal/artifactpath\"\n" +
+				"func bad(root, tag string) string { paths, _ := artifactpath.ResolveScoped(root, tag); return paths.ScrollbackPending() }\n",
+			families:      []string{"draft"},
+			bindingNames:  []string{"scoped-scrollback-pending"},
+			wantViolation: true,
+		},
+		{
+			name: "resolver reference is not a call",
+			body: "package mutation\nimport \"github.com/xianxu/pair/cmd/internal/artifactpath\"\n" +
+				"func bad() { _ = artifactpath.ResolveScoped }\n",
+			families:      []string{"draft"},
+			bindingNames:  []string{"scoped-draft"},
+			wantViolation: true,
+		},
+		{
+			name: "resolver call without family member",
+			body: "package mutation\nimport \"github.com/xianxu/pair/cmd/internal/artifactpath\"\n" +
+				"func bad(root, tag string) string { paths, _ := artifactpath.ResolveScoped(root, tag); return paths.ScrollbackPending() }\n",
+			families:      []string{"draft"},
+			bindingNames:  []string{"scoped-draft"},
+			wantViolation: true,
+		},
+		{
+			name: "resolver and family member",
+			body: "package mutation\nimport ap \"github.com/xianxu/pair/cmd/internal/artifactpath\"\n" +
+				"func good(root, tag string) string { paths, _ := ap.ResolveScoped(root, tag); return paths.Draft() }\n",
+			families:     []string{"draft"},
+			bindingNames: []string{"scoped-draft"},
+		},
+	}
+
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			repoRoot := t.TempDir()
+			rel := "cmd/pair-go/mutation.go"
+			path := filepath.Join(repoRoot, filepath.FromSlash(rel))
+			if err := os.MkdirAll(filepath.Dir(path), 0o755); err != nil {
+				t.Fatal(err)
+			}
+			if err := os.WriteFile(path, []byte(tc.body), 0o644); err != nil {
+				t.Fatal(err)
+			}
+			violations, err := artifactConstructorViolations(repoRoot, []string{"cmd"}, []SourceClassification{{
+				Path: rel, Kind: ResolvedConsumer, Families: tc.families, BindingNames: tc.bindingNames,
+			}})
+			if err != nil {
+				t.Fatal(err)
+			}
+			if got := len(violations) != 0; got != tc.wantViolation {
+				t.Fatalf("violation = %v, want %v: %v", got, tc.wantViolation, violations)
+			}
+		})
+	}
+}
+
+func TestVocabularyConsumerContract(t *testing.T) {
+	t.Parallel()
+
+	allowSessionID := VocabularyAllowance{
+		Family: "native-session", Value: `json:"session_id"`, Context: GoStructTagVocabulary, Use: "ID", Count: 1,
+	}
+	cases := []struct {
+		name          string
+		body          string
+		allowances    []VocabularyAllowance
+		wantViolation bool
+	}{
+		{
+			name:       "exact vocabulary only",
+			body:       "package mutation\ntype record struct { ID string `json:\"session_id\"` }\n",
+			allowances: []VocabularyAllowance{allowSessionID},
+		},
+		{
+			name: "unrelated caller supplied path IO",
+			body: "package mutation\nimport \"os\"\n" +
+				"type record struct { ID string `json:\"session_id\"` }\n" +
+				"func read(path string) { _, _ = os.ReadFile(path) }\n",
+			allowances: []VocabularyAllowance{allowSessionID},
+		},
+		{
+			name: "artifactpath import requires resolved classification",
+			body: "package mutation\nimport _ \"github.com/xianxu/pair/cmd/internal/artifactpath\"\n" +
+				"type record struct { ID string `json:\"session_id\"` }\n",
+			allowances:    []VocabularyAllowance{allowSessionID},
+			wantViolation: true,
+		},
+		{
+			name:          "unlisted vocabulary",
+			body:          "package mutation\nconst field = \"session_id\"\n",
+			wantViolation: true,
+		},
+		{
+			name: "path construction is ineligible",
+			body: "package mutation\nimport \"path/filepath\"\n" +
+				"func bad(root string) string { return filepath.Join(root, \"session_id\") }\n",
+			allowances: []VocabularyAllowance{{
+				Family: "native-session", Value: "session_id", Context: GoCallArgumentVocabulary,
+				Use: "path/filepath.Join", Argument: 1, Count: 1,
+			}},
+			wantViolation: true,
+		},
+		{
+			name: "file read is ineligible",
+			body: "package mutation\nimport \"os\"\n" +
+				"func bad() { _, _ = os.ReadFile(\"session_id\") }\n",
+			allowances: []VocabularyAllowance{{
+				Family: "native-session", Value: "session_id", Context: GoCallArgumentVocabulary,
+				Use: "os.ReadFile", Argument: 0, Count: 1,
+			}},
+			wantViolation: true,
+		},
+		{
+			name: "local laundering is ineligible",
+			body: "package mutation\nimport \"os\"\n" +
+				"func bad() { field := \"session_id\"; _, _ = os.ReadFile(field) }\n",
+			allowances: []VocabularyAllowance{{
+				Family: "native-session", Value: "session_id", Context: GoCallArgumentVocabulary,
+				Use: "os.ReadFile", Argument: 0, Count: 1,
+			}},
+			wantViolation: true,
+		},
+	}
+
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			repoRoot := t.TempDir()
+			rel := "cmd/pair-go/vocabulary.go"
+			path := filepath.Join(repoRoot, filepath.FromSlash(rel))
+			if err := os.MkdirAll(filepath.Dir(path), 0o755); err != nil {
+				t.Fatal(err)
+			}
+			if err := os.WriteFile(path, []byte(tc.body), 0o644); err != nil {
+				t.Fatal(err)
+			}
+			violations, err := artifactConstructorViolations(repoRoot, []string{"cmd"}, []SourceClassification{{
+				Path: rel, Kind: VocabularyConsumer, Families: []string{"native-session"}, Vocabulary: tc.allowances,
+			}})
+			if err != nil {
+				t.Fatal(err)
+			}
+			if got := len(violations) != 0; got != tc.wantViolation {
+				t.Fatalf("violation = %v, want %v: %v", got, tc.wantViolation, violations)
+			}
+		})
 	}
 }
 
@@ -360,6 +925,9 @@ func artifactReferenceViolations(repoRoot string, roots []string, classified map
 			declared := make(map[string]bool, len(classification.Families))
 			for _, name := range classification.Families {
 				declared[name] = true
+			}
+			for _, allowance := range classification.Vocabulary {
+				declared[allowance.Family] = true
 			}
 			for _, name := range found {
 				if !declared[name] {

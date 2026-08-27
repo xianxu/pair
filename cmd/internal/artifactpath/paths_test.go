@@ -310,3 +310,37 @@ func TestArtifactVocabularyOwnsExternalDraftCommandRecognition(t *testing.T) {
 		t.Fatal("unrelated command was recognized as a draft artifact")
 	}
 }
+
+func TestPairCachePathsOwnRestartAndQuitMarkers(t *testing.T) {
+	cache, err := ResolvePairCache("/tmp/home")
+	if err != nil {
+		t.Fatal(err)
+	}
+	got, err := cache.Restart("pair-dev")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if want := "/tmp/home/.cache/pair/restart-pair-dev"; got != want {
+		t.Fatalf("Restart() = %q, want %q", got, want)
+	}
+	got, err = cache.Quit("pair-dev")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if want := "/tmp/home/.cache/pair/quit-pair-dev"; got != want {
+		t.Fatalf("Quit() = %q, want %q", got, want)
+	}
+	got, err = cache.Restart("📁pair-work")
+	if err != nil {
+		t.Fatalf("Restart() rejected a valid Zellij session name: %v", err)
+	}
+	if want := "/tmp/home/.cache/pair/restart-📁pair-work"; got != want {
+		t.Fatalf("Restart() = %q, want %q", got, want)
+	}
+	if _, err := ResolvePairCache("relative"); err == nil {
+		t.Fatal("relative home accepted")
+	}
+	if _, err := cache.Restart("../escape"); err == nil {
+		t.Fatal("invalid session escaped cache")
+	}
+}

@@ -1230,3 +1230,24 @@ runtime mirror in a temporary directory from tracked inputs and compares every
 generated path against the classification manifest in both directions. A clean
 archive passes the focused artifact suite without any pre-existing mirror
 (ARCH-DRY, ARCH-PURPOSE).
+
+### 2026-08-27 — M5 boundary review round 6
+
+BR-32 and BR-36 are addressed at their proof boundaries rather than with
+another syntax blacklist. Every resolved-consumer family now names a canonical
+`{resolver, member}` binding, and the AST check requires that resolver result
+to flow into the declared family member. Exact CLI/protocol vocabulary has a
+separate closed-use allowance with value, syntax context, use site, argument,
+and count; it cannot masquerade as a path derivation. Mutations cover missing
+and wrong-family witnesses, reference-only resolvers, unused members,
+vocabulary laundering, arbitrary call sites, and vocabulary-only imports of
+the constructor authority.
+
+The clean-source generator test no longer discovers inputs with Git. The
+public `make test` contract generates the ignored runtime bundle before any
+consumer, and `test-clean-bootstrap` runs the complete suite from a source
+archive containing neither `.git` nor a pre-existing runtime mirror. That
+exact regression also exposed and pinned the compatibility requirement that
+cache restart/quit markers accept safe Unicode Zellij session basenames such
+as `📁pair-work` while rejecting traversal (ARCH-DRY, ARCH-PURE,
+ARCH-PURPOSE, ARCH-MOCK).

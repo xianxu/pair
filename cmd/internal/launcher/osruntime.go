@@ -708,11 +708,22 @@ func (OSRuntime) AttachSession(session, configDir string) (int, error) {
 	return runBlockingHandoff(exec.Command("zellij", "--config-dir", configDir, "attach", session))
 }
 
-// pairCacheDir is where `pair restart`/`pair quit` drop the {quit,restart}-<session> markers.
-func pairCacheDir() string { return filepath.Join(os.Getenv("HOME"), ".cache", "pair") }
+// pairCachePaths is where `pair restart`/`pair quit` drop the
+// {quit,restart}-<session> compatibility markers.
+func pairCachePaths() (artifactpath.PairCachePaths, bool) {
+	paths, err := artifactpath.ResolvePairCache(os.Getenv("HOME"))
+	return paths, err == nil
+}
 
 func (r OSRuntime) TakeQuitMarker(session string) bool {
-	path := filepath.Join(pairCacheDir(), "quit-"+session)
+	paths, ok := pairCachePaths()
+	if !ok {
+		return false
+	}
+	path, err := paths.Quit(session)
+	if err != nil {
+		return false
+	}
 	if !fileExists(path) {
 		return false
 	}
@@ -721,11 +732,23 @@ func (r OSRuntime) TakeQuitMarker(session string) bool {
 }
 
 func (OSRuntime) RestartMarkerPresent(session string) bool {
-	return fileExists(filepath.Join(pairCacheDir(), "restart-"+session))
+	paths, ok := pairCachePaths()
+	if !ok {
+		return false
+	}
+	path, err := paths.Restart(session)
+	return err == nil && fileExists(path)
 }
 
 func (r OSRuntime) TakeRestartMarker(session string) (RestartMarker, bool) {
-	path := filepath.Join(pairCacheDir(), "restart-"+session)
+	paths, ok := pairCachePaths()
+	if !ok {
+		return RestartMarker{}, false
+	}
+	path, err := paths.Restart(session)
+	if err != nil {
+		return RestartMarker{}, false
+	}
 	raw, err := r.ReadFile(path)
 	if err != nil {
 		return RestartMarker{}, false
@@ -737,11 +760,25 @@ func (r OSRuntime) TakeRestartMarker(session string) (RestartMarker, bool) {
 // WriteRestartMarker + TouchQuitMarker are the in-session compaction write twins
 // (#99 M5b, shell 1052-1058); WriteAtomic/Touch MkdirAll the cache dir.
 func (r OSRuntime) WriteRestartMarker(session string, m RestartMarker) {
-	_ = r.WriteAtomic(filepath.Join(pairCacheDir(), "restart-"+session), serializeRestartMarker(m))
+	paths, ok := pairCachePaths()
+	if !ok {
+		return
+	}
+	path, err := paths.Restart(session)
+	if err == nil {
+		_ = r.WriteAtomic(path, serializeRestartMarker(m))
+	}
 }
 
 func (r OSRuntime) TouchQuitMarker(session string) {
-	_ = r.Touch(filepath.Join(pairCacheDir(), "quit-"+session))
+	paths, ok := pairCachePaths()
+	if !ok {
+		return
+	}
+	path, err := paths.Quit(session)
+	if err == nil {
+		_ = r.Touch(path)
+	}
 }
 
 // ExecKillSession execs `${PAIR_KILL_CMD:-zellij kill-session} <session>` and

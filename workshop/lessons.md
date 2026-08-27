@@ -2231,3 +2231,17 @@ intentional legacy reads through an explicit compatibility API, and test exact
 non-Go bindings against forbidden sibling derivations. When one artifact has
 companions, their derivation belongs in the path authority too
 (ARCH-DRY, ARCH-PURPOSE).
+
+## Negative scans do not prove a single authority
+
+A blacklist can reject known constructor shapes while a split literal, helper,
+or new expression form still derives the same artifact elsewhere. A source's
+self-declared classification is not evidence that it consumed the authority.
+
+**Rule.** For every claimed artifact family, require a positive, mechanically
+checked derivation witness from the owning resolver through the family-specific
+member. Keep exact protocol/CLI vocabulary in a closed, counted allowance that
+cannot witness path authority. In plans, state verification recipes from their
+initial filesystem and environment state—such as no `.git` and no generated
+assets—so review can reject a proof that silently depends on developer residue
+(ARCH-DRY, ARCH-PURPOSE).

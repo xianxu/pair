@@ -28,8 +28,11 @@ one-row-per-composite-thread inventory.
 `cmd/internal/artifactpath` is the sole constructor for Pair's tag-bearing
 files. Couch and standalone Pair select `{repo_scope, tag}`; the launcher then
 exports exact paths to Go helpers, shell, Neovim, and both Zellij layouts.
-Source classification covers each family and every generated runtime mirror,
-so adding a filename constructor outside that leaf fails tests.
+Each resolved-consumer family is tied to a named resolver/member witness;
+closed vocabulary allowances separately cover exact non-path protocol and CLI
+uses. Generated-runtime coverage builds a temporary mirror from declared
+source inputs. The clean-bootstrap regression starts without `.git` or that
+mirror and proves the public test target generates it before every consumer.
 
 **The operation set is deliberately not listed here.** `couchcore.Operations()`
 is the closure-free capability schema: typed argument/result family, effect,

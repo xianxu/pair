@@ -31,6 +31,13 @@ type ScopePaths struct {
 	scopeDir string
 }
 
+// PairCachePaths owns the compatibility restart/quit marker namespace. These
+// markers are session-scoped rather than work-thread artifacts, but their
+// filename vocabulary still has one constructor authority.
+type PairCachePaths struct {
+	dir string
+}
+
 // LegacyRootPaths and LegacyPaths are the read/import-only authority for the
 // pre-composite flat data directory. New writes use Paths; compatibility code
 // must name old locations through these types instead of reopening filename
@@ -42,6 +49,27 @@ type LegacyRootPaths struct {
 type LegacyPaths struct {
 	root LegacyRootPaths
 	tag  string
+}
+
+func ResolvePairCache(home string) (PairCachePaths, error) {
+	if !filepath.IsAbs(home) {
+		return PairCachePaths{}, fmt.Errorf("home directory must be absolute")
+	}
+	return PairCachePaths{dir: filepath.Join(filepath.Clean(home), ".cache", "pair")}, nil
+}
+
+func (p PairCachePaths) Restart(session string) (string, error) {
+	if err := validateCacheSession(session); err != nil {
+		return "", err
+	}
+	return filepath.Join(p.dir, "restart-"+session), nil
+}
+
+func (p PairCachePaths) Quit(session string) (string, error) {
+	if err := validateCacheSession(session); err != nil {
+		return "", err
+	}
+	return filepath.Join(p.dir, "quit-"+session), nil
 }
 
 // Binding is one exact artifact path exported to non-Go consumers.
@@ -295,6 +323,15 @@ func validateScope(dataDir, repoScope string) (string, error) {
 func validateComponent(kind, value string) error {
 	if !componentPattern.MatchString(value) {
 		return fmt.Errorf("invalid %s %q", kind, value)
+	}
+	return nil
+}
+
+// validateCacheSession preserves Zellij's Unicode session names while keeping
+// compatibility marker files confined to the Pair cache directory.
+func validateCacheSession(value string) error {
+	if value == "" || value == "." || value == ".." || filepath.Base(value) != value || strings.ContainsRune(value, '\x00') {
+		return fmt.Errorf("invalid session name %q", value)
 	}
 	return nil
 }

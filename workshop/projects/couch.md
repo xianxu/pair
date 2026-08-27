@@ -663,3 +663,14 @@ Constructor closure is now based on the absence of unapproved family literals,
 not a list of Go expression forms. Generated-path coverage builds its own
 temporary mirror from tracked inputs, so a clean checkout and a developer tree
 exercise the same proof (ARCH-DRY, ARCH-PURPOSE).
+
+### 2026-08-27 — pair#149 M5 positive derivation and clean bootstrap
+
+The source manifest now proves each resolved family through a named
+`artifactpath` resolver/member witness; closed vocabulary allowances account
+only for exact non-path protocol and CLI uses. The clean bootstrap is an
+executable public contract: from an archive with no Git metadata and no
+generated mirror, `make test` generates first and passes the complete suite.
+Compatibility restart/quit markers use the same path authority with a safe
+Unicode-basename contract for public Zellij session names (ARCH-DRY,
+ARCH-PURE, ARCH-PURPOSE, ARCH-MOCK).
