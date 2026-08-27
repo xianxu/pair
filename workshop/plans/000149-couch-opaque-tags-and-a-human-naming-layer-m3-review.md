@@ -228,3 +228,97 @@ Append a `## Revisions` entry recording:
 - the rendering rule: list is name-first and may hide a named tag, while `show` must retain the immutable tag for diagnostics;
 - the durable-read rule: panel inventory and resolver boundaries propagate ThreadStore failures visibly instead of converting them to empty state;
 - the corresponding named-show and failing-store production-wiring regressions.
+
+---
+
+## Re-review — 2026-08-26T16:57:06-07:00 (REWORK)
+
+| field | value |
+|-------|-------|
+| issue | 149 — couch: opaque tags and a human naming layer |
+| repo | pair |
+| issue file | workshop/issues/000149-couch-opaque-tags-and-a-human-naming-layer.md |
+| boundary | milestone M3 |
+| milestone | M3 |
+| window | cd7168cb4ac6023f6988b7198099c322a00ec74c..e5e1d6f99d890a29549450d00b7627a72fe6abbc |
+| command | sdlc milestone-close --issue 149 --milestone M3 |
+| reviewer | codex |
+| timestamp | 2026-08-26T16:57:06-07:00 |
+| verdict | REWORK |
+
+## Review
+
+```verdict
+verdict: REWORK
+confidence: high
+```
+
+BR-24 and BR-25 are addressed with reachable production paths and regressions, and all focused/full Go tests pass. One Critical fail-closed gap remains: standalone Pair’s duplicate ThreadStore decoder accepts records that Couch rejects as structurally invalid, allowing corrupt authoritative state to participate in name resolution and launch.
+
+```findings
+dispose:
+  - id: BR-24
+    disposition: addressed
+    note: |
+      Named show output now includes the immutable composite address, and the CLI regression fails if the opaque tag is removed.
+  - id: BR-25
+    disposition: addressed
+    note: |
+      Both production panel callbacks propagate ThreadStore failures, with real corrupt-store wiring tests and visible-error console regressions.
+findings:
+  - id: new
+    severity: Critical
+    family: durable-index-read-failure-authority
+    title: |
+      Standalone Pair accepts ThreadStore records that Couch rejects as invalid
+    detail: |
+      This is the 3rd finding in family `durable-index-read-failure-authority`. The shadow record schema in thread_index.go:54-63 omits required `starting_path` and `claim_generation`, and LoadThreadIndex at lines 99-110 consequently accepts the fixture at thread_index_test.go:49-58 even though Couch rejects that same record at thread.go:73-80 and threadstore.go:578-590. This permits malformed or incomplete authoritative records to resolve human names and launch opaque tags while Couch refuses the store. Do NOT patch only these two fields: state the rule that every durable-record reader shares the authoritative structural acceptance contract, enumerate all persisted invariants, and derive the portable projection from a common lower-layer decoder or enforce acceptance parity with conformance tests (ARCH-DRY, ARCH-PURPOSE).
+```
+
+### Strengths
+
+- BR-24 cleanly separates compact list rendering from diagnostic show rendering at `cmd/internal/couchcmd/run.go:434-490`.
+- BR-25 carries errors through both production callbacks and preserves the prior panel model at `cmd/internal/couchtty/console.go:896-934`.
+- Composite addresses remain intact through inventory, filtering, selection, and terminal routing.
+- Metadata transitions remain pure and independently field-preserving; storage updates use revision CAS.
+- README and atlas cover the new M3 commands, identity semantics, standalone lookup, and panel failure behavior.
+
+### Critical findings
+
+See the machine-readable finding above. The portable reader must not accept a record the authoritative ThreadStore rejects.
+
+### Important findings
+
+None.
+
+### Minor findings
+
+None.
+
+### Test coverage notes
+
+Passed:
+
+- `go test ./cmd/internal/couchcore ./cmd/internal/couchcmd ./cmd/internal/couchtty ./cmd/internal/launcher -count=1`
+- `go test ./... -count=1`
+- `git diff --check cd7168cb4ac6023f6988b7198099c322a00ec74c..e5e1d6f99d890a29549450d00b7627a72fe6abbc`
+
+Add an acceptance-parity regression built from a valid real Couch record, then corrupt each required persisted invariant and assert both Couch and standalone Pair reject it.
+
+### Architectural notes for upcoming work
+
+- **ARCH-DRY:** Flag — `threadIndexRecord` is a drifting restatement of the authoritative persisted schema.
+- **ARCH-PURE:** Pass — metadata, inventory, matching, and operation declarations have direct IO-free tests.
+- **ARCH-PURPOSE:** Flag — the promised fail-closed portable projection accepts authoritative state Couch considers invalid.
+- **ARCH-MOCK:** Pass — production and tests share file-backed/runtime seams; extend the conformance fixture to cover invalid-record parity.
+
+The Core concepts table otherwise matches the implemented entities and purity boundaries. Atlas and README gates pass.
+
+### Plan revision recommendations
+
+Append a `## Revisions` entry recording:
+
+- the invariant that all ThreadStore readers share one structural acceptance contract;
+- the complete persisted-record invariant enumeration;
+- the chosen common lower-layer decoder/projection boundary;
+- the Couch-versus-launcher invalid-record conformance regression.

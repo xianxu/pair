@@ -274,8 +274,13 @@ fields on the revisioned ThreadRecord. `couch publish-description` is run by a
 session with its exact `$COUCH_THREAD_SCOPE` and `$COUCH_THREAD_TAG`; it cannot
 resolve a mutable path/name or overwrite operator prose.
 
-Launcher owns the portable read-only ThreadIndex projection and the shared
-scoped exact-tag/name/path matcher. Standalone `pair resume <human-name>` and
+`cmd/internal/threadrecord` owns the persisted record wire schema, strict
+structural validation, and persisted address/generation checks. ThreadStore
+writes and reads that type, while Launcher projects the same decoded record
+into its portable read-only ThreadIndex; neither reader has a shadow schema.
+`cmd/internal/strictjson` supplies their common duplicate-key, unknown-field,
+and trailing-value rejection. Launcher still owns the shared scoped
+exact-tag/name/path matcher. Standalone `pair resume <human-name>` and
 the Pair picker therefore work while Couch is absent. The picker merges durable
 parked records with sidecar history, decorates live rows, and always carries the
 opaque tag behind a human-facing label. Duplicate labels gain tag

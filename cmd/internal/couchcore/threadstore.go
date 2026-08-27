@@ -9,6 +9,7 @@ import (
 	"sort"
 
 	"github.com/xianxu/pair/cmd/internal/launcher"
+	"github.com/xianxu/pair/cmd/internal/threadrecord"
 )
 
 var ErrThreadNotFound = errors.New("thread not found")
@@ -123,7 +124,7 @@ func (s *ThreadStore) CreateThread(record ThreadRecord) (ThreadRecord, error) {
 		if err := ValidateThreadRecord(record); err != nil {
 			return err
 		}
-		recordRaw, err := json.MarshalIndent(record, "", "  ")
+		recordRaw, err := json.MarshalIndent(toPersistedThreadRecord(record), "", "  ")
 		if err != nil {
 			return err
 		}
@@ -201,7 +202,7 @@ func (s *ThreadStore) UpdateExistingThread(address ThreadAddress, expectedRevisi
 		if err := ValidateThreadRecord(next); err != nil {
 			return err
 		}
-		raw, err := json.MarshalIndent(next, "", "  ")
+		raw, err := json.MarshalIndent(toPersistedThreadRecord(next), "", "  ")
 		if err != nil {
 			return err
 		}
@@ -294,7 +295,7 @@ func (s *ThreadStore) CommitThreadReplacements(snapshot ThreadSnapshot, replacem
 			if err := ValidateThreadRecord(replacement); err != nil {
 				return err
 			}
-			raw, err := json.MarshalIndent(replacement, "", "  ")
+			raw, err := json.MarshalIndent(toPersistedThreadRecord(replacement), "", "  ")
 			if err != nil {
 				return err
 			}
@@ -516,7 +517,7 @@ func (s *ThreadStore) CutoverLegacyActors(actors []ActorRecord) error {
 			} else if exists || manifestContains(manifest, address) {
 				return fmt.Errorf("legacy cutover collides with existing thread %+v", address)
 			}
-			raw, err := json.MarshalIndent(record, "", "  ")
+			raw, err := json.MarshalIndent(toPersistedThreadRecord(record), "", "  ")
 			if err != nil {
 				return err
 			}
@@ -576,20 +577,11 @@ func (s *ThreadStore) readThreadLocked(address ThreadAddress) (ThreadRecord, err
 }
 
 func (s *ThreadStore) decodeThreadRaw(address ThreadAddress, raw []byte) (ThreadRecord, error) {
-	var record ThreadRecord
-	if err := strictThreadStoreJSON(raw, &record); err != nil {
+	record, err := threadrecord.DecodePersisted(raw, toPersistedThreadAddress(address), threadRecordValidators)
+	if err != nil {
 		return ThreadRecord{}, err
 	}
-	if err := ValidateThreadRecord(record); err != nil {
-		return ThreadRecord{}, err
-	}
-	if record.ClaimGeneration == 0 {
-		return ThreadRecord{}, errors.New("stored thread has zero claim generation")
-	}
-	if record.Address != address {
-		return ThreadRecord{}, errors.New("thread record path/address mismatch")
-	}
-	return record, nil
+	return fromPersistedThreadRecord(record), nil
 }
 
 func (s *ThreadStore) loadManifestLocked() (threadManifest, []byte, bool, error) {

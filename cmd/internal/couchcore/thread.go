@@ -1,15 +1,13 @@
 package couchcore
 
 import (
-	"fmt"
-	"path/filepath"
-	"regexp"
 	"time"
 
 	"github.com/xianxu/pair/cmd/internal/launcher"
+	"github.com/xianxu/pair/cmd/internal/threadrecord"
 )
 
-const ThreadSchemaVersion = 1
+const ThreadSchemaVersion = threadrecord.SchemaVersion
 
 type ThreadTag string
 
@@ -61,64 +59,82 @@ type ThreadRecord struct {
 	Incarnations     []ThreadIncarnation `json:"incarnations,omitempty"`
 }
 
-var threadComponentPattern = regexp.MustCompile(`^[A-Za-z0-9_-]+$`)
+var threadRecordValidators = threadrecord.Validators{
+	RepoScope: launcher.ValidateRepoScopeKey,
+	Tag:       launcher.ValidatePairTag,
+}
 
 func ValidateThreadRecord(record ThreadRecord) error {
-	if record.SchemaVersion != ThreadSchemaVersion {
-		return fmt.Errorf("unsupported thread schema version %d", record.SchemaVersion)
-	}
-	if err := validateThreadAddress(record.Address); err != nil {
-		return err
-	}
-	if !filepath.IsAbs(record.StartingPath) || !filepath.IsAbs(record.WorkingPath) {
-		return fmt.Errorf("thread paths must be absolute")
-	}
-	if record.CreatedAt.IsZero() {
-		return fmt.Errorf("thread creation time is required")
-	}
-	if record.Revision == 0 {
-		return fmt.Errorf("thread revision must be positive")
-	}
-	trackedStarts := 0
-	for i, incarnation := range record.Incarnations {
-		switch incarnation.State {
-		case IncarnationUnknown, IncarnationCreating, IncarnationLive:
-		default:
-			return fmt.Errorf("incarnation %d has invalid state %q", i, incarnation.State)
-		}
-		if incarnation.PID < 0 {
-			return fmt.Errorf("incarnation %d has negative pid", i)
-		}
-		if incarnation.Start != nil {
-			trackedStarts++
-			if incarnation.State != IncarnationCreating {
-				return fmt.Errorf("incarnation %d has start claim outside creating state", i)
-			}
-			if !threadComponentPattern.MatchString(incarnation.Start.Nonce) {
-				return fmt.Errorf("incarnation %d has invalid start nonce %q", i, incarnation.Start.Nonce)
-			}
-			if incarnation.Start.OwnerPID <= 0 || incarnation.Start.OwnerIdentity == "" {
-				return fmt.Errorf("incarnation %d start owner pid and identity are required", i)
-			}
-			if (incarnation.PID == 0) != (incarnation.Identity == "") {
-				return fmt.Errorf("incarnation %d helper pid and identity must be recorded together", i)
-			}
-		}
-	}
-	if trackedStarts > 1 {
-		return fmt.Errorf("thread has %d tracked start transactions", trackedStarts)
-	}
-	return nil
+	return threadrecord.Validate(toPersistedThreadRecord(record), threadRecordValidators)
 }
 
 func validateThreadAddress(address ThreadAddress) error {
-	if err := launcher.ValidateRepoScopeKey(address.RepoScope); err != nil {
-		return fmt.Errorf("invalid thread repo scope %q: %w", address.RepoScope, err)
+	return threadrecord.ValidateAddress(toPersistedThreadAddress(address), threadRecordValidators)
+}
+
+func toPersistedThreadAddress(address ThreadAddress) threadrecord.Address {
+	return threadrecord.Address{RepoScope: address.RepoScope, Tag: string(address.Tag)}
+}
+
+func toPersistedThreadRecord(record ThreadRecord) threadrecord.Record {
+	out := threadrecord.Record{
+		SchemaVersion: record.SchemaVersion, Address: toPersistedThreadAddress(record.Address),
+		StartingPath: record.StartingPath, WorkingPath: record.WorkingPath, CreatedAt: record.CreatedAt,
+		Revision: record.Revision, ClaimGeneration: record.ClaimGeneration, Reservation: record.Reservation,
+		Name: record.Name, Description: record.Description, PublishedSummary: record.PublishedSummary,
+		Incarnations: make([]threadrecord.Incarnation, len(record.Incarnations)),
 	}
-	if err := launcher.ValidatePairTag(string(address.Tag)); err != nil {
-		return fmt.Errorf("invalid thread tag %q: %w", address.Tag, err)
+	for i, incarnation := range record.Incarnations {
+		out.Incarnations[i] = threadrecord.Incarnation{
+			LegacyActorID: string(incarnation.LegacyActorID), PID: incarnation.PID,
+			Identity: incarnation.Identity, State: string(incarnation.State), StartedAt: incarnation.StartedAt,
+		}
+		if incarnation.Start != nil {
+			out.Incarnations[i].Start = &threadrecord.StartClaim{
+				Nonce: incarnation.Start.Nonce, OwnerPID: incarnation.Start.OwnerPID, OwnerIdentity: incarnation.Start.OwnerIdentity,
+			}
+		}
+		if incarnation.Policy != nil {
+			out.Incarnations[i].Policy = &threadrecord.Policy{
+				PolicyVersion: incarnation.Policy.PolicyVersion, PolicyDigest: incarnation.Policy.PolicyDigest,
+				RepoIdentity: incarnation.Policy.RepoIdentity, AdmissionKey: incarnation.Policy.AdmissionKey,
+				Capacity:   threadrecord.PolicyCapacity{Kind: string(incarnation.Policy.Capacity.Kind), Limit: incarnation.Policy.Capacity.Limit},
+				OnCapacity: string(incarnation.Policy.OnCapacity),
+			}
+		}
 	}
-	return nil
+	return out
+}
+
+func fromPersistedThreadRecord(record threadrecord.Record) ThreadRecord {
+	out := ThreadRecord{
+		SchemaVersion: record.SchemaVersion,
+		Address:       ThreadAddress{RepoScope: record.Address.RepoScope, Tag: ThreadTag(record.Address.Tag)},
+		StartingPath:  record.StartingPath, WorkingPath: record.WorkingPath, CreatedAt: record.CreatedAt,
+		Revision: record.Revision, ClaimGeneration: record.ClaimGeneration, Reservation: record.Reservation,
+		Name: record.Name, Description: record.Description, PublishedSummary: record.PublishedSummary,
+		Incarnations: make([]ThreadIncarnation, len(record.Incarnations)),
+	}
+	for i, incarnation := range record.Incarnations {
+		out.Incarnations[i] = ThreadIncarnation{
+			LegacyActorID: ActorID(incarnation.LegacyActorID), PID: incarnation.PID,
+			Identity: incarnation.Identity, State: IncarnationState(incarnation.State), StartedAt: incarnation.StartedAt,
+		}
+		if incarnation.Start != nil {
+			out.Incarnations[i].Start = &ThreadStartClaim{
+				Nonce: incarnation.Start.Nonce, OwnerPID: incarnation.Start.OwnerPID, OwnerIdentity: incarnation.Start.OwnerIdentity,
+			}
+		}
+		if incarnation.Policy != nil {
+			out.Incarnations[i].Policy = &PolicyResult{
+				PolicyVersion: incarnation.Policy.PolicyVersion, PolicyDigest: incarnation.Policy.PolicyDigest,
+				RepoIdentity: incarnation.Policy.RepoIdentity, AdmissionKey: incarnation.Policy.AdmissionKey,
+				Capacity:   PolicyCapacity{Kind: PolicyCapacityKind(incarnation.Policy.Capacity.Kind), Limit: incarnation.Policy.Capacity.Limit},
+				OnCapacity: CapacityAction(incarnation.Policy.OnCapacity),
+			}
+		}
+	}
+	return out
 }
 
 func cloneThreadRecord(record ThreadRecord) ThreadRecord {

@@ -2,12 +2,12 @@ package couchcore
 
 import (
 	"bytes"
-	"encoding/json"
 	"errors"
 	"fmt"
-	"io"
 	"os"
 	"path/filepath"
+
+	"github.com/xianxu/pair/cmd/internal/strictjson"
 )
 
 type storeJournal struct {
@@ -132,20 +132,5 @@ func syncDirectory(path string) error {
 }
 
 func strictThreadStoreJSON(raw []byte, target any) error {
-	if err := rejectDuplicateJSONKeys(raw); err != nil {
-		return err
-	}
-	dec := json.NewDecoder(bytes.NewReader(raw))
-	dec.DisallowUnknownFields()
-	if err := dec.Decode(target); err != nil {
-		return err
-	}
-	var extra any
-	if err := dec.Decode(&extra); !errors.Is(err, io.EOF) {
-		if err == nil {
-			return errors.New("trailing JSON value")
-		}
-		return err
-	}
-	return nil
+	return strictjson.Decode(raw, target)
 }

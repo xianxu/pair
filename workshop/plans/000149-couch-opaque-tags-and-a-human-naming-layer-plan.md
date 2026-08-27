@@ -46,6 +46,8 @@ remains #153. #149 returns typed refusals for those unavailable outcomes.
 | `ThreadMetadataPatch` / `ApplyThreadMetadata` | pure | `cmd/internal/couchcore/threadmetadata_model.go` | new in M3 |
 | `ThreadSummary` / `BuildThreadInventory` | pure | `cmd/internal/couchcore/threadinventory.go` | new in M3 |
 | `Operation` / `Operations` effect-owner declarations | pure | `cmd/internal/couchcore/ops.go` | modified in M1; split from executors in M3 |
+| `threadrecord.Record` / `ValidatePersisted` / `DecodePersisted` | pure | `cmd/internal/threadrecord/record.go` | new in M3 boundary disposition |
+| `strictjson.Decode` | pure | `cmd/internal/strictjson/decode.go` | extracted in M3 boundary disposition |
 | `LaunchProfileResolution` | pure | `cmd/internal/couchcore/launchprofile.go` | new in M4 |
 | `ArtifactFamily` | pure | `cmd/internal/artifactpath/paths.go` | new in M5 |
 
@@ -101,6 +103,7 @@ Ariadne binary; store tests use independent store instances over one directory.
 | `ReconcileAdmission` / `Admission.Decide` | Stateful provider/store interleavings; commit only one manifest generation and coherent provider epoch, never fork on refusal. |
 | `AdvanceStartTransaction` / `ReconcileStart` | Generate interruption event sequences; every state has at most one tracked helper and occupied-or-proven-free capacity. |
 | `ResolveThreadReference` | Fuzz duplicate/fuzzy candidates; exact scoped tag wins and every ambiguous result refuses with candidates. |
+| `threadrecord.ValidatePersisted` / `DecodePersisted` | Mutate every required top-level, address, incarnation, start-claim, policy-shape, generation, and path/address invariant; Couch and standalone Pair must both reject each invalid record. |
 | `ApplyThreadMetadata` / `BuildThreadInventory` | Generate stale revisions and equal-path records; preserve independent fields and one exact-state row per thread. |
 | `DispatchOperation` | Schema-surface conformance plus stale targets; effect executes only through its declared executor and owner absence never forks. |
 | `ResolveLaunchProfile` | Cartesian source properties; agent and argv provenance resolve independently and never cross agents. |
@@ -1130,3 +1133,21 @@ exists, and the owned screen displays the failure. A named-show CLI regression,
 a real corrupt-ThreadStore wiring regression for both callbacks, and visible
 inventory/reference error tests pin the class (ARCH-DRY, ARCH-PURPOSE,
 ARCH-MOCK).
+
+### 2026-08-26 — incorporate third M3 boundary review
+
+**Reason:** the third M3 review confirmed BR-24/BR-25 but found that Launcher's
+partial `threadIndexRecord` schema accepted records Couch rejected, repeating
+the durable-read authority family for a third round.
+
+**Delta:** persisted record acceptance is now one lower-layer contract rather
+than two structs. `threadrecord.Record` defines the complete top-level,
+address, incarnation, start-claim, and policy JSON shape; its pure validators
+own schema version, component validation, absolute paths, creation time,
+revision, incarnation state/PID/start relationships, single tracked start,
+positive claim generation, and path/address equality. `strictjson.Decode` owns
+duplicate-key, unknown-field, and trailing-value rejection. ThreadStore writes
+and reads this wire type; Launcher projects the same decoded value into
+ThreadIndex. A real-file mutation table changes every enumerated invariant and
+requires both readers to reject it, preventing future acceptance drift
+(ARCH-DRY, ARCH-PURE, ARCH-PURPOSE, ARCH-MOCK).

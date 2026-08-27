@@ -1018,3 +1018,14 @@ failure instead of presenting corruption as empty state. Tests exercise the
 named CLI detail view, both production callbacks against a corrupted real
 ThreadStore manifest, and visible inventory/reference failures in the hosted
 panel (ARCH-DRY, ARCH-PURPOSE, ARCH-MOCK).
+
+### 2026-08-26 — resolve third M3 boundary finding
+
+BR-26 removed Launcher's partial shadow record. A lower-layer
+`threadrecord.Record` now owns the complete persisted JSON shape and structural
+validation; ThreadStore writes/reads it and Launcher projects it into
+ThreadIndex. The shared `strictjson.Decode` also consolidates duplicate-key,
+unknown-field, and trailing-value rejection previously private to Couch. A
+real-store parity table mutates every current structural invariant and requires
+both Couch and standalone Pair to reject each record (ARCH-DRY, ARCH-PURE,
+ARCH-PURPOSE, ARCH-MOCK).

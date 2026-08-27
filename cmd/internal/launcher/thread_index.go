@@ -1,13 +1,15 @@
 package launcher
 
 import (
-	"encoding/json"
 	"errors"
 	"fmt"
 	"path/filepath"
 	"sort"
 	"strings"
 	"time"
+
+	"github.com/xianxu/pair/cmd/internal/strictjson"
+	"github.com/xianxu/pair/cmd/internal/threadrecord"
 )
 
 var (
@@ -48,18 +50,14 @@ func (e *AmbiguousThreadIndexReferenceError) Error() string {
 
 type threadIndexManifest struct {
 	SchemaVersion int                  `json:"schema_version"`
+	Generation    uint64               `json:"generation"`
 	Threads       []ThreadIndexAddress `json:"threads"`
+	LegacyCutover bool                 `json:"legacy_cutover,omitempty"`
 }
 
-type threadIndexRecord struct {
-	SchemaVersion    int                `json:"schema_version"`
-	Address          ThreadIndexAddress `json:"address"`
-	WorkingPath      string             `json:"working_path"`
-	CreatedAt        time.Time          `json:"created_at"`
-	Revision         uint64             `json:"revision"`
-	Name             string             `json:"name,omitempty"`
-	Description      string             `json:"description,omitempty"`
-	PublishedSummary string             `json:"published_summary,omitempty"`
+var threadIndexRecordValidators = threadrecord.Validators{
+	RepoScope: ValidateRepoScopeKey,
+	Tag:       ValidatePairTag,
 }
 
 // LoadThreadIndex reads one atomic manifest snapshot and its addressed records.
@@ -75,10 +73,10 @@ func LoadThreadIndex(couchStoreDir string, readFile func(string) (string, error)
 		return ThreadIndex{}, err
 	}
 	var manifest threadIndexManifest
-	if err := json.Unmarshal([]byte(raw), &manifest); err != nil {
+	if err := strictjson.Decode([]byte(raw), &manifest); err != nil {
 		return ThreadIndex{}, fmt.Errorf("decode thread manifest: %w", err)
 	}
-	if manifest.SchemaVersion != 1 {
+	if manifest.SchemaVersion != 1 || manifest.Threads == nil {
 		return ThreadIndex{}, fmt.Errorf("unsupported thread manifest schema %d", manifest.SchemaVersion)
 	}
 	index := ThreadIndex{Entries: make([]ThreadIndexEntry, 0, len(manifest.Threads))}
@@ -96,13 +94,11 @@ func LoadThreadIndex(couchStoreDir string, readFile func(string) (string, error)
 		if err != nil {
 			return ThreadIndex{}, fmt.Errorf("read thread record %+v: %w", address, err)
 		}
-		var record threadIndexRecord
-		if err := json.Unmarshal([]byte(recordRaw), &record); err != nil {
+		record, err := threadrecord.DecodePersisted([]byte(recordRaw), threadrecord.Address{
+			RepoScope: address.RepoScope, Tag: address.Tag,
+		}, threadIndexRecordValidators)
+		if err != nil {
 			return ThreadIndex{}, fmt.Errorf("decode thread record %+v: %w", address, err)
-		}
-		if record.SchemaVersion != 1 || record.Address != address || record.Revision == 0 ||
-			!filepath.IsAbs(record.WorkingPath) || record.CreatedAt.IsZero() {
-			return ThreadIndex{}, fmt.Errorf("invalid thread record %+v", address)
 		}
 		index.Entries = append(index.Entries, ThreadIndexEntry{
 			Address: address, WorkingPath: record.WorkingPath, CreatedAt: record.CreatedAt,

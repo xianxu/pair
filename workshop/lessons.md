@@ -2182,3 +2182,16 @@ identity for exact commands and support.
 explicit mode: compact lists may hide a named system id; diagnostic views must
 always print the full durable address. Pin both halves so one shared renderer
 cannot flatten the distinction (ARCH-DRY, ARCH-PURPOSE).
+
+## A portable projection must share the owner's acceptance contract
+
+A read-only consumer can project fewer fields after validation, but a partial
+shadow decode schema silently defines a second set of valid durable states.
+Missing fields and malformed nested data can then influence decisions even
+while the owning store refuses them.
+
+**Rule.** Put the complete persisted wire shape and structural validator below
+all readers and writers. Project only after that shared decode succeeds. Keep a
+cross-reader mutation table enumerating every required top-level, address,
+nested-record, generation, and path-binding invariant; each reader must reject
+every mutation (ARCH-DRY, ARCH-PURPOSE, ARCH-MOCK).

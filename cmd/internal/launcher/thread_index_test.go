@@ -49,9 +49,11 @@ func TestLoadThreadIndexReadsManifestAddressedRecords(t *testing.T) {
 		filepath.Join(root, "threadstore", "records", "816fc349d3faebf8", "couch-0102030405060708.json"): `{
   "schema_version": 1,
   "address": {"repo_scope":"816fc349d3faebf8","tag":"couch-0102030405060708"},
+  "starting_path": "/repo/task",
   "working_path": "/repo/task",
   "created_at": "2026-08-26T12:00:00Z",
   "revision": 3,
+  "claim_generation": 1,
   "name": "compiler",
   "description": "operator context",
   "published_summary": "agent context"
@@ -113,6 +115,26 @@ func TestLoadThreadIndexRejectsMissingAddressedRecord(t *testing.T) {
 	})
 	if err == nil || errors.Is(err, ErrThreadIndexAbsent) {
 		t.Fatalf("missing addressed record error = %v, want authoritative failure", err)
+	}
+}
+
+func TestLoadThreadIndexRejectsRecordMissingAuthoritativeRequiredFields(t *testing.T) {
+	root := "/global/couch"
+	files := map[string]string{
+		filepath.Join(root, "threadstore", "manifest.json"): `{"schema_version":1,"generation":1,"threads":[{"repo_scope":"816fc349d3faebf8","tag":"couch-0102030405060708"}]}`,
+		filepath.Join(root, "threadstore", "records", "816fc349d3faebf8", "couch-0102030405060708.json"): `{
+  "schema_version": 1,
+  "address": {"repo_scope":"816fc349d3faebf8","tag":"couch-0102030405060708"},
+  "working_path": "/repo",
+  "created_at": "2026-08-26T12:00:00Z",
+  "revision": 1
+}`,
+	}
+	_, err := LoadThreadIndex(root, func(path string) (string, error) {
+		return files[path], nil
+	})
+	if err == nil {
+		t.Fatal("portable reader accepted missing starting_path and claim_generation")
 	}
 }
 

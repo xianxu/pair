@@ -131,9 +131,14 @@ migrates by being quit and relaunched.
 ## Durable thread index
 
 Couch's namespace contains `threadstore/manifest.json` plus addressed records
-under `threadstore/records/<scope>/<tag>.json`. Launcher reads a portable
-projection of those records without importing couchcore or writing recovery
-state. It uses the same scoped exact-tag/name/path matcher that Couch adapts to
+under `threadstore/records/<scope>/<tag>.json`. Couch and Launcher both decode
+the lower-layer `threadrecord.Record` acceptance contract; Couch maps it to its
+rich lifecycle type, while Launcher maps it to a portable read-only projection
+without importing couchcore or writing recovery state. One strict decoder
+rejects duplicate keys, unknown fields, and trailing values for both. A
+cross-reader mutation table covers every required top-level, address,
+incarnation, start-claim, policy-shape, generation, and path/address invariant.
+Launcher uses the same scoped exact-tag/name/path matcher that Couch adapts to
 its richer records. Missing/corrupt/incomplete stores fail closed and Couch
 retains journal-recovery ownership.
 

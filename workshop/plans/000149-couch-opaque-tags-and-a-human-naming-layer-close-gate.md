@@ -385,6 +385,27 @@ rounds:
           round: 14
       boundary: M3
       blocked: true
+    - "n": 15
+      timestamp: "2026-08-26T16:57:06-07:00"
+      agent: codex
+      dispose:
+        - id: BR-24
+          disposition: addressed
+          note: Named show output now includes the immutable composite address, and the CLI regression fails if the opaque tag is removed.
+          round: 15
+        - id: BR-25
+          disposition: addressed
+          note: Both production panel callbacks propagate ThreadStore failures, with real corrupt-store wiring tests and visible-error console regressions.
+          round: 15
+      findings:
+        - id: BR-26
+          severity: Critical
+          title: Standalone Pair accepts ThreadStore records that Couch rejects as invalid
+          detail: 'This is the 3rd finding in family `durable-index-read-failure-authority`. The shadow record schema in thread_index.go:54-63 omits required `starting_path` and `claim_generation`, and LoadThreadIndex at lines 99-110 consequently accepts the fixture at thread_index_test.go:49-58 even though Couch rejects that same record at thread.go:73-80 and threadstore.go:578-590. This permits malformed or incomplete authoritative records to resolve human names and launch opaque tags while Couch refuses the store. Do NOT patch only these two fields: state the rule that every durable-record reader shares the authoritative structural acceptance contract, enumerate all persisted invariants, and derive the portable projection from a common lower-layer decoder or enforce acceptance parity with conformance tests (ARCH-DRY, ARCH-PURPOSE).'
+          family: durable-index-read-failure-authority
+          round: 15
+      boundary: M3
+      blocked: true
 ---
 
 # Gate ledger — pair#149 (boundary-review)
@@ -560,7 +581,18 @@ later rounds disposed of them. Generated — edit the gate, not this file.
 - **BR-25** [Critical] `durable-index-read-failure-authority` Panel callbacks silently turn authoritative ThreadStore failures into empty results
   This is the 2nd finding in family `durable-index-read-failure-authority`. run.go:331-341 discards errors from both ResolveThreadReference and ThreadInventory, while console.go:190-218 and console.go:868-906 expose callbacks that cannot return an error. A corrupt or incomplete store can therefore replace the authoritative panel with an empty list or no matches without any notice. Do not patch only one closure: state the rule that every durable-record read either returns valid state or surfaces its failure, change the callback boundary accordingly, and add a production-wiring regression using a failing store read (ARCH-PURPOSE).
 
+## Round 15 — 2026-08-26T16:57:06-07:00 (codex) — BLOCKED
+
+### Disposed
+
+- BR-24 — addressed — Named show output now includes the immutable composite address, and the CLI regression fails if the opaque tag is removed.
+- BR-25 — addressed — Both production panel callbacks propagate ThreadStore failures, with real corrupt-store wiring tests and visible-error console regressions.
+
+### Raised
+
+- **BR-26** [Critical] `durable-index-read-failure-authority` Standalone Pair accepts ThreadStore records that Couch rejects as invalid
+  This is the 3rd finding in family `durable-index-read-failure-authority`. The shadow record schema in thread_index.go:54-63 omits required `starting_path` and `claim_generation`, and LoadThreadIndex at lines 99-110 consequently accepts the fixture at thread_index_test.go:49-58 even though Couch rejects that same record at thread.go:73-80 and threadstore.go:578-590. This permits malformed or incomplete authoritative records to resolve human names and launch opaque tags while Couch refuses the store. Do NOT patch only these two fields: state the rule that every durable-record reader shares the authoritative structural acceptance contract, enumerate all persisted invariants, and derive the portable projection from a common lower-layer decoder or enforce acceptance parity with conformance tests (ARCH-DRY, ARCH-PURPOSE).
+
 ## Open findings
 
-- **BR-24** [Critical] `detail-view-preserves-durable-identity` Named couch show output drops the durable tag promised for diagnostics
-- **BR-25** [Critical] `durable-index-read-failure-authority` Panel callbacks silently turn authoritative ThreadStore failures into empty results
+- **BR-26** [Critical] `durable-index-read-failure-authority` Standalone Pair accepts ThreadStore records that Couch rejects as invalid

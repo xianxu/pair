@@ -25,6 +25,8 @@ func TestIssue149CurrentCoreConceptKinds(t *testing.T) {
 		"ThreadMetadataPatch": "pure",
 		"ThreadSummary":       "pure",
 		"Operation":           "pure",
+		"threadrecord.Record": "pure",
+		"strictjson.Decode":   "pure",
 	}
 	seen := map[string]bool{}
 	inTable := false
@@ -101,7 +103,12 @@ func TestOpaqueIdentityCommentDoesNotReintroducePathDerivedContract(t *testing.T
 }
 
 func TestIssue149PureCoreTestsStayAtPureBoundary(t *testing.T) {
-	for _, name := range []string{"thread_test.go", "starttransaction_test.go", "admission_test.go", "threadmetadata_model_test.go", "ops_declarations_test.go"} {
+	for _, name := range []string{
+		"thread_test.go", "starttransaction_test.go", "admission_test.go",
+		"threadmetadata_model_test.go", "ops_declarations_test.go",
+		filepath.Join("..", "threadrecord", "record_test.go"),
+		filepath.Join("..", "strictjson", "decode_test.go"),
+	} {
 		raw, err := os.ReadFile(name)
 		if err != nil {
 			t.Fatal(err)
