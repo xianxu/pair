@@ -172,7 +172,7 @@ gate `#147` and `#148` respectively; `#145` and `#146` do not depend on them.
 - [ ] verified park and activity age [pair#152]
 - [ ] managed-worktree lifecycle [pair#153]
 - [ ] expose query API to peer actors [ariadne#199]
-- [ ] fleet thread inventory [ariadne#200]
+- [x] fleet thread inventory [ariadne#200]
 - [ ] cluster transport and queries [pair#147]
 - [ ] brain advisor role [pair#148]
 
