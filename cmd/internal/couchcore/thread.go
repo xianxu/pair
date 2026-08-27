@@ -29,9 +29,10 @@ const (
 // the transaction; ThreadIncarnation PID/Identity is empty before fork and
 // names the blocked helper after fork. Exec preserves that PID/start token.
 type ThreadStartClaim struct {
-	Nonce         string `json:"nonce"`
-	OwnerPID      int    `json:"owner_pid"`
-	OwnerIdentity string `json:"owner_identity"`
+	Nonce         string         `json:"nonce"`
+	OwnerPID      int            `json:"owner_pid"`
+	OwnerIdentity string         `json:"owner_identity"`
+	LaunchProfile *LaunchProfile `json:"launch_profile,omitempty"`
 }
 
 type ThreadIncarnation struct {
@@ -94,6 +95,10 @@ func toPersistedThreadRecord(record ThreadRecord) threadrecord.Record {
 			out.Incarnations[i].Start = &threadrecord.StartClaim{
 				Nonce: incarnation.Start.Nonce, OwnerPID: incarnation.Start.OwnerPID, OwnerIdentity: incarnation.Start.OwnerIdentity,
 			}
+			if incarnation.Start.LaunchProfile != nil {
+				profile := cloneLaunchProfile(*incarnation.Start.LaunchProfile)
+				out.Incarnations[i].Start.LaunchProfile = &threadrecord.LaunchProfile{Agent: profile.Agent, Argv: profile.Argv}
+			}
 		}
 		if incarnation.Policy != nil {
 			out.Incarnations[i].Policy = &threadrecord.Policy{
@@ -129,6 +134,10 @@ func fromPersistedThreadRecord(record threadrecord.Record) ThreadRecord {
 			out.Incarnations[i].Start = &ThreadStartClaim{
 				Nonce: incarnation.Start.Nonce, OwnerPID: incarnation.Start.OwnerPID, OwnerIdentity: incarnation.Start.OwnerIdentity,
 			}
+			if incarnation.Start.LaunchProfile != nil {
+				profile := LaunchProfile{Agent: incarnation.Start.LaunchProfile.Agent, Argv: cloneArgv(incarnation.Start.LaunchProfile.Argv)}
+				out.Incarnations[i].Start.LaunchProfile = &profile
+			}
 		}
 		if incarnation.Policy != nil {
 			out.Incarnations[i].Policy = &PolicyResult{
@@ -156,6 +165,10 @@ func cloneThreadRecord(record ThreadRecord) ThreadRecord {
 		}
 		if record.Incarnations[i].Start != nil {
 			start := *record.Incarnations[i].Start
+			if start.LaunchProfile != nil {
+				profile := cloneLaunchProfile(*start.LaunchProfile)
+				start.LaunchProfile = &profile
+			}
 			copy.Incarnations[i].Start = &start
 		}
 		if record.Incarnations[i].LaunchProfile != nil {

@@ -137,6 +137,38 @@ func clonePathLaunchPreference(preference PathLaunchPreference) PathLaunchPrefer
 	return out
 }
 
+func RecordSuccessfulLaunch(current *PathLaunchPreference, repoIdentity, physicalPath string, profile LaunchProfile) (PathLaunchPreference, error) {
+	if repoIdentity == "" || !filepath.IsAbs(physicalPath) {
+		return PathLaunchPreference{}, fmt.Errorf("successful launch requires repository identity and absolute path")
+	}
+	if profile.Agent == "" || profile.Argv == nil {
+		return PathLaunchPreference{}, fmt.Errorf("successful launch has incomplete profile")
+	}
+	var next PathLaunchPreference
+	if current == nil {
+		next = PathLaunchPreference{
+			SchemaVersion: PathLaunchPreferenceSchemaVersion,
+			RepoIdentity:  repoIdentity, PhysicalPath: physicalPath,
+			ArgvByAgent: map[string][]string{}, Revision: 1,
+		}
+	} else {
+		if err := validatePathLaunchPreference(*current); err != nil {
+			return PathLaunchPreference{}, err
+		}
+		if current.RepoIdentity != repoIdentity || current.PhysicalPath != physicalPath {
+			return PathLaunchPreference{}, fmt.Errorf("path launch preference address mismatch")
+		}
+		next = clonePathLaunchPreference(*current)
+		next.Revision++
+	}
+	next.LastAgent = profile.Agent
+	next.ArgvByAgent[profile.Agent] = cloneArgv(profile.Argv)
+	if err := validatePathLaunchPreference(next); err != nil {
+		return PathLaunchPreference{}, err
+	}
+	return next, nil
+}
+
 func cloneArgv(argv []string) []string {
 	out := append([]string(nil), argv...)
 	if out == nil {

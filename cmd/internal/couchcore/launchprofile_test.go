@@ -98,3 +98,25 @@ func TestLaunchProfileResolutionReturnsDefensiveValuesAndRejectsCrossAgentDefaul
 		t.Fatal("cross-agent repository default accepted")
 	}
 }
+
+func TestRecordSuccessfulLaunchPreservesOtherAgentHistory(t *testing.T) {
+	current := &PathLaunchPreference{
+		SchemaVersion: 1, RepoIdentity: "repo", PhysicalPath: "/repo/task",
+		LastAgent: "claude", ArgvByAgent: map[string][]string{"claude": {"--model", "opus"}}, Revision: 4,
+	}
+	next, err := RecordSuccessfulLaunch(current, "repo", "/repo/task", LaunchProfile{
+		Agent: "codex", Argv: []string{"--sandbox", "workspace-write"},
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if next.LastAgent != "codex" || next.Revision != 5 ||
+		!reflect.DeepEqual(next.ArgvByAgent["claude"], []string{"--model", "opus"}) ||
+		!reflect.DeepEqual(next.ArgvByAgent["codex"], []string{"--sandbox", "workspace-write"}) {
+		t.Fatalf("next preference = %+v", next)
+	}
+	next.ArgvByAgent["claude"][0] = "mutated"
+	if current.ArgvByAgent["claude"][0] != "--model" {
+		t.Fatalf("updated preference aliases current: %+v", current)
+	}
+}

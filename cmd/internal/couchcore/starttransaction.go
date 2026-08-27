@@ -28,10 +28,11 @@ const (
 )
 
 type StartEvent struct {
-	Kind   StartEventKind
-	Nonce  string
-	Owner  SupervisorOwner
-	Helper ProcessIdentity
+	Kind    StartEventKind
+	Nonce   string
+	Owner   SupervisorOwner
+	Helper  ProcessIdentity
+	Profile *LaunchProfile
 }
 
 // AdvanceStartTransaction is the pure transition authority for one persisted
@@ -52,6 +53,10 @@ func AdvanceStartTransaction(record ThreadRecord, event StartEvent) (ThreadRecor
 			Nonce:         event.Nonce,
 			OwnerPID:      event.Owner.PID,
 			OwnerIdentity: event.Owner.Identity,
+		}
+		if event.Profile != nil {
+			profile := cloneLaunchProfile(*event.Profile)
+			incarnation.Start.LaunchProfile = &profile
 		}
 	case StartHelperRecorded:
 		incarnation, err := exactStartIncarnation(&next, event.Nonce)
@@ -78,6 +83,10 @@ func AdvanceStartTransaction(record ThreadRecord, event StartEvent) (ThreadRecor
 			incarnation.State = IncarnationLive
 		} else {
 			incarnation.State = IncarnationUnknown
+		}
+		if incarnation.Start.LaunchProfile != nil {
+			profile := cloneLaunchProfile(*incarnation.Start.LaunchProfile)
+			incarnation.LaunchProfile = &profile
 		}
 		incarnation.Start = nil
 	default:

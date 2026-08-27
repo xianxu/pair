@@ -265,6 +265,112 @@ func TestThreadStorePersistsAndDefensivelyCopiesIncarnationLaunchProfile(t *test
 	}
 }
 
+func TestThreadStoreRegistrationAtomicallyCommitsThreadAndPathLaunchPreference(t *testing.T) {
+	store, ns := newTestThreadStore(t)
+	record := validThreadRecord(t)
+	record.StartingPath, record.WorkingPath = ns.Dir(), ns.Dir()
+	record.Reservation = false
+	record.Incarnations = []ThreadIncarnation{{
+		State: IncarnationCreating,
+		Policy: &PolicyResult{
+			PolicyVersion: 1, PolicyDigest: strings.Repeat("a", 64), RepoIdentity: "repo-identity",
+			AdmissionKey: ns.Dir(), Capacity: PolicyCapacity{Kind: CapacityUnbounded},
+		},
+	}}
+	created, err := store.CreateThread(record)
+	if err != nil {
+		t.Fatal(err)
+	}
+	profile := LaunchProfile{Agent: "codex", Argv: []string{"--sandbox", "workspace-write"}}
+	claimed, err := store.AdvanceStart(created.Address, created.Revision, StartEvent{
+		Kind: StartClaimed, Nonce: "start-0123456789abcdef",
+		Owner: SupervisorOwner{PID: 41, Identity: "owner"}, Profile: &profile,
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	helper, err := store.AdvanceStart(claimed.Address, claimed.Revision, StartEvent{
+		Kind: StartHelperRecorded, Nonce: "start-0123456789abcdef",
+		Helper: ProcessIdentity{PID: 42, Identity: "helper"},
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, found, err := store.GetPathLaunchPreference("repo-identity", ns.Dir()); err != nil || found {
+		t.Fatalf("unsuccessful start wrote path preference: found=%v err=%v", found, err)
+	}
+	registered, err := store.AdvanceStart(helper.Address, helper.Revision, StartEvent{
+		Kind: StartRegistered, Nonce: "start-0123456789abcdef",
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if registered.Incarnations[0].LaunchProfile == nil || !reflect.DeepEqual(*registered.Incarnations[0].LaunchProfile, profile) {
+		t.Fatalf("registered profile = %+v", registered.Incarnations[0].LaunchProfile)
+	}
+	preference, found, err := store.GetPathLaunchPreference("repo-identity", ns.Dir())
+	if err != nil || !found || preference.LastAgent != "codex" || !reflect.DeepEqual(preference.ArgvByAgent["codex"], profile.Argv) {
+		t.Fatalf("path preference = %+v found=%v err=%v", preference, found, err)
+	}
+}
+
+func TestThreadStoreRecoversInterruptedThreadAndPathPreferenceCommit(t *testing.T) {
+	store, ns := newTestThreadStore(t)
+	record := validThreadRecord(t)
+	record.StartingPath, record.WorkingPath = ns.Dir(), ns.Dir()
+	record.Reservation = false
+	record.Incarnations = []ThreadIncarnation{{
+		State: IncarnationCreating,
+		Policy: &PolicyResult{
+			PolicyVersion: 1, PolicyDigest: strings.Repeat("a", 64), RepoIdentity: "repo-identity",
+			AdmissionKey: ns.Dir(), Capacity: PolicyCapacity{Kind: CapacityUnbounded},
+		},
+	}}
+	created, err := store.CreateThread(record)
+	if err != nil {
+		t.Fatal(err)
+	}
+	profile := LaunchProfile{Agent: "muse", Argv: []string{"--model", "spark"}}
+	claimed, err := store.AdvanceStart(created.Address, created.Revision, StartEvent{
+		Kind: StartClaimed, Nonce: "start-0123456789abcdef",
+		Owner: SupervisorOwner{PID: 41, Identity: "owner"}, Profile: &profile,
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	helper, err := store.AdvanceStart(claimed.Address, claimed.Revision, StartEvent{
+		Kind: StartHelperRecorded, Nonce: "start-0123456789abcdef",
+		Helper: ProcessIdentity{PID: 42, Identity: "helper"},
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	crashing := newThreadStoreWithHooks(ns, threadStoreHooks{AfterTarget: func(index int) error {
+		if index == 0 {
+			return errors.New("injected crash after thread image")
+		}
+		return nil
+	}})
+	if _, err := crashing.AdvanceStart(helper.Address, helper.Revision, StartEvent{
+		Kind: StartRegistered, Nonce: "start-0123456789abcdef",
+	}); err == nil {
+		t.Fatal("interrupted commit returned success")
+	}
+
+	recovered := NewThreadStore(ns)
+	if err := recovered.RecoverStoreJournal(); err != nil {
+		t.Fatal(err)
+	}
+	thread, err := recovered.GetThread(helper.Address)
+	if err != nil || thread.Incarnations[0].LaunchProfile == nil || !reflect.DeepEqual(*thread.Incarnations[0].LaunchProfile, profile) {
+		t.Fatalf("recovered thread = %+v, %v", thread, err)
+	}
+	preference, found, err := recovered.GetPathLaunchPreference("repo-identity", ns.Dir())
+	if err != nil || !found || preference.LastAgent != "muse" || !reflect.DeepEqual(preference.ArgvByAgent["muse"], profile.Argv) {
+		t.Fatalf("recovered preference = %+v, %v, %v", preference, found, err)
+	}
+}
+
 func TestThreadStoreIndependentInstancesSerializeRevisionUpdates(t *testing.T) {
 	store, ns := newTestThreadStore(t)
 	record := validThreadRecord(t)

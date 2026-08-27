@@ -25,9 +25,10 @@ type Address struct {
 }
 
 type StartClaim struct {
-	Nonce         string `json:"nonce"`
-	OwnerPID      int    `json:"owner_pid"`
-	OwnerIdentity string `json:"owner_identity"`
+	Nonce         string         `json:"nonce"`
+	OwnerPID      int            `json:"owner_pid"`
+	OwnerIdentity string         `json:"owner_identity"`
+	LaunchProfile *LaunchProfile `json:"launch_profile,omitempty"`
 }
 
 type PolicyCapacity struct {
@@ -140,6 +141,9 @@ func Validate(record Record, validators Validators) error {
 			}
 			if (incarnation.PID == 0) != (incarnation.Identity == "") {
 				return fmt.Errorf("incarnation %d helper pid and identity must be recorded together", i)
+			}
+			if incarnation.Start.LaunchProfile != nil && (incarnation.Start.LaunchProfile.Agent == "" || incarnation.Start.LaunchProfile.Argv == nil) {
+				return fmt.Errorf("incarnation %d has incomplete pending launch profile", i)
 			}
 		}
 	}

@@ -159,9 +159,10 @@ func (c *Couch) Spawn(args StartArgs) (ActorRecord, Handle, error) {
 	}
 	admittedThread := thread
 	startedThread, err := c.Threads.AdvanceStart(thread.Address, thread.Revision, StartEvent{
-		Kind:  StartClaimed,
-		Nonce: nonce,
-		Owner: SupervisorOwner{PID: owner.PID, Identity: owner.Identity},
+		Kind:    StartClaimed,
+		Nonce:   nonce,
+		Owner:   SupervisorOwner{PID: owner.PID, Identity: owner.Identity},
+		Profile: &profile.Profile,
 	})
 	if err != nil {
 		return ActorRecord{}, nil, errors.Join(fmt.Errorf("record start transaction: %w", err), c.rollbackUnforkedStart(admittedThread))

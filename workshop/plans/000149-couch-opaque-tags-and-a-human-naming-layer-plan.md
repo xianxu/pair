@@ -649,12 +649,12 @@ inventory, never a couch enum (ARCH-DRY).
 
 **Steps:**
 
-- [ ] **Step 1:** Drive unsuccessful `AdvanceStartTransaction` states from the model and
+- [x] **Step 1:** Drive unsuccessful `AdvanceStartTransaction` states from the model and
    assert none commit thread/path preferences.
-- [ ] **Step 2:** Commit thread and path preferences in the successful-registration
+- [x] **Step 2:** Commit thread and path preferences in the successful-registration
    transaction only; use the store concurrency invariant from the strategy
    table.
-- [ ] **Step 3:** Run start/profile focused tests; expect PASS, then commit.
+- [x] **Step 3:** Run start/profile focused tests; expect PASS, then commit.
 
 ### Task 4: M4 integration boundary
 

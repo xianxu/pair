@@ -15,15 +15,20 @@ func admittedStartRecord(t *testing.T) ThreadRecord {
 
 func TestAdvanceStartTransactionClaimHelperAndRegistrationSequence(t *testing.T) {
 	original := admittedStartRecord(t)
+	profile := LaunchProfile{Agent: "codex", Argv: []string{"--sandbox", "workspace-write"}}
 	claimed, err := AdvanceStartTransaction(original, StartEvent{
 		Kind: StartClaimed, Nonce: "start-0123456789abcdef",
-		Owner: SupervisorOwner{PID: 41, Identity: "owner-token"},
+		Owner:   SupervisorOwner{PID: 41, Identity: "owner-token"},
+		Profile: &profile,
 	})
 	if err != nil {
 		t.Fatalf("claim: %v", err)
 	}
 	if original.Incarnations[0].Start != nil || claimed.Incarnations[0].Start == nil {
 		t.Fatal("claim mutated input or failed to copy start state")
+	}
+	if claimed.Incarnations[0].LaunchProfile != nil || claimed.Incarnations[0].Start.LaunchProfile == nil {
+		t.Fatalf("unregistered claim committed profile early: %+v", claimed.Incarnations[0])
 	}
 
 	helper, err := AdvanceStartTransaction(claimed, StartEvent{
@@ -36,6 +41,9 @@ func TestAdvanceStartTransactionClaimHelperAndRegistrationSequence(t *testing.T)
 	if helper.Incarnations[0].PID != 42 || helper.Incarnations[0].State != IncarnationCreating {
 		t.Fatalf("helper state = %+v", helper.Incarnations[0])
 	}
+	if helper.Incarnations[0].LaunchProfile != nil {
+		t.Fatalf("helper-recorded state committed profile early: %+v", helper.Incarnations[0])
+	}
 
 	registered, err := AdvanceStartTransaction(helper, StartEvent{
 		Kind: StartRegistered, Nonce: "start-0123456789abcdef",
@@ -46,6 +54,9 @@ func TestAdvanceStartTransactionClaimHelperAndRegistrationSequence(t *testing.T)
 	incarnation := registered.Incarnations[0]
 	if incarnation.State != IncarnationLive || incarnation.Start != nil || incarnation.PID != 42 || incarnation.Identity != "helper-token" {
 		t.Fatalf("registered state = %+v", incarnation)
+	}
+	if incarnation.LaunchProfile == nil || !reflect.DeepEqual(*incarnation.LaunchProfile, profile) {
+		t.Fatalf("registered profile = %+v, want %+v", incarnation.LaunchProfile, profile)
 	}
 }
 

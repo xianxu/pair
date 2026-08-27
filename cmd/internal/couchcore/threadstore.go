@@ -381,6 +381,9 @@ func (s *ThreadStore) DeleteUnstartedThread(address ThreadAddress, expectedRevis
 }
 
 func (s *ThreadStore) AdvanceStart(address ThreadAddress, expectedRevision uint64, event StartEvent) (ThreadRecord, error) {
+	if event.Kind == StartRegistered || event.Kind == StartRecoveredUnknown {
+		return s.advanceSuccessfulStart(address, expectedRevision, event)
+	}
 	return s.UpdateExistingThread(address, expectedRevision, func(next *ThreadRecord) error {
 		advanced, err := AdvanceStartTransaction(*next, event)
 		if err != nil {
@@ -389,6 +392,125 @@ func (s *ThreadStore) AdvanceStart(address ThreadAddress, expectedRevision uint6
 		*next = advanced
 		return nil
 	})
+}
+
+func (s *ThreadStore) advanceSuccessfulStart(address ThreadAddress, expectedRevision uint64, event StartEvent) (ThreadRecord, error) {
+	if err := validateThreadAddress(address); err != nil {
+		return ThreadRecord{}, err
+	}
+	var result ThreadRecord
+	err := s.withLock(func() error {
+		manifest, manifestRaw, manifestExists, err := s.loadManifestLocked()
+		if err != nil {
+			return err
+		}
+		threadRaw, err := os.ReadFile(s.recordPath(address))
+		if err != nil {
+			return err
+		}
+		current, err := s.decodeThreadRaw(address, threadRaw)
+		if err != nil {
+			return err
+		}
+		if current.Revision != expectedRevision {
+			return &ThreadRevisionError{Address: address, Want: expectedRevision, Got: current.Revision}
+		}
+		incarnation, err := exactStartIncarnation(&current, event.Nonce)
+		if err != nil {
+			return err
+		}
+		var profile *LaunchProfile
+		if incarnation.Start.LaunchProfile != nil {
+			copy := cloneLaunchProfile(*incarnation.Start.LaunchProfile)
+			profile = &copy
+		}
+		next, err := AdvanceStartTransaction(current, event)
+		if err != nil {
+			return err
+		}
+		next.Revision++
+		if err := ValidateThreadRecord(next); err != nil {
+			return err
+		}
+		nextThreadRaw, err := json.MarshalIndent(toPersistedThreadRecord(next), "", "  ")
+		if err != nil {
+			return err
+		}
+		nextThreadRaw = append(nextThreadRaw, '\n')
+		if profile == nil {
+			if err := writeAtomicBytes(s.recordPath(address), nextThreadRaw); err != nil {
+				return err
+			}
+			result = cloneThreadRecord(next)
+			return nil
+		}
+		if incarnation.Policy == nil || incarnation.Policy.RepoIdentity == "" {
+			return errors.New("successful start has no repository identity")
+		}
+		repoIdentity := incarnation.Policy.RepoIdentity
+		physicalPath := current.StartingPath
+		preferencePath := s.pathLaunchPreferencePath(repoIdentity, physicalPath)
+		preferenceRaw, preferenceExists, err := readOptionalFile(preferencePath)
+		if err != nil {
+			return err
+		}
+		var currentPreference *PathLaunchPreference
+		if preferenceExists {
+			var decoded PathLaunchPreference
+			if err := strictThreadStoreJSON(preferenceRaw, &decoded); err != nil {
+				return err
+			}
+			if err := validatePathLaunchPreference(decoded); err != nil {
+				return err
+			}
+			if decoded.RepoIdentity != repoIdentity || decoded.PhysicalPath != physicalPath {
+				return errors.New("path launch preference path/address mismatch")
+			}
+			currentPreference = &decoded
+		}
+		nextPreference, err := RecordSuccessfulLaunch(currentPreference, repoIdentity, physicalPath, *profile)
+		if err != nil {
+			return err
+		}
+		nextPreferenceRaw, err := json.MarshalIndent(nextPreference, "", "  ")
+		if err != nil {
+			return err
+		}
+		nextPreferenceRaw = append(nextPreferenceRaw, '\n')
+
+		nextManifest := manifest
+		nextManifest.Generation++
+		nextManifestRaw, err := json.MarshalIndent(nextManifest, "", "  ")
+		if err != nil {
+			return err
+		}
+		nextManifestRaw = append(nextManifestRaw, '\n')
+		expectedThread := append([]byte(nil), threadRaw...)
+		afterThread := append([]byte(nil), nextThreadRaw...)
+		var expectedPreference *[]byte
+		if preferenceExists {
+			copy := append([]byte(nil), preferenceRaw...)
+			expectedPreference = &copy
+		}
+		afterPreference := append([]byte(nil), nextPreferenceRaw...)
+		var expectedManifest *[]byte
+		if manifestExists {
+			copy := append([]byte(nil), manifestRaw...)
+			expectedManifest = &copy
+		}
+		afterManifest := append([]byte(nil), nextManifestRaw...)
+		journal := storeJournal{SchemaVersion: 1, Entries: []storeJournalEntry{
+			{Path: relativeStorePath(s.root, s.recordPath(address)), Expected: &expectedThread, After: &afterThread},
+			{Path: relativeStorePath(s.root, preferencePath), Expected: expectedPreference, After: &afterPreference},
+			{Path: relativeStorePath(s.root, s.manifestPath()), Expected: expectedManifest, After: &afterManifest},
+		}}
+		if err := s.commitJournalLocked(journal); err != nil {
+			return err
+		}
+		result = cloneThreadRecord(next)
+		return nil
+	})
+	return result, err
 }
 
 // MarkIncarnationUnknown retains capacity for one exact live process after its

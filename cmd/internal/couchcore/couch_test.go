@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"reflect"
 	"slices"
 	"strconv"
 	"strings"
@@ -706,6 +707,65 @@ func TestSpawnFailureLeavesTheTreeFree(t *testing.T) {
 	if _, _, err := env.Couch.Spawn(StartArgs{Worktree: "/repo"}); err != nil {
 		t.Fatalf("tree still held after a failed spawn: %v", err)
 	}
+}
+
+func TestSpawnFailureDoesNotCommitLaunchPreferences(t *testing.T) {
+	env := newTestEnv(t, "/repo")
+	env.Couch.RootAgent = "codex"
+	env.Couch.RepoAgentDefault = func(_, agent string) (LaunchProfile, bool, error) {
+		return LaunchProfile{Agent: agent, Argv: []string{"--search"}}, true, nil
+	}
+	env.Runner.FailNextStart(errors.New("boom"))
+	if _, _, err := env.Couch.Spawn(StartArgs{Worktree: "/repo"}); err == nil {
+		t.Fatal("expected start failure")
+	}
+	if _, found, err := env.Couch.Threads.GetPathLaunchPreference("fake-repo", "/repo"); err != nil || found {
+		t.Fatalf("failed start wrote path preference: found=%v err=%v", found, err)
+	}
+}
+
+func TestNextSpawnUsesLastSuccessfulPathAgentAndArgsWithoutRepoDefaultMarker(t *testing.T) {
+	env := newTestEnv(t, "/repo")
+	env.Couch.RootAgent = "codex"
+	env.Couch.RepoAgentDefault = func(_, agent string) (LaunchProfile, bool, error) {
+		defaults := map[string][]string{
+			"codex":  {"--sandbox", "workspace-write"},
+			"claude": {"--model", "opus"},
+		}
+		return LaunchProfile{Agent: agent, Argv: defaults[agent]}, true, nil
+	}
+	if _, _, err := env.Couch.Spawn(StartArgs{Worktree: "/repo"}); err != nil {
+		t.Fatal(err)
+	}
+	env.Couch.RootAgent = "claude"
+	if _, _, err := env.Couch.Spawn(StartArgs{Worktree: "/repo"}); err != nil {
+		t.Fatal(err)
+	}
+	child := env.Runner.Child(env.Runner.order[1])
+	if got := childEnvValue(child.Env, "PAIR_USE_REPO_DEFAULT"); got != "" {
+		t.Fatalf("path argv emitted repo-default marker %q", got)
+	}
+	parsed, err := launcher.ParseArgs([]string{"resume", child.Argv[2], "--layout2"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	profileArgs, source, err := launcher.ApplyCouchLaunchProfile(parsed, childEnvValue(child.Env, launcher.CouchLaunchProfileEnv))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if profileArgs.Agent != "codex" || !reflect.DeepEqual(profileArgs.AgentArgs, []string{"--sandbox", "workspace-write"}) || source != "path" {
+		t.Fatalf("second launch profile = %+v source=%q", profileArgs, source)
+	}
+}
+
+func childEnvValue(env []string, key string) string {
+	prefix := key + "="
+	for _, item := range env {
+		if strings.HasPrefix(item, prefix) {
+			return strings.TrimPrefix(item, prefix)
+		}
+	}
+	return ""
 }
 
 func TestSpawnCapacityRefusalDoesNotForkAndRollsBackOpaqueReservation(t *testing.T) {
