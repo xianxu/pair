@@ -1057,3 +1057,14 @@ addressed in the shared operation schema: `ArgSpec.ValueRequired` makes
 `--agent` and `--agent=` invalid before dispatch while preserving boolean
 `--no-console`; generic binder and public CLI tests prove malformed selection
 cannot reach the runner (ARCH-PURE, ARCH-PURPOSE).
+
+### 2026-08-26 — M4 boundary review round 2
+
+The reviewer disposed BR-27 and confirmed the CLI portion of BR-28 was
+load-bearing, then found the shared dispatcher did not yet derive the declared
+value constraint. `validateOperationCall` now rejects empty value-bearing
+arguments for every transport before executor selection; a direct dispatcher
+test proves the live owner is never invoked. The exact boundary range is also
+checked after generated review/ledger artifacts, closing the repeated
+verification-window-cleanliness class rather than only trimming the reported
+lines (ARCH-DRY, ARCH-PURE, ARCH-PURPOSE).

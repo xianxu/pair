@@ -1186,3 +1186,19 @@ wire, store, and CLI surfaces. `ArgSpec.ValueRequired` distinguishes named
 value flags from switches; `bindArgs` rejects both `--agent` and `--agent=`
 before dispatch, with generic-binder and public-CLI regressions proving no
 runner operation occurs (ARCH-PURE, ARCH-PURPOSE).
+
+### 2026-08-26 — enforce value requirements at the transport-neutral boundary
+
+**Reason:** the second M4 boundary review confirmed BR-27 and the CLI half of
+BR-28, then showed that advisor or console callers could bypass `bindArgs` and
+send an empty value directly through the shared operation dispatcher. It also
+found generated review prose introduced trailing whitespace after the earlier
+working-tree check.
+
+**Delta:** `validateOperationCall` now derives non-empty validation from every
+`ArgSpec.ValueRequired` declaration before choosing an executor. A pure generic
+dispatch regression proves the live executor is not invoked, complementing the
+public CLI regressions. Boundary verification now finishes with
+`git diff --check <previous-boundary>..HEAD` after every generated review and
+disposition artifact is included, not merely a pre-review working-tree check
+(ARCH-DRY, ARCH-PURE, ARCH-PURPOSE).

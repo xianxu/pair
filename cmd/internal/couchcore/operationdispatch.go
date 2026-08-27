@@ -78,13 +78,16 @@ func validateOperationCall(op Operation, call OperationCall) error {
 	for _, arg := range op.Args {
 		known[arg.Name] = arg
 	}
-	for name := range call.Args {
+	for name, value := range call.Args {
 		arg, ok := known[name]
 		if !ok {
 			return fmt.Errorf("%s: unknown argument %q", op.Name, name)
 		}
 		if arg.Implicit && !call.Implicit {
 			return fmt.Errorf("%s: argument %q requires trusted caller context", op.Name, name)
+		}
+		if arg.ValueRequired && value == "" {
+			return fmt.Errorf("%s: argument %q requires a non-empty value", op.Name, name)
 		}
 	}
 	for _, arg := range op.Args {

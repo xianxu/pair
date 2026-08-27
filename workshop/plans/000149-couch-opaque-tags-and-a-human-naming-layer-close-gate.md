@@ -434,6 +434,27 @@ rounds:
           round: 17
       boundary: M4
       blocked: true
+    - "n": 18
+      timestamp: "2026-08-26T18:03:09-07:00"
+      agent: codex
+      dispose:
+        - id: BR-27
+          disposition: addressed
+          note: The plan now states the whole-milestone inventory rule and the full M4 sweep accurately inventories the material PURE and INTEGRATION entities, paths, and statuses.
+          round: 18
+        - id: BR-28
+          disposition: not-addressed
+          note: CLI binding rejects bare and empty agent flags, but transport-neutral DispatchOperation does not enforce ValueRequired and has no regression proving an empty agent cannot reach the live executor.
+          round: 18
+      findings:
+        - id: BR-29
+          severity: Minor
+          title: The M4 disposition commit fails exact-window whitespace verification
+          detail: 'This is the 2nd finding in family `verification-window-cleanliness`. Earlier rounds fixed an instance. Do NOT fix only these lines: state and apply the rule that every boundary and disposition artifact is included in the final exact-window `git diff --check` sweep. The current failure is trailing whitespace at the M4 review artifact lines 62-63.'
+          family: verification-window-cleanliness
+          round: 18
+      boundary: M4
+      blocked: true
 ---
 
 # Gate ledger — pair#149 (boundary-review)
@@ -636,7 +657,19 @@ later rounds disposed of them. Generated — edit the gate, not this file.
 - **BR-28** [Important] `value-bearing-flag-contract` An explicitly empty agent selection silently launches the fallback agent
   bindArgs preserves `--agent=` as a present empty string at couchcmd/run.go:400, but CouchLiveOwnerExecutor passes only the value and ResolveLaunchProfile treats empty as no explicit selection. Reject missing or empty values for value-bearing flags before Spawn, distinguish them from boolean switches, and add public CLI plus generic-dispatch tests that fail without the fix.
 
+## Round 18 — 2026-08-26T18:03:09-07:00 (codex) — BLOCKED
+
+### Disposed
+
+- BR-27 — addressed — The plan now states the whole-milestone inventory rule and the full M4 sweep accurately inventories the material PURE and INTEGRATION entities, paths, and statuses.
+- BR-28 — not-addressed — CLI binding rejects bare and empty agent flags, but transport-neutral DispatchOperation does not enforce ValueRequired and has no regression proving an empty agent cannot reach the live executor.
+
+### Raised
+
+- **BR-29** [Minor] `verification-window-cleanliness` The M4 disposition commit fails exact-window whitespace verification
+  This is the 2nd finding in family `verification-window-cleanliness`. Earlier rounds fixed an instance. Do NOT fix only these lines: state and apply the rule that every boundary and disposition artifact is included in the final exact-window `git diff --check` sweep. The current failure is trailing whitespace at the M4 review artifact lines 62-63.
+
 ## Open findings
 
-- **BR-27** [Critical] `core-concept-kind-contract` M4's Core concepts inventory omits and misstates implemented architectural entities
 - **BR-28** [Important] `value-bearing-flag-contract` An explicitly empty agent selection silently launches the fallback agent
+- **BR-29** [Minor] `verification-window-cleanliness` The M4 disposition commit fails exact-window whitespace verification

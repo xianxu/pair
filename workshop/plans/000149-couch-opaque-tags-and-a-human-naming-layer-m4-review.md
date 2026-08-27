@@ -59,8 +59,8 @@ Coverage is strong for precedence, cross-agent isolation, defensive copying, str
 
 Append, rather than overwrite, an entry such as:
 
-> ### 2026-08-26 — align the M4 architectural inventory with implementation  
-> **Reason:** M4 introduced additional durable entities and a strict launcher integration beyond the original Core concepts rows and task file lists.  
+> ### 2026-08-26 — align the M4 architectural inventory with implementation
+> **Reason:** M4 introduced additional durable entities and a strict launcher integration beyond the original Core concepts rows and task file lists.
 > **Delta:** enumerate `LaunchProfile`, `PathLaunchPreference`, `LaunchProfileResolution`, the Couch launch-profile wire codec, and the modified `ThreadRecord`, `threadrecord.Record`, `ThreadStore`, and agent-default integration with accurate PURE/INTEGRATION kinds, paths, and M4 statuses. Update M4 task file inventories accordingly.
 
 ```findings
@@ -79,4 +79,94 @@ findings:
       An explicitly empty agent selection silently launches the fallback agent
     detail: |
       bindArgs preserves `--agent=` as a present empty string at couchcmd/run.go:400, but CouchLiveOwnerExecutor passes only the value and ResolveLaunchProfile treats empty as no explicit selection. Reject missing or empty values for value-bearing flags before Spawn, distinguish them from boolean switches, and add public CLI plus generic-dispatch tests that fail without the fix.
+```
+
+---
+
+## Re-review — 2026-08-26T18:03:09-07:00 (FIX-THEN-SHIP)
+
+| field | value |
+|-------|-------|
+| issue | 149 — couch: opaque tags and a human naming layer |
+| repo | pair |
+| issue file | workshop/issues/000149-couch-opaque-tags-and-a-human-naming-layer.md |
+| boundary | milestone M4 |
+| milestone | M4 |
+| window | fde9aa8c2578952e7df7aa0dc8404fd45ef30ea3..fde9aa8c2578952e7df7aa0dc8404fd45ef30ea3 |
+| command | sdlc milestone-close --issue 149 --milestone M4 |
+| reviewer | codex |
+| timestamp | 2026-08-26T18:03:09-07:00 |
+| verdict | FIX-THEN-SHIP |
+
+## Review
+
+```verdict
+verdict: FIX-THEN-SHIP
+confidence: high
+```
+
+M4’s launch-profile design, persistence transaction, documentation, and architectural inventory are substantially sound, and the full Go suite passes. BR-27 is addressed. BR-28 remains open because value validation occurs only in the CLI binder; transport-neutral dispatch still permits an empty agent value to reach the live executor. The disposition commit also introduces two trailing-whitespace failures.
+
+## 1. Strengths
+
+- Profile resolution keeps agent and argument provenance independent and defensively copies argument vectors in [launchprofile.go](/Users/xianxu/workspace/pair/cmd/internal/couchcore/launchprofile.go:59).
+- Successful registration atomically publishes the thread record, path preference, and manifest through the existing journal.
+- Pair’s shared agent inventory replaces the parallel rename-agent enumeration.
+- The revised Core concepts inventory accurately covers the material M4 PURE and INTEGRATION surfaces.
+- README and atlas document the public syntax, precedence rules, persistence, and failure semantics.
+
+## 2. Critical findings
+
+None.
+
+## 3. Important findings
+
+- **BR-28 — not addressed:** [operationdispatch.go](/Users/xianxu/workspace/pair/cmd/internal/couchcore/operationdispatch.go:76) validates known, implicit, and required arguments but never enforces `ArgSpec.ValueRequired`. Consequently, `DispatchOperation(... OperationCall{Name: "start", Args: {"agent": ""}})` reaches the live-owner executor and launches the fallback agent. The new tests at [run_test.go](/Users/xianxu/workspace/pair/cmd/internal/couchcmd/run_test.go:440) pin only the CLI binder and public CLI route; no generic-dispatch regression exists. Enforce non-empty values in `validateOperationCall` and add a test proving the executor is not invoked.
+
+## 4. Minor findings
+
+- The full M4 range fails `git diff --check` on trailing whitespace at [m4-review.md](/Users/xianxu/workspace/pair/workshop/plans/000149-couch-opaque-tags-and-a-human-naming-layer-m4-review.md:62). This is the second `verification-window-cleanliness` occurrence; apply an exact-window cleanliness rule to all boundary/disposition artifacts, not only this pair of lines.
+
+## 5. Test coverage notes
+
+- `go test ./... -count=1` passed.
+- Focused couchcmd, couchcore, launcher, and threadrecord suites passed.
+- The CLI tests would fail without the binder fix, confirming that portion is load-bearing.
+- No test exercises `ValueRequired` through `DispatchOperation`; that omission is why BR-28 remains open.
+- `git diff --check 344214a..fde9aa8` fails on two lines.
+- The supplied base and head were identical. The review used the recorded M4 window `328551b..344214a` plus disposition commit `fde9aa8`.
+
+## 6. Architectural notes for upcoming work
+
+- **ARCH-DRY — pass:** agent inventory and operation declarations remain shared authorities.
+- **ARCH-PURE — pass:** profile resolution and transaction transitions remain pure; filesystem and process effects stay in store/runtime seams.
+- **ARCH-PURPOSE — flag:** the shared operation schema declares the value requirement, but not every schema consumer enforces it. The generic dispatcher must derive validation from the declaration.
+- **ARCH-MOCK — pass:** no new external dependency was introduced; integration tests use the existing injected runtime/store boundaries.
+
+## 7. Plan revision recommendations
+
+Append after completing BR-28:
+
+> ### 2026-08-26 — enforce value requirements at the transport-neutral boundary
+> **Reason:** CLI binding rejected malformed agent flags, but generic operation calls could bypass that binder and reach the live executor with an empty value.
+> **Delta:** `validateOperationCall` now enforces every `ArgSpec.ValueRequired` declaration before executor dispatch, with generic-dispatch and public-CLI regressions proving malformed selections cannot spawn.
+
+```findings
+dispose:
+  - id: BR-27
+    disposition: addressed
+    note: |
+      The plan now states the whole-milestone inventory rule and the full M4 sweep accurately inventories the material PURE and INTEGRATION entities, paths, and statuses.
+  - id: BR-28
+    disposition: not-addressed
+    note: |
+      CLI binding rejects bare and empty agent flags, but transport-neutral DispatchOperation does not enforce ValueRequired and has no regression proving an empty agent cannot reach the live executor.
+findings:
+  - id: new
+    severity: Minor
+    family: verification-window-cleanliness
+    title: |
+      The M4 disposition commit fails exact-window whitespace verification
+    detail: |
+      This is the 2nd finding in family `verification-window-cleanliness`. Earlier rounds fixed an instance. Do NOT fix only these lines: state and apply the rule that every boundary and disposition artifact is included in the final exact-window `git diff --check` sweep. The current failure is trailing whitespace at the M4 review artifact lines 62-63.
 ```

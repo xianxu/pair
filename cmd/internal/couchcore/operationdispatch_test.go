@@ -84,3 +84,19 @@ func TestDispatchOperationValidatesSchemaAndPreservesTypedPayload(t *testing.T) 
 		}
 	}
 }
+
+func TestDispatchOperationRejectsEmptyValueRequiredArgumentBeforeExecutor(t *testing.T) {
+	calls := 0
+	_, err := DispatchOperation(OperationExecutors{
+		LiveOwner: func(OperationCall) (any, error) {
+			calls++
+			return nil, nil
+		},
+	}, OperationCall{Name: "start", Args: map[string]string{"path": "/repo", "agent": ""}})
+	if err == nil {
+		t.Fatal("empty value-bearing agent argument accepted")
+	}
+	if calls != 0 {
+		t.Fatalf("invalid operation reached executor %d time(s)", calls)
+	}
+}
