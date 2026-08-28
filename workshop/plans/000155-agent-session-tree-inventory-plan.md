@@ -4,7 +4,7 @@
 
 **Goal:** Give Pair one deterministic inventory of every supported agent's native root/subagent forest, and establish a Pair tag's root only after Pair observes one completed native user-to-agent round.
 
-**Architecture:** A new `sessioninventory` package separates pure native facts, forest assembly, round matching, binding state, and stable rendering from one injected runtime boundary. Agent scanners emit facts rather than making selection decisions. The watcher records a launch baseline, monitors exact Pair-log/native rounds, and persists a root only when one candidate uniquely completes the round; validated native parent edges then propagate that established binding to descendants without becoming binding evidence. Every existing native-session consumer migrates to this package, and a shadow-sweep test prevents independent glob/newest/`lsof` logic from returning (`ARCH-DRY`, `ARCH-PURE`, `ARCH-PURPOSE`, `ARCH-MOCK`).
+**Architecture:** A new `sessioninventory` package separates pure native facts, forest assembly, round matching, binding state, and stable rendering from one injected runtime boundary. Agent scanners emit facts rather than making selection decisions. Before input, Pair persists a content-free provisional launch baseline whose physical ledger ordinal delimits the new Pair-log/native suffix; one locked `sessionledger` store owns all append/fsync writes. The watcher persists a root only when one candidate uniquely completes a durably logged round; validated native parent edges then propagate that established binding to descendants without becoming binding evidence. Every existing native-session consumer migrates to this package, and a shadow-sweep test prevents independent glob/newest/`lsof` logic from returning (`ARCH-DRY`, `ARCH-PURE`, `ARCH-PURPOSE`, `ARCH-MOCK`).
 
 **Tech Stack:** Go standard library, existing Pair launcher/sessionwatch/transcript packages, platform `sqlite3` behind an injected seam for Agy facts, shell integration tests, Neovim Lua tests, sanitized native fixtures, and an opt-in no-LLM live conformance probe.
 
@@ -28,6 +28,7 @@
 | `RoundObservation` | `cmd/internal/sessioninventory/round.go` | new | M2 |
 | `Binding` / `Candidate` / `Ambiguity` / `Evidence` | `cmd/internal/sessioninventory/binding.go` | new | M2 |
 | `PairLedgerFact` / `PairLogFact` | `cmd/internal/sessioninventory/pairfacts.go` | new | M2 |
+| `LedgerRecord` / `LaunchBaseline` | `cmd/internal/sessionledger/record.go` | new | M2 |
 | `SessionActivity` | `cmd/internal/sessioninventory/activity.go` | new | final |
 
 **`NativeRecordFact`** — bounded, scanner-authorized facts extracted from one
@@ -93,6 +94,18 @@ offline-round, or config evidence.
 - **DRY rationale:** Launcher and watcher currently duplicate ledger shapes while slug/continuation paths duplicate Pair-log normalization.
 - **Future extensions:** A future ledger version can be adapted once at this boundary.
 
+**`LedgerRecord` / `LaunchBaseline`** — append-only `launch` and `binding`
+records. A launch record's physical source ordinal is its generation key and
+stores only the Pair-log byte offset plus sorted native root/event watermarks;
+a binding record references that ordinal and supplies the established root.
+- **Relationships:** The newest valid launch ordinal is current for one
+  `(scope,tag,agent)`. It supersedes older current state without deleting
+  history. Only a binding joined to that latest launch is current.
+- **DRY rationale:** Launcher, watcher, restart, and offline recovery share one
+  lifecycle projection; timestamps never select a generation.
+- **Future extensions:** New record kinds must preserve physical ordinals,
+  including ordinals consumed by malformed lines.
+
 **`SessionActivity`** — inventory-owned internal projection of authorized root
 creation and last-activity times, with timestamp source.
 - **Relationships:** Derived only after inventory authorizes a root artifact;
@@ -111,6 +124,8 @@ creation and last-activity times, with timestamp source.
 | `WatcherInventory` | `cmd/internal/sessionwatch/sessionwatch.go` | modified | M2 | baseline, polling, round establishment, ledger persistence |
 | `session-inventory` CLI | `cmd/internal/sessioninventory/runcli.go` | new | M2 | stable human/JSON/conformance rendering |
 | `activity query` | `cmd/internal/sessioninventory/activitycli.go` | new | final | authorized age/idle projection for editor UI |
+| `LedgerStore` | `cmd/internal/sessionledger/store.go` | new | M2 | serialized append/fsync for every ledger writer |
+| `SessionLogStore` | `cmd/internal/pairlog/store.go` | new | M2 | durable existing-markdown-log append before send |
 
 **`Runtime`** — the only boundary allowed to enumerate/read/stat native storage, obtain typed SQLite facts, inspect descendants/open files/PID identity, or read Pair state.
 - **Injected into:** scanner, watcher, inventory, and conformance entry points.
@@ -146,6 +161,35 @@ inventory output.
 - **Injected into:** Neovim age/idle hint; titlepoller calls the same Go query directly.
 - **Future extensions:** May become a versioned public projection if another consumer appears.
 
+**`LedgerStore`** — sole cross-process ledger writer. It encodes before taking
+an exclusive lock, derives the next physical ordinal while locked, appends one
+complete JSONL record, fsyncs, then unlocks.
+- **Injected into:** launcher and watcher write adapters; readers stay in `sessioninventory`.
+- **Failure semantics:** a write/fsync error fails the operation. A partial
+  malformed tail consumes its ordinal; retry appends a new record. Binding
+  append failure leaves the latest launch provisional for offline recovery.
+- **Future extensions:** Compaction must take the same lock and preserve
+  current launch/binding joins.
+
+**`SessionLogStore`** — sole durable append path for the existing
+`log-<tag>.md`. The streaming `pair session-log append` command reads the
+authored body from stdin, resolves the scoped artifact, takes its lock, writes
+and fsyncs an atomic replacement, then syncs the parent directory.
+- **Injected into:** Neovim `send_and_clear` before it submits to the agent.
+- **Failure semantics:** any append failure preserves the draft, displays the
+  error, and prevents submission; therefore every completed native round has a
+  durable Pair-log turn without introducing a send journal.
+- **Future extensions:** Other Pair composers must use the same command.
+
+## Non-goals
+
+- No send journal, minted incarnation ID, delivery transaction, semantic/fuzzy
+  match, or timestamp-authorized binding.
+- No recoverable native ID before a completed round; the provisional ledger
+  baseline is content-free delimiting metadata, not recovery state.
+- No parent edge may create or strengthen a root candidate.
+- No schema-v1 activity field; the internal activity query remains separate.
+
 ## Review Boundaries
 
 - **M1 — deterministic forests:** pure model/order, runtime seam/fake, four scanners, fixtures, rendering core, and live conformance.
@@ -155,6 +199,33 @@ inventory output.
 Every commit command in this plan includes a body explaining why and ends with
 the required `Co-Authored-By: OpenAI Codex <codex@openai.com>` trailer, even
 when the abbreviated command below shows only its subject.
+
+## Risky Function Test Strategies
+
+Each implementation step follows RED (add the named function test and observe
+the expected missing/wrong-behavior failure), GREEN (minimal implementation),
+then the listed focused command. The strategy names the adversarial input class
+and mechanical guard; executable fixtures/fuzz seeds own individual cases.
+
+| Production function | Test strategy |
+|---|---|
+| `BuildForest` | fuzz arbitrary duplicated/conflicting/shuffled facts; fail closed on disputed edges and compare canonical bytes |
+| `SortInventory` / `StableID` | property-test permutations, null times, and path aliases; enforce documented total tuples and canonical length-prefix hashing |
+| `InventoryWithRuntime` | mutate stateful storage/SQLite/process/open-file facts across calls; all effects cross the one typed runtime |
+| `ScanClaude` / `ScanCodex` / `ScanAgy` / `ScanMuse` | fuzz bounded sanitized record streams around each v1 allowlist; unknown/malformed shapes become diagnostics, never facts |
+| `NormalizeNativeEvent` / `NormalizePairText` | shared Go/Lua golden plus malformed-record fuzzing; accepted source kinds and exact bytes are identical |
+| `QualifyTurnSequence` | fuzz Unicode length/token boundaries and repeated/gapped sequences; only globally unique contiguous fingerprints qualify |
+| `ResolveBindings` | property-test shuffled multi-tag/root graphs and precedence; equal conflicts stay ambiguous and parent edges only propagate |
+| `ParseLedger` / `CurrentLaunch` | fuzz malformed/interleaved records; physical ordinals are retained and only the latest launch plus joined binding is current |
+| `LedgerStore.Append` | subprocess concurrency and injected short-write/fsync failures on a real temp filesystem; lock prevents lost rows and malformed tails consume ordinals |
+| `PersistSessionLog` | injected open/write/fsync/rename failures plus concurrent append; submission is enabled only after one durable atomic markdown append |
+| `ObserveAndPersist` | mutate both baselines, PID identity, candidates, and crash points; stale generations cannot bind and post-progress recovery uses suffixes only |
+| `RenderV1` / `RunCLI` | shuffled complete/partial inventories and failing writers; buffer before stdout and enforce byte goldens/result matrix |
+| `SessionActivity` / `TokenUsageForRoot` | shuffle authorized artifacts/events and unsupported records; query only an established root and last accepted root usage |
+| `transcript.Resolve` / `contextcmd.TranscriptPath` | vary inherited authority and binding states; native validation/path lookup must come only from inventory |
+| `resolveLiveCodexTranscript` / `resolveTargetSession` | vary ambiguous/unbound inventories and stale config; never fall back to `lsof` or newest files |
+| `HistorySource.latestLedgerEntry` / `resolveSessionID` | vary launch generations and legacy caches; only the current joined binding or exact environment authority wins |
+| `ShadowSweep` | scan every governed Go/shell/Lua root with seeded forbidden forms; unclassified roots and independent parsers fail |
 
 ## Chunk 1: Deterministic Native Forests
 
@@ -166,12 +237,13 @@ when the abbreviated command below shows only its subject.
 - Test: `cmd/internal/sessioninventory/model_test.go`
 - Test: `cmd/internal/sessioninventory/order_test.go`
 
-- [ ] Write failing table tests for roots, descendants, missing parents, conflicting parents, duplicate native IDs, symlink-escape diagnostics, missing timestamps, and shuffled input.
-- [ ] Assert byte-identical ordered model output for every permutation, with null-last timestamps and tuple comparators ending in stable IDs/paths.
-- [ ] Run `go test ./cmd/internal/sessioninventory -run 'Test(BuildForest|StableOrder)' -count=1` and confirm it fails because the package/model does not exist.
-- [ ] Implement only the pure structs, stable-ID helpers, edge validation, diagnostics, and total-order functions needed by the tests.
-- [ ] Keep disputed nodes unbound and emit `parent_conflict` or `duplicate_conflict` instead of choosing.
-- [ ] Re-run the focused tests and confirm they pass.
+- [ ] RED: add `TestBuildForest` and `TestSortInventory` from the strategy
+      table; run `go test ./cmd/internal/sessioninventory -run
+      'Test(BuildForest|SortInventory)' -count=1` and confirm the missing-model failure.
+- [ ] GREEN: implement `BuildForest`, `SortInventory`, `StableID`, the pure
+      entities, and fail-closed edge diagnostics; rerun the focused tests.
+- [ ] Add seeded fuzz/property targets for those functions and run
+      `go test ./cmd/internal/sessioninventory -run 'Test|Fuzz' -count=1`.
 - [ ] Commit: `git add cmd/internal/sessioninventory && git commit -m '#155 M1: define deterministic native forests'`.
 
 ### Task 2: Add the single runtime seam and stateful fake
@@ -184,12 +256,15 @@ when the abbreviated command below shows only its subject.
 - Create: `cmd/internal/sessioninventory/scan.go`
 - Test: `cmd/internal/sessioninventory/scan_test.go`
 
-- [ ] Write failing tests that drive the production inventory entry point with unordered walks, unreadable records, an SQLite fact set, changed PID identity, descendants, and concurrent open-file evidence.
-- [ ] Define typed operations for `Walk`, bounded `ReadRecord`, `Stat`, `SQLiteFacts`, `Descendants`, `OpenFiles`, `ProcessIdentity`, and Pair artifact reads; do not expose raw shell execution to pure code.
-- [ ] Implement importable `sessioninventorytest.FakeRuntime` as mutable
-      external state, not function-call expectations (`ARCH-MOCK`); use
-      external-package inventory tests to avoid an import cycle.
-- [ ] Implement `OSRuntime` using existing `procutil` and a read-only platform `sqlite3` adapter; validate paths before reads and centralize storage-root knowledge.
+- [ ] RED: add `TestInventoryWithRuntime` from the strategy table against an
+      importable stateful fake; run the focused package tests and confirm the
+      missing-runtime failure.
+- [ ] GREEN: define the typed `Runtime` operations and implement
+      `InventoryWithRuntime` plus `sessioninventorytest.FakeRuntime`; keep raw
+      shell execution outside pure code and use external-package tests.
+- [ ] RED/GREEN: add `TestOSRuntimeBoundaries`, then implement `OSRuntime` with
+      existing `procutil`, path validation, bounded reads, centralized storage
+      roots, and a read-only platform `sqlite3` adapter.
 - [ ] Run `go test ./cmd/internal/sessioninventory -run 'TestInventoryRuntime' -count=1` and `go test ./cmd/internal/sessioninventorytest -count=1`; confirm both pass.
 - [ ] Commit: `git add cmd/internal/sessioninventory cmd/internal/sessioninventorytest && git commit -m '#155 M1: add stateful inventory runtime seam'`.
 
@@ -212,22 +287,15 @@ when the abbreviated command below shows only its subject.
 - Modify: `Makefile.local`
 - Fixtures: `cmd/internal/sessioninventory/testdata/native/{claude,codex,agy,muse}/v1/`
 
-- [ ] Pin the Claude root/subagent/user/progress/malformed fixtures; add
-      `TestScanClaudeV1` including accepted root-only usage and rejected
-      sidechain/synthetic usage, run red, implement `scan_claude.go`, rerun green.
-- [ ] Pin the Codex root/`parent_thread_id`/user/progress/malformed fixtures;
-      add `TestScanCodexV1` including accepted `token_count` and null-info
-      rejection, run red, implement `scan_codex.go`, rerun green.
-- [ ] Pin the Agy root/transcript/near-miss-orphan/malformed SQLite facts; add
-      `TestScanAgyV1`, run red, implement `scan_agy.go`, rerun green. Treat the
-      checked-in v1 child as an orphan diagnostic unless an actual sanitized
-      populated parent fixture proves the relationship; widen only then.
-- [ ] Pin the Muse root/subagent/user/progress/malformed fixtures; add
-      `TestScanMuseV1`, run red, implement `scan_muse.go`, rerun green.
-- [ ] Add internal forest-projection goldens and shuffled-input tests, run red,
-      then implement the stable forest-only projection used by scanner tests.
-      Do not create a partial public schema-v1 before M2 binding types exist.
-- [ ] Add the opt-in `PAIR_LIVE_NATIVE_SESSIONS=1` no-LLM conformance test; redact content, cwd, home paths, and raw IDs.
+- [ ] For each `ScanClaude`, `ScanCodex`, `ScanAgy`, and `ScanMuse` function,
+      pin one sanitized v1 fixture corpus, add the strategy-table test/fuzz
+      target, observe RED, implement the facts-only scanner, and rerun GREEN.
+      Agy parent facts remain orphans until a populated sanitized fixture proves
+      the relationship.
+- [ ] RED/GREEN: add `TestForestProjection` for canonical bytes, then implement
+      the stable forest-only projection; do not create partial public schema-v1.
+- [ ] RED/GREEN: add `TestLiveNativeSessionShapeConformance` and implement the
+      opt-in no-LLM probe with redacted output and the specified skip/fail rules.
 - [ ] Add `test-native-session-live` to `Makefile.local` and include it in
       `test-live`. The manual and scheduled workstation command is
       `make test-native-session-live`; no installed sample emits the documented
@@ -263,25 +331,32 @@ when the abbreviated command below shows only its subject.
 - Create: `nvim/normalization.lua`
 - Create: `nvim/normalization_test.lua`
 - Modify: `nvim/init.lua`
+- Create: `cmd/internal/pairlog/store.go`
+- Create: `cmd/internal/pairlog/store_test.go`
+- Create: `cmd/internal/pairlog/runcli.go`
+- Create: `cmd/internal/pairlog/runcli_test.go`
+- Modify: `cmd/internal/dispatcher/dispatcher.go`
+- Modify: `cmd/internal/dispatcher/dispatcher_test.go`
+- Modify: `cmd/pair-go/main.go`
+- Modify: `cmd/pair-go/main_test.go`
 
-- [ ] Add `TestNormalizeNativeEvents` with one fixture case per accepted
-      user/assistant/tool-call/tool-result/terminal-error shape; run it and
-      observe missing normalization.
-- [ ] Implement only `NativeEvent` normalization and rerun until green.
-- [ ] Add the versioned shared normalization golden with CRLF, trailing
-      horizontal whitespace, outer blank space, sticky-comment framing,
-      internal whitespace, Unicode, empty, generic, and duplicate cases.
-- [ ] Add `TestNormalizePairTextGolden` and `nvim/normalization_test.lua`
-      against that same fixture; run Go plus `make test-lua` and observe both
-      fail before extraction.
-- [ ] Extract Pair text normalization for Go and Lua, route `nvim/init.lua`
-      send behavior and continuation/slug/matcher callers through it, and rerun
-      both suites until byte-identical.
+- [ ] RED/GREEN: add `TestNormalizeNativeEvent` and the scanner strategy,
+      implement only accepted event normalization, and rerun focused tests.
+- [ ] RED/GREEN: add the versioned shared `NormalizePairText` golden exercised
+      by Go and Lua, extract both implementations, and route slug,
+      continuation, matcher, and Neovim send behavior through them.
+- [ ] RED/GREEN: add `TestPersistSessionLog` plus subprocess concurrency and
+      failure injection from the strategy table; implement locked atomic
+      append/fsync in `pairlog` and the streaming `pair session-log append`
+      route.
+- [ ] Change `send_and_clear` to invoke durable session-log append before
+      `send_to_agent`. On any append error it keeps the draft, reports the
+      failure, and sends nothing.
 - [ ] Preserve bounded reads and structured malformed-record diagnostics; never inspect transcript content in conformance output.
 - [ ] Run:
-  - `go test ./cmd/internal/sessioninventory ./cmd/internal/slugcmd ./cmd/internal/continuationcmd -count=1`
+  - `go test ./cmd/internal/sessioninventory ./cmd/internal/slugcmd ./cmd/internal/continuationcmd ./cmd/internal/pairlog ./cmd/internal/dispatcher ./cmd/pair-go -count=1`
   - `make test-lua`
-- [ ] Commit: `git add cmd/internal/sessioninventory cmd/internal/slugcmd cmd/internal/continuationcmd nvim/init.lua nvim/normalization.lua nvim/normalization_test.lua && git commit -m '#155 M2: share session event normalization'`.
+- [ ] Commit: `git add cmd/internal/sessioninventory cmd/internal/slugcmd cmd/internal/continuationcmd cmd/internal/pairlog cmd/internal/dispatcher cmd/pair-go nvim && git commit -m '#155 M2: make submitted rounds durably observable'`.
 
 ### Task 5: Implement pure causal-round binding and crash recovery
 
@@ -290,43 +365,35 @@ when the abbreviated command below shows only its subject.
 - Create: `cmd/internal/sessioninventory/round_test.go`
 - Create: `cmd/internal/sessioninventory/binding.go`
 - Create: `cmd/internal/sessioninventory/binding_test.go`
+- Create: `cmd/internal/sessionledger/record.go`
+- Create: `cmd/internal/sessionledger/record_test.go`
+- Create: `cmd/internal/sessionledger/store.go`
+- Create: `cmd/internal/sessionledger/store_unix.go`
+- Create: `cmd/internal/sessionledger/store_test.go`
+- Create: `cmd/internal/sessionledger/store_subprocess_test.go`
 - Modify: `cmd/internal/launcher/ledger.go`
 - Test: `cmd/internal/launcher/ledger_test.go`
 
-- [ ] Add `TestSingleTurnQualification`: one normalized turn authorizes only at
-      32 UTF-8 bytes, five Unicode word tokens, and a fingerprint unique across
-      all remaining Pair segments and native roots; run it and observe failure.
-- [ ] Implement the single-turn threshold/global uniqueness rule; rerun green.
-- [ ] Add `TestTwoTurnQualification`: two contiguous filtered operator turns
-      authorize only when each has eight bytes, at least one has three words,
-      and the ordered pair is globally unique; include gaps, partial prefixes,
-      duplicate Pair segments, and duplicate roots.
-- [ ] Implement the minimal two-turn matcher; rerun green.
-- [ ] Add `TestRoundRequiresProgress` covering no round, user-only, assistant,
-      tool invocation, tool result, and terminal response/error; implement the
-      accepted progress transition and rerun green.
-- [ ] Add `TestGlobalBindingConflicts` covering simultaneous multi-tag/root
-      matches, one root claimed by competing tags, equal candidates,
-      deterministic ambiguity, and later-round candidate intersection.
-- [ ] Implement deterministic global assignment/intersection without chronology
-      tie-breaking; rerun green.
-- [ ] Add `TestBindingPrecedence` for valid ledger > unique live round > unique
-      offline round > sole validated legacy config, including stale/malformed
-      config and scanner-unauthorized roots.
-- [ ] Implement precedence plus `binding_stale`/`binding_conflict` diagnostics;
-      rerun green.
-- [ ] Write boundary tests for shutdown before progress (provisional/disposable), persistence after progress (established), and crash after progress but before ledger write (offline exact-round reconstruction).
-- [ ] Write tests proving validated parent edges propagate an established binding to descendants while carrying both provenances, and cannot create candidates, strengthen evidence, or resolve ambiguity.
-- [ ] Keep native matching contiguous after filtering to allowlisted
-      operator-authored turns, followed by progress in the same root. Use the
-      final issue contract's exact normalization/fingerprint thresholds;
-      chronology may order/debug but never authorize.
-- [ ] Derive `binding_id` from `(scope_key, tag, agent, root_node_id-or-empty)` and emit only `ledger`, `live_round`, `offline_round`, and `config` correlation evidence.
-- [ ] Move/alias launcher ledger parsing through the shared typed facts so watcher and recovery cannot diverge.
+- [ ] RED/GREEN: add `TestQualifyTurnSequence` from the strategy table, then
+      implement the exact one/two-turn thresholds and completed-progress rule.
+- [ ] RED/GREEN: add `TestResolveBindings` from the strategy table, then
+      implement global precedence, ambiguity intersection, stable IDs, and
+      propagation-only parent inheritance.
+- [ ] RED/GREEN: add `TestParseLedger` and `TestCurrentLaunch`, then implement
+      typed `launch`/`binding` records. The launch row stores content-free
+      Pair-log/native watermarks; its physical ordinal is the generation key.
+      A newer launch supersedes older current state, and a binding is current
+      only when it references the latest launch ordinal.
+- [ ] RED/GREEN: add `TestLedgerStoreAppend` and its subprocess concurrency
+      target, then implement the sole locked append/fsync writer and failure
+      semantics. Replace launcher parsing/writes with shared records/store.
+- [ ] Implement offline recovery as `Pair/native suffix after the latest
+      launch's stored watermarks → QualifyTurnSequence → ResolveBindings`.
+      No timestamp, process order, or older launch can authorize that suffix.
 - [ ] Run:
-  - `go test ./cmd/internal/sessioninventory -run 'Test(SingleTurn|TwoTurn|Round|GlobalBinding|Binding|OfflineRecovery|ParentPropagation)' -count=1`
-  - `go test ./cmd/internal/launcher -run TestLedger -count=1`
-- [ ] Commit: `git add cmd/internal/sessioninventory cmd/internal/launcher && git commit -m '#155 M2: establish bindings after a completed round'`.
+  - `go test ./cmd/internal/sessioninventory -run 'Test(QualifyTurnSequence|ResolveBindings|OfflineRecovery|ParentPropagation)' -count=1`
+  - `go test ./cmd/internal/sessionledger ./cmd/internal/launcher -run 'Test(Ledger|CurrentLaunch)' -count=1`
+- [ ] Commit: `git add cmd/internal/sessioninventory cmd/internal/sessionledger cmd/internal/launcher && git commit -m '#155 M2: establish durable launch generations'`.
 
 ### Task 6: Replace watcher heuristics with provisional-to-established monitoring
 
@@ -348,49 +415,35 @@ when the abbreviated command below shows only its subject.
 - Modify: `cmd/internal/wrapcmd/agent_restart_test.go`
 - Test: `tests/pair-session-watch-test.sh`
 
-- [ ] Add `TestLaunchBaselineExcludesOldRounds`: snapshot both native event
-      positions and Pair-log byte/entry ordinal; old matching rounds on either
-      side must not establish a fresh launch. Run and observe failure.
-- [ ] Implement the two-sided baseline and rerun green.
-- [ ] Add `TestWatcherProvisionalUntilProgress` for no progress, one unique
-      completed round, ambiguity across polls, and later-round intersection;
-      run red, implement the transitions, then rerun green.
-- [ ] Add crash tests at the exact pre-progress, post-progress/pre-ledger, and
-      post-ledger boundaries; inject each failure, implement idempotent offline
-      recovery, and rerun green.
-- [ ] Delete `discover`/`discoverByBirth` and all watcher first/newest selection. Process/open-file facts may corroborate candidates where available but may not select a root.
-- [ ] Add `TestProcessEvidenceCorroboratesOnly` with PID identity stable before
-      and after the descendant/open-file snapshot, PID reuse, conflicting open
-      files, and no usable open-file evidence; the last case must still bind
-      through a globally unique exact round.
-- [ ] Make `sessionwatch.Runtime` retain only scheduling and Pair
-      ledger/config writes, adapt one `sessioninventory.Runtime` for all native
-      reads, and delete duplicate walk/read/process/open-file methods.
+- [ ] RED/GREEN: add `TestObserveAndPersist` from the strategy table, then
+      implement two-sided baseline capture, completed-round polling, ambiguity
+      intersection, PID-before/after corroboration, and injected crash recovery.
+- [ ] Delete `discover`/`discoverByBirth` and every first/newest selection;
+      process/open-file facts corroborate but never select a root.
+- [ ] Make `sessionwatch.Runtime` retain only scheduling/config-cache effects,
+      inject `LedgerStore` for ledger writes, adapt one
+      `sessioninventory.Runtime` for all native reads, and delete duplicate
+      walk/read/process/open-file methods.
 - [ ] Route initial launch and in-pane `freshAgentInvocation` restart through
-      the watcher for every supported agent.
-- [ ] Add launcher/wrap tests proving a freshly minted Claude
-      `--session-id` is only launch input and a provisional scanner candidate:
-      it may be passed through the live process's `PAIR_SESSION_ID` as exact
-      launch authority, but is not written to config or a non-empty durable
-      ledger binding before a completed round. Explicit resume of an
-      already-established ID remains direct launch authority.
-- [ ] Add a crash test proving the provisional process environment disappears
-      with the process and cannot authorize offline recovery without a
-      completed round.
-- [ ] Make launch metadata rows carry an empty native ID until establishment.
-      After a unique round, durably append the authoritative ledger binding,
-      then atomically refresh the config cache.
-- [ ] Inject config-write failure after ledger append and assert the ledger
-      binding remains established while `binding_stale` is reported; do not
-      claim cross-file atomicity.
+      synchronous `PrepareLaunch` for every supported agent. It captures
+      watermarks and durably appends the provisional launch before the agent can
+      accept input; the watcher receives that physical ordinal.
+- [ ] RED/GREEN: add `TestPrepareLaunchAuthority` against competing lifecycle
+      generations and authority sources. Only exact live invocation authority or
+      a current joined binding may expose a native ID; provisional metadata
+      cannot authorize recovery.
+- [ ] Before appending a binding under the shared ledger lock, verify its launch
+      ordinal is still latest. After durable binding append, atomically refresh
+      config; cache failure reports `binding_stale` without weakening ledger
+      authority.
 - [ ] Remove `LiveAgentSessionID` from launcher runtime/OS runtime. Make
       restart, markers, compaction, and lifecycle consume only an established
       ledger binding or intentionally start fresh while provisional.
 - [ ] Run:
-  - `go test ./cmd/internal/sessionwatch ./cmd/internal/launcher -count=1`
+  - `go test ./cmd/internal/sessionwatch ./cmd/internal/sessionledger ./cmd/internal/launcher -count=1`
   - `go test ./cmd/internal/wrapcmd -count=1`
   - `bash tests/pair-session-watch-test.sh`
-- [ ] Commit: `git add cmd/internal/sessionwatch cmd/internal/launcher cmd/internal/wrapcmd tests/pair-session-watch-test.sh && git commit -m '#155 M2: gate watcher binding on native progress'`.
+- [ ] Commit: `git add cmd/internal/sessionwatch cmd/internal/sessionledger cmd/internal/launcher cmd/internal/wrapcmd tests/pair-session-watch-test.sh && git commit -m '#155 M2: gate watcher binding on native progress'`.
 
 ### Task 7: Expose stable inventory and conformance CLI
 
@@ -406,16 +459,10 @@ when the abbreviated command below shows only its subject.
 - Modify: `cmd/pair-go/main.go`
 - Test: `cmd/pair-go/main_test.go`
 
-- [ ] Add schema-v1 human/JSON goldens now that binding types exist, including
-      every required array/null and shuffled ordering; run red, implement
-      buffered `render.go`, rerun green.
-- [ ] Add `TestRunCLIResultMatrix` for all agents/current/all scopes, partial
-      diagnostics, invalid agent, total scan failure, render failure, and
-      conformance skip/fail privacy; run red, implement exact flags/exits, rerun.
-- [ ] Add dispatcher tests proving `session-inventory` is a buffered Go command
-      family rather than launcher argv; run red, register/route it, rerun green.
-- [ ] Verify render failure leaves stdout empty and conformance never exposes
-      content, cwd, absolute home paths, or raw IDs.
+- [ ] RED/GREEN: add `TestRenderV1` from the strategy table, then implement
+      buffered stable human/schema-v1 rendering and privacy redaction.
+- [ ] RED/GREEN: add `TestRunCLI` from the strategy table, then implement the
+      exact flag/result matrix and buffered dispatcher route.
 - [ ] Run:
   - `go test ./cmd/internal/sessioninventory ./cmd/internal/dispatcher ./cmd/pair-go -count=1`
   - `git diff --check`
@@ -453,18 +500,13 @@ when the abbreviated command below shows only its subject.
 - Modify: `cmd/internal/reviewcmd/run_test.go`
 - Modify: `cmd/internal/reviewcmd/reviewcmd_test.go`
 
-- [ ] Add transcript tests proving exact inherited `PAIR_SESSION_ID` remains
-      direct authority while Codex root validation/path lookup uses inventory;
-      run red, replace glob/first parsing, rerun green.
-- [ ] Add context/title tests for established, provisional, ambiguous, and
-      unbound roots; run red, route transcript/activity queries through
-      inventory, rerun green.
-- [ ] Replace `ctxmeter.ContextTokens` with inventory `TokenUsage` lookup,
-      retain only agent-neutral humanization in `ctxmeter`, and add regression
-      tests for Claude/Codex last-usage semantics before deleting its native
-      JSONL parser.
-- [ ] Add slug/review tests that reject ambiguous roots and eliminate live
-      `lsof`/duplicated parser fallbacks; run red, migrate, rerun green.
+- [ ] RED/GREEN: for transcript/context/title, add consumer tests against the
+      established-binding query, then remove glob/first/path/native-parser
+      fallbacks while preserving exact inherited environment authority.
+- [ ] RED/GREEN: add `TestTokenUsageForRoot` from the strategy table, migrate
+      context/title to it, and reduce `ctxmeter` to agent-neutral humanization.
+- [ ] RED/GREEN: add slug/review consumer tests against ambiguous/unbound
+      inventory results, then remove live `lsof` and duplicate parser fallbacks.
 - [ ] Run `rg -n 'cmd/internal/codexsid' cmd`, remove the last imports, delete
       `codexsid` and its tests, then rerun affected packages.
 - [ ] Verify ambiguous/unbound results remain explicit and are never silently converted to newest/first.
@@ -498,23 +540,15 @@ when the abbreviated command below shows only its subject.
 - Modify: `tests/changelog-session-key-test.sh`
 - Modify: `tests/term-pane-shortcuts-test.sh`
 
-- [ ] Add `TestSessionActivity` for authorized root creation/mtime, missing and
-      ambiguous roots, timestamp source, and shuffled artifacts; run red,
-      implement the inventory-owned query, rerun green.
-- [ ] Add `TestActivityCLI` for current `(scope,tag,agent)` resolution,
-      established output, provisional/ambiguous/unbound refusal, and buffered
-      JSON transport; wire `--activity --agent <agent>` through the existing
-      dispatcher family and rerun green without changing schema-v1 output.
-- [ ] Add launcher tests for config validation, session existence, config
-      picker, and history recovery using established inventory bindings; run
-      red, remove native path formulas/selectors, rerun green.
-- [ ] Add opener tests for environment authority, config fallback, provisional
-      state, and changelog keying; run red, route fallback through inventory,
-      rerun green.
-- [ ] Add Lua/shell tests that obtain age/idle through the buffered activity
-      query and prove Neovim no longer runs native-storage `find`, `stat`, or
-      transcript parsing; route `session_age_hint` through that query and rerun
-      `make test-lua` plus the shell tests.
+- [ ] RED/GREEN: add `TestSessionActivity` and `TestActivityCLI` from the
+      strategy table, then implement established-binding activity lookup and
+      its buffered internal transport without changing schema-v1.
+- [ ] RED/GREEN: add launcher/opener consumer tests against established,
+      provisional, and legacy projections, then remove native path formulas and
+      direct config/history selectors.
+- [ ] RED/GREEN: add Lua/shell `session_age_hint` parity tests, then route
+      Neovim age/idle through the activity query and remove native
+      `find`/`stat`/parser calls.
 - [ ] Run:
   - `go test ./cmd/internal/sessioninventory ./cmd/internal/launcher ./cmd/internal/opener -count=1`
   - `make test-lua`
@@ -538,15 +572,15 @@ when the abbreviated command below shows only its subject.
 - Modify: `workshop/issues/000155-agent-session-tree-inventory.md`
 - Modify: `workshop/projects/couch.md`
 
-- [ ] Write a failing repository scan that enumerates every governed Go, shell, and Lua source root and rejects native-session glob/walk/`find`/`lsof`, first/newest selection, path formula, or independent native parser outside `sessioninventory`.
+- [ ] RED/GREEN: add `TestShadowSweep` from the strategy table, then implement
+      the governed Go/shell/Lua scan outside `sessioninventory`.
 - [ ] Update artifactpath's manifest/coverage vocabulary for the deleted
       `codexsid` owner, shared ledger/config/native-session ownership, and every
       new resolved consumer; make unclassified source roots fail.
-- [ ] Use an explicit shadow allowlist only for inventory implementation and
-      fixture/test assertions.
-- [ ] Remove every reported shadow consumer and run the scan until clean (`ARCH-DRY`).
+- [ ] Keep an explicit shadow allowlist only for inventory implementation and
+      fixture/test assertions; remove every reported consumer (`ARCH-DRY`).
 - [ ] Run focused verification:
-  - `go test ./cmd/internal/sessioninventory ./cmd/internal/sessioninventorytest ./cmd/internal/sessionwatch ./cmd/internal/transcript ./cmd/internal/contextcmd ./cmd/internal/ctxmeter ./cmd/internal/titlepoller ./cmd/internal/slugcmd ./cmd/internal/reviewcmd ./cmd/internal/launcher ./cmd/internal/opener ./cmd/internal/changelogcmd ./cmd/internal/procutil ./cmd/pair-go -count=1`
+  - `go test ./cmd/internal/sessioninventory ./cmd/internal/sessioninventorytest ./cmd/internal/sessionledger ./cmd/internal/pairlog ./cmd/internal/sessionwatch ./cmd/internal/transcript ./cmd/internal/contextcmd ./cmd/internal/ctxmeter ./cmd/internal/titlepoller ./cmd/internal/slugcmd ./cmd/internal/reviewcmd ./cmd/internal/launcher ./cmd/internal/opener ./cmd/internal/changelogcmd ./cmd/internal/procutil ./cmd/pair-go -count=1`
   - `go test ./cmd/internal/artifactpath ./cmd/internal/dispatcher -count=1`
   - `bash tests/pair-session-watch-test.sh`
   - `bash tests/review-toggle-test.sh`
@@ -567,3 +601,19 @@ when the abbreviated command below shows only its subject.
 - [ ] Resolve every Critical/Important finding via the printed post-verdict
       protocol, commit fixes plus binary-written artifacts and exact review
       trailers, then publish with `sdlc push`.
+
+## Revisions
+
+### 2026-08-28 — plan-quality round 1
+
+**Reason:** `sdlc change-code` identified four blocking classes: no durable
+launch generation for offline suffix recovery, competing ledger writers,
+best-effort Pair-log persistence before submission, and test prose expressed as
+case inventories rather than production-function strategies.
+
+**Delta:** add typed provisional launch/binding ledger records joined by physical
+ordinal; introduce one locked/fsynced `LedgerStore` and durable
+`SessionLogStore`; require synchronous baseline persistence before input and
+durable markdown append before send; add non-goals; and replace enumerated test
+cases with a named risky-function strategy table plus concise RED/GREEN steps
+(ARCH-DRY, ARCH-PURE, ARCH-PURPOSE, ARCH-MOCK).

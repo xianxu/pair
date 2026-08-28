@@ -587,6 +587,26 @@ never resolves the set. An agent without usable open-file evidence may still
 establish through a globally unique exact causal round; process evidence is
 corroboration, not a portability requirement (ARCH-PURE, ARCH-PURPOSE).
 
+The launch baseline is durable, content-free delimiting metadata rather than a
+recoverable native identity. Before the new agent can accept input, Pair appends
+a typed `launch` record to the existing ledger containing the Pair-log byte
+offset and a sorted native-root/event watermark projection. Its physical ledger
+line ordinal is the launch generation key; Pair mints no incarnation ID. The
+newest valid launch ordinal is current for `{scope,tag,agent}` and supersedes an
+older current binding without deleting its history. A typed `binding` record
+references that ordinal. It becomes current only if the referenced launch is
+still latest, preventing a stale watcher from binding after a newer restart.
+Explicit resume of an already-established root may immediately join the new
+launch; a fresh launch keeps an empty durable native ID until a completed round.
+
+Offline recovery considers only Pair-log bytes after that launch's recorded
+offset and native events after its per-root watermarks. A root absent from the
+baseline starts before its first event. This deterministically isolates the
+post-launch suffix without using wall-clock time, minted identity, or process
+enumeration. A crash before progress still leaves only a disposable provisional
+row; a crash after progress can reconstruct the binding from the delimited
+suffix (ARCH-PURE, ARCH-PURPOSE).
+
 The evidence order is therefore:
 
 1. a valid established ledger binding;
@@ -609,6 +629,23 @@ offline completed-round rule reconstructs it from the ordered Pair log and
 native transcript. A crash before agent progress leaves a provisional session
 and requires no reconstruction. Tests deterministically inject crashes on both
 sides of this boundary.
+
+Every ledger writer uses one cross-process store. It encodes a complete record,
+takes an exclusive ledger lock, derives the next physical ordinal under that
+lock, appends, fsyncs, and releases. Launcher and watcher never perform
+independent read-modify-replace writes. A partial malformed tail consumes its
+ordinal and is diagnosed; retry appends a new record. A failed binding append
+leaves the launch provisional for offline recovery. Config refresh follows a
+durable binding append; config failure emits `binding_stale` and cannot weaken
+ledger authority (ARCH-DRY, ARCH-MOCK).
+
+Because offline recovery uses the existing markdown Pair log, durable log append
+is a prerequisite to submission. Pair resolves the scoped log, serializes an
+atomic append, fsyncs the replacement and parent directory, and only then sends
+the normalized body to the agent. Any open/write/fsync/rename failure preserves
+the draft, reports the error, and submits nothing. This strengthens the existing
+log; it does not introduce a send journal or delivery transaction
+(ARCH-PURPOSE).
 
 After root establishment, validated native parent edges propagate the binding
 to every descendant in that forest. Parentage is never placed in the evidence
@@ -673,8 +710,9 @@ buffered-rendering contracts otherwise apply unchanged (ARCH-DRY).
       runtime seam and fake, four versioned scanners, stable rendering, and
       redacted live conformance.
 - [ ] M2 — Establish bindings only after a completed native round: shared event
-      normalization, live/offline exact-round matching, watcher persistence,
-      ambiguity retention, parent-only descendant propagation, and public CLI.
+      normalization, durable launch/log boundaries, serialized ledger writes,
+      live/offline exact-round matching, watcher persistence, ambiguity
+      retention, parent-only descendant propagation, and public CLI.
 - [ ] Migrate every Go, shell, launcher, and Neovim consumer to the shared
       inventory, enforce the repository shadow sweep, update atlas/project
       state, and run full verification before issue close.
@@ -808,3 +846,17 @@ round-gated bindings and CLI, then a plain final migration task closed by the
 issue boundary. The durable task-level design lives at
 `workshop/plans/000155-agent-session-tree-inventory-plan.md`; estimate remains
 unset until `sdlc change-code` accepts plan quality.
+
+### 2026-08-28 — make the round boundary durably enumerable
+
+**Reason:** the implementation plan-quality gate found that an in-memory launch
+baseline cannot delimit offline recovery after the watcher crashes, concurrent
+read-modify-replace ledger writers can lose rows, and best-effort markdown
+logging can submit a round with no recoverable Pair evidence.
+
+**Delta:** persist a content-free provisional launch baseline whose physical
+ledger ordinal is the generation key; join later bindings to that ordinal and
+reject stale generations. Give all ledger appends one locked/fsynced store and
+make durable atomic append to the existing markdown log a prerequisite to agent
+submission. This adds neither a minted incarnation nor a send journal
+(ARCH-DRY, ARCH-PURE, ARCH-PURPOSE, ARCH-MOCK).
