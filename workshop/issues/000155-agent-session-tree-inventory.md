@@ -51,8 +51,27 @@ a native root only from authoritative evidence, in this order:
    agent}`;
 2. an identity-authorized live Pair PID tree holding that native root artifact
    open;
-3. native parent relationships, which attach descendants to an already bound
+3. a unique ordered correspondence between user text observed by Pair and user
+   turns parsed from the native transcript tree;
+4. native parent relationships, which attach descendants to an already bound
    root.
+
+Content correlation is deterministic and provenance-preserving, not semantic:
+agent-specific transcript parsers emit ordered user turns, while Pair-owned
+logs provide the exact ordered text the operator submitted under a tag.
+Whitespace/framing normalization is explicit and shared; no LLM, embedding, or
+fuzzy paraphrase decides identity. Generic or repeated strings are weak
+evidence. A unique sufficiently discriminative turn, or an ordered sequence of
+exact turns, may become high-confidence evidence under mechanically tested
+rules. The output explains which turn positions/fingerprints matched without
+creating another durable copy of the transcript content.
+
+Correlation runs globally over all tags and roots rather than greedily one tag
+at a time. It locks unique high-confidence assignments first, removes both the
+assigned tag and root from later candidate sets, then evaluates weaker evidence
+against the remainder. Conflicting high-confidence claims remain ambiguous;
+scan order can never decide the winner. Already assigned descendants follow
+their native root and cannot be reassigned independently.
 
 Timestamps order otherwise plausible candidates for inspection but never
 authorize a binding. Conflicting authoritative evidence and equally supported
@@ -83,6 +102,9 @@ scanner contract (ARCH-MOCK).
   because they cannot be resumed as roots.
 - Pair tags bind only through explicit ranked evidence, with ambiguous or
   conflicting candidates left unbound and fully explained.
+- Exact ordered user-turn matches can identify otherwise unbound roots; generic
+  or duplicated strings do not silently authorize a binding, and roots already
+  assigned with high confidence are excluded from later matches.
 - Identical filesystem facts produce byte-stable tree order regardless of walk,
   glob, process, or `lsof` ordering.
 - The current session watcher consumes the shared inventory/correlation model
@@ -97,7 +119,9 @@ scanner contract (ARCH-MOCK).
 - [ ] Implement complete agent-specific filesystem scanners for Claude, Codex,
       Agy, and Muse, including native parent/subagent metadata.
 - [ ] Correlate Pair configs, ledgers, and identity-authorized live process
-      evidence to native roots without chronology-based assignment.
+      evidence plus exact ordered user-turn correspondence to native roots,
+      locking high-confidence assignments globally without chronology-based
+      assignment.
 - [ ] Expose structured and human inventory output through the Pair binary.
 - [ ] Replace session-watch and transcript point-selection heuristics with the
       shared model and add portable fixtures plus live conformance.
@@ -110,3 +134,17 @@ Split from #152 design. The operator identified that durable repository state
 plus the native transcript tree is sufficient for recovery; the missing
 foundation is deterministic, explainable reconstruction of every supported
 agent's full root/subagent forest and its Pair-tag bindings.
+
+## Revisions
+
+### 2026-08-28 — correlate exact user turns before weaker candidates
+
+**Reason:** Pair observes what the operator submitted, and native transcripts
+record user turns. Their unique ordered text correspondence is deterministic
+evidence that can recover bindings missed by launch-time PID/open-file probes.
+
+**Delta:** add exact user-turn correspondence to the evidence model. Resolve
+assignments globally: lock unique high-confidence tag/root pairs first, exclude
+them from later candidate pools, inherit subagents through native parent edges,
+and leave conflicts ambiguous. Chronology and generic repeated strings remain
+ordering/debug evidence only (ARCH-PURE, ARCH-PURPOSE).
