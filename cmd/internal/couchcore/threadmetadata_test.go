@@ -3,6 +3,7 @@ package couchcore
 import (
 	"errors"
 	"reflect"
+	"strings"
 	"testing"
 	"time"
 )
@@ -57,59 +58,115 @@ func TestThreadStoreMetadataUpdateUsesRevisionCAS(t *testing.T) {
 	}
 }
 
-func TestResolveThreadReferencePrefersExactScopedTag(t *testing.T) {
+func TestResolveThreadReferenceExactTagPrecedesFuzzyMatches(t *testing.T) {
 	records := []ThreadRecord{
-		metadataThread("816fc349d3faebf8", "work", "/repo/one", "other"),
-		metadataThread("fedcba9876543210", "work", "/other/one", "other"),
-		metadataThread("816fc349d3faebf8", "other", "/repo/work", "work"),
+		metadataThread("scope-b", "work", "/repo/one", "other"),
+		metadataThread("scope-a", "work", "/other/one", "other"),
+		metadataThread("scope-a", "other", "/repo/work", "work"),
 	}
 
-	got, err := ResolveThreadReference(records, "816fc349d3faebf8", "work")
+	for _, test := range []struct {
+		name      string
+		repoScope string
+		want      []ThreadAddress
+		ambiguous bool
+	}{
+		{name: "scoped exact", repoScope: "scope-a", want: []ThreadAddress{records[1].Address}},
+		{name: "global repeated exact", want: []ThreadAddress{records[1].Address, records[0].Address}, ambiguous: true},
+	} {
+		t.Run(test.name, func(t *testing.T) {
+			got, err := ResolveThreadReference(records, test.repoScope, "  work  ")
+			var ambiguous *AmbiguousThreadReferenceError
+			if test.ambiguous != errors.As(err, &ambiguous) {
+				t.Fatalf("error = %v, want ambiguous %v", err, test.ambiguous)
+			}
+			if !test.ambiguous && err != nil {
+				t.Fatal(err)
+			}
+			if addresses := threadAddresses(got); !reflect.DeepEqual(addresses, test.want) {
+				t.Fatalf("addresses = %+v, want %+v", addresses, test.want)
+			}
+			if ambiguous != nil && !reflect.DeepEqual(ambiguous.Candidates, test.want) {
+				t.Fatalf("ambiguous candidates = %+v, want %+v", ambiguous.Candidates, test.want)
+			}
+		})
+	}
+}
+
+func TestResolveThreadReferenceScopedFuzzyMatchesAreDeterministicallyOrdered(t *testing.T) {
+	records := []ThreadRecord{
+		metadataThread("scope-b", "tag-z", "/repo/compiler-z", "unrelated"),
+		metadataThread("scope-a", "tag-b", "/repo/b", "COMPILER"),
+		metadataThread("scope-a", "tag-a", "/repo/compiler-a", "unrelated"),
+		metadataThread("scope-c", "tag-a", "/repo/compiler-c", "unrelated"),
+	}
+	want := []ThreadAddress{records[2].Address, records[1].Address}
+
+	for shift := range records {
+		permutation := append(append([]ThreadRecord{}, records[shift:]...), records[:shift]...)
+		got, err := ResolveThreadReference(permutation, "scope-a", "  CoMpIlEr  ")
+		var ambiguous *AmbiguousThreadReferenceError
+		if !errors.As(err, &ambiguous) {
+			t.Fatalf("shift %d: error = %v, want ambiguity", shift, err)
+		}
+		if addresses := threadAddresses(got); !reflect.DeepEqual(addresses, want) {
+			t.Fatalf("shift %d: addresses = %+v, want %+v", shift, addresses, want)
+		}
+		if !reflect.DeepEqual(ambiguous.Candidates, want) || ambiguous.Reference != "CoMpIlEr" {
+			t.Fatalf("shift %d: ambiguity = %+v, want trimmed reference and candidates %+v", shift, ambiguous, want)
+		}
+	}
+}
+
+func TestResolveThreadReferenceReturnsDeepClones(t *testing.T) {
+	record := metadataThread("scope-a", "work", "/repo/work", "compiler")
+	record.Incarnations = []ThreadIncarnation{{
+		Identity:      "original",
+		Start:         &ThreadStartClaim{LaunchProfile: &LaunchProfile{Argv: []string{"original-start"}}},
+		Policy:        &PolicyResult{PolicyDigest: "original-policy"},
+		LaunchProfile: &LaunchProfile{Argv: []string{"original-launch"}},
+	}}
+	records := []ThreadRecord{cloneThreadRecord(record)}
+
+	got, err := ResolveThreadReference(records, "scope-a", "compiler")
 	if err != nil {
 		t.Fatal(err)
 	}
-	if len(got) != 1 || got[0].Address != records[0].Address {
-		t.Fatalf("exact scoped tag resolution = %+v", got)
+	got[0].Incarnations[0].Identity = "changed"
+	got[0].Incarnations[0].Start.LaunchProfile.Argv[0] = "changed"
+	got[0].Incarnations[0].Policy.PolicyDigest = "changed"
+	got[0].Incarnations[0].LaunchProfile.Argv[0] = "changed"
+	if !reflect.DeepEqual(records[0], record) {
+		t.Fatalf("mutating result changed input:\n got  %+v\n want %+v", records[0], record)
 	}
 }
 
-func TestResolveThreadReferenceRefusesRepeatedGlobalTag(t *testing.T) {
-	records := []ThreadRecord{
-		metadataThread("816fc349d3faebf8", "work", "/repo/one", "first"),
-		metadataThread("fedcba9876543210", "work", "/other/one", "second"),
-	}
-	got, err := ResolveThreadReference(records, "", "work")
-	var ambiguous *AmbiguousThreadReferenceError
-	if !errors.As(err, &ambiguous) || len(got) != 2 {
-		t.Fatalf("repeated global tag resolution = %+v, %v", got, err)
-	}
-}
-
-func TestResolveThreadReferenceReturnsEveryAmbiguousCandidate(t *testing.T) {
-	records := []ThreadRecord{
-		metadataThread("816fc349d3faebf8", "couch-0000000000000001", "/repo/a", "compiler"),
-		metadataThread("816fc349d3faebf8", "couch-0000000000000002", "/repo/b", "compiler"),
-		metadataThread("fedcba9876543210", "couch-0000000000000003", "/other/compiler", "compiler"),
-	}
-
-	got, err := ResolveThreadReference(records, "816fc349d3faebf8", "comp")
-	var ambiguous *AmbiguousThreadReferenceError
-	if !errors.As(err, &ambiguous) {
-		t.Fatalf("ambiguous resolution error = %v", err)
-	}
-	want := []ThreadAddress{records[0].Address, records[1].Address}
-	if len(got) != 2 || !reflect.DeepEqual(ambiguous.Candidates, want) {
-		t.Fatalf("ambiguous candidates = records:%+v error:%+v", got, ambiguous.Candidates)
+func TestResolveThreadReferenceUsesCouchOwnedNotFoundErrors(t *testing.T) {
+	records := []ThreadRecord{metadataThread("scope-a", "work", "/repo/work", "compiler")}
+	for _, test := range []struct {
+		name string
+		ref  string
+		want string
+	}{
+		{name: "empty", ref: " \t\n ", want: "thread reference not found: empty reference"},
+		{name: "missing", ref: "  absent  ", want: `thread reference not found: "absent"`},
+	} {
+		t.Run(test.name, func(t *testing.T) {
+			got, err := ResolveThreadReference(records, "scope-a", test.ref)
+			if got != nil || !errors.Is(err, ErrThreadReferenceNotFound) || err.Error() != test.want {
+				t.Fatalf("resolution = %+v, %v; want nil, %q", got, err, test.want)
+			}
+			if strings.Contains(err.Error(), "launcher") {
+				t.Fatalf("error leaked launcher ownership: %v", err)
+			}
+		})
 	}
 }
 
-func TestResolveThreadReferenceMatchesCanonicalPathAndRefusesEmpty(t *testing.T) {
-	record := metadataThread("816fc349d3faebf8", "couch-0102030405060708", "/repo/Arc-AGI-3", "competition")
-	got, err := ResolveThreadReference([]ThreadRecord{record}, "816fc349d3faebf8", "arc-agi")
-	if err != nil || len(got) != 1 || got[0].Address != record.Address {
-		t.Fatalf("path resolution = %+v, %v", got, err)
+func threadAddresses(records []ThreadRecord) []ThreadAddress {
+	addresses := make([]ThreadAddress, len(records))
+	for i := range records {
+		addresses[i] = records[i].Address
 	}
-	if _, err := ResolveThreadReference([]ThreadRecord{record}, "816fc349d3faebf8", "  "); !errors.Is(err, ErrThreadReferenceNotFound) {
-		t.Fatalf("empty resolution error = %v", err)
-	}
+	return addresses
 }

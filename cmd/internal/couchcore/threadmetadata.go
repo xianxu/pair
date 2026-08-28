@@ -3,8 +3,8 @@ package couchcore
 import (
 	"errors"
 	"fmt"
-
-	"github.com/xianxu/pair/cmd/internal/launcher"
+	"sort"
+	"strings"
 )
 
 var ErrThreadReferenceNotFound = errors.New("thread reference not found")
@@ -48,36 +48,57 @@ func (e *AmbiguousThreadReferenceError) Error() string {
 // path match case-insensitively by substring. Ambiguity is returned with every
 // candidate and never collapsed to an arbitrary winner.
 func ResolveThreadReference(records []ThreadRecord, repoScope, ref string) ([]ThreadRecord, error) {
-	entries := make([]launcher.ThreadIndexEntry, 0, len(records))
-	byAddress := make(map[launcher.ThreadIndexAddress]ThreadRecord, len(records))
-	for _, record := range records {
-		address := launcher.ThreadIndexAddress{RepoScope: record.Address.RepoScope, Tag: string(record.Address.Tag)}
-		entries = append(entries, launcher.ThreadIndexEntry{
-			Address: address, WorkingPath: record.WorkingPath, CreatedAt: record.CreatedAt,
-			Name: record.Name, Description: record.Description, PublishedSummary: record.PublishedSummary,
-		})
-		byAddress[address] = cloneThreadRecord(record)
+	ref = strings.TrimSpace(ref)
+	if ref == "" {
+		return nil, fmt.Errorf("%w: empty reference", ErrThreadReferenceNotFound)
 	}
-	matches, err := launcher.ResolveThreadIndexReference(entries, repoScope, ref)
-	result := make([]ThreadRecord, 0, len(matches))
-	for _, match := range matches {
-		if record, ok := byAddress[match.Address]; ok {
-			result = append(result, cloneThreadRecord(record))
+	eligible := make([]ThreadRecord, 0, len(records))
+	for _, record := range records {
+		if repoScope == "" || record.Address.RepoScope == repoScope {
+			eligible = append(eligible, record)
 		}
 	}
-	if err == nil {
-		return result, nil
+	exact := make([]ThreadRecord, 0, 1)
+	for _, record := range eligible {
+		if record.Address.Tag == ThreadTag(ref) {
+			exact = append(exact, record)
+		}
 	}
-	if errors.Is(err, launcher.ErrThreadIndexReferenceNotFound) {
+	if len(exact) > 0 {
+		return finishThreadReference(ref, exact)
+	}
+	needle := strings.ToLower(ref)
+	matches := make([]ThreadRecord, 0, len(eligible))
+	for _, record := range eligible {
+		if strings.Contains(strings.ToLower(record.Name), needle) ||
+			strings.Contains(strings.ToLower(record.WorkingPath), needle) {
+			matches = append(matches, record)
+		}
+	}
+	return finishThreadReference(ref, matches)
+}
+
+func finishThreadReference(ref string, matches []ThreadRecord) ([]ThreadRecord, error) {
+	result := make([]ThreadRecord, len(matches))
+	for i := range matches {
+		result[i] = cloneThreadRecord(matches[i])
+	}
+	sort.Slice(result, func(i, j int) bool {
+		if result[i].Address.RepoScope != result[j].Address.RepoScope {
+			return result[i].Address.RepoScope < result[j].Address.RepoScope
+		}
+		return result[i].Address.Tag < result[j].Address.Tag
+	})
+	switch len(result) {
+	case 0:
 		return nil, fmt.Errorf("%w: %q", ErrThreadReferenceNotFound, ref)
-	}
-	var ambiguous *launcher.AmbiguousThreadIndexReferenceError
-	if errors.As(err, &ambiguous) {
-		candidates := make([]ThreadAddress, len(ambiguous.Candidates))
-		for i, address := range ambiguous.Candidates {
-			candidates[i] = ThreadAddress{RepoScope: address.RepoScope, Tag: ThreadTag(address.Tag)}
+	case 1:
+		return result, nil
+	default:
+		candidates := make([]ThreadAddress, len(result))
+		for i := range result {
+			candidates[i] = result[i].Address
 		}
 		return result, &AmbiguousThreadReferenceError{Reference: ref, Candidates: candidates}
 	}
-	return nil, err
 }
