@@ -39,11 +39,21 @@ names. `pair resume <tag>` remains supported; `pair resume <Couch human name>`
 is deliberately removed.
 
 Couch may pass one-shot process inputs needed to host Pair—currently the exact
-thread scope/tag and launch profile—but those are invocation data, not a Couch
-configuration schema for Pair to read. New Couch configuration fields must not
-require corresponding Pair configuration changes. If a future Couch feature
-cannot be built without widening Pair's lower-level invocation contract, that
-boundary change requires operator consultation first.
+thread scope/tag and launch profile—and may pass opaque Couch environment such
+as `COUCH_TREE` and `COUCH_STORE_DIR` through Pair to the hosted harness and its
+tools. Pair may transparently propagate those values but must not interpret,
+validate, open, or mutate the Couch namespace or schema. New Couch configuration
+fields must not require corresponding Pair configuration changes. If a future
+Couch feature cannot be built without widening Pair's lower-level invocation
+contract, that boundary change requires operator consultation first.
+
+Hosted readiness uses two independent authorities. Pair owns and publishes its
+existing tag-scoped readiness/address artifact after the Pair workbench is
+established. Couch observes that Pair-owned evidence and, only after validating
+the expected exact scope/tag and process identity, promotes its own creating
+incarnation in `ThreadStore`. Missing, malformed, unreadable, mismatched, or
+unestablished Pair readiness fails Couch start closed and leaves Pair entirely
+unaware of Couch persistence. Pair never promotes or registers a Couch thread.
 
 Remove the standalone-Pair-to-Couch registration path and the portable Couch
 thread-index reader from the Pair launcher. Couch retains name/path resolution
@@ -51,20 +61,38 @@ against its own `ThreadStore`; shared generic Pair utilities may remain only
 where they carry no Couch persistence model. Keep strict JSON validation on
 Couch-owned persisted state inside Couch.
 
-The regression boundary is process behavior: seed a Couch store containing
-fields unknown to Pair, then prove direct Pair reaches its normal launch
-decision without opening that store; separately prove a Couch start still
-passes its exact opaque tag to Pair and completes registration against Couch's
-own store. Tests also prove direct Pair no longer creates or mutates Couch
-thread records. This keeps the core launch decision pure and tests filesystem
-integration through the existing injected runtime seams (ARCH-PURE,
-ARCH-PURPOSE).
+The regression boundary is process behavior. For every direct command family
+(`launch`/attach/resume picker flow, `list`, `rename`, `continue`, `restart`, and
+`quit`), an IO-spy or denied-store runtime proves no operation opens the Couch
+namespace; launch/create also proves it creates no Couch thread record. Seeded
+valid-forward, malformed, unreadable, and missing Couch stores must be
+observationally irrelevant to Pair. Separately, a Couch integration test proves
+start passes its exact opaque tag to Pair, Pair publishes only Pair-owned
+readiness, and Couch alone completes registration in `ThreadStore`. This keeps
+the core launch decision pure and tests filesystem integration through the
+existing injected runtime seams (ARCH-PURE, ARCH-PURPOSE).
+
+## Revisions
+
+### 2026-08-27 — make readiness and opaque environment ownership explicit
+
+**Reason:** fresh spec review found that removing the thread-index coupling
+could accidentally remove Couch's fail-closed readiness proof, or reintroduce
+the coupling through environment propagation. It also found that one successful
+launch would not prove the stated independence of every direct Pair command.
+
+**Delta:** Pair retains its Pair-owned tag-scoped readiness artifact; Couch
+observes it and exclusively promotes `ThreadStore`. Pair may pass opaque Couch
+environment to hosted children but cannot interpret Couch persistence. The
+regression sweep now enumerates every direct command family and denies Couch
+namespace IO, including malformed and unreadable stores (ARCH-PURPOSE).
 
 ## Done when
 
 - Direct `pair` commands do not read, validate, create, or mutate Couch thread-store state.
 - A Couch manifest containing `legacy_migration_version` cannot prevent direct Pair from launching.
 - Couch resolves names/paths itself and starts Pair with an exact opaque tag.
+- Pair publishes only Pair-owned readiness; Couch alone promotes or rejects its thread incarnation.
 - `pair resume <tag>` continues to work; Couch human-name resolution is available only through Couch.
 - Automated tests cover both direct Pair independence and Couch-hosted registration.
 
