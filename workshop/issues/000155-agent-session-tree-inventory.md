@@ -163,10 +163,10 @@ as a coded near-miss rather than guessed (ARCH-PURPOSE):
 
 | Agent | Storage/artifact join | ID, role, and parent authority | Chronology authority |
 |---|---|---|---|
-| Claude | `.claude/projects/<encoded-cwd>/<root-id>.jsonl` plus `<root-id>/subagents/agent-<child-id>.jsonl` and recognized metadata sidecars | root filename; child metadata when present, otherwise the containing root directory supplies only the parent edge and the child remains non-resumable | first accepted native timestamp, then birth time, then mtime |
+| Claude | `.claude/projects/<encoded-cwd>/<root-id>.jsonl` plus `<root-id>/subagents/agent-<child-id>.jsonl`; v1 accepts no sidecars | root/child filenames and containing root directory; JSONL may only corroborate | first accepted top-level RFC3339 timestamp, then birth time, then mtime |
 | Codex | `.codex/sessions/YYYY/MM/DD/rollout-*.jsonl` | first bounded `session_meta.payload.id`; `parent_thread_id == null` with source `cli|exec` is root, non-null parent is child | `session_meta` timestamp, then birth time, then mtime |
-| Agy | `.gemini/antigravity-cli/conversations/<id>.db` joined by ID to `brain/<id>/.system_generated/logs/transcript.jsonl` | validated SQLite schema supplies root `cascade_id`; a child edge is accepted only from versioned, sanitized fixture-proven `trajectory_meta`/`parent_references` semantics | validated DB metadata, then birth time, then mtime |
-| Muse | `.local/share/muse/sessions/YYYY/MM/DD/<root-id>/session.jsonl` plus `<root-id>/subagent/<child-id>/session.jsonl` | directory UUID; root/subagent ancestry supplies the parent, with accepted metadata required to agree | accepted `runtime.session`/run timestamp, then birth time, then mtime |
+| Agy | `.gemini/antigravity-cli/conversations/<id>.db` joined by ID to `brain/<id>/.system_generated/logs/transcript.jsonl` | v1 DB header + exact `trajectory_meta` root rule below; child edges remain unasserted until fixture-proven | birth time, then mtime |
+| Muse | `.local/share/muse/sessions/YYYY/MM/DD/<root-id>/session.jsonl` plus `<root-id>/subagent/<child-id>/session.jsonl` | directory UUID and exact path ancestry; accepted records may only corroborate | birth time, then mtime |
 
 The implementation must obtain and check in a sanitized Agy subtrajectory
 schema/fact fixture before accepting any Agy parent edge; absent that evidence,
@@ -315,8 +315,10 @@ in the same change.
   `.codex/sessions/YYYY/MM/DD/rollout-*-<uuid>.jsonl`; the first record must be
   `type:"session_meta"` with matching `payload.id`. A root has null
   `parent_thread_id` and string source `cli` or `exec`. A child has a UUID
-  `parent_thread_id` and object source containing `subagent`; all other sources
-  are near-misses. The record's top-level RFC3339 `timestamp` is chronology,
+  `parent_thread_id`; source is an object whose sole key is `subagent`, whose
+  value is either `{}` or has the sole key `thread_spawn` with an object
+  containing only integer `depth >= 1`; all other key/type shapes are
+  near-misses. The record's top-level RFC3339 `timestamp` is chronology,
   then birth time, then mtime. An operator turn is `type:"response_item"`,
   `payload.type:"message"`, `payload.role:"user"`, with only
   `{type:"input_text",text:string}` content consumed.
@@ -428,6 +430,95 @@ root to a finite fact/diagnostic set; opening a present root and failing before
 enumeration is not completion. Fatal summaries contain codes and redacted root
 labels, never raw OS errors or private paths.
 
+### Send transaction and identity amendment
+
+The `incarnation_key` minted before each agent launch/restart is the sole
+post-v1 Pair-incarnation authority. Every ledger row for that launch carries
+the same key, and the incarnation's `source_ordinal` is its minimum valid
+physical ledger ordinal. Pre-v1 rows without a key form legacy incarnations
+only from physically contiguous equal `{scope,tag,agent,session_id}` rows; they
+cannot use rank-3 evidence. This supersedes the earlier time-boundary and
+contiguous-segment definitions. The stable public `incarnation_id` is derived
+from `(scope_key,tag,agent,incarnation_key)` and is distinct from the raw key.
+
+One native root may span several launches that resume it. Root exclusivity is
+therefore by **Pair owner** `{scope,tag,agent}`, not by incarnation. Within a
+rank, an incarnation/root edge is lockable when it is that incarnation's only
+edge and every remaining edge incident to the root belongs to the same Pair
+owner. A simultaneous round locks all such edges, reserves each root to its
+owner, removes the locked incarnations plus every competing-owner edge to the
+reserved roots, and repeats. Multiple incarnations of the reserved owner may
+then bind the same root; another owner produces `binding_conflict`. For turn
+evidence, committed send sequences from same-owner incarnations must map to
+unique, non-overlapping native windows whose destination positions increase by
+`source_ordinal`. An ambiguous placement or a later incarnation matching only
+an earlier window is `turn_unusable`, so a resumed root and a fresh-root
+rotation are mechanically distinguishable.
+
+`sent-<tag>.jsonl` is a write-ahead state journal, not a claim that files and a
+PTY can commit atomically. One send owner holds an advisory lock for the exact
+scope/tag across the whole protocol. Under that lock it allocates
+`sequence = max(all prior prepared sequences for the incarnation)+1`; aborted
+and incomplete attempts consume their number. Journal rows are:
+
+```text
+prepared  {v,event_id,log_entry_id,scope_key,tag,agent,incarnation_key,
+           sequence,delivery,sent_at,fingerprint,byte_count,word_count}
+committed {v,event_id,state:"committed"}
+aborted   {v,event_id,state:"aborted",failure_code}
+```
+
+The serialized protocol is:
+
+1. append + fsync `prepared`;
+2. append + fsync the markdown log entry carrying `log_entry_id`;
+3. perform the ordered zellij focus/body/submit-or-newline actions and require
+   success from every action that constitutes delivery;
+4. append + fsync `committed`, then release the lock.
+
+A failure before step 3 appends `aborted` and sends nothing. A delivery-action
+failure appends `aborted`, best-effort refocuses the draft, and reports that the
+composer may contain a partial body; it never retries automatically. A commit
+append/fsync failure after successful delivery leaves a dangling `prepared`
+row, reports “delivery succeeded; identity evidence not committed,” and also
+never retries. On recovery, dangling prepared rows emit `send_incomplete` and
+never authorize correlation; aborted rows emit `send_aborted` and never
+authorize. Thus committed evidence implies all delivery syscalls succeeded,
+while a crash may conservatively lose evidence for delivered text. The system
+never promotes a dangling row from transcript content, which would be circular
+authority. `composer_only` uses the same transaction but is ineligible for rank
+3 even when committed.
+
+Fault-injection tests cover lock contention/stale-owner recovery; concurrent
+sequence allocation; every append, fsync, log, focus, body-write,
+submit/newline, refocus, commit, and unlock failure; and crashes after each
+step, for both `submitted` and `composer_only`. They assert no committed row
+before successful delivery, no automatic duplicate delivery, stable recovery
+diagnostics, and monotonic sequence consumption (ARCH-PURE, ARCH-MOCK).
+
+Schema-v1 uses `CorrelationV1.incarnation_id` only for the derived stable ID;
+the raw key is never rendered. `CorrelationV1.source_ordinal` is nullable for
+pre-ledger config incarnations. Diagnostic IDs are
+`diagnostic-` plus the first 24 SHA-256 hex characters of the length-prefixed
+tuple `(severity,code,agent,native_id,storage_root,relative_path,source_ref)`;
+identical diagnostics coalesce before rendering.
+
+This is the single exhaustive diagnostic registry, superseding earlier lists:
+
+- info: `storage_absent`, `conformance_no_sample`;
+- warning: `schema_near_miss`, `parent_missing`, `binding_stale`,
+  `process_changed`, `turn_unusable`, `send_incomplete`, `send_aborted`;
+- error: `storage_unreadable`, `node_malformed`, `parent_conflict`,
+  `duplicate_conflict`, `binding_conflict`, `artifact_path_invalid`,
+  `pair_record_malformed`, `scope_rejected`,
+  `conformance_privacy_violation`.
+
+All rendering is completed into a buffer before any stdout write. Serialization
+failure therefore produces zero stdout bytes. `storage_absent` represents a
+legitimately absent requested root in normal mode. Byte-golden tests cover
+every row of the normal/conformance result matrix, including absent roots and
+zero-byte stdout on usage, privacy, and rendering failures.
+
 ## Done when
 
 - One command inventories complete root/subagent session forests for every
@@ -480,6 +571,14 @@ labels, never raw OS errors or private paths.
       stateful IO fake, and redacted live conformance behind one entry point.
 - [ ] Migrate and enforce the complete shadow-consumer enumeration across Go,
       shell, and Neovim rather than stopping after session-watch.
+- [ ] Add the launcher-minted incarnation key and source-ordinal-preserving
+      ledger parser, including post-v1 and fail-closed legacy behavior.
+- [ ] Implement the serialized send journal protocol and recovery diagnostics;
+      fault-inject concurrent allocation plus every write, fsync, delivery,
+      commit, crash, and `composer_only` boundary.
+- [ ] Pin byte-golden schema-v1 output for every result-matrix row, including
+      malformed/duplicate/non-monotonic records, absent storage, and buffered
+      serialization failure.
 
 ## Log
 
@@ -531,3 +630,16 @@ same-rank edges equal and degree-one/degree-one fixed-point locking explicit;
 pin bounded v1 native records for all four agents; and publish stable-ID,
 nested-schema, comparator, diagnostic-severity, and exit/result contracts
 (ARCH-DRY, ARCH-PURE, ARCH-PURPOSE, ARCH-MOCK).
+
+### 2026-08-28 — make the send boundary recoverable
+
+**Reason:** the third fresh-context review caught an impossible atomicity claim,
+conflicting incarnation definitions, native-allowlist contradictions, and
+schema fields that could not represent legacy or failure results.
+
+**Delta:** define a serialized write-ahead send journal with conservative crash
+recovery; make launcher-minted keys the post-v1 incarnation authority; allow
+same-owner incarnations to resume one root while excluding competing tags;
+consolidate native v1 allowlists; distinguish raw/stable IDs and nullable
+ordinals; unify the diagnostic registry; and require buffered rendering plus
+fault/result-matrix goldens (ARCH-PURE, ARCH-PURPOSE, ARCH-MOCK).
