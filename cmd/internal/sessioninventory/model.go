@@ -29,9 +29,9 @@ const (
 type TimeSource string
 
 const (
-	TimeSourceRecord TimeSource = "record"
-	TimeSourceBirth  TimeSource = "birth"
-	TimeSourceMTime  TimeSource = "mtime"
+	TimeSourceMetadata TimeSource = "metadata"
+	TimeSourceBirth    TimeSource = "birth"
+	TimeSourceMTime    TimeSource = "mtime"
 )
 
 type NativeTime struct {
@@ -39,9 +39,18 @@ type NativeTime struct {
 	Source TimeSource `json:"source"`
 }
 
+type ArtifactKind string
+
+const (
+	ArtifactTranscript ArtifactKind = "transcript"
+	ArtifactDatabase   ArtifactKind = "database"
+	ArtifactMetadata   ArtifactKind = "metadata"
+)
+
 type Artifact struct {
-	StorageRoot  string `json:"storage_root"`
-	RelativePath string `json:"relative_path"`
+	StorageRoot  string       `json:"storage_root"`
+	RelativePath string       `json:"relative_path"`
+	Kind         ArtifactKind `json:"kind"`
 }
 
 // Fact is a scanner-owned assertion about one native session node. BuildForest
@@ -52,6 +61,7 @@ type Fact struct {
 	Role      Role        `json:"role"`
 	ParentID  *string     `json:"parent_id"`
 	Time      *NativeTime `json:"time"`
+	Resumable bool        `json:"resumable"`
 	Artifacts []Artifact  `json:"artifacts"`
 }
 
@@ -62,6 +72,7 @@ type Node struct {
 	Role      Role        `json:"role"`
 	ParentID  *string     `json:"parent_id"`
 	Time      *NativeTime `json:"time"`
+	Resumable bool        `json:"resumable"`
 	Artifacts []Artifact  `json:"artifacts"`
 	Children  []Node      `json:"children"`
 }
@@ -192,7 +203,7 @@ func canonicalizeFacts(key factKey, facts []Fact) (canonicalNode, []Diagnostic) 
 		}
 		parents[parentKey] = cloneString(fact.ParentID)
 		for _, artifact := range fact.Artifacts {
-			artifacts[artifact.StorageRoot+"\x00"+artifact.RelativePath] = artifact
+			artifacts[artifact.StorageRoot+"\x00"+artifact.RelativePath+"\x00"+string(artifact.Kind)] = artifact
 		}
 		if earliest == nil || compareNativeTime(fact.Time, earliest) < 0 {
 			earliest = cloneTime(fact.Time)
@@ -228,12 +239,13 @@ func canonicalizeFacts(key factKey, facts []Fact) (canonicalNode, []Diagnostic) 
 		artifactList = append(artifactList, artifact)
 	}
 	node := Node{
-		StableID:  StableID(string(key.agent), key.nativeID),
+		StableID:  StableID("node", string(key.agent), key.nativeID),
 		Agent:     key.agent,
 		NativeID:  key.nativeID,
 		Role:      role,
 		ParentID:  parent,
 		Time:      earliest,
+		Resumable: firstResumable(facts),
 		Artifacts: artifactList,
 	}
 	return canonicalNode{node: node, conflicted: conflicted}, diagnostics
@@ -394,6 +406,15 @@ func firstParent(values map[string]*string) *string {
 		return nil
 	}
 	return cloneString(values[parents[0]])
+}
+
+func firstResumable(facts []Fact) bool {
+	for _, fact := range facts {
+		if fact.Resumable {
+			return true
+		}
+	}
+	return false
 }
 
 func optionalString(value string) *string {

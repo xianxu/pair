@@ -2,6 +2,7 @@ package sessioninventory
 
 import (
 	"slices"
+	"strings"
 	"testing"
 )
 
@@ -42,11 +43,13 @@ func TestSortInventory(t *testing.T) {
 func TestStableIDUsesLengthPrefixedParts(t *testing.T) {
 	t.Parallel()
 
-	if StableID("ab", "c") == StableID("a", "bc") {
+	if StableID("test", "ab", "c") == StableID("test", "a", "bc") {
 		t.Fatal("ambiguous concatenations produced the same stable ID")
 	}
-	if got, want := StableID("claude", "root"), StableID("claude", "root"); got != want {
+	if got, want := StableID("node", "claude", "root"), StableID("node", "claude", "root"); got != want {
 		t.Fatalf("StableID is not deterministic: %q != %q", got, want)
+	} else if !strings.HasPrefix(got, "node-") || len(got) != len("node-")+24 {
+		t.Fatalf("StableID = %q, want kind plus 24 lowercase hex characters", got)
 	}
 }
 
@@ -57,7 +60,7 @@ func FuzzStableIDLengthPrefixes(f *testing.F) {
 		if left == right {
 			t.Skip()
 		}
-		if StableID(left, right) == StableID(left+right) {
+		if StableID("test", left, right) == StableID("test", left+right) {
 			t.Fatalf("parts %q, %q collided with their concatenation", left, right)
 		}
 	})

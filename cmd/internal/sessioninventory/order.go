@@ -8,17 +8,17 @@ import (
 	"strings"
 )
 
-// StableID hashes unambiguous length-prefixed parts. It is independent of JSON
-// encoding and therefore remains stable as the public rendering grows fields.
-func StableID(parts ...string) string {
+// StableID hashes a kind and unambiguous length-prefixed tuple fields. It is
+// independent of JSON encoding and therefore remains stable as rendering grows.
+func StableID(kind string, parts ...string) string {
 	hash := sha256.New()
 	var length [8]byte
-	for _, part := range parts {
+	for _, part := range append([]string{kind}, parts...) {
 		binary.BigEndian.PutUint64(length[:], uint64(len(part)))
 		_, _ = hash.Write(length[:])
 		_, _ = hash.Write([]byte(part))
 	}
-	return hex.EncodeToString(hash.Sum(nil))
+	return kind + "-" + hex.EncodeToString(hash.Sum(nil))[:24]
 }
 
 // SortInventory returns a deeply cloned, canonically ordered inventory.
@@ -96,7 +96,10 @@ func compareArtifact(left, right Artifact) int {
 	if compared := strings.Compare(left.StorageRoot, right.StorageRoot); compared != 0 {
 		return compared
 	}
-	return strings.Compare(left.RelativePath, right.RelativePath)
+	if compared := strings.Compare(left.RelativePath, right.RelativePath); compared != 0 {
+		return compared
+	}
+	return strings.Compare(string(left.Kind), string(right.Kind))
 }
 
 func compareDiagnostic(left, right Diagnostic) int {
@@ -129,5 +132,5 @@ func nullableArtifact(value *Artifact) string {
 	if value == nil {
 		return "\uffff"
 	}
-	return value.StorageRoot + "\x00" + value.RelativePath
+	return value.StorageRoot + "\x00" + value.RelativePath + "\x00" + string(value.Kind)
 }

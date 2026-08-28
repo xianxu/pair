@@ -49,7 +49,7 @@ func TestBuildForest(t *testing.T) {
 	if !hasDiagnostic(got.Diagnostics, DiagnosticParentMissing, "orphan-1") {
 		t.Fatalf("diagnostics = %#v, want parent_missing for orphan-1", got.Diagnostics)
 	}
-	if root.StableID != StableID(string(AgentCodex), rootID) {
+	if root.StableID != StableID("node", string(AgentCodex), rootID) {
 		t.Fatalf("stable id = %q, want ID derived from agent and native ID", root.StableID)
 	}
 }
@@ -173,7 +173,7 @@ func nativeTime(value string) *NativeTime {
 	if err != nil {
 		panic(err)
 	}
-	return &NativeTime{Value: parsed, Source: TimeSourceRecord}
+	return &NativeTime{Value: parsed, Source: TimeSourceMetadata}
 }
 
 func hasDiagnostic(diagnostics []Diagnostic, code DiagnosticCode, nativeID string) bool {

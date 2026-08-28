@@ -37,7 +37,7 @@ func NewOSRuntime(homeDir, pairDataDir string) OSRuntime {
 			AgentCodex:  {{Agent: AgentCodex, Name: "codex-sessions", Path: filepath.Join(homeDir, ".codex", "sessions")}},
 			AgentAgy: {
 				{Agent: AgentAgy, Name: "agy-conversations", Path: filepath.Join(homeDir, ".gemini", "antigravity-cli", "conversations")},
-				{Agent: AgentAgy, Name: "agy-brain", Path: filepath.Join(homeDir, ".gemini", "antigravity", "brain")},
+				{Agent: AgentAgy, Name: "agy-brain", Path: filepath.Join(homeDir, ".gemini", "antigravity-cli", "brain")},
 			},
 			AgentMuse: {{Agent: AgentMuse, Name: "muse-sessions", Path: filepath.Join(homeDir, ".local", "share", "muse", "sessions")}},
 		},
