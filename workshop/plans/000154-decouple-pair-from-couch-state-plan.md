@@ -139,7 +139,7 @@ git commit -m '#154: move thread reference resolution into Couch'
 - Modify: `cmd/internal/launcher/createflow_test.go`
 - Modify: `cmd/pair-go/main_test.go`
 
-- [ ] **Step 1: Add one permanent public-entry process strategy**
+- [x] **Step 1: Add one permanent public-entry process strategy**
 
 `main → osLegacyRuntime.LaunchNative` across every direct command/store class
 named in the Spec → build the real `cmd/pair-go`, isolate HOME/`PAIR_DATA_DIR`,
@@ -151,13 +151,13 @@ traverses and initially exposes `LaunchNativeWithStandaloneRegistrar` /
 `RegisterStandalonePair`, while every row permanently guards the public
 composition after those symbols are deleted.
 
-- [ ] **Step 2: Add focused red strategies for the two current couplings**
+- [x] **Step 2: Add focused red strategies for the two current couplings**
 
 `RunLaunch` exact-tag create → inject rejecting thread-index and registrar seams;
 the mechanical guard requires neither seam is called and both readable and
 generated tags reach the unchanged Pair create path.
 
-- [ ] **Step 4: Run the regressions and verify the observed failures**
+- [x] **Step 3: Run the regressions and verify the observed failures**
 
 Run:
 
@@ -171,7 +171,7 @@ manifest, and the public-entry test observes standalone Couch registration.
 The FIFO subprocess row detects the current read and the namespace snapshot
 detects the current standalone write.
 
-- [ ] **Step 5: Commit the red boundary tests**
+- [x] **Step 4: Commit the red boundary tests**
 
 ```bash
 git add cmd/internal/launcher/createflow_test.go cmd/pair-go/main_test.go

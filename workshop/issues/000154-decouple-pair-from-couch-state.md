@@ -179,3 +179,12 @@ all current documentation consumers (ARCH-PURPOSE, ARCH-PURE, ARCH-MOCK).
 the launcher projection is no longer part of Couch name/path resolution. Focused,
 full-package, race, and source-catalog checks passed after spec and quality review
 (ARCH-DRY, ARCH-PURE).
+
+### 2026-08-27 — public Pair boundary regression red
+
+The built public entry now has a permanent all-command/store matrix. A FIFO
+tripwire proves namespace reads, recursive state snapshots prove durable Couch
+changes, and deterministic sidecar ownership keeps the harness isolated. The
+tests fail only at the current ThreadIndex read and standalone registration
+couplings; both review stages passed after hardening process cleanup and ambient
+environment control (ARCH-PURPOSE, ARCH-MOCK).
