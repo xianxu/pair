@@ -38,6 +38,12 @@ opaque Pair tag plus ordinary launch inputs. Pair does not resolve Couch human
 names. `pair resume <tag>` remains supported; `pair resume <Couch human name>`
 is deliberately removed.
 
+Pair does not classify tags by origin or readability. A user-assigned tag such
+as `compiler-fix` and a Couch-generated tag such as
+`couch-3dcfba1308775e82` are both ordinary valid Pair tags and both resume by
+exact equality. The separate mutable human name stored on a Couch work thread
+is not a Pair tag and therefore resolves only through Couch.
+
 Couch may pass one-shot process inputs needed to host Pair—currently the exact
 thread scope/tag and launch profile—and may pass opaque Couch environment such
 as `COUCH_TREE` and `COUCH_STORE_DIR` through Pair to the hosted harness and its
@@ -100,6 +106,15 @@ accepted and established the exact reserved scope/tag. Couch's existing
 fail-closed promotion remains keyed to that evidence plus the expected helper
 identity; this issue does not move the handshake commit point.
 
+### 2026-08-27 — distinguish Pair tags from Couch human names
+
+**Reason:** operator review clarified that human-assigned Pair tags remain
+semi-readable and resumable even though Couch also generates opaque hexadecimal
+tags.
+
+**Delta:** Pair resumes every valid tag by exact equality regardless of its
+origin. Only Couch's separate mutable thread-name attribute is Couch-only.
+
 ## Done when
 
 - Direct `pair` commands do not read, validate, create, or mutate Couch thread-store state.
@@ -107,11 +122,12 @@ identity; this issue does not move the handshake commit point.
 - Couch resolves names/paths itself and starts Pair with an exact opaque tag.
 - Pair publishes only Pair-owned readiness; Couch alone promotes or rejects its thread incarnation.
 - `pair resume <tag>` continues to work; Couch human-name resolution is available only through Couch.
+- Both human-assigned and Couch-generated Pair tags resume by exact equality.
 - Automated tests cover both direct Pair independence and Couch-hosted registration.
 
 ## Plan
 
-- [ ] Write and approve the durable implementation plan.
+- [x] Write and approve the durable implementation plan.
 - [ ] Remove Couch persistence dependencies from Pair's launcher under failing regression tests.
 - [ ] Keep Couch-owned lookup and hosted registration working under integration tests.
 - [ ] Update the atlas and project record to state the corrected layer boundary.
@@ -129,3 +145,10 @@ consulted Couch state. The operator clarified that Pair is the stable lower
 layer and approved losing direct `pair resume <Couch human name>` resolution.
 The earlier shared-schema proposal was withdrawn; this revision removes the
 dependency instead (ARCH-DRY, ARCH-PURPOSE).
+
+### 2026-08-27 — implementation plan approved
+
+The durable plan passed three fresh-context review rounds. The final design
+retains permanent public-entry and every-command Couch-independence regressions,
+uses production Pair marker IO in the composed Couch handshake, and enumerates
+all current documentation consumers (ARCH-PURPOSE, ARCH-PURE, ARCH-MOCK).
