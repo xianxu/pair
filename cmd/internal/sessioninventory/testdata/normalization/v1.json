@@ -1,0 +1,11 @@
+{
+  "schema_version": 1,
+  "cases": [
+    {"name": "plain", "input": "hello", "want": "hello"},
+    {"name": "crlf and horizontal tails", "input": "  first  \r\nsecond\t\r\n", "want": "  first\nsecond"},
+    {"name": "sticky comment framing", "input": "\n === focus ===  \n\nkeep  \n\t=== context ===\nnext\t\n", "want": "keep\nnext"},
+    {"name": "preserve internal spacing and case", "input": "\n  MiXeD   words\tinside\n\n", "want": "  MiXeD   words\tinside"},
+    {"name": "comment only", "input": "=== one ===\n  === two ===  \n", "want": ""},
+    {"name": "preserve interior blank lines", "input": "\nalpha\n  \n\nbeta\n", "want": "alpha\n\n\nbeta"}
+  ]
+}

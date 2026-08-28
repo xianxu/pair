@@ -769,6 +769,17 @@ be checked against measured actuals at close.*
 
 ## Log
 
+- 2026-08-28 — M2 Task 4 now owns one exact Pair-text projection across Go and
+  Lua, allowlisted native operator/progress events for all four agents, and a
+  fail-closed authored-send boundary. `SessionLogStore` serializes concurrent
+  processes, atomically replaces and fsyncs the markdown log plus its parent,
+  and the streaming `pair session-log append` route runs before either authored
+  Neovim send mutates draft/queue state. Generated review, compaction, and
+  doctor prompts use the non-evidence wrapper. Focused Go, subprocess failure/
+  concurrency, real queue-state, Lua caller-enumeration, artifact ownership,
+  historical declaration, runtime-bundle, and diff checks pass (`ARCH-DRY`,
+  `ARCH-PURE`, `ARCH-PURPOSE`, `ARCH-MOCK`).
+
 - 2026-08-28 — The second M1 review disposed BR-1 through BR-6 and found one
   repeated Core Concepts path mismatch. Commit `ca0dd97` fixes the class rather
   than the row alone: every M1 plan concept now matches a marked source

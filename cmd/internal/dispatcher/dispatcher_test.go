@@ -13,7 +13,7 @@ func TestDispatchNamesDeriveFromImplementedStatus(t *testing.T) {
 	// keys off DispatchNames(), so if one of these were accidentally left
 	// `planned`, `pair changelog` would fall through to the launcher (start a
 	// session) with no other test catching it.
-	for _, want := range []string{"agent", "context", "layout", "scrollback", "wrap", "term", "slug", "changelog", "continuation", "session-watch", "scribe", "review", "clip", "title", "keys"} {
+	for _, want := range []string{"agent", "context", "layout", "scrollback", "wrap", "term", "slug", "changelog", "continuation", "session-watch", "session-log", "scribe", "review", "clip", "title", "keys"} {
 		if !containsStr(names, want) {
 			t.Fatalf("DispatchNames() = %v, missing implemented %q", names, want)
 		}
@@ -28,7 +28,7 @@ func TestDispatchNamesDeriveFromImplementedStatus(t *testing.T) {
 }
 
 func TestStreamingFlags(t *testing.T) {
-	for _, s := range []string{"wrap", "term", "scribe", "changelog render", "continuation", "session-watch", "title", "clip copy-on-select"} {
+	for _, s := range []string{"wrap", "term", "scribe", "changelog render", "continuation", "session-watch", "session-log append", "title", "clip copy-on-select"} {
 		if !IsStreaming(s) {
 			t.Errorf("IsStreaming(%q) = false, want true (stdin/live-stderr/long-running)", s)
 		}
@@ -53,6 +53,7 @@ func TestResolveNestedFlatAndAlias(t *testing.T) {
 		{[]string{"layout", "toggle-focused"}, "layout toggle-focused", []string{}, true},
 		{[]string{"scrollback", "render"}, "scrollback render", []string{}, true},
 		{[]string{"clip", "copy-on-select", "--orchestrate"}, "clip copy-on-select", []string{"--orchestrate"}, true},
+		{[]string{"session-log", "append"}, "session-log append", []string{}, true},
 		{[]string{"context", "T", "claude"}, "context", []string{"T", "claude"}, true},
 		{[]string{"scrollback-render"}, "", nil, false}, // the M2 transitional alias is gone (#104 M3)
 		{[]string{"changelog"}, "", nil, false},         // bare group token is not a family
@@ -90,7 +91,7 @@ func TestDispatchNamesAreTopLevelTokens(t *testing.T) {
 func TestDispatchNestedStreamingRefusesBufferedPath(t *testing.T) {
 	// A nested streaming family reached on the buffered Dispatch path is a
 	// programming error (it should go through cmd/pair-go's streaming seam).
-	for _, args := range [][]string{{"clip", "copy-on-select"}, {"changelog", "render"}} {
+	for _, args := range [][]string{{"clip", "copy-on-select"}, {"changelog", "render"}, {"session-log", "append"}} {
 		res := Dispatch(args)
 		if res.ExitCode != 2 || !strings.Contains(res.Stderr, "streaming subcommand") {
 			t.Errorf("Dispatch(%v) = code %d stderr %q, want 2 + 'streaming subcommand'", args, res.ExitCode, res.Stderr)

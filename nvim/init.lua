@@ -512,19 +512,8 @@ local function write_file(path, content)
   return true
 end
 
-local function append_log(body)
-  local path = log_path_for_tag()
-  vim.fn.mkdir(vim.fn.fnamemodify(path, ':h'), 'p')
-  local f = io.open(path, 'a')
-  if not f then return end
-  f:write(os.date('## %Y-%m-%d %H:%M:%S') .. '\n\n')
-  f:write(body)
-  f:write('\n\n---\n\n')
-  f:close()
-end
-
 -- Parse log-<tag>.md into a list of entry bodies, oldest first.
--- Entry shape (per append_log): "## YYYY-MM-DD HH:MM:SS\n\n<body>\n\n---\n\n".
+-- Entry shape (per SessionLogStore): "## YYYY-MM-DD HH:MM:SS\n\n<body>\n\n---\n\n".
 -- Splitting on the entry separator yields parts; the trailing chunk is "" since
 -- the file ends with the separator. Each non-empty part starts with the
 -- timestamp header which we strip to recover just the body.
@@ -786,6 +775,28 @@ local function send_to_agent(body, no_submit)
   end
 end
 
+_G.PairSubmission = dofile((debug.getinfo(1, 'S').source:match('@?(.*/)') or './') .. 'submission.lua').new(function(body)
+  if type(_G.PairTestSessionLogAppend) == 'function' then
+    return _G.PairTestSessionLogAppend(body)
+  end
+  local home = vim.env.PAIR_HOME or ''
+  local pair = (home ~= '') and (home .. '/bin/pair') or 'pair'
+  local out = vim.fn.system({ pair, 'session-log', 'append' }, body)
+  if vim.v.shell_error ~= 0 then
+    out = tostring(out or ''):gsub('%s+$', '')
+    return false, out ~= '' and out or ('exit ' .. tostring(vim.v.shell_error))
+  end
+  return true
+end, send_to_agent, function(message)
+  vim.notify(message, vim.log.levels.ERROR)
+end)
+function _G.submit_operator_text(authored_body, agent_text, no_submit)
+  return _G.PairSubmission.submit_operator_text(authored_body, agent_text, no_submit)
+end
+function _G.send_generated_prompt(body)
+  return _G.PairSubmission.send_generated_prompt(body)
+end
+
 -- :PairReview <file> — PROPOSE a file for review (#66 M4a'). It does NOT open the
 -- pane: it writes the review-target seam (status=proposed), runs the deterministic
 -- readiness prep locally (track / new branch / resume), then sends the agent a
@@ -903,7 +914,7 @@ do
     end
     local out = table.concat(vim.fn.systemlist(cmd), '\n')
     local ok = vim.v.shell_error == 0
-    if out ~= '' then send_to_agent(out) end
+    if out ~= '' then send_generated_prompt(out) end
     if not ok then
       vim.notify('PairReview: prep failed — ' .. out, vim.log.levels.WARN)
     end
@@ -968,20 +979,9 @@ end
 -- by the strip are also dropped so the agent doesn't see a dangling head or
 -- tail. (Leading matters because comment_lines preserves blanks between
 -- sticky comments, which sit at the top of the next draft.)
+local pair_normalization = dofile((debug.getinfo(1, 'S').source:match('@?(.*/)') or './') .. 'normalization.lua')
 local function strip_comments(body)
-  local out = {}
-  for line in (body .. '\n'):gmatch('([^\n]*)\n') do
-    if not line:match('^%s*===') then
-      table.insert(out, line)
-    end
-  end
-  while #out > 0 and out[#out]:match('^%s*$') do
-    table.remove(out)
-  end
-  while #out > 0 and out[1]:match('^%s*$') do
-    table.remove(out, 1)
-  end
-  return table.concat(out, '\n')
+  return pair_normalization.normalize_pair_text(body)
 end
 
 -- Inverse of strip_comments: returns the comment lines (in order), preserving
@@ -1527,6 +1527,10 @@ local function send_and_clear(no_submit)
   local stripped = strip_comments(body)
   if stripped:match('^%s*$') then return end
 
+  -- Durability is the submission gate. Do this before queue consumption or
+  -- draft mutation so any failure leaves all authored state intact.
+  if not submit_operator_text(body, stripped, no_submit) then return end
+
   local from_queue = (type(nav.pos) == 'table' and nav.pos.kind == 'queue')
 
   -- send-from-+N consumes that queue file. Resolve the selected item by its
@@ -1559,11 +1563,6 @@ local function send_and_clear(no_submit)
   end
 
   local was_at_star = (nav.pos == '*')
-
-  -- Log the unstripped body (the user's authored text, comments and all),
-  -- send only the stripped version to the agent.
-  append_log(body)
-  send_to_agent(stripped, no_submit)
 
   -- Return to *. The just-sent body's === lines become the new sticky set
   -- for *, regardless of which slot we sent from. When sent from -N or +N,
@@ -2311,8 +2310,7 @@ local function ship_buffer_and_reset(body)
   local stripped = strip_comments(body)
   local actually_sent = not stripped:match('^%s*$')
   if actually_sent then
-    append_log(body)
-    send_to_agent(stripped)
+    if not submit_operator_text(body, stripped) then return false end
   end
   nav.pos = '*'
   if actually_sent then
@@ -3321,7 +3319,7 @@ function _G.PairConfirmCompact()
     -- slot (-N/+N) rather than the `*` draft — autosave is the real freshness
     -- guarantee for draft-<tag>.md, so this `:w` only helps when `*` is current.
     pcall(vim.cmd, 'silent! write')
-    send_to_agent(COMPACT_PROMPT)
+    send_generated_prompt(COMPACT_PROMPT)
   end)
 end
 
@@ -4046,7 +4044,7 @@ do
         vim.log.levels.ERROR)
       return
     end
-    send_to_agent(body)
+    send_generated_prompt(body)
   end
   vim.api.nvim_create_user_command('PairDoctor', pair_doctor,
     { desc = 'Ask the agent to run pair-doctor and propose harness-drift fixes' })

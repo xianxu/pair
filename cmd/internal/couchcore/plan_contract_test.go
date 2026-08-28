@@ -21,7 +21,7 @@ type issue149ConceptRequirement struct {
 	kind string
 }
 
-const issue149M5DeclarationDigest = "bb23b1f5793043b5fd03f14d87fa816432af5944cfe0e35f8b173f69ab5ad125"
+const issue149M5DeclarationDigest = "29e4b62702d061d76ac55e0c72a1a7a8b78b90ba4be505ccd4befde105c6622a"
 
 // issue149M5GoSources is the exhaustive set of Go sources touched by M5. Every
 // declaration in these files receives a disposition: a pair:m5-concept marker
@@ -36,12 +36,14 @@ var issue149M5GoSources = []string{
 	"cmd/internal/clipcmd/clipcmd.go", "cmd/internal/clipcmd/clipcmd_test.go", "cmd/internal/clipcmd/run.go",
 	"cmd/internal/codexsid/codexsid.go", "cmd/internal/contextcmd/contextcmd.go", "cmd/internal/contextcmd/panejson_kdl_test.go",
 	"cmd/internal/continuationcmd/continuationcmd.go",
+	"cmd/internal/continuationcmd/draft.go",
 	"cmd/internal/couchcmd/readme_test.go",
 	"cmd/internal/couchcore/artifactcollision_test.go", "cmd/internal/couchcore/couch.go", "cmd/internal/couchcore/couch_test.go", "cmd/internal/couchcore/launchhelper_test.go", "cmd/internal/couchcore/migration.go",
 	"cmd/internal/couchcore/migration_test.go", "cmd/internal/couchcore/plan_contract_test.go",
 	"cmd/internal/couchcore/storejournal.go", "cmd/internal/couchcore/threadmetadata.go",
 	"cmd/internal/couchcore/threadmetadata_test.go", "cmd/internal/couchcore/threadstore.go",
 	"cmd/internal/draftroute/route.go",
+	"cmd/internal/dispatcher/dispatcher.go", "cmd/internal/dispatcher/dispatcher_test.go",
 	"cmd/internal/launcher/agent_defaults.go", "cmd/internal/launcher/args.go", "cmd/internal/launcher/args_test.go",
 	"cmd/internal/launcher/config.go", "cmd/internal/launcher/createflow.go",
 	"cmd/internal/launcher/createflow_test.go", "cmd/internal/launcher/history.go", "cmd/internal/launcher/layoutflow.go",
@@ -55,15 +57,18 @@ var issue149M5GoSources = []string{
 	"cmd/internal/launcher/thread_claim.go", "cmd/internal/launcher/thread_claim_test.go",
 	"cmd/internal/opener/opener.go", "cmd/internal/opener/opener_test.go", "cmd/internal/opener/run.go",
 	"cmd/internal/opener/run_test.go", "cmd/internal/opener/runtime.go", "cmd/internal/reviewcmd/run.go",
+	"cmd/internal/pairlog/runcli.go", "cmd/internal/pairlog/runcli_test.go", "cmd/internal/pairlog/store.go", "cmd/internal/pairlog/store_test.go",
 	"cmd/internal/runtimebundle/embed_test.go", "cmd/internal/runtimebundlegen/clean_source_test.go",
 	"cmd/internal/scrollbackcmd/render_test.go", "cmd/internal/scrollbackcmd/scrollbackcmd.go",
 	"cmd/internal/scrollbackcmd/scrollbackcmd_test.go", "cmd/internal/scrollbackcmd/timestamps_test.go",
 	"cmd/internal/sessioninventory/conformance.go", "cmd/internal/sessioninventory/conformance_live_test.go", "cmd/internal/sessioninventory/conformance_test.go",
 	"cmd/internal/sessioninventory/concept_contract_test.go",
 	"cmd/internal/sessioninventory/diagnostic.go", "cmd/internal/sessioninventory/diagnostic_test.go",
+	"cmd/internal/sessioninventory/event.go", "cmd/internal/sessioninventory/event_test.go",
 	"cmd/internal/sessioninventory/forest_projection.go", "cmd/internal/sessioninventory/forest_projection_test.go",
 	"cmd/internal/sessioninventory/model.go", "cmd/internal/sessioninventory/model_test.go",
 	"cmd/internal/sessioninventory/order.go", "cmd/internal/sessioninventory/order_test.go",
+	"cmd/internal/sessioninventory/pairfacts.go", "cmd/internal/sessioninventory/pairfacts_test.go",
 	"cmd/internal/sessioninventory/runtime.go", "cmd/internal/sessioninventory/runtime_os.go", "cmd/internal/sessioninventory/runtime_os_test.go",
 	"cmd/internal/sessioninventory/scan.go", "cmd/internal/sessioninventory/scan_agy.go", "cmd/internal/sessioninventory/scan_agy_test.go",
 	"cmd/internal/sessioninventory/scan_claude.go", "cmd/internal/sessioninventory/scan_claude_test.go",
@@ -73,11 +78,11 @@ var issue149M5GoSources = []string{
 	"cmd/internal/sessioninventory/scan_test.go", "cmd/internal/sessioninventory/scanner_fixture_test.go",
 	"cmd/internal/sessioninventory/usage.go", "cmd/internal/sessioninventory/usage_test.go",
 	"cmd/internal/sessioninventorytest/fake_runtime.go", "cmd/internal/sessioninventorytest/fake_runtime_test.go",
-	"cmd/internal/sessionwatch/run.go", "cmd/internal/slugcmd/slugcmd.go", "cmd/internal/titlepoller/run.go",
+	"cmd/internal/sessionwatch/run.go", "cmd/internal/slugcmd/slug.go", "cmd/internal/slugcmd/slugcmd.go", "cmd/internal/titlepoller/run.go",
 	"cmd/internal/strictjson/decode.go", "cmd/internal/threadrecord/record.go",
 	"cmd/internal/titlepoller/runtime.go", "cmd/internal/transcript/transcript.go",
 	"cmd/internal/workbenchshortcut/shortcut.go", "cmd/internal/wrapcmd/wrap.go",
-	"cmd/pair-go/changelog_seam_test.go", "cmd/pair-go/main_test.go",
+	"cmd/pair-go/changelog_seam_test.go", "cmd/pair-go/main.go", "cmd/pair-go/main_test.go",
 }
 
 // issue149M5DeletedGoSources records files in the milestone diff whose deletion
@@ -99,9 +104,7 @@ var issue149M5RetiredGoSources = []string{
 // issue149M5RevertedGoSources records M5 sources whose later edits restored
 // their baseline content. Their declarations still belong to the historical
 // concept inventory, while the files are absent from the current net diff.
-var issue149M5RevertedGoSources = []string{
-	"cmd/pair-go/main.go",
-}
+var issue149M5RevertedGoSources = []string{}
 
 // issue149M5RetiredConceptRequirements preserves the historical M5 concept
 // disposition for declarations removed after that milestone. The plan remains

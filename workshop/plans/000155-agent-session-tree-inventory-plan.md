@@ -349,22 +349,22 @@ and mechanical guard; executable fixtures/fuzz seeds own individual cases.
 - Modify: `cmd/pair-go/main.go`
 - Modify: `cmd/pair-go/main_test.go`
 
-- [ ] RED/GREEN: add `TestNormalizeNativeEvent` and the scanner strategy,
+- [x] RED/GREEN: add `TestNormalizeNativeEvent` and the scanner strategy,
       implement only accepted event normalization, and rerun focused tests.
-- [ ] RED/GREEN: add the versioned shared `NormalizePairText` golden exercised
+- [x] RED/GREEN: add the versioned shared `NormalizePairText` golden exercised
       by Go and Lua, extract both implementations, and route slug,
       continuation, matcher, and Neovim send behavior through them.
-- [ ] RED/GREEN: add `TestPersistSessionLog` plus subprocess concurrency and
+- [x] RED/GREEN: add `TestPersistSessionLog` plus subprocess concurrency and
       failure injection from the strategy table; implement locked atomic
       append/fsync in `pairlog` and the streaming `pair session-log append`
       route.
-- [ ] RED/GREEN: add the Lua caller-enumeration and failure tests for
+- [x] RED/GREEN: add the Lua caller-enumeration and failure tests for
       `submit_operator_text`/`send_generated_prompt`; route
       `send_and_clear` and `ship_buffer_and_reset` through the durable authored
       wrapper, and PairReview/compaction/PairDoctor through the generated
       wrapper. Make direct low-level send calls fail the source test.
-- [ ] Preserve bounded reads and structured malformed-record diagnostics; never inspect transcript content in conformance output.
-- [ ] Run:
+- [x] Preserve bounded reads and structured malformed-record diagnostics; never inspect transcript content in conformance output.
+- [x] Run:
   - `go test ./cmd/internal/sessioninventory ./cmd/internal/slugcmd ./cmd/internal/continuationcmd ./cmd/internal/pairlog ./cmd/internal/dispatcher ./cmd/pair-go -count=1`
   - `make test-lua`
 - [ ] Commit: `git add cmd/internal/sessioninventory cmd/internal/slugcmd cmd/internal/continuationcmd cmd/internal/pairlog cmd/internal/dispatcher cmd/pair-go nvim && git commit -m '#155 M2: make submitted rounds durably observable'`.

@@ -59,6 +59,7 @@ func Families() []CommandFamily {
 		{Name: "term", Summary: "right workbench terminal with pane-local shortcuts", Status: "implemented", Streaming: true},
 		{Name: "scribe", Summary: "PTY logging wrapper", Status: "implemented", Streaming: true},
 		{Name: "session-watch", Summary: "async agent session-id discovery", Status: "implemented", Streaming: true},
+		{Name: "session-log append", Summary: "durably append operator-authored text to the scoped Pair log", Status: "implemented", Streaming: true},
 		{Name: "title", Summary: "agent pane title poller", Status: "implemented", Streaming: true},
 		{Name: "continuation", Summary: "continuation datatype writer", Status: "implemented", Streaming: true},
 		// review group

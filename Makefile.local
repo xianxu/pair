@@ -201,6 +201,8 @@ test-lua:
 	nvim -l nvim/workbench_route_test.lua
 	bash tests/workbench-route-nvim-test.sh
 	nvim -l nvim/slug_test.lua
+	nvim -l nvim/normalization_test.lua
+	nvim -l nvim/submission_test.lua
 	nvim -l nvim/scrollback_test.lua
 	nvim -l nvim/annotate_test.lua
 	nvim -l nvim/changelog_test.lua

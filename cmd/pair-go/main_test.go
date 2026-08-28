@@ -63,6 +63,20 @@ func TestRunStreamingSubcommandRoutesSessionWatch(t *testing.T) {
 	}
 }
 
+func TestRunStreamingSubcommandRoutesSessionLogStdin(t *testing.T) {
+	path := filepath.Join(t.TempDir(), "log.md")
+	t.Setenv("PAIR_LOG_PATH", path)
+	var stdout, stderr bytes.Buffer
+	code := runStreamingSubcommand("session-log append", nil, strings.NewReader("authored"), &stdout, &stderr)
+	if code != 0 || stderr.Len() != 0 {
+		t.Fatalf("code=%d stderr=%q", code, stderr.String())
+	}
+	raw, err := os.ReadFile(path)
+	if err != nil || !strings.Contains(string(raw), "\n\nauthored\n\n---\n\n") {
+		t.Fatalf("raw=%q err=%v", raw, err)
+	}
+}
+
 func TestRunStreamingSubcommandUnknownIsProgrammingError(t *testing.T) {
 	var stdout, stderr bytes.Buffer
 	code := runStreamingSubcommand("nope", nil, strings.NewReader(""), &stdout, &stderr)

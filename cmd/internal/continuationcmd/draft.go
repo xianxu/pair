@@ -1,6 +1,10 @@
 package continuationcmd
 
-import "strings"
+import (
+	"strings"
+
+	"github.com/xianxu/pair/cmd/internal/sessioninventory"
+)
 
 // StripStickyComments drops the draft's sticky-comment lines (those matching
 // `===` after optional leading whitespace — the `=== label ===` stickies) and
@@ -13,20 +17,7 @@ import "strings"
 // drift test is built — pair has no Lua unit harness and `^\s*===` is a trivial,
 // stable one-liner (see the issue's ## Revisions).
 func StripStickyComments(s string) string {
-	var out []string
-	for _, ln := range strings.Split(s, "\n") {
-		if strings.HasPrefix(strings.TrimSpace(ln), "===") {
-			continue
-		}
-		out = append(out, ln)
-	}
-	for len(out) > 0 && strings.TrimSpace(out[0]) == "" {
-		out = out[1:]
-	}
-	for len(out) > 0 && strings.TrimSpace(out[len(out)-1]) == "" {
-		out = out[:len(out)-1]
-	}
-	return strings.Join(out, "\n")
+	return sessioninventory.NormalizePairText(s)
 }
 
 // FoldDraftIntoNextAction inserts wip into body's `## NEXT ACTION` section —

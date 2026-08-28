@@ -15,6 +15,7 @@ import (
 	"github.com/xianxu/pair/cmd/internal/dispatcher"
 	"github.com/xianxu/pair/cmd/internal/entrypoint"
 	"github.com/xianxu/pair/cmd/internal/launcher"
+	"github.com/xianxu/pair/cmd/internal/pairlog"
 	"github.com/xianxu/pair/cmd/internal/runtimebundle"
 	"github.com/xianxu/pair/cmd/internal/scribecmd"
 	"github.com/xianxu/pair/cmd/internal/sessionwatch"
@@ -93,6 +94,8 @@ func runStreamingSubcommand(name string, rest []string, stdin io.Reader, stdout,
 		return continuationcmd.Run(rest, stdin, stdout, stderr, time.Now)
 	case "session-watch":
 		return sessionwatch.RunCLI(rest, os.Getenv, stderr)
+	case "session-log append":
+		return pairlog.RunCLI(rest, stdin, os.Getenv, time.Now(), stderr)
 	case "title":
 		return titlepoller.RunCLI(rest, os.Getenv, stderr)
 	case "clip copy-on-select":

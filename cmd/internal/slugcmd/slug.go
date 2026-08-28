@@ -8,6 +8,8 @@ import (
 	"encoding/json"
 	"regexp"
 	"strings"
+
+	"github.com/xianxu/pair/cmd/internal/sessioninventory"
 )
 
 // slugRE is the contract a candidate must satisfy before it may be written.
@@ -93,7 +95,7 @@ type claudeEntry struct {
 func claudeContent(raw json.RawMessage) string {
 	var s string
 	if json.Unmarshal(raw, &s) == nil {
-		return strings.TrimSpace(s)
+		return sessioninventory.NormalizePairText(s)
 	}
 	var blocks []struct {
 		Type string `json:"type"`
@@ -108,7 +110,7 @@ func claudeContent(raw json.RawMessage) string {
 			parts = append(parts, b.Text)
 		}
 	}
-	return strings.TrimSpace(strings.Join(parts, " "))
+	return sessioninventory.NormalizePairText(strings.Join(parts, "\n"))
 }
 
 func parseClaude(data []byte) []turn {
@@ -171,14 +173,12 @@ func parseCodex(data []byte) []turn {
 				parts = append(parts, c.Text)
 			}
 		}
-		if txt := strings.TrimSpace(strings.Join(parts, " ")); txt != "" {
+		if txt := sessioninventory.NormalizePairText(strings.Join(parts, "\n")); txt != "" {
 			out = append(out, turn{Role: e.Payload.Role, Text: txt})
 		}
 	}
 	return out
 }
-
-
 
 // windowTurns truncates each turn to perTurnChars, then selects a window
 // biased toward recent user turns (see selectWindow).
@@ -358,12 +358,12 @@ func parseAgy(data []byte) []turn {
 					txt = txt[start:end]
 				}
 			}
-			txt = strings.TrimSpace(txt)
+			txt = sessioninventory.NormalizePairText(txt)
 			if txt != "" {
 				out = append(out, turn{Role: "user", Text: txt})
 			}
 		} else if e.Type == "PLANNER_RESPONSE" {
-			txt := strings.TrimSpace(e.Content)
+			txt := sessioninventory.NormalizePairText(e.Content)
 			if txt != "" {
 				out = append(out, turn{Role: "assistant", Text: txt})
 			}
@@ -400,11 +400,10 @@ func parseMuse(data []byte) []turn {
 			continue
 		}
 		if e.PayloadType == "runtime.session" && e.Payload.Kind == "run" && e.Payload.Event.Kind == "started" {
-			if txt := strings.TrimSpace(e.Payload.Event.Prompt); txt != "" {
+			if txt := sessioninventory.NormalizePairText(e.Payload.Event.Prompt); txt != "" {
 				out = append(out, turn{Role: "user", Text: txt})
 			}
 		}
 	}
 	return out
 }
-

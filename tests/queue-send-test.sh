@@ -56,6 +56,16 @@ write_driver() {
   cat > "$RT/driver.lua" <<LUA
 local dd = os.getenv('PAIR_DATA_DIR')
 local O = io.open(dd..'/result.txt','w')
+-- The Go pairlog store has its own durability/concurrency tests. This fixture
+-- injects its successful boundary so the queue state machine stays hermetic.
+_G.PairTestSessionLogAppend = function(body)
+  if os.getenv('PAIR_TEST_LOG_FAIL') == '1' then return false, 'injected failure' end
+  local f = io.open(os.getenv('PAIR_LOG_PATH'), 'a')
+  if not f then return false, 'fixture open failed' end
+  f:write(os.date('## %Y-%m-%d %H:%M:%S') .. '\n\n' .. body .. '\n\n---\n\n')
+  f:close()
+  return true
+end
 local function cm(l)
   local m = vim.fn.maparg(l,'n',false,true)
   if type(m)~='table' or not m.callback then O:write('E missing-map '..l..'\n') end
@@ -142,6 +152,16 @@ if has "C append draft.send.newline zellij action write 13" \
   pass "draft append-only command stays newline without submit"
 else
   fail "draft append-only command"; sed 's/^/    /' "$RT/result.txt"
+fi
+
+# --- 6. durable-log failure leaves every authored state surface intact. -----
+setup "HELLO" "AAA"
+write_driver 0
+PAIR_TEST_LOG_FAIL=1 run
+if has "D HELLO" && has "Q 500000=AAA" && [ "$(count '^L ')" = "0" ]; then
+  pass "log append failure preserves draft and queue without history evidence"
+else
+  fail "log append failure must fail closed"; sed 's/^/    /' "$RT/result.txt"
 fi
 
 if [ "$fails" -ne 0 ]; then

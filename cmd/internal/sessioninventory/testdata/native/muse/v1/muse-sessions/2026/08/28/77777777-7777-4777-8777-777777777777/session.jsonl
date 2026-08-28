@@ -1,2 +1,3 @@
 {"schema_version":1,"record_type":"event","payload_type":"runtime.session","payload":{"kind":"agent_tree_initialized","record":{"root_session_id":"sanitized"}}}
 {"schema_version":1,"record_type":"event","payload_type":"runtime.session","payload":{"kind":"run","run_id":"99999999-9999-4999-8999-999999999999","event":{"kind":"started","prompt":"sanitized root prompt"}}}
+{"schema_version":1,"record_type":"event","payload_type":"runtime.session","payload":{"kind":"run","run_id":"99999999-9999-4999-8999-999999999999","event":{"kind":"assistant_message_committed"}}}
