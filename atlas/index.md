@@ -5,11 +5,11 @@
 ## Map
 
 - [Architecture](architecture.md) — what the pieces are and how they fit together.
-- [Session identity and storage](session-identity.md) — composite repo-scope/tag identity, exact artifact bindings, the `📁` public zellij name scheme, durable thread lookup, and legacy flat-data recovery.
+- [Session identity and storage](session-identity.md) — Pair's scoped address claims and exact artifact bindings, Couch's independent ThreadStore authority, the `📁` public zellij name scheme, and legacy flat-data recovery.
 - [Go migration inventory](go-migration-inventory.md) — artifact/caller/runtime contract for the staged primary-Go-binary migration.
 - [Workflow](workflow/index.md) — issue-based development loop inherited from the ariadne base layer.
 - [How-to-bring-up-a-new-harness-cli](how-to-bring-up-a-new-harness-cli.md) — guide on integrating a new agent harness CLI.
-- [couch](couch.md) — the session supervisor (`cmd/couch`): one leased namespace, composite durable threads, shared standalone registration/artifact authority, recoverable pre-exec starts, normalized fleet-policy admission, and tty routing.
+- [couch](couch.md) — the session supervisor (`cmd/couch`): one leased namespace, Couch-owned composite durable threads coordinated with Pair-owned address claims, recoverable pre-exec starts, normalized fleet-policy admission, and tty routing.
 - [Review workbench](review-workbench.md) — embedded nvim document-review pane (#66): agent proposes edit records, nvim applies them undo-ably + journals rounds via docflow.
 
 ## See also

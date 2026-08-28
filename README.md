@@ -356,7 +356,7 @@ identity; Tab is intentionally inactive for now.
 pair                             # default: claude
 pair <agent>                     # claude / codex / agy
 pair <agent> --layout3           # workbench with the user terminal on the right
-pair resume <tag-or-thread-name> # restart by opaque tag or scoped human thread name
+pair resume <tag>                # restart by Pair's exact repo-local tag
 pair continue                    # list saved continuations (durable session handoffs)
 pair continue <slug> [agent]     # new session seeded from a continuation doc; prompts
                                  # for the tag, and forwards -- <args> to the agent
@@ -377,14 +377,12 @@ pair version, --version          # print launcher version metadata
 pair -h, --help                  # show full help
 ```
 
-Standalone Pair reads Couch's durable thread index without requiring Couch to
-be running. Its resume picker includes parked threads, displays human names
-ahead of opaque tags, and adds the tag when duplicate labels need
-disambiguation; selection still resumes the opaque tag and its existing
-artifacts. An existing direct-Pair tag takes precedence over fuzzy thread-name
-matching. A missing Couch store preserves legacy Pair behavior, while a
-malformed or incomplete index fails closed instead of launching the typed text
-as a new legacy tag.
+Standalone Pair neither reads nor mutates Couch's ThreadStore. `pair resume`
+accepts Pair's exact repo-local tag (or a Pair-owned public `📁...` session name
+that its own ledger maps back to that tag); mutable Couch names and paths are
+not Pair addresses. Pair's picker is likewise built only from Pair-owned live
+session bindings and tag history. Couch has its own inventory and human-name /
+path resolution for Couch operations (ARCH-PURPOSE).
 
 Use `--` to separate pair's positional from agent flags. Without it, pair only takes `<agent>` as a positional and everything else is rejected.
 

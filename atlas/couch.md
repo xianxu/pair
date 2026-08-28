@@ -26,8 +26,10 @@ legacy incarnations and marks the cutover. CLI and panel read the same
 one-row-per-composite-thread inventory.
 
 `cmd/internal/artifactpath` is the sole constructor for Pair's tag-bearing
-files. Couch and standalone Pair select `{repo_scope, tag}`; the launcher then
-exports exact paths to Go helpers, shell, Neovim, and both Zellij layouts.
+files. Standalone Pair selects its own `{repo_scope, tag}`; Couch allocates the
+same address shape for a hosted start and Pair establishes the pre-reserved
+claim. The launcher then exports exact paths to Go helpers, shell, Neovim, and
+both Zellij layouts.
 Each resolved-consumer family is tied to a named resolver/member witness;
 closed vocabulary allowances separately cover exact non-path protocol and CLI
 uses. Every production source is exhaustively inventoried as one of those
@@ -273,8 +275,12 @@ binding index now lives in the same selected repository scope; strict reads
 merge the former global file for upgrade compatibility, and malformed or
 unreadable present state fails closed.
 
-The child receives the canonical namespace plus `COUCH_THREAD_SCOPE` and
+The child receives `COUCH_TREE`, `COUCH_STORE_DIR`, `COUCH_THREAD_SCOPE`, and
 `COUCH_THREAD_TAG`, and launches as `pair resume <opaque-tag> --layout2`.
+Except for matching the scope/tag to establish Pair's reserved address claim,
+Pair treats these Couch-owned values as opaque pass-through context for the
+hosted child: it does not resolve Couch names or paths and never reads or
+mutates Couch's manifest or records.
 Distinct starts at one policy-unbounded path therefore use distinct Pair
 sessions and artifacts. Layout stays pinned to layout2: couch owns terminal
 switching, so layout3's third pane is the layer couch replaces.
@@ -306,33 +312,27 @@ Couch therefore selects the last successful agent and exact argv at that path
 without reopening Pair's saved-config picker (ARCH-DRY, ARCH-PURE,
 ARCH-PURPOSE).
 
-## Metadata and standalone Pair lookup
+## Couch metadata and resolution
 
 Name, operator description, and agent-published summary are independent mutable
 fields on the revisioned ThreadRecord. `couch publish-description` is run by a
 session with its exact `$COUCH_THREAD_SCOPE` and `$COUCH_THREAD_TAG`; it cannot
 resolve a mutable path/name or overwrite operator prose.
 
-`cmd/internal/threadrecord` owns the persisted record wire schema, strict
-structural validation, and persisted address/generation checks. ThreadStore
-writes and reads that type, while Launcher projects the same decoded record
-into its portable read-only ThreadIndex; neither reader has a shadow schema.
-`cmd/internal/strictjson` supplies their common duplicate-key, unknown-field,
-and trailing-value rejection. Launcher still owns the shared scoped
-exact-tag/name/path matcher. Standalone `pair resume <human-name>` and
-the Pair picker therefore work while Couch is absent. The picker merges durable
-parked records with sidecar history, decorates live rows, and always carries the
-opaque tag behind a human-facing label. Duplicate labels gain tag
-disambiguators rather than collapsing. Existing direct Pair artifacts take
-exact precedence over fuzzy thread matching. `SessionNameEntry` remains only
-the stable zellij socket binding; a mutable human thread name never renames that
-socket or the tag-scoped files.
+`cmd/internal/threadrecord` owns the persisted Couch record wire schema, strict
+structural validation, and persisted address/generation checks. Couch alone
+reads and mutates those records through ThreadStore. Its inventory, human-name
+and path resolution, metadata edits, admission, and lifecycle transitions all
+stay on that authority; none are projected into standalone Pair.
 
-Standalone Pair creates upsert the same locked/revisioned ThreadStore through a
-composition-root registrar before any workspace child starts. The record keeps
-the direct tag and exact launch profile, preserves existing human metadata, and
-adds or refreshes the PID-reuse-safe incarnation. Couch-owned children bypass
-this path because their pre-exec transaction is already authoritative.
+Pair independently owns exact scoped tag claims, sidecars, ledgers, public
+session bindings, and its tag-only resume/picker flows. Pair's strict claim
+decoder rejects duplicate keys, unknown fields, malformed identity, and invalid
+states, but that marker is only the Couch↔Pair registration handshake—not a
+second metadata store. `SessionNameEntry` remains only Pair's stable zellij
+socket binding; Couch's mutable human thread name or working path never renames
+that socket, decorates Pair's picker, or becomes valid `pair resume` input
+(ARCH-DRY, ARCH-PURPOSE, ARCH-PURE).
 
 ## Identity and admission
 
