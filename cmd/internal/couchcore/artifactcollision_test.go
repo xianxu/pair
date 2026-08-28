@@ -2,10 +2,12 @@ package couchcore
 
 import (
 	"bytes"
+	"encoding/json"
 	"errors"
 	"os"
 	"path/filepath"
 	"reflect"
+	"strings"
 	"testing"
 	"time"
 
@@ -49,6 +51,82 @@ func TestScopedArtifactCheckerReportsPairRegistrationEvidence(t *testing.T) {
 	if got, err := checker.Registration(address); err != nil || got != RegistrationEstablished {
 		t.Fatalf("established registration = %q, %v", got, err)
 	}
+}
+
+func TestScopedArtifactCheckerRegistrationRequiresExactEstablishedMarker(t *testing.T) {
+	address := ThreadAddress{RepoScope: "0123456789abcdef", Tag: "couch-0001020304050607"}
+	tests := []struct {
+		name    string
+		marker  *string
+		dir     bool
+		want    RegistrationEvidence
+		wantErr bool
+	}{
+		{name: "missing", want: RegistrationAbsent},
+		{name: "reserved", marker: stringPointer(`{"schema":1,"scope":"0123456789abcdef","tag":"couch-0001020304050607","state":"reserved"}`), want: RegistrationAbsent},
+		{name: "established", marker: stringPointer(`{"schema":1,"scope":"0123456789abcdef","tag":"couch-0001020304050607","state":"established"}`), want: RegistrationEstablished},
+		{name: "malformed", marker: stringPointer(`not-json`), want: RegistrationUnknown, wantErr: true},
+		{name: "wrong schema", marker: stringPointer(`{"schema":2,"scope":"0123456789abcdef","tag":"couch-0001020304050607","state":"established"}`), want: RegistrationUnknown, wantErr: true},
+		{name: "wrong scope", marker: stringPointer(`{"schema":1,"scope":"fedcba9876543210","tag":"couch-0001020304050607","state":"established"}`), want: RegistrationUnknown, wantErr: true},
+		{name: "wrong tag", marker: stringPointer(`{"schema":1,"scope":"0123456789abcdef","tag":"couch-fedcba9876543210","state":"established"}`), want: RegistrationUnknown, wantErr: true},
+		{name: "invalid state", marker: stringPointer(`{"schema":1,"scope":"0123456789abcdef","tag":"couch-0001020304050607","state":"live"}`), want: RegistrationUnknown, wantErr: true},
+		{name: "unknown field", marker: stringPointer(`{"schema":1,"scope":"0123456789abcdef","tag":"couch-0001020304050607","state":"established","future":true}`), want: RegistrationUnknown, wantErr: true},
+		{name: "duplicate state", marker: stringPointer(`{"schema":1,"scope":"0123456789abcdef","tag":"couch-0001020304050607","state":"reserved","state":"established"}`), want: RegistrationUnknown, wantErr: true},
+		{name: "filesystem read failure", dir: true, want: RegistrationUnknown, wantErr: true},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			dataDir := t.TempDir()
+			paths := launcher.NewScopedPaths(dataDir, launcher.RepoScope{Key: address.RepoScope}, string(address.Tag))
+			if tt.marker != nil || tt.dir {
+				if err := os.MkdirAll(paths.ScopeDir(), 0o700); err != nil {
+					t.Fatal(err)
+				}
+				if tt.dir {
+					if err := os.Mkdir(paths.ThreadClaim(), 0o700); err != nil {
+						t.Fatal(err)
+					}
+				} else if err := os.WriteFile(paths.ThreadClaim(), []byte(*tt.marker), 0o600); err != nil {
+					t.Fatal(err)
+				}
+			}
+			got, err := NewScopedThreadArtifactCollisionChecker(dataDir).Registration(address)
+			if got != tt.want || (err != nil) != tt.wantErr {
+				t.Fatalf("Registration = %q, %v; want %q, error=%v", got, err, tt.want, tt.wantErr)
+			}
+		})
+	}
+}
+
+func FuzzScopedArtifactCheckerRegistrationRejectsArbitraryMarkerBytes(f *testing.F) {
+	f.Add("")
+	f.Add("garbage")
+	f.Add(strings.Repeat("x", 4096))
+	f.Fuzz(func(t *testing.T, arbitrary string) {
+		dataDir := t.TempDir()
+		address := ThreadAddress{RepoScope: "0123456789abcdef", Tag: "couch-0001020304050607"}
+		paths := launcher.NewScopedPaths(dataDir, launcher.RepoScope{Key: address.RepoScope}, string(address.Tag))
+		if err := os.MkdirAll(paths.ScopeDir(), 0o700); err != nil {
+			t.Fatal(err)
+		}
+		// The payload is always structurally foreign, however adversarial its
+		// string content. Registration must fail closed rather than authorize it.
+		raw := []byte(`{"arbitrary":` + strconvQuote(arbitrary) + `}`)
+		if err := os.WriteFile(paths.ThreadClaim(), raw, 0o600); err != nil {
+			t.Fatal(err)
+		}
+		got, err := NewScopedThreadArtifactCollisionChecker(dataDir).Registration(address)
+		if got != RegistrationUnknown || err == nil {
+			t.Fatalf("arbitrary marker authorized: %q, %v", got, err)
+		}
+	})
+}
+
+func stringPointer(value string) *string { return &value }
+
+func strconvQuote(value string) string {
+	raw, _ := json.Marshal(value)
+	return string(raw)
 }
 
 type fakeSessionDeleter struct{ deleted []string }

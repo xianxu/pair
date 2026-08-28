@@ -7,6 +7,8 @@ import (
 	"io/fs"
 	"os"
 	"path/filepath"
+
+	"github.com/xianxu/pair/cmd/internal/strictjson"
 )
 
 var ErrThreadAddressClaimed = errors.New("Pair thread address already claimed")
@@ -222,7 +224,7 @@ func readThreadAddressClaim(path string) (threadAddressClaimRecord, error) {
 		return threadAddressClaimRecord{}, err
 	}
 	var record threadAddressClaimRecord
-	if err := json.Unmarshal(raw, &record); err != nil {
+	if err := strictjson.Decode(raw, &record); err != nil {
 		return threadAddressClaimRecord{}, err
 	}
 	return record, nil
