@@ -640,12 +640,16 @@ durable binding append; config failure emits `binding_stale` and cannot weaken
 ledger authority (ARCH-DRY, ARCH-MOCK).
 
 Because offline recovery uses the existing markdown Pair log, durable log append
-is a prerequisite to submission. Pair resolves the scoped log, serializes an
-atomic append, fsyncs the replacement and parent directory, and only then sends
-the normalized body to the agent. Any open/write/fsync/rename failure preserves
-the draft, reports the error, and submits nothing. This strengthens the existing
-log; it does not introduce a send journal or delivery transaction
-(ARCH-PURPOSE).
+is a prerequisite to every operator-authored submission. Pair resolves the
+scoped log, serializes an atomic append, fsyncs the replacement and parent
+directory, and only then sends the normalized body to the agent. Both current
+authored paths—normal draft send and dirty-history send—use that one fail-closed
+wrapper. Any open/write/fsync/rename failure preserves the draft, reports the
+error, and submits nothing. Generated PairReview, compaction, and PairDoctor
+control prompts use a separate wrapper, are never logged as operator turns, and
+cannot qualify as round evidence. A source test forbids direct low-level sends
+outside those two wrappers. This strengthens the existing log; it does not
+introduce a send journal or delivery transaction (ARCH-DRY, ARCH-PURPOSE).
 
 After root establishment, validated native parent edges propagate the binding
 to every descendant in that forest. Parentage is never placed in the evidence
@@ -917,3 +921,13 @@ six greenfield Go concerns, two smaller Go concerns, three cross-cutting
 migrations, one Lua integration, four native-format discoveries, atlas work,
 and three review boundaries. The calibration source reports stale, so close-time
 actuals must validate the provisional number.
+
+### 2026-08-28 — enforce durable logging across the submission class
+
+**Reason:** a later plan-quality pass found that dirty-history send was a second
+operator-authored submission path still outside the durable-log prerequisite.
+
+**Delta:** route every existing operator-authored submission through one
+fail-closed durable-log wrapper; route generated PairReview, compaction, and
+PairDoctor prompts through a separate non-evidence wrapper; enforce the complete
+low-level send-call enumeration in Lua tests (ARCH-DRY, ARCH-PURPOSE).

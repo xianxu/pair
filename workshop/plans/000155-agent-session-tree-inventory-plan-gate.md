@@ -53,6 +53,15 @@ rounds:
           note: The Risky Function Test Strategies table names each production function, adversarial input class, and mechanical guard while leaving individual cases to executable fixtures and fuzz seeds.
           round: 2
       blocked: false
+    - "n": 3
+      timestamp: "2026-08-28T12:46:41-07:00"
+      agent: codex
+      dispose:
+        - id: PQ-3
+          disposition: not-addressed
+          note: The durable-before-send rule covers `send_and_clear` but still defers another existing operator-authored submit path.
+          round: 3
+      blocked: true
 content_hash: dd3b7a4d25d8212ea02cfb5eb90183db0555f98f4c58687020a50b8aace6cf10
 ---
 
@@ -83,6 +92,12 @@ later rounds disposed of them. Generated — edit the gate, not this file.
 - PQ-3 — addressed — SessionLogStore makes locked atomic markdown-log persistence and directory fsync a prerequisite to submission, preserving the draft and sending nothing on failure.
 - PQ-4 — addressed — The Risky Function Test Strategies table names each production function, adversarial input class, and mechanical guard while leaving individual cases to executable fixtures and fuzz seeds.
 
+## Round 3 — 2026-08-28T12:46:41-07:00 (codex) — BLOCKED
+
+### Disposed
+
+- PQ-3 — not-addressed — The durable-before-send rule covers `send_and_clear` but still defers another existing operator-authored submit path.
+
 ## Open findings
 
-(none — every finding has been disposed)
+- **PQ-3** [Important] `pair-log-durability-before-send` Define the Pair-log durability prerequisite for recoverable rounds

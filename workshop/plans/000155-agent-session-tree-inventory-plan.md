@@ -175,11 +175,17 @@ complete JSONL record, fsyncs, then unlocks.
 `log-<tag>.md`. The streaming `pair session-log append` command reads the
 authored body from stdin, resolves the scoped artifact, takes its lock, writes
 and fsyncs an atomic replacement, then syncs the parent directory.
-- **Injected into:** Neovim `send_and_clear` before it submits to the agent.
+- **Injected into:** one `submit_operator_text` wrapper used by every existing
+  operator-authored submission path (`send_and_clear` and
+  `ship_buffer_and_reset`).
 - **Failure semantics:** any append failure preserves the draft, displays the
   error, and prevents submission; therefore every completed native round has a
   durable Pair-log turn without introducing a send journal.
-- **Future extensions:** Other Pair composers must use the same command.
+- **Generated prompts:** PairReview readiness, compaction, and PairDoctor use a
+  separate `send_generated_prompt` wrapper, never enter the Pair log, and never
+  qualify as operator-round evidence.
+- **Enforcement:** no call site may invoke low-level `send_to_agent` outside
+  those two wrappers; a Lua source test enumerates all calls.
 
 ## Non-goals
 
@@ -219,6 +225,7 @@ and mechanical guard; executable fixtures/fuzz seeds own individual cases.
 | `ParseLedger` / `CurrentLaunch` | fuzz malformed/interleaved records; physical ordinals are retained and only the latest launch plus joined binding is current |
 | `LedgerStore.Append` | subprocess concurrency and injected short-write/fsync failures on a real temp filesystem; lock prevents lost rows and malformed tails consume ordinals |
 | `PersistSessionLog` | injected open/write/fsync/rename failures plus concurrent append; submission is enabled only after one durable atomic markdown append |
+| `submit_operator_text` / `send_generated_prompt` | enumerate low-level send callers and inject append failure; authored text fails closed while generated control prompts remain non-evidence |
 | `ObserveAndPersist` | mutate both baselines, PID identity, candidates, and crash points; stale generations cannot bind and post-progress recovery uses suffixes only |
 | `RenderV1` / `RunCLI` | shuffled complete/partial inventories and failing writers; buffer before stdout and enforce byte goldens/result matrix |
 | `SessionActivity` / `TokenUsageForRoot` | shuffle authorized artifacts/events and unsupported records; query only an established root and last accepted root usage |
@@ -349,9 +356,11 @@ and mechanical guard; executable fixtures/fuzz seeds own individual cases.
       failure injection from the strategy table; implement locked atomic
       append/fsync in `pairlog` and the streaming `pair session-log append`
       route.
-- [ ] Change `send_and_clear` to invoke durable session-log append before
-      `send_to_agent`. On any append error it keeps the draft, reports the
-      failure, and sends nothing.
+- [ ] RED/GREEN: add the Lua caller-enumeration and failure tests for
+      `submit_operator_text`/`send_generated_prompt`; route
+      `send_and_clear` and `ship_buffer_and_reset` through the durable authored
+      wrapper, and PairReview/compaction/PairDoctor through the generated
+      wrapper. Make direct low-level send calls fail the source test.
 - [ ] Preserve bounded reads and structured malformed-record diagnostics; never inspect transcript content in conformance output.
 - [ ] Run:
   - `go test ./cmd/internal/sessioninventory ./cmd/internal/slugcmd ./cmd/internal/continuationcmd ./cmd/internal/pairlog ./cmd/internal/dispatcher ./cmd/pair-go -count=1`
@@ -617,3 +626,14 @@ ordinal; introduce one locked/fsynced `LedgerStore` and durable
 durable markdown append before send; add non-goals; and replace enumerated test
 cases with a named risky-function strategy table plus concise RED/GREEN steps
 (ARCH-DRY, ARCH-PURE, ARCH-PURPOSE, ARCH-MOCK).
+
+### 2026-08-28 — plan-quality round 3
+
+**Reason:** the gate found the durable-before-send rule covered normal draft
+send but not the second operator-authored dirty-history submission path.
+
+**Delta:** state and enforce the class rule: `send_and_clear` and
+`ship_buffer_and_reset` use one fail-closed `submit_operator_text` wrapper;
+generated PairReview, compaction, and PairDoctor control prompts use
+`send_generated_prompt` and never become operator-round evidence; no other
+direct `send_to_agent` call is allowed (ARCH-DRY, ARCH-PURPOSE).
