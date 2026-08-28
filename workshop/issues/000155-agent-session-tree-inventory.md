@@ -769,6 +769,14 @@ be checked against measured actuals at close.*
 
 ## Log
 
+- 2026-08-28 — The second M1 review disposed BR-1 through BR-6 and found one
+  repeated Core Concepts path mismatch. Commit `ca0dd97` fixes the class rather
+  than the row alone: every M1 plan concept now matches a marked source
+  declaration bidirectionally across name, pure/integration kind, status,
+  milestone, and path. The contract was observed RED on the stale
+  `NativeRecordFact` path before the plan correction (`ARCH-DRY`,
+  `ARCH-PURPOSE`).
+
 - 2026-08-28 — The first M1 boundary review returned REWORK with six blocking
   contract classes. Commit `21de3b9` adds explicit validated parent-edge
   provenance; one exhaustive diagnostic registry with canonical IDs,
