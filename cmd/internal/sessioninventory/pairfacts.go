@@ -2,6 +2,8 @@ package sessioninventory
 
 import (
 	"bytes"
+	"fmt"
+	"strconv"
 	"strings"
 	"time"
 	"unicode/utf8"
@@ -57,6 +59,18 @@ func pairBlankLine(line string) bool { return strings.Trim(line, " \t\r\v\f") ==
 
 var pairLogSeparator = []byte("\n\n---\n\n")
 
+// EncodePairLogEntry is the versioned, byte-counted framing shared by the
+// durable writer and parser. The body may contain arbitrary Markdown,
+// including the legacy visual separator and header-shaped text.
+func EncodePairLogEntry(body []byte, now time.Time) []byte {
+	header := fmt.Sprintf("## %s\n<!-- pair-log-v1 bytes=%d -->\n\n", now.Format("2006-01-02 15:04:05"), len(body))
+	entry := make([]byte, 0, len(header)+len(body)+len(pairLogSeparator))
+	entry = append(entry, header...)
+	entry = append(entry, body...)
+	entry = append(entry, pairLogSeparator...)
+	return entry
+}
+
 // ParsePairLog parses only a launch-delimited suffix of the existing markdown
 // log. Any malformed framing fails the whole suffix closed so a truncated body
 // can never become correlation evidence.
@@ -70,17 +84,33 @@ func ParsePairLog(raw []byte, offset uint64) PairLogParseResult {
 	var facts []PairLogFact
 	cursor := int(offset)
 	for cursor < len(raw) {
-		separator := bytes.Index(raw[cursor:], pairLogSeparator)
-		if separator < 0 {
+		headerEndRelative := bytes.Index(raw[cursor:], []byte("\n\n"))
+		if headerEndRelative < 0 {
 			return PairLogParseResult{MalformedOffsets: []uint64{uint64(cursor)}}
 		}
-		separator += cursor
-		entry := raw[cursor:separator]
-		headerEnd := bytes.Index(entry, []byte("\n\n"))
-		if headerEnd < 0 || !validPairLogHeader(entry[:headerEnd]) {
+		headerEnd := cursor + headerEndRelative
+		bodyStart := headerEnd + 2
+		bodyBytes, versioned, valid := pairLogHeader(raw[cursor:headerEnd])
+		if !valid {
 			return PairLogParseResult{MalformedOffsets: []uint64{uint64(cursor)}}
 		}
-		body := entry[headerEnd+2:]
+		separator := -1
+		if versioned {
+			if bodyBytes > uint64(len(raw)-bodyStart) {
+				return PairLogParseResult{MalformedOffsets: []uint64{uint64(cursor)}}
+			}
+			separator = bodyStart + int(bodyBytes)
+			if !bytes.HasPrefix(raw[separator:], pairLogSeparator) {
+				return PairLogParseResult{MalformedOffsets: []uint64{uint64(cursor)}}
+			}
+		} else {
+			separatorRelative := bytes.Index(raw[bodyStart:], pairLogSeparator)
+			if separatorRelative < 0 {
+				return PairLogParseResult{MalformedOffsets: []uint64{uint64(cursor)}}
+			}
+			separator = bodyStart + separatorRelative
+		}
+		body := raw[bodyStart:separator]
 		if !utf8.Valid(body) {
 			return PairLogParseResult{MalformedOffsets: []uint64{uint64(cursor)}}
 		}
@@ -92,11 +122,26 @@ func ParsePairLog(raw []byte, offset uint64) PairLogParseResult {
 	return PairLogParseResult{Facts: facts}
 }
 
-func validPairLogHeader(raw []byte) bool {
+func pairLogHeader(raw []byte) (uint64, bool, bool) {
 	const prefix = "## "
-	if !bytes.HasPrefix(raw, []byte(prefix)) {
-		return false
+	lines := bytes.Split(raw, []byte{'\n'})
+	if len(lines) == 0 || !bytes.HasPrefix(lines[0], []byte(prefix)) {
+		return 0, false, false
 	}
-	_, err := time.Parse("2006-01-02 15:04:05", string(raw[len(prefix):]))
-	return err == nil
+	if _, err := time.Parse("2006-01-02 15:04:05", string(lines[0][len(prefix):])); err != nil {
+		return 0, false, false
+	}
+	if len(lines) == 1 {
+		return 0, false, true
+	}
+	if len(lines) != 2 {
+		return 0, false, false
+	}
+	const markerPrefix, markerSuffix = "<!-- pair-log-v1 bytes=", " -->"
+	marker := string(lines[1])
+	if !strings.HasPrefix(marker, markerPrefix) || !strings.HasSuffix(marker, markerSuffix) {
+		return 0, false, false
+	}
+	count, err := strconv.ParseUint(strings.TrimSuffix(strings.TrimPrefix(marker, markerPrefix), markerSuffix), 10, 64)
+	return count, true, err == nil
 }

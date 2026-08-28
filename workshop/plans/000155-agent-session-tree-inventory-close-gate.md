@@ -92,6 +92,48 @@ rounds:
           round: 3
       boundary: M1
       blocked: false
+    - "n": 4
+      timestamp: "2026-08-28T15:49:52-07:00"
+      agent: codex
+      findings:
+        - id: BR-8
+          severity: Critical
+          title: Plain restart can resume a stale config while the current typed launch is provisional
+          detail: 'ARCH-PURPOSE: cmd/internal/launcher/markers.go:87-90 falls back from the marker''s established-ledger session ID to saved.SessionID. The M2 contract requires an intentionally fresh restart while the latest typed launch is provisional; a stale compatibility cache must never restore an older root. Remove the session-ID fallback while retaining saved arguments, and add a regression where a provisional typed launch coexists with stale config. The current marker test asserting that fallback must be reversed.'
+          family: established-binding-is-sole-recovery-authority
+          round: 4
+        - id: BR-9
+          severity: Critical
+          title: Unrecognized and unreadable evidence is still silently discarded
+          detail: 'This is the 2nd finding in family diagnostic-registry-single-source. Do not fix only one site: state and enforce the class rule that every unrecognized versioned shape and failed evidence read produces a registry-backed diagnostic. The current sweep finds cmd/internal/sessioninventory/event.go:316-332 silently ignoring an unknown Muse run-event kind, plus cmd/internal/sessioninventory/pair_inventory.go:74-90 silently continuing after unreadable Pair logs/configs. Add tests for each adapter default and each Pair-artifact read boundary.'
+          family: diagnostic-registry-single-source
+          round: 4
+        - id: BR-10
+          severity: Critical
+          title: Diagnostic ordering puts a null agent first despite schema v1 requiring null last
+          detail: This is the 2nd finding in family documented-total-order. cmd/internal/sessioninventory/order.go:168-178 compares Agent as its raw empty string, which sorts before named agents; the documented tuple says agent null last. State the general nullable-comparator rule, sweep every nullable component, and add an exhaustive comparator test rather than patching this field alone.
+          family: documented-total-order
+          round: 4
+        - id: BR-11
+          severity: Critical
+          title: A valid Markdown horizontal rule inside authored text makes the entire round suffix unusable
+          detail: cmd/internal/sessioninventory/pairfacts.go:58-90 treats the first blank-line-delimited horizontal rule as the entry terminator. SessionLogStore permits the same bytes inside an authored body, so a prompt containing before, a Markdown horizontal rule, and after is persisted successfully but ParsePairLog rejects the remainder as a missing timestamp header. Live and offline correlation then remain provisional. Make framing round-trip valid authored Markdown and add a store-to-parser regression.
+          family: authored-log-framing-round-trips
+          round: 4
+        - id: BR-12
+          severity: Important
+          title: README documentation is missing for the new public session-inventory command
+          detail: The range adds pair session-inventory with user-facing flags and exit behavior, but README.md is unchanged. Document the command, its human/JSON and conformance modes, and the provisional versus established meaning.
+          family: public-cli-readme
+          round: 4
+        - id: BR-13
+          severity: Important
+          title: Task 7 claims full result-matrix privacy goldens but tests cover only a subset
+          detail: cmd/internal/sessioninventory/runcli_test.go:13-82 exercises six cases and cmd/internal/sessioninventory/render_test.go:52-72 contains only empty-output goldens. The plan explicitly requires byte goldens for every normal/conformance result row, including partial scans, schema drift, privacy failure with zero stdout, and serialization failure. Add the missing executable cases before keeping Task 7 checked.
+          family: cli-result-matrix-is-executable
+          round: 4
+      boundary: M2
+      blocked: true
 ---
 
 # Gate ledger — pair#155 (boundary-review)
@@ -138,6 +180,28 @@ later rounds disposed of them. Generated — edit the gate, not this file.
 
 - BR-7 — addressed — The plan now locates NativeRecordFact in model.go, a bidirectional declaration contract checks every M1 concept field, and restoring the stale scan.go path makes that test fail.
 
+## Round 4 — 2026-08-28T15:49:52-07:00 (codex) — BLOCKED
+
+### Raised
+
+- **BR-8** [Critical] `established-binding-is-sole-recovery-authority` Plain restart can resume a stale config while the current typed launch is provisional
+  ARCH-PURPOSE: cmd/internal/launcher/markers.go:87-90 falls back from the marker's established-ledger session ID to saved.SessionID. The M2 contract requires an intentionally fresh restart while the latest typed launch is provisional; a stale compatibility cache must never restore an older root. Remove the session-ID fallback while retaining saved arguments, and add a regression where a provisional typed launch coexists with stale config. The current marker test asserting that fallback must be reversed.
+- **BR-9** [Critical] `diagnostic-registry-single-source` Unrecognized and unreadable evidence is still silently discarded
+  This is the 2nd finding in family diagnostic-registry-single-source. Do not fix only one site: state and enforce the class rule that every unrecognized versioned shape and failed evidence read produces a registry-backed diagnostic. The current sweep finds cmd/internal/sessioninventory/event.go:316-332 silently ignoring an unknown Muse run-event kind, plus cmd/internal/sessioninventory/pair_inventory.go:74-90 silently continuing after unreadable Pair logs/configs. Add tests for each adapter default and each Pair-artifact read boundary.
+- **BR-10** [Critical] `documented-total-order` Diagnostic ordering puts a null agent first despite schema v1 requiring null last
+  This is the 2nd finding in family documented-total-order. cmd/internal/sessioninventory/order.go:168-178 compares Agent as its raw empty string, which sorts before named agents; the documented tuple says agent null last. State the general nullable-comparator rule, sweep every nullable component, and add an exhaustive comparator test rather than patching this field alone.
+- **BR-11** [Critical] `authored-log-framing-round-trips` A valid Markdown horizontal rule inside authored text makes the entire round suffix unusable
+  cmd/internal/sessioninventory/pairfacts.go:58-90 treats the first blank-line-delimited horizontal rule as the entry terminator. SessionLogStore permits the same bytes inside an authored body, so a prompt containing before, a Markdown horizontal rule, and after is persisted successfully but ParsePairLog rejects the remainder as a missing timestamp header. Live and offline correlation then remain provisional. Make framing round-trip valid authored Markdown and add a store-to-parser regression.
+- **BR-12** [Important] `public-cli-readme` README documentation is missing for the new public session-inventory command
+  The range adds pair session-inventory with user-facing flags and exit behavior, but README.md is unchanged. Document the command, its human/JSON and conformance modes, and the provisional versus established meaning.
+- **BR-13** [Important] `cli-result-matrix-is-executable` Task 7 claims full result-matrix privacy goldens but tests cover only a subset
+  cmd/internal/sessioninventory/runcli_test.go:13-82 exercises six cases and cmd/internal/sessioninventory/render_test.go:52-72 contains only empty-output goldens. The plan explicitly requires byte goldens for every normal/conformance result row, including partial scans, schema drift, privacy failure with zero stdout, and serialization failure. Add the missing executable cases before keeping Task 7 checked.
+
 ## Open findings
 
-(none — every finding has been disposed)
+- **BR-8** [Critical] `established-binding-is-sole-recovery-authority` Plain restart can resume a stale config while the current typed launch is provisional
+- **BR-9** [Critical] `diagnostic-registry-single-source` Unrecognized and unreadable evidence is still silently discarded
+- **BR-10** [Critical] `documented-total-order` Diagnostic ordering puts a null agent first despite schema v1 requiring null last
+- **BR-11** [Critical] `authored-log-framing-round-trips` A valid Markdown horizontal rule inside authored text makes the entire round suffix unusable
+- **BR-12** [Important] `public-cli-readme` README documentation is missing for the new public session-inventory command
+- **BR-13** [Important] `cli-result-matrix-is-executable` Task 7 claims full result-matrix privacy goldens but tests cover only a subset

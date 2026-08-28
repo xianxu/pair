@@ -72,8 +72,8 @@ func decideAutomaticResumeConfig(agent string, saved savedConfig, sessionValid b
 // already applied the marker's tag/agent preference AND any rename_to move before
 // calling this, so tag/agent here are final. Mirrors handle_restart_marker (shell
 // 762-810): Shift+Alt+N / compaction drop the config and re-launch fresh; a plain
-// Alt+n composes the canonical resume binding onto the saved args (codex's
-// `resume` subcommand leads via composeResumeArgs).
+// Alt+n resumes only the established binding carried in the marker. Saved
+// config contributes non-resume args but is never native-session authority.
 func planRestart(m RestartMarker, tag, agent string, saved savedConfig) restartPlan {
 	base := LaunchArgs{Agent: agent, ForcedTag: tag}
 	if m.NewSession {
@@ -84,8 +84,12 @@ func planRestart(m RestartMarker, tag, agent string, saved savedConfig) restartP
 		base.AgentArgs = append([]string(nil), saved.Args...)
 		return restartPlan{Args: base, DropConfig: true, ContinueSlug: m.Continue}
 	}
-	// Default Alt+n: resume the prior conversation. A marker session id was read
-	// from the live agent immediately before kill, so it is fresher than config.
-	base.AgentArgs = composeResumeArgs(agent, saved.Args, firstNonEmpty(m.SessionID, saved.SessionID))
+	// Default Alt+n: an empty marker ID means the current typed generation is
+	// still provisional. Drop stale config and relaunch fresh with saved flags.
+	if m.SessionID == "" {
+		base.AgentArgs = append([]string(nil), saved.Args...)
+		return restartPlan{Args: base, DropConfig: true}
+	}
+	base.AgentArgs = composeResumeArgs(agent, saved.Args, m.SessionID)
 	return restartPlan{Args: base}
 }

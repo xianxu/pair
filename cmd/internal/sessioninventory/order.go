@@ -171,7 +171,7 @@ func compareDiagnostic(left, right Diagnostic) int {
 	parts := [][2]string{
 		{severityOrder(left.Severity), severityOrder(right.Severity)},
 		{string(left.Code), string(right.Code)},
-		{string(left.Agent), string(right.Agent)},
+		{nullableAgent(left.Agent), nullableAgent(right.Agent)},
 		{leftNative, rightNative},
 		{leftPath, rightPath},
 		{nullableString(left.SourceRef), nullableString(right.SourceRef)},
@@ -183,6 +183,13 @@ func compareDiagnostic(left, right Diagnostic) int {
 		}
 	}
 	return 0
+}
+
+func nullableAgent(value Agent) string {
+	if value == "" {
+		return "\uffff"
+	}
+	return string(value)
 }
 
 func severityOrder(severity Severity) string {

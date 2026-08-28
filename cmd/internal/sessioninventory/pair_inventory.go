@@ -57,7 +57,8 @@ func RecoverPairBindings(runtime Runtime, inventory Inventory, scopeMode, curren
 			tag := historyTag
 			raw, readErr := runtime.ReadFile(file.Artifact, pairArtifactReadLimit)
 			if readErr != nil {
-				return Inventory{}, errors.New("Pair ledger unreadable")
+				diagnostics = append(diagnostics, diagnosticWithSource(DiagnosticStorageUnreadable, "", nil, "ledger:"+tag, "Pair ledger is unreadable"))
+				continue
 			}
 			parsed := sessionledger.ParseLedger(raw)
 			for _, ordinal := range parsed.MalformedOrdinals {
@@ -75,6 +76,7 @@ func RecoverPairBindings(runtime Runtime, inventory Inventory, scopeMode, curren
 			tag := historyTag
 			raw, readErr := runtime.ReadFile(file.Artifact, pairArtifactReadLimit)
 			if readErr != nil {
+				diagnostics = append(diagnostics, diagnosticWithSource(DiagnosticStorageUnreadable, "", nil, "log:"+tag, "Pair log is unreadable"))
 				continue
 			}
 			for _, agent := range agents {
@@ -87,6 +89,7 @@ func RecoverPairBindings(runtime Runtime, inventory Inventory, scopeMode, curren
 			}
 			raw, readErr := runtime.ReadFile(file.Artifact, pairArtifactReadLimit)
 			if readErr != nil {
+				diagnostics = append(diagnostics, diagnosticWithSource(DiagnosticStorageUnreadable, agent, nil, "config:"+tag, "Pair config is unreadable"))
 				continue
 			}
 			var config pairConfig

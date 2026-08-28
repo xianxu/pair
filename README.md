@@ -373,9 +373,23 @@ pair rename <old> <new>          # rename every tag-scoped file in
                                  # Ctrl+Alt+n's (R) inside a session for
                                  # the live equivalent)
 pair keys                        # in-session keybindings (what Alt+h shows)
+pair session-inventory          # stable native forests + Pair binding status
+pair session-inventory --json   # schema-v1 JSON for agents/tools
+pair session-inventory --scope all --json
+                                 # include every Pair repo scope
+pair session-inventory --conformance [--agent codex]
+                                 # redacted installed-schema check (no prompts)
 pair version, --version          # print launcher version metadata
 pair -h, --help                  # show full help
 ```
+
+Session inventory reports `provisional` until Pair observes one exact operator
+turn followed by native assistant/tool/error progress. Only then is the native
+root `established` and resumable. Repeated candidate rounds remain `ambiguous`;
+timestamps and “newest file” never choose a winner. Conformance output contains
+only agent names, status, counts, and diagnostic codes—no transcript content,
+native IDs, cwd, or home paths. Exit `0` includes partial/absent-storage results,
+`1` is invalid usage, and `2` is a fatal scan, privacy, or render failure.
 
 Standalone Pair neither reads nor mutates Couch's ThreadStore. `pair resume`
 accepts Pair's exact repo-local tag (or a Pair-owned public `📁...` session name

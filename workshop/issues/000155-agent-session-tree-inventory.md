@@ -769,6 +769,16 @@ be checked against measured actuals at close.*
 
 ## Log
 
+- 2026-08-28 — The first M2 boundary review returned REWORK with BR-8 through
+  BR-13. The closure fixes each rule class: restart now treats an empty
+  ledger-derived marker as provisional and drops stale config identity; every
+  versioned event default and Pair ledger/log/config read failure diagnoses;
+  every nullable diagnostic coordinate sorts null-last; byte-counted Pair-log
+  v1 framing round-trips arbitrary Markdown while retaining legacy decoding;
+  README documents the public CLI; and injected renderer/privacy failures plus
+  absent, partial, fatal, drift, and writer cases execute the result matrix with
+  stable output checks (`ARCH-DRY`, `ARCH-PURE`, `ARCH-PURPOSE`, `ARCH-MOCK`).
+
 - 2026-08-28 — M2 Task 7 adds the public `pair session-inventory` route with
   canonical human and schema-v1 JSON rendering, explicit nulls/arrays, stable
   byte goldens, current/all scope selection, typed-ledger and launch-delimited

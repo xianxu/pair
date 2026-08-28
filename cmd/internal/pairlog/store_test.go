@@ -8,6 +8,8 @@ import (
 	"strings"
 	"testing"
 	"time"
+
+	"github.com/xianxu/pair/cmd/internal/sessioninventory"
 )
 
 func TestPersistSessionLog(t *testing.T) {
@@ -24,13 +26,30 @@ func TestPersistSessionLog(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	want := "## 2026-08-28 12:34:56\n\nfirst\nline\n\n---\n\n" +
-		"## 2026-08-28 12:34:57\n\nsecond\n\n---\n\n"
+	want := "## 2026-08-28 12:34:56\n<!-- pair-log-v1 bytes=10 -->\n\nfirst\nline\n\n---\n\n" +
+		"## 2026-08-28 12:34:57\n<!-- pair-log-v1 bytes=6 -->\n\nsecond\n\n---\n\n"
 	if string(raw) != want {
 		t.Fatalf("log = %q, want %q", raw, want)
 	}
 	if info, err := os.Stat(path + ".lock"); err != nil || info.IsDir() {
 		t.Fatalf("durable lock file missing: info=%v err=%v", info, err)
+	}
+}
+
+func TestPersistSessionLogRoundTripsArbitraryMarkdown(t *testing.T) {
+	t.Parallel()
+	path := filepath.Join(t.TempDir(), "log-work.md")
+	body := []byte("before\n\n---\n\n## 2026-08-28 01:02:03\n\nafter")
+	if err := PersistSessionLog(path, body, time.Date(2026, 8, 28, 12, 34, 56, 0, time.UTC)); err != nil {
+		t.Fatal(err)
+	}
+	raw, err := os.ReadFile(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	parsed := sessioninventory.ParsePairLog(raw, 0)
+	if len(parsed.MalformedOffsets) != 0 || len(parsed.Facts) != 1 || parsed.Facts[0].Text != string(body) {
+		t.Fatalf("parsed=%#v raw=%q", parsed, raw)
 	}
 }
 

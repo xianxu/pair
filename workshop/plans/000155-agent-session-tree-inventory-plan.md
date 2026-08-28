@@ -694,3 +694,35 @@ bounded #155 concept marker, and an exhaustive contract compares every M1 Core
 Concept name, pure/integration kind, status, milestone, and path in both
 directions. A future M1 row or marked declaration cannot drift independently
 (`ARCH-DRY`, `ARCH-PURPOSE`).
+
+### 2026-08-28 — M2 boundary review: established authority closure
+
+**Reason:** the first M2 review found that plain restart could still fall back
+to a stale config session ID when the current typed launch was provisional.
+
+**Delta:** include `launcher/markers.go` and its tests in M2 closure. A plain
+restart resumes only the established ID carried by the ledger-derived marker;
+an empty marker starts fresh, retains saved non-resume arguments, and drops the
+compatibility config (`ARCH-PURPOSE`).
+
+### 2026-08-28 — M2 boundary review: diagnostics, ordering, and framing
+
+**Reason:** the review found repeated fail-open classes: one Muse event default,
+Pair log/config read failures, raw empty-agent ordering, and delimiter-based
+Pair-log framing that could not represent arbitrary authored Markdown.
+
+**Delta:** every versioned event-adapter default and Pair-artifact read boundary
+emits a registry-backed diagnostic; every nullable comparator component uses one
+null-last projection with exhaustive equal-prefix tests; new Pair-log entries
+carry a byte-counted versioned header while the parser retains legacy input
+compatibility (`ARCH-DRY`, `ARCH-PURE`, `ARCH-PURPOSE`).
+
+### 2026-08-28 — M2 boundary review: executable public CLI contract
+
+**Reason:** the CLI was user-facing but absent from README, and the checked task
+overstated result-matrix/golden coverage.
+
+**Delta:** add README usage and provisional/established semantics; execute every
+normal/conformance usage, partial, absent, fatal, privacy, render, and writer row
+through injected renderers where failure is otherwise unreachable; pin complete
+output bytes in checked-in goldens (`ARCH-PURPOSE`, `ARCH-MOCK`).

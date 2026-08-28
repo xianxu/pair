@@ -54,6 +54,30 @@ func TestSortInventoryEqualTimeFallsThroughToNativeID(t *testing.T) {
 	}
 }
 
+func TestDiagnosticComparatorSortsEveryNullableComponentLast(t *testing.T) {
+	t.Parallel()
+	value, source := "value", "source"
+	path := Artifact{StorageRoot: "root", RelativePath: "path"}
+	base := Diagnostic{Severity: SeverityWarning, Code: DiagnosticTurnUnusable, Agent: AgentClaude, NativeID: &value, Path: &path, SourceRef: &source}
+	for _, test := range []struct {
+		name    string
+		present Diagnostic
+		null    Diagnostic
+	}{
+		{"agent", base, func() Diagnostic { d := base; d.Agent = ""; return d }()},
+		{"native ID", base, func() Diagnostic { d := base; d.NativeID = nil; return d }()},
+		{"path", base, func() Diagnostic { d := base; d.Path = nil; return d }()},
+		{"source", base, func() Diagnostic { d := base; d.SourceRef = nil; return d }()},
+	} {
+		if got := compareDiagnostic(test.present, test.null); got >= 0 {
+			t.Errorf("%s present/null comparison = %d, want present first", test.name, got)
+		}
+		if got := compareDiagnostic(test.null, test.present); got <= 0 {
+			t.Errorf("%s null/present comparison = %d, want null last", test.name, got)
+		}
+	}
+}
+
 func TestStableIDUsesLengthPrefixedParts(t *testing.T) {
 	t.Parallel()
 

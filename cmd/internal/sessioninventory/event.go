@@ -329,6 +329,6 @@ func normalizeMuseEvent(record []byte) ([]NativeEvent, EventDisposition) {
 	case "terminal":
 		return []NativeEvent{{Kind: EventTerminal, SourceKind: "runtime.session.run.terminal"}}, EventAccepted
 	default:
-		return nil, EventIgnored
+		return nil, EventNearMiss
 	}
 }

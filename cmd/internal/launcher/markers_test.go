@@ -30,14 +30,14 @@ func TestPlanRestart(t *testing.T) {
 	saved := savedConfig{Agent: "claude", Args: []string{"--flag"}, SessionID: "SID-1"}
 
 	// The caller (the loop) resolves the marker's tag/agent + any rename before
-	// calling, so planRestart takes the FINAL tag/agent. Default Alt+n: resume the
-	// saved session onto the saved args.
+	// calling, so planRestart takes the FINAL tag/agent. A missing marker binding
+	// means the typed launch is provisional: saved config is stale cache only.
 	p := planRestart(RestartMarker{}, "work", "claude", saved)
-	if p.DropConfig || p.ContinueSlug != "" {
+	if !p.DropConfig || p.ContinueSlug != "" {
 		t.Fatalf("alt+n plan flags: %+v", p)
 	}
 	if p.Args.ForcedTag != "work" || p.Args.Agent != "claude" ||
-		!reflect.DeepEqual(p.Args.AgentArgs, []string{"--flag", "--resume", "SID-1"}) {
+		!reflect.DeepEqual(p.Args.AgentArgs, []string{"--flag"}) {
 		t.Fatalf("alt+n args = %+v", p.Args)
 	}
 

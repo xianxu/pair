@@ -2345,3 +2345,24 @@ return rejected entries structurally. Every caller preserves valid siblings
 alongside diagnostics for rejected entries or later traversal errors; tests
 include a real special file and an injected partial failure (ARCH-PURE,
 ARCH-MOCK, ARCH-PURPOSE).
+
+## Compatibility caches must not survive an authority downgrade
+
+A restart path can correctly read a current typed ledger and still reintroduce
+stale identity one function later by falling back to a compatibility config.
+
+**Rule.** Once a stronger authority reports “present but provisional,” carry
+that absence explicitly through every restart/composition layer. Fallbacks are
+allowed only when stronger authority is absent, never when it deliberately
+withholds a value. Test the mixed state: current provisional authority plus a
+stale populated cache (`ARCH-PURPOSE`).
+
+## Durable text framing must represent the writer's entire input domain
+
+A visual Markdown delimiter is not a record delimiter when operator-authored
+Markdown may contain the same bytes.
+
+**Rule.** For durable arbitrary text, use versioned length framing (or escaping
+with a proven inverse), and retain an explicit legacy decoder. Add a
+writer-to-parser round-trip containing the old delimiter and a header-shaped
+body, not only parser unit cases (`ARCH-PURE`, `ARCH-PURPOSE`).

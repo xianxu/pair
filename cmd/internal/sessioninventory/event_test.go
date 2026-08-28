@@ -39,6 +39,7 @@ func TestNormalizeNativeEvent(t *testing.T) {
 		{name: "muse tool call", agent: AgentMuse, record: `{"record_type":"event","payload_type":"runtime.session","payload":{"kind":"run","event":{"kind":"assistant_tool_calls_committed"}}}`, disposition: EventAccepted, kinds: []NativeEventKind{EventToolCall}},
 		{name: "muse tool result", agent: AgentMuse, record: `{"record_type":"event","payload_type":"runtime.session","payload":{"kind":"run","event":{"kind":"tool_result_batch_committed"}}}`, disposition: EventAccepted, kinds: []NativeEventKind{EventToolResult}},
 		{name: "muse terminal", agent: AgentMuse, record: `{"record_type":"event","payload_type":"runtime.session","payload":{"kind":"run","event":{"kind":"terminal"}}}`, disposition: EventAccepted, kinds: []NativeEventKind{EventTerminal}},
+		{name: "muse unknown run event near miss", agent: AgentMuse, record: `{"record_type":"event","payload_type":"runtime.session","payload":{"kind":"run","event":{"kind":"future_progress"}}}`, disposition: EventNearMiss},
 		{name: "known metadata ignored", agent: AgentMuse, record: `{"record_type":"event","payload_type":"runtime.session","payload":{"kind":"agent_tree_initialized"}}`, disposition: EventIgnored},
 		{name: "unknown source near miss", agent: AgentCodex, record: `{"type":"future","payload":{}}`, disposition: EventNearMiss},
 		{name: "malformed json near miss", agent: AgentClaude, record: `{`, disposition: EventNearMiss},

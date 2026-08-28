@@ -8,6 +8,7 @@ import (
 	"path/filepath"
 	"time"
 
+	"github.com/xianxu/pair/cmd/internal/sessioninventory"
 	"golang.org/x/sys/unix"
 )
 
@@ -64,9 +65,7 @@ func (s SessionLogStore) Persist(path string, body []byte, now time.Time) (err e
 	if err != nil {
 		return fmt.Errorf("read session log: %w", err)
 	}
-	entry := []byte("## " + now.Format("2006-01-02 15:04:05") + "\n\n")
-	entry = append(entry, body...)
-	entry = append(entry, []byte("\n\n---\n\n")...)
+	entry := sessioninventory.EncodePairLogEntry(body, now)
 	contents := make([]byte, 0, len(existing)+len(entry))
 	contents = append(contents, existing...)
 	contents = append(contents, entry...)

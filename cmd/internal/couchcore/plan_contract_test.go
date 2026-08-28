@@ -21,7 +21,7 @@ type issue149ConceptRequirement struct {
 	kind string
 }
 
-const issue149M5DeclarationDigest = "d62d83cf4a1c9bcdf289b34cfec29f60321ff79e3a37a546b66aa7f7d30f56e3"
+const issue149M5DeclarationDigest = "c2a6b5813a0666ae6d468bd36fc99dcaf6a95951e71dd6bea5ef53279a803fcf"
 
 // issue149M5GoSources is the exhaustive set of Go sources touched by M5. Every
 // declaration in these files receives a disposition: a pair:m5-concept marker
@@ -49,6 +49,7 @@ var issue149M5GoSources = []string{
 	"cmd/internal/launcher/createflow_test.go", "cmd/internal/launcher/history.go", "cmd/internal/launcher/layoutflow.go",
 	"cmd/internal/launcher/ledger.go", "cmd/internal/launcher/ledger_test.go",
 	"cmd/internal/launcher/legacy_live.go", "cmd/internal/launcher/lifecycle.go", "cmd/internal/launcher/lifecycle_test.go",
+	"cmd/internal/launcher/markers.go", "cmd/internal/launcher/markers_test.go",
 	"cmd/internal/launcher/migrate.go", "cmd/internal/launcher/osruntime.go", "cmd/internal/launcher/osruntime_test.go",
 	"cmd/internal/launcher/pick.go", "cmd/internal/launcher/pick_test.go", "cmd/internal/launcher/readiness.go",
 	"cmd/internal/launcher/rename.go", "cmd/internal/launcher/rename_test.go",
@@ -77,7 +78,7 @@ var issue149M5GoSources = []string{
 	"cmd/internal/sessioninventory/pairfacts.go", "cmd/internal/sessioninventory/pairfacts_test.go",
 	"cmd/internal/sessioninventory/render.go", "cmd/internal/sessioninventory/render_test.go",
 	"cmd/internal/sessioninventory/round.go", "cmd/internal/sessioninventory/round_test.go",
-	"cmd/internal/sessioninventory/runcli.go", "cmd/internal/sessioninventory/runcli_test.go",
+	"cmd/internal/sessioninventory/runcli.go", "cmd/internal/sessioninventory/runcli_failure_test.go", "cmd/internal/sessioninventory/runcli_test.go",
 	"cmd/internal/sessioninventory/runtime.go", "cmd/internal/sessioninventory/runtime_os.go", "cmd/internal/sessioninventory/runtime_os_test.go",
 	"cmd/internal/sessioninventory/scan.go", "cmd/internal/sessioninventory/scan_agy.go", "cmd/internal/sessioninventory/scan_agy_test.go",
 	"cmd/internal/sessioninventory/scan_claude.go", "cmd/internal/sessioninventory/scan_claude_test.go",

@@ -1,6 +1,9 @@
 package sessioninventory
 
 import (
+	"bytes"
+	"encoding/json"
+	"errors"
 	"flag"
 	"fmt"
 	"io"
@@ -80,11 +83,28 @@ func parseCLIOptions(args []string) (cliOptions, string) {
 }
 
 func runCLIOptions(options cliOptions, runtime Runtime, stdout, stderr io.Writer) int {
+	return runCLIOptionsWithRenderers(options, runtime, stdout, stderr, defaultCLIRenderers())
+}
+
+type cliRenderers struct {
+	inventory   func(Inventory, RenderFormat) ([]byte, error)
+	conformance func(ConformanceReport) ([]byte, error)
+}
+
+func defaultCLIRenderers() cliRenderers {
+	return cliRenderers{inventory: RenderV1, conformance: RenderConformance}
+}
+
+func runCLIOptionsWithRenderers(options cliOptions, runtime Runtime, stdout, stderr io.Writer, renderers cliRenderers) int {
 	if options.conformance {
 		report, conformanceErr := RunConformance(runtime, options.agents...)
-		rendered, renderErr := RenderConformance(report)
+		rendered, renderErr := renderers.conformance(report)
 		if renderErr != nil {
 			_, _ = fmt.Fprintln(stderr, "pair session-inventory: render failed")
+			return 2
+		}
+		if !canonicalConformanceRendering(rendered) {
+			_, _ = fmt.Fprintln(stderr, "pair session-inventory: conformance privacy check failed")
 			return 2
 		}
 		if err := writeBuffered(stdout, rendered); err != nil {
@@ -117,7 +137,7 @@ func runCLIOptions(options cliOptions, runtime Runtime, stdout, stderr io.Writer
 	if options.json {
 		format = RenderJSON
 	}
-	rendered, err := RenderV1(inventory, format)
+	rendered, err := renderers.inventory(inventory, format)
 	if err != nil {
 		_, _ = fmt.Fprintln(stderr, "pair session-inventory: render failed")
 		return 2
@@ -127,6 +147,21 @@ func runCLIOptions(options cliOptions, runtime Runtime, stdout, stderr io.Writer
 		return 2
 	}
 	return 0
+}
+
+func canonicalConformanceRendering(rendered []byte) bool {
+	decoder := json.NewDecoder(bytes.NewReader(rendered))
+	decoder.DisallowUnknownFields()
+	var report ConformanceReport
+	if err := decoder.Decode(&report); err != nil {
+		return false
+	}
+	var trailing any
+	if err := decoder.Decode(&trailing); !errors.Is(err, io.EOF) {
+		return false
+	}
+	canonical, err := RenderConformance(report)
+	return err == nil && bytes.Equal(rendered, canonical)
 }
 
 func everyRequestedScannerFatal(inventory Inventory, agents []Agent) bool {
