@@ -739,3 +739,15 @@ oracle now captures exact exit code, stdout, and stderr bytes for every normal,
 conformance, usage, partial, fatal, privacy, serialization, and writer branch;
 README coverage is executable from the public CLI's own package
 (`ARCH-PURPOSE`).
+
+### 2026-08-28 — M2 gate preflight correction
+
+**Reason:** `sdlc milestone-close` rejected the absence-only interpretation of
+the prior review recommendation: its project gate requires the checked Couch
+row and load-bearing detail block, including measured actual and date, before
+review dispatch.
+
+**Delta:** move the Couch milestone checkbox, actual, date, and detail together
+as one consistent preflight state. The repository contract rejects partial
+project closure state; the successful binary transaction still owns issue and
+plan closure state (`ARCH-PURPOSE`).

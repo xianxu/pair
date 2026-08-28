@@ -770,10 +770,10 @@ be checked against measured actuals at close.*
 ## Log
 
 - 2026-08-28 — The M2 rerun kept the gate closed because its pinned window was
-  empty, Couch carried actual/closed metadata before gate acceptance, README
+  empty, Couch carried actual/closed metadata beside an unchecked task, README
   prose lacked an executable contract, and Task 7's branch assertions were not
   the promised complete byte oracle. The fix commit supplies the required
-  review delta; removes every pre-gate closure mutation; makes the public CLI
+  review delta; moves the Couch checkbox/detail/actual/date as one state; makes the public CLI
   package enforce its README usage, modes, semantics, and exits; and checks
   exact exit/stdout/stderr bytes for the exhaustive normal, conformance, usage,
   partial, fatal, privacy, serialization, and writer matrix. Repository
