@@ -39,6 +39,7 @@ type fakeRuntime struct {
 	sessionIndexErr     error
 	threadIndex         ThreadIndex
 	threadIndexErr      error
+	threadIndexReads    int
 	agentSessions       map[string]bool // "agent|sid" -> native artifact exists
 	liveAgentSessions   map[string]string
 	uuids               []string // MintUUID pops these in order
@@ -255,6 +256,7 @@ func (f *fakeRuntime) ReadSessionNameIndex() (SessionNameIndex, error) {
 	return f.sessionIndex, f.sessionIndexErr
 }
 func (f *fakeRuntime) ReadThreadIndex() (ThreadIndex, error) {
+	f.threadIndexReads++
 	return f.threadIndex, f.threadIndexErr
 }
 func (f *fakeRuntime) AppendSessionNameIndex(entry SessionNameEntry) error {
@@ -551,6 +553,53 @@ func TestCouchOwnedCreateDoesNotRegisterAsStandalone(t *testing.T) {
 	}
 	if code, err := run(t, opts, rt); err != nil || code != 0 {
 		t.Fatalf("run = %d, %v", code, err)
+	}
+}
+
+func TestRunLaunchIgnoresCouchStateForExactTag(t *testing.T) {
+	for _, tag := range []string{"compiler-fix", "couch-3dcfba1308775e82"} {
+		t.Run(tag, func(t *testing.T) {
+			rt := newFakeRuntime()
+			rt.threadIndexErr = errors.New("rejecting Couch thread-index seam")
+			rt.uuids = []string{"SID"}
+
+			code, err := run(t, baseOpts(LaunchArgs{ForcedTag: tag}), rt)
+			if err != nil || code != 0 {
+				t.Fatalf("run = %d, %v; exact Pair tag must not depend on Couch state", code, err)
+			}
+			if rt.threadIndexReads != 0 {
+				t.Fatalf("ReadThreadIndex calls = %d, want 0", rt.threadIndexReads)
+			}
+			if rt.env["PAIR_TAG"] != tag || rt.launched == "" {
+				t.Fatalf("create handoff = %q with PAIR_TAG=%q, want unchanged exact tag %q", rt.launched, rt.env["PAIR_TAG"], tag)
+			}
+		})
+	}
+}
+
+func TestStandaloneCouchRegistrationCannotBlockPair(t *testing.T) {
+	for _, tag := range []string{"compiler-fix", "couch-3dcfba1308775e82"} {
+		t.Run(tag, func(t *testing.T) {
+			rt := newFakeRuntime()
+			rt.uuids = []string{"SID"}
+			registrations := 0
+			opts := baseOpts(LaunchArgs{ForcedTag: tag})
+			opts.RegisterStandaloneThread = func(StandaloneThreadRegistration) error {
+				registrations++
+				return errors.New("rejecting standalone Couch registrar seam")
+			}
+
+			code, err := run(t, opts, rt)
+			if err != nil || code != 0 {
+				t.Fatalf("run = %d, %v; Couch registration must not block Pair", code, err)
+			}
+			if registrations != 0 {
+				t.Fatalf("standalone Couch registrations = %d, want 0", registrations)
+			}
+			if rt.env["PAIR_TAG"] != tag || rt.launched == "" {
+				t.Fatalf("create handoff = %q with PAIR_TAG=%q, want unchanged exact tag %q", rt.launched, rt.env["PAIR_TAG"], tag)
+			}
+		})
 	}
 }
 

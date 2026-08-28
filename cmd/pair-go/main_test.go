@@ -2,12 +2,20 @@ package main
 
 import (
 	"bytes"
+	"context"
 	"errors"
+	"fmt"
 	"io"
 	"os"
+	"os/exec"
+	"path/filepath"
 	"reflect"
 	"strings"
+	"syscall"
 	"testing"
+	"time"
+
+	"github.com/xianxu/pair/cmd/internal/launcher"
 )
 
 func TestRunStreamingSubcommandRoutesChangelogToInjectedStderr(t *testing.T) {
@@ -182,6 +190,218 @@ func TestRunLaunchFallsBackToEmbeddedRuntime(t *testing.T) {
 	if rt.launchNativeRoot != "/data/pair/runtime/abc/pair-home" {
 		t.Fatalf("native root = %q, want the embedded pair-home", rt.launchNativeRoot)
 	}
+}
+
+func TestPublicPairCommandFamiliesIgnoreCouchStore(t *testing.T) {
+	pairRoot, err := filepath.Abs(filepath.Join("..", ".."))
+	if err != nil {
+		t.Fatal(err)
+	}
+	scope, err := launcher.ResolveRepoScope(pairRoot)
+	if err != nil {
+		t.Fatal(err)
+	}
+	binDir := t.TempDir()
+	pair := filepath.Join(binDir, "pair")
+	buildCommand(t, pair, ".")
+
+	commands := []struct {
+		name       string
+		args       []string
+		liveZellij bool
+		extraEnv   []string
+	}{
+		{name: "launch-create", args: []string{"claude"}},
+		{name: "launch-resume-attach", args: []string{"resume", "compiler-fix"}, liveZellij: true},
+		{name: "launch-picker", liveZellij: true},
+		{name: "list", args: []string{"list"}, liveZellij: true},
+		{name: "rename", args: []string{"rename", "--restart-check", "compiler-fix", "compiler-fixed"}},
+		{name: "continue", args: []string{"continue"}},
+		{name: "restart", args: []string{"restart"}, extraEnv: []string{"ZELLIJ_SESSION_NAME=📁pair-compiler-fix", "PAIR_TAG=compiler-fix"}},
+		{name: "quit", args: []string{"quit"}, extraEnv: []string{"ZELLIJ_SESSION_NAME=📁pair-compiler-fix", "PAIR_TAG=compiler-fix"}},
+	}
+	stores := []struct {
+		name string
+		seed func(*testing.T, string)
+	}{
+		{name: "valid-forward", seed: func(t *testing.T, root string) {
+			writePublicPairFixture(t, filepath.Join(root, "threadstore", "manifest.json"), `{"schema_version":1,"generation":1,"threads":[],"legacy_migration_version":1}`)
+		}},
+		{name: "malformed", seed: func(t *testing.T, root string) {
+			writePublicPairFixture(t, filepath.Join(root, "threadstore", "manifest.json"), `{not-json`)
+		}},
+		{name: "unreadable-fifo", seed: func(t *testing.T, root string) {
+			threadStore := filepath.Join(root, "threadstore")
+			if err := os.MkdirAll(threadStore, 0o755); err != nil {
+				t.Fatal(err)
+			}
+			if err := syscall.Mkfifo(filepath.Join(threadStore, "manifest.json"), 0o600); err != nil {
+				t.Fatal(err)
+			}
+		}},
+		{name: "missing", seed: func(t *testing.T, root string) {}},
+	}
+
+	for _, command := range commands {
+		for _, store := range stores {
+			t.Run(command.name+"/"+store.name, func(t *testing.T) {
+				home := t.TempDir()
+				dataDir := filepath.Join(home, "pair-data")
+				storeDir := filepath.Join(home, "couch-store")
+				stubDir := filepath.Join(home, "stubs")
+				commandLog := filepath.Join(home, "external-commands.log")
+				for _, dir := range []string{dataDir, storeDir, stubDir} {
+					if err := os.MkdirAll(dir, 0o755); err != nil {
+						t.Fatal(err)
+					}
+				}
+				store.seed(t, storeDir)
+				writePublicPairCommandStubs(t, stubDir)
+				if command.liveZellij {
+					line := fmt.Sprintf(`{"session_name":"📁pair-compiler-fix","scope_key":%q,"repo_root":%q,"repo_name":"pair","tag":"compiler-fix"}`+"\n", scope.Key, scope.Root)
+					writePublicPairFixture(t, filepath.Join(dataDir, "session-names.jsonl"), line)
+					writePublicPairFixture(t, filepath.Join(dataDir, "workbench-layout-compiler-fix"), "layout2\n")
+				}
+				if command.name == "rename" {
+					writePublicPairFixture(t, filepath.Join(dataDir, "draft-compiler-fix.md"), "rename fixture\n")
+				}
+				before := snapshotPublicPairNamespace(t, storeDir)
+
+				zellijMode := "empty"
+				if command.liveZellij {
+					zellijMode = "existing"
+				}
+				env := append([]string{}, os.Environ()...)
+				env = append(env,
+					"HOME="+home,
+					"PAIR_DATA_DIR="+dataDir,
+					"PAIR_HOME="+pairRoot,
+					"COUCH_STORE_DIR="+storeDir,
+					"COUCH_TREE=opaque-tree-value",
+					"PAIR_TEST_COMMAND_LOG="+commandLog,
+					"PAIR_TEST_ZELLIJ_MODE="+zellijMode,
+					"PATH="+stubDir+string(os.PathListSeparator)+os.Getenv("PATH"),
+				)
+				env = append(env, command.extraEnv...)
+
+				result, timedOut := runPublicPairCommand(t, 8*time.Second, env, pair, command.args...)
+				if timedOut {
+					t.Errorf("public Pair command timed out; an unread Couch manifest was opened: args=%q", command.args)
+				} else if result.code != 0 {
+					t.Errorf("public Pair command depends on %s Couch state: args=%q code=%d stderr=%q", store.name, command.args, result.code, result.stderr)
+				}
+
+				after := snapshotPublicPairNamespace(t, storeDir)
+				if !reflect.DeepEqual(after, before) {
+					t.Errorf("public Pair command mutated Couch namespace\nbefore: %#v\nafter:  %#v", before, after)
+				}
+				if command.name == "launch-create" && store.name == "missing" {
+					raw, err := os.ReadFile(commandLog)
+					if err != nil {
+						t.Fatalf("read external command log: %v", err)
+					}
+					if !strings.Contains(string(raw), "COUCH_TREE=opaque-tree-value") || !strings.Contains(string(raw), "COUCH_STORE_DIR="+storeDir) {
+						t.Errorf("opaque Couch environment was not propagated to the normal child boundary:\n%s", raw)
+					}
+				}
+			})
+		}
+	}
+}
+
+func runPublicPairCommand(t *testing.T, timeout time.Duration, env []string, name string, args ...string) (commandResult, bool) {
+	t.Helper()
+	ctx, cancel := context.WithTimeout(context.Background(), timeout)
+	defer cancel()
+	cmd := exec.CommandContext(ctx, name, args...)
+	cmd.Env = env
+	var stdout, stderr bytes.Buffer
+	cmd.Stdout = &stdout
+	cmd.Stderr = &stderr
+	err := cmd.Run()
+	result := commandResult{stdout: stdout.String(), stderr: stderr.String()}
+	if ctx.Err() == context.DeadlineExceeded {
+		return result, true
+	}
+	if err != nil {
+		var exit *exec.ExitError
+		if !errors.As(err, &exit) {
+			t.Fatalf("run %s: %v", name, err)
+		}
+		result.code = exit.ExitCode()
+	}
+	return result, false
+}
+
+func writePublicPairCommandStubs(t *testing.T, dir string) {
+	t.Helper()
+	zellij := `#!/bin/sh
+printf 'zellij %s COUCH_TREE=%s COUCH_STORE_DIR=%s\n' "$*" "$COUCH_TREE" "$COUCH_STORE_DIR" >> "$PAIR_TEST_COMMAND_LOG"
+case "$*" in
+  "list-sessions --short")
+    [ "$PAIR_TEST_ZELLIJ_MODE" = existing ] && printf '📁pair-compiler-fix\n'
+    ;;
+  "list-sessions --no-formatting")
+    [ "$PAIR_TEST_ZELLIJ_MODE" = existing ] && printf '📁pair-compiler-fix [Created 1s ago]\n'
+    ;;
+  *"action list-clients"*)
+    [ "$PAIR_TEST_ZELLIJ_MODE" = existing ] && printf 'test-client\n'
+    ;;
+esac
+exit 0
+`
+	fzf := `#!/bin/sh
+printf 'fzf %s COUCH_TREE=%s COUCH_STORE_DIR=%s\n' "$*" "$COUCH_TREE" "$COUCH_STORE_DIR" >> "$PAIR_TEST_COMMAND_LOG"
+tr '\000' '\n' | head -n 1
+`
+	for name, body := range map[string]string{"zellij": zellij, "fzf": fzf, "claude": "#!/bin/sh\nexit 0\n"} {
+		path := filepath.Join(dir, name)
+		if err := os.WriteFile(path, []byte(body), 0o755); err != nil {
+			t.Fatal(err)
+		}
+	}
+}
+
+func writePublicPairFixture(t *testing.T, path, body string) {
+	t.Helper()
+	if err := os.MkdirAll(filepath.Dir(path), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(path, []byte(body), 0o644); err != nil {
+		t.Fatal(err)
+	}
+}
+
+func snapshotPublicPairNamespace(t *testing.T, root string) map[string]string {
+	t.Helper()
+	snapshot := map[string]string{}
+	err := filepath.WalkDir(root, func(path string, entry os.DirEntry, err error) error {
+		if err != nil {
+			return err
+		}
+		rel, err := filepath.Rel(root, path)
+		if err != nil {
+			return err
+		}
+		info, err := entry.Info()
+		if err != nil {
+			return err
+		}
+		value := fmt.Sprintf("%s:%#o", info.Mode().Type(), info.Mode().Perm())
+		if info.Mode().IsRegular() {
+			raw, err := os.ReadFile(path)
+			if err != nil {
+				return err
+			}
+			value += ":" + string(raw)
+		}
+		snapshot[rel] = value
+		return nil
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	return snapshot
 }
 
 func TestRuntimeDataDirPrefersPairDataDir(t *testing.T) {
