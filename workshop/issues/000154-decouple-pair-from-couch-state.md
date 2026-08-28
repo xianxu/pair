@@ -149,8 +149,8 @@ total: 3.35
 
 - [x] Write and approve the durable implementation plan.
 - [x] Remove Couch persistence dependencies from Pair's launcher under failing regression tests.
-- [ ] Keep Couch-owned lookup and hosted registration working under integration tests.
-- [ ] Update the atlas and project record to state the corrected layer boundary.
+- [x] Keep Couch-owned lookup and hosted registration working under integration tests.
+- [x] Update the atlas and project record to state the corrected layer boundary.
 
 ## Log
 
@@ -188,6 +188,24 @@ changes, and deterministic sidecar ownership keeps the harness isolated. The
 tests fail only at the current ThreadIndex read and standalone registration
 couplings; both review stages passed after hardening process cleanup and ambient
 environment control (ARCH-PURPOSE, ARCH-MOCK).
+
+### 2026-08-27 — composed hosted boundary verified
+
+The production `Couch.Spawn` → `launcher.LaunchNative` strategy now proves Pair
+establishes its scoped address claim without mutating Couch's complete namespace,
+while only Couch's later `ThreadStore.AdvanceStart` promotes the durable creating
+incarnation to live. Strict marker tables and raw-byte fuzzing fail closed for
+every non-established or malformed record (ARCH-PURPOSE, ARCH-PURE).
+
+Focused Couch boundary, full Couch packages, the 32-case public command matrix,
+`go test ./... -count=1`, `go test -race ./... -count=1`, documentation contract,
+declaration-catalog, shadow-sweep, `make test-lua`, both shell regression suites,
+Zellij config/layout checks, and `git diff --check` verification passed. The
+controller-observed exact `make build` plus `bin/pair-dev claude` smoke also
+passed after replacing a stale binary.
+The composed harness also passed ten race repetitions without adding an orphan;
+69 stale PPID-1 fake-Zellij processes from interrupted pre-fix runs were matched
+by their exact test/config paths, terminated, and confirmed at zero remaining.
 
 ### 2026-08-27 — Pair inventory reads removed
 

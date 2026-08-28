@@ -295,7 +295,7 @@ git commit -m '#154: decouple Pair launch from Couch persistence'
 - Modify: `workshop/projects/couch.md`
 - Modify: `workshop/issues/000154-decouple-pair-from-couch-state.md`
 
-- [ ] **Step 1: Add the composed production boundary strategy**
+- [x] **Step 1: Add the composed production boundary strategy**
 
 `Couch.Spawn` with a production Pair child → use a test blocked runner whose
 acknowledgement invokes production `launcher.LaunchNative`, the real shared
@@ -305,7 +305,7 @@ marker around acknowledgement, requiring exact opaque argv/env, only
 `reserved → established` before Couch observation, and only Couch's subsequent
 `ThreadStore.AdvanceStart` promotion.
 
-- [ ] **Step 2: Add risky production-marker strategies**
+- [x] **Step 2: Add risky production-marker strategies**
 
 `ScopedThreadArtifactCollisionChecker.Registration` over arbitrary marker bytes,
 identity fields, states, absence, and filesystem failures → table/fuzz the real
@@ -316,7 +316,7 @@ class → bounded context plus a real creating `ThreadStore` record mechanically
 guards that errors/timeouts never reach `StartRegistered`; an established
 control reaches the real promotion path (ARCH-PURPOSE, ARCH-MOCK).
 
-- [ ] **Step 3: Run the Couch boundary regression**
+- [x] **Step 3: Run the Couch boundary regression**
 
 ```bash
 go test ./cmd/internal/couchcore -run 'Test.*(Registration|AddressClaim|Spawn).*' -count=1
@@ -325,7 +325,7 @@ go test ./cmd/internal/couchcore -run 'Test.*(Registration|AddressClaim|Spawn).*
 Expected: PASS, including the composed production Pair marker transition and
 all production-marker fail-closed cases.
 
-- [ ] **Step 4: Rewrite architecture documentation with a shadow sweep**
+- [x] **Step 4: Rewrite architecture documentation with a shadow sweep**
 
 Run `rg -n 'ThreadIndex|thread index|standalone Pair|standalone registration|tag-or-thread-name|pair resume' README.md atlas --glob '*.md'` and inspect every
 current restatement. At minimum:
@@ -345,7 +345,7 @@ Update every live contradiction or record why a remaining match is historical.
 Append a 2026-08-27 scope correction to `workshop/projects/couch.md`; do not
 rewrite historical #149 log entries (ARCH-PURPOSE shadow sweep).
 
-- [ ] **Step 5: Run the complete verification suite**
+- [x] **Step 5: Run the complete verification suite**
 
 ```bash
 go test ./... -count=1
@@ -361,7 +361,7 @@ git diff --check
 
 Expected: all commands exit 0.
 
-- [ ] **Step 6: Update issue evidence and commit**
+- [x] **Step 6: Update issue evidence and commit**
 
 Tick the issue plan items, append exact verification evidence and architectural
 correction to `## Log`, then commit:
