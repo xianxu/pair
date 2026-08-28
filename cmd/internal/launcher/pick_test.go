@@ -184,57 +184,6 @@ func TestRunLaunchPickLegacyImportsFlatFiles(t *testing.T) {
 	}
 }
 
-func TestThreadNameLeadsPickerRowButSelectionKeepsOpaqueTag(t *testing.T) {
-	now := time.Unix(1_700_000_000, 0)
-	snap := SessionSnapshot{Historical: []HistoricalTag{{
-		Tag: "couch-0102030405060708", Name: "compiler", RepoName: "pair", MTime: now.Add(-time.Hour),
-	}}}
-	display, byPlain := buildPickRows(snap, "pair", now.Unix())
-	plain := "pair/compiler  ?  (today, no live session)"
-	if len(display) != 2 || stripANSI(display[0]) != plain {
-		t.Fatalf("display = %q, want named row %q", display, plain)
-	}
-	if got := byPlain[plain].tag; got != "couch-0102030405060708" {
-		t.Fatalf("named row selection tag = %q", got)
-	}
-}
-
-func TestDuplicateThreadNamesRemainDistinctPickerRows(t *testing.T) {
-	now := time.Unix(1_700_000_000, 0)
-	snap := SessionSnapshot{Historical: []HistoricalTag{
-		{Tag: "couch-0102030405060708", Name: "compiler", RepoName: "pair", MTime: now},
-		{Tag: "couch-1112131415161718", Name: "compiler", RepoName: "pair", MTime: now},
-	}}
-	display, byPlain := buildPickRows(snap, "pair", now.Unix())
-	if len(display) != 3 || len(byPlain) != 3 {
-		t.Fatalf("duplicate names collapsed: display=%q selections=%#v", display, byPlain)
-	}
-	for _, tag := range []string{"couch-0102030405060708", "couch-1112131415161718"} {
-		found := false
-		for _, row := range display {
-			plain := stripANSI(row)
-			if strings.Contains(plain, "["+tag+"]") && byPlain[plain].tag == tag {
-				found = true
-			}
-		}
-		if !found {
-			t.Errorf("no distinct picker row for %s: %q", tag, display)
-		}
-	}
-}
-
-func TestLiveThreadNameLeadsPickerWithoutChangingSelectionTag(t *testing.T) {
-	snap := SessionSnapshot{Sessions: []Session{{
-		Name: "📁work-couch", Tag: "couch-0102030405060708", ThreadName: "compiler",
-		RepoName: "work", Agent: "codex", State: SessionDetached,
-	}}}
-	display, byPlain := buildPickRows(snap, "work", time.Now().Unix())
-	plain := "work/compiler  codex  (detached)"
-	if len(display) != 2 || stripANSI(display[0]) != plain || byPlain[plain].tag != "couch-0102030405060708" {
-		t.Fatalf("live named picker row = %q selection=%#v", display, byPlain)
-	}
-}
-
 // Picking a live detached session attaches it — and the agent is inferred from
 // the picked tag (resume-by-name), NOT the bare-`pair` claude default, so a
 // detached codex session attaches as codex.

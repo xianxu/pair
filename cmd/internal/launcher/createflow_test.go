@@ -266,10 +266,10 @@ func TestAssignLaunchSessionNamesRefusesUnreadableIndex(t *testing.T) {
 	var stderr bytes.Buffer
 	_, _, _, ok := assignLaunchSessionNames(rt, nil, "/repo", "/global", LaunchArgs{ForcedTag: "work"}, "work", &stderr)
 	if ok {
-		t.Fatal("assignLaunchSessionNames accepted an unreadable durable index")
+		t.Fatal("assignLaunchSessionNames accepted an unreadable session binding index")
 	}
 	if !strings.Contains(stderr.String(), "index unreadable") {
-		t.Fatalf("stderr = %q, want durable index error", stderr.String())
+		t.Fatalf("stderr = %q, want session binding index error", stderr.String())
 	}
 }
 
@@ -492,6 +492,45 @@ func TestCreateIdentifiesExactCouchOwnedClaim(t *testing.T) {
 	}
 }
 
+func TestStandaloneCreateRegistersCompositeThreadBeforeLaunching(t *testing.T) {
+	rt := newFakeRuntime()
+	var got StandaloneThreadRegistration
+	opts := baseOpts(LaunchArgs{Agent: "codex", ForcedTag: "work", AgentArgs: []string{"--sandbox", "workspace-write"}, AgentArgsExplicit: true})
+	opts.GlobalDataDir = "/global"
+	opts.RegisterStandaloneThread = func(registration StandaloneThreadRegistration) error {
+		if rt.launched != "" {
+			t.Fatal("standalone thread registered after workspace child launched")
+		}
+		got = registration
+		return nil
+	}
+	if code, err := run(t, opts, rt); err != nil || code != 0 {
+		t.Fatalf("run = %d, %v", code, err)
+	}
+	scope, err := ResolveRepoScope(opts.Env.Cwd)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got.RepoScope != scope.Key || got.Tag != "work" || got.WorkingPath != opts.Env.Cwd || got.GlobalDataDir != "/global" {
+		t.Fatalf("registration identity = %+v", got)
+	}
+	if got.Agent != "codex" || !reflect.DeepEqual(got.Argv, []string{"--sandbox", "workspace-write", "--no-alt-screen"}) {
+		t.Fatalf("registration profile = %+v", got)
+	}
+}
+
+func TestStandaloneRegistrationFailureRefusesWorkspaceChild(t *testing.T) {
+	rt := newFakeRuntime()
+	opts := baseOpts(LaunchArgs{Agent: "codex", ForcedTag: "work"})
+	opts.RegisterStandaloneThread = func(StandaloneThreadRegistration) error { return errors.New("store unavailable") }
+	if code, err := run(t, opts, rt); err != nil || code != 1 {
+		t.Fatalf("run = %d, %v", code, err)
+	}
+	if rt.launched != "" || len(rt.watchers) != 0 || len(rt.pollers) != 0 {
+		t.Fatalf("registration failure started workspace effects: launched=%q watchers=%v pollers=%v", rt.launched, rt.watchers, rt.pollers)
+	}
+}
+
 func TestCouchOwnedCreateDoesNotRegisterAsStandalone(t *testing.T) {
 	rt := newFakeRuntime()
 	opts := baseOpts(LaunchArgs{Agent: "codex", ForcedTag: "work"})
@@ -519,32 +558,6 @@ func TestRunLaunchIgnoresCouchStateForExactTag(t *testing.T) {
 			code, err := run(t, baseOpts(LaunchArgs{ForcedTag: tag}), rt)
 			if err != nil || code != 0 {
 				t.Fatalf("run = %d, %v; exact Pair tag must not depend on Couch state", code, err)
-			}
-			if rt.env["PAIR_TAG"] != tag || rt.launched == "" {
-				t.Fatalf("create handoff = %q with PAIR_TAG=%q, want unchanged exact tag %q", rt.launched, rt.env["PAIR_TAG"], tag)
-			}
-		})
-	}
-}
-
-func TestStandaloneCouchRegistrationCannotBlockPair(t *testing.T) {
-	for _, tag := range []string{"compiler-fix", "couch-3dcfba1308775e82"} {
-		t.Run(tag, func(t *testing.T) {
-			rt := newFakeRuntime()
-			rt.uuids = []string{"SID"}
-			registrations := 0
-			opts := baseOpts(LaunchArgs{ForcedTag: tag})
-			opts.RegisterStandaloneThread = func(StandaloneThreadRegistration) error {
-				registrations++
-				return errors.New("rejecting standalone Couch registrar seam")
-			}
-
-			code, err := run(t, opts, rt)
-			if err != nil || code != 0 {
-				t.Fatalf("run = %d, %v; Couch registration must not block Pair", code, err)
-			}
-			if registrations != 0 {
-				t.Fatalf("standalone Couch registrations = %d, want 0", registrations)
 			}
 			if rt.env["PAIR_TAG"] != tag || rt.launched == "" {
 				t.Fatalf("create handoff = %q with PAIR_TAG=%q, want unchanged exact tag %q", rt.launched, rt.env["PAIR_TAG"], tag)

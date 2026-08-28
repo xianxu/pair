@@ -21,7 +21,7 @@ type issue149ConceptRequirement struct {
 	kind string
 }
 
-const issue149M5DeclarationDigest = "bfcabf7931b99511564ba0c8650d15f3d371f6ffd67ed1f13dabdcfcf9706c9d"
+const issue149M5DeclarationDigest = "e421852a32e382098ff0e52d147b746df00378a086b770efa197b909eb606b16"
 
 // issue149M5GoSources is the exhaustive set of Go sources touched by M5. Every
 // declaration in these files receives a disposition: a pair:m5-concept marker
@@ -41,7 +41,8 @@ var issue149M5GoSources = []string{
 	"cmd/internal/couchcore/standalone_test.go", "cmd/internal/couchcore/storejournal.go", "cmd/internal/couchcore/threadmetadata.go",
 	"cmd/internal/couchcore/threadmetadata_test.go", "cmd/internal/couchcore/threadstore.go",
 	"cmd/internal/draftroute/route.go",
-	"cmd/internal/launcher/agent_defaults.go", "cmd/internal/launcher/config.go", "cmd/internal/launcher/createflow.go",
+	"cmd/internal/launcher/agent_defaults.go", "cmd/internal/launcher/args.go", "cmd/internal/launcher/args_test.go",
+	"cmd/internal/launcher/config.go", "cmd/internal/launcher/createflow.go",
 	"cmd/internal/launcher/createflow_test.go", "cmd/internal/launcher/history.go", "cmd/internal/launcher/layoutflow.go",
 	"cmd/internal/launcher/legacy_live.go", "cmd/internal/launcher/lifecycle.go", "cmd/internal/launcher/lifecycle_test.go",
 	"cmd/internal/launcher/migrate.go", "cmd/internal/launcher/osruntime.go", "cmd/internal/launcher/osruntime_test.go",
@@ -55,9 +56,18 @@ var issue149M5GoSources = []string{
 	"cmd/internal/scrollbackcmd/render_test.go", "cmd/internal/scrollbackcmd/scrollbackcmd.go",
 	"cmd/internal/scrollbackcmd/scrollbackcmd_test.go", "cmd/internal/scrollbackcmd/timestamps_test.go",
 	"cmd/internal/sessionwatch/run.go", "cmd/internal/slugcmd/slugcmd.go", "cmd/internal/titlepoller/run.go",
+	"cmd/internal/strictjson/decode.go", "cmd/internal/threadrecord/record.go",
 	"cmd/internal/titlepoller/runtime.go", "cmd/internal/transcript/transcript.go",
 	"cmd/internal/workbenchshortcut/shortcut.go", "cmd/internal/wrapcmd/wrap.go",
 	"cmd/pair-go/changelog_seam_test.go", "cmd/pair-go/main.go", "cmd/pair-go/main_test.go",
+}
+
+// issue149M5DeletedGoSources records files in the milestone diff whose deletion
+// is their complete declaration disposition.
+var issue149M5DeletedGoSources = []string{
+	"cmd/internal/launcher/thread_index.go",
+	"cmd/internal/launcher/thread_index_conformance_test.go",
+	"cmd/internal/launcher/thread_index_test.go",
 }
 
 func TestIssue149M5DeclarationDispositionSourceSetMatchesMilestoneDiff(t *testing.T) {
@@ -72,6 +82,7 @@ func TestIssue149M5DeclarationDispositionSourceSetMatchesMilestoneDiff(t *testin
 	}
 	changed := strings.Fields(string(raw))
 	want := append([]string(nil), issue149M5GoSources...)
+	want = append(want, issue149M5DeletedGoSources...)
 	sort.Strings(changed)
 	sort.Strings(want)
 	if strings.Join(changed, "\n") != strings.Join(want, "\n") {
@@ -368,6 +379,12 @@ func issue149M5ConceptsForDecl(t *testing.T, packageName, rel string, decl ast.D
 func issue149M5SourceDeclarationDigest(t *testing.T, root string) string {
 	t.Helper()
 	var keys []string
+	for _, rel := range issue149M5DeletedGoSources {
+		if _, err := os.Stat(filepath.Join(root, rel)); !os.IsNotExist(err) {
+			t.Fatalf("deleted milestone source is present: %s", rel)
+		}
+		keys = append(keys, rel+"|deleted")
+	}
 	for _, rel := range issue149M5GoSources {
 		file, err := parser.ParseFile(token.NewFileSet(), filepath.Join(root, rel), nil, 0)
 		if err != nil {

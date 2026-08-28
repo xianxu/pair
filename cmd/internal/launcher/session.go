@@ -13,20 +13,18 @@ const (
 
 // Session is a zellij session row projected into launcher decision space.
 type Session struct {
-	Name       string
-	Tag        string
-	ThreadName string
-	RepoName   string
-	Agent      string
-	State      SessionState
+	Name     string
+	Tag      string
+	RepoName string
+	Agent    string
+	State    SessionState
 }
 
 // HistoricalTag is a recently touched Pair tag with no live zellij session.
-// MTime + QueueCount are populated by HistorySource.Scan (the decision path only
-// reads Tag; the #99 M5a fzf pick-row build reads all three, purely).
+// Picker metadata is populated by HistorySource.Scan; the decision path reads
+// only Tag.
 type HistoricalTag struct {
 	Tag            string
-	Name           string    // optional human thread name from the durable index
 	MTime          time.Time // latest draft/log sidecar mtime (picker age grading)
 	QueueCount     int       // queued prompts under queue-<tag>/ (picker badge)
 	RepoName       string
