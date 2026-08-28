@@ -35,7 +35,6 @@ type OSRuntime struct {
 	DataDir       string
 	GlobalDataDir string
 	PairHome      string
-	CouchStoreDir string
 
 	sessionQuiescence  sessionQuiescenceOps
 	sessionQuiesceWait time.Duration

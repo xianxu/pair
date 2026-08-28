@@ -502,21 +502,6 @@ func runCreate(opts LaunchOptions, env Env, rt Runtime, live []Session, decision
 		fmt.Fprintf(stderr, "pair: failed to record workbench layout for tag '%s': %v\n", chosenTag, err)
 		return launchStep{code: 1}, nil
 	}
-	if !couchOwned && opts.RegisterStandaloneThread != nil {
-		if err := opts.RegisterStandaloneThread(StandaloneThreadRegistration{
-			GlobalDataDir: opts.GlobalDataDir,
-			CouchStoreDir: opts.CouchStoreDir,
-			RepoScope:     scope.Key,
-			Tag:           chosenTag,
-			WorkingPath:   env.Cwd,
-			CreatedAt:     env.Now,
-			Agent:         agent,
-			Argv:          append([]string{}, persistedArgs...),
-		}); err != nil {
-			fmt.Fprintf(stderr, "pair: failed to register thread '%s': %v\n", chosenTag, err)
-			return launchStep{code: 1}, nil
-		}
-	}
 	// Env exports every child (watcher, poller, zellij + its panes) inherits.
 	rt.SetEnv("PAIR_HOME", opts.PairHome)
 	rt.SetEnv("PAIR_DATA_DIR", dataDir)

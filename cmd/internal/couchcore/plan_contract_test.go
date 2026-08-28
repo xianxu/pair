@@ -21,7 +21,7 @@ type issue149ConceptRequirement struct {
 	kind string
 }
 
-const issue149M5DeclarationDigest = "23611d76e9888409e7f2da88b211d932a0098598a3610b6a03bb6586020dadc7"
+const issue149M5DeclarationDigest = "383ff080dfce5b49bf1d92dfb25732a156e3fc1d8d014f16e9e117716d612512"
 
 // issue149M5GoSources is the exhaustive set of Go sources touched by M5. Every
 // declaration in these files receives a disposition: a pair:m5-concept marker
@@ -37,8 +37,8 @@ var issue149M5GoSources = []string{
 	"cmd/internal/codexsid/codexsid.go", "cmd/internal/contextcmd/contextcmd.go", "cmd/internal/contextcmd/panejson_kdl_test.go",
 	"cmd/internal/continuationcmd/continuationcmd.go",
 	"cmd/internal/couchcore/artifactcollision_test.go", "cmd/internal/couchcore/couch.go", "cmd/internal/couchcore/migration.go",
-	"cmd/internal/couchcore/migration_test.go", "cmd/internal/couchcore/plan_contract_test.go", "cmd/internal/couchcore/standalone.go",
-	"cmd/internal/couchcore/standalone_test.go", "cmd/internal/couchcore/storejournal.go", "cmd/internal/couchcore/threadmetadata.go",
+	"cmd/internal/couchcore/migration_test.go", "cmd/internal/couchcore/plan_contract_test.go",
+	"cmd/internal/couchcore/storejournal.go", "cmd/internal/couchcore/threadmetadata.go",
 	"cmd/internal/couchcore/threadmetadata_test.go", "cmd/internal/couchcore/threadstore.go",
 	"cmd/internal/draftroute/route.go",
 	"cmd/internal/launcher/agent_defaults.go", "cmd/internal/launcher/args.go", "cmd/internal/launcher/args_test.go",
@@ -61,7 +61,7 @@ var issue149M5GoSources = []string{
 	"cmd/internal/strictjson/decode.go", "cmd/internal/threadrecord/record.go",
 	"cmd/internal/titlepoller/runtime.go", "cmd/internal/transcript/transcript.go",
 	"cmd/internal/workbenchshortcut/shortcut.go", "cmd/internal/wrapcmd/wrap.go",
-	"cmd/pair-go/changelog_seam_test.go", "cmd/pair-go/main.go", "cmd/pair-go/main_test.go",
+	"cmd/pair-go/changelog_seam_test.go", "cmd/pair-go/main_test.go",
 }
 
 // issue149M5DeletedGoSources records files in the milestone diff whose deletion
@@ -70,6 +70,32 @@ var issue149M5DeletedGoSources = []string{
 	"cmd/internal/launcher/thread_index.go",
 	"cmd/internal/launcher/thread_index_conformance_test.go",
 	"cmd/internal/launcher/thread_index_test.go",
+}
+
+// issue149M5RetiredGoSources records M5 sources introduced after the diff
+// baseline and retired later. They have a historical declaration disposition,
+// but their create-then-delete lifecycle is correctly absent from the net diff.
+var issue149M5RetiredGoSources = []string{
+	"cmd/internal/couchcore/standalone.go",
+	"cmd/internal/couchcore/standalone_test.go",
+}
+
+// issue149M5RevertedGoSources records M5 sources whose later edits restored
+// their baseline content. Their declarations still belong to the historical
+// concept inventory, while the files are absent from the current net diff.
+var issue149M5RevertedGoSources = []string{
+	"cmd/pair-go/main.go",
+}
+
+// issue149M5RetiredConceptRequirements preserves the historical M5 concept
+// disposition for declarations removed after that milestone. The plan remains
+// the M5 record of truth; retired concepts are not active production symbols.
+var issue149M5RetiredConceptRequirements = []issue149ConceptRequirement{
+	{name: "LaunchNativeWithStandaloneRegistrar", path: "cmd/internal/launcher/runcli.go", kind: "integration"},
+	{name: "RegisterStandalonePair", path: "cmd/internal/couchcore/standalone.go", kind: "integration"},
+	{name: "StandaloneThreadRegistrar", path: "cmd/internal/launcher/runtime.go", kind: "pure"},
+	{name: "StandaloneThreadRegistration", path: "cmd/internal/launcher/runtime.go", kind: "pure"},
+	{name: "ThreadStore.UpsertStandalonePair", path: "cmd/internal/couchcore/standalone.go", kind: "integration"},
 }
 
 func TestIssue149M5DeclarationDispositionSourceSetMatchesMilestoneDiff(t *testing.T) {
@@ -287,7 +313,9 @@ func issue149M5ConceptRequirements(t *testing.T, root string) []issue149ConceptR
 	t.Helper()
 	closedSet := issue149M5SourceDeclarationDigest(t, root) == issue149M5DeclarationDigest
 	var requirements []issue149ConceptRequirement
-	for _, rel := range issue149M5GoSources {
+	conceptSources := append([]string(nil), issue149M5GoSources...)
+	conceptSources = append(conceptSources, issue149M5RevertedGoSources...)
+	for _, rel := range conceptSources {
 		file, err := parser.ParseFile(token.NewFileSet(), filepath.Join(root, rel), nil, parser.ParseComments)
 		if err != nil {
 			t.Fatal(err)
@@ -296,6 +324,7 @@ func issue149M5ConceptRequirements(t *testing.T, root string) []issue149ConceptR
 			requirements = append(requirements, issue149M5ConceptsForDecl(t, file.Name.Name, rel, decl, closedSet)...)
 		}
 	}
+	requirements = append(requirements, issue149M5RetiredConceptRequirements...)
 	sort.Slice(requirements, func(i, j int) bool { return requirements[i].name < requirements[j].name })
 	return requirements
 }
@@ -387,7 +416,15 @@ func issue149M5SourceDeclarationDigest(t *testing.T, root string) string {
 		}
 		keys = append(keys, rel+"|deleted")
 	}
-	for _, rel := range issue149M5GoSources {
+	for _, rel := range issue149M5RetiredGoSources {
+		if _, err := os.Stat(filepath.Join(root, rel)); !os.IsNotExist(err) {
+			t.Fatalf("retired milestone source is present: %s", rel)
+		}
+		keys = append(keys, rel+"|retired")
+	}
+	declarationSources := append([]string(nil), issue149M5GoSources...)
+	declarationSources = append(declarationSources, issue149M5RevertedGoSources...)
+	for _, rel := range declarationSources {
 		file, err := parser.ParseFile(token.NewFileSet(), filepath.Join(root, rel), nil, 0)
 		if err != nil {
 			t.Fatal(err)

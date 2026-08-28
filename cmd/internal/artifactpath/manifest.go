@@ -488,7 +488,6 @@ var NonArtifactSources = []string{
 	"cmd/internal/couchcore/registry.go",
 	"cmd/internal/couchcore/runner.go",
 	"cmd/internal/couchcore/runner_fake.go",
-	"cmd/internal/couchcore/standalone.go",
 	"cmd/internal/couchcore/startargs.go",
 	"cmd/internal/couchcore/starttransaction.go",
 	"cmd/internal/couchcore/store.go",
