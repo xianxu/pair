@@ -1,5 +1,4 @@
-// Package strictjson owns the persisted-JSON acceptance boundary shared by
-// Couch and standalone Pair readers.
+// Package strictjson owns Couch's persisted-JSON acceptance boundary.
 package strictjson
 
 import (

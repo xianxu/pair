@@ -214,23 +214,6 @@ func TestRunRenameUnindexedOldPublicSessionNameRefuses(t *testing.T) {
 	}
 }
 
-func TestRunRenameDoesNotTreatHumanThreadNameAsMutableTag(t *testing.T) {
-	scope := mustScope(t, "/work/pair")
-	rt := newFakeRuntime()
-	rt.files["/data/draft-couch-0102030405060708.md"] = "durable"
-	rt.threadIndex = ThreadIndex{Entries: []ThreadIndexEntry{
-		indexEntry(scope.Key, "couch-0102030405060708", "/work/pair", "compiler"),
-	}}
-	var out, errBuf bytes.Buffer
-	code := runRenameScoped(rt, LaunchArgs{RenameOld: "compiler", RenameNew: "new"}, "/data", scope.Key, &out, &errBuf)
-	if code != 1 {
-		t.Fatalf("code=%d stderr=%s", code, errBuf.String())
-	}
-	if got := rt.files["/data/draft-couch-0102030405060708.md"]; got != "durable" || len(rt.renamed) != 0 {
-		t.Fatalf("human rename mutated opaque tag: files=%v renamed=%v", rt.files, rt.renamed)
-	}
-}
-
 func TestRunRenameRestartCheckDoesNotMove(t *testing.T) {
 	rt := renameFake(t)
 	var out, errBuf bytes.Buffer

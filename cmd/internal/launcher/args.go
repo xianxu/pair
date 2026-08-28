@@ -252,18 +252,20 @@ func parseContinue(args []string) (LaunchArgs, error) {
 	return out, nil
 }
 
-// ResumeTagFromArg accepts what a user may type after `pair resume`: a bare tag,
-// a legacy `pair-<tag>` name, or a 📁 session name pasted out of the tab title /
-// `zellij list-sessions`.
+// ResumeTagFromArg accepts an exact Pair tag or a 📁 session name pasted out
+// of the tab title / `zellij list-sessions`.
 //
 // It stays PURE, so it cannot resolve the 📁 form — that needs the ledger, and
 // ParseArgs has no Runtime. A 📁 value is therefore passed through verbatim and
-// resolved later by resolveResumeTag, at the first point the index is in hand.
-// Without this, NormalizeTag's charset loop rejects 📁 outright and the paste a
-// user is most likely to make fails (#130).
+// resolved later by resolveResumeTag, at the first point the binding index is in hand.
+// Without this, tag validation rejects 📁 outright and the paste a user is
+// most likely to make fails (#130).
 func ResumeTagFromArg(raw string) (string, error) {
 	if strings.HasPrefix(raw, sessionPrefix) {
 		return raw, nil
 	}
-	return NormalizeTag(raw)
+	if err := ValidatePairTag(raw); err != nil {
+		return "", err
+	}
+	return raw, nil
 }

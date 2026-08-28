@@ -1,6 +1,5 @@
-// Package threadrecord owns the structural acceptance contract for persisted
-// Couch thread records. Couch and standalone Pair project this same wire model
-// into their richer local types; neither reader maintains a shadow schema.
+// Package threadrecord owns Couch's structural acceptance contract for
+// persisted thread records.
 package threadrecord
 
 import (

@@ -549,7 +549,6 @@ var NonArtifactSources = []string{
 	"cmd/internal/launcher/session_quiescence.go",
 	"cmd/internal/launcher/tag.go",
 	"cmd/internal/launcher/thread_claim.go",
-	"cmd/internal/launcher/thread_index.go",
 	"cmd/internal/launcher/zellij.go",
 	"cmd/internal/launcher/zellijparse.go",
 	"cmd/internal/layoutcmd/layoutcmd.go",

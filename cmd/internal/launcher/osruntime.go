@@ -624,28 +624,6 @@ func (r OSRuntime) AppendSessionNameIndex(entry SessionNameEntry) error {
 	return r.WriteAtomic(path, raw)
 }
 
-func (r OSRuntime) ReadThreadIndex() (ThreadIndex, error) {
-	root := r.CouchStoreDir
-	if root == "" {
-		root = filepath.Join(r.globalDataDir(), "couch")
-	}
-	if !filepath.IsAbs(root) {
-		absolute, err := filepath.Abs(root)
-		if err != nil {
-			return ThreadIndex{}, err
-		}
-		root = absolute
-	}
-	threadStoreDir := filepath.Join(root, "threadstore")
-	if _, err := os.Stat(threadStoreDir); err != nil {
-		if os.IsNotExist(err) {
-			return ThreadIndex{}, fmt.Errorf("%w: %v", ErrThreadIndexAbsent, err)
-		}
-		return ThreadIndex{}, fmt.Errorf("inspect thread index store: %w", err)
-	}
-	return LoadThreadIndex(root, r.ReadFile)
-}
-
 func (r OSRuntime) globalDataDir() string {
 	if r.GlobalDataDir != "" {
 		return r.GlobalDataDir

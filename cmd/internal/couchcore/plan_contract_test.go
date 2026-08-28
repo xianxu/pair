@@ -21,7 +21,7 @@ type issue149ConceptRequirement struct {
 	kind string
 }
 
-const issue149M5DeclarationDigest = "1a474d04f7eb823b03903a234712cb0deb3e697764d5c2e695ba338fc744d303"
+const issue149M5DeclarationDigest = "bfcabf7931b99511564ba0c8650d15f3d371f6ffd67ed1f13dabdcfcf9706c9d"
 
 // issue149M5GoSources is the exhaustive set of Go sources touched by M5. Every
 // declaration in these files receives a disposition: a pair:m5-concept marker
@@ -57,7 +57,7 @@ var issue149M5GoSources = []string{
 	"cmd/internal/sessionwatch/run.go", "cmd/internal/slugcmd/slugcmd.go", "cmd/internal/titlepoller/run.go",
 	"cmd/internal/titlepoller/runtime.go", "cmd/internal/transcript/transcript.go",
 	"cmd/internal/workbenchshortcut/shortcut.go", "cmd/internal/wrapcmd/wrap.go",
-	"cmd/pair-go/changelog_seam_test.go", "cmd/pair-go/main.go",
+	"cmd/pair-go/changelog_seam_test.go", "cmd/pair-go/main.go", "cmd/pair-go/main_test.go",
 }
 
 func TestIssue149M5DeclarationDispositionSourceSetMatchesMilestoneDiff(t *testing.T) {

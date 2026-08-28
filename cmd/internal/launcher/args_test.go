@@ -172,7 +172,7 @@ func TestParseArgsRejectsLayoutOnNonLaunchVerbs(t *testing.T) {
 	}
 }
 
-func TestParseLaunchArgsResumeNormalizesForcedTag(t *testing.T) {
+func TestParseLaunchArgsResumePreservesExactForcedTag(t *testing.T) {
 	args, err := ParseArgs([]string{"resume", "pair-demo"})
 	if err != nil {
 		t.Fatalf("ParseArgs returned error: %v", err)
@@ -180,8 +180,8 @@ func TestParseLaunchArgsResumeNormalizesForcedTag(t *testing.T) {
 	if args.Agent != "" {
 		t.Fatalf("Agent = %q, want empty for resume inference", args.Agent)
 	}
-	if args.ForcedTag != "demo" {
-		t.Fatalf("ForcedTag = %q, want demo", args.ForcedTag)
+	if args.ForcedTag != "pair-demo" {
+		t.Fatalf("ForcedTag = %q, want exact pair-demo", args.ForcedTag)
 	}
 }
 
