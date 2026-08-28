@@ -25,6 +25,7 @@ updated: 2026-08-27
 |------|----------|--------|
 | `ResolveThreadReference` | `cmd/internal/couchcore/threadmetadata.go` | modified |
 | `ResolveThreadIndexReference` | `cmd/internal/launcher/thread_index.go` | deleted |
+| `ResumeTagFromArg` | `cmd/internal/launcher/args.go` | modified |
 
 - **`ResolveThreadReference`** — Couch-owned exact-tag-first, then case-insensitive name/path resolution over in-memory `ThreadRecord` values.
   - **Relationships:** one resolver consumes N Couch records and returns zero, one, or N cloned matches; Couch owns both records and ambiguity errors.
@@ -39,6 +40,15 @@ updated: 2026-08-27
     Couch entity instead of adapting to and from a shadow Pair type.
   - **Future extensions:** none in Pair; Couch-only attributes widen the Couch
     resolver.
+- **`ResumeTagFromArg`** — returns a valid bare Pair tag exactly as supplied;
+  only a `📁` public Zellij session name remains deferred to the Pair-owned
+  session-binding lookup.
+  - **Relationships:** one CLI reference maps 1:1 to a Pair tag or to one
+    Pair-owned public-session lookup; it never maps through Couch metadata.
+  - **DRY rationale:** validation reuses `ValidatePairTag`; it does not reuse
+    create-prompt `NormalizeTag`, whose legacy display-prefix stripping is not
+    valid for exact resume identity.
+  - **Future extensions:** none; new human aliases belong to Couch, not Pair.
 
 ### Integration points
 
@@ -89,9 +99,11 @@ updated: 2026-08-27
 - Modify: `cmd/internal/couchcore/threadmetadata.go`
 - Modify: `cmd/internal/couchcore/threadmetadata_test.go`
 
-- [ ] **Step 1: Strengthen Couch-local resolver tests before moving ownership**
+- [ ] **Step 1: Strengthen the risky resolver strategy before moving ownership**
 
-Add a table test which passes cloned `ThreadRecord` values and proves: exact tag wins within scope; user name and path remain case-insensitive substring matches; duplicate names return sorted `[]ThreadAddress`; empty input returns `ErrThreadReferenceNotFound`; mutating a returned record does not mutate the input.
+`ResolveThreadReference` over arbitrary cloned `ThreadRecord` sets → table/property
+test exact-tag precedence, scoped fuzzy ambiguity, deterministic ordering, and
+clone isolation; malformed/empty references must reach Couch-owned errors.
 
 - [ ] **Step 2: Run the focused tests and establish the green refactor baseline**
 
@@ -120,86 +132,49 @@ git add cmd/internal/couchcore/threadmetadata.go cmd/internal/couchcore/threadme
 git commit -m '#154: move thread reference resolution into Couch'
 ```
 
-### Task 2: Pin every direct command family to Couch-independent behavior
+### Task 2: Pin the public Pair process to Couch-independent behavior
 
 **Files:**
 
 - Modify: `cmd/internal/launcher/createflow_test.go`
-- Modify: `cmd/internal/launcher/runcli_test.go`
-- Modify: `cmd/internal/launcher/rename_test.go`
 - Modify: `cmd/pair-go/main_test.go`
 
-- [ ] **Step 1: Add the permanent process-boundary fixture matrix**
+- [ ] **Step 1: Add one permanent public-entry process strategy**
 
-In `runcli_test.go`, add `TestLaunchNativeCommandFamiliesIgnoreCouchStore`.
-Its outer table creates four `COUCH_STORE_DIR` fixtures: a valid manifest with
-`legacy_migration_version`, malformed JSON, a chmod-000 unreadable directory,
-and a missing path. Its inner table runs production `LaunchNative` for:
+`main → osLegacyRuntime.LaunchNative` across every direct command/store class
+named in the Spec → build the real `cmd/pair-go`, isolate HOME/`PAIR_DATA_DIR`,
+stub external commands statefully, and run bounded subprocesses against (a) the
+Spec's observational store fixtures and (b) a Couch manifest path implemented
+as an unread FIFO. Any attempted open blocks and fails the timeout; a recursive
+before/after namespace snapshot fails any write. The create row therefore
+traverses and initially exposes `LaunchNativeWithStandaloneRegistrar` /
+`RegisterStandalonePair`, while every row permanently guards the public
+composition after those symbols are deleted.
 
-- exact-tag create/resume with `compiler-fix` and
-  `couch-3dcfba1308775e82`;
-- attach of a live exact tag;
-- bare launch with the native picker choosing a historical tag;
-- `list`, `rename`, bare and resolved `continue`, `restart`, and `quit`.
+- [ ] **Step 2: Add focused red strategies for the two current couplings**
 
-Reuse the existing temp HOME/`PAIR_DATA_DIR` setup and stub executable patterns
-from `runcli_test.go` and `osruntime_test.go`; extend them only enough to make
-zellij, fzf, ps, and the workspace child deterministic. For each family,
-capture exit code, stdout/stderr, Pair-owned files, and launched argv/env, and
-compare the result across all four Couch fixtures. Snapshot the Couch fixture
-tree before and after and require byte-for-byte equality; the missing fixture
-must remain absent. Restore permissions in cleanup before `TempDir` removal.
-
-This test remains after `ReadThreadIndex` is deleted. It is the executable
-process-behavior proof that no direct command can open or mutate the Couch
-namespace; it does not depend on the obsolete fake seam.
-
-- [ ] **Step 2: Add the permanent public-entry write-boundary regression**
-
-In `cmd/pair-go/main_test.go`, add
-`TestPublicPairLaunchDoesNotRegisterStandaloneCouchThread`. Build and execute
-the actual `cmd/pair-go` public entry (using the existing `buildCommand` /
-`runCommand` subprocess helpers) as `pair-go launch resume compiler-fix` with:
-
-- a valid asset root and deterministic zellij/ps stubs;
-- isolated HOME/`PAIR_DATA_DIR`;
-- a real seeded `COUCH_STORE_DIR` containing the current manifest and records.
-
-Snapshot the entire Couch namespace, run through `main → osLegacyRuntime →`
-the production launcher composition, require a successful Pair create, then
-require the Couch namespace to be byte-identical. This test fails before Task 4
-because `LaunchNativeWithStandaloneRegistrar` wires
-`couchcore.RegisterStandalonePair`; it stays permanently after that helper and
-registrar are deleted, so the public composition—not only `LaunchNative`—is
-guarded.
-
-- [ ] **Step 3: Add focused red tests for the two current couplings**
-
-In `createflow_test.go`, replace the old “corrupt authoritative thread index
-refuses” expectation with a table over the two exact tags above. Configure the
-current fake thread-index seam to return `decode thread manifest: json: unknown
-field "legacy_migration_version"`; run exact resume/create; expect code 0 and
-`PAIR_TAG` equal to the input tag. Change the standalone-registration-failure
-test to expect that a Couch failure cannot block the Pair workspace child.
+`RunLaunch` exact-tag create → inject rejecting thread-index and registrar seams;
+the mechanical guard requires neither seam is called and both readable and
+generated tags reach the unchanged Pair create path.
 
 - [ ] **Step 4: Run the regressions and verify the observed failures**
 
 Run:
 
 ```bash
-go test ./cmd/internal/launcher -run 'TestLaunchNativeCommandFamiliesIgnoreCouchStore|TestRunLaunchIgnoresCouchStateForExactTag|TestStandaloneCouchRegistrationCannotBlockPair' -count=1
-go test ./cmd/pair-go -run 'TestPublicPairLaunchDoesNotRegisterStandaloneCouchThread' -count=1
+go test ./cmd/internal/launcher -run 'TestRunLaunchIgnoresCouchStateForExactTag|TestStandaloneCouchRegistrationCannotBlockPair' -count=1
+go test ./cmd/pair-go -run 'TestPublicPairCommandFamiliesIgnoreCouchStore' -count=1
 ```
 
 Expected: FAIL. Exact resume/create rejects the valid-forward or malformed
 manifest, and the public-entry test observes standalone Couch registration.
-Record matrix rows already green; they stay to prevent the dependency moving to
-early returns.
+The FIFO subprocess row detects the current read and the namespace snapshot
+detects the current standalone write.
 
 - [ ] **Step 5: Commit the red boundary tests**
 
 ```bash
-git add cmd/internal/launcher/createflow_test.go cmd/internal/launcher/runcli_test.go cmd/internal/launcher/rename_test.go cmd/pair-go/main_test.go
+git add cmd/internal/launcher/createflow_test.go cmd/pair-go/main_test.go
 git commit -m '#154: pin direct Pair independence from Couch state'
 ```
 
@@ -209,6 +184,8 @@ git commit -m '#154: pin direct Pair independence from Couch state'
 
 - Modify: `cmd/internal/launcher/createflow.go`
 - Modify: `cmd/internal/launcher/createflow_test.go`
+- Modify: `cmd/internal/launcher/args.go`
+- Modify: `cmd/internal/launcher/args_test.go`
 - Modify: `cmd/internal/launcher/runtime.go`
 - Modify: `cmd/internal/launcher/osruntime.go`
 - Modify: `cmd/internal/launcher/session_index.go`
@@ -228,6 +205,13 @@ human-name resolution, ambiguity branch, and `resolveResumeTag` from `runOnce`.
 Preserve only Pair's existing public-Zellij-name inversion and exact
 `ForcedTag`; readable and generated tags use the same exact path.
 
+Change `ResumeTagFromArg` so a non-`📁` reference is validated with
+`ValidatePairTag` and returned byte-for-byte instead of flowing through
+`NormalizeTag`. Update the existing parse test to require
+`pair resume pair-demo` targets the valid tag `pair-demo`; explicitly remove the
+legacy bare `pair-` alias while preserving `📁` session-name lookup through the
+Pair-owned binding index (ARCH-PURPOSE exact-tag identity).
+
 Delete the launcher thread-index implementation/tests. Update
 `SessionNameEntry` to describe only Zellij socket bindings.
 
@@ -243,11 +227,11 @@ internal record acceptance rather than a standalone Pair reader.
 
 ```bash
 go test ./cmd/internal/launcher ./cmd/internal/couchcore -count=1
-rg -n 'ReadThreadIndex|ThreadIndex|ResolveThreadIndexReference|COUCH_STORE_DIR' cmd/internal/launcher
+rg -n 'ReadThreadIndex|ThreadIndex|ResolveThreadIndexReference' cmd/internal/launcher
 ```
 
-Expected: tests PASS and grep has no matches. Couch-owned packages may still
-set and consume `COUCH_STORE_DIR`.
+Expected: tests PASS and grep has no matches. `CouchStoreDir` plumbing remains
+temporarily until Task 4 deletes the write composition.
 
 - [ ] **Step 4: Commit the read-path deletion**
 
@@ -311,50 +295,26 @@ git commit -m '#154: decouple Pair launch from Couch persistence'
 - Modify: `workshop/projects/couch.md`
 - Modify: `workshop/issues/000154-decouple-pair-from-couch-state.md`
 
-- [ ] **Step 1: Add a composed Couch → production Pair address test**
+- [ ] **Step 1: Add the composed production boundary strategy**
 
-Add a test-only `composedPairRunner`/handle in `couch_test.go`. It implements the
-blocked-runner protocol, but on `Acknowledge` calls production
-`launcher.LaunchNative` with the exact argv/env supplied by `Couch.Spawn`, a
-real temp `PAIR_DATA_DIR`, and deterministic stubs for zellij/ps. Construct
-Couch with production `ScopedThreadArtifactCollisionChecker` pointed at that
-same Pair data dir, not `FakeThreadArtifactCollisionChecker.AutoEstablish`.
+`Couch.Spawn` with a production Pair child → use a test blocked runner whose
+acknowledgement invokes production `launcher.LaunchNative`, the real shared
+Pair data directory, real `ScopedThreadArtifactCollisionChecker`, and stateful
+external-command stubs. The mechanical guard snapshots Couch state and the real
+marker around acknowledgement, requiring exact opaque argv/env, only
+`reserved → established` before Couch observation, and only Couch's subsequent
+`ThreadStore.AdvanceStart` promotion.
 
-The runner records that the real scoped marker is `reserved` before ack and
-`established` after `LaunchNative` accepts the exact
-`COUCH_THREAD_SCOPE`/`COUCH_THREAD_TAG`, before its stub Zellij handoff returns.
-Seed Couch's real temp `ThreadStore` manifest with
-`legacy_migration_version`. Assert:
+- [ ] **Step 2: Add risky production-marker strategies**
 
-- argv is `pair resume <exact-generated-tag> --layout2` and all four opaque
-  Couch env values are preserved;
-- the real Pair path performs exactly `reserved → established` for that
-  scope/tag, and no sibling/mismatched marker is accepted;
-- Pair does not create or modify any Couch record or manifest;
-- only subsequent Couch `ThreadStore.AdvanceStart` changes the matching record
-  from creating to live after the expected helper identity is observed;
-- malformed, mismatched, unreadable, and still-reserved markers remain
-  fail-closed in the production-marker cases added next.
+`ScopedThreadArtifactCollisionChecker.Registration` over arbitrary marker bytes,
+identity fields, states, absence, and filesystem failures → table/fuzz the real
+marker path; only the exact established record may authorize.
 
-- [ ] **Step 2: Add production-marker failure and non-promotion cases**
-
-Extend `artifactcollision_test.go` with a table over the real marker path and
-`ScopedThreadArtifactCollisionChecker.Registration`:
-
-- missing marker and a valid `reserved` marker return `RegistrationAbsent`;
-- malformed JSON, wrong embedded scope, wrong embedded tag, invalid state, and
-  an unreadable marker (create a directory at the marker path for a portable
-  read failure) return `RegistrationUnknown` plus an error;
-- a valid exact `established` marker alone returns
-  `RegistrationEstablished`.
-
-For every non-established row, create a real Couch `ThreadStore` record in the
-creating state, call `Couch.awaitThreadRegistration` with the production
-checker and a bounded context, and assert it errors/timeouts while the exact
-record remains creating: no call path reaches `StartRegistered` or live
-promotion. The established control succeeds and is then promoted through
-`ThreadStore.AdvanceStart`, proving the table is connected to the real Couch
-decision rather than only testing a parser (ARCH-PURPOSE, ARCH-MOCK).
+`Couch.awaitThreadRegistration` over every non-established production evidence
+class → bounded context plus a real creating `ThreadStore` record mechanically
+guards that errors/timeouts never reach `StartRegistered`; an established
+control reaches the real promotion path (ARCH-PURPOSE, ARCH-MOCK).
 
 - [ ] **Step 3: Run the Couch boundary regression**
 
@@ -442,3 +402,17 @@ namespace and requires no registration write. Task 5 now enumerates real marker
 records through `ScopedThreadArtifactCollisionChecker` and a creating
 `ThreadStore`, proving each adverse evidence class fails closed without
 promotion (ARCH-PURPOSE, ARCH-MOCK).
+
+### 2026-08-27 — make exact identity and namespace IO mechanically observable
+
+**Reason:** the SDLC plan-quality gate found that resume still normalized the
+valid `pair-` prefix, the process matrix could miss ignored reads, Task 3's grep
+ran before write-plumbing deletion, and the test prose duplicated case
+inventories instead of naming risky functions and guards.
+
+**Delta:** `ResumeTagFromArg` now changes to exact validation with the legacy
+bare `pair-` alias explicitly removed; public-entry subprocess tests use an
+unread FIFO as an open tripwire plus namespace snapshots; staged greps match the
+symbols actually removed in that task; and test sections are compressed to
+risky production functions, adversarial classes, and mechanical guards
+(ARCH-PURPOSE, ARCH-PURE).
