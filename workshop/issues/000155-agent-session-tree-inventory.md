@@ -97,14 +97,13 @@ scanner contract (ARCH-MOCK).
 
 ### Operational contract
 
-The correlation subject is a **tag incarnation**, not a timeless tag. A tag
-incarnation is one contiguous ledger segment for `{scope, tag, agent,
-session_id}`; adjacent rows for the same native ID coalesce, while a later row
-with a different native ID starts a new incarnation. Log entries are segmented
-by those ledger `started` boundaries. The current-tag projection is the last
-valid segment by `(started, last_active, session_id)`, using the native ID as a
-total tie-breaker. Invalid rows remain diagnostics and never participate in
-selection.
+The correlation subject is a **tag incarnation**, not a timeless tag. The
+normative incarnation identity, legacy fallback, root-sharing, and ordering
+rules are defined once in **Send transaction and identity amendment** below.
+For the current-tag projection, legacy config (which has no ordinal) precedes
+ledger-backed incarnations; ledger-backed incarnations order by
+`(source_ordinal, incarnation_id)`, and the last valid one is current. Invalid
+rows remain diagnostics and never participate in selection.
 
 The ledger is Pair's authority. Config files are validated compatibility
 caches, not a second source of truth. A config participates only when its exact
@@ -124,17 +123,14 @@ Correlation consumes this exhaustive evidence lattice:
 | 1 | ledger-backed native ID | valid tuple, segment, scanner-authorized root | canonical candidate; two incarnations claiming one root remain `binding_conflict` |
 | 1 | sole pre-ledger config | exact validated path/body and scanner-authorized root | legacy candidate; competing configs remain ambiguous |
 | 2 | live Pair process | exact scoped PID sidecar; process identity unchanged before and after the descendant/open-file snapshot; scanner-authorized root | candidate only for that tuple; disagreement with rank 1 is diagnosed and rank 1 wins |
-| 3 | exact sent-turn sequence | valid incarnation time segment and the fingerprint rules below | considered only for still-unbound incarnations and roots |
+| 3 | exact sent-turn sequence | committed send-journal rows for one valid incarnation and the fingerprint rules below | considered only for still-unbound incarnations and roots |
 | derived | native parent edge | child and parent scanner facts agree | descendants inherit the assigned root; never compete as independent roots |
 
-Each rank is solved globally in deterministic fixed-point rounds. A pair locks
-only when it is the unique best edge for its incarnation **and** that root has
-no equal-rank claim from another incarnation. All lockable pairs in a round are
-committed simultaneously in sorted incarnation/root order, removed from later
-candidate sets, and the rank repeats until no new pair locks. Equal-rank
-conflicts stay ambiguous; lower ranks cannot break them. Lower-rank evidence
-that contradicts a locked higher-rank assignment is retained as negative
-evidence, never as reassignment authority.
+Each rank is solved globally in deterministic fixed-point rounds using the
+Pair-owner exclusivity algorithm defined in **Send transaction and identity
+amendment**. Equal-rank conflicts stay ambiguous; lower ranks cannot break
+them. Lower-rank evidence that contradicts a locked higher-rank assignment is
+retained as negative evidence, never as reassignment authority.
 
 Exact-turn evidence uses one shared `SentText` normalization owned by Pair's
 send/log boundary: apply the production comment-framing removal, normalize
@@ -143,9 +139,10 @@ blank space; do not case-fold, collapse internal whitespace, or paraphrase.
 Native parsers emit only allowlisted operator-authored user records, with
 agent/system/generated/sidechain records excluded by an explicit source kind;
 unknown source kinds emit `turn_unusable` and do not correlate. A match is a
-contiguous sequence in the filtered native operator turns for the incarnation
-segment—native turns outside the segment are allowed, but gaps inside a matched
-sequence are not.
+contiguous sequence in filtered native operator turns against one incarnation's
+committed submitted journal sequence. Native turns outside the matched window
+are allowed, but gaps inside it are not; cross-incarnation window ownership is
+governed by the final identity amendment.
 
 One turn authorizes only when its normalized UTF-8 is at least 32 bytes, has at
 least five Unicode word tokens, and its SHA-256 fingerprint occurs exactly once
@@ -244,34 +241,20 @@ ARCH-PURPOSE).
 ### Send-boundary and matching amendment
 
 Rank-3 evidence does not infer delivery from the human markdown log. Each
-launch/restart mints a Pair `incarnation_id` before handoff, records it on every
-ledger row for that incarnation, passes it through the watcher, and exports it
-to the composer. The zero-based physical ledger line number is retained as
+launch/restart mints the raw Pair `incarnation_key` defined by the final identity
+amendment, records it on every ledger row for that incarnation, passes it
+through the watcher, and exports it to the composer. The zero-based physical
+ledger line number is retained as
 `source_ordinal` even when a malformed line consumes that ordinal; parsers sort
 by it before coalescing adjacent rows. Shuffled tests shuffle parsed facts with
 their ordinals intact, never erase source order.
 
-The send boundary appends `sent-<tag>.jsonl`, a versioned artifact owned by
-`artifactpath`, for both normal submit and `no_submit` composer injection. Each
-v1 row has exactly:
-
-```text
-schema_version: 1
-event_id: UUID
-log_entry_id: UUID also embedded as a metadata comment on the existing markdown log entry
-scope_key, tag, agent, incarnation_id: exact Pair identities
-sequence: monotonically increasing uint64 within {scope, tag, incarnation_id}
-delivery: submitted | composer_only
-sent_at: UTC RFC3339Nano
-fingerprint: lowercase SHA-256 of normalized post-comment-removal bytes
-byte_count, word_count: normalization measurements
-```
-
-The row contains no prompt text. `submitted` rows are the sole Pair-side input
-to rank 3; `composer_only` rows remain provenance but can never authorize a
-binding. Append and markdown-log write share one operation boundary and one
-`event_id`: if either write fails, the send is refused rather than producing
-unlogged identity evidence. A record with the wrong resolved scope/tag,
+The send boundary uses the versioned `sent-<tag>.jsonl` write-ahead journal
+defined in **Send transaction and identity amendment** for both normal submit
+and `no_submit` composer injection. It contains no prompt text. Only valid
+`prepared -> committed` events whose delivery is `submitted` are Pair-side
+rank-3 inputs; `composer_only`, aborted, incomplete, and malformed events never
+authorize. A record with the wrong resolved scope/tag,
 body/path agent mismatch, duplicate sequence/event ID, non-monotonic sequence,
 unknown delivery, invalid fingerprint, or unknown incarnation emits
 `pair_record_malformed` and is excluded. Pre-v1 markdown entries and v1 rows
@@ -280,15 +263,10 @@ timestamp proximity never repairs them. This makes submission and incarnation
 segmentation exact rather than time-inferred (ARCH-PURE, ARCH-PURPOSE).
 
 All same-rank candidate edges are intentionally equal; evidence counts do not
-vote. Multiple qualifying turn or direct-ID records for the same
-`{incarnation, root}` coalesce into one edge with a sorted evidence list. If
-qualifying evidence from one incarnation names two roots, or one root is named
-by two incarnations at that rank, every involved edge remains ambiguous even
-when one edge has more supporting records. A fixed-point round locks exactly
-the degree-one/degree-one edges in the remaining equal-rank bipartite graph,
-simultaneously; it then removes their two endpoints and repeats. Contradictory
-qualifying fingerprints therefore diagnose `binding_conflict` instead of
-becoming an undocumented score.
+vote. Multiple qualifying records for one `{incarnation, root}` coalesce into
+one edge with sorted evidence. The final Pair-owner algorithm determines which
+equal-rank edges lock; contradictory qualifying fingerprints diagnose
+`binding_conflict` instead of becoming an undocumented score.
 
 ### Versioned native record allowlists
 
@@ -368,7 +346,7 @@ NodeV1 {
 ArtifactV1 { storage_root:string, relative_path:string, kind:string }
 CorrelationV1 {
   incarnation_id:string, scope_key:string, tag:string, agent:string,
-  source_ordinal:uint64, root_node_id:*string,
+  source_ordinal:*uint64, root_node_id:*string,
   status:"bound"|"ambiguous"|"unbound", rank:*int,
   candidates:[CandidateV1], evidence:[EvidenceV1]
 }
@@ -397,7 +375,7 @@ DiagnosticV1 {
 
 Comparators are exhaustive: forests by agent; node siblings/orphans by the node
 tuple already specified; artifacts by `(storage_root,relative_path,kind)`;
-correlations by `(scope_key,tag,agent,source_ordinal,incarnation_id)`;
+correlations by `(scope_key,tag,agent,source_ordinal null first,incarnation_id)`;
 candidates by `(rank,root_node_id,outcome,evidence_ids joined)`; evidence by
 `(rank,kind,source_ref,evidence_id)`; ambiguities by
 `(kind,rank,incarnation_ids joined,root_node_ids joined,ambiguity_id)`; and
@@ -438,8 +416,11 @@ the same key, and the incarnation's `source_ordinal` is its minimum valid
 physical ledger ordinal. Pre-v1 rows without a key form legacy incarnations
 only from physically contiguous equal `{scope,tag,agent,session_id}` rows; they
 cannot use rank-3 evidence. This supersedes the earlier time-boundary and
-contiguous-segment definitions. The stable public `incarnation_id` is derived
-from `(scope_key,tag,agent,incarnation_key)` and is distinct from the raw key.
+contiguous-segment definitions. Stable public IDs are distinct from raw keys:
+post-v1 uses `(scope_key,tag,agent,"v1",incarnation_key)`; legacy ledger uses
+`(scope_key,tag,agent,"legacy-ledger",minimum source_ordinal,session_id)`; and
+sole pre-ledger config uses `(scope_key,tag,agent,"legacy-config",storage_root,
+relative_path,session_id)`. Each tuple is hashed by the schema-v1 stable-ID rule.
 
 One native root may span several launches that resume it. Root exclusivity is
 therefore by **Pair owner** `{scope,tag,agent}`, not by incarnation. Within a
@@ -458,8 +439,10 @@ rotation are mechanically distinguishable.
 `sent-<tag>.jsonl` is a write-ahead state journal, not a claim that files and a
 PTY can commit atomically. One send owner holds an advisory lock for the exact
 scope/tag across the whole protocol. Under that lock it allocates
-`sequence = max(all prior prepared sequences for the incarnation)+1`; aborted
-and incomplete attempts consume their number. Journal rows are:
+`sequence = max(all valid durable prepared sequences for the incarnation)+1`.
+Sequence consumption begins only after `prepared` append and fsync succeeds;
+an append that never becomes durable allocated no observable number. Aborted
+and incomplete durable preparations consume their number. Journal rows are:
 
 ```text
 prepared  {v,event_id,log_entry_id,scope_key,tag,agent,incarnation_key,
@@ -489,12 +472,31 @@ never promotes a dangling row from transcript content, which would be circular
 authority. `composer_only` uses the same transaction but is ineligible for rank
 3 even when committed.
 
+Recovery groups rows by `event_id` and applies this complete state table after
+validating row shapes and physical order:
+
+| Durable rows for one event | Result |
+|---|---|
+| exactly one `prepared` | incomplete; exclude and emit `send_incomplete` |
+| exactly one `prepared`, then exactly one `committed` | valid terminal event |
+| exactly one `prepared`, then exactly one `aborted` | aborted; exclude and emit `send_aborted` |
+| terminal before/missing `prepared` | exclude and emit `pair_record_malformed` |
+| duplicate `prepared` or duplicate terminal | exclude and emit `pair_record_malformed` |
+| both terminal kinds in either order, including commit-after-abort or abort-after-commit | exclude and emit `pair_record_malformed` |
+| malformed/partial JSON, unknown state, or fields on a terminal row beyond its allowed shape | exclude the affected event when identifiable, otherwise exclude the row; emit `pair_record_malformed` |
+
+Every physical journal line retains an ordinal, including malformed lines.
+Recovery reads the complete journal before exposing any committed evidence, so
+a later conflicting row invalidates the whole event rather than leaving an
+earlier commit temporarily authoritative.
+
 Fault-injection tests cover lock contention/stale-owner recovery; concurrent
 sequence allocation; every append, fsync, log, focus, body-write,
 submit/newline, refocus, commit, and unlock failure; and crashes after each
 step, for both `submitted` and `composer_only`. They assert no committed row
 before successful delivery, no automatic duplicate delivery, stable recovery
-diagnostics, and monotonic sequence consumption (ARCH-PURE, ARCH-MOCK).
+diagnostics, monotonic sequence consumption after durable preparation, and
+every invalid recovery transition in the table (ARCH-PURE, ARCH-MOCK).
 
 Schema-v1 uses `CorrelationV1.incarnation_id` only for the derived stable ID;
 the raw key is never rendered. `CorrelationV1.source_ordinal` is nullable for
@@ -575,7 +577,7 @@ zero-byte stdout on usage, privacy, and rendering failures.
       ledger parser, including post-v1 and fail-closed legacy behavior.
 - [ ] Implement the serialized send journal protocol and recovery diagnostics;
       fault-inject concurrent allocation plus every write, fsync, delivery,
-      commit, crash, and `composer_only` boundary.
+      commit, crash, `composer_only`, and invalid journal-transition boundary.
 - [ ] Pin byte-golden schema-v1 output for every result-matrix row, including
       malformed/duplicate/non-monotonic records, absent storage, and buffered
       serialization failure.
@@ -643,3 +645,16 @@ same-owner incarnations to resume one root while excluding competing tags;
 consolidate native v1 allowlists; distinguish raw/stable IDs and nullable
 ordinals; unify the diagnostic registry; and require buffered rendering plus
 fault/result-matrix goldens (ARCH-PURE, ARCH-PURPOSE, ARCH-MOCK).
+
+### 2026-08-28 — remove superseded identity ambiguity
+
+**Reason:** the fourth fresh-context review found that earlier prose remained
+normative beside the final amendment, failed prepare writes could not consume a
+recoverable sequence, legacy public IDs were underspecified, and journal
+recovery omitted conflicting terminal histories.
+
+**Delta:** replace the earlier incarnation, rank-3, single-row journal, and
+degree-one clauses with final-contract references; consume sequences only after
+durable preparation; define post-v1, legacy-ledger, and legacy-config ID tuples;
+make source ordinals nullable/null-first; and add the exhaustive journal state
+table plus recovery/fault tests (ARCH-PURE, ARCH-PURPOSE, ARCH-MOCK).
