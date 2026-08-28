@@ -53,9 +53,12 @@ a native root only from authoritative evidence, in this order:
 2. an identity-authorized live Pair PID tree holding that native root artifact
    open;
 3. a unique ordered correspondence between user text observed by Pair and user
-   turns parsed from the native transcript tree;
-4. native parent relationships, which attach descendants to an already bound
-   root.
+   turns parsed from the native transcript tree.
+
+Native parent relationships are not correlation evidence. After a root is
+bound, a validated native parent edge propagates that binding to descendants.
+It creates no tag/root candidate, cannot resolve an ambiguous root, and retains
+both the root-binding and parent-edge provenance.
 
 Content correlation is deterministic and provenance-preserving, not semantic:
 agent-specific transcript parsers emit ordered user turns, while Pair-owned
@@ -96,6 +99,10 @@ directory shape without requiring an LLM response and compares it with the
 scanner contract (ARCH-MOCK).
 
 ### Operational contract
+
+> **Superseded exploration.** The incarnation ranking in this subsection is
+> retained as design history but is not normative. The final authority is
+> **Round-gated establishment contract** below.
 
 The correlation subject is a **tag incarnation**, not a timeless tag. The
 normative incarnation identity, legacy fallback, root-sharing, and ordering
@@ -240,6 +247,10 @@ ARCH-PURPOSE).
 
 ### Send-boundary and matching amendment
 
+> **Superseded exploration.** The send journal and minted-incarnation design in
+> this subsection is not part of the approved system. Pair establishes identity
+> at the first completed native round instead.
+
 Rank-3 evidence does not infer delivery from the human markdown log. Each
 launch/restart mints the raw Pair `incarnation_key` defined by the final identity
 amendment, records it on every ledger row for that incarnation, passes it
@@ -323,6 +334,10 @@ in the same change.
   present, `payload.run_id` must equal the directory UUID.
 
 ### Schema-v1 output and result matrix
+
+> The forest/node/diagnostic ordering remains applicable. Incarnation-shaped
+> correlation fields are superseded by the binding shape in the final
+> round-gated contract.
 
 Stable IDs are lowercase `kind-` plus the first 24 hex characters of SHA-256
 over the kind name and length-prefixed canonical tuple fields: nodes use
@@ -411,6 +426,10 @@ enumeration is not completion. Fatal summaries contain codes and redacted root
 labels, never raw OS errors or private paths.
 
 ### Send transaction and identity amendment
+
+> **Superseded exploration.** The write-ahead transaction, journal recovery,
+> and incarnation identity in this subsection are not implementation
+> requirements. They are preserved only to explain the revision history.
 
 The `incarnation_key` minted before each agent launch/restart is the sole
 post-v1 Pair-incarnation authority. Every ledger row for that launch carries
@@ -523,26 +542,121 @@ legitimately absent requested root in normal mode. Byte-golden tests cover
 every row of the normal/conformance result matrix, including absent roots and
 zero-byte stdout on usage, privacy, and rendering failures.
 
+### Round-gated establishment contract
+
+This subsection is the final authority for tag/root correlation and supersedes
+every earlier send-journal, incarnation, time-window, and ranked-parent clause.
+The complete deterministic forest, agent scanners, diagnostics, ordering,
+rendering, portable fixtures, and conformance requirements remain in force.
+
+A Pair/native binding has two lifecycle states:
+
+- **provisional** — no completed native round has been observed. Pair inventories
+  candidates but promises no recovery identity; quitting here may start fresh.
+- **established** — Pair observed a completed round, uniquely identified its
+  native root, and durably appended that binding to the existing ledger. From
+  this boundary onward the native tree is recovery state.
+
+A completed round is one normalized operator turn observed by Pair and recorded
+as an accepted user event in a candidate root, followed later in that same root
+by at least one accepted agent-progress event. Agent progress is versioned
+scanner evidence: assistant text, a tool invocation, a tool result, or a
+terminal agent response/error record. Composer-only text does not complete a
+round. A submitted turn with no subsequent agent-progress event also remains
+provisional. The accepted event shapes are pinned by the same sanitized agent
+fixtures as the forest scanners; unknown shapes are diagnostics, not evidence.
+
+The watcher starts at launch and records a baseline of scanner facts plus the
+Pair root-process identity. It keeps watching rather than selecting a first or
+newest file. After a possible round completes, it rescans and constructs a
+candidate only when:
+
+1. the native root is scanner-authorized;
+2. the normalized Pair log turn exactly matches a newly observed native user
+   event after the baseline;
+3. an accepted agent-progress event follows that user event in the same root;
+4. when process/open-file evidence is available, the root is held by the exact
+   identity-stable Pair process tree before and after the scan.
+
+If exactly one root satisfies the causal round, Pair appends its native ID to
+the tag's existing ledger and updates the validated config cache. That durable
+ledger row is the recovery authority. If several roots qualify, none binds;
+the watcher retains the explained candidates and intersects them with later
+completed rounds until one root remains. Chronology orders diagnostics only and
+never resolves the set. An agent without usable open-file evidence may still
+establish through a globally unique exact causal round; process evidence is
+corroboration, not a portability requirement (ARCH-PURE, ARCH-PURPOSE).
+
+The evidence order is therefore:
+
+1. a valid established ledger binding;
+2. a unique live causal-round observation, which becomes rank 1 when persisted;
+3. for crash recovery only, a unique ordered correspondence between completed
+   Pair log rounds and native transcript rounds;
+4. a sole validated legacy config when no ledger binding exists.
+
+Config is a compatibility cache and never overrides a ledger disagreement.
+Filesystem birth/modification time, filename recency, traversal order, PID
+order, and `lsof` order never authorize identity. Exact matching uses the shared
+comment/whitespace normalization and fingerprint thresholds already specified,
+but it needs no new `sent-<tag>.jsonl`, send transaction, or minted incarnation
+identifier. The existing markdown log is sufficient because only a matching
+native user event followed by native agent progress constitutes a round.
+
+A crash in the narrow interval after native agent progress but before ledger
+persistence leaves something worth preserving. On the next inventory, the
+offline completed-round rule reconstructs it from the ordered Pair log and
+native transcript. A crash before agent progress leaves a provisional session
+and requires no reconstruction. Tests deterministically inject crashes on both
+sides of this boundary.
+
+After root establishment, validated native parent edges propagate the binding
+to every descendant in that forest. Parentage is never placed in the evidence
+ranking, never creates a root candidate, and never repairs a missing or
+conflicting parent. The inherited result exposes both provenances and is no
+stronger than its weaker input.
+
+Schema-v1 correlations are bindings, not incarnations:
+
+```text
+CorrelationV1 {
+  binding_id:string, scope_key:string, tag:string, agent:string,
+  root_node_id:*string,
+  status:"provisional"|"established"|"ambiguous"|"unbound",
+  candidates:[CandidateV1], evidence:[EvidenceV1]
+}
+```
+
+`binding_id` is derived from `(scope_key,tag,agent,root_node_id-or-empty)`.
+Correlations sort by `(scope_key,tag,agent,root_node_id null last,binding_id)`.
+Evidence kinds are `ledger`, `live_round`, `offline_round`, and `config`;
+parent-edge provenance lives on forest edges rather than in correlation
+evidence. The existing stable JSON, diagnostic, partial-result, privacy, and
+buffered-rendering contracts otherwise apply unchanged (ARCH-DRY).
+
 ## Done when
 
 - One command inventories complete root/subagent session forests for every
   supported Pair agent in stable human and JSON forms.
 - Native parent-child edges are preserved; subagents are never discarded merely
   because they cannot be resumed as roots.
-- Pair tags bind only through explicit ranked evidence, with ambiguous or
-  conflicting candidates left unbound and fully explained.
-- Exact ordered user-turn matches can identify otherwise unbound roots; generic
-  or duplicated strings do not silently authorize a binding, and roots already
-  assigned with high confidence are excluded from later matches.
+- A launch remains explicitly provisional until Pair observes one native user
+  turn followed by assistant/tool/error progress in the same root; pre-round
+  shutdown has no recovery guarantee.
+- The first unique completed causal round establishes and persists the root;
+  competing candidates remain explained and unbound until later rounds resolve
+  them, never by chronology.
+- A crash after completed agent progress but before ledger persistence is
+  reconstructed from ordered exact Pair-log/native rounds; generic, duplicated,
+  composer-only, and user-only text cannot authorize a binding.
 - Identical filesystem facts produce byte-stable tree order regardless of walk,
   glob, process, or `lsof` ordering.
 - The current session watcher consumes the shared inventory/correlation model
   and no longer selects a root through an unreported first/newest heuristic.
 - Fixtures cover all supported agents and a no-LLM live conformance probe
   detects native directory-shape drift.
-- Ledger-backed tag incarnations, validated config caches, live process
-  evidence, exact-turn evidence, and inherited child edges follow the pinned
-  global fixed-point rules; every ambiguity and contradiction is retained.
+- Validated parent edges propagate an established root binding to descendants
+  without appearing as independent tag/root evidence or resolving ambiguity.
 - `pair session-inventory` implements schema-v1 JSON, stable human output,
   coded partial diagnostics, redacted conformance, and the specified exit
   statuses.
@@ -555,34 +669,21 @@ zero-byte stdout on usage, privacy, and rendering failures.
 
 ## Plan
 
-- [ ] Define the pure session-node, forest, evidence, correlation, ambiguity,
-      diagnostic, and deterministic-ordering model.
-- [ ] Implement complete agent-specific filesystem scanners for Claude, Codex,
-      Agy, and Muse, including native parent/subagent metadata.
-- [ ] Correlate Pair configs, ledgers, and identity-authorized live process
-      evidence plus exact ordered user-turn correspondence to native roots,
-      locking high-confidence assignments globally without chronology-based
-      assignment.
-- [ ] Expose structured and human inventory output through the Pair binary.
-- [ ] Replace session-watch and transcript point-selection heuristics with the
-      shared model and add portable fixtures plus live conformance.
-- [ ] Pin sanitized versioned fixtures and scanner contracts for Claude, Codex,
-      Agy, and Muse; do not accept an Agy parent edge before fixture proof.
-- [ ] Extract the shared sent-text/native-turn parser, implement deterministic
-      tag-incarnation segmentation and global fixed-point correlation, and test
-      every evidence/conflict class.
-- [ ] Define schema-v1 JSON, stable human rendering, coded diagnostics, the
-      stateful IO fake, and redacted live conformance behind one entry point.
-- [ ] Migrate and enforce the complete shadow-consumer enumeration across Go,
-      shell, and Neovim rather than stopping after session-watch.
-- [ ] Add the launcher-minted incarnation key and source-ordinal-preserving
-      ledger parser, including post-v1 and fail-closed legacy behavior.
-- [ ] Implement the serialized send journal protocol and recovery diagnostics;
-      fault-inject concurrent allocation plus every write, fsync, delivery,
-      commit, crash, `composer_only`, and invalid journal-transition boundary.
-- [ ] Pin byte-golden schema-v1 output for every result-matrix row, including
-      malformed/duplicate/non-monotonic records, absent storage, and buffered
-      serialization failure.
+- [ ] Define the pure forest, binding, causal-round, ambiguity, diagnostic, and
+      deterministic-ordering model, with parent propagation outside evidence.
+- [ ] Pin portable versioned scanner fixtures for Claude, Codex, Agy, and Muse,
+      covering roots, descendants, user turns, assistant/tool/error progress,
+      malformed nodes, and the fail-closed Agy parent gap.
+- [ ] Implement the stateful filesystem/process scanner seam and complete
+      deterministic forests, structured/human output, and redacted live
+      conformance.
+- [ ] Make session-watch remain provisional until the first completed causal
+      round, persist a unique root, retain ambiguity across rounds, and test
+      crashes immediately before and after the establishment boundary.
+- [ ] Implement offline completed-round recovery for the narrow post-progress,
+      pre-ledger crash window using the shared exact normalization/parser.
+- [ ] Migrate and enforce the complete Go, shell, and Neovim shadow-consumer
+      enumeration so no independent first/newest/native-parser path remains.
 
 ## Log
 
@@ -592,6 +693,15 @@ Split from #152 design. The operator identified that durable repository state
 plus the native transcript tree is sufficient for recovery; the missing
 foundation is deterministic, explainable reconstruction of every supported
 agent's full root/subagent forest and its Pair-tag bindings.
+
+### 2026-08-28 — round-gated establishment
+
+The operator identified that a native session with no completed round contains
+almost nothing worth preserving. Design now keeps launch-time identity
+provisional and establishes the root only after a native user turn is followed
+by assistant/tool/error progress. This removes the proposed send journal and
+incarnation transaction while preserving deterministic forest inventory and
+post-round crash reconstruction (ARCH-PURE, ARCH-PURPOSE).
 
 ## Revisions
 
@@ -669,3 +779,17 @@ contradicted the journal transition table and canonical legacy-ID tuples.
 **Delta:** allow the required prepared/terminal reuse of one event ID while
 rejecting duplicate states and cross-event sequence reuse, and make schema-v1
 incarnation IDs reference the final post-v1/legacy tuple definitions.
+
+### 2026-08-28 — establish identity only after useful work exists
+
+**Reason:** the operator observed that before one completed round there is
+almost nothing to preserve, so eager launch-time identity solves the wrong
+boundary and creates avoidable ambiguity machinery.
+
+**Delta:** make pre-round sessions provisional and intentionally unrecoverable;
+establish and persist the root after one exact user→agent/tool/error causal
+round; use later rounds to reduce ambiguity and offline exact-round matching
+only for the post-progress/pre-ledger crash window. Remove native parentage from
+the evidence rank and retire the send journal, minted incarnation, and
+transactional recovery design. Parent edges now only propagate a proven root
+binding (ARCH-DRY, ARCH-PURE, ARCH-PURPOSE).
