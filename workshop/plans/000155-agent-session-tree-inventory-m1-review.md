@@ -32,22 +32,22 @@ The M1 foundation has a sound pure-core/runtime-seam shape, and focused tests pl
 
 ## 2. Critical findings
 
-1. **Repository contract suites fail at the pinned head.**  
+1. **Repository contract suites fail at the pinned head.**
    `cmd/internal/artifactpath/coverage_test.go:165-177` reports every new `sessioninventory` production file as absent from the exhaustive inventory, including an unclassified `agent` reference in `scan_claude.go`. `cmd/internal/couchcore/plan_contract_test.go:102-118` also reports the new Go sources as missing from its disposition catalog. Update both governing inventories now and pin the package classifications; deferring artifact classification to Task 10 leaves the repository red throughout M1/M2.
 
-2. **The Core Concepts table contradicts the implementation.**  
+2. **The Core Concepts table contradicts the implementation.**
    The plan promises `NativeRecordFact`, `SessionNode`, `SessionForest`, `ParentEdge`, and `EdgeProvenance`, but `model.go:58-85` defines only `Fact`, `Node`, and `Forest`, with parent data reduced to `ParentID`. No edge provenance exists. Implement the named edge/provenance representation and test that it survives forest projection, or append a plan revision for intentional type renames. Parent-edge provenance itself cannot simply be deferred because both M1 and the final binding contract require it.
 
-3. **The diagnostic contract is not implemented.**  
+3. **The diagnostic contract is not implemented.**
    `model.go:87-117,359-374` assigns every diagnostic `warning`, omits `storage_absent`, hashes `detail` instead of the specified canonical tuple, and lacks the exact registry behavior. `order.go:105-121` orders by code before severity and does not coalesce identical diagnostics. `scan_helpers.go:101-103` silently emits nothing for absent storage. Centralize the exhaustive code→severity registry, canonical ID tuple, severity ordering, coalescing, and absent-storage diagnostic. Add table-driven tests covering every M1 code. This also addresses the duplicated registry logic in `conformance.go:151-158` (`ARCH-DRY`, `ARCH-PURPOSE`).
 
-4. **Node ordering violates the documented total tuple.**  
+4. **Node ordering violates the documented total tuple.**
    `model.go:460-472` compares `TimeSource` when timestamps are equal, and `order.go:74-84` applies that before `native_id`. The Spec requires `(time missing, time, native_id, storage_root, relative_path)`; equal instants must therefore fall through directly to native ID. Remove source from chronology comparison used for node ordering and add a regression with equal timestamps from different sources (`ARCH-PURPOSE`).
 
-5. **The filesystem boundary admits blocking non-regular files and loses partial inventories.**  
+5. **The filesystem boundary admits blocking non-regular files and loses partial inventories.**
    `runtime_os.go:70-103` rejects symlinks but accepts FIFOs, sockets, and devices as files; a later `ReadAt` can block indefinitely on a FIFO. Separately, `runtime_os.go:109-110` returns already-enumerated files with a walk error, but `scan_helpers.go:112` discards those partial results. Require `Mode().IsRegular()`, reject all non-regular entries, and preserve valid entries alongside structured per-entry diagnostics. Add a FIFO fixture and an injected partial-walk failure test.
 
-6. **Missing token-usage objects are accepted as real zero usage.**  
+6. **Missing token-usage objects are accepted as real zero usage.**
    In `usage.go:27-40`, a Codex `info:{}` record produces a valid zero value; in `usage.go:43-57`, a normal Claude assistant record with absent/null `usage` also overwrites the last valid usage with zero. The Core Concept explicitly excludes null usage. Represent both nested usage objects with pointers/presence checks and add regressions proving absent/null records cannot replace the last accepted usage.
 
 ## 3. Important findings

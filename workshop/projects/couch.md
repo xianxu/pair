@@ -377,7 +377,6 @@ rather than as a tight figure.
 
 **est:** 7.85 (whole issue)
 **actual:** 3.83h
-**closed:** 2026-08-28
 
 Pair now reconstructs complete, deterministic Claude, Codex, Agy, and Muse
 native-session forests through one bounded runtime, retaining validated

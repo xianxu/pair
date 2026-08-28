@@ -769,6 +769,15 @@ be checked against measured actuals at close.*
 
 ## Log
 
+- 2026-08-28 — The first M1 boundary review returned REWORK with six blocking
+  contract classes. Commit `21de3b9` adds explicit validated parent-edge
+  provenance; one exhaustive diagnostic registry with canonical IDs,
+  coalescing, severity, and absence behavior; the exact equal-time comparator;
+  regular-file-only enumeration that preserves partial facts; presence-aware
+  Claude/Codex token usage; and immediate artifact/source contract
+  participation. Each behavioral finding has a regression that failed before
+  its fix (`ARCH-DRY`, `ARCH-PURE`, `ARCH-PURPOSE`, `ARCH-MOCK`).
+
 - 2026-08-28 — M1 Task 3 implements versioned Claude, Codex, Agy, and Muse
   scanners with sanitized fixtures, bounded record fuzz seeds, deterministic
   forest projection, token-usage parsing, and redacted installed-shape

@@ -34,6 +34,7 @@ func TestForestProjectionUsesCanonicalBytes(t *testing.T) {
 		t.Fatal(err)
 	}
 	shuffled := Inventory{Forests: []Forest{combined.Forests[1], combined.Forests[0]}, Diagnostics: []Diagnostic{combined.Diagnostics[1], combined.Diagnostics[0]}}
+	shuffled.Forests[0].Roots[0], shuffled.Forests[0].Roots[1] = shuffled.Forests[0].Roots[1], shuffled.Forests[0].Roots[0]
 	gotAgain, err := RenderForestProjection(shuffled)
 	if err != nil {
 		t.Fatal(err)
