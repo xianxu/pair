@@ -48,11 +48,13 @@ Couch feature cannot be built without widening Pair's lower-level invocation
 contract, that boundary change requires operator consultation first.
 
 Hosted readiness uses two independent authorities. Pair owns and publishes its
-existing tag-scoped readiness/address artifact after the Pair workbench is
-established. Couch observes that Pair-owned evidence and, only after validating
-the expected exact scope/tag and process identity, promotes its own creating
+existing tag-scoped address claim when Pair has accepted the exact Couch-reserved
+scope/tag and established that Pair address. This is address-registration
+evidence, not proof that every sidecar or the Zellij workbench is already
+running. Couch observes that Pair-owned evidence and, only after validating the
+expected exact scope/tag and helper process identity, promotes its own creating
 incarnation in `ThreadStore`. Missing, malformed, unreadable, mismatched, or
-unestablished Pair readiness fails Couch start closed and leaves Pair entirely
+still-reserved Pair evidence fails Couch start closed and leaves Pair entirely
 unaware of Couch persistence. Pair never promotes or registers a Couch thread.
 
 Remove the standalone-Pair-to-Couch registration path and the portable Couch
@@ -86,6 +88,17 @@ observes it and exclusively promotes `ThreadStore`. Pair may pass opaque Couch
 environment to hosted children but cannot interpret Couch persistence. The
 regression sweep now enumerates every direct command family and denies Couch
 namespace IO, including malformed and unreadable stores (ARCH-PURPOSE).
+
+### 2026-08-27 — preserve the existing address-registration commit point
+
+**Reason:** second fresh review found that “workbench established” overstated
+the current evidence. Pair establishes the reserved address before later
+sidecars and Zellij startup.
+
+**Delta:** the spec now defines the artifact narrowly as proof that Pair
+accepted and established the exact reserved scope/tag. Couch's existing
+fail-closed promotion remains keyed to that evidence plus the expected helper
+identity; this issue does not move the handshake commit point.
 
 ## Done when
 
