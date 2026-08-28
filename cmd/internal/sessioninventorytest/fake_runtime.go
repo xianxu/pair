@@ -35,6 +35,7 @@ type processState struct {
 	open     []string
 }
 
+// pair:155-concept integration new M1
 type FakeRuntime struct {
 	mu sync.RWMutex
 

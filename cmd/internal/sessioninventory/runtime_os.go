@@ -24,6 +24,7 @@ var (
 	ErrStorageAbsent = errors.New("session inventory storage root is absent")
 )
 
+// pair:155-concept integration new M1
 type OSRuntime struct {
 	roots    map[Agent][]StorageRoot
 	pairRoot StorageRoot

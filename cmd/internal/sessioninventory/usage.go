@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 )
 
+// pair:155-concept pure new M1
 type TokenUsage struct {
 	InputTokens int `json:"input_tokens"`
 }

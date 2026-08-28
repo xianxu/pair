@@ -18,7 +18,7 @@
 
 | Name | Lives in | Status | Introduced |
 |------|----------|--------|------------|
-| `NativeRecordFact` | `cmd/internal/sessioninventory/scan.go` | new | M1 |
+| `NativeRecordFact` | `cmd/internal/sessioninventory/model.go` | new | M1 |
 | `SessionNode` / `SessionForest` | `cmd/internal/sessioninventory/model.go` | new | M1 |
 | `ParentEdge` / `EdgeProvenance` | `cmd/internal/sessioninventory/model.go` | new | M1 |
 | `Diagnostic` | `cmd/internal/sessioninventory/model.go` | new | M1 |
@@ -681,3 +681,16 @@ single diagnostic registry and canonical ID/coalescing order, equal-time node
 ordering, regular-file-only enumeration with partial-walk preservation, and
 presence-aware token usage. These are boundary invariants, not final-migration
 cleanup (`ARCH-DRY`, `ARCH-PURE`, `ARCH-PURPOSE`, `ARCH-MOCK`).
+
+### 2026-08-28 — M1 Core Concepts inventory enforcement
+
+**Reason:** a second `core-concepts-match-code` review found that manually
+maintained entity paths can remain inconsistent after implementation aliases
+are introduced.
+
+**Delta:** record `NativeRecordFact` at its actual declaration in
+`cmd/internal/sessioninventory/model.go`. Source declarations now carry a
+bounded #155 concept marker, and an exhaustive contract compares every M1 Core
+Concept name, pure/integration kind, status, milestone, and path in both
+directions. A future M1 row or marked declaration cannot drift independently
+(`ARCH-DRY`, `ARCH-PURPOSE`).

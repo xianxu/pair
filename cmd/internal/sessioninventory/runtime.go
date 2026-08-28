@@ -40,6 +40,7 @@ type SQLiteResult struct {
 
 // Runtime is the sole IO boundary for native session discovery and live
 // evidence. Every path is resolved through an authorized StorageRoot.
+// pair:155-concept integration new M1
 type Runtime interface {
 	NativeRoots(Agent) []StorageRoot
 	PairDataRoot() StorageRoot

@@ -2312,6 +2312,17 @@ update every exhaustive repository source/declaration contract those files
 enter. Include those focused contract commands in the milestone verification,
 not only in final migration (ARCH-PURPOSE).
 
+## Core-concept tables need declaration witnesses
+
+A greppable architecture table still drifts when names and paths are maintained
+only in prose; adding aliases can make the names look correct while their
+declared locations stay false.
+
+**Rule.** For a plan with a Core Concepts table, mark the owning declarations
+and mechanically compare both directions across concept name, pure/integration
+kind, status, milestone, and source path. The contract must reject an unmatched
+row and an unmatched marked declaration (ARCH-DRY, ARCH-PURPOSE).
+
 ## Exact schemas need presence-aware types and executable registries
 
 Value-typed nested JSON structs collapse absent objects into valid-looking zero

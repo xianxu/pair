@@ -134,3 +134,107 @@ findings:
     detail: |
       Value-typed nested usage structs cannot distinguish absent or null usage from a real zero; require explicit presence before accepting a record and test that missing records do not replace the last valid sample.
 ```
+
+---
+
+## Re-review — 2026-08-28T14:05:07-07:00 (REWORK)
+
+| field | value |
+|-------|-------|
+| issue | 155 — deterministic agent session-tree inventory |
+| repo | pair |
+| issue file | workshop/issues/000155-agent-session-tree-inventory.md |
+| boundary | milestone M1 |
+| milestone | M1 |
+| window | 27d1aa922b8e455cb405c14dceb0846be55e6252..27d1aa922b8e455cb405c14dceb0846be55e6252 |
+| command | sdlc milestone-close --issue 155 --milestone M1 |
+| reviewer | codex |
+| timestamp | 2026-08-28T14:05:07-07:00 |
+| verdict | REWORK |
+
+## Review
+
+```verdict
+verdict: REWORK
+confidence: high
+```
+
+The M1 implementation and all six prior fixes are substantively covered and pass their focused tests. However, the Core Concepts table still contradicts the code: `NativeRecordFact` is declared in `model.go`, not its documented `scan.go` location. Because this repeats an existing finding family, the plan-to-code inventory needs class-level enforcement before the boundary can close.
+
+```findings
+dispose:
+  - id: BR-1
+    disposition: addressed
+    note: |
+      Both governed repository contract tests pass and directly detect removal of the new inventory sources from their catalogs.
+  - id: BR-2
+    disposition: addressed
+    note: |
+      ParentEdge and EdgeProvenance exist, are populated by BuildForest, and are asserted through model and canonical projection tests.
+  - id: BR-3
+    disposition: addressed
+    note: |
+      The exhaustive registry test pins every code and severity, detail-independent IDs, severity ordering, coalescing, and storage_absent behavior.
+  - id: BR-4
+    disposition: addressed
+    note: |
+      The mixed-source equal-time regression requires native-ID ordering and compareNativeTime now ignores TimeSource after equal timestamps.
+  - id: BR-5
+    disposition: addressed
+    note: |
+      Tests exercise a real FIFO, rejected symlink, retained regular entries, and valid facts returned alongside a generic partial-listing error.
+  - id: BR-6
+    disposition: addressed
+    note: |
+      Claude and Codex regressions place absent usage after valid usage; pointer-backed presence checks prevent the prior zero overwrite.
+findings:
+  - id: new
+    severity: Critical
+    family: core-concepts-match-code
+    title: |
+      The M1 Core Concepts inventory still names the wrong source for NativeRecordFact
+    detail: |
+      This is the 2nd finding in family core-concepts-match-code. A sweep of all eight M1 Core Concepts rows found one contradiction: workshop/plans/000155-agent-session-tree-inventory-plan.md:21 locates NativeRecordFact in scan.go, while its declaration is in model.go:82. Do not fix only this row; state and enforce the rule that every concept name, kind, status, and path is mechanically checked against the tree, then append a plan revision recording the effective correction (ARCH-PURPOSE).
+```
+
+1. Strengths
+
+- Explicit parent edges and provenance are modeled and projected at [model.go](/Users/xianxu/workspace/pair/cmd/internal/sessioninventory/model.go:56).
+- The centralized diagnostic registry and adversarial registry/coalescing tests cover BR-3 at [diagnostic.go](/Users/xianxu/workspace/pair/cmd/internal/sessioninventory/diagnostic.go:5) and [diagnostic_test.go](/Users/xianxu/workspace/pair/cmd/internal/sessioninventory/diagnostic_test.go:8).
+- The runtime rejects non-regular entries while retaining valid partial results at [runtime_os.go](/Users/xianxu/workspace/pair/cmd/internal/sessioninventory/runtime_os.go:63).
+- Atlas documentation describes the new M1 boundary and explicitly records which consumers remain unmigrated.
+
+2. Critical findings
+
+- Core Concepts path mismatch described in the machine-readable finding above. Add an exhaustive `#155` concept-contract test analogous to the existing `#149` enforcement, then append the correction under `## Revisions`.
+
+3. Important findings
+
+None.
+
+4. Minor findings
+
+None.
+
+5. Test coverage notes
+
+Focused session-inventory, fake-runtime, artifactpath, and historical source-set tests all passed. The broader `go test ./... -count=1` run failed reproducibly in unrelated `cmd/internal/couchcore.TestSpawnComposesProductionPairRegistrationBoundary` with a 20-second `zellij-ready` timeout; it is outside the M1 change surface and was not raised as an M1 finding, but it is not clean full-suite evidence.
+
+6. Architectural notes for upcoming work
+
+- `ARCH-DRY`: Pass—shared forest, diagnostic, scanner-helper, and runtime authorities are used.
+- `ARCH-PURE`: Pass—forest construction and ordering remain pure; effects cross the injected runtime.
+- `ARCH-PURPOSE`: Flag—the M1 behavior is delivered, but the repeated concept-inventory contradiction shows its architectural record is not yet enforced.
+- `ARCH-MOCK`: Pass—the stateful fake implements the production runtime seam, with portable fixtures and live conformance coverage.
+
+No README update is required at M1 because the public `session-inventory` command remains scheduled for M2; the internal conformance target is documented in the atlas.
+
+7. Plan revision recommendation
+
+Append:
+
+> `### 2026-08-28 — M1 Core Concepts inventory enforcement`
+>
+> **Reason:** A second `core-concepts-match-code` review found that manually maintained entity paths can remain inconsistent after implementation aliases are introduced.
+>
+> **Delta:** Record `NativeRecordFact` as declared in `cmd/internal/sessioninventory/model.go` and add an exhaustive contract that validates every Core Concepts row’s name, kind, status, and path against the repository.

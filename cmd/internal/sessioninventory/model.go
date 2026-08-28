@@ -53,11 +53,13 @@ type Artifact struct {
 	Kind         ArtifactKind `json:"kind"`
 }
 
+// pair:155-concept pure new M1
 type EdgeProvenance struct {
 	Schema   string   `json:"schema"`
 	Artifact Artifact `json:"artifact"`
 }
 
+// pair:155-concept pure new M1
 type ParentEdge struct {
 	StableID   string           `json:"stable_id"`
 	ParentID   string           `json:"parent_id"`
@@ -79,6 +81,7 @@ type Fact struct {
 	EdgeProvenance []EdgeProvenance `json:"edge_provenance"`
 }
 
+// pair:155-concept pure new M1
 type NativeRecordFact = Fact
 
 type Node struct {
@@ -94,6 +97,7 @@ type Node struct {
 	Children   []Node      `json:"children"`
 }
 
+// pair:155-concept pure new M1
 type SessionNode = Node
 
 type Forest struct {
@@ -102,6 +106,7 @@ type Forest struct {
 	Orphans []Node `json:"orphans"`
 }
 
+// pair:155-concept pure new M1
 type SessionForest = Forest
 
 type DiagnosticCode string
@@ -135,6 +140,7 @@ const (
 	SeverityError   Severity = "error"
 )
 
+// pair:155-concept pure new M1
 type Diagnostic struct {
 	StableID  string         `json:"stable_id"`
 	Code      DiagnosticCode `json:"code"`

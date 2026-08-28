@@ -59,6 +59,7 @@ var issue149M5GoSources = []string{
 	"cmd/internal/scrollbackcmd/render_test.go", "cmd/internal/scrollbackcmd/scrollbackcmd.go",
 	"cmd/internal/scrollbackcmd/scrollbackcmd_test.go", "cmd/internal/scrollbackcmd/timestamps_test.go",
 	"cmd/internal/sessioninventory/conformance.go", "cmd/internal/sessioninventory/conformance_live_test.go", "cmd/internal/sessioninventory/conformance_test.go",
+	"cmd/internal/sessioninventory/concept_contract_test.go",
 	"cmd/internal/sessioninventory/diagnostic.go", "cmd/internal/sessioninventory/diagnostic_test.go",
 	"cmd/internal/sessioninventory/forest_projection.go", "cmd/internal/sessioninventory/forest_projection_test.go",
 	"cmd/internal/sessioninventory/model.go", "cmd/internal/sessioninventory/model_test.go",
