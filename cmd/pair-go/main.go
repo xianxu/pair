@@ -12,7 +12,6 @@ import (
 	"github.com/xianxu/pair/cmd/internal/changelogcmd"
 	"github.com/xianxu/pair/cmd/internal/clipcmd"
 	"github.com/xianxu/pair/cmd/internal/continuationcmd"
-	"github.com/xianxu/pair/cmd/internal/couchcore"
 	"github.com/xianxu/pair/cmd/internal/dispatcher"
 	"github.com/xianxu/pair/cmd/internal/entrypoint"
 	"github.com/xianxu/pair/cmd/internal/launcher"
@@ -198,7 +197,7 @@ func runtimeDataDir(pairDataDir, home, xdgDataHome string) string {
 // LaunchNative drives the in-process native launcher — the sole launcher now
 // (#99 M5c); it always returns a real exit code (no shell to fall back to).
 func (osLegacyRuntime) LaunchNative(args []string, root string, stdout, stderr io.Writer) int {
-	code, _ := launcher.LaunchNativeWithStandaloneRegistrar(args, root, stdout, stderr, couchcore.RegisterStandalonePair)
+	code, _ := launcher.LaunchNative(args, root, stdout, stderr)
 	return code
 }
 

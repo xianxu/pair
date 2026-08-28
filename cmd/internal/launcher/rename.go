@@ -30,21 +30,21 @@ func renamePathsFor(tag, dataDir string) []string {
 // renamePair is one src→dst move in the rename plan.
 type renamePair struct{ src, dst string }
 
-// validateRenameTags normalizes both tags. The OLD one may arrive as a pasted
+// validateRenameTags parses both tags exactly. The OLD one may arrive as a pasted
 // session name (the nvim rename prompt pre-fills from the tab title, which since
 // #130 reads `📁repo-tag`), so the caller resolves it through the ledger first
 // and passes the resulting bare tag here. The NEW one is always bare by
 // construction, and a 📁 value there gets a message saying so rather than the
-// raw charset error. After that, it applies rename's own gates: charset
-// (NormalizeTag), ≤256 length (shell 359-364), and old!=new (shell 365-368).
+// raw charset error. After that, it applies rename's own gates: charset,
+// ≤256 length (shell 359-364), and old!=new (shell 365-368).
 func validateRenameTags(oldRaw, newRaw string) (old, new string, err error) {
-	if old, err = NormalizeTag(oldRaw); err != nil {
+	if old, err = parseExactRenameTag(oldRaw); err != nil {
 		return "", "", fmt.Errorf("invalid tag: %w", err)
 	}
 	if strings.HasPrefix(newRaw, sessionPrefix) {
 		return "", "", fmt.Errorf("'%s' is a session name; give the new tag in bare form", newRaw)
 	}
-	if new, err = NormalizeTag(newRaw); err != nil {
+	if new, err = parseExactRenameTag(newRaw); err != nil {
 		return "", "", fmt.Errorf("invalid tag: %w", err)
 	}
 	for _, t := range []string{old, new} {
@@ -56,6 +56,16 @@ func validateRenameTags(oldRaw, newRaw string) (old, new string, err error) {
 		return "", "", fmt.Errorf("old and new tag are the same ('%s')", old)
 	}
 	return old, new, nil
+}
+
+// parseExactRenameTag validates a rename reference without translating it.
+// Public session names are resolved through the Pair binding index by the
+// caller before they reach this identity-bearing boundary.
+func parseExactRenameTag(raw string) (string, error) {
+	if err := ValidatePairTag(raw); err != nil {
+		return "", err
+	}
+	return raw, nil
 }
 
 // renamePlan builds the (src,dst) move list for old→new, pure over the injected

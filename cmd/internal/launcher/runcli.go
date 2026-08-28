@@ -36,7 +36,6 @@ func newLaunchOptions(args LaunchArgs, env Env, pairHome, dataDir string, useRep
 		ForceInSession:   getenv("PAIR_FORCE_IN_SESSION") == "1",
 		FakeInZellij:     getenv("PAIR_FAKE_IN_ZELLIJ") == "1",
 		SkipConfigPicker: useRepoDefault,
-		CouchStoreDir:    getenv("COUCH_STORE_DIR"),
 	}
 }
 
@@ -49,15 +48,6 @@ func newLaunchOptions(args LaunchArgs, env Env, pairHome, dataDir string, useRep
 // are already on stdout/stderr, and the error is always nil (no shell to fall back
 // to).
 func LaunchNative(launchArgs []string, pairHome string, stdout, stderr io.Writer) (int, error) {
-	return LaunchNativeWithStandaloneRegistrar(launchArgs, pairHome, stdout, stderr, nil)
-}
-
-// LaunchNativeWithStandaloneRegistrar is the production composition seam used
-// by cmd/pair-go. Keeping the registrar outside launcher avoids a launcher ↔
-// couchcore package cycle while standalone Pair and Couch still mutate the one
-// ThreadStore authority.
-// pair:m5-concept integration
-func LaunchNativeWithStandaloneRegistrar(launchArgs []string, pairHome string, stdout, stderr io.Writer, registrar StandaloneThreadRegistrar) (int, error) {
 	useRepoDefault := consumeRepoDefaultPolicy(os.Getenv, os.Unsetenv)
 	couchProfile := os.Getenv(CouchLaunchProfileEnv)
 	_ = os.Unsetenv(CouchLaunchProfileEnv)
@@ -112,7 +102,6 @@ func LaunchNativeWithStandaloneRegistrar(launchArgs []string, pairHome string, s
 		CouchThreadTag:   os.Getenv("COUCH_THREAD_TAG"),
 	}
 	rt := NewScopedOSRuntime(dataDir, env.DataDir, pairHome)
-	rt.CouchStoreDir = os.Getenv("COUCH_STORE_DIR")
 
 	// `list`/`ls` is a read-only listing that prints to stdout and exits — no
 	// launch, no zellij handoff (#99 M5a).
@@ -140,7 +129,6 @@ func LaunchNativeWithStandaloneRegistrar(launchArgs []string, pairHome string, s
 		return runQuit(rt, os.Getenv("ZELLIJ_SESSION_NAME"), stderr), nil
 	}
 	opts := newLaunchOptions(args, env, pairHome, dataDir, useRepoDefault, os.Getenv, parkPromptTimeout())
-	opts.RegisterStandaloneThread = registrar
 
 	// `continue <slug>`: resolve the doc (seeds the draft on create + drives the
 	// compaction marker), pick the agent (explicit port → doc frontmatter → claude).

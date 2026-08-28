@@ -142,33 +142,30 @@ migration is never what destroys either.
 Pair cannot rename a live zellij session underneath itself, so a running session
 migrates by being quit and relaunched.
 
-## Durable thread index
+## Independent Pair and Couch authorities
 
-Couch's namespace contains `threadstore/manifest.json` plus addressed records
-under `threadstore/records/<scope>/<tag>.json`. Couch and Launcher both decode
-the lower-layer `threadrecord.Record` acceptance contract; Couch maps it to its
-rich lifecycle type, while Launcher maps it to a portable read-only projection
-without importing couchcore or writing recovery state. One strict decoder
-rejects duplicate keys, unknown fields, and trailing values for both. A
-cross-reader mutation table covers every required top-level, address,
-incarnation, start-claim, policy-shape, generation, and path/address invariant.
-Launcher uses the same scoped exact-tag/name/path matcher that Couch adapts to
-its richer records. Missing/corrupt/incomplete stores fail closed and Couch
-retains journal-recovery ownership.
+Pair and Couch deliberately have two independent durable authorities:
 
-An ordinary Pair create also upserts this same ThreadStore through a registrar
-provided by the `pair` composition root. Launcher stays below Couch in the
-package graph; Couch supplies the locked/revisioned mutation. Couch-owned Pair
-children skip the adapter because their creating/live transaction is already
-durable. Thus direct and supervised Pair sessions appear in one inventory
-without changing the direct launcher's tag prompt.
+- Pair owns `{repo scope, tag}` address claims, scoped artifacts, ledgers, and
+  public zellij session bindings. Direct Pair establishes its own claim before
+  writing artifacts. A Couch-hosted Pair changes only Couch's pre-reserved claim
+  to `established`; the marker is exact registration evidence, not metadata.
+- Couch owns `threadstore/manifest.json` and the addressed records under
+  `threadstore/records/<scope>/<tag>.json`. ThreadStore alone owns lifecycle,
+  admission, mutable human names, descriptions, working paths, and recovery.
 
-Human thread names lead standalone resume and picker views, but resolution
-returns the immutable tag. Duplicate names are ambiguous; duplicate picker
-labels expose tag disambiguators. Existing direct Pair artifacts win before
-fuzzy name/path matching, preserving old `pair resume <tag>` behavior. Legacy
-`pair rename` deliberately does not resolve human thread names: it moves tag
-files and must never mutate an opaque thread identity.
+The composed boundary preserves both owners: Pair establishes its marker before
+the zellij handoff without touching Couch files; Couch observes that evidence
+and then performs the creating→live transition for the exact helper identity.
+Malformed, mismatched, invalid, or unreadable markers are unknown evidence and
+fail closed; missing and reserved markers are absent evidence.
+
+Standalone Pair does not open or upsert Couch's ThreadStore. `pair resume`
+addresses an exact Pair tag (with Pair's own ledger permitted to invert a public
+`📁...` session name), and Pair's picker uses Pair-owned live bindings and tag
+history. Couch's mutable names and paths remain Couch-only resolution inputs:
+they neither decorate the Pair picker nor become Pair resume addresses
+(ARCH-DRY, ARCH-PURPOSE, ARCH-PURE).
 
 ### Session names are also filename components
 
@@ -224,8 +221,8 @@ Default picker/list views are current-repo scoped:
 
 - live sessions are included only when the current scope's
   `session-names.jsonl` maps their public name to the current scope key;
-- picker rows lead with `repo/human-name  agent` when ThreadIndex has a name,
-  otherwise `repo/tag`; selection always retains the tag;
+- picker rows use Pair's repo/tag history and live session bindings; Couch human
+  names and paths never decorate them, and selection always retains the tag;
 - `pair <agent>` marks different-agent live rows unavailable and switches a
   different-agent historical tag to the requested driver, seeding from a
   matching continuation doc when present or an auto-continuation draft over

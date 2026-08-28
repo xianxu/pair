@@ -2,6 +2,7 @@ package couchcore
 
 import (
 	"bytes"
+	"context"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -267,6 +268,425 @@ func TestSpawnPersistsHelperIdentityBeforeAcknowledgingExec(t *testing.T) {
 	if record.Thread != address || env.Runner.Child(handle.ID()).ExecCount != 1 {
 		t.Fatalf("record/child = %+v / %+v", record, env.Runner.Child(handle.ID()))
 	}
+}
+
+func TestSpawnComposesProductionPairRegistrationBoundary(t *testing.T) {
+	testPackageDir, err := os.Getwd()
+	if err != nil {
+		t.Fatal(err)
+	}
+	pairHome := filepath.Clean(filepath.Join(testPackageDir, "..", "..", ".."))
+	if physical, err := filepath.EvalSymlinks(pairHome); err == nil {
+		pairHome = physical
+	}
+	repo := t.TempDir()
+	if physical, err := filepath.EvalSymlinks(repo); err == nil {
+		repo = physical
+	}
+	home := t.TempDir()
+	pairData := launcher.ResolveDataDir(home, "")
+	binDir := t.TempDir()
+	ready := filepath.Join(t.TempDir(), "zellij-ready")
+	release := filepath.Join(t.TempDir(), "zellij-release")
+	zellijLog := filepath.Join(t.TempDir(), "zellij.log")
+	writeExecutableForTest(t, filepath.Join(binDir, "claude"), "#!/bin/sh\nexit 0\n")
+	writeExecutableForTest(t, filepath.Join(binDir, "zellij"), `#!/bin/sh
+printf '%s\n' "$*" >> "$PAIR_TEST_ZELLIJ_LOG"
+case " $* " in
+  *" --new-session-with-layout "*)
+	printf '{"tag":"%s","agent":"%s","session":"%s","nonce":"%s","pid":%d}\n' \
+	  "$PAIR_TAG" "$PAIR_AGENT" "$PAIR_SESSION_NAME" "$PAIR_LAUNCH_NONCE" "$PPID" > "$PAIR_AGENT_READY_PATH"
+    printf ready > "$PAIR_TEST_ZELLIJ_READY"
+	i=0
+	while [ ! -f "$PAIR_TEST_ZELLIJ_RELEASE" ] && [ "$i" -lt 1000 ]; do
+	  sleep 0.01
+	  i=$((i + 1))
+	done
+	[ -f "$PAIR_TEST_ZELLIJ_RELEASE" ] || exit 124
+    ;;
+esac
+exit 0
+`)
+	t.Setenv("PATH", binDir+string(os.PathListSeparator)+os.Getenv("PATH"))
+	t.Setenv("HOME", home)
+	t.Setenv("XDG_DATA_HOME", "")
+	t.Setenv("PAIR_DATA_DIR", "")
+	t.Setenv("PAIR_TEST_ZELLIJ_READY", ready)
+	t.Setenv("PAIR_TEST_ZELLIJ_RELEASE", release)
+	t.Setenv("PAIR_TEST_ZELLIJ_LOG", zellijLog)
+	t.Setenv("PAIR_TEST_COUCH_LAUNCH_NATIVE_SIDECAR", "1")
+	t.Setenv("PAIR_DEV", "")
+	t.Setenv("CMUX_WORKSPACE_ID", "")
+	expectedProcessEnv := processEnvironmentForTest()
+
+	ns := testCouchNamespace(t)
+	runner := NewFakeRunner()
+	proc := NewFakeProcOps()
+	scope, err := launcher.ResolveRepoScope(repo)
+	if err != nil {
+		t.Fatal(err)
+	}
+	address := ThreadAddress{RepoScope: scope.Key, Tag: "couch-0102030405060708"}
+	checker := NewScopedThreadArtifactCollisionChecker(pairData)
+	couch, err := New(
+		ns, runner, NewFakePathOps(nil),
+		NewFakeGit(map[GitCall]string{{Dir: repo, Args: "rev-parse --show-toplevel"}: repo}),
+		proc, NewStore(ns.Dir()), FixedClock{T: time.Date(2026, 8, 27, 12, 0, 0, 0, time.UTC)},
+		NewFixedIDGen("composed"), NewFakePolicyResolver(), newIncrementingEntropy(), checker,
+	)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	type pairMutationReport struct {
+		beforeNamespace map[string]string
+		afterNamespace  map[string]string
+		stderr          string
+		code            int
+		err             error
+	}
+	reserved := make(chan ThreadRecord, 1)
+	pairReport := make(chan pairMutationReport, 1)
+	waitCtx, cancelWait := context.WithTimeout(context.Background(), 20*time.Second)
+	defer cancelWait()
+	runner.BeforeAcknowledge = func(id string) error {
+		child := runner.Child(id)
+		thread, err := couch.Threads.GetThread(address)
+		if err != nil {
+			return err
+		}
+		markerRaw, err := os.ReadFile(launcher.NewScopedPaths(pairData, scope, string(address.Tag)).ThreadClaim())
+		if err != nil || !strings.Contains(string(markerRaw), `"state":"reserved"`) {
+			return fmt.Errorf("pre-ack marker = %q, %v", markerRaw, err)
+		}
+		reserved <- thread
+		beforeNamespace, err := snapshotDirectoryForTest(ns.Dir())
+		if err != nil {
+			return err
+		}
+		restoreEnv := applyEnvironmentForTest(child.Env)
+		defer restoreEnv()
+		oldCwd, err := os.Getwd()
+		if err != nil {
+			return err
+		}
+		if err := os.Chdir(child.Dir); err != nil {
+			return err
+		}
+		defer func() { _ = os.Chdir(oldCwd) }()
+		var stdout, stderr bytes.Buffer
+		code, launchErr := launcher.LaunchNative(child.Argv[1:], pairHome, &stdout, &stderr)
+		afterNamespace, snapshotErr := snapshotDirectoryForTest(ns.Dir())
+		report := pairMutationReport{
+			beforeNamespace: beforeNamespace, afterNamespace: afterNamespace,
+			stderr: stderr.String(), code: code,
+			err: errors.Join(launchErr, snapshotErr),
+		}
+		pairReport <- report
+		if report.err != nil || code != 0 {
+			return fmt.Errorf("LaunchNative = %d, %v; stderr=%s", code, report.err, report.stderr)
+		}
+		return nil
+	}
+
+	type spawnResult struct {
+		record ActorRecord
+		handle Handle
+		err    error
+	}
+	spawned := make(chan spawnResult, 1)
+	spawnDone := make(chan struct{})
+	go func() {
+		defer close(spawnDone)
+		record, handle, err := couch.Spawn(StartArgs{Cwd: repo})
+		spawned <- spawnResult{record: record, handle: handle, err: err}
+	}()
+	t.Cleanup(func() {
+		// This cleanup owns the composed goroutine on every path, including a
+		// Fatal before the normal release/receive below. Joining also guarantees
+		// its process-wide environment restoration cannot overlap another test.
+		if err := os.WriteFile(release, []byte("release"), 0o600); err != nil {
+			t.Errorf("release composed Pair launch: %v", err)
+		}
+		select {
+		case <-spawnDone:
+		case <-time.After(15 * time.Second):
+			t.Error("composed Couch spawn goroutine did not exit during cleanup")
+		}
+	})
+
+	var preAck ThreadRecord
+	select {
+	case preAck = <-reserved:
+	case <-waitCtx.Done():
+		t.Fatalf("wait for reserved pre-ack state: %v", waitCtx.Err())
+	}
+	if len(preAck.Incarnations) != 1 || preAck.Incarnations[0].State != IncarnationCreating || preAck.Incarnations[0].PID != 1000 || preAck.Incarnations[0].Identity != "fake-identity-couch-fake-1" {
+		t.Fatalf("pre-ack durable helper = %+v", preAck.Incarnations)
+	}
+	waitForFileForTest(t, waitCtx, ready)
+	markerPath := launcher.NewScopedPaths(pairData, scope, string(address.Tag)).ThreadClaim()
+	markerRaw, err := os.ReadFile(markerPath)
+	if err != nil || !strings.Contains(string(markerRaw), `"state":"established"`) {
+		t.Fatalf("Pair handoff marker = %q, %v", markerRaw, err)
+	}
+	duringPair, err := couch.Threads.GetThread(address)
+	if err != nil || duringPair.Incarnations[0].State != IncarnationCreating {
+		t.Fatalf("Couch observed Pair before its own promotion = %+v, %v", duringPair, err)
+	}
+	child := runner.Child("couch-fake-1")
+	wantArgv := []string{"pair", "resume", string(address.Tag), "--layout2"}
+	if !slices.Equal(child.Argv, wantArgv) {
+		t.Fatalf("argv = %q, want %q", child.Argv, wantArgv)
+	}
+	wantOpaque := map[string]string{
+		"COUCH_TREE":         repo,
+		"COUCH_STORE_DIR":    ns.Dir(),
+		"COUCH_THREAD_SCOPE": scope.Key,
+		"COUCH_THREAD_TAG":   string(address.Tag),
+	}
+	for key, want := range wantOpaque {
+		if got := environmentValue(child.Env, key); got != want {
+			t.Errorf("%s = %q, want %q", key, got, want)
+		}
+	}
+	if err := os.WriteFile(release, []byte("release"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	var report pairMutationReport
+	select {
+	case report = <-pairReport:
+	case <-waitCtx.Done():
+		t.Fatalf("wait for Pair launch report: %v", waitCtx.Err())
+	}
+	if report.err != nil || report.code != 0 {
+		t.Fatalf("LaunchNative report = %+v", report)
+	}
+	if !reflect.DeepEqual(report.beforeNamespace, report.afterNamespace) {
+		t.Fatalf("Pair mutated Couch namespace\nbefore: %#v\nafter:  %#v", report.beforeNamespace, report.afterNamespace)
+	}
+	var result spawnResult
+	select {
+	case result = <-spawned:
+	case <-waitCtx.Done():
+		t.Fatalf("wait for Couch spawn result: %v", waitCtx.Err())
+	}
+	if result.err != nil {
+		t.Fatalf("Spawn: %v", result.err)
+	}
+	if afterEnv := processEnvironmentForTest(); !reflect.DeepEqual(expectedProcessEnv, afterEnv) {
+		t.Fatalf("LaunchNative leaked process environment\nbefore: %#v\nafter:  %#v", expectedProcessEnv, afterEnv)
+	}
+	if result.record.Thread != address {
+		t.Fatalf("generated address = %+v, want %+v", result.record.Thread, address)
+	}
+	after, err := couch.Threads.GetThread(address)
+	if err != nil || after.Incarnations[0].State != IncarnationLive || after.Incarnations[0].PID != result.handle.PID() || after.Incarnations[0].Identity != result.handle.Identity() {
+		t.Fatalf("post-registration thread = %+v, %v", after, err)
+	}
+	logRaw, err := os.ReadFile(zellijLog)
+	if err != nil || !strings.Contains(string(logRaw), "--new-session-with-layout") {
+		t.Fatalf("stateful zellij calls = %q, %v", logRaw, err)
+	}
+}
+
+func TestAwaitThreadRegistrationNeverPromotesNonEstablishedProductionEvidence(t *testing.T) {
+	tests := []struct {
+		name   string
+		marker string
+		claim  bool
+		dir    bool
+	}{
+		{name: "missing"},
+		{name: "reserved", claim: true},
+		{name: "malformed", marker: "not-json"},
+		{name: "mismatched", marker: `{"schema":1,"scope":"fedcba9876543210","tag":"couch-0123456789abcdef","state":"established"}`},
+		{name: "invalid state", marker: `{"schema":1,"scope":"0123456789abcdef","tag":"couch-0123456789abcdef","state":"unknown"}`},
+		{name: "unreadable", dir: true},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			store, ns := newTestThreadStore(t)
+			record := createHelperRecordedThreadForTest(t, store, ns)
+			pairData := t.TempDir()
+			checker := NewScopedThreadArtifactCollisionChecker(pairData)
+			paths := launcher.NewScopedPaths(pairData, launcher.RepoScope{Key: record.Address.RepoScope}, string(record.Address.Tag))
+			if tt.claim {
+				claim, err := checker.Claim(record.Address)
+				if err != nil {
+					t.Fatal(err)
+				}
+				t.Cleanup(func() { _ = claim.Release() })
+			} else if tt.marker != "" || tt.dir {
+				if err := os.MkdirAll(paths.ScopeDir(), 0o700); err != nil {
+					t.Fatal(err)
+				}
+				if tt.dir {
+					if err := os.Mkdir(paths.ThreadClaim(), 0o700); err != nil {
+						t.Fatal(err)
+					}
+				} else if err := os.WriteFile(paths.ThreadClaim(), []byte(tt.marker), 0o600); err != nil {
+					t.Fatal(err)
+				}
+			}
+			couch := &Couch{Threads: store, Artifacts: checker}
+			ctx, cancelBound := context.WithTimeout(context.Background(), 2*time.Second)
+			ctx, cancelNow := context.WithCancel(ctx)
+			cancelNow()
+			err := couch.awaitThreadRegistration(ctx, record.Address)
+			cancelBound()
+			if err == nil {
+				t.Fatal("non-established evidence authorized registration")
+			}
+			after, getErr := store.GetThread(record.Address)
+			if getErr != nil || after.Incarnations[0].State != IncarnationCreating || after.Revision != record.Revision {
+				t.Fatalf("non-established evidence changed durable state = %+v, %v", after, getErr)
+			}
+		})
+	}
+}
+
+func TestAwaitThreadRegistrationEstablishedEvidenceReachesRealPromotion(t *testing.T) {
+	store, ns := newTestThreadStore(t)
+	record := createHelperRecordedThreadForTest(t, store, ns)
+	pairData := t.TempDir()
+	checker := NewScopedThreadArtifactCollisionChecker(pairData)
+	claim, err := checker.Claim(record.Address)
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() { _ = claim.Release() })
+	if err := launcher.EnsureThreadAddressForPair(pairData, launcher.RepoScope{Key: record.Address.RepoScope}, string(record.Address.Tag), true); err != nil {
+		t.Fatal(err)
+	}
+	couch := &Couch{Threads: store, Artifacts: checker}
+	ctx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
+	defer cancel()
+	if err := couch.awaitThreadRegistration(ctx, record.Address); err != nil {
+		t.Fatal(err)
+	}
+	promoted, err := store.AdvanceStart(record.Address, record.Revision, StartEvent{Kind: StartRegistered, Nonce: "start-0123456789abcdef"})
+	if err != nil || promoted.Incarnations[0].State != IncarnationLive {
+		t.Fatalf("promotion = %+v, %v", promoted, err)
+	}
+}
+
+func createHelperRecordedThreadForTest(t *testing.T, store *ThreadStore, ns CouchNamespace) ThreadRecord {
+	t.Helper()
+	record := admittedStartRecord(t)
+	record.StartingPath, record.WorkingPath = ns.Dir(), ns.Dir()
+	created, err := store.CreateThread(record)
+	if err != nil {
+		t.Fatal(err)
+	}
+	claimed, err := store.AdvanceStart(created.Address, created.Revision, StartEvent{
+		Kind: StartClaimed, Nonce: "start-0123456789abcdef",
+		Owner: SupervisorOwner{PID: 41, Identity: "owner-token"},
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	helper, err := store.AdvanceStart(claimed.Address, claimed.Revision, StartEvent{
+		Kind: StartHelperRecorded, Nonce: "start-0123456789abcdef",
+		Helper: ProcessIdentity{PID: 42, Identity: "helper-token"},
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	return helper
+}
+
+func writeExecutableForTest(t *testing.T, path, body string) {
+	t.Helper()
+	if err := os.WriteFile(path, []byte(body), 0o700); err != nil {
+		t.Fatal(err)
+	}
+}
+
+func waitForFileForTest(t *testing.T, ctx context.Context, path string) {
+	t.Helper()
+	ticker := time.NewTicker(10 * time.Millisecond)
+	defer ticker.Stop()
+	for {
+		if _, err := os.Stat(path); err == nil {
+			return
+		}
+		select {
+		case <-ctx.Done():
+			t.Fatalf("timed out waiting for %s: %v", path, ctx.Err())
+		case <-ticker.C:
+		}
+	}
+}
+
+func applyEnvironmentForTest(env []string) func() {
+	prior := append([]string(nil), os.Environ()...)
+	for _, item := range env {
+		key, value, _ := strings.Cut(item, "=")
+		_ = os.Setenv(key, value)
+	}
+	return func() {
+		os.Clearenv()
+		for _, item := range prior {
+			key, value, _ := strings.Cut(item, "=")
+			_ = os.Setenv(key, value)
+		}
+	}
+}
+
+func environmentValue(env []string, key string) string {
+	for _, item := range env {
+		name, value, _ := strings.Cut(item, "=")
+		if name == key {
+			return value
+		}
+	}
+	return ""
+}
+
+func processEnvironmentForTest() map[string]string {
+	result := make(map[string]string)
+	for _, item := range os.Environ() {
+		key, value, _ := strings.Cut(item, "=")
+		result[key] = value
+	}
+	return result
+}
+
+func snapshotDirectoryForTest(root string) (map[string]string, error) {
+	snapshot := map[string]string{}
+	err := filepath.WalkDir(root, func(path string, entry os.DirEntry, walkErr error) error {
+		if walkErr != nil {
+			return walkErr
+		}
+		rel, err := filepath.Rel(root, path)
+		if err != nil {
+			return err
+		}
+		info, err := entry.Info()
+		if err != nil {
+			return err
+		}
+		if entry.IsDir() {
+			snapshot[rel] = "dir:" + info.Mode().String()
+			return nil
+		}
+		if entry.Type()&os.ModeSymlink != 0 {
+			target, err := os.Readlink(path)
+			if err != nil {
+				return err
+			}
+			snapshot[rel] = "symlink:" + target
+			return nil
+		}
+		raw, err := os.ReadFile(path)
+		if err != nil {
+			return err
+		}
+		snapshot[rel] = "file:" + info.Mode().String() + ":" + string(raw)
+		return nil
+	})
+	return snapshot, err
 }
 
 func TestSpawnPostAcknowledgementFailuresNeverLeaveWorkspaceWriter(t *testing.T) {

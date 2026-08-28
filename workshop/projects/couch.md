@@ -6,7 +6,7 @@ done_when: The operator works inside a single terminal window, managing a fleet 
 status: defined
 mvp_scope: [pair#145, pair#146, pair#147, pair#148, pair#149, pair#151, pair#152, pair#153, ariadne#199, ariadne#200]
 created: 2026-08-21
-updated: 2026-08-26
+updated: 2026-08-27
 sources: [brain/workshop/pensive/2026-08-20-01-pensive-couch-agent-switcher.md]
 ---
 
@@ -753,3 +753,15 @@ The artifact documentation sweep now pins Couch's bounded-analysis statement
 and rejects the retired package-dataflow claims, so the atlas cannot silently
 drift back to behavior the implementation no longer provides (ARCH-PURPOSE,
 ARCH-MOCK).
+
+### 2026-08-27 — pair#154 Pair/Couch ownership scope correction
+
+The #149 M3/M5 entries above are retained as the historical record of what
+those boundaries claimed at close. #154 corrects that scope: standalone Pair
+has no ThreadIndex reader or ThreadStore registrar/upsert path. Pair owns scoped
+address claims, artifacts, ledgers, session bindings, and exact-tag resume;
+Couch independently owns ThreadStore lifecycle, admission, metadata, and
+human-name/path resolution. A hosted start coordinates the two only through the
+reserved→established Pair marker: Pair does not mutate Couch records, and Couch
+alone promotes the expected helper from creating to live (ARCH-DRY,
+ARCH-PURPOSE, ARCH-PURE).

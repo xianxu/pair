@@ -20,7 +20,7 @@ type LaunchArgs struct {
 	Layout             LayoutRequest
 
 	// rename (#99 M5b): `pair rename [--restart-check] <old> <new>`. Raw tags —
-	// normalized + gated in runRename so it owns the operator-facing messages.
+	// validated exactly + gated in runRename so it owns operator-facing messages.
 	RenameOld       string
 	RenameNew       string
 	RenameCheckOnly bool
@@ -95,11 +95,8 @@ func parseArgs(argv []string) (LaunchArgs, error) {
 		if len(argv) < 2 {
 			return LaunchArgs{}, UsageError{Message: "pair-go launch: 'resume' requires a tag"}
 		}
-		// A pasted session name is resolved through the ledger before charset
-		// validation (#130). NormalizeTag strips the legacy `pair-` prefix itself,
-		// but the 📁 scheme has no string inverse — and 📁 is not in NormalizeTag's
-		// charset, so without this a user pasting the tab-title text gets
-		// "contains invalid character".
+		// Preserve either identity form: an exact tag is validated here, while a
+		// pasted 📁 session name is resolved later through Pair's binding index.
 		tag, err := ResumeTagFromArg(argv[1])
 		if err != nil {
 			return LaunchArgs{}, UsageError{Message: fmt.Sprintf("pair-go launch: invalid tag: %v", err)}
@@ -176,7 +173,7 @@ func launchArgsAcceptLayout(args LaunchArgs) bool {
 }
 
 // parseRename parses `rename [--restart-check] [--] <old> <new>` (#99 M5b, shell
-// 329-354). Structural only — tag normalization/length/old!=new gates live in
+// 329-354). Structural only — exact tag validation/length/old!=new gates live in
 // runRename (validateRenameTags) so it owns the operator-facing messages.
 func parseRename(args []string) (LaunchArgs, error) {
 	out := LaunchArgs{Command: "rename"}
@@ -252,18 +249,15 @@ func parseContinue(args []string) (LaunchArgs, error) {
 	return out, nil
 }
 
-// ResumeTagFromArg accepts what a user may type after `pair resume`: a bare tag,
-// a legacy `pair-<tag>` name, or a 📁 session name pasted out of the tab title /
-// `zellij list-sessions`.
-//
-// It stays PURE, so it cannot resolve the 📁 form — that needs the ledger, and
-// ParseArgs has no Runtime. A 📁 value is therefore passed through verbatim and
-// resolved later by resolveResumeTag, at the first point the index is in hand.
-// Without this, NormalizeTag's charset loop rejects 📁 outright and the paste a
-// user is most likely to make fails (#130).
+// ResumeTagFromArg preserves an exact Pair tag byte-for-byte. A 📁 session
+// name pasted from Zellij is also preserved so resolveResumeTag can look up its
+// Pair-owned binding later, when a Runtime is available (#130).
 func ResumeTagFromArg(raw string) (string, error) {
 	if strings.HasPrefix(raw, sessionPrefix) {
 		return raw, nil
 	}
-	return NormalizeTag(raw)
+	if err := ValidatePairTag(raw); err != nil {
+		return "", err
+	}
+	return raw, nil
 }

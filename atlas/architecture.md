@@ -306,13 +306,13 @@ The producer consumes exact `$PAIR_AGENT_PANE_PATH` in a shell `printf` inside t
 
 **Saved-config resolution & legacy Codex migration (#67).** `resolve_config_file <tag> <agent>` resolves the canonical `config-<tag>-<agent>.json`. Older Codex sessions on disk use a doubled shape `config-<tag>-codex-codex.json`; when the canonical file is absent and the agent is `codex`, the helper migrates the legacy file to the canonical name *iff* its JSON declares `"agent":"codex"` — a narrow, agent-checked compatibility path, **not** a glob resolver, so unrelated stale files can't silently win (`ARCH-DRY`, `ARCH-PURE`). It is used only where both tag and agent are known (restart-marker read, cleanup resume hint, the tag-restart picker that surfaces native Codex resume, and the two config writes); the agent-inference glob loop is deliberately left alone, since it is *discovering* the agent and already sees the legacy filename.
 
-**Naming prompt.** When the create flow runs, the launcher prompts the user with the auto-suggested tag as the default — the cwd basename, sanitized (so `~/workspace/pair` → `Session name: pair`). The prompt is editable inline (delegated to zsh's `vared` since bash 3.2 has no `read -i`). The `pair-` prefix is implicit — the prompt shows just the tag, since `pair-` is always prepended. Pressing Enter accepts; typing a custom name (`bugfix`, or `pair-bugfix` — leading `pair-` is stripped) overrides it. `pair resume <tag>` skips this prompt entirely.
+**Naming prompt.** When the create flow runs, the launcher prompts the user with the auto-suggested tag as the default — the cwd basename, sanitized (so `~/workspace/pair` → `Session name: pair`). The prompt is editable inline (delegated to zsh's `vared` since bash 3.2 has no `read -i`). The accepted value is the exact Pair tag: no prefix is added or stripped. Pressing Enter accepts the displayed tag; typing a custom value such as `bugfix` or `pair-bugfix` preserves those bytes after tag validation. `pair resume <tag>` skips this prompt entirely and requires that exact tag.
 
 **Agent validation deferred.** `command -v "$AGENT"` runs only inside the create branch, not at startup, so attaching to a custom-named session whose tag isn't a real binary still works.
 
 **Title.** The launcher emits an OSC 0 escape sequence right before invoking zellij, so the terminal title shows the session name on both create and attach paths (zellij itself only sets it on create).
 
-**Cleanup on quit.** zellij is run as a child (not `exec`) so the launcher resumes when zellij exits. On resume it checks for the session-cache quit marker (the marker that `pair quit` writes when Alt+x fires) and, if present, runs `zellij delete-session --force <session>` to clear the resurrect entry. It then SIGKILLs any leftover children that didn't follow the session down: a lingering `zellij --server` (rare but seen), and `nvim --embed` orphans (every `nvim FILE` is internally TUI parent + embed child; the embed sometimes survives RPC-pipe EOF and gets reparented to launchd). The embed reap is two-layered — primary path reads exact `Paths.NvimPID` bindings written by VimEnter autocmds inside `nvim/init.lua` and `nvim/scrollback.lua`; the startup sweep enumerates them through `ScopePaths.NvimPIDGlob`/`TagFromNvimPID`; fallback is a tag-scoped `pkill -f` whose argv parser is `ScopePaths.TagFromNvimEmbedArgv`. If a saved `Paths.ConfigChecked` binding was captured during the session, cleanup also prints a one-liner naming the resume command (`pair resume <session>`) so the user can pick the work back up later. No marker → leave the session as zellij left it (running if Alt+d detached).
+**Cleanup on quit.** zellij is run as a child (not `exec`) so the launcher resumes when zellij exits. On resume it checks for the session-cache quit marker (the marker that `pair quit` writes when Alt+x fires) and, if present, runs `zellij delete-session --force <session>` to clear the resurrect entry. It then SIGKILLs any leftover children that didn't follow the session down: a lingering `zellij --server` (rare but seen), and `nvim --embed` orphans (every `nvim FILE` is internally TUI parent + embed child; the embed sometimes survives RPC-pipe EOF and gets reparented to launchd). The embed reap is two-layered — primary path reads exact `Paths.NvimPID` bindings written by VimEnter autocmds inside `nvim/init.lua` and `nvim/scrollback.lua`; the startup sweep enumerates them through `ScopePaths.NvimPIDGlob`/`TagFromNvimPID`; fallback is a tag-scoped `pkill -f` whose argv parser is `ScopePaths.TagFromNvimEmbedArgv`. If a saved `Paths.ConfigChecked` binding was captured during the session, cleanup also prints a one-liner with the exact byte-preserved Pair tag (`pair resume <tag>`) so the user can pick the work back up later. No marker → leave the session as zellij left it (running if Alt+d detached).
 
 **Startup orphan sweep.** The Alt+x reaper only runs when the user quit through pair. External terminations (`zellij kill-session`, host reboot during a session, pair upgrade mid-session) leave the embed orphaned with no marker. `SweepOrphanNvim` runs once per `pair` invocation after strict session-index resolution, collects candidate tags from exact nvim-pid bindings plus running `nvim --embed` argv under the selected scope, and reaps only tags with no live current-scope session. Adding a new nvim surface means extending `artifactpath.Paths` and its exact binding, not adding another filename formula.
 
@@ -977,11 +977,13 @@ The shape `compose = saved_args (stripped of any prior resume tokens) + agent's 
 **Post-Alt+x hint.** cleanup reads exact `Paths.Agent` before clearing it (so the hint names the right binary even though that file is about to disappear), then prints:
 
 ```
-pair: saved session config for tag "pair-2" (claude).
-      resume with: pair resume pair-2
+pair: saved session config for tag "work_2" (claude).
+      resume with: pair resume work_2
 ```
 
-`SESSION` rather than `PAIR_TAG` is shown — that's what the user just saw in the UI tab. `pair resume <tag>` accepts both forms (it strips a leading `pair-`).
+The Pair tag is shown byte-for-byte. Public `📁...` session names remain a
+separate Pair-owned binding; `pair resume <tag>` does not add or strip a
+`pair-` prefix.
 
 ## Tag rename (issue #000022)
 
