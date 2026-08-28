@@ -4,9 +4,9 @@ name: couch
 goal: Stop losing track of concurrent work across peer repos by turning agent sessions into addressable actors the operator can enumerate, switch between, and be paged by.
 done_when: The operator works inside a single terminal window, managing a fleet of agents across peer repos, and it works better than today's manual tracking across many tabs.
 status: defined
-mvp_scope: [pair#145, pair#146, pair#147, pair#148, pair#149, pair#151, pair#152, pair#153, ariadne#199, ariadne#200]
+mvp_scope: [pair#145, pair#146, pair#147, pair#148, pair#149, pair#151, pair#152, pair#153, pair#155, ariadne#199, ariadne#200]
 created: 2026-08-21
-updated: 2026-08-27
+updated: 2026-08-28
 sources: [brain/workshop/pensive/2026-08-20-01-pensive-couch-agent-switcher.md]
 ---
 
@@ -168,8 +168,9 @@ gate `#147` and `#148` respectively; `#145` and `#146` do not depend on them.
 - [x] shared thread metadata, operations, and standalone lookup [pair#149 M3]
 - [x] remembered per-path agent and argument profiles [pair#149 M4]
 - [x] legacy migration and composite artifact proof [pair#149 M5]
-- [ ] hierarchical thread menu [pair#151]
-- [ ] verified park and activity age [pair#152]
+- [ ] deterministic agent session-tree inventory [pair#155]
+- [.] verified park and activity age [pair#152]
+- [.] hierarchical thread menu [pair#151]
 - [ ] managed-worktree lifecycle [pair#153]
 - [ ] expose query API to peer actors [ariadne#199]
 - [x] fleet thread inventory [ariadne#200]
@@ -765,3 +766,16 @@ human-name/path resolution. A hosted start coordinates the two only through the
 reserved→established Pair marker: Pair does not mutate Couch records, and Couch
 alone promotes the expected helper from creating to live (ARCH-DRY,
 ARCH-PURPOSE, ARCH-PURE).
+
+### 2026-08-28 — scope event: native sessions become complete trees
+
+Pair's current launch watcher discovers one root transcript, then stops; its
+fallback may select the newest candidate, while Codex and Muse subagents are
+excluded rather than modeled. Added #155 to the MVP before #152: it inventories
+each supported agent's complete root/subagent forest and correlates roots to
+Pair tags through explicit config, ledger, and identity-authorized live-process
+evidence. Ambiguity remains visible and unbound; chronology orders candidates
+but never authorizes one. #152 now treats the durable repo plus this identified
+native session tree as recovery state and no longer waits for an LLM-authored
+flush acknowledgement. #152 and its consumer #151 are marked blocked until the
+shared inventory lands (ARCH-DRY, ARCH-PURPOSE, ARCH-MOCK).
