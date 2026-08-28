@@ -238,3 +238,71 @@ Append:
 > **Reason:** A second `core-concepts-match-code` review found that manually maintained entity paths can remain inconsistent after implementation aliases are introduced.
 >
 > **Delta:** Record `NativeRecordFact` as declared in `cmd/internal/sessioninventory/model.go` and add an exhaustive contract that validates every Core Concepts row’s name, kind, status, and path against the repository.
+
+---
+
+## Re-review — 2026-08-28T14:10:12-07:00 (SHIP)
+
+| field | value |
+|-------|-------|
+| issue | 155 — deterministic agent session-tree inventory |
+| repo | pair |
+| issue file | workshop/issues/000155-agent-session-tree-inventory.md |
+| boundary | milestone M1 |
+| milestone | M1 |
+| window | 84a7131d1a1d0b34018e0a059bf41103749e36bf..84a7131d1a1d0b34018e0a059bf41103749e36bf |
+| command | sdlc milestone-close --issue 155 --milestone M1 |
+| reviewer | codex |
+| timestamp | 2026-08-28T14:10:12-07:00 |
+| verdict | SHIP |
+
+## Review
+
+```verdict
+verdict: SHIP
+confidence: high
+```
+
+BR-7 is addressed. Although the pinned Base→Head range is empty, direct inspection of HEAD, the fixing commit, the executable contract, and a counterfactual regression confirms the corrected path and class-wide enforcement. No new findings block M1.
+
+```findings
+dispose:
+  - id: BR-7
+    disposition: addressed
+    note: |
+      The plan now locates NativeRecordFact in model.go, a bidirectional declaration contract checks every M1 concept field, and restoring the stale scan.go path makes that test fail.
+```
+
+1. Strengths
+
+- The plan correctly locates `NativeRecordFact` at [000155-agent-session-tree-inventory-plan.md:21](/Users/xianxu/workspace/pair/workshop/plans/000155-agent-session-tree-inventory-plan.md:21), matching its declaration at [model.go:84](/Users/xianxu/workspace/pair/cmd/internal/sessioninventory/model.go:84).
+- [concept_contract_test.go:26](/Users/xianxu/workspace/pair/cmd/internal/sessioninventory/concept_contract_test.go:26) checks all M1 concept names, paths, kinds, statuses, and milestones bidirectionally.
+- The required revision records both the correction and the general enforcement rule at [000155-agent-session-tree-inventory-plan.md:685](/Users/xianxu/workspace/pair/workshop/plans/000155-agent-session-tree-inventory-plan.md:685).
+- Counterfactual verification changing only the plan path back to `scan.go` failed with the expected path mismatch.
+
+2. Critical findings
+
+None.
+
+3. Important findings
+
+None.
+
+4. Minor findings
+
+None.
+
+5. Test coverage notes
+
+The focused concept contract, session-inventory packages, stateful fake, `procutil`, artifact classification, Couch declaration contracts, and `git diff --check` all passed. The stale-path counterfactual failed as required.
+
+6. Architectural notes for upcoming work
+
+- `ARCH-DRY`: Pass—the duplicated plan/declaration facts are exhaustively synchronized.
+- `ARCH-PURE`: Pass—production forest concepts remain pure; repository inspection stays in the contract test.
+- `ARCH-PURPOSE`: Pass—the fix covers the entire enumerable M1 Core Concepts class, not only `NativeRecordFact`.
+- `ARCH-MOCK`: Pass—no new external dependency was introduced; M1 retains the shared runtime seam and stateful fake.
+
+7. Plan revision recommendations
+
+None; the required `## Revisions` entry is present and matches the implementation.

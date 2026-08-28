@@ -82,6 +82,16 @@ rounds:
           round: 2
       boundary: M1
       blocked: true
+    - "n": 3
+      timestamp: "2026-08-28T14:10:12-07:00"
+      agent: codex
+      dispose:
+        - id: BR-7
+          disposition: addressed
+          note: The plan now locates NativeRecordFact in model.go, a bidirectional declaration contract checks every M1 concept field, and restoring the stale scan.go path makes that test fail.
+          round: 3
+      boundary: M1
+      blocked: false
 ---
 
 # Gate ledger — pair#155 (boundary-review)
@@ -122,6 +132,12 @@ later rounds disposed of them. Generated — edit the gate, not this file.
 - **BR-7** [Critical] `core-concepts-match-code` The M1 Core Concepts inventory still names the wrong source for NativeRecordFact
   This is the 2nd finding in family core-concepts-match-code. A sweep of all eight M1 Core Concepts rows found one contradiction: workshop/plans/000155-agent-session-tree-inventory-plan.md:21 locates NativeRecordFact in scan.go, while its declaration is in model.go:82. Do not fix only this row; state and enforce the rule that every concept name, kind, status, and path is mechanically checked against the tree, then append a plan revision recording the effective correction (ARCH-PURPOSE).
 
+## Round 3 — 2026-08-28T14:10:12-07:00 (codex) — passed
+
+### Disposed
+
+- BR-7 — addressed — The plan now locates NativeRecordFact in model.go, a bidirectional declaration contract checks every M1 concept field, and restoring the stale scan.go path makes that test fail.
+
 ## Open findings
 
-- **BR-7** [Critical] `core-concepts-match-code` The M1 Core Concepts inventory still names the wrong source for NativeRecordFact
+(none — every finding has been disposed)

@@ -169,7 +169,7 @@ gate `#147` and `#148` respectively; `#145` and `#146` do not depend on them.
 - [x] remembered per-path agent and argument profiles [pair#149 M4]
 - [x] legacy migration and composite artifact proof [pair#149 M5]
 - [ ] deterministic agent session-tree inventory [pair#155]
-- [ ] deterministic native forests [pair#155 M1]
+- [x] deterministic native forests [pair#155 M1]
 - [.] verified park and activity age [pair#152]
 - [.] hierarchical thread menu [pair#151]
 - [ ] managed-worktree lifecycle [pair#153]
@@ -376,6 +376,7 @@ rather than as a tight figure.
 ### pair#155 M1 — deterministic native forests
 
 **est:** 7.85 (whole issue)
+**closed:** 2026-08-28
 **actual:** 3.83h
 
 Pair now reconstructs complete, deterministic Claude, Codex, Agy, and Muse

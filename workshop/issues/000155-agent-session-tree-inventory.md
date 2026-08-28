@@ -756,7 +756,7 @@ be checked against measured actuals at close.*
 
 ## Plan
 
-- [ ] M1 — Build deterministic complete forests: pure model/order, stateful
+- [x] M1 — Build deterministic complete forests: pure model/order, stateful
       runtime seam and fake, four versioned scanners, stable rendering, and
       redacted live conformance.
 - [ ] M2 — Establish bindings only after a completed native round: shared event
@@ -816,6 +816,7 @@ be checked against measured actuals at close.*
   fix that baseline failure.
 
 ### 2026-08-28
+- 2026-08-28: closed M1 — all four sanitized scanners and explicit edge provenance pass; exhaustive M1 concept table/declaration contract, diagnostic registry, equal-time ordering, regular/partial storage, optional usage, artifact/source/project contracts, vet, diff check, and redacted installed-shape conformance pass; pre-existing Couch launch timeout remains separately deferred by operator; review verdict: SHIP
 
 Split from #152 design. The operator identified that durable repository state
 plus the native transcript tree is sufficient for recovery; the missing
