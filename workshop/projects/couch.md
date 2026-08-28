@@ -396,7 +396,7 @@ ARCH-PURE, ARCH-PURPOSE, ARCH-MOCK).
 ### pair#155 M2 — round-gated native bindings and public inventory
 
 **est:** 7.85
-**actual:** 3.68h
+**actual:** 4.17h
 **closed:** 2026-08-28
 
 Pair now captures a content-free launch baseline before input and establishes a
