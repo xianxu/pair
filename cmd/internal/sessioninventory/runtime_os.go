@@ -19,8 +19,9 @@ import (
 )
 
 var (
-	ErrPathEscape  = errors.New("session inventory path escapes its storage root")
-	ErrRootUnknown = errors.New("session inventory storage root is unknown")
+	ErrPathEscape    = errors.New("session inventory path escapes its storage root")
+	ErrRootUnknown   = errors.New("session inventory storage root is unknown")
+	ErrStorageAbsent = errors.New("session inventory storage root is absent")
 )
 
 type OSRuntime struct {
@@ -65,6 +66,7 @@ func (r OSRuntime) ListFiles(requested StorageRoot) ([]FileEntry, error) {
 		return nil, ErrRootUnknown
 	}
 	var result []FileEntry
+	var rejected []Artifact
 	err := filepath.WalkDir(root.Path, func(filePath string, entry os.DirEntry, walkErr error) error {
 		if walkErr != nil {
 			return walkErr
@@ -73,7 +75,12 @@ func (r OSRuntime) ListFiles(requested StorageRoot) ([]FileEntry, error) {
 			return nil
 		}
 		if entry.Type()&os.ModeSymlink != 0 {
-			return fmt.Errorf("%w: %s", ErrPathEscape, entry.Name())
+			relativePath, relErr := filepath.Rel(root.Path, filePath)
+			if relErr != nil {
+				return relErr
+			}
+			rejected = append(rejected, Artifact{StorageRoot: root.Name, RelativePath: filepath.ToSlash(relativePath)})
+			return nil
 		}
 		relativePath, err := filepath.Rel(root.Path, filePath)
 		if err != nil {
@@ -96,7 +103,16 @@ func (r OSRuntime) ListFiles(requested StorageRoot) ([]FileEntry, error) {
 		})
 		return nil
 	})
-	return result, err
+	if os.IsNotExist(err) {
+		return nil, ErrStorageAbsent
+	}
+	if err != nil {
+		return result, err
+	}
+	if len(rejected) != 0 {
+		return result, &ListingIssuesError{Artifacts: rejected}
+	}
+	return result, nil
 }
 
 func (r OSRuntime) ReadFile(artifact Artifact, limit int64) ([]byte, error) {
@@ -120,6 +136,27 @@ func (r OSRuntime) ReadFile(artifact Artifact, limit int64) ([]byte, error) {
 		return nil, ErrReadLimit
 	}
 	return content, nil
+}
+
+func (r OSRuntime) ReadAt(artifact Artifact, offset, limit int64) ([]byte, bool, error) {
+	filePath, err := r.resolveArtifact(artifact)
+	if err != nil {
+		return nil, false, err
+	}
+	if offset < 0 || limit < 0 || uint64(limit) > uint64(^uint(0)>>1) {
+		return nil, false, ErrReadLimit
+	}
+	file, err := os.Open(filePath)
+	if err != nil {
+		return nil, false, err
+	}
+	defer file.Close()
+	content := make([]byte, int(limit))
+	read, err := file.ReadAt(content, offset)
+	if err != nil && !errors.Is(err, io.EOF) {
+		return nil, false, err
+	}
+	return content[:read], errors.Is(err, io.EOF), nil
 }
 
 func (r OSRuntime) QuerySQLite(artifact Artifact, query string, limit int64) (SQLiteResult, error) {

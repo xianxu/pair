@@ -2,6 +2,7 @@ package sessioninventory
 
 import (
 	"errors"
+	"fmt"
 	"time"
 )
 
@@ -22,6 +23,16 @@ type FileEntry struct {
 	ModTime   *time.Time `json:"mod_time"`
 }
 
+type ListingIssuesError struct {
+	Artifacts []Artifact
+}
+
+func (e *ListingIssuesError) Error() string {
+	return fmt.Sprintf("%d native storage entries rejected: %v", len(e.Artifacts), ErrPathEscape)
+}
+
+func (e *ListingIssuesError) Unwrap() error { return ErrPathEscape }
+
 type SQLiteResult struct {
 	Columns []string   `json:"columns"`
 	Rows    [][]string `json:"rows"`
@@ -34,6 +45,7 @@ type Runtime interface {
 	PairDataRoot() StorageRoot
 	ListFiles(StorageRoot) ([]FileEntry, error)
 	ReadFile(Artifact, int64) ([]byte, error)
+	ReadAt(Artifact, int64, int64) ([]byte, bool, error)
 	QuerySQLite(Artifact, string, int64) (SQLiteResult, error)
 	ProcessChildren() map[string][]string
 	ProcessIdentity(string) string
@@ -48,3 +60,7 @@ type ScanResult struct {
 type Scanner interface {
 	Scan(Runtime) ScanResult
 }
+
+type ScannerFunc func(Runtime) ScanResult
+
+func (scanner ScannerFunc) Scan(runtime Runtime) ScanResult { return scanner(runtime) }

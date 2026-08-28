@@ -42,6 +42,12 @@ func TestOSRuntimeBoundaries(t *testing.T) {
 	if _, err := runtime.ReadFile(files[0].Artifact, 3); !errors.Is(err, ErrReadLimit) {
 		t.Fatalf("bounded read error = %v, want ErrReadLimit", err)
 	}
+	if got, eof, err := runtime.ReadAt(files[0].Artifact, 1, 2); err != nil || eof || string(got) != "oo" {
+		t.Fatalf("range read = %q, eof=%v, err=%v", got, eof, err)
+	}
+	if got, eof, err := runtime.ReadAt(files[0].Artifact, 3, 2); err != nil || !eof || string(got) != "t" {
+		t.Fatalf("final range read = %q, eof=%v, err=%v", got, eof, err)
+	}
 
 	outside := filepath.Join(t.TempDir(), "outside.jsonl")
 	if err := os.WriteFile(outside, []byte("private"), 0o600); err != nil {
@@ -50,8 +56,12 @@ func TestOSRuntimeBoundaries(t *testing.T) {
 	if err := os.Symlink(outside, filepath.Join(roots[0].Path, "escape.jsonl")); err != nil {
 		t.Fatal(err)
 	}
-	if _, err := runtime.ListFiles(roots[0]); !errors.Is(err, ErrPathEscape) {
+	partial, err := runtime.ListFiles(roots[0])
+	if !errors.Is(err, ErrPathEscape) {
 		t.Fatalf("symlink listing error = %v, want ErrPathEscape", err)
+	}
+	if len(partial) != 1 || partial[0].Artifact.RelativePath != "root.jsonl" {
+		t.Fatalf("partial listing = %#v, want valid regular files preserved", partial)
 	}
 	if _, err := runtime.ReadFile(Artifact{StorageRoot: roots[0].Name, RelativePath: "escape.jsonl"}, 32); !errors.Is(err, ErrPathEscape) {
 		t.Fatalf("symlink read error = %v, want ErrPathEscape", err)

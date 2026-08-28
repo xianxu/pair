@@ -1,0 +1,2 @@
+{"schema_version":1,"record_type":"event","payload_type":"runtime.session","payload":{"kind":"run","run_id":"aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa","event":{"kind":"started","prompt":"initially valid"}}}
+{"schema_version":1,"record_type":"event","payload_type":"runtime.session","payload":{"kind":"run","run_id":"bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb","event":{"kind":"started","prompt":"later contradiction"}}}

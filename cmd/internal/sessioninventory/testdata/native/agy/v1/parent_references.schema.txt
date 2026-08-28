@@ -1,0 +1,5 @@
+idx INTEGER PRIMARY KEY
+data BLOB
+
+The installed sanitized source row count was zero. This fixture proves no
+parent relationship, so Agy v1 must emit no parent edge.

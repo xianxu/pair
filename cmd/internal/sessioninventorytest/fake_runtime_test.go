@@ -38,6 +38,12 @@ func TestFakeRuntimeModelsPersistentStorageAndFailures(t *testing.T) {
 	if _, err := runtime.ReadFile(first.Artifact, 3); !errors.Is(err, sessioninventory.ErrReadLimit) {
 		t.Fatalf("bounded read error = %v, want ErrReadLimit", err)
 	}
+	if got, eof, err := runtime.ReadAt(first.Artifact, 1, 2); err != nil || eof || string(got) != "pd" {
+		t.Fatalf("range read = %q, eof=%v, err=%v", got, eof, err)
+	}
+	if got, eof, err := runtime.ReadAt(first.Artifact, 6, 4); err != nil || !eof || string(got) != "d" {
+		t.Fatalf("final range read = %q, eof=%v, err=%v", got, eof, err)
+	}
 
 	wantErr := errors.New("unreadable")
 	runtime.SetError(OperationReadFile, first.Artifact.StorageRoot+":"+first.Artifact.RelativePath, wantErr)

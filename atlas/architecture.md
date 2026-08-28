@@ -924,6 +924,17 @@ Zellij's default `Ctrl+q` (Quit with resurrect) is **unbound** in pair's config 
 
 ## Tag-restart (issue #000016)
 
+**Inventory migration boundary (#155 M1).** The deterministic scanner core now
+lives in `cmd/internal/sessioninventory`: four versioned native scanners feed a
+pure, stably ordered forest model through one injected filesystem/SQLite/process
+runtime, with a reusable stateful fake and a redacted installed-shape
+conformance target. It inventories native roots, validated descendants, and
+unbound orphans; native parent edges describe topology but never establish Pair
+ownership. The watcher and other consumers described in this section still use
+their pre-#155 lookup paths at this boundary. M2 adds binding only after a
+completed operator round, and the final #155 migration moves every consumer to
+that shared inventory (ARCH-DRY, ARCH-PURE, ARCH-PURPOSE, ARCH-MOCK).
+
 A pair *tag* is a durable identity for a coding session: it survives Alt+d (detach) trivially, and survives Alt+x because pair captures both the original launch args and the agent's own session id to disk, keyed by `(tag, agent)`. After Alt+x, the user sees a one-liner naming the resume command; running it short-circuits the picker and replays the saved configuration.
 
 **Discovery — two layers.** The session id needs to be on disk by Alt+x time so `pair resume <tag>` can replay it. Two mechanisms, picked by agent and launch shape:

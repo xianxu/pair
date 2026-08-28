@@ -244,14 +244,14 @@ and mechanical guard; executable fixtures/fuzz seeds own individual cases.
 - Test: `cmd/internal/sessioninventory/model_test.go`
 - Test: `cmd/internal/sessioninventory/order_test.go`
 
-- [ ] RED: add `TestBuildForest` and `TestSortInventory` from the strategy
+- [x] RED: add `TestBuildForest` and `TestSortInventory` from the strategy
       table; run `go test ./cmd/internal/sessioninventory -run
       'Test(BuildForest|SortInventory)' -count=1` and confirm the missing-model failure.
-- [ ] GREEN: implement `BuildForest`, `SortInventory`, `StableID`, the pure
+- [x] GREEN: implement `BuildForest`, `SortInventory`, `StableID`, the pure
       entities, and fail-closed edge diagnostics; rerun the focused tests.
-- [ ] Add seeded fuzz/property targets for those functions and run
+- [x] Add seeded fuzz/property targets for those functions and run
       `go test ./cmd/internal/sessioninventory -run 'Test|Fuzz' -count=1`.
-- [ ] Commit: `git add cmd/internal/sessioninventory && git commit -m '#155 M1: define deterministic native forests'`.
+- [x] Commit: `git add cmd/internal/sessioninventory && git commit -m '#155 M1: define deterministic native forests'`.
 
 ### Task 2: Add the single runtime seam and stateful fake
 
@@ -263,17 +263,17 @@ and mechanical guard; executable fixtures/fuzz seeds own individual cases.
 - Create: `cmd/internal/sessioninventory/scan.go`
 - Test: `cmd/internal/sessioninventory/scan_test.go`
 
-- [ ] RED: add `TestInventoryWithRuntime` from the strategy table against an
+- [x] RED: add `TestInventoryWithRuntime` from the strategy table against an
       importable stateful fake; run the focused package tests and confirm the
       missing-runtime failure.
-- [ ] GREEN: define the typed `Runtime` operations and implement
+- [x] GREEN: define the typed `Runtime` operations and implement
       `InventoryWithRuntime` plus `sessioninventorytest.FakeRuntime`; keep raw
       shell execution outside pure code and use external-package tests.
-- [ ] RED/GREEN: add `TestOSRuntimeBoundaries`, then implement `OSRuntime` with
+- [x] RED/GREEN: add `TestOSRuntimeBoundaries`, then implement `OSRuntime` with
       existing `procutil`, path validation, bounded reads, centralized storage
       roots, and a read-only platform `sqlite3` adapter.
-- [ ] Run `go test ./cmd/internal/sessioninventory -run 'TestInventoryRuntime' -count=1` and `go test ./cmd/internal/sessioninventorytest -count=1`; confirm both pass.
-- [ ] Commit: `git add cmd/internal/sessioninventory cmd/internal/sessioninventorytest && git commit -m '#155 M1: add stateful inventory runtime seam'`.
+- [x] Run `go test ./cmd/internal/sessioninventory -run 'TestInventoryRuntime' -count=1` and `go test ./cmd/internal/sessioninventorytest -count=1`; confirm both pass.
+- [x] Commit: `git add cmd/internal/sessioninventory cmd/internal/sessioninventorytest && git commit -m '#155 M1: add stateful inventory runtime seam'`.
 
 ### Task 3: Pin and scan all four native shapes
 
@@ -294,26 +294,26 @@ and mechanical guard; executable fixtures/fuzz seeds own individual cases.
 - Modify: `Makefile.local`
 - Fixtures: `cmd/internal/sessioninventory/testdata/native/{claude,codex,agy,muse}/v1/`
 
-- [ ] For each `ScanClaude`, `ScanCodex`, `ScanAgy`, and `ScanMuse` function,
+- [x] For each `ScanClaude`, `ScanCodex`, `ScanAgy`, and `ScanMuse` function,
       pin one sanitized v1 fixture corpus, add the strategy-table test/fuzz
       target, observe RED, implement the facts-only scanner, and rerun GREEN.
       Agy parent facts remain orphans until a populated sanitized fixture proves
       the relationship.
-- [ ] RED/GREEN: add `TestForestProjection` for canonical bytes, then implement
+- [x] RED/GREEN: add `TestForestProjection` for canonical bytes, then implement
       the stable forest-only projection; do not create partial public schema-v1.
-- [ ] RED/GREEN: add `TestLiveNativeSessionShapeConformance` and implement the
+- [x] RED/GREEN: add `TestLiveNativeSessionShapeConformance` and implement the
       opt-in no-LLM probe with redacted output and the specified skip/fail rules.
-- [ ] Add `test-native-session-live` to `Makefile.local` and include it in
+- [x] Add `test-native-session-live` to `Makefile.local` and include it in
       `test-live`. The manual and scheduled workstation command is
       `make test-native-session-live`; no installed sample emits the documented
       skip diagnostic and succeeds, while recognized drift/unreadability/privacy
       leakage fails.
-- [ ] Run:
+- [x] Run:
   - `go test ./cmd/internal/sessioninventory -count=1`
   - `go test ./cmd/internal/sessioninventorytest -count=1`
   - `go test ./cmd/internal/procutil -count=1`
   - `git diff --check`
-- [ ] Update `atlas/index.md`, `atlas/session-identity.md`, and
+- [x] Update `atlas/index.md`, `atlas/session-identity.md`, and
       `atlas/architecture.md`, then commit code, tests, atlas, and any
       pre-boundary design log while M1 remains unchecked.
 - [ ] Run `sdlc milestone-close --issue 155 --milestone M1 --verified 'all four sanitized scanner fixtures produce complete deterministic forests; shuffled forest projections, runtime failure cases, and redacted conformance pass'`. Let the binary tick M1, update Couch, measure time, and write the close log.
@@ -637,3 +637,28 @@ send but not the second operator-authored dirty-history submission path.
 generated PairReview, compaction, and PairDoctor control prompts use
 `send_generated_prompt` and never become operator-round evidence; no other
 direct `send_to_agent` call is allowed (ARCH-DRY, ARCH-PURPOSE).
+
+### 2026-08-28 — installed native-shape conformance
+
+**Reason:** read-only inspection performed for M1 found two current native
+shapes outside the pre-implementation prose: Codex child `session_meta.source`
+is now string `"subagent"`, and Muse root `run_id` is run-scoped rather than the
+root session UUID.
+
+**Delta:** pin both legacy-object and current-string Codex child sources; require
+Muse `run_id` equality only for child records while root identity remains
+path-owned. Sanitized fixtures and the live conformance probe enforce these
+bounded widenings; unknown sibling shapes still fail closed (`ARCH-PURPOSE`,
+`ARCH-MOCK`).
+
+### 2026-08-28 — corrected Codex source conformance
+
+**Reason:** the first redacted aggregation collapsed the type of the Codex
+`source` field and made an object key look like a string value. A second
+type-preserving pass over the installed corpus showed that current children
+still use an object source.
+
+**Delta:** withdraw the string-`"subagent"` widening. Codex v1 accepts the
+legacy empty/depth-only `subagent` objects and the current exact five-field
+`thread_spawn` object. The nested and top-level parent IDs must agree; unknown
+keys and string child sources remain near-misses (`ARCH-PURPOSE`, `ARCH-MOCK`).

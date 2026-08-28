@@ -16,6 +16,29 @@ Pair separates identities that used to be partly conflated:
 - **Native session id** — the agent's own resumable conversation id, captured by
   the launcher or `pair session-watch`.
 
+## Native-session forest inventory
+
+`cmd/internal/sessioninventory` is the single model and scanner boundary for
+native session storage (#155 M1). Its versioned Claude, Codex, Agy, and Muse
+scanners emit facts into a deterministic forest: complete roots, validated
+native parent/child edges, and explicit unbound orphans. Missing, conflicting,
+malformed, unreadable, or unknown-schema evidence is retained as a stable coded
+diagnostic rather than guessed away. Stable IDs, ordering, chronology fallback,
+artifact paths, and a forest-only canonical projection are pure functions.
+
+All native I/O crosses one injected runtime: named storage roots, bounded file
+reads, read-only SQLite, and process/open-file snapshots. The sibling
+`sessioninventorytest` package supplies a persistent stateful fake, while
+`make test-native-session-live` checks installed native shapes without printing
+paths, IDs, or transcript content. Native parentage establishes topology only;
+it is not evidence that a Pair tag owns a root.
+
+This M1 foundation does not yet replace the existing watcher, transcript,
+context, slug, review, restart, or picker lookups below. #155 M2 adds
+round-gated root binding and the public inventory, after which final migration
+removes those independent discovery paths (ARCH-DRY, ARCH-PURE, ARCH-PURPOSE,
+ARCH-MOCK).
+
 ## Data layout
 
 The global Pair data root is still `${XDG_DATA_HOME:-~/.local/share}/pair`.

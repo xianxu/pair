@@ -1,0 +1,1 @@
+{"schema_version":1,"record_type":"event","payload_type":"runtime.session","payload":{"kind":"run","run_id":"not-a-uuid","event":{"kind":"started","prompt":"near miss"}}}

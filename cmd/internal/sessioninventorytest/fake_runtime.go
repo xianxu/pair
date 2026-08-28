@@ -177,6 +177,30 @@ func (f *FakeRuntime) ReadFile(artifact sessioninventory.Artifact, limit int64) 
 	return append([]byte(nil), stored.content...), nil
 }
 
+func (f *FakeRuntime) ReadAt(artifact sessioninventory.Artifact, offset, limit int64) ([]byte, bool, error) {
+	f.mu.RLock()
+	defer f.mu.RUnlock()
+	key := artifactKey(artifact)
+	if err := f.errors[errorKey(OperationReadFile, key)]; err != nil {
+		return nil, false, err
+	}
+	stored, ok := f.files[key]
+	if !ok {
+		return nil, false, fmt.Errorf("read %s: file not found", key)
+	}
+	if offset < 0 || limit < 0 {
+		return nil, false, sessioninventory.ErrReadLimit
+	}
+	if offset >= int64(len(stored.content)) {
+		return nil, true, nil
+	}
+	end := offset + limit
+	if end < offset || end > int64(len(stored.content)) {
+		end = int64(len(stored.content))
+	}
+	return append([]byte(nil), stored.content[offset:end]...), end == int64(len(stored.content)), nil
+}
+
 func (f *FakeRuntime) QuerySQLite(artifact sessioninventory.Artifact, query string, limit int64) (sessioninventory.SQLiteResult, error) {
 	f.mu.RLock()
 	defer f.mu.RUnlock()

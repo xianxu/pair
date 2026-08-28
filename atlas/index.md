@@ -5,7 +5,7 @@
 ## Map
 
 - [Architecture](architecture.md) — what the pieces are and how they fit together.
-- [Session identity and storage](session-identity.md) — Pair's scoped address claims and exact artifact bindings, Couch's independent ThreadStore authority, the `📁` public zellij name scheme, and legacy flat-data recovery.
+- [Session identity and storage](session-identity.md) — Pair's scoped address claims, deterministic native-session forests, exact artifact bindings, Couch's independent ThreadStore authority, the `📁` public zellij name scheme, and legacy flat-data recovery.
 - [Go migration inventory](go-migration-inventory.md) — artifact/caller/runtime contract for the staged primary-Go-binary migration.
 - [Workflow](workflow/index.md) — issue-based development loop inherited from the ariadne base layer.
 - [How-to-bring-up-a-new-harness-cli](how-to-bring-up-a-new-harness-cli.md) — guide on integrating a new agent harness CLI.

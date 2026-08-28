@@ -62,6 +62,7 @@ type Fact struct {
 	ParentID  *string     `json:"parent_id"`
 	Time      *NativeTime `json:"time"`
 	Resumable bool        `json:"resumable"`
+	Disputed  bool        `json:"disputed"`
 	Artifacts []Artifact  `json:"artifacts"`
 }
 
@@ -137,7 +138,7 @@ func BuildForest(facts []Fact) Inventory {
 	groups := make(map[factKey][]Fact)
 	var diagnostics []Diagnostic
 	for _, fact := range facts {
-		if !validAgent(fact.Agent) || fact.NativeID == "" || !validRole(fact.Role) {
+		if !validAgent(fact.Agent) || fact.NativeID == "" || (!validRole(fact.Role) && !fact.Disputed) {
 			diagnostics = append(diagnostics, diagnostic(DiagnosticNodeMalformed, fact.Agent, optionalString(fact.NativeID), "invalid agent, native ID, or role"))
 			continue
 		}
@@ -233,6 +234,14 @@ func canonicalizeFacts(key factKey, facts []Fact) (canonicalNode, []Diagnostic) 
 	if role == RoleSubagent && parent == nil && !conflicted {
 		diagnostics = append(diagnostics, diagnostic(DiagnosticParentMissing, key.agent, &key.nativeID, "subagent fact has no parent"))
 	}
+	for _, fact := range facts {
+		if fact.Disputed {
+			role = RoleUnknown
+			parent = nil
+			conflicted = true
+			break
+		}
+	}
 
 	artifactList := make([]Artifact, 0, len(artifacts))
 	for _, artifact := range artifacts {
@@ -245,7 +254,7 @@ func canonicalizeFacts(key factKey, facts []Fact) (canonicalNode, []Diagnostic) 
 		Role:      role,
 		ParentID:  parent,
 		Time:      earliest,
-		Resumable: firstResumable(facts),
+		Resumable: firstResumable(facts) && !conflicted,
 		Artifacts: artifactList,
 	}
 	return canonicalNode{node: node, conflicted: conflicted}, diagnostics

@@ -769,6 +769,35 @@ be checked against measured actuals at close.*
 
 ## Log
 
+- 2026-08-28 — M1 Task 3 implements versioned Claude, Codex, Agy, and Muse
+  scanners with sanitized fixtures, bounded record fuzz seeds, deterministic
+  forest projection, token-usage parsing, and redacted installed-shape
+  conformance. Focused packages, vet, and `git diff --check` pass; live
+  conformance found 20 Agy roots, 1,392 Claude nodes / 1,375 roots, 1,191 Codex
+  nodes / 828 roots, and 362 Muse nodes / 48 roots without schema drift or
+  content/path leakage. One installed Claude symlink and one contradictory
+  child remain visible as coded malformed-data diagnostics (`ARCH-DRY`,
+  `ARCH-PURE`, `ARCH-PURPOSE`, `ARCH-MOCK`).
+
+- 2026-08-28 — M1 Task 2 committed as `3469359`: one typed runtime now owns
+  authorized native roots, bounded reads, read-only SQLite, and process facts;
+  an importable stateful fake models persistent files, DB results, failures,
+  listing order, and PID incarnation mutation on the same seam (`ARCH-PURE`,
+  `ARCH-MOCK`, `ARCH-DRY`).
+
+- 2026-08-28 — M1 Task 1 committed as `ef92a01`: the pure forest core
+  coalesces duplicate facts, rejects malformed paths, detaches missing,
+  conflicting, self-referential, and cyclic parent edges, and produces stable
+  byte-identical output across shuffled facts (`ARCH-PURE`, `ARCH-PURPOSE`).
+
+- 2026-08-28 — `sdlc change-code --worktree=yes` cleared plan and estimate
+  quality and created the isolated implementation branch. The clean baseline
+  required `make runtimebundle-generate`; all #155-focused Go packages and
+  `tests/pair-session-watch-test.sh` pass. The unrelated
+  `TestSpawnComposesProductionPairRegistrationBoundary` timeout reproduces on
+  `main`; the operator explicitly approved completing #155 before returning to
+  fix that baseline failure.
+
 ### 2026-08-28
 
 Split from #152 design. The operator identified that durable repository state
@@ -795,6 +824,45 @@ parent edges, token/activity projections, stateful fake reuse, and binary-owned
 review boundaries (ARCH-DRY, ARCH-PURE, ARCH-PURPOSE, ARCH-MOCK).
 
 ## Revisions
+
+### 2026-08-28 — installed Codex child-source conformance
+
+**Reason:** read-only shape inspection of the installed Codex corpus found that
+current child `session_meta` records use string source `"subagent"`; the older
+object `{subagent:{...}}` form remains present in Pair's pinned parser fixtures.
+
+**Delta:** Codex v1 accepts either string `"subagent"` or the already specified
+strict object form when `parent_thread_id` is a valid UUID. String sources
+`cli|exec` remain root-only, and every other string/object shape remains a
+`schema_near_miss`. Both accepted child forms are pinned in sanitized fixtures.
+
+### 2026-08-28 — installed Muse run identity conformance
+
+**Reason:** all sampled installed Muse subagent `runtime.session/run/started`
+records use a `run_id` equal to the child directory UUID, while sampled root
+records consistently use a distinct run ID. Treating root `run_id` as session
+identity would reject the installed root corpus despite the path being the
+declared authority.
+
+**Delta:** Muse v1 requires a present child `run_id` to equal the child
+directory UUID. Root `run_id` is run-scoped metadata and is ignored for node
+identity. Exact root/child path ancestry remains authoritative, and both shapes
+are pinned in the v1 fixture corpus.
+
+### 2026-08-28 — corrected Codex child-source observation
+
+**Reason:** the initial redacted aggregation reported the key name
+`"subagent"` without retaining that it came from an object, and was incorrectly
+read as a string source. A second type-preserving pass over every installed
+child record proved the source remains an object. Current `thread_spawn` has
+exact keys `agent_nickname`, `agent_path`, `agent_role`, `depth`, and
+`parent_thread_id`; the nested parent always equals the top-level parent.
+
+**Delta:** withdraw the string-`"subagent"` widening. Codex v1 accepts the
+legacy empty/depth-only object forms and the current exact five-field object;
+`agent_path` and `agent_role` may be string or null, the nickname is a string,
+depth is an integer at least one, and both parent IDs must agree. The corrected
+populated fixture owns this allowlist.
 
 ### 2026-08-28 — correlate exact user turns before weaker candidates
 

@@ -1,0 +1,2 @@
+{"timestamp":"2026-08-28T10:00:00Z","type":"session_meta","payload":{"id":"019d1111-1111-7111-8111-111111111111","source":"cli"}}
+{"timestamp":"2026-08-28T10:00:01Z","type":"response_item","payload":{"type":"message","role":"user","content":[{"type":"input_text","text":"sanitized prompt"}]}}
