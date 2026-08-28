@@ -253,7 +253,7 @@ git commit -m '#154: remove Couch inventory from Pair launch'
 - Modify: `cmd/pair-go/main.go`
 - Modify: `cmd/internal/artifactpath/manifest.go`
 
-- [ ] **Step 1: Remove direct-Pair mutation of Couch**
+- [x] **Step 1: Remove direct-Pair mutation of Couch**
 
 Delete `RegisterStandaloneThread`, `StandaloneThreadRegistration`, and
 `StandaloneThreadRegistrar` from `LaunchOptions`/runtime. Remove the pre-child
@@ -266,7 +266,7 @@ is the opaque pass-through. Retain `CouchLaunchProfileEnv`,
 `COUCH_THREAD_SCOPE`, and `COUCH_THREAD_TAG` only as one-shot invocation/address
 inputs already defined by Pair.
 
-- [ ] **Step 2: Run the write-removal slice**
+- [x] **Step 2: Run the write-removal slice**
 
 ```bash
 go test ./cmd/internal/launcher ./cmd/internal/couchcore ./cmd/pair-go -count=1
@@ -275,7 +275,7 @@ rg -n 'StandaloneThreadRegistration|StandaloneThreadRegistrar|RegisterStandalone
 
 Expected: tests PASS and grep has no matches.
 
-- [ ] **Step 3: Commit the write-path deletion**
+- [x] **Step 3: Commit the write-path deletion**
 
 ```bash
 git add cmd/internal/launcher cmd/internal/couchcore/standalone.go cmd/internal/couchcore/standalone_test.go cmd/pair-go/main.go cmd/internal/artifactpath/manifest.go

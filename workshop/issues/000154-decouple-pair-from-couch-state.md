@@ -148,7 +148,7 @@ total: 3.35
 ## Plan
 
 - [x] Write and approve the durable implementation plan.
-- [ ] Remove Couch persistence dependencies from Pair's launcher under failing regression tests.
+- [x] Remove Couch persistence dependencies from Pair's launcher under failing regression tests.
 - [ ] Keep Couch-owned lookup and hosted registration working under integration tests.
 - [ ] Update the atlas and project record to state the corrected layer boundary.
 
@@ -196,3 +196,11 @@ name/path resolution, picker decoration, or historical Couch-name state. Exact
 identity now applies consistently to resume, rename, and restart rename re-entry,
 while `📁` inversion remains Pair-owned. Launcher/Couch suites, race checks,
 catalog contracts, and both per-task reviews passed (ARCH-DRY, ARCH-PURPOSE).
+
+### 2026-08-27 — standalone Couch writes removed
+
+Direct Pair no longer composes or exposes a Couch registrar, store directory,
+or standalone thread upsert. The built public matrix is now green in all 32
+command/store combinations while opaque Couch environment still reaches the
+hosted child. Pair's address-claim timing and Couch's own promotion path remain
+unchanged; full and race suites plus both reviews passed (ARCH-PURE, ARCH-MOCK).
