@@ -54,14 +54,18 @@ func TestRenamePathsForZip(t *testing.T) {
 }
 
 func TestValidateRenameTags(t *testing.T) {
-	if _, _, err := validateRenameTags("pair-x", "x"); err == nil {
-		t.Fatal("pair-x and x normalize to the same tag → must refuse old==new")
+	old, nw, err := validateRenameTags("pair-x", "x")
+	if err != nil || old != "pair-x" || nw != "x" {
+		t.Fatalf("exact distinct tags = (%q,%q,%v)", old, nw, err)
+	}
+	if _, _, err := validateRenameTags("pair-x", "pair-x"); err == nil {
+		t.Fatal("identical exact tags must be refused")
 	}
 	if _, _, err := validateRenameTags("a", strings.Repeat("z", 257)); err == nil {
 		t.Fatal(">256 tag must be refused")
 	}
-	old, nw, err := validateRenameTags("pair-old", "new")
-	if err != nil || old != "old" || nw != "new" {
+	old, nw, err = validateRenameTags("pair-old", "new")
+	if err != nil || old != "pair-old" || nw != "new" {
 		t.Fatalf("validate = (%q,%q,%v)", old, nw, err)
 	}
 }
@@ -160,6 +164,38 @@ func TestRunRenameHappyPath(t *testing.T) {
 	}
 	if !strings.Contains(out.String(), "ok") {
 		t.Fatalf("stdout = %q", out.String())
+	}
+}
+
+func TestRunRenamePreservesExactPrefixedOldTag(t *testing.T) {
+	rt := newFakeRuntime()
+	rt.files["/data"] = ""
+	rt.files["/data/draft-pair-demo.md"] = "exact old tag"
+	var out, errBuf bytes.Buffer
+
+	if code := runRename(rt, LaunchArgs{RenameOld: "pair-demo", RenameNew: "renamed"}, "/data", &out, &errBuf); code != 0 {
+		t.Fatalf("code=%d stdout=%s stderr=%s", code, out.String(), errBuf.String())
+	}
+	if got := rt.files["/data/draft-renamed.md"]; got != "exact old tag" {
+		t.Fatalf("renamed draft = %q, want exact pair-demo source", got)
+	}
+	if _, ok := rt.files["/data/draft-pair-demo.md"]; ok {
+		t.Fatal("exact pair-demo source remains after rename")
+	}
+}
+
+func TestRunRenamePreservesExactPrefixedNewTag(t *testing.T) {
+	rt := renameFake(t)
+	var out, errBuf bytes.Buffer
+
+	if code := runRename(rt, LaunchArgs{RenameOld: "old", RenameNew: "pair-new"}, "/data", &out, &errBuf); code != 0 {
+		t.Fatalf("code=%d stdout=%s stderr=%s", code, out.String(), errBuf.String())
+	}
+	if got := rt.files["/data/draft-pair-new.md"]; got != "draft" {
+		t.Fatalf("renamed draft = %q, want exact pair-new destination", got)
+	}
+	if _, ok := rt.files["/data/draft-new.md"]; ok {
+		t.Fatal("rename stripped pair- from the destination tag")
 	}
 }
 

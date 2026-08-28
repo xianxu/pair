@@ -1,4 +1,6 @@
-// Package strictjson owns Couch's persisted-JSON acceptance boundary.
+// Package strictjson provides strict decoding for Couch persisted state and
+// the allowed one-shot Pair launch profile; it does not make that profile
+// Couch-owned persisted state.
 package strictjson
 
 import (

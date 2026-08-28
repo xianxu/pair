@@ -259,6 +259,28 @@ func TestRunLaunchRenameReentry(t *testing.T) {
 	}
 }
 
+func TestRunLaunchRenameReentryPreservesExactPrefixedTags(t *testing.T) {
+	rt := newFakeRuntime()
+	rt.uuids = []string{"MINT"}
+	rt.quitMarkers["📁work-pair-demo"] = true
+	rt.restartMarkers["📁work-pair-demo"] = RestartMarker{Tag: "pair-demo", Agent: "claude", RenameTo: "pair-new"}
+	rt.files["/data"] = ""
+	rt.files["/data/draft-pair-demo.md"] = "exact prefixed work"
+
+	opts := baseOpts(LaunchArgs{Agent: "claude", ForcedTag: "pair-demo"})
+	opts.Env.DataDir = "/data"
+	_, err := run(t, opts, rt)
+	if err != nil {
+		t.Fatalf("rename re-entry should be native, got %v", err)
+	}
+	if rt.launchCount != 2 || rt.launched != "📁work-pair-new" {
+		t.Fatalf("relaunch = %d handoffs, session %q; want 2 and exact pair-new tag", rt.launchCount, rt.launched)
+	}
+	if got := rt.files["/data/draft-pair-new.md"]; got != "exact prefixed work" {
+		t.Fatalf("renamed draft = %q, want exact prefixed rename", got)
+	}
+}
+
 func TestRunLaunchRenameReentryIgnoresOtherScopeTargetTag(t *testing.T) {
 	rt := newFakeRuntime()
 	rt.uuids = []string{"MINT"}
