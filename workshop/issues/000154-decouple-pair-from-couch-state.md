@@ -188,3 +188,11 @@ changes, and deterministic sidecar ownership keeps the harness isolated. The
 tests fail only at the current ThreadIndex read and standalone registration
 couplings; both review stages passed after hardening process cleanup and ambient
 environment control (ARCH-PURPOSE, ARCH-MOCK).
+
+### 2026-08-27 — Pair inventory reads removed
+
+The launcher no longer contains Couch `ThreadIndex` types, filesystem reads,
+name/path resolution, picker decoration, or historical Couch-name state. Exact
+identity now applies consistently to resume, rename, and restart rename re-entry,
+while `📁` inversion remains Pair-owned. Launcher/Couch suites, race checks,
+catalog contracts, and both per-task reviews passed (ARCH-DRY, ARCH-PURPOSE).

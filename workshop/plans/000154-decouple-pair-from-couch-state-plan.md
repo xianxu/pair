@@ -197,7 +197,7 @@ git commit -m '#154: pin direct Pair independence from Couch state'
 - Modify: `cmd/internal/threadrecord/record.go`
 - Modify: `cmd/internal/strictjson/decode.go`
 
-- [ ] **Step 1: Remove Couch inventory from the launcher decision path**
+- [x] **Step 1: Remove Couch inventory from the launcher decision path**
 
 Delete `ReadThreadIndex` from `SessionNameStoreOps`, `OSRuntime`, and the fake
 runtime. Remove the manifest read, history merge, live-row decoration,
@@ -215,7 +215,7 @@ Pair-owned binding index (ARCH-PURPOSE exact-tag identity).
 Delete the launcher thread-index implementation/tests. Update
 `SessionNameEntry` to describe only Zellij socket bindings.
 
-- [ ] **Step 2: Remove obsolete read-path scaffolding and inventory entries**
+- [x] **Step 2: Remove obsolete read-path scaffolding and inventory entries**
 
 Delete fake `threadIndex` state, standalone-name picker/ambiguity/decorator
 cases, and the “human Couch name is not renameable” test. Keep the permanent
@@ -223,7 +223,7 @@ process matrix and exact-tag tests. Remove deleted source paths from the artifac
 manifest; update `threadrecord`/`strictjson` comments so they describe Couch's
 internal record acceptance rather than a standalone Pair reader.
 
-- [ ] **Step 3: Run the read-removal slice**
+- [x] **Step 3: Run the read-removal slice**
 
 ```bash
 go test ./cmd/internal/launcher ./cmd/internal/couchcore -count=1
@@ -233,7 +233,7 @@ rg -n 'ReadThreadIndex|ThreadIndex|ResolveThreadIndexReference' cmd/internal/lau
 Expected: tests PASS and grep has no matches. `CouchStoreDir` plumbing remains
 temporarily until Task 4 deletes the write composition.
 
-- [ ] **Step 4: Commit the read-path deletion**
+- [x] **Step 4: Commit the read-path deletion**
 
 ```bash
 git add cmd/internal/launcher cmd/internal/artifactpath/manifest.go cmd/internal/threadrecord/record.go cmd/internal/strictjson/decode.go
