@@ -13,7 +13,7 @@ func TestDispatchNamesDeriveFromImplementedStatus(t *testing.T) {
 	// keys off DispatchNames(), so if one of these were accidentally left
 	// `planned`, `pair changelog` would fall through to the launcher (start a
 	// session) with no other test catching it.
-	for _, want := range []string{"agent", "context", "layout", "scrollback", "wrap", "term", "slug", "changelog", "continuation", "session-watch", "session-log", "scribe", "review", "clip", "title", "keys"} {
+	for _, want := range []string{"agent", "context", "layout", "scrollback", "wrap", "term", "slug", "changelog", "continuation", "session-inventory", "session-watch", "session-log", "scribe", "review", "clip", "title", "keys"} {
 		if !containsStr(names, want) {
 			t.Fatalf("DispatchNames() = %v, missing implemented %q", names, want)
 		}
@@ -54,6 +54,7 @@ func TestResolveNestedFlatAndAlias(t *testing.T) {
 		{[]string{"scrollback", "render"}, "scrollback render", []string{}, true},
 		{[]string{"clip", "copy-on-select", "--orchestrate"}, "clip copy-on-select", []string{"--orchestrate"}, true},
 		{[]string{"session-log", "append"}, "session-log append", []string{}, true},
+		{[]string{"session-inventory", "--json"}, "session-inventory", []string{"--json"}, true},
 		{[]string{"context", "T", "claude"}, "context", []string{"T", "claude"}, true},
 		{[]string{"scrollback-render"}, "", nil, false}, // the M2 transitional alias is gone (#104 M3)
 		{[]string{"changelog"}, "", nil, false},         // bare group token is not a family
@@ -69,6 +70,13 @@ func TestResolveNestedFlatAndAlias(t *testing.T) {
 		if ok && len(rest) != len(c.wantRest) {
 			t.Errorf("Resolve(%v) rest = %v, want %v", c.args, rest, c.wantRest)
 		}
+	}
+}
+
+func TestDispatchRoutesSessionInventoryUsage(t *testing.T) {
+	res := Dispatch([]string{"session-inventory", "--agent", "unsupported"})
+	if res.ExitCode != 1 || res.Stdout != "" || !strings.Contains(res.Stderr, "unsupported agent") {
+		t.Fatalf("result=%#v", res)
 	}
 }
 

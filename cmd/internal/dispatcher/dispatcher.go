@@ -14,6 +14,7 @@ import (
 	"github.com/xianxu/pair/cmd/internal/opener"
 	"github.com/xianxu/pair/cmd/internal/reviewcmd"
 	"github.com/xianxu/pair/cmd/internal/scrollbackcmd"
+	"github.com/xianxu/pair/cmd/internal/sessioninventory"
 	"github.com/xianxu/pair/cmd/internal/slugcmd"
 )
 
@@ -58,7 +59,8 @@ func Families() []CommandFamily {
 		{Name: "wrap", Summary: "PTY proxy around a TUI agent", Status: "implemented", Streaming: true},
 		{Name: "term", Summary: "right workbench terminal with pane-local shortcuts", Status: "implemented", Streaming: true},
 		{Name: "scribe", Summary: "PTY logging wrapper", Status: "implemented", Streaming: true},
-		{Name: "session-watch", Summary: "async agent session-id discovery", Status: "implemented", Streaming: true},
+		{Name: "session-inventory", Summary: "deterministic native session forests and Pair bindings", Status: "implemented"},
+		{Name: "session-watch", Summary: "round-gated native session establishment", Status: "implemented", Streaming: true},
 		{Name: "session-log append", Summary: "durably append operator-authored text to the scoped Pair log", Status: "implemented", Streaming: true},
 		{Name: "title", Summary: "agent pane title poller", Status: "implemented", Streaming: true},
 		{Name: "continuation", Summary: "continuation datatype writer", Status: "implemented", Streaming: true},
@@ -183,6 +185,10 @@ func Dispatch(args []string) Result {
 		})
 	case "slug":
 		return dispatchSlug(rest)
+	case "session-inventory":
+		return bufferedStdoutStderr(func(stdout, stderr *bytes.Buffer) int {
+			return sessioninventory.RunCLI(rest, os.Getenv, stdout, stderr)
+		})
 	case "layout toggle-focused":
 		return bufferedStderr(func(stderr *bytes.Buffer) int { return layoutcmd.RunToggleFocused(rest, layoutcmd.OSRuntime{}, stderr) })
 	case "layout focus-terminal":

@@ -70,14 +70,14 @@ PAIR_LIVE_CAPTURE_OUT=cmd/internal/wrapcmd/testdata/tty/<agent>/<version>/compos
 ---
 
 ### Aspect 3: Session ID Watcher & Recovery
-`pair` features a robust restart-in-place (`Alt+n`) and session reattach (`pair resume <tag>`) mechanism. To make this work, the launcher needs to discover the agent's unique conversation/session ID as soon as it is spawned.
+`pair` features restart-in-place (`Alt+n`) and session reattach (`pair resume <tag>`). Recovery identity is established only after one completed native causal round.
 
 **Discovery & Watcher:**
-- **Files:** the `pair session-watch` dispatcher route and `cmd/internal/sessionwatch` (the standalone helper and `.sh` shim are retired).
-- Since TUI agents do not always expose session IDs on stdout, `pair session-watch` runs in the background. Both whole-workbench launch/restart and agent-only Shift+Alt+N serialize the command through `sessionwatch.CommandArgs` with a generation lower bound captured before spawn. The watcher consumes exact `$PAIR_AGENT_PID_PATH` even if the detached process starts later, captures that process incarnation's kernel start token, walks its descendants, and inspects files held open via `lsof -p <pid>`. Slow polls revalidate the token so PID reuse cannot transfer watcher ownership.
-- Configure the agent's session file criteria in `cmd/internal/sessionwatch.SpecForAgent`, then teach `AgentSpec.Match` how to recognize that agent's file shape and return a `SessionID`.
-- For example, agy watches `~/.gemini/antigravity-cli/conversations` and extracts the UUID from `<uuid>.db`; codex watches `~/.codex/sessions`, extracts a candidate UUID from `rollout-*.jsonl`, then authorizes it only when the first event is matching root `session_meta`; muse watches `~/.local/share/muse/sessions` and extracts the UUID from the parent dir of `session.jsonl` (`YYYY/MM/DD/<uuid>/session.jsonl`) — excluding `…/<uuid>/subagent/<sub-uuid>/session.jsonl` (only the root session is resumable via `muse resume <id>`).
-- When captured, the watcher writes `{ "agent": "<agent>", "args": [...], "session_id": "<uuid>" }` to exact `$PAIR_AGENT_CONFIG_PATH`.
+- **Files:** native shape/event parsing lives in `cmd/internal/sessioninventory`; generation monitoring and persistence live in `cmd/internal/sessionwatch`.
+- Add one versioned facts-only scanner and sanitized fixtures. It must enumerate roots and descendants, validate native parent edges, and emit allowlisted operator/progress events. Unknown shapes become coded diagnostics.
+- Whole-workbench launch and agent-only restart synchronously append a provisional launch baseline before input, then pass its physical ordinal to `pair session-watch`.
+- The watcher uses the shared scanner and exact Pair-log matcher. Process/open-file snapshots corroborate a candidate but never select one; only a unique completed round persists a binding and refreshes config.
+- Add the agent to `ScannerForAgent`, `SupportsAgent`, conformance, and `pair session-inventory` tests. A pre-round quit must remain provisional; repeated rounds must remain ambiguous.
 
 **Recovery Flags:**
 - **File:** `cmd/internal/launcher/agentargs.go`
@@ -88,7 +88,7 @@ PAIR_LIVE_CAPTURE_OUT=cmd/internal/wrapcmd/testdata/tty/<agent>/<version>/compos
 - Extend `OSRuntime.AgentSessionExists` with the agent's native artifact and add
   a focused launcher test for both present and absent sessions.
 
-**Telemetry Signal** (aspect `3`, see §3): `session-id` from `pair session-watch` — `fired` when `AgentSpec.Match` resolves an id and the config is written, **`near-miss`** when a file matching the watch pattern is found but no id can be extracted (filename/format drift), `fail` when the 60-second fast-discovery window elapses without a fresh PID or an id. With a fresh PID, the watcher instead continues discovery every 60 seconds for the agent process lifetime, accommodating agents that create their transcript only after the first interaction. The native launcher's `resumeToken`/`composeResumeArgs` mapping consumes this id; it is static config with no separate signal.
+**Telemetry Signal** (aspect `3`, see §3): `session-id` from `pair session-watch` — `fired` after a durable binding append, **`near-miss`** when PID identity changes or native records cannot form an allowlisted round, and `fail` when no completed round appears in the startup window. The ledger remains authoritative if config refresh fails.
 
 ---
 
@@ -145,7 +145,7 @@ When introducing a new agent `<name>`, ensure you complete each item:
 
 1. [ ] **Verify Return Key remapping** on the harness profile in `harnessTTYProfiles` (Enter = newline, Alt+Enter = send), and pin it with a captured fixture under `cmd/internal/wrapcmd/testdata/tty/`.
 2. [ ] **Check for blocking TUI overlays** (permission pickers **and** user selection / AskUserQuestion menus) and implement a PTY overlay detector and register it on the harness profile in `harnessTTYProfiles` if needed — verify plain Enter confirms the picker and Alt+Enter is not required.
-3. [ ] **Implement Session Watching** in `cmd/internal/sessionwatch` behind the `pair session-watch` route (using `lsof` and target file patterns).
+3. [ ] **Implement Session Inventory + Watching** with a versioned scanner/event adapter, conformance fixture, provisional launch baseline, and completed-round watcher; use open files only as corroboration.
 4. [ ] **Configure Launcher Recovery** in `cmd/internal/launcher`: extend `resumeToken`, `composeResumeArgs`, and `OSRuntime.AgentSessionExists` with table/fixture coverage.
 5. [ ] **Add slug generation support** in `pair-slug` (transcript parsing + sandboxed print execution).
 6. [ ] **Confirm mouse scroll and scrollback render** work smoothly without drawing glitch issues.

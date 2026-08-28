@@ -28,6 +28,13 @@ func TestM1CoreConceptTableMatchesDeclarations(t *testing.T) {
 	assertConceptContract(t, root, "M1", []string{"cmd/internal/sessioninventory", "cmd/internal/sessioninventorytest"})
 }
 
+func TestM2CoreConceptTableMatchesDeclarations(t *testing.T) {
+	root := filepath.Join("..", "..", "..")
+	assertConceptContract(t, root, "M2", []string{
+		"cmd/internal/sessioninventory", "cmd/internal/sessionledger", "cmd/internal/sessionwatch", "cmd/internal/pairlog",
+	})
+}
+
 func assertConceptContract(t *testing.T, root, milestone string, directories []string) {
 	t.Helper()
 	plan := readPlanConcepts(t, filepath.Join(root, "workshop", "plans", "000155-agent-session-tree-inventory-plan.md"), milestone)
@@ -138,8 +145,12 @@ func markedConcepts(declaration ast.Decl, path, milestone string) []conceptContr
 		if marker == nil {
 			marker = conceptMarker(group.Doc)
 		}
-		if len(marker) == 3 && marker[2] == milestone {
-			result = append(result, conceptContract{Name: typeSpec.Name.Name, Kind: marker[0], Path: path, Status: marker[1], Introduced: marker[2]})
+		if len(marker) >= 3 && marker[2] == milestone {
+			name := typeSpec.Name.Name
+			if len(marker) == 4 {
+				name = marker[3]
+			}
+			result = append(result, conceptContract{Name: name, Kind: marker[0], Path: path, Status: marker[1], Introduced: marker[2]})
 		}
 	}
 	sort.Slice(result, func(i, j int) bool { return result[i].Name < result[j].Name })

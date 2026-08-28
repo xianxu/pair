@@ -340,6 +340,21 @@ func TestArtifactVocabularyOwnsExternalDraftCommandRecognition(t *testing.T) {
 	}
 }
 
+func TestHistoryAndConfigSidecarRecognition(t *testing.T) {
+	t.Parallel()
+	if tag, ok := TagFromHistorySidecar("log-work.md"); !ok || tag != "work" || !IsLogHistorySidecar("log-work.md") {
+		t.Fatalf("log recognition = %q,%v", tag, ok)
+	}
+	if tag, agent, ok := TagAgentFromConfigSidecar("config-my-work-codex.json", []string{"claude", "codex"}); !ok || tag != "my-work" || agent != "codex" {
+		t.Fatalf("config recognition = %q,%q,%v", tag, agent, ok)
+	}
+	for _, invalid := range []string{"config-work-other.json", "config-../work-codex.json", "log-.md"} {
+		if tag, agent, ok := TagAgentFromConfigSidecar(invalid, []string{"codex"}); ok || tag != "" || agent != "" {
+			t.Fatalf("accepted invalid config %q", invalid)
+		}
+	}
+}
+
 func TestPairCachePathsOwnRestartAndQuitMarkers(t *testing.T) {
 	cache, err := ResolvePairCache("/tmp/home")
 	if err != nil {

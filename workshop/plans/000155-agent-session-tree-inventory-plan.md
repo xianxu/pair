@@ -454,7 +454,7 @@ and mechanical guard; executable fixtures/fuzz seeds own individual cases.
   - `go test ./cmd/internal/sessionwatch ./cmd/internal/sessionledger ./cmd/internal/launcher -count=1`
   - `go test ./cmd/internal/wrapcmd -count=1`
   - `bash tests/pair-session-watch-test.sh`
-- [ ] Commit: `git add cmd/internal/sessionwatch cmd/internal/sessionledger cmd/internal/launcher cmd/internal/wrapcmd tests/pair-session-watch-test.sh && git commit -m '#155 M2: gate watcher binding on native progress'`.
+- [x] Commit: `git add cmd/internal/sessionwatch cmd/internal/sessionledger cmd/internal/launcher cmd/internal/wrapcmd tests/pair-session-watch-test.sh && git commit -m '#155 M2: gate watcher binding on native progress'`.
 
 ### Task 7: Expose stable inventory and conformance CLI
 
@@ -470,14 +470,14 @@ and mechanical guard; executable fixtures/fuzz seeds own individual cases.
 - Modify: `cmd/pair-go/main.go`
 - Test: `cmd/pair-go/main_test.go`
 
-- [ ] RED/GREEN: add `TestRenderV1` from the strategy table, then implement
+- [x] RED/GREEN: add `TestRenderV1` from the strategy table, then implement
       buffered stable human/schema-v1 rendering and privacy redaction.
-- [ ] RED/GREEN: add `TestRunCLI` from the strategy table, then implement the
+- [x] RED/GREEN: add `TestRunCLI` from the strategy table, then implement the
       exact flag/result matrix and buffered dispatcher route.
-- [ ] Run:
+- [x] Run:
   - `go test ./cmd/internal/sessioninventory ./cmd/internal/dispatcher ./cmd/pair-go -count=1`
   - `git diff --check`
-- [ ] Update atlas for the establishment boundary, ambiguity, offline recovery,
+- [x] Update atlas for the establishment boundary, ambiguity, offline recovery,
       and CLI, then commit implementation/tests/atlas and any pre-boundary
       design log while M2 remains unchecked.
 - [ ] Run `sdlc milestone-close --issue 155 --milestone M2 --verified 'single/two-turn thresholds, ambiguity intersection, both crash boundaries, provisional launch/restart, watcher persistence, CLI exits, and privacy goldens pass'`. Let the binary tick M2, update Couch, measure time, and write the close log.

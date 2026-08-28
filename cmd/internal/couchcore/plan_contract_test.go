@@ -21,7 +21,7 @@ type issue149ConceptRequirement struct {
 	kind string
 }
 
-const issue149M5DeclarationDigest = "de4a63451615c760db475013ba5fb5147ee1c007509e769a996331681a5f0eb0"
+const issue149M5DeclarationDigest = "d62d83cf4a1c9bcdf289b34cfec29f60321ff79e3a37a546b66aa7f7d30f56e3"
 
 // issue149M5GoSources is the exhaustive set of Go sources touched by M5. Every
 // declaration in these files receives a disposition: a pair:m5-concept marker
@@ -73,8 +73,11 @@ var issue149M5GoSources = []string{
 	"cmd/internal/sessioninventory/model.go", "cmd/internal/sessioninventory/model_test.go",
 	"cmd/internal/sessioninventory/offline.go", "cmd/internal/sessioninventory/offline_test.go",
 	"cmd/internal/sessioninventory/order.go", "cmd/internal/sessioninventory/order_test.go",
+	"cmd/internal/sessioninventory/pair_inventory.go", "cmd/internal/sessioninventory/pair_inventory_test.go",
 	"cmd/internal/sessioninventory/pairfacts.go", "cmd/internal/sessioninventory/pairfacts_test.go",
+	"cmd/internal/sessioninventory/render.go", "cmd/internal/sessioninventory/render_test.go",
 	"cmd/internal/sessioninventory/round.go", "cmd/internal/sessioninventory/round_test.go",
+	"cmd/internal/sessioninventory/runcli.go", "cmd/internal/sessioninventory/runcli_test.go",
 	"cmd/internal/sessioninventory/runtime.go", "cmd/internal/sessioninventory/runtime_os.go", "cmd/internal/sessioninventory/runtime_os_test.go",
 	"cmd/internal/sessioninventory/scan.go", "cmd/internal/sessioninventory/scan_agy.go", "cmd/internal/sessioninventory/scan_agy_test.go",
 	"cmd/internal/sessioninventory/scan_claude.go", "cmd/internal/sessioninventory/scan_claude_test.go",

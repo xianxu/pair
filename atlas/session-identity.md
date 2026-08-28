@@ -13,8 +13,10 @@ Pair separates identities that used to be partly conflated:
   `session-names.jsonl` for one `{scope, tag}`.
 - **Agent** — the resource running under a tag, such as `claude`, `codex`,
   `agy`, or `muse`. A tag can have sessions from more than one agent over time.
-- **Native session id** — the agent's own resumable conversation id, captured by
-  the launcher or `pair session-watch`.
+- **Native session id** — the agent's own resumable conversation id. Fresh
+  launches expose it as recovery state only after Pair establishes a completed
+  causal round; an explicit scanner-authorized resume may establish it at the
+  launch boundary.
 
 ## Native-session forest inventory
 
@@ -33,11 +35,27 @@ reads, read-only SQLite, and process/open-file snapshots. The sibling
 paths, IDs, or transcript content. Native parentage establishes topology only;
 it is not evidence that a Pair tag owns a root.
 
-This M1 foundation does not yet replace the existing watcher, transcript,
-context, slug, review, restart, or picker lookups below. #155 M2 adds
-round-gated root binding and the public inventory, after which final migration
-removes those independent discovery paths (ARCH-DRY, ARCH-PURE, ARCH-PURPOSE,
-ARCH-MOCK).
+M2 adds one round-gated binding lifecycle. Before agent input, the launcher
+appends a typed `launch` row containing the Pair-log byte offset and sorted
+native-event watermarks. A fresh launch is deliberately provisional: even a
+Claude ID minted for invocation is not recovery authority. An explicit resume
+may join immediately only when the scanner inventory recognizes its root.
+
+`pair session-watch` scans the complete forest and uses process/open-file facts
+only as stable before/after corroboration. A unique exact operator turn followed
+by assistant/tool/error progress proposes the root; the watcher appends a
+`binding` row only while the launch ordinal is still current, then refreshes the
+config cache. Repeated matches remain ambiguous and no timestamp, traversal
+order, first/newest file, or native parent edge breaks the tie. After a crash,
+the same matcher considers only bytes/events beyond the durable launch
+watermarks. A crash before progress therefore preserves nothing; a crash after
+progress can reconstruct the binding.
+
+`pair session-inventory [--agent ...] [--scope current|all] [--json]
+[--conformance]` exposes the canonical forests, correlations, ambiguities, and
+coded diagnostics. Schema v1 uses explicit nulls and sorted arrays; conformance
+emits only agent/status/count/code data. Final #155 migration still removes the
+remaining point consumers below (ARCH-DRY, ARCH-PURE, ARCH-PURPOSE, ARCH-MOCK).
 
 ## Data layout
 
@@ -200,13 +218,17 @@ thread tags remains unchanged.
 
 ## Ledger and caches
 
-Each tag has an append-only `ledger-<tag>.jsonl` in its scope dir. Ledger entries
-record agent, args, session id, timestamps, repo root/name, and whether a row
-came from a legacy import.
+Each tag has an append-only `ledger-<tag>.jsonl` in its scope dir. Current typed
+rows are a `launch`/`binding` union: physical line ordinal is the generation
+key, and a binding is current only when it joins the newest exact
+`{scope,tag,agent}` launch. The shared locked store owns append/fsync; malformed
+lines consume their ordinal instead of being silently reused. Historical
+launcher rows remain readable during migration.
 
-The ledger is the source of truth for agent/config inference. The older
-`agent-<tag>` and `config-<tag>-<agent>.json` files remain as derived caches and
-compatibility surfaces for existing consumers.
+The typed joined ledger binding is the source of truth for native recovery.
+The older `agent-<tag>` and `config-<tag>-<agent>.json` files remain derived
+caches and compatibility surfaces; config disagreement is diagnosed and cannot
+override a current ledger generation.
 
 ### Codex root identity
 

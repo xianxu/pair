@@ -172,6 +172,35 @@ func IsLedgerHistorySidecar(name string) bool {
 	return strings.HasPrefix(name, "ledger-") && strings.HasSuffix(name, ".jsonl")
 }
 
+// IsLogHistorySidecar distinguishes the authored log member after
+// TagFromHistorySidecar has validated the shared tag grammar.
+func IsLogHistorySidecar(name string) bool {
+	return strings.HasPrefix(name, "log-") && strings.HasSuffix(name, ".md")
+}
+
+// TagAgentFromConfigSidecar recognizes a validated config sidecar for one of
+// the caller's supported agent names without duplicating the filename family.
+func TagAgentFromConfigSidecar(name string, agents []string) (string, string, bool) {
+	if !strings.HasPrefix(name, "config-") || !strings.HasSuffix(name, ".json") {
+		return "", "", false
+	}
+	base := strings.TrimSuffix(strings.TrimPrefix(name, "config-"), ".json")
+	for _, agent := range agents {
+		if err := validateComponent("artifact component", agent); err != nil {
+			continue
+		}
+		suffix := "-" + agent
+		if !strings.HasSuffix(base, suffix) {
+			continue
+		}
+		tag := strings.TrimSuffix(base, suffix)
+		if validateComponent("pair tag", tag) == nil {
+			return tag, agent, true
+		}
+	}
+	return "", "", false
+}
+
 // CommandReferencesDraftArtifact recognizes the descriptive draft path token in
 // an external pane command without making layout classifiers own that token.
 func CommandReferencesDraftArtifact(command string) bool {

@@ -769,6 +769,18 @@ be checked against measured actuals at close.*
 
 ## Log
 
+- 2026-08-28 — M2 Task 7 adds the public `pair session-inventory` route with
+  canonical human and schema-v1 JSON rendering, explicit nulls/arrays, stable
+  byte goldens, current/all scope selection, typed-ledger and launch-delimited
+  offline correlation projection, coded partial diagnostics, buffered output,
+  and the specified usage/fatal result matrix. Conformance remains strictly
+  redacted to agent/status/count/code data; a live no-LLM Codex probe reported
+  1,194 nodes and 831 roots with no schema diagnostic. Artifact filename
+  recognition moved into shared `artifactpath` authority instead of creating a
+  new parser in the inventory. The M2 Core Concepts table is now checked
+  bidirectionally against marked production declarations (`ARCH-DRY`,
+  `ARCH-PURE`, `ARCH-PURPOSE`, `ARCH-MOCK`).
+
 - 2026-08-28 — M2 Task 6 replaces the watcher's first/newest discovery with a
   durable provisional-to-established lifecycle shared by outer launch and
   in-pane restart. Launch preparation records the Pair-log offset and sorted
