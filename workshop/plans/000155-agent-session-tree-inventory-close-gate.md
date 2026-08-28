@@ -276,6 +276,16 @@ rounds:
           round: 8
       boundary: M2
       blocked: true
+    - "n": 9
+      timestamp: "2026-08-28T16:55:37-07:00"
+      agent: codex
+      dispose:
+        - id: BR-9
+          disposition: addressed
+          note: Muse's unknown run-event default is pinned as near_miss and reaches a registry-backed turn_unusable diagnostic; the CLI golden separately requires diagnostics at all three Pair ledger/log/config read boundaries.
+          round: 9
+      boundary: M2
+      blocked: false
 ---
 
 # Gate ledger — pair#155 (boundary-review)
@@ -396,6 +406,12 @@ later rounds disposed of them. Generated — edit the gate, not this file.
 - BR-16 — addressed — Only scanner-authorized open artifacts activate process corroboration; reverting availability to any open file makes the regression hang instead of establishing the unique round.
 - BR-17 — addressed — The exact public evidence projection removes internal root_node_id and forces arrays; reintroducing the field makes the independent golden fail.
 
+## Round 9 — 2026-08-28T16:55:37-07:00 (codex) — passed
+
+### Disposed
+
+- BR-9 — addressed — Muse's unknown run-event default is pinned as near_miss and reaches a registry-backed turn_unusable diagnostic; the CLI golden separately requires diagnostics at all three Pair ledger/log/config read boundaries.
+
 ## Open findings
 
-- **BR-9** [Critical] `diagnostic-registry-single-source` Unrecognized and unreadable evidence is still silently discarded
+(none — every finding has been disposed)

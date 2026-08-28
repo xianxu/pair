@@ -759,7 +759,7 @@ be checked against measured actuals at close.*
 - [x] M1 — Build deterministic complete forests: pure model/order, stateful
       runtime seam and fake, four versioned scanners, stable rendering, and
       redacted live conformance.
-- [ ] M2 — Establish bindings only after a completed native round: shared event
+- [x] M2 — Establish bindings only after a completed native round: shared event
       normalization, durable launch/log boundaries, serialized ledger writes,
       live/offline exact-round matching, watcher persistence, ambiguity
       retention, parent-only descendant propagation, and public CLI.
@@ -907,6 +907,7 @@ be checked against measured actuals at close.*
   fix that baseline failure.
 
 ### 2026-08-28
+- 2026-08-28: closed M2 — Focused and full session inventory Go suites pass; go vet passes; historical #149 source/declaration contracts pass; make test-lua passes; statusline, queue-send, and pair-session-watch shell integrations pass; git diff --check passes. Full evidence classification diagnoses unsupported/malformed recognized evidence while filtering only supported unrequested agents.; review verdict: SHIP
 - 2026-08-28: closed M1 — all four sanitized scanners and explicit edge provenance pass; exhaustive M1 concept table/declaration contract, diagnostic registry, equal-time ordering, regular/partial storage, optional usage, artifact/source/project contracts, vet, diff check, and redacted installed-shape conformance pass; pre-existing Couch launch timeout remains separately deferred by operator; review verdict: SHIP
 
 Split from #152 design. The operator identified that durable repository state

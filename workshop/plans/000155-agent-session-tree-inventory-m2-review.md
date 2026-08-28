@@ -529,3 +529,81 @@ dispose:
     note: |
       The exact public evidence projection removes internal root_node_id and forces arrays; reintroducing the field makes the independent golden fail.
 ```
+
+---
+
+## Re-review — 2026-08-28T16:55:37-07:00 (SHIP)
+
+| field | value |
+|-------|-------|
+| issue | 155 — deterministic agent session-tree inventory |
+| repo | pair |
+| issue file | workshop/issues/000155-agent-session-tree-inventory.md |
+| boundary | milestone M2 |
+| milestone | M2 |
+| window | 4f151b037dc2d0f20d413c5af6a2353e131cec8e..8fc8ee22145032226bfc3ffd90acda50cf0d3470 |
+| command | sdlc milestone-close --issue 155 --milestone M2 |
+| reviewer | codex |
+| timestamp | 2026-08-28T16:55:37-07:00 |
+| verdict | SHIP |
+
+## Review
+
+```verdict
+verdict: SHIP
+confidence: medium
+```
+
+M2 matches its Spec and Plan, and BR-9 is addressed with reachable regression coverage. The pure matching/binding core, injected runtime boundaries, stable CLI contract, diagnostics, README, and atlas updates are coherent. No Critical, Important, or Minor findings remain. Confidence is medium only because one broader test group requires `/bin/ps`, which this review sandbox forbids.
+
+### Strengths
+
+- Unknown Muse run-event kinds now fail closed as `EventNearMiss`, then become registry-backed `turn_unusable` diagnostics at the inventory boundary ([event.go](/Users/xianxu/workspace/pair/cmd/internal/sessioninventory/event.go:316), [events.go](/Users/xianxu/workspace/pair/cmd/internal/sessioninventory/events.go:64)).
+- Unreadable Pair ledger, log, and config artifacts each produce `storage_unreadable`; the golden test requires all three and prevents error-path leakage ([runcli_test.go](/Users/xianxu/workspace/pair/cmd/internal/sessioninventory/runcli_test.go:145)).
+- The M1/M2 Core Concepts tables are enforced bidirectionally against marked declarations; both contract tests pass.
+- The public command and its provisional/established semantics are documented in README and the architectural flow is updated in `atlas/`.
+- Ledger and Pair-log persistence use dedicated seams with stateful failure/concurrency tests.
+
+### Critical findings
+
+None.
+
+### Important findings
+
+None.
+
+### Minor findings
+
+None.
+
+### Test coverage notes
+
+Passed:
+
+- Focused BR-9 adapter, inventory, CLI, and rejection tests.
+- `sessioninventory`, `sessionledger`, `pairlog`, `sessionwatch`, `launcher`, `wrapcmd`, and `dispatcher`.
+- M1 and M2 Core Concepts contract tests.
+- Lua suite.
+- `tests/pair-session-watch-test.sh`.
+- Pinned-range `git diff --check`.
+
+The broader `cmd/pair-go` run reached `TestPublicPairCommandFamiliesIgnoreCouchStore` but its subprocesses could not execute `/bin/ps` under this sandbox (`operation not permitted`). No functional assertion failed outside that environmental restriction.
+
+### Architectural notes
+
+- `ARCH-DRY`: Pass — event parsing, normalization, ledger persistence, Pair-log persistence, and binding selection each have one shared owner.
+- `ARCH-PURE`: Pass — causal matching and binding resolution are deterministic pure functions; filesystem, process, SQLite, and persistence work stay behind injected seams.
+- `ARCH-PURPOSE`: Pass — M2 delivers round-gated establishment and the stable inventory CLI. Final consumer migration remains explicitly scoped to the subsequent plan chunk.
+- `ARCH-MOCK`: Pass — stateful portable fakes cover runtime and persistence interactions, with an opt-in redacted live native-shape conformance path.
+
+### Plan revision recommendations
+
+None.
+
+```findings
+dispose:
+  - id: BR-9
+    disposition: addressed
+    note: |
+      Muse's unknown run-event default is pinned as near_miss and reaches a registry-backed turn_unusable diagnostic; the CLI golden separately requires diagnostics at all three Pair ledger/log/config read boundaries.
+```
