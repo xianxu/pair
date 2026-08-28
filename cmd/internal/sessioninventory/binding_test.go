@@ -98,6 +98,18 @@ func TestResolveBindings(t *testing.T) {
 	})
 }
 
+func TestResolveBindingsCurrentLaunchSuppressesCompatibilityConfig(t *testing.T) {
+	t.Parallel()
+	resolved := ResolveBindings(bindingTestInventory(), []BindingInput{{
+		ScopeKey: "scope", Tag: "work", Agent: AgentClaude,
+		LaunchPresent: true, ConfigRootNodeID: "root-a",
+	}})
+	binding := onlyBinding(t, resolved)
+	if binding.Status != BindingProvisional || binding.RootNodeID != nil {
+		t.Fatalf("binding=%#v, want provisional with no recovery root", binding)
+	}
+}
+
 func TestResolveBindingsIsPermutationStable(t *testing.T) {
 	t.Parallel()
 	inventory := bindingTestInventory()

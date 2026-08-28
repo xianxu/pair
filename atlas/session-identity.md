@@ -53,8 +53,12 @@ progress can reconstruct the binding.
 
 `pair session-inventory [--agent ...] [--scope current|all] [--json]
 [--conformance]` exposes the canonical forests, correlations, ambiguities, and
-coded diagnostics. Schema v1 uses explicit nulls and sorted arrays; conformance
-emits only agent/status/count/code data. Final #155 migration still removes the
+coded diagnostics. A dedicated public DTO keeps schema v1 exact: internal root
+coordinates do not leak into evidence, and required position/fingerprint arrays
+remain arrays even when empty. Conformance emits only agent/status/count/code
+data. Pair's Go store and Neovim history navigation share the versioned
+byte-counted log grammar while retaining legacy entries, so authored Markdown
+separators round-trip. Final #155 migration still removes the
 remaining point consumers below (ARCH-DRY, ARCH-PURE, ARCH-PURPOSE, ARCH-MOCK).
 
 ## Data layout

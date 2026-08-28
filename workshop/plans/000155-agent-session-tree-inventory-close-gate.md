@@ -177,6 +177,79 @@ rounds:
           round: 5
       boundary: M2
       blocked: true
+    - "n": 6
+      timestamp: "2026-08-28T16:13:29-07:00"
+      agent: codex
+      dispose:
+        - id: BR-12
+          disposition: addressed
+          note: README lines 376-392 document the public command, flags, exit behavior, privacy, and binding states; TestREADMEDocumentsSessionInventoryContract pins the required surface.
+          round: 6
+        - id: BR-13
+          disposition: addressed
+          note: The result and failure matrix tests now compare exact exit, stdout, and stderr bytes for normal, partial, conformance, usage, fatal, privacy, serialization, and writer branches against checked-in goldens.
+          round: 6
+        - id: BR-14
+          disposition: not-addressed
+          note: The range is nonempty but still excludes every M2 implementation and test commit; rerun from the previous M1 boundary 4f151b037dc2d0f20d413c5af6a2353e131cec8e.
+          round: 6
+        - id: BR-15
+          disposition: addressed
+          note: The Couch checkbox and closure detail now move together, and TestUncheckedProjectMilestoneHasNoClosedMetadata passes while directly rejecting the prior unchecked-plus-closed state.
+          round: 6
+      boundary: M2
+      blocked: true
+    - "n": 7
+      timestamp: "2026-08-28T16:24:46-07:00"
+      agent: codex
+      dispose:
+        - id: BR-8
+          disposition: not-addressed
+          note: The launcher marker instance is fixed and tested, but sessioninventory still selects config evidence when LaunchPresent is true and no round or binding exists, re-establishing stale compatibility state during a provisional typed launch.
+          round: 7
+        - id: BR-9
+          disposition: not-addressed
+          note: The adapter and CLI cases are tested, but watcher Pair-log read failures, owner-mismatched typed ledger rows, and scanner-unknown ledger/config native IDs are still silently discarded.
+          round: 7
+        - id: BR-10
+          disposition: addressed
+          note: Nullable diagnostic coordinates use the shared null-last projection, with exhaustive equal-prefix comparator coverage.
+          round: 7
+        - id: BR-11
+          disposition: not-addressed
+          note: The Go store/parser regression proves byte-counted framing, but Neovim history parsing and rewriting still use delimiter framing and cannot consume new entries or authored separator text.
+          round: 7
+        - id: BR-12
+          disposition: addressed
+          note: README documents the command, modes, lifecycle statuses, and exits, with an executable documentation regression.
+          round: 7
+        - id: BR-13
+          disposition: addressed
+          note: Checked-in result and failure matrix goldens now pin exact exit, stdout, and stderr bytes across the claimed CLI branches.
+          round: 7
+        - id: BR-14
+          disposition: addressed
+          note: The authoritative range is non-empty and contains 94 changed files with 6,422 additions and 1,668 deletions.
+          round: 7
+        - id: BR-15
+          disposition: addressed
+          note: Couch now carries the M2 checkbox, actual, date, and detail as one consistent gate-preflight state.
+          round: 7
+      findings:
+        - id: BR-16
+          severity: Critical
+          title: Unrelated open files suppress portable causal-round establishment
+          detail: 'ARCH-PURPOSE: cmd/internal/sessionwatch/run.go reports process evidence available whenever the Pair process tree has any open file, even when none maps to a scanner-authorized native artifact. Run then filters every otherwise unique causal round. Return available=true only for relevant native-artifact evidence, and add a stateful-fake regression with unrelated open files plus one globally unique completed round.'
+          family: usable-process-evidence-only
+          round: 7
+        - id: BR-17
+          severity: Critical
+          title: Public evidence JSON does not match the documented schema-v1 contract
+          detail: 'ARCH-PURPOSE: the internal Evidence type adds public root_node_id, and render.go copies it directly into the public DTO. Ledger/config evidence also renders required position and fingerprint arrays as null. Introduce an exact evidenceV1 projection with non-nil arrays and test it against an independent contract golden.'
+          family: schema-v1-output-is-exact
+          round: 7
+      boundary: M2
+      blocked: true
 ---
 
 # Gate ledger — pair#155 (boundary-review)
@@ -258,9 +331,39 @@ later rounds disposed of them. Generated — edit the gate, not this file.
 - **BR-15** [Critical] `repository-contracts-stay-green` M2 carries closed project metadata before the milestone is checked
   workshop/projects/couch.md leaves pair#155 M2 unchecked at line 173 but records actual and closed values at lines 399-400, causing TestUncheckedProjectMilestoneHasNoClosedMetadata to fail. This is the 2nd finding in family repository-contracts-stay-green. Do not fix only this instance: enforce that issue, plan, and project closure metadata changes only through the successful close-gate transaction; the current sweep measured one violation.
 
+## Round 6 — 2026-08-28T16:13:29-07:00 (codex) — BLOCKED
+
+### Disposed
+
+- BR-12 — addressed — README lines 376-392 document the public command, flags, exit behavior, privacy, and binding states; TestREADMEDocumentsSessionInventoryContract pins the required surface.
+- BR-13 — addressed — The result and failure matrix tests now compare exact exit, stdout, and stderr bytes for normal, partial, conformance, usage, fatal, privacy, serialization, and writer branches against checked-in goldens.
+- BR-14 — not-addressed — The range is nonempty but still excludes every M2 implementation and test commit; rerun from the previous M1 boundary 4f151b037dc2d0f20d413c5af6a2353e131cec8e.
+- BR-15 — addressed — The Couch checkbox and closure detail now move together, and TestUncheckedProjectMilestoneHasNoClosedMetadata passes while directly rejecting the prior unchecked-plus-closed state.
+
+## Round 7 — 2026-08-28T16:24:46-07:00 (codex) — BLOCKED
+
+### Disposed
+
+- BR-8 — not-addressed — The launcher marker instance is fixed and tested, but sessioninventory still selects config evidence when LaunchPresent is true and no round or binding exists, re-establishing stale compatibility state during a provisional typed launch.
+- BR-9 — not-addressed — The adapter and CLI cases are tested, but watcher Pair-log read failures, owner-mismatched typed ledger rows, and scanner-unknown ledger/config native IDs are still silently discarded.
+- BR-10 — addressed — Nullable diagnostic coordinates use the shared null-last projection, with exhaustive equal-prefix comparator coverage.
+- BR-11 — not-addressed — The Go store/parser regression proves byte-counted framing, but Neovim history parsing and rewriting still use delimiter framing and cannot consume new entries or authored separator text.
+- BR-12 — addressed — README documents the command, modes, lifecycle statuses, and exits, with an executable documentation regression.
+- BR-13 — addressed — Checked-in result and failure matrix goldens now pin exact exit, stdout, and stderr bytes across the claimed CLI branches.
+- BR-14 — addressed — The authoritative range is non-empty and contains 94 changed files with 6,422 additions and 1,668 deletions.
+- BR-15 — addressed — Couch now carries the M2 checkbox, actual, date, and detail as one consistent gate-preflight state.
+
+### Raised
+
+- **BR-16** [Critical] `usable-process-evidence-only` Unrelated open files suppress portable causal-round establishment
+  ARCH-PURPOSE: cmd/internal/sessionwatch/run.go reports process evidence available whenever the Pair process tree has any open file, even when none maps to a scanner-authorized native artifact. Run then filters every otherwise unique causal round. Return available=true only for relevant native-artifact evidence, and add a stateful-fake regression with unrelated open files plus one globally unique completed round.
+- **BR-17** [Critical] `schema-v1-output-is-exact` Public evidence JSON does not match the documented schema-v1 contract
+  ARCH-PURPOSE: the internal Evidence type adds public root_node_id, and render.go copies it directly into the public DTO. Ledger/config evidence also renders required position and fingerprint arrays as null. Introduce an exact evidenceV1 projection with non-nil arrays and test it against an independent contract golden.
+
 ## Open findings
 
-- **BR-12** [Important] `public-cli-readme` README documentation is missing for the new public session-inventory command
-- **BR-13** [Important] `cli-result-matrix-is-executable` Task 7 claims full result-matrix privacy goldens but tests cover only a subset
-- **BR-14** [Critical] `boundary-review-window-captures-delta` The authoritative review window contains no changes
-- **BR-15** [Critical] `repository-contracts-stay-green` M2 carries closed project metadata before the milestone is checked
+- **BR-8** [Critical] `established-binding-is-sole-recovery-authority` Plain restart can resume a stale config while the current typed launch is provisional
+- **BR-9** [Critical] `diagnostic-registry-single-source` Unrecognized and unreadable evidence is still silently discarded
+- **BR-11** [Critical] `authored-log-framing-round-trips` A valid Markdown horizontal rule inside authored text makes the entire round suffix unusable
+- **BR-16** [Critical] `usable-process-evidence-only` Unrelated open files suppress portable causal-round establishment
+- **BR-17** [Critical] `schema-v1-output-is-exact` Public evidence JSON does not match the documented schema-v1 contract

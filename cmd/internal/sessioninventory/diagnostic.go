@@ -36,3 +36,16 @@ func diagnosticSeverity(code DiagnosticCode) (Severity, bool) {
 	severity, ok := diagnosticRegistry[code]
 	return severity, ok
 }
+
+// DiagnosticWithSource constructs one registry-backed diagnostic for an IO
+// boundary that lives outside this package's pure core.
+func DiagnosticWithSource(code DiagnosticCode, agent Agent, nativeID *string, source, detail string) Diagnostic {
+	return diagnosticWithSource(code, agent, nativeID, source, detail)
+}
+
+func diagnosticWithSource(code DiagnosticCode, agent Agent, nativeID *string, source, detail string) Diagnostic {
+	result := diagnostic(code, agent, nativeID, detail)
+	result.SourceRef = &source
+	result.StableID = diagnosticID(result)
+	return result
+}

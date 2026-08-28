@@ -266,7 +266,7 @@ func prepareBinding(input BindingInput, authorized map[string]bool) (bindingWork
 		work.rank, work.authority, selected = 2, EvidenceLiveRound, intersectRootSets(liveSets)
 	case len(offlineSets) != 0:
 		work.rank, work.authority, selected = 3, EvidenceOfflineRound, intersectRootSets(offlineSets)
-	case configValid:
+	case configValid && !input.LaunchPresent:
 		work.rank, work.authority, selected = 4, EvidenceConfig, map[string]bool{input.ConfigRootNodeID: true}
 	}
 	for root := range selected {
@@ -367,13 +367,6 @@ func bindingOwner(binding Binding) string {
 func bindingDiagnostic(code DiagnosticCode, input BindingInput, root, source string) Diagnostic {
 	sourceRef := source + ":" + root
 	return diagnosticWithSource(code, input.Agent, nil, sourceRef, "binding evidence does not authorize a unique current root")
-}
-
-func diagnosticWithSource(code DiagnosticCode, agent Agent, nativeID *string, source, detail string) Diagnostic {
-	result := diagnostic(code, agent, nativeID, detail)
-	result.SourceRef = &source
-	result.StableID = diagnosticID(result)
-	return result
 }
 
 func ambiguityFor(work bindingWork) Ambiguity {

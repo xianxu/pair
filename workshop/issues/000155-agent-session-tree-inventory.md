@@ -769,6 +769,15 @@ be checked against measured actuals at close.*
 
 ## Log
 
+- 2026-08-28 — The first correctly anchored full-M2 review disposed the window,
+  README, CLI-matrix, ordering, and Couch-state findings, then exposed five
+  remaining authority classes. Regressions now prove a provisional launch
+  cannot select stale config, every Pair evidence rejection diagnoses,
+  unrelated open files do not veto a unique causal round, Neovim round-trips
+  legacy and byte-counted logs containing authored separators, and schema-v1
+  evidence has an independent exact DTO/golden with non-null arrays
+  (`ARCH-DRY`, `ARCH-PURE`, `ARCH-PURPOSE`, `ARCH-MOCK`).
+
 - 2026-08-28 — The M2 rerun kept the gate closed because its pinned window was
   empty, Couch carried actual/closed metadata beside an unchecked task, README
   prose lacked an executable contract, and Task 7's branch assertions were not

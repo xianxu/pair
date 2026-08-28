@@ -751,3 +751,19 @@ review dispatch.
 as one consistent preflight state. The repository contract rejects partial
 project closure state; the successful binary transaction still owns issue and
 plan closure state (`ARCH-PURPOSE`).
+
+### 2026-08-28 — full-range M2 authority, framing, and schema closure
+
+**Reason:** once the review window correctly covered all of M2, it found five
+classes hidden by the earlier fix-only ranges: provisional launches still
+selected config in the pure resolver; some Pair evidence rejection was silent;
+Neovim retained the legacy delimiter grammar; unrelated open files vetoed
+portable matching; and internal evidence fields leaked into schema v1.
+
+**Delta:** a current launch suppresses config selection until a typed binding
+joins it; every Pair read, owner mismatch, and scanner-unknown ledger/config ID
+diagnoses; one tested Lua framing module reads and rewrites legacy plus
+byte-counted entries; process corroboration is available only when an open file
+maps to a scanner-authorized root; and an independent `evidenceV1` DTO emits
+exact documented fields with required non-null arrays (`ARCH-DRY`, `ARCH-PURE`,
+`ARCH-PURPOSE`, `ARCH-MOCK`).

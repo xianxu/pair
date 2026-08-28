@@ -71,3 +71,25 @@ func TestRenderV1EmptyGoldens(t *testing.T) {
 		}
 	}
 }
+
+func TestRenderV1EvidenceContractGolden(t *testing.T) {
+	t.Parallel()
+	root := "node-root"
+	input := Inventory{Bindings: []Binding{{
+		StableID: "binding-a", ScopeKey: "scope", Tag: "work", Agent: AgentCodex,
+		RootNodeID: &root, Status: BindingEstablished,
+		Candidates: []Candidate{{RootNodeID: root, Rank: 1, Outcome: CandidateLocked, EvidenceIDs: []string{"evidence-a"}}},
+		Evidence:   []Evidence{{StableID: "evidence-a", Kind: EvidenceLedger, Rank: 1, SourceRef: "ledger", RootNodeID: root, Positive: true}},
+	}}}
+	got, err := RenderV1(input, RenderJSON)
+	if err != nil {
+		t.Fatal(err)
+	}
+	want, err := os.ReadFile(filepath.Join("testdata", "golden", "inventory-evidence-v1.json"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if string(got) != string(want) {
+		t.Fatalf("schema-v1 evidence mismatch\ngot:  %s\nwant: %s", got, want)
+	}
+}

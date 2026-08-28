@@ -2378,3 +2378,25 @@ valid workaround.
 actual, closed date, and detail block together, exactly as `sdlc` preflight
 requires. Never stage only the metadata or only the checkbox. Issue/plan gate
 state remains owned by the successful close transaction (`ARCH-PURPOSE`).
+
+## Optional corroboration is available only when it can discriminate
+
+The mere presence of process open files does not mean process evidence can
+corroborate a native root. Treating unrelated files as available evidence can
+filter every otherwise valid causal match.
+
+**Rule.** Optional corroboration reports “available” only when at least one
+observed fact maps through the authoritative model to a candidate it can
+distinguish. An irrelevant non-empty observation set is absence, not negative
+evidence; test both states through the production fake (`ARCH-PURPOSE`,
+`ARCH-MOCK`).
+
+## Public schemas project from internal models explicitly
+
+Serializing an internal evidence struct directly leaked an explanatory root ID
+and encoded required empty arrays as null, despite stable schema-v1 prose.
+
+**Rule.** A versioned public schema owns a dedicated DTO containing exactly its
+documented fields and presence semantics. Pin a non-empty independent golden;
+empty-output goldens cannot detect nested field leakage or null/empty drift
+(`ARCH-PURE`, `ARCH-PURPOSE`).

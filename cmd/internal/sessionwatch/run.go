@@ -1,6 +1,8 @@
 package sessionwatch
 
 import (
+	"errors"
+	"os"
 	"path/filepath"
 	"strings"
 	"time"
@@ -87,7 +89,11 @@ func Run(opts Options, rt Runtime) error {
 		beforeRoots, beforeAvailable := processAuthorizedRoots(nativeRuntime, inventory, agent, rootPID)
 		events, eventDiagnostics := sessioninventory.NativeEventsWithRuntime(nativeRuntime, inventory, agent)
 		inventory.Diagnostics = append(inventory.Diagnostics, eventDiagnostics...)
-		pairLog, _ := rt.ReadFile(paths.Log())
+		pairLog, logDiagnostics := readPairLog(rt, paths.Log(), agent)
+		inventory.Diagnostics = append(inventory.Diagnostics, logDiagnostics...)
+		for _, diagnostic := range logDiagnostics {
+			rt.Log(adapt.NearMiss, string(diagnostic.Code)+": Pair log unavailable for causal matching")
+		}
 		rounds, roundDiagnostics := sessioninventory.RoundsAfterLaunch(inventory, opts.ScopeKey, opts.Tag, agent, pairLog, current.Launch, events)
 		inventory.Diagnostics = append(inventory.Diagnostics, roundDiagnostics...)
 		afterRoots, afterAvailable := processAuthorizedRoots(nativeRuntime, inventory, agent, rootPID)
@@ -208,7 +214,20 @@ func processAuthorizedRoots(runtime sessioninventory.Runtime, inventory sessioni
 			}
 		}
 	}
-	return authorized, true
+	return authorized, len(authorized) != 0
+}
+
+func readPairLog(rt Runtime, path string, agent sessioninventory.Agent) ([]byte, []sessioninventory.Diagnostic) {
+	raw, err := rt.ReadFile(path)
+	if err == nil {
+		return raw, nil
+	}
+	if errors.Is(err, os.ErrNotExist) {
+		return nil, nil
+	}
+	return nil, []sessioninventory.Diagnostic{sessioninventory.DiagnosticWithSource(
+		sessioninventory.DiagnosticStorageUnreadable, agent, nil, "pair-log", "Pair log is unreadable during causal-round observation",
+	)}
 }
 
 func retainCorroboratedRounds(rounds []sessioninventory.RoundObservation, before, after map[string]bool) []sessioninventory.RoundObservation {

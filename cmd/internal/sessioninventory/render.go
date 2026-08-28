@@ -60,7 +60,18 @@ type correlationV1 struct {
 	RootNodeID *string       `json:"root_node_id"`
 	Status     BindingStatus `json:"status"`
 	Candidates []Candidate   `json:"candidates"`
-	Evidence   []Evidence    `json:"evidence"`
+	Evidence   []evidenceV1  `json:"evidence"`
+}
+
+type evidenceV1 struct {
+	EvidenceID           string       `json:"evidence_id"`
+	Kind                 EvidenceKind `json:"kind"`
+	Rank                 int          `json:"rank"`
+	SourceRef            string       `json:"source_ref"`
+	Positive             bool         `json:"positive"`
+	SourcePositions      []uint64     `json:"source_positions"`
+	DestinationPositions []uint64     `json:"destination_positions"`
+	Fingerprints         []string     `json:"fingerprints"`
 }
 
 type ambiguityV1 struct {
@@ -106,10 +117,19 @@ func projectV1(inventory Inventory) inventoryV1 {
 		correlation := correlationV1{
 			BindingID: binding.StableID, ScopeKey: binding.ScopeKey, Tag: binding.Tag, Agent: binding.Agent,
 			RootNodeID: cloneString(binding.RootNodeID), Status: binding.Status,
-			Candidates: make([]Candidate, len(binding.Candidates)), Evidence: make([]Evidence, len(binding.Evidence)),
+			Candidates: make([]Candidate, len(binding.Candidates)), Evidence: make([]evidenceV1, 0, len(binding.Evidence)),
 		}
 		copy(correlation.Candidates, binding.Candidates)
-		copy(correlation.Evidence, binding.Evidence)
+		for _, evidence := range binding.Evidence {
+			entry := evidenceV1{
+				EvidenceID: evidence.StableID, Kind: evidence.Kind, Rank: evidence.Rank,
+				SourceRef: evidence.SourceRef, Positive: evidence.Positive,
+				SourcePositions:      append([]uint64{}, evidence.SourcePositions...),
+				DestinationPositions: append([]uint64{}, evidence.DestinationPositions...),
+				Fingerprints:         append([]string{}, evidence.Fingerprints...),
+			}
+			correlation.Evidence = append(correlation.Evidence, entry)
+		}
 		result.Correlations = append(result.Correlations, correlation)
 	}
 	for _, ambiguity := range inventory.Ambiguities {

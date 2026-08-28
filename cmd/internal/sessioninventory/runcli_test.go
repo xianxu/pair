@@ -209,6 +209,30 @@ func TestREADMEDocumentsSessionInventoryContract(t *testing.T) {
 	}
 }
 
+func TestRecoverPairBindingsDiagnosesRejectedAndUnknownEvidence(t *testing.T) {
+	t.Parallel()
+	runtime := sessioninventorytest.NewFakeRuntime()
+	pairRoot := sessioninventory.StorageRoot{Name: "pair-data", Path: "/pair/scope"}
+	runtime.SetPairDataRoot(pairRoot)
+	ledger := "" +
+		`{"v":1,"kind":"launch","scope_key":"wrong-scope","tag":"work","agent":"codex","pair_log_offset":0,"native_watermarks":[]}` + "\n" +
+		`{"v":1,"kind":"launch","scope_key":"scope","tag":"work","agent":"codex","pair_log_offset":0,"native_watermarks":[]}` + "\n" +
+		`{"v":1,"kind":"binding","scope_key":"scope","tag":"work","agent":"codex","launch_ordinal":2,"root_native_id":"unknown-ledger"}` + "\n"
+	runtime.PutFile(sessioninventory.FileEntry{Artifact: sessioninventory.Artifact{StorageRoot: pairRoot.Name, RelativePath: "ledger-work.jsonl"}}, []byte(ledger))
+	runtime.PutFile(sessioninventory.FileEntry{Artifact: sessioninventory.Artifact{StorageRoot: pairRoot.Name, RelativePath: "config-work-codex.json"}}, []byte(`{"agent":"codex","session_id":"unknown-config"}`))
+	inventory, err := sessioninventory.RecoverPairBindings(runtime, sessioninventory.Inventory{}, "current", "scope", []sessioninventory.Agent{sessioninventory.AgentCodex})
+	if err != nil {
+		t.Fatal(err)
+	}
+	codes := map[sessioninventory.DiagnosticCode]int{}
+	for _, diagnostic := range inventory.Diagnostics {
+		codes[diagnostic.Code]++
+	}
+	if codes[sessioninventory.DiagnosticScopeRejected] != 1 || codes[sessioninventory.DiagnosticBindingStale] != 2 {
+		t.Fatalf("diagnostic codes=%v, want one scope_rejected and two binding_stale", codes)
+	}
+}
+
 func env(values map[string]string) func(string) string {
 	return func(key string) string { return values[key] }
 }

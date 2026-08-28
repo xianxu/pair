@@ -66,7 +66,11 @@ func RecoverPairBindings(runtime Runtime, inventory Inventory, scopeMode, curren
 			}
 			for _, record := range parsed.Records {
 				agent := Agent(record.Agent)
-				if !allowed[agent] || record.Tag != tag || (scope != "" && record.ScopeKey != scope) {
+				if !allowed[agent] {
+					continue
+				}
+				if record.Tag != tag || (scope != "" && record.ScopeKey != scope) {
+					diagnostics = append(diagnostics, diagnosticWithSource(DiagnosticScopeRejected, agent, nil, fmt.Sprintf("ledger:%s:%d", tag, record.Ordinal), "typed Pair ledger owner does not match its scoped artifact"))
 					continue
 				}
 				owner := pairOwner{scope: record.ScopeKey, tag: record.Tag, agent: agent}
@@ -129,7 +133,11 @@ func RecoverPairBindings(runtime Runtime, inventory Inventory, scopeMode, curren
 		rootByNative, _ := rootIdentityMaps(inventory.Forests, owner.agent)
 		input := BindingInput{ScopeKey: owner.scope, Tag: owner.tag, Agent: owner.agent}
 		if nativeID := configs[owner]; nativeID != "" {
-			input.ConfigRootNodeID = rootByNative[nativeID]
+			if root := rootByNative[nativeID]; root != "" {
+				input.ConfigRootNodeID = root
+			} else {
+				diagnostics = append(diagnostics, diagnosticWithSource(DiagnosticBindingStale, owner.agent, &nativeID, "config:"+owner.tag, "Pair config names no scanner-authorized root"))
+			}
 		}
 		current, present := sessionledger.CurrentLaunch(records[owner], sessionledger.Owner{ScopeKey: owner.scope, Tag: owner.tag, Agent: string(owner.agent)})
 		input.LaunchPresent = present
@@ -140,6 +148,9 @@ func RecoverPairBindings(runtime Runtime, inventory Inventory, scopeMode, curren
 			for _, binding := range current.Bindings {
 				if root := rootByNative[binding.RootNativeID]; root != "" {
 					input.LedgerRootNodeIDs = append(input.LedgerRootNodeIDs, root)
+				} else {
+					nativeID := binding.RootNativeID
+					diagnostics = append(diagnostics, diagnosticWithSource(DiagnosticBindingStale, owner.agent, &nativeID, fmt.Sprintf("ledger:%s:%d", owner.tag, binding.Ordinal), "Pair ledger names no scanner-authorized root"))
 				}
 			}
 			if len(input.LedgerRootNodeIDs) == 0 {

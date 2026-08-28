@@ -512,22 +512,17 @@ local function write_file(path, content)
   return true
 end
 
--- Parse log-<tag>.md into a list of entry bodies, oldest first.
--- Entry shape (per SessionLogStore): "## YYYY-MM-DD HH:MM:SS\n\n<body>\n\n---\n\n".
--- Splitting on the entry separator yields parts; the trailing chunk is "" since
--- the file ends with the separator. Each non-empty part starts with the
--- timestamp header which we strip to recover just the body.
+local pair_log = dofile((debug.getinfo(1, 'S').source:match('@?(.*/)') or './') .. 'pairlog.lua')
+
+-- Parse log-<tag>.md into entry bodies, oldest first, through the same legacy
+-- and byte-counted v1 grammar SessionLogStore writes.
 local function parse_log(text)
-  local entries = {}
-  if text == '' then return entries end
-  local parts = vim.split(text, '\n\n---\n\n', { plain = true })
-  for _, part in ipairs(parts) do
-    if part ~= '' then
-      local body = part:gsub('^## %S+ %S+\n\n', '', 1)
-      table.insert(entries, body)
-    end
-  end
-  return entries
+	if text == '' then return {} end
+	local framed = pair_log.parse(text)
+	if not framed then return {} end
+	local entries = {}
+	for _, entry in ipairs(framed) do entries[#entries + 1] = entry.body end
+	return entries
 end
 
 local function read_history()
@@ -543,17 +538,9 @@ local function write_history_entry(n, body)
   local path = log_path_for_tag()
   local text = read_file(path)
   if text == '' then return end
-  local parts = vim.split(text, '\n\n---\n\n', { plain = true })
-  local entries = {}
-  for _, p in ipairs(parts) do
-    if p ~= '' then table.insert(entries, p) end
-  end
-  local idx = #entries - n + 1
-  if idx < 1 or idx > #entries then return end
-  local header = entries[idx]:match('^(## %S+ %S+\n\n)')
-  if not header then return end
-  entries[idx] = header .. body
-  write_file(path, table.concat(entries, '\n\n---\n\n') .. '\n\n---\n\n')
+	local replaced = pair_log.replace(text, n, body)
+	if not replaced then return end
+	write_file(path, replaced)
 end
 
 local function buffer_text()
