@@ -254,10 +254,11 @@ defined in **Send transaction and identity amendment** for both normal submit
 and `no_submit` composer injection. It contains no prompt text. Only valid
 `prepared -> committed` events whose delivery is `submitted` are Pair-side
 rank-3 inputs; `composer_only`, aborted, incomplete, and malformed events never
-authorize. A record with the wrong resolved scope/tag,
-body/path agent mismatch, duplicate sequence/event ID, non-monotonic sequence,
-unknown delivery, invalid fingerprint, or unknown incarnation emits
-`pair_record_malformed` and is excluded. Pre-v1 markdown entries and v1 rows
+authorize. A record with the wrong resolved scope/tag, body/path agent
+mismatch, duplicate `prepared`, duplicate/conflicting terminal rows, sequence
+reuse across distinct events, non-monotonic sequence, unknown delivery, invalid
+fingerprint, or unknown incarnation is handled by the final recovery table,
+emits `pair_record_malformed`, and is excluded. Pre-v1 markdown entries and v1 rows
 that cannot join uniquely to a ledger incarnation are `turn_unusable`; local
 timestamp proximity never repairs them. This makes submission and incarnation
 segmentation exact rather than time-inferred (ARCH-PURE, ARCH-PURPOSE).
@@ -325,7 +326,8 @@ in the same change.
 
 Stable IDs are lowercase `kind-` plus the first 24 hex characters of SHA-256
 over the kind name and length-prefixed canonical tuple fields: nodes use
-`(agent,native_id)`, incarnations use `(scope_key,tag,agent,incarnation_id)`,
+`(agent,native_id)`, incarnations use the post-v1/legacy tuples defined in
+**Send transaction and identity amendment**,
 evidence uses `(kind,source_ref,incarnation_id,node_id)`, and ambiguities use
 `(kind,rank,sorted incarnation IDs,sorted node IDs)`. The complete JSON shape
 is below; every field is required, and `*` means JSON null when unknown:
@@ -658,3 +660,12 @@ degree-one clauses with final-contract references; consume sequences only after
 durable preparation; define post-v1, legacy-ledger, and legacy-config ID tuples;
 make source ordinals nullable/null-first; and add the exhaustive journal state
 table plus recovery/fault tests (ARCH-PURE, ARCH-PURPOSE, ARCH-MOCK).
+
+### 2026-08-28 — correct final cross-references
+
+**Reason:** the fifth and final automated review found two stale phrases that
+contradicted the journal transition table and canonical legacy-ID tuples.
+
+**Delta:** allow the required prepared/terminal reuse of one event ID while
+rejecting duplicate states and cross-event sequence reuse, and make schema-v1
+incarnation IDs reference the final post-v1/legacy tuple definitions.
