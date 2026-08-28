@@ -32,6 +32,28 @@ rounds:
           family: test-plan-abstraction
           round: 1
       blocked: true
+    - "n": 2
+      timestamp: "2026-08-28T12:42:45-07:00"
+      agent: codex
+      dispose:
+        - id: PQ-1
+          disposition: addressed
+          note: Typed launch records use durable physical ordinals, explicit supersession and binding joins, and content-free Pair-log/native watermarks for deterministic offline suffix recovery.
+          round: 2
+        - id: PQ-2
+          disposition: addressed
+          note: LedgerStore is the sole cross-process append owner, with exclusive locking, ordinal allocation under lock, append/fsync semantics, and real concurrent/failure tests.
+          round: 2
+        - id: PQ-3
+          disposition: addressed
+          note: SessionLogStore makes locked atomic markdown-log persistence and directory fsync a prerequisite to submission, preserving the draft and sending nothing on failure.
+          round: 2
+        - id: PQ-4
+          disposition: addressed
+          note: The Risky Function Test Strategies table names each production function, adversarial input class, and mechanical guard while leaving individual cases to executable fixtures and fuzz seeds.
+          round: 2
+      blocked: false
+content_hash: dd3b7a4d25d8212ea02cfb5eb90183db0555f98f4c58687020a50b8aace6cf10
 ---
 
 # Gate ledger — pair#155 (plan-quality)
@@ -52,9 +74,15 @@ later rounds disposed of them. Generated — edit the gate, not this file.
 - **PQ-4** [Important] `test-plan-abstraction` Replace enumerated procedural tests with named production-function strategies
   The plan lists case inventories and red-green implementation procedures but does not consistently name the production functions under unit test. Compress each risky surface to the function name plus one adversarial-input class and mechanical guard.
 
+## Round 2 — 2026-08-28T12:42:45-07:00 (codex) — passed
+
+### Disposed
+
+- PQ-1 — addressed — Typed launch records use durable physical ordinals, explicit supersession and binding joins, and content-free Pair-log/native watermarks for deterministic offline suffix recovery.
+- PQ-2 — addressed — LedgerStore is the sole cross-process append owner, with exclusive locking, ordinal allocation under lock, append/fsync semantics, and real concurrent/failure tests.
+- PQ-3 — addressed — SessionLogStore makes locked atomic markdown-log persistence and directory fsync a prerequisite to submission, preserving the draft and sending nothing on failure.
+- PQ-4 — addressed — The Risky Function Test Strategies table names each production function, adversarial input class, and mechanical guard while leaving individual cases to executable fixtures and fuzz seeds.
+
 ## Open findings
 
-- **PQ-1** [Important] `ledger-launch-generation` Define the durable launch generation and offline-recovery boundary
-- **PQ-2** [Important] `ledger-append-serialization` Give all ledger appends one cross-process serialization owner
-- **PQ-3** [Important] `pair-log-durability-before-send` Define the Pair-log durability prerequisite for recoverable rounds
-- **PQ-4** [Important] `test-plan-abstraction` Replace enumerated procedural tests with named production-function strategies
+(none — every finding has been disposed)

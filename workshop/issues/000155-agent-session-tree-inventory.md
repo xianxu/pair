@@ -5,7 +5,7 @@ deps: []
 github_issue:
 created: 2026-08-28
 updated: 2026-08-28
-estimate_hours:
+estimate_hours: 7.85
 started: 2026-08-28T10:54:39-07:00
 ---
 
@@ -704,6 +704,52 @@ buffered-rendering contracts otherwise apply unchanged (ARCH-DRY).
   open-file, and error transitions through the production inventory entry
   point; shuffled inputs produce byte-identical complete output.
 
+## Estimate
+
+Method A decomposition:
+
+- six greenfield Go concerns: forest/scanners, runtime/fake boundary,
+  round/binding core, ledger store, Pair-log store, and CLI/rendering;
+- two smaller Go concerns: activity/token projections and shadow/testkit
+  enforcement;
+- three cross-cutting migrations: watcher/launcher/wrap, transcript/context/
+  title/slug/review, and opener/Neovim/artifact ownership;
+- one focused Lua/Neovim integration;
+- four native-format discovery/conformance surfaces;
+- atlas maintenance and three real review boundaries.
+
+```estimate
+model: estimate-logic-v3.1
+familiarity: 1.0
+item: greenfield-go-module design=0.20 impl=0.32
+item: greenfield-go-module design=0.20 impl=0.32
+item: greenfield-go-module design=0.20 impl=0.32
+item: greenfield-go-module design=0.20 impl=0.32
+item: greenfield-go-module design=0.20 impl=0.32
+item: greenfield-go-module design=0.20 impl=0.32
+item: smaller-go-module design=0.05 impl=0.20
+item: smaller-go-module design=0.05 impl=0.20
+item: cross-cutting-refactor design=0.15 impl=0.20
+item: cross-cutting-refactor design=0.15 impl=0.20
+item: cross-cutting-refactor design=0.15 impl=0.20
+item: lua-neovim design=0.40 impl=0.60
+item: real-api-discovery design=0.00 impl=0.24
+item: real-api-discovery design=0.00 impl=0.24
+item: real-api-discovery design=0.00 impl=0.24
+item: real-api-discovery design=0.00 impl=0.24
+item: atlas-docs design=0.10 impl=0.08
+item: milestone-review design=0.03 impl=0.20
+item: milestone-review design=0.03 impl=0.20
+item: milestone-review design=0.03 impl=0.20
+design-buffer: 0.15
+total: 7.85
+```
+
+*Produced via `brain/data/life/42shots/velocity/estimate-logic-v3.1.md`
+against `baseline-v3.1.md`. Method A only. The calibration source was reported
+stale by `sdlc estimate-source`, so the numeric result is provisional and will
+be checked against measured actuals at close.*
+
 ## Plan
 
 - [ ] M1 — Build deterministic complete forests: pure model/order, stateful
@@ -860,3 +906,14 @@ reject stale generations. Give all ledger appends one locked/fsynced store and
 make durable atomic append to the existing markdown log a prerequisite to agent
 submission. This adds neither a minted incarnation nor a send journal
 (ARCH-DRY, ARCH-PURE, ARCH-PURPOSE, ARCH-MOCK).
+
+### 2026-08-28 — derive the implementation estimate after plan quality
+
+**Reason:** `sdlc change-code` cleared the stateful plan-quality gate and then
+required a reconciled estimate derived from the now-stable implementation plan.
+
+**Delta:** set `estimate_hours: 7.85` from estimate-logic-v3.1 Method A:
+six greenfield Go concerns, two smaller Go concerns, three cross-cutting
+migrations, one Lua integration, four native-format discoveries, atlas work,
+and three review boundaries. The calibration source reports stale, so close-time
+actuals must validate the provisional number.
