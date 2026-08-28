@@ -21,7 +21,7 @@ type issue149ConceptRequirement struct {
 	kind string
 }
 
-const issue149M5DeclarationDigest = "e421852a32e382098ff0e52d147b746df00378a086b770efa197b909eb606b16"
+const issue149M5DeclarationDigest = "4d777f058e5a2d3af6a9d100cc08b206f94bdce168fada24cdaccc2ce47483bd"
 
 // issue149M5GoSources is the exhaustive set of Go sources touched by M5. Every
 // declaration in these files receives a disposition: a pair:m5-concept marker
@@ -46,9 +46,11 @@ var issue149M5GoSources = []string{
 	"cmd/internal/launcher/createflow_test.go", "cmd/internal/launcher/history.go", "cmd/internal/launcher/layoutflow.go",
 	"cmd/internal/launcher/legacy_live.go", "cmd/internal/launcher/lifecycle.go", "cmd/internal/launcher/lifecycle_test.go",
 	"cmd/internal/launcher/migrate.go", "cmd/internal/launcher/osruntime.go", "cmd/internal/launcher/osruntime_test.go",
-	"cmd/internal/launcher/readiness.go", "cmd/internal/launcher/rename.go", "cmd/internal/launcher/rename_test.go",
+	"cmd/internal/launcher/pick.go", "cmd/internal/launcher/pick_test.go", "cmd/internal/launcher/readiness.go",
+	"cmd/internal/launcher/rename.go", "cmd/internal/launcher/rename_test.go",
 	"cmd/internal/launcher/restart.go", "cmd/internal/launcher/restart_test.go", "cmd/internal/launcher/runcli.go",
-	"cmd/internal/launcher/runtime.go", "cmd/internal/launcher/scoped_paths.go", "cmd/internal/launcher/session_index.go",
+	"cmd/internal/launcher/runtime.go", "cmd/internal/launcher/scoped_paths.go", "cmd/internal/launcher/session.go",
+	"cmd/internal/launcher/session_index.go",
 	"cmd/internal/launcher/thread_claim.go", "cmd/internal/launcher/thread_claim_test.go",
 	"cmd/internal/opener/opener.go", "cmd/internal/opener/opener_test.go", "cmd/internal/opener/run.go",
 	"cmd/internal/opener/run_test.go", "cmd/internal/opener/runtime.go", "cmd/internal/reviewcmd/run.go",
