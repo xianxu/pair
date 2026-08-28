@@ -62,7 +62,16 @@ rounds:
           note: The durable-before-send rule covers `send_and_clear` but still defers another existing operator-authored submit path.
           round: 3
       blocked: true
-content_hash: dd3b7a4d25d8212ea02cfb5eb90183db0555f98f4c58687020a50b8aace6cf10
+    - "n": 4
+      timestamp: "2026-08-28T12:48:15-07:00"
+      agent: codex
+      dispose:
+        - id: PQ-3
+          disposition: addressed
+          note: Every operator-authored submission is routed through one fail-closed durable-log wrapper, with generated prompts separated and direct low-level sends forbidden by a source test.
+          round: 4
+      blocked: false
+content_hash: 796c8d5983dad7de264f3b46cec5ae7e3539e2db00ee61d3f727d175e46b2260
 ---
 
 # Gate ledger — pair#155 (plan-quality)
@@ -98,6 +107,12 @@ later rounds disposed of them. Generated — edit the gate, not this file.
 
 - PQ-3 — not-addressed — The durable-before-send rule covers `send_and_clear` but still defers another existing operator-authored submit path.
 
+## Round 4 — 2026-08-28T12:48:15-07:00 (codex) — passed
+
+### Disposed
+
+- PQ-3 — addressed — Every operator-authored submission is routed through one fail-closed durable-log wrapper, with generated prompts separated and direct low-level sends forbidden by a source test.
+
 ## Open findings
 
-- **PQ-3** [Important] `pair-log-durability-before-send` Define the Pair-log durability prerequisite for recoverable rounds
+(none — every finding has been disposed)
