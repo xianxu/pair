@@ -95,6 +95,152 @@ conflicts. A live conformance probe captures each installed agent's current
 directory shape without requiring an LLM response and compares it with the
 scanner contract (ARCH-MOCK).
 
+### Operational contract
+
+The correlation subject is a **tag incarnation**, not a timeless tag. A tag
+incarnation is one contiguous ledger segment for `{scope, tag, agent,
+session_id}`; adjacent rows for the same native ID coalesce, while a later row
+with a different native ID starts a new incarnation. Log entries are segmented
+by those ledger `started` boundaries. The current-tag projection is the last
+valid segment by `(started, last_active, session_id)`, using the native ID as a
+total tie-breaker. Invalid rows remain diagnostics and never participate in
+selection.
+
+The ledger is Pair's authority. Config files are validated compatibility
+caches, not a second source of truth. A config participates only when its exact
+scope/tag/agent path is resolved by `artifactpath`, its body agent matches the
+path agent, and its native root passes the same scanner authorization as every
+other candidate. When a valid ledger segment exists, a matching config
+corroborates it and a disagreement emits `binding_stale` and is ignored. A
+pre-ledger config may create one legacy incarnation only when it is the sole
+valid config for the tuple; otherwise it remains ambiguous. Malformed paths,
+scope escapes, body/path identity mismatches, and unrecognized native roots
+fail closed.
+
+Correlation consumes this exhaustive evidence lattice:
+
+| Rank | Evidence | Validation | Assignment rule |
+|---|---|---|---|
+| 1 | ledger-backed native ID | valid tuple, segment, scanner-authorized root | canonical candidate; two incarnations claiming one root remain `binding_conflict` |
+| 1 | sole pre-ledger config | exact validated path/body and scanner-authorized root | legacy candidate; competing configs remain ambiguous |
+| 2 | live Pair process | exact scoped PID sidecar; process identity unchanged before and after the descendant/open-file snapshot; scanner-authorized root | candidate only for that tuple; disagreement with rank 1 is diagnosed and rank 1 wins |
+| 3 | exact sent-turn sequence | valid incarnation time segment and the fingerprint rules below | considered only for still-unbound incarnations and roots |
+| derived | native parent edge | child and parent scanner facts agree | descendants inherit the assigned root; never compete as independent roots |
+
+Each rank is solved globally in deterministic fixed-point rounds. A pair locks
+only when it is the unique best edge for its incarnation **and** that root has
+no equal-rank claim from another incarnation. All lockable pairs in a round are
+committed simultaneously in sorted incarnation/root order, removed from later
+candidate sets, and the rank repeats until no new pair locks. Equal-rank
+conflicts stay ambiguous; lower ranks cannot break them. Lower-rank evidence
+that contradicts a locked higher-rank assignment is retained as negative
+evidence, never as reassignment authority.
+
+Exact-turn evidence uses one shared `SentText` normalization owned by Pair's
+send/log boundary: apply the production comment-framing removal, normalize
+CRLF to LF, remove trailing horizontal whitespace per line, and trim outer
+blank space; do not case-fold, collapse internal whitespace, or paraphrase.
+Native parsers emit only allowlisted operator-authored user records, with
+agent/system/generated/sidechain records excluded by an explicit source kind;
+unknown source kinds emit `turn_unusable` and do not correlate. A match is a
+contiguous sequence in the filtered native operator turns for the incarnation
+segment—native turns outside the segment are allowed, but gaps inside a matched
+sequence are not.
+
+One turn authorizes only when its normalized UTF-8 is at least 32 bytes, has at
+least five Unicode word tokens, and its SHA-256 fingerprint occurs exactly once
+among all remaining Pair segments and native roots. Otherwise, two consecutive
+turns authorize when each is at least eight bytes, at least one has three word
+tokens, and the ordered fingerprint pair is globally unique. Empty, shorter,
+repeated, or non-unique text is generic evidence and is explanation-only. The
+result records source and destination positions plus fingerprints, never a
+second durable copy of content. Tests pin comment framing, generated prompts,
+resumed roots, fresh-root rotation, repeated prompts, partial prefixes, and
+single-versus-sequence thresholds.
+
+Agent scanners recognize these versioned contracts; anything else is retained
+as a coded near-miss rather than guessed (ARCH-PURPOSE):
+
+| Agent | Storage/artifact join | ID, role, and parent authority | Chronology authority |
+|---|---|---|---|
+| Claude | `.claude/projects/<encoded-cwd>/<root-id>.jsonl` plus `<root-id>/subagents/agent-<child-id>.jsonl` and recognized metadata sidecars | root filename; child metadata when present, otherwise the containing root directory supplies only the parent edge and the child remains non-resumable | first accepted native timestamp, then birth time, then mtime |
+| Codex | `.codex/sessions/YYYY/MM/DD/rollout-*.jsonl` | first bounded `session_meta.payload.id`; `parent_thread_id == null` with source `cli|exec` is root, non-null parent is child | `session_meta` timestamp, then birth time, then mtime |
+| Agy | `.gemini/antigravity-cli/conversations/<id>.db` joined by ID to `brain/<id>/.system_generated/logs/transcript.jsonl` | validated SQLite schema supplies root `cascade_id`; a child edge is accepted only from versioned, sanitized fixture-proven `trajectory_meta`/`parent_references` semantics | validated DB metadata, then birth time, then mtime |
+| Muse | `.local/share/muse/sessions/YYYY/MM/DD/<root-id>/session.jsonl` plus `<root-id>/subagent/<child-id>/session.jsonl` | directory UUID; root/subagent ancestry supplies the parent, with accepted metadata required to agree | accepted `runtime.session`/run timestamp, then birth time, then mtime |
+
+The implementation must obtain and check in a sanitized Agy subtrajectory
+schema/fact fixture before accepting any Agy parent edge; absent that evidence,
+the scanner emits the root and an explicit near-miss/orphan diagnostic instead
+of inventing semantics. Duplicate artifacts with the same `{agent, native_id}`
+coalesce only when role and parent agree, with sorted unique artifact paths.
+Metadata/path disagreement or duplicate role/parent disagreement emits
+`parent_conflict` or `duplicate_conflict`, retains the node unbound, and creates
+no disputed edge.
+
+Every emitted collection has a total order. Paths are cleaned, slash-separated
+paths relative to a named native storage root; paths that escape that root or
+traverse a symlink are rejected. Times carry their source and are rendered UTC
+RFC3339Nano; absent/invalid time is null and sorts after present time. Forest
+roots and siblings sort by `(time missing, time, native_id, storage_root,
+relative_path)`. Artifacts sort by `(storage_root, relative_path)`;
+incarnations, correlations, candidate edges, ambiguities, evidence, and
+diagnostics each have documented tuple comparators ending in stable IDs and
+paths. JSON uses schema version `1`, structs and sorted arrays rather than maps,
+one trailing newline, and no HTML escaping. Fixture/property tests shuffle
+filesystem, PID, `lsof`, ledger, config, turn, and injected diagnostic order and
+require byte-identical JSON and human output (ARCH-PURE).
+
+The public command is:
+
+```text
+pair session-inventory [--agent claude|codex|agy|muse] [--scope current|all] [--json] [--conformance]
+```
+
+The default inventories every agent and correlates tags in the selected current
+scope. `--scope all` includes every Pair repo scope. Human output is a stable
+snapshot grouped by agent forest then scope/tag incarnation; JSON stdout is a
+versioned object with required `schema_version`, `forests`, `correlations`,
+`ambiguities`, and `diagnostics` arrays. Optional IDs, parents, times, and paths
+are explicit `null`, never omitted. Normal operation writes only the selected
+rendering to stdout; fatal/usage text goes to stderr. `--conformance` uses the
+same production scanners but emits only redacted versions, schema shapes,
+counts, and diagnostics—never content, cwd, absolute home paths, or raw IDs.
+
+Diagnostic codes are `storage_unreadable`, `node_malformed`,
+`schema_near_miss`, `parent_missing`, `parent_conflict`, `duplicate_conflict`,
+`binding_stale`, `binding_conflict`, `process_changed`, `turn_unusable`, and
+`conformance_no_sample`, each with severity plus nullable agent/native-ID/path
+coordinates. Exit `0` means a result was emitted, including partial results
+with coded diagnostics; exit `1` is invalid usage or an unsupported requested
+agent; exit `2` means no requested scanner could produce a result or rendering
+failed. A missing installed-agent sample is an explicit conformance skip
+diagnostic and exit `0`; scheduled conformance fails only on recognized schema
+drift, unreadable representative data, or privacy leakage.
+
+One injected IO boundary owns filesystem enumeration/reads/stats, SQLite
+schema/facts, Pair artifacts, process ancestry, PID identity, and open files.
+Its portable stateful fake models directory and DB state, ordered/unordered
+returns, unreadable entries, PID reuse, process mutation between calls, and
+concurrent open-file evidence. Production and integration tests use the same
+scanner/correlation entry point; pure forest, normalization, ordering, and
+matching tests require no IO fake. The opt-in no-LLM live check is
+`PAIR_LIVE_NATIVE_SESSIONS=1 go test ./cmd/internal/sessioninventory -run
+TestLiveNativeSessionShapeConformance -v`; it runs manually before release and
+in scheduled workstation conformance, with the skip/fail rules above
+(ARCH-PURE, ARCH-MOCK).
+
+The migration shadow sweep includes `sessionwatch`; `transcript` point lookup;
+`codexsid`; slug transcript parsing and live fallback; context/title lookup;
+review targeting; launcher existence, live capture, restart, config picker, and
+history recovery; opener/changelog keying; and Neovim review/config/session-age
+lookups. Exact inherited `PAIR_SESSION_ID` remains direct launch authority, but
+all native path/root validation and every filesystem/process candidate
+selection derives from the shared inventory. No consumer outside the inventory
+package may glob, walk, `find`, or `lsof` native session storage, choose a
+first/newest candidate, or parse a native transcript independently. A
+repository shadow-sweep test enforces that enumeration (ARCH-DRY,
+ARCH-PURPOSE).
+
 ## Done when
 
 - One command inventories complete root/subagent session forests for every
@@ -112,6 +258,18 @@ scanner contract (ARCH-MOCK).
   and no longer selects a root through an unreported first/newest heuristic.
 - Fixtures cover all supported agents and a no-LLM live conformance probe
   detects native directory-shape drift.
+- Ledger-backed tag incarnations, validated config caches, live process
+  evidence, exact-turn evidence, and inherited child edges follow the pinned
+  global fixed-point rules; every ambiguity and contradiction is retained.
+- `pair session-inventory` implements schema-v1 JSON, stable human output,
+  coded partial diagnostics, redacted conformance, and the specified exit
+  statuses.
+- The full migration shadow sweep has no remaining native-session glob, walk,
+  `find`, `lsof`, first/newest selection, or independent native parser outside
+  `cmd/internal/sessioninventory`.
+- A portable stateful fake exercises filesystem, SQLite, process, PID-reuse,
+  open-file, and error transitions through the production inventory entry
+  point; shuffled inputs produce byte-identical complete output.
 
 ## Plan
 
@@ -126,6 +284,15 @@ scanner contract (ARCH-MOCK).
 - [ ] Expose structured and human inventory output through the Pair binary.
 - [ ] Replace session-watch and transcript point-selection heuristics with the
       shared model and add portable fixtures plus live conformance.
+- [ ] Pin sanitized versioned fixtures and scanner contracts for Claude, Codex,
+      Agy, and Muse; do not accept an Agy parent edge before fixture proof.
+- [ ] Extract the shared sent-text/native-turn parser, implement deterministic
+      tag-incarnation segmentation and global fixed-point correlation, and test
+      every evidence/conflict class.
+- [ ] Define schema-v1 JSON, stable human rendering, coded diagnostics, the
+      stateful IO fake, and redacted live conformance behind one entry point.
+- [ ] Migrate and enforce the complete shadow-consumer enumeration across Go,
+      shell, and Neovim rather than stopping after session-watch.
 
 ## Log
 
@@ -149,3 +316,17 @@ assignments globally: lock unique high-confidence tag/root pairs first, exclude
 them from later candidate pools, inherit subagents through native parent edges,
 and leave conflicts ambiguous. Chronology and generic repeated strings remain
 ordering/debug evidence only (ARCH-PURE, ARCH-PURPOSE).
+
+### 2026-08-28 — make the inventory contract executable
+
+**Reason:** fresh-context spec review found that evidence confidence, native
+format coverage, exact-turn segmentation, total ordering, CLI behavior,
+consumer migration, and the external fake were described directionally but not
+mechanically enough to implement or verify.
+
+**Delta:** define tag incarnations and ledger authority; pin the ranked global
+fixed-point matcher and exact fingerprint thresholds; enumerate every supported
+native shape and shadow consumer; specify total ordering, schema-v1 output,
+diagnostic/exit behavior, the stateful IO fake, and live conformance. Agy parent
+edges now fail closed until a sanitized native fixture proves their schema
+semantics (ARCH-DRY, ARCH-PURE, ARCH-PURPOSE, ARCH-MOCK).
