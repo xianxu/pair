@@ -726,3 +726,16 @@ overstated result-matrix/golden coverage.
 normal/conformance usage, partial, absent, fatal, privacy, render, and writer row
 through injected renderers where failure is otherwise unreachable; pin complete
 output bytes in checked-in goldens (`ARCH-PURPOSE`, `ARCH-MOCK`).
+
+### 2026-08-28 — M2 boundary review: gate-owned closure and complete byte oracles
+
+**Reason:** the rerun showed that manually staged Couch actual/closed metadata
+violated the repository's pre-close invariant, and branch assertions did not
+meet Task 7's stronger checked-in byte-golden promise.
+
+**Delta:** issue, plan, and project closure metadata remain absent until the
+successful `milestone-close` transaction writes them. One checked-in matrix
+oracle now captures exact exit code, stdout, and stderr bytes for every normal,
+conformance, usage, partial, fatal, privacy, serialization, and writer branch;
+README coverage is executable from the public CLI's own package
+(`ARCH-PURPOSE`).

@@ -769,6 +769,17 @@ be checked against measured actuals at close.*
 
 ## Log
 
+- 2026-08-28 — The M2 rerun kept the gate closed because its pinned window was
+  empty, Couch carried actual/closed metadata before gate acceptance, README
+  prose lacked an executable contract, and Task 7's branch assertions were not
+  the promised complete byte oracle. The fix commit supplies the required
+  review delta; removes every pre-gate closure mutation; makes the public CLI
+  package enforce its README usage, modes, semantics, and exits; and checks
+  exact exit/stdout/stderr bytes for the exhaustive normal, conformance, usage,
+  partial, fatal, privacy, serialization, and writer matrix. Repository
+  source/declaration contracts are updated in the same window
+  (`ARCH-PURPOSE`).
+
 - 2026-08-28 — The first M2 boundary review returned REWORK with BR-8 through
   BR-13. The closure fixes each rule class: restart now treats an empty
   ledger-derived marker as provisional and drops stale config identity; every

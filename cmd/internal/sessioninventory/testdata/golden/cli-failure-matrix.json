@@ -1,0 +1,32 @@
+[
+  {
+    "name": "inventory serialization",
+    "exit": 2,
+    "stdout": "",
+    "stderr": "pair session-inventory: render failed\n"
+  },
+  {
+    "name": "human serialization",
+    "exit": 2,
+    "stdout": "",
+    "stderr": "pair session-inventory: render failed\n"
+  },
+  {
+    "name": "conformance serialization",
+    "exit": 2,
+    "stdout": "",
+    "stderr": "pair session-inventory: render failed\n"
+  },
+  {
+    "name": "conformance privacy",
+    "exit": 2,
+    "stdout": "",
+    "stderr": "pair session-inventory: conformance privacy check failed\n"
+  },
+  {
+    "name": "conformance writer",
+    "exit": 2,
+    "stdout": "",
+    "stderr": "pair session-inventory: render write failed\n"
+  }
+]

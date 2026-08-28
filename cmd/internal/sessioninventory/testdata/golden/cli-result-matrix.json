@@ -1,0 +1,68 @@
+[
+  {
+    "name": "normal absent storage",
+    "exit": 0,
+    "stdout": "{\"schema_version\":1,\"forests\":[],\"correlations\":[],\"ambiguities\":[],\"diagnostics\":[{\"diagnostic_id\":\"diagnostic-9b78352f0ed887ec4a522bcd\",\"severity\":\"info\",\"code\":\"storage_absent\",\"agent\":\"codex\",\"native_id\":null,\"storage_root\":null,\"relative_path\":null,\"source_ref\":\"codex-sessions\"}]}\n",
+    "stderr": ""
+  },
+  {
+    "name": "normal human",
+    "exit": 0,
+    "stdout": "session inventory schema=1\n",
+    "stderr": ""
+  },
+  {
+    "name": "unsupported agent",
+    "exit": 1,
+    "stdout": "",
+    "stderr": "pair session-inventory: unsupported agent \"other\"\n"
+  },
+  {
+    "name": "invalid flag",
+    "exit": 1,
+    "stdout": "",
+    "stderr": "usage: pair session-inventory [--agent claude|codex|agy|muse] [--scope current|all] [--json] [--conformance]\n"
+  },
+  {
+    "name": "fatal storage",
+    "exit": 2,
+    "stdout": "",
+    "stderr": "pair session-inventory: scan failed: storage_unreadable\n"
+  },
+  {
+    "name": "partial scan",
+    "exit": 0,
+    "stdout": "{\"schema_version\":1,\"forests\":[{\"agent\":\"codex\",\"roots\":[{\"node_id\":\"node-7f11607813638051725d6b46\",\"native_id\":\"019d1111-1111-7111-8111-111111111111\",\"role\":\"root\",\"parent_native_id\":null,\"resumable\":true,\"created_at\":\"2026-08-28T10:04:00Z\",\"time_source\":\"metadata\",\"artifacts\":[{\"storage_root\":\"codex-sessions\",\"relative_path\":\"2026/08/28/rollout-test-019d1111-1111-7111-8111-111111111111.jsonl\",\"kind\":\"transcript\"}],\"children\":[]}],\"orphans\":[]}],\"correlations\":[],\"ambiguities\":[],\"diagnostics\":[{\"diagnostic_id\":\"diagnostic-3b4962301777aedf77ddae9a\",\"severity\":\"warning\",\"code\":\"schema_near_miss\",\"agent\":\"codex\",\"native_id\":null,\"storage_root\":\"codex-sessions\",\"relative_path\":\"2026/08/28/not-v1.jsonl\",\"source_ref\":null}]}\n",
+    "stderr": ""
+  },
+  {
+    "name": "conformance skip",
+    "exit": 0,
+    "stdout": "{\"agents\":[{\"agent\":\"muse\",\"status\":\"skip\",\"nodes\":0,\"roots\":0,\"diagnostics\":[\"conformance_no_sample\"]}]}\n",
+    "stderr": ""
+  },
+  {
+    "name": "conformance schema drift",
+    "exit": 2,
+    "stdout": "{\"agents\":[{\"agent\":\"codex\",\"status\":\"fail\",\"nodes\":0,\"roots\":0,\"diagnostics\":[\"schema_near_miss\"]}]}\n",
+    "stderr": "pair session-inventory: conformance failed: schema_near_miss or storage_unreadable\n"
+  },
+  {
+    "name": "current established binding",
+    "exit": 0,
+    "stdout": "{\"schema_version\":1,\"forests\":[{\"agent\":\"codex\",\"roots\":[{\"node_id\":\"node-7f11607813638051725d6b46\",\"native_id\":\"019d1111-1111-7111-8111-111111111111\",\"role\":\"root\",\"parent_native_id\":null,\"resumable\":true,\"created_at\":\"2026-08-28T10:04:00Z\",\"time_source\":\"metadata\",\"artifacts\":[{\"storage_root\":\"codex-sessions\",\"relative_path\":\"2026/08/28/rollout-test-019d1111-1111-7111-8111-111111111111.jsonl\",\"kind\":\"transcript\"}],\"children\":[]}],\"orphans\":[]}],\"correlations\":[{\"binding_id\":\"binding-8c0f4dbb98cfb44262973c73\",\"scope_key\":\"scope\",\"tag\":\"work\",\"agent\":\"codex\",\"root_node_id\":\"node-7f11607813638051725d6b46\",\"status\":\"established\",\"candidates\":[{\"root_node_id\":\"node-7f11607813638051725d6b46\",\"rank\":1,\"outcome\":\"locked\",\"evidence_ids\":[\"evidence-f7d24b6e1a35d2652f89bfe3\"]}],\"evidence\":[{\"evidence_id\":\"evidence-f7d24b6e1a35d2652f89bfe3\",\"kind\":\"ledger\",\"rank\":1,\"source_ref\":\"ledger\",\"root_node_id\":\"node-7f11607813638051725d6b46\",\"positive\":true,\"source_positions\":null,\"destination_positions\":null,\"fingerprints\":null}]}],\"ambiguities\":[],\"diagnostics\":[]}\n",
+    "stderr": ""
+  },
+  {
+    "name": "writer failure",
+    "exit": 2,
+    "stdout": "",
+    "stderr": "pair session-inventory: render write failed\n"
+  },
+  {
+    "name": "unreadable Pair evidence",
+    "exit": 0,
+    "stdout": "{\"schema_version\":1,\"forests\":[],\"correlations\":[],\"ambiguities\":[],\"diagnostics\":[{\"diagnostic_id\":\"diagnostic-d804193b878ed73616142e47\",\"severity\":\"error\",\"code\":\"storage_unreadable\",\"agent\":\"codex\",\"native_id\":null,\"storage_root\":null,\"relative_path\":null,\"source_ref\":\"config:work\"},{\"diagnostic_id\":\"diagnostic-ce7f80a461a37dd8d00468bd\",\"severity\":\"error\",\"code\":\"storage_unreadable\",\"agent\":null,\"native_id\":null,\"storage_root\":null,\"relative_path\":null,\"source_ref\":\"ledger:work\"},{\"diagnostic_id\":\"diagnostic-da7f21cb9d6d8c1345631b5b\",\"severity\":\"error\",\"code\":\"storage_unreadable\",\"agent\":null,\"native_id\":null,\"storage_root\":null,\"relative_path\":null,\"source_ref\":\"log:work\"}]}\n",
+    "stderr": ""
+  }
+]

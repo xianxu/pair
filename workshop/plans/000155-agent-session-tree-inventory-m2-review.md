@@ -116,3 +116,113 @@ Append these `## Revisions` entries:
 - “M2 boundary review — established authority closure”: include `markers.go`/`markers_test.go`, prohibit config session-ID fallback when the typed generation is provisional, and add the stale-cache regression.
 - “M2 boundary review — evidence diagnostics and framing”: enumerate every native-adapter default and Pair-artifact read boundary; require diagnostic emission and arbitrary authored-Markdown round trips.
 - “M2 boundary review — executable CLI contract”: enumerate every result-matrix row, add byte/privacy goldens, and include README.md in Task 7’s file list.
+
+---
+
+## Re-review — 2026-08-28T16:02:09-07:00 (REWORK)
+
+| field | value |
+|-------|-------|
+| issue | 155 — deterministic agent session-tree inventory |
+| repo | pair |
+| issue file | workshop/issues/000155-agent-session-tree-inventory.md |
+| boundary | milestone M2 |
+| milestone | M2 |
+| window | 528a730bd93a432071b274902fefd23096c7faee..528a730bd93a432071b274902fefd23096c7faee |
+| command | sdlc milestone-close --issue 155 --milestone M2 |
+| reviewer | codex |
+| timestamp | 2026-08-28T16:02:09-07:00 |
+| verdict | REWORK |
+
+## Review
+
+```verdict
+verdict: REWORK
+confidence: high
+```
+
+The focused implementation is largely sound, and BR-8 through BR-11 have reachable regressions. The boundary cannot ship: the pinned review window is empty, a repository contract test fails because M2 has premature closed metadata, BR-12 lacks the required regression, and BR-13 still lacks byte goldens for the complete CLI result matrix.
+
+1. Strengths
+
+- Restart recovery now treats an empty marker as provisional and drops stale config authority while retaining arguments (`cmd/internal/launcher/markers.go:70`).
+- Unknown Muse events reach the shared diagnostic path (`cmd/internal/sessioninventory/event.go:316`, `events.go:64`).
+- Diagnostic nullable coordinates consistently use null-last projections, with exhaustive equal-prefix tests (`order.go:168`, `order_test.go:57`).
+- Versioned byte-counted Pair-log framing round-trips authored horizontal rules through the real store/parser seam (`pairfacts.go:62`, `pairlog/store_test.go:39`).
+- Core Concepts declarations match the plan through a bidirectional executable contract (`concept_contract_test.go:31`).
+
+2. Critical findings
+
+- The review range is `528a730..528a730`; both required stat and name-status commands return no changes. Therefore no implementation or claimed-fix delta is reviewable within the authoritative pinned window. Re-run with the previous accepted boundary/finding-round SHA as base and `528a730` as head.
+- `go test ./... -count=1` fails at `TestUncheckedProjectMilestoneHasNoClosedMetadata`: `workshop/projects/couch.md:173` leaves pair#155 M2 unchecked while lines 399–400 already contain actual/closed metadata. This is the second finding in family `repository-contracts-stay-green`; establish the general rule that issue, plan, and project milestone closure state changes only in the successful close-gate transaction.
+
+3. Important findings
+
+- BR-12 remains open under the claimed-fix rule. README prose exists at `README.md:376-392`, but no test fails when that public-command documentation is removed.
+- BR-13 remains open. Only three golden files exist, while partial scans, schema drift, privacy failure, serialization failure, and most other CLI matrix rows use substring or inline assertions (`runcli_test.go:15`, `runcli_failure_test.go:9`). The promised complete byte-golden matrix is not delivered.
+
+4. Minor findings
+
+None.
+
+5. Test coverage notes
+
+- Passed: focused `sessioninventory`, `pairlog`, and `launcher` packages.
+- Passed: `make test-lua` and `tests/pair-session-watch-test.sh`.
+- Failed: repository-wide Go tests due to the premature M2 project metadata.
+- Additional `cmd/pair-go` failures came from sandbox denial of `/bin/ps`; they are not treated as product findings here.
+- BR-8 through BR-11 each have regressions that would fail against the preceding implementation. BR-12 and BR-13 do not satisfy the stated proof standard.
+
+6. Architectural notes for upcoming work
+
+- `ARCH-DRY`: pass—shared framing, nullable comparators, diagnostics, and runtime seams are reused.
+- `ARCH-PURE`: pass—matching, ordering, framing, and rendering remain pure behind thin injected IO boundaries.
+- `ARCH-PURPOSE`: flag—the empty review range and incomplete CLI golden matrix under-deliver the boundary’s verification purpose.
+- `ARCH-MOCK`: pass—the stateful fake and production inventory entry point share the same boundary; live conformance remains represented.
+
+7. Plan revision recommendations
+
+Append a revision recording that Task 7 is not complete until every normal/conformance result row has checked-in exact stdout/stderr bytes, including partial, drift, privacy-zero-stdout, serialization, and writer failures. Also record that project actual/closed metadata must be written only after the milestone-close transaction succeeds.
+
+```findings
+dispose:
+  - id: BR-8
+    disposition: addressed
+    note: |
+      Empty-marker restart now drops stale config authority, and the regression fails against the former saved-session fallback.
+  - id: BR-9
+    disposition: addressed
+    note: |
+      Unknown Muse run events become near-misses and all three Pair artifact read boundaries emit registry-backed storage_unreadable diagnostics with executable coverage.
+  - id: BR-10
+    disposition: addressed
+    note: |
+      Agent, native ID, path, and source-ref nullability now use null-last projections with exhaustive equal-prefix comparisons.
+  - id: BR-11
+    disposition: addressed
+    note: |
+      Byte-counted framing round-trips authored horizontal rules through SessionLogStore and ParsePairLog.
+  - id: BR-12
+    disposition: not-addressed
+    note: |
+      README prose exists, but no regression fails when the new public command documentation is removed.
+  - id: BR-13
+    disposition: not-addressed
+    note: |
+      The CLI branches are exercised, but complete byte goldens still do not exist for the promised normal and conformance result matrix.
+findings:
+  - id: new
+    severity: Critical
+    family: boundary-review-window-captures-delta
+    title: |
+      The authoritative review window contains no changes
+    detail: |
+      Base and head are both 528a730, and the required stat and name-status recipes are empty. Re-run with a base preceding the M2 implementation or finding-closure commits so the anti-collusion review can inspect the actual delta.
+  - id: new
+    severity: Critical
+    family: repository-contracts-stay-green
+    title: |
+      M2 carries closed project metadata before the milestone is checked
+    detail: |
+      workshop/projects/couch.md leaves pair#155 M2 unchecked at line 173 but records actual and closed values at lines 399-400, causing TestUncheckedProjectMilestoneHasNoClosedMetadata to fail. This is the 2nd finding in family repository-contracts-stay-green. Do not fix only this instance: enforce that issue, plan, and project closure metadata changes only through the successful close-gate transaction; the current sweep measured one violation.
+```

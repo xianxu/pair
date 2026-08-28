@@ -134,6 +134,49 @@ rounds:
           round: 4
       boundary: M2
       blocked: true
+    - "n": 5
+      timestamp: "2026-08-28T16:02:09-07:00"
+      agent: codex
+      dispose:
+        - id: BR-8
+          disposition: addressed
+          note: Empty-marker restart now drops stale config authority, and the regression fails against the former saved-session fallback.
+          round: 5
+        - id: BR-9
+          disposition: addressed
+          note: Unknown Muse run events become near-misses and all three Pair artifact read boundaries emit registry-backed storage_unreadable diagnostics with executable coverage.
+          round: 5
+        - id: BR-10
+          disposition: addressed
+          note: Agent, native ID, path, and source-ref nullability now use null-last projections with exhaustive equal-prefix comparisons.
+          round: 5
+        - id: BR-11
+          disposition: addressed
+          note: Byte-counted framing round-trips authored horizontal rules through SessionLogStore and ParsePairLog.
+          round: 5
+        - id: BR-12
+          disposition: not-addressed
+          note: README prose exists, but no regression fails when the new public command documentation is removed.
+          round: 5
+        - id: BR-13
+          disposition: not-addressed
+          note: The CLI branches are exercised, but complete byte goldens still do not exist for the promised normal and conformance result matrix.
+          round: 5
+      findings:
+        - id: BR-14
+          severity: Critical
+          title: The authoritative review window contains no changes
+          detail: Base and head are both 528a730, and the required stat and name-status recipes are empty. Re-run with a base preceding the M2 implementation or finding-closure commits so the anti-collusion review can inspect the actual delta.
+          family: boundary-review-window-captures-delta
+          round: 5
+        - id: BR-15
+          severity: Critical
+          title: M2 carries closed project metadata before the milestone is checked
+          detail: 'workshop/projects/couch.md leaves pair#155 M2 unchecked at line 173 but records actual and closed values at lines 399-400, causing TestUncheckedProjectMilestoneHasNoClosedMetadata to fail. This is the 2nd finding in family repository-contracts-stay-green. Do not fix only this instance: enforce that issue, plan, and project closure metadata changes only through the successful close-gate transaction; the current sweep measured one violation.'
+          family: repository-contracts-stay-green
+          round: 5
+      boundary: M2
+      blocked: true
 ---
 
 # Gate ledger — pair#155 (boundary-review)
@@ -197,11 +240,27 @@ later rounds disposed of them. Generated — edit the gate, not this file.
 - **BR-13** [Important] `cli-result-matrix-is-executable` Task 7 claims full result-matrix privacy goldens but tests cover only a subset
   cmd/internal/sessioninventory/runcli_test.go:13-82 exercises six cases and cmd/internal/sessioninventory/render_test.go:52-72 contains only empty-output goldens. The plan explicitly requires byte goldens for every normal/conformance result row, including partial scans, schema drift, privacy failure with zero stdout, and serialization failure. Add the missing executable cases before keeping Task 7 checked.
 
+## Round 5 — 2026-08-28T16:02:09-07:00 (codex) — BLOCKED
+
+### Disposed
+
+- BR-8 — addressed — Empty-marker restart now drops stale config authority, and the regression fails against the former saved-session fallback.
+- BR-9 — addressed — Unknown Muse run events become near-misses and all three Pair artifact read boundaries emit registry-backed storage_unreadable diagnostics with executable coverage.
+- BR-10 — addressed — Agent, native ID, path, and source-ref nullability now use null-last projections with exhaustive equal-prefix comparisons.
+- BR-11 — addressed — Byte-counted framing round-trips authored horizontal rules through SessionLogStore and ParsePairLog.
+- BR-12 — not-addressed — README prose exists, but no regression fails when the new public command documentation is removed.
+- BR-13 — not-addressed — The CLI branches are exercised, but complete byte goldens still do not exist for the promised normal and conformance result matrix.
+
+### Raised
+
+- **BR-14** [Critical] `boundary-review-window-captures-delta` The authoritative review window contains no changes
+  Base and head are both 528a730, and the required stat and name-status recipes are empty. Re-run with a base preceding the M2 implementation or finding-closure commits so the anti-collusion review can inspect the actual delta.
+- **BR-15** [Critical] `repository-contracts-stay-green` M2 carries closed project metadata before the milestone is checked
+  workshop/projects/couch.md leaves pair#155 M2 unchecked at line 173 but records actual and closed values at lines 399-400, causing TestUncheckedProjectMilestoneHasNoClosedMetadata to fail. This is the 2nd finding in family repository-contracts-stay-green. Do not fix only this instance: enforce that issue, plan, and project closure metadata changes only through the successful close-gate transaction; the current sweep measured one violation.
+
 ## Open findings
 
-- **BR-8** [Critical] `established-binding-is-sole-recovery-authority` Plain restart can resume a stale config while the current typed launch is provisional
-- **BR-9** [Critical] `diagnostic-registry-single-source` Unrecognized and unreadable evidence is still silently discarded
-- **BR-10** [Critical] `documented-total-order` Diagnostic ordering puts a null agent first despite schema v1 requiring null last
-- **BR-11** [Critical] `authored-log-framing-round-trips` A valid Markdown horizontal rule inside authored text makes the entire round suffix unusable
 - **BR-12** [Important] `public-cli-readme` README documentation is missing for the new public session-inventory command
 - **BR-13** [Important] `cli-result-matrix-is-executable` Task 7 claims full result-matrix privacy goldens but tests cover only a subset
+- **BR-14** [Critical] `boundary-review-window-captures-delta` The authoritative review window contains no changes
+- **BR-15** [Critical] `repository-contracts-stay-green` M2 carries closed project metadata before the milestone is checked

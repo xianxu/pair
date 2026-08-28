@@ -2366,3 +2366,13 @@ Markdown may contain the same bytes.
 with a proven inverse), and retain an explicit legacy decoder. Add a
 writer-to-parser round-trip containing the old delimiter and a header-shaped
 body, not only parser unit cases (`ARCH-PURE`, `ARCH-PURPOSE`).
+
+## Closure metadata belongs to the successful gate transaction
+
+Pre-populating project actual/closed fields makes an unchecked milestone look
+closed and leaves inconsistent state when boundary review rejects the change.
+
+**Rule.** Before a close gate succeeds, keep issue, plan, and project closure
+state absent or unchecked. Let `sdlc milestone-close` / `sdlc close` write the
+coordinated status, actual, date, and log only after its review accepts the
+boundary (`ARCH-PURPOSE`).

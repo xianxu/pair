@@ -392,24 +392,6 @@ boundary: establish a root only after one completed operator round, then let
 native parent edges propagate that already-proven binding (ARCH-DRY,
 ARCH-PURE, ARCH-PURPOSE, ARCH-MOCK).
 
-<a id="pair-155-m2"></a>
-### pair#155 M2 — round-gated native bindings and public inventory
-
-**est:** 7.85 (whole issue)
-**actual:** 2.21h
-**closed:** 2026-08-28
-
-Pair now captures a content-free launch baseline before input and establishes a
-native root only after one unique completed operator-to-agent round. The same
-pure matcher owns live watching and launch-delimited crash recovery; competing
-roots remain ambiguous, parent edges only propagate an established binding,
-and stale launch ordinals cannot persist. `pair session-inventory` exposes the
-complete forests, bindings, ambiguities, and diagnostics as stable human or
-schema-v1 JSON, with redacted live conformance. Worth preserving: a minted ID
-or open transcript is invocation/corroboration state, not recovery authority;
-there is almost nothing to preserve until native progress completes the round
-(`ARCH-DRY`, `ARCH-PURE`, `ARCH-PURPOSE`, `ARCH-MOCK`).
-
 ## Log
 
 ### 2026-08-26 — pair#149 M5 implementation ready for boundary
