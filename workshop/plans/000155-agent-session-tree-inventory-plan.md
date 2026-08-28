@@ -367,7 +367,7 @@ and mechanical guard; executable fixtures/fuzz seeds own individual cases.
 - [x] Run:
   - `go test ./cmd/internal/sessioninventory ./cmd/internal/slugcmd ./cmd/internal/continuationcmd ./cmd/internal/pairlog ./cmd/internal/dispatcher ./cmd/pair-go -count=1`
   - `make test-lua`
-- [ ] Commit: `git add cmd/internal/sessioninventory cmd/internal/slugcmd cmd/internal/continuationcmd cmd/internal/pairlog cmd/internal/dispatcher cmd/pair-go nvim && git commit -m '#155 M2: make submitted rounds durably observable'`.
+- [x] Commit: `git add cmd/internal/sessioninventory cmd/internal/slugcmd cmd/internal/continuationcmd cmd/internal/pairlog cmd/internal/dispatcher cmd/pair-go nvim && git commit -m '#155 M2: make submitted rounds durably observable'`.
 
 ### Task 5: Implement pure causal-round binding and crash recovery
 
@@ -385,23 +385,23 @@ and mechanical guard; executable fixtures/fuzz seeds own individual cases.
 - Modify: `cmd/internal/launcher/ledger.go`
 - Test: `cmd/internal/launcher/ledger_test.go`
 
-- [ ] RED/GREEN: add `TestQualifyTurnSequence` from the strategy table, then
+- [x] RED/GREEN: add `TestQualifyTurnSequence` from the strategy table, then
       implement the exact one/two-turn thresholds and completed-progress rule.
-- [ ] RED/GREEN: add `TestResolveBindings` from the strategy table, then
+- [x] RED/GREEN: add `TestResolveBindings` from the strategy table, then
       implement global precedence, ambiguity intersection, stable IDs, and
       propagation-only parent inheritance.
-- [ ] RED/GREEN: add `TestParseLedger` and `TestCurrentLaunch`, then implement
+- [x] RED/GREEN: add `TestParseLedger` and `TestCurrentLaunch`, then implement
       typed `launch`/`binding` records. The launch row stores content-free
       Pair-log/native watermarks; its physical ordinal is the generation key.
       A newer launch supersedes older current state, and a binding is current
       only when it references the latest launch ordinal.
-- [ ] RED/GREEN: add `TestLedgerStoreAppend` and its subprocess concurrency
+- [x] RED/GREEN: add `TestLedgerStoreAppend` and its subprocess concurrency
       target, then implement the sole locked append/fsync writer and failure
       semantics. Replace launcher parsing/writes with shared records/store.
-- [ ] Implement offline recovery as `Pair/native suffix after the latest
+- [x] Implement offline recovery as `Pair/native suffix after the latest
       launch's stored watermarks → QualifyTurnSequence → ResolveBindings`.
       No timestamp, process order, or older launch can authorize that suffix.
-- [ ] Run:
+- [x] Run:
   - `go test ./cmd/internal/sessioninventory -run 'Test(QualifyTurnSequence|ResolveBindings|OfflineRecovery|ParentPropagation)' -count=1`
   - `go test ./cmd/internal/sessionledger ./cmd/internal/launcher -run 'Test(Ledger|CurrentLaunch)' -count=1`
 - [ ] Commit: `git add cmd/internal/sessioninventory cmd/internal/sessionledger cmd/internal/launcher && git commit -m '#155 M2: establish durable launch generations'`.

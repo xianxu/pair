@@ -4,6 +4,8 @@ import (
 	"strings"
 	"testing"
 	"time"
+
+	"github.com/xianxu/pair/cmd/internal/sessionledger"
 )
 
 func TestSessionLedgerRoundTripAndLatest(t *testing.T) {
@@ -41,6 +43,27 @@ func TestSessionLedgerRoundTripAndLatest(t *testing.T) {
 	latest, ok := LatestLedgerEntry(entries)
 	if !ok || latest.Agent != "codex" || latest.SessionID != "B" {
 		t.Fatalf("latest = %#v ok=%v, want codex/B", latest, ok)
+	}
+}
+
+func TestLauncherParseLedgerPrefersTypedCurrentGeneration(t *testing.T) {
+	t.Parallel()
+	legacy, err := BuildLedgerLine(LedgerEntry{Agent: "claude", SessionID: "stale", LastActive: time.Unix(999, 0).UTC()})
+	if err != nil {
+		t.Fatal(err)
+	}
+	launch, err := sessionledger.EncodeRecord(sessionledger.Record{Version: 1, Kind: sessionledger.RecordLaunch, ScopeKey: "scope", Tag: "work", Agent: "claude"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	binding, err := sessionledger.EncodeRecord(sessionledger.Record{Version: 1, Kind: sessionledger.RecordBinding, ScopeKey: "scope", Tag: "work", Agent: "claude", LaunchOrdinal: 2, RootNativeID: "current"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	entries := ParseLedger(legacy + "\n" + string(launch) + "\n" + string(binding) + "\n")
+	latest, ok := LatestLedgerEntryForAgent(entries, "claude")
+	if !ok || latest.SessionID != "current" || !latest.Typed || latest.SourceOrdinal != 2 {
+		t.Fatalf("latest=%#v ok=%v entries=%#v", latest, ok, entries)
 	}
 }
 

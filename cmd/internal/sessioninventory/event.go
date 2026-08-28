@@ -32,7 +32,14 @@ type NativeEvent struct {
 	SourceKind string          `json:"source_kind"`
 }
 
-func (e NativeEvent) Progress() bool { return e.Kind != EventOperator }
+func (e NativeEvent) Progress() bool {
+	switch e.Kind {
+	case EventAssistant, EventToolCall, EventToolResult, EventTerminal:
+		return true
+	default:
+		return false
+	}
+}
 
 func nativeTextEvent(kind NativeEventKind, text, source string) (NativeEvent, bool) {
 	text = NormalizePairText(text)

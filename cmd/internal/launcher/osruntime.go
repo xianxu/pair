@@ -19,6 +19,7 @@ import (
 	"github.com/xianxu/pair/cmd/internal/osfs"
 	"github.com/xianxu/pair/cmd/internal/procutil"
 	"github.com/xianxu/pair/cmd/internal/readiness"
+	"github.com/xianxu/pair/cmd/internal/sessionledger"
 	"github.com/xianxu/pair/cmd/internal/sessionwatch"
 	"github.com/xianxu/pair/cmd/internal/transcript"
 	"github.com/xianxu/pair/cmd/internal/zellijpane"
@@ -581,20 +582,12 @@ func (r OSRuntime) AppendLedger(tag string, entry LedgerEntry) error {
 	if err != nil {
 		return err
 	}
-	path := paths.Ledger()
-	var raw string
-	if existing, err := r.ReadFile(path); err == nil {
-		raw = existing
-	}
 	line, err := BuildLedgerLine(entry)
 	if err != nil {
 		return err
 	}
-	if raw != "" && !strings.HasSuffix(raw, "\n") {
-		raw += "\n"
-	}
-	raw += line + "\n"
-	return r.WriteAtomic(path, raw)
+	_, err = (sessionledger.LedgerStore{Runtime: sessionledger.OSRuntime{}}).AppendLegacy(paths.Ledger(), []byte(line))
+	return err
 }
 
 // pair:m5-concept integration

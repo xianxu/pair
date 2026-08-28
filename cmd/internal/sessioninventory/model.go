@@ -152,11 +152,6 @@ type Diagnostic struct {
 	Detail    string         `json:"detail"`
 }
 
-type Inventory struct {
-	Forests     []Forest     `json:"forests"`
-	Diagnostics []Diagnostic `json:"diagnostics"`
-}
-
 type factKey struct {
 	agent    Agent
 	nativeID string

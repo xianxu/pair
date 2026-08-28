@@ -25,24 +25,29 @@ var conceptNamePattern = regexp.MustCompile("`([^`]+)`")
 
 func TestM1CoreConceptTableMatchesDeclarations(t *testing.T) {
 	root := filepath.Join("..", "..", "..")
-	plan := readM1PlanConcepts(t, filepath.Join(root, "workshop", "plans", "000155-agent-session-tree-inventory-plan.md"))
-	declarations := readM1ConceptDeclarations(t, root, []string{"cmd/internal/sessioninventory", "cmd/internal/sessioninventorytest"})
+	assertConceptContract(t, root, "M1", []string{"cmd/internal/sessioninventory", "cmd/internal/sessioninventorytest"})
+}
+
+func assertConceptContract(t *testing.T, root, milestone string, directories []string) {
+	t.Helper()
+	plan := readPlanConcepts(t, filepath.Join(root, "workshop", "plans", "000155-agent-session-tree-inventory-plan.md"), milestone)
+	declarations := readConceptDeclarations(t, root, directories, milestone)
 	if len(plan) != len(declarations) {
-		t.Fatalf("M1 concept count: plan=%d declarations=%d\nplan=%#v\ndeclarations=%#v", len(plan), len(declarations), plan, declarations)
+		t.Fatalf("%s concept count: plan=%d declarations=%d\nplan=%#v\ndeclarations=%#v", milestone, len(plan), len(declarations), plan, declarations)
 	}
 	for name, want := range declarations {
 		got, ok := plan[name]
 		if !ok {
-			t.Errorf("marked M1 concept %s is absent from Core Concepts", name)
+			t.Errorf("marked %s concept %s is absent from Core Concepts", milestone, name)
 			continue
 		}
 		if got != want {
-			t.Errorf("M1 concept %s = %#v, want declaration %#v", name, got, want)
+			t.Errorf("%s concept %s = %#v, want declaration %#v", milestone, name, got, want)
 		}
 	}
 }
 
-func readM1PlanConcepts(t *testing.T, planPath string) map[string]conceptContract {
+func readPlanConcepts(t *testing.T, planPath, milestone string) map[string]conceptContract {
 	t.Helper()
 	file, err := os.Open(planPath)
 	if err != nil {
@@ -64,17 +69,17 @@ func readM1PlanConcepts(t *testing.T, planPath string) map[string]conceptContrac
 			continue
 		}
 		fields := strings.Split(line, "|")
-		if len(fields) < 6 || strings.TrimSpace(fields[4]) != "M1" {
+		if len(fields) < 6 || strings.TrimSpace(fields[4]) != milestone {
 			continue
 		}
 		pathMatches := conceptNamePattern.FindStringSubmatch(fields[2])
 		if len(pathMatches) != 2 {
-			t.Fatalf("M1 concept row has no path: %s", line)
+			t.Fatalf("%s concept row has no path: %s", milestone, line)
 		}
 		for _, match := range conceptNamePattern.FindAllStringSubmatch(fields[1], -1) {
-			concept := conceptContract{Name: match[1], Kind: kind, Path: pathMatches[1], Status: strings.TrimSpace(fields[3]), Introduced: "M1"}
+			concept := conceptContract{Name: match[1], Kind: kind, Path: pathMatches[1], Status: strings.TrimSpace(fields[3]), Introduced: milestone}
 			if previous, exists := result[concept.Name]; exists {
-				t.Fatalf("duplicate M1 concept %s: %#v and %#v", concept.Name, previous, concept)
+				t.Fatalf("duplicate %s concept %s: %#v and %#v", milestone, concept.Name, previous, concept)
 			}
 			result[concept.Name] = concept
 		}
@@ -85,7 +90,7 @@ func readM1PlanConcepts(t *testing.T, planPath string) map[string]conceptContrac
 	return result
 }
 
-func readM1ConceptDeclarations(t *testing.T, root string, directories []string) map[string]conceptContract {
+func readConceptDeclarations(t *testing.T, root string, directories []string, milestone string) map[string]conceptContract {
 	t.Helper()
 	result := map[string]conceptContract{}
 	for _, directory := range directories {
@@ -102,9 +107,9 @@ func readM1ConceptDeclarations(t *testing.T, root string, directories []string) 
 				return err
 			}
 			for _, declaration := range file.Decls {
-				for _, concept := range markedM1Concepts(declaration, filepath.ToSlash(relativePath)) {
+				for _, concept := range markedConcepts(declaration, filepath.ToSlash(relativePath), milestone) {
 					if previous, exists := result[concept.Name]; exists {
-						t.Fatalf("duplicate marked M1 concept %s: %#v and %#v", concept.Name, previous, concept)
+						t.Fatalf("duplicate marked %s concept %s: %#v and %#v", milestone, concept.Name, previous, concept)
 					}
 					result[concept.Name] = concept
 				}
@@ -118,7 +123,7 @@ func readM1ConceptDeclarations(t *testing.T, root string, directories []string) 
 	return result
 }
 
-func markedM1Concepts(declaration ast.Decl, path string) []conceptContract {
+func markedConcepts(declaration ast.Decl, path, milestone string) []conceptContract {
 	group, ok := declaration.(*ast.GenDecl)
 	if !ok {
 		return nil
@@ -133,7 +138,7 @@ func markedM1Concepts(declaration ast.Decl, path string) []conceptContract {
 		if marker == nil {
 			marker = conceptMarker(group.Doc)
 		}
-		if len(marker) == 3 && marker[2] == "M1" {
+		if len(marker) == 3 && marker[2] == milestone {
 			result = append(result, conceptContract{Name: typeSpec.Name.Name, Kind: marker[0], Path: path, Status: marker[1], Introduced: marker[2]})
 		}
 	}

@@ -36,6 +36,8 @@ func SortInventory(input Inventory) Inventory {
 	}
 	output := Inventory{
 		Forests:     make([]Forest, len(input.Forests)),
+		Bindings:    make([]Binding, len(input.Bindings)),
+		Ambiguities: make([]Ambiguity, len(input.Ambiguities)),
 		Diagnostics: make([]Diagnostic, 0, len(coalescedDiagnostics)),
 	}
 	for i, forest := range input.Forests {
@@ -48,6 +50,45 @@ func SortInventory(input Inventory) Inventory {
 		sortNodes(output.Forests[i].Orphans)
 	}
 	sort.Slice(output.Forests, func(i, j int) bool { return output.Forests[i].Agent < output.Forests[j].Agent })
+	for i, binding := range input.Bindings {
+		output.Bindings[i] = binding
+		output.Bindings[i].RootNodeID = cloneString(binding.RootNodeID)
+		output.Bindings[i].Candidates = append([]Candidate(nil), binding.Candidates...)
+		for candidate := range output.Bindings[i].Candidates {
+			output.Bindings[i].Candidates[candidate].EvidenceIDs = append([]string(nil), binding.Candidates[candidate].EvidenceIDs...)
+			sort.Strings(output.Bindings[i].Candidates[candidate].EvidenceIDs)
+		}
+		output.Bindings[i].Evidence = append([]Evidence(nil), binding.Evidence...)
+		for evidence := range output.Bindings[i].Evidence {
+			output.Bindings[i].Evidence[evidence].SourcePositions = append([]uint64(nil), binding.Evidence[evidence].SourcePositions...)
+			output.Bindings[i].Evidence[evidence].DestinationPositions = append([]uint64(nil), binding.Evidence[evidence].DestinationPositions...)
+			output.Bindings[i].Evidence[evidence].Fingerprints = append([]string(nil), binding.Evidence[evidence].Fingerprints...)
+			sort.Slice(output.Bindings[i].Evidence[evidence].SourcePositions, func(a, b int) bool {
+				return output.Bindings[i].Evidence[evidence].SourcePositions[a] < output.Bindings[i].Evidence[evidence].SourcePositions[b]
+			})
+			sort.Slice(output.Bindings[i].Evidence[evidence].DestinationPositions, func(a, b int) bool {
+				return output.Bindings[i].Evidence[evidence].DestinationPositions[a] < output.Bindings[i].Evidence[evidence].DestinationPositions[b]
+			})
+			sort.Strings(output.Bindings[i].Evidence[evidence].Fingerprints)
+		}
+		sort.Slice(output.Bindings[i].Candidates, func(a, b int) bool {
+			return compareCandidate(output.Bindings[i].Candidates[a], output.Bindings[i].Candidates[b]) < 0
+		})
+		sort.Slice(output.Bindings[i].Evidence, func(a, b int) bool {
+			return compareEvidence(output.Bindings[i].Evidence[a], output.Bindings[i].Evidence[b]) < 0
+		})
+	}
+	sort.Slice(output.Bindings, func(i, j int) bool { return compareBinding(output.Bindings[i], output.Bindings[j]) < 0 })
+	for i, ambiguity := range input.Ambiguities {
+		output.Ambiguities[i] = ambiguity
+		output.Ambiguities[i].BindingIDs = append([]string(nil), ambiguity.BindingIDs...)
+		output.Ambiguities[i].RootNodeIDs = append([]string(nil), ambiguity.RootNodeIDs...)
+		output.Ambiguities[i].EvidenceIDs = append([]string(nil), ambiguity.EvidenceIDs...)
+		sort.Strings(output.Ambiguities[i].BindingIDs)
+		sort.Strings(output.Ambiguities[i].RootNodeIDs)
+		sort.Strings(output.Ambiguities[i].EvidenceIDs)
+	}
+	sort.Slice(output.Ambiguities, func(i, j int) bool { return compareAmbiguity(output.Ambiguities[i], output.Ambiguities[j]) < 0 })
 
 	for _, diagnostic := range coalescedDiagnostics {
 		cloned := diagnostic

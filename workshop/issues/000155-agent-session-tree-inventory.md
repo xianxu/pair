@@ -769,6 +769,22 @@ be checked against measured actuals at close.*
 
 ## Log
 
+- 2026-08-28 — M2 Task 5 implements the pure causal matcher and durable launch
+  generations. Exact one/two-turn thresholds are UTF-8/Unicode aware, require
+  accepted progress before the next operator turn, reject repeated/gapped
+  sequences globally, and retain only fingerprints/positions in evidence.
+  Binding resolution now applies ledger/live/offline/config precedence,
+  intersects later rounds, respects global Pair-owner exclusivity, and inherits
+  only through validated edges. Typed launch/binding rows use physical ordinals;
+  the shared locked append/fsync store preserves malformed-tail generation
+  consumption under subprocess contention and the launcher now reads typed
+  current generations while all legacy writes cross that same store. Offline
+  recovery is limited to the launch-recorded Pair-log and native-event suffixes
+  only: absent baselines cannot reinterpret history, and conflicting current
+  bindings remain one explained rank-1 ambiguity instead of falling through to
+  weaker round evidence.
+  (`ARCH-PURE`, `ARCH-PURPOSE`, `ARCH-DRY`, `ARCH-MOCK`).
+
 - 2026-08-28 — M2 Task 4 now owns one exact Pair-text projection across Go and
   Lua, allowlisted native operator/progress events for all four agents, and a
   fail-closed authored-send boundary. `SessionLogStore` serializes concurrent

@@ -5,17 +5,21 @@ import (
 	"sort"
 	"strings"
 	"time"
+
+	"github.com/xianxu/pair/cmd/internal/sessionledger"
 )
 
 type LedgerEntry struct {
-	Agent        string    `json:"agent"`
-	Args         []string  `json:"args"`
-	SessionID    string    `json:"session_id"`
-	Started      time.Time `json:"started"`
-	LastActive   time.Time `json:"last_active"`
-	RepoRoot     string    `json:"repo_root"`
-	RepoName     string    `json:"repo_name"`
-	LegacyImport bool      `json:"legacy_import,omitempty"`
+	Agent         string    `json:"agent"`
+	Args          []string  `json:"args"`
+	SessionID     string    `json:"session_id"`
+	Started       time.Time `json:"started"`
+	LastActive    time.Time `json:"last_active"`
+	RepoRoot      string    `json:"repo_root"`
+	RepoName      string    `json:"repo_name"`
+	LegacyImport  bool      `json:"legacy_import,omitempty"`
+	Typed         bool      `json:"-"`
+	SourceOrdinal uint64    `json:"-"`
 }
 
 func BuildLedgerLine(entry LedgerEntry) (string, error) {
@@ -33,9 +37,36 @@ func ParseLedger(raw string) []LedgerEntry {
 		if line == "" {
 			continue
 		}
+		var shape struct {
+			Kind string `json:"kind"`
+		}
+		if json.Unmarshal([]byte(line), &shape) == nil && shape.Kind != "" {
+			continue
+		}
 		var entry LedgerEntry
 		if err := json.Unmarshal([]byte(line), &entry); err != nil {
 			continue
+		}
+		if entry.Agent == "" {
+			continue
+		}
+		entries = append(entries, entry)
+	}
+	parsed := sessionledger.ParseLedger([]byte(raw))
+	owners := map[sessionledger.Owner]bool{}
+	for _, record := range parsed.Records {
+		if record.Kind == sessionledger.RecordLaunch {
+			owners[sessionledger.Owner{ScopeKey: record.ScopeKey, Tag: record.Tag, Agent: record.Agent}] = true
+		}
+	}
+	for owner := range owners {
+		current, ok := sessionledger.CurrentLaunch(parsed.Records, owner)
+		if !ok {
+			continue
+		}
+		entry := LedgerEntry{Agent: owner.Agent, Typed: true, SourceOrdinal: current.Launch.Ordinal}
+		if current.Binding != nil {
+			entry.SessionID = current.Binding.RootNativeID
 		}
 		entries = append(entries, entry)
 	}
@@ -48,7 +79,7 @@ func LatestLedgerEntry(entries []LedgerEntry) (LedgerEntry, bool) {
 	}
 	latest := entries[0]
 	for _, entry := range entries[1:] {
-		if entry.LastActive.After(latest.LastActive) || (entry.LastActive.Equal(latest.LastActive) && entry.Started.After(latest.Started)) {
+		if ledgerEntryNewer(entry, latest) {
 			latest = entry
 		}
 	}
@@ -62,7 +93,7 @@ func LatestLedgerEntryForAgent(entries []LedgerEntry, agent string) (LedgerEntry
 		if entry.Agent != agent {
 			continue
 		}
-		if !ok || entry.LastActive.After(latest.LastActive) || (entry.LastActive.Equal(latest.LastActive) && entry.Started.After(latest.Started)) {
+		if !ok || ledgerEntryNewer(entry, latest) {
 			latest = entry
 			ok = true
 		}
@@ -81,10 +112,7 @@ func CompactLedger(entries []LedgerEntry, keepRecent int) []LedgerEntry {
 	}
 	sort.SliceStable(byRecent, func(i, j int) bool {
 		a, b := entries[byRecent[i]], entries[byRecent[j]]
-		if a.LastActive.Equal(b.LastActive) {
-			return a.Started.After(b.Started)
-		}
-		return a.LastActive.After(b.LastActive)
+		return ledgerEntryNewer(a, b)
 	})
 	for i := 0; i < keepRecent && i < len(byRecent); i++ {
 		keep[byRecent[i]] = true
@@ -92,7 +120,7 @@ func CompactLedger(entries []LedgerEntry, keepRecent int) []LedgerEntry {
 	latestByAgent := map[string]int{}
 	for i, entry := range entries {
 		prev, ok := latestByAgent[entry.Agent]
-		if !ok || entry.LastActive.After(entries[prev].LastActive) || (entry.LastActive.Equal(entries[prev].LastActive) && entry.Started.After(entries[prev].Started)) {
+		if !ok || ledgerEntryNewer(entry, entries[prev]) {
 			latestByAgent[entry.Agent] = i
 		}
 	}
@@ -106,4 +134,17 @@ func CompactLedger(entries []LedgerEntry, keepRecent int) []LedgerEntry {
 		}
 	}
 	return out
+}
+
+func ledgerEntryNewer(candidate, current LedgerEntry) bool {
+	if candidate.Typed != current.Typed {
+		return candidate.Typed
+	}
+	if candidate.Typed && candidate.SourceOrdinal != current.SourceOrdinal {
+		return candidate.SourceOrdinal > current.SourceOrdinal
+	}
+	if candidate.LastActive.Equal(current.LastActive) {
+		return candidate.Started.After(current.Started)
+	}
+	return candidate.LastActive.After(current.LastActive)
 }
