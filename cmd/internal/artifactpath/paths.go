@@ -178,10 +178,17 @@ func IsLogHistorySidecar(name string) bool {
 	return strings.HasPrefix(name, "log-") && strings.HasSuffix(name, ".md")
 }
 
+// IsConfigSidecar recognizes the config filename family before owner
+// validation, so callers can distinguish an unsupported or malformed owner
+// from an unrelated file.
+func IsConfigSidecar(name string) bool {
+	return strings.HasPrefix(name, "config-") && strings.HasSuffix(name, ".json")
+}
+
 // TagAgentFromConfigSidecar recognizes a validated config sidecar for one of
 // the caller's supported agent names without duplicating the filename family.
 func TagAgentFromConfigSidecar(name string, agents []string) (string, string, bool) {
-	if !strings.HasPrefix(name, "config-") || !strings.HasSuffix(name, ".json") {
+	if !IsConfigSidecar(name) {
 		return "", "", false
 	}
 	base := strings.TrimSuffix(strings.TrimPrefix(name, "config-"), ".json")

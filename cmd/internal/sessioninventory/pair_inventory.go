@@ -46,8 +46,11 @@ func RecoverPairBindings(runtime Runtime, inventory Inventory, scopeMode, curren
 	var diagnostics []Diagnostic
 
 	for _, file := range files {
-		scope, name, ok := selectedPairArtifact(file.Artifact.RelativePath, scopeMode, currentScopeKey)
+		scope, name, ok, rejected := selectedPairArtifact(file.Artifact.RelativePath, scopeMode, currentScopeKey)
 		if !ok {
+			if rejected {
+				diagnostics = append(diagnostics, diagnosticWithSource(DiagnosticArtifactPathInvalid, "", nil, "pair-artifact:"+file.Artifact.RelativePath, "recognized Pair evidence is outside an accepted scope shape"))
+			}
 			continue
 		}
 		historyTag, historyArtifact := artifactpath.TagFromHistorySidecar(name)
@@ -66,6 +69,10 @@ func RecoverPairBindings(runtime Runtime, inventory Inventory, scopeMode, curren
 			}
 			for _, record := range parsed.Records {
 				agent := Agent(record.Agent)
+				if !validAgent(agent) {
+					diagnostics = append(diagnostics, diagnosticWithSource(DiagnosticPairRecordMalformed, "", nil, fmt.Sprintf("ledger:%s:%d", tag, record.Ordinal), "typed Pair ledger names an unsupported agent"))
+					continue
+				}
 				if !allowed[agent] {
 					continue
 				}
@@ -102,6 +109,16 @@ func RecoverPairBindings(runtime Runtime, inventory Inventory, scopeMode, curren
 				continue
 			}
 			configs[pairOwner{scope: scope, tag: tag, agent: agent}] = config.SessionID
+		default:
+			if artifactpath.IsConfigSidecar(name) {
+				_, knownAgent, known := artifactpath.TagAgentFromConfigSidecar(name, agentNames(supportedAgents))
+				if known && !allowed[Agent(knownAgent)] {
+					continue
+				}
+				diagnostics = append(diagnostics, diagnosticWithSource(DiagnosticPairRecordMalformed, "", nil, "artifact:"+name, "Pair config sidecar names an unsupported agent or invalid owner"))
+			} else if artifactpath.IsLedgerHistorySidecar(name) || artifactpath.IsLogHistorySidecar(name) {
+				diagnostics = append(diagnostics, diagnosticWithSource(DiagnosticPairRecordMalformed, "", nil, "pair-artifact:"+name, "Pair evidence sidecar has an invalid owner"))
+			}
 		}
 	}
 
@@ -170,22 +187,30 @@ func RecoverPairBindings(runtime Runtime, inventory Inventory, scopeMode, curren
 	return ResolveBindings(inventory, inputs), nil
 }
 
-func selectedPairArtifact(relativePath, scopeMode, currentScopeKey string) (string, string, bool) {
+func selectedPairArtifact(relativePath, scopeMode, currentScopeKey string) (string, string, bool, bool) {
 	clean := path.Clean(relativePath)
+	name := path.Base(clean)
+	recognized := recognizedPairEvidenceName(name)
 	if clean == "." || clean == ".." || strings.HasPrefix(clean, "../") {
-		return "", "", false
+		return "", "", false, recognized
 	}
 	parts := strings.Split(clean, "/")
 	if len(parts) == 3 && parts[0] == "repos" {
 		if scopeMode == "current" && parts[1] != currentScopeKey {
-			return "", "", false
+			return "", "", false, false
 		}
-		return parts[1], parts[2], true
+		return parts[1], parts[2], true, false
 	}
 	if len(parts) == 1 && currentScopeKey != "" {
-		return currentScopeKey, parts[0], true
+		return currentScopeKey, parts[0], true, false
 	}
-	return "", "", false
+	return "", "", false, recognized
+}
+
+func recognizedPairEvidenceName(name string) bool {
+	return artifactpath.IsLedgerHistorySidecar(name) ||
+		artifactpath.IsLogHistorySidecar(name) ||
+		artifactpath.IsConfigSidecar(name)
 }
 
 func agentNames(agents []Agent) []string {

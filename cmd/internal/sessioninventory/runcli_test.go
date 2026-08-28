@@ -233,6 +233,45 @@ func TestRecoverPairBindingsDiagnosesRejectedAndUnknownEvidence(t *testing.T) {
 	}
 }
 
+func TestRecoverPairBindingsClassifiesEveryRecognizedEvidenceRejection(t *testing.T) {
+	t.Parallel()
+	cases := []struct {
+		name, relative, body string
+		wantCode             sessioninventory.DiagnosticCode
+	}{
+		{"unsupported ledger agent", "ledger-work.jsonl", `{"v":1,"kind":"launch","scope_key":"scope","tag":"work","agent":"future","pair_log_offset":0,"native_watermarks":[]}` + "\n", sessioninventory.DiagnosticPairRecordMalformed},
+		{"unsupported config agent", "config-work-future.json", `{"agent":"future","session_id":"root"}`, sessioninventory.DiagnosticPairRecordMalformed},
+		{"invalid ledger owner filename", "ledger-.jsonl", "{}\n", sessioninventory.DiagnosticPairRecordMalformed},
+		{"nested recognized sidecar", "nested/ledger-work.jsonl", "{}\n", sessioninventory.DiagnosticArtifactPathInvalid},
+	}
+	for _, test := range cases {
+		t.Run(test.name, func(t *testing.T) {
+			runtime := sessioninventorytest.NewFakeRuntime()
+			pairRoot := sessioninventory.StorageRoot{Name: "pair-data", Path: "/pair/scope"}
+			runtime.SetPairDataRoot(pairRoot)
+			runtime.PutFile(sessioninventory.FileEntry{Artifact: sessioninventory.Artifact{StorageRoot: pairRoot.Name, RelativePath: test.relative}}, []byte(test.body))
+			got, err := sessioninventory.RecoverPairBindings(runtime, sessioninventory.Inventory{}, "current", "scope", []sessioninventory.Agent{sessioninventory.AgentCodex})
+			if err != nil {
+				t.Fatal(err)
+			}
+			if len(got.Diagnostics) != 1 || got.Diagnostics[0].Code != test.wantCode {
+				t.Fatalf("diagnostics=%#v, want one %s", got.Diagnostics, test.wantCode)
+			}
+		})
+	}
+
+	t.Run("supported unrequested evidence stays filtered", func(t *testing.T) {
+		runtime := sessioninventorytest.NewFakeRuntime()
+		pairRoot := sessioninventory.StorageRoot{Name: "pair-data", Path: "/pair/scope"}
+		runtime.SetPairDataRoot(pairRoot)
+		runtime.PutFile(sessioninventory.FileEntry{Artifact: sessioninventory.Artifact{StorageRoot: pairRoot.Name, RelativePath: "ledger-work.jsonl"}}, []byte(`{"v":1,"kind":"launch","scope_key":"scope","tag":"work","agent":"claude","pair_log_offset":0,"native_watermarks":[]}`+"\n"))
+		got, err := sessioninventory.RecoverPairBindings(runtime, sessioninventory.Inventory{}, "current", "scope", []sessioninventory.Agent{sessioninventory.AgentCodex})
+		if err != nil || len(got.Diagnostics) != 0 {
+			t.Fatalf("err=%v diagnostics=%#v", err, got.Diagnostics)
+		}
+	})
+}
+
 func env(values map[string]string) func(string) string {
 	return func(key string) string { return values[key] }
 }

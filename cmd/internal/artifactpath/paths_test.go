@@ -348,6 +348,12 @@ func TestHistoryAndConfigSidecarRecognition(t *testing.T) {
 	if tag, agent, ok := TagAgentFromConfigSidecar("config-my-work-codex.json", []string{"claude", "codex"}); !ok || tag != "my-work" || agent != "codex" {
 		t.Fatalf("config recognition = %q,%q,%v", tag, agent, ok)
 	}
+	if !IsConfigSidecar("config-work-other.json") {
+		t.Fatal("recognized config family should survive unsupported owner validation")
+	}
+	if IsConfigSidecar("ledger-work.jsonl") {
+		t.Fatal("ledger sidecar was recognized as config")
+	}
 	for _, invalid := range []string{"config-work-other.json", "config-../work-codex.json", "log-.md"} {
 		if tag, agent, ok := TagAgentFromConfigSidecar(invalid, []string{"codex"}); ok || tag != "" || agent != "" {
 			t.Fatalf("accepted invalid config %q", invalid)

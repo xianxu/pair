@@ -439,3 +439,93 @@ Append revisions recording:
 - One framing grammar across Go and Neovim, including byte-count updates and authored separators.
 - Usable process corroboration: unrelated open files do not disable portable exact-round establishment.
 - An independent, exact schema-v1 DTO and non-empty contract golden.
+
+---
+
+## Re-review — 2026-08-28T16:44:34-07:00 (REWORK)
+
+| field | value |
+|-------|-------|
+| issue | 155 — deterministic agent session-tree inventory |
+| repo | pair |
+| issue file | workshop/issues/000155-agent-session-tree-inventory.md |
+| boundary | milestone M2 |
+| milestone | M2 |
+| window | 4f151b037dc2d0f20d413c5af6a2353e131cec8e..a749c0dde1a57890fa78267441e8d9936dfe2686 |
+| command | sdlc milestone-close --issue 155 --milestone M2 |
+| reviewer | codex |
+| timestamp | 2026-08-28T16:44:34-07:00 |
+| verdict | REWORK |
+
+## Review
+
+```verdict
+verdict: REWORK
+confidence: high
+```
+
+The five repairs are reachable and regression-pinned, but BR-9 remains open: valid v1 ledger evidence with an unsupported agent is silently discarded. Because this is the third occurrence of `diagnostic-registry-single-source`, the boundary cannot close until the class rule is enforced across all Pair-evidence rejection paths.
+
+1. Strengths
+
+- BR-8, BR-11, BR-16, and BR-17 have effective regressions; reverting each fix in a scratch copy made its test fail.
+- Byte-counted Pair-log framing round-trips authored Markdown through Go persistence/parsing and Lua history editing.
+- The public `evidenceV1` DTO excludes internal `root_node_id` and emits non-null arrays.
+- README and `atlas/session-identity.md` document the public CLI and round-gated lifecycle.
+- Focused Go packages, Lua tests, watcher/queue shell tests, and `git diff --check` pass.
+
+2. Critical findings
+
+- **BR-9 not addressed — `cmd/internal/sessioninventory/pair_inventory.go:67-70`.** A syntactically valid v1 ledger row whose `agent` is unsupported reaches `ParseLedger`, then `RecoverPairBindings` silently continues because it is absent from the requested-agent map. A scratch regression expecting any registry-backed diagnostic fails with zero diagnostics.
+
+  **This is the 3rd finding in family `diagnostic-registry-single-source`.** Do not patch only this branch. State and enforce the class rule: supported-but-unrequested evidence may be filtered; unsupported versioned values and recognized Pair evidence rejected for invalid ownership/path/shape must emit a registry-backed diagnostic. Sweep all silent rejection branches, including recognized sidecars rejected by `selectedPairArtifact`, and add end-to-end diagnostics tests.
+
+3. Important findings
+
+None.
+
+4. Minor findings
+
+None.
+
+5. Test coverage notes
+
+- Fresh focused Go verification passed all M2-related packages.
+- `make test-lua`, `tests/pair-session-watch-test.sh`, and `tests/queue-send-test.sh` passed.
+- Mutation checks went red for BR-8, BR-9’s named Muse/read cases, BR-11, BR-16, and BR-17.
+- One full-suite attempt encountered sandbox denial executing `/bin/ps`; the affected `cmd/pair-go` package subsequently passed fresh with `-count=1`.
+
+6. Architectural notes for upcoming work
+
+- `ARCH-DRY`: Pass—shared normalization, ledger store, Pair-log framing, and inventory projections replace parallel implementations.
+- `ARCH-PURE`: Pass—matching, ordering, parsing, and binding remain pure behind narrow runtime/store seams.
+- `ARCH-PURPOSE`: Flag—BR-9 fixed named instances but not the enumerable diagnostic class.
+- `ARCH-MOCK`: Pass—stateful portable runtimes and injected persistence/process seams exercise production boundaries.
+
+7. Plan revision recommendations
+
+Append a `## Revisions` entry recording that the diagnostic closure claim was incomplete, defining the supported/unrequested/unsupported evidence rule, enumerating every Pair-evidence rejection branch, and requiring regressions for the full sweep.
+
+```findings
+dispose:
+  - id: BR-8
+    disposition: addressed
+    note: |
+      Provisional plain restart now drops stale config identity, and reverting the behavior makes TestPlanRestart fail.
+  - id: BR-9
+    disposition: not-addressed
+    note: |
+      Named Muse and read-boundary cases are fixed, but valid v1 ledger rows with unsupported agents are still silently discarded at pair_inventory.go:69-70.
+  - id: BR-11
+    disposition: addressed
+    note: |
+      Versioned byte-count framing round-trips arbitrary authored Markdown; reverting the writer to legacy framing makes the store-to-parser regression fail.
+  - id: BR-16
+    disposition: addressed
+    note: |
+      Only scanner-authorized open artifacts activate process corroboration; reverting availability to any open file makes the regression hang instead of establishing the unique round.
+  - id: BR-17
+    disposition: addressed
+    note: |
+      The exact public evidence projection removes internal root_node_id and forces arrays; reintroducing the field makes the independent golden fail.
+```

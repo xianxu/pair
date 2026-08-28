@@ -250,6 +250,32 @@ rounds:
           round: 7
       boundary: M2
       blocked: true
+    - "n": 8
+      timestamp: "2026-08-28T16:44:34-07:00"
+      agent: codex
+      dispose:
+        - id: BR-8
+          disposition: addressed
+          note: Provisional plain restart now drops stale config identity, and reverting the behavior makes TestPlanRestart fail.
+          round: 8
+        - id: BR-9
+          disposition: not-addressed
+          note: Named Muse and read-boundary cases are fixed, but valid v1 ledger rows with unsupported agents are still silently discarded at pair_inventory.go:69-70.
+          round: 8
+        - id: BR-11
+          disposition: addressed
+          note: Versioned byte-count framing round-trips arbitrary authored Markdown; reverting the writer to legacy framing makes the store-to-parser regression fail.
+          round: 8
+        - id: BR-16
+          disposition: addressed
+          note: Only scanner-authorized open artifacts activate process corroboration; reverting availability to any open file makes the regression hang instead of establishing the unique round.
+          round: 8
+        - id: BR-17
+          disposition: addressed
+          note: The exact public evidence projection removes internal root_node_id and forces arrays; reintroducing the field makes the independent golden fail.
+          round: 8
+      boundary: M2
+      blocked: true
 ---
 
 # Gate ledger — pair#155 (boundary-review)
@@ -360,10 +386,16 @@ later rounds disposed of them. Generated — edit the gate, not this file.
 - **BR-17** [Critical] `schema-v1-output-is-exact` Public evidence JSON does not match the documented schema-v1 contract
   ARCH-PURPOSE: the internal Evidence type adds public root_node_id, and render.go copies it directly into the public DTO. Ledger/config evidence also renders required position and fingerprint arrays as null. Introduce an exact evidenceV1 projection with non-nil arrays and test it against an independent contract golden.
 
+## Round 8 — 2026-08-28T16:44:34-07:00 (codex) — BLOCKED
+
+### Disposed
+
+- BR-8 — addressed — Provisional plain restart now drops stale config identity, and reverting the behavior makes TestPlanRestart fail.
+- BR-9 — not-addressed — Named Muse and read-boundary cases are fixed, but valid v1 ledger rows with unsupported agents are still silently discarded at pair_inventory.go:69-70.
+- BR-11 — addressed — Versioned byte-count framing round-trips arbitrary authored Markdown; reverting the writer to legacy framing makes the store-to-parser regression fail.
+- BR-16 — addressed — Only scanner-authorized open artifacts activate process corroboration; reverting availability to any open file makes the regression hang instead of establishing the unique round.
+- BR-17 — addressed — The exact public evidence projection removes internal root_node_id and forces arrays; reintroducing the field makes the independent golden fail.
+
 ## Open findings
 
-- **BR-8** [Critical] `established-binding-is-sole-recovery-authority` Plain restart can resume a stale config while the current typed launch is provisional
 - **BR-9** [Critical] `diagnostic-registry-single-source` Unrecognized and unreadable evidence is still silently discarded
-- **BR-11** [Critical] `authored-log-framing-round-trips` A valid Markdown horizontal rule inside authored text makes the entire round suffix unusable
-- **BR-16** [Critical] `usable-process-evidence-only` Unrelated open files suppress portable causal-round establishment
-- **BR-17** [Critical] `schema-v1-output-is-exact` Public evidence JSON does not match the documented schema-v1 contract

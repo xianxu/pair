@@ -767,3 +767,19 @@ byte-counted entries; process corroboration is available only when an open file
 maps to a scanner-authorized root; and an independent `evidenceV1` DTO emits
 exact documented fields with required non-null arrays (`ARCH-DRY`, `ARCH-PURE`,
 `ARCH-PURPOSE`, `ARCH-MOCK`).
+
+### 2026-08-28 — classify the complete Pair evidence rejection boundary
+
+**Reason:** the full-range review found a third instance of silent rejection:
+syntactically valid versioned ledger rows naming an unsupported agent. Fixing
+only that row shape would leave the same ambiguity at recognized sidecar names
+and paths.
+
+**Delta:** classify every recognized Pair evidence input exhaustively. Valid
+evidence for a supported requested agent is processed; valid evidence for a
+supported but unrequested agent is intentionally filtered; unsupported
+versioned enum values, malformed recognized sidecar owners or paths, rejected
+ownership, unknown native IDs, and failed reads produce registry-backed
+diagnostics. One table-driven regression crosses these filter/reject boundaries
+so adapters cannot recreate silent failure independently (`ARCH-DRY`,
+`ARCH-PURPOSE`).

@@ -2400,3 +2400,16 @@ and encoded required empty arrays as null, despite stable schema-v1 prose.
 documented fields and presence semantics. Pin a non-empty independent golden;
 empty-output goldens cannot detect nested field leakage or null/empty drift
 (`ARCH-PURE`, `ARCH-PURPOSE`).
+
+## Evidence filters must distinguish unrequested from unsupported
+
+Silently skipping a recognized evidence record is safe only when the record is
+valid, its versioned values are supported, and its supported owner was simply
+not requested by the caller.
+
+**Rule.** Exhaustively classify every recognized versioned evidence path. Only
+valid supported-but-unrequested evidence may be silent; unsupported enum
+values, malformed owners or paths, rejected ownership, unknown native IDs, and
+read failures must produce registry-backed diagnostics. Test the filter and
+every rejection class together so a new adapter cannot copy an incomplete
+default (`ARCH-DRY`, `ARCH-PURPOSE`).

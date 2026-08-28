@@ -769,6 +769,14 @@ be checked against measured actuals at close.*
 
 ## Log
 
+- 2026-08-28 — The final BR-9 sweep makes the Pair evidence boundary
+  exhaustive: requested supported agents are processed, supported but
+  unrequested agents are deliberately filtered, and unsupported agents,
+  malformed recognized sidecar owners/paths, rejected ownership, unknown
+  native IDs, and failed reads emit registry-backed diagnostics. The
+  table-driven regression prevents another adapter-local silent rejection
+  (`ARCH-DRY`, `ARCH-PURPOSE`).
+
 - 2026-08-28 — The first correctly anchored full-M2 review disposed the window,
   README, CLI-matrix, ordering, and Couch-state findings, then exposed five
   remaining authority classes. Regressions now prove a provisional launch
