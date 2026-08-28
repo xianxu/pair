@@ -52,6 +52,9 @@ func ResolveThreadReference(records []ThreadRecord, repoScope, ref string) ([]Th
 	if ref == "" {
 		return nil, fmt.Errorf("%w: empty reference", ErrThreadReferenceNotFound)
 	}
+	if strings.ContainsRune(ref, '\x00') {
+		return nil, fmt.Errorf("%w: malformed reference", ErrThreadReferenceNotFound)
+	}
 	eligible := make([]ThreadRecord, 0, len(records))
 	for _, record := range records {
 		if repoScope == "" || record.Address.RepoScope == repoScope {

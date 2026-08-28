@@ -21,7 +21,7 @@ type issue149ConceptRequirement struct {
 	kind string
 }
 
-const issue149M5DeclarationDigest = "748b33313dc565abbbfd5db00e690892441c4fb408bd42a8ed194d06a75c8b1f"
+const issue149M5DeclarationDigest = "1a474d04f7eb823b03903a234712cb0deb3e697764d5c2e695ba338fc744d303"
 
 // issue149M5GoSources is the exhaustive set of Go sources touched by M5. Every
 // declaration in these files receives a disposition: a pair:m5-concept marker
@@ -38,7 +38,8 @@ var issue149M5GoSources = []string{
 	"cmd/internal/continuationcmd/continuationcmd.go",
 	"cmd/internal/couchcore/artifactcollision_test.go", "cmd/internal/couchcore/couch.go", "cmd/internal/couchcore/migration.go",
 	"cmd/internal/couchcore/migration_test.go", "cmd/internal/couchcore/plan_contract_test.go", "cmd/internal/couchcore/standalone.go",
-	"cmd/internal/couchcore/standalone_test.go", "cmd/internal/couchcore/storejournal.go", "cmd/internal/couchcore/threadstore.go",
+	"cmd/internal/couchcore/standalone_test.go", "cmd/internal/couchcore/storejournal.go", "cmd/internal/couchcore/threadmetadata.go",
+	"cmd/internal/couchcore/threadmetadata_test.go", "cmd/internal/couchcore/threadstore.go",
 	"cmd/internal/draftroute/route.go",
 	"cmd/internal/launcher/agent_defaults.go", "cmd/internal/launcher/config.go", "cmd/internal/launcher/createflow.go",
 	"cmd/internal/launcher/createflow_test.go", "cmd/internal/launcher/history.go", "cmd/internal/launcher/layoutflow.go",

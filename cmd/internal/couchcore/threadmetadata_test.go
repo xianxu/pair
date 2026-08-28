@@ -149,6 +149,7 @@ func TestResolveThreadReferenceUsesCouchOwnedNotFoundErrors(t *testing.T) {
 		want string
 	}{
 		{name: "empty", ref: " \t\n ", want: "thread reference not found: empty reference"},
+		{name: "malformed NUL", ref: "bad\x00reference", want: "thread reference not found: malformed reference"},
 		{name: "missing", ref: "  absent  ", want: `thread reference not found: "absent"`},
 	} {
 		t.Run(test.name, func(t *testing.T) {
