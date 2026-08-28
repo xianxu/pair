@@ -99,13 +99,13 @@ updated: 2026-08-27
 - Modify: `cmd/internal/couchcore/threadmetadata.go`
 - Modify: `cmd/internal/couchcore/threadmetadata_test.go`
 
-- [ ] **Step 1: Strengthen the risky resolver strategy before moving ownership**
+- [x] **Step 1: Strengthen the risky resolver strategy before moving ownership**
 
 `ResolveThreadReference` over arbitrary cloned `ThreadRecord` sets → table/property
 test exact-tag precedence, scoped fuzzy ambiguity, deterministic ordering, and
 clone isolation; malformed/empty references must reach Couch-owned errors.
 
-- [ ] **Step 2: Run the focused tests and establish the green refactor baseline**
+- [x] **Step 2: Run the focused tests and establish the green refactor baseline**
 
 Run:
 
@@ -115,17 +115,17 @@ go test ./cmd/internal/couchcore -run 'TestResolveThreadReference' -count=1
 
 Expected: PASS against the existing adapter, proving the retained behavior before the ownership refactor.
 
-- [ ] **Step 3: Replace the launcher adapter with direct Couch-owned resolution**
+- [x] **Step 3: Replace the launcher adapter with direct Couch-owned resolution**
 
 In `ResolveThreadReference`, trim the reference; filter records by optional repo scope; prefer exact `string(record.Address.Tag) == ref`; otherwise match lowercase `Name` or `WorkingPath`; sort matches by `{RepoScope, Tag}`; return cloned records and Couch's existing `ErrThreadReferenceNotFound` / `AmbiguousThreadReferenceError`. Remove the `launcher` import from `threadmetadata.go`.
 
-- [ ] **Step 4: Rerun focused tests**
+- [x] **Step 4: Rerun focused tests**
 
 Run the Step 2 command.
 
 Expected: PASS with no launcher thread-index types involved.
 
-- [ ] **Step 5: Commit the Couch-local ownership move**
+- [x] **Step 5: Commit the Couch-local ownership move**
 
 ```bash
 git add cmd/internal/couchcore/threadmetadata.go cmd/internal/couchcore/threadmetadata_test.go

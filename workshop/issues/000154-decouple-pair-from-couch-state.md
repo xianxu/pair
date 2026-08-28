@@ -172,3 +172,10 @@ The durable plan passed three fresh-context review rounds. The final design
 retains permanent public-entry and every-command Couch-independence regressions,
 uses production Pair marker IO in the composed Couch handshake, and enumerates
 all current documentation consumers (ARCH-PURPOSE, ARCH-PURE, ARCH-MOCK).
+
+### 2026-08-27 — Couch-local resolution complete
+
+`ResolveThreadReference` now operates directly on Couch `ThreadRecord` values;
+the launcher projection is no longer part of Couch name/path resolution. Focused,
+full-package, race, and source-catalog checks passed after spec and quality review
+(ARCH-DRY, ARCH-PURE).
