@@ -72,14 +72,15 @@ func scanMuseFile(runtime Runtime, entry FileEntry) (Fact, []Diagnostic, bool) {
 		diagnostics = append(diagnostics, artifactDiagnostic(DiagnosticNodeMalformed, AgentMuse, &nativeID, artifact, "Muse child run_id contradicts path identity"))
 	}
 	return Fact{
-		Agent:     AgentMuse,
-		NativeID:  nativeID,
-		Role:      role,
-		ParentID:  parentID,
-		Time:      fallbackTime(entry),
-		Resumable: role == RoleRoot && !contradiction,
-		Disputed:  contradiction,
-		Artifacts: []Artifact{artifact},
+		Agent:          AgentMuse,
+		NativeID:       nativeID,
+		Role:           role,
+		ParentID:       parentID,
+		Time:           fallbackTime(entry),
+		Resumable:      role == RoleRoot && !contradiction,
+		Disputed:       contradiction,
+		Artifacts:      []Artifact{artifact},
+		EdgeProvenance: edgeProvenance(role, "muse-v1", artifact),
 	}, diagnostics, true
 }
 

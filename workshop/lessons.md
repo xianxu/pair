@@ -2300,3 +2300,37 @@ cleanup owner that releases it and boundedly joins its completion before temp
 directories or global environment are restored. Give fake processes their own
 bounded timeout, bound every synchronization receive, and verify repeated/race
 runs leave no matching processes behind (ARCH-MOCK, ARCH-PURPOSE).
+
+## Milestones inherit repository-wide contracts immediately
+
+A new package can pass every focused test while leaving source inventories and
+historical declaration contracts red. Deferring those catalogs to a later
+migration task means the branch has no green boundary between milestones.
+
+**Rule.** Before the first commit that introduces production sources, run and
+update every exhaustive repository source/declaration contract those files
+enter. Include those focused contract commands in the milestone verification,
+not only in final migration (ARCH-PURPOSE).
+
+## Exact schemas need presence-aware types and executable registries
+
+Value-typed nested JSON structs collapse absent objects into valid-looking zero
+values. Hand-written diagnostic severities and comparator shortcuts likewise
+drift from a precise schema while ordinary happy-path tests stay green.
+
+**Rule.** Represent optional structured input with pointers or explicit
+presence bits. Turn exhaustive code/severity sets, stable-ID tuples, and total
+ordering tuples into table-driven tests—including equal primary keys—and have
+production derive from the same registry (ARCH-DRY, ARCH-PURE, ARCH-PURPOSE).
+
+## Recursive storage scans must classify before opening
+
+Treating every non-directory entry as a file admits FIFOs, sockets, devices,
+and symlinks; opening one can block or escape. Returning a partial walk result
+and then discarding it at the caller also defeats partial-inventory semantics.
+
+**Rule.** At the runtime boundary, admit only regular non-symlink files and
+return rejected entries structurally. Every caller preserves valid siblings
+alongside diagnostics for rejected entries or later traversal errors; tests
+include a real special file and an injected partial failure (ARCH-PURE,
+ARCH-MOCK, ARCH-PURPOSE).

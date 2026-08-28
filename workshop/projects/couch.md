@@ -169,6 +169,7 @@ gate `#147` and `#148` respectively; `#145` and `#146` do not depend on them.
 - [x] remembered per-path agent and argument profiles [pair#149 M4]
 - [x] legacy migration and composite artifact proof [pair#149 M5]
 - [ ] deterministic agent session-tree inventory [pair#155]
+- [ ] deterministic native forests [pair#155 M1]
 - [.] verified park and activity age [pair#152]
 - [.] hierarchical thread menu [pair#151]
 - [ ] managed-worktree lifecycle [pair#153]
@@ -370,6 +371,25 @@ window spans 12:53–18:05 wall clock and contains a **3h48m gap** where the
 session was waiting on an operator smoke test, plus roughly 0.65h of pre-window
 planning after the claim. Read the number as "measured, window not clean"
 rather than as a tight figure.
+
+<a id="pair-155-m1"></a>
+### pair#155 M1 — deterministic native forests
+
+**est:** 7.85 (whole issue)
+**actual:** 3.83h
+**closed:** 2026-08-28
+
+Pair now reconstructs complete, deterministic Claude, Codex, Agy, and Muse
+native-session forests through one bounded runtime, retaining validated
+descendants and explicit disputed or malformed orphans without treating native
+parentage as Pair ownership. Sanitized fixtures, a stateful fake, fuzz seeds,
+and a redacted live conformance scan pin the installed schemas. The surprising
+part was that type-erasing shape inspection initially made Codex's `subagent`
+object key look like a string source; a second type-preserving pass corrected
+the allowlist before close. M2 can therefore focus on the actual preservation
+boundary: establish a root only after one completed operator round, then let
+native parent edges propagate that already-proven binding (ARCH-DRY,
+ARCH-PURE, ARCH-PURPOSE, ARCH-MOCK).
 
 ## Log
 
@@ -779,3 +799,5 @@ but never authorizes one. #152 now treats the durable repo plus this identified
 native session tree as recovery state and no longer waits for an LLM-authored
 flush acknowledgement. #152 and its consumer #151 are marked blocked until the
 shared inventory lands (ARCH-DRY, ARCH-PURPOSE, ARCH-MOCK).
+
+[pair#155 M1]: #pair-155-m1

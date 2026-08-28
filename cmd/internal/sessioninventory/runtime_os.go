@@ -74,7 +74,11 @@ func (r OSRuntime) ListFiles(requested StorageRoot) ([]FileEntry, error) {
 		if filePath == root.Path || entry.IsDir() {
 			return nil
 		}
-		if entry.Type()&os.ModeSymlink != 0 {
+		info, infoErr := entry.Info()
+		if infoErr != nil {
+			return infoErr
+		}
+		if entry.Type()&os.ModeSymlink != 0 || !info.Mode().IsRegular() {
 			relativePath, relErr := filepath.Rel(root.Path, filePath)
 			if relErr != nil {
 				return relErr
@@ -89,10 +93,6 @@ func (r OSRuntime) ListFiles(requested StorageRoot) ([]FileEntry, error) {
 		artifact := Artifact{StorageRoot: root.Name, RelativePath: filepath.ToSlash(relativePath)}
 		if !validArtifact(artifact) {
 			return fmt.Errorf("%w: %s", ErrPathEscape, relativePath)
-		}
-		info, err := entry.Info()
-		if err != nil {
-			return err
 		}
 		modTime := info.ModTime().UTC()
 		result = append(result, FileEntry{

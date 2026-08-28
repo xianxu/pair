@@ -17,7 +17,7 @@ func TestBuildForest(t *testing.T) {
 	facts := []Fact{
 		{Agent: AgentCodex, NativeID: "orphan-1", Role: RoleSubagent, ParentID: &missingParent, Time: childTime, Artifacts: []Artifact{{StorageRoot: "codex", RelativePath: "sessions/orphan.jsonl"}}},
 		{Agent: AgentCodex, NativeID: rootID, Role: RoleRoot, Time: rootTime, Artifacts: []Artifact{{StorageRoot: "codex", RelativePath: "sessions/root.jsonl"}}},
-		{Agent: AgentCodex, NativeID: "child-1", Role: RoleSubagent, ParentID: &rootID, Time: childTime, Artifacts: []Artifact{{StorageRoot: "codex", RelativePath: "sessions/z-child.jsonl"}, {StorageRoot: "codex", RelativePath: "sessions/a-child.jsonl"}}},
+		{Agent: AgentCodex, NativeID: "child-1", Role: RoleSubagent, ParentID: &rootID, Time: childTime, EdgeProvenance: []EdgeProvenance{{Schema: "codex-v1", Artifact: Artifact{StorageRoot: "codex", RelativePath: "sessions/a-child.jsonl"}}}, Artifacts: []Artifact{{StorageRoot: "codex", RelativePath: "sessions/z-child.jsonl"}, {StorageRoot: "codex", RelativePath: "sessions/a-child.jsonl"}}},
 		{Agent: AgentCodex, NativeID: rootID, Role: RoleRoot, Time: rootTime, Artifacts: []Artifact{{StorageRoot: "codex", RelativePath: "sessions/root.jsonl"}, {StorageRoot: "codex", RelativePath: "sessions/root-sidecar.json"}}},
 	}
 
@@ -35,6 +35,10 @@ func TestBuildForest(t *testing.T) {
 	root := forest.Roots[0]
 	if len(root.Children) != 1 || root.Children[0].NativeID != "child-1" {
 		t.Fatalf("children = %#v, want child-1", root.Children)
+	}
+	child := root.Children[0]
+	if child.ParentEdge == nil || child.ParentEdge.ParentID != rootID || child.ParentEdge.ChildID != child.NativeID || len(child.ParentEdge.Provenance) != 1 || child.ParentEdge.Provenance[0].Schema != "codex-v1" {
+		t.Fatalf("child edge = %#v, want validated Codex provenance", child.ParentEdge)
 	}
 	wantArtifacts := []Artifact{
 		{StorageRoot: "codex", RelativePath: "sessions/root-sidecar.json"},

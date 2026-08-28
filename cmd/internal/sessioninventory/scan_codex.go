@@ -89,13 +89,14 @@ func scanCodexFile(runtime Runtime, entry FileEntry) (Fact, []Diagnostic, bool) 
 		return Fact{}, []Diagnostic{artifactDiagnostic(DiagnosticSchemaNearMiss, AgentCodex, &nativeID, artifact, "Codex source/parent shape is not allowlisted")}, false
 	}
 	return Fact{
-		Agent:     AgentCodex,
-		NativeID:  nativeID,
-		Role:      role,
-		ParentID:  parentID,
-		Time:      chronology,
-		Resumable: role == RoleRoot,
-		Artifacts: []Artifact{artifact},
+		Agent:          AgentCodex,
+		NativeID:       nativeID,
+		Role:           role,
+		ParentID:       parentID,
+		Time:           chronology,
+		Resumable:      role == RoleRoot,
+		Artifacts:      []Artifact{artifact},
+		EdgeProvenance: edgeProvenance(role, "codex-v1", artifact),
 	}, nil, true
 }
 

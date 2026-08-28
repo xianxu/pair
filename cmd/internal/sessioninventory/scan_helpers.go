@@ -90,7 +90,10 @@ func artifactDiagnostic(code DiagnosticCode, agent Agent, nativeID *string, arti
 }
 
 func storageDiagnostic(agent Agent, root StorageRoot, err error) Diagnostic {
-	return diagnostic(DiagnosticStorageUnreadable, agent, nil, fmt.Sprintf("%s: %v", root.Name, err))
+	diagnostic := diagnostic(DiagnosticStorageUnreadable, agent, nil, fmt.Sprintf("%s: %v", root.Name, err))
+	diagnostic.SourceRef = &root.Name
+	diagnostic.StableID = diagnosticID(diagnostic)
+	return diagnostic
 }
 
 func scannerFiles(runtime Runtime, agent Agent, root StorageRoot) ([]FileEntry, []Diagnostic, bool) {
@@ -99,7 +102,10 @@ func scannerFiles(runtime Runtime, agent Agent, root StorageRoot) ([]FileEntry, 
 		return files, nil, true
 	}
 	if errors.Is(err, ErrStorageAbsent) {
-		return nil, nil, false
+		diagnostic := diagnostic(DiagnosticStorageAbsent, agent, nil, "native storage root is absent")
+		diagnostic.SourceRef = &root.Name
+		diagnostic.StableID = diagnosticID(diagnostic)
+		return nil, []Diagnostic{diagnostic}, false
 	}
 	var issues *ListingIssuesError
 	if errors.As(err, &issues) {
@@ -109,7 +115,7 @@ func scannerFiles(runtime Runtime, agent Agent, root StorageRoot) ([]FileEntry, 
 		}
 		return files, diagnostics, true
 	}
-	return nil, []Diagnostic{storageDiagnostic(agent, root, err)}, false
+	return files, []Diagnostic{storageDiagnostic(agent, root, err)}, len(files) != 0
 }
 
 func decodeStrictJSON(line []byte, destination any) error {
@@ -125,4 +131,11 @@ func decodeStrictJSON(line []byte, destination any) error {
 		return err
 	}
 	return nil
+}
+
+func edgeProvenance(role Role, schema string, artifact Artifact) []EdgeProvenance {
+	if role != RoleSubagent {
+		return nil
+	}
+	return []EdgeProvenance{{Schema: schema, Artifact: artifact}}
 }

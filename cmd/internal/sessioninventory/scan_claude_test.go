@@ -1,6 +1,7 @@
 package sessioninventory_test
 
 import (
+	"errors"
 	"os"
 	"path/filepath"
 	"testing"
@@ -34,6 +35,23 @@ func TestScanClaudeV1(t *testing.T) {
 	}
 	if !diagnosticPresent(got.Diagnostics, sessioninventory.DiagnosticSchemaNearMiss) {
 		t.Fatalf("diagnostics = %#v, want schema_near_miss", got.Diagnostics)
+	}
+}
+
+func TestScanClaudePreservesValidFactsAcrossPartialListingFailure(t *testing.T) {
+	t.Parallel()
+
+	runtime := sessioninventorytest.NewFakeRuntime()
+	root := sessioninventory.StorageRoot{Agent: sessioninventory.AgentClaude, Name: "claude-projects"}
+	runtime.AddRoot(root)
+	runtime.PutFile(sessioninventory.FileEntry{Artifact: sessioninventory.Artifact{StorageRoot: root.Name, RelativePath: "-repo/11111111-1111-4111-8111-111111111111.jsonl"}}, []byte(`{"type":"user","sessionId":"11111111-1111-4111-8111-111111111111","isSidechain":false}`+"\n"))
+	runtime.SetError(sessioninventorytest.OperationListFiles, root.Name, errors.New("partial walk failure"))
+	got := sessioninventory.ScanClaude(runtime)
+	if len(got.Facts) != 1 || got.Facts[0].NativeID != "11111111-1111-4111-8111-111111111111" {
+		t.Fatalf("facts = %#v, want valid partial fact preserved", got.Facts)
+	}
+	if !diagnosticPresent(got.Diagnostics, sessioninventory.DiagnosticStorageUnreadable) {
+		t.Fatalf("diagnostics = %#v, want storage_unreadable", got.Diagnostics)
 	}
 }
 

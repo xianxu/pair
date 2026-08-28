@@ -7,6 +7,7 @@ func TestTokenUsageFromJSONLUsesLastAcceptedRootUsage(t *testing.T) {
 
 	claude := []byte(
 		`{"type":"assistant","isSidechain":false,"message":{"model":"claude-opus","usage":{"input_tokens":100,"cache_creation_input_tokens":50,"cache_read_input_tokens":25}}}` + "\n" +
+			`{"type":"assistant","isSidechain":false,"message":{"model":"claude-opus"}}` + "\n" +
 			`{"type":"assistant","isSidechain":true,"message":{"model":"claude-opus","usage":{"input_tokens":999}}}` + "\n" +
 			`{"type":"assistant","message":{"model":"<synthetic>","usage":{"input_tokens":999}}}` + "\n",
 	)
@@ -17,6 +18,7 @@ func TestTokenUsageFromJSONLUsesLastAcceptedRootUsage(t *testing.T) {
 	codex := []byte(
 		`{"type":"event_msg","payload":{"type":"token_count","info":{"last_token_usage":{"input_tokens":40},"total_token_usage":{"input_tokens":999}}}}` + "\n" +
 			`{"type":"event_msg","payload":{"type":"token_count","info":{"last_token_usage":{"input_tokens":60}}}}` + "\n" +
+			`{"type":"event_msg","payload":{"type":"token_count","info":{}}}` + "\n" +
 			`{"type":"event_msg","payload":{"type":"token_count","info":null}}` + "\n",
 	)
 	if got, ok := TokenUsageFromJSONL(AgentCodex, codex); !ok || got.InputTokens != 60 {

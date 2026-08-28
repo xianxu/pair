@@ -312,6 +312,8 @@ and mechanical guard; executable fixtures/fuzz seeds own individual cases.
   - `go test ./cmd/internal/sessioninventory -count=1`
   - `go test ./cmd/internal/sessioninventorytest -count=1`
   - `go test ./cmd/internal/procutil -count=1`
+  - `go test ./cmd/internal/artifactpath -run '^TestProductionArtifactReferencesAreExactlyClassified$' -count=1`
+  - `go test ./cmd/internal/couchcore -run '^(TestIssue149M5DeclarationDispositionSourceSetMatchesMilestoneDiff|TestIssue149M5DeclarationDispositionSetIsClosed)$' -count=1`
   - `git diff --check`
 - [x] Update `atlas/index.md`, `atlas/session-identity.md`, and
       `atlas/architecture.md`, then commit code, tests, atlas, and any
@@ -662,3 +664,20 @@ still use an object source.
 legacy empty/depth-only `subagent` objects and the current exact five-field
 `thread_spawn` object. The nested and top-level parent IDs must agree; unknown
 keys and string child sources remain near-misses (`ARCH-PURPOSE`, `ARCH-MOCK`).
+
+### 2026-08-28 — M1 boundary-review contract closure
+
+**Reason:** the first M1 boundary review found that focused scanner tests were
+green while repository source contracts and several exact Spec tuples were not
+yet executable. It also found that the concise implementation names did not
+make their relationship to the Core Concepts table explicit.
+
+**Delta:** `Fact`, `Node`, and `Forest` remain the concise implementation names
+and now expose `NativeRecordFact`, `SessionNode`, and `SessionForest` aliases;
+validated child nodes carry explicit `ParentEdge` and `EdgeProvenance` values
+through forest projection. Move artifact-source classification and the
+historical source-set disposition into M1. Expand M1 verification to cover the
+single diagnostic registry and canonical ID/coalescing order, equal-time node
+ordering, regular-file-only enumeration with partial-walk preservation, and
+presence-aware token usage. These are boundary invariants, not final-migration
+cleanup (`ARCH-DRY`, `ARCH-PURE`, `ARCH-PURPOSE`, `ARCH-MOCK`).

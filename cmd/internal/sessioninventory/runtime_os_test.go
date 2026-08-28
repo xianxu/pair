@@ -6,6 +6,7 @@ import (
 	"os/exec"
 	"path/filepath"
 	"slices"
+	"syscall"
 	"testing"
 )
 
@@ -65,6 +66,13 @@ func TestOSRuntimeBoundaries(t *testing.T) {
 	}
 	if _, err := runtime.ReadFile(Artifact{StorageRoot: roots[0].Name, RelativePath: "escape.jsonl"}, 32); !errors.Is(err, ErrPathEscape) {
 		t.Fatalf("symlink read error = %v, want ErrPathEscape", err)
+	}
+	if err := syscall.Mkfifo(filepath.Join(roots[0].Path, "blocking.jsonl"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	partial, err = runtime.ListFiles(roots[0])
+	if !errors.Is(err, ErrPathEscape) || len(partial) != 1 || partial[0].Artifact.RelativePath != "root.jsonl" {
+		t.Fatalf("special-file listing = %#v, %v, want valid file plus rejection", partial, err)
 	}
 }
 

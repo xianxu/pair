@@ -127,9 +127,7 @@ func (f *FakeRuntime) PairDataRoot() sessioninventory.StorageRoot {
 func (f *FakeRuntime) ListFiles(root sessioninventory.StorageRoot) ([]sessioninventory.FileEntry, error) {
 	f.mu.RLock()
 	defer f.mu.RUnlock()
-	if err := f.errors[errorKey(OperationListFiles, root.Name)]; err != nil {
-		return nil, err
-	}
+	listingErr := f.errors[errorKey(OperationListFiles, root.Name)]
 	byPath := make(map[string]sessioninventory.FileEntry)
 	for _, stored := range f.files {
 		if stored.entry.Artifact.StorageRoot == root.Name {
@@ -157,7 +155,7 @@ func (f *FakeRuntime) ListFiles(root sessioninventory.StorageRoot) ([]sessioninv
 	for _, relativePath := range remainder {
 		result = append(result, byPath[relativePath])
 	}
-	return result, nil
+	return result, listingErr
 }
 
 func (f *FakeRuntime) ReadFile(artifact sessioninventory.Artifact, limit int64) ([]byte, error) {

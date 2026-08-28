@@ -83,14 +83,15 @@ func scanClaudeFile(runtime Runtime, entry FileEntry) (Fact, []Diagnostic, bool)
 		diagnostics = append(diagnostics, artifactDiagnostic(DiagnosticNodeMalformed, AgentClaude, &nativeID, artifact, "Claude metadata contradicts path identity"))
 	}
 	return Fact{
-		Agent:     AgentClaude,
-		NativeID:  nativeID,
-		Role:      role,
-		ParentID:  parentID,
-		Time:      chronology,
-		Resumable: role == RoleRoot && !contradiction,
-		Disputed:  contradiction,
-		Artifacts: []Artifact{artifact},
+		Agent:          AgentClaude,
+		NativeID:       nativeID,
+		Role:           role,
+		ParentID:       parentID,
+		Time:           chronology,
+		Resumable:      role == RoleRoot && !contradiction,
+		Disputed:       contradiction,
+		Artifacts:      []Artifact{artifact},
+		EdgeProvenance: edgeProvenance(role, "claude-v1", artifact),
 	}, diagnostics, true
 }
 
@@ -103,9 +104,9 @@ func claudePathFact(relativePath string) (string, *string, Role, bool) {
 		}
 		return "", nil, RoleUnknown, false
 	}
-	if len(parts) == 4 && parts[2] == "subagents" && strings.HasPrefix(parts[3], "agent-") && strings.HasSuffix(parts[3], ".jsonl") {
+	if len(parts) == 4 && parts[2] == "subagents" && len(parts[3]) > 6 && parts[3][:6] == "agent-" && strings.HasSuffix(parts[3], ".jsonl") {
 		parentID := parts[1]
-		nativeID := strings.TrimSuffix(strings.TrimPrefix(parts[3], "agent-"), ".jsonl")
+		nativeID := strings.TrimSuffix(parts[3][6:], ".jsonl")
 		if parts[0] != "" && uuidPattern.MatchString(parentID) && asciiIDPattern.MatchString(nativeID) {
 			return nativeID, &parentID, RoleSubagent, true
 		}

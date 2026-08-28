@@ -4,6 +4,7 @@ import (
 	"slices"
 	"strings"
 	"testing"
+	"time"
 )
 
 func TestSortInventory(t *testing.T) {
@@ -37,6 +38,19 @@ func TestSortInventory(t *testing.T) {
 	}
 	if input.Forests[0].Agent != AgentMuse {
 		t.Fatal("SortInventory mutated its input")
+	}
+}
+
+func TestSortInventoryEqualTimeFallsThroughToNativeID(t *testing.T) {
+	t.Parallel()
+
+	instant := time.Date(2026, 8, 28, 9, 0, 0, 0, time.UTC)
+	got := SortInventory(Inventory{Forests: []Forest{{Agent: AgentClaude, Roots: []Node{
+		{Agent: AgentClaude, NativeID: "a", Role: RoleRoot, Time: &NativeTime{Value: instant, Source: TimeSourceMTime}},
+		{Agent: AgentClaude, NativeID: "b", Role: RoleRoot, Time: &NativeTime{Value: instant, Source: TimeSourceBirth}},
+	}}}})
+	if gotID := ids(got.Forests[0].Roots); gotID != "a,b" {
+		t.Fatalf("equal-time order = %s, want native ID order a,b", gotID)
 	}
 }
 

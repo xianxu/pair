@@ -23,9 +23,20 @@ func StableID(kind string, parts ...string) string {
 
 // SortInventory returns a deeply cloned, canonically ordered inventory.
 func SortInventory(input Inventory) Inventory {
+	coalescedDiagnostics := make(map[string]Diagnostic, len(input.Diagnostics))
+	for _, diagnostic := range input.Diagnostics {
+		if severity, ok := diagnosticSeverity(diagnostic.Code); ok {
+			diagnostic.Severity = severity
+		}
+		diagnostic.StableID = diagnosticID(diagnostic)
+		previous, exists := coalescedDiagnostics[diagnostic.StableID]
+		if !exists || diagnostic.Detail < previous.Detail {
+			coalescedDiagnostics[diagnostic.StableID] = diagnostic
+		}
+	}
 	output := Inventory{
 		Forests:     make([]Forest, len(input.Forests)),
-		Diagnostics: make([]Diagnostic, len(input.Diagnostics)),
+		Diagnostics: make([]Diagnostic, 0, len(coalescedDiagnostics)),
 	}
 	for i, forest := range input.Forests {
 		output.Forests[i] = Forest{
@@ -38,13 +49,15 @@ func SortInventory(input Inventory) Inventory {
 	}
 	sort.Slice(output.Forests, func(i, j int) bool { return output.Forests[i].Agent < output.Forests[j].Agent })
 
-	for i, diagnostic := range input.Diagnostics {
-		output.Diagnostics[i] = diagnostic
-		output.Diagnostics[i].NativeID = cloneString(diagnostic.NativeID)
+	for _, diagnostic := range coalescedDiagnostics {
+		cloned := diagnostic
+		cloned.NativeID = cloneString(diagnostic.NativeID)
+		cloned.SourceRef = cloneString(diagnostic.SourceRef)
 		if diagnostic.Path != nil {
 			pathCopy := *diagnostic.Path
-			output.Diagnostics[i].Path = &pathCopy
+			cloned.Path = &pathCopy
 		}
+		output.Diagnostics = append(output.Diagnostics, cloned)
 	}
 	sort.Slice(output.Diagnostics, func(i, j int) bool {
 		return compareDiagnostic(output.Diagnostics[i], output.Diagnostics[j]) < 0
@@ -66,6 +79,15 @@ func sortNodes(nodes []Node) {
 		sort.Slice(nodes[i].Artifacts, func(a, b int) bool {
 			return compareArtifact(nodes[i].Artifacts[a], nodes[i].Artifacts[b]) < 0
 		})
+		if nodes[i].ParentEdge != nil {
+			sort.Slice(nodes[i].ParentEdge.Provenance, func(a, b int) bool {
+				left, right := nodes[i].ParentEdge.Provenance[a], nodes[i].ParentEdge.Provenance[b]
+				if left.Schema != right.Schema {
+					return left.Schema < right.Schema
+				}
+				return compareArtifact(left.Artifact, right.Artifact) < 0
+			})
+		}
 		sortNodes(nodes[i].Children)
 	}
 	sort.Slice(nodes, func(i, j int) bool { return compareNode(nodes[i], nodes[j]) < 0 })
@@ -106,11 +128,12 @@ func compareDiagnostic(left, right Diagnostic) int {
 	leftNative, rightNative := nullableString(left.NativeID), nullableString(right.NativeID)
 	leftPath, rightPath := nullableArtifact(left.Path), nullableArtifact(right.Path)
 	parts := [][2]string{
+		{severityOrder(left.Severity), severityOrder(right.Severity)},
 		{string(left.Code), string(right.Code)},
-		{string(left.Severity), string(right.Severity)},
 		{string(left.Agent), string(right.Agent)},
 		{leftNative, rightNative},
 		{leftPath, rightPath},
+		{nullableString(left.SourceRef), nullableString(right.SourceRef)},
 		{left.StableID, right.StableID},
 	}
 	for _, part := range parts {
@@ -119,6 +142,19 @@ func compareDiagnostic(left, right Diagnostic) int {
 		}
 	}
 	return 0
+}
+
+func severityOrder(severity Severity) string {
+	switch severity {
+	case SeverityError:
+		return "0"
+	case SeverityWarning:
+		return "1"
+	case SeverityInfo:
+		return "2"
+	default:
+		return "3"
+	}
 }
 
 func nullableString(value *string) string {
