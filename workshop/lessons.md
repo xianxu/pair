@@ -2286,3 +2286,17 @@ inventory, positive dependencies, and integration behavior. If a boundary
 review repeats the same family after five rounds, stop and bring the proof
 shape to the operator instead of adding another syntax case (Simplicity First,
 ARCH-DRY, ARCH-PURPOSE).
+
+## Process-boundary tests must own shutdown and join
+
+Writing a release file in `t.Cleanup` is not sufficient when a fake child polls
+that file: Go may remove its `t.TempDir` before the child observes the release,
+and an unjoined goroutine may restore process-wide environment after the next
+test begins. Repeated verification of #154 leaked dozens of orphan fake-Zellij
+shells before this failure path was inspected.
+
+**Rule.** A test that starts a goroutine or external process must register one
+cleanup owner that releases it and boundedly joins its completion before temp
+directories or global environment are restored. Give fake processes their own
+bounded timeout, bound every synchronization receive, and verify repeated/race
+runs leave no matching processes behind (ARCH-MOCK, ARCH-PURPOSE).

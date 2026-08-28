@@ -1,12 +1,13 @@
 ---
 id: 000154
-status: working
+status: codecomplete
 deps: []
 github_issue:
 created: 2026-08-27
 updated: 2026-08-27
 estimate_hours: 3.35
 started: 2026-08-27T16:23:37-07:00
+actual_hours: 12.21
 ---
 
 # decouple Pair from Couch state
@@ -155,6 +156,7 @@ total: 3.35
 ## Log
 
 ### 2026-08-27
+- 2026-08-27: closed — Fresh controller evidence on 2026-08-27: make build exited 0; rebuilt bin/pair contained none of legacy_migration_version, failed-to-read-Couch-index, or failed-to-register-thread strings; exact pair-dev claude smoke reached the Pair-owned session picker without Couch migration access and was cancelled cleanly. go test ./... -count=1 exited 0; go test -race ./... -count=1 -timeout=1200s exited 0; make test-lua, tests/term-pane-shortcuts-test.sh, tests/review-toggle-test.sh, Zellij config check, and main-2/main-3 layout dumps all exited 0; git diff --check clean. Production Pair source has no retired Couch index/registrar symbols; Couch retains its own legacy_migration_version field within Couch ThreadStore only, absent from Pair binary. Exact cleanup removed 69 leaked pre-fix fake-Zellij test processes and confirmed zero remain. Task 5 spec and quality re-reviews passed with no Critical or Important findings.; review verdict: SHIP
 
 The initial nested-Zellij hypothesis came from a controlled reproduction inside
 the current hosted Pair session and did not describe the operator's shell.
