@@ -669,21 +669,15 @@ buffered-rendering contracts otherwise apply unchanged (ARCH-DRY).
 
 ## Plan
 
-- [ ] Define the pure forest, binding, causal-round, ambiguity, diagnostic, and
-      deterministic-ordering model, with parent propagation outside evidence.
-- [ ] Pin portable versioned scanner fixtures for Claude, Codex, Agy, and Muse,
-      covering roots, descendants, user turns, assistant/tool/error progress,
-      malformed nodes, and the fail-closed Agy parent gap.
-- [ ] Implement the stateful filesystem/process scanner seam and complete
-      deterministic forests, structured/human output, and redacted live
-      conformance.
-- [ ] Make session-watch remain provisional until the first completed causal
-      round, persist a unique root, retain ambiguity across rounds, and test
-      crashes immediately before and after the establishment boundary.
-- [ ] Implement offline completed-round recovery for the narrow post-progress,
-      pre-ledger crash window using the shared exact normalization/parser.
-- [ ] Migrate and enforce the complete Go, shell, and Neovim shadow-consumer
-      enumeration so no independent first/newest/native-parser path remains.
+- [ ] M1 — Build deterministic complete forests: pure model/order, stateful
+      runtime seam and fake, four versioned scanners, stable rendering, and
+      redacted live conformance.
+- [ ] M2 — Establish bindings only after a completed native round: shared event
+      normalization, live/offline exact-round matching, watcher persistence,
+      ambiguity retention, parent-only descendant propagation, and public CLI.
+- [ ] Migrate every Go, shell, launcher, and Neovim consumer to the shared
+      inventory, enforce the repository shadow sweep, update atlas/project
+      state, and run full verification before issue close.
 
 ## Log
 
@@ -702,6 +696,15 @@ provisional and establishes the root only after a native user turn is followed
 by assistant/tool/error progress. This removes the proposed send journal and
 incarnation transaction while preserving deterministic forest inventory and
 post-round crash reconstruction (ARCH-PURE, ARCH-PURPOSE).
+
+### 2026-08-28 — implementation plan approved by fresh review
+
+Authored `workshop/plans/000155-agent-session-tree-inventory-plan.md` with M1
+deterministic forests, M2 round-gated bindings, and a final complete consumer
+migration. Fresh-context review approved the plan after it covered ephemeral
+Claude launch authority, restart paths, exact round thresholds, propagation-only
+parent edges, token/activity projections, stateful fake reuse, and binary-owned
+review boundaries (ARCH-DRY, ARCH-PURE, ARCH-PURPOSE, ARCH-MOCK).
 
 ## Revisions
 
@@ -793,3 +796,15 @@ only for the post-progress/pre-ledger crash window. Remove native parentage from
 the evidence rank and retire the send journal, minted incarnation, and
 transactional recovery design. Parent edges now only propagate a proven root
 binding (ARCH-DRY, ARCH-PURE, ARCH-PURPOSE).
+
+### 2026-08-28 — organize implementation around two review boundaries
+
+**Reason:** the approved round-gated contract now has enough detail for an
+executable implementation plan, and the work has two natural architectural
+boundaries before the final consumer migration.
+
+**Delta:** replace the exploratory checklist with M1 deterministic forests, M2
+round-gated bindings and CLI, then a plain final migration task closed by the
+issue boundary. The durable task-level design lives at
+`workshop/plans/000155-agent-session-tree-inventory-plan.md`; estimate remains
+unset until `sdlc change-code` accepts plan quality.
