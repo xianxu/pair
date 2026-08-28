@@ -1,76 +1,133 @@
 package sessionwatch
 
 import (
-	"encoding/json"
 	"path/filepath"
 	"strings"
 	"time"
 
 	"github.com/xianxu/pair/cmd/internal/adapt"
 	"github.com/xianxu/pair/cmd/internal/artifactpath"
-	"github.com/xianxu/pair/cmd/internal/transcript"
+	"github.com/xianxu/pair/cmd/internal/sessioninventory"
+	"github.com/xianxu/pair/cmd/internal/sessionledger"
 )
 
-// isMuseSubagentPath reports whether p is inside a Muse subagent directory.
-// Muse nests subagent sessions as …/<root-uuid>/subagent/<sub-uuid>/session.jsonl;
-// only the root session is resumable via `muse resume <id>` (ARCH-DRY).
-func isMuseSubagentPath(p string) bool {
-	return strings.Contains(p, string(filepath.Separator)+"subagent"+string(filepath.Separator))
-}
-
-// Options are the watcher inputs after CLI/env resolution.
 type Options struct {
-	Agent        string
-	Tag          string
-	Cwd          string
-	RepoRoot     string
-	RepoName     string
-	Args         []string
-	Home         string
-	DataDir      string
-	PIDWait      time.Duration
-	Timeout      time.Duration
-	Poll         time.Duration
-	SlowPoll     time.Duration
-	PIDNotBefore time.Time
+	Agent         string
+	Tag           string
+	ScopeKey      string
+	LaunchOrdinal uint64
+	Cwd           string
+	RepoRoot      string
+	RepoName      string
+	Args          []string
+	Home          string
+	DataDir       string
+	PIDWait       time.Duration
+	Timeout       time.Duration
+	Poll          time.Duration
+	SlowPoll      time.Duration
+	PIDNotBefore  time.Time
 }
 
-// Runtime is the IO boundary for the session watcher.
+// Runtime keeps only watcher scheduling, Pair cache IO, and access to the two
+// shared production seams. Native enumeration belongs to sessioninventory;
+// ledger mutation belongs to sessionledger.
 type Runtime interface {
 	Now() time.Time
 	Sleep(time.Duration)
 	ReadFile(path string) ([]byte, error)
-	ReadFirstLine(path string) ([]byte, error)
 	ModTime(path string) (time.Time, error)
-	BirthTime(path string) (time.Time, error)
-	ListFiles(root string) ([]string, error)
-	Descendants(root string) ([]string, error)
-	LsofPaths(pid string) ([]string, error)
 	ProcessIdentity(pid string) string
 	AtomicWrite(path string, data []byte) error
 	Log(outcome adapt.Outcome, detail string)
+	NativeRuntime(home, dataDir string) sessioninventory.Runtime
+	LedgerAppender() LedgerAppender
 }
 
-type sessionLedgerEntry struct {
-	Agent      string    `json:"agent"`
-	Args       []string  `json:"args"`
-	SessionID  string    `json:"session_id"`
-	Started    time.Time `json:"started"`
-	LastActive time.Time `json:"last_active"`
-	RepoRoot   string    `json:"repo_root"`
-	RepoName   string    `json:"repo_name"`
-}
-
-// Run discovers the async agent session id and writes config-<tag>-<agent>.json.
+// Run monitors the complete post-launch suffix. It never chooses a first or
+// newest native artifact: only a unique exact completed causal round may bind.
 func Run(opts Options, rt Runtime) error {
-	spec, ok := SpecForAgent(opts.Agent, opts.Home)
-	if !ok || opts.Tag == "" || opts.DataDir == "" {
+	agent := sessioninventory.Agent(opts.Agent)
+	if !SupportsAgent(opts.Agent) || opts.Tag == "" || opts.ScopeKey == "" || opts.DataDir == "" || opts.LaunchOrdinal == 0 {
 		return nil
 	}
 	paths, err := artifactpath.ResolveScoped(opts.DataDir, opts.Tag)
 	if err != nil {
 		return err
 	}
+	configPath, err := paths.ConfigChecked(opts.Agent)
+	if err != nil {
+		return err
+	}
+	applyWatcherDefaults(&opts)
+	watchStart := rt.Now()
+	rootPID, rootIdentity := waitForPairProcess(paths.AgentPID(), opts, watchStart, rt)
+	if rootPID != "" && rootIdentity == "" {
+		return nil
+	}
+	owner := sessionledger.Owner{ScopeKey: opts.ScopeKey, Tag: opts.Tag, Agent: opts.Agent}
+	nativeRuntime := rt.NativeRuntime(opts.Home, opts.DataDir)
+	deadline := watchStart.Add(opts.Timeout)
+	for {
+		if rootPID != "" && rt.ProcessIdentity(rootPID) != rootIdentity {
+			rt.Log(adapt.NearMiss, "process identity changed before completed round")
+			return nil
+		}
+		current, ok, err := readCurrentLaunch(rt, paths.Ledger(), owner)
+		if err != nil {
+			return err
+		}
+		if !ok || current.Launch.Ordinal != opts.LaunchOrdinal {
+			return sessionledger.ErrStaleLaunch
+		}
+		if current.Binding != nil {
+			return nil
+		}
+		inventory := sessioninventory.InventoryWithRuntime(nativeRuntime, sessioninventory.ScannerForAgent(agent))
+		beforeRoots, beforeAvailable := processAuthorizedRoots(nativeRuntime, inventory, agent, rootPID)
+		events, eventDiagnostics := sessioninventory.NativeEventsWithRuntime(nativeRuntime, inventory, agent)
+		inventory.Diagnostics = append(inventory.Diagnostics, eventDiagnostics...)
+		pairLog, _ := rt.ReadFile(paths.Log())
+		rounds, roundDiagnostics := sessioninventory.RoundsAfterLaunch(inventory, opts.ScopeKey, opts.Tag, agent, pairLog, current.Launch, events)
+		inventory.Diagnostics = append(inventory.Diagnostics, roundDiagnostics...)
+		afterRoots, afterAvailable := processAuthorizedRoots(nativeRuntime, inventory, agent, rootPID)
+		if rootPID != "" && rt.ProcessIdentity(rootPID) != rootIdentity {
+			rt.Log(adapt.NearMiss, "process identity changed during native scan")
+			return nil
+		}
+		if beforeAvailable && afterAvailable {
+			rounds = retainCorroboratedRounds(rounds, beforeRoots, afterRoots)
+		}
+		resolved, persistErr := ObserveAndPersist(ObserveInput{
+			Owner: owner, LedgerPath: paths.Ledger(), LaunchOrdinal: opts.LaunchOrdinal,
+			Inventory: inventory, LiveRounds: rounds, Args: opts.Args,
+		}, rt.LedgerAppender(), func(payload ConfigPayload) error {
+			raw, err := ConfigJSON(payload)
+			if err != nil {
+				return err
+			}
+			return rt.AtomicWrite(configPath, raw)
+		})
+		if persistErr != nil {
+			return persistErr
+		}
+		if len(resolved.Bindings) == 1 && resolved.Bindings[0].Status == sessioninventory.BindingEstablished {
+			rt.Log(adapt.Fired, "session_id="+nativeIDForRoot(inventory.Forests, agent, valueOrEmpty(resolved.Bindings[0].RootNodeID)))
+			return nil
+		}
+		if rootPID == "" && !rt.Now().Before(deadline) {
+			rt.Log(adapt.Fail, "no completed native round within startup deadline (agent="+opts.Agent+")")
+			return nil
+		}
+		poll := opts.Poll
+		if !rt.Now().Before(deadline) {
+			poll = opts.SlowPoll
+		}
+		rt.Sleep(poll)
+	}
+}
+
+func applyWatcherDefaults(opts *Options) {
 	if opts.PIDWait <= 0 {
 		opts.PIDWait = 2 * time.Second
 	}
@@ -83,126 +140,85 @@ func Run(opts Options, rt Runtime) error {
 	if opts.SlowPoll <= 0 {
 		opts.SlowPoll = 60 * time.Second
 	}
-	repoRoot := opts.RepoRoot
-	if repoRoot == "" {
-		repoRoot = opts.Cwd
-	}
-	repoName := opts.RepoName
-	if repoName == "" {
-		repoName = filepath.Base(filepath.Clean(repoRoot))
-	}
+}
 
-	watchStart := rt.Now()
-	pidFile := paths.AgentPID()
-	out, err := paths.ConfigChecked(opts.Agent)
-	if err != nil {
-		return err
-	}
-
-	pidDeadline := watchStart.Add(opts.PIDWait)
+func waitForPairProcess(pidFile string, opts Options, watchStart time.Time, rt Runtime) (string, string) {
+	deadline := watchStart.Add(opts.PIDWait)
 	for {
 		if fresh, _ := pidFileCurrent(pidFile, opts.PIDNotBefore, watchStart, rt); fresh {
-			break
+			if raw, err := rt.ReadFile(pidFile); err == nil {
+				pid := strings.TrimSpace(string(raw))
+				return pid, rt.ProcessIdentity(pid)
+			}
 		}
-		if !rt.Now().Before(pidDeadline) {
-			break
+		if !rt.Now().Before(deadline) {
+			return "", ""
 		}
 		rt.Sleep(opts.Poll)
 	}
-
-	rootPID := ""
-	rootIdentity := ""
-	agentStart := time.Time{}
-	if fresh, mod := pidFileCurrent(pidFile, opts.PIDNotBefore, watchStart, rt); fresh {
-		if data, err := rt.ReadFile(pidFile); err == nil {
-			rootPID = strings.TrimSpace(string(data))
-			agentStart = mod
-			rootIdentity = rt.ProcessIdentity(rootPID)
-			if rootIdentity == "" {
-				return nil
-			}
-		}
-	}
-
-	legacyExisting := map[string]bool{}
-	if rootPID == "" {
-		files, _ := rt.ListFiles(spec.WatchDir)
-		for _, file := range files {
-			legacyExisting[file] = true
-		}
-	}
-
-	nmLogged := false
-	deadline := watchStart.Add(opts.Timeout)
-	for {
-		if rootPID != "" && rt.ProcessIdentity(rootPID) != rootIdentity {
-			return nil
-		}
-		if rootPID == "" && !rt.Now().Before(deadline) {
-			rt.Log(adapt.Fail, "no session id within startup deadline (agent="+opts.Agent+")")
-			return nil
-		}
-
-		result := discover(spec, rootPID, agentStart, legacyExisting, rt)
-		if result.ID != "" {
-			// Discovery crosses process/filesystem IO. Reauthorize immediately
-			// before persistence so PID reuse during that work cannot transfer
-			// the original watcher's authority to a different process.
-			if rootPID != "" && rt.ProcessIdentity(rootPID) != rootIdentity {
-				return nil
-			}
-			payload, err := ConfigJSON(ConfigPayload{
-				Agent:     opts.Agent,
-				Args:      StripResumeArgs(opts.Agent, opts.Args),
-				SessionID: result.ID,
-			})
-			if err != nil {
-				return err
-			}
-			if err := appendSessionLedger(rt, paths.Ledger(), sessionLedgerEntry{
-				Agent:      opts.Agent,
-				Args:       StripResumeArgs(opts.Agent, opts.Args),
-				SessionID:  result.ID,
-				Started:    watchStart,
-				LastActive: rt.Now(),
-				RepoRoot:   repoRoot,
-				RepoName:   repoName,
-			}); err != nil {
-				return err
-			}
-			if err := rt.AtomicWrite(out, payload); err != nil {
-				return err
-			}
-			rt.Log(adapt.Fired, "session_id="+result.ID)
-			return nil
-		}
-		if result.NearMiss && !nmLogged {
-			rt.Log(adapt.NearMiss, "matched session file but no id extracted: "+filepath.Base(result.Path))
-			nmLogged = true
-		}
-
-		poll := opts.Poll
-		if !rt.Now().Before(deadline) {
-			poll = opts.SlowPoll
-		}
-		rt.Sleep(poll)
-	}
 }
 
-func appendSessionLedger(rt Runtime, path string, entry sessionLedgerEntry) error {
-	raw := ""
-	if existing, err := rt.ReadFile(path); err == nil {
-		raw = string(existing)
-	}
-	line, err := json.Marshal(entry)
+func readCurrentLaunch(rt Runtime, path string, owner sessionledger.Owner) (sessionledger.Current, bool, error) {
+	raw, err := rt.ReadFile(path)
 	if err != nil {
-		return err
+		return sessionledger.Current{}, false, err
 	}
-	if raw != "" && !strings.HasSuffix(raw, "\n") {
-		raw += "\n"
+	current, ok := sessionledger.CurrentLaunch(sessionledger.ParseLedger(raw).Records, owner)
+	return current, ok, nil
+}
+
+func processAuthorizedRoots(runtime sessioninventory.Runtime, inventory sessioninventory.Inventory, agent sessioninventory.Agent, rootPID string) (map[string]bool, bool) {
+	if rootPID == "" {
+		return nil, false
 	}
-	raw += string(line) + "\n"
-	return rt.AtomicWrite(path, []byte(raw))
+	children := runtime.ProcessChildren()
+	queue := []string{rootPID}
+	seen := map[string]bool{}
+	open := map[string]bool{}
+	for len(queue) != 0 {
+		pid := queue[0]
+		queue = queue[1:]
+		if seen[pid] {
+			continue
+		}
+		seen[pid] = true
+		for _, path := range runtime.OpenFiles(pid) {
+			open[filepath.Clean(path)] = true
+		}
+		queue = append(queue, children[pid]...)
+	}
+	if len(open) == 0 {
+		return nil, false
+	}
+	rootPaths := map[string]string{}
+	for _, root := range runtime.NativeRoots(agent) {
+		rootPaths[root.Name] = root.Path
+	}
+	authorized := map[string]bool{}
+	for _, forest := range inventory.Forests {
+		if forest.Agent != agent {
+			continue
+		}
+		for _, root := range forest.Roots {
+			for _, artifact := range root.Artifacts {
+				base := rootPaths[artifact.StorageRoot]
+				if base != "" && open[filepath.Clean(filepath.Join(base, filepath.FromSlash(artifact.RelativePath)))] {
+					authorized[root.StableID] = true
+				}
+			}
+		}
+	}
+	return authorized, true
+}
+
+func retainCorroboratedRounds(rounds []sessioninventory.RoundObservation, before, after map[string]bool) []sessioninventory.RoundObservation {
+	result := make([]sessioninventory.RoundObservation, 0, len(rounds))
+	for _, round := range rounds {
+		if before[round.RootNodeID] && after[round.RootNodeID] {
+			result = append(result, round)
+		}
+	}
+	return result
 }
 
 func pidFileCurrent(pidFile string, pidNotBefore, watchStart time.Time, rt Runtime) (bool, time.Time) {
@@ -220,112 +236,9 @@ func pidFileFresh(mod, pidNotBefore, watchStart time.Time) bool {
 	return mod.Unix() >= watchStart.Unix()
 }
 
-func discover(spec AgentSpec, rootPID string, agentStart time.Time, legacyExisting map[string]bool, rt Runtime) SessionID {
-	if rootPID != "" {
-		nearMiss := SessionID{}
-		pids, _ := rt.Descendants(rootPID)
-		for _, pid := range pids {
-			paths, _ := rt.LsofPaths(pid)
-			for _, path := range paths {
-				if spec.Agent == "muse" && isMuseSubagentPath(path) {
-					continue
-				}
-				result := authorizeCandidate(spec, spec.Match(path), rt)
-				if result.ID != "" {
-					return result
-				}
-				if result.NearMiss && !nearMiss.NearMiss {
-					nearMiss = result
-				}
-			}
-		}
-		if !agentStart.IsZero() {
-			if result := discoverByBirth(spec, agentStart, rt); result.ID != "" {
-				return result
-			} else if result.NearMiss && !nearMiss.NearMiss {
-				nearMiss = result
-			}
-		}
-		return nearMiss
+func valueOrEmpty(value *string) string {
+	if value == nil {
+		return ""
 	}
-	nearMiss := SessionID{}
-	files, _ := rt.ListFiles(spec.WatchDir)
-	for _, file := range files {
-		if legacyExisting[file] {
-			continue
-		}
-		if spec.Agent == "muse" && isMuseSubagentPath(file) {
-			continue
-		}
-		result := authorizeCandidate(spec, spec.Match(file), rt)
-		if result.ID != "" {
-			return result
-		}
-		if result.NearMiss && !nearMiss.NearMiss {
-			nearMiss = result
-		}
-	}
-	return nearMiss
-}
-
-func discoverByBirth(spec AgentSpec, agentStart time.Time, rt Runtime) SessionID {
-	files, _ := rt.ListFiles(spec.WatchDir)
-	type cand struct {
-		id    SessionID
-		birth time.Time
-	}
-	var matched []cand
-	var nearMiss *cand
-	for _, file := range files {
-		if spec.Agent == "muse" && isMuseSubagentPath(file) {
-			continue
-		}
-		birth, err := rt.BirthTime(file)
-		if err != nil || birth.Before(agentStart) {
-			continue
-		}
-		result := authorizeCandidate(spec, spec.Match(file), rt)
-		if !result.Matched {
-			continue
-		}
-		c := cand{id: result, birth: birth}
-		if result.NearMiss {
-			if nearMiss == nil || birth.After(nearMiss.birth) {
-				// Keep newest near-miss for drift signal, but don't return it
-				// if a real ID exists — real IDs outrank near-misses.
-				cp := c
-				nearMiss = &cp
-			}
-			continue
-		}
-		matched = append(matched, c)
-	}
-	if len(matched) > 0 {
-		// Pick newest by birth time — with concurrent sessions the birth
-		// filter may yield >1 candidate; the freshest is the one we just
-		// launched. The old "exactly 1" gate dropped the capture for muse
-		// when multiple sessions shared the same birth second.
-		best := matched[0]
-		for _, c := range matched[1:] {
-			if c.birth.After(best.birth) {
-				best = c
-			}
-		}
-		return best.id
-	}
-	if nearMiss != nil {
-		return nearMiss.id
-	}
-	return SessionID{}
-}
-
-func authorizeCandidate(spec AgentSpec, result SessionID, rt Runtime) SessionID {
-	if spec.Agent != "codex" || result.ID == "" {
-		return result
-	}
-	firstEvent, err := rt.ReadFirstLine(result.Path)
-	if err != nil || transcript.CodexRootSessionID(result.Path, firstEvent) != result.ID {
-		return SessionID{}
-	}
-	return result
+	return *value
 }

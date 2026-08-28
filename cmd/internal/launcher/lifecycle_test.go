@@ -119,11 +119,8 @@ func TestRunLaunchQuitCleanup(t *testing.T) {
 	if rt.cmuxCleared != 1 {
 		t.Fatalf("ClearCmuxOwner calls = %d", rt.cmuxCleared)
 	}
-	// Resume hint on stderr.
-	if !strings.Contains(stderr.String(), "saved session config for tag \"bugfix\"") ||
-		!strings.Contains(stderr.String(), "pair resume bugfix") ||
-		!strings.Contains(stderr.String(), "session id:  SID") {
-		t.Fatalf("resume hint missing: %q", stderr.String())
+	if strings.Contains(stderr.String(), "pair resume bugfix") || strings.Contains(stderr.String(), "session id:") {
+		t.Fatalf("provisional pre-round launch advertised recovery: %q", stderr.String())
 	}
 }
 
@@ -164,7 +161,7 @@ func TestRunLaunchParkSkippedOnRestart(t *testing.T) {
 }
 
 // Alt+n restart: after the quit cleanup the restart marker drives a second,
-// in-process handoff that resumes the prior session (composed --resume token).
+// in-process handoff that starts fresh when the first launch never established.
 func TestRunLaunchRestartLoopAltN(t *testing.T) {
 	rt := newFakeRuntime()
 	rt.uuids = []string{"MINT"} // iteration 1 mints; iteration 2 resumes (no mint)
@@ -177,12 +174,8 @@ func TestRunLaunchRestartLoopAltN(t *testing.T) {
 	if rt.launchCount != 2 {
 		t.Fatalf("restart loop should hand off twice, got %d", rt.launchCount)
 	}
-	// Iteration 2's env reflects the resume onto the minted id.
-	if rt.env["PAIR_SESSION_ID"] != "MINT" {
-		t.Fatalf("resumed session id = %q, want MINT", rt.env["PAIR_SESSION_ID"])
-	}
-	if !strings.Contains(rt.env["PAIR_AGENT_ARGS"], "--resume MINT") {
-		t.Fatalf("PAIR_AGENT_ARGS = %q (want the resume token)", rt.env["PAIR_AGENT_ARGS"])
+	if rt.env["PAIR_SESSION_ID"] != "" || strings.Contains(rt.env["PAIR_AGENT_ARGS"], "--resume MINT") {
+		t.Fatalf("pre-round restart claimed recovery: id=%q args=%q", rt.env["PAIR_SESSION_ID"], rt.env["PAIR_AGENT_ARGS"])
 	}
 }
 

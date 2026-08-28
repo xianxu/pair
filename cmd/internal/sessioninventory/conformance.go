@@ -49,7 +49,7 @@ func RunConformance(runtime Runtime, agents ...Agent) (ConformanceReport, error)
 			report.Agents = append(report.Agents, entry)
 			continue
 		}
-		result := scannerForAgent(agent)(runtime)
+		result := ScannerForAgent(agent)(runtime)
 		inventory := BuildForest(result.Facts)
 		inventory.Diagnostics = append(inventory.Diagnostics, result.Diagnostics...)
 		entry.Roots, entry.Nodes = forestCounts(inventory.Forests)
@@ -97,7 +97,7 @@ func conformanceAvailability(runtime Runtime, agent Agent) (bool, error) {
 	return available, nil
 }
 
-func scannerForAgent(agent Agent) ScannerFunc {
+func ScannerForAgent(agent Agent) ScannerFunc {
 	switch agent {
 	case AgentClaude:
 		return ScanClaude

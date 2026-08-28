@@ -17,7 +17,6 @@ import (
 	"github.com/xianxu/pair/cmd/internal/artifactpath"
 	"github.com/xianxu/pair/cmd/internal/continuationcmd"
 	"github.com/xianxu/pair/cmd/internal/osfs"
-	"github.com/xianxu/pair/cmd/internal/procutil"
 	"github.com/xianxu/pair/cmd/internal/readiness"
 	"github.com/xianxu/pair/cmd/internal/sessionledger"
 	"github.com/xianxu/pair/cmd/internal/sessionwatch"
@@ -322,12 +321,12 @@ func (OSRuntime) SetTerminalTitle(session string) {
 
 // --- ProcOps ---------------------------------------------------------------
 
-func (r OSRuntime) SpawnSessionWatcher(agent, tag, cwd, repoRoot, repoName string, agentArgs []string) {
-	spawnDetached(sessionWatcherSpawnArgv(runningPairExe(r.PairHome), agent, tag, cwd, repoRoot, repoName, time.Now(), agentArgs), nil)
+func (r OSRuntime) SpawnSessionWatcher(agent, tag, scopeKey, cwd, repoRoot, repoName string, launchOrdinal uint64, agentArgs []string) {
+	spawnDetached(sessionWatcherSpawnArgv(runningPairExe(r.PairHome), agent, tag, scopeKey, cwd, repoRoot, repoName, launchOrdinal, time.Now(), agentArgs), nil)
 }
 
-func sessionWatcherSpawnArgv(exe, agent, tag, cwd, repoRoot, repoName string, bound time.Time, agentArgs []string) []string {
-	return sessionwatch.CommandArgs(exe, agent, tag, cwd, repoRoot, repoName, bound, agentArgs)
+func sessionWatcherSpawnArgv(exe, agent, tag, scopeKey, cwd, repoRoot, repoName string, launchOrdinal uint64, bound time.Time, agentArgs []string) []string {
+	return sessionwatch.CommandArgs(exe, agent, tag, scopeKey, cwd, repoRoot, repoName, launchOrdinal, bound, agentArgs)
 }
 
 func (r OSRuntime) SpawnTitlePoller(tag, agent, session string) {
@@ -590,6 +589,18 @@ func (r OSRuntime) AppendLedger(tag string, entry LedgerEntry) error {
 	return err
 }
 
+func (r OSRuntime) PrepareSessionLaunch(scopeKey, tag, agent, resumeNativeID string) (uint64, error) {
+	home, err := os.UserHomeDir()
+	if err != nil {
+		return 0, err
+	}
+	prepared, err := sessionwatch.PrepareOSLaunch(home, r.DataDir, sessionledger.Owner{ScopeKey: scopeKey, Tag: tag, Agent: agent}, resumeNativeID)
+	if err != nil {
+		return 0, err
+	}
+	return prepared.Launch.Ordinal, nil
+}
+
 // pair:m5-concept integration
 func (r OSRuntime) ReadSessionNameIndex() (SessionNameIndex, error) {
 	return readSessionNameIndexes(r.globalDataDir(), r.DataDir, r.ReadFile)
@@ -640,36 +651,6 @@ func (OSRuntime) AgentSessionExists(agent, sid, cwd string) bool {
 		return transcript.Resolve("muse", sid, cwd, home) != ""
 	}
 	return false
-}
-
-func (r OSRuntime) LiveAgentSessionID(agent, tag string) string {
-	if agent != "codex" || tag == "" {
-		return ""
-	}
-	paths, err := artifactpath.ResolveScoped(r.DataDir, tag)
-	if err != nil {
-		return ""
-	}
-	raw, err := r.ReadFile(paths.AgentPID())
-	if err != nil {
-		return ""
-	}
-	root := strings.TrimSpace(raw)
-	if root == "" {
-		return ""
-	}
-	prefix := filepath.Join(os.Getenv("HOME"), ".codex", "sessions") + string(os.PathSeparator)
-	for _, pid := range procutil.DescendantPIDs(root, procutil.ProcessChildren()) {
-		for _, name := range procutil.LsofNames(pid) {
-			if !strings.HasPrefix(name, prefix) {
-				continue
-			}
-			if sid := transcript.ReadCodexRootSessionID(name); sid != "" {
-				return sid
-			}
-		}
-	}
-	return ""
 }
 
 // --- LifecycleOps ----------------------------------------------------------

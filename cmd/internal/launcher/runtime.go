@@ -81,9 +81,8 @@ type UIOps interface {
 // ProcOps spawns the (already-Go) sidecar children and the dev rebuild.
 type ProcOps interface {
 	// SpawnSessionWatcher backgrounds pair session-watch (detached) to capture
-	// the async agent session id for Codex/Agy/Muse; Claude's id is minted
-	// synchronously.
-	SpawnSessionWatcher(agent, tag, cwd, repoRoot, repoName string, agentArgs []string)
+	// a uniquely correlated native session after a completed causal round.
+	SpawnSessionWatcher(agent, tag, scopeKey, cwd, repoRoot, repoName string, launchOrdinal uint64, agentArgs []string)
 	// SpawnTitlePoller backgrounds bin/pair-title (detached), the per-tag
 	// frame/cmux title singleton.
 	SpawnTitlePoller(tag, agent, session string)
@@ -118,9 +117,6 @@ type IDOps interface {
 	// AgentSessionExists reports whether the agent's native session artifact for
 	// sid is on disk (claude jsonl / codex sessions glob / agy conversation db).
 	AgentSessionExists(agent, sid, cwd string) bool
-	// LiveAgentSessionID resolves a session id from the currently running agent
-	// process when the watcher/config missed it.
-	LiveAgentSessionID(agent, tag string) string
 	// InferAgent resolves the agent a tag was last paired with — the agent-<tag>
 	// record (live/detached) or, once that's cleared on Alt+x, the agent encoded
 	// in a config-<tag>-<agent>.json filename. "" when neither is on disk (a
@@ -131,6 +127,7 @@ type IDOps interface {
 type LedgerOps interface {
 	ReadLedger(tag string) ([]LedgerEntry, error)
 	AppendLedger(tag string, entry LedgerEntry) error
+	PrepareSessionLaunch(scopeKey, tag, agent, resumeNativeID string) (uint64, error)
 }
 
 type SessionNameStoreOps interface {

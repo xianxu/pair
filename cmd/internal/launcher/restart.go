@@ -32,8 +32,12 @@ func runRestart(rt Runtime, args LaunchArgs, session, pairTag string, stderr io.
 	}
 	agent := rt.InferAgent(tag)
 	sessionID := ""
-	if agent == "codex" && !args.NewSession {
-		sessionID = rt.LiveAgentSessionID(agent, tag)
+	if !args.NewSession {
+		if entries, err := rt.ReadLedger(tag); err == nil {
+			if latest, ok := LatestLedgerEntryForAgent(entries, agent); ok {
+				sessionID = latest.SessionID
+			}
+		}
 	}
 	rt.WriteRestartMarker(session, RestartMarker{
 		Tag: tag,

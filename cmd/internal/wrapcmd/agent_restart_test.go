@@ -19,7 +19,7 @@ func TestFreshAgentInvocationDropsRestoreAndPreservesWrapperAndUserArgs(t *testi
 		"/pair/bin/pair",
 		"/data/scroll.raw",
 		[]string{"codex", "--sandbox", "danger-full-access", "resume", "old-session", "--no-alt-screen"},
-		[]string{"PAIR_DATA_DIR=" + data, "PAIR_TAG=work", "PAIR_SESSION_ID=old-session"},
+		[]string{"PAIR_DATA_DIR=" + data, "PAIR_TAG=work", "PAIR_SCOPE_KEY=scope", "PAIR_SESSION_ID=old-session"},
 		time.Date(2026, 8, 19, 9, 30, 0, 123, time.UTC),
 	)
 	if err != nil {
@@ -44,6 +44,7 @@ func TestSIGUSR2ReExecsWrapperWithoutReplacingPaneProcess(t *testing.T) {
 	data := t.TempDir()
 	t.Setenv("PAIR_DATA_DIR", data)
 	t.Setenv("PAIR_TAG", "restart-test")
+	t.Setenv("PAIR_SCOPE_KEY", "scope")
 	t.Setenv("PAIR_AGENT", "sh")
 
 	oldExec := execProcess
@@ -92,12 +93,12 @@ func TestSIGUSR2ReExecsWrapperWithoutReplacingPaneProcess(t *testing.T) {
 	}
 }
 
-func TestFreshClaudeInvocationMintsNewBindingButPersistsCleanArgs(t *testing.T) {
+func TestFreshClaudeInvocationMintsInvocationIDButKeepsRecoveryProvisional(t *testing.T) {
 	data := t.TempDir()
 	request, err := freshAgentInvocation(
 		"/pair/bin/pair", "",
 		[]string{"claude", "--model", "opus", "--resume", "old-session"},
-		[]string{"PAIR_DATA_DIR=" + data, "PAIR_TAG=work"},
+		[]string{"PAIR_DATA_DIR=" + data, "PAIR_TAG=work", "PAIR_SCOPE_KEY=scope"},
 		time.Date(2026, 8, 19, 9, 30, 0, 123, time.UTC),
 	)
 	if err != nil {
@@ -111,6 +112,9 @@ func TestFreshClaudeInvocationMintsNewBindingButPersistsCleanArgs(t *testing.T) 
 	} else if !regexp.MustCompile(`^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$`).MatchString(got) {
 		t.Fatalf("PAIR_SESSION_ID = %q, want UUID", got)
 	}
+	if _, err := os.Stat(filepath.Join(data, "config-work-claude.json")); !os.IsNotExist(err) {
+		t.Fatalf("fresh provisional launch wrote config: %v", err)
+	}
 }
 
 func TestFreshAgentInvocationWatcherMatchesAsyncAgentRegistry(t *testing.T) {
@@ -122,11 +126,11 @@ func TestFreshAgentInvocationWatcherMatchesAsyncAgentRegistry(t *testing.T) {
 		{agent: "codex", watch: true},
 		{agent: "agy", watch: true},
 		{agent: "muse", watch: true},
-		{agent: "claude", watch: false},
+		{agent: "claude", watch: true},
 	} {
 		t.Run(tc.agent, func(t *testing.T) {
 			request, err := freshAgentInvocation("/pair", "", []string{tc.agent, "--flag"}, []string{
-				"PAIR_DATA_DIR=" + t.TempDir(), "PAIR_TAG=work", "HOME=/home/me",
+				"PAIR_DATA_DIR=" + t.TempDir(), "PAIR_TAG=work", "PAIR_SCOPE_KEY=scope", "HOME=/home/me",
 			}, bound)
 			if err != nil {
 				t.Fatal(err)

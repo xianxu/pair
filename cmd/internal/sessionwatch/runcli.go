@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"io"
 	"os"
+	"strconv"
 	"time"
 
 	"github.com/xianxu/pair/cmd/internal/adapt"
@@ -39,8 +40,9 @@ func ensurePairTag(tag string) func() {
 // CommandArgs serializes the internal session-watch process contract. Watcher
 // metadata precedes -- so agent arguments that resemble watcher flags remain
 // untouched.
-func CommandArgs(exe, agent, tag, cwd, repoRoot, repoName string, pidNotBefore time.Time, agentArgs []string) []string {
+func CommandArgs(exe, agent, tag, scopeKey, cwd, repoRoot, repoName string, launchOrdinal uint64, pidNotBefore time.Time, agentArgs []string) []string {
 	args := []string{exe, "session-watch", agent, tag, cwd}
+	args = append(args, "--scope-key", scopeKey, "--launch-ordinal", strconv.FormatUint(launchOrdinal, 10))
 	if !pidNotBefore.IsZero() {
 		args = append(args, "--pid-not-before", pidNotBefore.Format(time.RFC3339Nano))
 	}
@@ -65,6 +67,8 @@ func buildOptions(args []string, getenv func(string) string) (Options, bool) {
 	}
 	repoRoot := ""
 	repoName := ""
+	scopeKey := ""
+	launchOrdinal := uint64(0)
 	pidNotBefore := time.Time{}
 	agentArgs := append([]string(nil), args[3:]...)
 	for len(agentArgs) > 0 {
@@ -79,6 +83,20 @@ func buildOptions(args []string, getenv func(string) string) (Options, bool) {
 		}
 		if len(agentArgs) >= 2 && agentArgs[0] == "--repo-name" {
 			repoName = agentArgs[1]
+			agentArgs = agentArgs[2:]
+			continue
+		}
+		if len(agentArgs) >= 2 && agentArgs[0] == "--scope-key" {
+			scopeKey = agentArgs[1]
+			agentArgs = agentArgs[2:]
+			continue
+		}
+		if len(agentArgs) >= 2 && agentArgs[0] == "--launch-ordinal" {
+			parsed, err := strconv.ParseUint(agentArgs[1], 10, 64)
+			if err != nil || parsed == 0 {
+				return Options{}, false
+			}
+			launchOrdinal = parsed
 			agentArgs = agentArgs[2:]
 			continue
 		}
@@ -97,17 +115,19 @@ func buildOptions(args []string, getenv func(string) string) (Options, bool) {
 		break
 	}
 	return Options{
-		Agent:        args[0],
-		Tag:          args[1],
-		Cwd:          args[2],
-		RepoRoot:     repoRoot,
-		RepoName:     repoName,
-		PIDNotBefore: pidNotBefore,
-		Args:         agentArgs,
-		Home:         home,
-		DataDir:      dataDir,
-		PIDWait:      ParseDurationSeconds(getenv("PAIR_SESSION_WATCH_PID_WAIT_SECONDS"), 2*time.Second),
-		Timeout:      60 * time.Second,
-		Poll:         100 * time.Millisecond,
+		Agent:         args[0],
+		Tag:           args[1],
+		ScopeKey:      scopeKey,
+		LaunchOrdinal: launchOrdinal,
+		Cwd:           args[2],
+		RepoRoot:      repoRoot,
+		RepoName:      repoName,
+		PIDNotBefore:  pidNotBefore,
+		Args:          agentArgs,
+		Home:          home,
+		DataDir:       dataDir,
+		PIDWait:       ParseDurationSeconds(getenv("PAIR_SESSION_WATCH_PID_WAIT_SECONDS"), 2*time.Second),
+		Timeout:       60 * time.Second,
+		Poll:          100 * time.Millisecond,
 	}, true
 }

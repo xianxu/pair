@@ -769,6 +769,20 @@ be checked against measured actuals at close.*
 
 ## Log
 
+- 2026-08-28 — M2 Task 6 replaces the watcher's first/newest discovery with a
+  durable provisional-to-established lifecycle shared by outer launch and
+  in-pane restart. Launch preparation records the Pair-log offset and sorted
+  per-root native watermarks synchronously before handoff; unreadable or
+  non-unique root transcripts fail closed. The watcher scans the complete
+  forest, accepts only a globally unique completed causal round, uses stable
+  PID/open-file evidence as corroboration, and atomically joins a binding only
+  while its launch ordinal remains current. Config is now a post-binding cache,
+  fresh Claude IDs remain invocation-only, explicit scanner-authorized resumes
+  may join immediately, and restart recovery reads only current typed ledger
+  state. Focused watcher, ledger, launcher, wrapper, shell, artifact-path, and
+  historical declaration contracts pass (`ARCH-DRY`, `ARCH-PURE`,
+  `ARCH-PURPOSE`, `ARCH-MOCK`).
+
 - 2026-08-28 — M2 Task 5 implements the pure causal matcher and durable launch
   generations. Exact one/two-turn thresholds are UTF-8/Unicode aware, require
   accepted progress before the next operator turn, reject repeated/gapped

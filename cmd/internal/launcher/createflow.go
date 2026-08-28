@@ -423,14 +423,14 @@ func runCreate(opts LaunchOptions, env Env, rt Runtime, live []Session, decision
 		}
 	}
 
-	// Pre-capture the session id an explicit --resume/--conversation/`resume`
-	// pinned: the watcher only catches NEW jsonl files, so an explicit resume
-	// needs the config written synchronously (shell 2053-2110).
+	// Pre-capture an explicit --resume/--conversation/`resume` binding. The
+	// synchronous launch boundary may establish this scanner-authorized native
+	// root immediately; fresh launches wait for a completed causal round.
 	explicitResume := extractExplicitResume(agent, agentArgs)
 
 	// Claude: mint a deterministic --session-id (uuidgen + collision retry) so
-	// two tags in one cwd can't race for the same new jsonl (#20). Codex/agy
-	// have no such flag — the watcher discovers their id async.
+	// two tags in one cwd can't race for the same new jsonl (#20). This remains
+	// invocation authority only until the watcher establishes the causal round.
 	newSid := ""
 	if shouldMintClaudeSessionID(agent, explicitResume, agentArgs) {
 		for i := 0; i < 5; i++ {
@@ -496,6 +496,11 @@ func runCreate(opts LaunchOptions, env Env, rt Runtime, live []Session, decision
 		fmt.Fprintf(stderr, "pair: failed to append ledger for tag '%s': %v\n", chosenTag, err)
 		return launchStep{code: 1}, nil
 	}
+	launchOrdinal, err := rt.PrepareSessionLaunch(scope.Key, chosenTag, agent, explicitResume)
+	if err != nil {
+		fmt.Fprintf(stderr, "pair: failed to prepare native launch for tag '%s': %v\n", chosenTag, err)
+		return launchStep{code: 1}, nil
+	}
 
 	layoutResolution, priorLayout := readLayoutSelection(rt, dataDir, chosenTag, opts.Args.Layout)
 	if err := writeLayoutRecord(rt, dataDir, chosenTag, layoutResolution.Mode); err != nil {
@@ -507,6 +512,8 @@ func runCreate(opts LaunchOptions, env Env, rt Runtime, live []Session, decision
 	rt.SetEnv("PAIR_DATA_DIR", dataDir)
 	rt.SetEnv("PAIR_TAG", chosenTag)
 	rt.SetEnv("PAIR_AGENT", agent)
+	rt.SetEnv("PAIR_SCOPE_KEY", scope.Key)
+	rt.SetEnv("PAIR_LAUNCH_ORDINAL", fmt.Sprint(launchOrdinal))
 	rt.SetEnv("PAIR_SESSION_NAME", session)
 	rt.SetEnv("PAIR_WORKBENCH_LAYOUT", string(layoutResolution.Mode))
 	bindings, bindingErr := artifactPaths.EnvironmentBindings(agent)
@@ -533,8 +540,10 @@ func runCreate(opts LaunchOptions, env Env, rt Runtime, live []Session, decision
 
 	// Record the agent for `pair list` / the title poller (survives detach).
 	_ = rt.WriteAtomic(artifactPaths.Agent(), agent+"\n")
-	if sessionID != "" {
+	if explicitResume != "" {
 		writeConfig(rt, configPath, agent, persistedArgs, sessionID)
+	} else {
+		rt.Remove(configPath)
 	}
 
 	rt.SetEnv("PAIR_AGENT_ARGS", strings.Join(agentArgs, " "))
@@ -550,7 +559,7 @@ func runCreate(opts LaunchOptions, env Env, rt Runtime, live []Session, decision
 
 	// Spawn the (already-Go) sidecars + set the frame title. agentArgs is the
 	// final resolved vector (post mint / codex / resume compose).
-	rt.SpawnSessionWatcher(agent, chosenTag, env.Cwd, repoRoot, repoName, agentArgs)
+	rt.SpawnSessionWatcher(agent, chosenTag, scope.Key, env.Cwd, repoRoot, repoName, launchOrdinal, agentArgs)
 	rt.SetTerminalTitle(session)
 	rt.RecordOuterTTY(chosenTag)
 	rt.CmuxRename(chosenTag, session)

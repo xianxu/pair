@@ -10,6 +10,8 @@ import (
 	"path/filepath"
 )
 
+var ErrStaleLaunch = errors.New("ledger launch generation is no longer current")
+
 type Unlocker interface{ Close() error }
 
 type AppendFile interface {
@@ -54,7 +56,36 @@ func (s LedgerStore) AppendLegacy(path string, encoded []byte) (uint64, error) {
 	return s.appendEncoded(path, append([]byte(nil), encoded...))
 }
 
+// AppendBindingIfCurrent joins a binding to a launch and verifies under the
+// same append lock that no newer launch for the owner has superseded it.
+func (s LedgerStore) AppendBindingIfCurrent(path string, owner Owner, launchOrdinal uint64, rootNativeID string) (Record, error) {
+	record := Record{
+		Version: 1, Kind: RecordBinding, ScopeKey: owner.ScopeKey, Tag: owner.Tag, Agent: owner.Agent,
+		LaunchOrdinal: launchOrdinal, RootNativeID: rootNativeID,
+	}
+	encoded, err := EncodeRecord(record)
+	if err != nil {
+		return Record{}, fmt.Errorf("encode ledger binding: %w", err)
+	}
+	ordinal, err := s.appendEncodedChecked(path, encoded, func(raw []byte) error {
+		current, ok := CurrentLaunch(ParseLedger(raw).Records, owner)
+		if !ok || current.Launch.Ordinal != launchOrdinal {
+			return ErrStaleLaunch
+		}
+		return nil
+	})
+	if err != nil {
+		return Record{}, err
+	}
+	record.Ordinal = ordinal
+	return record, nil
+}
+
 func (s LedgerStore) appendEncoded(path string, encoded []byte) (_ uint64, err error) {
+	return s.appendEncodedChecked(path, encoded, nil)
+}
+
+func (s LedgerStore) appendEncodedChecked(path string, encoded []byte, check func([]byte) error) (_ uint64, err error) {
 	if path == "" || s.Runtime == nil {
 		return 0, errors.New("ledger path or runtime is empty")
 	}
@@ -74,6 +105,11 @@ func (s LedgerStore) appendEncoded(path string, encoded []byte) (_ uint64, err e
 	}
 	if err != nil {
 		return 0, fmt.Errorf("read ledger: %w", err)
+	}
+	if check != nil {
+		if err := check(raw); err != nil {
+			return 0, err
+		}
 	}
 	ordinal := physicalLineCount(raw) + 1
 	payload := make([]byte, 0, len(encoded)+2)

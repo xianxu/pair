@@ -404,7 +404,7 @@ and mechanical guard; executable fixtures/fuzz seeds own individual cases.
 - [x] Run:
   - `go test ./cmd/internal/sessioninventory -run 'Test(QualifyTurnSequence|ResolveBindings|OfflineRecovery|ParentPropagation)' -count=1`
   - `go test ./cmd/internal/sessionledger ./cmd/internal/launcher -run 'Test(Ledger|CurrentLaunch)' -count=1`
-- [ ] Commit: `git add cmd/internal/sessioninventory cmd/internal/sessionledger cmd/internal/launcher && git commit -m '#155 M2: establish durable launch generations'`.
+- [x] Commit: `git add cmd/internal/sessioninventory cmd/internal/sessionledger cmd/internal/launcher && git commit -m '#155 M2: establish durable launch generations'`.
 
 ### Task 6: Replace watcher heuristics with provisional-to-established monitoring
 
@@ -426,31 +426,31 @@ and mechanical guard; executable fixtures/fuzz seeds own individual cases.
 - Modify: `cmd/internal/wrapcmd/agent_restart_test.go`
 - Test: `tests/pair-session-watch-test.sh`
 
-- [ ] RED/GREEN: add `TestObserveAndPersist` from the strategy table, then
+- [x] RED/GREEN: add `TestObserveAndPersist` from the strategy table, then
       implement two-sided baseline capture, completed-round polling, ambiguity
       intersection, PID-before/after corroboration, and injected crash recovery.
-- [ ] Delete `discover`/`discoverByBirth` and every first/newest selection;
+- [x] Delete `discover`/`discoverByBirth` and every first/newest selection;
       process/open-file facts corroborate but never select a root.
-- [ ] Make `sessionwatch.Runtime` retain only scheduling/config-cache effects,
+- [x] Make `sessionwatch.Runtime` retain only scheduling/config-cache effects,
       inject `LedgerStore` for ledger writes, adapt one
       `sessioninventory.Runtime` for all native reads, and delete duplicate
       walk/read/process/open-file methods.
-- [ ] Route initial launch and in-pane `freshAgentInvocation` restart through
+- [x] Route initial launch and in-pane `freshAgentInvocation` restart through
       synchronous `PrepareLaunch` for every supported agent. It captures
       watermarks and durably appends the provisional launch before the agent can
       accept input; the watcher receives that physical ordinal.
-- [ ] RED/GREEN: add `TestPrepareLaunchAuthority` against competing lifecycle
+- [x] RED/GREEN: add `TestPrepareLaunchAuthority` against competing lifecycle
       generations and authority sources. Only exact live invocation authority or
       a current joined binding may expose a native ID; provisional metadata
       cannot authorize recovery.
-- [ ] Before appending a binding under the shared ledger lock, verify its launch
+- [x] Before appending a binding under the shared ledger lock, verify its launch
       ordinal is still latest. After durable binding append, atomically refresh
       config; cache failure reports `binding_stale` without weakening ledger
       authority.
-- [ ] Remove `LiveAgentSessionID` from launcher runtime/OS runtime. Make
+- [x] Remove `LiveAgentSessionID` from launcher runtime/OS runtime. Make
       restart, markers, compaction, and lifecycle consume only an established
       ledger binding or intentionally start fresh while provisional.
-- [ ] Run:
+- [x] Run:
   - `go test ./cmd/internal/sessionwatch ./cmd/internal/sessionledger ./cmd/internal/launcher -count=1`
   - `go test ./cmd/internal/wrapcmd -count=1`
   - `bash tests/pair-session-watch-test.sh`

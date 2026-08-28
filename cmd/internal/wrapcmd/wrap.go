@@ -66,6 +66,7 @@ import (
 	"github.com/xianxu/pair/cmd/internal/launcher"
 	"github.com/xianxu/pair/cmd/internal/layoutcmd"
 	"github.com/xianxu/pair/cmd/internal/readiness"
+	"github.com/xianxu/pair/cmd/internal/sessionledger"
 	"github.com/xianxu/pair/cmd/internal/sessionwatch"
 	"github.com/xianxu/pair/cmd/internal/workbenchshortcut"
 )
@@ -2090,7 +2091,6 @@ func freshAgentInvocation(wrapperExecutable, scrollbackLog string, currentArgv [
 	}
 	agent := filepath.Base(currentArgv[0])
 	freshArgs := launcher.FreshAgentArgs(currentArgv[1:])
-	configArgs := append([]string(nil), freshArgs...)
 	sessionID := ""
 	if agent == "claude" {
 		sessionID = freshUUID()
@@ -2105,6 +2105,11 @@ func freshAgentInvocation(wrapperExecutable, scrollbackLog string, currentArgv [
 		dataDir = adapt.DataDir()
 	}
 	tag := envValue(env, "PAIR_TAG")
+	scopeKey := envValue(env, "PAIR_SCOPE_KEY")
+	if scopeKey == "" && filepath.Base(filepath.Dir(dataDir)) == "repos" {
+		scopeKey = filepath.Base(dataDir)
+	}
+	launchOrdinal := uint64(0)
 	if dataDir != "" && tag != "" {
 		paths, err := artifactpath.ResolveScoped(dataDir, tag)
 		if err != nil {
@@ -2114,23 +2119,23 @@ func freshAgentInvocation(wrapperExecutable, scrollbackLog string, currentArgv [
 		if err != nil {
 			return nil, err
 		}
-		if agent == "claude" {
-			payload, err := sessionwatch.ConfigJSON(sessionwatch.ConfigPayload{
-				Agent: agent, Args: configArgs, SessionID: sessionID,
-			})
-			if err != nil {
-				return nil, err
-			}
-			if err := writeAtomic(configPath, payload); err != nil {
-				return nil, err
-			}
-		} else if err := os.Remove(configPath); err != nil && !os.IsNotExist(err) {
+		if err := os.Remove(configPath); err != nil && !os.IsNotExist(err) {
 			return nil, err
 		}
+		if scopeKey == "" {
+			return nil, errors.New("missing Pair scope identity for fresh launch")
+		}
+		prepared, err := sessionwatch.PrepareOSLaunch(envValue(env, "HOME"), dataDir, sessionledger.Owner{ScopeKey: scopeKey, Tag: tag, Agent: agent}, "")
+		if err != nil {
+			return nil, err
+		}
+		launchOrdinal = prepared.Launch.Ordinal
 	}
 
 	nextEnv := setEnv(env, "PAIR_SESSION_ID", sessionID)
 	nextEnv = setEnv(nextEnv, "PAIR_AGENT_ARGS", strings.Join(freshArgs, " "))
+	nextEnv = setEnv(nextEnv, "PAIR_SCOPE_KEY", scopeKey)
+	nextEnv = setEnv(nextEnv, "PAIR_LAUNCH_ORDINAL", strconv.FormatUint(launchOrdinal, 10))
 	nextArgv := []string{wrapperExecutable, "wrap"}
 	if scrollbackLog != "" {
 		nextArgv = append(nextArgv, "--scrollback-log", scrollbackLog)
@@ -2138,10 +2143,10 @@ func freshAgentInvocation(wrapperExecutable, scrollbackLog string, currentArgv [
 	nextArgv = append(nextArgv, currentArgv[0])
 	nextArgv = append(nextArgv, freshArgs...)
 	var watcherArgv []string
-	if _, watchable := sessionwatch.SpecForAgent(agent, envValue(nextEnv, "HOME")); watchable {
+	if sessionwatch.SupportsAgent(agent) && launchOrdinal != 0 {
 		tag := envValue(nextEnv, "PAIR_TAG")
 		cwd, _ := os.Getwd()
-		watcherArgv = sessionwatch.CommandArgs(wrapperExecutable, agent, tag, cwd, "", "", pidNotBefore, freshArgs)
+		watcherArgv = sessionwatch.CommandArgs(wrapperExecutable, agent, tag, scopeKey, cwd, "", "", launchOrdinal, pidNotBefore, freshArgs)
 	}
 	return &freshExecRequest{argv: nextArgv, env: nextEnv, watcherArgv: watcherArgv}, nil
 }

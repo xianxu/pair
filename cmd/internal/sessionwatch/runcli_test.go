@@ -13,7 +13,7 @@ func TestBuildOptionsFromArgsAndEnv(t *testing.T) {
 		"PAIR_DATA_DIR":                       "/tmp/pair-data",
 		"PAIR_SESSION_WATCH_PID_WAIT_SECONDS": "3",
 	}
-	opts, ok := buildOptions([]string{"codex", "tag", "/repo", "resume", "old", "--flag"}, func(k string) string {
+	opts, ok := buildOptions([]string{"codex", "tag", "/repo", "--scope-key", "scope", "--launch-ordinal", "7", "--", "resume", "old", "--flag"}, func(k string) string {
 		return env[k]
 	})
 	if !ok {
@@ -21,6 +21,9 @@ func TestBuildOptionsFromArgsAndEnv(t *testing.T) {
 	}
 	if opts.Agent != "codex" || opts.Tag != "tag" || opts.Cwd != "/repo" {
 		t.Fatalf("opts identity = %+v", opts)
+	}
+	if opts.ScopeKey != "scope" || opts.LaunchOrdinal != 7 {
+		t.Fatalf("launch generation = %+v", opts)
 	}
 	if opts.Home != "/home/me" || opts.DataDir != "/tmp/pair-data" {
 		t.Fatalf("opts paths = %+v", opts)
@@ -34,7 +37,7 @@ func TestBuildOptionsFromArgsAndEnv(t *testing.T) {
 }
 
 func TestBuildOptionsParsesRepoIdentityBeforeAgentArgs(t *testing.T) {
-	opts, ok := buildOptions([]string{"codex", "tag", "/repo/sub", "--repo-root", "/repo", "--repo-name", "pair", "--", "resume", "old", "--repo-root", "agent-value"}, func(k string) string {
+	opts, ok := buildOptions([]string{"codex", "tag", "/repo/sub", "--scope-key", "scope", "--launch-ordinal", "7", "--repo-root", "/repo", "--repo-name", "pair", "--", "resume", "old", "--repo-root", "agent-value"}, func(k string) string {
 		if k == "HOME" {
 			return "/home/me"
 		}
@@ -53,7 +56,7 @@ func TestBuildOptionsParsesRepoIdentityBeforeAgentArgs(t *testing.T) {
 
 func TestCommandArgsRoundTripsWatcherMetadataWithoutConsumingAgentArgs(t *testing.T) {
 	bound := time.Date(2026, 8, 19, 9, 23, 45, 123456789, time.UTC)
-	args := CommandArgs("/pair", "codex", "tag", "/repo/sub", "/repo", "pair", bound,
+	args := CommandArgs("/pair", "codex", "tag", "scope", "/repo/sub", "/repo", "pair", 7, bound,
 		[]string{"--pid-not-before", "agent-value", "--repo-root", "agent-root"})
 	wantPrefix := []string{"/pair", "session-watch"}
 	if !reflect.DeepEqual(args[:2], wantPrefix) {
@@ -63,7 +66,7 @@ func TestCommandArgsRoundTripsWatcherMetadataWithoutConsumingAgentArgs(t *testin
 	if !ok {
 		t.Fatal("buildOptions returned !ok")
 	}
-	if !opts.PIDNotBefore.Equal(bound) || opts.RepoRoot != "/repo" || opts.RepoName != "pair" {
+	if !opts.PIDNotBefore.Equal(bound) || opts.RepoRoot != "/repo" || opts.RepoName != "pair" || opts.ScopeKey != "scope" || opts.LaunchOrdinal != 7 {
 		t.Fatalf("watcher metadata = %+v", opts)
 	}
 	wantAgentArgs := []string{"--pid-not-before", "agent-value", "--repo-root", "agent-root"}

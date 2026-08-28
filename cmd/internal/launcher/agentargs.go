@@ -190,9 +190,10 @@ func codexAltScreenArgs(args []string, optOut bool) []string {
 
 // shouldMintClaudeSessionID decides whether the create path should pin a
 // deterministic claude session id (via --session-id) instead of leaving it to
-// the async watcher. Skip when a resume already pinned one, when the user passed
+// Claude. Skip when a resume already pinned one, when the user passed
 // their own --session-id, or when --fork-session lets claude allocate internally.
-// Only Claude supports the flag; Codex/Agy/Muse use the watcher.
+// Only Claude supports the flag; every agent's durable binding is established
+// independently by the causal-round watcher.
 func shouldMintClaudeSessionID(agent, explicitResume string, agentExtra []string) bool {
 	return agent == "claude" && explicitResume == "" &&
 		!hasFlag(agentExtra, "--session-id") && !hasFlag(agentExtra, "--fork-session")

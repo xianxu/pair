@@ -3,119 +3,37 @@ package sessionwatch
 import (
 	"bytes"
 	"encoding/json"
-	"path/filepath"
-	"regexp"
-	"strings"
+
+	"github.com/xianxu/pair/cmd/internal/sessioninventory"
+	"github.com/xianxu/pair/cmd/internal/sessionledger"
 )
 
-var (
-	uuidRE    = regexp.MustCompile(`(?i)^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$`)
-	endUUIDRE = regexp.MustCompile(`(?i)([0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12})$`)
-)
-
-// AgentSpec describes one async session-file discovery contract.
-type AgentSpec struct {
-	Agent    string
-	Home     string
-	WatchDir string
-}
-
-// SessionID is the outcome of matching a candidate session file path.
-type SessionID struct {
-	Matched  bool
-	NearMiss bool
-	ID       string
-	Path     string
-}
-
-// ConfigPayload is the restart config written as config-<tag>-<agent>.json.
 type ConfigPayload struct {
 	Agent     string   `json:"agent"`
 	Args      []string `json:"args"`
 	SessionID string   `json:"session_id"`
 }
 
-// SpecForAgent returns the async watcher contract for agents that need it.
-func SpecForAgent(agent, home string) (AgentSpec, bool) {
-	switch agent {
-	case "codex":
-		return AgentSpec{
-			Agent:    agent,
-			Home:     home,
-			WatchDir: filepath.Join(home, ".codex", "sessions"),
-		}, true
-	case "agy":
-		return AgentSpec{
-			Agent:    agent,
-			Home:     home,
-			WatchDir: filepath.Join(home, ".gemini", "antigravity-cli", "conversations"),
-		}, true
-	case "muse":
-		return AgentSpec{
-			Agent:    agent,
-			Home:     home,
-			WatchDir: filepath.Join(home, ".local", "share", "muse", "sessions"),
-		}, true
-	default:
-		return AgentSpec{}, false
-	}
+// WatcherInventory is one launch generation's pure inventory/round input to
+// the persistence boundary.
+// pair:155-concept integration modified M2
+type WatcherInventory struct {
+	Owner         sessionledger.Owner
+	LedgerPath    string
+	LaunchOrdinal uint64
+	Inventory     sessioninventory.Inventory
+	LiveRounds    []sessioninventory.RoundObservation
+	Args          []string
 }
 
-// Match checks whether path belongs to the agent's session-file shape and, if
-// so, extracts the session id or reports a near miss.
-func (s AgentSpec) Match(path string) SessionID {
-	switch s.Agent {
-	case "codex":
-		prefix := filepath.Clean(s.WatchDir) + string(filepath.Separator)
-		clean := filepath.Clean(path)
-		if !strings.HasPrefix(clean, prefix) {
-			return SessionID{}
-		}
-		base := filepath.Base(clean)
-		if !strings.HasPrefix(base, "rollout-") || !strings.HasSuffix(base, ".jsonl") {
-			return SessionID{}
-		}
-		stem := strings.TrimSuffix(base, ".jsonl")
-		if match := endUUIDRE.FindStringSubmatch(stem); len(match) == 2 {
-			return SessionID{Matched: true, ID: match[1], Path: path}
-		}
-		return SessionID{Matched: true, NearMiss: true, Path: path}
-	case "agy":
-		prefix := filepath.Clean(s.WatchDir) + string(filepath.Separator)
-		clean := filepath.Clean(path)
-		if !strings.HasPrefix(clean, prefix) {
-			return SessionID{}
-		}
-		base := filepath.Base(clean)
-		if !strings.HasSuffix(base, ".db") {
-			return SessionID{}
-		}
-		id := strings.TrimSuffix(base, ".db")
-		if uuidRE.MatchString(id) {
-			return SessionID{Matched: true, ID: id, Path: path}
-		}
-		return SessionID{Matched: true, NearMiss: true, Path: path}
-	case "muse":
-		prefix := filepath.Clean(s.WatchDir) + string(filepath.Separator)
-		clean := filepath.Clean(path)
-		if !strings.HasPrefix(clean, prefix) {
-			return SessionID{}
-		}
-		// Muse subagent sessions live under …/<root-uuid>/subagent/<sub-uuid>/session.jsonl.
-		// Only the root session is resumable via `muse resume <id>`; ignore subagent interior (ARCH-PURE).
-		if strings.Contains(clean, string(filepath.Separator)+"subagent"+string(filepath.Separator)) {
-			return SessionID{}
-		}
-		if filepath.Base(clean) != "session.jsonl" {
-			return SessionID{}
-		}
-		id := filepath.Base(filepath.Dir(clean))
-		if uuidRE.MatchString(id) {
-			return SessionID{Matched: true, ID: id, Path: path}
-		}
-		return SessionID{Matched: true, NearMiss: true, Path: path}
+type ObserveInput = WatcherInventory
+
+func SupportsAgent(agent string) bool {
+	switch agent {
+	case "claude", "codex", "agy", "muse":
+		return true
 	default:
-		return SessionID{}
+		return false
 	}
 }
 
@@ -138,7 +56,6 @@ func StripResumeArgs(agent string, args []string) []string {
 	return stripped
 }
 
-// ConfigJSON renders the restart config with structured JSON encoding.
 func ConfigJSON(payload ConfigPayload) ([]byte, error) {
 	var buf bytes.Buffer
 	enc := json.NewEncoder(&buf)

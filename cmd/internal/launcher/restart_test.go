@@ -32,10 +32,10 @@ func TestRunRestartWritesMarkersAndKills(t *testing.T) {
 	}
 }
 
-func TestRunRestartCapturesLiveCodexSessionID(t *testing.T) {
+func TestRunRestartUsesEstablishedLedgerSessionID(t *testing.T) {
 	rt := newFakeRuntime()
 	rt.inferAgent["work"] = "codex"
-	rt.liveAgentSessions["codex|work"] = "SID-LIVE"
+	rt.ledger["work"] = []LedgerEntry{{Agent: "codex", SessionID: "SID-LIVE", Typed: true, SourceOrdinal: 1}}
 
 	var stderr strings.Builder
 	code := runRestart(rt, LaunchArgs{}, "📁work", "work", &stderr)
@@ -54,7 +54,7 @@ func TestRunRestartCapturesLiveCodexSessionID(t *testing.T) {
 func TestRunRestartDoesNotCaptureLiveIDForNewSession(t *testing.T) {
 	rt := newFakeRuntime()
 	rt.inferAgent["work"] = "codex"
-	rt.liveAgentSessions["codex|work"] = "SID-LIVE"
+	rt.ledger["work"] = []LedgerEntry{{Agent: "codex", SessionID: "SID-LIVE", Typed: true, SourceOrdinal: 1}}
 
 	var stderr strings.Builder
 	code := runRestart(rt, LaunchArgs{NewSession: true}, "📁work", "work", &stderr)

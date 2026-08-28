@@ -2,15 +2,14 @@ package sessionwatch
 
 import (
 	"os"
-	"os/exec"
 	"path/filepath"
 	"strconv"
-	"strings"
 	"time"
 
 	"github.com/xianxu/pair/cmd/internal/adapt"
 	"github.com/xianxu/pair/cmd/internal/procutil"
-	"github.com/xianxu/pair/cmd/internal/transcript"
+	"github.com/xianxu/pair/cmd/internal/sessioninventory"
+	"github.com/xianxu/pair/cmd/internal/sessionledger"
 )
 
 // OSRuntime implements Runtime with real process and filesystem calls.
@@ -29,10 +28,6 @@ func (OSRuntime) Sleep(d time.Duration) {
 
 func (OSRuntime) ReadFile(path string) ([]byte, error) { return os.ReadFile(path) }
 
-func (OSRuntime) ReadFirstLine(path string) ([]byte, error) {
-	return transcript.ReadFirstEvent(path)
-}
-
 func (OSRuntime) ModTime(path string) (time.Time, error) {
 	info, err := os.Stat(path)
 	if err != nil {
@@ -41,42 +36,16 @@ func (OSRuntime) ModTime(path string) (time.Time, error) {
 	return info.ModTime(), nil
 }
 
-func (OSRuntime) BirthTime(path string) (time.Time, error) {
-	out, err := exec.Command("stat", "-f", "%B", path).Output()
-	if err != nil {
-		return time.Time{}, err
-	}
-	sec, err := strconv.ParseInt(strings.TrimSpace(string(out)), 10, 64)
-	if err != nil {
-		return time.Time{}, err
-	}
-	return time.Unix(sec, 0), nil
-}
-
-func (OSRuntime) ListFiles(root string) ([]string, error) {
-	var out []string
-	err := filepath.WalkDir(root, func(path string, d os.DirEntry, err error) error {
-		if err != nil {
-			return nil
-		}
-		if !d.IsDir() {
-			out = append(out, path)
-		}
-		return nil
-	})
-	return out, err
-}
-
-func (OSRuntime) Descendants(root string) ([]string, error) {
-	return procutil.DescendantPIDs(root, procutil.ProcessChildren()), nil
-}
-
-func (OSRuntime) LsofPaths(pid string) ([]string, error) {
-	return procutil.LsofNames(pid), nil
-}
-
 func (OSRuntime) ProcessIdentity(pid string) string {
 	return procutil.Identity(pid)
+}
+
+func (OSRuntime) NativeRuntime(home, dataDir string) sessioninventory.Runtime {
+	return sessioninventory.NewOSRuntime(home, dataDir)
+}
+
+func (OSRuntime) LedgerAppender() LedgerAppender {
+	return sessionledger.LedgerStore{Runtime: sessionledger.OSRuntime{}}
 }
 
 func (OSRuntime) AtomicWrite(path string, data []byte) error {

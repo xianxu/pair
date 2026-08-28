@@ -21,7 +21,7 @@ type issue149ConceptRequirement struct {
 	kind string
 }
 
-const issue149M5DeclarationDigest = "5b29bfde7f750b2079fc5c39c8ed7e614a3b0631903fb7862a790d4ff59ec3de"
+const issue149M5DeclarationDigest = "de4a63451615c760db475013ba5fb5147ee1c007509e769a996331681a5f0eb0"
 
 // issue149M5GoSources is the exhaustive set of Go sources touched by M5. Every
 // declaration in these files receives a disposition: a pair:m5-concept marker
@@ -44,7 +44,7 @@ var issue149M5GoSources = []string{
 	"cmd/internal/couchcore/threadmetadata_test.go", "cmd/internal/couchcore/threadstore.go",
 	"cmd/internal/draftroute/route.go",
 	"cmd/internal/dispatcher/dispatcher.go", "cmd/internal/dispatcher/dispatcher_test.go",
-	"cmd/internal/launcher/agent_defaults.go", "cmd/internal/launcher/args.go", "cmd/internal/launcher/args_test.go",
+	"cmd/internal/launcher/agent_defaults.go", "cmd/internal/launcher/agentargs.go", "cmd/internal/launcher/args.go", "cmd/internal/launcher/args_test.go",
 	"cmd/internal/launcher/config.go", "cmd/internal/launcher/createflow.go",
 	"cmd/internal/launcher/createflow_test.go", "cmd/internal/launcher/history.go", "cmd/internal/launcher/layoutflow.go",
 	"cmd/internal/launcher/ledger.go", "cmd/internal/launcher/ledger_test.go",
@@ -67,6 +67,7 @@ var issue149M5GoSources = []string{
 	"cmd/internal/sessioninventory/binding.go", "cmd/internal/sessioninventory/binding_test.go",
 	"cmd/internal/sessioninventory/diagnostic.go", "cmd/internal/sessioninventory/diagnostic_test.go",
 	"cmd/internal/sessioninventory/event.go", "cmd/internal/sessioninventory/event_test.go",
+	"cmd/internal/sessioninventory/events.go", "cmd/internal/sessioninventory/events_test.go",
 	"cmd/internal/sessioninventory/forest_projection.go", "cmd/internal/sessioninventory/forest_projection_test.go",
 	"cmd/internal/sessioninventory/inventory.go",
 	"cmd/internal/sessioninventory/model.go", "cmd/internal/sessioninventory/model_test.go",
@@ -85,10 +86,13 @@ var issue149M5GoSources = []string{
 	"cmd/internal/sessioninventorytest/fake_runtime.go", "cmd/internal/sessioninventorytest/fake_runtime_test.go",
 	"cmd/internal/sessionledger/record.go", "cmd/internal/sessionledger/record_test.go",
 	"cmd/internal/sessionledger/store.go", "cmd/internal/sessionledger/store_subprocess_test.go", "cmd/internal/sessionledger/store_test.go", "cmd/internal/sessionledger/store_unix.go",
-	"cmd/internal/sessionwatch/run.go", "cmd/internal/slugcmd/slug.go", "cmd/internal/slugcmd/slugcmd.go", "cmd/internal/titlepoller/run.go",
+	"cmd/internal/sessionwatch/lifecycle.go", "cmd/internal/sessionwatch/lifecycle_test.go",
+	"cmd/internal/sessionwatch/run.go", "cmd/internal/sessionwatch/run_test.go", "cmd/internal/sessionwatch/runcli.go", "cmd/internal/sessionwatch/runcli_test.go",
+	"cmd/internal/sessionwatch/runtime.go", "cmd/internal/sessionwatch/sessionwatch.go", "cmd/internal/sessionwatch/sessionwatch_test.go",
+	"cmd/internal/slugcmd/slug.go", "cmd/internal/slugcmd/slugcmd.go", "cmd/internal/titlepoller/run.go",
 	"cmd/internal/strictjson/decode.go", "cmd/internal/threadrecord/record.go",
 	"cmd/internal/titlepoller/runtime.go", "cmd/internal/transcript/transcript.go",
-	"cmd/internal/workbenchshortcut/shortcut.go", "cmd/internal/wrapcmd/wrap.go",
+	"cmd/internal/workbenchshortcut/shortcut.go", "cmd/internal/wrapcmd/agent_restart_test.go", "cmd/internal/wrapcmd/wrap.go",
 	"cmd/pair-go/changelog_seam_test.go", "cmd/pair-go/main.go", "cmd/pair-go/main_test.go",
 }
 

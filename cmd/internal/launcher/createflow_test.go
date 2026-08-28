@@ -38,13 +38,14 @@ type fakeRuntime struct {
 	sessionIndex        SessionNameIndex
 	sessionIndexErr     error
 	agentSessions       map[string]bool // "agent|sid" -> native artifact exists
-	liveAgentSessions   map[string]string
-	uuids               []string // MintUUID pops these in order
+	uuids               []string        // MintUUID pops these in order
 	promptValue         string
 	promptOK            bool
 	maxSessionNameBytes int
 	probeErr            error
 	appendLedgerErr     error
+	prepareLaunchErr    error
+	preparedLaunches    []string
 	appendIndexErr      error
 	threadClaimErr      error
 	threadClaims        []string
@@ -114,21 +115,20 @@ func (f *fakeRuntime) EnsureThreadAddress(scope RepoScope, tag string, couchOwne
 
 func newFakeRuntime() *fakeRuntime {
 	return &fakeRuntime{
-		blocksReuse:       map[string]bool{},
-		commandMissing:    map[string]bool{},
-		files:             map[string]string{},
-		ledger:            map[string][]LedgerEntry{},
-		agentSessions:     map[string]bool{},
-		liveAgentSessions: map[string]string{},
-		inferAgent:        map[string]string{},
-		promptOK:          true,
-		env:               map[string]string{},
-		quitMarkers:       map[string]bool{},
-		restartMarkers:    map[string]RestartMarker{},
-		cmuxOwned:         map[string]bool{},
-		liveLayouts:       map[string]LayoutMode{},
-		readyRecords:      map[string]bool{},
-		readyPIDs:         map[int]bool{},
+		blocksReuse:    map[string]bool{},
+		commandMissing: map[string]bool{},
+		files:          map[string]string{},
+		ledger:         map[string][]LedgerEntry{},
+		agentSessions:  map[string]bool{},
+		inferAgent:     map[string]string{},
+		promptOK:       true,
+		env:            map[string]string{},
+		quitMarkers:    map[string]bool{},
+		restartMarkers: map[string]RestartMarker{},
+		cmuxOwned:      map[string]bool{},
+		liveLayouts:    map[string]LayoutMode{},
+		readyRecords:   map[string]bool{},
+		readyPIDs:      map[int]bool{},
 	}
 }
 
@@ -203,8 +203,8 @@ func (f *fakeRuntime) ProbeLiveLayout(session string) (LayoutMode, error) {
 }
 
 // ProcOps
-func (f *fakeRuntime) SpawnSessionWatcher(agent, tag, cwd, repoRoot, repoName string, agentArgs []string) {
-	f.watchers = append(f.watchers, agent+"|"+tag+"|"+cwd+"|"+repoRoot+"|"+repoName+"|"+strings.Join(agentArgs, " "))
+func (f *fakeRuntime) SpawnSessionWatcher(agent, tag, scopeKey, cwd, repoRoot, repoName string, launchOrdinal uint64, agentArgs []string) {
+	f.watchers = append(f.watchers, fmt.Sprintf("%s|%s|%s|%s|%s|%s|%d|%s", agent, tag, scopeKey, cwd, repoRoot, repoName, launchOrdinal, strings.Join(agentArgs, " ")))
 }
 func (f *fakeRuntime) SpawnTitlePoller(tag, agent, session string) {
 	f.pollers = append(f.pollers, tag+"|"+agent)
@@ -230,9 +230,6 @@ func (f *fakeRuntime) MintUUID() string {
 func (f *fakeRuntime) AgentSessionExists(agent, sid, cwd string) bool {
 	return f.agentSessions[agent+"|"+sid]
 }
-func (f *fakeRuntime) LiveAgentSessionID(agent, tag string) string {
-	return f.liveAgentSessions[agent+"|"+tag]
-}
 func (f *fakeRuntime) InferAgent(tag string) string {
 	if latest, ok := LatestLedgerEntry(f.ledger[tag]); ok && latest.Agent != "" {
 		return latest.Agent
@@ -248,6 +245,13 @@ func (f *fakeRuntime) AppendLedger(tag string, entry LedgerEntry) error {
 	}
 	f.ledger[tag] = append(f.ledger[tag], entry)
 	return nil
+}
+func (f *fakeRuntime) PrepareSessionLaunch(scopeKey, tag, agent, resumeNativeID string) (uint64, error) {
+	f.preparedLaunches = append(f.preparedLaunches, strings.Join([]string{scopeKey, tag, agent, resumeNativeID}, "|"))
+	if f.prepareLaunchErr != nil {
+		return 0, f.prepareLaunchErr
+	}
+	return uint64(len(f.preparedLaunches)), nil
 }
 func (f *fakeRuntime) ReadSessionNameIndex() (SessionNameIndex, error) {
 	return f.sessionIndex, f.sessionIndexErr
@@ -534,7 +538,7 @@ func TestRunLaunchPrependsBinToPath(t *testing.T) {
 }
 
 // A forced-tag create with no live session: no prompt, claude mints a session id,
-// config + agent record written, sidecars spawned, session handed off.
+// provisional baseline + agent record written, sidecars spawned, session handed off.
 func TestRunLaunchForcedCreateClaude(t *testing.T) {
 	rt := newFakeRuntime()
 	rt.uuids = []string{"MINTED-1"}
@@ -572,19 +576,21 @@ func TestRunLaunchForcedCreateClaude(t *testing.T) {
 	if got, ok := rt.env["PAIR_PANE_CWD"]; ok {
 		t.Fatalf("PAIR_PANE_CWD should no longer be exported, got %q", got)
 	}
-	// Config written WITHOUT the resume binding (session_id is canonical storage).
-	cfg := rt.files["/data/config-bugfix-claude.json"]
-	if !strings.Contains(cfg, `"session_id":"MINTED-1"`) || strings.Contains(cfg, "--session-id") {
-		t.Fatalf("config = %q", cfg)
+	// A freshly minted native ID is invocation authority, not recovery state.
+	if cfg := rt.files["/data/config-bugfix-claude.json"]; cfg != "" {
+		t.Fatalf("provisional launch wrote config = %q", cfg)
 	}
 	if rt.files["/data/agent-bugfix"] != "claude\n" {
 		t.Fatalf("agent record = %q", rt.files["/data/agent-bugfix"])
+	}
+	if got := rt.preparedLaunches; len(got) != 1 || !strings.Contains(got[0], "|bugfix|claude|") {
+		t.Fatalf("prepared launches = %v", got)
 	}
 	ledger := rt.ledger["bugfix"]
 	if len(ledger) != 1 || ledger[0].Agent != "claude" || ledger[0].SessionID != "MINTED-1" {
 		t.Fatalf("ledger = %+v, want claude/MINTED-1", ledger)
 	}
-	if got := rt.watchers; len(got) != 1 || !strings.HasPrefix(got[0], "claude|bugfix|/home/u/work|") {
+	if got := rt.watchers; len(got) != 1 || !strings.HasPrefix(got[0], "claude|bugfix|") || !strings.Contains(got[0], "|1|") {
 		t.Fatalf("watchers = %v", got)
 	}
 	if len(rt.pollers) != 1 || rt.pollers[0] != "bugfix|claude" {
@@ -592,6 +598,24 @@ func TestRunLaunchForcedCreateClaude(t *testing.T) {
 	}
 	if len(rt.titles) != 1 || len(rt.ttyRecorded) != 1 || len(rt.cmux) != 1 {
 		t.Fatalf("title/tty/cmux effects missing: %v %v %v", rt.titles, rt.ttyRecorded, rt.cmux)
+	}
+}
+
+func TestRunLaunchAbortsBeforeHandoffWhenNativeLaunchBoundaryFails(t *testing.T) {
+	rt := newFakeRuntime()
+	rt.prepareLaunchErr = errors.New("baseline unavailable")
+	code, err := run(t, baseOpts(LaunchArgs{Agent: "codex", ForcedTag: "bugfix"}), rt)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if code != 1 || rt.launched != "" || len(rt.watchers) != 0 || len(rt.pollers) != 0 {
+		t.Fatalf("code=%d launched=%q watchers=%v pollers=%v", code, rt.launched, rt.watchers, rt.pollers)
+	}
+	if len(rt.preparedLaunches) != 1 {
+		t.Fatalf("prepared launches = %v, want one attempted boundary", rt.preparedLaunches)
+	}
+	if _, ok := rt.env["PAIR_LAUNCH_ORDINAL"]; ok {
+		t.Fatalf("PAIR_LAUNCH_ORDINAL exported after failed boundary: %q", rt.env["PAIR_LAUNCH_ORDINAL"])
 	}
 }
 
@@ -1135,15 +1159,8 @@ func TestRunLaunchSkipConfigPickerUsesRepoDefaultOverSavedConfig(t *testing.T) {
 	if got := rt.env["PAIR_AGENT_ARGS"]; got != "--model sonnet --session-id NEW" {
 		t.Fatalf("PAIR_AGENT_ARGS = %q", got)
 	}
-	if contains(rt.removed, "/data/config-cx-claude.json") {
-		t.Fatalf("bypass proactively removed canonical config: %v", rt.removed)
-	}
-	saved, err := parseConfig(rt.files["/data/config-cx-claude.json"])
-	if err != nil {
-		t.Fatalf("parseConfig: %v", err)
-	}
-	if saved.SessionID != "NEW" || !slices.Equal(saved.Args, []string{"--model", "sonnet"}) {
-		t.Fatalf("fresh config = %+v", saved)
+	if !contains(rt.removed, "/data/config-cx-claude.json") || rt.files["/data/config-cx-claude.json"] != "" {
+		t.Fatalf("fresh provisional launch retained config: removed=%v files=%v", rt.removed, rt.files)
 	}
 }
 
@@ -1237,9 +1254,8 @@ func TestRunLaunchTagRestartPickerNew(t *testing.T) {
 	if !contains(rt.removed, "/data/config-work-claude.json") {
 		t.Fatalf("new should remove stale config; removed=%v", rt.removed)
 	}
-	// The freshly-minted config replaces it (mint runs after the picker).
-	if cfg := rt.files["/data/config-work-claude.json"]; !strings.Contains(cfg, "NEW-SID") {
-		t.Fatalf("expected fresh minted config, got %q", cfg)
+	if cfg := rt.files["/data/config-work-claude.json"]; cfg != "" {
+		t.Fatalf("provisional launch wrote fresh config %q", cfg)
 	}
 }
 
@@ -1431,8 +1447,8 @@ func TestRunLaunchAltNRestartRejectsInvalidSavedCodexSession(t *testing.T) {
 	if !slices.Contains(rt.removed, "/data/config-cx-codex.json") {
 		t.Fatalf("removed = %v, want stale Codex config quarantined", rt.removed)
 	}
-	if !strings.Contains(stderr.String(), `saved session "SUBAGENT" for codex is not available; starting fresh`) {
-		t.Fatalf("stderr missing stale-session warning: %s", stderr.String())
+	if strings.Contains(stderr.String(), "SUBAGENT") {
+		t.Fatalf("removed provisional cache leaked into restart decision: %s", stderr.String())
 	}
 }
 

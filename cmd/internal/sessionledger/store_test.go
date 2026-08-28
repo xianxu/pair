@@ -66,6 +66,41 @@ func TestLedgerStoreFailureRetryUsesNextPhysicalOrdinal(t *testing.T) {
 	}
 }
 
+func TestLedgerStoreAppendBindingIfCurrent(t *testing.T) {
+	t.Parallel()
+	path := filepath.Join(t.TempDir(), "ledger.jsonl")
+	store := LedgerStore{Runtime: OSRuntime{}}
+	first, err := store.Append(path, launchRecord("scope", "work", 1))
+	if err != nil {
+		t.Fatal(err)
+	}
+	owner := Owner{ScopeKey: "scope", Tag: "work", Agent: "claude"}
+	bound, err := store.AppendBindingIfCurrent(path, owner, first.Ordinal, "native-a")
+	if err != nil || bound.Kind != RecordBinding || bound.LaunchOrdinal != first.Ordinal {
+		t.Fatalf("bound=%#v err=%v", bound, err)
+	}
+	second, err := store.Append(path, launchRecord("scope", "work", 2))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := store.AppendBindingIfCurrent(path, owner, first.Ordinal, "stale"); !errors.Is(err, ErrStaleLaunch) {
+		t.Fatalf("stale append err=%v", err)
+	}
+	current, ok := CurrentLaunch(ParseLedger(mustReadFile(t, path)).Records, owner)
+	if !ok || current.Launch.Ordinal != second.Ordinal || current.Binding != nil {
+		t.Fatalf("current=%#v ok=%v", current, ok)
+	}
+}
+
+func mustReadFile(t *testing.T, path string) []byte {
+	t.Helper()
+	raw, err := os.ReadFile(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	return raw
+}
+
 type countingRuntime struct {
 	Runtime
 	locks int
