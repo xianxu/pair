@@ -5,7 +5,7 @@ deps: []
 github_issue:
 created: 2026-08-27
 updated: 2026-08-27
-estimate_hours:
+estimate_hours: 3.35
 started: 2026-08-27T16:23:37-07:00
 ---
 
@@ -124,6 +124,26 @@ origin. Only Couch's separate mutable thread-name attribute is Couch-only.
 - `pair resume <tag>` continues to work; Couch human-name resolution is available only through Couch.
 - Both human-assigned and Couch-generated Pair tags resume by exact equality.
 - Automated tests cover both direct Pair independence and Couch-hosted registration.
+
+## Estimate
+
+Produced via `brain/data/life/42shots/velocity/estimate-logic-v3.1.md` against
+`baseline-v3.1.md`. Method A only. The calibration source is currently marked
+stale by `sdlc estimate-source`, so the derivation is provisional.
+
+```estimate
+model: estimate-logic-v3.1
+familiarity: 1.0
+item: issue-spec design=1.20 impl=0.08
+item: cross-cutting-refactor design=0.16 impl=0.20
+item: cross-cutting-refactor design=0.16 impl=0.16
+item: smaller-go-module design=0.06 impl=0.20
+item: smaller-go-module design=0.06 impl=0.20
+item: atlas-docs design=0.20 impl=0.08
+item: milestone-review design=0.10 impl=0.20
+design-buffer: 0.15
+total: 3.35
+```
 
 ## Plan
 
