@@ -21,7 +21,7 @@ type issue149ConceptRequirement struct {
 	kind string
 }
 
-const issue149M5DeclarationDigest = "d336695a9a06f195d96d0228e65675049f0e142f9946c8a480af1be9f3e621aa"
+const issue149M5DeclarationDigest = "790815eaf7e4e08e706d711fb7fe0d59f527bb7e5ef15d7b8e0ee94447d63b9c"
 
 // issue149M5GoSources is the exhaustive set of Go sources touched by M5. Every
 // declaration in these files receives a disposition: a pair:m5-concept marker
@@ -36,6 +36,7 @@ var issue149M5GoSources = []string{
 	"cmd/internal/clipcmd/clipcmd.go", "cmd/internal/clipcmd/clipcmd_test.go", "cmd/internal/clipcmd/run.go",
 	"cmd/internal/codexsid/codexsid.go", "cmd/internal/contextcmd/contextcmd.go", "cmd/internal/contextcmd/panejson_kdl_test.go",
 	"cmd/internal/continuationcmd/continuationcmd.go",
+	"cmd/internal/couchcmd/readme_test.go",
 	"cmd/internal/couchcore/artifactcollision_test.go", "cmd/internal/couchcore/couch.go", "cmd/internal/couchcore/couch_test.go", "cmd/internal/couchcore/launchhelper_test.go", "cmd/internal/couchcore/migration.go",
 	"cmd/internal/couchcore/migration_test.go", "cmd/internal/couchcore/plan_contract_test.go",
 	"cmd/internal/couchcore/storejournal.go", "cmd/internal/couchcore/threadmetadata.go",

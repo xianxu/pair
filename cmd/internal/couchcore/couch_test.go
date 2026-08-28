@@ -271,6 +271,14 @@ func TestSpawnPersistsHelperIdentityBeforeAcknowledgingExec(t *testing.T) {
 }
 
 func TestSpawnComposesProductionPairRegistrationBoundary(t *testing.T) {
+	testPackageDir, err := os.Getwd()
+	if err != nil {
+		t.Fatal(err)
+	}
+	pairHome := filepath.Clean(filepath.Join(testPackageDir, "..", "..", ".."))
+	if physical, err := filepath.EvalSymlinks(pairHome); err == nil {
+		pairHome = physical
+	}
 	repo := t.TempDir()
 	if physical, err := filepath.EvalSymlinks(repo); err == nil {
 		repo = physical
@@ -289,7 +297,12 @@ case " $* " in
 	printf '{"tag":"%s","agent":"%s","session":"%s","nonce":"%s","pid":%d}\n' \
 	  "$PAIR_TAG" "$PAIR_AGENT" "$PAIR_SESSION_NAME" "$PAIR_LAUNCH_NONCE" "$PPID" > "$PAIR_AGENT_READY_PATH"
     printf ready > "$PAIR_TEST_ZELLIJ_READY"
-    while [ ! -f "$PAIR_TEST_ZELLIJ_RELEASE" ]; do sleep 0.01; done
+	i=0
+	while [ ! -f "$PAIR_TEST_ZELLIJ_RELEASE" ] && [ "$i" -lt 1000 ]; do
+	  sleep 0.01
+	  i=$((i + 1))
+	done
+	[ -f "$PAIR_TEST_ZELLIJ_RELEASE" ] || exit 124
     ;;
 esac
 exit 0
@@ -305,6 +318,7 @@ exit 0
 	t.Setenv("PAIR_DEV", "")
 	t.Setenv("CMUX_WORKSPACE_ID", "")
 	t.Cleanup(func() { _ = os.WriteFile(release, []byte("release"), 0o600) })
+	expectedProcessEnv := processEnvironmentForTest()
 
 	ns := testCouchNamespace(t)
 	runner := NewFakeRunner()
@@ -326,16 +340,16 @@ exit 0
 	}
 
 	type pairMutationReport struct {
-		beforeManifest []byte
-		beforeRecord   []byte
-		afterManifest  []byte
-		afterRecord    []byte
-		stderr         string
-		code           int
-		err            error
+		beforeNamespace map[string]string
+		afterNamespace  map[string]string
+		stderr          string
+		code            int
+		err             error
 	}
 	reserved := make(chan ThreadRecord, 1)
 	pairReport := make(chan pairMutationReport, 1)
+	waitCtx, cancelWait := context.WithTimeout(context.Background(), 20*time.Second)
+	defer cancelWait()
 	runner.BeforeAcknowledge = func(id string) error {
 		child := runner.Child(id)
 		thread, err := couch.Threads.GetThread(address)
@@ -347,11 +361,7 @@ exit 0
 			return fmt.Errorf("pre-ack marker = %q, %v", markerRaw, err)
 		}
 		reserved <- thread
-		beforeManifest, err := os.ReadFile(couch.Threads.manifestPath())
-		if err != nil {
-			return err
-		}
-		beforeRecord, err := os.ReadFile(couch.Threads.recordPath(address))
+		beforeNamespace, err := snapshotDirectoryForTest(ns.Dir())
 		if err != nil {
 			return err
 		}
@@ -366,14 +376,12 @@ exit 0
 		}
 		defer func() { _ = os.Chdir(oldCwd) }()
 		var stdout, stderr bytes.Buffer
-		code, launchErr := launcher.LaunchNative(child.Argv[1:], "/Users/xianxu/workspace/pair", &stdout, &stderr)
-		afterManifest, manifestErr := os.ReadFile(couch.Threads.manifestPath())
-		afterRecord, recordErr := os.ReadFile(couch.Threads.recordPath(address))
+		code, launchErr := launcher.LaunchNative(child.Argv[1:], pairHome, &stdout, &stderr)
+		afterNamespace, snapshotErr := snapshotDirectoryForTest(ns.Dir())
 		report := pairMutationReport{
-			beforeManifest: beforeManifest, beforeRecord: beforeRecord,
-			afterManifest: afterManifest, afterRecord: afterRecord,
+			beforeNamespace: beforeNamespace, afterNamespace: afterNamespace,
 			stderr: stderr.String(), code: code,
-			err: errors.Join(launchErr, manifestErr, recordErr),
+			err: errors.Join(launchErr, snapshotErr),
 		}
 		pairReport <- report
 		if report.err != nil || code != 0 {
@@ -393,11 +401,16 @@ exit 0
 		spawned <- spawnResult{record: record, handle: handle, err: err}
 	}()
 
-	preAck := <-reserved
+	var preAck ThreadRecord
+	select {
+	case preAck = <-reserved:
+	case <-waitCtx.Done():
+		t.Fatalf("wait for reserved pre-ack state: %v", waitCtx.Err())
+	}
 	if len(preAck.Incarnations) != 1 || preAck.Incarnations[0].State != IncarnationCreating || preAck.Incarnations[0].PID != 1000 || preAck.Incarnations[0].Identity != "fake-identity-couch-fake-1" {
 		t.Fatalf("pre-ack durable helper = %+v", preAck.Incarnations)
 	}
-	waitForFileForTest(t, ready, 5*time.Second)
+	waitForFileForTest(t, waitCtx, ready)
 	markerPath := launcher.NewScopedPaths(pairData, scope, string(address.Tag)).ThreadClaim()
 	markerRaw, err := os.ReadFile(markerPath)
 	if err != nil || !strings.Contains(string(markerRaw), `"state":"established"`) {
@@ -426,16 +439,29 @@ exit 0
 	if err := os.WriteFile(release, []byte("release"), 0o600); err != nil {
 		t.Fatal(err)
 	}
-	report := <-pairReport
+	var report pairMutationReport
+	select {
+	case report = <-pairReport:
+	case <-waitCtx.Done():
+		t.Fatalf("wait for Pair launch report: %v", waitCtx.Err())
+	}
 	if report.err != nil || report.code != 0 {
 		t.Fatalf("LaunchNative report = %+v", report)
 	}
-	if !bytes.Equal(report.beforeManifest, report.afterManifest) || !bytes.Equal(report.beforeRecord, report.afterRecord) {
-		t.Fatal("Pair mutated Couch's manifest or thread record")
+	if !reflect.DeepEqual(report.beforeNamespace, report.afterNamespace) {
+		t.Fatalf("Pair mutated Couch namespace\nbefore: %#v\nafter:  %#v", report.beforeNamespace, report.afterNamespace)
 	}
-	result := <-spawned
+	var result spawnResult
+	select {
+	case result = <-spawned:
+	case <-waitCtx.Done():
+		t.Fatalf("wait for Couch spawn result: %v", waitCtx.Err())
+	}
 	if result.err != nil {
 		t.Fatalf("Spawn: %v", result.err)
+	}
+	if afterEnv := processEnvironmentForTest(); !reflect.DeepEqual(expectedProcessEnv, afterEnv) {
+		t.Fatalf("LaunchNative leaked process environment\nbefore: %#v\nafter:  %#v", expectedProcessEnv, afterEnv)
 	}
 	if result.record.Thread != address {
 		t.Fatalf("generated address = %+v, want %+v", result.record.Thread, address)
@@ -563,37 +589,33 @@ func writeExecutableForTest(t *testing.T, path, body string) {
 	}
 }
 
-func waitForFileForTest(t *testing.T, path string, timeout time.Duration) {
+func waitForFileForTest(t *testing.T, ctx context.Context, path string) {
 	t.Helper()
-	deadline := time.Now().Add(timeout)
-	for time.Now().Before(deadline) {
+	ticker := time.NewTicker(10 * time.Millisecond)
+	defer ticker.Stop()
+	for {
 		if _, err := os.Stat(path); err == nil {
 			return
 		}
-		time.Sleep(10 * time.Millisecond)
+		select {
+		case <-ctx.Done():
+			t.Fatalf("timed out waiting for %s: %v", path, ctx.Err())
+		case <-ticker.C:
+		}
 	}
-	t.Fatalf("timed out waiting for %s", path)
 }
 
 func applyEnvironmentForTest(env []string) func() {
-	type priorValue struct {
-		value string
-		set   bool
-	}
-	prior := make(map[string]priorValue, len(env))
+	prior := append([]string(nil), os.Environ()...)
 	for _, item := range env {
 		key, value, _ := strings.Cut(item, "=")
-		old, set := os.LookupEnv(key)
-		prior[key] = priorValue{value: old, set: set}
 		_ = os.Setenv(key, value)
 	}
 	return func() {
-		for key, old := range prior {
-			if old.set {
-				_ = os.Setenv(key, old.value)
-			} else {
-				_ = os.Unsetenv(key)
-			}
+		os.Clearenv()
+		for _, item := range prior {
+			key, value, _ := strings.Cut(item, "=")
+			_ = os.Setenv(key, value)
 		}
 	}
 }
@@ -606,6 +628,51 @@ func environmentValue(env []string, key string) string {
 		}
 	}
 	return ""
+}
+
+func processEnvironmentForTest() map[string]string {
+	result := make(map[string]string)
+	for _, item := range os.Environ() {
+		key, value, _ := strings.Cut(item, "=")
+		result[key] = value
+	}
+	return result
+}
+
+func snapshotDirectoryForTest(root string) (map[string]string, error) {
+	snapshot := map[string]string{}
+	err := filepath.WalkDir(root, func(path string, entry os.DirEntry, walkErr error) error {
+		if walkErr != nil {
+			return walkErr
+		}
+		rel, err := filepath.Rel(root, path)
+		if err != nil {
+			return err
+		}
+		info, err := entry.Info()
+		if err != nil {
+			return err
+		}
+		if entry.IsDir() {
+			snapshot[rel] = "dir:" + info.Mode().String()
+			return nil
+		}
+		if entry.Type()&os.ModeSymlink != 0 {
+			target, err := os.Readlink(path)
+			if err != nil {
+				return err
+			}
+			snapshot[rel] = "symlink:" + target
+			return nil
+		}
+		raw, err := os.ReadFile(path)
+		if err != nil {
+			return err
+		}
+		snapshot[rel] = "file:" + info.Mode().String() + ":" + string(raw)
+		return nil
+	})
+	return snapshot, err
 }
 
 func TestSpawnPostAcknowledgementFailuresNeverLeaveWorkspaceWriter(t *testing.T) {

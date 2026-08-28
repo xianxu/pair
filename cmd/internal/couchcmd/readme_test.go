@@ -105,9 +105,9 @@ func TestREADMEDocumentsM3ThreadSemantics(t *testing.T) {
 		"canonical working path",
 		"ambiguous match",
 		"empty string",
-		"parked threads",
-		"duplicate labels",
-		"malformed or incomplete index fails closed",
+		"Standalone Pair neither reads nor mutates Couch's ThreadStore",
+		"not Pair addresses",
+		"session bindings and tag history",
 		"diagnostic view",
 		"`{repository scope}/{opaque tag}`",
 	} {

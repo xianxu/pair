@@ -306,7 +306,7 @@ The producer consumes exact `$PAIR_AGENT_PANE_PATH` in a shell `printf` inside t
 
 **Saved-config resolution & legacy Codex migration (#67).** `resolve_config_file <tag> <agent>` resolves the canonical `config-<tag>-<agent>.json`. Older Codex sessions on disk use a doubled shape `config-<tag>-codex-codex.json`; when the canonical file is absent and the agent is `codex`, the helper migrates the legacy file to the canonical name *iff* its JSON declares `"agent":"codex"` — a narrow, agent-checked compatibility path, **not** a glob resolver, so unrelated stale files can't silently win (`ARCH-DRY`, `ARCH-PURE`). It is used only where both tag and agent are known (restart-marker read, cleanup resume hint, the tag-restart picker that surfaces native Codex resume, and the two config writes); the agent-inference glob loop is deliberately left alone, since it is *discovering* the agent and already sees the legacy filename.
 
-**Naming prompt.** When the create flow runs, the launcher prompts the user with the auto-suggested tag as the default — the cwd basename, sanitized (so `~/workspace/pair` → `Session name: pair`). The prompt is editable inline (delegated to zsh's `vared` since bash 3.2 has no `read -i`). The `pair-` prefix is implicit — the prompt shows just the tag, since `pair-` is always prepended. Pressing Enter accepts; typing a custom name (`bugfix`, or `pair-bugfix` — leading `pair-` is stripped) overrides it. `pair resume <tag>` skips this prompt entirely.
+**Naming prompt.** When the create flow runs, the launcher prompts the user with the auto-suggested tag as the default — the cwd basename, sanitized (so `~/workspace/pair` → `Session name: pair`). The prompt is editable inline (delegated to zsh's `vared` since bash 3.2 has no `read -i`). The accepted value is the exact Pair tag: no prefix is added or stripped. Pressing Enter accepts the displayed tag; typing a custom value such as `bugfix` or `pair-bugfix` preserves those bytes after tag validation. `pair resume <tag>` skips this prompt entirely and requires that exact tag.
 
 **Agent validation deferred.** `command -v "$AGENT"` runs only inside the create branch, not at startup, so attaching to a custom-named session whose tag isn't a real binary still works.
 
@@ -977,11 +977,13 @@ The shape `compose = saved_args (stripped of any prior resume tokens) + agent's 
 **Post-Alt+x hint.** cleanup reads exact `Paths.Agent` before clearing it (so the hint names the right binary even though that file is about to disappear), then prints:
 
 ```
-pair: saved session config for tag "pair-2" (claude).
-      resume with: pair resume pair-2
+pair: saved session config for tag "work_2" (claude).
+      resume with: pair resume work_2
 ```
 
-`SESSION` rather than `PAIR_TAG` is shown — that's what the user just saw in the UI tab. `pair resume <tag>` accepts both forms (it strips a leading `pair-`).
+The Pair tag is shown byte-for-byte. Public `📁...` session names remain a
+separate Pair-owned binding; `pair resume <tag>` does not add or strip a
+`pair-` prefix.
 
 ## Tag rename (issue #000022)
 

@@ -441,8 +441,8 @@ To detach mid-session: `Alt+d`. To re-attach: run `pair` again and pick from the
 Pair captures each new session's startup args plus the agent's own session id, keyed by tag. After `Alt+x` you'll see:
 
 ```
-pair: saved session config for tag "pair-bugfix" (claude).
-      resume with: pair resume pair-bugfix
+pair: saved session config for tag "bugfix" (claude).
+      resume with: pair resume bugfix
 ```
 
 Run that command and the picker + name prompt are skipped. Pair then offers up to four things to do with the saved config:

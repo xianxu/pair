@@ -1,6 +1,7 @@
 // Package strictjson provides strict decoding for Couch persisted state and
-// the allowed one-shot Pair launch profile; it does not make that profile
-// Couch-owned persisted state.
+// Pair-owned boundary records, including address claims and the allowed
+// one-shot Couch launch profile; sharing the decoder does not share ownership
+// of those records.
 package strictjson
 
 import (

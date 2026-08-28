@@ -2,7 +2,6 @@ package couchcore
 
 import (
 	"bytes"
-	"encoding/json"
 	"errors"
 	"os"
 	"path/filepath"
@@ -12,6 +11,7 @@ import (
 	"time"
 
 	"github.com/xianxu/pair/cmd/internal/launcher"
+	"github.com/xianxu/pair/cmd/internal/strictjson"
 )
 
 func TestAllocateThreadTagAtomicallyClaimsAgainstArtifactProducers(t *testing.T) {
@@ -99,35 +99,36 @@ func TestScopedArtifactCheckerRegistrationRequiresExactEstablishedMarker(t *test
 }
 
 func FuzzScopedArtifactCheckerRegistrationRejectsArbitraryMarkerBytes(f *testing.F) {
-	f.Add("")
-	f.Add("garbage")
-	f.Add(strings.Repeat("x", 4096))
-	f.Fuzz(func(t *testing.T, arbitrary string) {
+	f.Add([]byte{})
+	f.Add([]byte("garbage"))
+	f.Add([]byte(strings.Repeat("x", 4096)))
+	f.Add([]byte(`{"schema":1,"scope":"0123456789abcdef","tag":"couch-0001020304050607","state":"established"}`))
+	f.Fuzz(func(t *testing.T, raw []byte) {
 		dataDir := t.TempDir()
 		address := ThreadAddress{RepoScope: "0123456789abcdef", Tag: "couch-0001020304050607"}
 		paths := launcher.NewScopedPaths(dataDir, launcher.RepoScope{Key: address.RepoScope}, string(address.Tag))
 		if err := os.MkdirAll(paths.ScopeDir(), 0o700); err != nil {
 			t.Fatal(err)
 		}
-		// The payload is always structurally foreign, however adversarial its
-		// string content. Registration must fail closed rather than authorize it.
-		raw := []byte(`{"arbitrary":` + strconvQuote(arbitrary) + `}`)
 		if err := os.WriteFile(paths.ThreadClaim(), raw, 0o600); err != nil {
 			t.Fatal(err)
 		}
 		got, err := NewScopedThreadArtifactCollisionChecker(dataDir).Registration(address)
-		if got != RegistrationUnknown || err == nil {
-			t.Fatalf("arbitrary marker authorized: %q, %v", got, err)
+		var record struct {
+			Schema int    `json:"schema"`
+			Scope  string `json:"scope"`
+			Tag    string `json:"tag"`
+			State  string `json:"state"`
+		}
+		exact := strictjson.Decode(raw, &record) == nil && record.Schema == 1 &&
+			record.Scope == address.RepoScope && record.Tag == string(address.Tag) && record.State == "established"
+		if (got == RegistrationEstablished) != exact || (got == RegistrationEstablished && err != nil) {
+			t.Fatalf("Registration = %q, %v; exact established=%v; raw=%q", got, err, exact, raw)
 		}
 	})
 }
 
 func stringPointer(value string) *string { return &value }
-
-func strconvQuote(value string) string {
-	raw, _ := json.Marshal(value)
-	return string(raw)
-}
 
 type fakeSessionDeleter struct{ deleted []string }
 
