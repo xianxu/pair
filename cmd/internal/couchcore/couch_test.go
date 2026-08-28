@@ -317,7 +317,6 @@ exit 0
 	t.Setenv("PAIR_TEST_COUCH_LAUNCH_NATIVE_SIDECAR", "1")
 	t.Setenv("PAIR_DEV", "")
 	t.Setenv("CMUX_WORKSPACE_ID", "")
-	t.Cleanup(func() { _ = os.WriteFile(release, []byte("release"), 0o600) })
 	expectedProcessEnv := processEnvironmentForTest()
 
 	ns := testCouchNamespace(t)
@@ -396,10 +395,25 @@ exit 0
 		err    error
 	}
 	spawned := make(chan spawnResult, 1)
+	spawnDone := make(chan struct{})
 	go func() {
+		defer close(spawnDone)
 		record, handle, err := couch.Spawn(StartArgs{Cwd: repo})
 		spawned <- spawnResult{record: record, handle: handle, err: err}
 	}()
+	t.Cleanup(func() {
+		// This cleanup owns the composed goroutine on every path, including a
+		// Fatal before the normal release/receive below. Joining also guarantees
+		// its process-wide environment restoration cannot overlap another test.
+		if err := os.WriteFile(release, []byte("release"), 0o600); err != nil {
+			t.Errorf("release composed Pair launch: %v", err)
+		}
+		select {
+		case <-spawnDone:
+		case <-time.After(15 * time.Second):
+			t.Error("composed Couch spawn goroutine did not exit during cleanup")
+		}
+	})
 
 	var preAck ThreadRecord
 	select {
