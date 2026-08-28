@@ -241,6 +241,193 @@ first/newest candidate, or parse a native transcript independently. A
 repository shadow-sweep test enforces that enumeration (ARCH-DRY,
 ARCH-PURPOSE).
 
+### Send-boundary and matching amendment
+
+Rank-3 evidence does not infer delivery from the human markdown log. Each
+launch/restart mints a Pair `incarnation_id` before handoff, records it on every
+ledger row for that incarnation, passes it through the watcher, and exports it
+to the composer. The zero-based physical ledger line number is retained as
+`source_ordinal` even when a malformed line consumes that ordinal; parsers sort
+by it before coalescing adjacent rows. Shuffled tests shuffle parsed facts with
+their ordinals intact, never erase source order.
+
+The send boundary appends `sent-<tag>.jsonl`, a versioned artifact owned by
+`artifactpath`, for both normal submit and `no_submit` composer injection. Each
+v1 row has exactly:
+
+```text
+schema_version: 1
+event_id: UUID
+log_entry_id: UUID also embedded as a metadata comment on the existing markdown log entry
+scope_key, tag, agent, incarnation_id: exact Pair identities
+sequence: monotonically increasing uint64 within {scope, tag, incarnation_id}
+delivery: submitted | composer_only
+sent_at: UTC RFC3339Nano
+fingerprint: lowercase SHA-256 of normalized post-comment-removal bytes
+byte_count, word_count: normalization measurements
+```
+
+The row contains no prompt text. `submitted` rows are the sole Pair-side input
+to rank 3; `composer_only` rows remain provenance but can never authorize a
+binding. Append and markdown-log write share one operation boundary and one
+`event_id`: if either write fails, the send is refused rather than producing
+unlogged identity evidence. A record with the wrong resolved scope/tag,
+body/path agent mismatch, duplicate sequence/event ID, non-monotonic sequence,
+unknown delivery, invalid fingerprint, or unknown incarnation emits
+`pair_record_malformed` and is excluded. Pre-v1 markdown entries and v1 rows
+that cannot join uniquely to a ledger incarnation are `turn_unusable`; local
+timestamp proximity never repairs them. This makes submission and incarnation
+segmentation exact rather than time-inferred (ARCH-PURE, ARCH-PURPOSE).
+
+All same-rank candidate edges are intentionally equal; evidence counts do not
+vote. Multiple qualifying turn or direct-ID records for the same
+`{incarnation, root}` coalesce into one edge with a sorted evidence list. If
+qualifying evidence from one incarnation names two roots, or one root is named
+by two incarnations at that rank, every involved edge remains ambiguous even
+when one edge has more supporting records. A fixed-point round locks exactly
+the degree-one/degree-one edges in the remaining equal-rank bipartite graph,
+simultaneously; it then removes their two endpoints and repeats. Contradictory
+qualifying fingerprints therefore diagnose `binding_conflict` instead of
+becoming an undocumented score.
+
+### Versioned native record allowlists
+
+All filesystem candidates must be regular, non-symlink files beneath their
+named root. A first metadata record is newline-terminated and at most 1 MiB;
+subsequent JSONL records used for turns are at most 8 MiB each. Oversize,
+truncated, unknown, or wrong-typed records emit `schema_near_miss` or
+`node_malformed` and contribute no asserted fact. Versioned sanitized fixtures
+under `cmd/internal/sessioninventory/testdata/native/<agent>/v1/` are the
+executable allowlists; widening one requires a fixture and conformance update
+in the same change.
+
+- **Claude v1:** a root is exactly
+  `.claude/projects/<encoded-cwd>/<uuid>.jsonl`; a child is exactly
+  `.claude/projects/<encoded-cwd>/<root-uuid>/subagents/agent-<ascii-id>.jsonl`.
+  Nested or sidecar shapes are near-misses until fixture-proven. The path owns
+  root ID, child ID, role, and direct parent; JSONL may not contradict it. The
+  first accepted top-level RFC3339 `timestamp` is chronology, then birth time,
+  then mtime. An operator-turn record requires `type:"user"`, absent/false
+  `isSidechain`, `message.role:"user"`, and `message.content` either a string or
+  an array whose only consumed blocks are `{type:"text",text:string}`;
+  tool-result and unknown blocks are excluded.
+- **Codex v1:** the filename is
+  `.codex/sessions/YYYY/MM/DD/rollout-*-<uuid>.jsonl`; the first record must be
+  `type:"session_meta"` with matching `payload.id`. A root has null
+  `parent_thread_id` and string source `cli` or `exec`. A child has a UUID
+  `parent_thread_id` and object source containing `subagent`; all other sources
+  are near-misses. The record's top-level RFC3339 `timestamp` is chronology,
+  then birth time, then mtime. An operator turn is `type:"response_item"`,
+  `payload.type:"message"`, `payload.role:"user"`, with only
+  `{type:"input_text",text:string}` content consumed.
+- **Agy v1:** a root candidate is exactly
+  `.gemini/antigravity-cli/conversations/<uuid>.db`, has a SQLite header, and
+  exposes `trajectory_meta(cascade_id, trajectory_type, source)` with exactly
+  one non-empty `cascade_id` equal to the filename UUID. The transcript join is
+  exactly `brain/<id>/.system_generated/logs/transcript.jsonl`; its absence is
+  `parent_missing`-severity warning but does not erase the DB root. Birth time,
+  then mtime, supplies chronology. An operator turn is JSONL
+  `type:"USER_INPUT"` with string `content`; when a single well-formed
+  `<USER_REQUEST>...</USER_REQUEST>` wrapper exists, only its interior is
+  consumed, while malformed/multiple wrappers are near-misses. `steps` and
+  `parent_references` assert no child edge until a sanitized populated fixture
+  pins their exact columns and values.
+- **Muse v1:** a root is exactly
+  `.local/share/muse/sessions/YYYY/MM/DD/<uuid>/session.jsonl`; a child is
+  exactly `<root>/subagent/<uuid>/session.jsonl`. Deeper nesting is a near-miss.
+  Directory UUIDs own IDs and direct parent; accepted metadata may not
+  contradict them. Birth time, then mtime, supplies chronology. An operator
+  turn is exactly `payload_type:"runtime.session"`, `payload.kind:"run"`,
+  `payload.event.kind:"started"`, with string `payload.event.prompt`; when
+  present, `payload.run_id` must equal the directory UUID.
+
+### Schema-v1 output and result matrix
+
+Stable IDs are lowercase `kind-` plus the first 24 hex characters of SHA-256
+over the kind name and length-prefixed canonical tuple fields: nodes use
+`(agent,native_id)`, incarnations use `(scope_key,tag,agent,incarnation_id)`,
+evidence uses `(kind,source_ref,incarnation_id,node_id)`, and ambiguities use
+`(kind,rank,sorted incarnation IDs,sorted node IDs)`. The complete JSON shape
+is below; every field is required, and `*` means JSON null when unknown:
+
+```text
+InventoryV1 {
+  schema_version:int,
+  forests:[ForestV1], correlations:[CorrelationV1],
+  ambiguities:[AmbiguityV1], diagnostics:[DiagnosticV1]
+}
+ForestV1 { agent:string, roots:[NodeV1], orphans:[NodeV1] }
+NodeV1 {
+  node_id:string, native_id:string, role:"root"|"subagent"|"orphan",
+  parent_native_id:*string, resumable:bool,
+  created_at:*RFC3339Nano, time_source:*"metadata"|"birth"|"mtime",
+  artifacts:[ArtifactV1], children:[NodeV1]
+}
+ArtifactV1 { storage_root:string, relative_path:string, kind:string }
+CorrelationV1 {
+  incarnation_id:string, scope_key:string, tag:string, agent:string,
+  source_ordinal:uint64, root_node_id:*string,
+  status:"bound"|"ambiguous"|"unbound", rank:*int,
+  candidates:[CandidateV1], evidence:[EvidenceV1]
+}
+CandidateV1 {
+  root_node_id:string, rank:int,
+  outcome:"locked"|"conflict"|"rejected", evidence_ids:[string]
+}
+EvidenceV1 {
+  evidence_id:string, kind:"ledger"|"config"|"live"|"turn"|"parent",
+  rank:int, source_ref:string, positive:bool,
+  source_positions:[uint64], destination_positions:[uint64],
+  fingerprints:[string]
+}
+AmbiguityV1 {
+  ambiguity_id:string, kind:"incarnation"|"root"|"evidence",
+  rank:int, incarnation_ids:[string], root_node_ids:[string],
+  evidence_ids:[string]
+}
+DiagnosticV1 {
+  diagnostic_id:string,
+  severity:"info"|"warning"|"error", code:string,
+  agent:*string, native_id:*string, storage_root:*string,
+  relative_path:*string, source_ref:*string
+}
+```
+
+Comparators are exhaustive: forests by agent; node siblings/orphans by the node
+tuple already specified; artifacts by `(storage_root,relative_path,kind)`;
+correlations by `(scope_key,tag,agent,source_ordinal,incarnation_id)`;
+candidates by `(rank,root_node_id,outcome,evidence_ids joined)`; evidence by
+`(rank,kind,source_ref,evidence_id)`; ambiguities by
+`(kind,rank,incarnation_ids joined,root_node_ids joined,ambiguity_id)`; and
+diagnostics by `(severity order error/warning/info,code,agent null last,
+native_id null last,storage_root null last,relative_path null last,source_ref
+null last,diagnostic_id)`. Every nested ID/fingerprint/position array sorts
+ascending before its owner is compared or rendered.
+
+Diagnostic severity is fixed: `conformance_no_sample` is info;
+`schema_near_miss`, `parent_missing`, `binding_stale`, `process_changed`, and
+`turn_unusable` are warning; `storage_unreadable`, `node_malformed`,
+`parent_conflict`, `duplicate_conflict`, `binding_conflict`,
+`artifact_path_invalid`, `pair_record_malformed`, `scope_rejected`, and
+`conformance_privacy_violation` are error. Invalid CLI usage and unsupported
+requested agents are stderr-only usage failures, not inventory diagnostics.
+
+| Mode/facts | Stdout | Stderr | Exit |
+|---|---|---|---|
+| normal, at least one requested scanner completed, including partial diagnostics | complete selected rendering | empty | 0 |
+| normal, storage roots legitimately absent for every requested agent | complete empty rendering with info diagnostics | empty | 0 |
+| normal, every present requested root failed before producing scanner facts | empty | stable fatal summary | 2 |
+| conformance, representative sample absent | redacted rendering with `conformance_no_sample` | empty | 0 |
+| conformance, recognized schema drift or unreadable representative sample | redacted rendering with diagnostics | stable failure summary | 2 |
+| conformance, any privacy invariant fails | no rendering | stable privacy failure | 2 |
+| either, JSON/human serialization fails | no/aborted rendering | stable render failure | 2 |
+| invalid flags or unsupported explicit agent | no rendering | usage | 1 |
+
+“Completed” means the scanner inspected an absent root or traversed a present
+root to a finite fact/diagnostic set; opening a present root and failing before
+enumeration is not completion. Fatal summaries contain codes and redacted root
+labels, never raw OS errors or private paths.
+
 ## Done when
 
 - One command inventories complete root/subagent session forests for every
@@ -330,3 +517,17 @@ native shape and shadow consumer; specify total ordering, schema-v1 output,
 diagnostic/exit behavior, the stateful IO fake, and live conformance. Agy parent
 edges now fail closed until a sanitized native fixture proves their schema
 semantics (ARCH-DRY, ARCH-PURE, ARCH-PURPOSE, ARCH-MOCK).
+
+### 2026-08-28 — make sent evidence and schema-v1 exact
+
+**Reason:** the second fresh-context review found that the markdown log cannot
+prove submission or precise incarnation ownership, equal-rank evidence still
+lacked conflict semantics, scanner record allowlists contained placeholders,
+and schema-v1 could not yet support byte-golden tests.
+
+**Delta:** add the content-free `sent-<tag>.jsonl` send-boundary record and
+launcher-minted incarnation identity; retain physical ledger ordinals; make
+same-rank edges equal and degree-one/degree-one fixed-point locking explicit;
+pin bounded v1 native records for all four agents; and publish stable-ID,
+nested-schema, comparator, diagnostic-severity, and exit/result contracts
+(ARCH-DRY, ARCH-PURE, ARCH-PURPOSE, ARCH-MOCK).
