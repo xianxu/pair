@@ -1,11 +1,12 @@
 ---
 id: 000155
-status: open
+status: working
 deps: []
 github_issue:
 created: 2026-08-28
 updated: 2026-08-28
 estimate_hours:
+started: 2026-08-28T10:54:39-07:00
 ---
 
 # deterministic agent session-tree inventory
