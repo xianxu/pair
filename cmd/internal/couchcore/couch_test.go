@@ -301,6 +301,7 @@ exit 0
 	t.Setenv("PAIR_TEST_ZELLIJ_READY", ready)
 	t.Setenv("PAIR_TEST_ZELLIJ_RELEASE", release)
 	t.Setenv("PAIR_TEST_ZELLIJ_LOG", zellijLog)
+	t.Setenv("PAIR_TEST_COUCH_LAUNCH_NATIVE_SIDECAR", "1")
 	t.Setenv("PAIR_DEV", "")
 	t.Setenv("CMUX_WORKSPACE_ID", "")
 	t.Cleanup(func() { _ = os.WriteFile(release, []byte("release"), 0o600) })
