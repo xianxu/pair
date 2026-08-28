@@ -371,7 +371,7 @@ git add README.md atlas/index.md atlas/couch.md atlas/session-identity.md worksh
 git commit -m '#154: document the Pair-Couch ownership boundary'
 ```
 
-- [ ] **Step 7: Enter the SDLC close boundary**
+- [x] **Step 7: Enter the SDLC close boundary**
 
 Run `sdlc close --issue 154 --verified '<exact commands and observed Pair/Couch behavior>'`. Let the binary dispatch the mandatory fresh-eyes review; fix Critical/Important findings before rerunning. Do not separately dispatch a redundant code review at this boundary.
 
