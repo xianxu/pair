@@ -435,3 +435,16 @@ rejects native path construction, native parser reconstruction, direct `lsof`,
 compatibility-config authority, whole-inventory calls, and inventory activity
 subprocesses outside the inventory-owned/diagnostic seams (`ARCH-DRY`,
 `ARCH-PURPOSE`).
+
+### 2026-08-29 — fourth close review closed authority allowlist
+
+The Core concepts row is corrected: `ScannerState` lives in
+`cmd/internal/sessioninventory/scanner_state.go`, while `IncrementalResult`
+lives in `cmd/internal/sessioninventory/incremental_inventory.go`. The authority
+sweep no longer exempts the inventory package. It syntax-checks every production
+Go function against a closed allowlist containing only the diagnostic CLI's
+`InventoryWithRuntime` call and the compatibility projection's
+`NativeEventsWithRuntime` call; all other inventory-owned native path and parser
+definitions remain permitted only inside that owning package. A synthetic
+production file inside `cmd/internal/sessioninventory` proves an unlisted whole-
+inventory consumer fails enforcement (`ARCH-DRY`, `ARCH-PURPOSE`).

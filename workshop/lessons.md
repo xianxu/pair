@@ -2569,3 +2569,12 @@ an unsupported owner through every downstream projection (`ARCH-DRY`,
   Pin append-once/query-twice behavior with zero reads on the second query, and
   make the stateful fake consume the same pure publication rule as production
   (`ARCH-DRY`, `ARCH-PURPOSE`, `ARCH-MOCK`).
+- An ownership package cannot be exempted wholesale from its own shadow sweep:
+  it contains both legitimate definitions and potential consumer shortcuts.
+  Parse call sites and use a closed, stale-checked allowlist for the few named
+  diagnostic/compatibility callers; mutation-test an offender inside the owner
+  package (`ARCH-DRY`, `ARCH-PURPOSE`).
+- `testing.T.Cleanup` runs LIFO. Register process/sidecar shutdown after
+  `t.TempDir` creation so writers are stopped before the temporary directory's
+  automatically registered removal; the reverse order creates intermittent
+  “directory not empty” cleanup failures.

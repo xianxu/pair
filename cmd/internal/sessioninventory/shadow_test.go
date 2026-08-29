@@ -2,6 +2,9 @@ package sessioninventory_test
 
 import (
 	"bytes"
+	"go/ast"
+	"go/parser"
+	"go/token"
 	"io/fs"
 	"os"
 	"path/filepath"
@@ -27,11 +30,11 @@ func TestNoNativeAuthorityShadowInInteractiveConsumers(t *testing.T) {
 
 func TestNativeAuthorityShadowSweepRejectsSyntheticConsumer(t *testing.T) {
 	repo := t.TempDir()
-	path := filepath.Join(repo, "cmd", "internal", "contextcmd", "bad.go")
+	path := filepath.Join(repo, "cmd", "internal", "sessioninventory", "bad.go")
 	if err := os.MkdirAll(filepath.Dir(path), 0o755); err != nil {
 		t.Fatal(err)
 	}
-	if err := os.WriteFile(path, []byte("package contextcmd\nfunc bad(home string) { _ = filepath.Join(home, \".codex\", \"sessions\"); InventoryWithRuntime(nil) }\n"), 0o644); err != nil {
+	if err := os.WriteFile(path, []byte("package sessioninventory\nfunc bad(runtime Runtime) { InventoryWithRuntime(runtime) }\n"), 0o644); err != nil {
 		t.Fatal(err)
 	}
 	violations, err := nativeAuthorityShadowViolations(repo)
@@ -39,13 +42,18 @@ func TestNativeAuthorityShadowSweepRejectsSyntheticConsumer(t *testing.T) {
 		t.Fatal(err)
 	}
 	joined := strings.Join(violations, "\n")
-	if !strings.Contains(joined, "Codex native path") || !strings.Contains(joined, "whole native inventory") {
+	if !strings.Contains(joined, "cmd/internal/sessioninventory/bad.go:bad:InventoryWithRuntime") {
 		t.Fatalf("synthetic violations=%q", joined)
 	}
 }
 
 func nativeAuthorityShadowViolations(repo string) ([]string, error) {
 	inventorySubprocess := regexp.MustCompile(`(?:vim\.fn\.system|exec\.Command)[^\n]{0,300}session-inventory[^\n]*`)
+	allowedCalls := map[string]bool{
+		"cmd/internal/sessioninventory/runcli.go:runCLIOptionsWithRenderers:InventoryWithRuntime":     true,
+		"cmd/internal/sessioninventory/pair_inventory.go:RecoverPairBindings:NativeEventsWithRuntime": true,
+	}
+	seenCalls := make(map[string]bool, len(allowedCalls))
 	rules := []struct {
 		name string
 		re   *regexp.Regexp
@@ -54,7 +62,6 @@ func nativeAuthorityShadowViolations(repo string) ([]string, error) {
 		{name: "Claude native path", re: regexp.MustCompile(`(?:\.claude/projects|["']\.claude["']\s*,\s*["']projects["'])`)},
 		{name: "Agy native path", re: regexp.MustCompile(`antigravity-cli["'/,\s]+(?:brain|conversations)`)},
 		{name: "Muse native path", re: regexp.MustCompile(`(?:\.local/share/muse/sessions|["']muse["']\s*,\s*["']sessions["'])`)},
-		{name: "whole native inventory", re: regexp.MustCompile(`\b(?:InventoryWithRuntime|NativeEventsWithRuntime)\s*\(`)},
 		{name: "direct lsof command", re: regexp.MustCompile(`exec\.Command\(["']lsof["']`)},
 		{name: "retired transcript resolver", re: regexp.MustCompile(`(?:ReadCodexRootSessionID|CodexSessionIDFromPath|ResolveCodexSessionID|resolveLiveCodexTranscript)`)},
 		{name: "config filename authority scan", re: regexp.MustCompile(`\.ConfigGlob\(\)`)},
@@ -74,7 +81,7 @@ func nativeAuthorityShadowViolations(repo string) ([]string, error) {
 				return err
 			}
 			if entry.IsDir() {
-				if rel == "cmd/internal/sessioninventory" || strings.Contains(rel, string(filepath.Separator)+"testdata") {
+				if strings.Contains(rel, string(filepath.Separator)+"testdata") {
 					return filepath.SkipDir
 				}
 				return nil
@@ -87,6 +94,22 @@ func nativeAuthorityShadowViolations(repo string) ([]string, error) {
 				return err
 			}
 			if root == "bin" && !bytes.HasPrefix(raw, []byte("#!")) {
+				return nil
+			}
+			if root == "cmd" {
+				calls, err := wholeInventoryCalls(path, filepath.ToSlash(rel))
+				if err != nil {
+					return err
+				}
+				for _, call := range calls {
+					if allowedCalls[call] {
+						seenCalls[call] = true
+					} else {
+						violations = append(violations, call+" contains whole native inventory")
+					}
+				}
+			}
+			if strings.HasPrefix(filepath.ToSlash(rel), "cmd/internal/sessioninventory/") {
 				return nil
 			}
 			for _, rule := range rules {
@@ -108,7 +131,49 @@ func nativeAuthorityShadowViolations(repo string) ([]string, error) {
 			return nil, err
 		}
 	}
+	for call := range allowedCalls {
+		if !seenCalls[call] {
+			violations = append(violations, "stale whole-inventory allowlist entry "+call)
+		}
+	}
 	return violations, nil
+}
+
+func wholeInventoryCalls(path, relative string) ([]string, error) {
+	parsed, err := parser.ParseFile(token.NewFileSet(), path, nil, 0)
+	if err != nil {
+		return nil, err
+	}
+	var calls []string
+	for _, declaration := range parsed.Decls {
+		function, ok := declaration.(*ast.FuncDecl)
+		if !ok || function.Body == nil {
+			continue
+		}
+		ast.Inspect(function.Body, func(node ast.Node) bool {
+			call, ok := node.(*ast.CallExpr)
+			if !ok {
+				return true
+			}
+			name := calledName(call.Fun)
+			if name == "InventoryWithRuntime" || name == "NativeEventsWithRuntime" {
+				calls = append(calls, relative+":"+function.Name.Name+":"+name)
+			}
+			return true
+		})
+	}
+	return calls, nil
+}
+
+func calledName(expression ast.Expr) string {
+	switch value := expression.(type) {
+	case *ast.Ident:
+		return value.Name
+	case *ast.SelectorExpr:
+		return value.Sel.Name
+	default:
+		return ""
+	}
 }
 
 func governedShadowSource(path, root string) bool {

@@ -405,3 +405,95 @@ findings:
     detail: |
       This is the 3rd finding in family catalog-authority-single-source. QuerySession creates an empty catalog on every call and publishes neither advanced proof nor catalog state, so repeated queries can reread the same appended suffix. The replacement shadow sweep also dropped direct native-path, parser, lsof, and config-authority guards; state the rule for every latency-sensitive consumer and enforce the complete enumeration rather than patching this instance.
 ```
+
+---
+
+## Re-review — 2026-08-29T14:47:30-07:00 (REWORK)
+
+| field | value |
+|-------|-------|
+| issue | 156 — incremental native session inventory |
+| repo | pair |
+| issue file | workshop/issues/000156-incremental-session-inventory.md |
+| boundary | whole-issue close |
+| milestone | — |
+| window | 6cd38d381c9e0c4fc146284ca7b4c2e7707e7218..da2643d03da68d5818d36ea045334e70d6b9fd6e |
+| command | sdlc close --issue 156 |
+| reviewer | codex |
+| timestamp | 2026-08-29T14:47:30-07:00 |
+| verdict | REWORK |
+
+## Review
+
+```verdict
+verdict: REWORK
+confidence: high
+```
+
+The persistent query advancement itself is correctly implemented and mutation-pinned, and the full verification suite ultimately passes. The boundary remains blocked because BR-11’s “exhaustive” authority sweep excludes the entire inventory package, allowing new interactive whole-corpus consumers there without detection. The Core concepts table also names the wrong location for `IncrementalResult`.
+
+## Strengths
+
+- `QuerySession` loads and publishes durable catalog advancement through the shared boundary ([query.go:110](/Users/xianxu/workspace/pair/cmd/internal/sessioninventory/query.go:110)).
+- Removing publication in a scratch copy made `TestQuerySessionPersistsAppendAdvancementAcrossQueries` fail with repeated body reads, proving the regression test is effective.
+- `PublishTargetValidations` gives watcher and query paths one monotonic publication helper ([catalog_publication.go:8](/Users/xianxu/workspace/pair/cmd/internal/sessioninventory/catalog_publication.go:8)).
+- Atlas and README updates cover the catalog, bounded owner projection, conformance command, and maintenance cadence.
+- Live conformance passed for all four providers; the observed 1,350-file metadata pass completed in 45.6 ms.
+
+## Critical findings
+
+1. **BR-11 remains not addressed — ARCH-DRY, ARCH-PURPOSE.**
+   [shadow_test.go:76](/Users/xianxu/workspace/pair/cmd/internal/sessioninventory/shadow_test.go:76) skips all of `cmd/internal/sessioninventory`, rather than allowing only named authority/diagnostic seams. A scratch `badInteractiveShadow` calling `InventoryWithRuntime` inside that directory passed `TestNoNativeAuthorityShadowInInteractiveConsumers`.
+
+   **This is the 4th finding in family `catalog-authority-single-source`.** Do not add another instance-specific regex. Replace the directory exemption with a syntax-aware, fixed allowlist covering definitions and explicitly named diagnostic/conformance entry points. Add an in-package synthetic violating consumer that must make the sweep fail.
+
+2. **Core concepts table points to a nonexistent location.**
+   [000156-incremental-session-inventory-plan.md:34](/Users/xianxu/workspace/pair/workshop/plans/000156-incremental-session-inventory-plan.md:34) states that both `ScannerState` and `IncrementalResult` live in `scanner_state.go`, but `IncrementalResult` is declared at [incremental_inventory.go:13](/Users/xianxu/workspace/pair/cmd/internal/sessioninventory/incremental_inventory.go:13).
+
+   Fix by appending a plan revision that splits or corrects the row and records the implemented location.
+
+## Important findings
+
+None.
+
+## Minor findings
+
+None.
+
+## Test coverage notes
+
+- Focused BR-11 tests passed at the pinned head.
+- Publication-removal mutation correctly failed the repeat-query regression.
+- In-package shadow mutation incorrectly remained green, demonstrating BR-11’s enforcement gap.
+- `go test -p 20 ./... -count=1` passed on rerun. The first run had one transient launcher timeout; that test then passed five consecutive focused runs.
+- `go vet -p 20 ./...`, `make test-lua`, both relevant shell suites, Zellij config validation, live conformance, and `git diff --check` passed.
+
+## Architectural notes
+
+- **ARCH-DRY: flag.** Query and watcher share publication logic, but the guard does not enforce that authority inside the owning package.
+- **ARCH-PURE: pass.** Pure reconciliation/selection remain separated from runtime and catalog-store IO.
+- **ARCH-PURPOSE: flag.** The complete consumer enumeration promised by the issue is not mechanically enforced.
+- **ARCH-MOCK: pass.** Stateful runtime behavior and installed-provider conformance exercise the production boundary.
+
+## Plan revision recommendations
+
+Append a `## Revisions` entry that:
+
+- Corrects `IncrementalResult` to `cmd/internal/sessioninventory/incremental_inventory.go`.
+- Supersedes the claim that the authority sweep is exhaustive until it uses a closed, named allowlist including inventory-package consumers.
+
+```findings
+dispose:
+  - id: BR-11
+    disposition: not-addressed
+    note: |
+      Query advancement is mutation-pinned, but the shadow sweep skips the entire sessioninventory package; a synthetic in-package whole-inventory consumer passes undetected.
+findings:
+  - id: new
+    severity: Critical
+    family: core-concept-table-integrity
+    title: |
+      Core concepts table gives IncrementalResult the wrong file location
+    detail: |
+      The plan places IncrementalResult in scanner_state.go, while the symbol is declared in incremental_inventory.go; append a revision correcting or splitting the row.
+```

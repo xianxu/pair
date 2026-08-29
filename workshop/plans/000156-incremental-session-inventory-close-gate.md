@@ -154,6 +154,22 @@ rounds:
           family: catalog-authority-single-source
           round: 3
       blocked: true
+    - "n": 4
+      timestamp: "2026-08-29T14:47:30-07:00"
+      agent: codex
+      dispose:
+        - id: BR-11
+          disposition: not-addressed
+          note: Query advancement is mutation-pinned, but the shadow sweep skips the entire sessioninventory package; a synthetic in-package whole-inventory consumer passes undetected.
+          round: 4
+      findings:
+        - id: BR-12
+          severity: Critical
+          title: Core concepts table gives IncrementalResult the wrong file location
+          detail: The plan places IncrementalResult in scanner_state.go, while the symbol is declared in incremental_inventory.go; append a revision correcting or splitting the row.
+          family: core-concept-table-integrity
+          round: 4
+      blocked: true
 ---
 
 # Gate ledger — pair#156 (boundary-review)
@@ -221,6 +237,18 @@ later rounds disposed of them. Generated — edit the gate, not this file.
 - **BR-11** [Critical] `catalog-authority-single-source` Interactive query advancement still bypasses durable catalog authority and its enforcement sweep
   This is the 3rd finding in family catalog-authority-single-source. QuerySession creates an empty catalog on every call and publishes neither advanced proof nor catalog state, so repeated queries can reread the same appended suffix. The replacement shadow sweep also dropped direct native-path, parser, lsof, and config-authority guards; state the rule for every latency-sensitive consumer and enforce the complete enumeration rather than patching this instance.
 
+## Round 4 — 2026-08-29T14:47:30-07:00 (codex) — BLOCKED
+
+### Disposed
+
+- BR-11 — not-addressed — Query advancement is mutation-pinned, but the shadow sweep skips the entire sessioninventory package; a synthetic in-package whole-inventory consumer passes undetected.
+
+### Raised
+
+- **BR-12** [Critical] `core-concept-table-integrity` Core concepts table gives IncrementalResult the wrong file location
+  The plan places IncrementalResult in scanner_state.go, while the symbol is declared in incremental_inventory.go; append a revision correcting or splitting the row.
+
 ## Open findings
 
 - **BR-11** [Critical] `catalog-authority-single-source` Interactive query advancement still bypasses durable catalog authority and its enforcement sweep
+- **BR-12** [Critical] `core-concept-table-integrity` Core concepts table gives IncrementalResult the wrong file location

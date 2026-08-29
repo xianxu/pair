@@ -502,6 +502,17 @@ provider contracts.
   `ARCH-PURPOSE`). Full Go/race/vet, Lua/shell, live four-provider conformance,
   generated-runtime, artifact classification, Zellij, and diff checks pass;
   installed metadata enumeration was 41.0 ms for 1,350 files.
+- Fourth close review mutation-tested the durable publisher successfully but
+  found the enforcement sweep exempted its owning package. The sweep now parses
+  every production Go function, permits whole-corpus calls only at two fixed
+  diagnostic/compatibility sites, and detects an injected inventory-package
+  consumer. The plan revision also corrects `IncrementalResult`'s implemented
+  file location (`ARCH-DRY`, `ARCH-PURPOSE`).
+- The final full-suite pass reproduced the deferred `pair-go` TempDir cleanup
+  race. Its sidecar cleanup had been registered before `t.TempDir`, so Go's LIFO
+  cleanup removed the directory while a sidecar could still write into it.
+  Registration now orders sidecar shutdown before directory removal; the
+  focused launch-create case passes ten consecutive runs.
 
 ## Revisions
 
