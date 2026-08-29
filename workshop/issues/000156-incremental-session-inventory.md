@@ -462,6 +462,10 @@ provider contracts.
   Installed Claude, Codex, and Muse bytes now replay through the shared
   stateful fake as prefix→append and match full normalized scanner state; Agy
   continues through its copied SQLite/transcript seam (`ARCH-PURE`, `ARCH-MOCK`).
+- Product-shell verification found that `pair-session-watch-test.sh` still
+  authored an unbound v1 launch. The fixture now exercises the production v2
+  empty-boundary launch and requires a proof-bearing binding, while the separate
+  Go regression pins v1's zero-corpus-read fail-closed behavior.
 
 ## Revisions
 

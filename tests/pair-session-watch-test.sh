@@ -17,7 +17,7 @@ printf '%s\n' \
   "{\"type\":\"response_item\",\"payload\":{\"type\":\"message\",\"role\":\"user\",\"content\":[{\"type\":\"input_text\",\"text\":\"$text\"}]}}" \
   '{"type":"response_item","payload":{"type":"function_call"}}' > "$session_file"
 
-printf '{"v":1,"kind":"launch","scope_key":"scope","tag":"test","agent":"codex","pair_log_offset":0,"native_watermarks":[]}\n' > "$RT/data/ledger-test.jsonl"
+printf '{"v":2,"kind":"launch","scope_key":"scope","tag":"test","agent":"codex","pair_log_offset":0,"artifact_boundaries":[]}\n' > "$RT/data/ledger-test.jsonl"
 printf '## 2026-08-28 01:00:01\n\n%s\n\n---\n\n' "$text" > "$RT/data/log-test.md"
 
 bash -c 'exec 9<"$1"; sleep 30' _ "$session_file" &
@@ -36,6 +36,6 @@ got="$(jq -r '.session_id // empty' "$RT/data/config-test-codex.json")"
 }
 
 binding="$(tail -n 1 "$RT/data/ledger-test.jsonl")"
-printf '%s' "$binding" | jq -e --arg sid "$sid" '.kind == "binding" and .launch_ordinal == 1 and .root_native_id == $sid' >/dev/null
+printf '%s' "$binding" | jq -e --arg sid "$sid" '.v == 2 and .kind == "binding" and .launch_ordinal == 1 and .root_native_id == $sid and .authorization_proof.root_native_id == $sid' >/dev/null
 
 echo "pair session-watch causal-round tests PASS"
