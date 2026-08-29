@@ -916,3 +916,74 @@ dispose:
     note: |
       A submit or compose failure after successful body write loses delivery phase; retry writes the body again, so eventual native input can differ from the single Pair evidence record.
 ```
+
+---
+
+## Re-review — 2026-08-28T22:49:22-07:00 (REWORK)
+
+| field | value |
+|-------|-------|
+| issue | 155 — deterministic agent session-tree inventory |
+| repo | pair |
+| issue file | workshop/issues/000155-agent-session-tree-inventory.md |
+| boundary | whole-issue close |
+| milestone | — |
+| window | 4c454436038e2ae049690bc343def9f0511fca8c..613d1078eb46e78d7864fe613c7ef6f5daf114ab |
+| command | sdlc close --issue 155 |
+| reviewer | codex |
+| timestamp | 2026-08-28T22:49:22-07:00 |
+| verdict | REWORK |
+
+## Review
+
+```verdict
+verdict: REWORK
+confidence: high
+```
+
+The dispatch logic is materially improved and focused tests pass, but BR-27 remains open: failure/recovery behavior is tested in isolated modules, while the required production-seam regression still bypasses the real `init.lua` → delivery sequencer → Pair-log transaction wiring. The boundary cannot ship until that combined transaction is executable under every delivery-critical failure.
+
+1. Strengths
+
+- [nvim/draft_send.lua](/Users/xianxu/workspace/pair/nvim/draft_send.lua:23) explicitly models `start`, `written`, `dispatched`, `composed`, and `indeterminate` phases.
+- [nvim/submission.lua](/Users/xianxu/workspace/pair/nvim/submission.lua:11) retains dispatched identity for commit-only retry and prevents retransmission.
+- [cmd/internal/pairlog/store.go](/Users/xianxu/workspace/pair/cmd/internal/pairlog/store.go:115) makes submitted evidence an explicit, idempotent post-dispatch transition.
+- Atlas and README changes accompany the new surface. The Core Concepts contract and focused package tests passed.
+
+2. Critical findings
+
+- **BR-27 remains not addressed — production-seam transaction coverage is missing.** The stateful Zellij test invokes `draft_send.send` directly ([nvim/draft_send_test.lua](/Users/xianxu/workspace/pair/nvim/draft_send_test.lua:38)), while submission recovery uses independent function stubs ([nvim/submission_test.lua](/Users/xianxu/workspace/pair/nvim/submission_test.lua:141)). The headless integration test explicitly replaces append, commit, and send with always-successful independent fakes ([tests/queue-send-test.sh](/Users/xianxu/workspace/pair/tests/queue-send-test.sh:59)). Consequently, no test proves that each real `init.lua` action result controls the actual prepared/submitted Pair-log record, or that post-dispatch commit failure recovers through that combined seam without another dispatch. Add one stateful headless integration matrix covering focus, body-write, submit/newline, refocus, and commit failures across consecutive attempts; assert exact dispatch count, composer contents, and parsed Pair-log facts. This is the unresolved `submitted-evidence-matches-dispatch` class (`ARCH-PURPOSE`, `ARCH-MOCK`).
+
+3. Important findings
+
+None.
+
+4. Minor findings
+
+None.
+
+5. Test coverage notes
+
+- Passed: focused `pairlog`, `sessioninventory`, `sessionledger`, and dispatcher packages.
+- Passed: complete `make test-lua`, `tests/queue-send-test.sh`, and range `git diff --check`.
+- `cmd/pair-go` could not complete because the sandbox denied `/bin/ps`; its failures were environmental.
+- The missing production-seam regression prevents satisfying the claimed-fix rule even though the isolated phase tests are useful.
+
+6. Architectural notes for upcoming work
+
+- `ARCH-DRY`: pass—one delivery sequencer and one authored-submission wrapper own the transaction.
+- `ARCH-PURE`: pass—the delivery decision logic is separated from injected Zellij and filesystem effects.
+- `ARCH-PURPOSE`: flag—BR-27 required the complete production transaction, but coverage stops at separately tested components.
+- `ARCH-MOCK`: flag—the stateful Zellij fake does not share the full production boundary with Pair-log preparation/commit and `init.lua` wiring.
+
+7. Plan revision recommendations
+
+None; the existing final revision already promises production-seam transaction coverage. The implementation/tests need to fulfill it.
+
+```findings
+dispose:
+  - id: BR-27
+    disposition: not-addressed
+    note: |
+      Isolated delivery and submission tests cover the local fixes, but no regression runs every delivery-critical failure plus post-dispatch commit recovery through the combined init.lua, stateful Zellij, and Pair-log production seam.
+```

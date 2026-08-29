@@ -117,7 +117,7 @@ pair: $(BIN_DIR)/pair
 #                     inside the vt.Emulator library API itself, which is
 #                     outside our scope to fix — exclude that package
 #                     here rather than chase a library-level race.
-test: runtimebundle-generate test-run-headless test-lua test-queue test-autopair test-draft-complete test-cr test-statusline test-doctor test-adapt-schema test-dev-rebuild test-pair-go-install-layout test-pair-embedded-runtime test-pair-restart-quit test-emitter-health test-session-watch test-changelog test-copy-on-select test-term-pane-shortcuts test-pair-title test-zellij-trace test-review
+test: runtimebundle-generate test-run-headless test-lua test-queue test-submission-transaction test-autopair test-draft-complete test-cr test-statusline test-doctor test-adapt-schema test-dev-rebuild test-pair-go-install-layout test-pair-embedded-runtime test-pair-restart-quit test-emitter-health test-session-watch test-changelog test-copy-on-select test-term-pane-shortcuts test-pair-title test-zellij-trace test-review
 	go test ./... -count=1
 
 # Expensive, explicit boundary regression: prove make test from a no-.git
@@ -231,6 +231,9 @@ test-lua:
 # regression. See tests/queue-send-test.sh.
 test-queue:
 	bash tests/queue-send-test.sh
+
+test-submission-transaction:
+	bash tests/submission-transaction-nvim-test.sh
 
 # Diagnostic trace for pair-originated zellij action calls (#68).
 test-zellij-trace:

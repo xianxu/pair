@@ -477,6 +477,15 @@ rounds:
           note: A submit or compose failure after successful body write loses delivery phase; retry writes the body again, so eventual native input can differ from the single Pair evidence record.
           round: 19
       blocked: true
+    - "n": 20
+      timestamp: "2026-08-28T22:49:22-07:00"
+      agent: codex
+      dispose:
+        - id: BR-27
+          disposition: not-addressed
+          note: Isolated delivery and submission tests cover the local fixes, but no regression runs every delivery-critical failure plus post-dispatch commit recovery through the combined init.lua, stateful Zellij, and Pair-log production seam.
+          round: 20
+      blocked: true
 ---
 
 # Gate ledger — pair#155 (boundary-review)
@@ -706,6 +715,12 @@ later rounds disposed of them. Generated — edit the gate, not this file.
 
 - BR-26 — addressed — The source-derived contract covers M1, M2, and final stages, scans private and exported types, includes Outcome/Error, rejects unknown stages, and has reachable focused tests.
 - BR-27 — not-addressed — A submit or compose failure after successful body write loses delivery phase; retry writes the body again, so eventual native input can differ from the single Pair evidence record.
+
+## Round 20 — 2026-08-28T22:49:22-07:00 (codex) — BLOCKED
+
+### Disposed
+
+- BR-27 — not-addressed — Isolated delivery and submission tests cover the local fixes, but no regression runs every delivery-critical failure plus post-dispatch commit recovery through the combined init.lua, stateful Zellij, and Pair-log production seam.
 
 ## Open findings
 

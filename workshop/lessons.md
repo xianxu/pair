@@ -2534,3 +2534,7 @@ an unsupported owner through every downstream projection (`ARCH-DRY`,
 - External action tests must model state across failure→retry, not merely inject
   isolated return codes. Preserve the last confirmed phase so retries resume
   instead of replaying already-applied effects.
+- A transaction regression is not end-to-end when adjacent production seams
+  are replaced by independent always-successful stubs. Boot the real wiring,
+  inject state only at the external boundary, and assert the durable parser's
+  output alongside external state.

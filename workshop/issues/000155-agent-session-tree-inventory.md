@@ -769,6 +769,15 @@ be checked against measured actuals at close.*
 
 ## Log
 
+- 2026-08-28 — close review round 20 accepted the phase model but required
+  proof through the combined production seam. A new headless matrix boots the
+  real `nvim/init.lua`, routes its actual delivery sequencer through a stateful
+  Zellij fake, and uses a freshly built real `pair session-log append/commit`
+  CLI against a portable log. Across focus, write, submit, newline, refocus, and
+  commit failures plus consecutive retries, it asserts exact composer bytes,
+  dispatch counts/bodies, and parsed submitted Pair-log entries
+  (`ARCH-PURPOSE`, `ARCH-MOCK`).
+
 - 2026-08-28 — close review round 19 accepted the exhaustive concept contract
   and narrowed dispatch correctness to cross-attempt phase retention. Delivery
   now carries `start`, `written`, `dispatched`, `composed`, or `indeterminate`.
