@@ -45,8 +45,11 @@ typed launch wins authority over its compatibility row but supplies no
   already available.
 - A launch with an empty cache and a launch with a warm unchanged cache must
   complete all pre-Zellij native inventory work within one second on a fixture
-  matching the observed 1,573-file corpus. Neither path may read unchanged
-  transcript bodies.
+  matching the observed 1,573-file corpus. Neither path may parse unchanged
+  transcript bodies. The deterministic gate is zero body-record reads plus
+  O(number of directory entries) metadata operations; the one-second wall-clock
+  check is a real-data smoke on the operator's observed machine, not a
+  scheduler-sensitive unit-test oracle.
 - A file that Pair has already categorized is not categorized again while its
   identity and parser schema remain unchanged.
 - No latency-sensitive inventory path may spawn an external command per native
@@ -56,24 +59,50 @@ typed launch wins authority over its compatibility row but supplies no
 
 Pair owns one versioned, persistent native-artifact catalog under the selected
 Pair data scope. Each entry records the agent, storage root, relative path,
-portable file identity/fingerprint, size, timestamps needed by the public
-contract, scanner classification/facts, last complete byte offset, and the
+opaque runtime file identity, size, change token, timestamps needed by the
+public contract, authorization state, scanner classification/facts, raw observed
+offset, parser-complete offset, incremental scanner state, and the
 scanner/parser schema version that produced it.
+
+`FileIdentity` is an opaque runtime value built without content reads. On Unix
+it includes device + inode plus the platform change token (`ctime` at nanosecond
+precision); implementations on another platform must supply the equivalent
+stable file ID + change token. Size and modification time remain separate
+fields. If the runtime cannot obtain a stable identity/change token, continuity
+is unproven: the entry is treated as replaced and cached authority is not used.
+Path + size + mtime alone never proves continuity.
 
 Catalog reconciliation is incremental and deterministic:
 
-- unchanged identity + size + timestamps + schema reuses the cached facts;
-- an append preserves classification and advances only from the prior complete
-  byte offset;
+- unchanged identity + size + change token + timestamps + schema reuses the
+  cached facts;
+- an append preserves the prior authorization only while the agent-specific
+  incremental validator accepts the suffix, and advances only from the prior
+  parser-complete byte offset;
 - a new file is categorized once and read only when it can participate in the
   current launch/recovery observation;
 - replacement, truncation, or schema-version change invalidates that entry,
   not the entire catalog;
 - deletion removes the entry and its projected node;
-- malformed or corrupt catalog state fails locally: rebuild the affected entry
-  (or an unreadable catalog) without accepting stale authority;
-- writes are atomic and readers see either the previous complete catalog or the
-  next complete catalog.
+- malformed or corrupt catalog state fails locally. Startup falls back to an
+  untrusted metadata-only exclusion snapshot; it does not synchronously rebuild
+  the corpus or accept stale authority. Targeted use can rebuild one entry, and
+  explicit diagnostic/conformance work may repair the complete catalog;
+- writes serialize through one catalog-store lock. A writer locks, rereads the
+  current generation, applies the pure reconciliation delta, atomically replaces
+  and syncs the next generation, then unlocks. A generation mismatch retries
+  from the reread state; lock/write/sync failure preserves the prior catalog and
+  cannot publish new authority. Readers see either the previous complete
+  generation or the next complete generation.
+
+Each authorized entry persists the minimum scanner state needed to validate an
+append without replaying history: expected native/root identity, root versus
+descendant role, schema discriminator, chronology state, disputed flag, and
+agent-specific first-record invariants. A suffix identity/role/schema
+contradiction transitions the entry to disputed, retracts its cached root/parent
+facts from projections, and emits the same #155 diagnostic class. Validation
+state is versioned with the parser; an unknown state is unauthorized rather
+than guessed.
 
 The catalog is a reusable inventory seam, not a cache of rendered CLI output.
 Forest/query/activity/launch/watcher consumers derive from the same catalog
@@ -83,12 +112,45 @@ the injected runtime (`ARCH-PURE`). The existing stateful fake grows catalog,
 append, replacement, truncation, deletion, and corruption behavior so tests use
 the production boundary rather than stateless call mocks (`ARCH-MOCK`).
 
+### Candidate discovery versus authorization
+
+Metadata discovery produces candidates and exclusion watermarks, never scanner
+authority. Scanner facts become authorized only through one of these paths:
+
+| agent | cold candidate discovery | targeted authorization | new-launch observation |
+|---|---|---|---|
+| Claude | path shape yields possible root/subagent ID and raw size | an already-established typed binding remains durable authority; an explicit resume validates the one scanner-resolved UUID path and its bounded identifying record | read the new file from byte zero and incrementally validate every appended record until the completed round binds |
+| Codex | rollout path yields a possible artifact and raw size | established binding remains authority; explicit resume targets the rollout and validates its required first `session_meta` | read the new rollout from byte zero, require `session_meta`, then validate appended events |
+| Muse | session path yields a possible native ID and raw size | established binding remains authority; explicit resume validates the targeted identifying record | read the new session from byte zero and incrementally validate appended records |
+| Agy | database file identity/change token yields an untrusted changed source | established binding remains authority; explicit resume performs one keyed, schema-checked SQLite query | query only rows changed after the launch watermark through the existing typed SQLite seam |
+
+An established typed ledger binding was published only after prior scanner
+authorization and is not discarded merely because a derived catalog is absent.
+It must still resolve to an artifact matching the agent's scanner-owned target
+shape; missing/replaced artifacts report absence and never fall back to another
+root. Explicit resume is the only cold path that may synchronously inspect a
+preexisting transcript body, and it inspects only the named artifact through
+the bounded identifying-record seam—not the corpus. Unbound preexisting
+candidates remain excluded until explicit diagnostic validation; they cannot
+become launch bindings from metadata alone.
+
 ### Metadata-only launch baseline
 
-A launch baseline snapshots the categorized root set and each root transcript's
-last complete EOF/position without parsing pre-launch transcript content. It
-does not need historical normalized events: by definition only bytes after the
-launch boundary can establish the new causal round.
+A launch baseline snapshots an untrusted set of candidate artifact identities
+and raw file sizes. Those are exclusion watermarks, not categorized roots or
+scanner facts. It does not parse pre-launch transcript content or need
+historical normalized events: by definition only wholly post-launch records can
+establish the new causal round.
+
+Raw launch boundary and parser-complete offset are distinct. For a preexisting
+artifact the baseline stores raw size `B`. If that artifact later appends, the
+watcher reads the single byte at `B-1` together with the suffix. When it is a
+newline, parsing starts at `B`; otherwise the record crossing `B` began before
+launch and is skipped through its terminating newline, with parsing starting at
+the following byte. An empty file starts at zero. If the boundary byte or suffix
+cannot be read consistently, that candidate contributes no round evidence.
+Tests cover newline, incomplete-record, empty-file, truncation, and replacement
+at the boundary so a wholly post-launch event is neither lost nor fabricated.
 
 For an explicit resume or an already-established binding, Pair targets the one
 ledger-named native root and checks that artifact through its scanner-owned
@@ -101,7 +163,8 @@ side effect of launch, `Alt+X`, title/context polling, or ordinary owner lookup.
 
 The watcher compares the current catalog/filesystem snapshot with the durable
 launch baseline. It visits only new, appended, replaced, or truncated candidate
-artifacts and reads only bytes after their stored complete offset. For a new
+artifacts and reads only eligible bytes after their raw launch boundary or
+stored parser-complete offset. For a new
 candidate transcript it reads from byte zero only until it has enough evidence
 to classify the artifact and establish or reject a completed causal round; it
 does not normalize unrelated historical transcripts.
@@ -134,12 +197,20 @@ the native root. Thus the observed `?/1 claude` row renders `pair/1 claude`.
 - `Alt+X` confirmation is observable before any inventory/activity work and
   remains usable when that work blocks or fails.
 - Fresh and warm pre-Zellij inventory work complete within one second on a
-  1,573-file unchanged-corpus regression fixture without reading transcript
-  bodies.
+  real 1,573-file unchanged corpus without parsing transcript bodies; the
+  deterministic fixture proves zero body-record reads and linear metadata work.
 - An unchanged artifact is categorized once across repeated inventories,
   queries, launches, and watcher polls.
 - Append reads only the suffix; new, replaced, truncated, deleted, schema-stale,
   and corrupt-cache cases have deterministic regression coverage.
+- Cold-cache candidate discovery never confers authority; agent-specific
+  explicit-resume, established-binding, new-file, and preexisting-exclusion
+  cases pass the authorization matrix.
+- A record split across the launch boundary cannot establish a round, while the
+  first wholly post-launch record is retained when the old file ended in a
+  newline.
+- Concurrent catalog writers cannot lose a newer cursor, scanner state, or
+  disputed transition.
 - Launch baseline and watcher never normalize pre-launch historical events;
   completed-round establishment still passes the #155 exact-correlation matrix.
 - Per-file metadata collection uses no external `stat` process.
@@ -177,3 +248,17 @@ the native root. Thus the observed `?/1 claude` row renders `pair/1 claude`.
   categorization: never reread unchanged transcript bodies; inspect only new
   bytes relevant to the current round. `Alt+X` UI ordering is stricter than the
   one-second inventory budget: paint first and never block on enrichment.
+
+## Revisions
+
+### 2026-08-29 — cold baseline is exclusion, not authorization
+
+Fresh-context spec review found that “categorized root set” incorrectly implied
+metadata could recreate scanner authority, and that a raw EOF is not necessarily
+a complete-record boundary. The spec now separates untrusted candidate/exclusion
+watermarks from authorized facts, defines the agent-by-agent cold path, stores
+raw and parser-complete offsets separately, handles records split across launch,
+uses an opaque device/inode/change-token identity with fail-closed fallback,
+persists incremental validator state, and serializes catalog generations. A
+corrupt cold catalog now stays metadata-only rather than forcing a synchronous
+corpus rebuild.
