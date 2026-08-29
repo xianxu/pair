@@ -397,6 +397,11 @@ provider contracts.
   replacement and file/directory sync expose explicit not-authoritative,
   indeterminate, and committed outcomes. Fault-injected recovery tests cover
   write, file sync, rename, directory sync, and unlock boundaries (`ARCH-PURE`).
+- Added ledger v2 while retaining strict v1 reads. V2 launch rows persist sorted
+  content-free artifact boundaries; v2 binding rows persist root-matched scanner
+  state and complete artifact continuity proofs. Proof bindings publish only
+  under the current-launch lock and retain the ledger's byte-level authority
+  outcomes.
 
 ## Revisions
 

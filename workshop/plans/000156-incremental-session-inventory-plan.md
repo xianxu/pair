@@ -207,13 +207,13 @@
 - Modify: `cmd/internal/sessionledger/record_test.go`
 - Modify: `cmd/internal/sessionledger/store_test.go`
 
-- [ ] **Step 1: Write v2 `ParseLedger`, `EncodeRecord`, and `ValidateAuthorizationProof` tests using the risky-function strategy table.**
-- [ ] **Step 2: Run red.** Run `go test -p 20 ./cmd/internal/sessionledger -run 'Test(RecordV2|AuthorizationProof|LaunchArtifactBoundary)' -count=1`; expect undefined v2 fields.
-- [ ] **Step 3: Implement and verify v2 launch records.** Keep v1 readable; encode metadata-only sorted artifact boundaries in new v2 launches. Run launch wire tests to PASS before adding proofs.
-- [ ] **Step 4: Implement and verify v2 binding proofs.** Add strict proof/state/artifact decoding and root matching; run proof tests to PASS.
-- [ ] **Step 5: Preserve append authority semantics.** Extend existing byte-boundary/failure tests so v2 proof publication is committed exactly when the ledger row is authoritative.
-- [ ] **Step 6: Run green.** Run `gofmt -w cmd/internal/sessionledger` and `go test -race -p 20 ./cmd/internal/sessionledger -count=1`; expect PASS.
-- [ ] **Step 7: Commit.** Run `git add cmd/internal/sessionledger && git commit -m 'session ledger: #156 persist launch boundaries and proofs'`.
+- [x] **Step 1: Write v2 `ParseLedger`, `EncodeRecord`, and `ValidateAuthorizationProof` tests using the risky-function strategy table.**
+- [x] **Step 2: Run red.** Run `go test -p 20 ./cmd/internal/sessionledger -run 'Test(RecordV2|AuthorizationProof|LaunchArtifactBoundary)' -count=1`; expect undefined v2 fields.
+- [x] **Step 3: Implement and verify v2 launch records.** Keep v1 readable; encode metadata-only sorted artifact boundaries in new v2 launches. Run launch wire tests to PASS before adding proofs.
+- [x] **Step 4: Implement and verify v2 binding proofs.** Add strict proof/state/artifact decoding and root matching; run proof tests to PASS.
+- [x] **Step 5: Preserve append authority semantics.** Extend existing byte-boundary/failure tests so v2 proof publication is committed exactly when the ledger row is authoritative.
+- [x] **Step 6: Run green.** Run `gofmt -w cmd/internal/sessionledger` and `go test -race -p 20 ./cmd/internal/sessionledger -count=1`; expect PASS.
+- [x] **Step 7: Commit.** Run `git add cmd/internal/sessionledger && git commit -m 'session ledger: #156 persist launch boundaries and proofs'`.
 
 ## Chunk 2: Incremental authorization and consumers
 

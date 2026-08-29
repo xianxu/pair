@@ -235,6 +235,27 @@ func TestLedgerStoreAppendBindingIfCurrent(t *testing.T) {
 	}
 }
 
+func TestLedgerStoreAppendBindingProofIfCurrentPublishesExactAuthority(t *testing.T) {
+	t.Parallel()
+	path := filepath.Join(t.TempDir(), "ledger.jsonl")
+	base := LedgerStore{Runtime: OSRuntime{}}
+	launch, err := base.Append(path, Record{Version: 2, Kind: RecordLaunch, ScopeKey: "scope", Tag: "work", Agent: "claude", LaunchArtifactBoundaries: []LaunchArtifactBoundary{}})
+	if err != nil {
+		t.Fatal(err)
+	}
+	owner := Owner{ScopeKey: "scope", Tag: "work", Agent: "claude"}
+	proof := testAuthorizationProof("native-a")
+	runtime := &failurePointRuntime{Runtime: OSRuntime{}, stage: "sync", remaining: 1}
+	bound, err := (LedgerStore{Runtime: runtime}).AppendBindingProofIfCurrent(path, owner, launch.Ordinal, proof)
+	if AppendOutcomeOf(err) != AppendIndeterminate || bound.Ordinal == 0 {
+		t.Fatalf("bound=%#v outcome=%v err=%v", bound, AppendOutcomeOf(err), err)
+	}
+	current, ok := CurrentLaunch(ParseLedger(mustReadFile(t, path)).Records, owner)
+	if !ok || current.Binding == nil || current.Binding.AuthorizationProof == nil || current.Binding.AuthorizationProof.RootNativeID != "native-a" {
+		t.Fatalf("recovered current=%#v ok=%v", current, ok)
+	}
+}
+
 func mustReadFile(t *testing.T, path string) []byte {
 	t.Helper()
 	raw, err := os.ReadFile(path)
