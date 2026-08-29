@@ -1,7 +1,6 @@
 package sessioninventory
 
 import (
-	"bytes"
 	"errors"
 	"fmt"
 )
@@ -58,72 +57,11 @@ func (inventory IncrementalInventory) Observe(agent Agent) IncrementalSnapshot {
 }
 
 func (inventory IncrementalInventory) Select(request TargetRequest, snapshot IncrementalSnapshot) TargetResult {
-	if request.Mode == TargetNewLaunch {
-		observations := make([]ArtifactObservation, 0, len(snapshot.Delta.Work))
-		for _, work := range snapshot.Delta.Work {
-			if work.Kind == CatalogWorkNew && work.Observation != nil {
-				observations = append(observations, cloneObservation(*work.Observation))
-			}
-		}
-		return SelectTargetWork(request, observations)
-	}
 	return SelectTargetWork(request, snapshot.Observations)
 }
 
 func (inventory IncrementalInventory) CatalogSessionCandidateExists(snapshot IncrementalSnapshot, agent Agent, nativeID string) bool {
 	return CatalogSessionCandidateExists(inventory.catalog, snapshot.Observations, agent, nativeID)
-}
-
-// ObserveLaunchBoundarySuffix frames only records that began wholly after a
-// raw launch boundary. Callers must separately hold target authority; this
-// function does not make a preexisting artifact eligible.
-func ObserveLaunchBoundarySuffix(runtime Runtime, boundary TargetArtifactBoundary, observation ArtifactObservation) (IncrementalResult, error) {
-	result := IncrementalResult{Disputed: true}
-	entry := observation.Entry
-	if runtime == nil || targetArtifactKey(entry.Artifact) != targetArtifactKey(Artifact{StorageRoot: boundary.StorageRoot, RelativePath: boundary.RelativePath}) ||
-		boundary.RawSize < 0 || entry.Size < boundary.RawSize || entry.StableFileID != boundary.StableFileID ||
-		boundary.GenerationToken == "" || entry.GenerationToken != boundary.GenerationToken {
-		return result, ErrArtifactChanged
-	}
-	if entry.Size == boundary.RawSize && entry.MutationToken != boundary.MutationToken {
-		return result, ErrArtifactChanged
-	}
-	root, ok := nativeRootByName(runtime, observation.Agent, entry.Artifact.StorageRoot)
-	if !ok {
-		return result, ErrArtifactChanged
-	}
-	start := boundary.RawSize
-	if start > 0 {
-		start--
-	}
-	raw, eof, err := runtime.ReadAt(entry.Artifact, start, entry.Size-start)
-	if err != nil || !eof || int64(len(raw)) != entry.Size-start {
-		return result, ErrArtifactChanged
-	}
-	observed, err := resampleArtifact(runtime, root, entry.Artifact)
-	if err != nil || !equalFingerprint(fingerprintFromEntry(entry), fingerprintFromEntry(observed)) {
-		return result, ErrArtifactChanged
-	}
-	frameOffset := boundary.RawSize
-	suffix := raw
-	if boundary.RawSize > 0 {
-		if len(raw) == 0 {
-			return result, ErrArtifactChanged
-		}
-		if raw[0] == '\n' {
-			suffix = raw[1:]
-		} else if newline := bytes.IndexByte(raw, '\n'); newline >= 0 {
-			frameOffset = start + int64(newline+1)
-			suffix = raw[newline+1:]
-		} else {
-			return IncrementalResult{Fingerprint: fingerprintFromEntry(observed), RawObservedOffset: observed.Size, FrameState: JSONLFrameState{ParserCompleteOffset: start, IncompleteTail: append([]byte(nil), raw...)}, Disputed: false}, nil
-		}
-	}
-	records, frame, err := FrameJSONLSuffix(JSONLFrameState{ParserCompleteOffset: frameOffset}, suffix, jsonRecordLimit)
-	if err != nil {
-		return result, err
-	}
-	return IncrementalResult{Fingerprint: fingerprintFromEntry(observed), RawObservedOffset: observed.Size, FrameState: frame, Records: records}, nil
 }
 
 // ObserveAgentMetadata discovers candidate shapes without reading artifact

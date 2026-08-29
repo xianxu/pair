@@ -25,7 +25,7 @@ func TestRunEstablishesOnlyAfterCompletedCorroboratedRound(t *testing.T) {
 	relative := "2026/08/28/rollout-test-" + sid + ".jsonl"
 	artifact := sessioninventory.Artifact{StorageRoot: nativeRoot.Name, RelativePath: relative, Kind: sessioninventory.ArtifactTranscript}
 	text := "please inspect the durable watcher boundary now"
-	native.PutFile(sessioninventory.FileEntry{Artifact: artifact}, codexRound(sid, text))
+	native.PutFile(sessioninventory.FileEntry{Artifact: artifact, StableFileID: "stable", GenerationToken: "gen:1", MutationToken: "ctime:1"}, codexRound(sid, text))
 	native.SetProcess("1234", "native-identity", nil, []string{filepath.Join(nativeRoot.Path, filepath.FromSlash(relative))})
 
 	paths := mustScopedPaths(t, dataDir, "work")
@@ -37,7 +37,7 @@ func TestRunEstablishesOnlyAfterCompletedCorroboratedRound(t *testing.T) {
 	runtime.modTimes[paths.AgentPID()] = runtime.now
 	runtime.identities["1234"] = "pair-identity"
 
-	err := Run(Options{Agent: "codex", Tag: "work", ScopeKey: "scope", LaunchOrdinal: 1, Home: "/home", DataDir: dataDir, PIDWait: time.Second, Timeout: time.Second, Poll: time.Millisecond}, runtime)
+	err := Run(Options{Agent: "codex", Tag: "work", ScopeKey: "scope", LaunchOrdinal: 1, Home: "/home", DataDir: dataDir, PIDWait: time.Second, Timeout: 20 * time.Millisecond, Poll: time.Millisecond}, runtime)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -73,7 +73,7 @@ func TestWatcherIncrementalV2PublishesProofFromOnlyPostBoundaryArtifact(t *testi
 	runtime.files[paths.Log()] = []byte("## 2026-08-28 01:00:01\n\n" + text + "\n\n---\n\n")
 	runtime.files[paths.AgentPID()] = []byte("1234\n")
 	runtime.modTimes[paths.AgentPID()] = runtime.now
-	if err := Run(Options{Agent: "codex", Tag: "work", ScopeKey: "scope", LaunchOrdinal: 1, Home: "/home", DataDir: dataDir, PIDWait: time.Second, Timeout: time.Second, Poll: time.Millisecond}, runtime); err != nil {
+	if err := Run(Options{Agent: "codex", Tag: "work", ScopeKey: "scope", LaunchOrdinal: 1, Home: "/home", DataDir: dataDir, PIDWait: time.Second, Timeout: 20 * time.Millisecond, Poll: time.Millisecond}, runtime); err != nil {
 		t.Fatal(err)
 	}
 	if len(runtime.store.records) != 1 || runtime.store.records[0].Version != 2 || runtime.store.records[0].AuthorizationProof == nil || runtime.store.records[0].RootNativeID != sid {
@@ -85,6 +85,41 @@ func TestWatcherIncrementalV2PublishesProofFromOnlyPostBoundaryArtifact(t *testi
 	}
 	if got := native.OperationCount(sessioninventorytest.OperationReadFile, ""); got != 0 {
 		t.Fatalf("whole-file reads=%d", got)
+	}
+}
+
+func TestWatcherLaunchBaselineWinsWhenConcurrentCatalogAlreadyContainsNewArtifact(t *testing.T) {
+	t.Parallel()
+	dataDir := t.TempDir()
+	native := sessioninventorytest.NewFakeRuntime()
+	root := sessioninventory.StorageRoot{Agent: sessioninventory.AgentCodex, Name: "codex-sessions"}
+	native.AddRoot(root)
+	sid := "019eff64-6ceb-7e72-9d41-a735a97029ac"
+	text := "launch boundary owns per-launch newness"
+	artifact := sessioninventory.Artifact{StorageRoot: root.Name, RelativePath: "2026/08/29/rollout-test-" + sid + ".jsonl", Kind: sessioninventory.ArtifactTranscript}
+	native.PutFile(sessioninventory.FileEntry{Artifact: artifact, StableFileID: "stable", GenerationToken: "gen:1", MutationToken: "ctime:1"}, codexRound(sid, text))
+	files, err := native.ListFiles(root)
+	if err != nil || len(files) != 1 {
+		t.Fatalf("files=%#v err=%v", files, err)
+	}
+	paths := mustScopedPaths(t, dataDir, "work")
+	store := sessioninventory.CatalogStore{Runtime: sessioninventory.CatalogOSRuntime{}}
+	_, err = store.Update(paths.Catalog(), func(catalog sessioninventory.Catalog) (sessioninventory.Catalog, error) {
+		entry := files[0]
+		catalog.Entries = []sessioninventory.CatalogEntry{{Agent: sessioninventory.AgentCodex, Artifact: entry.Artifact, Fingerprint: sessioninventory.ArtifactFingerprint{StableFileID: entry.StableFileID, GenerationToken: entry.GenerationToken, MutationToken: entry.MutationToken, Size: entry.Size}, Authorization: sessioninventory.AuthorizationAuthorized, ScannerSchema: "codex-v1", ProviderContract: sessioninventory.ProviderCodexJSONLV1, RawObservedOffset: entry.Size, ParserCompleteOffset: entry.Size}}
+		return catalog, nil
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	runtime := newWatcherRuntime(native)
+	runtime.files[paths.Ledger()] = mustLaunchRecord(t, sessionledger.Record{Version: 2, Kind: sessionledger.RecordLaunch, ScopeKey: "scope", Tag: "work", Agent: "codex", LaunchArtifactBoundaries: []sessionledger.LaunchArtifactBoundary{}})
+	runtime.files[paths.Log()] = []byte("## 2026-08-29 01:00:01\n\n" + text + "\n\n---\n\n")
+	if err := Run(Options{Agent: "codex", Tag: "work", ScopeKey: "scope", LaunchOrdinal: 1, Home: "/home", DataDir: dataDir, PIDWait: time.Nanosecond, Timeout: 10 * time.Millisecond, Poll: time.Millisecond}, runtime); err != nil {
+		t.Fatal(err)
+	}
+	if len(runtime.store.records) != 1 || runtime.store.records[0].AuthorizationProof == nil {
+		t.Fatalf("records=%#v", runtime.store.records)
 	}
 }
 
@@ -175,6 +210,29 @@ func TestPersistTrackedCatalogDoesNotRegressNewestOrDisputedEntry(t *testing.T) 
 	}
 }
 
+func TestWatcherCatalogFailureNeverPublishesProoflessV2Binding(t *testing.T) {
+	t.Parallel()
+	dataDir := t.TempDir()
+	native := sessioninventorytest.NewFakeRuntime()
+	root := sessioninventory.StorageRoot{Agent: sessioninventory.AgentCodex, Name: "codex-sessions"}
+	native.AddRoot(root)
+	sid := "019eff64-6ceb-7e72-9d41-a735a97029ac"
+	text := "catalog must commit before binding authority"
+	artifact := sessioninventory.Artifact{StorageRoot: root.Name, RelativePath: "2026/08/29/rollout-test-" + sid + ".jsonl", Kind: sessioninventory.ArtifactTranscript}
+	native.PutFile(sessioninventory.FileEntry{Artifact: artifact, StableFileID: "stable", GenerationToken: "gen:1", MutationToken: "ctime:1"}, codexRound(sid, text))
+	paths := mustScopedPaths(t, dataDir, "work")
+	runtime := newWatcherRuntime(native)
+	runtime.catalogRuntime = failingCatalogRuntime{}
+	runtime.files[paths.Ledger()] = mustLaunchRecord(t, sessionledger.Record{Version: 2, Kind: sessionledger.RecordLaunch, ScopeKey: "scope", Tag: "work", Agent: "codex", LaunchArtifactBoundaries: []sessionledger.LaunchArtifactBoundary{}})
+	runtime.files[paths.Log()] = []byte("## 2026-08-29 01:00:01\n\n" + text + "\n\n---\n\n")
+	if err := Run(Options{Agent: "codex", Tag: "work", ScopeKey: "scope", LaunchOrdinal: 1, Home: "/home", DataDir: dataDir, PIDWait: time.Nanosecond, Timeout: time.Nanosecond, Poll: time.Nanosecond}, runtime); err != nil {
+		t.Fatal(err)
+	}
+	if len(runtime.store.records) != 0 {
+		t.Fatalf("proofless binding published after catalog failure: %#v", runtime.store.records)
+	}
+}
+
 func TestWatcherLaunchBoundaryNeverReadsPreexistingArtifact(t *testing.T) {
 	t.Parallel()
 	dataDir := t.TempDir()
@@ -192,7 +250,7 @@ func TestWatcherLaunchBoundaryNeverReadsPreexistingArtifact(t *testing.T) {
 	runtime.files[paths.AgentPID()] = []byte("1234\n")
 	runtime.modTimes[paths.AgentPID()] = runtime.now
 	runtime.identities["1234"] = "pair-identity"
-	if err := Run(Options{Agent: "codex", Tag: "work", ScopeKey: "scope", LaunchOrdinal: 1, Home: "/home", DataDir: dataDir, PIDWait: time.Second, Timeout: time.Second, Poll: time.Millisecond}, runtime); err != nil {
+	if err := Run(Options{Agent: "codex", Tag: "work", ScopeKey: "scope", LaunchOrdinal: 1, Home: "/home", DataDir: dataDir, PIDWait: time.Second, Timeout: 20 * time.Millisecond, Poll: time.Millisecond}, runtime); err != nil {
 		t.Fatal(err)
 	}
 	if got := native.OperationCount(sessioninventorytest.OperationReadAt, ""); got != 0 || len(runtime.store.records) != 0 {
@@ -243,7 +301,7 @@ func TestRunIgnoresUnrelatedOpenFilesWhenRoundIsUnique(t *testing.T) {
 	sid := "019eff64-6ceb-7e72-9d41-a735a97029ac"
 	relative := "2026/08/28/rollout-test-" + sid + ".jsonl"
 	text := "please inspect the durable watcher boundary now"
-	native.PutFile(sessioninventory.FileEntry{Artifact: sessioninventory.Artifact{StorageRoot: nativeRoot.Name, RelativePath: relative, Kind: sessioninventory.ArtifactTranscript}}, codexRound(sid, text))
+	native.PutFile(sessioninventory.FileEntry{Artifact: sessioninventory.Artifact{StorageRoot: nativeRoot.Name, RelativePath: relative, Kind: sessioninventory.ArtifactTranscript}, StableFileID: "stable", GenerationToken: "gen:1", MutationToken: "ctime:1"}, codexRound(sid, text))
 	native.SetProcess("1234", "native-identity", nil, []string{"/tmp/unrelated.txt"})
 
 	paths := mustScopedPaths(t, dataDir, "work")
@@ -254,7 +312,7 @@ func TestRunIgnoresUnrelatedOpenFilesWhenRoundIsUnique(t *testing.T) {
 	runtime.modTimes[paths.AgentPID()] = runtime.now
 	runtime.identities["1234"] = "pair-identity"
 
-	if err := Run(Options{Agent: "codex", Tag: "work", ScopeKey: "scope", LaunchOrdinal: 1, Home: "/home", DataDir: dataDir, PIDWait: time.Second, Timeout: time.Second, Poll: time.Millisecond}, runtime); err != nil {
+	if err := Run(Options{Agent: "codex", Tag: "work", ScopeKey: "scope", LaunchOrdinal: 1, Home: "/home", DataDir: dataDir, PIDWait: time.Second, Timeout: 20 * time.Millisecond, Poll: time.Millisecond}, runtime); err != nil {
 		t.Fatal(err)
 	}
 	if len(runtime.store.records) != 1 || runtime.store.records[0].RootNativeID != sid {
@@ -271,7 +329,7 @@ func TestRunEstablishesUniqueRoundWhenProcessIdentityIsUnavailable(t *testing.T)
 	sid := "019eff64-6ceb-7e72-9d41-a735a97029ac"
 	relative := "2026/08/28/rollout-test-" + sid + ".jsonl"
 	text := "please inspect the durable watcher boundary now"
-	native.PutFile(sessioninventory.FileEntry{Artifact: sessioninventory.Artifact{StorageRoot: nativeRoot.Name, RelativePath: relative, Kind: sessioninventory.ArtifactTranscript}}, codexRound(sid, text))
+	native.PutFile(sessioninventory.FileEntry{Artifact: sessioninventory.Artifact{StorageRoot: nativeRoot.Name, RelativePath: relative, Kind: sessioninventory.ArtifactTranscript}, StableFileID: "stable", GenerationToken: "gen:1", MutationToken: "ctime:1"}, codexRound(sid, text))
 
 	paths := mustScopedPaths(t, dataDir, "work")
 	runtime := newWatcherRuntime(native)
@@ -280,7 +338,7 @@ func TestRunEstablishesUniqueRoundWhenProcessIdentityIsUnavailable(t *testing.T)
 	runtime.files[paths.AgentPID()] = []byte("1234\n")
 	runtime.modTimes[paths.AgentPID()] = runtime.now
 
-	if err := Run(Options{Agent: "codex", Tag: "work", ScopeKey: "scope", LaunchOrdinal: 1, Home: "/home", DataDir: dataDir, PIDWait: time.Second, Timeout: time.Second, Poll: time.Millisecond}, runtime); err != nil {
+	if err := Run(Options{Agent: "codex", Tag: "work", ScopeKey: "scope", LaunchOrdinal: 1, Home: "/home", DataDir: dataDir, PIDWait: time.Second, Timeout: 20 * time.Millisecond, Poll: time.Millisecond}, runtime); err != nil {
 		t.Fatal(err)
 	}
 	if len(runtime.store.records) != 1 || runtime.store.records[0].RootNativeID != sid {
@@ -348,17 +406,18 @@ func TestPIDFileFreshUsesExactNativeBoundAndLegacySecondTolerance(t *testing.T) 
 }
 
 type watcherRuntime struct {
-	now        time.Time
-	files      map[string][]byte
-	readErrors map[string]error
-	modTimes   map[string]time.Time
-	identities map[string]string
-	writes     map[string][]byte
-	logs       []adapt.Outcome
-	native     sessioninventory.Runtime
-	store      *fakeLifecycleStore
-	migrator   sessioninventory.ProofMigrator
-	onSleep    func()
+	now            time.Time
+	files          map[string][]byte
+	readErrors     map[string]error
+	modTimes       map[string]time.Time
+	identities     map[string]string
+	writes         map[string][]byte
+	logs           []adapt.Outcome
+	native         sessioninventory.Runtime
+	store          *fakeLifecycleStore
+	migrator       sessioninventory.ProofMigrator
+	catalogRuntime sessioninventory.CatalogStoreRuntime
+	onSleep        func()
 }
 
 func newWatcherRuntime(native sessioninventory.Runtime) *watcherRuntime {
@@ -398,9 +457,28 @@ func (r *watcherRuntime) Log(outcome adapt.Outcome, _ string)                { r
 func (r *watcherRuntime) NativeRuntime(_, _ string) sessioninventory.Runtime { return r.native }
 func (r *watcherRuntime) LedgerAppender() LedgerAppender                     { return r.store }
 func (r *watcherRuntime) CatalogStore() sessioninventory.CatalogStore {
+	if r.catalogRuntime != nil {
+		return sessioninventory.CatalogStore{Runtime: r.catalogRuntime}
+	}
 	return sessioninventory.CatalogStore{Runtime: sessioninventory.CatalogOSRuntime{}}
 }
 func (r *watcherRuntime) ProofMigrator() *sessioninventory.ProofMigrator { return &r.migrator }
+
+type failingCatalogRuntime struct{}
+
+func (failingCatalogRuntime) MkdirAll(string, os.FileMode) error {
+	return errors.New("catalog unavailable")
+}
+func (failingCatalogRuntime) Lock(string) (sessioninventory.CatalogUnlocker, error) {
+	return nil, errors.New("catalog unavailable")
+}
+func (failingCatalogRuntime) ReadFile(string) ([]byte, error) { return nil, os.ErrNotExist }
+func (failingCatalogRuntime) CreateTemp(string, string) (sessioninventory.CatalogFile, error) {
+	return nil, errors.New("catalog unavailable")
+}
+func (failingCatalogRuntime) Remove(string) error         { return nil }
+func (failingCatalogRuntime) Rename(string, string) error { return errors.New("catalog unavailable") }
+func (failingCatalogRuntime) SyncDirectory(string) error  { return errors.New("catalog unavailable") }
 func (r *watcherRuntime) hasLog(want adapt.Outcome) bool {
 	for _, outcome := range r.logs {
 		if outcome == want {

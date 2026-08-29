@@ -470,6 +470,23 @@ provider contracts.
   installed Claude/Codex/Muse prefix→append fake comparison; the latter cannot
   silently remain a locally run test outside the monthly/provider-change
   cadence (`ARCH-MOCK`, `ARCH-PURPOSE`).
+- Second close review proved that worker reachability is not lifecycle
+  reachability. Launcher startup now begins a non-blocking bounded migration
+  over the small ledger set; each proofless current owner validates only its
+  named native root and appends a proof under the current-launch guard. Both the
+  launcher call and a real persisted ledger/native-store upgrade are pinned.
+- V2 binding publication now has one class rule: no proof, no binding. Catalog
+  failure leaves the round provisional and a `Run`-level regression proves no
+  compatibility row is written. Catalog merge is independently monotonic on
+  raw and parser-complete cursors, with dispute terminal; crossed-cursor and
+  stale-writer tests pin the partial order (`ARCH-PURE`, `ARCH-PURPOSE`).
+- Per-launch causality is independent of global catalog timing. A file absent
+  from one launch baseline remains eligible even if another watcher publishes
+  its catalog entry first; the catalog still owns reuse/continuity after target
+  authorization (`ARCH-DRY`).
+- Live conformance now compares Agy's installed database-plus-transcript state
+  with the stateful fake across prefix→append as well as full replay. README
+  documents the durable operator/developer target (`ARCH-MOCK`).
 
 ## Revisions
 
@@ -529,3 +546,17 @@ primitive; birth time remains a timestamp only. Provider-contract conformance
 will compare the stateful fake with installed Claude, Codex, Muse, Agy
 transcript, and Agy SQLite behavior during #156, before every scanner/provider
 contract version change, and on the monthly operator conformance run.
+
+### 2026-08-29 — authority-first launch boundaries supersede B-1 framing
+
+Boundary review exposed an inconsistency between the earlier B-1 paragraph and
+the later authorization matrix. A preexisting unbound artifact is categorically
+ineligible for fresh-launch evidence, so reading its suffix merely to discard it
+would add hot-path content IO without an authorized consumer. An established or
+explicit target already owns a proof parser cursor and advances from that cursor,
+not from the raw launch size. Therefore raw launch boundaries remain complete
+metadata-only exclusion tuples; new artifacts are read from zero, unauthorized
+preexisting appends are not read, and proof-bearing targets use their durable
+parser-complete offsets. The obsolete B-1 framing requirement and its split-
+record done-when item are superseded rather than implemented as dead code
+(`ARCH-PURE`, `ARCH-PURPOSE`).

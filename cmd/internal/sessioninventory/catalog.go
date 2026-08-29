@@ -136,8 +136,8 @@ func MergeCatalogPublication(current, incoming CatalogEntry) CatalogEntry {
 		current.ProviderContract != incoming.ProviderContract {
 		return cloneCatalogEntry(current)
 	}
-	if incoming.RawObservedOffset < current.RawObservedOffset ||
-		(incoming.RawObservedOffset == current.RawObservedOffset && incoming.ParserCompleteOffset <= current.ParserCompleteOffset) {
+	if incoming.RawObservedOffset < current.RawObservedOffset || incoming.ParserCompleteOffset < current.ParserCompleteOffset ||
+		(incoming.RawObservedOffset == current.RawObservedOffset && incoming.ParserCompleteOffset == current.ParserCompleteOffset) {
 		return cloneCatalogEntry(current)
 	}
 	return cloneCatalogEntry(incoming)

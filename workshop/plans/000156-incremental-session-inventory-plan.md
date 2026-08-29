@@ -401,3 +401,22 @@ corrects the Task 2 checklist and the effective `Makefile.local` file list.
 The B-1 framer remains downstream of target authority: it can retain wholly
 post-launch records for an established or explicit target, but it never makes
 an unbound preexisting artifact eligible merely because that artifact grew.
+
+### 2026-08-29 — second close review authority rules
+
+The B-1 implementation above is superseded after proving it has no authorized
+production caller: unbound preexisting appends remain unread, while established
+and explicit targets advance from their proof parser cursor. The corrective
+rule is authority-first, not a test-only framer. This round also starts bounded
+proof migration asynchronously at launcher startup, forbids every v2 proofless
+binding fallback, defines catalog publication as monotonic independently on raw
+and parser cursors with dispute terminal, keeps launch newness solely relative
+to its durable baseline under concurrent catalog writers, extends live fake
+comparison to Agy, and documents the conformance target in README.
+
+The effective integration boundaries are narrower than the original Core
+concept prose implied: `IncrementalInventory` owns metadata reconciliation and
+target selection, while scanner validators own targeted reads and
+`CatalogStore` owns publication. `ProofMigrator` is used by background watcher
+and launcher-startup migration lifecycles; ordinary query remains read-only and
+reports proofless authority unavailable.

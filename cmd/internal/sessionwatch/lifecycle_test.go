@@ -163,6 +163,14 @@ func TestObserveAndPersist(t *testing.T) {
 		}
 	})
 
+	t.Run("v2 authority never falls back to a proofless binding", func(t *testing.T) {
+		store := &fakeLifecycleStore{}
+		result, err := ObserveAndPersist(ObserveInput{Owner: owner, LaunchOrdinal: 7, Inventory: inventory, LiveRounds: []sessioninventory.RoundObservation{observation}, RequireProof: true}, store, nil)
+		if err != nil || len(store.records) != 0 || result.Bindings[0].Status != sessioninventory.BindingProvisional {
+			t.Fatalf("result=%#v records=%#v err=%v", result, store.records, err)
+		}
+	})
+
 	t.Run("stale generation cannot persist or refresh cache", func(t *testing.T) {
 		store := &fakeLifecycleStore{stale: true}
 		cacheCalls := 0

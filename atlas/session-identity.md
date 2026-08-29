@@ -48,8 +48,9 @@ schema drift, or corruption fail closed for the targeted entry.
 A production `IncrementalInventory` façade reconciles metadata with the catalog;
 fresh launches can inspect only `new` delta entries, while an already authorized
 target advances from its proof/catalog cursor. Raw launch boundaries retain the
-full continuity tuple, and the B-1 framer drops a record that began before the
-launch without granting authority to an unbound preexisting append.
+full continuity tuple as exclusion evidence; they never authorize reads from an
+unbound preexisting append. Established and explicit targets advance from their
+proof parser cursor instead of a launch-relative cursor.
 A unique exact operator turn followed by assistant/tool/error progress proposes
 the root; the watcher persists catalog state before appending a proof-bearing
 binding while the launch ordinal is still current. Repeated matches remain

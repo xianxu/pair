@@ -51,6 +51,10 @@ func NewScopedOSRuntime(globalDataDir, dataDir, pairHome string) *OSRuntime {
 	return &OSRuntime{DataDir: dataDir, GlobalDataDir: globalDataDir, PairHome: pairHome}
 }
 
+func (r OSRuntime) StartProofMigration() {
+	go func() { _ = sessionwatch.MigrateProoflessBindings(os.Getenv("HOME"), r.DataDir) }()
+}
+
 func (r OSRuntime) EnsureThreadAddress(scope RepoScope, tag string, couchOwned bool) error {
 	return EnsureThreadAddressForPair(r.GlobalDataDir, scope, tag, couchOwned)
 }

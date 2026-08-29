@@ -193,9 +193,17 @@ func ObserveAndPersist(input ObserveInput, store LedgerAppender, writeConfig Con
 	if nativeID == "" {
 		return resolved, nil
 	}
+	proof, hasProof := input.Proofs[*binding.RootNodeID]
+	if input.RequireProof && !hasProof {
+		resolved.Diagnostics = append(resolved.Diagnostics, sessioninventory.Diagnostic{
+			Code: sessioninventory.DiagnosticBindingStale, Agent: agent,
+			Detail: "proof-bearing binding authority is unavailable",
+		})
+		return sessioninventory.SortInventory(resolved), nil
+	}
 	var appended sessionledger.Record
 	var err error
-	if proof, ok := input.Proofs[*binding.RootNodeID]; ok {
+	if hasProof {
 		appended, err = store.AppendBindingProofIfCurrent(input.LedgerPath, input.Owner, input.LaunchOrdinal, proof)
 	} else {
 		appended, err = store.AppendBindingIfCurrent(input.LedgerPath, input.Owner, input.LaunchOrdinal, nativeID)

@@ -2553,3 +2553,14 @@ an unsupported owner through every downstream projection (`ARCH-DRY`,
 - When upgrading an append-only record, projection must select the newest
   compatible record for the same identity; otherwise durable migration can
   succeed while every consumer remains pinned to the legacy row (`ARCH-DRY`).
+- A background worker is not production-reachable merely because a production
+  binary contains it. Pin the lifecycle event that starts it and the durable
+  effect through the real OS seam.
+- Monotonic state with multiple cursors needs a partial order over every axis;
+  a larger raw EOF cannot justify a smaller parser-complete cursor.
+- Authority-required publication must never fall back to a weaker legacy
+  format after a prerequisite store fails. Encode “no proof, no binding” at the
+  shared persistence boundary, not only in its caller.
+- Global cache classification and per-launch causality answer different
+  questions. Catalog timing may govern reuse after authorization, but cannot
+  erase that an artifact was absent from a particular launch baseline.

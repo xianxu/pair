@@ -66,4 +66,12 @@ func TestMergeCatalogPublicationNeverRegressesSameArtifact(t *testing.T) {
 	if got := MergeCatalogPublication(disputed, base); got.Authorization != AuthorizationDisputed {
 		t.Fatalf("stale authorization erased dispute: %#v", got)
 	}
+	crossed := cloneCatalogEntry(base)
+	crossed.Fingerprint.MutationToken = "ctime:3"
+	crossed.Fingerprint.Size = 30
+	crossed.RawObservedOffset = 30
+	crossed.ParserCompleteOffset = 10
+	if got := MergeCatalogPublication(base, crossed); got.RawObservedOffset != 20 || got.ParserCompleteOffset != 20 {
+		t.Fatalf("crossed cursors regressed parser state: %#v", got)
+	}
 }

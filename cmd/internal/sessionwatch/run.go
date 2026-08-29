@@ -133,7 +133,7 @@ func Run(opts Options, rt Runtime) error {
 		}
 		resolved, persistErr := ObserveAndPersist(ObserveInput{
 			Owner: owner, LedgerPath: paths.Ledger(), LaunchOrdinal: opts.LaunchOrdinal,
-			Inventory: inventory, LiveRounds: rounds, Proofs: proofs, Args: opts.Args,
+			Inventory: inventory, LiveRounds: rounds, Proofs: proofs, RequireProof: true, Args: opts.Args,
 		}, rt.LedgerAppender(), func(payload ConfigPayload) error {
 			raw, err := ConfigJSON(payload)
 			if err != nil {
@@ -170,20 +170,8 @@ func migrateProoflessBinding(rt Runtime, nativeRuntime sessioninventory.Runtime,
 	}
 	key := sessioninventory.ProofMigrationKey{ScopeKey: owner.ScopeKey, Tag: owner.Tag, Agent: sessioninventory.Agent(owner.Agent), NativeID: binding.RootNativeID}
 	result := <-rt.ProofMigrator().Request(key, func() (*sessionledger.AuthorizationProof, error) {
-		inventory := sessioninventory.NewIncrementalInventory(nativeRuntime, sessioninventory.Catalog{Version: sessioninventory.CatalogVersion})
-		snapshot := inventory.Observe(key.Agent)
-		selected := inventory.Select(sessioninventory.TargetRequest{Mode: sessioninventory.TargetExplicitResume, Agent: key.Agent, NativeID: key.NativeID}, snapshot)
-		if selected.Unavailable {
-			return nil, sessioninventory.ErrArtifactChanged
-		}
-		validations, _ := sessioninventory.ValidateTargetWork(nativeRuntime, key.Agent, selected.Eligible)
-		for _, validation := range validations {
-			if validation.State.NativeID == key.NativeID && validation.State.Role == sessioninventory.RoleRoot {
-				proof, err := authorizationProof(validation)
-				return &proof, err
-			}
-		}
-		return nil, sessioninventory.ErrArtifactChanged
+		proof, err := proofForNamedRoot(nativeRuntime, key.Agent, key.NativeID)
+		return &proof, err
 	})
 	if result.Err != nil {
 		return result.Err

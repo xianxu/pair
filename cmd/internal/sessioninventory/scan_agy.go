@@ -14,6 +14,12 @@ const (
 	agyTrajectoryFactsQuery  = "select cascade_id, typeof(cascade_id), typeof(trajectory_type), typeof(source) from trajectory_meta limit 2"
 )
 
+// AgyProviderContractQueries exposes the exact external-query seam to the live
+// fake conformance test without duplicating SQL text.
+func AgyProviderContractQueries() (schema, facts string) {
+	return agyTrajectorySchemaQuery, agyTrajectoryFactsQuery
+}
+
 var sqliteHeader = []byte("SQLite format 3\x00")
 
 func ScanAgy(runtime Runtime) ScanResult {

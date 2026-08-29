@@ -26,6 +26,7 @@ import (
 // error is always nil.
 func RunLaunch(opts LaunchOptions, rt Runtime, stderr io.Writer) (int, error) {
 	env := normalizeEnv(opts.Env)
+	rt.StartProofMigration()
 
 	// Prepend the resolved asset root's bin/ to PATH so zellij (and its panes:
 	// pair-wrap, copy_command "copy-on-select", Run "pair-help"/openers, and the

@@ -89,27 +89,39 @@ type fakeRuntime struct {
 	readyErr       error
 
 	// recorded
-	env           map[string]string
-	launched      string // last session name handed to LaunchSession
-	launchLayout  string
-	launchCode    int
-	launchCount   int      // number of create handoffs (restart-loop iterations)
-	watchers      []string // "agent|tag|cwd|args"
-	pollers       []string // "tag|agent"
-	cmux          []string // "tag|title"
-	ttyRecorded   []string
-	titles        []string
-	removed       []string
-	family        []string
-	devRebuilt    bool
-	attached      []string   // sessions handed to AttachSession
-	deleted       []string   // sessions handed to DeleteSession
-	reaped        []string   // tags handed to ReapNvim
-	swept         [][]string // liveTags per SweepOrphanNvim call
-	parkPrompts   []string   // sessions prompted via ConfirmParkNudge
-	parked        []string   // "tag|agent|move" per ParkScrollback
-	killedPollers []string   // tags handed to KillTitlePoller
-	cmuxCleared   int        // ClearCmuxOwner calls
+	env             map[string]string
+	launched        string // last session name handed to LaunchSession
+	launchLayout    string
+	launchCode      int
+	launchCount     int      // number of create handoffs (restart-loop iterations)
+	watchers        []string // "agent|tag|cwd|args"
+	pollers         []string // "tag|agent"
+	cmux            []string // "tag|title"
+	ttyRecorded     []string
+	titles          []string
+	removed         []string
+	family          []string
+	devRebuilt      bool
+	proofMigrations int
+	attached        []string   // sessions handed to AttachSession
+	deleted         []string   // sessions handed to DeleteSession
+	reaped          []string   // tags handed to ReapNvim
+	swept           [][]string // liveTags per SweepOrphanNvim call
+	parkPrompts     []string   // sessions prompted via ConfirmParkNudge
+	parked          []string   // "tag|agent|move" per ParkScrollback
+	killedPollers   []string   // tags handed to KillTitlePoller
+	cmuxCleared     int        // ClearCmuxOwner calls
+}
+
+func (f *fakeRuntime) StartProofMigration() { f.proofMigrations++ }
+
+func TestRunLaunchStartsProofMigrationBeforeInteractiveWork(t *testing.T) {
+	runtime := newFakeRuntime()
+	runtime.sessionsErr = errors.New("stop after startup")
+	_, _ = RunLaunch(LaunchOptions{Env: Env{Now: time.Now()}}, runtime, &bytes.Buffer{})
+	if runtime.proofMigrations != 1 {
+		t.Fatalf("proof migrations=%d", runtime.proofMigrations)
+	}
 }
 
 func (f *fakeRuntime) EnsureThreadAddress(scope RepoScope, tag string, couchOwned bool) error {

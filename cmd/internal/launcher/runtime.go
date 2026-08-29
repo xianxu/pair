@@ -92,6 +92,12 @@ type ProcOps interface {
 	DevRebuild(pairHome string)
 }
 
+type ProofMigrationOps interface {
+	// StartProofMigration begins bounded post-upgrade validation of persisted
+	// proofless owners without delaying the interactive picker.
+	StartProofMigration()
+}
+
 // EnvOps covers the process environment + host guards.
 type EnvOps interface {
 	// SetEnv exports key=value into this process so every child (watcher,
@@ -236,6 +242,7 @@ type Runtime interface {
 	ContinuationOps
 	UIOps
 	ProcOps
+	ProofMigrationOps
 	EnvOps
 	IDOps
 	LedgerOps
