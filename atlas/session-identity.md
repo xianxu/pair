@@ -35,21 +35,23 @@ reads, read-only SQLite, and process/open-file snapshots. The sibling
 paths, IDs, or transcript content. Native parentage establishes topology only;
 it is not evidence that a Pair tag owns a root.
 
-M2 adds one round-gated binding lifecycle. Before agent input, the launcher
-appends a typed `launch` row containing the Pair-log byte offset and sorted
-native-event watermarks. A fresh launch is deliberately provisional: even a
-Claude ID minted for invocation is not recovery authority. An explicit resume
-may join immediately only when the scanner inventory recognizes its root.
+#156 makes that boundary incremental. The selected scope owns
+`session-inventory-catalog.json`, a versioned catalog of scanner facts,
+filesystem generation/mutation fingerprints, parser-complete offsets, and
+scanner state. Launch records contain metadata-only artifact exclusion
+boundaries; binding records contain a complete authorization proof. Unchanged
+catalog/proof generations need no body read, trusted append-only JSONL stores
+validate only their suffix, and replacement, truncation, unavailable generation,
+schema drift, or corruption fail closed for the targeted entry.
 
-`pair session-watch` scans the complete forest and uses process/open-file facts
-only as stable before/after corroboration. A unique exact operator turn followed
-by assistant/tool/error progress proposes the root; the watcher appends a
-`binding` row only while the launch ordinal is still current, then refreshes the
-config cache. Repeated matches remain ambiguous and no timestamp, traversal
-order, first/newest file, or native parent edge breaks the tie. After a crash,
-the same matcher considers only bytes/events beyond the durable launch
-watermarks. A crash before progress therefore preserves nothing; a crash after
-progress can reconstruct the binding.
+`pair session-watch` observes only post-launch candidates and appended bytes.
+A unique exact operator turn followed by assistant/tool/error progress proposes
+the root; the watcher persists catalog state before appending a proof-bearing
+binding while the launch ordinal is still current. Repeated matches remain
+ambiguous and no timestamp, traversal order, first/newest file, or native parent
+edge breaks the tie. A proofless legacy binding stays unavailable to automatic
+consumers until one keyed background migration validates its named root; an
+explicit resume may do that one-root validation synchronously.
 
 `pair session-inventory [--agent ...] [--scope current|all] [--json]
 [--conformance]` exposes the canonical forests, correlations, ambiguities, and
@@ -60,16 +62,18 @@ data. Pair's Go store and Neovim history navigation share the versioned
 byte-counted log grammar while retaining legacy entries, so authored Markdown
 separators round-trip.
 
-The final #155 migration makes inventory queries the only native-session read
-authority. Context/token usage, title activity, bounded slug text events, review scoping,
-launcher recovery and resume hints, changelog keying, and Neovim age display all
-consume an established owner projection. Provisional, ambiguous, and unbound
+Inventory queries remain the only native-session read authority. Context/token
+usage, title activity, bounded slug text events, review scoping, launcher
+recovery/resume hints, and changelog keying consume an established owner
+projection by reading one ledger and its proof-named artifacts. Provisional, ambiguous, and unbound
 owners remain explicit absence; only an exact inherited `PAIR_SESSION_ID` can
 precede that projection. Compatibility config retains launch arguments but
-cannot establish identity. `pair session-inventory --activity --agent <agent>`
-is the buffered internal timestamp transport for editor consumers; it emits
-nothing until the root is established (ARCH-DRY, ARCH-PURE, ARCH-PURPOSE,
-ARCH-MOCK).
+cannot establish identity. Alt+X reads local sidecars and paints its confirmation
+without starting inventory/activity work; age/idle enrichment is omitted from
+the modal. `make test-session-inventory-conformance` runs the one-second installed
+metadata budget and all four provider comparisons. Run it for #156 verification,
+before any scanner/provider-contract version change, and in the monthly operator
+maintenance pass (ARCH-DRY, ARCH-PURE, ARCH-PURPOSE, ARCH-MOCK).
 
 ## Data layout
 
@@ -91,6 +95,7 @@ config-<tag>-<agent>.json
 agent-default-<agent>.json
 agent-ready-<tag>-<agent>.json
 ledger-<tag>.jsonl
+session-inventory-catalog.json
 scrollback-<tag>-<agent>.raw
 scrollback-<tag>-<agent>.events.jsonl
 pane-<tag>-<agent>.json

@@ -83,6 +83,15 @@ func (f *FakeRuntime) PutFile(entry sessioninventory.FileEntry, content []byte) 
 	f.files[artifactKey(entry.Artifact)] = storedFile{entry: cloneFileEntry(entry), content: append([]byte(nil), content...)}
 }
 
+// PutMetadataFile installs a file generation without allocating its body. It
+// is for metadata-only corpus tests; any attempted body read remains observable
+// through the operation counters and returns the empty modeled content.
+func (f *FakeRuntime) PutMetadataFile(entry sessioninventory.FileEntry) {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	f.files[artifactKey(entry.Artifact)] = storedFile{entry: cloneFileEntry(entry)}
+}
+
 func (f *FakeRuntime) AppendFile(artifact sessioninventory.Artifact, suffix []byte, mutation sessioninventory.MutationToken) {
 	f.mu.Lock()
 	defer f.mu.Unlock()

@@ -928,29 +928,33 @@ Zellij's default `Ctrl+q` (Quit with resurrect) is **unbound** in pair's config 
 
 ## Tag-restart (issue #000016)
 
-**Inventory authority (#155).** The deterministic scanner core
+**Incremental inventory authority (#155, #156).** The deterministic scanner core
 lives in `cmd/internal/sessioninventory`: four versioned native scanners feed a
 pure, stably ordered forest model through one injected filesystem/SQLite/process
 runtime, with a reusable stateful fake and a redacted installed-shape
 conformance target. It inventories native roots, validated descendants, and
 unbound orphans; native parent edges describe topology but never establish Pair
-ownership. A typed launch baseline makes a fresh session provisional; one exact
-completed operator round establishes the binding. Every consumer now queries
-that shared inventory, and a source shadow sweep rejects independent native path,
-config, lsof, or first/newest authority (ARCH-DRY, ARCH-PURE, ARCH-PURPOSE,
-ARCH-MOCK).
+ownership. The selected-scope catalog and proof-bearing ledger reuse scanner
+facts while filesystem identity, generation, mutation, size, parser schema, and
+offsets remain continuous. A typed metadata-only launch boundary makes a fresh
+session provisional; one exact completed operator round establishes the binding.
+Every interactive consumer targets one proof/root, and a cross-language shadow
+sweep rejects whole-inventory calls outside explicit diagnostic/legacy adapters
+(ARCH-DRY, ARCH-PURE, ARCH-PURPOSE, ARCH-MOCK).
 
 A pair *tag* is a durable identity for a coding session: it survives Alt+d (detach) trivially, and survives Alt+x because pair captures both the original launch args and the agent's own session id to disk, keyed by `(tag, agent)`. After Alt+x, the user sees a one-liner naming the resume command; running it short-circuits the picker and replays the saved configuration.
 
 **Discovery and establishment.** Before the agent can accept input, the launcher
-appends a typed launch record containing Pair-log and native-event watermarks.
-`pair session-watch` then observes the complete scanner forest. Process/open-file
+appends a typed launch record containing metadata-only artifact boundaries.
+`pair session-watch` then observes only new candidates and validated suffixes.
+Process/open-file
 facts may corroborate a candidate but cannot select it; a unique Pair-authored
 operator turn followed by native assistant/tool/error progress establishes the
 root. Repeated matches stay ambiguous. If the watcher crashes after progress but
 before its binding append, offline recovery reruns the same matcher only over the
 launch-delimited suffix. Before a completed round there is intentionally nothing
-to preserve.
+to preserve. Alt+X is ordered independently: its local prompt is interactive
+before any optional enrichment and only a confirmed Yes starts `pair quit`.
 
 Ledger and Pair-log writers share explicit non-authoritative, indeterminate,
 and committed publication outcomes. Ledger uncertainty is reconciled against
@@ -1053,7 +1057,7 @@ Selected-scope artifact `outer-tty-<tag>` (`$PAIR_OUTER_TTY_PATH`) — single-li
 
 Selected-scope artifact `agent-<tag>` (`$PAIR_AGENT_PATH`) — single-line file recording which agent binary was launched in the session (`claude`, `codex`, ...). Written once at session create; read by `pair list` to display the agent column, and by the launcher's tag-restart agent-inference. Removed on full quit.
 
-Selected-scope artifact `config-<tag>-<agent>.json` (`$PAIR_AGENT_CONFIG_PATH`) — saved restart configuration for `(tag, agent)` (issue #000016, #000020). `{ agent, args, session_id }`. For claude, written synchronously by the launcher before zellij launch (`--session-id` is deterministic). For Codex/Agy/Muse, written by the Go `pair session-watch` command once the agent's session file is discovered via lsof. Codex writes and automatic reads require root metadata; an invalid legacy/polluted binding is quarantined before picker or `Alt+n` reuse. Read by the launcher's create-flow prompt and by the post-Alt+x hint. Survives Alt+x (unlike `agent-<tag>`, which is cleared) — that's the whole point: it's the bridge between two pair launches against the same tag.
+Selected-scope artifact `config-<tag>-<agent>.json` (`$PAIR_AGENT_CONFIG_PATH`) — saved restart configuration for `(tag, agent)` (issue #000016, #000020). `{ agent, args, session_id }`. For claude, written synchronously by the launcher before zellij launch (`--session-id` is deterministic). For Codex/Agy/Muse, written by the Go `pair session-watch` command once the agent's session file is established. Codex writes and automatic reads require root metadata; an invalid legacy/polluted binding is quarantined before picker or `Alt+n` reuse. Alt+X reads this local sidecar for its immediate prompt but does not treat it as identity authority or start an inventory query. It survives Alt+x (unlike `agent-<tag>`, which is cleared) — that's the whole point: it is the bridge between two pair launches against the same tag.
 
 Selected-scope artifact `agent-pid-<tag>` (`$PAIR_AGENT_PID_PATH`) — child agent PID written by `pair wrap` immediately after `pty.Start`, removed on shutdown. Consumed by `pair session-watch` to scope `lsof` discovery to a specific process tree (issue #000020). Native watcher launches authorize its mtime against a producer-captured generation bound; the mtime is also the agent-start epoch in the watcher's birth-time fallback.
 

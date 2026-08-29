@@ -371,7 +371,7 @@ provider contracts.
   latency-sensitive native-session consumer to targeted queries.
 - [x] Merge typed authority with compatibility display metadata and pin the
   `pair/1 claude` picker row.
-- [ ] Add operation-count, one-second corpus, shadow-sweep, full-suite, and
+- [x] Add operation-count, one-second corpus, shadow-sweep, full-suite, and
   real-data verification; update atlas documentation.
 
 ## Log
@@ -429,6 +429,19 @@ provider contracts.
   presentation fields (repo, args, and timestamps). Native session ID,
   typed/unbound status, and source ordinal remain typed-only; the observed
   picker regression renders `pair/1  claude` instead of `?/1`.
+- Added a 1,573-entry / 358 MiB metadata fixture: cold reconciliation visits
+  each entry once, warm reconciliation reuses all 1,573, and both perform zero
+  body, SQLite, or process/open-file operations. The installed Claude metadata
+  check observed 1,350 recognized files in 39.6 ms; the four-agent provider
+  conformance completed in 0.24 s. Full `go test -p 20 ./...`, `go vet -p 20
+  ./...`, focused race suites, Lua/shell integrations, generated-runtime drift,
+  and Zellij configuration checks pass. `make test-session-inventory-conformance`
+  is the durable live cadence (`ARCH-DRY`, `ARCH-PURE`, `ARCH-PURPOSE`,
+  `ARCH-MOCK`).
+- Full-suite verification exposed two command-route fixtures that still
+  modeled proofless v1 bindings. They now derive real filesystem fingerprints
+  and write proof-bearing v2 rows, preserving the intentional #155 route
+  coverage without weakening proofless fail-closed behavior.
 
 ## Revisions
 
