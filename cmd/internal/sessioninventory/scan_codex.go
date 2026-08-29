@@ -3,6 +3,7 @@ package sessioninventory
 import (
 	"bytes"
 	"encoding/json"
+	"errors"
 	"path"
 	"regexp"
 	"strconv"
@@ -37,6 +38,7 @@ func ScanCodex(runtime Runtime) ScanResult {
 func scanCodexFile(runtime Runtime, entry FileEntry) (Fact, []Diagnostic, bool) {
 	artifact := entry.Artifact
 	artifact.Kind = ArtifactTranscript
+	entry.Artifact = artifact
 	nativeID, recognized := codexPathID(artifact.RelativePath)
 	if !recognized {
 		if strings.HasSuffix(artifact.RelativePath, ".jsonl") {
@@ -45,59 +47,134 @@ func scanCodexFile(runtime Runtime, entry FileEntry) (Fact, []Diagnostic, bool) 
 		return Fact{}, nil, false
 	}
 
-	var record struct {
-		Timestamp string `json:"timestamp"`
-		Type      string `json:"type"`
-		Payload   struct {
-			ID             string          `json:"id"`
-			ParentThreadID *string         `json:"parent_thread_id"`
-			Source         json.RawMessage `json:"source"`
-		} `json:"payload"`
-	}
-	seen := false
+	state := newCodexScannerState(entry, nativeID)
+	var diagnostics []Diagnostic
 	err := visitJSONLines(runtime, artifact, metadataRecordLimit, func(line []byte) bool {
-		seen = true
-		if len(line) != 0 {
-			_ = decodeStrictJSON(line, &record)
-		}
-		return true
+		applyCodexRecord(&state, entry, line, &diagnostics)
+		return false
 	})
-	if err != nil || !seen || record.Type != "session_meta" || !uuidPattern.MatchString(record.Payload.ID) {
+	if err != nil || !state.FirstRecordValidated {
 		detail := "missing or invalid first Codex session_meta"
 		if err != nil {
 			detail = err.Error()
 		}
-		return Fact{}, []Diagnostic{artifactDiagnostic(DiagnosticSchemaNearMiss, AgentCodex, &nativeID, artifact, detail)}, false
+		diagnostics = append(diagnostics, artifactDiagnostic(DiagnosticSchemaNearMiss, AgentCodex, &nativeID, artifact, detail))
+		return Fact{}, diagnostics, false
 	}
-	chronology := metadataTime(record.Timestamp)
-	if chronology == nil {
-		chronology = fallbackTime(entry)
-	}
-	if record.Payload.ID != nativeID {
-		return Fact{
-			Agent:     AgentCodex,
-			NativeID:  nativeID,
-			Role:      RoleUnknown,
-			Time:      chronology,
-			Disputed:  true,
-			Artifacts: []Artifact{artifact},
-		}, []Diagnostic{artifactDiagnostic(DiagnosticParentConflict, AgentCodex, &nativeID, artifact, "Codex metadata ID disagrees with path ID")}, true
-	}
+	return scannerStateFact(state, []Artifact{artifact}), diagnostics, true
+}
 
-	role, parentID, ok := codexRole(record.Payload.ParentThreadID, record.Payload.Source)
-	if !ok {
-		return Fact{}, []Diagnostic{artifactDiagnostic(DiagnosticSchemaNearMiss, AgentCodex, &nativeID, artifact, "Codex source/parent shape is not allowlisted")}, false
+type codexRecord struct {
+	Timestamp string          `json:"timestamp"`
+	Type      string          `json:"type"`
+	Payload   json.RawMessage `json:"payload"`
+}
+
+type codexSessionMeta struct {
+	ID             string          `json:"id"`
+	ParentThreadID *string         `json:"parent_thread_id"`
+	Source         json.RawMessage `json:"source"`
+}
+
+// ValidateCodexDelta preserves the first session_meta invariant while checking
+// every later complete JSONL record through the observed EOF.
+func ValidateCodexDelta(entry FileEntry, prior *ScannerState, records []FramedJSONLRecord) (ScannerState, []Diagnostic, error) {
+	artifact := entry.Artifact
+	artifact.Kind = ArtifactTranscript
+	entry.Artifact = artifact
+	nativeID, recognized := codexPathID(artifact.RelativePath)
+	if !recognized {
+		return ScannerState{}, nil, errors.New("unrecognized Codex v1 path")
 	}
-	return Fact{
-		Agent:          AgentCodex,
-		NativeID:       nativeID,
-		Role:           role,
-		ParentID:       parentID,
-		Time:           chronology,
-		Resumable:      role == RoleRoot,
-		Artifacts:      []Artifact{artifact},
-		EdgeProvenance: edgeProvenance(role, "codex-v1", artifact),
-	}, nil, true
+	state := newCodexScannerState(entry, nativeID)
+	if prior != nil {
+		if err := ValidateScannerState(*prior); err != nil {
+			return ScannerState{}, nil, err
+		}
+		state = cloneScannerState(*prior)
+		if state.Agent != AgentCodex || state.NativeID != nativeID || state.IdentityAnchor != nativeID || state.ScannerSchema != "codex-v1" {
+			return ScannerState{}, nil, errors.New("Codex scanner state does not match artifact")
+		}
+	}
+	var diagnostics []Diagnostic
+	for _, record := range records {
+		applyCodexRecord(&state, entry, record.Bytes, &diagnostics)
+	}
+	if !state.FirstRecordValidated {
+		state.Disputed = true
+	}
+	if err := ValidateScannerState(state); err != nil {
+		return ScannerState{}, diagnostics, err
+	}
+	return state, diagnostics, nil
+}
+
+func newCodexScannerState(entry FileEntry, nativeID string) ScannerState {
+	return ScannerState{Version: ScannerStateVersion, Agent: AgentCodex, NativeID: nativeID, IdentityAnchor: nativeID, Role: RoleUnknown, ScannerSchema: "codex-v1", Chronology: fallbackTime(entry)}
+}
+
+func applyCodexRecord(state *ScannerState, entry FileEntry, line []byte, diagnostics *[]Diagnostic) {
+	artifact := entry.Artifact
+	artifact.Kind = ArtifactTranscript
+	invalidFirst := func(detail string) {
+		state.Disputed = true
+		*diagnostics = append(*diagnostics, artifactDiagnostic(DiagnosticSchemaNearMiss, AgentCodex, &state.NativeID, artifact, detail))
+	}
+	if len(line) == 0 {
+		if !state.FirstRecordValidated {
+			invalidFirst("missing or invalid first Codex session_meta")
+		}
+		return
+	}
+	var record codexRecord
+	if err := decodeStrictJSON(line, &record); err != nil {
+		invalidFirst("malformed Codex JSONL record")
+		return
+	}
+	if !state.FirstRecordValidated && record.Type != "session_meta" {
+		invalidFirst("missing or invalid first Codex session_meta")
+		return
+	}
+	if record.Type != "session_meta" {
+		return
+	}
+	var metadata codexSessionMeta
+	if decodeStrictJSON(record.Payload, &metadata) != nil || !uuidPattern.MatchString(metadata.ID) {
+		invalidFirst("missing or invalid first Codex session_meta")
+		return
+	}
+	role, parentID, ok := codexRole(metadata.ParentThreadID, metadata.Source)
+	if !ok {
+		invalidFirst("Codex source/parent shape is not allowlisted")
+		return
+	}
+	if metadata.ID != state.NativeID {
+		state.Role = RoleUnknown
+		state.ParentID = nil
+		state.FirstRecordValidated = true
+		state.Disputed = true
+		if parsed := metadataTime(record.Timestamp); parsed != nil {
+			state.Chronology = parsed
+		}
+		*diagnostics = append(*diagnostics, artifactDiagnostic(DiagnosticParentConflict, AgentCodex, &state.NativeID, artifact, "Codex metadata ID disagrees with path ID"))
+		return
+	}
+	if state.FirstRecordValidated && (state.Role != role || !equalString(state.ParentID, parentID)) {
+		state.Disputed = true
+		*diagnostics = append(*diagnostics, artifactDiagnostic(DiagnosticParentConflict, AgentCodex, &state.NativeID, artifact, "Codex metadata role disagrees with authorized state"))
+		return
+	}
+	wasValidated, wasDisputed := state.FirstRecordValidated, state.Disputed
+	state.Role = role
+	state.ParentID = cloneString(parentID)
+	state.IdentityAnchor = state.NativeID
+	state.FirstRecordValidated = true
+	if !wasValidated && !wasDisputed {
+		state.Disputed = false
+	}
+	if parsed := metadataTime(record.Timestamp); parsed != nil {
+		state.Chronology = parsed
+	}
 }
 
 func codexPathID(relativePath string) (string, bool) {

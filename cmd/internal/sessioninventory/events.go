@@ -47,21 +47,40 @@ func visitNativeEventsForRoot(runtime Runtime, root Node, visit func(NativeEvent
 	}
 	var diagnostics []Diagnostic
 	err = visitJSONLinesAt(runtime, artifact, jsonRecordLimit, func(line []byte, lineStart uint64) bool {
-		events, disposition := NormalizeNativeEvent(root.Agent, line)
-		if disposition == EventNearMiss {
-			source := fmt.Sprintf("%s:%d", root.StableID, lineStart)
-			diagnostics = append(diagnostics, diagnosticWithSource(DiagnosticTurnUnusable, root.Agent, nil, source, "native record is not usable causal evidence"))
-			return false
-		}
-		for index, event := range events {
-			visit(NativeEventFact{
-				Agent: root.Agent, RootNodeID: root.StableID,
-				Position: ((lineStart + 1) << 8) | uint64(index), Event: event,
-			})
+		events, found := NativeEventsFromRecords(root.Agent, root.StableID, []FramedJSONLRecord{{Offset: int64(lineStart), Bytes: line}})
+		diagnostics = append(diagnostics, found...)
+		for _, event := range events {
+			visit(event)
 		}
 		return false
 	})
 	return diagnostics, err
+}
+
+// NativeEventsFromRecords projects causal evidence from already-framed suffix
+// records while retaining their absolute byte positions.
+func NativeEventsFromRecords(agent Agent, rootNodeID string, records []FramedJSONLRecord) ([]NativeEventFact, []Diagnostic) {
+	var facts []NativeEventFact
+	var diagnostics []Diagnostic
+	for _, record := range records {
+		if record.Offset < 0 {
+			diagnostics = append(diagnostics, diagnosticWithSource(DiagnosticTurnUnusable, agent, nil, rootNodeID, "native record has an invalid byte position"))
+			continue
+		}
+		events, disposition := NormalizeNativeEvent(agent, record.Bytes)
+		if disposition == EventNearMiss {
+			source := fmt.Sprintf("%s:%d", rootNodeID, record.Offset)
+			diagnostics = append(diagnostics, diagnosticWithSource(DiagnosticTurnUnusable, agent, nil, source, "native record is not usable causal evidence"))
+			continue
+		}
+		for index, event := range events {
+			facts = append(facts, NativeEventFact{
+				Agent: agent, RootNodeID: rootNodeID,
+				Position: ((uint64(record.Offset) + 1) << 8) | uint64(index), Event: event,
+			})
+		}
+	}
+	return facts, diagnostics
 }
 
 // TextEventWindowForRoot streams one scanner-authorized root transcript and

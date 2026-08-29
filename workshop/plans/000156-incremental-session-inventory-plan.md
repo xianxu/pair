@@ -238,35 +238,35 @@
 - Modify: `cmd/internal/sessioninventory/events.go`
 - Modify: `cmd/internal/sessioninventory/events_test.go`
 
-- [ ] **Step 1: Write failing `FrameJSONLSuffix` fuzz/property tests using the risky-function strategy table.**
-- [ ] **Step 2: Run framing red.** Run `go test -p 20 ./cmd/internal/sessioninventory -run 'TestIncrementalJSONL' -count=1`; expect missing framer/state APIs.
-- [ ] **Step 3: Implement and verify pure framing.** Add one bounded JSONL suffix framer that retains incomplete tails; rerun Step 2 and expect PASS.
-- [ ] **Step 4: Write and run `ObserveStableArtifact` tests red using the risky-function strategy table.** Run `go test -p 20 ./cmd/internal/sessioninventory -run 'TestObserveStableArtifact' -count=1`; expect missing orchestration.
-- [ ] **Step 5: Implement and verify IO resampling.** Resample fingerprint/EOF after each scan; growth loops through the new suffix, replacement/truncation disputes, and proof publication waits for one stable resample. Repeat Step 4 and expect PASS.
-- [ ] **Step 6: Write `ValidateClaudeDelta` tests using the risky-function strategy table.**
-- [ ] **Step 7: Run Claude red.** Run `go test -p 20 ./cmd/internal/sessioninventory -run 'TestIncrementalClaude' -count=1`; expect FAIL on missing state transitions.
-- [ ] **Step 8: Implement Claude transitions.** Adapt existing Claude parsing into scanner state without a second schema parser.
-- [ ] **Step 9: Run Claude green.** Repeat Step 7; expect PASS.
-- [ ] **Step 10: Write `ValidateCodexDelta` tests using the risky-function strategy table.**
-- [ ] **Step 11: Run Codex red.** Run `go test -p 20 ./cmd/internal/sessioninventory -run 'TestIncrementalCodex' -count=1`; expect FAIL.
-- [ ] **Step 12: Implement Codex transitions.** Adapt the existing parser into scanner state.
-- [ ] **Step 13: Run Codex green.** Repeat Step 11; expect PASS.
-- [ ] **Step 14: Write `ValidateMuseDelta` tests using the risky-function strategy table.**
-- [ ] **Step 15: Run Muse red.** Run `go test -p 20 ./cmd/internal/sessioninventory -run 'TestIncrementalMuse' -count=1`; expect FAIL.
-- [ ] **Step 16: Implement Muse transitions.** Adapt the existing parser into scanner state.
-- [ ] **Step 17: Run Muse green.** Repeat Step 15; expect PASS.
-- [ ] **Step 18: Write `ValidateAgyDelta` tests using the risky-function strategy table.**
-- [ ] **Step 19: Run Agy red.** Run `go test -p 20 ./cmd/internal/sessioninventory -run 'TestIncrementalAgy' -count=1`; expect FAIL.
-- [ ] **Step 20: Implement Agy transitions.** Adapt the existing database validator and transcript join into scanner state.
-- [ ] **Step 21: Run Agy green.** Repeat Step 19; expect PASS.
-- [ ] **Step 22: Write portable `TestAppendOnlyProviderConformance` comparisons.** Compare normalized scanner-state observations from the stateful fake and sanitized versioned fixtures; mutation tests operate only on temporary copies.
-- [ ] **Step 23: Run portable conformance red.** Run `go test -p 20 ./cmd/internal/sessioninventory -run '^TestAppendOnlyProviderConformance$' -count=1`; expect FAIL.
-- [ ] **Step 24: Implement portable conformance fixtures/checks.** Add the versioned provider fixtures and deep-validation comparison.
-- [ ] **Step 25: Run portable conformance green.** Repeat Step 23; expect PASS.
-- [ ] **Step 26: Write `TestLiveProviderContractConformance`.** Read installed Claude/Codex/Muse/Agy stores only for redacted normalized observations; copy any selected Agy SQLite database/transcript into `t.TempDir()` before mutation-based fake comparison, never mutate installed authority.
-- [ ] **Step 27: Run the live comparison.** Run `PAIR_LIVE_NATIVE_SESSIONS=1 go test -p 20 ./cmd/internal/sessioninventory -run '^TestLiveProviderContractConformance$' -count=1 -v`; expect PASS or an explicit provider-contract drift report without paths, IDs, or content.
-- [ ] **Step 28: Run green and fuzz framing.** Run `gofmt -w cmd/internal/sessioninventory` then `go test -p 20 ./cmd/internal/sessioninventory -run 'TestIncremental|TestAppendOnly|Fuzz' -count=1`; expect PASS.
-- [ ] **Step 29: Commit.** Run `git add cmd/internal/sessioninventory && git commit -m 'session inventory: #156 validate only targeted native deltas'`.
+- [x] **Step 1: Write failing `FrameJSONLSuffix` fuzz/property tests using the risky-function strategy table.**
+- [x] **Step 2: Run framing red.** Run `go test -p 20 ./cmd/internal/sessioninventory -run 'TestIncrementalJSONL' -count=1`; expect missing framer/state APIs.
+- [x] **Step 3: Implement and verify pure framing.** Add one bounded JSONL suffix framer that retains incomplete tails; rerun Step 2 and expect PASS.
+- [x] **Step 4: Write and run `ObserveStableArtifact` tests red using the risky-function strategy table.** Run `go test -p 20 ./cmd/internal/sessioninventory -run 'TestObserveStableArtifact' -count=1`; expect missing orchestration.
+- [x] **Step 5: Implement and verify IO resampling.** Resample fingerprint/EOF after each scan; growth loops through the new suffix, replacement/truncation disputes, and proof publication waits for one stable resample. Repeat Step 4 and expect PASS.
+- [x] **Step 6: Write `ValidateClaudeDelta` tests using the risky-function strategy table.**
+- [x] **Step 7: Run Claude red.** Run `go test -p 20 ./cmd/internal/sessioninventory -run 'TestIncrementalClaude' -count=1`; expect FAIL on missing state transitions.
+- [x] **Step 8: Implement Claude transitions.** Adapt existing Claude parsing into scanner state without a second schema parser.
+- [x] **Step 9: Run Claude green.** Repeat Step 7; expect PASS.
+- [x] **Step 10: Write `ValidateCodexDelta` tests using the risky-function strategy table.**
+- [x] **Step 11: Run Codex red.** Run `go test -p 20 ./cmd/internal/sessioninventory -run 'TestIncrementalCodex' -count=1`; expect FAIL.
+- [x] **Step 12: Implement Codex transitions.** Adapt the existing parser into scanner state.
+- [x] **Step 13: Run Codex green.** Repeat Step 11; expect PASS.
+- [x] **Step 14: Write `ValidateMuseDelta` tests using the risky-function strategy table.**
+- [x] **Step 15: Run Muse red.** Run `go test -p 20 ./cmd/internal/sessioninventory -run 'TestIncrementalMuse' -count=1`; expect FAIL.
+- [x] **Step 16: Implement Muse transitions.** Adapt the existing parser into scanner state.
+- [x] **Step 17: Run Muse green.** Repeat Step 15; expect PASS.
+- [x] **Step 18: Write `ValidateAgyDelta` tests using the risky-function strategy table.**
+- [x] **Step 19: Run Agy red.** Run `go test -p 20 ./cmd/internal/sessioninventory -run 'TestIncrementalAgy' -count=1`; expect FAIL.
+- [x] **Step 20: Implement Agy transitions.** Adapt the existing database validator and transcript join into scanner state.
+- [x] **Step 21: Run Agy green.** Repeat Step 19; expect PASS.
+- [x] **Step 22: Write portable `TestAppendOnlyProviderConformance` comparisons.** Compare normalized scanner-state observations from the stateful fake and sanitized versioned fixtures; mutation tests operate only on temporary copies.
+- [x] **Step 23: Run portable conformance red.** Run `go test -p 20 ./cmd/internal/sessioninventory -run '^TestAppendOnlyProviderConformance$' -count=1`; expect FAIL.
+- [x] **Step 24: Implement portable conformance fixtures/checks.** Add the versioned provider fixtures and deep-validation comparison.
+- [x] **Step 25: Run portable conformance green.** Repeat Step 23; expect PASS.
+- [x] **Step 26: Write `TestLiveProviderContractConformance`.** Read installed Claude/Codex/Muse/Agy stores only for redacted normalized observations; copy any selected Agy SQLite database/transcript into `t.TempDir()` before mutation-based fake comparison, never mutate installed authority.
+- [x] **Step 27: Run the live comparison.** Run `PAIR_LIVE_NATIVE_SESSIONS=1 go test -p 20 ./cmd/internal/sessioninventory -run '^TestLiveProviderContractConformance$' -count=1 -v`; expect PASS or an explicit provider-contract drift report without paths, IDs, or content.
+- [x] **Step 28: Run green and fuzz framing.** Run `gofmt -w cmd/internal/sessioninventory` then `go test -p 20 ./cmd/internal/sessioninventory -run 'TestIncremental|TestAppendOnly|Fuzz' -count=1`; expect PASS.
+- [x] **Step 29: Commit.** Run `git add cmd/internal/sessioninventory && git commit -m 'session inventory: #156 validate only targeted native deltas'`.
 
 ### Task 6: Metadata-only launch and incremental watcher
 

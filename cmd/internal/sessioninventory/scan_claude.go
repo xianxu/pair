@@ -2,9 +2,21 @@ package sessioninventory
 
 import (
 	"encoding/json"
+	"errors"
 	"path"
 	"strings"
 )
+
+type claudeRecord struct {
+	Timestamp   string `json:"timestamp"`
+	SessionID   string `json:"sessionId"`
+	IsSidechain *bool  `json:"isSidechain"`
+	Type        string `json:"type"`
+	Message     struct {
+		Role    string          `json:"role"`
+		Content json.RawMessage `json:"content"`
+	} `json:"message"`
+}
 
 func ScanClaude(runtime Runtime) ScanResult {
 	var result ScanResult
@@ -28,7 +40,8 @@ func ScanClaude(runtime Runtime) ScanResult {
 func scanClaudeFile(runtime Runtime, entry FileEntry) (Fact, []Diagnostic, bool) {
 	artifact := entry.Artifact
 	artifact.Kind = ArtifactTranscript
-	nativeID, parentID, role, recognized := claudePathFact(artifact.RelativePath)
+	entry.Artifact = artifact
+	nativeID, _, _, recognized := claudePathFact(artifact.RelativePath)
 	if !recognized {
 		if strings.HasSuffix(artifact.RelativePath, ".jsonl") {
 			return Fact{}, []Diagnostic{artifactDiagnostic(DiagnosticSchemaNearMiss, AgentClaude, nil, artifact, "unrecognized Claude v1 path")}, false
@@ -36,63 +49,87 @@ func scanClaudeFile(runtime Runtime, entry FileEntry) (Fact, []Diagnostic, bool)
 		return Fact{}, nil, false
 	}
 
-	expectedSessionID := nativeID
-	if parentID != nil {
-		expectedSessionID = *parentID
+	state, diagnostics, err := ValidateClaudeDelta(entry, nil, nil)
+	if err != nil {
+		return Fact{}, []Diagnostic{artifactDiagnostic(DiagnosticSchemaNearMiss, AgentClaude, &nativeID, artifact, err.Error())}, false
 	}
-	chronology := fallbackTime(entry)
-	contradiction := false
-	var diagnostics []Diagnostic
-	err := visitJSONLines(runtime, artifact, jsonRecordLimit, func(line []byte) bool {
-		if len(line) == 0 {
-			return false
-		}
-		var record struct {
-			Timestamp   string `json:"timestamp"`
-			SessionID   string `json:"sessionId"`
-			IsSidechain *bool  `json:"isSidechain"`
-			Type        string `json:"type"`
-			Message     struct {
-				Role    string          `json:"role"`
-				Content json.RawMessage `json:"content"`
-			} `json:"message"`
-		}
-		if err := decodeStrictJSON(line, &record); err != nil {
-			diagnostics = append(diagnostics, artifactDiagnostic(DiagnosticSchemaNearMiss, AgentClaude, &nativeID, artifact, "malformed Claude JSONL record"))
-			return false
-		}
-		if record.SessionID != "" && record.SessionID != expectedSessionID {
-			contradiction = true
-			return true
-		}
-		if record.IsSidechain != nil && ((*record.IsSidechain && role == RoleRoot) || (!*record.IsSidechain && role == RoleSubagent)) {
-			contradiction = true
-			return true
-		}
-		if chronology == nil || chronology.Source != TimeSourceMetadata {
-			if parsed := metadataTime(record.Timestamp); parsed != nil {
-				chronology = parsed
-			}
-		}
+	err = visitJSONLines(runtime, artifact, jsonRecordLimit, func(line []byte) bool {
+		applyClaudeRecord(&state, entry, line, &diagnostics)
 		return false
 	})
 	if err != nil {
 		diagnostics = append(diagnostics, artifactDiagnostic(DiagnosticSchemaNearMiss, AgentClaude, &nativeID, artifact, err.Error()))
+		state.Disputed = true
 	}
+	return scannerStateFact(state, []Artifact{artifact}), diagnostics, true
+}
+
+// ValidateClaudeDelta applies complete records to a cloned scanner state. It
+// uses the same record transition as the full scanner.
+func ValidateClaudeDelta(entry FileEntry, prior *ScannerState, records []FramedJSONLRecord) (ScannerState, []Diagnostic, error) {
+	artifact := entry.Artifact
+	artifact.Kind = ArtifactTranscript
+	entry.Artifact = artifact
+	nativeID, parentID, role, recognized := claudePathFact(artifact.RelativePath)
+	if !recognized {
+		return ScannerState{}, nil, errors.New("unrecognized Claude v1 path")
+	}
+	anchor := nativeID
+	if parentID != nil {
+		anchor = *parentID
+	}
+	state := ScannerState{Version: ScannerStateVersion, Agent: AgentClaude, NativeID: nativeID, IdentityAnchor: anchor, Role: role, ParentID: cloneString(parentID), ScannerSchema: "claude-v1", Chronology: fallbackTime(entry)}
+	if prior != nil {
+		if err := ValidateScannerState(*prior); err != nil {
+			return ScannerState{}, nil, err
+		}
+		state = cloneScannerState(*prior)
+		if state.Agent != AgentClaude || state.NativeID != nativeID || state.IdentityAnchor != anchor || state.Role != role || !equalString(state.ParentID, parentID) || state.ScannerSchema != "claude-v1" {
+			return ScannerState{}, nil, errors.New("Claude scanner state does not match artifact")
+		}
+	}
+	var diagnostics []Diagnostic
+	for _, record := range records {
+		applyClaudeRecord(&state, entry, record.Bytes, &diagnostics)
+	}
+	if err := ValidateScannerState(state); err != nil {
+		return ScannerState{}, diagnostics, err
+	}
+	return state, diagnostics, nil
+}
+
+func applyClaudeRecord(state *ScannerState, entry FileEntry, line []byte, diagnostics *[]Diagnostic) {
+	if len(line) == 0 {
+		return
+	}
+	artifact := entry.Artifact
+	artifact.Kind = ArtifactTranscript
+	var record claudeRecord
+	if err := decodeStrictJSON(line, &record); err != nil {
+		state.Disputed = true
+		*diagnostics = append(*diagnostics, artifactDiagnostic(DiagnosticSchemaNearMiss, AgentClaude, &state.NativeID, artifact, "malformed Claude JSONL record"))
+		return
+	}
+	contradiction := record.SessionID != "" && record.SessionID != state.IdentityAnchor
+	contradiction = contradiction || record.IsSidechain != nil && ((*record.IsSidechain && state.Role == RoleRoot) || (!*record.IsSidechain && state.Role == RoleSubagent))
 	if contradiction {
-		diagnostics = append(diagnostics, artifactDiagnostic(DiagnosticNodeMalformed, AgentClaude, &nativeID, artifact, "Claude metadata contradicts path identity"))
+		state.Disputed = true
+		*diagnostics = append(*diagnostics, artifactDiagnostic(DiagnosticNodeMalformed, AgentClaude, &state.NativeID, artifact, "Claude metadata contradicts path identity"))
+		return
 	}
-	return Fact{
-		Agent:          AgentClaude,
-		NativeID:       nativeID,
-		Role:           role,
-		ParentID:       parentID,
-		Time:           chronology,
-		Resumable:      role == RoleRoot && !contradiction,
-		Disputed:       contradiction,
-		Artifacts:      []Artifact{artifact},
-		EdgeProvenance: edgeProvenance(role, "claude-v1", artifact),
-	}, diagnostics, true
+	state.FirstRecordValidated = true
+	if state.Chronology == nil || state.Chronology.Source != TimeSourceMetadata {
+		if parsed := metadataTime(record.Timestamp); parsed != nil {
+			state.Chronology = parsed
+		}
+	}
+}
+
+func equalString(left, right *string) bool {
+	if left == nil || right == nil {
+		return left == right
+	}
+	return *left == *right
 }
 
 func claudePathFact(relativePath string) (string, *string, Role, bool) {

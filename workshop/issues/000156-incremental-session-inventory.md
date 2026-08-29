@@ -402,6 +402,11 @@ provider contracts.
   state and complete artifact continuity proofs. Proof bindings publish only
   under the current-launch lock and retain the ledger's byte-level authority
   outcomes.
+- Added bounded suffix framing, stable-EOF resampling, and scanner-owned delta
+  transitions for Claude, Codex, Muse, and Agy. Portable fixtures prove split
+  append validation equals full validation; live redacted conformance passed
+  all four installed providers in 0.14s. Agy snapshots use SQLite `VACUUM INTO`
+  plus a copied transcript, preserving installed authority (`ARCH-MOCK`).
 
 ## Revisions
 

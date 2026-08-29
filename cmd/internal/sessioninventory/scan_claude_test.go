@@ -85,3 +85,31 @@ func TestScanClaudePreservesRegularFilesBesideRejectedSymlink(t *testing.T) {
 		t.Fatalf("diagnostics = %#v, want rejected non-regular-node diagnostic", got.Diagnostics)
 	}
 }
+
+func TestIncrementalClaudeRetainsStateAndDisputesLaterContradiction(t *testing.T) {
+	t.Parallel()
+	entry := sessioninventory.FileEntry{Artifact: sessioninventory.Artifact{StorageRoot: "claude-projects", RelativePath: "-repo/11111111-1111-4111-8111-111111111111.jsonl"}}
+	first := []sessioninventory.FramedJSONLRecord{{Offset: 0, Bytes: []byte(`{"type":"user","timestamp":"2026-08-28T09:01:00Z","sessionId":"11111111-1111-4111-8111-111111111111","isSidechain":false}`)}}
+	state, diagnostics, err := sessioninventory.ValidateClaudeDelta(entry, nil, first)
+	if err != nil || len(diagnostics) != 0 || state.Disputed || state.Role != sessioninventory.RoleRoot || !state.FirstRecordValidated {
+		t.Fatalf("state=%#v diagnostics=%#v err=%v", state, diagnostics, err)
+	}
+	prior := state
+	contradiction := []sessioninventory.FramedJSONLRecord{{Offset: 128, Bytes: []byte(`{"type":"assistant","sessionId":"22222222-2222-4222-8222-222222222222"}`)}}
+	state, diagnostics, err = sessioninventory.ValidateClaudeDelta(entry, &prior, contradiction)
+	if err != nil || !state.Disputed || !diagnosticPresent(diagnostics, sessioninventory.DiagnosticNodeMalformed) {
+		t.Fatalf("state=%#v diagnostics=%#v err=%v", state, diagnostics, err)
+	}
+	if prior.Disputed || prior.Chronology == nil || state.Chronology == nil || !state.Chronology.Value.Equal(prior.Chronology.Value) {
+		t.Fatalf("prior mutated or chronology lost: prior=%#v state=%#v", prior, state)
+	}
+}
+
+func TestIncrementalClaudeMalformedSuffixFailsClosed(t *testing.T) {
+	t.Parallel()
+	entry := sessioninventory.FileEntry{Artifact: sessioninventory.Artifact{StorageRoot: "claude-projects", RelativePath: "-repo/11111111-1111-4111-8111-111111111111.jsonl"}}
+	state, diagnostics, err := sessioninventory.ValidateClaudeDelta(entry, nil, []sessioninventory.FramedJSONLRecord{{Bytes: []byte(`{"sessionId":`)}})
+	if err != nil || !state.Disputed || !diagnosticPresent(diagnostics, sessioninventory.DiagnosticSchemaNearMiss) {
+		t.Fatalf("state=%#v diagnostics=%#v err=%v", state, diagnostics, err)
+	}
+}
