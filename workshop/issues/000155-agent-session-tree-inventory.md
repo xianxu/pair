@@ -763,11 +763,20 @@ be checked against measured actuals at close.*
       normalization, durable launch/log boundaries, serialized ledger writes,
       live/offline exact-round matching, watcher persistence, ambiguity
       retention, parent-only descendant propagation, and public CLI.
-- [ ] Migrate every Go, shell, launcher, and Neovim consumer to the shared
+- [x] Migrate every Go, shell, launcher, and Neovim consumer to the shared
       inventory, enforce the repository shadow sweep, update atlas/project
       state, and run full verification before issue close.
 
 ## Log
+
+- 2026-08-28 — Repository verification is fully green after the requested
+  deferred Couch fix: `go test ./... -count=1`, `go vet ./...`, all Lua and
+  named shell suites, zellij config validation, and diff/status checks pass.
+  The apparent readiness timeout was deterministic environment coupling, not a
+  slow handoff: Couch children inherit their supervisor's zellij ancestry and
+  were rejected before claim validation. Ordinary nested launches remain
+  rejected; Couch launches may now proceed only to the exact reserved-marker
+  authorization gate, with focused repeated integration coverage.
 
 - 2026-08-28 — Final consumer migration removes the `codexsid` and
   `transcript` path authorities. Context/token, title/activity, slug, review,

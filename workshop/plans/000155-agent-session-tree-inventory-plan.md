@@ -523,7 +523,7 @@ and mechanical guard; executable fixtures/fuzz seeds own individual cases.
 - [x] Verify ambiguous/unbound results remain explicit and are never silently converted to newest/first.
 - [x] Run:
   - `go test ./cmd/internal/transcript ./cmd/internal/contextcmd ./cmd/internal/ctxmeter ./cmd/internal/titlepoller ./cmd/internal/slugcmd ./cmd/internal/reviewcmd -count=1`
-- [ ] Commit: `git add -A cmd/internal && git commit -m '#155: migrate transcript and review consumers'`.
+- [x] Commit: `git add -A cmd/internal && git commit -m '#155: migrate transcript and review consumers'`.
 
 ### Task 9: Migrate remaining launcher, opener, and Neovim consumers
 
@@ -566,7 +566,7 @@ and mechanical guard; executable fixtures/fuzz seeds own individual cases.
   - `bash tests/review-toggle-test.sh`
   - `bash tests/changelog-session-key-test.sh`
   - `bash tests/term-pane-shortcuts-test.sh`
-- [ ] Commit: `git add cmd/internal nvim tests && git commit -m '#155: migrate lifecycle and editor consumers'`.
+- [x] Commit: `git add cmd/internal nvim tests && git commit -m '#155: migrate lifecycle and editor consumers'`.
 
 ### Task 10: Enforce the shadow sweep and close
 
@@ -596,18 +596,18 @@ and mechanical guard; executable fixtures/fuzz seeds own individual cases.
   - `bash tests/pair-session-watch-test.sh`
   - `bash tests/review-toggle-test.sh`
   - `bash tests/changelog-session-key-test.sh`
-- [ ] Run repository verification:
+- [x] Run repository verification:
   - `go test ./... -count=1`
   - `make test-lua`
   - `bash tests/term-pane-shortcuts-test.sh`
   - `zellij --config-dir zellij setup --check`
   - `git diff --check`
 - [x] If representative native samples exist, run `PAIR_LIVE_NATIVE_SESSIONS=1 go test ./cmd/internal/sessioninventory -run TestLiveNativeSessionShapeConformance -count=1 -v` and record only the redacted result.
-- [ ] Tick only the plain final migration checkbox; sweep the six named atlas
+- [x] Tick only the plain final migration checkbox; sweep the six named atlas
       files and record any legitimate conformance skip. Do not write issue
       status/actual/close-log or Couch actual/closed state by hand.
-- [ ] Commit final implementation/artifacts with a `#155` subject and required `Co-Authored-By` trailer.
-- [ ] Preview measured time with `sdlc actual --issue 155`.
+- [x] Commit final implementation/artifacts with a `#155` subject and required `Co-Authored-By` trailer.
+- [x] Preview measured time with `sdlc actual --issue 155`.
 - [ ] Close with `sdlc close --issue 155 --verified '<focused, full-suite, shell/Lua, zellij, diff, conformance evidence>'`; the binary owns issue status/actual/log and Couch actual/closed mutations.
 - [ ] Resolve every Critical/Important finding via the printed post-verdict
       protocol, commit fixes plus binary-written artifacts and exact review
