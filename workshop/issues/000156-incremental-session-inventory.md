@@ -369,7 +369,7 @@ provider contracts.
   post-launch bytes only.
 - [x] Move `Alt+X` confirmation ahead of optional enrichment and migrate every
   latency-sensitive native-session consumer to targeted queries.
-- [ ] Merge typed authority with compatibility display metadata and pin the
+- [x] Merge typed authority with compatibility display metadata and pin the
   `pair/1 claude` picker row.
 - [ ] Add operation-count, one-second corpus, shadow-sweep, full-suite, and
   real-data verification; update atlas documentation.
@@ -425,6 +425,10 @@ provider contracts.
   activity lookup and age/idle enrichment were removed from quit/restart
   modals; headless Lua and terminal-shortcut tests pin prompt data and Yes/No
   ordering (`ARCH-PURE`).
+- Typed ledger authority now overlays only same-agent compatibility
+  presentation fields (repo, args, and timestamps). Native session ID,
+  typed/unbound status, and source ordinal remain typed-only; the observed
+  picker regression renders `pair/1  claude` instead of `?/1`.
 
 ## Revisions
 

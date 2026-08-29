@@ -355,12 +355,12 @@
 - Modify: `cmd/internal/launcher/history_test.go`
 - Modify: `cmd/internal/launcher/pick_test.go`
 
-- [ ] **Step 1: Write the observed picker regression first.** Given a compatibility row for tag `1` with repo `pair`, followed by typed launch/binding authority, assert one row displays `pair/1 claude`, keeps args/timestamps/root for presentation, and uses only the typed binding's native session ID.
-- [ ] **Step 2: Add precedence negatives.** Newer compatibility metadata may enrich display but may not replace typed root authority; metadata from another owner/agent/tag cannot leak; a typed unbound launch remains unbound even if compatibility has a session ID.
-- [ ] **Step 3: Run red.** Run `go test -p 20 ./cmd/internal/launcher -run 'Test.*Typed.*Metadata|Test.*PairSlashOne' -count=1`; expect `RepoName == ""` / `?/1`.
-- [ ] **Step 4: Implement `MergeAuthorityMetadata`.** Group compatibility rows by the same history owner/tag context and choose presentation fields by compatibility chronology. Compatibility may supply only `RepoName`, `RepoRoot`, `Started`, `LastActive`, and saved `Args`; it never supplies native `SessionID`, root-node identity, proof, authorization status, or typed source ordinal.
-- [ ] **Step 5: Run green.** Run `gofmt -w cmd/internal/launcher` and `go test -p 20 ./cmd/internal/launcher -run 'Test.*Ledger|Test.*History|Test.*Pick' -count=1`; expect PASS.
-- [ ] **Step 6: Commit.** Run `git add cmd/internal/launcher && git commit -m 'launcher: #156 preserve typed picker display metadata'`.
+- [x] **Step 1: Write the observed picker regression first.** Given a compatibility row for tag `1` with repo `pair`, followed by typed launch/binding authority, assert one row displays `pair/1 claude`, keeps args/timestamps/root for presentation, and uses only the typed binding's native session ID.
+- [x] **Step 2: Add precedence negatives.** Newer compatibility metadata may enrich display but may not replace typed root authority; metadata from another owner/agent/tag cannot leak; a typed unbound launch remains unbound even if compatibility has a session ID.
+- [x] **Step 3: Run red.** Run `go test -p 20 ./cmd/internal/launcher -run 'Test.*Typed.*Metadata|Test.*PairSlashOne' -count=1`; expect `RepoName == ""` / `?/1`.
+- [x] **Step 4: Implement `MergeAuthorityMetadata`.** Group compatibility rows by the same history owner/tag context and choose presentation fields by compatibility chronology. Compatibility may supply only `RepoName`, `RepoRoot`, `Started`, `LastActive`, and saved `Args`; it never supplies native `SessionID`, root-node identity, proof, authorization status, or typed source ordinal.
+- [x] **Step 5: Run green.** Run `gofmt -w cmd/internal/launcher` and `go test -p 20 ./cmd/internal/launcher -run 'Test.*Ledger|Test.*History|Test.*Pick' -count=1`; expect PASS.
+- [x] **Step 6: Commit.** Run `git add cmd/internal/launcher && git commit -m 'launcher: #156 preserve typed picker display metadata'`.
 
 ### Task 10: Performance, conformance, documentation, and full verification
 
