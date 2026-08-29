@@ -989,6 +989,14 @@ be checked against measured actuals at close.*
   test processes remain. The wrapper restart test now isolates native HOME data
   and injects watcher startup instead of spawning the test binary recursively.
 
+- 2026-08-28 — close review round 13 confirmed the immutable #149 boundary and
+  supported-agent validation, then demonstrated duplicate-key overwrite in
+  both typed and exact-legacy ledger rows. Red tests covered duplicate top-level
+  agent keys and nested watermark keys through the ledger, launcher, and
+  inventory. Both wire decoders now derive from `strictjson.Decode`, making the
+  complete typed/legacy/malformed rule structural at every nesting depth
+  (`ARCH-DRY`, `ARCH-PURPOSE`).
+
 ### 2026-08-28
 - 2026-08-28: closed M2 — Focused and full session inventory Go suites pass; go vet passes; historical #149 source/declaration contracts pass; make test-lua passes; statusline, queue-send, and pair-session-watch shell integrations pass; git diff --check passes. Full evidence classification diagnoses unsupported/malformed recognized evidence while filtering only supported unrequested agents.; review verdict: SHIP
 - 2026-08-28: closed M1 — all four sanitized scanners and explicit edge provenance pass; exhaustive M1 concept table/declaration contract, diagnostic registry, equal-time ordering, regular/partial storage, optional usage, artifact/source/project contracts, vet, diff check, and redacted installed-shape conformance pass; pre-existing Couch launch timeout remains separately deferred by operator; review verdict: SHIP

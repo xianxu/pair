@@ -848,3 +848,16 @@ range, so later issue files cannot enter the historical contract after commit;
 and apply one supported-agent predicate to both typed and legacy ledger rows.
 Launcher regressions cover unsupported typed launch and binding rows
 (`ARCH-DRY`, `ARCH-PURPOSE`).
+
+### 2026-08-28 — close review: make every ledger object structurally strict
+
+**Reason:** the next close review demonstrated that Go's standard decoder
+accepts duplicate object keys, allowing later values to overwrite earlier ones
+in both exact-legacy and typed ledger rows, including nested watermarks.
+
+**Delta:** route both ledger wire decoders through the existing
+`strictjson.Decode` authority. Typed and legacy rows now require each permitted
+key exactly once, reject unknown keys and trailing values, validate complete
+required fields/types/supported enums, and reject duplicate keys at every
+nesting depth. Ledger, launcher, and inventory matrices exercise top-level and
+nested duplicates (`ARCH-DRY`, `ARCH-PURPOSE`).

@@ -6,9 +6,10 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
-	"io"
 	"slices"
 	"time"
+
+	"github.com/xianxu/pair/cmd/internal/strictjson"
 )
 
 type RecordKind string
@@ -137,14 +138,8 @@ func ParseLedger(raw []byte) ParseResult {
 }
 
 func isCompatibilityRecord(raw []byte) bool {
-	decoder := json.NewDecoder(bytes.NewReader(raw))
-	decoder.DisallowUnknownFields()
 	var wire compatibilityWireRecord
-	if err := decoder.Decode(&wire); err != nil {
-		return false
-	}
-	var trailing any
-	if err := decoder.Decode(&trailing); !errors.Is(err, io.EOF) {
+	if err := strictjson.Decode(raw, &wire); err != nil {
 		return false
 	}
 	var args []string
@@ -161,17 +156,8 @@ func isCompatibilityRecord(raw []byte) bool {
 }
 
 func decodeRecord(raw []byte) (Record, error) {
-	decoder := json.NewDecoder(bytes.NewReader(raw))
-	decoder.DisallowUnknownFields()
 	var wire wireRecord
-	if err := decoder.Decode(&wire); err != nil {
-		return Record{}, err
-	}
-	var trailing any
-	if err := decoder.Decode(&trailing); !errors.Is(err, io.EOF) {
-		if err == nil {
-			return Record{}, errors.New("multiple JSON values")
-		}
+	if err := strictjson.Decode(raw, &wire); err != nil {
 		return Record{}, err
 	}
 	record := Record{Version: wire.Version, Kind: wire.Kind, ScopeKey: wire.ScopeKey, Tag: wire.Tag, Agent: wire.Agent, RootNativeID: wire.RootNativeID}

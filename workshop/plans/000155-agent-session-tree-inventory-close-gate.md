@@ -370,6 +370,19 @@ rounds:
           note: Legacy shapes are strict, but an unsupported typed ledger row still becomes a launcher LedgerEntry and can influence history or agent inference.
           round: 12
       blocked: true
+    - "n": 13
+      timestamp: "2026-08-28T21:03:26-07:00"
+      agent: codex
+      dispose:
+        - id: BR-1
+          disposition: addressed
+          note: Artifact-path and immutable issue-149 source-set contracts pass; the prior moving-HEAD implementation fails in a scratch reproduction.
+          round: 13
+        - id: BR-23
+          disposition: not-addressed
+          note: Partial, unknown-field, and unsupported-agent cases are fixed, but duplicate-key typed and compatibility rows are still accepted rather than classified malformed.
+          round: 13
+      blocked: false
 ---
 
 # Gate ledger — pair#155 (boundary-review)
@@ -534,7 +547,13 @@ later rounds disposed of them. Generated — edit the gate, not this file.
 - BR-22 — addressed — Slug now consumes TextEventWindowForRoot, the duplicate four-agent adapters are deleted, and the shadow-sweep regression fails if a native parser is reintroduced.
 - BR-23 — not-addressed — Legacy shapes are strict, but an unsupported typed ledger row still becomes a launcher LedgerEntry and can influence history or agent inference.
 
+## Round 13 — 2026-08-28T21:03:26-07:00 (codex) — passed
+
+### Disposed
+
+- BR-1 — addressed — Artifact-path and immutable issue-149 source-set contracts pass; the prior moving-HEAD implementation fails in a scratch reproduction.
+- BR-23 — not-addressed — Partial, unknown-field, and unsupported-agent cases are fixed, but duplicate-key typed and compatibility rows are still accepted rather than classified malformed.
+
 ## Open findings
 
-- **BR-1** [Critical] `repository-contracts-stay-green` New inventory sources leave deterministic repository contract tests failing
 - **BR-23** [Important] `mixed-ledger-formats-are-classified` Compatibility classification admits malformed and unsupported rows

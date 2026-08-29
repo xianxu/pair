@@ -2448,7 +2448,9 @@ store-owning package. Every reader derives from that classifier, and a mixed
 typed/legacy/corrupt fixture pins all three dispositions. Compatibility means
 the complete strict historical shape with every required field, allowed
 optional fields only, valid field types, and a supported owner—not merely a
-recognizable discriminator (`ARCH-DRY`, `ARCH-PURPOSE`).
+recognizable discriminator. Every object at every nesting depth must also have
+unique keys; derive from the shared strict JSON decoder instead of assuming
+Go's standard decoder rejects duplicates (`ARCH-DRY`, `ARCH-PURPOSE`).
 
 ## Shared identity does not imply shared native parsing
 

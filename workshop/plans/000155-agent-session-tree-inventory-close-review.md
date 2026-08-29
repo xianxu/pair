@@ -303,3 +303,82 @@ dispose:
     note: |
       Legacy shapes are strict, but an unsupported typed ledger row still becomes a launcher LedgerEntry and can influence history or agent inference.
 ```
+
+---
+
+## Re-review — 2026-08-28T21:03:26-07:00 (REWORK)
+
+| field | value |
+|-------|-------|
+| issue | 155 — deterministic agent session-tree inventory |
+| repo | pair |
+| issue file | workshop/issues/000155-agent-session-tree-inventory.md |
+| boundary | whole-issue close |
+| milestone | — |
+| window | 4c454436038e2ae049690bc343def9f0511fca8c..7d9f6ccb32b9854d62636374e332c8f08abc9ce4 |
+| command | sdlc close --issue 155 |
+| reviewer | codex |
+| timestamp | 2026-08-28T21:03:26-07:00 |
+| verdict | REWORK |
+
+## Review
+
+```verdict
+verdict: REWORK
+confidence: high
+```
+
+The inventory architecture, migration, documentation, and most verification are strong, and BR-1 is demonstrably fixed. BR-23 remains open: both typed and compatibility ledger decoders accept duplicate JSON keys, contradicting the claimed exhaustive exact-legacy/typed/malformed classification. Because this is the third occurrence in `mixed-ledger-formats-are-classified`, fix the decoding rule across the class before closing.
+
+## 1. Strengths
+
+- The pure inventory core is isolated behind the injected [`Runtime`](/Users/xianxu/workspace/pair/cmd/internal/sessioninventory/runtime.go:44), with a reusable stateful [`FakeRuntime`](/Users/xianxu/workspace/pair/cmd/internal/sessioninventorytest/fake_runtime.go:39).
+- BR-1’s artifact-path and immutable issue-149 source-set contracts pass. Running the former moving-`HEAD` implementation in a scratch copy reproduced the expected failure.
+- Unsupported typed agents are now rejected centrally at [`validateRecord`](/Users/xianxu/workspace/pair/cmd/internal/sessionledger/record.go:200). Removing that validation made both ledger and launcher regressions fail.
+- README and atlas cover the public command, schema, lifecycle, migration, and consumer authority. The shadow sweep passes.
+
+## 2. Critical findings
+
+None.
+
+## 3. Important findings
+
+- **BR-23 — duplicate keys escape the exhaustive ledger classifier**
+  [`record.go:139`](/Users/xianxu/workspace/pair/cmd/internal/sessionledger/record.go:139) and [`record.go:163`](/Users/xianxu/workspace/pair/cmd/internal/sessionledger/record.go:163) use `json.Decoder` directly. Go accepts duplicate object keys, so rows such as duplicate `agent` fields are admitted as valid compatibility or typed records instead of malformed. A clean scratch regression confirmed both cases.
+
+  **This is the 3rd finding in family `mixed-ledger-formats-are-classified`.** Do not patch only those examples. State and enforce the complete rule: every typed or compatibility row has exactly one occurrence of every permitted key, no unknown keys or trailing values, complete required fields, correct types, and supported enums—including nested objects. Reuse [`strictjson.Decode`](/Users/xianxu/workspace/pair/cmd/internal/strictjson/decode.go:15), then add duplicate-key cases to the ledger, launcher, and inventory matrices. This flags `ARCH-DRY` and `ARCH-PURPOSE`.
+
+## 4. Minor findings
+
+None.
+
+## 5. Test coverage notes
+
+- Passed focused artifact-path, issue-149 contract, ledger, launcher, and inventory tests.
+- Passed race tests for inventory, fake runtime, ledger, Pair log, watcher, and launcher.
+- Passed Lua, watcher, review, changelog, terminal-shortcut, Zellij configuration, and `git diff --check` verification.
+- Scratch red checks proved BR-1 and the unsupported-agent portion of BR-23.
+- `go test ./... -count=1` reached one environment failure: `cmd/pair-go` cleanup invokes `/bin/ps`, which the review sandbox rejects with `operation not permitted`. Other reported packages passed.
+
+## 6. Architectural notes for upcoming work
+
+- `ARCH-DRY`: **Flag** — ledger decoding duplicates the existing strict JSON authority.
+- `ARCH-PURE`: **Pass** — matching/model logic is pure; filesystem, SQLite, and process access remain behind `Runtime`.
+- `ARCH-PURPOSE`: **Flag** — the promised exhaustive malformed-row class remains incomplete.
+- `ARCH-MOCK`: **Pass** — production inventory flow and stateful test flow share the runtime boundary, with live conformance isolated separately.
+
+## 7. Plan revision recommendations
+
+Append a revision recording that duplicate keys—at the top level and inside typed nested structures—are malformed for both formats; both decoders now derive strictness from `strictjson.Decode`; and ledger, launcher, and inventory tests cover the same complete matrix.
+
+```findings
+dispose:
+  - id: BR-1
+    disposition: addressed
+    note: |
+      Artifact-path and immutable issue-149 source-set contracts pass; the prior moving-HEAD implementation fails in a scratch reproduction.
+  - id: BR-23
+    disposition: not-addressed
+    note: |
+      Partial, unknown-field, and unsupported-agent cases are fixed, but duplicate-key typed and compatibility rows are still accepted rather than classified malformed.
+```
