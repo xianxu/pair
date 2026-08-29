@@ -230,7 +230,10 @@ helper without starting any workspace writer.
 
 After acknowledgement, Pair changes the same composite address claim from
 `reserved` to `established`; that is the registration oracle, not PID liveness
-or a successful pipe write. Only then does Couch clear the transaction and mark
+or a successful pipe write. A Couch child may inherit the supervisor's zellij
+ancestry; Pair lets that launch reach the claim check instead of applying the
+ordinary nested-session rejection, but the exact reserved marker remains the
+authorization gate. Only then does Couch clear the transaction and mark
 the incarnation live. Any post-ack error before `Spawn` successfully transfers
 the handle—including an acknowledgement error after the byte may already have
 been delivered, registration read failure, promotion conflict, or legacy-

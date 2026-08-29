@@ -9,6 +9,7 @@ import (
 	"os"
 	"path/filepath"
 	"reflect"
+	"runtime"
 	"slices"
 	"strconv"
 	"strings"
@@ -424,7 +425,27 @@ exit 0
 	if len(preAck.Incarnations) != 1 || preAck.Incarnations[0].State != IncarnationCreating || preAck.Incarnations[0].PID != 1000 || preAck.Incarnations[0].Identity != "fake-identity-couch-fake-1" {
 		t.Fatalf("pre-ack durable helper = %+v", preAck.Incarnations)
 	}
-	waitForFileForTest(t, waitCtx, ready)
+	for {
+		if _, err := os.Stat(ready); err == nil {
+			break
+		}
+		select {
+		case <-spawnDone:
+			result := <-spawned
+			var report pairMutationReport
+			select {
+			case report = <-pairReport:
+			default:
+			}
+			t.Fatalf("spawn exited before zellij readiness: err=%v handle=%v pair=%+v", result.err, result.handle, report)
+		case <-waitCtx.Done():
+			zellijCalls, _ := os.ReadFile(zellijLog)
+			stack := make([]byte, 1<<20)
+			stack = stack[:runtime.Stack(stack, true)]
+			t.Fatalf("timed out waiting for %s: %v; zellij calls=%q\n%s", ready, waitCtx.Err(), zellijCalls, stack)
+		case <-time.After(10 * time.Millisecond):
+		}
+	}
 	markerPath := launcher.NewScopedPaths(pairData, scope, string(address.Tag)).ThreadClaim()
 	markerRaw, err := os.ReadFile(markerPath)
 	if err != nil || !strings.Contains(string(markerRaw), `"state":"established"`) {

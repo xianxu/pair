@@ -197,7 +197,10 @@ resume-by-name — its agent is **inferred from the tag**, not the bare-`pair` d
 `compactionDecision` honoring the `PAIR_FORCE_IN_SESSION`/`PAIR_FAKE_IN_ZELLIJ`/
 `ZELLIJ_SESSION_NAME` seams; park `--copy` + `WriteRestartMarker`/`TouchQuitMarker`
 + terminal `ExecKillSession`), else a native "already inside a zellij session"
-reject; (2) the **`continue`** subcommand (`ParseArgs` + `ContinuationOps`: bare
+reject. Couch-owned launches are the deliberate exception: they inherit the
+supervisor's zellij ancestry but may proceed only to the exact reserved-claim
+validation before any durable Pair write or handoff; (2) the **`continue`**
+subcommand (`ParseArgs` + `ContinuationOps`: bare
 lists docs, `<slug>` resolves the newest doc to seed the draft + pick the agent —
 reusing `continuationcmd.ContinuationDir`/`NextActionPreview`); (3) the offline
 **`rename`** subcommand (pure `renamePathsFor`/`renamePlan` zip, `FSOps.Rename`,

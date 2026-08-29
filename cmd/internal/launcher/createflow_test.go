@@ -1343,6 +1343,26 @@ func TestRunLaunchInPaneRejected(t *testing.T) {
 	}
 }
 
+func TestRunLaunchInPaneAllowsCouchOwnedClaimValidation(t *testing.T) {
+	rt := newFakeRuntime()
+	rt.inPane = true
+	opts := baseOpts(LaunchArgs{Agent: "claude", ForcedTag: "work"})
+	scope, err := ResolveRepoScope(opts.Env.Cwd)
+	if err != nil {
+		t.Fatal(err)
+	}
+	opts.Env.CouchThreadScope = scope.Key
+	opts.Env.CouchThreadTag = "work"
+
+	code, err := run(t, opts, rt)
+	if err != nil || code != 0 {
+		t.Fatalf("Couch-owned in-pane launch = %d, %v", code, err)
+	}
+	if got := rt.threadClaims; len(got) != 1 || !strings.HasSuffix(got[0], "|work|true") {
+		t.Fatalf("claims = %v, want exact Couch validation", got)
+	}
+}
+
 // A missing agent binary errors before any session work.
 func TestRunLaunchAgentMissing(t *testing.T) {
 	rt := newFakeRuntime()

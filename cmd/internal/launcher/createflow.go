@@ -48,9 +48,13 @@ func RunLaunch(opts LaunchOptions, rt Runtime, stderr io.Writer) (int, error) {
 		compactionDecision(opts.ForceInSession, rt.InZellijPane() || opts.FakeInZellij, opts.PairTag, opts.ZellijSession, opts.PairSession) {
 		return runCompaction(opts, rt, stderr)
 	}
-	// Otherwise a launch from inside a pane can't proceed (a nested --session
-	// would break; the create path's prompt would block) — shell 1064-1067.
-	if rt.InZellijPane() {
+	// Otherwise a user launch from inside a pane can't proceed (a nested
+	// --session would break; the create path's prompt would block). Couch is the
+	// deliberate exception: its child inherits the supervisor's ancestry, and
+	// EnsureThreadAddress below still requires the exact reserved claim before
+	// any durable Pair state or zellij handoff.
+	couchClaimRequested := opts.Env.CouchThreadScope != "" && opts.Env.CouchThreadTag != ""
+	if rt.InZellijPane() && !couchClaimRequested {
 		fmt.Fprintf(stderr, "pair: already running inside a zellij session.\n")
 		fmt.Fprintf(stderr, "      detach first (Alt+d) or run pair from a fresh terminal.\n")
 		return 1, nil
