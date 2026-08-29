@@ -4,6 +4,7 @@ import (
 	"time"
 
 	"github.com/xianxu/pair/cmd/internal/readiness"
+	"github.com/xianxu/pair/cmd/internal/sessioninventory"
 )
 
 // The launcher.Runtime effect seam (#99 M2). Every IO the create-flow
@@ -117,10 +118,11 @@ type IDOps interface {
 	// AgentSessionExists reports whether the agent's native session artifact for
 	// sid is on disk (claude jsonl / codex sessions glob / agy conversation db).
 	AgentSessionExists(agent, sid, cwd string) bool
-	// InferAgent resolves the agent a tag was last paired with — the agent-<tag>
-	// record (live/detached) or, once that's cleared on Alt+x, the agent encoded
-	// in a config-<tag>-<agent>.json filename. "" when neither is on disk (a
-	// genuinely fresh tag); the caller then defaults to claude.
+	// EstablishedSessionID projects current typed authority, with legacy config
+	// accepted only when no typed launch generation exists.
+	EstablishedSessionID(scopeKey, tag, agent string) (string, sessioninventory.BindingStatus)
+	// InferAgent resolves the agent from current ledger ownership or the live
+	// agent-<tag> record. Compatibility config filenames never establish it.
 	InferAgent(tag string) string
 }
 

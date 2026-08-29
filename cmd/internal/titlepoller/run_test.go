@@ -28,8 +28,8 @@ type fakeRuntime struct {
 	removed           []string
 	mtimes            map[string]time.Time
 	panes             []PaneInfo
-	counts            map[string]string // agent → context count
-	transcripts       map[string]string // agent → transcript path
+	counts            map[string]string    // agent → context count
+	activities        map[string]time.Time // agent → established activity
 }
 
 func newFake() *fakeRuntime {
@@ -37,7 +37,7 @@ func newFake() *fakeRuntime {
 		alive: map[string]bool{}, commands: map[string]string{},
 		files: map[string]string{}, wrote: map[string]string{},
 		mtimes: map[string]time.Time{}, counts: map[string]string{},
-		transcripts: map[string]string{}, now: time.Unix(1_700_000_000, 0),
+		activities: map[string]time.Time{}, now: time.Unix(1_700_000_000, 0),
 	}
 }
 
@@ -83,9 +83,12 @@ func (f *fakeRuntime) ModTime(p string) (time.Time, bool) {
 	m, ok := f.mtimes[p]
 	return m, ok
 }
-func (f *fakeRuntime) PaneFiles(string, string) []PaneInfo   { return f.panes }
-func (f *fakeRuntime) ContextCount(_, agent string) string   { return f.counts[agent] }
-func (f *fakeRuntime) TranscriptPath(_, agent string) string { return f.transcripts[agent] }
+func (f *fakeRuntime) PaneFiles(string, string) []PaneInfo { return f.panes }
+func (f *fakeRuntime) ContextCount(_, agent string) string { return f.counts[agent] }
+func (f *fakeRuntime) SessionActivity(_, agent string) (time.Time, bool) {
+	value, ok := f.activities[agent]
+	return value, ok
+}
 
 func fixtureOpts() Options {
 	return Options{Tag: "T", Agent: "claude", DataDir: "/dd"}
@@ -336,13 +339,12 @@ func TestUpdateWorkspaceTitleSkipsUnchangedBucket(t *testing.T) {
 	}
 }
 
-// activityMTime picks the most recent mtime across the draft and the transcript.
+// activityMTime picks the most recent time across the draft and established root.
 func TestActivityMTimePicksLatest(t *testing.T) {
 	rt := newFake()
 	base := rt.now
 	rt.mtimes["/dd/draft-T.md"] = base.Add(-time.Hour)
-	rt.transcripts["claude"] = "/x/transcript.jsonl"
-	rt.mtimes["/x/transcript.jsonl"] = base // newer
+	rt.activities["claude"] = base // newer
 	if got := activityMTime(fixtureOpts(), rt); !got.Equal(base) {
 		t.Fatalf("activityMTime = %v, want the newer transcript mtime %v", got, base)
 	}

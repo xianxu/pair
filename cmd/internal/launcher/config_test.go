@@ -33,22 +33,3 @@ func TestShouldMigrateLegacyCodex(t *testing.T) {
 		t.Error("legacy absent → no migration")
 	}
 }
-
-func TestEncodeCwd(t *testing.T) {
-	// tr ./ - : both '.' and '/' become '-'.
-	if got := encodeCwd("/Users/x/workspace/parley.nvim"); got != "-Users-x-workspace-parley-nvim" {
-		t.Errorf("encodeCwd = %q", got)
-	}
-}
-
-func TestAgentTranscriptPaths(t *testing.T) {
-	if got := ClaudeTranscriptPath("/home", "/Users/x/repo", "sid1"); got != "/home/.claude/projects/-Users-x-repo/sid1.jsonl" {
-		t.Errorf("claude transcript = %q", got)
-	}
-	if got := AgyConversationPath("/home", "sid1"); got != "/home/.gemini/antigravity-cli/conversations/sid1.db" {
-		t.Errorf("agy conversation = %q", got)
-	}
-	if got := CodexSessionsDir("/home"); got != "/home/.codex/sessions" {
-		t.Errorf("codex sessions dir = %q", got)
-	}
-}

@@ -27,6 +27,7 @@ func RunChangelogCLI(args []string, getenv func(string) string, stderr io.Writer
 		Agent:     getenv("PAIR_AGENT"),
 		DataDir:   getenv("PAIR_DATA_DIR"),
 		PairHome:  getenv("PAIR_HOME"),
+		ScopeKey:  getenv("PAIR_SCOPE_KEY"),
 		SessionID: getenv("PAIR_SESSION_ID"),
 	}
 	return RunChangelog(opts, NewOSRuntime(), stderr)

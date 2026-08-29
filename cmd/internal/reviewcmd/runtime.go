@@ -7,10 +7,9 @@ import (
 	"path/filepath"
 	"strings"
 
-	"github.com/xianxu/pair/cmd/internal/codexsid"
 	"github.com/xianxu/pair/cmd/internal/osfs"
 	"github.com/xianxu/pair/cmd/internal/procutil"
-	"github.com/xianxu/pair/cmd/internal/transcript"
+	"github.com/xianxu/pair/cmd/internal/sessioninventory"
 )
 
 // OSRuntime implements Runtime with real git/nvim/zellij/fs calls; the fs
@@ -97,11 +96,12 @@ func (OSRuntime) SpawnReviewPane(cwd, lua, absFile, nvimPidFile string) error {
 	return cmd.Run()
 }
 
-func (OSRuntime) ResolveCodexSessionID(dataDir, tag string) string {
-	return codexsid.ResolveSessionID(dataDir, tag)
-}
-
-func (OSRuntime) ConfiguredSessionID(dataDir, tag, agent string) string {
+func (OSRuntime) EstablishedSessionID(dataDir, scopeKey, tag, agent string) (string, sessioninventory.BindingStatus) {
 	home, _ := os.UserHomeDir()
-	return transcript.SessionID(dataDir, tag, agent, home)
+	runtime := sessioninventory.NewOSRuntime(home, dataDir)
+	query, err := sessioninventory.QuerySession(runtime, scopeKey, tag, sessioninventory.Agent(agent))
+	if err != nil || query.Root == nil {
+		return "", query.Status
+	}
+	return query.Root.NativeID, query.Status
 }

@@ -213,6 +213,7 @@ func TestDispatchContextReturnsHelperOutput(t *testing.T) {
 	home, data := writeContextFixture(t)
 	t.Setenv("HOME", home)
 	t.Setenv("PAIR_DATA_DIR", data)
+	t.Setenv("PAIR_SCOPE_KEY", "scope")
 
 	res := Dispatch([]string{"context", "T", "claude"})
 	if res.ExitCode != 0 {
@@ -270,6 +271,7 @@ func TestDispatchUnknownCommandReturnsUsageHint(t *testing.T) {
 
 func writeContextFixture(t *testing.T) (home, data string) {
 	t.Helper()
+	const sessionID = "11111111-1111-4111-8111-111111111111"
 	home = t.TempDir()
 	data = filepath.Join(home, "data")
 	cwd := filepath.Join(home, "repo")
@@ -278,9 +280,11 @@ func writeContextFixture(t *testing.T) (home, data string) {
 	mustMkdir(t, data)
 	mustMkdir(t, cwd)
 	mustMkdir(t, proj)
-	mustWrite(t, filepath.Join(data, "config-T-claude.json"), `{"session_id":"sid1"}`)
 	mustWrite(t, filepath.Join(data, "pane-T-claude.json"), `{"pane_id":"7","cwd":"`+cwd+`","cwd_display":"~/repo"}`)
-	mustWrite(t, filepath.Join(proj, "sid1.jsonl"),
+	mustWrite(t, filepath.Join(data, "ledger-T.jsonl"),
+		`{"v":1,"kind":"launch","scope_key":"scope","tag":"T","agent":"claude","pair_log_offset":0,"native_watermarks":[]}`+"\n"+
+			`{"v":1,"kind":"binding","scope_key":"scope","tag":"T","agent":"claude","launch_ordinal":1,"root_native_id":"`+sessionID+`"}`+"\n")
+	mustWrite(t, filepath.Join(proj, sessionID+".jsonl"),
 		`{"type":"assistant","message":{"model":"claude-opus-4-8","usage":{"input_tokens":397556,"cache_creation_input_tokens":0,"cache_read_input_tokens":0}}}`)
 	return home, data
 }

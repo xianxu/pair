@@ -6,25 +6,27 @@ import (
 	"fmt"
 	"strings"
 	"testing"
+
+	"github.com/xianxu/pair/cmd/internal/sessioninventory"
 )
 
 type spawnCall struct{ cwd, lua, absFile, nvimPid string }
 
 type fakeRuntime struct {
-	files     map[string]string
-	wrote     map[string]string
-	removed   []string
-	sizes     map[string]int64
-	alive     map[string]bool
-	killed    []string
-	gitFn     func(dir string, args []string) (string, error)
-	gitCalls  [][]string
-	classify  string
-	classErr  error
-	spawn     *spawnCall
-	configSID string
-	codexSID  string
-	writeErr  error
+	files       map[string]string
+	wrote       map[string]string
+	removed     []string
+	sizes       map[string]int64
+	alive       map[string]bool
+	killed      []string
+	gitFn       func(dir string, args []string) (string, error)
+	gitCalls    [][]string
+	classify    string
+	classErr    error
+	spawn       *spawnCall
+	querySID    string
+	queryStatus sessioninventory.BindingStatus
+	writeErr    error
 }
 
 func newFake() *fakeRuntime {
@@ -80,9 +82,8 @@ func (f *fakeRuntime) SpawnReviewPane(cwd, lua, absFile, nvimPid string) error {
 	f.spawn = &spawnCall{cwd, lua, absFile, nvimPid}
 	return nil
 }
-func (f *fakeRuntime) ResolveCodexSessionID(dataDir, tag string) string { return f.codexSID }
-func (f *fakeRuntime) ConfiguredSessionID(dataDir, tag, agent string) string {
-	return f.configSID
+func (f *fakeRuntime) EstablishedSessionID(dataDir, scopeKey, tag, agent string) (string, sessioninventory.BindingStatus) {
+	return f.querySID, f.queryStatus
 }
 
 func targetOf(t *testing.T, rt *fakeRuntime, tag string) targetDoc {
@@ -101,27 +102,21 @@ func TestRunTargetSessionPriority(t *testing.T) {
 	if d := targetOf(t, rt, "t"); d.Session != "envsid" || d.File != "/r/doc.md" || d.Status != "ready" {
 		t.Fatalf("env: %+v", d)
 	}
-	// config fallback
+	// established inventory root
 	rt = newFake()
-	rt.configSID = "cfgsid"
+	rt.querySID, rt.queryStatus = "rootsid", sessioninventory.BindingEstablished
 	RunTarget(TargetOptions{File: "/r/doc.md", Status: "proposed", Tag: "t", Agent: "codex", DataDir: "/dd"}, rt, &bytes.Buffer{}, &bytes.Buffer{})
-	if d := targetOf(t, rt, "t"); d.Session != "cfgsid" {
-		t.Fatalf("config: %+v", d)
-	}
-	// codex lsof-walk fallback
-	rt = newFake()
-	rt.codexSID = "walksid"
-	RunTarget(TargetOptions{File: "/r/doc.md", Status: "ready", Tag: "t", Agent: "codex", DataDir: "/dd"}, rt, &bytes.Buffer{}, &bytes.Buffer{})
-	if d := targetOf(t, rt, "t"); d.Session != "walksid" {
-		t.Fatalf("codex: %+v", d)
-	}
-	// A rejected configured id falls through to the validated live root.
-	rt = newFake()
-	rt.configSID = ""
-	rt.codexSID = "rootsid"
-	RunTarget(TargetOptions{File: "/r/doc.md", Status: "ready", Tag: "t", Agent: "codex", DataDir: "/dd"}, rt, &bytes.Buffer{}, &bytes.Buffer{})
 	if d := targetOf(t, rt, "t"); d.Session != "rootsid" {
-		t.Fatalf("polluted config fallback: %+v", d)
+		t.Fatalf("inventory: %+v", d)
+	}
+	// provisional and ambiguous inventory never become target identity.
+	for _, status := range []sessioninventory.BindingStatus{sessioninventory.BindingProvisional, sessioninventory.BindingAmbiguous, sessioninventory.BindingUnbound} {
+		rt = newFake()
+		rt.querySID, rt.queryStatus = "stale", status
+		RunTarget(TargetOptions{File: "/r/doc.md", Status: "ready", Tag: "t", Agent: "codex", DataDir: "/dd"}, rt, &bytes.Buffer{}, &bytes.Buffer{})
+		if d := targetOf(t, rt, "t"); d.Session != "" {
+			t.Fatalf("%s fallback: %+v", status, d)
+		}
 	}
 }
 

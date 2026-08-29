@@ -162,9 +162,10 @@ proven scrollback/changelog pattern), opened on a file, alongside pair's agent+d
   (file-select). Pure decision `_pair_review_toggle_action(alive, visible, status)`.
   Review-targets are scoped to the current conversation id so fresh sessions ignore
   stale targets while resumed sessions keep their in-progress target. Neovim resolves
-  only `PAIR_SESSION_ID` → exact `$PAIR_AGENT_CONFIG_PATH`; it does not inspect processes or
-  parse rollout filenames. Codex/agy learn ids asynchronously through Pair's watcher,
-  which publishes the validated config consumed here. `Alt+r` is deliberately free inside the review
+  exact inherited `PAIR_SESSION_ID` first, then the shared inventory's established
+  owner projection; it does not inspect config identity, processes, or native files.
+  Fresh asynchronous ids remain temporarily unscoped until Pair's watcher publishes
+  a durable binding. `Alt+r` is deliberately free inside the review
   pane for reject.
 - `nvim/pair_poke.lua` — id-based agent poke: relative `move-focus` does NOT escape a
   floating pane, so it resolves the agent pane from `list-panes --json` and writes

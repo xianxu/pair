@@ -286,6 +286,18 @@ func TestOSRuntimeInferAgentPrefersLedger(t *testing.T) {
 	}
 }
 
+func TestOSRuntimeInferAgentDoesNotTreatConfigFilenameAsAuthority(t *testing.T) {
+	dataDir := t.TempDir()
+	rt := NewOSRuntime(dataDir, "/pair")
+	if err := os.WriteFile(filepath.Join(dataDir, "config-work-claude.json"), []byte(`{"agent":"claude","args":[],"session_id":"stale"}`), 0o644); err != nil {
+		t.Fatal(err)
+	}
+
+	if got := rt.InferAgent("work"); got != "" {
+		t.Fatalf("InferAgent = %q, want no authority from compatibility config", got)
+	}
+}
+
 func TestOSRuntimeAgentSessionExistsFindsNestedCodexRollout(t *testing.T) {
 	home := t.TempDir()
 	t.Setenv("HOME", home)

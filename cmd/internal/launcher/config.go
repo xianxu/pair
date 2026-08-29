@@ -1,11 +1,6 @@
 package launcher
 
-import (
-	"path/filepath"
-	"strings"
-
-	"github.com/xianxu/pair/cmd/internal/artifactpath"
-)
+import "github.com/xianxu/pair/cmd/internal/artifactpath"
 
 // Per-tag config + agent-transcript path derivations, and the one config
 // migration rule the shell launcher carries (#99 M1, ported from bin/pair-shell).
@@ -39,40 +34,4 @@ func LegacyCodexConfigPath(dataDir, tag string) string {
 // resolver — so an unrelated stale file can't silently win.
 func ShouldMigrateLegacyCodex(canonicalExists bool, agent string, legacyExists bool, legacyAgentField string) bool {
 	return !canonicalExists && agent == "codex" && legacyExists && legacyAgentField == "codex"
-}
-
-// encodeCwd mirrors the shell's `tr ./ -`: both '.' and '/' become '-'. Used to
-// key claude's per-project transcript directory off the cwd.
-func encodeCwd(cwd string) string {
-	return strings.Map(func(r rune) rune {
-		if r == '.' || r == '/' {
-			return '-'
-		}
-		return r
-	}, cwd)
-}
-
-// ClaudeTranscriptPath is where claude stores a session's jsonl transcript:
-// $HOME/.claude/projects/<encoded-cwd>/<sid>.jsonl.
-func ClaudeTranscriptPath(home, cwd, sid string) string {
-	return filepath.Join(home, ".claude", "projects", encodeCwd(cwd), sid+".jsonl")
-}
-
-// AgyConversationPath is where agy stores a conversation db:
-// $HOME/.gemini/antigravity-cli/conversations/<sid>.db.
-func AgyConversationPath(home, sid string) string {
-	return filepath.Join(home, ".gemini", "antigravity-cli", "conversations", sid+".db")
-}
-
-// CodexSessionsDir is the directory the codex session probe globs for `*<sid>*`
-// (the match itself is IO — a find over this dir on the Runtime seam).
-func CodexSessionsDir(home string) string {
-	return filepath.Join(home, ".codex", "sessions")
-}
-
-// MuseSessionsDir is the directory the muse session probe walks for
-// `*/<sid>/session.jsonl` (the match itself is IO — a find over this dir on the
-// Runtime seam).
-func MuseSessionsDir(home string) string {
-	return filepath.Join(home, ".local", "share", "muse", "sessions")
 }

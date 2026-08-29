@@ -20,6 +20,7 @@ func RunTargetCLI(args []string, getenv func(string) string, stdout, stderr io.W
 		Tag:       getenv("PAIR_TAG"),
 		Agent:     getenv("PAIR_AGENT"),
 		DataDir:   getenv("PAIR_DATA_DIR"),
+		ScopeKey:  getenv("PAIR_SCOPE_KEY"),
 		SessionID: getenv("PAIR_SESSION_ID"),
 	}, NewOSRuntime(), stdout, stderr)
 }
@@ -42,6 +43,7 @@ func RunDefinitionCLI(args []string, getenv func(string) string, stdout, stderr 
 		Tag:        getenv("PAIR_TAG"),
 		Agent:      getenv("PAIR_AGENT"),
 		DataDir:    getenv("PAIR_DATA_DIR"),
+		ScopeKey:   getenv("PAIR_SCOPE_KEY"),
 		SessionID:  getenv("PAIR_SESSION_ID"),
 	}, NewOSRuntime(), stdout, stderr)
 }
@@ -82,6 +84,7 @@ func RunReadinessCLI(args []string, getenv func(string) string, stdout, stderr i
 		Tag:       getenv("PAIR_TAG"),
 		Agent:     getenv("PAIR_AGENT"),
 		DataDir:   getenv("PAIR_DATA_DIR"),
+		ScopeKey:  getenv("PAIR_SCOPE_KEY"),
 		SessionID: getenv("PAIR_SESSION_ID"),
 	}, NewOSRuntime(), stdout, stderr)
 }

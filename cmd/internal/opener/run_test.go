@@ -6,6 +6,8 @@ import (
 	"strings"
 	"testing"
 	"time"
+
+	"github.com/xianxu/pair/cmd/internal/sessioninventory"
 )
 
 type viewerCall struct {
@@ -15,23 +17,25 @@ type viewerCall struct {
 
 // fakeRuntime is a scriptable Runtime for the opener orchestration tests.
 type fakeRuntime struct {
-	sleeps      int
-	pid         string
-	alive       map[string]bool
-	files       map[string]string
-	wrote       map[string]string
-	removed     []string
-	sizes       map[string]int64
-	touched     []string
-	executable  map[string]bool
-	rendered    []string // "raw|events|ansi"
-	renderErr   error
-	agentPaneID string
-	dumpByPane  map[string]string
-	detached    []string // scripts passed to StartDetached
-	detachedPID string
-	detachedEnv []string
-	viewer      *viewerCall
+	sleeps        int
+	pid           string
+	alive         map[string]bool
+	files         map[string]string
+	wrote         map[string]string
+	removed       []string
+	sizes         map[string]int64
+	touched       []string
+	executable    map[string]bool
+	rendered      []string // "raw|events|ansi"
+	renderErr     error
+	agentPaneID   string
+	dumpByPane    map[string]string
+	detached      []string // scripts passed to StartDetached
+	detachedPID   string
+	detachedEnv   []string
+	viewer        *viewerCall
+	sessionID     string
+	sessionStatus sessioninventory.BindingStatus
 }
 
 func newFake() *fakeRuntime {
@@ -78,6 +82,9 @@ func (f *fakeRuntime) StartDetached(script string, extraEnv []string, statusPath
 func (f *fakeRuntime) RunViewer(lua, file string, extraEnv []string) error {
 	f.viewer = &viewerCall{lua: lua, file: file, env: extraEnv}
 	return nil
+}
+func (f *fakeRuntime) EstablishedSessionID(dataDir, scopeKey, tag, agent string) (string, sessioninventory.BindingStatus) {
+	return f.sessionID, f.sessionStatus
 }
 
 func scrollbackOpts() Options {
@@ -207,14 +214,20 @@ func TestRunChangelogSkipsDistillerWhenRunning(t *testing.T) {
 	}
 }
 
-func TestRunChangelogSessionKeyFallsBackToConfig(t *testing.T) {
+func TestRunChangelogSessionKeyUsesEstablishedInventory(t *testing.T) {
 	rt := newFake()
 	rt.pid = "100"
-	rt.files["/dd/config-t-claude.json"] = `{"agent":"claude","session_id":"cfgsid"}`
+	rt.sessionID, rt.sessionStatus = "rootsid", sessioninventory.BindingEstablished
 	// no raw size ⇒ distiller skipped; we only assert the resolved base path.
 	RunChangelog(Options{Tag: "t", Agent: "claude", DataDir: "/dd", PairHome: "/h"}, rt, io.Discard)
-	if rt.viewer == nil || rt.viewer.file != "/dd/changelog-t-claude-cfgsid.md" {
-		t.Fatalf("config-keyed base wrong: %+v", rt.viewer)
+	if rt.viewer == nil || rt.viewer.file != "/dd/changelog-t-claude-rootsid.md" {
+		t.Fatalf("inventory-keyed base wrong: %+v", rt.viewer)
+	}
+	rt = newFake()
+	rt.sessionID, rt.sessionStatus = "stale", sessioninventory.BindingProvisional
+	RunChangelog(Options{Tag: "t", Agent: "claude", DataDir: "/dd", PairHome: "/h"}, rt, io.Discard)
+	if rt.viewer == nil || rt.viewer.file != "/dd/changelog-t-claude.md" {
+		t.Fatalf("provisional binding must keep legacy unsuffixed base: %+v", rt.viewer)
 	}
 }
 

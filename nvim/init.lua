@@ -824,21 +824,37 @@ do
     return not (type(t) == 'table' and session and session ~= '' and t.session == session)
   end
 
-  local function config_session_id()
-    local cf = io.open(vim.env.PAIR_AGENT_CONFIG_PATH or '', 'r')
-    if not cf then return nil end
-    local body = cf:read('*a'); cf:close()
-    local ok, parsed = pcall(vim.json.decode, body)
-    if ok and type(parsed) == 'table' and parsed.session_id and parsed.session_id ~= '' then
-      return parsed.session_id
+  local function inventory_session_id()
+    local agent, tag = vim.env.PAIR_AGENT, vim.env.PAIR_TAG
+    if not agent or agent == '' or not tag or tag == '' then return nil end
+    local raw = vim.fn.system({ 'pair', 'session-inventory', '--agent', agent, '--scope', 'current', '--json' })
+    if vim.v.shell_error ~= 0 then return nil end
+    local ok, inventory = pcall(vim.json.decode, raw)
+    if not ok or type(inventory) ~= 'table' then return nil end
+    local root_id
+    for _, binding in ipairs(inventory.correlations or {}) do
+      if binding.tag == tag and binding.agent == agent and binding.status == 'established' then
+        root_id = binding.root_node_id
+        break
+      end
+    end
+    if not root_id then return nil end
+    for _, forest in ipairs(inventory.forests or {}) do
+      if forest.agent == agent then
+        for _, root in ipairs(forest.roots or {}) do
+          if root.node_id == root_id then return root.native_id end
+        end
+      end
     end
     return nil
   end
 
+  _G.PairEstablishedSessionID = inventory_session_id
+
   local function current_session_id()
     local sid = vim.env.PAIR_SESSION_ID
     if sid and sid ~= '' then return sid end
-    sid = config_session_id()
+    sid = inventory_session_id()
     if sid then return sid end
     return nil
   end
@@ -3038,39 +3054,31 @@ local function humanize_dur(secs)
   return string.format('%.1fd', secs / 86400)
 end
 
--- Resolve the on-disk session file for (agent, sid) and return
--- "(<age> old, <idle> idle)" — or nil if the file can't be found
--- (uncaptured id, agent we don't have a path resolver for, etc.).
--- Only called from the confirm modals, so the cost (one stat for
--- claude; a find for codex) is paid at most once
--- per Alt+x / Alt+n press.
+-- Query the established root for (agent, sid) and return
+-- "(<age> old, <idle> idle)" — or nil while identity/activity is unavailable.
+-- Only called from the confirm modals, so the established-root activity query
+-- is paid at most once per Alt+x / Alt+n press.
 local function session_age_hint(agent, sid)
   if not sid or sid == '' then return nil end
-  local home = vim.env.HOME or ''
-  local path
-  if agent == 'claude' then
-    local cwd = vim.env.PWD or vim.fn.getcwd()
-    local enc = cwd:gsub('[./]', '-')
-    path = home .. '/.claude/projects/' .. enc .. '/' .. sid .. '.jsonl'
-    if vim.fn.filereadable(path) ~= 1 then path = nil end
-  elseif agent == 'codex' then
-    local cmd = 'find ' .. vim.fn.shellescape(home .. '/.codex/sessions')
-      .. " -type f -name '*" .. sid .. "*.jsonl' 2>/dev/null | head -1"
-    local h = io.popen(cmd)
-    if h then path = h:read('*l'); h:close() end
+  if not _G.PairEstablishedSessionID or _G.PairEstablishedSessionID() ~= sid then return nil end
+  local raw = vim.fn.system({ 'pair', 'session-inventory', '--activity', '--agent', agent })
+  if vim.v.shell_error ~= 0 or raw == '' then return nil end
+  local ok, activity = pcall(vim.json.decode, raw)
+  if not ok or type(activity) ~= 'table' then return nil end
+  local function parse_activity_time(value)
+    if type(value) ~= 'string' then return 0 end
+    -- Go includes fractional seconds when the filesystem reports them; Vim's
+    -- strptime format does not, so normalize the UTC representation first.
+    value = value:gsub('(%d%d:%d%d:%d%d)%.%d+Z$', '%1Z')
+    return vim.fn.strptime('%Y-%m-%dT%H:%M:%SZ', value)
   end
-  if not path or path == '' then return nil end
-  local h = io.popen('stat -f "%B %m" ' .. vim.fn.shellescape(path) .. ' 2>/dev/null')
-  if not h then return nil end
-  local out = h:read('*l')
-  h:close()
-  if not out then return nil end
-  local birth, mtime = out:match('^(%d+) (%d+)$')
-  if not birth then return nil end
+  local birth = parse_activity_time(activity.created_at)
+  local mtime = parse_activity_time(activity.last_activity_at)
+  if birth <= 0 or mtime <= 0 then return nil end
   local now = os.time()
   return string.format('(%s old, %s idle)',
-                       humanize_dur(now - tonumber(birth)),
-                       humanize_dur(now - tonumber(mtime)))
+                       humanize_dur(now - birth),
+                       humanize_dur(now - mtime))
 end
 
 -- Read the per-(tag,agent) saved config so the Alt+x prompt can show the
@@ -3096,9 +3104,9 @@ local function pair_read_saved_config()
     local ok, parsed = pcall(vim.json.decode, body)
     if ok and type(parsed) == 'table' then
       cfg.args       = parsed.args
-      cfg.session_id = parsed.session_id
     end
   end
+  if _G.PairEstablishedSessionID then cfg.session_id = _G.PairEstablishedSessionID() end
   return cfg
 end
 

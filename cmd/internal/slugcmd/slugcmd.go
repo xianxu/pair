@@ -2,9 +2,9 @@
 //
 // Spawned (backgrounded) by pair-wrap at turn-end — pair's agent-agnostic
 // notify point — so it works for claude/codex/agy alike (issue #000027 M3,
-// replacing the earlier claude-only Stop hook). It resolves its own transcript
-// from the launcher's exact config binding (session_id) + the per-agent
-// path, parses the native format into turns, derives the left segment from the
+// replacing the earlier claude-only Stop hook). It reads the scanner-authorized
+// transcript only after the shared inventory establishes the Pair owner, parses
+// the native format into turns, derives the left segment from the
 // git branch, asks a small model for the <focus> right segment over the recent
 // transcript (with a KEEP gate), validates, and writes a candidate to
 // exact proposed-slug binding. nvim applies it (see nvim/slug.lua).
@@ -34,8 +34,7 @@ import (
 	"github.com/xianxu/pair/cmd/internal/adapt"
 	"github.com/xianxu/pair/cmd/internal/artifactpath"
 	"github.com/xianxu/pair/cmd/internal/model"
-	"github.com/xianxu/pair/cmd/internal/procutil"
-	transcriptpkg "github.com/xianxu/pair/cmd/internal/transcript"
+	"github.com/xianxu/pair/cmd/internal/sessioninventory"
 )
 
 const (
@@ -80,28 +79,13 @@ func repoBase(dir string) string {
 	return filepath.Base(dir)
 }
 
-func resolveLiveCodexTranscript(dataDir, tag, home string) string {
-	paths, err := artifactpath.ResolveScoped(dataDir, tag)
-	if err != nil {
-		return ""
+func inventoryTranscript(runtime sessioninventory.Runtime, scopeKey, tag string, agent sessioninventory.Agent) ([]byte, sessioninventory.BindingStatus, error) {
+	query, err := sessioninventory.QuerySession(runtime, scopeKey, tag, agent)
+	if err != nil || query.Root == nil {
+		return nil, query.Status, err
 	}
-	b, err := os.ReadFile(paths.AgentPID())
-	if err != nil {
-		return ""
-	}
-	root := strings.TrimSpace(string(b))
-	if root == "" {
-		return ""
-	}
-	prefix := filepath.Join(home, ".codex", "sessions") + string(os.PathSeparator)
-	for _, pid := range procutil.DescendantPIDs(root, procutil.ProcessChildren()) {
-		for _, name := range procutil.LsofNames(pid) {
-			if strings.HasPrefix(name, prefix) && transcriptpkg.ReadCodexRootSessionID(name) != "" {
-				return name
-			}
-		}
-	}
-	return ""
+	data, err := sessioninventory.ReadRootTranscript(runtime, *query.Root)
+	return data, query.Status, err
 }
 
 // Run is the pair-slug body: env-driven (no args, no stdout/stderr — writes
@@ -136,41 +120,27 @@ func Run() int {
 	cwd, _ := os.Getwd()
 	home, _ := os.UserHomeDir()
 
-	transcript := os.Getenv("PAIR_SLUG_TRANSCRIPT")
-	if transcript == "" {
-		sid := transcriptpkg.SessionID(dataDir, tag, agent, home)
-		if sid != "" {
-			transcript = transcriptpkg.Resolve(agent, sid, cwd, home)
-		}
-		if transcript == "" && agent == "codex" {
-			transcript = resolveLiveCodexTranscript(dataDir, tag, home)
-			if transcript != "" {
-				logf("resolved live codex transcript without config: %s", transcript)
-			}
-		}
-		if transcript == "" && sid == "" {
-			// No session id yet — normal early in a session before the watcher
-			// has written the config. Not a drift signal, so don't log `fail`
-			// (it would fire on every turn-end until the id resolves).
-			logf("no session_id in config-%s-%s.json", tag, agent)
+	var data []byte
+	transcriptPath := os.Getenv("PAIR_SLUG_TRANSCRIPT")
+	if transcriptPath != "" {
+		data, err = os.ReadFile(transcriptPath)
+	} else {
+		runtime := sessioninventory.NewOSRuntime(home, dataDir)
+		var status sessioninventory.BindingStatus
+		data, status, err = inventoryTranscript(runtime, os.Getenv("PAIR_SCOPE_KEY"), tag, sessioninventory.Agent(agent))
+		if err == nil && status != sessioninventory.BindingEstablished {
+			logf("native session is %s; slug waits for an established binding", status)
 			return 0
 		}
 	}
-	if transcript == "" {
-		logf("could not resolve transcript for agent %q", agent)
-		lg.Log(4, "slug-parse", adapt.Fail, "could not resolve transcript for agent "+agent)
-		return 0
-	}
-
-	data, err := os.ReadFile(transcript)
 	if err != nil {
-		logf("read transcript %q: %v", transcript, err)
+		logf("read established transcript: %v", err)
 		lg.Log(4, "slug-parse", adapt.Fail, "read transcript: "+err.Error())
 		return 0
 	}
 	turns := windowTurns(parseTranscript(agent, data), recentTurns, minUserTurns, hardMaxTurns, perTurnChars)
 	if len(turns) == 0 {
-		logf("no turns extracted (agent=%s, transcript=%s)", agent, transcript)
+		logf("no turns extracted (agent=%s)", agent)
 		lg.Log(4, "slug-parse", adapt.NearMiss, "transcript read but 0 turns extracted (agent="+agent+")")
 		return 0
 	}

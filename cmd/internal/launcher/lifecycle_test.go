@@ -124,6 +124,19 @@ func TestRunLaunchQuitCleanup(t *testing.T) {
 	}
 }
 
+func TestRunLaunchQuitCleanupPrintsOnlyEstablishedSessionID(t *testing.T) {
+	rt := newFakeRuntime()
+	rt.quitMarkers["📁work-bugfix"] = true
+	rt.establishedSessions["bugfix|claude"] = "ESTABLISHED"
+	rt.files["/data/config-bugfix-claude.json"] = `{"agent":"claude","args":[],"session_id":"STALE"}`
+
+	var stderr strings.Builder
+	runCleanup(Env{DataDir: "/data", Cwd: "/home/u/work"}, rt, launchStep{tag: "bugfix", agent: "claude", session: "📁work-bugfix"}, "scope", 0, &stderr)
+	if !strings.Contains(stderr.String(), "session id:  ESTABLISHED") || strings.Contains(stderr.String(), "STALE") {
+		t.Fatalf("resume hint used non-authoritative identity: %q", stderr.String())
+	}
+}
+
 // A detach (Alt+d) leaves no quit marker: cleanup is a complete no-op.
 func TestRunLaunchDetachNoCleanup(t *testing.T) {
 	rt := newFakeRuntime()

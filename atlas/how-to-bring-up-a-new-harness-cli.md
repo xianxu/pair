@@ -77,7 +77,7 @@ PAIR_LIVE_CAPTURE_OUT=cmd/internal/wrapcmd/testdata/tty/<agent>/<version>/compos
 - Add one versioned facts-only scanner and sanitized fixtures. It must enumerate roots and descendants, validate native parent edges, and emit allowlisted operator/progress events. Unknown shapes become coded diagnostics.
 - Whole-workbench launch and agent-only restart synchronously append a provisional launch baseline before input, then pass its physical ordinal to `pair session-watch`.
 - The watcher uses the shared scanner and exact Pair-log matcher. Process/open-file snapshots corroborate a candidate but never select one; only a unique completed round persists a binding and refreshes config.
-- Add the agent to `ScannerForAgent`, `SupportsAgent`, conformance, and `pair session-inventory` tests. A pre-round quit must remain provisional; repeated rounds must remain ambiguous.
+- Add the agent to `ScannerForAgent`, `SupportsAgent`, conformance, `QuerySession`, activity, and `pair session-inventory` tests. A pre-round quit must remain provisional; repeated rounds must remain ambiguous. Consumers must read only the established root projection, never reintroduce a native path formula.
 
 **Recovery Flags:**
 - **File:** `cmd/internal/launcher/agentargs.go`
@@ -146,7 +146,7 @@ When introducing a new agent `<name>`, ensure you complete each item:
 1. [ ] **Verify Return Key remapping** on the harness profile in `harnessTTYProfiles` (Enter = newline, Alt+Enter = send), and pin it with a captured fixture under `cmd/internal/wrapcmd/testdata/tty/`.
 2. [ ] **Check for blocking TUI overlays** (permission pickers **and** user selection / AskUserQuestion menus) and implement a PTY overlay detector and register it on the harness profile in `harnessTTYProfiles` if needed — verify plain Enter confirms the picker and Alt+Enter is not required.
 3. [ ] **Implement Session Inventory + Watching** with a versioned scanner/event adapter, conformance fixture, provisional launch baseline, and completed-round watcher; use open files only as corroboration.
-4. [ ] **Configure Launcher Recovery** in `cmd/internal/launcher`: extend `resumeToken`, `composeResumeArgs`, and `OSRuntime.AgentSessionExists` with table/fixture coverage.
+4. [ ] **Configure Launcher Recovery** in `cmd/internal/launcher`: extend `resumeToken` and `composeResumeArgs`, then prove `OSRuntime.AgentSessionExists` and `EstablishedSessionID` consume scanner inventory rather than native paths or config identity.
 5. [ ] **Add slug generation support** in `pair-slug` (transcript parsing + sandboxed print execution).
 6. [ ] **Confirm mouse scroll and scrollback render** work smoothly without drawing glitch issues.
 7. [ ] **White-list permissions** in the agent's global or workspace settings directory.

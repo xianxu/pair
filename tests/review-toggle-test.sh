@@ -57,6 +57,22 @@ fi
 printf 'p%s\n' "${2:-}"
 EOF
 chmod +x "$RT/bin/zellij" "$RT/bin/ps" "$RT/bin/lsof"
+cat > "$RT/bin/pair" <<'EOF'
+#!/usr/bin/env bash
+set -euo pipefail
+if [ "${1:-}" = session-inventory ]; then
+  if [ -s "$INVENTORY_SID_FILE" ]; then
+    sid="$(cat "$INVENTORY_SID_FILE")"
+    agent="${3:-claude}"
+    printf '{"schema_version":1,"forests":[{"agent":"%s","roots":[{"node_id":"root","native_id":"%s"}]}],"correlations":[{"tag":"test","agent":"%s","status":"established","root_node_id":"root"}]}\n' "$agent" "$sid" "$agent"
+  else
+    printf '{"schema_version":1,"forests":[],"correlations":[]}\n'
+  fi
+  exit 0
+fi
+exit 1
+EOF
+chmod +x "$RT/bin/pair"
 
 printf 'draft\n' > "$RT/draft.md"
 cat > "$RT/driver.lua" <<'LUA'
@@ -133,17 +149,17 @@ OUT:write((R.read_target() ~= nil) and 'fresh-unscoped-target-read ok\n' or 'fre
 vim.env.PAIR_SESSION_ID = 'testsid'
 vim.fn.writefile({ '{"file":"/stale/prev.md","status":"ready","session":"oldsid"}' }, target)
 
--- codex/agy fresh sessions learn their id after nvim starts; review-target must
--- fall back to config-<tag>-<agent>.json when PAIR_SESSION_ID is empty.
+-- Fresh sessions learn their id after nvim starts; review-target must use only
+-- the shared inventory's established projection when PAIR_SESSION_ID is empty.
 vim.env.PAIR_SESSION_ID = ''
-vim.fn.writefile({ '{"agent":"claude","args":[],"session_id":"cfgsid"}' },
-  vim.env.PAIR_AGENT_CONFIG_PATH)
-vim.fn.writefile({ '{"file":"' .. draft .. '","status":"ready","session":"cfgsid"}' }, target)
-OUT:write((R.read_target() ~= nil) and 'config-session-read ok\n' or 'config-session-read FAIL\n')
+vim.fn.writefile({ 'invsid' }, vim.env.INVENTORY_SID_FILE)
+vim.fn.writefile({ '{"file":"' .. draft .. '","status":"ready","session":"invsid"}' }, target)
+OUT:write((R.read_target() ~= nil) and 'inventory-session-read ok\n' or 'inventory-session-read FAIL\n')
 R.write_target(draft, 'ready')
 local written = vim.json.decode(table.concat(vim.fn.readfile(target), '\n'))
-OUT:write((written.session == 'cfgsid') and 'config-session-write ok\n' or 'config-session-write FAIL\n')
+OUT:write((written.session == 'invsid') and 'inventory-session-write ok\n' or 'inventory-session-write FAIL\n')
 vim.env.PAIR_SESSION_ID = 'testsid'
+os.remove(vim.env.INVENTORY_SID_FILE)
 vim.fn.writefile({ '{"file":"/stale/prev.md","status":"ready","session":"oldsid"}' }, target)
 
 vim.env.PAIR_SESSION_ID = ''
@@ -210,7 +226,7 @@ printf '{"file":"/stale/prev.md","status":"ready","session":"oldsid"}\n' > "$RT/
     PAIR_REVIEW_OPEN_PATH="$RT/review-test.open" PAIR_REVIEW_TARGET_PATH="$RT/review-target-test.json" \
     PAIR_AGENT_CONFIG_PATH="$RT/config-test-claude.json" CODEX_CONFIG="$RT/config-test-codex.json" \
     PAIR_AGENT_PID_PATH="$RT/agent-pid-test" PAIR_ZELLIJ_ACTIONS_PATH="$RT/zellij-actions-test.jsonl" \
-    RESULT="$RESULT" ZLOG="$ZLOG" SYSTEM_CALLS="$SYSTEM_CALLS" FLOATVIS="$FLOATVIS" \
+    INVENTORY_SID_FILE="$RT/inventory-sid" RESULT="$RESULT" ZLOG="$ZLOG" SYSTEM_CALLS="$SYSTEM_CALLS" FLOATVIS="$FLOATVIS" \
     run_headless --timeout 30 -- nvim --headless -u "$ROOT/nvim/init.lua" "$RT/draft.md" \
       -c "luafile $RT/driver.lua" )
 
@@ -221,8 +237,8 @@ for c in ts-same ts-diff ts-nocur ts-noid; do
 done
 grep -q 'old-unscoped-target-stale ok' "$RESULT" && pass "old unscoped target remains stale" || fail "old unscoped target accepted"
 grep -q 'fresh-unscoped-target-read ok' "$RESULT" && pass "same-nvim unscoped target remains readable" || fail "same-nvim unscoped target ignored"
-grep -q 'config-session-read ok' "$RESULT" && pass "read_target falls back to config session_id" || fail "read_target config fallback"
-grep -q 'config-session-write ok' "$RESULT" && pass "write_target stamps config session_id" || fail "write_target config fallback"
+grep -q 'inventory-session-read ok' "$RESULT" && pass "read_target uses established inventory session" || fail "read_target inventory authority"
+grep -q 'inventory-session-write ok' "$RESULT" && pass "write_target stamps established inventory session" || fail "write_target inventory authority"
 grep -q 'no-live-codex-fallback ok' "$RESULT" && pass "current session does not guess from live Codex files" || fail "live Codex fallback remains"
 grep -q 'unverified-live-target-stale ok' "$RESULT" && pass "unverified live target is stale" || fail "unverified live target accepted"
 grep -q 'unverified-live-target-unstamped ok' "$RESULT" && pass "unverified live target remains unstamped" || fail "unverified live target stamped"

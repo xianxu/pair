@@ -58,8 +58,18 @@ coordinates do not leak into evidence, and required position/fingerprint arrays
 remain arrays even when empty. Conformance emits only agent/status/count/code
 data. Pair's Go store and Neovim history navigation share the versioned
 byte-counted log grammar while retaining legacy entries, so authored Markdown
-separators round-trip. Final #155 migration still removes the
-remaining point consumers below (ARCH-DRY, ARCH-PURE, ARCH-PURPOSE, ARCH-MOCK).
+separators round-trip.
+
+The final #155 migration makes inventory queries the only native-session read
+authority. Context/token usage, title activity, slug input, review scoping,
+launcher recovery and resume hints, changelog keying, and Neovim age display all
+consume an established owner projection. Provisional, ambiguous, and unbound
+owners remain explicit absence; only an exact inherited `PAIR_SESSION_ID` can
+precede that projection. Compatibility config retains launch arguments but
+cannot establish identity. `pair session-inventory --activity --agent <agent>`
+is the buffered internal timestamp transport for editor consumers; it emits
+nothing until the root is established (ARCH-DRY, ARCH-PURE, ARCH-PURPOSE,
+ARCH-MOCK).
 
 ## Data layout
 
@@ -244,18 +254,17 @@ observed root source `cli` or `exec`. Subagent, malformed, mismatched, unknown,
 oversized, and incomplete first events fail closed. Candidate scans continue
 past rejected rollouts so an open subagent cannot hide a later root candidate.
 
-The rule lives in `cmd/internal/transcript` and is shared by launcher live
-capture, session watching, context usage, slugging, and review targeting.
-Process-tree and birth-time discovery locate candidates only; neither grants
-identity by itself. Persisted Codex IDs are revalidated at automatic config
-picker and `Alt+n` restart boundaries. An invalid binding is removed from the
-config, its non-resume args are preserved for a fresh launch, and the operator
-is warned. Explicitly typed `codex resume <id>` remains user authority.
+The rule lives in `cmd/internal/sessioninventory` and is shared by launcher,
+watcher, context, slug, title, opener, and review queries. Process/open-file
+evidence can corroborate a causal-round candidate but cannot select one.
+Persisted config IDs are compatibility evidence only: an unavailable binding is
+removed from config, its non-resume args are preserved for a fresh launch, and
+the operator is warned. Explicit inherited invocation authority remains exact.
 
 Neovim deliberately does not inspect Codex processes or rollouts. Review
-target scoping uses the inherited `PAIR_SESSION_ID`, then Pair's config cache;
-when neither exists it remains unscoped until the Go watcher publishes a
-validated root identity.
+target scoping uses the inherited `PAIR_SESSION_ID`, then the established
+inventory projection; when neither exists it remains unscoped until the watcher
+publishes a validated root binding.
 
 `agent-default-<agent>.json` is different from `config-<tag>-<agent>.json`: it
 has only `{agent,args}` and belongs to the repo/agent, not to a work tag or

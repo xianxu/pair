@@ -257,5 +257,19 @@ grep -Fq 'support_kitty_keyboard_protocol true' "$ROOT/zellij/config.kdl" \
   && pass "Zellij explicitly enables Kitty keyboard protocol" \
   || { printf 'FAIL Zellij Kitty keyboard protocol is not enabled\n'; fail=1; }
 
+grep -Fq "'session-inventory', '--activity', '--agent'" "$ROOT/nvim/init.lua" \
+  && pass "Neovim age hint uses established inventory activity" \
+  || { printf 'FAIL Neovim age hint does not use inventory activity\n'; fail=1; }
+
+grep -Fq "gsub('(%d%d:%d%d:%d%d)%.%d+Z$', '%1Z')" "$ROOT/nvim/init.lua" \
+  && pass "Neovim age hint accepts fractional Go timestamps" \
+  || { printf 'FAIL Neovim age hint does not normalize fractional timestamps\n'; fail=1; }
+
+if grep -Eq '\.codex/sessions|stat -f.*session|find .*sessions' "$ROOT/nvim/init.lua"; then
+  printf 'FAIL Neovim retains native session path/stat discovery\n'; fail=1
+else
+  pass "Neovim has no native session path/stat fallback"
+fi
+
 [ "$fail" -eq 0 ] || { printf 'term-pane-shortcuts-test FAILED\n'; exit 1; }
 printf 'term-pane-shortcuts-test ok\n'

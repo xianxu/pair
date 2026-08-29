@@ -14,6 +14,7 @@ import (
 	"github.com/xianxu/pair/cmd/internal/contextcmd"
 	"github.com/xianxu/pair/cmd/internal/osfs"
 	"github.com/xianxu/pair/cmd/internal/procutil"
+	"github.com/xianxu/pair/cmd/internal/sessioninventory"
 )
 
 // OSRuntime implements Runtime with real zellij/cmux/fs/process calls. The fs
@@ -100,8 +101,18 @@ func (OSRuntime) ContextCount(tag, agent string) string {
 	return strings.TrimSpace(buf.String())
 }
 
-// TranscriptPath resolves the agent's native transcript (for the activity-mtime
-// check), reusing contextcmd's shared resolver.
-func (OSRuntime) TranscriptPath(tag, agent string) string {
-	return contextcmd.TranscriptPath(contextcmd.EnvFromOS(), tag, agent)
+// SessionActivity returns only the established inventory root's authorized
+// activity timestamp.
+func (OSRuntime) SessionActivity(tag, agent string) (time.Time, bool) {
+	env := contextcmd.EnvFromOS()
+	runtime := sessioninventory.NewOSRuntime(env.Home, env.PairDataDir)
+	query, err := sessioninventory.QuerySession(runtime, env.PairScopeKey, tag, sessioninventory.Agent(agent))
+	if err != nil {
+		return time.Time{}, false
+	}
+	activity, ok, err := sessioninventory.ActivityForSession(runtime, query)
+	if err != nil || !ok {
+		return time.Time{}, false
+	}
+	return activity.LastActivityAt, true
 }

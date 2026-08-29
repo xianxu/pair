@@ -8,11 +8,12 @@ import (
 	"strings"
 
 	"github.com/xianxu/pair/cmd/internal/artifactpath"
+	"github.com/xianxu/pair/cmd/internal/sessioninventory"
 )
 
 // Runtime is the IO/process boundary for the review helpers. The fs primitives
 // (ReadFile/WriteFile/WriteAtomic/Remove/FileSize) come from an embedded osfs.FS
-// on the OSRuntime; git/nvim-classify/zellij-spawn/codex-sid are the domain seams.
+// on the OSRuntime; git/nvim-classify/zellij-spawn/session inventory are the domain seams.
 type Runtime interface {
 	ReadFile(path string) (string, error)
 	WriteFile(path, data string) error
@@ -40,18 +41,17 @@ type Runtime interface {
 	Classify(readinessLua string, f ReadinessFacts) (string, error)
 	// SpawnReviewPane opens the floating nvim review pane (zellij run …).
 	SpawnReviewPane(cwd, lua, absFile, nvimPidFile string) error
-	// ResolveCodexSessionID walks the codex agent's process tree (codexsid).
-	ResolveCodexSessionID(dataDir, tag string) string
-	// ConfiguredSessionID returns a semantically validated persisted identity.
-	ConfiguredSessionID(dataDir, tag, agent string) string
+	// EstablishedSessionID returns inventory authority without compatibility or
+	// live-process fallback.
+	EstablishedSessionID(dataDir, scopeKey, tag, agent string) (string, sessioninventory.BindingStatus)
 }
 
 // ── target ────────────────────────────────────────────────────────────────
 
 type TargetOptions struct {
-	File, Status       string
-	Tag, Agent         string
-	DataDir, SessionID string
+	File, Status                 string
+	Tag, Agent                   string
+	DataDir, ScopeKey, SessionID string
 }
 
 func RunTarget(opts TargetOptions, rt Runtime, stdout, stderr io.Writer) int {
@@ -70,7 +70,7 @@ func RunTarget(opts TargetOptions, rt Runtime, stdout, stderr io.Writer) int {
 		return 1
 	}
 	agent := orDefault(opts.Agent, "claude")
-	sid := resolveTargetSession(rt, opts.DataDir, tag, agent, opts.SessionID)
+	sid := resolveTargetSession(rt, opts.DataDir, opts.ScopeKey, tag, agent, opts.SessionID)
 	file := rt.AbsFile(opts.File)
 
 	out := paths.ReviewTarget()
@@ -82,10 +82,10 @@ func RunTarget(opts TargetOptions, rt Runtime, stdout, stderr io.Writer) int {
 // ── definition ────────────────────────────────────────────────────────────
 
 type DefinitionOptions struct {
-	RequestID, Term    string
-	Definition         string
-	Tag, Agent         string
-	DataDir, SessionID string
+	RequestID, Term              string
+	Definition                   string
+	Tag, Agent                   string
+	DataDir, ScopeKey, SessionID string
 }
 
 func RunDefinition(opts DefinitionOptions, rt Runtime, stdout, stderr io.Writer) int {
@@ -108,7 +108,7 @@ func RunDefinition(opts DefinitionOptions, rt Runtime, stdout, stderr io.Writer)
 		return 1
 	}
 	agent := orDefault(opts.Agent, "claude")
-	sid := resolveTargetSession(rt, opts.DataDir, tag, agent, opts.SessionID)
+	sid := resolveTargetSession(rt, opts.DataDir, opts.ScopeKey, tag, agent, opts.SessionID)
 	out := paths.ReviewDefinitionResult()
 	if err := rt.WriteAtomic(out, definitionJSON(opts.RequestID, opts.Term, opts.Definition, sid)); err != nil {
 		fmt.Fprintf(stderr, "pair-review-definition: write %s: %v\n", out, err)
@@ -119,17 +119,14 @@ func RunDefinition(opts DefinitionOptions, rt Runtime, stdout, stderr io.Writer)
 }
 
 // resolveTargetSession implements the target seam's session priority:
-// PAIR_SESSION_ID → validated config session_id → (codex only) validated live
-// root-rollout discovery.
-func resolveTargetSession(rt Runtime, dataDir, tag, agent, envSID string) string {
+// PAIR_SESSION_ID → established inventory root. Other binding states remain
+// explicit absence and never fall through to config or live-process discovery.
+func resolveTargetSession(rt Runtime, dataDir, scopeKey, tag, agent, envSID string) string {
 	if envSID != "" {
 		return envSID
 	}
-	if sid := rt.ConfiguredSessionID(dataDir, tag, agent); sid != "" {
+	if sid, status := rt.EstablishedSessionID(dataDir, scopeKey, tag, agent); status == sessioninventory.BindingEstablished {
 		return sid
-	}
-	if agent == "codex" {
-		return rt.ResolveCodexSessionID(dataDir, tag)
 	}
 	return ""
 }
@@ -185,11 +182,11 @@ func RunOpen(opts OpenOptions, rt Runtime, stderr io.Writer) int {
 // ── readiness ───────────────────────────────────────────────────────────────
 
 type ReadinessOptions struct {
-	File               string
-	Prepare            bool
-	PairHome           string
-	Tag, Agent         string
-	DataDir, SessionID string
+	File                         string
+	Prepare                      bool
+	PairHome                     string
+	Tag, Agent                   string
+	DataDir, ScopeKey, SessionID string
 }
 
 // gitInfo holds the non-boolean git facts gathered alongside ReadinessFacts.
@@ -324,7 +321,7 @@ func prepare(opts ReadinessOptions, rt Runtime, stdout io.Writer, reviewCase str
 	}
 
 	// Mark the target ready in-process (the shell shelled out to pair-review-target).
-	sid := resolveTargetSession(rt, opts.DataDir, orDefault(opts.Tag, "default"), orDefault(opts.Agent, "claude"), opts.SessionID)
+	sid := resolveTargetSession(rt, opts.DataDir, opts.ScopeKey, orDefault(opts.Tag, "default"), orDefault(opts.Agent, "claude"), opts.SessionID)
 	if opts.DataDir != "" {
 		if paths, err := artifactpath.ResolveScoped(opts.DataDir, orDefault(opts.Tag, "default")); err == nil {
 			_ = rt.WriteAtomic(paths.ReviewTarget(), targetJSON(gi.abs, "ready", sid))

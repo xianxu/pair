@@ -1,6 +1,6 @@
 #!/bin/sh
 # Focused keying test for bin/pair changelog open (#63): the change-log base is
-# keyed on the resolved session id (PAIR_SESSION_ID -> config -> none). No model
+# keyed on the resolved session id (PAIR_SESSION_ID -> established inventory -> none). No model
 # or distiller runs -- $RAW is empty, so the orchestrator's distiller block is
 # skipped (its `[ -s "$RAW" ]` guard); the opener only resolves the base, touches
 # <base>.md, and opens the (fake) viewer on it. We assert the path nvim was handed.
@@ -46,13 +46,13 @@ PAIR_SESSION_ID="$A" run
 grep -q 'old log' "$PAIR_DATA_DIR/changelog-t-claude-$A.md" \
   || { echo "FAIL (c) resume lost prior content"; fail=1; }
 
-# (d) env unset -> fall back to config.session_id
+# (d) env unset + stale config must not become authority
 unset PAIR_SESSION_ID
 printf '{"agent":"claude","args":[],"session_id":"%s"}' "$C" \
   > "$PAIR_DATA_DIR/config-t-claude.json"
 run
-case "$(opened)" in *"changelog-t-claude-$C.md") ;;
-  *) echo "FAIL (d) config-fallback base: $(opened)"; fail=1 ;; esac
+case "$(opened)" in *"changelog-t-claude.md") ;;
+  *) echo "FAIL (d) stale config became authority: $(opened)"; fail=1 ;; esac
 
 # (e) no env, no config session_id -> legacy unsuffixed base (backward compat)
 rm -f "$PAIR_DATA_DIR/config-t-claude.json"

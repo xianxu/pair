@@ -199,10 +199,10 @@ func shouldMintClaudeSessionID(agent, explicitResume string, agentExtra []string
 		!hasFlag(agentExtra, "--session-id") && !hasFlag(agentExtra, "--fork-session")
 }
 
-// persistedConfigArgs strips every per-agent resume binding from the args before
-// they are saved to config-<tag>-<agent>.json: session_id is the canonical
-// storage for the binding, so leaving the binding in the saved args would compound
-// it on every relaunch through the picker. Handles all three agents' surfaces
+// persistedConfigArgs strips every per-agent resume binding from saved launch
+// parameters. Established inventory is the binding authority; leaving generated
+// resume flags in compatibility config would compound them on every relaunch.
+// Handles all four agents' surfaces
 // (claude --resume / --session-id, agy --conversation incl. the inline form, codex
 // leading `resume <id>`) so an agy/codex resume can't silently accumulate — the
 // bug shell 2079-2082 guards. Agent-agnostic: stripping a form the current agent

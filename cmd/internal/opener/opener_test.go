@@ -58,29 +58,6 @@ func TestMatchViewportEmpty(t *testing.T) {
 	}
 }
 
-func TestResolveSessionID(t *testing.T) {
-	const A = "aaaa1111-2222-3333-4444-555566667777"
-	const C = "cccc1111-2222-3333-4444-555566667777"
-	// env wins
-	if got := resolveSessionID(A, []byte(`{"session_id":"`+C+`"}`)); got != A {
-		t.Fatalf("env should win: %q", got)
-	}
-	// config fallback
-	if got := resolveSessionID("", []byte(`{"agent":"claude","session_id":"`+C+`"}`)); got != C {
-		t.Fatalf("config fallback: %q", got)
-	}
-	// legacy (no env, no config sid)
-	if got := resolveSessionID("", nil); got != "" {
-		t.Fatalf("no id → empty: %q", got)
-	}
-	if got := resolveSessionID("", []byte(`{"agent":"claude"}`)); got != "" {
-		t.Fatalf("config without session_id → empty: %q", got)
-	}
-	if got := resolveSessionID("", []byte(`not json`)); got != "" {
-		t.Fatalf("bad json → empty: %q", got)
-	}
-}
-
 func TestChangelogBase(t *testing.T) {
 	if got := changelogBase("/dd", "t", "claude", "sid1"); got != "/dd/changelog-t-claude-sid1" {
 		t.Fatalf("with sid: %q", got)

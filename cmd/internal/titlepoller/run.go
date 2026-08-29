@@ -56,7 +56,7 @@ type Runtime interface {
 
 	PaneFiles(dataDir, tag string) []PaneInfo
 	ContextCount(tag, agent string) string
-	TranscriptPath(tag, agent string) string
+	SessionActivity(tag, agent string) (time.Time, bool)
 }
 
 // Run drives the poller until the Pair session disappears (or a startup
@@ -162,22 +162,19 @@ func Run(opts Options, rt Runtime) int {
 }
 
 // activityMTime returns the most recent mtime across the poller's activity
-// sources — the nvim draft and the agent's native transcript (resolved via the
-// same path `pair context` uses). Zero time ⇒ nothing resolved yet.
+// sources — the nvim draft and the established inventory root. Zero time ⇒
+// nothing resolved yet.
 func activityMTime(opts Options, rt Runtime) time.Time {
 	var latest time.Time
 	paths, err := artifactpath.ResolveScoped(opts.DataDir, opts.Tag)
 	if err != nil {
 		return time.Time{}
 	}
-	candidates := []string{paths.Draft()}
-	if tp := rt.TranscriptPath(opts.Tag, opts.Agent); tp != "" {
-		candidates = append(candidates, tp)
+	if m, ok := rt.ModTime(paths.Draft()); ok && m.After(latest) {
+		latest = m
 	}
-	for _, f := range candidates {
-		if m, ok := rt.ModTime(f); ok && m.After(latest) {
-			latest = m
-		}
+	if m, ok := rt.SessionActivity(opts.Tag, opts.Agent); ok && m.After(latest) {
+		latest = m
 	}
 	return latest
 }

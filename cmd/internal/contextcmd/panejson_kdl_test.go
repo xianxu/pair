@@ -12,14 +12,14 @@ import (
 )
 
 // The agent pane's `args "-c"` line in the zellij layouts is the PRODUCER of
-// pane-<tag>-<agent>.json; contextcmd.paneCwd and titlepoller are its consumers.
+// pane-<tag>-<agent>.json; titlepoller consumes its pane identity.
 // Every other test in the tree hand-writes that JSON, so nothing executed the
 // producer and nothing would notice it breaking (#133).
 //
 // The failure mode this guards is specific and silent: shell printf RECYCLES its
 // format string while arguments remain. Drop a `%s` and leave its argument and
 // printf emits the format twice — two concatenated JSON objects in one file, which
-// fails json.Unmarshal, so paneCwd returns "" and the poller skips the pane. No
+// fails json.Unmarshal, so the poller skips the pane. No
 // test goes red, because none of them run this line.
 //
 // ARCH-MOCK: `zellij` and `pair` are faked on PATH — the same seam the real launch
@@ -129,11 +129,6 @@ func TestAgentPaneJSONRoundTripsThroughKDL(t *testing.T) {
 				t.Fatalf("layout command failed: %v\noutput: %s", err, out)
 			}
 
-			// (a) The real consumer resolves the cwd from what the producer wrote.
-			if got := paneCwd(dataDir, "t", "claude"); got != paneCwdDir {
-				t.Errorf("paneCwd = %q, want %q", got, paneCwdDir)
-			}
-
 			raw, err := os.ReadFile(panePath)
 			if err != nil {
 				t.Fatal(err)
@@ -177,21 +172,5 @@ func TestAgentPaneJSONRoundTripsThroughKDL(t *testing.T) {
 				}
 			}
 		})
-	}
-}
-
-// A session started BEFORE #133 has a pane-<tag>-<agent>.json carrying the extra
-// "cwd_display" key, and it stays on disk when the binary updates underneath it.
-// The consumer must still resolve its cwd — this is the upgrade path, not a
-// hypothetical. (Several fixtures elsewhere in the tree happen to carry the legacy
-// shape; this makes that coverage intentional rather than incidental.)
-func TestPaneCwdToleratesLegacyCwdDisplayField(t *testing.T) {
-	dataDir := t.TempDir()
-	legacy := `{"pane_id":"7","cwd":"/home/u/work","cwd_display":"~/work"}` + "\n"
-	if err := os.WriteFile(filepath.Join(dataDir, "pane-t-claude.json"), []byte(legacy), 0o644); err != nil {
-		t.Fatal(err)
-	}
-	if got := paneCwd(dataDir, "t", "claude"); got != "/home/u/work" {
-		t.Errorf("paneCwd on a pre-#133 record = %q, want /home/u/work", got)
 	}
 }

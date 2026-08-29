@@ -769,6 +769,23 @@ be checked against measured actuals at close.*
 
 ## Log
 
+- 2026-08-28 — Final consumer migration removes the `codexsid` and
+  `transcript` path authorities. Context/token, title/activity, slug, review,
+  launcher, opener/changelog, and Neovim now consume the shared established
+  owner projection; provisional, ambiguous, and unbound state remains absence,
+  while exact inherited session identity stays higher authority. A governed
+  shadow sweep rejects native path formulas, direct `lsof`, retired resolvers,
+  and config-filename authority outside the inventory/process seams
+  (`ARCH-DRY`, `ARCH-PURE`, `ARCH-PURPOSE`, `ARCH-MOCK`).
+
+- 2026-08-28 — Focused Go, artifact/dispatcher, Pair-log/watcher, Lua, review,
+  changelog, terminal-shortcut, zellij-config, diff, and redacted live-native
+  checks pass. Live conformance reported only agent/status/count/diagnostic
+  summaries. The repository-wide run reached the previously identified
+  `TestSpawnComposesProductionPairRegistrationBoundary` readiness timeout; per
+  operator order that unrelated Couch failure is deferred until the #155
+  implementation commit is sealed.
+
 - 2026-08-28 — The final BR-9 sweep makes the Pair evidence boundary
   exhaustive: requested supported agents are processed, supported but
   unrequested agents are deliberately filtered, and unsupported agents,

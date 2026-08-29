@@ -18,9 +18,9 @@ import (
 	"github.com/xianxu/pair/cmd/internal/continuationcmd"
 	"github.com/xianxu/pair/cmd/internal/osfs"
 	"github.com/xianxu/pair/cmd/internal/readiness"
+	"github.com/xianxu/pair/cmd/internal/sessioninventory"
 	"github.com/xianxu/pair/cmd/internal/sessionledger"
 	"github.com/xianxu/pair/cmd/internal/sessionwatch"
-	"github.com/xianxu/pair/cmd/internal/transcript"
 	"github.com/xianxu/pair/cmd/internal/zellijpane"
 )
 
@@ -153,10 +153,9 @@ func (r OSRuntime) ScanHistory(base string, cutoff time.Time) ([]HistoricalTag, 
 
 // ListSessions gathers the `pair list`/`ls` rows: each Pair session's
 // reuse state (EXITED vs live), its live client count, and the agent it was last
-// paired with (shell 228-306). Agent resolution reuses InferAgent (agent-<tag>
-// then the config-filename agent) — broader than the shell's agent-<tag>-only
-// read on that axis (a cleared agent record still resolves from the saved config
-// rather than "?"), but it does NOT replicate the retired shell's pgrep backfill
+// paired with (shell 228-306). Agent resolution reuses InferAgent (current
+// ledger ownership, then agent-<tag>), but it does NOT replicate the retired
+// shell's pgrep backfill
 // of agent-<tag> from a live pair-wrap's env for pre-agent-tracking sessions, so
 // such a legacy session shows "?" for its agent. Accepted gap (ancient,
 // display-only) — a follow-up could re-add the pair-wrap env scan if it recurs.
@@ -536,8 +535,8 @@ func (r OSRuntime) WriteAgentDefault(agent string, args []string) error {
 	return r.WriteAtomic(AgentDefaultPath(r.DataDir, agent), raw)
 }
 
-// InferAgent reads the agent-<tag> record (primary) or the agent encoded in a
-// config-<tag>-<agent>.json filename (fallback for Alt+x'd sessions).
+// InferAgent reads current ledger ownership first, then the live agent record.
+// Compatibility config filenames are saved launch parameters, not authority.
 func (r OSRuntime) InferAgent(tag string) string {
 	paths, pathErr := artifactpath.ResolveScoped(r.DataDir, tag)
 	if pathErr != nil {
@@ -551,14 +550,6 @@ func (r OSRuntime) InferAgent(tag string) string {
 	if raw, err := r.ReadFile(paths.Agent()); err == nil {
 		if a := strings.TrimSpace(raw); a != "" {
 			return a
-		}
-	}
-	matches, _ := filepath.Glob(paths.ConfigGlob())
-	for _, m := range matches {
-		if raw, err := r.ReadFile(m); err == nil {
-			if cfg, err := parseConfig(raw); err == nil && cfg.Agent != "" {
-				return cfg.Agent
-			}
 		}
 	}
 	return ""
@@ -634,23 +625,34 @@ func (r OSRuntime) globalDataDir() string {
 	return r.DataDir
 }
 
-func (OSRuntime) AgentSessionExists(agent, sid, cwd string) bool {
+func (r OSRuntime) AgentSessionExists(agent, sid, cwd string) bool {
 	if sid == "" {
 		return false
 	}
 	home := os.Getenv("HOME")
-	switch agent {
-	case "claude":
-		return fileExists(ClaudeTranscriptPath(home, cwd, sid))
-	case "agy":
-		return fileExists(AgyConversationPath(home, sid))
-	case "codex":
-		path := transcript.Resolve("codex", sid, cwd, home)
-		return path != "" && transcript.ReadCodexRootSessionID(path) == sid
-	case "muse":
-		return transcript.Resolve("muse", sid, cwd, home) != ""
+	runtime := sessioninventory.NewOSRuntime(home, r.DataDir)
+	inventory := sessioninventory.InventoryWithRuntime(runtime, sessioninventory.ScannerForAgent(sessioninventory.Agent(agent)))
+	for _, forest := range inventory.Forests {
+		if forest.Agent != sessioninventory.Agent(agent) {
+			continue
+		}
+		for _, root := range forest.Roots {
+			if root.NativeID == sid && root.Resumable {
+				return true
+			}
+		}
 	}
 	return false
+}
+
+func (r OSRuntime) EstablishedSessionID(scopeKey, tag, agent string) (string, sessioninventory.BindingStatus) {
+	home := os.Getenv("HOME")
+	runtime := sessioninventory.NewOSRuntime(home, r.DataDir)
+	query, err := sessioninventory.QuerySession(runtime, scopeKey, tag, sessioninventory.Agent(agent))
+	if err != nil || query.Root == nil {
+		return "", query.Status
+	}
+	return query.Root.NativeID, query.Status
 }
 
 // --- LifecycleOps ----------------------------------------------------------

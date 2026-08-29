@@ -96,7 +96,8 @@ config/session migration, and title-poller behavior are all Go-owned as of
 #99 M1–M5c. `bin/pair-shell`, the original shell launcher, is retired.
 
 The dispatcher hosts implemented helper routes: `context` and `scrollback-render`
-(#76), then `slug`, `changelog`, `continuation`, and `session-watch` (#92 M1).
+(#76), then `slug`, `changelog`, `continuation`, and `session-watch` (#92 M1),
+plus the canonical `session-inventory` query and its internal activity mode (#155).
 Each route calls the shared internal Go runner (`cmd/internal/<name>cmd`) that the
 legacy `bin/pair-<name>` binary now also calls as a thin shim (`ARCH-DRY`), so a
 single implementation backs both entry points.
@@ -266,7 +267,7 @@ now invokes `{ 'pair', 'quit' }` / `{ 'pair', 'restart', ... }`.
 
 The launcher resolves `$PAIR_HOME` from its own executable path, prepends `$PAIR_HOME/bin` to `$PATH` (the Go launcher's `RunLaunch` calls the pure `prependBinToPath` once at entry, idempotent across re-launches — #95 restored this: the retired shell `bin/pair` did the prepend, but the Go launcher that replaced it dropped it in #99 M5c, a regression a copied/Homebrew install would hit) so the bundled helpers resolve by bare name in zellij configs and keybinds, parses argv — first positional is `$PAIR_AGENT` (default `claude`), everything after `--` is joined into `$PAIR_AGENT_ARGS`, extra positionals before `--` are an error with a usage hint, resolves the git root for repo scope, and exports a repo-scoped `$PAIR_DATA_DIR` under `${XDG_DATA_HOME:-$HOME/.local/share}/pair/repos/<scope-key>`. The user-facing tag remains repo-local (`work`, `bugfix`); zellij gets a globally unique public name assigned through that selected scope's `session-names.jsonl` — `📁{repo}[-{residual tag tokens}]` since #130, where the `📁` prefix is the ownership marker that keeps `delete-session --force` off foreign sessions, and the name is deliberately not invertible back to a tag. Upgrade reads strictly merge the former global index with the selected-scope index so detached pre-M5 sessions remain addressable; malformed or unreadable present state fails closed. See [Session identity and storage](session-identity.md) for the identity and storage contract, the byte-vs-rune-vs-column distinction, and the migration from the legacy `pair-` scheme.
 
-A leading `pair resume <tag>` is recognized as a subcommand verb (alongside `list` / `help`): it skips both the picker and the name prompt, attaches if the tag's current-scope public zellij session still exists in any state, otherwise creates with that repo-local tag. When `resume` is in play, the agent is inferred from the scoped tag ledger, with `agent-<tag>` and config filenames kept as compatibility caches — so a single tag is enough to restart, regardless of which agent was originally paired with it. See "Tag-restart" below.
+A leading `pair resume <tag>` is recognized as a subcommand verb (alongside `list` / `help`): it skips both the picker and the name prompt, attaches if the tag's current-scope public zellij session still exists in any state, otherwise creates with that repo-local tag. The agent is inferred from current scoped ledger ownership, then the live `agent-<tag>` record; config filenames are never an inference source. A single tag remains enough to restart because established inventory supplies the native binding and exact config supplies only saved launch arguments. See "Tag-restart" below.
 
 **Decision tree.** Finds live/detached Pair sessions owned by the current repo scope through `session-names.jsonl`; unindexed `pair-*` rows are legacy candidates, not automatically current-scope sessions. It also surfaces **historical tags from this repo scope** (#000024) by scanning scoped tag sidecars and ledgers touched within the last `$PAIR_HISTORY_DAYS` (default 14) but no longer having a live current-scope session. Then:
 
@@ -295,7 +296,7 @@ The producer consumes exact `$PAIR_AGENT_PANE_PATH` in a shell `printf` inside t
 
 **Title poller (`cmd/pair-title` + `cmd/internal/titlepoller`; #93 M1) — two surfaces.** A single always-on per-tag 60s background poller, spawned on every entry so a poller a host sleep/reboot/SIGKILL killed is reliably revived. Its single-instance guard is identity-checked (`pollerArgvMatches` plus `artifactpath.Paths.TitlePID`, not a bare `kill -0`) so a recycled PID cannot suppress the respawn. It owns two title surfaces (tested in `cmd/internal/titlepoller`):
 
-- **Per-pane context meter in the zellij FRAME (#71).** Each agent pane's frame title reads `<agent> (<count>)`, where `<count>` is the agent's current context-window occupancy — an absolute humanized token count (`970k`), so no model→window catalog is needed. Source of truth is the agent's own session transcript: the pure `cmd/internal/ctxmeter` reader (`ContextTokens` sums the last *real* claude `message.usage`, skipping `isSidechain`/`<synthetic>` records; codex `last_token_usage.input_tokens` of the last `token_count` event; agy none) + `Humanize`, over the path from the shared `cmd/internal/transcript` resolver (extracted from `pair-slug`, ARCH-DRY). The one-shot `cmd/pair-context <tag> <agent>` wires it (tolerant: any failure prints nothing). The agent pane records `{pane_id, cwd}` to a single-writer `pane-<tag>-<agent>.json` at startup (`main-{2,3}.kdl`, beside the startup rename — dodges the 3-writer race on `config-*`); the poller resolves the count **in-process** via `contextcmd` (the same resolver `pair context` uses — no subprocess, #93 M1 ARCH-DRY), and renames the pane through the actual public zellij session name passed from the launcher, gated on recent activity with a per-pane unchanged-skip cache. The glob `pane-<tag>-*.json` can also match a **stale twin** left by a prior session that paired the tag with a different agent (same recycled `pane_id`); the poller renders only the pane whose `Agent == opts.Agent` — the active agent, resolved fresh from `agent-<tag>` on each respawn, so Pair's one-agent invariant guarantees exactly one current match (#97, ignoring the twin rather than alphabetical last-wins). The twin is also cleaned at its source: `runCleanup` removes `pane-<tag>-<agent>.json` on Alt+x quit alongside the other per-(tag,agent) sidecars. Always-on (the frame exists with or without cmux). Carried through `pair rename` like `config-*`.
+- **Per-pane context meter in the zellij FRAME (#71).** Each agent pane's frame title reads `<agent> (<count>)`, where `<count>` is the current context-window occupancy. `contextcmd` queries the exact established owner through `sessioninventory`, then reads token usage only from that scanner-authorized root; `ctxmeter` owns only agent-neutral humanization. Provisional, ambiguous, and unbound owners print nothing. The pane sidecar locates the UI surface but no longer selects a transcript. The poller resolves the count in-process, filters stale pane twins by active agent, and renames the pane through the actual public zellij session name, gated on recent inventory activity. Cleanup removes the exact pane sidecar on Alt+x. Always-on (the frame exists with or without cmux). Carried through `pair rename` like `config-*`.
 
   The filename shapes in this context-meter description are descriptive only:
   layouts receive exact `$PAIR_AGENT_PANE_PATH`; the poller enumerates and
@@ -304,7 +305,7 @@ The producer consumes exact `$PAIR_AGENT_PANE_PATH` in a shell `printf` inside t
 
 - **cmux workspace-title activity heat-ramp & ownership (#69, cmux-only).** Inside cmux (block-local gate), the workspace title mirrors the public zellij session name with an activity-heat prefix (🔴 <1d / 🟠 <3d / 🟡 <10d / 🔵 <21d / none). The name is used verbatim: #130 retired the word→emoji convention (and deleted `cmd/internal/titlefmt` with it), because a `📁`-prefixed session name already carries its own glyph. Ownership of a shared workspace is recorded in `$PAIR_DATA_DIR/cmux-owner-<CMUX_WORKSPACE_ID>` as `tag<TAB>public-session`; older one-field `tag` files are read as legacy and probed as `pair-<tag>`. A poller defers to a foreign owner while that stored public session is still alive, reclaims stale owners, and writes its own repo-local tag plus public session name when it claims the workspace.
 
-**Saved-config resolution & legacy Codex migration (#67).** `resolve_config_file <tag> <agent>` resolves the canonical `config-<tag>-<agent>.json`. Older Codex sessions on disk use a doubled shape `config-<tag>-codex-codex.json`; when the canonical file is absent and the agent is `codex`, the helper migrates the legacy file to the canonical name *iff* its JSON declares `"agent":"codex"` — a narrow, agent-checked compatibility path, **not** a glob resolver, so unrelated stale files can't silently win (`ARCH-DRY`, `ARCH-PURE`). It is used only where both tag and agent are known (restart-marker read, cleanup resume hint, the tag-restart picker that surfaces native Codex resume, and the two config writes); the agent-inference glob loop is deliberately left alone, since it is *discovering* the agent and already sees the legacy filename.
+**Saved-config resolution & legacy Codex migration (#67, #155).** Exact config paths retain user launch arguments and support the narrow doubled Codex filename migration. They do not establish a native session or infer an agent. Current typed ledger ownership, then the live `agent-<tag>` record, drives agent inference; `QuerySession` is the sole automatic native-ID authority. Stale config IDs are warned about and removed while non-resume arguments remain available for a fresh launch (`ARCH-DRY`, `ARCH-PURE`).
 
 **Naming prompt.** When the create flow runs, the launcher prompts the user with the auto-suggested tag as the default — the cwd basename, sanitized (so `~/workspace/pair` → `Session name: pair`). The prompt is editable inline (delegated to zsh's `vared` since bash 3.2 has no `read -i`). The accepted value is the exact Pair tag: no prefix is added or stripped. Pressing Enter accepts the displayed tag; typing a custom value such as `bugfix` or `pair-bugfix` preserves those bytes after tag validation. `pair resume <tag>` skips this prompt entirely and requires that exact tag.
 
@@ -924,40 +925,29 @@ Zellij's default `Ctrl+q` (Quit with resurrect) is **unbound** in pair's config 
 
 ## Tag-restart (issue #000016)
 
-**Inventory migration boundary (#155 M1).** The deterministic scanner core now
+**Inventory authority (#155).** The deterministic scanner core
 lives in `cmd/internal/sessioninventory`: four versioned native scanners feed a
 pure, stably ordered forest model through one injected filesystem/SQLite/process
 runtime, with a reusable stateful fake and a redacted installed-shape
 conformance target. It inventories native roots, validated descendants, and
 unbound orphans; native parent edges describe topology but never establish Pair
-ownership. The watcher and other consumers described in this section still use
-their pre-#155 lookup paths at this boundary. M2 adds binding only after a
-completed operator round, and the final #155 migration moves every consumer to
-that shared inventory (ARCH-DRY, ARCH-PURE, ARCH-PURPOSE, ARCH-MOCK).
+ownership. A typed launch baseline makes a fresh session provisional; one exact
+completed operator round establishes the binding. Every consumer now queries
+that shared inventory, and a source shadow sweep rejects independent native path,
+config, lsof, or first/newest authority (ARCH-DRY, ARCH-PURE, ARCH-PURPOSE,
+ARCH-MOCK).
 
 A pair *tag* is a durable identity for a coding session: it survives Alt+d (detach) trivially, and survives Alt+x because pair captures both the original launch args and the agent's own session id to disk, keyed by `(tag, agent)`. After Alt+x, the user sees a one-liner naming the resume command; running it short-circuits the picker and replays the saved configuration.
 
-**Discovery — two layers.** The session id needs to be on disk by Alt+x time so `pair resume <tag>` can replay it. Two mechanisms, picked by agent and launch shape:
-
-1. **Pre-write at launch (the launcher).** Two paths:
-   - `--resume <id>` / `resume <id>` / `--conversation <id>` explicit on argv: pair writes exact `Paths.ConfigChecked(agent)` directly with that id, before zellij launch.
-   - **Claude fresh launch (issue #000020):** claude supports `--session-id <uuid>`, so on the new-session path pair generates a v4 UUID, injects the flag into the agent argv, and writes the config synchronously *before* spawning the watcher. The id is deterministic from the launcher's perspective, so the watcher is a no-op for claude — and the cross-tag race that existed when two pair sessions shared a cwd is structurally eliminated.
-2. **Watcher (`pair session-watch`, Codex/Agy/Muse).** Spawned in the background by the launcher on the create path, right before the zellij launch; Shift+Alt+N also spawns it before replacing the agent wrapper. Both producers use `sessionwatch.CommandArgs`, including one RFC3339Nano generation lower bound captured before the spawn, so their internal command contract cannot drift. The stateful discovery logic lives in Go. Two discovery paths:
-   - **PID-bound (preferred).** Reads exact `$PAIR_AGENT_PID_PATH` (written by pair-wrap right after `pty.Start`) only when the pidfile's mtime is at-or-after the producer's generation bound, so a stale pidfile from a prior launch is ignored while a new pidfile written before the detached watcher is scheduled remains valid. It then inspects open files in that PID's process tree via `lsof -p <pid> -Fn`; Codex candidates require matching root metadata.
-   - **Legacy snapshot-diff (fallback).** Used when a fresh pidfile doesn't appear within 2s (`PAIR_SESSION_WATCH_PID_WAIT_SECONDS` in tests) — i.e., when the installed pair-wrap binary predates #000020 and doesn't publish the pidfile, or a stale pidfile is never refreshed. It snapshots the watch dir at start and scans new matching files. Codex candidates still require matching root `session_meta`; malformed and subagent rollouts are skipped. Cross-tag races re-emerge in this path, so the proper resolution is to rebuild pair-wrap.
-
-   Without a fresh PID, discovery times out after 60s. With a bound live PID, 60s ends the fast polling phase; discovery then continues every 60s until it finds the session or the process exits. Each poll also compares the process's kernel start token, so recycling the same numeric PID terminates the watcher instead of transferring ownership to an unrelated process.
-
-Known gap: `/clear` rotates claude's session id mid-session, allocating a new jsonl that neither layer above sees. The launch-time `--session-id` is captured at create time, the watcher's 60s window is long gone by then, and there is no Alt+x trigger anymore. After a `/clear` + Alt+x, `pair resume <tag>` will replay the pre-clear conversation. (Pair previously sent a `bye\n` to the agent on Alt+x specifically to refresh the saved id past a `/clear`; that layer was retired because it polluted the conversation log and the rotation case is rare in practice. `/compact` doesn't rotate.)
-
-Per-agent surface:
-
-| Agent | Path | Id source | Capture mechanism |
-|---|---|---|---|
-| claude | `~/.claude/projects/<encoded-cwd>/<id>.jsonl` | filename | `--session-id` pre-injected by the launcher (deterministic) |
-| codex | `~/.codex/sessions/YYYY/MM/DD/rollout-<ts>-<id>.jsonl` | filename UUID plus matching root `session_meta` first event | `lsof -p <pid>` against agent PID + `ps`-discovered descendants, birth-time fallback |
-| agy | `~/.gemini/antigravity-cli/conversations/<id>.db` | UUID database filename | `lsof -p <pid>` against agent PID + `ps`-discovered descendants, birth-time fallback |
-| muse | `~/.local/share/muse/sessions/YYYY/MM/DD/<id>/session.jsonl` | parent directory UUID, excluding `subagent/` descendants | `lsof -p <pid>` against agent PID + `ps`-discovered descendants, birth-time fallback |
+**Discovery and establishment.** Before the agent can accept input, the launcher
+appends a typed launch record containing Pair-log and native-event watermarks.
+`pair session-watch` then observes the complete scanner forest. Process/open-file
+facts may corroborate a candidate but cannot select it; a unique Pair-authored
+operator turn followed by native assistant/tool/error progress establishes the
+root. Repeated matches stay ambiguous. If the watcher crashes after progress but
+before its binding append, offline recovery reruns the same matcher only over the
+launch-delimited suffix. Before a completed round there is intentionally nothing
+to preserve.
 
 **Stored shape.** Exact `$PAIR_AGENT_CONFIG_PATH`:
 
@@ -965,9 +955,13 @@ Per-agent surface:
 { "agent": "claude", "args": ["--dangerously-skip-permissions"], "session_id": "8d745d08-..." }
 ```
 
-Single write posture: structured JSON plus temp-file rename, only after the id is in hand. The launcher writes the synchronous claude/explicit-resume prewrites, and the Go watcher writes the Codex/Agy/Muse config once the id is discovered — both via `encoding/json` plus `os.CreateTemp`/rename. So a concurrent reader either sees a complete prior config or a complete new one — never a partial. Keyed by `(tag, agent)` because the same tag can hold separate configs for different agents.
+The config remains atomically written and keyed by `(tag, agent)`, but it is a
+compatibility cache: `args` are reusable launch parameters and `session_id` is a
+post-binding mirror. The typed ledger launch/binding join is authoritative. A
+concurrent reader therefore sees complete config bytes, but still must query
+inventory before treating the mirrored ID as resumable.
 
-**Create-flow prompt (the launcher).** When the create path commits a tag, the launcher reads exact `Paths.ConfigChecked(agent)`. If present, it runs the per-agent stale-id check (claude: transcript exists; codex: resolved rollout has matching root metadata; agy: conversation DB exists) and fzf-prompts the user with up to three options. An invalid persisted Codex ID is removed from the config before selection, while its non-resume args remain available for a fresh launch:
+**Create-flow prompt (the launcher).** When the create path commits a tag, the launcher reads exact `Paths.ConfigChecked(agent)` for saved arguments and queries established inventory for any resumable ID. A config ID without an established projection is warned about and removed while its non-resume args remain available for a fresh launch. The picker offers up to three options:
 
 ```
 1) use params + session   args=[...]   resume=<id>

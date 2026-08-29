@@ -1,62 +1,45 @@
 package slugcmd
 
 import (
-	"os"
-	"path/filepath"
 	"testing"
 
-	"github.com/xianxu/pair/cmd/internal/transcript"
+	"github.com/xianxu/pair/cmd/internal/sessioninventory"
+	"github.com/xianxu/pair/cmd/internal/sessioninventorytest"
 )
 
-func TestCodexRolloutPattern(t *testing.T) {
-	path := "/Users/x/.codex/sessions/2026/05/31/rollout-2026-05-31T21-36-56-019e8178-79c2-7862-91db-e8fa1be3b162.jsonl"
-	if got := transcript.CodexSessionIDFromPath(path); got == "" {
-		t.Fatalf("CodexSessionIDFromPath did not match %q", path)
+func TestInventoryTranscriptNeverFallsBackFromProvisional(t *testing.T) {
+	t.Parallel()
+	runtime := slugRuntime(t, false)
+	data, status, err := inventoryTranscript(runtime, "scope", "testtag", sessioninventory.AgentCodex)
+	if err != nil || status != sessioninventory.BindingProvisional || data != nil {
+		t.Fatalf("data=%q status=%s err=%v", data, status, err)
 	}
 }
 
-func TestResolveLiveCodexTranscriptUsesDescendantLsof(t *testing.T) {
-	dataDir := t.TempDir()
-	home := t.TempDir()
-	if err := os.WriteFile(filepath.Join(dataDir, "agent-pid-testtag"), []byte("10\n"), 0o644); err != nil {
-		t.Fatal(err)
+func TestInventoryTranscriptUsesEstablishedRoot(t *testing.T) {
+	t.Parallel()
+	runtime := slugRuntime(t, true)
+	data, status, err := inventoryTranscript(runtime, "scope", "testtag", sessioninventory.AgentCodex)
+	if err != nil || status != sessioninventory.BindingEstablished || len(data) == 0 {
+		t.Fatalf("data=%q status=%s err=%v", data, status, err)
 	}
+}
 
-	rootSID := "019e8178-79c2-7862-91db-e8fa1be3b162"
-	subSID := "01a017b6-af00-7c91-a656-0611a3750669"
-	rootPath := filepath.Join(home, ".codex", "sessions", "2026", "05", "31",
-		"rollout-2026-05-31T21-36-56-"+rootSID+".jsonl")
-	subPath := filepath.Join(home, ".codex", "sessions", "2026", "05", "31",
-		"rollout-2026-05-31T22-00-00-"+subSID+".jsonl")
-	if err := os.MkdirAll(filepath.Dir(rootPath), 0o755); err != nil {
-		t.Fatal(err)
+func slugRuntime(t *testing.T, established bool) *sessioninventorytest.FakeRuntime {
+	t.Helper()
+	const nativeID = "019e8178-79c2-7862-91db-e8fa1be3b162"
+	runtime := sessioninventorytest.NewFakeRuntime()
+	nativeRoot := sessioninventory.StorageRoot{Agent: sessioninventory.AgentCodex, Name: "codex-sessions", Path: "/native/codex"}
+	runtime.AddRoot(nativeRoot)
+	artifact := sessioninventory.Artifact{StorageRoot: nativeRoot.Name, RelativePath: "2026/05/31/rollout-test-" + nativeID + ".jsonl"}
+	runtime.PutFile(sessioninventory.FileEntry{Artifact: artifact}, []byte(
+		`{"timestamp":"2026-05-31T21:36:56Z","type":"session_meta","payload":{"id":"`+nativeID+`","parent_thread_id":null,"source":"cli"}}`+"\n"))
+	pairRoot := sessioninventory.StorageRoot{Name: "pair-data", Path: "/pair/scope"}
+	runtime.SetPairDataRoot(pairRoot)
+	ledger := `{"v":1,"kind":"launch","scope_key":"scope","tag":"testtag","agent":"codex","pair_log_offset":0,"native_watermarks":[]}` + "\n"
+	if established {
+		ledger += `{"v":1,"kind":"binding","scope_key":"scope","tag":"testtag","agent":"codex","launch_ordinal":1,"root_native_id":"` + nativeID + `"}` + "\n"
 	}
-	if err := os.WriteFile(rootPath, []byte(`{"type":"session_meta","payload":{"id":"`+rootSID+`","parent_thread_id":null,"source":"cli"}}`+"\n"), 0o644); err != nil {
-		t.Fatal(err)
-	}
-	if err := os.WriteFile(subPath, []byte(`{"type":"session_meta","payload":{"id":"`+subSID+`","parent_thread_id":"`+rootSID+`","source":{"subagent":{}}}}`+"\n"), 0o644); err != nil {
-		t.Fatal(err)
-	}
-	binDir := t.TempDir()
-	ps := "#!/bin/sh\nprintf ' 10 1\\n 11 10\\n'\n"
-	if err := os.WriteFile(filepath.Join(binDir, "ps"), []byte(ps), 0o755); err != nil {
-		t.Fatal(err)
-	}
-	lsof := "#!/bin/sh\nif [ \"$2\" = \"11\" ]; then printf 'p11\\nn" + subPath + "\\nn" + rootPath + "\\n'; else printf 'p%s\\n' \"$2\"; fi\n"
-	if err := os.WriteFile(filepath.Join(binDir, "lsof"), []byte(lsof), 0o755); err != nil {
-		t.Fatal(err)
-	}
-
-	oldPath := os.Getenv("PATH")
-	t.Setenv("PATH", binDir+string(os.PathListSeparator)+oldPath)
-	got := resolveLiveCodexTranscript(dataDir, "testtag", home)
-	if got != rootPath {
-		t.Fatalf("resolveLiveCodexTranscript = %q, want root %q", got, rootPath)
-	}
-	if err := os.Remove(rootPath); err != nil {
-		t.Fatal(err)
-	}
-	if got := resolveLiveCodexTranscript(dataDir, "testtag", home); got != "" {
-		t.Fatalf("subagent-only resolveLiveCodexTranscript = %q, want empty", got)
-	}
+	runtime.PutFile(sessioninventory.FileEntry{Artifact: sessioninventory.Artifact{StorageRoot: pairRoot.Name, RelativePath: "ledger-testtag.jsonl"}}, []byte(ledger))
+	return runtime
 }

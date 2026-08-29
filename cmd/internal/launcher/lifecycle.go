@@ -7,6 +7,7 @@ import (
 	"strings"
 
 	"github.com/xianxu/pair/cmd/internal/artifactpath"
+	"github.com/xianxu/pair/cmd/internal/sessioninventory"
 )
 
 // The attach + quit-cleanup orchestrators behind RunLaunch's in-process restart
@@ -57,7 +58,7 @@ func runAttach(opts LaunchOptions, env Env, rt Runtime, tag, session, agent stri
 // per-tag sidecars, print the resume hint, kill the title poller, and reset the
 // cmux workspace. A detach (Alt+d) leaves no marker, so this is a no-op then.
 // Runs after BOTH create and attach handoffs (either can leave a quit marker).
-func runCleanup(env Env, rt Runtime, step launchStep, parkTimeout int, out io.Writer) {
+func runCleanup(env Env, rt Runtime, step launchStep, scopeKey string, parkTimeout int, out io.Writer) {
 	if !rt.TakeQuitMarker(step.session) {
 		return
 	}
@@ -67,9 +68,7 @@ func runCleanup(env Env, rt Runtime, step launchStep, parkTimeout int, out io.Wr
 		return
 	}
 	// Resolve the agent this tag was paired with BEFORE the agent-<tag> record is
-	// removed below, so the park path + resume hint name the right binary
-	// (InferAgent reads agent-<tag> first, matching the shell, then falls back to
-	// the config-filename agent, then the current run's agent).
+	// removed below, so the park path + resume hint name the right binary.
 	quitAgent := rt.InferAgent(step.tag)
 	if quitAgent == "" {
 		quitAgent = step.agent
@@ -120,11 +119,11 @@ func runCleanup(env Env, rt Runtime, step launchStep, parkTimeout int, out io.Wr
 	// Resume hint: a saved config for this (tag, agent) means the resume path
 	// will work next time — surface the repo-local tag, not the public zellij
 	// session name.
-	if raw, err := rt.ReadFile(resolveConfigPath(rt, dataDir, step.tag, quitAgent)); err == nil {
+	if _, err := rt.ReadFile(resolveConfigPath(rt, dataDir, step.tag, quitAgent)); err == nil {
 		fmt.Fprintf(out, "pair: saved session config for tag \"%s\" (%s).\n", step.tag, quitAgent)
 		fmt.Fprintf(out, "      resume with: pair resume %s\n", step.tag)
-		if cfg, err := parseConfig(raw); err == nil && cfg.SessionID != "" {
-			fmt.Fprintf(out, "      session id:  %s\n", cfg.SessionID)
+		if sid, status := rt.EstablishedSessionID(scopeKey, step.tag, quitAgent); status == sessioninventory.BindingEstablished && sid != "" {
+			fmt.Fprintf(out, "      session id:  %s\n", sid)
 		}
 	}
 

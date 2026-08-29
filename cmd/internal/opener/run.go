@@ -8,6 +8,7 @@ import (
 	"time"
 
 	"github.com/xianxu/pair/cmd/internal/artifactpath"
+	"github.com/xianxu/pair/cmd/internal/sessioninventory"
 )
 
 // Options are a viewer launcher's inputs after CLI/env resolution.
@@ -16,6 +17,7 @@ type Options struct {
 	Agent     string
 	DataDir   string
 	PairHome  string // nvim lua root + the pair binary the detached distiller execs
+	ScopeKey  string
 	SessionID string // PAIR_SESSION_ID (changelog per-session keying)
 	Jump      string // --jump prev|next (scrollback)
 }
@@ -45,6 +47,7 @@ type Runtime interface {
 	// RunViewer execs nvim (-u luaPath file) with extraEnv as a HELD child,
 	// returning when the user quits.
 	RunViewer(luaPath, file string, extraEnv []string) error
+	EstablishedSessionID(dataDir, scopeKey, tag, agent string) (string, sessioninventory.BindingStatus)
 }
 
 func missingEnv(opts Options) bool {
@@ -154,13 +157,8 @@ func RunChangelog(opts Options, rt Runtime, stderr io.Writer) int {
 
 	sid := opts.SessionID
 	if sid == "" {
-		configPath, pathErr := paths.ConfigChecked(opts.Agent)
-		if pathErr != nil {
-			fmt.Fprintf(stderr, "pair-changelog-open: resolve config artifact: %v\n", pathErr)
-			return 1
-		}
-		if cfg, err := rt.ReadFile(configPath); err == nil {
-			sid = resolveSessionID("", []byte(cfg))
+		if established, status := rt.EstablishedSessionID(opts.DataDir, opts.ScopeKey, opts.Tag, opts.Agent); status == sessioninventory.BindingEstablished {
+			sid = established
 		}
 	}
 	changelog, pathErr := paths.ChangelogArtifacts(opts.Agent, sid)

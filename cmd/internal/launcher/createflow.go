@@ -9,6 +9,7 @@ import (
 	"time"
 
 	"github.com/xianxu/pair/cmd/internal/artifactpath"
+	"github.com/xianxu/pair/cmd/internal/sessioninventory"
 )
 
 // RunLaunch is the native launcher's in-process driver (#99 M2 create + M3
@@ -80,7 +81,7 @@ func RunLaunch(opts LaunchOptions, rt Runtime, stderr io.Writer) (int, error) {
 		if !step.handedOff {
 			return step.code, nil // aborted or errored before the blocking handoff
 		}
-		runCleanup(env, rt, step, opts.ParkPromptTimeout, stderr)
+		runCleanup(env, rt, step, scopeKeyFromDataDir(opts.GlobalDataDir, env.DataDir), opts.ParkPromptTimeout, stderr)
 
 		m, ok := rt.TakeRestartMarker(step.session)
 		if !ok {
@@ -103,13 +104,9 @@ func RunLaunch(opts LaunchOptions, rt Runtime, stderr io.Writer) (int, error) {
 
 		configPath := resolveConfigPath(rt, env.DataDir, rTag, rAgent)
 		saved := readSavedConfig(rt, configPath)
-		savedSessionID := saved.SessionID
-		var quarantine bool
-		saved, quarantine = decideAutomaticResumeConfig(rAgent, saved, rt.AgentSessionExists(rAgent, savedSessionID, env.Cwd))
-		if quarantine {
-			fmt.Fprintf(stderr, "pair: saved session %q for %s is not available; starting fresh\n", savedSessionID, rAgent)
-			rt.Remove(configPath)
-		}
+		// The restart marker carries the only established identity for re-entry;
+		// saved config contributes launch parameters only.
+		saved.SessionID = ""
 		plan := planRestart(m, rTag, rAgent, saved)
 		if plan.DropConfig {
 			rt.Remove(configPath) // Shift+Alt+N / compaction: drop the config so create mints fresh.
@@ -400,9 +397,11 @@ func runCreate(opts LaunchOptions, env Env, rt Runtime, live []Session, decision
 		legacyImported = importLegacyFlatTag(rt, chosenTag, opts.GlobalDataDir, dataDir)
 	}
 	configPath := resolveConfigPath(rt, dataDir, chosenTag, agent)
-	savedForPicker, savedWarnings := readSavedConfigForTag(rt, configPath, chosenTag, agent)
-	for _, warning := range savedWarnings {
-		fmt.Fprintln(stderr, warning)
+	savedForPicker, savedWarnings := readSavedConfigForTag(rt, configPath, scope.Key, chosenTag, agent)
+	if !opts.SkipConfigPicker {
+		for _, warning := range savedWarnings {
+			fmt.Fprintln(stderr, warning)
+		}
 	}
 
 	agentDefault, defaultFound := rt.ReadAgentDefault(agent)
@@ -724,25 +723,40 @@ func runConfigPicker(rt Runtime, configPath string, saved savedConfig, agent, ch
 	return 0, true
 }
 
-func readSavedConfigForTag(rt Runtime, configPath, tag, agent string) (savedConfig, []string) {
+func readSavedConfigForTag(rt Runtime, configPath, scopeKey, tag, agent string) (savedConfig, []string) {
 	var warnings []string
+	var saved savedConfig
+	candidateSessionID := ""
 	if raw, err := rt.ReadFile(configPath); err == nil {
 		if cfg, err := parseConfig(raw); err != nil {
 			warnings = append(warnings, fmt.Sprintf("pair: saved config for tag %q (%s) is malformed; ignoring it", tag, agent))
 		} else if cfg.Agent != agent {
 			warnings = append(warnings, fmt.Sprintf("pair: saved config agent %q does not match requested agent %q; ignoring it", cfg.Agent, agent))
 		} else {
-			return cfg, warnings
+			saved = cfg
+			candidateSessionID = cfg.SessionID
 		}
 	}
-	entries, err := rt.ReadLedger(tag)
-	if err != nil {
-		return savedConfig{}, warnings
+	if saved.Agent == "" {
+		entries, err := rt.ReadLedger(tag)
+		if err == nil {
+			if latest, ok := LatestLedgerEntryForAgent(entries, agent); ok {
+				saved = savedConfig{Agent: latest.Agent, Args: latest.Args}
+				candidateSessionID = latest.SessionID
+			}
+		}
 	}
-	if latest, ok := LatestLedgerEntryForAgent(entries, agent); ok {
-		return savedConfig{Agent: latest.Agent, Args: latest.Args, SessionID: latest.SessionID}, warnings
+	if sid, status := rt.EstablishedSessionID(scopeKey, tag, agent); status == sessioninventory.BindingEstablished {
+		saved.Agent = agent
+		saved.SessionID = sid
+	} else {
+		saved.SessionID = ""
+		if candidateSessionID != "" {
+			warnings = append(warnings, fmt.Sprintf("pair: saved session %q for %s is not available; starting fresh", candidateSessionID, agent))
+			rt.Remove(configPath)
+		}
 	}
-	return savedConfig{}, warnings
+	return saved, warnings
 }
 
 // resolveConfigPath returns config-<tag>-<agent>.json, migrating a legacy

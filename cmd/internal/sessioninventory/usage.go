@@ -10,6 +10,17 @@ type TokenUsage struct {
 	InputTokens int `json:"input_tokens"`
 }
 
+// TokenUsageForRoot reads the established scanner-authorized root transcript
+// and returns its last accepted root usage record.
+func TokenUsageForRoot(runtime Runtime, root Node) (TokenUsage, bool, error) {
+	data, err := ReadRootTranscript(runtime, root)
+	if err != nil {
+		return TokenUsage{}, false, err
+	}
+	usage, ok := TokenUsageFromJSONL(root.Agent, data)
+	return usage, ok, nil
+}
+
 func TokenUsageFromJSONL(agent Agent, data []byte) (TokenUsage, bool) {
 	var last TokenUsage
 	found := false

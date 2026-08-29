@@ -25,6 +25,7 @@ func RunCLI(args []string, getenv func(string) string, stdout, stderr io.Writer)
 		return 1
 	}
 	options.currentScopeKey = getenv("PAIR_SCOPE_KEY")
+	options.currentTag = getenv("PAIR_TAG")
 	dataDir := cliPairDataDir(getenv, options.scope)
 	home := getenv("HOME")
 	if home == "" {
@@ -47,6 +48,7 @@ func RunCLIWithRuntime(args []string, getenv func(string) string, runtime Runtim
 		return 1
 	}
 	options.currentScopeKey = getenv("PAIR_SCOPE_KEY")
+	options.currentTag = getenv("PAIR_TAG")
 	return runCLIOptions(options, runtime, stdout, stderr)
 }
 
@@ -55,7 +57,9 @@ type cliOptions struct {
 	scope           string
 	json            bool
 	conformance     bool
+	activity        bool
 	currentScopeKey string
+	currentTag      string
 }
 
 func parseCLIOptions(args []string) (cliOptions, string) {
@@ -65,11 +69,15 @@ func parseCLIOptions(args []string) (cliOptions, string) {
 	scope := flags.String("scope", "current", "scope")
 	jsonOutput := flags.Bool("json", false, "JSON output")
 	conformance := flags.Bool("conformance", false, "redacted conformance")
+	activity := flags.Bool("activity", false, "internal established-root activity")
 	if err := flags.Parse(args); err != nil || flags.NArg() != 0 {
 		return cliOptions{}, "usage: pair session-inventory [--agent claude|codex|agy|muse] [--scope current|all] [--json] [--conformance]"
 	}
 	if *scope != "current" && *scope != "all" {
 		return cliOptions{}, fmt.Sprintf("pair session-inventory: unsupported scope %q", *scope)
+	}
+	if *activity && (*agentName == "" || *scope != "current" || *conformance) {
+		return cliOptions{}, "usage: pair session-inventory [--agent claude|codex|agy|muse] [--scope current|all] [--json] [--conformance]"
 	}
 	agents := append([]Agent(nil), supportedAgents...)
 	if *agentName != "" {
@@ -79,7 +87,7 @@ func parseCLIOptions(args []string) (cliOptions, string) {
 		}
 		agents = []Agent{agent}
 	}
-	return cliOptions{agents: agents, scope: *scope, json: *jsonOutput, conformance: *conformance}, ""
+	return cliOptions{agents: agents, scope: *scope, json: *jsonOutput, conformance: *conformance, activity: *activity}, ""
 }
 
 func runCLIOptions(options cliOptions, runtime Runtime, stdout, stderr io.Writer) int {
@@ -96,6 +104,9 @@ func defaultCLIRenderers() cliRenderers {
 }
 
 func runCLIOptionsWithRenderers(options cliOptions, runtime Runtime, stdout, stderr io.Writer, renderers cliRenderers) int {
+	if options.activity {
+		return runActivityCLI(options, runtime, stdout, stderr)
+	}
 	if options.conformance {
 		report, conformanceErr := RunConformance(runtime, options.agents...)
 		rendered, renderErr := renderers.conformance(report)

@@ -13,7 +13,6 @@
 package opener
 
 import (
-	"encoding/json"
 	"regexp"
 
 	"github.com/xianxu/pair/cmd/internal/artifactpath"
@@ -99,26 +98,6 @@ func matchViewport(dump, ansi []string) (int, bool) {
 		return s, true
 	}
 	return 0, false
-}
-
-// resolveSessionID implements the #63 change-log keying: an explicit
-// PAIR_SESSION_ID wins; else the per-tag config's session_id; else "" (the
-// legacy unsuffixed base). configJSON is the raw config-<tag>-<agent>.json bytes
-// (nil/empty when absent).
-func resolveSessionID(envSID string, configJSON []byte) string {
-	if envSID != "" {
-		return envSID
-	}
-	if len(configJSON) == 0 {
-		return ""
-	}
-	var c struct {
-		SessionID string `json:"session_id"`
-	}
-	if json.Unmarshal(configJSON, &c) != nil {
-		return ""
-	}
-	return c.SessionID
 }
 
 // changelogBase is the per-session change-log path stem: the sid suffix is

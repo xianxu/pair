@@ -13,6 +13,7 @@ import (
 	"github.com/xianxu/pair/cmd/internal/osfs"
 	"github.com/xianxu/pair/cmd/internal/procutil"
 	"github.com/xianxu/pair/cmd/internal/scrollbackcmd"
+	"github.com/xianxu/pair/cmd/internal/sessioninventory"
 )
 
 // OSRuntime implements Runtime with real zellij/nvim/exec/fs calls. The fs
@@ -21,6 +22,16 @@ import (
 type OSRuntime struct{ osfs.FS }
 
 func NewOSRuntime() OSRuntime { return OSRuntime{} }
+
+func (OSRuntime) EstablishedSessionID(dataDir, scopeKey, tag, agent string) (string, sessioninventory.BindingStatus) {
+	home, _ := os.UserHomeDir()
+	runtime := sessioninventory.NewOSRuntime(home, dataDir)
+	query, err := sessioninventory.QuerySession(runtime, scopeKey, tag, sessioninventory.Agent(agent))
+	if err != nil || query.Root == nil {
+		return "", query.Status
+	}
+	return query.Root.NativeID, query.Status
+}
 
 func (OSRuntime) Sleep(d time.Duration)        { time.Sleep(d) }
 func (OSRuntime) Getpid() string               { return strconv.Itoa(os.Getpid()) }

@@ -511,17 +511,17 @@ and mechanical guard; executable fixtures/fuzz seeds own individual cases.
 - Modify: `cmd/internal/reviewcmd/run_test.go`
 - Modify: `cmd/internal/reviewcmd/reviewcmd_test.go`
 
-- [ ] RED/GREEN: for transcript/context/title, add consumer tests against the
+- [x] RED/GREEN: for transcript/context/title, add consumer tests against the
       established-binding query, then remove glob/first/path/native-parser
       fallbacks while preserving exact inherited environment authority.
-- [ ] RED/GREEN: add `TestTokenUsageForRoot` from the strategy table, migrate
+- [x] RED/GREEN: add `TestTokenUsageForRoot` from the strategy table, migrate
       context/title to it, and reduce `ctxmeter` to agent-neutral humanization.
-- [ ] RED/GREEN: add slug/review consumer tests against ambiguous/unbound
+- [x] RED/GREEN: add slug/review consumer tests against ambiguous/unbound
       inventory results, then remove live `lsof` and duplicate parser fallbacks.
-- [ ] Run `rg -n 'cmd/internal/codexsid' cmd`, remove the last imports, delete
+- [x] Run `rg -n 'cmd/internal/codexsid' cmd`, remove the last imports, delete
       `codexsid` and its tests, then rerun affected packages.
-- [ ] Verify ambiguous/unbound results remain explicit and are never silently converted to newest/first.
-- [ ] Run:
+- [x] Verify ambiguous/unbound results remain explicit and are never silently converted to newest/first.
+- [x] Run:
   - `go test ./cmd/internal/transcript ./cmd/internal/contextcmd ./cmd/internal/ctxmeter ./cmd/internal/titlepoller ./cmd/internal/slugcmd ./cmd/internal/reviewcmd -count=1`
 - [ ] Commit: `git add -A cmd/internal && git commit -m '#155: migrate transcript and review consumers'`.
 
@@ -551,16 +551,16 @@ and mechanical guard; executable fixtures/fuzz seeds own individual cases.
 - Modify: `tests/changelog-session-key-test.sh`
 - Modify: `tests/term-pane-shortcuts-test.sh`
 
-- [ ] RED/GREEN: add `TestSessionActivity` and `TestActivityCLI` from the
+- [x] RED/GREEN: add `TestSessionActivity` and `TestActivityCLI` from the
       strategy table, then implement established-binding activity lookup and
       its buffered internal transport without changing schema-v1.
-- [ ] RED/GREEN: add launcher/opener consumer tests against established,
+- [x] RED/GREEN: add launcher/opener consumer tests against established,
       provisional, and legacy projections, then remove native path formulas and
       direct config/history selectors.
-- [ ] RED/GREEN: add Lua/shell `session_age_hint` parity tests, then route
+- [x] RED/GREEN: add Lua/shell `session_age_hint` parity tests, then route
       Neovim age/idle through the activity query and remove native
       `find`/`stat`/parser calls.
-- [ ] Run:
+- [x] Run:
   - `go test ./cmd/internal/sessioninventory ./cmd/internal/launcher ./cmd/internal/opener -count=1`
   - `make test-lua`
   - `bash tests/review-toggle-test.sh`
@@ -583,14 +583,14 @@ and mechanical guard; executable fixtures/fuzz seeds own individual cases.
 - Modify: `workshop/issues/000155-agent-session-tree-inventory.md`
 - Modify: `workshop/projects/couch.md`
 
-- [ ] RED/GREEN: add `TestShadowSweep` from the strategy table, then implement
+- [x] RED/GREEN: add `TestShadowSweep` from the strategy table, then implement
       the governed Go/shell/Lua scan outside `sessioninventory`.
-- [ ] Update artifactpath's manifest/coverage vocabulary for the deleted
+- [x] Update artifactpath's manifest/coverage vocabulary for the deleted
       `codexsid` owner, shared ledger/config/native-session ownership, and every
       new resolved consumer; make unclassified source roots fail.
-- [ ] Keep an explicit shadow allowlist only for inventory implementation and
+- [x] Keep an explicit shadow allowlist only for inventory implementation and
       fixture/test assertions; remove every reported consumer (`ARCH-DRY`).
-- [ ] Run focused verification:
+- [x] Run focused verification:
   - `go test ./cmd/internal/sessioninventory ./cmd/internal/sessioninventorytest ./cmd/internal/sessionledger ./cmd/internal/pairlog ./cmd/internal/sessionwatch ./cmd/internal/transcript ./cmd/internal/contextcmd ./cmd/internal/ctxmeter ./cmd/internal/titlepoller ./cmd/internal/slugcmd ./cmd/internal/reviewcmd ./cmd/internal/launcher ./cmd/internal/opener ./cmd/internal/changelogcmd ./cmd/internal/procutil ./cmd/pair-go -count=1`
   - `go test ./cmd/internal/artifactpath ./cmd/internal/dispatcher -count=1`
   - `bash tests/pair-session-watch-test.sh`
@@ -602,7 +602,7 @@ and mechanical guard; executable fixtures/fuzz seeds own individual cases.
   - `bash tests/term-pane-shortcuts-test.sh`
   - `zellij --config-dir zellij setup --check`
   - `git diff --check`
-- [ ] If representative native samples exist, run `PAIR_LIVE_NATIVE_SESSIONS=1 go test ./cmd/internal/sessioninventory -run TestLiveNativeSessionShapeConformance -count=1 -v` and record only the redacted result.
+- [x] If representative native samples exist, run `PAIR_LIVE_NATIVE_SESSIONS=1 go test ./cmd/internal/sessioninventory -run TestLiveNativeSessionShapeConformance -count=1 -v` and record only the redacted result.
 - [ ] Tick only the plain final migration checkbox; sweep the six named atlas
       files and record any legitimate conformance skip. Do not write issue
       status/actual/close-log or Couch actual/closed state by hand.
@@ -614,6 +614,21 @@ and mechanical guard; executable fixtures/fuzz seeds own individual cases.
       trailers, then publish with `sdlc push`.
 
 ## Revisions
+
+### 2026-08-28 — final consumer authority consolidation
+
+**Reason:** once consumers used the inventory projection, retaining the old
+`transcript` package would preserve a second native path/parser authority, and
+editor age display needed a content-free transport without expanding public
+schema v1.
+
+**Delta:** delete `transcript` alongside `codexsid`; introduce shared
+`QuerySession`, scanner-authorized transcript/usage helpers, and a separate
+established-only activity projection plus buffered internal CLI mode. Launcher
+history remains Pair-sidecar enumeration only; agent/native identity comes from
+current typed ownership and established inventory, never config filenames. The
+repository shadow sweep owns this class invariant (ARCH-DRY, ARCH-PURE,
+ARCH-PURPOSE, ARCH-MOCK).
 
 ### 2026-08-28 — plan-quality round 1
 

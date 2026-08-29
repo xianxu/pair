@@ -13,6 +13,8 @@ import (
 	"testing"
 	"time"
 
+	"github.com/xianxu/pair/cmd/internal/sessioninventory"
+
 	"github.com/xianxu/pair/cmd/internal/readiness"
 )
 
@@ -37,8 +39,9 @@ type fakeRuntime struct {
 	ledger              map[string][]LedgerEntry
 	sessionIndex        SessionNameIndex
 	sessionIndexErr     error
-	agentSessions       map[string]bool // "agent|sid" -> native artifact exists
-	uuids               []string        // MintUUID pops these in order
+	agentSessions       map[string]bool   // "agent|sid" -> native artifact exists
+	establishedSessions map[string]string // "scope|tag|agent" -> established native id
+	uuids               []string          // MintUUID pops these in order
 	promptValue         string
 	promptOK            bool
 	maxSessionNameBytes int
@@ -115,20 +118,21 @@ func (f *fakeRuntime) EnsureThreadAddress(scope RepoScope, tag string, couchOwne
 
 func newFakeRuntime() *fakeRuntime {
 	return &fakeRuntime{
-		blocksReuse:    map[string]bool{},
-		commandMissing: map[string]bool{},
-		files:          map[string]string{},
-		ledger:         map[string][]LedgerEntry{},
-		agentSessions:  map[string]bool{},
-		inferAgent:     map[string]string{},
-		promptOK:       true,
-		env:            map[string]string{},
-		quitMarkers:    map[string]bool{},
-		restartMarkers: map[string]RestartMarker{},
-		cmuxOwned:      map[string]bool{},
-		liveLayouts:    map[string]LayoutMode{},
-		readyRecords:   map[string]bool{},
-		readyPIDs:      map[int]bool{},
+		blocksReuse:         map[string]bool{},
+		commandMissing:      map[string]bool{},
+		files:               map[string]string{},
+		ledger:              map[string][]LedgerEntry{},
+		agentSessions:       map[string]bool{},
+		establishedSessions: map[string]string{},
+		inferAgent:          map[string]string{},
+		promptOK:            true,
+		env:                 map[string]string{},
+		quitMarkers:         map[string]bool{},
+		restartMarkers:      map[string]RestartMarker{},
+		cmuxOwned:           map[string]bool{},
+		liveLayouts:         map[string]LayoutMode{},
+		readyRecords:        map[string]bool{},
+		readyPIDs:           map[int]bool{},
 	}
 }
 
@@ -229,6 +233,12 @@ func (f *fakeRuntime) MintUUID() string {
 }
 func (f *fakeRuntime) AgentSessionExists(agent, sid, cwd string) bool {
 	return f.agentSessions[agent+"|"+sid]
+}
+func (f *fakeRuntime) EstablishedSessionID(scopeKey, tag, agent string) (string, sessioninventory.BindingStatus) {
+	if sid := f.establishedSessions[tag+"|"+agent]; sid != "" {
+		return sid, sessioninventory.BindingEstablished
+	}
+	return "", sessioninventory.BindingUnbound
 }
 func (f *fakeRuntime) InferAgent(tag string) string {
 	if latest, ok := LatestLedgerEntry(f.ledger[tag]); ok && latest.Agent != "" {
@@ -1118,6 +1128,7 @@ func TestRunLaunchTagRestartPickerResume(t *testing.T) {
 	rt := newFakeRuntime()
 	rt.files["/data/config-cx-codex.json"] = `{"agent":"codex","args":["--search"],"session_id":"CX-9"}`
 	rt.agentSessions["codex|CX-9"] = true // native session artifact exists → resumable
+	rt.establishedSessions["cx|codex"] = "CX-9"
 	rt.pickFunc = func(header string, options []string) string {
 		return options[0] // "use saved params + session"
 	}
@@ -1192,6 +1203,7 @@ func TestRunLaunchTagRestartPickerResumeStripsCodexResumeAfterGlobals(t *testing
 	rt := newFakeRuntime()
 	rt.files["/data/config-cx-codex.json"] = `{"agent":"codex","args":["--sandbox","danger-full-access","resume","CX-9","--no-alt-screen"],"session_id":"CX-9"}`
 	rt.agentSessions["codex|CX-9"] = true
+	rt.establishedSessions["cx|codex"] = "CX-9"
 	rt.pickFunc = func(header string, options []string) string {
 		return options[0] // "use saved params + session"
 	}
@@ -1369,6 +1381,7 @@ func TestRunLaunchResumeUsesLedgerAgentAndArgsWhenConfigMissing(t *testing.T) {
 		LastActive: time.Unix(1_700_000_010, 0),
 	}}
 	rt.agentSessions["codex|CX-9"] = true
+	rt.establishedSessions["work|codex"] = "CX-9"
 	rt.pickFunc = func(header string, options []string) string {
 		for _, o := range options {
 			if strings.Contains(o, "use saved params + session") {
