@@ -411,7 +411,7 @@ func ValidateAuthorizationProof(proof AuthorizationProof, rootNativeID string) e
 	artifacts := slices.Clone(proof.Artifacts)
 	sortArtifactProofs(artifacts)
 	for i, artifact := range artifacts {
-		if artifact.StorageRoot == "" || artifact.RelativePath == "" || artifact.StableFileID == "" || artifact.MutationToken == "" || artifact.Size < 0 || artifact.ParserCompleteOffset < 0 || artifact.ParserCompleteOffset > artifact.Size {
+		if artifact.StorageRoot == "" || artifact.RelativePath == "" || artifact.StableFileID == "" || artifact.MutationToken == "" || artifact.Size < 0 || artifact.ParserCompleteOffset != artifact.Size {
 			return errors.New("invalid authorization artifact proof")
 		}
 		if i > 0 && artifact.StorageRoot == artifacts[i-1].StorageRoot && artifact.RelativePath == artifacts[i-1].RelativePath {

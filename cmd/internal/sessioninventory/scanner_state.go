@@ -1,6 +1,10 @@
 package sessioninventory
 
-import "errors"
+import (
+	"errors"
+
+	"github.com/xianxu/pair/cmd/internal/strictjson"
+)
 
 const ScannerStateVersion = 1
 
@@ -52,6 +56,17 @@ func ValidateScannerState(state ScannerState) error {
 		}
 	}
 	return nil
+}
+
+func DecodeScannerState(raw []byte) (ScannerState, error) {
+	var state ScannerState
+	if err := strictjson.Decode(raw, &state); err != nil {
+		return ScannerState{}, err
+	}
+	if err := ValidateScannerState(state); err != nil {
+		return ScannerState{}, err
+	}
+	return state, nil
 }
 
 func cloneScannerState(state ScannerState) ScannerState {

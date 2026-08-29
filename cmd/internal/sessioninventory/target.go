@@ -58,6 +58,66 @@ func SelectTargetWork(request TargetRequest, observations []ArtifactObservation)
 	}
 }
 
+// NativeSessionCandidateExists validates only one explicitly named native
+// session. It is the cold fallback for resume collision checks; callers with a
+// durable proof or catalog should use that authority without rereading bytes.
+func NativeSessionCandidateExists(runtime Runtime, agent Agent, nativeID string) bool {
+	observations, _ := ObserveAgentMetadata(runtime, agent)
+	return NativeSessionCandidateExistsFromObservations(runtime, agent, nativeID, observations)
+}
+
+func NativeSessionCandidateExistsFromObservations(runtime Runtime, agent Agent, nativeID string, observations []ArtifactObservation) bool {
+	target := SelectTargetWork(TargetRequest{Mode: TargetExplicitResume, Agent: agent, NativeID: nativeID}, observations)
+	if target.Unavailable {
+		return false
+	}
+	validations, _ := ValidateTargetWork(runtime, agent, target.Eligible)
+	for _, validation := range validations {
+		if validation.State.NativeID == nativeID && validation.State.Role == RoleRoot && validation.Fact.Resumable && !validation.State.Disputed {
+			return true
+		}
+	}
+	return false
+}
+
+// CatalogSessionCandidateExists reuses a scanner-authorized catalog entry only
+// while every artifact in its root fact has the exact observed generation.
+// It is pure and never treats metadata naming as root authority.
+func CatalogSessionCandidateExists(catalog Catalog, observations []ArtifactObservation, agent Agent, nativeID string) bool {
+	observed := make(map[string]ArtifactFingerprint, len(observations))
+	for _, observation := range observations {
+		if observation.Agent == agent {
+			observed[targetArtifactKey(observation.Entry.Artifact)] = fingerprintFromEntry(observation.Entry)
+		}
+	}
+	entries := make(map[string]CatalogEntry)
+	for _, entry := range catalog.Entries {
+		if entry.Agent == agent && entry.Authorization == AuthorizationAuthorized {
+			entries[targetArtifactKey(entry.Artifact)] = entry
+		}
+	}
+	for _, entry := range entries {
+		for _, fact := range entry.Facts {
+			if fact.Agent != agent || fact.NativeID != nativeID || fact.Role != RoleRoot || !fact.Resumable || fact.Disputed || len(fact.Artifacts) == 0 {
+				continue
+			}
+			complete := true
+			for _, artifact := range fact.Artifacts {
+				catalogEntry, ok := entries[targetArtifactKey(artifact)]
+				fingerprint, observedOK := observed[targetArtifactKey(artifact)]
+				if !ok || !observedOK || !equalFingerprint(catalogEntry.Fingerprint, fingerprint) {
+					complete = false
+					break
+				}
+			}
+			if complete {
+				return true
+			}
+		}
+	}
+	return false
+}
+
 func selectNewLaunchTargets(request TargetRequest, observed []ArtifactObservation) TargetResult {
 	baseline := map[string]bool{}
 	for _, boundary := range request.Baseline {

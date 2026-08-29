@@ -1,87 +1,121 @@
 package sessioninventory_test
 
 import (
-	"bytes"
-	"io/fs"
+	"bufio"
+	"fmt"
+	"go/ast"
+	"go/parser"
+	"go/token"
 	"os"
 	"path/filepath"
 	"regexp"
-	"runtime"
 	"strings"
 	"testing"
 )
 
-func TestShadowSweep(t *testing.T) {
+func TestNoWholeInventoryShadowInInteractiveConsumers(t *testing.T) {
 	t.Parallel()
-	_, source, _, ok := runtime.Caller(0)
-	if !ok {
-		t.Fatal("locate shadow test")
+	repoRoot := filepath.Clean(filepath.Join("..", "..", ".."))
+	allowed := map[string]bool{
+		"cmd/internal/sessioninventory/runcli.go:runCLIOptionsWithRenderers:InventoryWithRuntime":     true,
+		"cmd/internal/sessioninventory/pair_inventory.go:RecoverPairBindings:NativeEventsWithRuntime": true,
+		// A v1 launch can exist only across an in-place binary upgrade. Keep its
+		// compatibility adapter explicit; all newly-created launches are v2.
+		"cmd/internal/sessionwatch/run.go:Run:InventoryWithRuntime":    true,
+		"cmd/internal/sessionwatch/run.go:Run:NativeEventsWithRuntime": true,
 	}
-	repo := filepath.Clean(filepath.Join(filepath.Dir(source), "..", "..", ".."))
-	rules := []struct {
-		name string
-		re   *regexp.Regexp
-	}{
-		{name: "Codex native path", re: regexp.MustCompile(`(?:\.codex/sessions|["']\.codex["']\s*,\s*["']sessions["'])`)},
-		{name: "Claude native path", re: regexp.MustCompile(`(?:\.claude/projects|["']\.claude["']\s*,\s*["']projects["'])`)},
-		{name: "Agy native path", re: regexp.MustCompile(`antigravity-cli["'/,\s]+(?:brain|conversations)`)},
-		{name: "Muse native path", re: regexp.MustCompile(`(?:\.local/share/muse/sessions|["']muse["']\s*,\s*["']sessions["'])`)},
-		{name: "direct lsof command", re: regexp.MustCompile(`exec\.Command\(["']lsof["']`)},
-		{name: "retired transcript resolver", re: regexp.MustCompile(`(?:ReadCodexRootSessionID|CodexSessionIDFromPath|ResolveCodexSessionID|resolveLiveCodexTranscript)`)},
-		{name: "config filename authority scan", re: regexp.MustCompile(`\.ConfigGlob\(\)`)},
-		{name: "native transcript parser", re: regexp.MustCompile(`(?:parseTranscript|parseClaude|parseCodex|parseAgy|parseMuse|claudeEntry|codexEntry|agyEntry|museEnvelope)`)},
-	}
-
-	for _, root := range []string{"cmd", "nvim", "bin"} {
-		err := filepath.WalkDir(filepath.Join(repo, root), func(path string, entry fs.DirEntry, walkErr error) error {
-			if walkErr != nil {
-				return walkErr
+	seen := map[string]bool{}
+	var violations []string
+	err := filepath.WalkDir(filepath.Join(repoRoot, "cmd"), func(path string, entry os.DirEntry, err error) error {
+		if err != nil {
+			return err
+		}
+		if entry.IsDir() || !strings.HasSuffix(path, ".go") || strings.HasSuffix(path, "_test.go") {
+			return nil
+		}
+		relative, err := filepath.Rel(repoRoot, path)
+		if err != nil {
+			return err
+		}
+		parsed, err := parser.ParseFile(token.NewFileSet(), path, nil, 0)
+		if err != nil {
+			return err
+		}
+		for _, declaration := range parsed.Decls {
+			function, ok := declaration.(*ast.FuncDecl)
+			if !ok || function.Body == nil {
+				continue
 			}
-			rel, err := filepath.Rel(repo, path)
+			ast.Inspect(function.Body, func(node ast.Node) bool {
+				call, ok := node.(*ast.CallExpr)
+				if !ok {
+					return true
+				}
+				name := calledName(call.Fun)
+				if name != "InventoryWithRuntime" && name != "NativeEventsWithRuntime" {
+					return true
+				}
+				key := filepath.ToSlash(relative) + ":" + function.Name.Name + ":" + name
+				if allowed[key] {
+					seen[key] = true
+				} else {
+					violations = append(violations, key)
+				}
+				return true
+			})
+		}
+		return nil
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	for key := range allowed {
+		if !seen[key] {
+			violations = append(violations, "stale allowlist entry "+key)
+		}
+	}
+	activity := regexp.MustCompile(`session-inventory[^\n]*--activity`)
+	for _, dir := range []string{"nvim", "bin"} {
+		err := filepath.WalkDir(filepath.Join(repoRoot, dir), func(path string, entry os.DirEntry, err error) error {
 			if err != nil {
 				return err
 			}
 			if entry.IsDir() {
-				if rel == "cmd/internal/sessioninventory" || strings.Contains(rel, string(filepath.Separator)+"testdata") {
-					return filepath.SkipDir
-				}
 				return nil
 			}
-			if strings.HasSuffix(path, "_test.go") || !governedShadowSource(path, root) {
+			if extension := filepath.Ext(path); extension != ".lua" && extension != ".sh" {
 				return nil
 			}
-			raw, err := os.ReadFile(path)
+			file, err := os.Open(path)
 			if err != nil {
 				return err
 			}
-			if root == "bin" && !bytes.HasPrefix(raw, []byte("#!")) {
-				return nil
-			}
-			for _, rule := range rules {
-				if rel == "cmd/internal/procutil/procutil.go" && rule.name == "direct lsof command" {
-					continue
-				}
-				if rule.re.Match(raw) {
-					t.Errorf("%s contains %s outside sessioninventory", rel, rule.name)
+			defer file.Close()
+			scanner := bufio.NewScanner(file)
+			for line := 1; scanner.Scan(); line++ {
+				if activity.MatchString(scanner.Text()) {
+					relative, _ := filepath.Rel(repoRoot, path)
+					violations = append(violations, fmt.Sprintf("%s:%d direct activity subprocess", filepath.ToSlash(relative), line))
 				}
 			}
-			return nil
+			return scanner.Err()
 		})
-		if err != nil {
-			t.Fatalf("scan %s: %v", root, err)
+		if err != nil && !os.IsNotExist(err) {
+			t.Fatal(err)
 		}
+	}
+	if len(violations) != 0 {
+		t.Fatalf("whole-inventory shadow paths: %s", strings.Join(violations, "; "))
 	}
 }
 
-func governedShadowSource(path, root string) bool {
-	switch root {
-	case "cmd":
-		return strings.HasSuffix(path, ".go")
-	case "nvim":
-		return strings.HasSuffix(path, ".lua")
-	case "bin":
-		return filepath.Ext(path) == "" || strings.HasSuffix(path, ".sh")
+func calledName(expression ast.Expr) string {
+	switch value := expression.(type) {
+	case *ast.Ident:
+		return value.Name
+	case *ast.SelectorExpr:
+		return value.Sel.Name
 	default:
-		return false
+		return ""
 	}
 }

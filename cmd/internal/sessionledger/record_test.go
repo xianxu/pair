@@ -227,6 +227,7 @@ func TestAuthorizationProofValidatesRootAndCompleteArtifacts(t *testing.T) {
 		{name: "missing stable id", mutate: func(p *AuthorizationProof) { p.Artifacts[0].StableFileID = "" }},
 		{name: "missing mutation", mutate: func(p *AuthorizationProof) { p.Artifacts[0].MutationToken = "" }},
 		{name: "offset beyond size", mutate: func(p *AuthorizationProof) { p.Artifacts[0].ParserCompleteOffset = 11 }},
+		{name: "incomplete parser offset", mutate: func(p *AuthorizationProof) { p.Artifacts[0].ParserCompleteOffset = 9 }},
 		{name: "duplicate artifact", mutate: func(p *AuthorizationProof) { p.Artifacts = append(p.Artifacts, p.Artifacts[0]) }},
 	} {
 		t.Run(test.name, func(t *testing.T) {

@@ -637,18 +637,14 @@ func (r OSRuntime) AgentSessionExists(agent, sid, cwd string) bool {
 	}
 	home := os.Getenv("HOME")
 	runtime := sessioninventory.NewOSRuntime(home, r.DataDir)
-	inventory := sessioninventory.InventoryWithRuntime(runtime, sessioninventory.ScannerForAgent(sessioninventory.Agent(agent)))
-	for _, forest := range inventory.Forests {
-		if forest.Agent != sessioninventory.Agent(agent) {
-			continue
-		}
-		for _, root := range forest.Roots {
-			if root.NativeID == sid && root.Resumable {
-				return true
-			}
+	nativeAgent := sessioninventory.Agent(agent)
+	observations, _ := sessioninventory.ObserveAgentMetadata(runtime, nativeAgent)
+	if scope, err := artifactpath.ResolveSelectedScope(r.DataDir); err == nil {
+		if catalog, err := (sessioninventory.CatalogStore{Runtime: sessioninventory.CatalogOSRuntime{}}).Read(scope.SessionInventoryCatalog()); err == nil && sessioninventory.CatalogSessionCandidateExists(catalog, observations, nativeAgent, sid) {
+			return true
 		}
 	}
-	return false
+	return sessioninventory.NativeSessionCandidateExistsFromObservations(runtime, nativeAgent, sid, observations)
 }
 
 func (r OSRuntime) EstablishedSessionID(scopeKey, tag, agent string) (string, sessioninventory.BindingStatus) {
