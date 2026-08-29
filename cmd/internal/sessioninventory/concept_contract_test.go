@@ -2,11 +2,11 @@ package sessioninventory
 
 import (
 	"bufio"
+	"bytes"
 	"fmt"
 	"go/ast"
 	"go/parser"
 	"go/token"
-	"os"
 	"os/exec"
 	"path/filepath"
 	"regexp"
@@ -24,6 +24,10 @@ type conceptContract struct {
 }
 
 var conceptNamePattern = regexp.MustCompile("`([^`]+)`")
+
+const issue155PlanName = "000155-agent-session-tree-inventory-plan.md"
+const issue155ContractCommit = "a8b203500768cbcb151d90c07c33b31a490907aa"
+const issue155PlanPathAtContract = "workshop/plans/000155-agent-session-tree-inventory-plan.md"
 
 // issue155DetailTypes exhaustively disposes support shapes that are
 // owned by #155 but are implementation detail rather than Core Concepts.
@@ -56,34 +60,43 @@ var issue155DetailTypes = map[string][]string{
 
 func TestEveryCoreConceptIntroductionMatchesDeclarations(t *testing.T) {
 	root := filepath.Join("..", "..", "..")
-	planPath := filepath.Join(root, "workshop", "plans", "000155-agent-session-tree-inventory-plan.md")
-	sources := issue155OwnedSources(t, root, planPath)
-	introductions := readPlanIntroductions(t, planPath)
+	plan := issue155GitObject(t, root, issue155PlanPathAtContract)
+	sources := issue155OwnedSources(t, root, plan)
+	introductions := readPlanIntroductions(plan)
 	want := []string{"M1", "M2", "final"}
 	if strings.Join(introductions, ",") != strings.Join(want, ",") {
 		t.Fatalf("Core Concepts introduction stages = %v, want exhaustive allowed stages %v", introductions, want)
 	}
 	for _, introduced := range introductions {
-		t.Run(introduced, func(t *testing.T) { assertConceptContract(t, root, introduced, sources) })
+		t.Run(introduced, func(t *testing.T) { assertConceptContract(t, root, plan, introduced, sources) })
 	}
 }
 
-func issue155OwnedSources(t *testing.T, root, planPath string) []string {
+func issue155GitObject(t *testing.T, root, path string) []byte {
 	t.Helper()
-	command := exec.Command("git", "log", "--format=", "--name-only", "--diff-filter=A", "--grep=^#155", "4c454436..HEAD", "--", "*.go")
+	command := exec.Command("git", "show", issue155ContractCommit+":"+filepath.ToSlash(path))
+	command.Dir = root
+	raw, err := command.Output()
+	if err != nil {
+		t.Fatalf("read pinned #155 object %s: %v", path, err)
+	}
+	return raw
+}
+
+func issue155OwnedSources(t *testing.T, root string, plan []byte) []string {
+	t.Helper()
+	command := exec.Command("git", "log", "--format=", "--name-only", "--diff-filter=A", "--grep=^#155", "4c454436.."+issue155ContractCommit, "--", "*.go")
 	command.Dir = root
 	raw, err := command.Output()
 	if err != nil {
 		t.Fatalf("derive #155 source inventory: %v", err)
 	}
-	planRaw, err := os.ReadFile(planPath)
-	if err != nil {
-		t.Fatal(err)
-	}
-	candidates := mergeIssue155SourceCandidates(string(raw), string(planRaw))
+	candidates := mergeIssue155SourceCandidates(string(raw), string(plan))
 	result := make([]string, 0, len(candidates))
 	for _, path := range candidates {
-		if _, err := os.Stat(filepath.Join(root, path)); err == nil {
+		command := exec.Command("git", "cat-file", "-e", issue155ContractCommit+":"+path)
+		command.Dir = root
+		if err := command.Run(); err == nil {
 			result = append(result, path)
 		}
 	}
@@ -132,12 +145,7 @@ func TestIssueOwnedSourceCandidatesIncludeNewPackagesAndPlanSources(t *testing.T
 	}
 }
 
-func readPlanIntroductions(t *testing.T, planPath string) []string {
-	t.Helper()
-	raw, err := os.ReadFile(planPath)
-	if err != nil {
-		t.Fatal(err)
-	}
+func readPlanIntroductions(raw []byte) []string {
 	seen := map[string]bool{}
 	for _, line := range strings.Split(string(raw), "\n") {
 		if !strings.HasPrefix(line, "|") || strings.Contains(line, "|------") || strings.Contains(line, "| Name |") {
@@ -163,8 +171,8 @@ func readPlanIntroductions(t *testing.T, planPath string) []string {
 
 func TestEveryIssueOwnedTypeHasConceptDisposition(t *testing.T) {
 	root := filepath.Join("..", "..", "..")
-	planPath := filepath.Join(root, "workshop", "plans", "000155-agent-session-tree-inventory-plan.md")
-	sources := issue155OwnedSources(t, root, planPath)
+	plan := issue155GitObject(t, root, issue155PlanPathAtContract)
+	sources := issue155OwnedSources(t, root, plan)
 	wantDetails := map[string]bool{}
 	for path, names := range issue155DetailTypes {
 		for _, name := range names {
@@ -173,8 +181,8 @@ func TestEveryIssueOwnedTypeHasConceptDisposition(t *testing.T) {
 	}
 	seenDetails := map[string]bool{}
 	for _, relativePath := range sources {
-		path := filepath.Join(root, relativePath)
-		file, err := parser.ParseFile(token.NewFileSet(), path, nil, parser.ParseComments)
+		raw := issue155GitObject(t, root, relativePath)
+		file, err := parser.ParseFile(token.NewFileSet(), relativePath, raw, parser.ParseComments)
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -253,9 +261,9 @@ func validConceptMarker(marker []string) bool {
 	return marker[2] == "M1" || marker[2] == "M2" || marker[2] == "final"
 }
 
-func assertConceptContract(t *testing.T, root, milestone string, sources []string) {
+func assertConceptContract(t *testing.T, root string, planRaw []byte, milestone string, sources []string) {
 	t.Helper()
-	plan := readPlanConcepts(t, filepath.Join(root, "workshop", "plans", "000155-agent-session-tree-inventory-plan.md"), milestone)
+	plan := readPlanConcepts(t, planRaw, milestone)
 	declarations := readConceptDeclarations(t, root, sources, milestone)
 	if len(plan) != len(declarations) {
 		t.Fatalf("%s concept count: plan=%d declarations=%d\nplan=%#v\ndeclarations=%#v", milestone, len(plan), len(declarations), plan, declarations)
@@ -272,16 +280,11 @@ func assertConceptContract(t *testing.T, root, milestone string, sources []strin
 	}
 }
 
-func readPlanConcepts(t *testing.T, planPath, milestone string) map[string]conceptContract {
+func readPlanConcepts(t *testing.T, raw []byte, milestone string) map[string]conceptContract {
 	t.Helper()
-	file, err := os.Open(planPath)
-	if err != nil {
-		t.Fatal(err)
-	}
-	defer file.Close()
 	result := map[string]conceptContract{}
 	kind := ""
-	scanner := bufio.NewScanner(file)
+	scanner := bufio.NewScanner(bytes.NewReader(raw))
 	for scanner.Scan() {
 		line := scanner.Text()
 		switch line {
@@ -319,8 +322,8 @@ func readConceptDeclarations(t *testing.T, root string, sources []string, milest
 	t.Helper()
 	result := map[string]conceptContract{}
 	for _, relativePath := range sources {
-		path := filepath.Join(root, relativePath)
-		file, err := parser.ParseFile(token.NewFileSet(), path, nil, parser.ParseComments)
+		raw := issue155GitObject(t, root, relativePath)
+		file, err := parser.ParseFile(token.NewFileSet(), relativePath, raw, parser.ParseComments)
 		if err != nil {
 			t.Fatal(err)
 		}

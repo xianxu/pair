@@ -10,7 +10,47 @@ import (
 	"syscall"
 	"testing"
 	"time"
+
+	"github.com/xianxu/pair/cmd/internal/sessionledger"
 )
+
+func TestOSRuntimeStartProofMigrationUpgradesPersistedOwner(t *testing.T) {
+	home := t.TempDir()
+	dataDir := t.TempDir()
+	t.Setenv("HOME", home)
+	sid := "019eff64-6ceb-7e72-9d41-a735a97029ac"
+	dir := filepath.Join(home, ".codex", "sessions", "2026", "08", "29")
+	if err := os.MkdirAll(dir, 0o700); err != nil {
+		t.Fatal(err)
+	}
+	rawSession := []byte(`{"timestamp":"2026-08-29T01:00:00Z","type":"session_meta","payload":{"id":"` + sid + `","parent_thread_id":null,"source":"cli"}}` + "\n" + `{"type":"response_item","payload":{"type":"message","role":"user","content":[{"type":"input_text","text":"legacy"}]}}` + "\n" + `{"type":"response_item","payload":{"type":"function_call"}}` + "\n")
+	if err := os.WriteFile(filepath.Join(dir, "rollout-test-"+sid+".jsonl"), rawSession, 0o600); err != nil {
+		t.Fatal(err)
+	}
+	ledgerPath := filepath.Join(dataDir, "ledger-work.jsonl")
+	store := sessionledger.LedgerStore{Runtime: sessionledger.OSRuntime{}}
+	owner := sessionledger.Owner{ScopeKey: "scope", Tag: "work", Agent: "codex"}
+	launch, err := store.Append(ledgerPath, sessionledger.Record{Version: 1, Kind: sessionledger.RecordLaunch, ScopeKey: owner.ScopeKey, Tag: owner.Tag, Agent: owner.Agent})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := store.AppendBindingIfCurrent(ledgerPath, owner, launch.Ordinal, sid); err != nil {
+		t.Fatal(err)
+	}
+	(OSRuntime{DataDir: dataDir}).StartProofMigration()
+	deadline := time.Now().Add(2 * time.Second)
+	for time.Now().Before(deadline) {
+		raw, readErr := os.ReadFile(ledgerPath)
+		if readErr == nil {
+			current, ok := sessionledger.CurrentLaunch(sessionledger.ParseLedger(raw).Records, owner)
+			if ok && current.Binding != nil && current.Binding.AuthorizationProof != nil {
+				return
+			}
+		}
+		time.Sleep(10 * time.Millisecond)
+	}
+	t.Fatal("launcher startup did not durably migrate proofless owner")
+}
 
 // ResolveContinuationDoc / ScanContinuations do real glob+read IO the fake can't
 // exercise. Critically, "newest doc wins" is `matches[len-1]` after sort — if it

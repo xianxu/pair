@@ -248,6 +248,10 @@ func (p ScopePaths) SessionBindings() string {
 	return filepath.Join(p.scopeDir, "session-names.jsonl")
 }
 
+func (p ScopePaths) SessionInventoryCatalog() string {
+	return filepath.Join(p.scopeDir, "session-inventory-catalog.json")
+}
+
 func (p ScopePaths) HistoryGlobs() []string {
 	return []string{
 		filepath.Join(p.scopeDir, "draft-*.md"),
@@ -433,13 +437,16 @@ func (p Paths) LayoutMode() string      { return p.tagged("layout-mode-", "") }
 func (p Paths) Restart() string         { return p.tagged("restart-", "") }
 func (p Paths) DraftPane() string       { return p.tagged("draft-pane-", ".json") }
 func (p Paths) SessionBindings() string { return filepath.Join(p.ScopeDir(), "session-names.jsonl") }
-func (p Paths) ThreadClaim() string     { return p.tagged("thread-claim-", ".json") }
-func (p Paths) Quote() string           { return p.tagged("quote-", "") }
-func (p Paths) Slug() string            { return p.tagged("slug-", "") }
-func (p Paths) SlugProposed() string    { return p.tagged("slug-proposed-", "") }
-func (p Paths) TitlePID() string        { return p.tagged("title-pid-", "") }
-func (p Paths) PairWrapPID() string     { return p.tagged("pair-wrap-pid-", "") }
-func (p Paths) WrapEvents() string      { return p.tagged("wrap-events-", ".jsonl") }
+func (p Paths) SessionInventoryCatalog() string {
+	return filepath.Join(p.ScopeDir(), "session-inventory-catalog.json")
+}
+func (p Paths) ThreadClaim() string  { return p.tagged("thread-claim-", ".json") }
+func (p Paths) Quote() string        { return p.tagged("quote-", "") }
+func (p Paths) Slug() string         { return p.tagged("slug-", "") }
+func (p Paths) SlugProposed() string { return p.tagged("slug-proposed-", "") }
+func (p Paths) TitlePID() string     { return p.tagged("title-pid-", "") }
+func (p Paths) PairWrapPID() string  { return p.tagged("pair-wrap-pid-", "") }
+func (p Paths) WrapEvents() string   { return p.tagged("wrap-events-", ".jsonl") }
 func (p Paths) ScrollbackPending() string {
 	return p.tagged("scrollback-pending-", ".md")
 }

@@ -2,6 +2,8 @@ package sessioninventory
 
 import (
 	"bytes"
+	"encoding/json"
+	"errors"
 	"path"
 	"sort"
 	"strings"
@@ -11,6 +13,12 @@ const (
 	agyTrajectorySchemaQuery = "pragma table_info(trajectory_meta)"
 	agyTrajectoryFactsQuery  = "select cascade_id, typeof(cascade_id), typeof(trajectory_type), typeof(source) from trajectory_meta limit 2"
 )
+
+// AgyProviderContractQueries exposes the exact external-query seam to the live
+// fake conformance test without duplicating SQL text.
+func AgyProviderContractQueries() (schema, facts string) {
+	return agyTrajectorySchemaQuery, agyTrajectoryFactsQuery
+}
 
 var sqliteHeader = []byte("SQLite format 3\x00")
 
@@ -67,36 +75,110 @@ func ScanAgy(runtime Runtime) ScanResult {
 func scanAgyDatabase(runtime Runtime, nativeID string, databaseEntry, transcriptEntry FileEntry) (Fact, []Diagnostic, bool) {
 	database := databaseEntry.Artifact
 	database.Kind = ArtifactDatabase
-	header, _, err := runtime.ReadAt(database, 0, int64(len(sqliteHeader)))
-	if err != nil || !bytes.Equal(header, sqliteHeader) {
-		return Fact{}, []Diagnostic{artifactDiagnostic(DiagnosticSchemaNearMiss, AgentAgy, &nativeID, database, "missing SQLite v3 header")}, false
-	}
-	schema, err := runtime.QuerySQLite(database, agyTrajectorySchemaQuery, metadataRecordLimit)
-	if err != nil || !validAgySchema(schema) {
-		return Fact{}, []Diagnostic{artifactDiagnostic(DiagnosticSchemaNearMiss, AgentAgy, &nativeID, database, "trajectory_meta schema is not Agy v1")}, false
-	}
-	facts, err := runtime.QuerySQLite(database, agyTrajectoryFactsQuery, metadataRecordLimit)
-	if err != nil || len(facts.Rows) != 1 || len(facts.Rows[0]) != 4 || facts.Rows[0][0] != nativeID || facts.Rows[0][1] != "text" || facts.Rows[0][2] != "integer" || facts.Rows[0][3] != "integer" {
-		return Fact{}, []Diagnostic{artifactDiagnostic(DiagnosticSchemaNearMiss, AgentAgy, &nativeID, database, "trajectory_meta identity row is not Agy v1")}, false
-	}
-
 	artifacts := []Artifact{database}
 	var diagnostics []Diagnostic
 	if transcriptEntry.Artifact.RelativePath == "" {
+		if detail := validateAgyDatabaseEvidence(runtime, database, nativeID); detail != "" {
+			return Fact{}, []Diagnostic{artifactDiagnostic(DiagnosticSchemaNearMiss, AgentAgy, &nativeID, database, detail)}, false
+		}
 		diagnostics = append(diagnostics, artifactDiagnostic(DiagnosticParentMissing, AgentAgy, &nativeID, database, "Agy transcript join is missing"))
-	} else {
-		transcript := transcriptEntry.Artifact
-		transcript.Kind = ArtifactTranscript
-		artifacts = append(artifacts, transcript)
+		return Fact{Agent: AgentAgy, NativeID: nativeID, Role: RoleRoot, Time: fallbackTime(databaseEntry), Resumable: true, Artifacts: artifacts}, diagnostics, true
 	}
-	return Fact{
-		Agent:     AgentAgy,
-		NativeID:  nativeID,
-		Role:      RoleRoot,
-		Time:      fallbackTime(databaseEntry),
-		Resumable: true,
-		Artifacts: artifacts,
-	}, diagnostics, true
+
+	transcript := transcriptEntry.Artifact
+	transcript.Kind = ArtifactTranscript
+	transcriptEntry.Artifact = transcript
+	var records []FramedJSONLRecord
+	err := visitJSONLinesAt(runtime, transcript, jsonRecordLimit, func(line []byte, offset uint64) bool {
+		records = append(records, FramedJSONLRecord{Offset: int64(offset), Bytes: append([]byte(nil), line...)})
+		return false
+	})
+	state, found, validateErr := ValidateAgyDelta(runtime, databaseEntry, transcriptEntry, nil, records)
+	diagnostics = append(diagnostics, found...)
+	if validateErr != nil {
+		return Fact{}, append(diagnostics, artifactDiagnostic(DiagnosticSchemaNearMiss, AgentAgy, &nativeID, transcript, validateErr.Error())), false
+	}
+	if err != nil {
+		state.Disputed = true
+		diagnostics = append(diagnostics, artifactDiagnostic(DiagnosticSchemaNearMiss, AgentAgy, &nativeID, transcript, err.Error()))
+	}
+	if !state.FirstRecordValidated {
+		return Fact{}, diagnostics, false
+	}
+	artifacts = append(artifacts, transcript)
+	return scannerStateFact(state, artifacts), diagnostics, true
+}
+
+// ValidateAgyDelta revalidates the keyed SQLite identity seam and applies
+// complete joined-transcript records to one cloned root state. SQLite is never
+// treated as append-only.
+func ValidateAgyDelta(runtime Runtime, databaseEntry, transcriptEntry FileEntry, prior *ScannerState, records []FramedJSONLRecord) (ScannerState, []Diagnostic, error) {
+	database := databaseEntry.Artifact
+	database.Kind = ArtifactDatabase
+	databaseEntry.Artifact = database
+	transcript := transcriptEntry.Artifact
+	transcript.Kind = ArtifactTranscript
+	transcriptEntry.Artifact = transcript
+	nativeID, databaseRecognized := agyDatabasePathID(database.RelativePath)
+	transcriptID, transcriptRecognized := agyTranscriptPathID(transcript.RelativePath)
+	if !databaseRecognized || !transcriptRecognized || transcriptID != nativeID {
+		return ScannerState{}, nil, errors.New("Agy database/transcript join is invalid")
+	}
+	state := ScannerState{Version: ScannerStateVersion, Agent: AgentAgy, NativeID: nativeID, IdentityAnchor: nativeID, Role: RoleRoot, ScannerSchema: "agy-v1", Chronology: fallbackTime(databaseEntry)}
+	if prior != nil {
+		if err := ValidateScannerState(*prior); err != nil {
+			return ScannerState{}, nil, err
+		}
+		state = cloneScannerState(*prior)
+		if state.Agent != AgentAgy || state.NativeID != nativeID || state.IdentityAnchor != nativeID || state.Role != RoleRoot || state.ScannerSchema != "agy-v1" {
+			return ScannerState{}, nil, errors.New("Agy scanner state does not match joined artifacts")
+		}
+	}
+	var diagnostics []Diagnostic
+	if detail := validateAgyDatabaseEvidence(runtime, database, nativeID); detail != "" {
+		state.Disputed = true
+		diagnostics = append(diagnostics, artifactDiagnostic(DiagnosticSchemaNearMiss, AgentAgy, &nativeID, database, detail))
+		return state, diagnostics, nil
+	}
+	state.FirstRecordValidated = true
+	applyAgyTranscriptRecords(&state, transcript, records, &diagnostics)
+	if err := ValidateScannerState(state); err != nil {
+		return ScannerState{}, diagnostics, err
+	}
+	return state, diagnostics, nil
+}
+
+func applyAgyTranscriptRecords(state *ScannerState, transcript Artifact, records []FramedJSONLRecord, diagnostics *[]Diagnostic) {
+	for _, framed := range records {
+		if len(framed.Bytes) == 0 {
+			continue
+		}
+		var record map[string]json.RawMessage
+		if decodeStrictJSON(framed.Bytes, &record) != nil || record == nil {
+			state.Disputed = true
+			*diagnostics = append(*diagnostics, artifactDiagnostic(DiagnosticSchemaNearMiss, AgentAgy, &state.NativeID, transcript, "malformed Agy transcript JSONL record"))
+		}
+	}
+}
+
+func validateAgyDatabaseEvidence(runtime Runtime, database Artifact, nativeID string) string {
+	header, _, err := runtime.ReadAt(database, 0, int64(len(sqliteHeader)))
+	if err != nil || !bytes.Equal(header, sqliteHeader) {
+		return "missing SQLite v3 header"
+	}
+	schema, err := runtime.QuerySQLite(database, agyTrajectorySchemaQuery, metadataRecordLimit)
+	if err != nil || !validAgySchema(schema) {
+		return "trajectory_meta schema is not Agy v1"
+	}
+	facts, err := runtime.QuerySQLite(database, agyTrajectoryFactsQuery, metadataRecordLimit)
+	if err != nil || !validAgyIdentityFacts(facts, nativeID) {
+		return "trajectory_meta identity row is not Agy v1"
+	}
+	return ""
+}
+
+func validAgyIdentityFacts(facts SQLiteResult, nativeID string) bool {
+	return len(facts.Rows) == 1 && len(facts.Rows[0]) == 4 && facts.Rows[0][0] == nativeID && facts.Rows[0][1] == "text" && facts.Rows[0][2] == "integer" && facts.Rows[0][3] == "integer"
 }
 
 func validAgySchema(result SQLiteResult) bool {

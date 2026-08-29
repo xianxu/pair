@@ -1,6 +1,7 @@
 package sessionwatch
 
 import (
+	"encoding/json"
 	"errors"
 	"fmt"
 	"os"
@@ -17,16 +18,19 @@ var ErrResumeUnauthorized = errors.New("resume native session is not scanner-aut
 type LedgerAppender interface {
 	Append(string, sessionledger.Record) (sessionledger.Record, error)
 	AppendBindingIfCurrent(string, sessionledger.Owner, uint64, string) (sessionledger.Record, error)
+	AppendBindingProofIfCurrent(string, sessionledger.Owner, uint64, sessionledger.AuthorizationProof) (sessionledger.Record, error)
 	Reconcile(string, sessionledger.Record) error
 }
 
 type PrepareLaunchInput struct {
-	Owner          sessionledger.Owner
-	LedgerPath     string
-	PairLogOffset  uint64
-	Inventory      sessioninventory.Inventory
-	NativeEvents   []sessioninventory.NativeEventFact
-	ResumeNativeID string
+	Owner              sessionledger.Owner
+	LedgerPath         string
+	PairLogOffset      uint64
+	Inventory          sessioninventory.Inventory
+	NativeEvents       []sessioninventory.NativeEventFact
+	ResumeNativeID     string
+	ArtifactBoundaries []sessionledger.LaunchArtifactBoundary
+	ResumeProof        *sessionledger.AuthorizationProof
 }
 
 type PreparedLaunch struct {
@@ -40,6 +44,9 @@ type ConfigWriter func(ConfigPayload) error
 // An explicit resume may join immediately, but only through a root authorized
 // by the same scanner inventory used by the watcher.
 func PrepareLaunch(input PrepareLaunchInput, store LedgerAppender) (PreparedLaunch, error) {
+	if input.ArtifactBoundaries != nil {
+		return prepareLaunchV2(input, store)
+	}
 	agent := sessioninventory.Agent(input.Owner.Agent)
 	rootNativeIDs := map[string]string{}
 	maxPositions := map[string]uint64{}
@@ -109,6 +116,42 @@ func PrepareLaunch(input PrepareLaunchInput, store LedgerAppender) (PreparedLaun
 	return prepared, warning
 }
 
+func prepareLaunchV2(input PrepareLaunchInput, store LedgerAppender) (PreparedLaunch, error) {
+	if input.ResumeNativeID != "" && (input.ResumeProof == nil || input.ResumeProof.RootNativeID != input.ResumeNativeID) {
+		return PreparedLaunch{}, ErrResumeUnauthorized
+	}
+	launch, err := store.Append(input.LedgerPath, sessionledger.Record{
+		Version: 2, Kind: sessionledger.RecordLaunch, ScopeKey: input.Owner.ScopeKey, Tag: input.Owner.Tag, Agent: input.Owner.Agent,
+		PairLogOffset: input.PairLogOffset, LaunchArtifactBoundaries: append([]sessionledger.LaunchArtifactBoundary(nil), input.ArtifactBoundaries...),
+	})
+	prepared := PreparedLaunch{}
+	if launch.Ordinal != 0 {
+		prepared.Launch = launch
+	}
+	err = reconcileLedgerAppend(store, input.LedgerPath, launch, err)
+	var warning error
+	if err != nil {
+		if sessionledger.AppendOutcomeOf(err) != sessionledger.AppendCommitted {
+			return prepared, err
+		}
+		warning = err
+	}
+	prepared.Launch = launch
+	if input.ResumeProof == nil {
+		return prepared, warning
+	}
+	binding, err := store.AppendBindingProofIfCurrent(input.LedgerPath, input.Owner, launch.Ordinal, *input.ResumeProof)
+	err = reconcileLedgerAppend(store, input.LedgerPath, binding, err)
+	if err != nil {
+		if sessionledger.AppendOutcomeOf(err) != sessionledger.AppendCommitted {
+			return prepared, errors.Join(warning, err)
+		}
+		warning = errors.Join(warning, err)
+	}
+	prepared.Binding = &binding
+	return prepared, warning
+}
+
 func reconcileLedgerAppend(store LedgerAppender, path string, record sessionledger.Record, err error) error {
 	if sessionledger.AppendOutcomeOf(err) != sessionledger.AppendIndeterminate {
 		return err
@@ -150,7 +193,21 @@ func ObserveAndPersist(input ObserveInput, store LedgerAppender, writeConfig Con
 	if nativeID == "" {
 		return resolved, nil
 	}
-	appended, err := store.AppendBindingIfCurrent(input.LedgerPath, input.Owner, input.LaunchOrdinal, nativeID)
+	proof, hasProof := input.Proofs[*binding.RootNodeID]
+	if input.RequireProof && !hasProof {
+		resolved.Diagnostics = append(resolved.Diagnostics, sessioninventory.Diagnostic{
+			Code: sessioninventory.DiagnosticBindingStale, Agent: agent,
+			Detail: "proof-bearing binding authority is unavailable",
+		})
+		return sessioninventory.SortInventory(resolved), nil
+	}
+	var appended sessionledger.Record
+	var err error
+	if hasProof {
+		appended, err = store.AppendBindingProofIfCurrent(input.LedgerPath, input.Owner, input.LaunchOrdinal, proof)
+	} else {
+		appended, err = store.AppendBindingIfCurrent(input.LedgerPath, input.Owner, input.LaunchOrdinal, nativeID)
+	}
 	err = reconcileLedgerAppend(store, input.LedgerPath, appended, err)
 	if err != nil && sessionledger.AppendOutcomeOf(err) != sessionledger.AppendCommitted {
 		return resolved, err
@@ -197,19 +254,81 @@ func PrepareOSLaunch(home, dataDir string, owner sessionledger.Owner, resumeNati
 	} else if !os.IsNotExist(statErr) {
 		return PreparedLaunch{}, statErr
 	}
-	nativeRuntime := sessioninventory.NewOSRuntime(home, dataDir)
+	return prepareRuntimeLaunch(paths.Ledger(), owner, resumeNativeID, pairLogOffset, sessioninventory.NewOSRuntime(home, dataDir), sessionledger.LedgerStore{Runtime: sessionledger.OSRuntime{}})
+}
+
+// PrepareRuntimeLaunch is the injected metadata-only launch seam used by the
+// stateful corpus tests.
+func PrepareRuntimeLaunch(dataDir string, owner sessionledger.Owner, resumeNativeID string, pairLogOffset uint64, nativeRuntime sessioninventory.Runtime, store LedgerAppender) (PreparedLaunch, error) {
+	paths, err := artifactpath.ResolveScoped(dataDir, owner.Tag)
+	if err != nil {
+		return PreparedLaunch{}, err
+	}
+	return prepareRuntimeLaunch(paths.Ledger(), owner, resumeNativeID, pairLogOffset, nativeRuntime, store)
+}
+
+func prepareRuntimeLaunch(ledgerPath string, owner sessionledger.Owner, resumeNativeID string, pairLogOffset uint64, nativeRuntime sessioninventory.Runtime, store LedgerAppender) (PreparedLaunch, error) {
 	agent := sessioninventory.Agent(owner.Agent)
-	inventory := sessioninventory.InventoryWithRuntime(nativeRuntime, sessioninventory.ScannerForAgent(agent))
-	events, diagnostics := sessioninventory.NativeEventsWithRuntime(nativeRuntime, inventory, agent)
+	inventory := sessioninventory.NewIncrementalInventory(nativeRuntime, sessioninventory.Catalog{Version: sessioninventory.CatalogVersion})
+	snapshot := inventory.Observe(agent)
+	observations, diagnostics := snapshot.Observations, snapshot.Diagnostics
 	for _, diagnostic := range diagnostics {
-		if fatalLaunchBaselineDiagnostic(diagnostic) {
-			return PreparedLaunch{}, fmt.Errorf("capture native launch baseline: %s", diagnostic.Detail)
+		if diagnostic.Code == sessioninventory.DiagnosticStorageUnreadable {
+			return PreparedLaunch{}, fmt.Errorf("capture native launch metadata: %s", diagnostic.Detail)
 		}
 	}
-	return PrepareLaunch(PrepareLaunchInput{
-		Owner: owner, LedgerPath: paths.Ledger(), PairLogOffset: pairLogOffset,
-		Inventory: inventory, NativeEvents: events, ResumeNativeID: resumeNativeID,
-	}, sessionledger.LedgerStore{Runtime: sessionledger.OSRuntime{}})
+	boundaries := make([]sessionledger.LaunchArtifactBoundary, 0, len(observations))
+	for _, observation := range observations {
+		entry := observation.Entry
+		boundaries = append(boundaries, sessionledger.LaunchArtifactBoundary{
+			StorageRoot: entry.Artifact.StorageRoot, RelativePath: entry.Artifact.RelativePath, StableFileID: string(entry.StableFileID),
+			GenerationToken: string(entry.GenerationToken), MutationToken: string(entry.MutationToken), RawSize: entry.Size,
+		})
+	}
+	var proof *sessionledger.AuthorizationProof
+	if resumeNativeID != "" {
+		selection := inventory.Select(sessioninventory.TargetRequest{Mode: sessioninventory.TargetExplicitResume, Agent: agent, NativeID: resumeNativeID}, snapshot)
+		validations, _ := sessioninventory.ValidateTargetWork(nativeRuntime, agent, selection.Eligible)
+		for _, validation := range validations {
+			if validation.State.NativeID == resumeNativeID && validation.State.Role == sessioninventory.RoleRoot {
+				candidate, err := authorizationProof(validation)
+				if err != nil {
+					return PreparedLaunch{}, err
+				}
+				proof = &candidate
+				break
+			}
+		}
+		if proof == nil {
+			return PreparedLaunch{}, ErrResumeUnauthorized
+		}
+	}
+	return PrepareLaunch(PrepareLaunchInput{Owner: owner, LedgerPath: ledgerPath, PairLogOffset: pairLogOffset, ArtifactBoundaries: boundaries, ResumeNativeID: resumeNativeID, ResumeProof: proof}, store)
+}
+
+func authorizationProof(validation sessioninventory.TargetValidation) (sessionledger.AuthorizationProof, error) {
+	state, err := json.Marshal(validation.State)
+	if err != nil {
+		return sessionledger.AuthorizationProof{}, err
+	}
+	proof := sessionledger.AuthorizationProof{Version: 1, RootNativeID: validation.State.NativeID, ScannerSchema: validation.State.ScannerSchema, ScannerState: state}
+	for _, observation := range validation.Observations {
+		entry := observation.Entry
+		fingerprint := sessioninventory.ArtifactFingerprint{StableFileID: entry.StableFileID, GenerationToken: entry.GenerationToken, MutationToken: entry.MutationToken, Size: entry.Size}
+		parserOffset := entry.Size
+		if result, ok := validation.Results[entry.Artifact.StorageRoot+"\x00"+entry.Artifact.RelativePath]; ok {
+			fingerprint = result.Fingerprint
+			parserOffset = result.FrameState.ParserCompleteOffset
+		}
+		proof.Artifacts = append(proof.Artifacts, sessionledger.ArtifactProof{
+			StorageRoot: entry.Artifact.StorageRoot, RelativePath: entry.Artifact.RelativePath, StableFileID: string(fingerprint.StableFileID),
+			GenerationToken: string(fingerprint.GenerationToken), MutationToken: string(fingerprint.MutationToken), Size: fingerprint.Size, ParserCompleteOffset: parserOffset,
+		})
+	}
+	if err := sessionledger.ValidateAuthorizationProof(proof, proof.RootNativeID); err != nil {
+		return sessionledger.AuthorizationProof{}, err
+	}
+	return proof, nil
 }
 
 func fatalLaunchBaselineDiagnostic(diagnostic sessioninventory.Diagnostic) bool {

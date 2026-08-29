@@ -109,13 +109,27 @@ func (s LedgerStore) AppendBindingIfCurrent(path string, owner Owner, launchOrdi
 		Version: 1, Kind: RecordBinding, ScopeKey: owner.ScopeKey, Tag: owner.Tag, Agent: owner.Agent,
 		LaunchOrdinal: launchOrdinal, RootNativeID: rootNativeID,
 	}
+	return s.appendBindingIfCurrentRecord(path, owner, record)
+}
+
+// AppendBindingProofIfCurrent publishes scanner authorization only while its
+// referenced launch remains the current physical generation for the owner.
+func (s LedgerStore) AppendBindingProofIfCurrent(path string, owner Owner, launchOrdinal uint64, proof AuthorizationProof) (Record, error) {
+	record := Record{
+		Version: 2, Kind: RecordBinding, ScopeKey: owner.ScopeKey, Tag: owner.Tag, Agent: owner.Agent,
+		LaunchOrdinal: launchOrdinal, RootNativeID: proof.RootNativeID, AuthorizationProof: &proof,
+	}
+	return s.appendBindingIfCurrentRecord(path, owner, record)
+}
+
+func (s LedgerStore) appendBindingIfCurrentRecord(path string, owner Owner, record Record) (Record, error) {
 	encoded, err := EncodeRecord(record)
 	if err != nil {
 		return Record{}, fmt.Errorf("encode ledger binding: %w", err)
 	}
 	ordinal, err := s.appendEncodedChecked(path, encoded, func(raw []byte) error {
 		current, ok := CurrentLaunch(ParseLedger(raw).Records, owner)
-		if !ok || current.Launch.Ordinal != launchOrdinal {
+		if !ok || current.Launch.Ordinal != record.LaunchOrdinal {
 			return ErrStaleLaunch
 		}
 		return nil

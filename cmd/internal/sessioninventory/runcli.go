@@ -58,6 +58,7 @@ type cliOptions struct {
 	json            bool
 	conformance     bool
 	activity        bool
+	ownerTag        string
 	currentScopeKey string
 	currentTag      string
 }
@@ -70,6 +71,7 @@ func parseCLIOptions(args []string) (cliOptions, string) {
 	jsonOutput := flags.Bool("json", false, "JSON output")
 	conformance := flags.Bool("conformance", false, "redacted conformance")
 	activity := flags.Bool("activity", false, "internal established-root activity")
+	ownerTag := flags.String("owner", "", "internal established owner tag")
 	if err := flags.Parse(args); err != nil || flags.NArg() != 0 {
 		return cliOptions{}, "usage: pair session-inventory [--agent claude|codex|agy|muse] [--scope current|all] [--json] [--conformance]"
 	}
@@ -77,6 +79,9 @@ func parseCLIOptions(args []string) (cliOptions, string) {
 		return cliOptions{}, fmt.Sprintf("pair session-inventory: unsupported scope %q", *scope)
 	}
 	if *activity && (*agentName == "" || *scope != "current" || *conformance) {
+		return cliOptions{}, "usage: pair session-inventory [--agent claude|codex|agy|muse] [--scope current|all] [--json] [--conformance]"
+	}
+	if *ownerTag != "" && (*agentName == "" || *scope != "current" || *conformance || *activity || *jsonOutput) {
 		return cliOptions{}, "usage: pair session-inventory [--agent claude|codex|agy|muse] [--scope current|all] [--json] [--conformance]"
 	}
 	agents := append([]Agent(nil), supportedAgents...)
@@ -87,7 +92,7 @@ func parseCLIOptions(args []string) (cliOptions, string) {
 		}
 		agents = []Agent{agent}
 	}
-	return cliOptions{agents: agents, scope: *scope, json: *jsonOutput, conformance: *conformance, activity: *activity}, ""
+	return cliOptions{agents: agents, scope: *scope, json: *jsonOutput, conformance: *conformance, activity: *activity, ownerTag: *ownerTag}, ""
 }
 
 func runCLIOptions(options cliOptions, runtime Runtime, stdout, stderr io.Writer) int {
@@ -104,6 +109,17 @@ func defaultCLIRenderers() cliRenderers {
 }
 
 func runCLIOptionsWithRenderers(options cliOptions, runtime Runtime, stdout, stderr io.Writer, renderers cliRenderers) int {
+	if options.ownerTag != "" {
+		query, err := QuerySession(runtime, options.currentScopeKey, options.ownerTag, options.agents[0])
+		if err != nil {
+			_, _ = fmt.Fprintln(stderr, "pair session-inventory: owner query failed")
+			return 2
+		}
+		if query.Status == BindingEstablished && query.Root != nil {
+			_, _ = fmt.Fprintln(stdout, query.Root.NativeID)
+		}
+		return 0
+	}
 	if options.activity {
 		return runActivityCLI(options, runtime, stdout, stderr)
 	}

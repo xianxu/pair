@@ -23,6 +23,8 @@ type WatcherInventory struct {
 	LaunchOrdinal uint64
 	Inventory     sessioninventory.Inventory
 	LiveRounds    []sessioninventory.RoundObservation
+	Proofs        map[string]sessionledger.AuthorizationProof
+	RequireProof  bool
 	Args          []string
 }
 

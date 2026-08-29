@@ -2,11 +2,15 @@ package main
 
 import (
 	"bytes"
+	"encoding/json"
 	"os"
 	"os/exec"
 	"path/filepath"
 	"strings"
 	"testing"
+
+	"github.com/xianxu/pair/cmd/internal/sessioninventory"
+	"github.com/xianxu/pair/cmd/internal/sessionledger"
 )
 
 // Binary-level route smokes (#104 M3: the standalone helpers are gone, so these
@@ -96,12 +100,31 @@ func writeContextFixture(t *testing.T) (home, data string) {
 	mustMkdir(t, cwd)
 	mustMkdir(t, proj)
 	mustWrite(t, filepath.Join(data, "pane-T-claude.json"), `{"pane_id":"7","cwd":"`+cwd+`","cwd_display":"~/repo"}`)
-	mustWrite(t, filepath.Join(data, "ledger-T.jsonl"),
-		`{"v":1,"kind":"launch","scope_key":"scope","tag":"T","agent":"claude","pair_log_offset":0,"native_watermarks":[]}`+"\n"+
-			`{"v":1,"kind":"binding","scope_key":"scope","tag":"T","agent":"claude","launch_ordinal":1,"root_native_id":"`+sessionID+`"}`+"\n")
-	mustWrite(t, filepath.Join(proj, sessionID+".jsonl"),
-		`{"type":"assistant","message":{"model":"claude-opus-4-8","usage":{"input_tokens":397556,"cache_creation_input_tokens":0,"cache_read_input_tokens":0}}}`+"\n")
+	transcript := `{"type":"assistant","message":{"model":"claude-opus-4-8","usage":{"input_tokens":397556,"cache_creation_input_tokens":0,"cache_read_input_tokens":0}}}` + "\n"
+	mustWrite(t, filepath.Join(proj, sessionID+".jsonl"), transcript)
+	mustWriteProofLedger(t, home, data, sessionID, int64(len(transcript)))
 	return home, data
+}
+
+func mustWriteProofLedger(t *testing.T, home, data, sessionID string, size int64) {
+	t.Helper()
+	runtime := sessioninventory.NewOSRuntime(home, data)
+	observations, _ := sessioninventory.ObserveAgentMetadata(runtime, sessioninventory.AgentClaude)
+	if len(observations) != 1 {
+		t.Fatalf("Claude metadata observations=%d", len(observations))
+	}
+	entry := observations[0].Entry
+	state, _ := json.Marshal(sessioninventory.ScannerState{Version: 1, Agent: sessioninventory.AgentClaude, NativeID: sessionID, IdentityAnchor: sessionID, Role: sessioninventory.RoleRoot, ScannerSchema: "claude-v1", FirstRecordValidated: true})
+	proof := sessionledger.AuthorizationProof{Version: 1, RootNativeID: sessionID, ScannerSchema: "claude-v1", ScannerState: state, Artifacts: []sessionledger.ArtifactProof{{StorageRoot: entry.Artifact.StorageRoot, RelativePath: entry.Artifact.RelativePath, StableFileID: string(entry.StableFileID), GenerationToken: string(entry.GenerationToken), MutationToken: string(entry.MutationToken), Size: size, ParserCompleteOffset: size}}}
+	launch, err := sessionledger.EncodeRecord(sessionledger.Record{Version: 2, Kind: sessionledger.RecordLaunch, ScopeKey: "scope", Tag: "T", Agent: "claude", LaunchArtifactBoundaries: []sessionledger.LaunchArtifactBoundary{}})
+	if err != nil {
+		t.Fatal(err)
+	}
+	binding, err := sessionledger.EncodeRecord(sessionledger.Record{Version: 2, Kind: sessionledger.RecordBinding, ScopeKey: "scope", Tag: "T", Agent: "claude", LaunchOrdinal: 1, RootNativeID: sessionID, AuthorizationProof: &proof})
+	if err != nil {
+		t.Fatal(err)
+	}
+	mustWrite(t, filepath.Join(data, "ledger-T.jsonl"), string(launch)+"\n"+string(binding)+"\n")
 }
 
 func mustMkdir(t *testing.T, d string) {

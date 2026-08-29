@@ -2541,3 +2541,45 @@ an unsupported owner through every downstream projection (`ARCH-DRY`,
 - Place test injection beneath the behavior under test. A parallel test-only
   return branch can model the right outcome while mutation proves production
   propagation is completely unguarded.
+
+## 2026-08-29 — A primitive is not an authority until consumers derive from it
+
+- A planned façade, migrator, or reconciliation function needs a production
+  caller and an integration test that observes its durable effect; test-only
+  reachability does not deliver the architecture (`ARCH-PURPOSE`).
+- Serialized publication prevents byte corruption, not semantic regression.
+  Same-key writers must merge monotonic cursors and fail-closed disputes against
+  the state reread under the lock (`ARCH-PURE`).
+- When upgrading an append-only record, projection must select the newest
+  compatible record for the same identity; otherwise durable migration can
+  succeed while every consumer remains pinned to the legacy row (`ARCH-DRY`).
+- A background worker is not production-reachable merely because a production
+  binary contains it. Pin the lifecycle event that starts it and the durable
+  effect through the real OS seam.
+- Monotonic state with multiple cursors needs a partial order over every axis;
+  a larger raw EOF cannot justify a smaller parser-complete cursor.
+- Authority-required publication must never fall back to a weaker legacy
+  format after a prerequisite store fails. Encode “no proof, no binding” at the
+  shared persistence boundary, not only in its caller.
+- Global cache classification and per-launch causality answer different
+  questions. Catalog timing may govern reuse after authorization, but cannot
+  erase that an artifact was absent from a particular launch baseline.
+- An incremental validator is not incremental across processes unless accepted
+  advancement is durably published and the next query starts from that state.
+  Pin append-once/query-twice behavior with zero reads on the second query, and
+  make the stateful fake consume the same pure publication rule as production
+  (`ARCH-DRY`, `ARCH-PURPOSE`, `ARCH-MOCK`).
+- An ownership package cannot be exempted wholesale from its own shadow sweep:
+  it contains both legitimate definitions and potential consumer shortcuts.
+  Parse call sites and use a closed, stale-checked allowlist for the few named
+  diagnostic/compatibility callers; mutation-test an offender inside the owner
+  package (`ARCH-DRY`, `ARCH-PURPOSE`).
+- A call-expression name sweep is not a closed authority boundary because a
+  function value can be aliased before invocation. When the forbidden surface
+  is a small named API, classify every AST reference (including selector
+  expressions), then allow only exact function sites and mutation-test direct,
+  local-alias, and selector-alias forms (`ARCH-DRY`, `ARCH-PURPOSE`).
+- `testing.T.Cleanup` runs LIFO. Register process/sidecar shutdown after
+  `t.TempDir` creation so writers are stopped before the temporary directory's
+  automatically registered removal; the reverse order creates intermittent
+  “directory not empty” cleanup failures.

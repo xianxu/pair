@@ -264,8 +264,10 @@ func TestPublicPairCommandFamiliesIgnoreCouchStore(t *testing.T) {
 	for _, command := range commands {
 		for _, store := range stores {
 			t.Run(command.name+"/"+store.name, func(t *testing.T) {
-				t.Cleanup(func() { stopPublicPairSidecars(t, pair) })
 				home := t.TempDir()
+				// Cleanup is LIFO: register sidecar shutdown after TempDir so
+				// background writers stop before the directory is removed.
+				t.Cleanup(func() { stopPublicPairSidecars(t, pair) })
 				dataDir := filepath.Join(home, "pair-data")
 				storeDir := filepath.Join(home, "couch-store")
 				stubDir := filepath.Join(home, "stubs")

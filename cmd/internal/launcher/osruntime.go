@@ -51,6 +51,10 @@ func NewScopedOSRuntime(globalDataDir, dataDir, pairHome string) *OSRuntime {
 	return &OSRuntime{DataDir: dataDir, GlobalDataDir: globalDataDir, PairHome: pairHome}
 }
 
+func (r OSRuntime) StartProofMigration() {
+	go func() { _ = sessionwatch.MigrateProoflessBindings(os.Getenv("HOME"), r.DataDir) }()
+}
+
 func (r OSRuntime) EnsureThreadAddress(scope RepoScope, tag string, couchOwned bool) error {
 	return EnsureThreadAddressForPair(r.GlobalDataDir, scope, tag, couchOwned)
 }
@@ -637,18 +641,20 @@ func (r OSRuntime) AgentSessionExists(agent, sid, cwd string) bool {
 	}
 	home := os.Getenv("HOME")
 	runtime := sessioninventory.NewOSRuntime(home, r.DataDir)
-	inventory := sessioninventory.InventoryWithRuntime(runtime, sessioninventory.ScannerForAgent(sessioninventory.Agent(agent)))
-	for _, forest := range inventory.Forests {
-		if forest.Agent != sessioninventory.Agent(agent) {
-			continue
-		}
-		for _, root := range forest.Roots {
-			if root.NativeID == sid && root.Resumable {
+	nativeAgent := sessioninventory.Agent(agent)
+	if scope, err := artifactpath.ResolveSelectedScope(r.DataDir); err == nil {
+		if catalog, err := (sessioninventory.CatalogStore{Runtime: sessioninventory.CatalogOSRuntime{}}).Read(scope.SessionInventoryCatalog()); err == nil {
+			inventory := sessioninventory.NewIncrementalInventory(runtime, catalog)
+			snapshot := inventory.Observe(nativeAgent)
+			if inventory.CatalogSessionCandidateExists(snapshot, nativeAgent, sid) {
 				return true
 			}
+			return sessioninventory.NativeSessionCandidateExistsFromObservations(runtime, nativeAgent, sid, snapshot.Observations)
 		}
 	}
-	return false
+	inventory := sessioninventory.NewIncrementalInventory(runtime, sessioninventory.Catalog{Version: sessioninventory.CatalogVersion})
+	snapshot := inventory.Observe(nativeAgent)
+	return sessioninventory.NativeSessionCandidateExistsFromObservations(runtime, nativeAgent, sid, snapshot.Observations)
 }
 
 func (r OSRuntime) EstablishedSessionID(scopeKey, tag, agent string) (string, sessioninventory.BindingStatus) {

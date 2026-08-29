@@ -828,26 +828,11 @@ do
   local function inventory_session_id()
     local agent, tag = vim.env.PAIR_AGENT, vim.env.PAIR_TAG
     if not agent or agent == '' or not tag or tag == '' then return nil end
-    local raw = vim.fn.system({ 'pair', 'session-inventory', '--agent', agent, '--scope', 'current', '--json' })
+    local raw = vim.fn.system({ 'pair', 'session-inventory', '--agent', agent, '--scope', 'current', '--owner', tag })
     if vim.v.shell_error ~= 0 then return nil end
-    local ok, inventory = pcall(vim.json.decode, raw)
-    if not ok or type(inventory) ~= 'table' then return nil end
-    local root_id
-    for _, binding in ipairs(inventory.correlations or {}) do
-      if binding.tag == tag and binding.agent == agent and binding.status == 'established' then
-        root_id = binding.root_node_id
-        break
-      end
-    end
-    if not root_id then return nil end
-    for _, forest in ipairs(inventory.forests or {}) do
-      if forest.agent == agent then
-        for _, root in ipairs(forest.roots or {}) do
-          if root.node_id == root_id then return root.native_id end
-        end
-      end
-    end
-    return nil
+    local sid = raw:gsub('%s+$', '')
+    if sid == '' then return nil end
+    return sid
   end
 
   _G.PairEstablishedSessionID = inventory_session_id
@@ -3044,43 +3029,7 @@ local function pair_ensure_visible_then(fn)
   end
 end
 
--- Compact "Nu" duration: `45s` `12m` `3.2h` `5d`. Used in the confirm
--- modals so the session-id line carries a "this session is X old, last
--- touched Y ago" hint without ballooning into a sentence.
-local function humanize_dur(secs)
-  if secs < 0 then secs = 0 end
-  if secs < 60 then return string.format('%ds', secs) end
-  if secs < 3600 then return string.format('%dm', math.floor(secs / 60)) end
-  if secs < 86400 then return string.format('%.1fh', secs / 3600) end
-  return string.format('%.1fd', secs / 86400)
-end
-
--- Query the established root for (agent, sid) and return
--- "(<age> old, <idle> idle)" — or nil while identity/activity is unavailable.
--- Only called from the confirm modals, so the established-root activity query
--- is paid at most once per Alt+x / Alt+n press.
-local function session_age_hint(agent, sid)
-  if not sid or sid == '' then return nil end
-  if not _G.PairEstablishedSessionID or _G.PairEstablishedSessionID() ~= sid then return nil end
-  local raw = vim.fn.system({ 'pair', 'session-inventory', '--activity', '--agent', agent })
-  if vim.v.shell_error ~= 0 or raw == '' then return nil end
-  local ok, activity = pcall(vim.json.decode, raw)
-  if not ok or type(activity) ~= 'table' then return nil end
-  local function parse_activity_time(value)
-    if type(value) ~= 'string' then return 0 end
-    -- Go includes fractional seconds when the filesystem reports them; Vim's
-    -- strptime format does not, so normalize the UTC representation first.
-    value = value:gsub('(%d%d:%d%d:%d%d)%.%d+Z$', '%1Z')
-    return vim.fn.strptime('%Y-%m-%dT%H:%M:%SZ', value)
-  end
-  local birth = parse_activity_time(activity.created_at)
-  local mtime = parse_activity_time(activity.last_activity_at)
-  if birth <= 0 or mtime <= 0 then return nil end
-  local now = os.time()
-  return string.format('(%s old, %s idle)',
-                       humanize_dur(now - birth),
-                       humanize_dur(now - mtime))
-end
+local pair_confirm_quit = dofile((debug.getinfo(1, 'S').source:match('@?(.*/)') or './') .. 'confirm_quit.lua')
 
 -- Read the per-(tag,agent) saved config so the Alt+x prompt can show the
 -- user what they're about to detach from for the future `pair resume
@@ -3105,36 +3054,19 @@ local function pair_read_saved_config()
     local ok, parsed = pcall(vim.json.decode, body)
     if ok and type(parsed) == 'table' then
       cfg.args       = parsed.args
+      cfg.session_id = parsed.session_id
     end
   end
-  if _G.PairEstablishedSessionID then cfg.session_id = _G.PairEstablishedSessionID() end
   return cfg
 end
 
 function _G.PairConfirmQuit()
   pair_ensure_visible_then(function()
-    local prompt = 'Quit pair session? This kills the session and all its processes.'
-    local cfg = pair_read_saved_config()
-    if cfg then
-      local args_line
-      if type(cfg.args) == 'table' and #cfg.args > 0 then
-        args_line = table.concat(cfg.args, ' ')
-      else
-        args_line = '<none>'
-      end
-      local sid_line = cfg.session_id and cfg.session_id ~= '' and cfg.session_id or '<not captured>'
-      local age = session_age_hint(cfg.agent, cfg.session_id)
-      if age then sid_line = sid_line .. '  ' .. age end
-      prompt = prompt
-        .. '\n\nResumable later via `pair resume ' .. cfg.tag .. '`:'
-        .. '\n  agent:      ' .. cfg.agent
-        .. '\n  args:       ' .. args_line
-        .. '\n  session id: ' .. sid_line
-    end
-    local ans = vim.fn.confirm(prompt, '&Yes\n&No', 2)
-    if ans == 1 then
-      vim.fn.system({ 'pair', 'quit' })
-    end
+    pair_confirm_quit.run({
+      config = pair_read_saved_config(),
+      confirm = vim.fn.confirm,
+      quit = function() vim.fn.system({ 'pair', 'quit' }) end,
+    })
   end)
 end
 
@@ -3221,10 +3153,7 @@ local function pair_confirm_restart_impl(new_session)
       -- bearing detail there. Hiding it on the new-session path avoids
       -- confusing the user into thinking the prior id will carry over.
       if not new_session and cfg.session_id and cfg.session_id ~= '' then
-        local resume_line = cfg.session_id
-        local age = session_age_hint(cfg.agent, cfg.session_id)
-        if age then resume_line = resume_line .. '  ' .. age end
-        prompt = prompt .. '\n  resume: ' .. resume_line
+        prompt = prompt .. '\n  resume: ' .. cfg.session_id
       end
     end
     local ans = vim.fn.confirm(prompt, '&Yes\n&No\n&Rename', 2)

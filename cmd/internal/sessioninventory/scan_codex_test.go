@@ -88,3 +88,44 @@ func codexRuntimeWithRecord(t *testing.T, nativeID, record string) *sessioninven
 	}}, []byte(record+"\n"))
 	return runtime
 }
+
+func TestIncrementalCodexRequiresFirstSessionMetaAndDisputesConflicts(t *testing.T) {
+	t.Parallel()
+	nativeID := "019d1111-1111-7111-8111-111111111111"
+	entry := sessioninventory.FileEntry{Artifact: sessioninventory.Artifact{StorageRoot: "codex-sessions", RelativePath: "2026/08/28/rollout-root-" + nativeID + ".jsonl"}}
+	first := []sessioninventory.FramedJSONLRecord{{Bytes: []byte(`{"timestamp":"2026-08-28T09:00:00Z","type":"session_meta","payload":{"id":"` + nativeID + `","parent_thread_id":null,"source":"cli"}}`)}}
+	state, diagnostics, err := sessioninventory.ValidateCodexDelta(entry, nil, first)
+	if err != nil || len(diagnostics) != 0 || !state.FirstRecordValidated || state.Disputed || state.Role != sessioninventory.RoleRoot {
+		t.Fatalf("state=%#v diagnostics=%#v err=%v", state, diagnostics, err)
+	}
+	prior := state
+	conflict := []sessioninventory.FramedJSONLRecord{{Bytes: []byte(`{"type":"session_meta","payload":{"id":"019d9999-9999-7999-8999-999999999999","parent_thread_id":null,"source":"cli"}}`)}}
+	state, diagnostics, err = sessioninventory.ValidateCodexDelta(entry, &prior, conflict)
+	if err != nil || !state.Disputed || !diagnosticPresent(diagnostics, sessioninventory.DiagnosticParentConflict) || prior.Disputed {
+		t.Fatalf("state=%#v diagnostics=%#v prior=%#v err=%v", state, diagnostics, prior, err)
+	}
+}
+
+func TestIncrementalCodexRejectsMissingFirstSessionMeta(t *testing.T) {
+	t.Parallel()
+	nativeID := "019d1111-1111-7111-8111-111111111111"
+	entry := sessioninventory.FileEntry{Artifact: sessioninventory.Artifact{StorageRoot: "codex-sessions", RelativePath: "2026/08/28/rollout-root-" + nativeID + ".jsonl"}}
+	state, diagnostics, err := sessioninventory.ValidateCodexDelta(entry, nil, []sessioninventory.FramedJSONLRecord{{Bytes: []byte(`{"type":"event_msg","payload":{}}`)}})
+	if err != nil || !state.Disputed || state.FirstRecordValidated || !diagnosticPresent(diagnostics, sessioninventory.DiagnosticSchemaNearMiss) {
+		t.Fatalf("state=%#v diagnostics=%#v err=%v", state, diagnostics, err)
+	}
+}
+
+func TestIncrementalCodexNeverRecoversFromInvalidFirstRecord(t *testing.T) {
+	t.Parallel()
+	nativeID := "019d1111-1111-7111-8111-111111111111"
+	entry := sessioninventory.FileEntry{Artifact: sessioninventory.Artifact{StorageRoot: "codex-sessions", RelativePath: "2026/08/28/rollout-root-" + nativeID + ".jsonl"}}
+	records := []sessioninventory.FramedJSONLRecord{
+		{Bytes: []byte(`{"type":"event_msg","payload":{}}`)},
+		{Bytes: []byte(`{"type":"session_meta","payload":{"id":"` + nativeID + `","parent_thread_id":null,"source":"cli"}}`)},
+	}
+	state, _, err := sessioninventory.ValidateCodexDelta(entry, nil, records)
+	if err != nil || !state.Disputed || !state.FirstRecordValidated {
+		t.Fatalf("state=%#v err=%v", state, err)
+	}
+}

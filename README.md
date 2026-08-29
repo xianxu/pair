@@ -391,6 +391,11 @@ only agent names, status, counts, and diagnostic codes—no transcript content,
 native IDs, cwd, or home paths. Exit `0` includes partial/absent-storage results,
 `1` is invalid usage, and `2` is a fatal scan, privacy, or render failure.
 
+Provider or scanner changes should run `make
+test-session-inventory-conformance`. This opt-in developer check verifies the
+one-second installed metadata budget and replays installed Claude, Codex, Muse,
+and Agy transitions against Pair's stateful fake without mutating native stores.
+
 Standalone Pair neither reads nor mutates Couch's ThreadStore. `pair resume`
 accepts Pair's exact repo-local tag (or a Pair-owned public `📁...` session name
 that its own ledger maps back to that tag); mutable Couch names and paths are

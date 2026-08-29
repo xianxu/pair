@@ -3,8 +3,11 @@ package launcher
 import (
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 	"time"
+
+	"github.com/xianxu/pair/cmd/internal/sessionledger"
 )
 
 func TestHistorySourceScansAllTagsInScopeDir(t *testing.T) {
@@ -121,6 +124,40 @@ func TestHistorySourceEnrichesScopedRowsFromLedgerAndSortsByRecency(t *testing.T
 	}
 	if !got[0].MTime.Equal(now) {
 		t.Fatalf("recent MTime = %s, want ledger last_active %s", got[0].MTime, now)
+	}
+}
+
+func TestHistorySourceTypedAuthorityRendersPairSlashOneMetadata(t *testing.T) {
+	t.Parallel()
+	dir := t.TempDir()
+	now := time.Unix(6000, 0).UTC()
+	compatibility, err := BuildLedgerLine(LedgerEntry{Agent: "claude", Args: []string{"--model", "opus"}, SessionID: "stale", Started: now.Add(-time.Hour), LastActive: now, RepoRoot: "/repo/pair", RepoName: "pair"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	launch, err := sessionledger.EncodeRecord(sessionledger.Record{Version: 1, Kind: sessionledger.RecordLaunch, ScopeKey: "scope", Tag: "1", Agent: "claude"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	binding, err := sessionledger.EncodeRecord(sessionledger.Record{Version: 1, Kind: sessionledger.RecordBinding, ScopeKey: "scope", Tag: "1", Agent: "claude", LaunchOrdinal: 2, RootNativeID: "current"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	raw := compatibility + "\n" + string(launch) + "\n" + string(binding) + "\n"
+	if err := os.WriteFile(filepath.Join(dir, "ledger-1.jsonl"), []byte(raw), 0o600); err != nil {
+		t.Fatal(err)
+	}
+
+	rows, err := (HistorySource{DataDir: dir}).Scan("pair", now.Add(-24*time.Hour))
+	if err != nil || len(rows) != 1 || rows[0].RepoName != "pair" || rows[0].Agent != "claude" {
+		t.Fatalf("rows=%#v err=%v", rows, err)
+	}
+	if label := historicalPickLabel(rows[0], now.Unix()); !strings.HasPrefix(label, "pair/1  claude ") || strings.Contains(label, "?/1") {
+		t.Fatalf("label=%q", label)
+	}
+	latest, ok := LatestLedgerEntry(ParseLedger(raw))
+	if !ok || latest.SessionID != "current" {
+		t.Fatalf("typed authority=%#v ok=%v", latest, ok)
 	}
 }
 

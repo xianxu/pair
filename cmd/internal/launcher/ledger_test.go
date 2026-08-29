@@ -67,6 +67,45 @@ func TestLauncherParseLedgerPrefersTypedCurrentGeneration(t *testing.T) {
 	}
 }
 
+func TestLauncherTypedAuthorityMergesCompatibilityDisplayMetadata(t *testing.T) {
+	t.Parallel()
+	started := time.Unix(100, 0).UTC()
+	active := time.Unix(200, 0).UTC()
+	compatibility, err := BuildLedgerLine(LedgerEntry{Agent: "claude", Args: []string{"--model", "opus"}, SessionID: "stale", Started: started, LastActive: active, RepoRoot: "/repo/pair", RepoName: "pair"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	launch, err := sessionledger.EncodeRecord(sessionledger.Record{Version: 1, Kind: sessionledger.RecordLaunch, ScopeKey: "scope", Tag: "1", Agent: "claude"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	binding, err := sessionledger.EncodeRecord(sessionledger.Record{Version: 1, Kind: sessionledger.RecordBinding, ScopeKey: "scope", Tag: "1", Agent: "claude", LaunchOrdinal: 2, RootNativeID: "current"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	latest, ok := LatestLedgerEntry(ParseLedger(compatibility + "\n" + string(launch) + "\n" + string(binding) + "\n"))
+	if !ok || latest.SessionID != "current" || latest.RepoName != "pair" || latest.RepoRoot != "/repo/pair" || !latest.Started.Equal(started) || !latest.LastActive.Equal(active) || !strings.EqualFold(strings.Join(latest.Args, " "), "--model opus") {
+		t.Fatalf("latest=%#v ok=%v", latest, ok)
+	}
+}
+
+func TestMergeAuthorityMetadataNeverWidensTypedAuthority(t *testing.T) {
+	t.Parallel()
+	typed := LedgerEntry{Agent: "claude", SessionID: "current", Typed: true, SourceOrdinal: 7}
+	otherAgent := LedgerEntry{Agent: "codex", SessionID: "stale", RepoName: "wrong", LastActive: time.Unix(300, 0).UTC()}
+	older := LedgerEntry{Agent: "claude", SessionID: "stale-old", RepoName: "old", LastActive: time.Unix(100, 0).UTC()}
+	newer := LedgerEntry{Agent: "claude", SessionID: "stale-new", RepoName: "pair", RepoRoot: "/repo", Args: []string{"--new"}, LastActive: time.Unix(200, 0).UTC()}
+
+	got := MergeAuthorityMetadata(typed, []LedgerEntry{otherAgent, older, newer})
+	if got.SessionID != "current" || !got.Typed || got.SourceOrdinal != 7 || got.Agent != "claude" || got.RepoName != "pair" || got.RepoRoot != "/repo" || strings.Join(got.Args, " ") != "--new" {
+		t.Fatalf("merged=%#v", got)
+	}
+	unbound := MergeAuthorityMetadata(LedgerEntry{Agent: "claude", Typed: true, SourceOrdinal: 8}, []LedgerEntry{newer})
+	if unbound.SessionID != "" {
+		t.Fatalf("compatibility supplied authority to unbound launch: %#v", unbound)
+	}
+}
+
 func TestLauncherParseLedgerRejectsMalformedCompatibilityShapes(t *testing.T) {
 	t.Parallel()
 	valid, err := BuildLedgerLine(LedgerEntry{Agent: "claude"})

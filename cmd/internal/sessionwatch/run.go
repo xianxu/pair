@@ -44,6 +44,8 @@ type Runtime interface {
 	Log(outcome adapt.Outcome, detail string)
 	NativeRuntime(home, dataDir string) sessioninventory.Runtime
 	LedgerAppender() LedgerAppender
+	CatalogStore() sessioninventory.CatalogStore
+	ProofMigrator() *sessioninventory.ProofMigrator
 }
 
 // Run monitors the complete post-launch suffix. It never chooses a first or
@@ -70,6 +72,7 @@ func Run(opts Options, rt Runtime) error {
 	}
 	owner := sessionledger.Owner{ScopeKey: opts.ScopeKey, Tag: opts.Tag, Agent: opts.Agent}
 	nativeRuntime := rt.NativeRuntime(opts.Home, opts.DataDir)
+	trackedTargets := map[string]sessioninventory.TargetValidation{}
 	deadline := watchStart.Add(opts.Timeout)
 	for {
 		if rootIdentity != "" && rt.ProcessIdentity(rootPID) != rootIdentity {
@@ -83,13 +86,35 @@ func Run(opts Options, rt Runtime) error {
 		if !ok || current.Launch.Ordinal != opts.LaunchOrdinal {
 			return sessionledger.ErrStaleLaunch
 		}
+		if current.Binding != nil && current.Binding.AuthorizationProof == nil {
+			if err := migrateProoflessBinding(rt, nativeRuntime, owner, paths.Ledger(), current); err != nil {
+				rt.Log(adapt.NearMiss, "legacy binding proof migration unavailable: "+err.Error())
+			}
+			return nil
+		}
 		if current.Binding != nil {
 			return nil
 		}
-		inventory := sessioninventory.InventoryWithRuntime(nativeRuntime, sessioninventory.ScannerForAgent(agent))
+		if current.Launch.Version != 2 {
+			rt.Log(adapt.NearMiss, "legacy unbound launch has no metadata boundary; watcher failed closed")
+			return nil
+		}
+		var inventory sessioninventory.Inventory
+		var events []sessioninventory.NativeEventFact
+		proofs := map[string]sessionledger.AuthorizationProof{}
+		catalog := sessioninventory.Catalog{Version: sessioninventory.CatalogVersion}
+		if saved, readErr := rt.CatalogStore().Read(paths.SessionInventoryCatalog()); readErr == nil {
+			catalog = saved
+		} else if !errors.Is(readErr, os.ErrNotExist) && !errors.Is(readErr, sessioninventory.ErrCatalogCorrupt) {
+			rt.Log(adapt.NearMiss, "session inventory catalog unavailable: "+readErr.Error())
+		}
+		incremental := sessioninventory.NewIncrementalInventory(nativeRuntime, catalog)
+		inventory, events, proofs = incrementalWatcherInventory(nativeRuntime, incremental, agent, current.Launch, trackedTargets)
+		if err := persistTrackedCatalog(rt.CatalogStore(), paths.SessionInventoryCatalog(), trackedTargets); err != nil {
+			proofs = map[string]sessionledger.AuthorizationProof{}
+			inventory.Diagnostics = append(inventory.Diagnostics, sessioninventory.DiagnosticWithSource(sessioninventory.DiagnosticStorageUnreadable, agent, nil, "session inventory catalog", "catalog publication failed; binding authority withheld"))
+		}
 		beforeRoots, beforeAvailable := processAuthorizedRoots(nativeRuntime, inventory, agent, corroborationPID)
-		events, eventDiagnostics := sessioninventory.NativeEventsWithRuntime(nativeRuntime, inventory, agent)
-		inventory.Diagnostics = append(inventory.Diagnostics, eventDiagnostics...)
 		pairLog, logDiagnostics := readPairLog(rt, paths.Log(), agent)
 		inventory.Diagnostics = append(inventory.Diagnostics, logDiagnostics...)
 		for _, diagnostic := range logDiagnostics {
@@ -107,7 +132,7 @@ func Run(opts Options, rt Runtime) error {
 		}
 		resolved, persistErr := ObserveAndPersist(ObserveInput{
 			Owner: owner, LedgerPath: paths.Ledger(), LaunchOrdinal: opts.LaunchOrdinal,
-			Inventory: inventory, LiveRounds: rounds, Args: opts.Args,
+			Inventory: inventory, LiveRounds: rounds, Proofs: proofs, RequireProof: true, Args: opts.Args,
 		}, rt.LedgerAppender(), func(payload ConfigPayload) error {
 			raw, err := ConfigJSON(payload)
 			if err != nil {
@@ -135,6 +160,93 @@ func Run(opts Options, rt Runtime) error {
 		}
 		rt.Sleep(poll)
 	}
+}
+
+func migrateProoflessBinding(rt Runtime, nativeRuntime sessioninventory.Runtime, owner sessionledger.Owner, ledgerPath string, current sessionledger.Current) error {
+	binding := current.Binding
+	if binding == nil || binding.RootNativeID == "" || binding.AuthorizationProof != nil {
+		return nil
+	}
+	key := sessioninventory.ProofMigrationKey{ScopeKey: owner.ScopeKey, Tag: owner.Tag, Agent: sessioninventory.Agent(owner.Agent), NativeID: binding.RootNativeID}
+	result := <-rt.ProofMigrator().Request(key, func() (*sessionledger.AuthorizationProof, error) {
+		proof, err := proofForNamedRoot(nativeRuntime, key.Agent, key.NativeID)
+		return &proof, err
+	})
+	if result.Err != nil {
+		return result.Err
+	}
+	record, err := rt.LedgerAppender().AppendBindingProofIfCurrent(ledgerPath, owner, current.Launch.Ordinal, *result.Proof)
+	return reconcileLedgerAppend(rt.LedgerAppender(), ledgerPath, record, err)
+}
+
+func persistTrackedCatalog(store sessioninventory.CatalogStore, path string, tracked map[string]sessioninventory.TargetValidation) error {
+	validations := make([]sessioninventory.TargetValidation, 0, len(tracked))
+	for _, validation := range tracked {
+		validations = append(validations, validation)
+	}
+	return sessioninventory.PublishTargetValidations(store, path, validations)
+}
+
+func incrementalWatcherInventory(runtime sessioninventory.Runtime, incremental sessioninventory.IncrementalInventory, agent sessioninventory.Agent, launch sessionledger.Record, tracked map[string]sessioninventory.TargetValidation) (sessioninventory.Inventory, []sessioninventory.NativeEventFact, map[string]sessionledger.AuthorizationProof) {
+	snapshot := incremental.Observe(agent)
+	diagnostics := snapshot.Diagnostics
+	baseline := make([]sessioninventory.TargetArtifactBoundary, 0, len(launch.LaunchArtifactBoundaries))
+	for _, boundary := range launch.LaunchArtifactBoundaries {
+		baseline = append(baseline, sessioninventory.TargetArtifactBoundary{
+			StorageRoot: boundary.StorageRoot, RelativePath: boundary.RelativePath,
+			StableFileID: sessioninventory.StableFileID(boundary.StableFileID), GenerationToken: sessioninventory.GenerationToken(boundary.GenerationToken),
+			MutationToken: sessioninventory.MutationToken(boundary.MutationToken), RawSize: boundary.RawSize,
+		})
+	}
+	selection := incremental.Select(sessioninventory.TargetRequest{Mode: sessioninventory.TargetNewLaunch, Agent: agent, Baseline: baseline}, snapshot)
+	handled := map[string]bool{}
+	for nativeID, prior := range tracked {
+		artifacts := make([]sessioninventory.Artifact, 0, len(prior.Observations))
+		for _, observation := range prior.Observations {
+			artifacts = append(artifacts, observation.Entry.Artifact)
+		}
+		current := incremental.Select(sessioninventory.TargetRequest{Mode: sessioninventory.TargetEstablished, Agent: agent, NativeID: nativeID, AuthorizedArtifacts: artifacts}, snapshot)
+		if current.Unavailable || len(current.Eligible) != len(artifacts) {
+			delete(tracked, nativeID)
+			continue
+		}
+		advanced, found, err := sessioninventory.AdvanceTargetValidation(runtime, prior, current.Eligible)
+		diagnostics = append(diagnostics, found...)
+		if err != nil {
+			delete(tracked, nativeID)
+			continue
+		}
+		tracked[nativeID] = advanced
+		for _, observation := range current.Eligible {
+			handled[observation.Entry.Artifact.StorageRoot+"\x00"+observation.Entry.Artifact.RelativePath] = true
+		}
+	}
+	var untracked []sessioninventory.ArtifactObservation
+	for _, observation := range selection.Eligible {
+		if !handled[observation.Entry.Artifact.StorageRoot+"\x00"+observation.Entry.Artifact.RelativePath] {
+			untracked = append(untracked, observation)
+		}
+	}
+	validated, found := sessioninventory.ValidateTargetWork(runtime, agent, untracked)
+	diagnostics = append(diagnostics, found...)
+	for _, validation := range validated {
+		tracked[validation.State.NativeID] = validation
+	}
+	var facts []sessioninventory.Fact
+	var events []sessioninventory.NativeEventFact
+	proofs := map[string]sessionledger.AuthorizationProof{}
+	for nativeID, validation := range tracked {
+		facts = append(facts, validation.Fact)
+		events = append(events, validation.Events...)
+		if validation.State.Role == sessioninventory.RoleRoot {
+			if proof, err := authorizationProof(validation); err == nil {
+				proofs[sessioninventory.StableID("node", string(agent), nativeID)] = proof
+			}
+		}
+	}
+	inventory := sessioninventory.BuildForest(facts)
+	inventory.Diagnostics = append(inventory.Diagnostics, diagnostics...)
+	return sessioninventory.SortInventory(inventory), events, proofs
 }
 
 func applyWatcherDefaults(opts *Options) {

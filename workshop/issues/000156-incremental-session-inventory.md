@@ -1,12 +1,13 @@
 ---
 id: 000156
-status: working
+status: codecomplete
 deps: []
 github_issue:
 created: 2026-08-29
 updated: 2026-08-29
-estimate_hours:
+estimate_hours: 8.96
 started: 2026-08-29T06:33:52-07:00
+actual_hours: 3.95
 ---
 
 # incremental native session inventory
@@ -67,9 +68,12 @@ scanner/parser schema version that produced it.
 
 `StableFileID`, `GenerationToken`, and `MutationToken` are separate opaque
 runtime values built without content reads. On Unix the stable ID is device +
-inode, the generation token is the kernel-reported file birth/generation value,
-and the mutation token includes platform `ctime` at nanosecond precision.
-Implementations on another platform must supply equivalent values. Device +
+inode. On Darwin the generation token is `stat.st_gen` (not the birth
+timestamp); on Linux, whose `statx` exposes birth time but no inode generation,
+Pair reports generation unavailable. The mutation token includes platform
+`ctime` at nanosecond precision. Implementations on another platform must
+supply an actual inode/file generation primitive or report it unavailable.
+Device +
 inode alone is not durable because inode reuse is possible. Size and
 modification time remain separate fields. Stable-ID + generation continuity
 plus size growth is the only append candidate; a stable-ID/generation change,
@@ -312,24 +316,69 @@ the native root. Thus the observed `?/1 claude` row renders `pair/1 claude`.
 - Focused tests, the full Go suite with `-p 20`, Lua/shell integration tests,
   vet, and a real-data smoke all pass.
 
+## Estimate
+
+Produced via `brain/data/life/42shots/velocity/estimate-logic-v3.1.md` against
+`baseline-v3.1.md`. Method A only. `sdlc estimate-source` reports the calibration
+source as stale, so the number is provisional but uses the required method. The
+existing scanner/runtime seams and `x/sys/unix` cover the library-availability
+check; no greenfield filesystem or parser library is assumed.
+
+```estimate
+model: estimate-logic-v3.1
+familiarity: 1.0
+item: issue-spec design=0.80 impl=0.08
+item: greenfield-go-module design=0.40 impl=0.32
+item: greenfield-go-module design=0.40 impl=0.32
+item: greenfield-go-module design=0.40 impl=0.32
+item: greenfield-go-module design=0.40 impl=0.32
+item: greenfield-go-module design=0.40 impl=0.32
+item: smaller-go-module design=0.06 impl=0.20
+item: smaller-go-module design=0.06 impl=0.20
+item: smaller-go-module design=0.06 impl=0.20
+item: smaller-go-module design=0.06 impl=0.20
+item: smaller-go-module design=0.06 impl=0.20
+item: smaller-go-module design=0.06 impl=0.20
+item: smaller-go-module design=0.06 impl=0.20
+item: cross-cutting-refactor design=0.20 impl=0.20
+item: lua-neovim design=0.40 impl=0.40
+item: real-api-discovery design=0.00 impl=0.12
+item: real-api-discovery design=0.00 impl=0.12
+item: real-api-discovery design=0.00 impl=0.12
+item: real-api-discovery design=0.00 impl=0.12
+item: atlas-docs design=0.10 impl=0.08
+item: milestone-review design=0.08 impl=0.12
+design-buffer: 0.15
+total: 8.96
+```
+
+The five greenfield modules are catalog/reconciliation, transactional storage,
+incremental framing/state, targeted proof/query orchestration, and watcher
+delta orchestration. The seven smaller modules are platform metadata, ledger
+v2, four existing scanner adaptations, and performance/conformance. The four
+real-API discovery rows cover the installed Claude, Codex, Muse, and Agy
+provider contracts.
+
 ## Plan
 
-- [ ] Define the versioned artifact catalog, fingerprints, and pure incremental
-  reconciliation rules with stateful fake coverage.
-- [ ] Replace whole-corpus scanner reconstruction with metadata-only discovery,
+- [x] Define the versioned artifact catalog and pure incremental reconciliation
+  rules with stateful fake coverage; filesystem fingerprints and fake mutation
+  operations are complete.
+- [x] Replace whole-corpus scanner reconstruction with metadata-only discovery,
   cached facts, and targeted/suffix reads.
-- [ ] Make launch baselines and watcher polling operate on catalog deltas and
+- [x] Make launch baselines and watcher polling operate on catalog deltas and
   post-launch bytes only.
-- [ ] Move `Alt+X` confirmation ahead of optional enrichment and migrate every
+- [x] Move `Alt+X` confirmation ahead of optional enrichment and migrate every
   latency-sensitive native-session consumer to targeted queries.
-- [ ] Merge typed authority with compatibility display metadata and pin the
+- [x] Merge typed authority with compatibility display metadata and pin the
   `pair/1 claude` picker row.
-- [ ] Add operation-count, one-second corpus, shadow-sweep, full-suite, and
+- [x] Add operation-count, one-second corpus, shadow-sweep, full-suite, and
   real-data verification; update atlas documentation.
 
 ## Log
 
 ### 2026-08-29
+- 2026-08-29: closed — full Go and focused race suites pass at -p 20; append-once/query-twice proves zero repeated body reads; mutation-tested closed call-site allowlist rejects an in-package whole-inventory consumer; pair-go launch-create passes ten repeats and full suite after LIFO cleanup fix; Alt+X Lua/terminal and watcher shell pass; live 1,350-file launch is 41.0ms with four-provider fake conformance; vet, artifact/runtime generation, atlas, Zellij, and diff checks pass; review verdict: FIX-THEN-SHIP
 
 - Reproduced one Claude inventory at 13.16-13.29 seconds across six runs on
   1,573 files / 358 MiB; isolated 5.39 seconds to the per-file external `stat`
@@ -339,6 +388,138 @@ the native root. Thus the observed `?/1 claude` row renders `pair/1 claude`.
   categorization: never reread unchanged transcript bodies; inspect only new
   bytes relevant to the current round. `Alt+X` UI ordering is stricter than the
   one-second inventory budget: paint first and never block on enrichment.
+- `sdlc change-code` plan-quality cleared after two rounds. The gate corrected
+  generation continuity to Darwin `stat.st_gen` with fail-closed unavailable
+  fallback elsewhere, required named risky-function strategies, and added the
+  live fake-versus-provider conformance cadence (`ARCH-PURE`, `ARCH-MOCK`). The
+  v3.1 estimate gate accepted 8.96h with an advisory that the dense integration
+  matrix may run higher.
+- Added the selected-scope catalog path and a strict, flock-serialized catalog
+  store. Concurrent writers recompute from the locked generation; atomic
+  replacement and file/directory sync expose explicit not-authoritative,
+  indeterminate, and committed outcomes. Fault-injected recovery tests cover
+  write, file sync, rename, directory sync, and unlock boundaries (`ARCH-PURE`).
+- Added ledger v2 while retaining strict v1 reads. V2 launch rows persist sorted
+  content-free artifact boundaries; v2 binding rows persist root-matched scanner
+  state and complete artifact continuity proofs. Proof bindings publish only
+  under the current-launch lock and retain the ledger's byte-level authority
+  outcomes.
+- Added bounded suffix framing, stable-EOF resampling, and scanner-owned delta
+  transitions for Claude, Codex, Muse, and Agy. Portable fixtures prove split
+  append validation equals full validation; live redacted conformance passed
+  all four installed providers in 0.14s. Agy snapshots use SQLite `VACUUM INTO`
+  plus a copied transcript, preserving installed authority (`ARCH-MOCK`).
+- Replaced new-launch whole scans with v2 metadata boundaries and pure target
+  eligibility. The 1,573-file cold fixture performs zero body reads; watcher
+  polls exclude every pre-launch artifact, retain scanner state in memory, and
+  read only appended progress before committing the catalog and proof-bearing
+  binding. Strictly corrupt catalogs are rebuilt only from targeted validation;
+  full inventory/watcher race suites pass (`ARCH-DRY`, `ARCH-PURE`).
+- Established-owner queries now read one exact ledger and reuse proof metadata;
+  catalog-loss tests cover Claude, Codex, Muse, and Agy with zero transcript or
+  SQLite reads. Proofless v1 bindings remain provisional while a keyed worker
+  coalesces explicit proof migration. Resume collision checks reuse exact
+  catalog facts or validate only the named candidate, and a cross-language
+  shadow sweep rejects new whole-inventory interactive callers (`ARCH-DRY`,
+  `ARCH-PURPOSE`).
+- `Alt+X` now builds its prompt entirely from local sidecars and invokes the
+  confirmation before the only possible subprocess (`pair quit`). The blocking
+  activity lookup and age/idle enrichment were removed from quit/restart
+  modals; headless Lua and terminal-shortcut tests pin prompt data and Yes/No
+  ordering (`ARCH-PURE`).
+- Typed ledger authority now overlays only same-agent compatibility
+  presentation fields (repo, args, and timestamps). Native session ID,
+  typed/unbound status, and source ordinal remain typed-only; the observed
+  picker regression renders `pair/1  claude` instead of `?/1`.
+- Added a 1,573-entry / 358 MiB metadata fixture: cold reconciliation visits
+  each entry once, warm reconciliation reuses all 1,573, and both perform zero
+  body, SQLite, or process/open-file operations. The installed Claude metadata
+  check observed 1,350 recognized files in 39.6 ms; the four-agent provider
+  conformance completed in 0.24 s. Full `go test -p 20 ./...`, `go vet -p 20
+  ./...`, focused race suites, Lua/shell integrations, generated-runtime drift,
+  and Zellij configuration checks pass. `make test-session-inventory-conformance`
+  is the durable live cadence (`ARCH-DRY`, `ARCH-PURE`, `ARCH-PURPOSE`,
+  `ARCH-MOCK`).
+- Full-suite verification exposed two command-route fixtures that still
+  modeled proofless v1 bindings. They now derive real filesystem fingerprints
+  and write proof-bearing v2 rows, preserving the intentional #155 route
+  coverage without weakening proofless fail-closed behavior.
+- Whole-issue review rework made `IncrementalInventory` the production seam for
+  launch, watcher, launcher collision, and proof query metadata. Fresh-launch
+  selection now derives from `ReconcileCatalog`'s genuinely-new work only, so a
+  categorized artifact omitted from a partial launch listing is not
+  recategorized; established targets still advance from their own cursor
+  (`ARCH-DRY`, `ARCH-PURPOSE`).
+- The background watcher now upgrades a proofless binding by validating only
+  its ledger-named root and durably appending a v2 proof. Ledger projection uses
+  the latest same-root binding so that upgrade becomes visible; ordinary query
+  remains fail-closed and never starts migration. Unbound v1 watchers stop
+  without listing or reading the corpus.
+- Launch boundaries now retain the full continuity tuple and a bounded B-1
+  framer distinguishes newline, crossing-record, empty, truncation, and
+  replacement cases. The framer requires prior target authority; an unbound
+  preexisting append still contributes no evidence.
+- Catalog publication now merges same-generation cursors monotonically under
+  the store lock and preserves disputed state against late authorized writers.
+  Installed Claude, Codex, and Muse bytes now replay through the shared
+  stateful fake as prefix→append and match full normalized scanner state; Agy
+  continues through its copied SQLite/transcript seam (`ARCH-PURE`, `ARCH-MOCK`).
+- Product-shell verification found that `pair-session-watch-test.sh` still
+  authored an unbound v1 launch. The fixture now exercises the production v2
+  empty-boundary launch and requires a proof-bearing binding, while the separate
+  Go regression pins v1's zero-corpus-read fail-closed behavior.
+- The durable conformance target now invokes both the copied Agy check and the
+  installed Claude/Codex/Muse prefix→append fake comparison; the latter cannot
+  silently remain a locally run test outside the monthly/provider-change
+  cadence (`ARCH-MOCK`, `ARCH-PURPOSE`).
+- Second close review proved that worker reachability is not lifecycle
+  reachability. Launcher startup now begins a non-blocking bounded migration
+  over the small ledger set; each proofless current owner validates only its
+  named native root and appends a proof under the current-launch guard. Both the
+  launcher call and a real persisted ledger/native-store upgrade are pinned.
+- V2 binding publication now has one class rule: no proof, no binding. Catalog
+  failure leaves the round provisional and a `Run`-level regression proves no
+  compatibility row is written. Catalog merge is independently monotonic on
+  raw and parser-complete cursors, with dispute terminal; crossed-cursor and
+  stale-writer tests pin the partial order (`ARCH-PURE`, `ARCH-PURPOSE`).
+- Per-launch causality is independent of global catalog timing. A file absent
+  from one launch baseline remains eligible even if another watcher publishes
+  its catalog entry first; the catalog still owns reuse/continuity after target
+  authorization (`ARCH-DRY`).
+- Live conformance now compares Agy's installed database-plus-transcript state
+  with the stateful fake across prefix→append as well as full replay. README
+  documents the durable operator/developer target (`ARCH-MOCK`).
+- Full verification rejected the new migration source until it joined the
+  exhaustive artifact-path inventory. It is now a resolved selected-ledger
+  history consumer rather than an unclassified source reconstruction.
+- Third close review exposed the last parallel authority: interactive queries
+  rebuilt an empty catalog and could reread the same valid suffix indefinitely.
+  `QuerySession` now loads the selected-scope catalog, advances from the newer
+  proof-or-catalog cursor, and publishes through the same monotonic rule as the
+  watcher. A stateful regression appends once, queries twice, and observes no
+  second body read. The restored cross-language shadow sweep rejects native
+  paths, parsers, whole scans, direct `lsof`, config authority, and unbounded
+  inventory subprocesses; a synthetic offender proves the sweep itself. The
+  Neovim review fallback now calls the bounded owner projection (`ARCH-DRY`,
+  `ARCH-PURPOSE`). Full Go/race/vet, Lua/shell, live four-provider conformance,
+  generated-runtime, artifact classification, Zellij, and diff checks pass;
+  installed metadata enumeration was 41.0 ms for 1,350 files.
+- Fourth close review mutation-tested the durable publisher successfully but
+  found the enforcement sweep exempted its owning package. The sweep now parses
+  every production Go function, permits whole-corpus calls only at two fixed
+  diagnostic/compatibility sites, and detects an injected inventory-package
+  consumer. The plan revision also corrects `IncrementalResult`'s implemented
+  file location (`ARCH-DRY`, `ARCH-PURPOSE`).
+- The final full-suite pass reproduced the deferred `pair-go` TempDir cleanup
+  race. Its sidecar cleanup had been registered before `t.TempDir`, so Go's LIFO
+  cleanup removed the directory while a sidecar could still write into it.
+  Registration now orders sidecar shutdown before directory removal; the
+  focused launch-create case passes ten consecutive runs.
+- The final FIX-THEN-SHIP review accepted durable advancement and the closed
+  package sweep, then demonstrated a function-alias escape. Enforcement now
+  classifies every AST reference to both whole-corpus entry points; direct,
+  local-alias, and selector-alias mutations all fail outside the two fixed
+  diagnostic/compatibility sites (`ARCH-DRY`, `ARCH-PURPOSE`).
 
 ## Revisions
 
@@ -388,3 +569,27 @@ mutation revalidate through targeted seams. Prefix rewrite plus growth is
 provider corruption covered by explicit conformance, since detecting it on
 every hot-path append would require rereading the already-categorized body and
 violate the issue's purpose.
+
+### 2026-08-29 — generation primitive and live conformance
+
+The plan-quality gate found that file birth time is not a non-reusable
+generation counter. The contract now uses Darwin's actual `stat.st_gen` and
+marks Linux/other platforms unavailable unless they expose an equivalent
+primitive; birth time remains a timestamp only. Provider-contract conformance
+will compare the stateful fake with installed Claude, Codex, Muse, Agy
+transcript, and Agy SQLite behavior during #156, before every scanner/provider
+contract version change, and on the monthly operator conformance run.
+
+### 2026-08-29 — authority-first launch boundaries supersede B-1 framing
+
+Boundary review exposed an inconsistency between the earlier B-1 paragraph and
+the later authorization matrix. A preexisting unbound artifact is categorically
+ineligible for fresh-launch evidence, so reading its suffix merely to discard it
+would add hot-path content IO without an authorized consumer. An established or
+explicit target already owns a proof parser cursor and advances from that cursor,
+not from the raw launch size. Therefore raw launch boundaries remain complete
+metadata-only exclusion tuples; new artifacts are read from zero, unauthorized
+preexisting appends are not read, and proof-bearing targets use their durable
+parser-complete offsets. The obsolete B-1 framing requirement and its split-
+record done-when item are superseded rather than implemented as dead code
+(`ARCH-PURE`, `ARCH-PURPOSE`).

@@ -1,6 +1,7 @@
 package sessionledger
 
 import (
+	"encoding/json"
 	"slices"
 	"strings"
 	"testing"
@@ -133,6 +134,20 @@ func TestCurrentLaunchRejectsConflictingBindingsForGeneration(t *testing.T) {
 	}
 }
 
+func TestCurrentLaunchUsesLatestProofUpgradeForSameRoot(t *testing.T) {
+	t.Parallel()
+	proof := testAuthorizationProof("root-a")
+	records := []Record{
+		{Version: 1, Kind: RecordLaunch, ScopeKey: "scope", Tag: "work", Agent: "claude", Ordinal: 1},
+		{Version: 1, Kind: RecordBinding, ScopeKey: "scope", Tag: "work", Agent: "claude", LaunchOrdinal: 1, RootNativeID: "root-a", Ordinal: 2},
+		{Version: 2, Kind: RecordBinding, ScopeKey: "scope", Tag: "work", Agent: "claude", LaunchOrdinal: 1, RootNativeID: "root-a", AuthorizationProof: &proof, Ordinal: 3},
+	}
+	current, ok := CurrentLaunch(records, Owner{ScopeKey: "scope", Tag: "work", Agent: "claude"})
+	if !ok || current.Binding == nil || current.Binding.Ordinal != 3 || current.Binding.AuthorizationProof == nil {
+		t.Fatalf("current=%#v ok=%v", current, ok)
+	}
+}
+
 func FuzzParseLedgerPhysicalOrdinals(f *testing.F) {
 	f.Add([]byte("not-json\n{}\n"))
 	f.Add([]byte(`{"v":1,"kind":"binding"}`))
@@ -183,4 +198,111 @@ func TestEncodeLaunchIncludesEmptyWatermarkArray(t *testing.T) {
 	if string(raw) != `{"v":1,"kind":"launch","scope_key":"scope","tag":"work","agent":"claude","pair_log_offset":0,"native_watermarks":[]}` {
 		t.Fatalf("raw=%s", raw)
 	}
+}
+
+func TestRecordV2LaunchArtifactBoundariesRoundTrip(t *testing.T) {
+	t.Parallel()
+	record := Record{
+		Version: 2, Kind: RecordLaunch, ScopeKey: "scope", Tag: "work", Agent: "claude", PairLogOffset: 9,
+		LaunchArtifactBoundaries: []LaunchArtifactBoundary{
+			{StorageRoot: "claude-projects", RelativePath: "b.jsonl", StableFileID: "dev:1/ino:2", GenerationToken: "gen:3", MutationToken: "ctime:4", RawSize: 20},
+			{StorageRoot: "claude-projects", RelativePath: "a.jsonl", StableFileID: "dev:1/ino:1", MutationToken: "ctime:2", RawSize: 10},
+		},
+	}
+	raw, err := EncodeRecord(record)
+	if err != nil {
+		t.Fatal(err)
+	}
+	want := `{"v":2,"kind":"launch","scope_key":"scope","tag":"work","agent":"claude","pair_log_offset":9,"artifact_boundaries":[{"storage_root":"claude-projects","relative_path":"a.jsonl","stable_file_id":"dev:1/ino:1","mutation_token":"ctime:2","raw_size":10},{"storage_root":"claude-projects","relative_path":"b.jsonl","stable_file_id":"dev:1/ino:2","generation_token":"gen:3","mutation_token":"ctime:4","raw_size":20}]}`
+	if string(raw) != want {
+		t.Fatalf("raw=%s\nwant=%s", raw, want)
+	}
+	parsed := ParseLedger(append(raw, '\n'))
+	if len(parsed.Records) != 1 || len(parsed.Records[0].LaunchArtifactBoundaries) != 2 || parsed.Records[0].LaunchArtifactBoundaries[0].RelativePath != "a.jsonl" {
+		t.Fatalf("parsed=%#v", parsed)
+	}
+}
+
+func TestAuthorizationProofValidatesRootAndCompleteArtifacts(t *testing.T) {
+	t.Parallel()
+	proof := testAuthorizationProof("root-a")
+	if err := ValidateAuthorizationProof(proof, "root-a"); err != nil {
+		t.Fatal(err)
+	}
+	for _, test := range []struct {
+		name   string
+		mutate func(*AuthorizationProof)
+	}{
+		{name: "root mismatch", mutate: func(p *AuthorizationProof) { p.RootNativeID = "other" }},
+		{name: "unsupported version", mutate: func(p *AuthorizationProof) { p.Version = 2 }},
+		{name: "missing schema", mutate: func(p *AuthorizationProof) { p.ScannerSchema = "" }},
+		{name: "invalid state", mutate: func(p *AuthorizationProof) { p.ScannerState = json.RawMessage(`null`) }},
+		{name: "no artifacts", mutate: func(p *AuthorizationProof) { p.Artifacts = nil }},
+		{name: "missing stable id", mutate: func(p *AuthorizationProof) { p.Artifacts[0].StableFileID = "" }},
+		{name: "missing mutation", mutate: func(p *AuthorizationProof) { p.Artifacts[0].MutationToken = "" }},
+		{name: "offset beyond size", mutate: func(p *AuthorizationProof) { p.Artifacts[0].ParserCompleteOffset = 11 }},
+		{name: "incomplete parser offset", mutate: func(p *AuthorizationProof) { p.Artifacts[0].ParserCompleteOffset = 9 }},
+		{name: "duplicate artifact", mutate: func(p *AuthorizationProof) { p.Artifacts = append(p.Artifacts, p.Artifacts[0]) }},
+	} {
+		t.Run(test.name, func(t *testing.T) {
+			candidate := proof
+			candidate.ScannerState = append(json.RawMessage(nil), proof.ScannerState...)
+			candidate.Artifacts = append([]ArtifactProof(nil), proof.Artifacts...)
+			test.mutate(&candidate)
+			if err := ValidateAuthorizationProof(candidate, "root-a"); err == nil {
+				t.Fatal("invalid proof accepted")
+			}
+		})
+	}
+}
+
+func TestRecordV2BindingProofRoundTripAndStrictDecode(t *testing.T) {
+	t.Parallel()
+	record := Record{Version: 2, Kind: RecordBinding, ScopeKey: "scope", Tag: "work", Agent: "claude", LaunchOrdinal: 1, RootNativeID: "root-a", AuthorizationProof: ptrAuthorizationProof(testAuthorizationProof("root-a"))}
+	raw, err := EncodeRecord(record)
+	if err != nil {
+		t.Fatal(err)
+	}
+	parsed := ParseLedger(append(raw, '\n'))
+	if len(parsed.Records) != 1 || parsed.Records[0].AuthorizationProof == nil || parsed.Records[0].AuthorizationProof.RootNativeID != "root-a" {
+		t.Fatalf("parsed=%#v", parsed)
+	}
+	for _, malformed := range []string{
+		strings.Replace(string(raw), `"scanner_schema":"claude-v1"`, `"scanner_schema":"claude-v1","unknown":true`, 1),
+		strings.Replace(string(raw), `"parser_complete_offset":10`, `"parser_complete_offset":null`, 1),
+		strings.Replace(string(raw), `"root_native_id":"root-a","scanner_schema"`, `"root_native_id":"other","scanner_schema"`, 1),
+	} {
+		got := ParseLedger([]byte(malformed + "\n"))
+		if len(got.Records) != 0 || !slices.Equal(got.MalformedOrdinals, []uint64{1}) {
+			t.Fatalf("malformed v2 proof accepted: %#v", got)
+		}
+	}
+}
+
+func testAuthorizationProof(root string) AuthorizationProof {
+	return AuthorizationProof{
+		Version: 1, RootNativeID: root, ScannerSchema: "claude-v1", ScannerState: json.RawMessage(`{"version":1,"role":"root"}`),
+		Artifacts: []ArtifactProof{{StorageRoot: "claude-projects", RelativePath: "a.jsonl", StableFileID: "dev:1/ino:1", GenerationToken: "gen:1", MutationToken: "ctime:1", Size: 10, ParserCompleteOffset: 10}},
+	}
+}
+
+func ptrAuthorizationProof(proof AuthorizationProof) *AuthorizationProof { return &proof }
+
+func FuzzValidateAuthorizationProof(f *testing.F) {
+	f.Add(1, "root", "root", "claude-v1", []byte(`{"version":1}`), "store", "a.jsonl", "stable", "mutation", int64(10), int64(10))
+	f.Add(0, "", "root", "", []byte(`null`), "", "", "", "", int64(-1), int64(2))
+	f.Fuzz(func(t *testing.T, version int, proofRoot, expectedRoot, schema string, state []byte, storageRoot, relativePath, stableID, mutation string, size, offset int64) {
+		if len(state) > 1<<20 {
+			state = state[:1<<20]
+		}
+		proof := AuthorizationProof{
+			Version: version, RootNativeID: proofRoot, ScannerSchema: schema, ScannerState: append(json.RawMessage(nil), state...),
+			Artifacts: []ArtifactProof{{StorageRoot: storageRoot, RelativePath: relativePath, StableFileID: stableID, MutationToken: mutation, Size: size, ParserCompleteOffset: offset}},
+		}
+		if err := ValidateAuthorizationProof(proof, expectedRoot); err == nil {
+			if version != 1 || expectedRoot == "" || proofRoot != expectedRoot || schema == "" || !json.Valid(state) || string(state) == "null" || storageRoot == "" || relativePath == "" || stableID == "" || mutation == "" || size < 0 || offset < 0 || offset > size {
+				t.Fatalf("accepted incomplete proof: %#v", proof)
+			}
+		}
+	})
 }

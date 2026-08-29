@@ -43,6 +43,18 @@ func TestNativeEventsWithRuntimeReadsOnlyAuthorizedRootTranscript(t *testing.T) 
 	}
 }
 
+func TestIncrementalNativeEventsPreserveAbsoluteOffsets(t *testing.T) {
+	t.Parallel()
+	records := []sessioninventory.FramedJSONLRecord{
+		{Offset: 128, Bytes: []byte(`{"type":"response_item","payload":{"type":"message","role":"user","content":[{"type":"input_text","text":"prompt"}]}}`)},
+		{Offset: 256, Bytes: []byte(`{"type":"response_item","payload":{"type":"function_call"}}`)},
+	}
+	events, diagnostics := sessioninventory.NativeEventsFromRecords(sessioninventory.AgentCodex, "root-node", records)
+	if len(diagnostics) != 0 || len(events) != 2 || events[0].Position != (129<<8) || events[1].Position != (257<<8) || events[0].Event.Kind != sessioninventory.EventOperator || events[1].Event.Kind != sessioninventory.EventToolCall {
+		t.Fatalf("events=%#v diagnostics=%#v", events, diagnostics)
+	}
+}
+
 func TestNativeEventsWithRuntimeRejectsMultipleRootTranscripts(t *testing.T) {
 	t.Parallel()
 	runtime := sessioninventorytest.NewFakeRuntime()

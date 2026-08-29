@@ -55,14 +55,18 @@ test-smoke: $(BIN_DIR)/pair $(BIN_DIR)/pair-launch-helper
 	    go run ./$$p || exit 1; \
 	done
 
-.PHONY: test-live test-native-session-live
+.PHONY: test-live test-native-session-live test-session-inventory-conformance
 test-live: test-native-session-live
 	# Real-process suites share OS-global signal/session resources; package-level
 	# parallelism makes them interfere rather than exercise independent systems.
 	PAIR_LIVE_COUCH=1 go test -p 1 ./cmd/... -count=1
 
 test-native-session-live:
-	PAIR_LIVE_NATIVE_SESSIONS=1 go test ./cmd/internal/sessioninventory -run '^TestLiveNativeSessionShapeConformance$$' -count=1 -v
+	PAIR_LIVE_NATIVE_SESSIONS=1 go test -p 20 ./cmd/internal/sessioninventory -run '^TestLiveNativeSessionShapeConformance$$' -count=1 -v
+
+test-session-inventory-conformance:
+	PAIR_LIVE_SESSION_INVENTORY=1 go test -p 20 ./cmd/internal/sessioninventory -run '^TestLiveIncrementalInventoryPrelaunch$$' -count=1 -v
+	PAIR_LIVE_NATIVE_SESSIONS=1 go test -p 20 ./cmd/internal/sessioninventory -run '^TestLive(ProviderContractConformance|JSONLProviderBehaviorMatchesStatefulFake)$$' -count=1 -v
 
 SDLC_BIN ?= sdlc
 
@@ -198,6 +202,7 @@ test-run-headless:
 # runs a Lua script in nvim's interpreter with the full vim.api available, so
 # pure logic AND buffer-manipulation can be asserted without a UI.
 test-lua:
+	nvim -l nvim/confirm_quit_test.lua
 	nvim -l nvim/workbench_route_test.lua
 	bash tests/workbench-route-nvim-test.sh
 	nvim -l nvim/slug_test.lua

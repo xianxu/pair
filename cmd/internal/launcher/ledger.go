@@ -49,6 +49,7 @@ func ParseLedger(raw string) []LedgerEntry {
 		if entry.Agent == "" {
 			continue
 		}
+		entry.SourceOrdinal = uint64(index + 1)
 		entries = append(entries, entry)
 	}
 	owners := map[sessionledger.Owner]bool{}
@@ -66,9 +67,39 @@ func ParseLedger(raw string) []LedgerEntry {
 		if current.Binding != nil {
 			entry.SessionID = current.Binding.RootNativeID
 		}
-		entries = append(entries, entry)
+		entries = append(entries, MergeAuthorityMetadata(entry, entries))
 	}
 	return entries
+}
+
+// MergeAuthorityMetadata overlays only presentation fields from the newest
+// same-agent compatibility row. Typed root authority and source identity are
+// never sourced from compatibility JSON.
+// pair:156-concept pure new final
+func MergeAuthorityMetadata(typed LedgerEntry, compatibility []LedgerEntry) LedgerEntry {
+	if !typed.Typed || typed.Agent == "" {
+		return typed
+	}
+	var newest LedgerEntry
+	found := false
+	for _, candidate := range compatibility {
+		if candidate.Typed || candidate.Agent != typed.Agent {
+			continue
+		}
+		if !found || ledgerEntryNewer(candidate, newest) {
+			newest = candidate
+			found = true
+		}
+	}
+	if !found {
+		return typed
+	}
+	typed.Args = append([]string(nil), newest.Args...)
+	typed.Started = newest.Started
+	typed.LastActive = newest.LastActive
+	typed.RepoRoot = newest.RepoRoot
+	typed.RepoName = newest.RepoName
+	return typed
 }
 
 func LatestLedgerEntry(entries []LedgerEntry) (LedgerEntry, bool) {
@@ -142,6 +173,9 @@ func ledgerEntryNewer(candidate, current LedgerEntry) bool {
 		return candidate.SourceOrdinal > current.SourceOrdinal
 	}
 	if candidate.LastActive.Equal(current.LastActive) {
+		if candidate.Started.Equal(current.Started) {
+			return candidate.SourceOrdinal > current.SourceOrdinal
+		}
 		return candidate.Started.After(current.Started)
 	}
 	return candidate.LastActive.After(current.LastActive)
