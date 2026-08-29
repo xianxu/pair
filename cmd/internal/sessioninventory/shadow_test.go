@@ -34,7 +34,11 @@ func TestNativeAuthorityShadowSweepRejectsSyntheticConsumer(t *testing.T) {
 	if err := os.MkdirAll(filepath.Dir(path), 0o755); err != nil {
 		t.Fatal(err)
 	}
-	if err := os.WriteFile(path, []byte("package sessioninventory\nfunc bad(runtime Runtime) { InventoryWithRuntime(runtime) }\n"), 0o644); err != nil {
+	if err := os.WriteFile(path, []byte(`package sessioninventory
+func direct(runtime Runtime) { InventoryWithRuntime(runtime) }
+func alias(runtime Runtime) { scan := InventoryWithRuntime; scan(runtime) }
+func selector(runtime Runtime) { scan := inventory.InventoryWithRuntime; scan(runtime) }
+`), 0o644); err != nil {
 		t.Fatal(err)
 	}
 	violations, err := nativeAuthorityShadowViolations(repo)
@@ -42,8 +46,14 @@ func TestNativeAuthorityShadowSweepRejectsSyntheticConsumer(t *testing.T) {
 		t.Fatal(err)
 	}
 	joined := strings.Join(violations, "\n")
-	if !strings.Contains(joined, "cmd/internal/sessioninventory/bad.go:bad:InventoryWithRuntime") {
-		t.Fatalf("synthetic violations=%q", joined)
+	for _, want := range []string{
+		"cmd/internal/sessioninventory/bad.go:direct:InventoryWithRuntime",
+		"cmd/internal/sessioninventory/bad.go:alias:InventoryWithRuntime",
+		"cmd/internal/sessioninventory/bad.go:selector:InventoryWithRuntime",
+	} {
+		if !strings.Contains(joined, want) {
+			t.Fatalf("synthetic violations=%q, missing %q", joined, want)
+		}
 	}
 }
 
@@ -97,7 +107,7 @@ func nativeAuthorityShadowViolations(repo string) ([]string, error) {
 				return nil
 			}
 			if root == "cmd" {
-				calls, err := wholeInventoryCalls(path, filepath.ToSlash(rel))
+				calls, err := wholeInventoryReferences(path, filepath.ToSlash(rel))
 				if err != nil {
 					return err
 				}
@@ -139,41 +149,26 @@ func nativeAuthorityShadowViolations(repo string) ([]string, error) {
 	return violations, nil
 }
 
-func wholeInventoryCalls(path, relative string) ([]string, error) {
+func wholeInventoryReferences(path, relative string) ([]string, error) {
 	parsed, err := parser.ParseFile(token.NewFileSet(), path, nil, 0)
 	if err != nil {
 		return nil, err
 	}
-	var calls []string
+	var references []string
 	for _, declaration := range parsed.Decls {
 		function, ok := declaration.(*ast.FuncDecl)
 		if !ok || function.Body == nil {
 			continue
 		}
 		ast.Inspect(function.Body, func(node ast.Node) bool {
-			call, ok := node.(*ast.CallExpr)
-			if !ok {
-				return true
-			}
-			name := calledName(call.Fun)
-			if name == "InventoryWithRuntime" || name == "NativeEventsWithRuntime" {
-				calls = append(calls, relative+":"+function.Name.Name+":"+name)
+			identifier, ok := node.(*ast.Ident)
+			if ok && (identifier.Name == "InventoryWithRuntime" || identifier.Name == "NativeEventsWithRuntime") {
+				references = append(references, relative+":"+function.Name.Name+":"+identifier.Name)
 			}
 			return true
 		})
 	}
-	return calls, nil
-}
-
-func calledName(expression ast.Expr) string {
-	switch value := expression.(type) {
-	case *ast.Ident:
-		return value.Name
-	case *ast.SelectorExpr:
-		return value.Sel.Name
-	default:
-		return ""
-	}
+	return references, nil
 }
 
 func governedShadowSource(path, root string) bool {

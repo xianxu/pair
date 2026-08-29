@@ -1,12 +1,13 @@
 ---
 id: 000156
-status: working
+status: codecomplete
 deps: []
 github_issue:
 created: 2026-08-29
 updated: 2026-08-29
 estimate_hours: 8.96
 started: 2026-08-29T06:33:52-07:00
+actual_hours: 3.95
 ---
 
 # incremental native session inventory
@@ -377,6 +378,7 @@ provider contracts.
 ## Log
 
 ### 2026-08-29
+- 2026-08-29: closed — full Go and focused race suites pass at -p 20; append-once/query-twice proves zero repeated body reads; mutation-tested closed call-site allowlist rejects an in-package whole-inventory consumer; pair-go launch-create passes ten repeats and full suite after LIFO cleanup fix; Alt+X Lua/terminal and watcher shell pass; live 1,350-file launch is 41.0ms with four-provider fake conformance; vet, artifact/runtime generation, atlas, Zellij, and diff checks pass; review verdict: FIX-THEN-SHIP
 
 - Reproduced one Claude inventory at 13.16-13.29 seconds across six runs on
   1,573 files / 358 MiB; isolated 5.39 seconds to the per-file external `stat`
@@ -513,6 +515,11 @@ provider contracts.
   cleanup removed the directory while a sidecar could still write into it.
   Registration now orders sidecar shutdown before directory removal; the
   focused launch-create case passes ten consecutive runs.
+- The final FIX-THEN-SHIP review accepted durable advancement and the closed
+  package sweep, then demonstrated a function-alias escape. Enforcement now
+  classifies every AST reference to both whole-corpus entry points; direct,
+  local-alias, and selector-alias mutations all fail outside the two fixed
+  diagnostic/compatibility sites (`ARCH-DRY`, `ARCH-PURPOSE`).
 
 ## Revisions
 

@@ -448,3 +448,11 @@ Go function against a closed allowlist containing only the diagnostic CLI's
 definitions remain permitted only inside that owning package. A synthetic
 production file inside `cmd/internal/sessioninventory` proves an unlisted whole-
 inventory consumer fails enforcement (`ARCH-DRY`, `ARCH-PURPOSE`).
+
+### 2026-08-29 — fifth close review reference-complete enforcement
+
+The fixed authority allowlist governs every syntax-tree reference to
+`InventoryWithRuntime` and `NativeEventsWithRuntime`, not only direct call
+expressions. Local aliases and package-selector aliases therefore cannot evade
+the same two-site rule. Synthetic direct, local-alias, and selector-alias
+mutations pin the reference-complete enforcement (`ARCH-DRY`, `ARCH-PURPOSE`).

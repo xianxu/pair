@@ -170,6 +170,26 @@ rounds:
           family: core-concept-table-integrity
           round: 4
       blocked: true
+    - "n": 5
+      timestamp: "2026-08-29T14:58:45-07:00"
+      agent: codex
+      dispose:
+        - id: BR-11
+          disposition: addressed
+          note: QuerySession now loads and publishes durable catalog advancement; disabling publication makes TestQuerySessionPersistsAppendAdvancementAcrossQueries fail because the second query rereads the suffix.
+          round: 5
+        - id: BR-12
+          disposition: addressed
+          note: The fourth plan revision explicitly places ScannerState in scanner_state.go and IncrementalResult in incremental_inventory.go.
+          round: 5
+      findings:
+        - id: BR-13
+          severity: Important
+          title: Closed authority sweep can be bypassed through function aliases
+          detail: 'This is the 4th finding in family catalog-authority-single-source. wholeInventoryCalls checks only CallExpr callee names, so scan := InventoryWithRuntime; scan(runtime) is invisible; the synthetic regression covers only a direct call. Do not patch only that spelling: enforce the rule over every reference or resolved call edge to InventoryWithRuntime and NativeEventsWithRuntime, allowing only the two named production sites, and add alias/selector mutation cases.'
+          family: catalog-authority-single-source
+          round: 5
+      blocked: false
 ---
 
 # Gate ledger — pair#156 (boundary-review)
@@ -248,7 +268,18 @@ later rounds disposed of them. Generated — edit the gate, not this file.
 - **BR-12** [Critical] `core-concept-table-integrity` Core concepts table gives IncrementalResult the wrong file location
   The plan places IncrementalResult in scanner_state.go, while the symbol is declared in incremental_inventory.go; append a revision correcting or splitting the row.
 
+## Round 5 — 2026-08-29T14:58:45-07:00 (codex) — passed
+
+### Disposed
+
+- BR-11 — addressed — QuerySession now loads and publishes durable catalog advancement; disabling publication makes TestQuerySessionPersistsAppendAdvancementAcrossQueries fail because the second query rereads the suffix.
+- BR-12 — addressed — The fourth plan revision explicitly places ScannerState in scanner_state.go and IncrementalResult in incremental_inventory.go.
+
+### Raised
+
+- **BR-13** [Important] `catalog-authority-single-source` Closed authority sweep can be bypassed through function aliases
+  This is the 4th finding in family catalog-authority-single-source. wholeInventoryCalls checks only CallExpr callee names, so scan := InventoryWithRuntime; scan(runtime) is invisible; the synthetic regression covers only a direct call. Do not patch only that spelling: enforce the rule over every reference or resolved call edge to InventoryWithRuntime and NativeEventsWithRuntime, allowing only the two named production sites, and add alias/selector mutation cases.
+
 ## Open findings
 
-- **BR-11** [Critical] `catalog-authority-single-source` Interactive query advancement still bypasses durable catalog authority and its enforcement sweep
-- **BR-12** [Critical] `core-concept-table-integrity` Core concepts table gives IncrementalResult the wrong file location
+- **BR-13** [Important] `catalog-authority-single-source` Closed authority sweep can be bypassed through function aliases

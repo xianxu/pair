@@ -2574,6 +2574,11 @@ an unsupported owner through every downstream projection (`ARCH-DRY`,
   Parse call sites and use a closed, stale-checked allowlist for the few named
   diagnostic/compatibility callers; mutation-test an offender inside the owner
   package (`ARCH-DRY`, `ARCH-PURPOSE`).
+- A call-expression name sweep is not a closed authority boundary because a
+  function value can be aliased before invocation. When the forbidden surface
+  is a small named API, classify every AST reference (including selector
+  expressions), then allow only exact function sites and mutation-test direct,
+  local-alias, and selector-alias forms (`ARCH-DRY`, `ARCH-PURPOSE`).
 - `testing.T.Cleanup` runs LIFO. Register process/sidecar shutdown after
   `t.TempDir` creation so writers are stopped before the temporary directory's
   automatically registered removal; the reverse order creates intermittent

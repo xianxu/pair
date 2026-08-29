@@ -497,3 +497,86 @@ findings:
     detail: |
       The plan places IncrementalResult in scanner_state.go, while the symbol is declared in incremental_inventory.go; append a revision correcting or splitting the row.
 ```
+
+---
+
+## Re-review — 2026-08-29T14:58:45-07:00 (FIX-THEN-SHIP)
+
+| field | value |
+|-------|-------|
+| issue | 156 — incremental native session inventory |
+| repo | pair |
+| issue file | workshop/issues/000156-incremental-session-inventory.md |
+| boundary | whole-issue close |
+| milestone | — |
+| window | 6cd38d381c9e0c4fc146284ca7b4c2e7707e7218..9b125f1d8d12138117cf58957ef2a0501098efa8 |
+| command | sdlc close --issue 156 |
+| reviewer | codex |
+| timestamp | 2026-08-29T14:58:45-07:00 |
+| verdict | FIX-THEN-SHIP |
+
+## Review
+
+```verdict
+verdict: FIX-THEN-SHIP
+confidence: high
+```
+
+The production defect behind BR-11 is fixed and protected by a mutation-sensitive regression, while BR-12 is corrected through the required appended revision. Focused race tests and all independent integration checks passed. One Important enforcement gap remains: the claimed closed authority sweep can be bypassed through function aliases, so it does not yet fully enforce the single-source rule.
+
+```findings
+dispose:
+  - id: BR-11
+    disposition: addressed
+    note: |
+      QuerySession now loads and publishes durable catalog advancement; disabling publication makes TestQuerySessionPersistsAppendAdvancementAcrossQueries fail because the second query rereads the suffix.
+  - id: BR-12
+    disposition: addressed
+    note: |
+      The fourth plan revision explicitly places ScannerState in scanner_state.go and IncrementalResult in incremental_inventory.go.
+findings:
+  - id: new
+    severity: Important
+    family: catalog-authority-single-source
+    title: |
+      Closed authority sweep can be bypassed through function aliases
+    detail: |
+      This is the 4th finding in family catalog-authority-single-source. wholeInventoryCalls checks only CallExpr callee names, so scan := InventoryWithRuntime; scan(runtime) is invisible; the synthetic regression covers only a direct call. Do not patch only that spelling: enforce the rule over every reference or resolved call edge to InventoryWithRuntime and NativeEventsWithRuntime, allowing only the two named production sites, and add alias/selector mutation cases.
+```
+
+### 1. Strengths
+
+- [query.go](/Users/xianxu/workspace/pair/cmd/internal/sessioninventory/query.go:110) now loads catalog state, advances from it, and publishes accepted validation through the persistent runtime seam.
+- [query_test.go](/Users/xianxu/workspace/pair/cmd/internal/sessioninventory/query_test.go:66) proves a second unchanged query performs no additional body reads. Disabling publication in a scratch copy made this test fail as intended.
+- [catalog_publication.go](/Users/xianxu/workspace/pair/cmd/internal/sessioninventory/catalog_publication.go:8) provides one shared publication boundary for watcher and interactive-query advancement.
+- README and atlas changes document the new catalog, targeted query flow, immediate Alt+X ordering, and live conformance target.
+
+### 2. Critical findings
+
+None.
+
+### 3. Important findings
+
+- [shadow_test.go](/Users/xianxu/workspace/pair/cmd/internal/sessioninventory/shadow_test.go:142): `wholeInventoryCalls` recognizes only direct calls whose callee is named `InventoryWithRuntime` or `NativeEventsWithRuntime`. A local alias evades the sweep. Use reference/type resolution or explicitly reject all references outside the two allowed call sites; add mutation fixtures for local and selector aliases. `ARCH-DRY`, `ARCH-PURPOSE`.
+
+### 4. Minor findings
+
+None.
+
+### 5. Test coverage notes
+
+- Passed focused race suites for session inventory, fake runtime, ledger, watcher, and launcher.
+- Passed `go vet ./...`, Lua tests, terminal shortcut tests, session-watch shell tests, Zellij configuration validation, and `git diff --check`.
+- Full `go test ./...` completed successfully except `cmd/pair-go`, whose fixtures were uniformly blocked by the review sandbox denying `/bin/ps`. No changed-behavior assertion failed.
+- The BR-11 regression was independently mutation-checked and went red without publication.
+
+### 6. Architectural notes for upcoming work
+
+- `ARCH-DRY`: Flagged only for the alias loophole in the enforcement sweep; production consumers otherwise converge on `QuerySession`.
+- `ARCH-PURE`: Pass. Reconciliation, selection, and catalog merging remain pure; filesystem and persistence operations sit behind injected seams.
+- `ARCH-PURPOSE`: Flagged because the “closed allowlist” claim is not fully enforced against indirect references.
+- `ARCH-MOCK`: Pass. Production and tests share the runtime boundary, and the stateful fake models catalog persistence and multi-query advancement.
+
+### 7. Plan revision recommendations
+
+Append a fifth `## Revisions` entry stating that the authority sweep governs resolved references/call edges—not only direct call syntax—and documenting alias/selector mutation coverage.
