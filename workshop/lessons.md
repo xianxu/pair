@@ -2564,3 +2564,8 @@ an unsupported owner through every downstream projection (`ARCH-DRY`,
 - Global cache classification and per-launch causality answer different
   questions. Catalog timing may govern reuse after authorization, but cannot
   erase that an artifact was absent from a particular launch baseline.
+- An incremental validator is not incremental across processes unless accepted
+  advancement is durably published and the next query starts from that state.
+  Pin append-once/query-twice behavior with zero reads on the second query, and
+  make the stateful fake consume the same pure publication rule as production
+  (`ARCH-DRY`, `ARCH-PURPOSE`, `ARCH-MOCK`).

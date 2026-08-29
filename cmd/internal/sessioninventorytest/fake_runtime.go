@@ -48,6 +48,7 @@ type FakeRuntime struct {
 	processes    map[string]processState
 	errors       map[string]error
 	counts       map[string]int
+	catalog      sessioninventory.Catalog
 }
 
 var _ sessioninventory.Runtime = (*FakeRuntime)(nil)
@@ -61,7 +62,26 @@ func NewFakeRuntime() *FakeRuntime {
 		processes:    make(map[string]processState),
 		errors:       make(map[string]error),
 		counts:       make(map[string]int),
+		catalog:      sessioninventory.Catalog{Version: sessioninventory.CatalogVersion},
 	}
+}
+
+func (f *FakeRuntime) LoadSessionInventoryCatalog() (sessioninventory.Catalog, error) {
+	f.mu.RLock()
+	defer f.mu.RUnlock()
+	return sessioninventory.CloneCatalog(f.catalog), nil
+}
+
+func (f *FakeRuntime) PublishSessionInventoryValidations(validations []sessioninventory.TargetValidation) error {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	next, err := sessioninventory.CatalogWithTargetValidations(f.catalog, validations)
+	if err != nil {
+		return err
+	}
+	next.Generation = f.catalog.Generation + 1
+	f.catalog = next
+	return nil
 }
 
 func (f *FakeRuntime) AddRoot(root sessioninventory.StorageRoot) {

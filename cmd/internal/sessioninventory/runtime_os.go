@@ -12,6 +12,7 @@ import (
 	"sort"
 	"strings"
 
+	"github.com/xianxu/pair/cmd/internal/artifactpath"
 	"github.com/xianxu/pair/cmd/internal/procutil"
 )
 
@@ -57,6 +58,22 @@ func (r OSRuntime) NativeRoots(agent Agent) []StorageRoot {
 }
 
 func (r OSRuntime) PairDataRoot() StorageRoot { return r.pairRoot }
+
+func (r OSRuntime) LoadSessionInventoryCatalog() (Catalog, error) {
+	paths, err := artifactpath.ResolveSelectedScope(r.pairRoot.Path)
+	if err != nil {
+		return Catalog{}, err
+	}
+	return (CatalogStore{Runtime: CatalogOSRuntime{}}).Read(paths.SessionInventoryCatalog())
+}
+
+func (r OSRuntime) PublishSessionInventoryValidations(validations []TargetValidation) error {
+	paths, err := artifactpath.ResolveSelectedScope(r.pairRoot.Path)
+	if err != nil {
+		return err
+	}
+	return PublishTargetValidations(CatalogStore{Runtime: CatalogOSRuntime{}}, paths.SessionInventoryCatalog(), validations)
+}
 
 func (r OSRuntime) ListFiles(requested StorageRoot) ([]FileEntry, error) {
 	root, ok := r.authorizedRoot(requested.Name)

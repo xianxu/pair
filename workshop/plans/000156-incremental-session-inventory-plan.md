@@ -420,3 +420,18 @@ target selection, while scanner validators own targeted reads and
 `CatalogStore` owns publication. `ProofMigrator` is used by background watcher
 and launcher-startup migration lifecycles; ordinary query remains read-only and
 reports proofless authority unavailable.
+
+### 2026-08-29 — third close review persistent query advancement
+
+The `catalog-authority-single-source` class includes every latency-sensitive
+consumer: launch, existence, owner, activity, recovery, context, review, slug,
+opener, title-poller, and confirmation. Their bounded owner queries share one
+persistent advancement boundary: load the selected-scope catalog, validate only
+the proof-named artifacts, and monotonically publish accepted scanner state
+through `CatalogStore`. A durable catalog entry may advance from the ledger
+proof, so an append is read once and an unchanged later query performs no body
+read; catalog loss still falls back to the durable proof. The shadow sweep again
+rejects native path construction, native parser reconstruction, direct `lsof`,
+compatibility-config authority, whole-inventory calls, and inventory activity
+subprocesses outside the inventory-owned/diagnostic seams (`ARCH-DRY`,
+`ARCH-PURPOSE`).

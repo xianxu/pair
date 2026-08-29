@@ -1,6 +1,7 @@
 package sessioninventory
 
 import (
+	"encoding/json"
 	"errors"
 	"fmt"
 
@@ -16,6 +17,14 @@ type SessionQuery struct {
 	Status      BindingStatus
 	Root        *Node
 	Diagnostics []Diagnostic
+}
+
+// SessionCatalogAdvancer is the persistent owner shared by every production
+// interactive query. Runtime remains the scanner IO seam; this optional
+// capability lets catalog-loss tests keep exercising proof fallback directly.
+type SessionCatalogAdvancer interface {
+	LoadSessionInventoryCatalog() (Catalog, error)
+	PublishSessionInventoryValidations([]TargetValidation) error
 }
 
 // SessionForOwner is the pure owner lookup shared by native-session consumers.
@@ -98,10 +107,22 @@ func QuerySession(runtime Runtime, scopeKey, tag string, agent Agent) (SessionQu
 		query.Diagnostics = append(query.Diagnostics, diagnosticWithSource(DiagnosticBindingStale, agent, &nativeID, "ledger proof", "legacy binding proof migration is pending"))
 		return query, nil
 	}
-	validation, diagnostics, err := validateBindingProofTarget(runtime, agent, *current.Binding.AuthorizationProof)
+	catalog := Catalog{Version: CatalogVersion}
+	advancer, persists := runtime.(SessionCatalogAdvancer)
+	if persists {
+		if saved, readErr := advancer.LoadSessionInventoryCatalog(); readErr == nil {
+			catalog = saved
+		}
+	}
+	validation, diagnostics, err := NewIncrementalInventory(runtime, catalog).ValidateBindingProof(agent, *current.Binding.AuthorizationProof)
 	query.Diagnostics = append(query.Diagnostics, diagnostics...)
 	if err != nil {
 		return query, nil
+	}
+	if persists && !catalogCoversValidation(catalog, validation) {
+		if publishErr := advancer.PublishSessionInventoryValidations([]TargetValidation{validation}); publishErr != nil {
+			query.Diagnostics = append(query.Diagnostics, diagnosticWithSource(DiagnosticStorageUnreadable, agent, &current.Binding.RootNativeID, "session inventory catalog", "validated query advancement could not be persisted"))
+		}
 	}
 	inventory := BuildForest([]Fact{validation.Fact})
 	for _, forest := range inventory.Forests {
@@ -113,11 +134,6 @@ func QuerySession(runtime Runtime, scopeKey, tag string, agent Agent) (SessionQu
 		}
 	}
 	return query, nil
-}
-
-func validateBindingProofTarget(runtime Runtime, agent Agent, proof sessionledger.AuthorizationProof) (TargetValidation, []Diagnostic, error) {
-	inventory := NewIncrementalInventory(runtime, Catalog{Version: CatalogVersion})
-	return inventory.ValidateBindingProof(agent, proof)
 }
 
 func (inventory IncrementalInventory) ValidateBindingProof(agent Agent, proof sessionledger.AuthorizationProof) (TargetValidation, []Diagnostic, error) {
@@ -138,22 +154,14 @@ func (inventory IncrementalInventory) ValidateBindingProof(agent Agent, proof se
 	if selected.Unavailable || len(selected.Eligible) != len(proof.Artifacts) {
 		return TargetValidation{}, diagnostics, ErrArtifactChanged
 	}
-	proofByArtifact := make(map[string]sessionledger.ArtifactProof, len(proof.Artifacts))
-	for _, artifact := range proof.Artifacts {
-		proofByArtifact[artifact.StorageRoot+"\x00"+artifact.RelativePath] = artifact
-	}
 	factArtifacts := make([]Artifact, 0, len(selected.Eligible))
-	prior := TargetValidation{State: state, Observations: selected.Eligible, Results: map[string]IncrementalResult{}}
-	unchanged := true
+	prior := TargetValidation{State: state, Observations: make([]ArtifactObservation, len(selected.Eligible)), Results: map[string]IncrementalResult{}}
 	for i, observation := range selected.Eligible {
+		prior.Observations[i] = cloneObservation(observation)
 		factArtifacts = append(factArtifacts, observation.Entry.Artifact)
-		artifact, ok := proofByArtifact[targetArtifactKey(observation.Entry.Artifact)]
+		artifact, ok := proofArtifactByKey(proof, targetArtifactKey(observation.Entry.Artifact))
 		if !ok {
 			return TargetValidation{}, diagnostics, ErrArtifactChanged
-		}
-		current := fingerprintFromEntry(observation.Entry)
-		if current.StableFileID != StableFileID(artifact.StableFileID) || current.GenerationToken != GenerationToken(artifact.GenerationToken) || current.MutationToken != MutationToken(artifact.MutationToken) || current.Size != artifact.Size {
-			unchanged = false
 		}
 		// Proofs deliberately exclude timestamps. Preserve the current timestamps
 		// while reconstructing the proof-owned prior tuple so timestamp metadata
@@ -173,12 +181,116 @@ func (inventory IncrementalInventory) ValidateBindingProof(agent Agent, proof se
 	if err != nil {
 		return TargetValidation{}, diagnostics, err
 	}
+	if catalogPrior, ok := inventory.catalogPriorForProof(agent, proof, selected.Eligible); ok {
+		prior = catalogPrior
+	}
+	unchanged := observationsMatchValidation(selected.Eligible, prior)
 	if unchanged {
 		return prior, diagnostics, nil
 	}
 	advanced, found, err := AdvanceTargetValidation(inventory.runtime, prior, selected.Eligible)
 	diagnostics = append(diagnostics, found...)
 	return advanced, diagnostics, err
+}
+
+func proofArtifactByKey(proof sessionledger.AuthorizationProof, key string) (sessionledger.ArtifactProof, bool) {
+	for _, artifact := range proof.Artifacts {
+		if artifact.StorageRoot+"\x00"+artifact.RelativePath == key {
+			return artifact, true
+		}
+	}
+	return sessionledger.ArtifactProof{}, false
+}
+
+func (inventory IncrementalInventory) catalogPriorForProof(agent Agent, proof sessionledger.AuthorizationProof, current []ArtifactObservation) (TargetValidation, bool) {
+	entries := make(map[string]CatalogEntry, len(inventory.catalog.Entries))
+	for _, entry := range inventory.catalog.Entries {
+		if entry.Agent == agent {
+			entries[targetArtifactKey(entry.Artifact)] = entry
+		}
+	}
+	prior := TargetValidation{Observations: make([]ArtifactObservation, len(current)), Results: map[string]IncrementalResult{}}
+	artifacts := make([]Artifact, 0, len(current))
+	for i, observation := range current {
+		key := targetArtifactKey(observation.Entry.Artifact)
+		entry, ok := entries[key]
+		proofArtifact, proofOK := proofArtifactByKey(proof, key)
+		expectedSchema, _, recognized := artifactScannerShape(agent, observation.Entry.Artifact)
+		if !ok || !proofOK || !recognized || entry.Authorization != AuthorizationAuthorized || entry.ScannerSchema != expectedSchema ||
+			entry.Fingerprint.StableFileID != StableFileID(proofArtifact.StableFileID) ||
+			entry.Fingerprint.GenerationToken != GenerationToken(proofArtifact.GenerationToken) ||
+			entry.Fingerprint.Size < proofArtifact.Size || entry.ParserCompleteOffset < proofArtifact.ParserCompleteOffset {
+			return TargetValidation{}, false
+		}
+		state, err := DecodeScannerState(entry.ScannerState)
+		if err != nil || state.Agent != agent || state.NativeID != proof.RootNativeID || state.Role != RoleRoot || state.ScannerSchema != proof.ScannerSchema {
+			return TargetValidation{}, false
+		}
+		if i == 0 {
+			prior.State = state
+		} else if string(entry.ScannerState) != string(entries[targetArtifactKey(current[0].Entry.Artifact)].ScannerState) {
+			return TargetValidation{}, false
+		}
+		prior.Observations[i] = observation
+		prior.Observations[i].Entry.StableFileID = entry.Fingerprint.StableFileID
+		prior.Observations[i].Entry.GenerationToken = entry.Fingerprint.GenerationToken
+		prior.Observations[i].Entry.MutationToken = entry.Fingerprint.MutationToken
+		prior.Observations[i].Entry.Size = entry.Fingerprint.Size
+		prior.Observations[i].Entry.BirthTime = cloneStdTime(entry.Fingerprint.BirthTime)
+		prior.Observations[i].Entry.ModTime = cloneStdTime(entry.Fingerprint.ModTime)
+		prior.Observations[i].ScannerSchema = entry.ScannerSchema
+		prior.Observations[i].ProviderContract = entry.ProviderContract
+		artifacts = append(artifacts, observation.Entry.Artifact)
+		if observation.Entry.Artifact.Kind == ArtifactTranscript {
+			prior.Results[key] = IncrementalResult{Fingerprint: entry.Fingerprint, RawObservedOffset: entry.RawObservedOffset, FrameState: JSONLFrameState{ParserCompleteOffset: entry.ParserCompleteOffset}}
+		}
+	}
+	var err error
+	prior.Fact, err = ScannerStateFact(prior.State, artifacts)
+	return prior, err == nil
+}
+
+func observationsMatchValidation(current []ArtifactObservation, prior TargetValidation) bool {
+	previous := make(map[string]ArtifactFingerprint, len(prior.Observations))
+	for _, observation := range prior.Observations {
+		previous[targetArtifactKey(observation.Entry.Artifact)] = fingerprintFromEntry(observation.Entry)
+	}
+	for _, observation := range current {
+		fingerprint, ok := previous[targetArtifactKey(observation.Entry.Artifact)]
+		if !ok || !equalFingerprint(fingerprint, fingerprintFromEntry(observation.Entry)) {
+			return false
+		}
+	}
+	return len(current) == len(previous)
+}
+
+func catalogCoversValidation(catalog Catalog, validation TargetValidation) bool {
+	entries := make(map[string]CatalogEntry, len(catalog.Entries))
+	for _, entry := range catalog.Entries {
+		entries[catalogEntryKey(entry.Agent, entry.Artifact)] = entry
+	}
+	for _, observation := range validation.Observations {
+		entry, ok := entries[catalogEntryKey(observation.Agent, observation.Entry.Artifact)]
+		if !ok || entry.Authorization != AuthorizationAuthorized {
+			return false
+		}
+		fingerprint := fingerprintFromEntry(observation.Entry)
+		rawOffset, parserOffset := observation.Entry.Size, observation.Entry.Size
+		if result, ok := validation.Results[targetArtifactKey(observation.Entry.Artifact)]; ok {
+			fingerprint = result.Fingerprint
+			rawOffset = result.RawObservedOffset
+			parserOffset = result.FrameState.ParserCompleteOffset
+		}
+		if !equalFingerprint(entry.Fingerprint, fingerprint) || entry.RawObservedOffset != rawOffset || entry.ParserCompleteOffset != parserOffset || string(entry.ScannerState) != string(mustScannerStateJSON(validation.State)) {
+			return false
+		}
+	}
+	return len(validation.Observations) != 0
+}
+
+func mustScannerStateJSON(state ScannerState) []byte {
+	raw, _ := json.Marshal(state)
+	return raw
 }
 
 // RootTranscript returns the one scanner-authorized transcript for a root.

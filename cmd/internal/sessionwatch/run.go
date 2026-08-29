@@ -1,7 +1,6 @@
 package sessionwatch
 
 import (
-	"encoding/json"
 	"errors"
 	"os"
 	"path/filepath"
@@ -181,52 +180,11 @@ func migrateProoflessBinding(rt Runtime, nativeRuntime sessioninventory.Runtime,
 }
 
 func persistTrackedCatalog(store sessioninventory.CatalogStore, path string, tracked map[string]sessioninventory.TargetValidation) error {
-	entries := map[string]sessioninventory.CatalogEntry{}
+	validations := make([]sessioninventory.TargetValidation, 0, len(tracked))
 	for _, validation := range tracked {
-		stateRaw, err := json.Marshal(validation.State)
-		if err != nil {
-			return err
-		}
-		for _, observation := range validation.Observations {
-			entry := observation.Entry
-			fingerprint := sessioninventory.ArtifactFingerprint{StableFileID: entry.StableFileID, GenerationToken: entry.GenerationToken, MutationToken: entry.MutationToken, Size: entry.Size, BirthTime: entry.BirthTime, ModTime: entry.ModTime}
-			rawOffset, parserOffset := entry.Size, entry.Size
-			key := entry.Artifact.StorageRoot + "\x00" + entry.Artifact.RelativePath
-			if result, ok := validation.Results[key]; ok {
-				fingerprint = result.Fingerprint
-				rawOffset = result.RawObservedOffset
-				parserOffset = result.FrameState.ParserCompleteOffset
-			}
-			entries[string(observation.Agent)+"\x00"+key] = sessioninventory.CatalogEntry{
-				Agent: observation.Agent, Artifact: entry.Artifact, Fingerprint: fingerprint, Authorization: sessioninventory.AuthorizationAuthorized,
-				Facts: []sessioninventory.Fact{validation.Fact}, ScannerSchema: observation.ScannerSchema, ProviderContract: observation.ProviderContract,
-				RawObservedOffset: rawOffset, ParserCompleteOffset: parserOffset, ScannerState: append(json.RawMessage(nil), stateRaw...),
-			}
-		}
+		validations = append(validations, validation)
 	}
-	merge := func(current sessioninventory.Catalog) (sessioninventory.Catalog, error) {
-		byKey := map[string]sessioninventory.CatalogEntry{}
-		for _, entry := range current.Entries {
-			byKey[string(entry.Agent)+"\x00"+entry.Artifact.StorageRoot+"\x00"+entry.Artifact.RelativePath] = entry
-		}
-		for key, entry := range entries {
-			if existing, ok := byKey[key]; ok {
-				byKey[key] = sessioninventory.MergeCatalogPublication(existing, entry)
-			} else {
-				byKey[key] = entry
-			}
-		}
-		current.Entries = current.Entries[:0]
-		for _, entry := range byKey {
-			current.Entries = append(current.Entries, entry)
-		}
-		return current, nil
-	}
-	_, err := store.Update(path, merge)
-	if errors.Is(err, sessioninventory.ErrCatalogCorrupt) {
-		_, err = store.Repair(path, merge)
-	}
-	return err
+	return sessioninventory.PublishTargetValidations(store, path, validations)
 }
 
 func incrementalWatcherInventory(runtime sessioninventory.Runtime, incremental sessioninventory.IncrementalInventory, agent sessioninventory.Agent, launch sessionledger.Record, tracked map[string]sessioninventory.TargetValidation) (sessioninventory.Inventory, []sessioninventory.NativeEventFact, map[string]sessionledger.AuthorizationProof) {

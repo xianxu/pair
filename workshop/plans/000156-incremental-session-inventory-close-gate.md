@@ -102,6 +102,58 @@ rounds:
           family: user-facing-surface-documentation
           round: 2
       blocked: true
+    - "n": 3
+      timestamp: "2026-08-29T14:24:13-07:00"
+      agent: codex
+      dispose:
+        - id: BR-1
+          disposition: addressed
+          note: Launcher startup invokes bounded migration, and persisted-ledger integration coverage proves durable proof publication.
+          round: 3
+        - id: BR-2
+          disposition: withdrawn
+          note: 'The appended authority-first revision supersedes B-1 framing: preexisting unbound artifacts remain unread, while authorized targets advance from proof parser offsets.'
+          round: 3
+        - id: BR-3
+          disposition: addressed
+          note: Catalog merge now rejects regression on either cursor independently, with crossed-cursor coverage.
+          round: 3
+        - id: BR-4
+          disposition: addressed
+          note: IncrementalInventory is production-reachable from watcher and targeted query flows.
+          round: 3
+        - id: BR-5
+          disposition: addressed
+          note: The v1 unbound watcher fails closed without listing the native corpus.
+          round: 3
+        - id: BR-6
+          disposition: addressed
+          note: Installed Agy database-plus-transcript behavior now joins the stateful-fake prefix-to-append comparison and durable target.
+          round: 3
+        - id: BR-7
+          disposition: addressed
+          note: The claimed plan checklist is checked and the corrective revisions record the changed design.
+          round: 3
+        - id: BR-8
+          disposition: addressed
+          note: V2 watcher publication requires a proof, and catalog failure is covered through Run with no binding written.
+          round: 3
+        - id: BR-9
+          disposition: addressed
+          note: New-launch selection now derives from the durable launch baseline rather than catalog work classification.
+          round: 3
+        - id: BR-10
+          disposition: addressed
+          note: README documents the conformance target and its purpose.
+          round: 3
+      findings:
+        - id: BR-11
+          severity: Critical
+          title: Interactive query advancement still bypasses durable catalog authority and its enforcement sweep
+          detail: This is the 3rd finding in family catalog-authority-single-source. QuerySession creates an empty catalog on every call and publishes neither advanced proof nor catalog state, so repeated queries can reread the same appended suffix. The replacement shadow sweep also dropped direct native-path, parser, lsof, and config-authority guards; state the rule for every latency-sensitive consumer and enforce the complete enumeration rather than patching this instance.
+          family: catalog-authority-single-source
+          round: 3
+      blocked: true
 ---
 
 # Gate ledger — pair#156 (boundary-review)
@@ -149,12 +201,26 @@ later rounds disposed of them. Generated — edit the gate, not this file.
 - **BR-10** [Important] `user-facing-surface-documentation` README documentation is missing for the conformance target
   The range adds the operator-runnable make test-session-inventory-conformance surface, but README.md is unchanged.
 
+## Round 3 — 2026-08-29T14:24:13-07:00 (codex) — BLOCKED
+
+### Disposed
+
+- BR-1 — addressed — Launcher startup invokes bounded migration, and persisted-ledger integration coverage proves durable proof publication.
+- BR-2 — withdrawn — The appended authority-first revision supersedes B-1 framing: preexisting unbound artifacts remain unread, while authorized targets advance from proof parser offsets.
+- BR-3 — addressed — Catalog merge now rejects regression on either cursor independently, with crossed-cursor coverage.
+- BR-4 — addressed — IncrementalInventory is production-reachable from watcher and targeted query flows.
+- BR-5 — addressed — The v1 unbound watcher fails closed without listing the native corpus.
+- BR-6 — addressed — Installed Agy database-plus-transcript behavior now joins the stateful-fake prefix-to-append comparison and durable target.
+- BR-7 — addressed — The claimed plan checklist is checked and the corrective revisions record the changed design.
+- BR-8 — addressed — V2 watcher publication requires a proof, and catalog failure is covered through Run with no binding written.
+- BR-9 — addressed — New-launch selection now derives from the durable launch baseline rather than catalog work classification.
+- BR-10 — addressed — README documents the conformance target and its purpose.
+
+### Raised
+
+- **BR-11** [Critical] `catalog-authority-single-source` Interactive query advancement still bypasses durable catalog authority and its enforcement sweep
+  This is the 3rd finding in family catalog-authority-single-source. QuerySession creates an empty catalog on every call and publishes neither advanced proof nor catalog state, so repeated queries can reread the same appended suffix. The replacement shadow sweep also dropped direct native-path, parser, lsof, and config-authority guards; state the rule for every latency-sensitive consumer and enforce the complete enumeration rather than patching this instance.
+
 ## Open findings
 
-- **BR-1** [Critical] `proofless-binding-migration` Proofless binding migration is unreachable in production
-- **BR-2** [Critical] `launch-boundary-framing` Persisted raw launch boundaries are ignored by watcher selection
-- **BR-3** [Critical] `catalog-monotonic-publication` A stale same-key catalog writer can overwrite newer cursor or disputed state
-- **BR-6** [Important] `external-conformance-cadence` Live provider conformance does not compare installed behavior with the stateful fake
-- **BR-8** [Critical] `proofless-binding-migration` Catalog publication failure still writes a proofless v2 binding
-- **BR-9** [Critical] `catalog-authority-single-source` Concurrent catalog publication can hide a genuinely post-launch artifact
-- **BR-10** [Important] `user-facing-surface-documentation` README documentation is missing for the conformance target
+- **BR-11** [Critical] `catalog-authority-single-source` Interactive query advancement still bypasses durable catalog authority and its enforcement sweep

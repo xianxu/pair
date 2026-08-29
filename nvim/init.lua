@@ -828,26 +828,11 @@ do
   local function inventory_session_id()
     local agent, tag = vim.env.PAIR_AGENT, vim.env.PAIR_TAG
     if not agent or agent == '' or not tag or tag == '' then return nil end
-    local raw = vim.fn.system({ 'pair', 'session-inventory', '--agent', agent, '--scope', 'current', '--json' })
+    local raw = vim.fn.system({ 'pair', 'session-inventory', '--agent', agent, '--scope', 'current', '--owner', tag })
     if vim.v.shell_error ~= 0 then return nil end
-    local ok, inventory = pcall(vim.json.decode, raw)
-    if not ok or type(inventory) ~= 'table' then return nil end
-    local root_id
-    for _, binding in ipairs(inventory.correlations or {}) do
-      if binding.tag == tag and binding.agent == agent and binding.status == 'established' then
-        root_id = binding.root_node_id
-        break
-      end
-    end
-    if not root_id then return nil end
-    for _, forest in ipairs(inventory.forests or {}) do
-      if forest.agent == agent then
-        for _, root in ipairs(forest.roots or {}) do
-          if root.node_id == root_id then return root.native_id end
-        end
-      end
-    end
-    return nil
+    local sid = raw:gsub('%s+$', '')
+    if sid == '' then return nil end
+    return sid
   end
 
   _G.PairEstablishedSessionID = inventory_session_id

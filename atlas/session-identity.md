@@ -74,7 +74,12 @@ separators round-trip.
 Inventory queries remain the only native-session read authority. Context/token
 usage, title activity, bounded slug text events, review scoping, launcher
 recovery/resume hints, and changelog keying consume an established owner
-projection by reading one ledger and its proof-named artifacts. Provisional, ambiguous, and unbound
+projection by reading one ledger and its proof-named artifacts. The selected-
+scope catalog is the shared persistent advancement owner: an accepted suffix is
+published monotonically through `CatalogStore`, and later unchanged queries
+reuse that parser cursor without rereading body bytes. Catalog loss falls back
+to the durable ledger proof. Neovim's review fallback uses the bounded `--owner`
+projection rather than the diagnostic whole-inventory rendering. Provisional, ambiguous, and unbound
 owners remain explicit absence; only an exact inherited `PAIR_SESSION_ID` can
 precede that projection. Compatibility config retains launch arguments but
 cannot establish identity. Alt+X reads local sidecars and paints its confirmation

@@ -490,6 +490,18 @@ provider contracts.
 - Full verification rejected the new migration source until it joined the
   exhaustive artifact-path inventory. It is now a resolved selected-ledger
   history consumer rather than an unclassified source reconstruction.
+- Third close review exposed the last parallel authority: interactive queries
+  rebuilt an empty catalog and could reread the same valid suffix indefinitely.
+  `QuerySession` now loads the selected-scope catalog, advances from the newer
+  proof-or-catalog cursor, and publishes through the same monotonic rule as the
+  watcher. A stateful regression appends once, queries twice, and observes no
+  second body read. The restored cross-language shadow sweep rejects native
+  paths, parsers, whole scans, direct `lsof`, config authority, and unbounded
+  inventory subprocesses; a synthetic offender proves the sweep itself. The
+  Neovim review fallback now calls the bounded owner projection (`ARCH-DRY`,
+  `ARCH-PURPOSE`). Full Go/race/vet, Lua/shell, live four-provider conformance,
+  generated-runtime, artifact classification, Zellij, and diff checks pass;
+  installed metadata enumeration was 41.0 ms for 1,350 files.
 
 ## Revisions
 

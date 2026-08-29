@@ -281,3 +281,127 @@ findings:
     detail: |
       The range adds the operator-runnable make test-session-inventory-conformance surface, but README.md is unchanged.
 ```
+
+---
+
+## Re-review — 2026-08-29T14:24:13-07:00 (REWORK)
+
+| field | value |
+|-------|-------|
+| issue | 156 — incremental native session inventory |
+| repo | pair |
+| issue file | workshop/issues/000156-incremental-session-inventory.md |
+| boundary | whole-issue close |
+| milestone | — |
+| window | 6cd38d381c9e0c4fc146284ca7b4c2e7707e7218..37d8142cde3793217c3e888d9fd5da5d88789a63 |
+| command | sdlc close --issue 156 |
+| reviewer | codex |
+| timestamp | 2026-08-29T14:24:13-07:00 |
+| verdict | REWORK |
+
+## Review
+
+```verdict
+verdict: REWORK
+confidence: high
+```
+
+The corrective round resolves the prior authority-lifecycle, monotonic-publication, concurrent-launch, conformance, and documentation findings. However, the issue’s central single-source guarantee remains unenforced: interactive queries instantiate an empty catalog and never persist advanced proof/catalog state, while the shadow sweep no longer detects independent native scanners or path reconstruction. This is the third recurrence of `catalog-authority-single-source` and blocks closure.
+
+### 1. Strengths
+
+- `cmd/internal/sessionwatch/run.go:134` requires proof-bearing watcher publication; the catalog-failure integration regression reaches this production path.
+- `cmd/internal/sessioninventory/catalog.go:122` enforces independent monotonicity for raw and parser-complete offsets and preserves terminal disputes.
+- `cmd/internal/sessioninventory/target.go:125` defines launch newness solely from the durable baseline, independent of concurrent catalog publication.
+- `cmd/internal/launcher/createflow.go:29` makes proof migration production-reachable; launcher and persisted-filesystem tests separately pin invocation and durable publication.
+- All four providers now participate in the stateful-fake conformance flow, and `README.md:393` documents the runnable target.
+
+### 2. Critical findings
+
+- `cmd/internal/sessioninventory/query.go:119` and `cmd/internal/sessioninventory/shadow_test.go:16` — **ARCH-DRY, ARCH-PURPOSE:** every `QuerySession` constructs `IncrementalInventory` with an empty catalog and never publishes an advanced proof or catalog entry. After a proof-bearing artifact appends, repeated context/title/activity/opener/review queries therefore revalidate the same suffix from the stale ledger proof instead of deriving from one durable catalog. Simultaneously, the revised shadow test only recognizes calls named `InventoryWithRuntime`, `NativeEventsWithRuntime`, or the activity subprocess; it removed the former guards against direct native paths, parser duplication, `lsof`, and config-based authority.
+
+  **This is the 3rd finding in family `catalog-authority-single-source`.** Do not patch only `QuerySession`. State and enforce the class rule: enumerate every latency-sensitive consumer, route each through one persistent catalog/proof advancement owner, and make the shadow sweep reject both known whole-inventory calls and independent reconstruction of native authority. Add a repeated-query regression where an append is consumed once and the next unchanged query performs zero scanner body reads.
+
+### 3. Important findings
+
+None.
+
+### 4. Minor findings
+
+None.
+
+### 5. Test coverage notes
+
+- Passed: focused `sessioninventory`, `sessionwatch`, and `launcher` packages.
+- Passed: `go vet -p 20 ./...`, `make test-lua`, watcher and terminal shell suites, Zellij configuration validation, and `git diff --check`.
+- The full `go test -p 20 ./... -count=1` reached `cmd/pair-go` but its subprocess cases could not execute `/bin/ps` in the review sandbox (`operation not permitted`). No changed-logic assertion failed.
+- Missing regression: append once, query twice, and prove the second query performs no repeated suffix validation.
+- Missing enforcement regression: a synthetic interactive consumer that reconstructs a native path or scanner must make the shadow sweep fail.
+
+### 6. Architectural notes for upcoming work
+
+- **ARCH-DRY — flag:** query advancement and durable catalog ownership remain parallel authorities.
+- **ARCH-PURE — pass:** reconciliation and target selection are cleanly separated from injected IO.
+- **ARCH-PURPOSE — flag:** the shadow-sweep and repeated-query contracts do not enforce the issue’s central single-source purpose.
+- **ARCH-MOCK — pass:** production and test flows share the runtime boundary, including installed-provider comparison for Claude, Codex, Muse, and Agy.
+
+### 7. Plan revision recommendations
+
+Append a dated `## Revisions` entry that:
+
+- Defines the persistent advancement owner used by every interactive query.
+- Enumerates launch, existence, owner, activity, recovery, context, review, slug, opener, title-poller, and confirmation consumers.
+- Restores shadow enforcement for direct native paths, independent parsers, external discovery commands, and compatibility-config authority—not only calls with two known function names.
+- Adds the repeated-append/query zero-reread regression.
+
+```findings
+dispose:
+  - id: BR-1
+    disposition: addressed
+    note: |
+      Launcher startup invokes bounded migration, and persisted-ledger integration coverage proves durable proof publication.
+  - id: BR-2
+    disposition: withdrawn
+    note: |
+      The appended authority-first revision supersedes B-1 framing: preexisting unbound artifacts remain unread, while authorized targets advance from proof parser offsets.
+  - id: BR-3
+    disposition: addressed
+    note: |
+      Catalog merge now rejects regression on either cursor independently, with crossed-cursor coverage.
+  - id: BR-4
+    disposition: addressed
+    note: |
+      IncrementalInventory is production-reachable from watcher and targeted query flows.
+  - id: BR-5
+    disposition: addressed
+    note: |
+      The v1 unbound watcher fails closed without listing the native corpus.
+  - id: BR-6
+    disposition: addressed
+    note: |
+      Installed Agy database-plus-transcript behavior now joins the stateful-fake prefix-to-append comparison and durable target.
+  - id: BR-7
+    disposition: addressed
+    note: |
+      The claimed plan checklist is checked and the corrective revisions record the changed design.
+  - id: BR-8
+    disposition: addressed
+    note: |
+      V2 watcher publication requires a proof, and catalog failure is covered through Run with no binding written.
+  - id: BR-9
+    disposition: addressed
+    note: |
+      New-launch selection now derives from the durable launch baseline rather than catalog work classification.
+  - id: BR-10
+    disposition: addressed
+    note: |
+      README documents the conformance target and its purpose.
+findings:
+  - id: new
+    severity: Critical
+    family: catalog-authority-single-source
+    title: |
+      Interactive query advancement still bypasses durable catalog authority and its enforcement sweep
+    detail: |
+      This is the 3rd finding in family catalog-authority-single-source. QuerySession creates an empty catalog on every call and publishes neither advanced proof nor catalog state, so repeated queries can reread the same appended suffix. The replacement shadow sweep also dropped direct native-path, parser, lsof, and config-authority guards; state the rule for every latency-sensitive consumer and enforce the complete enumeration rather than patching this instance.
+```

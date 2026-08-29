@@ -63,6 +63,49 @@ func TestQuerySessionEstablishesProofAfterCatalogLossWithoutTranscriptRead(t *te
 	}
 }
 
+func TestQuerySessionPersistsAppendAdvancementAcrossQueries(t *testing.T) {
+	const nativeID = "019d1111-1111-7111-8111-111111111111"
+	runtime, transcript, _ := proofBackedCodexFixture(t, nativeID, nil)
+	runtime.AppendFile(transcript, []byte(
+		`{"timestamp":"2026-08-28T10:05:00Z","type":"event_msg","payload":{"type":"user_message","message":"next"}}`+"\n"), "ctime:2")
+
+	first, err := sessioninventory.QuerySession(runtime, "scope", "work", sessioninventory.AgentCodex)
+	if err != nil || first.Status != sessioninventory.BindingEstablished || first.Root == nil {
+		t.Fatalf("first query=%#v err=%v", first, err)
+	}
+	readsAfterFirst := runtime.OperationCount(sessioninventorytest.OperationReadAt, transcript.StorageRoot+":"+transcript.RelativePath)
+	if readsAfterFirst == 0 {
+		t.Fatal("first appended query performed no suffix read")
+	}
+
+	second, err := sessioninventory.QuerySession(runtime, "scope", "work", sessioninventory.AgentCodex)
+	if err != nil || second.Status != sessioninventory.BindingEstablished || second.Root == nil {
+		t.Fatalf("second query=%#v err=%v", second, err)
+	}
+	if got := runtime.OperationCount(sessioninventorytest.OperationReadAt, transcript.StorageRoot+":"+transcript.RelativePath); got != readsAfterFirst {
+		t.Fatalf("second unchanged query repeated body reads: before=%d after=%d", readsAfterFirst, got)
+	}
+}
+
+func TestOwnerCLIUsesBoundedPersistentQuery(t *testing.T) {
+	const nativeID = "019d1111-1111-7111-8111-111111111111"
+	runtime, _, _ := proofBackedCodexFixture(t, nativeID, nil)
+	getenv := func(key string) string {
+		if key == "PAIR_SCOPE_KEY" {
+			return "scope"
+		}
+		return ""
+	}
+	var stdout, stderr strings.Builder
+	code := sessioninventory.RunCLIWithRuntime([]string{"--agent", "codex", "--scope", "current", "--owner", "work"}, getenv, runtime, &stdout, &stderr)
+	if code != 0 || stdout.String() != nativeID+"\n" || stderr.Len() != 0 {
+		t.Fatalf("code=%d stdout=%q stderr=%q", code, stdout.String(), stderr.String())
+	}
+	if reads := runtime.OperationCount(sessioninventorytest.OperationReadAt, ""); reads != 0 {
+		t.Fatalf("owner query body reads=%d, want 0 for unchanged proof", reads)
+	}
+}
+
 func TestQuerySessionCatalogLossProofClassCoversEveryAgentWithoutBodyReads(t *testing.T) {
 	t.Parallel()
 	const id = "55555555-5555-4555-8555-555555555555"
