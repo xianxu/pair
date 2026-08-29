@@ -81,15 +81,61 @@ type wireRecord struct {
 	RootNativeID     string             `json:"root_native_id,omitempty"`
 }
 
+type strictField[T any] struct {
+	Value   T
+	Present bool
+}
+
+func (field *strictField[T]) UnmarshalJSON(raw []byte) error {
+	if bytes.Equal(bytes.TrimSpace(raw), []byte("null")) {
+		return errors.New("field must not be null")
+	}
+	if err := json.Unmarshal(raw, &field.Value); err != nil {
+		return err
+	}
+	field.Present = true
+	return nil
+}
+
+type nullableArgsField struct {
+	Value   []string
+	Present bool
+}
+
+func (field *nullableArgsField) UnmarshalJSON(raw []byte) error {
+	if err := json.Unmarshal(raw, &field.Value); err != nil {
+		return err
+	}
+	field.Present = true
+	return nil
+}
+
 type compatibilityWireRecord struct {
-	Agent        *string         `json:"agent"`
-	Args         json.RawMessage `json:"args"`
-	SessionID    *string         `json:"session_id"`
-	Started      *string         `json:"started"`
-	LastActive   *string         `json:"last_active"`
-	RepoRoot     *string         `json:"repo_root"`
-	RepoName     *string         `json:"repo_name"`
-	LegacyImport *bool           `json:"legacy_import,omitempty"`
+	Agent        strictField[string] `json:"agent"`
+	Args         nullableArgsField   `json:"args"`
+	SessionID    strictField[string] `json:"session_id"`
+	Started      strictField[string] `json:"started"`
+	LastActive   strictField[string] `json:"last_active"`
+	RepoRoot     strictField[string] `json:"repo_root"`
+	RepoName     strictField[string] `json:"repo_name"`
+	LegacyImport strictField[bool]   `json:"legacy_import"`
+}
+
+type decodeNativeWatermark struct {
+	RootNativeID  strictField[string] `json:"root_native_id"`
+	EventPosition strictField[uint64] `json:"event_position"`
+}
+
+type decodeWireRecord struct {
+	Version          strictField[int]                     `json:"v"`
+	Kind             strictField[RecordKind]              `json:"kind"`
+	ScopeKey         strictField[string]                  `json:"scope_key"`
+	Tag              strictField[string]                  `json:"tag"`
+	Agent            strictField[string]                  `json:"agent"`
+	PairLogOffset    strictField[uint64]                  `json:"pair_log_offset"`
+	NativeWatermarks strictField[[]decodeNativeWatermark] `json:"native_watermarks"`
+	LaunchOrdinal    strictField[uint64]                  `json:"launch_ordinal"`
+	RootNativeID     strictField[string]                  `json:"root_native_id"`
 }
 
 func EncodeRecord(record Record) ([]byte, error) {
@@ -142,40 +188,48 @@ func isCompatibilityRecord(raw []byte) bool {
 	if err := strictjson.Decode(raw, &wire); err != nil {
 		return false
 	}
-	var args []string
-	if wire.Agent == nil || len(wire.Args) == 0 || json.Unmarshal(wire.Args, &args) != nil || wire.SessionID == nil || wire.Started == nil || wire.LastActive == nil || wire.RepoRoot == nil || wire.RepoName == nil {
+	if !wire.Agent.Present || !wire.Args.Present || !wire.SessionID.Present || !wire.Started.Present || !wire.LastActive.Present || !wire.RepoRoot.Present || !wire.RepoName.Present {
 		return false
 	}
-	if _, err := time.Parse(time.RFC3339Nano, *wire.Started); err != nil {
+	if _, err := time.Parse(time.RFC3339Nano, wire.Started.Value); err != nil {
 		return false
 	}
-	if _, err := time.Parse(time.RFC3339Nano, *wire.LastActive); err != nil {
+	if _, err := time.Parse(time.RFC3339Nano, wire.LastActive.Value); err != nil {
 		return false
 	}
-	return isSupportedAgent(*wire.Agent)
+	return isSupportedAgent(wire.Agent.Value)
 }
 
 func decodeRecord(raw []byte) (Record, error) {
-	var wire wireRecord
+	var wire decodeWireRecord
 	if err := strictjson.Decode(raw, &wire); err != nil {
 		return Record{}, err
 	}
-	record := Record{Version: wire.Version, Kind: wire.Kind, ScopeKey: wire.ScopeKey, Tag: wire.Tag, Agent: wire.Agent, RootNativeID: wire.RootNativeID}
-	if wire.NativeWatermarks != nil {
-		record.NativeWatermarks = slices.Clone(*wire.NativeWatermarks)
+	if !wire.Version.Present || !wire.Kind.Present || !wire.ScopeKey.Present || !wire.Tag.Present || !wire.Agent.Present {
+		return Record{}, errors.New("missing common ledger field")
 	}
-	if wire.PairLogOffset != nil {
-		record.PairLogOffset = *wire.PairLogOffset
+	record := Record{Version: wire.Version.Value, Kind: wire.Kind.Value, ScopeKey: wire.ScopeKey.Value, Tag: wire.Tag.Value, Agent: wire.Agent.Value}
+	if wire.NativeWatermarks.Present {
+		record.NativeWatermarks = make([]NativeWatermark, 0, len(wire.NativeWatermarks.Value))
+		for _, watermark := range wire.NativeWatermarks.Value {
+			if !watermark.RootNativeID.Present || !watermark.EventPosition.Present {
+				return Record{}, errors.New("missing native watermark field")
+			}
+			record.NativeWatermarks = append(record.NativeWatermarks, NativeWatermark{RootNativeID: watermark.RootNativeID.Value, EventPosition: watermark.EventPosition.Value})
+		}
 	}
-	if wire.LaunchOrdinal != nil {
-		record.LaunchOrdinal = *wire.LaunchOrdinal
+	if wire.PairLogOffset.Present {
+		record.PairLogOffset = wire.PairLogOffset.Value
+	}
+	if wire.LaunchOrdinal.Present {
+		record.LaunchOrdinal = wire.LaunchOrdinal.Value
+	}
+	if wire.RootNativeID.Present {
+		record.RootNativeID = wire.RootNativeID.Value
 	}
 	sortWatermarks(record.NativeWatermarks)
-	if (record.Kind == RecordLaunch) != (wire.PairLogOffset != nil) || (record.Kind == RecordBinding) != (wire.LaunchOrdinal != nil) {
+	if (record.Kind == RecordLaunch) != wire.PairLogOffset.Present || (record.Kind == RecordLaunch) != wire.NativeWatermarks.Present || (record.Kind == RecordBinding) != wire.LaunchOrdinal.Present || (record.Kind == RecordBinding) != wire.RootNativeID.Present {
 		return Record{}, errors.New("missing or extraneous kind-specific field")
-	}
-	if record.Kind == RecordLaunch && wire.RootNativeID != "" || record.Kind == RecordBinding && (wire.PairLogOffset != nil || wire.NativeWatermarks != nil) {
-		return Record{}, errors.New("extraneous kind-specific field")
 	}
 	if err := validateRecord(record); err != nil {
 		return Record{}, err

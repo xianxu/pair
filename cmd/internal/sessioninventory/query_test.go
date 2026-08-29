@@ -158,7 +158,11 @@ func TestQuerySessionDiagnosesInvalidCompatibilityRows(t *testing.T) {
 			strings.Replace(valid, `"codex"`, `"unsupported"`, 1)+"\n"+
 			strings.Replace(valid, `"agent":"codex"`, `"agent":"future","agent":"codex"`, 1)+"\n"+
 			`{"v":1,"kind":"launch","scope_key":"scope","tag":"work","agent":"future","agent":"codex","pair_log_offset":0,"native_watermarks":[]}`+"\n"+
-			`{"v":1,"kind":"launch","scope_key":"scope","tag":"work","agent":"codex","pair_log_offset":0,"native_watermarks":[{"root_native_id":"a","root_native_id":"b","event_position":1}]}`+"\n"))
+			`{"v":1,"kind":"launch","scope_key":"scope","tag":"work","agent":"codex","pair_log_offset":0,"native_watermarks":[{"root_native_id":"a","root_native_id":"b","event_position":1}]}`+"\n"+
+			`{"v":1,"kind":"launch","scope_key":"scope","tag":"work","agent":"codex","pair_log_offset":0,"native_watermarks":[{"root_native_id":"a"}]}`+"\n"+
+			`{"v":1,"kind":"launch","scope_key":"scope","tag":"work","agent":"codex","pair_log_offset":0,"native_watermarks":[{"root_native_id":"a","event_position":null}]}`+"\n"+
+			`{"v":1,"kind":"launch","scope_key":"scope","tag":"work","agent":"codex","pair_log_offset":0,"native_watermarks":[],"root_native_id":null}`+"\n"+
+			strings.TrimSuffix(valid, "}")+`,"legacy_import":null}`+"\n"))
 
 	query, err := sessioninventory.QuerySession(runtime, "scope", "work", sessioninventory.AgentCodex)
 	if err != nil {
@@ -170,7 +174,7 @@ func TestQuerySessionDiagnosesInvalidCompatibilityRows(t *testing.T) {
 			malformed++
 		}
 	}
-	if malformed != 6 {
+	if malformed != 10 {
 		t.Fatalf("malformed=%d diagnostics=%#v", malformed, query.Diagnostics)
 	}
 }

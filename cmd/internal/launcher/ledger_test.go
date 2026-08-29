@@ -96,7 +96,11 @@ func TestLauncherParseLedgerRejectsDuplicateKeysAcrossFormatsAndNesting(t *testi
 	t.Parallel()
 	raw := `{"agent":"future","agent":"codex","args":[],"session_id":"legacy","started":"2026-08-28T00:00:00Z","last_active":"2026-08-28T00:00:00Z","repo_root":"/repo","repo_name":"pair"}` + "\n" +
 		`{"v":1,"kind":"launch","scope_key":"scope","tag":"work","agent":"future","agent":"codex","pair_log_offset":0,"native_watermarks":[]}` + "\n" +
-		`{"v":1,"kind":"launch","scope_key":"scope","tag":"work","agent":"codex","pair_log_offset":0,"native_watermarks":[{"root_native_id":"a","root_native_id":"b","event_position":1}]}` + "\n"
+		`{"v":1,"kind":"launch","scope_key":"scope","tag":"work","agent":"codex","pair_log_offset":0,"native_watermarks":[{"root_native_id":"a","root_native_id":"b","event_position":1}]}` + "\n" +
+		`{"v":1,"kind":"launch","scope_key":"scope","tag":"work","agent":"codex","pair_log_offset":0,"native_watermarks":[{"root_native_id":"a"}]}` + "\n" +
+		`{"v":1,"kind":"launch","scope_key":"scope","tag":"work","agent":"codex","pair_log_offset":0,"native_watermarks":[{"root_native_id":"a","event_position":null}]}` + "\n" +
+		`{"v":1,"kind":"launch","scope_key":"scope","tag":"work","agent":"codex","pair_log_offset":0,"native_watermarks":[],"root_native_id":null}` + "\n" +
+		`{"agent":"codex","args":[],"session_id":"legacy","started":"2026-08-28T00:00:00Z","last_active":"2026-08-28T00:00:00Z","repo_root":"/repo","repo_name":"pair","legacy_import":null}` + "\n"
 	if entries := ParseLedger(raw); len(entries) != 0 {
 		t.Fatalf("entries=%#v", entries)
 	}

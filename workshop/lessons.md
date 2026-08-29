@@ -2450,7 +2450,10 @@ the complete strict historical shape with every required field, allowed
 optional fields only, valid field types, and a supported owner—not merely a
 recognizable discriminator. Every object at every nesting depth must also have
 unique keys; derive from the shared strict JSON decoder instead of assuming
-Go's standard decoder rejects duplicates (`ARCH-DRY`, `ARCH-PURPOSE`).
+Go's standard decoder rejects duplicates. Required numeric/boolean fields need
+explicit presence tracking because zero values cannot distinguish omission or
+`null` from a valid zero; optional fields may be absent, but explicit `null`
+must not masquerade as absence (`ARCH-DRY`, `ARCH-PURPOSE`).
 
 ## Shared identity does not imply shared native parsing
 

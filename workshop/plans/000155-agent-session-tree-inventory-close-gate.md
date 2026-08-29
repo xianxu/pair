@@ -383,6 +383,15 @@ rounds:
           note: Partial, unknown-field, and unsupported-agent cases are fixed, but duplicate-key typed and compatibility rows are still accepted rather than classified malformed.
           round: 13
       blocked: false
+    - "n": 14
+      timestamp: "2026-08-28T21:10:31-07:00"
+      agent: codex
+      dispose:
+        - id: BR-23
+          disposition: not-addressed
+          note: Duplicate, unknown, unsupported, partial, and trailing-value cases are covered, but missing or null nested event_position and explicit null legacy_import fields are still accepted instead of classified malformed.
+          round: 14
+      blocked: false
 ---
 
 # Gate ledger — pair#155 (boundary-review)
@@ -553,6 +562,12 @@ later rounds disposed of them. Generated — edit the gate, not this file.
 
 - BR-1 — addressed — Artifact-path and immutable issue-149 source-set contracts pass; the prior moving-HEAD implementation fails in a scratch reproduction.
 - BR-23 — not-addressed — Partial, unknown-field, and unsupported-agent cases are fixed, but duplicate-key typed and compatibility rows are still accepted rather than classified malformed.
+
+## Round 14 — 2026-08-28T21:10:31-07:00 (codex) — passed
+
+### Disposed
+
+- BR-23 — not-addressed — Duplicate, unknown, unsupported, partial, and trailing-value cases are covered, but missing or null nested event_position and explicit null legacy_import fields are still accepted instead of classified malformed.
 
 ## Open findings
 

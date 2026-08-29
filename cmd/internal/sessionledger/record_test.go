@@ -80,6 +80,10 @@ func TestParseLedgerRejectsDuplicateKeysAcrossFormatsAndNesting(t *testing.T) {
 		`{"agent":"future","agent":"codex","args":[],"session_id":"legacy","started":"2026-08-28T00:00:00Z","last_active":"2026-08-28T00:00:00Z","repo_root":"/repo","repo_name":"pair"}`,
 		`{"v":1,"kind":"launch","scope_key":"scope","tag":"work","agent":"future","agent":"codex","pair_log_offset":0,"native_watermarks":[]}`,
 		`{"v":1,"kind":"launch","scope_key":"scope","tag":"work","agent":"codex","pair_log_offset":0,"native_watermarks":[{"root_native_id":"a","root_native_id":"b","event_position":1}]}`,
+		`{"v":1,"kind":"launch","scope_key":"scope","tag":"work","agent":"codex","pair_log_offset":0,"native_watermarks":[{"root_native_id":"a"}]}`,
+		`{"v":1,"kind":"launch","scope_key":"scope","tag":"work","agent":"codex","pair_log_offset":0,"native_watermarks":[{"root_native_id":"a","event_position":null}]}`,
+		`{"v":1,"kind":"launch","scope_key":"scope","tag":"work","agent":"codex","pair_log_offset":0,"native_watermarks":[],"root_native_id":null}`,
+		`{"agent":"codex","args":[],"session_id":"legacy","started":"2026-08-28T00:00:00Z","last_active":"2026-08-28T00:00:00Z","repo_root":"/repo","repo_name":"pair","legacy_import":null}`,
 	} {
 		parsed := ParseLedger([]byte(row + "\n"))
 		if len(parsed.Records) != 0 || len(parsed.CompatibilityOrdinals) != 0 || !slices.Equal(parsed.MalformedOrdinals, []uint64{1}) {

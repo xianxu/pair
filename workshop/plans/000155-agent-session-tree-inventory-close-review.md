@@ -382,3 +382,78 @@ dispose:
     note: |
       Partial, unknown-field, and unsupported-agent cases are fixed, but duplicate-key typed and compatibility rows are still accepted rather than classified malformed.
 ```
+
+---
+
+## Re-review — 2026-08-28T21:10:31-07:00 (REWORK)
+
+| field | value |
+|-------|-------|
+| issue | 155 — deterministic agent session-tree inventory |
+| repo | pair |
+| issue file | workshop/issues/000155-agent-session-tree-inventory.md |
+| boundary | whole-issue close |
+| milestone | — |
+| window | 4c454436038e2ae049690bc343def9f0511fca8c..935001261b6e4279f66675356620236ed3dde45b |
+| command | sdlc close --issue 155 |
+| reviewer | codex |
+| timestamp | 2026-08-28T21:10:31-07:00 |
+| verdict | REWORK |
+
+## Review
+
+```verdict
+verdict: REWORK
+confidence: high
+```
+
+The implementation is broadly strong and all repository verification passed, but BR-23 remains incomplete. Ledger decoding now rejects duplicate and unknown keys through the shared strict decoder; however, malformed nested watermarks and nullable legacy fields can still be classified as valid. This violates the stated exhaustive typed/exact-legacy/malformed rule and can widen offline recovery beyond the recorded launch boundary.
+
+```findings
+dispose:
+  - id: BR-23
+    disposition: not-addressed
+    note: |
+      Duplicate, unknown, unsupported, partial, and trailing-value cases are covered, but missing or null nested event_position and explicit null legacy_import fields are still accepted instead of classified malformed.
+```
+
+1. Strengths
+
+- Typed and compatibility rows share one classification authority in [record.go](/Users/xianxu/workspace/pair/cmd/internal/sessionledger/record.go:117), consumed by both launcher and inventory paths.
+- Recursive duplicate-key rejection correctly covers nested objects in [decode.go](/Users/xianxu/workspace/pair/cmd/internal/strictjson/decode.go:37).
+- The inventory maintains a clear pure-core/runtime boundary, with a portable stateful fake and production `sqlite3`/process/filesystem effects behind the same interface.
+- The Core Concepts table is enforced bidirectionally against source declarations.
+- README and atlas changes document the public command, binding lifecycle, consumer migration, and architectural surface.
+
+2. Critical findings
+
+None.
+
+3. Important findings
+
+- **BR-23 remains open — exact ledger classification still admits malformed fields.** [record.go](/Users/xianxu/workspace/pair/cmd/internal/sessionledger/record.go:22) decodes `NativeWatermark.EventPosition` into a plain `uint64`. Consequently, both an omitted `"event_position"` and `"event_position":null` become zero and pass validation at line 192; zero itself is valid baseline state, so absence cannot be distinguished from an explicit value. A malformed launch can therefore move its watermark backward and make pre-launch events eligible for offline correlation. Similarly, `compatibilityWireRecord.LegacyImport *bool` at line 92 accepts an explicitly null value as though the optional field were absent.
+
+  **This is the 3rd finding in family `mixed-ledger-formats-are-classified`.** Complete the class rule, not merely these examples: every variant-required key must be present exactly once with the correct non-null type; optional keys may be absent, but when present must have the declared type. Use wire-only pointer/presence types for nested watermark fields and `legacy_import`, then extend the ledger, launcher, and inventory matrices with missing/null nested fields and null optional fields.
+
+4. Minor findings
+
+None.
+
+5. Test coverage notes
+
+- Passed: `go test ./... -count=1`.
+- Passed: focused ledger, launcher, and inventory tests.
+- Passed: `go vet ./...`, `make test-lua`, four named shell suites, Zellij configuration validation, and `git diff --check`.
+- Existing duplicate-key regressions exercise ledger, launcher, and inventory consumers and would fail under the replaced standard decoder’s overwrite behavior.
+- No test covers omitted/null `event_position` or explicit-null `legacy_import`; those are the missing BR-23 red cases.
+
+6. Architectural notes for upcoming work
+
+- `ARCH-DRY`: Pass—the classifier and strict JSON traversal are shared.
+- `ARCH-PURE`: Pass—forest, correlation, ordering, and classification logic remain separate from the injected IO shell.
+- `ARCH-PURPOSE`: Flagged by BR-23—the implementation still delivers only a subset of the promised exhaustive classification rule.
+- `ARCH-MOCK`: Pass—the external runtime has a stateful fake behind the production seam, with opt-in live conformance coverage.
+
+7. Plan revision recommendations
+
+None. The existing “make every ledger object structurally strict” revision already states the correct intended rule; implementation and regression coverage need to be brought into conformance with it.

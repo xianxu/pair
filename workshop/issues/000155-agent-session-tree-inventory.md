@@ -997,6 +997,15 @@ be checked against measured actuals at close.*
   complete typed/legacy/malformed rule structural at every nesting depth
   (`ARCH-DRY`, `ARCH-PURPOSE`).
 
+- 2026-08-28 — close review round 14 found the remaining presence/null class:
+  omitted or null nested `event_position` collapsed to the valid zero value,
+  and explicit-null optional fields collapsed to absence. Red matrices now
+  cover missing/null nested watermark fields plus null typed and legacy optional
+  fields in ledger, launcher, and inventory. Decode-only presence-aware fields
+  require all common and variant fields, reject null at every non-null position,
+  and preserve only the historical nullable `args` representation
+  (`ARCH-DRY`, `ARCH-PURPOSE`).
+
 ### 2026-08-28
 - 2026-08-28: closed M2 — Focused and full session inventory Go suites pass; go vet passes; historical #149 source/declaration contracts pass; make test-lua passes; statusline, queue-send, and pair-session-watch shell integrations pass; git diff --check passes. Full evidence classification diagnoses unsupported/malformed recognized evidence while filtering only supported unrequested agents.; review verdict: SHIP
 - 2026-08-28: closed M1 — all four sanitized scanners and explicit edge provenance pass; exhaustive M1 concept table/declaration contract, diagnostic registry, equal-time ordering, regular/partial storage, optional usage, artifact/source/project contracts, vet, diff check, and redacted installed-shape conformance pass; pre-existing Couch launch timeout remains separately deferred by operator; review verdict: SHIP
