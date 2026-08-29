@@ -2515,3 +2515,11 @@ an owner the runtime does not support.
 values for every current and compatibility format. Exercise each row kind with
 an unsupported owner through every downstream projection (`ARCH-DRY`,
 `ARCH-PURPOSE`).
+## 2026-08-28 — Durable intent is not completed action
+
+- When a durable record is written before an external action, encode prepared
+  and completed states separately; recovery must never infer that the external
+  action happened merely because its intent record is readable.
+- Concept-table contracts must enumerate every allowed introduction stage and
+  fail on every new exported type in owned packages until it is classified as
+  a core concept or an explicit implementation detail.

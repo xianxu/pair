@@ -769,6 +769,17 @@ be checked against measured actuals at close.*
 
 ## Log
 
+- 2026-08-28 — close review round 17 disposed the ledger lifecycle finding
+  and exposed the remaining Pair-log retry-state and final-stage concept gaps.
+  Authored text now crosses a two-phase prepare/submit boundary: preparation is
+  durable before dispatch, while only an exact post-dispatch commit makes the
+  entry correlation evidence. Edited, cleared, and compose-without-submit
+  paths may retain prepared audit entries but cannot authorize a native round.
+  The concept contract now checks M1, M2, and final bidirectionally and requires
+  every exported type in #155-owned packages to be a marked concept or an
+  explicit implementation-detail disposition (`ARCH-DRY`, `ARCH-PURPOSE`,
+  `ARCH-MOCK`).
+
 - 2026-08-28 — close review round 16 verified the ledger store's byte-level
   fault model but found its production consumers still flattened outcomes and
   identified the same publication class in Pair-log replacement. One shared
@@ -1265,3 +1276,17 @@ second turn. Pre-publication failures remain non-authoritative and fail closed;
 post-publication uncertainty remains explicit until reconciliation succeeds.
 Production lifecycle, CLI, Lua submission, and causal-round tests exercise the
 whole flow (ARCH-DRY, ARCH-PURPOSE, ARCH-MOCK).
+
+### 2026-08-28 — distinguish prepared text from submitted evidence
+
+**Reason:** close review round 17 showed that a readable Pair-log replacement
+could remain unsent after an indeterminate preparation, then survive a draft
+edit or clear as false correlation evidence. The same review found the concept
+contract's hard-coded M1/M2 stages let final-stage domain types escape.
+
+**Delta:** supersede the single append state with durable prepared and submitted
+states. Normal sends commit their exact append ID only after dispatch;
+no-submit, cleared, edited, and failed-preparation attempts remain ineligible
+for correlation. Extend the Core Concepts contract across every introduction
+stage and require an explicit concept/detail disposition for every exported
+type in issue-owned packages (`ARCH-DRY`, `ARCH-PURPOSE`, `ARCH-MOCK`).

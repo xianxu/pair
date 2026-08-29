@@ -96,6 +96,8 @@ func runStreamingSubcommand(name string, rest []string, stdin io.Reader, stdout,
 		return sessionwatch.RunCLI(rest, os.Getenv, stderr)
 	case "session-log append":
 		return pairlog.RunCLI(rest, stdin, os.Getenv, time.Now(), stderr)
+	case "session-log commit":
+		return pairlog.RunCommitCLI(rest, os.Getenv, stderr)
 	case "title":
 		return titlepoller.RunCLI(rest, os.Getenv, stderr)
 	case "clip copy-on-select":

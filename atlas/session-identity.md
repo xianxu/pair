@@ -247,12 +247,16 @@ after durability is committed and does not roll lifecycle state back. Launcher
 and watcher consumers preserve those outcomes rather than treating every error
 as a missing row.
 
-Operator-authored Pair-log entries use the same publication rule around the
-atomic replacement. Each Neovim submission attempt carries a stable opaque
-`append_id` in the byte-counted marker. If publication becomes indeterminate,
-the retained draft retries with that same ID; the store validates the original
-body and completes directory durability without appending a duplicate turn.
-After success, even identical later authored text receives a new ID.
+Operator-authored Pair-log entries use the same publication rule around two
+atomic replacements. Each Neovim submission attempt carries a stable opaque
+`append_id` in the byte-counted marker. The first replacement records
+`state=prepared` before dispatch; the parser retains it for audit but excludes
+it from correlation facts. A normal dispatch is followed by an exact-ID
+`state=submitted` replacement, and only then can the entry match a native user
+turn. An unchanged retry reuses its ID, while edited, cleared, indeterminate,
+and compose-without-submit preparations remain permanently ineligible rather
+than claiming an input occurred. After success, even identical later authored
+text receives a new ID.
 
 The typed joined ledger binding is the source of truth for native recovery.
 The older `agent-<tag>` and `config-<tag>-<agent>.json` files remain derived

@@ -6,6 +6,7 @@ import (
 	"fmt"
 )
 
+// pair:155-concept pure new final
 type Outcome uint8
 
 const (
@@ -28,6 +29,7 @@ func (o Outcome) String() string {
 }
 
 // Error reports a failure after authority may have been published.
+// pair:155-concept pure new final
 type Error struct {
 	Outcome Outcome
 	Err     error

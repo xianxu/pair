@@ -655,3 +655,91 @@ findings:
     detail: |
       This is the 2nd finding in this family. SessionLogStore renames the authoritative replacement before directory sync and unlock, but either later failure is returned as an ordinary append failure. Submission is suppressed while the entry remains readable; retry appends it again, making exact turn evidence non-unique. Define the outcome rule for every authoritative append or replacement, make post-publication retries idempotent, and add stateful production-flow tests for directory-sync and unlock failure.
 ```
+
+---
+
+## Re-review — 2026-08-28T22:03:27-07:00 (REWORK)
+
+| field | value |
+|-------|-------|
+| issue | 155 — deterministic agent session-tree inventory |
+| repo | pair |
+| issue file | workshop/issues/000155-agent-session-tree-inventory.md |
+| boundary | whole-issue close |
+| milestone | — |
+| window | 4c454436038e2ae049690bc343def9f0511fca8c..222dfb3f94da7fdde6bd54e94d42fdb74969ad07 |
+| command | sdlc close --issue 155 |
+| reviewer | codex |
+| timestamp | 2026-08-28T22:03:27-07:00 |
+| verdict | REWORK |
+
+## Review
+
+```verdict
+verdict: REWORK
+confidence: medium
+```
+
+The ledger publication fix is well structured and BR-24 is addressed, but BR-25 remains open: changing a preserved draft after an indeterminate append creates a new append ID while retaining the prior readable-but-unsent entry as correlation evidence. The new publication-outcome entity also escapes the Core Concepts inventory. Focused tests pass; full repository verification could not complete because the sandbox denied `/bin/ps`.
+
+1. Strengths
+
+- `commitoutcome.Outcome` provides a shared, fail-safe publication vocabulary.
+- Ledger tests cover every incomplete byte boundary and post-write failure for launch and binding records.
+- Ledger lifecycle consumers reconcile exact ordinal/bytes rather than appending duplicate generations.
+- Pair-log identical-body retries are idempotent and preserve causal-round uniqueness.
+- Atlas documentation covers publication outcomes and reconciliation.
+
+2. Critical findings
+
+- BR-25 — not addressed: [nvim/submission.lua:12](/Users/xianxu/workspace/pair/nvim/submission.lua:12) replaces the pending append ID whenever authored text changes. After directory-sync failure, the first entry is already readable but submission was suppressed. Editing the draft then creates a second ID and appends the revised body, leaving the first unsent entry in `ParsePairLog`’s correlation facts. No test exercises failure → edit → retry. Define the complete retry-state rule, including changed or cleared drafts, and add a production-flow regression proving no unsent entry can authorize correlation. This is the third observed instance in family `ledger-append-result-matches-authority`; fix the full retry-state class.
+
+- Core Concepts contract — [outcome.go:9](/Users/xianxu/workspace/pair/cmd/internal/commitoutcome/outcome.go:9) introduces the central `Outcome`/`Error` entity, but it is absent from the plan’s Core Concepts table and has no concept declaration. Meanwhile [concept_contract_test.go:26](/Users/xianxu/workspace/pair/cmd/internal/sessioninventory/concept_contract_test.go:26) validates only M1/M2 and cannot detect unmarked final-round entities. This is the third finding in family `core-concepts-match-code`. Establish a rule covering every issue-owned domain type and every `Introduced` value, rather than adding only this missing row.
+
+3. Important findings
+
+None.
+
+4. Minor findings
+
+None.
+
+5. Test coverage notes
+
+Focused Go packages, Lua tests, shell integration tests, and `git diff --check` passed. `go test ./... -count=1` could not complete: `cmd/pair-go` tests were blocked by the sandbox denying `fork/exec /bin/ps: operation not permitted`. Per the review contract, this unavailable required inspection independently prevents SHIP.
+
+6. Architectural notes
+
+- `ARCH-DRY`: Pass for shared outcome handling and ledger reconciliation; the plan-contract omission is flagged separately.
+- `ARCH-PURE`: Pass. Outcome classification is pure and filesystem effects remain in thin stores/runtimes.
+- `ARCH-PURPOSE`: Flag. Changed-draft retries still permit unsent Pair-log evidence, under-delivering the authoritative retry contract.
+- `ARCH-MOCK`: Pass for the reviewed failure seams: stateful tests cover short writes, sync, close, directory sync, unlock, recovery parsing, and identical-body retries.
+
+7. Plan revision recommendations
+
+Append a `## Revisions` entry that:
+
+- Defines behavior for indeterminate append followed by unchanged, edited, or cleared draft.
+- Requires Pair-log correlation to exclude every operator turn not proven submitted.
+- Adds the shared `CommitOutcome` entity to Core Concepts.
+- Extends the concept contract across every milestone/final introduction and prevents unmarked domain entities from escaping it.
+
+```findings
+dispose:
+  - id: BR-24
+    disposition: addressed
+    note: |
+      Store and lifecycle tests cover launch and binding authority across every incomplete byte boundary plus write, file-sync, close, directory-sync, and unlock failures; production consumers reconcile indeterminate rows by exact ordinal and bytes.
+  - id: BR-25
+    disposition: not-addressed
+    note: |
+      Identical-body retry is idempotent, but editing the preserved draft after an indeterminate published append mints a new ID and leaves the prior readable-but-unsent entry as correlation evidence; no regression covers this branch.
+findings:
+  - id: new
+    severity: Critical
+    family: core-concepts-match-code
+    title: |
+      Shared publication outcome escapes the Core Concepts contract
+    detail: |
+      This is the 3rd finding in family `core-concepts-match-code`. The new central Outcome/Error entity is absent from the plan table and unmarked, while the contract checks only M1/M2. State and enforce the class rule for every issue-owned domain type and every introduction stage, then sweep the full range.
+```

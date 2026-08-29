@@ -1,6 +1,6 @@
 local M = {}
 
-function M.new(append_authored, send_low_level, notify_error, mint_append_id)
+function M.new(append_authored, commit_authored, send_low_level, notify_error, mint_append_id)
   local submit = {}
   local pending = nil
 
@@ -17,8 +17,14 @@ function M.new(append_authored, send_low_level, notify_error, mint_append_id)
       notify_error('Pair log append failed — ' .. tostring(err or 'unknown error'))
       return false
     end
-    pending = nil
     send_low_level(agent_text, no_submit)
+    if not no_submit then
+      local committed, commit_err = commit_authored(pending.id)
+      if not committed then
+        notify_error('Pair log submit marker failed — ' .. tostring(commit_err or 'unknown error'))
+      end
+    end
+    pending = nil
     return true
   end
 

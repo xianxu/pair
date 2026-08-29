@@ -13,7 +13,9 @@ local function parse_one(text, start_pos)
   local cursor = line_end + 1
   local marker_end = text:find('\n\n', cursor, true)
   local marker = marker_end and text:sub(cursor, marker_end - 1) or ''
-  local count, append_id = marker:match('^<!%-%- pair%-log%-v1 bytes=(%d+) append_id=([%w_-]+) %-%->$')
+  local count, append_id, state = marker:match('^<!%-%- pair%-log%-v1 bytes=(%d+) append_id=([%w_-]+) state=(%w+) %-%->$')
+  if state ~= nil and state ~= 'prepared' and state ~= 'submitted' then count, append_id, state = nil, nil, nil end
+  if not count then count, append_id = marker:match('^<!%-%- pair%-log%-v1 bytes=(%d+) append_id=([%w_-]+) %-%->$') end
   if append_id and #append_id > 128 then count, append_id = nil, nil end
   if not count then count = marker:match('^<!%-%- pair%-log%-v1 bytes=(%d+) %-%->$') end
   local body_start
@@ -50,6 +52,7 @@ local function parse_one(text, start_pos)
     start_pos = start_pos,
     finish = finish,
     append_id = append_id,
+    state = state,
   }
 end
 
@@ -68,7 +71,8 @@ end
 local function encode(entry, body)
   if entry.format == 'v1' then
     local id = entry.append_id and (' append_id=' .. entry.append_id) or ''
-    return entry.timestamp .. '\n<!-- pair-log-v1 bytes=' .. #body .. id .. ' -->\n\n' .. body .. separator
+    local state = entry.state and (' state=' .. entry.state) or ''
+    return entry.timestamp .. '\n<!-- pair-log-v1 bytes=' .. #body .. id .. state .. ' -->\n\n' .. body .. separator
   end
   return entry.timestamp .. '\n\n' .. body .. separator
 end

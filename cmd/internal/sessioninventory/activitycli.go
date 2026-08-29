@@ -6,6 +6,7 @@ import (
 	"io"
 )
 
+// pair:155-concept integration new final activity query
 func runActivityCLI(options cliOptions, runtime Runtime, stdout, stderr io.Writer) int {
 	query, err := QuerySession(runtime, options.currentScopeKey, options.currentTag, options.agents[0])
 	if err != nil {

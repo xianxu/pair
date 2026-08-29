@@ -424,6 +424,26 @@ rounds:
           family: ledger-append-result-matches-authority
           round: 16
       blocked: true
+    - "n": 17
+      timestamp: "2026-08-28T22:03:27-07:00"
+      agent: codex
+      dispose:
+        - id: BR-24
+          disposition: addressed
+          note: Store and lifecycle tests cover launch and binding authority across every incomplete byte boundary plus write, file-sync, close, directory-sync, and unlock failures; production consumers reconcile indeterminate rows by exact ordinal and bytes.
+          round: 17
+        - id: BR-25
+          disposition: not-addressed
+          note: Identical-body retry is idempotent, but editing the preserved draft after an indeterminate published append mints a new ID and leaves the prior readable-but-unsent entry as correlation evidence; no regression covers this branch.
+          round: 17
+      findings:
+        - id: BR-26
+          severity: Critical
+          title: Shared publication outcome escapes the Core Concepts contract
+          detail: This is the 3rd finding in family `core-concepts-match-code`. The new central Outcome/Error entity is absent from the plan table and unmarked, while the contract checks only M1/M2. State and enforce the class rule for every issue-owned domain type and every introduction stage, then sweep the full range.
+          family: core-concepts-match-code
+          round: 17
+      blocked: true
 ---
 
 # Gate ledger — pair#155 (boundary-review)
@@ -623,7 +643,19 @@ later rounds disposed of them. Generated — edit the gate, not this file.
 - **BR-25** [Critical] `ledger-append-result-matches-authority` Published Pair-log entries are reported as failed and duplicated on retry
   This is the 2nd finding in this family. SessionLogStore renames the authoritative replacement before directory sync and unlock, but either later failure is returned as an ordinary append failure. Submission is suppressed while the entry remains readable; retry appends it again, making exact turn evidence non-unique. Define the outcome rule for every authoritative append or replacement, make post-publication retries idempotent, and add stateful production-flow tests for directory-sync and unlock failure.
 
+## Round 17 — 2026-08-28T22:03:27-07:00 (codex) — BLOCKED
+
+### Disposed
+
+- BR-24 — addressed — Store and lifecycle tests cover launch and binding authority across every incomplete byte boundary plus write, file-sync, close, directory-sync, and unlock failures; production consumers reconcile indeterminate rows by exact ordinal and bytes.
+- BR-25 — not-addressed — Identical-body retry is idempotent, but editing the preserved draft after an indeterminate published append mints a new ID and leaves the prior readable-but-unsent entry as correlation evidence; no regression covers this branch.
+
+### Raised
+
+- **BR-26** [Critical] `core-concepts-match-code` Shared publication outcome escapes the Core Concepts contract
+  This is the 3rd finding in family `core-concepts-match-code`. The new central Outcome/Error entity is absent from the plan table and unmarked, while the contract checks only M1/M2. State and enforce the class rule for every issue-owned domain type and every introduction stage, then sweep the full range.
+
 ## Open findings
 
-- **BR-24** [Critical] `ledger-append-result-matches-authority` Failed binding appends can still become authoritative
 - **BR-25** [Critical] `ledger-append-result-matches-authority` Published Pair-log entries are reported as failed and duplicated on retry
+- **BR-26** [Critical] `core-concepts-match-code` Shared publication outcome escapes the Core Concepts contract

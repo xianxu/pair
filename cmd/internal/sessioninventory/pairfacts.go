@@ -38,6 +38,7 @@ type PairLogEntry struct {
 	Position     uint64
 	AuthoredText string
 	AppendID     string
+	Submitted    bool
 }
 
 // NormalizePairText is the canonical identity projection for operator-authored
@@ -76,9 +77,24 @@ func EncodePairLogEntry(body []byte, now time.Time) []byte {
 }
 
 func EncodePairLogEntryWithID(body []byte, now time.Time, appendID string) []byte {
+	return encodePairLogEntry(body, now, appendID, true)
+}
+
+// EncodePairLogPreparedEntry records text durably before dispatch without
+// making it eligible as evidence that input was actually submitted.
+func EncodePairLogPreparedEntry(body []byte, now time.Time, appendID string) []byte {
+	return encodePairLogEntry(body, now, appendID, false)
+}
+
+func encodePairLogEntry(body []byte, now time.Time, appendID string, submitted bool) []byte {
 	marker := fmt.Sprintf("<!-- pair-log-v1 bytes=%d", len(body))
 	if appendID != "" {
 		marker += " append_id=" + appendID
+		if submitted {
+			marker += " state=submitted"
+		} else {
+			marker += " state=prepared"
+		}
 	}
 	header := fmt.Sprintf("## %s\n%s -->\n\n", now.Format("2006-01-02 15:04:05"), marker)
 	entry := make([]byte, 0, len(header)+len(body)+len(pairLogSeparator))
@@ -108,7 +124,7 @@ func ParsePairLog(raw []byte, offset uint64) PairLogParseResult {
 		}
 		headerEnd := cursor + headerEndRelative
 		bodyStart := headerEnd + 2
-		bodyBytes, appendID, versioned, valid := pairLogHeader(raw[cursor:headerEnd])
+		bodyBytes, appendID, submitted, versioned, valid := pairLogHeader(raw[cursor:headerEnd])
 		if !valid {
 			return PairLogParseResult{MalformedOffsets: []uint64{uint64(cursor)}}
 		}
@@ -132,8 +148,8 @@ func ParsePairLog(raw []byte, offset uint64) PairLogParseResult {
 		if !utf8.Valid(body) {
 			return PairLogParseResult{MalformedOffsets: []uint64{uint64(cursor)}}
 		}
-		entries = append(entries, PairLogEntry{Position: uint64(cursor), AuthoredText: string(body), AppendID: appendID})
-		if text := NormalizePairText(string(body)); text != "" {
+		entries = append(entries, PairLogEntry{Position: uint64(cursor), AuthoredText: string(body), AppendID: appendID, Submitted: submitted})
+		if text := NormalizePairText(string(body)); submitted && text != "" {
 			facts = append(facts, PairLogFact{Position: uint64(cursor), Text: text, AuthoredText: string(body), AppendID: appendID})
 		}
 		cursor = separator + len(pairLogSeparator)
@@ -141,45 +157,56 @@ func ParsePairLog(raw []byte, offset uint64) PairLogParseResult {
 	return PairLogParseResult{Facts: facts, Entries: entries}
 }
 
-func pairLogHeader(raw []byte) (uint64, string, bool, bool) {
+func pairLogHeader(raw []byte) (uint64, string, bool, bool, bool) {
 	const prefix = "## "
 	lines := bytes.Split(raw, []byte{'\n'})
 	if len(lines) == 0 || !bytes.HasPrefix(lines[0], []byte(prefix)) {
-		return 0, "", false, false
+		return 0, "", false, false, false
 	}
 	if _, err := time.Parse("2006-01-02 15:04:05", string(lines[0][len(prefix):])); err != nil {
-		return 0, "", false, false
+		return 0, "", false, false, false
 	}
 	if len(lines) == 1 {
-		return 0, "", false, true
+		return 0, "", true, false, true
 	}
 	if len(lines) != 2 {
-		return 0, "", false, false
+		return 0, "", false, false, false
 	}
 	const markerPrefix, markerSuffix = "<!-- pair-log-v1 bytes=", " -->"
 	marker := string(lines[1])
 	if !strings.HasPrefix(marker, markerPrefix) || !strings.HasSuffix(marker, markerSuffix) {
-		return 0, "", false, false
+		return 0, "", false, false, false
 	}
 	fields := strings.Fields(strings.TrimSuffix(strings.TrimPrefix(marker, markerPrefix), markerSuffix))
-	if len(fields) < 1 || len(fields) > 2 {
-		return 0, "", false, false
+	if len(fields) < 1 || len(fields) > 3 {
+		return 0, "", false, false, false
 	}
 	count, err := strconv.ParseUint(fields[0], 10, 64)
 	if err != nil {
-		return 0, "", false, false
+		return 0, "", false, false, false
 	}
 	appendID := ""
-	if len(fields) == 2 {
+	submitted := true // Legacy and pre-state versioned entries were sent entries.
+	if len(fields) >= 2 {
 		if !strings.HasPrefix(fields[1], "append_id=") {
-			return 0, "", false, false
+			return 0, "", false, false, false
 		}
 		appendID = strings.TrimPrefix(fields[1], "append_id=")
 		if !ValidPairLogAppendID(appendID) {
-			return 0, "", false, false
+			return 0, "", false, false, false
 		}
 	}
-	return count, appendID, true, true
+	if len(fields) == 3 {
+		switch fields[2] {
+		case "state=submitted":
+			submitted = true
+		case "state=prepared":
+			submitted = false
+		default:
+			return 0, "", false, false, false
+		}
+	}
+	return count, appendID, submitted, true, true
 }
 
 func ValidPairLogAppendID(id string) bool {

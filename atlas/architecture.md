@@ -955,9 +955,12 @@ to preserve.
 Ledger and Pair-log writers share explicit non-authoritative, indeterminate,
 and committed publication outcomes. Ledger uncertainty is reconciled against
 the exact encoded physical ordinal before launch/binding consumers proceed.
-Pair-log replacement carries a stable per-submission append ID, so retry after
-post-rename uncertainty completes durability rather than duplicating the turn
-and weakening exact-round uniqueness.
+Pair-log replacement carries a stable per-submission append ID and two states.
+The authored body is `prepared` durably before dispatch but is excluded from
+round evidence. After normal input dispatch, `session-log commit` atomically
+changes that exact ID to `submitted`; only submitted entries reach the matcher.
+An indeterminate, edited, cleared, or compose-only preparation can therefore
+remain readable without manufacturing a user turn that the agent never saw.
 
 **Stored shape.** Exact `$PAIR_AGENT_CONFIG_PATH`:
 

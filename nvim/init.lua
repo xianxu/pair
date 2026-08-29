@@ -774,6 +774,18 @@ _G.PairSubmission = dofile((debug.getinfo(1, 'S').source:match('@?(.*/)') or './
     return false, out ~= '' and out or ('exit ' .. tostring(vim.v.shell_error))
   end
   return true
+end, function(append_id)
+  if type(_G.PairTestSessionLogCommit) == 'function' then
+    return _G.PairTestSessionLogCommit(append_id)
+  end
+  local home = vim.env.PAIR_HOME or ''
+  local pair = (home ~= '') and (home .. '/bin/pair') or 'pair'
+  local out = vim.fn.system({ pair, 'session-log', 'commit', '--append-id', append_id })
+  if vim.v.shell_error ~= 0 then
+    out = tostring(out or ''):gsub('%s+$', '')
+    return false, out ~= '' and out or ('exit ' .. tostring(vim.v.shell_error))
+  end
+  return true
 end, send_to_agent, function(message)
   vim.notify(message, vim.log.levels.ERROR)
 end, function()

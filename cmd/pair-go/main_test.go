@@ -75,6 +75,10 @@ func TestRunStreamingSubcommandRoutesSessionLogStdin(t *testing.T) {
 	if err != nil || !strings.Contains(string(raw), "\n\nauthored\n\n---\n\n") {
 		t.Fatalf("raw=%q err=%v", raw, err)
 	}
+	code = runStreamingSubcommand("session-log commit", []string{"--append-id", "attempt-a"}, strings.NewReader(""), &stdout, &stderr)
+	if code != 0 {
+		t.Fatalf("commit code=%d stderr=%q", code, stderr.String())
+	}
 }
 
 func TestRunStreamingSubcommandUnknownIsProgrammingError(t *testing.T) {

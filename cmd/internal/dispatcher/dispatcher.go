@@ -62,6 +62,7 @@ func Families() []CommandFamily {
 		{Name: "session-inventory", Summary: "deterministic native session forests and Pair bindings", Status: "implemented"},
 		{Name: "session-watch", Summary: "round-gated native session establishment", Status: "implemented", Streaming: true},
 		{Name: "session-log append", Summary: "durably append operator-authored text to the scoped Pair log", Status: "implemented", Streaming: true},
+		{Name: "session-log commit", Summary: "mark prepared operator text as submitted evidence", Status: "implemented", Streaming: true},
 		{Name: "title", Summary: "agent pane title poller", Status: "implemented", Streaming: true},
 		{Name: "continuation", Summary: "continuation datatype writer", Status: "implemented", Streaming: true},
 		// review group

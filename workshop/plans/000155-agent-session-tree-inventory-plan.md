@@ -28,8 +28,10 @@
 | `RoundObservation` | `cmd/internal/sessioninventory/round.go` | new | M2 |
 | `Binding` / `Candidate` / `Ambiguity` / `Evidence` | `cmd/internal/sessioninventory/binding.go` | new | M2 |
 | `PairLedgerFact` / `PairLogFact` | `cmd/internal/sessioninventory/pairfacts.go` | new | M2 |
+| `NormalizePairText` | `cmd/internal/sessioninventory/pairfacts.go` | new | M2 |
 | `LedgerRecord` / `LaunchBaseline` | `cmd/internal/sessionledger/record.go` | new | M2 |
 | `SessionActivity` | `cmd/internal/sessioninventory/activity.go` | new | final |
+| `Outcome` / `Error` | `cmd/internal/commitoutcome/outcome.go` | new | final |
 
 **`NativeRecordFact`** — bounded, scanner-authorized facts extracted from one
 native artifact without selection or correlation.
@@ -907,3 +909,23 @@ concept inventory.
 the pinned M5 Git objects. Deleted-at-head paths retain their explicit deleted
 or retired disposition; current #155 declarations cannot enter the historical
 oracle. The focused digest, source-set, and concept inventory contracts pass.
+
+### 2026-08-28 — close review: submitted-only Pair evidence and complete concept stages
+
+**Reason:** round 17 found that a Pair-log replacement could become readable
+after an indeterminate prepare while the editor correctly suppressed the send;
+editing or clearing the retained draft then left that unsent text available to
+the correlation parser. It also found that the Core Concepts contract named
+only M1 and M2, allowing a final-stage authority type to escape the inventory.
+
+**Delta:** Pair-log entries now have separate prepared and submitted states.
+Preparation remains durable and fail-closed before input; only a normal submit
+transitions the exact append ID to submitted after input dispatch. Prepared
+entries survive unchanged, edited, cleared, and no-submit paths for audit but
+are never emitted as correlation facts. The concept contract enumerates every
+allowed introduction stage and includes the shared publication `Outcome` and
+`Error`. Every exported type in an issue-owned package must now be either a
+marked Core Concept or present in an exhaustive detail disposition inventory;
+the contract covers M1, M2, and final introductions in both directions, so a
+new unmarked domain entity cannot escape (`ARCH-DRY`, `ARCH-PURPOSE`,
+`ARCH-MOCK`).

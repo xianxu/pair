@@ -1,6 +1,7 @@
 package pairlog
 
 import (
+	"bytes"
 	"errors"
 	"fmt"
 	"io"
@@ -42,7 +43,14 @@ func PersistSessionLog(path string, body []byte, now time.Time, appendID string)
 	return (SessionLogStore{Runtime: OSRuntime{}}).PersistWithID(path, body, now, appendID)
 }
 
-func (s SessionLogStore) PersistWithID(path string, body []byte, now time.Time, appendID string) (err error) {
+func (s SessionLogStore) PersistWithID(path string, body []byte, now time.Time, appendID string) error {
+	if err := s.PrepareWithID(path, body, now, appendID); err != nil {
+		return err
+	}
+	return s.CommitID(path, appendID)
+}
+
+func (s SessionLogStore) PrepareWithID(path string, body []byte, now time.Time, appendID string) (err error) {
 	if path == "" {
 		return errors.New("session log path is empty")
 	}
@@ -85,6 +93,9 @@ func (s SessionLogStore) PersistWithID(path string, body []byte, now time.Time, 
 		if entry.AuthoredText != string(body) {
 			return fmt.Errorf("session log append ID %q already names different text", appendID)
 		}
+		if entry.Submitted {
+			return fmt.Errorf("session log append ID %q is already submitted", appendID)
+		}
 		outcome = commitoutcome.Indeterminate
 		if err := s.Runtime.SyncDirectory(dir); err != nil {
 			return commitoutcome.Wrap(outcome, fmt.Errorf("sync published session log directory: %w", err))
@@ -92,14 +103,75 @@ func (s SessionLogStore) PersistWithID(path string, body []byte, now time.Time, 
 		outcome = commitoutcome.Committed
 		return nil
 	}
-	entry := sessioninventory.EncodePairLogEntryWithID(body, now, appendID)
+	entry := sessioninventory.EncodePairLogPreparedEntry(body, now, appendID)
 	contents := make([]byte, 0, len(existing)+len(entry))
 	contents = append(contents, existing...)
 	contents = append(contents, entry...)
 
+	outcome, err = s.replaceLocked(dir, path, contents)
+	return err
+}
+
+// CommitID marks one prepared entry as submitted. Only submitted entries are
+// exposed by ParsePairLog as round-correlation facts.
+func (s SessionLogStore) CommitID(path, appendID string) (err error) {
+	if path == "" || s.Runtime == nil || !sessioninventory.ValidPairLogAppendID(appendID) {
+		return errors.New("session log commit arguments are invalid")
+	}
+	dir := filepath.Dir(path)
+	lock, err := s.Runtime.Lock(path + ".lock")
+	if err != nil {
+		return fmt.Errorf("lock session log: %w", err)
+	}
+	outcome := commitoutcome.NotAuthoritative
+	defer func() {
+		if unlockErr := lock.Close(); unlockErr != nil {
+			err = commitoutcome.Join(outcome, err, fmt.Errorf("unlock session log: %w", unlockErr))
+		}
+	}()
+	existing, err := s.Runtime.ReadFile(path)
+	if err != nil {
+		return fmt.Errorf("read session log: %w", err)
+	}
+	parsed := sessioninventory.ParsePairLog(existing, 0)
+	if len(parsed.MalformedOffsets) != 0 {
+		return fmt.Errorf("existing session log is malformed at byte %d", parsed.MalformedOffsets[0])
+	}
+	found := false
+	alreadySubmitted := false
+	for _, entry := range parsed.Entries {
+		if entry.AppendID == appendID {
+			found = true
+			alreadySubmitted = entry.Submitted
+			break
+		}
+	}
+	if !found {
+		return fmt.Errorf("session log append ID %q is not prepared", appendID)
+	}
+	if alreadySubmitted {
+		outcome = commitoutcome.Indeterminate
+		if err := s.Runtime.SyncDirectory(dir); err != nil {
+			return commitoutcome.Wrap(outcome, fmt.Errorf("sync submitted session log directory: %w", err))
+		}
+		outcome = commitoutcome.Committed
+		return nil
+	}
+	oldMarker := []byte(" append_id=" + appendID + " state=prepared -->")
+	newMarker := []byte(" append_id=" + appendID + " state=submitted -->")
+	if bytes.Count(existing, oldMarker) != 1 {
+		return fmt.Errorf("session log append ID %q has no unique prepared marker", appendID)
+	}
+	contents := bytes.Replace(existing, oldMarker, newMarker, 1)
+	outcome, err = s.replaceLocked(dir, path, contents)
+	return err
+}
+
+func (s SessionLogStore) replaceLocked(dir, path string, contents []byte) (outcome commitoutcome.Outcome, err error) {
+	outcome = commitoutcome.NotAuthoritative
 	tmp, err := s.Runtime.CreateTemp(dir, ".pair-session-log-*")
 	if err != nil {
-		return fmt.Errorf("create session log replacement: %w", err)
+		return outcome, fmt.Errorf("create session log replacement: %w", err)
 	}
 	tmpName := tmp.Name()
 	defer func() {
@@ -108,26 +180,26 @@ func (s SessionLogStore) PersistWithID(path string, body []byte, now time.Time, 
 		}
 	}()
 	if err := tmp.Chmod(0o600); err != nil {
-		return errors.Join(fmt.Errorf("chmod session log replacement: %w", err), tmp.Close())
+		return outcome, errors.Join(fmt.Errorf("chmod session log replacement: %w", err), tmp.Close())
 	}
 	if err := writeFull(tmp, contents); err != nil {
-		return errors.Join(fmt.Errorf("write session log replacement: %w", err), tmp.Close())
+		return outcome, errors.Join(fmt.Errorf("write session log replacement: %w", err), tmp.Close())
 	}
 	if err := tmp.Sync(); err != nil {
-		return errors.Join(fmt.Errorf("sync session log replacement: %w", err), tmp.Close())
+		return outcome, errors.Join(fmt.Errorf("sync session log replacement: %w", err), tmp.Close())
 	}
 	if err := tmp.Close(); err != nil {
-		return fmt.Errorf("close session log replacement: %w", err)
+		return outcome, fmt.Errorf("close session log replacement: %w", err)
 	}
 	if err := s.Runtime.Rename(tmpName, path); err != nil {
-		return fmt.Errorf("publish session log replacement: %w", err)
+		return outcome, fmt.Errorf("publish session log replacement: %w", err)
 	}
 	outcome = commitoutcome.Indeterminate
 	if err := s.Runtime.SyncDirectory(dir); err != nil {
-		return commitoutcome.Wrap(outcome, fmt.Errorf("sync session log directory: %w", err))
+		return outcome, commitoutcome.Wrap(outcome, fmt.Errorf("sync session log directory: %w", err))
 	}
 	outcome = commitoutcome.Committed
-	return nil
+	return outcome, nil
 }
 
 func writeFull(w io.Writer, content []byte) error {

@@ -34,6 +34,24 @@ func TestRunCLIAppendsStdinToScopedLog(t *testing.T) {
 	}
 }
 
+func TestRunCommitCLIMakesPreparedTextCorrelationEligible(t *testing.T) {
+	t.Parallel()
+	path := filepath.Join(t.TempDir(), "log.md")
+	store := SessionLogStore{Runtime: OSRuntime{}}
+	if err := store.PrepareWithID(path, []byte("authored"), time.Time{}, "attempt-a"); err != nil {
+		t.Fatal(err)
+	}
+	var stderr bytes.Buffer
+	code := RunCommitCLI([]string{"--append-id", "attempt-a"}, func(string) string { return path }, &stderr)
+	if code != 0 || stderr.Len() != 0 {
+		t.Fatalf("code=%d stderr=%q", code, stderr.String())
+	}
+	raw, err := os.ReadFile(path)
+	if err != nil || !strings.Contains(string(raw), "state=submitted") {
+		t.Fatalf("raw=%q err=%v", raw, err)
+	}
+}
+
 func TestRunCLIRejectsMissingScopedLogAndArguments(t *testing.T) {
 	t.Parallel()
 	for _, args := range [][]string{nil, {"extra"}, {"--append-id", "bad id"}} {

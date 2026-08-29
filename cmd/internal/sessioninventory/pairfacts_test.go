@@ -25,6 +25,18 @@ func TestPairLogAppendIDRoundTrips(t *testing.T) {
 	}
 }
 
+func TestParsePairLogExcludesPreparedEntriesFromCorrelationFacts(t *testing.T) {
+	prepared := EncodePairLogPreparedEntry([]byte("not sent"), time.Time{}, "attempt-prepared")
+	submitted := EncodePairLogEntryWithID([]byte("sent"), time.Time{}, "attempt-submitted")
+	parsed := ParsePairLog(append(prepared, submitted...), 0)
+	if len(parsed.MalformedOffsets) != 0 || len(parsed.Entries) != 2 {
+		t.Fatalf("parsed=%#v", parsed)
+	}
+	if len(parsed.Facts) != 1 || parsed.Facts[0].AuthoredText != "sent" {
+		t.Fatalf("prepared entry became correlation evidence: %#v", parsed.Facts)
+	}
+}
+
 func TestNormalizePairTextGolden(t *testing.T) {
 	t.Parallel()
 	raw, err := os.ReadFile("testdata/normalization/v1.json")

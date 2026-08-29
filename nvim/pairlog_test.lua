@@ -27,4 +27,9 @@ assert(id_entries[1].append_id == 'attempt-a')
 local id_replaced = pairlog.replace(with_id, 1, 'changed')
 assert(id_replaced:match('append_id=attempt%-a'))
 
+local prepared = '## 2026-08-28 01:02:04\n<!-- pair-log-v1 bytes=' .. #body .. ' append_id=attempt-b state=prepared -->\n\n' .. body .. old_separator
+local prepared_entries = assert(pairlog.parse(prepared))
+assert(prepared_entries[1].append_id == 'attempt-b' and prepared_entries[1].state == 'prepared')
+assert(assert(pairlog.replace(prepared, 1, 'edited')):match('state=prepared'))
+
 print('pairlog_test ok')

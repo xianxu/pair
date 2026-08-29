@@ -29,8 +29,8 @@ func TestPersistSessionLog(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	want := "## 2026-08-28 12:34:56\n<!-- pair-log-v1 bytes=10 append_id=attempt-first -->\n\nfirst\nline\n\n---\n\n" +
-		"## 2026-08-28 12:34:57\n<!-- pair-log-v1 bytes=6 append_id=attempt-second -->\n\nsecond\n\n---\n\n"
+	want := "## 2026-08-28 12:34:56\n<!-- pair-log-v1 bytes=10 append_id=attempt-first state=submitted -->\n\nfirst\nline\n\n---\n\n" +
+		"## 2026-08-28 12:34:57\n<!-- pair-log-v1 bytes=6 append_id=attempt-second state=submitted -->\n\nsecond\n\n---\n\n"
 	if string(raw) != want {
 		t.Fatalf("log = %q, want %q", raw, want)
 	}
@@ -76,6 +76,64 @@ func TestPersistSessionLogRetryAfterPublicationIsIdempotent(t *testing.T) {
 			}
 			if observations := sessioninventory.QualifyTurnSequence(parsed.Facts, native); len(observations) != 1 {
 				t.Fatalf("retry poisoned causal matching: facts=%#v observations=%#v", parsed.Facts, observations)
+			}
+		})
+	}
+}
+
+func TestPreparedChangedOrAbandonedEntriesNeverAuthorizeCorrelation(t *testing.T) {
+	t.Parallel()
+	path := filepath.Join(t.TempDir(), "log.md")
+	runtime := &publicationFailureRuntime{Runtime: OSRuntime{}, failure: "directory-sync", remaining: 1}
+	store := SessionLogStore{Runtime: runtime}
+	if err := store.PrepareWithID(path, []byte("old unsent body"), time.Time{}, "attempt-old"); commitoutcome.Of(err) != commitoutcome.Indeterminate {
+		t.Fatalf("first prepare outcome=%v err=%v", commitoutcome.Of(err), err)
+	}
+	if err := store.PrepareWithID(path, []byte("edited sent body"), time.Time{}, "attempt-edited"); err != nil {
+		t.Fatal(err)
+	}
+	if err := store.CommitID(path, "attempt-edited"); err != nil {
+		t.Fatal(err)
+	}
+	raw, err := os.ReadFile(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	parsed := sessioninventory.ParsePairLog(raw, 0)
+	if len(parsed.Entries) != 2 || len(parsed.Facts) != 1 || parsed.Facts[0].AuthoredText != "edited sent body" {
+		t.Fatalf("unsent prepared entry authorized correlation: parsed=%#v raw=%q", parsed, raw)
+	}
+}
+
+func TestCommitIDExposesFactsOnlyAfterSubmittedMarkerPublication(t *testing.T) {
+	t.Parallel()
+	for _, failure := range []string{"lock", "read", "open", "chmod", "write", "sync", "close", "rename", "directory-sync", "unlock"} {
+		failure := failure
+		t.Run(failure, func(t *testing.T) {
+			t.Parallel()
+			path := filepath.Join(t.TempDir(), "log.md")
+			if err := (SessionLogStore{Runtime: OSRuntime{}}).PrepareWithID(path, []byte("dispatched body"), time.Time{}, "attempt-a"); err != nil {
+				t.Fatal(err)
+			}
+			var runtime Runtime = failingRuntime{Runtime: OSRuntime{}, fail: failure}
+			if failure == "directory-sync" || failure == "unlock" {
+				runtime = &publicationFailureRuntime{Runtime: OSRuntime{}, failure: failure, remaining: 1}
+			}
+			err := (SessionLogStore{Runtime: runtime}).CommitID(path, "attempt-a")
+			if err == nil {
+				t.Fatal("CommitID returned nil error")
+			}
+			raw, readErr := os.ReadFile(path)
+			if readErr != nil {
+				t.Fatal(readErr)
+			}
+			facts := sessioninventory.ParsePairLog(raw, 0).Facts
+			published := failure == "directory-sync" || failure == "unlock"
+			if (len(facts) == 1) != published {
+				t.Fatalf("failure=%s facts=%#v err=%v", failure, facts, err)
+			}
+			if published && facts[0].AuthoredText != "dispatched body" {
+				t.Fatalf("failure=%s facts=%#v", failure, facts)
 			}
 		})
 	}
