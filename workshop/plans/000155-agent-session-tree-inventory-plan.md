@@ -929,3 +929,23 @@ marked Core Concept or present in an exhaustive detail disposition inventory;
 the contract covers M1, M2, and final introductions in both directions, so a
 new unmarked domain entity cannot escape (`ARCH-DRY`, `ARCH-PURPOSE`,
 `ARCH-MOCK`).
+
+### 2026-08-28 — close review: make dispatch and concept ownership exhaustive
+
+**Reason:** round 18 confirmed prepared/submitted storage but found that the
+submitted transition did not consume Zellij action results, and a post-dispatch
+marker failure discarded the only commit retry identity. It also showed the
+concept sweep still depended on a hand-listed package set and ignored private
+domain types.
+
+**Delta:** extract the production draft-delivery sequence behind one injected
+action seam. Focus, body write, submit/compose, and refocus results are checked
+in order; only a successful submit action confirms dispatch, while refocus
+failure after submit remains a dispatched UI warning. Submission retains a
+dispatched append ID until commit-only recovery succeeds and blocks later
+authored input without retransmitting the prior body. A stateful Lua matrix
+injects every action failure. The concept contract derives its source universe
+from files added by #155 plus every plan-declared source, classifies public and
+private types, rejects unknown marker stages independently, and permits details
+only through an exhaustive checked inventory (`ARCH-DRY`, `ARCH-PURPOSE`,
+`ARCH-MOCK`).

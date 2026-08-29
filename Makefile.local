@@ -203,6 +203,7 @@ test-lua:
 	nvim -l nvim/slug_test.lua
 	nvim -l nvim/normalization_test.lua
 	nvim -l nvim/submission_test.lua
+	nvim -l nvim/draft_send_test.lua
 	nvim -l nvim/pairlog_test.lua
 	nvim -l nvim/scrollback_test.lua
 	nvim -l nvim/annotate_test.lua

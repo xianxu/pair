@@ -67,6 +67,7 @@ _G.PairTestSessionLogAppend = function(body)
   return true
 end
 _G.PairTestSessionLogCommit = function() return true end
+_G.PairTestSendToAgent = function(_, no_submit) return true, not no_submit end
 local function cm(l)
   local m = vim.fn.maparg(l,'n',false,true)
   if type(m)~='table' or not m.callback then O:write('E missing-map '..l..'\n') end

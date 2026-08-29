@@ -743,3 +743,96 @@ findings:
     detail: |
       This is the 3rd finding in family `core-concepts-match-code`. The new central Outcome/Error entity is absent from the plan table and unmarked, while the contract checks only M1/M2. State and enforce the class rule for every issue-owned domain type and every introduction stage, then sweep the full range.
 ```
+
+---
+
+## Re-review — 2026-08-28T22:26:25-07:00 (REWORK)
+
+| field | value |
+|-------|-------|
+| issue | 155 — deterministic agent session-tree inventory |
+| repo | pair |
+| issue file | workshop/issues/000155-agent-session-tree-inventory.md |
+| boundary | whole-issue close |
+| milestone | — |
+| window | 4c454436038e2ae049690bc343def9f0511fca8c..5feae67458f89ea7766f9e247f69a52fb7b83ef8 |
+| command | sdlc close --issue 155 |
+| reviewer | codex |
+| timestamp | 2026-08-28T22:26:25-07:00 |
+| verdict | REWORK |
+
+## Review
+
+```verdict
+verdict: REWORK
+confidence: high
+```
+
+BR-25’s retry/idempotence defect is fixed and counterfactually pinned. BR-26 remains incomplete because its enforcement covers only exported types in six manually listed directories and permits unknown introduction stages. A new blocking transaction bug also lets submitted evidence disagree with actual dispatch: failed Zellij actions can still authorize a turn, while successful dispatch followed by marker failure strands the turn without recovery.
+
+```findings
+dispose:
+  - id: BR-25
+    disposition: addressed
+    note: |
+      Stable append IDs, explicit publication outcomes, and directory-sync/unlock regressions now prevent duplicate Pair-log evidence on retry.
+  - id: BR-26
+    disposition: not-addressed
+    note: |
+      Outcome and Error are listed, but the class contract still skips unexported domain types, unknown introduction stages, and issue-owned packages outside a hand-maintained directory list.
+findings:
+  - id: new
+    severity: Critical
+    family: submitted-evidence-matches-dispatch
+    title: |
+      Submitted Pair evidence can disagree with the actual dispatch outcome
+    detail: |
+      nvim/submission.lua commits submitted evidence without receiving a send result, while nvim/init.lua discards every Zellij action exit status. Conversely, a successful dispatch followed by commit failure clears its retry identity and leaves no commit-only recovery path. Define the complete dispatch/evidence transaction and test every delivery-critical action failure plus post-dispatch commit recovery through the production seam.
+```
+
+1. Strengths
+
+- BR-25 is materially fixed: `cmd/internal/pairlog/store.go:53-112` makes preparation retries ID/body-aware, while `:117-167` makes submitted-marker publication idempotent.
+- `cmd/internal/sessioninventory/pairfacts.go:127-157` retains prepared entries for audit but exposes only submitted entries as correlation facts.
+- `cmd/internal/pairlog/store_test.go:42-139` covers directory-sync, unlock, edited retries, causal uniqueness, and publication-stage failures. The prepared-entry regressions fail against the pre-fix behavior.
+- The range updates both README and atlas for the new CLI and session architecture.
+- The full Go suite and complete Lua suite pass.
+
+2. Critical findings
+
+- **BR-26 remains open — `core-concepts-match-code`, ARCH-PURPOSE.** `cmd/internal/sessioninventory/concept_contract_test.go:130-132` skips all unexported types; `:59-69` derives allowed stages from the plan rather than rejecting unknown markers independently; `:27-30` manually lists covered directories. Current unclassified domain shapes include `bindingWork`, `normalizedTurn`, `pairOwner`, `pairConfig`, and `wireRecord`. Fix the class by deriving an exhaustive issue-owned source inventory, classifying relevant declarations regardless of visibility, and independently rejecting malformed/unknown stages.
+
+- **Submitted evidence can disagree with dispatch — ARCH-PURPOSE, ARCH-MOCK.** `nvim/submission.lua:20-27` commits after an unchecked send and clears state even when marker commit fails. `nvim/init.lua:755-761` ignores results returned by `nvim/zellij_trace.lua:46-64`. A failed focus/write/submit can therefore create evidence for undispatched text; the opposite failure strands successfully dispatched text. Model the full transaction, checking every delivery-critical action and retaining a commit-only retry state after successful dispatch.
+
+3. Important findings
+
+None beyond the blocking findings above.
+
+4. Minor findings
+
+None.
+
+5. Test coverage notes
+
+Verified:
+
+- `go test ./... -count=1`
+- `make test-lua`
+- Focused Pair-log, inventory, ledger, watcher, launcher, dispatcher, and CLI tests
+- `git diff --check` over the pinned range
+
+Missing coverage: production-seam tests injecting each Zellij action failure, plus mutation fixtures for unknown concept stages, lowercase domain types, inline-detail bypasses, and newly introduced issue-owned packages.
+
+6. Architectural notes
+
+- **ARCH-DRY — pass:** shared inventory, publication outcome, ledger, and Pair-log boundaries replace parallel authorities.
+- **ARCH-PURE — pass:** forest/correlation logic remains pure; external filesystem/process behavior is isolated behind runtime seams.
+- **ARCH-PURPOSE — flag:** BR-26 enforces only a subset of its stated class, and submitted evidence is not guaranteed to represent an actual dispatch.
+- **ARCH-MOCK — flag:** the stateful storage fakes are strong, but the authored-send production boundary lacks a stateful failure matrix.
+
+7. Plan revision recommendations
+
+Append revisions covering:
+
+- An exhaustive, range-derived Core Concepts ownership rule for all relevant domain declarations and independently validated introduction stages.
+- A submitted-evidence transaction specifying outcomes for every focus/write/submit/refocus action and post-dispatch marker failure, including commit-only recovery without retransmission.

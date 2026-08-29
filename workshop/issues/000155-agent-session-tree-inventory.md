@@ -769,6 +769,18 @@ be checked against measured actuals at close.*
 
 ## Log
 
+- 2026-08-28 — close review round 18 closed the Pair-log duplication family
+  and exposed the remaining dispatch/evidence and concept-ownership classes.
+  The production draft-delivery sequencer now consumes each Zellij result:
+  focus/write/submit failures preserve the draft and cannot commit evidence,
+  while refocus failure after a successful submit commits the true turn and
+  reports a UI warning. Post-dispatch marker failure retains a commit-only
+  identity that must recover before later authored input and never retransmits
+  the earlier body. The concept contract derives all #155-added and
+  plan-declared sources from Git/plan authority, covers private types, and
+  rejects unknown stages and implicit detail bypasses (`ARCH-DRY`,
+  `ARCH-PURPOSE`, `ARCH-MOCK`).
+
 - 2026-08-28 — close review round 17 disposed the ledger lifecycle finding
   and exposed the remaining Pair-log retry-state and final-stage concept gaps.
   Authored text now crosses a two-phase prepare/submit boundary: preparation is
@@ -1290,3 +1302,18 @@ no-submit, cleared, edited, and failed-preparation attempts remain ineligible
 for correlation. Extend the Core Concepts contract across every introduction
 stage and require an explicit concept/detail disposition for every exported
 type in issue-owned packages (`ARCH-DRY`, `ARCH-PURPOSE`, `ARCH-MOCK`).
+
+### 2026-08-28 — bind submitted evidence to checked dispatch
+
+**Reason:** close review round 18 found that a successful prepare followed by a
+failed Zellij action could still be marked submitted, while a real dispatch
+followed by marker failure lost its retry identity. The concept classifier also
+covered only exported types in hand-listed packages.
+
+**Delta:** make every delivery action return an injected, checked result and
+define submit success as the dispatch point. Pre-dispatch failure retains the
+draft and prepared ID; post-dispatch refocus failure remains a warning; marker
+failure retains commit-only state and blocks later sends until recovery without
+retransmission. Derive issue-owned Go sources from #155 additions plus the plan
+table, classify private and public types, and reject unknown introduction
+stages independently (`ARCH-DRY`, `ARCH-PURPOSE`, `ARCH-MOCK`).

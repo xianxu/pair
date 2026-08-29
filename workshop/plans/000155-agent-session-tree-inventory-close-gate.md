@@ -444,6 +444,26 @@ rounds:
           family: core-concepts-match-code
           round: 17
       blocked: true
+    - "n": 18
+      timestamp: "2026-08-28T22:26:25-07:00"
+      agent: codex
+      dispose:
+        - id: BR-25
+          disposition: addressed
+          note: Stable append IDs, explicit publication outcomes, and directory-sync/unlock regressions now prevent duplicate Pair-log evidence on retry.
+          round: 18
+        - id: BR-26
+          disposition: not-addressed
+          note: Outcome and Error are listed, but the class contract still skips unexported domain types, unknown introduction stages, and issue-owned packages outside a hand-maintained directory list.
+          round: 18
+      findings:
+        - id: BR-27
+          severity: Critical
+          title: Submitted Pair evidence can disagree with the actual dispatch outcome
+          detail: nvim/submission.lua commits submitted evidence without receiving a send result, while nvim/init.lua discards every Zellij action exit status. Conversely, a successful dispatch followed by commit failure clears its retry identity and leaves no commit-only recovery path. Define the complete dispatch/evidence transaction and test every delivery-critical action failure plus post-dispatch commit recovery through the production seam.
+          family: submitted-evidence-matches-dispatch
+          round: 18
+      blocked: true
 ---
 
 # Gate ledger — pair#155 (boundary-review)
@@ -655,7 +675,19 @@ later rounds disposed of them. Generated — edit the gate, not this file.
 - **BR-26** [Critical] `core-concepts-match-code` Shared publication outcome escapes the Core Concepts contract
   This is the 3rd finding in family `core-concepts-match-code`. The new central Outcome/Error entity is absent from the plan table and unmarked, while the contract checks only M1/M2. State and enforce the class rule for every issue-owned domain type and every introduction stage, then sweep the full range.
 
+## Round 18 — 2026-08-28T22:26:25-07:00 (codex) — BLOCKED
+
+### Disposed
+
+- BR-25 — addressed — Stable append IDs, explicit publication outcomes, and directory-sync/unlock regressions now prevent duplicate Pair-log evidence on retry.
+- BR-26 — not-addressed — Outcome and Error are listed, but the class contract still skips unexported domain types, unknown introduction stages, and issue-owned packages outside a hand-maintained directory list.
+
+### Raised
+
+- **BR-27** [Critical] `submitted-evidence-matches-dispatch` Submitted Pair evidence can disagree with the actual dispatch outcome
+  nvim/submission.lua commits submitted evidence without receiving a send result, while nvim/init.lua discards every Zellij action exit status. Conversely, a successful dispatch followed by commit failure clears its retry identity and leaves no commit-only recovery path. Define the complete dispatch/evidence transaction and test every delivery-critical action failure plus post-dispatch commit recovery through the production seam.
+
 ## Open findings
 
-- **BR-25** [Critical] `ledger-append-result-matches-authority` Published Pair-log entries are reported as failed and duplicated on retry
 - **BR-26** [Critical] `core-concepts-match-code` Shared publication outcome escapes the Core Concepts contract
+- **BR-27** [Critical] `submitted-evidence-matches-dispatch` Submitted Pair evidence can disagree with the actual dispatch outcome

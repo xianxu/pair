@@ -258,6 +258,14 @@ and compose-without-submit preparations remain permanently ineligible rather
 than claiming an input occurred. After success, even identical later authored
 text receives a new ID.
 
+The submitted transition is also gated by the production Zellij action result,
+not merely by calling the send function. Focus, write, and submit failure leave
+the attempt prepared and the authored draft intact. Refocus failure after a
+successful submit is a UI warning rather than a delivery rollback. If the
+submitted-marker replacement then fails, Neovim retains that dispatched append
+ID and performs commit-only recovery before accepting another authored send;
+the original body is never dispatched twice.
+
 The typed joined ledger binding is the source of truth for native recovery.
 The older `agent-<tag>` and `config-<tag>-<agent>.json` files remain derived
 caches and compatibility surfaces; config disagreement is diagnosed and cannot

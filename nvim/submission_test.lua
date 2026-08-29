@@ -15,7 +15,7 @@ do
   local submit = M.new(
     function(body, id) calls[#calls + 1] = 'append:' .. body .. ':' .. id; return true end,
     function(id) calls[#calls + 1] = 'commit:' .. id; return true end,
-    function(body, no_submit) calls[#calls + 1] = 'send:' .. body .. ':' .. tostring(no_submit) end,
+    function(body, no_submit) calls[#calls + 1] = 'send:' .. body .. ':' .. tostring(no_submit); return true, not no_submit end,
     function(message) calls[#calls + 1] = 'notify:' .. message end,
     function() return table.remove(ids, 1) end)
   ok(submit.submit_operator_text('full', 'clean', false), 'authored submit succeeds')
@@ -39,7 +39,7 @@ do
       return true
     end,
     function() calls[#calls + 1] = 'commit'; return true end,
-    function() calls[#calls + 1] = 'send' end,
+    function() calls[#calls + 1] = 'send'; return true, true end,
     function(message) calls[#calls + 1] = 'notify:' .. message end,
     function() return 'retry-id' end)
   ok(not submit.submit_operator_text('full', 'clean'), 'append failure fails closed')
@@ -49,14 +49,24 @@ end
 
 do
   local calls = {}
+  local commit_attempts = 0
+  local ids = { 'id-a', 'id-b' }
   local submit = M.new(
     function() calls[#calls + 1] = 'append'; return true end,
-    function() calls[#calls + 1] = 'commit'; return false, 'marker failure' end,
-    function() calls[#calls + 1] = 'send' end,
+    function()
+      calls[#calls + 1] = 'commit'
+      commit_attempts = commit_attempts + 1
+      if commit_attempts == 1 then return false, 'marker failure' end
+      return true
+    end,
+    function() calls[#calls + 1] = 'send'; return true, true end,
     function(message) calls[#calls + 1] = 'notify:' .. message end,
-    function() return 'id-a' end)
+    function() return table.remove(ids, 1) end)
   ok(submit.submit_operator_text('full', 'clean'), 'post-send marker failure cannot request a duplicate send')
   ok(table.concat(calls, '|') == 'append|send|commit|notify:Pair log submit marker failed — marker failure', 'post-send marker failure stays fail-closed for evidence')
+  calls = {}
+  ok(submit.submit_operator_text('next', 'next'), 'next submission performs commit-only recovery first')
+  ok(table.concat(calls, '|') == 'commit|append|send|commit', 'commit-only recovery never retransmits the dispatched body')
 end
 
 do
@@ -71,7 +81,7 @@ do
       return true
     end,
     function(id) calls[#calls + 1] = 'commit:' .. id; return true end,
-    function(body, no_submit) calls[#calls + 1] = 'send:' .. body .. ':' .. tostring(no_submit) end,
+    function(body, no_submit) calls[#calls + 1] = 'send:' .. body .. ':' .. tostring(no_submit); return true, not no_submit end,
     function(message) calls[#calls + 1] = 'notify:' .. message end,
     function() return table.remove(ids, 1) end)
   ok(not submit.submit_operator_text('old', 'old', false), 'indeterminate preparation suppresses send')
@@ -85,11 +95,35 @@ do
   local submit = M.new(
     function(body, id) calls[#calls + 1] = 'append:' .. body .. ':' .. id; return true end,
     function(id) calls[#calls + 1] = 'commit:' .. id; return true end,
-    function(body, no_submit) calls[#calls + 1] = 'send:' .. body .. ':' .. tostring(no_submit) end,
+    function(body, no_submit) calls[#calls + 1] = 'send:' .. body .. ':' .. tostring(no_submit); return true, not no_submit end,
     function(message) calls[#calls + 1] = 'notify:' .. message end,
     function() return 'id-compose' end)
   ok(submit.submit_operator_text('compose only', 'compose only', true), 'no-submit still transfers text')
   ok(table.concat(calls, '|') == 'append:compose only:id-compose|send:compose only:true', 'no-submit entry is never committed as submitted evidence')
+end
+
+do
+  local calls = {}
+  local submit = M.new(
+    function() calls[#calls + 1] = 'append'; return true end,
+    function() calls[#calls + 1] = 'commit'; return true end,
+    function() calls[#calls + 1] = 'send'; return false, false, 'write-body exited 17' end,
+    function(message) calls[#calls + 1] = 'notify:' .. message end,
+    function() return 'id-failed' end)
+  ok(not submit.submit_operator_text('full', 'clean'), 'failed delivery preserves authored draft')
+  ok(table.concat(calls, '|') == 'append|send|notify:Pair input dispatch failed — write-body exited 17', 'failed delivery cannot commit submitted evidence')
+end
+
+do
+  local calls = {}
+  local submit = M.new(
+    function() calls[#calls + 1] = 'append'; return true end,
+    function() calls[#calls + 1] = 'commit'; return true end,
+    function() calls[#calls + 1] = 'send'; return false, true, 'focus-draft exited 17' end,
+    function(message) calls[#calls + 1] = 'notify:' .. message end,
+    function() return 'id-sent' end)
+  ok(submit.submit_operator_text('full', 'clean'), 'post-dispatch UI failure cannot request retransmission')
+  ok(table.concat(calls, '|') == 'append|send|commit|notify:Pair input dispatched with UI warning — focus-draft exited 17', 'post-dispatch UI failure still commits true evidence')
 end
 
 local init = table.concat(vim.fn.readfile(here .. 'init.lua'), '\n')

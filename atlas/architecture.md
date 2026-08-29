@@ -961,6 +961,11 @@ round evidence. After normal input dispatch, `session-log commit` atomically
 changes that exact ID to `submitted`; only submitted entries reach the matcher.
 An indeterminate, edited, cleared, or compose-only preparation can therefore
 remain readable without manufacturing a user turn that the agent never saw.
+The editor's production delivery sequencer checks focus, body write, semantic
+submit/compose, and refocus results through the traced Zellij action seam. Only
+a successful semantic submit confirms dispatch. A post-dispatch marker failure
+retains commit-only state for the next authored action, so recovery never
+retransmits the already-delivered body.
 
 **Stored shape.** Exact `$PAIR_AGENT_CONFIG_PATH`:
 

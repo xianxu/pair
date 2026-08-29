@@ -2,16 +2,17 @@ package sessioninventory
 
 import (
 	"bufio"
+	"fmt"
 	"go/ast"
 	"go/parser"
 	"go/token"
 	"os"
+	"os/exec"
 	"path/filepath"
 	"regexp"
 	"sort"
 	"strings"
 	"testing"
-	"unicode"
 )
 
 type conceptContract struct {
@@ -24,48 +25,110 @@ type conceptContract struct {
 
 var conceptNamePattern = regexp.MustCompile("`([^`]+)`")
 
-var issue155ConceptDirectories = []string{
-	"cmd/internal/commitoutcome", "cmd/internal/sessioninventory", "cmd/internal/sessioninventorytest",
-	"cmd/internal/sessionledger", "cmd/internal/sessionwatch", "cmd/internal/pairlog",
-}
-
-// issue155DetailTypes exhaustively disposes exported support shapes that are
+// issue155DetailTypes exhaustively disposes support shapes that are
 // owned by #155 but are implementation detail rather than Core Concepts.
-// The contract below rejects every new unmarked exported type until it is
+// The contract below rejects every new unmarked type until it is
 // either promoted to the plan table or deliberately added here.
 var issue155DetailTypes = map[string][]string{
-	"cmd/internal/sessioninventory/binding.go":           {"BindingStatus", "EvidenceKind", "CandidateOutcome", "BindingInput", "NodeBinding"},
+	"cmd/internal/pairlog/runcli.go":                     {"persistFunc"},
+	"cmd/internal/pairlog/store.go":                      {"File", "Runtime", "OSRuntime", "fileLock"},
+	"cmd/internal/sessioninventory/binding.go":           {"BindingStatus", "EvidenceKind", "CandidateOutcome", "BindingInput", "NodeBinding", "bindingWork"},
 	"cmd/internal/sessioninventory/conformance.go":       {"ConformanceStatus", "ConformanceAgent", "ConformanceReport"},
-	"cmd/internal/sessioninventory/event.go":             {"NativeEventKind", "EventDisposition"},
+	"cmd/internal/sessioninventory/event.go":             {"NativeEventKind", "EventDisposition", "textBlock"},
 	"cmd/internal/sessioninventory/forest_projection.go": {"ForestProjection"},
-	"cmd/internal/sessioninventory/model.go":             {"Agent", "Role", "TimeSource", "NativeTime", "ArtifactKind", "Artifact", "Fact", "Node", "Forest", "DiagnosticCode", "Severity"},
+	"cmd/internal/sessioninventory/model.go":             {"Agent", "Role", "TimeSource", "NativeTime", "ArtifactKind", "Artifact", "Fact", "Node", "Forest", "DiagnosticCode", "Severity", "factKey", "canonicalNode"},
 	"cmd/internal/sessioninventory/offline.go":           {"OfflineRecoveryInput"},
+	"cmd/internal/sessioninventory/pair_inventory.go":    {"pairOwner", "pairConfig"},
 	"cmd/internal/sessioninventory/pairfacts.go":         {"PairLogParseResult", "PairLogEntry"},
 	"cmd/internal/sessioninventory/query.go":             {"SessionQuery"},
-	"cmd/internal/sessioninventory/render.go":            {"RenderFormat"},
-	"cmd/internal/sessioninventory/round.go":             {"NativeEventFact"},
+	"cmd/internal/sessioninventory/render.go":            {"RenderFormat", "inventoryV1", "forestV1", "nodeV1", "diagnosticV1", "correlationV1", "evidenceV1", "ambiguityV1"},
+	"cmd/internal/sessioninventory/round.go":             {"NativeEventFact", "normalizedTurn"},
+	"cmd/internal/sessioninventory/runcli.go":            {"cliOptions", "cliRenderers"},
 	"cmd/internal/sessioninventory/runtime.go":           {"StorageRoot", "FileEntry", "ListingIssuesError", "SQLiteResult", "ScanResult", "Scanner", "ScannerFunc"},
-	"cmd/internal/sessioninventorytest/fake_runtime.go":  {"Operation"},
-	"cmd/internal/sessionledger/record.go":               {"RecordKind", "NativeWatermark", "Record", "Owner", "ParseResult", "Current"},
+	"cmd/internal/sessioninventory/runtime_os.go":        {"boundedBuffer"},
+	"cmd/internal/sessioninventorytest/fake_runtime.go":  {"Operation", "storedFile", "sqliteKey", "processState"},
+	"cmd/internal/sessionledger/record.go":               {"RecordKind", "NativeWatermark", "Record", "Owner", "ParseResult", "Current", "wireRecord", "strictField", "nullableArgsField", "compatibilityWireRecord", "decodeNativeWatermark", "decodeWireRecord"},
 	"cmd/internal/sessionledger/store.go":                {"AppendOutcome", "AppendOutcomeError", "Unlocker", "AppendFile", "Runtime"},
-	"cmd/internal/sessionledger/store_unix.go":           {"OSRuntime"},
+	"cmd/internal/sessionledger/store_unix.go":           {"OSRuntime", "osLock"},
 	"cmd/internal/sessionwatch/lifecycle.go":             {"LedgerAppender", "PrepareLaunchInput", "PreparedLaunch", "ConfigWriter"},
-	"cmd/internal/sessionwatch/run.go":                   {"Options", "Runtime"},
-	"cmd/internal/sessionwatch/runtime.go":               {"OSRuntime"},
 	"cmd/internal/sessionwatch/sessionwatch.go":          {"ConfigPayload", "ObserveInput"},
-	"cmd/internal/pairlog/store.go":                      {"File", "Runtime", "OSRuntime"},
 }
 
 func TestEveryCoreConceptIntroductionMatchesDeclarations(t *testing.T) {
 	root := filepath.Join("..", "..", "..")
 	planPath := filepath.Join(root, "workshop", "plans", "000155-agent-session-tree-inventory-plan.md")
+	sources := issue155OwnedSources(t, root, planPath)
 	introductions := readPlanIntroductions(t, planPath)
 	want := []string{"M1", "M2", "final"}
 	if strings.Join(introductions, ",") != strings.Join(want, ",") {
 		t.Fatalf("Core Concepts introduction stages = %v, want exhaustive allowed stages %v", introductions, want)
 	}
 	for _, introduced := range introductions {
-		t.Run(introduced, func(t *testing.T) { assertConceptContract(t, root, introduced, issue155ConceptDirectories) })
+		t.Run(introduced, func(t *testing.T) { assertConceptContract(t, root, introduced, sources) })
+	}
+}
+
+func issue155OwnedSources(t *testing.T, root, planPath string) []string {
+	t.Helper()
+	command := exec.Command("git", "log", "--format=", "--name-only", "--diff-filter=A", "--grep=^#155", "4c454436..HEAD", "--", "*.go")
+	command.Dir = root
+	raw, err := command.Output()
+	if err != nil {
+		t.Fatalf("derive #155 source inventory: %v", err)
+	}
+	planRaw, err := os.ReadFile(planPath)
+	if err != nil {
+		t.Fatal(err)
+	}
+	candidates := mergeIssue155SourceCandidates(string(raw), string(planRaw))
+	result := make([]string, 0, len(candidates))
+	for _, path := range candidates {
+		if _, err := os.Stat(filepath.Join(root, path)); err == nil {
+			result = append(result, path)
+		}
+	}
+	if len(result) == 0 {
+		t.Fatal("derived #155 source inventory is empty")
+	}
+	return result
+}
+
+func mergeIssue155SourceCandidates(added, plan string) []string {
+	seen := map[string]bool{}
+	for _, path := range strings.Fields(added) {
+		if strings.HasSuffix(path, ".go") && !strings.HasSuffix(path, "_test.go") {
+			seen[filepath.ToSlash(path)] = true
+		}
+	}
+	for _, line := range strings.Split(plan, "\n") {
+		if !strings.HasPrefix(line, "|") || strings.Contains(line, "|------") || strings.Contains(line, "| Name |") {
+			continue
+		}
+		fields := strings.Split(line, "|")
+		if len(fields) < 6 {
+			continue
+		}
+		matches := conceptNamePattern.FindStringSubmatch(fields[2])
+		if len(matches) == 2 && strings.HasSuffix(matches[1], ".go") {
+			seen[filepath.ToSlash(matches[1])] = true
+		}
+	}
+	result := make([]string, 0, len(seen))
+	for path := range seen {
+		result = append(result, path)
+	}
+	sort.Strings(result)
+	return result
+}
+
+func TestIssueOwnedSourceCandidatesIncludeNewPackagesAndPlanSources(t *testing.T) {
+	got := mergeIssue155SourceCandidates(
+		"cmd/internal/newpkg/domain.go\ncmd/internal/newpkg/domain_test.go\n",
+		"| `Existing` | `cmd/internal/existing/model.go` | new | M1 |\n",
+	)
+	want := []string{"cmd/internal/existing/model.go", "cmd/internal/newpkg/domain.go"}
+	if strings.Join(got, ",") != strings.Join(want, ",") {
+		t.Fatalf("sources=%v want=%v", got, want)
 	}
 }
 
@@ -98,8 +161,10 @@ func readPlanIntroductions(t *testing.T, planPath string) []string {
 	return result
 }
 
-func TestEveryIssueOwnedExportedTypeHasConceptDisposition(t *testing.T) {
+func TestEveryIssueOwnedTypeHasConceptDisposition(t *testing.T) {
 	root := filepath.Join("..", "..", "..")
+	planPath := filepath.Join(root, "workshop", "plans", "000155-agent-session-tree-inventory-plan.md")
+	sources := issue155OwnedSources(t, root, planPath)
 	wantDetails := map[string]bool{}
 	for path, names := range issue155DetailTypes {
 		for _, name := range names {
@@ -107,46 +172,34 @@ func TestEveryIssueOwnedExportedTypeHasConceptDisposition(t *testing.T) {
 		}
 	}
 	seenDetails := map[string]bool{}
-	for _, directory := range issue155ConceptDirectories {
-		err := filepath.WalkDir(filepath.Join(root, directory), func(path string, entry os.DirEntry, walkErr error) error {
-			if walkErr != nil || entry.IsDir() || filepath.Ext(path) != ".go" || strings.HasSuffix(path, "_test.go") {
-				return walkErr
+	for _, relativePath := range sources {
+		path := filepath.Join(root, relativePath)
+		file, err := parser.ParseFile(token.NewFileSet(), path, nil, parser.ParseComments)
+		if err != nil {
+			t.Fatal(err)
+		}
+		for _, declaration := range file.Decls {
+			group, ok := declaration.(*ast.GenDecl)
+			if !ok {
+				continue
 			}
-			file, err := parser.ParseFile(token.NewFileSet(), path, nil, parser.ParseComments)
-			if err != nil {
-				return err
-			}
-			relativePath, err := filepath.Rel(root, path)
-			if err != nil {
-				return err
-			}
-			relativePath = filepath.ToSlash(relativePath)
-			for _, declaration := range file.Decls {
-				group, ok := declaration.(*ast.GenDecl)
+			for _, spec := range group.Specs {
+				typeSpec, ok := spec.(*ast.TypeSpec)
 				if !ok {
 					continue
 				}
-				for _, spec := range group.Specs {
-					typeSpec, ok := spec.(*ast.TypeSpec)
-					if !ok || !unicode.IsUpper([]rune(typeSpec.Name.Name)[0]) {
-						continue
-					}
-					doc := typeSpec.Doc
-					if doc == nil {
-						doc = group.Doc
-					}
-					key := relativePath + ":" + typeSpec.Name.Name
-					if conceptMarker(doc) == nil && !hasDetailMarker(doc) && !wantDetails[key] {
-						t.Errorf("%s: exported type %s has no Core Concept marker or detail disposition", relativePath, typeSpec.Name.Name)
-					} else if wantDetails[key] {
-						seenDetails[key] = true
-					}
+				doc := typeSpec.Doc
+				if doc == nil {
+					doc = group.Doc
+				}
+				key := relativePath + ":" + typeSpec.Name.Name
+				marker := conceptMarker(doc)
+				if problem := typeDispositionProblem(marker, wantDetails[key], typeSpec.Name.Name); problem != "" {
+					t.Errorf("%s: %s", relativePath, problem)
+				} else if wantDetails[key] {
+					seenDetails[key] = true
 				}
 			}
-			return nil
-		})
-		if err != nil {
-			t.Fatal(err)
 		}
 	}
 	for key := range wantDetails {
@@ -156,22 +209,54 @@ func TestEveryIssueOwnedExportedTypeHasConceptDisposition(t *testing.T) {
 	}
 }
 
-func hasDetailMarker(group *ast.CommentGroup) bool {
-	if group == nil {
-		return false
+func typeDispositionProblem(marker []string, detailed bool, name string) string {
+	if marker != nil && !validConceptMarker(marker) {
+		return fmt.Sprintf("type %s has invalid Core Concept marker %q", name, marker)
 	}
-	for _, comment := range group.List {
-		if strings.HasPrefix(strings.TrimSpace(strings.TrimPrefix(comment.Text, "//")), "pair:155-detail ") {
-			return true
-		}
+	if marker == nil && !detailed {
+		return fmt.Sprintf("type %s has no Core Concept or detail disposition", name)
 	}
-	return false
+	return ""
 }
 
-func assertConceptContract(t *testing.T, root, milestone string, directories []string) {
+func TestTypeDispositionRejectsPrivateUnknownAndInlineBypassClasses(t *testing.T) {
+	inlineDetail := conceptMarker(&ast.CommentGroup{List: []*ast.Comment{{Text: "// pair:155-detail parent"}}})
+	if inlineDetail != nil {
+		t.Fatalf("inline detail marker bypassed explicit inventory: %q", inlineDetail)
+	}
+	for _, test := range []struct {
+		name     string
+		marker   []string
+		detailed bool
+		wantBad  bool
+	}{
+		{name: "private domain", wantBad: true},
+		{name: "unknown stage", marker: []string{"pure", "new", "M3"}, wantBad: true},
+		{name: "malformed marker", marker: []string{"detail", "new", "M2"}, wantBad: true},
+		{name: "explicit detail", detailed: true},
+		{name: "known concept", marker: []string{"integration", "modified", "final"}},
+	} {
+		t.Run(test.name, func(t *testing.T) {
+			gotBad := typeDispositionProblem(test.marker, test.detailed, "privateShape") != ""
+			if gotBad != test.wantBad {
+				t.Fatalf("gotBad=%v want=%v", gotBad, test.wantBad)
+			}
+		})
+	}
+}
+
+func validConceptMarker(marker []string) bool {
+	if len(marker) < 3 || (marker[0] != "pure" && marker[0] != "integration") ||
+		(marker[1] != "new" && marker[1] != "modified" && marker[1] != "deleted") {
+		return false
+	}
+	return marker[2] == "M1" || marker[2] == "M2" || marker[2] == "final"
+}
+
+func assertConceptContract(t *testing.T, root, milestone string, sources []string) {
 	t.Helper()
 	plan := readPlanConcepts(t, filepath.Join(root, "workshop", "plans", "000155-agent-session-tree-inventory-plan.md"), milestone)
-	declarations := readConceptDeclarations(t, root, directories, milestone)
+	declarations := readConceptDeclarations(t, root, sources, milestone)
 	if len(plan) != len(declarations) {
 		t.Fatalf("%s concept count: plan=%d declarations=%d\nplan=%#v\ndeclarations=%#v", milestone, len(plan), len(declarations), plan, declarations)
 	}
@@ -230,34 +315,22 @@ func readPlanConcepts(t *testing.T, planPath, milestone string) map[string]conce
 	return result
 }
 
-func readConceptDeclarations(t *testing.T, root string, directories []string, milestone string) map[string]conceptContract {
+func readConceptDeclarations(t *testing.T, root string, sources []string, milestone string) map[string]conceptContract {
 	t.Helper()
 	result := map[string]conceptContract{}
-	for _, directory := range directories {
-		err := filepath.WalkDir(filepath.Join(root, directory), func(path string, entry os.DirEntry, walkErr error) error {
-			if walkErr != nil || entry.IsDir() || filepath.Ext(path) != ".go" || strings.HasSuffix(path, "_test.go") {
-				return walkErr
-			}
-			file, err := parser.ParseFile(token.NewFileSet(), path, nil, parser.ParseComments)
-			if err != nil {
-				return err
-			}
-			relativePath, err := filepath.Rel(root, path)
-			if err != nil {
-				return err
-			}
-			for _, declaration := range file.Decls {
-				for _, concept := range markedConcepts(declaration, filepath.ToSlash(relativePath), milestone) {
-					if previous, exists := result[concept.Name]; exists {
-						t.Fatalf("duplicate marked %s concept %s: %#v and %#v", milestone, concept.Name, previous, concept)
-					}
-					result[concept.Name] = concept
-				}
-			}
-			return nil
-		})
+	for _, relativePath := range sources {
+		path := filepath.Join(root, relativePath)
+		file, err := parser.ParseFile(token.NewFileSet(), path, nil, parser.ParseComments)
 		if err != nil {
 			t.Fatal(err)
+		}
+		for _, declaration := range file.Decls {
+			for _, concept := range markedConcepts(declaration, filepath.ToSlash(relativePath), milestone) {
+				if previous, exists := result[concept.Name]; exists {
+					t.Fatalf("duplicate marked %s concept %s: %#v and %#v", milestone, concept.Name, previous, concept)
+				}
+				result[concept.Name] = concept
+			}
 		}
 	}
 	return result

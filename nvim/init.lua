@@ -698,23 +698,8 @@ local function send_esc_to_agent()
   PairZellijTrace.action('draft.interrupt.focus-draft', { 'zellij', 'action', 'move-focus', 'down' })
 end
 
-local function draftSendCommands(body, no_submit)
-  local cmds = {
-    { label = 'draft.send.focus-agent', argv = { 'zellij', 'action', 'move-focus', 'up' } },
-    {
-      label = 'draft.send.write-body',
-      argv = { 'zellij', 'action', 'write-chars', body },
-      opts = { redact = { [4] = body } },
-    },
-  }
-  if no_submit then
-    cmds[#cmds + 1] = { label = 'draft.send.newline', argv = { 'zellij', 'action', 'write', '13' } }
-  else
-    cmds[#cmds + 1] = { label = 'draft.send.submit', argv = { 'zellij', 'action', 'send-keys', 'Alt Enter' } }
-  end
-  cmds[#cmds + 1] = { label = 'draft.send.focus-draft', argv = { 'zellij', 'action', 'move-focus', 'down' } }
-  return cmds
-end
+_G.PairDraftSend = dofile((debug.getinfo(1, 'S').source:match('@?(.*/)') or './') .. 'draft_send.lua')
+local function draftSendCommands(body, no_submit) return _G.PairDraftSend.commands(body, no_submit) end
 
 _G.PairDraftSendCommands = draftSendCommands
 
@@ -750,16 +735,15 @@ local function send_to_agent(body, no_submit)
   -- insert-newline sequence — the same byte the comment above warns is
   -- *not* a submit — so it leaves the cursor on a fresh line in the
   -- composer, ready for more input.
-  if not has_ui() then return end
-  local cmds = draftSendCommands(body, no_submit)
-  PairZellijTrace.action(cmds[1].label, cmds[1].argv, cmds[1].opts)
-  PairZellijTrace.action(cmds[2].label, cmds[2].argv, cmds[2].opts)
-  if body:find('\n') or #body > 200 then
+  if type(_G.PairTestSendToAgent) == 'function' then
+    return _G.PairTestSendToAgent(body, no_submit)
+  end
+  if not has_ui() then return false, false, 'no attached UI' end
+  return _G.PairDraftSend.send(body, no_submit, function(label, argv, opts)
+    return PairZellijTrace.action(label, argv, opts)
+  end, function()
     vim.cmd('sleep 100m')
-  end
-  for i = 3, #cmds do
-    PairZellijTrace.action(cmds[i].label, cmds[i].argv, cmds[i].opts)
-  end
+  end)
 end
 
 _G.PairSubmission = dofile((debug.getinfo(1, 'S').source:match('@?(.*/)') or './') .. 'submission.lua').new(function(body, append_id)

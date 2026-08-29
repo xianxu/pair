@@ -2523,3 +2523,11 @@ an unsupported owner through every downstream projection (`ARCH-DRY`,
 - Concept-table contracts must enumerate every allowed introduction stage and
   fail on every new exported type in owned packages until it is classified as
   a core concept or an explicit implementation detail.
+
+- A post-action evidence marker must consume the external action's actual
+  result. Preserve a commit-only retry identity after confirmed delivery;
+  retrying the external action is duplication, while forgetting the identity
+  strands true evidence.
+- Derive architectural ownership inventories from durable change/plan
+  authority. Hand-listed directories and exported-only scans are escape
+  hatches, not exhaustive concept contracts.
