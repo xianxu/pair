@@ -407,6 +407,12 @@ provider contracts.
   append validation equals full validation; live redacted conformance passed
   all four installed providers in 0.14s. Agy snapshots use SQLite `VACUUM INTO`
   plus a copied transcript, preserving installed authority (`ARCH-MOCK`).
+- Replaced new-launch whole scans with v2 metadata boundaries and pure target
+  eligibility. The 1,573-file cold fixture performs zero body reads; watcher
+  polls exclude every pre-launch artifact, retain scanner state in memory, and
+  read only appended progress before committing the catalog and proof-bearing
+  binding. Strictly corrupt catalogs are rebuilt only from targeted validation;
+  full inventory/watcher race suites pass (`ARCH-DRY`, `ARCH-PURE`).
 
 ## Revisions
 

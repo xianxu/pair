@@ -48,6 +48,10 @@ func (OSRuntime) LedgerAppender() LedgerAppender {
 	return sessionledger.LedgerStore{Runtime: sessionledger.OSRuntime{}}
 }
 
+func (OSRuntime) CatalogStore() sessioninventory.CatalogStore {
+	return sessioninventory.CatalogStore{Runtime: sessioninventory.CatalogOSRuntime{}}
+}
+
 func (OSRuntime) AtomicWrite(path string, data []byte) error {
 	if err := os.MkdirAll(filepath.Dir(path), 0755); err != nil {
 		return err

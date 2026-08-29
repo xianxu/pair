@@ -280,17 +280,17 @@
 - Modify: `cmd/internal/sessionwatch/run_test.go`
 - Modify: `cmd/internal/sessionwatch/runtime.go`
 
-- [ ] **Step 1: Write failing `PrepareOSLaunch`, `SelectTargetWork`, and `Run` tests using the risky-function strategy table.** The stateful fixture separately measures cold, warm, corrupt-catalog, and every-agent authorization paths.
-- [ ] **Step 2: Add the pure four-agent cold-selection generator and stateful boundary mutation seam.**
-- [ ] **Step 3: Add the exact-correlation and stale-launch integration oracle.**
-- [ ] **Step 4: Run red.** Run `go test -p 20 ./cmd/internal/sessionwatch ./cmd/internal/sessioninventory -run 'Test(PrepareOSLaunchIncremental|ColdAuthorizationMatrix|CorruptCatalogColdLaunch|WatcherIncremental|WatcherLaunchBoundary)' -count=1`; expect whole-scan operation counts or missing target APIs.
-- [ ] **Step 5: Implement cold launch orchestration.** Record metadata-only boundaries and no facts. Corrupt catalog state uses the same untrusted snapshot, never a corpus rebuild; verify the cold 1,573-entry operation counters independently.
-- [ ] **Step 6: Implement agent-specific new eligibility.** Claude/Codex/Muse accept only absent-at-baseline artifacts; Agy joins only an absent-at-baseline DB with an absent-at-baseline same-ID transcript and queries only that DB.
-- [ ] **Step 7: Implement watcher eligibility.** Eligibility is exactly new-after-boundary or established/explicit target with a valid proof; catalog/proof loss never expands scope.
-- [ ] **Step 8: Implement stable proof publication.** Resample through a stable EOF, then publish binding and complete proof in the same authoritative row; concurrent catalog writers cannot lose a cursor or disputed transition.
-- [ ] **Step 9: Replace the poll loop's whole scans.** Reconcile metadata, read only eligible new/suffix work, project only post-launch events, and persist catalog state after validation. Keep process corroboration and Pair-log exact-correlation semantics unchanged.
-- [ ] **Step 10: Run green/race.** Run `gofmt -w cmd/internal/sessioninventory cmd/internal/sessionwatch` and `go test -race -p 20 ./cmd/internal/sessioninventory ./cmd/internal/sessionwatch -count=1`; expect PASS.
-- [ ] **Step 11: Commit.** Run `git add cmd/internal/sessioninventory cmd/internal/sessionwatch && git commit -m 'session watch: #156 observe post-launch catalog deltas'`.
+- [x] **Step 1: Write failing `PrepareOSLaunch`, `SelectTargetWork`, and `Run` tests using the risky-function strategy table.** The stateful fixture separately measures cold, warm, corrupt-catalog, and every-agent authorization paths.
+- [x] **Step 2: Add the pure four-agent cold-selection generator and stateful boundary mutation seam.**
+- [x] **Step 3: Add the exact-correlation and stale-launch integration oracle.**
+- [x] **Step 4: Run red.** Run `go test -p 20 ./cmd/internal/sessionwatch ./cmd/internal/sessioninventory -run 'Test(PrepareOSLaunchIncremental|ColdAuthorizationMatrix|CorruptCatalogColdLaunch|WatcherIncremental|WatcherLaunchBoundary)' -count=1`; expect whole-scan operation counts or missing target APIs.
+- [x] **Step 5: Implement cold launch orchestration.** Record metadata-only boundaries and no facts. Corrupt catalog state uses the same untrusted snapshot, never a corpus rebuild; verify the cold 1,573-entry operation counters independently.
+- [x] **Step 6: Implement agent-specific new eligibility.** Claude/Codex/Muse accept only absent-at-baseline artifacts; Agy joins only an absent-at-baseline DB with an absent-at-baseline same-ID transcript and queries only that DB.
+- [x] **Step 7: Implement watcher eligibility.** Eligibility is exactly new-after-boundary or established/explicit target with a valid proof; catalog/proof loss never expands scope.
+- [x] **Step 8: Implement stable proof publication.** Resample through a stable EOF, then publish binding and complete proof in the same authoritative row; concurrent catalog writers cannot lose a cursor or disputed transition.
+- [x] **Step 9: Replace the poll loop's whole scans.** Reconcile metadata, read only eligible new/suffix work, project only post-launch events, and persist catalog state after validation. Keep process corroboration and Pair-log exact-correlation semantics unchanged.
+- [x] **Step 10: Run green/race.** Run `gofmt -w cmd/internal/sessioninventory cmd/internal/sessionwatch` and `go test -race -p 20 ./cmd/internal/sessioninventory ./cmd/internal/sessionwatch -count=1`; expect PASS.
+- [x] **Step 11: Commit.** Run `git add cmd/internal/sessioninventory cmd/internal/sessionwatch && git commit -m 'session watch: #156 observe post-launch catalog deltas'`.
 
 ### Task 7: Target every latency-sensitive inventory consumer
 

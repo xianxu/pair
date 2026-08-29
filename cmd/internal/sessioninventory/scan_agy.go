@@ -135,6 +135,14 @@ func ValidateAgyDelta(runtime Runtime, databaseEntry, transcriptEntry FileEntry,
 		return state, diagnostics, nil
 	}
 	state.FirstRecordValidated = true
+	applyAgyTranscriptRecords(&state, transcript, records, &diagnostics)
+	if err := ValidateScannerState(state); err != nil {
+		return ScannerState{}, diagnostics, err
+	}
+	return state, diagnostics, nil
+}
+
+func applyAgyTranscriptRecords(state *ScannerState, transcript Artifact, records []FramedJSONLRecord, diagnostics *[]Diagnostic) {
 	for _, framed := range records {
 		if len(framed.Bytes) == 0 {
 			continue
@@ -142,13 +150,9 @@ func ValidateAgyDelta(runtime Runtime, databaseEntry, transcriptEntry FileEntry,
 		var record map[string]json.RawMessage
 		if decodeStrictJSON(framed.Bytes, &record) != nil || record == nil {
 			state.Disputed = true
-			diagnostics = append(diagnostics, artifactDiagnostic(DiagnosticSchemaNearMiss, AgentAgy, &nativeID, transcript, "malformed Agy transcript JSONL record"))
+			*diagnostics = append(*diagnostics, artifactDiagnostic(DiagnosticSchemaNearMiss, AgentAgy, &state.NativeID, transcript, "malformed Agy transcript JSONL record"))
 		}
 	}
-	if err := ValidateScannerState(state); err != nil {
-		return ScannerState{}, diagnostics, err
-	}
-	return state, diagnostics, nil
 }
 
 func validateAgyDatabaseEvidence(runtime Runtime, database Artifact, nativeID string) string {

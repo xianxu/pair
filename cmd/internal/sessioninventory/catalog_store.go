@@ -45,6 +45,8 @@ type CatalogStoreRuntime interface {
 // classification catalog.
 type CatalogStore struct{ Runtime CatalogStoreRuntime }
 
+var ErrCatalogCorrupt = errors.New("session inventory catalog is corrupt")
+
 func (s CatalogStore) Read(path string) (Catalog, error) {
 	if path == "" || s.Runtime == nil {
 		return Catalog{}, errors.New("catalog path or runtime is empty")
@@ -57,6 +59,16 @@ func (s CatalogStore) Read(path string) (Catalog, error) {
 }
 
 func (s CatalogStore) Update(path string, mutate func(Catalog) (Catalog, error)) (_ Catalog, err error) {
+	return s.update(path, false, mutate)
+}
+
+// Repair replaces a strictly malformed catalog from a targeted, independently
+// validated baseline. It does not mask ordinary read or publication failures.
+func (s CatalogStore) Repair(path string, mutate func(Catalog) (Catalog, error)) (_ Catalog, err error) {
+	return s.update(path, true, mutate)
+}
+
+func (s CatalogStore) update(path string, repairCorrupt bool, mutate func(Catalog) (Catalog, error)) (_ Catalog, err error) {
 	if path == "" || s.Runtime == nil || mutate == nil {
 		return Catalog{}, errors.New("catalog update input is empty")
 	}
@@ -76,6 +88,9 @@ func (s CatalogStore) Update(path string, mutate func(Catalog) (Catalog, error))
 	}()
 
 	current, err := s.readCurrent(path)
+	if repairCorrupt && errors.Is(err, ErrCatalogCorrupt) {
+		current, err = Catalog{Version: CatalogVersion}, nil
+	}
 	if err != nil {
 		return Catalog{}, err
 	}
@@ -143,17 +158,17 @@ func decodeCatalog(raw []byte) (Catalog, error) {
 	decoder.DisallowUnknownFields()
 	var catalog Catalog
 	if err := decoder.Decode(&catalog); err != nil {
-		return Catalog{}, fmt.Errorf("decode session inventory catalog: %w", err)
+		return Catalog{}, fmt.Errorf("%w: decode: %v", ErrCatalogCorrupt, err)
 	}
 	var trailing any
 	if err := decoder.Decode(&trailing); !errors.Is(err, io.EOF) {
 		if err == nil {
 			err = errors.New("multiple JSON values")
 		}
-		return Catalog{}, fmt.Errorf("decode session inventory catalog trailing data: %w", err)
+		return Catalog{}, fmt.Errorf("%w: trailing data: %v", ErrCatalogCorrupt, err)
 	}
 	if err := ValidateCatalog(catalog); err != nil {
-		return Catalog{}, fmt.Errorf("validate session inventory catalog: %w", err)
+		return Catalog{}, fmt.Errorf("%w: validate: %v", ErrCatalogCorrupt, err)
 	}
 	return catalog, nil
 }

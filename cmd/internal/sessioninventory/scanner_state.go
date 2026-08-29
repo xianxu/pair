@@ -67,3 +67,13 @@ func scannerStateFact(state ScannerState, artifacts []Artifact) Fact {
 		EdgeProvenance: edgeProvenance(state.Role, state.ScannerSchema, artifacts[len(artifacts)-1]),
 	}
 }
+
+func ScannerStateFact(state ScannerState, artifacts []Artifact) (Fact, error) {
+	if err := ValidateScannerState(state); err != nil || len(artifacts) == 0 {
+		if err != nil {
+			return Fact{}, err
+		}
+		return Fact{}, errors.New("scanner state has no artifact")
+	}
+	return scannerStateFact(state, artifacts), nil
+}

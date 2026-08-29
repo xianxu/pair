@@ -1,10 +1,15 @@
 package sessionwatch
 
 import (
+	"encoding/json"
 	"errors"
+	"fmt"
+	"os"
+	"path/filepath"
 	"testing"
 
 	"github.com/xianxu/pair/cmd/internal/sessioninventory"
+	"github.com/xianxu/pair/cmd/internal/sessioninventorytest"
 	"github.com/xianxu/pair/cmd/internal/sessionledger"
 )
 
@@ -68,6 +73,62 @@ func TestPrepareLaunchAuthority(t *testing.T) {
 			t.Fatalf("prepared=%#v outcome=%v err=%v", prepared, sessionledger.AppendOutcomeOf(err), err)
 		}
 	})
+}
+
+func TestPrepareOSLaunchIncrementalCapturesMetadataWithoutBodyReads(t *testing.T) {
+	t.Parallel()
+	runtime := sessioninventorytest.NewFakeRuntime()
+	root := sessioninventory.StorageRoot{Agent: sessioninventory.AgentClaude, Name: "claude-projects"}
+	runtime.AddRoot(root)
+	for i := 0; i < 1573; i++ {
+		id := fmt.Sprintf("%08x-1111-4111-8111-%012x", i+1, i+1)
+		runtime.PutFile(sessioninventory.FileEntry{
+			Artifact:     sessioninventory.Artifact{StorageRoot: root.Name, RelativePath: "-repo/" + id + ".jsonl"},
+			StableFileID: sessioninventory.StableFileID(id), GenerationToken: "gen:1", MutationToken: "ctime:1",
+		}, []byte(`{"sessionId":"`+id+`"}`+"\n"))
+	}
+	store := &fakeLifecycleStore{}
+	owner := sessionledger.Owner{ScopeKey: "scope", Tag: "work", Agent: "claude"}
+	prepared, err := PrepareRuntimeLaunch(t.TempDir(), owner, "", 0, runtime, store)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if prepared.Launch.Version != 2 || len(prepared.Launch.LaunchArtifactBoundaries) != 1573 {
+		t.Fatalf("launch=%#v", prepared.Launch)
+	}
+	if got := runtime.OperationCount(sessioninventorytest.OperationReadAt, ""); got != 0 {
+		t.Fatalf("body range reads=%d, want 0", got)
+	}
+	if got := runtime.OperationCount(sessioninventorytest.OperationReadFile, ""); got != 0 {
+		t.Fatalf("body file reads=%d, want 0", got)
+	}
+}
+
+func TestPrepareLaunchV2PublishesExplicitProof(t *testing.T) {
+	t.Parallel()
+	store := &fakeLifecycleStore{}
+	owner := sessionledger.Owner{ScopeKey: "scope", Tag: "work", Agent: "claude"}
+	proof := sessionledger.AuthorizationProof{Version: 1, RootNativeID: "native-a", ScannerSchema: "claude-v1", ScannerState: json.RawMessage(`{"version":1}`), Artifacts: []sessionledger.ArtifactProof{{StorageRoot: "claude-projects", RelativePath: "a.jsonl", StableFileID: "stable", MutationToken: "mutation"}}}
+	prepared, err := PrepareLaunch(PrepareLaunchInput{Owner: owner, ArtifactBoundaries: []sessionledger.LaunchArtifactBoundary{}, ResumeNativeID: "native-a", ResumeProof: &proof}, store)
+	if err != nil || prepared.Launch.Version != 2 || prepared.Binding == nil || prepared.Binding.Version != 2 || prepared.Binding.AuthorizationProof == nil {
+		t.Fatalf("prepared=%#v err=%v", prepared, err)
+	}
+}
+
+func TestCorruptCatalogColdLaunchStaysMetadataOnly(t *testing.T) {
+	t.Parallel()
+	dataDir := t.TempDir()
+	if err := os.WriteFile(filepath.Join(dataDir, "session-inventory-catalog.json"), []byte("corrupt"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	runtime := sessioninventorytest.NewFakeRuntime()
+	root := sessioninventory.StorageRoot{Agent: sessioninventory.AgentClaude, Name: "claude-projects"}
+	runtime.AddRoot(root)
+	runtime.PutFile(sessioninventory.FileEntry{Artifact: sessioninventory.Artifact{StorageRoot: root.Name, RelativePath: "-repo/11111111-1111-4111-8111-111111111111.jsonl"}, StableFileID: "stable", GenerationToken: "gen:1", MutationToken: "ctime:1"}, []byte("private transcript\n"))
+	prepared, err := PrepareRuntimeLaunch(dataDir, sessionledger.Owner{ScopeKey: "scope", Tag: "work", Agent: "claude"}, "", 0, runtime, &fakeLifecycleStore{})
+	if err != nil || prepared.Launch.Version != 2 || runtime.OperationCount(sessioninventorytest.OperationReadAt, "") != 0 || runtime.OperationCount(sessioninventorytest.OperationReadFile, "") != 0 {
+		t.Fatalf("prepared=%#v reads=%d/%d err=%v", prepared, runtime.OperationCount(sessioninventorytest.OperationReadAt, ""), runtime.OperationCount(sessioninventorytest.OperationReadFile, ""), err)
+	}
 }
 
 func TestObserveAndPersist(t *testing.T) {
@@ -189,6 +250,15 @@ func (f *fakeLifecycleStore) AppendBindingIfCurrent(_ string, owner sessionledge
 		return sessionledger.Record{}, sessionledger.ErrStaleLaunch
 	}
 	record := sessionledger.Record{Version: 1, Kind: sessionledger.RecordBinding, ScopeKey: owner.ScopeKey, Tag: owner.Tag, Agent: owner.Agent, LaunchOrdinal: launchOrdinal, RootNativeID: rootNativeID, Ordinal: uint64(len(f.records) + 1)}
+	f.records = append(f.records, record)
+	return record, f.bindingErr
+}
+
+func (f *fakeLifecycleStore) AppendBindingProofIfCurrent(_ string, owner sessionledger.Owner, launchOrdinal uint64, proof sessionledger.AuthorizationProof) (sessionledger.Record, error) {
+	if f.stale {
+		return sessionledger.Record{}, sessionledger.ErrStaleLaunch
+	}
+	record := sessionledger.Record{Version: 2, Kind: sessionledger.RecordBinding, ScopeKey: owner.ScopeKey, Tag: owner.Tag, Agent: owner.Agent, LaunchOrdinal: launchOrdinal, RootNativeID: proof.RootNativeID, AuthorizationProof: &proof, Ordinal: uint64(len(f.records) + 1)}
 	f.records = append(f.records, record)
 	return record, f.bindingErr
 }

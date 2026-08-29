@@ -51,6 +51,101 @@ func TestRunEstablishesOnlyAfterCompletedCorroboratedRound(t *testing.T) {
 	}
 }
 
+func TestWatcherIncrementalV2PublishesProofFromOnlyPostBoundaryArtifact(t *testing.T) {
+	t.Parallel()
+	dataDir := t.TempDir()
+	native := sessioninventorytest.NewFakeRuntime()
+	nativeRoot := sessioninventory.StorageRoot{Agent: sessioninventory.AgentCodex, Name: "codex-sessions", Path: "/home/.codex/sessions"}
+	native.AddRoot(nativeRoot)
+	sid := "019eff64-6ceb-7e72-9d41-a735a97029ac"
+	relative := "2026/08/28/rollout-test-" + sid + ".jsonl"
+	artifact := sessioninventory.Artifact{StorageRoot: nativeRoot.Name, RelativePath: relative, Kind: sessioninventory.ArtifactTranscript}
+	text := "please inspect the durable watcher boundary now"
+	native.PutFile(sessioninventory.FileEntry{Artifact: artifact, StableFileID: "dev:1/ino:1", GenerationToken: "gen:1", MutationToken: "ctime:1"}, codexRound(sid, text))
+
+	paths := mustScopedPaths(t, dataDir, "work")
+	if err := os.WriteFile(paths.Catalog(), []byte("corrupt"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	runtime := newWatcherRuntime(native)
+	runtime.files[paths.Ledger()] = mustLaunchRecord(t, sessionledger.Record{Version: 2, Kind: sessionledger.RecordLaunch, ScopeKey: "scope", Tag: "work", Agent: "codex", LaunchArtifactBoundaries: []sessionledger.LaunchArtifactBoundary{}})
+	runtime.files[paths.Log()] = []byte("## 2026-08-28 01:00:01\n\n" + text + "\n\n---\n\n")
+	runtime.files[paths.AgentPID()] = []byte("1234\n")
+	runtime.modTimes[paths.AgentPID()] = runtime.now
+	if err := Run(Options{Agent: "codex", Tag: "work", ScopeKey: "scope", LaunchOrdinal: 1, Home: "/home", DataDir: dataDir, PIDWait: time.Second, Timeout: time.Second, Poll: time.Millisecond}, runtime); err != nil {
+		t.Fatal(err)
+	}
+	if len(runtime.store.records) != 1 || runtime.store.records[0].Version != 2 || runtime.store.records[0].AuthorizationProof == nil || runtime.store.records[0].RootNativeID != sid {
+		t.Fatalf("records=%#v", runtime.store.records)
+	}
+	catalog, err := (sessioninventory.CatalogStore{Runtime: sessioninventory.CatalogOSRuntime{}}).Read(paths.Catalog())
+	if err != nil || len(catalog.Entries) != 1 || catalog.Entries[0].ParserCompleteOffset != int64(len(codexRound(sid, text))) {
+		t.Fatalf("catalog=%#v err=%v", catalog, err)
+	}
+	if got := native.OperationCount(sessioninventorytest.OperationReadFile, ""); got != 0 {
+		t.Fatalf("whole-file reads=%d", got)
+	}
+}
+
+func TestWatcherLaunchBoundaryNeverReadsPreexistingArtifact(t *testing.T) {
+	t.Parallel()
+	dataDir := t.TempDir()
+	native := sessioninventorytest.NewFakeRuntime()
+	root := sessioninventory.StorageRoot{Agent: sessioninventory.AgentCodex, Name: "codex-sessions"}
+	native.AddRoot(root)
+	sid := "019eff64-6ceb-7e72-9d41-a735a97029ac"
+	relative := "2026/08/28/rollout-test-" + sid + ".jsonl"
+	artifact := sessioninventory.Artifact{StorageRoot: root.Name, RelativePath: relative, Kind: sessioninventory.ArtifactTranscript}
+	native.PutFile(sessioninventory.FileEntry{Artifact: artifact, StableFileID: "stable", GenerationToken: "gen:1", MutationToken: "ctime:1"}, codexRound(sid, "old transcript text that must remain unread"))
+	paths := mustScopedPaths(t, dataDir, "work")
+	runtime := newWatcherRuntime(native)
+	runtime.files[paths.Ledger()] = mustLaunchRecord(t, sessionledger.Record{Version: 2, Kind: sessionledger.RecordLaunch, ScopeKey: "scope", Tag: "work", Agent: "codex", LaunchArtifactBoundaries: []sessionledger.LaunchArtifactBoundary{{StorageRoot: root.Name, RelativePath: relative, StableFileID: "stable", GenerationToken: "gen:1", MutationToken: "ctime:1", RawSize: int64(len(codexRound(sid, "old transcript text that must remain unread")))}}})
+	runtime.onSleep = func() { runtime.identities["1234"] = "changed" }
+	runtime.files[paths.AgentPID()] = []byte("1234\n")
+	runtime.modTimes[paths.AgentPID()] = runtime.now
+	runtime.identities["1234"] = "pair-identity"
+	if err := Run(Options{Agent: "codex", Tag: "work", ScopeKey: "scope", LaunchOrdinal: 1, Home: "/home", DataDir: dataDir, PIDWait: time.Second, Timeout: time.Second, Poll: time.Millisecond}, runtime); err != nil {
+		t.Fatal(err)
+	}
+	if got := native.OperationCount(sessioninventorytest.OperationReadAt, ""); got != 0 || len(runtime.store.records) != 0 {
+		t.Fatalf("range reads=%d records=%#v", got, runtime.store.records)
+	}
+}
+
+func TestWatcherIncrementalReadsOnlyAppendedProgressOnSecondPoll(t *testing.T) {
+	t.Parallel()
+	dataDir := t.TempDir()
+	native := sessioninventorytest.NewFakeRuntime()
+	root := sessioninventory.StorageRoot{Agent: sessioninventory.AgentCodex, Name: "codex-sessions"}
+	native.AddRoot(root)
+	sid := "019eff64-6ceb-7e72-9d41-a735a97029ac"
+	relative := "2026/08/28/rollout-test-" + sid + ".jsonl"
+	artifact := sessioninventory.Artifact{StorageRoot: root.Name, RelativePath: relative, Kind: sessioninventory.ArtifactTranscript}
+	text := "please inspect the durable watcher boundary now"
+	prefix := []byte(`{"timestamp":"2026-08-28T01:00:00Z","type":"session_meta","payload":{"id":"` + sid + `","parent_thread_id":null,"source":"cli"}}` + "\n" +
+		`{"type":"response_item","payload":{"type":"message","role":"user","content":[{"type":"input_text","text":"` + text + `"}]}}` + "\n")
+	native.PutFile(sessioninventory.FileEntry{Artifact: artifact, StableFileID: "stable", GenerationToken: "gen:1", MutationToken: "ctime:1"}, prefix)
+	paths := mustScopedPaths(t, dataDir, "work")
+	runtime := newWatcherRuntime(native)
+	runtime.files[paths.Ledger()] = mustLaunchRecord(t, sessionledger.Record{Version: 2, Kind: sessionledger.RecordLaunch, ScopeKey: "scope", Tag: "work", Agent: "codex", LaunchArtifactBoundaries: []sessionledger.LaunchArtifactBoundary{}})
+	runtime.files[paths.Log()] = []byte("## 2026-08-28 01:00:01\n\n" + text + "\n\n---\n\n")
+	runtime.files[paths.AgentPID()] = []byte("1234\n")
+	runtime.modTimes[paths.AgentPID()] = runtime.now
+	runtime.onSleep = func() {
+		native.AppendFile(artifact, []byte(`{"type":"response_item","payload":{"type":"function_call"}}`+"\n"), "ctime:2")
+		runtime.onSleep = nil
+	}
+	if err := Run(Options{Agent: "codex", Tag: "work", ScopeKey: "scope", LaunchOrdinal: 1, Home: "/home", DataDir: dataDir, PIDWait: time.Second, Timeout: time.Second, Poll: time.Millisecond}, runtime); err != nil {
+		t.Fatal(err)
+	}
+	if len(runtime.store.records) != 1 || runtime.store.records[0].AuthorizationProof == nil {
+		t.Fatalf("records=%#v", runtime.store.records)
+	}
+	if got := native.OperationCount(sessioninventorytest.OperationReadAt, artifact.StorageRoot+":"+artifact.RelativePath); got != 2 {
+		t.Fatalf("range reads=%d, want one initial and one suffix read", got)
+	}
+}
+
 func TestRunIgnoresUnrelatedOpenFilesWhenRoundIsUnique(t *testing.T) {
 	t.Parallel()
 	dataDir := t.TempDir()
@@ -213,6 +308,9 @@ func (r *watcherRuntime) AtomicWrite(path string, raw []byte) error {
 func (r *watcherRuntime) Log(outcome adapt.Outcome, _ string)                { r.logs = append(r.logs, outcome) }
 func (r *watcherRuntime) NativeRuntime(_, _ string) sessioninventory.Runtime { return r.native }
 func (r *watcherRuntime) LedgerAppender() LedgerAppender                     { return r.store }
+func (r *watcherRuntime) CatalogStore() sessioninventory.CatalogStore {
+	return sessioninventory.CatalogStore{Runtime: sessioninventory.CatalogOSRuntime{}}
+}
 func (r *watcherRuntime) hasLog(want adapt.Outcome) bool {
 	for _, outcome := range r.logs {
 		if outcome == want {
@@ -246,6 +344,9 @@ func mustScopedPaths(t *testing.T, dataDir, tag string) scopedTestPaths {
 func (p scopedTestPaths) Ledger() string   { return filepath.Join(p.dataDir, "ledger-"+p.tag+".jsonl") }
 func (p scopedTestPaths) Log() string      { return filepath.Join(p.dataDir, "log-"+p.tag+".md") }
 func (p scopedTestPaths) AgentPID() string { return filepath.Join(p.dataDir, "agent-pid-"+p.tag) }
+func (p scopedTestPaths) Catalog() string {
+	return filepath.Join(p.dataDir, "session-inventory-catalog.json")
+}
 func (p scopedTestPaths) Config(agent string) string {
 	return filepath.Join(p.dataDir, "config-"+p.tag+"-"+agent+".json")
 }

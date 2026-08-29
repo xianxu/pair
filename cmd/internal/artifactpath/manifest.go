@@ -374,7 +374,7 @@ var SourceClassifications = []SourceClassification{
 		goCallVocabulary("scrollback", "scrollback-render: %v\n", "fmt.Fprintf", 1, 1),
 	}},
 	{Path: "cmd/internal/sessionwatch/run.go", Kind: ResolvedConsumer,
-		Families: []string{"agent-pid", "config", "ledger", "log"}, BindingNames: []string{"scoped-agent-pid", "scoped-config", "scoped-ledger", "scoped-log"},
+		Families: []string{"agent-pid", "config", "ledger", "log", "session-inventory-catalog"}, BindingNames: []string{"scoped-agent-pid", "scoped-config", "scoped-ledger", "scoped-log", "scoped-session-inventory-catalog"},
 		Vocabulary: []VocabularyAllowance{
 			goCallVocabulary("native-session", "session_id=", "method.Log", 1, 1),
 		}},
@@ -630,6 +630,7 @@ var NonArtifactSources = []string{
 	"cmd/internal/sessioninventory/scan_helpers.go",
 	"cmd/internal/sessioninventory/scan_muse.go",
 	"cmd/internal/sessioninventory/scanner_state.go",
+	"cmd/internal/sessioninventory/target.go",
 	"cmd/internal/sessioninventory/usage.go",
 	"cmd/internal/sessioninventorytest/fake_runtime.go",
 	"cmd/internal/sessionledger/store.go",

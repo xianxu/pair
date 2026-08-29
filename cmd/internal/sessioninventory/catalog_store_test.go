@@ -71,6 +71,25 @@ func TestCatalogStoreRecomputesConcurrentUpdatesFromLockedGeneration(t *testing.
 	}
 }
 
+func TestCatalogStoreRepairReplacesOnlyStrictlyCorruptAuthority(t *testing.T) {
+	t.Parallel()
+	path := filepath.Join(t.TempDir(), "session-inventory-catalog.json")
+	if err := os.WriteFile(path, []byte("corrupt"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	store := CatalogStore{Runtime: CatalogOSRuntime{}}
+	if _, err := store.Update(path, func(current Catalog) (Catalog, error) { return current, nil }); !errors.Is(err, ErrCatalogCorrupt) {
+		t.Fatalf("Update error=%v", err)
+	}
+	written, err := store.Repair(path, func(current Catalog) (Catalog, error) {
+		current.Entries = []CatalogEntry{storeTestEntry("a.jsonl")}
+		return current, nil
+	})
+	if err != nil || written.Generation != 1 || len(written.Entries) != 1 {
+		t.Fatalf("written=%#v err=%v", written, err)
+	}
+}
+
 func TestCatalogStorePublicationOutcomesMatchRecoveryAuthority(t *testing.T) {
 	t.Parallel()
 
