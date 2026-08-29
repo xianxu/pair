@@ -52,6 +52,22 @@ func TestPrepareLaunchAuthority(t *testing.T) {
 			t.Fatalf("records=%#v", store.records)
 		}
 	})
+
+	t.Run("indeterminate launch reconciles without another generation", func(t *testing.T) {
+		store := &fakeLifecycleStore{appendErr: &sessionledger.AppendOutcomeError{Outcome: sessionledger.AppendIndeterminate, Err: errors.New("sync uncertain")}}
+		prepared, err := PrepareLaunch(PrepareLaunchInput{Owner: owner, Inventory: inventory}, store)
+		if err != nil || prepared.Launch.Ordinal != 1 || store.reconciles != 1 || len(store.records) != 1 {
+			t.Fatalf("prepared=%#v records=%#v reconciles=%d err=%v", prepared, store.records, store.reconciles, err)
+		}
+	})
+
+	t.Run("committed explicit binding advances state and preserves cleanup warning", func(t *testing.T) {
+		store := &fakeLifecycleStore{bindingErr: &sessionledger.AppendOutcomeError{Outcome: sessionledger.AppendCommitted, Err: errors.New("unlock failed")}}
+		prepared, err := PrepareLaunch(PrepareLaunchInput{Owner: owner, Inventory: inventory, ResumeNativeID: "native-b"}, store)
+		if sessionledger.AppendOutcomeOf(err) != sessionledger.AppendCommitted || prepared.Binding == nil || prepared.Binding.RootNativeID != "native-b" {
+			t.Fatalf("prepared=%#v outcome=%v err=%v", prepared, sessionledger.AppendOutcomeOf(err), err)
+		}
+	})
 }
 
 func TestObserveAndPersist(t *testing.T) {
@@ -114,6 +130,22 @@ func TestObserveAndPersist(t *testing.T) {
 			t.Fatalf("diagnostics=%#v", result.Diagnostics)
 		}
 	})
+
+	t.Run("indeterminate binding reconciles then establishes", func(t *testing.T) {
+		store := &fakeLifecycleStore{bindingErr: &sessionledger.AppendOutcomeError{Outcome: sessionledger.AppendIndeterminate, Err: errors.New("sync uncertain")}}
+		result, err := ObserveAndPersist(ObserveInput{Owner: owner, LaunchOrdinal: 7, Inventory: inventory, LiveRounds: []sessioninventory.RoundObservation{observation}}, store, nil)
+		if err != nil || store.reconciles != 1 || result.Bindings[0].Status != sessioninventory.BindingEstablished {
+			t.Fatalf("result=%#v reconciles=%d err=%v", result, store.reconciles, err)
+		}
+	})
+
+	t.Run("committed binding establishes while preserving cleanup warning", func(t *testing.T) {
+		store := &fakeLifecycleStore{bindingErr: &sessionledger.AppendOutcomeError{Outcome: sessionledger.AppendCommitted, Err: errors.New("unlock failed")}}
+		result, err := ObserveAndPersist(ObserveInput{Owner: owner, LaunchOrdinal: 7, Inventory: inventory, LiveRounds: []sessioninventory.RoundObservation{observation}}, store, nil)
+		if sessionledger.AppendOutcomeOf(err) != sessionledger.AppendCommitted || result.Bindings[0].Status != sessioninventory.BindingEstablished {
+			t.Fatalf("result=%#v outcome=%v err=%v", result, sessionledger.AppendOutcomeOf(err), err)
+		}
+	})
 }
 
 func TestFatalLaunchBaselineDiagnostic(t *testing.T) {
@@ -138,14 +170,18 @@ func TestFatalLaunchBaselineDiagnostic(t *testing.T) {
 }
 
 type fakeLifecycleStore struct {
-	records []sessionledger.Record
-	stale   bool
+	records      []sessionledger.Record
+	stale        bool
+	appendErr    error
+	bindingErr   error
+	reconcileErr error
+	reconciles   int
 }
 
 func (f *fakeLifecycleStore) Append(_ string, record sessionledger.Record) (sessionledger.Record, error) {
 	record.Ordinal = uint64(len(f.records) + 1)
 	f.records = append(f.records, record)
-	return record, nil
+	return record, f.appendErr
 }
 
 func (f *fakeLifecycleStore) AppendBindingIfCurrent(_ string, owner sessionledger.Owner, launchOrdinal uint64, rootNativeID string) (sessionledger.Record, error) {
@@ -154,7 +190,20 @@ func (f *fakeLifecycleStore) AppendBindingIfCurrent(_ string, owner sessionledge
 	}
 	record := sessionledger.Record{Version: 1, Kind: sessionledger.RecordBinding, ScopeKey: owner.ScopeKey, Tag: owner.Tag, Agent: owner.Agent, LaunchOrdinal: launchOrdinal, RootNativeID: rootNativeID, Ordinal: uint64(len(f.records) + 1)}
 	f.records = append(f.records, record)
-	return record, nil
+	return record, f.bindingErr
+}
+
+func (f *fakeLifecycleStore) Reconcile(_ string, record sessionledger.Record) error {
+	f.reconciles++
+	if f.reconcileErr != nil {
+		return f.reconcileErr
+	}
+	for _, candidate := range f.records {
+		if candidate.Ordinal == record.Ordinal {
+			return nil
+		}
+	}
+	return errors.New("record missing")
 }
 
 func equalWatermarks(left, right []sessionledger.NativeWatermark) bool {

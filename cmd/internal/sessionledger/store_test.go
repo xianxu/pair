@@ -98,7 +98,7 @@ func TestLedgerStoreAppendOutcomeMatchesRecoveredAuthority(t *testing.T) {
 					launchOrdinal = launch.Ordinal
 				}
 
-				runtime := &failurePointRuntime{Runtime: OSRuntime{}, stage: failure.stage, writeLimit: failure.writeLimit}
+				runtime := &failurePointRuntime{Runtime: OSRuntime{}, stage: failure.stage, writeLimit: failure.writeLimit, remaining: -1}
 				store := LedgerStore{Runtime: runtime}
 				var appended Record
 				var err error
@@ -155,7 +155,7 @@ func TestLedgerStoreEveryIncompleteWriteRemainsNonAuthoritative(t *testing.T) {
 					}
 					launchOrdinal = launch.Ordinal
 				}
-				runtime := &failurePointRuntime{Runtime: OSRuntime{}, stage: "write", writeLimit: limit}
+				runtime := &failurePointRuntime{Runtime: OSRuntime{}, stage: "write", writeLimit: limit, remaining: -1}
 				store := LedgerStore{Runtime: runtime}
 				if kind == RecordLaunch {
 					_, err = store.Append(path, record)
@@ -174,6 +174,38 @@ func TestLedgerStoreEveryIncompleteWriteRemainsNonAuthoritative(t *testing.T) {
 				}
 			}
 		})
+	}
+}
+
+func TestLedgerStoreReconcilesIndeterminateRowsWithoutAppendingAgain(t *testing.T) {
+	t.Parallel()
+	path := filepath.Join(t.TempDir(), "ledger.jsonl")
+	runtime := &failurePointRuntime{Runtime: OSRuntime{}, stage: "sync", remaining: 1}
+	store := LedgerStore{Runtime: runtime}
+	launch, err := store.Append(path, launchRecord("scope", "work", 2))
+	if AppendOutcomeOf(err) != AppendIndeterminate || launch.Ordinal != 1 {
+		t.Fatalf("append=%#v outcome=%v err=%v", launch, AppendOutcomeOf(err), err)
+	}
+	if err := store.Reconcile(path, launch); err != nil {
+		t.Fatalf("reconcile: %v", err)
+	}
+	parsed := ParseLedger(mustReadFile(t, path))
+	if len(parsed.Records) != 1 || parsed.Records[0].Ordinal != launch.Ordinal {
+		t.Fatalf("parsed=%#v", parsed)
+	}
+
+	legacy := []byte(`{"agent":"codex","args":[],"session_id":"legacy","started":"2026-08-28T00:00:00Z","last_active":"2026-08-28T00:00:00Z","repo_root":"/repo","repo_name":"pair"}`)
+	runtime.stage, runtime.remaining = "directory-sync", 1
+	ordinal, err := store.AppendLegacy(path, legacy)
+	if AppendOutcomeOf(err) != AppendIndeterminate || ordinal != 2 {
+		t.Fatalf("legacy ordinal=%d outcome=%v err=%v", ordinal, AppendOutcomeOf(err), err)
+	}
+	if err := store.ReconcileLegacy(path, ordinal, legacy); err != nil {
+		t.Fatalf("reconcile legacy: %v", err)
+	}
+	parsed = ParseLedger(mustReadFile(t, path))
+	if len(parsed.CompatibilityOrdinals) != 1 || parsed.CompatibilityOrdinals[0] != ordinal {
+		t.Fatalf("parsed=%#v", parsed)
 	}
 }
 
@@ -245,6 +277,17 @@ type failurePointRuntime struct {
 	Runtime
 	stage      string
 	writeLimit int
+	remaining  int
+}
+
+func (r *failurePointRuntime) fail(stage string) bool {
+	if r.stage != stage || r.remaining == 0 {
+		return false
+	}
+	if r.remaining > 0 {
+		r.remaining--
+	}
+	return true
 }
 
 func (r *failurePointRuntime) Lock(path string) (Unlocker, error) {
@@ -252,7 +295,7 @@ func (r *failurePointRuntime) Lock(path string) (Unlocker, error) {
 	if err != nil {
 		return nil, err
 	}
-	return &failurePointUnlocker{Unlocker: lock, fail: r.stage == "unlock"}, nil
+	return &failurePointUnlocker{Unlocker: lock, runtime: r}, nil
 }
 
 func (r *failurePointRuntime) OpenAppend(path string, mode os.FileMode) (AppendFile, error) {
@@ -264,7 +307,7 @@ func (r *failurePointRuntime) OpenAppend(path string, mode os.FileMode) (AppendF
 }
 
 func (r *failurePointRuntime) SyncDirectory(path string) error {
-	if r.stage == "directory-sync" {
+	if r.fail("directory-sync") {
 		return errors.New("injected directory sync failure")
 	}
 	return r.Runtime.SyncDirectory(path)
@@ -272,12 +315,12 @@ func (r *failurePointRuntime) SyncDirectory(path string) error {
 
 type failurePointUnlocker struct {
 	Unlocker
-	fail bool
+	runtime *failurePointRuntime
 }
 
 func (u *failurePointUnlocker) Close() error {
 	err := u.Unlocker.Close()
-	if u.fail {
+	if u.runtime.fail("unlock") {
 		return errors.Join(err, errors.New("injected unlock failure"))
 	}
 	return err
@@ -290,7 +333,7 @@ type failurePointFile struct {
 }
 
 func (f *failurePointFile) Write(raw []byte) (int, error) {
-	if f.runtime.stage != "write" || f.wrote {
+	if f.runtime.stage != "write" || f.wrote || !f.runtime.fail("write") {
 		return f.AppendFile.Write(raw)
 	}
 	f.wrote = true
@@ -303,7 +346,7 @@ func (f *failurePointFile) Write(raw []byte) (int, error) {
 }
 
 func (f *failurePointFile) Sync() error {
-	if f.runtime.stage == "sync" {
+	if f.runtime.fail("sync") {
 		return errors.New("injected sync failure")
 	}
 	return f.AppendFile.Sync()
@@ -311,7 +354,7 @@ func (f *failurePointFile) Sync() error {
 
 func (f *failurePointFile) Close() error {
 	err := f.AppendFile.Close()
-	if f.runtime.stage == "close" {
+	if f.runtime.fail("close") {
 		return errors.Join(err, errors.New("injected close failure"))
 	}
 	return err

@@ -13,6 +13,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/xianxu/pair/cmd/internal/commitoutcome"
 	"github.com/xianxu/pair/cmd/internal/sessioninventory"
 
 	"github.com/xianxu/pair/cmd/internal/readiness"
@@ -250,16 +251,19 @@ func (f *fakeRuntime) ReadLedger(tag string) ([]LedgerEntry, error) {
 	return append([]LedgerEntry(nil), f.ledger[tag]...), nil
 }
 func (f *fakeRuntime) AppendLedger(tag string, entry LedgerEntry) error {
-	if f.appendLedgerErr != nil {
+	if f.appendLedgerErr != nil && commitoutcome.Of(f.appendLedgerErr) != commitoutcome.Committed {
 		return f.appendLedgerErr
 	}
 	f.ledger[tag] = append(f.ledger[tag], entry)
-	return nil
+	return f.appendLedgerErr
 }
 func (f *fakeRuntime) PrepareSessionLaunch(scopeKey, tag, agent, resumeNativeID string) (uint64, error) {
 	f.preparedLaunches = append(f.preparedLaunches, strings.Join([]string{scopeKey, tag, agent, resumeNativeID}, "|"))
 	if f.prepareLaunchErr != nil {
-		return 0, f.prepareLaunchErr
+		if commitoutcome.Of(f.prepareLaunchErr) != commitoutcome.Committed {
+			return 0, f.prepareLaunchErr
+		}
+		return uint64(len(f.preparedLaunches)), f.prepareLaunchErr
 	}
 	return uint64(len(f.preparedLaunches)), nil
 }
@@ -896,6 +900,25 @@ func TestRunLaunchLedgerAppendFailureAbortsBeforeHandoff(t *testing.T) {
 	}
 	if len(rt.watchers) != 0 || len(rt.pollers) != 0 || len(rt.titles) != 0 || len(rt.cmux) != 0 || rt.devRebuilt {
 		t.Fatalf("ledger append failure started side effects: watchers=%v pollers=%v titles=%v cmux=%v dev=%v", rt.watchers, rt.pollers, rt.titles, rt.cmux, rt.devRebuilt)
+	}
+}
+
+func TestRunLaunchContinuesAfterCommittedCleanupWarnings(t *testing.T) {
+	for _, stage := range []string{"compatibility-ledger", "native-launch"} {
+		t.Run(stage, func(t *testing.T) {
+			rt := newFakeRuntime()
+			rt.uuids = []string{"SID"}
+			warning := &commitoutcome.Error{Outcome: commitoutcome.Committed, Err: errors.New("unlock failed")}
+			if stage == "compatibility-ledger" {
+				rt.appendLedgerErr = warning
+			} else {
+				rt.prepareLaunchErr = warning
+			}
+			code, err := run(t, baseOpts(LaunchArgs{Agent: "claude", ForcedTag: "bugfix"}), rt)
+			if err != nil || code != 0 || rt.launchCount != 1 || len(rt.watchers) != 1 {
+				t.Fatalf("code=%d err=%v launchCount=%d watchers=%v", code, err, rt.launchCount, rt.watchers)
+			}
+		})
 	}
 }
 

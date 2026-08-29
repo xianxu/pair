@@ -1,5 +1,16 @@
 # Lessons
 
+## Historical source contracts must pin bytes as well as paths
+
+A historical declaration guard derived its filenames from an immutable commit
+range but parsed each file from the current worktree. Later declarations in an
+old filename therefore changed the supposedly frozen digest and made every
+unmarked current export look like a missing historical concept.
+
+**Rule.** A historical source oracle must read both its path set and file bytes
+from the same pinned Git objects. Never combine pinned names with mutable
+worktree contents. Caught during #000155 close verification.
+
 ## Append-only authority needs an explicit commit outcome
 
 A ledger writer returned ordinary errors from sync, close, directory sync, and
@@ -11,8 +22,11 @@ an unterminated but otherwise complete JSON object widened the same mismatch.
 commit framing and model non-authoritative, indeterminate, and committed results
 explicitly. Fault-test every byte boundary plus write, file sync, close,
 directory sync, and unlock, then recover through the production parser and
-assert that its authority agrees with the reported outcome. Caught in #000155
-close review.
+assert that its authority agrees with the reported outcome. A store-level label
+is not enough: enumerate every production consumer and every other writer that
+publishes equivalent authority. Post-publication retry needs a stable operation
+identity so it can finish durability without duplicating evidence. Caught in
+#000155 close review.
 
 ## Verification must not inherit ignored generated state
 

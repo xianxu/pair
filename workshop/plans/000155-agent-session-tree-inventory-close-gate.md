@@ -408,6 +408,22 @@ rounds:
           family: ledger-append-result-matches-authority
           round: 15
       blocked: true
+    - "n": 16
+      timestamp: "2026-08-28T21:33:43-07:00"
+      agent: codex
+      dispose:
+        - id: BR-24
+          disposition: not-addressed
+          note: 'The store labels post-write authority, but AppendOutcomeOf has zero production call sites: PrepareLaunch, ObserveAndPersist, and AppendLegacy collapse indeterminate and committed results into ordinary failure, discard returned records or ordinals, and lack lifecycle tests proving committed advancement or indeterminate reconciliation.'
+          round: 16
+      findings:
+        - id: BR-25
+          severity: Critical
+          title: Published Pair-log entries are reported as failed and duplicated on retry
+          detail: This is the 2nd finding in this family. SessionLogStore renames the authoritative replacement before directory sync and unlock, but either later failure is returned as an ordinary append failure. Submission is suppressed while the entry remains readable; retry appends it again, making exact turn evidence non-unique. Define the outcome rule for every authoritative append or replacement, make post-publication retries idempotent, and add stateful production-flow tests for directory-sync and unlock failure.
+          family: ledger-append-result-matches-authority
+          round: 16
+      blocked: true
 ---
 
 # Gate ledger — pair#155 (boundary-review)
@@ -596,6 +612,18 @@ later rounds disposed of them. Generated — edit the gate, not this file.
 - **BR-24** [Critical] `ledger-append-result-matches-authority` Failed binding appends can still become authoritative
   cmd/internal/sessionledger/store.go:126-139 returns errors after a complete parseable row may already be visible, while cmd/internal/sessioninventory/pair_inventory.go:74-78 later accepts that row as recovery authority. Enumerate every post-write failure point and make the returned outcome agree with recovered authority; add stateful launch and binding tests covering short writes, file sync, close, directory sync, and unlock failures (ARCH-PURPOSE, ARCH-MOCK).
 
+## Round 16 — 2026-08-28T21:33:43-07:00 (codex) — BLOCKED
+
+### Disposed
+
+- BR-24 — not-addressed — The store labels post-write authority, but AppendOutcomeOf has zero production call sites: PrepareLaunch, ObserveAndPersist, and AppendLegacy collapse indeterminate and committed results into ordinary failure, discard returned records or ordinals, and lack lifecycle tests proving committed advancement or indeterminate reconciliation.
+
+### Raised
+
+- **BR-25** [Critical] `ledger-append-result-matches-authority` Published Pair-log entries are reported as failed and duplicated on retry
+  This is the 2nd finding in this family. SessionLogStore renames the authoritative replacement before directory sync and unlock, but either later failure is returned as an ordinary append failure. Submission is suppressed while the entry remains readable; retry appends it again, making exact turn evidence non-unique. Define the outcome rule for every authoritative append or replacement, make post-publication retries idempotent, and add stateful production-flow tests for directory-sync and unlock failure.
+
 ## Open findings
 
 - **BR-24** [Critical] `ledger-append-result-matches-authority` Failed binding appends can still become authoritative
+- **BR-25** [Critical] `ledger-append-result-matches-authority` Published Pair-log entries are reported as failed and duplicated on retry

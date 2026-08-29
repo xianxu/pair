@@ -4,6 +4,7 @@ import (
 	"bufio"
 	"context"
 	"crypto/rand"
+	"errors"
 	"fmt"
 	"os"
 	"os/exec"
@@ -576,8 +577,16 @@ func (r OSRuntime) AppendLedger(tag string, entry LedgerEntry) error {
 	if err != nil {
 		return err
 	}
-	_, err = (sessionledger.LedgerStore{Runtime: sessionledger.OSRuntime{}}).AppendLegacy(paths.Ledger(), []byte(line))
-	return err
+	store := sessionledger.LedgerStore{Runtime: sessionledger.OSRuntime{}}
+	ordinal, err := store.AppendLegacy(paths.Ledger(), []byte(line))
+	if sessionledger.AppendOutcomeOf(err) != sessionledger.AppendIndeterminate {
+		return err
+	}
+	reconcileErr := store.ReconcileLegacy(paths.Ledger(), ordinal, []byte(line))
+	if reconcileErr == nil || sessionledger.AppendOutcomeOf(reconcileErr) == sessionledger.AppendCommitted {
+		return reconcileErr
+	}
+	return errors.Join(err, reconcileErr)
 }
 
 func (r OSRuntime) PrepareSessionLaunch(scopeKey, tag, agent, resumeNativeID string) (uint64, error) {
@@ -586,10 +595,7 @@ func (r OSRuntime) PrepareSessionLaunch(scopeKey, tag, agent, resumeNativeID str
 		return 0, err
 	}
 	prepared, err := sessionwatch.PrepareOSLaunch(home, r.DataDir, sessionledger.Owner{ScopeKey: scopeKey, Tag: tag, Agent: agent}, resumeNativeID)
-	if err != nil {
-		return 0, err
-	}
-	return prepared.Launch.Ordinal, nil
+	return prepared.Launch.Ordinal, err
 }
 
 // pair:m5-concept integration

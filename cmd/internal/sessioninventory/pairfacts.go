@@ -15,11 +15,13 @@ import (
 // Position is its durable byte offset in the scoped Pair log.
 // pair:155-concept pure new M2
 type PairLogFact struct {
-	ScopeKey string
-	Tag      string
-	Agent    Agent
-	Position uint64
-	Text     string
+	ScopeKey     string
+	Tag          string
+	Agent        Agent
+	Position     uint64
+	Text         string
+	AuthoredText string
+	AppendID     string
 }
 
 // PairLedgerFact is the inventory boundary's normalized durable ledger fact.
@@ -28,7 +30,14 @@ type PairLedgerFact = sessionledger.Record
 
 type PairLogParseResult struct {
 	Facts            []PairLogFact
+	Entries          []PairLogEntry
 	MalformedOffsets []uint64
+}
+
+type PairLogEntry struct {
+	Position     uint64
+	AuthoredText string
+	AppendID     string
 }
 
 // NormalizePairText is the canonical identity projection for operator-authored
@@ -63,7 +72,15 @@ var pairLogSeparator = []byte("\n\n---\n\n")
 // durable writer and parser. The body may contain arbitrary Markdown,
 // including the legacy visual separator and header-shaped text.
 func EncodePairLogEntry(body []byte, now time.Time) []byte {
-	header := fmt.Sprintf("## %s\n<!-- pair-log-v1 bytes=%d -->\n\n", now.Format("2006-01-02 15:04:05"), len(body))
+	return EncodePairLogEntryWithID(body, now, "")
+}
+
+func EncodePairLogEntryWithID(body []byte, now time.Time, appendID string) []byte {
+	marker := fmt.Sprintf("<!-- pair-log-v1 bytes=%d", len(body))
+	if appendID != "" {
+		marker += " append_id=" + appendID
+	}
+	header := fmt.Sprintf("## %s\n%s -->\n\n", now.Format("2006-01-02 15:04:05"), marker)
 	entry := make([]byte, 0, len(header)+len(body)+len(pairLogSeparator))
 	entry = append(entry, header...)
 	entry = append(entry, body...)
@@ -82,6 +99,7 @@ func ParsePairLog(raw []byte, offset uint64) PairLogParseResult {
 		return PairLogParseResult{}
 	}
 	var facts []PairLogFact
+	var entries []PairLogEntry
 	cursor := int(offset)
 	for cursor < len(raw) {
 		headerEndRelative := bytes.Index(raw[cursor:], []byte("\n\n"))
@@ -90,7 +108,7 @@ func ParsePairLog(raw []byte, offset uint64) PairLogParseResult {
 		}
 		headerEnd := cursor + headerEndRelative
 		bodyStart := headerEnd + 2
-		bodyBytes, versioned, valid := pairLogHeader(raw[cursor:headerEnd])
+		bodyBytes, appendID, versioned, valid := pairLogHeader(raw[cursor:headerEnd])
 		if !valid {
 			return PairLogParseResult{MalformedOffsets: []uint64{uint64(cursor)}}
 		}
@@ -114,34 +132,64 @@ func ParsePairLog(raw []byte, offset uint64) PairLogParseResult {
 		if !utf8.Valid(body) {
 			return PairLogParseResult{MalformedOffsets: []uint64{uint64(cursor)}}
 		}
+		entries = append(entries, PairLogEntry{Position: uint64(cursor), AuthoredText: string(body), AppendID: appendID})
 		if text := NormalizePairText(string(body)); text != "" {
-			facts = append(facts, PairLogFact{Position: uint64(cursor), Text: text})
+			facts = append(facts, PairLogFact{Position: uint64(cursor), Text: text, AuthoredText: string(body), AppendID: appendID})
 		}
 		cursor = separator + len(pairLogSeparator)
 	}
-	return PairLogParseResult{Facts: facts}
+	return PairLogParseResult{Facts: facts, Entries: entries}
 }
 
-func pairLogHeader(raw []byte) (uint64, bool, bool) {
+func pairLogHeader(raw []byte) (uint64, string, bool, bool) {
 	const prefix = "## "
 	lines := bytes.Split(raw, []byte{'\n'})
 	if len(lines) == 0 || !bytes.HasPrefix(lines[0], []byte(prefix)) {
-		return 0, false, false
+		return 0, "", false, false
 	}
 	if _, err := time.Parse("2006-01-02 15:04:05", string(lines[0][len(prefix):])); err != nil {
-		return 0, false, false
+		return 0, "", false, false
 	}
 	if len(lines) == 1 {
-		return 0, false, true
+		return 0, "", false, true
 	}
 	if len(lines) != 2 {
-		return 0, false, false
+		return 0, "", false, false
 	}
 	const markerPrefix, markerSuffix = "<!-- pair-log-v1 bytes=", " -->"
 	marker := string(lines[1])
 	if !strings.HasPrefix(marker, markerPrefix) || !strings.HasSuffix(marker, markerSuffix) {
-		return 0, false, false
+		return 0, "", false, false
 	}
-	count, err := strconv.ParseUint(strings.TrimSuffix(strings.TrimPrefix(marker, markerPrefix), markerSuffix), 10, 64)
-	return count, true, err == nil
+	fields := strings.Fields(strings.TrimSuffix(strings.TrimPrefix(marker, markerPrefix), markerSuffix))
+	if len(fields) < 1 || len(fields) > 2 {
+		return 0, "", false, false
+	}
+	count, err := strconv.ParseUint(fields[0], 10, 64)
+	if err != nil {
+		return 0, "", false, false
+	}
+	appendID := ""
+	if len(fields) == 2 {
+		if !strings.HasPrefix(fields[1], "append_id=") {
+			return 0, "", false, false
+		}
+		appendID = strings.TrimPrefix(fields[1], "append_id=")
+		if !ValidPairLogAppendID(appendID) {
+			return 0, "", false, false
+		}
+	}
+	return count, appendID, true, true
+}
+
+func ValidPairLogAppendID(id string) bool {
+	if id == "" || len(id) > 128 {
+		return false
+	}
+	for _, r := range id {
+		if !((r >= 'a' && r <= 'z') || (r >= 'A' && r <= 'Z') || (r >= '0' && r <= '9') || r == '-' || r == '_') {
+			return false
+		}
+	}
+	return true
 }

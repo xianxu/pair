@@ -769,6 +769,16 @@ be checked against measured actuals at close.*
 
 ## Log
 
+- 2026-08-28 — close review round 16 verified the ledger store's byte-level
+  fault model but found its production consumers still flattened outcomes and
+  identified the same publication class in Pair-log replacement. One shared
+  outcome package now drives typed launch, explicit/live binding, compatibility
+  ledger, and Pair-log decisions. Ledger uncertainty reconciles exact ordinal
+  bytes; authored submission retries reuse a stable append ID, complete
+  durability without a second log turn, and preserve causal-round uniqueness.
+  Real-store lifecycle, CLI, Lua, queue-send, and stateful publication tests pin
+  the end-to-end behavior (`ARCH-DRY`, `ARCH-PURPOSE`, `ARCH-MOCK`).
+
 - 2026-08-28 — close review round 15 confirmed the strict mixed-ledger
   classifier and found that post-write store errors could disagree with later
   recovery authority. The store now reports non-authoritative, indeterminate,
@@ -1237,3 +1247,21 @@ cleanup error and recovery accepts the row. Successful appends are committed.
 Launch and binding fault matrices exercise every byte boundary plus file sync,
 close, directory sync, and unlock through the production runtime seam
 (ARCH-PURPOSE, ARCH-MOCK).
+
+### 2026-08-28 — consume publication outcomes end to end
+
+**Reason:** the next close review verified the store labels but found that
+launcher/watcher callers still discarded them, and that Pair-log replacement
+had the same post-publication ambiguity without an idempotent retry identity.
+
+**Delta:** one shared publication-outcome vocabulary governs every authoritative
+ledger append and Pair-log replacement. Ledger launch, explicit/live binding,
+and legacy consumers retain committed records, immediately reconcile
+indeterminate rows through the same locked store, and surface cleanup warnings
+without reverting recovered state. Pair-log submissions carry a per-attempt
+append ID that remains stable while a draft is retained; retry recognizes the
+already-published ID, validates its body, completes durability, and never adds a
+second turn. Pre-publication failures remain non-authoritative and fail closed;
+post-publication uncertainty remains explicit until reconciliation succeeds.
+Production lifecycle, CLI, Lua submission, and causal-round tests exercise the
+whole flow (ARCH-DRY, ARCH-PURPOSE, ARCH-MOCK).

@@ -762,13 +762,13 @@ local function send_to_agent(body, no_submit)
   end
 end
 
-_G.PairSubmission = dofile((debug.getinfo(1, 'S').source:match('@?(.*/)') or './') .. 'submission.lua').new(function(body)
+_G.PairSubmission = dofile((debug.getinfo(1, 'S').source:match('@?(.*/)') or './') .. 'submission.lua').new(function(body, append_id)
   if type(_G.PairTestSessionLogAppend) == 'function' then
-    return _G.PairTestSessionLogAppend(body)
+    return _G.PairTestSessionLogAppend(body, append_id)
   end
   local home = vim.env.PAIR_HOME or ''
   local pair = (home ~= '') and (home .. '/bin/pair') or 'pair'
-  local out = vim.fn.system({ pair, 'session-log', 'append' }, body)
+  local out = vim.fn.system({ pair, 'session-log', 'append', '--append-id', append_id }, body)
   if vim.v.shell_error ~= 0 then
     out = tostring(out or ''):gsub('%s+$', '')
     return false, out ~= '' and out or ('exit ' .. tostring(vim.v.shell_error))
@@ -776,6 +776,9 @@ _G.PairSubmission = dofile((debug.getinfo(1, 'S').source:match('@?(.*/)') or './
   return true
 end, send_to_agent, function(message)
   vim.notify(message, vim.log.levels.ERROR)
+end, function()
+  local uv = vim.uv or vim.loop
+  return vim.fn.sha256(table.concat({ tostring(uv.hrtime()), tostring(vim.fn.getpid()), tostring({}) }, ':'))
 end)
 function _G.submit_operator_text(authored_body, agent_text, no_submit)
   return _G.PairSubmission.submit_operator_text(authored_body, agent_text, no_submit)

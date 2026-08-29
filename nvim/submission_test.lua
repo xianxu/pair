@@ -11,12 +11,17 @@ end
 
 do
   local calls = {}
+  local ids = { 'id-a', 'id-b' }
   local submit = M.new(
-    function(body) calls[#calls + 1] = 'append:' .. body; return true end,
+    function(body, id) calls[#calls + 1] = 'append:' .. body .. ':' .. id; return true end,
     function(body, no_submit) calls[#calls + 1] = 'send:' .. body .. ':' .. tostring(no_submit) end,
-    function(message) calls[#calls + 1] = 'notify:' .. message end)
+    function(message) calls[#calls + 1] = 'notify:' .. message end,
+    function() return table.remove(ids, 1) end)
   ok(submit.submit_operator_text('full', 'clean', false), 'authored submit succeeds')
-  ok(table.concat(calls, '|') == 'append:full|send:clean:false', 'durable append precedes authored send')
+  ok(table.concat(calls, '|') == 'append:full:id-a|send:clean:false', 'durable append precedes authored send')
+  calls = {}
+  ok(submit.submit_operator_text('full', 'clean', false), 'next authored submit succeeds')
+  ok(table.concat(calls, '|') == 'append:full:id-b|send:clean:false', 'successful submit consumes append ID')
   calls = {}
   ok(submit.send_generated_prompt('control'), 'generated send succeeds')
   ok(table.concat(calls, '|') == 'send:control:nil', 'generated prompt bypasses Pair log')
@@ -24,12 +29,20 @@ end
 
 do
   local calls = {}
+  local attempts = 0
   local submit = M.new(
-    function() calls[#calls + 1] = 'append'; return false, 'disk full' end,
+    function(_, id)
+      calls[#calls + 1] = 'append:' .. id
+      attempts = attempts + 1
+      if attempts == 1 then return false, 'disk full' end
+      return true
+    end,
     function() calls[#calls + 1] = 'send' end,
-    function(message) calls[#calls + 1] = 'notify:' .. message end)
+    function(message) calls[#calls + 1] = 'notify:' .. message end,
+    function() return 'retry-id' end)
   ok(not submit.submit_operator_text('full', 'clean'), 'append failure fails closed')
-  ok(table.concat(calls, '|') == 'append|notify:Pair log append failed — disk full', 'append failure notifies without send')
+  ok(submit.submit_operator_text('full', 'clean'), 'append retry succeeds')
+  ok(table.concat(calls, '|') == 'append:retry-id|notify:Pair log append failed — disk full|append:retry-id|send', 'append failure retains stable retry ID')
 end
 
 local init = table.concat(vim.fn.readfile(here .. 'init.lua'), '\n')

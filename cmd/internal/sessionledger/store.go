@@ -8,57 +8,30 @@ import (
 	"io"
 	"os"
 	"path/filepath"
+
+	"github.com/xianxu/pair/cmd/internal/commitoutcome"
 )
 
 var ErrStaleLaunch = errors.New("ledger launch generation is no longer current")
 
-type AppendOutcome uint8
+type AppendOutcome = commitoutcome.Outcome
 
 const (
-	AppendNotAuthoritative AppendOutcome = iota
-	AppendIndeterminate
-	AppendCommitted
+	AppendNotAuthoritative = commitoutcome.NotAuthoritative
+	AppendIndeterminate    = commitoutcome.Indeterminate
+	AppendCommitted        = commitoutcome.Committed
 )
-
-func (o AppendOutcome) String() string {
-	switch o {
-	case AppendNotAuthoritative:
-		return "not-authoritative"
-	case AppendIndeterminate:
-		return "indeterminate"
-	case AppendCommitted:
-		return "committed"
-	default:
-		return "unknown"
-	}
-}
 
 // AppendOutcomeError reports failures after a complete ledger row may have
 // become recovery authority. Callers must not interpret these as ordinary
 // failed appends: Indeterminate means durability could not be established;
 // Committed means the row is durable but lock cleanup failed.
-type AppendOutcomeError struct {
-	Outcome AppendOutcome
-	Err     error
-}
-
-func (e *AppendOutcomeError) Error() string {
-	return fmt.Sprintf("ledger append %s: %v", e.Outcome, e.Err)
-}
-
-func (e *AppendOutcomeError) Unwrap() error { return e.Err }
+type AppendOutcomeError = commitoutcome.Error
 
 // AppendOutcomeOf converts nil, typed post-write failures, and ordinary
 // pre-authority failures into one exhaustive caller-facing result.
 func AppendOutcomeOf(err error) AppendOutcome {
-	if err == nil {
-		return AppendCommitted
-	}
-	var outcomeErr *AppendOutcomeError
-	if errors.As(err, &outcomeErr) {
-		return outcomeErr.Outcome
-	}
-	return AppendNotAuthoritative
+	return commitoutcome.Of(err)
 }
 
 type Unlocker interface{ Close() error }
@@ -82,7 +55,7 @@ type Runtime interface {
 type LedgerStore struct{ Runtime Runtime }
 
 // Append encodes before locking, derives the physical ordinal while locked,
-// writes one complete JSONL record, fsyncs, and then releases the lock.
+// and reports the shared publication outcome if write or cleanup fails.
 func (s LedgerStore) Append(path string, record Record) (_ Record, err error) {
 	encoded, err := EncodeRecord(record)
 	if err != nil {
@@ -107,6 +80,26 @@ func (s LedgerStore) AppendLegacy(path string, encoded []byte) (uint64, error) {
 		return 0, errors.New("invalid legacy ledger row")
 	}
 	return s.appendEncoded(path, append([]byte(nil), encoded...))
+}
+
+// Reconcile completes durability for an indeterminate typed append without
+// adding another generation. The exact encoded row must still occupy the
+// returned physical ordinal.
+func (s LedgerStore) Reconcile(path string, record Record) error {
+	encoded, err := EncodeRecord(record)
+	if err != nil {
+		return fmt.Errorf("encode ledger reconciliation: %w", err)
+	}
+	return s.reconcileEncoded(path, record.Ordinal, encoded)
+}
+
+// ReconcileLegacy completes durability for an indeterminate compatibility
+// append without duplicating the historical row.
+func (s LedgerStore) ReconcileLegacy(path string, ordinal uint64, encoded []byte) error {
+	if !json.Valid(encoded) || bytes.ContainsRune(encoded, '\n') {
+		return errors.New("invalid legacy ledger row")
+	}
+	return s.reconcileEncoded(path, ordinal, append([]byte(nil), encoded...))
 }
 
 // AppendBindingIfCurrent joins a binding to a launch and verifies under the
@@ -140,6 +133,53 @@ func (s LedgerStore) AppendBindingIfCurrent(path string, owner Owner, launchOrdi
 
 func (s LedgerStore) appendEncoded(path string, encoded []byte) (_ uint64, err error) {
 	return s.appendEncodedChecked(path, encoded, nil)
+}
+
+func (s LedgerStore) reconcileEncoded(path string, ordinal uint64, encoded []byte) (err error) {
+	if path == "" || s.Runtime == nil || ordinal == 0 {
+		return errors.New("ledger reconciliation input is empty")
+	}
+	lock, err := s.Runtime.Lock(path + ".lock")
+	if err != nil {
+		return commitoutcome.Wrap(commitoutcome.Indeterminate, fmt.Errorf("lock ledger reconciliation: %w", err))
+	}
+	outcome := commitoutcome.Indeterminate
+	defer func() {
+		if unlockErr := lock.Close(); unlockErr != nil {
+			err = commitoutcome.Join(outcome, err, fmt.Errorf("unlock ledger reconciliation: %w", unlockErr))
+		}
+	}()
+
+	raw, err := s.Runtime.ReadFile(path)
+	if err != nil {
+		return commitoutcome.Wrap(outcome, fmt.Errorf("read ledger reconciliation: %w", err))
+	}
+	if !encodedAtOrdinal(raw, ordinal, encoded) {
+		return commitoutcome.Wrap(outcome, fmt.Errorf("ledger row %d is not the attempted record", ordinal))
+	}
+	file, err := s.Runtime.OpenAppend(path, 0o600)
+	if err != nil {
+		return commitoutcome.Wrap(outcome, fmt.Errorf("open ledger reconciliation: %w", err))
+	}
+	if syncErr := file.Sync(); syncErr != nil {
+		return commitoutcome.Wrap(outcome, errors.Join(fmt.Errorf("sync ledger reconciliation: %w", syncErr), file.Close()))
+	}
+	if closeErr := file.Close(); closeErr != nil {
+		return commitoutcome.Wrap(outcome, fmt.Errorf("close ledger reconciliation: %w", closeErr))
+	}
+	if syncErr := s.Runtime.SyncDirectory(filepath.Dir(path)); syncErr != nil {
+		return commitoutcome.Wrap(outcome, fmt.Errorf("sync ledger reconciliation directory: %w", syncErr))
+	}
+	outcome = commitoutcome.Committed
+	return nil
+}
+
+func encodedAtOrdinal(raw []byte, ordinal uint64, encoded []byte) bool {
+	if len(raw) == 0 || raw[len(raw)-1] != '\n' {
+		return false
+	}
+	lines := bytes.Split(raw[:len(raw)-1], []byte{'\n'})
+	return ordinal <= uint64(len(lines)) && bytes.Equal(lines[ordinal-1], encoded)
 }
 
 func (s LedgerStore) appendEncodedChecked(path string, encoded []byte, check func([]byte) error) (_ uint64, err error) {
@@ -210,18 +250,11 @@ func (s LedgerStore) appendEncodedChecked(path string, encoded []byte, check fun
 }
 
 func appendError(outcome AppendOutcome, err error) error {
-	return &AppendOutcomeError{Outcome: outcome, Err: err}
+	return commitoutcome.Wrap(outcome, err)
 }
 
 func joinAppendError(outcome AppendOutcome, err, cleanupErr error) error {
-	if outcome == AppendNotAuthoritative {
-		return errors.Join(err, cleanupErr)
-	}
-	var outcomeErr *AppendOutcomeError
-	if errors.As(err, &outcomeErr) {
-		err = outcomeErr.Err
-	}
-	return appendError(outcome, errors.Join(err, cleanupErr))
+	return commitoutcome.Join(outcome, err, cleanupErr)
 }
 
 func physicalLineCount(raw []byte) uint64 {

@@ -20,4 +20,11 @@ assert(roundtrip[1].body == 'legacy body')
 assert(roundtrip[2].body == 'changed ' .. old_separator .. ' body')
 assert(replaced:match('<!%-%- pair%-log%-v1 bytes=' .. #roundtrip[2].body .. ' %-%->'))
 
+local with_id = '## 2026-08-28 01:02:04\n<!-- pair-log-v1 bytes=' .. #body .. ' append_id=attempt-a -->\n\n' .. body .. old_separator
+local id_entries, id_err = pairlog.parse(with_id)
+assert(id_err == nil, id_err)
+assert(id_entries[1].append_id == 'attempt-a')
+local id_replaced = pairlog.replace(with_id, 1, 'changed')
+assert(id_replaced:match('append_id=attempt%-a'))
+
 print('pairlog_test ok')

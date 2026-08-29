@@ -9,6 +9,7 @@ import (
 	"time"
 
 	"github.com/xianxu/pair/cmd/internal/artifactpath"
+	"github.com/xianxu/pair/cmd/internal/commitoutcome"
 	"github.com/xianxu/pair/cmd/internal/sessioninventory"
 )
 
@@ -496,13 +497,19 @@ func runCreate(opts LaunchOptions, env Env, rt Runtime, live []Session, decision
 		RepoName:     repoName,
 		LegacyImport: legacyImported,
 	}); err != nil {
-		fmt.Fprintf(stderr, "pair: failed to append ledger for tag '%s': %v\n", chosenTag, err)
-		return launchStep{code: 1}, nil
+		if commitoutcome.Of(err) != commitoutcome.Committed {
+			fmt.Fprintf(stderr, "pair: failed to append ledger for tag '%s': %v\n", chosenTag, err)
+			return launchStep{code: 1}, nil
+		}
+		fmt.Fprintf(stderr, "pair: ledger for tag '%s' committed with cleanup warning: %v\n", chosenTag, err)
 	}
 	launchOrdinal, err := rt.PrepareSessionLaunch(scope.Key, chosenTag, agent, explicitResume)
 	if err != nil {
-		fmt.Fprintf(stderr, "pair: failed to prepare native launch for tag '%s': %v\n", chosenTag, err)
-		return launchStep{code: 1}, nil
+		if commitoutcome.Of(err) != commitoutcome.Committed {
+			fmt.Fprintf(stderr, "pair: failed to prepare native launch for tag '%s': %v\n", chosenTag, err)
+			return launchStep{code: 1}, nil
+		}
+		fmt.Fprintf(stderr, "pair: native launch for tag '%s' committed with cleanup warning: %v\n", chosenTag, err)
 	}
 
 	layoutResolution, priorLayout := readLayoutSelection(rt, dataDir, chosenTag, opts.Args.Layout)

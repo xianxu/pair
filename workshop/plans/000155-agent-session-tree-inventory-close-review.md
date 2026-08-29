@@ -541,3 +541,117 @@ findings:
     detail: |
       cmd/internal/sessionledger/store.go:126-139 returns errors after a complete parseable row may already be visible, while cmd/internal/sessioninventory/pair_inventory.go:74-78 later accepts that row as recovery authority. Enumerate every post-write failure point and make the returned outcome agree with recovered authority; add stateful launch and binding tests covering short writes, file sync, close, directory sync, and unlock failures (ARCH-PURPOSE, ARCH-MOCK).
 ```
+
+---
+
+## Re-review — 2026-08-28T21:33:43-07:00 (REWORK)
+
+| field | value |
+|-------|-------|
+| issue | 155 — deterministic agent session-tree inventory |
+| repo | pair |
+| issue file | workshop/issues/000155-agent-session-tree-inventory.md |
+| boundary | whole-issue close |
+| milestone | — |
+| window | 4c454436038e2ae049690bc343def9f0511fca8c..dfdf5b364e95c36f6d29ee5404bf114a7996d630 |
+| command | sdlc close --issue 155 |
+| reviewer | codex |
+| timestamp | 2026-08-28T21:33:43-07:00 |
+| verdict | REWORK |
+
+## Review
+
+```verdict
+verdict: REWORK
+confidence: high
+```
+
+The deterministic inventory, consumer migration, documentation, and verification are strong, but two authority-result mismatches block closure. BR-24 remains open because production callers ignore the new store outcomes. The Pair-log writer has the same class of defect after publication: directory-sync or unlock failure reports failure even though the new log entry is already visible and authoritative.
+
+## 1. Strengths
+
+- The Core Concepts inventory is executable and matches declarations through [concept_contract_test.go](/Users/xianxu/workspace/pair/cmd/internal/sessioninventory/concept_contract_test.go:19).
+- The pure inventory model is cleanly separated from the injected runtime, with a reusable stateful fake.
+- [shadow_test.go](/Users/xianxu/workspace/pair/cmd/internal/sessioninventory/shadow_test.go:1) enforces removal of independent native parsers and first/newest selection logic.
+- README and atlas changes document the public CLI, provisional/established semantics, schema, and new architecture.
+- Store-level tests thoroughly cover incomplete byte prefixes and post-write failure stages for typed launch and binding records.
+
+## 2. Critical findings
+
+### BR-24 — production callers discard authoritative append outcomes
+
+[store.go](/Users/xianxu/workspace/pair/cmd/internal/sessionledger/store.go:15) correctly distinguishes `not-authoritative`, `indeterminate`, and `committed`, but `AppendOutcomeOf` has no production call sites.
+
+- [lifecycle.go](/Users/xianxu/workspace/pair/cmd/internal/sessionwatch/lifecycle.go:78) discards a launch record and ordinal whenever the returned error is non-nil.
+- Explicit-resume binding does the same at [lifecycle.go](/Users/xianxu/workspace/pair/cmd/internal/sessionwatch/lifecycle.go:90).
+- Live establishment returns the old provisional projection and skips config refresh at [lifecycle.go](/Users/xianxu/workspace/pair/cmd/internal/sessionwatch/lifecycle.go:128), even for a committed binding with an unlock error.
+- Legacy append discards the ordinal/outcome at [osruntime.go](/Users/xianxu/workspace/pair/cmd/internal/launcher/osruntime.go:570).
+
+Recovery later accepts these rows, so production’s reported state can still disagree with recovered authority. Existing tests prove only the store classification; none fails when lifecycle callers ignore it.
+
+Fix the class across launch, binding, and legacy consumers: preserve the returned record, advance state on committed outcomes, define immediate reconciliation for indeterminate outcomes, and add lifecycle-level stateful tests.
+
+### New — Pair-log publication repeats the authority mismatch
+
+[store.go](/Users/xianxu/workspace/pair/cmd/internal/pairlog/store.go:94) publishes the replacement before directory sync. A directory-sync failure at line 97 or unlock failure through line 59 then returns an ordinary error, causing [submission.lua](/Users/xianxu/workspace/pair/nvim/submission.lua:7) to retain the draft and suppress submission even though the new Pair-log turn is already readable.
+
+Retry appends the same authored turn again. That duplicate makes the fingerprint non-unique in [round.go](/Users/xianxu/workspace/pair/cmd/internal/sessioninventory/round.go:129), potentially preventing the causal round from establishing or recovering the native root.
+
+This is the 2nd finding in family `ledger-append-result-matches-authority`. Do not patch only directory sync: define the rule for every authoritative append/replace transaction, enumerate all pre- and post-publication failures, make retries idempotent, and test the production submission-to-recovery flow.
+
+## 3. Important findings
+
+None.
+
+## 4. Minor findings
+
+None.
+
+## 5. Test coverage notes
+
+Passed:
+
+- `go test ./... -count=1`
+- Focused ledger, inventory, watcher, launcher, and fake-runtime tests
+- Core-concept, shadow-sweep, CLI matrix, rendering, and scanner contracts
+- `go vet ./...`
+- `make test-lua`
+- Named session-watch, review, changelog, and terminal shell suites
+- Pinned-range `git diff --check`
+
+Missing blocking regressions:
+
+- Lifecycle tests consuming each `AppendOutcome`.
+- Pair-log directory-sync and unlock failures.
+- Retry after an already-published Pair-log entry.
+- End-to-end proof that such retry cannot poison causal-round matching.
+
+## 6. Architectural notes
+
+- **ARCH-DRY — flag:** authoritative publication outcomes are handled in the ledger store but independently—and incompletely—in Pair-log storage. Establish one shared outcome rule/vocabulary.
+- **ARCH-PURE — pass:** matching, ordering, forest construction, binding resolution, and rendering remain pure; IO is behind explicit seams.
+- **ARCH-PURPOSE — flag:** recovery authority must agree with the production operation result end-to-end, not merely inside store tests.
+- **ARCH-MOCK — flag:** stateful doubles exist, but fault coverage stops below the production lifecycle/submission flows where the mismatch occurs.
+
+## 7. Plan revision recommendations
+
+Append revisions covering:
+
+- “End-to-end append outcome consumption”: enumerate launch, explicit/live binding, and legacy consumers; define behavior for all three outcomes.
+- “Idempotent Pair-log publication outcomes”: define the publication point, directory-sync/unlock semantics, retry behavior, and production-flow tests.
+
+```findings
+dispose:
+  - id: BR-24
+    disposition: not-addressed
+    note: |
+      The store labels post-write authority, but AppendOutcomeOf has zero production call sites: PrepareLaunch, ObserveAndPersist, and AppendLegacy collapse indeterminate and committed results into ordinary failure, discard returned records or ordinals, and lack lifecycle tests proving committed advancement or indeterminate reconciliation.
+findings:
+  - id: new
+    severity: Critical
+    family: ledger-append-result-matches-authority
+    title: |
+      Published Pair-log entries are reported as failed and duplicated on retry
+    detail: |
+      This is the 2nd finding in this family. SessionLogStore renames the authoritative replacement before directory sync and unlock, but either later failure is returned as an ordinary append failure. Submission is suppressed while the entry remains readable; retry appends it again, making exact turn evidence non-unique. Define the outcome rule for every authoritative append or replacement, make post-publication retries idempotent, and add stateful production-flow tests for directory-sync and unlock failure.
+```

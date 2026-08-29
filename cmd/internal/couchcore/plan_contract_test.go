@@ -3,6 +3,7 @@ package couchcore
 import (
 	"bufio"
 	"crypto/sha256"
+	"errors"
 	"fmt"
 	"go/ast"
 	"go/parser"
@@ -21,7 +22,7 @@ type issue149ConceptRequirement struct {
 	kind string
 }
 
-const issue149M5DeclarationDigest = "1c31768bc779981174091407582cd70f98edd83928983dcb0c99321955e1afe2"
+const issue149M5DeclarationDigest = "748b33313dc565abbbfd5db00e690892441c4fb408bd42a8ed194d06a75c8b1f"
 
 const (
 	issue149M5Base = "6a714336"
@@ -359,10 +360,11 @@ func issue149M5ConceptRequirements(t *testing.T, root string) []issue149ConceptR
 	closedSet := issue149M5SourceDeclarationDigest(t, root) == issue149M5DeclarationDigest
 	var requirements []issue149ConceptRequirement
 	for _, rel := range issue149M5BoundaryGoSources(t, root) {
-		if _, err := os.Stat(filepath.Join(root, rel)); os.IsNotExist(err) {
+		raw, exists := issue149M5SourceAtHead(t, root, rel)
+		if !exists {
 			continue
 		}
-		file, err := parser.ParseFile(token.NewFileSet(), filepath.Join(root, rel), nil, parser.ParseComments)
+		file, err := parser.ParseFile(token.NewFileSet(), rel, raw, parser.ParseComments)
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -461,7 +463,8 @@ func issue149M5SourceDeclarationDigest(t *testing.T, root string) string {
 		retired[rel] = true
 	}
 	for _, rel := range issue149M5BoundaryGoSources(t, root) {
-		if _, err := os.Stat(filepath.Join(root, rel)); os.IsNotExist(err) {
+		raw, exists := issue149M5SourceAtHead(t, root, rel)
+		if !exists {
 			status := "deleted"
 			if retired[rel] {
 				status = "retired"
@@ -469,7 +472,7 @@ func issue149M5SourceDeclarationDigest(t *testing.T, root string) string {
 			keys = append(keys, rel+"|"+status)
 			continue
 		}
-		file, err := parser.ParseFile(token.NewFileSet(), filepath.Join(root, rel), nil, 0)
+		file, err := parser.ParseFile(token.NewFileSet(), rel, raw, 0)
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -498,6 +501,21 @@ func issue149M5SourceDeclarationDigest(t *testing.T, root string) string {
 	sort.Strings(keys)
 	digest := sha256.Sum256([]byte(strings.Join(keys, "\n")))
 	return fmt.Sprintf("%x", digest)
+}
+
+func issue149M5SourceAtHead(t *testing.T, root, rel string) ([]byte, bool) {
+	t.Helper()
+	command := exec.Command("git", "-C", root, "show", issue149M5Head+":"+rel)
+	raw, err := command.Output()
+	if err == nil {
+		return raw, true
+	}
+	var exitErr *exec.ExitError
+	if errors.As(err, &exitErr) {
+		return nil, false
+	}
+	t.Fatal(err)
+	return nil, false
 }
 
 func issue149M5BoundaryGoSources(t *testing.T, root string) []string {

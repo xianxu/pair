@@ -239,6 +239,21 @@ key, and a binding is current only when it joins the newest exact
 lines consume their ordinal instead of being silently reused. Historical
 launcher rows remain readable during migration.
 
+Authority publication has one result vocabulary across the typed and
+compatibility ledgers: an incomplete unterminated row is non-authoritative; a
+complete row whose file/directory durability is uncertain is indeterminate and
+is reconciled by exact physical ordinal plus encoded bytes; a cleanup failure
+after durability is committed and does not roll lifecycle state back. Launcher
+and watcher consumers preserve those outcomes rather than treating every error
+as a missing row.
+
+Operator-authored Pair-log entries use the same publication rule around the
+atomic replacement. Each Neovim submission attempt carries a stable opaque
+`append_id` in the byte-counted marker. If publication becomes indeterminate,
+the retained draft retries with that same ID; the store validates the original
+body and completes directory durability without appending a duplicate turn.
+After success, even identical later authored text receives a new ID.
+
 The typed joined ledger binding is the source of truth for native recovery.
 The older `agent-<tag>` and `config-<tag>-<agent>.json` files remain derived
 caches and compatibility surfaces; config disagreement is diagnosed and cannot

@@ -8,13 +8,15 @@ import (
 	"strings"
 	"testing"
 	"time"
+
+	"github.com/xianxu/pair/cmd/internal/commitoutcome"
 )
 
 func TestRunCLIAppendsStdinToScopedLog(t *testing.T) {
 	t.Parallel()
 	path := filepath.Join(t.TempDir(), "log.md")
 	var stderr bytes.Buffer
-	code := RunCLI(nil, strings.NewReader("authored"), func(key string) string {
+	code := RunCLI([]string{"--append-id", "attempt-a"}, strings.NewReader("authored"), func(key string) string {
 		if key == "PAIR_LOG_PATH" {
 			return path
 		}
@@ -34,7 +36,7 @@ func TestRunCLIAppendsStdinToScopedLog(t *testing.T) {
 
 func TestRunCLIRejectsMissingScopedLogAndArguments(t *testing.T) {
 	t.Parallel()
-	for _, args := range [][]string{nil, {"extra"}} {
+	for _, args := range [][]string{nil, {"extra"}, {"--append-id", "bad id"}} {
 		var stderr bytes.Buffer
 		code := RunCLI(args, strings.NewReader("authored"), func(string) string { return "" }, time.Time{}, &stderr)
 		if code != 2 || stderr.Len() == 0 {
@@ -46,9 +48,32 @@ func TestRunCLIRejectsMissingScopedLogAndArguments(t *testing.T) {
 func TestRunCLIReportsPersistenceFailure(t *testing.T) {
 	t.Parallel()
 	var stderr bytes.Buffer
-	code := runCLI(nil, strings.NewReader("authored"), func(string) string { return "/log.md" }, time.Time{}, &stderr,
-		func(string, []byte, time.Time) error { return errors.New("boom") })
+	code := runCLI([]string{"--append-id", "attempt-a"}, strings.NewReader("authored"), func(string) string { return "/log.md" }, time.Time{}, &stderr,
+		func(string, []byte, time.Time, string) error { return errors.New("boom") })
 	if code != 1 || !strings.Contains(stderr.String(), "boom") {
 		t.Fatalf("code=%d stderr=%q", code, stderr.String())
+	}
+}
+
+func TestRunCLIConsumesPublicationOutcome(t *testing.T) {
+	t.Parallel()
+	for _, outcome := range []commitoutcome.Outcome{commitoutcome.Indeterminate, commitoutcome.Committed} {
+		outcome := outcome
+		t.Run(outcome.String(), func(t *testing.T) {
+			var stderr bytes.Buffer
+			gotID := ""
+			code := runCLI([]string{"--append-id", "attempt-a"}, strings.NewReader("authored"), func(string) string { return "/log.md" }, time.Time{}, &stderr,
+				func(_ string, _ []byte, _ time.Time, appendID string) error {
+					gotID = appendID
+					return commitoutcome.Wrap(outcome, errors.New("injected"))
+				})
+			wantCode := 1
+			if outcome == commitoutcome.Committed {
+				wantCode = 0
+			}
+			if code != wantCode || gotID != "attempt-a" || stderr.Len() == 0 {
+				t.Fatalf("code=%d want=%d id=%q stderr=%q", code, wantCode, gotID, stderr.String())
+			}
+		})
 	}
 }

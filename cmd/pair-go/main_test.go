@@ -67,7 +67,7 @@ func TestRunStreamingSubcommandRoutesSessionLogStdin(t *testing.T) {
 	path := filepath.Join(t.TempDir(), "log.md")
 	t.Setenv("PAIR_LOG_PATH", path)
 	var stdout, stderr bytes.Buffer
-	code := runStreamingSubcommand("session-log append", nil, strings.NewReader("authored"), &stdout, &stderr)
+	code := runStreamingSubcommand("session-log append", []string{"--append-id", "attempt-a"}, strings.NewReader("authored"), &stdout, &stderr)
 	if code != 0 || stderr.Len() != 0 {
 		t.Fatalf("code=%d stderr=%q", code, stderr.String())
 	}

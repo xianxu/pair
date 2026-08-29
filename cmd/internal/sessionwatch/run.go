@@ -116,7 +116,10 @@ func Run(opts Options, rt Runtime) error {
 			return rt.AtomicWrite(configPath, raw)
 		})
 		if persistErr != nil {
-			return persistErr
+			if sessionledger.AppendOutcomeOf(persistErr) != sessionledger.AppendCommitted {
+				return persistErr
+			}
+			rt.Log(adapt.NearMiss, "binding committed with cleanup warning: "+persistErr.Error())
 		}
 		if len(resolved.Bindings) == 1 && resolved.Bindings[0].Status == sessioninventory.BindingEstablished {
 			rt.Log(adapt.Fired, "session_id="+nativeIDForRoot(inventory.Forests, agent, valueOrEmpty(resolved.Bindings[0].RootNodeID)))

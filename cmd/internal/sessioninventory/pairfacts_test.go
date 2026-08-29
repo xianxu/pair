@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"os"
 	"testing"
+	"time"
 )
 
 type normalizationGolden struct {
@@ -13,6 +14,15 @@ type normalizationGolden struct {
 		Input string `json:"input"`
 		Want  string `json:"want"`
 	} `json:"cases"`
+}
+
+func TestPairLogAppendIDRoundTrips(t *testing.T) {
+	t.Parallel()
+	raw := EncodePairLogEntryWithID([]byte("authored"), time.Date(2026, 8, 28, 1, 2, 3, 0, time.UTC), "attempt-a")
+	parsed := ParsePairLog(raw, 0)
+	if len(parsed.MalformedOffsets) != 0 || len(parsed.Facts) != 1 || len(parsed.Entries) != 1 || parsed.Facts[0].AppendID != "attempt-a" || parsed.Entries[0].AuthoredText != "authored" {
+		t.Fatalf("parsed=%#v raw=%q", parsed, raw)
+	}
 }
 
 func TestNormalizePairTextGolden(t *testing.T) {

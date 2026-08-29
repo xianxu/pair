@@ -952,6 +952,13 @@ before its binding append, offline recovery reruns the same matcher only over th
 launch-delimited suffix. Before a completed round there is intentionally nothing
 to preserve.
 
+Ledger and Pair-log writers share explicit non-authoritative, indeterminate,
+and committed publication outcomes. Ledger uncertainty is reconciled against
+the exact encoded physical ordinal before launch/binding consumers proceed.
+Pair-log replacement carries a stable per-submission append ID, so retry after
+post-rename uncertainty completes durability rather than duplicating the turn
+and weakening exact-round uniqueness.
+
 **Stored shape.** Exact `$PAIR_AGENT_CONFIG_PATH`:
 
 ```json

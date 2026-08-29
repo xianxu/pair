@@ -877,3 +877,33 @@ and directory durability followed by unlock failure returns `committed` plus a
 cleanup error; success returns `committed`. Stateful tests sweep every short
 write byte boundary and inject each later failure for both launch and binding
 records (`ARCH-PURPOSE`, `ARCH-MOCK`).
+
+### 2026-08-28 — close review: end-to-end publication reconciliation
+
+**Reason:** round 16 showed that store-level outcome classification was not yet
+consumed by production lifecycle callers and that Pair-log replacement repeated
+the same authority/result mismatch after rename.
+
+**Delta:** extract one shared outcome authority and enumerate its consumers:
+typed launch, explicit binding, live binding, compatibility ledger append,
+Pair-log CLI, and Neovim authored submission. Every indeterminate ledger row is
+reconciled by ordinal and exact encoded bytes under the same store; committed
+cleanup errors advance lifecycle state while remaining observable. Pair-log
+adds a stable per-submission append ID, recognizes an already-published exact
+entry before rewriting, and retries the durability step without duplicating
+content. Stateful store and lifecycle tests inject every pre/post-publication
+failure; CLI/Lua tests pin stable retry IDs; a production-flow regression proves
+retry leaves one Pair turn and preserves causal-round uniqueness
+(`ARCH-DRY`, `ARCH-PURPOSE`, `ARCH-MOCK`).
+
+### 2026-08-28 — keep historical declaration contents immutable
+
+**Reason:** capped repository verification showed that the earlier #149 fix
+pinned the M5 filename range but still parsed those files from the current
+worktree, so later declarations changed a historical digest and exploded its
+concept inventory.
+
+**Delta:** derive both the historical M5 paths and their Go source bytes from
+the pinned M5 Git objects. Deleted-at-head paths retain their explicit deleted
+or retired disposition; current #155 declarations cannot enter the historical
+oracle. The focused digest, source-set, and concept inventory contracts pass.

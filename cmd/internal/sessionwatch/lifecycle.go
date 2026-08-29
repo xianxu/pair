@@ -17,6 +17,7 @@ var ErrResumeUnauthorized = errors.New("resume native session is not scanner-aut
 type LedgerAppender interface {
 	Append(string, sessionledger.Record) (sessionledger.Record, error)
 	AppendBindingIfCurrent(string, sessionledger.Owner, uint64, string) (sessionledger.Record, error)
+	Reconcile(string, sessionledger.Record) error
 }
 
 type PrepareLaunchInput struct {
@@ -80,19 +81,43 @@ func PrepareLaunch(input PrepareLaunchInput, store LedgerAppender) (PreparedLaun
 		ScopeKey: input.Owner.ScopeKey, Tag: input.Owner.Tag, Agent: input.Owner.Agent,
 		PairLogOffset: input.PairLogOffset, NativeWatermarks: watermarks,
 	})
-	if err != nil {
-		return PreparedLaunch{}, err
+	prepared := PreparedLaunch{}
+	if launch.Ordinal != 0 {
+		prepared.Launch = launch
 	}
-	prepared := PreparedLaunch{Launch: launch}
+	err = reconcileLedgerAppend(store, input.LedgerPath, launch, err)
+	var warning error
+	if err != nil {
+		if sessionledger.AppendOutcomeOf(err) != sessionledger.AppendCommitted {
+			return prepared, err
+		}
+		warning = err
+	}
+	prepared.Launch = launch
 	if input.ResumeNativeID == "" {
-		return prepared, nil
+		return prepared, warning
 	}
 	binding, err := store.AppendBindingIfCurrent(input.LedgerPath, input.Owner, launch.Ordinal, input.ResumeNativeID)
+	err = reconcileLedgerAppend(store, input.LedgerPath, binding, err)
 	if err != nil {
-		return prepared, err
+		if sessionledger.AppendOutcomeOf(err) != sessionledger.AppendCommitted {
+			return prepared, errors.Join(warning, err)
+		}
+		warning = errors.Join(warning, err)
 	}
 	prepared.Binding = &binding
-	return prepared, nil
+	return prepared, warning
+}
+
+func reconcileLedgerAppend(store LedgerAppender, path string, record sessionledger.Record, err error) error {
+	if sessionledger.AppendOutcomeOf(err) != sessionledger.AppendIndeterminate {
+		return err
+	}
+	reconcileErr := store.Reconcile(path, record)
+	if reconcileErr == nil || sessionledger.AppendOutcomeOf(reconcileErr) == sessionledger.AppendCommitted {
+		return reconcileErr
+	}
+	return errors.Join(err, reconcileErr)
 }
 
 func containsNativeID(byRoot map[string]string, nativeID string) bool {
@@ -125,9 +150,12 @@ func ObserveAndPersist(input ObserveInput, store LedgerAppender, writeConfig Con
 	if nativeID == "" {
 		return resolved, nil
 	}
-	if _, err := store.AppendBindingIfCurrent(input.LedgerPath, input.Owner, input.LaunchOrdinal, nativeID); err != nil {
+	appended, err := store.AppendBindingIfCurrent(input.LedgerPath, input.Owner, input.LaunchOrdinal, nativeID)
+	err = reconcileLedgerAppend(store, input.LedgerPath, appended, err)
+	if err != nil && sessionledger.AppendOutcomeOf(err) != sessionledger.AppendCommitted {
 		return resolved, err
 	}
+	warning := err
 	bindingInput.LedgerRootNodeID = *binding.RootNodeID
 	resolved = sessioninventory.ResolveBindings(input.Inventory, []sessioninventory.BindingInput{bindingInput})
 	if writeConfig != nil {
@@ -139,7 +167,7 @@ func ObserveAndPersist(input ObserveInput, store LedgerAppender, writeConfig Con
 			resolved = sessioninventory.SortInventory(resolved)
 		}
 	}
-	return resolved, nil
+	return resolved, warning
 }
 
 func nativeIDForRoot(forests []sessioninventory.Forest, agent sessioninventory.Agent, rootNodeID string) string {

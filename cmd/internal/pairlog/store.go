@@ -8,6 +8,7 @@ import (
 	"path/filepath"
 	"time"
 
+	"github.com/xianxu/pair/cmd/internal/commitoutcome"
 	"github.com/xianxu/pair/cmd/internal/sessioninventory"
 	"golang.org/x/sys/unix"
 )
@@ -37,16 +38,19 @@ type Runtime interface {
 type SessionLogStore struct{ Runtime Runtime }
 
 // PersistSessionLog uses the production filesystem runtime.
-func PersistSessionLog(path string, body []byte, now time.Time) error {
-	return (SessionLogStore{Runtime: OSRuntime{}}).Persist(path, body, now)
+func PersistSessionLog(path string, body []byte, now time.Time, appendID string) error {
+	return (SessionLogStore{Runtime: OSRuntime{}}).PersistWithID(path, body, now, appendID)
 }
 
-func (s SessionLogStore) Persist(path string, body []byte, now time.Time) (err error) {
+func (s SessionLogStore) PersistWithID(path string, body []byte, now time.Time, appendID string) (err error) {
 	if path == "" {
 		return errors.New("session log path is empty")
 	}
 	if s.Runtime == nil {
 		return errors.New("session log runtime is nil")
+	}
+	if !sessioninventory.ValidPairLogAppendID(appendID) {
+		return errors.New("session log append ID is invalid")
 	}
 	dir := filepath.Dir(path)
 	if err := s.Runtime.MkdirAll(dir, 0o700); err != nil {
@@ -56,7 +60,12 @@ func (s SessionLogStore) Persist(path string, body []byte, now time.Time) (err e
 	if err != nil {
 		return fmt.Errorf("lock session log: %w", err)
 	}
-	defer func() { err = errors.Join(err, lock.Close()) }()
+	outcome := commitoutcome.NotAuthoritative
+	defer func() {
+		if unlockErr := lock.Close(); unlockErr != nil {
+			err = commitoutcome.Join(outcome, err, fmt.Errorf("unlock session log: %w", unlockErr))
+		}
+	}()
 
 	existing, err := s.Runtime.ReadFile(path)
 	if errors.Is(err, os.ErrNotExist) {
@@ -65,7 +74,25 @@ func (s SessionLogStore) Persist(path string, body []byte, now time.Time) (err e
 	if err != nil {
 		return fmt.Errorf("read session log: %w", err)
 	}
-	entry := sessioninventory.EncodePairLogEntry(body, now)
+	parsed := sessioninventory.ParsePairLog(existing, 0)
+	if len(parsed.MalformedOffsets) != 0 {
+		return fmt.Errorf("existing session log is malformed at byte %d", parsed.MalformedOffsets[0])
+	}
+	for _, entry := range parsed.Entries {
+		if entry.AppendID != appendID {
+			continue
+		}
+		if entry.AuthoredText != string(body) {
+			return fmt.Errorf("session log append ID %q already names different text", appendID)
+		}
+		outcome = commitoutcome.Indeterminate
+		if err := s.Runtime.SyncDirectory(dir); err != nil {
+			return commitoutcome.Wrap(outcome, fmt.Errorf("sync published session log directory: %w", err))
+		}
+		outcome = commitoutcome.Committed
+		return nil
+	}
+	entry := sessioninventory.EncodePairLogEntryWithID(body, now, appendID)
 	contents := make([]byte, 0, len(existing)+len(entry))
 	contents = append(contents, existing...)
 	contents = append(contents, entry...)
@@ -75,18 +102,19 @@ func (s SessionLogStore) Persist(path string, body []byte, now time.Time) (err e
 		return fmt.Errorf("create session log replacement: %w", err)
 	}
 	tmpName := tmp.Name()
-	defer s.Runtime.Remove(tmpName)
+	defer func() {
+		if removeErr := s.Runtime.Remove(tmpName); removeErr != nil && !errors.Is(removeErr, os.ErrNotExist) {
+			err = commitoutcome.Join(outcome, err, fmt.Errorf("remove session log replacement: %w", removeErr))
+		}
+	}()
 	if err := tmp.Chmod(0o600); err != nil {
-		_ = tmp.Close()
-		return fmt.Errorf("chmod session log replacement: %w", err)
+		return errors.Join(fmt.Errorf("chmod session log replacement: %w", err), tmp.Close())
 	}
 	if err := writeFull(tmp, contents); err != nil {
-		_ = tmp.Close()
-		return fmt.Errorf("write session log replacement: %w", err)
+		return errors.Join(fmt.Errorf("write session log replacement: %w", err), tmp.Close())
 	}
 	if err := tmp.Sync(); err != nil {
-		_ = tmp.Close()
-		return fmt.Errorf("sync session log replacement: %w", err)
+		return errors.Join(fmt.Errorf("sync session log replacement: %w", err), tmp.Close())
 	}
 	if err := tmp.Close(); err != nil {
 		return fmt.Errorf("close session log replacement: %w", err)
@@ -94,9 +122,11 @@ func (s SessionLogStore) Persist(path string, body []byte, now time.Time) (err e
 	if err := s.Runtime.Rename(tmpName, path); err != nil {
 		return fmt.Errorf("publish session log replacement: %w", err)
 	}
+	outcome = commitoutcome.Indeterminate
 	if err := s.Runtime.SyncDirectory(dir); err != nil {
-		return fmt.Errorf("sync session log directory: %w", err)
+		return commitoutcome.Wrap(outcome, fmt.Errorf("sync session log directory: %w", err))
 	}
+	outcome = commitoutcome.Committed
 	return nil
 }
 

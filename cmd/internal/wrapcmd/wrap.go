@@ -2136,7 +2136,7 @@ func freshAgentInvocation(wrapperExecutable, scrollbackLog string, currentArgv [
 			return nil, errors.New("missing Pair scope identity for fresh launch")
 		}
 		prepared, err := sessionwatch.PrepareOSLaunch(envValue(env, "HOME"), dataDir, sessionledger.Owner{ScopeKey: scopeKey, Tag: tag, Agent: agent}, "")
-		if err != nil {
+		if err != nil && sessionledger.AppendOutcomeOf(err) != sessionledger.AppendCommitted {
 			return nil, err
 		}
 		launchOrdinal = prepared.Launch.Ordinal
