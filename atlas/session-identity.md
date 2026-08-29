@@ -61,7 +61,7 @@ byte-counted log grammar while retaining legacy entries, so authored Markdown
 separators round-trip.
 
 The final #155 migration makes inventory queries the only native-session read
-authority. Context/token usage, title activity, slug input, review scoping,
+authority. Context/token usage, title activity, bounded slug text events, review scoping,
 launcher recovery and resume hints, changelog keying, and Neovim age display all
 consume an established owner projection. Provisional, ambiguous, and unbound
 owners remain explicit absence; only an exact inherited `PAIR_SESSION_ID` can

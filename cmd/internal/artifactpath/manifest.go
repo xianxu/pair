@@ -336,6 +336,9 @@ var SourceClassifications = []SourceClassification{
 	{Path: "cmd/internal/sessionwatch/sessionwatch.go", Kind: VocabularyConsumer, Families: []string{"native-session"}, Vocabulary: []VocabularyAllowance{
 		goStructVocabulary("native-session", `json:"session_id"`, "SessionID", 1),
 	}},
+	{Path: "cmd/internal/sessionledger/record.go", Kind: VocabularyConsumer, Families: []string{"native-session"}, Vocabulary: []VocabularyAllowance{
+		goStructVocabulary("native-session", `json:"session_id"`, "SessionID", 1),
+	}},
 	{Path: "cmd/internal/titlepoller/runtime.go", Kind: ResolvedConsumer, Families: []string{"pane"}, BindingNames: []string{"scoped-pane-glob"}, Vocabulary: []VocabularyAllowance{
 		goCallVocabulary("pane", "--pane-id", "os/exec.Command", 5, 1),
 	}},
@@ -612,7 +615,6 @@ var NonArtifactSources = []string{
 	"cmd/internal/sessioninventory/scan_muse.go",
 	"cmd/internal/sessioninventory/usage.go",
 	"cmd/internal/sessioninventorytest/fake_runtime.go",
-	"cmd/internal/sessionledger/record.go",
 	"cmd/internal/sessionledger/store.go",
 	"cmd/internal/sessionledger/store_unix.go",
 	"cmd/internal/sessionwatch/runcli.go",

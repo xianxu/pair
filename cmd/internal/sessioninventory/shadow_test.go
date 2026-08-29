@@ -29,6 +29,7 @@ func TestShadowSweep(t *testing.T) {
 		{name: "direct lsof command", re: regexp.MustCompile(`exec\.Command\(["']lsof["']`)},
 		{name: "retired transcript resolver", re: regexp.MustCompile(`(?:ReadCodexRootSessionID|CodexSessionIDFromPath|ResolveCodexSessionID|resolveLiveCodexTranscript)`)},
 		{name: "config filename authority scan", re: regexp.MustCompile(`\.ConfigGlob\(\)`)},
+		{name: "native transcript parser", re: regexp.MustCompile(`(?:parseTranscript|parseClaude|parseCodex|parseAgy|parseMuse|claudeEntry|codexEntry|agyEntry|museEnvelope)`)},
 	}
 
 	for _, root := range []string{"cmd", "nvim", "bin"} {

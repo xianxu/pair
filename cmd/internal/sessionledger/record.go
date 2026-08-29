@@ -8,6 +8,7 @@ import (
 	"fmt"
 	"io"
 	"slices"
+	"time"
 )
 
 type RecordKind string
@@ -79,6 +80,17 @@ type wireRecord struct {
 	RootNativeID     string             `json:"root_native_id,omitempty"`
 }
 
+type compatibilityWireRecord struct {
+	Agent        *string         `json:"agent"`
+	Args         json.RawMessage `json:"args"`
+	SessionID    *string         `json:"session_id"`
+	Started      *string         `json:"started"`
+	LastActive   *string         `json:"last_active"`
+	RepoRoot     *string         `json:"repo_root"`
+	RepoName     *string         `json:"repo_name"`
+	LegacyImport *bool           `json:"legacy_import,omitempty"`
+}
+
 func EncodeRecord(record Record) ([]byte, error) {
 	record.NativeWatermarks = slices.Clone(record.NativeWatermarks)
 	sortWatermarks(record.NativeWatermarks)
@@ -115,22 +127,42 @@ func ParseLedger(raw []byte) ParseResult {
 			result.Records = append(result.Records, record)
 			continue
 		}
-		var shape struct {
-			Version *json.RawMessage `json:"v"`
-			Kind    *json.RawMessage `json:"kind"`
-			Agent   string           `json:"agent"`
-		}
-		decoder := json.NewDecoder(bytes.NewReader(line))
-		decodeErr := decoder.Decode(&shape)
-		var trailing any
-		trailingErr := decoder.Decode(&trailing)
-		if decodeErr == nil && errors.Is(trailingErr, io.EOF) && shape.Version == nil && shape.Kind == nil && shape.Agent != "" {
+		if isCompatibilityRecord(line) {
 			result.CompatibilityOrdinals = append(result.CompatibilityOrdinals, ordinal)
 			continue
 		}
 		result.MalformedOrdinals = append(result.MalformedOrdinals, ordinal)
 	}
 	return result
+}
+
+func isCompatibilityRecord(raw []byte) bool {
+	decoder := json.NewDecoder(bytes.NewReader(raw))
+	decoder.DisallowUnknownFields()
+	var wire compatibilityWireRecord
+	if err := decoder.Decode(&wire); err != nil {
+		return false
+	}
+	var trailing any
+	if err := decoder.Decode(&trailing); !errors.Is(err, io.EOF) {
+		return false
+	}
+	var args []string
+	if wire.Agent == nil || len(wire.Args) == 0 || json.Unmarshal(wire.Args, &args) != nil || wire.SessionID == nil || wire.Started == nil || wire.LastActive == nil || wire.RepoRoot == nil || wire.RepoName == nil {
+		return false
+	}
+	if _, err := time.Parse(time.RFC3339Nano, *wire.Started); err != nil {
+		return false
+	}
+	if _, err := time.Parse(time.RFC3339Nano, *wire.LastActive); err != nil {
+		return false
+	}
+	switch *wire.Agent {
+	case "claude", "codex", "agy", "muse":
+		return true
+	default:
+		return false
+	}
 }
 
 func decodeRecord(raw []byte) (Record, error) {

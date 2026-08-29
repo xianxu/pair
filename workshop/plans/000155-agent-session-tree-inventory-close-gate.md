@@ -315,6 +315,40 @@ rounds:
           family: mixed-ledger-formats-are-classified
           round: 10
       blocked: true
+    - "n": 11
+      timestamp: "2026-08-28T18:07:18-07:00"
+      agent: codex
+      dispose:
+        - id: BR-18
+          disposition: addressed
+          note: The watcher regression directly establishes a unique completed round when a current PID has no usable identity token; restoring the former early return would prevent the asserted binding.
+          round: 11
+        - id: BR-19
+          disposition: not-addressed
+          note: Event and usage paths have long-record tests, but the migrated slug transcript consumer still reconstructs and parses the whole artifact without a failing long-transcript regression; the shared helper also accepts unterminated final records contrary to the bounded-record contract.
+          round: 11
+        - id: BR-20
+          disposition: addressed
+          note: The QuerySession regression returns an established binding from valid files alongside a rejected listing entry and requires the corresponding diagnostic; the former fatal return would fail it.
+          round: 11
+        - id: BR-21
+          disposition: addressed
+          note: A valid legacy row followed by typed authority is classified without a malformed diagnostic, and the shared parser is used by both inventory and launcher.
+          round: 11
+      findings:
+        - id: BR-22
+          severity: Critical
+          title: Slug remains a second native transcript parser
+          detail: 'ARCH-DRY and ARCH-PURPOSE: slugcmd reads the complete transcript and maintains separate Claude, Codex, Agy, and Muse adapters, including an unknown-agent fallback to Claude. The issue explicitly requires every native parser consumer to derive from sessioninventory; expose a bounded shared text-event projection, migrate slug to it, and enforce the class in the shadow sweep.'
+          family: native-record-parsing-is-single-source
+          round: 11
+        - id: BR-23
+          severity: Important
+          title: Compatibility classification admits malformed and unsupported rows
+          detail: This is the 2nd finding in family `mixed-ledger-formats-are-classified`. The classifier treats any single JSON object with a nonempty agent and no v or kind as compatible, so partial, unknown-field, and unsupported-agent rows escape malformed diagnostics and can enter launcher history. State the exhaustive typed versus exact-legacy versus malformed rule and test the complete classification matrix in both consumers.
+          family: mixed-ledger-formats-are-classified
+          round: 11
+      blocked: true
 ---
 
 # Gate ledger — pair#155 (boundary-review)
@@ -454,9 +488,24 @@ later rounds disposed of them. Generated — edit the gate, not this file.
 - **BR-21** [Important] `mixed-ledger-formats-are-classified` Valid compatibility ledger rows are reported as malformed
   Every launch still appends a legacy `LedgerEntry` before its typed launch row, but the inventory parser classifies every non-typed row as malformed. Mixed ledgers need one shared classification that distinguishes supported compatibility rows, typed authority, and genuinely corrupt rows.
 
+## Round 11 — 2026-08-28T18:07:18-07:00 (codex) — BLOCKED
+
+### Disposed
+
+- BR-18 — addressed — The watcher regression directly establishes a unique completed round when a current PID has no usable identity token; restoring the former early return would prevent the asserted binding.
+- BR-19 — not-addressed — Event and usage paths have long-record tests, but the migrated slug transcript consumer still reconstructs and parses the whole artifact without a failing long-transcript regression; the shared helper also accepts unterminated final records contrary to the bounded-record contract.
+- BR-20 — addressed — The QuerySession regression returns an established binding from valid files alongside a rejected listing entry and requires the corresponding diagnostic; the former fatal return would fail it.
+- BR-21 — addressed — A valid legacy row followed by typed authority is classified without a malformed diagnostic, and the shared parser is used by both inventory and launcher.
+
+### Raised
+
+- **BR-22** [Critical] `native-record-parsing-is-single-source` Slug remains a second native transcript parser
+  ARCH-DRY and ARCH-PURPOSE: slugcmd reads the complete transcript and maintains separate Claude, Codex, Agy, and Muse adapters, including an unknown-agent fallback to Claude. The issue explicitly requires every native parser consumer to derive from sessioninventory; expose a bounded shared text-event projection, migrate slug to it, and enforce the class in the shadow sweep.
+- **BR-23** [Important] `mixed-ledger-formats-are-classified` Compatibility classification admits malformed and unsupported rows
+  This is the 2nd finding in family `mixed-ledger-formats-are-classified`. The classifier treats any single JSON object with a nonempty agent and no v or kind as compatible, so partial, unknown-field, and unsupported-agent rows escape malformed diagnostics and can enter launcher history. State the exhaustive typed versus exact-legacy versus malformed rule and test the complete classification matrix in both consumers.
+
 ## Open findings
 
-- **BR-18** [Critical] `usable-process-evidence-only` Missing process identity prevents portable causal-round establishment
 - **BR-19** [Critical] `bounded-record-streaming` Whole-file limits make valid long transcripts unusable
-- **BR-20** [Critical] `storage-boundary-regular-partial` Partial Pair-artifact enumeration discards valid evidence
-- **BR-21** [Important] `mixed-ledger-formats-are-classified` Valid compatibility ledger rows are reported as malformed
+- **BR-22** [Critical] `native-record-parsing-is-single-source` Slug remains a second native transcript parser
+- **BR-23** [Important] `mixed-ledger-formats-are-classified` Compatibility classification admits malformed and unsupported rows

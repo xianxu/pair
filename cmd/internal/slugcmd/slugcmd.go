@@ -14,8 +14,6 @@
 //	PAIR_TAG, PAIR_DATA_DIR   required launch identity/scope
 //	PAIR_AGENT                agent name (claude|codex|agy); default claude
 //	PAIR_SLUG_MODEL           small-model override; default depends on agent
-//	PAIR_SLUG_TRANSCRIPT      explicit transcript path, bypassing resolution
-//	                          (tests; also lets pair-wrap pass it directly)
 //	PAIR_SLUG_NESTED          set by the model child — makes pair-slug no-op
 //	OPENAI_API_KEY            optional for Codex's direct OpenAI API path
 //	cwd                       the repo (inherited from pair-wrap) — branch left
@@ -79,13 +77,24 @@ func repoBase(dir string) string {
 	return filepath.Base(dir)
 }
 
-func inventoryTranscript(runtime sessioninventory.Runtime, scopeKey, tag string, agent sessioninventory.Agent) ([]byte, sessioninventory.BindingStatus, error) {
+func inventoryTurns(runtime sessioninventory.Runtime, scopeKey, tag string, agent sessioninventory.Agent) ([]turn, sessioninventory.BindingStatus, error) {
 	query, err := sessioninventory.QuerySession(runtime, scopeKey, tag, agent)
 	if err != nil || query.Root == nil {
 		return nil, query.Status, err
 	}
-	data, err := sessioninventory.ReadRootTranscript(runtime, *query.Root)
-	return data, query.Status, err
+	events, err := sessioninventory.TextEventWindowForRoot(runtime, *query.Root, hardMaxTurns)
+	if err != nil {
+		return nil, query.Status, err
+	}
+	turns := make([]turn, 0, len(events))
+	for _, event := range events {
+		role := "assistant"
+		if event.Kind == sessioninventory.EventOperator {
+			role = "user"
+		}
+		turns = append(turns, turn{Role: role, Text: event.Text})
+	}
+	return turns, query.Status, nil
 }
 
 // Run is the pair-slug body: env-driven (no args, no stdout/stderr — writes
@@ -120,25 +129,18 @@ func Run() int {
 	cwd, _ := os.Getwd()
 	home, _ := os.UserHomeDir()
 
-	var data []byte
-	transcriptPath := os.Getenv("PAIR_SLUG_TRANSCRIPT")
-	if transcriptPath != "" {
-		data, err = os.ReadFile(transcriptPath)
-	} else {
-		runtime := sessioninventory.NewOSRuntime(home, dataDir)
-		var status sessioninventory.BindingStatus
-		data, status, err = inventoryTranscript(runtime, os.Getenv("PAIR_SCOPE_KEY"), tag, sessioninventory.Agent(agent))
-		if err == nil && status != sessioninventory.BindingEstablished {
-			logf("native session is %s; slug waits for an established binding", status)
-			return 0
-		}
-	}
-	if err != nil {
-		logf("read established transcript: %v", err)
-		lg.Log(4, "slug-parse", adapt.Fail, "read transcript: "+err.Error())
+	runtime := sessioninventory.NewOSRuntime(home, dataDir)
+	turns, status, err := inventoryTurns(runtime, os.Getenv("PAIR_SCOPE_KEY"), tag, sessioninventory.Agent(agent))
+	if err == nil && status != sessioninventory.BindingEstablished {
+		logf("native session is %s; slug waits for an established binding", status)
 		return 0
 	}
-	turns := windowTurns(parseTranscript(agent, data), recentTurns, minUserTurns, hardMaxTurns, perTurnChars)
+	if err != nil {
+		logf("read established text events: %v", err)
+		lg.Log(4, "slug-parse", adapt.Fail, "read text events: "+err.Error())
+		return 0
+	}
+	turns = windowTurns(turns, recentTurns, minUserTurns, hardMaxTurns, perTurnChars)
 	if len(turns) == 0 {
 		logf("no turns extracted (agent=%s)", agent)
 		lg.Log(4, "slug-parse", adapt.NearMiss, "transcript read but 0 turns extracted (agent="+agent+")")

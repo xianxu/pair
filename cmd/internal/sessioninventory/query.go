@@ -70,12 +70,3 @@ func RootTranscript(root Node) (Artifact, error) {
 	}
 	return transcript, nil
 }
-
-// ReadRootTranscript reads only the scanner-authorized root transcript.
-func ReadRootTranscript(runtime Runtime, root Node) ([]byte, error) {
-	artifact, err := RootTranscript(root)
-	if err != nil {
-		return nil, err
-	}
-	return readJSONLines(runtime, artifact, jsonRecordLimit)
-}

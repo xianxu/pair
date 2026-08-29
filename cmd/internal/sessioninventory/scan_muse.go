@@ -37,7 +37,7 @@ func scanMuseFile(runtime Runtime, entry FileEntry) (Fact, []Diagnostic, bool) {
 
 	var diagnostics []Diagnostic
 	contradiction := false
-	err := visitJSONLines(runtime, artifact, jsonRecordLimit, false, func(line []byte) bool {
+	err := visitJSONLines(runtime, artifact, jsonRecordLimit, func(line []byte) bool {
 		if len(line) == 0 {
 			return false
 		}

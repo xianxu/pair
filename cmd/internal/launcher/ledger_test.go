@@ -67,6 +67,22 @@ func TestLauncherParseLedgerPrefersTypedCurrentGeneration(t *testing.T) {
 	}
 }
 
+func TestLauncherParseLedgerRejectsMalformedCompatibilityShapes(t *testing.T) {
+	t.Parallel()
+	valid, err := BuildLedgerLine(LedgerEntry{Agent: "claude"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	raw := valid + "\n" +
+		`{"agent":"claude","session_id":"partial"}` + "\n" +
+		strings.TrimSuffix(valid, "}") + `,"extra":true}` + "\n" +
+		strings.Replace(valid, `"claude"`, `"unsupported"`, 1) + "\n"
+	entries := ParseLedger(raw)
+	if len(entries) != 1 || entries[0].Agent != "claude" {
+		t.Fatalf("entries=%#v", entries)
+	}
+}
+
 func TestLatestLedgerEntryForAgent(t *testing.T) {
 	entries := []LedgerEntry{
 		{Agent: "claude", SessionID: "old", LastActive: time.Unix(10, 0).UTC()},

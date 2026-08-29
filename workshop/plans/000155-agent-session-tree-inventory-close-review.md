@@ -107,3 +107,105 @@ Append this to the plan’s `## Revisions`:
 > **Reason:** close review found that unusable process identity suppressed portable matching, whole-file caps rejected valid long JSONL histories, partial Pair listings discarded valid facts, and compatibility ledger rows were misclassified.
 >
 > **Delta:** make process corroboration conditional on a usable identity token; stream native records with per-record bounds across every consumer; preserve regular partial results for native and Pair roots; and introduce one mixed-ledger classifier shared by launcher and inventory, with regressions for each class.
+
+---
+
+## Re-review — 2026-08-28T18:07:18-07:00 (REWORK)
+
+| field | value |
+|-------|-------|
+| issue | 155 — deterministic agent session-tree inventory |
+| repo | pair |
+| issue file | workshop/issues/000155-agent-session-tree-inventory.md |
+| boundary | whole-issue close |
+| milestone | — |
+| window | 4c454436038e2ae049690bc343def9f0511fca8c..c902ed6beaec87342d77737b411a318a2c8b926b |
+| command | sdlc close --issue 155 |
+| reviewer | codex |
+| timestamp | 2026-08-28T18:07:18-07:00 |
+| verdict | REWORK |
+
+## Review
+
+```verdict
+verdict: REWORK
+confidence: high
+```
+
+The implementation substantially delivers the deterministic inventory and fixes three of the four open findings, with full Go and Lua suites passing. It cannot ship yet: BR-19 remains incomplete, slugging still maintains an independent native-transcript parser contrary to the central migration contract, and the new compatibility-ledger classifier accepts malformed rows too broadly.
+
+1. Strengths
+
+- Missing process identity now disables only process corroboration; the unique causal-round path remains reachable and is directly exercised at `sessionwatch/run_test.go:82`.
+- Native event and token-usage readers process records beyond 32 MiB with focused regressions at `events_test.go:60` and `query_test.go:83`.
+- Partial Pair listings retain usable files while emitting a diagnostic, exercised end-to-end at `query_test.go:96`.
+- README and atlas changes cover the public command, binding lifecycle, consumer migration, and storage model.
+- The injected runtime, stateful fake, and live conformance design provide a credible ARCH-MOCK boundary.
+
+2. Critical findings
+
+- BR-19 remains open (`bounded-record-streaming`). `ReadRootTranscript` calls `readJSONLines`, which reconstructs the entire transcript in a `bytes.Buffer` at `scan_helpers.go:81-91`; slug then parses that full buffer at `slugcmd.go:82-88,141`. No long-transcript regression reaches this migrated consumer, so the claimed fix lacks the required red-before/green-after test. Additionally, event, usage, and transcript reads pass `acceptFinal=true`, accepting an unterminated final record even though the Spec requires truncated records to contribute no fact. Fix by exposing a bounded record/event projection consumed directly by slug, retaining only its required recent window, and add regressions for a useful record after 32 MiB and an unterminated final record.
+- ARCH-DRY / ARCH-PURPOSE: slug remains an independent native-format authority. `slug.go:69-80` dispatches among local parsers, and `slug.go:84-180` begins duplicate Claude/Codex schemas; Agy and Muse duplicates also remain later in the file. Unknown agents even fail open to Claude parsing. This contradicts the issue’s “no consumer outside inventory may parse a native transcript independently” requirement and the plan’s NativeEvent rationale. Delete these adapters and consume a sessioninventory-owned text-event projection; strengthen `TestShadowSweep` to detect native record adapters outside the inventory package.
+
+3. Important findings
+
+- ARCH-PURPOSE: this is the 2nd finding in family `mixed-ledger-formats-are-classified`. The shared predicate at `sessionledger/record.go:118-129` classifies every single JSON object lacking `v` and `kind` but having a nonempty `agent` as compatible. Consequently rows with missing legacy fields, unknown fields, or unsupported agents avoid malformed diagnostics, and launcher parsing accepts them at `launcher/ledger.go:40-52`. Define and strictly decode the complete supported legacy shape, validate its agent, and table-test typed, exact legacy, unsupported, partial, unknown-field, trailing-value, and malformed rows across both launcher and inventory consumers.
+
+4. Minor findings
+
+None.
+
+5. Test coverage notes
+
+- Passed: `go test ./... -count=1`.
+- Passed: `make test-lua`.
+- Passed: focused inventory, ledger, watcher, launcher, and slug suites.
+- Passed: pinned-range `git diff --check`.
+- Missing: long-transcript coverage through slug/`ReadRootTranscript`; truncated-final-record rejection; negative compatibility-row classification.
+- The full green suite does not detect the explicit shadow-parser violation.
+
+6. Architectural notes for upcoming work
+
+- ARCH-DRY: flag — native parsing remains duplicated in slug.
+- ARCH-PURE: pass — forest, matching, ordering, and projections remain largely pure behind the runtime seam.
+- ARCH-PURPOSE: flag — final consumer migration and bounded-record handling are incomplete.
+- ARCH-MOCK: pass — production and tests share the injected external boundary and stateful fake, with live conformance coverage.
+
+7. Plan revision recommendations
+
+After fixing the implementation, append a `## Revisions` entry correcting the current claim that every native JSONL consumer streams bounded records. Record the shared bounded text-event projection, removal of slug’s four native parsers, truncated-record behavior, and expanded shadow-sweep enforcement.
+
+```findings
+dispose:
+  - id: BR-18
+    disposition: addressed
+    note: |
+      The watcher regression directly establishes a unique completed round when a current PID has no usable identity token; restoring the former early return would prevent the asserted binding.
+  - id: BR-19
+    disposition: not-addressed
+    note: |
+      Event and usage paths have long-record tests, but the migrated slug transcript consumer still reconstructs and parses the whole artifact without a failing long-transcript regression; the shared helper also accepts unterminated final records contrary to the bounded-record contract.
+  - id: BR-20
+    disposition: addressed
+    note: |
+      The QuerySession regression returns an established binding from valid files alongside a rejected listing entry and requires the corresponding diagnostic; the former fatal return would fail it.
+  - id: BR-21
+    disposition: addressed
+    note: |
+      A valid legacy row followed by typed authority is classified without a malformed diagnostic, and the shared parser is used by both inventory and launcher.
+findings:
+  - id: new
+    severity: Critical
+    family: native-record-parsing-is-single-source
+    title: |
+      Slug remains a second native transcript parser
+    detail: |
+      ARCH-DRY and ARCH-PURPOSE: slugcmd reads the complete transcript and maintains separate Claude, Codex, Agy, and Muse adapters, including an unknown-agent fallback to Claude. The issue explicitly requires every native parser consumer to derive from sessioninventory; expose a bounded shared text-event projection, migrate slug to it, and enforce the class in the shadow sweep.
+  - id: new
+    severity: Important
+    family: mixed-ledger-formats-are-classified
+    title: |
+      Compatibility classification admits malformed and unsupported rows
+    detail: |
+      This is the 2nd finding in family `mixed-ledger-formats-are-classified`. The classifier treats any single JSON object with a nonempty agent and no v or kind as compatible, so partial, unknown-field, and unsupported-agent rows escape malformed diagnostics and can enter launcher history. State the exhaustive typed versus exact-legacy versus malformed rule and test the complete classification matrix in both consumers.
+```

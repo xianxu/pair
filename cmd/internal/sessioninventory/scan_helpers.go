@@ -22,13 +22,13 @@ var (
 	asciiIDPattern     = regexp.MustCompile(`^[A-Za-z0-9][A-Za-z0-9_-]*$`)
 )
 
-func visitJSONLines(runtime Runtime, artifact Artifact, lineLimit int64, acceptFinal bool, visit func([]byte) bool) error {
-	return visitJSONLinesAt(runtime, artifact, lineLimit, acceptFinal, func(line []byte, _ uint64) bool {
+func visitJSONLines(runtime Runtime, artifact Artifact, lineLimit int64, visit func([]byte) bool) error {
+	return visitJSONLinesAt(runtime, artifact, lineLimit, func(line []byte, _ uint64) bool {
 		return visit(line)
 	})
 }
 
-func visitJSONLinesAt(runtime Runtime, artifact Artifact, lineLimit int64, acceptFinal bool, visit func([]byte, uint64) bool) error {
+func visitJSONLinesAt(runtime Runtime, artifact Artifact, lineLimit int64, visit func([]byte, uint64) bool) error {
 	var pending []byte
 	var readOffset int64
 	var pendingOffset uint64
@@ -65,30 +65,11 @@ func visitJSONLinesAt(runtime Runtime, artifact Artifact, lineLimit int64, accep
 		}
 		if eof {
 			if len(pending) != 0 {
-				if !acceptFinal {
-					return errTruncatedRecord
-				}
-				if pending[len(pending)-1] == '\r' {
-					pending = pending[:len(pending)-1]
-				}
-				visit(pending, pendingOffset)
+				return errTruncatedRecord
 			}
 			return nil
 		}
 	}
-}
-
-func readJSONLines(runtime Runtime, artifact Artifact, lineLimit int64) ([]byte, error) {
-	var result bytes.Buffer
-	err := visitJSONLines(runtime, artifact, lineLimit, true, func(line []byte) bool {
-		result.Write(line)
-		result.WriteByte('\n')
-		return false
-	})
-	if err != nil {
-		return nil, err
-	}
-	return result.Bytes(), nil
 }
 
 func metadataTime(value string) *NativeTime {

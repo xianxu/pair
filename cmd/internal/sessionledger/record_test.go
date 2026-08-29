@@ -2,6 +2,7 @@ package sessionledger
 
 import (
 	"slices"
+	"strings"
 	"testing"
 )
 
@@ -24,12 +25,39 @@ func TestParseLedgerRetainsPhysicalOrdinals(t *testing.T) {
 
 func TestParseLedgerClassifiesCompatibilityRowsSeparately(t *testing.T) {
 	t.Parallel()
-	raw := []byte(`{"agent":"codex","session_id":"legacy"}` + "\n" +
+	raw := []byte(`{"agent":"codex","args":[],"session_id":"legacy","started":"2026-08-28T00:00:00Z","last_active":"2026-08-28T00:00:00Z","repo_root":"/repo","repo_name":"pair"}` + "\n" +
 		`{"v":1,"kind":"launch","scope_key":"scope","tag":"work","agent":"codex","pair_log_offset":0,"native_watermarks":[]}` + "\n" +
 		"not-json\n")
 	parsed := ParseLedger(raw)
 	if !slices.Equal(parsed.CompatibilityOrdinals, []uint64{1}) || !slices.Equal(parsed.MalformedOrdinals, []uint64{3}) || len(parsed.Records) != 1 {
 		t.Fatalf("parsed=%#v", parsed)
+	}
+}
+
+func TestParseLedgerCompatibilityClassificationMatrix(t *testing.T) {
+	t.Parallel()
+	valid := `{"agent":"claude","args":null,"session_id":"","started":"0001-01-01T00:00:00Z","last_active":"0001-01-01T00:00:00Z","repo_root":"","repo_name":""}`
+	for _, test := range []struct {
+		name string
+		row  string
+		want bool
+	}{
+		{"exact legacy", valid, true},
+		{"exact legacy with import marker", strings.TrimSuffix(valid, "}") + `,"legacy_import":true}`, true},
+		{"unsupported agent", strings.Replace(valid, `"claude"`, `"other"`, 1), false},
+		{"partial", `{"agent":"claude","session_id":"x"}`, false},
+		{"wrong field type", strings.Replace(valid, `"args":null`, `"args":3`, 1), false},
+		{"unknown field", strings.TrimSuffix(valid, "}") + `,"extra":true}`, false},
+		{"trailing value", valid + ` {}`, false},
+		{"malformed", `{`, false},
+	} {
+		t.Run(test.name, func(t *testing.T) {
+			parsed := ParseLedger([]byte(test.row + "\n"))
+			got := slices.Equal(parsed.CompatibilityOrdinals, []uint64{1})
+			if got != test.want || (!test.want && !slices.Equal(parsed.MalformedOrdinals, []uint64{1})) {
+				t.Fatalf("parsed=%#v want compatibility=%v", parsed, test.want)
+			}
+		})
 	}
 }
 

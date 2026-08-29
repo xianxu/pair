@@ -755,10 +755,10 @@ split keeps the model out of the live buffer:
   `PAIR_AGENT` set, repo cwd inherited). This is agent-agnostic by design — *not*
   a claude `Stop` hook — so the slug works for every agent and needs no
   `~/.claude` config (pair-wrap wraps every session).
-- **Propose** — `cmd/pair-slug` (thin shim over `cmd/internal/slugcmd`; also `pair slug`, #92). Resolves its own transcript from
-  exact `$PAIR_AGENT_CONFIG_PATH` (session_id) + the per-agent native path, and parses each
-  **native format** into `{role,text}` turns: claude jsonl, codex rollout
-  (`response_item`/`payload.message`), agy jsonl (USER_INPUT transcript). Derives the
+- **Propose** — `cmd/pair-slug` (thin shim over `cmd/internal/slugcmd`; also `pair slug`, #92). Queries the established owner through
+  `sessioninventory` and consumes its bounded `NativeEvent` text window; all
+  Claude, Codex, Agy, and Muse record parsing stays in the versioned inventory
+  adapter, and the shadow sweep rejects slug-local native parsers. It derives the
   left from the git branch (`git -C <cwd>`); asks a small model (`$PAIR_SLUG_MODEL`,
   default `claude-haiku-4-5` via `claude -p`, or `gpt-5.4-mini` when
   `PAIR_AGENT=codex`) for the `<focus>` right over a **user-biased**
@@ -783,9 +783,9 @@ split keeps the model out of the live buffer:
   turn (so a user edit reaches the model, soft policy). Single writer per file
   (proposer→proposed binding, nvim→effective binding) makes the channel race-free.
 
-Pure cores are tested: `cmd/internal/slugcmd/slug.go` (normalize/parse/decide) via
-`go test`, the nvim decision via `nvim -l` (`make test-lua`). Per-agent parsers
-validated against real codex/agy transcripts. Tests that drive `nvim --headless`
+Pure cores are tested: `cmd/internal/slugcmd/slug.go` (normalize/window/decide) via
+`go test`, the nvim decision via `nvim -l` (`make test-lua`). Inventory adapters
+are fixture-tested per agent, and slug has a long-history integration regression. Tests that drive `nvim --headless`
 through real keymap callbacks (e.g. `queue-send-test.sh` exercising `<M-CR>` →
 `send_to_agent`) often run *inside* a live zellij session, so every `zellij
 action` shell-out in `nvim/init.lua` is guarded by `has_ui()`

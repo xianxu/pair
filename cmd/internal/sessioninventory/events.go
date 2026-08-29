@@ -1,7 +1,6 @@
 package sessioninventory
 
 import (
-	"bytes"
 	"cmp"
 	"fmt"
 	"slices"
@@ -19,29 +18,11 @@ func NativeEventsWithRuntime(runtime Runtime, inventory Inventory, agent Agent) 
 			continue
 		}
 		for _, root := range forest.Roots {
-			var transcripts []Artifact
-			for _, artifact := range root.Artifacts {
-				if artifact.Kind == ArtifactTranscript {
-					transcripts = append(transcripts, artifact)
-				}
-			}
-			if len(transcripts) != 1 {
-				detail := fmt.Sprintf("root has %d transcript artifacts; exactly one is required for causal ordering", len(transcripts))
-				diagnostics = append(diagnostics, diagnosticWithSource(DiagnosticTurnUnusable, agent, &root.NativeID, root.StableID, detail))
-				continue
-			}
-			err := visitJSONLinesAt(runtime, transcripts[0], jsonRecordLimit, true, func(line []byte, lineStart uint64) bool {
-				events, disposition := NormalizeNativeEvent(agent, line)
-				if disposition == EventNearMiss {
-					source := fmt.Sprintf("%s:%d", root.StableID, lineStart)
-					diagnostics = append(diagnostics, diagnosticWithSource(DiagnosticTurnUnusable, agent, nil, source, "native record is not usable causal evidence"))
-					return false
-				}
-				for _, event := range events {
-					facts = append(facts, NativeEventFact{RootNodeID: root.StableID, Position: lineStart, Event: event})
-				}
-				return false
+			root.Agent = agent
+			found, err := visitNativeEventsForRoot(runtime, root, func(fact NativeEventFact) {
+				facts = append(facts, fact)
 			})
+			diagnostics = append(diagnostics, found...)
 			if err != nil {
 				diagnostics = append(diagnostics, diagnosticWithSource(DiagnosticTurnUnusable, agent, &root.NativeID, root.StableID, "root transcript is unreadable for causal matching"))
 			}
@@ -59,30 +40,65 @@ func NativeEventsWithRuntime(runtime Runtime, inventory Inventory, agent Agent) 
 	return facts, diagnostics
 }
 
-func nativeEventsFromJSONL(agent Agent, rootNodeID string, raw []byte, diagnostics *[]Diagnostic) []NativeEventFact {
-	var facts []NativeEventFact
-	offset := uint64(0)
-	for _, line := range bytes.Split(raw, []byte{'\n'}) {
-		lineStart := offset
-		offset += uint64(len(line)) + 1
-		if len(bytes.TrimSpace(line)) == 0 {
-			continue
-		}
-		events, disposition := NormalizeNativeEvent(agent, line)
+func visitNativeEventsForRoot(runtime Runtime, root Node, visit func(NativeEventFact)) ([]Diagnostic, error) {
+	artifact, err := RootTranscript(root)
+	if err != nil {
+		return nil, err
+	}
+	var diagnostics []Diagnostic
+	err = visitJSONLinesAt(runtime, artifact, jsonRecordLimit, func(line []byte, lineStart uint64) bool {
+		events, disposition := NormalizeNativeEvent(root.Agent, line)
 		if disposition == EventNearMiss {
-			source := fmt.Sprintf("%s:%d", rootNodeID, lineStart)
-			*diagnostics = append(*diagnostics, diagnosticWithSource(DiagnosticTurnUnusable, agent, nil, source, "native record is not an allowlisted causal event"))
-			continue
-		}
-		if disposition != EventAccepted {
-			continue
+			source := fmt.Sprintf("%s:%d", root.StableID, lineStart)
+			diagnostics = append(diagnostics, diagnosticWithSource(DiagnosticTurnUnusable, root.Agent, nil, source, "native record is not usable causal evidence"))
+			return false
 		}
 		for index, event := range events {
-			facts = append(facts, NativeEventFact{
-				Agent: agent, RootNodeID: rootNodeID,
+			visit(NativeEventFact{
+				Agent: root.Agent, RootNodeID: root.StableID,
 				Position: ((lineStart + 1) << 8) | uint64(index), Event: event,
 			})
 		}
+		return false
+	})
+	return diagnostics, err
+}
+
+// TextEventWindowForRoot streams one scanner-authorized root transcript and
+// retains only a bounded recent text window plus the nearest older user anchor.
+// pair:155-concept integration new final
+func TextEventWindowForRoot(runtime Runtime, root Node, maxRecent int) ([]NativeEvent, error) {
+	if maxRecent <= 0 {
+		return nil, nil
 	}
-	return facts
+	var recent []NativeEvent
+	var olderUser *NativeEvent
+	_, err := visitNativeEventsForRoot(runtime, root, func(fact NativeEventFact) {
+		if (fact.Event.Kind != EventOperator && fact.Event.Kind != EventAssistant) || fact.Event.Text == "" {
+			return
+		}
+		recent = append(recent, fact.Event)
+		if len(recent) > maxRecent {
+			dropped := recent[0]
+			recent = recent[1:]
+			if dropped.Kind == EventOperator {
+				copy := dropped
+				olderUser = &copy
+			}
+		}
+	})
+	if err != nil {
+		return nil, err
+	}
+	hasUser := false
+	for _, event := range recent {
+		if event.Kind == EventOperator {
+			hasUser = true
+			break
+		}
+	}
+	if !hasUser && olderUser != nil {
+		recent = append([]NativeEvent{*olderUser}, recent...)
+	}
+	return recent, nil
 }

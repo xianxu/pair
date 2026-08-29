@@ -951,6 +951,27 @@ be checked against measured actuals at close.*
   conformance passes for Agy, Claude, Codex, and Muse, including 1,202 Codex
   nodes / 838 roots after scanning installed histories beyond 32 MiB.
 
+- 2026-08-28 — close review round 11 disposed BR-18/BR-20/BR-21 but kept BR-19
+  open and found slug's four native adapters plus permissive compatibility-row
+  detection. Red regressions proved that slug had no bounded inventory
+  projection and that partial/unknown/unsupported legacy rows were accepted.
+  `TextEventWindowForRoot` now streams the shared `NativeEvent` adapter into a
+  bounded recent window plus one older user anchor; slug's raw transcript path
+  and all four parsers are deleted, strict truncation is restored, and the
+  shadow sweep enforces the boundary. The ledger owner now classifies only the
+  complete exact legacy shape for Claude/Codex/Agy/Muse as compatibility
+  (`ARCH-DRY`, `ARCH-PURE`, `ARCH-PURPOSE`, `ARCH-MOCK`).
+
+- 2026-08-28 — round-11 fixes verified end to end. A focused rerun caught and
+  fixed forest-agent propagation into the shared root-event visitor, and the
+  repository artifact guard required the typed legacy wire shape's
+  `session_id` use to be explicitly classified. The focused packages,
+  historical #149 declaration contracts, `go test ./... -count=1`, `go vet
+  ./...`, `make test-lua`, all four shell integration suites, Zellij config,
+  and `git diff --check` pass. Redacted live conformance passes for Agy,
+  Claude, Codex, and Muse (2,986 nodes / 2,291 roots), and `make pair` rebuilt
+  the in-place smoke-test binary.
+
 ### 2026-08-28
 - 2026-08-28: closed M2 — Focused and full session inventory Go suites pass; go vet passes; historical #149 source/declaration contracts pass; make test-lua passes; statusline, queue-send, and pair-session-watch shell integrations pass; git diff --check passes. Full evidence classification diagnoses unsupported/malformed recognized evidence while filtering only supported unrequested agents.; review verdict: SHIP
 - 2026-08-28: closed M1 — all four sanitized scanners and explicit edge provenance pass; exhaustive M1 concept table/declaration contract, diagnostic registry, equal-time ordering, regular/partial storage, optional usage, artifact/source/project contracts, vet, diff check, and redacted installed-shape conformance pass; pre-existing Couch launch timeout remains separately deferred by operator; review verdict: SHIP

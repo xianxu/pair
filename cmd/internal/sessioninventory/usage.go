@@ -19,7 +19,7 @@ func TokenUsageForRoot(runtime Runtime, root Node) (TokenUsage, bool, error) {
 	}
 	var last TokenUsage
 	found := false
-	err = visitJSONLines(runtime, artifact, jsonRecordLimit, true, func(line []byte) bool {
+	err = visitJSONLines(runtime, artifact, jsonRecordLimit, func(line []byte) bool {
 		if usage, ok := ParseTokenUsage(root.Agent, line); ok {
 			last, found = usage, true
 		}

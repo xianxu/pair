@@ -124,6 +124,7 @@ creation and last-activity times, with timestamp source.
 | `WatcherInventory` | `cmd/internal/sessionwatch/sessionwatch.go` | modified | M2 | baseline, polling, round establishment, ledger persistence |
 | `session-inventory` CLI | `cmd/internal/sessioninventory/runcli.go` | new | M2 | stable human/JSON/conformance rendering |
 | `activity query` | `cmd/internal/sessioninventory/activitycli.go` | new | final | authorized age/idle projection for editor UI |
+| `TextEventWindowForRoot` | `cmd/internal/sessioninventory/events.go` | new | final | bounded scanner-owned text projection for slugging |
 | `LedgerStore` | `cmd/internal/sessionledger/store.go` | new | M2 | serialized append/fsync for every ledger writer |
 | `SessionLogStore` | `cmd/internal/pairlog/store.go` | new | M2 | durable existing-markdown-log append before send |
 
@@ -160,6 +161,14 @@ requiring its established binding, and returning only authorized
 inventory output.
 - **Injected into:** Neovim age/idle hint; titlepoller calls the same Go query directly.
 - **Future extensions:** May become a versioned public projection if another consumer appears.
+
+**`TextEventWindowForRoot`** — streams the one authorized root transcript
+through the shared versioned event adapter, retains at most the requested
+recent text events plus one older user anchor, and rejects oversized or
+unterminated records.
+- **Injected into:** slugging after `QuerySession` establishes the owner.
+- **Future extensions:** Other bounded text consumers reuse this projection;
+  native record schemas remain private to `sessioninventory`.
 
 **`LedgerStore`** — sole cross-process ledger writer. It encodes before taking
 an exclusive lock, derives the next physical ordinal while locked, appends one
@@ -811,3 +820,18 @@ stream native records with per-record bounds across every consumer; preserve
 regular partial results for native and Pair roots; and introduce one
 mixed-ledger classifier shared by launcher and inventory, with regressions for
 each class (`ARCH-DRY`, `ARCH-PURE`, `ARCH-PURPOSE`, `ARCH-MOCK`).
+
+### 2026-08-28 — close review: bounded text projection and exact compatibility rows
+
+**Reason:** the next close review found that slug still buffered and parsed all
+four native transcript formats outside inventory, final unterminated records
+were accepted by migrated consumers, and the compatibility classifier admitted
+any object carrying an agent field.
+
+**Delta:** replace raw-transcript access with an inventory-owned bounded
+`NativeEvent` text window, delete slug's native adapters and enforce their
+absence in the shadow sweep, keep truncated final records unusable, and classify
+only the complete strict legacy ledger shape for a supported agent as
+compatibility. The exact typed/legacy/malformed matrix is exercised through the
+ledger, launcher, and inventory consumers (`ARCH-DRY`, `ARCH-PURE`,
+`ARCH-PURPOSE`, `ARCH-MOCK`).

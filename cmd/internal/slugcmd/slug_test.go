@@ -59,17 +59,11 @@ func TestValidateSlug(t *testing.T) {
 }
 
 func TestExtractTurns(t *testing.T) {
-	jsonl := strings.Join([]string{
-		`{"type":"user","message":{"role":"user","content":"first prompt"}}`,
-		`{"type":"assistant","message":{"role":"assistant","content":[{"type":"text","text":"reply one"}]}}`,
-		// tool-only assistant turn: no text → skipped
-		`{"type":"assistant","message":{"role":"assistant","content":[{"type":"tool_use","name":"Bash"}]}}`,
-		`{"type":"summary","message":{"role":"assistant","content":"ignored non-user/assistant type"}}`,
-		`{"type":"user","message":{"role":"user","content":"second prompt"}}`,
-		``, // blank line tolerated
-	}, "\n")
-
-	turns := windowTurns(parseClaude([]byte(jsonl)), 10, 0, 40, 500)
+	turns := windowTurns([]turn{
+		{Role: "user", Text: "first prompt"},
+		{Role: "assistant", Text: "reply one"},
+		{Role: "user", Text: "second prompt"},
+	}, 10, 0, 40, 500)
 	if len(turns) != 3 {
 		t.Fatalf("got %d turns, want 3: %+v", len(turns), turns)
 	}
@@ -85,11 +79,11 @@ func TestExtractTurns(t *testing.T) {
 }
 
 func TestExtractTurnsTrim(t *testing.T) {
-	var lines []string
+	var all []turn
 	for i := 0; i < 20; i++ {
-		lines = append(lines, `{"type":"user","message":{"role":"user","content":"p"}}`)
+		all = append(all, turn{Role: "user", Text: "p"})
 	}
-	turns := windowTurns(parseClaude([]byte(strings.Join(lines, "\n"))), 5, 0, 40, 500)
+	turns := windowTurns(all, 5, 0, 40, 500)
 	if len(turns) != 5 {
 		t.Fatalf("got %d, want last 5", len(turns))
 	}
@@ -157,15 +151,11 @@ func TestSelectWindowNoUserAtAll(t *testing.T) {
 // recent assistant turns + tool_result-only user entries (no text, dropped),
 // with the genuine user prompt further back. The window must still surface it.
 func TestExtractTurnsKeepsUserIntent(t *testing.T) {
-	var lines []string
-	add := func(s string) { lines = append(lines, s) }
-	add(`{"type":"user","message":{"role":"user","content":"fix the winbar padding bug"}}`)
+	all := []turn{{Role: "user", Text: "fix the winbar padding bug"}}
 	for i := 0; i < 12; i++ {
-		add(`{"type":"assistant","message":{"role":"assistant","content":[{"type":"text","text":"working on it"}]}}`)
-		// tool_result-only user turn — array content, no text block → dropped
-		add(`{"type":"user","message":{"role":"user","content":[{"type":"tool_result","content":"ok"}]}}`)
+		all = append(all, turn{Role: "assistant", Text: "working on it"})
 	}
-	turns := windowTurns(parseClaude([]byte(strings.Join(lines, "\n"))), 10, 1, 40, 500)
+	turns := windowTurns(all, 10, 1, 40, 500)
 	found := false
 	for _, tn := range turns {
 		if tn.Role == "user" && tn.Text == "fix the winbar padding bug" {
@@ -179,69 +169,9 @@ func TestExtractTurnsKeepsUserIntent(t *testing.T) {
 
 func TestExtractTurnsTruncate(t *testing.T) {
 	long := strings.Repeat("x", 1000)
-	line := `{"type":"user","message":{"role":"user","content":"` + long + `"}}`
-	turns := windowTurns(parseClaude([]byte(line)), 10, 0, 40, 50)
+	turns := windowTurns([]turn{{Role: "user", Text: long}}, 10, 0, 40, 50)
 	if len(turns) != 1 || len(turns[0].Text) != 50 {
 		t.Fatalf("truncate failed: len=%d", len(turns[0].Text))
-	}
-}
-
-func TestParseCodex(t *testing.T) {
-	jsonl := strings.Join([]string{
-		`{"type":"session_meta","payload":{"cwd":"/x"}}`,
-		`{"type":"response_item","payload":{"type":"message","role":"developer","content":[{"type":"input_text","text":"system init — skip"}]}}`,
-		`{"type":"response_item","payload":{"type":"message","role":"user","content":[{"type":"input_text","text":"fix the bug"}]}}`,
-		`{"type":"response_item","payload":{"type":"function_call","name":"shell","arguments":"{}"}}`,
-		`{"type":"response_item","payload":{"type":"function_call_output","call_id":"c1","output":"ok"}}`,
-		`{"type":"response_item","payload":{"type":"reasoning"}}`,
-		`{"type":"response_item","payload":{"type":"message","role":"assistant","content":[{"type":"output_text","text":"on it"}]}}`,
-		`{"type":"event_msg","payload":{"type":"token_count"}}`,
-	}, "\n")
-	turns := parseCodex([]byte(jsonl))
-	if len(turns) != 2 {
-		t.Fatalf("got %d turns, want 2 (user+assistant): %+v", len(turns), turns)
-	}
-	if turns[0].Role != "user" || turns[0].Text != "fix the bug" {
-		t.Errorf("turn0 = %+v", turns[0])
-	}
-	if turns[1].Role != "assistant" || turns[1].Text != "on it" {
-		t.Errorf("turn1 = %+v", turns[1])
-	}
-}
-
-
-
-func TestParseAgy(t *testing.T) {
-	doc := strings.Join([]string{
-		`{"step_index":0,"source":"USER_EXPLICIT","type":"USER_INPUT","status":"DONE","content":"<USER_REQUEST>\nexplain the bug\n</USER_REQUEST>\n<METADATA>...</METADATA>"}`,
-		`{"step_index":1,"source":"MODEL","type":"PLANNER_RESPONSE","status":"DONE","content":"I will look into it"}`,
-		`{"step_index":2,"source":"SYSTEM","type":"CONVERSATION_HISTORY","status":"DONE"}`,
-	}, "\n")
-	turns := parseAgy([]byte(doc))
-	if len(turns) != 2 {
-		t.Fatalf("got %d turns, want 2 (user+assistant): %+v", len(turns), turns)
-	}
-	if turns[0].Role != "user" || turns[0].Text != "explain the bug" {
-		t.Errorf("turn0 = %+v", turns[0])
-	}
-	if turns[1].Role != "assistant" || turns[1].Text != "I will look into it" {
-		t.Errorf("turn1 = %+v", turns[1])
-	}
-}
-
-
-func TestParseTranscriptDispatch(t *testing.T) {
-	// claude is the default/fallback parser
-	claude := `{"type":"user","message":{"role":"user","content":"hi"}}`
-	if got := parseTranscript("claude", []byte(claude)); len(got) != 1 || got[0].Text != "hi" {
-		t.Errorf("claude dispatch: %+v", got)
-	}
-	agy := `{"step_index":0,"source":"USER_EXPLICIT","type":"USER_INPUT","status":"DONE","content":"<USER_REQUEST>\nhi\n</USER_REQUEST>"}`
-	if got := parseTranscript("agy", []byte(agy)); len(got) != 1 || got[0].Text != "hi" {
-		t.Errorf("agy dispatch: %+v", got)
-	}
-	if got := parseTranscript("unknown-agent", []byte(claude)); len(got) != 1 {
-		t.Errorf("unknown agent should fall back to claude parser: %+v", got)
 	}
 }
 

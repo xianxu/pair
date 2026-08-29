@@ -2445,5 +2445,19 @@ reader accepts it.
 
 **Rule.** Put typed, compatibility, and malformed row classification in the
 store-owning package. Every reader derives from that classifier, and a mixed
-typed/legacy/corrupt fixture pins all three dispositions (`ARCH-DRY`,
-`ARCH-PURPOSE`).
+typed/legacy/corrupt fixture pins all three dispositions. Compatibility means
+the complete strict historical shape with every required field, allowed
+optional fields only, valid field types, and a supported owner—not merely a
+recognizable discriminator (`ARCH-DRY`, `ARCH-PURPOSE`).
+
+## Shared identity does not imply shared native parsing
+
+A consumer can correctly query the authoritative root and still recreate an
+agent-specific transcript parser after it receives that artifact. That moves
+selection authority but leaves schema authority duplicated.
+
+**Rule.** Native paths, record schemas, and record-to-event normalization all
+belong to the inventory package. Consumers request bounded typed projections,
+never raw transcript bytes. The source shadow sweep names former adapter
+symbols as well as native path patterns, and a long-history consumer regression
+proves the projection is streaming (`ARCH-DRY`, `ARCH-PURPOSE`).

@@ -35,7 +35,7 @@ func TestNativeEventsWithRuntimeReadsOnlyAuthorizedRootTranscript(t *testing.T) 
 	if len(diagnostics) != 0 || len(events) != 2 {
 		t.Fatalf("events=%#v diagnostics=%#v", events, diagnostics)
 	}
-	if events[0].RootNodeID != "root-node" || events[0].Event.Kind != sessioninventory.EventOperator || events[1].Event.Kind != sessioninventory.EventToolCall {
+	if events[0].Agent != sessioninventory.AgentCodex || events[0].RootNodeID != "root-node" || events[0].Event.Kind != sessioninventory.EventOperator || events[1].Event.Kind != sessioninventory.EventToolCall {
 		t.Fatalf("events=%#v", events)
 	}
 	if events[0].Position >= events[1].Position {
@@ -70,5 +70,33 @@ func TestNativeEventsWithRuntimeReadsRecordsAfterThirtyTwoMiB(t *testing.T) {
 	events, diagnostics := sessioninventory.NativeEventsWithRuntime(runtime, inventory, sessioninventory.AgentCodex)
 	if len(diagnostics) != 0 || len(events) != 2 || events[0].Event.Text != "late prompt" || events[1].Event.Kind != sessioninventory.EventToolCall {
 		t.Fatalf("events=%#v diagnostics=%#v", events, diagnostics)
+	}
+}
+
+func TestTextEventWindowForRootStreamsBoundedTailAfterThirtyTwoMiB(t *testing.T) {
+	runtime := sessioninventorytest.NewFakeRuntime()
+	artifact := sessioninventory.Artifact{StorageRoot: "codex-sessions", RelativePath: "long.jsonl", Kind: sessioninventory.ArtifactTranscript}
+	runtime.PutFile(sessioninventory.FileEntry{Artifact: artifact}, longCodexTranscript(
+		`{"type":"response_item","payload":{"type":"message","role":"user","content":[{"type":"input_text","text":"late prompt"}]}}`+"\n"+
+			`{"type":"response_item","payload":{"type":"message","role":"assistant","content":[{"type":"output_text","text":"late reply"}]}}`+"\n"))
+	root := sessioninventory.Node{Agent: sessioninventory.AgentCodex, StableID: "root-node", Artifacts: []sessioninventory.Artifact{artifact}}
+
+	events, err := sessioninventory.TextEventWindowForRoot(runtime, root, 40)
+	if err != nil || len(events) != 2 || events[0].Text != "late prompt" || events[1].Text != "late reply" {
+		t.Fatalf("events=%#v err=%v", events, err)
+	}
+}
+
+func TestTextEventWindowForRootRejectsUnterminatedFinalRecord(t *testing.T) {
+	runtime := sessioninventorytest.NewFakeRuntime()
+	artifact := sessioninventory.Artifact{StorageRoot: "codex-sessions", RelativePath: "truncated.jsonl", Kind: sessioninventory.ArtifactTranscript}
+	runtime.PutFile(sessioninventory.FileEntry{Artifact: artifact}, []byte(
+		`{"type":"response_item","payload":{"type":"message","role":"user","content":[{"type":"input_text","text":"complete"}]}}`+"\n"+
+			`{"type":"response_item","payload":{"type":"message","role":"assistant","content":[{"type":"output_text","text":"unterminated"}]}}`))
+	root := sessioninventory.Node{Agent: sessioninventory.AgentCodex, StableID: "root-node", Artifacts: []sessioninventory.Artifact{artifact}}
+
+	events, err := sessioninventory.TextEventWindowForRoot(runtime, root, 40)
+	if err == nil || events != nil {
+		t.Fatalf("events=%#v err=%v", events, err)
 	}
 }

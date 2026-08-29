@@ -1,6 +1,7 @@
 package sessioninventory_test
 
 import (
+	"strings"
 	"testing"
 
 	"github.com/xianxu/pair/cmd/internal/sessioninventory"
@@ -142,5 +143,31 @@ func TestQuerySessionDoesNotDiagnoseCompatibilityLedgerRowsAsMalformed(t *testin
 		if diagnostic.Code == sessioninventory.DiagnosticPairRecordMalformed {
 			t.Fatalf("compatibility row diagnosed as malformed: %#v", query.Diagnostics)
 		}
+	}
+}
+
+func TestQuerySessionDiagnosesInvalidCompatibilityRows(t *testing.T) {
+	runtime := sessioninventorytest.NewFakeRuntime()
+	pairRoot := sessioninventory.StorageRoot{Name: "pair-data", Path: "/pair/scope"}
+	runtime.SetPairDataRoot(pairRoot)
+	valid := `{"agent":"codex","args":[],"session_id":"legacy","started":"2026-08-28T00:00:00Z","last_active":"2026-08-28T00:00:00Z","repo_root":"/repo","repo_name":"pair"}`
+	runtime.PutFile(sessioninventory.FileEntry{Artifact: sessioninventory.Artifact{StorageRoot: pairRoot.Name, RelativePath: "ledger-work.jsonl"}}, []byte(
+		valid+"\n"+
+			`{"agent":"codex","session_id":"partial"}`+"\n"+
+			strings.TrimSuffix(valid, "}")+`,"extra":true}`+"\n"+
+			strings.Replace(valid, `"codex"`, `"unsupported"`, 1)+"\n"))
+
+	query, err := sessioninventory.QuerySession(runtime, "scope", "work", sessioninventory.AgentCodex)
+	if err != nil {
+		t.Fatal(err)
+	}
+	malformed := 0
+	for _, diagnostic := range query.Diagnostics {
+		if diagnostic.Code == sessioninventory.DiagnosticPairRecordMalformed {
+			malformed++
+		}
+	}
+	if malformed != 3 {
+		t.Fatalf("malformed=%d diagnostics=%#v", malformed, query.Diagnostics)
 	}
 }

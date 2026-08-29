@@ -96,10 +96,10 @@ PAIR_LIVE_CAPTURE_OUT=cmd/internal/wrapcmd/testdata/tty/<agent>/<version>/compos
 The `pair-slug` script summarizes what the current agent session is about to display in the Zellij list.
 
 **Implementation:**
-- **Transcript Parsing:** Register a parser in [cmd/internal/slugcmd/slug.go](file:///Users/xianxu/workspace/pair/cmd/internal/slugcmd/slug.go) under `parseTranscript()`. For JSONL transcripts like `agy`, extract the `content` where `type: "USER_INPUT"`; for `muse`, extract `payload.event.prompt` where `payload_type=="runtime.session"` and `payload.kind=="run"` / `event.kind=="started"`.
+- **Transcript Parsing:** Register the versioned record adapter in `cmd/internal/sessioninventory/event.go`; slugging consumes the shared bounded `TextEventWindowForRoot` projection and must not parse an agent format itself.
 - **Model Sandbox Execution:** Ensure that invoking the agent in summarize mode (`agy -p "<prompt>"` / `muse exec "<prompt>"`) runs inside a clean sandbox (e.g. setting `cmd.Dir = os.TempDir()` in [cmd/internal/model/model.go](file:///Users/xianxu/workspace/pair/cmd/internal/model/model.go), the shared model runner). This prevents the agent from triggering expensive workspace exploration tools, speeding up slug generation from 20s to 1s.
 
-**Telemetry Signal** (aspect `4`, see §3): `slug-parse` from `pair-slug` — `fired` when the transcript parses into ≥1 turn, **`near-miss`** when a transcript is read but yields 0 turns (the transcript schema changed and the parser no longer extracts anything), `fail` when no transcript resolves at all. A run of `near-miss` lines points straight at a `parseTranscript` parser that needs updating.
+**Telemetry Signal** (aspect `4`, see §3): `slug-parse` from `pair-slug` — `fired` when inventory projects ≥1 text turn, **`near-miss`** when an established root yields 0 turns, and `fail` when its bounded record stream cannot be read. A near-miss points to the shared versioned event adapter, not a slug-local parser.
 
 ---
 
@@ -147,7 +147,7 @@ When introducing a new agent `<name>`, ensure you complete each item:
 2. [ ] **Check for blocking TUI overlays** (permission pickers **and** user selection / AskUserQuestion menus) and implement a PTY overlay detector and register it on the harness profile in `harnessTTYProfiles` if needed — verify plain Enter confirms the picker and Alt+Enter is not required.
 3. [ ] **Implement Session Inventory + Watching** with a versioned scanner/event adapter, conformance fixture, provisional launch baseline, and completed-round watcher; use open files only as corroboration.
 4. [ ] **Configure Launcher Recovery** in `cmd/internal/launcher`: extend `resumeToken` and `composeResumeArgs`, then prove `OSRuntime.AgentSessionExists` and `EstablishedSessionID` consume scanner inventory rather than native paths or config identity.
-5. [ ] **Add slug generation support** in `pair-slug` (transcript parsing + sandboxed print execution).
+5. [ ] **Add slug generation support** in `pair-slug` (shared inventory text projection + sandboxed print execution).
 6. [ ] **Confirm mouse scroll and scrollback render** work smoothly without drawing glitch issues.
 7. [ ] **White-list permissions** in the agent's global or workspace settings directory.
 8. [ ] **Register the user-prompt glyph** in `nvim/scrollback.lua` for `Alt+b` jumping.

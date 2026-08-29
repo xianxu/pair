@@ -100,7 +100,7 @@ func writeContextFixture(t *testing.T) (home, data string) {
 		`{"v":1,"kind":"launch","scope_key":"scope","tag":"T","agent":"claude","pair_log_offset":0,"native_watermarks":[]}`+"\n"+
 			`{"v":1,"kind":"binding","scope_key":"scope","tag":"T","agent":"claude","launch_ordinal":1,"root_native_id":"`+sessionID+`"}`+"\n")
 	mustWrite(t, filepath.Join(proj, sessionID+".jsonl"),
-		`{"type":"assistant","message":{"model":"claude-opus-4-8","usage":{"input_tokens":397556,"cache_creation_input_tokens":0,"cache_read_input_tokens":0}}}`)
+		`{"type":"assistant","message":{"model":"claude-opus-4-8","usage":{"input_tokens":397556,"cache_creation_input_tokens":0,"cache_read_input_tokens":0}}}`+"\n")
 	return home, data
 }
 
