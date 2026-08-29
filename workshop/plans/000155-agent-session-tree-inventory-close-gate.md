@@ -495,6 +495,15 @@ rounds:
           note: The integration fake bypasses the production PairZellijTrace.action return path, so removing that result propagation leaves the complete related suite green.
           round: 21
       blocked: true
+    - "n": 22
+      timestamp: "2026-08-28T23:09:55-07:00"
+      agent: codex
+      dispose:
+        - id: BR-27
+          disposition: addressed
+          note: The production action-result path and post-dispatch commit-only recovery are both exercised through the real init/submission/session-log seam, and mutation checks make each regression fail.
+          round: 22
+      blocked: false
 ---
 
 # Gate ledger — pair#155 (boundary-review)
@@ -737,6 +746,12 @@ later rounds disposed of them. Generated — edit the gate, not this file.
 
 - BR-27 — not-addressed — The integration fake bypasses the production PairZellijTrace.action return path, so removing that result propagation leaves the complete related suite green.
 
+## Round 22 — 2026-08-28T23:09:55-07:00 (codex) — passed
+
+### Disposed
+
+- BR-27 — addressed — The production action-result path and post-dispatch commit-only recovery are both exercised through the real init/submission/session-log seam, and mutation checks make each regression fail.
+
 ## Open findings
 
-- **BR-27** [Critical] `submitted-evidence-matches-dispatch` Submitted Pair evidence can disagree with the actual dispatch outcome
+(none — every finding has been disposed)

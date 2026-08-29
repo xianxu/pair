@@ -1069,3 +1069,77 @@ The unmodified focused transaction matrix, Lua suite, Pair-log/inventory/ledger/
 7. Plan revision recommendations
 
 Append a `## Revisions` entry recording that the “combined production seam” claim was disproved by mutation testing, and that the integration injection must move beneath the actual action-return boundary. Include the mutation command/result as the required red evidence.
+
+---
+
+## Re-review — 2026-08-28T23:09:55-07:00 (SHIP)
+
+| field | value |
+|-------|-------|
+| issue | 155 — deterministic agent session-tree inventory |
+| repo | pair |
+| issue file | workshop/issues/000155-agent-session-tree-inventory.md |
+| boundary | whole-issue close |
+| milestone | — |
+| window | 4c454436038e2ae049690bc343def9f0511fca8c..9190f5c06b32540908ed9a3162c61a64553678c9 |
+| command | sdlc close --issue 155 |
+| reviewer | codex |
+| timestamp | 2026-08-28T23:09:55-07:00 |
+| verdict | SHIP |
+
+## Review
+
+```verdict
+verdict: SHIP
+confidence: high
+```
+
+The implementation matches the issue’s Spec and Plan, including the final dispatch/evidence transaction. BR-27 is addressed and mutation-tested through the production seam. No blocking findings remain.
+
+1. Strengths
+
+- `nvim/init.lua:744` returns the real traced Zellij action result; `nvim/zellij_trace.lua:46` consistently captures and returns exit status.
+- `nvim/draft_send.lua:23` models resumable delivery phases and prevents body replay after confirmed writes.
+- `nvim/submission.lua:11` preserves dispatched identity for commit-only recovery.
+- `nvim/submission_integration_test.lua:20` exercises focus, write, submit/newline, refocus, and commit failures through real initialization and session-log persistence.
+- README and atlas document the public inventory command and shared authority migration.
+
+2. Critical findings
+
+None.
+
+3. Important findings
+
+None.
+
+4. Minor findings
+
+None.
+
+5. Test coverage notes
+
+- Production submission transaction: all seven failure/recovery cases passed.
+- Mutation checks passed:
+  - Removing production action-result propagation made the integration test fail.
+  - Clearing pending identity after commit failure made commit recovery fail.
+- `make test-lua`, focused shell suites, Zellij configuration validation, Core Concepts enforcement, shadow sweep, and `git diff --check` passed.
+- `go test ./...` passed every package except `cmd/pair-go`; those cases were prevented from invoking `/bin/ps` by the sandbox, rather than failing a product assertion.
+
+6. Architectural notes for upcoming work
+
+- `ARCH-DRY`: pass — native parsing and selection authority are centralized and shadow-sweep enforced.
+- `ARCH-PURE`: pass — forest, ordering, matching, and record logic remain pure; IO is behind injected runtime boundaries.
+- `ARCH-PURPOSE`: pass — all named consumers derive from the shared inventory, and submitted evidence now follows actual dispatch.
+- `ARCH-MOCK`: pass — the stateful Zellij fake is injected beneath the production traced-action boundary, and mutation testing confirms reachability.
+
+7. Plan revision recommendations
+
+None.
+
+```findings
+dispose:
+  - id: BR-27
+    disposition: addressed
+    note: |
+      The production action-result path and post-dispatch commit-only recovery are both exercised through the real init/submission/session-log seam, and mutation checks make each regression fail.
+```

@@ -168,7 +168,7 @@ gate `#147` and `#148` respectively; `#145` and `#146` do not depend on them.
 - [x] shared thread metadata, operations, and standalone lookup [pair#149 M3]
 - [x] remembered per-path agent and argument profiles [pair#149 M4]
 - [x] legacy migration and composite artifact proof [pair#149 M5]
-- [ ] deterministic agent session-tree inventory [pair#155]
+- [x] deterministic agent session-tree inventory [pair#155]
 - [x] deterministic native forests [pair#155 M1]
 - [x] round-gated native bindings and public inventory [pair#155 M2]
 - [.] verified park and activity age [pair#152]

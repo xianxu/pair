@@ -1,12 +1,13 @@
 ---
 id: 000155
-status: working
+status: codecomplete
 deps: []
 github_issue:
 created: 2026-08-28
 updated: 2026-08-28
 estimate_hours: 7.85
 started: 2026-08-28T10:54:39-07:00
+actual_hours: 14.01
 ---
 
 # deterministic agent session-tree inventory
@@ -1076,6 +1077,7 @@ be checked against measured actuals at close.*
   (`ARCH-DRY`, `ARCH-PURPOSE`).
 
 ### 2026-08-28
+- 2026-08-28: closed — Built bin/pair in place; go test -p 20 ./... -count=1 passed; go vet -p 20 ./... passed; make test-lua passed; queue-send, submission-transaction-nvim, and zellij-trace shell tests passed; direct Couch TestSpawnComposesProductionPairRegistrationBoundary passed with -p 1; git diff --check passed. Go package concurrency never exceeded 20.; review verdict: SHIP
 - 2026-08-28: closed M2 — Focused and full session inventory Go suites pass; go vet passes; historical #149 source/declaration contracts pass; make test-lua passes; statusline, queue-send, and pair-session-watch shell integrations pass; git diff --check passes. Full evidence classification diagnoses unsupported/malformed recognized evidence while filtering only supported unrequested agents.; review verdict: SHIP
 - 2026-08-28: closed M1 — all four sanitized scanners and explicit edge provenance pass; exhaustive M1 concept table/declaration contract, diagnostic registry, equal-time ordering, regular/partial storage, optional usage, artifact/source/project contracts, vet, diff check, and redacted installed-shape conformance pass; pre-existing Couch launch timeout remains separately deferred by operator; review verdict: SHIP
 
