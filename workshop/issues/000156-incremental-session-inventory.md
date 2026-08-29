@@ -5,7 +5,7 @@ deps: []
 github_issue:
 created: 2026-08-29
 updated: 2026-08-29
-estimate_hours:
+estimate_hours: 8.96
 started: 2026-08-29T06:33:52-07:00
 ---
 
@@ -67,9 +67,12 @@ scanner/parser schema version that produced it.
 
 `StableFileID`, `GenerationToken`, and `MutationToken` are separate opaque
 runtime values built without content reads. On Unix the stable ID is device +
-inode, the generation token is the kernel-reported file birth/generation value,
-and the mutation token includes platform `ctime` at nanosecond precision.
-Implementations on another platform must supply equivalent values. Device +
+inode. On Darwin the generation token is `stat.st_gen` (not the birth
+timestamp); on Linux, whose `statx` exposes birth time but no inode generation,
+Pair reports generation unavailable. The mutation token includes platform
+`ctime` at nanosecond precision. Implementations on another platform must
+supply an actual inode/file generation primitive or report it unavailable.
+Device +
 inode alone is not durable because inode reuse is possible. Size and
 modification time remain separate fields. Stable-ID + generation continuity
 plus size growth is the only append candidate; a stable-ID/generation change,
@@ -312,6 +315,49 @@ the native root. Thus the observed `?/1 claude` row renders `pair/1 claude`.
 - Focused tests, the full Go suite with `-p 20`, Lua/shell integration tests,
   vet, and a real-data smoke all pass.
 
+## Estimate
+
+Produced via `brain/data/life/42shots/velocity/estimate-logic-v3.1.md` against
+`baseline-v3.1.md`. Method A only. `sdlc estimate-source` reports the calibration
+source as stale, so the number is provisional but uses the required method. The
+existing scanner/runtime seams and `x/sys/unix` cover the library-availability
+check; no greenfield filesystem or parser library is assumed.
+
+```estimate
+model: estimate-logic-v3.1
+familiarity: 1.0
+item: issue-spec design=0.80 impl=0.08
+item: greenfield-go-module design=0.40 impl=0.32
+item: greenfield-go-module design=0.40 impl=0.32
+item: greenfield-go-module design=0.40 impl=0.32
+item: greenfield-go-module design=0.40 impl=0.32
+item: greenfield-go-module design=0.40 impl=0.32
+item: smaller-go-module design=0.06 impl=0.20
+item: smaller-go-module design=0.06 impl=0.20
+item: smaller-go-module design=0.06 impl=0.20
+item: smaller-go-module design=0.06 impl=0.20
+item: smaller-go-module design=0.06 impl=0.20
+item: smaller-go-module design=0.06 impl=0.20
+item: smaller-go-module design=0.06 impl=0.20
+item: cross-cutting-refactor design=0.20 impl=0.20
+item: lua-neovim design=0.40 impl=0.40
+item: real-api-discovery design=0.00 impl=0.12
+item: real-api-discovery design=0.00 impl=0.12
+item: real-api-discovery design=0.00 impl=0.12
+item: real-api-discovery design=0.00 impl=0.12
+item: atlas-docs design=0.10 impl=0.08
+item: milestone-review design=0.08 impl=0.12
+design-buffer: 0.15
+total: 8.96
+```
+
+The five greenfield modules are catalog/reconciliation, transactional storage,
+incremental framing/state, targeted proof/query orchestration, and watcher
+delta orchestration. The seven smaller modules are platform metadata, ledger
+v2, four existing scanner adaptations, and performance/conformance. The four
+real-API discovery rows cover the installed Claude, Codex, Muse, and Agy
+provider contracts.
+
 ## Plan
 
 - [ ] Define the versioned artifact catalog, fingerprints, and pure incremental
@@ -339,6 +385,12 @@ the native root. Thus the observed `?/1 claude` row renders `pair/1 claude`.
   categorization: never reread unchanged transcript bodies; inspect only new
   bytes relevant to the current round. `Alt+X` UI ordering is stricter than the
   one-second inventory budget: paint first and never block on enrichment.
+- `sdlc change-code` plan-quality cleared after two rounds. The gate corrected
+  generation continuity to Darwin `stat.st_gen` with fail-closed unavailable
+  fallback elsewhere, required named risky-function strategies, and added the
+  live fake-versus-provider conformance cadence (`ARCH-PURE`, `ARCH-MOCK`). The
+  v3.1 estimate gate accepted 8.96h with an advisory that the dense integration
+  matrix may run higher.
 
 ## Revisions
 
@@ -388,3 +440,13 @@ mutation revalidate through targeted seams. Prefix rewrite plus growth is
 provider corruption covered by explicit conformance, since detecting it on
 every hot-path append would require rereading the already-categorized body and
 violate the issue's purpose.
+
+### 2026-08-29 — generation primitive and live conformance
+
+The plan-quality gate found that file birth time is not a non-reusable
+generation counter. The contract now uses Darwin's actual `stat.st_gen` and
+marks Linux/other platforms unavailable unless they expose an equivalent
+primitive; birth time remains a timestamp only. Provider-contract conformance
+will compare the stateful fake with installed Claude, Codex, Muse, Agy
+transcript, and Agy SQLite behavior during #156, before every scanner/provider
+contract version change, and on the monthly operator conformance run.
