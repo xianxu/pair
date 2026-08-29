@@ -22,18 +22,25 @@ var (
 	asciiIDPattern     = regexp.MustCompile(`^[A-Za-z0-9][A-Za-z0-9_-]*$`)
 )
 
-func visitJSONLines(runtime Runtime, artifact Artifact, lineLimit int64, visit func([]byte) bool) error {
+func visitJSONLines(runtime Runtime, artifact Artifact, lineLimit int64, acceptFinal bool, visit func([]byte) bool) error {
+	return visitJSONLinesAt(runtime, artifact, lineLimit, acceptFinal, func(line []byte, _ uint64) bool {
+		return visit(line)
+	})
+}
+
+func visitJSONLinesAt(runtime Runtime, artifact Artifact, lineLimit int64, acceptFinal bool, visit func([]byte, uint64) bool) error {
 	var pending []byte
-	var offset int64
+	var readOffset int64
+	var pendingOffset uint64
 	for {
-		chunk, eof, err := runtime.ReadAt(artifact, offset, readChunkSize)
+		chunk, eof, err := runtime.ReadAt(artifact, readOffset, readChunkSize)
 		if err != nil {
 			return err
 		}
 		if len(chunk) == 0 && !eof {
 			return errors.New("session inventory runtime returned an empty non-final range")
 		}
-		offset += int64(len(chunk))
+		readOffset += int64(len(chunk))
 		pending = append(pending, chunk...)
 		for {
 			newline := bytes.IndexByte(pending, '\n')
@@ -48,20 +55,40 @@ func visitJSONLines(runtime Runtime, artifact Artifact, lineLimit int64, visit f
 				line = line[:len(line)-1]
 			}
 			pending = pending[newline+1:]
-			if visit(line) {
+			if visit(line, pendingOffset) {
 				return nil
 			}
+			pendingOffset += uint64(newline + 1)
 		}
 		if int64(len(pending)) > lineLimit {
 			return ErrReadLimit
 		}
 		if eof {
 			if len(pending) != 0 {
-				return errTruncatedRecord
+				if !acceptFinal {
+					return errTruncatedRecord
+				}
+				if pending[len(pending)-1] == '\r' {
+					pending = pending[:len(pending)-1]
+				}
+				visit(pending, pendingOffset)
 			}
 			return nil
 		}
 	}
+}
+
+func readJSONLines(runtime Runtime, artifact Artifact, lineLimit int64) ([]byte, error) {
+	var result bytes.Buffer
+	err := visitJSONLines(runtime, artifact, lineLimit, true, func(line []byte) bool {
+		result.Write(line)
+		result.WriteByte('\n')
+		return false
+	})
+	if err != nil {
+		return nil, err
+	}
+	return result.Bytes(), nil
 }
 
 func metadataTime(value string) *NativeTime {

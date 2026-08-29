@@ -1,11 +1,18 @@
 package sessioninventory_test
 
 import (
+	"bytes"
+	"strings"
 	"testing"
 
 	"github.com/xianxu/pair/cmd/internal/sessioninventory"
 	"github.com/xianxu/pair/cmd/internal/sessioninventorytest"
 )
+
+func longCodexTranscript(suffix string) []byte {
+	padding := []byte(`{"type":"session_meta","padding":"` + strings.Repeat("x", 1<<20) + `"}` + "\n")
+	return append(bytes.Repeat(padding, 33), []byte(suffix)...)
+}
 
 func TestNativeEventsWithRuntimeReadsOnlyAuthorizedRootTranscript(t *testing.T) {
 	t.Parallel()
@@ -46,6 +53,22 @@ func TestNativeEventsWithRuntimeRejectsMultipleRootTranscripts(t *testing.T) {
 	}}}}}
 	events, diagnostics := sessioninventory.NativeEventsWithRuntime(runtime, inventory, sessioninventory.AgentCodex)
 	if len(events) != 0 || len(diagnostics) != 1 || diagnostics[0].Code != sessioninventory.DiagnosticTurnUnusable {
+		t.Fatalf("events=%#v diagnostics=%#v", events, diagnostics)
+	}
+}
+
+func TestNativeEventsWithRuntimeReadsRecordsAfterThirtyTwoMiB(t *testing.T) {
+	runtime := sessioninventorytest.NewFakeRuntime()
+	artifact := sessioninventory.Artifact{StorageRoot: "codex-sessions", RelativePath: "long.jsonl", Kind: sessioninventory.ArtifactTranscript}
+	runtime.PutFile(sessioninventory.FileEntry{Artifact: artifact}, longCodexTranscript(
+		`{"type":"response_item","payload":{"type":"message","role":"user","content":[{"type":"input_text","text":"late prompt"}]}}`+"\n"+
+			`{"type":"response_item","payload":{"type":"function_call"}}`+"\n"))
+	inventory := sessioninventory.Inventory{Forests: []sessioninventory.Forest{{Agent: sessioninventory.AgentCodex, Roots: []sessioninventory.Node{{
+		StableID: "root-node", NativeID: "root", Role: sessioninventory.RoleRoot, Artifacts: []sessioninventory.Artifact{artifact},
+	}}}}}
+
+	events, diagnostics := sessioninventory.NativeEventsWithRuntime(runtime, inventory, sessioninventory.AgentCodex)
+	if len(diagnostics) != 0 || len(events) != 2 || events[0].Event.Text != "late prompt" || events[1].Event.Kind != sessioninventory.EventToolCall {
 		t.Fatalf("events=%#v diagnostics=%#v", events, diagnostics)
 	}
 }

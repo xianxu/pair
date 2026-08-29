@@ -64,14 +64,15 @@ func Run(opts Options, rt Runtime) error {
 	applyWatcherDefaults(&opts)
 	watchStart := rt.Now()
 	rootPID, rootIdentity := waitForPairProcess(paths.AgentPID(), opts, watchStart, rt)
-	if rootPID != "" && rootIdentity == "" {
-		return nil
+	corroborationPID := rootPID
+	if rootIdentity == "" {
+		corroborationPID = ""
 	}
 	owner := sessionledger.Owner{ScopeKey: opts.ScopeKey, Tag: opts.Tag, Agent: opts.Agent}
 	nativeRuntime := rt.NativeRuntime(opts.Home, opts.DataDir)
 	deadline := watchStart.Add(opts.Timeout)
 	for {
-		if rootPID != "" && rt.ProcessIdentity(rootPID) != rootIdentity {
+		if rootIdentity != "" && rt.ProcessIdentity(rootPID) != rootIdentity {
 			rt.Log(adapt.NearMiss, "process identity changed before completed round")
 			return nil
 		}
@@ -86,7 +87,7 @@ func Run(opts Options, rt Runtime) error {
 			return nil
 		}
 		inventory := sessioninventory.InventoryWithRuntime(nativeRuntime, sessioninventory.ScannerForAgent(agent))
-		beforeRoots, beforeAvailable := processAuthorizedRoots(nativeRuntime, inventory, agent, rootPID)
+		beforeRoots, beforeAvailable := processAuthorizedRoots(nativeRuntime, inventory, agent, corroborationPID)
 		events, eventDiagnostics := sessioninventory.NativeEventsWithRuntime(nativeRuntime, inventory, agent)
 		inventory.Diagnostics = append(inventory.Diagnostics, eventDiagnostics...)
 		pairLog, logDiagnostics := readPairLog(rt, paths.Log(), agent)
@@ -96,8 +97,8 @@ func Run(opts Options, rt Runtime) error {
 		}
 		rounds, roundDiagnostics := sessioninventory.RoundsAfterLaunch(inventory, opts.ScopeKey, opts.Tag, agent, pairLog, current.Launch, events)
 		inventory.Diagnostics = append(inventory.Diagnostics, roundDiagnostics...)
-		afterRoots, afterAvailable := processAuthorizedRoots(nativeRuntime, inventory, agent, rootPID)
-		if rootPID != "" && rt.ProcessIdentity(rootPID) != rootIdentity {
+		afterRoots, afterAvailable := processAuthorizedRoots(nativeRuntime, inventory, agent, corroborationPID)
+		if rootIdentity != "" && rt.ProcessIdentity(rootPID) != rootIdentity {
 			rt.Log(adapt.NearMiss, "process identity changed during native scan")
 			return nil
 		}

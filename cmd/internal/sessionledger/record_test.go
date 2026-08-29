@@ -22,6 +22,17 @@ func TestParseLedgerRetainsPhysicalOrdinals(t *testing.T) {
 	}
 }
 
+func TestParseLedgerClassifiesCompatibilityRowsSeparately(t *testing.T) {
+	t.Parallel()
+	raw := []byte(`{"agent":"codex","session_id":"legacy"}` + "\n" +
+		`{"v":1,"kind":"launch","scope_key":"scope","tag":"work","agent":"codex","pair_log_offset":0,"native_watermarks":[]}` + "\n" +
+		"not-json\n")
+	parsed := ParseLedger(raw)
+	if !slices.Equal(parsed.CompatibilityOrdinals, []uint64{1}) || !slices.Equal(parsed.MalformedOrdinals, []uint64{3}) || len(parsed.Records) != 1 {
+		t.Fatalf("parsed=%#v", parsed)
+	}
+}
+
 func TestCurrentLaunchUsesLatestPhysicalGeneration(t *testing.T) {
 	t.Parallel()
 	records := []Record{

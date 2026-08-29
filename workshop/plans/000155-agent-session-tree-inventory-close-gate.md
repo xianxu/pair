@@ -286,6 +286,35 @@ rounds:
           round: 9
       boundary: M2
       blocked: false
+    - "n": 10
+      timestamp: "2026-08-28T17:49:56-07:00"
+      agent: codex
+      findings:
+        - id: BR-18
+          severity: Critical
+          title: Missing process identity prevents portable causal-round establishment
+          detail: 'This is the 2nd finding in family `usable-process-evidence-only`. A current PID file plus an unavailable identity token returns before causal matching. State the class rule: process evidence may constrain a match only when usable; its absence must never suppress a unique completed round.'
+          family: usable-process-evidence-only
+          round: 10
+        - id: BR-19
+          severity: Critical
+          title: Whole-file limits make valid long transcripts unusable
+          detail: Native events, token usage, and transcript consumers read the entire artifact through a 32 MiB cap although the contract bounds individual JSONL records. Four installed valid transcripts already exceed that cap, so the affected roots cannot establish or serve migrated consumers.
+          family: bounded-record-streaming
+          round: 10
+        - id: BR-20
+          severity: Critical
+          title: Partial Pair-artifact enumeration discards valid evidence
+          detail: 'This is the 2nd finding in family `storage-boundary-regular-partial`. `RecoverPairBindings` treats every non-absence listing error as fatal even when `ListFiles` returned valid ledger/config/log entries. Apply the class rule to every storage root: retain regular partial results and diagnose rejected entries.'
+          family: storage-boundary-regular-partial
+          round: 10
+        - id: BR-21
+          severity: Important
+          title: Valid compatibility ledger rows are reported as malformed
+          detail: Every launch still appends a legacy `LedgerEntry` before its typed launch row, but the inventory parser classifies every non-typed row as malformed. Mixed ledgers need one shared classification that distinguishes supported compatibility rows, typed authority, and genuinely corrupt rows.
+          family: mixed-ledger-formats-are-classified
+          round: 10
+      blocked: true
 ---
 
 # Gate ledger — pair#155 (boundary-review)
@@ -412,6 +441,22 @@ later rounds disposed of them. Generated — edit the gate, not this file.
 
 - BR-9 — addressed — Muse's unknown run-event default is pinned as near_miss and reaches a registry-backed turn_unusable diagnostic; the CLI golden separately requires diagnostics at all three Pair ledger/log/config read boundaries.
 
+## Round 10 — 2026-08-28T17:49:56-07:00 (codex) — BLOCKED
+
+### Raised
+
+- **BR-18** [Critical] `usable-process-evidence-only` Missing process identity prevents portable causal-round establishment
+  This is the 2nd finding in family `usable-process-evidence-only`. A current PID file plus an unavailable identity token returns before causal matching. State the class rule: process evidence may constrain a match only when usable; its absence must never suppress a unique completed round.
+- **BR-19** [Critical] `bounded-record-streaming` Whole-file limits make valid long transcripts unusable
+  Native events, token usage, and transcript consumers read the entire artifact through a 32 MiB cap although the contract bounds individual JSONL records. Four installed valid transcripts already exceed that cap, so the affected roots cannot establish or serve migrated consumers.
+- **BR-20** [Critical] `storage-boundary-regular-partial` Partial Pair-artifact enumeration discards valid evidence
+  This is the 2nd finding in family `storage-boundary-regular-partial`. `RecoverPairBindings` treats every non-absence listing error as fatal even when `ListFiles` returned valid ledger/config/log entries. Apply the class rule to every storage root: retain regular partial results and diagnose rejected entries.
+- **BR-21** [Important] `mixed-ledger-formats-are-classified` Valid compatibility ledger rows are reported as malformed
+  Every launch still appends a legacy `LedgerEntry` before its typed launch row, but the inventory parser classifies every non-typed row as malformed. Mixed ledgers need one shared classification that distinguishes supported compatibility rows, typed authority, and genuinely corrupt rows.
+
 ## Open findings
 
-(none — every finding has been disposed)
+- **BR-18** [Critical] `usable-process-evidence-only` Missing process identity prevents portable causal-round establishment
+- **BR-19** [Critical] `bounded-record-streaming` Whole-file limits make valid long transcripts unusable
+- **BR-20** [Critical] `storage-boundary-regular-partial` Partial Pair-artifact enumeration discards valid evidence
+- **BR-21** [Important] `mixed-ledger-formats-are-classified` Valid compatibility ledger rows are reported as malformed

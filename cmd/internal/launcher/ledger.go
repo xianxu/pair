@@ -32,15 +32,14 @@ func BuildLedgerLine(entry LedgerEntry) (string, error) {
 
 func ParseLedger(raw string) []LedgerEntry {
 	var entries []LedgerEntry
-	for _, line := range strings.Split(raw, "\n") {
+	parsed := sessionledger.ParseLedger([]byte(raw))
+	compatibility := make(map[uint64]bool, len(parsed.CompatibilityOrdinals))
+	for _, ordinal := range parsed.CompatibilityOrdinals {
+		compatibility[ordinal] = true
+	}
+	for index, line := range strings.Split(raw, "\n") {
 		line = strings.TrimSpace(line)
-		if line == "" {
-			continue
-		}
-		var shape struct {
-			Kind string `json:"kind"`
-		}
-		if json.Unmarshal([]byte(line), &shape) == nil && shape.Kind != "" {
+		if line == "" || !compatibility[uint64(index+1)] {
 			continue
 		}
 		var entry LedgerEntry
@@ -52,7 +51,6 @@ func ParseLedger(raw string) []LedgerEntry {
 		}
 		entries = append(entries, entry)
 	}
-	parsed := sessionledger.ParseLedger([]byte(raw))
 	owners := map[sessionledger.Owner]bool{}
 	for _, record := range parsed.Records {
 		if record.Kind == sessionledger.RecordLaunch {

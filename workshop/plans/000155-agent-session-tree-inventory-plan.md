@@ -798,3 +798,16 @@ ownership, unknown native IDs, and failed reads produce registry-backed
 diagnostics. One table-driven regression crosses these filter/reject boundaries
 so adapters cannot recreate silent failure independently (`ARCH-DRY`,
 `ARCH-PURPOSE`).
+
+### 2026-08-28 — close review: portable evidence and bounded mixed storage
+
+**Reason:** close review found that unusable process identity suppressed
+portable matching, whole-file caps rejected valid long JSONL histories,
+partial Pair listings discarded valid facts, and compatibility ledger rows
+were misclassified.
+
+**Delta:** make process corroboration conditional on a usable identity token;
+stream native records with per-record bounds across every consumer; preserve
+regular partial results for native and Pair roots; and introduce one
+mixed-ledger classifier shared by launcher and inventory, with regressions for
+each class (`ARCH-DRY`, `ARCH-PURE`, `ARCH-PURPOSE`, `ARCH-MOCK`).

@@ -55,7 +55,7 @@ func scanCodexFile(runtime Runtime, entry FileEntry) (Fact, []Diagnostic, bool) 
 		} `json:"payload"`
 	}
 	seen := false
-	err := visitJSONLines(runtime, artifact, metadataRecordLimit, func(line []byte) bool {
+	err := visitJSONLines(runtime, artifact, metadataRecordLimit, false, func(line []byte) bool {
 		seen = true
 		if len(line) != 0 {
 			_ = decodeStrictJSON(line, &record)

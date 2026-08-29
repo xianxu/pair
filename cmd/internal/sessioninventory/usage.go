@@ -13,12 +13,19 @@ type TokenUsage struct {
 // TokenUsageForRoot reads the established scanner-authorized root transcript
 // and returns its last accepted root usage record.
 func TokenUsageForRoot(runtime Runtime, root Node) (TokenUsage, bool, error) {
-	data, err := ReadRootTranscript(runtime, root)
+	artifact, err := RootTranscript(root)
 	if err != nil {
 		return TokenUsage{}, false, err
 	}
-	usage, ok := TokenUsageFromJSONL(root.Agent, data)
-	return usage, ok, nil
+	var last TokenUsage
+	found := false
+	err = visitJSONLines(runtime, artifact, jsonRecordLimit, true, func(line []byte) bool {
+		if usage, ok := ParseTokenUsage(root.Agent, line); ok {
+			last, found = usage, true
+		}
+		return false
+	})
+	return last, found, err
 }
 
 func TokenUsageFromJSONL(agent Agent, data []byte) (TokenUsage, bool) {

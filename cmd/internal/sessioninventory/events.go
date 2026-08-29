@@ -7,8 +7,6 @@ import (
 	"slices"
 )
 
-const nativeEventReadLimit = 32 << 20
-
 // NativeEventsWithRuntime projects allowlisted causal events from each
 // scanner-authorized root transcript. Descendant transcripts are deliberately
 // excluded: parentage propagates an established root but cannot create root
@@ -32,12 +30,21 @@ func NativeEventsWithRuntime(runtime Runtime, inventory Inventory, agent Agent) 
 				diagnostics = append(diagnostics, diagnosticWithSource(DiagnosticTurnUnusable, agent, &root.NativeID, root.StableID, detail))
 				continue
 			}
-			raw, err := runtime.ReadFile(transcripts[0], nativeEventReadLimit)
+			err := visitJSONLinesAt(runtime, transcripts[0], jsonRecordLimit, true, func(line []byte, lineStart uint64) bool {
+				events, disposition := NormalizeNativeEvent(agent, line)
+				if disposition == EventNearMiss {
+					source := fmt.Sprintf("%s:%d", root.StableID, lineStart)
+					diagnostics = append(diagnostics, diagnosticWithSource(DiagnosticTurnUnusable, agent, nil, source, "native record is not usable causal evidence"))
+					return false
+				}
+				for _, event := range events {
+					facts = append(facts, NativeEventFact{RootNodeID: root.StableID, Position: lineStart, Event: event})
+				}
+				return false
+			})
 			if err != nil {
 				diagnostics = append(diagnostics, diagnosticWithSource(DiagnosticTurnUnusable, agent, &root.NativeID, root.StableID, "root transcript is unreadable for causal matching"))
-				continue
 			}
-			facts = append(facts, nativeEventsFromJSONL(agent, root.StableID, raw, &diagnostics)...)
 		}
 	}
 	slices.SortFunc(facts, func(a, b NativeEventFact) int {

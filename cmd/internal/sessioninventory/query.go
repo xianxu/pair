@@ -77,5 +77,5 @@ func ReadRootTranscript(runtime Runtime, root Node) ([]byte, error) {
 	if err != nil {
 		return nil, err
 	}
-	return runtime.ReadFile(artifact, nativeEventReadLimit)
+	return readJSONLines(runtime, artifact, jsonRecordLimit)
 }

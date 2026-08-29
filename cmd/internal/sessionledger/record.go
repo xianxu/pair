@@ -55,8 +55,9 @@ type Owner struct {
 }
 
 type ParseResult struct {
-	Records           []Record
-	MalformedOrdinals []uint64
+	Records               []Record
+	CompatibilityOrdinals []uint64
+	MalformedOrdinals     []uint64
 }
 
 type Current struct {
@@ -109,12 +110,25 @@ func ParseLedger(raw []byte) ParseResult {
 	for i, line := range lines {
 		ordinal := uint64(i + 1)
 		record, err := decodeRecord(line)
-		if err != nil {
-			result.MalformedOrdinals = append(result.MalformedOrdinals, ordinal)
+		if err == nil {
+			record.Ordinal = ordinal
+			result.Records = append(result.Records, record)
 			continue
 		}
-		record.Ordinal = ordinal
-		result.Records = append(result.Records, record)
+		var shape struct {
+			Version *json.RawMessage `json:"v"`
+			Kind    *json.RawMessage `json:"kind"`
+			Agent   string           `json:"agent"`
+		}
+		decoder := json.NewDecoder(bytes.NewReader(line))
+		decodeErr := decoder.Decode(&shape)
+		var trailing any
+		trailingErr := decoder.Decode(&trailing)
+		if decodeErr == nil && errors.Is(trailingErr, io.EOF) && shape.Version == nil && shape.Kind == nil && shape.Agent != "" {
+			result.CompatibilityOrdinals = append(result.CompatibilityOrdinals, ordinal)
+			continue
+		}
+		result.MalformedOrdinals = append(result.MalformedOrdinals, ordinal)
 	}
 	return result
 }

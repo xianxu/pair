@@ -43,7 +43,7 @@ func scanClaudeFile(runtime Runtime, entry FileEntry) (Fact, []Diagnostic, bool)
 	chronology := fallbackTime(entry)
 	contradiction := false
 	var diagnostics []Diagnostic
-	err := visitJSONLines(runtime, artifact, jsonRecordLimit, func(line []byte) bool {
+	err := visitJSONLines(runtime, artifact, jsonRecordLimit, false, func(line []byte) bool {
 		if len(line) == 0 {
 			return false
 		}

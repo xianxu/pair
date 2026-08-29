@@ -79,6 +79,32 @@ func TestRunIgnoresUnrelatedOpenFilesWhenRoundIsUnique(t *testing.T) {
 	}
 }
 
+func TestRunEstablishesUniqueRoundWhenProcessIdentityIsUnavailable(t *testing.T) {
+	t.Parallel()
+	dataDir := t.TempDir()
+	native := sessioninventorytest.NewFakeRuntime()
+	nativeRoot := sessioninventory.StorageRoot{Agent: sessioninventory.AgentCodex, Name: "codex-sessions", Path: "/home/.codex/sessions"}
+	native.AddRoot(nativeRoot)
+	sid := "019eff64-6ceb-7e72-9d41-a735a97029ac"
+	relative := "2026/08/28/rollout-test-" + sid + ".jsonl"
+	text := "please inspect the durable watcher boundary now"
+	native.PutFile(sessioninventory.FileEntry{Artifact: sessioninventory.Artifact{StorageRoot: nativeRoot.Name, RelativePath: relative, Kind: sessioninventory.ArtifactTranscript}}, codexRound(sid, text))
+
+	paths := mustScopedPaths(t, dataDir, "work")
+	runtime := newWatcherRuntime(native)
+	runtime.files[paths.Ledger()] = mustLaunchRecord(t, sessionledger.Record{Version: 1, Kind: sessionledger.RecordLaunch, ScopeKey: "scope", Tag: "work", Agent: "codex"})
+	runtime.files[paths.Log()] = []byte("## 2026-08-28 01:00:01\n\n" + text + "\n\n---\n\n")
+	runtime.files[paths.AgentPID()] = []byte("1234\n")
+	runtime.modTimes[paths.AgentPID()] = runtime.now
+
+	if err := Run(Options{Agent: "codex", Tag: "work", ScopeKey: "scope", LaunchOrdinal: 1, Home: "/home", DataDir: dataDir, PIDWait: time.Second, Timeout: time.Second, Poll: time.Millisecond}, runtime); err != nil {
+		t.Fatal(err)
+	}
+	if len(runtime.store.records) != 1 || runtime.store.records[0].RootNativeID != sid {
+		t.Fatalf("records=%#v", runtime.store.records)
+	}
+}
+
 func TestReadPairLogDiagnosesReadFailure(t *testing.T) {
 	t.Parallel()
 	runtime := newWatcherRuntime(sessioninventorytest.NewFakeRuntime())

@@ -30,11 +30,21 @@ type pairConfig struct {
 func RecoverPairBindings(runtime Runtime, inventory Inventory, scopeMode, currentScopeKey string, agents []Agent) (Inventory, error) {
 	pairRoot := runtime.PairDataRoot()
 	files, err := runtime.ListFiles(pairRoot)
+	var diagnostics []Diagnostic
 	if errors.Is(err, ErrStorageAbsent) {
 		return inventory, nil
 	}
 	if err != nil {
-		return Inventory{}, errors.New("Pair artifact inventory unavailable")
+		var issues *ListingIssuesError
+		if errors.As(err, &issues) {
+			for _, artifact := range issues.Artifacts {
+				diagnostics = append(diagnostics, artifactDiagnostic(DiagnosticArtifactPathInvalid, "", nil, artifact, "non-regular Pair storage entry rejected"))
+			}
+		} else if len(files) != 0 {
+			diagnostics = append(diagnostics, storageDiagnostic("", pairRoot, err))
+		} else {
+			return Inventory{}, errors.New("Pair artifact inventory unavailable")
+		}
 	}
 	allowed := map[Agent]bool{}
 	for _, agent := range agents {
@@ -43,8 +53,6 @@ func RecoverPairBindings(runtime Runtime, inventory Inventory, scopeMode, curren
 	records := map[pairOwner][]sessionledger.Record{}
 	logs := map[pairOwner][]byte{}
 	configs := map[pairOwner]string{}
-	var diagnostics []Diagnostic
-
 	for _, file := range files {
 		scope, name, ok, rejected := selectedPairArtifact(file.Artifact.RelativePath, scopeMode, currentScopeKey)
 		if !ok {

@@ -932,6 +932,25 @@ be checked against measured actuals at close.*
   `main`; the operator explicitly approved completing #155 before returning to
   fix that baseline failure.
 
+- 2026-08-28 — final close review round 10 found four boundary classes and
+  correctly returned REWORK. Regressions first reproduced unavailable process
+  identity suppressing a unique round, valid causal events and token usage
+  after 32 MiB being unreadable, valid Pair files being discarded beside a
+  rejected listing entry, and compatibility ledger rows being diagnosed as
+  corrupt. The fixes make identity-backed corroboration conditional on a usable
+  token, stream every native JSONL consumer through bounded `ReadAt` records,
+  preserve partial Pair results with diagnostics, and share one mixed-ledger
+  classifier between launcher and inventory (`ARCH-DRY`, `ARCH-PURE`,
+  `ARCH-PURPOSE`, `ARCH-MOCK`).
+
+- 2026-08-28 — round-10 fixes verified: every regression was observed red
+  before implementation; focused inventory/ledger/watcher/launcher/dispatcher/
+  Pair/Couch suites pass; historical #149 declaration/source contracts pass;
+  `go test ./... -count=1`, `go vet ./...`, Lua and all four shell integration
+  suites pass; Zellij configuration and `git diff --check` pass. Redacted live
+  conformance passes for Agy, Claude, Codex, and Muse, including 1,202 Codex
+  nodes / 838 roots after scanning installed histories beyond 32 MiB.
+
 ### 2026-08-28
 - 2026-08-28: closed M2 — Focused and full session inventory Go suites pass; go vet passes; historical #149 source/declaration contracts pass; make test-lua passes; statusline, queue-send, and pair-session-watch shell integrations pass; git diff --check passes. Full evidence classification diagnoses unsupported/malformed recognized evidence while filtering only supported unrequested agents.; review verdict: SHIP
 - 2026-08-28: closed M1 — all four sanitized scanners and explicit edge provenance pass; exhaustive M1 concept table/declaration contract, diagnostic registry, equal-time ordering, regular/partial storage, optional usage, artifact/source/project contracts, vet, diff check, and redacted installed-shape conformance pass; pre-existing Couch launch timeout remains separately deferred by operator; review verdict: SHIP

@@ -2413,3 +2413,37 @@ values, malformed owners or paths, rejected ownership, unknown native IDs, and
 read failures must produce registry-backed diagnostics. Test the filter and
 every rejection class together so a new adapter cannot copy an incomplete
 default (`ARCH-DRY`, `ARCH-PURPOSE`).
+
+## Optional evidence must stay optional when acquisition is unavailable
+
+Finding a process identifier does not guarantee that the platform can produce
+a stable process-incarnation token. Treating that missing token as negative
+evidence can suppress a unique portable match before the stronger evidence is
+even evaluated.
+
+**Rule.** Optional evidence constrains a decision only after every field needed
+to interpret it is usable. If acquisition is unavailable, continue through the
+portable authority path; if a usable token later changes, fail closed. Test
+both unavailable and changed-token states (`ARCH-PURE`, `ARCH-PURPOSE`).
+
+## JSONL bounds apply to records, not histories
+
+A whole-file cap silently turns healthy long-running sessions into unreadable
+ones even when every individual record is small and valid.
+
+**Rule.** Stream append-only record histories through the injected range seam,
+bound each record, and test accepted evidence beyond the former whole-file
+threshold. Consumers may accumulate content only when their public contract
+requires it; causal and metric projections stay streaming (`ARCH-PURE`,
+`ARCH-MOCK`, `ARCH-PURPOSE`).
+
+## Mixed-format stores need one row classifier
+
+When a compatibility writer and a typed writer intentionally share one file,
+independent readers can label a supported row as corruption while another
+reader accepts it.
+
+**Rule.** Put typed, compatibility, and malformed row classification in the
+store-owning package. Every reader derives from that classifier, and a mixed
+typed/legacy/corrupt fixture pins all three dispositions (`ARCH-DRY`,
+`ARCH-PURPOSE`).
