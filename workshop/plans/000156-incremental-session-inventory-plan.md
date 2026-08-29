@@ -318,17 +318,17 @@
 - Modify: `cmd/internal/titlepoller/runtime.go`
 - Modify: `cmd/internal/titlepoller/run_test.go`
 
-- [ ] **Step 1: Enumerate the consumer class in a failing cross-language shadow sweep.** Parse Go, Lua, and shell entry points; reject whole-agent scans and direct inventory subprocesses from launch, existence, owner, activity, recovery, context, review, slug, opener, title-poller, and confirmation paths. The fixed allowlist contains only named diagnostic/conformance entry points and cannot be extended by an unreviewed call-site discovery.
-- [ ] **Step 2: Write `ValidateAuthorizationProof` catalog-loss tests over the generated four-agent artifact class.**
-- [ ] **Step 3: Write `ProofMigrator.Request` lifecycle tests using the risky-function strategy table.**
-- [ ] **Step 4: Write `SelectTargetWork` operation-count tests for every interactive request kind.**
-- [ ] **Step 5: Run red.** Run `go test -p 20 ./cmd/internal/sessioninventory ./cmd/internal/launcher ./cmd/internal/contextcmd ./cmd/internal/reviewcmd ./cmd/internal/slugcmd ./cmd/internal/opener ./cmd/internal/titlepoller -run 'Test(Target|Proofless|CatalogLoss|NoWholeInventory|AgentSessionExists|EstablishedSession)' -count=1`; expect shadow violations and excess reads.
-- [ ] **Step 6: Implement and verify `ProofMigrator`.** Add the coalescing worker in `proof_migration.go`; run `go test -p 20 ./cmd/internal/sessioninventory -run 'TestProofMigrator' -count=1`; expect PASS.
-- [ ] **Step 7: Migrate launcher existence/owner/activity.** Route `launcher/osruntime.go`, `query.go`, and `activity.go` through one target request; run `go test -p 20 ./cmd/internal/launcher ./cmd/internal/sessioninventory -run 'Test(AgentSessionExists|EstablishedSession|Target|Activity)' -count=1`; expect PASS.
-- [ ] **Step 8: Migrate context and review.** Route their runtime seams through the same façade; run `go test -p 20 ./cmd/internal/contextcmd ./cmd/internal/reviewcmd -count=1`; expect PASS.
-- [ ] **Step 9: Migrate slug, opener, and title-poller.** Route their runtime seams through the same façade; run `go test -p 20 ./cmd/internal/slugcmd ./cmd/internal/opener ./cmd/internal/titlepoller -count=1`; expect PASS.
-- [ ] **Step 10: Run green and the exhaustive sweep.** Repeat Step 5, then run `rg -n 'InventoryWithRuntime|NativeEventsWithRuntime|session-inventory.*--activity' cmd nvim tests --glob '*.go' --glob '*.lua' --glob '*.sh'`; every remaining occurrence must already be in the fixed diagnostic/conformance allowlist. Expect no latency-sensitive direct call.
-- [ ] **Step 11: Commit.** Run `git add cmd/internal/sessioninventory cmd/internal/launcher cmd/internal/contextcmd cmd/internal/reviewcmd cmd/internal/slugcmd cmd/internal/opener cmd/internal/titlepoller && git commit -m 'session inventory: #156 target every interactive query'`.
+- [x] **Step 1: Enumerate the consumer class in a failing cross-language shadow sweep.** Parse Go, Lua, and shell entry points; reject whole-agent scans and direct inventory subprocesses from launch, existence, owner, activity, recovery, context, review, slug, opener, title-poller, and confirmation paths. The fixed allowlist contains only named diagnostic/conformance entry points and cannot be extended by an unreviewed call-site discovery.
+- [x] **Step 2: Write `ValidateAuthorizationProof` catalog-loss tests over the generated four-agent artifact class.**
+- [x] **Step 3: Write `ProofMigrator.Request` lifecycle tests using the risky-function strategy table.**
+- [x] **Step 4: Write `SelectTargetWork` operation-count tests for every interactive request kind.**
+- [x] **Step 5: Run red.** Run `go test -p 20 ./cmd/internal/sessioninventory ./cmd/internal/launcher ./cmd/internal/contextcmd ./cmd/internal/reviewcmd ./cmd/internal/slugcmd ./cmd/internal/opener ./cmd/internal/titlepoller -run 'Test(Target|Proofless|CatalogLoss|NoWholeInventory|AgentSessionExists|EstablishedSession)' -count=1`; expect shadow violations and excess reads.
+- [x] **Step 6: Implement and verify `ProofMigrator`.** Add the coalescing worker in `proof_migration.go`; run `go test -p 20 ./cmd/internal/sessioninventory -run 'TestProofMigrator' -count=1`; expect PASS.
+- [x] **Step 7: Migrate launcher existence/owner/activity.** Route `launcher/osruntime.go`, `query.go`, and `activity.go` through one target request; run `go test -p 20 ./cmd/internal/launcher ./cmd/internal/sessioninventory -run 'Test(AgentSessionExists|EstablishedSession|Target|Activity)' -count=1`; expect PASS.
+- [x] **Step 8: Migrate context and review.** Route their runtime seams through the same façade; run `go test -p 20 ./cmd/internal/contextcmd ./cmd/internal/reviewcmd -count=1`; expect PASS.
+- [x] **Step 9: Migrate slug, opener, and title-poller.** Route their runtime seams through the same façade; run `go test -p 20 ./cmd/internal/slugcmd ./cmd/internal/opener ./cmd/internal/titlepoller -count=1`; expect PASS.
+- [x] **Step 10: Run green and the exhaustive sweep.** Repeat Step 5, then run `rg -n 'InventoryWithRuntime|NativeEventsWithRuntime|session-inventory.*--activity' cmd nvim tests --glob '*.go' --glob '*.lua' --glob '*.sh'`; every remaining occurrence must already be in the fixed diagnostic/conformance allowlist. Expect no latency-sensitive direct call.
+- [x] **Step 11: Commit.** Run `git add cmd/internal/sessioninventory cmd/internal/launcher cmd/internal/contextcmd cmd/internal/reviewcmd cmd/internal/slugcmd cmd/internal/opener cmd/internal/titlepoller && git commit -m 'session inventory: #156 target every interactive query'`.
 
 ## Chunk 3: Immediate UI, picker metadata, and verification
 
@@ -340,11 +340,11 @@
 - Create: `nvim/confirm_quit_test.lua`
 - Modify: `tests/term-pane-shortcuts-test.sh`
 
-- [ ] **Step 1: Write deterministic failing Lua cases.** Separately model indefinitely blocking, missing, and failed inventory/activity seams; invoke `PairConfirmQuit` and assert `vim.fn.confirm` is observed and actionable first with zero inventory subprocess starts. Also pin saved config prompt data and Yes/No actions.
-- [ ] **Step 2: Run red.** Run `nvim -l nvim/confirm_quit_test.lua`; expect the current synchronous established/activity lookup to occur before confirmation.
-- [ ] **Step 3: Make the modal critical path local-only.** Build prompt from env/config sidecars without calling `_G.PairEstablishedSessionID` or `pair session-inventory`; omit age/idle enrichment. Call `vim.fn.confirm` immediately after the existing visibility defer and only execute `pair quit` after Yes.
-- [ ] **Step 4: Register and run green.** Add `nvim -l nvim/confirm_quit_test.lua` to `make test-lua`, then run `nvim -l nvim/confirm_quit_test.lua && make test-lua && bash tests/term-pane-shortcuts-test.sh`; expect PASS.
-- [ ] **Step 5: Commit.** Run `git add Makefile nvim/init.lua nvim/confirm_quit_test.lua tests/term-pane-shortcuts-test.sh && git commit -m 'nvim: #156 show quit confirmation before inventory work'`.
+- [x] **Step 1: Write deterministic failing Lua cases.** Separately model indefinitely blocking, missing, and failed inventory/activity seams; invoke `PairConfirmQuit` and assert `vim.fn.confirm` is observed and actionable first with zero inventory subprocess starts. Also pin saved config prompt data and Yes/No actions.
+- [x] **Step 2: Run red.** Run `nvim -l nvim/confirm_quit_test.lua`; expect the current synchronous established/activity lookup to occur before confirmation.
+- [x] **Step 3: Make the modal critical path local-only.** Build prompt from env/config sidecars without calling `_G.PairEstablishedSessionID` or `pair session-inventory`; omit age/idle enrichment. Call `vim.fn.confirm` immediately after the existing visibility defer and only execute `pair quit` after Yes.
+- [x] **Step 4: Register and run green.** Add `nvim -l nvim/confirm_quit_test.lua` to `make test-lua`, then run `nvim -l nvim/confirm_quit_test.lua && make test-lua && bash tests/term-pane-shortcuts-test.sh`; expect PASS.
+- [x] **Step 5: Commit.** Run `git add Makefile nvim/init.lua nvim/confirm_quit_test.lua tests/term-pane-shortcuts-test.sh && git commit -m 'nvim: #156 show quit confirmation before inventory work'`.
 
 ### Task 9: Preserve picker display metadata under typed authority
 

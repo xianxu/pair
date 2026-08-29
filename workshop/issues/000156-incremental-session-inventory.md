@@ -360,14 +360,14 @@ provider contracts.
 
 ## Plan
 
-- [ ] Define the versioned artifact catalog and pure incremental reconciliation
+- [x] Define the versioned artifact catalog and pure incremental reconciliation
   rules with stateful fake coverage; filesystem fingerprints and fake mutation
   operations are complete.
-- [ ] Replace whole-corpus scanner reconstruction with metadata-only discovery,
+- [x] Replace whole-corpus scanner reconstruction with metadata-only discovery,
   cached facts, and targeted/suffix reads.
-- [ ] Make launch baselines and watcher polling operate on catalog deltas and
+- [x] Make launch baselines and watcher polling operate on catalog deltas and
   post-launch bytes only.
-- [ ] Move `Alt+X` confirmation ahead of optional enrichment and migrate every
+- [x] Move `Alt+X` confirmation ahead of optional enrichment and migrate every
   latency-sensitive native-session consumer to targeted queries.
 - [ ] Merge typed authority with compatibility display metadata and pin the
   `pair/1 claude` picker row.
@@ -413,6 +413,18 @@ provider contracts.
   read only appended progress before committing the catalog and proof-bearing
   binding. Strictly corrupt catalogs are rebuilt only from targeted validation;
   full inventory/watcher race suites pass (`ARCH-DRY`, `ARCH-PURE`).
+- Established-owner queries now read one exact ledger and reuse proof metadata;
+  catalog-loss tests cover Claude, Codex, Muse, and Agy with zero transcript or
+  SQLite reads. Proofless v1 bindings remain provisional while a keyed worker
+  coalesces explicit proof migration. Resume collision checks reuse exact
+  catalog facts or validate only the named candidate, and a cross-language
+  shadow sweep rejects new whole-inventory interactive callers (`ARCH-DRY`,
+  `ARCH-PURPOSE`).
+- `Alt+X` now builds its prompt entirely from local sidecars and invokes the
+  confirmation before the only possible subprocess (`pair quit`). The blocking
+  activity lookup and age/idle enrichment were removed from quit/restart
+  modals; headless Lua and terminal-shortcut tests pin prompt data and Yes/No
+  ordering (`ARCH-PURE`).
 
 ## Revisions
 
