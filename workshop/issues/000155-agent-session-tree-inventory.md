@@ -769,6 +769,16 @@ be checked against measured actuals at close.*
 
 ## Log
 
+- 2026-08-28 — close review round 19 accepted the exhaustive concept contract
+  and narrowed dispatch correctness to cross-attempt phase retention. Delivery
+  now carries `start`, `written`, `dispatched`, `composed`, or `indeterminate`.
+  A confirmed write resumes at submit/compose with the same append ID; edited
+  text cannot overwrite staged composer state; uncertain writes block automatic
+  retry; and dispatched marker failures remain commit-only. A stateful Zellij
+  fake models focus, composer contents, and dispatched bytes across consecutive
+  failures and proves eventual native input equals the single submitted Pair
+  record (`ARCH-PURPOSE`, `ARCH-MOCK`).
+
 - 2026-08-28 — close review round 18 closed the Pair-log duplication family
   and exposed the remaining dispatch/evidence and concept-ownership classes.
   The production draft-delivery sequencer now consumes each Zellij result:
@@ -1317,3 +1327,16 @@ failure retains commit-only state and blocks later sends until recovery without
 retransmission. Derive issue-owned Go sources from #155 additions plus the plan
 table, classify private and public types, and reject unknown introduction
 stages independently (`ARCH-DRY`, `ARCH-PURPOSE`, `ARCH-MOCK`).
+
+### 2026-08-28 — retain confirmed delivery phase across retry
+
+**Reason:** close review round 19 found that a successful body write followed
+by submit/newline failure was retried as another body write, duplicating the
+eventual native input while Pair retained only one authored record.
+
+**Delta:** persist the last confirmed delivery phase in the in-editor attempt.
+Resume `written` attempts at submit/compose only, block edited bodies and
+indeterminate writes, treat dispatched attempts as commit-only, and treat
+composed attempts as complete non-evidence. Exercise failure→retry behavior
+against a stateful fake that owns focus, composer bytes, and dispatch history
+(`ARCH-PURPOSE`, `ARCH-MOCK`).

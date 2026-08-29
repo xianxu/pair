@@ -966,6 +966,11 @@ submit/compose, and refocus results through the traced Zellij action seam. Only
 a successful semantic submit confirms dispatch. A post-dispatch marker failure
 retains commit-only state for the next authored action, so recovery never
 retransmits the already-delivered body.
+Delivery also retains the last confirmed phase across pre-dispatch retries. A
+confirmed body write resumes at semantic submit/compose without rewriting; an
+indeterminate body-write outcome blocks automatic retry. The stateful test seam
+models focus, composer contents, and dispatch history rather than return codes
+alone.
 
 **Stored shape.** Exact `$PAIR_AGENT_CONFIG_PATH`:
 

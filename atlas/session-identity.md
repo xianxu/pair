@@ -266,6 +266,14 @@ submitted-marker replacement then fails, Neovim retains that dispatched append
 ID and performs commit-only recovery before accepting another authored send;
 the original body is never dispatched twice.
 
+Before dispatch, the editor retains a finer delivery phase. `written` means the
+exact agent-facing body is already staged and retry may execute only the pending
+submit/compose action; changing the authored body is blocked until that state
+resolves. `indeterminate` means a failed write might have partially affected the
+composer and automatic retry is refused. `composed` is a completed transfer but
+never submitted evidence. These phases prevent replayed Zellij effects from
+changing the native input relative to its Pair-log body.
+
 The typed joined ledger binding is the source of truth for native recovery.
 The older `agent-<tag>` and `config-<tag>-<agent>.json` files remain derived
 caches and compatibility surfaces; config disagreement is diagnosed and cannot

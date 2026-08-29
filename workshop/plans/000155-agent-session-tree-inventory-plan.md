@@ -949,3 +949,19 @@ from files added by #155 plus every plan-declared source, classifies public and
 private types, rejects unknown marker stages independently, and permits details
 only through an exhaustive checked inventory (`ARCH-DRY`, `ARCH-PURPOSE`,
 `ARCH-MOCK`).
+
+### 2026-08-28 — close review: resume the confirmed delivery phase
+
+**Reason:** round 19 showed that isolated action-result coverage was not a
+complete transaction model. After a confirmed body write and failed
+submit/compose action, retry started from scratch and duplicated composer text.
+
+**Delta:** carry `start`, `written`, `dispatched`, `composed`, and
+`indeterminate` phases through the submission attempt. A `written` retry uses
+the same Pair-log ID and resumes at semantic submit/compose without another
+body write; an edited body is blocked until the staged body resolves. A failed
+body write is indeterminate and blocks automatic retry rather than risking
+duplication. Dispatched attempts use commit-only recovery; composed attempts
+never become evidence. The Zellij fake now models focus, composer bytes, and
+dispatches across consecutive failure→retry calls and asserts exact eventual
+input (`ARCH-PURPOSE`, `ARCH-MOCK`).

@@ -703,7 +703,7 @@ local function draftSendCommands(body, no_submit) return _G.PairDraftSend.comman
 
 _G.PairDraftSendCommands = draftSendCommands
 
-local function send_to_agent(body, no_submit)
+local function send_to_agent(body, no_submit, resume_phase)
   -- focus up to agent pane, type body, press Enter, focus back down.
   --
   -- We deliberately do NOT clear the agent's input first. The "[Image #N]"
@@ -736,14 +736,14 @@ local function send_to_agent(body, no_submit)
   -- *not* a submit — so it leaves the cursor on a fresh line in the
   -- composer, ready for more input.
   if type(_G.PairTestSendToAgent) == 'function' then
-    return _G.PairTestSendToAgent(body, no_submit)
+    return _G.PairTestSendToAgent(body, no_submit, resume_phase)
   end
   if not has_ui() then return false, false, 'no attached UI' end
   return _G.PairDraftSend.send(body, no_submit, function(label, argv, opts)
     return PairZellijTrace.action(label, argv, opts)
   end, function()
     vim.cmd('sleep 100m')
-  end)
+  end, resume_phase)
 end
 
 _G.PairSubmission = dofile((debug.getinfo(1, 'S').source:match('@?(.*/)') or './') .. 'submission.lua').new(function(body, append_id)

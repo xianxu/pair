@@ -20,9 +20,18 @@ function M.commands(body, no_submit)
   return cmds
 end
 
-function M.send(body, no_submit, action, settle)
+function M.send(body, no_submit, action, settle, resume_phase)
+  resume_phase = resume_phase or 'start'
+  if resume_phase == 'indeterminate' then
+    return false, resume_phase, 'body write outcome is indeterminate; reconcile the agent composer manually'
+  end
   local cmds = M.commands(body, no_submit)
-  local dispatched = false
+  if resume_phase == 'written' then
+    cmds = { cmds[1], cmds[3], cmds[4] }
+  elseif resume_phase ~= 'start' then
+    return false, resume_phase, 'delivery phase cannot be resumed: ' .. tostring(resume_phase)
+  end
+  local phase = resume_phase
   for i, cmd in ipairs(cmds) do
     local result = action(cmd.label, cmd.argv, cmd.opts) or {}
     if result.code ~= 0 then
@@ -30,12 +39,15 @@ function M.send(body, no_submit, action, settle)
         local refocus = cmds[#cmds]
         action(refocus.label, refocus.argv, refocus.opts)
       end
-      return false, dispatched, cmd.label .. ' exited ' .. tostring(result.code or 'without status')
+      if cmd.kind == 'write' then phase = 'indeterminate' end
+      return false, phase, cmd.label .. ' exited ' .. tostring(result.code or 'without status')
     end
-    if cmd.kind == 'submit' then dispatched = true end
+    if cmd.kind == 'write' then phase = 'written' end
+    if cmd.kind == 'submit' then phase = 'dispatched' end
+    if cmd.kind == 'compose' then phase = 'composed' end
     if cmd.kind == 'write' and (body:find('\n') or #body > 200) then settle() end
   end
-  return true, dispatched
+  return true, phase
 end
 
 return M

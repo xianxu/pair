@@ -836,3 +836,83 @@ Append revisions covering:
 
 - An exhaustive, range-derived Core Concepts ownership rule for all relevant domain declarations and independently validated introduction stages.
 - A submitted-evidence transaction specifying outcomes for every focus/write/submit/refocus action and post-dispatch marker failure, including commit-only recovery without retransmission.
+
+---
+
+## Re-review — 2026-08-28T22:40:46-07:00 (REWORK)
+
+| field | value |
+|-------|-------|
+| issue | 155 — deterministic agent session-tree inventory |
+| repo | pair |
+| issue file | workshop/issues/000155-agent-session-tree-inventory.md |
+| boundary | whole-issue close |
+| milestone | — |
+| window | 4c454436038e2ae049690bc343def9f0511fca8c..e5f024fef88bc9d0529fb668dc4d0baebbc8db4c |
+| command | sdlc close --issue 155 |
+| reviewer | codex |
+| timestamp | 2026-08-28T22:40:46-07:00 |
+| verdict | REWORK |
+
+## Review
+
+```verdict
+verdict: REWORK
+confidence: high
+```
+
+The deterministic inventory architecture, documentation, Core Concepts enforcement, and broad test suite are strong. BR-26 is addressed. BR-27 remains blocking: retrying after a successful body write but failed submit/newline retransmits the body, so the eventual native input can differ from the Pair evidence committed for it.
+
+### 1. Strengths
+
+- Core Concept sources are derived from issue-added files and plan-declared paths, covering all introduction stages and private types ([concept_contract_test.go](/Users/xianxu/workspace/pair/cmd/internal/sessioninventory/concept_contract_test.go:57)).
+- The production delivery path now consumes actual Zellij exit statuses through one injected seam ([init.lua](/Users/xianxu/workspace/pair/nvim/init.lua:742)).
+- Post-dispatch commit failure retains the append ID and performs commit-only recovery without retransmission ([submission.lua](/Users/xianxu/workspace/pair/nvim/submission.lua:11)).
+- Atlas and README changes cover the new inventory and delivery surfaces.
+
+### 2. Critical findings
+
+- **BR-27 remains not addressed — `submitted-evidence-matches-dispatch` (ARCH-PURPOSE, ARCH-MOCK).** After body write succeeds but submit or compose-newline fails, `draft_send.send` returns `dispatched=false` without preserving that the body is already staged ([draft_send.lua](/Users/xianxu/workspace/pair/nvim/draft_send.lua:23)). The pending submission stores only body, ID, and dispatched state ([submission.lua](/Users/xianxu/workspace/pair/nvim/submission.lua:22)). A retry therefore repeats `write-chars`; if the later submit succeeds, the agent receives duplicated text while Pair commits evidence for one copy.
+
+  Preserve delivery phase across attempts and resume at submit/compose after a confirmed write, or reconcile/clear the remote composer through the same seam before rewriting. Add a stateful Zellij fake modeling composer contents and dispatches across consecutive attempts; sweep every action failure and assert that the committed Pair record exactly matches the eventual native input.
+
+### 3. Important findings
+
+None.
+
+### 4. Minor findings
+
+None.
+
+### 5. Test coverage notes
+
+Passed at exact HEAD `e5f024fef88bc9d0529fb668dc4d0baebbc8db4c` with a clean worktree:
+
+- `go test ./... -count=1`
+- `make test-lua`
+- Session-watch, review-toggle, changelog-session-key, term-pane shortcut, queue-send, Zellij configuration, and diff checks
+
+The new action matrix tests each isolated exit status, but it lacks the consecutive failure→retry transition that exposes BR-27. The submitted fix therefore lacks the required regression that fails without complete transaction recovery.
+
+### 6. Architectural notes
+
+- **ARCH-DRY — pass:** native parsing, publication outcomes, and draft delivery each have centralized ownership.
+- **ARCH-PURE — pass:** forest/correlation logic remains pure; filesystem, process, SQLite, and editor actions sit behind narrow seams.
+- **ARCH-PURPOSE — flag:** BR-27 can make evidence disagree with actual delivered input, undermining the issue’s causal-correlation purpose.
+- **ARCH-MOCK — flag:** the Zellij double records return codes but does not model staged composer state across calls, so the stateful interaction bug remains invisible.
+
+### 7. Plan revision recommendations
+
+Append a revision recording that the action transaction must preserve the last confirmed delivery phase and that its stateful test oracle models composer contents across retries. Amend the current claim that the failure matrix is complete; isolated action failures are covered, but failure→retry transitions are not.
+
+```findings
+dispose:
+  - id: BR-26
+    disposition: addressed
+    note: |
+      The source-derived contract covers M1, M2, and final stages, scans private and exported types, includes Outcome/Error, rejects unknown stages, and has reachable focused tests.
+  - id: BR-27
+    disposition: not-addressed
+    note: |
+      A submit or compose failure after successful body write loses delivery phase; retry writes the body again, so eventual native input can differ from the single Pair evidence record.
+```

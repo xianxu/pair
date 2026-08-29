@@ -2531,3 +2531,6 @@ an unsupported owner through every downstream projection (`ARCH-DRY`,
 - Derive architectural ownership inventories from durable change/plan
   authority. Hand-listed directories and exported-only scans are escape
   hatches, not exhaustive concept contracts.
+- External action tests must model state across failure→retry, not merely inject
+  isolated return codes. Preserve the last confirmed phase so retries resume
+  instead of replaying already-applied effects.

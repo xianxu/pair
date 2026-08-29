@@ -15,7 +15,7 @@ do
   local submit = M.new(
     function(body, id) calls[#calls + 1] = 'append:' .. body .. ':' .. id; return true end,
     function(id) calls[#calls + 1] = 'commit:' .. id; return true end,
-    function(body, no_submit) calls[#calls + 1] = 'send:' .. body .. ':' .. tostring(no_submit); return true, not no_submit end,
+    function(body, no_submit) calls[#calls + 1] = 'send:' .. body .. ':' .. tostring(no_submit); return true, no_submit and 'composed' or 'dispatched' end,
     function(message) calls[#calls + 1] = 'notify:' .. message end,
     function() return table.remove(ids, 1) end)
   ok(submit.submit_operator_text('full', 'clean', false), 'authored submit succeeds')
@@ -30,6 +30,18 @@ end
 
 do
   local calls = {}
+  local submit = M.new(
+    function() calls[#calls + 1] = 'append'; return true end,
+    function() calls[#calls + 1] = 'commit'; return true end,
+    function() calls[#calls + 1] = 'send'; return false, 'composed', 'focus-draft exited 17' end,
+    function(message) calls[#calls + 1] = 'notify:' .. message end,
+    function() return 'id-composed' end)
+  ok(submit.submit_operator_text('full', 'clean', true), 'post-compose refocus failure cannot duplicate staged text')
+  ok(table.concat(calls, '|') == 'append|send|notify:Pair input composed with UI warning — focus-draft exited 17', 'post-compose UI failure remains non-evidence and reports warning')
+end
+
+do
+  local calls = {}
   local attempts = 0
   local submit = M.new(
     function(_, id)
@@ -39,7 +51,7 @@ do
       return true
     end,
     function() calls[#calls + 1] = 'commit'; return true end,
-    function() calls[#calls + 1] = 'send'; return true, true end,
+    function() calls[#calls + 1] = 'send'; return true, 'dispatched' end,
     function(message) calls[#calls + 1] = 'notify:' .. message end,
     function() return 'retry-id' end)
   ok(not submit.submit_operator_text('full', 'clean'), 'append failure fails closed')
@@ -59,7 +71,7 @@ do
       if commit_attempts == 1 then return false, 'marker failure' end
       return true
     end,
-    function() calls[#calls + 1] = 'send'; return true, true end,
+    function() calls[#calls + 1] = 'send'; return true, 'dispatched' end,
     function(message) calls[#calls + 1] = 'notify:' .. message end,
     function() return table.remove(ids, 1) end)
   ok(submit.submit_operator_text('full', 'clean'), 'post-send marker failure cannot request a duplicate send')
@@ -81,7 +93,7 @@ do
       return true
     end,
     function(id) calls[#calls + 1] = 'commit:' .. id; return true end,
-    function(body, no_submit) calls[#calls + 1] = 'send:' .. body .. ':' .. tostring(no_submit); return true, not no_submit end,
+    function(body, no_submit) calls[#calls + 1] = 'send:' .. body .. ':' .. tostring(no_submit); return true, no_submit and 'composed' or 'dispatched' end,
     function(message) calls[#calls + 1] = 'notify:' .. message end,
     function() return table.remove(ids, 1) end)
   ok(not submit.submit_operator_text('old', 'old', false), 'indeterminate preparation suppresses send')
@@ -95,7 +107,7 @@ do
   local submit = M.new(
     function(body, id) calls[#calls + 1] = 'append:' .. body .. ':' .. id; return true end,
     function(id) calls[#calls + 1] = 'commit:' .. id; return true end,
-    function(body, no_submit) calls[#calls + 1] = 'send:' .. body .. ':' .. tostring(no_submit); return true, not no_submit end,
+    function(body, no_submit) calls[#calls + 1] = 'send:' .. body .. ':' .. tostring(no_submit); return true, no_submit and 'composed' or 'dispatched' end,
     function(message) calls[#calls + 1] = 'notify:' .. message end,
     function() return 'id-compose' end)
   ok(submit.submit_operator_text('compose only', 'compose only', true), 'no-submit still transfers text')
@@ -107,7 +119,7 @@ do
   local submit = M.new(
     function() calls[#calls + 1] = 'append'; return true end,
     function() calls[#calls + 1] = 'commit'; return true end,
-    function() calls[#calls + 1] = 'send'; return false, false, 'write-body exited 17' end,
+    function() calls[#calls + 1] = 'send'; return false, 'indeterminate', 'write-body exited 17' end,
     function(message) calls[#calls + 1] = 'notify:' .. message end,
     function() return 'id-failed' end)
   ok(not submit.submit_operator_text('full', 'clean'), 'failed delivery preserves authored draft')
@@ -119,11 +131,32 @@ do
   local submit = M.new(
     function() calls[#calls + 1] = 'append'; return true end,
     function() calls[#calls + 1] = 'commit'; return true end,
-    function() calls[#calls + 1] = 'send'; return false, true, 'focus-draft exited 17' end,
+    function() calls[#calls + 1] = 'send'; return false, 'dispatched', 'focus-draft exited 17' end,
     function(message) calls[#calls + 1] = 'notify:' .. message end,
     function() return 'id-sent' end)
   ok(submit.submit_operator_text('full', 'clean'), 'post-dispatch UI failure cannot request retransmission')
   ok(table.concat(calls, '|') == 'append|send|commit|notify:Pair input dispatched with UI warning — focus-draft exited 17', 'post-dispatch UI failure still commits true evidence')
+end
+
+do
+  local calls = {}
+  local sends = 0
+  local submit = M.new(
+    function(_, id) calls[#calls + 1] = 'append:' .. id; return true end,
+    function(id) calls[#calls + 1] = 'commit:' .. id; return true end,
+    function(_, _, resume_phase)
+      calls[#calls + 1] = 'send:' .. tostring(resume_phase)
+      sends = sends + 1
+      if sends == 1 then return false, 'written', 'submit exited 17' end
+      return true, 'dispatched'
+    end,
+    function(message) calls[#calls + 1] = 'notify:' .. message end,
+    function() return 'id-staged' end)
+  ok(not submit.submit_operator_text('full', 'clean'), 'failed submit retains confirmed written phase')
+  ok(not submit.submit_operator_text('edited', 'edited'), 'edited body cannot overwrite staged composer text')
+  ok(submit.submit_operator_text('full', 'clean'), 'unchanged retry resumes at submit')
+  ok(table.concat(calls, '|') == 'append:id-staged|send:start|notify:Pair input dispatch failed — submit exited 17|notify:Pair input dispatch blocked — retry the already staged authored body before editing|append:id-staged|send:written|commit:id-staged',
+    'written phase resumes without minting or rewriting')
 end
 
 local init = table.concat(vim.fn.readfile(here .. 'init.lua'), '\n')

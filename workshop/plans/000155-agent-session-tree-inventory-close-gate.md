@@ -464,6 +464,19 @@ rounds:
           family: submitted-evidence-matches-dispatch
           round: 18
       blocked: true
+    - "n": 19
+      timestamp: "2026-08-28T22:40:46-07:00"
+      agent: codex
+      dispose:
+        - id: BR-26
+          disposition: addressed
+          note: The source-derived contract covers M1, M2, and final stages, scans private and exported types, includes Outcome/Error, rejects unknown stages, and has reachable focused tests.
+          round: 19
+        - id: BR-27
+          disposition: not-addressed
+          note: A submit or compose failure after successful body write loses delivery phase; retry writes the body again, so eventual native input can differ from the single Pair evidence record.
+          round: 19
+      blocked: true
 ---
 
 # Gate ledger — pair#155 (boundary-review)
@@ -687,7 +700,13 @@ later rounds disposed of them. Generated — edit the gate, not this file.
 - **BR-27** [Critical] `submitted-evidence-matches-dispatch` Submitted Pair evidence can disagree with the actual dispatch outcome
   nvim/submission.lua commits submitted evidence without receiving a send result, while nvim/init.lua discards every Zellij action exit status. Conversely, a successful dispatch followed by commit failure clears its retry identity and leaves no commit-only recovery path. Define the complete dispatch/evidence transaction and test every delivery-critical action failure plus post-dispatch commit recovery through the production seam.
 
+## Round 19 — 2026-08-28T22:40:46-07:00 (codex) — BLOCKED
+
+### Disposed
+
+- BR-26 — addressed — The source-derived contract covers M1, M2, and final stages, scans private and exported types, includes Outcome/Error, rejects unknown stages, and has reachable focused tests.
+- BR-27 — not-addressed — A submit or compose failure after successful body write loses delivery phase; retry writes the body again, so eventual native input can differ from the single Pair evidence record.
+
 ## Open findings
 
-- **BR-26** [Critical] `core-concepts-match-code` Shared publication outcome escapes the Core Concepts contract
 - **BR-27** [Critical] `submitted-evidence-matches-dispatch` Submitted Pair evidence can disagree with the actual dispatch outcome
