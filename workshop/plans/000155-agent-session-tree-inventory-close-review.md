@@ -457,3 +457,87 @@ None.
 7. Plan revision recommendations
 
 None. The existing “make every ledger object structurally strict” revision already states the correct intended rule; implementation and regression coverage need to be brought into conformance with it.
+
+---
+
+## Re-review — 2026-08-28T21:19:45-07:00 (REWORK)
+
+| field | value |
+|-------|-------|
+| issue | 155 — deterministic agent session-tree inventory |
+| repo | pair |
+| issue file | workshop/issues/000155-agent-session-tree-inventory.md |
+| boundary | whole-issue close |
+| milestone | — |
+| window | 4c454436038e2ae049690bc343def9f0511fca8c..6cf116558cefdc33329cf8537651141f96a16414 |
+| command | sdlc close --issue 155 |
+| reviewer | codex |
+| timestamp | 2026-08-28T21:19:45-07:00 |
+| verdict | REWORK |
+
+## Review
+
+```verdict
+verdict: REWORK
+confidence: high
+```
+
+The inventory architecture, consumer migration, documentation, and BR-23 classification fix are well executed and thoroughly tested. One blocking durability mismatch remains: a ledger append may return failure after its bytes become readable, while recovery treats those bytes as authoritative. This violates the explicit guarantee that a failed binding append leaves the launch provisional.
+
+1. Strengths
+
+- BR-23 is addressed through one shared strict classifier in `sessionledger`, used by both launcher and inventory consumers.
+- The classifier rejects missing, null, duplicate, unknown, trailing, unsupported-agent, and invalid kind-specific fields.
+- Reverting the final field-presence fix in a scratch checkout made all three relevant consumer tests fail, confirming the fix is reachable and genuinely pinned.
+- Core-concepts entities exist at their documented locations with appropriate pure/integration separation.
+- README and atlas changes cover the public CLI, identity model, architecture, and migration surface.
+
+2. Critical findings
+
+- `cmd/internal/sessionledger/store.go:126`: **ARCH-PURPOSE, ARCH-MOCK — failed ledger writes can still become recovery authority.** The store writes the complete record before `Sync`, `Close`, directory sync, and deferred unlock. Any failure at `store.go:130-139` returns an error while leaving a parseable row visible. `ParseLedger` accepts that row, and `sessioninventory/pair_inventory.go:74-78` subsequently treats it as authoritative. For a binding, this can establish a root even though `AppendBindingIfCurrent` reported failure, contradicting the Spec at lines 633–640 and the plan’s “failed binding append leaves the latest launch provisional” contract.
+
+  Fix the class, not one site: enumerate short-write-after-N-bytes, file-sync, close, directory-sync, and unlock failures for both launch and binding records. Define a commit-result protocol under which the caller’s result and subsequent recovery agree. If post-write failures are inherently indeterminate, revise the contract and return/reconcile an explicit indeterminate outcome rather than reporting an ordinary failed append. Add stateful recovery tests proving every failure point either remains non-authoritative or is reported and recovered as committed.
+
+3. Important findings
+
+None.
+
+4. Minor findings
+
+None.
+
+5. Test coverage notes
+
+- Passed: `go test ./... -count=1`.
+- Passed: `go vet ./...`.
+- Passed: complete Lua suite.
+- Passed: session-watch, review-toggle, changelog-session-key, terminal-shortcut, and queue-send shell suites.
+- Passed: Zellij configuration validation and pinned-range `git diff --check`.
+- Existing `TestLedgerStoreFailureRetryUsesNextPhysicalOrdinal` checks only that a failed row consumes an ordinal; it does not assert whether that row remains authoritative. Its fsync fake already exposes the missing recovery assertion.
+
+6. Architectural notes for upcoming work
+
+- **ARCH-DRY: pass.** Native parsing, ledger classification, activity, and consumer authority are consolidated; the shadow sweep enforces the boundary.
+- **ARCH-PURE: pass.** Correlation and ordering remain pure, with filesystem/process/SQLite behavior behind injected runtimes.
+- **ARCH-PURPOSE: flag.** The implementation does not yet deliver the promised failed-binding durability semantics.
+- **ARCH-MOCK: flag.** A stateful filesystem fake exists, but post-write failure tests do not validate recovered authority across the shared production seam.
+
+7. Plan revision recommendations
+
+Add a `## Revisions` entry defining the ledger commit point and exhaustive result/recovery behavior for write, fsync, close, directory-sync, and unlock failures. If the filesystem cannot guarantee “error means provisional” after bytes are written, explicitly replace that promise with an indeterminate-result protocol and update the Spec, plan, callers, and tests together.
+
+```findings
+dispose:
+  - id: BR-23
+    disposition: addressed
+    note: |
+      The shared strict classifier now enforces exact typed versus exact legacy versus malformed rows across ledger, launcher, and inventory consumers; reverting the field-presence fix makes all three regression tests fail.
+findings:
+  - id: new
+    severity: Critical
+    family: ledger-append-result-matches-authority
+    title: |
+      Failed binding appends can still become authoritative
+    detail: |
+      cmd/internal/sessionledger/store.go:126-139 returns errors after a complete parseable row may already be visible, while cmd/internal/sessioninventory/pair_inventory.go:74-78 later accepts that row as recovery authority. Enumerate every post-write failure point and make the returned outcome agree with recovered authority; add stateful launch and binding tests covering short writes, file sync, close, directory sync, and unlock failures (ARCH-PURPOSE, ARCH-MOCK).
+```

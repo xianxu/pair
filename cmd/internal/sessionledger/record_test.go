@@ -34,6 +34,15 @@ func TestParseLedgerClassifiesCompatibilityRowsSeparately(t *testing.T) {
 	}
 }
 
+func TestParseLedgerRejectsUnterminatedValidRow(t *testing.T) {
+	t.Parallel()
+	raw := []byte(`{"v":1,"kind":"launch","scope_key":"scope","tag":"work","agent":"claude","pair_log_offset":0,"native_watermarks":[]}`)
+	parsed := ParseLedger(raw)
+	if len(parsed.Records) != 0 || !slices.Equal(parsed.MalformedOrdinals, []uint64{1}) {
+		t.Fatalf("parsed=%#v", parsed)
+	}
+}
+
 func TestParseLedgerCompatibilityClassificationMatrix(t *testing.T) {
 	t.Parallel()
 	valid := `{"agent":"claude","args":null,"session_id":"","started":"0001-01-01T00:00:00Z","last_active":"0001-01-01T00:00:00Z","repo_root":"","repo_name":""}`

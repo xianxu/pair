@@ -66,6 +66,117 @@ func TestLedgerStoreFailureRetryUsesNextPhysicalOrdinal(t *testing.T) {
 	}
 }
 
+func TestLedgerStoreAppendOutcomeMatchesRecoveredAuthority(t *testing.T) {
+	t.Parallel()
+	for _, kind := range []RecordKind{RecordLaunch, RecordBinding} {
+		kind := kind
+		for _, failure := range []struct {
+			name          string
+			writeLimit    int
+			stage         string
+			wantOutcome   AppendOutcome
+			wantAuthority bool
+		}{
+			{name: "write-before-row", writeLimit: 1, stage: "write", wantOutcome: AppendNotAuthoritative},
+			{name: "write-after-row", writeLimit: -1, stage: "write", wantOutcome: AppendIndeterminate, wantAuthority: true},
+			{name: "file-sync", stage: "sync", wantOutcome: AppendIndeterminate, wantAuthority: true},
+			{name: "close", stage: "close", wantOutcome: AppendIndeterminate, wantAuthority: true},
+			{name: "directory-sync", stage: "directory-sync", wantOutcome: AppendIndeterminate, wantAuthority: true},
+			{name: "unlock", stage: "unlock", wantOutcome: AppendCommitted, wantAuthority: true},
+		} {
+			failure := failure
+			t.Run(string(kind)+"/"+failure.name, func(t *testing.T) {
+				t.Parallel()
+				path := filepath.Join(t.TempDir(), "ledger.jsonl")
+				owner := Owner{ScopeKey: "scope", Tag: "work", Agent: "claude"}
+				launchOrdinal := uint64(0)
+				if kind == RecordBinding {
+					launch, err := (LedgerStore{Runtime: OSRuntime{}}).Append(path, launchRecord("scope", "work", 1))
+					if err != nil {
+						t.Fatal(err)
+					}
+					launchOrdinal = launch.Ordinal
+				}
+
+				runtime := &failurePointRuntime{Runtime: OSRuntime{}, stage: failure.stage, writeLimit: failure.writeLimit}
+				store := LedgerStore{Runtime: runtime}
+				var appended Record
+				var err error
+				if kind == RecordLaunch {
+					appended, err = store.Append(path, launchRecord("scope", "work", 2))
+				} else {
+					appended, err = store.AppendBindingIfCurrent(path, owner, launchOrdinal, "native-a")
+				}
+				if err == nil {
+					t.Fatal("injected append returned nil error")
+				}
+				if got := AppendOutcomeOf(err); got != failure.wantOutcome {
+					t.Fatalf("outcome=%v, want %v (err=%v)", got, failure.wantOutcome, err)
+				}
+				if failure.wantOutcome != AppendNotAuthoritative && appended.Ordinal == 0 {
+					t.Fatalf("append result lost physical ordinal: %#v", appended)
+				}
+
+				current, ok := CurrentLaunch(ParseLedger(mustReadFile(t, path)).Records, owner)
+				gotAuthority := ok && ((kind == RecordLaunch && current.Launch.PairLogOffset == 2) ||
+					(kind == RecordBinding && current.Binding != nil && current.Binding.RootNativeID == "native-a"))
+				if gotAuthority != failure.wantAuthority {
+					t.Fatalf("recovered authority=%v, want %v; current=%#v", gotAuthority, failure.wantAuthority, current)
+				}
+			})
+		}
+	}
+}
+
+func TestLedgerStoreEveryIncompleteWriteRemainsNonAuthoritative(t *testing.T) {
+	t.Parallel()
+	for _, kind := range []RecordKind{RecordLaunch, RecordBinding} {
+		kind := kind
+		t.Run(string(kind), func(t *testing.T) {
+			t.Parallel()
+			owner := Owner{ScopeKey: "scope", Tag: "work", Agent: "claude"}
+			record := launchRecord("scope", "work", 2)
+			if kind == RecordBinding {
+				record = Record{Version: 1, Kind: RecordBinding, ScopeKey: owner.ScopeKey, Tag: owner.Tag, Agent: owner.Agent, LaunchOrdinal: 1, RootNativeID: "native-a"}
+			}
+			encoded, err := EncodeRecord(record)
+			if err != nil {
+				t.Fatal(err)
+			}
+			payloadLength := len(encoded) + 1
+
+			for limit := 0; limit < payloadLength; limit++ {
+				path := filepath.Join(t.TempDir(), "ledger.jsonl")
+				launchOrdinal := uint64(0)
+				if kind == RecordBinding {
+					launch, appendErr := (LedgerStore{Runtime: OSRuntime{}}).Append(path, launchRecord("scope", "work", 1))
+					if appendErr != nil {
+						t.Fatal(appendErr)
+					}
+					launchOrdinal = launch.Ordinal
+				}
+				runtime := &failurePointRuntime{Runtime: OSRuntime{}, stage: "write", writeLimit: limit}
+				store := LedgerStore{Runtime: runtime}
+				if kind == RecordLaunch {
+					_, err = store.Append(path, record)
+				} else {
+					_, err = store.AppendBindingIfCurrent(path, owner, launchOrdinal, "native-a")
+				}
+				if got := AppendOutcomeOf(err); got != AppendNotAuthoritative {
+					t.Fatalf("limit=%d outcome=%v, want %v (err=%v)", limit, got, AppendNotAuthoritative, err)
+				}
+				current, ok := CurrentLaunch(ParseLedger(mustReadFile(t, path)).Records, owner)
+				if kind == RecordLaunch && ok {
+					t.Fatalf("limit=%d recovered launch authority: %#v", limit, current)
+				}
+				if kind == RecordBinding && (!ok || current.Binding != nil) {
+					t.Fatalf("limit=%d recovered binding authority: %#v ok=%v", limit, current, ok)
+				}
+			}
+		})
+	}
+}
+
 func TestLedgerStoreAppendBindingIfCurrent(t *testing.T) {
 	t.Parallel()
 	path := filepath.Join(t.TempDir(), "ledger.jsonl")
@@ -128,6 +239,82 @@ type failingAppendFile struct {
 	AppendFile
 	failure string
 	failed  bool
+}
+
+type failurePointRuntime struct {
+	Runtime
+	stage      string
+	writeLimit int
+}
+
+func (r *failurePointRuntime) Lock(path string) (Unlocker, error) {
+	lock, err := r.Runtime.Lock(path)
+	if err != nil {
+		return nil, err
+	}
+	return &failurePointUnlocker{Unlocker: lock, fail: r.stage == "unlock"}, nil
+}
+
+func (r *failurePointRuntime) OpenAppend(path string, mode os.FileMode) (AppendFile, error) {
+	file, err := r.Runtime.OpenAppend(path, mode)
+	if err != nil {
+		return nil, err
+	}
+	return &failurePointFile{AppendFile: file, runtime: r}, nil
+}
+
+func (r *failurePointRuntime) SyncDirectory(path string) error {
+	if r.stage == "directory-sync" {
+		return errors.New("injected directory sync failure")
+	}
+	return r.Runtime.SyncDirectory(path)
+}
+
+type failurePointUnlocker struct {
+	Unlocker
+	fail bool
+}
+
+func (u *failurePointUnlocker) Close() error {
+	err := u.Unlocker.Close()
+	if u.fail {
+		return errors.Join(err, errors.New("injected unlock failure"))
+	}
+	return err
+}
+
+type failurePointFile struct {
+	AppendFile
+	runtime *failurePointRuntime
+	wrote   bool
+}
+
+func (f *failurePointFile) Write(raw []byte) (int, error) {
+	if f.runtime.stage != "write" || f.wrote {
+		return f.AppendFile.Write(raw)
+	}
+	f.wrote = true
+	limit := f.runtime.writeLimit
+	if limit < 0 || limit > len(raw) {
+		limit = len(raw)
+	}
+	n, writeErr := f.AppendFile.Write(raw[:limit])
+	return n, errors.Join(writeErr, errors.New("injected write failure"))
+}
+
+func (f *failurePointFile) Sync() error {
+	if f.runtime.stage == "sync" {
+		return errors.New("injected sync failure")
+	}
+	return f.AppendFile.Sync()
+}
+
+func (f *failurePointFile) Close() error {
+	err := f.AppendFile.Close()
+	if f.runtime.stage == "close" {
+		return errors.Join(err, errors.New("injected close failure"))
+	}
+	return err
 }
 
 func (f *failingAppendFile) Write(raw []byte) (int, error) {

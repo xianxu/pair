@@ -1,5 +1,19 @@
 # Lessons
 
+## Append-only authority needs an explicit commit outcome
+
+A ledger writer returned ordinary errors from sync, close, directory sync, and
+unlock after a complete JSON row was already readable. Recovery then accepted
+the row as authority even though the caller inferred that the append failed;
+an unterminated but otherwise complete JSON object widened the same mismatch.
+
+**Rule.** For append-only authority, make the record terminator part of the
+commit framing and model non-authoritative, indeterminate, and committed results
+explicitly. Fault-test every byte boundary plus write, file sync, close,
+directory sync, and unlock, then recover through the production parser and
+assert that its authority agrees with the reported outcome. Caught in #000155
+close review.
+
 ## Verification must not inherit ignored generated state
 
 A boundary suite passed in the developer checkout because an ignored generated

@@ -769,6 +769,15 @@ be checked against measured actuals at close.*
 
 ## Log
 
+- 2026-08-28 — close review round 15 confirmed the strict mixed-ledger
+  classifier and found that post-write store errors could disagree with later
+  recovery authority. The store now reports non-authoritative, indeterminate,
+  or committed outcomes; newline termination is the recovery commit frame;
+  stateful launch and binding tests sweep every incomplete byte prefix and
+  inject complete-write, file-sync, close, directory-sync, and unlock failures.
+  The five affected packages pass together under the operator's concurrency cap
+  (`ARCH-PURPOSE`, `ARCH-MOCK`).
+
 - 2026-08-28 — Repository verification is fully green after the requested
   deferred Couch fix: `go test ./... -count=1`, `go vet ./...`, all Lua and
   named shell suites, zellij config validation, and diff/status checks pass.
@@ -1209,3 +1218,22 @@ operator-authored submission path still outside the durable-log prerequisite.
 fail-closed durable-log wrapper; route generated PairReview, compaction, and
 PairDoctor prompts through a separate non-evidence wrapper; enforce the complete
 low-level send-call enumeration in Lua tests (ARCH-DRY, ARCH-PURPOSE).
+
+### 2026-08-28 — make append outcomes agree with recovery authority
+
+**Reason:** close review found that a complete ledger row could become readable
+before file sync, close, directory sync, or unlock reported failure, so an
+ordinary append error could later recover as authority. It also exposed that a
+complete JSON object missing only the final newline was accepted as a row.
+
+**Delta:** supersede the earlier blanket “failed binding append leaves the
+launch provisional” sentence with an explicit three-outcome protocol. Every
+incomplete write is non-authoritative, including a complete JSON object without
+its newline terminator. Once the complete terminated row is written, failures
+before the file and directory durability steps finish are `indeterminate`: the
+returned record carries its physical ordinal and recovery may accept the row.
+After those durability steps finish, an unlock failure is `committed` with a
+cleanup error and recovery accepts the row. Successful appends are committed.
+Launch and binding fault matrices exercise every byte boundary plus file sync,
+close, directory sync, and unlock through the production runtime seam
+(ARCH-PURPOSE, ARCH-MOCK).

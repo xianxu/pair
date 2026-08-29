@@ -861,3 +861,19 @@ key exactly once, reject unknown keys and trailing values, validate complete
 required fields/types/supported enums, and reject duplicate keys at every
 nesting depth. Ledger, launcher, and inventory matrices exercise top-level and
 nested duplicates (`ARCH-DRY`, `ARCH-PURPOSE`).
+
+### 2026-08-28 — close review: explicit ledger commit outcomes
+
+**Reason:** the next close review found that errors after a complete append
+could disagree with later recovery authority; the plan's blanket failed-append
+promise was not implementable once the filesystem reported a post-write
+durability failure.
+
+**Delta:** define the commit point and every result. An incomplete,
+unterminated row is malformed and non-authoritative. A complete terminated row
+followed by write, file-sync, close, or directory-sync failure returns its
+ordinal with an explicit `indeterminate` outcome; recovery may observe it. File
+and directory durability followed by unlock failure returns `committed` plus a
+cleanup error; success returns `committed`. Stateful tests sweep every short
+write byte boundary and inject each later failure for both launch and binding
+records (`ARCH-PURPOSE`, `ARCH-MOCK`).

@@ -162,12 +162,17 @@ func EncodeRecord(record Record) ([]byte, error) {
 
 func ParseLedger(raw []byte) ParseResult {
 	lines := bytes.Split(raw, []byte{'\n'})
-	if len(lines) > 0 && len(lines[len(lines)-1]) == 0 {
+	terminated := len(raw) == 0 || raw[len(raw)-1] == '\n'
+	if terminated && len(lines) > 0 && len(lines[len(lines)-1]) == 0 {
 		lines = lines[:len(lines)-1]
 	}
 	result := ParseResult{}
 	for i, line := range lines {
 		ordinal := uint64(i + 1)
+		if !terminated && i == len(lines)-1 {
+			result.MalformedOrdinals = append(result.MalformedOrdinals, ordinal)
+			continue
+		}
 		record, err := decodeRecord(line)
 		if err == nil {
 			record.Ordinal = ordinal

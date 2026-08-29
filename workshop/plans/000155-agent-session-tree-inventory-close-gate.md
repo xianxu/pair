@@ -392,6 +392,22 @@ rounds:
           note: Duplicate, unknown, unsupported, partial, and trailing-value cases are covered, but missing or null nested event_position and explicit null legacy_import fields are still accepted instead of classified malformed.
           round: 14
       blocked: false
+    - "n": 15
+      timestamp: "2026-08-28T21:19:45-07:00"
+      agent: codex
+      dispose:
+        - id: BR-23
+          disposition: addressed
+          note: The shared strict classifier now enforces exact typed versus exact legacy versus malformed rows across ledger, launcher, and inventory consumers; reverting the field-presence fix makes all three regression tests fail.
+          round: 15
+      findings:
+        - id: BR-24
+          severity: Critical
+          title: Failed binding appends can still become authoritative
+          detail: cmd/internal/sessionledger/store.go:126-139 returns errors after a complete parseable row may already be visible, while cmd/internal/sessioninventory/pair_inventory.go:74-78 later accepts that row as recovery authority. Enumerate every post-write failure point and make the returned outcome agree with recovered authority; add stateful launch and binding tests covering short writes, file sync, close, directory sync, and unlock failures (ARCH-PURPOSE, ARCH-MOCK).
+          family: ledger-append-result-matches-authority
+          round: 15
+      blocked: true
 ---
 
 # Gate ledger — pair#155 (boundary-review)
@@ -569,6 +585,17 @@ later rounds disposed of them. Generated — edit the gate, not this file.
 
 - BR-23 — not-addressed — Duplicate, unknown, unsupported, partial, and trailing-value cases are covered, but missing or null nested event_position and explicit null legacy_import fields are still accepted instead of classified malformed.
 
+## Round 15 — 2026-08-28T21:19:45-07:00 (codex) — BLOCKED
+
+### Disposed
+
+- BR-23 — addressed — The shared strict classifier now enforces exact typed versus exact legacy versus malformed rows across ledger, launcher, and inventory consumers; reverting the field-presence fix makes all three regression tests fail.
+
+### Raised
+
+- **BR-24** [Critical] `ledger-append-result-matches-authority` Failed binding appends can still become authoritative
+  cmd/internal/sessionledger/store.go:126-139 returns errors after a complete parseable row may already be visible, while cmd/internal/sessioninventory/pair_inventory.go:74-78 later accepts that row as recovery authority. Enumerate every post-write failure point and make the returned outcome agree with recovered authority; add stateful launch and binding tests covering short writes, file sync, close, directory sync, and unlock failures (ARCH-PURPOSE, ARCH-MOCK).
+
 ## Open findings
 
-- **BR-23** [Important] `mixed-ledger-formats-are-classified` Compatibility classification admits malformed and unsupported rows
+- **BR-24** [Critical] `ledger-append-result-matches-authority` Failed binding appends can still become authoritative

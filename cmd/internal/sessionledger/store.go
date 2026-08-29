@@ -12,6 +12,55 @@ import (
 
 var ErrStaleLaunch = errors.New("ledger launch generation is no longer current")
 
+type AppendOutcome uint8
+
+const (
+	AppendNotAuthoritative AppendOutcome = iota
+	AppendIndeterminate
+	AppendCommitted
+)
+
+func (o AppendOutcome) String() string {
+	switch o {
+	case AppendNotAuthoritative:
+		return "not-authoritative"
+	case AppendIndeterminate:
+		return "indeterminate"
+	case AppendCommitted:
+		return "committed"
+	default:
+		return "unknown"
+	}
+}
+
+// AppendOutcomeError reports failures after a complete ledger row may have
+// become recovery authority. Callers must not interpret these as ordinary
+// failed appends: Indeterminate means durability could not be established;
+// Committed means the row is durable but lock cleanup failed.
+type AppendOutcomeError struct {
+	Outcome AppendOutcome
+	Err     error
+}
+
+func (e *AppendOutcomeError) Error() string {
+	return fmt.Sprintf("ledger append %s: %v", e.Outcome, e.Err)
+}
+
+func (e *AppendOutcomeError) Unwrap() error { return e.Err }
+
+// AppendOutcomeOf converts nil, typed post-write failures, and ordinary
+// pre-authority failures into one exhaustive caller-facing result.
+func AppendOutcomeOf(err error) AppendOutcome {
+	if err == nil {
+		return AppendCommitted
+	}
+	var outcomeErr *AppendOutcomeError
+	if errors.As(err, &outcomeErr) {
+		return outcomeErr.Outcome
+	}
+	return AppendNotAuthoritative
+}
+
 type Unlocker interface{ Close() error }
 
 type AppendFile interface {
@@ -41,7 +90,11 @@ func (s LedgerStore) Append(path string, record Record) (_ Record, err error) {
 	}
 	ordinal, err := s.appendEncoded(path, encoded)
 	if err != nil {
-		return Record{}, err
+		if ordinal == 0 {
+			return Record{}, err
+		}
+		record.Ordinal = ordinal
+		return record, err
 	}
 	record.Ordinal = ordinal
 	return record, nil
@@ -75,7 +128,11 @@ func (s LedgerStore) AppendBindingIfCurrent(path string, owner Owner, launchOrdi
 		return nil
 	})
 	if err != nil {
-		return Record{}, err
+		if ordinal == 0 {
+			return Record{}, err
+		}
+		record.Ordinal = ordinal
+		return record, err
 	}
 	record.Ordinal = ordinal
 	return record, nil
@@ -97,7 +154,12 @@ func (s LedgerStore) appendEncodedChecked(path string, encoded []byte, check fun
 	if err != nil {
 		return 0, fmt.Errorf("lock ledger: %w", err)
 	}
-	defer func() { err = errors.Join(err, lock.Close()) }()
+	outcome := AppendNotAuthoritative
+	defer func() {
+		if unlockErr := lock.Close(); unlockErr != nil {
+			err = joinAppendError(outcome, err, fmt.Errorf("unlock ledger: %w", unlockErr))
+		}
+	}()
 
 	raw, err := s.Runtime.ReadFile(path)
 	if errors.Is(err, os.ErrNotExist) {
@@ -123,21 +185,43 @@ func (s LedgerStore) appendEncodedChecked(path string, encoded []byte, check fun
 	if err != nil {
 		return 0, fmt.Errorf("open ledger append: %w", err)
 	}
-	if err := writeAll(file, payload); err != nil {
-		_ = file.Close()
-		return 0, fmt.Errorf("append ledger: %w", err)
+	written, writeErr := writeAll(file, payload)
+	if writeErr != nil {
+		closeErr := file.Close()
+		if written == len(payload) {
+			outcome = AppendIndeterminate
+			return ordinal, appendError(outcome, errors.Join(fmt.Errorf("append ledger: %w", writeErr), closeErr))
+		}
+		return 0, errors.Join(fmt.Errorf("append ledger: %w", writeErr), closeErr)
 	}
+	outcome = AppendIndeterminate
 	if err := file.Sync(); err != nil {
-		_ = file.Close()
-		return 0, fmt.Errorf("sync ledger: %w", err)
+		closeErr := file.Close()
+		return ordinal, appendError(outcome, errors.Join(fmt.Errorf("sync ledger: %w", err), closeErr))
 	}
 	if err := file.Close(); err != nil {
-		return 0, fmt.Errorf("close ledger: %w", err)
+		return ordinal, appendError(outcome, fmt.Errorf("close ledger: %w", err))
 	}
 	if err := s.Runtime.SyncDirectory(dir); err != nil {
-		return 0, fmt.Errorf("sync ledger directory: %w", err)
+		return ordinal, appendError(outcome, fmt.Errorf("sync ledger directory: %w", err))
 	}
+	outcome = AppendCommitted
 	return ordinal, nil
+}
+
+func appendError(outcome AppendOutcome, err error) error {
+	return &AppendOutcomeError{Outcome: outcome, Err: err}
+}
+
+func joinAppendError(outcome AppendOutcome, err, cleanupErr error) error {
+	if outcome == AppendNotAuthoritative {
+		return errors.Join(err, cleanupErr)
+	}
+	var outcomeErr *AppendOutcomeError
+	if errors.As(err, &outcomeErr) {
+		err = outcomeErr.Err
+	}
+	return appendError(outcome, errors.Join(err, cleanupErr))
 }
 
 func physicalLineCount(raw []byte) uint64 {
@@ -151,16 +235,18 @@ func physicalLineCount(raw []byte) uint64 {
 	return count
 }
 
-func writeAll(writer io.Writer, raw []byte) error {
+func writeAll(writer io.Writer, raw []byte) (int, error) {
+	written := 0
 	for len(raw) != 0 {
 		n, err := writer.Write(raw)
+		written += n
 		if err != nil {
-			return err
+			return written, err
 		}
 		if n <= 0 {
-			return io.ErrShortWrite
+			return written, io.ErrShortWrite
 		}
 		raw = raw[n:]
 	}
-	return nil
+	return written, nil
 }
