@@ -59,22 +59,25 @@ typed launch wins authority over its compatibility row but supplies no
 
 Pair owns one versioned, persistent native-artifact catalog under the selected
 Pair data scope. Each entry records the agent, storage root, relative path,
-opaque runtime file identity, size, change token, timestamps needed by the
+opaque stable file ID, size, mutation token, timestamps needed by the
 public contract, authorization state, scanner classification/facts, raw observed
 offset, parser-complete offset, incremental scanner state, and the
 scanner/parser schema version that produced it.
 
-`FileIdentity` is an opaque runtime value built without content reads. On Unix
-it includes device + inode plus the platform change token (`ctime` at nanosecond
-precision); implementations on another platform must supply the equivalent
-stable file ID + change token. Size and modification time remain separate
-fields. If the runtime cannot obtain a stable identity/change token, continuity
-is unproven: the entry is treated as replaced and cached authority is not used.
-Path + size + mtime alone never proves continuity.
+`StableFileID` and `MutationToken` are separate opaque runtime values built
+without content reads. On Unix the stable ID is device + inode; the mutation
+token includes platform `ctime` at nanosecond precision. Implementations on
+another platform must supply equivalent values. Size and modification time
+remain separate fields. Stable-ID continuity plus size growth is the only
+append candidate; a stable-ID change, shrinkage, or mutation without size growth
+invalidates authority and requires targeted revalidation. The changed mutation
+token is recorded after suffix validation. If the runtime cannot obtain a
+stable ID, continuity is unproven and the entry is treated as replaced. Path +
+size + mtime alone never proves continuity.
 
 Catalog reconciliation is incremental and deterministic:
 
-- unchanged identity + size + change token + timestamps + schema reuses the
+- unchanged stable ID + size + mutation token + timestamps + schema reuses the
   cached facts;
 - an append preserves the prior authorization only while the agent-specific
   incremental validator accepts the suffix, and advances only from the prior
@@ -104,6 +107,19 @@ facts from projections, and emits the same #155 diagnostic class. Validation
 state is versioned with the parser; an unknown state is unauthorized rather
 than guessed.
 
+The typed binding record also carries a versioned `AuthorizationProof`: native
+root ID, scanner schema/state, authorized artifact stable IDs, sizes, and
+parser-complete offsets at publication. This is the durable proof that survives
+a missing/corrupt derived catalog. On use, unchanged artifacts need no body
+read; append candidates validate only suffixes from the proof offsets. A legacy
+binding without a proof receives one background, targeted full validation of
+its named artifact and then publishes the proof. It never triggers a corpus
+scan. Until that validation succeeds, it remains durable historical evidence
+but is unavailable for automatic resume/activity projection. An explicit resume
+without a proof may synchronously perform the same one-artifact validation; a
+contradiction anywhere in that transcript fails authorization. Tests include a
+valid identifying record followed by a later Claude/Muse contradiction.
+
 The catalog is a reusable inventory seam, not a cache of rendered CLI output.
 Forest/query/activity/launch/watcher consumers derive from the same catalog
 facts (`ARCH-DRY`, `ARCH-PURPOSE`). Reconciliation and selection remain pure;
@@ -119,20 +135,30 @@ authority. Scanner facts become authorized only through one of these paths:
 
 | agent | cold candidate discovery | targeted authorization | new-launch observation |
 |---|---|---|---|
-| Claude | path shape yields possible root/subagent ID and raw size | an already-established typed binding remains durable authority; an explicit resume validates the one scanner-resolved UUID path and its bounded identifying record | read the new file from byte zero and incrementally validate every appended record until the completed round binds |
-| Codex | rollout path yields a possible artifact and raw size | established binding remains authority; explicit resume targets the rollout and validates its required first `session_meta` | read the new rollout from byte zero, require `session_meta`, then validate appended events |
-| Muse | session path yields a possible native ID and raw size | established binding remains authority; explicit resume validates the targeted identifying record | read the new session from byte zero and incrementally validate appended records |
-| Agy | database file identity/change token yields an untrusted changed source | established binding remains authority; explicit resume performs one keyed, schema-checked SQLite query | query only rows changed after the launch watermark through the existing typed SQLite seam |
+| Claude | path shape yields possible root/subagent ID and raw size | proof-bearing binding validates unchanged metadata or suffix; proofless binding/explicit resume fully validates only the named UUID transcript once | read the new file from byte zero and incrementally validate every appended record until the completed round binds |
+| Codex | rollout path yields a possible artifact and raw size | proof-bearing binding validates unchanged metadata or suffix; proofless binding/explicit resume fully validates the named rollout including required first `session_meta` once | read the new rollout from byte zero, require `session_meta`, then validate appended events |
+| Muse | session path yields a possible native ID and raw size | proof-bearing binding validates unchanged metadata or suffix; proofless binding/explicit resume fully validates only the named session once | read the new session from byte zero and incrementally validate appended records |
+| Agy | database and joined transcript paths yield an untrusted native-ID candidate with separate metadata boundaries | proof-bearing binding validates both artifacts; proofless binding/explicit resume schema- and identity-validates the named database and fully validates only its joined transcript once | only a database absent from the baseline is schema/identity queried; its same-ID transcript must also be new, is joined explicitly, and is read from byte zero for causal events |
 
 An established typed ledger binding was published only after prior scanner
-authorization and is not discarded merely because a derived catalog is absent.
-It must still resolve to an artifact matching the agent's scanner-owned target
-shape; missing/replaced artifacts report absence and never fall back to another
-root. Explicit resume is the only cold path that may synchronously inspect a
-preexisting transcript body, and it inspects only the named artifact through
-the bounded identifying-record seam—not the corpus. Unbound preexisting
+authorization, but automatic reuse additionally requires its durable proof (or
+the one-time proofless migration above). It must still resolve to artifacts
+matching the agent's scanner-owned target shape; missing/replaced artifacts
+report absence and never fall back to another root. Explicit resume is the only
+cold foreground path that may inspect a preexisting transcript body, and it
+fully validates only the named artifact—not the corpus. Unbound preexisting
 candidates remain excluded until explicit diagnostic validation; they cannot
 become launch bindings from metadata alone.
+
+Agy has no historical-row cursor on a cold metadata baseline and does not
+invent one. A preexisting database or transcript is excluded from fresh-launch
+establishment even if it changes. A new database candidate is authorized by its
+SQLite header, schema, and keyed identity row; Pair then requires the
+scanner-owned same-native-ID transcript path to be new after the same launch
+boundary and reads that transcript from zero. Missing or preexisting joined
+transcripts cannot supply the new causal round. Established/explicit Agy paths
+instead use their two-artifact authorization proof or the one-time targeted
+database + joined-transcript validation.
 
 ### Metadata-only launch baseline
 
@@ -168,6 +194,14 @@ stored parser-complete offset. For a new
 candidate transcript it reads from byte zero only until it has enough evidence
 to classify the artifact and establish or reject a completed causal round; it
 does not normalize unrelated historical transcripts.
+
+An artifact is eligible to contribute causal evidence only when (a) its stable
+file ID/path was absent from the launch baseline, or (b) the launch explicitly
+targets that root through an established/proof-bearing binding or explicit
+resume and continuity/suffix validation succeeds. An append to an untrusted,
+unbound preexisting candidate is excluded even if its text happens to match the
+Pair round. Descendants remain eligible only through the already-authorized
+root relationship defined by #155.
 
 Polling frequency cannot multiply corpus work: an unchanged poll performs
 metadata/catalog reconciliation only. After establishment, existing watcher
@@ -206,6 +240,9 @@ the native root. Thus the observed `?/1 claude` row renders `pair/1 claude`.
 - Cold-cache candidate discovery never confers authority; agent-specific
   explicit-resume, established-binding, new-file, and preexisting-exclusion
   cases pass the authorization matrix.
+- Proofless established/explicit roots validate the complete named artifact
+  once, catch late Claude/Muse contradictions, publish a durable authorization
+  proof, and never scan sibling transcripts.
 - A record split across the launch boundary cannot establish a round, while the
   first wholly post-launch record is retained when the old file ended in a
   newline.
@@ -262,3 +299,15 @@ uses an opaque device/inode/change-token identity with fail-closed fallback,
 persists incremental validator state, and serializes catalog generations. A
 corrupt cold catalog now stays metadata-only rather than forcing a synchronous
 corpus rebuild.
+
+### 2026-08-29 — durable proof and exact candidate eligibility
+
+Second spec review found that a bounded identifying record could not replace
+Claude/Muse whole-artifact contradiction validation, conflated stable identity
+with the append-changing mutation token, left Agy's database/transcript join
+without a cold boundary, and did not say whether an append to an untrusted old
+file could bind. The spec now publishes scanner state and offsets as a durable
+binding proof; migrates proofless bindings by validating one named artifact,
+never the corpus; separates device/inode identity from mutation; defines Agy's
+new database plus new joined transcript path; and restricts watcher evidence to
+new artifacts or explicitly targeted, proof-validated roots.
