@@ -59,26 +59,31 @@ typed launch wins authority over its compatibility row but supplies no
 
 Pair owns one versioned, persistent native-artifact catalog under the selected
 Pair data scope. Each entry records the agent, storage root, relative path,
-opaque stable file ID, size, mutation token, timestamps needed by the
+opaque stable file ID, non-reusable generation token, size, mutation token,
+timestamps needed by the
 public contract, authorization state, scanner classification/facts, raw observed
 offset, parser-complete offset, incremental scanner state, and the
 scanner/parser schema version that produced it.
 
-`StableFileID` and `MutationToken` are separate opaque runtime values built
-without content reads. On Unix the stable ID is device + inode; the mutation
-token includes platform `ctime` at nanosecond precision. Implementations on
-another platform must supply equivalent values. Size and modification time
-remain separate fields. Stable-ID continuity plus size growth is the only
-append candidate; a stable-ID change, shrinkage, or mutation without size growth
-invalidates authority and requires targeted revalidation. The changed mutation
-token is recorded after suffix validation. If the runtime cannot obtain a
-stable ID, continuity is unproven and the entry is treated as replaced. Path +
-size + mtime alone never proves continuity.
+`StableFileID`, `GenerationToken`, and `MutationToken` are separate opaque
+runtime values built without content reads. On Unix the stable ID is device +
+inode, the generation token is the kernel-reported file birth/generation value,
+and the mutation token includes platform `ctime` at nanosecond precision.
+Implementations on another platform must supply equivalent values. Device +
+inode alone is not durable because inode reuse is possible. Size and
+modification time remain separate fields. Stable-ID + generation continuity
+plus size growth is the only append candidate; a stable-ID/generation change,
+shrinkage, or mutation without size growth invalidates authority and requires
+targeted revalidation. The changed mutation token is recorded after suffix
+validation. If the runtime cannot obtain a non-reusable generation token,
+persistent continuity is unproven: any mutation is treated as replacement
+rather than risking cached authority. Path + size + mtime never proves
+continuity.
 
 Catalog reconciliation is incremental and deterministic:
 
-- unchanged stable ID + size + mutation token + timestamps + schema reuses the
-  cached facts;
+- unchanged stable ID + generation + size + mutation token + timestamps +
+  schema reuses the cached facts;
 - an append preserves the prior authorization only while the agent-specific
   incremental validator accepts the suffix, and advances only from the prior
   parser-complete byte offset;
@@ -181,19 +186,35 @@ at the boundary so a wholly post-launch event is neither lost nor fabricated.
 For an explicit resume or an already-established binding, Pair targets the one
 ledger-named native root and checks that artifact through its scanner-owned
 path/metadata validation. It does not rebuild every forest to rediscover a root
-whose durable binding is already known. Full historical content validation is
-reserved for the explicit diagnostic/conformance surface and never runs as a
-side effect of launch, `Alt+X`, title/context polling, or ordinary owner lookup.
+whose durable binding is already known. Full-*corpus* historical content
+validation is reserved for the explicit diagnostic/conformance surface and
+never runs as a side effect of launch, `Alt+X`, title/context polling, or
+ordinary owner lookup. The permitted exceptions are one-artifact proof
+migration and explicit-resume validation: explicit resume may perform it
+synchronously during launch; proofless established bindings migrate in the
+background and remain unavailable to automatic resume/activity until complete.
+Ordinary owner lookup reports that unavailable state and never initiates the
+validation itself.
 
 ### Incremental watcher
 
 The watcher compares the current catalog/filesystem snapshot with the durable
 launch baseline. It visits only new, appended, replaced, or truncated candidate
 artifacts and reads only eligible bytes after their raw launch boundary or
-stored parser-complete offset. For a new
-candidate transcript it reads from byte zero only until it has enough evidence
-to classify the artifact and establish or reject a completed causal round; it
-does not normalize unrelated historical transcripts.
+stored parser-complete offset. For a new candidate transcript it reads from byte
+zero until it has enough evidence to classify the artifact, but it cannot
+publish a binding/proof at that first match. The validator snapshots stable ID +
+generation + observed EOF, consumes every complete record through that EOF, and
+rejects/retracts on any later identity/role/schema contradiction in the same
+snapshot. If the file grows during validation, it repeats suffix validation to
+the next observed EOF before publication. The proof records the final
+parser-complete offset; later appends continue from there. It does not normalize
+unrelated historical transcripts.
+
+Agy database mutation is not a byte-suffix protocol. A changed proof-bearing
+database reruns only the keyed header/schema/identity query; its joined JSONL
+transcript alone uses parser-complete suffix validation. A database generation
+change invalidates the database proof and requires targeted reauthorization.
 
 An artifact is eligible to contribute causal evidence only when (a) its stable
 file ID/path was absent from the launch baseline, or (b) the launch explicitly
@@ -248,6 +269,10 @@ the native root. Thus the observed `?/1 claude` row renders `pair/1 claude`.
   newline.
 - Concurrent catalog writers cannot lose a newer cursor, scanner state, or
   disputed transition.
+- Inode reuse with the same device/inode cannot masquerade as append; a missing
+  non-reusable generation token causes mutation to fail closed as replacement.
+- A new Claude/Muse artifact whose qualifying round precedes a later
+  contradiction in the same observed EOF cannot publish a binding/proof.
 - Launch baseline and watcher never normalize pre-launch historical events;
   completed-round establishment still passes the #155 exact-correlation matrix.
 - Per-file metadata collection uses no external `stat` process.
@@ -311,3 +336,14 @@ binding proof; migrates proofless bindings by validating one named artifact,
 never the corpus; separates device/inode identity from mutation; defines Agy's
 new database plus new joined transcript path; and restricts watcher evidence to
 new artifacts or explicitly targeted, proof-validated roots.
+
+### 2026-08-29 — non-reusable generation and proof-through-EOF
+
+Third spec review found that device/inode can be reused, that first-match
+binding could miss a later contradiction already present in the same file, and
+that the diagnostic-only wording accidentally excluded targeted proof
+migration. The spec now requires a non-reusable birth/generation token (or
+fail-closed replacement), validates every complete record through the observed
+EOF before publishing a proof, distinguishes Agy keyed database revalidation
+from transcript suffix parsing, and permits only one-artifact proof migration or
+explicit-resume validation outside explicit full-corpus diagnostics.
