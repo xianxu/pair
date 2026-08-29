@@ -466,6 +466,10 @@ provider contracts.
   authored an unbound v1 launch. The fixture now exercises the production v2
   empty-boundary launch and requires a proof-bearing binding, while the separate
   Go regression pins v1's zero-corpus-read fail-closed behavior.
+- The durable conformance target now invokes both the copied Agy check and the
+  installed Claude/Codex/Muse prefix→append fake comparison; the latter cannot
+  silently remain a locally run test outside the monthly/provider-change
+  cadence (`ARCH-MOCK`, `ARCH-PURPOSE`).
 
 ## Revisions
 

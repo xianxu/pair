@@ -66,7 +66,7 @@ test-native-session-live:
 
 test-session-inventory-conformance:
 	PAIR_LIVE_SESSION_INVENTORY=1 go test -p 20 ./cmd/internal/sessioninventory -run '^TestLiveIncrementalInventoryPrelaunch$$' -count=1 -v
-	PAIR_LIVE_NATIVE_SESSIONS=1 go test -p 20 ./cmd/internal/sessioninventory -run '^TestLiveProviderContractConformance$$' -count=1 -v
+	PAIR_LIVE_NATIVE_SESSIONS=1 go test -p 20 ./cmd/internal/sessioninventory -run '^TestLive(ProviderContractConformance|JSONLProviderBehaviorMatchesStatefulFake)$$' -count=1 -v
 
 SDLC_BIN ?= sdlc
 
