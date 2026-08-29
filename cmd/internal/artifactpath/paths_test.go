@@ -131,6 +131,9 @@ func TestResolveSelectedScopeOwnsTagIndependentArtifacts(t *testing.T) {
 	if got := scope.SessionBindings(); got != "/data/repos/aaaaaaaaaaaaaaaa/session-names.jsonl" {
 		t.Fatalf("SessionBindings() = %q", got)
 	}
+	if got := scope.SessionInventoryCatalog(); got != "/data/repos/aaaaaaaaaaaaaaaa/session-inventory-catalog.json" {
+		t.Fatalf("SessionInventoryCatalog() = %q", got)
+	}
 	if got, err := scope.AgentDefault("codex"); err != nil || got != "/data/repos/aaaaaaaaaaaaaaaa/agent-default-codex.json" {
 		t.Fatalf("AgentDefault() = %q, %v", got, err)
 	}

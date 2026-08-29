@@ -146,14 +146,14 @@
 - Modify: `cmd/internal/sessioninventorytest/fake_runtime.go`
 - Modify: `cmd/internal/sessioninventorytest/fake_runtime_test.go`
 
-- [ ] **Step 1: Add failing tests for `readFileMetadata` and `FileEntry` using the risky-function strategy above.** Include the corpus-sized operation-count integration fixture without restating metadata policy in the test prose.
-- [ ] **Step 2: Run the red tests.** Run `go test -p 20 ./cmd/internal/sessioninventory ./cmd/internal/sessioninventorytest -run 'Test(OSRuntimeListFilesFingerprint|FakeRuntimeArtifactGeneration)' -count=1`; expect compile failures for the new fields/helpers.
-- [ ] **Step 3: Implement and verify the value seam.** Add value types `StableFileID`, `GenerationToken`, and `MutationToken`, extend `FileEntry`, and rerun the focused fake test; expect PASS for value preservation before touching OS code.
-- [ ] **Step 4: Implement Darwin metadata.** Populate stable ID from device/inode, generation from `Stat_t.Gen`, birth timestamp from `Btim`, and mutation from `Ctim` through `unix.Fstatat`; run the Darwin OSRuntime test and expect PASS with no subprocess.
-- [ ] **Step 5: Implement Linux/fallback metadata.** Use `unix.Statx` for ordinary metadata but always emit generation unavailable because `statx` has no inode-generation field. Other-platform implementations also remain unavailable until an equivalent primitive is proven.
-- [ ] **Step 6: Remove the command path and verify cross-compile.** Delete `fileBirthTime` and per-entry `exec.Command("stat", ...)`; run `gofmt -w cmd/internal/sessioninventory`, the Step 2 tests, and `GOOS=linux go test -c ./cmd/internal/sessioninventory`; expect PASS/compile success.
-- [ ] **Step 7: Extend and verify the stateful fake.** Model create, append, same-inode replacement, truncate, delete, metadata failure, and per-operation counts; run `go test -p 20 ./cmd/internal/sessioninventorytest -count=1`; expect PASS.
-- [ ] **Step 8: Commit.** Run `git add cmd/internal/sessioninventory cmd/internal/sessioninventorytest && git commit -m 'session inventory: #156 add syscall metadata fingerprints'`.
+- [x] **Step 1: Add failing tests for `readFileMetadata` and `FileEntry` using the risky-function strategy above.** Include the corpus-sized operation-count integration fixture without restating metadata policy in the test prose.
+- [x] **Step 2: Run the red tests.** Run `go test -p 20 ./cmd/internal/sessioninventory ./cmd/internal/sessioninventorytest -run 'Test(OSRuntimeListFilesFingerprint|FakeRuntimeArtifactGeneration)' -count=1`; expect compile failures for the new fields/helpers.
+- [x] **Step 3: Implement and verify the value seam.** Add value types `StableFileID`, `GenerationToken`, and `MutationToken`, extend `FileEntry`, and rerun the focused fake test; expect PASS for value preservation before touching OS code.
+- [x] **Step 4: Implement Darwin metadata.** Populate stable ID from device/inode, generation from `Stat_t.Gen`, birth timestamp from `Btim`, and mutation from `Ctim` through `unix.Fstatat`; run the Darwin OSRuntime test and expect PASS with no subprocess.
+- [x] **Step 5: Implement Linux/fallback metadata.** Use `unix.Statx` for ordinary metadata but always emit generation unavailable because `statx` has no inode-generation field. Other-platform implementations also remain unavailable until an equivalent primitive is proven.
+- [x] **Step 6: Remove the command path and verify cross-compile.** Delete `fileBirthTime` and per-entry `exec.Command("stat", ...)`; run `gofmt -w cmd/internal/sessioninventory`, the Step 2 tests, and `GOOS=linux go test -c ./cmd/internal/sessioninventory`; expect PASS/compile success.
+- [x] **Step 7: Extend and verify the stateful fake.** Model create, append, same-inode replacement, truncate, delete, metadata failure, and per-operation counts; run `go test -p 20 ./cmd/internal/sessioninventorytest -count=1`; expect PASS.
+- [x] **Step 8: Commit.** Run `git add cmd/internal/sessioninventory cmd/internal/sessioninventorytest && git commit -m 'session inventory: #156 add syscall metadata fingerprints'`.
 
 ### Task 2: Pure catalog reconciliation
 
@@ -189,16 +189,16 @@
 - Create: `cmd/internal/sessioninventory/catalog_store_unix.go`
 - Create: `cmd/internal/sessioninventory/catalog_store_test.go`
 
-- [ ] **Step 1: Write the failing path test.** Pin `ScopePaths.SessionInventoryCatalog()` and exhaustive manifest classification.
-- [ ] **Step 2: Run the path test red.** Run `go test -p 20 ./cmd/internal/artifactpath -run 'TestSessionInventoryCatalog' -count=1`; expect the path member to be undefined.
-- [ ] **Step 3: Implement and verify the path.** Register the classified path, run Step 2 again, and expect PASS.
-- [ ] **Step 4: Write failing `CatalogStore.Update` transaction tests using the risky-function strategy table.**
-- [ ] **Step 5: Add its stateful fault runtime and production-parser recovery oracle.**
-- [ ] **Step 6: Run store tests red.** Run `go test -p 20 ./cmd/internal/sessioninventory -run 'TestCatalogStore' -count=1`; expect missing store/outcome symbols.
-- [ ] **Step 7: Implement strict read and transaction framing.** Reuse ledger flock/commit-outcome patterns: lock, strict-decode, compare generation, invoke a pure delta callback against the reread catalog, temp-write, sync, atomic rename, directory sync, unlock. Corruption returns a local error and no authority.
-- [ ] **Step 8: Implement stale-generation retry and recovery classification.** On mismatch recompute from the locked reread state; after publication errors reparse the production path and return the matching explicit outcome without duplicating a generation.
-- [ ] **Step 9: Run green and race coverage.** Run `gofmt -w cmd/internal/artifactpath cmd/internal/sessioninventory` then `go test -race -p 20 ./cmd/internal/artifactpath ./cmd/internal/sessioninventory -run 'Test(SessionInventoryCatalog|CatalogStore)' -count=1`; expect PASS.
-- [ ] **Step 10: Commit.** Run `git add cmd/internal/artifactpath cmd/internal/sessioninventory && git commit -m 'session inventory: #156 persist catalog generations atomically'`.
+- [x] **Step 1: Write the failing path test.** Pin `ScopePaths.SessionInventoryCatalog()` and exhaustive manifest classification.
+- [x] **Step 2: Run the path test red.** Run `go test -p 20 ./cmd/internal/artifactpath -run 'TestSessionInventoryCatalog' -count=1`; expect the path member to be undefined.
+- [x] **Step 3: Implement and verify the path.** Register the classified path, run Step 2 again, and expect PASS.
+- [x] **Step 4: Write failing `CatalogStore.Update` transaction tests using the risky-function strategy table.**
+- [x] **Step 5: Add its stateful fault runtime and production-parser recovery oracle.**
+- [x] **Step 6: Run store tests red.** Run `go test -p 20 ./cmd/internal/sessioninventory -run 'TestCatalogStore' -count=1`; expect missing store/outcome symbols.
+- [x] **Step 7: Implement strict read and transaction framing.** Reuse ledger flock/commit-outcome patterns: lock, strict-decode, compare generation, invoke a pure delta callback against the reread catalog, temp-write, sync, atomic rename, directory sync, unlock. Corruption returns a local error and no authority.
+- [x] **Step 8: Implement stale-generation retry and recovery classification.** On mismatch recompute from the locked reread state; after publication errors reparse the production path and return the matching explicit outcome without duplicating a generation.
+- [x] **Step 9: Run green and race coverage.** Run `gofmt -w cmd/internal/artifactpath cmd/internal/sessioninventory` then `go test -race -p 20 ./cmd/internal/artifactpath ./cmd/internal/sessioninventory -run 'Test(SessionInventoryCatalog|CatalogStore)' -count=1`; expect PASS.
+- [x] **Step 10: Commit.** Run `git add cmd/internal/artifactpath cmd/internal/sessioninventory && git commit -m 'session inventory: #156 persist catalog generations atomically'`.
 
 ### Task 4: Versioned launch boundaries and binding proofs
 

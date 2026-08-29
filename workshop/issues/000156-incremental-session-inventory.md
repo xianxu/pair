@@ -360,8 +360,9 @@ provider contracts.
 
 ## Plan
 
-- [ ] Define the versioned artifact catalog, fingerprints, and pure incremental
-  reconciliation rules with stateful fake coverage.
+- [ ] Define the versioned artifact catalog and pure incremental reconciliation
+  rules with stateful fake coverage; filesystem fingerprints and fake mutation
+  operations are complete.
 - [ ] Replace whole-corpus scanner reconstruction with metadata-only discovery,
   cached facts, and targeted/suffix reads.
 - [ ] Make launch baselines and watcher polling operate on catalog deltas and
@@ -391,6 +392,11 @@ provider contracts.
   live fake-versus-provider conformance cadence (`ARCH-PURE`, `ARCH-MOCK`). The
   v3.1 estimate gate accepted 8.96h with an advisory that the dense integration
   matrix may run higher.
+- Added the selected-scope catalog path and a strict, flock-serialized catalog
+  store. Concurrent writers recompute from the locked generation; atomic
+  replacement and file/directory sync expose explicit not-authoritative,
+  indeterminate, and committed outcomes. Fault-injected recovery tests cover
+  write, file sync, rename, directory sync, and unlock boundaries (`ARCH-PURE`).
 
 ## Revisions
 
