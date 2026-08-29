@@ -113,10 +113,12 @@ state is versioned with the parser; an unknown state is unauthorized rather
 than guessed.
 
 The typed binding record also carries a versioned `AuthorizationProof`: native
-root ID, scanner schema/state, authorized artifact stable IDs, sizes, and
-parser-complete offsets at publication. This is the durable proof that survives
-a missing/corrupt derived catalog. On use, unchanged artifacts need no body
-read; append candidates validate only suffixes from the proof offsets. A legacy
+root ID, scanner schema/state, and—for every authorized artifact—stable file ID,
+non-reusable generation token, mutation token, size, and parser-complete offset
+at publication. This is the durable proof that survives a missing/corrupt
+derived catalog and applies the same fail-closed continuity rules as a catalog
+entry. On use, unchanged artifacts need no body read; append candidates validate
+only suffixes from the proof offsets. A legacy
 binding without a proof receives one background, targeted full validation of
 its named artifact and then publishes the proof. It never triggers a corpus
 scan. Until that validation succeeds, it remains durable historical evidence
@@ -132,6 +134,28 @@ filesystem enumeration, targeted reads, metadata, and persistence stay behind
 the injected runtime (`ARCH-PURE`). The existing stateful fake grows catalog,
 append, replacement, truncation, deletion, and corruption behavior so tests use
 the production boundary rather than stateless call mocks (`ARCH-MOCK`).
+
+### Trusted append-only storage contract
+
+Filesystem metadata cannot prove that an earlier byte was not rewritten while
+the file also grew. Pair therefore does not pretend `ctime` is an append proof.
+Suffix reuse is enabled only for allowlisted native JSONL transcript stores
+whose producer contract is append-only: Claude project transcripts, Codex
+rollouts, Muse sessions, and Agy joined transcripts. Pair never writes those
+files. For these stores, stable ID + generation continuity and size growth is
+interpreted according to the provider's append-only contract; the suffix is
+still fully validated before the mutation token/offset advances.
+
+An in-place prefix rewrite plus growth violates that external storage contract
+and is provider corruption, not a supported mutation Pair can distinguish
+without rereading the categorized body. Explicit conformance/deep validation
+detects and reports it; live conformance fixtures pin the append-only assumption
+for each supported provider version. Same-size mutation, shrinkage, stable-ID or
+generation change, parser-schema change, and all mutations of non-allowlisted
+stores fail closed as replacement and require targeted revalidation. Agy SQLite
+databases are explicitly outside the append-only set and always use their keyed
+query seam after mutation. This scoped trust is the necessary tradeoff for the
+operator's invariant that categorized content is not reread.
 
 ### Candidate discovery versus authorization
 
@@ -271,6 +295,11 @@ the native root. Thus the observed `?/1 claude` row renders `pair/1 claude`.
   disputed transition.
 - Inode reuse with the same device/inode cannot masquerade as append; a missing
   non-reusable generation token causes mutation to fail closed as replacement.
+- Catalog loss still applies generation/mutation continuity from the durable
+  proof; proof round-trip tests reject same-inode reuse.
+- Prefix-rewrite-plus-growth is explicitly outside the allowlisted providers'
+  append-only contract and is detected by explicit conformance; non-allowlisted
+  mutations never receive suffix reuse.
 - A new Claude/Muse artifact whose qualifying round precedes a later
   contradiction in the same observed EOF cannot publish a binding/proof.
 - Launch baseline and watcher never normalize pre-launch historical events;
@@ -347,3 +376,15 @@ fail-closed replacement), validates every complete record through the observed
 EOF before publishing a proof, distinguishes Agy keyed database revalidation
 from transcript suffix parsing, and permits only one-artifact proof migration or
 explicit-resume validation outside explicit full-corpus diagnostics.
+
+### 2026-08-29 — explicit append-only provider contract
+
+Fourth spec review identified that metadata cannot prove a growing file's
+prefix stayed unchanged and that the durable proof omitted its generation and
+mutation tokens. The proof now persists the complete continuity tuple. The spec
+also makes the unavoidable trust boundary explicit: suffix reuse exists only
+for versioned native JSONL stores whose producers append; SQLite and every other
+mutation revalidate through targeted seams. Prefix rewrite plus growth is
+provider corruption covered by explicit conformance, since detecting it on
+every hot-path append would require rereading the already-categorized body and
+violate the issue's purpose.
