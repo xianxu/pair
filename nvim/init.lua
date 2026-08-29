@@ -738,13 +738,10 @@ local function send_to_agent(body, no_submit, resume_phase)
   if type(_G.PairTestSendToAgent) == 'function' then
     return _G.PairTestSendToAgent(body, no_submit, resume_phase)
   end
-  if not has_ui() and type(_G.PairTestZellijAction) ~= 'function' then
+  if not has_ui() and type(_G.PairTestZellijExecutor) ~= 'function' then
     return false, 'start', 'no attached UI'
   end
   return _G.PairDraftSend.send(body, no_submit, function(label, argv, opts)
-    if type(_G.PairTestZellijAction) == 'function' then
-      return _G.PairTestZellijAction(label, argv, opts)
-    end
     return PairZellijTrace.action(label, argv, opts)
   end, function()
     vim.cmd('sleep 100m')

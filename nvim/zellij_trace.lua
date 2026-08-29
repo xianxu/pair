@@ -46,9 +46,17 @@ end
 function M.action(label, argv, opts)
   opts = opts or {}
   local start = vim.loop.hrtime()
-  local stdout = vim.fn.system(argv)
+  local stdout
+  local code
+  if type(_G.PairTestZellijExecutor) == 'function' then
+    local result = _G.PairTestZellijExecutor(label, argv, opts) or {}
+    stdout = result.stdout or ''
+    code = result.code
+  else
+    stdout = vim.fn.system(argv)
+    code = vim.v.shell_error
+  end
   local elapsed_ms = math.floor(((vim.loop.hrtime() - start) / 1000000) + 0.5)
-  local code = vim.v.shell_error
   local safe_argv, redacted = redact_argv(argv, opts.redact)
   append_record({
     ts = now_iso(),

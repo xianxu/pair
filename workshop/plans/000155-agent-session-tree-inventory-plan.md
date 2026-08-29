@@ -965,3 +965,16 @@ duplication. Dispatched attempts use commit-only recovery; composed attempts
 never become evidence. The Zellij fake now models focus, composer bytes, and
 dispatches across consecutive failure→retry calls and asserts exact eventual
 input (`ARCH-PURPOSE`, `ARCH-MOCK`).
+
+### 2026-08-28 — close review: inject below production result propagation
+
+**Reason:** round 21 mutation testing removed the production
+`return PairZellijTrace.action(...)` while the combined regression stayed
+green, proving its fake bypassed the exact branch whose behavior it claimed.
+
+**Delta:** remove the alternate action path from `init.lua`. Both production and
+integration now unconditionally call and return `PairZellijTrace.action`; the
+test executor is injected beneath that boundary inside `zellij_trace.lua`.
+Thus removing either production return propagation makes the full transaction
+matrix fail before any false submitted fact can be produced (`ARCH-PURPOSE`,
+`ARCH-MOCK`).

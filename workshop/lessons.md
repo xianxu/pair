@@ -2538,3 +2538,6 @@ an unsupported owner through every downstream projection (`ARCH-DRY`,
   are replaced by independent always-successful stubs. Boot the real wiring,
   inject state only at the external boundary, and assert the durable parser's
   output alongside external state.
+- Place test injection beneath the behavior under test. A parallel test-only
+  return branch can model the right outcome while mutation proves production
+  propagation is completely unguarded.

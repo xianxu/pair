@@ -987,3 +987,85 @@ dispose:
     note: |
       Isolated delivery and submission tests cover the local fixes, but no regression runs every delivery-critical failure plus post-dispatch commit recovery through the combined init.lua, stateful Zellij, and Pair-log production seam.
 ```
+
+---
+
+## Re-review — 2026-08-28T22:59:36-07:00 (REWORK)
+
+| field | value |
+|-------|-------|
+| issue | 155 — deterministic agent session-tree inventory |
+| repo | pair |
+| issue file | workshop/issues/000155-agent-session-tree-inventory.md |
+| boundary | whole-issue close |
+| milestone | — |
+| window | 4c454436038e2ae049690bc343def9f0511fca8c..e465345a35a844fdc9d368608790c03731c2e291 |
+| command | sdlc close --issue 155 |
+| reviewer | codex |
+| timestamp | 2026-08-28T22:59:36-07:00 |
+| verdict | REWORK |
+
+## Review
+
+```verdict
+verdict: REWORK
+confidence: high
+```
+
+BR-27 remains open. The implementation behaves correctly under existing tests, but the new integration test bypasses the production result-propagation branch. A scratch mutation removing that propagation left every relevant regression green, violating the explicit “test fails without the fix” requirement.
+
+```findings
+dispose:
+  - id: BR-27
+    disposition: not-addressed
+    note: |
+      The integration fake bypasses the production PairZellijTrace.action return path, so removing that result propagation leaves the complete related suite green.
+```
+
+1. Strengths
+
+- `draft_send.send` models `start`, `written`, `dispatched`, `composed`, and `indeterminate` phases clearly and prevents body replay after a confirmed write.
+- Post-dispatch commit failure retains the append ID and performs commit-only recovery before later authored input.
+- The integration harness uses the real Pair-log append/commit CLI and checks composer contents, dispatches, and submitted evidence together.
+- README, atlas, and exhaustive Core Concepts contract coverage are present in the range.
+
+2. Critical findings
+
+- **BR-27 — production dispatch result propagation is not regression-pinned** ([nvim/init.lua](/Users/xianxu/workspace/pair/nvim/init.lua:744), [submission_integration_test.lua](/Users/xianxu/workspace/pair/nvim/submission_integration_test.lua:20)). The test installs `PairTestZellijAction`, causing `send_to_agent` to return at lines 745–746. It never executes the production `return PairZellijTrace.action(...)` at line 748.
+
+  I removed that production `return` in a scratch archive and reran:
+
+  - `tests/submission-transaction-nvim-test.sh`
+  - `nvim/submission_test.lua`
+  - `nvim/draft_send_test.lua`
+  - `tests/zellij-trace-test.sh`
+  - `tests/queue-send-test.sh`
+
+  All passed. Therefore the test does not prove the production seam consumes Zellij exit status.
+
+  Fix sketch: keep `send_to_agent` on one unconditional `return PairZellijTrace.action(...)` path and inject beneath it—either replace `PairZellijTrace.action` in the integration driver or inject its command executor. Then repeat the mutation and require the matrix to fail.
+
+3. Important findings
+
+None beyond the blocking BR-27 finding.
+
+4. Minor findings
+
+None.
+
+5. Test coverage notes
+
+The unmodified focused transaction matrix, Lua suite, Pair-log/inventory/ledger/watcher/launcher/dispatcher tests, targeted repository contracts, `go vet`, queue-send, and Zellij trace tests passed.
+
+`cmd/pair-go`’s broader test run could not complete because the review sandbox denied `/bin/ps`; the failures were environment errors rather than assertion failures.
+
+6. Architectural notes for upcoming work
+
+- `ARCH-DRY`: Pass. Authored submissions converge on one transaction wrapper.
+- `ARCH-PURE`: Pass. Transaction decisions are separated into testable Lua modules, with IO concentrated in Neovim/CLI adapters.
+- `ARCH-PURPOSE`: Flag. BR-27 requires proof through the actual dispatch-result path; the current test proves a parallel test branch.
+- `ARCH-MOCK`: Flag. The stateful fake models the right behavior, but production and test flow do not share the final `PairZellijTrace.action` boundary.
+
+7. Plan revision recommendations
+
+Append a `## Revisions` entry recording that the “combined production seam” claim was disproved by mutation testing, and that the integration injection must move beneath the actual action-return boundary. Include the mutation command/result as the required red evidence.

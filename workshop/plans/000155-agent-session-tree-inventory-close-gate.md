@@ -486,6 +486,15 @@ rounds:
           note: Isolated delivery and submission tests cover the local fixes, but no regression runs every delivery-critical failure plus post-dispatch commit recovery through the combined init.lua, stateful Zellij, and Pair-log production seam.
           round: 20
       blocked: true
+    - "n": 21
+      timestamp: "2026-08-28T22:59:36-07:00"
+      agent: codex
+      dispose:
+        - id: BR-27
+          disposition: not-addressed
+          note: The integration fake bypasses the production PairZellijTrace.action return path, so removing that result propagation leaves the complete related suite green.
+          round: 21
+      blocked: true
 ---
 
 # Gate ledger — pair#155 (boundary-review)
@@ -721,6 +730,12 @@ later rounds disposed of them. Generated — edit the gate, not this file.
 ### Disposed
 
 - BR-27 — not-addressed — Isolated delivery and submission tests cover the local fixes, but no regression runs every delivery-critical failure plus post-dispatch commit recovery through the combined init.lua, stateful Zellij, and Pair-log production seam.
+
+## Round 21 — 2026-08-28T22:59:36-07:00 (codex) — BLOCKED
+
+### Disposed
+
+- BR-27 — not-addressed — The integration fake bypasses the production PairZellijTrace.action return path, so removing that result propagation leaves the complete related suite green.
 
 ## Open findings
 

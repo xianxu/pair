@@ -769,6 +769,14 @@ be checked against measured actuals at close.*
 
 ## Log
 
+- 2026-08-28 — close review round 21 mutation-tested the new integration and
+  proved its action fake bypassed production result propagation. Injection now
+  sits beneath `PairZellijTrace.action`, at its command-executor seam;
+  `init.lua` has one unconditional traced-action return path in production and
+  tests. The combined transaction matrix and trace suite pass through that
+  exact path, so deleting result propagation makes the regression fail
+  (`ARCH-PURPOSE`, `ARCH-MOCK`).
+
 - 2026-08-28 — close review round 20 accepted the phase model but required
   proof through the combined production seam. A new headless matrix boots the
   real `nvim/init.lua`, routes its actual delivery sequencer through a stateful
@@ -1349,3 +1357,14 @@ indeterminate writes, treat dispatched attempts as commit-only, and treat
 composed attempts as complete non-evidence. Exercise failure→retry behavior
 against a stateful fake that owns focus, composer bytes, and dispatch history
 (`ARCH-PURPOSE`, `ARCH-MOCK`).
+
+### 2026-08-28 — move test injection below the production action boundary
+
+**Reason:** close review round 21 removed the production action return in a
+scratch mutation and the integration remained green because its fake returned
+from an earlier test-only branch.
+
+**Delta:** delete that branch. `init.lua` always returns
+`PairZellijTrace.action`; only the executor inside the traced action is
+injectable. Production and tests therefore share the result-propagation code
+whose failure gates submitted evidence (`ARCH-PURPOSE`, `ARCH-MOCK`).

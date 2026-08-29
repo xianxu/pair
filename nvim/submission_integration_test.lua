@@ -17,7 +17,7 @@ _G.PairTestSessionLogCommit = function(id)
   return vim.v.shell_error == 0, out
 end
 
-_G.PairTestZellijAction = function(label, argv)
+_G.PairTestZellijExecutor = function(label, argv)
   local kind = assert(label:match('draft%.send%.(.+)$'))
   if kind == fail_kind and not failed then failed = true; return { code = 17 } end
   if kind == 'focus-agent' then
