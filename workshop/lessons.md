@@ -2461,3 +2461,24 @@ belong to the inventory package. Consumers request bounded typed projections,
 never raw transcript bytes. The source shadow sweep names former adapter
 symbols as well as native path patterns, and a long-history consumer regression
 proves the projection is streaming (`ARCH-DRY`, `ARCH-PURPOSE`).
+
+## Historical contracts need an immutable source boundary
+
+A contract derived from `base..HEAD` can pass against uncommitted edits and fail
+immediately after those same edits are committed, because the source universe
+changes underneath the assertion.
+
+**Rule.** Historical milestone contracts derive their source universe from the
+milestone's immutable base and head commits (or an equally immutable marker
+inventory), never the current `HEAD`. Verify once after commit when the contract
+itself depends on Git objects (`ARCH-DRY`, `ARCH-PURPOSE`).
+
+## Format classification includes enum ownership
+
+Strict JSON structure is insufficient when a structurally valid record can name
+an owner the runtime does not support.
+
+**Rule.** The store-owning classifier validates both shape and supported enum
+values for every current and compatibility format. Exercise each row kind with
+an unsupported owner through every downstream projection (`ARCH-DRY`,
+`ARCH-PURPOSE`).

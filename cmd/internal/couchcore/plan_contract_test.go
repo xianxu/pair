@@ -21,7 +21,12 @@ type issue149ConceptRequirement struct {
 	kind string
 }
 
-const issue149M5DeclarationDigest = "e0cb0beac8dc3e8b6e1f0bf181ad2602485f7b93db479b74e06a78ab30150170"
+const issue149M5DeclarationDigest = "1c31768bc779981174091407582cd70f98edd83928983dcb0c99321955e1afe2"
+
+const (
+	issue149M5Base = "6a714336"
+	issue149M5Head = "c434016"
+)
 
 // issue149M5GoSources is the exhaustive set of Go sources touched by M5. Every
 // declaration in these files receives a disposition: a pair:m5-concept marker
@@ -145,18 +150,16 @@ func TestIssue149M5DeclarationDispositionSourceSetMatchesMilestoneDiff(t *testin
 	if _, err := os.Stat(filepath.Join(root, ".git")); err != nil {
 		t.Skip("source archive has no Git metadata; the checked-in disposition set remains the oracle")
 	}
-	command := exec.Command("git", "-C", root, "diff", "--name-only", "6a714336..HEAD", "--", "*.go")
-	raw, err := command.Output()
-	if err != nil {
-		t.Fatal(err)
+	catalog := map[string]bool{}
+	for _, sources := range [][]string{issue149M5GoSources, issue149M5DeletedGoSources, issue149M5RetiredGoSources, issue149M5RevertedGoSources} {
+		for _, rel := range sources {
+			catalog[rel] = true
+		}
 	}
-	changed := strings.Fields(string(raw))
-	want := append([]string(nil), issue149M5GoSources...)
-	want = append(want, issue149M5DeletedGoSources...)
-	sort.Strings(changed)
-	sort.Strings(want)
-	if strings.Join(changed, "\n") != strings.Join(want, "\n") {
-		t.Fatalf("M5 declaration disposition source set drifted\nchanged:\n%s\n\ncatalog:\n%s", strings.Join(changed, "\n"), strings.Join(want, "\n"))
+	for _, rel := range issue149M5BoundaryGoSources(t, root) {
+		if !catalog[rel] {
+			t.Errorf("M5 boundary source lacks a declaration disposition: %s", rel)
+		}
 	}
 }
 
@@ -355,9 +358,10 @@ func issue149M5ConceptRequirements(t *testing.T, root string) []issue149ConceptR
 	t.Helper()
 	closedSet := issue149M5SourceDeclarationDigest(t, root) == issue149M5DeclarationDigest
 	var requirements []issue149ConceptRequirement
-	conceptSources := append([]string(nil), issue149M5GoSources...)
-	conceptSources = append(conceptSources, issue149M5RevertedGoSources...)
-	for _, rel := range conceptSources {
+	for _, rel := range issue149M5BoundaryGoSources(t, root) {
+		if _, err := os.Stat(filepath.Join(root, rel)); os.IsNotExist(err) {
+			continue
+		}
 		file, err := parser.ParseFile(token.NewFileSet(), filepath.Join(root, rel), nil, parser.ParseComments)
 		if err != nil {
 			t.Fatal(err)
@@ -452,21 +456,19 @@ func issue149M5ConceptsForDecl(t *testing.T, packageName, rel string, decl ast.D
 func issue149M5SourceDeclarationDigest(t *testing.T, root string) string {
 	t.Helper()
 	var keys []string
-	for _, rel := range issue149M5DeletedGoSources {
-		if _, err := os.Stat(filepath.Join(root, rel)); !os.IsNotExist(err) {
-			t.Fatalf("deleted milestone source is present: %s", rel)
-		}
-		keys = append(keys, rel+"|deleted")
-	}
+	retired := map[string]bool{}
 	for _, rel := range issue149M5RetiredGoSources {
-		if _, err := os.Stat(filepath.Join(root, rel)); !os.IsNotExist(err) {
-			t.Fatalf("retired milestone source is present: %s", rel)
-		}
-		keys = append(keys, rel+"|retired")
+		retired[rel] = true
 	}
-	declarationSources := append([]string(nil), issue149M5GoSources...)
-	declarationSources = append(declarationSources, issue149M5RevertedGoSources...)
-	for _, rel := range declarationSources {
+	for _, rel := range issue149M5BoundaryGoSources(t, root) {
+		if _, err := os.Stat(filepath.Join(root, rel)); os.IsNotExist(err) {
+			status := "deleted"
+			if retired[rel] {
+				status = "retired"
+			}
+			keys = append(keys, rel+"|"+status)
+			continue
+		}
 		file, err := parser.ParseFile(token.NewFileSet(), filepath.Join(root, rel), nil, 0)
 		if err != nil {
 			t.Fatal(err)
@@ -496,6 +498,21 @@ func issue149M5SourceDeclarationDigest(t *testing.T, root string) string {
 	sort.Strings(keys)
 	digest := sha256.Sum256([]byte(strings.Join(keys, "\n")))
 	return fmt.Sprintf("%x", digest)
+}
+
+func issue149M5BoundaryGoSources(t *testing.T, root string) []string {
+	t.Helper()
+	if _, err := os.Stat(filepath.Join(root, ".git")); err != nil {
+		t.Skip("M5 boundary source derivation requires Git metadata")
+	}
+	command := exec.Command("git", "-C", root, "diff", "--name-only", issue149M5Base+".."+issue149M5Head, "--", "*.go")
+	raw, err := command.Output()
+	if err != nil {
+		t.Fatal(err)
+	}
+	sources := strings.Fields(string(raw))
+	sort.Strings(sources)
+	return sources
 }
 
 func issue149ReceiverName(expr ast.Expr) string {

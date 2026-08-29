@@ -2085,6 +2085,16 @@ func (e *freshExecRequest) Error() string { return "restart fresh agent" }
 
 var execProcess = syscall.Exec
 
+var startWatcherProcess = func(argv, env []string) error {
+	watcher := exec.Command(argv[0], argv[1:]...)
+	watcher.Env = env
+	watcher.SysProcAttr = &syscall.SysProcAttr{Setsid: true}
+	if err := watcher.Start(); err != nil {
+		return err
+	}
+	return watcher.Process.Release()
+}
+
 func freshAgentInvocation(wrapperExecutable, scrollbackLog string, currentArgv []string, env []string, pidNotBefore time.Time) (*freshExecRequest, error) {
 	if len(currentArgv) == 0 {
 		return nil, errors.New("missing agent command")
@@ -2222,12 +2232,7 @@ func Run(args []string, stdin io.Reader, stdout, stderr io.Writer) int {
 		var restart *freshExecRequest
 		if errors.As(err, &restart) {
 			if len(restart.watcherArgv) > 0 {
-				watcher := exec.Command(restart.watcherArgv[0], restart.watcherArgv[1:]...)
-				watcher.Env = restart.env
-				watcher.SysProcAttr = &syscall.SysProcAttr{Setsid: true}
-				if startErr := watcher.Start(); startErr == nil {
-					_ = watcher.Process.Release()
-				}
+				_ = startWatcherProcess(restart.watcherArgv, restart.env)
 			}
 			if execErr := execProcess(restart.argv[0], restart.argv, restart.env); execErr != nil {
 				fmt.Fprintf(stderr, "pair-wrap: restart agent: %v\n", execErr)

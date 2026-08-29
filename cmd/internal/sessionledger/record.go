@@ -157,12 +157,7 @@ func isCompatibilityRecord(raw []byte) bool {
 	if _, err := time.Parse(time.RFC3339Nano, *wire.LastActive); err != nil {
 		return false
 	}
-	switch *wire.Agent {
-	case "claude", "codex", "agy", "muse":
-		return true
-	default:
-		return false
-	}
+	return isSupportedAgent(*wire.Agent)
 }
 
 func decodeRecord(raw []byte) (Record, error) {
@@ -203,7 +198,7 @@ func decodeRecord(raw []byte) (Record, error) {
 }
 
 func validateRecord(record Record) error {
-	if record.Version != 1 || record.ScopeKey == "" || record.Tag == "" || record.Agent == "" {
+	if record.Version != 1 || record.ScopeKey == "" || record.Tag == "" || !isSupportedAgent(record.Agent) {
 		return errors.New("invalid common ledger fields")
 	}
 	switch record.Kind {
@@ -224,6 +219,15 @@ func validateRecord(record Record) error {
 		return fmt.Errorf("unsupported ledger kind %q", record.Kind)
 	}
 	return nil
+}
+
+func isSupportedAgent(agent string) bool {
+	switch agent {
+	case "claude", "codex", "agy", "muse":
+		return true
+	default:
+		return false
+	}
 }
 
 func sortWatermarks(watermarks []NativeWatermark) {

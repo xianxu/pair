@@ -61,6 +61,19 @@ func TestParseLedgerCompatibilityClassificationMatrix(t *testing.T) {
 	}
 }
 
+func TestParseLedgerRejectsUnsupportedTypedAgentsAcrossKinds(t *testing.T) {
+	t.Parallel()
+	for _, row := range []string{
+		`{"v":1,"kind":"launch","scope_key":"scope","tag":"work","agent":"future","pair_log_offset":0,"native_watermarks":[]}`,
+		`{"v":1,"kind":"binding","scope_key":"scope","tag":"work","agent":"future","launch_ordinal":1,"root_native_id":"root"}`,
+	} {
+		parsed := ParseLedger([]byte(row + "\n"))
+		if len(parsed.Records) != 0 || !slices.Equal(parsed.MalformedOrdinals, []uint64{1}) {
+			t.Fatalf("parsed=%#v", parsed)
+		}
+	}
+}
+
 func TestCurrentLaunchUsesLatestPhysicalGeneration(t *testing.T) {
 	t.Parallel()
 	records := []Record{

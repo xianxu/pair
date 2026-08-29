@@ -45,19 +45,30 @@ func TestSIGUSR2ReExecsWrapperWithoutReplacingPaneProcess(t *testing.T) {
 	t.Setenv("PAIR_DATA_DIR", data)
 	t.Setenv("PAIR_TAG", "restart-test")
 	t.Setenv("PAIR_SCOPE_KEY", "scope")
-	t.Setenv("PAIR_AGENT", "sh")
+	t.Setenv("PAIR_AGENT", "codex")
+	t.Setenv("HOME", t.TempDir())
+	fakeCodex := filepath.Join(t.TempDir(), "codex")
+	if err := os.Symlink("/bin/sh", fakeCodex); err != nil {
+		t.Fatal(err)
+	}
 
 	oldExec := execProcess
-	defer func() { execProcess = oldExec }()
+	oldStartWatcher := startWatcherProcess
+	defer func() {
+		execProcess = oldExec
+		startWatcherProcess = oldStartWatcher
+	}()
 	execArgv := make(chan []string, 1)
 	execProcess = func(_ string, argv, _ []string) error {
 		execArgv <- append([]string(nil), argv...)
 		return errors.New("test stops exec")
 	}
+	startWatcherProcess = func([]string, []string) error { return nil }
 
 	done := make(chan int, 1)
+	var stderr bytes.Buffer
 	go func() {
-		done <- Run([]string{"/bin/sh", "-c", "sleep 30"}, bytes.NewReader(nil), &bytes.Buffer{}, &bytes.Buffer{})
+		done <- Run([]string{fakeCodex, "-c", "sleep 30"}, bytes.NewReader(nil), &bytes.Buffer{}, &stderr)
 	}()
 
 	pidPath := filepath.Join(data, "pair-wrap-pid-restart-test")
@@ -80,11 +91,17 @@ func TestSIGUSR2ReExecsWrapperWithoutReplacingPaneProcess(t *testing.T) {
 
 	select {
 	case argv := <-execArgv:
-		if len(argv) < 4 || argv[1] != "wrap" || argv[len(argv)-3] != "/bin/sh" {
+		if len(argv) < 4 || argv[1] != "wrap" || argv[len(argv)-3] != fakeCodex {
 			t.Fatalf("replacement argv = %v", argv)
 		}
 	case <-time.After(3 * time.Second):
-		t.Fatal("wrapper did not request fresh exec")
+		events, _ := os.ReadFile(filepath.Join(data, "wrap-events-restart-test.jsonl"))
+		select {
+		case code := <-done:
+			t.Fatalf("wrapper exited %d before fresh exec: %s events=%s", code, stderr.String(), events)
+		default:
+			t.Fatalf("wrapper did not request fresh exec: %s events=%s", stderr.String(), events)
+		}
 	}
 	select {
 	case <-done:

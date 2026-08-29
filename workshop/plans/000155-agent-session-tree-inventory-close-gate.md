@@ -349,6 +349,27 @@ rounds:
           family: mixed-ledger-formats-are-classified
           round: 11
       blocked: true
+    - "n": 12
+      timestamp: "2026-08-28T18:34:46-07:00"
+      agent: codex
+      dispose:
+        - id: BR-1
+          disposition: not-addressed
+          note: The repository-wide Go suite again fails its declaration-disposition source contract after slug_test.go changed without entering the hand-maintained catalog.
+          round: 12
+        - id: BR-19
+          disposition: addressed
+          note: Native events, usage, and slug text projection stream arbitrary-length JSONL with per-record bounds; restoring a 32 MiB cutoff makes the long-transcript regressions fail.
+          round: 12
+        - id: BR-22
+          disposition: addressed
+          note: Slug now consumes TextEventWindowForRoot, the duplicate four-agent adapters are deleted, and the shadow-sweep regression fails if a native parser is reintroduced.
+          round: 12
+        - id: BR-23
+          disposition: not-addressed
+          note: Legacy shapes are strict, but an unsupported typed ledger row still becomes a launcher LedgerEntry and can influence history or agent inference.
+          round: 12
+      blocked: true
 ---
 
 # Gate ledger — pair#155 (boundary-review)
@@ -504,8 +525,16 @@ later rounds disposed of them. Generated — edit the gate, not this file.
 - **BR-23** [Important] `mixed-ledger-formats-are-classified` Compatibility classification admits malformed and unsupported rows
   This is the 2nd finding in family `mixed-ledger-formats-are-classified`. The classifier treats any single JSON object with a nonempty agent and no v or kind as compatible, so partial, unknown-field, and unsupported-agent rows escape malformed diagnostics and can enter launcher history. State the exhaustive typed versus exact-legacy versus malformed rule and test the complete classification matrix in both consumers.
 
+## Round 12 — 2026-08-28T18:34:46-07:00 (codex) — BLOCKED
+
+### Disposed
+
+- BR-1 — not-addressed — The repository-wide Go suite again fails its declaration-disposition source contract after slug_test.go changed without entering the hand-maintained catalog.
+- BR-19 — addressed — Native events, usage, and slug text projection stream arbitrary-length JSONL with per-record bounds; restoring a 32 MiB cutoff makes the long-transcript regressions fail.
+- BR-22 — addressed — Slug now consumes TextEventWindowForRoot, the duplicate four-agent adapters are deleted, and the shadow-sweep regression fails if a native parser is reintroduced.
+- BR-23 — not-addressed — Legacy shapes are strict, but an unsupported typed ledger row still becomes a launcher LedgerEntry and can influence history or agent inference.
+
 ## Open findings
 
-- **BR-19** [Critical] `bounded-record-streaming` Whole-file limits make valid long transcripts unusable
-- **BR-22** [Critical] `native-record-parsing-is-single-source` Slug remains a second native transcript parser
+- **BR-1** [Critical] `repository-contracts-stay-green` New inventory sources leave deterministic repository contract tests failing
 - **BR-23** [Important] `mixed-ledger-formats-are-classified` Compatibility classification admits malformed and unsupported rows

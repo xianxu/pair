@@ -972,6 +972,23 @@ be checked against measured actuals at close.*
   Claude, Codex, and Muse (2,986 nodes / 2,291 roots), and `make pair` rebuilt
   the in-place smoke-test binary.
 
+- 2026-08-28 — close review round 12 verified bounded record streaming and the
+  single inventory parser, then found two remaining classification boundaries.
+  The historical #149 declaration contract now derives from its immutable M5
+  commit range instead of a moving `HEAD`, so later committed issue files cannot
+  perturb it. The ledger validator now applies the same supported-agent rule to
+  typed launch/binding rows and exact legacy rows; red regressions prove
+  unsupported typed rows cannot enter either the ledger result or launcher
+  history (`ARCH-DRY`, `ARCH-PURPOSE`).
+
+- 2026-08-28 — round-12 fixes verified under the operator's hard cap of 20
+  concurrent Go package workers. The capped repository run passed every package
+  except Couch's load-sensitive launch-helper test; `couchcore` then passed in
+  isolation (`-p 1`), all affected ledger/launcher/wrapper regressions pass,
+  `go vet -p 20 ./...` and `git diff --check` pass, and no recursive watcher
+  test processes remain. The wrapper restart test now isolates native HOME data
+  and injects watcher startup instead of spawning the test binary recursively.
+
 ### 2026-08-28
 - 2026-08-28: closed M2 — Focused and full session inventory Go suites pass; go vet passes; historical #149 source/declaration contracts pass; make test-lua passes; statusline, queue-send, and pair-session-watch shell integrations pass; git diff --check passes. Full evidence classification diagnoses unsupported/malformed recognized evidence while filtering only supported unrequested agents.; review verdict: SHIP
 - 2026-08-28: closed M1 — all four sanitized scanners and explicit edge provenance pass; exhaustive M1 concept table/declaration contract, diagnostic registry, equal-time ordering, regular/partial storage, optional usage, artifact/source/project contracts, vet, diff check, and redacted installed-shape conformance pass; pre-existing Couch launch timeout remains separately deferred by operator; review verdict: SHIP

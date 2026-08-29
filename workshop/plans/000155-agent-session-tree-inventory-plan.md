@@ -835,3 +835,16 @@ only the complete strict legacy ledger shape for a supported agent as
 compatibility. The exact typed/legacy/malformed matrix is exercised through the
 ledger, launcher, and inventory consumers (`ARCH-DRY`, `ARCH-PURE`,
 `ARCH-PURPOSE`, `ARCH-MOCK`).
+
+### 2026-08-28 — close review: pin historical contracts and validate typed owners
+
+**Reason:** the next close review showed that the historical #149 declaration
+guard compared a hand-maintained catalog with a moving `HEAD`, and that strict
+legacy validation did not yet prevent structurally valid typed rows from naming
+unsupported agents.
+
+**Delta:** derive #149's declaration universe from its immutable M5 commit
+range, so later issue files cannot enter the historical contract after commit;
+and apply one supported-agent predicate to both typed and legacy ledger rows.
+Launcher regressions cover unsupported typed launch and binding rows
+(`ARCH-DRY`, `ARCH-PURPOSE`).

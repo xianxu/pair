@@ -83,6 +83,15 @@ func TestLauncherParseLedgerRejectsMalformedCompatibilityShapes(t *testing.T) {
 	}
 }
 
+func TestLauncherParseLedgerRejectsUnsupportedTypedAgentsAcrossKinds(t *testing.T) {
+	t.Parallel()
+	raw := `{"v":1,"kind":"launch","scope_key":"scope","tag":"work","agent":"future","pair_log_offset":0,"native_watermarks":[]}` + "\n" +
+		`{"v":1,"kind":"binding","scope_key":"scope","tag":"work","agent":"future","launch_ordinal":1,"root_native_id":"root"}` + "\n"
+	if entries := ParseLedger(raw); len(entries) != 0 {
+		t.Fatalf("entries=%#v", entries)
+	}
+}
+
 func TestLatestLedgerEntryForAgent(t *testing.T) {
 	entries := []LedgerEntry{
 		{Agent: "claude", SessionID: "old", LastActive: time.Unix(10, 0).UTC()},

@@ -209,3 +209,97 @@ findings:
     detail: |
       This is the 2nd finding in family `mixed-ledger-formats-are-classified`. The classifier treats any single JSON object with a nonempty agent and no v or kind as compatible, so partial, unknown-field, and unsupported-agent rows escape malformed diagnostics and can enter launcher history. State the exhaustive typed versus exact-legacy versus malformed rule and test the complete classification matrix in both consumers.
 ```
+
+---
+
+## Re-review — 2026-08-28T18:34:46-07:00 (REWORK)
+
+| field | value |
+|-------|-------|
+| issue | 155 — deterministic agent session-tree inventory |
+| repo | pair |
+| issue file | workshop/issues/000155-agent-session-tree-inventory.md |
+| boundary | whole-issue close |
+| milestone | — |
+| window | 4c454436038e2ae049690bc343def9f0511fca8c..c81059d70abb24b09d53c3fd02008a04acea20bd |
+| command | sdlc close --issue 155 |
+| reviewer | codex |
+| timestamp | 2026-08-28T18:34:46-07:00 |
+| verdict | REWORK |
+
+## Review
+
+```verdict
+verdict: REWORK
+confidence: high
+```
+
+The inventory architecture and two major close-review fixes are sound, but the boundary cannot close: the repository-wide Go suite fails, and the ledger classifier still admits unsupported typed agents into launcher state. BR-19 and BR-22 are verified addressed; BR-1 has regressed and BR-23 remains incomplete.
+
+1. Strengths
+
+- Native transcripts are streamed with per-record limits rather than whole-file caps ([scan_helpers.go](/Users/xianxu/workspace/pair/cmd/internal/sessioninventory/scan_helpers.go:31)).
+- Slug consumes the shared bounded event projection ([slugcmd.go](/Users/xianxu/workspace/pair/cmd/internal/slugcmd/slugcmd.go:80)); its four duplicate native parsers were removed and the shadow sweep guards against their return.
+- The strict legacy compatibility classifier is shared by inventory and launcher, with unknown-field, partial-row, type, and trailing-data coverage ([record.go](/Users/xianxu/workspace/pair/cmd/internal/sessionledger/record.go:139)).
+- README and atlas document the public command, provisional/established semantics, and internal activity projection.
+- Core-concept declarations match the plan; pure entities remain independently testable and integration points use the injected runtime/stateful fake.
+
+2. Critical findings
+
+- **BR-1 — repository contract suite is red** ([plan_contract_test.go](/Users/xianxu/workspace/pair/cmd/internal/couchcore/plan_contract_test.go:143)). `go test ./... -count=1` fails because `cmd/internal/slugcmd/slug_test.go` appears in the moving milestone diff but is absent from `issue149M5GoSources`.
+
+  **This is the 3rd finding in family `repository-contracts-stay-green`.** Do not merely add this filename again. State and enforce the general rule: the declaration-disposition source set must derive from one authoritative bounded range or marker inventory, rather than manually duplicating a `...HEAD` diff that changes on every later edit. This is also an ARCH-DRY flag.
+
+3. Important findings
+
+- **BR-23 — unsupported typed rows still enter launcher state** ([ledger.go](/Users/xianxu/workspace/pair/cmd/internal/launcher/ledger.go:54)). `sessionledger.ParseLedger` accepts a typed launch with `agent:"future"`; launcher then produces a current `LedgerEntry`, allowing `InferAgent` and history selection to consume it. A scratch regression expecting rejection failed with an entry marked `Typed:true`.
+
+  **This is the 3rd finding in family `mixed-ledger-formats-are-classified`.** Complete the class-wide rule across both consumers: exact supported typed row, exact supported legacy row, otherwise malformed/rejected. Add launcher coverage for unsupported typed launch and binding rows. ARCH-PURPOSE is flagged because only the legacy half of the promised classification matrix was swept.
+
+4. Minor findings
+
+None.
+
+5. Test coverage notes
+
+- Focused inventory, ledger, slug, launcher, and fake-runtime packages pass.
+- Mutation checks confirmed:
+  - Restoring a 32 MiB whole-file failure makes all three long-transcript regressions fail.
+  - Restoring permissive compatibility classification makes ledger, launcher, and inventory tests fail.
+  - Reintroducing a slug-native parser makes `TestShadowSweep` fail.
+- `go vet ./...`, Lua tests, named shell suites, Zellij validation, and `git diff --check` pass.
+- `go test ./... -count=1` fails at the repository contract described under BR-1.
+
+6. Architectural notes for upcoming work
+
+- **ARCH-DRY:** Session parsing and ledger classification are correctly centralized. Flagged for the manually synchronized historical source catalog.
+- **ARCH-PURE:** Pass. Forest assembly, ordering, matching, and ledger projection remain pure; IO stays behind runtime/store seams.
+- **ARCH-PURPOSE:** Flagged. Unsupported typed ledger rows show the exhaustive classification purpose is not fully delivered.
+- **ARCH-MOCK:** Pass. Filesystem, SQLite, process identity, PID reuse, and open-file behavior use the same injected runtime seam and stateful fake; live conformance remains available.
+
+7. Plan revision recommendations
+
+Append a `## Revisions` entry recording:
+
+- The typed/legacy/malformed rule must validate supported agents in both inventory and launcher, with typed unsupported launch/binding regressions.
+- The repository source-disposition contract must stop duplicating a moving `HEAD` source set; document the authoritative derived or pinned enumeration and its enforcement.
+
+```findings
+dispose:
+  - id: BR-1
+    disposition: not-addressed
+    note: |
+      The repository-wide Go suite again fails its declaration-disposition source contract after slug_test.go changed without entering the hand-maintained catalog.
+  - id: BR-19
+    disposition: addressed
+    note: |
+      Native events, usage, and slug text projection stream arbitrary-length JSONL with per-record bounds; restoring a 32 MiB cutoff makes the long-transcript regressions fail.
+  - id: BR-22
+    disposition: addressed
+    note: |
+      Slug now consumes TextEventWindowForRoot, the duplicate four-agent adapters are deleted, and the shadow-sweep regression fails if a native parser is reintroduced.
+  - id: BR-23
+    disposition: not-addressed
+    note: |
+      Legacy shapes are strict, but an unsupported typed ledger row still becomes a launcher LedgerEntry and can influence history or agent inference.
+```
