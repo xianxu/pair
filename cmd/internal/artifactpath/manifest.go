@@ -382,6 +382,8 @@ var SourceClassifications = []SourceClassification{
 		}},
 	{Path: "cmd/internal/sessionwatch/lifecycle.go", Kind: ResolvedConsumer,
 		Families: []string{"ledger", "log"}, BindingNames: []string{"scoped-ledger", "scoped-log"}},
+	{Path: "cmd/internal/sessionwatch/proof_migration_os.go", Kind: ResolvedConsumer,
+		Families: []string{"ledger"}, BindingNames: []string{"selected-history-ledger"}},
 	{Path: "cmd/internal/sessioninventory/pair_inventory.go", Kind: ResolvedConsumer,
 		Families: []string{"config", "ledger", "log"}, BindingNames: []string{"direct-config-recognition", "direct-config-sidecar", "direct-ledger-history", "direct-ledger-history-tag", "direct-log-history", "direct-log-history-tag"},
 		Vocabulary: []VocabularyAllowance{goStructVocabulary("native-session", `json:"session_id"`, "SessionID", 1)}},

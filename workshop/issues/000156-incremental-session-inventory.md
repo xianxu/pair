@@ -487,6 +487,9 @@ provider contracts.
 - Live conformance now compares Agy's installed database-plus-transcript state
   with the stateful fake across prefix→append as well as full replay. README
   documents the durable operator/developer target (`ARCH-MOCK`).
+- Full verification rejected the new migration source until it joined the
+  exhaustive artifact-path inventory. It is now a resolved selected-ledger
+  history consumer rather than an unclassified source reconstruction.
 
 ## Revisions
 
