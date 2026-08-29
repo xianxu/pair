@@ -134,6 +134,20 @@ func TestCurrentLaunchRejectsConflictingBindingsForGeneration(t *testing.T) {
 	}
 }
 
+func TestCurrentLaunchUsesLatestProofUpgradeForSameRoot(t *testing.T) {
+	t.Parallel()
+	proof := testAuthorizationProof("root-a")
+	records := []Record{
+		{Version: 1, Kind: RecordLaunch, ScopeKey: "scope", Tag: "work", Agent: "claude", Ordinal: 1},
+		{Version: 1, Kind: RecordBinding, ScopeKey: "scope", Tag: "work", Agent: "claude", LaunchOrdinal: 1, RootNativeID: "root-a", Ordinal: 2},
+		{Version: 2, Kind: RecordBinding, ScopeKey: "scope", Tag: "work", Agent: "claude", LaunchOrdinal: 1, RootNativeID: "root-a", AuthorizationProof: &proof, Ordinal: 3},
+	}
+	current, ok := CurrentLaunch(records, Owner{ScopeKey: "scope", Tag: "work", Agent: "claude"})
+	if !ok || current.Binding == nil || current.Binding.Ordinal != 3 || current.Binding.AuthorizationProof == nil {
+		t.Fatalf("current=%#v ok=%v", current, ok)
+	}
+}
+
 func FuzzParseLedgerPhysicalOrdinals(f *testing.F) {
 	f.Add([]byte("not-json\n{}\n"))
 	f.Add([]byte(`{"v":1,"kind":"binding"}`))

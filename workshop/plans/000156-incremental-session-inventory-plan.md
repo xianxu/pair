@@ -166,17 +166,17 @@
 - Create: `cmd/internal/sessioninventory/provider_contract_test.go`
 - Modify: `cmd/internal/sessioninventory/concept_contract_test.go`
 
-- [ ] **Step 1: Write failing `ProviderContractFor` tests using the risky-function strategy table.**
-- [ ] **Step 2: Run provider tests red.** Run `go test -p 20 ./cmd/internal/sessioninventory -run 'TestProviderContract' -count=1`; expect undefined provider-contract symbols.
-- [ ] **Step 3: Implement `ProviderContract`.** Add the closed store/schema version table and no path-name inference.
-- [ ] **Step 4: Run provider tests green.** Repeat Step 2; expect PASS.
-- [ ] **Step 5: Write failing `ReconcileCatalog` property/table tests using the risky-function strategy table.**
-- [ ] **Step 6: Run reconciliation red.** Run `go test -p 20 ./cmd/internal/sessioninventory -run 'TestReconcileCatalog' -count=1`; expect undefined catalog/reconcile symbols.
-- [ ] **Step 7: Implement immutable catalog values.** Reserve zero/unknown authorization values as fail-closed; add strict validation and clone/sort helpers; run `TestCatalog` and expect PASS.
-- [ ] **Step 8: Implement pure reconciliation.** Sort observations/deltas deterministically, never mutate caller slices/maps, and retract facts on disputed/replacement states; rerun `TestReconcileCatalog` and expect PASS.
-- [ ] **Step 9: Extend the concept contract.** Add `pair:156-concept` declarations for every new/modified pure entity and integration seam, and make the test derive the complete #156 declaration universe bidirectionally without weakening #155 historical pinning.
-- [ ] **Step 10: Run green.** Run `gofmt -w cmd/internal/sessioninventory` and `go test -p 20 ./cmd/internal/sessioninventory -run 'Test(ProviderContract|ReconcileCatalog|Catalog|Concept)' -count=1`; expect PASS.
-- [ ] **Step 11: Commit.** Run `git add cmd/internal/sessioninventory && git commit -m 'session inventory: #156 define incremental catalog reconciliation'`.
+- [x] **Step 1: Write failing `ProviderContractFor` tests using the risky-function strategy table.**
+- [x] **Step 2: Run provider tests red.** Run `go test -p 20 ./cmd/internal/sessioninventory -run 'TestProviderContract' -count=1`; expect undefined provider-contract symbols.
+- [x] **Step 3: Implement `ProviderContract`.** Add the closed store/schema version table and no path-name inference.
+- [x] **Step 4: Run provider tests green.** Repeat Step 2; expect PASS.
+- [x] **Step 5: Write failing `ReconcileCatalog` property/table tests using the risky-function strategy table.**
+- [x] **Step 6: Run reconciliation red.** Run `go test -p 20 ./cmd/internal/sessioninventory -run 'TestReconcileCatalog' -count=1`; expect undefined catalog/reconcile symbols.
+- [x] **Step 7: Implement immutable catalog values.** Reserve zero/unknown authorization values as fail-closed; add strict validation and clone/sort helpers; run `TestCatalog` and expect PASS.
+- [x] **Step 8: Implement pure reconciliation.** Sort observations/deltas deterministically, never mutate caller slices/maps, and retract facts on disputed/replacement states; rerun `TestReconcileCatalog` and expect PASS.
+- [x] **Step 9: Extend the concept contract.** Add `pair:156-concept` declarations for every new/modified pure entity and integration seam, and make the test derive the complete #156 declaration universe bidirectionally without weakening #155 historical pinning.
+- [x] **Step 10: Run green.** Run `gofmt -w cmd/internal/sessioninventory` and `go test -p 20 ./cmd/internal/sessioninventory -run 'Test(ProviderContract|ReconcileCatalog|Catalog|Concept)' -count=1`; expect PASS.
+- [x] **Step 11: Commit.** Run `git add cmd/internal/sessioninventory && git commit -m 'session inventory: #156 define incremental catalog reconciliation'`.
 
 ### Task 3: Locked catalog persistence
 
@@ -384,3 +384,20 @@
 - [x] **Step 7: Update the atlas and issue log.** Map the catalog/proof/query flow, corruption recovery, append-only trust boundary, immediate Alt+X ordering, and conformance cadence; link any new atlas page from `atlas/index.md`. Record measured results and `ARCH-DRY`, `ARCH-PURE`, `ARCH-PURPOSE`, and `ARCH-MOCK` consequences in the issue log.
 - [x] **Step 8: Run complete verification with bounded concurrency.** Run `go test -p 20 ./... -count=1`, `go vet -p 20 ./...`, `make test-lua`, the relevant shell suites from Step 4, `zellij --config-dir zellij setup --check`, and `git diff --check`; expect every command PASS and no more than 20 Go package workers. Inspect `make test-lua` and shell wrappers before running; if they invoke Go, pass or add the repository's `GOFLAGS=-p=20` seam.
 - [x] **Step 9: Commit the final evidence.** Run `git add Makefile cmd/internal/sessioninventory atlas workshop/issues/000156-incremental-session-inventory.md workshop/plans/000156-incremental-session-inventory-plan.md && git commit -m 'session inventory: #156 verify incremental native indexing'`.
+
+## Revisions
+
+### 2026-08-29 — close review production-authority convergence
+
+The first whole-issue review found that several planned authorities existed
+only as primitives or tests. The corrective round routes watcher/query work
+through a production `IncrementalInventory` façade backed by
+`ReconcileCatalog`, wires keyed proofless migration and durable publication into
+the watcher lifecycle without making ordinary lookups perform validation,
+implements raw `B-1` launch-boundary framing, makes same-key catalog publication
+monotonic under stale writers, removes the v1 whole-corpus watcher adapter, and
+compares installed provider transitions against the stateful fake. It also
+corrects the Task 2 checklist and the effective `Makefile.local` file list.
+The B-1 framer remains downstream of target authority: it can retain wholly
+post-launch records for an established or explicit target, but it never makes
+an unbound preexisting artifact eligible merely because that artifact grew.

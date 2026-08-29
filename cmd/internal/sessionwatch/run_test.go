@@ -1,6 +1,7 @@
 package sessionwatch
 
 import (
+	"encoding/json"
 	"errors"
 	"os"
 	"path/filepath"
@@ -28,7 +29,7 @@ func TestRunEstablishesOnlyAfterCompletedCorroboratedRound(t *testing.T) {
 	native.SetProcess("1234", "native-identity", nil, []string{filepath.Join(nativeRoot.Path, filepath.FromSlash(relative))})
 
 	paths := mustScopedPaths(t, dataDir, "work")
-	launch := mustLaunchRecord(t, sessionledger.Record{Version: 1, Kind: sessionledger.RecordLaunch, ScopeKey: "scope", Tag: "work", Agent: "codex"})
+	launch := mustLaunchRecord(t, sessionledger.Record{Version: 2, Kind: sessionledger.RecordLaunch, ScopeKey: "scope", Tag: "work", Agent: "codex", LaunchArtifactBoundaries: []sessionledger.LaunchArtifactBoundary{}})
 	runtime := newWatcherRuntime(native)
 	runtime.files[paths.Ledger()] = launch
 	runtime.files[paths.Log()] = []byte("## 2026-08-28 01:00:01\n\n" + text + "\n\n---\n\n")
@@ -84,6 +85,93 @@ func TestWatcherIncrementalV2PublishesProofFromOnlyPostBoundaryArtifact(t *testi
 	}
 	if got := native.OperationCount(sessioninventorytest.OperationReadFile, ""); got != 0 {
 		t.Fatalf("whole-file reads=%d", got)
+	}
+}
+
+func TestWatcherMigratesOnlyProoflessBoundRootAndPublishesProof(t *testing.T) {
+	t.Parallel()
+	dataDir := t.TempDir()
+	native := sessioninventorytest.NewFakeRuntime()
+	root := sessioninventory.StorageRoot{Agent: sessioninventory.AgentCodex, Name: "codex-sessions"}
+	native.AddRoot(root)
+	sid := "019eff64-6ceb-7e72-9d41-a735a97029ac"
+	artifact := sessioninventory.Artifact{StorageRoot: root.Name, RelativePath: "2026/08/29/rollout-test-" + sid + ".jsonl", Kind: sessioninventory.ArtifactTranscript}
+	native.PutFile(sessioninventory.FileEntry{Artifact: artifact, StableFileID: "stable", GenerationToken: "gen:1", MutationToken: "ctime:1"}, codexRound(sid, "legacy owner"))
+	sibling := sessioninventory.Artifact{StorageRoot: root.Name, RelativePath: "2026/08/29/rollout-other-123e4567-e89b-12d3-a456-426614174000.jsonl", Kind: sessioninventory.ArtifactTranscript}
+	native.PutFile(sessioninventory.FileEntry{Artifact: sibling, StableFileID: "sibling", GenerationToken: "gen:2", MutationToken: "ctime:2"}, []byte("malformed sibling must remain unread\n"))
+	paths := mustScopedPaths(t, dataDir, "work")
+	runtime := newWatcherRuntime(native)
+	launch := mustLaunchRecord(t, sessionledger.Record{Version: 1, Kind: sessionledger.RecordLaunch, ScopeKey: "scope", Tag: "work", Agent: "codex"})
+	binding := mustLaunchRecord(t, sessionledger.Record{Version: 1, Kind: sessionledger.RecordBinding, ScopeKey: "scope", Tag: "work", Agent: "codex", LaunchOrdinal: 1, RootNativeID: sid})
+	runtime.files[paths.Ledger()] = append(launch, binding...)
+	if err := Run(Options{Agent: "codex", Tag: "work", ScopeKey: "scope", LaunchOrdinal: 1, Home: "/home", DataDir: dataDir, PIDWait: time.Nanosecond}, runtime); err != nil {
+		t.Fatal(err)
+	}
+	if len(runtime.store.records) != 1 || runtime.store.records[0].AuthorizationProof == nil || runtime.store.records[0].RootNativeID != sid {
+		t.Fatalf("migration records=%#v", runtime.store.records)
+	}
+	if got := native.OperationCount(sessioninventorytest.OperationReadAt, artifact.StorageRoot+":"+artifact.RelativePath); got == 0 {
+		t.Fatal("named root was not validated")
+	}
+	if got := native.OperationCount(sessioninventorytest.OperationReadAt, sibling.StorageRoot+":"+sibling.RelativePath); got != 0 {
+		t.Fatalf("proof migration read sibling %d times", got)
+	}
+}
+
+func TestWatcherV1UnboundLaunchFailsClosedWithoutCorpusScan(t *testing.T) {
+	t.Parallel()
+	dataDir := t.TempDir()
+	native := sessioninventorytest.NewFakeRuntime()
+	native.AddRoot(sessioninventory.StorageRoot{Agent: sessioninventory.AgentCodex, Name: "codex-sessions"})
+	paths := mustScopedPaths(t, dataDir, "work")
+	runtime := newWatcherRuntime(native)
+	runtime.files[paths.Ledger()] = mustLaunchRecord(t, sessionledger.Record{Version: 1, Kind: sessionledger.RecordLaunch, ScopeKey: "scope", Tag: "work", Agent: "codex"})
+	if err := Run(Options{Agent: "codex", Tag: "work", ScopeKey: "scope", LaunchOrdinal: 1, Home: "/home", DataDir: dataDir, PIDWait: time.Nanosecond}, runtime); err != nil {
+		t.Fatal(err)
+	}
+	if got := native.OperationCount(sessioninventorytest.OperationListFiles, ""); got != 0 {
+		t.Fatalf("legacy watcher listed native corpus %d times", got)
+	}
+}
+
+func TestPersistTrackedCatalogDoesNotRegressNewestOrDisputedEntry(t *testing.T) {
+	t.Parallel()
+	path := filepath.Join(t.TempDir(), "catalog.json")
+	store := sessioninventory.CatalogStore{Runtime: sessioninventory.CatalogOSRuntime{}}
+	validation := func(size int64, mutation string) map[string]sessioninventory.TargetValidation {
+		artifact := sessioninventory.Artifact{StorageRoot: "codex-sessions", RelativePath: "2026/08/29/rollout-id.jsonl", Kind: sessioninventory.ArtifactTranscript}
+		entry := sessioninventory.FileEntry{Artifact: artifact, StableFileID: "stable", GenerationToken: "gen:1", MutationToken: sessioninventory.MutationToken(mutation), Size: size}
+		state := sessioninventory.ScannerState{Version: sessioninventory.ScannerStateVersion, Agent: sessioninventory.AgentCodex, NativeID: "id", IdentityAnchor: "id", Role: sessioninventory.RoleRoot, ScannerSchema: "codex-v1", FirstRecordValidated: true}
+		fact, err := sessioninventory.ScannerStateFact(state, []sessioninventory.Artifact{artifact})
+		if err != nil {
+			t.Fatal(err)
+		}
+		return map[string]sessioninventory.TargetValidation{"id": {State: state, Fact: fact, Observations: []sessioninventory.ArtifactObservation{{Agent: sessioninventory.AgentCodex, Entry: entry, ScannerSchema: "codex-v1", ProviderContract: sessioninventory.ProviderCodexJSONLV1}}, Results: map[string]sessioninventory.IncrementalResult{"codex-sessions\x00" + artifact.RelativePath: {Fingerprint: sessioninventory.ArtifactFingerprint{StableFileID: "stable", GenerationToken: "gen:1", MutationToken: sessioninventory.MutationToken(mutation), Size: size}, RawObservedOffset: size, FrameState: sessioninventory.JSONLFrameState{ParserCompleteOffset: size}}}}}
+	}
+	if err := persistTrackedCatalog(store, path, validation(20, "ctime:2")); err != nil {
+		t.Fatal(err)
+	}
+	if err := persistTrackedCatalog(store, path, validation(10, "ctime:1")); err != nil {
+		t.Fatal(err)
+	}
+	catalog, err := store.Read(path)
+	if err != nil || len(catalog.Entries) != 1 || catalog.Entries[0].RawObservedOffset != 20 {
+		t.Fatalf("catalog=%#v err=%v", catalog, err)
+	}
+	_, err = store.Update(path, func(current sessioninventory.Catalog) (sessioninventory.Catalog, error) {
+		current.Entries[0].Authorization = sessioninventory.AuthorizationDisputed
+		current.Entries[0].ScannerState = json.RawMessage(`{"disputed":true}`)
+		return current, nil
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := persistTrackedCatalog(store, path, validation(30, "ctime:3")); err != nil {
+		t.Fatal(err)
+	}
+	catalog, err = store.Read(path)
+	if err != nil || catalog.Entries[0].Authorization != sessioninventory.AuthorizationDisputed {
+		t.Fatalf("catalog=%#v err=%v", catalog, err)
 	}
 }
 
@@ -160,7 +248,7 @@ func TestRunIgnoresUnrelatedOpenFilesWhenRoundIsUnique(t *testing.T) {
 
 	paths := mustScopedPaths(t, dataDir, "work")
 	runtime := newWatcherRuntime(native)
-	runtime.files[paths.Ledger()] = mustLaunchRecord(t, sessionledger.Record{Version: 1, Kind: sessionledger.RecordLaunch, ScopeKey: "scope", Tag: "work", Agent: "codex"})
+	runtime.files[paths.Ledger()] = mustLaunchRecord(t, sessionledger.Record{Version: 2, Kind: sessionledger.RecordLaunch, ScopeKey: "scope", Tag: "work", Agent: "codex", LaunchArtifactBoundaries: []sessionledger.LaunchArtifactBoundary{}})
 	runtime.files[paths.Log()] = []byte("## 2026-08-28 01:00:01\n\n" + text + "\n\n---\n\n")
 	runtime.files[paths.AgentPID()] = []byte("1234\n")
 	runtime.modTimes[paths.AgentPID()] = runtime.now
@@ -187,7 +275,7 @@ func TestRunEstablishesUniqueRoundWhenProcessIdentityIsUnavailable(t *testing.T)
 
 	paths := mustScopedPaths(t, dataDir, "work")
 	runtime := newWatcherRuntime(native)
-	runtime.files[paths.Ledger()] = mustLaunchRecord(t, sessionledger.Record{Version: 1, Kind: sessionledger.RecordLaunch, ScopeKey: "scope", Tag: "work", Agent: "codex"})
+	runtime.files[paths.Ledger()] = mustLaunchRecord(t, sessionledger.Record{Version: 2, Kind: sessionledger.RecordLaunch, ScopeKey: "scope", Tag: "work", Agent: "codex", LaunchArtifactBoundaries: []sessionledger.LaunchArtifactBoundary{}})
 	runtime.files[paths.Log()] = []byte("## 2026-08-28 01:00:01\n\n" + text + "\n\n---\n\n")
 	runtime.files[paths.AgentPID()] = []byte("1234\n")
 	runtime.modTimes[paths.AgentPID()] = runtime.now
@@ -223,7 +311,7 @@ func TestRunDoesNotUseChronologyToResolveRepeatedRound(t *testing.T) {
 	}
 	paths := mustScopedPaths(t, dataDir, "work")
 	runtime := newWatcherRuntime(native)
-	runtime.files[paths.Ledger()] = mustLaunchRecord(t, sessionledger.Record{Version: 1, Kind: sessionledger.RecordLaunch, ScopeKey: "scope", Tag: "work", Agent: "codex"})
+	runtime.files[paths.Ledger()] = mustLaunchRecord(t, sessionledger.Record{Version: 2, Kind: sessionledger.RecordLaunch, ScopeKey: "scope", Tag: "work", Agent: "codex", LaunchArtifactBoundaries: []sessionledger.LaunchArtifactBoundary{}})
 	runtime.files[paths.Log()] = []byte("## 2026-08-28 01:00:01\n\n" + text + "\n\n---\n\n")
 	runtime.onSleep = func() { runtime.identities["1234"] = "changed" }
 	runtime.files[paths.AgentPID()] = []byte("1234\n")
@@ -269,6 +357,7 @@ type watcherRuntime struct {
 	logs       []adapt.Outcome
 	native     sessioninventory.Runtime
 	store      *fakeLifecycleStore
+	migrator   sessioninventory.ProofMigrator
 	onSleep    func()
 }
 
@@ -311,6 +400,7 @@ func (r *watcherRuntime) LedgerAppender() LedgerAppender                     { r
 func (r *watcherRuntime) CatalogStore() sessioninventory.CatalogStore {
 	return sessioninventory.CatalogStore{Runtime: sessioninventory.CatalogOSRuntime{}}
 }
+func (r *watcherRuntime) ProofMigrator() *sessioninventory.ProofMigrator { return &r.migrator }
 func (r *watcherRuntime) hasLog(want adapt.Outcome) bool {
 	for _, outcome := range r.logs {
 		if outcome == want {

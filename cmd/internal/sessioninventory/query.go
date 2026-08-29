@@ -116,6 +116,11 @@ func QuerySession(runtime Runtime, scopeKey, tag string, agent Agent) (SessionQu
 }
 
 func validateBindingProofTarget(runtime Runtime, agent Agent, proof sessionledger.AuthorizationProof) (TargetValidation, []Diagnostic, error) {
+	inventory := NewIncrementalInventory(runtime, Catalog{Version: CatalogVersion})
+	return inventory.ValidateBindingProof(agent, proof)
+}
+
+func (inventory IncrementalInventory) ValidateBindingProof(agent Agent, proof sessionledger.AuthorizationProof) (TargetValidation, []Diagnostic, error) {
 	if err := sessionledger.ValidateAuthorizationProof(proof, proof.RootNativeID); err != nil {
 		return TargetValidation{}, nil, err
 	}
@@ -123,12 +128,13 @@ func validateBindingProofTarget(runtime Runtime, agent Agent, proof sessionledge
 	if err != nil || state.Agent != agent || state.NativeID != proof.RootNativeID || state.Role != RoleRoot || state.ScannerSchema != proof.ScannerSchema {
 		return TargetValidation{}, nil, errors.New("binding proof scanner state disagrees with owner")
 	}
-	observations, diagnostics := ObserveAgentMetadata(runtime, agent)
+	snapshot := inventory.Observe(agent)
+	diagnostics := snapshot.Diagnostics
 	artifacts := make([]Artifact, 0, len(proof.Artifacts))
 	for _, artifact := range proof.Artifacts {
 		artifacts = append(artifacts, Artifact{StorageRoot: artifact.StorageRoot, RelativePath: artifact.RelativePath})
 	}
-	selected := SelectTargetWork(TargetRequest{Mode: TargetEstablished, Agent: agent, NativeID: proof.RootNativeID, AuthorizedArtifacts: artifacts}, observations)
+	selected := inventory.Select(TargetRequest{Mode: TargetEstablished, Agent: agent, NativeID: proof.RootNativeID, AuthorizedArtifacts: artifacts}, snapshot)
 	if selected.Unavailable || len(selected.Eligible) != len(proof.Artifacts) {
 		return TargetValidation{}, diagnostics, ErrArtifactChanged
 	}
@@ -170,7 +176,7 @@ func validateBindingProofTarget(runtime Runtime, agent Agent, proof sessionledge
 	if unchanged {
 		return prior, diagnostics, nil
 	}
-	advanced, found, err := AdvanceTargetValidation(runtime, prior, selected.Eligible)
+	advanced, found, err := AdvanceTargetValidation(inventory.runtime, prior, selected.Eligible)
 	diagnostics = append(diagnostics, found...)
 	return advanced, diagnostics, err
 }

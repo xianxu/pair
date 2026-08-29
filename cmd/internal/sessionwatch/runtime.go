@@ -17,6 +17,8 @@ type OSRuntime struct {
 	logger *adapt.Logger
 }
 
+var osProofMigrator sessioninventory.ProofMigrator
+
 func NewOSRuntime(logger *adapt.Logger) OSRuntime {
 	return OSRuntime{logger: logger}
 }
@@ -51,6 +53,8 @@ func (OSRuntime) LedgerAppender() LedgerAppender {
 func (OSRuntime) CatalogStore() sessioninventory.CatalogStore {
 	return sessioninventory.CatalogStore{Runtime: sessioninventory.CatalogOSRuntime{}}
 }
+
+func (OSRuntime) ProofMigrator() *sessioninventory.ProofMigrator { return &osProofMigrator }
 
 func (OSRuntime) AtomicWrite(path string, data []byte) error {
 	if err := os.MkdirAll(filepath.Dir(path), 0755); err != nil {

@@ -442,6 +442,26 @@ provider contracts.
   modeled proofless v1 bindings. They now derive real filesystem fingerprints
   and write proof-bearing v2 rows, preserving the intentional #155 route
   coverage without weakening proofless fail-closed behavior.
+- Whole-issue review rework made `IncrementalInventory` the production seam for
+  launch, watcher, launcher collision, and proof query metadata. Fresh-launch
+  selection now derives from `ReconcileCatalog`'s genuinely-new work only, so a
+  categorized artifact omitted from a partial launch listing is not
+  recategorized; established targets still advance from their own cursor
+  (`ARCH-DRY`, `ARCH-PURPOSE`).
+- The background watcher now upgrades a proofless binding by validating only
+  its ledger-named root and durably appending a v2 proof. Ledger projection uses
+  the latest same-root binding so that upgrade becomes visible; ordinary query
+  remains fail-closed and never starts migration. Unbound v1 watchers stop
+  without listing or reading the corpus.
+- Launch boundaries now retain the full continuity tuple and a bounded B-1
+  framer distinguishes newline, crossing-record, empty, truncation, and
+  replacement cases. The framer requires prior target authority; an unbound
+  preexisting append still contributes no evidence.
+- Catalog publication now merges same-generation cursors monotonically under
+  the store lock and preserves disputed state against late authorized writers.
+  Installed Claude, Codex, and Muse bytes now replay through the shared
+  stateful fake as prefix→append and match full normalized scanner state; Agy
+  continues through its copied SQLite/transcript seam (`ARCH-PURE`, `ARCH-MOCK`).
 
 ## Revisions
 

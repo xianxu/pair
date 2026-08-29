@@ -13,8 +13,12 @@ const (
 )
 
 type TargetArtifactBoundary struct {
-	StorageRoot  string
-	RelativePath string
+	StorageRoot     string
+	RelativePath    string
+	StableFileID    StableFileID
+	GenerationToken GenerationToken
+	MutationToken   MutationToken
+	RawSize         int64
 }
 
 // TargetRequest describes the only artifact set a latency-sensitive consumer

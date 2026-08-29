@@ -39,3 +39,31 @@ func TestCatalogCloneAndValidate(t *testing.T) {
 		t.Fatal("zero authorization state accepted")
 	}
 }
+
+func TestMergeCatalogPublicationNeverRegressesSameArtifact(t *testing.T) {
+	t.Parallel()
+	base := CatalogEntry{
+		Agent:         AgentCodex,
+		Artifact:      Artifact{StorageRoot: "codex-sessions", RelativePath: "2026/08/29/rollout-id.jsonl"},
+		Fingerprint:   ArtifactFingerprint{StableFileID: "stable", GenerationToken: "gen:1", MutationToken: "ctime:2", Size: 20},
+		Authorization: AuthorizationAuthorized, ScannerSchema: "codex-v1", ProviderContract: ProviderCodexJSONLV1,
+		RawObservedOffset: 20, ParserCompleteOffset: 20, ScannerState: json.RawMessage(`{"cursor":20}`),
+	}
+	older := cloneCatalogEntry(base)
+	older.Fingerprint.MutationToken = "ctime:1"
+	older.Fingerprint.Size = 10
+	older.RawObservedOffset = 10
+	older.ParserCompleteOffset = 10
+	older.ScannerState = json.RawMessage(`{"cursor":10}`)
+	if got := MergeCatalogPublication(base, older); got.RawObservedOffset != 20 || string(got.ScannerState) != `{"cursor":20}` {
+		t.Fatalf("stale writer regressed entry: %#v", got)
+	}
+	disputed := cloneCatalogEntry(older)
+	disputed.Authorization = AuthorizationDisputed
+	if got := MergeCatalogPublication(base, disputed); got.Authorization != AuthorizationDisputed {
+		t.Fatalf("dispute was lost: %#v", got)
+	}
+	if got := MergeCatalogPublication(disputed, base); got.Authorization != AuthorizationDisputed {
+		t.Fatalf("stale authorization erased dispute: %#v", got)
+	}
+}

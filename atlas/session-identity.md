@@ -45,13 +45,21 @@ validate only their suffix, and replacement, truncation, unavailable generation,
 schema drift, or corruption fail closed for the targeted entry.
 
 `pair session-watch` observes only post-launch candidates and appended bytes.
+A production `IncrementalInventory` façade reconciles metadata with the catalog;
+fresh launches can inspect only `new` delta entries, while an already authorized
+target advances from its proof/catalog cursor. Raw launch boundaries retain the
+full continuity tuple, and the B-1 framer drops a record that began before the
+launch without granting authority to an unbound preexisting append.
 A unique exact operator turn followed by assistant/tool/error progress proposes
 the root; the watcher persists catalog state before appending a proof-bearing
 binding while the launch ordinal is still current. Repeated matches remain
 ambiguous and no timestamp, traversal order, first/newest file, or native parent
 edge breaks the tie. A proofless legacy binding stays unavailable to automatic
 consumers until one keyed background migration validates its named root; an
-explicit resume may do that one-root validation synchronously.
+explicit resume may do that one-root validation synchronously. The watcher owns
+durable background proof publication, and ledger projection selects the newest
+same-root binding so the upgrade becomes visible. An unbound v1 launch has no
+safe metadata boundary and therefore stops without a compatibility corpus scan.
 
 `pair session-inventory [--agent ...] [--scope current|all] [--json]
 [--conformance]` exposes the canonical forests, correlations, ambiguities, and

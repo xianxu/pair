@@ -21,8 +21,6 @@ func TestNoWholeInventoryShadowInInteractiveConsumers(t *testing.T) {
 		"cmd/internal/sessioninventory/pair_inventory.go:RecoverPairBindings:NativeEventsWithRuntime": true,
 		// A v1 launch can exist only across an in-place binary upgrade. Keep its
 		// compatibility adapter explicit; all newly-created launches are v2.
-		"cmd/internal/sessionwatch/run.go:Run:InventoryWithRuntime":    true,
-		"cmd/internal/sessionwatch/run.go:Run:NativeEventsWithRuntime": true,
 	}
 	seen := map[string]bool{}
 	var violations []string

@@ -517,7 +517,7 @@ func CurrentLaunch(records []Record, owner Owner) (Current, bool) {
 			continue
 		}
 		previous, exists := byRoot[record.RootNativeID]
-		if !exists || record.Ordinal < previous.Ordinal {
+		if !exists || record.Ordinal > previous.Ordinal {
 			byRoot[record.RootNativeID] = record
 		}
 	}

@@ -638,13 +638,19 @@ func (r OSRuntime) AgentSessionExists(agent, sid, cwd string) bool {
 	home := os.Getenv("HOME")
 	runtime := sessioninventory.NewOSRuntime(home, r.DataDir)
 	nativeAgent := sessioninventory.Agent(agent)
-	observations, _ := sessioninventory.ObserveAgentMetadata(runtime, nativeAgent)
 	if scope, err := artifactpath.ResolveSelectedScope(r.DataDir); err == nil {
-		if catalog, err := (sessioninventory.CatalogStore{Runtime: sessioninventory.CatalogOSRuntime{}}).Read(scope.SessionInventoryCatalog()); err == nil && sessioninventory.CatalogSessionCandidateExists(catalog, observations, nativeAgent, sid) {
-			return true
+		if catalog, err := (sessioninventory.CatalogStore{Runtime: sessioninventory.CatalogOSRuntime{}}).Read(scope.SessionInventoryCatalog()); err == nil {
+			inventory := sessioninventory.NewIncrementalInventory(runtime, catalog)
+			snapshot := inventory.Observe(nativeAgent)
+			if inventory.CatalogSessionCandidateExists(snapshot, nativeAgent, sid) {
+				return true
+			}
+			return sessioninventory.NativeSessionCandidateExistsFromObservations(runtime, nativeAgent, sid, snapshot.Observations)
 		}
 	}
-	return sessioninventory.NativeSessionCandidateExistsFromObservations(runtime, nativeAgent, sid, observations)
+	inventory := sessioninventory.NewIncrementalInventory(runtime, sessioninventory.Catalog{Version: sessioninventory.CatalogVersion})
+	snapshot := inventory.Observe(nativeAgent)
+	return sessioninventory.NativeSessionCandidateExistsFromObservations(runtime, nativeAgent, sid, snapshot.Observations)
 }
 
 func (r OSRuntime) EstablishedSessionID(scopeKey, tag, agent string) (string, sessioninventory.BindingStatus) {

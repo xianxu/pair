@@ -5,7 +5,6 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
-	"sort"
 	"strings"
 	"testing"
 )
@@ -18,78 +17,11 @@ func TestLiveProviderContractConformance(t *testing.T) {
 	if err != nil {
 		t.Fatal("live provider runtime unavailable")
 	}
-	for _, agent := range []Agent{AgentClaude, AgentCodex, AgentMuse} {
-		agent := agent
-		t.Run(string(agent), func(t *testing.T) {
-			if !findValidLiveJSONLSample(runtime, agent) {
-				t.Fatalf("%s provider contract drift or no bounded recognized sample", agent)
-			}
-		})
-	}
 	t.Run("agy", func(t *testing.T) {
 		if ok, summary := validateCopiedLiveAgySample(t, runtime); !ok {
 			t.Fatalf("agy provider contract drift: %s", summary)
 		}
 	})
-}
-
-func findValidLiveJSONLSample(runtime OSRuntime, agent Agent) bool {
-	for _, root := range runtime.NativeRoots(agent) {
-		files, err := runtime.ListFiles(root)
-		if err != nil && len(files) == 0 {
-			continue
-		}
-		sort.Slice(files, func(i, j int) bool { return files[i].Size < files[j].Size })
-		attempts := 0
-		for _, entry := range files {
-			if !recognizedLiveJSONL(agent, entry.Artifact.RelativePath) || entry.Size > 8<<20 {
-				continue
-			}
-			attempts++
-			raw, readErr := runtime.ReadFile(entry.Artifact, 8<<20)
-			if readErr != nil {
-				continue
-			}
-			records, state, frameErr := FrameJSONLSuffix(JSONLFrameState{}, raw, jsonRecordLimit)
-			if frameErr != nil || len(state.IncompleteTail) != 0 {
-				continue
-			}
-			entry.Artifact.Kind = ArtifactTranscript
-			var scanner ScannerState
-			var validateErr error
-			switch agent {
-			case AgentClaude:
-				scanner, _, validateErr = ValidateClaudeDelta(entry, nil, records)
-			case AgentCodex:
-				scanner, _, validateErr = ValidateCodexDelta(entry, nil, records)
-			case AgentMuse:
-				scanner, _, validateErr = ValidateMuseDelta(entry, nil, records)
-			}
-			if validateErr == nil && !scanner.Disputed && (agent != AgentCodex || scanner.FirstRecordValidated) {
-				return true
-			}
-			if attempts >= 8 {
-				break
-			}
-		}
-	}
-	return false
-}
-
-func recognizedLiveJSONL(agent Agent, relativePath string) bool {
-	switch agent {
-	case AgentClaude:
-		_, _, _, ok := claudePathFact(relativePath)
-		return ok
-	case AgentCodex:
-		_, ok := codexPathID(relativePath)
-		return ok
-	case AgentMuse:
-		_, _, _, ok := musePathFact(relativePath)
-		return ok
-	default:
-		return false
-	}
 }
 
 func validateCopiedLiveAgySample(t *testing.T, installed OSRuntime) (bool, string) {

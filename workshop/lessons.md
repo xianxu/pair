@@ -2541,3 +2541,15 @@ an unsupported owner through every downstream projection (`ARCH-DRY`,
 - Place test injection beneath the behavior under test. A parallel test-only
   return branch can model the right outcome while mutation proves production
   propagation is completely unguarded.
+
+## 2026-08-29 — A primitive is not an authority until consumers derive from it
+
+- A planned façade, migrator, or reconciliation function needs a production
+  caller and an integration test that observes its durable effect; test-only
+  reachability does not deliver the architecture (`ARCH-PURPOSE`).
+- Serialized publication prevents byte corruption, not semantic regression.
+  Same-key writers must merge monotonic cursors and fail-closed disputes against
+  the state reread under the lock (`ARCH-PURE`).
+- When upgrading an append-only record, projection must select the newest
+  compatible record for the same identity; otherwise durable migration can
+  succeed while every consumer remains pinned to the legacy row (`ARCH-DRY`).

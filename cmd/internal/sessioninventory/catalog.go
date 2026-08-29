@@ -116,6 +116,33 @@ func cloneCatalogFact(fact Fact) Fact {
 	return cloned
 }
 
+// MergeCatalogPublication combines two independently validated publications
+// for the same artifact without allowing a late stale writer to lower the
+// accepted cursor or erase a fail-closed dispute.
+func MergeCatalogPublication(current, incoming CatalogEntry) CatalogEntry {
+	if catalogEntryKey(current.Agent, current.Artifact) != catalogEntryKey(incoming.Agent, incoming.Artifact) {
+		return cloneCatalogEntry(current)
+	}
+	if current.Authorization == AuthorizationDisputed {
+		return cloneCatalogEntry(current)
+	}
+	if incoming.Authorization == AuthorizationDisputed {
+		return cloneCatalogEntry(incoming)
+	}
+	if current.Fingerprint.StableFileID != incoming.Fingerprint.StableFileID ||
+		current.Fingerprint.GenerationToken == "" ||
+		current.Fingerprint.GenerationToken != incoming.Fingerprint.GenerationToken ||
+		current.ScannerSchema != incoming.ScannerSchema ||
+		current.ProviderContract != incoming.ProviderContract {
+		return cloneCatalogEntry(current)
+	}
+	if incoming.RawObservedOffset < current.RawObservedOffset ||
+		(incoming.RawObservedOffset == current.RawObservedOffset && incoming.ParserCompleteOffset <= current.ParserCompleteOffset) {
+		return cloneCatalogEntry(current)
+	}
+	return cloneCatalogEntry(incoming)
+}
+
 func cloneStdTime(value *time.Time) *time.Time {
 	if value == nil {
 		return nil

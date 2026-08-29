@@ -261,7 +261,9 @@ func PrepareRuntimeLaunch(dataDir string, owner sessionledger.Owner, resumeNativ
 
 func prepareRuntimeLaunch(ledgerPath string, owner sessionledger.Owner, resumeNativeID string, pairLogOffset uint64, nativeRuntime sessioninventory.Runtime, store LedgerAppender) (PreparedLaunch, error) {
 	agent := sessioninventory.Agent(owner.Agent)
-	observations, diagnostics := sessioninventory.ObserveAgentMetadata(nativeRuntime, agent)
+	inventory := sessioninventory.NewIncrementalInventory(nativeRuntime, sessioninventory.Catalog{Version: sessioninventory.CatalogVersion})
+	snapshot := inventory.Observe(agent)
+	observations, diagnostics := snapshot.Observations, snapshot.Diagnostics
 	for _, diagnostic := range diagnostics {
 		if diagnostic.Code == sessioninventory.DiagnosticStorageUnreadable {
 			return PreparedLaunch{}, fmt.Errorf("capture native launch metadata: %s", diagnostic.Detail)
@@ -277,7 +279,7 @@ func prepareRuntimeLaunch(ledgerPath string, owner sessionledger.Owner, resumeNa
 	}
 	var proof *sessionledger.AuthorizationProof
 	if resumeNativeID != "" {
-		selection := sessioninventory.SelectTargetWork(sessioninventory.TargetRequest{Mode: sessioninventory.TargetExplicitResume, Agent: agent, NativeID: resumeNativeID}, observations)
+		selection := inventory.Select(sessioninventory.TargetRequest{Mode: sessioninventory.TargetExplicitResume, Agent: agent, NativeID: resumeNativeID}, snapshot)
 		validations, _ := sessioninventory.ValidateTargetWork(nativeRuntime, agent, selection.Eligible)
 		for _, validation := range validations {
 			if validation.State.NativeID == resumeNativeID && validation.State.Role == sessioninventory.RoleRoot {
