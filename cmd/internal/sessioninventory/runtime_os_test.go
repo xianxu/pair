@@ -5,6 +5,7 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"runtime"
 	"slices"
 	"syscall"
 	"testing"
@@ -73,6 +74,38 @@ func TestOSRuntimeBoundaries(t *testing.T) {
 	partial, err = runtime.ListFiles(roots[0])
 	if !errors.Is(err, ErrPathEscape) || len(partial) != 1 || partial[0].Artifact.RelativePath != "root.jsonl" {
 		t.Fatalf("special-file listing = %#v, %v, want valid file plus rejection", partial, err)
+	}
+}
+
+func TestOSRuntimeListFilesFingerprint(t *testing.T) {
+	t.Parallel()
+
+	home := t.TempDir()
+	runtimeIO := NewOSRuntime(home, t.TempDir())
+	root := runtimeIO.NativeRoots(AgentClaude)[0]
+	if err := os.MkdirAll(root.Path, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(root.Path, "root.jsonl"), []byte("root\n"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+
+	files, err := runtimeIO.ListFiles(root)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(files) != 1 {
+		t.Fatalf("files = %#v", files)
+	}
+	entry := files[0]
+	if entry.StableFileID == "" || entry.MutationToken == "" {
+		t.Fatalf("fingerprint = %#v, want stable identity and mutation token", entry)
+	}
+	if runtime.GOOS == "darwin" && entry.GenerationToken == "" {
+		t.Skip("filesystem does not expose a nonzero Darwin file generation")
+	}
+	if runtime.GOOS == "linux" && entry.GenerationToken != "" {
+		t.Fatalf("Linux generation = %q, want unavailable (statx birth time is not a generation)", entry.GenerationToken)
 	}
 }
 

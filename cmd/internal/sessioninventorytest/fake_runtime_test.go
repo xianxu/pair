@@ -76,3 +76,40 @@ func TestFakeRuntimeModelsSQLiteAndProcessMutation(t *testing.T) {
 		t.Fatalf("mutated children = %#v", got)
 	}
 }
+
+func TestFakeRuntimeArtifactGeneration(t *testing.T) {
+	t.Parallel()
+
+	runtime := NewFakeRuntime()
+	root := sessioninventory.StorageRoot{Agent: sessioninventory.AgentClaude, Name: "claude", Path: "/native/claude"}
+	artifact := sessioninventory.Artifact{StorageRoot: root.Name, RelativePath: "root.jsonl"}
+	entry := sessioninventory.FileEntry{
+		Artifact:        artifact,
+		StableFileID:    "dev:1:ino:2",
+		GenerationToken: "gen:3",
+		MutationToken:   "ctime:4",
+	}
+	runtime.AddRoot(root)
+	runtime.PutFile(entry, []byte("one\n"))
+	runtime.AppendFile(artifact, []byte("two\n"), "ctime:5")
+
+	files, err := runtime.ListFiles(root)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(files) != 1 || files[0].StableFileID != entry.StableFileID || files[0].GenerationToken != entry.GenerationToken || files[0].MutationToken != "ctime:5" {
+		t.Fatalf("appended fingerprint = %#v", files)
+	}
+
+	runtime.ReplaceFile(entry, []byte("replacement\n"), "gen:4", "ctime:6")
+	files, err = runtime.ListFiles(root)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if files[0].StableFileID != entry.StableFileID || files[0].GenerationToken != "gen:4" {
+		t.Fatalf("same-inode replacement fingerprint = %#v", files[0])
+	}
+	if got := runtime.OperationCount(OperationListFiles, root.Name); got != 2 {
+		t.Fatalf("list count = %d, want 2", got)
+	}
+}

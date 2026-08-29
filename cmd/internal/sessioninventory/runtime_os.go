@@ -9,11 +9,8 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
-	"runtime"
 	"sort"
-	"strconv"
 	"strings"
-	"time"
 
 	"github.com/xianxu/pair/cmd/internal/procutil"
 )
@@ -96,11 +93,18 @@ func (r OSRuntime) ListFiles(requested StorageRoot) ([]FileEntry, error) {
 			return fmt.Errorf("%w: %s", ErrPathEscape, relativePath)
 		}
 		modTime := info.ModTime().UTC()
+		metadata, metadataErr := readFileMetadata(filePath, info)
+		if metadataErr != nil {
+			return metadataErr
+		}
 		result = append(result, FileEntry{
-			Artifact:  artifact,
-			Size:      info.Size(),
-			BirthTime: fileBirthTime(filePath),
-			ModTime:   &modTime,
+			Artifact:        artifact,
+			StableFileID:    metadata.StableFileID,
+			GenerationToken: metadata.GenerationToken,
+			MutationToken:   metadata.MutationToken,
+			Size:            info.Size(),
+			BirthTime:       metadata.BirthTime,
+			ModTime:         &modTime,
 		})
 		return nil
 	})
@@ -265,28 +269,6 @@ func rejectRelativeSymlinks(rootPath, relativePath string) error {
 		}
 	}
 	return nil
-}
-
-func fileBirthTime(filePath string) *time.Time {
-	var arguments []string
-	switch runtime.GOOS {
-	case "darwin":
-		arguments = []string{"-f", "%B", filePath}
-	case "linux":
-		arguments = []string{"-c", "%W", filePath}
-	default:
-		return nil
-	}
-	output, err := exec.Command("stat", arguments...).Output()
-	if err != nil {
-		return nil
-	}
-	seconds, err := strconv.ParseInt(strings.TrimSpace(string(output)), 10, 64)
-	if err != nil || seconds <= 0 {
-		return nil
-	}
-	value := time.Unix(seconds, 0).UTC()
-	return &value
 }
 
 type boundedBuffer struct {

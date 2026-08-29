@@ -15,6 +15,7 @@ type Operation string
 const (
 	OperationListFiles Operation = "list_files"
 	OperationReadFile  Operation = "read_file"
+	OperationReadAt    Operation = "read_at"
 	OperationSQLite    Operation = "sqlite"
 	OperationOpenFiles Operation = "open_files"
 )
@@ -46,6 +47,7 @@ type FakeRuntime struct {
 	sqlite       map[sqliteKey]sessioninventory.SQLiteResult
 	processes    map[string]processState
 	errors       map[string]error
+	counts       map[string]int
 }
 
 var _ sessioninventory.Runtime = (*FakeRuntime)(nil)
@@ -58,6 +60,7 @@ func NewFakeRuntime() *FakeRuntime {
 		sqlite:       make(map[sqliteKey]sessioninventory.SQLiteResult),
 		processes:    make(map[string]processState),
 		errors:       make(map[string]error),
+		counts:       make(map[string]int),
 	}
 }
 
@@ -78,6 +81,55 @@ func (f *FakeRuntime) PutFile(entry sessioninventory.FileEntry, content []byte) 
 	defer f.mu.Unlock()
 	entry.Size = int64(len(content))
 	f.files[artifactKey(entry.Artifact)] = storedFile{entry: cloneFileEntry(entry), content: append([]byte(nil), content...)}
+}
+
+func (f *FakeRuntime) AppendFile(artifact sessioninventory.Artifact, suffix []byte, mutation sessioninventory.MutationToken) {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	key := artifactKey(artifact)
+	stored := f.files[key]
+	stored.content = append(stored.content, suffix...)
+	stored.entry.Size = int64(len(stored.content))
+	stored.entry.MutationToken = mutation
+	f.files[key] = stored
+}
+
+func (f *FakeRuntime) ReplaceFile(entry sessioninventory.FileEntry, content []byte, generation sessioninventory.GenerationToken, mutation sessioninventory.MutationToken) {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	entry.Size = int64(len(content))
+	entry.GenerationToken = generation
+	entry.MutationToken = mutation
+	f.files[artifactKey(entry.Artifact)] = storedFile{entry: cloneFileEntry(entry), content: append([]byte(nil), content...)}
+}
+
+func (f *FakeRuntime) TruncateFile(artifact sessioninventory.Artifact, size int, mutation sessioninventory.MutationToken) {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	key := artifactKey(artifact)
+	stored := f.files[key]
+	if size < 0 {
+		size = 0
+	}
+	if size > len(stored.content) {
+		size = len(stored.content)
+	}
+	stored.content = append([]byte(nil), stored.content[:size]...)
+	stored.entry.Size = int64(size)
+	stored.entry.MutationToken = mutation
+	f.files[key] = stored
+}
+
+func (f *FakeRuntime) DeleteFile(artifact sessioninventory.Artifact) {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	delete(f.files, artifactKey(artifact))
+}
+
+func (f *FakeRuntime) OperationCount(operation Operation, key string) int {
+	f.mu.RLock()
+	defer f.mu.RUnlock()
+	return f.counts[errorKey(operation, key)]
 }
 
 func (f *FakeRuntime) SetListingOrder(storageRoot string, relativePaths []string) {
@@ -126,8 +178,9 @@ func (f *FakeRuntime) PairDataRoot() sessioninventory.StorageRoot {
 }
 
 func (f *FakeRuntime) ListFiles(root sessioninventory.StorageRoot) ([]sessioninventory.FileEntry, error) {
-	f.mu.RLock()
-	defer f.mu.RUnlock()
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	f.recordOperation(OperationListFiles, root.Name)
 	listingErr := f.errors[errorKey(OperationListFiles, root.Name)]
 	byPath := make(map[string]sessioninventory.FileEntry)
 	for _, stored := range f.files {
@@ -160,9 +213,10 @@ func (f *FakeRuntime) ListFiles(root sessioninventory.StorageRoot) ([]sessioninv
 }
 
 func (f *FakeRuntime) ReadFile(artifact sessioninventory.Artifact, limit int64) ([]byte, error) {
-	f.mu.RLock()
-	defer f.mu.RUnlock()
+	f.mu.Lock()
+	defer f.mu.Unlock()
 	key := artifactKey(artifact)
+	f.recordOperation(OperationReadFile, key)
 	if err := f.errors[errorKey(OperationReadFile, key)]; err != nil {
 		return nil, err
 	}
@@ -177,9 +231,10 @@ func (f *FakeRuntime) ReadFile(artifact sessioninventory.Artifact, limit int64) 
 }
 
 func (f *FakeRuntime) ReadAt(artifact sessioninventory.Artifact, offset, limit int64) ([]byte, bool, error) {
-	f.mu.RLock()
-	defer f.mu.RUnlock()
+	f.mu.Lock()
+	defer f.mu.Unlock()
 	key := artifactKey(artifact)
+	f.recordOperation(OperationReadAt, key)
 	if err := f.errors[errorKey(OperationReadFile, key)]; err != nil {
 		return nil, false, err
 	}
@@ -201,9 +256,10 @@ func (f *FakeRuntime) ReadAt(artifact sessioninventory.Artifact, offset, limit i
 }
 
 func (f *FakeRuntime) QuerySQLite(artifact sessioninventory.Artifact, query string, limit int64) (sessioninventory.SQLiteResult, error) {
-	f.mu.RLock()
-	defer f.mu.RUnlock()
+	f.mu.Lock()
+	defer f.mu.Unlock()
 	key := artifactKey(artifact)
+	f.recordOperation(OperationSQLite, key)
 	if err := f.errors[errorKey(OperationSQLite, key)]; err != nil {
 		return sessioninventory.SQLiteResult{}, err
 	}
@@ -258,6 +314,11 @@ func artifactKey(artifact sessioninventory.Artifact) string {
 
 func errorKey(operation Operation, key string) string {
 	return string(operation) + ":" + key
+}
+
+func (f *FakeRuntime) recordOperation(operation Operation, key string) {
+	f.counts[errorKey(operation, key)]++
+	f.counts[errorKey(operation, "")]++
 }
 
 func cloneFileEntry(entry sessioninventory.FileEntry) sessioninventory.FileEntry {

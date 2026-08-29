@@ -17,11 +17,22 @@ type StorageRoot struct {
 }
 
 type FileEntry struct {
-	Artifact  Artifact   `json:"artifact"`
-	Size      int64      `json:"size"`
-	BirthTime *time.Time `json:"birth_time"`
-	ModTime   *time.Time `json:"mod_time"`
+	Artifact        Artifact        `json:"artifact"`
+	StableFileID    StableFileID    `json:"stable_file_id"`
+	GenerationToken GenerationToken `json:"generation_token,omitempty"`
+	MutationToken   MutationToken   `json:"mutation_token"`
+	Size            int64           `json:"size"`
+	BirthTime       *time.Time      `json:"birth_time"`
+	ModTime         *time.Time      `json:"mod_time"`
 }
+
+// StableFileID identifies a filesystem object within one native storage root.
+// GenerationToken is empty when the platform exposes no true file generation;
+// birth time is deliberately not accepted as a substitute. MutationToken
+// changes when metadata or contents change.
+type StableFileID string
+type GenerationToken string
+type MutationToken string
 
 type ListingIssuesError struct {
 	Artifacts []Artifact
