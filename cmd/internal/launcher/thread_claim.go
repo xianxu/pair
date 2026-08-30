@@ -138,6 +138,25 @@ func EnsureThreadAddressForPair(globalDataDir string, scope RepoScope, tag strin
 	return ErrThreadAddressClaimed
 }
 
+// RegisterExistingCouchThread validates that a Couch resume targets the exact
+// durable Pair address already established by its original launch. Unlike the
+// create-flow claim, registration is read-only: it never creates, adopts,
+// advances, rewrites, or releases the marker.
+func RegisterExistingCouchThread(globalDataDir string, scope RepoScope, tag string) error {
+	paths := NewScopedPaths(globalDataDir, scope, tag)
+	if err := paths.Validate(); err != nil {
+		return err
+	}
+	record, err := readThreadAddressClaim(paths.ThreadClaim())
+	if err != nil {
+		return fmt.Errorf("read existing Couch thread registration: %w", err)
+	}
+	if record.Schema != 1 || record.Scope != scope.Key || record.Tag != tag || record.State != "established" {
+		return fmt.Errorf("existing Couch thread registration does not match requested established address")
+	}
+	return nil
+}
+
 func establishReservedThreadAddress(paths ScopedPaths, scope RepoScope, tag string) error {
 	return establishReservedThreadAddressWithHook(paths, scope, tag, nil)
 }

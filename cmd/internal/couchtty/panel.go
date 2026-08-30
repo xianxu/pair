@@ -46,8 +46,9 @@ type PanelControl struct {
 var panelControls = []PanelControl{
 	{Keys: "typeahead", Action: "filter"},
 	{Keys: "↑↓", Action: "select"},
-	{Keys: "Enter", Action: "switch/start"},
+	{Keys: "Enter", Action: "switch/resume"},
 	{Keys: "Ctrl-Space", Action: "start"},
+	{Keys: "Alt+x", Action: "park/leave"},
 	{Keys: "Escape", Action: "clear/back"},
 }
 
@@ -142,7 +143,7 @@ func (m *PanelModel) BindTargets(targets []PanelTarget) {
 		byAddress[key] = joined
 	}
 	for i := range m.all {
-		if target, ok := byAddress[m.all[i].Address]; ok {
+		if target, ok := byAddress[m.all[i].Address]; ok && m.all[i].Live {
 			m.all[i].Target = target.Target
 			m.all[i].Bell = target.Bell
 		}
@@ -268,17 +269,16 @@ func RenderPanel(rows []PanelRow, cursor int) string {
 		if i == cursor {
 			marker = "▸ "
 		}
-		state := " "
-		if !r.Live {
-			// A parked thread stays listed: it is exactly the one an operator
-			// loses track of.
-			state = "·"
+		if r.Live {
+			fmt.Fprintf(&b, "%s[live] %s", marker, sanitize(r.Label))
+		} else {
+			// Inactivity is durable history, not a transient "parked" mode. The
+			// same row is rendered before and after a Couch restart.
+			fmt.Fprintf(&b, "%s%s", marker, sanitize(r.Label))
 		}
-		bell := " "
 		if r.Bell {
-			bell = "*"
+			b.WriteString(" *")
 		}
-		fmt.Fprintf(&b, "%s%s%s %s", marker, state, bell, sanitize(r.Label))
 		if r.Desc != "" {
 			fmt.Fprintf(&b, "  — %s", sanitize(r.Desc))
 		}
@@ -315,13 +315,16 @@ func RenderPanelWithQuery(query string, rows []PanelRow, cursor int) string {
 // is satisfied by a list that does nothing, which is why the audit now also
 // requires each name to be reachable from a keystroke.
 func PanelActions() []string {
-	return []string{"start"}
+	return []string{"leave", "park", "resume", "start"}
 }
 
 // PanelActionKeys maps each action to the key that invokes it, so the audit can
 // check the action is reachable rather than merely declared.
 func PanelActionKeys() map[string][]string {
 	return map[string][]string{
-		"start": {"Ctrl-Space", "Enter parked"},
+		"start":  {"Ctrl-Space"},
+		"park":   {"Alt+x non-root"},
+		"leave":  {"Alt+x root"},
+		"resume": {"Enter inactive"},
 	}
 }

@@ -17,7 +17,11 @@ type LaunchArgs struct {
 	// AgentArgsFromCouch marks exact argv resolved by Couch rather than typed
 	// by the operator. Pair must use them without rewriting the repo default.
 	AgentArgsFromCouch bool
-	Layout             LayoutRequest
+	// ResumeRequired carries trusted Couch authority. Pair must revalidate the
+	// exact native root at launch and may never fall back to a fresh session.
+	ResumeRequired    bool
+	RequiredSessionID string
+	Layout            LayoutRequest
 
 	// rename (#99 M5b): `pair rename [--restart-check] <old> <new>`. Raw tags —
 	// validated exactly + gated in runRename so it owns operator-facing messages.

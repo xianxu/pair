@@ -4,6 +4,7 @@ import (
 	"time"
 
 	"github.com/xianxu/pair/cmd/internal/launcher"
+	"github.com/xianxu/pair/cmd/internal/pairlifecycle"
 	"github.com/xianxu/pair/cmd/internal/threadrecord"
 )
 
@@ -47,18 +48,23 @@ type ThreadIncarnation struct {
 }
 
 type ThreadRecord struct {
-	SchemaVersion    int                 `json:"schema_version"`
-	Address          ThreadAddress       `json:"address"`
-	StartingPath     string              `json:"starting_path"`
-	WorkingPath      string              `json:"working_path"`
-	CreatedAt        time.Time           `json:"created_at"`
-	Revision         uint64              `json:"revision"`
-	ClaimGeneration  uint64              `json:"claim_generation"`
-	Reservation      bool                `json:"reservation,omitempty"`
-	Name             string              `json:"name,omitempty"`
-	Description      string              `json:"description,omitempty"`
-	PublishedSummary string              `json:"published_summary,omitempty"`
-	Incarnations     []ThreadIncarnation `json:"incarnations,omitempty"`
+	SchemaVersion       int                 `json:"schema_version"`
+	Address             ThreadAddress       `json:"address"`
+	StartingPath        string              `json:"starting_path"`
+	WorkingPath         string              `json:"working_path"`
+	CreatedAt           time.Time           `json:"created_at"`
+	Revision            uint64              `json:"revision"`
+	ClaimGeneration     uint64              `json:"claim_generation"`
+	Reservation         bool                `json:"reservation,omitempty"`
+	Name                string              `json:"name,omitempty"`
+	Description         string              `json:"description,omitempty"`
+	PublishedSummary    string              `json:"published_summary,omitempty"`
+	Incarnations        []ThreadIncarnation `json:"incarnations,omitempty"`
+	LatestLaunchProfile *LaunchProfile      `json:"latest_launch_profile,omitempty"`
+	LastActiveAt        time.Time           `json:"last_active_at,omitempty"`
+	Park                *ParkTransaction    `json:"park,omitempty"`
+	VerifiedPark        *VerifiedPark       `json:"verified_park,omitempty"`
+	ParkHistory         []ParkTransaction   `json:"park_history,omitempty"`
 }
 
 var threadRecordValidators = threadrecord.Validators{
@@ -85,6 +91,27 @@ func toPersistedThreadRecord(record ThreadRecord) threadrecord.Record {
 		Revision: record.Revision, ClaimGeneration: record.ClaimGeneration, Reservation: record.Reservation,
 		Name: record.Name, Description: record.Description, PublishedSummary: record.PublishedSummary,
 		Incarnations: make([]threadrecord.Incarnation, len(record.Incarnations)),
+	}
+	if record.LatestLaunchProfile != nil {
+		profile := cloneLaunchProfile(*record.LatestLaunchProfile)
+		out.LatestLaunchProfile = &threadrecord.LaunchProfile{Agent: profile.Agent, Argv: profile.Argv}
+	}
+	out.LastActiveAt = record.LastActiveAt
+	if record.Park != nil {
+		park := toPersistedParkTransaction(*record.Park)
+		out.Park = &park
+	}
+	if record.VerifiedPark != nil {
+		out.VerifiedPark = &threadrecord.VerifiedPark{
+			Identity: toPersistedParkIdentity(record.VerifiedPark.Identity),
+			Attempt:  record.VerifiedPark.Attempt, ParkedAt: record.VerifiedPark.ParkedAt,
+		}
+	}
+	if record.ParkHistory != nil {
+		out.ParkHistory = make([]threadrecord.ParkTransaction, len(record.ParkHistory))
+		for i := range record.ParkHistory {
+			out.ParkHistory[i] = toPersistedParkTransaction(record.ParkHistory[i])
+		}
 	}
 	for i, incarnation := range record.Incarnations {
 		out.Incarnations[i] = threadrecord.Incarnation{
@@ -124,6 +151,27 @@ func fromPersistedThreadRecord(record threadrecord.Record) ThreadRecord {
 		Revision: record.Revision, ClaimGeneration: record.ClaimGeneration, Reservation: record.Reservation,
 		Name: record.Name, Description: record.Description, PublishedSummary: record.PublishedSummary,
 		Incarnations: make([]ThreadIncarnation, len(record.Incarnations)),
+	}
+	if record.LatestLaunchProfile != nil {
+		profile := LaunchProfile{Agent: record.LatestLaunchProfile.Agent, Argv: cloneArgv(record.LatestLaunchProfile.Argv)}
+		out.LatestLaunchProfile = &profile
+	}
+	out.LastActiveAt = record.LastActiveAt
+	if record.Park != nil {
+		park := fromPersistedParkTransaction(*record.Park)
+		out.Park = &park
+	}
+	if record.VerifiedPark != nil {
+		out.VerifiedPark = &VerifiedPark{
+			Identity: fromPersistedParkIdentity(record.VerifiedPark.Identity),
+			Attempt:  record.VerifiedPark.Attempt, ParkedAt: record.VerifiedPark.ParkedAt,
+		}
+	}
+	if record.ParkHistory != nil {
+		out.ParkHistory = make([]ParkTransaction, len(record.ParkHistory))
+		for i := range record.ParkHistory {
+			out.ParkHistory[i] = fromPersistedParkTransaction(record.ParkHistory[i])
+		}
 	}
 	for i, incarnation := range record.Incarnations {
 		out.Incarnations[i] = ThreadIncarnation{
@@ -176,5 +224,72 @@ func cloneThreadRecord(record ThreadRecord) ThreadRecord {
 			copy.Incarnations[i].LaunchProfile = &profile
 		}
 	}
+	if record.LatestLaunchProfile != nil {
+		profile := cloneLaunchProfile(*record.LatestLaunchProfile)
+		copy.LatestLaunchProfile = &profile
+	}
+	if record.Park != nil {
+		park := cloneParkTransaction(*record.Park)
+		copy.Park = &park
+	}
+	if record.VerifiedPark != nil {
+		verified := *record.VerifiedPark
+		copy.VerifiedPark = &verified
+	}
+	if record.ParkHistory != nil {
+		copy.ParkHistory = make([]ParkTransaction, len(record.ParkHistory))
+		for i := range record.ParkHistory {
+			copy.ParkHistory[i] = cloneParkTransaction(record.ParkHistory[i])
+		}
+	}
 	return copy
+}
+
+func toPersistedParkIdentity(identity ParkIdentity) threadrecord.ParkIdentity {
+	return threadrecord.ParkIdentity{
+		Nonce: identity.Nonce, Address: toPersistedThreadAddress(identity.Address),
+		PID: identity.PID, ProcessIdentity: identity.ProcessIdentity,
+	}
+}
+
+func fromPersistedParkIdentity(identity threadrecord.ParkIdentity) ParkIdentity {
+	return ParkIdentity{
+		Nonce:   identity.Nonce,
+		Address: ThreadAddress{RepoScope: identity.Address.RepoScope, Tag: ThreadTag(identity.Address.Tag)},
+		PID:     identity.PID, ProcessIdentity: identity.ProcessIdentity,
+	}
+}
+
+func toPersistedParkTransaction(transaction ParkTransaction) threadrecord.ParkTransaction {
+	out := threadrecord.ParkTransaction{
+		Identity:     toPersistedParkIdentity(transaction.Identity),
+		BaseRevision: transaction.BaseRevision, RecordRevision: transaction.RecordRevision,
+		Phase: string(transaction.Phase), Closed: transaction.Closed,
+		Tombstoned: transaction.Tombstoned, SuccessfulAttempt: transaction.SuccessfulAttempt,
+		Attempts: make([]threadrecord.ParkAttempt, len(transaction.Attempts)),
+	}
+	for i, attempt := range transaction.Attempts {
+		out.Attempts[i] = threadrecord.ParkAttempt{Number: attempt.Number, TimedOut: attempt.TimedOut, Closed: attempt.Closed}
+		if attempt.Failure != nil {
+			out.Attempts[i].Failure = &threadrecord.ParkFailure{Code: string(attempt.Failure.Code), Diagnostic: attempt.Failure.Diagnostic}
+		}
+	}
+	return out
+}
+
+func fromPersistedParkTransaction(transaction threadrecord.ParkTransaction) ParkTransaction {
+	out := ParkTransaction{
+		Identity:     fromPersistedParkIdentity(transaction.Identity),
+		BaseRevision: transaction.BaseRevision, RecordRevision: transaction.RecordRevision,
+		Phase: ParkPhase(transaction.Phase), Closed: transaction.Closed,
+		Tombstoned: transaction.Tombstoned, SuccessfulAttempt: transaction.SuccessfulAttempt,
+		Attempts: make([]ParkAttempt, len(transaction.Attempts)),
+	}
+	for i, attempt := range transaction.Attempts {
+		out.Attempts[i] = ParkAttempt{Number: attempt.Number, TimedOut: attempt.TimedOut, Closed: attempt.Closed}
+		if attempt.Failure != nil {
+			out.Attempts[i].Failure = &ParkFailure{Code: pairlifecycle.FailureCode(attempt.Failure.Code), Diagnostic: attempt.Failure.Diagnostic}
+		}
+	}
+	return out
 }

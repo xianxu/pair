@@ -144,8 +144,8 @@ when no continuation arrives.
 The panel is couch's own screen. It owns input while visible, suppresses
 background-child painting, and has one flat interaction language. Printable
 input—including colons and digits—is typeahead; arrows move selection; Enter
-forces the selected live actor's clear-and-replay attach path or starts a
-selected parked worktree; Escape clears the filter or returns. Ctrl-Space from
+forces the selected live actor's clear-and-replay attach path or resumes the
+selected verified-parked thread; Escape clears the filter or returns. Ctrl-Space from
 the panel opens the start-path input, and Ctrl-Space inside that input is inert.
 `start` dispatches through `DispatchOperation`; its returned `StartResult`
 is load-bearing because a separately declared typed `attach` operation joins
@@ -156,8 +156,33 @@ retain filter and selection and report through the notice feed.
 The row state is three-way: a local-live row has a console routing target and
 Enter switches to it; a remote-live row is present in the global summary but
 has no local target and reports that #147 transport is required; only a
-non-live parked row dispatches `start`. Liveness and local routing capability
+non-live historical row dispatches `resume`. Active rows name `[live]`;
+inactive rows carry no `[parked]` mode label and render identically before and
+after Couch restart. Ephemeral console targets bind only to durable live rows,
+so a stale child handle cannot turn an inactive row's Enter into switch. If
+Park removes the final actor while the panel owns focus, the
+console remains on that resumable row; Escape with no actor returns to the
+parent shell. When the active actor exits and another remains, the console
+promotes its current root as the active target so panel Alt+x never addresses
+an empty routing slot. Alt+x on a non-root actor parks only that actor. Alt+x
+on the root is the typed `leave` operation: confirm immediately, park every
+active/parking thread sequentially, and close the console only after all parks
+have durable successful completion and the exact Pair child identity is dead.
+Any failure leaves Couch open and the failed transaction occupied for recovery.
+Liveness and local routing capability
 are deliberately separate facts (ARCH-PURPOSE).
+
+The park trigger writes the exact typed quit intent and then deletes only the
+indexed Pair/Zellij session. That deletion returns Pair's blocking handoff so
+Pair can consume the intent and execute its shared full-quit cleanup. Couch
+polls under a 15-second operation deadline for both the matching durable
+completion and death (or PID-identity replacement) of the exact recorded Pair
+child; completion alone never finalizes. Construction performs no active-park
+session observation or reconciliation. After the live owner is composed, one
+context-bound worker serially performs durable reconciliation plus external
+Pair/Zellij recovery; blocked observation or teardown therefore cannot delay
+startup or fan out across pending parks
+(ARCH-PURE, ARCH-MOCK, ARCH-CONSTRAINTS).
 
 There is no numbered jump or `:` command state. Tab/thread actions are deferred
 to #151 after #149 provides the durable work-thread identity those actions
@@ -183,6 +208,29 @@ name-first, while `show` always includes the full immutable composite address
 for diagnostics.
 
 ## Exit, detach, and terminal lifecycle
+
+Pair Alt+x and Couch Park share one typed full-quit cleanup implementation.
+Couch persists a nonce-bound park transaction before publishing or triggering
+the request; only a matching durable completion plus final ThreadStore CAS
+removes the incarnation. Timeout, stale evidence, replacement, and child exit
+remain occupied. Couch derives both Alt+x terminal encodings from Pair's
+canonical chord table, renders confirmation first, and submits confirmed work
+through the `PairLifecycleController`'s bounded, capacity-one worker. Startup
+recovery, Park, Retry, Recover, Abandon, and Leave all enter that same boundary;
+same-address/same-nonce overlap shares one future, while other work overloads
+without lifecycle effects. Alt+d remains Pair-local detach and is not a Couch
+operation.
+
+Resume accepts only verified park. It atomically records a creating/start claim
+on the same `{repo_scope, tag}`, reuses the exact saved working path, agent argv,
+and established #155 native root, and read-only validates Pair's existing
+established address marker. It rechecks that root immediately before child
+effects. Verified park is cleared only after the exact Pair session registers;
+ambiguous execution remains occupied/unknown. `couch resume <ref>` is, alongside
+new-thread `start`, a singleton bootstrap entrypoint: after Leave Couch it takes
+the owner lease and terminal, resumes that exact thread, and makes it the new
+root console. It never creates an intervening actor whose admission could block
+the parked thread (ARCH-PURPOSE, ARCH-PURE).
 
 Every hosted pane retains three identities with separate jobs: the pty handle
 routes bytes inside this console, `ActorID` addresses registry persistence and
@@ -210,9 +258,13 @@ and a new couch deterministically reattaches. `pair#147` transport is not on
 that path.
 
 Console teardown has one owner. Normal stop, last-child exit, SIGTERM, and
-SIGHUP all reset the scrolling region, clear the reserved row, leave alternate
-screen, restore/show the cursor, restore raw mode, stop host event sources,
-close the blocking input seam, and join console workers before returning.
+SIGHUP all revoke child-enabled mouse/focus/paste/synchronized-output/extended-
+keyboard modes, reset the scrolling region, clear the reserved row, leave
+alternate screen, restore/show the cursor, restore raw mode, stop host event
+sources, close the blocking input seam, and join console workers before
+returning. This explicit reset is required because restoring termios does not
+disable terminal-emulator private modes; otherwise mouse movement after Leave
+types SGR reports into the returned shell.
 `hostty.TerminationHost` is optional because couch consumes process termination
 while the other `hostty.Host` consumer, `pair term`, owns lifecycle elsewhere.
 

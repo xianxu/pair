@@ -1,10 +1,55 @@
 package couchcore
 
 import (
+	"reflect"
 	"strings"
 	"testing"
 	"time"
 )
+
+func TestThreadRecordLifecycleConvertersAndClonesAreDefensive(t *testing.T) {
+	record := validThreadRecord(t)
+	record.Incarnations = []ThreadIncarnation{{
+		PID: 42, Identity: "helper", State: IncarnationLive,
+		LaunchProfile: &LaunchProfile{Agent: "codex", Argv: []string{"--sandbox", "workspace-write"}},
+	}}
+	record.LatestLaunchProfile = &LaunchProfile{Agent: "codex", Argv: []string{"--sandbox", "workspace-write"}}
+	record.LastActiveAt = time.Unix(2, 0).UTC()
+	record.Park = &ParkTransaction{
+		Identity: ParkIdentity{
+			Nonce: "park-0123456789abcdef", Address: record.Address,
+			PID: 42, ProcessIdentity: "helper",
+		},
+		BaseRevision: 1, RecordRevision: 2, Phase: ParkRequested,
+		Attempts: []ParkAttempt{{Number: 1, Failure: &ParkFailure{Code: "request_publish_failed", Diagnostic: "disk full"}}},
+	}
+	record.ParkHistory = []ParkTransaction{{
+		Identity: ParkIdentity{
+			Nonce: "park-fedcba9876543210", Address: record.Address,
+			PID: 41, ProcessIdentity: "old-helper",
+		},
+		BaseRevision: 1, RecordRevision: 2, Phase: ParkUnknown,
+		Attempts: []ParkAttempt{{Number: 1}}, Closed: true, Tombstoned: true,
+	}}
+
+	persisted := toPersistedThreadRecord(record)
+	roundTrip := fromPersistedThreadRecord(persisted)
+	if !reflect.DeepEqual(roundTrip, record) {
+		t.Fatalf("round trip = %#v, want %#v", roundTrip, record)
+	}
+
+	cloned := cloneThreadRecord(record)
+	cloned.LatestLaunchProfile.Argv[0] = "changed"
+	cloned.Park.Identity.Nonce = "changed"
+	cloned.Park.Attempts[0].Failure.Diagnostic = "changed"
+	cloned.ParkHistory[0].Attempts[0].Number = 99
+	if record.LatestLaunchProfile.Argv[0] != "--sandbox" ||
+		record.Park.Identity.Nonce != "park-0123456789abcdef" ||
+		record.Park.Attempts[0].Failure.Diagnostic != "disk full" ||
+		record.ParkHistory[0].Attempts[0].Number != 1 {
+		t.Fatalf("clone aliased lifecycle input: %+v", record)
+	}
+}
 
 func validThreadRecord(t *testing.T) ThreadRecord {
 	t.Helper()

@@ -32,14 +32,51 @@ type Couch struct {
 	Threads          *ThreadStore
 	Entropy          io.Reader
 	Artifacts        ThreadArtifactController
+	PairLifecycle    *PairLifecycleController
 	RootAgent        string
 	RepoAgentDefault func(repoRoot, agent string) (LaunchProfile, bool, error)
 
-	reg                   Registry
-	names                 NamingTable
-	postAckQuiesceTimeout time.Duration
-	postAckRetryDelay     time.Duration
-	sleep                 func(time.Duration)
+	reg                       Registry
+	names                     NamingTable
+	postAckQuiesceTimeout     time.Duration
+	postAckRetryDelay         time.Duration
+	resumeRegistrationTimeout time.Duration
+	sleep                     func(time.Duration)
+}
+
+// ReconcileActiveParks performs an explicit active-park reconciliation pass.
+// It may query external Pair/Zellij state, so constructors must never call it;
+// interactive composition uses the context-bound RecoverActiveParks worker.
+func (c *Couch) ReconcileActiveParks(ctx context.Context) error {
+	if c == nil || c.PairLifecycle == nil {
+		return errors.New("Couch Pair lifecycle controller is unavailable")
+	}
+	return c.PairLifecycle.ReconcileActive(ctx)
+}
+
+// RecoverActiveParks performs the blocking half of restart recovery serially.
+// The composition root runs it in one context-bound worker after construction,
+// so external Pair/Zellij teardown can never delay startup or fan out.
+func (c *Couch) RecoverActiveParks(ctx context.Context) error {
+	if c == nil || c.PairLifecycle == nil {
+		return errors.New("Couch Pair lifecycle controller is unavailable")
+	}
+	snapshot, err := c.Threads.Snapshot()
+	if err != nil {
+		return err
+	}
+	var result error
+	for _, record := range snapshot.Records {
+		if record.Park == nil {
+			continue
+		}
+		_, recoverErr := c.PairLifecycle.Recover(ctx, record.Address)
+		result = errors.Join(result, recoverErr)
+		if ctx.Err() != nil {
+			break
+		}
+	}
+	return result
 }
 
 func New(namespace CouchNamespace, r Runner, p PathOps, g GitRunner, proc ProcOps, s Store, c Clock, ids IDGen, resolver PolicyResolver, entropy io.Reader, artifacts ThreadArtifactController) (*Couch, error) {
@@ -76,12 +113,23 @@ func New(namespace CouchNamespace, r Runner, p PathOps, g GitRunner, proc ProcOp
 		Threads:        threads, Entropy: entropy,
 		Artifacts: artifacts,
 		reg:       reg, names: names,
-		postAckQuiesceTimeout: 500 * time.Millisecond,
-		postAckRetryDelay:     100 * time.Millisecond,
-		sleep:                 time.Sleep,
+		postAckQuiesceTimeout:     500 * time.Millisecond,
+		postAckRetryDelay:         100 * time.Millisecond,
+		resumeRegistrationTimeout: 5 * time.Second,
+		sleep:                     time.Sleep,
 	}
 	if err := result.reconcileInterruptedStarts(); err != nil {
 		return nil, fmt.Errorf("reconcile interrupted starts: %w", err)
+	}
+	if environment, ok := artifacts.(PairLifecycleEnvironment); ok {
+		result.PairLifecycle = &PairLifecycleController{
+			Threads: result.Threads, DataDir: environment.PairLifecycleDataDir(),
+			Lifecycle: environment.PairLifecycleIO(), Sessions: environment,
+			Proc: result.Proc, Clock: result.Clock,
+			Nonce:             func() (string, error) { return allocateParkNonce(result.Entropy) },
+			CompletionTimeout: 15 * time.Second,
+			PollInterval:      25 * time.Millisecond,
+		}
 	}
 	return result, nil
 }
@@ -198,11 +246,6 @@ func (c *Couch) Spawn(args StartArgs) (ActorRecord, Handle, error) {
 	//
 	// This is a deliberate slice of #149, which makes the tag the space's
 	// durable identity; #146 needs only that re-entry is deterministic.
-	argv := []string{"pair", "resume", string(thread.Address.Tag), "--layout2"}
-	// The child is told which tree it is and where couch keeps state, so the
-	// agent inside it can publish its own one-line description. Without this
-	// the description cache has no source: an operator typing `couch describe`
-	// is not "agent-supplied".
 	profileRaw, err := launcher.BuildCouchLaunchProfile(
 		string(thread.Address.Tag), profile.Profile.Agent, profile.Profile.Argv,
 		string(profile.AgentSource), string(profile.ArgvSource),
@@ -210,78 +253,10 @@ func (c *Couch) Spawn(args StartArgs) (ActorRecord, Handle, error) {
 	if err != nil {
 		return ActorRecord{}, nil, errors.Join(err, c.rollbackTrackedStart(thread, nonce))
 	}
-	env := []string{
-		"COUCH_TREE=" + string(tree),
-		"COUCH_STORE_DIR=" + c.Namespace.Dir(),
-		"COUCH_THREAD_SCOPE=" + thread.Address.RepoScope,
-		"COUCH_THREAD_TAG=" + string(thread.Address.Tag),
-		launcher.CouchLaunchProfileEnv + "=" + strings.TrimSpace(profileRaw),
-		"PAIR_USE_REPO_DEFAULT=",
-	}
-	if profile.ArgvSource == ArgvSourceRepoDefault {
-		env[len(env)-1] = "PAIR_USE_REPO_DEFAULT=1"
-	}
-	h, err := c.Runner.StartBlocked(args.WorkingDir(), argv, env, 10*time.Second)
-	if err != nil {
-		return ActorRecord{}, nil, errors.Join(
-			fmt.Errorf("spawn %s: %w", tree, err),
-			c.rollbackTrackedStart(thread, nonce),
-		)
-	}
-	recorded, err := c.Threads.AdvanceStart(thread.Address, thread.Revision, StartEvent{
-		Kind:   StartHelperRecorded,
-		Nonce:  nonce,
-		Helper: ProcessIdentity{PID: h.PID(), Identity: h.Identity()},
+	return c.launchTrackedThread(trackedThreadLaunch{
+		Thread: thread, Nonce: nonce, Args: args, StartedAt: startedAt,
+		ProfileRaw: profileRaw, UseRepoDefault: profile.ArgvSource == ArgvSourceRepoDefault,
 	})
-	if err != nil {
-		cancelErr := h.Cancel()
-		if cancelErr == nil {
-			_ = h.Wait()
-		}
-		var rollbackErr error
-		if cancelErr == nil && !h.Alive() {
-			rollbackErr = c.rollbackTrackedStart(thread, nonce)
-		}
-		return ActorRecord{}, h, errors.Join(fmt.Errorf("record blocked helper %+v: %w", thread.Address, err), cancelErr, rollbackErr)
-	}
-	thread = recorded
-	if err := h.Acknowledge(); err != nil {
-		// An acknowledgement error is transport-ambiguous: the byte may have
-		// reached the helper before a close error was reported. Treat every
-		// failed attempt as possibly delivered and take the post-ack quiescence
-		// path; Cancel cannot revoke a byte already consumed.
-		cause := fmt.Errorf("acknowledge blocked helper %+v: %w", thread.Address, err)
-		return ActorRecord{}, h, c.failPostAckStart(thread.Address, h, cause)
-	}
-	registrationContext, cancelRegistration := context.WithTimeout(context.Background(), 5*time.Second)
-	err = c.awaitThreadRegistration(registrationContext, thread.Address)
-	cancelRegistration()
-	if err != nil {
-		cause := fmt.Errorf("await Pair registration %+v: %w", thread.Address, err)
-		return ActorRecord{}, h, c.failPostAckStart(thread.Address, h, cause)
-	}
-	registeredThread, err := c.Threads.AdvanceStart(thread.Address, thread.Revision, StartEvent{Kind: StartRegistered, Nonce: nonce})
-	if err != nil {
-		cause := fmt.Errorf("promote registered thread %+v: %w", thread.Address, err)
-		return ActorRecord{}, h, c.failPostAckStart(thread.Address, h, cause)
-	}
-	thread = registeredThread
-
-	record := ActorRecord{
-		ID:        c.IDs.NewID(),
-		Thread:    thread.Address,
-		Args:      args,
-		StartedAt: startedAt,
-		PID:       h.PID(),
-		Identity:  h.Identity(),
-	}
-	c.reg = c.reg.Insert(record)
-
-	if err := c.Store.Save(c.reg, c.names); err != nil {
-		c.reg = c.reg.RemoveActor(args.Worktree, record.ID)
-		return record, h, c.failPostAckStart(thread.Address, h, fmt.Errorf("persist registry: %w", err))
-	}
-	return record, h, nil
 }
 
 func (c *Couch) resolveLaunchProfile(thread ThreadRecord, args StartArgs) (LaunchProfileResolution, error) {
@@ -443,6 +418,14 @@ func allocateStartNonce(entropy io.Reader) (string, error) {
 		return "", fmt.Errorf("allocate start nonce: %w", err)
 	}
 	return "start-" + hex.EncodeToString(random[:]), nil
+}
+
+func allocateParkNonce(entropy io.Reader) (string, error) {
+	var random [8]byte
+	if _, err := io.ReadFull(entropy, random[:]); err != nil {
+		return "", fmt.Errorf("allocate park nonce: %w", err)
+	}
+	return "park-" + hex.EncodeToString(random[:]), nil
 }
 
 func (c *Couch) rollbackUnforkedStart(thread ThreadRecord) error {

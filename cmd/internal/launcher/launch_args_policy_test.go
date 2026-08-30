@@ -5,6 +5,76 @@ import (
 	"testing"
 )
 
+func TestTrustedResumeProfileValidation(t *testing.T) {
+	validResume := TrustedLaunchProfile{
+		SchemaVersion: 1, Tag: "couch-0102030405060708", Agent: "codex", Argv: []string{},
+		AgentSource: "saved", ArgvSource: "saved", ResumeRequired: true, RequiredSessionID: "native-root-1",
+	}
+	if err := ValidateTrustedLaunchProfile(validResume); err != nil {
+		t.Fatalf("valid resume profile: %v", err)
+	}
+	if err := ValidateTrustedLaunchProfile(TrustedLaunchProfile{
+		SchemaVersion: 1, Tag: validResume.Tag, Agent: "claude", Argv: []string{},
+		AgentSource: "explicit", ArgvSource: "repo-default",
+	}); err != nil {
+		t.Fatalf("valid ordinary profile: %v", err)
+	}
+
+	tests := []struct {
+		name   string
+		mutate func(*TrustedLaunchProfile)
+	}{
+		{name: "required ID empty", mutate: func(p *TrustedLaunchProfile) { p.RequiredSessionID = "" }},
+		{name: "unsupported agent", mutate: func(p *TrustedLaunchProfile) { p.Agent = "other" }},
+		{name: "null argv", mutate: func(p *TrustedLaunchProfile) { p.Argv = nil }},
+		{name: "explicit agent source", mutate: func(p *TrustedLaunchProfile) { p.AgentSource = "explicit" }},
+		{name: "path agent source", mutate: func(p *TrustedLaunchProfile) { p.AgentSource = "path" }},
+		{name: "root agent source", mutate: func(p *TrustedLaunchProfile) { p.AgentSource = "root" }},
+		{name: "path argv source", mutate: func(p *TrustedLaunchProfile) { p.ArgvSource = "path" }},
+		{name: "repo default argv source", mutate: func(p *TrustedLaunchProfile) { p.ArgvSource = "repo-default" }},
+		{name: "ordinary carries required ID", mutate: func(p *TrustedLaunchProfile) {
+			p.ResumeRequired = false
+			p.AgentSource = "explicit"
+			p.ArgvSource = "path"
+		}},
+		{name: "ordinary carries saved sources", mutate: func(p *TrustedLaunchProfile) {
+			p.ResumeRequired = false
+			p.RequiredSessionID = ""
+		}},
+	}
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			profile := validResume
+			profile.Argv = append([]string(nil), validResume.Argv...)
+			test.mutate(&profile)
+			if err := ValidateTrustedLaunchProfile(profile); err == nil {
+				t.Fatalf("accepted %+v", profile)
+			}
+		})
+	}
+}
+
+func TestBuildAndApplyTrustedResumeProfileCarriesRequiredIdentity(t *testing.T) {
+	raw, err := BuildCouchResumeLaunchProfile(
+		"couch-0102030405060708", "muse", []string{"--model", "spark"}, "native-root-1",
+	)
+	if err != nil {
+		t.Fatal(err)
+	}
+	args, err := ParseArgs([]string{"resume", "couch-0102030405060708", "--layout2"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	got, source, err := ApplyCouchLaunchProfile(args, raw)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !got.ResumeRequired || got.RequiredSessionID != "native-root-1" || source != "saved" ||
+		got.Agent != "muse" || !reflect.DeepEqual(got.AgentArgs, []string{"--model", "spark"}) {
+		t.Fatalf("applied resume profile = %+v, source=%q", got, source)
+	}
+}
+
 func TestDecideLaunchArgsExplicitArgsWinAndPersist(t *testing.T) {
 	got := DecideLaunchArgs(LaunchArgInputs{
 		Agent: "codex",

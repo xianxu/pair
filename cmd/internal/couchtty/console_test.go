@@ -149,6 +149,12 @@ func TestActiveChildExitFocusesPanelRecordsCauseAndForgetsActor(t *testing.T) {
 	if got := f.host.Written(); !strings.Contains(got, "brain") || !strings.Contains(got, "7") {
 		t.Fatalf("exit landing does not name actor and code: %q", got)
 	}
+	f.con.mu.Lock()
+	active := f.con.active
+	f.con.mu.Unlock()
+	if active != "c2" {
+		t.Fatalf("active target after root exit = %q, want remaining actor c2", active)
+	}
 	select {
 	case code := <-f.done:
 		t.Fatalf("console exited with %d while another child remained", code)
@@ -380,6 +386,29 @@ func TestConsoleRestoresTheTerminalOnTeardownMidStream(t *testing.T) {
 	assertConsoleRestored(t, f)
 }
 
+func TestConsoleRevokesChildMouseModeBeforeReturningToShell(t *testing.T) {
+	f := newFixture(t, 24, 80)
+	waitFor(t, "the console to start", func() bool { return len(f.child.Resizes()) > 0 })
+	f.child.Feed([]byte("\x1b[?1003;1006h"))
+	waitFor(t, "child mouse mode to reach host", func() bool {
+		return strings.Contains(f.host.Written(), "\x1b[?1003;1006h")
+	})
+
+	f.con.Stop()
+	select {
+	case <-f.done:
+	case <-time.After(3 * time.Second):
+		t.Fatal("Run() did not return after Stop")
+	}
+	written := f.host.Written()
+	enabled := strings.Index(written, "\x1b[?1003;1006h")
+	disabled := strings.LastIndex(written, hostty.ResetInteractiveModes)
+	if enabled < 0 || disabled <= enabled {
+		t.Fatalf("mouse reset did not follow child enable: %q", written)
+	}
+	assertConsoleRestored(t, f)
+}
+
 func TestConsoleRestoresTheTerminalOnTerminationSignal(t *testing.T) {
 	for _, sig := range []syscall.Signal{syscall.SIGTERM, syscall.SIGHUP} {
 		t.Run(sig.String(), func(t *testing.T) {
@@ -409,6 +438,7 @@ func assertConsoleRestored(t *testing.T, f *consoleFixture) {
 		"saved cursor restore":  hostty.RestoreCursor,
 		"alternate-screen exit": hostty.LeaveAltScreen,
 		"cursor visibility":     hostty.ShowCursor,
+		"interactive modes off": hostty.ResetInteractiveModes,
 	} {
 		if !strings.Contains(written, want) {
 			t.Errorf("missing %s %q in teardown %q", name, want, written)
@@ -808,7 +838,7 @@ func TestHotkeyFromTheRootActorOpensThePanel(t *testing.T) {
 		return strings.Contains(f.host.Written(), "couch — actors")
 	})
 	got := f.host.Written()
-	for _, want := range []string{"▸    brain", "     ariadne"} {
+	for _, want := range []string{"▸ [live] brain", "  [live] ariadne"} {
 		if !strings.Contains(got, want) {
 			t.Fatalf("the panel does not list %q: %q", want, got)
 		}
@@ -1059,13 +1089,13 @@ func TestPanelArrowsMoveTheSelection(t *testing.T) {
 
 	_, _ = f.stdin.Write([]byte("\x00"))
 	waitFor(t, "the panel", func() bool {
-		return strings.Contains(f.host.Written(), "▸    brain")
+		return strings.Contains(f.host.Written(), "▸ [live] brain")
 	})
 	f.host.Reset()
 
 	_, _ = f.stdin.Write([]byte("\x1b[B")) // down
 	waitFor(t, "the highlight to move", func() bool {
-		return strings.Contains(f.host.Written(), "▸    ariadne")
+		return strings.Contains(f.host.Written(), "▸ [live] ariadne")
 	})
 	f.host.Reset()
 
@@ -1091,7 +1121,7 @@ func TestPanelShowsTheBellMarker(t *testing.T) {
 
 	_, _ = f.stdin.Write([]byte("\x00"))
 	waitFor(t, "the panel to mark it", func() bool {
-		return strings.Contains(f.host.Written(), "* ariadne")
+		return strings.Contains(f.host.Written(), "[live] ariadne *")
 	})
 }
 
@@ -1139,11 +1169,11 @@ func TestPanelNavigationWorksInBothEncodings(t *testing.T) {
 
 			_, _ = f.stdin.Write([]byte("\x00"))
 			waitFor(t, "the panel", func() bool {
-				return strings.Contains(f.host.Written(), "▸    brain")
+				return strings.Contains(f.host.Written(), "▸ [live] brain")
 			})
 			_, _ = f.stdin.Write([]byte(keys.down))
 			waitFor(t, "the highlight to move", func() bool {
-				return strings.Contains(f.host.Written(), "▸    ariadne")
+				return strings.Contains(f.host.Written(), "▸ [live] ariadne")
 			})
 			_, _ = f.stdin.Write([]byte(keys.enter))
 			waitFor(t, "Enter to switch", func() bool {

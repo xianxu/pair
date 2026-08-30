@@ -37,6 +37,15 @@ const (
 	// may die or couch may be signalled before it emits its own paired restore.
 	LeaveAltScreen = "\x1b[?1049l"
 	ShowCursor     = "\x1b[?25h"
+
+	// ResetInteractiveModes returns input/display handling to a shell-safe
+	// baseline after Couch has replayed a child's terminal modes. Raw termios
+	// restoration does not revoke DEC private modes: without this, any-event
+	// mouse tracking makes ordinary pointer movement type SGR escape bytes into
+	// the returned shell. The grouped DECRST also disables legacy/SGR/pixel
+	// mouse encodings, focus events, alternate scroll, bracketed paste, and
+	// synchronized output. CSI = 0 u disables Kitty extended-key reporting.
+	ResetInteractiveModes = "\x1b[?9;1000;1001;1002;1003;1004;1005;1006;1007;1015;1016;2004;2026l\x1b[=0u"
 )
 
 // SetRegion pins the scrolling region to rows top..bottom (1-based, inclusive).

@@ -100,3 +100,45 @@ func TestDispatchOperationRejectsEmptyValueRequiredArgumentBeforeExecutor(t *tes
 		t.Fatalf("invalid operation reached executor %d time(s)", calls)
 	}
 }
+
+func TestResumeOperationResolutionBoundary(t *testing.T) {
+	env := newTestEnv(t, "/repo")
+	first := validThreadRecord(t)
+	first.Name = "shared"
+	first.WorkingPath = "/repo/shared-one"
+	first.StartingPath = "/repo"
+	created, err := env.Couch.Threads.CreateThread(first)
+	if err != nil {
+		t.Fatal(err)
+	}
+	second := cloneThreadRecord(first)
+	second.Address.Tag = "couch-fedcba9876543210"
+	second.WorkingPath = "/repo/shared-two"
+	second.Revision = 1
+	if _, err := env.Couch.Threads.CreateThread(second); err != nil {
+		t.Fatal(err)
+	}
+
+	exact, err := resolveOperationThread(env.Couch, map[string]string{
+		"repo-scope": created.Address.RepoScope, "tag": string(created.Address.Tag),
+	})
+	if err != nil || exact != created.Address {
+		t.Fatalf("exact resolution = %+v, %v", exact, err)
+	}
+	if _, err := resolveOperationThread(env.Couch, map[string]string{
+		"repo-scope": created.Address.RepoScope, "ref": "shared",
+	}); err == nil {
+		t.Fatal("ambiguous resume reference reached execution")
+	}
+
+	calls := 0
+	_, err = DispatchOperation(OperationExecutors{LiveOwner: func(OperationCall) (any, error) {
+		calls++
+		return nil, nil
+	}}, OperationCall{Name: "resume", Args: map[string]string{
+		"repo-scope": created.Address.RepoScope, "tag": string(created.Address.Tag),
+	}})
+	if err == nil || calls != 0 {
+		t.Fatalf("untrusted exact address = calls %d, err %v", calls, err)
+	}
+}

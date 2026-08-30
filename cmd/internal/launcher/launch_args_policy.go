@@ -3,45 +3,64 @@ package launcher
 import (
 	"bytes"
 	"encoding/json"
+	"errors"
 	"fmt"
 
+	"github.com/xianxu/pair/cmd/internal/sessioninventory"
 	"github.com/xianxu/pair/cmd/internal/strictjson"
 )
 
 const CouchLaunchProfileEnv = "PAIR_COUCH_LAUNCH_PROFILE"
 
-type couchLaunchProfileWire struct {
-	SchemaVersion int      `json:"schema_version"`
-	Tag           string   `json:"tag"`
-	Agent         string   `json:"agent"`
-	Argv          []string `json:"argv"`
-	AgentSource   string   `json:"agent_source"`
-	ArgvSource    string   `json:"argv_source"`
+type LaunchDiagnosticCode string
+
+const NativeBindingChanged LaunchDiagnosticCode = "native-binding-changed"
+
+type LaunchRefusal struct {
+	Code       LaunchDiagnosticCode
+	Diagnostic string
+}
+
+func (e *LaunchRefusal) Error() string {
+	return fmt.Sprintf("%s: %s", e.Code, e.Diagnostic)
+}
+
+func LaunchDiagnosticOf(err error) LaunchDiagnosticCode {
+	var refusal *LaunchRefusal
+	if errors.As(err, &refusal) {
+		return refusal.Code
+	}
+	return ""
+}
+
+func RequireNativeResumeBinding(required, actual string, status sessioninventory.BindingStatus) error {
+	if required == "" || status != sessioninventory.BindingEstablished || actual == "" || actual != required {
+		return &LaunchRefusal{Code: NativeBindingChanged, Diagnostic: "required native session binding changed before launch"}
+	}
+	return nil
+}
+
+type TrustedLaunchProfile struct {
+	SchemaVersion     int      `json:"schema_version"`
+	Tag               string   `json:"tag"`
+	Agent             string   `json:"agent"`
+	Argv              []string `json:"argv"`
+	AgentSource       string   `json:"agent_source"`
+	ArgvSource        string   `json:"argv_source"`
+	ResumeRequired    bool     `json:"resume_required,omitempty"`
+	RequiredSessionID string   `json:"required_session_id,omitempty"`
 }
 
 func BuildCouchLaunchProfile(tag, agent string, argv []string, agentSource, argvSource string) (string, error) {
-	profile := couchLaunchProfileWire{
+	profile := TrustedLaunchProfile{
 		SchemaVersion: 1, Tag: tag, Agent: agent, Argv: append([]string(nil), argv...),
 		AgentSource: agentSource, ArgvSource: argvSource,
 	}
 	if profile.Argv == nil {
 		profile.Argv = []string{}
 	}
-	if !IsSupportedAgent(agent) {
-		return "", fmt.Errorf("unsupported couch launch agent %q", agent)
-	}
-	if tag == "" {
-		return "", fmt.Errorf("couch launch profile has no tag")
-	}
-	switch agentSource {
-	case "explicit", "path", "root":
-	default:
-		return "", fmt.Errorf("unsupported couch agent source %q", agentSource)
-	}
-	switch argvSource {
-	case "path", "repo-default":
-	default:
-		return "", fmt.Errorf("unsupported couch argv source %q", argvSource)
+	if err := ValidateTrustedLaunchProfile(profile); err != nil {
+		return "", err
 	}
 	var buf bytes.Buffer
 	enc := json.NewEncoder(&buf)
@@ -52,31 +71,76 @@ func BuildCouchLaunchProfile(tag, agent string, argv []string, agentSource, argv
 	return buf.String(), nil
 }
 
-// ApplyCouchLaunchProfile binds one trusted, tag-addressed Couch resolution to
-// Pair's ordinary launch policy without exposing a second public CLI grammar.
-func ApplyCouchLaunchProfile(args LaunchArgs, raw string) (LaunchArgs, string, error) {
-	var profile couchLaunchProfileWire
-	if err := strictjson.Decode([]byte(raw), &profile); err != nil {
-		return LaunchArgs{}, "", fmt.Errorf("decode couch launch profile: %w", err)
-	}
-	if profile.SchemaVersion != 1 || args.ForcedTag == "" || profile.Tag != args.ForcedTag {
-		return LaunchArgs{}, "", fmt.Errorf("couch launch profile does not match forced tag %q", args.ForcedTag)
-	}
-	if !IsSupportedAgent(profile.Agent) {
-		return LaunchArgs{}, "", fmt.Errorf("unsupported couch launch agent %q", profile.Agent)
+func BuildCouchResumeLaunchProfile(tag, agent string, argv []string, requiredSessionID string) (string, error) {
+	profile := TrustedLaunchProfile{
+		SchemaVersion: 1, Tag: tag, Agent: agent, Argv: append([]string(nil), argv...),
+		AgentSource: "saved", ArgvSource: "saved", ResumeRequired: true, RequiredSessionID: requiredSessionID,
 	}
 	if profile.Argv == nil {
-		return LaunchArgs{}, "", fmt.Errorf("couch launch profile has null argv")
+		profile.Argv = []string{}
+	}
+	if err := ValidateTrustedLaunchProfile(profile); err != nil {
+		return "", err
+	}
+	var buf bytes.Buffer
+	enc := json.NewEncoder(&buf)
+	enc.SetEscapeHTML(false)
+	if err := enc.Encode(profile); err != nil {
+		return "", err
+	}
+	return buf.String(), nil
+}
+
+func ValidateTrustedLaunchProfile(profile TrustedLaunchProfile) error {
+	if profile.SchemaVersion != 1 {
+		return fmt.Errorf("unsupported couch launch profile schema %d", profile.SchemaVersion)
+	}
+	if profile.Tag == "" {
+		return fmt.Errorf("couch launch profile has no tag")
+	}
+	if !IsSupportedAgent(profile.Agent) {
+		return fmt.Errorf("unsupported couch launch agent %q", profile.Agent)
+	}
+	if profile.Argv == nil {
+		return fmt.Errorf("couch launch profile has null argv")
+	}
+	if profile.ResumeRequired {
+		if profile.RequiredSessionID == "" {
+			return fmt.Errorf("resume-required couch launch profile has no required session ID")
+		}
+		if profile.AgentSource != "saved" || profile.ArgvSource != "saved" {
+			return fmt.Errorf("resume-required couch launch profile requires saved agent and argv sources")
+		}
+		return nil
+	}
+	if profile.RequiredSessionID != "" {
+		return fmt.Errorf("ordinary couch launch profile carries a required session ID")
 	}
 	switch profile.AgentSource {
 	case "explicit", "path", "root":
 	default:
-		return LaunchArgs{}, "", fmt.Errorf("unsupported couch agent source %q", profile.AgentSource)
+		return fmt.Errorf("unsupported couch agent source %q", profile.AgentSource)
 	}
 	switch profile.ArgvSource {
 	case "path", "repo-default":
 	default:
-		return LaunchArgs{}, "", fmt.Errorf("unsupported couch argv source %q", profile.ArgvSource)
+		return fmt.Errorf("unsupported couch argv source %q", profile.ArgvSource)
+	}
+	return nil
+}
+
+// ApplyCouchLaunchProfile binds one trusted, tag-addressed Couch resolution to
+// Pair's ordinary launch policy without exposing a second public CLI grammar.
+func ApplyCouchLaunchProfile(args LaunchArgs, raw string) (LaunchArgs, string, error) {
+	var profile TrustedLaunchProfile
+	if err := strictjson.Decode([]byte(raw), &profile); err != nil {
+		return LaunchArgs{}, "", fmt.Errorf("decode couch launch profile: %w", err)
+	}
+	if args.ForcedTag == "" || profile.Tag != args.ForcedTag {
+		return LaunchArgs{}, "", fmt.Errorf("couch launch profile does not match forced tag %q", args.ForcedTag)
+	}
+	if err := ValidateTrustedLaunchProfile(profile); err != nil {
+		return LaunchArgs{}, "", err
 	}
 	args.Agent = profile.Agent
 	args.AgentExplicit = true
@@ -86,6 +150,8 @@ func ApplyCouchLaunchProfile(args LaunchArgs, raw string) (LaunchArgs, string, e
 	}
 	args.AgentArgsExplicit = true
 	args.AgentArgsFromCouch = true
+	args.ResumeRequired = profile.ResumeRequired
+	args.RequiredSessionID = profile.RequiredSessionID
 	return args, profile.ArgvSource, nil
 }
 

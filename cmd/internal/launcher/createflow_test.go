@@ -42,7 +42,8 @@ type fakeRuntime struct {
 	sessionIndexErr     error
 	agentSessions       map[string]bool   // "agent|sid" -> native artifact exists
 	establishedSessions map[string]string // "scope|tag|agent" -> established native id
-	uuids               []string          // MintUUID pops these in order
+	bindingStatuses     map[string]sessioninventory.BindingStatus
+	uuids               []string // MintUUID pops these in order
 	promptValue         string
 	promptOK            bool
 	maxSessionNameBytes int
@@ -53,6 +54,8 @@ type fakeRuntime struct {
 	appendIndexErr      error
 	threadClaimErr      error
 	threadClaims        []string
+	existingThreadErr   error
+	existingThreads     []string
 	writeFailAt         string
 	inferAgent          map[string]string // tag -> paired agent (for `resume <tag>`)
 	pickFunc            func(header string, options []string) string
@@ -93,7 +96,8 @@ type fakeRuntime struct {
 	launched        string // last session name handed to LaunchSession
 	launchLayout    string
 	launchCode      int
-	launchCount     int      // number of create handoffs (restart-loop iterations)
+	launchCount     int // number of create handoffs (restart-loop iterations)
+	defaultReads    int
 	watchers        []string // "agent|tag|cwd|args"
 	pollers         []string // "tag|agent"
 	cmux            []string // "tag|title"
@@ -129,6 +133,11 @@ func (f *fakeRuntime) EnsureThreadAddress(scope RepoScope, tag string, couchOwne
 	return f.threadClaimErr
 }
 
+func (f *fakeRuntime) RegisterExistingCouchThread(scope RepoScope, tag string) error {
+	f.existingThreads = append(f.existingThreads, scope.Key+"|"+tag)
+	return f.existingThreadErr
+}
+
 func newFakeRuntime() *fakeRuntime {
 	return &fakeRuntime{
 		blocksReuse:         map[string]bool{},
@@ -137,6 +146,7 @@ func newFakeRuntime() *fakeRuntime {
 		ledger:              map[string][]LedgerEntry{},
 		agentSessions:       map[string]bool{},
 		establishedSessions: map[string]string{},
+		bindingStatuses:     map[string]sessioninventory.BindingStatus{},
 		inferAgent:          map[string]string{},
 		promptOK:            true,
 		env:                 map[string]string{},
@@ -248,6 +258,9 @@ func (f *fakeRuntime) AgentSessionExists(agent, sid, cwd string) bool {
 	return f.agentSessions[agent+"|"+sid]
 }
 func (f *fakeRuntime) EstablishedSessionID(scopeKey, tag, agent string) (string, sessioninventory.BindingStatus) {
+	if status, ok := f.bindingStatuses[tag+"|"+agent]; ok {
+		return f.establishedSessions[tag+"|"+agent], status
+	}
 	if sid := f.establishedSessions[tag+"|"+agent]; sid != "" {
 		return sid, sessioninventory.BindingEstablished
 	}
@@ -323,12 +336,97 @@ func (f *fakeRuntime) PIDAlive(pid int) bool { return f.readyPIDs[pid] }
 func (f *fakeRuntime) ReadAgentDefault(agent string) (AgentDefault, bool) {
 	f.mu.Lock()
 	defer f.mu.Unlock()
+	f.defaultReads++
 	raw, ok := f.files[AgentDefaultPath("/data", agent)]
 	if !ok {
 		return AgentDefault{}, false
 	}
 	d, err := ParseAgentDefault(agent, raw)
 	return d, err == nil
+}
+
+func TestRequiredNativeResumeBindingAtLaunch(t *testing.T) {
+	tests := []struct {
+		name   string
+		status sessioninventory.BindingStatus
+		actual string
+	}{
+		{name: "provisional", status: sessioninventory.BindingProvisional},
+		{name: "ambiguous", status: sessioninventory.BindingAmbiguous},
+		{name: "missing", status: sessioninventory.BindingUnbound},
+		{name: "established without root", status: sessioninventory.BindingEstablished},
+		{name: "different established root", status: sessioninventory.BindingEstablished, actual: "native-root-2"},
+	}
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			rt := newFakeRuntime()
+			rt.bindingStatuses["work|codex"] = test.status
+			rt.establishedSessions["work|codex"] = test.actual
+			args := LaunchArgs{
+				Agent: "codex", AgentExplicit: true, ForcedTag: "work",
+				AgentArgs: []string{"--sandbox", "workspace-write"}, AgentArgsExplicit: true, AgentArgsFromCouch: true,
+				ResumeRequired: true, RequiredSessionID: "native-root-1",
+			}
+			opts := baseOpts(args)
+			scope, err := ResolveRepoScope(opts.Env.Cwd)
+			if err != nil {
+				t.Fatal(err)
+			}
+			opts.Env.CouchThreadScope, opts.Env.CouchThreadTag = scope.Key, "work"
+			code, err := run(t, opts, rt)
+			if err != nil || code != 1 {
+				t.Fatalf("RunLaunch = %d, %v", code, err)
+			}
+			if rt.launchCount != 0 || len(rt.preparedLaunches) != 0 || len(rt.watchers) != 0 || len(rt.ledger["work"]) != 0 || rt.defaultReads != 0 {
+				t.Fatalf("refusal effects: launches=%d prepared=%v watchers=%v ledger=%v defaultReads=%d", rt.launchCount, rt.preparedLaunches, rt.watchers, rt.ledger["work"], rt.defaultReads)
+			}
+		})
+	}
+}
+
+func TestRequiredNativeResumeBindingLaunchesExactRootWithoutDefaults(t *testing.T) {
+	rt := newFakeRuntime()
+	rt.bindingStatuses["work|codex"] = sessioninventory.BindingEstablished
+	rt.establishedSessions["work|codex"] = "native-root-1"
+	args := LaunchArgs{
+		Agent: "codex", AgentExplicit: true, ForcedTag: "work",
+		AgentArgs: []string{"--sandbox", "workspace-write"}, AgentArgsExplicit: true, AgentArgsFromCouch: true,
+		ResumeRequired: true, RequiredSessionID: "native-root-1",
+	}
+	opts := baseOpts(args)
+	scope, err := ResolveRepoScope(opts.Env.Cwd)
+	if err != nil {
+		t.Fatal(err)
+	}
+	opts.Env.CouchThreadScope, opts.Env.CouchThreadTag = scope.Key, "work"
+	code, err := run(t, opts, rt)
+	if err != nil || code != 0 {
+		t.Fatalf("RunLaunch = %d, %v", code, err)
+	}
+	if rt.launchCount != 1 || rt.defaultReads != 0 || len(rt.preparedLaunches) != 1 ||
+		!strings.HasSuffix(rt.preparedLaunches[0], "|work|codex|native-root-1") {
+		t.Fatalf("launch effects: count=%d defaults=%d prepared=%v", rt.launchCount, rt.defaultReads, rt.preparedLaunches)
+	}
+	if len(rt.existingThreads) != 1 || len(rt.threadClaims) != 0 {
+		t.Fatalf("address validation: existing=%v create=%v", rt.existingThreads, rt.threadClaims)
+	}
+	if rt.env["PAIR_SESSION_ID"] != "native-root-1" || rt.env["PAIR_AGENT_ARGS"] != "resume native-root-1 --sandbox workspace-write --no-alt-screen" {
+		t.Fatalf("resume env: id=%q args=%q", rt.env["PAIR_SESSION_ID"], rt.env["PAIR_AGENT_ARGS"])
+	}
+}
+
+func TestRequiredNativeResumeRefusesAttachRace(t *testing.T) {
+	rt := newFakeRuntime()
+	rt.sessions = []Session{{Name: "📁work", Tag: "work", RepoName: "work", Agent: "codex", State: SessionDetached}}
+	args := LaunchArgs{
+		Agent: "codex", AgentExplicit: true, ForcedTag: "work",
+		AgentArgs: []string{}, AgentArgsExplicit: true, AgentArgsFromCouch: true,
+		ResumeRequired: true, RequiredSessionID: "native-root-1",
+	}
+	code, err := run(t, baseOpts(args), rt)
+	if err != nil || code != 1 || len(rt.attached) != 0 || rt.launchCount != 0 {
+		t.Fatalf("attach race = code %d err %v attached=%v launchCount=%d", code, err, rt.attached, rt.launchCount)
+	}
 }
 func (f *fakeRuntime) WriteAgentDefault(agent string, args []string) error {
 	raw, err := BuildAgentDefault(agent, args)

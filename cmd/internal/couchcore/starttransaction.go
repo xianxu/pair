@@ -81,12 +81,19 @@ func AdvanceStartTransaction(record ThreadRecord, event StartEvent) (ThreadRecor
 		}
 		if event.Kind == StartRegistered {
 			incarnation.State = IncarnationLive
+			// Pair registration is the commit point for a resume. Until this
+			// transition the verified park remains the rollback authority.
+			next.VerifiedPark = nil
 		} else {
 			incarnation.State = IncarnationUnknown
 		}
 		if incarnation.Start.LaunchProfile != nil {
 			profile := cloneLaunchProfile(*incarnation.Start.LaunchProfile)
 			incarnation.LaunchProfile = &profile
+			if event.Kind == StartRegistered {
+				latest := cloneLaunchProfile(profile)
+				next.LatestLaunchProfile = &latest
+			}
 		}
 		incarnation.Start = nil
 	default:

@@ -5,7 +5,41 @@ import (
 	"strconv"
 	"strings"
 	"testing"
+
+	"github.com/xianxu/pair/cmd/internal/workbenchshortcut"
 )
+
+func TestInterceptorAltXFraming(t *testing.T) {
+	for _, sequence := range workbenchshortcut.ChordEncodings(workbenchshortcut.ChordAltX) {
+		for split := 0; split <= len(sequence); split++ {
+			var interceptor Interceptor
+			first := append([]byte("before"), sequence[:split]...)
+			if split == len(sequence) {
+				first = append(first, []byte("after")...)
+			}
+			before, hit, rest := interceptor.FeedHit(first)
+			if split < len(sequence) {
+				if hit != HitNone {
+					t.Fatalf("%q split %d fired early", sequence, split)
+				}
+				before2, hit2, rest2 := interceptor.FeedHit(append(sequence[split:], []byte("after")...))
+				before = append(before, before2...)
+				hit, rest = hit2, rest2
+			}
+			if hit != HitPark || string(before) != "before" || string(rest) != "after" {
+				t.Fatalf("%q split %d = before %q hit %v rest %q", sequence, split, before, hit, rest)
+			}
+		}
+
+		paste := append([]byte("\x1b[200~before"), sequence...)
+		paste = append(paste, []byte("after\x1b[201~")...)
+		var interceptor Interceptor
+		before, hit, rest := interceptor.FeedHit(paste)
+		if hit != HitNone || len(rest) != 0 || !bytes.Equal(before, paste) {
+			t.Fatalf("pasted %q = before %q hit %v rest %q", sequence, before, hit, rest)
+		}
+	}
+}
 
 // The split point IS the contract: in `x<ctrl-space>y`, x belongs to the child
 // being left and y to the one landed on. A concatenated buffer cannot say that,
@@ -222,7 +256,7 @@ func TestInterceptorRecognisesEverySequenceAtEverySplit(t *testing.T) {
 					t.Fatalf("first feed = (%q, %v, %q), want held", before, hit, rest)
 				}
 				before, hit, rest = it.Feed(seq.bytes[split:])
-				if seq.kind == seqHotkey {
+				if seq.kind == seqSwitch || seq.kind == seqPark {
 					if len(before) != 0 || !hit || len(rest) != 0 {
 						t.Fatalf("completed hotkey = (%q, %v, %q)", before, hit, rest)
 					}

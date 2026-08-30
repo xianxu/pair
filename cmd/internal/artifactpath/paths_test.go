@@ -282,6 +282,73 @@ func TestParameterizedArtifactsRejectUnsafeComponents(t *testing.T) {
 	}
 }
 
+func TestLifecyclePathsValidateComponents(t *testing.T) {
+	t.Parallel()
+
+	paths, err := Resolve(Address{DataDir: "/pair-data", RepoScope: "repo_scope", Tag: "work_1"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	lifecycle, err := paths.Lifecycle("park_nonce-1")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got, want := lifecycle.Dir(), "/pair-data/repos/repo_scope/lifecycle-work_1/park_nonce-1"; got != want {
+		t.Fatalf("Dir() = %q, want %q", got, want)
+	}
+	if got, want := lifecycle.Lock(), "/pair-data/repos/repo_scope/lifecycle-work_1/park_nonce-1/lifecycle.lock"; got != want {
+		t.Fatalf("Lock() = %q, want %q", got, want)
+	}
+	request, err := lifecycle.Request(2)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if want := "/pair-data/repos/repo_scope/lifecycle-work_1/park_nonce-1/quit-request-2.json"; request != want {
+		t.Fatalf("Request() = %q, want %q", request, want)
+	}
+	completion, err := lifecycle.Completion(2)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if want := "/pair-data/repos/repo_scope/lifecycle-work_1/park_nonce-1/quit-completion-2.json"; completion != want {
+		t.Fatalf("Completion() = %q, want %q", completion, want)
+	}
+	key, err := lifecycle.CompletionKey(2)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got := key; got != "quit-completion-2" {
+		t.Fatalf("CompletionKey() = %q", got)
+	}
+	trigger, err := lifecycle.Trigger("pair-work_1", 2)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if want := "/pair-data/repos/repo_scope/lifecycle-work_1/park_nonce-1/quit-trigger-pair-work_1-2.json"; trigger != want {
+		t.Fatalf("Trigger() = %q, want %q", trigger, want)
+	}
+
+	for _, test := range []struct {
+		name string
+		call func() error
+	}{
+		{name: "nonce empty", call: func() error { _, err := paths.Lifecycle(""); return err }},
+		{name: "nonce traversal", call: func() error { _, err := paths.Lifecycle("../park"); return err }},
+		{name: "request attempt", call: func() error { _, err := lifecycle.Request(0); return err }},
+		{name: "completion attempt", call: func() error { _, err := lifecycle.Completion(0); return err }},
+		{name: "completion key attempt", call: func() error { _, err := lifecycle.CompletionKey(0); return err }},
+		{name: "trigger attempt", call: func() error { _, err := lifecycle.Trigger("pair-work", 0); return err }},
+		{name: "trigger session empty", call: func() error { _, err := lifecycle.Trigger("", 1); return err }},
+		{name: "trigger session traversal", call: func() error { _, err := lifecycle.Trigger("../pair", 1); return err }},
+	} {
+		t.Run(test.name, func(t *testing.T) {
+			if err := test.call(); err == nil {
+				t.Fatal("unsafe lifecycle component accepted")
+			}
+		})
+	}
+}
+
 func TestScopePathsOwnNvimPIDEnumerationAndEmbedParsing(t *testing.T) {
 	scope, err := ResolveSelectedScope("/data/repos/scope")
 	if err != nil {

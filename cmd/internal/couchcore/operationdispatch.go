@@ -1,6 +1,7 @@
 package couchcore
 
 import (
+	"context"
 	"fmt"
 	"strings"
 )
@@ -206,10 +207,69 @@ func CouchLiveOwnerExecutor(c *Couch) OperationExecutor {
 				return nil, err
 			}
 			return StopResult{Record: recs[0], Signalled: signalled}, nil
+		case "park":
+			address, err := resolveOperationThread(c, a)
+			if err != nil {
+				return nil, err
+			}
+			if c.PairLifecycle == nil {
+				return nil, fmt.Errorf("Pair lifecycle controller is unavailable")
+			}
+			switch a["mode"] {
+			case "", "normal":
+				return c.PairLifecycle.Park(context.Background(), address)
+			case "retry":
+				return c.PairLifecycle.Retry(context.Background(), address)
+			case "recover":
+				return c.PairLifecycle.Recover(context.Background(), address)
+			case "abandon":
+				return c.PairLifecycle.Abandon(context.Background(), address)
+			default:
+				return nil, fmt.Errorf("park: invalid mode %q (want normal, retry, recover, or abandon)", a["mode"])
+			}
+		case "leave":
+			return c.Leave(context.Background())
+		case "resume":
+			address, err := resolveOperationThread(c, a)
+			if err != nil {
+				return nil, err
+			}
+			record, handle, err := c.Resume(address)
+			if err != nil {
+				return nil, err
+			}
+			return StartResult{Record: record, Handle: handle}, nil
 		case "switch", "attach":
 			return nil, fmt.Errorf("%s requires an active couch console", call.Operation.Name)
 		default:
 			return nil, fmt.Errorf("%s is not a live-owner operation", call.Operation.Name)
 		}
 	}
+}
+
+func resolveOperationThread(c *Couch, args map[string]string) (ThreadAddress, error) {
+	if err := requireOperationRepoScope(args); err != nil {
+		return ThreadAddress{}, err
+	}
+	if tag := args["tag"]; tag != "" {
+		if args["ref"] != "" {
+			return ThreadAddress{}, fmt.Errorf("thread ref and exact tag cannot both be supplied")
+		}
+		address := ThreadAddress{RepoScope: args["repo-scope"], Tag: ThreadTag(tag)}
+		if _, err := c.Threads.GetThread(address); err != nil {
+			return ThreadAddress{}, err
+		}
+		return address, nil
+	}
+	if args["ref"] == "" {
+		return ThreadAddress{}, fmt.Errorf("thread reference is required")
+	}
+	matches, err := c.ResolveThreadReference(args["repo-scope"], args["ref"])
+	if err != nil {
+		return ThreadAddress{}, err
+	}
+	if len(matches) != 1 {
+		return ThreadAddress{}, fmt.Errorf("thread reference %q did not resolve uniquely", args["ref"])
+	}
+	return matches[0].Address, nil
 }

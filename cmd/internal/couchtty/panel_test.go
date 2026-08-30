@@ -70,6 +70,21 @@ func TestPanelListsParkedTrees(t *testing.T) {
 	t.Fatal("the parked tree was omitted")
 }
 
+func TestPanelNamesOnlyActiveRowStateAndRendersInactiveAsHistory(t *testing.T) {
+	got := RenderPanel(NewPanelModel(summaries()).Shown(), 0)
+	if !strings.Contains(got, "[live] pair") {
+		t.Fatalf("panel does not name the live state: %q", got)
+	}
+	if strings.Contains(got, "[parked]") {
+		t.Fatalf("inactive history is presented as a transient parked state: %q", got)
+	}
+	for _, label := range []string{"brain", "ariadne"} {
+		if !strings.Contains(got, label) {
+			t.Fatalf("panel omits inactive history %s: %q", label, got)
+		}
+	}
+}
+
 // Stable selection is only safe if the list does not reorder under the
 // operator's cursor.
 func TestPanelOrderingIsStable(t *testing.T) {
@@ -192,6 +207,10 @@ func TestPanelTargetJoinKeepsParkedRowsAndAddsRoutingSeparately(t *testing.T) {
 	}
 	for _, row := range rows {
 		switch row.Tree {
+		case "/w/brain":
+			if row.Target != "" || row.Live {
+				t.Fatalf("inactive row bound a stale console target: %+v", row)
+			}
 		case "/w/ariadne":
 			if row.Target != "" || row.Live {
 				t.Fatalf("parked row gained a live target: %+v", row)
@@ -206,7 +225,8 @@ func TestPanelTargetJoinKeepsParkedRowsAndAddsRoutingSeparately(t *testing.T) {
 
 func TestPanelKeepsSamePathThreadsDistinctAndBindsExactTarget(t *testing.T) {
 	first := couchcore.ThreadSummary{Address: panelAddress("first"), WorkingPath: "/w/brain", Name: "first"}
-	second := couchcore.ThreadSummary{Address: panelAddress("second"), WorkingPath: "/w/brain", Name: "second"}
+	second := couchcore.ThreadSummary{Address: panelAddress("second"), WorkingPath: "/w/brain", Name: "second",
+		Incarnations: []couchcore.ThreadIncarnation{{State: couchcore.IncarnationLive}}}
 	m := NewPanelModel([]couchcore.ThreadSummary{first, second})
 	m.BindTargets([]PanelTarget{{Address: second.Address, Tree: "/w/brain", Target: "child-second"}})
 	rows := m.Rows()
@@ -236,13 +256,13 @@ func TestPanelActionsAreDeclaredOperations(t *testing.T) {
 
 // And the panel must actually offer the actions the operator needs from it --
 // an empty set would pass the audit above vacuously.
-func TestPanelOffersOnlyTheFlatOperatorAction(t *testing.T) {
+func TestPanelOffersLifecycleActions(t *testing.T) {
 	got := map[string]bool{}
 	for _, a := range PanelActions() {
 		got[a] = true
 	}
-	if len(got) != 1 || !got["start"] {
-		t.Fatalf("panel actions = %v, want only start", got)
+	if len(got) != 4 || !got["start"] || !got["park"] || !got["leave"] || !got["resume"] {
+		t.Fatalf("panel actions = %v, want start/park/leave/resume", got)
 	}
 }
 
@@ -259,8 +279,8 @@ func TestEveryPanelActionHasAKey(t *testing.T) {
 			t.Errorf("action %q has no key; it is declared but unreachable", a)
 			continue
 		}
-		if strings.Join(ks, ",") != "Ctrl-Space,Enter parked" {
-			t.Errorf("action %q keys = %q, want both flat start routes", a, ks)
+		if len(ks) == 0 {
+			t.Errorf("action %q has no reachable keys", a)
 		}
 	}
 	// And no key may be claimed by two actions.
@@ -279,8 +299,9 @@ func TestPanelControlsMatchFlatContract(t *testing.T) {
 	want := []PanelControl{
 		{Keys: "typeahead", Action: "filter"},
 		{Keys: "↑↓", Action: "select"},
-		{Keys: "Enter", Action: "switch/start"},
+		{Keys: "Enter", Action: "switch/resume"},
 		{Keys: "Ctrl-Space", Action: "start"},
+		{Keys: "Alt+x", Action: "park/leave"},
 		{Keys: "Escape", Action: "clear/back"},
 	}
 	got := PanelControls()

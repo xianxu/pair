@@ -6,10 +6,12 @@ import (
 	"strings"
 	"sync"
 	"testing"
+	"time"
 
 	"github.com/xianxu/pair/cmd/internal/couchcore"
 	"github.com/xianxu/pair/cmd/internal/hostty"
 	"github.com/xianxu/pair/cmd/internal/ptychild"
+	"github.com/xianxu/pair/cmd/internal/workbenchshortcut"
 )
 
 func openPanel(t *testing.T, f *consoleFixture) {
@@ -35,6 +37,155 @@ func TestPanelCtrlSpaceStart(t *testing.T) {
 				return f.con.prompt == "start in path: "
 			})
 		})
+	}
+}
+
+func TestRootAltXLeaveUIEventOrdering(t *testing.T) {
+	for _, key := range workbenchshortcut.ChordEncodings(workbenchshortcut.ChordAltX) {
+		t.Run(fmt.Sprintf("%q", key), func(t *testing.T) {
+			f := newFixture(t, 24, 80)
+			started := make(chan struct{})
+			release := make(chan struct{})
+			setTestOps(f.con, func(name string, args map[string]string) (any, error) {
+				if name != "leave" || len(args) != 0 {
+					t.Fatalf("leave dispatch = %q %+v", name, args)
+				}
+				close(started)
+				<-release
+				return nil, nil
+			})
+
+			_, _ = f.stdin.Write(key)
+			waitFor(t, "immediate park confirmation", func() bool {
+				f.con.mu.Lock()
+				defer f.con.mu.Unlock()
+				return strings.HasPrefix(f.con.prompt, "leave couch")
+			})
+			select {
+			case <-started:
+				t.Fatal("leave lifecycle started before confirmation")
+			default:
+			}
+
+			_, _ = f.stdin.Write([]byte("yes\r"))
+			waitFor(t, "leave lifecycle start", func() bool {
+				select {
+				case <-started:
+					return true
+				default:
+					return false
+				}
+			})
+			waitFor(t, "leaving status", func() bool { return strings.Contains(f.host.Written(), "leaving…") })
+
+			_, _ = f.stdin.Write([]byte("z"))
+			waitFor(t, "input while park is blocked", func() bool {
+				f.con.mu.Lock()
+				defer f.con.mu.Unlock()
+				return f.con.query == "z"
+			})
+			close(release)
+			waitFor(t, "console stop after verified leave", func() bool {
+				select {
+				case <-f.con.stop:
+					return true
+				default:
+					return false
+				}
+			})
+		})
+	}
+}
+
+func TestNonRootAltXParksOnlySelectedActor(t *testing.T) {
+	f := newFixture(t, 24, 80)
+	otherAddress := panelAddress("other")
+	other := ptychild.NewFakeChild(nil)
+	f.con.attachThreadActor("other", "other", otherAddress, "/w/other", "other", other)
+	f.con.mu.Lock()
+	f.con.active = "other"
+	f.con.focus = FocusActor("other")
+	f.con.mu.Unlock()
+	called := make(chan map[string]string, 1)
+	setTestOps(f.con, func(name string, args map[string]string) (any, error) {
+		if name != "park" {
+			t.Fatalf("operation = %q, want park", name)
+		}
+		called <- args
+		return nil, nil
+	})
+
+	f.con.onParkHotkey()
+	f.con.mu.Lock()
+	prompt := f.con.prompt
+	confirm := f.con.promptFn
+	f.con.mu.Unlock()
+	if !strings.HasPrefix(prompt, "park ") || confirm == nil {
+		t.Fatalf("prompt = %q", prompt)
+	}
+	confirm("yes")
+	select {
+	case args := <-called:
+		if args["repo-scope"] != otherAddress.RepoScope || args["tag"] != string(otherAddress.Tag) {
+			t.Fatalf("park args = %+v", args)
+		}
+	case <-time.After(time.Second):
+		t.Fatal("park was not dispatched")
+	}
+}
+
+func TestLastActorExitWhilePanelFocusedKeepsConsoleForResume(t *testing.T) {
+	address := panelAddress("parked")
+	con := New(hostty.NewFakeHost(ptychild.Size{Rows: 24, Cols: 80}), nil)
+	child := ptychild.NewFakeChild(nil)
+	con.attachThreadActor("only", "actor", address, "/w/parked", "parked", child)
+	con.SetSummaries(func() ([]couchcore.ThreadSummary, error) {
+		return []couchcore.ThreadSummary{{Address: address, WorkingPath: "/w/parked", Name: "parked"}}, nil
+	})
+	con.mu.Lock()
+	con.focus = FocusPanel()
+	con.mu.Unlock()
+
+	if exitConsole := con.onExit(childExit{id: "only", code: 0}); exitConsole {
+		t.Fatal("last actor exit closed the panel before its parked row could be resumed")
+	}
+	con.mu.Lock()
+	rows := append([]PanelRow(nil), con.panel.Shown()...)
+	con.mu.Unlock()
+	if len(rows) != 1 || rows[0].Live || rows[0].Target != "" || rows[0].Address != address {
+		t.Fatalf("post-park panel rows = %+v, want one exact parked row", rows)
+	}
+}
+
+func TestEscapeFromPanelWithNoActorStopsConsole(t *testing.T) {
+	con := New(hostty.NewFakeHost(ptychild.Size{Rows: 24, Cols: 80}), nil)
+	con.onPanelKey(PanelKey{Kind: KeyEscape})
+	select {
+	case <-con.stop:
+	default:
+		t.Fatal("Escape with no actor left the operator trapped in the panel")
+	}
+}
+
+func TestActiveNonRootExitFallsBackToRootForPanelActions(t *testing.T) {
+	con := New(hostty.NewFakeHost(ptychild.Size{Rows: 24, Cols: 80}), nil)
+	root := ptychild.NewFakeChild(nil)
+	other := ptychild.NewFakeChild(nil)
+	con.attachThreadActor("root", "root-actor", panelAddress("root"), "/w/root", "root", root)
+	con.attachThreadActor("other", "other-actor", panelAddress("other"), "/w/other", "other", other)
+	con.mu.Lock()
+	con.active = "other"
+	con.focus = FocusPanel()
+	con.mu.Unlock()
+
+	if exitConsole := con.onExit(childExit{id: "other", code: 0}); exitConsole {
+		t.Fatal("non-root exit closed a console whose root remained live")
+	}
+	con.mu.Lock()
+	active := con.active
+	con.mu.Unlock()
+	if active != "root" {
+		t.Fatalf("active target after non-root exit = %q, want root", active)
 	}
 }
 
@@ -109,13 +260,13 @@ func parkedFixture(t *testing.T) *consoleFixture {
 	return f
 }
 
-func TestPanelEnterOnParkedRowStartsItsPath(t *testing.T) {
+func TestPanelEnterOnParkedRowResumesExactThread(t *testing.T) {
 	f := parkedFixture(t)
 	var mu sync.Mutex
 	var called map[string]string
 	setTestOps(f.con, func(name string, args map[string]string) (any, error) {
-		if name != "start" {
-			t.Fatalf("operation = %q, want start", name)
+		if name != "resume" {
+			t.Fatalf("operation = %q, want resume", name)
 		}
 		mu.Lock()
 		called = args
@@ -123,15 +274,15 @@ func TestPanelEnterOnParkedRowStartsItsPath(t *testing.T) {
 		return nil, errors.New("stop after dispatch")
 	})
 	_, _ = f.stdin.Write([]byte("\r"))
-	waitFor(t, "parked start dispatch", func() bool {
+	waitFor(t, "parked resume dispatch", func() bool {
 		mu.Lock()
 		defer mu.Unlock()
 		return called != nil
 	})
 	mu.Lock()
 	defer mu.Unlock()
-	if called["path"] != "/w/parked" {
-		t.Fatalf("path = %q, want /w/parked", called["path"])
+	if called["repo-scope"] != panelAddress("parked").RepoScope || called["tag"] != string(panelAddress("parked").Tag) {
+		t.Fatalf("resume address args = %+v", called)
 	}
 }
 
@@ -162,7 +313,7 @@ func TestPanelEnterOnRemoteLiveRowExplainsAttachmentIsDeferred(t *testing.T) {
 	}
 }
 
-func TestPanelStartFailurePreservesListState(t *testing.T) {
+func TestPanelResumeFailurePreservesListState(t *testing.T) {
 	f := parkedFixture(t)
 	f.con.SetResolver(func(string) ([]couchcore.ThreadAddress, error) {
 		return []couchcore.ThreadAddress{panelAddress("parked")}, nil
@@ -175,7 +326,7 @@ func TestPanelStartFailurePreservesListState(t *testing.T) {
 	})
 	setTestOps(f.con, func(string, map[string]string) (any, error) { return nil, errors.New("boom") })
 	_, _ = f.stdin.Write([]byte("\r"))
-	waitFor(t, "the failure notice", func() bool { return strings.Contains(f.host.Written(), "start: boom") })
+	waitFor(t, "the failure notice", func() bool { return strings.Contains(f.host.Written(), "resume: boom") })
 	f.con.mu.Lock()
 	query := f.con.query
 	focus := f.con.focus

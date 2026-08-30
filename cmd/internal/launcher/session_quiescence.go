@@ -29,7 +29,10 @@ type sessionQuiescenceOps interface {
 	KillServer(sessionServerIdentity) error
 }
 
-func quiesceZellijSession(session string, ops sessionQuiescenceOps, timeout, poll time.Duration) error {
+func quiesceZellijSession(parent context.Context, session string, ops sessionQuiescenceOps, timeout, poll time.Duration) error {
+	if parent == nil {
+		return errors.New("quiesce zellij session: nil context")
+	}
 	if session == "" {
 		return errors.New("quiesce zellij session: empty session")
 	}
@@ -42,7 +45,10 @@ func quiesceZellijSession(session string, ops sessionQuiescenceOps, timeout, pol
 	if poll <= 0 {
 		poll = 25 * time.Millisecond
 	}
-	ctx, cancel := context.WithTimeout(context.Background(), timeout)
+	if err := parent.Err(); err != nil {
+		return fmt.Errorf("quiesce zellij session: %w", err)
+	}
+	ctx, cancel := context.WithTimeout(parent, timeout)
 	defer cancel()
 
 	absentObservations := 0

@@ -269,6 +269,11 @@ couch start . --no-console   spawn without taking the terminal (no pty, no row)
 couch start . --agent=codex  explicitly select one Pair-supported agent
 couch list               every durable work thread across all repositories
 couch show <ref>         one current-repository thread by tag, path, or name
+couch park <ref>         fully quit a live thread after verified Pair cleanup
+couch park <ref> --mode=retry|recover|abandon
+                         explicitly continue or abandon a durable park transaction
+couch leave              park every active thread, then leave the root console
+couch resume <ref>       resume an exact verified-parked thread as the new root console
 couch name <ref> <name>  set a thread's short human name ("" clears it)
 couch describe <ref> [<text>]  read or set its operator description ("" clears)
 couch publish-description <text>  publish this hosted agent's summary ("" clears)
@@ -301,6 +306,21 @@ console-internal. A second `couch` process cannot route these operations while
 the console holds the singleton namespace. The `couch stop`, `switch`, and
 `attach` CLI spellings are therefore not usable against a live root console;
 cross-process owner routing belongs to Pair #147.
+
+Park and Resume are also live-owner operations. Couch intercepts Pair's Alt+x
+while hosting an actor, paints confirmation before doing lifecycle work, and
+queues confirmed Park off the terminal loop. The queue is bounded and
+single-worker: duplicate exact requests coalesce, overload refuses immediately
+with the thread still occupied, and no corpus or process-tree scan enters the
+interaction path. On the target M2 Max under ordinary development co-tenancy,
+the contract is feedback and requested-commit P95 below 100 ms and commit max
+below 1 second; adversarial OS starvation is outside that claim. Pair cleanup
+retains its 10-second outer deadline and 5-second exact-Zellij inner wait.
+After Leave Couch returns to the shell, run `couch resume <ref>` directly; it
+acquires the singleton and hosts that exact thread as the new root console. It
+does not allocate a temporary actor first. Resume uses the ordinary local start
+path and adds no full native inventory scan.
+Alt+d remains Pair-local detach; Couch exposes no detach operation.
 
 Every `couch start` allocates a distinct opaque durable thread. Admission comes
 from the repository's normalized Ariadne fleet policy (`sdlc fleet policy`): a
@@ -341,9 +361,14 @@ the old spawn-and-inherit-stdio behaviour with no interception at all.
 Focus has three levels. From a non-home actor, `ctrl-space` returns to the first
 actor couch hosted (home); from home it opens the actors panel. In the panel,
 ordinary printable input is direct typeahead. Use `↑↓` and `Enter` to select and
-switch; Enter on a parked row starts in that path. `Escape` clears the filter
-or returns. Press `ctrl-space` again from the panel to enter a path for a new
-actor; an empty path uses the existing `.` default. Colons and digits are
+switch; active rows say `[live]`, while inactive threads remain as ordinary
+history rows and Enter resumes that exact thread. `Alt+x` on a non-home actor
+parks only that actor; `Alt+x` on the home actor confirms **Leave Couch**, parks
+every active actor sequentially, and returns to the parent shell only after all
+parks are verified. `Escape` clears the filter, returns to an attached
+actor, or exits Couch when no actor remains. Press `ctrl-space` again from the
+panel to enter a path for a new actor; an empty path uses the existing `.`
+default. Colons and digits are
 ordinary filter text—there is no command namespace or numbered jump mode.
 If a row is live in another couch process, Enter leaves it selected and explains
 that cross-process attachment follows in #147; it never starts a duplicate.

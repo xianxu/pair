@@ -322,6 +322,19 @@ func ChordSequences() []string {
 	return sequences
 }
 
+// ChordEncodings returns defensive copies of the canonical byte encodings for
+// one chord. Consumers that intercept a specific Pair shortcut therefore do
+// not duplicate terminal-protocol literals.
+func ChordEncodings(chord Chord) [][]byte {
+	var sequences [][]byte
+	for _, candidate := range chordSequences {
+		if candidate.chord == chord {
+			sequences = append(sequences, []byte(candidate.sequence))
+		}
+	}
+	return sequences
+}
+
 func DecodeChord(data []byte) (Chord, bool) {
 	for _, candidate := range chordSequences {
 		if string(data) == candidate.sequence {

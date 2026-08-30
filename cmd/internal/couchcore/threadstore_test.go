@@ -8,6 +8,7 @@ import (
 	"strings"
 	"sync"
 	"testing"
+	"time"
 )
 
 func TestThreadStoreReadsStrictDefensivePathLaunchPreference(t *testing.T) {
@@ -211,6 +212,15 @@ func TestThreadStoreUpdateExistingThreadUsesRevisionWithoutChangingManifest(t *t
 	}
 	if got.Description != "first description" {
 		t.Fatalf("stale writer changed record: %+v", got)
+	}
+}
+
+func TestThreadStoreUpdateMissingPreservesNotFoundContract(t *testing.T) {
+	store, _ := newTestThreadStore(t)
+	address := ThreadAddress{RepoScope: "0123456789abcdef", Tag: "couch-0123456789abcdef"}
+	_, err := store.UpdateExistingThread(address, 1, func(*ThreadRecord) error { return nil })
+	if !errors.Is(err, ErrThreadNotFound) {
+		t.Fatalf("missing update err = %T %v, want ErrThreadNotFound", err, err)
 	}
 }
 
@@ -450,6 +460,185 @@ func TestThreadStoreIndependentInstancesSerializeRevisionUpdates(t *testing.T) {
 	}
 	if !reflect.DeepEqual([]int{successes, conflicts}, []int{1, 1}) {
 		t.Fatalf("successes/conflicts = %d/%d, errors=%v", successes, conflicts, errs)
+	}
+}
+
+func createParkableThread(t *testing.T, store *ThreadStore, ns CouchNamespace, nonce string) (ThreadRecord, ParkIdentity, LaunchProfile) {
+	t.Helper()
+	record := validThreadRecord(t)
+	record.StartingPath, record.WorkingPath = ns.Dir(), ns.Dir()
+	record.Reservation = false
+	profile := LaunchProfile{Agent: "codex", Argv: []string{"--sandbox", "workspace-write"}}
+	record.Incarnations = []ThreadIncarnation{
+		{PID: 42, Identity: "park-helper", State: IncarnationLive, LaunchProfile: &profile},
+	}
+	created, err := store.CreateThread(record)
+	if err != nil {
+		t.Fatal(err)
+	}
+	identity := ParkIdentity{
+		Nonce: nonce, Address: created.Address, PID: 42, ProcessIdentity: "park-helper",
+	}
+	return created, identity, profile
+}
+
+func TestThreadStoreParkLifecycleUsesRevisionCASAndFinalizesExactIncarnation(t *testing.T) {
+	store, ns := newTestThreadStore(t)
+	created, identity, profile := createParkableThread(t, store, ns, "park-0123456789abcdef")
+	previousActive := time.Unix(50, 0).UTC()
+	created, err := store.UpdateExistingThread(created.Address, created.Revision, func(next *ThreadRecord) error {
+		next.LastActiveAt = previousActive
+		return nil
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	begun, err := store.BeginPark(created.Address, created.Revision, identity)
+	if err != nil {
+		t.Fatalf("BeginPark: %v", err)
+	}
+	if begun.Park == nil || begun.Park.BaseRevision != created.Revision || begun.Park.RecordRevision != begun.Revision || begun.Park.Phase != ParkRequested {
+		t.Fatalf("begun = %+v", begun)
+	}
+	if begun.LatestLaunchProfile == nil || !reflect.DeepEqual(*begun.LatestLaunchProfile, profile) {
+		t.Fatalf("BeginPark did not capture legacy live profile: %+v", begun.LatestLaunchProfile)
+	}
+	profile.Argv[0] = "caller-mutated"
+	if begun.LatestLaunchProfile.Argv[0] != "--sandbox" {
+		t.Fatal("captured profile aliases incarnation profile")
+	}
+
+	awaiting, err := store.AdvancePark(begun.Address, begun.Revision, ParkEvent{
+		Kind: ParkRequestCommitted, Identity: identity, Attempt: 1,
+	})
+	if err != nil || awaiting.Park.Phase != ParkAwaitingCompletion || awaiting.Park.RecordRevision != awaiting.Revision {
+		t.Fatalf("AdvancePark(request): %+v, %v", awaiting, err)
+	}
+	timedOut, err := store.AdvancePark(awaiting.Address, awaiting.Revision, ParkEvent{
+		Kind: ParkFailureObserved, Identity: identity, Attempt: 1,
+		Failure: &ParkFailure{Code: "timeout", Diagnostic: "cleanup deadline"},
+	})
+	if err != nil || !timedOut.Park.Attempts[0].TimedOut {
+		t.Fatalf("AdvancePark(timeout): %+v, %v", timedOut, err)
+	}
+	second, err := store.AppendParkAttempt(timedOut.Address, timedOut.Revision, identity)
+	if err != nil || len(second.Park.Attempts) != 2 || second.Park.Attempts[1].Number != 2 {
+		t.Fatalf("AppendParkAttempt: %+v, %v", second, err)
+	}
+	second, err = store.AdvancePark(second.Address, second.Revision, ParkEvent{
+		Kind: ParkRequestCommitted, Identity: identity, Attempt: 2,
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	parkedAt := time.Unix(40, 0).UTC()
+	finalized, err := store.FinalizePark(second.Address, second.Revision, identity, 1, parkedAt)
+	if err != nil {
+		t.Fatalf("FinalizePark: %v", err)
+	}
+	if finalized.Park != nil || len(finalized.Incarnations) != 0 {
+		t.Fatalf("finalization removed wrong state: %+v", finalized)
+	}
+	if finalized.VerifiedPark == nil || finalized.VerifiedPark.Identity != identity || finalized.VerifiedPark.Attempt != 1 || finalized.VerifiedPark.ParkedAt != parkedAt {
+		t.Fatalf("verified park = %+v", finalized.VerifiedPark)
+	}
+	if finalized.LastActiveAt != previousActive {
+		t.Fatalf("last_active_at moved backward: %v", finalized.LastActiveAt)
+	}
+	if len(finalized.ParkHistory) != 1 || !finalized.ParkHistory[0].Closed || finalized.ParkHistory[0].Tombstoned || finalized.ParkHistory[0].SuccessfulAttempt != 1 {
+		t.Fatalf("park history = %+v", finalized.ParkHistory)
+	}
+	if finalized.LatestLaunchProfile == nil || finalized.LatestLaunchProfile.Argv[0] != "--sandbox" {
+		t.Fatalf("latest profile lost: %+v", finalized.LatestLaunchProfile)
+	}
+}
+
+func TestThreadStoreParkConflictsAndAbandonNeverReleaseAdmission(t *testing.T) {
+	store, ns := newTestThreadStore(t)
+	created, identity, _ := createParkableThread(t, store, ns, "park-1111111111111111")
+	concurrent, err := store.UpdateExistingThread(created.Address, created.Revision, func(next *ThreadRecord) error {
+		next.Description = "competing writer"
+		return nil
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := store.BeginPark(created.Address, created.Revision, identity); err == nil {
+		t.Fatal("stale BeginPark succeeded")
+	}
+	kept, _ := store.GetThread(created.Address)
+	if len(kept.Incarnations) != 1 || kept.Park != nil {
+		t.Fatalf("stale begin released admission: %+v", kept)
+	}
+
+	begun, err := store.BeginPark(concurrent.Address, concurrent.Revision, identity)
+	if err != nil {
+		t.Fatal(err)
+	}
+	competing, err := store.UpdateExistingThread(begun.Address, begun.Revision, func(next *ThreadRecord) error {
+		next.Name = "concurrent name"
+		return nil
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := store.FinalizePark(begun.Address, begun.Revision, identity, 1, time.Unix(60, 0).UTC()); err == nil {
+		t.Fatal("stale FinalizePark succeeded")
+	}
+	kept, _ = store.GetThread(begun.Address)
+	if kept.Park == nil || len(kept.Incarnations) != 1 || kept.VerifiedPark != nil {
+		t.Fatalf("stale finalize released admission: %+v", kept)
+	}
+
+	abandoned, err := store.AbandonPark(competing.Address, competing.Revision, identity)
+	if err != nil {
+		t.Fatalf("AbandonPark: %v", err)
+	}
+	if abandoned.Park != nil || len(abandoned.Incarnations) != 1 || abandoned.VerifiedPark != nil ||
+		len(abandoned.ParkHistory) != 1 || !abandoned.ParkHistory[0].Closed || !abandoned.ParkHistory[0].Tombstoned {
+		t.Fatalf("abandoned = %+v", abandoned)
+	}
+	if _, err := store.FinalizePark(abandoned.Address, abandoned.Revision, identity, 1, time.Unix(61, 0).UTC()); err == nil {
+		t.Fatal("tombstoned transaction finalized")
+	}
+	after, _ := store.GetThread(abandoned.Address)
+	if len(after.Incarnations) != 1 || after.VerifiedPark != nil {
+		t.Fatalf("historical result released admission: %+v", after)
+	}
+}
+
+func TestThreadStoreBeginParkRequiresOneExactLiveOrUnknownIncarnation(t *testing.T) {
+	for name, mutate := range map[string]func(*ThreadRecord, *ParkIdentity){
+		"creating target": func(r *ThreadRecord, _ *ParkIdentity) {
+			r.Incarnations[0].State = IncarnationCreating
+			r.Incarnations[0].LaunchProfile = nil
+		},
+		"wrong identity": func(_ *ThreadRecord, id *ParkIdentity) { id.ProcessIdentity = "wrong" },
+		"duplicate identity": func(r *ThreadRecord, _ *ParkIdentity) {
+			duplicate := r.Incarnations[0]
+			r.Incarnations = append(r.Incarnations, duplicate)
+		},
+	} {
+		t.Run(name, func(t *testing.T) {
+			store, ns := newTestThreadStore(t)
+			created, identity, _ := createParkableThread(t, store, ns, "park-2222222222222222")
+			current, err := store.UpdateExistingThread(created.Address, created.Revision, func(next *ThreadRecord) error {
+				mutate(next, &identity)
+				return nil
+			})
+			if err != nil {
+				t.Fatal(err)
+			}
+			if _, err := store.BeginPark(current.Address, current.Revision, identity); err == nil {
+				t.Fatal("invalid park target accepted")
+			}
+			kept, _ := store.GetThread(current.Address)
+			if kept.Park != nil || len(kept.Incarnations) == 0 {
+				t.Fatalf("invalid begin mutated thread: %+v", kept)
+			}
+		})
 	}
 }
 

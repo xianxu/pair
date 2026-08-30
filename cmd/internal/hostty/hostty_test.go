@@ -23,6 +23,7 @@ func TestControlSequences(t *testing.T) {
 		{"home and clear", HomeAndClear, "\x1b[1;1H\x1b[J"},
 		{"leave alternate screen", LeaveAltScreen, "\x1b[?1049l"},
 		{"show cursor", ShowCursor, "\x1b[?25h"},
+		{"reset interactive modes", ResetInteractiveModes, "\x1b[?9;1000;1001;1002;1003;1004;1005;1006;1007;1015;1016;2004;2026l\x1b[=0u"},
 	}
 	for _, c := range cases {
 		if c.got != c.want {

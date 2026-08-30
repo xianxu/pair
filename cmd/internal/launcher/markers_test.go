@@ -5,6 +5,37 @@ import (
 	"testing"
 )
 
+func TestTypedQuitIntentCompatibility(t *testing.T) {
+	legacy, err := ReadQuitIntent(nil)
+	if err != nil || legacy.Kind != QuitIntentDirect {
+		t.Fatalf("legacy intent=%#v err=%v", legacy, err)
+	}
+	for _, intent := range []QuitIntent{
+		{Version: QuitIntentVersion, Kind: QuitIntentDirect},
+		{Version: QuitIntentVersion, Kind: QuitIntentCouch, Request: &QuitRequestReference{
+			DataDir: "/data", RepoScope: "scope", Tag: "work", Nonce: "nonce-1", Attempt: 2,
+		}},
+	} {
+		raw, err := WriteQuitIntent(intent)
+		if err != nil {
+			t.Fatal(err)
+		}
+		got, err := ReadQuitIntent(raw)
+		if err != nil || !reflect.DeepEqual(got, intent) {
+			t.Fatalf("round trip got=%#v err=%v want=%#v", got, err, intent)
+		}
+	}
+	for _, raw := range [][]byte{
+		[]byte(`{"version":1,"kind":"couch"}`),
+		[]byte(`{"version":1,"kind":"couch","request":{"data_dir":"relative","repo_scope":"scope","tag":"work","nonce":"n","attempt":1}}`),
+		[]byte(`{"version":1,"kind":"direct","unknown":true}`),
+	} {
+		if _, err := ReadQuitIntent(raw); err == nil {
+			t.Fatalf("malformed intent accepted: %s", raw)
+		}
+	}
+}
+
 func TestParseRestartMarker(t *testing.T) {
 	got := parseRestartMarker("tag=work\nagent=codex\nnew_session=1\nsession_id=SID-LIVE\n")
 	want := RestartMarker{Tag: "work", Agent: "codex", NewSession: true, SessionID: "SID-LIVE"}

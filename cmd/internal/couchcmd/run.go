@@ -7,6 +7,7 @@
 package couchcmd
 
 import (
+	"context"
 	"crypto/rand"
 	"errors"
 	"fmt"
@@ -194,10 +195,11 @@ func RunWithRuntime(args []string, stdin io.Reader, stdout, stderr io.Writer, rt
 		fmt.Fprintf(stderr, "couch: %v\n", err)
 		return 1
 	}
-	// A fresh `start` invocation becomes the singleton owner. Every other
-	// owner-required CLI call must route to an already-running owner, which is
-	// deliberately unavailable until #147.
-	ownsLive := op.Name == "start"
+	// Starting a new root and resuming a parked root are the two entrypoints
+	// that bootstrap the singleton owner. Other owner-required CLI calls route
+	// to an already-running owner, which is deliberately unavailable until
+	// #147.
+	ownsLive := operationOwnsLive(op.Name)
 	if ownsLive {
 		lease, err := rt.AcquireSupervisor(namespace)
 		if err != nil {
@@ -232,6 +234,15 @@ func RunWithRuntime(args []string, stdin io.Reader, stdout, stderr io.Writer, rt
 		renderError(stderr, err)
 		return 1
 	}
+	if ownsLive && c.PairLifecycle != nil {
+		recoveryContext, stopRecovery := context.WithCancel(context.Background())
+		defer stopRecovery()
+		go func() {
+			// Every failure is already durable on the occupied park transaction.
+			// The worker must not paint concurrently with the terminal owner.
+			_ = c.RecoverActiveParks(recoveryContext)
+		}()
+	}
 	if console != nil {
 		if start, ok := result.(couchcore.StartResult); ok {
 			return runConsole(console, c, start, stdout)
@@ -242,11 +253,17 @@ func RunWithRuntime(args []string, stdin io.Reader, stdout, stderr io.Writer, rt
 
 func operationUsesCurrentRepoScope(name string) bool {
 	switch name {
-	case "show", "name", "describe":
+	case "show", "name", "describe", "park", "resume":
 		return true
 	default:
 		return false
 	}
+}
+
+// operationOwnsLive is the pure entrypoint policy. Both ways into Couch must
+// acquire the same singleton before they can create a child or take a terminal.
+func operationOwnsLive(name string) bool {
+	return name == "start" || name == "resume"
 }
 
 // consoleRunner decides which Runner this invocation gets, and builds the
@@ -267,7 +284,7 @@ func operationUsesCurrentRepoScope(name string) bool {
 // draws on the output fd, so a redirected stdout with a tty stdin would
 // otherwise build a console that paints into a file.
 func WantsConsole(name string, args map[string]string, hasTerminal bool) bool {
-	return name == "start" && args["no-console"] != "true" && hasTerminal
+	return operationOwnsLive(name) && args["no-console"] != "true" && hasTerminal
 }
 
 func consoleRunner(name string, args map[string]string, stdin io.Reader, stdout io.Writer) (*couchtty.Console, couchcore.Runner) {

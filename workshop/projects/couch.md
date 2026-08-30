@@ -171,7 +171,7 @@ gate `#147` and `#148` respectively; `#145` and `#146` do not depend on them.
 - [x] deterministic agent session-tree inventory [pair#155]
 - [x] deterministic native forests [pair#155 M1]
 - [x] round-gated native bindings and public inventory [pair#155 M2]
-- [.] verified park and activity age [pair#152]
+- [x] verified park and activity age [pair#152]
 - [.] hierarchical thread menu [pair#151]
 - [ ] managed-worktree lifecycle [pair#153]
 - [ ] expose query API to peer actors [ariadne#199]
@@ -818,6 +818,17 @@ but never authorizes one. #152 now treats the durable repo plus this identified
 native session tree as recovery state and no longer waits for an LLM-authored
 flush acknowledgement. #152 and its consumer #151 are marked blocked until the
 shared inventory lands (ARCH-DRY, ARCH-PURPOSE, ARCH-MOCK).
+
+### 2026-08-30 — pair#152 verified park/resume delivered
+
+Pair Alt+x and Couch Park now share one nonce-bound full-quit lifecycle;
+ThreadStore releases capacity only after the matching durable completion and
+final CAS. Couch confirmation/`parking…` precedes bounded asynchronous work,
+and Resume re-enters the exact composite address, saved profile, working path,
+and #155 native root through a read-only established Pair marker. Alt+d remains
+Pair-local detach and there is no Couch detach surface. The #151 menu can now
+consume these operations without inventing lifecycle semantics
+(ARCH-CONSTRAINTS, ARCH-DRY, ARCH-PURPOSE).
 
 [pair#155 M1]: #pair-155-m1
 [pair#155 M2]: #pair-155-m2

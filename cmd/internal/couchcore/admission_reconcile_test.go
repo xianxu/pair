@@ -73,6 +73,116 @@ func TestAdmissionReconcileCountsUnknownAndRollsBackRefusedCandidate(t *testing.
 	}
 }
 
+func TestAdmissionReconcileParkStatesRemainOccupiedUntilVerified(t *testing.T) {
+	policy := admissionPolicy(CapacityBounded, 1, CapacityReject)
+
+	t.Run("active and tombstoned states remain occupied", func(t *testing.T) {
+		store, ns := newTestThreadStore(t)
+		now := time.Now()
+		incumbent := allocateAdmissionCandidate(t, store, ns, "0123456789abcdef", 1, now)
+		profile := LaunchProfile{Agent: "codex", Argv: []string{"--sandbox", "workspace-write"}}
+		incumbent, err := store.UpdateExistingThread(incumbent.Address, incumbent.Revision, func(next *ThreadRecord) error {
+			next.Reservation = false
+			next.Incarnations = []ThreadIncarnation{{
+				PID: 42, Identity: "park-helper", State: IncarnationLive,
+				Policy: &policy, LaunchProfile: &profile,
+			}}
+			next.LatestLaunchProfile = &profile
+			return nil
+		})
+		if err != nil {
+			t.Fatal(err)
+		}
+		identity := ParkIdentity{Nonce: "park-4444444444444444", Address: incumbent.Address, PID: 42, ProcessIdentity: "park-helper"}
+		incumbent, err = store.BeginPark(incumbent.Address, incumbent.Revision, identity)
+		if err != nil {
+			t.Fatal(err)
+		}
+
+		assertOccupied := func(suffix byte) {
+			t.Helper()
+			candidate := allocateAdmissionCandidate(t, store, ns, incumbent.Address.RepoScope, suffix, now.Add(time.Duration(suffix)*time.Second))
+			resolver := NewFakePolicyResolver()
+			resolver.Queue(candidate.WorkingPath, policy, nil)
+			_, err := ReconcileAdmission(context.Background(), store, resolver, candidate.Address, now)
+			var full *CapacityExceededError
+			if !errors.As(err, &full) {
+				t.Fatalf("state %+v admitted competing thread: %T %v", incumbent.Park, err, err)
+			}
+		}
+
+		assertOccupied(2) // requested
+		incumbent, err = store.AdvancePark(incumbent.Address, incumbent.Revision, ParkEvent{Kind: ParkRequestCommitted, Identity: identity, Attempt: 1})
+		if err != nil {
+			t.Fatal(err)
+		}
+		assertOccupied(3) // awaiting
+		incumbent, err = store.AdvancePark(incumbent.Address, incumbent.Revision, ParkEvent{
+			Kind: ParkFailureObserved, Identity: identity, Attempt: 1,
+			Failure: &ParkFailure{Code: "timeout", Diagnostic: "deadline"},
+		})
+		if err != nil {
+			t.Fatal(err)
+		}
+		assertOccupied(4) // timed out
+		incumbent, err = store.AppendParkAttempt(incumbent.Address, incumbent.Revision, identity)
+		if err != nil {
+			t.Fatal(err)
+		}
+		incumbent, err = store.AdvancePark(incumbent.Address, incumbent.Revision, ParkEvent{Kind: ParkRequestCommitted, Identity: identity, Attempt: 2})
+		if err != nil {
+			t.Fatal(err)
+		}
+		incumbent, err = store.AdvancePark(incumbent.Address, incumbent.Revision, ParkEvent{
+			Kind: ParkFailureObserved, Identity: identity, Attempt: 2,
+			Failure: &ParkFailure{Code: "completion_missing", Diagnostic: "session absent"},
+		})
+		if err != nil {
+			t.Fatal(err)
+		}
+		assertOccupied(5) // unknown
+		incumbent, err = store.AbandonPark(incumbent.Address, incumbent.Revision, identity)
+		if err != nil {
+			t.Fatal(err)
+		}
+		assertOccupied(6) // tombstoned with live incarnation
+	})
+
+	t.Run("verified success releases capacity", func(t *testing.T) {
+		store, ns := newTestThreadStore(t)
+		now := time.Now()
+		incumbent := allocateAdmissionCandidate(t, store, ns, "0123456789abcdef", 11, now)
+		profile := LaunchProfile{Agent: "codex", Argv: []string{}}
+		incumbent, err := store.UpdateExistingThread(incumbent.Address, incumbent.Revision, func(next *ThreadRecord) error {
+			next.Reservation = false
+			next.Incarnations = []ThreadIncarnation{{
+				PID: 42, Identity: "park-helper", State: IncarnationLive,
+				Policy: &policy, LaunchProfile: &profile,
+			}}
+			next.LatestLaunchProfile = &profile
+			return nil
+		})
+		if err != nil {
+			t.Fatal(err)
+		}
+		identity := ParkIdentity{Nonce: "park-5555555555555555", Address: incumbent.Address, PID: 42, ProcessIdentity: "park-helper"}
+		incumbent, err = store.BeginPark(incumbent.Address, incumbent.Revision, identity)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if _, err = store.FinalizePark(incumbent.Address, incumbent.Revision, identity, 1, now); err != nil {
+			t.Fatal(err)
+		}
+		candidate := allocateAdmissionCandidate(t, store, ns, incumbent.Address.RepoScope, 12, now.Add(time.Second))
+		resolver := NewFakePolicyResolver()
+		resolver.Queue(candidate.WorkingPath, policy, nil)
+		admitted, err := ReconcileAdmission(context.Background(), store, resolver, candidate.Address, now)
+		if err != nil || len(admitted.Incarnations) != 1 {
+			t.Fatalf("verified park did not release capacity: %+v, %v", admitted, err)
+		}
+	})
+}
+
 func TestAdmissionReconcileRetainsDeadClientWithoutWholeIncarnationProof(t *testing.T) {
 	store, ns := newTestThreadStore(t)
 	now := time.Now()

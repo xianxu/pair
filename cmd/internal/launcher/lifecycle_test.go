@@ -1,11 +1,34 @@
 package launcher
 
 import (
+	"context"
+	"encoding/json"
 	"errors"
+	"os"
+	"path/filepath"
 	"reflect"
 	"strings"
 	"testing"
+
+	"github.com/xianxu/pair/cmd/internal/artifactpath"
+	"github.com/xianxu/pair/cmd/internal/pairlifecycle"
 )
+
+func TestAttachExistingSessionRunsProductionHandoff(t *testing.T) {
+	rt := newFakeRuntime()
+	rt.attachCode = 7
+	opts := baseOpts(LaunchArgs{})
+	code, err := AttachExistingSession(opts, opts.Env, rt, "live", "pair-live", "codex")
+	if err != nil || code != 7 {
+		t.Fatalf("AttachExistingSession = %d, %v", code, err)
+	}
+	if !reflect.DeepEqual(rt.attached, []string{"pair-live"}) {
+		t.Fatalf("attached = %v", rt.attached)
+	}
+	if rt.env["PAIR_TAG"] != "live" || rt.env["PAIR_SESSION_NAME"] != "pair-live" {
+		t.Fatalf("handoff env = %v", rt.env)
+	}
+}
 
 // `pair resume <livetag>` decides attach: runAttach fires (AttachSession, tag
 // export, title/tty/cmux/poller refresh) and NO create happens.
@@ -135,6 +158,113 @@ func TestRunLaunchQuitCleanupPrintsOnlyEstablishedSessionID(t *testing.T) {
 	if !strings.Contains(stderr.String(), "session id:  ESTABLISHED") || strings.Contains(stderr.String(), "STALE") {
 		t.Fatalf("resume hint used non-authoritative identity: %q", stderr.String())
 	}
+}
+
+func TestRunCleanupUsesTypedContextBoundary(t *testing.T) {
+	t.Run("cancelled before effects", func(t *testing.T) {
+		rt := newFakeRuntime()
+		rt.quitMarkers["pair-work"] = true
+		ctx, cancel := context.WithCancel(context.Background())
+		cancel()
+		result, ran := runCleanupContext(ctx, Env{DataDir: "/data", Cwd: "/repo"}, rt, launchStep{tag: "work", agent: "claude", session: "pair-work"}, "scope", 0, &strings.Builder{})
+		if !ran || result.Outcome != pairlifecycle.CompletionFailure || len(result.Failures) != 1 || result.Failures[0].Code != pairlifecycle.FailureTimeout {
+			t.Fatalf("ran=%v result=%#v", ran, result)
+		}
+		if len(rt.deleted) != 0 || len(rt.reaped) != 0 {
+			t.Fatalf("cancelled cleanup performed effects: delete=%v reap=%v", rt.deleted, rt.reaped)
+		}
+	})
+
+	t.Run("quiescence failure gates destructive stages", func(t *testing.T) {
+		rt := newFakeRuntime()
+		rt.quitMarkers["pair-work"] = true
+		rt.deleteErr = errors.New("absence unproved")
+		result, ran := runCleanupContext(context.Background(), Env{DataDir: "/data", Cwd: "/repo"}, rt, launchStep{tag: "work", agent: "claude", session: "pair-work"}, "scope", 0, &strings.Builder{})
+		if !ran || result.Outcome != pairlifecycle.CompletionFailure || result.Failures[0].Stage != pairlifecycle.StageSessionQuiescence {
+			t.Fatalf("ran=%v result=%#v", ran, result)
+		}
+		if len(rt.reaped) != 0 || len(rt.removed) != 0 || len(rt.killedPollers) != 0 {
+			t.Fatalf("failed quiescence leaked later effects: reap=%v remove=%v poller=%v", rt.reaped, rt.removed, rt.killedPollers)
+		}
+	})
+}
+
+func TestDirectAndCouchShareCleanupEffects(t *testing.T) {
+	dataDir := t.TempDir()
+	address, err := artifactpath.Resolve(artifactpath.Address{DataDir: dataDir, RepoScope: "scope", Tag: "work"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	lifecycle, err := address.Lifecycle("nonce-1")
+	if err != nil {
+		t.Fatal(err)
+	}
+	request := pairlifecycle.QuitRequest{
+		SchemaVersion: pairlifecycle.SchemaVersion,
+		Identity:      pairlifecycle.Identity{Nonce: "nonce-1", RepoScope: "scope", Tag: "work", PID: 42, ProcessIdentity: "start:1"},
+		Attempt:       1, Session: "pair-work", Mode: pairlifecycle.CleanupPreserveScrollback, CompletionKey: "quit-completion-1",
+	}
+	if err := (pairlifecycle.Store{Runtime: pairlifecycle.OSRuntime{}}).PublishRequest(lifecycle, request); err != nil {
+		t.Fatal(err)
+	}
+	base := newFakeRuntime()
+	base.isTTY = true
+	base.confirmPark = false
+	base.parkOK = true
+	scopeDir := filepath.Join(dataDir, "repos", "scope")
+	base.files[filepath.Join(scopeDir, "scrollback-work-claude.raw")] = "bytes"
+	rt := &typedQuitFakeRuntime{fakeRuntime: base, intent: QuitIntent{
+		Version: QuitIntentVersion, Kind: QuitIntentCouch,
+		Request: &QuitRequestReference{DataDir: dataDir, RepoScope: "scope", Tag: "work", Nonce: "nonce-1", Attempt: 1},
+	}}
+	result, ran := runCleanupContext(context.Background(), Env{DataDir: scopeDir, Cwd: "/repo"}, rt, launchStep{tag: "work", agent: "claude", session: "pair-work"}, "scope", 0, &strings.Builder{})
+	if !ran || result.Outcome != pairlifecycle.CompletionSuccess {
+		t.Fatalf("ran=%v result=%#v", ran, result)
+	}
+	if len(base.parkPrompts) != 0 || !reflect.DeepEqual(base.parked, []string{"work|claude|true"}) {
+		t.Fatalf("Couch policy prompts=%v parked=%v", base.parkPrompts, base.parked)
+	}
+	direct := newFakeRuntime()
+	direct.quitMarkers["pair-work"] = true
+	direct.isTTY = true
+	direct.confirmPark = true
+	direct.parkOK = true
+	direct.files[filepath.Join(scopeDir, "scrollback-work-claude.raw")] = "bytes"
+	directResult, directRan := runCleanupContext(context.Background(), Env{DataDir: scopeDir, Cwd: "/repo"}, direct, launchStep{tag: "work", agent: "claude", session: "pair-work"}, "scope", 0, &strings.Builder{})
+	if !directRan || directResult.Outcome != pairlifecycle.CompletionSuccess {
+		t.Fatalf("direct ran=%v result=%#v", directRan, directResult)
+	}
+	if !reflect.DeepEqual(direct.deleted, base.deleted) || !reflect.DeepEqual(direct.reaped, base.reaped) || !reflect.DeepEqual(direct.parked, base.parked) || !reflect.DeepEqual(direct.removed, base.removed) || !reflect.DeepEqual(direct.killedPollers, base.killedPollers) {
+		t.Fatalf("direct effects differ: direct=%#v couch=%#v", direct, base)
+	}
+	completionPath, _ := lifecycle.Completion(1)
+	raw, err := os.ReadFile(completionPath)
+	if err != nil {
+		t.Fatal(err)
+	}
+	var completion pairlifecycle.QuitCompletion
+	if err := json.Unmarshal(raw, &completion); err != nil || pairlifecycle.MatchQuitCompletion(request, completion) != nil || completion.Outcome != pairlifecycle.CompletionSuccess {
+		t.Fatalf("completion=%#v decode=%v", completion, err)
+	}
+}
+
+type typedQuitFakeRuntime struct {
+	*fakeRuntime
+	intent QuitIntent
+	taken  bool
+}
+
+func (r *typedQuitFakeRuntime) TakeQuitIntent(string) (QuitIntent, bool, error) {
+	if r.taken {
+		return QuitIntent{}, false, nil
+	}
+	r.taken = true
+	return r.intent, true, nil
+}
+
+func (r *typedQuitFakeRuntime) WriteQuitIntent(_ string, intent QuitIntent) error {
+	r.intent, r.taken = intent, false
+	return nil
 }
 
 // A detach (Alt+d) leaves no quit marker: cleanup is a complete no-op.

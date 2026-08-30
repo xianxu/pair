@@ -10,6 +10,8 @@ package couchtty
 import (
 	"bytes"
 	"time"
+
+	"github.com/xianxu/pair/cmd/internal/workbenchshortcut"
 )
 
 // hotkeyByte is ctrl-space in the LEGACY encoding: ctrl-@ is NUL.
@@ -26,7 +28,17 @@ const (
 	seqPartial
 	seqPasteStart
 	seqPasteEnd
-	seqHotkey
+	seqSwitch
+	seqPark
+	seqHotkey = seqSwitch // compatibility name for the switch-sequence tests
+)
+
+type InterceptorHit uint8
+
+const (
+	HitNone InterceptorHit = iota
+	HitSwitch
+	HitPark
 )
 
 // knownSequences is every multi-byte sequence the console must recognise in the
@@ -44,14 +56,26 @@ const (
 // Exact strings, matching how workbenchshortcut does it. A tolerant parser for
 // CSI-u variants would also have to decide what `\x1b[32;5:3u` (key RELEASE)
 // means, and guessing there is how a switcher fires twice per keypress.
-var knownSequences = []struct {
+var knownSequences = func() []struct {
 	bytes []byte
 	kind  seqKind
-}{
-	{[]byte("\x1b[200~"), seqPasteStart},
-	{[]byte("\x1b[201~"), seqPasteEnd},
-	{[]byte("\x1b[32;5u"), seqHotkey},
-}
+} {
+	sequences := []struct {
+		bytes []byte
+		kind  seqKind
+	}{
+		{[]byte("\x1b[200~"), seqPasteStart},
+		{[]byte("\x1b[201~"), seqPasteEnd},
+		{[]byte("\x1b[32;5u"), seqSwitch},
+	}
+	for _, encoding := range workbenchshortcut.ChordEncodings(workbenchshortcut.ChordAltX) {
+		sequences = append(sequences, struct {
+			bytes []byte
+			kind  seqKind
+		}{encoding, seqPark})
+	}
+	return sequences
+}()
 
 // Interceptor splits the operator's keystrokes around the hotkey.
 //
@@ -88,6 +112,13 @@ func (i *Interceptor) Flush() []byte {
 // focus landed on and is fed back in by the caller after switching. With no
 // hotkey, before is everything and rest is empty -- one place to look.
 func (i *Interceptor) Feed(in []byte) (before []byte, hit bool, rest []byte) {
+	before, typed, rest := i.FeedHit(in)
+	return before, typed != HitNone, rest
+}
+
+// FeedHit is Feed's typed form, distinguishing Couch switching from Pair's
+// Alt+x full-quit chord intercepted as Couch Park.
+func (i *Interceptor) FeedHit(in []byte) (before []byte, hit InterceptorHit, rest []byte) {
 	buf := in
 	if len(i.held) > 0 {
 		buf = append(i.held, in...)
@@ -97,7 +128,7 @@ func (i *Interceptor) Feed(in []byte) (before []byte, hit bool, rest []byte) {
 	out := make([]byte, 0, len(buf))
 	for idx := 0; idx < len(buf); {
 		if !i.inPaste && buf[idx] == hotkeyByte {
-			return out, true, buf[idx+1:]
+			return out, HitSwitch, buf[idx+1:]
 		}
 		if buf[idx] == 0x1b {
 			n, kind := sequenceAt(buf[idx:])
@@ -109,15 +140,19 @@ func (i *Interceptor) Feed(in []byte) (before []byte, hit bool, rest []byte) {
 				// IO owner resolves an actual ESC key through Flush after a
 				// short ambiguity timeout, matching the panel decoder's rule.
 				i.held = append([]byte(nil), buf[idx:]...)
-				return out, false, nil
+				return out, HitNone, nil
 			case seqPasteStart, seqPasteEnd:
 				i.inPaste = kind == seqPasteStart
 				out = append(out, buf[idx:idx+n]...)
 				idx += n
 				continue
-			case seqHotkey:
+			case seqSwitch, seqPark:
 				if !i.inPaste {
-					return out, true, buf[idx+n:]
+					hit := HitSwitch
+					if kind == seqPark {
+						hit = HitPark
+					}
+					return out, hit, buf[idx+n:]
 				}
 				// Inside a paste it is content, like any other byte.
 				out = append(out, buf[idx:idx+n]...)
@@ -132,7 +167,7 @@ func (i *Interceptor) Feed(in []byte) (before []byte, hit bool, rest []byte) {
 		out = append(out, buf[idx])
 		idx++
 	}
-	return out, false, nil
+	return out, HitNone, nil
 }
 
 // sequenceAt classifies the bytes at buf[0] against knownSequences.

@@ -24,6 +24,9 @@ func TestOperationDeclarationsAreClosureFreeCompleteAndOwned(t *testing.T) {
 		"publish-description": {ExecuteDirectStore, EffectMetadata, ConfirmNone, ResultThread},
 		"switch":              {ExecuteLiveOwner, EffectConsole, ConfirmNone, ResultConsole},
 		"attach":              {ExecuteLiveOwner, EffectConsole, ConfirmNone, ResultConsole},
+		"park":                {ExecuteLiveOwner, EffectProcess, ConfirmRequired, ResultThread},
+		"leave":               {ExecuteLiveOwner, EffectProcess, ConfirmRequired, ResultConsole},
+		"resume":              {ExecuteLiveOwner, EffectProcess, ConfirmNone, ResultStart},
 	}
 	for _, op := range Operations() {
 		expected, ok := want[op.Name]
@@ -44,5 +47,35 @@ func TestOperationDeclarationsAreClosureFreeCompleteAndOwned(t *testing.T) {
 	}
 	if len(want) > 0 {
 		t.Fatalf("missing declarations: %v", want)
+	}
+}
+
+func TestParkLeaveResumeAndNoCouchDetachSurface(t *testing.T) {
+	var park, resume *Operation
+	var leave *Operation
+	for _, operation := range Operations() {
+		op := operation
+		switch op.Name {
+		case "park":
+			park = &op
+		case "resume":
+			resume = &op
+		case "leave":
+			leave = &op
+		case "detach":
+			t.Fatal("Couch exposes a detach operation")
+		}
+	}
+	if park == nil || leave == nil || resume == nil {
+		t.Fatalf("park/leave/resume declarations = %+v, %+v, %+v", park, leave, resume)
+	}
+	wantParkArgs := []ArgSpec{
+		{Name: "ref", Summary: "thread tag, path, or name", Required: false},
+		{Name: "tag", Summary: "exact thread tag from trusted owner context", Implicit: true},
+		{Name: "mode", Summary: "normal, retry, recover, or abandon (--mode=<mode>)", FlagOnly: true, ValueRequired: true},
+		{Name: "repo-scope", Summary: "repository scope derived from caller context", Required: true, Implicit: true},
+	}
+	if !reflect.DeepEqual(park.Args, wantParkArgs) {
+		t.Fatalf("park args = %+v", park.Args)
 	}
 }

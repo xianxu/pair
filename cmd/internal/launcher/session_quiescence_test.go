@@ -135,11 +135,63 @@ func TestDeleteSessionFailsClosedWhenAbsenceCannotBeObserved(t *testing.T) {
 		{name: "kill error", ops: &statefulSessionQuiescenceOps{serverPID: 4242, serverAlive: true, killErr: errors.New("kill refused")}},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
-			err := quiesceZellijSession("pair-work", tc.ops, 10*time.Millisecond, time.Millisecond)
+			err := quiesceZellijSession(context.Background(), "pair-work", tc.ops, 10*time.Millisecond, time.Millisecond)
 			if err == nil {
 				t.Fatal("unobservable absence reported success")
 			}
 		})
+	}
+}
+
+type deadlineCaptureOps struct {
+	calls     int
+	deadlines []time.Time
+}
+
+func (o *deadlineCaptureOps) capture(ctx context.Context) {
+	o.calls++
+	deadline, _ := ctx.Deadline()
+	o.deadlines = append(o.deadlines, deadline)
+}
+func (o *deadlineCaptureOps) SessionPresent(ctx context.Context, _ string) (bool, error) {
+	o.capture(ctx)
+	return false, nil
+}
+func (o *deadlineCaptureOps) SessionServers(ctx context.Context, _ string) ([]sessionServerIdentity, error) {
+	o.capture(ctx)
+	return nil, nil
+}
+func (o *deadlineCaptureOps) DeleteSessionRecord(ctx context.Context, _ string) error {
+	o.capture(ctx)
+	return nil
+}
+func (*deadlineCaptureOps) KillServer(sessionServerIdentity) error { return nil }
+
+func TestCleanupDeadlinePropagation(t *testing.T) {
+	parentDeadline := time.Now().Add(time.Hour)
+	parent, cancel := context.WithDeadline(context.Background(), parentDeadline)
+	defer cancel()
+	ops := &deadlineCaptureOps{}
+	if err := quiesceZellijSession(parent, "pair-work", ops, zjTimeout, time.Nanosecond); err != nil {
+		t.Fatal(err)
+	}
+	if ops.calls == 0 {
+		t.Fatal("quiescence made no observations")
+	}
+	for _, deadline := range ops.deadlines {
+		if !deadline.Before(parentDeadline) {
+			t.Fatalf("child deadline %v did not apply inner %v bound before parent %v", deadline, zjTimeout, parentDeadline)
+		}
+	}
+
+	cancelled, stop := context.WithCancel(context.Background())
+	stop()
+	cancelledOps := &deadlineCaptureOps{}
+	if err := quiesceZellijSession(cancelled, "pair-work", cancelledOps, zjTimeout, time.Nanosecond); !errors.Is(err, context.Canceled) {
+		t.Fatalf("cancelled parent error=%v", err)
+	}
+	if cancelledOps.calls != 0 {
+		t.Fatalf("cancelled parent reached observations: %d", cancelledOps.calls)
 	}
 }
 
