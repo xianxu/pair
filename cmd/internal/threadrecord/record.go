@@ -3,6 +3,7 @@
 package threadrecord
 
 import (
+	"encoding/json"
 	"fmt"
 	"path/filepath"
 	"regexp"
@@ -11,7 +12,7 @@ import (
 	"github.com/xianxu/pair/cmd/internal/strictjson"
 )
 
-const SchemaVersion = 1
+const SchemaVersion = 2
 
 type Validators struct {
 	RepoScope func(string) error
@@ -61,18 +62,23 @@ type Incarnation struct {
 }
 
 type Record struct {
-	SchemaVersion    int           `json:"schema_version"`
-	Address          Address       `json:"address"`
-	StartingPath     string        `json:"starting_path"`
-	WorkingPath      string        `json:"working_path"`
-	CreatedAt        time.Time     `json:"created_at"`
-	Revision         uint64        `json:"revision"`
-	ClaimGeneration  uint64        `json:"claim_generation"`
-	Reservation      bool          `json:"reservation,omitempty"`
-	Name             string        `json:"name,omitempty"`
-	Description      string        `json:"description,omitempty"`
-	PublishedSummary string        `json:"published_summary,omitempty"`
-	Incarnations     []Incarnation `json:"incarnations,omitempty"`
+	SchemaVersion       int               `json:"schema_version"`
+	Address             Address           `json:"address"`
+	StartingPath        string            `json:"starting_path"`
+	WorkingPath         string            `json:"working_path"`
+	CreatedAt           time.Time         `json:"created_at"`
+	Revision            uint64            `json:"revision"`
+	ClaimGeneration     uint64            `json:"claim_generation"`
+	Reservation         bool              `json:"reservation,omitempty"`
+	Name                string            `json:"name,omitempty"`
+	Description         string            `json:"description,omitempty"`
+	PublishedSummary    string            `json:"published_summary,omitempty"`
+	Incarnations        []Incarnation     `json:"incarnations,omitempty"`
+	LatestLaunchProfile *LaunchProfile    `json:"latest_launch_profile,omitempty"`
+	LastActiveAt        time.Time         `json:"last_active_at,omitempty"`
+	Park                *ParkTransaction  `json:"park,omitempty"`
+	VerifiedPark        *VerifiedPark     `json:"verified_park,omitempty"`
+	ParkHistory         []ParkTransaction `json:"park_history,omitempty"`
 }
 
 var componentPattern = regexp.MustCompile(`^[A-Za-z0-9_-]+$`)
@@ -123,7 +129,7 @@ func Validate(record Record, validators Validators) error {
 			if incarnation.State == "creating" {
 				return fmt.Errorf("incarnation %d has launch profile before registration", i)
 			}
-			if incarnation.LaunchProfile.Agent == "" || incarnation.LaunchProfile.Argv == nil {
+			if err := validateLaunchProfile(*incarnation.LaunchProfile); err != nil {
 				return fmt.Errorf("incarnation %d has incomplete launch profile", i)
 			}
 		}
@@ -141,15 +147,17 @@ func Validate(record Record, validators Validators) error {
 			if (incarnation.PID == 0) != (incarnation.Identity == "") {
 				return fmt.Errorf("incarnation %d helper pid and identity must be recorded together", i)
 			}
-			if incarnation.Start.LaunchProfile != nil && (incarnation.Start.LaunchProfile.Agent == "" || incarnation.Start.LaunchProfile.Argv == nil) {
-				return fmt.Errorf("incarnation %d has incomplete pending launch profile", i)
+			if incarnation.Start.LaunchProfile != nil {
+				if err := validateLaunchProfile(*incarnation.Start.LaunchProfile); err != nil {
+					return fmt.Errorf("incarnation %d has incomplete pending launch profile", i)
+				}
 			}
 		}
 	}
 	if trackedStarts > 1 {
 		return fmt.Errorf("thread has %d tracked start transactions", trackedStarts)
 	}
-	return nil
+	return validateLifecycle(record)
 }
 
 func ValidatePersisted(record Record, expected Address, validators Validators) error {
@@ -166,12 +174,64 @@ func ValidatePersisted(record Record, expected Address, validators Validators) e
 }
 
 func DecodePersisted(raw []byte, expected Address, validators Validators) (Record, error) {
-	var record Record
-	if err := strictjson.Decode(raw, &record); err != nil {
+	var envelope map[string]json.RawMessage
+	if err := strictjson.Decode(raw, &envelope); err != nil {
 		return Record{}, err
+	}
+	versionRaw, ok := envelope["schema_version"]
+	if !ok {
+		return Record{}, fmt.Errorf("thread schema version is required")
+	}
+	var version int
+	if err := strictjson.Decode(versionRaw, &version); err != nil {
+		return Record{}, fmt.Errorf("invalid thread schema version: %w", err)
+	}
+
+	var record Record
+	switch version {
+	case 1:
+		var legacy recordV1
+		if err := strictjson.Decode(raw, &legacy); err != nil {
+			return Record{}, err
+		}
+		record = migrateV1(legacy)
+	case SchemaVersion:
+		if err := strictjson.Decode(raw, &record); err != nil {
+			return Record{}, err
+		}
+	default:
+		return Record{}, fmt.Errorf("unsupported thread schema version %d", version)
 	}
 	if err := ValidatePersisted(record, expected, validators); err != nil {
 		return Record{}, err
 	}
 	return record, nil
+}
+
+// recordV1 is frozen. Keeping its exact field set makes migration strict and
+// ensures rollback to an old binary fails closed on newly-written v2 fields.
+type recordV1 struct {
+	SchemaVersion    int           `json:"schema_version"`
+	Address          Address       `json:"address"`
+	StartingPath     string        `json:"starting_path"`
+	WorkingPath      string        `json:"working_path"`
+	CreatedAt        time.Time     `json:"created_at"`
+	Revision         uint64        `json:"revision"`
+	ClaimGeneration  uint64        `json:"claim_generation"`
+	Reservation      bool          `json:"reservation,omitempty"`
+	Name             string        `json:"name,omitempty"`
+	Description      string        `json:"description,omitempty"`
+	PublishedSummary string        `json:"published_summary,omitempty"`
+	Incarnations     []Incarnation `json:"incarnations,omitempty"`
+}
+
+func migrateV1(legacy recordV1) Record {
+	return Record{
+		SchemaVersion: SchemaVersion, Address: legacy.Address,
+		StartingPath: legacy.StartingPath, WorkingPath: legacy.WorkingPath,
+		CreatedAt: legacy.CreatedAt, Revision: legacy.Revision,
+		ClaimGeneration: legacy.ClaimGeneration, Reservation: legacy.Reservation,
+		Name: legacy.Name, Description: legacy.Description,
+		PublishedSummary: legacy.PublishedSummary, Incarnations: legacy.Incarnations,
+	}
 }

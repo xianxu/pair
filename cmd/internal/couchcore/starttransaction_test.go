@@ -136,3 +136,55 @@ func TestAdvanceStartTransactionCanRecoverEstablishedDeadHelperAsUnknown(t *test
 		t.Fatalf("recovered = %+v, %v", recovered.Incarnations[0], err)
 	}
 }
+
+func TestStartRegisteredCopiesLatestLaunchProfile(t *testing.T) {
+	record := admittedStartRecord(t)
+	profile := LaunchProfile{Agent: "codex", Argv: []string{"--sandbox", "workspace-write"}}
+	record, _ = AdvanceStartTransaction(record, StartEvent{
+		Kind: StartClaimed, Nonce: "start-0123456789abcdef",
+		Owner: SupervisorOwner{PID: 41, Identity: "owner-token"}, Profile: &profile,
+	})
+	record, _ = AdvanceStartTransaction(record, StartEvent{
+		Kind: StartHelperRecorded, Nonce: "start-0123456789abcdef",
+		Helper: ProcessIdentity{PID: 42, Identity: "helper-token"},
+	})
+	registered, err := AdvanceStartTransaction(record, StartEvent{Kind: StartRegistered, Nonce: "start-0123456789abcdef"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if registered.LatestLaunchProfile == nil || !reflect.DeepEqual(*registered.LatestLaunchProfile, profile) {
+		t.Fatalf("latest profile = %+v, want %+v", registered.LatestLaunchProfile, profile)
+	}
+	registered.Incarnations[0].LaunchProfile.Argv[0] = "changed"
+	if registered.LatestLaunchProfile.Argv[0] != "--sandbox" {
+		t.Fatal("thread and incarnation profiles alias")
+	}
+}
+
+func TestFailedStartDoesNotReplaceLatestLaunchProfile(t *testing.T) {
+	oldProfile := LaunchProfile{Agent: "claude", Argv: []string{"--resume", "old"}}
+	newProfile := LaunchProfile{Agent: "codex", Argv: []string{"--sandbox", "workspace-write"}}
+	record := admittedStartRecord(t)
+	record.LatestLaunchProfile = &oldProfile
+	record, _ = AdvanceStartTransaction(record, StartEvent{
+		Kind: StartClaimed, Nonce: "start-0123456789abcdef",
+		Owner: SupervisorOwner{PID: 41, Identity: "owner-token"}, Profile: &newProfile,
+	})
+	record, _ = AdvanceStartTransaction(record, StartEvent{
+		Kind: StartHelperRecorded, Nonce: "start-0123456789abcdef",
+		Helper: ProcessIdentity{PID: 42, Identity: "helper-token"},
+	})
+	recovered, err := AdvanceStartTransaction(record, StartEvent{Kind: StartRecoveredUnknown, Nonce: "start-0123456789abcdef"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if recovered.LatestLaunchProfile == nil || !reflect.DeepEqual(*recovered.LatestLaunchProfile, oldProfile) {
+		t.Fatalf("failed start latest profile = %+v, want %+v", recovered.LatestLaunchProfile, oldProfile)
+	}
+	if _, err := AdvanceStartTransaction(record, StartEvent{Kind: StartRegistered, Nonce: "wrong"}); err == nil {
+		t.Fatal("wrong nonce registration succeeded")
+	}
+	if !reflect.DeepEqual(*record.LatestLaunchProfile, oldProfile) {
+		t.Fatal("failed registration mutated input profile")
+	}
+}
