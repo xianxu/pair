@@ -451,3 +451,8 @@ on the durable thread record.
   `workshop/plans/000152-couch-verified-park-resume-plan.md`; all four chunks
   passed independent plan-document review after durability, migration, cleanup,
   resume, UI-ordering, conformance, performance, and close-workflow corrections.
+- 2026-08-29: `change-code` plan-quality round 1 accepted the architecture but
+  raised `PQ-1` (`plan-artifact-compression`) because the task bodies enumerated
+  cases and procedural diff steps. Appended an authoritative function-level
+  execution map with one adversarial/mechanical guard strategy per risky
+  function family while preserving the reviewed design history.

@@ -536,3 +536,134 @@ type CleanupResult struct {
 - [ ] Run `sdlc state` and inspect the current branch. If it is `main`, run `sdlc push --yes`. Otherwise run `sdlc pr`, confirm the branch is pushed/clean, then run `sdlc merge --yes`.
 - [ ] Verify the publish gate changed `codecomplete → done`, archived #152 and this plan under `workshop/history/`, updated every referencing project, returned the surviving checkout to clean `main`, and left no #152 feature worktree/branch.
 - [ ] Only after that proof, claim and start-plan #151.
+
+## Revisions
+
+### 2026-08-29 — plan-quality compression (PQ-1)
+
+**Reason:** the first `change-code` plan-quality pass accepted the architecture
+but found that the task bodies above enumerate individual cases and restate the
+diff procedure. The gate requires exact production functions plus one
+adversarial or mechanical test strategy for each risky function family.
+
+**Delta:** this compact execution map supersedes the procedural task bodies
+above. The goal, architecture, core-concept tables, ordering invariants,
+operating envelope, file ownership, and runnable verification commands above
+remain authoritative. Implementation follows these function-level units in
+order, using red-green-refactor and one commit per numbered unit; the old task
+bodies remain only as append-only design history (`PQ-1`, `ARCH-PURE`,
+`ARCH-PURPOSE`).
+
+#### Chunk 1 — durable lifecycle foundation
+
+1. Add `pairlifecycle.ValidateQuitRequest`,
+   `pairlifecycle.ValidateQuitCompletion`, and
+   `pairlifecycle.MatchQuitCompletion`, plus `artifactpath.LifecyclePaths`.
+   Test strategy: strict/fuzzed malformed identities and path components must
+   fail before derivation, while a mechanical import/manifest sweep prevents
+   lifecycle filename reconstruction or a dependency from the leaf package
+   back into launcher/Couch.
+2. Add `pairlifecycle.Store.PublishRequest`, `PublishCompletion`, and
+   `Reconcile`, backed by the stable advisory lock.
+   Test strategy: one failure-injected atomic-publication harness exercises each
+   IO boundary, concurrent identical/conflicting writers, and subprocess death;
+   only an immutable validated final whose directory sync is established may
+   become committed authority.
+3. Add pure `couchcore.AdvanceParkTransaction` and
+   `couchcore.MonotonicLastActiveAt`; add `threadrecord.DecodePersisted` and
+   lifecycle validation/conversion for schema v2.
+   Test strategy: generated event sequences and hostile v1/v2 payloads enforce
+   increasing attempts, separate base/current revisions, active-nonce and
+   tombstone invariants, late-success monotonicity, defensive copies, and
+   fail-closed unknown versions without IO mocks.
+4. Add `ThreadStore.BeginPark`, `AdvancePark`, `AppendParkAttempt`,
+   `FinalizePark`, and `AbandonPark` on the existing journal/CAS boundary.
+   Test strategy: replay and competing-writer barriers verify every mutation is
+   one CAS, finalization alone removes the exact incarnation, and restart or a
+   stale revision cannot release admission or lose tombstones.
+
+Run after this chunk:
+
+```bash
+go test -p 20 ./cmd/internal/pairlifecycle ./cmd/internal/artifactpath ./cmd/internal/threadrecord ./cmd/internal/couchcore -run 'Lifecycle|Quit|Park|ThreadRecord|Journal|Admission' -count=1
+```
+
+#### Chunk 2 — one Pair full-quit path and Couch coordinator
+
+5. Add `pairlifecycle.RunCleanup`, context-aware
+   `launcher.quiesceZellijSession`, and a thin typed `launcher.runCleanup` over
+   `QuitLifecycleOps`; provide the stateful `pairlifecycletest.Fake` through the
+   same seam.
+   Test strategy: fake effect traces and injected context barriers compare
+   direct Alt+x with Couch cleanup and mechanically enforce effect ordering,
+   idempotence, the 10-second outer/5-second inner deadline relationship, and
+   Alt+d's unchanged detach behavior.
+6. Add typed `launcher.ReadQuitIntent`/`WriteQuitIntent` compatibility and
+   `pairlifecycle.Store.ConsumeAttempt`.
+   Test strategy: malformed/legacy intents and crash-restart checkpoints around
+   the single locked critical section prove at-least-once delivery yields one
+   effective cleanup result and immutable completion per attempt.
+7. Add `couchcore.PairLifecycleController.Park`, `Retry`, `Recover`, and
+   `Abandon`, with `parkWorker.Submit` for bounded admission.
+   Test strategy: a transition-sequence driver plus barriers mechanically
+   asserts ThreadStore request commit precedes publication, directory authority
+   precedes trigger, completion precedes final CAS, duplicates coalesce, queue
+   overload has zero effects, and the 1-second pre-side-effect deadline fails
+   occupied without wall-clock sleeps or corpus/process scans.
+
+Run after this chunk:
+
+```bash
+go test -p 20 ./cmd/internal/pairlifecycle ./cmd/internal/pairlifecycletest ./cmd/internal/launcher ./cmd/internal/couchcore -run 'Cleanup|Quit|Park|Lifecycle|SessionQuiescence|Restart|Admission' -count=1
+```
+
+#### Chunk 3 — exact resume and non-blocking Couch UI
+
+8. Add pure `couchcore.DecideResume` and the
+   `NativeBindingResolver.ResolveEstablished` seam; extend
+   `launcher.ValidateTrustedLaunchProfile` and
+   `launcher.RequireNativeResumeBinding`.
+   Test strategy: adversarial durable states/profiles and a binding changed
+   between preflight and launch must all refuse with stable diagnostics before
+   child start, default lookup, tag allocation, or fresh-session fallback.
+9. Extract `couchcore.launchExistingThread`, implement `Couch.Resume`, and add
+   `launcher.RegisterExistingCouchThread`.
+   Test strategy: table-generated agents/argument bytes and failure barriers
+   prove the same composite address, working path, saved profile, and required
+   native root cross the launch boundary unchanged; rollback to parked is
+   allowed only after exact helper and Pair-session absence are proved.
+10. Declare/dispatch only `park` and `resume`; export
+    `workbenchshortcut.ChordEncodings`; extend `couchtty.Interceptor.Feed`; and
+    add bounded `operationQueue.Submit`/result handling.
+    Test strategy: mechanical declaration/source sweeps forbid Couch detach and
+    copied Alt+x bytes, every input split and bracketed-paste framing is tested,
+    and event-loop barriers prove `parking...` is the first next-turn host write
+    while input/output continue and child exit never acts as park proof.
+
+Run after this chunk:
+
+```bash
+go test -p 20 ./cmd/internal/workbenchshortcut ./cmd/internal/couchtty ./cmd/internal/couchcore ./cmd/internal/couchcmd ./cmd/internal/launcher -run 'AltX|Interceptor|Park|Resume|Operation|Panel|NativeBinding|LaunchProfile' -count=1
+```
+
+#### Chunk 4 — conformance, operating envelope, and shipment
+
+11. Add `pairlifecycletest.RunConformanceScenario` and live
+    `launcher.TestQuitLifecycleLive` through the same store/cleanup seam.
+    Test strategy: compare one redacted fake/real state trace, including
+    duplicate delivery and holder death after rename, with deadline-bound
+    subprocess/Zellij cleanup so the live probe cannot leak resources.
+12. Add opt-in `couchtty.TestParkLatencySmoke` and update README, atlas, issue,
+    and discovered project records.
+    Test strategy: 100 sequential M2 Max samples under ordinary development
+    co-tenancy require feedback P95 below 100 ms, requested-commit P95 below
+    100 ms, every commit below 1 second, and overload refusal with no side
+    effects; ordinary deterministic tests continue to enforce ordering.
+13. Run the full verification and SDLC close/publish commands already specified
+    above. Keep a single Go test command active at a time and `-p 20`; do not
+    begin #151 until #152 is archived on clean `main` (`ARCH-CONSTRAINTS`).
+
+Non-goals remain: Couch does not own PID inventory/teardown, expose detach,
+scan transcript/process corpora on interaction paths, support rollback of v2
+records into old binaries, provision missing worktrees (#153), or implement
+#151's menu beyond the shared operation declarations required here.
