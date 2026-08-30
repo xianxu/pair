@@ -5,6 +5,7 @@ import (
 	"sync"
 
 	"github.com/xianxu/pair/cmd/internal/launcher"
+	"github.com/xianxu/pair/cmd/internal/sessioninventory"
 )
 
 type fakeArtifactCollision struct {
@@ -22,12 +23,18 @@ type FakeThreadArtifactCollisionChecker struct {
 	quiesced        []ThreadAddress
 	QuiesceHook     func(ThreadAddress) error
 	pairSessions    map[ThreadAddress]PairSessionBinding
+	nativeBindings  map[nativeBindingKey]NativeBindingResolution
 	triggeredQuit   []TriggeredQuit
 	TriggerQuitHook func(string, launcher.QuitIntent) error
 	// BeforeRegistration lets an integration test interleave a durable state
 	// change at the registration boundary. It is called outside mu because the
 	// hook may consult another stateful fake or call back into this one.
 	BeforeRegistration func(ThreadAddress) error
+}
+
+type nativeBindingKey struct {
+	Address ThreadAddress
+	Agent   string
 }
 
 type TriggeredQuit struct {
@@ -42,10 +49,30 @@ type fakeRegistration struct {
 
 func NewFakeThreadArtifactCollisionChecker() *FakeThreadArtifactCollisionChecker {
 	return &FakeThreadArtifactCollisionChecker{
-		values:        map[ThreadAddress]fakeArtifactCollision{},
-		registrations: map[ThreadAddress]fakeRegistration{},
-		pairSessions:  map[ThreadAddress]PairSessionBinding{},
+		values:         map[ThreadAddress]fakeArtifactCollision{},
+		registrations:  map[ThreadAddress]fakeRegistration{},
+		pairSessions:   map[ThreadAddress]PairSessionBinding{},
+		nativeBindings: map[nativeBindingKey]NativeBindingResolution{},
 	}
+}
+
+func (f *FakeThreadArtifactCollisionChecker) SetNativeBinding(address ThreadAddress, agent string, status sessioninventory.BindingStatus, nativeID string) {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	f.nativeBindings[nativeBindingKey{Address: address, Agent: agent}] = NativeBindingResolution{Status: status, NativeID: nativeID}
+}
+
+func (f *FakeThreadArtifactCollisionChecker) ResolveEstablished(repoScope, tag, agent string) (NativeBindingResolution, error) {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	resolution, ok := f.nativeBindings[nativeBindingKey{Address: ThreadAddress{RepoScope: repoScope, Tag: ThreadTag(tag)}, Agent: agent}]
+	if !ok {
+		resolution.Status = sessioninventory.BindingUnbound
+	}
+	if code := bindingResumeDiagnostic(resolution); code != "" {
+		return resolution, refuseResume(code, "native session binding is not one exact established root")
+	}
+	return resolution, nil
 }
 
 func (f *FakeThreadArtifactCollisionChecker) SetPairSession(address ThreadAddress, name string, present bool) {

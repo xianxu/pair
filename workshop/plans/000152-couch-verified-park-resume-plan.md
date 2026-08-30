@@ -369,21 +369,21 @@ type CleanupResult struct {
 - Modify: `cmd/internal/launcher/launch_args_policy.go`
 - Test: `cmd/internal/launcher/launch_args_policy_test.go`
 
-- [ ] Write `TestDecideResumeEligibilityMatrix` for verified parked success and exact typed refusals: live, creating, unknown, parking, tombstoned, legacy-unverified, missing path, missing/incomplete profile, unsupported agent, and provisional/ambiguous/unbound/established-without-root native binding. Ambiguous thread reference remains a resolver-boundary refusal.
-- [ ] Run `go test -p 20 ./cmd/internal/couchcore -run 'TestDecideResumeEligibilityMatrix' -count=1`; expect FAIL because `DecideResume` does not exist.
-- [ ] Implement pure `DecideResume` returning the exact address, physical working path, saved profile, and required native ID or a stable diagnostic code.
-- [ ] Add a narrow `NativeBindingResolver` whose production implementation calls #155's `sessioninventory.QuerySession` and returns only `BindingEstablished` with one exact root.
-- [ ] Run the eligibility matrix again; expect PASS.
-- [ ] Write `TestTrustedResumeProfileValidation` for this matrix: resume-required demands non-empty required ID, exact supported agent, non-null argv, and saved/saved source enums; it rejects explicit/path/root/repository-default sources and any ordinary/untrusted profile carrying resume-required fields.
-- [ ] Run `go test -p 20 ./cmd/internal/launcher -run 'TestTrustedResumeProfileValidation' -count=1`; expect FAIL because the profile schema has no resume-required contract.
-- [ ] Extend trusted Couch profile encode/decode with `resume_required`, `required_session_id`, and saved source enums; keep ordinary launch encoding unchanged.
-- [ ] Run the profile validation test again; expect PASS.
-- [ ] Write `TestRequiredNativeResumeBindingAtLaunch` with an established preflight ID whose point-of-launch query becomes provisional, ambiguous, missing, or a different established root. Each case must return diagnostic code `native-binding-changed`, call no child start, and never select fresh-start arguments.
-- [ ] Run `go test -p 20 ./cmd/internal/launcher -run 'TestRequiredNativeResumeBindingAtLaunch' -count=1`; expect FAIL before the launch-time guard.
-- [ ] Re-query exact established binding immediately before Pair creates/attaches the agent child; refuse every mismatch without fallback.
-- [ ] Run the TOCTOU test again; expect PASS.
-- [ ] Run `go test -p 20 ./cmd/internal/couchcore ./cmd/internal/launcher -run 'ResumeEligibility|NativeBinding|CouchLaunchProfile|RequiredSession' -count=1`; expect PASS.
-- [ ] Commit with `git commit -m "#152: require exact native resume identity"`.
+- [x] Write `TestDecideResumeEligibilityMatrix` for verified parked success and exact typed refusals: live, creating, unknown, parking, tombstoned, legacy-unverified, missing path, missing/incomplete profile, unsupported agent, and provisional/ambiguous/unbound/established-without-root native binding. Ambiguous thread reference remains a resolver-boundary refusal.
+- [x] Run `go test -p 20 ./cmd/internal/couchcore -run 'TestDecideResumeEligibilityMatrix' -count=1`; expect FAIL because `DecideResume` does not exist.
+- [x] Implement pure `DecideResume` returning the exact address, physical working path, saved profile, and required native ID or a stable diagnostic code.
+- [x] Add a narrow `NativeBindingResolver` whose production implementation calls #155's `sessioninventory.QuerySession` and returns only `BindingEstablished` with one exact root.
+- [x] Run the eligibility matrix again; expect PASS.
+- [x] Write `TestTrustedResumeProfileValidation` for this matrix: resume-required demands non-empty required ID, exact supported agent, non-null argv, and saved/saved source enums; it rejects explicit/path/root/repository-default sources and any ordinary/untrusted profile carrying resume-required fields.
+- [x] Run `go test -p 20 ./cmd/internal/launcher -run 'TestTrustedResumeProfileValidation' -count=1`; expect FAIL because the profile schema has no resume-required contract.
+- [x] Extend trusted Couch profile encode/decode with `resume_required`, `required_session_id`, and saved source enums; keep ordinary launch encoding unchanged.
+- [x] Run the profile validation test again; expect PASS.
+- [x] Write `TestRequiredNativeResumeBindingAtLaunch` with an established preflight ID whose point-of-launch query becomes provisional, ambiguous, missing, or a different established root. Each case must return diagnostic code `native-binding-changed`, call no child start, and never select fresh-start arguments.
+- [x] Run `go test -p 20 ./cmd/internal/launcher -run 'TestRequiredNativeResumeBindingAtLaunch' -count=1`; expect FAIL before the launch-time guard.
+- [x] Re-query exact established binding immediately before Pair creates/attaches the agent child; refuse every mismatch without fallback.
+- [x] Run the TOCTOU test again; expect PASS.
+- [x] Run `go test -p 20 ./cmd/internal/couchcore ./cmd/internal/launcher -run 'ResumeEligibility|NativeBinding|CouchLaunchProfile|RequiredSession' -count=1`; expect PASS.
+- [x] Commit with `git commit -m "#152: require exact native resume identity"`.
 
 ### Task 9: Extract same-address launch and implement Resume
 

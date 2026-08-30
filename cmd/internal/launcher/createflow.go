@@ -235,6 +235,10 @@ func runOnce(opts LaunchOptions, env Env, rt Runtime, stderr io.Writer) (launchS
 	if requestedAgent != "" && agent != requestedAgent {
 		opts.Args.AgentArgs = nil
 	}
+	if opts.Args.ResumeRequired && decision.Action != ActionCreate {
+		fmt.Fprintf(stderr, "pair: %v\n", &LaunchRefusal{Code: NativeBindingChanged, Diagnostic: "required Couch resume no longer resolves to a create boundary"})
+		return launchStep{code: 1}, nil
+	}
 
 	switch decision.Action {
 	case ActionAttach:
@@ -386,6 +390,13 @@ func runCreate(opts LaunchOptions, env Env, rt Runtime, live []Session, decision
 		fmt.Fprintf(stderr, "pair: cannot claim thread '%s': %v\n", chosenTag, err)
 		return launchStep{code: 1}, nil
 	}
+	if opts.Args.ResumeRequired {
+		actual, status := rt.EstablishedSessionID(scope.Key, chosenTag, agent)
+		if err := RequireNativeResumeBinding(opts.Args.RequiredSessionID, actual, status); err != nil {
+			fmt.Fprintf(stderr, "pair: %v\n", err)
+			return launchStep{code: 1}, nil
+		}
+	}
 	// Free the name (clear a stale EXITED resurrect record) and guard against a
 	// live session unexpectedly occupying it before any source-of-truth writes.
 	if rt.SessionBlocksReuse(session) {
@@ -403,14 +414,22 @@ func runCreate(opts LaunchOptions, env Env, rt Runtime, live []Session, decision
 		legacyImported = importLegacyFlatTag(rt, chosenTag, opts.GlobalDataDir, dataDir)
 	}
 	configPath := resolveConfigPath(rt, dataDir, chosenTag, agent)
-	savedForPicker, savedWarnings := readSavedConfigForTag(rt, configPath, scope.Key, chosenTag, agent)
+	var savedForPicker savedConfig
+	var savedWarnings []string
+	if !opts.Args.ResumeRequired {
+		savedForPicker, savedWarnings = readSavedConfigForTag(rt, configPath, scope.Key, chosenTag, agent)
+	}
 	if !opts.SkipConfigPicker {
 		for _, warning := range savedWarnings {
 			fmt.Fprintln(stderr, warning)
 		}
 	}
 
-	agentDefault, defaultFound := rt.ReadAgentDefault(agent)
+	var agentDefault AgentDefault
+	var defaultFound bool
+	if !opts.Args.ResumeRequired {
+		agentDefault, defaultFound = rt.ReadAgentDefault(agent)
+	}
 	argDecision := DecideLaunchArgs(LaunchArgInputs{
 		Agent:        agent,
 		Args:         opts.Args,
@@ -418,11 +437,14 @@ func runCreate(opts LaunchOptions, env Env, rt Runtime, live []Session, decision
 		DefaultFound: defaultFound,
 	})
 	agentArgs := append([]string(nil), argDecision.Args...)
+	if opts.Args.ResumeRequired {
+		agentArgs = composeResumeArgs(agent, opts.Args.AgentArgs, opts.Args.RequiredSessionID)
+	}
 
 	// Tag-restart config picker (#000016): a saved config for this (tag, agent)
 	// offers to reuse its args / resume its session, unless an explicit resume
 	// token on argv already made the choice.
-	if !opts.SkipConfigPicker {
+	if !opts.SkipConfigPicker && !opts.Args.ResumeRequired {
 		if code, ok := runConfigPicker(rt, configPath, savedForPicker, agent, chosenTag, &agentArgs, env.Cwd, stderr); !ok {
 			return launchStep{code: code}, nil
 		}
@@ -457,7 +479,7 @@ func runCreate(opts LaunchOptions, env Env, rt Runtime, live []Session, decision
 	}
 
 	var defaultReady <-chan error
-	if opts.Args.AgentArgsExplicit {
+	if opts.Args.AgentArgsExplicit && !opts.Args.ResumeRequired {
 		defaultReady = startAgentDefaultPersistence(rt, chosenTag, agent, session, opts.Args.AgentArgs, 5*time.Second)
 	} else {
 		rt.SetEnv("PAIR_LAUNCH_NONCE", "")

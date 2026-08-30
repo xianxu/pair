@@ -3,10 +3,12 @@ package couchcore
 import (
 	"errors"
 	"fmt"
+	"os"
 
 	"github.com/xianxu/pair/cmd/internal/artifactpath"
 	"github.com/xianxu/pair/cmd/internal/launcher"
 	"github.com/xianxu/pair/cmd/internal/pairlifecycle"
+	"github.com/xianxu/pair/cmd/internal/sessioninventory"
 )
 
 type PairSessionBinding struct {
@@ -169,3 +171,21 @@ func (c ScopedThreadArtifactCollisionChecker) TriggerQuit(session string, intent
 	runtime := launcher.NewScopedOSRuntime(c.GlobalDataDir, c.GlobalDataDir, "")
 	return runtime.WriteQuitIntent(session, intent)
 }
+
+func (c ScopedThreadArtifactCollisionChecker) ResolveEstablished(repoScope, tag, agent string) (NativeBindingResolution, error) {
+	paths, err := artifactpath.Resolve(artifactpath.Address{
+		DataDir: c.GlobalDataDir, RepoScope: repoScope, Tag: tag,
+	})
+	if err != nil {
+		return NativeBindingResolution{}, err
+	}
+	home, err := os.UserHomeDir()
+	if err != nil {
+		return NativeBindingResolution{}, err
+	}
+	return (SessionInventoryNativeBindingResolver{
+		Runtime: sessioninventory.NewOSRuntime(home, paths.ScopeDir()),
+	}).ResolveEstablished(repoScope, tag, agent)
+}
+
+var _ NativeBindingResolver = ScopedThreadArtifactCollisionChecker{}

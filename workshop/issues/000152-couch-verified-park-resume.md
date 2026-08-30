@@ -476,6 +476,15 @@ on the durable thread record.
   remain occupied or historical as specified. Focused and cross-package tests
   passed with a single `go test -p 20` runner, including 999 ms acceptance and
   exact-1 s zero-effect refusal (ARCH-PURE, ARCH-DRY, ARCH-CONSTRAINTS).
+- 2026-08-30: implemented Chunk 3's resume-authority boundary. Pure eligibility
+  now refuses every occupied, unverified, path/profile-invalid, unsupported, or
+  non-established state with stable diagnostics and returns defensive exact
+  address/path/profile/native-ID values only for a verified park. The production
+  resolver projects #155's bounded `QuerySession`; Pair's trusted profile carries
+  saved/saved required-resume authority and rechecks the exact native root after
+  address claim but before defaults, ledger, sidecars, attach, or child launch.
+  Focused and full `couchcore`/`launcher` suites passed with one
+  `go test -p 20` process at a time (ARCH-PURE, ARCH-PURPOSE, ARCH-DRY).
 
 ## Estimate
 
