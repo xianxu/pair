@@ -634,6 +634,12 @@ on the durable thread record.
   passed alone. The supported target now sequences the packages while keeping
   each invocation at `-p 20`, enforcing one host-Zellij fixture owner at a time
   (ARCH-MOCK, ARCH-CONSTRAINTS).
+- 2026-08-30: close-gate round 4 disposed BR-1 through BR-6, raised no new
+  findings, and marked the finding ledger passed. Its reviewer nevertheless
+  emitted REWORK because its restricted sandbox denied `/bin/ps`; the same full
+  and live commands passed in the host session. Close therefore uses the
+  precise `--no-verdict` acknowledgment for that environment-only limitation,
+  not a waiver of any open review finding.
 
 ## Estimate
 

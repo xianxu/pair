@@ -289,3 +289,97 @@ Append a revision recording:
 - One controller-owned single-flight boundary shared by startup recovery, Park/Retry/Recover/Abandon, and Leave.
 - A consuming-flow overlap test proving recovery and interactive retry coalesce.
 - A live-mutation rule requiring proof of the intended precondition and an expected-stage failure, rather than accepting any error.
+
+---
+
+## Re-review — 2026-08-30T15:51:42-07:00 (REWORK)
+
+| field | value |
+|-------|-------|
+| issue | 152 — couch: verified park and resume lifecycle |
+| repo | pair |
+| issue file | workshop/issues/000152-couch-verified-park-resume.md |
+| boundary | whole-issue close |
+| milestone | — |
+| window | e9e267d0e9f41bfd5958bdb4872fdfcb79af0dc2..d04744774f2ae1fd8a431af0509d912b5f1ced48 |
+| command | sdlc close --issue 152 |
+| reviewer | codex |
+| timestamp | 2026-08-30T15:51:42-07:00 |
+| verdict | REWORK |
+
+## Review
+
+```verdict
+verdict: REWORK
+confidence: medium
+```
+
+The reviewed remediation appears correct and no new code defect was found. BR-5 and BR-6 are addressed with reachable regressions. However, required live/full verification could not complete because the review sandbox denied `/bin/ps` execution with `operation not permitted`; per the inspection contract, the boundary must be rerun in an environment that permits the production process-observation seam.
+
+### 1. Strengths
+
+- The production controller now owns the single-flight worker and routes Park, Retry, Recover, Abandon, reconciliation, and Leave through it ([park.go](/Users/xianxu/workspace/pair/cmd/internal/couchcore/park.go:157)).
+- The composition-level barrier test overlaps startup recovery with dispatched interactive retry and verifies one trigger plus one shared result ([parkworker_test.go](/Users/xianxu/workspace/pair/cmd/internal/couchcore/parkworker_test.go:60)).
+- The negative live mutation now pins the exact trace, completion-observation timeout, durable intent contents, and surviving helper ([park_lifecycle_live_test.go](/Users/xianxu/workspace/pair/cmd/internal/couchcore/park_lifecycle_live_test.go:241)).
+- README and atlas changes cover the new commands, lifecycle flow, recovery behavior, and coordinator boundary.
+
+### 2. Critical findings
+
+None found in the inspected code.
+
+### 3. Important findings
+
+None found in the inspected code.
+
+### 4. Minor findings
+
+None.
+
+### 5. Test coverage notes
+
+- Focused coordinator and Core Concepts tests passed.
+- All internal Go packages passed.
+- `go vet ./...` and `git diff --check` passed.
+- `make test-couch-zellij-live` failed before reaching Couch tests because launcher probes could not execute `/bin/ps`.
+- The full suite likewise failed only in `cmd/pair-go` cases requiring `/bin/ps`.
+- The worktree was clean after verification.
+
+### 6. Architectural notes for upcoming work
+
+- `ARCH-DRY`: Pass—one controller-owned worker is the lifecycle coordination source.
+- `ARCH-PURE`: Pass—coordination remains separated from durable and external IO seams.
+- `ARCH-PURPOSE`: Pass—the production entrypoints, not merely the worker unit test, enforce the stated invariant.
+- `ARCH-MOCK`: Structurally passes; stateful fake and production driver share the boundary. Live execution remains unverified because of the sandbox restriction.
+- `ARCH-CONSTRAINTS`: Pass—capacity-one admission and bounded behavior are explicit and tested deterministically.
+
+### 7. Plan revision recommendations
+
+None; the latest revision matches the delivered declarations and routing.
+
+```findings
+dispose:
+  - id: BR-1
+    disposition: addressed
+    note: |
+      The complete lifecycle conformance driver remains wired through the production trigger and shared cleanup boundary.
+  - id: BR-2
+    disposition: addressed
+    note: |
+      Construction remains free of active recovery and external Pair/Zellij observation.
+  - id: BR-3
+    disposition: addressed
+    note: |
+      The authoritative Core Concepts table is present and its declaration-resolution contract passes.
+  - id: BR-4
+    disposition: addressed
+    note: |
+      The documented same-tag/native-root smoke evidence remains recorded; no contrary code drift was found.
+  - id: BR-5
+    disposition: addressed
+    note: |
+      One controller-owned worker now serves every production lifecycle entrypoint, with a passing startup-recovery versus interactive-retry barrier regression.
+  - id: BR-6
+    disposition: addressed
+    note: |
+      The mutation test now proves trigger delivery and durable matching intent, then requires failure specifically during completion observation.
+```

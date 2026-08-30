@@ -80,6 +80,35 @@ rounds:
           family: live-conformance-production-seam
           round: 3
       blocked: true
+    - "n": 4
+      timestamp: "2026-08-30T15:51:42-07:00"
+      agent: codex
+      dispose:
+        - id: BR-1
+          disposition: addressed
+          note: The complete lifecycle conformance driver remains wired through the production trigger and shared cleanup boundary.
+          round: 4
+        - id: BR-2
+          disposition: addressed
+          note: Construction remains free of active recovery and external Pair/Zellij observation.
+          round: 4
+        - id: BR-3
+          disposition: addressed
+          note: The authoritative Core Concepts table is present and its declaration-resolution contract passes.
+          round: 4
+        - id: BR-4
+          disposition: addressed
+          note: The documented same-tag/native-root smoke evidence remains recorded; no contrary code drift was found.
+          round: 4
+        - id: BR-5
+          disposition: addressed
+          note: One controller-owned worker now serves every production lifecycle entrypoint, with a passing startup-recovery versus interactive-retry barrier regression.
+          round: 4
+        - id: BR-6
+          disposition: addressed
+          note: The mutation test now proves trigger delivery and durable matching intent, then requires failure specifically during completion observation.
+          round: 4
+      blocked: false
 ---
 
 # Gate ledger — pair#152 (boundary-review)
@@ -126,7 +155,17 @@ later rounds disposed of them. Generated — edit the gate, not this file.
 - **BR-6** [Important] `live-conformance-production-seam` The intent-only live mutation test passes on unrelated trigger errors
   This is the 2nd finding in family live-conformance-production-seam. TestParkLifecycleLiveIntentOnlyMutation at park_lifecycle_live_test.go:240 accepts any RunConformanceScenario error, then checks only that the child remains live. In this review it passed because WriteQuitIntent failed with operation not permitted before publishing the intent, so it did not exercise the intended mutation. Do not patch only this error: establish the rule that every negative conformance mutation must prove it crossed its intended precondition and failed at the expected lifecycle stage. Assert the intent is durably observable and require the expected completion-timeout/stage error.
 
+## Round 4 — 2026-08-30T15:51:42-07:00 (codex) — passed
+
+### Disposed
+
+- BR-1 — addressed — The complete lifecycle conformance driver remains wired through the production trigger and shared cleanup boundary.
+- BR-2 — addressed — Construction remains free of active recovery and external Pair/Zellij observation.
+- BR-3 — addressed — The authoritative Core Concepts table is present and its declaration-resolution contract passes.
+- BR-4 — addressed — The documented same-tag/native-root smoke evidence remains recorded; no contrary code drift was found.
+- BR-5 — addressed — One controller-owned worker now serves every production lifecycle entrypoint, with a passing startup-recovery versus interactive-retry barrier regression.
+- BR-6 — addressed — The mutation test now proves trigger delivery and durable matching intent, then requires failure specifically during completion observation.
+
 ## Open findings
 
-- **BR-5** [Critical] `single-coordinator-per-thread` The tested park single-flight worker has no production call site
-- **BR-6** [Important] `live-conformance-production-seam` The intent-only live mutation test passes on unrelated trigger errors
+(none — every finding has been disposed)
