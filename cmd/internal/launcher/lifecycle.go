@@ -1,12 +1,16 @@
 package launcher
 
 import (
+	"context"
+	"errors"
 	"fmt"
 	"io"
 	"path/filepath"
 	"strings"
+	"time"
 
 	"github.com/xianxu/pair/cmd/internal/artifactpath"
+	"github.com/xianxu/pair/cmd/internal/pairlifecycle"
 	"github.com/xianxu/pair/cmd/internal/sessioninventory"
 )
 
@@ -58,14 +62,22 @@ func runAttach(opts LaunchOptions, env Env, rt Runtime, tag, session, agent stri
 // per-tag sidecars, print the resume hint, kill the title poller, and reset the
 // cmux workspace. A detach (Alt+d) leaves no marker, so this is a no-op then.
 // Runs after BOTH create and attach handoffs (either can leave a quit marker).
+const cleanupTimeout = 10 * time.Second
+
 func runCleanup(env Env, rt Runtime, step launchStep, scopeKey string, parkTimeout int, out io.Writer) {
+	ctx, cancel := context.WithTimeout(context.Background(), cleanupTimeout)
+	defer cancel()
+	_, _ = runCleanupContext(ctx, env, rt, step, scopeKey, parkTimeout, out)
+}
+
+func runCleanupContext(ctx context.Context, env Env, rt Runtime, step launchStep, scopeKey string, parkTimeout int, out io.Writer) (pairlifecycle.CleanupResult, bool) {
 	if !rt.TakeQuitMarker(step.session) {
-		return
+		return pairlifecycle.CleanupResult{}, false
 	}
 	dataDir := env.DataDir
 	paths, err := artifactpath.ResolveScoped(dataDir, step.tag)
 	if err != nil {
-		return
+		return cleanupSetupFailure(err), true
 	}
 	// Resolve the agent this tag was paired with BEFORE the agent-<tag> record is
 	// removed below, so the park path + resume hint name the right binary.
@@ -73,73 +85,183 @@ func runCleanup(env Env, rt Runtime, step launchStep, scopeKey string, parkTimeo
 	if quitAgent == "" {
 		quitAgent = step.agent
 	}
-
-	_ = rt.DeleteSession(step.session)
-	rt.ReapNvim(step.tag)
-
-	// Park-nudge (ariadne#91): the scrollback is the only on-disk record and
-	// Alt+x is about to discard it — offer to preserve it. Gated on an
-	// interactive tty with a non-empty raw capture, and skipped when a restart is
-	// pending (a restart keeps the work, so re-asking is noise).
-	scrollback, pathErr := paths.ScrollbackArtifacts(quitAgent)
-	if pathErr != nil {
-		return
+	scrollback, err := paths.ScrollbackArtifacts(quitAgent)
+	if err != nil {
+		return cleanupSetupFailure(err), true
 	}
-	parked := false
-	if size, ok := rt.FileSize(scrollback.Raw); ok && size > 0 && rt.IsTTY() && !rt.RestartMarkerPresent(step.session) {
-		if rt.ConfirmParkNudge(step.session, parkTimeout) {
-			if pbase, ok := rt.ParkScrollback(step.tag, quitAgent, true); ok {
-				parked = true
-				fmt.Fprintf(out, "pair: scrollback preserved at\n        %s.raw\n      open a session and \"park %s\" to distill it into a continuation.\n", pbase, step.session)
-			}
-		}
+	panePath, err := paths.PaneChecked(quitAgent)
+	if err != nil {
+		return cleanupSetupFailure(err), true
 	}
+	ops := &launcherCleanupOps{
+		rt: rt, env: env, step: step, scopeKey: scopeKey, parkTimeout: parkTimeout,
+		out: out, quitAgent: quitAgent, now: time.Now, scrollback: scrollback,
+		panePath: panePath,
+		editorPaths: lifecycleEditorPaths{
+			draft: paths.Draft(), scrollbackPrefix: paths.ScrollbackPrefix(),
+			pids: []string{paths.NvimPID("draft"), paths.NvimPID("scrollback")},
+		},
+		outerTTY: paths.OuterTTY(), agentPath: paths.Agent(), agentOutput: paths.AgentOutput(),
+		pairWrapPID: paths.PairWrapPID(), adaptLog: paths.AdaptLog(), imageCapture: paths.ImageCapture(),
+		imageCaptureDone: paths.ImageCaptureDone(), titlePID: paths.TitlePID(),
+	}
+	return pairlifecycle.RunCleanup(ctx, pairlifecycle.CleanupDirect, ops), true
+}
 
+type contextualCleanupRuntime interface {
+	DeleteSessionContext(context.Context, string) error
+	ReapNvimContext(context.Context, lifecycleEditorPaths) error
+	KillTitlePollerContext(context.Context, string) error
+	CleanupCmuxContext(context.Context, string, string) error
+}
+
+type lifecycleEditorPaths struct {
+	draft            string
+	scrollbackPrefix string
+	pids             []string
+}
+
+type launcherCleanupOps struct {
+	rt                                                      Runtime
+	env                                                     Env
+	step                                                    launchStep
+	scopeKey                                                string
+	parkTimeout                                             int
+	out                                                     io.Writer
+	quitAgent                                               string
+	parked                                                  bool
+	now                                                     func() time.Time
+	scrollback                                              artifactpath.ScrollbackArtifactSet
+	panePath                                                string
+	editorPaths                                             lifecycleEditorPaths
+	outerTTY, agentPath, agentOutput, pairWrapPID, adaptLog string
+	imageCapture, imageCaptureDone, titlePID                string
+}
+
+func (o *launcherCleanupOps) QuiesceSession(ctx context.Context) error {
+	if err := ctx.Err(); err != nil {
+		return err
+	}
+	if runtime, ok := o.rt.(contextualCleanupRuntime); ok {
+		return runtime.DeleteSessionContext(ctx, o.step.session)
+	}
+	return o.rt.DeleteSession(o.step.session)
+}
+
+func (o *launcherCleanupOps) ReapEditors(ctx context.Context) error {
+	if err := ctx.Err(); err != nil {
+		return err
+	}
+	if runtime, ok := o.rt.(contextualCleanupRuntime); ok {
+		return runtime.ReapNvimContext(ctx, o.editorPaths)
+	}
+	o.rt.ReapNvim(o.step.tag)
+	return nil
+}
+
+func (o *launcherCleanupOps) PreserveScrollback(ctx context.Context, intent pairlifecycle.CleanupIntent) error {
+	if err := ctx.Err(); err != nil {
+		return err
+	}
+	size, exists := o.rt.FileSize(o.scrollback.Raw)
+	if !exists || size <= 0 {
+		return nil
+	}
+	preserve := intent == pairlifecycle.CleanupCouch
+	if intent == pairlifecycle.CleanupDirect && o.rt.IsTTY() && !o.rt.RestartMarkerPresent(o.step.session) {
+		preserve = o.rt.ConfirmParkNudge(o.step.session, o.parkTimeout)
+	}
+	if !preserve {
+		return nil
+	}
+	base, ok := o.rt.ParkScrollback(o.step.tag, o.quitAgent, true)
+	if !ok {
+		return errors.New("preserve scrollback failed")
+	}
+	o.parked = true
+	fmt.Fprintf(o.out, "pair: scrollback preserved at\n        %s.raw\n      open a session and \"park %s\" to distill it into a continuation.\n", base, o.step.session)
+	return nil
+}
+
+func (o *launcherCleanupOps) CleanupSidecars(ctx context.Context) error {
+	if err := ctx.Err(); err != nil {
+		return err
+	}
 	// Remove the per-tag sidecars (shell 1583-1591). pane-<tag>-<quitAgent>.json
 	// (written by the agent pane in both main-{2,3}.kdl layouts) was historically
 	// omitted here — the leak behind #97: a surviving twin misled the frame
 	// poller when the tag was later paired with a different agent. Cleaning it on
 	// quit stops new twins at the source (the poller also filters defensively).
-	panePath, _ := paths.PaneChecked(quitAgent)
 	for _, path := range []string{
-		paths.OuterTTY(), paths.Agent(), paths.AgentOutput(), paths.PairWrapPID(),
-		paths.AdaptLog(), paths.ImageCapture(), paths.ImageCaptureDone(), panePath,
+		o.outerTTY, o.agentPath, o.agentOutput, o.pairWrapPID,
+		o.adaptLog, o.imageCapture, o.imageCaptureDone, o.panePath,
 	} {
 		if path != "" {
-			rt.Remove(path)
+			o.rt.Remove(path)
 		}
 	}
-	rt.Remove(scrollback.ANSI)
+	o.rt.Remove(o.scrollback.ANSI)
 	// Remove the raw capture only when it wasn't parked (preserved above).
-	if !parked {
-		rt.Remove(scrollback.Raw)
-		rt.Remove(scrollback.Events)
+	if !o.parked {
+		o.rt.Remove(o.scrollback.Raw)
+		o.rt.Remove(o.scrollback.Events)
 	}
 
 	// Resume hint: a saved config for this (tag, agent) means the resume path
 	// will work next time — surface the repo-local tag, not the public zellij
 	// session name.
-	if _, err := rt.ReadFile(resolveConfigPath(rt, dataDir, step.tag, quitAgent)); err == nil {
-		fmt.Fprintf(out, "pair: saved session config for tag \"%s\" (%s).\n", step.tag, quitAgent)
-		fmt.Fprintf(out, "      resume with: pair resume %s\n", step.tag)
-		if sid, status := rt.EstablishedSessionID(scopeKey, step.tag, quitAgent); status == sessioninventory.BindingEstablished && sid != "" {
-			fmt.Fprintf(out, "      session id:  %s\n", sid)
+	if _, err := o.rt.ReadFile(resolveConfigPath(o.rt, o.env.DataDir, o.step.tag, o.quitAgent)); err == nil {
+		fmt.Fprintf(o.out, "pair: saved session config for tag \"%s\" (%s).\n", o.step.tag, o.quitAgent)
+		fmt.Fprintf(o.out, "      resume with: pair resume %s\n", o.step.tag)
+		if sid, status := o.rt.EstablishedSessionID(o.scopeKey, o.step.tag, o.quitAgent); status == sessioninventory.BindingEstablished && sid != "" {
+			fmt.Fprintf(o.out, "      session id:  %s\n", sid)
 		}
 	}
+	return nil
+}
 
-	rt.KillTitlePoller(step.tag)
+func (o *launcherCleanupOps) CleanupPoller(ctx context.Context) error {
+	if err := ctx.Err(); err != nil {
+		return err
+	}
+	if runtime, ok := o.rt.(contextualCleanupRuntime); ok {
+		return runtime.KillTitlePollerContext(ctx, o.titlePID)
+	}
+	o.rt.KillTitlePoller(o.step.tag)
+	return nil
+}
 
+func (o *launcherCleanupOps) CleanupCmux(ctx context.Context) error {
+	if err := ctx.Err(); err != nil {
+		return err
+	}
 	// Reset the cmux workspace title to the shell cwd — this pair is dead — but
 	// only when we own it, then release ownership so a remaining/next pair can
 	// claim (shell 1640-1646). On a restart the follow-up create immediately
 	// re-renames, so the cwd flash is invisible.
-	if rt.PairOwnsCmuxWorkspace(step.tag) {
-		reset := filepath.Base(env.Cwd)
+	if o.rt.PairOwnsCmuxWorkspace(o.step.tag) {
+		reset := filepath.Base(o.env.Cwd)
 		if reset == "" || reset == "." || reset == string(filepath.Separator) {
 			reset = "shell"
 		}
-		rt.CmuxRename(step.tag, reset)
-		rt.ClearCmuxOwner()
+		if runtime, ok := o.rt.(contextualCleanupRuntime); ok {
+			return runtime.CleanupCmuxContext(ctx, o.step.tag, reset)
+		}
+		o.rt.CmuxRename(o.step.tag, reset)
+		o.rt.ClearCmuxOwner()
+	}
+	return nil
+}
+
+func (o *launcherCleanupOps) Now() time.Time { return o.now() }
+
+func cleanupSetupFailure(err error) pairlifecycle.CleanupResult {
+	return pairlifecycle.CleanupResult{
+		Outcome: pairlifecycle.CompletionFailure,
+		Failures: []pairlifecycle.StageFailure{{
+			Stage: pairlifecycle.StageSessionQuiescence, Code: pairlifecycle.FailureCleanupFailed, Err: err,
+		}},
+		CompletedAt: time.Now(),
 	}
 }
 

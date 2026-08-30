@@ -1,10 +1,13 @@
 package launcher
 
 import (
+	"context"
 	"errors"
 	"reflect"
 	"strings"
 	"testing"
+
+	"github.com/xianxu/pair/cmd/internal/pairlifecycle"
 )
 
 // `pair resume <livetag>` decides attach: runAttach fires (AttachSession, tag
@@ -135,6 +138,35 @@ func TestRunLaunchQuitCleanupPrintsOnlyEstablishedSessionID(t *testing.T) {
 	if !strings.Contains(stderr.String(), "session id:  ESTABLISHED") || strings.Contains(stderr.String(), "STALE") {
 		t.Fatalf("resume hint used non-authoritative identity: %q", stderr.String())
 	}
+}
+
+func TestRunCleanupUsesTypedContextBoundary(t *testing.T) {
+	t.Run("cancelled before effects", func(t *testing.T) {
+		rt := newFakeRuntime()
+		rt.quitMarkers["pair-work"] = true
+		ctx, cancel := context.WithCancel(context.Background())
+		cancel()
+		result, ran := runCleanupContext(ctx, Env{DataDir: "/data", Cwd: "/repo"}, rt, launchStep{tag: "work", agent: "claude", session: "pair-work"}, "scope", 0, &strings.Builder{})
+		if !ran || result.Outcome != pairlifecycle.CompletionFailure || len(result.Failures) != 1 || result.Failures[0].Code != pairlifecycle.FailureTimeout {
+			t.Fatalf("ran=%v result=%#v", ran, result)
+		}
+		if len(rt.deleted) != 0 || len(rt.reaped) != 0 {
+			t.Fatalf("cancelled cleanup performed effects: delete=%v reap=%v", rt.deleted, rt.reaped)
+		}
+	})
+
+	t.Run("quiescence failure gates destructive stages", func(t *testing.T) {
+		rt := newFakeRuntime()
+		rt.quitMarkers["pair-work"] = true
+		rt.deleteErr = errors.New("absence unproved")
+		result, ran := runCleanupContext(context.Background(), Env{DataDir: "/data", Cwd: "/repo"}, rt, launchStep{tag: "work", agent: "claude", session: "pair-work"}, "scope", 0, &strings.Builder{})
+		if !ran || result.Outcome != pairlifecycle.CompletionFailure || result.Failures[0].Stage != pairlifecycle.StageSessionQuiescence {
+			t.Fatalf("ran=%v result=%#v", ran, result)
+		}
+		if len(rt.reaped) != 0 || len(rt.removed) != 0 || len(rt.killedPollers) != 0 {
+			t.Fatalf("failed quiescence leaked later effects: reap=%v remove=%v poller=%v", rt.reaped, rt.removed, rt.killedPollers)
+		}
+	})
 }
 
 // A detach (Alt+d) leaves no quit marker: cleanup is a complete no-op.
