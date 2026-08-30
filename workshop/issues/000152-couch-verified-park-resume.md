@@ -5,7 +5,7 @@ deps: [149, 155]
 github_issue:
 created: 2026-08-25
 updated: 2026-08-29
-estimate_hours:
+estimate_hours: 9.90
 started: 2026-08-27T12:04:27-07:00
 ---
 
@@ -456,3 +456,50 @@ on the durable thread record.
   cases and procedural diff steps. Appended an authoritative function-level
   execution map with one adversarial/mechanical guard strategy per risky
   function family while preserving the reviewed design history.
+
+## Estimate
+
+```estimate
+model: estimate-logic-v3.1
+familiarity: 1.0
+item: issue-spec                design=1.50 impl=0.12
+item: greenfield-go-module      design=0.40 impl=0.32
+item: greenfield-go-module      design=0.40 impl=0.32
+item: greenfield-go-module      design=0.40 impl=0.32
+item: greenfield-go-module      design=0.40 impl=0.32
+item: greenfield-go-module      design=0.40 impl=0.32
+item: smaller-go-module         design=0.06 impl=0.20
+item: smaller-go-module         design=0.06 impl=0.20
+item: smaller-go-module         design=0.06 impl=0.20
+item: smaller-go-module         design=0.06 impl=0.20
+item: smaller-go-module         design=0.06 impl=0.20
+item: tui-screen                design=0.40 impl=0.40
+item: cross-cutting-refactor    design=0.20 impl=0.20
+item: atlas-docs                design=0.20 impl=0.08
+item: milestone-review          design=0.20 impl=0.20
+item: scope-pivot               design=0.50 impl=0.20
+design-buffer: 0.15
+total: 9.90
+```
+
+The five greenfield units are the lifecycle protocol/store, pure park
+transaction/coordinator, stateful fake and conformance driver, exact resume
+boundary, and bounded asynchronous operation path. The five smaller extensions
+are artifact paths, threadrecord v2, typed launcher cleanup, quit-intent
+compatibility, and operation/shortcut declarations. The TUI item covers
+event-loop interception and latency measurement; the cross-cutting item covers
+extracting one cleanup and one existing-address launch path without duplicating
+them. One scope-pivot primitive records the operator-driven correction from an
+independent Couch teardown to Pair Alt+x authority.
+
+The plan pre-resolves the implementation decisions, so module design uses the
+v2.1 thorough-spec discount and the 15% design buffer. Familiarity is 1.0 for
+this established Go repository and its existing ThreadStore/launcher patterns.
+The library check found the required primitives already in the current stack
+(standard-library file operations and `golang.org/x/sys/unix` advisory locks),
+so no novel-stack discovery item is needed. The resolved calibration document
+was marked stale by `sdlc estimate-source`; these values are therefore
+provisional rather than memory-derived.
+
+*Produced via `brain/data/life/42shots/velocity/estimate-logic-v3.1.md` against
+`baseline-v3.1.md`. Method A only.*
