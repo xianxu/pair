@@ -90,4 +90,33 @@ func (r OSRuntime) CleanupCmuxContext(ctx context.Context, tag, title string) er
 	return nil
 }
 
+func (r OSRuntime) TakeQuitIntent(session string) (QuitIntent, bool, error) {
+	path, ok := quitMarkerPath(session)
+	if !ok {
+		return QuitIntent{}, false, errors.New("invalid quit marker session")
+	}
+	raw, err := r.ReadFile(path)
+	if os.IsNotExist(err) {
+		return QuitIntent{}, false, nil
+	}
+	if err != nil {
+		return QuitIntent{}, false, err
+	}
+	r.Remove(path)
+	intent, err := ReadQuitIntent([]byte(raw))
+	return intent, true, err
+}
+
+func (r OSRuntime) WriteQuitIntent(session string, intent QuitIntent) error {
+	path, ok := quitMarkerPath(session)
+	if !ok {
+		return errors.New("invalid quit marker session")
+	}
+	raw, err := WriteQuitIntent(intent)
+	if err != nil {
+		return err
+	}
+	return r.WriteAtomic(path, string(raw))
+}
+
 var _ contextualCleanupRuntime = OSRuntime{}

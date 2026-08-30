@@ -2,6 +2,7 @@ package pairlifecycle
 
 import (
 	"bytes"
+	"context"
 	"encoding/json"
 	"fmt"
 	"io"
@@ -9,9 +10,103 @@ import (
 	"path/filepath"
 	"sync"
 	"testing"
+	"time"
 
 	"github.com/xianxu/pair/cmd/internal/artifactpath"
 )
+
+func TestConsumeAttemptCriticalSection(t *testing.T) {
+	t.Parallel()
+	paths := lifecyclePaths(t)
+	runtime := newMemoryRuntime()
+	store := Store{Runtime: runtime}
+	request := validQuitRequest()
+	if _, err := store.ConsumeAttempt(context.Background(), paths, 1, func(context.Context, *LockedAttempt, QuitRequest) CleanupResult {
+		t.Fatal("cleanup ran without committed request")
+		return CleanupResult{}
+	}); err == nil {
+		t.Fatal("missing request was consumed")
+	}
+	if err := store.PublishRequest(paths, request); err != nil {
+		t.Fatal(err)
+	}
+
+	calls := 0
+	wantTime := time.Date(2026, 8, 30, 1, 2, 3, 0, time.UTC)
+	completion, err := store.ConsumeAttempt(context.Background(), paths, 1, func(_ context.Context, locked *LockedAttempt, got QuitRequest) CleanupResult {
+		calls++
+		if got != request || locked.Request() != request {
+			t.Fatalf("callback request=%#v locked=%#v", got, locked.Request())
+		}
+		return CleanupResult{Outcome: CompletionSuccess, CompletedAt: wantTime}
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if completion.Outcome != CompletionSuccess || !completion.CompletedAt.Equal(wantTime) || calls != 1 {
+		t.Fatalf("completion=%#v calls=%d", completion, calls)
+	}
+	second, err := store.ConsumeAttempt(context.Background(), paths, 1, func(context.Context, *LockedAttempt, QuitRequest) CleanupResult {
+		calls++
+		return CleanupResult{}
+	})
+	if err != nil || second != completion || calls != 1 {
+		t.Fatalf("dedupe completion=%#v err=%v calls=%d", second, err, calls)
+	}
+}
+
+func TestConsumeAttemptSerializesDifferentAttempts(t *testing.T) {
+	paths := lifecyclePaths(t)
+	runtime := newMemoryRuntime()
+	store := Store{Runtime: runtime}
+	first := validQuitRequest()
+	second := validQuitRequest()
+	second.Attempt = 2
+	second.CompletionKey = "quit-completion-2"
+	if err := store.PublishRequest(paths, first); err != nil {
+		t.Fatal(err)
+	}
+	if err := store.PublishRequest(paths, second); err != nil {
+		t.Fatal(err)
+	}
+	lockAttempts := make(chan struct{}, 2)
+	runtime.beforeLock = func() { lockAttempts <- struct{}{} }
+	enteredFirst := make(chan struct{})
+	releaseFirst := make(chan struct{})
+	firstDone := make(chan error, 1)
+	go func() {
+		_, err := store.ConsumeAttempt(context.Background(), paths, 1, func(context.Context, *LockedAttempt, QuitRequest) CleanupResult {
+			close(enteredFirst)
+			<-releaseFirst
+			return CleanupResult{Outcome: CompletionSuccess, CompletedAt: time.Now()}
+		})
+		firstDone <- err
+	}()
+	<-lockAttempts
+	<-enteredFirst
+	enteredSecond := make(chan struct{})
+	secondDone := make(chan error, 1)
+	go func() {
+		_, err := store.ConsumeAttempt(context.Background(), paths, 2, func(context.Context, *LockedAttempt, QuitRequest) CleanupResult {
+			close(enteredSecond)
+			return CleanupResult{Outcome: CompletionSuccess, CompletedAt: time.Now()}
+		})
+		secondDone <- err
+	}()
+	<-lockAttempts
+	select {
+	case <-enteredSecond:
+		t.Fatal("different attempt entered while transaction lock was held")
+	default:
+	}
+	close(releaseFirst)
+	if err := <-firstDone; err != nil {
+		t.Fatal(err)
+	}
+	if err := <-secondDone; err != nil {
+		t.Fatal(err)
+	}
+}
 
 func lifecyclePaths(t *testing.T) artifactpath.LifecyclePaths {
 	t.Helper()
@@ -230,13 +325,14 @@ func containsOutcomes(got []PublicationOutcome, first, second PublicationOutcome
 }
 
 type memoryRuntime struct {
-	mu      sync.Mutex
-	lockMu  sync.Mutex
-	files   map[string][]byte
-	fail    map[string]int
-	calls   []string
-	nextTmp int
-	locked  bool
+	mu         sync.Mutex
+	lockMu     sync.Mutex
+	files      map[string][]byte
+	fail       map[string]int
+	calls      []string
+	nextTmp    int
+	locked     bool
+	beforeLock func()
 }
 
 func newMemoryRuntime() *memoryRuntime {
@@ -264,6 +360,9 @@ func (r *memoryRuntime) Lock(string) (Unlocker, error) {
 		return nil, err
 	}
 	r.mu.Unlock()
+	if r.beforeLock != nil {
+		r.beforeLock()
+	}
 	r.lockMu.Lock()
 	r.mu.Lock()
 	r.locked = true

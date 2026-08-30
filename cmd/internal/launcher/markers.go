@@ -1,6 +1,101 @@
 package launcher
 
-import "strings"
+import (
+	"bytes"
+	"encoding/json"
+	"errors"
+	"fmt"
+	"io"
+	"strings"
+
+	"github.com/xianxu/pair/cmd/internal/artifactpath"
+)
+
+const QuitIntentVersion = 1
+
+type QuitIntentKind string
+
+const (
+	QuitIntentDirect QuitIntentKind = "direct"
+	QuitIntentCouch  QuitIntentKind = "couch"
+)
+
+type QuitRequestReference struct {
+	DataDir   string `json:"data_dir"`
+	RepoScope string `json:"repo_scope"`
+	Tag       string `json:"tag"`
+	Nonce     string `json:"nonce"`
+	Attempt   uint64 `json:"attempt"`
+}
+
+type QuitIntent struct {
+	Version int                   `json:"version"`
+	Kind    QuitIntentKind        `json:"kind"`
+	Request *QuitRequestReference `json:"request,omitempty"`
+}
+
+// ReadQuitIntent accepts the legacy empty touch marker as direct Alt+x and
+// strictly decodes versioned direct/Couch markers.
+func ReadQuitIntent(raw []byte) (QuitIntent, error) {
+	if len(bytes.TrimSpace(raw)) == 0 {
+		return QuitIntent{Version: QuitIntentVersion, Kind: QuitIntentDirect}, nil
+	}
+	decoder := json.NewDecoder(bytes.NewReader(raw))
+	decoder.DisallowUnknownFields()
+	var intent QuitIntent
+	if err := decoder.Decode(&intent); err != nil {
+		return QuitIntent{}, fmt.Errorf("decode quit intent: %w", err)
+	}
+	var trailing any
+	if err := decoder.Decode(&trailing); !errors.Is(err, io.EOF) {
+		return QuitIntent{}, errors.New("quit intent has trailing data")
+	}
+	if err := validateQuitIntent(intent); err != nil {
+		return QuitIntent{}, err
+	}
+	return intent, nil
+}
+
+func WriteQuitIntent(intent QuitIntent) ([]byte, error) {
+	if err := validateQuitIntent(intent); err != nil {
+		return nil, err
+	}
+	raw, err := json.Marshal(intent)
+	if err != nil {
+		return nil, err
+	}
+	return append(raw, '\n'), nil
+}
+
+func validateQuitIntent(intent QuitIntent) error {
+	if intent.Version != QuitIntentVersion {
+		return fmt.Errorf("unsupported quit intent version %d", intent.Version)
+	}
+	switch intent.Kind {
+	case QuitIntentDirect:
+		if intent.Request != nil {
+			return errors.New("direct quit intent carries Couch request")
+		}
+	case QuitIntentCouch:
+		if intent.Request == nil {
+			return errors.New("Couch quit intent requires request reference")
+		}
+		paths, err := artifactpath.Resolve(artifactpath.Address{DataDir: intent.Request.DataDir, RepoScope: intent.Request.RepoScope, Tag: intent.Request.Tag})
+		if err != nil {
+			return fmt.Errorf("invalid Couch request address: %w", err)
+		}
+		lifecycle, err := paths.Lifecycle(intent.Request.Nonce)
+		if err != nil {
+			return fmt.Errorf("invalid Couch request nonce: %w", err)
+		}
+		if _, err := lifecycle.Request(intent.Request.Attempt); err != nil {
+			return fmt.Errorf("invalid Couch request attempt: %w", err)
+		}
+	default:
+		return fmt.Errorf("unsupported quit intent kind %q", intent.Kind)
+	}
+	return nil
+}
 
 // Restart/quit marker logic (#99 M3, ported from bin/pair-shell's
 // handle_restart_marker + pair-restart.sh handshake). The markers live under

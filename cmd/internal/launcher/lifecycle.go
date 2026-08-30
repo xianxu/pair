@@ -71,7 +71,11 @@ func runCleanup(env Env, rt Runtime, step launchStep, scopeKey string, parkTimeo
 }
 
 func runCleanupContext(ctx context.Context, env Env, rt Runtime, step launchStep, scopeKey string, parkTimeout int, out io.Writer) (pairlifecycle.CleanupResult, bool) {
-	if !rt.TakeQuitMarker(step.session) {
+	intent, present, err := takeQuitIntent(rt, step.session)
+	if err != nil {
+		return cleanupSetupFailure(err), true
+	}
+	if !present {
 		return pairlifecycle.CleanupResult{}, false
 	}
 	dataDir := env.DataDir
@@ -105,7 +109,65 @@ func runCleanupContext(ctx context.Context, env Env, rt Runtime, step launchStep
 		pairWrapPID: paths.PairWrapPID(), adaptLog: paths.AdaptLog(), imageCapture: paths.ImageCapture(),
 		imageCaptureDone: paths.ImageCaptureDone(), titlePID: paths.TitlePID(),
 	}
-	return pairlifecycle.RunCleanup(ctx, pairlifecycle.CleanupDirect, ops), true
+	if intent.Kind == QuitIntentDirect {
+		return pairlifecycle.RunCleanup(ctx, pairlifecycle.CleanupDirect, ops), true
+	}
+	ref := intent.Request
+	if ref == nil || ref.Tag != step.tag || ref.RepoScope != scopeKey {
+		return cleanupSetupFailure(errors.New("Couch quit reference does not match active Pair thread")), true
+	}
+	address, err := artifactpath.Resolve(artifactpath.Address{DataDir: ref.DataDir, RepoScope: ref.RepoScope, Tag: ref.Tag})
+	if err != nil {
+		return cleanupSetupFailure(err), true
+	}
+	lifecyclePaths, err := address.Lifecycle(ref.Nonce)
+	if err != nil {
+		return cleanupSetupFailure(err), true
+	}
+	var cleanupResult pairlifecycle.CleanupResult
+	completion, err := (pairlifecycle.Store{Runtime: pairlifecycle.OSRuntime{}}).ConsumeAttempt(ctx, lifecyclePaths, ref.Attempt, func(callbackContext context.Context, _ *pairlifecycle.LockedAttempt, request pairlifecycle.QuitRequest) pairlifecycle.CleanupResult {
+		if request.Identity.Nonce != ref.Nonce || request.Identity.RepoScope != ref.RepoScope || request.Identity.Tag != ref.Tag || request.Attempt != ref.Attempt || request.Session != step.session {
+			return cleanupSetupFailure(errors.New("committed Couch request does not match active Pair session"))
+		}
+		cleanupResult = pairlifecycle.RunCleanup(callbackContext, pairlifecycle.CleanupCouch, ops)
+		return cleanupResult
+	})
+	if err != nil {
+		return cleanupSetupFailure(err), true
+	}
+	if cleanupResult.CompletedAt.IsZero() {
+		cleanupResult = pairlifecycle.CleanupResult{Outcome: completion.Outcome, CompletedAt: completion.CompletedAt}
+		if completion.Outcome == pairlifecycle.CompletionFailure {
+			cleanupResult.Failures = []pairlifecycle.StageFailure{{Stage: pairlifecycle.StageSessionQuiescence, Code: completion.FailureCode, Err: errors.New("previous cleanup attempt failed")}}
+		}
+	}
+	return cleanupResult, true
+}
+
+type typedQuitIntentRuntime interface {
+	TakeQuitIntent(string) (QuitIntent, bool, error)
+	WriteQuitIntent(string, QuitIntent) error
+}
+
+func takeQuitIntent(rt Runtime, session string) (QuitIntent, bool, error) {
+	if typed, ok := rt.(typedQuitIntentRuntime); ok {
+		return typed.TakeQuitIntent(session)
+	}
+	if rt.TakeQuitMarker(session) {
+		return QuitIntent{Version: QuitIntentVersion, Kind: QuitIntentDirect}, true, nil
+	}
+	return QuitIntent{}, false, nil
+}
+
+func writeQuitIntent(rt Runtime, session string, intent QuitIntent) error {
+	if typed, ok := rt.(typedQuitIntentRuntime); ok {
+		return typed.WriteQuitIntent(session, intent)
+	}
+	if intent.Kind != QuitIntentDirect {
+		return errors.New("runtime does not support Couch quit intent")
+	}
+	rt.TouchQuitMarker(session)
+	return nil
 }
 
 type contextualCleanupRuntime interface {

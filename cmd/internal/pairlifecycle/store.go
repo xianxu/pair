@@ -2,6 +2,7 @@ package pairlifecycle
 
 import (
 	"bytes"
+	"context"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -95,6 +96,169 @@ type ArtifactPaths interface {
 // Store publishes immutable attempt records while holding the transaction's
 // stable advisory lock.
 type Store struct{ Runtime StoreRuntime }
+
+type LockedAttempt struct {
+	store   Store
+	paths   ArtifactPaths
+	request QuitRequest
+}
+
+func (a *LockedAttempt) Request() QuitRequest { return a.request }
+
+// ConsumeAttempt holds one transaction lock across request authority,
+// completion dedupe, effective cleanup, and immutable result publication.
+func (s Store) ConsumeAttempt(ctx context.Context, paths ArtifactPaths, attempt uint64, cleanup func(context.Context, *LockedAttempt, QuitRequest) CleanupResult) (_ QuitCompletion, err error) {
+	if s.Runtime == nil || paths.Dir() == "" || cleanup == nil {
+		return QuitCompletion{}, errors.New("consume attempt input is empty")
+	}
+	if err := s.Runtime.MkdirAll(paths.Dir(), 0o700); err != nil {
+		return QuitCompletion{}, err
+	}
+	lock, err := s.Runtime.Lock(paths.Lock())
+	if err != nil {
+		return QuitCompletion{}, err
+	}
+	outcome := NotCommitted
+	defer func() {
+		if unlockErr := lock.Close(); unlockErr != nil {
+			err = joinPublicationError(outcome, err, unlockErr)
+		}
+	}()
+	if err := ctx.Err(); err != nil {
+		return QuitCompletion{}, err
+	}
+	requestPath, err := paths.Request(attempt)
+	if err != nil {
+		return QuitCompletion{}, err
+	}
+	raw, err := s.Runtime.ReadFile(requestPath)
+	if err != nil {
+		return QuitCompletion{}, fmt.Errorf("read committed quit request: %w", err)
+	}
+	request, err := decodeQuitRequest(raw, paths, attempt)
+	if err != nil {
+		return QuitCompletion{}, fmt.Errorf("validate committed quit request: %w", err)
+	}
+	outcome = Indeterminate
+	if err := s.Runtime.SyncDirectory(paths.Dir()); err != nil {
+		return QuitCompletion{}, publicationError(outcome, err)
+	}
+
+	completionPath, err := paths.Completion(attempt)
+	if err != nil {
+		return QuitCompletion{}, err
+	}
+	if completionRaw, readErr := s.Runtime.ReadFile(completionPath); readErr == nil {
+		completion, decodeErr := decodeQuitCompletion(completionRaw, paths, attempt)
+		if decodeErr != nil {
+			outcome = Conflict
+			return QuitCompletion{}, publicationError(outcome, decodeErr)
+		}
+		if matchErr := MatchQuitCompletion(request, completion); matchErr != nil {
+			outcome = Conflict
+			return QuitCompletion{}, publicationError(outcome, matchErr)
+		}
+		if syncErr := s.Runtime.SyncDirectory(paths.Dir()); syncErr != nil {
+			return QuitCompletion{}, publicationError(outcome, syncErr)
+		}
+		outcome = Committed
+		return completion, nil
+	} else if !errors.Is(readErr, os.ErrNotExist) {
+		return QuitCompletion{}, readErr
+	}
+
+	locked := &LockedAttempt{store: s, paths: paths, request: request}
+	result := cleanup(ctx, locked, request)
+	completion, err := locked.PublishCompletion(result)
+	outcome = PublicationOutcomeOf(err)
+	return completion, err
+}
+
+func (a *LockedAttempt) PublishCompletion(result CleanupResult) (QuitCompletion, error) {
+	if result.CompletedAt.IsZero() {
+		return QuitCompletion{}, errors.New("cleanup result completed_at is required")
+	}
+	completion := QuitCompletion{
+		SchemaVersion: a.request.SchemaVersion, Identity: a.request.Identity, Attempt: a.request.Attempt,
+		Session: a.request.Session, Mode: a.request.Mode, CompletionKey: a.request.CompletionKey,
+		Outcome: result.Outcome, CompletedAt: result.CompletedAt,
+	}
+	if result.Outcome == CompletionFailure {
+		if len(result.Failures) == 0 {
+			return QuitCompletion{}, errors.New("failed cleanup result has no failure")
+		}
+		completion.FailureCode = result.Failures[0].Code
+	}
+	if err := ValidateQuitCompletion(completion); err != nil {
+		return QuitCompletion{}, err
+	}
+	raw, err := json.Marshal(completion)
+	if err != nil {
+		return QuitCompletion{}, err
+	}
+	raw = append(raw, '\n')
+	if err := a.store.publishCompletionLocked(a.paths, completion, raw); err != nil {
+		return completion, err
+	}
+	return completion, nil
+}
+
+func (s Store) publishCompletionLocked(paths ArtifactPaths, completion QuitCompletion, raw []byte) error {
+	final, err := paths.Completion(completion.Attempt)
+	if err != nil {
+		return err
+	}
+	if found, existing, inspectErr := s.inspectFinal(paths, final, RecordCompletion, completion.Attempt); inspectErr != nil {
+		return publicationError(Conflict, inspectErr)
+	} else if found {
+		if !bytes.Equal(existing, raw) {
+			return publicationError(Conflict, errors.New("immutable completion differs"))
+		}
+		if err := s.Runtime.SyncDirectory(paths.Dir()); err != nil {
+			return publicationError(Indeterminate, err)
+		}
+		return nil
+	}
+	temp, err := s.Runtime.CreateTemp(paths.Dir(), ".pair-result-*")
+	if err != nil {
+		return err
+	}
+	name := temp.Name()
+	keep := true
+	defer func() {
+		if keep {
+			_ = s.Runtime.Remove(name)
+		}
+	}()
+	if err := writeStoreAll(temp, raw); err != nil {
+		return errors.Join(err, temp.Close())
+	}
+	if err := temp.Sync(); err != nil {
+		return errors.Join(err, temp.Close())
+	}
+	if err := temp.Close(); err != nil {
+		return err
+	}
+	if found, existing, inspectErr := s.inspectFinal(paths, final, RecordCompletion, completion.Attempt); inspectErr != nil {
+		return publicationError(Conflict, inspectErr)
+	} else if found {
+		if !bytes.Equal(existing, raw) {
+			return publicationError(Conflict, errors.New("immutable completion appeared with different content"))
+		}
+		if err := s.Runtime.SyncDirectory(paths.Dir()); err != nil {
+			return publicationError(Indeterminate, err)
+		}
+		return nil
+	}
+	if err := s.Runtime.Rename(name, final); err != nil {
+		return err
+	}
+	keep = false
+	if err := s.Runtime.SyncDirectory(paths.Dir()); err != nil {
+		return publicationError(Indeterminate, err)
+	}
+	return nil
+}
 
 func (s Store) PublishRequest(paths ArtifactPaths, request QuitRequest) error {
 	if err := ValidateQuitRequest(request); err != nil {
@@ -304,6 +468,61 @@ func decodeAndValidateRecord(raw []byte, paths ArtifactPaths, kind RecordKind, a
 		return fmt.Errorf("record attempt %d does not match path attempt %d", recordAttempt, attempt)
 	}
 	if err := validateCompletionKey(paths, attempt, completionKey); err != nil {
+		return err
+	}
+	return nil
+}
+
+func decodeQuitRequest(raw []byte, paths ArtifactPaths, attempt uint64) (QuitRequest, error) {
+	decoder := json.NewDecoder(bytes.NewReader(raw))
+	decoder.DisallowUnknownFields()
+	var request QuitRequest
+	if err := decoder.Decode(&request); err != nil {
+		return QuitRequest{}, err
+	}
+	if err := requireJSONEOF(decoder); err != nil {
+		return QuitRequest{}, err
+	}
+	if err := ValidateQuitRequest(request); err != nil {
+		return QuitRequest{}, err
+	}
+	if request.Attempt != attempt {
+		return QuitRequest{}, fmt.Errorf("request attempt %d does not match %d", request.Attempt, attempt)
+	}
+	if err := validateCompletionKey(paths, attempt, request.CompletionKey); err != nil {
+		return QuitRequest{}, err
+	}
+	return request, nil
+}
+
+func decodeQuitCompletion(raw []byte, paths ArtifactPaths, attempt uint64) (QuitCompletion, error) {
+	decoder := json.NewDecoder(bytes.NewReader(raw))
+	decoder.DisallowUnknownFields()
+	var completion QuitCompletion
+	if err := decoder.Decode(&completion); err != nil {
+		return QuitCompletion{}, err
+	}
+	if err := requireJSONEOF(decoder); err != nil {
+		return QuitCompletion{}, err
+	}
+	if err := ValidateQuitCompletion(completion); err != nil {
+		return QuitCompletion{}, err
+	}
+	if completion.Attempt != attempt {
+		return QuitCompletion{}, fmt.Errorf("completion attempt %d does not match %d", completion.Attempt, attempt)
+	}
+	if err := validateCompletionKey(paths, attempt, completion.CompletionKey); err != nil {
+		return QuitCompletion{}, err
+	}
+	return completion, nil
+}
+
+func requireJSONEOF(decoder *json.Decoder) error {
+	var trailing any
+	if err := decoder.Decode(&trailing); !errors.Is(err, io.EOF) {
+		if err == nil {
+			return errors.New("multiple JSON values")
+		}
 		return err
 	}
 	return nil

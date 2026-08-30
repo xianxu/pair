@@ -64,7 +64,10 @@ func runQuit(rt Runtime, session string, stderr io.Writer) int {
 		_, _ = io.WriteString(stderr, "pair quit: ZELLIJ_SESSION_NAME unset; cannot quit cleanly.\n")
 		return 1
 	}
-	rt.TouchQuitMarker(session)
+	if err := writeQuitIntent(rt, session, QuitIntent{Version: QuitIntentVersion, Kind: QuitIntentDirect}); err != nil {
+		_, _ = fmt.Fprintf(stderr, "pair quit: write intent: %v\n", err)
+		return 1
+	}
 	rt.ExecKillSession(session)
 	return 0
 }

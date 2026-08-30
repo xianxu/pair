@@ -2,11 +2,15 @@ package launcher
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
+	"os"
+	"path/filepath"
 	"reflect"
 	"strings"
 	"testing"
 
+	"github.com/xianxu/pair/cmd/internal/artifactpath"
 	"github.com/xianxu/pair/cmd/internal/pairlifecycle"
 )
 
@@ -167,6 +171,84 @@ func TestRunCleanupUsesTypedContextBoundary(t *testing.T) {
 			t.Fatalf("failed quiescence leaked later effects: reap=%v remove=%v poller=%v", rt.reaped, rt.removed, rt.killedPollers)
 		}
 	})
+}
+
+func TestDirectAndCouchShareCleanupEffects(t *testing.T) {
+	dataDir := t.TempDir()
+	address, err := artifactpath.Resolve(artifactpath.Address{DataDir: dataDir, RepoScope: "scope", Tag: "work"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	lifecycle, err := address.Lifecycle("nonce-1")
+	if err != nil {
+		t.Fatal(err)
+	}
+	request := pairlifecycle.QuitRequest{
+		SchemaVersion: pairlifecycle.SchemaVersion,
+		Identity:      pairlifecycle.Identity{Nonce: "nonce-1", RepoScope: "scope", Tag: "work", PID: 42, ProcessIdentity: "start:1"},
+		Attempt:       1, Session: "pair-work", Mode: pairlifecycle.CleanupPreserveScrollback, CompletionKey: "quit-completion-1",
+	}
+	if err := (pairlifecycle.Store{Runtime: pairlifecycle.OSRuntime{}}).PublishRequest(lifecycle, request); err != nil {
+		t.Fatal(err)
+	}
+	base := newFakeRuntime()
+	base.isTTY = true
+	base.confirmPark = false
+	base.parkOK = true
+	scopeDir := filepath.Join(dataDir, "repos", "scope")
+	base.files[filepath.Join(scopeDir, "scrollback-work-claude.raw")] = "bytes"
+	rt := &typedQuitFakeRuntime{fakeRuntime: base, intent: QuitIntent{
+		Version: QuitIntentVersion, Kind: QuitIntentCouch,
+		Request: &QuitRequestReference{DataDir: dataDir, RepoScope: "scope", Tag: "work", Nonce: "nonce-1", Attempt: 1},
+	}}
+	result, ran := runCleanupContext(context.Background(), Env{DataDir: scopeDir, Cwd: "/repo"}, rt, launchStep{tag: "work", agent: "claude", session: "pair-work"}, "scope", 0, &strings.Builder{})
+	if !ran || result.Outcome != pairlifecycle.CompletionSuccess {
+		t.Fatalf("ran=%v result=%#v", ran, result)
+	}
+	if len(base.parkPrompts) != 0 || !reflect.DeepEqual(base.parked, []string{"work|claude|true"}) {
+		t.Fatalf("Couch policy prompts=%v parked=%v", base.parkPrompts, base.parked)
+	}
+	direct := newFakeRuntime()
+	direct.quitMarkers["pair-work"] = true
+	direct.isTTY = true
+	direct.confirmPark = true
+	direct.parkOK = true
+	direct.files[filepath.Join(scopeDir, "scrollback-work-claude.raw")] = "bytes"
+	directResult, directRan := runCleanupContext(context.Background(), Env{DataDir: scopeDir, Cwd: "/repo"}, direct, launchStep{tag: "work", agent: "claude", session: "pair-work"}, "scope", 0, &strings.Builder{})
+	if !directRan || directResult.Outcome != pairlifecycle.CompletionSuccess {
+		t.Fatalf("direct ran=%v result=%#v", directRan, directResult)
+	}
+	if !reflect.DeepEqual(direct.deleted, base.deleted) || !reflect.DeepEqual(direct.reaped, base.reaped) || !reflect.DeepEqual(direct.parked, base.parked) || !reflect.DeepEqual(direct.removed, base.removed) || !reflect.DeepEqual(direct.killedPollers, base.killedPollers) {
+		t.Fatalf("direct effects differ: direct=%#v couch=%#v", direct, base)
+	}
+	completionPath, _ := lifecycle.Completion(1)
+	raw, err := os.ReadFile(completionPath)
+	if err != nil {
+		t.Fatal(err)
+	}
+	var completion pairlifecycle.QuitCompletion
+	if err := json.Unmarshal(raw, &completion); err != nil || pairlifecycle.MatchQuitCompletion(request, completion) != nil || completion.Outcome != pairlifecycle.CompletionSuccess {
+		t.Fatalf("completion=%#v decode=%v", completion, err)
+	}
+}
+
+type typedQuitFakeRuntime struct {
+	*fakeRuntime
+	intent QuitIntent
+	taken  bool
+}
+
+func (r *typedQuitFakeRuntime) TakeQuitIntent(string) (QuitIntent, bool, error) {
+	if r.taken {
+		return QuitIntent{}, false, nil
+	}
+	r.taken = true
+	return r.intent, true, nil
+}
+
+func (r *typedQuitFakeRuntime) WriteQuitIntent(_ string, intent QuitIntent) error {
+	r.intent, r.taken = intent, false
+	return nil
 }
 
 // A detach (Alt+d) leaves no quit marker: cleanup is a complete no-op.
