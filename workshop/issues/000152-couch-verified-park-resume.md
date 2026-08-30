@@ -81,6 +81,74 @@ session-tree binding from #155. #152 now depends on #155's deterministic,
 fail-closed forest inventory and correlation instead of treating a newest or
 first transcript probe as recovery truth (ARCH-DRY, ARCH-PURPOSE).
 
+### 2026-08-29 — Couch park is Pair full quit, not detach
+
+**Reason:** design review exposed a noun mismatch. Pair already has the lifecycle
+the operator means by “park”: Alt+x fully quits the Pair/Zellij session while
+retaining the durable information needed by `pair resume <tag>`. Alt+d merely
+detaches a client while the session remains live; Couch switching already covers
+that useful behavior, so exposing detach would add a confusing duplicate state.
+
+**Delta:** this revision supersedes the earlier independent process-coordinator
+design. Couch does not build a second PID inventory, shutdown protocol, or
+forced-cleanup implementation. Pair's existing Alt+x path remains the sole owner
+of full-session teardown: quit marker, exact Zellij-session quiescence, embedded
+editor cleanup, live-sidecar cleanup, durable session/config preservation, and
+the established #155 native binding. The lifecycle core gains a typed,
+durable completion result so direct Alt+x and Couch-driven park execute the same
+behavior and Couch never infers success merely from a client disconnect.
+
+Couch park first commits one `parking` transaction against the exact composite
+thread address and expected live incarnation, then requests Pair full quit with
+that transaction's stable nonce. The Couch menu's explicit confirmation replaces
+Pair's local Alt+x confirmation; it does not synthesize keystrokes or show a
+second modal. Because the Couch action is explicitly named park, it selects the
+existing preserve-scrollback cleanup branch without another nudge; direct Pair
+Alt+x retains its current optional scrollback prompt. Pair publishes exactly one
+nonce-bound completion after its full quit cleanup succeeds. A client exit,
+missing completion, cleanup warning/error, timeout, replacement incarnation, or
+revision conflict leaves the thread occupied with an exact retryable diagnostic.
+Reissuing park joins or resumes the durable transaction rather than spawning a
+second teardown.
+
+Only the matching completion may atomically remove the expected incarnation,
+record a monotonic `last_active_at`, and mark the durable thread verified parked.
+Every durable resumability artifact remains owned by Pair and #155; Couch stores
+only lifecycle state and the latest exact successful launch profile needed to
+re-enter the same address. Restart recovery consumes the same nonce-bound result
+and cannot convert absence alone into proof.
+
+Resume accepts only one exact verified-parked thread. It reuses the same
+`{repo_scope, tag}`, latest successful agent and argument vector, current working
+path, and established native-session binding through Pair's existing
+`resume <tag>` flow. It never allocates a new tag or consults new-thread path,
+root-agent, or repository defaults. Live, parking, failed/unknown, ambiguous,
+missing-path, invalid-profile, unsupported-agent, and non-established native
+bindings refuse before starting a child. There is no Couch detach operation
+(ARCH-DRY, ARCH-PURPOSE).
+
+The operating envelope is explicit (ARCH-CONSTRAINTS): park confirmation must
+publish `parking` within 100 ms on the target development machine and must never
+hold the UI beyond 1 second; full quit continues asynchronously under Pair's
+existing bounded cleanup. One coordinator may exist per thread, repeated calls
+coalesce by nonce, and no corpus/process-tree scan enters the interaction path.
+Timeout or unavailable evidence fails closed with capacity still occupied.
+Resume uses the existing local start path and adds no full native-inventory scan;
+its startup tolerance is the same as ordinary `pair resume`.
+
+The revised acceptance contract is:
+
+- Couch park and direct Pair Alt+x share one full-quit lifecycle implementation;
+  a regression in either path fails the same stateful lifecycle tests.
+- The UI returns promptly with `parking`, while only a matching successful Pair
+  cleanup completion releases the incarnation and records `last_active_at`.
+- Interrupted, failed, timed-out, duplicated, or stale park attempts remain
+  occupied and are recoverable without repeating teardown.
+- Resume recreates the same composite thread through the exact saved profile and
+  established #155 binding; no fallback may create a different conversation.
+- Couch exposes park and resume through its shared operation schema and exposes
+  no detach operation.
+
 ## Done when
 
 - A live Pair thread parks only after zellij absence and recorded-process death
@@ -110,3 +178,7 @@ first transcript probe as recovery truth (ARCH-DRY, ARCH-PURPOSE).
 Split from #149 after fresh spec review showed that “stop every process that can
 write and flush durable output” is a process-coordination protocol, not a field
 on the durable thread record.
+
+- 2026-08-29: unblocked after #149/#155 completion. Operator clarified that
+  Couch park is Pair Alt+x full-quit semantics, while Alt+d detach has no Couch
+  operation; revised the design around one shared Pair lifecycle path.
