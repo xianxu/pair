@@ -273,7 +273,7 @@ couch park <ref>         fully quit a live thread after verified Pair cleanup
 couch park <ref> --mode=retry|recover|abandon
                          explicitly continue or abandon a durable park transaction
 couch leave              park every active thread, then leave the root console
-couch resume <ref>       resume an exact verified-parked thread
+couch resume <ref>       resume an exact verified-parked thread as the new root console
 couch name <ref> <name>  set a thread's short human name ("" clears it)
 couch describe <ref> [<text>]  read or set its operator description ("" clears)
 couch publish-description <text>  publish this hosted agent's summary ("" clears)
@@ -316,7 +316,10 @@ interaction path. On the target M2 Max under ordinary development co-tenancy,
 the contract is feedback and requested-commit P95 below 100 ms and commit max
 below 1 second; adversarial OS starvation is outside that claim. Pair cleanup
 retains its 10-second outer deadline and 5-second exact-Zellij inner wait.
-Resume uses the ordinary local start path and adds no full native inventory scan.
+After Leave Couch returns to the shell, run `couch resume <ref>` directly; it
+acquires the singleton and hosts that exact thread as the new root console. It
+does not allocate a temporary actor first. Resume uses the ordinary local start
+path and adds no full native inventory scan.
 Alt+d remains Pair-local detach; Couch exposes no detach operation.
 
 Every `couch start` allocates a distinct opaque durable thread. Admission comes

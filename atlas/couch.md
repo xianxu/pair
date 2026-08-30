@@ -221,7 +221,11 @@ on the same `{repo_scope, tag}`, reuses the exact saved working path, agent argv
 and established #155 native root, and read-only validates Pair's existing
 established address marker. It rechecks that root immediately before child
 effects. Verified park is cleared only after the exact Pair session registers;
-ambiguous execution remains occupied/unknown.
+ambiguous execution remains occupied/unknown. `couch resume <ref>` is, alongside
+new-thread `start`, a singleton bootstrap entrypoint: after Leave Couch it takes
+the owner lease and terminal, resumes that exact thread, and makes it the new
+root console. It never creates an intervening actor whose admission could block
+the parked thread (ARCH-PURPOSE, ARCH-PURE).
 
 Every hosted pane retains three identities with separate jobs: the pty handle
 routes bytes inside this console, `ActorID` addresses registry persistence and

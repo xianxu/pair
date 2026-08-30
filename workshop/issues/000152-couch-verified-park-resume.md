@@ -444,6 +444,12 @@ capacity twice, or change `last_active_at`.
   render as ordinary historical rows (no `[parked]`) and reject stale local
   target binding, so their appearance and Enter/resume behavior are identical
   before and after Couch restart (ARCH-PURPOSE).
+- 2026-08-30: Closed the post-Leave reachability gap found during completion
+  review. `couch resume <ref>` now acquires the singleton owner and terminal just
+  like `start`, then hosts the exact verified-parked thread as the new root
+  console. It does not create a fresh actor first, so capacity-one admission
+  cannot strand the parked root. The CLI path is covered through the stateful
+  process/session fake (ARCH-PURPOSE, ARCH-PURE, ARCH-MOCK).
 
 ### 2026-08-25
 

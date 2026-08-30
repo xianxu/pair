@@ -2,6 +2,7 @@ package couchcmd
 
 import (
 	"bytes"
+	"context"
 	"crypto/rand"
 	"fmt"
 	"io"
@@ -16,6 +17,7 @@ import (
 	"github.com/creack/pty"
 	"github.com/xianxu/pair/cmd/internal/couchcore"
 	"github.com/xianxu/pair/cmd/internal/launcher"
+	"github.com/xianxu/pair/cmd/internal/sessioninventory"
 )
 
 // testRT builds the domain over fakes. There is deliberately NO production
@@ -31,6 +33,7 @@ type testRT struct {
 	git        *couchcore.FakeGit
 	supervisor *fakeSupervisor
 	policy     *couchcore.FakePolicyResolver
+	artifacts  *couchcore.FakeThreadArtifactCollisionChecker
 	env        map[string]string
 	// ids is shared across invocations. Minting a fresh generator per
 	// NewCouch restarts the sequence, so two starts both produce couch-ah8d
@@ -86,7 +89,7 @@ func (t testRT) NewCouchWith(couchcore.Runner, couchcore.CouchNamespace) (*couch
 	c, err := couchcore.New(
 		t.namespace, t.runner, couchcore.NewFakePathOps(nil), t.git, t.proc,
 		couchcore.NewStore(t.dir), couchcore.FixedClock{T: time.Unix(1, 0)}, t.ids, t.policy,
-		rand.Reader, couchcore.NoThreadArtifactCollisions{},
+		rand.Reader, t.artifacts,
 	)
 	if err != nil {
 		return nil, err
@@ -123,6 +126,8 @@ func newRT(t *testing.T, trees ...string) testRT {
 		}
 		currentScope = scope.Key
 	}
+	artifacts := couchcore.NewFakeThreadArtifactCollisionChecker()
+	artifacts.AutoEstablish(true)
 	return testRT{
 		dir:              ns.Dir(),
 		namespace:        ns,
@@ -131,6 +136,7 @@ func newRT(t *testing.T, trees ...string) testRT {
 		git:              couchcore.NewFakeGit(replies),
 		supervisor:       &fakeSupervisor{},
 		policy:           couchcore.NewFakePolicyResolver(),
+		artifacts:        artifacts,
 		env:              map[string]string{},
 		ids:              couchcore.NewFixedIDGen("ah8d", "b2c1", "c3d2", "e4f5"),
 		currentRepoScope: currentScope,
@@ -211,6 +217,50 @@ func seedThreadAtAddress(t *testing.T, rt testRT, scope, tag, path string) couch
 	return created
 }
 
+func seedVerifiedPark(t *testing.T, rt testRT, path string) couchcore.ThreadRecord {
+	t.Helper()
+	rt.boundedOne(path)
+	policy, err := rt.policy.ResolvePolicy(context.Background(), path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	scope, err := launcher.ResolveRepoScope(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	profile := couchcore.LaunchProfile{Agent: "claude", Argv: []string{}}
+	c, err := rt.NewCouch()
+	if err != nil {
+		t.Fatal(err)
+	}
+	record := couchcore.ThreadRecord{
+		SchemaVersion: couchcore.ThreadSchemaVersion,
+		Address:       couchcore.ThreadAddress{RepoScope: scope.Key, Tag: "couch-0102030405060708"},
+		StartingPath:  path, WorkingPath: path, CreatedAt: time.Unix(1, 0).UTC(), Revision: 1,
+		Incarnations: []couchcore.ThreadIncarnation{{
+			PID: 42, Identity: "pair-helper", State: couchcore.IncarnationLive,
+			Policy: &policy, LaunchProfile: &profile,
+		}},
+		LatestLaunchProfile: &profile,
+	}
+	created, err := c.Threads.CreateThread(record)
+	if err != nil {
+		t.Fatal(err)
+	}
+	identity := couchcore.ParkIdentity{
+		Nonce: "park-resume-cli", Address: created.Address, PID: 42, ProcessIdentity: "pair-helper",
+	}
+	begun, err := c.Threads.BeginPark(created.Address, created.Revision, identity)
+	if err != nil {
+		t.Fatal(err)
+	}
+	parked, err := c.Threads.FinalizePark(created.Address, begun.Revision, identity, 1, time.Unix(2, 0).UTC())
+	if err != nil {
+		t.Fatal(err)
+	}
+	return parked
+}
+
 func TestStartAcquiresAndReleasesSupervisorLease(t *testing.T) {
 	rt := newRT(t, "/repo")
 	if _, errw, code := runRT(rt, "start", "/repo"); code != 0 {
@@ -218,6 +268,37 @@ func TestStartAcquiresAndReleasesSupervisorLease(t *testing.T) {
 	}
 	if rt.supervisor.acquired != 1 || rt.supervisor.released != 1 {
 		t.Fatalf("supervisor acquire/release = %d/%d, want 1/1", rt.supervisor.acquired, rt.supervisor.released)
+	}
+}
+
+func TestResumeAcquiresAndReleasesSupervisorLease(t *testing.T) {
+	rt := newRT(t, "/repo")
+	rt.supervisor.err = fmt.Errorf("resume reached singleton acquisition")
+	_, errw, code := runRT(rt, "resume", "couch-0102030405060708")
+	if code == 0 || !strings.Contains(errw, "resume reached singleton acquisition") {
+		t.Fatalf("resume: code=%d stderr=%q", code, errw)
+	}
+}
+
+func TestResumeRunsAsTheNewLiveOwner(t *testing.T) {
+	rt := newRT(t, "/repo")
+	rt.boundedOne("/repo")
+	parked := seedVerifiedPark(t, rt, "/repo")
+	rt.artifacts.SetNativeBinding(parked.Address, "claude", sessioninventory.BindingEstablished, "native-root-1")
+	rt.runner.AfterAcknowledge = func(string) error {
+		rt.artifacts.SetPairSession(parked.Address, "pair-"+string(parked.Address.Tag), true)
+		return nil
+	}
+
+	out, errw, code := runRT(rt, "resume", string(parked.Address.Tag))
+	if code != 0 {
+		t.Fatalf("resume: code=%d stdout=%q stderr=%q", code, out, errw)
+	}
+	if rt.supervisor.acquired != 1 || rt.supervisor.released != 1 {
+		t.Fatalf("supervisor acquire/release = %d/%d, want 1/1", rt.supervisor.acquired, rt.supervisor.released)
+	}
+	if len(rt.runner.Ops) == 0 || !strings.Contains(rt.runner.Ops[0], "pair resume "+string(parked.Address.Tag)+" --layout2") {
+		t.Fatalf("resume child operations = %v", rt.runner.Ops)
 	}
 }
 
@@ -787,6 +868,8 @@ func TestWantsConsole(t *testing.T) {
 		{"start on a terminal", "start", nil, true, true},
 		{"start with --no-console", "start", map[string]string{"no-console": "true"}, true, false},
 		{"start with no terminal", "start", nil, false, false},
+		{"resume on a terminal", "resume", nil, true, true},
+		{"resume with no terminal", "resume", nil, false, false},
 		{"a read-only operation", "list", nil, true, false},
 		{"stop never takes the terminal", "stop", nil, true, false},
 	}

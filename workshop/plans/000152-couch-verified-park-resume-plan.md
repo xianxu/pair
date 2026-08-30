@@ -718,3 +718,18 @@ before/after console restart; only live/parking rows carry lifecycle state.
 Add delayed stateful-fake and live end-to-end coverage spanning intent commit →
 exact Zellij trigger → launcher cleanup completion → recorded child death →
 park-all console exit (ARCH-PURPOSE, ARCH-MOCK, ARCH-CONSTRAINTS).
+
+### 2026-08-30 — resume is the post-Leave singleton entrypoint
+
+**Reason:** completion review found that the durable parked root was not
+reachable after Leave Couch. Only `start` acquired the live-owner lease, while
+`resume` required an already-running owner; starting Couch first allocated a
+new actor that could consume capacity one and block the root it existed to
+resume.
+
+**Delta:** classify both `start` and `resume` as singleton bootstrap operations.
+On a terminal, `couch resume <ref>` acquires the lease, resumes the exact
+verified-parked address through the existing live-owner operation, attaches its
+PTY, and makes it the new root console. Add pure console-decision coverage and
+a stateful-fake CLI test proving lease ownership plus exact same-tag launch
+(ARCH-PURPOSE, ARCH-PURE, ARCH-MOCK).
