@@ -456,6 +456,15 @@ on the durable thread record.
   cases and procedural diff steps. Appended an authoritative function-level
   execution map with one adversarial/mechanical guard strategy per risky
   function family while preserving the reviewed design history.
+- 2026-08-29: completed implementation-plan Chunk 1. Added the shared versioned
+  Pair lifecycle protocol and validated artifact paths (`473b4d4`), immutable
+  crash-safe request/completion publication with stable advisory locking
+  (`b85de48`), and the pure append-only park reducer plus strict thread schema
+  v1→v2 migration (`f1f3b56`). ThreadStore park mutations now use journaled
+  revision CAS; only matching success atomically removes the incarnation, while
+  abandonment and every conflict retain admission. Focused `pairlifecycle`,
+  `artifactpath`, `threadrecord`, and full `couchcore` suites passed with one
+  `go test -p 20` process at a time (ARCH-PURE, ARCH-DRY, ARCH-CONSTRAINTS).
 
 ## Estimate
 

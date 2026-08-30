@@ -8,6 +8,7 @@ import (
 	"os"
 	"path/filepath"
 	"sort"
+	"time"
 
 	"github.com/xianxu/pair/cmd/internal/launcher"
 	"github.com/xianxu/pair/cmd/internal/threadrecord"
@@ -224,7 +225,14 @@ func (s *ThreadStore) UpdateExistingThread(address ThreadAddress, expectedRevisi
 	}
 	var result ThreadRecord
 	err := s.withLock(func() error {
-		current, err := s.readThreadLocked(address)
+		currentRaw, err := os.ReadFile(s.recordPath(address))
+		if errors.Is(err, os.ErrNotExist) {
+			return fmt.Errorf("%w: %+v", ErrThreadNotFound, address)
+		}
+		if err != nil {
+			return err
+		}
+		current, err := s.decodeThreadRaw(address, currentRaw)
 		if err != nil {
 			return err
 		}
@@ -246,13 +254,167 @@ func (s *ThreadStore) UpdateExistingThread(address ThreadAddress, expectedRevisi
 		if err != nil {
 			return err
 		}
-		if err := writeAtomicBytes(s.recordPath(address), append(raw, '\n')); err != nil {
+		expected := append([]byte(nil), currentRaw...)
+		after := append(raw, '\n')
+		journal := storeJournal{SchemaVersion: 1, Entries: []storeJournalEntry{{
+			Path: relativeStorePath(s.root, s.recordPath(address)), Expected: &expected, After: &after,
+		}}}
+		if err := s.commitJournalLocked(journal); err != nil {
 			return err
 		}
 		result = cloneThreadRecord(next)
 		return nil
 	})
 	return result, err
+}
+
+func (s *ThreadStore) BeginPark(address ThreadAddress, expectedRevision uint64, identity ParkIdentity) (ThreadRecord, error) {
+	return s.UpdateExistingThread(address, expectedRevision, func(next *ThreadRecord) error {
+		if next.Park != nil {
+			return fmt.Errorf("thread %+v already has active park %q", address, next.Park.Identity.Nonce)
+		}
+		for _, historical := range next.ParkHistory {
+			if historical.Identity.Nonce == identity.Nonce {
+				return fmt.Errorf("park nonce %q is already historical", identity.Nonce)
+			}
+		}
+		exactMatches := 0
+		eligibleMatches := 0
+		var target *ThreadIncarnation
+		for i := range next.Incarnations {
+			incarnation := &next.Incarnations[i]
+			if incarnation.PID != identity.PID || incarnation.Identity != identity.ProcessIdentity {
+				continue
+			}
+			exactMatches++
+			if incarnation.State == IncarnationLive || incarnation.State == IncarnationUnknown {
+				eligibleMatches++
+				target = incarnation
+			}
+		}
+		if identity.Address != address || exactMatches != 1 || eligibleMatches != 1 {
+			return fmt.Errorf("park identity must name exactly one live or unknown incarnation")
+		}
+		if next.LatestLaunchProfile == nil {
+			if target.LaunchProfile == nil {
+				return errors.New("park target has no successful launch profile")
+			}
+			profile := cloneLaunchProfile(*target.LaunchProfile)
+			next.LatestLaunchProfile = &profile
+		}
+		transaction, _, err := AdvanceParkTransaction(nil, ParkEvent{
+			Kind: ParkBegin, Identity: identity,
+			BaseRevision: expectedRevision, RecordRevision: expectedRevision + 1,
+		})
+		if err != nil {
+			return err
+		}
+		next.Park = &transaction
+		return nil
+	})
+}
+
+func (s *ThreadStore) AdvancePark(address ThreadAddress, expectedRevision uint64, event ParkEvent) (ThreadRecord, error) {
+	switch event.Kind {
+	case ParkRequestCommitted, ParkFailureObserved:
+	default:
+		return ThreadRecord{}, fmt.Errorf("park event %q requires its dedicated store operation", event.Kind)
+	}
+	return s.UpdateExistingThread(address, expectedRevision, func(next *ThreadRecord) error {
+		if next.Park == nil {
+			return errors.New("thread has no active park transaction")
+		}
+		if event.Identity != next.Park.Identity {
+			return errors.New("park event identity does not match active transaction")
+		}
+		event.BaseRevision = 0
+		event.RecordRevision = expectedRevision + 1
+		advanced, decision, err := AdvanceParkTransaction(next.Park, event)
+		if err != nil {
+			return err
+		}
+		if decision.Finalize || decision.HistoricalNoOp {
+			return errors.New("phase advance produced a terminal park decision")
+		}
+		next.Park = &advanced
+		return nil
+	})
+}
+
+func (s *ThreadStore) AppendParkAttempt(address ThreadAddress, expectedRevision uint64, identity ParkIdentity) (ThreadRecord, error) {
+	return s.UpdateExistingThread(address, expectedRevision, func(next *ThreadRecord) error {
+		if next.Park == nil || next.Park.Identity != identity {
+			return errors.New("park attempt identity does not match active transaction")
+		}
+		advanced, decision, err := AdvanceParkTransaction(next.Park, ParkEvent{
+			Kind: ParkAttemptAppended, Identity: identity, RecordRevision: expectedRevision + 1,
+		})
+		if err != nil {
+			return err
+		}
+		if decision.Finalize || decision.HistoricalNoOp {
+			return errors.New("attempt append produced a terminal park decision")
+		}
+		next.Park = &advanced
+		return nil
+	})
+}
+
+func (s *ThreadStore) FinalizePark(address ThreadAddress, expectedRevision uint64, identity ParkIdentity, attempt uint64, parkedAt time.Time) (ThreadRecord, error) {
+	return s.UpdateExistingThread(address, expectedRevision, func(next *ThreadRecord) error {
+		if next.Park == nil || next.Park.Identity != identity || next.Park.Tombstoned || next.Park.Closed {
+			return errors.New("park success does not match an active non-tombstoned transaction")
+		}
+		match := -1
+		for i, incarnation := range next.Incarnations {
+			if incarnation.PID != identity.PID || incarnation.Identity != identity.ProcessIdentity {
+				continue
+			}
+			if match != -1 || incarnation.State != IncarnationLive && incarnation.State != IncarnationUnknown {
+				return errors.New("park success does not match exactly one live or unknown incarnation")
+			}
+			match = i
+		}
+		if match == -1 {
+			return errors.New("park success incarnation is absent or replaced")
+		}
+		closed, decision, err := AdvanceParkTransaction(next.Park, ParkEvent{
+			Kind: ParkCompletionSucceeded, Identity: identity, Attempt: attempt,
+			RecordRevision: expectedRevision + 1,
+		})
+		if err != nil {
+			return err
+		}
+		if !decision.Finalize || decision.HistoricalNoOp || !closed.Closed || closed.Tombstoned {
+			return errors.New("park success did not produce a finalization decision")
+		}
+		next.Incarnations = append(next.Incarnations[:match], next.Incarnations[match+1:]...)
+		next.Park = nil
+		next.ParkHistory = append(next.ParkHistory, closed)
+		next.VerifiedPark = &VerifiedPark{Identity: identity, Attempt: attempt, ParkedAt: parkedAt}
+		next.LastActiveAt = MonotonicLastActiveAt(next.LastActiveAt, parkedAt)
+		return nil
+	})
+}
+
+func (s *ThreadStore) AbandonPark(address ThreadAddress, expectedRevision uint64, identity ParkIdentity) (ThreadRecord, error) {
+	return s.UpdateExistingThread(address, expectedRevision, func(next *ThreadRecord) error {
+		if next.Park == nil || next.Park.Identity != identity {
+			return errors.New("park abandon identity does not match active transaction")
+		}
+		closed, decision, err := AdvanceParkTransaction(next.Park, ParkEvent{
+			Kind: ParkAbandoned, Identity: identity, RecordRevision: expectedRevision + 1,
+		})
+		if err != nil {
+			return err
+		}
+		if decision.Finalize || decision.HistoricalNoOp || !closed.Closed || !closed.Tombstoned {
+			return errors.New("park abandon did not produce a tombstone")
+		}
+		next.Park = nil
+		next.ParkHistory = append(next.ParkHistory, closed)
+		return nil
+	})
 }
 
 func (s *ThreadStore) ManifestGeneration() (uint64, error) {

@@ -171,3 +171,60 @@ func TestStoreJournalLegacyCutoverRecoversAsOneMutation(t *testing.T) {
 		t.Fatalf("legacy record missing after recovery: %v", err)
 	}
 }
+
+func TestStoreJournalReplaysParkFinalizationAndTombstone(t *testing.T) {
+	for _, operation := range []string{"finalize", "abandon"} {
+		for _, boundary := range []string{"after journal", "after target"} {
+			t.Run(operation+"/"+boundary, func(t *testing.T) {
+				store, ns := newTestThreadStore(t)
+				created, identity, _ := createParkableThread(t, store, ns, "park-3333333333333333")
+				begun, err := store.BeginPark(created.Address, created.Revision, identity)
+				if err != nil {
+					t.Fatal(err)
+				}
+				hooks := threadStoreHooks{}
+				if boundary == "after journal" {
+					hooks.AfterJournal = func() error { return errInjectedStoreCrash }
+				} else {
+					hooks.AfterTarget = func(index int) error {
+						if index == 0 {
+							return errInjectedStoreCrash
+						}
+						return nil
+					}
+				}
+				crashing := newThreadStoreWithHooks(ns, hooks)
+				if operation == "finalize" {
+					_, err = crashing.FinalizePark(begun.Address, begun.Revision, identity, 1, time.Unix(70, 0).UTC())
+				} else {
+					_, err = crashing.AbandonPark(begun.Address, begun.Revision, identity)
+				}
+				if !errors.Is(err, errInjectedStoreCrash) {
+					t.Fatalf("injected boundary err = %v", err)
+				}
+
+				restarted := NewThreadStore(ns)
+				if err := restarted.RecoverStoreJournal(); err != nil {
+					t.Fatalf("RecoverStoreJournal: %v", err)
+				}
+				recovered, err := restarted.GetThread(begun.Address)
+				if err != nil {
+					t.Fatal(err)
+				}
+				if recovered.Park != nil || len(recovered.ParkHistory) != 1 || !recovered.ParkHistory[0].Closed {
+					t.Fatalf("recovered lifecycle = %+v", recovered)
+				}
+				if operation == "finalize" {
+					if recovered.VerifiedPark == nil || len(recovered.Incarnations) != 0 || recovered.ParkHistory[0].Tombstoned {
+						t.Fatalf("finalization replay = %+v", recovered)
+					}
+				} else if recovered.VerifiedPark != nil || len(recovered.Incarnations) != 1 || !recovered.ParkHistory[0].Tombstoned {
+					t.Fatalf("tombstone replay = %+v", recovered)
+				}
+				if err := restarted.RecoverStoreJournal(); err != nil {
+					t.Fatalf("second recovery: %v", err)
+				}
+			})
+		}
+	}
+}
