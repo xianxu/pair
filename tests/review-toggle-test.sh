@@ -61,6 +61,16 @@ cat > "$RT/bin/pair" <<'EOF'
 #!/usr/bin/env bash
 set -euo pipefail
 if [ "${1:-}" = session-inventory ]; then
+  case " $* " in
+    *" --owner "*)
+      if [ -s "$INVENTORY_SID_FILE" ]; then
+        cat "$INVENTORY_SID_FILE"
+        printf '\n'
+        exit 0
+      fi
+      exit 1
+      ;;
+  esac
   if [ -s "$INVENTORY_SID_FILE" ]; then
     sid="$(cat "$INVENTORY_SID_FILE")"
     agent="${3:-claude}"
