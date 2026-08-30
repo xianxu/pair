@@ -56,6 +56,35 @@ func TestManifestCoversRequiredArtifactFamilies(t *testing.T) {
 	}
 }
 
+func TestLifecycleArtifactFamiliesAreClassified(t *testing.T) {
+	t.Parallel()
+
+	want := map[string]bool{
+		"lifecycle":            false,
+		"lifecycle-lock":       false,
+		"lifecycle-request":    false,
+		"lifecycle-completion": false,
+		"lifecycle-trigger":    false,
+	}
+	for _, family := range Families {
+		if _, ok := want[family.Name]; ok {
+			want[family.Name] = true
+		}
+	}
+	for name, found := range want {
+		if !found {
+			t.Errorf("artifact manifest omits lifecycle family %q", name)
+		}
+	}
+	for _, classification := range SourceClassifications {
+		for _, family := range classification.Families {
+			if _, ok := want[family]; ok && classification.Kind == Constructor && classification.Path != "cmd/internal/artifactpath/paths.go" && classification.Path != "cmd/internal/artifactpath/manifest.go" {
+				t.Errorf("lifecycle family %q constructed outside artifactpath by %s", family, classification.Path)
+			}
+		}
+	}
+}
+
 func TestResolvedBindingCatalogIsUniqueAndReferencesKnownFamilies(t *testing.T) {
 	t.Parallel()
 

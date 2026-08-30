@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"path/filepath"
 	"regexp"
+	"strconv"
 	"strings"
 )
 
@@ -39,6 +40,14 @@ type ScopePaths struct {
 // filename vocabulary still has one constructor authority.
 // pair:m5-concept pure
 type PairCachePaths struct {
+	dir string
+}
+
+// LifecyclePaths is one stable park-transaction namespace. Its directory and
+// lock inode persist for the transaction lifetime; numbered request,
+// completion, and trigger records are immutable attempt artifacts.
+// pair:m5-concept pure
+type LifecyclePaths struct {
 	dir string
 }
 
@@ -406,6 +415,58 @@ func (p Paths) taggedComponent(prefix, component, suffix string) (string, error)
 		return "", err
 	}
 	return p.tagged(prefix, "-"+component+suffix), nil
+}
+
+// Lifecycle derives one transaction namespace after validating its stable
+// nonce. All lifecycle filenames are owned by this type.
+func (p Paths) Lifecycle(nonce string) (LifecyclePaths, error) {
+	if err := validateComponent("lifecycle nonce", nonce); err != nil {
+		return LifecyclePaths{}, err
+	}
+	return LifecyclePaths{dir: filepath.Join(p.tagged("lifecycle-", ""), nonce)}, nil
+}
+
+func (p LifecyclePaths) Dir() string  { return p.dir }
+func (p LifecyclePaths) Lock() string { return filepath.Join(p.dir, "lifecycle.lock") }
+
+func (p LifecyclePaths) Request(attempt uint64) (string, error) {
+	name, err := lifecycleAttemptName("quit-request-", attempt)
+	if err != nil {
+		return "", err
+	}
+	return filepath.Join(p.dir, name+".json"), nil
+}
+
+func (p LifecyclePaths) Completion(attempt uint64) (string, error) {
+	name, err := lifecycleAttemptName("quit-completion-", attempt)
+	if err != nil {
+		return "", err
+	}
+	return filepath.Join(p.dir, name+".json"), nil
+}
+
+// CompletionKey is the path-independent immutable key carried in both wire
+// records.
+func (p LifecyclePaths) CompletionKey(attempt uint64) (string, error) {
+	return lifecycleAttemptName("quit-completion-", attempt)
+}
+
+func (p LifecyclePaths) Trigger(session string, attempt uint64) (string, error) {
+	if err := validateCacheSession(session); err != nil {
+		return "", err
+	}
+	name, err := lifecycleAttemptName("quit-trigger-"+session+"-", attempt)
+	if err != nil {
+		return "", err
+	}
+	return filepath.Join(p.dir, name+".json"), nil
+}
+
+func lifecycleAttemptName(prefix string, attempt uint64) (string, error) {
+	if attempt == 0 {
+		return "", fmt.Errorf("lifecycle attempt must be positive")
+	}
+	return prefix + strconv.FormatUint(attempt, 10), nil
 }
 
 func mustPath(path string, err error) string {
