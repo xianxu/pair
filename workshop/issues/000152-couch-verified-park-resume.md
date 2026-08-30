@@ -530,6 +530,18 @@ on the durable thread record.
   window. All automated close evidence now passes; the remaining plan item is
   the operator's interactive `pair-dev` Couch Alt+x → same-tag/native-root
   resume smoke.
+- 2026-08-30: manual Couch smoke verified immediate confirmation and successful
+  non-root Park, then exposed two UI boundary defects. Parking the last/root
+  actor returned to the shell because `onExit` ended the console before the
+  async result could render; a parked row correctly remained durable but its
+  `·` marker did not explain that Enter resumes it. Revised the durable plan
+  to keep an already-focused empty panel alive with an Escape exit and to name
+  `live`/`parked` states explicitly (ARCH-PURPOSE, ARCH-CONSTRAINTS).
+- 2026-08-30: added red regressions for all three smoke findings, then changed
+  only the console ownership boundary and pure panel renderer. A panel-focused
+  final child exit now keeps Couch alive for Resume, Escape with no actor stops
+  the console, and rows render explicit `[live]`/`[parked]` states. The full
+  `couchtty` package passes with one `go test -p 20` runner.
 
 ## Estimate
 

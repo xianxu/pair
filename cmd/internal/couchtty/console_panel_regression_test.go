@@ -88,6 +88,39 @@ func TestParkUIEventOrdering(t *testing.T) {
 	}
 }
 
+func TestLastActorExitWhilePanelFocusedKeepsConsoleForResume(t *testing.T) {
+	address := panelAddress("parked")
+	con := New(hostty.NewFakeHost(ptychild.Size{Rows: 24, Cols: 80}), nil)
+	child := ptychild.NewFakeChild(nil)
+	con.attachThreadActor("only", "actor", address, "/w/parked", "parked", child)
+	con.SetSummaries(func() ([]couchcore.ThreadSummary, error) {
+		return []couchcore.ThreadSummary{{Address: address, WorkingPath: "/w/parked", Name: "parked"}}, nil
+	})
+	con.mu.Lock()
+	con.focus = FocusPanel()
+	con.mu.Unlock()
+
+	if exitConsole := con.onExit(childExit{id: "only", code: 0}); exitConsole {
+		t.Fatal("last actor exit closed the panel before its parked row could be resumed")
+	}
+	con.mu.Lock()
+	rows := append([]PanelRow(nil), con.panel.Shown()...)
+	con.mu.Unlock()
+	if len(rows) != 1 || rows[0].Live || rows[0].Target != "" || rows[0].Address != address {
+		t.Fatalf("post-park panel rows = %+v, want one exact parked row", rows)
+	}
+}
+
+func TestEscapeFromPanelWithNoActorStopsConsole(t *testing.T) {
+	con := New(hostty.NewFakeHost(ptychild.Size{Rows: 24, Cols: 80}), nil)
+	con.onPanelKey(PanelKey{Kind: KeyEscape})
+	select {
+	case <-con.stop:
+	default:
+		t.Fatal("Escape with no actor left the operator trapped in the panel")
+	}
+}
+
 func TestPanelCtrlSpaceIsNoOpInsideStartPrompt(t *testing.T) {
 	f := newFixture(t, 24, 80)
 	openPanel(t, f)

@@ -70,6 +70,18 @@ func TestPanelListsParkedTrees(t *testing.T) {
 	t.Fatal("the parked tree was omitted")
 }
 
+func TestPanelNamesLiveAndParkedRowStates(t *testing.T) {
+	got := RenderPanel(NewPanelModel(summaries()).Shown(), 0)
+	if !strings.Contains(got, "[live] pair") {
+		t.Fatalf("panel does not name the live state: %q", got)
+	}
+	for _, label := range []string{"brain", "ariadne"} {
+		if !strings.Contains(got, "[parked] "+label) {
+			t.Fatalf("panel does not name %s as parked: %q", label, got)
+		}
+	}
+}
+
 // Stable selection is only safe if the list does not reorder under the
 // operator's cursor.
 func TestPanelOrderingIsStable(t *testing.T) {

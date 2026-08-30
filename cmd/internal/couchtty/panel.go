@@ -269,17 +269,16 @@ func RenderPanel(rows []PanelRow, cursor int) string {
 		if i == cursor {
 			marker = "▸ "
 		}
-		state := " "
+		state := "[live]"
 		if !r.Live {
 			// A parked thread stays listed: it is exactly the one an operator
 			// loses track of.
-			state = "·"
+			state = "[parked]"
 		}
-		bell := " "
+		fmt.Fprintf(&b, "%s%s %s", marker, state, sanitize(r.Label))
 		if r.Bell {
-			bell = "*"
+			b.WriteString(" *")
 		}
-		fmt.Fprintf(&b, "%s%s%s %s", marker, state, bell, sanitize(r.Label))
 		if r.Desc != "" {
 			fmt.Fprintf(&b, "  — %s", sanitize(r.Desc))
 		}

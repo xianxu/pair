@@ -156,7 +156,10 @@ retain filter and selection and report through the notice feed.
 The row state is three-way: a local-live row has a console routing target and
 Enter switches to it; a remote-live row is present in the global summary but
 has no local target and reports that #147 transport is required; only a
-non-live parked row dispatches `resume`. Liveness and local routing capability
+non-live parked row dispatches `resume`. Rows name `[live]` and `[parked]`
+explicitly. If Park removes the final actor while the panel owns focus, the
+console remains on that resumable row; Escape with no actor returns to the
+parent shell. Liveness and local routing capability
 are deliberately separate facts (ARCH-PURPOSE).
 
 There is no numbered jump or `:` command state. Tab/thread actions are deferred

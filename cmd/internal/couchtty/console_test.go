@@ -808,7 +808,7 @@ func TestHotkeyFromTheRootActorOpensThePanel(t *testing.T) {
 		return strings.Contains(f.host.Written(), "couch — actors")
 	})
 	got := f.host.Written()
-	for _, want := range []string{"▸    brain", "     ariadne"} {
+	for _, want := range []string{"▸ [live] brain", "  [live] ariadne"} {
 		if !strings.Contains(got, want) {
 			t.Fatalf("the panel does not list %q: %q", want, got)
 		}
@@ -1059,13 +1059,13 @@ func TestPanelArrowsMoveTheSelection(t *testing.T) {
 
 	_, _ = f.stdin.Write([]byte("\x00"))
 	waitFor(t, "the panel", func() bool {
-		return strings.Contains(f.host.Written(), "▸    brain")
+		return strings.Contains(f.host.Written(), "▸ [live] brain")
 	})
 	f.host.Reset()
 
 	_, _ = f.stdin.Write([]byte("\x1b[B")) // down
 	waitFor(t, "the highlight to move", func() bool {
-		return strings.Contains(f.host.Written(), "▸    ariadne")
+		return strings.Contains(f.host.Written(), "▸ [live] ariadne")
 	})
 	f.host.Reset()
 
@@ -1091,7 +1091,7 @@ func TestPanelShowsTheBellMarker(t *testing.T) {
 
 	_, _ = f.stdin.Write([]byte("\x00"))
 	waitFor(t, "the panel to mark it", func() bool {
-		return strings.Contains(f.host.Written(), "* ariadne")
+		return strings.Contains(f.host.Written(), "[live] ariadne *")
 	})
 }
 
@@ -1139,11 +1139,11 @@ func TestPanelNavigationWorksInBothEncodings(t *testing.T) {
 
 			_, _ = f.stdin.Write([]byte("\x00"))
 			waitFor(t, "the panel", func() bool {
-				return strings.Contains(f.host.Written(), "▸    brain")
+				return strings.Contains(f.host.Written(), "▸ [live] brain")
 			})
 			_, _ = f.stdin.Write([]byte(keys.down))
 			waitFor(t, "the highlight to move", func() bool {
-				return strings.Contains(f.host.Written(), "▸    ariadne")
+				return strings.Contains(f.host.Written(), "▸ [live] ariadne")
 			})
 			_, _ = f.stdin.Write([]byte(keys.enter))
 			waitFor(t, "Enter to switch", func() bool {

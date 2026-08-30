@@ -667,3 +667,20 @@ Non-goals remain: Couch does not own PID inventory/teardown, expose detach,
 scan transcript/process corpora on interaction paths, support rollback of v2
 records into old binaries, provision missing worktrees (#153), or implement
 #151's menu beyond the shared operation declarations required here.
+
+## Revisions
+
+### 2026-08-30 — manual smoke exposed the last-actor panel boundary
+
+**Reason:** the first real Couch-hosted Alt+x smoke showed that verified Park
+of the only actor exits the root console before the asynchronous completion can
+paint its resumable row. A second-actor smoke completed, but the row's lone `·`
+state marker did not communicate why the parked thread correctly remained in
+the list.
+
+**Delta:** keep the owner console at its already-focused panel when its last
+actor exits, let Escape with no remaining actor return to the shell, and name
+row states explicitly as `live` or `parked`. Add regressions for the last-actor
+transition, the empty-panel escape, and visible row-state vocabulary before
+repeating the manual exact-session resume smoke (ARCH-PURPOSE,
+ARCH-CONSTRAINTS).

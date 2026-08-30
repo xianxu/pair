@@ -370,8 +370,9 @@ func (c *Console) switchTo(id string, force bool) {
 // goroutine.
 func (c *Console) Stop() { c.once.Do(func() { close(c.stop) }) }
 
-// Run owns the operator's terminal until the last child exits or Stop is
-// called. It returns the last child's exit code.
+// Run owns the operator's terminal until the actor-focused last child exits or
+// Stop is called. If the panel already owns focus, a last-child exit leaves it
+// available for durable Park/Resume; Escape with no actor calls Stop.
 func (c *Console) Run() int {
 	restore, err := c.host.MakeRaw()
 	if err != nil {
@@ -549,8 +550,9 @@ func (c *Console) teardown(restore func() error) {
 
 // onExit removes a dead child from the console and registry. An active exit
 // lands on the panel; an inactive exit only repaints the notice so it cannot
-// steal the operator from the child they are typing in. It reports whether no
-// hosted children remain.
+// steal the operator from the child they are typing in. The final child ends
+// an actor-focused console, but an already panel-focused console stays up so a
+// completed Park can expose the durable row that Enter resumes.
 func (c *Console) onExit(event childExit) bool {
 	c.mu.Lock()
 	p, known := c.panes[event.id]
@@ -592,7 +594,7 @@ func (c *Console) onExit(event childExit) bool {
 			c.setNotice(fmt.Sprintf("forget %s: %v", p.label, err))
 		}
 	}
-	if last {
+	if last && !panelFocused {
 		return true
 	}
 	if wasFocused || panelFocused {
@@ -1292,7 +1294,10 @@ func (c *Console) returnToActor() {
 	id := c.active
 	c.mu.Unlock()
 	if id == "" {
-		c.showPanel()
+		// With no attached actor, backing out of the panel means returning the
+		// operator's terminal to its parent shell. This is what makes keeping a
+		// last-actor Park resumable without turning the panel into a trap.
+		c.Stop()
 		return
 	}
 	c.mu.Lock()

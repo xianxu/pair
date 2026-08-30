@@ -357,9 +357,11 @@ the old spawn-and-inherit-stdio behaviour with no interception at all.
 Focus has three levels. From a non-home actor, `ctrl-space` returns to the first
 actor couch hosted (home); from home it opens the actors panel. In the panel,
 ordinary printable input is direct typeahead. Use `↑↓` and `Enter` to select and
-switch; Enter on a parked row starts in that path. `Escape` clears the filter
-or returns. Press `ctrl-space` again from the panel to enter a path for a new
-actor; an empty path uses the existing `.` default. Colons and digits are
+switch; rows explicitly say `[live]` or `[parked]`, and Enter on a parked row
+resumes that exact thread. `Escape` clears the filter, returns to an attached
+actor, or exits Couch when no actor remains. Press `ctrl-space` again from the
+panel to enter a path for a new actor; an empty path uses the existing `.`
+default. Colons and digits are
 ordinary filter text—there is no command namespace or numbered jump mode.
 If a row is live in another couch process, Enter leaves it selected and explains
 that cross-process attachment follows in #147; it never starts a duplicate.
