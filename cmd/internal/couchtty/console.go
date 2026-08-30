@@ -128,14 +128,15 @@ type Console struct {
 	// the writer singular removes the class rather than the two instances:
 	// there is no longer a way to reach the screen except through the loop that
 	// tracks where the stream is.
-	chunks    chan chunk
-	resized   chan struct{}
-	switching chan string
-	input     chan []byte
-	exited    chan childExit
-	stop      chan struct{}
-	once      sync.Once
-	workers   sync.WaitGroup
+	chunks         chan chunk
+	resized        chan struct{}
+	switching      chan string
+	input          chan []byte
+	exited         chan childExit
+	operationQueue *operationQueue
+	stop           chan struct{}
+	once           sync.Once
+	workers        sync.WaitGroup
 }
 
 // errw is where the console reports its own failures. Separate from the host
@@ -149,16 +150,17 @@ func (c *Console) errw() io.Writer {
 
 func New(host hostty.Host, stdin io.Reader) *Console {
 	c := &Console{
-		host:      host,
-		stdin:     stdin,
-		panes:     map[string]*pane{},
-		chunks:    make(chan chunk, 256),
-		resized:   make(chan struct{}, 1),
-		switching: make(chan string, 8),
-		input:     make(chan []byte, 64),
-		exited:    make(chan childExit, 64),
-		stop:      make(chan struct{}),
-		feed:      NewFeed(8),
+		host:           host,
+		stdin:          stdin,
+		panes:          map[string]*pane{},
+		chunks:         make(chan chunk, 256),
+		resized:        make(chan struct{}, 1),
+		switching:      make(chan string, 8),
+		input:          make(chan []byte, 64),
+		exited:         make(chan childExit, 64),
+		operationQueue: newOperationQueue(16),
+		stop:           make(chan struct{}),
+		feed:           NewFeed(8),
 	}
 	if s, err := host.Size(); err == nil {
 		c.size = s
@@ -383,9 +385,10 @@ func (c *Console) Run() int {
 	c.applyLayout()
 	c.paintNow()
 
-	c.workers.Add(2)
+	c.workers.Add(3)
 	go func() { defer c.workers.Done(); c.pumpStdin() }()
 	go func() { defer c.workers.Done(); c.watchResize() }()
+	go func() { defer c.workers.Done(); c.operationQueue.Run(c.stop) }()
 	var terminated <-chan os.Signal
 	if h, ok := c.host.(hostty.TerminationHost); ok {
 		terminated = h.Terminated()
@@ -446,12 +449,16 @@ func (c *Console) Run() int {
 	}
 	processInput := func(raw []byte) {
 		for {
-			before, hit, rest := it.Feed(raw)
+			before, hit, rest := it.FeedHit(raw)
 			route(before)
-			if !hit {
+			if hit == HitNone {
 				return
 			}
-			c.onHotkey()
+			if hit == HitPark {
+				c.onParkHotkey()
+			} else {
+				c.onHotkey()
+			}
 			raw = rest
 		}
 	}
@@ -493,6 +500,14 @@ func (c *Console) Run() int {
 			if c.onExit(event) {
 				return event.code
 			}
+		case completed := <-c.operationQueue.results:
+			if completed.err != nil {
+				c.setNotice(completed.name + ": " + completed.err.Error())
+			} else {
+				c.setNotice(completed.name + ": done")
+			}
+			c.rebuildPanel()
+			c.showPanel()
 		case <-terminated:
 			return 0
 		case <-c.stop:
@@ -858,6 +873,39 @@ func (c *Console) onHotkey() {
 	c.onSwitch(next.Actor())
 }
 
+// onParkHotkey handles Pair's Alt+x chord at the Couch ownership boundary.
+// It renders confirmation immediately; durable park work starts only after
+// confirmation and runs off the terminal event loop.
+func (c *Console) onParkHotkey() {
+	c.mu.Lock()
+	p := c.panes[c.active]
+	prompting := c.promptFn != nil
+	if p != nil {
+		c.focus = FocusPanel()
+	}
+	c.mu.Unlock()
+	if p == nil {
+		c.setNotice("park: no active thread")
+		return
+	}
+	if prompting {
+		c.showPanel()
+		return
+	}
+	address := p.thread
+	c.startPrompt("park "+string(address.Tag)+"? type yes: ", func(answer string) {
+		if strings.TrimSpace(strings.ToLower(answer)) != "yes" {
+			c.setNotice("park: cancelled")
+			return
+		}
+		c.runOpAsync("park", map[string]string{
+			"repo-scope": address.RepoScope,
+			"tag":        string(address.Tag),
+		})
+	})
+	c.showPanel()
+}
+
 // actorAlive is the liveness predicate Up consults.
 func (c *Console) actorAlive(id string) bool {
 	c.mu.Lock()
@@ -1045,7 +1093,10 @@ func (c *Console) onPanelKey(k PanelKey) {
 			break
 		}
 		if row.Target == "" {
-			c.runOp("start", map[string]string{"path": string(row.Tree)})
+			c.runOp("resume", map[string]string{
+				"repo-scope": row.Address.RepoScope,
+				"tag":        string(row.Address.Tag),
+			})
 			break
 		}
 		c.runOp("switch", map[string]string{
@@ -1141,6 +1192,36 @@ func (c *Console) runOp(name string, args map[string]string) {
 	}
 	c.setNotice(name + ": done")
 	c.rebuildPanel()
+}
+
+func (c *Console) runOpAsync(name string, args map[string]string) {
+	c.mu.Lock()
+	fn := c.ops
+	c.mu.Unlock()
+	if fn == nil {
+		c.setNotice("no action dispatcher wired")
+		return
+	}
+	c.setNotice(name + "ing…")
+	c.showPanel()
+	requestArgs := cloneOperationArgs(args)
+	key := name + "\x00" + requestArgs["repo-scope"] + "\x00" + requestArgs["tag"] + "\x00" + requestArgs["mode"]
+	_, err := c.operationQueue.Enqueue(operationRequest{key: key, name: name, run: func() error {
+		_, err := fn(couchcore.OperationCall{Name: name, Args: requestArgs, Implicit: true})
+		return err
+	}})
+	if err != nil {
+		c.setNotice(name + ": " + err.Error())
+		c.showPanel()
+	}
+}
+
+func cloneOperationArgs(args map[string]string) map[string]string {
+	copy := make(map[string]string, len(args))
+	for key, value := range args {
+		copy[key] = value
+	}
+	return copy
 }
 
 // ExecuteConsoleOperation is the owner-local executor for effects that cannot

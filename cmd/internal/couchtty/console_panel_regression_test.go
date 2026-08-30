@@ -10,6 +10,7 @@ import (
 	"github.com/xianxu/pair/cmd/internal/couchcore"
 	"github.com/xianxu/pair/cmd/internal/hostty"
 	"github.com/xianxu/pair/cmd/internal/ptychild"
+	"github.com/xianxu/pair/cmd/internal/workbenchshortcut"
 )
 
 func openPanel(t *testing.T, f *consoleFixture) {
@@ -34,6 +35,55 @@ func TestPanelCtrlSpaceStart(t *testing.T) {
 				defer f.con.mu.Unlock()
 				return f.con.prompt == "start in path: "
 			})
+		})
+	}
+}
+
+func TestParkUIEventOrdering(t *testing.T) {
+	for _, key := range workbenchshortcut.ChordEncodings(workbenchshortcut.ChordAltX) {
+		t.Run(fmt.Sprintf("%q", key), func(t *testing.T) {
+			f := newFixture(t, 24, 80)
+			started := make(chan struct{})
+			release := make(chan struct{})
+			setTestOps(f.con, func(name string, args map[string]string) (any, error) {
+				if name != "park" || args["tag"] == "" || args["repo-scope"] == "" {
+					t.Fatalf("park dispatch = %q %+v", name, args)
+				}
+				close(started)
+				<-release
+				return nil, nil
+			})
+
+			_, _ = f.stdin.Write(key)
+			waitFor(t, "immediate park confirmation", func() bool {
+				f.con.mu.Lock()
+				defer f.con.mu.Unlock()
+				return strings.HasPrefix(f.con.prompt, "park ")
+			})
+			select {
+			case <-started:
+				t.Fatal("park lifecycle started before confirmation")
+			default:
+			}
+
+			_, _ = f.stdin.Write([]byte("yes\r"))
+			waitFor(t, "park lifecycle start", func() bool {
+				select {
+				case <-started:
+					return true
+				default:
+					return false
+				}
+			})
+			waitFor(t, "parking status", func() bool { return strings.Contains(f.host.Written(), "parking…") })
+
+			_, _ = f.stdin.Write([]byte("z"))
+			waitFor(t, "input while park is blocked", func() bool {
+				f.con.mu.Lock()
+				defer f.con.mu.Unlock()
+				return f.con.query == "z"
+			})
+			close(release)
 		})
 	}
 }
@@ -109,13 +159,13 @@ func parkedFixture(t *testing.T) *consoleFixture {
 	return f
 }
 
-func TestPanelEnterOnParkedRowStartsItsPath(t *testing.T) {
+func TestPanelEnterOnParkedRowResumesExactThread(t *testing.T) {
 	f := parkedFixture(t)
 	var mu sync.Mutex
 	var called map[string]string
 	setTestOps(f.con, func(name string, args map[string]string) (any, error) {
-		if name != "start" {
-			t.Fatalf("operation = %q, want start", name)
+		if name != "resume" {
+			t.Fatalf("operation = %q, want resume", name)
 		}
 		mu.Lock()
 		called = args
@@ -123,15 +173,15 @@ func TestPanelEnterOnParkedRowStartsItsPath(t *testing.T) {
 		return nil, errors.New("stop after dispatch")
 	})
 	_, _ = f.stdin.Write([]byte("\r"))
-	waitFor(t, "parked start dispatch", func() bool {
+	waitFor(t, "parked resume dispatch", func() bool {
 		mu.Lock()
 		defer mu.Unlock()
 		return called != nil
 	})
 	mu.Lock()
 	defer mu.Unlock()
-	if called["path"] != "/w/parked" {
-		t.Fatalf("path = %q, want /w/parked", called["path"])
+	if called["repo-scope"] != panelAddress("parked").RepoScope || called["tag"] != string(panelAddress("parked").Tag) {
+		t.Fatalf("resume address args = %+v", called)
 	}
 }
 
@@ -162,7 +212,7 @@ func TestPanelEnterOnRemoteLiveRowExplainsAttachmentIsDeferred(t *testing.T) {
 	}
 }
 
-func TestPanelStartFailurePreservesListState(t *testing.T) {
+func TestPanelResumeFailurePreservesListState(t *testing.T) {
 	f := parkedFixture(t)
 	f.con.SetResolver(func(string) ([]couchcore.ThreadAddress, error) {
 		return []couchcore.ThreadAddress{panelAddress("parked")}, nil
@@ -175,7 +225,7 @@ func TestPanelStartFailurePreservesListState(t *testing.T) {
 	})
 	setTestOps(f.con, func(string, map[string]string) (any, error) { return nil, errors.New("boom") })
 	_, _ = f.stdin.Write([]byte("\r"))
-	waitFor(t, "the failure notice", func() bool { return strings.Contains(f.host.Written(), "start: boom") })
+	waitFor(t, "the failure notice", func() bool { return strings.Contains(f.host.Written(), "resume: boom") })
 	f.con.mu.Lock()
 	query := f.con.query
 	focus := f.con.focus

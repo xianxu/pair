@@ -187,6 +187,25 @@ func Operations() []Operation {
 				{Name: "tag", Summary: "exact started thread tag", Required: true, Implicit: true},
 			},
 		},
+		{
+			Name: "park", Summary: "Fully quit a work thread after verified Pair cleanup",
+			Execution: ExecuteLiveOwner, Effect: EffectProcess, Confirmation: ConfirmRequired, Result: ResultThread,
+			Args: []ArgSpec{
+				{Name: "ref", Summary: "thread tag, path, or name", Required: false},
+				{Name: "tag", Summary: "exact thread tag from trusted owner context", Implicit: true},
+				{Name: "mode", Summary: "normal, retry, recover, or abandon (--mode=<mode>)", FlagOnly: true, ValueRequired: true},
+				{Name: "repo-scope", Summary: "repository scope derived from caller context", Required: true, Implicit: true},
+			},
+		},
+		{
+			Name: "resume", Summary: "Resume an exact verified-parked work thread",
+			Execution: ExecuteLiveOwner, Effect: EffectProcess, Confirmation: ConfirmNone, Result: ResultStart,
+			Args: []ArgSpec{
+				{Name: "ref", Summary: "thread tag, path, or name", Required: false},
+				{Name: "tag", Summary: "exact thread tag from trusted owner context", Implicit: true},
+				{Name: "repo-scope", Summary: "repository scope derived from caller context", Required: true, Implicit: true},
+			},
+		},
 	}
 }
 

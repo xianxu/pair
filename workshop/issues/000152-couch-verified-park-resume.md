@@ -495,6 +495,15 @@ on the durable thread record.
   promotion conflicts remain occupied/unknown. Exact-profile and failure
   matrices plus full `couchcore`/`launcher` suites passed with one
   `go test -p 20` process (ARCH-DRY, ARCH-PURE, ARCH-PURPOSE).
+- 2026-08-30: wired Park/Resume into the shared operation schema with no Couch
+  detach surface. CLI references resolve uniquely inside the current repo;
+  owner-local panel actions carry an implicit exact address. Couch derives both
+  Alt+x encodings from Pair's canonical chord table, frames them across reads
+  and bracketed paste, renders confirmation before lifecycle work, then uses a
+  bounded single-worker queue with duplicate coalescing and immediate overload
+  refusal. Child exit changes only console routing and never durable park state.
+  Focused operation/interceptor/panel suites passed (ARCH-DRY,
+  ARCH-CONSTRAINTS, ARCH-PURPOSE).
 
 ## Estimate
 

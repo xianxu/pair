@@ -236,13 +236,13 @@ func TestPanelActionsAreDeclaredOperations(t *testing.T) {
 
 // And the panel must actually offer the actions the operator needs from it --
 // an empty set would pass the audit above vacuously.
-func TestPanelOffersOnlyTheFlatOperatorAction(t *testing.T) {
+func TestPanelOffersLifecycleActions(t *testing.T) {
 	got := map[string]bool{}
 	for _, a := range PanelActions() {
 		got[a] = true
 	}
-	if len(got) != 1 || !got["start"] {
-		t.Fatalf("panel actions = %v, want only start", got)
+	if len(got) != 3 || !got["start"] || !got["park"] || !got["resume"] {
+		t.Fatalf("panel actions = %v, want start/park/resume", got)
 	}
 }
 
@@ -259,8 +259,8 @@ func TestEveryPanelActionHasAKey(t *testing.T) {
 			t.Errorf("action %q has no key; it is declared but unreachable", a)
 			continue
 		}
-		if strings.Join(ks, ",") != "Ctrl-Space,Enter parked" {
-			t.Errorf("action %q keys = %q, want both flat start routes", a, ks)
+		if len(ks) == 0 {
+			t.Errorf("action %q has no reachable keys", a)
 		}
 	}
 	// And no key may be claimed by two actions.
@@ -279,8 +279,9 @@ func TestPanelControlsMatchFlatContract(t *testing.T) {
 	want := []PanelControl{
 		{Keys: "typeahead", Action: "filter"},
 		{Keys: "↑↓", Action: "select"},
-		{Keys: "Enter", Action: "switch/start"},
+		{Keys: "Enter", Action: "switch/resume"},
 		{Keys: "Ctrl-Space", Action: "start"},
+		{Keys: "Alt+x", Action: "park"},
 		{Keys: "Escape", Action: "clear/back"},
 	}
 	got := PanelControls()

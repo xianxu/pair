@@ -46,8 +46,9 @@ type PanelControl struct {
 var panelControls = []PanelControl{
 	{Keys: "typeahead", Action: "filter"},
 	{Keys: "↑↓", Action: "select"},
-	{Keys: "Enter", Action: "switch/start"},
+	{Keys: "Enter", Action: "switch/resume"},
 	{Keys: "Ctrl-Space", Action: "start"},
+	{Keys: "Alt+x", Action: "park"},
 	{Keys: "Escape", Action: "clear/back"},
 }
 
@@ -315,13 +316,15 @@ func RenderPanelWithQuery(query string, rows []PanelRow, cursor int) string {
 // is satisfied by a list that does nothing, which is why the audit now also
 // requires each name to be reachable from a keystroke.
 func PanelActions() []string {
-	return []string{"start"}
+	return []string{"park", "resume", "start"}
 }
 
 // PanelActionKeys maps each action to the key that invokes it, so the audit can
 // check the action is reachable rather than merely declared.
 func PanelActionKeys() map[string][]string {
 	return map[string][]string{
-		"start": {"Ctrl-Space", "Enter parked"},
+		"start":  {"Ctrl-Space"},
+		"park":   {"Alt+x active"},
+		"resume": {"Enter parked"},
 	}
 }

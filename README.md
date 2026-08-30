@@ -269,6 +269,10 @@ couch start . --no-console   spawn without taking the terminal (no pty, no row)
 couch start . --agent=codex  explicitly select one Pair-supported agent
 couch list               every durable work thread across all repositories
 couch show <ref>         one current-repository thread by tag, path, or name
+couch park <ref>         fully quit a live thread after verified Pair cleanup
+couch park <ref> --mode=retry|recover|abandon
+                         explicitly continue or abandon a durable park transaction
+couch resume <ref>       resume an exact verified-parked thread
 couch name <ref> <name>  set a thread's short human name ("" clears it)
 couch describe <ref> [<text>]  read or set its operator description ("" clears)
 couch publish-description <text>  publish this hosted agent's summary ("" clears)

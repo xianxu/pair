@@ -242,7 +242,7 @@ func RunWithRuntime(args []string, stdin io.Reader, stdout, stderr io.Writer, rt
 
 func operationUsesCurrentRepoScope(name string) bool {
 	switch name {
-	case "show", "name", "describe":
+	case "show", "name", "describe", "park", "resume":
 		return true
 	default:
 		return false

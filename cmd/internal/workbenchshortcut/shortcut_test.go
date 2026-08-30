@@ -454,6 +454,17 @@ func TestEveryGlobalBindingHasHelp(t *testing.T) {
 // (terminal tab switching) shipped undocumented: adding a chord to either seam
 // failed nothing. Iterating the chord space instead means a new terminal chord
 // cannot be added without either documenting it or consciously excluding it.
+func TestAltXCanonicalEncodingContract(t *testing.T) {
+	encodings := ChordEncodings(ChordAltX)
+	if len(encodings) != 2 || string(encodings[0]) != "\x1bx" || string(encodings[1]) != "\x1b[120;3u" {
+		t.Fatalf("Alt+x encodings = %q", encodings)
+	}
+	encodings[0][0] = 'z'
+	if got := ChordEncodings(ChordAltX); string(got[0]) != "\x1bx" {
+		t.Fatalf("ChordEncodings leaked mutable storage: %q", got)
+	}
+}
+
 func TestRoleBindingsCoverTerminalSwitch(t *testing.T) {
 	documented := map[Chord]string{}
 	for _, rb := range RoleBindings() {

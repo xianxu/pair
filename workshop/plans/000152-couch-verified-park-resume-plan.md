@@ -436,29 +436,29 @@ type CleanupResult struct {
 - Modify: `cmd/internal/couchtty/panel.go`
 - Test: `cmd/internal/couchtty/panel_test.go`
 
-- [ ] Write `TestParkResumeAreOnlyNewOperations` and `TestNoCouchDetachSurface`: assert declarations/dispatch/panel controls add only park/resume, Park modes are exactly normal/retry/recover/abandon, and no detach declaration, dispatcher case, panel control, or Couch interception exists.
-- [ ] Run `go test -p 20 ./cmd/internal/couchcore ./cmd/internal/couchcmd ./cmd/internal/couchtty -run 'Test(ParkResumeAreOnlyNewOperations|NoCouchDetachSurface)' -count=1`; expect FAIL before declarations/wiring.
-- [ ] Declare/wire park and resume through the shared operation table. Park is live-owner/process/confirmation-required; Resume is live-owner/process/no-confirmation; recovery values are validated park modes.
-- [ ] Run the operation-surface tests again; expect PASS.
-- [ ] Write `TestResumeOperationResolutionBoundary`: CLI Resume combines `ref` with implicit current repo scope; zero/multiple matches refuse before eligibility, admission, defaults, tag allocation, or Runner; one match passes the exact composite address unchanged; panel/actor calls accept only their trusted implicit exact address and cannot override scope/tag; Park recovery modes do not change resolution.
-- [ ] Run `go test -p 20 ./cmd/internal/couchcore ./cmd/internal/couchcmd ./cmd/internal/couchtty -run 'TestResumeOperationResolutionBoundary' -count=1`; expect FAIL before dispatcher resolution is wired.
-- [ ] Implement unique reference resolution at the operation executor boundary and keep `Couch.Resume` address-only.
-- [ ] Run the resolution-boundary test again; expect PASS.
-- [ ] Write `TestAltXCanonicalEncodingContract` and `TestInterceptorAltXFraming`: canonical legacy ESC-x and Kitty CSI-120;3u both hit Park; every split point preserves partial framing and exact before/rest; switch/Alt+x hits differ; exported encodings are defensive; Couch source contains no copied Alt+x literals.
-- [ ] Add bracketed-paste subtests splitting paste markers and each Alt+x sequence at every boundary; all bytes must pass through unchanged inside paste.
-- [ ] Run `go test -p 20 ./cmd/internal/workbenchshortcut ./cmd/internal/couchtty -run 'Test(AltXCanonicalEncodingContract|InterceptorAltXFraming)' -count=1`; expect FAIL before the encoding query/typed hit.
-- [ ] Export a defensive canonical chord-encoding query and extend `Interceptor` with typed switch-vs-Park hits without duplicating byte literals.
-- [ ] Run the encoding/framing tests again; expect PASS.
-- [ ] Write `TestParkUIEventOrdering`: `parking…` is the first next-turn host write, no chord byte reaches the child, ThreadStore work begins afterward, ordinary input and child output continue across a blocked Park, duplicates coalesce, and overload returns one typed result with zero lifecycle side effects.
-- [ ] Run `go test -p 20 ./cmd/internal/couchtty -run 'TestParkUIEventOrdering' -count=1`; expect FAIL because `runOp` blocks the host-writer loop.
-- [ ] Implement bounded request/result state in `operation_queue.go`; wire only enqueue/result events into `console.go`. Route actor Alt+x and confirmed panel Park to the same declared operation and keep Alt+d pass-through.
-- [ ] Run the UI ordering test again; expect PASS.
-- [ ] Write `TestChildExitNeverProvesPark` with exit before request publication, while awaiting, after completion/before final CAS, and after finalization. Only matching completion plus final CAS releases capacity; restart reconciles the retained-completion case.
-- [ ] Run `go test -p 20 ./cmd/internal/couchtty ./cmd/internal/couchcore -run 'TestChildExitNeverProvesPark' -count=1`; expect FAIL on current exit/forget behavior.
-- [ ] Make child exit a routing event only and delegate durable reconciliation to the coordinator.
-- [ ] Run the exit-authority test again; expect PASS.
-- [ ] Run `go test -p 20 ./cmd/internal/workbenchshortcut ./cmd/internal/couchtty ./cmd/internal/couchcore ./cmd/internal/couchcmd -run 'AltX|Interceptor|Park|Resume|Operation|Panel' -count=1`; expect PASS.
-- [ ] Commit with `git commit -m "#152: wire non-blocking park and resume UI"`.
+- [x] Write `TestParkResumeAreOnlyNewOperations` and `TestNoCouchDetachSurface`: assert declarations/dispatch/panel controls add only park/resume, Park modes are exactly normal/retry/recover/abandon, and no detach declaration, dispatcher case, panel control, or Couch interception exists.
+- [x] Run `go test -p 20 ./cmd/internal/couchcore ./cmd/internal/couchcmd ./cmd/internal/couchtty -run 'Test(ParkResumeAreOnlyNewOperations|NoCouchDetachSurface)' -count=1`; expect FAIL before declarations/wiring.
+- [x] Declare/wire park and resume through the shared operation table. Park is live-owner/process/confirmation-required; Resume is live-owner/process/no-confirmation; recovery values are validated park modes.
+- [x] Run the operation-surface tests again; expect PASS.
+- [x] Write `TestResumeOperationResolutionBoundary`: CLI Resume combines `ref` with implicit current repo scope; zero/multiple matches refuse before eligibility, admission, defaults, tag allocation, or Runner; one match passes the exact composite address unchanged; panel/actor calls accept only their trusted implicit exact address and cannot override scope/tag; Park recovery modes do not change resolution.
+- [x] Run `go test -p 20 ./cmd/internal/couchcore ./cmd/internal/couchcmd ./cmd/internal/couchtty -run 'TestResumeOperationResolutionBoundary' -count=1`; expect FAIL before dispatcher resolution is wired.
+- [x] Implement unique reference resolution at the operation executor boundary and keep `Couch.Resume` address-only.
+- [x] Run the resolution-boundary test again; expect PASS.
+- [x] Write `TestAltXCanonicalEncodingContract` and `TestInterceptorAltXFraming`: canonical legacy ESC-x and Kitty CSI-120;3u both hit Park; every split point preserves partial framing and exact before/rest; switch/Alt+x hits differ; exported encodings are defensive; Couch source contains no copied Alt+x literals.
+- [x] Add bracketed-paste subtests splitting paste markers and each Alt+x sequence at every boundary; all bytes must pass through unchanged inside paste.
+- [x] Run `go test -p 20 ./cmd/internal/workbenchshortcut ./cmd/internal/couchtty -run 'Test(AltXCanonicalEncodingContract|InterceptorAltXFraming)' -count=1`; expect FAIL before the encoding query/typed hit.
+- [x] Export a defensive canonical chord-encoding query and extend `Interceptor` with typed switch-vs-Park hits without duplicating byte literals.
+- [x] Run the encoding/framing tests again; expect PASS.
+- [x] Write `TestParkUIEventOrdering`: `parking…` is the first next-turn host write, no chord byte reaches the child, ThreadStore work begins afterward, ordinary input and child output continue across a blocked Park, duplicates coalesce, and overload returns one typed result with zero lifecycle side effects.
+- [x] Run `go test -p 20 ./cmd/internal/couchtty -run 'TestParkUIEventOrdering' -count=1`; expect FAIL because `runOp` blocks the host-writer loop.
+- [x] Implement bounded request/result state in `operation_queue.go`; wire only enqueue/result events into `console.go`. Route actor Alt+x and confirmed panel Park to the same declared operation and keep Alt+d pass-through.
+- [x] Run the UI ordering test again; expect PASS.
+- [x] Write `TestChildExitNeverProvesPark` with exit before request publication, while awaiting, after completion/before final CAS, and after finalization. Only matching completion plus final CAS releases capacity; restart reconciles the retained-completion case.
+- [x] Run `go test -p 20 ./cmd/internal/couchtty ./cmd/internal/couchcore -run 'TestChildExitNeverProvesPark' -count=1`; expect FAIL on current exit/forget behavior.
+- [x] Make child exit a routing event only and delegate durable reconciliation to the coordinator.
+- [x] Run the exit-authority test again; expect PASS.
+- [x] Run `go test -p 20 ./cmd/internal/workbenchshortcut ./cmd/internal/couchtty ./cmd/internal/couchcore ./cmd/internal/couchcmd -run 'AltX|Interceptor|Park|Resume|Operation|Panel' -count=1`; expect PASS.
+- [x] Commit with `git commit -m "#152: wire non-blocking park and resume UI"`.
 
 ## Chunk 4: Conformance, Performance, and Documentation
 
