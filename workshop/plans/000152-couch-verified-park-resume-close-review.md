@@ -383,3 +383,97 @@ dispose:
     note: |
       The mutation test now proves trigger delivery and durable matching intent, then requires failure specifically during completion observation.
 ```
+
+---
+
+## Re-review — 2026-08-30T15:58:01-07:00 (SHIP)
+
+| field | value |
+|-------|-------|
+| issue | 152 — couch: verified park and resume lifecycle |
+| repo | pair |
+| issue file | workshop/issues/000152-couch-verified-park-resume.md |
+| boundary | whole-issue close |
+| milestone | — |
+| window | e9e267d0e9f41bfd5958bdb4872fdfcb79af0dc2..dd18a9aaa7aa15e8af2bb9af6e0c04f36cade3bb |
+| command | sdlc close --issue 152 |
+| reviewer | codex |
+| timestamp | 2026-08-30T15:58:01-07:00 |
+| verdict | SHIP |
+
+## Review
+
+```verdict
+verdict: SHIP
+confidence: medium
+```
+
+The implementation matches the authoritative Spec and Plan, all prior findings remain addressed, and no new defects were found. Hermetic lifecycle suites and mutation checks passed; confidence is medium only because the sandbox denied `/bin/ps` and writes to the resolved user cache, preventing independent live-Zellij execution.
+
+```findings
+dispose:
+  - id: BR-1
+    disposition: addressed
+    note: |
+      The shared scenario crosses request publication, production TriggerQuit, Pair cleanup/completion, exact child death, and finalization; the intent-only driver proves the trigger is causal.
+  - id: BR-2
+    disposition: addressed
+    note: |
+      Construction performs no Pair/Zellij observation; reintroducing constructor recovery makes TestParkCoordinatorConstructorDoesNotQueryPairSession fail.
+  - id: BR-3
+    disposition: addressed
+    note: |
+      All 21 authoritative Core Concepts resolve to declarations; mutating a listed symbol makes the contract test fail.
+  - id: BR-4
+    disposition: addressed
+    note: |
+      The checked acceptance item and issue Log record exact same-tag/native-root observations from final operator smokes.
+  - id: BR-5
+    disposition: addressed
+    note: |
+      Every production lifecycle entrypoint uses the controller-owned worker; bypassing it makes the startup-recovery/interactive-retry overlap regression fail.
+  - id: BR-6
+    disposition: addressed
+    note: |
+      The negative live test requires both trigger deliveries, exact durable intent, and a completion-observation deadline; an earlier environmental failure is explicitly rejected.
+```
+
+1. Strengths
+
+- Park releases capacity only after matching completion and exact process death.
+- Resume rechecks the established native binding after durable admission and before child effects.
+- Crash-safe lifecycle publication uses immutable records, file and directory synchronization, and stable advisory locking.
+- README, atlas, workflow filters, and the authoritative concept inventory cover the new surface.
+
+2. Critical findings
+
+None.
+
+3. Important findings
+
+None.
+
+4. Minor findings
+
+None.
+
+5. Test coverage notes
+
+- Focused lifecycle, launcher, Couch core, TTY, and command suites passed.
+- All internal packages passed; `go vet` and `git diff --check` passed.
+- Lua, terminal shortcut, review-toggle, and Zellij configuration/layout checks passed.
+- Three scratch-copy mutation checks failed as intended for BR-2, BR-3, and BR-5.
+- Repository-wide execution reached `cmd/pair-go` but its `/bin/ps` cases were sandbox-denied. Live conformance likewise stopped on sandbox-denied cache writes, before its asserted precondition.
+- Worktree was left clean.
+
+6. Architectural notes
+
+- `ARCH-DRY`: Pass—one cleanup authority, lifecycle protocol, worker, and existing-thread launch path.
+- `ARCH-PURE`: Pass—pure transition/eligibility logic is separated from injected IO.
+- `ARCH-PURPOSE`: Pass—the delivered flow covers verified park, exact resume, recovery, and production conformance.
+- `ARCH-MOCK`: Pass—stateful fake and live driver share the complete scenario boundary.
+- `ARCH-CONSTRAINTS`: Pass—bounded queueing, single coordination, deadlines, overload behavior, and latency evidence are explicit.
+
+7. Plan revision recommendations
+
+None.

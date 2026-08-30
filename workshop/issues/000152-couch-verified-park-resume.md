@@ -1,12 +1,13 @@
 ---
 id: 000152
-status: working
+status: codecomplete
 deps: [149, 155]
 github_issue:
 created: 2026-08-25
-updated: 2026-08-29
+updated: 2026-08-30
 estimate_hours: 9.90
 started: 2026-08-27T12:04:27-07:00
+actual_hours: 13.40
 ---
 
 # couch: verified park and resume lifecycle
@@ -429,6 +430,8 @@ capacity twice, or change `last_active_at`.
 
 ## Log
 
+
+- 2026-08-30: closed — Host verification passed: go test -p 20 ./... -count=1; serialized make test-couch-zellij-live; overlap and staged-mutation regressions; couch/pair-go builds; operator isolated-store Leave, shell mouse reset, and exact Resume. Round-4 reviewer disposed BR-1..BR-6, raised no findings, and was unable only to execute /bin/ps in its restricted sandbox.; review verdict: SHIP
 - 2026-08-30: Operator smoke exposed that `park: done` was false: Couch wrote a
   quit intent but left Pair blocked inside its Zellij handoff, then a single
   missing-completion observation returned nil while both the Pair child and

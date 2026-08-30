@@ -109,6 +109,35 @@ rounds:
           note: The mutation test now proves trigger delivery and durable matching intent, then requires failure specifically during completion observation.
           round: 4
       blocked: false
+    - "n": 5
+      timestamp: "2026-08-30T15:58:01-07:00"
+      agent: codex
+      dispose:
+        - id: BR-1
+          disposition: addressed
+          note: The shared scenario crosses request publication, production TriggerQuit, Pair cleanup/completion, exact child death, and finalization; the intent-only driver proves the trigger is causal.
+          round: 5
+        - id: BR-2
+          disposition: addressed
+          note: Construction performs no Pair/Zellij observation; reintroducing constructor recovery makes TestParkCoordinatorConstructorDoesNotQueryPairSession fail.
+          round: 5
+        - id: BR-3
+          disposition: addressed
+          note: All 21 authoritative Core Concepts resolve to declarations; mutating a listed symbol makes the contract test fail.
+          round: 5
+        - id: BR-4
+          disposition: addressed
+          note: The checked acceptance item and issue Log record exact same-tag/native-root observations from final operator smokes.
+          round: 5
+        - id: BR-5
+          disposition: addressed
+          note: Every production lifecycle entrypoint uses the controller-owned worker; bypassing it makes the startup-recovery/interactive-retry overlap regression fail.
+          round: 5
+        - id: BR-6
+          disposition: addressed
+          note: The negative live test requires both trigger deliveries, exact durable intent, and a completion-observation deadline; an earlier environmental failure is explicitly rejected.
+          round: 5
+      blocked: false
 ---
 
 # Gate ledger — pair#152 (boundary-review)
@@ -165,6 +194,17 @@ later rounds disposed of them. Generated — edit the gate, not this file.
 - BR-4 — addressed — The documented same-tag/native-root smoke evidence remains recorded; no contrary code drift was found.
 - BR-5 — addressed — One controller-owned worker now serves every production lifecycle entrypoint, with a passing startup-recovery versus interactive-retry barrier regression.
 - BR-6 — addressed — The mutation test now proves trigger delivery and durable matching intent, then requires failure specifically during completion observation.
+
+## Round 5 — 2026-08-30T15:58:01-07:00 (codex) — passed
+
+### Disposed
+
+- BR-1 — addressed — The shared scenario crosses request publication, production TriggerQuit, Pair cleanup/completion, exact child death, and finalization; the intent-only driver proves the trigger is causal.
+- BR-2 — addressed — Construction performs no Pair/Zellij observation; reintroducing constructor recovery makes TestParkCoordinatorConstructorDoesNotQueryPairSession fail.
+- BR-3 — addressed — All 21 authoritative Core Concepts resolve to declarations; mutating a listed symbol makes the contract test fail.
+- BR-4 — addressed — The checked acceptance item and issue Log record exact same-tag/native-root observations from final operator smokes.
+- BR-5 — addressed — Every production lifecycle entrypoint uses the controller-owned worker; bypassing it makes the startup-recovery/interactive-retry overlap regression fail.
+- BR-6 — addressed — The negative live test requires both trigger deliveries, exact durable intent, and a completion-observation deadline; an earlier environmental failure is explicitly rejected.
 
 ## Open findings
 

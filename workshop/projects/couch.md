@@ -171,7 +171,7 @@ gate `#147` and `#148` respectively; `#145` and `#146` do not depend on them.
 - [x] deterministic agent session-tree inventory [pair#155]
 - [x] deterministic native forests [pair#155 M1]
 - [x] round-gated native bindings and public inventory [pair#155 M2]
-- [.] verified park and activity age [pair#152]
+- [x] verified park and activity age [pair#152]
 - [.] hierarchical thread menu [pair#151]
 - [ ] managed-worktree lifecycle [pair#153]
 - [ ] expose query API to peer actors [ariadne#199]
