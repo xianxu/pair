@@ -505,6 +505,10 @@ func (c *Console) Run() int {
 			if completed.err != nil {
 				c.setNotice(completed.name + ": " + completed.err.Error())
 			} else {
+				if completed.name == "leave" {
+					c.Stop()
+					continue
+				}
 				c.setNotice(completed.name + ": done")
 			}
 			c.rebuildPanel()
@@ -884,6 +888,7 @@ func (c *Console) onHotkey() {
 func (c *Console) onParkHotkey() {
 	c.mu.Lock()
 	p := c.panes[c.active]
+	isRoot := c.active != "" && c.active == c.root
 	prompting := c.promptFn != nil
 	if p != nil {
 		c.focus = FocusPanel()
@@ -894,6 +899,17 @@ func (c *Console) onParkHotkey() {
 		return
 	}
 	if prompting {
+		c.showPanel()
+		return
+	}
+	if isRoot {
+		c.startPrompt("leave couch and park all actors? type yes: ", func(answer string) {
+			if strings.TrimSpace(strings.ToLower(answer)) != "yes" {
+				c.setNotice("leave: cancelled")
+				return
+			}
+			c.runOpAsync("leave", nil)
+		})
 		c.showPanel()
 		return
 	}
@@ -1207,7 +1223,11 @@ func (c *Console) runOpAsync(name string, args map[string]string) {
 		c.setNotice("no action dispatcher wired")
 		return
 	}
-	c.setNotice(name + "ing…")
+	progress := name + "ing…"
+	if name == "leave" {
+		progress = "leaving…"
+	}
+	c.setNotice(progress)
 	c.showPanel()
 	requestArgs := cloneOperationArgs(args)
 	key := name + "\x00" + requestArgs["repo-scope"] + "\x00" + requestArgs["tag"] + "\x00" + requestArgs["mode"]

@@ -429,6 +429,22 @@ capacity twice, or change `last_active_at`.
 
 ## Log
 
+- 2026-08-30: Operator smoke exposed that `park: done` was false: Couch wrote a
+  quit intent but left Pair blocked inside its Zellij handoff, then a single
+  missing-completion observation returned nil while both the Pair child and
+  Zellij session remained live. Fixed the class, not only the smoke instance:
+  the trigger now quiesces the exact indexed session; user operations wait
+  boundedly for both matching durable completion and death of the exact
+  `{pid, process identity}` before finalization; timeout retains the occupied
+  transaction and completion evidence. Startup recovery stays non-blocking
+  (ARCH-PURE, ARCH-MOCK, ARCH-CONSTRAINTS).
+- 2026-08-30: Added the missing terminal semantic. Root Alt+x is typed `leave`:
+  it parks all active/parking threads sequentially and exits Couch only after
+  all are verified; non-root Alt+x parks only that actor. Inactive threads now
+  render as ordinary historical rows (no `[parked]`) and reject stale local
+  target binding, so their appearance and Enter/resume behavior are identical
+  before and after Couch restart (ARCH-PURPOSE).
+
 ### 2026-08-25
 
 Split from #149 after fresh spec review showed that “stop every process that can
@@ -547,6 +563,18 @@ on the durable thread record.
   while panel Park intentionally targets `active`. Added red coverage for both
   root and non-root active exits, then made the remaining root the active
   fallback. Focused regressions pass (ARCH-PURE, ARCH-PURPOSE).
+- 2026-08-30: deeper live inspection proved the apparent parked actors were
+  still running: Couch `99657` retained two `pair resume` children plus their
+  session-watch/title/Zellij descendants, and the isolated ThreadStore still
+  reported both incarnations live. Root cause is a circular trigger:
+  `TriggerQuit` writes an intent that Pair consumes only after its blocking
+  Zellij handoff returns, while Couch intercepts the Alt+x that would end the
+  handoff. `runActiveAttempt` then performs one completion observation and
+  returns nil when the exact session remains, which the UI mislabels
+  `park: done`. Revised the durable plan: actual trigger + bounded completion
+  and child-death proof, root Alt+x as verified park-all/Leave Couch, and
+  inactive rows as ordinary historical inventory (ARCH-PURPOSE, ARCH-MOCK,
+  ARCH-CONSTRAINTS).
 
 ## Estimate
 

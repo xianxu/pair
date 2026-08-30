@@ -6,6 +6,7 @@ import (
 	"strings"
 	"sync"
 	"testing"
+	"time"
 
 	"github.com/xianxu/pair/cmd/internal/couchcore"
 	"github.com/xianxu/pair/cmd/internal/hostty"
@@ -39,15 +40,15 @@ func TestPanelCtrlSpaceStart(t *testing.T) {
 	}
 }
 
-func TestParkUIEventOrdering(t *testing.T) {
+func TestRootAltXLeaveUIEventOrdering(t *testing.T) {
 	for _, key := range workbenchshortcut.ChordEncodings(workbenchshortcut.ChordAltX) {
 		t.Run(fmt.Sprintf("%q", key), func(t *testing.T) {
 			f := newFixture(t, 24, 80)
 			started := make(chan struct{})
 			release := make(chan struct{})
 			setTestOps(f.con, func(name string, args map[string]string) (any, error) {
-				if name != "park" || args["tag"] == "" || args["repo-scope"] == "" {
-					t.Fatalf("park dispatch = %q %+v", name, args)
+				if name != "leave" || len(args) != 0 {
+					t.Fatalf("leave dispatch = %q %+v", name, args)
 				}
 				close(started)
 				<-release
@@ -58,16 +59,16 @@ func TestParkUIEventOrdering(t *testing.T) {
 			waitFor(t, "immediate park confirmation", func() bool {
 				f.con.mu.Lock()
 				defer f.con.mu.Unlock()
-				return strings.HasPrefix(f.con.prompt, "park ")
+				return strings.HasPrefix(f.con.prompt, "leave couch")
 			})
 			select {
 			case <-started:
-				t.Fatal("park lifecycle started before confirmation")
+				t.Fatal("leave lifecycle started before confirmation")
 			default:
 			}
 
 			_, _ = f.stdin.Write([]byte("yes\r"))
-			waitFor(t, "park lifecycle start", func() bool {
+			waitFor(t, "leave lifecycle start", func() bool {
 				select {
 				case <-started:
 					return true
@@ -75,7 +76,7 @@ func TestParkUIEventOrdering(t *testing.T) {
 					return false
 				}
 			})
-			waitFor(t, "parking status", func() bool { return strings.Contains(f.host.Written(), "parking…") })
+			waitFor(t, "leaving status", func() bool { return strings.Contains(f.host.Written(), "leaving…") })
 
 			_, _ = f.stdin.Write([]byte("z"))
 			waitFor(t, "input while park is blocked", func() bool {
@@ -84,7 +85,52 @@ func TestParkUIEventOrdering(t *testing.T) {
 				return f.con.query == "z"
 			})
 			close(release)
+			waitFor(t, "console stop after verified leave", func() bool {
+				select {
+				case <-f.con.stop:
+					return true
+				default:
+					return false
+				}
+			})
 		})
+	}
+}
+
+func TestNonRootAltXParksOnlySelectedActor(t *testing.T) {
+	f := newFixture(t, 24, 80)
+	otherAddress := panelAddress("other")
+	other := ptychild.NewFakeChild(nil)
+	f.con.attachThreadActor("other", "other", otherAddress, "/w/other", "other", other)
+	f.con.mu.Lock()
+	f.con.active = "other"
+	f.con.focus = FocusActor("other")
+	f.con.mu.Unlock()
+	called := make(chan map[string]string, 1)
+	setTestOps(f.con, func(name string, args map[string]string) (any, error) {
+		if name != "park" {
+			t.Fatalf("operation = %q, want park", name)
+		}
+		called <- args
+		return nil, nil
+	})
+
+	f.con.onParkHotkey()
+	f.con.mu.Lock()
+	prompt := f.con.prompt
+	confirm := f.con.promptFn
+	f.con.mu.Unlock()
+	if !strings.HasPrefix(prompt, "park ") || confirm == nil {
+		t.Fatalf("prompt = %q", prompt)
+	}
+	confirm("yes")
+	select {
+	case args := <-called:
+		if args["repo-scope"] != otherAddress.RepoScope || args["tag"] != string(otherAddress.Tag) {
+			t.Fatalf("park args = %+v", args)
+		}
+	case <-time.After(time.Second):
+		t.Fatal("park was not dispatched")
 	}
 }
 

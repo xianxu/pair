@@ -74,13 +74,14 @@ func (c *sequenceClock) Now() time.Time {
 
 func TestParkWorkerBeginDeadlineHasZeroExternalEffectsAtOneSecond(t *testing.T) {
 	for _, test := range []struct {
-		name       string
-		elapsed    time.Duration
-		wantErr    bool
-		wantEffect int
+		name          string
+		elapsed       time.Duration
+		wantPhase     ParkPhase
+		wantLifecycle int
+		wantEffect    int
 	}{
-		{name: "999ms commits before deadline", elapsed: 999 * time.Millisecond, wantEffect: 1},
-		{name: "exactly 1s refuses", elapsed: time.Second, wantErr: true, wantEffect: 0},
+		{name: "999ms commits before deadline", elapsed: 999 * time.Millisecond, wantPhase: ParkAwaitingCompletion, wantLifecycle: 3, wantEffect: 1},
+		{name: "exactly 1s refuses", elapsed: time.Second, wantPhase: ParkRequested, wantEffect: 0},
 	} {
 		t.Run(test.name, func(t *testing.T) {
 			store, _, thread := createControllerThread(t)
@@ -91,23 +92,24 @@ func TestParkWorkerBeginDeadlineHasZeroExternalEffectsAtOneSecond(t *testing.T) 
 			artifacts.SetPairSession(thread.Address, "pair-exact", true)
 			controller := PairLifecycleController{
 				Threads: store, DataDir: t.TempDir(), Lifecycle: lifecycle, Sessions: artifacts,
+				Proc:  NewFakeProcOps(),
 				Clock: clock, Nonce: func() (string, error) { return "park-deadline", nil },
 			}
 			result, err := controller.Park(context.Background(), thread.Address)
-			if (err != nil) != test.wantErr {
-				t.Fatalf("Park err = %v, wantErr=%v", err, test.wantErr)
+			if err == nil {
+				t.Fatal("Park returned success without a completion")
 			}
 			if got := len(artifacts.TriggeredQuits()); got != test.wantEffect {
 				t.Fatalf("trigger effects = %d, want %d", got, test.wantEffect)
 			}
-			if got := len(lifecycle.trace); got != test.wantEffect*3 {
+			if got := len(lifecycle.trace); got != test.wantLifecycle {
 				t.Fatalf("lifecycle effects = %v", lifecycle.trace)
 			}
 			persisted, getErr := store.GetThread(thread.Address)
 			if getErr != nil || persisted.Park == nil || len(persisted.Incarnations) != 1 {
 				t.Fatalf("deadline occupancy = %+v, %v", persisted, getErr)
 			}
-			if test.wantErr && (!result.SoftTargetMissed || persisted.Park.Phase != ParkRequested) {
+			if !result.SoftTargetMissed || persisted.Park.Phase != test.wantPhase {
 				t.Fatalf("deadline result = %+v, thread=%+v", result, persisted)
 			}
 		})

@@ -272,6 +272,7 @@ couch show <ref>         one current-repository thread by tag, path, or name
 couch park <ref>         fully quit a live thread after verified Pair cleanup
 couch park <ref> --mode=retry|recover|abandon
                          explicitly continue or abandon a durable park transaction
+couch leave              park every active thread, then leave the root console
 couch resume <ref>       resume an exact verified-parked thread
 couch name <ref> <name>  set a thread's short human name ("" clears it)
 couch describe <ref> [<text>]  read or set its operator description ("" clears)
@@ -357,8 +358,11 @@ the old spawn-and-inherit-stdio behaviour with no interception at all.
 Focus has three levels. From a non-home actor, `ctrl-space` returns to the first
 actor couch hosted (home); from home it opens the actors panel. In the panel,
 ordinary printable input is direct typeahead. Use `↑↓` and `Enter` to select and
-switch; rows explicitly say `[live]` or `[parked]`, and Enter on a parked row
-resumes that exact thread. `Escape` clears the filter, returns to an attached
+switch; active rows say `[live]`, while inactive threads remain as ordinary
+history rows and Enter resumes that exact thread. `Alt+x` on a non-home actor
+parks only that actor; `Alt+x` on the home actor confirms **Leave Couch**, parks
+every active actor sequentially, and returns to the parent shell only after all
+parks are verified. `Escape` clears the filter, returns to an attached
 actor, or exits Couch when no actor remains. Press `ctrl-space` again from the
 panel to enter a path for a new actor; an empty path uses the existing `.`
 default. Colons and digits are

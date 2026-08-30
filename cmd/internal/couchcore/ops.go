@@ -198,6 +198,10 @@ func Operations() []Operation {
 			},
 		},
 		{
+			Name: "leave", Summary: "Park every active work thread and leave Couch",
+			Execution: ExecuteLiveOwner, Effect: EffectProcess, Confirmation: ConfirmRequired, Result: ResultConsole,
+		},
+		{
 			Name: "resume", Summary: "Resume an exact verified-parked work thread",
 			Execution: ExecuteLiveOwner, Effect: EffectProcess, Confirmation: ConfirmNone, Result: ResultStart,
 			Args: []ArgSpec{

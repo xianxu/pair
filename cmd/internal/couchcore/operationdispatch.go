@@ -227,6 +227,8 @@ func CouchLiveOwnerExecutor(c *Couch) OperationExecutor {
 			default:
 				return nil, fmt.Errorf("park: invalid mode %q (want normal, retry, recover, or abandon)", a["mode"])
 			}
+		case "leave":
+			return c.Leave(context.Background())
 		case "resume":
 			address, err := resolveOperationThread(c, a)
 			if err != nil {

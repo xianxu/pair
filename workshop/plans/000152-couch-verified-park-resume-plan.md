@@ -695,3 +695,26 @@ yet panel Alt+x resolved through the empty active slot and appeared inert.
 current root to active. Cover both root-active and non-root-active exits so the
 panel action target remains total over every non-empty attached set
 (ARCH-PURE, ARCH-PURPOSE).
+
+### 2026-08-30 — Leave Couch is verified park-all, and success includes child death
+
+**Reason:** the live smoke proved `TriggerQuit` only wrote an intent consumed
+after Pair's blocking Zellij handoff returned, while Couch's Alt+x interception
+prevented that return. The controller then observed completion once and returned
+success merely because the session was still present. The UI rendered
+`park: done` although both Pair/Zellij trees and Couch child handles remained
+live. It also exposed that Couch has no coherent singleton exit operation.
+
+**Delta:** make the committed typed intent actively quiesce the exact indexed
+Pair/Zellij session, wait boundedly for the matching durable cleanup completion
+and exact recorded child-process death, and only then finalize/remove the
+incarnation. Missing completion or surviving/mismatched process evidence is a
+failed/unknown occupied Park, never success. Add an explicit typed `leave`
+operation: Alt+x on the root actor confirms and sequentially parks every live
+actor, refuses/retains the console on any failure, and stops the singleton only
+after all succeed; non-root Alt+x parks only that actor. Inactive rows are
+ordinary historical thread rows with no `[parked]` badge and render identically
+before/after console restart; only live/parking rows carry lifecycle state.
+Add delayed stateful-fake and live end-to-end coverage spanning intent commit →
+exact Zellij trigger → launcher cleanup completion → recorded child death →
+park-all console exit (ARCH-PURPOSE, ARCH-MOCK, ARCH-CONSTRAINTS).

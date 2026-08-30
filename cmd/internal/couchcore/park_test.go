@@ -147,6 +147,7 @@ func TestParkCoordinatorOrdering(t *testing.T) {
 
 	controller := PairLifecycleController{
 		Threads: store, DataDir: t.TempDir(), Lifecycle: lifecycle, Sessions: artifacts,
+		Proc:  NewFakeProcOps(),
 		Clock: FixedClock{T: now}, Nonce: func() (string, error) { return "park-0123456789abcdef", nil },
 	}
 	result, err := controller.Park(context.Background(), thread.Address)
@@ -167,6 +168,126 @@ func TestParkCoordinatorOrdering(t *testing.T) {
 	}
 }
 
+func TestParkWaitsForCompletionAndExactChildDeath(t *testing.T) {
+	store, _, thread := createControllerThread(t)
+	now := time.Date(2026, 8, 30, 12, 30, 0, 0, time.UTC)
+	lifecycle := &fakeControllerLifecycle{model: pairlifecycletest.New(now)}
+	artifacts := NewFakeThreadArtifactCollisionChecker()
+	artifacts.SetPairSession(thread.Address, "pair-exact", true)
+	proc := NewFakeProcOps()
+	proc.Set(42, "pair-helper")
+	waits := 0
+	controller := PairLifecycleController{
+		Threads: store, DataDir: t.TempDir(), Lifecycle: lifecycle, Sessions: artifacts,
+		Clock: FixedClock{T: now}, Nonce: func() (string, error) { return "park-delayed-proof", nil },
+		Proc: proc, CompletionTimeout: time.Second, PollInterval: time.Millisecond,
+		Wait: func(context.Context, time.Duration) error {
+			waits++
+			switch waits {
+			case 1:
+				completion := successCompletion(lifecycle.lastRequest, now)
+				lifecycle.completion = &completion
+			case 2:
+				proc.Kill(42)
+			}
+			return nil
+		},
+	}
+
+	result, err := controller.Park(context.Background(), thread.Address)
+	if err != nil {
+		t.Fatalf("Park: %v", err)
+	}
+	if waits != 2 {
+		t.Fatalf("waits = %d, want completion wait then child-death wait", waits)
+	}
+	if result.Thread.VerifiedPark == nil || result.Thread.Park != nil || len(result.Thread.Incarnations) != 0 {
+		t.Fatalf("result = %+v", result.Thread)
+	}
+}
+
+func TestParkRetainsOccupiedTransactionWhenCompletionPrecedesChildDeathDeadline(t *testing.T) {
+	store, _, thread := createControllerThread(t)
+	now := time.Date(2026, 8, 30, 12, 45, 0, 0, time.UTC)
+	lifecycle := &fakeControllerLifecycle{model: pairlifecycletest.New(now)}
+	artifacts := NewFakeThreadArtifactCollisionChecker()
+	artifacts.SetPairSession(thread.Address, "pair-exact", true)
+	artifacts.TriggerQuitHook = func(_ string, _ launcher.QuitIntent) error {
+		completion := successCompletion(lifecycle.lastRequest, now)
+		lifecycle.completion = &completion
+		return nil
+	}
+	proc := NewFakeProcOps()
+	proc.Set(42, "pair-helper")
+	controller := PairLifecycleController{
+		Threads: store, DataDir: t.TempDir(), Lifecycle: lifecycle, Sessions: artifacts,
+		Proc: proc, Clock: FixedClock{T: now},
+		Nonce:             func() (string, error) { return "park-child-still-live", nil },
+		CompletionTimeout: time.Second, PollInterval: time.Millisecond,
+		Wait: func(context.Context, time.Duration) error { return context.DeadlineExceeded },
+	}
+
+	result, err := controller.Park(context.Background(), thread.Address)
+	if err == nil {
+		t.Fatal("Park returned success while the exact child remained live")
+	}
+	if result.Thread.Park == nil || result.Thread.VerifiedPark != nil || !result.Thread.Park.Attempts[0].TimedOut || len(result.Thread.Incarnations) != 1 {
+		t.Fatalf("result = %+v", result.Thread)
+	}
+	for _, event := range lifecycle.trace {
+		if event == "cleanup-attempt" {
+			t.Fatalf("completion evidence was deleted before child death: %v", lifecycle.trace)
+		}
+	}
+}
+
+func TestLeaveParksLiveThreadsSequentiallyAndRetainsPartialFailure(t *testing.T) {
+	store, ns, first := createControllerThread(t)
+	second := validThreadRecord(t)
+	second.Address.Tag = "couch-fedcba9876543210"
+	second.StartingPath, second.WorkingPath = ns.Dir(), ns.Dir()
+	second.Reservation = false
+	profile := LaunchProfile{Agent: "codex"}
+	second.Incarnations = []ThreadIncarnation{{PID: 43, Identity: "pair-second", State: IncarnationLive, LaunchProfile: &profile}}
+	second.LatestLaunchProfile = &profile
+	second, err := store.CreateThread(second)
+	if err != nil {
+		t.Fatal(err)
+	}
+	now := time.Date(2026, 8, 30, 13, 0, 0, 0, time.UTC)
+	lifecycle := &fakeControllerLifecycle{model: pairlifecycletest.New(now)}
+	lifecycle.onPublish = func(pairlifecycle.QuitRequest) { lifecycle.completion = nil }
+	artifacts := NewFakeThreadArtifactCollisionChecker()
+	artifacts.SetPairSession(first.Address, "pair-first", true)
+	artifacts.SetPairSession(second.Address, "pair-second", true)
+	triggers := 0
+	artifacts.TriggerQuitHook = func(_ string, _ launcher.QuitIntent) error {
+		triggers++
+		if triggers == 2 {
+			return errors.New("second trigger failed")
+		}
+		completion := successCompletion(lifecycle.lastRequest, now)
+		lifecycle.completion = &completion
+		return nil
+	}
+	controller := &PairLifecycleController{
+		Threads: store, DataDir: t.TempDir(), Lifecycle: lifecycle, Sessions: artifacts,
+		Proc: NewFakeProcOps(), Clock: FixedClock{T: now},
+		Nonce: func() (string, error) { return "park-leave-sequential", nil },
+	}
+	couch := &Couch{Threads: store, PairLifecycle: controller}
+
+	result, err := couch.Leave(context.Background())
+	if err == nil || len(result.Parked) != 1 || result.Parked[0] != first.Address {
+		t.Fatalf("Leave = %+v, %v", result, err)
+	}
+	parked, _ := store.GetThread(first.Address)
+	occupied, _ := store.GetThread(second.Address)
+	if parked.VerifiedPark == nil || parked.Park != nil || occupied.Park == nil || len(occupied.Incarnations) != 1 {
+		t.Fatalf("first=%+v second=%+v", parked, occupied)
+	}
+}
+
 func TestParkCoordinatorTransitionMatrix(t *testing.T) {
 	t.Run("request-publish-failed", func(t *testing.T) {
 		store, _, thread := createControllerThread(t)
@@ -176,6 +297,7 @@ func TestParkCoordinatorTransitionMatrix(t *testing.T) {
 		artifacts.SetPairSession(thread.Address, "pair-exact", true)
 		controller := PairLifecycleController{
 			Threads: store, DataDir: t.TempDir(), Lifecycle: lifecycle, Sessions: artifacts,
+			Proc:  NewFakeProcOps(),
 			Clock: FixedClock{T: now}, Nonce: func() (string, error) { return "park-1111111111111111", nil },
 		}
 		if _, err := controller.Park(context.Background(), thread.Address); err == nil {
@@ -200,13 +322,15 @@ func TestParkCoordinatorTransitionMatrix(t *testing.T) {
 		}
 		controller := PairLifecycleController{
 			Threads: store, DataDir: t.TempDir(), Lifecycle: lifecycle, Sessions: artifacts,
+			Proc:  NewFakeProcOps(),
 			Clock: FixedClock{T: now}, Nonce: func() (string, error) { return "park-2222222222222222", nil },
 		}
 		if _, err := controller.Park(context.Background(), thread.Address); err == nil {
 			t.Fatal("missing completion returned success")
 		}
 		kept, _ := store.GetThread(thread.Address)
-		if kept.Park == nil || kept.Park.Phase != ParkUnknown || len(kept.Incarnations) != 1 {
+		if kept.Park == nil || kept.Park.Phase != ParkAwaitingCompletion || !kept.Park.Attempts[0].TimedOut ||
+			kept.Park.Attempts[0].Failure == nil || kept.Park.Attempts[0].Failure.Code != pairlifecycle.FailureTimeout || len(kept.Incarnations) != 1 {
 			t.Fatalf("missing completion state = %+v", kept)
 		}
 	})
@@ -225,6 +349,7 @@ func TestParkCoordinatorTransitionMatrix(t *testing.T) {
 		}
 		controller := PairLifecycleController{
 			Threads: store, DataDir: t.TempDir(), Lifecycle: lifecycle, Sessions: artifacts,
+			Proc:  NewFakeProcOps(),
 			Clock: FixedClock{T: now}, Nonce: func() (string, error) { return "park-stale-completion", nil },
 		}
 		if _, err := controller.Park(context.Background(), thread.Address); err == nil {
@@ -253,6 +378,7 @@ func TestParkCoordinatorTransitionMatrix(t *testing.T) {
 		artifacts.SetPairSession(thread.Address, "pair-exact", true)
 		controller := PairLifecycleController{
 			Threads: store, DataDir: t.TempDir(), Lifecycle: lifecycle, Sessions: artifacts,
+			Proc:  NewFakeProcOps(),
 			Clock: FixedClock{T: now}, Nonce: func() (string, error) { return "park-indeterminate", nil },
 		}
 		if _, err := controller.Park(context.Background(), thread.Address); err == nil {
@@ -288,6 +414,7 @@ func TestParkCoordinatorTransitionMatrix(t *testing.T) {
 			}
 			controller := PairLifecycleController{
 				Threads: store, DataDir: t.TempDir(), Lifecycle: lifecycle, Sessions: artifacts,
+				Proc:  NewFakeProcOps(),
 				Clock: FixedClock{T: now}, Nonce: func() (string, error) { return "park-cleanup-failed", nil },
 			}
 			if _, err := controller.Park(context.Background(), thread.Address); err == nil {
@@ -302,7 +429,7 @@ func TestParkCoordinatorTransitionMatrix(t *testing.T) {
 			artifacts.SetPairSession(thread.Address, "pair-exact", test.sessionPresent)
 			if test.retry {
 				result, err := controller.Retry(context.Background(), thread.Address)
-				if err != nil || result.Thread.Park == nil || len(result.Thread.Park.Attempts) != 2 || result.Thread.Park.Phase != ParkAwaitingCompletion {
+				if err == nil || result.Thread.Park == nil || len(result.Thread.Park.Attempts) != 2 || result.Thread.Park.Phase != ParkAwaitingCompletion || !result.Thread.Park.Attempts[1].TimedOut {
 					t.Fatalf("Retry = %+v, %v", result, err)
 				}
 				return
@@ -367,6 +494,7 @@ func TestParkCoordinatorTransitionMatrix(t *testing.T) {
 			}
 			controller := PairLifecycleController{
 				Threads: store, DataDir: t.TempDir(), Lifecycle: lifecycle, Sessions: artifacts,
+				Proc:  NewFakeProcOps(),
 				Clock: FixedClock{T: now}, Nonce: func() (string, error) { return "park-cas-conflict", nil },
 			}
 			if _, err := controller.Park(context.Background(), thread.Address); err == nil {
@@ -416,6 +544,7 @@ func TestParkCoordinatorTransitionMatrix(t *testing.T) {
 		lifecycle := &fakeControllerLifecycle{model: pairlifecycletest.New(now), completions: map[uint64]pairlifecycle.QuitCompletion{}}
 		controller := PairLifecycleController{
 			Threads: store, DataDir: t.TempDir(), Lifecycle: lifecycle, Sessions: artifacts,
+			Proc:  NewFakeProcOps(),
 			Clock: FixedClock{T: now}, Nonce: func() (string, error) { return "unused", nil },
 		}
 		request, _, err := controller.requestForAttempt(current, "pair-exact", 1)
@@ -451,6 +580,7 @@ func TestParkCoordinatorTransitionMatrix(t *testing.T) {
 		lifecycle := &fakeControllerLifecycle{model: pairlifecycletest.New(time.Unix(400, 0).UTC())}
 		controller := PairLifecycleController{
 			Threads: store, DataDir: t.TempDir(), Lifecycle: lifecycle, Sessions: artifacts,
+			Proc:  NewFakeProcOps(),
 			Clock: FixedClock{T: time.Unix(400, 0).UTC()}, Nonce: func() (string, error) { return "unused", nil },
 		}
 		if err := controller.ReconcileActive(context.Background()); err != nil {
@@ -488,6 +618,7 @@ func TestParkCoordinatorRestartReconcilesActiveOnly(t *testing.T) {
 	artifacts.SetPairSession(active.Address, "pair-exact", true)
 	controller := PairLifecycleController{
 		Threads: store, DataDir: t.TempDir(), Lifecycle: lifecycle, Sessions: artifacts,
+		Proc:  NewFakeProcOps(),
 		Clock: FixedClock{T: now}, Nonce: func() (string, error) { return "unused", nil },
 	}
 	couch := &Couch{PairLifecycle: &controller}

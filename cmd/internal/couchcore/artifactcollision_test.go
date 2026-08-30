@@ -14,6 +14,16 @@ import (
 	"github.com/xianxu/pair/cmd/internal/strictjson"
 )
 
+type triggerSessionDeleter struct {
+	deleted []string
+	err     error
+}
+
+func (d *triggerSessionDeleter) DeleteSession(session string) error {
+	d.deleted = append(d.deleted, session)
+	return d.err
+}
+
 func TestAllocateThreadTagAtomicallyClaimsAgainstArtifactProducers(t *testing.T) {
 	dataDir := t.TempDir()
 	scope := launcher.RepoScope{Key: "0123456789abcdef"}
@@ -224,6 +234,34 @@ func TestScopedArtifactCollisionCheckerFindsDetachedSessionBinding(t *testing.T)
 	claim, err := NewScopedThreadArtifactCollisionChecker(dataDir).Claim(address)
 	if !errors.Is(err, launcher.ErrThreadAddressClaimed) || claim != nil {
 		t.Fatalf("session binding claim = %T, %v", claim, err)
+	}
+}
+
+func TestTriggerQuitCommitsIntentBeforeQuiescingExactSession(t *testing.T) {
+	home := t.TempDir()
+	t.Setenv("HOME", home)
+	deleter := &triggerSessionDeleter{}
+	checker := NewScopedThreadArtifactCollisionChecker(t.TempDir())
+	checker.Sessions = deleter
+	intent := launcher.QuitIntent{
+		Version: launcher.QuitIntentVersion,
+		Kind:    launcher.QuitIntentCouch,
+		Request: &launcher.QuitRequestReference{
+			DataDir: checker.GlobalDataDir, RepoScope: "0123456789abcdef", Tag: "couch-0001020304050607",
+			Nonce: "park-trigger-quit", Attempt: 1,
+		},
+	}
+
+	if err := checker.TriggerQuit("📁repo-couch", intent); err != nil {
+		t.Fatal(err)
+	}
+	if !reflect.DeepEqual(deleter.deleted, []string{"📁repo-couch"}) {
+		t.Fatalf("deleted sessions = %v", deleter.deleted)
+	}
+	runtime := launcher.NewScopedOSRuntime(checker.GlobalDataDir, checker.GlobalDataDir, "")
+	got, present, err := runtime.TakeQuitIntent("📁repo-couch")
+	if err != nil || !present || got.Kind != launcher.QuitIntentCouch {
+		t.Fatalf("committed intent = %+v, present=%v err=%v", got, present, err)
 	}
 }
 

@@ -100,8 +100,10 @@ func New(namespace CouchNamespace, r Runner, p PathOps, g GitRunner, proc ProcOp
 		result.PairLifecycle = &PairLifecycleController{
 			Threads: result.Threads, DataDir: environment.PairLifecycleDataDir(),
 			Lifecycle: environment.PairLifecycleIO(), Sessions: environment,
-			Clock: result.Clock,
-			Nonce: func() (string, error) { return allocateParkNonce(result.Entropy) },
+			Proc: result.Proc, Clock: result.Clock,
+			Nonce:             func() (string, error) { return allocateParkNonce(result.Entropy) },
+			CompletionTimeout: 15 * time.Second,
+			PollInterval:      25 * time.Millisecond,
 		}
 		if err := result.ReconcileActiveParks(context.Background()); err != nil {
 			return nil, fmt.Errorf("reconcile active parks: %w", err)

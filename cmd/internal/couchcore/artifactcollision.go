@@ -169,7 +169,20 @@ func (c ScopedThreadArtifactCollisionChecker) PairSession(address ThreadAddress)
 
 func (c ScopedThreadArtifactCollisionChecker) TriggerQuit(session string, intent launcher.QuitIntent) error {
 	runtime := launcher.NewScopedOSRuntime(c.GlobalDataDir, c.GlobalDataDir, "")
-	return runtime.WriteQuitIntent(session, intent)
+	if err := runtime.WriteQuitIntent(session, intent); err != nil {
+		return err
+	}
+	if c.Sessions == nil {
+		return errors.New("trigger Pair quit: nil session deleter")
+	}
+	// Pair consumes the typed intent only after its blocking Zellij handoff
+	// returns. Couch intercepts Alt+x, so writing the intent alone cannot make
+	// that happen; quiescing this exact indexed session is the trigger that
+	// returns control to Pair's shared full-quit cleanup.
+	if err := c.Sessions.DeleteSession(session); err != nil {
+		return fmt.Errorf("trigger Pair quit for %q: %w", session, err)
+	}
+	return nil
 }
 
 func (c ScopedThreadArtifactCollisionChecker) ResolveEstablished(repoScope, tag, agent string) (NativeBindingResolution, error) {

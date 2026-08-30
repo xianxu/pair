@@ -156,13 +156,30 @@ retain filter and selection and report through the notice feed.
 The row state is three-way: a local-live row has a console routing target and
 Enter switches to it; a remote-live row is present in the global summary but
 has no local target and reports that #147 transport is required; only a
-non-live parked row dispatches `resume`. Rows name `[live]` and `[parked]`
-explicitly. If Park removes the final actor while the panel owns focus, the
+non-live historical row dispatches `resume`. Active rows name `[live]`;
+inactive rows carry no `[parked]` mode label and render identically before and
+after Couch restart. Ephemeral console targets bind only to durable live rows,
+so a stale child handle cannot turn an inactive row's Enter into switch. If
+Park removes the final actor while the panel owns focus, the
 console remains on that resumable row; Escape with no actor returns to the
 parent shell. When the active actor exits and another remains, the console
 promotes its current root as the active target so panel Alt+x never addresses
-an empty routing slot. Liveness and local routing capability
+an empty routing slot. Alt+x on a non-root actor parks only that actor. Alt+x
+on the root is the typed `leave` operation: confirm immediately, park every
+active/parking thread sequentially, and close the console only after all parks
+have durable successful completion and the exact Pair child identity is dead.
+Any failure leaves Couch open and the failed transaction occupied for recovery.
+Liveness and local routing capability
 are deliberately separate facts (ARCH-PURPOSE).
+
+The park trigger writes the exact typed quit intent and then deletes only the
+indexed Pair/Zellij session. That deletion returns Pair's blocking handoff so
+Pair can consume the intent and execute its shared full-quit cleanup. Couch
+polls under a 15-second operation deadline for both the matching durable
+completion and death (or PID-identity replacement) of the exact recorded Pair
+child; completion alone never finalizes. Construction-time recovery performs
+one non-blocking trigger/observation pass so Couch startup does not inherit the
+shutdown deadline (ARCH-PURE, ARCH-MOCK, ARCH-CONSTRAINTS).
 
 There is no numbered jump or `:` command state. Tab/thread actions are deferred
 to #151 after #149 provides the durable work-thread identity those actions

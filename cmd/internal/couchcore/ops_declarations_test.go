@@ -25,6 +25,7 @@ func TestOperationDeclarationsAreClosureFreeCompleteAndOwned(t *testing.T) {
 		"switch":              {ExecuteLiveOwner, EffectConsole, ConfirmNone, ResultConsole},
 		"attach":              {ExecuteLiveOwner, EffectConsole, ConfirmNone, ResultConsole},
 		"park":                {ExecuteLiveOwner, EffectProcess, ConfirmRequired, ResultThread},
+		"leave":               {ExecuteLiveOwner, EffectProcess, ConfirmRequired, ResultConsole},
 		"resume":              {ExecuteLiveOwner, EffectProcess, ConfirmNone, ResultStart},
 	}
 	for _, op := range Operations() {
@@ -49,8 +50,9 @@ func TestOperationDeclarationsAreClosureFreeCompleteAndOwned(t *testing.T) {
 	}
 }
 
-func TestParkResumeAreOnlyNewOperationsAndNoCouchDetachSurface(t *testing.T) {
+func TestParkLeaveResumeAndNoCouchDetachSurface(t *testing.T) {
 	var park, resume *Operation
+	var leave *Operation
 	for _, operation := range Operations() {
 		op := operation
 		switch op.Name {
@@ -58,12 +60,14 @@ func TestParkResumeAreOnlyNewOperationsAndNoCouchDetachSurface(t *testing.T) {
 			park = &op
 		case "resume":
 			resume = &op
+		case "leave":
+			leave = &op
 		case "detach":
 			t.Fatal("Couch exposes a detach operation")
 		}
 	}
-	if park == nil || resume == nil {
-		t.Fatalf("park/resume declarations = %+v, %+v", park, resume)
+	if park == nil || leave == nil || resume == nil {
+		t.Fatalf("park/leave/resume declarations = %+v, %+v, %+v", park, leave, resume)
 	}
 	wantParkArgs := []ArgSpec{
 		{Name: "ref", Summary: "thread tag, path, or name", Required: false},
