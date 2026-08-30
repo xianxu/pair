@@ -1,6 +1,7 @@
 package couchcore
 
 import (
+	"fmt"
 	"sync"
 
 	"github.com/xianxu/pair/cmd/internal/launcher"
@@ -12,18 +13,26 @@ type fakeArtifactCollision struct {
 }
 
 type FakeThreadArtifactCollisionChecker struct {
-	mu            sync.Mutex
-	values        map[ThreadAddress]fakeArtifactCollision
-	calls         []ThreadAddress
-	released      []ThreadAddress
-	registrations map[ThreadAddress]fakeRegistration
-	autoEstablish bool
-	quiesced      []ThreadAddress
-	QuiesceHook   func(ThreadAddress) error
+	mu              sync.Mutex
+	values          map[ThreadAddress]fakeArtifactCollision
+	calls           []ThreadAddress
+	released        []ThreadAddress
+	registrations   map[ThreadAddress]fakeRegistration
+	autoEstablish   bool
+	quiesced        []ThreadAddress
+	QuiesceHook     func(ThreadAddress) error
+	pairSessions    map[ThreadAddress]PairSessionBinding
+	triggeredQuit   []TriggeredQuit
+	TriggerQuitHook func(string, launcher.QuitIntent) error
 	// BeforeRegistration lets an integration test interleave a durable state
 	// change at the registration boundary. It is called outside mu because the
 	// hook may consult another stateful fake or call back into this one.
 	BeforeRegistration func(ThreadAddress) error
+}
+
+type TriggeredQuit struct {
+	Session string
+	Intent  launcher.QuitIntent
 }
 
 type fakeRegistration struct {
@@ -35,7 +44,41 @@ func NewFakeThreadArtifactCollisionChecker() *FakeThreadArtifactCollisionChecker
 	return &FakeThreadArtifactCollisionChecker{
 		values:        map[ThreadAddress]fakeArtifactCollision{},
 		registrations: map[ThreadAddress]fakeRegistration{},
+		pairSessions:  map[ThreadAddress]PairSessionBinding{},
 	}
+}
+
+func (f *FakeThreadArtifactCollisionChecker) SetPairSession(address ThreadAddress, name string, present bool) {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	f.pairSessions[address] = PairSessionBinding{Name: name, Present: present}
+}
+
+func (f *FakeThreadArtifactCollisionChecker) PairSession(address ThreadAddress) (PairSessionBinding, error) {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	binding, ok := f.pairSessions[address]
+	if !ok || binding.Name == "" {
+		return PairSessionBinding{}, fmt.Errorf("exact Pair session binding is absent for %+v", address)
+	}
+	return binding, nil
+}
+
+func (f *FakeThreadArtifactCollisionChecker) TriggerQuit(session string, intent launcher.QuitIntent) error {
+	f.mu.Lock()
+	f.triggeredQuit = append(f.triggeredQuit, TriggeredQuit{Session: session, Intent: intent})
+	hook := f.TriggerQuitHook
+	f.mu.Unlock()
+	if hook != nil {
+		return hook(session, intent)
+	}
+	return nil
+}
+
+func (f *FakeThreadArtifactCollisionChecker) TriggeredQuits() []TriggeredQuit {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	return append([]TriggeredQuit(nil), f.triggeredQuit...)
 }
 
 func (f *FakeThreadArtifactCollisionChecker) Set(address ThreadAddress, collision bool, err error) {

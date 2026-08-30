@@ -337,24 +337,24 @@ type CleanupResult struct {
 - Modify: `cmd/internal/couchcore/artifactcollision.go`
 - Modify: `cmd/internal/couchcore/artifactcollision_fake.go`
 
-- [ ] Write `TestParkCoordinatorOrdering` with barriers asserting requested CAS completes before request publication, request directory sync commits before exact-session trigger, and completion remains until final ThreadStore CAS.
-- [ ] Run `go test -p 20 ./cmd/internal/couchcore -run 'TestParkCoordinatorOrdering' -count=1`; expect FAIL because the coordinator does not exist.
-- [ ] Add `PairLifecycleController` distinct from forced post-start `Artifacts.Quiesce`; resolve the exact indexed session, begin transaction, publish/reconcile request, trigger at least once only after authority, observe completion, finalize ThreadStore, then best-effort clean attempt files.
-- [ ] Run the ordering test again; expect PASS and assert zero calls to `Artifacts.Quiesce`, direct session deletion, process scan, transcript scan, or detach.
-- [ ] Write `TestParkCoordinatorTransitionMatrix` with named subtests: `request-publish-failed`, `awaiting-coalesces`, `cleanup-failed-retry-eligible`, `cleanup-failed-recover-required`, `timeout-late-success`, `session-absent-completion-missing`, `stale-completion`, `revision-conflict`, `replacement-incarnation`, `lock-sync-indeterminate`, `abandon-late-success-noop`, `older-success-closes-transaction`, and `newer-attempt-suppressed-or-obsolete`.
-- [ ] Run `go test -p 20 ./cmd/internal/couchcore -run 'TestParkCoordinatorTransitionMatrix' -count=1`; expect FAIL on the first unimplemented transition.
-- [ ] Implement every subtest through the pure transition API and the shared `FakePairLifecycle`; Retry/Recover append immutable attempts, timeout keeps a late result eligible, unknown stays occupied, and tombstoned/closed results are no-ops.
-- [ ] Run the transition-matrix test again; expect PASS.
-- [ ] Write `TestParkCoordinatorRestartReconcilesActiveOnly`; persist each active phase, restart Couch/fake process-local state, and assert only ThreadStore-active transactions are reconciled with no corpus/process scan.
-- [ ] Run the restart test; expect FAIL before constructor reconciliation.
-- [ ] Reconcile only active durable park transactions during Couch construction.
-- [ ] Run `go test -p 20 ./cmd/internal/couchcore -run 'TestParkCoordinatorRestartReconcilesActiveOnly' -count=1`; expect PASS.
-- [ ] Write `TestParkWorkerBoundsAndDeadlines` for one worker per address, duplicate nonce coalescing, queue capacity `<=` admission capacity, full-queue overload with zero publication/trigger effects, 999ms requested CAS success, and exactly-1s failure with occupied incarnation and zero request/trigger side effects.
-- [ ] Run `go test -p 20 ./cmd/internal/couchcore -run 'TestParkWorkerBoundsAndDeadlines' -count=1`; expect FAIL because the bounded worker/deadline shell does not exist.
-- [ ] Implement the bounded queue with injected clock/barriers/deadlines; never spawn an unbounded goroutine or test fan-out.
-- [ ] Run the worker/deadline test again; expect PASS without wall-clock sleeps.
-- [ ] Run `go test -p 20 ./cmd/internal/couchcore -run 'Park|Lifecycle|Restart|Admission|PostAck' -count=1`; expect PASS.
-- [ ] Commit with `git commit -m "#152: coordinate verified Couch park"`.
+- [x] Write `TestParkCoordinatorOrdering` with barriers asserting requested CAS completes before request publication, request directory sync commits before exact-session trigger, and completion remains until final ThreadStore CAS.
+- [x] Run `go test -p 20 ./cmd/internal/couchcore -run 'TestParkCoordinatorOrdering' -count=1`; expect FAIL because the coordinator does not exist.
+- [x] Add `PairLifecycleController` distinct from forced post-start `Artifacts.Quiesce`; resolve the exact indexed session, begin transaction, publish/reconcile request, trigger at least once only after authority, observe completion, finalize ThreadStore, then best-effort clean attempt files.
+- [x] Run the ordering test again; expect PASS and assert zero calls to `Artifacts.Quiesce`, direct session deletion, process scan, transcript scan, or detach.
+- [x] Write `TestParkCoordinatorTransitionMatrix` with named subtests: `request-publish-failed`, `awaiting-coalesces`, `cleanup-failed-retry-eligible`, `cleanup-failed-recover-required`, `timeout-late-success`, `session-absent-completion-missing`, `stale-completion`, `revision-conflict`, `replacement-incarnation`, `lock-sync-indeterminate`, `abandon-late-success-noop`, `older-success-closes-transaction`, and `newer-attempt-suppressed-or-obsolete`.
+- [x] Run `go test -p 20 ./cmd/internal/couchcore -run 'TestParkCoordinatorTransitionMatrix' -count=1`; expect FAIL on the first unimplemented transition.
+- [x] Implement every subtest through the pure transition API and the shared `FakePairLifecycle`; Retry/Recover append immutable attempts, timeout keeps a late result eligible, unknown stays occupied, and tombstoned/closed results are no-ops.
+- [x] Run the transition-matrix test again; expect PASS.
+- [x] Write `TestParkCoordinatorRestartReconcilesActiveOnly`; persist each active phase, restart Couch/fake process-local state, and assert only ThreadStore-active transactions are reconciled with no corpus/process scan.
+- [x] Run the restart test; expect FAIL before constructor reconciliation.
+- [x] Reconcile only active durable park transactions during Couch construction.
+- [x] Run `go test -p 20 ./cmd/internal/couchcore -run 'TestParkCoordinatorRestartReconcilesActiveOnly' -count=1`; expect PASS.
+- [x] Write `TestParkWorkerBoundsAndDeadlines` for one worker per address, duplicate nonce coalescing, queue capacity `<=` admission capacity, full-queue overload with zero publication/trigger effects, 999ms requested CAS success, and exactly-1s failure with occupied incarnation and zero request/trigger side effects.
+- [x] Run `go test -p 20 ./cmd/internal/couchcore -run 'TestParkWorkerBoundsAndDeadlines' -count=1`; expect FAIL because the bounded worker/deadline shell does not exist.
+- [x] Implement the bounded queue with injected clock/barriers/deadlines; never spawn an unbounded goroutine or test fan-out.
+- [x] Run the worker/deadline test again; expect PASS without wall-clock sleeps.
+- [x] Run `go test -p 20 ./cmd/internal/couchcore -run 'Park|Lifecycle|Restart|Admission|PostAck' -count=1`; expect PASS.
+- [x] Commit with `git commit -m "#152: coordinate verified Couch park"`.
 
 ## Chunk 3: Exact Resume and Non-Blocking Couch UI
 

@@ -465,6 +465,17 @@ on the durable thread record.
   abandonment and every conflict retain admission. Focused `pairlifecycle`,
   `artifactpath`, `threadrecord`, and full `couchcore` suites passed with one
   `go test -p 20` process at a time (ARCH-PURE, ARCH-DRY, ARCH-CONSTRAINTS).
+- 2026-08-30: completed implementation-plan Chunk 2. Pair now owns one typed
+  full-quit cleanup path for both direct Alt+x and Couch requests (`2725d01`,
+  `578cf44`). Couch adds a durable park coordinator and bounded per-address
+  worker: requested CAS precedes publication, committed authority precedes the
+  exact-session trigger, every eligible attempt is reconciled before newer
+  delivery, and only a matching successful completion releases admission.
+  Constructor recovery scans only active ThreadStore transactions; stale,
+  indeterminate, revision-conflicted, replaced, failed, and abandoned outcomes
+  remain occupied or historical as specified. Focused and cross-package tests
+  passed with a single `go test -p 20` runner, including 999 ms acceptance and
+  exact-1 s zero-effect refusal (ARCH-PURE, ARCH-DRY, ARCH-CONSTRAINTS).
 
 ## Estimate
 

@@ -32,6 +32,7 @@ type Couch struct {
 	Threads          *ThreadStore
 	Entropy          io.Reader
 	Artifacts        ThreadArtifactController
+	PairLifecycle    *PairLifecycleController
 	RootAgent        string
 	RepoAgentDefault func(repoRoot, agent string) (LaunchProfile, bool, error)
 
@@ -40,6 +41,16 @@ type Couch struct {
 	postAckQuiesceTimeout time.Duration
 	postAckRetryDelay     time.Duration
 	sleep                 func(time.Duration)
+}
+
+// ReconcileActiveParks is the explicit construction-time seam for callers
+// that configure lifecycle IO. The controller reads ThreadStore's durable
+// index and touches only records carrying an active park transaction.
+func (c *Couch) ReconcileActiveParks(ctx context.Context) error {
+	if c == nil || c.PairLifecycle == nil {
+		return errors.New("Couch Pair lifecycle controller is unavailable")
+	}
+	return c.PairLifecycle.ReconcileActive(ctx)
 }
 
 func New(namespace CouchNamespace, r Runner, p PathOps, g GitRunner, proc ProcOps, s Store, c Clock, ids IDGen, resolver PolicyResolver, entropy io.Reader, artifacts ThreadArtifactController) (*Couch, error) {
@@ -82,6 +93,17 @@ func New(namespace CouchNamespace, r Runner, p PathOps, g GitRunner, proc ProcOp
 	}
 	if err := result.reconcileInterruptedStarts(); err != nil {
 		return nil, fmt.Errorf("reconcile interrupted starts: %w", err)
+	}
+	if environment, ok := artifacts.(PairLifecycleEnvironment); ok {
+		result.PairLifecycle = &PairLifecycleController{
+			Threads: result.Threads, DataDir: environment.PairLifecycleDataDir(),
+			Lifecycle: environment.PairLifecycleIO(), Sessions: environment,
+			Clock: result.Clock,
+			Nonce: func() (string, error) { return allocateParkNonce(result.Entropy) },
+		}
+		if err := result.ReconcileActiveParks(context.Background()); err != nil {
+			return nil, fmt.Errorf("reconcile active parks: %w", err)
+		}
 	}
 	return result, nil
 }
@@ -443,6 +465,14 @@ func allocateStartNonce(entropy io.Reader) (string, error) {
 		return "", fmt.Errorf("allocate start nonce: %w", err)
 	}
 	return "start-" + hex.EncodeToString(random[:]), nil
+}
+
+func allocateParkNonce(entropy io.Reader) (string, error) {
+	var random [8]byte
+	if _, err := io.ReadFull(entropy, random[:]); err != nil {
+		return "", fmt.Errorf("allocate park nonce: %w", err)
+	}
+	return "park-" + hex.EncodeToString(random[:]), nil
 }
 
 func (c *Couch) rollbackUnforkedStart(thread ThreadRecord) error {
