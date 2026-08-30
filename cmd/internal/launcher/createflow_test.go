@@ -54,6 +54,8 @@ type fakeRuntime struct {
 	appendIndexErr      error
 	threadClaimErr      error
 	threadClaims        []string
+	existingThreadErr   error
+	existingThreads     []string
 	writeFailAt         string
 	inferAgent          map[string]string // tag -> paired agent (for `resume <tag>`)
 	pickFunc            func(header string, options []string) string
@@ -129,6 +131,11 @@ func TestRunLaunchStartsProofMigrationBeforeInteractiveWork(t *testing.T) {
 func (f *fakeRuntime) EnsureThreadAddress(scope RepoScope, tag string, couchOwned bool) error {
 	f.threadClaims = append(f.threadClaims, fmt.Sprintf("%s|%s|%t", scope.Key, tag, couchOwned))
 	return f.threadClaimErr
+}
+
+func (f *fakeRuntime) RegisterExistingCouchThread(scope RepoScope, tag string) error {
+	f.existingThreads = append(f.existingThreads, scope.Key+"|"+tag)
+	return f.existingThreadErr
 }
 
 func newFakeRuntime() *fakeRuntime {
@@ -399,6 +406,9 @@ func TestRequiredNativeResumeBindingLaunchesExactRootWithoutDefaults(t *testing.
 	if rt.launchCount != 1 || rt.defaultReads != 0 || len(rt.preparedLaunches) != 1 ||
 		!strings.HasSuffix(rt.preparedLaunches[0], "|work|codex|native-root-1") {
 		t.Fatalf("launch effects: count=%d defaults=%d prepared=%v", rt.launchCount, rt.defaultReads, rt.preparedLaunches)
+	}
+	if len(rt.existingThreads) != 1 || len(rt.threadClaims) != 0 {
+		t.Fatalf("address validation: existing=%v create=%v", rt.existingThreads, rt.threadClaims)
 	}
 	if rt.env["PAIR_SESSION_ID"] != "native-root-1" || rt.env["PAIR_AGENT_ARGS"] != "resume native-root-1 --sandbox workspace-write --no-alt-screen" {
 		t.Fatalf("resume env: id=%q args=%q", rt.env["PAIR_SESSION_ID"], rt.env["PAIR_AGENT_ARGS"])

@@ -1,6 +1,7 @@
 package couchcore
 
 import (
+	"context"
 	"errors"
 	"fmt"
 
@@ -163,3 +164,79 @@ func (r SessionInventoryNativeBindingResolver) ResolveEstablished(repoScope, tag
 }
 
 var _ NativeBindingResolver = SessionInventoryNativeBindingResolver{}
+
+// Resume reoccupies one verified parked address using only its exact saved
+// path, launch profile, and established native root binding.
+func (c *Couch) Resume(address ThreadAddress) (ActorRecord, Handle, error) {
+	if c == nil || c.Threads == nil {
+		return ActorRecord{}, nil, errors.New("resume: Couch is unavailable")
+	}
+	thread, err := c.Threads.GetThread(address)
+	if err != nil {
+		return ActorRecord{}, nil, err
+	}
+	pathExists := false
+	if _, err := c.Path.Physical(thread.WorkingPath); err == nil {
+		pathExists = true
+	}
+	bindings, ok := c.Artifacts.(NativeBindingResolver)
+	if !ok {
+		return ActorRecord{}, nil, errors.New("resume: native binding resolver is unavailable")
+	}
+	agent := ""
+	if thread.LatestLaunchProfile != nil {
+		agent = thread.LatestLaunchProfile.Agent
+	}
+	binding, err := bindings.ResolveEstablished(address.RepoScope, string(address.Tag), agent)
+	if err != nil {
+		return ActorRecord{}, nil, err
+	}
+	eligible, err := DecideResume(ResumeEligibilityInput{
+		Thread: thread, WorkingPathExists: pathExists, Binding: binding,
+	})
+	if err != nil {
+		return ActorRecord{}, nil, err
+	}
+	owner, err := c.Proc.Current()
+	if err != nil {
+		return ActorRecord{}, nil, fmt.Errorf("identify couch supervisor: %w", err)
+	}
+	nonce, err := allocateStartNonce(c.Entropy)
+	if err != nil {
+		return ActorRecord{}, nil, err
+	}
+	startedAt := c.Clock.Now()
+	thread, err = ReconcileResumeAdmission(context.Background(), c.Threads, c.PolicyResolver, ResumeAdmissionInput{
+		Address: address, StartedAt: startedAt,
+		Owner: SupervisorOwner{PID: owner.PID, Identity: owner.Identity},
+		Nonce: nonce, Profile: eligible.Profile,
+	})
+	if err != nil {
+		return ActorRecord{}, nil, err
+	}
+
+	// Recheck after the durable address claim and immediately before any child
+	// effects. A native session replacement in this window is a refusal, never
+	// permission to create a different session under the same Pair address.
+	currentBinding, err := bindings.ResolveEstablished(address.RepoScope, string(address.Tag), eligible.Profile.Agent)
+	if err != nil {
+		return ActorRecord{}, nil, errors.Join(err, c.rollbackTrackedStart(thread, nonce))
+	}
+	if err := launcher.RequireNativeResumeBinding(eligible.RequiredSessionID, currentBinding.NativeID, currentBinding.Status); err != nil {
+		return ActorRecord{}, nil, errors.Join(err, c.rollbackTrackedStart(thread, nonce))
+	}
+	profileRaw, err := launcher.BuildCouchResumeLaunchProfile(
+		string(address.Tag), eligible.Profile.Agent, eligible.Profile.Argv, eligible.RequiredSessionID,
+	)
+	if err != nil {
+		return ActorRecord{}, nil, errors.Join(err, c.rollbackTrackedStart(thread, nonce))
+	}
+	args := StartArgs{
+		Worktree: Worktree(thread.StartingPath), Cwd: eligible.WorkingPath,
+		Stack: eligible.Profile.Agent, ExtraArgs: cloneArgv(eligible.Profile.Argv),
+	}
+	return c.launchTrackedThread(trackedThreadLaunch{
+		Thread: thread, Nonce: nonce, Args: args, StartedAt: startedAt,
+		ProfileRaw: profileRaw, Resume: true,
+	})
+}

@@ -30,6 +30,7 @@ type FakeThreadArtifactCollisionChecker struct {
 	// change at the registration boundary. It is called outside mu because the
 	// hook may consult another stateful fake or call back into this one.
 	BeforeRegistration func(ThreadAddress) error
+	BeforePairSession  func(ThreadAddress) error
 }
 
 type nativeBindingKey struct {
@@ -82,6 +83,14 @@ func (f *FakeThreadArtifactCollisionChecker) SetPairSession(address ThreadAddres
 }
 
 func (f *FakeThreadArtifactCollisionChecker) PairSession(address ThreadAddress) (PairSessionBinding, error) {
+	f.mu.Lock()
+	hook := f.BeforePairSession
+	f.mu.Unlock()
+	if hook != nil {
+		if err := hook(address); err != nil {
+			return PairSessionBinding{}, err
+		}
+	}
 	f.mu.Lock()
 	defer f.mu.Unlock()
 	binding, ok := f.pairSessions[address]

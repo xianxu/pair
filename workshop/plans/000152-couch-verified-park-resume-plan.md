@@ -399,22 +399,22 @@ type CleanupResult struct {
 - Modify: `cmd/internal/launcher/thread_claim.go`
 - Test: `cmd/internal/launcher/thread_claim_test.go`
 
-- [ ] Write `TestResumeLaunchExactProfileMatrix` with explicit Claude, Codex, Agy, and Muse rows; for each include empty argv and argv containing resume-looking tokens. Assert byte/order-exact argv, same scope/tag, exact `WorkingPath` subdirectory, saved native ID, and zero calls to tag allocation or path/root/repository defaults.
-- [ ] Run `go test -p 20 ./cmd/internal/couchcore -run 'TestResumeLaunchExactProfileMatrix' -count=1`; expect FAIL because only new-address `Spawn` exists.
-- [ ] Extract the blocked-helper → acknowledgement → registration → live promotion → registry insertion tail into `resume_launch.go`, parameterized by an already chosen exact address/profile; leave `couch.go` with thin new-thread allocation/profile resolution followed by this helper.
-- [ ] Add `Couch.Resume(address)` preflight/current-policy CAS and invoke the shared tail with `pair resume <same-tag> --layout2` plus the required native ID.
-- [ ] Run the exact-profile matrix again; expect PASS.
-- [ ] Write `TestExistingCouchResumeClaimMatrix` with exact established success and reserved, missing, malformed, wrong-scope, and wrong-tag refusal. Assert it never releases, recreates, or adopts a marker.
-- [ ] Run `go test -p 20 ./cmd/internal/launcher -run 'TestExistingCouchResumeClaimMatrix' -count=1`; expect FAIL because claim registration has no exact re-entry mode.
-- [ ] Implement the explicit existing-Couch-resume claim mode.
-- [ ] Run the claim matrix again; expect PASS.
-- [ ] Write `TestResumeAdmissionAndRollbackMatrix` with rows: policy refusal, fork failure, acknowledgement definitely undelivered, acknowledgement possibly delivered, registration missing, live-promotion CAS failure, and success. Assert exact durable phase/incarnation and whether Runner/cleanup ran.
-- [ ] Require rollback to verified parked only after both the exact helper/process group and exact Pair session are proved absent. Possibly delivered acknowledgement, missing registration without absence proof, promotion failure after registration, and child exit alone remain occupied/unknown.
-- [ ] Run `go test -p 20 ./cmd/internal/couchcore -run 'TestResumeAdmissionAndRollbackMatrix' -count=1`; expect FAIL before resume-specific admission/rollback transitions.
-- [ ] Implement verified-parked → creating admission on the same record, count all other occupied incarnations, preserve rollback evidence, clear verified park only on successful registration, and update latest profile with the same bytes.
-- [ ] Run the rollback matrix again; expect PASS.
-- [ ] Run `go test -p 20 ./cmd/internal/couchcore ./cmd/internal/launcher -run 'Resume|ExistingThread|ThreadAddress|Admission|LaunchProfile' -count=1`; expect PASS.
-- [ ] Commit with `git commit -m "#152: resume exact Couch thread"`.
+- [x] Write `TestResumeLaunchExactProfileMatrix` with explicit Claude, Codex, Agy, and Muse rows; for each include empty argv and argv containing resume-looking tokens. Assert byte/order-exact argv, same scope/tag, exact `WorkingPath` subdirectory, saved native ID, and zero calls to tag allocation or path/root/repository defaults.
+- [x] Run `go test -p 20 ./cmd/internal/couchcore -run 'TestResumeLaunchExactProfileMatrix' -count=1`; expect FAIL because only new-address `Spawn` exists.
+- [x] Extract the blocked-helper → acknowledgement → registration → live promotion → registry insertion tail into `resume_launch.go`, parameterized by an already chosen exact address/profile; leave `couch.go` with thin new-thread allocation/profile resolution followed by this helper.
+- [x] Add `Couch.Resume(address)` preflight/current-policy CAS and invoke the shared tail with `pair resume <same-tag> --layout2` plus the required native ID.
+- [x] Run the exact-profile matrix again; expect PASS.
+- [x] Write `TestExistingCouchResumeClaimMatrix` with exact established success and reserved, missing, malformed, wrong-scope, and wrong-tag refusal. Assert it never releases, recreates, or adopts a marker.
+- [x] Run `go test -p 20 ./cmd/internal/launcher -run 'TestExistingCouchResumeClaimMatrix' -count=1`; expect FAIL because claim registration has no exact re-entry mode.
+- [x] Implement the explicit existing-Couch-resume claim mode.
+- [x] Run the claim matrix again; expect PASS.
+- [x] Write `TestResumeAdmissionAndRollbackMatrix` with rows: policy refusal, fork failure, acknowledgement definitely undelivered, acknowledgement possibly delivered, registration missing, live-promotion CAS failure, and success. Assert exact durable phase/incarnation and whether Runner/cleanup ran.
+- [x] Require rollback to verified parked only after both the exact helper/process group and exact Pair session are proved absent. Possibly delivered acknowledgement, missing registration without absence proof, promotion failure after registration, and child exit alone remain occupied/unknown.
+- [x] Run `go test -p 20 ./cmd/internal/couchcore -run 'TestResumeAdmissionAndRollbackMatrix' -count=1`; expect FAIL before resume-specific admission/rollback transitions.
+- [x] Implement verified-parked → creating admission on the same record, count all other occupied incarnations, preserve rollback evidence, clear verified park only on successful registration, and update latest profile with the same bytes.
+- [x] Run the rollback matrix again; expect PASS.
+- [x] Run `go test -p 20 ./cmd/internal/couchcore ./cmd/internal/launcher -run 'Resume|ExistingThread|ThreadAddress|Admission|LaunchProfile' -count=1`; expect PASS.
+- [x] Commit with `git commit -m "#152: resume exact Couch thread"`.
 
 ### Task 10: Declare park/resume operations and intercept Couch Alt+x
 

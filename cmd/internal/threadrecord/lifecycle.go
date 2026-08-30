@@ -98,8 +98,11 @@ func validateLifecycle(record Record) error {
 		if record.VerifiedPark.Attempt == 0 || record.VerifiedPark.ParkedAt.IsZero() {
 			return fmt.Errorf("verified park attempt and parked_at are required")
 		}
-		if len(record.Incarnations) != 0 {
-			return fmt.Errorf("verified parked thread still has an incarnation")
+		resumeOccupied := len(record.Incarnations) == 1 &&
+			((record.Incarnations[0].State == "creating" && record.Incarnations[0].Start != nil) ||
+				record.Incarnations[0].State == "unknown")
+		if len(record.Incarnations) != 0 && !resumeOccupied {
+			return fmt.Errorf("verified parked thread has a non-resume incarnation")
 		}
 		if record.LastActiveAt.IsZero() || record.LastActiveAt.Before(record.VerifiedPark.ParkedAt) {
 			return fmt.Errorf("verified park requires monotonic last_active_at")

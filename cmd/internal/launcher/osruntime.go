@@ -59,6 +59,10 @@ func (r OSRuntime) EnsureThreadAddress(scope RepoScope, tag string, couchOwned b
 	return EnsureThreadAddressForPair(r.GlobalDataDir, scope, tag, couchOwned)
 }
 
+func (r OSRuntime) RegisterExistingCouchThread(scope RepoScope, tag string) error {
+	return RegisterExistingCouchThread(r.GlobalDataDir, scope, tag)
+}
+
 const zjTimeout = 5 * time.Second
 
 // zj runs a read-only zellij query under a hard timeout, returning combined

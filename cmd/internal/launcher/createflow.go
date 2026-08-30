@@ -386,8 +386,14 @@ func runCreate(opts LaunchOptions, env Env, rt Runtime, live []Session, decision
 		return launchStep{code: 1}, nil
 	}
 	couchOwned := env.CouchThreadScope == scope.Key && env.CouchThreadTag == chosenTag
-	if err := rt.EnsureThreadAddress(scope, chosenTag, couchOwned); err != nil {
-		fmt.Fprintf(stderr, "pair: cannot claim thread '%s': %v\n", chosenTag, err)
+	var addressErr error
+	if opts.Args.ResumeRequired {
+		addressErr = rt.RegisterExistingCouchThread(scope, chosenTag)
+	} else {
+		addressErr = rt.EnsureThreadAddress(scope, chosenTag, couchOwned)
+	}
+	if addressErr != nil {
+		fmt.Fprintf(stderr, "pair: cannot claim thread '%s': %v\n", chosenTag, addressErr)
 		return launchStep{code: 1}, nil
 	}
 	if opts.Args.ResumeRequired {

@@ -485,6 +485,16 @@ on the durable thread record.
   address claim but before defaults, ledger, sidecars, attach, or child launch.
   Focused and full `couchcore`/`launcher` suites passed with one
   `go test -p 20` process at a time (ARCH-PURE, ARCH-PURPOSE, ARCH-DRY).
+- 2026-08-30: completed exact same-address resume. New-thread Spawn and Resume
+  now share one tracked blocked-helper/acknowledgement/registration/promotion
+  tail; Resume atomically admits the existing verified-park record with its
+  start authority, rechecks the saved native root before child effects, and
+  uses a read-only exact established Pair address registration. Rollback
+  restores verified park only after both helper death and exact Pair-session
+  absence; ambiguous acknowledgement, missing registration evidence, and
+  promotion conflicts remain occupied/unknown. Exact-profile and failure
+  matrices plus full `couchcore`/`launcher` suites passed with one
+  `go test -p 20` process (ARCH-DRY, ARCH-PURE, ARCH-PURPOSE).
 
 ## Estimate
 

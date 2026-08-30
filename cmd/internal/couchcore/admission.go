@@ -102,49 +102,9 @@ func ReconcileAdmission(ctx context.Context, store *ThreadStore, resolver Policy
 		}
 		lastRepoIdentity = candidatePolicy.RepoIdentity
 
-		occupants := []AdmissionOccupant{}
-		replacements := []ThreadRecord{}
-		epochChanged := false
-		for _, current := range snapshot.Records {
-			if current.Address == candidateAddress {
-				continue
-			}
-			next := cloneThreadRecord(current)
-			count := len(next.Incarnations)
-			changed := false
-			if count == 0 && next.Reservation && next.ClaimGeneration < candidate.ClaimGeneration {
-				count = 1
-			}
-			if count > 0 {
-				policy, hasCurrent := coherentCurrentPolicy(next, candidatePolicy)
-				if !hasCurrent {
-					policy, err = resolver.ResolvePolicy(ctx, next.WorkingPath)
-					if err != nil {
-						return rollback(err)
-					}
-					if err := ValidatePolicyResult(policy); err != nil {
-						return rollback(fmt.Errorf("incumbent provider result: %w", err))
-					}
-					if policy.RepoIdentity == candidatePolicy.RepoIdentity && (policy.PolicyVersion != candidatePolicy.PolicyVersion || policy.PolicyDigest != candidatePolicy.PolicyDigest) {
-						epochChanged = true
-						break
-					}
-					if len(next.Incarnations) > 0 {
-						for i := range next.Incarnations {
-							copy := policy
-							next.Incarnations[i].Policy = &copy
-						}
-						changed = true
-					}
-				}
-				for i := 0; i < count; i++ {
-					occupants = append(occupants, AdmissionOccupant{Address: next.Address, Policy: policy})
-				}
-			}
-			if changed {
-				next.Revision++
-				replacements = append(replacements, next)
-			}
+		occupants, replacements, epochChanged, err := reconcileAdmissionIncumbents(ctx, resolver, snapshot, candidate, candidatePolicy)
+		if err != nil {
+			return rollback(err)
 		}
 		if epochChanged {
 			continue
@@ -171,6 +131,130 @@ func ReconcileAdmission(ctx context.Context, store *ThreadStore, resolver Policy
 		return cloneThreadRecord(candidate), nil
 	}
 	return rollback(&PolicyUnstableError{Attempts: admissionReconcileAttempts, RepoIdentity: lastRepoIdentity})
+}
+
+// ReconcileResumeAdmission admits an already verified parked address without
+// allocating or replacing it. Refusal leaves the parked record unchanged; a
+// successful admission retains VerifiedPark until Pair registration succeeds.
+type ResumeAdmissionInput struct {
+	Address   ThreadAddress
+	StartedAt time.Time
+	Owner     SupervisorOwner
+	Nonce     string
+	Profile   LaunchProfile
+}
+
+func ReconcileResumeAdmission(ctx context.Context, store *ThreadStore, resolver PolicyResolver, input ResumeAdmissionInput) (ThreadRecord, error) {
+	if store == nil || resolver == nil {
+		return ThreadRecord{}, errors.New("reconcile resume admission: nil dependency")
+	}
+	if input.Nonce == "" || input.Profile.Agent == "" || input.Profile.Argv == nil {
+		return ThreadRecord{}, errors.New("reconcile resume admission: incomplete start authority")
+	}
+	lastRepoIdentity := ""
+	for attempt := 0; attempt < admissionReconcileAttempts; attempt++ {
+		snapshot, err := store.Snapshot()
+		if err != nil {
+			return ThreadRecord{}, err
+		}
+		candidate, ok := snapshotThread(snapshot, input.Address)
+		if !ok {
+			return ThreadRecord{}, fmt.Errorf("resume candidate thread %+v is absent", input.Address)
+		}
+		if candidate.Reservation || candidate.Park != nil || candidate.VerifiedPark == nil || len(candidate.Incarnations) != 0 || candidate.LatestLaunchProfile == nil {
+			return ThreadRecord{}, fmt.Errorf("resume candidate thread %+v is not verified parked", input.Address)
+		}
+		candidatePolicy, err := resolver.ResolvePolicy(ctx, candidate.WorkingPath)
+		if err != nil {
+			return ThreadRecord{}, err
+		}
+		if err := ValidatePolicyResult(candidatePolicy); err != nil {
+			return ThreadRecord{}, fmt.Errorf("resume candidate provider result: %w", err)
+		}
+		lastRepoIdentity = candidatePolicy.RepoIdentity
+
+		occupants, replacements, epochChanged, err := reconcileAdmissionIncumbents(ctx, resolver, snapshot, candidate, candidatePolicy)
+		if err != nil {
+			return ThreadRecord{}, err
+		}
+		if epochChanged {
+			continue
+		}
+		if _, err := (Admission{}).Decide(candidatePolicy, occupants); err != nil {
+			return ThreadRecord{}, err
+		}
+		candidate.Revision++
+		policyCopy := candidatePolicy
+		candidate.Incarnations = []ThreadIncarnation{{
+			State: IncarnationCreating, StartedAt: input.StartedAt, Policy: &policyCopy,
+		}}
+		candidate, err = AdvanceStartTransaction(candidate, StartEvent{
+			Kind: StartClaimed, Nonce: input.Nonce, Owner: input.Owner, Profile: &input.Profile,
+		})
+		if err != nil {
+			return ThreadRecord{}, err
+		}
+		replacements = append(replacements, candidate)
+		if err := store.CommitThreadReplacements(snapshot, replacements); err != nil {
+			var conflict *ThreadSnapshotConflictError
+			if errors.As(err, &conflict) {
+				continue
+			}
+			return ThreadRecord{}, err
+		}
+		return cloneThreadRecord(candidate), nil
+	}
+	return ThreadRecord{}, &PolicyUnstableError{Attempts: admissionReconcileAttempts, RepoIdentity: lastRepoIdentity}
+}
+
+// reconcileAdmissionIncumbents builds the capacity cohort and refreshes stale
+// incumbent policy evidence. Callers retain their distinct candidate and
+// rollback semantics while sharing the policy-epoch algorithm.
+func reconcileAdmissionIncumbents(ctx context.Context, resolver PolicyResolver, snapshot ThreadSnapshot, candidate ThreadRecord, candidatePolicy PolicyResult) ([]AdmissionOccupant, []ThreadRecord, bool, error) {
+	occupants := []AdmissionOccupant{}
+	replacements := []ThreadRecord{}
+	for _, current := range snapshot.Records {
+		if current.Address == candidate.Address {
+			continue
+		}
+		next := cloneThreadRecord(current)
+		count := len(next.Incarnations)
+		changed := false
+		if count == 0 && next.Reservation && next.ClaimGeneration < candidate.ClaimGeneration {
+			count = 1
+		}
+		if count > 0 {
+			policy, hasCurrent := coherentCurrentPolicy(next, candidatePolicy)
+			if !hasCurrent {
+				var err error
+				policy, err = resolver.ResolvePolicy(ctx, next.WorkingPath)
+				if err != nil {
+					return nil, nil, false, err
+				}
+				if err := ValidatePolicyResult(policy); err != nil {
+					return nil, nil, false, fmt.Errorf("incumbent provider result: %w", err)
+				}
+				if policy.RepoIdentity == candidatePolicy.RepoIdentity && (policy.PolicyVersion != candidatePolicy.PolicyVersion || policy.PolicyDigest != candidatePolicy.PolicyDigest) {
+					return nil, nil, true, nil
+				}
+				if len(next.Incarnations) > 0 {
+					for i := range next.Incarnations {
+						copy := policy
+						next.Incarnations[i].Policy = &copy
+					}
+					changed = true
+				}
+			}
+			for i := 0; i < count; i++ {
+				occupants = append(occupants, AdmissionOccupant{Address: next.Address, Policy: policy})
+			}
+		}
+		if changed {
+			next.Revision++
+			replacements = append(replacements, next)
+		}
+	}
+	return occupants, replacements, false, nil
 }
 
 func snapshotThread(snapshot ThreadSnapshot, address ThreadAddress) (ThreadRecord, bool) {

@@ -1,6 +1,7 @@
 package launcher
 
 import (
+	"bytes"
 	"errors"
 	"os"
 	"path/filepath"
@@ -62,6 +63,79 @@ func TestReservedThreadAddressPublicationIsAtomicForConcurrentReaders(t *testing
 	}
 	if established, err := ThreadAddressEstablished(global, scope, tag); err != nil || !established {
 		t.Fatalf("reader after publication = %v, %v", established, err)
+	}
+}
+
+func TestRegisterExistingCouchThreadAcceptsOnlyExactEstablishedMarkerWithoutMutation(t *testing.T) {
+	global := t.TempDir()
+	scope := RepoScope{Key: "0123456789abcdef"}
+	tag := "couch-0001020304050607"
+	paths := NewScopedPaths(global, scope, tag)
+	if err := os.MkdirAll(paths.ScopeDir(), 0o700); err != nil {
+		t.Fatal(err)
+	}
+	want := []byte(`{"schema":1,"scope":"0123456789abcdef","tag":"couch-0001020304050607","state":"established"}` + "\n")
+	if err := os.WriteFile(paths.ThreadClaim(), want, 0o600); err != nil {
+		t.Fatal(err)
+	}
+
+	if err := RegisterExistingCouchThread(global, scope, tag); err != nil {
+		t.Fatalf("register existing Couch thread: %v", err)
+	}
+	got, err := os.ReadFile(paths.ThreadClaim())
+	if err != nil {
+		t.Fatalf("established marker removed: %v", err)
+	}
+	if !bytes.Equal(got, want) {
+		t.Fatalf("established marker rewritten:\n got %q\nwant %q", got, want)
+	}
+}
+
+func TestRegisterExistingCouchThreadRejectsUntrustedMarkerWithoutMutation(t *testing.T) {
+	global := t.TempDir()
+	scope := RepoScope{Key: "0123456789abcdef"}
+	tag := "couch-0001020304050607"
+	paths := NewScopedPaths(global, scope, tag)
+	if err := os.MkdirAll(paths.ScopeDir(), 0o700); err != nil {
+		t.Fatal(err)
+	}
+	tests := map[string]string{
+		"malformed":    "not-json\n",
+		"wrong schema": `{"schema":2,"scope":"0123456789abcdef","tag":"couch-0001020304050607","state":"established"}` + "\n",
+		"wrong scope":  `{"schema":1,"scope":"fedcba9876543210","tag":"couch-0001020304050607","state":"established"}` + "\n",
+		"wrong tag":    `{"schema":1,"scope":"0123456789abcdef","tag":"couch-ffffffffffffffff","state":"established"}` + "\n",
+		"reserved":     `{"schema":1,"scope":"0123456789abcdef","tag":"couch-0001020304050607","state":"reserved"}` + "\n",
+	}
+	for name, raw := range tests {
+		t.Run(name, func(t *testing.T) {
+			want := []byte(raw)
+			if err := os.WriteFile(paths.ThreadClaim(), want, 0o600); err != nil {
+				t.Fatal(err)
+			}
+			if err := RegisterExistingCouchThread(global, scope, tag); err == nil {
+				t.Fatal("untrusted marker accepted")
+			}
+			got, err := os.ReadFile(paths.ThreadClaim())
+			if err != nil {
+				t.Fatalf("rejected marker removed: %v", err)
+			}
+			if !bytes.Equal(got, want) {
+				t.Fatalf("rejected marker rewritten:\n got %q\nwant %q", got, want)
+			}
+		})
+	}
+}
+
+func TestRegisterExistingCouchThreadDoesNotCreateMissingScopeOrMarker(t *testing.T) {
+	global := t.TempDir()
+	scope := RepoScope{Key: "0123456789abcdef"}
+	paths := NewScopedPaths(global, scope, "couch-0001020304050607")
+
+	if err := RegisterExistingCouchThread(global, scope, "couch-0001020304050607"); err == nil {
+		t.Fatal("missing marker accepted")
+	}
+	if _, err := os.Stat(paths.ScopeDir()); !errors.Is(err, os.ErrNotExist) {
+		t.Fatalf("registration created scope directory: %v", err)
 	}
 }
 

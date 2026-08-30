@@ -722,6 +722,27 @@ func (s *ThreadStore) MarkIncarnationUnknown(address ThreadAddress, expected Pro
 // proven its pre-exec helper absent. Any concurrent metadata or state change
 // leaves the transaction occupied.
 func (s *ThreadStore) DeleteStart(address ThreadAddress, expectedRevision uint64, nonce string) error {
+	current, err := s.GetThread(address)
+	if err != nil {
+		if errors.Is(err, ErrThreadNotFound) {
+			return nil
+		}
+		return err
+	}
+	if current.VerifiedPark != nil {
+		_, err := s.UpdateExistingThread(address, expectedRevision, func(record *ThreadRecord) error {
+			if record.Reservation || record.VerifiedPark == nil || len(record.Incarnations) != 1 {
+				return fmt.Errorf("thread %+v is no longer parked start %q at revision %d", address, nonce, expectedRevision)
+			}
+			incarnation := record.Incarnations[0]
+			if incarnation.State != IncarnationCreating || incarnation.Start == nil || incarnation.Start.Nonce != nonce {
+				return fmt.Errorf("thread %+v is no longer parked start %q at revision %d", address, nonce, expectedRevision)
+			}
+			record.Incarnations = nil
+			return nil
+		})
+		return err
+	}
 	return s.deleteThreadIf(address, func(record ThreadRecord) error {
 		if record.Revision != expectedRevision || record.Reservation || threadHasMetadata(record) || len(record.Incarnations) != 1 {
 			return fmt.Errorf("thread %+v is no longer start %q at revision %d", address, nonce, expectedRevision)
