@@ -447,3 +447,7 @@ on the durable thread record.
   from per-phase CAS revisions, made request/completion publication recoverably
   durable under an OS-released advisory lock, and made recovery append immutable
   numbered attempts rather than rewriting failed evidence.
+- 2026-08-29: wrote the durable implementation plan at
+  `workshop/plans/000152-couch-verified-park-resume-plan.md`; all four chunks
+  passed independent plan-document review after durability, migration, cleanup,
+  resume, UI-ordering, conformance, performance, and close-workflow corrections.
