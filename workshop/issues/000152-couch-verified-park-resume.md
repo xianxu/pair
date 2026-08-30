@@ -236,21 +236,21 @@ coordinator per thread and the existing Couch admission limit.
 
 The authoritative acceptance and implementation plan are:
 
-- [ ] Define and unit-test the pure park phases, typed failures, binding
+- [x] Define and unit-test the pure park phases, typed failures, binding
       validation, idempotent retry/recovery, monotonic recency, and resume
       eligibility.
-- [ ] Extract one typed Pair full-quit lifecycle boundary used by direct Alt+x
+- [x] Extract one typed Pair full-quit lifecycle boundary used by direct Alt+x
       and Couch Park; add durable request/completion publication without
       changing direct Alt+x semantics.
-- [ ] Add the stateful lifecycle fake and exercise both entry paths against it,
+- [x] Add the stateful lifecycle fake and exercise both entry paths against it,
       plus an opt-in controlled Pair/Zellij conformance check.
-- [ ] Persist Couch's transaction before side effects, route Couch Alt+x/menu
+- [x] Persist Couch's transaction before side effects, route Couch Alt+x/menu
       Park through it, enforce prompt UI ordering and the 1 second pre-side-effect
       deadline, and keep every non-matching/failure state occupied.
-- [ ] Resume only a uniquely resolved verified-parked thread through an extracted
+- [x] Resume only a uniquely resolved verified-parked thread through an extracted
       existing-thread launch path using the same address, exact saved profile,
       and established #155 native binding; never allocate a new tag or fall back.
-- [ ] Export the same typed successful cleanup proof for #135, update the shared
+- [x] Export the same typed successful cleanup proof for #135, update the shared
       operation schema with park/resume only, and document recovery and the code
       surface in `atlas/`.
 
@@ -420,12 +420,12 @@ capacity twice, or change `last_active_at`.
 
 ## Plan
 
-- [ ] Model the park transaction, process inventory, and recovery states as a
+- [x] Model the park transaction, process inventory, and recovery states as a
       pure transition system consuming #155's session-tree binding.
-- [ ] Put Pair/zellij/process shutdown and observation behind one stateful seam.
-- [ ] Implement graceful park, verification, atomic slot release, and recency.
-- [ ] Exercise resume-after-park and the shared #135 quiescence boundary.
-- [ ] Document operator recovery and wire the lifecycle into #151.
+- [x] Put Pair/zellij/process shutdown and observation behind one stateful seam.
+- [x] Implement graceful park, verification, atomic slot release, and recency.
+- [x] Exercise resume-after-park and the shared #135 quiescence boundary.
+- [x] Document operator recovery and wire the lifecycle into #151.
 
 ## Log
 
@@ -511,6 +511,21 @@ on the durable thread record.
   both live lifecycle and existing session-quiescence probes passed. Stable
   lock-holder death after rename remains covered by the pairlifecycle
   subprocess conformance test (ARCH-MOCK, ARCH-DRY).
+- 2026-08-30: measured 100 sequential real-ThreadStore queue/commit samples on
+  the operator's M2 Max under development load: `feedback_p95=11.667µs`,
+  `commit_p95=27.009417ms`, `commit_max=27.988458ms`, `overload=refused`.
+  Updated README, Couch/session-identity/architecture atlas maps, and the sole
+  referencing project (`workshop/projects/couch.md`). The original Plan's
+  “process inventory” wording is historical: the delivered implementation uses
+  Pair's shared typed cleanup/completion authority and #155 exact binding,
+  consistent with the later authoritative revision (ARCH-CONSTRAINTS,
+  ARCH-DRY, ARCH-PURPOSE).
+- 2026-08-30: the final verification sweep reproduced the previously parked
+  review-toggle shell failure. Root cause was a stale fake: production had
+  changed to the bounded scalar `session-inventory --owner <tag>` contract,
+  while the fake still returned the retired JSON inventory. Updated only the
+  fake (`49e1f1d`); all review assertions now pass without restoring any live
+  Codex fallback.
 
 ## Estimate
 

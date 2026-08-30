@@ -306,6 +306,18 @@ the console holds the singleton namespace. The `couch stop`, `switch`, and
 `attach` CLI spellings are therefore not usable against a live root console;
 cross-process owner routing belongs to Pair #147.
 
+Park and Resume are also live-owner operations. Couch intercepts Pair's Alt+x
+while hosting an actor, paints confirmation before doing lifecycle work, and
+queues confirmed Park off the terminal loop. The queue is bounded and
+single-worker: duplicate exact requests coalesce, overload refuses immediately
+with the thread still occupied, and no corpus or process-tree scan enters the
+interaction path. On the target M2 Max under ordinary development co-tenancy,
+the contract is feedback and requested-commit P95 below 100 ms and commit max
+below 1 second; adversarial OS starvation is outside that claim. Pair cleanup
+retains its 10-second outer deadline and 5-second exact-Zellij inner wait.
+Resume uses the ordinary local start path and adds no full native inventory scan.
+Alt+d remains Pair-local detach; Couch exposes no detach operation.
+
 Every `couch start` allocates a distinct opaque durable thread. Admission comes
 from the repository's normalized Ariadne fleet policy (`sdlc fleet policy`): a
 bounded key refuses when occupied, while an unbounded path admits concurrent

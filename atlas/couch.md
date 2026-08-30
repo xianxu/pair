@@ -144,8 +144,8 @@ when no continuation arrives.
 The panel is couch's own screen. It owns input while visible, suppresses
 background-child painting, and has one flat interaction language. Printable
 input—including colons and digits—is typeahead; arrows move selection; Enter
-forces the selected live actor's clear-and-replay attach path or starts a
-selected parked worktree; Escape clears the filter or returns. Ctrl-Space from
+forces the selected live actor's clear-and-replay attach path or resumes the
+selected verified-parked thread; Escape clears the filter or returns. Ctrl-Space from
 the panel opens the start-path input, and Ctrl-Space inside that input is inert.
 `start` dispatches through `DispatchOperation`; its returned `StartResult`
 is load-bearing because a separately declared typed `attach` operation joins
@@ -156,7 +156,7 @@ retain filter and selection and report through the notice feed.
 The row state is three-way: a local-live row has a console routing target and
 Enter switches to it; a remote-live row is present in the global summary but
 has no local target and reports that #147 transport is required; only a
-non-live parked row dispatches `start`. Liveness and local routing capability
+non-live parked row dispatches `resume`. Liveness and local routing capability
 are deliberately separate facts (ARCH-PURPOSE).
 
 There is no numbered jump or `:` command state. Tab/thread actions are deferred
@@ -183,6 +183,23 @@ name-first, while `show` always includes the full immutable composite address
 for diagnostics.
 
 ## Exit, detach, and terminal lifecycle
+
+Pair Alt+x and Couch Park share one typed full-quit cleanup implementation.
+Couch persists a nonce-bound park transaction before publishing or triggering
+the request; only a matching durable completion plus final ThreadStore CAS
+removes the incarnation. Timeout, stale evidence, replacement, and child exit
+remain occupied. Couch derives both Alt+x terminal encodings from Pair's
+canonical chord table, renders confirmation first, and submits confirmed work
+to a bounded single-worker queue; duplicates coalesce and overload refuses
+without lifecycle effects. Alt+d remains Pair-local detach and is not a Couch
+operation.
+
+Resume accepts only verified park. It atomically records a creating/start claim
+on the same `{repo_scope, tag}`, reuses the exact saved working path, agent argv,
+and established #155 native root, and read-only validates Pair's existing
+established address marker. It rechecks that root immediately before child
+effects. Verified park is cleared only after the exact Pair session registers;
+ambiguous execution remains occupied/unknown.
 
 Every hosted pane retains three identities with separate jobs: the pty handle
 routes bytes inside this console, `ActorID` addresses registry persistence and

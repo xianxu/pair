@@ -8,6 +8,17 @@ The whole thing is deliberately small — a handful of shell scripts, one nvim i
 
 ## Pieces
 
+### Verified park/resume authority
+
+`pairlifecycle` owns versioned quit requests/completions and the one ordered
+cleanup reducer used by direct Pair Alt+x and Couch Park. `couchcore` owns the
+ThreadStore transaction and admission decision; `launcher` owns the exact Pair
+marker/native-session re-entry checks; `couchtty` owns only confirmation,
+bounded enqueueing, and presentation. Prepared/committed files use a stable
+advisory lock and immutable publication. A successful completion is the shared
+quiescence proof available to #135; no client exit or second PID scanner can
+mint it.
+
 This section is the narrative map. The exhaustive artifact/caller/runtime
 contract for the Go packaging migration lives in
 [Go migration inventory](go-migration-inventory.md).

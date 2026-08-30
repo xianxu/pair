@@ -497,28 +497,28 @@ type CleanupResult struct {
 - Modify: `workshop/issues/000152-couch-verified-park-resume.md`
 - Modify: every project returned by `sdlc project find --issue pair#152`
 
-- [ ] Write opt-in `TestParkLatencySmoke`. With `PAIR_PARK_LATENCY_SMOKE=1`, verify/report the target as macOS Apple M2 Max, run 100 sequential samples under the ordinary-development-co-tenancy assumption, timestamp handler entry/first host write/requested-commit completion, and compute nearest-rank P95 after sorting each series.
-- [ ] Use a real temporary ThreadStore/lifecycle store but fake the external Pair trigger. Require feedback P95 <100 ms, commit P95 <100 ms, commit max <1 second, and one prefilled-queue overload sample that refuses with no request/trigger. Print `feedback_p95=<duration> commit_p95=<duration> commit_max=<duration> overload=refused`; skip ordinary heterogeneous CI when the env flag is absent.
-- [ ] Run `PAIR_PARK_LATENCY_SMOKE=1 go test -p 20 ./cmd/internal/couchtty -run '^TestParkLatencySmoke$' -count=1 -v`; expect FAIL before the measured UI/commit path is wired.
-- [ ] Implement only the measurement harness needed around the already deterministic production path; correctness remains enforced by ordinary barrier/clock tests.
-- [ ] Run the latency command again on the operator's M2 Max under normal development load; expect PASS and the four reported metrics within budget.
-- [ ] Document that adversarial OS starvation is outside the claim, overload fails immediately/occupied, queue size is bounded by admission, cleanup has a 10-second default with the existing 5-second exact-Zellij inner wait, and resume adds no full inventory scan.
-- [ ] Update README's generated/audited Couch operation and panel control surfaces with Park/Resume and no detach.
-- [ ] Map lifecycle authority, prepared/committed files, advisory lock, transaction/attempt/recovery matrix, exact claim/native-binding resume, and #135's shared proof in `atlas/`; keep `atlas/index.md` unchanged unless a new page is added.
-- [ ] Change all five original `## Plan` rows in #152 from `[ ]` to `[x]`, and all six rows under the authoritative acceptance/implementation revision from `[ ]` to `[x]`. Append a revision/log mapping the superseded “process inventory” wording to the delivered shared Pair lifecycle rather than rewriting that historical text.
-- [ ] Run `sdlc project find --issue pair#152`; record every returned project path and update its #152 scope/detail notes now. Let `sdlc close` later tick/upsert the final actual/closed fields.
-- [ ] Run `go test -p 20 ./cmd/internal/couchcmd ./cmd/internal/couchcore ./cmd/internal/couchtty -run 'README|Operation|Panel' -count=1`; expect PASS.
-- [ ] Run `go test -p 20 ./cmd/internal/pairlifecycle ./cmd/internal/pairlifecycletest ./cmd/internal/artifactpath ./cmd/internal/threadrecord ./cmd/internal/launcher ./cmd/internal/couchcore ./cmd/internal/couchtty ./cmd/internal/couchcmd -count=1`; expect PASS.
-- [ ] Run `go test -p 20 ./... -count=1`; expect PASS.
-- [ ] Run `make test-lua`; expect PASS.
-- [ ] Run `bash tests/term-pane-shortcuts-test.sh`; expect PASS.
-- [ ] Run `bash tests/review-toggle-test.sh`; expect PASS.
-- [ ] Run `zellij --config-dir zellij setup --check`; expect PASS.
-- [ ] Run `zellij setup --dump-layout zellij/layouts/main-2.kdl >/dev/null`; expect exit 0.
-- [ ] Run `zellij setup --dump-layout zellij/layouts/main-3.kdl >/dev/null`; expect exit 0.
-- [ ] Run `git diff --check`; expect no output.
-- [ ] Run the opt-in live lifecycle command from Task 11; expect PASS.
-- [ ] Run the opt-in latency command from this task; expect PASS on the M2 Max.
+- [x] Write opt-in `TestParkLatencySmoke`. With `PAIR_PARK_LATENCY_SMOKE=1`, verify/report the target as macOS Apple M2 Max, run 100 sequential samples under the ordinary-development-co-tenancy assumption, timestamp handler entry/first host write/requested-commit completion, and compute nearest-rank P95 after sorting each series.
+- [x] Use a real temporary ThreadStore/lifecycle store but fake the external Pair trigger. Require feedback P95 <100 ms, commit P95 <100 ms, commit max <1 second, and one prefilled-queue overload sample that refuses with no request/trigger. Print `feedback_p95=<duration> commit_p95=<duration> commit_max=<duration> overload=refused`; skip ordinary heterogeneous CI when the env flag is absent.
+- [x] Run `PAIR_PARK_LATENCY_SMOKE=1 go test -p 20 ./cmd/internal/couchtty -run '^TestParkLatencySmoke$' -count=1 -v`; expect FAIL before the measured UI/commit path is wired.
+- [x] Implement only the measurement harness needed around the already deterministic production path; correctness remains enforced by ordinary barrier/clock tests.
+- [x] Run the latency command again on the operator's M2 Max under normal development load; expect PASS and the four reported metrics within budget.
+- [x] Document that adversarial OS starvation is outside the claim, overload fails immediately/occupied, queue size is bounded by admission, cleanup has a 10-second default with the existing 5-second exact-Zellij inner wait, and resume adds no full inventory scan.
+- [x] Update README's generated/audited Couch operation and panel control surfaces with Park/Resume and no detach.
+- [x] Map lifecycle authority, prepared/committed files, advisory lock, transaction/attempt/recovery matrix, exact claim/native-binding resume, and #135's shared proof in `atlas/`; keep `atlas/index.md` unchanged unless a new page is added.
+- [x] Change all five original `## Plan` rows in #152 from `[ ]` to `[x]`, and all six rows under the authoritative acceptance/implementation revision from `[ ]` to `[x]`. Append a revision/log mapping the superseded “process inventory” wording to the delivered shared Pair lifecycle rather than rewriting that historical text.
+- [x] Run `sdlc project find --issue pair#152`; record every returned project path and update its #152 scope/detail notes now. Let `sdlc close` later tick/upsert the final actual/closed fields.
+- [x] Run `go test -p 20 ./cmd/internal/couchcmd ./cmd/internal/couchcore ./cmd/internal/couchtty -run 'README|Operation|Panel' -count=1`; expect PASS.
+- [x] Run `go test -p 20 ./cmd/internal/pairlifecycle ./cmd/internal/pairlifecycletest ./cmd/internal/artifactpath ./cmd/internal/threadrecord ./cmd/internal/launcher ./cmd/internal/couchcore ./cmd/internal/couchtty ./cmd/internal/couchcmd -count=1`; expect PASS.
+- [x] Run `go test -p 20 ./... -count=1`; expect PASS.
+- [x] Run `make test-lua`; expect PASS.
+- [x] Run `bash tests/term-pane-shortcuts-test.sh`; expect PASS.
+- [x] Run `bash tests/review-toggle-test.sh`; expect PASS.
+- [x] Run `zellij --config-dir zellij setup --check`; expect PASS.
+- [x] Run `zellij setup --dump-layout zellij/layouts/main-2.kdl >/dev/null`; expect exit 0.
+- [x] Run `zellij setup --dump-layout zellij/layouts/main-3.kdl >/dev/null`; expect exit 0.
+- [x] Run `git diff --check`; expect no output.
+- [x] Run the opt-in live lifecycle command from Task 11; expect PASS.
+- [x] Run the opt-in latency command from this task; expect PASS on the M2 Max.
 - [ ] Smoke `pair-dev` under Couch: actor-focused Alt+x must paint `parking…` before teardown; Resume must return to the same tag and #155 native root. Record the tag/root before and after in #152's Log.
 - [ ] Commit with `git commit -m "#152: document verified park and resume"`.
 

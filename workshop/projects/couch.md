@@ -819,5 +819,16 @@ native session tree as recovery state and no longer waits for an LLM-authored
 flush acknowledgement. #152 and its consumer #151 are marked blocked until the
 shared inventory lands (ARCH-DRY, ARCH-PURPOSE, ARCH-MOCK).
 
+### 2026-08-30 — pair#152 verified park/resume delivered
+
+Pair Alt+x and Couch Park now share one nonce-bound full-quit lifecycle;
+ThreadStore releases capacity only after the matching durable completion and
+final CAS. Couch confirmation/`parking…` precedes bounded asynchronous work,
+and Resume re-enters the exact composite address, saved profile, working path,
+and #155 native root through a read-only established Pair marker. Alt+d remains
+Pair-local detach and there is no Couch detach surface. The #151 menu can now
+consume these operations without inventing lifecycle semantics
+(ARCH-CONSTRAINTS, ARCH-DRY, ARCH-PURPOSE).
+
 [pair#155 M1]: #pair-155-m1
 [pair#155 M2]: #pair-155-m2

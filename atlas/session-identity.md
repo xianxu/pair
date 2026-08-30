@@ -218,6 +218,14 @@ migrates by being quit and relaunched.
 
 ## Independent Pair and Couch authorities
 
+Couch verified park preserves the exact Pair address and the established native
+root binding; it is not a new identity state in Pair. Resume therefore uses the
+existing `{repo scope, tag}` marker in read-only established mode and requires
+the same native ID before launch. It never allocates or adopts a marker, chooses
+a newest transcript, or consults current path/root/repository launch defaults.
+The native forest remains #155's authority; Couch stores only the proof-bearing
+binding reference and last successfully registered launch profile.
+
 Pair and Couch deliberately have two independent durable authorities:
 
 - Pair owns `{repo scope, tag}` address claims, scoped artifacts, ledgers, and
