@@ -215,7 +215,9 @@ the request; only a matching durable completion plus final ThreadStore CAS
 removes the incarnation. Timeout, stale evidence, replacement, and child exit
 remain occupied. Couch derives both Alt+x terminal encodings from Pair's
 canonical chord table, renders confirmation first, and submits confirmed work
-to a bounded single-worker queue; duplicates coalesce and overload refuses
+through the `PairLifecycleController`'s bounded, capacity-one worker. Startup
+recovery, Park, Retry, Recover, Abandon, and Leave all enter that same boundary;
+same-address/same-nonce overlap shares one future, while other work overloads
 without lifecycle effects. Alt+d remains Pair-local detach and is not a Couch
 operation.
 

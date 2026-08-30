@@ -188,3 +188,104 @@ Append a round-two `## Revisions` entry stating:
 - bypassing production `TriggerQuit` must fail the regression.
 
 The currently checked remediation rows for full conformance and non-blocking startup should not be treated as delivered until those class-wide rules hold.
+
+---
+
+## Re-review — 2026-08-30T15:36:42-07:00 (REWORK)
+
+| field | value |
+|-------|-------|
+| issue | 152 — couch: verified park and resume lifecycle |
+| repo | pair |
+| issue file | workshop/issues/000152-couch-verified-park-resume.md |
+| boundary | whole-issue close |
+| milestone | — |
+| window | e9e267d0e9f41bfd5958bdb4872fdfcb79af0dc2..dd5f6e2192c6f327e265ec104f9633aa494b9858 |
+| command | sdlc close --issue 152 |
+| reviewer | codex |
+| timestamp | 2026-08-30T15:36:42-07:00 |
+| verdict | REWORK |
+
+## Review
+
+```verdict
+verdict: REWORK
+confidence: high
+```
+
+The lifecycle design is substantially implemented, and BR-1, BR-2, and BR-4 are addressed. However, the production coordinator bypasses its own single-flight worker, allowing startup recovery and interactive operations to coordinate the same thread concurrently. The live mutation regression also accepts unrelated setup failures as success. These block the boundary.
+
+```findings
+dispose:
+  - id: BR-1
+    disposition: addressed
+    note: |
+      The live scenario now reaches production TriggerQuit, the blocking attach handoff, typed cleanup/completion publication, exact child-death observation, and finalization; the main scenario structurally fails if TriggerQuit no longer releases the handoff.
+  - id: BR-2
+    disposition: addressed
+    note: |
+      New performs no Pair-session query or teardown, and TestParkCoordinatorConstructorDoesNotQueryPairSession proves the external query is reached only by asynchronous recovery.
+  - id: BR-4
+    disposition: addressed
+    note: |
+      The smoke item is checked and the issue Log records exact tags and native Claude roots preserved across final Leave and Resume observations.
+findings:
+  - id: new
+    severity: Critical
+    family: single-coordinator-per-thread
+    title: |
+      The tested park single-flight worker has no production call site
+    detail: |
+      cmd/internal/couchcore/parkworker.go:54 implements the required per-address coalescing, but newParkWorker is referenced only by parkworker_test.go. Startup recovery calls PairLifecycleController.Recover directly at couch.go:73 while interactive Park, Retry, Recover, Abandon, and Leave call the same controller directly at operationdispatch.go:218-231. Recovery and UI work can therefore run two coordinators for one thread, contrary to the one-coordinator/coalescing contract. Install one controller-owned worker and route every lifecycle entrypoint, including startup recovery and Leave, through it; add a composition-level barrier test proving overlapping recovery and UI retry produce one trigger and one shared result.
+  - id: new
+    severity: Important
+    family: live-conformance-production-seam
+    title: |
+      The intent-only live mutation test passes on unrelated trigger errors
+    detail: |
+      This is the 2nd finding in family live-conformance-production-seam. TestParkLifecycleLiveIntentOnlyMutation at park_lifecycle_live_test.go:240 accepts any RunConformanceScenario error, then checks only that the child remains live. In this review it passed because WriteQuitIntent failed with operation not permitted before publishing the intent, so it did not exercise the intended mutation. Do not patch only this error: establish the rule that every negative conformance mutation must prove it crossed its intended precondition and failed at the expected lifecycle stage. Assert the intent is durably observable and require the expected completion-timeout/stage error.
+```
+
+1. Strengths
+
+- `couch.go:82-134` keeps construction free of active-park external IO, with a reachable barrier regression at `park_test.go:645-733`.
+- `park_lifecycle_live_test.go:436-491` places the controlled helper through the production attach and cleanup/completion boundaries.
+- The main live scenario compares complete semantic traces through finalization, not merely cleanup labels.
+- README and atlas updates cover Park, Leave, Resume, lifecycle authority, recovery, and terminal restoration.
+- The authoritative Core Concepts table resolves successfully through its Go-AST contract test.
+
+2. Critical findings
+
+- `parkworker.go:54`, `couch.go:73`, `operationdispatch.go:218-231`: wire the currently dead single-flight abstraction into every production lifecycle entrypoint.
+
+3. Important findings
+
+- `park_lifecycle_live_test.go:240-250`: require the mutation probe to prove intent publication and the expected failure stage.
+
+4. Minor findings
+
+None.
+
+5. Test coverage notes
+
+- Focused lifecycle/launcher/Couch suites passed.
+- `git diff --check` passed.
+- The positive live scenario could not complete because the sandbox denied writing its production `~/.cache/pair/quit-*` marker.
+- The negative live mutation test passed for that same unrelated permission failure, exposing the Important finding.
+- `go test -p 20 ./... -count=1` otherwise passed but ended with sandbox-denied `/bin/ps` execution in `cmd/pair-go`.
+
+6. Architectural notes for upcoming work
+
+- `ARCH-DRY`: pass; cleanup, attach handoff, lifecycle vocabulary, and terminal reset are shared.
+- `ARCH-PURE`: pass; transition logic remains separated from IO, and construction no longer performs external recovery.
+- `ARCH-PURPOSE`: flag; the promised one-coordinator/coalescing behavior is not connected to production.
+- `ARCH-MOCK`: flag; the negative live mutation can pass without reaching its modeled precondition.
+- `ARCH-CONSTRAINTS`: flag; lifecycle concurrency is not enforced by the declared bounded worker, although construction latency itself is protected.
+
+7. Plan revision recommendations
+
+Append a revision recording:
+
+- One controller-owned single-flight boundary shared by startup recovery, Park/Retry/Recover/Abandon, and Leave.
+- A consuming-flow overlap test proving recovery and interactive retry coalesce.
+- A live-mutation rule requiring proof of the intended precondition and an expected-stage failure, rather than accepting any error.

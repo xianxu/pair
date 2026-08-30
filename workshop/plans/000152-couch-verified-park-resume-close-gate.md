@@ -50,6 +50,36 @@ rounds:
           family: boundary-verification-must-be-complete
           round: 2
       blocked: true
+    - "n": 3
+      timestamp: "2026-08-30T15:36:42-07:00"
+      agent: codex
+      dispose:
+        - id: BR-1
+          disposition: addressed
+          note: The live scenario now reaches production TriggerQuit, the blocking attach handoff, typed cleanup/completion publication, exact child-death observation, and finalization; the main scenario structurally fails if TriggerQuit no longer releases the handoff.
+          round: 3
+        - id: BR-2
+          disposition: addressed
+          note: New performs no Pair-session query or teardown, and TestParkCoordinatorConstructorDoesNotQueryPairSession proves the external query is reached only by asynchronous recovery.
+          round: 3
+        - id: BR-4
+          disposition: addressed
+          note: The smoke item is checked and the issue Log records exact tags and native Claude roots preserved across final Leave and Resume observations.
+          round: 3
+      findings:
+        - id: BR-5
+          severity: Critical
+          title: The tested park single-flight worker has no production call site
+          detail: cmd/internal/couchcore/parkworker.go:54 implements the required per-address coalescing, but newParkWorker is referenced only by parkworker_test.go. Startup recovery calls PairLifecycleController.Recover directly at couch.go:73 while interactive Park, Retry, Recover, Abandon, and Leave call the same controller directly at operationdispatch.go:218-231. Recovery and UI work can therefore run two coordinators for one thread, contrary to the one-coordinator/coalescing contract. Install one controller-owned worker and route every lifecycle entrypoint, including startup recovery and Leave, through it; add a composition-level barrier test proving overlapping recovery and UI retry produce one trigger and one shared result.
+          family: single-coordinator-per-thread
+          round: 3
+        - id: BR-6
+          severity: Important
+          title: The intent-only live mutation test passes on unrelated trigger errors
+          detail: 'This is the 2nd finding in family live-conformance-production-seam. TestParkLifecycleLiveIntentOnlyMutation at park_lifecycle_live_test.go:240 accepts any RunConformanceScenario error, then checks only that the child remains live. In this review it passed because WriteQuitIntent failed with operation not permitted before publishing the intent, so it did not exercise the intended mutation. Do not patch only this error: establish the rule that every negative conformance mutation must prove it crossed its intended precondition and failed at the expected lifecycle stage. Assert the intent is durably observable and require the expected completion-timeout/stage error.'
+          family: live-conformance-production-seam
+          round: 3
+      blocked: true
 ---
 
 # Gate ledger — pair#152 (boundary-review)
@@ -81,8 +111,22 @@ later rounds disposed of them. Generated — edit the gate, not this file.
 - **BR-4** [Important] `boundary-verification-must-be-complete` The required post-fix same-tag/native-root smoke remains incomplete
   The plan still leaves the manual Couch Alt+x and exact Resume smoke unchecked, and the issue Log records only the earlier defect-discovering smokes rather than final before/after tag and native-root evidence.
 
+## Round 3 — 2026-08-30T15:36:42-07:00 (codex) — BLOCKED
+
+### Disposed
+
+- BR-1 — addressed — The live scenario now reaches production TriggerQuit, the blocking attach handoff, typed cleanup/completion publication, exact child-death observation, and finalization; the main scenario structurally fails if TriggerQuit no longer releases the handoff.
+- BR-2 — addressed — New performs no Pair-session query or teardown, and TestParkCoordinatorConstructorDoesNotQueryPairSession proves the external query is reached only by asynchronous recovery.
+- BR-4 — addressed — The smoke item is checked and the issue Log records exact tags and native Claude roots preserved across final Leave and Resume observations.
+
+### Raised
+
+- **BR-5** [Critical] `single-coordinator-per-thread` The tested park single-flight worker has no production call site
+  cmd/internal/couchcore/parkworker.go:54 implements the required per-address coalescing, but newParkWorker is referenced only by parkworker_test.go. Startup recovery calls PairLifecycleController.Recover directly at couch.go:73 while interactive Park, Retry, Recover, Abandon, and Leave call the same controller directly at operationdispatch.go:218-231. Recovery and UI work can therefore run two coordinators for one thread, contrary to the one-coordinator/coalescing contract. Install one controller-owned worker and route every lifecycle entrypoint, including startup recovery and Leave, through it; add a composition-level barrier test proving overlapping recovery and UI retry produce one trigger and one shared result.
+- **BR-6** [Important] `live-conformance-production-seam` The intent-only live mutation test passes on unrelated trigger errors
+  This is the 2nd finding in family live-conformance-production-seam. TestParkLifecycleLiveIntentOnlyMutation at park_lifecycle_live_test.go:240 accepts any RunConformanceScenario error, then checks only that the child remains live. In this review it passed because WriteQuitIntent failed with operation not permitted before publishing the intent, so it did not exercise the intended mutation. Do not patch only this error: establish the rule that every negative conformance mutation must prove it crossed its intended precondition and failed at the expected lifecycle stage. Assert the intent is durably observable and require the expected completion-timeout/stage error.
+
 ## Open findings
 
-- **BR-1** [Critical] `live-conformance-production-seam` ARCH-MOCK/ARCH-PURPOSE: live conformance does not exercise the production park lifecycle
-- **BR-2** [Critical] `startup-recovery-must-not-block` ARCH-PURE/ARCH-CONSTRAINTS: construction-time recovery performs blocking Zellij teardown
-- **BR-4** [Important] `boundary-verification-must-be-complete` The required post-fix same-tag/native-root smoke remains incomplete
+- **BR-5** [Critical] `single-coordinator-per-thread` The tested park single-flight worker has no production call site
+- **BR-6** [Important] `live-conformance-production-seam` The intent-only live mutation test passes on unrelated trigger errors

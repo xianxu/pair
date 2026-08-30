@@ -98,6 +98,7 @@ type realParkConformanceDriver struct {
 	childID   ProcessIdentity
 	stagePath string
 	trigger   func(string, launcher.QuitIntent) error
+	intent    *launcher.OSRuntime
 	completed time.Time
 }
 
@@ -242,8 +243,25 @@ func TestParkLifecycleLiveIntentOnlyMutation(t *testing.T) {
 	defer cancel()
 	driver, request := newRealParkConformance(t, ctx, true)
 
-	if _, err := pairlifecycletest.RunConformanceScenario(ctx, driver, request); err == nil {
-		t.Fatal("intent-only trigger completed the production lifecycle")
+	trace, err := pairlifecycletest.RunConformanceScenario(ctx, driver, request)
+	wantTrace := pairlifecycletest.EffectTrace{
+		"request:prepared", "restart:prepared-request", "request:committed", "restart:committed-request",
+		"trigger:delivered", "trigger:delivered",
+	}
+	if !reflect.DeepEqual(trace, wantTrace) {
+		t.Fatalf("intent-only mutation failed before its required precondition:\ngot  %v\nwant %v\nerr  %v", trace, wantTrace, err)
+	}
+	if !errors.Is(err, context.DeadlineExceeded) || !strings.Contains(err.Error(), "observe helper completion") {
+		t.Fatalf("intent-only mutation failed outside completion observation: %v", err)
+	}
+	intent, present, intentErr := driver.intent.TakeQuitIntent(request.Session)
+	if intentErr != nil || !present || intent.Kind != launcher.QuitIntentCouch || intent.Request == nil {
+		t.Fatalf("intent-only mutation did not durably publish a Couch intent: %+v, present=%t, err=%v", intent, present, intentErr)
+	}
+	ref := intent.Request
+	if ref.DataDir != driver.checker.GlobalDataDir || ref.RepoScope != request.Identity.RepoScope ||
+		ref.Tag != request.Identity.Tag || ref.Nonce != request.Identity.Nonce || ref.Attempt != request.Attempt {
+		t.Fatalf("durable intent reference = %+v, request=%+v", ref, request)
 	}
 	if state := observeExactProcess(OSProcOps{}, driver.childID); state != Live {
 		t.Fatalf("intent-only trigger released the production handoff: %s", state)
@@ -344,16 +362,16 @@ func newRealParkConformance(t *testing.T, ctx context.Context, intentOnly bool) 
 		CompletionKey: "quit-completion-1",
 	}
 	fault := &conformanceFaultRuntime{}
+	intentRuntime := launcher.NewScopedOSRuntime(dataDir, scoped.ScopeDir(), pairHome)
 	driver := &realParkConformanceDriver{
 		paths: lifecyclePaths, store: pairlifecycle.Store{Runtime: fault}, fault: fault,
 		checker: NewScopedThreadArtifactCollisionChecker(dataDir), threads: threads, current: current,
 		child: child, childWait: childWait,
 		childID:   ProcessIdentity{PID: child.Process.Pid, Identity: identity},
-		stagePath: stagePath, completed: time.Unix(100, 0).UTC(),
+		stagePath: stagePath, intent: intentRuntime, completed: time.Unix(100, 0).UTC(),
 	}
 	if intentOnly {
-		runtime := launcher.NewScopedOSRuntime(dataDir, scoped.ScopeDir(), pairHome)
-		driver.trigger = runtime.WriteQuitIntent
+		driver.trigger = intentRuntime.WriteQuitIntent
 	}
 	t.Cleanup(func() {
 		runtime := launcher.NewScopedOSRuntime(dataDir, scoped.ScopeDir(), pairHome)

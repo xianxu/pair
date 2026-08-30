@@ -618,6 +618,22 @@ on the durable thread record.
   `c2c52d0e-9980-4c87-ba90-8c0efd6e1344`; each ThreadStore ended in one
   verified Park and its tag ledger retained that same required root across the
   smoke (ARCH-PURPOSE, ARCH-CONSTRAINTS).
+- 2026-08-30: close-gate round 3 found the single-flight worker existed only as
+  a unit-tested abstraction. The controller now owns the capacity-one worker,
+  and every production lifecycle entrypoint routes through it; a consuming-flow
+  barrier overlaps `RecoverActiveParks` with operation-dispatch Retry and proves
+  one trigger plus one committed result. The intent-only live mutation now
+  proves both trigger deliveries, reads back the exact durable Couch intent,
+  and accepts only a completion-observation deadline while the helper remains
+  attached. This closes the coordinator and conformance classes rather than
+  their named instances (ARCH-PURPOSE, ARCH-MOCK, ARCH-CONSTRAINTS).
+- 2026-08-30: verification reproduced alternating live failures only when Go
+  ran the launcher and Couch Zellij packages concurrently: launcher cleanup
+  could remove the session while Couch's exact helper was attaching, or Couch
+  cleanup could bypass the launcher's expected delete observation. Each suite
+  passed alone. The supported target now sequences the packages while keeping
+  each invocation at `-p 20`, enforcing one host-Zellij fixture owner at a time
+  (ARCH-MOCK, ARCH-CONSTRAINTS).
 
 ## Estimate
 

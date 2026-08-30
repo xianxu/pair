@@ -3,10 +3,12 @@ package couchcore
 import (
 	"context"
 	"errors"
+	"reflect"
 	"sync"
 	"testing"
 	"time"
 
+	"github.com/xianxu/pair/cmd/internal/launcher"
 	"github.com/xianxu/pair/cmd/internal/pairlifecycletest"
 )
 
@@ -52,6 +54,84 @@ func TestParkWorkerBoundsAndCoalesces(t *testing.T) {
 	defer mu.Unlock()
 	if calls != 1 {
 		t.Fatalf("coalesced calls = %d", calls)
+	}
+}
+
+func TestParkCoordinatorCoalescesStartupRecoveryAndInteractiveRetry(t *testing.T) {
+	store, _, thread := createControllerThread(t)
+	identity := ParkIdentity{
+		Nonce: "park-overlap", Address: thread.Address, PID: 42, ProcessIdentity: "pair-helper",
+	}
+	thread, err := store.BeginPark(thread.Address, thread.Revision, identity)
+	if err != nil {
+		t.Fatal(err)
+	}
+	now := time.Unix(300, 0).UTC()
+	model := pairlifecycletest.New(now)
+	model.SetSession("pair-exact", true)
+	triggerEntered := make(chan struct{})
+	releaseTrigger := make(chan struct{})
+	lifecycle := &fakeControllerLifecycle{model: model}
+	artifacts := NewFakeThreadArtifactCollisionChecker()
+	artifacts.SetPairSession(thread.Address, "pair-exact", true)
+	artifacts.TriggerQuitHook = func(_ string, intent launcher.QuitIntent) error {
+		request := lifecycle.lastRequest
+		if intent.Request == nil || intent.Request.Nonce != request.Identity.Nonce {
+			return errors.New("trigger did not carry the active request")
+		}
+		completion := successCompletion(request, now)
+		lifecycle.completion = &completion
+		close(triggerEntered)
+		<-releaseTrigger
+		return nil
+	}
+	controller := PairLifecycleController{
+		Threads: store, DataDir: t.TempDir(), Lifecycle: lifecycle, Sessions: artifacts,
+		Proc: NewFakeProcOps(), Clock: FixedClock{T: now},
+		Nonce: func() (string, error) { return "unused", nil },
+	}
+	couch := &Couch{Threads: store, PairLifecycle: &controller}
+
+	type outcome struct {
+		result ParkResult
+		err    error
+	}
+	recoveryDone := make(chan error, 1)
+	go func() {
+		recoveryDone <- couch.RecoverActiveParks(context.Background())
+	}()
+	select {
+	case <-triggerEntered:
+	case <-time.After(time.Second):
+		t.Fatal("startup recovery did not reach the exact trigger")
+	}
+	retryDone := make(chan outcome, 1)
+	go func() {
+		value, err := DispatchOperation(OperationExecutors{LiveOwner: CouchLiveOwnerExecutor(couch)}, OperationCall{
+			Name: "park", Implicit: true, Args: map[string]string{
+				"repo-scope": thread.Address.RepoScope, "tag": string(thread.Address.Tag), "mode": "retry",
+			},
+		})
+		result, _ := value.(ParkResult)
+		retryDone <- outcome{result: result, err: err}
+	}()
+	select {
+	case got := <-retryDone:
+		t.Fatalf("interactive retry did not share the in-flight recovery: %+v", got)
+	case <-time.After(50 * time.Millisecond):
+	}
+	close(releaseTrigger)
+	recoveryErr := <-recoveryDone
+	retry := <-retryDone
+	if recoveryErr != nil || retry.err != nil {
+		t.Fatalf("overlap errors: recovery=%v retry=%v", recoveryErr, retry.err)
+	}
+	final, err := store.GetThread(thread.Address)
+	if err != nil || !reflect.DeepEqual(final, retry.result.Thread) {
+		t.Fatalf("overlap did not share the committed result:\nfinal=%+v, %v\nretry=%+v", final, err, retry.result)
+	}
+	if got := len(artifacts.TriggeredQuits()); got != 1 {
+		t.Fatalf("overlap trigger count = %d, want 1", got)
 	}
 }
 

@@ -2622,3 +2622,17 @@ mouse tracking/encodings, focus events, bracketed paste, synchronized output,
 and extended keyboard reporting on every exit path. Test by enabling a mode in
 the child stream and asserting the reset follows it before return
 (`ARCH-DRY`, `ARCH-CONSTRAINTS`).
+
+## 2026-08-30 — Concurrency controls and negative probes must be consumed
+
+- A concurrency primitive is not an invariant until every production
+  entrypoint consumes it. When introducing a single-flight worker, add an
+  overlap test through two real callers (for example startup recovery and UI
+  dispatch), and require one external effect plus one shared committed result
+  (`ARCH-PURPOSE`, `ARCH-CONSTRAINTS`).
+- A negative integration test must prove it crossed the precondition it means
+  to mutate and failed at the expected stage; accepting any error lets setup,
+  permissions, or an unrelated dependency failure produce a false green.
+  Stateful host-daemon fixtures that are not isolated must run sequentially
+  even when each package retains its normal internal test parallelism
+  (`ARCH-MOCK`, `ARCH-CONSTRAINTS`).

@@ -855,3 +855,33 @@ release path so child exit, Leave, Escape, and signal teardown cannot drift
       extend the host-control/core-concept contracts.
 - [x] Repeat the real Leave smoke and verify mouse movement is inert at the
       returned shell before completing the round-2 acceptance evidence.
+
+### 2026-08-30 — boundary-review round 3: one consuming coordinator and staged mutations
+
+**Reason:** close-gate round 3 found that the bounded single-flight worker was
+only exercised directly by tests. Production startup recovery and interactive
+Park/Retry/Recover/Abandon calls still entered the controller independently, so
+the declared one-coordinator-per-thread invariant was not enforced. It also
+found that the intent-only live mutation accepted any error, including failure
+before the intent was durably published.
+
+**Approved design:** make the `PairLifecycleController` own one lazily installed,
+capacity-one worker and route every public lifecycle entrypoint through it.
+Operations for the same durable park nonce share one future; different work is
+bounded rather than fanned out. Keep the transition implementations private so
+there is no second production route around the coordinator. For every negative
+live mutation, prove the intended precondition is durable and require failure at
+the expected lifecycle stage (ARCH-PURPOSE, ARCH-MOCK, ARCH-CONSTRAINTS).
+
+- [x] Add a consuming-flow barrier regression proving overlapping startup
+      recovery and interactive retry share one result and emit one trigger.
+- [x] Install the worker in the production controller and route Park, Retry,
+      Recover, Abandon, Reconcile, and Leave through its public entrypoints.
+- [x] Require the intent-only live mutation to reach both trigger deliveries,
+      leave a decodable matching intent, and fail specifically while awaiting
+      helper completion.
+- [x] Serialize the launcher and Couch package portions of the live target so
+      their host-Zellij fixtures cannot tear down one another; retain `-p 20`
+      inside each invocation and run only one Go test process at a time.
+- [x] Rerun focused, full (`-p 20`), live, build, and diff verification, then
+      repeat the #152 close gate.

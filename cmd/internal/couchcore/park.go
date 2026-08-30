@@ -8,6 +8,7 @@ import (
 	"fmt"
 	stdio "io"
 	"os"
+	"sync"
 	"time"
 
 	"github.com/xianxu/pair/cmd/internal/artifactpath"
@@ -90,6 +91,9 @@ type PairLifecycleController struct {
 	CompletionTimeout time.Duration
 	PollInterval      time.Duration
 	Wait              func(context.Context, time.Duration) error
+
+	workerOnce sync.Once
+	worker     *parkWorker
 }
 
 var errParkChildNotGone = errors.New("exact Pair child has not exited")
@@ -162,17 +166,32 @@ func (c *PairLifecycleController) Park(ctx context.Context, address ThreadAddres
 		return ParkResult{}, err
 	}
 	if current.Park != nil {
-		return c.Retry(ctx, address)
+		return c.submit(ctx, address, current.Park.Identity.Nonce, func(workCtx context.Context) (ParkResult, error) {
+			return c.retry(workCtx, address)
+		})
+	}
+	nonce, err := c.Nonce()
+	if err != nil {
+		return ParkResult{}, err
+	}
+	return c.submit(ctx, address, nonce, func(workCtx context.Context) (ParkResult, error) {
+		return c.park(workCtx, address, nonce)
+	})
+}
+
+func (c *PairLifecycleController) park(ctx context.Context, address ThreadAddress, nonce string) (ParkResult, error) {
+	current, err := c.Threads.GetThread(address)
+	if err != nil {
+		return ParkResult{}, err
+	}
+	if current.Park != nil {
+		return c.retry(ctx, address)
 	}
 	incarnation, err := soleParkableIncarnation(current)
 	if err != nil {
 		return ParkResult{}, err
 	}
 	binding, err := c.Sessions.PairSession(address)
-	if err != nil {
-		return ParkResult{}, err
-	}
-	nonce, err := c.Nonce()
 	if err != nil {
 		return ParkResult{}, err
 	}
@@ -201,6 +220,19 @@ func (c *PairLifecycleController) Retry(ctx context.Context, address ThreadAddre
 	if err := c.validate(); err != nil {
 		return ParkResult{}, err
 	}
+	current, err := c.Threads.GetThread(address)
+	if err != nil {
+		return ParkResult{}, err
+	}
+	if current.Park == nil {
+		return ParkResult{}, errors.New("thread has no active park transaction")
+	}
+	return c.submit(ctx, address, current.Park.Identity.Nonce, func(workCtx context.Context) (ParkResult, error) {
+		return c.retry(workCtx, address)
+	})
+}
+
+func (c *PairLifecycleController) retry(ctx context.Context, address ThreadAddress) (ParkResult, error) {
 	current, err := c.Threads.GetThread(address)
 	if err != nil {
 		return ParkResult{}, err
@@ -244,6 +276,19 @@ func (c *PairLifecycleController) Recover(ctx context.Context, address ThreadAdd
 	if current.Park == nil {
 		return ParkResult{}, errors.New("thread has no active park transaction")
 	}
+	return c.submit(ctx, address, current.Park.Identity.Nonce, func(workCtx context.Context) (ParkResult, error) {
+		return c.recover(workCtx, address)
+	})
+}
+
+func (c *PairLifecycleController) recover(ctx context.Context, address ThreadAddress) (ParkResult, error) {
+	current, err := c.Threads.GetThread(address)
+	if err != nil {
+		return ParkResult{}, err
+	}
+	if current.Park == nil {
+		return ParkResult{}, errors.New("thread has no active park transaction")
+	}
 	binding, err := c.Sessions.PairSession(address)
 	if err != nil {
 		return ParkResult{Thread: current}, err
@@ -273,10 +318,23 @@ func (c *PairLifecycleController) Recover(ctx context.Context, address ThreadAdd
 	return c.runActiveAttempt(ctx, ParkResult{Thread: current}, current, binding, true)
 }
 
-func (c *PairLifecycleController) Abandon(_ context.Context, address ThreadAddress) (ParkResult, error) {
+func (c *PairLifecycleController) Abandon(ctx context.Context, address ThreadAddress) (ParkResult, error) {
 	if err := c.validate(); err != nil {
 		return ParkResult{}, err
 	}
+	current, err := c.Threads.GetThread(address)
+	if err != nil {
+		return ParkResult{}, err
+	}
+	if current.Park == nil {
+		return ParkResult{}, errors.New("thread has no active park transaction")
+	}
+	return c.submit(ctx, address, current.Park.Identity.Nonce, func(workCtx context.Context) (ParkResult, error) {
+		return c.abandon(workCtx, address)
+	})
+}
+
+func (c *PairLifecycleController) abandon(_ context.Context, address ThreadAddress) (ParkResult, error) {
 	current, err := c.Threads.GetThread(address)
 	if err != nil {
 		return ParkResult{}, err
@@ -301,24 +359,57 @@ func (c *PairLifecycleController) ReconcileActive(ctx context.Context) error {
 		if record.Park == nil {
 			continue
 		}
-		binding, bindingErr := c.Sessions.PairSession(record.Address)
-		if bindingErr != nil {
-			result = errors.Join(result, bindingErr)
+		future, submitErr := c.submitFuture(ctx, record.Address, record.Park.Identity.Nonce, func(workCtx context.Context) (ParkResult, error) {
+			return c.reconcileActive(workCtx, record.Address)
+		})
+		if submitErr != nil {
+			result = errors.Join(result, submitErr)
 			continue
 		}
-		parkResult, completed, reconcileErr := c.reconcileAttempts(ParkResult{Thread: record}, record, binding.Name)
-		if reconcileErr != nil || completed {
-			result = errors.Join(result, reconcileErr)
-			continue
-		}
-		last := parkResult.Thread.Park.Attempts[len(parkResult.Thread.Park.Attempts)-1]
-		if parkResult.Thread.Park.Phase == ParkUnknown || last.Closed {
-			continue
-		}
-		_, reconcileErr = c.runActiveAttempt(ctx, parkResult, parkResult.Thread, binding, false)
+		_, reconcileErr := future.Await(ctx)
 		result = errors.Join(result, reconcileErr)
 	}
 	return result
+}
+
+func (c *PairLifecycleController) reconcileActive(ctx context.Context, address ThreadAddress) (ParkResult, error) {
+	record, err := c.Threads.GetThread(address)
+	if err != nil {
+		return ParkResult{}, err
+	}
+	if record.Park == nil {
+		return ParkResult{Thread: record}, nil
+	}
+	binding, bindingErr := c.Sessions.PairSession(record.Address)
+	if bindingErr != nil {
+		return ParkResult{Thread: record}, bindingErr
+	}
+	parkResult, completed, reconcileErr := c.reconcileAttempts(ParkResult{Thread: record}, record, binding.Name)
+	if reconcileErr != nil || completed {
+		return parkResult, reconcileErr
+	}
+	last := parkResult.Thread.Park.Attempts[len(parkResult.Thread.Park.Attempts)-1]
+	if parkResult.Thread.Park.Phase == ParkUnknown || last.Closed {
+		return parkResult, nil
+	}
+	return c.runActiveAttempt(ctx, parkResult, parkResult.Thread, binding, false)
+}
+
+func (c *PairLifecycleController) submit(ctx context.Context, address ThreadAddress, nonce string, work parkWork) (ParkResult, error) {
+	future, err := c.submitFuture(ctx, address, nonce, work)
+	if err != nil {
+		return ParkResult{}, err
+	}
+	return future.Await(ctx)
+}
+
+func (c *PairLifecycleController) submitFuture(ctx context.Context, address ThreadAddress, nonce string, work parkWork) (*parkFuture, error) {
+	c.workerOnce.Do(func() {
+		if c.worker == nil {
+			c.worker = newParkWorker(1)
+		}
+	})
+	return c.worker.Submit(ctx, address, nonce, work)
 }
 
 func (c *PairLifecycleController) runActiveAttempt(ctx context.Context, result ParkResult, current ThreadRecord, binding PairSessionBinding, await bool) (ParkResult, error) {
