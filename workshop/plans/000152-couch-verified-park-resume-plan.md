@@ -684,3 +684,14 @@ row states explicitly as `live` or `parked`. Add regressions for the last-actor
 transition, the empty-panel escape, and visible row-state vocabulary before
 repeating the manual exact-session resume smoke (ARCH-PURPOSE,
 ARCH-CONSTRAINTS).
+
+### 2026-08-30 — preserve an active target after Park removes one of many actors
+
+**Reason:** continuing the same smoke showed that removing the active/root
+actor promoted `root` but cleared `active`. The remaining live row rendered,
+yet panel Alt+x resolved through the empty active slot and appeared inert.
+
+**Delta:** whenever the active actor exits and another remains, promote the
+current root to active. Cover both root-active and non-root-active exits so the
+panel action target remains total over every non-empty attached set
+(ARCH-PURE, ARCH-PURPOSE).

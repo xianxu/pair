@@ -149,6 +149,12 @@ func TestActiveChildExitFocusesPanelRecordsCauseAndForgetsActor(t *testing.T) {
 	if got := f.host.Written(); !strings.Contains(got, "brain") || !strings.Contains(got, "7") {
 		t.Fatalf("exit landing does not name actor and code: %q", got)
 	}
+	f.con.mu.Lock()
+	active := f.con.active
+	f.con.mu.Unlock()
+	if active != "c2" {
+		t.Fatalf("active target after root exit = %q, want remaining actor c2", active)
+	}
 	select {
 	case code := <-f.done:
 		t.Fatalf("console exited with %d while another child remained", code)

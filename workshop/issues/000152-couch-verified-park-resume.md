@@ -542,6 +542,11 @@ on the durable thread record.
   final child exit now keeps Couch alive for Resume, Escape with no actor stops
   the console, and rows render explicit `[live]`/`[parked]` states. The full
   `couchtty` package passes with one `go test -p 20` runner.
+- 2026-08-30: the follow-up smoke found panel Alt+x inert after parking one of
+  multiple actors. Root cause: `onExit` promoted `root` but cleared `active`,
+  while panel Park intentionally targets `active`. Added red coverage for both
+  root and non-root active exits, then made the remaining root the active
+  fallback. Focused regressions pass (ARCH-PURE, ARCH-PURPOSE).
 
 ## Estimate
 

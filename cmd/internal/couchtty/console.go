@@ -578,7 +578,10 @@ func (c *Console) onExit(event childExit) bool {
 		}
 	}
 	if wasActive {
-		c.active = ""
+		// Panel actions address the active actor, not merely the highlighted
+		// durable row. Preserve that invariant after either the root or a
+		// non-root active actor exits by falling back to the current root.
+		c.active = c.root
 	}
 	if wasFocused {
 		c.focus = FocusPanel()

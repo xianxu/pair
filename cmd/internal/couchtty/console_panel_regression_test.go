@@ -121,6 +121,28 @@ func TestEscapeFromPanelWithNoActorStopsConsole(t *testing.T) {
 	}
 }
 
+func TestActiveNonRootExitFallsBackToRootForPanelActions(t *testing.T) {
+	con := New(hostty.NewFakeHost(ptychild.Size{Rows: 24, Cols: 80}), nil)
+	root := ptychild.NewFakeChild(nil)
+	other := ptychild.NewFakeChild(nil)
+	con.attachThreadActor("root", "root-actor", panelAddress("root"), "/w/root", "root", root)
+	con.attachThreadActor("other", "other-actor", panelAddress("other"), "/w/other", "other", other)
+	con.mu.Lock()
+	con.active = "other"
+	con.focus = FocusPanel()
+	con.mu.Unlock()
+
+	if exitConsole := con.onExit(childExit{id: "other", code: 0}); exitConsole {
+		t.Fatal("non-root exit closed a console whose root remained live")
+	}
+	con.mu.Lock()
+	active := con.active
+	con.mu.Unlock()
+	if active != "root" {
+		t.Fatalf("active target after non-root exit = %q, want root", active)
+	}
+}
+
 func TestPanelCtrlSpaceIsNoOpInsideStartPrompt(t *testing.T) {
 	f := newFixture(t, 24, 80)
 	openPanel(t, f)

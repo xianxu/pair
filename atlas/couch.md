@@ -159,7 +159,9 @@ has no local target and reports that #147 transport is required; only a
 non-live parked row dispatches `resume`. Rows name `[live]` and `[parked]`
 explicitly. If Park removes the final actor while the panel owns focus, the
 console remains on that resumable row; Escape with no actor returns to the
-parent shell. Liveness and local routing capability
+parent shell. When the active actor exits and another remains, the console
+promotes its current root as the active target so panel Alt+x never addresses
+an empty routing slot. Liveness and local routing capability
 are deliberately separate facts (ARCH-PURPOSE).
 
 There is no numbered jump or `:` command state. Tab/thread actions are deferred
