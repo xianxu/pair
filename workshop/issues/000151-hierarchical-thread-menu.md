@@ -1,11 +1,12 @@
 ---
 id: 000151
-status: open
+status: working
 deps: [149, 152]
 github_issue:
 created: 2026-08-24
-updated: 2026-08-24
+updated: 2026-08-30
 estimate_hours:
+started: 2026-08-30T15:58:54-07:00
 ---
 
 # couch: hierarchical work-thread menu
