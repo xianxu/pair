@@ -526,6 +526,10 @@ on the durable thread record.
   while the fake still returned the retired JSON inventory. Updated only the
   fake (`49e1f1d`); all review assertions now pass without restoring any live
   Codex fallback.
+- 2026-08-30: `sdlc actual --issue 152` measured 9.16h for the claim-to-HEAD
+  window. All automated close evidence now passes; the remaining plan item is
+  the operator's interactive `pair-dev` Couch Alt+x → same-tag/native-root
+  resume smoke.
 
 ## Estimate
 

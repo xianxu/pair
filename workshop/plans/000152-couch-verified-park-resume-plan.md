@@ -520,7 +520,7 @@ type CleanupResult struct {
 - [x] Run the opt-in live lifecycle command from Task 11; expect PASS.
 - [x] Run the opt-in latency command from this task; expect PASS on the M2 Max.
 - [ ] Smoke `pair-dev` under Couch: actor-focused Alt+x must paint `parking…` before teardown; Resume must return to the same tag and #155 native root. Record the tag/root before and after in #152's Log.
-- [ ] Commit with `git commit -m "#152: document verified park and resume"`.
+- [x] Commit with `git commit -m "#152: document verified park and resume"`.
 
 ### Task 13: Close and ship #152 before beginning #151
 
@@ -528,7 +528,7 @@ type CleanupResult struct {
 - Modify: `workshop/issues/000152-couch-verified-park-resume.md`
 - Modify: any referencing Couch project file found by `sdlc project find --issue pair#152`
 
-- [ ] Run `sdlc actual --issue 152` to preview measured active time; do not type an estimate from memory.
+- [x] Run `sdlc actual --issue 152` to preview measured active time; do not type an estimate from memory.
 - [ ] Run `sdlc close --issue 152 --verified 'focused lifecycle/operation suites and go test -p 20 ./... passed; Lua/terminal/Zellij config+layout checks passed; fake-vs-live Pair/Zellij lifecycle trace passed; M2 Max 100-sample park latency smoke met feedback/commit budgets; manual Couch Alt+x parked then resumed the same tag/native root'`.
 - [ ] Let `sdlc close` dispatch the sole fresh-context boundary review and mutate #152 plus every discovered project to `codecomplete`; do not run a redundant review.
 - [ ] Branch on the exact gate output. On `SHIP`, proceed. On `FIX-THEN-SHIP`, fix the full finding family, add a preventative rule to `workshop/lessons.md`, update tests/atlas/issue Log, and rerun the affected verification before committing; do not blindly rerun close. On a refusal, follow its emitted next action, including rerunning close only when it requires a new reviewed anchor.
