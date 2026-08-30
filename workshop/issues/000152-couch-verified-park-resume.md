@@ -608,6 +608,16 @@ on the durable thread record.
   shell. A regression enables mouse mode through the child stream and proves
   the reset follows it on teardown (ARCH-DRY, ARCH-PURPOSE,
   ARCH-CONSTRAINTS).
+- 2026-08-30: final operator acceptance used isolated
+  `COUCH_STORE_DIR=$(mktemp -d) couch start .`, avoiding all historical Couch
+  rows. Leave completed, the returned shell ignored mouse movement (no encoded
+  bytes), and Resume preserved the exact Pair identity. The two fresh durable
+  observations were tag `couch-e9310be25fed63b0` with native Claude root
+  `b7fe7062-b8d8-4433-b436-19ca2ba58d68`, then tag
+  `couch-69628ced671e30e0` with native Claude root
+  `c2c52d0e-9980-4c87-ba90-8c0efd6e1344`; each ThreadStore ended in one
+  verified Park and its tag ledger retained that same required root across the
+  smoke (ARCH-PURPOSE, ARCH-CONSTRAINTS).
 
 ## Estimate
 

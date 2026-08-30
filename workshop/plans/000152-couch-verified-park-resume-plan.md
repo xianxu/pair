@@ -519,7 +519,7 @@ type CleanupResult struct {
 - [x] Run `git diff --check`; expect no output.
 - [x] Run the opt-in live lifecycle command from Task 11; expect PASS.
 - [x] Run the opt-in latency command from this task; expect PASS on the M2 Max.
-- [ ] Smoke `pair-dev` under Couch: actor-focused Alt+x must paint `parking…` before teardown; Resume must return to the same tag and #155 native root. Record the tag/root before and after in #152's Log.
+- [x] Smoke `pair-dev` under Couch: actor-focused Alt+x must paint `parking…` before teardown; Resume must return to the same tag and #155 native root. Record the tag/root before and after in #152's Log.
 - [x] Commit with `git commit -m "#152: document verified park and resume"`.
 
 ### Task 13: Close and ship #152 before beginning #151
@@ -828,7 +828,7 @@ ARCH-MOCK, ARCH-CONSTRAINTS).
 - [x] Change the real conformance driver to observe rather than manufacture
       completion and exact child death; add the intent-only mutation regression
       that cannot release the helper and therefore fails.
-- [ ] Run the final Couch Alt+x and exact Resume smoke, record the before/after
+- [x] Run the final Couch Alt+x and exact Resume smoke, record the before/after
       tag and native root in the issue Log, check the acceptance item, and rerun
       focused, full (`-p 20`), live, build, and diff verification before close.
 
@@ -853,5 +853,5 @@ release path so child exit, Leave, Escape, and signal teardown cannot drift
       explicitly disabled before `Console.Run` returns and raw termios restores.
 - [x] Add the shared `hostty` reset sequence, include it in Couch release, and
       extend the host-control/core-concept contracts.
-- [ ] Repeat the real Leave smoke and verify mouse movement is inert at the
+- [x] Repeat the real Leave smoke and verify mouse movement is inert at the
       returned shell before completing the round-2 acceptance evidence.
