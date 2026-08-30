@@ -7,6 +7,16 @@ on:
   pull_request:
     paths:
       - "cmd/internal/launcher/session_quiescence*.go"
+      - "cmd/internal/launcher/lifecycle*.go"
+      - "cmd/internal/launcher/markers*.go"
+      - "cmd/internal/launcher/restart*.go"
+      - "cmd/internal/launcher/quit_lifecycle_live_test.go"
+      - "cmd/internal/pairlifecycle/**"
+      - "cmd/internal/pairlifecycletest/**"
+      - "cmd/internal/artifactpath/**"
+      - "cmd/internal/couchcore/park*.go"
+      - "Makefile"
+      - "Makefile.local"
       - "cmd/internal/launcher/osruntime.go"
       - "cmd/internal/couchcore/couch.go"
       - ".github/workflows/couch-zellij-conformance.yml"
@@ -14,6 +24,16 @@ on:
     branches: [main]
     paths:
       - "cmd/internal/launcher/session_quiescence*.go"
+      - "cmd/internal/launcher/lifecycle*.go"
+      - "cmd/internal/launcher/markers*.go"
+      - "cmd/internal/launcher/restart*.go"
+      - "cmd/internal/launcher/quit_lifecycle_live_test.go"
+      - "cmd/internal/pairlifecycle/**"
+      - "cmd/internal/pairlifecycletest/**"
+      - "cmd/internal/artifactpath/**"
+      - "cmd/internal/couchcore/park*.go"
+      - "Makefile"
+      - "Makefile.local"
       - "cmd/internal/launcher/osruntime.go"
       - "cmd/internal/couchcore/couch.go"
       - ".github/workflows/couch-zellij-conformance.yml"

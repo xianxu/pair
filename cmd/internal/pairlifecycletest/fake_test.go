@@ -122,6 +122,26 @@ func TestFakePairLifecycleStageFailureIsRetryable(t *testing.T) {
 	}
 }
 
+func TestQuitLifecycleConformanceScenarioFake(t *testing.T) {
+	fake := New(time.Unix(100, 0).UTC())
+	request := testRequest()
+	fake.SetSession(request.Session, true)
+	trace, err := RunConformanceScenario(context.Background(), fake, request)
+	if err != nil {
+		t.Fatal(err)
+	}
+	want := EffectTrace{
+		"request:prepared", "restart:prepared-request", "request:committed", "restart:committed-request",
+		"trigger:delivered", "trigger:delivered",
+		"cleanup:session-quiescence", "cleanup:editor-reap", "cleanup:preserve-scrollback",
+		"cleanup:sidecar-cleanup", "cleanup:poller-cleanup", "cleanup:cmux-cleanup",
+		"completion:prepared", "restart:prepared-completion", "completion:committed",
+	}
+	if !reflect.DeepEqual(trace, want) {
+		t.Fatalf("trace = %q, want %q", trace, want)
+	}
+}
+
 func testRequest() pairlifecycle.QuitRequest {
 	return pairlifecycle.QuitRequest{
 		SchemaVersion: pairlifecycle.SchemaVersion,

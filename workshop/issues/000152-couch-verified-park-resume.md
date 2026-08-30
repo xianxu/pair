@@ -504,6 +504,13 @@ on the durable thread record.
   refusal. Child exit changes only console routing and never durable park state.
   Focused operation/interceptor/panel suites passed (ARCH-DRY,
   ARCH-CONSTRAINTS, ARCH-PURPOSE).
+- 2026-08-30: added a reusable redacted lifecycle conformance trace spanning
+  prepared/committed request and completion boundaries, process restart,
+  duplicate delivery, and ordered idempotent cleanup. The opt-in real adapter
+  reuses the controlled Zellij fixture and matches the fake's cleanup trace;
+  both live lifecycle and existing session-quiescence probes passed. Stable
+  lock-holder death after rename remains covered by the pairlifecycle
+  subprocess conformance test (ARCH-MOCK, ARCH-DRY).
 
 ## Estimate
 

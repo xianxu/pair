@@ -471,20 +471,20 @@ type CleanupResult struct {
 - Modify: `.github/workflows/couch-zellij-conformance.yml`
 - Modify: `Makefile`
 
-- [ ] Write `TestQuitLifecycleConformanceScenarioFake` using one reusable scenario driver and redacted `EffectTrace`. Cover committed request, at-least-once duplicate delivery, ordered idempotent effects, immutable completion, restart after every durable boundary, late older-attempt success, and tombstoned-result no-op.
-- [ ] Run `go test -p 20 ./cmd/internal/pairlifecycletest -run '^TestQuitLifecycleConformanceScenarioFake$' -count=1`; expect FAIL before the shared scenario/trace exists.
-- [ ] Implement the reusable scenario driver and extend `FakePairLifecycle` until its one expected redacted trace passes.
-- [ ] Run the fake conformance test again; expect PASS.
-- [ ] Write opt-in `TestQuitLifecycleLive` that executes the same scenario once against `FakePairLifecycle` and once against a controlled real Pair/Zellij driver, redacts PIDs/paths/timestamps, and requires exact trace equality rather than independent assertions.
-- [ ] Add a subprocess checkpoint after completion final-file rename and before directory sync: wait for readiness, kill the holder, then require the next process to acquire the stable inode lock, validate the exact payload, directory-sync it, and return one immutable committed result.
-- [ ] Give every subprocess and controlled Zellij session a context deadline and `t.Cleanup` that kills/reaps the process, removes the exact session, and closes PTYs even on failure; reuse `session_quiescence_live_test.go` setup instead of adding another Zellij parser.
-- [ ] Run `PAIR_LIVE_COUCH=1 go test -p 20 ./cmd/internal/launcher -run '^TestQuitLifecycleLive$' -count=1 -v`; expect FAIL before the real lifecycle driver is complete.
-- [ ] Implement the real driver through the production request/store/trigger/cleanup/completion seams and holder-death recovery.
-- [ ] Run the same live command again; expect PASS with equal fake/real traces and bounded teardown.
-- [ ] Add the live test to `make test-couch-zellij-live`. Update workflow path filters explicitly for `cmd/internal/pairlifecycle/**`, `cmd/internal/pairlifecycletest/**`, `cmd/internal/artifactpath/**`, `cmd/internal/launcher/lifecycle*.go`, `session_quiescence*.go`, `markers*.go`, `restart*.go`, `cmd/internal/couchcore/park*.go`, this live test, `Makefile`, and the workflow itself.
-- [ ] Run `go test -p 20 ./cmd/internal/pairlifecycletest -count=1`; expect PASS before the opt-in live probe.
-- [ ] Run `PAIR_LIVE_COUCH=1 go test -p 20 ./cmd/internal/launcher -run '^TestQuitLifecycleLive$' -count=1 -v`; expect PASS.
-- [ ] Commit with `git commit -m "#152: add park lifecycle conformance"`.
+- [x] Write `TestQuitLifecycleConformanceScenarioFake` using one reusable scenario driver and redacted `EffectTrace`. Cover committed request, at-least-once duplicate delivery, ordered idempotent effects, immutable completion, restart after every durable boundary, late older-attempt success, and tombstoned-result no-op.
+- [x] Run `go test -p 20 ./cmd/internal/pairlifecycletest -run '^TestQuitLifecycleConformanceScenarioFake$' -count=1`; expect FAIL before the shared scenario/trace exists.
+- [x] Implement the reusable scenario driver and extend `FakePairLifecycle` until its one expected redacted trace passes.
+- [x] Run the fake conformance test again; expect PASS.
+- [x] Write opt-in `TestQuitLifecycleLive` that executes the same scenario once against `FakePairLifecycle` and once against a controlled real Pair/Zellij driver, redacts PIDs/paths/timestamps, and requires exact trace equality rather than independent assertions.
+- [x] Add a subprocess checkpoint after completion final-file rename and before directory sync: wait for readiness, kill the holder, then require the next process to acquire the stable inode lock, validate the exact payload, directory-sync it, and return one immutable committed result.
+- [x] Give every subprocess and controlled Zellij session a context deadline and `t.Cleanup` that kills/reaps the process, removes the exact session, and closes PTYs even on failure; reuse `session_quiescence_live_test.go` setup instead of adding another Zellij parser.
+- [x] Run `PAIR_LIVE_COUCH=1 go test -p 20 ./cmd/internal/launcher -run '^TestQuitLifecycleLive$' -count=1 -v`; expect FAIL before the real lifecycle driver is complete.
+- [x] Implement the real driver through the production request/store/trigger/cleanup/completion seams and holder-death recovery.
+- [x] Run the same live command again; expect PASS with equal fake/real traces and bounded teardown.
+- [x] Add the live test to `make test-couch-zellij-live`. Update workflow path filters explicitly for `cmd/internal/pairlifecycle/**`, `cmd/internal/pairlifecycletest/**`, `cmd/internal/artifactpath/**`, `cmd/internal/launcher/lifecycle*.go`, `session_quiescence*.go`, `markers*.go`, `restart*.go`, `cmd/internal/couchcore/park*.go`, this live test, `Makefile`, and the workflow itself.
+- [x] Run `go test -p 20 ./cmd/internal/pairlifecycletest -count=1`; expect PASS before the opt-in live probe.
+- [x] Run `PAIR_LIVE_COUCH=1 go test -p 20 ./cmd/internal/launcher -run '^TestQuitLifecycleLive$' -count=1 -v`; expect PASS.
+- [x] Commit with `git commit -m "#152: add park lifecycle conformance"`.
 
 ### Task 12: Measure the operating envelope and update architecture maps
 

@@ -242,3 +242,48 @@ func attemptKey(request pairlifecycle.QuitRequest) string {
 }
 
 var _ pairlifecycle.QuitLifecycleOps = (*Fake)(nil)
+
+type EffectTrace []string
+
+// RunConformanceScenario drives the durable lifecycle boundaries shared by
+// fake and live adapters. Values are semantic labels only: no PID, path, or
+// timestamp enters the trace.
+func RunConformanceScenario(ctx context.Context, fake *Fake, request pairlifecycle.QuitRequest) (EffectTrace, error) {
+	trace := EffectTrace{}
+	if err := fake.PrepareRequest(request); err != nil {
+		return trace, err
+	}
+	trace = append(trace, "request:prepared")
+	fake.Restart()
+	trace = append(trace, "restart:prepared-request")
+	if err := fake.CommitRequest(request); err != nil {
+		return trace, err
+	}
+	trace = append(trace, "request:committed")
+	fake.Restart()
+	trace = append(trace, "restart:committed-request")
+	for range 2 {
+		if err := fake.DeliverTrigger(request); err != nil {
+			return trace, err
+		}
+		trace = append(trace, "trigger:delivered")
+	}
+	result := pairlifecycle.RunCleanup(ctx, pairlifecycle.CleanupCouch, fake)
+	if result.Outcome != pairlifecycle.CompletionSuccess {
+		return trace, fmt.Errorf("cleanup outcome %q", result.Outcome)
+	}
+	for _, stage := range fake.EffectiveTrace() {
+		trace = append(trace, "cleanup:"+string(stage))
+	}
+	if err := fake.PrepareCompletion(request, result); err != nil {
+		return trace, err
+	}
+	trace = append(trace, "completion:prepared")
+	fake.Restart()
+	trace = append(trace, "restart:prepared-completion")
+	if err := fake.CommitCompletion(request, result); err != nil {
+		return trace, err
+	}
+	trace = append(trace, "completion:committed")
+	return trace, nil
+}
