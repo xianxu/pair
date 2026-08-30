@@ -450,6 +450,16 @@ capacity twice, or change `last_active_at`.
   console. It does not create a fresh actor first, so capacity-one admission
   cannot strand the parked root. The CLI path is covered through the stateful
   process/session fake (ARCH-PURPOSE, ARCH-PURE, ARCH-MOCK).
+- 2026-08-30: close-gate round 1 returned REWORK (BR-1..BR-3). Split startup
+  inspection from a context-bound serial recovery worker, so a barrier-blocked
+  production trigger cannot delay construction. Generalized the lifecycle
+  scenario over one driver interface and added a controlled real adapter that
+  exercises crash-after-rename request/completion recovery, duplicate production
+  `TriggerQuit`, real Zellij cleanup, exact OS child death, and ThreadStore
+  finalization with full trace equality against the stateful fake. The live
+  workflow now watches `artifactcollision*.go`. Appended an authoritative
+  delivered Core Concepts table and a Go-AST contract resolving all 19 entries
+  (ARCH-PURE, ARCH-PURPOSE, ARCH-MOCK, ARCH-CONSTRAINTS).
 
 ### 2026-08-25
 

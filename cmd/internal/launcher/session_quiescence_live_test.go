@@ -9,7 +9,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/creack/pty"
+	"github.com/xianxu/pair/cmd/internal/pairlifecycletest"
 )
 
 func TestMain(m *testing.M) {
@@ -122,44 +122,14 @@ func startControlledZellijSession(t *testing.T) string {
 	if os.Getenv("PAIR_LIVE_COUCH") != "1" {
 		t.Skip("set PAIR_LIVE_COUCH=1")
 	}
-	if _, err := exec.LookPath("zellij"); err != nil {
-		t.Fatal("zellij is required for live session-quiescence conformance")
-	}
 	session := fmt.Sprintf("pair-quiesce-live-%d", os.Getpid())
-	_ = exec.Command("zellij", "delete-session", session, "--force").Run()
-
-	cmd := exec.Command("zellij", "--session", session)
-	cmd.Env = append(os.Environ(), "TERM=xterm-256color")
-	ptmx, err := pty.StartWithSize(cmd, &pty.Winsize{Rows: 24, Cols: 80})
+	ctx, cancel := context.WithTimeout(t.Context(), 10*time.Second)
+	defer cancel()
+	fixture, err := pairlifecycletest.StartControlledZellij(ctx, session)
 	if err != nil {
 		t.Fatal(err)
 	}
-	t.Cleanup(func() {
-		_ = ptmx.Close()
-		_ = cmd.Process.Kill()
-		_ = exec.Command("zellij", "delete-session", session, "--force").Run()
-	})
-	go func() {
-		buf := make([]byte, 4096)
-		for {
-			if _, err := ptmx.Read(buf); err != nil {
-				return
-			}
-		}
-	}()
-
-	ops := newOSSessionQuiescenceOps()
-	deadline := time.Now().Add(10 * time.Second)
-	for {
-		present, probeErr := ops.SessionPresent(t.Context(), session)
-		if probeErr == nil && present {
-			break
-		}
-		if time.Now().After(deadline) {
-			t.Fatalf("throwaway zellij session never appeared: %v", probeErr)
-		}
-		time.Sleep(100 * time.Millisecond)
-	}
+	t.Cleanup(func() { _ = fixture.Close() })
 
 	return session
 }

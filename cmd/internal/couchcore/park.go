@@ -352,17 +352,6 @@ func (c *PairLifecycleController) runActiveAttempt(ctx context.Context, result P
 		return result, err
 	}
 	current = result.Thread
-	if binding.Present {
-		if err := c.Sessions.TriggerQuit(binding.Name, launcher.QuitIntent{
-			Version: launcher.QuitIntentVersion, Kind: launcher.QuitIntentCouch,
-			Request: &launcher.QuitRequestReference{
-				DataDir: c.DataDir, RepoScope: current.Address.RepoScope, Tag: string(current.Address.Tag),
-				Nonce: current.Park.Identity.Nonce, Attempt: request.Attempt,
-			},
-		}); err != nil {
-			return result, err
-		}
-	}
 	if !await {
 		completion, found, err := c.Lifecycle.ObserveCompletion(paths, request)
 		if err != nil || !found {
@@ -373,6 +362,17 @@ func (c *PairLifecycleController) runActiveAttempt(ctx context.Context, result P
 			return next, nil
 		}
 		return next, err
+	}
+	if binding.Present {
+		if err := c.Sessions.TriggerQuit(binding.Name, launcher.QuitIntent{
+			Version: launcher.QuitIntentVersion, Kind: launcher.QuitIntentCouch,
+			Request: &launcher.QuitRequestReference{
+				DataDir: c.DataDir, RepoScope: current.Address.RepoScope, Tag: string(current.Address.Tag),
+				Nonce: current.Park.Identity.Nonce, Attempt: request.Attempt,
+			},
+		}); err != nil {
+			return result, err
+		}
 	}
 	return c.awaitCompletionAndChildDeath(ctx, result, current, paths, request)
 }

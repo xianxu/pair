@@ -7,7 +7,6 @@ import (
 	"time"
 
 	"github.com/xianxu/pair/cmd/internal/pairlifecycle"
-	"github.com/xianxu/pair/cmd/internal/pairlifecycletest"
 )
 
 type liveQuitLifecycleOps struct {
@@ -46,6 +45,10 @@ func (o *liveQuitLifecycleOps) CleanupCmux(context.Context) error {
 }
 func (o *liveQuitLifecycleOps) Now() time.Time { return time.Unix(100, 0).UTC() }
 
+// TestQuitLifecycleLive keeps a focused production cleanup-stage probe. The
+// complete fake/real transaction comparison, including production TriggerQuit,
+// crash recovery, child death, and ThreadStore finalization, is
+// couchcore.TestParkLifecycleLive.
 func TestQuitLifecycleLive(t *testing.T) {
 	session := startControlledZellijSession(t)
 	ops := &liveQuitLifecycleOps{
@@ -63,30 +66,6 @@ func TestQuitLifecycleLive(t *testing.T) {
 	}
 	if !reflect.DeepEqual(ops.trace, want) {
 		t.Fatalf("live trace = %v, want %v", ops.trace, want)
-	}
-	fake := pairlifecycletest.New(time.Unix(100, 0).UTC())
-	request := pairlifecycle.QuitRequest{
-		SchemaVersion: pairlifecycle.SchemaVersion,
-		Identity:      pairlifecycle.Identity{Nonce: "live-trace", RepoScope: "scope", Tag: "tag", PID: 42, ProcessIdentity: "process"},
-		Attempt:       1, Session: "redacted", Mode: pairlifecycle.CleanupPreserveScrollback, CompletionKey: "completion",
-	}
-	fake.SetSession(request.Session, true)
-	fakeTrace, err := pairlifecycletest.RunConformanceScenario(context.Background(), fake, request)
-	if err != nil {
-		t.Fatal(err)
-	}
-	var fakeCleanup []string
-	for _, event := range fakeTrace {
-		if len(event) > len("cleanup:") && event[:len("cleanup:")] == "cleanup:" {
-			fakeCleanup = append(fakeCleanup, event)
-		}
-	}
-	var liveCleanup []string
-	for _, stage := range ops.trace {
-		liveCleanup = append(liveCleanup, "cleanup:"+string(stage))
-	}
-	if !reflect.DeepEqual(liveCleanup, fakeCleanup) {
-		t.Fatalf("fake/live cleanup traces differ: fake %v live %v", fakeCleanup, liveCleanup)
 	}
 }
 

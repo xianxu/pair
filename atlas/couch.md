@@ -177,9 +177,11 @@ indexed Pair/Zellij session. That deletion returns Pair's blocking handoff so
 Pair can consume the intent and execute its shared full-quit cleanup. Couch
 polls under a 15-second operation deadline for both the matching durable
 completion and death (or PID-identity replacement) of the exact recorded Pair
-child; completion alone never finalizes. Construction-time recovery performs
-one non-blocking trigger/observation pass so Couch startup does not inherit the
-shutdown deadline (ARCH-PURE, ARCH-MOCK, ARCH-CONSTRAINTS).
+child; completion alone never finalizes. Construction performs only durable
+publication/completion inspection. After the live owner is composed, one
+context-bound worker serially performs external Pair/Zellij recovery; blocked
+teardown therefore cannot delay startup or fan out across pending parks
+(ARCH-PURE, ARCH-MOCK, ARCH-CONSTRAINTS).
 
 There is no numbered jump or `:` command state. Tab/thread actions are deferred
 to #151 after #149 provides the durable work-thread identity those actions

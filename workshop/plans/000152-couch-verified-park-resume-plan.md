@@ -733,3 +733,64 @@ verified-parked address through the existing live-owner operation, attaches its
 PTY, and makes it the new root console. Add pure console-decision coverage and
 a stateful-fake CLI test proving lease ownership plus exact same-tag launch
 (ARCH-PURPOSE, ARCH-PURE, ARCH-MOCK).
+
+### 2026-08-30 — boundary-review remediation: non-blocking recovery and full conformance
+
+**Reason:** close-gate round 1 found three contract classes: construction still
+entered blocking Zellij teardown, the live probe compared only cleanup stages
+instead of the complete production lifecycle, and the design-time Core Concepts
+table no longer matched the delivered symbol names and paths.
+
+**Approved design:** construction performs durable inspection only. The CLI
+composition root starts one context-bound, concurrency-one recovery worker after
+the UI is available; blocked teardown cannot delay Couch startup. A shared
+scenario driver runs request publication, restart, duplicate delivery through
+the production trigger, Pair cleanup/commit, exact child death, and finalization
+against both the stateful fake and a controlled real Store/Zellij driver, then
+compares one redacted trace. The workflow watches every production file on that
+path. The delivered concept table below is mechanically checked against Go AST
+declarations so it cannot silently drift again (ARCH-PURE, ARCH-PURPOSE,
+ARCH-MOCK, ARCH-CONSTRAINTS).
+
+#### Delivered Core Concepts (authoritative)
+
+| Name | Kind | Lives in | Status |
+|------|------|----------|--------|
+| `Identity` | PURE | `cmd/internal/pairlifecycle/model.go` | new |
+| `QuitRequest` | PURE | `cmd/internal/pairlifecycle/model.go` | new |
+| `QuitCompletion` | PURE | `cmd/internal/pairlifecycle/model.go` | new |
+| `CleanupResult` | PURE | `cmd/internal/pairlifecycle/cleanup.go` | new |
+| `ParkTransaction` | PURE | `cmd/internal/couchcore/parktransaction.go` | new |
+| `ParkAttempt` | PURE | `cmd/internal/couchcore/parktransaction.go` | new |
+| `ParkDecision` | PURE | `cmd/internal/couchcore/parktransaction.go` | new |
+| `VerifiedPark` | PURE | `cmd/internal/couchcore/parktransaction.go` | new |
+| `ResumeEligibility` | PURE | `cmd/internal/couchcore/resume.go` | new |
+| `ThreadRecord` | PURE | `cmd/internal/couchcore/thread.go` | modified |
+| `Store` | INTEGRATION | `cmd/internal/pairlifecycle/store.go` | new |
+| `OSRuntime.Lock` | INTEGRATION | `cmd/internal/pairlifecycle/store_unix.go` | new |
+| `QuitLifecycleOps` | INTEGRATION | `cmd/internal/pairlifecycle/cleanup.go` | new |
+| `ThreadStore` | INTEGRATION | `cmd/internal/couchcore/threadstore.go` | modified |
+| `PairLifecycleController` | INTEGRATION | `cmd/internal/couchcore/park.go` | new |
+| `NativeBindingResolver` | INTEGRATION | `cmd/internal/couchcore/resume.go` | new |
+| `Couch.launchTrackedThread` | INTEGRATION | `cmd/internal/couchcore/launch_existing.go` | new |
+| `operationQueue` | INTEGRATION | `cmd/internal/couchtty/operation_queue.go` | new |
+| `Fake` | INTEGRATION | `cmd/internal/pairlifecycletest/fake.go` | new |
+
+#### Remediation execution map
+
+- [x] Add a barrier regression proving `NewCouchWith` returns while a pending
+      park's production trigger is blocked; split durable startup inspection
+      from the context-bound serial recovery worker and wire that worker at the
+      CLI composition root.
+- [x] Generalize `RunConformanceScenario` over a driver interface; add a
+      controlled real driver using the portable Store, production
+      `ScopedThreadArtifactCollisionChecker.TriggerQuit`, the shared Pair
+      cleanup consumer, real Zellij, and exact process-death/finalization proof;
+      require full fake/real trace equality.
+- [x] Extend the scheduled/PR workflow path set to cover
+      `artifactcollision*.go`, and add a plan-contract test that parses this
+      authoritative table and resolves every listed Go declaration and path.
+- [x] Run focused tests after each red/green cycle, then
+      `go test -p 20 ./... -count=1`, the supported live conformance command,
+      builds, and `git diff --check`; re-run `sdlc close --issue 152` to dispose
+      BR-1 through BR-3.

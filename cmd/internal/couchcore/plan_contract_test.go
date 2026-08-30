@@ -682,3 +682,94 @@ func TestIssue149BlockedRunnersDelegateToOneHandshakeAuthority(t *testing.T) {
 		}
 	}
 }
+
+func TestIssue152DeliveredCoreConceptsResolveToGoDeclarations(t *testing.T) {
+	root := filepath.Clean(filepath.Join("..", "..", ".."))
+	planPath := filepath.Join(root, "workshop", "plans", "000152-couch-verified-park-resume-plan.md")
+	raw, err := os.ReadFile(planPath)
+	if err != nil {
+		t.Fatal(err)
+	}
+	const heading = "#### Delivered Core Concepts (authoritative)"
+	section := strings.SplitN(string(raw), heading, 2)
+	if len(section) != 2 {
+		t.Fatalf("plan has no %q section", heading)
+	}
+	body := strings.SplitN(section[1], "\n#### ", 2)[0]
+	resolved := 0
+	for _, line := range strings.Split(body, "\n") {
+		if !strings.HasPrefix(line, "| `") {
+			continue
+		}
+		cells := strings.Split(line, "|")
+		if len(cells) < 6 {
+			t.Fatalf("malformed delivered concept row %q", line)
+		}
+		name := strings.Trim(strings.TrimSpace(cells[1]), "`")
+		kind := strings.TrimSpace(cells[2])
+		path := strings.Trim(strings.TrimSpace(cells[3]), "`")
+		status := strings.TrimSpace(cells[4])
+		if kind != "PURE" && kind != "INTEGRATION" {
+			t.Errorf("%s has invalid kind %q", name, kind)
+		}
+		if status != "new" && status != "modified" && status != "deleted" {
+			t.Errorf("%s has invalid status %q", name, status)
+		}
+		if err := requireGoDeclaration(filepath.Join(root, path), name); err != nil {
+			t.Errorf("%s at %s: %v", name, path, err)
+		}
+		resolved++
+	}
+	if resolved != 19 {
+		t.Fatalf("resolved %d delivered concepts, want 19", resolved)
+	}
+}
+
+func requireGoDeclaration(path, qualifiedName string) error {
+	file, err := parser.ParseFile(token.NewFileSet(), path, nil, 0)
+	if err != nil {
+		return err
+	}
+	receiver, name, isMethod := strings.Cut(qualifiedName, ".")
+	if !isMethod {
+		name = receiver
+	}
+	for _, declaration := range file.Decls {
+		switch value := declaration.(type) {
+		case *ast.GenDecl:
+			if isMethod {
+				continue
+			}
+			for _, spec := range value.Specs {
+				if typeSpec, ok := spec.(*ast.TypeSpec); ok && typeSpec.Name.Name == name {
+					return nil
+				}
+			}
+		case *ast.FuncDecl:
+			if value.Name.Name != name {
+				continue
+			}
+			if !isMethod && value.Recv == nil {
+				return nil
+			}
+			if isMethod && receiverName(value.Recv) == receiver {
+				return nil
+			}
+		}
+	}
+	return fmt.Errorf("Go declaration not found")
+}
+
+func receiverName(fields *ast.FieldList) string {
+	if fields == nil || len(fields.List) != 1 {
+		return ""
+	}
+	expression := fields.List[0].Type
+	if pointer, ok := expression.(*ast.StarExpr); ok {
+		expression = pointer.X
+	}
+	if identifier, ok := expression.(*ast.Ident); ok {
+		return identifier.Name
+	}
+	return ""
+}

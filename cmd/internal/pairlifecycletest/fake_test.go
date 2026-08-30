@@ -126,7 +126,7 @@ func TestQuitLifecycleConformanceScenarioFake(t *testing.T) {
 	fake := New(time.Unix(100, 0).UTC())
 	request := testRequest()
 	fake.SetSession(request.Session, true)
-	trace, err := RunConformanceScenario(context.Background(), fake, request)
+	trace, err := RunConformanceScenario(context.Background(), NewFakeConformanceDriver(fake), request)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -136,9 +136,13 @@ func TestQuitLifecycleConformanceScenarioFake(t *testing.T) {
 		"cleanup:session-quiescence", "cleanup:editor-reap", "cleanup:preserve-scrollback",
 		"cleanup:sidecar-cleanup", "cleanup:poller-cleanup", "cleanup:cmux-cleanup",
 		"completion:prepared", "restart:prepared-completion", "completion:committed",
+		"child:dead", "thread:finalized",
 	}
 	if !reflect.DeepEqual(trace, want) {
 		t.Fatalf("trace = %q, want %q", trace, want)
+	}
+	if !fake.Finalized(request) {
+		t.Fatal("scenario did not finalize the fake thread")
 	}
 }
 

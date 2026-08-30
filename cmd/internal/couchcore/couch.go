@@ -54,6 +54,31 @@ func (c *Couch) ReconcileActiveParks(ctx context.Context) error {
 	return c.PairLifecycle.ReconcileActive(ctx)
 }
 
+// RecoverActiveParks performs the blocking half of restart recovery serially.
+// The composition root runs it in one context-bound worker after construction,
+// so external Pair/Zellij teardown can never delay startup or fan out.
+func (c *Couch) RecoverActiveParks(ctx context.Context) error {
+	if c == nil || c.PairLifecycle == nil {
+		return errors.New("Couch Pair lifecycle controller is unavailable")
+	}
+	snapshot, err := c.Threads.Snapshot()
+	if err != nil {
+		return err
+	}
+	var result error
+	for _, record := range snapshot.Records {
+		if record.Park == nil {
+			continue
+		}
+		_, recoverErr := c.PairLifecycle.Recover(ctx, record.Address)
+		result = errors.Join(result, recoverErr)
+		if ctx.Err() != nil {
+			break
+		}
+	}
+	return result
+}
+
 func New(namespace CouchNamespace, r Runner, p PathOps, g GitRunner, proc ProcOps, s Store, c Clock, ids IDGen, resolver PolicyResolver, entropy io.Reader, artifacts ThreadArtifactController) (*Couch, error) {
 	if namespace.Dir() == "" {
 		return nil, fmt.Errorf("new couch: empty namespace")

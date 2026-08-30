@@ -2583,3 +2583,19 @@ an unsupported owner through every downstream projection (`ARCH-DRY`,
   `t.TempDir` creation so writers are stopped before the temporary directory's
   automatically registered removal; the reverse order creates intermittent
   “directory not empty” cleanup failures.
+
+## 2026-08-30 — Recovery and conformance must cross the production boundary
+
+- Construction-time reconciliation may inspect durable state, but it must not
+  enter bounded-yet-blocking external teardown. Pin startup with a barrier at
+  the production trigger, then run recovery in one context-owned serial worker
+  (`ARCH-PURE`, `ARCH-CONSTRAINTS`).
+- A fake/real conformance claim must drive the complete semantic scenario
+  through the production entrypoints and let the shared runner assign trace
+  labels. Comparing a hand-selected suffix such as cleanup stages allows the
+  transaction boundary that motivated the fake to drift untested (`ARCH-MOCK`,
+  `ARCH-PURPOSE`).
+- A plan's concept inventory must use delivered symbol names and paths. When the
+  table is a review input, parse it and resolve declarations mechanically so a
+  refactor cannot leave design-time aliases masquerading as current code
+  (`ARCH-PURPOSE`).

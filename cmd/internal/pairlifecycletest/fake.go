@@ -42,6 +42,8 @@ type Fake struct {
 	sessions    map[string]bool
 	triggers    map[string]int
 	inProgress  map[string]bool
+	children    map[string]bool
+	finalized   map[string]bool
 	done        map[string]map[pairlifecycle.CleanupStage]bool
 	failures    map[pairlifecycle.CleanupStage]error
 	active      string
@@ -53,6 +55,7 @@ func New(now time.Time) *Fake {
 	return &Fake{
 		now: now, requests: map[string]requestState{}, completions: map[string]completionState{},
 		sessions: map[string]bool{}, triggers: map[string]int{}, inProgress: map[string]bool{},
+		children: map[string]bool{}, finalized: map[string]bool{},
 		done: map[string]map[pairlifecycle.CleanupStage]bool{}, failures: map[pairlifecycle.CleanupStage]error{},
 	}
 }
@@ -109,6 +112,7 @@ func (f *Fake) DeliverTrigger(request pairlifecycle.QuitRequest) error {
 		return fmt.Errorf("exact session %q is absent", request.Session)
 	}
 	f.triggers[key]++
+	f.children[key] = true
 	if _, completed := f.completions[key]; !completed {
 		f.inProgress[key] = true
 		f.active = key
@@ -157,6 +161,38 @@ func (f *Fake) CompletionState(request pairlifecycle.QuitRequest) PublicationSta
 	f.mu.Lock()
 	defer f.mu.Unlock()
 	return f.completions[attemptKey(request)].state
+}
+
+func (f *Fake) ExitChild(request pairlifecycle.QuitRequest) {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	f.children[attemptKey(request)] = false
+}
+
+func (f *Fake) ChildLive(request pairlifecycle.QuitRequest) bool {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	return f.children[attemptKey(request)]
+}
+
+func (f *Fake) Finalize(request pairlifecycle.QuitRequest) error {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	key := attemptKey(request)
+	if f.completions[key].state != Committed {
+		return errors.New("completion is not committed")
+	}
+	if f.children[key] {
+		return errors.New("exact child is still live")
+	}
+	f.finalized[key] = true
+	return nil
+}
+
+func (f *Fake) Finalized(request pairlifecycle.QuitRequest) bool {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	return f.finalized[attemptKey(request)]
 }
 
 func (f *Fake) Restart() {
@@ -245,45 +281,119 @@ var _ pairlifecycle.QuitLifecycleOps = (*Fake)(nil)
 
 type EffectTrace []string
 
-// RunConformanceScenario drives the durable lifecycle boundaries shared by
-// fake and live adapters. Values are semantic labels only: no PID, path, or
-// timestamp enters the trace.
-func RunConformanceScenario(ctx context.Context, fake *Fake, request pairlifecycle.QuitRequest) (EffectTrace, error) {
+// ConformanceDriver is the complete semantic boundary shared by the stateful
+// fake and controlled production adapter. The scenario owns trace labels, so
+// an adapter cannot make itself conform merely by returning a matching trace.
+type ConformanceDriver interface {
+	PrepareRequest(pairlifecycle.QuitRequest) error
+	Restart() error
+	CommitRequest(pairlifecycle.QuitRequest) error
+	DeliverTrigger(pairlifecycle.QuitRequest) error
+	CleanupAndPrepareCompletion(context.Context, pairlifecycle.QuitRequest) (pairlifecycle.CleanupResult, []pairlifecycle.CleanupStage, error)
+	CommitCompletion(pairlifecycle.QuitRequest, pairlifecycle.CleanupResult) error
+	ObserveChildDeath(pairlifecycle.QuitRequest) error
+	Finalize(pairlifecycle.QuitRequest) error
+}
+
+type fakeConformanceDriver struct{ fake *Fake }
+
+func NewFakeConformanceDriver(fake *Fake) ConformanceDriver {
+	if fake == nil {
+		return nil
+	}
+	return &fakeConformanceDriver{fake: fake}
+}
+
+func (d *fakeConformanceDriver) PrepareRequest(request pairlifecycle.QuitRequest) error {
+	return d.fake.PrepareRequest(request)
+}
+func (d *fakeConformanceDriver) Restart() error {
+	d.fake.Restart()
+	return nil
+}
+func (d *fakeConformanceDriver) CommitRequest(request pairlifecycle.QuitRequest) error {
+	return d.fake.CommitRequest(request)
+}
+func (d *fakeConformanceDriver) DeliverTrigger(request pairlifecycle.QuitRequest) error {
+	return d.fake.DeliverTrigger(request)
+}
+func (d *fakeConformanceDriver) CleanupAndPrepareCompletion(ctx context.Context, request pairlifecycle.QuitRequest) (pairlifecycle.CleanupResult, []pairlifecycle.CleanupStage, error) {
+	result := pairlifecycle.RunCleanup(ctx, pairlifecycle.CleanupCouch, d.fake)
+	if result.Outcome != pairlifecycle.CompletionSuccess {
+		return result, nil, fmt.Errorf("cleanup outcome %q", result.Outcome)
+	}
+	if err := d.fake.PrepareCompletion(request, result); err != nil {
+		return result, nil, err
+	}
+	return result, d.fake.EffectiveTrace(), nil
+}
+func (d *fakeConformanceDriver) CommitCompletion(request pairlifecycle.QuitRequest, result pairlifecycle.CleanupResult) error {
+	return d.fake.CommitCompletion(request, result)
+}
+func (d *fakeConformanceDriver) ObserveChildDeath(request pairlifecycle.QuitRequest) error {
+	d.fake.ExitChild(request)
+	if d.fake.ChildLive(request) {
+		return errors.New("exact child is still live")
+	}
+	return nil
+}
+func (d *fakeConformanceDriver) Finalize(request pairlifecycle.QuitRequest) error {
+	return d.fake.Finalize(request)
+}
+
+// RunConformanceScenario drives the same complete lifecycle against every
+// adapter. Values are semantic labels only: no PID, path, or timestamp enters
+// the trace.
+func RunConformanceScenario(ctx context.Context, driver ConformanceDriver, request pairlifecycle.QuitRequest) (EffectTrace, error) {
 	trace := EffectTrace{}
-	if err := fake.PrepareRequest(request); err != nil {
+	if driver == nil {
+		return trace, errors.New("conformance driver is nil")
+	}
+	if err := driver.PrepareRequest(request); err != nil {
 		return trace, err
 	}
 	trace = append(trace, "request:prepared")
-	fake.Restart()
+	if err := driver.Restart(); err != nil {
+		return trace, err
+	}
 	trace = append(trace, "restart:prepared-request")
-	if err := fake.CommitRequest(request); err != nil {
+	if err := driver.CommitRequest(request); err != nil {
 		return trace, err
 	}
 	trace = append(trace, "request:committed")
-	fake.Restart()
+	if err := driver.Restart(); err != nil {
+		return trace, err
+	}
 	trace = append(trace, "restart:committed-request")
 	for range 2 {
-		if err := fake.DeliverTrigger(request); err != nil {
+		if err := driver.DeliverTrigger(request); err != nil {
 			return trace, err
 		}
 		trace = append(trace, "trigger:delivered")
 	}
-	result := pairlifecycle.RunCleanup(ctx, pairlifecycle.CleanupCouch, fake)
-	if result.Outcome != pairlifecycle.CompletionSuccess {
-		return trace, fmt.Errorf("cleanup outcome %q", result.Outcome)
-	}
-	for _, stage := range fake.EffectiveTrace() {
-		trace = append(trace, "cleanup:"+string(stage))
-	}
-	if err := fake.PrepareCompletion(request, result); err != nil {
+	result, stages, err := driver.CleanupAndPrepareCompletion(ctx, request)
+	if err != nil {
 		return trace, err
 	}
+	for _, stage := range stages {
+		trace = append(trace, "cleanup:"+string(stage))
+	}
 	trace = append(trace, "completion:prepared")
-	fake.Restart()
+	if err := driver.Restart(); err != nil {
+		return trace, err
+	}
 	trace = append(trace, "restart:prepared-completion")
-	if err := fake.CommitCompletion(request, result); err != nil {
+	if err := driver.CommitCompletion(request, result); err != nil {
 		return trace, err
 	}
 	trace = append(trace, "completion:committed")
+	if err := driver.ObserveChildDeath(request); err != nil {
+		return trace, err
+	}
+	trace = append(trace, "child:dead")
+	if err := driver.Finalize(request); err != nil {
+		return trace, err
+	}
+	trace = append(trace, "thread:finalized")
 	return trace, nil
 }

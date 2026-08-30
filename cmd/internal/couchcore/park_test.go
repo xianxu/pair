@@ -596,7 +596,7 @@ func TestParkCoordinatorTransitionMatrix(t *testing.T) {
 	})
 }
 
-func TestParkCoordinatorRestartReconcilesActiveOnly(t *testing.T) {
+func TestParkCoordinatorRestartInspectionAndRecoveryAreSeparate(t *testing.T) {
 	store, ns, active := createControllerThread(t)
 	identity := ParkIdentity{
 		Nonce: "park-restart", Address: active.Address, PID: 42, ProcessIdentity: "pair-helper",
@@ -621,7 +621,7 @@ func TestParkCoordinatorRestartReconcilesActiveOnly(t *testing.T) {
 		Proc:  NewFakeProcOps(),
 		Clock: FixedClock{T: now}, Nonce: func() (string, error) { return "unused", nil },
 	}
-	couch := &Couch{PairLifecycle: &controller}
+	couch := &Couch{Threads: store, PairLifecycle: &controller}
 	if err := couch.ReconcileActiveParks(context.Background()); err != nil {
 		t.Fatalf("ReconcileActive: %v", err)
 	}
@@ -629,8 +629,16 @@ func TestParkCoordinatorRestartReconcilesActiveOnly(t *testing.T) {
 	if err != nil || reconciled.Park == nil || reconciled.Park.Phase != ParkAwaitingCompletion || len(reconciled.Park.Attempts) != 1 {
 		t.Fatalf("reconciled active = %+v, %v", reconciled, err)
 	}
-	if len(artifacts.TriggeredQuits()) != 1 || lifecycle.lastRequest.Attempt != 1 {
-		t.Fatalf("restart effects: triggers=%v request=%+v", artifacts.TriggeredQuits(), lifecycle.lastRequest)
+	if len(artifacts.TriggeredQuits()) != 0 || lifecycle.lastRequest.Attempt != 1 {
+		t.Fatalf("inspection effects: triggers=%v request=%+v", artifacts.TriggeredQuits(), lifecycle.lastRequest)
+	}
+	controller.CompletionTimeout = 0
+	recoveryErr := couch.RecoverActiveParks(context.Background())
+	if recoveryErr == nil {
+		t.Fatal("recovery without completion returned success")
+	}
+	if len(artifacts.TriggeredQuits()) != 1 {
+		t.Fatalf("worker recovery triggers = %v, err=%v", artifacts.TriggeredQuits(), recoveryErr)
 	}
 }
 
@@ -660,10 +668,39 @@ func TestParkCoordinatorConstructorReconcilesActiveOnly(t *testing.T) {
 		dataDir:                            t.TempDir(),
 	}
 	artifacts.SetPairSession(active.Address, "pair-exact", true)
-	couch, err := New(
-		ns, NewFakeRunner(), NewFakePathOps(nil), NewFakeGit(nil), NewFakeProcOps(), NewStore(ns.Dir()),
-		FixedClock{T: now}, NewFixedIDGen("id"), NewFakePolicyResolver(), newIncrementingEntropy(), artifacts,
-	)
+	triggerEntered := make(chan struct{})
+	releaseTrigger := make(chan struct{})
+	artifacts.TriggerQuitHook = func(string, launcher.QuitIntent) error {
+		close(triggerEntered)
+		<-releaseTrigger
+		return nil
+	}
+	type newResult struct {
+		couch *Couch
+		err   error
+	}
+	constructed := make(chan newResult, 1)
+	go func() {
+		couch, err := New(
+			ns, NewFakeRunner(), NewFakePathOps(nil), NewFakeGit(nil), NewFakeProcOps(), NewStore(ns.Dir()),
+			FixedClock{T: now}, NewFixedIDGen("id"), NewFakePolicyResolver(), newIncrementingEntropy(), artifacts,
+		)
+		constructed <- newResult{couch: couch, err: err}
+	}()
+	var couch *Couch
+	select {
+	case result := <-constructed:
+		couch, err = result.couch, result.err
+	case <-triggerEntered:
+		close(releaseTrigger)
+		result := <-constructed
+		t.Fatalf("New entered blocking Pair/Zellij recovery before returning: %v", result.err)
+	case <-time.After(100 * time.Millisecond):
+		close(releaseTrigger)
+		result := <-constructed
+		t.Fatalf("New blocked without reaching the trigger barrier: %v", result.err)
+	}
+	close(releaseTrigger)
 	if err != nil {
 		t.Fatalf("New: %v", err)
 	}
@@ -674,7 +711,21 @@ func TestParkCoordinatorConstructorReconcilesActiveOnly(t *testing.T) {
 	if err != nil || reconciled.Park == nil || reconciled.Park.Phase != ParkAwaitingCompletion {
 		t.Fatalf("constructor reconciliation = %+v, %v", reconciled, err)
 	}
-	if len(artifacts.TriggeredQuits()) != 1 {
+	if len(artifacts.TriggeredQuits()) != 0 {
 		t.Fatalf("constructor triggers = %v", artifacts.TriggeredQuits())
+	}
+
+	couch.PairLifecycle.CompletionTimeout = 0
+	recoveryDone := make(chan error, 1)
+	go func() { recoveryDone <- couch.RecoverActiveParks(context.Background()) }()
+	select {
+	case <-triggerEntered:
+	case err := <-recoveryDone:
+		t.Fatalf("recovery returned before entering trigger: %v", err)
+	case <-time.After(time.Second):
+		t.Fatal("recovery did not enter trigger")
+	}
+	if err := <-recoveryDone; err == nil {
+		t.Fatal("recovery without completion returned success")
 	}
 }

@@ -125,15 +125,28 @@ func runCleanupContext(ctx context.Context, env Env, rt Runtime, step launchStep
 		return cleanupSetupFailure(err), true
 	}
 	var cleanupResult pairlifecycle.CleanupResult
-	completion, err := (pairlifecycle.Store{Runtime: pairlifecycle.OSRuntime{}}).ConsumeAttempt(ctx, lifecyclePaths, ref.Attempt, func(callbackContext context.Context, _ *pairlifecycle.LockedAttempt, request pairlifecycle.QuitRequest) pairlifecycle.CleanupResult {
-		if request.Identity.Nonce != ref.Nonce || request.Identity.RepoScope != ref.RepoScope || request.Identity.Tag != ref.Tag || request.Attempt != ref.Attempt || request.Session != step.session {
+	cleanupResult, err = ConsumeCouchAttempt(ctx,
+		pairlifecycle.Store{Runtime: pairlifecycle.OSRuntime{}}, lifecyclePaths, *ref, step.session, ops)
+	if err != nil {
+		return cleanupSetupFailure(err), true
+	}
+	return cleanupResult, true
+}
+
+// ConsumeCouchAttempt is Pair's production request-authority/cleanup/completion
+// boundary. The outer launcher resolves local artifacts and builds the effect
+// adapter; conformance drivers can invoke this same durable seam directly.
+func ConsumeCouchAttempt(ctx context.Context, store pairlifecycle.Store, paths artifactpath.LifecyclePaths, ref QuitRequestReference, session string, ops pairlifecycle.QuitLifecycleOps) (pairlifecycle.CleanupResult, error) {
+	var cleanupResult pairlifecycle.CleanupResult
+	completion, err := store.ConsumeAttempt(ctx, paths, ref.Attempt, func(callbackContext context.Context, _ *pairlifecycle.LockedAttempt, request pairlifecycle.QuitRequest) pairlifecycle.CleanupResult {
+		if request.Identity.Nonce != ref.Nonce || request.Identity.RepoScope != ref.RepoScope || request.Identity.Tag != ref.Tag || request.Attempt != ref.Attempt || request.Session != session {
 			return cleanupSetupFailure(errors.New("committed Couch request does not match active Pair session"))
 		}
 		cleanupResult = pairlifecycle.RunCleanup(callbackContext, pairlifecycle.CleanupCouch, ops)
 		return cleanupResult
 	})
 	if err != nil {
-		return cleanupSetupFailure(err), true
+		return cleanupResult, err
 	}
 	if cleanupResult.CompletedAt.IsZero() {
 		cleanupResult = pairlifecycle.CleanupResult{Outcome: completion.Outcome, CompletedAt: completion.CompletedAt}
@@ -141,7 +154,7 @@ func runCleanupContext(ctx context.Context, env Env, rt Runtime, step launchStep
 			cleanupResult.Failures = []pairlifecycle.StageFailure{{Stage: pairlifecycle.StageSessionQuiescence, Code: completion.FailureCode, Err: errors.New("previous cleanup attempt failed")}}
 		}
 	}
-	return cleanupResult, true
+	return cleanupResult, nil
 }
 
 type typedQuitIntentRuntime interface {

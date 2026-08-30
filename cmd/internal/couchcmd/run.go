@@ -7,6 +7,7 @@
 package couchcmd
 
 import (
+	"context"
 	"crypto/rand"
 	"errors"
 	"fmt"
@@ -232,6 +233,15 @@ func RunWithRuntime(args []string, stdin io.Reader, stdout, stderr io.Writer, rt
 	if err != nil {
 		renderError(stderr, err)
 		return 1
+	}
+	if ownsLive && c.PairLifecycle != nil {
+		recoveryContext, stopRecovery := context.WithCancel(context.Background())
+		defer stopRecovery()
+		go func() {
+			// Every failure is already durable on the occupied park transaction.
+			// The worker must not paint concurrently with the terminal owner.
+			_ = c.RecoverActiveParks(recoveryContext)
+		}()
 	}
 	if console != nil {
 		if start, ok := result.(couchcore.StartResult); ok {
