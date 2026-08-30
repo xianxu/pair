@@ -586,6 +586,8 @@ var NonArtifactSources = []string{
 	"cmd/internal/pairlog/runcli.go",
 	"cmd/internal/pairlog/store.go",
 	"cmd/internal/pairlifecycle/model.go",
+	"cmd/internal/pairlifecycle/store.go",
+	"cmd/internal/pairlifecycle/store_unix.go",
 	"cmd/internal/osfs/osfs.go",
 	"cmd/internal/procutil/identity_darwin.go",
 	"cmd/internal/procutil/identity_linux.go",

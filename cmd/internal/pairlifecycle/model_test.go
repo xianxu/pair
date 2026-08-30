@@ -19,7 +19,7 @@ func validQuitRequest() QuitRequest {
 		Attempt:       1,
 		Session:       "pair-work_1",
 		Mode:          CleanupPreserveScrollback,
-		CompletionKey: "completion-1",
+		CompletionKey: "quit-completion-1",
 	}
 }
 
