@@ -2586,10 +2586,10 @@ an unsupported owner through every downstream projection (`ARCH-DRY`,
 
 ## 2026-08-30 — Recovery and conformance must cross the production boundary
 
-- Construction-time reconciliation may inspect durable state, but it must not
-  enter bounded-yet-blocking external teardown. Pin startup with a barrier at
-  the production trigger, then run recovery in one context-owned serial worker
-  (`ARCH-PURE`, `ARCH-CONSTRAINTS`).
+- Construction may compose local durable stores, but it must not enter active-
+  park reconciliation or external observation. Pin startup with a barrier at
+  the first production query, then run recovery in one context-owned serial
+  worker (`ARCH-PURE`, `ARCH-CONSTRAINTS`).
 - A fake/real conformance claim must drive the complete semantic scenario
   through the production entrypoints and let the shared runner assign trace
   labels. Comparing a hand-selected suffix such as cleanup stages allows the
@@ -2599,3 +2599,26 @@ an unsupported owner through every downstream projection (`ARCH-DRY`,
   table is a review input, parse it and resolve declarations mechanically so a
   refactor cannot leave design-time aliases masquerading as current code
   (`ARCH-PURPOSE`).
+- A startup barrier belongs at the first external observation, not merely the
+  first destructive call. A read-only daemon query can wedge just as long as
+  teardown; constructors should stop at local durable composition and let the
+  context-owned worker perform all external recovery (`ARCH-PURE`,
+  `ARCH-CONSTRAINTS`).
+- A live driver must observe the effect it claims production caused. If the
+  driver kills the child, invokes cleanup, or publishes evidence itself, the
+  probe can pass after the production trigger is bypassed. Add an intent-only
+  mutation that leaves the real handoff blocked and therefore fails
+  (`ARCH-MOCK`, `ARCH-PURPOSE`).
+
+## Terminal release must reset emulator modes as well as termios
+
+Restoring cooked termios does not revoke DEC private modes previously replayed
+from a child. Couch returned to the shell with any-event/SGR mouse reporting
+still enabled, so ordinary pointer movement became printable escape input.
+
+**Rule.** A terminal multiplexer/proxy's single teardown owner must restore both
+kernel line discipline and a shell-safe terminal-emulator mode baseline. Reset
+mouse tracking/encodings, focus events, bracketed paste, synchronized output,
+and extended keyboard reporting on every exit path. Test by enabling a mode in
+the child stream and asserting the reset follows it before return
+(`ARCH-DRY`, `ARCH-CONSTRAINTS`).

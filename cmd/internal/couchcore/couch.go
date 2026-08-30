@@ -44,9 +44,9 @@ type Couch struct {
 	sleep                     func(time.Duration)
 }
 
-// ReconcileActiveParks is the explicit construction-time seam for callers
-// that configure lifecycle IO. The controller reads ThreadStore's durable
-// index and touches only records carrying an active park transaction.
+// ReconcileActiveParks performs an explicit active-park reconciliation pass.
+// It may query external Pair/Zellij state, so constructors must never call it;
+// interactive composition uses the context-bound RecoverActiveParks worker.
 func (c *Couch) ReconcileActiveParks(ctx context.Context) error {
 	if c == nil || c.PairLifecycle == nil {
 		return errors.New("Couch Pair lifecycle controller is unavailable")
@@ -129,9 +129,6 @@ func New(namespace CouchNamespace, r Runner, p PathOps, g GitRunner, proc ProcOp
 			Nonce:             func() (string, error) { return allocateParkNonce(result.Entropy) },
 			CompletionTimeout: 15 * time.Second,
 			PollInterval:      25 * time.Millisecond,
-		}
-		if err := result.ReconcileActiveParks(context.Background()); err != nil {
-			return nil, fmt.Errorf("reconcile active parks: %w", err)
 		}
 	}
 	return result, nil

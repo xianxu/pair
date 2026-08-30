@@ -325,13 +325,15 @@ func (d *fakeConformanceDriver) CleanupAndPrepareCompletion(ctx context.Context,
 	if err := d.fake.PrepareCompletion(request, result); err != nil {
 		return result, nil, err
 	}
+	// Production's exact launcher child exits after it publishes completion.
+	// Model that causal transition here; ObserveChildDeath must only observe it.
+	d.fake.ExitChild(request)
 	return result, d.fake.EffectiveTrace(), nil
 }
 func (d *fakeConformanceDriver) CommitCompletion(request pairlifecycle.QuitRequest, result pairlifecycle.CleanupResult) error {
 	return d.fake.CommitCompletion(request, result)
 }
 func (d *fakeConformanceDriver) ObserveChildDeath(request pairlifecycle.QuitRequest) error {
-	d.fake.ExitChild(request)
 	if d.fake.ChildLive(request) {
 		return errors.New("exact child is still live")
 	}

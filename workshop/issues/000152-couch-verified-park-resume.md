@@ -591,6 +591,23 @@ on the durable thread record.
   and child-death proof, root Alt+x as verified park-all/Leave Couch, and
   inactive rows as ordinary historical inventory (ARCH-PURPOSE, ARCH-MOCK,
   ARCH-CONSTRAINTS).
+- 2026-08-30: close-gate round 2 exposed the remaining classes behind BR-1 and
+  BR-2. `New` now performs no active-park session query; a barrier test blocks
+  `PairSession` and proves only the context-bound serial recovery worker enters
+  it. Live conformance records the exact helper process blocked in Pair's
+  production Zellij attach handoff; production `TriggerQuit` releases it, the
+  helper consumes the typed intent through production cleanup/completion, and
+  the driver only observes committed evidence and exact death. An intent-only
+  mutation remains blocked and fails, proving causality (ARCH-PURE, ARCH-MOCK,
+  ARCH-PURPOSE, ARCH-CONSTRAINTS).
+- 2026-08-30: the operator's post-Leave smoke exposed a host-terminal mode leak:
+  cooked termios returned, but child-enabled any-event/SGR mouse reporting did
+  not, so pointer movement typed escapes into the shell. Couch's single release
+  path now revokes mouse encodings/tracking, focus events, bracketed paste,
+  synchronized output, and extended keyboard reporting before restoring the
+  shell. A regression enables mouse mode through the child stream and proves
+  the reset follows it on teardown (ARCH-DRY, ARCH-PURPOSE,
+  ARCH-CONSTRAINTS).
 
 ## Estimate
 

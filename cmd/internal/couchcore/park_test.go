@@ -642,7 +642,7 @@ func TestParkCoordinatorRestartInspectionAndRecoveryAreSeparate(t *testing.T) {
 	}
 }
 
-func TestParkCoordinatorConstructorReconcilesActiveOnly(t *testing.T) {
+func TestParkCoordinatorConstructorDoesNotQueryPairSession(t *testing.T) {
 	ns := testCouchNamespace(t)
 	store := NewThreadStore(ns)
 	active := validThreadRecord(t)
@@ -668,11 +668,11 @@ func TestParkCoordinatorConstructorReconcilesActiveOnly(t *testing.T) {
 		dataDir:                            t.TempDir(),
 	}
 	artifacts.SetPairSession(active.Address, "pair-exact", true)
-	triggerEntered := make(chan struct{})
-	releaseTrigger := make(chan struct{})
-	artifacts.TriggerQuitHook = func(string, launcher.QuitIntent) error {
-		close(triggerEntered)
-		<-releaseTrigger
+	queryEntered := make(chan struct{})
+	releaseQuery := make(chan struct{})
+	artifacts.BeforePairSession = func(ThreadAddress) error {
+		close(queryEntered)
+		<-releaseQuery
 		return nil
 	}
 	type newResult struct {
@@ -691,16 +691,15 @@ func TestParkCoordinatorConstructorReconcilesActiveOnly(t *testing.T) {
 	select {
 	case result := <-constructed:
 		couch, err = result.couch, result.err
-	case <-triggerEntered:
-		close(releaseTrigger)
+	case <-queryEntered:
+		close(releaseQuery)
 		result := <-constructed
-		t.Fatalf("New entered blocking Pair/Zellij recovery before returning: %v", result.err)
+		t.Fatalf("New queried Pair/Zellij before returning: %v", result.err)
 	case <-time.After(100 * time.Millisecond):
-		close(releaseTrigger)
+		close(releaseQuery)
 		result := <-constructed
-		t.Fatalf("New blocked without reaching the trigger barrier: %v", result.err)
+		t.Fatalf("New blocked before returning: %v", result.err)
 	}
-	close(releaseTrigger)
 	if err != nil {
 		t.Fatalf("New: %v", err)
 	}
@@ -708,24 +707,28 @@ func TestParkCoordinatorConstructorReconcilesActiveOnly(t *testing.T) {
 		t.Fatal("New did not install the Pair lifecycle controller")
 	}
 	reconciled, err := couch.Threads.GetThread(active.Address)
-	if err != nil || reconciled.Park == nil || reconciled.Park.Phase != ParkAwaitingCompletion {
-		t.Fatalf("constructor reconciliation = %+v, %v", reconciled, err)
+	if err != nil || reconciled.Park == nil || reconciled.Park.Phase != ParkRequested {
+		t.Fatalf("constructor durable state = %+v, %v", reconciled, err)
 	}
-	if len(artifacts.TriggeredQuits()) != 0 {
-		t.Fatalf("constructor triggers = %v", artifacts.TriggeredQuits())
+	if len(lifecycle.trace) != 0 || len(artifacts.TriggeredQuits()) != 0 {
+		t.Fatalf("constructor external effects: lifecycle=%v triggers=%v", lifecycle.trace, artifacts.TriggeredQuits())
 	}
 
 	couch.PairLifecycle.CompletionTimeout = 0
 	recoveryDone := make(chan error, 1)
 	go func() { recoveryDone <- couch.RecoverActiveParks(context.Background()) }()
 	select {
-	case <-triggerEntered:
+	case <-queryEntered:
 	case err := <-recoveryDone:
-		t.Fatalf("recovery returned before entering trigger: %v", err)
+		t.Fatalf("recovery returned before querying Pair session: %v", err)
 	case <-time.After(time.Second):
-		t.Fatal("recovery did not enter trigger")
+		t.Fatal("recovery did not query Pair session")
 	}
+	close(releaseQuery)
 	if err := <-recoveryDone; err == nil {
 		t.Fatal("recovery without completion returned success")
+	}
+	if len(artifacts.TriggeredQuits()) != 1 {
+		t.Fatalf("worker recovery triggers = %v", artifacts.TriggeredQuits())
 	}
 }

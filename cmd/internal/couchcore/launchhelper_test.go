@@ -18,12 +18,15 @@ type observedReadCloser struct {
 }
 
 func TestMain(m *testing.M) {
-	if os.Getenv("PAIR_TEST_RUNNER_HELPER") == "1" {
-		os.Exit(LaunchHelperMain(os.Args[1:], os.Stderr))
-	}
 	if os.Getenv("PAIR_TEST_COUCH_LAUNCH_NATIVE_SIDECAR") == "1" && len(os.Args) > 1 &&
 		(os.Args[1] == "session-watch" || os.Args[1] == "title") {
 		os.Exit(0)
+	}
+	if os.Getenv("PAIR_TEST_COUCH_PARK_HELPER") == "1" {
+		os.Exit(runParkLifecycleHelper())
+	}
+	if os.Getenv("PAIR_TEST_RUNNER_HELPER") == "1" {
+		os.Exit(LaunchHelperMain(os.Args[1:], os.Stderr))
 	}
 	os.Exit(m.Run())
 }

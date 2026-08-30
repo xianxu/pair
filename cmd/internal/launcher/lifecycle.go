@@ -26,6 +26,14 @@ import (
 // the loop regains control for cleanup + restart. agent is the inferred title
 // agent (the on-disk agent-<tag> record, resolved by the caller).
 func runAttach(opts LaunchOptions, env Env, rt Runtime, tag, session, agent string) (int, error) {
+	return AttachExistingSession(opts, env, rt, tag, session, agent)
+}
+
+// AttachExistingSession is Pair's production blocking attach handoff. It is
+// exported so live lifecycle conformance can put this exact boundary in a
+// controlled child process and prove that Couch's production quit trigger is
+// what releases it. The normal launcher reaches it through runAttach.
+func AttachExistingSession(opts LaunchOptions, env Env, rt Runtime, tag, session, agent string) (int, error) {
 	if session == "" {
 		// Degraded fallback: callers pass the resolved name. Reached only when
 		// attach was invoked without one (#130).

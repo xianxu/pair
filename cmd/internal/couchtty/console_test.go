@@ -386,6 +386,29 @@ func TestConsoleRestoresTheTerminalOnTeardownMidStream(t *testing.T) {
 	assertConsoleRestored(t, f)
 }
 
+func TestConsoleRevokesChildMouseModeBeforeReturningToShell(t *testing.T) {
+	f := newFixture(t, 24, 80)
+	waitFor(t, "the console to start", func() bool { return len(f.child.Resizes()) > 0 })
+	f.child.Feed([]byte("\x1b[?1003;1006h"))
+	waitFor(t, "child mouse mode to reach host", func() bool {
+		return strings.Contains(f.host.Written(), "\x1b[?1003;1006h")
+	})
+
+	f.con.Stop()
+	select {
+	case <-f.done:
+	case <-time.After(3 * time.Second):
+		t.Fatal("Run() did not return after Stop")
+	}
+	written := f.host.Written()
+	enabled := strings.Index(written, "\x1b[?1003;1006h")
+	disabled := strings.LastIndex(written, hostty.ResetInteractiveModes)
+	if enabled < 0 || disabled <= enabled {
+		t.Fatalf("mouse reset did not follow child enable: %q", written)
+	}
+	assertConsoleRestored(t, f)
+}
+
 func TestConsoleRestoresTheTerminalOnTerminationSignal(t *testing.T) {
 	for _, sig := range []syscall.Signal{syscall.SIGTERM, syscall.SIGHUP} {
 		t.Run(sig.String(), func(t *testing.T) {
@@ -415,6 +438,7 @@ func assertConsoleRestored(t *testing.T, f *consoleFixture) {
 		"saved cursor restore":  hostty.RestoreCursor,
 		"alternate-screen exit": hostty.LeaveAltScreen,
 		"cursor visibility":     hostty.ShowCursor,
+		"interactive modes off": hostty.ResetInteractiveModes,
 	} {
 		if !strings.Contains(written, want) {
 			t.Errorf("missing %s %q in teardown %q", name, want, written)

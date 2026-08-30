@@ -177,10 +177,11 @@ indexed Pair/Zellij session. That deletion returns Pair's blocking handoff so
 Pair can consume the intent and execute its shared full-quit cleanup. Couch
 polls under a 15-second operation deadline for both the matching durable
 completion and death (or PID-identity replacement) of the exact recorded Pair
-child; completion alone never finalizes. Construction performs only durable
-publication/completion inspection. After the live owner is composed, one
-context-bound worker serially performs external Pair/Zellij recovery; blocked
-teardown therefore cannot delay startup or fan out across pending parks
+child; completion alone never finalizes. Construction performs no active-park
+session observation or reconciliation. After the live owner is composed, one
+context-bound worker serially performs durable reconciliation plus external
+Pair/Zellij recovery; blocked observation or teardown therefore cannot delay
+startup or fan out across pending parks
 (ARCH-PURE, ARCH-MOCK, ARCH-CONSTRAINTS).
 
 There is no numbered jump or `:` command state. Tab/thread actions are deferred
@@ -255,9 +256,13 @@ and a new couch deterministically reattaches. `pair#147` transport is not on
 that path.
 
 Console teardown has one owner. Normal stop, last-child exit, SIGTERM, and
-SIGHUP all reset the scrolling region, clear the reserved row, leave alternate
-screen, restore/show the cursor, restore raw mode, stop host event sources,
-close the blocking input seam, and join console workers before returning.
+SIGHUP all revoke child-enabled mouse/focus/paste/synchronized-output/extended-
+keyboard modes, reset the scrolling region, clear the reserved row, leave
+alternate screen, restore/show the cursor, restore raw mode, stop host event
+sources, close the blocking input seam, and join console workers before
+returning. This explicit reset is required because restoring termios does not
+disable terminal-emulator private modes; otherwise mouse movement after Leave
+types SGR reports into the returned shell.
 `hostty.TerminationHost` is optional because couch consumes process termination
 while the other `hostty.Host` consumer, `pair term`, owns lifecycle elsewhere.
 

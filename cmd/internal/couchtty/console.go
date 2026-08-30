@@ -622,7 +622,7 @@ func (c *Console) release() {
 	// Teardown writes UNCONDITIONALLY: a half-restored terminal is worse than a
 	// spliced sequence, and the child is finished with the screen by now.
 	_, _ = io.WriteString(c.host,
-		Release()+PaintRow(rows, "")+hostty.LeaveAltScreen+hostty.ResetRegion+hostty.ShowCursor)
+		Release()+PaintRow(rows, "")+hostty.ResetInteractiveModes+hostty.LeaveAltScreen+hostty.ResetRegion+hostty.ShowCursor)
 }
 
 func (c *Console) activeChild() *ptychild.Child {

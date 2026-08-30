@@ -14,6 +14,22 @@ import (
 	"github.com/xianxu/pair/cmd/internal/pairlifecycle"
 )
 
+func TestAttachExistingSessionRunsProductionHandoff(t *testing.T) {
+	rt := newFakeRuntime()
+	rt.attachCode = 7
+	opts := baseOpts(LaunchArgs{})
+	code, err := AttachExistingSession(opts, opts.Env, rt, "live", "pair-live", "codex")
+	if err != nil || code != 7 {
+		t.Fatalf("AttachExistingSession = %d, %v", code, err)
+	}
+	if !reflect.DeepEqual(rt.attached, []string{"pair-live"}) {
+		t.Fatalf("attached = %v", rt.attached)
+	}
+	if rt.env["PAIR_TAG"] != "live" || rt.env["PAIR_SESSION_NAME"] != "pair-live" {
+		t.Fatalf("handoff env = %v", rt.env)
+	}
+}
+
 // `pair resume <livetag>` decides attach: runAttach fires (AttachSession, tag
 // export, title/tty/cmux/poller refresh) and NO create happens.
 func TestRunLaunchAttach(t *testing.T) {

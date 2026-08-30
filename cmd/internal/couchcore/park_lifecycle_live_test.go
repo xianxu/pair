@@ -4,15 +4,18 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"io"
 	"os"
 	"os/exec"
 	"path/filepath"
 	"reflect"
 	"strconv"
+	"strings"
 	"sync"
 	"testing"
 	"time"
 
+	"github.com/creack/pty"
 	"github.com/xianxu/pair/cmd/internal/artifactpath"
 	"github.com/xianxu/pair/cmd/internal/launcher"
 	"github.com/xianxu/pair/cmd/internal/pairlifecycle"
@@ -84,15 +87,18 @@ func (o *realLifecycleOps) CleanupCmux(context.Context) error {
 func (o *realLifecycleOps) Now() time.Time { return o.completed }
 
 type realParkConformanceDriver struct {
-	paths   artifactpath.LifecyclePaths
-	store   pairlifecycle.Store
-	fault   *conformanceFaultRuntime
-	checker ScopedThreadArtifactCollisionChecker
-	threads *ThreadStore
-	current ThreadRecord
-	child   *exec.Cmd
-	childID ProcessIdentity
-	ops     *realLifecycleOps
+	paths     artifactpath.LifecyclePaths
+	store     pairlifecycle.Store
+	fault     *conformanceFaultRuntime
+	checker   ScopedThreadArtifactCollisionChecker
+	threads   *ThreadStore
+	current   ThreadRecord
+	child     *exec.Cmd
+	childWait <-chan error
+	childID   ProcessIdentity
+	stagePath string
+	trigger   func(string, launcher.QuitIntent) error
+	completed time.Time
 }
 
 func (d *realParkConformanceDriver) PrepareRequest(request pairlifecycle.QuitRequest) error {
@@ -123,33 +129,68 @@ func (d *realParkConformanceDriver) CommitRequest(request pairlifecycle.QuitRequ
 	return err
 }
 func (d *realParkConformanceDriver) DeliverTrigger(request pairlifecycle.QuitRequest) error {
+	if d.child == nil {
+		return errors.New("production handoff helper is not running")
+	}
 	intent := launcher.QuitIntent{Version: launcher.QuitIntentVersion, Kind: launcher.QuitIntentCouch,
 		Request: &launcher.QuitRequestReference{
 			DataDir: d.checker.GlobalDataDir, RepoScope: request.Identity.RepoScope,
 			Tag: request.Identity.Tag, Nonce: request.Identity.Nonce, Attempt: request.Attempt,
 		}}
+	if d.trigger != nil {
+		return d.trigger(request.Session, intent)
+	}
 	return d.checker.TriggerQuit(request.Session, intent)
 }
 func (d *realParkConformanceDriver) CleanupAndPrepareCompletion(ctx context.Context, request pairlifecycle.QuitRequest) (pairlifecycle.CleanupResult, []pairlifecycle.CleanupStage, error) {
-	runtime := launcher.NewScopedOSRuntime(d.checker.GlobalDataDir, d.checker.GlobalDataDir, "")
-	intent, present, err := runtime.TakeQuitIntent(request.Session)
-	if err != nil || !present || intent.Kind != launcher.QuitIntentCouch {
-		return pairlifecycle.CleanupResult{}, nil, fmt.Errorf("production trigger intent = %+v present=%v: %w", intent, present, err)
+	observer := PairLifecycleStoreIO{Store: d.store}
+	ticker := time.NewTicker(25 * time.Millisecond)
+	defer ticker.Stop()
+	for {
+		completion, found, err := observer.ObserveCompletion(d.paths, request)
+		if err != nil {
+			return pairlifecycle.CleanupResult{}, nil, err
+		}
+		if found {
+			raw, err := os.ReadFile(d.stagePath)
+			if errors.Is(err, os.ErrNotExist) {
+				select {
+				case <-ctx.Done():
+					return pairlifecycle.CleanupResult{}, nil, fmt.Errorf("observe helper stages: %w", ctx.Err())
+				case <-ticker.C:
+					continue
+				}
+			}
+			if err != nil {
+				return pairlifecycle.CleanupResult{}, nil, fmt.Errorf("read helper cleanup stages: %w", err)
+			}
+			var stages []pairlifecycle.CleanupStage
+			for _, value := range strings.Fields(string(raw)) {
+				stages = append(stages, pairlifecycle.CleanupStage(value))
+			}
+			return pairlifecycle.CleanupResult{Outcome: completion.Outcome, CompletedAt: completion.CompletedAt}, stages, nil
+		}
+		select {
+		case <-ctx.Done():
+			return pairlifecycle.CleanupResult{}, nil, fmt.Errorf("observe helper completion: %w", ctx.Err())
+		case <-ticker.C:
+		}
 	}
-	ref := *intent.Request
-	result, consumeErr := launcher.ConsumeCouchAttempt(ctx, d.store, d.paths, ref, request.Session, d.ops)
-	if pairlifecycle.PublicationOutcomeOf(consumeErr) != pairlifecycle.Indeterminate {
-		return result, nil, fmt.Errorf("prepare completion outcome = %s: %w", pairlifecycle.PublicationOutcomeOf(consumeErr), consumeErr)
-	}
-	return result, append([]pairlifecycle.CleanupStage(nil), d.ops.stages...), nil
 }
 func (d *realParkConformanceDriver) CommitCompletion(request pairlifecycle.QuitRequest, _ pairlifecycle.CleanupResult) error {
 	return d.store.Reconcile(d.paths, pairlifecycle.RecordCompletion, request.Attempt)
 }
 func (d *realParkConformanceDriver) ObserveChildDeath(pairlifecycle.QuitRequest) error {
-	if d.child != nil && d.child.Process != nil {
-		_ = d.child.Process.Kill()
-		_ = d.child.Wait()
+	if d.childWait == nil {
+		return errors.New("production handoff helper was not started")
+	}
+	select {
+	case err := <-d.childWait:
+		if err != nil {
+			return fmt.Errorf("production handoff helper: %w", err)
+		}
+	case <-time.After(5 * time.Second):
+		return errors.New("production handoff helper remained live")
 	}
 	if state := observeExactProcess(OSProcOps{}, d.childID); state != Dead {
 		return fmt.Errorf("exact child state = %s", state)
@@ -160,7 +201,7 @@ func (d *realParkConformanceDriver) Finalize(request pairlifecycle.QuitRequest) 
 	controller := PairLifecycleController{
 		Threads: d.threads, DataDir: d.checker.GlobalDataDir,
 		Lifecycle: PairLifecycleStoreIO{Store: d.store}, Sessions: d.checker,
-		Proc: OSProcOps{}, Clock: FixedClock{T: d.ops.completed},
+		Proc: OSProcOps{}, Clock: FixedClock{T: d.completed},
 		Nonce: func() (string, error) { return "unused", nil },
 	}
 	if err := controller.ReconcileActive(context.Background()); err != nil {
@@ -177,99 +218,9 @@ func (d *realParkConformanceDriver) Finalize(request pairlifecycle.QuitRequest) 
 }
 
 func TestParkLifecycleLive(t *testing.T) {
-	if os.Getenv("PAIR_LIVE_COUCH") != "1" {
-		t.Skip("set PAIR_LIVE_COUCH=1")
-	}
-	ctx, cancel := context.WithTimeout(t.Context(), 20*time.Second)
+	ctx, cancel := liveParkContext(t, 20*time.Second)
 	defer cancel()
-	session := fmt.Sprintf("pair-park-live-%d", os.Getpid())
-	zellij, err := pairlifecycletest.StartControlledZellij(ctx, session)
-	if err != nil {
-		t.Fatal(err)
-	}
-	t.Cleanup(func() { _ = zellij.Close() })
-
-	child := exec.Command("sh", "-c", "exec sleep 60")
-	if err := child.Start(); err != nil {
-		t.Fatal(err)
-	}
-	t.Cleanup(func() {
-		if child.Process != nil {
-			_ = child.Process.Kill()
-			_ = child.Wait()
-		}
-	})
-	identity := procutil.Identity(strconv.Itoa(child.Process.Pid))
-	if identity == "" {
-		t.Fatal("controlled child identity is unavailable")
-	}
-
-	namespace := testCouchNamespace(t)
-	threads := NewThreadStore(namespace)
-	workdir := t.TempDir()
-	record := validThreadRecord(t)
-	record.StartingPath, record.WorkingPath = workdir, workdir
-	record.Reservation = false
-	profile := LaunchProfile{Agent: "claude", Argv: []string{}}
-	record.Incarnations = []ThreadIncarnation{{
-		PID: child.Process.Pid, Identity: identity, State: IncarnationLive, LaunchProfile: &profile,
-	}}
-	record.LatestLaunchProfile = &profile
-	created, err := threads.CreateThread(record)
-	if err != nil {
-		t.Fatal(err)
-	}
-	parkIdentity := ParkIdentity{
-		Nonce: "park-live-conformance", Address: created.Address,
-		PID: child.Process.Pid, ProcessIdentity: identity,
-	}
-	current, err := threads.BeginPark(created.Address, created.Revision, parkIdentity)
-	if err != nil {
-		t.Fatal(err)
-	}
-
-	dataDir := t.TempDir()
-	address, err := artifactpath.Resolve(artifactpath.Address{
-		DataDir: dataDir, RepoScope: created.Address.RepoScope, Tag: string(created.Address.Tag),
-	})
-	if err != nil {
-		t.Fatal(err)
-	}
-	lifecyclePaths, err := address.Lifecycle(parkIdentity.Nonce)
-	if err != nil {
-		t.Fatal(err)
-	}
-	scoped := launcher.NewScopedPaths(dataDir, launcher.RepoScope{Key: created.Address.RepoScope}, string(created.Address.Tag))
-	if err := os.MkdirAll(scoped.ScopeDir(), 0o700); err != nil {
-		t.Fatal(err)
-	}
-	line, err := launcher.BuildSessionNameIndexLine(launcher.SessionNameEntry{
-		SessionName: session, ScopeKey: created.Address.RepoScope, RepoRoot: workdir,
-		RepoName: filepath.Base(workdir), Tag: string(created.Address.Tag),
-	})
-	if err != nil {
-		t.Fatal(err)
-	}
-	if err := os.WriteFile(scoped.SessionBindings(), []byte(line+"\n"), 0o600); err != nil {
-		t.Fatal(err)
-	}
-
-	request := pairlifecycle.QuitRequest{
-		SchemaVersion: pairlifecycle.SchemaVersion,
-		Identity: pairlifecycle.Identity{
-			Nonce: parkIdentity.Nonce, RepoScope: created.Address.RepoScope, Tag: string(created.Address.Tag),
-			PID: child.Process.Pid, ProcessIdentity: identity,
-		},
-		Attempt: 1, Session: session, Mode: pairlifecycle.CleanupPreserveScrollback,
-		CompletionKey: "quit-completion-1",
-	}
-	fault := &conformanceFaultRuntime{}
-	driver := &realParkConformanceDriver{
-		paths: lifecyclePaths, store: pairlifecycle.Store{Runtime: fault}, fault: fault,
-		checker: NewScopedThreadArtifactCollisionChecker(dataDir), threads: threads, current: current,
-		child: child, childID: ProcessIdentity{PID: child.Process.Pid, Identity: identity},
-		ops: &realLifecycleOps{session: session, fault: fault, completed: time.Unix(100, 0).UTC()},
-	}
+	driver, request := newRealParkConformance(t, ctx, false)
 
 	liveTrace, err := pairlifecycletest.RunConformanceScenario(ctx, driver, request)
 	if err != nil {
@@ -284,6 +235,260 @@ func TestParkLifecycleLive(t *testing.T) {
 	if !reflect.DeepEqual(liveTrace, fakeTrace) {
 		t.Fatalf("fake/live lifecycle traces differ:\nfake %v\nlive %v", fakeTrace, liveTrace)
 	}
+}
+
+func TestParkLifecycleLiveIntentOnlyMutation(t *testing.T) {
+	ctx, cancel := liveParkContext(t, 750*time.Millisecond)
+	defer cancel()
+	driver, request := newRealParkConformance(t, ctx, true)
+
+	if _, err := pairlifecycletest.RunConformanceScenario(ctx, driver, request); err == nil {
+		t.Fatal("intent-only trigger completed the production lifecycle")
+	}
+	if state := observeExactProcess(OSProcOps{}, driver.childID); state != Live {
+		t.Fatalf("intent-only trigger released the production handoff: %s", state)
+	}
+}
+
+func liveParkContext(t *testing.T, timeout time.Duration) (context.Context, context.CancelFunc) {
+	t.Helper()
+	if os.Getenv("PAIR_LIVE_COUCH") != "1" {
+		t.Skip("set PAIR_LIVE_COUCH=1")
+	}
+	return context.WithTimeout(t.Context(), timeout)
+}
+
+func newRealParkConformance(t *testing.T, ctx context.Context, intentOnly bool) (*realParkConformanceDriver, pairlifecycle.QuitRequest) {
+	t.Helper()
+	variant := "ok"
+	if intentOnly {
+		variant = "mut"
+	}
+	session := fmt.Sprintf("pair-park-%d-%s", os.Getpid(), variant)
+	zellij, err := pairlifecycletest.StartControlledZellij(ctx, session)
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() { _ = zellij.Close() })
+
+	namespace := testCouchNamespace(t)
+	threads := NewThreadStore(namespace)
+	workdir := t.TempDir()
+	record := validThreadRecord(t)
+	record.StartingPath, record.WorkingPath = workdir, workdir
+	record.Reservation = false
+	profile := LaunchProfile{Agent: "claude", Argv: []string{}}
+	record.LatestLaunchProfile = &profile
+	parkNonce := "park-live-conformance"
+
+	dataDir := t.TempDir()
+	address, err := artifactpath.Resolve(artifactpath.Address{
+		DataDir: dataDir, RepoScope: record.Address.RepoScope, Tag: string(record.Address.Tag),
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	lifecyclePaths, err := address.Lifecycle(parkNonce)
+	if err != nil {
+		t.Fatal(err)
+	}
+	scoped := launcher.NewScopedPaths(dataDir, launcher.RepoScope{Key: record.Address.RepoScope}, string(record.Address.Tag))
+	if err := os.MkdirAll(scoped.ScopeDir(), 0o700); err != nil {
+		t.Fatal(err)
+	}
+	line, err := launcher.BuildSessionNameIndexLine(launcher.SessionNameEntry{
+		SessionName: session, ScopeKey: record.Address.RepoScope, RepoRoot: workdir,
+		RepoName: filepath.Base(workdir), Tag: string(record.Address.Tag),
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(scoped.SessionBindings(), []byte(line+"\n"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+
+	stagePath := filepath.Join(t.TempDir(), "cleanup-stages")
+	packageDir, err := os.Getwd()
+	if err != nil {
+		t.Fatal(err)
+	}
+	pairHome := filepath.Clean(filepath.Join(packageDir, "..", "..", ".."))
+	child, childPTY, childWait := startParkLifecycleHelper(t, ctx, parkHelperConfig{
+		GlobalDataDir: dataDir, Scope: record.Address.RepoScope, Tag: string(record.Address.Tag),
+		Nonce: parkNonce, Attempt: 1, Session: session, PairHome: pairHome,
+		StagePath: stagePath, CompletedAt: time.Unix(100, 0).UTC(),
+	})
+	identity := procutil.Identity(strconv.Itoa(child.Process.Pid))
+	if identity == "" {
+		t.Fatal("production handoff helper identity is unavailable")
+	}
+	record.Incarnations = []ThreadIncarnation{{
+		PID: child.Process.Pid, Identity: identity, State: IncarnationLive, LaunchProfile: &profile,
+	}}
+	created, err := threads.CreateThread(record)
+	if err != nil {
+		t.Fatal(err)
+	}
+	parkIdentity := ParkIdentity{Nonce: parkNonce, Address: created.Address, PID: child.Process.Pid, ProcessIdentity: identity}
+	current, err := threads.BeginPark(created.Address, created.Revision, parkIdentity)
+	if err != nil {
+		t.Fatal(err)
+	}
+	request := pairlifecycle.QuitRequest{
+		SchemaVersion: pairlifecycle.SchemaVersion,
+		Identity: pairlifecycle.Identity{
+			Nonce: parkIdentity.Nonce, RepoScope: created.Address.RepoScope, Tag: string(created.Address.Tag),
+			PID: child.Process.Pid, ProcessIdentity: identity,
+		},
+		Attempt: 1, Session: session, Mode: pairlifecycle.CleanupPreserveScrollback,
+		CompletionKey: "quit-completion-1",
+	}
+	fault := &conformanceFaultRuntime{}
+	driver := &realParkConformanceDriver{
+		paths: lifecyclePaths, store: pairlifecycle.Store{Runtime: fault}, fault: fault,
+		checker: NewScopedThreadArtifactCollisionChecker(dataDir), threads: threads, current: current,
+		child: child, childWait: childWait,
+		childID:   ProcessIdentity{PID: child.Process.Pid, Identity: identity},
+		stagePath: stagePath, completed: time.Unix(100, 0).UTC(),
+	}
+	if intentOnly {
+		runtime := launcher.NewScopedOSRuntime(dataDir, scoped.ScopeDir(), pairHome)
+		driver.trigger = runtime.WriteQuitIntent
+	}
+	t.Cleanup(func() {
+		runtime := launcher.NewScopedOSRuntime(dataDir, scoped.ScopeDir(), pairHome)
+		_, _, _ = runtime.TakeQuitIntent(session)
+		if child.Process != nil {
+			_ = child.Process.Kill()
+		}
+		if childPTY != nil {
+			_ = childPTY.Close()
+		}
+	})
+	return driver, request
+}
+
+type parkHelperConfig struct {
+	GlobalDataDir, Scope, Tag, Nonce, Session, PairHome, StagePath string
+	Attempt                                                        uint64
+	CompletedAt                                                    time.Time
+}
+
+func startParkLifecycleHelper(t *testing.T, ctx context.Context, cfg parkHelperConfig) (*exec.Cmd, *os.File, <-chan error) {
+	t.Helper()
+	baseline, err := zellijClientCount(ctx, cfg.Session)
+	if err != nil {
+		t.Fatal(err)
+	}
+	cmd := exec.Command(os.Args[0])
+	cmd.Env = append(os.Environ(),
+		"PAIR_TEST_COUCH_PARK_HELPER=1",
+		"PAIR_TEST_COUCH_LAUNCH_NATIVE_SIDECAR=1",
+		"PAIR_TEST_PARK_GLOBAL_DATA_DIR="+cfg.GlobalDataDir,
+		"PAIR_TEST_PARK_SCOPE="+cfg.Scope,
+		"PAIR_TEST_PARK_TAG="+cfg.Tag,
+		"PAIR_TEST_PARK_NONCE="+cfg.Nonce,
+		"PAIR_TEST_PARK_ATTEMPT="+strconv.FormatUint(cfg.Attempt, 10),
+		"PAIR_TEST_PARK_SESSION="+cfg.Session,
+		"PAIR_TEST_PARK_HOME="+cfg.PairHome,
+		"PAIR_TEST_PARK_STAGE_PATH="+cfg.StagePath,
+		"PAIR_TEST_PARK_COMPLETED_AT="+strconv.FormatInt(cfg.CompletedAt.Unix(), 10),
+	)
+	terminal, err := pty.Start(cmd)
+	if err != nil {
+		t.Fatal(err)
+	}
+	go func() { _, _ = io.Copy(io.Discard, terminal) }()
+	wait := make(chan error, 1)
+	go func() { wait <- cmd.Wait() }()
+
+	ticker := time.NewTicker(25 * time.Millisecond)
+	defer ticker.Stop()
+	for {
+		count, countErr := zellijClientCount(ctx, cfg.Session)
+		if countErr == nil && count > baseline {
+			return cmd, terminal, wait
+		}
+		select {
+		case err := <-wait:
+			t.Fatalf("production handoff helper exited before attaching: %v", err)
+		case <-ctx.Done():
+			t.Fatalf("production handoff helper did not attach: %v (last query: %v)", ctx.Err(), countErr)
+		case <-ticker.C:
+		}
+	}
+}
+
+func zellijClientCount(ctx context.Context, session string) (int, error) {
+	out, err := exec.CommandContext(ctx, "zellij", "--session", session, "action", "list-clients").Output()
+	if err != nil {
+		return 0, err
+	}
+	count := 0
+	for _, line := range strings.Split(strings.TrimSpace(string(out)), "\n") {
+		if strings.TrimSpace(line) != "" {
+			count++
+		}
+	}
+	return count, nil
+}
+
+func runParkLifecycleHelper() int {
+	attempt, err := strconv.ParseUint(os.Getenv("PAIR_TEST_PARK_ATTEMPT"), 10, 64)
+	if err != nil {
+		return 2
+	}
+	completedUnix, err := strconv.ParseInt(os.Getenv("PAIR_TEST_PARK_COMPLETED_AT"), 10, 64)
+	if err != nil {
+		return 2
+	}
+	globalDataDir := os.Getenv("PAIR_TEST_PARK_GLOBAL_DATA_DIR")
+	scope := os.Getenv("PAIR_TEST_PARK_SCOPE")
+	tag := os.Getenv("PAIR_TEST_PARK_TAG")
+	nonce := os.Getenv("PAIR_TEST_PARK_NONCE")
+	session := os.Getenv("PAIR_TEST_PARK_SESSION")
+	pairHome := os.Getenv("PAIR_TEST_PARK_HOME")
+	stagePath := os.Getenv("PAIR_TEST_PARK_STAGE_PATH")
+	scoped := launcher.NewScopedPaths(globalDataDir, launcher.RepoScope{Key: scope}, tag)
+	runtime := launcher.NewScopedOSRuntime(globalDataDir, scoped.ScopeDir(), pairHome)
+	env := launcher.Env{DataDir: scoped.ScopeDir()}
+	if _, err := launcher.AttachExistingSession(launcher.LaunchOptions{Env: env, PairHome: pairHome}, env, runtime, tag, session, "claude"); err != nil {
+		return 3
+	}
+	intent, present, err := runtime.TakeQuitIntent(session)
+	if err != nil || !present || intent.Kind != launcher.QuitIntentCouch || intent.Request == nil {
+		return 4
+	}
+	ref := *intent.Request
+	if ref.RepoScope != scope || ref.Tag != tag || ref.Nonce != nonce || ref.Attempt != attempt {
+		return 5
+	}
+	address, err := artifactpath.Resolve(artifactpath.Address{DataDir: globalDataDir, RepoScope: scope, Tag: tag})
+	if err != nil {
+		return 6
+	}
+	paths, err := address.Lifecycle(nonce)
+	if err != nil {
+		return 6
+	}
+	fault := &conformanceFaultRuntime{}
+	ops := &realLifecycleOps{
+		session: session, runtime: *runtime, fault: fault, completed: time.Unix(completedUnix, 0).UTC(),
+	}
+	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	defer cancel()
+	_, consumeErr := launcher.ConsumeCouchAttempt(ctx, pairlifecycle.Store{Runtime: fault}, paths, ref, session, ops)
+	stageNames := make([]string, 0, len(ops.stages))
+	for _, stage := range ops.stages {
+		stageNames = append(stageNames, string(stage))
+	}
+	if err := os.WriteFile(stagePath, []byte(strings.Join(stageNames, "\n")+"\n"), 0o600); err != nil {
+		return 7
+	}
+	if pairlifecycle.PublicationOutcomeOf(consumeErr) != pairlifecycle.Indeterminate {
+		return 8
+	}
+	return 0
 }
 
 var _ pairlifecycletest.ConformanceDriver = (*realParkConformanceDriver)(nil)

@@ -720,8 +720,8 @@ func TestIssue152DeliveredCoreConceptsResolveToGoDeclarations(t *testing.T) {
 		}
 		resolved++
 	}
-	if resolved != 19 {
-		t.Fatalf("resolved %d delivered concepts, want 19", resolved)
+	if resolved != 21 {
+		t.Fatalf("resolved %d delivered concepts, want 21", resolved)
 	}
 }
 
@@ -743,6 +743,13 @@ func requireGoDeclaration(path, qualifiedName string) error {
 			for _, spec := range value.Specs {
 				if typeSpec, ok := spec.(*ast.TypeSpec); ok && typeSpec.Name.Name == name {
 					return nil
+				}
+				if valueSpec, ok := spec.(*ast.ValueSpec); ok {
+					for _, declared := range valueSpec.Names {
+						if declared.Name == name {
+							return nil
+						}
+					}
 				}
 			}
 		case *ast.FuncDecl:

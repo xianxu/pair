@@ -760,6 +760,7 @@ ARCH-MOCK, ARCH-CONSTRAINTS).
 | `QuitRequest` | PURE | `cmd/internal/pairlifecycle/model.go` | new |
 | `QuitCompletion` | PURE | `cmd/internal/pairlifecycle/model.go` | new |
 | `CleanupResult` | PURE | `cmd/internal/pairlifecycle/cleanup.go` | new |
+| `ResetInteractiveModes` | PURE | `cmd/internal/hostty/control.go` | new |
 | `ParkTransaction` | PURE | `cmd/internal/couchcore/parktransaction.go` | new |
 | `ParkAttempt` | PURE | `cmd/internal/couchcore/parktransaction.go` | new |
 | `ParkDecision` | PURE | `cmd/internal/couchcore/parktransaction.go` | new |
@@ -773,6 +774,7 @@ ARCH-MOCK, ARCH-CONSTRAINTS).
 | `PairLifecycleController` | INTEGRATION | `cmd/internal/couchcore/park.go` | new |
 | `NativeBindingResolver` | INTEGRATION | `cmd/internal/couchcore/resume.go` | new |
 | `Couch.launchTrackedThread` | INTEGRATION | `cmd/internal/couchcore/launch_existing.go` | new |
+| `AttachExistingSession` | INTEGRATION | `cmd/internal/launcher/lifecycle.go` | new |
 | `operationQueue` | INTEGRATION | `cmd/internal/couchtty/operation_queue.go` | new |
 | `Fake` | INTEGRATION | `cmd/internal/pairlifecycletest/fake.go` | new |
 
@@ -794,3 +796,62 @@ ARCH-MOCK, ARCH-CONSTRAINTS).
       `go test -p 20 ./... -count=1`, the supported live conformance command,
       builds, and `git diff --check`; re-run `sdlc close --issue 152` to dispose
       BR-1 through BR-3.
+
+### 2026-08-30 — boundary-review round 2: local-only construction and causal live handoff
+
+**Reason:** close-gate round 2 proved that the first remediation fixed the
+named trigger site but not both contract classes. `New` still called
+`PairSession`, whose production implementation enters a bounded external
+Zellij query, and the real conformance driver killed an independent child after
+calling cleanup itself. The probe could therefore pass if production
+`TriggerQuit` stopped releasing Pair's blocking Zellij handoff.
+
+**Approved design:** construction performs no active-park recovery; the
+already-composed context-bound, concurrency-one worker owns every external
+session observation and teardown. Live conformance starts an exact helper
+process blocked in the production Zellij attach handoff. Only production
+`TriggerQuit` may release that handoff; the helper then consumes the typed quit
+intent through Pair's production cleanup/completion boundary and exits. The
+driver merely observes the committed completion and exact helper death. A
+mutation driver that writes the intent without deleting the session must fail
+before completion, proving the causal dependency (ARCH-PURE, ARCH-PURPOSE,
+ARCH-MOCK, ARCH-CONSTRAINTS).
+
+#### Round-2 remediation execution map
+
+- [x] Add a `PairSession` barrier regression that proves `New` returns without
+      invoking any active-park session query; move the complete recovery pass
+      to the existing context-bound serial worker.
+- [x] Add one production attach-handoff seam used by both Pair's attach path and
+      the live helper; make the helper own attach return, typed intent consume,
+      cleanup/completion publication, and process exit.
+- [x] Change the real conformance driver to observe rather than manufacture
+      completion and exact child death; add the intent-only mutation regression
+      that cannot release the helper and therefore fails.
+- [ ] Run the final Couch Alt+x and exact Resume smoke, record the before/after
+      tag and native root in the issue Log, check the acceptance item, and rerun
+      focused, full (`-p 20`), live, build, and diff verification before close.
+
+### 2026-08-30 — operator smoke exposed leaked terminal interaction modes
+
+**Reason:** after verified Leave returned to the shell, mouse movement still
+arrived as printable SGR escape bytes. Couch's teardown restored raw termios,
+the scroll region, alternate screen, and cursor visibility, but did not revoke
+mouse/focus/paste/extended-keyboard modes that a replayed child had enabled on
+the host terminal.
+
+**Approved design:** define one `hostty` shell-safe interactive-mode reset and
+emit it unconditionally from Couch's single teardown owner before termios is
+restored. Reset the terminal modes that can translate ordinary shell input or
+defer its display: mouse tracking/encoding, focus events, bracketed paste,
+synchronized output, and extended keyboard reporting. Do not attempt to query
+and reconstruct an unknowable prior terminal-mode stack. Exercise the shared
+release path so child exit, Leave, Escape, and signal teardown cannot drift
+(ARCH-DRY, ARCH-PURPOSE, ARCH-CONSTRAINTS).
+
+- [x] Add a failing release regression proving an enabled child mouse mode is
+      explicitly disabled before `Console.Run` returns and raw termios restores.
+- [x] Add the shared `hostty` reset sequence, include it in Couch release, and
+      extend the host-control/core-concept contracts.
+- [ ] Repeat the real Leave smoke and verify mouse movement is inert at the
+      returned shell before completing the round-2 acceptance evidence.

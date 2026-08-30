@@ -26,6 +26,30 @@ rounds:
           family: core-concepts-match-code
           round: 1
       blocked: true
+    - "n": 2
+      timestamp: "2026-08-30T14:48:03-07:00"
+      agent: codex
+      dispose:
+        - id: BR-1
+          disposition: not-addressed
+          note: The real driver later deletes Zellij during cleanup and explicitly kills an unrelated sleep child, so it still passes if production TriggerQuit only writes the intent or is bypassed.
+          round: 2
+        - id: BR-2
+          disposition: not-addressed
+          note: TriggerQuit moved out of construction, but New still calls PairSession, whose production implementation executes unbounded Zellij list-sessions commands.
+          round: 2
+        - id: BR-3
+          disposition: addressed
+          note: The authoritative revision lists the 19 delivered declarations and the Go-AST contract test resolves every symbol and path.
+          round: 2
+      findings:
+        - id: BR-4
+          severity: Important
+          title: The required post-fix same-tag/native-root smoke remains incomplete
+          detail: The plan still leaves the manual Couch Alt+x and exact Resume smoke unchecked, and the issue Log records only the earlier defect-discovering smokes rather than final before/after tag and native-root evidence.
+          family: boundary-verification-must-be-complete
+          round: 2
+      blocked: true
 ---
 
 # Gate ledger — pair#152 (boundary-review)
@@ -44,8 +68,21 @@ later rounds disposed of them. Generated — edit the gate, not this file.
 - **BR-3** [Critical] `core-concepts-match-code` ARCH-PURPOSE: the Core Concepts table does not match the delivered entities
   workshop/plans/000152-couch-verified-park-resume-plan.md:21-79 names LifecycleIdentity, LifecycleStore, LifecycleLock, ExistingThreadLauncher, ConsoleOperationQueue, and FakePairLifecycle, none of which exist under those names. It also locates VerifiedPark and QuitLifecycleOps in the wrong files; the delivered entities are Identity, Store/OSRuntime.Lock, launchTrackedThread in launch_existing.go, operationQueue in operation_queue.go, Fake, VerifiedPark in parktransaction.go, and QuitLifecycleOps in pairlifecycle/cleanup.go. Append a plan revision with an accurate greppable Pure/Integration table and add a mechanical contract test that resolves every listed symbol and path.
 
+## Round 2 — 2026-08-30T14:48:03-07:00 (codex) — BLOCKED
+
+### Disposed
+
+- BR-1 — not-addressed — The real driver later deletes Zellij during cleanup and explicitly kills an unrelated sleep child, so it still passes if production TriggerQuit only writes the intent or is bypassed.
+- BR-2 — not-addressed — TriggerQuit moved out of construction, but New still calls PairSession, whose production implementation executes unbounded Zellij list-sessions commands.
+- BR-3 — addressed — The authoritative revision lists the 19 delivered declarations and the Go-AST contract test resolves every symbol and path.
+
+### Raised
+
+- **BR-4** [Important] `boundary-verification-must-be-complete` The required post-fix same-tag/native-root smoke remains incomplete
+  The plan still leaves the manual Couch Alt+x and exact Resume smoke unchecked, and the issue Log records only the earlier defect-discovering smokes rather than final before/after tag and native-root evidence.
+
 ## Open findings
 
 - **BR-1** [Critical] `live-conformance-production-seam` ARCH-MOCK/ARCH-PURPOSE: live conformance does not exercise the production park lifecycle
 - **BR-2** [Critical] `startup-recovery-must-not-block` ARCH-PURE/ARCH-CONSTRAINTS: construction-time recovery performs blocking Zellij teardown
-- **BR-3** [Critical] `core-concepts-match-code` ARCH-PURPOSE: the Core Concepts table does not match the delivered entities
+- **BR-4** [Important] `boundary-verification-must-be-complete` The required post-fix same-tag/native-root smoke remains incomplete
