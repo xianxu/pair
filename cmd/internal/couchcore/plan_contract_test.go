@@ -173,7 +173,7 @@ func TestIssue149M5DeclarationDispositionSetIsClosed(t *testing.T) {
 
 func TestIssue149M5CoreConceptInventoryContract(t *testing.T) {
 	root := filepath.Join("..", "..", "..")
-	raw, err := os.ReadFile(findIssue149Plan(t, root))
+	raw, err := os.ReadFile(findPlanArtifact(t, root, "000149-couch-opaque-tags-and-a-human-naming-layer-plan.md"))
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -196,7 +196,7 @@ func TestIssue149M5UnmarkedExportedAuthorityFailsClosed(t *testing.T) {
 
 func TestIssue149M5CoreConceptInventoryRejectsRowMutation(t *testing.T) {
 	root := filepath.Join("..", "..", "..")
-	raw, err := os.ReadFile(findIssue149Plan(t, root))
+	raw, err := os.ReadFile(findPlanArtifact(t, root, "000149-couch-opaque-tags-and-a-human-naming-layer-plan.md"))
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -550,7 +550,7 @@ func issue149ReceiverName(expr ast.Expr) string {
 
 func TestIssue149CurrentCoreConceptKinds(t *testing.T) {
 	root := filepath.Join("..", "..", "..")
-	path := findIssue149Plan(t, root)
+	path := findPlanArtifact(t, root, "000149-couch-opaque-tags-and-a-human-naming-layer-plan.md")
 	f, err := os.Open(path)
 	if err != nil {
 		t.Fatal(err)
@@ -610,9 +610,8 @@ func TestIssue149CurrentCoreConceptKinds(t *testing.T) {
 	}
 }
 
-func findIssue149Plan(t *testing.T, root string) string {
+func findPlanArtifact(t *testing.T, root, name string) string {
 	t.Helper()
-	name := "000149-couch-opaque-tags-and-a-human-naming-layer-plan.md"
 	active := filepath.Join(root, "workshop", "plans", name)
 	if _, err := os.Stat(active); err == nil {
 		return active
@@ -685,7 +684,7 @@ func TestIssue149BlockedRunnersDelegateToOneHandshakeAuthority(t *testing.T) {
 
 func TestIssue152DeliveredCoreConceptsResolveToGoDeclarations(t *testing.T) {
 	root := filepath.Clean(filepath.Join("..", "..", ".."))
-	planPath := filepath.Join(root, "workshop", "plans", "000152-couch-verified-park-resume-plan.md")
+	planPath := findPlanArtifact(t, root, "000152-couch-verified-park-resume-plan.md")
 	raw, err := os.ReadFile(planPath)
 	if err != nil {
 		t.Fatal(err)
