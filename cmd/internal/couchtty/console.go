@@ -1308,9 +1308,8 @@ func (c *Console) runOpAsync(name string, args map[string]string) {
 	c.showPanel()
 	requestArgs := cloneOperationArgs(args)
 	key := name + "\x00" + requestArgs["repo-scope"] + "\x00" + requestArgs["tag"] + "\x00" + requestArgs["mode"]
-	_, err := c.operationQueue.Enqueue(operationRequest{key: key, name: name, run: func() error {
-		_, err := fn(couchcore.OperationCall{Name: name, Args: requestArgs, Implicit: true})
-		return err
+	_, err := c.operationQueue.Enqueue(operationRequest{key: key, name: name, run: func() (any, error) {
+		return fn(couchcore.OperationCall{Name: name, Args: requestArgs, Implicit: true})
 	}})
 	if err != nil {
 		c.setNotice(name + ": " + err.Error())

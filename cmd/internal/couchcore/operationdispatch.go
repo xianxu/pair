@@ -224,24 +224,24 @@ func CouchLiveOwnerExecutor(c *Couch) OperationExecutor {
 			}
 			switch a["mode"] {
 			case "", "normal":
-				return c.PairLifecycle.Park(context.Background(), address)
+				return c.PairLifecycle.Park(ctx, address)
 			case "retry":
-				return c.PairLifecycle.Retry(context.Background(), address)
+				return c.PairLifecycle.Retry(ctx, address)
 			case "recover":
-				return c.PairLifecycle.Recover(context.Background(), address)
+				return c.PairLifecycle.Recover(ctx, address)
 			case "abandon":
-				return c.PairLifecycle.Abandon(context.Background(), address)
+				return c.PairLifecycle.Abandon(ctx, address)
 			default:
 				return nil, fmt.Errorf("park: invalid mode %q (want normal, retry, recover, or abandon)", a["mode"])
 			}
 		case "leave":
-			return c.Leave(context.Background())
+			return c.Leave(ctx)
 		case "resume":
 			address, err := resolveOperationThread(c, a)
 			if err != nil {
 				return nil, err
 			}
-			record, handle, err := c.Resume(address)
+			record, handle, err := c.ResumeContext(ctx, address)
 			if err != nil {
 				return nil, err
 			}

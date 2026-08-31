@@ -708,3 +708,14 @@ menu reducer. Barrier tests prove open/filter repaint do not wait for blocked
 inventory I/O and teardown cancels and joins it within 250 ms; failures retain
 last-good state and initial unavailable remains distinct from successful empty
 (`ARCH-PURE`, `ARCH-PURPOSE`, `ARCH-CONSTRAINTS`).
+
+### 2026-08-31 — M3 Task 11 typed queue and lifecycle context slice
+
+The existing bounded sequential operation queue now returns the typed result
+and exact request key once, restores overload-refused admission for retry, and
+coalesces duplicate progress without redispatch across all menu/leave
+operations. Owner dispatch carries its supplied context through park normal,
+retry, recover, abandon, leave, and resume admission; direct `Resume` remains
+an explicit background convenience wrapper. Exhaustive canceled-context and
+targeted race tests pin the full branch set (`ARCH-PURE`, `ARCH-PURPOSE`,
+`ARCH-CONSTRAINTS`).

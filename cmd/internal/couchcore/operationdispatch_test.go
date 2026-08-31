@@ -1,9 +1,13 @@
 package couchcore
 
 import (
+	"context"
 	"errors"
 	"reflect"
 	"testing"
+	"time"
+
+	"github.com/xianxu/pair/cmd/internal/pairlifecycletest"
 )
 
 func TestDispatchOperationRoutesOnlyThroughDeclaredExecutor(t *testing.T) {
@@ -32,6 +36,86 @@ func TestDispatchOperationRoutesOnlyThroughDeclaredExecutor(t *testing.T) {
 	}
 	if len(live) != 1 || live[0].Operation.Name != "start" {
 		t.Fatalf("live calls = %+v", live)
+	}
+}
+
+func TestLifecycleOperationContextReachesParkLeaveAndResume(t *testing.T) {
+	canceled, cancel := context.WithCancel(context.Background())
+	cancel()
+
+	t.Run("park", func(t *testing.T) {
+		env := newTestEnv(t, "/repo")
+		record, _ := env.spawn(t, StartArgs{Cwd: "/repo"})
+		installLifecycleForContextTest(t, env, record.Thread)
+		_, err := DispatchOperation(OperationExecutors{LiveOwner: CouchLiveOwnerExecutor(env.Couch)}, OperationCall{
+			Name: "park", Context: canceled, Implicit: true,
+			Args: map[string]string{"repo-scope": record.Thread.RepoScope, "tag": string(record.Thread.Tag)},
+		})
+		if !errors.Is(err, context.Canceled) {
+			t.Fatalf("park context = %v, want canceled", err)
+		}
+	})
+	for _, mode := range []string{"retry", "recover", "abandon"} {
+		t.Run("park/"+mode, func(t *testing.T) {
+			env := newTestEnv(t, "/repo")
+			record, _ := env.spawn(t, StartArgs{Cwd: "/repo"})
+			installLifecycleForContextTest(t, env, record.Thread)
+			thread, err := env.Couch.Threads.GetThread(record.Thread)
+			if err != nil {
+				t.Fatal(err)
+			}
+			identity := ParkIdentity{Nonce: "park-context", Address: thread.Address, PID: thread.Incarnations[0].PID, ProcessIdentity: thread.Incarnations[0].Identity}
+			if _, err := env.Couch.Threads.BeginPark(thread.Address, thread.Revision, identity); err != nil {
+				t.Fatal(err)
+			}
+			_, err = DispatchOperation(OperationExecutors{LiveOwner: CouchLiveOwnerExecutor(env.Couch)}, OperationCall{
+				Name: "park", Context: canceled, Implicit: true,
+				Args: map[string]string{"repo-scope": record.Thread.RepoScope, "tag": string(record.Thread.Tag), "mode": mode},
+			})
+			if !errors.Is(err, context.Canceled) {
+				t.Fatalf("park %s context = %v, want canceled", mode, err)
+			}
+		})
+	}
+
+	t.Run("leave", func(t *testing.T) {
+		env := newTestEnv(t, "/repo")
+		record, _ := env.spawn(t, StartArgs{Cwd: "/repo"})
+		installLifecycleForContextTest(t, env, record.Thread)
+		_, err := DispatchOperation(OperationExecutors{LiveOwner: CouchLiveOwnerExecutor(env.Couch)}, OperationCall{
+			Name: "leave", Context: canceled,
+		})
+		if !errors.Is(err, context.Canceled) {
+			t.Fatalf("leave context = %v, want canceled", err)
+		}
+	})
+
+	t.Run("resume", func(t *testing.T) {
+		env := newTestEnv(t, "/repo")
+		env.Couch.resumeRegistrationTimeout = time.Millisecond
+		parked := createParkedThreadInCouch(t, env, LaunchProfile{Agent: "claude", Argv: []string{}})
+		env.Artifacts.SetNativeBinding(parked.Address, "claude", "established", "native-root-1")
+		_, err := DispatchOperation(OperationExecutors{LiveOwner: CouchLiveOwnerExecutor(env.Couch)}, OperationCall{
+			Name: "resume", Context: canceled, Implicit: true,
+			Args: map[string]string{"repo-scope": parked.Address.RepoScope, "tag": string(parked.Address.Tag)},
+		})
+		if !errors.Is(err, context.Canceled) {
+			t.Fatalf("resume context = %v, want canceled", err)
+		}
+	})
+}
+
+func installLifecycleForContextTest(t *testing.T, env *testEnv, address ThreadAddress) {
+	t.Helper()
+	model := pairlifecycletest.New(env.Now)
+	model.SetSession("pair-context", true)
+	env.Artifacts.SetPairSession(address, "pair-context", true)
+	env.Couch.PairLifecycle = &PairLifecycleController{
+		Threads: env.Couch.Threads, DataDir: env.Dir,
+		Lifecycle: &fakeControllerLifecycle{model: model, store: env.Couch.Threads},
+		Sessions:  env.Artifacts, Proc: env.Proc, Clock: FixedClock{T: env.Now},
+		Nonce:             func() (string, error) { return "park-context", nil },
+		CompletionTimeout: time.Millisecond, PollInterval: time.Millisecond,
 	}
 }
 

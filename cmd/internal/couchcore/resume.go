@@ -168,6 +168,16 @@ var _ NativeBindingResolver = SessionInventoryNativeBindingResolver{}
 // Resume reoccupies one verified parked address using only its exact saved
 // path, launch profile, and established native root binding.
 func (c *Couch) Resume(address ThreadAddress) (ActorRecord, Handle, error) {
+	return c.ResumeContext(context.Background(), address)
+}
+
+func (c *Couch) ResumeContext(ctx context.Context, address ThreadAddress) (ActorRecord, Handle, error) {
+	if ctx == nil {
+		ctx = context.Background()
+	}
+	if err := ctx.Err(); err != nil {
+		return ActorRecord{}, nil, err
+	}
 	if c == nil || c.Threads == nil {
 		return ActorRecord{}, nil, errors.New("resume: Couch is unavailable")
 	}
@@ -206,7 +216,7 @@ func (c *Couch) Resume(address ThreadAddress) (ActorRecord, Handle, error) {
 		return ActorRecord{}, nil, err
 	}
 	startedAt := c.Clock.Now()
-	thread, err = ReconcileResumeAdmission(context.Background(), c.Threads, c.PolicyResolver, ResumeAdmissionInput{
+	thread, err = ReconcileResumeAdmission(ctx, c.Threads, c.PolicyResolver, ResumeAdmissionInput{
 		Address: address, StartedAt: startedAt,
 		Owner: SupervisorOwner{PID: owner.PID, Identity: owner.Identity},
 		Nonce: nonce, Profile: eligible.Profile,
