@@ -353,9 +353,11 @@ func TestPanelStartSuccessAttachesAndSelectsReturnedTree(t *testing.T) {
 		}
 		return couchcore.StartResult{
 			Record: couchcore.ActorRecord{
-				ID:     "actor-parked",
-				Thread: panelAddress("parked"),
-				Args:   couchcore.StartArgs{Worktree: "/w/parked"},
+				ID:       "actor-parked",
+				Thread:   panelAddress("parked"),
+				Args:     couchcore.StartArgs{Worktree: "/w/parked"},
+				PID:      h.PID(),
+				Identity: h.Identity(),
 			},
 			Handle: h,
 		}, nil

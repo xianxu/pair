@@ -764,3 +764,16 @@ authority, then removes and persists the transitional registry record. Tests
 prove mismatches cannot kill or quiesce another actor and exact cleanup leaves
 the durable incarnation fail-closed. Targeted race and full core suites pass
 (`ARCH-DRY`, `ARCH-PURPOSE`).
+
+### 2026-08-31 — M3 Task 11 transactional terminal attach
+
+Terminal attachment now commits routing state and its exit watcher as one
+mutex-owned transaction. It refuses stopped Consoles, exited children,
+duplicate thread/handle identities, and record/handle process mismatches
+without changing active/root/order state. Teardown crosses the same mutex
+before its final worker wait, closing the Add/Wait race. The composition root
+now invokes `AbortStarted` whenever owner-local attach refuses, so exact child,
+Pair session, durable state, and registry cleanup finish before failure returns.
+Concurrent Stop, dead-terminal rollback, terminal restoration, and wired abort
+tests pass under the race detector and full TTY/command suites
+(`ARCH-PURPOSE`, `ARCH-CONSTRAINTS`).

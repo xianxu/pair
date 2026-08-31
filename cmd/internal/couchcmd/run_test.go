@@ -1134,6 +1134,35 @@ func TestInitialConsoleAttachDispatchesDeclaredOperation(t *testing.T) {
 	}
 }
 
+func TestWireAttachAbortCleansStartedActorAfterConsoleRefusal(t *testing.T) {
+	rt := newRT(t, "/repo")
+	c, err := rt.NewCouch()
+	if err != nil {
+		t.Fatal(err)
+	}
+	record, handle, err := c.Spawn(couchcore.StartArgs{Cwd: "/repo"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	console, _ := consoleRunnerFor("start", map[string]string{}, strings.NewReader(""), true, nil, nil)
+	console.Stop()
+	wireResolver(console, c)
+
+	_, err = console.Ops()(couchcore.OperationCall{
+		Name: "attach", Implicit: true, TypedPayload: couchcore.StartResult{Record: record, Handle: handle},
+		Args: map[string]string{"repo-scope": record.Thread.RepoScope, "tag": string(record.Thread.Tag)},
+	})
+	if err == nil {
+		t.Fatal("stopped Console attach unexpectedly succeeded")
+	}
+	if handle.Alive() {
+		t.Fatal("failed wired attach left started handle alive")
+	}
+	if got := c.List(); len(got) != 0 {
+		t.Fatalf("failed wired attach left actor registered: %+v", got)
+	}
+}
+
 func TestConsoleExitForgetsThroughCouchRegistry(t *testing.T) {
 	rt := newRT(t, "/repo")
 	c, err := rt.NewCouch()

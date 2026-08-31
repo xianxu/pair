@@ -444,7 +444,13 @@ func wireResolver(console *couchtty.Console, c *couchcore.Couch) {
 			DirectStore: couchcore.DirectStoreExecutor(c),
 			LiveOwner: func(call couchcore.OperationCall) (any, error) {
 				if call.Operation.Effect == couchcore.EffectConsole {
-					return console.ExecuteConsoleOperation(call)
+					result, err := console.ExecuteConsoleOperation(call)
+					if err != nil && call.Operation.Name == "attach" {
+						if start, ok := call.TypedPayload.(couchcore.StartResult); ok {
+							return nil, c.AbortStarted(start, err)
+						}
+					}
+					return result, err
 				}
 				return couchLive(call)
 			},

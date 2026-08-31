@@ -812,23 +812,23 @@ Add the narrow owner method and reuse the existing cleanup authority without dup
 
 Re-run Step 22. Expected: PASS.
 
-- [ ] **Step 25: Write failing transactional pane-attach/Stop tests**
+- [x] **Step 25: Write failing transactional pane-attach/Stop tests**
 
 Apply the partial-install Console strategy to transactional attach and Stop;
 exact identity removal, watcher join, routing restoration, terminal restoration,
 and `AbortStarted` completion are the guards.
 
-- [ ] **Step 26: Run transactional attach tests and verify RED**
+- [x] **Step 26: Run transactional attach tests and verify RED**
 
 Run: `go test -p 20 ./cmd/internal/couchtty ./cmd/internal/couchcmd -run 'Test(ConsoleAttachRollback|ConsoleStopDuringAttach|WireAttachAbort)' -count=1`
 
 Expected: FAIL because attach has no transactional rollback/partial-Stop contract.
 
-- [ ] **Step 27: Implement transactional attach and partial-Stop cleanup**
+- [x] **Step 27: Implement transactional attach and partial-Stop cleanup**
 
 Make attach commit/rollback one owner-local composition in `wireResolver`; cleanup finishes before reducer restoration.
 
-- [ ] **Step 28: Run transactional attach tests and verify GREEN**
+- [x] **Step 28: Run transactional attach tests and verify GREEN**
 
 Re-run Step 26. Expected: PASS.
 

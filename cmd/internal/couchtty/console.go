@@ -3,6 +3,7 @@ package couchtty
 import (
 	"bytes"
 	"context"
+	"errors"
 	"fmt"
 	"io"
 	"os"
@@ -304,7 +305,54 @@ func (c *Console) attachThreadActor(handleID string, actorID couchcore.ActorID, 
 }
 
 func (c *Console) attachObservedThreadActor(handleID string, actorID couchcore.ActorID, thread couchcore.ThreadAddress, tree couchcore.Worktree, label string, child *ptychild.Child, process couchcore.ProcessIdentity) {
+	_ = c.installObservedThreadActor(c.lifetime, handleID, actorID, thread, tree, label, child, process)
+}
+
+// installObservedThreadActor commits a complete pane or no pane. The worker
+// count is reserved under the same mutex as routing state, so teardown's mutex
+// barrier cannot begin its final Wait between a partial map insertion and the
+// exit watcher becoming owned.
+func (c *Console) installObservedThreadActor(ctx context.Context, handleID string, actorID couchcore.ActorID, thread couchcore.ThreadAddress, tree couchcore.Worktree, label string, child *ptychild.Child, process couchcore.ProcessIdentity) error {
+	if ctx == nil {
+		ctx = c.lifetime
+	}
+	if handleID == "" || actorID == "" || child == nil {
+		return errors.New("attach requires complete handle, actor, and terminal identities")
+	}
+	select {
+	case <-ctx.Done():
+		return ctx.Err()
+	case <-c.stop:
+		return errors.New("console is stopped")
+	case <-child.Exited():
+		return errors.New("attach terminal has already exited")
+	default:
+	}
+
 	c.mu.Lock()
+	select {
+	case <-ctx.Done():
+		c.mu.Unlock()
+		return ctx.Err()
+	case <-c.stop:
+		c.mu.Unlock()
+		return errors.New("console is stopped")
+	case <-child.Exited():
+		c.mu.Unlock()
+		return errors.New("attach terminal has already exited")
+	default:
+	}
+	if _, exists := c.panes[handleID]; exists {
+		c.mu.Unlock()
+		return fmt.Errorf("terminal handle %q is already attached", handleID)
+	}
+	for _, installed := range c.panes {
+		if installed.thread == thread {
+			c.mu.Unlock()
+			return fmt.Errorf("thread %s/%s is already attached", thread.RepoScope, thread.Tag)
+		}
+	}
+	c.workers.Add(1)
 	c.panes[handleID] = &pane{tree: tree, thread: thread, process: process, actorID: actorID, label: label, child: child}
 	c.order = append(c.order, handleID)
 	if c.active == "" {
@@ -320,7 +368,6 @@ func (c *Console) attachObservedThreadActor(handleID string, actorID couchcore.A
 	c.mu.Unlock()
 	c.requestMenuRefresh()
 
-	c.workers.Add(1)
 	go func() {
 		defer c.workers.Done()
 		select {
@@ -332,6 +379,7 @@ func (c *Console) attachObservedThreadActor(handleID string, actorID couchcore.A
 		case <-c.stop:
 		}
 	}()
+	return nil
 }
 
 // PaneRowDirty reports whether a pane still owes a row repaint. Exported for
@@ -591,6 +639,10 @@ func (c *Console) teardown(restore func() error) {
 			fmt.Fprintf(c.errw(), "couch: close terminal input: %v\n", err)
 		}
 	}
+	// Pair with installObservedThreadActor's under-mutex Add. Once this barrier
+	// passes, Stop is closed and no later attach can increment the WaitGroup.
+	c.mu.Lock()
+	c.mu.Unlock()
 	c.workers.Wait()
 }
 
@@ -1365,13 +1417,22 @@ func (c *Console) ExecuteConsoleOperation(call couchcore.OperationCall) (any, er
 		if start.Record.Thread != address {
 			return nil, fmt.Errorf("attach address does not match started thread")
 		}
+		if start.Handle == nil || start.Record.PID != start.Handle.PID() || start.Record.Identity != start.Handle.Identity() {
+			return nil, fmt.Errorf("attach record/handle process identity mismatch")
+		}
 		th, ok := start.Handle.(couchcore.TerminalHandle)
 		if !ok {
 			return nil, fmt.Errorf("child has no terminal to attach")
 		}
-		c.attachObservedThreadActor(start.Handle.ID(), start.Record.ID, start.Record.Thread,
+		ctx := call.Context
+		if ctx == nil {
+			ctx = c.lifetime
+		}
+		if err := c.installObservedThreadActor(ctx, start.Handle.ID(), start.Record.ID, start.Record.Thread,
 			start.Record.Args.Worktree, start.Record.Args.Worktree.Repo(), th.Terminal(),
-			couchcore.ProcessIdentity{PID: start.Handle.PID(), Identity: start.Handle.Identity()})
+			couchcore.ProcessIdentity{PID: start.Handle.PID(), Identity: start.Handle.Identity()}); err != nil {
+			return nil, err
+		}
 		return address, nil
 	default:
 		return nil, fmt.Errorf("%s is not a console-local operation", call.Name)
