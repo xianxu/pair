@@ -1199,3 +1199,61 @@ semantic completion mapping that Task 10 still described as pending.
 composition paths as present. The hierarchical renderer replacement and target
 performance harness remain explicitly unfinished for Tasks 12 and 13
 (`ARCH-PURPOSE`, `ARCH-CONSTRAINTS`).
+
+### 2026-08-31 — replace ancestor columns with breadcrumb single-surface layout
+
+**Reason:** Task 12 live smoke made the planned wide/narrow multi-frame layout
+misrepresent the global start form as a selected-thread child and spend most of
+the switcher's width on inactive ancestors. The operator visually compared
+collapsed rails, dimmed columns, and a breadcrumb single surface and approved
+the latter.
+
+**Delta:** Task 12's renderer replacement now emits exactly one left-anchored
+active surface. Root threads and global start are separate level-zero surfaces;
+nested frames derive a subdued breadcrumb from the retained reducer stack while
+their parent bodies are hidden. Add pure layout/render tests for all frame kinds
+and real-loop tests proving Ctrl-Space does not indent start, actions do not
+retain the root body, Left/Escape back out, and Right follows Tab/Enter. Keep the
+100-row computation budgets unchanged because the new renderer performs no IO
+and renders no more content than the superseded layout (`ARCH-DRY`, `ARCH-PURE`,
+`ARCH-PURPOSE`, `ARCH-CONSTRAINTS`).
+
+### 2026-08-31 — enumerate single-surface renderer and navigation acceptance
+
+**Reason:** fresh-context review found that the approved plan revision did not
+explicitly retire Task 6's child-rectangle behavior and described horizontal
+aliases and breadcrumb ancestry too coarsely to provide deterministic test
+oracles.
+
+**Delta:** Task 12 supersedes Task 6's multi-body child rectangles and
+`MenuLayoutWide`/`MenuLayoutNarrow` behavior while retaining its bounds,
+clipping, selection, sanitation, and below-minimum guarantees. Its TDD table
+covers root; global start opened from root, actions, and confirmation; actions;
+park confirmation; rename; and describe at 120x40, 40x10, and below minimum.
+Each supported-size case asserts one rectangle/body at X=0, exact breadcrumb
+components, no parent body, bounded one-line breadcrumb clipping, and visible
+selection or form focus.
+
+Reducer and raw-host-loop tables cover the frame-specific Left/Right/Tab/Enter
+matrix: root Right=Tab and Left=Escape; action/confirmation Right=Enter and
+Left=Escape; text Left=Escape with Right/Tab no-op; start retains Tab field and
+agent-field Left/Right semantics. Terminal cases include CSI/SS3 arrows and
+HT/CSI-u Tab. Reconciliation cases invalidate or rename a target while nested
+and beneath global start, then assert stale ancestry disappears, start remains
+level zero, and Escape restores only the reconciled origin. Breadcrumb projection
+runs after reconciliation, uses the current actionable display label, sanitizes
+and clips to one row, and never consumes the minimum active-body viewport
+(`ARCH-DRY`, `ARCH-PURE`, `ARCH-PURPOSE`, `ARCH-CONSTRAINTS`).
+
+### 2026-08-31 — cover direct leave confirmation as a distinct surface
+
+**Reason:** follow-up plan review found that park confirmation does not cover
+Alt+x leave, which has a root-plus-confirmation stack and must not synthesize an
+actions breadcrumb component.
+
+**Delta:** add Alt+x leave confirmation to Task 12's renderer table at 120x40,
+40x10, and below minimum, with exact breadcrumb
+`threads › <current actionable thread> › leave couch`, one body at X=0, and no
+invented actions ancestor. Add it to the raw-key table with Left/Escape,
+Right=Enter, Tab no-op, and Ctrl-Space/level-zero-start/Escape restoration cases
+(`ARCH-DRY`, `ARCH-PURPOSE`).

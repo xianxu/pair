@@ -416,6 +416,86 @@ unless target-invalid reconciliation has already removed them. A real-navigation
 operation × outcome sweep covers switch, resume, park, name, describe, and
 start with post-dispatch overlay creation (ARCH-PURE, ARCH-PURPOSE).
 
+### 2026-08-31 — render one left-anchored surface with breadcrumb ancestry
+
+**Reason:** live smoke showed that rendering the global `start thread` form as
+a right-hand child falsely presented it as subordinate to the selected thread,
+while full ancestor columns consumed most of the primary switcher surface. The
+operator selected the breadcrumb/single-surface treatment after comparing it
+with collapsed ancestor rails and dimmed ancestor columns.
+
+**Delta:** `threads` and `start thread` are independent level-zero surfaces,
+both anchored at the terminal's left edge. A nested action, confirmation, or
+text surface replaces its parent and renders a subdued breadcrumb such as
+`threads › <thread> › actions`; it never retains a full parent column. Left and
+Escape return one hierarchy level, while Right follows the same forward path
+as Tab/Enter for the current list. The reducer remains the hierarchy authority
+and the renderer derives breadcrumb labels from its frame stack
+(`ARCH-DRY`, `ARCH-PURE`, `ARCH-CONSTRAINTS`).
+
+### 2026-08-31 — make single-surface rendering and horizontal keys total
+
+**Reason:** fresh-context review found that the approved visual revision did
+not explicitly supersede the old wide/right-of-parent and narrow/below-parent
+contract, and its generic Left/Right language conflicted with the start form's
+agent selector. It also left breadcrumb components and reconciliation order
+implicit.
+
+**Delta:** this revision supersedes every earlier requirement for simultaneous
+parent/child bodies, child rectangles, `MenuLayoutWide`, or `MenuLayoutNarrow`.
+At every supported size the renderer emits exactly one active body at column
+zero; no ancestor body or reserved ancestor column remains. Terminal width now
+changes only clipping and viewport capacity. At 40x10 the current surface stays
+operable; below 40x10 only the resize request renders.
+
+Horizontal hierarchy keys are frame-specific. On `threads`, Right is exactly
+Tab and opens actions; Enter still switches/resumes; Left is exactly root Escape,
+including clearing a non-empty filter before returning to the active thread. In
+action and confirmation lists, Right is Enter on the selected row, Tab remains
+a quiet no-op, and Left is Escape. In rename/describe, Left cancels like Escape,
+Right and Tab are no-ops, and Enter submits. `start thread` retains its existing
+form contract rather than hierarchy aliases: Tab changes fields, Left/Right
+change the agent only while the agent field is active, Enter submits, and Escape
+restores the reconciled originating stack. Each alias inherits the corresponding
+no-selection behavior.
+
+Breadcrumbs are a pure projection of the reconciled thread-bound visible stack.
+Root and global start render only their own level-zero titles, `threads` and
+`start thread`; a start form never displays its retained origin as ancestry.
+Thread-bound components are `threads`, the current actionable thread display
+label, `actions`, and the active leaf label when present: `park`, `rename`, or
+`describe`. Reconciliation precedes breadcrumb derivation, so an invalidated or
+discarded target never remains visible. The breadcrumb is sanitized, clipped to
+one terminal row without wrapping, and does not reduce the active body below its
+operable viewport (`ARCH-DRY`, `ARCH-PURE`, `ARCH-PURPOSE`, `ARCH-CONSTRAINTS`).
+
+**Superseding acceptance:** at both 120x40 and 40x10, root, global start opened
+from root/action/confirmation, actions, park confirmation, rename, and describe
+render one left-anchored active body with exact breadcrumb components, visible
+selection/form focus, and no parent body; below 40x10 only the resize request
+renders. Pure reconciliation and raw-host-loop tables cover the complete
+frame-specific Left/Right/Tab/Enter matrix through CSI/SS3 arrows and HT/CSI-u
+Tab. Invalidating or renaming a nested target, including beneath an open global
+start, removes stale ancestry while preserving only the reconciled origin that
+Escape may restore. This acceptance supersedes the Done-when bullet requiring
+wide and narrow parent/child layouts.
+
+### 2026-08-31 — include direct leave confirmation in breadcrumb projection
+
+**Reason:** follow-up review found that the exhaustive surface list omitted the
+Alt+x leave confirmation, whose reducer stack is root-plus-confirmation rather
+than root-actions-confirmation.
+
+**Delta:** thread-bound leaf labels include `park`, `rename`, `describe`, and
+`leave couch`. Alt+x leave renders
+`threads › <current actionable thread> › leave couch` directly from its
+root-plus-confirmation stack and never invents an `actions` component. The
+single-surface renderer and horizontal-key acceptance includes this leave
+confirmation at 120x40, 40x10, and below minimum: Left/Escape backs out,
+Right=Enter on the selected row, Tab is a no-op, and Ctrl-Space opens a
+level-zero global start whose Escape restores the reconciled leave origin
+(`ARCH-DRY`, `ARCH-PURPOSE`).
+
 ## Done when
 
 - Enter switches to/resumes the selected work thread; thread-list Tab enters
