@@ -67,14 +67,14 @@
 
 ### Integration points
 
-| Name | Lives in | Planned change | Delivery | Current after M3 Task 10 | Wraps |
+| Name | Lives in | Planned change | Delivery | Current after M3 Task 11 | Wraps |
 |------|----------|----------------|----------|---------------|-------|
 | `Couch.ActionableThreadInventory` | `cmd/internal/couchcore/actionableinventory.go` | new | M1 | present | `ThreadStore.Snapshot` plus live-owner observations |
 | `Couch.PrepareStart` / `Couch.SpawnPrepared` | `cmd/internal/couchcore/startresolution.go`, `couch.go` | new | M1 | present | path, policy, preference/default reads, runner launch |
 | `StartGrantStore` | `cmd/internal/couchcore/startgrant.go` | new | M1 | present | owner-local random issuance, TTL, and atomic consumption |
-| context-bearing shared operations and post-start cleanup | `cmd/internal/couchcore/ops.go`, `operationdispatch.go`, `couch.go` | modified | M1 | modified, present | owner operation dispatch, cancellation, exact-handle cleanup |
-| `Console` menu controller | `cmd/internal/couchtty/console_menu.go`, `console.go` | modified | M3 | refresh controller present; action/render migration pending | host input/output, pane observations, bounded async workers |
-| `wireResolver` composition | `cmd/internal/couchcmd/run.go` | modified | M3 | actionable refresh wiring present; action/render migration pending | Couch core providers and Console operation dispatcher |
+| context-bearing shared operations and post-start cleanup | `cmd/internal/couchcore/ops.go`, `operationdispatch.go`, `couch.go` | modified | M1 | context dispatch and exact started-actor abort present | owner operation dispatch, cancellation, exact-handle cleanup |
+| `Console` menu controller | `cmd/internal/couchtty/console_menu.go`, `console.go` | modified | M3 | refresh, preview, action, and transactional attach controllers present; render migration pending | host input/output, pane observations, bounded async workers |
+| `wireResolver` composition | `cmd/internal/couchcmd/run.go` | modified | M3 | actionable refresh, shared action, and attach-abort wiring present; render migration pending | Couch core providers and Console operation dispatcher |
 | context-bearing `Runner` / `FakeRunner` / `hostty.FakeHost` | existing test seams | modified | M1 | modified, present | cancelable child lifecycle and terminal behavior |
 | target performance harness | `cmd/internal/couchtty/menu_perf_test.go` | new | M3 | absent | clock samples and deterministic four-worker CPU load |
 
@@ -832,13 +832,13 @@ Make attach commit/rollback one owner-local composition in `wireResolver`; clean
 
 Re-run Step 26. Expected: PASS.
 
-- [ ] **Step 29: Write semantic action/form restoration traces**
+- [x] **Step 29: Write semantic action/form restoration traces**
 
 Drive Spec-defined operation outcomes through semantic events and the shared
 Console/reducer model oracle. Exact dispatch identity, restoration only after
 cleanup, frame reconciliation, and no redispatch are the guards.
 
-- [ ] **Step 30: Run restoration traces and verify RED**
+- [x] **Step 30: Run restoration traces and verify RED**
 
 Run:
 
@@ -846,16 +846,16 @@ Run:
 
 Expected: FAIL because the controller does not yet map every restoration case.
 
-- [ ] **Step 31: Implement remaining effect/restoration mappings**
+- [x] **Step 31: Implement remaining effect/restoration mappings**
 
 Complete the thin mapping from reducer effects to declared operations, reusing
 existing Alt+x and clear/replay ownership.
 
-- [ ] **Step 32: Run restoration traces and verify GREEN**
+- [x] **Step 32: Run restoration traces and verify GREEN**
 
 Re-run Step 30. Expected: PASS.
 
-- [ ] **Step 33: Commit Task 11**
+- [x] **Step 33: Commit Task 11**
 
 ```bash
 git add cmd/internal/couchtty/operation_queue.go cmd/internal/couchtty/operation_queue_test.go cmd/internal/couchtty/park_latency_test.go cmd/internal/couchtty/console_menu.go cmd/internal/couchtty/console_menu_test.go cmd/internal/couchtty/console.go cmd/internal/couchtty/console_panel_regression_test.go cmd/internal/couchcore/operationdispatch.go cmd/internal/couchcore/operationdispatch_test.go cmd/internal/couchcore/startresolution.go cmd/internal/couchcore/startresolution_test.go cmd/internal/couchcore/couch.go cmd/internal/couchcore/couch_test.go cmd/internal/couchcore/launch_existing.go cmd/internal/couchcore/launchhelper.go cmd/internal/couchcore/launchhelper_test.go cmd/internal/couchcore/resume.go cmd/internal/couchcore/resume_launch_test.go cmd/internal/couchcore/runner.go cmd/internal/couchcore/runner_test.go cmd/internal/couchcore/runner_contract_test.go cmd/internal/couchcore/runner_fake.go cmd/internal/couchcore/ptyrunner.go cmd/internal/couchcore/ptyrunner_test.go cmd/internal/couchcore/plan_contract_test.go cmd/internal/couchcore/starttransaction_integration_test.go cmd/probes/couchstartrecovery/main.go cmd/internal/couchcmd/run.go cmd/internal/couchcmd/run_test.go
@@ -1188,3 +1188,14 @@ the refresh scheduler, context-bearing actionable provider, exact pane
 observations, and bounded Console refresh worker as present after Task 10. They
 continue to identify the flat panel, action/render migration, and performance
 harness as unfinished (ARCH-PURPOSE, ARCH-CONSTRAINTS).
+
+### 2026-08-31 — advance the executable concept inventory through M3 Task 11
+
+**Reason:** Task 11 completed the context-bearing lifecycle, preview/action
+controllers, exact started-actor abort, transactional terminal attach, and
+semantic completion mapping that Task 10 still described as pending.
+
+**Delta:** the Integration points table now records those controllers and
+composition paths as present. The hierarchical renderer replacement and target
+performance harness remain explicitly unfinished for Tasks 12 and 13
+(`ARCH-PURPOSE`, `ARCH-CONSTRAINTS`).

@@ -171,7 +171,7 @@ func (c *Console) dispatchMenuEffects(effects []MenuEffect) {
 			continue
 		}
 		if effect.Operation != "" {
-			c.runOpAsync(effect.Operation, effect.Args)
+			c.runMenuOperation(effect)
 		}
 	}
 }

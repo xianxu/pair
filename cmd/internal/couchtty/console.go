@@ -591,18 +591,9 @@ func (c *Console) Run() int {
 		case result := <-c.previewResults:
 			c.finishMenuPreview(result)
 		case completed := <-c.operationQueue.results:
-			if completed.err != nil {
-				c.setNotice(completed.name + ": " + completed.err.Error())
-			} else {
-				if completed.name == "leave" {
-					c.Stop()
-					continue
-				}
-				c.setNotice(completed.name + ": done")
+			if c.finishOperation(completed) {
+				continue
 			}
-			c.requestMenuRefresh()
-			c.rebuildPanel()
-			c.showPanel()
 		case <-terminated:
 			return 0
 		case <-c.stop:
@@ -1378,6 +1369,84 @@ func (c *Console) runOpAsync(name string, args map[string]string) {
 		c.setNotice(name + ": " + err.Error())
 		c.showPanel()
 	}
+}
+
+func (c *Console) runMenuOperation(effect MenuEffect) {
+	c.mu.Lock()
+	fn := c.ops
+	origin := c.menu.InFlight
+	c.mu.Unlock()
+	if fn == nil {
+		c.setNotice("no action dispatcher wired")
+		return
+	}
+	if origin.Operation != effect.Operation || origin.Attempt == 0 || origin.Attempt != effect.Attempt {
+		return
+	}
+	requestArgs := cloneOperationArgs(effect.Args)
+	key := fmt.Sprintf("menu\x00%d\x00%s", effect.Attempt, effect.Operation)
+	_, err := c.operationQueue.Enqueue(operationRequest{key: key, name: effect.Operation, origin: origin, run: func() (any, error) {
+		operationContext, cancelOperation := context.WithCancel(c.lifetime)
+		defer cancelOperation()
+		return fn(couchcore.OperationCall{Name: effect.Operation, Args: requestArgs, Implicit: true, Context: operationContext})
+	}})
+	if err != nil {
+		c.finishOperation(operationCompletion{key: key, name: effect.Operation, origin: origin, err: err})
+	}
+}
+
+// finishOperation returns true when the completion requested Console exit.
+func (c *Console) finishOperation(completed operationCompletion) bool {
+	if completed.origin.Attempt == 0 {
+		if completed.err != nil {
+			c.setNotice(completed.name + ": " + completed.err.Error())
+		} else {
+			if completed.name == "leave" {
+				c.Stop()
+				return true
+			}
+			c.setNotice(completed.name + ": done")
+		}
+		c.requestMenuRefresh()
+		c.rebuildPanel()
+		c.showPanel()
+		return false
+	}
+
+	err := completed.err
+	address := completed.origin.Address
+	if started, ok := completed.value.(couchcore.StartResult); ok {
+		address = started.Record.Thread
+		if err == nil {
+			c.mu.Lock()
+			fn := c.ops
+			c.mu.Unlock()
+			if fn == nil {
+				err = errors.New("no action dispatcher wired")
+			} else {
+				_, err = fn(couchcore.OperationCall{
+					Name: "attach", Context: c.lifetime, Implicit: true, TypedPayload: started,
+					Args: map[string]string{"repo-scope": address.RepoScope, "tag": string(address.Tag)},
+				})
+			}
+		}
+	}
+	event := MenuEvent{
+		Kind: MenuEventOperationResult, Operation: completed.origin.Operation,
+		Attempt: completed.origin.Attempt, Address: address, Success: err == nil,
+	}
+	if err != nil {
+		event.Error = err.Error()
+	}
+	c.mu.Lock()
+	if c.menuReady {
+		c.menu, _ = ReduceMenu(c.menu, event)
+	}
+	c.mu.Unlock()
+	c.requestMenuRefresh()
+	c.rebuildPanel()
+	c.showPanel()
+	return false
 }
 
 func cloneOperationArgs(args map[string]string) map[string]string {

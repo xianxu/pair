@@ -766,9 +766,9 @@ func validateIssue151CurrentConcepts(root, plan string) error {
 		"`Couch.ActionableThreadInventory`":                                             {"M1", "present", []string{"cmd/internal/couchcore/actionableinventory.go"}, nil},
 		"`Couch.PrepareStart` / `Couch.SpawnPrepared`":                                  {"M1", "present", []string{"cmd/internal/couchcore/startresolution.go", "cmd/internal/couchcore/couch.go"}, nil},
 		"`StartGrantStore`": {"M1", "present", []string{"cmd/internal/couchcore/startgrant.go"}, nil},
-		"context-bearing shared operations and post-start cleanup":    {"M1", "modified, present", []string{"cmd/internal/couchcore/ops.go", "cmd/internal/couchcore/operationdispatch.go", "cmd/internal/couchcore/couch.go"}, nil},
-		"`Console` menu controller":                                   {"M3", "refresh controller present; action/render migration pending", []string{"cmd/internal/couchtty/console_menu.go", "cmd/internal/couchtty/console.go"}, nil},
-		"`wireResolver` composition":                                  {"M3", "actionable refresh wiring present; action/render migration pending", []string{"cmd/internal/couchcmd/run.go"}, nil},
+		"context-bearing shared operations and post-start cleanup":    {"M1", "context dispatch and exact started-actor abort present", []string{"cmd/internal/couchcore/ops.go", "cmd/internal/couchcore/operationdispatch.go", "cmd/internal/couchcore/couch.go"}, nil},
+		"`Console` menu controller":                                   {"M3", "refresh, preview, action, and transactional attach controllers present; render migration pending", []string{"cmd/internal/couchtty/console_menu.go", "cmd/internal/couchtty/console.go"}, nil},
+		"`wireResolver` composition":                                  {"M3", "actionable refresh, shared action, and attach-abort wiring present; render migration pending", []string{"cmd/internal/couchcmd/run.go"}, nil},
 		"context-bearing `Runner` / `FakeRunner` / `hostty.FakeHost`": {"M1", "modified, present", []string{"cmd/internal/couchcore/runner.go", "cmd/internal/couchcore/runner_fake.go", "cmd/internal/hostty/fake.go"}, nil},
 		"target performance harness":                                  {"M3", "absent", nil, []string{"cmd/internal/couchtty/menu_perf_test.go"}},
 	}

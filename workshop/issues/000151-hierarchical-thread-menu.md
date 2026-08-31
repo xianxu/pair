@@ -777,3 +777,15 @@ Pair session, durable state, and registry cleanup finish before failure returns.
 Concurrent Stop, dead-terminal rollback, terminal restoration, and wired abort
 tests pass under the race detector and full TTY/command suites
 (`ARCH-PURPOSE`, `ARCH-CONSTRAINTS`).
+
+### 2026-08-31 — M3 Task 11 semantic operation completion
+
+Menu-originated operations now carry the reducer's exact operation, attempt,
+address, and frame identity through the sequential queue. Typed start/resume
+results complete terminal attach first; attach refusal completes exact abort
+cleanup first; only then does one correlated terminal event re-enter
+`ReduceMenu`. Stale or compatibility completions cannot impersonate a newer
+attempt, while legacy Alt+x/flat-panel work retains its existing completion
+path until Task 12 removes it. Semantic failure and attach-before-success tests,
+the focused restoration matrix, targeted race suite, and full core/TTY/command
+packages pass (`ARCH-PURE`, `ARCH-PURPOSE`).
