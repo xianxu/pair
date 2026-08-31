@@ -1009,3 +1009,113 @@ later queued exit for the old done handle removes only that handle and cannot
 remove, activate, or redirect the new handle. Ordered fake-host/fake-runner
 traces, not final-map assertions alone, enforce this contract
 (`ARCH-PURE`, `ARCH-PURPOSE`, `ARCH-CONSTRAINTS`).
+
+### 2026-08-31 — make parked mean resumable and animate pending work
+
+Live smoke found two verified shutdown records presented as `parked` even
+though neither Pair session had completed one user/agent exchange. Their exact
+owner ledgers contained no established native binding, so `resume` correctly
+refused them after the switcher had incorrectly advertised the action.
+
+The ordinary switcher now admits a verified-park row only when the existing
+`NativeBindingResolver` proves the saved launch agent has one exact established
+root with a non-empty native ID. Resolution happens in the already asynchronous
+actionable-inventory provider and uses `QuerySession`'s exact ledger plus
+proof-named, catalog-backed incremental validation; it never enters the
+keystroke/render path or performs a whole-inventory scan. Unbound,
+provisional, ambiguous, malformed, or unreadable parked records remain in
+`couch list/show` diagnostics but are absent from the two-state switcher. Thus
+`live` means exact hosted-process proof and `parked` means exact resume
+authority; no third user-facing lifecycle leaks into the menu (`ARCH-DRY`,
+`ARCH-PURPOSE`, `ARCH-CONSTRAINTS`).
+
+Every accepted asynchronous switcher operation immediately installs one local
+progress banner: start preview `resolving…`; start `starting thread…`; resume
+`resuming <label>…`; park `parking <label>…`; leave `leaving couch…`; name
+`renaming <label>…`; describe `saving <label> description…`. The banner begins
+before work is enqueued. Its one-cell spinner cycles `◐ ◓ ◑ ◒` every 100 ms
+while progress is current, using one Console-owned timer only while needed.
+Ticks are pure reducer events and cause no inventory, filesystem, or operation
+work. Completion, refusal, Escape/teardown, or replacement with an info/error
+notice stops animation; duplicate operation submission remains refused by the
+existing exact in-flight identity. Input and navigation stay responsive while
+work runs, and below-minimum rendering retains state without painting until the
+terminal is supported again (`ARCH-PURE`, `ARCH-CONSTRAINTS`).
+
+### 2026-08-31 — totalize resume proof, cancellation, and progress identity
+
+Fresh review found that the preceding revision did not make resolver teardown,
+progress replacement, or contradictory resume observations total. This
+revision is normative and supersedes it where they differ.
+
+`ParkedResumeObservation` is the immutable tuple `(address, saved agent,
+non-empty native ID)`. A structurally verified parked record is actionable only
+when its saved launch profile is valid and there is exactly one observation for
+its address, whose agent equals that profile and whose native ID is non-empty.
+Zero, duplicate, wrong-agent, empty-ID, or otherwise contradictory observations
+omit the row. Live projection continues to use only exact hosted-process proof.
+The same raw record remains visible through diagnostic `couch list/show` for
+every omitted binding status or resolver failure.
+
+The existing `NativeBindingResolver` becomes context-bearing. The actionable
+provider passes its Console lifetime context into every parked-row resolution,
+checks cancellation between rows, and stops without publishing a partial
+snapshot. Exact query/incremental validation checks that context at each
+operation boundary; production local regular-file syscalls themselves are not
+interruptible, so no goroutine is detached to simulate cancellation. A
+context-aware fake proves a blocked resolver observes Stop and the sole refresh
+worker joins within 250 ms (`ARCH-PURE`, `ARCH-CONSTRAINTS`).
+
+Progress owns an exact identity: preview generation or operation attempt.
+`MenuNotice.Text` remains `resolving` for preview (preserving the prior typed
+contract), while the renderer produces `◐ resolving…`; other typed texts omit
+the ellipsis likewise and render as `◐ starting thread…`, `◐ resuming
+<label>…`, `◐ parking <label>…`, `◐ leaving couch…`, `◐ renaming <label>…`, or
+`◐ saving <label> description…`. Frames cycle `◐ ◓ ◑ ◒` without changing
+terminal width.
+
+| Event class | Current progress result |
+|---|---|
+| exact tick for current generation/attempt | advance one frame |
+| stale tick or stale completion | preserve current progress and phase |
+| filter, Up/Down, Tab/Right, nested overlay, inventory refresh, resize | preserve |
+| preview edit/replacement | replace with the new preview generation at phase zero |
+| Escape from a pending preview | cancel that generation and clear |
+| Escape/focus loss during a dispatched operation | preserve; operation is not implicitly cancelled |
+| exact success | clear, then perform the specified landing/restoration |
+| exact refusal/failure | replace with the local error banner |
+| explicit info/error for the same current work | replace and stop animation |
+| unsupported-size render | retain without painting |
+| teardown | discard state and stop/drain the timer |
+
+The Console timer is armed only while the switcher is focused on current
+progress. Stop/drain/rearm occurs on the Run owner; a queued tick carries its
+old identity and is harmless after replacement. No timer goroutine, provider
+call, filesystem call, or operation dispatch occurs on a tick
+(`ARCH-DRY`, `ARCH-PURE`, `ARCH-PURPOSE`, `ARCH-CONSTRAINTS`).
+
+### 2026-08-31 — define notice precedence during pending work
+
+Fresh review found one remaining cross-product: a different reducer event can
+produce a required local notice while progress is current. `MenuNotice`
+therefore also carries an optional preview-generation or operation-attempt
+owner. There is one banner, never a hidden stack of notices.
+
+| Incoming producer while progress is current | Banner after event | Timer | Later exact success |
+|---|---|---|---|
+| successful refresh, ordinary navigation, unrelated info | preserve progress | continues | clears only its owned progress |
+| refresh-provider failure | replace with refresh error | stops | preserves unrelated error |
+| reconciliation/target-disappeared error | replace with reconciliation error | stops | preserves unrelated error |
+| validation/no-selection error | replace with validation error | stops | preserves unrelated error |
+| frame/preview/operation identity exhaustion | replace with exhaustion error | stops | preserves unrelated error |
+| exact failure/refusal for current work | replace with work-owned error | stops | N/A |
+| exact success while owned progress remains | clear progress | stops | cleared |
+| stale tick/completion/preview result | no change | no change | no change |
+| newly accepted replacement preview/work | replace with new owned progress at phase zero | rearmed | clears only the new owned progress |
+
+Errors are never suppressed and progress is not implicitly restored after an
+unrelated error. A successful completion removes a notice only when that notice
+is the progress owned by the same exact generation/attempt; it cannot erase a
+newer or unrelated diagnostic. A matching failure is the latest result of the
+requested work and replaces the current banner with its owned error
+(`ARCH-PURE`, `ARCH-PURPOSE`).

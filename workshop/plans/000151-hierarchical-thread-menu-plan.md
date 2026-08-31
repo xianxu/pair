@@ -1341,3 +1341,103 @@ than map order; and delayed exit of the old handle cannot remove, activate, or
 redirect the new handle. Run focused tests and race tests plus existing
 core/TTY/command packages with `-p 20`; no command may create more than 20
 package workers (`ARCH-CONSTRAINTS`).
+
+### 2026-08-31 — require resume authority and animate pending operations
+
+**Reason:** live smoke exposed two related trust/feedback gaps. A completed
+shutdown without any established native transcript binding was projected as a
+resumable `parked` row, and accepted operations could leave the switcher
+visually static for their whole latency.
+
+**Delta:** extend Task 12 before compatibility deletion with two TDD slices.
+
+First, add `ParkedResumeObservation` as immutable proof input to the pure
+`ProjectActionableThreads` projection. The Couch inventory shell snapshots
+records, identifies structurally eligible verified parks, and asks the existing
+`NativeBindingResolver` for the saved launch agent's exact binding outside the
+Console and reducer. It contributes an observation only for
+`BindingEstablished` plus a non-empty native ID; all other statuses/errors fail
+closed for that row. Unit tests cover established, provisional, ambiguous,
+unbound, empty-root, resolver error, absent/malformed launch profile, and mixed
+live/parked input. A composition test proves the production actionable provider
+uses the same resolver as `ResumeContext`. Performance tests prove menu opening
+and key handling do not wait on a blocked resolver. The resolver continues to
+use exact-ledger, proof-named incremental validation; no new cache or duplicate
+binding authority is introduced (`ARCH-DRY`, `ARCH-PURE`, `ARCH-PURPOSE`,
+`ARCH-CONSTRAINTS`).
+
+Second, add a fail-safe spinner phase to `MenuState` and one `MenuEventTick`.
+Dispatch tests first assert each operation installs its exact progress notice
+before emitting its effect, while preview resolution retains `resolving…`.
+Pure reducer/render tests assert ticks advance only a current progress notice,
+the four one-cell frames keep width stable, stale completion cannot stop a
+newer attempt, and terminal completion/error/cancel clears or replaces progress.
+The Console run-loop owns one 100 ms timer channel, armed only while the current
+menu has progress and stopped/drained otherwise; each tick re-enters the reducer
+and repaints only when the switcher is focused. Fake-clock/host tests assert the
+first banner is painted before a blocked dispatcher runs, repeated ticks cause
+no provider/dispatcher calls, keyboard events still reduce during the block,
+and teardown leaves no timer worker. Run focused and race tests with `-p 20`
+(`ARCH-PURE`, `ARCH-CONSTRAINTS`).
+
+### 2026-08-31 — close fresh-review gaps in proof and progress lifecycles
+
+**Reason:** fresh review found the prior delta could strand teardown behind a
+non-contextual resolver, let queued ticks animate replacement work, and did not
+define contradictory parked-proof or diagnostic-retention oracles.
+
+**Delta:** before the first RED test, change the planned resume observation to
+`ParkedResumeObservation{Address, Agent, NativeID}`. Pure projection groups by
+address and admits a parked record only for exactly one total observation that
+matches its valid saved profile agent and has a non-empty ID. Table tests add
+zero, duplicate-identical, duplicate-conflicting, wrong-address, wrong-agent,
+empty-ID, live-plus-stale-park-proof, and mixed-row cases. A paired command/core
+table feeds provisional, ambiguous, unbound, malformed/unreadable, and resolver
+error outcomes through the provider: each row is absent from actionable output
+while the unchanged record remains in `ThreadInventory` and the declared
+`list/show` path.
+
+Make `NativeBindingResolver.ResolveEstablished` accept `context.Context` and
+add the context-bearing exact-query path used by production and fakes. Check
+cancellation before/after each exact-query stage and between parked records;
+return cancellation without publishing partial rows. Local filesystem calls
+remain synchronous and no detached goroutine is allowed. Extend the existing
+blocked-provider Console test with a resolver fake that waits on `ctx.Done()`;
+Stop must cancel and join the sole refresh worker within 250 ms.
+
+Represent progress identity explicitly as preview generation or operation
+attempt plus spinner phase. Preserve typed preview text `resolving`; typed
+operation texts are `starting thread`, `resuming <label>`, `parking <label>`,
+`leaving couch`, `renaming <label>`, and `saving <label> description`; the
+renderer alone adds the current one-cell frame, one space, and `…`. Add a pure
+event matrix for exact/stale tick, exact/stale completion, ordinary navigation,
+overlay changes, inventory refresh, resize, preview replacement/edit/Escape,
+operation Escape/focus loss, errors, supported-size return, and teardown.
+Ticks carry the identity captured when the timer was armed.
+
+The Run-loop test uses a controllable timer seam: dispatch paints phase zero
+before the blocked operation begins; a tick advances without invoking provider
+or dispatcher; filter/navigation still reduce; stop/drain/rearm followed by an
+old queued tick leaves replacement progress unchanged; focus loss pauses the
+timer without clearing progress; exact completion stops it; Stop leaves no
+timer or worker. Keep every test invocation at `-p 20` (`ARCH-PURE`,
+`ARCH-PURPOSE`, `ARCH-CONSTRAINTS`).
+
+### 2026-08-31 — make concurrent notice precedence executable
+
+**Reason:** the follow-up fresh review found that “preserve progress on refresh”
+did not decide what happens when refresh or another reducer path produces a
+required error during pending work.
+
+**Delta:** give `MenuNotice` an optional exact progress owner (preview
+generation or operation attempt) and add pure cross-product traces before
+implementation. Successful refresh, ordinary navigation, and unrelated info
+preserve owned progress. Refresh failure, reconciliation, validation/no-
+selection, and identity-exhaustion errors replace it and stop the timer; there
+is no hidden progress restoration. A later exact success clears only progress
+owned by its same identity and therefore preserves an unrelated replacement
+error. A matching failure replaces the banner with its work-owned error. Stale
+ticks/results preserve both banner and timer state; newly accepted work replaces
+either with new phase-zero progress. Table-test every producer against preview
+and operation progress, then run the focused reducer and Console race suites at
+`-p 20` (`ARCH-PURE`, `ARCH-PURPOSE`, `ARCH-CONSTRAINTS`).
