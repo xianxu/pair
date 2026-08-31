@@ -28,24 +28,26 @@ const (
 
 // MenuFrame owns the navigation state for exactly one menu level.
 type MenuFrame struct {
-	Kind             MenuFrameKind
-	Filter           string
-	SelectedAddress  couchcore.ThreadAddress
-	SelectedItem     string
-	Thread           couchcore.ThreadAddress
-	Action           string
-	Input            string
-	FormField        MenuFormField
-	Path             string
-	Agent            string
-	AgentSticky      bool
-	Generation       uint64
-	PreviewPending   uint64
-	PreviewAccepted  uint64
-	PreviewToken     couchcore.StartGrantToken
-	PreviewPath      string
-	PreviewAgent     string
-	SubmitGeneration uint64
+	Kind               MenuFrameKind
+	Filter             string
+	SelectedAddress    couchcore.ThreadAddress
+	SelectedItem       string
+	Thread             couchcore.ThreadAddress
+	Action             string
+	Input              string
+	FormField          MenuFormField
+	Path               string
+	Agent              string
+	AgentSticky        bool
+	Generation         uint64
+	PreviewPending     uint64
+	PreviewAccepted    uint64
+	PreviewToken       couchcore.StartGrantToken
+	PreviewPath        string
+	PreviewAgent       string
+	PreviewAgentSource couchcore.AgentSource
+	PreviewArgvSource  couchcore.ArgvSource
+	SubmitGeneration   uint64
 }
 
 type MenuFormField uint8
@@ -65,7 +67,17 @@ type MenuState struct {
 	Agents        []string
 	RootAgent     string
 	Bells         map[couchcore.ThreadAddress]bool
+	InFlight      MenuOperationOrigin
 	Notice        string
+}
+
+// MenuOperationOrigin captures the exact frame that emitted asynchronous
+// work, so completion does not depend on whichever frame is visible later.
+type MenuOperationOrigin struct {
+	Operation string
+	Address   couchcore.ThreadAddress
+	FrameKind MenuFrameKind
+	Depth     int
 }
 
 type MenuEventKind uint8
@@ -163,15 +175,20 @@ func visibleRootThreads(inventory []couchcore.ActionableThreadSummary, frame Men
 // transition so callers can retain prior states safely.
 func ReduceMenu(state MenuState, event MenuEvent) (MenuState, []MenuEffect) {
 	next := cloneMenuState(state)
+	if event.Kind == MenuEventOperationResult && !menuOperationMatches(next.InFlight, event) {
+		return next, nil
+	}
 	next.Notice = ""
 	if event.Kind == MenuEventInventory {
+		previous := append([]couchcore.ActionableThreadSummary(nil), next.Inventory...)
 		next.Inventory = append([]couchcore.ActionableThreadSummary(nil), event.Inventory...)
-		return reconcileMenuFrames(next), nil
+		return reconcileMenuFrames(next, previous), nil
 	}
 	if event.Kind == MenuEventOperationResult {
 		if event.InventorySet {
+			previous := append([]couchcore.ActionableThreadSummary(nil), next.Inventory...)
 			next.Inventory = append([]couchcore.ActionableThreadSummary(nil), event.Inventory...)
-			next = reconcileMenuFrames(next)
+			next = reconcileMenuFrames(next, previous)
 		}
 		return reduceOperationResult(next, event), nil
 	}
@@ -240,7 +257,7 @@ func reduceRootKey(state MenuState, key PanelKey) (MenuState, []MenuEffect) {
 			operation = "switch"
 			delete(state.Bells, thread.Address)
 		}
-		return state, []MenuEffect{threadEffect(operation, thread.Address)}
+		return dispatchThreadOperation(state, operation, thread.Address)
 	case KeyTab:
 		thread, ok := selectedMenuThread(state)
 		if !ok {
@@ -263,7 +280,7 @@ func reduceRootKey(state MenuState, key PanelKey) (MenuState, []MenuEffect) {
 			state.Notice = "no live thread can receive focus"
 			return state, nil
 		}
-		return state, []MenuEffect{threadEffect("switch", active.Address)}
+		return dispatchThreadOperation(state, "switch", active.Address)
 	}
 	return state, nil
 }
@@ -302,7 +319,7 @@ func reduceActionKey(state MenuState, key PanelKey) (MenuState, []MenuEffect) {
 				Kind: MenuFrameConfirmation, Thread: thread.Address, Action: "park", SelectedItem: "cancel",
 			})
 		case "resume":
-			return state, []MenuEffect{threadEffect("resume", thread.Address)}
+			return dispatchThreadOperation(state, "resume", thread.Address)
 		case "name", "describe":
 			state.Frames = append(state.Frames, MenuFrame{
 				Kind: MenuFrameText, Thread: thread.Address, Action: frame.SelectedItem,
@@ -318,15 +335,29 @@ func reduceConfirmationKey(state MenuState, key PanelKey) (MenuState, []MenuEffe
 	if !ok {
 		return discardThreadFrames(state, frame.Thread, "thread is no longer actionable"), nil
 	}
-	items := []string{"cancel", "park"}
+	items := confirmationMenuItems(thread)
+	visible := filterMenuItems(items, frame.Filter)
 	switch key.Kind {
+	case KeyRune:
+		candidate := frame.Filter + string(key.Rune)
+		if key.Rune != utf8.RuneError && utf8.ValidRune(key.Rune) && utf8.RuneLen(key.Rune) > 0 && len(candidate) <= menuFilterLimit {
+			frame.Filter = candidate
+		}
+		reconcileItemSelection(frame, filterMenuItems(items, frame.Filter))
+	case KeyBackspace:
+		frame.Filter = removeLastRune(frame.Filter)
+		reconcileItemSelection(frame, filterMenuItems(items, frame.Filter))
 	case KeyUp:
-		moveItemSelection(frame, items, -1)
+		moveItemSelection(frame, visible, -1)
 	case KeyDown:
-		moveItemSelection(frame, items, 1)
+		moveItemSelection(frame, visible, 1)
 	case KeyEscape:
 		state.Frames = state.Frames[:len(state.Frames)-1]
 	case KeyEnter:
+		if !containsMenuItem(visible, frame.SelectedItem) {
+			state.Notice = "no selection"
+			return state, nil
+		}
 		if frame.SelectedItem == "cancel" {
 			state.Frames = state.Frames[:len(state.Frames)-1]
 			return state, nil
@@ -334,7 +365,7 @@ func reduceConfirmationKey(state MenuState, key PanelKey) (MenuState, []MenuEffe
 		if frame.SelectedItem != "park" || !thread.Live() {
 			return discardThreadFrames(state, frame.Thread, "thread action is no longer applicable"), nil
 		}
-		return state, []MenuEffect{threadEffect("park", thread.Address)}
+		return dispatchThreadOperation(state, "park", thread.Address)
 	}
 	return state, nil
 }
@@ -366,11 +397,11 @@ func reduceTextKey(state MenuState, key PanelKey) (MenuState, []MenuEffect) {
 		}
 		if frame.Action == "name" {
 			args["name"] = frame.Input
-			return state, []MenuEffect{{Operation: "name", Args: args}}
+			return dispatchMenuOperation(state, MenuEffect{Operation: "name", Args: args}, thread.Address)
 		}
 		if frame.Action == "describe" {
 			args["description"] = frame.Input
-			return state, []MenuEffect{{Operation: "describe", Args: args}}
+			return dispatchMenuOperation(state, MenuEffect{Operation: "describe", Args: args}, thread.Address)
 		}
 	}
 	return state, nil
@@ -443,7 +474,7 @@ func reduceStartKey(state MenuState, key PanelKey) (MenuState, []MenuEffect) {
 		}
 	case KeyEnter:
 		if frame.PreviewAccepted == frame.Generation && frame.PreviewToken != "" {
-			return state, []MenuEffect{startMenuEffect(*frame)}
+			return dispatchMenuOperation(state, startMenuEffect(*frame), couchcore.ThreadAddress{})
 		}
 		frame.SubmitGeneration = frame.Generation
 		state.Notice = "resolving"
@@ -485,19 +516,25 @@ func clearStartPreview(frame *MenuFrame) {
 	frame.PreviewToken = ""
 	frame.PreviewPath = ""
 	frame.PreviewAgent = ""
+	frame.PreviewAgentSource = ""
+	frame.PreviewArgvSource = ""
 	frame.SubmitGeneration = 0
 }
 
 func requestStartPreview(state MenuState) (MenuState, []MenuEffect) {
 	frame := &state.Frames[len(state.Frames)-1]
-	if frame.PreviewPending == frame.Generation {
+	if frame.PreviewPending == frame.Generation ||
+		(frame.PreviewAccepted == frame.Generation && frame.PreviewToken != "") {
 		return state, nil
 	}
 	path := frame.Path
 	if path == "" {
 		path = "."
 	}
-	request := PreviewRequest{Generation: frame.Generation, Path: path, Agent: frame.Agent}
+	request := PreviewRequest{Generation: frame.Generation, Path: path}
+	if frame.AgentSticky {
+		request.Agent = frame.Agent
+	}
 	frame.PreviewPending = frame.Generation
 	return state, []MenuEffect{{Preview: &request}}
 }
@@ -523,11 +560,14 @@ func reducePreviewResult(state MenuState, event MenuEvent) (MenuState, []MenuEff
 	frame.PreviewToken = event.Prepared.Token
 	frame.PreviewPath = event.Prepared.Resolution.CanonicalPath
 	frame.PreviewAgent = event.Prepared.Resolution.Profile.Agent
+	frame.Agent = event.Prepared.Resolution.Profile.Agent
+	frame.PreviewAgentSource = event.Prepared.Resolution.AgentSource
+	frame.PreviewArgvSource = event.Prepared.Resolution.ArgvSource
 	if frame.SubmitGeneration != event.Generation {
 		return state, nil
 	}
 	frame.SubmitGeneration = 0
-	return state, []MenuEffect{startMenuEffect(*frame)}
+	return dispatchMenuOperation(state, startMenuEffect(*frame), couchcore.ThreadAddress{})
 }
 
 func startMenuEffect(frame MenuFrame) MenuEffect {
@@ -555,17 +595,35 @@ func menuActionItems(thread couchcore.ActionableThreadSummary) []string {
 	return []string{first, "name", "describe"}
 }
 
+func confirmationMenuItems(thread couchcore.ActionableThreadSummary) []string {
+	return []string{"cancel", "park " + thread.Label()}
+}
+
 func filterMenuItems(items []string, query string) []string {
 	if query == "" {
 		return append([]string(nil), items...)
 	}
 	out := make([]string, 0, len(items))
 	for _, item := range items {
-		if strings.Contains(strings.ToLower(item), strings.ToLower(query)) {
+		if strings.Contains(strings.ToLower(menuItemLabel(item)), strings.ToLower(query)) {
 			out = append(out, item)
 		}
 	}
 	return out
+}
+
+func menuItemLabel(item string) string {
+	if item == "name" {
+		return "rename"
+	}
+	return item
+}
+
+func menuItemID(item string) string {
+	if before, _, found := strings.Cut(item, " "); found {
+		return before
+	}
+	return item
 }
 
 func reconcileItemSelection(frame *MenuFrame, items []string) {
@@ -574,7 +632,7 @@ func reconcileItemSelection(frame *MenuFrame, items []string) {
 	}
 	frame.SelectedItem = ""
 	if len(items) > 0 {
-		frame.SelectedItem = items[0]
+		frame.SelectedItem = menuItemID(items[0])
 	}
 }
 
@@ -585,7 +643,7 @@ func moveItemSelection(frame *MenuFrame, items []string, delta int) {
 	}
 	index := 0
 	for i, item := range items {
-		if item == frame.SelectedItem {
+		if menuItemID(item) == frame.SelectedItem {
 			index = i
 			break
 		}
@@ -597,12 +655,12 @@ func moveItemSelection(frame *MenuFrame, items []string, delta int) {
 	if index >= len(items) {
 		index = len(items) - 1
 	}
-	frame.SelectedItem = items[index]
+	frame.SelectedItem = menuItemID(items[index])
 }
 
 func containsMenuItem(items []string, want string) bool {
 	for _, item := range items {
-		if item == want {
+		if menuItemID(item) == want {
 			return true
 		}
 	}
@@ -655,7 +713,11 @@ func moveRootSelection(state *MenuState, delta int) {
 	state.Frames[0].SelectedAddress = visible[current].Address
 }
 
-func reconcileMenuFrames(state MenuState) MenuState {
+func reconcileMenuFrames(state MenuState, previous ...[]couchcore.ActionableThreadSummary) MenuState {
+	priorInventory := state.Inventory
+	if len(previous) > 0 {
+		priorInventory = previous[0]
+	}
 	if len(state.Frames) == 0 || state.Frames[0].Kind != MenuFrameRoot {
 		state.Frames = []MenuFrame{{Kind: MenuFrameRoot}}
 		return state
@@ -678,16 +740,17 @@ func reconcileMenuFrames(state MenuState) MenuState {
 		thread, ok := findMenuThread(state.Inventory, frame.Thread)
 		if !ok {
 			invalidThreadFrame = true
-			state.Notice = "thread " + string(frame.Thread.Tag) + " is no longer actionable"
+			state.Notice = hiddenThreadNotice(priorInventory, frame.Thread)
 			continue
 		}
 		switch frame.Kind {
 		case MenuFrameActions:
-			if bound != (couchcore.ThreadAddress{}) || !containsMenuItem(menuActionItems(thread), frame.SelectedItem) {
+			if bound != (couchcore.ThreadAddress{}) {
 				invalidThreadFrame = true
 				state.Notice = "thread action is no longer applicable"
 				continue
 			}
+			reconcileItemSelection(&frame, filterMenuItems(menuActionItems(thread), frame.Filter))
 			bound = frame.Thread
 		case MenuFrameConfirmation:
 			if bound != frame.Thread || frame.Action != "park" || !thread.Live() {
@@ -695,6 +758,7 @@ func reconcileMenuFrames(state MenuState) MenuState {
 				state.Notice = "thread action is no longer applicable"
 				continue
 			}
+			reconcileItemSelection(&frame, filterMenuItems(confirmationMenuItems(thread), frame.Filter))
 		case MenuFrameText:
 			if bound != frame.Thread || (frame.Action != "name" && frame.Action != "describe") {
 				invalidThreadFrame = true
@@ -711,15 +775,29 @@ func reconcileMenuFrames(state MenuState) MenuState {
 	return state
 }
 
+func hiddenThreadNotice(previous []couchcore.ActionableThreadSummary, address couchcore.ThreadAddress) string {
+	label := string(address.Tag)
+	if thread, found := findMenuThread(previous, address); found {
+		label = thread.Label()
+	}
+	return "thread " + label + " (" + address.RepoScope + "/" + string(address.Tag) + ") is no longer actionable"
+}
+
 func reduceOperationResult(state MenuState, event MenuEvent) MenuState {
-	frame := state.CurrentFrame()
-	matched := frame.Thread == event.Address
-	if !matched {
+	origin := state.InFlight
+	if !menuOperationMatches(origin, event) {
 		return state
 	}
+	state.InFlight = MenuOperationOrigin{}
+	if origin.Address != (couchcore.ThreadAddress{}) {
+		if _, stillActionable := findMenuThread(state.Inventory, origin.Address); !stillActionable {
+			return state
+		}
+	}
+	originFrame, originVisible := menuOperationOriginFrame(state, origin)
 	if !event.Success {
-		if event.Operation == "park" && frame.Kind == MenuFrameConfirmation {
-			state.Frames = state.Frames[:len(state.Frames)-1]
+		if event.Operation == "park" && origin.FrameKind == MenuFrameConfirmation && originVisible {
+			state.Frames = state.Frames[:origin.Depth-1]
 		}
 		state.Notice = event.Error
 		if state.Notice == "" {
@@ -730,15 +808,53 @@ func reduceOperationResult(state MenuState, event MenuEvent) MenuState {
 
 	switch event.Operation {
 	case "name", "describe":
-		if frame.Kind == MenuFrameText && frame.Action == event.Operation {
-			state.Frames = state.Frames[:len(state.Frames)-1]
+		if origin.FrameKind == MenuFrameText && originVisible && originFrame.Thread == origin.Address && originFrame.Action == event.Operation {
+			state.Frames = state.Frames[:origin.Depth-1]
 		}
-	case "park", "resume":
+	case "park", "resume", "start":
 		state.Frames = state.Frames[:1]
 		state.Frames[0].SelectedAddress = event.Address
 		reconcileRootSelection(&state, event.Address)
 	}
 	return state
+}
+
+func menuOperationOriginFrame(state MenuState, origin MenuOperationOrigin) (MenuFrame, bool) {
+	if origin.Depth < 1 || origin.Depth > len(state.Frames) {
+		return MenuFrame{}, false
+	}
+	frame := state.Frames[origin.Depth-1]
+	if frame.Kind != origin.FrameKind {
+		return MenuFrame{}, false
+	}
+	return frame, true
+}
+
+func menuOperationMatches(origin MenuOperationOrigin, event MenuEvent) bool {
+	if origin.Operation == "" || origin.Operation != event.Operation {
+		return false
+	}
+	if origin.Operation == "start" && origin.Address == (couchcore.ThreadAddress{}) {
+		return event.Address != (couchcore.ThreadAddress{})
+	}
+	return origin.Address == event.Address
+}
+
+func dispatchThreadOperation(state MenuState, operation string, address couchcore.ThreadAddress) (MenuState, []MenuEffect) {
+	return dispatchMenuOperation(state, threadEffect(operation, address), address)
+}
+
+func dispatchMenuOperation(state MenuState, effect MenuEffect, address couchcore.ThreadAddress) (MenuState, []MenuEffect) {
+	if effect.Operation == "" || state.InFlight.Operation != "" {
+		return state, nil
+	}
+	state.InFlight = MenuOperationOrigin{
+		Operation: effect.Operation,
+		Address:   address,
+		FrameKind: state.CurrentFrame().Kind,
+		Depth:     len(state.Frames),
+	}
+	return state, []MenuEffect{effect}
 }
 
 func selectedMenuThread(state MenuState) (couchcore.ActionableThreadSummary, bool) {

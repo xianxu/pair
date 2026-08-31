@@ -38,6 +38,46 @@ func TestChooseMenuLayoutBoundsWideNarrowAndResize(t *testing.T) {
 	}
 }
 
+func TestChooseMenuLayoutAnchorsWideChildrenToSelectedParentRows(t *testing.T) {
+	state := NewMenuState(menuThreads(), menuAddress("couch-one"))
+	state, _ = reduceKey(state, PanelKey{Kind: KeyDown})
+	state, _ = reduceKey(state, PanelKey{Kind: KeyTab})
+	layout := ChooseMenuLayout(state, 120, 40)
+	if layout.Kind != MenuLayoutWide || len(layout.Frames) != 2 || layout.Frames[1].Y != 3 {
+		t.Fatalf("wide child geometry = %+v, want child beside root row 3", layout)
+	}
+
+	state = NewMenuState(menuThreads(), menuAddress("couch-one"))
+	state, _ = reduceKey(state, PanelKey{Kind: KeyTab})
+	state, _ = reduceKey(state, PanelKey{Kind: KeyEnter})
+	layout = ChooseMenuLayout(state, 160, 40)
+	if layout.Kind != MenuLayoutWide || len(layout.Frames) != 3 || layout.Frames[1].Y != 2 || layout.Frames[2].Y != 4 {
+		t.Fatalf("nested wide geometry = %+v, want child rows 2 then 4", layout)
+	}
+}
+
+func TestChooseMenuLayoutPlacesNarrowChildBelowParentList(t *testing.T) {
+	state := NewMenuState(menuThreads(), menuAddress("couch-one"))
+	state, _ = reduceKey(state, PanelKey{Kind: KeyTab})
+	layout := ChooseMenuLayout(state, 60, 20)
+	if layout.Kind != MenuLayoutNarrow || len(layout.Frames) != 2 || layout.Frames[0].Height != 4 || layout.Frames[1].Y != 4 {
+		t.Fatalf("narrow child geometry = %+v, want child below four-row root list", layout)
+	}
+}
+
+func TestRenderMenuMinimumNarrowLayoutKeepsCurrentFrameOperable(t *testing.T) {
+	state := NewMenuState(menuThreads(), menuAddress("couch-one"))
+	state.Agents = []string{"claude"}
+	state.RootAgent = "claude"
+	state, _ = reduceKey(state, PanelKey{Kind: KeyTab})
+	state, _ = reduceKey(state, PanelKey{Kind: KeyEnter})
+	state, _ = reduceKey(state, PanelKey{Kind: KeyCtrlSpace})
+	plain := string(ansi.Strip([]byte(RenderMenu(state, 40, 10, time.Time{}, false))))
+	if !strings.Contains(plain, "path") || !strings.Contains(plain, "agent claude") {
+		t.Fatalf("minimum narrow layout hid current start controls: %q", plain)
+	}
+}
+
 func TestAgeBandBoundaries(t *testing.T) {
 	now := time.Unix(10*24*60*60, 0).UTC()
 	for _, tc := range []struct {
@@ -85,6 +125,15 @@ func TestRenderMenuWideChildStaysInsideTerminal(t *testing.T) {
 		t.Fatalf("wide render omitted child frame: %q", got)
 	}
 	assertRenderedBounds(t, got, 120, 40)
+}
+
+func TestRenderMenuUsesOperationPresentationLabels(t *testing.T) {
+	state := NewMenuState(menuThreads(), menuAddress("couch-one"))
+	state, _ = reduceKey(state, PanelKey{Kind: KeyTab})
+	plain := string(ansi.Strip([]byte(RenderMenu(state, 120, 40, time.Time{}, false))))
+	if !strings.Contains(plain, "rename") || strings.Contains(plain, "\nname") || strings.Contains(plain, "\r\n  name") {
+		t.Fatalf("action menu leaked operation identifier instead of label: %q", plain)
+	}
 }
 
 func TestRenderMenuSanitizesClipsAndKeepsStateText(t *testing.T) {

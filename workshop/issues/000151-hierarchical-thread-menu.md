@@ -321,6 +321,22 @@ integration.
 so each planned `sdlc milestone-close` has a real issue row and fresh-context
 review rather than treating the whole multi-file change as one atomic pass.
 
+### 2026-08-30 — complete the M2 behavioral classes
+
+**Reason:** the M2 boundary review found that the pure reducer and renderer
+covered the main transitions but under-delivered seven enumerable behavior
+classes: shared operation projection, accepted-preview authority, operation
+origin correlation, frame applicability, list filtering, hierarchical
+geometry, and hidden-target diagnostics.
+
+**Delta:** M2 verification now covers optional versus explicit start-agent
+semantics and accepted resolution provenance; every operation origin including
+root resume; frame validity independently from filtered selection; filtering
+for every list-frame kind; child geometry anchored beside the selected parent
+row or below the parent list; one grant per accepted generation; and preserved
+target label plus diagnostic location when a durable thread leaves the
+actionable projection (ARCH-DRY, ARCH-PURE, ARCH-PURPOSE, ARCH-CONSTRAINTS).
+
 ## Done when
 
 - Enter switches to/resumes the selected work thread; thread-list Tab enters
@@ -526,3 +542,16 @@ wide/narrow renderer, semantic Tab framing, and one-running/one-latest preview
 scheduler. The atlas explicitly keeps this core inert: the current Console
 continues to present the flat compatibility panel until M3 supplies exact pane
 observations and bounded workers (ARCH-PURPOSE).
+
+### 2026-08-30 — M2 boundary review round 1
+
+The fresh review returned REWORK with seven blocking behavior families. The
+test-first sweep now preserves optional start-agent semantics and accepted
+agent/argv provenance, maps operation IDs to UI labels, reuses one accepted
+preview generation, correlates every completion to its captured origin before
+accepting returned inventory, retains applicable zero-match frames, filters
+confirmation rows by their displayed label, anchors child geometry to parent
+rows/lists, and carries the prior human label plus composite diagnostic address
+through hidden-target transitions. Focused regressions went red at every named
+gap and the complete `couchtty` package is green (`ARCH-DRY`, `ARCH-PURE`,
+`ARCH-PURPOSE`, `ARCH-CONSTRAINTS`).

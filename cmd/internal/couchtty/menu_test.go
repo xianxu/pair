@@ -218,7 +218,8 @@ func TestReduceMenuRefreshReconcilesFramesByIdentity(t *testing.T) {
 	}
 
 	state, effects = ReduceMenu(state, MenuEvent{Kind: MenuEventInventory, Inventory: menuThreads()[:1]})
-	if len(effects) != 0 || len(state.Frames) != 1 || state.CurrentFrame().SelectedAddress != menuAddress("couch-one") || state.Notice == "" {
+	if len(effects) != 0 || len(state.Frames) != 1 || state.CurrentFrame().SelectedAddress != menuAddress("couch-one") ||
+		!strings.Contains(state.Notice, "review") || !strings.Contains(state.Notice, "scope/couch-two") {
 		t.Fatalf("hidden target reconciliation = state %+v effects %+v", state, effects)
 	}
 }
@@ -273,6 +274,135 @@ func TestReduceMenuOperationResultDoesNotRedispatchAndRestoresByOutcome(t *testi
 	})
 	if len(effects) != 0 || !reflect.DeepEqual(again.Frames, succeeded.Frames) {
 		t.Fatalf("duplicate completion redispatched or moved state: state=%+v effects=%+v", again, effects)
+	}
+}
+
+func TestReduceMenuRootResumeFailureUsesCapturedOperationOrigin(t *testing.T) {
+	state := NewMenuState(menuThreads(), menuAddress("couch-one"))
+	state, _ = reduceKey(state, PanelKey{Kind: KeyDown})
+	state, dispatched := reduceKey(state, PanelKey{Kind: KeyEnter})
+	if len(dispatched) != 1 || dispatched[0].Operation != "resume" {
+		t.Fatalf("root resume dispatch = %+v", dispatched)
+	}
+
+	failed, effects := ReduceMenu(state, MenuEvent{
+		Kind: MenuEventOperationResult, Operation: "resume", Address: menuAddress("couch-two"), Error: "resume failed",
+		Inventory: menuThreads(), InventorySet: true,
+	})
+	if len(effects) != 0 || failed.Notice != "resume failed" || failed.CurrentFrame().Kind != MenuFrameRoot || failed.CurrentFrame().SelectedAddress != menuAddress("couch-two") {
+		t.Fatalf("root resume failure = state %+v effects %+v", failed, effects)
+	}
+}
+
+func TestReduceMenuRootResumeSuccessAppliesReturnedInventory(t *testing.T) {
+	state := NewMenuState(menuThreads(), menuAddress("couch-one"))
+	state, _ = reduceKey(state, PanelKey{Kind: KeyDown})
+	state, _ = reduceKey(state, PanelKey{Kind: KeyEnter})
+	resumed := menuThreads()
+	resumed[1].State = couchcore.ThreadLive
+
+	succeeded, effects := ReduceMenu(state, MenuEvent{
+		Kind: MenuEventOperationResult, Operation: "resume", Address: menuAddress("couch-two"), Success: true,
+		Inventory: resumed, InventorySet: true,
+	})
+	thread, found := findMenuThread(succeeded.Inventory, menuAddress("couch-two"))
+	if len(effects) != 0 || !found || !thread.Live() || succeeded.CurrentFrame().Kind != MenuFrameRoot || succeeded.CurrentFrame().SelectedAddress != menuAddress("couch-two") {
+		t.Fatalf("root resume success = state %+v effects %+v", succeeded, effects)
+	}
+}
+
+func TestReduceMenuOperationResultRequiresExactCapturedOperation(t *testing.T) {
+	state := NewMenuState(menuThreads(), menuAddress("couch-one"))
+	state, _ = reduceKey(state, PanelKey{Kind: KeyTab})
+	state, _ = reduceKey(state, PanelKey{Kind: KeyDown})
+	state, _ = reduceKey(state, PanelKey{Kind: KeyEnter})
+	state, _ = reduceKey(state, PanelKey{Kind: KeyRune, Rune: 'x'})
+	state, dispatched := reduceKey(state, PanelKey{Kind: KeyEnter})
+	if len(dispatched) != 1 || dispatched[0].Operation != "name" {
+		t.Fatalf("rename dispatch = %+v", dispatched)
+	}
+	state.Notice = "keep"
+
+	before := state
+	got, effects := ReduceMenu(state, MenuEvent{
+		Kind: MenuEventOperationResult, Operation: "describe", Address: menuAddress("couch-one"), Error: "unrelated",
+		Inventory: menuThreads()[1:], InventorySet: true,
+	})
+	if len(effects) != 0 || !reflect.DeepEqual(got, before) {
+		t.Fatalf("unrelated completion changed state: got=%+v want=%+v effects=%+v", got, before, effects)
+	}
+}
+
+func TestReduceMenuOperationResultPreservesHiddenTargetDiagnostic(t *testing.T) {
+	state := NewMenuState(menuThreads(), menuAddress("couch-one"))
+	state, _ = reduceKey(state, PanelKey{Kind: KeyTab})
+	state, _ = reduceKey(state, PanelKey{Kind: KeyEnter})
+	state, _ = reduceKey(state, PanelKey{Kind: KeyDown})
+	state, _ = reduceKey(state, PanelKey{Kind: KeyEnter})
+
+	got, effects := ReduceMenu(state, MenuEvent{
+		Kind: MenuEventOperationResult, Operation: "park", Address: menuAddress("couch-one"), Error: "cleanup failed",
+		Inventory: menuThreads()[1:], InventorySet: true,
+	})
+	if len(effects) != 0 || len(got.Frames) != 1 || !strings.Contains(got.Notice, "compiler") ||
+		!strings.Contains(got.Notice, "scope/couch-one") || strings.Contains(got.Notice, "cleanup failed") {
+		t.Fatalf("hidden operation target = state %+v effects %+v", got, effects)
+	}
+}
+
+func TestReduceMenuStartCompletionUsesGlobalOperationOrigin(t *testing.T) {
+	state := NewMenuState(menuThreads(), menuAddress("couch-one"))
+	state.Agents = []string{"claude"}
+	state.RootAgent = "claude"
+	state, _ = reduceKey(state, PanelKey{Kind: KeyCtrlSpace})
+	frame := &state.Frames[len(state.Frames)-1]
+	frame.PreviewAccepted = frame.Generation
+	frame.PreviewToken = "accepted"
+	frame.PreviewPath = "/repo/new"
+	frame.PreviewAgent = "claude"
+	state, effects := reduceKey(state, PanelKey{Kind: KeyEnter})
+	if len(effects) != 1 || effects[0].Operation != "start" {
+		t.Fatalf("start dispatch = %+v", effects)
+	}
+	created := couchcore.ActionableThreadSummary{Address: menuAddress("couch-new"), WorkingPath: "/repo/new", Name: "new", State: couchcore.ThreadLive}
+	got, effects := ReduceMenu(state, MenuEvent{
+		Kind: MenuEventOperationResult, Operation: "start", Address: created.Address, Success: true,
+		Inventory: append(menuThreads(), created), InventorySet: true,
+	})
+	if len(effects) != 0 || len(got.Frames) != 1 || got.CurrentFrame().SelectedAddress != created.Address {
+		t.Fatalf("start completion = state %+v effects %+v", got, effects)
+	}
+}
+
+func TestReduceMenuRefreshKeepsApplicableZeroMatchActionFrame(t *testing.T) {
+	state := NewMenuState(menuThreads(), menuAddress("couch-one"))
+	state, _ = reduceKey(state, PanelKey{Kind: KeyTab})
+	for _, r := range "absent" {
+		state, _ = reduceKey(state, PanelKey{Kind: KeyRune, Rune: r})
+	}
+	if frame := state.CurrentFrame(); frame.Kind != MenuFrameActions || frame.SelectedItem != "" {
+		t.Fatalf("zero-match action frame = %+v", frame)
+	}
+
+	got, effects := ReduceMenu(state, MenuEvent{Kind: MenuEventInventory, Inventory: menuThreads()})
+	if len(effects) != 0 || len(got.Frames) != 2 || got.CurrentFrame().Kind != MenuFrameActions || got.CurrentFrame().Filter != "absent" || got.CurrentFrame().SelectedItem != "" {
+		t.Fatalf("unchanged refresh discarded applicable filtered frame: state=%+v effects=%+v", got, effects)
+	}
+}
+
+func TestReduceMenuConfirmationUsesSharedListFiltering(t *testing.T) {
+	state := NewMenuState(menuThreads(), menuAddress("couch-one"))
+	state, _ = reduceKey(state, PanelKey{Kind: KeyTab})
+	state, _ = reduceKey(state, PanelKey{Kind: KeyEnter})
+	for _, r := range "compiler" {
+		state, _ = reduceKey(state, PanelKey{Kind: KeyRune, Rune: r})
+	}
+	if frame := state.CurrentFrame(); frame.Kind != MenuFrameConfirmation || frame.Filter != "compiler" || frame.SelectedItem != "park" {
+		t.Fatalf("filtered confirmation = %+v", frame)
+	}
+	state, _ = reduceKey(state, PanelKey{Kind: KeyBackspace})
+	if frame := state.CurrentFrame(); frame.Filter != "compile" || frame.SelectedItem != "park" {
+		t.Fatalf("confirmation backspace = %+v", frame)
 	}
 }
 

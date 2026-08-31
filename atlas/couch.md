@@ -42,33 +42,43 @@ thread-bound action, confirmation, and text frames; a global start frame
 overlays the preserved originating stack. `ReduceMenu` is the only transition
 authority for semantic keys, exact-address operation effects, inventory
 refreshes, preview results, notices, and ephemeral per-thread bells. It
-reconciles refreshed identity root-to-leaf and discards the first invalid
-thread frame plus descendants; a global start frame survives while its saved
-origin is reduced to the valid prefix. Inputs are byte-bounded at 1 KiB for
-filters/names and 4 KiB for paths/descriptions, and generated key traces keep
-stack depth, UTF-8 ownership, and effects bounded (ARCH-PURE,
-ARCH-CONSTRAINTS).
+captures one exact operation/frame origin before dispatch and rejects a
+mismatched completion before accepting its returned inventory. It reconciles
+refreshed identity root-to-leaf independently from filtered selection and
+discards the first invalid thread frame plus descendants; hidden-target notices
+retain the prior human label and composite address, while a global start frame
+survives with its saved origin reduced to the valid prefix. Every list frame,
+including park confirmation, filters displayed labels while retaining internal
+operation identities (`rename` presents the shared `name` operation). Inputs
+are byte-bounded at 1 KiB for filters/names and 4 KiB for paths/descriptions,
+and generated key traces keep stack depth, UTF-8 ownership, and effects bounded
+(ARCH-DRY, ARCH-PURE, ARCH-CONSTRAINTS).
 
 Both CLI resolution and in-memory menu filtering derive from
 `ClassifyThreadReferenceFields`/`MatchThreadReferenceFields`: exact opaque tags
 win set-wide over case-insensitive name/path containment, with no store read on
 the keystroke path. `RenderMenu` consumes only state, terminal dimensions,
 clock input, and the 256-color capability. It keeps the selected row inside a
-bounded viewport, chooses contained side-by-side or stacked rectangles, asks
-for resize below 40x10, strips controls, clips by terminal columns, and renders
-live state without historical age while parked rows retain text age plus an
-optional three-band grayscale. `DecodePanelKeys` maps legacy HT and unmodified
-Kitty CSI-u Tab to the same semantic key; modified Tab remains a dropped chord.
+bounded viewport, anchors wide children beside the selected parent row and
+narrow children below the measured parent list, keeps the current frame
+operable at 40x10, asks for resize below that, strips controls, clips by
+terminal columns, and renders live state without historical age while parked
+rows retain text age plus an optional three-band grayscale. `DecodePanelKeys`
+maps legacy HT and unmodified Kitty CSI-u Tab to the same semantic key; modified
+Tab remains a dropped chord.
 
 Start preview scheduling is also pure: `AdvancePreviewSchedule` admits one
 running generation and one replaceable latest generation. A newer request asks
 for cancellation once, but only a terminal outcome for the running generation
 retires it. The start frame binds accepted `PreparedStart` and one armed submit
 to the same nonzero generation; edits, Escape, stale results, failures, and
-duplicate results cannot reuse that authority. The current Console still
-presents the flat compatibility panel through M2; asynchronous actionable
-inventory, scheduler workers, and hierarchical rendering become reachable in
-#151 M3.
+duplicate results cannot allocate or reuse authority incorrectly. An unchanged
+accepted generation reuses its one grant, non-sticky fallback agents remain
+omitted from the preparation request so path history can resolve them, and the
+accepted agent plus agent/argv provenance are rendered from the shared
+resolution. The current Console still presents the flat compatibility panel
+through M2; asynchronous actionable inventory, scheduler workers, and
+hierarchical rendering become reachable in #151 M3.
 
 `cmd/internal/artifactpath` is the sole constructor for Pair's tag-bearing
 files. Standalone Pair selects its own `{repo_scope, tag}`; Couch allocates the

@@ -58,7 +58,15 @@ func ChooseMenuLayout(state MenuState, width, height int) MenuLayout {
 				remaining -= layout.Frames[j].Width
 			}
 			frameWidth := remaining / (count - i)
-			layout.Frames[i] = MenuRect{X: x, Width: frameWidth, Height: height}
+			y := 0
+			if i > 0 {
+				parent := layout.Frames[i-1]
+				y = parent.Y + menuSelectedRow(state, i-1, parent.Height)
+				if y >= height {
+					y = height - 1
+				}
+			}
+			layout.Frames[i] = MenuRect{X: x, Y: y, Width: frameWidth, Height: height - y}
 			x += frameWidth + 1
 		}
 		return layout
@@ -67,11 +75,132 @@ func ChooseMenuLayout(state MenuState, width, height int) MenuLayout {
 	y := 0
 	for i := range layout.Frames {
 		remaining := height - y
-		frameHeight := remaining / (count - i)
+		frameHeight := remaining
+		if i < count-1 {
+			reserve := menuRemainingMinimumHeight(state, i+1, count)
+			frameHeight = menuFrameDesiredHeight(state, i)
+			if maximum := remaining - reserve; frameHeight > maximum {
+				frameHeight = maximum
+			}
+			if frameHeight < 1 {
+				frameHeight = 1
+			}
+		}
 		layout.Frames[i] = MenuRect{Y: y, Width: width, Height: frameHeight}
 		y += frameHeight
 	}
 	return layout
+}
+
+func menuRemainingMinimumHeight(state MenuState, from, count int) int {
+	height := 0
+	for index := from; index < count; index++ {
+		if index == count-1 {
+			height += menuFrameDesiredHeight(state, index)
+			continue
+		}
+		height += 2
+	}
+	return height
+}
+
+func menuFrameDesiredHeight(state MenuState, index int) int {
+	if index < 0 || index >= len(state.Frames) {
+		return 3
+	}
+	frame := state.Frames[index]
+	switch frame.Kind {
+	case MenuFrameRoot:
+		height := 2 + len(visibleRootThreads(state.Inventory, frame))
+		if frame.Filter != "" {
+			height++
+		}
+		if state.Notice != "" {
+			height++
+		}
+		return height
+	case MenuFrameActions:
+		thread, _ := findMenuThread(state.Inventory, frame.Thread)
+		return 2 + len(filterMenuItems(menuActionItems(thread), frame.Filter))
+	case MenuFrameConfirmation:
+		thread, _ := findMenuThread(state.Inventory, frame.Thread)
+		return 2 + len(filterMenuItems(confirmationMenuItems(thread), frame.Filter))
+	case MenuFrameText:
+		return 3
+	case MenuFrameStart:
+		if frame.PreviewArgvSource != "" {
+			return 5
+		}
+		return 4
+	default:
+		return 3
+	}
+}
+
+func menuSelectedRow(state MenuState, index, height int) int {
+	if index < 0 || index >= len(state.Frames) || height < 1 {
+		return 0
+	}
+	frame := state.Frames[index]
+	var items []string
+	selected := frame.SelectedItem
+	switch frame.Kind {
+	case MenuFrameRoot:
+		visible := visibleRootThreads(state.Inventory, frame)
+		selectedIndex := 0
+		for i, thread := range visible {
+			if thread.Address == frame.SelectedAddress {
+				selectedIndex = i
+				break
+			}
+		}
+		budget := height - 2
+		if frame.Filter != "" {
+			budget--
+		}
+		if state.Notice != "" {
+			budget--
+		}
+		if budget < 1 {
+			budget = 1
+		}
+		start := selectedIndex - budget + 1
+		if start < 0 {
+			start = 0
+		}
+		return minMenuInt(height-1, 2+selectedIndex-start)
+	case MenuFrameActions:
+		thread, _ := findMenuThread(state.Inventory, frame.Thread)
+		items = filterMenuItems(menuActionItems(thread), frame.Filter)
+	case MenuFrameConfirmation:
+		thread, _ := findMenuThread(state.Inventory, frame.Thread)
+		items = filterMenuItems(confirmationMenuItems(thread), frame.Filter)
+	default:
+		return 0
+	}
+	selectedIndex := 0
+	for i, item := range items {
+		if menuItemID(item) == selected {
+			selectedIndex = i
+			break
+		}
+	}
+	budget := height - 2
+	if budget < 1 {
+		budget = 1
+	}
+	start := selectedIndex - budget + 1
+	if start < 0 {
+		start = 0
+	}
+	return minMenuInt(height-1, 2+selectedIndex-start)
+}
+
+func minMenuInt(left, right int) int {
+	if left < right {
+		return left
+	}
+	return right
 }
 
 type AgeBand uint8
@@ -116,6 +245,9 @@ func RenderMenu(state MenuState, width, height int, now time.Time, color256 bool
 		lines = combineMenuColumns(blocks, layout.Frames)
 	case MenuLayoutNarrow:
 		for i, block := range blocks {
+			for len(lines) < layout.Frames[i].Y {
+				lines = append(lines, "")
+			}
 			lines = append(lines, fitMenuBlock(block, layout.Frames[i].Width, layout.Frames[i].Height)...)
 		}
 	default:
@@ -136,19 +268,23 @@ func renderMenuFrame(state MenuState, frame MenuFrame, width, height int, now ti
 		return renderItemMenuFrame("actions · "+thread.Label(), filterMenuItems(menuActionItems(thread), frame.Filter), frame.SelectedItem, width, height)
 	case MenuFrameConfirmation:
 		thread, _ := findMenuThread(state.Inventory, frame.Thread)
-		return renderItemMenuFrame("park "+thread.Label()+"?", []string{"cancel", "park " + thread.Label()}, confirmationDisplaySelection(frame, thread), width, height)
+		return renderItemMenuFrame("park "+thread.Label()+"?", filterMenuItems(confirmationMenuItems(thread), frame.Filter), confirmationDisplaySelection(frame, thread), width, height)
 	case MenuFrameText:
-		return []string{clipMenuLine(frame.Action, width), "", clipMenuLine("> "+frame.Input, width)}
+		return []string{clipMenuLine(menuItemLabel(frame.Action), width), "", clipMenuLine("> "+frame.Input, width)}
 	case MenuFrameStart:
 		pathMarker, agentMarker := "▸ ", "  "
 		if frame.FormField == MenuFieldAgent {
 			pathMarker, agentMarker = "  ", "▸ "
 		}
-		return []string{
+		lines := []string{
 			clipMenuLine("start thread", width), "",
 			selectedMenuLine(pathMarker+"path  "+frame.Path, frame.FormField == MenuFieldPath, width),
-			selectedMenuLine(agentMarker+"agent "+frame.Agent, frame.FormField == MenuFieldAgent, width),
+			selectedMenuLine(agentMarker+"agent "+frame.Agent+menuSourceSuffix(string(frame.PreviewAgentSource)), frame.FormField == MenuFieldAgent, width),
 		}
+		if frame.PreviewArgvSource != "" {
+			lines = append(lines, clipMenuLine("  args  "+string(frame.PreviewArgvSource), width))
+		}
+		return lines
 	default:
 		return []string{"menu unavailable"}
 	}
@@ -237,14 +373,21 @@ func renderItemMenuFrame(title string, items []string, selected string, width, h
 		end = len(items)
 	}
 	for _, item := range items[start:end] {
-		isSelected := item == selected || strings.HasPrefix(item, selected+" ")
+		isSelected := menuItemID(item) == selected
 		marker := "  "
 		if isSelected {
 			marker = "▸ "
 		}
-		lines = append(lines, selectedMenuLine(marker+item, isSelected, width))
+		lines = append(lines, selectedMenuLine(marker+menuItemLabel(item), isSelected, width))
 	}
 	return lines
+}
+
+func menuSourceSuffix(source string) string {
+	if source == "" {
+		return ""
+	}
+	return " (" + source + ")"
 }
 
 func confirmationDisplaySelection(frame MenuFrame, thread couchcore.ActionableThreadSummary) string {
@@ -290,7 +433,7 @@ func ageColor(band AgeBand) string {
 func combineMenuColumns(blocks [][]string, rects []MenuRect) []string {
 	height := 0
 	for i, block := range blocks {
-		if n := len(fitMenuBlock(block, rects[i].Width, rects[i].Height)); n > height {
+		if n := rects[i].Y + len(fitMenuBlock(block, rects[i].Width, rects[i].Height)); n > height {
 			height = n
 		}
 	}
@@ -302,8 +445,9 @@ func combineMenuColumns(blocks [][]string, rects []MenuRect) []string {
 				b.WriteString("│")
 			}
 			line := ""
-			if row < len(block) && row < rects[col].Height {
-				line = clipStyledMenuLine(block[row], rects[col].Width)
+			localRow := row - rects[col].Y
+			if localRow >= 0 && localRow < len(block) && localRow < rects[col].Height {
+				line = clipStyledMenuLine(block[localRow], rects[col].Width)
 			}
 			b.WriteString(line)
 			if col < len(blocks)-1 {

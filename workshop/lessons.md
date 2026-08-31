@@ -2660,3 +2660,20 @@ to M3.
 issue log, plan revision, and operator README. Pin the actual production
 provider and those declarations in one regression so the consumer migration
 must update the entire class together (`ARCH-PURPOSE`).
+
+## Hierarchical reducers must preserve identity across every projection
+
+- Capture an operation's identity and originating frame when dispatch occurs,
+  then reject mismatched completions before applying their returned inventory.
+  Looking only at the currently visible frame loses root-level operations and
+  lets stale results rewrite state (`ARCH-PURE`, `ARCH-PURPOSE`).
+- A list frame's applicability comes from its captured parent/action identity,
+  not its filtered selection. Zero matches legitimately means no selection;
+  refresh must retain the frame and reconcile selection afterward.
+- Keep operation identifiers separate from presentation labels and use one
+  descriptor mapping for filtering, rendering, and dispatch. An internal
+  operation such as `name` may be presented as `rename` without changing the
+  shared operation contract (`ARCH-DRY`).
+- Hierarchical layout requires semantic geometry: selected parent-row offsets
+  for wide children and measured parent-list height for narrow children.
+  Equal partitions are bounded rectangles but do not express the hierarchy.

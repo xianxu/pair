@@ -2,7 +2,9 @@ package couchtty
 
 import (
 	"reflect"
+	"strings"
 	"testing"
+	"time"
 
 	"github.com/xianxu/pair/cmd/internal/couchcore"
 )
@@ -109,5 +111,55 @@ func TestReduceMenuStartPreviewEditCancelsArmedSubmitAndFailurePreservesForm(t *
 	state, effects = ReduceMenu(state, MenuEvent{Kind: MenuEventPreviewResult, Generation: generation, Error: "policy unavailable"})
 	if len(effects) != 0 || state.CurrentFrame().Path != "x" || state.Notice != "policy unavailable" {
 		t.Fatalf("preview failure did not preserve form: state=%+v effects=%+v", state, effects)
+	}
+}
+
+func TestReduceMenuStartPreviewPreservesOptionalAgentAndAcceptedProvenance(t *testing.T) {
+	state := NewMenuState(menuThreads(), menuAddress("couch-one"))
+	state.Agents = []string{"claude", "codex"}
+	state.RootAgent = "claude"
+	state, _ = reduceKey(state, PanelKey{Kind: KeyCtrlSpace})
+	for _, r := range "/repo" {
+		state, _ = reduceKey(state, PanelKey{Kind: KeyRune, Rune: r})
+	}
+
+	state, effects := reduceKey(state, PanelKey{Kind: KeyTab})
+	if len(effects) != 1 || effects[0].Preview == nil || effects[0].Preview.Agent != "" {
+		t.Fatalf("non-sticky preview made fallback agent explicit: %+v", effects)
+	}
+	generation := state.CurrentFrame().Generation
+	prepared := couchcore.PreparedStart{Token: "accepted", Resolution: couchcore.StartResolution{
+		CanonicalPath: "/repo", Profile: couchcore.LaunchProfile{Agent: "codex", Argv: []string{"--search"}},
+		AgentSource: couchcore.AgentSourcePath, ArgvSource: couchcore.ArgvSourcePath,
+	}}
+	state, effects = ReduceMenu(state, MenuEvent{Kind: MenuEventPreviewResult, Generation: generation, Prepared: &prepared})
+	if len(effects) != 0 {
+		t.Fatalf("unarmed preview dispatched: %+v", effects)
+	}
+	rendered := RenderMenu(state, 80, 20, time.Time{}, false)
+	if !strings.Contains(rendered, "agent codex") || !strings.Contains(rendered, "args  path") {
+		t.Fatalf("accepted start provenance not rendered: %q", rendered)
+	}
+}
+
+func TestReduceMenuStartPreviewReusesAcceptedGeneration(t *testing.T) {
+	state := NewMenuState(menuThreads(), menuAddress("couch-one"))
+	state.Agents = []string{"claude"}
+	state.RootAgent = "claude"
+	state, _ = reduceKey(state, PanelKey{Kind: KeyCtrlSpace})
+	state, effects := reduceKey(state, PanelKey{Kind: KeyTab})
+	if len(effects) != 1 || effects[0].Preview == nil {
+		t.Fatalf("initial preview = %+v", effects)
+	}
+	generation := state.CurrentFrame().Generation
+	prepared := couchcore.PreparedStart{Token: "accepted", Resolution: couchcore.StartResolution{
+		CanonicalPath: "/repo", Profile: couchcore.LaunchProfile{Agent: "claude", Argv: []string{}},
+		AgentSource: couchcore.AgentSourceRoot, ArgvSource: couchcore.ArgvSourceRepoDefault,
+	}}
+	state, _ = ReduceMenu(state, MenuEvent{Kind: MenuEventPreviewResult, Generation: generation, Prepared: &prepared})
+	state, _ = reduceKey(state, PanelKey{Kind: KeyTab})
+	state, effects = reduceKey(state, PanelKey{Kind: KeyTab})
+	if len(effects) != 0 {
+		t.Fatalf("accepted generation requested another grant: %+v", effects)
 	}
 }

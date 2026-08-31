@@ -442,6 +442,14 @@ does not consume these components until M3. Worth preserving: cancellation is
 a request, not a completion; only the matching terminal outcome frees the
 running preview slot (ARCH-PURE, ARCH-PURPOSE, ARCH-CONSTRAINTS).
 
+**Scope event 2026-08-30:** the first M2 boundary review expanded the pure-core
+acceptance surface to cover operation presentation versus dispatch identity,
+optional start-agent resolution and provenance, accepted-generation grant
+reuse, exact completion origins, zero-match list frames, confirmation
+filtering, parent-anchored geometry, and hidden-target label/location
+diagnostics. The boundary remains M2; these are corrections to its promised
+reducer/renderer semantics, not M3 Console integration.
+
 ## Log
 
 ### 2026-08-26 — pair#149 M5 implementation ready for boundary
