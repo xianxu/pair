@@ -744,6 +744,14 @@ func TestIssue151CoreConceptsMatchCurrentBoundary(t *testing.T) {
 	if err := validateIssue151CurrentConcepts(root, mutated); err == nil {
 		t.Fatal("landed M3 surface presented as absent passed the current-boundary contract")
 	}
+
+	missingDependency := strings.Replace(string(raw), ", `cmd/internal/sessioninventory/query.go`", "", 1)
+	if missingDependency == string(raw) {
+		t.Fatal("failed to construct omitted-dependency-path mutation")
+	}
+	if err := validateIssue151CurrentConcepts(root, missingDependency); err == nil {
+		t.Fatal("Core concepts row with an omitted dependency path passed the boundary contract")
+	}
 }
 
 func TestIssue151M3ChecklistMatchesCurrentBoundary(t *testing.T) {
@@ -766,6 +774,91 @@ func TestIssue151M3ChecklistMatchesCurrentBoundary(t *testing.T) {
 	if err := validateIssue151M3Checklist(mutated); err == nil {
 		t.Fatal("delivered M3 step presented as unchecked passed the boundary contract")
 	}
+}
+
+func TestIssue151M3SourceConceptsAppearAtExactPlanPaths(t *testing.T) {
+	root := filepath.Clean(filepath.Join("..", "..", ".."))
+	planPath := findPlanArtifact(t, root, "000151-hierarchical-thread-menu-plan.md")
+	raw, err := os.ReadFile(planPath)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := validateIssue151M3SourceConcepts(root, string(raw)); err != nil {
+		t.Fatal(err)
+	}
+
+	mutated := strings.Replace(string(raw), "`ParkedResumeObservation` / ", "", 1)
+	if mutated == string(raw) {
+		t.Fatal("failed to construct omitted-source-concept mutation")
+	}
+	if err := validateIssue151M3SourceConcepts(root, mutated); err == nil {
+		t.Fatal("omitted M3 source concept passed the architectural inventory contract")
+	}
+}
+
+func validateIssue151M3SourceConcepts(root, plan string) error {
+	coreParts := strings.SplitN(plan, "## Core concepts", 2)
+	if len(coreParts) != 2 {
+		return errors.New("plan has no Core concepts section")
+	}
+	coreParts = strings.SplitN(coreParts[1], "## Function-level test strategies", 2)
+	if len(coreParts) != 2 {
+		return errors.New("Core concepts section has no boundary")
+	}
+	core := coreParts[0]
+	if strings.Contains(core, "existing test seams") {
+		return errors.New("Core concepts contains a non-resolvable source location")
+	}
+	const marker = "// pair:m3-concept "
+	found := 0
+	err := filepath.WalkDir(filepath.Join(root, "cmd", "internal"), func(path string, entry os.DirEntry, walkErr error) error {
+		if walkErr != nil {
+			return walkErr
+		}
+		if entry.IsDir() || !strings.HasSuffix(path, ".go") || strings.HasSuffix(path, "_test.go") {
+			return nil
+		}
+		raw, err := os.ReadFile(path)
+		if err != nil {
+			return err
+		}
+		rel, err := filepath.Rel(root, path)
+		if err != nil {
+			return err
+		}
+		for _, line := range strings.Split(string(raw), "\n") {
+			line = strings.TrimSpace(line)
+			if !strings.HasPrefix(line, marker) {
+				continue
+			}
+			name := strings.TrimSpace(strings.TrimPrefix(line, marker))
+			if name == "" {
+				return fmt.Errorf("empty M3 concept marker in %s", rel)
+			}
+			if err := requireGoDeclaration(path, name); err != nil {
+				return fmt.Errorf("M3 concept %s in %s: %w", name, rel, err)
+			}
+			rowFound := false
+			for _, planLine := range strings.Split(core, "\n") {
+				if strings.HasPrefix(planLine, "| ") && strings.Contains(planLine, "`"+name+"`") && strings.Contains(planLine, "`"+filepath.ToSlash(rel)+"`") {
+					rowFound = true
+					break
+				}
+			}
+			if !rowFound {
+				return fmt.Errorf("M3 source concept %s at %s is absent from an exact Core concepts row", name, filepath.ToSlash(rel))
+			}
+			found++
+		}
+		return nil
+	})
+	if err != nil {
+		return err
+	}
+	if found != 6 {
+		return fmt.Errorf("found %d source-derived M3 concepts, want 6", found)
+	}
+	return nil
 }
 
 func validateIssue151M3Checklist(plan string) error {
@@ -812,21 +905,22 @@ type issue151ConceptContract struct {
 
 func validateIssue151CurrentConcepts(root, plan string) error {
 	want := map[string]issue151ConceptContract{
-		"`ActionableThreadSummary` / `LiveTTYObservation` / `ProjectActionableThreads`": {"M1", "present", []string{"cmd/internal/couchcore/actionableinventory.go"}, nil},
-		"`StartResolution` / `StartResolutionFingerprint` / `ResolveStartResolution`":   {"M1", "present", []string{"cmd/internal/couchcore/startresolution.go"}, nil},
-		"`MenuState` / `MenuFrame` / `MenuEvent` / `ReduceMenu`":                        {"M2", "present", []string{"cmd/internal/couchtty/menu.go"}, nil},
-		"`MenuLayout` / `AgeBand` / `RenderMenu`":                                       {"M2", "present", []string{"cmd/internal/couchtty/menu_render.go"}, nil},
-		"`PreviewSchedule` / `AdvancePreviewSchedule`":                                  {"M2", "present", []string{"cmd/internal/couchtty/menu_async.go"}, nil},
-		"`RefreshSchedule` / `AdvanceRefreshSchedule`":                                  {"M3", "present", []string{"cmd/internal/couchtty/menu_refresh.go"}, nil},
-		"`PanelKey` / `DecodePanelKeys`":                                                {"M2", "modified, present", []string{"cmd/internal/couchtty/panelkeys.go"}, nil},
-		"`PanelModel` / resolver-driven `Filter`":                                       {"M3", "deleted", nil, []string{"cmd/internal/couchtty/panel.go"}},
-		"`Couch.ActionableThreadInventory`":                                             {"M1", "present", []string{"cmd/internal/couchcore/actionableinventory.go"}, nil},
-		"`Couch.PrepareStart` / `Couch.SpawnPrepared`":                                  {"M1", "present", []string{"cmd/internal/couchcore/startresolution.go", "cmd/internal/couchcore/couch.go"}, nil},
+		"`ActionableThreadSummary` / `LiveTTYObservation` / `ParkedResumeObservation` / `ProjectActionableThreads`": {"M1/M3", "present", []string{"cmd/internal/couchcore/actionableinventory.go"}, nil},
+		"`StartResolution` / `StartResolutionFingerprint` / `ResolveStartResolution`":                               {"M1", "present", []string{"cmd/internal/couchcore/startresolution.go"}, nil},
+		"`MenuState` / `MenuFrame` / `MenuEvent` / `ReduceMenu`":                                                    {"M2", "present", []string{"cmd/internal/couchtty/menu.go"}, nil},
+		"`MenuLayout` / `AgeBand` / `RenderMenu`":                                                                   {"M2", "present", []string{"cmd/internal/couchtty/menu_render.go"}, nil},
+		"`PreviewSchedule` / `AdvancePreviewSchedule`":                                                              {"M2", "present", []string{"cmd/internal/couchtty/menu_async.go"}, nil},
+		"`RefreshSchedule` / `AdvanceRefreshSchedule`":                                                              {"M3", "present", []string{"cmd/internal/couchtty/menu_refresh.go"}, nil},
+		"`PanelKey` / `DecodePanelKeys`":                                                                            {"M2", "modified, present", []string{"cmd/internal/couchtty/panelkeys.go"}, nil},
+		"`PanelModel` / resolver-driven `Filter`":                                                                   {"M3", "deleted", nil, []string{"cmd/internal/couchtty/panel.go"}},
+		"`Couch.ActionableThreadInventory`":                                                                         {"M1/M3", "present", []string{"cmd/internal/couchcore/actionableinventory.go"}, nil},
+		"`NativeBindingResolver` / `SessionInventoryNativeBindingResolver`":                                         {"M3", "context-bearing exact parked-resume binding resolution present", []string{"cmd/internal/couchcore/resume.go", "cmd/internal/sessioninventory/query.go"}, nil},
+		"`Couch.PrepareStart` / `Couch.SpawnPrepared`":                                                              {"M1", "present", []string{"cmd/internal/couchcore/startresolution.go", "cmd/internal/couchcore/couch.go"}, nil},
 		"`StartGrantStore`": {"M1", "present", []string{"cmd/internal/couchcore/startgrant.go"}, nil},
 		"context-bearing shared operations and post-start cleanup":    {"M1", "context dispatch and exact started-actor abort present", []string{"cmd/internal/couchcore/ops.go", "cmd/internal/couchcore/operationdispatch.go", "cmd/internal/couchcore/couch.go"}, nil},
 		"`Console` menu controller":                                   {"M3", "hierarchical render, refresh, preview, action, and transactional attach controllers present", []string{"cmd/internal/couchtty/console_menu.go", "cmd/internal/couchtty/console.go"}, nil},
 		"`wireResolver` composition":                                  {"M3", "actionable refresh, shared action, attach-abort, and hierarchical render wiring present", []string{"cmd/internal/couchcmd/run.go"}, nil},
-		"context-bearing `Runner` / `FakeRunner` / `hostty.FakeHost`": {"M1", "modified, present", []string{"cmd/internal/couchcore/runner.go", "cmd/internal/couchcore/runner_fake.go", "cmd/internal/hostty/fake.go"}, nil},
+		"context-bearing `Runner` / `FakeRunner` / `hostty.FakeHost`": {"M1/M3", "modified, present", []string{"cmd/internal/couchcore/runner.go", "cmd/internal/couchcore/runner_fake.go", "cmd/internal/hostty/fake.go"}, nil},
 		"target performance harness":                                  {"M3", "present", []string{"cmd/internal/couchtty/menu_perf_test.go"}, nil},
 	}
 
@@ -867,6 +961,13 @@ func validateIssue151CurrentConcepts(root, plan string) error {
 		if delivery != contract.delivery || current != contract.current {
 			return fmt.Errorf("%s boundary = delivery %q current %q, want %q / %q", name, delivery, current, contract.delivery, contract.current)
 		}
+		wantPaths := append(append([]string(nil), contract.present...), contract.absent...)
+		gotPaths := backtickedPlanValues(strings.TrimSpace(cells[2]))
+		sort.Strings(wantPaths)
+		sort.Strings(gotPaths)
+		if !equalStrings(gotPaths, wantPaths) {
+			return fmt.Errorf("%s paths = %v, want exact repo-relative paths %v", name, gotPaths, wantPaths)
+		}
 		for _, path := range contract.present {
 			if _, err := os.Stat(filepath.Join(root, path)); err != nil {
 				return fmt.Errorf("%s says present but %s is unavailable: %w", name, path, err)
@@ -882,6 +983,35 @@ func validateIssue151CurrentConcepts(root, plan string) error {
 		return fmt.Errorf("classified %d Core concepts rows, want %d", len(seen), len(want))
 	}
 	return nil
+}
+
+func backtickedPlanValues(cell string) []string {
+	var values []string
+	for {
+		start := strings.IndexByte(cell, '`')
+		if start < 0 {
+			return values
+		}
+		cell = cell[start+1:]
+		end := strings.IndexByte(cell, '`')
+		if end < 0 {
+			return values
+		}
+		values = append(values, cell[:end])
+		cell = cell[end+1:]
+	}
+}
+
+func equalStrings(left, right []string) bool {
+	if len(left) != len(right) {
+		return false
+	}
+	for index := range left {
+		if left[index] != right[index] {
+			return false
+		}
+	}
+	return true
 }
 
 func requireGoDeclaration(path, qualifiedName string) error {

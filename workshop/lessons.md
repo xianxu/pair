@@ -2663,6 +2663,11 @@ must update the entire class together. Current-state table headings and
 operator key semantics belong in that executable contract too; checking only
 that a key token appears cannot detect a contradictory behavioral sentence
 (`ARCH-PURPOSE`).
+- An architectural inventory cannot prove its own completeness from a
+  hand-maintained expected map. Mark delivered declarations in production,
+  derive the expected concepts and exact repo-relative paths from those
+  markers, and mutation-test entity and dependency-path omission. Reject vague
+  locations such as “existing seams” (`ARCH-PURPOSE`, `ARCH-MOCK`).
 
 ## Hierarchical reducers must preserve identity across every projection
 

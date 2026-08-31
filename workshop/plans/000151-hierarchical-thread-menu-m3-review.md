@@ -296,3 +296,93 @@ Append a revision titled `2026-08-31 — align boundary documentation with execu
 
 - **Reason:** the Core concepts headers and README Escape semantics remained stale despite the M3 delivery sweep.
 - **Delta:** rename both current-state columns to the actual M3 boundary, correct root Escape behavior, enumerate all current-boundary/key-semantic documentation assertions, and extend the contract so reverting either checklist completion or documented behavior fails.
+
+---
+
+## Re-review — 2026-08-31T16:24:54-07:00 (REWORK)
+
+| field | value |
+|-------|-------|
+| issue | 151 — couch: hierarchical work-thread menu |
+| repo | pair |
+| issue file | workshop/issues/000151-hierarchical-thread-menu.md |
+| boundary | milestone M3 |
+| milestone | M3 |
+| window | 0c40a8d1880b49a9cac1a7f4d8cd24a2c713dba7..069acfc68b35d68e10005d6c6dbf82a1f796540c |
+| command | sdlc milestone-close --issue 151 --milestone M3 |
+| reviewer | codex |
+| timestamp | 2026-08-31T16:24:54-07:00 |
+| verdict | REWORK |
+
+## Review
+
+```verdict
+verdict: REWORK
+confidence: high
+```
+
+Implementation and verification are strong, and BR-24/BR-25 are addressed. However, the authoritative Core concepts inventory still omits the delivered parked-resume proof architecture. Because this is the fifth recurrence of documentation-current-state drift and contradicts the code, it blocks M3 closure.
+
+```findings
+dispose:
+  - id: BR-24
+    disposition: addressed
+    note: |
+      All 57 M3 steps are checked or left open as required, and a mutation test rejects a delivered step being unchecked.
+  - id: BR-25
+    disposition: addressed
+    note: |
+      Both tables name the M3 boundary; README root-Escape semantics match the reducer, with executable drift tests.
+findings:
+  - id: new
+    severity: Critical
+    family: documentation-current-state-accuracy
+    title: |
+      Core concepts inventory still omits delivered parked-resume proof authority
+    detail: |
+      This is the 5th finding in family `documentation-current-state-accuracy`. The table omits `ParkedResumeObservation` and its `NativeBindingResolver`/session-inventory dependency, while adjacent prose still says the projector uses only live-owner observations; one row also gives the non-resolvable location “existing test seams.” The hardcoded contract mirrors this incomplete inventory, so it cannot catch the omission. Do not patch one row: state and enforce the rule that every delivered architectural entity and dependency has exhaustive repo-relative locations and current semantics, then sweep every Core concepts row.
+```
+
+### Strengths
+
+- BR-21 remains substantively addressed: one exhaustive projection policy covers all seven operations, including start/resume early-return paths and generation-qualified refresh completion.
+- BR-22 remains addressed: `panel.go` and `panel_test.go` are deleted, with production-source absence checks.
+- BR-23 remains addressed: the target harness measures semantic input through a running `Console` to a correlated emitted frame.
+- The pure reducer/render/scheduler core is cleanly separated from Console I/O, and stateful `FakeHost`/runner seams exercise production boundaries.
+
+### Critical findings
+
+- [Plan lines 19–30](/Users/xianxu/workspace/pair/workshop/plans/000151-hierarchical-thread-menu-plan.md:19), [lines 72–81](/Users/xianxu/workspace/pair/workshop/plans/000151-hierarchical-thread-menu-plan.md:72), [contract line 814](/Users/xianxu/workspace/pair/cmd/internal/couchcore/plan_contract_test.go:814): the final inventory omits `ParkedResumeObservation`, binding resolution, and accurate paths. Fix by deriving an exhaustive inventory from delivered architectural declarations, updating every row and explanatory paragraph, and adding mutation tests for entity, dependency, and path omission.
+
+### Important findings
+
+None.
+
+### Minor findings
+
+None.
+
+### Test coverage notes
+
+Fresh verification passed:
+
+- `go test -p 20 ./...`
+- `go test -race -p 20 ./cmd/internal/couchcore ./cmd/internal/couchtty ./cmd/internal/couchcmd`
+- M2 Max lifecycle performance protocol: all baseline and four-worker trials passed; worst observed p95 was 301.083µs, comfortably inside the declared budgets.
+- `git diff --check` passed.
+
+### Architectural notes
+
+- `ARCH-DRY`: Pass — shared projection, reducer, operation policy, and retired panel authority.
+- `ARCH-PURE`: Pass — business logic remains pure; Console is the thin I/O shell.
+- `ARCH-PURPOSE`: Flag — the authoritative architectural inventory under-reports the delivered resume-proof design.
+- `ARCH-MOCK`: Pass — production flows share stateful fake seams.
+- `ARCH-CONSTRAINTS`: Pass — representative 100-row lifecycle measurements enforce the declared envelope.
+
+### Plan revision recommendations
+
+Append a revision titled “derive the complete M3 architectural inventory” recording:
+
+- Every delivered Core concept, including `ParkedResumeObservation`, its resolver dependency, and current semantics.
+- Explicit repo-relative paths for every row.
+- A source-derived contract that fails when an architectural entity, dependency, path, or current-state description is omitted.

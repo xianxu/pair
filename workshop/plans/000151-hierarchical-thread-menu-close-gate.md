@@ -363,6 +363,27 @@ rounds:
           round: 15
       boundary: M3
       blocked: true
+    - "n": 16
+      timestamp: "2026-08-31T16:24:54-07:00"
+      agent: codex
+      dispose:
+        - id: BR-24
+          disposition: addressed
+          note: All 57 M3 steps are checked or left open as required, and a mutation test rejects a delivered step being unchecked.
+          round: 16
+        - id: BR-25
+          disposition: addressed
+          note: Both tables name the M3 boundary; README root-Escape semantics match the reducer, with executable drift tests.
+          round: 16
+      findings:
+        - id: BR-26
+          severity: Critical
+          title: Core concepts inventory still omits delivered parked-resume proof authority
+          detail: 'This is the 5th finding in family `documentation-current-state-accuracy`. The table omits `ParkedResumeObservation` and its `NativeBindingResolver`/session-inventory dependency, while adjacent prose still says the projector uses only live-owner observations; one row also gives the non-resolvable location “existing test seams.” The hardcoded contract mirrors this incomplete inventory, so it cannot catch the omission. Do not patch one row: state and enforce the rule that every delivered architectural entity and dependency has exhaustive repo-relative locations and current semantics, then sweep every Core concepts row.'
+          family: documentation-current-state-accuracy
+          round: 16
+      boundary: M3
+      blocked: true
 ---
 
 # Gate ledger — pair#151 (boundary-review)
@@ -547,7 +568,18 @@ later rounds disposed of them. Generated — edit the gate, not this file.
 - **BR-25** [Critical] `documentation-current-state-accuracy` Authoritative M3 documentation still contradicts the delivered boundary and root Escape contract
   This is the 4th finding in family `documentation-current-state-accuracy`. The Core concepts columns still claim “Current after M3 Task 10” and “Current after M3 Task 11” while containing Task 12 deletion and Task 13 delivery, and README.md:369-370 says root Escape exits Couch without an actor although the Spec and menu.go:392-395 require the root to remain visible with an error. Do not patch only these phrases: state one rule covering current-boundary headings and user-facing key semantics, sweep that class, and make the documentation contract fail on semantic drift.
 
+## Round 16 — 2026-08-31T16:24:54-07:00 (codex) — BLOCKED
+
+### Disposed
+
+- BR-24 — addressed — All 57 M3 steps are checked or left open as required, and a mutation test rejects a delivered step being unchecked.
+- BR-25 — addressed — Both tables name the M3 boundary; README root-Escape semantics match the reducer, with executable drift tests.
+
+### Raised
+
+- **BR-26** [Critical] `documentation-current-state-accuracy` Core concepts inventory still omits delivered parked-resume proof authority
+  This is the 5th finding in family `documentation-current-state-accuracy`. The table omits `ParkedResumeObservation` and its `NativeBindingResolver`/session-inventory dependency, while adjacent prose still says the projector uses only live-owner observations; one row also gives the non-resolvable location “existing test seams.” The hardcoded contract mirrors this incomplete inventory, so it cannot catch the omission. Do not patch one row: state and enforce the rule that every delivered architectural entity and dependency has exhaustive repo-relative locations and current semantics, then sweep every Core concepts row.
+
 ## Open findings
 
-- **BR-24** [Important] `documentation-current-state-accuracy` Delivered M3 tasks remain unchecked in the authoritative plan
-- **BR-25** [Critical] `documentation-current-state-accuracy` Authoritative M3 documentation still contradicts the delivered boundary and root Escape contract
+- **BR-26** [Critical] `documentation-current-state-accuracy` Core concepts inventory still omits delivered parked-resume proof authority

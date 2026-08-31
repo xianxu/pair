@@ -1221,11 +1221,11 @@ ends only on a correlated `FakeHost` frame (`ARCH-DRY`, `ARCH-PURE`,
 
 The corrected M2 Max protocol passed 20 warmups and 200 samples for each of six
 paths in a baseline and two trials beside exactly four joined CPU workers. The
-worst observed p95 was 316.292µs (first feedback); every path remained below
+worst observed p95 was 316.542µs (first feedback); every path remained below
 317µs. The boundary for every value is semantic input/result through
 `Console.Run` to the matching unique per-sample emitted frame. The optimized
 `go1.26.6 darwin/arm64` test binary SHA-256 was
-`78493a5f2e694a5229ea774da08a35a2eff41e01c5cab882a53a6f40099ee718`.
+`a96c2529258732eb74f7a09c8f4681f51bf7c8a8b73782126cfa69b9784dc9cd`.
 
 The second boundary review accepted complete flat-panel retirement and the
 corrected lifecycle performance evidence, then exposed refresh provenance:
@@ -1245,3 +1245,11 @@ and pins its checked/open state. Both Core-concept tables name the final M3
 boundary, and the README contract executes the no-live-actor Escape case:
 Couch stays in the switcher with `no live thread can receive focus`
 (`ARCH-PURPOSE`).
+
+The fourth boundary review accepted the checklist/headings/Escape contracts and
+found the architectural inventory still omitted parked-resume proof. The final
+table now names `ParkedResumeObservation`, `NativeBindingResolver`,
+`SessionInventoryNativeBindingResolver`, and the exact session-inventory query
+dependency; all rows use resolvable repo-relative paths. Six production source
+markers derive the delivered M3 concept set, and mutations removing either a
+marked entity or dependency path fail (`ARCH-PURPOSE`, `ARCH-MOCK`).

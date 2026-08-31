@@ -137,10 +137,12 @@ func refuseResume(code ResumeDiagnosticCode, diagnostic string) error {
 	return &ResumeRefusal{Code: code, Diagnostic: diagnostic}
 }
 
+// pair:m3-concept NativeBindingResolver
 type NativeBindingResolver interface {
 	ResolveEstablished(context.Context, string, string, string) (NativeBindingResolution, error)
 }
 
+// pair:m3-concept SessionInventoryNativeBindingResolver
 type SessionInventoryNativeBindingResolver struct {
 	Runtime sessioninventory.Runtime
 }

@@ -19,6 +19,7 @@ const (
 
 // LiveTTYObservation is the owner's current proof that a terminal process is
 // still the exact process recorded by the durable thread incarnation.
+// pair:m3-concept LiveTTYObservation
 type LiveTTYObservation struct {
 	Address ThreadAddress
 	Process ProcessIdentity
@@ -27,6 +28,7 @@ type LiveTTYObservation struct {
 // ParkedResumeObservation is exact resume authority for one inactive thread.
 // The projector accepts it only when it is the sole observation for the
 // address and agrees with the thread's saved launch agent.
+// pair:m3-concept ParkedResumeObservation
 type ParkedResumeObservation struct {
 	Address  ThreadAddress
 	Agent    string
@@ -35,6 +37,7 @@ type ParkedResumeObservation struct {
 
 // ActionableThreadSummary contains only fields the ordinary switcher needs.
 // It deliberately excludes diagnostic lifecycle state.
+// pair:m3-concept ActionableThreadSummary
 type ActionableThreadSummary struct {
 	Address          ThreadAddress         `json:"address"`
 	StartingPath     string                `json:"starting_path"`
@@ -64,6 +67,7 @@ func (s ActionableThreadSummary) DisplaySummary() string {
 
 // ProjectActionableThreads fails closed: a row is emitted only when one
 // durable lifecycle state has one unambiguous proof.
+// pair:m3-concept ProjectActionableThreads
 func ProjectActionableThreads(records []ThreadRecord, observations []LiveTTYObservation, resumable []ParkedResumeObservation) []ActionableThreadSummary {
 	observed := make(map[ThreadAddress][]ProcessIdentity, len(observations))
 	for _, observation := range observations {

@@ -467,6 +467,15 @@ ARCH-PURE, ARCH-PURPOSE).
 
 ## Log
 
+### 2026-08-31 — pair#151 M3 architectural inventory completed
+
+The fourth M3 review accepted the documentation behavior contracts and found
+parked-resume proof missing from the Core-concept inventory. The inventory now
+includes both proof inputs, native-binding/session-inventory resolution, and
+exact repo-relative paths for every row. Production declaration markers derive
+the delivered M3 set, while entity- and dependency-omission mutations enforce
+it (`ARCH-PURPOSE`, `ARCH-MOCK`).
+
 ### 2026-08-31 — pair#151 M3 documentation boundary aligned
 
 The third M3 review accepted refresh provenance and found the remaining

@@ -280,7 +280,11 @@ selection use only `ThreadAddress`. Two Brain threads at one path therefore
 remain distinct rows and cannot steal each other's local target.
 
 Rows start at `Couch.ActionableThreadInventory()` plus exact Console-owned TTY
-observations. Human name leads, the opaque tag is the unnamed fallback, and
+observations for live threads. Structurally eligible parked records additionally
+require one context-bearing `NativeBindingResolver` result backed by session
+inventory's exact established-root query; provisional, ambiguous, unbound, or
+canceled resolution emits no parked row. Human name leads, the opaque tag is
+the unnamed fallback, and
 operator description remains separate from the agent-published summary. A
 failed authoritative refresh preserves the complete last-good menu state and
 renders the error locally; it never turns corruption into an authoritative

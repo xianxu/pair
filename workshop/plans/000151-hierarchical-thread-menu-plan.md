@@ -4,7 +4,7 @@
 
 **Goal:** Replace Couch's transitional flat panel with a non-blocking hierarchical switcher over verified live and verified parked TTY work threads.
 
-**Architecture:** A pure Couch-core projection joins durable thread records with exact live-owner TTY observations and emits only actionable rows. A pure menu reducer owns frames, filtering, selection, forms, reconciliation, and bounded rendering; `couchtty.Console` remains the thin event/TTY/operation shell. Start preview and launch share an opaque resolution token, while inventory and preview I/O run through bounded single-flight/coalescing controllers.
+**Architecture:** A pure Couch-core projection joins durable thread records with exact live-owner TTY observations and exact parked-resume binding observations, then emits only actionable rows. A pure menu reducer owns frames, filtering, selection, forms, reconciliation, and bounded rendering; `couchtty.Console` remains the thin event/TTY/operation shell. Start preview and launch share an opaque resolution token, while inventory and preview I/O run through bounded single-flight/coalescing controllers.
 
 **Tech Stack:** Go, Couch's existing `couchcore` operation table and stores, `couchtty` terminal emulator/console, stateful `FakeRunner`/`FakeHost` integration doubles, Go unit tests/benchmarks.
 
@@ -16,7 +16,7 @@
 
 | Name | Lives in | Planned change | Delivery | Current at M3 boundary |
 |------|----------|----------------|----------|---------------|
-| `ActionableThreadSummary` / `LiveTTYObservation` / `ProjectActionableThreads` | `cmd/internal/couchcore/actionableinventory.go` | new | M1 | present |
+| `ActionableThreadSummary` / `LiveTTYObservation` / `ParkedResumeObservation` / `ProjectActionableThreads` | `cmd/internal/couchcore/actionableinventory.go` | new | M1/M3 | present |
 | `StartResolution` / `StartResolutionFingerprint` / `ResolveStartResolution` | `cmd/internal/couchcore/startresolution.go` | new | M1 | present |
 | `MenuState` / `MenuFrame` / `MenuEvent` / `ReduceMenu` | `cmd/internal/couchtty/menu.go` | new | M2 | present |
 | `MenuLayout` / `AgeBand` / `RenderMenu` | `cmd/internal/couchtty/menu_render.go` | new | M2 | present |
@@ -25,8 +25,8 @@
 | `PanelKey` / `DecodePanelKeys` | `cmd/internal/couchtty/panelkeys.go` | modified | M2 | modified, present |
 | `PanelModel` / resolver-driven `Filter` | `cmd/internal/couchtty/panel.go` | deleted | M3 | deleted |
 
-- **`ActionableThreadSummary` / `LiveTTYObservation` / `ProjectActionableThreads`** — the only interpretation that turns internal thread lifecycle into user-facing `live` or `parked` rows.
-  - **Relationships:** N durable `ThreadRecord`s and N exact owner observations produce 0..N `ActionableThreadSummary` rows; each row retains one composite `ThreadAddress`. A live row requires one observation matching one durable incarnation's PID and process identity; a parked row requires exact `VerifiedPark`, no active `Park`, and no occupied incarnation.
+- **`ActionableThreadSummary` / `LiveTTYObservation` / `ParkedResumeObservation` / `ProjectActionableThreads`** — the only interpretation that turns internal thread lifecycle into user-facing `live` or `parked` rows.
+  - **Relationships:** N durable `ThreadRecord`s, N exact live-owner observations, and N exact parked-resume observations produce 0..N `ActionableThreadSummary` rows; each row retains one composite `ThreadAddress`. A live row requires one observation matching one durable incarnation's PID and process identity. A parked row requires exact `VerifiedPark`, no active `Park`, no occupied incarnation, and exactly one non-empty native binding observation whose agent matches the saved launch profile.
   - **DRY rationale:** terminal, future owner-routed clients, and tests consume one lifecycle projection rather than independently treating persisted `live` as TTY proof. Existing `ThreadSummary`/`BuildThreadInventory` remain unchanged, explicitly raw diagnostics for `couch list/show` and recovery tools; their persisted-incarnation `Live()` semantics never leak into the actionable type.
   - **Future extensions:** a cluster owner from #147 can supply equally strong remote observations without widening the state projection.
 
@@ -69,18 +69,21 @@
 
 | Name | Lives in | Planned change | Delivery | Current at M3 boundary | Wraps |
 |------|----------|----------------|----------|---------------|-------|
-| `Couch.ActionableThreadInventory` | `cmd/internal/couchcore/actionableinventory.go` | new | M1 | present | `ThreadStore.Snapshot` plus live-owner observations |
-| `Couch.PrepareStart` / `Couch.SpawnPrepared` | `cmd/internal/couchcore/startresolution.go`, `couch.go` | new | M1 | present | path, policy, preference/default reads, runner launch |
+| `Couch.ActionableThreadInventory` | `cmd/internal/couchcore/actionableinventory.go` | new | M1/M3 | present | `ThreadStore.Snapshot`, live-owner observations, and `NativeBindingResolver` parked proof |
+| `NativeBindingResolver` / `SessionInventoryNativeBindingResolver` | `cmd/internal/couchcore/resume.go`, `cmd/internal/sessioninventory/query.go` | new | M3 | context-bearing exact parked-resume binding resolution present | session inventory exact established-root query |
+| `Couch.PrepareStart` / `Couch.SpawnPrepared` | `cmd/internal/couchcore/startresolution.go`, `cmd/internal/couchcore/couch.go` | new | M1 | present | path, policy, preference/default reads, runner launch |
 | `StartGrantStore` | `cmd/internal/couchcore/startgrant.go` | new | M1 | present | owner-local random issuance, TTL, and atomic consumption |
-| context-bearing shared operations and post-start cleanup | `cmd/internal/couchcore/ops.go`, `operationdispatch.go`, `couch.go` | modified | M1 | context dispatch and exact started-actor abort present | owner operation dispatch, cancellation, exact-handle cleanup |
-| `Console` menu controller | `cmd/internal/couchtty/console_menu.go`, `console.go` | modified | M3 | hierarchical render, refresh, preview, action, and transactional attach controllers present | host input/output, pane observations, bounded async workers |
+| context-bearing shared operations and post-start cleanup | `cmd/internal/couchcore/ops.go`, `cmd/internal/couchcore/operationdispatch.go`, `cmd/internal/couchcore/couch.go` | modified | M1 | context dispatch and exact started-actor abort present | owner operation dispatch, cancellation, exact-handle cleanup |
+| `Console` menu controller | `cmd/internal/couchtty/console_menu.go`, `cmd/internal/couchtty/console.go` | modified | M3 | hierarchical render, refresh, preview, action, and transactional attach controllers present | host input/output, pane observations, bounded async workers |
 | `wireResolver` composition | `cmd/internal/couchcmd/run.go` | modified | M3 | actionable refresh, shared action, attach-abort, and hierarchical render wiring present | Couch core providers and Console operation dispatcher |
-| context-bearing `Runner` / `FakeRunner` / `hostty.FakeHost` | existing test seams | modified | M1 | modified, present | cancelable child lifecycle and terminal behavior |
+| context-bearing `Runner` / `FakeRunner` / `hostty.FakeHost` | `cmd/internal/couchcore/runner.go`, `cmd/internal/couchcore/runner_fake.go`, `cmd/internal/hostty/fake.go` | modified | M1/M3 | modified, present | cancelable child lifecycle and observable terminal behavior |
 | target performance harness | `cmd/internal/couchtty/menu_perf_test.go` | new | M3 | present | clock samples and deterministic four-worker CPU load |
 
-- **`Couch.ActionableThreadInventory`** — snapshots durable records, then calls the pure projector with caller-supplied exact observations.
-  - **Injected into:** Console refresh worker; Console alone derives observations from its registered panes and child identities.
+- **`Couch.ActionableThreadInventory`** — snapshots durable records, resolves exact established native bindings for structurally eligible parked records, then calls the pure projector with live and parked proof observations.
+  - **Injected into:** Console refresh worker; Console alone derives live observations from its registered panes and child identities, while `NativeBindingResolver` supplies context-bearing parked proof through session inventory.
   - **Future extensions:** #147 may inject remote owner observations with the same identity shape.
+
+- **`NativeBindingResolver` / `SessionInventoryNativeBindingResolver`** — context-bearing dependency that converts session inventory's exact established-root query into one parked-resume observation; provisional, ambiguous, unbound, malformed, and canceled resolution never publishes actionable parked proof.
 
 - **`Couch.PrepareStart` / `Couch.SpawnPrepared`** — performs canonical path/repository/default I/O once per preview and revalidates at submit before consuming the same accepted resolution in spawn.
   - **Injected into:** the shared live-owner operation executor; Console knows only operation calls/results.
@@ -1519,3 +1522,21 @@ and requires the matching operator sentence. A separate plan contract parses
 all 57 checklist steps across Tasks 10–13, requires Tasks 10–12 and Task 13
 Steps 1–7 checked, and requires only Task 13 boundary/issue close open; a
 delivered-as-unchecked mutation must fail (`ARCH-PURPOSE`).
+
+### 2026-08-31 — derive the complete M3 architectural inventory
+
+**Reason:** the fourth M3 review found that the final Core-concept inventory
+omitted `ParkedResumeObservation` and its context-bearing native-binding/session-
+inventory dependency, still described projection as live-observation-only, and
+used one non-resolvable `existing test seams` location.
+
+**Delta:** the projection row now includes live and parked proof inputs with
+their current exact semantics. A new integration row records
+`NativeBindingResolver` / `SessionInventoryNativeBindingResolver` and the exact
+`cmd/internal/sessioninventory/query.go` dependency. Every Core-concept row now
+uses complete repo-relative paths, including runner/fake/host seams. Six
+delivered M3 architectural declarations carry source markers; the contract
+discovers those markers, resolves each Go declaration, and requires its exact
+source path in a Core-concept row. The complete table contract also compares
+every row's path set exactly. Mutations removing a marked entity or the session-
+inventory dependency path must fail (`ARCH-PURPOSE`, `ARCH-MOCK`).
