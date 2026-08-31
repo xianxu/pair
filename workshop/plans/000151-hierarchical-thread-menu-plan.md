@@ -535,30 +535,30 @@ git commit -m "#151 M2: decode menu Tab encodings"
 - Modify: `cmd/internal/couchtty/menu.go`
 - Modify: `cmd/internal/couchtty/menu_test.go`
 
-- [ ] **Step 1: Write failing scheduler traces**
+- [x] **Step 1: Write failing scheduler traces**
 
 Apply the `AdvancePreviewSchedule` reordered-completion model strategy; one
 terminal outcome retires the matching generation and all work/submit bounds are
 invariants.
 
-- [ ] **Step 2: Run scheduler tests and verify RED**
+- [x] **Step 2: Run scheduler tests and verify RED**
 
 Run: `go test -p 20 ./cmd/internal/couchtty -run 'Test(AdvancePreviewSchedule|ReduceMenu.*Preview)' -count=1`
 
 Expected: FAIL because preview scheduling is absent.
 
-- [ ] **Step 3: Implement the pure scheduler and reducer events**
+- [x] **Step 3: Implement the pure scheduler and reducer events**
 
 Implement the Core-concepts schedule as pure state/effects; cancellation is a
 request and only a matching terminal outcome retires running work.
 
-- [ ] **Step 4: Run all Chunk 2 package tests**
+- [x] **Step 4: Run all Chunk 2 package tests**
 
 Run: `go test -p 20 ./cmd/internal/couchcore ./cmd/internal/couchtty -count=1`
 
 Expected: PASS with no store/process/terminal mocks in pure entity tests.
 
-- [ ] **Step 5: Commit Task 8**
+- [x] **Step 5: Commit Task 8**
 
 ```bash
 git add cmd/internal/couchtty/menu_async.go cmd/internal/couchtty/menu_async_test.go cmd/internal/couchtty/menu.go cmd/internal/couchtty/menu_test.go

@@ -28,18 +28,24 @@ const (
 
 // MenuFrame owns the navigation state for exactly one menu level.
 type MenuFrame struct {
-	Kind            MenuFrameKind
-	Filter          string
-	SelectedAddress couchcore.ThreadAddress
-	SelectedItem    string
-	Thread          couchcore.ThreadAddress
-	Action          string
-	Input           string
-	FormField       MenuFormField
-	Path            string
-	Agent           string
-	AgentSticky     bool
-	Generation      uint64
+	Kind             MenuFrameKind
+	Filter           string
+	SelectedAddress  couchcore.ThreadAddress
+	SelectedItem     string
+	Thread           couchcore.ThreadAddress
+	Action           string
+	Input            string
+	FormField        MenuFormField
+	Path             string
+	Agent            string
+	AgentSticky      bool
+	Generation       uint64
+	PreviewPending   uint64
+	PreviewAccepted  uint64
+	PreviewToken     couchcore.StartGrantToken
+	PreviewPath      string
+	PreviewAgent     string
+	SubmitGeneration uint64
 }
 
 type MenuFormField uint8
@@ -70,6 +76,7 @@ const (
 	MenuEventBell
 	MenuEventInventory
 	MenuEventOperationResult
+	MenuEventPreviewResult
 )
 
 type MenuEvent struct {
@@ -82,12 +89,15 @@ type MenuEvent struct {
 	Operation    string
 	Success      bool
 	Error        string
+	Generation   uint64
+	Prepared     *couchcore.PreparedStart
 }
 
 // MenuEffect is an operation request for the thin Console shell.
 type MenuEffect struct {
 	Operation string
 	Args      map[string]string
+	Preview   *PreviewRequest
 }
 
 func NewMenuState(inventory []couchcore.ActionableThreadSummary, active couchcore.ThreadAddress) MenuState {
@@ -164,6 +174,9 @@ func ReduceMenu(state MenuState, event MenuEvent) (MenuState, []MenuEffect) {
 			next = reconcileMenuFrames(next)
 		}
 		return reduceOperationResult(next, event), nil
+	}
+	if event.Kind == MenuEventPreviewResult {
+		return reducePreviewResult(next, event)
 	}
 	if event.Kind == MenuEventBell {
 		if next.Bells == nil {
@@ -382,7 +395,7 @@ func openStartForm(state MenuState) (MenuState, []MenuEffect) {
 		agent = state.Agents[0]
 	}
 	state.Frames = append(state.Frames, MenuFrame{
-		Kind: MenuFrameStart, FormField: MenuFieldPath, Agent: agent,
+		Kind: MenuFrameStart, FormField: MenuFieldPath, Agent: agent, Generation: 1,
 	})
 	return state, nil
 }
@@ -398,6 +411,7 @@ func reduceStartKey(state MenuState, key PanelKey) (MenuState, []MenuEffect) {
 		if utf8.RuneLen(key.Rune) > 0 && len(candidate) <= menuTextLimit {
 			frame.Path = candidate
 			frame.Generation++
+			clearStartPreview(frame)
 		}
 	case KeyBackspace:
 		if frame.FormField == MenuFieldPath {
@@ -405,31 +419,47 @@ func reduceStartKey(state MenuState, key PanelKey) (MenuState, []MenuEffect) {
 			frame.Path = removeLastRune(frame.Path)
 			if frame.Path != before {
 				frame.Generation++
+				clearStartPreview(frame)
 			}
 		}
 	case KeyTab:
 		if frame.FormField == MenuFieldPath {
 			frame.FormField = MenuFieldAgent
+			return requestStartPreview(state)
 		} else {
 			frame.FormField = MenuFieldPath
 		}
 	case KeyLeft:
 		if frame.FormField == MenuFieldAgent {
-			selectStartAgent(frame, state.Agents, -1)
+			if selectStartAgent(frame, state.Agents, -1) {
+				return requestStartPreview(state)
+			}
 		}
 	case KeyRight:
 		if frame.FormField == MenuFieldAgent {
-			selectStartAgent(frame, state.Agents, 1)
+			if selectStartAgent(frame, state.Agents, 1) {
+				return requestStartPreview(state)
+			}
 		}
+	case KeyEnter:
+		if frame.PreviewAccepted == frame.Generation && frame.PreviewToken != "" {
+			return state, []MenuEffect{startMenuEffect(*frame)}
+		}
+		frame.SubmitGeneration = frame.Generation
+		state.Notice = "resolving"
+		if frame.PreviewPending == frame.Generation {
+			return state, nil
+		}
+		return requestStartPreview(state)
 	case KeyEscape:
 		state.Frames = state.Frames[:len(state.Frames)-1]
 	}
 	return state, nil
 }
 
-func selectStartAgent(frame *MenuFrame, agents []string, delta int) {
+func selectStartAgent(frame *MenuFrame, agents []string, delta int) bool {
 	if len(agents) == 0 {
-		return
+		return false
 	}
 	index := 0
 	for i, agent := range agents {
@@ -443,7 +473,78 @@ func selectStartAgent(frame *MenuFrame, agents []string, delta int) {
 		frame.Agent = agents[index]
 		frame.AgentSticky = true
 		frame.Generation++
+		clearStartPreview(frame)
+		return true
 	}
+	return false
+}
+
+func clearStartPreview(frame *MenuFrame) {
+	frame.PreviewPending = 0
+	frame.PreviewAccepted = 0
+	frame.PreviewToken = ""
+	frame.PreviewPath = ""
+	frame.PreviewAgent = ""
+	frame.SubmitGeneration = 0
+}
+
+func requestStartPreview(state MenuState) (MenuState, []MenuEffect) {
+	frame := &state.Frames[len(state.Frames)-1]
+	if frame.PreviewPending == frame.Generation {
+		return state, nil
+	}
+	path := frame.Path
+	if path == "" {
+		path = "."
+	}
+	request := PreviewRequest{Generation: frame.Generation, Path: path, Agent: frame.Agent}
+	frame.PreviewPending = frame.Generation
+	return state, []MenuEffect{{Preview: &request}}
+}
+
+func reducePreviewResult(state MenuState, event MenuEvent) (MenuState, []MenuEffect) {
+	if state.CurrentFrame().Kind != MenuFrameStart {
+		return state, nil
+	}
+	frame := &state.Frames[len(state.Frames)-1]
+	if event.Generation != frame.Generation || event.Generation != frame.PreviewPending {
+		return state, nil
+	}
+	frame.PreviewPending = 0
+	if event.Error != "" || event.Prepared == nil || event.Prepared.Token == "" {
+		frame.SubmitGeneration = 0
+		state.Notice = event.Error
+		if state.Notice == "" {
+			state.Notice = "start preview failed"
+		}
+		return state, nil
+	}
+	frame.PreviewAccepted = event.Generation
+	frame.PreviewToken = event.Prepared.Token
+	frame.PreviewPath = event.Prepared.Resolution.CanonicalPath
+	frame.PreviewAgent = event.Prepared.Resolution.Profile.Agent
+	if frame.SubmitGeneration != event.Generation {
+		return state, nil
+	}
+	frame.SubmitGeneration = 0
+	return state, []MenuEffect{startMenuEffect(*frame)}
+}
+
+func startMenuEffect(frame MenuFrame) MenuEffect {
+	path := frame.PreviewPath
+	if path == "" {
+		path = frame.Path
+		if path == "" {
+			path = "."
+		}
+	}
+	agent := frame.PreviewAgent
+	if agent == "" {
+		agent = frame.Agent
+	}
+	return MenuEffect{Operation: "start", Args: map[string]string{
+		"path": path, "agent": agent, "token": string(frame.PreviewToken),
+	}}
 }
 
 func menuActionItems(thread couchcore.ActionableThreadSummary) []string {

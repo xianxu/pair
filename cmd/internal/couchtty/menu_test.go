@@ -315,6 +315,12 @@ func TestReduceMenuGeneratedTracesPreserveStructuralBounds(t *testing.T) {
 				t.Fatalf("key %v nested start forms: %+v", key.Kind, next.Frames)
 			}
 			for _, effect := range effects {
+				if effect.Preview != nil {
+					if effect.Operation != "" || effect.Preview.Generation == 0 {
+						t.Fatalf("key %v emitted malformed preview %+v", key.Kind, effect)
+					}
+					continue
+				}
 				if !declared[effect.Operation] {
 					t.Fatalf("key %v emitted private operation %+v", key.Kind, effect)
 				}

@@ -508,3 +508,13 @@ to one semantic key across every input split, drops modified CSI-u Tab, and
 reserves the zero key kind as unknown. The decoder fuzz corpus carries all
 three forms so framing changes cannot leak escape bytes into filter text
 (ARCH-DRY, ARCH-PURE).
+
+### 2026-08-30 — M2 bounded preview scheduling
+
+Added a pure one-running/one-latest preview scheduler: a newer generation
+requests cancellation once, replaces only the pending slot, and cannot retire
+running work until its matching terminal outcome arrives. Start-form reducer
+events bind preview acceptance and one armed submit to the exact nonzero
+generation; edits/Escape cancel submit authority, stale or duplicate results
+cannot dispatch, and failure preserves form input (ARCH-PURE,
+ARCH-CONSTRAINTS).
