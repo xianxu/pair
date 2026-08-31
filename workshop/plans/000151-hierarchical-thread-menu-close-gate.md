@@ -55,6 +55,16 @@ rounds:
           round: 2
       boundary: M1
       blocked: true
+    - "n": 3
+      timestamp: "2026-08-30T21:18:18-07:00"
+      agent: codex
+      dispose:
+        - id: BR-4
+          disposition: addressed
+          note: Source, atlas, project, issue, plan, and README now consistently distinguish M1 authority from M3 consumer adoption; mutating the project claim makes the class-level regression fail.
+          round: 3
+      boundary: M1
+      blocked: false
 ---
 
 # Gate ledger — pair#151 (boundary-review)
@@ -84,6 +94,12 @@ later rounds disposed of them. Generated — edit the gate, not this file.
 - BR-3 — addressed — All three sources are classified; reverting the entries makes the exhaustive production-source inventory test fail.
 - BR-4 — not-addressed — The atlas was corrected, but the project milestone still claims the ordinary switcher consumes actionable inventory while run.go wires raw ThreadInventory, and no regression guards this staging claim.
 
+## Round 3 — 2026-08-30T21:18:18-07:00 (codex) — passed
+
+### Disposed
+
+- BR-4 — addressed — Source, atlas, project, issue, plan, and README now consistently distinguish M1 authority from M3 consumer adoption; mutating the project claim makes the class-level regression fail.
+
 ## Open findings
 
-- **BR-4** [Important] `documentation-current-state-accuracy` Atlas claims the ordinary switcher already consumes the actionable inventory
+(none — every finding has been disposed)

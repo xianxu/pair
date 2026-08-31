@@ -191,3 +191,79 @@ dispose:
     note: |
       The atlas was corrected, but the project milestone still claims the ordinary switcher consumes actionable inventory while run.go wires raw ThreadInventory, and no regression guards this staging claim.
 ```
+
+---
+
+## Re-review — 2026-08-30T21:18:18-07:00 (SHIP)
+
+| field | value |
+|-------|-------|
+| issue | 151 — couch: hierarchical work-thread menu |
+| repo | pair |
+| issue file | workshop/issues/000151-hierarchical-thread-menu.md |
+| boundary | milestone M1 |
+| milestone | M1 |
+| window | 7a86b80f588c5259d4114705611c8ced8a80d04b..7a86b80f588c5259d4114705611c8ced8a80d04b |
+| command | sdlc milestone-close --issue 151 --milestone M1 |
+| reviewer | codex |
+| timestamp | 2026-08-30T21:18:18-07:00 |
+| verdict | SHIP |
+
+## Review
+
+```verdict
+verdict: SHIP
+confidence: high
+```
+
+The pinned review range is empty because base and head are both `7a86b80f`, but direct inspection of that tree confirms BR-4 is addressed. Production and all enumerated documentation surfaces consistently describe the raw transitional inventory through M1, and the new regression fails when that consistency is broken. No findings block M1 closure.
+
+## Strengths
+
+- [run.go](/Users/xianxu/workspace/pair/cmd/internal/couchcmd/run.go:415) accurately retains `ThreadInventory` for the transitional panel.
+- [readme_test.go](/Users/xianxu/workspace/pair/cmd/internal/couchcmd/readme_test.go:33) guards the complete staging-document class: source, atlas, project, issue, plan, and README.
+- [actionableinventory.go](/Users/xianxu/workspace/pair/cmd/internal/couchcore/actionableinventory.go:53) keeps projection pure and fail-closed through complete record validation.
+- Console start uses the shared `prepare-start → start` authority sequence, preserving the required-token contract without a private dispatch path.
+
+## Critical findings
+
+None.
+
+## Important findings
+
+None.
+
+## Minor findings
+
+None.
+
+## Test coverage notes
+
+Passed:
+
+- Documentation staging contract.
+- Complete `couchcore`, `couchcmd`, `couchtty`, and `artifactpath` package suites.
+- Focused race suites for projection, start resolution/grants, prepared admission, and Console start.
+- BR-4 mutation check: changing the project’s staged-consumer statement makes `TestM1DocsMatchTransitionalPanelInventoryProvider` fail at the altered document.
+
+Previously disposed BR-1 through BR-3 remain supported by reachable regressions. M1’s implemented Core-concepts entities exist at their declared paths; later menu/controller entities belong to unchecked M2/M3 steps.
+
+## Architectural notes for upcoming work
+
+- **ARCH-DRY — pass:** lifecycle projection and start authority each have one implementation.
+- **ARCH-PURE — pass:** projection and fingerprint logic remain separate from snapshot, policy, terminal, and process I/O.
+- **ARCH-PURPOSE — pass:** M1 delivers the scoped authority while accurately deferring Console adoption to M3.
+- **ARCH-MOCK — pass:** runner, policy, entropy, clock, and terminal behavior remain behind existing injected/stateful seams.
+- **ARCH-CONSTRAINTS — pass:** grant capacity, TTL, collision attempts, and concurrency are bounded and tested; UI performance evidence remains correctly scheduled for M3.
+
+## Plan revision recommendations
+
+None. The existing revision accurately records M1 authority delivery and M3 consumer adoption.
+
+```findings
+dispose:
+  - id: BR-4
+    disposition: addressed
+    note: |
+      Source, atlas, project, issue, plan, and README now consistently distinguish M1 authority from M3 consumer adoption; mutating the project claim makes the class-level regression fail.
+```

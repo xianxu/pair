@@ -398,7 +398,7 @@ total: 7.60
 
 ## Plan
 
-- [ ] M1 — Build and integrate authoritative actionable inventory plus bounded,
+- [x] M1 — Build and integrate authoritative actionable inventory plus bounded,
       token-bound start preparation/admission contracts.
 - [ ] M2 — Build the pure hierarchical menu reducer, renderer, key semantics,
       reconciliation, and bounded preview scheduler.
@@ -415,6 +415,7 @@ the durable menu rows. Depends on `#149` so the menu never invents a second
 identity or metadata store.
 
 ### 2026-08-30 — session summary
+- 2026-08-30: closed M1 — TDD staging contract went red before the five-surface sweep and green after it; go test -p 20 couchcore/couchcmd/couchtty/artifactpath, focused race tests, and git diff --check pass; review verdict: SHIP
 
 Kept #151 narrowly focused on the hierarchical TTY switcher. Couch owns the
 presentation switch among live PTYs while Pair exposes only durable
