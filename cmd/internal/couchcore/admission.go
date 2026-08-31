@@ -74,6 +74,17 @@ func (e *PolicyUnstableError) Error() string {
 // commits pruning and the candidate's creating incarnation only if the exact
 // snapshot is still current. Refused pristine reservations are rolled back.
 func ReconcileAdmission(ctx context.Context, store *ThreadStore, resolver PolicyResolver, candidateAddress ThreadAddress, startedAt time.Time) (ThreadRecord, error) {
+	return reconcileAdmission(ctx, store, resolver, candidateAddress, startedAt, nil)
+}
+
+// ReconcileAdmissionPrepared admits with candidate policy evidence already
+// accepted by start revalidation. Resolver remains available only for stale
+// incumbents; the candidate authority is never read again.
+func ReconcileAdmissionPrepared(ctx context.Context, store *ThreadStore, resolver PolicyResolver, candidateAddress ThreadAddress, startedAt time.Time, candidatePolicy PolicyResult) (ThreadRecord, error) {
+	return reconcileAdmission(ctx, store, resolver, candidateAddress, startedAt, &candidatePolicy)
+}
+
+func reconcileAdmission(ctx context.Context, store *ThreadStore, resolver PolicyResolver, candidateAddress ThreadAddress, startedAt time.Time, prepared *PolicyResult) (ThreadRecord, error) {
 	if store == nil || resolver == nil {
 		return ThreadRecord{}, errors.New("reconcile admission: nil dependency")
 	}
@@ -93,9 +104,14 @@ func ReconcileAdmission(ctx context.Context, store *ThreadStore, resolver Policy
 		if !candidate.Reservation || len(candidate.Incarnations) != 0 {
 			return ThreadRecord{}, fmt.Errorf("candidate thread %+v is not a pristine reservation", candidateAddress)
 		}
-		candidatePolicy, err := resolver.ResolvePolicy(ctx, candidate.WorkingPath)
-		if err != nil {
-			return rollback(err)
+		var candidatePolicy PolicyResult
+		if prepared == nil {
+			candidatePolicy, err = resolver.ResolvePolicy(ctx, candidate.WorkingPath)
+			if err != nil {
+				return rollback(err)
+			}
+		} else {
+			candidatePolicy = *prepared
 		}
 		if err := ValidatePolicyResult(candidatePolicy); err != nil {
 			return rollback(fmt.Errorf("candidate provider result: %w", err))
@@ -107,6 +123,9 @@ func ReconcileAdmission(ctx context.Context, store *ThreadStore, resolver Policy
 			return rollback(err)
 		}
 		if epochChanged {
+			if prepared != nil {
+				return rollback(&PolicyUnstableError{Attempts: attempt + 1, RepoIdentity: lastRepoIdentity})
+			}
 			continue
 		}
 		if _, err := (Admission{}).Decide(candidatePolicy, occupants); err != nil {

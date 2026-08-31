@@ -224,7 +224,7 @@ Run: `go test -p 20 ./cmd/internal/couchcore -run 'TestStartGrant' -count=1`
 
 Expected: PASS, including concurrent claims and capacity while consuming.
 
-- [ ] **Step 6: Commit Task 2**
+- [x] **Step 6: Commit Task 2**
 
 ```bash
 git add cmd/internal/couchcore/startgrant.go cmd/internal/couchcore/startgrant_test.go cmd/internal/couchcore/couch.go
@@ -241,42 +241,42 @@ git commit -m "#151 M1: add bounded start grants"
 - Modify: `cmd/internal/couchcore/admission.go`
 - Modify: `cmd/internal/couchcore/admission_reconcile_test.go`
 
-- [ ] **Step 1: Write failing pure resolution/fingerprint tests**
+- [x] **Step 1: Write failing pure resolution/fingerprint tests**
 
 Apply the `ResolveStartResolution` mutation strategy to every authority-bearing
 input and malformed profile/policy data; reuse `ResolveLaunchProfile` as the
 selection oracle.
 
-- [ ] **Step 2: Run pure tests and verify RED**
+- [x] **Step 2: Run pure tests and verify RED**
 
 Run: `go test -p 20 ./cmd/internal/couchcore -run 'TestResolveStartResolution' -count=1`
 
 Expected: FAIL because the resolution entity is absent.
 
-- [ ] **Step 3: Implement the pure resolution**
+- [x] **Step 3: Implement the pure resolution**
 
 Implement the Core-concepts resolution/fingerprint with an explicit
 length-delimited schema and defensive copies. Re-run Step 2 and expect PASS.
 
-- [ ] **Step 4: Write failing prepared-I/O and admission tests**
+- [x] **Step 4: Write failing prepared-I/O and admission tests**
 
 Apply the stateful evidence-change strategy to `PrepareStart`, `SpawnPrepared`,
 and `ReconcileAdmissionPrepared`; effect logs are the mechanical guard against
 check/use drift and unauthorized allocation/fork.
 
-- [ ] **Step 5: Run prepared-start tests and verify RED**
+- [x] **Step 5: Run prepared-start tests and verify RED**
 
 Run: `go test -p 20 ./cmd/internal/couchcore -run 'Test(PrepareStart|SpawnPrepared|ReconcileAdmissionPrepared)' -count=1`
 
 Expected: FAIL because the prepared I/O/admission seam is absent.
 
-- [ ] **Step 6: Implement prepared start and candidate-policy admission**
+- [x] **Step 6: Implement prepared start and candidate-policy admission**
 
 Factor one resolution pipeline for prepare/revalidation, then feed its accepted
 values directly into prepared admission and launch. Grant claim/finish brackets
 the attempt; no authority input is reread after fingerprint acceptance.
 
-- [ ] **Step 7: Run focused core tests**
+- [x] **Step 7: Run focused core tests**
 
 Run: `go test -p 20 ./cmd/internal/couchcore -run 'Test(ResolveStartResolution|PrepareStart|SpawnPrepared|ReconcileAdmissionPrepared|StartGrant)' -count=1`
 

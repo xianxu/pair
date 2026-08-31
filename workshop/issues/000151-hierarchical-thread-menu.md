@@ -444,3 +444,12 @@ Added a mutex-owned, in-memory one-attempt grant table. The focused suite and
 race detector pass with `-p 20`, covering entropy/collision limits, defensive
 resolution ownership, atomic claim, pre-claim expiry, capacity, finish, and
 owner-restart invalidation (ARCH-PURE, ARCH-CONSTRAINTS).
+
+### 2026-08-30 — M1 prepared start authority
+
+Factored direct and token-bound start through one pure, length-delimited
+resolution fingerprint. Prepare has no allocation/fork effects; submit claims
+once, revalidates policy/preference/default evidence, and passes accepted
+candidate policy directly into admission. Focused legacy/new tests and the race
+detector pass with `-p 20`; the full package reaches only the already-recorded
+#152 artifact-path contract failure (ARCH-DRY, ARCH-PURE, ARCH-PURPOSE).
