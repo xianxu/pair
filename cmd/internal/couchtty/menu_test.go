@@ -1,6 +1,7 @@
 package couchtty
 
 import (
+	"fmt"
 	"reflect"
 	"strings"
 	"testing"
@@ -22,6 +23,12 @@ func menuThreads() []couchcore.ActionableThreadSummary {
 
 func reduceKey(state MenuState, key PanelKey) (MenuState, []MenuEffect) {
 	return ReduceMenu(state, MenuEvent{Kind: MenuEventKey, Key: key})
+}
+
+func correlatedMenuResult(state MenuState, event MenuEvent) MenuEvent {
+	event.Kind = MenuEventOperationResult
+	event.Attempt = state.InFlight.Attempt
+	return event
 }
 
 func TestReduceMenuRootFilteringPreservesStableSelection(t *testing.T) {
@@ -68,14 +75,14 @@ func TestReduceMenuRootZeroSelectionHasNoEffect(t *testing.T) {
 func TestReduceMenuRootEnterDispatchesExactSwitchOrResume(t *testing.T) {
 	state := NewMenuState(menuThreads(), menuAddress("couch-one"))
 	liveState, effects := reduceKey(state, PanelKey{Kind: KeyEnter})
-	wantLive := []MenuEffect{{Operation: "switch", Args: map[string]string{"repo-scope": "scope", "tag": "couch-one"}}}
+	wantLive := []MenuEffect{{Operation: "switch", Attempt: 1, Args: map[string]string{"repo-scope": "scope", "tag": "couch-one"}}}
 	if !reflect.DeepEqual(effects, wantLive) || liveState.Notice != "" {
 		t.Fatalf("live enter = state %+v effects %+v", liveState, effects)
 	}
 
 	state, _ = reduceKey(state, PanelKey{Kind: KeyDown})
 	_, effects = reduceKey(state, PanelKey{Kind: KeyEnter})
-	wantParked := []MenuEffect{{Operation: "resume", Args: map[string]string{"repo-scope": "scope", "tag": "couch-two"}}}
+	wantParked := []MenuEffect{{Operation: "resume", Attempt: 1, Args: map[string]string{"repo-scope": "scope", "tag": "couch-two"}}}
 	if !reflect.DeepEqual(effects, wantParked) {
 		t.Fatalf("parked enter effects = %+v, want %+v", effects, wantParked)
 	}
@@ -100,7 +107,7 @@ func TestReduceMenuActionAndConfirmationCaptureExactThread(t *testing.T) {
 	}
 	state, _ = reduceKey(state, PanelKey{Kind: KeyDown})
 	state, effects = reduceKey(state, PanelKey{Kind: KeyEnter})
-	want := []MenuEffect{{Operation: "park", Args: map[string]string{"repo-scope": "scope", "tag": "couch-one"}}}
+	want := []MenuEffect{{Operation: "park", Attempt: 1, Args: map[string]string{"repo-scope": "scope", "tag": "couch-one"}}}
 	if !reflect.DeepEqual(effects, want) {
 		t.Fatalf("park effects = %+v, want %+v", effects, want)
 	}
@@ -118,7 +125,7 @@ func TestReduceMenuActionUsesExistingNameOperation(t *testing.T) {
 		state, _ = reduceKey(state, PanelKey{Kind: KeyRune, Rune: r})
 	}
 	_, effects := reduceKey(state, PanelKey{Kind: KeyEnter})
-	want := []MenuEffect{{Operation: "name", Args: map[string]string{
+	want := []MenuEffect{{Operation: "name", Attempt: 1, Args: map[string]string{
 		"repo-scope": "scope", "ref": "couch-one", "name": "new name",
 	}}}
 	if !reflect.DeepEqual(effects, want) {
@@ -141,16 +148,16 @@ func TestReduceMenuBellCommitsOnlyAfterSuccessfulSwitch(t *testing.T) {
 		t.Fatalf("switch dispatch changed bell: state=%+v effects=%+v", state, effects)
 	}
 
-	failed, _ := ReduceMenu(state, MenuEvent{
-		Kind: MenuEventOperationResult, Operation: "switch", Address: menuAddress("couch-two"), Error: "focus failed",
-	})
+	failed, _ := ReduceMenu(state, correlatedMenuResult(state, MenuEvent{
+		Operation: "switch", Address: menuAddress("couch-two"), Error: "focus failed",
+	}))
 	if !failed.Bells[menuAddress("couch-two")] || failed.Notice != "focus failed" {
 		t.Fatalf("failed switch lost bell: %+v", failed)
 	}
 
-	succeeded, _ := ReduceMenu(state, MenuEvent{
-		Kind: MenuEventOperationResult, Operation: "switch", Address: menuAddress("couch-two"), Success: true,
-	})
+	succeeded, _ := ReduceMenu(state, correlatedMenuResult(state, MenuEvent{
+		Operation: "switch", Address: menuAddress("couch-two"), Success: true,
+	}))
 	if succeeded.Bells[menuAddress("couch-two")] {
 		t.Fatalf("successful switch retained bell: %+v", succeeded)
 	}
@@ -268,27 +275,25 @@ func TestReduceMenuOperationResultDoesNotRedispatchAndRestoresByOutcome(t *testi
 		t.Fatalf("initial dispatch = %+v", dispatched)
 	}
 
-	failed, effects := ReduceMenu(state, MenuEvent{
-		Kind: MenuEventOperationResult, Operation: "park", Address: menuAddress("couch-one"), Error: "cleanup failed",
+	failed, effects := ReduceMenu(state, correlatedMenuResult(state, MenuEvent{
+		Operation: "park", Address: menuAddress("couch-one"), Error: "cleanup failed",
 		Inventory: menuThreads(), InventorySet: true,
-	})
+	}))
 	if len(effects) != 0 || failed.CurrentFrame().Kind != MenuFrameActions || failed.Notice != "cleanup failed" {
 		t.Fatalf("failed result = state %+v effects %+v", failed, effects)
 	}
 
 	parked := menuThreads()
 	parked[0].State = couchcore.ThreadParked
-	succeeded, effects := ReduceMenu(state, MenuEvent{
-		Kind: MenuEventOperationResult, Operation: "park", Address: menuAddress("couch-one"), Success: true,
+	completion := correlatedMenuResult(state, MenuEvent{
+		Operation: "park", Address: menuAddress("couch-one"), Success: true,
 		Inventory: parked, InventorySet: true,
 	})
+	succeeded, effects := ReduceMenu(state, completion)
 	if len(effects) != 0 || len(succeeded.Frames) != 1 || succeeded.CurrentFrame().SelectedAddress != menuAddress("couch-one") {
 		t.Fatalf("successful result = state %+v effects %+v", succeeded, effects)
 	}
-	again, effects := ReduceMenu(succeeded, MenuEvent{
-		Kind: MenuEventOperationResult, Operation: "park", Address: menuAddress("couch-one"), Success: true,
-		Inventory: parked, InventorySet: true,
-	})
+	again, effects := ReduceMenu(succeeded, completion)
 	if len(effects) != 0 || !reflect.DeepEqual(again.Frames, succeeded.Frames) {
 		t.Fatalf("duplicate completion redispatched or moved state: state=%+v effects=%+v", again, effects)
 	}
@@ -302,10 +307,10 @@ func TestReduceMenuRootResumeFailureUsesCapturedOperationOrigin(t *testing.T) {
 		t.Fatalf("root resume dispatch = %+v", dispatched)
 	}
 
-	failed, effects := ReduceMenu(state, MenuEvent{
-		Kind: MenuEventOperationResult, Operation: "resume", Address: menuAddress("couch-two"), Error: "resume failed",
+	failed, effects := ReduceMenu(state, correlatedMenuResult(state, MenuEvent{
+		Operation: "resume", Address: menuAddress("couch-two"), Error: "resume failed",
 		Inventory: menuThreads(), InventorySet: true,
-	})
+	}))
 	if len(effects) != 0 || failed.Notice != "resume failed" || failed.CurrentFrame().Kind != MenuFrameRoot || failed.CurrentFrame().SelectedAddress != menuAddress("couch-two") {
 		t.Fatalf("root resume failure = state %+v effects %+v", failed, effects)
 	}
@@ -318,10 +323,10 @@ func TestReduceMenuRootResumeSuccessAppliesReturnedInventory(t *testing.T) {
 	resumed := menuThreads()
 	resumed[1].State = couchcore.ThreadLive
 
-	succeeded, effects := ReduceMenu(state, MenuEvent{
-		Kind: MenuEventOperationResult, Operation: "resume", Address: menuAddress("couch-two"), Success: true,
+	succeeded, effects := ReduceMenu(state, correlatedMenuResult(state, MenuEvent{
+		Operation: "resume", Address: menuAddress("couch-two"), Success: true,
 		Inventory: resumed, InventorySet: true,
-	})
+	}))
 	thread, found := findMenuThread(succeeded.Inventory, menuAddress("couch-two"))
 	if len(effects) != 0 || !found || !thread.Live() || succeeded.CurrentFrame().Kind != MenuFrameRoot || succeeded.CurrentFrame().SelectedAddress != menuAddress("couch-two") {
 		t.Fatalf("root resume success = state %+v effects %+v", succeeded, effects)
@@ -341,10 +346,10 @@ func TestReduceMenuOperationResultRequiresExactCapturedOperation(t *testing.T) {
 	state.Notice = "keep"
 
 	before := state
-	got, effects := ReduceMenu(state, MenuEvent{
-		Kind: MenuEventOperationResult, Operation: "describe", Address: menuAddress("couch-one"), Error: "unrelated",
+	got, effects := ReduceMenu(state, correlatedMenuResult(state, MenuEvent{
+		Operation: "describe", Address: menuAddress("couch-one"), Error: "unrelated",
 		Inventory: menuThreads()[1:], InventorySet: true,
-	})
+	}))
 	if len(effects) != 0 || !reflect.DeepEqual(got, before) {
 		t.Fatalf("unrelated completion changed state: got=%+v want=%+v effects=%+v", got, before, effects)
 	}
@@ -357,10 +362,10 @@ func TestReduceMenuOperationResultPreservesHiddenTargetDiagnostic(t *testing.T) 
 	state, _ = reduceKey(state, PanelKey{Kind: KeyDown})
 	state, _ = reduceKey(state, PanelKey{Kind: KeyEnter})
 
-	got, effects := ReduceMenu(state, MenuEvent{
-		Kind: MenuEventOperationResult, Operation: "park", Address: menuAddress("couch-one"), Error: "cleanup failed",
+	got, effects := ReduceMenu(state, correlatedMenuResult(state, MenuEvent{
+		Operation: "park", Address: menuAddress("couch-one"), Error: "cleanup failed",
 		Inventory: menuThreads()[1:], InventorySet: true,
-	})
+	}))
 	if len(effects) != 0 || len(got.Frames) != 1 || !strings.Contains(got.Notice, "compiler") ||
 		!strings.Contains(got.Notice, "scope/couch-one") || strings.Contains(got.Notice, "cleanup failed") {
 		t.Fatalf("hidden operation target = state %+v effects %+v", got, effects)
@@ -382,10 +387,10 @@ func TestReduceMenuStartCompletionUsesGlobalOperationOrigin(t *testing.T) {
 		t.Fatalf("start dispatch = %+v", effects)
 	}
 	created := couchcore.ActionableThreadSummary{Address: menuAddress("couch-new"), WorkingPath: "/repo/new", Name: "new", State: couchcore.ThreadLive}
-	got, effects := ReduceMenu(state, MenuEvent{
-		Kind: MenuEventOperationResult, Operation: "start", Address: created.Address, Success: true,
+	got, effects := ReduceMenu(state, correlatedMenuResult(state, MenuEvent{
+		Operation: "start", Address: created.Address, Success: true,
 		Inventory: append(menuThreads(), created), InventorySet: true,
-	})
+	}))
 	if len(effects) != 0 || len(got.Frames) != 1 || got.CurrentFrame().SelectedAddress != created.Address {
 		t.Fatalf("start completion = state %+v effects %+v", got, effects)
 	}
@@ -406,9 +411,9 @@ func TestReduceMenuStartFailureWithoutCreatedAddressClearsDispatchAndRestoresFor
 		t.Fatalf("start dispatch = %+v", effects)
 	}
 
-	got, effects := ReduceMenu(state, MenuEvent{
-		Kind: MenuEventOperationResult, Operation: "start", Error: "launch failed",
-	})
+	got, effects := ReduceMenu(state, correlatedMenuResult(state, MenuEvent{
+		Operation: "start", Error: "launch failed",
+	}))
 	if len(effects) != 0 || got.Notice != "launch failed" || got.CurrentFrame().Kind != MenuFrameStart || got.InFlight.Operation != "" {
 		t.Fatalf("failed start completion = state %+v effects %+v", got, effects)
 	}
@@ -418,35 +423,79 @@ func TestMenuOperationCorrelationEnumeratesEveryOperationOutcomeAndAddressShape(
 	target := menuAddress("couch-one")
 	created := menuAddress("couch-new")
 	for _, operation := range []string{"switch", "resume", "park", "name", "describe"} {
-		origin := MenuOperationOrigin{Operation: operation, Address: target}
+		origin := MenuOperationOrigin{Operation: operation, Attempt: 1, Address: target}
 		for _, success := range []bool{false, true} {
-			if !menuOperationMatches(origin, MenuEvent{Operation: operation, Address: target, Success: success}) {
+			if !menuOperationMatches(origin, MenuEvent{Operation: operation, Attempt: 1, Address: target, Success: success}) {
 				t.Errorf("%s success=%t did not match exact target", operation, success)
 			}
-			if menuOperationMatches(origin, MenuEvent{Operation: operation, Success: success}) {
+			if menuOperationMatches(origin, MenuEvent{Operation: operation, Attempt: 1, Success: success}) {
 				t.Errorf("%s success=%t matched missing target", operation, success)
 			}
-			if menuOperationMatches(origin, MenuEvent{Operation: operation, Address: created, Success: success}) {
+			if menuOperationMatches(origin, MenuEvent{Operation: operation, Attempt: 1, Address: created, Success: success}) {
 				t.Errorf("%s success=%t matched wrong target", operation, success)
 			}
 		}
 	}
 
-	start := MenuOperationOrigin{Operation: "start"}
-	if !menuOperationMatches(start, MenuEvent{Operation: "start", Error: "launch failed"}) {
+	start := MenuOperationOrigin{Operation: "start", Attempt: 1}
+	if !menuOperationMatches(start, MenuEvent{Operation: "start", Attempt: 1, Error: "launch failed"}) {
 		t.Error("failed start without result address did not match")
 	}
-	if menuOperationMatches(start, MenuEvent{Operation: "start", Success: true}) {
+	if menuOperationMatches(start, MenuEvent{Operation: "start", Attempt: 1, Success: true}) {
 		t.Error("successful start without created address matched")
 	}
-	if !menuOperationMatches(start, MenuEvent{Operation: "start", Address: created, Success: true}) {
+	if !menuOperationMatches(start, MenuEvent{Operation: "start", Attempt: 1, Address: created, Success: true}) {
 		t.Error("successful start with created address did not match")
 	}
-	if !menuOperationMatches(start, MenuEvent{Operation: "start", Address: created, Error: "post-create failure"}) {
+	if !menuOperationMatches(start, MenuEvent{Operation: "start", Attempt: 1, Address: created, Error: "post-create failure"}) {
 		t.Error("failed start with a created address did not match")
 	}
-	if menuOperationMatches(start, MenuEvent{Operation: "resume", Address: created, Success: true}) {
+	if menuOperationMatches(start, MenuEvent{Operation: "resume", Attempt: 1, Address: created, Success: true}) {
 		t.Error("start origin matched another operation")
+	}
+}
+
+func TestMenuOperationAttemptRejectsDelayedDuplicateAcrossEveryOperation(t *testing.T) {
+	target := menuAddress("couch-one")
+	created := menuAddress("couch-new")
+	for _, operation := range []string{"switch", "resume", "park", "name", "describe", "start"} {
+		for _, success := range []bool{false, true} {
+			t.Run(operation+fmt.Sprintf("/success=%t", success), func(t *testing.T) {
+				state := NewMenuState(menuThreads(), target)
+				originAddress := target
+				resultAddress := target
+				if operation == "start" {
+					originAddress = couchcore.ThreadAddress{}
+					resultAddress = couchcore.ThreadAddress{}
+					if success {
+						resultAddress = created
+					}
+				}
+				state, effects := dispatchMenuOperation(state, MenuEffect{Operation: operation}, originAddress)
+				if len(effects) != 1 || effects[0].Attempt == 0 {
+					t.Fatalf("attempt A dispatch = state %+v effects %+v", state, effects)
+				}
+				attemptA := effects[0].Attempt
+				resultA := MenuEvent{Kind: MenuEventOperationResult, Operation: operation, Attempt: attemptA, Address: resultAddress, Success: success, Error: "attempt A failed"}
+				state, _ = ReduceMenu(state, resultA)
+				state, effects = dispatchMenuOperation(state, MenuEffect{Operation: operation}, originAddress)
+				if len(effects) != 1 || effects[0].Attempt == attemptA {
+					t.Fatalf("attempt B did not get unique identity: state %+v effects %+v", state, effects)
+				}
+				before := state
+				got, emitted := ReduceMenu(state, resultA)
+				if len(emitted) != 0 || !reflect.DeepEqual(got, before) {
+					t.Fatalf("stale attempt A changed attempt B: got=%+v want=%+v effects=%+v", got, before, emitted)
+				}
+			})
+		}
+	}
+
+	exhausted := NewMenuState(menuThreads(), target)
+	exhausted.OperationSequence = ^uint64(0)
+	got, effects := dispatchMenuOperation(exhausted, MenuEffect{Operation: "switch"}, target)
+	if len(effects) != 0 || got.InFlight.Operation != "" || got.Notice != "operation attempt identity exhausted" {
+		t.Fatalf("exhausted operation identity authorized work: state=%+v effects=%+v", got, effects)
 	}
 }
 

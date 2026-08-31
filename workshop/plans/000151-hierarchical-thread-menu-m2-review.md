@@ -532,3 +532,95 @@ dispose:
     note: |
       The tables now match the pinned tree, but no test fails when current-boundary statuses regress, as required by the claimed-fix contract.
 ```
+
+---
+
+## Re-review — 2026-08-30T23:04:46-07:00 (REWORK)
+
+| field | value |
+|-------|-------|
+| issue | 151 — couch: hierarchical work-thread menu |
+| repo | pair |
+| issue file | workshop/issues/000151-hierarchical-thread-menu.md |
+| boundary | milestone M2 |
+| milestone | M2 |
+| window | 66ae7eef502eb996f4b2d7f096e0ee73090204b2..7c71ce645b20d3536a0411d8b25e465d2687f11f |
+| command | sdlc milestone-close --issue 151 --milestone M2 |
+| reviewer | codex |
+| timestamp | 2026-08-30T23:04:46-07:00 |
+| verdict | REWORK |
+
+## Review
+
+```verdict
+verdict: REWORK
+confidence: high
+```
+
+The M2 pure menu architecture, documentation, and tests are generally strong, and BR-17 is now genuinely addressed by a table-wide executable contract. The boundary remains blocked because operation results lack a per-attempt identity: a delayed duplicate can retire a newer identical operation, corrupting its outcome.
+
+1. Strengths
+
+- BR-17 is mutation-pinned: [plan_contract_test.go](/Users/xianxu/workspace/pair/cmd/internal/couchcore/plan_contract_test.go:727) enumerates every Core concepts row, checks delivery/current status and filesystem presence, and rejects future M3 surface presented as current.
+- The plan’s Pure entities and Integration points tables accurately distinguish M1/M2 delivery from pending M3 work.
+- Reducer, matcher, scheduler, layout, and renderer remain pure and directly unit-tested without IO.
+- Rendering preserves lifecycle, age, and bell suffixes at 40 columns, while decoder tests cover CSI/SS3 arrows and Tab framing at every split.
+- `atlas/couch.md` accurately states that the hierarchical core is inert until M3 Console integration.
+
+2. Critical findings
+
+- [menu.go](/Users/xianxu/workspace/pair/cmd/internal/couchtty/menu.go:75), [menu.go](/Users/xianxu/workspace/pair/cmd/internal/couchtty/menu.go:858): operation correlation uses only operation name and address. After attempt A completes, attempt B for the same operation/address can start; a delayed duplicate result from A then matches B, clears `InFlight`, and applies A’s success/failure to B. B’s real completion is subsequently ignored.
+
+  **This is the 3rd finding in family `operation-result-origin-correlation`.** Earlier rounds fixed instances. Do not patch another operation-specific branch. State and enforce the class rule: every asynchronous operation dispatch gets a unique, menu-lifetime attempt identity, carried through `MenuEffect`, `MenuOperationOrigin`, and `MenuEvent`; only an exact attempt identity may retire or mutate the current operation. Sweep `switch`, `resume`, `park`, `name`, `describe`, and `start`, including both result-address shapes. Add an exhaustive regression where A completes, B is dispatched identically, then A’s duplicate arrives and must neither retire B nor alter its state.
+
+3. Important findings
+
+None.
+
+4. Minor findings
+
+None.
+
+5. Test coverage notes
+
+The following passed:
+
+- `go test -p 20 ./cmd/internal/couchcore -run 'TestIssue151CoreConceptsMatchM2Boundary' -count=1`
+- `go test -p 20 ./cmd/internal/couchtty -count=1`
+- `go test -p 20 ./... -count=1`
+- `git diff --check 66ae7eef... 7c71ce645...`
+
+Existing duplicate-completion coverage tests a duplicate arriving while nothing is in flight. It does not exercise a stale duplicate arriving after an identical successor has been dispatched.
+
+6. Architectural notes for upcoming work
+
+- **ARCH-DRY — pass:** shared thread matching, one reducer, and shared operation presentation avoid parallel policy.
+- **ARCH-PURE — pass:** business transitions and rendering are pure; M3 IO remains outside this boundary.
+- **ARCH-PURPOSE — flag:** exact async completion handling is part of the promised total transition authority, but operation attempts are not uniquely correlated.
+- **ARCH-MOCK — pass for M2:** this boundary introduces no external IO; existing stateful runner/host seams remain identified for M3.
+- **ARCH-CONSTRAINTS — pass for M2:** input/stack bounds, the 100-row viewport, and 40×10 behavior are tested. Target-machine and Console-path measurements are correctly staged for M3.
+
+7. Plan revision recommendations
+
+Append a revision titled “correlate every operation result to one dispatch attempt,” recording:
+
+- a monotonic menu-lifetime operation-attempt identity;
+- propagation through effects, the Console boundary, and result events;
+- fail-safe behavior on identity exhaustion;
+- an exhaustive stale-A-after-B regression across all shared operations and success/failure address shapes.
+
+```findings
+dispose:
+  - id: BR-17
+    disposition: addressed
+    note: |
+      The complete Core concepts inventory now distinguishes delivery from current M2 state, and TestIssue151CoreConceptsMatchM2Boundary validates every row plus a future-M3-as-current mutation.
+findings:
+  - id: new
+    severity: Critical
+    family: operation-result-origin-correlation
+    title: |
+      Delayed duplicate results can retire a newer identical operation
+    detail: |
+      This is the 3rd finding in family operation-result-origin-correlation. MenuOperationOrigin and MenuEvent correlate only by operation and address, so a duplicate result from completed attempt A matches later attempt B for the same operation and target, clears B's InFlight state, and applies A's outcome. Add one menu-lifetime attempt identity and carry it through every operation effect and result; sweep switch, resume, park, name, describe, and start with a mutation-sensitive stale-A-after-B regression.
+```

@@ -2663,8 +2663,10 @@ must update the entire class together (`ARCH-PURPOSE`).
 
 ## Hierarchical reducers must preserve identity across every projection
 
-- Capture an operation's identity and originating frame when dispatch occurs,
-  then reject mismatched completions before applying their returned inventory.
+- Capture a unique attempt identity plus the operation's target and originating
+  frame when dispatch occurs, then reject mismatched completions before applying
+  their returned inventory. Operation/address identifies a target, not an
+  attempt; otherwise a delayed duplicate can retire a newer identical dispatch.
   Looking only at the currently visible frame loses root-level operations and
   lets stale results rewrite state (`ARCH-PURE`, `ARCH-PURPOSE`).
 - Correlation cannot require identity produced only by success: enumerate every

@@ -61,21 +61,23 @@ const (
 // MenuState is immutable-by-copy reducer state. Frames retain identities and
 // text; the inventory remains one separately owned slice.
 type MenuState struct {
-	Inventory       []couchcore.ActionableThreadSummary
-	Frames          []MenuFrame
-	ActiveAddress   couchcore.ThreadAddress
-	Agents          []string
-	RootAgent       string
-	Bells           map[couchcore.ThreadAddress]bool
-	InFlight        MenuOperationOrigin
-	PreviewSequence uint64
-	Notice          string
+	Inventory         []couchcore.ActionableThreadSummary
+	Frames            []MenuFrame
+	ActiveAddress     couchcore.ThreadAddress
+	Agents            []string
+	RootAgent         string
+	Bells             map[couchcore.ThreadAddress]bool
+	InFlight          MenuOperationOrigin
+	PreviewSequence   uint64
+	OperationSequence uint64
+	Notice            string
 }
 
 // MenuOperationOrigin captures the exact frame that emitted asynchronous
 // work, so completion does not depend on whichever frame is visible later.
 type MenuOperationOrigin struct {
 	Operation string
+	Attempt   uint64
 	Address   couchcore.ThreadAddress
 	FrameKind MenuFrameKind
 	Depth     int
@@ -100,6 +102,7 @@ type MenuEvent struct {
 	Inventory    []couchcore.ActionableThreadSummary
 	InventorySet bool
 	Operation    string
+	Attempt      uint64
 	Success      bool
 	Error        string
 	Generation   uint64
@@ -109,6 +112,7 @@ type MenuEvent struct {
 // MenuEffect is an operation request for the thin Console shell.
 type MenuEffect struct {
 	Operation string
+	Attempt   uint64
 	Args      map[string]string
 	Preview   *PreviewRequest
 }
@@ -856,7 +860,7 @@ func menuOperationOriginFrame(state MenuState, origin MenuOperationOrigin) (Menu
 }
 
 func menuOperationMatches(origin MenuOperationOrigin, event MenuEvent) bool {
-	if origin.Operation == "" || origin.Operation != event.Operation {
+	if origin.Operation == "" || origin.Attempt == 0 || origin.Attempt != event.Attempt || origin.Operation != event.Operation {
 		return false
 	}
 	if origin.Operation == "start" && origin.Address == (couchcore.ThreadAddress{}) {
@@ -873,8 +877,15 @@ func dispatchMenuOperation(state MenuState, effect MenuEffect, address couchcore
 	if effect.Operation == "" || state.InFlight.Operation != "" {
 		return state, nil
 	}
+	if state.OperationSequence == ^uint64(0) {
+		state.Notice = "operation attempt identity exhausted"
+		return state, nil
+	}
+	state.OperationSequence++
+	effect.Attempt = state.OperationSequence
 	state.InFlight = MenuOperationOrigin{
 		Operation: effect.Operation,
+		Attempt:   effect.Attempt,
 		Address:   address,
 		FrameKind: state.CurrentFrame().Kind,
 		Depth:     len(state.Frames),

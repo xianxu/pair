@@ -232,6 +232,23 @@ rounds:
           round: 8
       boundary: M2
       blocked: true
+    - "n": 9
+      timestamp: "2026-08-30T23:04:46-07:00"
+      agent: codex
+      dispose:
+        - id: BR-17
+          disposition: addressed
+          note: The complete Core concepts inventory now distinguishes delivery from current M2 state, and TestIssue151CoreConceptsMatchM2Boundary validates every row plus a future-M3-as-current mutation.
+          round: 9
+      findings:
+        - id: BR-18
+          severity: Critical
+          title: Delayed duplicate results can retire a newer identical operation
+          detail: This is the 3rd finding in family operation-result-origin-correlation. MenuOperationOrigin and MenuEvent correlate only by operation and address, so a duplicate result from completed attempt A matches later attempt B for the same operation and target, clears B's InFlight state, and applies A's outcome. Add one menu-lifetime attempt identity and carry it through every operation effect and result; sweep switch, resume, park, name, describe, and start with a mutation-sensitive stale-A-after-B regression.
+          family: operation-result-origin-correlation
+          round: 9
+      boundary: M2
+      blocked: true
 ---
 
 # Gate ledger — pair#151 (boundary-review)
@@ -341,6 +358,17 @@ later rounds disposed of them. Generated — edit the gate, not this file.
 - BR-16 — addressed — Menu-lifetime monotonic identity is reachable and mutation-verified by the reducer-plus-scheduler Escape/reopen regression.
 - BR-17 — not-addressed — The tables now match the pinned tree, but no test fails when current-boundary statuses regress, as required by the claimed-fix contract.
 
+## Round 9 — 2026-08-30T23:04:46-07:00 (codex) — BLOCKED
+
+### Disposed
+
+- BR-17 — addressed — The complete Core concepts inventory now distinguishes delivery from current M2 state, and TestIssue151CoreConceptsMatchM2Boundary validates every row plus a future-M3-as-current mutation.
+
+### Raised
+
+- **BR-18** [Critical] `operation-result-origin-correlation` Delayed duplicate results can retire a newer identical operation
+  This is the 3rd finding in family operation-result-origin-correlation. MenuOperationOrigin and MenuEvent correlate only by operation and address, so a duplicate result from completed attempt A matches later attempt B for the same operation and target, clears B's InFlight state, and applies A's outcome. Add one menu-lifetime attempt identity and carry it through every operation effect and result; sweep switch, resume, park, name, describe, and start with a mutation-sensitive stale-A-after-B regression.
+
 ## Open findings
 
-- **BR-17** [Critical] `documentation-current-state-accuracy` The Core concepts inventory reports future M3 surface as current
+- **BR-18** [Critical] `operation-result-origin-correlation` Delayed duplicate results can retire a newer identical operation

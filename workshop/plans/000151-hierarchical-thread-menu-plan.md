@@ -1134,3 +1134,17 @@ lifetime and edit; the composed reducer/scheduler trace proves a late old-form
 completion cannot populate or submit the reopened form. Every Pure entities and
 Integration points row now separates the planned final change, its delivery
 milestone, and its actual status at the M2 boundary (ARCH-PURE, ARCH-PURPOSE).
+
+### 2026-08-30 — correlate every operation result to one dispatch attempt
+
+**Reason:** the sixth M2 boundary review found that operation/address pairs
+cannot distinguish a delayed duplicate from a newer identical dispatch
+(`BR-18`, `operation-result-origin-correlation`).
+
+**Delta:** `MenuState` allocates one monotonic nonzero operation-attempt
+identity, propagated through every `MenuEffect`, captured
+`MenuOperationOrigin`, and result `MenuEvent`. Exact attempt matching precedes
+inventory acceptance or state mutation. The exhaustive operation × outcome ×
+address-shape table now composes A completion, identical B dispatch, and stale
+A replay for switch, resume, park, name, describe, and start; exhaustion
+refuses dispatch (ARCH-PURE, ARCH-PURPOSE).

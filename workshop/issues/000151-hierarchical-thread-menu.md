@@ -378,6 +378,19 @@ Escape/reopen trace rejects the old token before admitting the new request. All
 Core concepts and integration rows distinguish planned change, delivery
 milestone, and current M2 status (ARCH-PURE, ARCH-PURPOSE).
 
+### 2026-08-30 — correlate results to dispatch attempts, not targets
+
+**Reason:** the sixth M2 boundary review found that operation/address pairs
+identify targets but not attempts: a delayed duplicate from completed attempt A
+could retire a newer identical attempt B.
+
+**Delta:** every menu-lifetime dispatch receives one monotonic nonzero attempt
+identity carried by `MenuEffect`, `MenuOperationOrigin`, and `MenuEvent`; only
+an exact attempt may accept inventory, clear in-flight state, or apply an
+outcome. One exhaustive stale-A-after-B table covers switch, resume, park,
+name, describe, and start across success/failure result-address shapes, with
+fail-safe refusal on identity exhaustion (ARCH-PURE, ARCH-PURPOSE).
+
 ## Done when
 
 - Enter switches to/resumes the selected work thread; thread-list Tab enters
@@ -632,3 +645,11 @@ row matched the tree, but kept BR-17 open because that staging truth was not
 executable. A new contract enumerates all 16 Core concepts/integration rows,
 checks exact delivery/current status against present and absent files, and
 proves an in-memory future-M3-as-current mutation fails (`ARCH-PURPOSE`).
+
+### 2026-08-30 — M2 boundary review round 6
+
+The review disposed BR-17, then found target-level correlation unable to reject
+a delayed duplicate after an identical successor dispatch. The exhaustive
+six-operation stale-A-after-B regression went red without attempt identity and
+green after each effect/origin/result carried one monotonic menu-lifetime
+attempt; exhaustion refuses work (`ARCH-PURE`, `ARCH-PURPOSE`).
