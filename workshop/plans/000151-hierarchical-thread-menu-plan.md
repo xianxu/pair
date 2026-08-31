@@ -570,11 +570,11 @@ git commit -m "#151 M2: bound start preview scheduling"
 **Files:**
 - Modify: `atlas/couch.md`
 
-- [ ] **Step 1: Update the atlas**
+- [x] **Step 1: Update the atlas**
 
 Document the landed pure hierarchical frame/reducer model, shared in-memory matcher, wide/narrow renderer, Tab encodings, input bounds, reconciliation precedence, and one-running/one-latest preview scheduler. Explicitly state that the current Console still presents the flat compatibility panel until M3; do not describe the hierarchical UI as reachable yet.
 
-- [ ] **Step 2: Commit the M2 map**
+- [x] **Step 2: Commit the M2 map**
 
 ```bash
 git add atlas/couch.md

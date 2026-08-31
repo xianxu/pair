@@ -518,3 +518,11 @@ events bind preview acceptance and one armed submit to the exact nonzero
 generation; edits/Escape cancel submit authority, stale or duplicate results
 cannot dispatch, and failure preserves form input (ARCH-PURE,
 ARCH-CONSTRAINTS).
+
+### 2026-08-30 — M2 pure-menu map ready for boundary
+
+Mapped the shared matcher, total reducer/reconciliation order, bounded
+wide/narrow renderer, semantic Tab framing, and one-running/one-latest preview
+scheduler. The atlas explicitly keeps this core inert: the current Console
+continues to present the flat compatibility panel until M3 supplies exact pane
+observations and bounded workers (ARCH-PURPOSE).

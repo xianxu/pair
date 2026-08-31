@@ -36,6 +36,40 @@ diagnostics. The transitional flat panel remains wired to raw `ThreadInventory`
 until #151 M3 replaces that Console integration; M1 introduces the authority
 without claiming the ordinary switcher has adopted it already.
 
+#151 M2 adds the inert pure core that M3 will wire into that Console. One
+immutable-by-copy `MenuState` stack owns the root filter/selection plus exact
+thread-bound action, confirmation, and text frames; a global start frame
+overlays the preserved originating stack. `ReduceMenu` is the only transition
+authority for semantic keys, exact-address operation effects, inventory
+refreshes, preview results, notices, and ephemeral per-thread bells. It
+reconciles refreshed identity root-to-leaf and discards the first invalid
+thread frame plus descendants; a global start frame survives while its saved
+origin is reduced to the valid prefix. Inputs are byte-bounded at 1 KiB for
+filters/names and 4 KiB for paths/descriptions, and generated key traces keep
+stack depth, UTF-8 ownership, and effects bounded (ARCH-PURE,
+ARCH-CONSTRAINTS).
+
+Both CLI resolution and in-memory menu filtering derive from
+`ClassifyThreadReferenceFields`/`MatchThreadReferenceFields`: exact opaque tags
+win set-wide over case-insensitive name/path containment, with no store read on
+the keystroke path. `RenderMenu` consumes only state, terminal dimensions,
+clock input, and the 256-color capability. It keeps the selected row inside a
+bounded viewport, chooses contained side-by-side or stacked rectangles, asks
+for resize below 40x10, strips controls, clips by terminal columns, and renders
+live state without historical age while parked rows retain text age plus an
+optional three-band grayscale. `DecodePanelKeys` maps legacy HT and unmodified
+Kitty CSI-u Tab to the same semantic key; modified Tab remains a dropped chord.
+
+Start preview scheduling is also pure: `AdvancePreviewSchedule` admits one
+running generation and one replaceable latest generation. A newer request asks
+for cancellation once, but only a terminal outcome for the running generation
+retires it. The start frame binds accepted `PreparedStart` and one armed submit
+to the same nonzero generation; edits, Escape, stale results, failures, and
+duplicate results cannot reuse that authority. The current Console still
+presents the flat compatibility panel through M2; asynchronous actionable
+inventory, scheduler workers, and hierarchical rendering become reachable in
+#151 M3.
+
 `cmd/internal/artifactpath` is the sole constructor for Pair's tag-bearing
 files. Standalone Pair selects its own `{repo_scope, tag}`; Couch allocates the
 same address shape for a hosted start and Pair establishes the pre-reserved
