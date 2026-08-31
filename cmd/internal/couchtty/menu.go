@@ -255,7 +255,6 @@ func reduceRootKey(state MenuState, key PanelKey) (MenuState, []MenuEffect) {
 		operation := "resume"
 		if thread.Live() {
 			operation = "switch"
-			delete(state.Bells, thread.Address)
 		}
 		return dispatchThreadOperation(state, operation, thread.Address)
 	case KeyTab:
@@ -807,6 +806,8 @@ func reduceOperationResult(state MenuState, event MenuEvent) MenuState {
 	}
 
 	switch event.Operation {
+	case "switch":
+		delete(state.Bells, origin.Address)
 	case "name", "describe":
 		if origin.FrameKind == MenuFrameText && originVisible && originFrame.Thread == origin.Address && originFrame.Action == event.Operation {
 			state.Frames = state.Frames[:origin.Depth-1]
@@ -835,7 +836,7 @@ func menuOperationMatches(origin MenuOperationOrigin, event MenuEvent) bool {
 		return false
 	}
 	if origin.Operation == "start" && origin.Address == (couchcore.ThreadAddress{}) {
-		return event.Address != (couchcore.ThreadAddress{})
+		return !event.Success || event.Address != (couchcore.ThreadAddress{})
 	}
 	return origin.Address == event.Address
 }

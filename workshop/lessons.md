@@ -2667,6 +2667,10 @@ must update the entire class together (`ARCH-PURPOSE`).
   then reject mismatched completions before applying their returned inventory.
   Looking only at the currently visible frame loses root-level operations and
   lets stale results rewrite state (`ARCH-PURE`, `ARCH-PURPOSE`).
+- Correlation cannot require identity produced only by success: enumerate every
+  operation across success/failure and present/missing result fields. Commit
+  optimistic UI changes only after correlated success, so a failed external
+  operation preserves the state it did not actually change.
 - A list frame's applicability comes from its captured parent/action identity,
   not its filtered selection. Zero matches legitimately means no selection;
   refresh must retain the frame and reconcile selection afterward.

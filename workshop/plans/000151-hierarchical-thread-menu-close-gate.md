@@ -113,6 +113,53 @@ rounds:
           round: 4
       boundary: M2
       blocked: true
+    - "n": 5
+      timestamp: "2026-08-30T22:28:13-07:00"
+      agent: codex
+      dispose:
+        - id: BR-5
+          disposition: addressed
+          note: Optional-agent semantics, accepted provenance, and rename/name presentation are implemented; targeted mutations make each regression fail.
+          round: 5
+        - id: BR-6
+          disposition: addressed
+          note: An unchanged accepted generation suppresses another preview request; removing the accepted-generation guard makes the repeated-Tab regression fail.
+          round: 5
+        - id: BR-7
+          disposition: addressed
+          note: Root resume success and failure use captured operation origin and returned inventory; rejecting root origins makes both regressions fail.
+          round: 5
+        - id: BR-8
+          disposition: addressed
+          note: Frame applicability is independent of filtered selection; restoring the selection-membership guard makes the zero-match refresh regression fail.
+          round: 5
+        - id: BR-9
+          disposition: addressed
+          note: Confirmation frames filter displayed labels and handle Backspace; removing those transitions makes the confirmation regression fail.
+          round: 5
+        - id: BR-10
+          disposition: addressed
+          note: Wide and narrow child origins derive from parent geometry; reverting placement makes both exact-origin regressions fail.
+          round: 5
+        - id: BR-11
+          disposition: addressed
+          note: Hidden-target notices retain the prior human label and composite diagnostic address; reverting this projection makes its regression fail.
+          round: 5
+      findings:
+        - id: BR-12
+          severity: Critical
+          title: Failed starts without a created address are ignored and wedge dispatch
+          detail: 'This is the 2nd finding in family `operation-result-origin-correlation`. menu.go:833-840 requires every start completion to carry a nonzero address, although failure has no created thread. The result is ignored and InFlight never clears. Do not patch only start failure: state the correlation rule, enumerate every operation across success/failure and address-presence outcomes, and sweep that table in one round (ARCH-PURE, ARCH-PURPOSE).'
+          family: operation-result-origin-correlation
+          round: 5
+        - id: BR-13
+          severity: Critical
+          title: A failed switch permanently discards the target thread notification
+          detail: menu.go:255-260 deletes the bell when switch is dispatched rather than when correlated success arrives. A focus failure therefore loses notification state despite no switch occurring. Commit bell clearing on successful switch only and add inactive-target success/failure regressions (ARCH-PURPOSE).
+          family: notification-success-commit
+          round: 5
+      boundary: M2
+      blocked: true
 ---
 
 # Gate ledger — pair#151 (boundary-review)
@@ -167,12 +214,26 @@ later rounds disposed of them. Generated — edit the gate, not this file.
 - **BR-11** [Critical] `hidden-target-diagnostic-completeness` Hidden-target transitions lose the human label and diagnostic location
   menu.go:678-682 replaces inventory before constructing the notice and reports only the tag. The Spec requires the target label and diagnostic location while preserving the hidden durable record. Preserve prior presentation or pass explicit diagnostic context, and test a named target becoming non-actionable (ARCH-PURPOSE).
 
+## Round 5 — 2026-08-30T22:28:13-07:00 (codex) — BLOCKED
+
+### Disposed
+
+- BR-5 — addressed — Optional-agent semantics, accepted provenance, and rename/name presentation are implemented; targeted mutations make each regression fail.
+- BR-6 — addressed — An unchanged accepted generation suppresses another preview request; removing the accepted-generation guard makes the repeated-Tab regression fail.
+- BR-7 — addressed — Root resume success and failure use captured operation origin and returned inventory; rejecting root origins makes both regressions fail.
+- BR-8 — addressed — Frame applicability is independent of filtered selection; restoring the selection-membership guard makes the zero-match refresh regression fail.
+- BR-9 — addressed — Confirmation frames filter displayed labels and handle Backspace; removing those transitions makes the confirmation regression fail.
+- BR-10 — addressed — Wide and narrow child origins derive from parent geometry; reverting placement makes both exact-origin regressions fail.
+- BR-11 — addressed — Hidden-target notices retain the prior human label and composite diagnostic address; reverting this projection makes its regression fail.
+
+### Raised
+
+- **BR-12** [Critical] `operation-result-origin-correlation` Failed starts without a created address are ignored and wedge dispatch
+  This is the 2nd finding in family `operation-result-origin-correlation`. menu.go:833-840 requires every start completion to carry a nonzero address, although failure has no created thread. The result is ignored and InFlight never clears. Do not patch only start failure: state the correlation rule, enumerate every operation across success/failure and address-presence outcomes, and sweep that table in one round (ARCH-PURE, ARCH-PURPOSE).
+- **BR-13** [Critical] `notification-success-commit` A failed switch permanently discards the target thread notification
+  menu.go:255-260 deletes the bell when switch is dispatched rather than when correlated success arrives. A focus failure therefore loses notification state despite no switch occurring. Commit bell clearing on successful switch only and add inactive-target success/failure regressions (ARCH-PURPOSE).
+
 ## Open findings
 
-- **BR-5** [Critical] `shared-operation-consumer-sweep` The menu changes shared-operation semantics instead of projecting them
-- **BR-6** [Critical] `preview-capability-single-generation` An accepted generation can repeatedly allocate start grants
-- **BR-7** [Critical] `operation-result-origin-correlation` Root-level resume completions are silently ignored
-- **BR-8** [Critical] `frame-validity-selection-independence` Refresh discards a valid action frame when its filter has zero matches
-- **BR-9** [Critical] `list-frame-filter-uniformity` Confirmation list frames do not implement the shared filtering contract
-- **BR-10** [Critical] `hierarchical-layout-parent-anchoring` Child frames are not positioned relative to their selected parent row
-- **BR-11** [Critical] `hidden-target-diagnostic-completeness` Hidden-target transitions lose the human label and diagnostic location
+- **BR-12** [Critical] `operation-result-origin-correlation` Failed starts without a created address are ignored and wedge dispatch
+- **BR-13** [Critical] `notification-success-commit` A failed switch permanently discards the target thread notification

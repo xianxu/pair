@@ -139,3 +139,123 @@ findings:
     detail: |
       menu.go:678-682 replaces inventory before constructing the notice and reports only the tag. The Spec requires the target label and diagnostic location while preserving the hidden durable record. Preserve prior presentation or pass explicit diagnostic context, and test a named target becoming non-actionable (ARCH-PURPOSE).
 ```
+
+---
+
+## Re-review — 2026-08-30T22:28:13-07:00 (REWORK)
+
+| field | value |
+|-------|-------|
+| issue | 151 — couch: hierarchical work-thread menu |
+| repo | pair |
+| issue file | workshop/issues/000151-hierarchical-thread-menu.md |
+| boundary | milestone M2 |
+| milestone | M2 |
+| window | 66ae7eef502eb996f4b2d7f096e0ee73090204b2..9f8f3c1a3a8e8a03e9294b9b541c48e76e394f8b |
+| command | sdlc milestone-close --issue 151 --milestone M2 |
+| reviewer | codex |
+| timestamp | 2026-08-30T22:28:13-07:00 |
+| verdict | REWORK |
+
+## Review
+
+```verdict
+verdict: REWORK
+confidence: high
+```
+
+M2’s pure reducer, renderer, decoder, and scheduler are well-factored, and all seven prior findings are now regression-tested and mutation-verified. Two blocking outcome bugs remain: a failed start without a newly created address is ignored and permanently wedges operation dispatch, while a failed switch loses the thread’s notification before focus succeeds.
+
+1. Strengths
+
+- Prior fixes BR-5 through BR-11 are implemented and pinned by tests that fail when their corresponding corrections are removed.
+- Reducer and scheduler logic remain deterministic and free of I/O ([menu.go:173](/Users/xianxu/workspace/pair/cmd/internal/couchtty/menu.go:173), [menu_async.go:45](/Users/xianxu/workspace/pair/cmd/internal/couchtty/menu_async.go:45)).
+- Wide/narrow layout now derives child origins from parent geometry and remains bounded ([menu_render.go:40](/Users/xianxu/workspace/pair/cmd/internal/couchtty/menu_render.go:40)).
+- Atlas and README accurately preserve the M2/M3 staging distinction; no reachable user-facing menu surface changed in M2.
+
+2. Critical findings
+
+- [menu.go:833](/Users/xianxu/workspace/pair/cmd/internal/couchtty/menu.go:833): failed starts are rejected because `menuOperationMatches` requires every start result to carry a nonzero created-thread address. A failed start naturally has no created address, so its diagnostic is ignored, the form is not restored, and `InFlight` remains set—silently blocking every later operation.
+
+  **This is the 2nd finding in family `operation-result-origin-correlation`.** Earlier work fixed root resume only. Do not patch just failed start: state the rule that result-generated fields cannot be required to correlate failures, enumerate every declared operation across success/failure and address-presence outcomes, and test the entire table. A reviewer-only failed-start regression fails at the pinned head. This violates ARCH-PURE and ARCH-PURPOSE.
+
+- [menu.go:255](/Users/xianxu/workspace/pair/cmd/internal/couchtty/menu.go:255): live-thread Enter deletes the bell before the asynchronous `switch` succeeds. If focus fails, the inactive-thread notification is permanently lost even though no switch occurred. Defer notification clearing until a successful correlated switch result; preserve it on failure. Add inactive-target success/failure regressions. This violates ARCH-PURPOSE.
+
+3. Important findings
+
+None.
+
+4. Minor findings
+
+None.
+
+5. Test coverage notes
+
+- `go test -p 20 ./cmd/internal/couchcore ./cmd/internal/couchtty -count=1` passed at the pinned head.
+- Focused race tests for reducer, renderer, decoder, and scheduler passed.
+- `git diff --check` passed.
+- All seven prior-finding tests were mutation-verified red when their fixes were removed.
+- Two reviewer-only regressions fail at HEAD: failed start without an address, and failed switch retaining its bell.
+- The full repository run reached green for the changed packages but was not wholly executable in this sandbox: `cmd/pair-go` tests were denied `/bin/ps`.
+
+6. Architectural notes for upcoming work
+
+- ARCH-DRY: Pass. Shared matcher, item presentation mapping, and scheduling authority avoid parallel algorithms.
+- ARCH-PURE: Flagged for incomplete outcome modeling: failure correlation currently depends on a success-only result field.
+- ARCH-PURPOSE: Flagged by both findings; failed start restoration and notification clearing are explicit Spec behavior.
+- ARCH-MOCK: Pass/N/A. M2 adds no external dependency; stateful Console integration remains M3 work.
+- ARCH-CONSTRAINTS: Pass. Input, stack, viewport, and preview-work bounds are enforced.
+
+7. Plan revision recommendations
+
+Append a `## Revisions` entry recording:
+
+- the repeated `operation-result-origin-correlation` family and the complete operation × outcome × address-presence enumeration;
+- the rule that optimistic UI state changes such as notification clearing commit only after successful correlated operation completion.
+
+```findings
+dispose:
+  - id: BR-5
+    disposition: addressed
+    note: |
+      Optional-agent semantics, accepted provenance, and rename/name presentation are implemented; targeted mutations make each regression fail.
+  - id: BR-6
+    disposition: addressed
+    note: |
+      An unchanged accepted generation suppresses another preview request; removing the accepted-generation guard makes the repeated-Tab regression fail.
+  - id: BR-7
+    disposition: addressed
+    note: |
+      Root resume success and failure use captured operation origin and returned inventory; rejecting root origins makes both regressions fail.
+  - id: BR-8
+    disposition: addressed
+    note: |
+      Frame applicability is independent of filtered selection; restoring the selection-membership guard makes the zero-match refresh regression fail.
+  - id: BR-9
+    disposition: addressed
+    note: |
+      Confirmation frames filter displayed labels and handle Backspace; removing those transitions makes the confirmation regression fail.
+  - id: BR-10
+    disposition: addressed
+    note: |
+      Wide and narrow child origins derive from parent geometry; reverting placement makes both exact-origin regressions fail.
+  - id: BR-11
+    disposition: addressed
+    note: |
+      Hidden-target notices retain the prior human label and composite diagnostic address; reverting this projection makes its regression fail.
+findings:
+  - id: new
+    severity: Critical
+    family: operation-result-origin-correlation
+    title: |
+      Failed starts without a created address are ignored and wedge dispatch
+    detail: |
+      This is the 2nd finding in family `operation-result-origin-correlation`. menu.go:833-840 requires every start completion to carry a nonzero address, although failure has no created thread. The result is ignored and InFlight never clears. Do not patch only start failure: state the correlation rule, enumerate every operation across success/failure and address-presence outcomes, and sweep that table in one round (ARCH-PURE, ARCH-PURPOSE).
+  - id: new
+    severity: Critical
+    family: notification-success-commit
+    title: |
+      A failed switch permanently discards the target thread notification
+    detail: |
+      menu.go:255-260 deletes the bell when switch is dispatched rather than when correlated success arrives. A focus failure therefore loses notification state despite no switch occurring. Commit bell clearing on successful switch only and add inactive-target success/failure regressions (ARCH-PURPOSE).
+```

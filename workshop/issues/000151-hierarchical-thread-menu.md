@@ -337,6 +337,19 @@ row or below the parent list; one grant per accepted generation; and preserved
 target label plus diagnostic location when a durable thread leaves the
 actionable projection (ARCH-DRY, ARCH-PURE, ARCH-PURPOSE, ARCH-CONSTRAINTS).
 
+### 2026-08-30 — correlate outcomes without result-generated identity
+
+**Reason:** the second M2 boundary review found that start failure correlation
+required the created address that only a successful start can produce, and that
+switch dispatch committed bell clearing before focus succeeded.
+
+**Delta:** operation correlation enumerates every declared operation across
+success/failure and present/missing result addresses: existing-thread
+operations require their captured request address, while start failures may
+complete without a created address and successful starts require one. UI state
+changes that assert an operation succeeded, including bell clearing, commit
+only on a correlated successful completion (ARCH-PURE, ARCH-PURPOSE).
+
 ## Done when
 
 - Enter switches to/resumes the selected work thread; thread-list Tab enters
@@ -555,3 +568,13 @@ rows/lists, and carries the prior human label plus composite diagnostic address
 through hidden-target transitions. Focused regressions went red at every named
 gap and the complete `couchtty` package is green (`ARCH-DRY`, `ARCH-PURE`,
 `ARCH-PURPOSE`, `ARCH-CONSTRAINTS`).
+
+### 2026-08-30 — M2 boundary review round 2
+
+The review mutation-verified all seven prior fixes, then exposed two remaining
+outcome classes: start failure could not correlate without a success-produced
+address, and switch dispatch cleared its bell before focus succeeded. The
+operation/outcome/address table and switch success/failure regressions went red
+against the reviewed code and green after correlation stopped requiring
+result-generated identity and bell clearing moved to successful completion
+(`ARCH-PURE`, `ARCH-PURPOSE`).

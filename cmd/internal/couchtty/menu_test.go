@@ -126,7 +126,7 @@ func TestReduceMenuActionUsesExistingNameOperation(t *testing.T) {
 	}
 }
 
-func TestReduceMenuBellIsEphemeralAndClearedBySwitch(t *testing.T) {
+func TestReduceMenuBellCommitsOnlyAfterSuccessfulSwitch(t *testing.T) {
 	state := NewMenuState(menuThreads(), menuAddress("couch-one"))
 	original := state
 	state, _ = ReduceMenu(state, MenuEvent{Kind: MenuEventBell, Address: menuAddress("couch-one"), Bell: true})
@@ -134,8 +134,22 @@ func TestReduceMenuBellIsEphemeralAndClearedBySwitch(t *testing.T) {
 		t.Fatalf("bell ownership aliased: original=%v next=%v", original.Bells, state.Bells)
 	}
 	state, effects := reduceKey(state, PanelKey{Kind: KeyEnter})
-	if state.Bells[menuAddress("couch-one")] || len(effects) != 1 || effects[0].Operation != "switch" {
-		t.Fatalf("switch did not clear bell: state=%+v effects=%+v", state, effects)
+	if !state.Bells[menuAddress("couch-one")] || len(effects) != 1 || effects[0].Operation != "switch" {
+		t.Fatalf("switch dispatch changed bell: state=%+v effects=%+v", state, effects)
+	}
+
+	failed, _ := ReduceMenu(state, MenuEvent{
+		Kind: MenuEventOperationResult, Operation: "switch", Address: menuAddress("couch-one"), Error: "focus failed",
+	})
+	if !failed.Bells[menuAddress("couch-one")] || failed.Notice != "focus failed" {
+		t.Fatalf("failed switch lost bell: %+v", failed)
+	}
+
+	succeeded, _ := ReduceMenu(state, MenuEvent{
+		Kind: MenuEventOperationResult, Operation: "switch", Address: menuAddress("couch-one"), Success: true,
+	})
+	if succeeded.Bells[menuAddress("couch-one")] {
+		t.Fatalf("successful switch retained bell: %+v", succeeded)
 	}
 }
 
@@ -371,6 +385,65 @@ func TestReduceMenuStartCompletionUsesGlobalOperationOrigin(t *testing.T) {
 	})
 	if len(effects) != 0 || len(got.Frames) != 1 || got.CurrentFrame().SelectedAddress != created.Address {
 		t.Fatalf("start completion = state %+v effects %+v", got, effects)
+	}
+}
+
+func TestReduceMenuStartFailureWithoutCreatedAddressClearsDispatchAndRestoresForm(t *testing.T) {
+	state := NewMenuState(menuThreads(), menuAddress("couch-one"))
+	state.Agents = []string{"claude"}
+	state.RootAgent = "claude"
+	state, _ = reduceKey(state, PanelKey{Kind: KeyCtrlSpace})
+	frame := &state.Frames[len(state.Frames)-1]
+	frame.PreviewAccepted = frame.Generation
+	frame.PreviewToken = "accepted"
+	frame.PreviewPath = "/repo/new"
+	frame.PreviewAgent = "claude"
+	state, effects := reduceKey(state, PanelKey{Kind: KeyEnter})
+	if len(effects) != 1 || effects[0].Operation != "start" {
+		t.Fatalf("start dispatch = %+v", effects)
+	}
+
+	got, effects := ReduceMenu(state, MenuEvent{
+		Kind: MenuEventOperationResult, Operation: "start", Error: "launch failed",
+	})
+	if len(effects) != 0 || got.Notice != "launch failed" || got.CurrentFrame().Kind != MenuFrameStart || got.InFlight.Operation != "" {
+		t.Fatalf("failed start completion = state %+v effects %+v", got, effects)
+	}
+}
+
+func TestMenuOperationCorrelationEnumeratesEveryOperationOutcomeAndAddressShape(t *testing.T) {
+	target := menuAddress("couch-one")
+	created := menuAddress("couch-new")
+	for _, operation := range []string{"switch", "resume", "park", "name", "describe"} {
+		origin := MenuOperationOrigin{Operation: operation, Address: target}
+		for _, success := range []bool{false, true} {
+			if !menuOperationMatches(origin, MenuEvent{Operation: operation, Address: target, Success: success}) {
+				t.Errorf("%s success=%t did not match exact target", operation, success)
+			}
+			if menuOperationMatches(origin, MenuEvent{Operation: operation, Success: success}) {
+				t.Errorf("%s success=%t matched missing target", operation, success)
+			}
+			if menuOperationMatches(origin, MenuEvent{Operation: operation, Address: created, Success: success}) {
+				t.Errorf("%s success=%t matched wrong target", operation, success)
+			}
+		}
+	}
+
+	start := MenuOperationOrigin{Operation: "start"}
+	if !menuOperationMatches(start, MenuEvent{Operation: "start", Error: "launch failed"}) {
+		t.Error("failed start without result address did not match")
+	}
+	if menuOperationMatches(start, MenuEvent{Operation: "start", Success: true}) {
+		t.Error("successful start without created address matched")
+	}
+	if !menuOperationMatches(start, MenuEvent{Operation: "start", Address: created, Success: true}) {
+		t.Error("successful start with created address did not match")
+	}
+	if !menuOperationMatches(start, MenuEvent{Operation: "start", Address: created, Error: "post-create failure"}) {
+		t.Error("failed start with a created address did not match")
+	}
+	if menuOperationMatches(start, MenuEvent{Operation: "resume", Address: created, Success: true}) {
+		t.Error("start origin matched another operation")
 	}
 }
 
