@@ -357,3 +357,100 @@ Append a `## Revisions` entry recording that M2 must:
 - prove every reducer key through the real decoder seam, including legacy CSI and application-mode SS3 Left/Right;
 - reserve bounded rendering space for lifecycle, age, and notification cues;
 - pin BR-13 with an actually inactive switch target.
+
+---
+
+## Re-review — 2026-08-30T22:46:29-07:00 (REWORK)
+
+| field | value |
+|-------|-------|
+| issue | 151 — couch: hierarchical work-thread menu |
+| repo | pair |
+| issue file | workshop/issues/000151-hierarchical-thread-menu.md |
+| boundary | milestone M2 |
+| milestone | M2 |
+| window | 66ae7eef502eb996f4b2d7f096e0ee73090204b2..dea71d59226c63b434920be4e31d210d07d89619 |
+| command | sdlc milestone-close --issue 151 --milestone M2 |
+| reviewer | codex |
+| timestamp | 2026-08-30T22:46:29-07:00 |
+| verdict | REWORK |
+
+## Review
+
+```verdict
+verdict: REWORK
+confidence: high
+```
+
+The three open findings are genuinely addressed and pinned by focused regressions, and the full repository suite passes. M2 still cannot close: preview generations collide across start-form lifetimes, allowing an old completion/token to satisfy and potentially launch from a newly opened form. The plan’s Core concepts table also reports future M3 entities as already new/deleted, contradicting the pinned tree.
+
+```findings
+dispose:
+  - id: BR-13
+    disposition: addressed
+    note: |
+      Bell clearing now occurs only after correlated switch success; the inactive-target success/failure regression fails under dispatch-time clearing.
+  - id: BR-14
+    disposition: addressed
+    note: |
+      CSI and SS3 horizontal arrows reach ReduceMenu, with every-split decoder coverage and end-to-end agent-selection coverage.
+  - id: BR-15
+    disposition: addressed
+    note: |
+      Root rendering reserves lifecycle, age, and bell suffix width; the 40-column long-label regression fails under whole-row clipping.
+findings:
+  - id: new
+    severity: Critical
+    family: preview-capability-single-generation
+    title: |
+      Reopened start forms can accept and launch an earlier form's preview
+    detail: |
+      This is the 2nd finding in family `preview-capability-single-generation`. New start frames reset Generation to 1 at menu.go:427-429, the scheduler suppresses another request when its running generation is also 1 at menu_async.go:57-59, and menu.go:546-569 accepts the old generation-1 completion into the reopened form and can dispatch it when Enter is armed. State the class rule: preview identity must be unique across form lifetimes, not merely within one form. Carry a form/request epoch through frame, schedule, result, and submit authority—or use a menu-lifetime monotonic identity—and add a reducer-plus-scheduler Escape/reopen trace proving an old prepared token cannot populate or launch the new form.
+  - id: new
+    severity: Critical
+    family: documentation-current-state-accuracy
+    title: |
+      The Core concepts inventory reports future M3 surface as current
+    detail: |
+      This is the 2nd finding in family `documentation-current-state-accuracy`. The plan lists menu_refresh.go as new and PanelModel as deleted at lines 24-26, and lists console_menu.go and menu_perf_test.go at lines 76 and 79, but the pinned head lacks all three new files and still contains panel.go. Apply one rule across the complete table: every row must distinguish current-boundary state from final planned state, such as with a delivery-milestone/current-status column; do not patch only these four rows. The atlas statement that Escape and stale preview results cannot reuse authority must also be corrected until the lifetime bug is fixed.
+```
+
+1. Strengths
+
+- `menu.go:255-259,808-810` correctly delays bell clearing until switch success.
+- `panelkeys.go:145-155` shares four-direction decoding across CSI and SS3 rather than duplicating horizontal paths.
+- `menu_render.go:330-348` protects semantic suffixes while clipping only variable label/path content.
+- The reducer, renderer, decoder, and scheduler remain pure and directly unit-tested without filesystem, terminal, process, or network I/O.
+- Atlas coverage was added and remains linked from `atlas/index.md`; README correctly remains unchanged because M2 introduces no reachable user-facing controls.
+
+2. Critical findings
+
+- `menu.go:427-429,541-569`; `menu_async.go:57-59`: preview identity is not unique across form lifetimes. Fix with an epoch-qualified identity and a failing Escape/reopen/armed-submit integration trace.
+- `workshop/plans/000151-hierarchical-thread-menu-plan.md:17-26,70-79`: Core concepts status contradicts the M2 tree. Sweep the full table and distinguish current delivery state from planned final state.
+
+3. Important findings
+
+None.
+
+4. Minor findings
+
+None.
+
+5. Test coverage notes
+
+`go test -p 20 ./... -count=1` passed, as did `git diff --check`. BR-13 through BR-15 each have reachable regressions that would fail without their fixes. The missing test is the composed reducer/scheduler trace across form cancellation and reopening.
+
+6. Architectural notes for upcoming work
+
+- `ARCH-DRY`: pass—shared matching, reducer authority, and common CSI/SS3 arrow decoding avoid parallel rules.
+- `ARCH-PURE`: pass—the M2 entities are deterministic and tested without I/O.
+- `ARCH-PURPOSE`: flag—the preview lifetime collision violates the exact-current-resolution guarantee.
+- `ARCH-MOCK`: pass/not applicable—M2 introduces no external-service or binary interaction; those seams remain assigned to M3.
+- `ARCH-CONSTRAINTS`: pass for rendering and scheduler capacity; 40×10 bounds and one-running/one-pending scheduling are mechanically covered. Identity safety must be fixed without widening those bounds.
+
+7. Plan revision recommendations
+
+Append a `## Revisions` entry recording:
+
+- Preview authority is identified by form lifetime plus generation; Escape/reopen and late completion are part of the required enumeration.
+- Core concepts tables distinguish current-boundary status from final planned status, with every pure entity and integration point swept under that rule.

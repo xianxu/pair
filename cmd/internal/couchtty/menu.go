@@ -61,14 +61,15 @@ const (
 // MenuState is immutable-by-copy reducer state. Frames retain identities and
 // text; the inventory remains one separately owned slice.
 type MenuState struct {
-	Inventory     []couchcore.ActionableThreadSummary
-	Frames        []MenuFrame
-	ActiveAddress couchcore.ThreadAddress
-	Agents        []string
-	RootAgent     string
-	Bells         map[couchcore.ThreadAddress]bool
-	InFlight      MenuOperationOrigin
-	Notice        string
+	Inventory       []couchcore.ActionableThreadSummary
+	Frames          []MenuFrame
+	ActiveAddress   couchcore.ThreadAddress
+	Agents          []string
+	RootAgent       string
+	Bells           map[couchcore.ThreadAddress]bool
+	InFlight        MenuOperationOrigin
+	PreviewSequence uint64
+	Notice          string
 }
 
 // MenuOperationOrigin captures the exact frame that emitted asynchronous
@@ -424,8 +425,12 @@ func openStartForm(state MenuState) (MenuState, []MenuEffect) {
 	if agent == "" && len(state.Agents) > 0 {
 		agent = state.Agents[0]
 	}
+	generation, ok := nextPreviewGeneration(&state)
+	if !ok {
+		return state, nil
+	}
 	state.Frames = append(state.Frames, MenuFrame{
-		Kind: MenuFrameStart, FormField: MenuFieldPath, Agent: agent, Generation: 1,
+		Kind: MenuFrameStart, FormField: MenuFieldPath, Agent: agent, Generation: generation,
 	})
 	return state, nil
 }
@@ -440,16 +445,14 @@ func reduceStartKey(state MenuState, key PanelKey) (MenuState, []MenuEffect) {
 		candidate := frame.Path + string(key.Rune)
 		if utf8.RuneLen(key.Rune) > 0 && len(candidate) <= menuTextLimit {
 			frame.Path = candidate
-			frame.Generation++
-			clearStartPreview(frame)
+			invalidateStartPreview(&state, frame)
 		}
 	case KeyBackspace:
 		if frame.FormField == MenuFieldPath {
 			before := frame.Path
 			frame.Path = removeLastRune(frame.Path)
 			if frame.Path != before {
-				frame.Generation++
-				clearStartPreview(frame)
+				invalidateStartPreview(&state, frame)
 			}
 		}
 	case KeyTab:
@@ -461,13 +464,13 @@ func reduceStartKey(state MenuState, key PanelKey) (MenuState, []MenuEffect) {
 		}
 	case KeyLeft:
 		if frame.FormField == MenuFieldAgent {
-			if selectStartAgent(frame, state.Agents, -1) {
+			if selectStartAgent(frame, state.Agents, -1) && invalidateStartPreview(&state, frame) {
 				return requestStartPreview(state)
 			}
 		}
 	case KeyRight:
 		if frame.FormField == MenuFieldAgent {
-			if selectStartAgent(frame, state.Agents, 1) {
+			if selectStartAgent(frame, state.Agents, 1) && invalidateStartPreview(&state, frame) {
 				return requestStartPreview(state)
 			}
 		}
@@ -502,11 +505,29 @@ func selectStartAgent(frame *MenuFrame, agents []string, delta int) bool {
 	if frame.Agent != agents[index] || !frame.AgentSticky {
 		frame.Agent = agents[index]
 		frame.AgentSticky = true
-		frame.Generation++
-		clearStartPreview(frame)
 		return true
 	}
 	return false
+}
+
+func invalidateStartPreview(state *MenuState, frame *MenuFrame) bool {
+	generation, ok := nextPreviewGeneration(state)
+	clearStartPreview(frame)
+	if ok {
+		frame.Generation = generation
+	} else {
+		frame.Generation = 0
+	}
+	return ok
+}
+
+func nextPreviewGeneration(state *MenuState) (uint64, bool) {
+	if state.PreviewSequence == ^uint64(0) {
+		state.Notice = "start preview identity exhausted"
+		return 0, false
+	}
+	state.PreviewSequence++
+	return state.PreviewSequence, true
 }
 
 func clearStartPreview(frame *MenuFrame) {
@@ -522,6 +543,9 @@ func clearStartPreview(frame *MenuFrame) {
 
 func requestStartPreview(state MenuState) (MenuState, []MenuEffect) {
 	frame := &state.Frames[len(state.Frames)-1]
+	if frame.Generation == 0 {
+		return state, nil
+	}
 	if frame.PreviewPending == frame.Generation ||
 		(frame.PreviewAccepted == frame.Generation && frame.PreviewToken != "") {
 		return state, nil

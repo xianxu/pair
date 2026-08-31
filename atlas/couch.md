@@ -76,10 +76,11 @@ maps legacy HT and unmodified Kitty CSI-u Tab to the same semantic key; modified
 Tab remains a dropped chord.
 
 Start preview scheduling is also pure: `AdvancePreviewSchedule` admits one
-running generation and one replaceable latest generation. A newer request asks
-for cancellation once, but only a terminal outcome for the running generation
-retires it. The start frame binds accepted `PreparedStart` and one armed submit
-to the same nonzero generation; edits, Escape, stale results, failures, and
+running identity and one replaceable latest identity. `MenuState` allocates
+those identities monotonically across edits and start-form lifetimes. A newer
+request asks for cancellation once, but only a terminal outcome for the running
+identity retires it. The start frame binds accepted `PreparedStart` and one
+armed submit to the same nonzero identity; edits, Escape/reopen, stale results, failures, and
 duplicate results cannot allocate or reuse authority incorrectly. An unchanged
 accepted generation reuses its one grant, non-sticky fallback agents remain
 omitted from the preparation request so path history can resolve them, and the

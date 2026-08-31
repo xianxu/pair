@@ -187,6 +187,37 @@ rounds:
           round: 6
       boundary: M2
       blocked: true
+    - "n": 7
+      timestamp: "2026-08-30T22:46:29-07:00"
+      agent: codex
+      dispose:
+        - id: BR-13
+          disposition: addressed
+          note: Bell clearing now occurs only after correlated switch success; the inactive-target success/failure regression fails under dispatch-time clearing.
+          round: 7
+        - id: BR-14
+          disposition: addressed
+          note: CSI and SS3 horizontal arrows reach ReduceMenu, with every-split decoder coverage and end-to-end agent-selection coverage.
+          round: 7
+        - id: BR-15
+          disposition: addressed
+          note: Root rendering reserves lifecycle, age, and bell suffix width; the 40-column long-label regression fails under whole-row clipping.
+          round: 7
+      findings:
+        - id: BR-16
+          severity: Critical
+          title: Reopened start forms can accept and launch an earlier form's preview
+          detail: 'This is the 2nd finding in family `preview-capability-single-generation`. New start frames reset Generation to 1 at menu.go:427-429, the scheduler suppresses another request when its running generation is also 1 at menu_async.go:57-59, and menu.go:546-569 accepts the old generation-1 completion into the reopened form and can dispatch it when Enter is armed. State the class rule: preview identity must be unique across form lifetimes, not merely within one form. Carry a form/request epoch through frame, schedule, result, and submit authority—or use a menu-lifetime monotonic identity—and add a reducer-plus-scheduler Escape/reopen trace proving an old prepared token cannot populate or launch the new form.'
+          family: preview-capability-single-generation
+          round: 7
+        - id: BR-17
+          severity: Critical
+          title: The Core concepts inventory reports future M3 surface as current
+          detail: 'This is the 2nd finding in family `documentation-current-state-accuracy`. The plan lists menu_refresh.go as new and PanelModel as deleted at lines 24-26, and lists console_menu.go and menu_perf_test.go at lines 76 and 79, but the pinned head lacks all three new files and still contains panel.go. Apply one rule across the complete table: every row must distinguish current-boundary state from final planned state, such as with a delivery-milestone/current-status column; do not patch only these four rows. The atlas statement that Escape and stale preview results cannot reuse authority must also be corrected until the lifetime bug is fixed.'
+          family: documentation-current-state-accuracy
+          round: 7
+      boundary: M2
+      blocked: true
 ---
 
 # Gate ledger — pair#151 (boundary-review)
@@ -274,8 +305,22 @@ later rounds disposed of them. Generated — edit the gate, not this file.
 - **BR-15** [Critical] `bounded-render-semantic-cues` Row clipping removes required lifecycle, age, and bell information
   menu_render.go clips the complete row before adding the bell, so a long label or path consumes the 40-column budget and removes the trailing live/parked age; appending and reclipping then removes the bell too. Reserve a protected suffix for lifecycle and notification cues and clip variable label/path fields within the remaining columns (ARCH-PURPOSE, ARCH-CONSTRAINTS).
 
+## Round 7 — 2026-08-30T22:46:29-07:00 (codex) — BLOCKED
+
+### Disposed
+
+- BR-13 — addressed — Bell clearing now occurs only after correlated switch success; the inactive-target success/failure regression fails under dispatch-time clearing.
+- BR-14 — addressed — CSI and SS3 horizontal arrows reach ReduceMenu, with every-split decoder coverage and end-to-end agent-selection coverage.
+- BR-15 — addressed — Root rendering reserves lifecycle, age, and bell suffix width; the 40-column long-label regression fails under whole-row clipping.
+
+### Raised
+
+- **BR-16** [Critical] `preview-capability-single-generation` Reopened start forms can accept and launch an earlier form's preview
+  This is the 2nd finding in family `preview-capability-single-generation`. New start frames reset Generation to 1 at menu.go:427-429, the scheduler suppresses another request when its running generation is also 1 at menu_async.go:57-59, and menu.go:546-569 accepts the old generation-1 completion into the reopened form and can dispatch it when Enter is armed. State the class rule: preview identity must be unique across form lifetimes, not merely within one form. Carry a form/request epoch through frame, schedule, result, and submit authority—or use a menu-lifetime monotonic identity—and add a reducer-plus-scheduler Escape/reopen trace proving an old prepared token cannot populate or launch the new form.
+- **BR-17** [Critical] `documentation-current-state-accuracy` The Core concepts inventory reports future M3 surface as current
+  This is the 2nd finding in family `documentation-current-state-accuracy`. The plan lists menu_refresh.go as new and PanelModel as deleted at lines 24-26, and lists console_menu.go and menu_perf_test.go at lines 76 and 79, but the pinned head lacks all three new files and still contains panel.go. Apply one rule across the complete table: every row must distinguish current-boundary state from final planned state, such as with a delivery-milestone/current-status column; do not patch only these four rows. The atlas statement that Escape and stale preview results cannot reuse authority must also be corrected until the lifetime bug is fixed.
+
 ## Open findings
 
-- **BR-13** [Critical] `notification-success-commit` A failed switch permanently discards the target thread notification
-- **BR-14** [Critical] `semantic-key-reachability` The start form's Left/Right agent selector is unreachable from terminal input
-- **BR-15** [Critical] `bounded-render-semantic-cues` Row clipping removes required lifecycle, age, and bell information
+- **BR-16** [Critical] `preview-capability-single-generation` Reopened start forms can accept and launch an earlier form's preview
+- **BR-17** [Critical] `documentation-current-state-accuracy` The Core concepts inventory reports future M3 surface as current

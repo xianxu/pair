@@ -14,16 +14,16 @@
 
 ### Pure entities
 
-| Name | Lives in | Status |
-|------|----------|--------|
-| `ActionableThreadSummary` / `LiveTTYObservation` / `ProjectActionableThreads` | `cmd/internal/couchcore/actionableinventory.go` | new |
-| `StartResolution` / `StartResolutionFingerprint` / `ResolveStartResolution` | `cmd/internal/couchcore/startresolution.go` | new |
-| `MenuState` / `MenuFrame` / `MenuEvent` / `ReduceMenu` | `cmd/internal/couchtty/menu.go` | new |
-| `MenuLayout` / `AgeBand` / `RenderMenu` | `cmd/internal/couchtty/menu_render.go` | new |
-| `PreviewSchedule` / `AdvancePreviewSchedule` | `cmd/internal/couchtty/menu_async.go` | new |
-| `RefreshSchedule` / `AdvanceRefreshSchedule` | `cmd/internal/couchtty/menu_refresh.go` | new |
-| `PanelKey` / `DecodePanelKeys` | `cmd/internal/couchtty/panelkeys.go` | modified |
-| `PanelModel` / resolver-driven `Filter` | `cmd/internal/couchtty/panel.go` | deleted |
+| Name | Lives in | Planned change | Delivery | Current at M2 |
+|------|----------|----------------|----------|---------------|
+| `ActionableThreadSummary` / `LiveTTYObservation` / `ProjectActionableThreads` | `cmd/internal/couchcore/actionableinventory.go` | new | M1 | present |
+| `StartResolution` / `StartResolutionFingerprint` / `ResolveStartResolution` | `cmd/internal/couchcore/startresolution.go` | new | M1 | present |
+| `MenuState` / `MenuFrame` / `MenuEvent` / `ReduceMenu` | `cmd/internal/couchtty/menu.go` | new | M2 | present |
+| `MenuLayout` / `AgeBand` / `RenderMenu` | `cmd/internal/couchtty/menu_render.go` | new | M2 | present |
+| `PreviewSchedule` / `AdvancePreviewSchedule` | `cmd/internal/couchtty/menu_async.go` | new | M2 | present |
+| `RefreshSchedule` / `AdvanceRefreshSchedule` | `cmd/internal/couchtty/menu_refresh.go` | new | M3 | absent |
+| `PanelKey` / `DecodePanelKeys` | `cmd/internal/couchtty/panelkeys.go` | modified | M2 | modified, present |
+| `PanelModel` / resolver-driven `Filter` | `cmd/internal/couchtty/panel.go` | deleted | M3 | present compatibility adapter |
 
 - **`ActionableThreadSummary` / `LiveTTYObservation` / `ProjectActionableThreads`** — the only interpretation that turns internal thread lifecycle into user-facing `live` or `parked` rows.
   - **Relationships:** N durable `ThreadRecord`s and N exact owner observations produce 0..N `ActionableThreadSummary` rows; each row retains one composite `ThreadAddress`. A live row requires one observation matching one durable incarnation's PID and process identity; a parked row requires exact `VerifiedPark`, no active `Park`, and no occupied incarnation.
@@ -46,7 +46,7 @@
   - **Future extensions:** another terminal frontend can consume the layout model without duplicating menu transitions.
 
 - **`PreviewSchedule` / `AdvancePreviewSchedule`** — pure one-running/one-coalesced-latest generation state.
-  - **Relationships:** one start form owns one schedule; edits replace its single pending request, and a pending submit is bound to exactly one generation.
+  - **Relationships:** one menu lifetime owns one schedule and one monotonic identity sequence across every start form; edits replace its single pending request, and a pending submit is bound to exactly one identity.
   - **DRY rationale:** cancellation, stale completion, and armed-submit rules are tested once rather than encoded across goroutine branches.
   - **Future extensions:** none planned; this is deliberately not a generic job scheduler.
 
@@ -55,9 +55,9 @@
   - **DRY rationale:** initial-unavailable, last-good, stale completion, and dirty follow-up behavior use one transition authority rather than goroutine-local flags.
   - **Future extensions:** a remote owner may change the provider latency, but not the single-flight contract.
 
-- **`PanelKey` / `DecodePanelKeys`** — existing framed terminal decoder widened with Tab in both legacy HT and Kitty CSI-u encodings.
+- **`PanelKey` / `DecodePanelKeys`** — existing framed terminal decoder widened with Tab plus four-direction CSI/SS3 cursor input.
   - **Relationships:** raw bytes map to semantic keys before the reducer sees them.
-  - **DRY rationale:** all menu frame kinds consume one decoded Tab event.
+  - **DRY rationale:** all menu frame kinds consume shared semantic keys rather than terminal-mode-specific bytes.
   - **Future extensions:** add a semantic key only when a menu contract requires it.
 
 - **Deleted `PanelModel` / resolver-driven `Filter`** — replaced by `MenuState`; ordinary filter keystrokes match the in-memory actionable rows and never call the durable resolver.
@@ -67,16 +67,16 @@
 
 ### Integration points
 
-| Name | Lives in | Status | Wraps |
-|------|----------|--------|-------|
-| `Couch.ActionableThreadInventory` | `cmd/internal/couchcore/actionableinventory.go` | new | `ThreadStore.Snapshot` plus live-owner observations |
-| `Couch.PrepareStart` / `Couch.SpawnPrepared` | `cmd/internal/couchcore/startresolution.go`, `couch.go` | new | path, policy, preference/default reads, runner launch |
-| `StartGrantStore` | `cmd/internal/couchcore/startgrant.go` | new | owner-local random issuance, TTL, and atomic consumption |
-| context-bearing shared operations and post-start cleanup | `cmd/internal/couchcore/ops.go`, `operationdispatch.go`, `couch.go` | modified | owner operation dispatch, cancellation, exact-handle cleanup |
-| `Console` menu controller | `cmd/internal/couchtty/console_menu.go`, `console.go` | modified | host input/output, pane observations, bounded async workers |
-| `wireResolver` composition | `cmd/internal/couchcmd/run.go` | modified | Couch core providers and Console operation dispatcher |
-| context-bearing `Runner` / `FakeRunner` / `hostty.FakeHost` | existing test seams | modified | cancelable child lifecycle and terminal behavior |
-| target performance harness | `cmd/internal/couchtty/menu_perf_test.go` | new | clock samples and deterministic four-worker CPU load |
+| Name | Lives in | Planned change | Delivery | Current at M2 | Wraps |
+|------|----------|----------------|----------|---------------|-------|
+| `Couch.ActionableThreadInventory` | `cmd/internal/couchcore/actionableinventory.go` | new | M1 | present | `ThreadStore.Snapshot` plus live-owner observations |
+| `Couch.PrepareStart` / `Couch.SpawnPrepared` | `cmd/internal/couchcore/startresolution.go`, `couch.go` | new | M1 | present | path, policy, preference/default reads, runner launch |
+| `StartGrantStore` | `cmd/internal/couchcore/startgrant.go` | new | M1 | present | owner-local random issuance, TTL, and atomic consumption |
+| context-bearing shared operations and post-start cleanup | `cmd/internal/couchcore/ops.go`, `operationdispatch.go`, `couch.go` | modified | M1 | modified, present | owner operation dispatch, cancellation, exact-handle cleanup |
+| `Console` menu controller | `cmd/internal/couchtty/console_menu.go`, `console.go` | modified | M3 | `console_menu.go` absent; flat Console present | host input/output, pane observations, bounded async workers |
+| `wireResolver` composition | `cmd/internal/couchcmd/run.go` | modified | M3 | M1 start authority present; menu wiring pending | Couch core providers and Console operation dispatcher |
+| context-bearing `Runner` / `FakeRunner` / `hostty.FakeHost` | existing test seams | modified | M1 | modified, present | cancelable child lifecycle and terminal behavior |
+| target performance harness | `cmd/internal/couchtty/menu_perf_test.go` | new | M3 | absent | clock samples and deterministic four-worker CPU load |
 
 - **`Couch.ActionableThreadInventory`** — snapshots durable records, then calls the pure projector with caller-supplied exact observations.
   - **Injected into:** Console refresh worker; Console alone derives observations from its registered panes and child identities.
@@ -1122,3 +1122,15 @@ the actionable projection (`BR-4`, `documentation-current-state-accuracy`).
 the atlas, project milestone, issue log, plan revisions, and README now form one
 tested staging contract; M3 must migrate the consumer and update the complete
 documentation class together (ARCH-PURPOSE).
+
+### 2026-08-30 — qualify preview identity by menu lifetime and table state by boundary
+
+**Reason:** the fourth M2 boundary review found that form-local generation one
+could collide after Escape/reopen, and that the Core concepts tables described
+final M3 files/deletions as current M2 state (`BR-16`, `BR-17`).
+
+**Delta:** `MenuState` owns one monotonic preview sequence shared by every form
+lifetime and edit; the composed reducer/scheduler trace proves a late old-form
+completion cannot populate or submit the reopened form. Every Pure entities and
+Integration points row now separates the planned final change, its delivery
+milestone, and its actual status at the M2 boundary (ARCH-PURE, ARCH-PURPOSE).

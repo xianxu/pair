@@ -364,6 +364,20 @@ protected state/age/notification suffix and clip only variable label/path text
 within the remaining width. Bell outcome tests use a distinct inactive live
 target (ARCH-PURPOSE, ARCH-CONSTRAINTS).
 
+### 2026-08-30 — scope preview identity across form lifetimes
+
+**Reason:** the fourth M2 boundary review found that closing and reopening the
+start form reset its generation to one, allowing the scheduler and reducer to
+mistake an old form's pending work and completion for the new form's authority.
+It also found that the plan's Core concepts tables described final M3 changes
+as already present at M2.
+
+**Delta:** preview identities are monotonic for the entire `MenuState`, so edits
+and new form lifetimes share one nonzero sequence; the reducer-plus-scheduler
+Escape/reopen trace rejects the old token before admitting the new request. All
+Core concepts and integration rows distinguish planned change, delivery
+milestone, and current M2 status (ARCH-PURE, ARCH-PURPOSE).
+
 ## Done when
 
 - Enter switches to/resumes the selected work thread; thread-list Tab enters
@@ -601,3 +615,12 @@ horizontal agent selection had no CSI/SS3 decoder path, and long rows could
 clip required lifecycle/bell cues. Focused seam and minimum-width regressions
 went red, then green after shared four-direction arrow decoding and protected
 semantic suffix layout (`ARCH-PURPOSE`, `ARCH-CONSTRAINTS`).
+
+### 2026-08-30 — M2 boundary review round 4
+
+The review disposed the three production-seam findings, then found preview
+identity reused across start-form lifetimes and final M3 entities mislabeled as
+current in the plan. The composed reducer/scheduler Escape/reopen trace went
+red with two generation-one forms and green after menu-lifetime monotonic
+identity; both Core concepts tables now state delivery and current M2 status
+for every row (`ARCH-PURE`, `ARCH-PURPOSE`).

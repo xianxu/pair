@@ -163,3 +163,47 @@ func TestReduceMenuStartPreviewReusesAcceptedGeneration(t *testing.T) {
 		t.Fatalf("accepted generation requested another grant: %+v", effects)
 	}
 }
+
+func TestReduceMenuPreviewIdentitySurvivesEscapeAndReopen(t *testing.T) {
+	state := NewMenuState(menuThreads(), menuAddress("couch-one"))
+	state.Agents = []string{"claude"}
+	state.RootAgent = "claude"
+	state, _ = reduceKey(state, PanelKey{Kind: KeyCtrlSpace})
+	state, effects := reduceKey(state, PanelKey{Kind: KeyTab})
+	if len(effects) != 1 || effects[0].Preview == nil {
+		t.Fatalf("first form preview = %+v", effects)
+	}
+	first := *effects[0].Preview
+	var schedule PreviewSchedule
+	schedule, _ = AdvancePreviewSchedule(schedule, PreviewScheduleEvent{Kind: PreviewRequested, Request: first})
+
+	state, _ = reduceKey(state, PanelKey{Kind: KeyEscape})
+	state, _ = reduceKey(state, PanelKey{Kind: KeyCtrlSpace})
+	state, effects = reduceKey(state, PanelKey{Kind: KeyTab})
+	if len(effects) != 1 || effects[0].Preview == nil {
+		t.Fatalf("reopened form preview = %+v", effects)
+	}
+	second := *effects[0].Preview
+	if second.Generation == first.Generation {
+		t.Fatalf("form lifetimes reused preview identity %d", first.Generation)
+	}
+	schedule, effectsSchedule := AdvancePreviewSchedule(schedule, PreviewScheduleEvent{Kind: PreviewRequested, Request: second})
+	if schedule.Pending == nil || schedule.Pending.Generation != second.Generation || len(effectsSchedule) != 1 || effectsSchedule[0].Kind != PreviewCancel {
+		t.Fatalf("reopened request did not supersede old running request: state=%+v effects=%+v", schedule, effectsSchedule)
+	}
+
+	state, _ = reduceKey(state, PanelKey{Kind: KeyEnter})
+	old := couchcore.PreparedStart{Token: "old-token", Resolution: couchcore.StartResolution{
+		CanonicalPath: "/old", Profile: couchcore.LaunchProfile{Agent: "claude"},
+	}}
+	state, effects = ReduceMenu(state, MenuEvent{Kind: MenuEventPreviewResult, Generation: first.Generation, Prepared: &old})
+	frame := state.CurrentFrame()
+	if len(effects) != 0 || frame.PreviewToken != "" || frame.PreviewAccepted != 0 || frame.SubmitGeneration != second.Generation {
+		t.Fatalf("old form completion populated or launched reopened form: state=%+v effects=%+v", state, effects)
+	}
+
+	schedule, effectsSchedule = AdvancePreviewSchedule(schedule, PreviewScheduleEvent{Kind: PreviewFinished, Generation: first.Generation})
+	if schedule.Running == nil || schedule.Running.Generation != second.Generation || len(effectsSchedule) != 1 || effectsSchedule[0].Kind != PreviewStart {
+		t.Fatalf("old completion did not admit reopened request: state=%+v effects=%+v", schedule, effectsSchedule)
+	}
+}
