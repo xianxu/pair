@@ -93,6 +93,18 @@ root frame, applies its ordinary stable-selection fallback among the remaining
 rows, and reports the target's label and diagnostic location; it does not
 delete the hidden durable record.
 
+Every async completion and successful inventory refresh reconciles the stack
+against the new actionable projection before applying ordinary success/failure
+restoration. Starting at the root, each thread-bound action, confirmation, or
+rename/describe frame survives only while its captured identity remains
+actionable and that action remains applicable; the first invalid frame and all
+its descendants are discarded through the hidden-target transition. A typed
+rename/describe draft in such an invalidated frame is not reassigned or
+dispatchable and is discarded with an explicit notice. This safety transition
+takes precedence over the normal promise that a failed operation preserves its
+input. The global start form is not thread-bound, so it remains open; only its
+saved originating stack is reconciled before Escape or success restores it.
+
 `park` always enters a confirmation frame. Its rows are `cancel` (selected by
 default) and `park <thread label>`; Escape or Enter on cancel returns to the
 action frame, while Enter on the explicit park row dispatches. Success returns
@@ -184,8 +196,8 @@ last-good view remains visibly refresh-pending until a later refresh succeeds.
 **Operating envelope (ARCH-CONSTRAINTS).** Couch's switcher is a keystroke-
 critical primary UI. The operator chose 100 rows as the supported workload and
 a MacBook Pro M2 Max as the target environment. The 16 ms computation budget is
-the domain-informed 60 Hz frame
-budget; the operator's requirement that the primary switcher feel immediate
+the domain-informed 60 Hz frame budget; the operator's requirement that the
+primary switcher feel immediate
 sets 50 ms for opening and 100 ms for lifecycle progress feedback. Opening from
 the in-memory inventory produces the first frame within 50 ms; navigation,
 filtering, selection, render computation, and applying a completed refresh each
@@ -208,10 +220,14 @@ p95 to meet its 50/16/16/100 ms budget in three consecutive runs. One run is an
 idle baseline; two run beside a repository-owned deterministic load fixture of
 four CPU workers hashing fixed in-memory buffers, representing bounded
 development co-tenancy without disk or network variance. The evidence records
-hardware and OS version plus every run's p50, p95, and maximum. Portable
-automated tests guard the same 100-row fixture's bounded operations and
-allocations rather than asserting target-specific wall time. Full-console tests
-cover bounds, late completions, and minimum size.
+hardware and OS version plus every run's p50, p95, and maximum. The performance
+fixture renders at 120x40 cells with rows named `thread-000`
+through `thread-099`; its committed script measures opening, each byte of
+filtering to `thread-09`, twenty alternating Down/Up moves, one
+selection-preserving completed refresh, and feedback from one injected blocked
+lifecycle operation. Portable automated tests guard the same 100-row fixture's
+bounded operations and allocations rather than asserting target-specific wall
+time. Full-console tests cover bounds, late completions, and minimum size.
 
 ## Revisions
 
@@ -282,6 +298,19 @@ repository-owned four-worker deterministic co-tenancy load. Pending start
 submission also uses the existing generation rather than creating a parallel
 resolution path (ARCH-CONSTRAINTS, ARCH-PURE).
 
+### 2026-08-30 — reconcile retained frames before restoration
+
+**Reason:** the third fresh-context review found that unconditional input/stack
+restoration conflicted with hiding a captured thread that becomes
+non-actionable during async work.
+
+**Delta:** projection reconciliation now precedes restoration. Invalid
+thread-bound frames and drafts are discarded with notice and cannot dispatch;
+the global start form survives with a reconciled origin stack. The target
+benchmark also pins terminal dimensions, row identities, and scripted events
+so its evidence is mechanically replayable (ARCH-PURE, ARCH-PURPOSE,
+ARCH-CONSTRAINTS).
+
 ## Done when
 
 - Enter switches to/resumes the selected work thread; thread-list Tab enters
@@ -305,6 +334,9 @@ resolution path (ARCH-CONSTRAINTS, ARCH-PURE).
 - Stale targets and zero-match lists never dispatch against a different row.
 - A target that becomes non-actionable invalidates its nested frames and returns
   to the preserved root without deleting or mislabeling the durable record.
+- Refresh and async completion reconcile every retained/originating stack before
+  restoring it; a global start form survives, while invalid target-bound drafts
+  are explicitly discarded and can never reach dispatch.
 - Inventory failure preserves the last-good UI, and post-success refresh failure
   never repeats a mutation.
 - Legacy HT (`0x09`) and Kitty CSI-u Tab (`CSI 9u`) drive the same frame-specific
