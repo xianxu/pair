@@ -375,6 +375,10 @@ that cross-process attachment follows in #147; it never starts a duplicate.
 Thread actions behind Tab follow in #151 after #149 supplies durable thread
 identity; Tab is intentionally inactive for now.
 
+The current flat panel remains wired to Couch's raw diagnostic inventory through #151 M1. M1 adds the proof-bearing live/verified-parked projection and
+token-bound start authority; #151 M3 will migrate the panel to that projection.
+Until then, `couch show` is the authoritative place to inspect lifecycle detail.
+
 ## Command Usage
 
 ```sh

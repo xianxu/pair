@@ -22,6 +22,42 @@ func readme(t *testing.T) string {
 	return string(raw)
 }
 
+func repoDocument(t *testing.T, path ...string) string {
+	t.Helper()
+	parts := append([]string{"..", "..", ".."}, path...)
+	raw, err := os.ReadFile(filepath.Join(parts...))
+	if err != nil {
+		t.Fatalf("read %s: %v", filepath.Join(path...), err)
+	}
+	return string(raw)
+}
+
+// M1 introduces the proof-bearing inventory authority, but the shipped flat
+// panel remains on raw diagnostic inventory until M3 migrates the consumer.
+// Guard the source and every durable current-state summary together so a staged
+// migration cannot be described as already delivered (BR-4).
+func TestM1DocsMatchTransitionalPanelInventoryProvider(t *testing.T) {
+	if source := repoDocument(t, "cmd", "internal", "couchcmd", "run.go"); !strings.Contains(source, "return c.ThreadInventory()") {
+		t.Fatal("M1 contract expects the transitional panel to consume raw ThreadInventory")
+	}
+
+	checks := []struct {
+		path []string
+		want string
+	}{
+		{[]string{"atlas", "couch.md"}, "transitional flat panel remains wired to raw `ThreadInventory`"},
+		{[]string{"workshop", "projects", "couch.md"}, "transitional flat panel remains wired to raw `ThreadInventory`"},
+		{[]string{"workshop", "issues", "000151-hierarchical-thread-menu.md"}, "transitional flat panel remains wired to raw `ThreadInventory`"},
+		{[]string{"workshop", "plans", "000151-hierarchical-thread-menu-plan.md"}, "M1 exposes the authority while M3 adopts it"},
+		{[]string{"README.md"}, "current flat panel remains wired to Couch's raw diagnostic inventory through #151 M1"},
+	}
+	for _, check := range checks {
+		if doc := repoDocument(t, check.path...); !strings.Contains(doc, check.want) {
+			t.Errorf("%s does not declare the current M1 consumer stage %q", filepath.Join(check.path...), check.want)
+		}
+	}
+}
+
 // The panel renderer and README consume the same key inventory. Adding a key
 // to the UI therefore makes this test fail until its operator documentation
 // has a home in README, instead of relying on a boundary reviewer to remember.

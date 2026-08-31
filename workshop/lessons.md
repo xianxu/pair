@@ -2648,3 +2648,15 @@ the child stream and asserting the reset follows it before return
   Stateful host-daemon fixtures that are not isolated must run sequentially
   even when each package retains its normal internal test parallelism
   (`ARCH-MOCK`, `ARCH-CONSTRAINTS`).
+
+## Staged consumer migrations need a cross-document current-state contract
+
+Correcting one atlas sentence left a project milestone claiming that an
+authority introduced in M1 was already consumed by a UI deliberately deferred
+to M3.
+
+**Rule.** For a staged consumer migration, distinguish “authority exists” from
+“consumer is wired” in every current-state surface: atlas, project milestone,
+issue log, plan revision, and operator README. Pin the actual production
+provider and those declarations in one regression so the consumer migration
+must update the entire class together (`ARCH-PURPOSE`).

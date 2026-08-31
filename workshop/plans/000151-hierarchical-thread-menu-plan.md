@@ -1111,3 +1111,14 @@ classified; and the atlas states that M1 exposes the authority while M3 adopts
 it. Task 11 now treats `OperationCall.Context` plus prepare/spawn propagation as
 already delivered and targets only the remaining lifecycle/runner consumers
 (ARCH-DRY, ARCH-PURPOSE).
+
+### 2026-08-30 — guard current-state staging across every durable summary
+
+**Reason:** the second M1 boundary review found that correcting only the atlas
+left the project milestone claiming that the ordinary switcher already consumed
+the actionable projection (`BR-4`, `documentation-current-state-accuracy`).
+
+**Delta:** M1 exposes the authority while M3 adopts it. The current source and
+the atlas, project milestone, issue log, plan revisions, and README now form one
+tested staging contract; M3 must migrate the consumer and update the complete
+documentation class together (ARCH-PURPOSE).

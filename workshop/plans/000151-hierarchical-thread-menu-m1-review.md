@@ -103,3 +103,91 @@ findings:
     detail: |
       The atlas describes ActionableThreadInventory as the current switcher source, while run.go still wires ThreadInventory into the transitional panel. Document the milestone staging accurately or complete the wiring.
 ```
+
+---
+
+## Re-review — 2026-08-30T21:10:24-07:00 (REWORK)
+
+| field | value |
+|-------|-------|
+| issue | 151 — couch: hierarchical work-thread menu |
+| repo | pair |
+| issue file | workshop/issues/000151-hierarchical-thread-menu.md |
+| boundary | milestone M1 |
+| milestone | M1 |
+| window | 54ebd13707fe942c8580db7b6a90b9b30b7ab36d..714b627d9dcc2c1746eb63e7dce9695bcd86fd77 |
+| command | sdlc milestone-close --issue 151 --milestone M1 |
+| reviewer | codex |
+| timestamp | 2026-08-30T21:10:24-07:00 |
+| verdict | REWORK |
+
+## Review
+
+```verdict
+verdict: REWORK
+confidence: high
+```
+
+The implementation and three prior correctness fixes are verified, including mutation checks. BR-4 remains open: although the atlas now describes M1 staging accurately, the project milestone still falsely claims the ordinary switcher consumes the actionable inventory. The pinned review range itself changes only the recorded actual from 4.74h to 5.14h.
+
+## Strengths
+
+- BR-1 is addressed: both production start consumers use `prepare-start` followed by token-bound `start`. Reverting the Console fix makes both panel regressions fail.
+- BR-2 is addressed: [actionableinventory.go](/Users/xianxu/workspace/pair/cmd/internal/couchcore/actionableinventory.go:63) validates complete records before projection. Reverting it makes malformed-live and malformed-park tests fail.
+- BR-3 is addressed: all three new production files are classified in [manifest.go](/Users/xianxu/workspace/pair/cmd/internal/artifactpath/manifest.go:501). Reverting those entries makes the exhaustive inventory test fail.
+- The atlas accurately distinguishes the M1 authority from the planned M3 consumer wiring at [atlas/couch.md](/Users/xianxu/workspace/pair/atlas/couch.md:30).
+
+## Critical findings
+
+None.
+
+## Important findings
+
+- **BR-4 — not addressed (`documentation-current-state-accuracy`).** [workshop/projects/couch.md](/Users/xianxu/workspace/pair/workshop/projects/couch.md:422) says Couch exposes proof-bearing rows “to the ordinary switcher,” but [run.go](/Users/xianxu/workspace/pair/cmd/internal/couchcmd/run.go:415) still supplies raw `ThreadInventory`, as the corrected atlas acknowledges.
+
+  **This is the 2nd finding in family `documentation-current-state-accuracy`.** Do not fix only this sentence. Establish and sweep the rule that every current-state summary of a staged consumer migration must distinguish “authority exists” from “consumer is wired.” Enumerate at least atlas, project milestone, issue log, plan revisions, and README, and add a regression covering the declared/current consumer stage. This is also an ARCH-PURPOSE class-sweep failure.
+
+## Minor findings
+
+None.
+
+## Test coverage notes
+
+Fresh verification passed:
+
+- `go test -p 20 ./cmd/internal/couchcore ./cmd/internal/couchcmd ./cmd/internal/couchtty ./cmd/internal/artifactpath -count=1`
+- Focused M1 race tests passed.
+- Mutation checks proved BR-1, BR-2, and BR-3 regressions go red without their production fixes.
+- No test guards BR-4’s staging accuracy; existing atlas tests check operation presence, not which inventory the switcher consumes.
+
+## Architectural notes for upcoming work
+
+- **ARCH-DRY — pass:** shared projection and operation declarations remain authoritative.
+- **ARCH-PURE — pass:** projection and resolution/fingerprint logic are pure; snapshot and dispatch wrappers are thin.
+- **ARCH-PURPOSE — flag:** M1 code fulfills its scoped authority work, but the documentation fix handled one instance rather than the complete current-state-documentation class.
+- **ARCH-MOCK — pass:** external policy, runner, and terminal behavior stays behind existing injected seams and stateful fakes.
+- **ARCH-CONSTRAINTS — pass for M1:** grants are explicitly bounded by capacity, TTL, and collision attempts; later UI performance commitments are not claimed at this boundary.
+
+## Plan revision recommendations
+
+None. The plan’s existing M1 boundary revision accurately says M1 exposes the authority and M3 adopts it. The project milestone record and its missing cross-document guard need correction.
+
+```findings
+dispose:
+  - id: BR-1
+    disposition: addressed
+    note: |
+      Both production consumers now perform prepare-start then token-bound start; reverting the Console fix makes both panel start regressions fail.
+  - id: BR-2
+    disposition: addressed
+    note: |
+      Projection validates the complete durable record; reverting that validation makes malformed live and parked regressions fail.
+  - id: BR-3
+    disposition: addressed
+    note: |
+      All three sources are classified; reverting the entries makes the exhaustive production-source inventory test fail.
+  - id: BR-4
+    disposition: not-addressed
+    note: |
+      The atlas was corrected, but the project milestone still claims the ordinary switcher consumes actionable inventory while run.go wires raw ThreadInventory, and no regression guards this staging claim.
+```

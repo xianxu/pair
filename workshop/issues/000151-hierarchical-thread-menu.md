@@ -261,15 +261,15 @@ states in the primary UI, and classified the switcher as a keystroke-critical
 primary surface. Fresh-context spec review also found stale start-preview and
 refresh-failure transitions that lacked a shared authoritative contract.
 
-**Delta:** the ordinary inventory now contains only proven live and verified
-parked threads; other durable records remain available to diagnostics/recovery
-without leaking implementation states into the switcher. Enter switches a live
-TTY or resumes verified park, while the application contract remains
-suspend/resume only. Shared opaque start-resolution tokens bind preview to
-launch. Last-good snapshots, generation-gated async work, frame-specific Tab
-behavior, and explicit 100-row latency/resource bounds make every hot-path and
-failure transition deterministic (ARCH-DRY, ARCH-PURE, ARCH-PURPOSE,
-ARCH-CONSTRAINTS).
+**Delta:** the delivered ordinary inventory will contain only proven live and
+verified parked threads; other durable records remain available to
+diagnostics/recovery without leaking implementation states into the switcher.
+Enter switches a live TTY or resumes verified park, while the application
+contract remains suspend/resume only. Shared opaque start-resolution tokens
+bind preview to launch. Last-good snapshots, generation-gated async work,
+frame-specific Tab behavior, and explicit 100-row latency/resource bounds make
+every hot-path and failure transition deterministic (ARCH-DRY, ARCH-PURE,
+ARCH-PURPOSE, ARCH-CONSTRAINTS).
 
 ### 2026-08-30 — make evidence and hidden-target transitions explicit
 
@@ -470,5 +470,13 @@ projection accepted structurally invalid records (`BR-2`), the exhaustive
 production-source inventory omitted all three new files (`BR-3`), and the atlas
 described M3 adoption as already current (`BR-4`). Swept every production start
 dispatcher, validated records before projection with valid positive fixtures,
-classified the full new-source set, corrected milestone staging prose, and
+classified the full new-source set, corrected atlas staging prose, and
 revised the later context plan to account for M1-delivered operation context.
+
+### 2026-08-30 — M1 boundary review round 2
+
+The second review mutation-verified `BR-1` through `BR-3`, but kept `BR-4`
+open because the project milestone still described the future M3 consumer as
+current. The transitional flat panel remains wired to raw `ThreadInventory` until M3; the atlas, project, issue, plan revision, and README now state that
+same staged boundary, and one source/document contract makes M3 update them
+together (ARCH-PURPOSE).

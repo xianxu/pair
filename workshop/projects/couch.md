@@ -416,16 +416,16 @@ there is almost nothing to preserve until native progress completes the round
 ### pair#151 M1 — actionable inventory and token-bound start authority
 
 **est:** 7.60 (whole issue)
-**actual:** 5.14h
+**actual:** 5.15h
 **closed:** 2026-08-30
 
-Couch now exposes only proof-bearing live and verified-parked rows to the
-ordinary switcher while retaining undecodable lifecycle state in raw
-diagnostics. Public start resolves policy, preference, and repository defaults
-into one fingerprinted owner-local grant, revalidates it once, and admits and
-launches only the accepted values. The surprise worth preserving is that an
-incumbent from another policy epoch must fail immediately after candidate
-acceptance: retrying cannot silently revise already-authorized authority.
+M1 introduces the proof-bearing live/verified-parked projection while retaining
+undecodable lifecycle state in raw diagnostics. The transitional flat panel remains wired to raw `ThreadInventory` until M3 migrates that consumer. Public
+start resolves policy, preference, and repository defaults into one
+fingerprinted owner-local grant, revalidates it once, and admits and launches
+only the accepted values. The surprise worth preserving is that an incumbent
+from another policy epoch must fail immediately after candidate acceptance:
+retrying cannot silently revise already-authorized authority.
 
 ## Log
 
