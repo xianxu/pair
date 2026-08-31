@@ -127,28 +127,31 @@ func TestReduceMenuActionUsesExistingNameOperation(t *testing.T) {
 }
 
 func TestReduceMenuBellCommitsOnlyAfterSuccessfulSwitch(t *testing.T) {
-	state := NewMenuState(menuThreads(), menuAddress("couch-one"))
+	threads := menuThreads()
+	threads[1].State = couchcore.ThreadLive
+	state := NewMenuState(threads, menuAddress("couch-one"))
 	original := state
-	state, _ = ReduceMenu(state, MenuEvent{Kind: MenuEventBell, Address: menuAddress("couch-one"), Bell: true})
-	if !state.Bells[menuAddress("couch-one")] || original.Bells[menuAddress("couch-one")] {
+	state, _ = ReduceMenu(state, MenuEvent{Kind: MenuEventBell, Address: menuAddress("couch-two"), Bell: true})
+	state, _ = reduceKey(state, PanelKey{Kind: KeyDown})
+	if !state.Bells[menuAddress("couch-two")] || original.Bells[menuAddress("couch-two")] {
 		t.Fatalf("bell ownership aliased: original=%v next=%v", original.Bells, state.Bells)
 	}
 	state, effects := reduceKey(state, PanelKey{Kind: KeyEnter})
-	if !state.Bells[menuAddress("couch-one")] || len(effects) != 1 || effects[0].Operation != "switch" {
+	if !state.Bells[menuAddress("couch-two")] || len(effects) != 1 || effects[0].Operation != "switch" {
 		t.Fatalf("switch dispatch changed bell: state=%+v effects=%+v", state, effects)
 	}
 
 	failed, _ := ReduceMenu(state, MenuEvent{
-		Kind: MenuEventOperationResult, Operation: "switch", Address: menuAddress("couch-one"), Error: "focus failed",
+		Kind: MenuEventOperationResult, Operation: "switch", Address: menuAddress("couch-two"), Error: "focus failed",
 	})
-	if !failed.Bells[menuAddress("couch-one")] || failed.Notice != "focus failed" {
+	if !failed.Bells[menuAddress("couch-two")] || failed.Notice != "focus failed" {
 		t.Fatalf("failed switch lost bell: %+v", failed)
 	}
 
 	succeeded, _ := ReduceMenu(state, MenuEvent{
-		Kind: MenuEventOperationResult, Operation: "switch", Address: menuAddress("couch-one"), Success: true,
+		Kind: MenuEventOperationResult, Operation: "switch", Address: menuAddress("couch-two"), Success: true,
 	})
-	if succeeded.Bells[menuAddress("couch-one")] {
+	if succeeded.Bells[menuAddress("couch-two")] {
 		t.Fatalf("successful switch retained bell: %+v", succeeded)
 	}
 }

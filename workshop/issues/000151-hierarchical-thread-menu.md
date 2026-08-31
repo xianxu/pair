@@ -350,6 +350,20 @@ complete without a created address and successful starts require one. UI state
 changes that assert an operation succeeded, including bell clearing, commit
 only on a correlated successful completion (ARCH-PURE, ARCH-PURPOSE).
 
+### 2026-08-30 — prove input reachability and protect row semantics
+
+**Reason:** the third M2 boundary review traced reducer and renderer behavior
+through their real seams and found horizontal agent selection unreachable from
+terminal input, long rows able to erase state/age/bell cues at 40 columns, and
+the bell outcome test selecting the active rather than an inactive live row.
+
+**Delta:** every reducer key must be reachable through all terminal modes Pair
+accepts, with legacy CSI and application-mode SS3 horizontal arrows tested at
+every read split and then driven through the reducer. Root rows reserve a
+protected state/age/notification suffix and clip only variable label/path text
+within the remaining width. Bell outcome tests use a distinct inactive live
+target (ARCH-PURPOSE, ARCH-CONSTRAINTS).
+
 ## Done when
 
 - Enter switches to/resumes the selected work thread; thread-list Tab enters
@@ -578,3 +592,12 @@ operation/outcome/address table and switch success/failure regressions went red
 against the reviewed code and green after correlation stopped requiring
 result-generated identity and bell clearing moved to successful completion
 (`ARCH-PURE`, `ARCH-PURPOSE`).
+
+### 2026-08-30 — M2 boundary review round 3
+
+The review confirmed BR-12 and the bell implementation, but required the bell
+test to use an actually inactive live row and found two production-seam gaps:
+horizontal agent selection had no CSI/SS3 decoder path, and long rows could
+clip required lifecycle/bell cues. Focused seam and minimum-width regressions
+went red, then green after shared four-direction arrow decoding and protected
+semantic suffix layout (`ARCH-PURPOSE`, `ARCH-CONSTRAINTS`).

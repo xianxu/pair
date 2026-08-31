@@ -2681,3 +2681,8 @@ must update the entire class together (`ARCH-PURPOSE`).
 - Hierarchical layout requires semantic geometry: selected parent-row offsets
   for wide children and measured parent-list height for narrow children.
   Equal partitions are bounded rectangles but do not express the hierarchy.
+- Reducer support is not user reachability. Every semantic key must be driven
+  through the production decoder in every accepted terminal mode and across
+  split reads. Likewise, bounded rendering must reserve mandatory semantic
+  cues before clipping variable text; a row that fits but hides state is not
+  operationally bounded (`ARCH-PURPOSE`, `ARCH-CONSTRAINTS`).

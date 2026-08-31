@@ -139,22 +139,20 @@ func decodeSequence(seq []byte) (PanelKey, bool) {
 	case bytes.Equal(seq, []byte("\x1b\x1b")):
 		// ESC ESC: a pressed Escape while an app mode is on.
 		return PanelKey{Kind: KeyEscape}, true
-	case bytes.HasSuffix(seq, []byte("A")):
-		if isCSI(seq) {
-			return PanelKey{Kind: KeyUp}, true
-		}
-	case bytes.HasSuffix(seq, []byte("B")):
-		if isCSI(seq) {
-			return PanelKey{Kind: KeyDown}, true
-		}
 	case bytes.HasSuffix(seq, []byte("u")):
 		return decodeCSIu(seq)
 	}
-	if bytes.Equal(seq, []byte("\x1bOA")) {
-		return PanelKey{Kind: KeyUp}, true
-	}
-	if bytes.Equal(seq, []byte("\x1bOB")) {
-		return PanelKey{Kind: KeyDown}, true
+	if len(seq) > 0 && (isCSI(seq) || isSS3(seq)) {
+		switch seq[len(seq)-1] {
+		case 'A':
+			return PanelKey{Kind: KeyUp}, true
+		case 'B':
+			return PanelKey{Kind: KeyDown}, true
+		case 'C':
+			return PanelKey{Kind: KeyRight}, true
+		case 'D':
+			return PanelKey{Kind: KeyLeft}, true
+		}
 	}
 	return PanelKey{}, false
 }
@@ -164,6 +162,10 @@ func decodeSequence(seq []byte) (PanelKey, bool) {
 // modifier.
 func isCSI(seq []byte) bool {
 	return len(seq) >= 3 && seq[0] == 0x1b && seq[1] == '['
+}
+
+func isSS3(seq []byte) bool {
+	return len(seq) == 3 && seq[0] == 0x1b && seq[1] == 'O'
 }
 
 // decodeCSIu reads the Kitty protocol's `CSI <codepoint> [;<modifiers>] u`.

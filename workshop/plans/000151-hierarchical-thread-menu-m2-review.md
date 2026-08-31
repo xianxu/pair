@@ -259,3 +259,101 @@ findings:
     detail: |
       menu.go:255-260 deletes the bell when switch is dispatched rather than when correlated success arrives. A focus failure therefore loses notification state despite no switch occurring. Commit bell clearing on successful switch only and add inactive-target success/failure regressions (ARCH-PURPOSE).
 ```
+
+---
+
+## Re-review — 2026-08-30T22:37:45-07:00 (REWORK)
+
+| field | value |
+|-------|-------|
+| issue | 151 — couch: hierarchical work-thread menu |
+| repo | pair |
+| issue file | workshop/issues/000151-hierarchical-thread-menu.md |
+| boundary | milestone M2 |
+| milestone | M2 |
+| window | 66ae7eef502eb996f4b2d7f096e0ee73090204b2..34e080e19dc256159eb5731ce3c7ca0dbdd08961 |
+| command | sdlc milestone-close --issue 151 --milestone M2 |
+| reviewer | codex |
+| timestamp | 2026-08-30T22:37:45-07:00 |
+| verdict | REWORK |
+
+## Review
+
+```verdict
+verdict: REWORK
+confidence: high
+```
+
+The pure reducer architecture is strong, the full suite passes, and BR-12’s correction is mutation-proven. The boundary remains blocked because BR-13 lacks its required inactive-target regression, Left/Right agent selection is unreachable from real terminal input, and bounded row clipping can erase mandatory lifecycle and notification cues.
+
+```findings
+dispose:
+  - id: BR-12
+    disposition: addressed
+    note: |
+      Failed start results without an address now clear InFlight and restore the form; reverting the correlation change makes both the focused transition test and exhaustive outcome table fail.
+  - id: BR-13
+    disposition: not-addressed
+    note: |
+      Bell clearing moved to correlated switch success and its mutation is detected, but the only regression switches the active thread; the explicitly required inactive-target success/failure regression is absent.
+findings:
+  - id: new
+    severity: Critical
+    family: semantic-key-reachability
+    title: |
+      The start form's Left/Right agent selector is unreachable from terminal input
+    detail: |
+      menu.go handles KeyLeft and KeyRight, but panelkeys.go emits neither: decodeSequence recognizes only Up, Down, and CSI-u keys. Real CSI C/D and SS3 OC/OD input is dropped, so the specified agent selector cannot operate. Decode both terminal modes and add every-split tests that drive the decoded keys through ReduceMenu (ARCH-PURPOSE).
+  - id: new
+    severity: Critical
+    family: bounded-render-semantic-cues
+    title: |
+      Row clipping removes required lifecycle, age, and bell information
+    detail: |
+      menu_render.go clips the complete row before adding the bell, so a long label or path consumes the 40-column budget and removes the trailing live/parked age; appending and reclipping then removes the bell too. Reserve a protected suffix for lifecycle and notification cues and clip variable label/path fields within the remaining columns (ARCH-PURPOSE, ARCH-CONSTRAINTS).
+```
+
+1. Strengths
+
+- [menu.go](/Users/xianxu/workspace/pair/cmd/internal/couchtty/menu.go:834) now defines an explicit outcome/address correlation rule, including addressless start failures.
+- [menu_test.go](/Users/xianxu/workspace/pair/cmd/internal/couchtty/menu_test.go:414) enumerates every declared operation across success, failure, missing-address, and wrong-address shapes.
+- Reducer, renderer, scheduler, and matcher remain deterministic and IO-free; focused race tests pass.
+- [atlas/couch.md](/Users/xianxu/workspace/pair/atlas/couch.md:39) accurately documents M2 as inert pure infrastructure pending M3 Console integration. No README change is required yet because no runnable surface became reachable.
+
+2. Critical findings
+
+- **BR-13 remains open:** [menu_test.go](/Users/xianxu/workspace/pair/cmd/internal/couchtty/menu_test.go:129) sets `ActiveAddress` and switches that same thread. Change the fixture to select a distinct live inactive thread, then verify dispatch preserves its bell, failure retains it, and success clears it.
+- **ARCH-PURPOSE — semantic key reachability:** [panelkeys.go](/Users/xianxu/workspace/pair/cmd/internal/couchtty/panelkeys.go:137) never emits the key kinds consumed by [menu.go](/Users/xianxu/workspace/pair/cmd/internal/couchtty/menu.go:462). Add CSI/SS3 Left and Right decoding plus split-boundary reducer tests.
+- **ARCH-PURPOSE / ARCH-CONSTRAINTS — protected rendering cues:** [menu_render.go](/Users/xianxu/workspace/pair/cmd/internal/couchtty/menu_render.go:330) clips away required trailing semantics. Construct rows from a protected state/age/bell suffix and a separately clipped variable prefix; test long/wide labels and paths at 40 columns for live, parked, and bell states.
+
+3. Important findings
+
+None.
+
+4. Minor findings
+
+None.
+
+5. Test coverage notes
+
+- `go test -p 20 ./... -count=1` passed.
+- Focused `couchcore`/`couchtty` tests and reducer/renderer race tests passed.
+- `git diff --check` passed.
+- Reverting the BR-12/BR-13 implementation changes in an isolated archive made the corresponding tests fail.
+- Missing coverage: inactive-target switching, raw Left/Right-to-reducer reachability, and mandatory row cues under worst-case clipping.
+
+6. Architectural notes for upcoming work
+
+- **ARCH-DRY — pass:** matching and menu transitions have shared authorities.
+- **ARCH-PURE — pass:** the M2 entities are directly testable without filesystem, process, terminal, or network IO.
+- **ARCH-PURPOSE — flag:** real Left/Right input and bounded semantic rendering under-deliver committed behavior.
+- **ARCH-MOCK — pass:** M2 introduces no external interaction; M3’s planned Console/stateful-fake seam remains appropriate.
+- **ARCH-CONSTRAINTS — flag:** scheduling and geometry are bounded, but the declared 40-column envelope does not preserve required row information.
+
+7. Plan revision recommendations
+
+Append a `## Revisions` entry recording that M2 must:
+
+- prove every reducer key through the real decoder seam, including legacy CSI and application-mode SS3 Left/Right;
+- reserve bounded rendering space for lifecycle, age, and notification cues;
+- pin BR-13 with an actually inactive switch target.

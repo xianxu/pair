@@ -54,8 +54,12 @@ retain the prior human label and composite address, while a global start frame
 survives with its saved origin reduced to the valid prefix. Every list frame,
 including park confirmation, filters displayed labels while retaining internal
 operation identities (`rename` presents the shared `name` operation). Inputs
-are byte-bounded at 1 KiB for filters/names and 4 KiB for paths/descriptions,
-and generated key traces keep stack depth, UTF-8 ownership, and effects bounded
+are byte-bounded at 1 KiB for filters/names and 4 KiB for paths/descriptions.
+The input seam decodes horizontal arrows in both CSI and application-mode SS3,
+so the start form's agent selector is reachable in either terminal mode. Root
+rows clip variable label/path text around a protected state/age/bell suffix at
+the 40-column minimum. Generated key traces keep stack depth, UTF-8 ownership,
+and effects bounded
 (ARCH-DRY, ARCH-PURE, ARCH-CONSTRAINTS).
 
 Both CLI resolution and in-memory menu filtering derive from

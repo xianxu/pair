@@ -160,6 +160,33 @@ rounds:
           round: 5
       boundary: M2
       blocked: true
+    - "n": 6
+      timestamp: "2026-08-30T22:37:45-07:00"
+      agent: codex
+      dispose:
+        - id: BR-12
+          disposition: addressed
+          note: Failed start results without an address now clear InFlight and restore the form; reverting the correlation change makes both the focused transition test and exhaustive outcome table fail.
+          round: 6
+        - id: BR-13
+          disposition: not-addressed
+          note: Bell clearing moved to correlated switch success and its mutation is detected, but the only regression switches the active thread; the explicitly required inactive-target success/failure regression is absent.
+          round: 6
+      findings:
+        - id: BR-14
+          severity: Critical
+          title: The start form's Left/Right agent selector is unreachable from terminal input
+          detail: 'menu.go handles KeyLeft and KeyRight, but panelkeys.go emits neither: decodeSequence recognizes only Up, Down, and CSI-u keys. Real CSI C/D and SS3 OC/OD input is dropped, so the specified agent selector cannot operate. Decode both terminal modes and add every-split tests that drive the decoded keys through ReduceMenu (ARCH-PURPOSE).'
+          family: semantic-key-reachability
+          round: 6
+        - id: BR-15
+          severity: Critical
+          title: Row clipping removes required lifecycle, age, and bell information
+          detail: menu_render.go clips the complete row before adding the bell, so a long label or path consumes the 40-column budget and removes the trailing live/parked age; appending and reclipping then removes the bell too. Reserve a protected suffix for lifecycle and notification cues and clip variable label/path fields within the remaining columns (ARCH-PURPOSE, ARCH-CONSTRAINTS).
+          family: bounded-render-semantic-cues
+          round: 6
+      boundary: M2
+      blocked: true
 ---
 
 # Gate ledger — pair#151 (boundary-review)
@@ -233,7 +260,22 @@ later rounds disposed of them. Generated — edit the gate, not this file.
 - **BR-13** [Critical] `notification-success-commit` A failed switch permanently discards the target thread notification
   menu.go:255-260 deletes the bell when switch is dispatched rather than when correlated success arrives. A focus failure therefore loses notification state despite no switch occurring. Commit bell clearing on successful switch only and add inactive-target success/failure regressions (ARCH-PURPOSE).
 
+## Round 6 — 2026-08-30T22:37:45-07:00 (codex) — BLOCKED
+
+### Disposed
+
+- BR-12 — addressed — Failed start results without an address now clear InFlight and restore the form; reverting the correlation change makes both the focused transition test and exhaustive outcome table fail.
+- BR-13 — not-addressed — Bell clearing moved to correlated switch success and its mutation is detected, but the only regression switches the active thread; the explicitly required inactive-target success/failure regression is absent.
+
+### Raised
+
+- **BR-14** [Critical] `semantic-key-reachability` The start form's Left/Right agent selector is unreachable from terminal input
+  menu.go handles KeyLeft and KeyRight, but panelkeys.go emits neither: decodeSequence recognizes only Up, Down, and CSI-u keys. Real CSI C/D and SS3 OC/OD input is dropped, so the specified agent selector cannot operate. Decode both terminal modes and add every-split tests that drive the decoded keys through ReduceMenu (ARCH-PURPOSE).
+- **BR-15** [Critical] `bounded-render-semantic-cues` Row clipping removes required lifecycle, age, and bell information
+  menu_render.go clips the complete row before adding the bell, so a long label or path consumes the 40-column budget and removes the trailing live/parked age; appending and reclipping then removes the bell too. Reserve a protected suffix for lifecycle and notification cues and clip variable label/path fields within the remaining columns (ARCH-PURPOSE, ARCH-CONSTRAINTS).
+
 ## Open findings
 
-- **BR-12** [Critical] `operation-result-origin-correlation` Failed starts without a created address are ignored and wedge dispatch
 - **BR-13** [Critical] `notification-success-commit` A failed switch permanently discards the target thread notification
+- **BR-14** [Critical] `semantic-key-reachability` The start form's Left/Right agent selector is unreachable from terminal input
+- **BR-15** [Critical] `bounded-render-semantic-cues` Row clipping removes required lifecycle, age, and bell information

@@ -152,6 +152,23 @@ func TestRenderMenuSanitizesClipsAndKeepsStateText(t *testing.T) {
 	assertRenderedBounds(t, got, 40, 10)
 }
 
+func TestRenderMenuProtectsStateAgeAndBellSuffixAtMinimumWidth(t *testing.T) {
+	now := time.Unix(10*24*60*60, 0).UTC()
+	long := strings.Repeat("very-long-label-and-path-", 4)
+	threads := []couchcore.ActionableThreadSummary{
+		{Address: menuAddress("live"), Name: long, WorkingPath: "/" + long, State: couchcore.ThreadLive},
+		{Address: menuAddress("parked"), Name: long, WorkingPath: "/" + long, State: couchcore.ThreadParked, LastActiveAt: now.Add(-2 * 24 * time.Hour)},
+	}
+	state := NewMenuState(threads, threads[0].Address)
+	state.Bells = map[couchcore.ThreadAddress]bool{threads[0].Address: true, threads[1].Address: true}
+	plain := string(ansi.Strip([]byte(RenderMenu(state, 40, 10, now, false))))
+	lines := strings.Split(plain, "\r\n")
+	if len(lines) < 4 || !strings.HasSuffix(lines[2], "live *") || !strings.HasSuffix(lines[3], "parked · 2d ago *") {
+		t.Fatalf("minimum-width semantic suffixes were clipped: %q", plain)
+	}
+	assertRenderedBounds(t, plain, 40, 10)
+}
+
 func TestRenderMenuBelowMinimumOnlyRequestsResize(t *testing.T) {
 	got := RenderMenu(NewMenuState(menuThreads(), menuAddress("couch-one")), 39, 9, time.Time{}, true)
 	plain := string(ansi.Strip([]byte(got)))

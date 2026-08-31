@@ -331,14 +331,19 @@ func renderRootMenuFrame(state MenuState, frame MenuFrame, width, height int, no
 		if !thread.Live() {
 			stateText = "parked · " + relativeMenuAge(now, thread.LastActiveAt)
 		}
-		plain := clipMenuLine(fmt.Sprintf("%s%s  %s  %s", marker, thread.Label(), thread.WorkingPath, stateText), width)
+		suffix := "  " + stateText
+		if state.Bells[thread.Address] {
+			suffix += " *"
+		}
+		prefixWidth := width - textwidth.Width(suffix)
+		if prefixWidth < 0 {
+			prefixWidth = 0
+		}
+		plain := clipMenuLine(fmt.Sprintf("%s%s  %s", marker, thread.Label(), thread.WorkingPath), prefixWidth) + suffix
 		if selectedRow {
 			plain = selectedMenuLine(plain, true, width)
 		} else if !thread.Live() && color256 {
 			plain = ageColor(AgeBandFor(now, thread.LastActiveAt)) + plain + "\x1b[0m"
-		}
-		if state.Bells[thread.Address] {
-			plain = clipStyledMenuLine(plain+" *", width)
 		}
 		lines = append(lines, plain)
 	}
