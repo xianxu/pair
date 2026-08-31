@@ -366,89 +366,89 @@ Expected: fresh-context milestone review approves the core contracts; log the ve
 - Modify: `cmd/internal/couchtty/panel.go`
 - Modify: `cmd/internal/couchtty/panel_test.go`
 
-- [ ] **Step 1: Write failing shared matcher tests**
+- [x] **Step 1: Write failing shared matcher tests**
 
 Apply the `ClassifyThreadReferenceFields` collision/invalid-byte strategy and
 require both operation resolution and in-memory menu filtering to use the same
 set-level exact-over-fuzzy helper.
 
-- [ ] **Step 2: Run matcher tests and verify RED**
+- [x] **Step 2: Run matcher tests and verify RED**
 
 Run: `go test -p 20 ./cmd/internal/couchcore -run 'Test(ThreadReferenceFields|ResolveThreadReference)' -count=1`
 
 Expected: FAIL because the shared field predicate is absent.
 
-- [ ] **Step 3: Implement matcher extraction and verify GREEN**
+- [x] **Step 3: Implement matcher extraction and verify GREEN**
 
 Extract the pure classifier/set helper without store access, preserve CLI
 resolution behavior, and rerun Step 2.
 
-- [ ] **Step 4: Write failing root/filter reducer tests**
+- [x] **Step 4: Write failing root/filter reducer tests**
 
 Apply the `ReduceMenu` generated-trace strategy first to root/filter transitions;
 stable identity and no-effect-on-zero-selection are the invariants.
 
-- [ ] **Step 5: Run root tests and verify RED**
+- [x] **Step 5: Run root tests and verify RED**
 
 Run: `go test -p 20 ./cmd/internal/couchtty -run 'TestReduceMenuRoot' -count=1`
 
 Expected: FAIL because menu entities are absent.
 
-- [ ] **Step 6: Implement root entities/transitions and verify GREEN**
+- [x] **Step 6: Implement root entities/transitions and verify GREEN**
 
 Add the Core-concepts menu types with fail-safe zero values, explicit frame
 ownership, and root/filter transitions only; rerun Step 5.
 
-- [ ] **Step 7: Write failing action/confirmation traces**
+- [x] **Step 7: Write failing action/confirmation traces**
 
 Extend the reducer model traces across action/confirmation frames; captured
 identity, current applicability, and ephemeral bell ownership are the guards.
 
-- [ ] **Step 8: Run action tests RED, implement, then GREEN**
+- [x] **Step 8: Run action tests RED, implement, then GREEN**
 
 Run before and after implementation: `go test -p 20 ./cmd/internal/couchtty -run 'TestReduceMenu(Action|Bell)' -count=1`
 
 Expected: first FAIL, then PASS. Effects name existing shared operations (`name`,
 not `rename`) and exact args but perform no I/O.
 
-- [ ] **Step 9: Write failing text/start form traces**
+- [x] **Step 9: Write failing text/start form traces**
 
 Extend the reducer trace generator across text/start forms with malformed UTF-8
 boundaries, input caps, sticky agent choice, and exact originating-stack
 restoration as invariants.
 
-- [ ] **Step 10: Run form tests RED, implement, then GREEN**
+- [x] **Step 10: Run form tests RED, implement, then GREEN**
 
 Run before and after implementation: `go test -p 20 ./cmd/internal/couchtty -run 'TestReduceMenu(Text|StartForm)' -count=1`
 
 Expected: first FAIL, then PASS.
 
-- [ ] **Step 11: Write failing refresh/reconciliation traces**
+- [x] **Step 11: Write failing refresh/reconciliation traces**
 
 Extend reducer model traces with reordered refresh/operation outcomes; the
 mechanical guard reconciles root-to-leaf before restoration and forbids any
 completion from redispatching an effect.
 
-- [ ] **Step 12: Run reconciliation tests RED, implement, then GREEN**
+- [x] **Step 12: Run reconciliation tests RED, implement, then GREEN**
 
 Run before and after implementation: `go test -p 20 ./cmd/internal/couchtty -run 'TestReduceMenu(Refresh|Reconcile|OperationResult)' -count=1`
 
 Expected: first FAIL, then PASS. Keep maximum depth structural (root + one
 thread action + one confirmation/input, or one global start overlay).
 
-- [ ] **Step 13: Keep the flat panel as a temporary compiling adapter**
+- [x] **Step 13: Keep the flat panel as a temporary compiling adapter**
 
 Do not delete `PanelModel` yet. Adapt its construction/tests only as required by
 the new actionable summary type so current `Console` and all package tests stay
 buildable through M2. M3 migrates Console and deletes the adapter.
 
-- [ ] **Step 14: Run reducer and core matcher packages**
+- [x] **Step 14: Run reducer and core matcher packages**
 
 Run: `go test -p 20 ./cmd/internal/couchcore ./cmd/internal/couchtty -run 'Test(ThreadReference|ReduceMenu|Panel)' -count=1`
 
 Expected: PASS.
 
-- [ ] **Step 15: Commit Task 5**
+- [x] **Step 15: Commit Task 5**
 
 ```bash
 git add cmd/internal/couchcore/threadmetadata.go cmd/internal/couchcore/threadmetadata_test.go cmd/internal/couchtty/menu.go cmd/internal/couchtty/menu_test.go cmd/internal/couchtty/panel.go cmd/internal/couchtty/panel_test.go

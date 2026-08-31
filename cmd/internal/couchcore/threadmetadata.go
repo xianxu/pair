@@ -39,8 +39,92 @@ type AmbiguousThreadReferenceError struct {
 	Candidates []ThreadAddress
 }
 
+// ThreadReferenceFields is the complete shared matching surface for one
+// thread. It contains values only, so CLI resolution and in-memory menu
+// filtering can consume the same rule without store access.
+type ThreadReferenceFields struct {
+	Address     ThreadAddress
+	Name        string
+	WorkingPath string
+}
+
+// ThreadReferenceMatch orders match strength. Zero is deliberately no match.
+type ThreadReferenceMatch uint8
+
+const (
+	ThreadReferenceNone ThreadReferenceMatch = iota
+	ThreadReferenceFuzzy
+	ThreadReferenceExact
+)
+
 func (e *AmbiguousThreadReferenceError) Error() string {
 	return fmt.Sprintf("thread reference %q matches %d threads", e.Reference, len(e.Candidates))
+}
+
+// ClassifyThreadReferenceFields applies the shared per-row rule. Exact opaque
+// tag equality is stronger than case-insensitive name/path containment.
+func ClassifyThreadReferenceFields(fields ThreadReferenceFields, ref string) (ThreadReferenceMatch, error) {
+	normalized, err := normalizeThreadReference(ref)
+	if err != nil {
+		return ThreadReferenceNone, err
+	}
+	return classifyNormalizedThreadReferenceFields(fields, normalized), nil
+}
+
+// MatchThreadReferenceFields applies exact-over-fuzzy precedence across the
+// complete set and returns composite identities in deterministic order.
+func MatchThreadReferenceFields(fields []ThreadReferenceFields, ref string) ([]ThreadAddress, error) {
+	normalized, err := normalizeThreadReference(ref)
+	if err != nil {
+		return nil, err
+	}
+	exact := make([]ThreadAddress, 0, 1)
+	fuzzy := make([]ThreadAddress, 0, len(fields))
+	for _, candidate := range fields {
+		switch classifyNormalizedThreadReferenceFields(candidate, normalized) {
+		case ThreadReferenceExact:
+			exact = append(exact, candidate.Address)
+		case ThreadReferenceFuzzy:
+			fuzzy = append(fuzzy, candidate.Address)
+		}
+	}
+	matches := fuzzy
+	if len(exact) > 0 {
+		matches = exact
+	}
+	if len(matches) == 0 {
+		return nil, fmt.Errorf("%w: %q", ErrThreadReferenceNotFound, normalized)
+	}
+	sort.Slice(matches, func(i, j int) bool {
+		if matches[i].RepoScope != matches[j].RepoScope {
+			return matches[i].RepoScope < matches[j].RepoScope
+		}
+		return matches[i].Tag < matches[j].Tag
+	})
+	return matches, nil
+}
+
+func normalizeThreadReference(ref string) (string, error) {
+	ref = strings.TrimSpace(ref)
+	if ref == "" {
+		return "", fmt.Errorf("%w: empty reference", ErrThreadReferenceNotFound)
+	}
+	if strings.ContainsRune(ref, '\x00') {
+		return "", fmt.Errorf("%w: malformed reference", ErrThreadReferenceNotFound)
+	}
+	return ref, nil
+}
+
+func classifyNormalizedThreadReferenceFields(fields ThreadReferenceFields, normalized string) ThreadReferenceMatch {
+	if fields.Address.Tag == ThreadTag(normalized) {
+		return ThreadReferenceExact
+	}
+	needle := strings.ToLower(normalized)
+	if strings.Contains(strings.ToLower(fields.Name), needle) ||
+		strings.Contains(strings.ToLower(fields.WorkingPath), needle) {
+		return ThreadReferenceFuzzy
+	}
+	return ThreadReferenceNone
 }
 
 // ResolveThreadReference resolves within repoScope when it is non-empty.
@@ -48,37 +132,37 @@ func (e *AmbiguousThreadReferenceError) Error() string {
 // path match case-insensitively by substring. Ambiguity is returned with every
 // candidate and never collapsed to an arbitrary winner.
 func ResolveThreadReference(records []ThreadRecord, repoScope, ref string) ([]ThreadRecord, error) {
-	ref = strings.TrimSpace(ref)
-	if ref == "" {
-		return nil, fmt.Errorf("%w: empty reference", ErrThreadReferenceNotFound)
-	}
-	if strings.ContainsRune(ref, '\x00') {
-		return nil, fmt.Errorf("%w: malformed reference", ErrThreadReferenceNotFound)
+	normalized, err := normalizeThreadReference(ref)
+	if err != nil {
+		return nil, err
 	}
 	eligible := make([]ThreadRecord, 0, len(records))
+	fields := make([]ThreadReferenceFields, 0, len(records))
 	for _, record := range records {
 		if repoScope == "" || record.Address.RepoScope == repoScope {
 			eligible = append(eligible, record)
+			fields = append(fields, ThreadReferenceFields{
+				Address:     record.Address,
+				Name:        record.Name,
+				WorkingPath: record.WorkingPath,
+			})
 		}
 	}
-	exact := make([]ThreadRecord, 0, 1)
-	for _, record := range eligible {
-		if record.Address.Tag == ThreadTag(ref) {
-			exact = append(exact, record)
-		}
+	addresses, err := MatchThreadReferenceFields(fields, normalized)
+	if err != nil {
+		return nil, err
 	}
-	if len(exact) > 0 {
-		return finishThreadReference(ref, exact)
+	wanted := make(map[ThreadAddress]bool, len(addresses))
+	for _, address := range addresses {
+		wanted[address] = true
 	}
-	needle := strings.ToLower(ref)
-	matches := make([]ThreadRecord, 0, len(eligible))
+	matches := make([]ThreadRecord, 0, len(addresses))
 	for _, record := range eligible {
-		if strings.Contains(strings.ToLower(record.Name), needle) ||
-			strings.Contains(strings.ToLower(record.WorkingPath), needle) {
+		if wanted[record.Address] {
 			matches = append(matches, record)
 		}
 	}
-	return finishThreadReference(ref, matches)
+	return finishThreadReference(normalized, matches)
 }
 
 func finishThreadReference(ref string, matches []ThreadRecord) ([]ThreadRecord, error) {

@@ -18,6 +18,10 @@ const (
 	KeyEnter
 	KeyEscape
 	KeyBackspace
+	KeyTab
+	KeyLeft
+	KeyRight
+	KeyCtrlSpace
 )
 
 // PanelKey is one decoded keystroke.

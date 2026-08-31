@@ -481,3 +481,13 @@ open because the project milestone still described the future M3 consumer as
 current. The transitional flat panel remains wired to raw `ThreadInventory` until M3; the atlas, project, issue, plan revision, and README now state that
 same staged boundary, and one source/document contract makes M3 update them
 together (ARCH-PURPOSE).
+
+### 2026-08-30 — M2 total menu reducer
+
+Extracted one store-free exact-over-fuzzy thread matcher for both operation
+resolution and in-memory filtering, then built the immutable-by-copy menu
+reducer through root, action, confirmation, bounded text/start, bell, refresh,
+and operation-result traces. Generated key traces enforce structural/text
+bounds and declared-operation-only effects; reordered refreshes preserve exact
+identity, hidden targets discard descendants, and completions emit no effects
+(ARCH-DRY, ARCH-PURE, ARCH-PURPOSE, ARCH-CONSTRAINTS).
