@@ -22,21 +22,40 @@ returns to.
 
 ## Spec
 
-**A filtered hierarchical menu over work threads.** The root list is one row per
-durable work thread from `#149`, including parked historically active threads.
-Rows lead with the human name when present and the opaque tag fallback when not,
-then show path, live/parked state, notification state, and—when parked—relative
-last-active age. A live row says `live` rather than presenting a historical age.
-Multiple threads at one path therefore remain visibly distinct.
+**A filtered hierarchical menu over actionable work threads.** The root list is
+one row per durable work thread from `#149` that the shared core projection can
+prove is either live or verified parked. Rows lead with the human name when
+present and the opaque tag fallback when not, then show path, live/parked state,
+notification state, and—when parked—relative last-active age. A live row says
+`live` rather than presenting a historical age. Multiple threads at one path
+therefore remain visibly distinct.
+
+The core—not the terminal UI—projects stored lifecycle detail into this user
+model. A thread is live only when Couch owns a verified live TTY; it is parked
+only when it has an exact verified resume handle and no occupied incarnation.
+Transitional, ambiguous, corrupt, abandoned, legacy-unverified, or otherwise
+unsupported records remain durable but are omitted from the ordinary switcher;
+their diagnostics belong in notices/logs and a future recovery surface. Start
+and park retain their initiating UI context while in progress, and publish a row
+or state change only after reaching verified live or parked. The shared CLI,
+terminal, and future advisor inventory consume this one projection rather than
+interpreting records independently (ARCH-DRY, ARCH-PURPOSE).
+
+Notification is an ephemeral join over locally hosted TTYs, not persisted
+thread lifecycle. Bells from any inactive local incarnation mark its thread;
+switching to that thread clears the mark. Historical or remotely unobserved
+threads have no inferred notification state.
 
 Every menu level is a frame with its own stable item identities, filter text,
 and selected identity. Printable input filters the current list. Filtering keeps
 the selected item when it remains visible, otherwise selects the first match;
-zero matches means no selection. Up/Down move within the filtered rows. Tab
-pushes the selected item's submenu, Escape pops one frame, and the parent frame
-returns with its filter and selection unchanged. Enter invokes the selected
-item's primary action. With no selection, Enter and Tab report `no selection`
-and do not change levels.
+zero matches means no selection. Up/Down move within the filtered rows. In the
+thread list, Tab pushes the selected thread's action frame. Tab is a quiet no-op
+in action and confirmation lists and in rename/describe text input; in the start
+form it moves between path and agent. Escape pops one nested frame, and the
+parent frame returns with its filter and selection unchanged. Enter invokes the
+selected item's primary action. With no selection, Enter and thread-list Tab
+report `no selection` and do not change levels.
 
 Escape at the root follows the transitional panel's familiar two-step rule: a
 non-empty filter is cleared while retaining the selected thread when possible;
@@ -45,7 +64,13 @@ clear-and-replay attach path. If no live thread can receive focus, the root menu
 stays visible and reports why. Escape from a nested list always returns one
 level even when that child has a filter; the parent frame is restored exactly.
 
-At the thread level, Enter attaches to a live thread or resumes a parked one.
+At the thread level, Enter switches to a live TTY already owned by Couch or
+resumes a parked thread. This switch is Couch's existing presentation behavior,
+not a generalized application attach/detach contract. This issue requires only
+Pair's durable suspend/resume contract; live-only applications, persistence of
+live processes across Couch exit, and richer workspace-pane composition are out
+of scope.
+
 Tab opens that thread's secondary actions. The first actions are `park` for a
 live thread, `rename`, and `describe`; a parked thread offers `resume` instead
 of `park`. Actions capture the durable thread ID when the submenu opens and
@@ -91,6 +116,16 @@ updates the displayed source. Submission performs the same resolution once
 more and refuses if the preview no longer matches, so stale asynchronous input
 cannot launch with another path's arguments.
 
+Resolution uses the shared operation surface and returns the resolved agent,
+exact arguments and source plus an opaque token covering canonical path,
+selected agent, relevant preference/default revision, and that exact launch
+profile. Each form edit advances a generation; a preview completion from an
+older generation is discarded. Submit carries the current token to the live
+owner, which either revalidates and launches that exact accepted resolution or
+refuses before effects while preserving the form. The UI never reproduces
+preference resolution or performs a check separate from the launch it
+authorizes (ARCH-DRY, ARCH-PURE).
+
 Escape restores the prior stack without updating preferences; Enter returns to
 the refreshed root list with the new thread selected only after start succeeds.
 Ctrl-Space is a no-op while any text input is already active. A failed start
@@ -110,6 +145,32 @@ decision are pure. Rendering and operation dispatch are thin injected edges.
 Thread summaries, resolution, and operations come from their existing shared
 sources rather than being restated in the terminal package (ARCH-PURE,
 ARCH-PURPOSE).
+
+Filtering, navigation, and rendering use only the current in-memory inventory;
+ordinary keystrokes never read the thread store or resolve references. An
+inventory refresh runs asynchronously with at most one in flight. Failure
+preserves the complete last-good inventory, menu stack, filters, selections,
+and input text and reports a non-blocking notice; before the first successful
+read, the menu shows inventory unavailable rather than an empty list. After an
+operation succeeds, a failed refresh never causes redispatch: its returned
+thread projection updates the affected row when available, otherwise the
+last-good view remains visibly refresh-pending until a later refresh succeeds.
+
+**Operating envelope (ARCH-CONSTRAINTS).** Couch's switcher is a keystroke-
+critical primary UI. For 100 rows on the target development laptop, opening
+from the in-memory inventory produces the first frame within 50 ms; navigation,
+filtering, selection, render computation, and applying a completed refresh each
+complete within 16 ms. Inventory I/O never gates opening or input. Start, park,
+and resume may take longer, but confirmation or progress feedback appears
+within 100 ms and lifecycle work never blocks the key-reading loop. There is at
+most one inventory refresh and one current start-preview request; generations
+discard late results rather than accumulating work. Memory is linear in the
+current inventory, and frames retain identities and text rather than inventory
+copies. Filter/name input is bounded at 1 KiB and path/description at 4 KiB;
+longer persisted display values are clipped safely, never rewritten. At 40x10
+cells the single-column menu remains operable; below that it asks for a resize
+rather than emitting a malformed interface. Benchmarks cover the 100-row hot
+path, and full-console tests cover bounds, late completions, and minimum size.
 
 ## Revisions
 
@@ -135,10 +196,31 @@ path history, then the root actor, and reuses parameters only for the same agent
 at that path. The form exposes the argument source and preserves all state on
 failure or Escape; preference changes occur only after successful registration.
 
+### 2026-08-30 — keep the switcher actionable, suspend-only, and non-blocking
+
+**Reason:** operator review separated Couch's role as a TTY switcher from a
+future generalized attach/detach or workspace host, rejected internal recovery
+states in the primary UI, and classified the switcher as a keystroke-critical
+primary surface. Fresh-context spec review also found stale start-preview and
+refresh-failure transitions that lacked a shared authoritative contract.
+
+**Delta:** the ordinary inventory now contains only proven live and verified
+parked threads; other durable records remain available to diagnostics/recovery
+without leaking implementation states into the switcher. Enter switches a live
+TTY or resumes verified park, while the application contract remains
+suspend/resume only. Shared opaque start-resolution tokens bind preview to
+launch. Last-good snapshots, generation-gated async work, frame-specific Tab
+behavior, and explicit 100-row latency/resource bounds make every hot-path and
+failure transition deterministic (ARCH-DRY, ARCH-PURE, ARCH-PURPOSE,
+ARCH-CONSTRAINTS).
+
 ## Done when
 
-- Enter attaches/resumes the selected work thread; Tab enters its action menu;
+- Enter switches to/resumes the selected work thread; thread-list Tab enters
+  its action menu;
   Escape restores the exact parent filter and selection.
+- Only proven live and exact verified-parked threads appear in the ordinary
+  switcher; undecodable records are never mislabeled or discarded.
 - Park requires explicit confirmation and preserves the durable work thread.
 - Rename and description operate on the selected durable thread, survive a
   harness restart, and expose operation failures without losing typed text.
@@ -148,17 +230,26 @@ failure or Escape; preference changes occur only after successful registration.
 - The start form selects any declared Pair agent, defaults to the path's last
   successful agent or the root actor, and uses that agent's path arguments or
   repository default without crossing arguments between agents.
+- Start submits the exact current shared resolution token; out-of-order preview
+  completions and preference changes before submit cannot launch stale inputs.
 - Stale targets and zero-match lists never dispatch against a different row.
+- Inventory failure preserves the last-good UI, and post-success refresh failure
+  never repeats a mutation.
+- Opening and every ordinary keystroke meet the 100-row interaction budget
+  without synchronous I/O or unbounded asynchronous work.
 - Wide and narrow terminal layouts are readable, with selection visible without
   relying on color.
 
 ## Plan
 
-- [ ] Build the pure menu-stack reducer and filtered selection model.
-- [ ] Render thread rows, recency, selection, and nested wide/narrow menus.
-- [ ] Wire attach/resume, confirmed park, rename, describe, and global start
-      through the shared couch operation surface.
-- [ ] Add transition, stale-target, rendering, and full-console regression tests.
+- [ ] Build the shared actionable lifecycle projection plus pure menu-stack
+      reducer and filtered selection model.
+- [ ] Render thread rows, recency, selection, and nested wide/narrow menus within
+      the declared interaction and input bounds.
+- [ ] Wire switch/resume, confirmed park, rename, describe, and token-bound
+      global start through the shared couch operation surface.
+- [ ] Add transition, stale-target/result, refresh-failure, rendering, benchmark,
+      and full-console regression tests.
 
 ## Log
 
@@ -168,3 +259,12 @@ Split from `#146` after operator smoke rejected the `:` command namespace and
 design clarified that historical work threads—not live actors or worktrees—are
 the durable menu rows. Depends on `#149` so the menu never invents a second
 identity or metadata store.
+
+### 2026-08-30 — session summary
+
+Kept #151 narrowly focused on the hierarchical TTY switcher. Couch owns the
+presentation switch among live PTYs while Pair exposes only durable
+suspend/resume; generalized attach/detach and workspace composition are
+deferred. Operator-approved spec deltas hide non-actionable recovery states,
+bind start preview to execution, preserve last-good UI across refresh failure,
+define Tab per frame, and require a non-blocking 100-row hot path.
