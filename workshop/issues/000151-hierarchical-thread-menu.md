@@ -311,6 +311,16 @@ benchmark also pins terminal dimensions, row identities, and scripted events
 so its evidence is mechanically replayable (ARCH-PURE, ARCH-PURPOSE,
 ARCH-CONSTRAINTS).
 
+### 2026-08-30 — split implementation at three genuine review boundaries
+
+**Reason:** implementation planning exposed three independently testable risk
+surfaces: lifecycle/start authority, pure menu behavior, and terminal/async
+integration.
+
+**Delta:** the issue plan now marks M1/M2/M3 boundaries matching those surfaces,
+so each planned `sdlc milestone-close` has a real issue row and fresh-context
+review rather than treating the whole multi-file change as one atomic pass.
+
 ## Done when
 
 - Enter switches to/resumes the selected work thread; thread-list Tab enters
@@ -350,14 +360,12 @@ ARCH-CONSTRAINTS).
 
 ## Plan
 
-- [ ] Build the shared actionable lifecycle projection plus pure menu-stack
-      reducer and filtered selection model.
-- [ ] Render thread rows, recency, selection, and nested wide/narrow menus within
-      the declared interaction and input bounds.
-- [ ] Wire switch/resume, confirmed park, rename, describe, and token-bound
-      global start through the shared couch operation surface.
-- [ ] Add transition, stale-target/result, refresh-failure, rendering, benchmark,
-      and full-console regression tests.
+- [ ] M1 — Build and integrate authoritative actionable inventory plus bounded,
+      token-bound start preparation/admission contracts.
+- [ ] M2 — Build the pure hierarchical menu reducer, renderer, key semantics,
+      reconciliation, and bounded preview scheduler.
+- [ ] M3 — Integrate asynchronous inventory/actions/forms with Console, add
+      full-console/performance evidence, and update the Couch atlas.
 
 ## Log
 
