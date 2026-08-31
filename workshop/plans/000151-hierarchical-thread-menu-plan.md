@@ -1257,3 +1257,87 @@ actions breadcrumb component.
 invented actions ancestor. Add it to the raw-key table with Left/Escape,
 Right=Enter, Tab no-op, and Ctrl-Space/level-zero-start/Escape restoration cases
 (`ARCH-DRY`, `ARCH-PURPOSE`).
+
+### 2026-08-31 — add local message/cursor output and exact resume landing
+
+**Reason:** live Task 12 smoke exposed three missing integration contracts:
+non-root `MenuState` failures were not rendered, menu text fields inherited an
+unrelated/hidden child cursor, and resume attached without exact presentation
+landing while a queued exited pane could still trip duplicate checks.
+
+**Delta:** extend Task 12 TDD before compatibility deletion. Add a pure rendered-
+menu value containing bounded body plus optional cursor intent; keep string-only
+rendering only as a compatibility wrapper until all tests migrate. Table-test
+start path, rename/describe, and visible list filters with/without the approved
+post-breadcrumb message banner at 120x40 and 40x10, including clipped and wide-
+Unicode inputs. Test hidden cursor for non-text surfaces and resize. Add one
+hostty-owned HideCursor constant and fake-host assertions that `showMenu` paints,
+restores the Couch status row, then applies the pure cursor intent; actor replay
+and teardown retain their existing cursor authority (`ARCH-DRY`, `ARCH-PURE`).
+
+Give menu notices an explicit error vs informational/progress level. Render the
+optional, sanitized, single-line banner directly below every breadcrumb; prefix
+error-level text with `error:` and do not duplicate it into the agent-pane feed.
+Reducer tables enumerate inventory, preview, operation, validation, stale-target,
+no-selection, and resolving outcomes so no current notice producer silently
+misses the shared banner (`ARCH-PURPOSE`).
+
+Add stateful resume controller tests around `finishOperation`: a typed resume
+result attaches first and force-switches the exact returned handle; a typed start
+result still restores the switcher. Model the done-but-queued old pane in the
+existing fake Console: duplicate attach and address switching ignore panes whose
+child is done, while live duplicates refuse. Prove the resumed handle—not map
+iteration order—receives replay, and that attach refusal invokes exact abort
+before the local error banner. Run focused race plus the existing core/TTY/command
+suites with `-p 20`; the keystroke path gains no IO or concurrency
+(`ARCH-MOCK`, `ARCH-PURE`, `ARCH-PURPOSE`, `ARCH-CONSTRAINTS`).
+
+### 2026-08-31 — exhaustively specify message, cursor, and completion matrices
+
+**Reason:** fresh-context review found that the prior revision grouped message
+producers, cursor states, and asynchronous outcomes. That left enumerable
+siblings without deterministic oracles (`ARCH-PURPOSE`, `ARCH-PURE`).
+
+**Delta:** Task 12 uses the following executable matrices in addition to the
+normative Spec tables.
+
+For every message-producer row in the Spec, reducer tests assert its exact typed
+`info`/`error` value. One renderer table crosses each reachable result with
+root; actions; park; leave; rename; describe; and start opened from root,
+actions, and confirmation. Each runs at 120×40, 40×10, and 39×9. Supported
+cases assert breadcrumb, optional banner, one separator, bounded active controls,
+and no parent body. The 39×9 case asserts resize-only output, hidden cursor,
+unchanged notice state, and the same banner after resize to 40×10. Ordinary
+successful events clear notices; rejected stale completions preserve them.
+
+The cursor table crosses every surface with message absent/present and all
+three sizes. Root/action/park/leave filters cover empty, ASCII, combining,
+double-width, and right-clipped input. Rename, describe, and selected start-path
+cover the same inputs including empty; start-agent focus, selection-only,
+unavailable, and resize always hide. For every visible case, tests strip ANSI,
+locate the final field row, compute its clipped terminal-cell end with the
+production width helper, and compare exact 1-based row/column intent. A banner
+keeps the same column and adds exactly one row. A fake host asserts
+`HideCursor → take-over/paint → status restore → MoveTo+ShowCursor` when visible,
+the same prefix ending in `HideCursor` otherwise, actor return
+`clear → replay → actor cursor`, and unconditional teardown `ShowCursor`
+(`ARCH-DRY`, `ARCH-PURE`).
+
+Stateful completion tests assert these exact traces:
+
+- resume: `typed result → attach(exact handle) → reducer success/clear in-flight
+  → force-switch(exact handle) → clear/replay → status/focus`; forbid abort and
+  switcher repaint;
+- start: `typed result → attach(exact handle) → reducer success/select returned
+  address → refresh → switcher repaint`; forbid force-switch;
+- attach refusal: `refusal → abort(exact actor, synchronously) → reducer failure
+  → restore/reconcile origin → local error-banner paint`; forbid success, focus,
+  and replay.
+
+The done-pane table constructs old-done/new-live same-address handles and
+asserts that admission skips done; a live duplicate refuses before mutation;
+address lookup/switch never selects done; resume uses the returned handle rather
+than map order; and delayed exit of the old handle cannot remove, activate, or
+redirect the new handle. Run focused tests and race tests plus existing
+core/TTY/command packages with `-p 20`; no command may create more than 20
+package workers (`ARCH-CONSTRAINTS`).

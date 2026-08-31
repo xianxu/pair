@@ -496,6 +496,57 @@ Right=Enter on the selected row, Tab is a no-op, and Ctrl-Space opens a
 level-zero global start whose Escape restores the reconciled leave origin
 (`ARCH-DRY`, `ARCH-PURPOSE`).
 
+### 2026-08-31 — expose local messages, text cursors, and resume landing
+
+**Reason:** operator smoke found that start failures were silent on non-root
+surfaces, editable fields did not own the terminal cursor, and a parked-thread
+resume could attach without visibly landing—or be refused by the exited pane
+whose queued exit had not yet retired from Console routing. The operator chose
+a message banner immediately below the breadcrumb over a fixed footer or inline
+message.
+
+**Delta:** every switcher surface renders the same optional one-line local
+message banner immediately below its breadcrumb and before its controls. The
+banner is omitted when empty; appearance may shift the controls down by one row
+as explicitly chosen. Operation, preview, inventory, reconciliation, and
+validation failures set an error-level message rendered as `error: <text>`;
+progress/informational notices use the same location without the error prefix.
+The banner is sanitized and clipped without wrapping, remains visible at 40x10,
+and never writes into the separate agent-pane notification/status row. Agent-pane
+error routing remains a later slice and will reuse that existing notification
+area rather than adding another region.
+
+Pure menu rendering now returns both body text and one optional bounded cursor
+intent. The cursor is visible at the end of the active editable value for the
+start path field, rename/describe input, and any visible non-empty root/action/
+confirmation typeahead filter. It is hidden for selections, confirmations, the
+start agent selector, empty implicit filters, unavailable/resize screens, and
+all other non-text surfaces. Cursor coordinates derive from the final rendered
+and clipped lines after the optional banner, using terminal cell width for
+Unicode; Console only translates the intent into host move/show/hide sequences.
+Leaving the switcher restores the selected agent pane's replayed cursor state,
+and teardown still unconditionally shows the shell cursor (`ARCH-DRY`,
+`ARCH-PURE`, `ARCH-CONSTRAINTS`).
+
+A successful parked-thread resume is one presentation transaction: resume the
+exact durable address, attach the returned exact terminal handle, then clear/
+replay and focus that handle. New start remains intentionally different and
+returns to the switcher with its row selected. A terminal pane whose child is
+already exited but whose queued exit event has not yet retired may not block a
+same-thread attach and is never a switch candidate; a still-live duplicate
+continues to refuse. Exact handle identity, not thread-address map iteration,
+selects the resumed pane. Attach failure still aborts only the exact newly
+started handle before the reducer receives failure (`ARCH-PURE`, `ARCH-PURPOSE`).
+
+**Acceptance:** raw-host tests cover every frame with and without messages,
+including failed `../pair` start, and assert that the banner survives repaint at
+120x40 and 40x10 without leaking into the status row. Pure render tests cover
+cursor row/column after banner insertion, clipping, and wide Unicode for every
+editable class plus hidden-cursor non-text classes. Stateful Console tests cover
+resume with a normal retired pane and with a done-but-not-yet-retired pane,
+requiring exact attach-before-replay, focused resumed handle, no abort on success,
+and exact abort with preserved switcher/error banner on failure.
+
 ## Done when
 
 - Enter switches to/resumes the selected work thread; thread-list Tab enters
@@ -869,3 +920,92 @@ attempt, while legacy Alt+x/flat-panel work retains its existing completion
 path until Task 12 removes it. Semantic failure and attach-before-success tests,
 the focused restoration matrix, targeted race suite, and full core/TTY/command
 packages pass (`ARCH-PURE`, `ARCH-PURPOSE`).
+
+### 2026-08-31 — make local messages, cursor ownership, and resume completion total
+
+Fresh review found that the first live-smoke revision named the three missing
+behaviors without making their state spaces exhaustive. This revision is the
+normative Task 12 contract and supersedes the earlier summary where they differ.
+
+#### Switcher message contract
+
+`MenuNotice` is one typed value (`level`, `text`), owned by `MenuState` and
+rendered by the one active switcher surface. The renderer sanitizes it to one
+terminal row. Errors render as `error: <text>`; progress/info renders without a
+prefix. A handled semantic event clears the prior notice unless the event
+installs one below; a stale completion rejected by the reducer preserves it.
+
+| Producer | Level | Exact text or pattern | Surface after reconciliation |
+|---|---|---|---|
+| Console initialization; refresh begins before first inventory | info | `thread inventory unavailable` | current surface |
+| inventory provider failure | error | `thread inventory unavailable: <provider error>` | current surface |
+| Enter/Tab with no root row; Enter with no action/confirmation row | error | `no selection` | originating surface |
+| root Escape without a live active thread | error | `no live thread can receive focus` | root |
+| invalid park-hotkey operation | error | `park action is unavailable` | current surface |
+| park-hotkey target absent or not live | error | `active thread is no longer actionable` | root after reconciliation |
+| selected target disappears | error | `thread <label> (<scope>/<tag>) is no longer actionable` | root, or retained level-zero start |
+| stale action/confirmation target or action | error | `thread action is no longer applicable` | root, or retained level-zero start |
+| stale rename/describe target | error | `thread input is no longer applicable` | root, or retained level-zero start |
+| invalid frame kind | error | `menu frame is no longer valid` | root, or retained level-zero start |
+| start submit begins preview resolution | progress | `resolving` | start |
+| preview sequence cannot advance | error | `start preview identity exhausted` | start |
+| preview dispatcher/provider failure | error | `<returned error>`, fallback `start preview failed` | start |
+| operation sequence cannot advance | error | `operation attempt identity exhausted` | originating surface |
+| frame sequence cannot advance | error | `menu frame identity exhausted` | originating surface |
+| queue refusal, dispatcher failure, attach refusal, abort failure, or correlated operation failure | error | `<returned error>`, fallback `<operation> failed` | restored/reconciled origin |
+
+The optional banner is immediately below the breadcrumb and before the blank
+separator and controls. It is absent, not blank, when empty, so later rows move
+down exactly one only while it is visible. Root, actions, park, direct leave,
+rename, describe, and start opened from root/actions/confirmation share this
+placement. At 120×40 and 40×10 it remains bounded with one active body and no
+ancestor body. Below 40×10 the renderer emits only the resize request, hides
+cursor and banner, retains the typed notice, and reveals it after a supported
+resize. Switcher notices never enter the actor-pane feed; later actor-pane
+errors reuse its existing notification row (`ARCH-DRY`, `ARCH-PURPOSE`).
+
+#### Cursor contract
+
+The pure render result contains body bytes plus optional 1-based terminal-cell
+cursor intent. Intent refers to the final clipped body after banner insertion,
+never bytes/code points. A clipped logical end clamps to the final rendered
+field cell. Width reuses the terminal-width authority: ASCII=1, combining=0,
+double-width=2.
+
+| Active surface/edit state | Empty | Non-empty or clipped | Banner effect |
+|---|---|---|---|
+| root filter | hidden | after rendered `filter: …` | row +1 |
+| actions filter | hidden | after rendered `filter: …` | row +1 |
+| park confirmation filter | hidden | after rendered `filter: …` | row +1 |
+| direct-leave confirmation filter | hidden | after rendered `filter: …` | row +1 |
+| rename input | after `> ` | rendered/clamped field end | row +1 |
+| describe input | after `> ` | rendered/clamped field end | row +1 |
+| start with path selected | after `▸ path  ` | rendered/clamped path end | row +1 |
+| start with agent selected | hidden | hidden | none |
+| selection-only, unavailable, or below-minimum resize | hidden | hidden | none |
+
+The table applies independently at 120×40 and 40×10; below minimum always
+hides. Tests locate the exact rendered field row and assert its cell end for
+ASCII, combining acute, and double-width input, clipped and unclipped. Host
+order is: hide inherited actor cursor; clear/paint switcher; restore Couch
+status; then `MoveTo`+`ShowCursor`, or `HideCursor`. Actor return clears/replays
+before transferring cursor ownership. Every teardown emits `ShowCursor`
+(`ARCH-PURE`, `ARCH-CONSTRAINTS`).
+
+#### Start/resume completion contract
+
+1. Resume success: typed result → attach exact handle → correlated reducer
+   success/clear in-flight → force-switch exact handle → clear/replay →
+   status/focus. No abort or switcher repaint.
+2. Start success: typed result → attach exact handle → correlated reducer
+   success/select returned row → refresh → switcher repaint. No force-switch.
+3. Attach failure: refusal → synchronous exact-actor abort → correlated reducer
+   failure → captured-origin restoration/reconciliation → local error-banner
+   paint. No success, focus, or replay; attach and abort errors remain visible.
+
+Address admission and address switching ignore panes whose child is `Done`; a
+live same-address pane refuses before routing/order/watcher/reducer mutation. A
+later queued exit for the old done handle removes only that handle and cannot
+remove, activate, or redirect the new handle. Ordered fake-host/fake-runner
+traces, not final-map assertions alone, enforce this contract
+(`ARCH-PURE`, `ARCH-PURPOSE`, `ARCH-CONSTRAINTS`).
