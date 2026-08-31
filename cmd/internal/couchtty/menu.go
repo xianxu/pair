@@ -830,7 +830,7 @@ func reduceOperationResult(state MenuState, event MenuEvent) MenuState {
 	originFrame, originVisible := menuOperationOriginFrame(state, origin)
 	if !event.Success {
 		if event.Operation == "park" && origin.FrameKind == MenuFrameConfirmation && originVisible {
-			state.Frames = state.Frames[:origin.Depth-1]
+			state = restoreMenuPrefixPreservingStart(state, origin.Depth-1, origin)
 		}
 		state.Notice = event.Error
 		if state.Notice == "" {
@@ -847,10 +847,40 @@ func reduceOperationResult(state MenuState, event MenuEvent) MenuState {
 			state.Frames = state.Frames[:origin.Depth-1]
 		}
 	case "park", "resume", "start":
-		state.Frames = state.Frames[:1]
+		state = restoreMenuPrefixPreservingStart(state, 1, origin)
 		state.Frames[0].SelectedAddress = event.Address
 		reconcileRootSelection(&state, event.Address)
 	}
+	return state
+}
+
+func restoreMenuPrefixPreservingStart(state MenuState, keep int, origin MenuOperationOrigin) MenuState {
+	overlays := make([]MenuFrame, 0, 1)
+	for _, frame := range state.Frames {
+		if frame.Kind == MenuFrameStart && frame.Instance != origin.FrameInstance {
+			overlays = append(overlays, frame)
+		}
+	}
+	if keep < 0 {
+		keep = 0
+	}
+	if keep > len(state.Frames) {
+		keep = len(state.Frames)
+	}
+	frames := append([]MenuFrame(nil), state.Frames[:keep]...)
+	for _, overlay := range overlays {
+		alreadyPresent := false
+		for _, frame := range frames {
+			if frame.Instance == overlay.Instance {
+				alreadyPresent = true
+				break
+			}
+		}
+		if !alreadyPresent {
+			frames = append(frames, overlay)
+		}
+	}
+	state.Frames = frames
 	return state
 }
 

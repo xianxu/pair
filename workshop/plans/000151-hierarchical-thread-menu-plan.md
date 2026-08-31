@@ -1161,3 +1161,17 @@ global successful park/resume/start restoration remains explicit. The complete
 operation × outcome table replaces the origin frame before completion and
 proves all frame-local actions preserve the replacement; frame-identity
 exhaustion refuses navigation (ARCH-PURE, ARCH-PURPOSE).
+
+### 2026-08-31 — preserve unrelated later overlays during completion restoration
+
+**Reason:** the eighth M2 boundary review found that exact origin identity
+prevented a replacement frame from being mistaken for the origin, but global
+park/resume/start restoration and park-failure restoration still sliced away a
+start overlay legally opened after dispatch (`BR-20`,
+`operation-result-origin-correlation`).
+
+**Delta:** completion now transforms only the captured originating stack
+prefix, then retains a distinct later global start overlay by frame-instance
+identity unless target-invalid reconciliation has removed it. A real reducer
+navigation table covers every operation across success and failure after the
+later overlay opens (ARCH-PURE, ARCH-PURPOSE).

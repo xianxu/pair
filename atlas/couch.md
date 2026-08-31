@@ -49,6 +49,9 @@ operations correlate both outcomes with the captured request address; a failed
 start needs no created address, while start success does. Effects that assert
 success, such as clearing a switched thread's bell, commit only after that
 correlated success. It reconciles
+completion-owned stack prefixes against the captured frame instance and
+preserves a newer global start overlay opened after dispatch; an asynchronous
+completion does not own unrelated later UI. It reconciles
 refreshed identity root-to-leaf independently from filtered selection and
 discards the first invalid thread frame plus descendants; hidden-target notices
 retain the prior human label and composite address, while a global start frame

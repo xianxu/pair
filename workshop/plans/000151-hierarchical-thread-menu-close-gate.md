@@ -266,6 +266,23 @@ rounds:
           round: 10
       boundary: M2
       blocked: true
+    - "n": 11
+      timestamp: "2026-08-30T23:24:35-07:00"
+      agent: codex
+      dispose:
+        - id: BR-19
+          disposition: addressed
+          note: Exact monotonic frame-instance identity now gates frame-local restoration, and the six-operation replacement-frame regression would fail against the prior kind/depth-only implementation.
+          round: 11
+      findings:
+        - id: BR-20
+          severity: Critical
+          title: Operation restoration discards a global start overlay opened after dispatch
+          detail: This is the 5th finding in family operation-result-origin-correlation. A park failure slices the stack to the originating action frame, while successful park or resume slices it to root; either path removes a legal global start overlay opened after dispatch, contrary to the Spec. State the class rule that completion may transform its captured origin but must preserve unrelated later frames, then sweep every operation, outcome, and legal post-dispatch navigation with mutation-sensitive regressions.
+          family: operation-result-origin-correlation
+          round: 11
+      boundary: M2
+      blocked: true
 ---
 
 # Gate ledger — pair#151 (boundary-review)
@@ -397,6 +414,17 @@ later rounds disposed of them. Generated — edit the gate, not this file.
 - **BR-19** [Critical] `operation-result-origin-correlation` Operation completions can mutate a replacement frame at the same depth
   This is the 4th finding in family operation-result-origin-correlation. menuOperationOriginFrame identifies an origin only by frame kind and depth, so navigation during in-flight work can replace park A's confirmation or name/describe A's draft with frame B at the same position; A's completion then pops B. State the class rule that frame-local completion effects require an exact menu-lifetime frame-instance identity, sweep every operation and outcome, and add mutation-sensitive replacement-frame regressions.
 
+## Round 11 — 2026-08-30T23:24:35-07:00 (codex) — BLOCKED
+
+### Disposed
+
+- BR-19 — addressed — Exact monotonic frame-instance identity now gates frame-local restoration, and the six-operation replacement-frame regression would fail against the prior kind/depth-only implementation.
+
+### Raised
+
+- **BR-20** [Critical] `operation-result-origin-correlation` Operation restoration discards a global start overlay opened after dispatch
+  This is the 5th finding in family operation-result-origin-correlation. A park failure slices the stack to the originating action frame, while successful park or resume slices it to root; either path removes a legal global start overlay opened after dispatch, contrary to the Spec. State the class rule that completion may transform its captured origin but must preserve unrelated later frames, then sweep every operation, outcome, and legal post-dispatch navigation with mutation-sensitive regressions.
+
 ## Open findings
 
-- **BR-19** [Critical] `operation-result-origin-correlation` Operation completions can mutate a replacement frame at the same depth
+- **BR-20** [Critical] `operation-result-origin-correlation` Operation restoration discards a global start overlay opened after dispatch

@@ -547,7 +547,10 @@ func TestMenuOperationCompletionNeverMistakesReplacementFrameForOrigin(t *testin
 				result := correlatedMenuResult(state, MenuEvent{Operation: tc.operation, Address: resultAddress, Success: success, Error: "failed"})
 				got, _ := ReduceMenu(state, result)
 
-				globalSuccess := success && (tc.operation == "resume" || tc.operation == "park" || tc.operation == "start")
+				// A replacement start frame is an independent global overlay opened
+				// after dispatch; unlike a replacement thread-local frame, successful
+				// completion does not own it.
+				globalSuccess := success && (tc.operation == "resume" || tc.operation == "park")
 				if globalSuccess {
 					if len(got.Frames) != 1 {
 						t.Fatalf("global success did not restore root: %+v", got.Frames)
@@ -565,6 +568,71 @@ func TestMenuOperationCompletionNeverMistakesReplacementFrameForOrigin(t *testin
 	got, effects := reduceKey(exhausted, PanelKey{Kind: KeyTab})
 	if len(effects) != 0 || !reflect.DeepEqual(got.Frames, before) || got.Notice != "menu frame identity exhausted" {
 		t.Fatalf("exhausted frame identity authorized navigation: state=%+v effects=%+v", got, effects)
+	}
+}
+
+func TestMenuOperationCompletionPreservesLaterGlobalStartOverlay(t *testing.T) {
+	for _, operation := range []string{"switch", "resume", "park", "name", "describe", "start"} {
+		for _, success := range []bool{false, true} {
+			t.Run(operation+fmt.Sprintf("/success=%t", success), func(t *testing.T) {
+				state := NewMenuState(menuThreads(), menuAddress("couch-one"))
+				state.Agents = []string{"claude"}
+				state.RootAgent = "claude"
+				var effects []MenuEffect
+				switch operation {
+				case "switch":
+					state, effects = reduceKey(state, PanelKey{Kind: KeyEnter})
+				case "resume":
+					state, _ = reduceKey(state, PanelKey{Kind: KeyDown})
+					state, effects = reduceKey(state, PanelKey{Kind: KeyEnter})
+				case "park":
+					state, _ = reduceKey(state, PanelKey{Kind: KeyTab})
+					state, _ = reduceKey(state, PanelKey{Kind: KeyEnter})
+					state, _ = reduceKey(state, PanelKey{Kind: KeyDown})
+					state, effects = reduceKey(state, PanelKey{Kind: KeyEnter})
+				case "name", "describe":
+					state, _ = reduceKey(state, PanelKey{Kind: KeyTab})
+					if operation == "name" {
+						state, _ = reduceKey(state, PanelKey{Kind: KeyDown})
+					} else {
+						state, _ = reduceKey(state, PanelKey{Kind: KeyDown})
+						state, _ = reduceKey(state, PanelKey{Kind: KeyDown})
+					}
+					state, _ = reduceKey(state, PanelKey{Kind: KeyEnter})
+					state, effects = reduceKey(state, PanelKey{Kind: KeyEnter})
+				case "start":
+					state, _ = reduceKey(state, PanelKey{Kind: KeyCtrlSpace})
+					frame := &state.Frames[len(state.Frames)-1]
+					frame.PreviewAccepted = frame.Generation
+					frame.PreviewToken = "accepted"
+					frame.PreviewPath = "/repo/new"
+					frame.PreviewAgent = "claude"
+					state, effects = reduceKey(state, PanelKey{Kind: KeyEnter})
+				}
+				if len(effects) != 1 || effects[0].Operation != operation {
+					t.Fatalf("dispatch = state %+v effects %+v", state, effects)
+				}
+
+				if state.CurrentFrame().Kind == MenuFrameText || state.CurrentFrame().Kind == MenuFrameStart {
+					state, _ = reduceKey(state, PanelKey{Kind: KeyEscape})
+				}
+				state, _ = reduceKey(state, PanelKey{Kind: KeyCtrlSpace})
+				if state.CurrentFrame().Kind != MenuFrameStart {
+					t.Fatalf("could not open later global start: %+v", state.Frames)
+				}
+				overlay := state.CurrentFrame()
+				address := state.InFlight.Address
+				if operation == "start" && success {
+					address = menuAddress("couch-new")
+				}
+				got, emitted := ReduceMenu(state, correlatedMenuResult(state, MenuEvent{
+					Operation: operation, Address: address, Success: success, Error: "failed",
+				}))
+				if len(emitted) != 0 || got.CurrentFrame().Kind != MenuFrameStart || got.CurrentFrame().Instance != overlay.Instance {
+					t.Fatalf("completion discarded later global start: state=%+v effects=%+v want overlay=%+v", got, emitted, overlay)
+				}
+			})
+		}
 	}
 }
 

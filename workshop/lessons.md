@@ -2670,6 +2670,12 @@ must update the entire class together (`ARCH-PURPOSE`).
   that occupied it; otherwise an old completion can mutate newer work.
   Looking only at the currently visible frame loses root-level operations and
   lets stale results rewrite state (`ARCH-PURE`, `ARCH-PURPOSE`).
+- Exact origin identity bounds what an asynchronous completion owns; it does
+  not grant ownership of UI created afterward. When completion restores or
+  collapses the captured stack, transform only its originating prefix and
+  preserve unrelated later overlays by instance. Sweep every operation and
+  outcome after legal post-dispatch navigation, not only replacement at the
+  origin slot (`ARCH-PURE`, `ARCH-PURPOSE`).
 - Correlation cannot require identity produced only by success: enumerate every
   operation across success/failure and present/missing result fields. Commit
   optimistic UI changes only after correlated success, so a failed external

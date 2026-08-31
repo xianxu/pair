@@ -710,3 +710,87 @@ findings:
     detail: |
       This is the 4th finding in family operation-result-origin-correlation. menuOperationOriginFrame identifies an origin only by frame kind and depth, so navigation during in-flight work can replace park A's confirmation or name/describe A's draft with frame B at the same position; A's completion then pops B. State the class rule that frame-local completion effects require an exact menu-lifetime frame-instance identity, sweep every operation and outcome, and add mutation-sensitive replacement-frame regressions.
 ```
+
+---
+
+## Re-review — 2026-08-30T23:24:35-07:00 (REWORK)
+
+| field | value |
+|-------|-------|
+| issue | 151 — couch: hierarchical work-thread menu |
+| repo | pair |
+| issue file | workshop/issues/000151-hierarchical-thread-menu.md |
+| boundary | milestone M2 |
+| milestone | M2 |
+| window | 66ae7eef502eb996f4b2d7f096e0ee73090204b2..cc1bbc37de77346a5bbaa15d8483490f142e8cbf |
+| command | sdlc milestone-close --issue 151 --milestone M2 |
+| reviewer | codex |
+| timestamp | 2026-08-30T23:24:35-07:00 |
+| verdict | REWORK |
+
+## Review
+
+```verdict
+verdict: REWORK
+confidence: high
+```
+
+BR-19 is addressed: frame-local restoration now requires the captured monotonic frame instance, and its regression would fail against the prior kind/depth-only implementation. However, a related reachable transition still removes a global start overlay opened after dispatch. This contradicts the Spec and requires another boundary review.
+
+1. Strengths
+
+- Exact attempt correlation occurs before returned inventory is accepted at [menu.go](/Users/xianxu/workspace/pair/cmd/internal/couchtty/menu.go:184).
+- BR-19’s frame-instance check is correctly enforced at [menu.go](/Users/xianxu/workspace/pair/cmd/internal/couchtty/menu.go:857).
+- The replacement-frame regression covers all six operations and both outcomes at [menu_test.go](/Users/xianxu/workspace/pair/cmd/internal/couchtty/menu_test.go:502).
+- The reducer, renderer, matcher, and scheduler remain pure and directly tested without I/O.
+- Atlas documentation accurately describes M2 as inert pending M3 Console integration.
+
+2. Critical findings
+
+- [menu.go](/Users/xianxu/workspace/pair/cmd/internal/couchtty/menu.go:831): completion restoration can discard a global start overlay opened after dispatch.
+
+  While park is in flight from its confirmation list, Ctrl-Space may legally open the global start form. Park failure then executes `state.Frames[:origin.Depth-1]`, deleting both the confirmation and the later start overlay. Successful park or resume similarly executes `state.Frames[:1]` at line 850 and removes such an overlay. This violates the Spec’s rule that the non-thread-bound global start form remains open across async completion.
+
+  **This is the 5th finding in family `operation-result-origin-correlation`.** Earlier rounds fixed instances. Do not patch only park failure: state the class rule that completion restoration may transform the captured originating stack but must preserve unrelated frames created afterward, except where explicit target-invalid reconciliation applies. Sweep every operation/outcome and every legal post-dispatch navigation. A useful fix shape is to restore the captured prefix by frame identity and then reattach surviving global overlays.
+
+3. Important findings
+
+None.
+
+4. Minor findings
+
+None.
+
+5. Test coverage notes
+
+`go test -p 20 ./... -count=1` passed, as did focused couchcore/couchtty tests and `git diff --check`.
+
+BR-19 has an effective regression: removing instance matching would make the park-failure and name/describe-success replacement cases fail. Missing coverage is the reachable sequence `dispatch → Ctrl-Space from a list frame → completion`, especially park failure and park/resume success.
+
+6. Architectural notes for upcoming work
+
+- `ARCH-DRY`: Pass. Matching, reducer transitions, and preview scheduling each retain one authority.
+- `ARCH-PURE`: Pass. Business transitions remain deterministic and independent of terminal/store I/O.
+- `ARCH-PURPOSE`: Flag. Async restoration still under-delivers the promised global-start preservation rule.
+- `ARCH-MOCK`: Pass. M2 introduces no external dependency; M3 integration remains behind documented seams.
+- `ARCH-CONSTRAINTS`: Pass for M2. Input, stack, scheduling, viewport, and minimum-terminal bounds are exercised.
+
+7. Plan revision recommendations
+
+Append a `## Revisions` entry recording that exact origin identity is necessary but insufficient: an async completion owns transformations to its captured originating stack, not unrelated frames created afterward. Require an exhaustive operation × outcome × legal post-dispatch navigation trace, including global-start preservation.
+
+```findings
+dispose:
+  - id: BR-19
+    disposition: addressed
+    note: |
+      Exact monotonic frame-instance identity now gates frame-local restoration, and the six-operation replacement-frame regression would fail against the prior kind/depth-only implementation.
+findings:
+  - id: new
+    severity: Critical
+    family: operation-result-origin-correlation
+    title: |
+      Operation restoration discards a global start overlay opened after dispatch
+    detail: |
+      This is the 5th finding in family operation-result-origin-correlation. A park failure slices the stack to the originating action frame, while successful park or resume slices it to root; either path removes a legal global start overlay opened after dispatch, contrary to the Spec. State the class rule that completion may transform its captured origin but must preserve unrelated later frames, then sweep every operation, outcome, and legal post-dispatch navigation with mutation-sensitive regressions.
+```

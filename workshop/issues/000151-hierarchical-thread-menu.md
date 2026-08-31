@@ -404,6 +404,18 @@ park/resume/start restoration remains explicit. The operation × outcome ×
 replaced-frame table covers all six operations and fail-safe frame-identity
 exhaustion (ARCH-PURE, ARCH-PURPOSE).
 
+### 2026-08-30 — transform origin stacks without owning later overlays
+
+**Reason:** the eighth M2 boundary review found that exact origin identity still
+did not preserve an unrelated global start overlay legally opened after
+dispatch; stack slicing removed both the owned origin and the later overlay.
+
+**Delta:** completion restoration transforms only its captured originating
+stack, then reattaches surviving global start overlays by instance identity
+unless target-invalid reconciliation has already removed them. A real-navigation
+operation × outcome sweep covers switch, resume, park, name, describe, and
+start with post-dispatch overlay creation (ARCH-PURE, ARCH-PURPOSE).
+
 ## Done when
 
 - Enter switches to/resumes the selected work thread; thread-list Tab enters
@@ -675,3 +687,12 @@ table went red for park failure and name/describe success, then green after
 origins captured monotonic frame-instance identity; global successful
 park/resume/start behavior stays explicit and identity exhaustion refuses
 navigation (`ARCH-PURE`, `ARCH-PURPOSE`).
+
+### 2026-08-31 — M2 boundary review round 8
+
+The review disposed BR-19, then found that successful global restoration and
+park-failure restoration still discarded a global start overlay opened after
+dispatch. The six-operation success/failure navigation sweep went red for
+resume success, park failure/success, and start success, then green after
+restoration became a captured-prefix transform that retains unrelated later
+start overlays by frame instance (`ARCH-PURE`, `ARCH-PURPOSE`).
