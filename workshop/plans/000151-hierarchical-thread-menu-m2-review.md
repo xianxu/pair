@@ -454,3 +454,81 @@ Append a `## Revisions` entry recording:
 
 - Preview authority is identified by form lifetime plus generation; Escape/reopen and late completion are part of the required enumeration.
 - Core concepts tables distinguish current-boundary status from final planned status, with every pure entity and integration point swept under that rule.
+
+---
+
+## Re-review — 2026-08-30T22:56:44-07:00 (REWORK)
+
+| field | value |
+|-------|-------|
+| issue | 151 — couch: hierarchical work-thread menu |
+| repo | pair |
+| issue file | workshop/issues/000151-hierarchical-thread-menu.md |
+| boundary | milestone M2 |
+| milestone | M2 |
+| window | 66ae7eef502eb996f4b2d7f096e0ee73090204b2..e3e9f7c22d5bc341ec8165072b18a18dd7aefb44 |
+| command | sdlc milestone-close --issue 151 --milestone M2 |
+| reviewer | codex |
+| timestamp | 2026-08-30T22:56:44-07:00 |
+| verdict | REWORK |
+
+## Review
+
+```verdict
+verdict: REWORK
+confidence: high
+```
+
+M2’s implementation and full test suite are sound, and BR-16 is demonstrably fixed. However, BR-17 remains open under the review contract: the Core concepts tables now match the pinned filesystem, but no test enforces their boundary-status accuracy. Because the instructions explicitly require a test that fails without each claimed fix, the boundary cannot close yet.
+
+### 1. Strengths
+
+- Preview identity is now monotonic across form lifetimes ([menu.go](/Users/xianxu/workspace/pair/cmd/internal/couchtty/menu.go:410), [menu.go](/Users/xianxu/workspace/pair/cmd/internal/couchtty/menu.go:524)).
+- The reducer/scheduler Escape-reopen regression exercises the actual stale-token path ([menu_async_test.go](/Users/xianxu/workspace/pair/cmd/internal/couchtty/menu_async_test.go:167)).
+- Reducer, renderer, decoder, and scheduler remain pure and directly tested.
+- The atlas accurately says the hierarchical core is inert until M3 and documents the current preview identity rule ([couch.md](/Users/xianxu/workspace/pair/atlas/couch.md:39)).
+- All M2 Core concepts rows currently agree with the pinned source tree.
+
+### 2. Critical findings
+
+- **BR-17 — documentation-current-state-accuracy:** The plan-table correction has no regression test. Existing contract tests do not parse `000151-hierarchical-thread-menu-plan.md` or validate its `Delivery`/`Current at M2` columns. Add a contract test that enumerates every row, verifies present/absent/deleted status against the repository, and fails when future M3 surface is presented as current. Under the supplied claimed-fix rule, BR-17 is therefore `not-addressed`.
+
+### 3. Important findings
+
+None.
+
+### 4. Minor findings
+
+None.
+
+### 5. Test coverage notes
+
+- `go test -p 20 ./cmd/internal/couchcore ./cmd/internal/couchtty -count=1` passed.
+- `go test -p 20 ./... -count=1` passed.
+- `git diff --check` passed.
+- BR-16 mutation check: restoring generation `1` on every reopened form caused `TestReduceMenuPreviewIdentitySurvivesEscapeAndReopen` to fail with `form lifetimes reused preview identity 1`.
+- No corresponding mutation-sensitive test exists for BR-17.
+
+### 6. Architectural notes for upcoming work
+
+- **ARCH-DRY — pass:** menu filtering reuses the shared exact-over-fuzzy matcher; operation effects use declared shared operations.
+- **ARCH-PURE — pass:** reducer, layout/rendering, decoder, and preview scheduler have no filesystem, process, terminal, or network I/O.
+- **ARCH-PURPOSE — pass for implementation; documentation guard incomplete:** M2 delivers the claimed inert pure core without presenting M3 integration as reachable, but BR-17’s staging truth is not executable.
+- **ARCH-MOCK — pass/N/A:** M2 introduces no external service or binary dependency; integration workers remain deferred to M3.
+- **ARCH-CONSTRAINTS — pass:** structural/input/worker bounds and minimum terminal geometry are enforced and tested; target-machine latency remains correctly staged for M3.
+
+### 7. Plan revision recommendations
+
+None—the existing BR-16/BR-17 revision accurately describes the code. The missing work is an executable documentation-status contract, not another prose revision.
+
+```findings
+dispose:
+  - id: BR-16
+    disposition: addressed
+    note: |
+      Menu-lifetime monotonic identity is reachable and mutation-verified by the reducer-plus-scheduler Escape/reopen regression.
+  - id: BR-17
+    disposition: not-addressed
+    note: |
+      The tables now match the pinned tree, but no test fails when current-boundary statuses regress, as required by the claimed-fix contract.
+```

@@ -218,6 +218,20 @@ rounds:
           round: 7
       boundary: M2
       blocked: true
+    - "n": 8
+      timestamp: "2026-08-30T22:56:44-07:00"
+      agent: codex
+      dispose:
+        - id: BR-16
+          disposition: addressed
+          note: Menu-lifetime monotonic identity is reachable and mutation-verified by the reducer-plus-scheduler Escape/reopen regression.
+          round: 8
+        - id: BR-17
+          disposition: not-addressed
+          note: The tables now match the pinned tree, but no test fails when current-boundary statuses regress, as required by the claimed-fix contract.
+          round: 8
+      boundary: M2
+      blocked: true
 ---
 
 # Gate ledger — pair#151 (boundary-review)
@@ -320,7 +334,13 @@ later rounds disposed of them. Generated — edit the gate, not this file.
 - **BR-17** [Critical] `documentation-current-state-accuracy` The Core concepts inventory reports future M3 surface as current
   This is the 2nd finding in family `documentation-current-state-accuracy`. The plan lists menu_refresh.go as new and PanelModel as deleted at lines 24-26, and lists console_menu.go and menu_perf_test.go at lines 76 and 79, but the pinned head lacks all three new files and still contains panel.go. Apply one rule across the complete table: every row must distinguish current-boundary state from final planned state, such as with a delivery-milestone/current-status column; do not patch only these four rows. The atlas statement that Escape and stale preview results cannot reuse authority must also be corrected until the lifetime bug is fixed.
 
+## Round 8 — 2026-08-30T22:56:44-07:00 (codex) — BLOCKED
+
+### Disposed
+
+- BR-16 — addressed — Menu-lifetime monotonic identity is reachable and mutation-verified by the reducer-plus-scheduler Escape/reopen regression.
+- BR-17 — not-addressed — The tables now match the pinned tree, but no test fails when current-boundary statuses regress, as required by the claimed-fix contract.
+
 ## Open findings
 
-- **BR-16** [Critical] `preview-capability-single-generation` Reopened start forms can accept and launch an earlier form's preview
 - **BR-17** [Critical] `documentation-current-state-accuracy` The Core concepts inventory reports future M3 surface as current

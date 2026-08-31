@@ -624,3 +624,11 @@ current in the plan. The composed reducer/scheduler Escape/reopen trace went
 red with two generation-one forms and green after menu-lifetime monotonic
 identity; both Core concepts tables now state delivery and current M2 status
 for every row (`ARCH-PURE`, `ARCH-PURPOSE`).
+
+### 2026-08-30 — M2 boundary review round 5
+
+The review mutation-verified preview lifetime identity and confirmed every plan
+row matched the tree, but kept BR-17 open because that staging truth was not
+executable. A new contract enumerates all 16 Core concepts/integration rows,
+checks exact delivery/current status against present and absent files, and
+proves an in-memory future-M3-as-current mutation fails (`ARCH-PURPOSE`).

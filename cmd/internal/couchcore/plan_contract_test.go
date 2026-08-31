@@ -724,6 +724,106 @@ func TestIssue152DeliveredCoreConceptsResolveToGoDeclarations(t *testing.T) {
 	}
 }
 
+func TestIssue151CoreConceptsMatchM2Boundary(t *testing.T) {
+	root := filepath.Clean(filepath.Join("..", "..", ".."))
+	planPath := findPlanArtifact(t, root, "000151-hierarchical-thread-menu-plan.md")
+	raw, err := os.ReadFile(planPath)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := validateIssue151M2Concepts(root, string(raw)); err != nil {
+		t.Fatal(err)
+	}
+
+	mutated := strings.Replace(string(raw),
+		"| `RefreshSchedule` / `AdvanceRefreshSchedule` | `cmd/internal/couchtty/menu_refresh.go` | new | M3 | absent |",
+		"| `RefreshSchedule` / `AdvanceRefreshSchedule` | `cmd/internal/couchtty/menu_refresh.go` | new | M3 | present |", 1)
+	if mutated == string(raw) {
+		t.Fatal("failed to construct future-as-current mutation")
+	}
+	if err := validateIssue151M2Concepts(root, mutated); err == nil {
+		t.Fatal("future M3 surface presented as current passed the M2 boundary contract")
+	}
+}
+
+type issue151M2ConceptContract struct {
+	delivery string
+	current  string
+	present  []string
+	absent   []string
+}
+
+func validateIssue151M2Concepts(root, plan string) error {
+	want := map[string]issue151M2ConceptContract{
+		"`ActionableThreadSummary` / `LiveTTYObservation` / `ProjectActionableThreads`": {"M1", "present", []string{"cmd/internal/couchcore/actionableinventory.go"}, nil},
+		"`StartResolution` / `StartResolutionFingerprint` / `ResolveStartResolution`":   {"M1", "present", []string{"cmd/internal/couchcore/startresolution.go"}, nil},
+		"`MenuState` / `MenuFrame` / `MenuEvent` / `ReduceMenu`":                        {"M2", "present", []string{"cmd/internal/couchtty/menu.go"}, nil},
+		"`MenuLayout` / `AgeBand` / `RenderMenu`":                                       {"M2", "present", []string{"cmd/internal/couchtty/menu_render.go"}, nil},
+		"`PreviewSchedule` / `AdvancePreviewSchedule`":                                  {"M2", "present", []string{"cmd/internal/couchtty/menu_async.go"}, nil},
+		"`RefreshSchedule` / `AdvanceRefreshSchedule`":                                  {"M3", "absent", nil, []string{"cmd/internal/couchtty/menu_refresh.go"}},
+		"`PanelKey` / `DecodePanelKeys`":                                                {"M2", "modified, present", []string{"cmd/internal/couchtty/panelkeys.go"}, nil},
+		"`PanelModel` / resolver-driven `Filter`":                                       {"M3", "present compatibility adapter", []string{"cmd/internal/couchtty/panel.go"}, nil},
+		"`Couch.ActionableThreadInventory`":                                             {"M1", "present", []string{"cmd/internal/couchcore/actionableinventory.go"}, nil},
+		"`Couch.PrepareStart` / `Couch.SpawnPrepared`":                                  {"M1", "present", []string{"cmd/internal/couchcore/startresolution.go", "cmd/internal/couchcore/couch.go"}, nil},
+		"`StartGrantStore`": {"M1", "present", []string{"cmd/internal/couchcore/startgrant.go"}, nil},
+		"context-bearing shared operations and post-start cleanup":    {"M1", "modified, present", []string{"cmd/internal/couchcore/ops.go", "cmd/internal/couchcore/operationdispatch.go", "cmd/internal/couchcore/couch.go"}, nil},
+		"`Console` menu controller":                                   {"M3", "`console_menu.go` absent; flat Console present", []string{"cmd/internal/couchtty/console.go"}, []string{"cmd/internal/couchtty/console_menu.go"}},
+		"`wireResolver` composition":                                  {"M3", "M1 start authority present; menu wiring pending", []string{"cmd/internal/couchcmd/run.go"}, nil},
+		"context-bearing `Runner` / `FakeRunner` / `hostty.FakeHost`": {"M1", "modified, present", []string{"cmd/internal/couchcore/runner.go", "cmd/internal/couchcore/runner_fake.go", "cmd/internal/hostty/fake.go"}, nil},
+		"target performance harness":                                  {"M3", "absent", nil, []string{"cmd/internal/couchtty/menu_perf_test.go"}},
+	}
+
+	core := strings.SplitN(plan, "## Core concepts", 2)
+	if len(core) != 2 {
+		return errors.New("plan has no Core concepts section")
+	}
+	core = strings.SplitN(core[1], "## Function-level test strategies", 2)
+	if len(core) != 2 {
+		return errors.New("Core concepts section has no boundary")
+	}
+	seen := make(map[string]bool, len(want))
+	for _, line := range strings.Split(core[0], "\n") {
+		if !strings.HasPrefix(line, "| ") {
+			continue
+		}
+		cells := strings.Split(line, "|")
+		if len(cells) < 7 {
+			continue
+		}
+		name := strings.TrimSpace(cells[1])
+		if name == "Name" || strings.HasPrefix(name, "---") {
+			continue
+		}
+		contract, ok := want[name]
+		if !ok {
+			return fmt.Errorf("unclassified Core concepts row %q", name)
+		}
+		if seen[name] {
+			return fmt.Errorf("duplicate Core concepts row %q", name)
+		}
+		seen[name] = true
+		delivery := strings.TrimSpace(cells[4])
+		current := strings.TrimSpace(cells[5])
+		if delivery != contract.delivery || current != contract.current {
+			return fmt.Errorf("%s boundary = delivery %q current %q, want %q / %q", name, delivery, current, contract.delivery, contract.current)
+		}
+		for _, path := range contract.present {
+			if _, err := os.Stat(filepath.Join(root, path)); err != nil {
+				return fmt.Errorf("%s says present but %s is unavailable: %w", name, path, err)
+			}
+		}
+		for _, path := range contract.absent {
+			if _, err := os.Stat(filepath.Join(root, path)); !errors.Is(err, os.ErrNotExist) {
+				return fmt.Errorf("%s says absent but %s exists or cannot be classified: %v", name, path, err)
+			}
+		}
+	}
+	if len(seen) != len(want) {
+		return fmt.Errorf("classified %d Core concepts rows, want %d", len(seen), len(want))
+	}
+	return nil
+}
+
 func requireGoDeclaration(path, qualifiedName string) error {
 	file, err := parser.ParseFile(token.NewFileSet(), path, nil, 0)
 	if err != nil {
