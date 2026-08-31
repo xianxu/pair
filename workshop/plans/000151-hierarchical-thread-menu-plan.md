@@ -461,31 +461,31 @@ git commit -m "#151 M2: reduce hierarchical menu state"
 - Create: `cmd/internal/couchtty/menu_render.go`
 - Create: `cmd/internal/couchtty/menu_render_test.go`
 
-- [ ] **Step 1: Write failing render/layout tests**
+- [x] **Step 1: Write failing render/layout tests**
 
 Apply the renderer boundary/Unicode strategy to `RenderMenu`,
 `ChooseMenuLayout`, and `AgeBand`; stripped terminal width/height and visible
 selection are the mechanical guards.
 
-- [ ] **Step 2: Run render tests and verify RED**
+- [x] **Step 2: Run render tests and verify RED**
 
 Run: `go test -p 20 ./cmd/internal/couchtty -run 'Test(RenderMenu|ChooseMenuLayout|AgeBand|Clip)' -count=1`
 
 Expected: FAIL because render/layout entities are absent.
 
-- [ ] **Step 3: Implement pure layout and rendering**
+- [x] **Step 3: Implement pure layout and rendering**
 
 Implement the Core-concepts layout/renderer, reusing `reserve.go` sanitization
 and column truncation. Viewports and child rectangles remain bounded; terminals
 below 40x10 receive only the resize message.
 
-- [ ] **Step 4: Run render tests and verify GREEN**
+- [x] **Step 4: Run render tests and verify GREEN**
 
 Run: `go test -p 20 ./cmd/internal/couchtty -run 'Test(RenderMenu|ChooseMenuLayout|AgeBand|Clip)' -count=1`
 
 Expected: PASS.
 
-- [ ] **Step 5: Commit Task 6**
+- [x] **Step 5: Commit Task 6**
 
 ```bash
 git add cmd/internal/couchtty/menu_render.go cmd/internal/couchtty/menu_render_test.go

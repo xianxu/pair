@@ -491,3 +491,12 @@ and operation-result traces. Generated key traces enforce structural/text
 bounds and declared-operation-only effects; reordered refreshes preserve exact
 identity, hidden targets discard descendants, and completions emit no effects
 (ARCH-DRY, ARCH-PURE, ARCH-PURPOSE, ARCH-CONSTRAINTS).
+
+### 2026-08-30 — M2 bounded menu renderer
+
+Added pure contained geometry for single, wide, narrow, and below-minimum
+layouts plus viewport rendering that keeps the selected row visible. Renderer
+tests pin terminal-column clipping, control-sequence stripping, live versus
+parked age text, three age bands, optional grayscale, 100-row viewports, and a
+wide two-frame boundary whose separator previously exceeded the declared width
+(ARCH-PURE, ARCH-CONSTRAINTS).

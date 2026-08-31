@@ -551,6 +551,7 @@ var NonArtifactSources = []string{
 	"cmd/internal/couchtty/focus.go",
 	"cmd/internal/couchtty/keys.go",
 	"cmd/internal/couchtty/menu.go",
+	"cmd/internal/couchtty/menu_render.go",
 	"cmd/internal/couchtty/notice.go",
 	"cmd/internal/couchtty/operation_queue.go",
 	"cmd/internal/couchtty/panel.go",
