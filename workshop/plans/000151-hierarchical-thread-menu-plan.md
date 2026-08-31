@@ -1540,3 +1540,21 @@ discovers those markers, resolves each Go declaration, and requires its exact
 source path in a Core-concept row. The complete table contract also compares
 every row's path set exactly. Mutations removing a marked entity or the session-
 inventory dependency path must fail (`ARCH-PURPOSE`, `ARCH-MOCK`).
+
+### 2026-08-31 — close the complete M3 declaration set
+
+**Reason:** the fifth M3 boundary review showed that concept markers alone were
+opt-in: adding an unmarked declaration did not alter the six selected concepts,
+so the documentation contract could not prove that its architectural inventory
+was exhaustive (`BR-26`, `documentation-current-state-accuracy`).
+
+**Delta:** the contract now derives every top-level declaration from the exact
+net set of Go sources changed since the M2 boundary. The checked-in digest gives
+each declaration one closed-set disposition: a `pair:m3-concept` marker is
+architectural, every remaining declaration is implementation detail, and the
+deleted flat-panel files are retired. The source catalog must exactly equal the
+Git milestone diff, so a new file cannot evade classification. A mutation that
+adds an unmarked exported `ReviewAddedM3Authority` changes the declaration
+digest and fails before the Core concepts rows are accepted. Architectural
+markers still require an exact entity and repo-relative path in the plan
+(`ARCH-PURPOSE`).

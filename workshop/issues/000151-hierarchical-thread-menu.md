@@ -1253,3 +1253,11 @@ table now names `ParkedResumeObservation`, `NativeBindingResolver`,
 dependency; all rows use resolvable repo-relative paths. Six production source
 markers derive the delivered M3 concept set, and mutations removing either a
 marked entity or dependency path fail (`ARCH-PURPOSE`, `ARCH-MOCK`).
+
+The fifth boundary review found that the six concept markers were still an
+opt-in set. M3 now has an exact source catalog derived from the M2-boundary Git
+diff and a digest over every top-level declaration. Marked declarations are
+architectural, all other declarations are explicit implementation detail, and
+deleted panel sources are retired. Adding the reviewer's unmarked exported
+authority or an unclassified source changes the closed set and fails the
+contract (`BR-26`, `ARCH-PURPOSE`).

@@ -27,7 +27,84 @@ const issue149M5DeclarationDigest = "748b33313dc565abbbfd5db00e690892441c4fb408b
 const (
 	issue149M5Base = "6a714336"
 	issue149M5Head = "c434016"
+	issue151M3Base = "0c40a8d1"
 )
+
+const issue151M3DeclarationDigest = "03be4164c2fad38193a5a91dd251d0d0ea4738ddaf8af2680f8e65e5cb1561c9"
+
+// issue151M3GoSources is the exhaustive net set of Go sources changed by M3.
+// The declaration digest gives every declaration a closed-set disposition:
+// pair:m3-concept marks architectural authority; every other declaration is
+// implementation detail. A declaration cannot be added under either label
+// without deliberately updating this ledger and its plan contract.
+var issue151M3GoSources = []string{
+	"cmd/internal/artifactpath/coverage_test.go",
+	"cmd/internal/artifactpath/manifest.go",
+	"cmd/internal/couchcmd/readme_test.go",
+	"cmd/internal/couchcmd/run.go",
+	"cmd/internal/couchcmd/run_test.go",
+	"cmd/internal/couchcore/abort_started_test.go",
+	"cmd/internal/couchcore/actionableinventory.go",
+	"cmd/internal/couchcore/actionableinventory_test.go",
+	"cmd/internal/couchcore/artifactcollision.go",
+	"cmd/internal/couchcore/artifactcollision_fake.go",
+	"cmd/internal/couchcore/couch.go",
+	"cmd/internal/couchcore/couch_test.go",
+	"cmd/internal/couchcore/launch_existing.go",
+	"cmd/internal/couchcore/launchhelper.go",
+	"cmd/internal/couchcore/operationdispatch.go",
+	"cmd/internal/couchcore/operationdispatch_test.go",
+	"cmd/internal/couchcore/plan_contract_test.go",
+	"cmd/internal/couchcore/ptyrunner.go",
+	"cmd/internal/couchcore/ptyrunner_test.go",
+	"cmd/internal/couchcore/resume.go",
+	"cmd/internal/couchcore/runner.go",
+	"cmd/internal/couchcore/runner_contract_test.go",
+	"cmd/internal/couchcore/runner_fake.go",
+	"cmd/internal/couchcore/runner_test.go",
+	"cmd/internal/couchcore/starttransaction_integration_test.go",
+	"cmd/internal/couchcore/tracked_launch_cancellation_test.go",
+	"cmd/internal/couchtty/console.go",
+	"cmd/internal/couchtty/console_attach_transaction_test.go",
+	"cmd/internal/couchtty/console_menu.go",
+	"cmd/internal/couchtty/console_menu_operation_test.go",
+	"cmd/internal/couchtty/console_menu_test.go",
+	"cmd/internal/couchtty/console_panel_regression_test.go",
+	"cmd/internal/couchtty/console_preview_test.go",
+	"cmd/internal/couchtty/console_run_menu_test.go",
+	"cmd/internal/couchtty/console_test.go",
+	"cmd/internal/couchtty/core_concepts_contract_test.go",
+	"cmd/internal/couchtty/menu.go",
+	"cmd/internal/couchtty/menu_async_test.go",
+	"cmd/internal/couchtty/menu_perf_test.go",
+	"cmd/internal/couchtty/menu_refresh.go",
+	"cmd/internal/couchtty/menu_refresh_test.go",
+	"cmd/internal/couchtty/menu_render.go",
+	"cmd/internal/couchtty/menu_render_test.go",
+	"cmd/internal/couchtty/menu_test.go",
+	"cmd/internal/couchtty/operation_queue.go",
+	"cmd/internal/couchtty/operation_queue_test.go",
+	"cmd/internal/couchtty/park_latency_test.go",
+	"cmd/internal/hostty/control.go",
+	"cmd/internal/hostty/fake.go",
+	"cmd/internal/hostty/hostty_test.go",
+	"cmd/internal/sessioninventory/catalog.go",
+	"cmd/internal/sessioninventory/event.go",
+	"cmd/internal/sessioninventory/event_test.go",
+	"cmd/internal/sessioninventory/query.go",
+	"cmd/internal/sessioninventory/query_test.go",
+	"cmd/internal/sessioninventory/round.go",
+	"cmd/internal/sessioninventory/round_test.go",
+	"cmd/internal/sessionwatch/run_test.go",
+	"cmd/internal/textwidth/textwidth.go",
+	"cmd/internal/textwidth/textwidth_test.go",
+	"cmd/probes/couchstartrecovery/main.go",
+}
+
+var issue151M3DeletedGoSources = []string{
+	"cmd/internal/couchtty/panel.go",
+	"cmd/internal/couchtty/panel_test.go",
+}
 
 // issue149M5GoSources is the exhaustive set of Go sources touched by M5. Every
 // declaration in these files receives a disposition: a pair:m5-concept marker
@@ -796,6 +873,103 @@ func TestIssue151M3SourceConceptsAppearAtExactPlanPaths(t *testing.T) {
 	}
 }
 
+func TestIssue151M3DeclarationDispositionSourceSetMatchesMilestoneDiff(t *testing.T) {
+	root := filepath.Clean(filepath.Join("..", "..", ".."))
+	if _, err := os.Stat(filepath.Join(root, ".git")); err != nil {
+		t.Skip("source archive has no Git metadata; the checked-in disposition set remains the oracle")
+	}
+	want := append(append([]string(nil), issue151M3GoSources...), issue151M3DeletedGoSources...)
+	sort.Strings(want)
+	command := exec.Command("git", "-C", root, "diff", "--name-only", issue151M3Base, "--", "*.go")
+	raw, err := command.Output()
+	if err != nil {
+		t.Fatal(err)
+	}
+	got := strings.Fields(string(raw))
+	sort.Strings(got)
+	if !equalStrings(got, want) {
+		t.Fatalf("M3 declaration disposition sources = %v, want exact milestone diff %v", got, want)
+	}
+}
+
+func TestIssue151M3DeclarationDispositionSetIsClosed(t *testing.T) {
+	root := filepath.Clean(filepath.Join("..", "..", ".."))
+	got, err := issue151M3SourceDeclarationDigest(root, nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got != issue151M3DeclarationDigest {
+		t.Fatalf("M3 declaration set changed without an explicit architectural/detail/retired disposition: got %s, want %s", got, issue151M3DeclarationDigest)
+	}
+}
+
+func TestIssue151M3UnmarkedAuthorityMutationFailsClosed(t *testing.T) {
+	root := filepath.Clean(filepath.Join("..", "..", ".."))
+	path := "cmd/internal/couchcore/actionableinventory.go"
+	raw, err := os.ReadFile(filepath.Join(root, path))
+	if err != nil {
+		t.Fatal(err)
+	}
+	mutated := append(append([]byte(nil), raw...), []byte("\n// intentionally unmarked review mutation\ntype ReviewAddedM3Authority struct{}\n")...)
+	got, err := issue151M3SourceDeclarationDigest(root, map[string][]byte{path: mutated})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got == issue151M3DeclarationDigest {
+		t.Fatal("an unmarked M3 authority left the closed declaration disposition unchanged")
+	}
+}
+
+func issue151M3SourceDeclarationDigest(root string, override map[string][]byte) (string, error) {
+	keys := make([]string, 0, len(issue151M3GoSources)+len(issue151M3DeletedGoSources))
+	for _, rel := range issue151M3GoSources {
+		raw, ok := override[rel]
+		if !ok {
+			var err error
+			raw, err = os.ReadFile(filepath.Join(root, rel))
+			if err != nil {
+				return "", fmt.Errorf("read M3 disposition source %s: %w", rel, err)
+			}
+		}
+		file, err := parser.ParseFile(token.NewFileSet(), rel, raw, 0)
+		if err != nil {
+			return "", fmt.Errorf("parse M3 disposition source %s: %w", rel, err)
+		}
+		for _, decl := range file.Decls {
+			switch typed := decl.(type) {
+			case *ast.FuncDecl:
+				receiver := ""
+				if typed.Recv != nil && len(typed.Recv.List) == 1 {
+					receiver = issue149ReceiverName(typed.Recv.List[0].Type)
+				}
+				keys = append(keys, rel+"|func|"+receiver+"|"+typed.Name.Name)
+			case *ast.GenDecl:
+				for _, spec := range typed.Specs {
+					switch item := spec.(type) {
+					case *ast.TypeSpec:
+						keys = append(keys, rel+"|"+typed.Tok.String()+"|"+item.Name.Name)
+					case *ast.ValueSpec:
+						for _, name := range item.Names {
+							keys = append(keys, rel+"|"+typed.Tok.String()+"|"+name.Name)
+						}
+					}
+				}
+			default:
+				return "", fmt.Errorf("unclassified declaration kind %T in %s", decl, rel)
+			}
+		}
+	}
+	for _, rel := range issue151M3DeletedGoSources {
+		if _, err := os.Stat(filepath.Join(root, rel)); !errors.Is(err, os.ErrNotExist) {
+			return "", fmt.Errorf("retired M3 source %s exists or cannot be classified: %v", rel, err)
+		}
+		keys = append(keys, rel+"|retired")
+	}
+	sort.Strings(keys)
+	digest := sha256.Sum256([]byte(strings.Join(keys, "\n")))
+	return fmt.Sprintf("%x", digest), nil
+}
+
 func validateIssue151M3SourceConcepts(root, plan string) error {
 	coreParts := strings.SplitN(plan, "## Core concepts", 2)
 	if len(coreParts) != 2 {
@@ -810,7 +984,6 @@ func validateIssue151M3SourceConcepts(root, plan string) error {
 		return errors.New("Core concepts contains a non-resolvable source location")
 	}
 	const marker = "// pair:m3-concept "
-	found := 0
 	err := filepath.WalkDir(filepath.Join(root, "cmd", "internal"), func(path string, entry os.DirEntry, walkErr error) error {
 		if walkErr != nil {
 			return walkErr
@@ -848,15 +1021,11 @@ func validateIssue151M3SourceConcepts(root, plan string) error {
 			if !rowFound {
 				return fmt.Errorf("M3 source concept %s at %s is absent from an exact Core concepts row", name, filepath.ToSlash(rel))
 			}
-			found++
 		}
 		return nil
 	})
 	if err != nil {
 		return err
-	}
-	if found != 6 {
-		return fmt.Errorf("found %d source-derived M3 concepts, want 6", found)
 	}
 	return nil
 }

@@ -2716,3 +2716,7 @@ that a key token appears cannot detect a contradictory behavioral sentence
   semantic input/result through the running owner and stop timing only on a
   correlated emitted frame; private-method return times do not validate an
   interactive path (`ARCH-MOCK`, `ARCH-CONSTRAINTS`).
+- An architectural inventory cannot derive exhaustiveness from opt-in concept
+  markers alone. Pin the complete milestone source and declaration set first;
+  only then classify each declaration as architectural, detail, or retired, so
+  both a new unmarked authority and a new source fail closed (`ARCH-PURPOSE`).

@@ -386,3 +386,81 @@ Append a revision titled “derive the complete M3 architectural inventory” re
 - Every delivered Core concept, including `ParkedResumeObservation`, its resolver dependency, and current semantics.
 - Explicit repo-relative paths for every row.
 - A source-derived contract that fails when an architectural entity, dependency, path, or current-state description is omitted.
+
+---
+
+## Re-review — 2026-08-31T16:33:50-07:00 (REWORK)
+
+| field | value |
+|-------|-------|
+| issue | 151 — couch: hierarchical work-thread menu |
+| repo | pair |
+| issue file | workshop/issues/000151-hierarchical-thread-menu.md |
+| boundary | milestone M3 |
+| milestone | M3 |
+| window | 0c40a8d1880b49a9cac1a7f4d8cd24a2c713dba7..2b04cc6fc174ec285468a4d4613651a16ff6c4cc |
+| command | sdlc milestone-close --issue 151 --milestone M3 |
+| reviewer | codex |
+| timestamp | 2026-08-31T16:33:50-07:00 |
+| verdict | REWORK |
+
+## Review
+
+```verdict
+verdict: REWORK
+confidence: high
+```
+
+The named BR-26 omissions are documented correctly, and all automated suites pass. However, BR-26 remains open: the new contract derives only six opt-in `pair:m3-concept` declarations and hardcodes `found != 6`. A scratch mutation adding an unmarked architectural declaration passed both issue-151 concept contracts, proving the contract still cannot detect the class of omission it claims to prevent.
+
+```findings
+dispose:
+  - id: BR-26
+    disposition: not-addressed
+    note: |
+      This is the 6th finding in family `documentation-current-state-accuracy`: the known rows are fixed, but an unmarked architectural declaration still passes because the source-derived contract scans only opt-in markers and hardcodes six concepts.
+```
+
+### Strengths
+
+- `ParkedResumeObservation` now has accurate semantics and a resolvable location in [actionableinventory.go](/Users/xianxu/workspace/pair/cmd/internal/couchcore/actionableinventory.go:28).
+- Parked projection correctly requires one matching, non-empty native binding and rejects ambiguous proof at [actionableinventory.go](/Users/xianxu/workspace/pair/cmd/internal/couchcore/actionableinventory.go:110).
+- Production obtains parked proof through the context-bearing resolver before invoking the pure projector at [actionableinventory.go](/Users/xianxu/workspace/pair/cmd/internal/couchcore/actionableinventory.go:147).
+- BR-21 through BR-25 remain substantively disposed: generation-qualified projection refresh, flat-panel retirement, run-loop performance coverage, checklist enforcement, and README/root-Escape contracts remain present.
+
+### Critical findings
+
+- **BR-26 — ARCH-PURPOSE: the inventory remains opt-in, not exhaustive.** [plan_contract_test.go](/Users/xianxu/workspace/pair/cmd/internal/couchcore/plan_contract_test.go:799) scans only declarations already marked `pair:m3-concept`, then requires exactly six at line 858. It has no fail-closed disposition for unmarked M3 declarations. In a scratch archive, adding `ReviewAddedM3Authority` without a marker left both `TestIssue151M3SourceConceptsAppearAtExactPlanPaths` and `TestIssue151CoreConceptsMatchCurrentBoundary` green.
+
+  Fix the rule, not another row: derive the complete M3 production declaration set and require every declaration to receive an architectural/detail/retired disposition. Architectural entries must supply kind, exact repository paths, dependencies, and current semantics. Add a mutation test proving an unmarked declaration fails.
+
+### Important findings
+
+None.
+
+### Minor findings
+
+None.
+
+### Test coverage notes
+
+Passed:
+
+- `git diff --check <base> <head>`
+- `go test -p 20 ./... -count=1`
+- Race tests for `couchcore`, `couchtty`, `couchcmd`, and `sessioninventory`
+- Existing omission mutations for `ParkedResumeObservation` and the session-inventory path
+
+The scratch unmarked-authority mutation unexpectedly passed, which is the decisive BR-26 red/green evidence.
+
+### Architectural notes
+
+- **ARCH-DRY:** Pass. The old panel authority is removed and actionable projection remains centralized.
+- **ARCH-PURE:** Pass. Projection, reducer, rendering, and scheduling remain pure; resolver and terminal work stay at integration boundaries.
+- **ARCH-PURPOSE:** Flag. The contract protects six selected instances rather than the exhaustive architectural-inventory purpose.
+- **ARCH-MOCK:** Pass. Production and tests share the resolver, runner, host, and Console seams with stateful doubles.
+- **ARCH-CONSTRAINTS:** Pass. Refresh and preview concurrency are bounded, and performance evidence traverses the real Console loop at the declared workload.
+
+### Plan revision recommendation
+
+Append a `## Revisions` entry recording that the six-marker contract was not exhaustive. Its delta should define a closed-set declaration-disposition rule, require exact paths and dependencies for every architectural entry, and add a mutation proving a newly introduced unmarked authority fails.

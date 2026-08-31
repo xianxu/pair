@@ -384,6 +384,16 @@ rounds:
           round: 16
       boundary: M3
       blocked: true
+    - "n": 17
+      timestamp: "2026-08-31T16:33:50-07:00"
+      agent: codex
+      dispose:
+        - id: BR-26
+          disposition: not-addressed
+          note: 'This is the 6th finding in family `documentation-current-state-accuracy`: the known rows are fixed, but an unmarked architectural declaration still passes because the source-derived contract scans only opt-in markers and hardcodes six concepts.'
+          round: 17
+      boundary: M3
+      blocked: true
 ---
 
 # Gate ledger — pair#151 (boundary-review)
@@ -579,6 +589,12 @@ later rounds disposed of them. Generated — edit the gate, not this file.
 
 - **BR-26** [Critical] `documentation-current-state-accuracy` Core concepts inventory still omits delivered parked-resume proof authority
   This is the 5th finding in family `documentation-current-state-accuracy`. The table omits `ParkedResumeObservation` and its `NativeBindingResolver`/session-inventory dependency, while adjacent prose still says the projector uses only live-owner observations; one row also gives the non-resolvable location “existing test seams.” The hardcoded contract mirrors this incomplete inventory, so it cannot catch the omission. Do not patch one row: state and enforce the rule that every delivered architectural entity and dependency has exhaustive repo-relative locations and current semantics, then sweep every Core concepts row.
+
+## Round 17 — 2026-08-31T16:33:50-07:00 (codex) — BLOCKED
+
+### Disposed
+
+- BR-26 — not-addressed — This is the 6th finding in family `documentation-current-state-accuracy`: the known rows are fixed, but an unmarked architectural declaration still passes because the source-derived contract scans only opt-in markers and hardcodes six concepts.
 
 ## Open findings
 
