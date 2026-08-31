@@ -325,14 +325,14 @@ Run: `go test -p 20 ./cmd/internal/couchcore ./cmd/internal/couchcmd -count=1`
 
 Expected: PASS, including grant, admission, raw/actionable inventory, operation, and Console-routing tests.
 
-- [ ] **Step 5: Commit Task 4**
+- [x] **Step 5: Commit Task 4**
 
 ```bash
 git add cmd/internal/couchcore/ops.go cmd/internal/couchcore/ops_declarations_test.go cmd/internal/couchcore/operationdispatch.go cmd/internal/couchcore/operationdispatch_test.go cmd/internal/couchcore/plan_contract_test.go cmd/internal/couchcmd/run.go cmd/internal/couchcmd/run_test.go
 git commit -m "#151 M1: route token-bound start operations"
 ```
 
-- [ ] **Step 6: Update the Couch atlas for M1**
+- [x] **Step 6: Update the Couch atlas for M1**
 
 Document the proof-bearing actionable projection versus raw diagnostic
 inventory, the 16-entry/256-bit/five-minute owner-local grant lifecycle, and

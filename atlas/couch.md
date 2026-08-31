@@ -25,6 +25,15 @@ Couch journal-imports its actors into ThreadStore as conservative unknown
 legacy incarnations and marks the cutover. CLI and panel read the same
 one-row-per-composite-thread inventory.
 
+That raw `ThreadInventory` remains the diagnostic/recovery view: persisted
+incarnation states are shown even when Couch cannot prove a usable terminal.
+The ordinary switcher instead consumes `ActionableThreadInventory`, a pure
+fail-closed projection over the same snapshot plus exact owner observations.
+It emits only `live` when one durable live PID/start identity exactly matches
+one observed TTY owner, or `parked` when verified park exists with no active
+park transaction, reservation, or incarnation. Contradictory and undecodable
+records stay available to diagnostics but do not become misleading menu rows.
+
 `cmd/internal/artifactpath` is the sole constructor for Pair's tag-bearing
 files. Standalone Pair selects its own `{repo_scope, tag}`; Couch allocates the
 same address shape for a hosted start and Pair establishes the pre-reserved
@@ -54,6 +63,19 @@ capability returns the typed #147 routing refusal; it never falls back to a
 second process. The console supplies exact-address switch/attach effects, while
 CLI and future advisor consume the same declarations. Run `couch --help`, which
 renders the declared set.
+
+Start is a two-operation owner contract. Agent-facing `prepare-start` resolves
+canonical path, selected agent/argv and provenance, preference revision,
+repository-default digest, and normalized candidate policy into one explicit
+length-delimited fingerprint. It returns a 256-bit raw-URL token from an
+owner-local `StartGrantStore`; at most 16 issued-plus-consuming grants exist,
+unclaimed grants expire after five minutes, collision issuance stops after
+three draws, and consuming grants are never evicted. Tokens are in-memory and
+therefore invalid after owner restart. The public `couch start` command performs
+that operation followed by implicit token-bound `start`; the latter claims the
+grant once, re-resolves and compares evidence, then removes it terminally after
+the attempt. Acquisition of owner authority remains separate from the
+Console/PTY decision.
 
 **couch hosts `pair` whole.** The stack is couch → pair → zellij → agent+nvim.
 couch starts `pair resume <tag> --layout2` inside a child pty and owns the
@@ -272,8 +294,12 @@ while the other `hostty.Host` consumer, `pair term`, owns lifecycle elsewhere.
 
 Every new start first atomically claims a final composite address
 `{repo_scope, couch-<16 lowercase hex>}`. Couch resolves normalized fleet
-policy and commits a `creating` incarnation before it forks; capacity or
-provider refusal therefore starts no child. The creating record then gains one
+policy before allocation. After the accepted fingerprint, admission receives
+that candidate policy directly rather than reading it again; only stale
+incumbents may invoke the resolver. A different incumbent policy epoch fails
+closed immediately because retrying cannot revise already-accepted candidate
+authority. Admission commits a `creating` incarnation before it forks, so
+capacity, drift, or provider refusal starts no child. The creating record then gains one
 `start-<16 hex>` nonce plus the exact supervisor identity. Couch forks the
 internal `pair-launch-helper`, which cannot exec Pair until Couch durably adds
 the helper's PID/process-start identity and sends one acknowledgement byte over
