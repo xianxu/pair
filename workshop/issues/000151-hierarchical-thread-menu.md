@@ -5,7 +5,7 @@ deps: [149, 152]
 github_issue:
 created: 2026-08-24
 updated: 2026-08-30
-estimate_hours:
+estimate_hours: 7.60
 started: 2026-08-30T15:58:54-07:00
 ---
 
@@ -357,6 +357,44 @@ review rather than treating the whole multi-file change as one atomic pass.
   both baseline and deterministic four-worker co-tenancy fixtures.
 - Wide and narrow terminal layouts are readable, with selection visible without
   relying on color.
+
+## Estimate
+
+Produced via `brain/data/life/42shots/velocity/estimate-logic-v3.1.md` against
+`baseline-v3.1.md`. Method A only. `sdlc estimate-source` reports the calibration
+source as stale, so the number is provisional but uses the required method.
+The thorough approved plan earns the ×0.2 design discount and 15% design buffer;
+implementation values are already scaled to 40% per v3.1. Existing Go terminal,
+runner, and fake seams cover the stack, so the library-availability check found
+no novel greenfield dependency to discount further. The primitives map to M1's
+inventory/grant/admission authority, M2's pure menu/renderer/decoder/scheduler,
+M3's Console/runner/performance integration, two expected operator UX rounds,
+atlas work, and the three real milestone reviews.
+
+```estimate
+model: estimate-logic-v3.1
+familiarity: 1.0
+item: issue-spec design=0.80 impl=0.08
+item: smaller-go-module design=0.06 impl=0.20
+item: greenfield-go-module design=0.20 impl=0.24
+item: greenfield-go-module design=0.30 impl=0.32
+item: cross-cutting-refactor design=0.10 impl=0.20
+item: tui-screen design=0.40 impl=0.40
+item: smaller-go-module design=0.06 impl=0.20
+item: smaller-go-module design=0.03 impl=0.12
+item: smaller-go-module design=0.06 impl=0.20
+item: tui-screen design=0.40 impl=0.40
+item: cross-cutting-refactor design=0.20 impl=0.20
+item: smaller-go-module design=0.06 impl=0.20
+item: atlas-docs design=0.10 impl=0.08
+item: milestone-review design=0.04 impl=0.12
+item: milestone-review design=0.04 impl=0.12
+item: milestone-review design=0.04 impl=0.12
+item: ux-rename-iteration design=0.40 impl=0.08
+item: ux-rename-iteration design=0.40 impl=0.08
+design-buffer: 0.15
+total: 7.60
+```
 
 ## Plan
 

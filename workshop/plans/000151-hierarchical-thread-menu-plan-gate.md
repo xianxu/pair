@@ -20,6 +20,20 @@ rounds:
           family: external-double-live-conformance
           round: 1
       blocked: true
+    - "n": 2
+      timestamp: "2026-08-30T20:15:44-07:00"
+      agent: codex
+      dispose:
+        - id: PQ-1
+          disposition: addressed
+          note: The centralized function-level strategy table replaces the former behavioral matrices with adversarial classes and mechanical guards.
+          round: 2
+        - id: PQ-2
+          disposition: addressed
+          note: TestBlockedRunnerCancellationConformance compares FakeRunner, ExecRunner, and PtyRunner, names both fake cancellation transitions, and runs with the core-package suite.
+          round: 2
+      blocked: false
+content_hash: 2ee3e558cffd6d4f07871efee3d9521f6168ef1725354560b85593bd58fd56b9
 ---
 
 # Gate ledger — pair#151 (plan-quality)
@@ -36,7 +50,13 @@ later rounds disposed of them. Generated — edit the gate, not this file.
 - **PQ-2** [Important] `external-double-live-conformance` ARCH-MOCK requires live conformance for the new runner cancellation contract
   The plan changes Runner.StartBlocked and FakeRunner to model context cancellation across real helper creation, acknowledgement, registration, and cleanup, but only names the existing conformance suite. That suite does not compare this new behavior against the real runner. Name the real cancellation conformance test, the corresponding fake state transition, and the workflow cadence or change-trigger that will keep them compared.
 
+## Round 2 — 2026-08-30T20:15:44-07:00 (codex) — passed
+
+### Disposed
+
+- PQ-1 — addressed — The centralized function-level strategy table replaces the former behavioral matrices with adversarial classes and mechanical guards.
+- PQ-2 — addressed — TestBlockedRunnerCancellationConformance compares FakeRunner, ExecRunner, and PtyRunner, names both fake cancellation transitions, and runs with the core-package suite.
+
 ## Open findings
 
-- **PQ-1** [Important] `test-strategy-over-specification` Compress the enumerated test and procedural-diff plan into function-level strategies
-- **PQ-2** [Important] `external-double-live-conformance` ARCH-MOCK requires live conformance for the new runner cancellation contract
+(none — every finding has been disposed)
