@@ -69,6 +69,23 @@ func TestREADMEDocumentsEveryPanelControl(t *testing.T) {
 	}
 }
 
+func TestREADMERootEscapeMatchesReducerWhenNoActorIsLive(t *testing.T) {
+	const documented = "with no live actor, the switcher stays open and reports why"
+	if doc := readme(t); !strings.Contains(doc, documented) {
+		t.Fatalf("README does not document root Escape semantics %q", documented)
+	}
+	state := couchtty.NewMenuState([]couchcore.ActionableThreadSummary{{
+		Address: couchcore.ThreadAddress{RepoScope: "repo", Tag: "couch-parked"},
+		State:   couchcore.ThreadParked,
+	}}, couchcore.ThreadAddress{})
+	got, effects := couchtty.ReduceMenu(state, couchtty.MenuEvent{
+		Kind: couchtty.MenuEventKey, Key: couchtty.PanelKey{Kind: couchtty.KeyEscape},
+	})
+	if len(effects) != 0 || got.Notice.Text != "no live thread can receive focus" || len(got.Frames) != 1 {
+		t.Fatalf("root Escape behavior drifted from README: state=%+v effects=%+v", got, effects)
+	}
+}
+
 // Every operation couch declares must appear in the README.
 //
 // This is the README counterpart of the atlas identifier check (M2 BR-38): the

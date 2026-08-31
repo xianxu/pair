@@ -1237,3 +1237,11 @@ generation-1 completion, then fails generation 2 and proves the pending marker
 survives. The M3 plan checklist was also swept against delivered commits and
 evidence, leaving only boundary and issue close open (`ARCH-PURE`,
 `ARCH-PURPOSE`).
+
+The third boundary review accepted refresh provenance but found the corrected
+checklist was not executable and two current-state headings plus README root
+Escape prose remained stale. The M3 contract now parses every Task 10–13 step
+and pins its checked/open state. Both Core-concept tables name the final M3
+boundary, and the README contract executes the no-live-actor Escape case:
+Couch stays in the switcher with `no live thread can receive focus`
+(`ARCH-PURPOSE`).

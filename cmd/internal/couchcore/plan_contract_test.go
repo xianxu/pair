@@ -746,6 +746,63 @@ func TestIssue151CoreConceptsMatchCurrentBoundary(t *testing.T) {
 	}
 }
 
+func TestIssue151M3ChecklistMatchesCurrentBoundary(t *testing.T) {
+	root := filepath.Clean(filepath.Join("..", "..", ".."))
+	planPath := findPlanArtifact(t, root, "000151-hierarchical-thread-menu-plan.md")
+	raw, err := os.ReadFile(planPath)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := validateIssue151M3Checklist(string(raw)); err != nil {
+		t.Fatal(err)
+	}
+
+	mutated := strings.Replace(string(raw),
+		"- [x] **Step 1: Write failing pure refresh-schedule traces**",
+		"- [ ] **Step 1: Write failing pure refresh-schedule traces**", 1)
+	if mutated == string(raw) {
+		t.Fatal("failed to construct delivered-as-unchecked mutation")
+	}
+	if err := validateIssue151M3Checklist(mutated); err == nil {
+		t.Fatal("delivered M3 step presented as unchecked passed the boundary contract")
+	}
+}
+
+func validateIssue151M3Checklist(plan string) error {
+	wantSteps := map[int]int{10: 9, 11: 33, 12: 6, 13: 9}
+	for task, count := range wantSteps {
+		startMarker := fmt.Sprintf("### Task %d:", task)
+		start := strings.Index(plan, startMarker)
+		if start < 0 {
+			return fmt.Errorf("missing M3 Task %d", task)
+		}
+		section := plan[start+len(startMarker):]
+		if next := strings.Index(section, "\n### Task "); next >= 0 {
+			section = section[:next]
+		} else if next := strings.Index(section, "\n## Revisions"); next >= 0 {
+			section = section[:next]
+		}
+		steps := make([]bool, 0, count)
+		for _, line := range strings.Split(section, "\n") {
+			if strings.HasPrefix(line, "- [x] **Step ") {
+				steps = append(steps, true)
+			} else if strings.HasPrefix(line, "- [ ] **Step ") {
+				steps = append(steps, false)
+			}
+		}
+		if len(steps) != count {
+			return fmt.Errorf("M3 Task %d has %d checklist steps, want %d", task, len(steps), count)
+		}
+		for index, checked := range steps {
+			wantChecked := task != 13 || index < 7
+			if checked != wantChecked {
+				return fmt.Errorf("M3 Task %d Step %d checked=%t, want %t", task, index+1, checked, wantChecked)
+			}
+		}
+	}
+	return nil
+}
+
 type issue151ConceptContract struct {
 	delivery string
 	current  string
@@ -780,6 +837,9 @@ func validateIssue151CurrentConcepts(root, plan string) error {
 	core = strings.SplitN(core[1], "## Function-level test strategies", 2)
 	if len(core) != 2 {
 		return errors.New("Core concepts section has no boundary")
+	}
+	if strings.Count(core[0], "Current at M3 boundary") != 2 || strings.Contains(core[0], "Current after M3 Task") {
+		return errors.New("Core concepts current-state columns do not name the M3 boundary")
 	}
 	seen := make(map[string]bool, len(want))
 	for _, line := range strings.Split(core[0], "\n") {

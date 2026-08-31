@@ -14,7 +14,7 @@
 
 ### Pure entities
 
-| Name | Lives in | Planned change | Delivery | Current after M3 Task 10 |
+| Name | Lives in | Planned change | Delivery | Current at M3 boundary |
 |------|----------|----------------|----------|---------------|
 | `ActionableThreadSummary` / `LiveTTYObservation` / `ProjectActionableThreads` | `cmd/internal/couchcore/actionableinventory.go` | new | M1 | present |
 | `StartResolution` / `StartResolutionFingerprint` / `ResolveStartResolution` | `cmd/internal/couchcore/startresolution.go` | new | M1 | present |
@@ -67,7 +67,7 @@
 
 ### Integration points
 
-| Name | Lives in | Planned change | Delivery | Current after M3 Task 11 | Wraps |
+| Name | Lives in | Planned change | Delivery | Current at M3 boundary | Wraps |
 |------|----------|----------------|----------|---------------|-------|
 | `Couch.ActionableThreadInventory` | `cmd/internal/couchcore/actionableinventory.go` | new | M1 | present | `ThreadStore.Snapshot` plus live-owner observations |
 | `Couch.PrepareStart` / `Couch.SpawnPrepared` | `cmd/internal/couchcore/startresolution.go`, `couch.go` | new | M1 | present | path, policy, preference/default reads, runner launch |
@@ -1504,3 +1504,18 @@ through the shared operation policy (`ARCH-PURE`, `ARCH-PURPOSE`).
 The authoritative M3 checklist was swept against committed implementation and
 evidence. Tasks 10, 11, 12, and Task 13 Steps 1–7 are checked; only the M3
 boundary close and subsequent issue close remain open.
+
+### 2026-08-31 — align boundary documentation with executable M3 semantics
+
+**Reason:** the third M3 review found that final Core-concept rows retained
+intermediate Task 10/11 column headings, README claimed root Escape exits when
+no live actor exists, and the corrected M3 checklist had no executable guard.
+
+**Delta:** both Core-concept tables now label their current-state column
+`Current at M3 boundary`. README matches the reducer and Spec: root Escape
+clears a filter or returns to an attached live actor; with none, the switcher
+stays open and reports why. The document contract executes that reducer case
+and requires the matching operator sentence. A separate plan contract parses
+all 57 checklist steps across Tasks 10–13, requires Tasks 10–12 and Task 13
+Steps 1–7 checked, and requires only Task 13 boundary/issue close open; a
+delivered-as-unchecked mutation must fail (`ARCH-PURPOSE`).

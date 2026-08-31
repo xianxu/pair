@@ -2659,7 +2659,10 @@ to M3.
 “consumer is wired” in every current-state surface: atlas, project milestone,
 issue log, plan revision, and operator README. Pin the actual production
 provider and those declarations in one regression so the consumer migration
-must update the entire class together (`ARCH-PURPOSE`).
+must update the entire class together. Current-state table headings and
+operator key semantics belong in that executable contract too; checking only
+that a key token appears cannot detect a contradictory behavioral sentence
+(`ARCH-PURPOSE`).
 
 ## Hierarchical reducers must preserve identity across every projection
 

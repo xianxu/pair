@@ -366,8 +366,8 @@ switch/resume; `Tab` or `Right` opens the selected thread's actions, while
 verified `parked` states. `Alt+x` on a non-home actor
 parks only that actor; `Alt+x` on the home actor confirms **Leave Couch**, parks
 every active actor sequentially, and returns to the parent shell only after all
-parks are verified. `Escape` clears the filter, returns to an attached
-actor, or exits Couch when no actor remains. Press `ctrl-space` again from the
+parks are verified. `Escape` clears the filter or returns to an attached actor;
+with no live actor, the switcher stays open and reports why. Press `ctrl-space` again from the
 switcher to open the path/agent start form; an empty path uses the existing `.`
 default. Colons and digits are
 ordinary filter text—there is no command namespace or numbered jump mode.

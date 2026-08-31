@@ -342,6 +342,27 @@ rounds:
           round: 14
       boundary: M3
       blocked: true
+    - "n": 15
+      timestamp: "2026-08-31T16:16:41-07:00"
+      agent: codex
+      dispose:
+        - id: BR-21
+          disposition: addressed
+          note: Production captures the latest admitted refresh generation for every projection-mutating success, and a Console-level regression proves a pre-mutation result cannot clear pending state while the dirty follow-up remains unresolved.
+          round: 15
+        - id: BR-24
+          disposition: not-addressed
+          note: The M3 boxes are corrected, but no executable test or contract fails when the delivered Task 10, Task 12, or Task 13 boxes are reverted to unchecked, as this review explicitly requires.
+          round: 15
+      findings:
+        - id: BR-25
+          severity: Critical
+          title: Authoritative M3 documentation still contradicts the delivered boundary and root Escape contract
+          detail: 'This is the 4th finding in family `documentation-current-state-accuracy`. The Core concepts columns still claim “Current after M3 Task 10” and “Current after M3 Task 11” while containing Task 12 deletion and Task 13 delivery, and README.md:369-370 says root Escape exits Couch without an actor although the Spec and menu.go:392-395 require the root to remain visible with an error. Do not patch only these phrases: state one rule covering current-boundary headings and user-facing key semantics, sweep that class, and make the documentation contract fail on semantic drift.'
+          family: documentation-current-state-accuracy
+          round: 15
+      boundary: M3
+      blocked: true
 ---
 
 # Gate ledger — pair#151 (boundary-review)
@@ -514,7 +535,19 @@ later rounds disposed of them. Generated — edit the gate, not this file.
 - **BR-24** [Important] `documentation-current-state-accuracy` Delivered M3 tasks remain unchecked in the authoritative plan
   This is the 3rd finding in family `documentation-current-state-accuracy`. Earlier rounds fixed instances. Do NOT update only one checkbox: sweep every M3 checklist item against the committed implementation and evidence. Tasks 10, 12, and 13 remain largely or wholly unchecked even though later revisions and the issue log claim delivery; leave only the boundary-close and subsequent issue-close steps open.
 
+## Round 15 — 2026-08-31T16:16:41-07:00 (codex) — BLOCKED
+
+### Disposed
+
+- BR-21 — addressed — Production captures the latest admitted refresh generation for every projection-mutating success, and a Console-level regression proves a pre-mutation result cannot clear pending state while the dirty follow-up remains unresolved.
+- BR-24 — not-addressed — The M3 boxes are corrected, but no executable test or contract fails when the delivered Task 10, Task 12, or Task 13 boxes are reverted to unchecked, as this review explicitly requires.
+
+### Raised
+
+- **BR-25** [Critical] `documentation-current-state-accuracy` Authoritative M3 documentation still contradicts the delivered boundary and root Escape contract
+  This is the 4th finding in family `documentation-current-state-accuracy`. The Core concepts columns still claim “Current after M3 Task 10” and “Current after M3 Task 11” while containing Task 12 deletion and Task 13 delivery, and README.md:369-370 says root Escape exits Couch without an actor although the Spec and menu.go:392-395 require the root to remain visible with an error. Do not patch only these phrases: state one rule covering current-boundary headings and user-facing key semantics, sweep that class, and make the documentation contract fail on semantic drift.
+
 ## Open findings
 
-- **BR-21** [Critical] `shared-operation-consumer-sweep` Successful operation projections are exercised only in reducer tests and never supplied by production
 - **BR-24** [Important] `documentation-current-state-accuracy` Delivered M3 tasks remain unchecked in the authoritative plan
+- **BR-25** [Critical] `documentation-current-state-accuracy` Authoritative M3 documentation still contradicts the delivered boundary and root Escape contract

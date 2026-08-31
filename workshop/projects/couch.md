@@ -467,6 +467,14 @@ ARCH-PURE, ARCH-PURPOSE).
 
 ## Log
 
+### 2026-08-31 — pair#151 M3 documentation boundary aligned
+
+The third M3 review accepted refresh provenance and found the remaining
+current-state contract gap. All Task 10–13 checkbox states are now parsed and
+pinned; both Core-concept tables name the M3 boundary; and README's root Escape
+sentence is executed against the reducer's no-live-actor behavior. Only the M3
+and subsequent issue close remain open (`ARCH-PURPOSE`).
+
 ### 2026-08-31 — pair#151 M3 refresh provenance ready
 
 The second M3 review accepted authority retirement and lifecycle timing, then
