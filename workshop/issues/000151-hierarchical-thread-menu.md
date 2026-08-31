@@ -145,6 +145,12 @@ effects while preserving the form. The UI never reproduces preference
 resolution or performs a check separate from the launch it authorizes
 (ARCH-DRY, ARCH-PURE).
 
+Enter while the current generation is still resolving does not start a second
+resolution path. It arms one submit for that generation and immediately shows
+`resolving`; the accepted latest token continues to submit automatically only
+if the generation is unchanged. Any edit or Escape cancels the armed submit,
+and resolution failure preserves the form with its diagnostic.
+
 Escape restores the prior stack without updating preferences; Enter returns to
 the refreshed root list with the new thread selected only after start succeeds.
 Ctrl-Space is a no-op while any text input is already active. A failed start
@@ -177,8 +183,8 @@ last-good view remains visibly refresh-pending until a later refresh succeeds.
 
 **Operating envelope (ARCH-CONSTRAINTS).** Couch's switcher is a keystroke-
 critical primary UI. The operator chose 100 rows as the supported workload and
-a MacBook Pro M2 Max under ordinary co-tenanted development load as the target
-environment. The 16 ms computation budget is the domain-informed 60 Hz frame
+a MacBook Pro M2 Max as the target environment. The 16 ms computation budget is
+the domain-informed 60 Hz frame
 budget; the operator's requirement that the primary switcher feel immediate
 sets 50 ms for opening and 100 ms for lifecycle progress feedback. Opening from
 the in-memory inventory produces the first frame within 50 ms; navigation,
@@ -192,9 +198,18 @@ Memory is linear in the current inventory, and frames retain identities and
 text rather than inventory copies. Filter/name input is bounded at 1 KiB and
 path/description at 4 KiB; longer persisted display values are clipped safely,
 never rewritten. At 40x10 cells the single-column menu remains operable; below
-that it asks for a resize rather than emitting a malformed interface. Benchmarks
-measure the 100-row hot path on the named target with ordinary development
-co-tenancy recorded; portable automated tests guard bounded work and
+that it asks for a resize rather than emitting a malformed interface.
+
+The target measurement uses a release build on the M2 Max on AC power with Low
+Power Mode off and a fixed 100-row inventory fixture. After 20 unrecorded warmup
+iterations, it records 200 iterations of open, filter/navigation/render, refresh
+apply, and blocked-lifecycle progress-feedback paths and requires each path's
+p95 to meet its 50/16/16/100 ms budget in three consecutive runs. One run is an
+idle baseline; two run beside a repository-owned deterministic load fixture of
+four CPU workers hashing fixed in-memory buffers, representing bounded
+development co-tenancy without disk or network variance. The evidence records
+hardware and OS version plus every run's p50, p95, and maximum. Portable
+automated tests guard the same 100-row fixture's bounded operations and
 allocations rather than asserting target-specific wall time. Full-console tests
 cover bounds, late completions, and minimum size.
 
@@ -256,6 +271,17 @@ Latency budgets name their operator/domain basis and M2 Max co-tenanted target;
 terminal tests must send both supported Tab encodings (ARCH-DRY, ARCH-PURE,
 ARCH-PURPOSE, ARCH-CONSTRAINTS).
 
+### 2026-08-30 — make latency verification replayable
+
+**Reason:** the second fresh-context review found that "ordinary development
+load" did not define reproducible evidence for the accepted latency budgets.
+
+**Delta:** target verification now fixes hardware/power conditions, a 100-row
+fixture, warmup and sample counts, p95 thresholds across three runs, and a
+repository-owned four-worker deterministic co-tenancy load. Pending start
+submission also uses the existing generation rather than creating a parallel
+resolution path (ARCH-CONSTRAINTS, ARCH-PURE).
+
 ## Done when
 
 - Enter switches to/resumes the selected work thread; thread-list Tab enters
@@ -274,6 +300,8 @@ ARCH-PURPOSE, ARCH-CONSTRAINTS).
   repository default without crossing arguments between agents.
 - Start submits the exact current shared resolution token; out-of-order preview
   completions and preference changes before submit cannot launch stale inputs.
+- Enter during resolution arms at most one generation-bound submit; editing or
+  cancelling prevents the late token from launching.
 - Stale targets and zero-match lists never dispatch against a different row.
 - A target that becomes non-actionable invalidates its nested frames and returns
   to the preserved root without deleting or mislabeling the durable record.
@@ -283,6 +311,8 @@ ARCH-PURPOSE, ARCH-CONSTRAINTS).
   Tab behavior through the real console decoder.
 - Opening and every ordinary keystroke meet the 100-row interaction budget
   without synchronous I/O or unbounded asynchronous work.
+- Three target-machine measurement runs meet the specified p95 budgets under
+  both baseline and deterministic four-worker co-tenancy fixtures.
 - Wide and narrow terminal layouts are readable, with selection visible without
   relying on color.
 
