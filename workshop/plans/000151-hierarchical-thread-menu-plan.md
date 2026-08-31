@@ -773,23 +773,23 @@ Create one Console lifetime context, bind every accepted action call to a child,
 
 Re-run Step 14. Expected: PASS with one Console context owning every accepted action and worker join.
 
-- [ ] **Step 17: Write failing preview-worker cancellation tests**
+- [x] **Step 17: Write failing preview-worker cancellation tests**
 
 Join the pure preview-schedule model to a blocking stateful dispatcher; generation
 identity, one terminal completion, and cancel/join within 250 ms are the guards.
 
-- [ ] **Step 18: Run preview tests and verify RED**
+- [x] **Step 18: Run preview tests and verify RED**
 
 Run: `go test -p 20 ./cmd/internal/couchtty ./cmd/internal/couchcmd -run 'TestConsole(StartPreview|PreviewCancellation|PendingSubmit)' -count=1`
 
 Expected: FAIL because Console does not execute preview effects.
 
-- [ ] **Step 19: Implement preview/start effects**
+- [x] **Step 19: Implement preview/start effects**
 
 Map preview/start schedule effects to context-bound declared operations and feed
 typed results back through reducer/projector authority.
 
-- [ ] **Step 20: Run preview tests and verify GREEN**
+- [x] **Step 20: Run preview tests and verify GREEN**
 
 Re-run Step 18. Expected: PASS.
 

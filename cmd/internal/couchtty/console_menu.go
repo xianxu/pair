@@ -17,6 +17,12 @@ type menuRefreshResult struct {
 	err        error
 }
 
+type menuPreviewResult struct {
+	generation uint64
+	prepared   *couchcore.PreparedStart
+	err        error
+}
+
 func (c *Console) SetActionableProvider(provider ActionableThreadProvider) {
 	c.mu.Lock()
 	c.actionable = provider
@@ -153,4 +159,102 @@ func actionableMemoryResolver(rows []couchcore.ActionableThreadSummary) func(str
 		}
 		return addresses, err
 	}
+}
+
+// dispatchMenuEffects is the thin stateful shell around the pure menu. Preview
+// requests enter the bounded preview scheduler; declared operations reuse the
+// Console's one sequential operation queue.
+func (c *Console) dispatchMenuEffects(effects []MenuEffect) {
+	for _, effect := range effects {
+		if effect.Preview != nil {
+			c.advanceMenuPreview(PreviewScheduleEvent{Kind: PreviewRequested, Request: *effect.Preview})
+			continue
+		}
+		if effect.Operation != "" {
+			c.runOpAsync(effect.Operation, effect.Args)
+		}
+	}
+}
+
+func (c *Console) advanceMenuPreview(event PreviewScheduleEvent) {
+	c.mu.Lock()
+	var effects []PreviewScheduleEffect
+	c.previewSchedule, effects = AdvancePreviewSchedule(c.previewSchedule, event)
+	c.mu.Unlock()
+	for _, effect := range effects {
+		switch effect.Kind {
+		case PreviewCancel:
+			c.mu.Lock()
+			cancel := c.previewCancel
+			matches := c.previewRunning == effect.Generation
+			c.mu.Unlock()
+			if matches && cancel != nil {
+				cancel()
+			}
+		case PreviewStart:
+			c.startMenuPreview(effect.Request)
+		}
+	}
+}
+
+func (c *Console) startMenuPreview(request PreviewRequest) {
+	ctx, cancel := context.WithCancel(c.lifetime)
+	c.mu.Lock()
+	c.previewCancel = cancel
+	c.previewRunning = request.Generation
+	fn := c.ops
+	c.mu.Unlock()
+	c.workers.Add(1)
+	go func() {
+		defer c.workers.Done()
+		args := map[string]string{"path": request.Path}
+		if request.Agent != "" {
+			args["agent"] = request.Agent
+		}
+		var prepared *couchcore.PreparedStart
+		var err error
+		if fn == nil {
+			err = errors.New("no action dispatcher wired")
+		} else {
+			var value any
+			value, err = fn(couchcore.OperationCall{
+				Name: "prepare-start", Args: args, Implicit: true, Context: ctx,
+			})
+			if err == nil {
+				accepted, ok := value.(couchcore.PreparedStart)
+				if !ok {
+					err = errors.New("prepare-start returned an invalid result")
+				} else {
+					prepared = &accepted
+				}
+			}
+		}
+		result := menuPreviewResult{generation: request.Generation, prepared: prepared, err: err}
+		select {
+		case c.previewResults <- result:
+		case <-c.stop:
+		}
+	}()
+}
+
+func (c *Console) finishMenuPreview(result menuPreviewResult) {
+	c.mu.Lock()
+	if c.previewRunning == result.generation {
+		if c.previewCancel != nil {
+			c.previewCancel()
+		}
+		c.previewCancel = nil
+		c.previewRunning = 0
+	}
+	var menuEffects []MenuEffect
+	if c.menuReady {
+		event := MenuEvent{Kind: MenuEventPreviewResult, Generation: result.generation, Prepared: result.prepared}
+		if result.err != nil {
+			event.Error = result.err.Error()
+		}
+		c.menu, menuEffects = ReduceMenu(c.menu, event)
+	}
+	c.mu.Unlock()
+	c.advanceMenuPreview(PreviewScheduleEvent{Kind: PreviewFinished, Generation: result.generation})
+	c.dispatchMenuEffects(menuEffects)
 }

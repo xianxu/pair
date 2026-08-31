@@ -142,6 +142,10 @@ type Console struct {
 	refreshRequests chan struct{}
 	refreshResults  chan menuRefreshResult
 	refreshSchedule RefreshSchedule
+	previewResults  chan menuPreviewResult
+	previewSchedule PreviewSchedule
+	previewCancel   context.CancelFunc
+	previewRunning  uint64
 	lifetime        context.Context
 	cancelLifetime  context.CancelFunc
 	stop            chan struct{}
@@ -172,6 +176,7 @@ func New(host hostty.Host, stdin io.Reader) *Console {
 		operationQueue:  newOperationQueue(16),
 		refreshRequests: make(chan struct{}, 1),
 		refreshResults:  make(chan menuRefreshResult, 1),
+		previewResults:  make(chan menuPreviewResult, 1),
 		lifetime:        lifetime,
 		cancelLifetime:  cancelLifetime,
 		stop:            make(chan struct{}),
@@ -535,6 +540,8 @@ func (c *Console) Run() int {
 			c.advanceMenuRefresh(RefreshScheduleEvent{Kind: RefreshRequested})
 		case result := <-c.refreshResults:
 			c.finishMenuRefresh(result)
+		case result := <-c.previewResults:
+			c.finishMenuPreview(result)
 		case completed := <-c.operationQueue.results:
 			if completed.err != nil {
 				c.setNotice(completed.name + ": " + completed.err.Error())

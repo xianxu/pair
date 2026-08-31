@@ -741,3 +741,15 @@ lifecycle and metadata dispatch tests prove cancellation is observed, the
 dispatcher runs exactly once, and `Console.Run` returns within 250 ms; targeted
 race and full Couch TTY/command suites pass (`ARCH-PURPOSE`,
 `ARCH-CONSTRAINTS`).
+
+### 2026-08-31 — M3 Task 11 start-preview controller
+
+Console now composes reducer preview effects with the pure one-running/one-
+latest-pending scheduler. Each `prepare-start` runs under a Console child
+context; replacement cancels by exact generation, terminal completion alone
+retires the running slot, and typed `PreparedStart` values re-enter
+`ReduceMenu`. An armed Enter dispatches the accepted token exactly once through
+the shared operation queue. Controller tests cover replacement, Stop
+cancellation/join, stale-safe result application, and pending submit; targeted
+race and full TTY/command suites pass (`ARCH-PURE`, `ARCH-PURPOSE`,
+`ARCH-CONSTRAINTS`).
