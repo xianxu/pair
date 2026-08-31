@@ -1,6 +1,7 @@
 package couchcore
 
 import (
+	"context"
 	"errors"
 	"fmt"
 	"os"
@@ -31,7 +32,7 @@ import (
 // "a foreign session is never deleted" passed while the hazard sat untouched.
 type Runner interface {
 	Start(dir string, argv, env []string) (Handle, error)
-	StartBlocked(dir string, argv, env []string, timeout time.Duration) (BlockedHandle, error)
+	StartBlocked(ctx context.Context, dir string, argv, env []string, timeout time.Duration) (BlockedHandle, error)
 }
 
 type BlockedHandle interface {
@@ -66,8 +67,8 @@ func (ExecRunner) Start(dir string, argv, env []string) (Handle, error) {
 	return startExecChild(dir, argv, env, nil)
 }
 
-func (r ExecRunner) StartBlocked(dir string, argv, env []string, timeout time.Duration) (BlockedHandle, error) {
-	return startBlockedChild(startExecChild, r.LaunchHelper, dir, argv, env, timeout)
+func (r ExecRunner) StartBlocked(ctx context.Context, dir string, argv, env []string, timeout time.Duration) (BlockedHandle, error) {
+	return startBlockedChild(ctx, startExecChild, r.LaunchHelper, dir, argv, env, timeout)
 }
 
 func startExecChild(dir string, argv, env []string, extraFiles []*os.File) (Handle, error) {

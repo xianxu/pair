@@ -686,70 +686,70 @@ git commit -m "#151 M3: refresh actionable menu asynchronously"
 - Modify: `cmd/internal/couchcmd/run.go`
 - Modify: `cmd/internal/couchcmd/run_test.go`
 
-- [ ] **Step 1: Write failing result-carrying operation queue tests**
+- [x] **Step 1: Write failing result-carrying operation queue tests**
 
 Apply the Console action-controller strategy to every declared queued operation;
 the model oracle guards typed results, duplicate coalescing, overload restoration,
 single completion, and non-redispatch.
 
-- [ ] **Step 2: Run queue tests and verify RED**
+- [x] **Step 2: Run queue tests and verify RED**
 
 Run: `go test -p 20 ./cmd/internal/couchtty -run 'Test(OperationQueue|MenuOperationCompletion)' -count=1`
 
 Expected: FAIL because completions currently discard results.
 
-- [ ] **Step 3: Implement result-carrying action execution**
+- [x] **Step 3: Implement result-carrying action execution**
 
 Carry typed results through the existing bounded sequential queue. Accepted work
 enters progress, overload reduces immediate failure, duplicates retain the
 original progress, and returned lifecycle values re-enter the shared projector.
 
-- [ ] **Step 4: Run queue tests and verify GREEN**
+- [x] **Step 4: Run queue tests and verify GREEN**
 
 Re-run Step 2. Expected: PASS, including the `park_latency_test.go` callback signature migration.
 
-- [ ] **Step 5: Write failing remaining lifecycle-context tests**
+- [x] **Step 5: Write failing remaining lifecycle-context tests**
 
 `OperationCall.Context`, `PrepareStart`, and `SpawnPrepared` landed in M1.
 Apply the cancellation strategy to the remaining resume, Pair lifecycle,
 leave, and runner consumers; executor barriers guard that supplied deadlines
 reach each seam while a nil CLI context still means background.
 
-- [ ] **Step 6: Run operation-dispatch tests and verify RED**
+- [x] **Step 6: Run operation-dispatch tests and verify RED**
 
 Run: `go test -p 20 ./cmd/internal/couchcore ./cmd/internal/couchcmd -run 'Test(DispatchOperationContext|PrepareStartCancellation|LifecycleOperationContext|ContextlessCLI)' -count=1`
 
 Expected: existing dispatch/prepare context regressions PASS and the new
 remaining lifecycle consumers FAIL because they still substitute background.
 
-- [ ] **Step 7: Implement operation/lifecycle context propagation**
+- [x] **Step 7: Implement operation/lifecycle context propagation**
 
 Thread the already-carried operation context through resume admission, Pair
 lifecycle calls, leave, and their operation wiring.
 
-- [ ] **Step 8: Run operation-dispatch tests and verify GREEN**
+- [x] **Step 8: Run operation-dispatch tests and verify GREEN**
 
 Re-run Step 6. Expected: PASS.
 
-- [ ] **Step 9: Write failing blocked-runner cancellation tests**
+- [x] **Step 9: Write failing blocked-runner cancellation tests**
 
 Add `TestBlockedRunnerCancellationConformance` using the shared fake/Exec/Pty
 trace defined above, plus contract/compile checks for every `StartBlocked`
 consumer. Registration timeout derives from the operation context.
 
-- [ ] **Step 10: Run blocked-runner tests and verify RED**
+- [x] **Step 10: Run blocked-runner tests and verify RED**
 
 Run: `go test -p 20 ./cmd/internal/couchcore ./cmd/probes/couchstartrecovery -run 'Test(RunnerCancellation|LaunchHelperCancellation|TrackedLaunchCancellation|StartTransaction|Issue149BlockedRunnersDelegateToOneHandshakeAuthority)' -count=1`
 
 Expected: FAIL at the contextless signature/behavior.
 
-- [ ] **Step 11: Implement blocked-runner cancellation**
+- [x] **Step 11: Implement blocked-runner cancellation**
 
 Thread context through the runner/launch-helper seam and all consumers. Record
 the fake transitions named in the shared conformance trace; reuse existing
 exact post-ack cleanup.
 
-- [ ] **Step 12: Run blocked-runner tests and verify GREEN**
+- [x] **Step 12: Run blocked-runner tests and verify GREEN**
 
 Re-run Step 10. Expected: PASS with every helper either transferred successfully or exactly canceled/reaped/reconciled.
 

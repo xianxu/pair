@@ -324,7 +324,8 @@ func (c *Couch) spawnResolved(ctx context.Context, resolution StartResolution) (
 		return ActorRecord{}, nil, errors.Join(err, c.rollbackTrackedStart(thread, nonce))
 	}
 	return c.launchTrackedThread(trackedThreadLaunch{
-		Thread: thread, Nonce: nonce, Args: args, StartedAt: startedAt,
+		Context: ctx,
+		Thread:  thread, Nonce: nonce, Args: args, StartedAt: startedAt,
 		ProfileRaw: profileRaw, UseRepoDefault: profile.ArgvSource == ArgvSourceRepoDefault,
 	})
 }

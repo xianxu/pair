@@ -1,6 +1,7 @@
 package couchcore
 
 import (
+	"context"
 	"errors"
 	"fmt"
 	"io"
@@ -22,7 +23,13 @@ type blockedChildStarter func(dir string, argv, env []string, extraFiles []*os.F
 // startBlockedChild is the single parent-side authority for the acknowledgement
 // pipe and helper wrapper. ExecRunner and PtyRunner vary only in how the helper
 // process itself is started.
-func startBlockedChild(start blockedChildStarter, helper, dir string, argv, env []string, timeout time.Duration) (BlockedHandle, error) {
+func startBlockedChild(ctx context.Context, start blockedChildStarter, helper, dir string, argv, env []string, timeout time.Duration) (BlockedHandle, error) {
+	if ctx == nil {
+		ctx = context.Background()
+	}
+	if err := ctx.Err(); err != nil {
+		return nil, err
+	}
 	if len(argv) == 0 {
 		return nil, fmt.Errorf("start blocked: empty argv")
 	}

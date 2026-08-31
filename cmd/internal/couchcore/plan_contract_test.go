@@ -662,8 +662,8 @@ func TestIssue149PureCoreTestsStayAtPureBoundary(t *testing.T) {
 
 func TestIssue149BlockedRunnersDelegateToOneHandshakeAuthority(t *testing.T) {
 	want := map[string]string{
-		"runner.go":    "return startBlockedChild(startExecChild, r.LaunchHelper, dir, argv, env, timeout)",
-		"ptyrunner.go": "return startBlockedChild(r.start, r.LaunchHelper, dir, argv, env, timeout)",
+		"runner.go":    "return startBlockedChild(ctx, startExecChild, r.LaunchHelper, dir, argv, env, timeout)",
+		"ptyrunner.go": "return startBlockedChild(ctx, r.start, r.LaunchHelper, dir, argv, env, timeout)",
 	}
 	for name, delegation := range want {
 		raw, err := os.ReadFile(name)

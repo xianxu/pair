@@ -246,7 +246,8 @@ func (c *Couch) ResumeContext(ctx context.Context, address ThreadAddress) (Actor
 		Stack: eligible.Profile.Agent, ExtraArgs: cloneArgv(eligible.Profile.Argv),
 	}
 	return c.launchTrackedThread(trackedThreadLaunch{
-		Thread: thread, Nonce: nonce, Args: args, StartedAt: startedAt,
+		Context: ctx,
+		Thread:  thread, Nonce: nonce, Args: args, StartedAt: startedAt,
 		ProfileRaw: profileRaw, Resume: true,
 	})
 }

@@ -41,7 +41,7 @@ func (r realDescendantRunner) Start(_ string, argv, env []string) (Handle, error
 	return ExecRunner{}.Start(filepath.Dir(r.marker), argv, env)
 }
 
-func (r realDescendantRunner) StartBlocked(_ string, _ []string, _ []string, timeout time.Duration) (BlockedHandle, error) {
+func (r realDescendantRunner) StartBlocked(ctx context.Context, _ string, _ []string, _ []string, timeout time.Duration) (BlockedHandle, error) {
 	script := `trap '' TERM; sleep 300 & child=$!; printf '%s' "$child" > "$PAIR_TEST_DESCENDANT_PID"; wait "$child"`
 	argv := []string{"sh", "-c", script}
 	env := []string{
@@ -51,9 +51,9 @@ func (r realDescendantRunner) StartBlocked(_ string, _ []string, _ []string, tim
 	var h BlockedHandle
 	var err error
 	if r.pty {
-		h, err = (&PtyRunner{LaunchHelper: os.Args[0]}).StartBlocked(filepath.Dir(r.marker), argv, env, timeout)
+		h, err = (&PtyRunner{LaunchHelper: os.Args[0]}).StartBlocked(ctx, filepath.Dir(r.marker), argv, env, timeout)
 	} else {
-		h, err = (ExecRunner{LaunchHelper: os.Args[0]}).StartBlocked(filepath.Dir(r.marker), argv, env, timeout)
+		h, err = (ExecRunner{LaunchHelper: os.Args[0]}).StartBlocked(ctx, filepath.Dir(r.marker), argv, env, timeout)
 	}
 	if err != nil {
 		return nil, err

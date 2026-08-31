@@ -1,6 +1,7 @@
 package couchcore
 
 import (
+	"context"
 	"fmt"
 	"os"
 	"sync"
@@ -48,6 +49,7 @@ type FakeRunner struct {
 	Ops               []string
 	BeforeAcknowledge func(id string) error
 	AfterAcknowledge  func(id string) error
+	AfterBlockedStart func(id string)
 }
 
 var _ Runner = (*FakeRunner)(nil)
@@ -68,12 +70,22 @@ func (f *FakeRunner) Start(dir string, argv, env []string) (Handle, error) {
 	return f.start(dir, argv, env, false)
 }
 
-func (f *FakeRunner) StartBlocked(dir string, argv, env []string, _ time.Duration) (BlockedHandle, error) {
+func (f *FakeRunner) StartBlocked(ctx context.Context, dir string, argv, env []string, _ time.Duration) (BlockedHandle, error) {
+	if ctx == nil {
+		ctx = context.Background()
+	}
+	if err := ctx.Err(); err != nil {
+		return nil, err
+	}
 	h, err := f.start(dir, argv, env, true)
 	if err != nil {
 		return nil, err
 	}
-	return &fakeBlockedHandle{fakeHandle: h.(*fakeHandle)}, nil
+	blocked := &fakeBlockedHandle{fakeHandle: h.(*fakeHandle)}
+	if f.AfterBlockedStart != nil {
+		f.AfterBlockedStart(blocked.ID())
+	}
+	return blocked, nil
 }
 
 func (f *FakeRunner) start(dir string, argv, env []string, blocked bool) (Handle, error) {

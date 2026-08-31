@@ -1,6 +1,7 @@
 package couchcore
 
 import (
+	"context"
 	"fmt"
 	"os"
 	"strconv"
@@ -51,8 +52,8 @@ func (r *PtyRunner) Start(dir string, argv, env []string) (Handle, error) {
 	return r.start(dir, argv, env, nil)
 }
 
-func (r *PtyRunner) StartBlocked(dir string, argv, env []string, timeout time.Duration) (BlockedHandle, error) {
-	return startBlockedChild(r.start, r.LaunchHelper, dir, argv, env, timeout)
+func (r *PtyRunner) StartBlocked(ctx context.Context, dir string, argv, env []string, timeout time.Duration) (BlockedHandle, error) {
+	return startBlockedChild(ctx, r.start, r.LaunchHelper, dir, argv, env, timeout)
 }
 
 func (r *PtyRunner) start(dir string, argv, env []string, extraFiles []*os.File) (Handle, error) {

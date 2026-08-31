@@ -1,6 +1,7 @@
 package couchcore
 
 import (
+	"context"
 	"errors"
 	"testing"
 	"time"
@@ -16,7 +17,7 @@ func TestStartTransactionIntegratesWithFakeRunnerLifecycle(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	h, err := runner.StartBlocked("/repo", []string{"pair"}, nil, time.Second)
+	h, err := runner.StartBlocked(context.Background(), "/repo", []string{"pair"}, nil, time.Second)
 	if err != nil {
 		t.Fatal(err)
 	}

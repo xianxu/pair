@@ -719,3 +719,15 @@ retry, recover, abandon, leave, and resume admission; direct `Resume` remains
 an explicit background convenience wrapper. Exhaustive canceled-context and
 targeted race tests pin the full branch set (`ARCH-PURE`, `ARCH-PURPOSE`,
 `ARCH-CONSTRAINTS`).
+
+### 2026-08-31 — M3 Task 11 blocked-launch cancellation
+
+The blocked runner seam now accepts the operation context, refuses an already
+canceled launch before helper effects, and carries that context through both
+new starts and verified-park resumes. Tracked launch checks cancellation on
+both sides of acknowledgement: pre-ack helpers are canceled/reaped before
+rollback, while post-ack targets use the existing exact quiesce/reconcile
+authority. Registration deadlines derive from the caller context. One shared
+Fake/Exec/Pty trace plus deterministic new-start and resume tests cover
+`blocked → canceled → reaped` and `acknowledged → canceled → reaped`, including
+verified-park restoration (`ARCH-MOCK`, `ARCH-PURPOSE`, `ARCH-CONSTRAINTS`).
