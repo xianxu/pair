@@ -2,9 +2,9 @@ package couchcore
 
 import "sort"
 
-// ThreadSummary is the shared CLI/panel/advisor row. It preserves the
-// composite address and every incarnation state; callers never merge threads
-// merely because they currently share a working path.
+// ThreadSummary is the diagnostic CLI/advisor row. It preserves the composite
+// address and every incarnation state; ordinary switchers use
+// ActionableThreadSummary so undecodable lifecycle states remain invisible.
 type ThreadSummary struct {
 	Address          ThreadAddress       `json:"address"`
 	StartingPath     string              `json:"starting_path"`

@@ -430,3 +430,10 @@ test-case/procedural matrices instead of function-level strategies) and `PQ-2`
 (the new runner cancellation fake lacked explicit real-runner conformance).
 Revised the plan across all chunks and added an always-run shared cancellation
 contract for FakeRunner, ExecRunner, and PtyRunner (ARCH-PURPOSE, ARCH-MOCK).
+
+### 2026-08-30 — M1 actionable inventory
+
+Added the fail-closed actionable projection and its one-snapshot Couch wrapper.
+Focused projection, wrapper, and raw-inventory tests pass with `-p 20`. The
+broader `couchcore` run remains blocked by the known #152 plan-contract test,
+which still opens the completed plan from `workshop/plans/`.

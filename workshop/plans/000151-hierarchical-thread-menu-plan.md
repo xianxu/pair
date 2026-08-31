@@ -141,41 +141,41 @@ compact strategies rather than copying that matrix back into prose:
 - Modify: `cmd/internal/couchcore/threadinventory.go`
 - Modify: `cmd/internal/couchcore/threadinventory_test.go`
 
-- [ ] **Step 1: Write failing pure projection tests**
+- [x] **Step 1: Write failing pure projection tests**
 
 Apply the `ProjectActionableThreads` contradictory-evidence strategy above; the
 test oracle is the Spec's two actionable states and exact composite identity.
 
-- [ ] **Step 2: Run the focused test and verify RED**
+- [x] **Step 2: Run the focused test and verify RED**
 
 Run: `go test -p 20 ./cmd/internal/couchcore -run 'TestProjectActionableThreads' -count=1`
 
 Expected: FAIL because `LiveTTYObservation`, user-facing state, and projector do not exist.
 
-- [ ] **Step 3: Implement the pure projection**
+- [x] **Step 3: Implement the pure projection**
 
 Add the types named in Core concepts and the pure projector with fail-closed
 state, defensive copies, deterministic sorting, and summary display methods.
 Keep `ThreadSummary.Live()` and raw diagnostic inventory unchanged.
 
-- [ ] **Step 4: Write failing snapshot-wrapper tests**
+- [x] **Step 4: Write failing snapshot-wrapper tests**
 
 Apply the `Couch.ActionableThreadInventory` IO-boundary strategy: injected
 snapshot failure must remain distinguishable from empty actionable output and
 all values must be defensively owned.
 
-- [ ] **Step 5: Run wrapper tests and verify RED**
+- [x] **Step 5: Run wrapper tests and verify RED**
 
 Run: `go test -p 20 ./cmd/internal/couchcore -run 'TestActionableThreadInventory' -count=1`
 
 Expected: FAIL because the wrapper is absent.
 
-- [ ] **Step 6: Implement the thin snapshot wrapper**
+- [x] **Step 6: Implement the thin snapshot wrapper**
 
 Implement the one-snapshot wrapper around `ProjectActionableThreads` without a
 second lifecycle interpretation.
 
-- [ ] **Step 7: Run focused tests and verify GREEN**
+- [x] **Step 7: Run focused tests and verify GREEN**
 
 Run: `go test -p 20 ./cmd/internal/couchcore -run 'Test(ProjectActionableThreads|ActionableThreadInventory|BuildThreadInventory)' -count=1`
 
