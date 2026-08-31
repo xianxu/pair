@@ -431,8 +431,8 @@ retrying cannot silently revise already-authorized authority.
 ### pair#151 M2 — pure hierarchical menu and scheduler
 
 **est:** 7.60 (whole issue)
-**actual:** 0.72h
-**closed:** 2026-08-30
+**actual:** 3.59h
+**closed:** 2026-08-31
 
 M2 supplies the inert pure hierarchy behind the still-flat Console: one shared
 store-free matcher, identity-bound reducer/reconciliation stack, contained

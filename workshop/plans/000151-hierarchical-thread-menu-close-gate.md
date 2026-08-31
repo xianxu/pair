@@ -283,6 +283,16 @@ rounds:
           round: 11
       boundary: M2
       blocked: true
+    - "n": 12
+      timestamp: "2026-08-31T07:40:08-07:00"
+      agent: codex
+      dispose:
+        - id: BR-20
+          disposition: addressed
+          note: Completion restoration now transforms only its captured prefix and preserves a distinct later global start frame; the all-operation, all-outcome regression fails when that preservation is removed.
+          round: 12
+      boundary: M2
+      blocked: false
 ---
 
 # Gate ledger — pair#151 (boundary-review)
@@ -425,6 +435,12 @@ later rounds disposed of them. Generated — edit the gate, not this file.
 - **BR-20** [Critical] `operation-result-origin-correlation` Operation restoration discards a global start overlay opened after dispatch
   This is the 5th finding in family operation-result-origin-correlation. A park failure slices the stack to the originating action frame, while successful park or resume slices it to root; either path removes a legal global start overlay opened after dispatch, contrary to the Spec. State the class rule that completion may transform its captured origin but must preserve unrelated later frames, then sweep every operation, outcome, and legal post-dispatch navigation with mutation-sensitive regressions.
 
+## Round 12 — 2026-08-31T07:40:08-07:00 (codex) — passed
+
+### Disposed
+
+- BR-20 — addressed — Completion restoration now transforms only its captured prefix and preserves a distinct later global start frame; the all-operation, all-outcome regression fails when that preservation is removed.
+
 ## Open findings
 
-- **BR-20** [Critical] `operation-result-origin-correlation` Operation restoration discards a global start overlay opened after dispatch
+(none — every finding has been disposed)

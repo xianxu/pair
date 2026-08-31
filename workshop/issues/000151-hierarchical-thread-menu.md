@@ -495,7 +495,7 @@ total: 7.60
 
 - [x] M1 — Build and integrate authoritative actionable inventory plus bounded,
       token-bound start preparation/admission contracts.
-- [ ] M2 — Build the pure hierarchical menu reducer, renderer, key semantics,
+- [x] M2 — Build the pure hierarchical menu reducer, renderer, key semantics,
       reconciliation, and bounded preview scheduler.
 - [ ] M3 — Integrate asynchronous inventory/actions/forms with Console, add
       full-console/performance evidence, and update the Couch atlas.
@@ -689,6 +689,7 @@ park/resume/start behavior stays explicit and identity exhaustion refuses
 navigation (`ARCH-PURE`, `ARCH-PURPOSE`).
 
 ### 2026-08-31 — M2 boundary review round 8
+- 2026-08-31: closed M2 — Focused operation/outcome overlay regression passes; bounded couchcore/couchcmd/couchtty/artifactpath suite passes with -p 20; targeted couchcore+couchtty race suite passes with -p 20; issue and project validation pass; git diff --check passes. BR-20 now preserves unrelated later global start overlays by frame-instance identity.; review verdict: SHIP
 
 The review disposed BR-19, then found that successful global restoration and
 park-failure restoration still discarded a global start overlay opened after

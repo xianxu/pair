@@ -794,3 +794,77 @@ findings:
     detail: |
       This is the 5th finding in family operation-result-origin-correlation. A park failure slices the stack to the originating action frame, while successful park or resume slices it to root; either path removes a legal global start overlay opened after dispatch, contrary to the Spec. State the class rule that completion may transform its captured origin but must preserve unrelated later frames, then sweep every operation, outcome, and legal post-dispatch navigation with mutation-sensitive regressions.
 ```
+
+---
+
+## Re-review — 2026-08-31T07:40:08-07:00 (SHIP)
+
+| field | value |
+|-------|-------|
+| issue | 151 — couch: hierarchical work-thread menu |
+| repo | pair |
+| issue file | workshop/issues/000151-hierarchical-thread-menu.md |
+| boundary | milestone M2 |
+| milestone | M2 |
+| window | 66ae7eef502eb996f4b2d7f096e0ee73090204b2..95a5c4fc9100a76de18befa1f280125b0b1963c7 |
+| command | sdlc milestone-close --issue 151 --milestone M2 |
+| reviewer | codex |
+| timestamp | 2026-08-31T07:40:08-07:00 |
+| verdict | SHIP |
+
+## Review
+
+```verdict
+verdict: SHIP
+confidence: high
+```
+
+The M2 boundary delivers the documented pure reducer, renderer, semantic key decoder, matcher, and bounded preview scheduler. BR-20 is addressed across every operation and outcome, and its regression fails when overlay preservation is removed. No blocking or non-blocking findings remain.
+
+1. Strengths
+
+- Operation completions are correlated by attempt and frame identity before mutation (`cmd/internal/couchtty/menu.go:184`, `:819`).
+- Restoration preserves later global start overlays without retaining the originating start frame (`cmd/internal/couchtty/menu.go:857`).
+- The BR-20 regression covers switch, resume, park, name, describe, and start across success and failure (`cmd/internal/couchtty/menu_test.go:574`).
+- Rendering protects lifecycle, age, and bell cues at minimum width and anchors children to selected parent rows (`cmd/internal/couchtty/menu_render_test.go:41`, `:155`).
+- The Core concepts contract mechanically verifies M2-present and M3-deferred surfaces (`cmd/internal/couchcore/plan_contract_test.go:727`).
+
+2. Critical findings
+
+None.
+
+3. Important findings
+
+None.
+
+4. Minor findings
+
+None.
+
+5. Test coverage notes
+
+- `go test -p 20 ./cmd/internal/couchcore ./cmd/internal/couchtty -count=1` passed.
+- `go test -p 20 ./... -count=1` passed.
+- `git diff --check` passed.
+- BR-20 mutation check: replacing overlay-preserving restoration with ordinary prefix slicing made `TestMenuOperationCompletionPreservesLaterGlobalStartOverlay` fail for the relevant resume, park, and start outcomes.
+- PURE entity tests perform no process, network, terminal, or mutable-filesystem I/O.
+
+6. Architectural notes for upcoming work
+
+- `ARCH-DRY`: Pass. Shared matching, transition, rendering, and scheduling rules each have one authority.
+- `ARCH-PURE`: Pass. Reducer, scheduler, layout, and renderer are deterministic value transformations; Console integration remains deferred to M3.
+- `ARCH-PURPOSE`: Pass. M2 delivers the full promised pure-menu boundary, including the operation/outcome/navigation sweep rather than only BR-20’s named instance.
+- `ARCH-MOCK`: Pass for this boundary. No new external dependency is introduced; existing stateful runner/host seams remain staged for M3 integration.
+- `ARCH-CONSTRAINTS`: Pass. Input, frame, scheduler, terminal-size, and rendering bounds are enforced; target-machine timing evidence is correctly deferred to reachable M3 integration.
+
+7. Plan revision recommendations
+
+None.
+
+```findings
+dispose:
+  - id: BR-20
+    disposition: addressed
+    note: |
+      Completion restoration now transforms only its captured prefix and preserves a distinct later global start frame; the all-operation, all-outcome regression fails when that preservation is removed.
+```
