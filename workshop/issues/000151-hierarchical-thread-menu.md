@@ -384,3 +384,11 @@ suspend/resume; generalized attach/detach and workspace composition are
 deferred. Operator-approved spec deltas hide non-actionable recovery states,
 bind start preview to execution, preserve last-good UI across refresh failure,
 define Tab per frame, and require a non-blocking 100-row hot path.
+
+### 2026-08-30 — plan-quality gate round 1
+
+`sdlc change-code` blocked before implementation with `PQ-1` (the plan copied
+test-case/procedural matrices instead of function-level strategies) and `PQ-2`
+(the new runner cancellation fake lacked explicit real-runner conformance).
+Revised the plan across all chunks and added an always-run shared cancellation
+contract for FakeRunner, ExecRunner, and PtyRunner (ARCH-PURPOSE, ARCH-MOCK).

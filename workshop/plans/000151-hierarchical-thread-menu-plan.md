@@ -102,13 +102,34 @@
   - **Injected into:** the sole console startup path in `runConsole`.
   - **Future extensions:** #147 can replace local closures with owner transport.
 
-- **Context-bearing runner and existing stateful doubles** — the blocked-start runner seam accepts the operation context so a canceled Console cannot strand a helper launch or registration wait. `FakeRunner` retains fork/registration/exit state and `hostty.FakeHost` retains terminal bytes/modes; no new external binary is introduced. Pair/Zellij suspend/resume continues through `PairLifecycleController` and its existing fake/live conformance suite (ARCH-MOCK).
-  - **Injected into:** full-console tests and current park/resume integration tests.
-  - **Future extensions:** add modeled calls only when #151 consumes a new lifecycle behavior.
+- **Context-bearing runner and existing stateful doubles** — the blocked-start runner seam accepts the operation context so a canceled Console cannot strand a helper launch or registration wait. `FakeRunner` records the same before/after-ack cancellation states as `ExecRunner` and `PtyRunner`; `TestBlockedRunnerCancellationConformance` in `runner_contract_test.go` runs their shared trace on every core package test and M1 boundary. `hostty.FakeHost` retains terminal bytes/modes. Pair/Zellij suspend/resume continues through `PairLifecycleController` and its existing fake/live conformance suite (ARCH-MOCK).
+  - **Injected into:** runner conformance, full-console, and current park/resume integration tests.
+  - **Future extensions:** every new modeled runner transition extends the shared trace in the same change.
 
 - **Target performance harness** — measures committed 100-row scripted interactions on M2 Max and optionally starts exactly four bounded CPU workers over fixed in-memory buffers.
   - **Injected into:** test-only measurement entrypoint; production contains no benchmark flags or load generator.
   - **Future extensions:** retain fixtures for regression; do not generalize into a benchmarking framework.
+
+## Function-level test strategies
+
+The Spec and Done-when own the behavioral cases. Implementation tests use these
+compact strategies rather than copying that matrix back into prose:
+
+| Risky function/seam | Adversarial class and mechanical guard |
+|---|---|
+| `ProjectActionableThreads` | Contradictory durable/observed lifecycle evidence → table/property checks require exact identity and fail-closed output. |
+| `StartGrantStore.Issue/Claim/Finish` | Short entropy, collision, expiry, capacity, and concurrent claim traces → compare against a mutex-free reference state machine and run the race detector at M1. |
+| `ResolveStartResolution` / fingerprint | Mutate every normalized input and argv element → equality/property checks require stable same-input and changed fingerprint for changed authority. |
+| `PrepareStart` / `SpawnPrepared` / `ReconcileAdmissionPrepared` | Stateful fakes change policy/preference/default evidence between phases → effect logs prove refusal precedes allocation/fork and authorized values are not reread afterward. |
+| `DispatchOperation` | Unknown schemas, absent capabilities, and implicit-argument injection → declaration-driven table requires exactly one executor and no UI-only verb. |
+| `ClassifyThreadReferenceFields` / set filter | Arbitrary exact/fuzzy collisions and invalid bytes → shared classification oracle proves exact wins without store access. |
+| `ReduceMenu` | Generated event traces over stale identities, UTF-8 bounds, and async outcomes → invariant checks bound stack/input, preserve stable identity, and forbid duplicate effects. |
+| `RenderMenu` / layout / age band | Boundary dimensions, ages, viewport positions, and malformed/wide Unicode → goldens plus stripped-width/row bounds; no clock or terminal IO. |
+| `DecodePanelKeys` | Every split point plus malformed/modified CSI-u and mouse noise → seeded fuzz requires framing, ordering, and fail-safe dropping. |
+| `AdvancePreviewSchedule` / `AdvanceRefreshSchedule` | Duplicate, stale, canceled, and reordered completions → model traces enforce their one-running/coalesced bounds and one terminal retirement. |
+| Console refresh/action/attach controllers | Blocking stateful providers and partial pane installation → deterministic barriers prove immediate repaint, exact rollback, context cancellation, and joined teardown. |
+| `Runner.StartBlocked` cancellation contract | One shared trace drives `FakeRunner`, `ExecRunner`, and `PtyRunner`: fake transitions `blocked → canceled-before-ack → reaped` and `blocked → acknowledged → canceled-after-ack → reaped` must match real helper/PTY behavior. `TestBlockedRunnerCancellationConformance` runs on every `go test ./cmd/internal/couchcore` and therefore at each M1/boundary change, not on a separate manual cadence. |
+| 100-row Console/render performance | Fixed generated inventory and generation-tagged input/repaint barriers → allocation ceilings and target-machine p50/p95/max checks enforce the operating envelope. |
 
 ## Chunk 1: Authoritative actionable inventory and token-bound start
 
@@ -122,20 +143,8 @@
 
 - [ ] **Step 1: Write failing pure projection tests**
 
-Add table tests constructing `ThreadRecord`s for: matching observed live incarnation, persisted-live without observation, mismatched PID/identity observation, exact verified park, active park transaction, creating/unknown incarnation, abandoned/tombstoned history, corrupt simultaneous live+verified park, and two threads at the same path. Assert only the matching live and exact verified-park rows survive, retain composite identity, carry `LastActiveAt`, and sort deterministically.
-
-```go
-got := ProjectActionableThreads(records, []LiveTTYObservation{{
-    Address: live.Address,
-    Process: ProcessIdentity{PID: 42, Identity: "pair-live"},
-}})
-if diff := cmp.Diff([]ActionableThreadSummary{
-    {Address: live.Address, State: ThreadLive, LastActiveAt: live.LastActiveAt},
-    {Address: parked.Address, State: ThreadParked, LastActiveAt: parked.LastActiveAt},
-}, got, summaryCmpOptions...); diff != "" {
-    t.Fatalf("actionable inventory mismatch (-want +got):\n%s", diff)
-}
-```
+Apply the `ProjectActionableThreads` contradictory-evidence strategy above; the
+test oracle is the Spec's two actionable states and exact composite identity.
 
 - [ ] **Step 2: Run the focused test and verify RED**
 
@@ -145,38 +154,15 @@ Expected: FAIL because `LiveTTYObservation`, user-facing state, and projector do
 
 - [ ] **Step 3: Implement the pure projection**
 
-Define fail-closed zero-valued state and defensive copies:
-
-```go
-type ActionableThreadState uint8
-const (
-    ThreadActionUnknown ActionableThreadState = iota
-    ThreadLive
-    ThreadParked
-)
-
-type LiveTTYObservation struct {
-    Address ThreadAddress
-    Process ProcessIdentity
-}
-
-type ActionableThreadSummary struct {
-    Address ThreadAddress
-    StartingPath, WorkingPath, Name, Description, PublishedSummary string
-    State ActionableThreadState
-    LastActiveAt time.Time
-}
-
-func ProjectActionableThreads(records []ThreadRecord, observations []LiveTTYObservation) []ActionableThreadSummary
-```
-
-Give `ActionableThreadSummary` its own `Live()`, `Label()`, and `DisplaySummary()` methods. Do not modify `ThreadSummary.Live()`: raw `BuildThreadInventory` continues to report persisted diagnostic incarnation state for `couch list/show`. Rename comments and add a cross-type regression proving the raw row remains visible/diagnostic while the same unobserved record is absent from the actionable projection.
+Add the types named in Core concepts and the pure projector with fail-closed
+state, defensive copies, deterministic sorting, and summary display methods.
+Keep `ThreadSummary.Live()` and raw diagnostic inventory unchanged.
 
 - [ ] **Step 4: Write failing snapshot-wrapper tests**
 
-Test caller mutation cannot alter records/observations/results, a failed snapshot
-is returned as an error rather than an empty list, and raw diagnostic
-`ThreadInventory()` still retains hidden records for `couch list/show`.
+Apply the `Couch.ActionableThreadInventory` IO-boundary strategy: injected
+snapshot failure must remain distinguishable from empty actionable output and
+all values must be defensively owned.
 
 - [ ] **Step 5: Run wrapper tests and verify RED**
 
@@ -186,15 +172,8 @@ Expected: FAIL because the wrapper is absent.
 
 - [ ] **Step 6: Implement the thin snapshot wrapper**
 
-Implement:
-
-```go
-func (c *Couch) ActionableThreadInventory(obs []LiveTTYObservation) ([]ActionableThreadSummary, error) {
-    snapshot, err := c.Threads.Snapshot()
-    if err != nil { return nil, err }
-    return ProjectActionableThreads(snapshot.Records, obs), nil
-}
-```
+Implement the one-snapshot wrapper around `ProjectActionableThreads` without a
+second lifecycle interpretation.
 
 - [ ] **Step 7: Run focused tests and verify GREEN**
 
@@ -218,11 +197,14 @@ git commit -m "#151 M1: project actionable Couch threads"
 
 - [ ] **Step 1: Write failing grant authority tests**
 
-Define `StartGrantToken` and `StartGrant`. Require exactly 32 bytes (256 bits) from injected cryptographic entropy, encoded with `base64.RawURLEncoding`. Test `io.ReadFull` short-read/error issuance leaves the store unchanged; token collision permits three total complete 32-byte draws (initial plus two retries), then refuses without overwriting the existing grant.
+Apply the `StartGrantStore.Issue/Claim/Finish` reference-state strategy to entropy
+failure, collision, replay, and atomic claim authority. Pin 32-byte raw-URL tokens
+and three total collision draws.
 
 - [ ] **Step 2: Write failing lifecycle/bound tests**
 
-Test a mutex-owned `issued → consuming → removed` lifecycle. Issued plus consuming entries count toward a hard capacity of 16. Issuance first prunes expired issued entries, but never evicts consuming authority; sixteen consuming grants make the seventeenth issuance fail. TTL is five minutes and checked atomically before claim (`now >= ExpiresAt` rejects/removes); once claimed, expiry does not abort the in-flight attempt. Every attempt outcome removes the consuming entry, and replay returns unknown/consumed. A new store rejects all pre-restart tokens.
+Use the same model to pin the 16-entry total bound, five-minute pre-claim TTL,
+non-evictable consuming state, terminal removal, and restart invalidation.
 
 - [ ] **Step 3: Run tests and verify RED**
 
@@ -232,7 +214,9 @@ Expected: FAIL because `StartGrantStore` does not exist.
 
 - [ ] **Step 4: Implement minimal grant storage**
 
-Use one mutex for the map, lifecycle, capacity, and collision checks. `Issue` clones `StartResolution`; `Claim` returns one cloned resolution and marks it consuming; `Finish` requires the consuming token and deletes it. Add the store to `Couch` with existing `Clock`/`Entropy` dependencies. Do not persist grants or reissue a token after failure.
+Implement the Core-concepts grant lifecycle behind one mutex with cloned
+resolution ownership and existing clock/entropy injection; grants remain
+owner-local and non-persistent.
 
 - [ ] **Step 5: Run focused and package tests**
 
@@ -259,7 +243,9 @@ git commit -m "#151 M1: add bounded start grants"
 
 - [ ] **Step 1: Write failing pure resolution/fingerprint tests**
 
-Cover canonical path, agent precedence, same-agent path argv, repository-default argv, full normalized `PolicyResult`, preference revision, semantic repository-default digest, defensive copies, deterministic fingerprint equality, and a fingerprint change for every field/argv element. Add negative cases for unsupported agents, absent source, wrong-agent defaults, malformed args, and invalid policy evidence.
+Apply the `ResolveStartResolution` mutation strategy to every authority-bearing
+input and malformed profile/policy data; reuse `ResolveLaunchProfile` as the
+selection oracle.
 
 - [ ] **Step 2: Run pure tests and verify RED**
 
@@ -269,13 +255,14 @@ Expected: FAIL because the resolution entity is absent.
 
 - [ ] **Step 3: Implement the pure resolution**
 
-Define `StartResolution` with canonical path, worktree, full policy, launch profile/sources, preference revision, default digest, and `StartResolutionFingerprint`. Reuse `ResolveLaunchProfile`; hash an explicit schema plus length-delimited normalized fields. Re-run Step 2 and expect PASS.
+Implement the Core-concepts resolution/fingerprint with an explicit
+length-delimited schema and defensive copies. Re-run Step 2 and expect PASS.
 
 - [ ] **Step 4: Write failing prepared-I/O and admission tests**
 
-Assert `PrepareStart` performs no allocation/fork, resolves candidate policy once, reads preference/default evidence, and issues one grant. Assert `SpawnPrepared` claims once, reruns that identical resolution pipeline once, compares fingerprints, and uses those returned values. Mutating any path/agent/policy/default/preference evidence refuses before allocation/fork and consumes the grant. Add mismatch tests proving call args cannot override the grant resolution.
-
-Add `ReconcileAdmissionPrepared(ctx, ..., candidatePolicy)` tests proving it never resolves the candidate but retains current snapshot retries, incumbent-policy refresh, capacity decisions, and rollback. Verify the factored spawn path never re-canonicalizes or re-reads policy/default/preference after authorization, and only successful Pair registration updates path preference.
+Apply the stateful evidence-change strategy to `PrepareStart`, `SpawnPrepared`,
+and `ReconcileAdmissionPrepared`; effect logs are the mechanical guard against
+check/use drift and unauthorized allocation/fork.
 
 - [ ] **Step 5: Run prepared-start tests and verify RED**
 
@@ -285,7 +272,9 @@ Expected: FAIL because the prepared I/O/admission seam is absent.
 
 - [ ] **Step 6: Implement prepared start and candidate-policy admission**
 
-`PrepareStart` canonicalizes path/tree, resolves/validates candidate policy, keys preference from that repo identity/canonical path, reads the selected agent default, computes its semantic digest, calls the pure resolver, and issues a grant. `SpawnPrepared` atomically claims, recomputes without issuing, compares fingerprints, and always defers `Finish`; stale/failure requires a new preview. Pass the recomputed resolution directly into allocation, `ReconcileAdmissionPrepared`, and launch. Never re-resolve candidate policy/profile/path after the comparison; incumbent policy reconciliation remains unchanged.
+Factor one resolution pipeline for prepare/revalidation, then feed its accepted
+values directly into prepared admission and launch. Grant claim/finish brackets
+the attempt; no authority input is reread after fingerprint acceptance.
 
 - [ ] **Step 7: Run focused core tests**
 
@@ -314,9 +303,9 @@ git commit -m "#151 M1: bind preparation to spawn"
 
 - [ ] **Step 1: Write failing operation/CLI contract tests**
 
-Require `ResultStartResolution` and a new nonzero `EffectAuthority`; `prepare-start` as `ExecuteLiveOwner`/`EffectAuthority`; and `start` with required implicit `resolution-token`. Pin validation, defensive result copies, and absence of a duplicate `rename` operation. Require `operationOwnsLive("prepare-start")`, while a new `operationStartsConsole`/`WantsConsole` decision remains true only for `start`/`resume`; `consoleRunnerFor("prepare-start", ...)` must return no Console and an `ExecRunner` even on a terminal.
-
-Require direct `couch prepare-start` rendering and normal `couch start` internally dispatching preview then token-bound start without accepting a token from argv. Pin owner-routing refusal when the live-owner capability is absent.
+Apply the declaration-driven `DispatchOperation` strategy to the new
+`prepare-start` result/effect and implicit token-bound `start`. Pin separately
+that ownership acquisition does not imply Console/PTy creation.
 
 - [ ] **Step 2: Run tests and verify RED**
 
@@ -326,7 +315,9 @@ Expected: FAIL because the declarations, result, and two-step CLI path are absen
 
 - [ ] **Step 3: Implement operation and CLI wiring**
 
-Add `EffectAuthority`, declare/dispatch `prepare-start`, and make token-bound `start` the sole production spawn route. Let direct preview acquire the singleton lease but never a PTY/Console. `RunWithRuntime` keeps public `couch start [path] --agent=...`; after constructing the owner it invokes `prepare-start`, injects the token as trusted implicit data, and dispatches `start`. Render direct preview fields/token. Console/advisor clients must explicitly make the same two calls.
+Add the declared authority/result surfaces and route the existing public start
+command through prepare then token-bound start. Keep owner acquisition and
+Console creation as separate decisions.
 
 - [ ] **Step 4: Run unfiltered changed-package tests**
 
@@ -377,7 +368,9 @@ Expected: fresh-context milestone review approves the core contracts; log the ve
 
 - [ ] **Step 1: Write failing shared matcher tests**
 
-Extract the existing pure matching rule from `ResolveThreadReference` into `ClassifyThreadReferenceFields`, returning `MatchNone`, `MatchFuzzy`, or `MatchExact`. Pin exact tag classification, case-insensitive name/path fuzzy classification, repo-scope filtering when supplied, empty-query behavior for menu filtering, and NUL refusal for operation resolution. A second pure helper filters a complete candidate set by the highest present class, so any exact tag suppresses fuzzy siblings. Assert `ResolveThreadReference` and actionable-row filtering use these helpers rather than restating fields.
+Apply the `ClassifyThreadReferenceFields` collision/invalid-byte strategy and
+require both operation resolution and in-memory menu filtering to use the same
+set-level exact-over-fuzzy helper.
 
 - [ ] **Step 2: Run matcher tests and verify RED**
 
@@ -387,13 +380,13 @@ Expected: FAIL because the shared field predicate is absent.
 
 - [ ] **Step 3: Implement matcher extraction and verify GREEN**
 
-Add the pure exported classification/set helpers with no store access, preserve resolver ambiguity/sorting behavior, and rerun Step 2. Menu filtering passes its current in-memory `ActionableThreadSummary` fields and never invokes `Couch.ResolveThreadReference`.
+Extract the pure classifier/set helper without store access, preserve CLI
+resolution behavior, and rerun Step 2.
 
 - [ ] **Step 4: Write failing root/filter reducer tests**
 
-Cover stable identity selection, exact-over-fuzzy filtering, first-match fallback,
-zero-match Enter/Tab notices, clamped Up/Down, root Escape clear/return effects,
-and immutable-by-copy inputs.
+Apply the `ReduceMenu` generated-trace strategy first to root/filter transitions;
+stable identity and no-effect-on-zero-selection are the invariants.
 
 - [ ] **Step 5: Run root tests and verify RED**
 
@@ -403,48 +396,13 @@ Expected: FAIL because menu entities are absent.
 
 - [ ] **Step 6: Implement root entities/transitions and verify GREEN**
 
-Define fail-safe zero values and explicit frame ownership:
-
-```go
-type MenuFrameKind uint8
-const (
-    FrameUnknown MenuFrameKind = iota
-    FrameThreads
-    FrameActions
-    FrameParkConfirm
-    FrameTextInput
-    FrameStart
-)
-
-type MenuFrame struct {
-    Kind MenuFrameKind
-    Target couchcore.ThreadAddress
-    Filter string
-    SelectedID string
-    Input TextInputState
-    Start StartFormState
-}
-
-type MenuState struct {
-    Inventory []couchcore.ActionableThreadSummary
-    Frames []MenuFrame
-    BellThreads []couchcore.ThreadAddress
-    Notice string
-    RefreshPending bool
-}
-
-func ReduceMenu(state MenuState, event MenuEvent) (MenuState, []MenuEffect)
-```
-
-Implement only root/filter transitions, then rerun Step 5 and expect PASS.
+Add the Core-concepts menu types with fail-safe zero values, explicit frame
+ownership, and root/filter transitions only; rerun Step 5.
 
 - [ ] **Step 7: Write failing action/confirmation traces**
 
-Cover root Tab → captured thread action frame, quiet leaf Tab, nested Escape,
-live `park/name/describe`, parked `resume/name/describe`, cancel-default park
-confirmation, shared operation descriptors, stale identity/applicability
-refusal, and switch clearing the exact thread's ephemeral bell. Bell join/clear
-uses a defensively copied address set and never mutates core/durable rows.
+Extend the reducer model traces across action/confirmation frames; captured
+identity, current applicability, and ephemeral bell ownership are the guards.
 
 - [ ] **Step 8: Run action tests RED, implement, then GREEN**
 
@@ -455,10 +413,9 @@ not `rename`) and exact args but perform no I/O.
 
 - [ ] **Step 9: Write failing text/start form traces**
 
-Cover name/describe editing and UTF-8 Backspace, cancel/success/failure
-preservation, 1 KiB name/filter and 4 KiB path/description byte bounds without
-splitting UTF-8, Ctrl-Space from every list frame, no-op in text input, start
-Tab/Left/Right, sticky agent, and exact originating-stack restoration.
+Extend the reducer trace generator across text/start forms with malformed UTF-8
+boundaries, input caps, sticky agent choice, and exact originating-stack
+restoration as invariants.
 
 - [ ] **Step 10: Run form tests RED, implement, then GREEN**
 
@@ -468,14 +425,9 @@ Expected: first FAIL, then PASS.
 
 - [ ] **Step 11: Write failing refresh/reconciliation traces**
 
-Pin all total outcomes: failure before any successful inventory yields
-unavailable, later failure preserves complete last-good inventory/frames/drafts,
-and successful refresh reconciles root-to-leaf before restoration. A hidden
-target discards the first invalid frame/descendants/draft with notice; a global
-start form survives with only its origin reconciled. Operation success applies
-its returned affected-row projection when supplied; without one it retains
-last-good data as refresh-pending. Neither path redispatches. Also pin
-switch/resume/start failures as notice-only without presentation/process effects.
+Extend reducer model traces with reordered refresh/operation outcomes; the
+mechanical guard reconciles root-to-leaf before restoration and forbids any
+completion from redispatching an effect.
 
 - [ ] **Step 12: Run reconciliation tests RED, implement, then GREEN**
 
@@ -511,9 +463,9 @@ git commit -m "#151 M2: reduce hierarchical menu state"
 
 - [ ] **Step 1: Write failing render/layout tests**
 
-Use golden string/table tests for 120x40 wide child placement, 40x10 single-column placement, and below-minimum resize message. Cover `▸` plus reverse-video selection, textual live/parked state, path, bell, description, parked relative age and three gray bands (`<24h`, `1–7d`, `>7d`), no color as sole state cue, controls by frame, zero matches, unavailable/refresh-pending notices, confirmation, text input, start fields/source, and safely clipped wide/combining Unicode.
-
-Pin age boundaries exactly at 24h and 7d and use injected `now`; no renderer reads the clock or terminal. Strip ANSI in assertions and require every line's `textwidth.Width` ≤ columns and total lines ≤ rows. With 100 rows in 40x10, assert deterministic vertical viewport adjustment keeps selection visible at first/middle/last. Clamp a wide child beside the selected parent near both top and bottom; narrow child placement must remain within rows.
+Apply the renderer boundary/Unicode strategy to `RenderMenu`,
+`ChooseMenuLayout`, and `AgeBand`; stripped terminal width/height and visible
+selection are the mechanical guards.
 
 - [ ] **Step 2: Run render tests and verify RED**
 
@@ -523,7 +475,9 @@ Expected: FAIL because render/layout entities are absent.
 
 - [ ] **Step 3: Implement pure layout and rendering**
 
-Define `MenuLayout` with frame rectangles/viewports and `RenderMenu(state, cols, rows, now) string`. Reuse existing `sanitize` and terminal-column `truncate` from `reserve.go`; do not add a rune-count clipping implementation. Compute a selection-containing vertical viewport before output and clamp child rectangles to the screen. Choose wide only when both parent/child minimum widths fit; otherwise stack below. Return only the resize message below 40x10.
+Implement the Core-concepts layout/renderer, reusing `reserve.go` sanitization
+and column truncation. Viewports and child rectangles remain bounded; terminals
+below 40x10 receive only the resize message.
 
 - [ ] **Step 4: Run render tests and verify GREEN**
 
@@ -546,7 +500,8 @@ git commit -m "#151 M2: render bounded menu frames"
 
 - [ ] **Step 1: Write failing decoder tests**
 
-Add `KeyTab` expectations for legacy HT (`0x09`) and Kitty CSI-u (`ESC [ 9 u`, including explicit no-modifier `;1`). Include every split point for CSI-u, reject modified Tab chords, and prove adjacent printable bytes remain ordered.
+Apply the seeded `DecodePanelKeys` framing/fuzz strategy to legacy HT and
+unmodified Kitty CSI-u Tab encodings.
 
 - [ ] **Step 2: Run decoder tests and verify RED**
 
@@ -556,7 +511,8 @@ Expected: FAIL because Tab is currently ignored.
 
 - [ ] **Step 3: Implement semantic Tab decoding**
 
-Add the fail-safe enum member and map only HT and unmodified codepoint 9. Preserve mouse/unknown-sequence dropping and partial framing.
+Map only the two approved encodings to the semantic Tab key while preserving
+partial framing and fail-safe dropping.
 
 - [ ] **Step 4: Run decoder tests and verify GREEN**
 
@@ -581,7 +537,9 @@ git commit -m "#151 M2: decode menu Tab encodings"
 
 - [ ] **Step 1: Write failing scheduler traces**
 
-Table-test edit bursts, completion order, cancellation supported/unsupported, failures, Escape, and Enter while unresolved. Assert one running request plus one replaceable latest pending generation, stale completions never update displayed profile, and Enter arms one submit for the current generation. `CancelPreview` only requests cancellation: it never retires `Running` or starts pending work. Exactly one terminal `PreviewFinished{generation, outcome}` event (success, failure, or canceled acknowledgment) retires the matching running request and starts the coalesced latest; duplicate/racing completions are ignored. Editing/Escape cancels the arm; only an accepted unchanged generation emits token-bound start.
+Apply the `AdvancePreviewSchedule` reordered-completion model strategy; one
+terminal outcome retires the matching generation and all work/submit bounds are
+invariants.
 
 - [ ] **Step 2: Run scheduler tests and verify RED**
 
@@ -591,7 +549,8 @@ Expected: FAIL because preview scheduling is absent.
 
 - [ ] **Step 3: Implement the pure scheduler and reducer events**
 
-Model generation, running with `CancelRequested`, optional latest pending, optional armed-submit generation, and accepted resolution/token. Return effects `CancelPreview`, `StartPreview`, and `SubmitStart`; never call context cancellation directly. A worker is obligated to emit one terminal outcome even when cancellation wins, so pending work cannot strand and two previews never overlap. Bound retained text to the approved path/name limits before scheduling.
+Implement the Core-concepts schedule as pure state/effects; cancellation is a
+request and only a matching terminal outcome retires running work.
 
 - [ ] **Step 4: Run all Chunk 2 package tests**
 
@@ -646,7 +605,8 @@ Expected: fresh-context milestone review approves the pure menu surface; log the
 
 - [ ] **Step 1: Write failing pure refresh-schedule traces**
 
-Pin idle request → one start, requests while running → one dirty bit, completion/failure → reducer event plus exactly one follow-up when dirty, and stale/duplicate completion rejection. A refresh has one generation and the schedule can never report two running jobs.
+Apply the `AdvanceRefreshSchedule` reordered-completion model strategy and assert
+the one-running/one-dirty bound.
 
 - [ ] **Step 2: Run scheduler tests and verify RED**
 
@@ -664,9 +624,9 @@ Re-run Step 2. Expected: PASS.
 
 - [ ] **Step 5: Write failing observation/wiring tests**
 
-Extend `pane` to retain the exact `ProcessIdentity` from the attached `StartResult.Handle`. Test observation snapshots include only registered, non-done children and carry exact address/PID/identity; duplicate incarnations remain separate observations. Test initial attach, resumed attach, exit, and switch never synthesize proof from persisted state.
-
-Require production wiring to inject `func(context.Context, []LiveTTYObservation) ([]ActionableThreadSummary, error)` using `Couch.ActionableThreadInventory`; remove the old resolver-per-keystroke provider. Pin that Console construction/first attach requests background inventory, but opening the menu renders the current in-memory unavailable/last-good state before the provider is released. A blocking stateful provider must observe Console cancellation, emit exactly one canceled terminal completion, and let `Console.Stop` join within 250 ms.
+Apply the Console refresh-controller strategy with exact pane identities and a
+context-bearing actionable provider. Barriers prove opening/input use current
+memory while blocked provider IO is cancelable and joined.
 
 - [ ] **Step 6: Run observation/wiring tests and verify RED**
 
@@ -676,7 +636,9 @@ Expected: FAIL because pane identity and async actionable wiring are absent.
 
 - [ ] **Step 7: Implement the bounded inventory worker**
 
-Add one result channel to `Console.Run`; snapshots of pane observations occur under the Console mutex, while provider I/O occurs outside it. One worker derived from the Console lifetime context executes only effects emitted by `RefreshSchedule`, passes that context into the provider, and always sends one success/failure/canceled completion. Apply completion through `ReduceMenu`; never rebuild state directly. Start one refresh after initial attach and coalesce attach/exit/operation-triggered refreshes. Stop cancels and joins the worker during existing Console teardown; no provider may be injected without the context parameter.
+Wire one context-bound worker around `RefreshSchedule`; snapshot observations
+under the Console mutex, perform provider IO outside it, and feed terminal
+results only through `ReduceMenu`. Teardown cancels then joins.
 
 - [ ] **Step 8: Run focused and complete TTY/command tests**
 
@@ -714,6 +676,7 @@ git commit -m "#151 M3: refresh actionable menu asynchronously"
 - Modify: `cmd/internal/couchcore/resume_launch_test.go`
 - Modify: `cmd/internal/couchcore/runner.go`
 - Modify: `cmd/internal/couchcore/runner_test.go`
+- Create: `cmd/internal/couchcore/runner_contract_test.go`
 - Modify: `cmd/internal/couchcore/runner_fake.go`
 - Modify: `cmd/internal/couchcore/ptyrunner.go`
 - Modify: `cmd/internal/couchcore/ptyrunner_test.go`
@@ -725,7 +688,9 @@ git commit -m "#151 M3: refresh actionable menu asynchronously"
 
 - [ ] **Step 1: Write failing result-carrying operation queue tests**
 
-Change operation requests to return `(any, error)` and completions to carry the exact typed result plus stable request identity. Pin existing duplicate coalescing/capacity, one sequential action worker, panic-safe terminal completion, stop/join, and result defensive ownership. Add a table with `prepare-start`, token-bound `start`, `park`, `resume`, `name`, and `describe`, each initialized from its real form/frame/draft/selection state. For each operation prove: accepted enqueue enters its exact progress state and repaints; exact duplicate preserves that original progress and emits no second completion; overload immediately restores the initiating form/frame/draft/selection through its typed failure event, never enters progress, and expects no later completion. Test a successful mutation completion is reduced once even when its following refresh fails; no completion path reruns the request.
+Apply the Console action-controller strategy to every declared queued operation;
+the model oracle guards typed results, duplicate coalescing, overload restoration,
+single completion, and non-redispatch.
 
 - [ ] **Step 2: Run queue tests and verify RED**
 
@@ -735,7 +700,9 @@ Expected: FAIL because completions currently discard results.
 
 - [ ] **Step 3: Implement result-carrying action execution**
 
-Keep local `switch` synchronous because it is an in-memory routing operation. Queue `park`, `resume`, `name`, `describe`, `prepare-start`, and token-bound `start`; only an accepted non-blocking enqueue emits progress state, then repaints immediately. Reduce queue-overload rejection synchronously through the requested operation's ordinary failure event; an exact duplicate is already represented by the original in-progress state and is a no-op. Convert returned `ThreadRecord`, `ParkResult`, or attached `StartResult` through the shared actionable projector plus current observations when possible; otherwise reduce success with no row and request refresh.
+Carry typed results through the existing bounded sequential queue. Accepted work
+enters progress, overload reduces immediate failure, duplicates retain the
+original progress, and returned lifecycle values re-enter the shared projector.
 
 - [ ] **Step 4: Run queue tests and verify GREEN**
 
@@ -743,7 +710,9 @@ Re-run Step 2. Expected: PASS, including the `park_latency_test.go` callback sig
 
 - [ ] **Step 5: Write failing operation-dispatch context tests**
 
-Add a runtime-only `Context context.Context` to `OperationCall`. Test that `DispatchOperation` substitutes `context.Background()` only when callers leave it nil, preserves a supplied canceled/deadline context, and delivers it to direct-store/live-owner executors. Test `CouchLiveOwnerExecutor` passes it to `PrepareStart`, Pair park/retry/recover, resume admission, and leave rather than manufacturing a background context; a blocking stateful policy resolver must observe cancellation. Preserve contextless public CLI behavior at `DispatchOperation`.
+Apply the operation/lifecycle cancellation strategy to a runtime-only
+`OperationCall.Context`; the executor barrier is the guard that supplied
+deadlines reach every owner lifecycle seam while CLI nil means background.
 
 - [ ] **Step 6: Run operation-dispatch tests and verify RED**
 
@@ -761,7 +730,9 @@ Re-run Step 6. Expected: PASS.
 
 - [ ] **Step 9: Write failing blocked-runner cancellation tests**
 
-Change the planned `Runner.StartBlocked` signature to accept `context.Context` and update every implementation/direct caller, including the recovery probe. Test cancellation before helper creation, after helper creation but before acknowledgement, and after acknowledgement during exact Pair registration. Before acknowledgement the exact channel closes and the helper is reaped; after acknowledgement the existing post-ack quiesce/reconcile path owns the exact handle. Registration timeout must derive from `context.WithTimeout(call.Context, registrationTimeout)`, never background. Cover ExecRunner, PtyRunner, FakeRunner, `launchTrackedThread`, the launch helper authority, the start transaction integration test, probe compilation, and `plan_contract_test.go`'s exact delegation strings.
+Add `TestBlockedRunnerCancellationConformance` using the shared fake/Exec/Pty
+trace defined above, plus contract/compile checks for every `StartBlocked`
+consumer. Registration timeout derives from the operation context.
 
 - [ ] **Step 10: Run blocked-runner tests and verify RED**
 
@@ -771,7 +742,9 @@ Expected: FAIL at the contextless signature/behavior.
 
 - [ ] **Step 11: Implement blocked-runner cancellation**
 
-Update the interface, every direct caller/implementation, helper cancellation, registration-derived timeout, exact cleanup, and recovery probe.
+Thread context through the runner/launch-helper seam and all consumers. Record
+the fake transitions named in the shared conformance trace; reuse existing
+exact post-ack cleanup.
 
 - [ ] **Step 12: Run blocked-runner tests and verify GREEN**
 
@@ -779,7 +752,9 @@ Re-run Step 10. Expected: PASS with every helper either transferred successfully
 
 - [ ] **Step 13: Write failing Console action-lifetime tests**
 
-Require every accepted queued call to receive a child of the Console lifetime context. Table-test `Console.Stop` while token-bound `start` before/after acknowledgement, `park`, and `resume` are blocked; each observes cancellation, emits one terminal completion, and lets the action worker join within 250 ms. Also block `name`/`describe` at the injected dispatcher to prove the queue never omits cancellation, while production direct-store operations remain short local writes.
+Apply the Console action-controller teardown strategy to blocking lifecycle and
+metadata dispatchers; cancellation observation, one completion, and a 250 ms
+join bound are the guards.
 
 - [ ] **Step 14: Run Console action-lifetime tests and verify RED**
 
@@ -797,7 +772,8 @@ Re-run Step 14. Expected: PASS with one Console context owning every accepted ac
 
 - [ ] **Step 17: Write failing preview-worker cancellation tests**
 
-Use a blocking fake dispatcher and `context.WithCancel` to prove exactly one preview call runs, edits replace one latest pending generation, cancellation only requests stop, and the worker always sends one terminal success/failure/canceled completion. Race cancellation with normal completion and assert the reducer accepts one, ignores the duplicate, then starts only the coalesced latest. Block `prepare-start` and prove `Console.Stop` cancels it and joins the preview worker within 250 ms.
+Join the pure preview-schedule model to a blocking stateful dispatcher; generation
+identity, one terminal completion, and cancel/join within 250 ms are the guards.
 
 - [ ] **Step 18: Run preview tests and verify RED**
 
@@ -807,9 +783,8 @@ Expected: FAIL because Console does not execute preview effects.
 
 - [ ] **Step 19: Implement preview/start effects**
 
-Execute `prepare-start` with the current generation's path/agent and cancelable call context. Reduce its `StartResolution`/grant token only for the matching completion. An armed unchanged submit queues token-bound `start`; edits/Escape cancel the arm. After `StartResult`, dispatch existing owner-local attach, wait for exact registration as current start already does, take a fresh observation, and reduce the live row. Any start failure consumes the grant and schedules a new preview while preserving the form.
-
-Do not run the tests in this step.
+Map preview/start schedule effects to context-bound declared operations and feed
+typed results back through reducer/projector authority.
 
 - [ ] **Step 20: Run preview tests and verify GREEN**
 
@@ -817,7 +792,8 @@ Re-run Step 18. Expected: PASS.
 
 - [ ] **Step 21: Write failing exact-handle abort tests**
 
-Test `Couch.AbortStarted(start StartResult, cause error) error` validates that the non-nil handle's PID/identity equal the returned record, delegates to `failPostAckStart(start.Record.Thread, start.Handle, cause)`, refuses nil or identity-mismatched payloads without touching another handle, and returns only after exact signal/reap and durable reconciliation.
+Apply the exact-handle cleanup strategy to `Couch.AbortStarted`; identity
+validation and completed quiesce/reconciliation are the guards.
 
 - [ ] **Step 22: Run exact-handle abort tests and verify RED**
 
@@ -835,7 +811,9 @@ Re-run Step 22. Expected: PASS.
 
 - [ ] **Step 25: Write failing transactional pane-attach/Stop tests**
 
-Give each pane an exact process identity plus a pane-local watcher cancel/done pair. Specify a shared `removeExactPane(handle ID, thread address, process identity)` helper that cancels and joins that pane's reader/waiter, removes only its pane/order/observation entries, and restores the prior active/root/focus routing snapshot. Inject failures after pane insertion and after watcher start, plus `Console.Stop` while a partially installed pane exists. Assert all three paths remove the exact pane, observation, queued bytes, bell, selection, reader/waiter, and routing target; abort the exact started handle; restore terminal modes; and join before returning.
+Apply the partial-install Console strategy to transactional attach and Stop;
+exact identity removal, watcher join, routing restoration, terminal restoration,
+and `AbortStarted` completion are the guards.
 
 - [ ] **Step 26: Run transactional attach tests and verify RED**
 
@@ -853,25 +831,9 @@ Re-run Step 26. Expected: PASS.
 
 - [ ] **Step 29: Write semantic action/form restoration traces**
 
-Drive semantic `MenuEvent`s through the controller/effect mapper and prove each operation is dispatched once with exact identity/arguments while input-state events continue to reduce and repaint during blocked work. Cover this failure matrix explicitly:
-
-| Operation/path | Failure restoration and cleanup |
-|---|---|
-| `prepare-start` | Preserve the complete start form and originating stack, retain no token, and show a notice. |
-| token-bound `start` refusal, stale grant, or fork failure | Treat the grant as consumed, preserve form/origin, request a fresh preview, and never attach. |
-| `start` launches a helper but exact Pair registration fails | The context-bearing tracked-launch path quiesces/reconciles the exact handle before returning failure; preserve form/origin, consume the grant, and request fresh preview. |
-| `start` returns `StartResult` but Console attach fails | Call `Couch.AbortStarted(StartResult, cause)`, which delegates to `failPostAckStart`; do not restore the form or return the error until the partial pane is rolled back and that exact handle is quiesced/reconciled. |
-| `park` | If refreshed/returned projection still contains the live target, retain its action frame and notice; if hidden, reconcile to root. |
-| `resume` refusal/fork failure | Preserve root selection and the parked row when still actionable; never attach. |
-| `resume` launches a helper but exact Pair registration fails | The resume launch path quiesces and rolls back/marks unknown from exact evidence before returning; preserve root selection and reconcile the parked row from the returned projection/refresh. |
-| `resume` returns `StartResult` but Console attach fails | Roll back the partial pane, abort the exact returned handle, preserve root selection, and retain the parked row after reconciliation when it remains actionable. |
-| `name` / `describe` | Preserve the text-input frame and complete draft with a notice. |
-| `switch` | Preserve root/selection and do not clear that thread's bell. |
-| queue overload before acceptance | Emit the same typed failure event immediately, restoring the frame/form/draft for that operation; do not enter progress and expect no later completion. |
-| exact duplicate while accepted request is running | Keep the original progress state, do not dispatch again, and expect only the original terminal completion. |
-| successful mutation followed by refresh failure | Apply the returned row projection when present, otherwise keep last-good with refresh pending; never repeat the operation. |
-
-The attach failure cases use the already-tested transactional cleanup from Steps 25–28. Only after cleanup completes does reducer restoration run: failed start restores the complete start form/originating stack, while failed resume restores the root with the same parked identity selected when it remains actionable. This is the failure half of declared `attach`, not a new menu verb.
+Drive Spec-defined operation outcomes through semantic events and the shared
+Console/reducer model oracle. Exact dispatch identity, restoration only after
+cleanup, frame reconciliation, and no redispatch are the guards.
 
 - [ ] **Step 30: Run restoration traces and verify RED**
 
@@ -883,7 +845,8 @@ Expected: FAIL because the controller does not yet map every restoration case.
 
 - [ ] **Step 31: Implement remaining effect/restoration mappings**
 
-Map reducer effects to exact shared operation calls and the restoration matrix above. Preserve current Alt+x leave/park ownership outside menu semantics and current clear-and-replay switch path.
+Complete the thin mapping from reducer effects to declared operations, reusing
+existing Alt+x and clear/replay ownership.
 
 - [ ] **Step 32: Run restoration traces and verify GREEN**
 
@@ -892,7 +855,7 @@ Re-run Step 30. Expected: PASS.
 - [ ] **Step 33: Commit Task 11**
 
 ```bash
-git add cmd/internal/couchtty/operation_queue.go cmd/internal/couchtty/operation_queue_test.go cmd/internal/couchtty/park_latency_test.go cmd/internal/couchtty/console_menu.go cmd/internal/couchtty/console_menu_test.go cmd/internal/couchtty/console.go cmd/internal/couchtty/console_panel_regression_test.go cmd/internal/couchcore/operationdispatch.go cmd/internal/couchcore/operationdispatch_test.go cmd/internal/couchcore/startresolution.go cmd/internal/couchcore/startresolution_test.go cmd/internal/couchcore/couch.go cmd/internal/couchcore/couch_test.go cmd/internal/couchcore/launch_existing.go cmd/internal/couchcore/launchhelper.go cmd/internal/couchcore/launchhelper_test.go cmd/internal/couchcore/resume.go cmd/internal/couchcore/resume_launch_test.go cmd/internal/couchcore/runner.go cmd/internal/couchcore/runner_test.go cmd/internal/couchcore/runner_fake.go cmd/internal/couchcore/ptyrunner.go cmd/internal/couchcore/ptyrunner_test.go cmd/internal/couchcore/plan_contract_test.go cmd/internal/couchcore/starttransaction_integration_test.go cmd/probes/couchstartrecovery/main.go cmd/internal/couchcmd/run.go cmd/internal/couchcmd/run_test.go
+git add cmd/internal/couchtty/operation_queue.go cmd/internal/couchtty/operation_queue_test.go cmd/internal/couchtty/park_latency_test.go cmd/internal/couchtty/console_menu.go cmd/internal/couchtty/console_menu_test.go cmd/internal/couchtty/console.go cmd/internal/couchtty/console_panel_regression_test.go cmd/internal/couchcore/operationdispatch.go cmd/internal/couchcore/operationdispatch_test.go cmd/internal/couchcore/startresolution.go cmd/internal/couchcore/startresolution_test.go cmd/internal/couchcore/couch.go cmd/internal/couchcore/couch_test.go cmd/internal/couchcore/launch_existing.go cmd/internal/couchcore/launchhelper.go cmd/internal/couchcore/launchhelper_test.go cmd/internal/couchcore/resume.go cmd/internal/couchcore/resume_launch_test.go cmd/internal/couchcore/runner.go cmd/internal/couchcore/runner_test.go cmd/internal/couchcore/runner_contract_test.go cmd/internal/couchcore/runner_fake.go cmd/internal/couchcore/ptyrunner.go cmd/internal/couchcore/ptyrunner_test.go cmd/internal/couchcore/plan_contract_test.go cmd/internal/couchcore/starttransaction_integration_test.go cmd/probes/couchstartrecovery/main.go cmd/internal/couchcmd/run.go cmd/internal/couchcmd/run_test.go
 git commit -m "#151 M3: execute menu effects asynchronously"
 ```
 
@@ -910,9 +873,10 @@ git commit -m "#151 M3: execute menu effects asynchronously"
 
 - [ ] **Step 1: Write failing real-loop/render replacement tests**
 
-Drive `Console.Run` through raw `hostty.FakeHost` input at 120x40, 40x10, and below minimum. Feed both legacy HT and Kitty CSI-u Tab plus every control/action/form path: live switch + bell clear; parked resume; action menu; cancel/default and confirmed park; rename UI → shared `name`; describe; start path/agent/source preview; pending Enter; Escape/back; and zero selection. Assert every decoded semantic key reaches `ReduceMenu`, resize recomputes layout without state loss, mouse/focus/unknown escapes remain dropped, background child output never paints over menu ownership, and Escape/switch/teardown restore terminal modes/cursor/mouse exactly. This is the raw-input coverage; Task 11 tests the same behavior below the decoder through semantic events.
-
-Update the control inventory test to require typeahead, arrows, Enter switch/resume, Tab actions, Ctrl-Space start, Alt+x park/leave, and Escape clear/back. Add README expectation tests before editing prose.
+Drive the Spec's controls through raw `hostty.FakeHost` input and reuse the
+decoder/reducer/controller strategies above. Generation-tagged repaint and host
+mode snapshots guard input routing, resize, screen ownership, and teardown.
+Add README expectation tests before editing prose.
 
 - [ ] **Step 2: Run replacement tests and verify RED**
 
@@ -922,9 +886,10 @@ Expected: FAIL while Console still renders `PanelModel`.
 
 - [ ] **Step 3: Route all menu input/paint through reducer/renderer**
 
-Replace `panel`, `query`, prompt, resolver, `rebuildPanel`, `showPanel`, and panel-key branches with `MenuState`, `ReduceMenu`, effect execution, and `RenderMenu`. Keep `Console.Run` the sole host writer. Delete the compatibility panel only after no production/test references remain.
-
-Update `core_concepts_contract_test.go` to parse #151's current Core concepts table as a superseding inventory alongside #146: the latest status marks `PanelModel` deleted and requires direct tests for every new pure entity/integration point. Do not weaken the existing pure-source/import and direct-unit-test checks.
+Make `MenuState`/`ReduceMenu`/`RenderMenu` the sole Console menu path and delete
+the compatibility panel after references migrate. Update the concepts contract
+to treat #151's table as the superseding status inventory without weakening
+pure-source/direct-test enforcement.
 
 - [ ] **Step 4: Update user controls and migrate regressions**
 
@@ -953,7 +918,9 @@ git commit -m "#151 M3: switch Console to hierarchical menu"
 
 - [ ] **Step 1: Write the portable 100-row benchmark/bound tests**
 
-Commit rows `thread-000`…`thread-099`, 120x40 dimensions, filter bytes to `thread-09`, twenty alternating Down/Up events, selection-preserving refresh, and one blocked lifecycle feedback event. Add `BenchmarkMenu100` and `testing.AllocsPerRun` guards: navigation reducer ≤8 allocations/event, one filter-byte reducer ≤16, completed-refresh reconciliation ≤32, and full 100-row 120x40 render ≤256. Pin exactly one inventory job, one preview plus one pending, one sequential action worker with queue capacity 16, the 1 KiB filter/name and 4 KiB path/description caps, and below-minimum rendering. Portable tests assert these numeric bounds/complexity, not target-specific wall time.
+Implement the Spec's fixed 100-row fixture and `BenchmarkMenu100`. Enforce the
+declared allocation, worker/queue, input, and minimum-size bounds mechanically;
+portable tests do not assert target-specific wall time.
 
 - [ ] **Step 2: Run portable tests and verify GREEN**
 
@@ -1109,3 +1076,19 @@ sdlc close --issue 151 --verified 'all three milestone reviews passed; full test
 ```
 
 Expected: issue becomes done with measured actual time; do not type an estimated actual manually.
+
+## Revisions
+
+### 2026-08-30 — compress tests to function-level strategies and add runner conformance
+
+**Reason:** the first `change-code` plan-quality gate found that the detailed
+case/procedural inventories duplicated the Spec and executable tests, while the
+new `Runner.StartBlocked` cancellation model lacked an explicit real/fake
+conformance contract (`PQ-1`, `PQ-2`).
+
+**Delta:** one function-level strategy table now names each risky function,
+adversarial input class, and mechanical guard; task steps reference those
+strategies instead of restating behavioral matrices. A shared always-run
+`TestBlockedRunnerCancellationConformance` compares `FakeRunner`, `ExecRunner`,
+and `PtyRunner`, including the fake's before/after-ack cancellation transitions
+(ARCH-PURPOSE, ARCH-MOCK).
