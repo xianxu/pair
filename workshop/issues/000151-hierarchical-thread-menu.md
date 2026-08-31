@@ -453,3 +453,11 @@ once, revalidates policy/preference/default evidence, and passes accepted
 candidate policy directly into admission. Focused legacy/new tests and the race
 detector pass with `-p 20`; the full package reaches only the already-recorded
 #152 artifact-path contract failure (ARCH-DRY, ARCH-PURE, ARCH-PURPOSE).
+
+### 2026-08-30 — M1 shared operations and CLI
+
+Declared agent-facing `prepare-start` authority and implicit token-bound
+`start`, then routed public `couch start` through both while keeping singleton
+ownership and Console/PTy choice separate. The archived-plan contract failure
+was fixed in a separate side-quest commit by sharing active/history artifact
+lookup. Unfiltered `couchcore` and `couchcmd` tests pass with `-p 20`.

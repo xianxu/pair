@@ -48,8 +48,9 @@ func TestREADMEDocumentsEveryPanelControl(t *testing.T) {
 // it either (M2 BR-39). An exemption that names another home has to check that
 // home.
 var agentFacing = map[string]bool{
-	"switch": true,
-	"attach": true,
+	"prepare-start": true,
+	"switch":        true,
+	"attach":        true,
 }
 
 func documentsCommand(doc, command string) bool {

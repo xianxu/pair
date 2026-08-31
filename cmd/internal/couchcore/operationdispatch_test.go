@@ -23,7 +23,7 @@ func TestDispatchOperationRoutesOnlyThroughDeclaredExecutor(t *testing.T) {
 	if err != nil || got != "stored" {
 		t.Fatalf("list dispatch = %#v, %v", got, err)
 	}
-	got, err = DispatchOperation(executors, OperationCall{Name: "start", Args: map[string]string{"path": "/repo"}})
+	got, err = DispatchOperation(executors, OperationCall{Name: "start", Args: map[string]string{"token": "grant"}, Implicit: true})
 	if err != nil || got != "owned" {
 		t.Fatalf("start dispatch = %#v, %v", got, err)
 	}
@@ -98,6 +98,29 @@ func TestDispatchOperationRejectsEmptyValueRequiredArgumentBeforeExecutor(t *tes
 	}
 	if calls != 0 {
 		t.Fatalf("invalid operation reached executor %d time(s)", calls)
+	}
+}
+
+func TestPreparedStartOperationsIssueThenConsumeImplicitToken(t *testing.T) {
+	env := newTestEnv(t, "/repo")
+	executor := CouchLiveOwnerExecutor(env.Couch)
+	preparedValue, err := DispatchOperation(OperationExecutors{LiveOwner: executor}, OperationCall{
+		Name: "prepare-start", Args: map[string]string{"path": "/repo", "agent": "codex"},
+	})
+	prepared, ok := preparedValue.(PreparedStart)
+	if err != nil || !ok || prepared.Token == "" || len(env.Runner.Ops) != 0 {
+		t.Fatalf("prepare operation = %#v, %v, runner=%q", preparedValue, err, env.Runner.Ops)
+	}
+	startedValue, err := DispatchOperation(OperationExecutors{LiveOwner: executor}, OperationCall{
+		Name: "start", Args: map[string]string{"token": string(prepared.Token)}, Implicit: true,
+	})
+	if _, ok := startedValue.(StartResult); err != nil || !ok {
+		t.Fatalf("start operation = %#v, %v", startedValue, err)
+	}
+	if _, err := DispatchOperation(OperationExecutors{LiveOwner: executor}, OperationCall{
+		Name: "start", Args: map[string]string{"token": string(prepared.Token)}, Implicit: true,
+	}); !errors.Is(err, ErrStartGrantUnavailable) {
+		t.Fatalf("token replay err = %v", err)
 	}
 }
 

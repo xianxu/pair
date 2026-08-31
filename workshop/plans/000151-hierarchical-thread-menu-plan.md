@@ -282,7 +282,7 @@ Run: `go test -p 20 ./cmd/internal/couchcore -run 'Test(ResolveStartResolution|P
 
 Expected: PASS.
 
-- [ ] **Step 8: Commit Task 3**
+- [x] **Step 8: Commit Task 3**
 
 ```bash
 git add cmd/internal/couchcore/startresolution.go cmd/internal/couchcore/startresolution_test.go cmd/internal/couchcore/couch.go cmd/internal/couchcore/couch_test.go cmd/internal/couchcore/admission.go cmd/internal/couchcore/admission_reconcile_test.go
@@ -301,25 +301,25 @@ git commit -m "#151 M1: bind preparation to spawn"
 - Modify: `cmd/internal/couchcmd/run_test.go`
 - Modify: `atlas/couch.md`
 
-- [ ] **Step 1: Write failing operation/CLI contract tests**
+- [x] **Step 1: Write failing operation/CLI contract tests**
 
 Apply the declaration-driven `DispatchOperation` strategy to the new
 `prepare-start` result/effect and implicit token-bound `start`. Pin separately
 that ownership acquisition does not imply Console/PTy creation.
 
-- [ ] **Step 2: Run tests and verify RED**
+- [x] **Step 2: Run tests and verify RED**
 
 Run: `go test -p 20 ./cmd/internal/couchcore ./cmd/internal/couchcmd -run 'Test(Operation|WantsConsole|ConsoleRunner|RunWithRuntime|RenderStartResolution)' -count=1`
 
 Expected: FAIL because the declarations, result, and two-step CLI path are absent.
 
-- [ ] **Step 3: Implement operation and CLI wiring**
+- [x] **Step 3: Implement operation and CLI wiring**
 
 Add the declared authority/result surfaces and route the existing public start
 command through prepare then token-bound start. Keep owner acquisition and
 Console creation as separate decisions.
 
-- [ ] **Step 4: Run unfiltered changed-package tests**
+- [x] **Step 4: Run unfiltered changed-package tests**
 
 Run: `go test -p 20 ./cmd/internal/couchcore ./cmd/internal/couchcmd -count=1`
 

@@ -14,6 +14,7 @@ type OperationCall struct {
 	Args         map[string]string
 	Implicit     bool
 	TypedPayload any
+	Context      context.Context
 	Operation    Operation
 }
 
@@ -175,13 +176,19 @@ func requireOperationRepoScope(args map[string]string) error {
 func CouchLiveOwnerExecutor(c *Couch) OperationExecutor {
 	return func(call OperationCall) (any, error) {
 		a := call.Args
+		ctx := call.Context
+		if ctx == nil {
+			ctx = context.Background()
+		}
 		switch call.Operation.Name {
-		case "start":
+		case "prepare-start":
 			path := a["path"]
 			if path == "" {
 				path = "."
 			}
-			rec, h, err := c.Spawn(StartArgs{Cwd: path, Stack: a["agent"]})
+			return c.PrepareStart(ctx, StartArgs{Cwd: path, Stack: a["agent"]})
+		case "start":
+			rec, h, err := c.SpawnPrepared(ctx, StartGrantToken(a["token"]))
 			if err != nil {
 				return nil, err
 			}

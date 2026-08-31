@@ -8,7 +8,12 @@ import (
 func TestStartOperationDefaultsEmptyPathToDot(t *testing.T) {
 	cwd := NormalizePath(".")
 	env := newTestEnv(t, cwd)
-	result, err := dispatchTestOperation(env.Couch, "start", map[string]string{})
+	preparedValue, err := dispatchTestOperation(env.Couch, "prepare-start", map[string]string{})
+	if err != nil {
+		t.Fatalf("prepare-start empty path: %v", err)
+	}
+	prepared := preparedValue.(PreparedStart)
+	result, err := dispatchTestOperation(env.Couch, "start", map[string]string{"token": string(prepared.Token)})
 	if err != nil {
 		t.Fatalf("start empty path: %v", err)
 	}

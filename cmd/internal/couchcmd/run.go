@@ -227,8 +227,34 @@ func RunWithRuntime(args []string, stdin io.Reader, stdout, stderr io.Writer, rt
 	if ownsLive {
 		executors.LiveOwner = couchcore.CouchLiveOwnerExecutor(c)
 	}
+	callArgs := parsed
+	if op.Name == "start" {
+		prepareArgs := map[string]string{}
+		if path := parsed["path"]; path != "" {
+			prepareArgs["path"] = path
+		}
+		if agent := parsed["agent"]; agent != "" {
+			prepareArgs["agent"] = agent
+		}
+		preparedValue, prepareErr := couchcore.DispatchOperation(executors, couchcore.OperationCall{
+			Name:    "prepare-start",
+			Args:    prepareArgs,
+			Context: context.Background(),
+		})
+		if prepareErr != nil {
+			renderError(stderr, prepareErr)
+			return 1
+		}
+		prepared, ok := preparedValue.(couchcore.PreparedStart)
+		if !ok {
+			fmt.Fprintf(stderr, "couch: prepare-start returned %T\n", preparedValue)
+			return 1
+		}
+		callArgs = cloneArgs(parsed)
+		callArgs["token"] = string(prepared.Token)
+	}
 	result, err := couchcore.DispatchOperation(executors, couchcore.OperationCall{
-		Name: op.Name, Args: parsed, Implicit: true,
+		Name: op.Name, Args: callArgs, Implicit: true, Context: context.Background(),
 	})
 	if err != nil {
 		renderError(stderr, err)
@@ -249,6 +275,14 @@ func RunWithRuntime(args []string, stdin io.Reader, stdout, stderr io.Writer, rt
 		}
 	}
 	return render(stdout, op, result)
+}
+
+func cloneArgs(args map[string]string) map[string]string {
+	out := make(map[string]string, len(args)+1)
+	for name, value := range args {
+		out[name] = value
+	}
+	return out
 }
 
 func operationUsesCurrentRepoScope(name string) bool {
