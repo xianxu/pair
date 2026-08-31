@@ -116,17 +116,20 @@ type MenuState struct {
 	InventoryReady    bool
 	RefreshPending    bool
 	ProjectionPending bool
-	Frames            []MenuFrame
-	ActiveAddress     couchcore.ThreadAddress
-	Agents            []string
-	RootAgent         string
-	Bells             map[couchcore.ThreadAddress]bool
-	InFlight          MenuOperationOrigin
-	PreviewSequence   uint64
-	OperationSequence uint64
-	FrameSequence     uint64
-	SpinnerPhase      uint8
-	Notice            MenuNotice
+	// ProjectionAfterGeneration is the newest refresh already admitted when a
+	// mutation committed. Only a later snapshot can represent that mutation.
+	ProjectionAfterGeneration uint64
+	Frames                    []MenuFrame
+	ActiveAddress             couchcore.ThreadAddress
+	Agents                    []string
+	RootAgent                 string
+	Bells                     map[couchcore.ThreadAddress]bool
+	InFlight                  MenuOperationOrigin
+	PreviewSequence           uint64
+	OperationSequence         uint64
+	FrameSequence             uint64
+	SpinnerPhase              uint8
+	Notice                    MenuNotice
 }
 
 // MenuOperationOrigin captures the exact frame that emitted asynchronous
@@ -166,7 +169,10 @@ type MenuEvent struct {
 	Success      bool
 	Error        string
 	Generation   uint64
-	Prepared     *couchcore.PreparedStart
+	// ProjectionAfterGeneration records the newest inventory generation that
+	// predates a committed operation mutation.
+	ProjectionAfterGeneration uint64
+	Prepared                  *couchcore.PreparedStart
 }
 
 // MenuEffect is an operation request for the thin Console shell.
@@ -268,7 +274,10 @@ func ReduceMenu(state MenuState, event MenuEvent) (MenuState, []MenuEffect) {
 			next.Notice = errorMenuNotice("thread inventory unavailable: " + event.Error)
 			return next, nil
 		}
-		next.ProjectionPending = false
+		if !next.ProjectionPending || event.Generation > next.ProjectionAfterGeneration {
+			next.ProjectionPending = false
+			next.ProjectionAfterGeneration = 0
+		}
 		previous := append([]couchcore.ActionableThreadSummary(nil), next.Inventory...)
 		next.Inventory = append([]couchcore.ActionableThreadSummary(nil), event.Inventory...)
 		next.InventoryReady = true
@@ -277,6 +286,7 @@ func ReduceMenu(state MenuState, event MenuEvent) (MenuState, []MenuEffect) {
 	if event.Kind == MenuEventOperationResult {
 		if event.InventorySet {
 			next.ProjectionPending = false
+			next.ProjectionAfterGeneration = 0
 			previous := append([]couchcore.ActionableThreadSummary(nil), next.Inventory...)
 			next.Inventory = append([]couchcore.ActionableThreadSummary(nil), event.Inventory...)
 			next = reconcileMenuFrames(next, previous)
@@ -981,6 +991,7 @@ func reduceOperationResult(state MenuState, event MenuEvent) MenuState {
 	}
 	if !event.InventorySet && operationNeedsProjectionRefresh(event.Operation) {
 		state.ProjectionPending = true
+		state.ProjectionAfterGeneration = event.ProjectionAfterGeneration
 	}
 
 	switch event.Operation {

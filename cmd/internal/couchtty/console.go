@@ -1060,6 +1060,9 @@ func (c *Console) finishOperation(completed operationCompletion) bool {
 		event.Error = err.Error()
 	}
 	c.mu.Lock()
+	if event.Success && operationNeedsProjectionRefresh(event.Operation) {
+		event.ProjectionAfterGeneration = c.refreshSchedule.Sequence
+	}
 	if completed.origin.Operation == "park" && err == nil {
 		for id, p := range c.panes {
 			if p.thread == address {

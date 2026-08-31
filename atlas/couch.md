@@ -284,7 +284,10 @@ observations. Human name leads, the opaque tag is the unnamed fallback, and
 operator description remains separate from the agent-published summary. A
 failed authoritative refresh preserves the complete last-good menu state and
 renders the error locally; it never turns corruption into an authoritative
-empty inventory or no-match result. CLI `list` remains name-first over the raw
+empty inventory or no-match result. A successful mutation remains visibly
+refresh-pending until a successful actionable snapshot whose generation was
+admitted after that mutation; a pre-mutation result may update last-good rows
+but cannot present them as current. CLI `list` remains name-first over the raw
 diagnostic inventory, while `show` always includes the full immutable composite
 address.
 

@@ -317,6 +317,31 @@ rounds:
           round: 13
       boundary: M3
       blocked: true
+    - "n": 14
+      timestamp: "2026-08-31T16:06:47-07:00"
+      agent: codex
+      dispose:
+        - id: BR-21
+          disposition: not-addressed
+          note: A successful pre-operation refresh clears ProjectionPending before the dirty post-operation follow-up completes, so committed mutations can still expose stale rows without the required pending marker.
+          round: 14
+        - id: BR-22
+          disposition: addressed
+          note: The flat-panel source, controller, fields, callbacks, and tests are deleted, and the executable concept contract rejects their return.
+          round: 14
+        - id: BR-23
+          disposition: addressed
+          note: All target paths now traverse a running Console through raw input, resize, or typed result channels and wait for a uniquely correlated FakeHost frame.
+          round: 14
+      findings:
+        - id: BR-24
+          severity: Important
+          title: Delivered M3 tasks remain unchecked in the authoritative plan
+          detail: 'This is the 3rd finding in family `documentation-current-state-accuracy`. Earlier rounds fixed instances. Do NOT update only one checkbox: sweep every M3 checklist item against the committed implementation and evidence. Tasks 10, 12, and 13 remain largely or wholly unchecked even though later revisions and the issue log claim delivery; leave only the boundary-close and subsequent issue-close steps open.'
+          family: documentation-current-state-accuracy
+          round: 14
+      boundary: M3
+      blocked: true
 ---
 
 # Gate ledger — pair#151 (boundary-review)
@@ -476,8 +501,20 @@ later rounds disposed of them. Generated — edit the gate, not this file.
 - **BR-23** [Important] `lifecycle-evidence-validation` Target latency evidence bypasses the Console run-loop boundary it claims to measure
   This is the 2nd finding in family `lifecycle-evidence-validation`. Earlier rounds fixed instances. Do NOT patch one timing label: state the evidence rule and apply it to every measured path. The harness directly calls `showMenu`, `onMenuInput`, and `finishMenuRefresh`, then times function return; it never sends raw bytes through the host input channel, runs `Console.Run`, or correlates a generation-specific repaint. Delays or misrouting in the actual select loop would not fail these measurements.
 
+## Round 14 — 2026-08-31T16:06:47-07:00 (codex) — BLOCKED
+
+### Disposed
+
+- BR-21 — not-addressed — A successful pre-operation refresh clears ProjectionPending before the dirty post-operation follow-up completes, so committed mutations can still expose stale rows without the required pending marker.
+- BR-22 — addressed — The flat-panel source, controller, fields, callbacks, and tests are deleted, and the executable concept contract rejects their return.
+- BR-23 — addressed — All target paths now traverse a running Console through raw input, resize, or typed result channels and wait for a uniquely correlated FakeHost frame.
+
+### Raised
+
+- **BR-24** [Important] `documentation-current-state-accuracy` Delivered M3 tasks remain unchecked in the authoritative plan
+  This is the 3rd finding in family `documentation-current-state-accuracy`. Earlier rounds fixed instances. Do NOT update only one checkbox: sweep every M3 checklist item against the committed implementation and evidence. Tasks 10, 12, and 13 remain largely or wholly unchecked even though later revisions and the issue log claim delivery; leave only the boundary-close and subsequent issue-close steps open.
+
 ## Open findings
 
 - **BR-21** [Critical] `shared-operation-consumer-sweep` Successful operation projections are exercised only in reducer tests and never supplied by production
-- **BR-22** [Critical] `superseded-ui-authority-retirement` The planned deleted flat-panel authority remains as a parallel implementation
-- **BR-23** [Important] `lifecycle-evidence-validation` Target latency evidence bypasses the Console run-loop boundary it claims to measure
+- **BR-24** [Important] `documentation-current-state-accuracy` Delivered M3 tasks remain unchecked in the authoritative plan

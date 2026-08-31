@@ -197,6 +197,53 @@ func TestConsoleRefreshFailureKeepsCommittedMutationVisiblyPending(t *testing.T)
 	})
 }
 
+func TestConsolePreMutationRefreshCannotAuthorizeCommittedProjection(t *testing.T) {
+	con := New(hostty.NewFakeHost(ptychild.Size{Rows: 24, Cols: 80}), nil)
+	t.Cleanup(con.Stop)
+	target := menuAddress("couch-one")
+	state := NewMenuState(menuThreads(), target)
+	state.InFlight = MenuOperationOrigin{
+		Operation: "park", Attempt: 1, Address: target,
+		FrameInstance: state.Frames[0].Instance, FrameKind: MenuFrameRoot, Depth: 1,
+	}
+	release := make(chan struct{})
+	con.mu.Lock()
+	con.actionable = func(ctx context.Context, _ []couchcore.LiveTTYObservation) ([]couchcore.ActionableThreadSummary, error) {
+		select {
+		case <-release:
+			return nil, errors.New("follow-up failed")
+		case <-ctx.Done():
+			return nil, ctx.Err()
+		}
+	}
+	con.menu, con.menuReady = state, true
+	con.refreshSchedule = RefreshSchedule{Sequence: 1, Running: 1}
+	con.mu.Unlock()
+
+	con.finishOperation(operationCompletion{name: "park", origin: state.InFlight})
+	select {
+	case <-con.refreshRequests:
+		con.advanceMenuRefresh(RefreshScheduleEvent{Kind: RefreshRequested})
+	case <-time.After(250 * time.Millisecond):
+		t.Fatal("successful mutation did not request its post-mutation refresh")
+	}
+	con.finishMenuRefresh(menuRefreshResult{generation: 1, inventory: menuThreads()})
+	if got := con.menuSnapshot(); !got.ProjectionPending || got.ProjectionAfterGeneration != 1 || !got.RefreshPending {
+		t.Fatalf("pre-mutation refresh authorized committed projection: %+v", got)
+	}
+
+	close(release)
+	select {
+	case result := <-con.refreshResults:
+		con.finishMenuRefresh(result)
+	case <-time.After(250 * time.Millisecond):
+		t.Fatal("post-mutation refresh did not finish")
+	}
+	if got := con.menuSnapshot(); !got.ProjectionPending || got.Notice.Text != "thread inventory unavailable: follow-up failed" {
+		t.Fatalf("failed follow-up hid pending projection: %+v", got)
+	}
+}
+
 func TestConsoleAttachAndSwitchIgnoreDonePaneAwaitingExit(t *testing.T) {
 	con := New(hostty.NewFakeHost(ptychild.Size{Rows: 24, Cols: 80}), nil)
 	t.Cleanup(con.Stop)

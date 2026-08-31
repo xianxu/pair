@@ -1221,8 +1221,19 @@ ends only on a correlated `FakeHost` frame (`ARCH-DRY`, `ARCH-PURE`,
 
 The corrected M2 Max protocol passed 20 warmups and 200 samples for each of six
 paths in a baseline and two trials beside exactly four joined CPU workers. The
-worst observed p95 was 290.625µs (first feedback); every path remained below
-291µs. The boundary for every value is semantic input/result through
+worst observed p95 was 316.292µs (first feedback); every path remained below
+317µs. The boundary for every value is semantic input/result through
 `Console.Run` to the matching unique per-sample emitted frame. The optimized
 `go1.26.6 darwin/arm64` test binary SHA-256 was
-`006ec35437d410a5c0757a1ad17a6db811e05c602ca310a51faf6d560807e97b`.
+`78493a5f2e694a5229ea774da08a35a2eff41e01c5cab882a53a6f40099ee718`.
+
+The second boundary review accepted complete flat-panel retirement and the
+corrected lifecycle performance evidence, then exposed refresh provenance:
+generation 1 could start before a mutation and clear its pending marker before
+dirty generation 2 completed. Mutations now capture the latest admitted
+generation and only a strictly later successful snapshot can authorize their
+projection. A Console regression holds the generation-2 provider through the
+generation-1 completion, then fails generation 2 and proves the pending marker
+survives. The M3 plan checklist was also swept against delivered commits and
+evidence, leaving only boundary and issue close open (`ARCH-PURE`,
+`ARCH-PURPOSE`).

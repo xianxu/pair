@@ -98,3 +98,108 @@ Append revisions that:
 - Record complete retirement of `PanelModel`, legacy Console fields/controllers, and compatibility contract expectations.
 - Enumerate every operation-result consumer and define the shared projection-or-visible-pending rule, including refresh failure.
 - Replace the latency evidence with raw-host, running-loop, generation-correlated measurements and update the issue evidence after rerunning it.
+
+---
+
+## Re-review — 2026-08-31T16:06:47-07:00 (REWORK)
+
+| field | value |
+|-------|-------|
+| issue | 151 — couch: hierarchical work-thread menu |
+| repo | pair |
+| issue file | workshop/issues/000151-hierarchical-thread-menu.md |
+| boundary | milestone M3 |
+| milestone | M3 |
+| window | 0c40a8d1880b49a9cac1a7f4d8cd24a2c713dba7..d0e53c9e09b981491aaf8f189a7c013314c71cbc |
+| command | sdlc milestone-close --issue 151 --milestone M3 |
+| reviewer | codex |
+| timestamp | 2026-08-31T16:06:47-07:00 |
+| verdict | REWORK |
+
+## Review
+
+```verdict
+verdict: REWORK
+confidence: high
+```
+
+The flat-panel authority is genuinely retired, and the corrected performance harness now validates the real Console lifecycle well within its declared budgets. However, BR-21 remains blocking: a refresh started before a successful mutation can complete afterward and incorrectly clear `ProjectionPending`, exposing stale rows as current while the required follow-up refresh is still running. The plan also leaves delivered M3 work unchecked, contradicting its revisions and implementation.
+
+```findings
+dispose:
+  - id: BR-21
+    disposition: not-addressed
+    note: |
+      A successful pre-operation refresh clears ProjectionPending before the dirty post-operation follow-up completes, so committed mutations can still expose stale rows without the required pending marker.
+  - id: BR-22
+    disposition: addressed
+    note: |
+      The flat-panel source, controller, fields, callbacks, and tests are deleted, and the executable concept contract rejects their return.
+  - id: BR-23
+    disposition: addressed
+    note: |
+      All target paths now traverse a running Console through raw input, resize, or typed result channels and wait for a uniquely correlated FakeHost frame.
+findings:
+  - id: new
+    severity: Important
+    family: documentation-current-state-accuracy
+    title: |
+      Delivered M3 tasks remain unchecked in the authoritative plan
+    detail: |
+      This is the 3rd finding in family `documentation-current-state-accuracy`. Earlier rounds fixed instances. Do NOT update only one checkbox: sweep every M3 checklist item against the committed implementation and evidence. Tasks 10, 12, and 13 remain largely or wholly unchecked even though later revisions and the issue log claim delivery; leave only the boundary-close and subsequent issue-close steps open.
+```
+
+### Strengths
+
+- BR-22 is addressed comprehensively: `panel.go` and `panel_test.go` are deleted, legacy Console fields/controllers are gone, and [core_concepts_contract_test.go](/Users/xianxu/workspace/pair/cmd/internal/couchtty/core_concepts_contract_test.go:112) enforces retirement.
+- The seven-operation projection policy is explicit and fail-safe for unknown future operations in [menu.go](/Users/xianxu/workspace/pair/cmd/internal/couchtty/menu.go:1006).
+- BR-23’s replacement harness drives the running Console and correlates each sample with unique emitted content in [menu_perf_test.go](/Users/xianxu/workspace/pair/cmd/internal/couchtty/menu_perf_test.go:121).
+- README and atlas accurately describe the reachable hierarchical switcher and its actionable-versus-diagnostic inventory distinction.
+
+### Critical findings
+
+1. **BR-21 — ARCH-PURPOSE: refresh provenance is insufficient.**
+
+   [menu.go](/Users/xianxu/workspace/pair/cmd/internal/couchtty/menu.go:265) clears `ProjectionPending` on every successful inventory result. But [console_menu.go](/Users/xianxu/workspace/pair/cmd/internal/couchtty/console_menu.go:116) does not distinguish a generation started before the mutation from the dirty follow-up requested afterward.
+
+   A scratch regression initialized generation 1 as pre-operation and dirty, then completed it successfully while generation 2 remained blocked. It failed because the state became `RefreshPending:true, ProjectionPending:false`.
+
+   Track the minimum refresh generation or mutation epoch capable of clearing each committed projection. Apply that rule to all five mutating operations. Add a Console-level regression covering:
+
+   `pre-operation refresh running → mutation succeeds → old refresh succeeds → follow-up blocks/fails`
+
+   The pending marker must remain until a post-mutation snapshot succeeds.
+
+### Important findings
+
+1. **ARCH-PURPOSE: authoritative plan status contradicts delivery.**
+
+   M3 Task 10 begins unchecked at [the plan](/Users/xianxu/workspace/pair/workshop/plans/000151-hierarchical-thread-menu-plan.md:606), Task 12 at line 877, and Task 13 at line 922, while the revision at line 1458 claims those surfaces are delivered. Sweep the entire M3 checklist rather than repairing isolated boxes.
+
+### Minor findings
+
+None.
+
+### Test coverage notes
+
+- `git diff --check`: PASS.
+- `go test -p 20 ./... -count=1`: PASS.
+- `go test -race ./cmd/internal/couchtty -count=1`: PASS.
+- Target lifecycle performance protocol: PASS on Darwin/arm64; worst observed p95 was approximately 272 µs, comfortably within all budgets.
+- The scratch refresh-order regression fails on pinned HEAD, confirming the remaining BR-21 behavior is reachable and currently untested.
+
+### Architectural notes for upcoming work
+
+- **ARCH-DRY:** Pass. The competing panel authority was removed.
+- **ARCH-PURE:** Pass. Reducer, renderer, and schedules remain pure; Console owns the thin asynchronous shell.
+- **ARCH-PURPOSE:** Flagged. Pending-state clearance does not yet cover the full refresh-generation lifecycle.
+- **ARCH-MOCK:** Pass. Production and tests share the stateful host/provider seams.
+- **ARCH-CONSTRAINTS:** Pass. The corrected lifecycle harness exercises the declared environment, workload, co-tenancy, and latency boundaries.
+
+### Plan revision recommendations
+
+Append a `## Revisions` entry that:
+
+- Defines which refresh generation is authorized to clear a committed mutation’s pending state.
+- Adds the pre-operation-success/follow-up-blocked-or-failed regression.
+- Records a complete M3 checklist sweep, checking delivered implementation/evidence steps while leaving M3 close and issue close open until their gates succeed.

@@ -603,50 +603,50 @@ Expected: fresh-context milestone review approves the pure menu surface; log the
 - Modify: `cmd/internal/couchcmd/run.go`
 - Modify: `cmd/internal/couchcmd/run_test.go`
 
-- [ ] **Step 1: Write failing pure refresh-schedule traces**
+- [x] **Step 1: Write failing pure refresh-schedule traces**
 
 Apply the `AdvanceRefreshSchedule` reordered-completion model strategy and assert
 the one-running/one-dirty bound.
 
-- [ ] **Step 2: Run scheduler tests and verify RED**
+- [x] **Step 2: Run scheduler tests and verify RED**
 
 Run: `go test -p 20 ./cmd/internal/couchtty -run 'TestAdvanceRefreshSchedule' -count=1`
 
 Expected: FAIL because `RefreshSchedule` is absent.
 
-- [ ] **Step 3: Implement the pure refresh schedule**
+- [x] **Step 3: Implement the pure refresh schedule**
 
 Return effects rather than spawning goroutines.
 
-- [ ] **Step 4: Run scheduler tests and verify GREEN**
+- [x] **Step 4: Run scheduler tests and verify GREEN**
 
 Re-run Step 2. Expected: PASS.
 
-- [ ] **Step 5: Write failing observation/wiring tests**
+- [x] **Step 5: Write failing observation/wiring tests**
 
 Apply the Console refresh-controller strategy with exact pane identities and a
 context-bearing actionable provider. Barriers prove opening/input use current
 memory while blocked provider IO is cancelable and joined.
 
-- [ ] **Step 6: Run observation/wiring tests and verify RED**
+- [x] **Step 6: Run observation/wiring tests and verify RED**
 
 Run: `go test -p 20 ./cmd/internal/couchtty ./cmd/internal/couchcmd -run 'Test(Console.*Observation|Wire.*Actionable|MenuOpenDoesNotWait)' -count=1`
 
 Expected: FAIL because pane identity and async actionable wiring are absent.
 
-- [ ] **Step 7: Implement the bounded inventory worker**
+- [x] **Step 7: Implement the bounded inventory worker**
 
 Wire one context-bound worker around `RefreshSchedule`; snapshot observations
 under the Console mutex, perform provider IO outside it, and feed terminal
 results only through `ReduceMenu`. Teardown cancels then joins.
 
-- [ ] **Step 8: Run focused and complete TTY/command tests**
+- [x] **Step 8: Run focused and complete TTY/command tests**
 
 Run: `go test -p 20 ./cmd/internal/couchtty ./cmd/internal/couchcmd -count=1`
 
 Expected: PASS; blocked inventory tests prove opening/filtering/navigation do not wait or call the provider.
 
-- [ ] **Step 9: Commit Task 10**
+- [x] **Step 9: Commit Task 10**
 
 ```bash
 git add cmd/internal/couchtty/menu_refresh.go cmd/internal/couchtty/menu_refresh_test.go cmd/internal/couchtty/console_menu.go cmd/internal/couchtty/console_menu_test.go cmd/internal/couchtty/console.go cmd/internal/couchtty/console_test.go cmd/internal/couchcmd/run.go cmd/internal/couchcmd/run_test.go
@@ -874,37 +874,37 @@ git commit -m "#151 M3: execute menu effects asynchronously"
 - Modify: `cmd/internal/couchcmd/readme_test.go`
 - Modify: `README.md`
 
-- [ ] **Step 1: Write failing real-loop/render replacement tests**
+- [x] **Step 1: Write failing real-loop/render replacement tests**
 
 Drive the Spec's controls through raw `hostty.FakeHost` input and reuse the
 decoder/reducer/controller strategies above. Generation-tagged repaint and host
 mode snapshots guard input routing, resize, screen ownership, and teardown.
 Add README expectation tests before editing prose.
 
-- [ ] **Step 2: Run replacement tests and verify RED**
+- [x] **Step 2: Run replacement tests and verify RED**
 
 Run: `go test -p 20 ./cmd/internal/couchtty ./cmd/internal/couchcmd -run 'Test(ConsoleRun.*Menu|MenuControls|Readme.*Couch)' -count=1`
 
 Expected: FAIL while Console still renders `PanelModel`.
 
-- [ ] **Step 3: Route all menu input/paint through reducer/renderer**
+- [x] **Step 3: Route all menu input/paint through reducer/renderer**
 
 Make `MenuState`/`ReduceMenu`/`RenderMenu` the sole Console menu path and delete
 the compatibility panel after references migrate. Update the concepts contract
 to treat #151's table as the superseding status inventory without weakening
 pure-source/direct-test enforcement.
 
-- [ ] **Step 4: Update user controls and migrate regressions**
+- [x] **Step 4: Update user controls and migrate regressions**
 
 Document the hierarchical menu and remove flat-panel wording in README. Move still-valid stable-selection, mouse, Escape, switch/replay, bell, park/resume, and terminal restoration assertions onto the new public behavior; delete tests only when their old symbol is deleted and their behavior is covered elsewhere.
 
-- [ ] **Step 5: Run complete changed packages**
+- [x] **Step 5: Run complete changed packages**
 
 Run: `go test -p 20 ./cmd/internal/couchcore ./cmd/internal/couchtty ./cmd/internal/couchcmd -count=1`
 
 Expected: PASS with no `PanelModel`, synchronous resolver-per-key path, or old prompt state remaining.
 
-- [ ] **Step 6: Commit Task 12**
+- [x] **Step 6: Commit Task 12**
 
 ```bash
 git add cmd/internal/couchtty cmd/internal/couchcmd/readme_test.go README.md
@@ -919,19 +919,19 @@ git commit -m "#151 M3: switch Console to hierarchical menu"
 - Modify: `atlas/couch.md`
 - Modify: `workshop/issues/000151-hierarchical-thread-menu.md`
 
-- [ ] **Step 1: Write the portable 100-row benchmark/bound tests**
+- [x] **Step 1: Write the portable 100-row benchmark/bound tests**
 
 Implement the Spec's fixed 100-row fixture and `BenchmarkMenu100`. Enforce the
 declared allocation, worker/queue, input, and minimum-size bounds mechanically;
 portable tests do not assert target-specific wall time.
 
-- [ ] **Step 2: Run portable tests and verify GREEN**
+- [x] **Step 2: Run portable tests and verify GREEN**
 
 Run: `go test -p 20 ./cmd/internal/couchtty -run 'TestMenu(100|Bounds|Feedback)' -count=1`
 
 Expected: PASS with every allocation ceiling enforced; `go test -p 1 ./cmd/internal/couchtty -run '^$' -bench '^BenchmarkMenu100$' -benchmem -count=5` records allocation/ns-op evidence.
 
-- [ ] **Step 3: Implement and run the opt-in M2 Max protocol**
+- [x] **Step 3: Implement and run the opt-in M2 Max protocol**
 
 `TestMenuTargetPerformance` skips unless `PAIR_MENU_PERF_TARGET=m2-max`. Drive the committed Console/controller path with an instrumented `hostty.FakeHost`, generation-tagged frames, and a monotonic clock. For open and each filter/navigation event, start immediately before the raw input bytes enter the host input channel and stop when the sole host writer returns from the repaint carrying that generation. Measure render computation independently by starting immediately before the committed `RenderMenu(state, dimensions, now)` call and stopping when its ANSI frame bytes return, before host I/O. For refresh apply, start immediately before its completed result enters `Console.Run` and stop after the corresponding reconciled repaint returns. For blocked-operation feedback, start immediately before the confirming raw Enter enters the host and stop after the first repaint that visibly marks that exact operation in progress, while its dispatcher remains blocked. Fail a sample if no matching generation repaints or if another frame is mistaken for it.
 
@@ -948,13 +948,13 @@ PAIR_MENU_PERF_TARGET=m2-max /tmp/couchtty-151-perf.test -test.run '^TestMenuTar
 
 Expected: PASS in three trials. The helper always stops/joins four load goroutines; no process fan-out is introduced.
 
-- [ ] **Step 4: Run full automated verification with bounded parallelism**
+- [x] **Step 4: Run full automated verification with bounded parallelism**
 
 Run: `go test -p 20 ./... -count=1`
 
 Expected: PASS. Then run `git diff --check`; expected: no output.
 
-- [ ] **Step 5: Build and perform a clean-store live smoke**
+- [x] **Step 5: Build and perform a clean-store live smoke**
 
 Build: `go build -o /tmp/couch-151 ./cmd/couch`
 
@@ -1051,11 +1051,11 @@ rm -rf -- "$couch_smoke_store"
 
 Report the exact removed path in the Log; never substitute a workspace, home, or unresolved path.
 
-- [ ] **Step 6: Update atlas and issue evidence**
+- [x] **Step 6: Update atlas and issue evidence**
 
 Update `atlas/couch.md` from “pure core planned integration” to current reachable hierarchical switcher, actionable/raw boundaries, async worker bounds, operation mapping, performance envelope, and suspend/resume-only application lifecycle. Confirm `atlas/index.md` still links it. Append target measurements/live-smoke evidence to the issue Log and tick implementation tasks only through SDLC gates.
 
-- [ ] **Step 7: Commit performance/docs evidence**
+- [x] **Step 7: Commit performance/docs evidence**
 
 ```bash
 git add cmd/internal/couchtty/menu_perf_test.go cmd/internal/couchtty/console_menu_test.go atlas/couch.md workshop/issues/000151-hierarchical-thread-menu.md
@@ -1483,3 +1483,24 @@ corresponding emitted frame. Open, filter, navigation, repaint, refresh, and
 first feedback all use this lifecycle boundary across 100 rows, 20 warmups,
 200 samples, and the baseline plus two exactly-four-worker co-tenancy trials
 (`ARCH-MOCK`, `ARCH-CONSTRAINTS`).
+
+### 2026-08-31 — authorize projection by post-mutation refresh generation
+
+**Reason:** the second M3 boundary review found that a refresh admitted before
+a successful mutation could complete afterward and clear the visible pending
+marker while the required dirty follow-up was still running.
+
+**Delta:** a committed mutating operation captures the refresh scheduler's
+current sequence as `ProjectionAfterGeneration`. Successful inventory results
+still update last-good rows, but clear `ProjectionPending` only when their exact
+generation is greater than that captured boundary. Thus a pre-mutation result
+cannot authorize the projection; a post-mutation success can, and a
+post-mutation failure keeps both the last-good rows and visible pending state.
+The Console regression covers the full sequence: generation 1 running,
+mutation success, dirty request, generation 1 success, generation 2 blocked,
+then generation 2 failure. This rule applies to all five mutating operations
+through the shared operation policy (`ARCH-PURE`, `ARCH-PURPOSE`).
+
+The authoritative M3 checklist was swept against committed implementation and
+evidence. Tasks 10, 11, 12, and Task 13 Steps 1–7 are checked; only the M3
+boundary close and subsequent issue close remain open.

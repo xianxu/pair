@@ -467,6 +467,16 @@ ARCH-PURE, ARCH-PURPOSE).
 
 ## Log
 
+### 2026-08-31 — pair#151 M3 refresh provenance ready
+
+The second M3 review accepted authority retirement and lifecycle timing, then
+found a pre-mutation refresh could clear pending state before the dirty
+post-mutation follow-up. Mutations now capture the latest admitted refresh
+generation; only a strictly later successful snapshot authorizes their
+projection, and failure preserves visible pending state. The authoritative M3
+checklist now matches committed delivery, with only its boundary and issue
+close open (`ARCH-PURE`, `ARCH-PURPOSE`).
+
 ### 2026-08-31 — pair#151 M3 first-review disposition ready
 
 The first M3 boundary review's operation-consumer, superseded-authority, and

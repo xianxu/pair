@@ -2698,7 +2698,9 @@ must update the entire class together (`ARCH-PURPOSE`).
 - Reducer-only result fixtures can invent data production never supplies. For
   each shared operation, enumerate the production result shape and require
   either immediate projection or an explicit visible-pending state that
-  survives refresh failure (`ARCH-PURE`, `ARCH-PURPOSE`).
+  survives refresh failure. When refreshes overlap mutation, capture provenance
+  so only a snapshot admitted after the mutation can clear that state
+  (`ARCH-PURE`, `ARCH-PURPOSE`).
 - A replacement is incomplete while its superseded state, callbacks, or
   controller still compile. Make retirement executable with absence checks
   over both source files and owning symbols (`ARCH-DRY`, `ARCH-PURPOSE`).

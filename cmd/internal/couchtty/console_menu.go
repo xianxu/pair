@@ -119,7 +119,7 @@ func (c *Console) finishMenuRefresh(result menuRefreshResult) {
 	}
 	c.mu.Lock()
 	if c.menuReady {
-		event := MenuEvent{Kind: MenuEventInventory, Inventory: result.inventory}
+		event := MenuEvent{Kind: MenuEventInventory, Inventory: result.inventory, Generation: result.generation}
 		if result.err != nil {
 			event.Error = result.err.Error()
 		}

@@ -104,8 +104,23 @@ func TestProjectionPendingSurvivesRefreshFailureAndClearsOnSuccess(t *testing.T)
 		t.Fatalf("failed refresh hid stale projection: %+v", failed)
 	}
 
-	fresh, _ := ReduceMenu(failed, MenuEvent{Kind: MenuEventInventory, Inventory: menuThreads()})
+	fresh, _ := ReduceMenu(failed, MenuEvent{Kind: MenuEventInventory, Inventory: menuThreads(), Generation: 1})
 	if fresh.ProjectionPending {
 		t.Fatalf("successful refresh retained pending projection: %+v", fresh)
+	}
+}
+
+func TestProjectionPendingClearsOnlyAfterAuthorizedRefreshGeneration(t *testing.T) {
+	state := NewMenuState(menuThreads(), menuAddress("couch-one"))
+	state.ProjectionPending = true
+	state.ProjectionAfterGeneration = 4
+
+	stale, _ := ReduceMenu(state, MenuEvent{Kind: MenuEventInventory, Inventory: menuThreads(), Generation: 4})
+	if !stale.ProjectionPending {
+		t.Fatalf("pre-mutation generation cleared pending projection: %+v", stale)
+	}
+	fresh, _ := ReduceMenu(stale, MenuEvent{Kind: MenuEventInventory, Inventory: menuThreads(), Generation: 5})
+	if fresh.ProjectionPending || fresh.ProjectionAfterGeneration != 0 {
+		t.Fatalf("post-mutation generation did not clear pending projection: %+v", fresh)
 	}
 }
