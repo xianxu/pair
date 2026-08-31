@@ -3,6 +3,7 @@ package couchtty
 import (
 	"errors"
 	"fmt"
+	"reflect"
 	"strings"
 	"sync"
 	"testing"
@@ -344,7 +345,12 @@ func TestPanelStartSuccessAttachesAndSelectsReturnedTree(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	setTestOps(f.con, func(string, map[string]string) (any, error) {
+	var operations []string
+	setTestOps(f.con, func(name string, _ map[string]string) (any, error) {
+		operations = append(operations, name)
+		if name == "prepare-start" {
+			return couchcore.PreparedStart{Token: "grant"}, nil
+		}
 		return couchcore.StartResult{
 			Record: couchcore.ActorRecord{
 				ID:     "actor-parked",
@@ -364,6 +370,9 @@ func TestPanelStartSuccessAttachesAndSelectsReturnedTree(t *testing.T) {
 	})
 	if !strings.Contains(f.host.Written(), "parked") {
 		t.Fatalf("final panel omitted started row: %q", f.host.Written())
+	}
+	if !reflect.DeepEqual(operations, []string{"prepare-start", "start"}) {
+		t.Fatalf("start operation sequence = %q", operations)
 	}
 }
 
@@ -397,11 +406,14 @@ func TestPanelEmptyStartUsesOperationDotDefault(t *testing.T) {
 	f := newFixture(t, 24, 80)
 	var mu sync.Mutex
 	got := "not called"
-	setTestOps(f.con, func(_ string, args map[string]string) (any, error) {
+	setTestOps(f.con, func(name string, args map[string]string) (any, error) {
+		if name != "prepare-start" {
+			return nil, nil
+		}
 		mu.Lock()
 		got = args["path"]
 		mu.Unlock()
-		return nil, nil
+		return couchcore.PreparedStart{Token: "grant"}, nil
 	})
 	openPanel(t, f)
 	_, _ = f.stdin.Write([]byte("\x00\r"))

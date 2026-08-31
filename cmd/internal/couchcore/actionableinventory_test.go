@@ -13,7 +13,7 @@ func TestProjectActionableThreadsRequiresExactLifecycleProof(t *testing.T) {
 		PID: 42, Identity: "live-process", State: IncarnationLive,
 	}}
 	parked := actionableTestThread("couch-0000000000000001", now.Add(-time.Hour))
-	parked.VerifiedPark = &VerifiedPark{ParkedAt: now.Add(-time.Hour)}
+	markActionableParked(&parked, now.Add(-time.Hour))
 
 	rows := ProjectActionableThreads(
 		[]ThreadRecord{live, parked},
@@ -39,6 +39,20 @@ func TestProjectActionableThreadsFailsClosedOnContradictoryEvidence(t *testing.T
 		mutate      func(*ThreadRecord)
 		observation *LiveTTYObservation
 	}{
+		{
+			name: "structurally invalid live record",
+			mutate: func(record *ThreadRecord) {
+				record.SchemaVersion = 0
+				record.Incarnations = []ThreadIncarnation{{PID: 42, Identity: "live-process", State: IncarnationLive}}
+			},
+			observation: &LiveTTYObservation{Process: ProcessIdentity{PID: 42, Identity: "live-process"}},
+		},
+		{
+			name: "structurally invalid verified park",
+			mutate: func(record *ThreadRecord) {
+				record.VerifiedPark = &VerifiedPark{ParkedAt: now}
+			},
+		},
 		{
 			name: "persisted live without owner observation",
 			mutate: func(record *ThreadRecord) {
@@ -155,9 +169,28 @@ func TestActionableThreadInventoryDistinguishesSnapshotFailureFromEmpty(t *testi
 
 func actionableTestThread(tag ThreadTag, active time.Time) ThreadRecord {
 	return ThreadRecord{
-		Address:      ThreadAddress{RepoScope: "816fc349d3faebf8", Tag: tag},
-		StartingPath: "/repo",
-		WorkingPath:  "/repo",
-		LastActiveAt: active,
+		SchemaVersion:   ThreadSchemaVersion,
+		Address:         ThreadAddress{RepoScope: "816fc349d3faebf8", Tag: tag},
+		StartingPath:    "/repo",
+		WorkingPath:     "/repo",
+		CreatedAt:       time.Unix(1, 0).UTC(),
+		Revision:        1,
+		ClaimGeneration: 1,
+		LastActiveAt:    active,
 	}
+}
+
+func markActionableParked(record *ThreadRecord, parkedAt time.Time) {
+	identity := ParkIdentity{
+		Nonce: "park-0123456789abcdef", Address: record.Address,
+		PID: 42, ProcessIdentity: "parked-process",
+	}
+	record.Revision = 3
+	record.LastActiveAt = parkedAt
+	record.ParkHistory = []ParkTransaction{{
+		Identity: identity, BaseRevision: 1, RecordRevision: 2,
+		Phase: ParkAwaitingCompletion, Attempts: []ParkAttempt{{Number: 1, Closed: true}},
+		Closed: true, SuccessfulAttempt: 1,
+	}}
+	record.VerifiedPark = &VerifiedPark{Identity: identity, Attempt: 1, ParkedAt: parkedAt}
 }

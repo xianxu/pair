@@ -708,21 +708,24 @@ original progress, and returned lifecycle values re-enter the shared projector.
 
 Re-run Step 2. Expected: PASS, including the `park_latency_test.go` callback signature migration.
 
-- [ ] **Step 5: Write failing operation-dispatch context tests**
+- [ ] **Step 5: Write failing remaining lifecycle-context tests**
 
-Apply the operation/lifecycle cancellation strategy to a runtime-only
-`OperationCall.Context`; the executor barrier is the guard that supplied
-deadlines reach every owner lifecycle seam while CLI nil means background.
+`OperationCall.Context`, `PrepareStart`, and `SpawnPrepared` landed in M1.
+Apply the cancellation strategy to the remaining resume, Pair lifecycle,
+leave, and runner consumers; executor barriers guard that supplied deadlines
+reach each seam while a nil CLI context still means background.
 
 - [ ] **Step 6: Run operation-dispatch tests and verify RED**
 
 Run: `go test -p 20 ./cmd/internal/couchcore ./cmd/internal/couchcmd -run 'Test(DispatchOperationContext|PrepareStartCancellation|LifecycleOperationContext|ContextlessCLI)' -count=1`
 
-Expected: FAIL because operation and lifecycle seams are contextless.
+Expected: existing dispatch/prepare context regressions PASS and the new
+remaining lifecycle consumers FAIL because they still substitute background.
 
 - [ ] **Step 7: Implement operation/lifecycle context propagation**
 
-Thread context through `PrepareStart`, `SpawnPrepared`, resume admission, Pair lifecycle calls, leave, and their operation wiring.
+Thread the already-carried operation context through resume admission, Pair
+lifecycle calls, leave, and their operation wiring.
 
 - [ ] **Step 8: Run operation-dispatch tests and verify GREEN**
 
@@ -1092,3 +1095,19 @@ strategies instead of restating behavioral matrices. A shared always-run
 `TestBlockedRunnerCancellationConformance` compares `FakeRunner`, `ExecRunner`,
 and `PtyRunner`, including the fake's before/after-ack cancellation transitions
 (ARCH-PURPOSE, ARCH-MOCK).
+
+### 2026-08-30 — M1 boundary review consumer and staging corrections
+
+**Reason:** the first M1 boundary review found that the required-token schema
+had not migrated the transitional Console consumer, malformed durable records
+could enter the actionable projector, the exhaustive production-source
+inventory omitted all three new files, and the atlas described future Console
+wiring as current (`BR-1` through `BR-4`).
+
+**Delta:** M1 now preserves the transitional Console by routing every start
+through `prepare-start` then implicit token-bound `start`; actionable projection
+validates the complete record before interpreting evidence; all new sources are
+classified; and the atlas states that M1 exposes the authority while M3 adopts
+it. Task 11 now treats `OperationCall.Context` plus prepare/spawn propagation as
+already delivered and targets only the remaining lifecycle/runner consumers
+(ARCH-DRY, ARCH-PURPOSE).

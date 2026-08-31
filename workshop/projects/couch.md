@@ -6,7 +6,7 @@ done_when: The operator works inside a single terminal window, managing a fleet 
 status: defined
 mvp_scope: [pair#145, pair#146, pair#147, pair#148, pair#149, pair#151, pair#152, pair#153, pair#155, ariadne#199, ariadne#200]
 created: 2026-08-21
-updated: 2026-08-28
+updated: 2026-08-30
 sources: [brain/workshop/pensive/2026-08-20-01-pensive-couch-agent-switcher.md]
 ---
 
@@ -172,7 +172,9 @@ gate `#147` and `#148` respectively; `#145` and `#146` do not depend on them.
 - [x] deterministic native forests [pair#155 M1]
 - [x] round-gated native bindings and public inventory [pair#155 M2]
 - [x] verified park and activity age [pair#152]
-- [.] hierarchical thread menu [pair#151]
+- [x] actionable inventory and token-bound start authority [pair#151 M1]
+- [ ] pure hierarchical menu and scheduler [pair#151 M2]
+- [ ] Console integration and performance evidence [pair#151 M3]
 - [ ] managed-worktree lifecycle [pair#153]
 - [ ] expose query API to peer actors [ariadne#199]
 - [x] fleet thread inventory [ariadne#200]
@@ -409,6 +411,21 @@ schema-v1 JSON, with redacted live conformance. Worth preserving: a minted ID
 or open transcript is invocation/corroboration state, not recovery authority;
 there is almost nothing to preserve until native progress completes the round
 (`ARCH-DRY`, `ARCH-PURE`, `ARCH-PURPOSE`, `ARCH-MOCK`).
+
+<a id="pair-151-m1"></a>
+### pair#151 M1 — actionable inventory and token-bound start authority
+
+**est:** 7.60 (whole issue)
+**actual:** 4.74h
+**closed:** 2026-08-30
+
+Couch now exposes only proof-bearing live and verified-parked rows to the
+ordinary switcher while retaining undecodable lifecycle state in raw
+diagnostics. Public start resolves policy, preference, and repository defaults
+into one fingerprinted owner-local grant, revalidates it once, and admits and
+launches only the accepted values. The surprise worth preserving is that an
+incumbent from another policy epoch must fail immediately after candidate
+acceptance: retrying cannot silently revise already-authorized authority.
 
 ## Log
 
@@ -832,3 +849,4 @@ consume these operations without inventing lifecycle semantics
 
 [pair#155 M1]: #pair-155-m1
 [pair#155 M2]: #pair-155-m2
+[pair#151 M1]: #pair-151-m1

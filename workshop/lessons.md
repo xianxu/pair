@@ -2609,6 +2609,18 @@ an unsupported owner through every downstream projection (`ARCH-DRY`,
   probe can pass after the production trigger is bypassed. Add an intent-only
   mutation that leaves the real handoff blocked and therefore fails
   (`ARCH-MOCK`, `ARCH-PURPOSE`).
+- Changing a shared operation's required arguments is a consumer migration,
+  not a declaration-only edit. Enumerate every production dispatch site and
+  run each consumer package's integration regressions in the same boundary;
+  focused executor tests cannot expose a Console rejected before its fake runs
+  (`ARCH-DRY`, `ARCH-PURPOSE`).
+- A fail-closed projection over durable records must invoke the record's shared
+  structural validator before interpreting selected fields. Positive fixtures
+  must themselves be valid persisted shapes; otherwise tests normalize corrupt
+  evidence as the happy path (`ARCH-PURPOSE`).
+- When production-source participation is exhaustive, every new source file
+  must be classified in the same commit and the exhaustive inventory test must
+  be part of changed-package verification (`ARCH-PURPOSE`).
 
 ## Terminal release must reset emulator modes as well as termios
 

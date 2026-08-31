@@ -60,6 +60,9 @@ func ProjectActionableThreads(records []ThreadRecord, observations []LiveTTYObse
 
 	rows := make([]ActionableThreadSummary, 0, len(records))
 	for _, record := range records {
+		if ValidateThreadRecord(record) != nil {
+			continue
+		}
 		state, ok := actionableThreadState(record, observed[record.Address])
 		if !ok {
 			continue

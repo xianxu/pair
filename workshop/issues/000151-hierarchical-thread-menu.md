@@ -461,3 +461,14 @@ Declared agent-facing `prepare-start` authority and implicit token-bound
 ownership and Console/PTy choice separate. The archived-plan contract failure
 was fixed in a separate side-quest commit by sharing active/history artifact
 lookup. Unfiltered `couchcore` and `couchcmd` tests pass with `-p 20`.
+
+### 2026-08-30 — M1 boundary review round 1
+
+The fresh review returned REWORK with four open families: the required-token
+schema had not migrated the transitional Console consumer (`BR-1`), actionable
+projection accepted structurally invalid records (`BR-2`), the exhaustive
+production-source inventory omitted all three new files (`BR-3`), and the atlas
+described M3 adoption as already current (`BR-4`). Swept every production start
+dispatcher, validated records before projection with valid positive fixtures,
+classified the full new-source set, corrected milestone staging prose, and
+revised the later context plan to account for M1-delivered operation context.

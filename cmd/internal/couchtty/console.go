@@ -1180,7 +1180,30 @@ func (c *Console) runOp(name string, args map[string]string) {
 		c.setNotice("no action dispatcher wired")
 		return
 	}
-	result, err := fn(couchcore.OperationCall{Name: name, Args: args, Implicit: true})
+	var result any
+	var err error
+	if name == "start" {
+		prepareArgs := map[string]string{}
+		for _, key := range []string{"path", "agent"} {
+			if value, ok := args[key]; ok {
+				prepareArgs[key] = value
+			}
+		}
+		var preparedValue any
+		preparedValue, err = fn(couchcore.OperationCall{Name: "prepare-start", Args: prepareArgs, Implicit: true})
+		if err == nil {
+			prepared, ok := preparedValue.(couchcore.PreparedStart)
+			if !ok {
+				err = fmt.Errorf("prepare-start returned %T", preparedValue)
+			} else {
+				startArgs := cloneOperationArgs(args)
+				startArgs["token"] = string(prepared.Token)
+				result, err = fn(couchcore.OperationCall{Name: "start", Args: startArgs, Implicit: true})
+			}
+		}
+	} else {
+		result, err = fn(couchcore.OperationCall{Name: name, Args: args, Implicit: true})
+	}
 	if err != nil {
 		c.setNotice(name + ": " + err.Error())
 		return

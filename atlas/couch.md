@@ -27,12 +27,14 @@ one-row-per-composite-thread inventory.
 
 That raw `ThreadInventory` remains the diagnostic/recovery view: persisted
 incarnation states are shown even when Couch cannot prove a usable terminal.
-The ordinary switcher instead consumes `ActionableThreadInventory`, a pure
-fail-closed projection over the same snapshot plus exact owner observations.
-It emits only `live` when one durable live PID/start identity exactly matches
-one observed TTY owner, or `parked` when verified park exists with no active
-park transaction, reservation, or incarnation. Contradictory and undecodable
-records stay available to diagnostics but do not become misleading menu rows.
+M1 exposes `ActionableThreadInventory`, a pure fail-closed projection over the
+same snapshot plus exact owner observations. It emits only `live` when one
+durable live PID/start identity exactly matches one observed TTY owner, or
+`parked` when verified park exists with no active park transaction, reservation,
+or incarnation. Contradictory and undecodable records stay available to
+diagnostics. The transitional flat panel remains wired to raw `ThreadInventory`
+until #151 M3 replaces that Console integration; M1 introduces the authority
+without claiming the ordinary switcher has adopted it already.
 
 `cmd/internal/artifactpath` is the sole constructor for Pair's tag-bearing
 files. Standalone Pair selects its own `{repo_scope, tag}`; Couch allocates the
