@@ -2,14 +2,70 @@ package couchtty
 
 import (
 	"context"
+	"errors"
 	"reflect"
 	"strings"
+	"sync"
 	"testing"
 	"time"
 
 	"github.com/xianxu/pair/cmd/internal/couchcore"
 	"github.com/xianxu/pair/cmd/internal/ptychild"
 )
+
+func TestConsoleStopCancelsOperationAndJoinsWorker(t *testing.T) {
+	for _, operation := range []string{"park", "name"} {
+		t.Run(operation, func(t *testing.T) {
+			f := newFixture(t, 24, 80)
+			started := make(chan struct{})
+			finished := make(chan error, 1)
+			releaseMissingContext := make(chan struct{})
+			var releaseOnce sync.Once
+			release := func() { releaseOnce.Do(func() { close(releaseMissingContext) }) }
+			defer release()
+			calls := 0
+			f.con.SetOperationDispatcher(func(call couchcore.OperationCall) (any, error) {
+				calls++
+				close(started)
+				if call.Context == nil {
+					<-releaseMissingContext
+					finished <- errors.New("operation context was nil")
+					return nil, errors.New("operation context was nil")
+				}
+				<-call.Context.Done()
+				finished <- call.Context.Err()
+				return nil, call.Context.Err()
+			})
+			f.con.runOpAsync(operation, map[string]string{"repo-scope": "repo", "tag": "couch-cancel"})
+			select {
+			case <-started:
+			case <-time.After(250 * time.Millisecond):
+				t.Fatal("accepted operation did not start")
+			}
+
+			f.con.Stop()
+			select {
+			case err := <-finished:
+				if !errors.Is(err, context.Canceled) {
+					release()
+					t.Fatalf("blocked dispatcher finished with %v, want context cancellation", err)
+				}
+			case <-time.After(250 * time.Millisecond):
+				release()
+				t.Fatal("Console.Stop did not cancel blocked dispatcher")
+			}
+			select {
+			case <-f.done:
+			case <-time.After(250 * time.Millisecond):
+				release()
+				t.Fatal("Console.Run did not join blocked operation worker")
+			}
+			if calls != 1 {
+				t.Fatalf("dispatcher calls = %d, want one", calls)
+			}
+		})
+	}
+}
 
 func TestConsoleSnapshotsExactPaneObservations(t *testing.T) {
 	f := newFixture(t, 24, 80)

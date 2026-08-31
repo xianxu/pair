@@ -1234,6 +1234,8 @@ func (c *Console) runOp(name string, args map[string]string) {
 		c.setNotice("no action dispatcher wired")
 		return
 	}
+	operationContext, cancelOperation := context.WithCancel(c.lifetime)
+	defer cancelOperation()
 	var result any
 	var err error
 	if name == "start" {
@@ -1244,7 +1246,7 @@ func (c *Console) runOp(name string, args map[string]string) {
 			}
 		}
 		var preparedValue any
-		preparedValue, err = fn(couchcore.OperationCall{Name: "prepare-start", Args: prepareArgs, Implicit: true})
+		preparedValue, err = fn(couchcore.OperationCall{Name: "prepare-start", Args: prepareArgs, Implicit: true, Context: operationContext})
 		if err == nil {
 			prepared, ok := preparedValue.(couchcore.PreparedStart)
 			if !ok {
@@ -1252,11 +1254,11 @@ func (c *Console) runOp(name string, args map[string]string) {
 			} else {
 				startArgs := cloneOperationArgs(args)
 				startArgs["token"] = string(prepared.Token)
-				result, err = fn(couchcore.OperationCall{Name: "start", Args: startArgs, Implicit: true})
+				result, err = fn(couchcore.OperationCall{Name: "start", Args: startArgs, Implicit: true, Context: operationContext})
 			}
 		}
 	} else {
-		result, err = fn(couchcore.OperationCall{Name: name, Args: args, Implicit: true})
+		result, err = fn(couchcore.OperationCall{Name: name, Args: args, Implicit: true, Context: operationContext})
 	}
 	if err != nil {
 		c.setNotice(name + ": " + err.Error())
@@ -1269,7 +1271,7 @@ func (c *Console) runOp(name string, args map[string]string) {
 				"repo-scope": start.Record.Thread.RepoScope,
 				"tag":        string(start.Record.Thread.Tag),
 			},
-			Implicit: true, TypedPayload: start,
+			Implicit: true, TypedPayload: start, Context: operationContext,
 		})
 		if err != nil {
 			c.setNotice("attach: " + err.Error())
@@ -1309,7 +1311,9 @@ func (c *Console) runOpAsync(name string, args map[string]string) {
 	requestArgs := cloneOperationArgs(args)
 	key := name + "\x00" + requestArgs["repo-scope"] + "\x00" + requestArgs["tag"] + "\x00" + requestArgs["mode"]
 	_, err := c.operationQueue.Enqueue(operationRequest{key: key, name: name, run: func() (any, error) {
-		return fn(couchcore.OperationCall{Name: name, Args: requestArgs, Implicit: true})
+		operationContext, cancelOperation := context.WithCancel(c.lifetime)
+		defer cancelOperation()
+		return fn(couchcore.OperationCall{Name: name, Args: requestArgs, Implicit: true, Context: operationContext})
 	}})
 	if err != nil {
 		c.setNotice(name + ": " + err.Error())

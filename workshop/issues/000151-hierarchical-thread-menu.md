@@ -731,3 +731,13 @@ authority. Registration deadlines derive from the caller context. One shared
 Fake/Exec/Pty trace plus deterministic new-start and resume tests cover
 `blocked → canceled → reaped` and `acknowledged → canceled → reaped`, including
 verified-park restoration (`ARCH-MOCK`, `ARCH-PURPOSE`, `ARCH-CONSTRAINTS`).
+
+### 2026-08-31 — M3 Task 11 Console action lifetime
+
+Every synchronous or queued Console action now receives a child of the one
+Console lifetime context, including the prepare/start/attach chain. Stop
+cancels that parent before teardown joins the bounded action worker. Blocking
+lifecycle and metadata dispatch tests prove cancellation is observed, the
+dispatcher runs exactly once, and `Console.Run` returns within 250 ms; targeted
+race and full Couch TTY/command suites pass (`ARCH-PURPOSE`,
+`ARCH-CONSTRAINTS`).

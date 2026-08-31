@@ -753,23 +753,23 @@ exact post-ack cleanup.
 
 Re-run Step 10. Expected: PASS with every helper either transferred successfully or exactly canceled/reaped/reconciled.
 
-- [ ] **Step 13: Write failing Console action-lifetime tests**
+- [x] **Step 13: Write failing Console action-lifetime tests**
 
 Apply the Console action-controller teardown strategy to blocking lifecycle and
 metadata dispatchers; cancellation observation, one completion, and a 250 ms
 join bound are the guards.
 
-- [ ] **Step 14: Run Console action-lifetime tests and verify RED**
+- [x] **Step 14: Run Console action-lifetime tests and verify RED**
 
 Run: `go test -p 20 ./cmd/internal/couchtty ./cmd/internal/couchcmd -run 'TestConsoleStopCancelsOperation' -count=1`
 
 Expected: FAIL because accepted actions do not share one Console lifetime context.
 
-- [ ] **Step 15: Bind accepted actions to Console lifetime**
+- [x] **Step 15: Bind accepted actions to Console lifetime**
 
 Create one Console lifetime context, bind every accepted action call to a child, and cancel it before joining the action worker.
 
-- [ ] **Step 16: Run Console action-lifetime tests and verify GREEN**
+- [x] **Step 16: Run Console action-lifetime tests and verify GREEN**
 
 Re-run Step 14. Expected: PASS with one Console context owning every accepted action and worker join.
 
