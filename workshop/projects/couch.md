@@ -173,7 +173,7 @@ gate `#147` and `#148` respectively; `#145` and `#146` do not depend on them.
 - [x] round-gated native bindings and public inventory [pair#155 M2]
 - [x] verified park and activity age [pair#152]
 - [x] actionable inventory and token-bound start authority [pair#151 M1]
-- [ ] pure hierarchical menu and scheduler [pair#151 M2]
+- [x] pure hierarchical menu and scheduler [pair#151 M2]
 - [ ] Console integration and performance evidence [pair#151 M3]
 - [ ] managed-worktree lifecycle [pair#153]
 - [ ] expose query API to peer actors [ariadne#199]
@@ -426,6 +426,21 @@ fingerprinted owner-local grant, revalidates it once, and admits and launches
 only the accepted values. The surprise worth preserving is that an incumbent
 from another policy epoch must fail immediately after candidate acceptance:
 retrying cannot silently revise already-authorized authority.
+
+<a id="pair-151-m2"></a>
+### pair#151 M2 — pure hierarchical menu and scheduler
+
+**est:** 7.60 (whole issue)
+**actual:** 0.72h
+**closed:** 2026-08-30
+
+M2 supplies the inert pure hierarchy behind the still-flat Console: one shared
+store-free matcher, identity-bound reducer/reconciliation stack, contained
+wide/narrow renderer, semantic legacy/Kitty Tab key, and one-running/one-latest
+preview schedule. The staged boundary remains explicit—the current Console
+does not consume these components until M3. Worth preserving: cancellation is
+a request, not a completion; only the matching terminal outcome frees the
+running preview slot (ARCH-PURE, ARCH-PURPOSE, ARCH-CONSTRAINTS).
 
 ## Log
 
@@ -850,3 +865,4 @@ consume these operations without inventing lifecycle semantics
 [pair#155 M1]: #pair-155-m1
 [pair#155 M2]: #pair-155-m2
 [pair#151 M1]: #pair-151-m1
+[pair#151 M2]: #pair-151-m2
