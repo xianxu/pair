@@ -28,6 +28,7 @@ const (
 
 // MenuFrame owns the navigation state for exactly one menu level.
 type MenuFrame struct {
+	Instance           uint64
 	Kind               MenuFrameKind
 	Filter             string
 	SelectedAddress    couchcore.ThreadAddress
@@ -70,17 +71,19 @@ type MenuState struct {
 	InFlight          MenuOperationOrigin
 	PreviewSequence   uint64
 	OperationSequence uint64
+	FrameSequence     uint64
 	Notice            string
 }
 
 // MenuOperationOrigin captures the exact frame that emitted asynchronous
 // work, so completion does not depend on whichever frame is visible later.
 type MenuOperationOrigin struct {
-	Operation string
-	Attempt   uint64
-	Address   couchcore.ThreadAddress
-	FrameKind MenuFrameKind
-	Depth     int
+	Operation     string
+	Attempt       uint64
+	Address       couchcore.ThreadAddress
+	FrameInstance uint64
+	FrameKind     MenuFrameKind
+	Depth         int
 }
 
 type MenuEventKind uint8
@@ -119,11 +122,11 @@ type MenuEffect struct {
 
 func NewMenuState(inventory []couchcore.ActionableThreadSummary, active couchcore.ThreadAddress) MenuState {
 	owned := append([]couchcore.ActionableThreadSummary(nil), inventory...)
-	root := MenuFrame{Kind: MenuFrameRoot}
+	root := MenuFrame{Instance: 1, Kind: MenuFrameRoot}
 	if len(owned) > 0 {
 		root.SelectedAddress = owned[0].Address
 	}
-	return MenuState{Inventory: owned, Frames: []MenuFrame{root}, ActiveAddress: active}
+	return MenuState{Inventory: owned, Frames: []MenuFrame{root}, ActiveAddress: active, FrameSequence: 1}
 }
 
 func (s MenuState) CurrentFrame() MenuFrame {
@@ -269,7 +272,7 @@ func reduceRootKey(state MenuState, key PanelKey) (MenuState, []MenuEffect) {
 			return state, nil
 		}
 		items := menuActionItems(thread)
-		state.Frames = append(state.Frames, MenuFrame{
+		appendMenuFrame(&state, MenuFrame{
 			Kind: MenuFrameActions, Thread: thread.Address, SelectedItem: items[0],
 		})
 	case KeyEscape:
@@ -319,13 +322,13 @@ func reduceActionKey(state MenuState, key PanelKey) (MenuState, []MenuEffect) {
 		}
 		switch frame.SelectedItem {
 		case "park":
-			state.Frames = append(state.Frames, MenuFrame{
+			appendMenuFrame(&state, MenuFrame{
 				Kind: MenuFrameConfirmation, Thread: thread.Address, Action: "park", SelectedItem: "cancel",
 			})
 		case "resume":
 			return dispatchThreadOperation(state, "resume", thread.Address)
 		case "name", "describe":
-			state.Frames = append(state.Frames, MenuFrame{
+			appendMenuFrame(&state, MenuFrame{
 				Kind: MenuFrameText, Thread: thread.Address, Action: frame.SelectedItem,
 			})
 		}
@@ -433,9 +436,11 @@ func openStartForm(state MenuState) (MenuState, []MenuEffect) {
 	if !ok {
 		return state, nil
 	}
-	state.Frames = append(state.Frames, MenuFrame{
+	if !appendMenuFrame(&state, MenuFrame{
 		Kind: MenuFrameStart, FormField: MenuFieldPath, Agent: agent, Generation: generation,
-	})
+	}) {
+		return state, nil
+	}
 	return state, nil
 }
 
@@ -746,7 +751,8 @@ func reconcileMenuFrames(state MenuState, previous ...[]couchcore.ActionableThre
 		priorInventory = previous[0]
 	}
 	if len(state.Frames) == 0 || state.Frames[0].Kind != MenuFrameRoot {
-		state.Frames = []MenuFrame{{Kind: MenuFrameRoot}}
+		state.Frames = nil
+		appendMenuFrame(&state, MenuFrame{Kind: MenuFrameRoot})
 		return state
 	}
 	original := append([]MenuFrame(nil), state.Frames...)
@@ -853,7 +859,7 @@ func menuOperationOriginFrame(state MenuState, origin MenuOperationOrigin) (Menu
 		return MenuFrame{}, false
 	}
 	frame := state.Frames[origin.Depth-1]
-	if frame.Kind != origin.FrameKind {
+	if frame.Instance != origin.FrameInstance || frame.Kind != origin.FrameKind {
 		return MenuFrame{}, false
 	}
 	return frame, true
@@ -884,13 +890,25 @@ func dispatchMenuOperation(state MenuState, effect MenuEffect, address couchcore
 	state.OperationSequence++
 	effect.Attempt = state.OperationSequence
 	state.InFlight = MenuOperationOrigin{
-		Operation: effect.Operation,
-		Attempt:   effect.Attempt,
-		Address:   address,
-		FrameKind: state.CurrentFrame().Kind,
-		Depth:     len(state.Frames),
+		Operation:     effect.Operation,
+		Attempt:       effect.Attempt,
+		Address:       address,
+		FrameInstance: state.CurrentFrame().Instance,
+		FrameKind:     state.CurrentFrame().Kind,
+		Depth:         len(state.Frames),
 	}
 	return state, []MenuEffect{effect}
+}
+
+func appendMenuFrame(state *MenuState, frame MenuFrame) bool {
+	if state.FrameSequence == ^uint64(0) {
+		state.Notice = "menu frame identity exhausted"
+		return false
+	}
+	state.FrameSequence++
+	frame.Instance = state.FrameSequence
+	state.Frames = append(state.Frames, frame)
+	return true
 }
 
 func selectedMenuThread(state MenuState) (couchcore.ActionableThreadSummary, bool) {

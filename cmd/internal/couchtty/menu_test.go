@@ -499,6 +499,75 @@ func TestMenuOperationAttemptRejectsDelayedDuplicateAcrossEveryOperation(t *test
 	}
 }
 
+func TestMenuOperationCompletionNeverMistakesReplacementFrameForOrigin(t *testing.T) {
+	target := menuAddress("couch-one")
+	created := menuAddress("couch-new")
+	for _, tc := range []struct {
+		operation string
+		kind      MenuFrameKind
+		action    string
+	}{
+		{operation: "switch", kind: MenuFrameRoot},
+		{operation: "resume", kind: MenuFrameRoot},
+		{operation: "park", kind: MenuFrameConfirmation, action: "park"},
+		{operation: "name", kind: MenuFrameText, action: "name"},
+		{operation: "describe", kind: MenuFrameText, action: "describe"},
+		{operation: "start", kind: MenuFrameStart},
+	} {
+		for _, success := range []bool{false, true} {
+			t.Run(tc.operation+fmt.Sprintf("/success=%t", success), func(t *testing.T) {
+				state := NewMenuState(menuThreads(), target)
+				if tc.kind != MenuFrameRoot {
+					if !appendMenuFrame(&state, MenuFrame{Kind: tc.kind, Thread: target, Action: tc.action}) {
+						t.Fatal("could not append origin frame")
+					}
+				}
+				originAddress := target
+				resultAddress := target
+				if tc.operation == "start" {
+					originAddress = couchcore.ThreadAddress{}
+					resultAddress = couchcore.ThreadAddress{}
+					if success {
+						resultAddress = created
+					}
+				}
+				state, effects := dispatchMenuOperation(state, MenuEffect{Operation: tc.operation}, originAddress)
+				if len(effects) != 1 {
+					t.Fatalf("dispatch = %+v", effects)
+				}
+				originInstance := state.InFlight.FrameInstance
+				replacement := state.CurrentFrame()
+				state.FrameSequence++
+				replacement.Instance = state.FrameSequence
+				state.Frames[len(state.Frames)-1] = replacement
+				if replacement.Instance == originInstance {
+					t.Fatal("replacement reused origin frame identity")
+				}
+				beforeFrames := append([]MenuFrame(nil), state.Frames...)
+				result := correlatedMenuResult(state, MenuEvent{Operation: tc.operation, Address: resultAddress, Success: success, Error: "failed"})
+				got, _ := ReduceMenu(state, result)
+
+				globalSuccess := success && (tc.operation == "resume" || tc.operation == "park" || tc.operation == "start")
+				if globalSuccess {
+					if len(got.Frames) != 1 {
+						t.Fatalf("global success did not restore root: %+v", got.Frames)
+					}
+				} else if !reflect.DeepEqual(got.Frames, beforeFrames) {
+					t.Fatalf("completion mutated replacement frame: got=%+v want=%+v", got.Frames, beforeFrames)
+				}
+			})
+		}
+	}
+
+	exhausted := NewMenuState(menuThreads(), target)
+	exhausted.FrameSequence = ^uint64(0)
+	before := append([]MenuFrame(nil), exhausted.Frames...)
+	got, effects := reduceKey(exhausted, PanelKey{Kind: KeyTab})
+	if len(effects) != 0 || !reflect.DeepEqual(got.Frames, before) || got.Notice != "menu frame identity exhausted" {
+		t.Fatalf("exhausted frame identity authorized navigation: state=%+v effects=%+v", got, effects)
+	}
+}
+
 func TestReduceMenuRefreshKeepsApplicableZeroMatchActionFrame(t *testing.T) {
 	state := NewMenuState(menuThreads(), menuAddress("couch-one"))
 	state, _ = reduceKey(state, PanelKey{Kind: KeyTab})

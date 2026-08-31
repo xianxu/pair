@@ -624,3 +624,89 @@ findings:
     detail: |
       This is the 3rd finding in family operation-result-origin-correlation. MenuOperationOrigin and MenuEvent correlate only by operation and address, so a duplicate result from completed attempt A matches later attempt B for the same operation and target, clears B's InFlight state, and applies A's outcome. Add one menu-lifetime attempt identity and carry it through every operation effect and result; sweep switch, resume, park, name, describe, and start with a mutation-sensitive stale-A-after-B regression.
 ```
+
+---
+
+## Re-review — 2026-08-30T23:14:15-07:00 (REWORK)
+
+| field | value |
+|-------|-------|
+| issue | 151 — couch: hierarchical work-thread menu |
+| repo | pair |
+| issue file | workshop/issues/000151-hierarchical-thread-menu.md |
+| boundary | milestone M2 |
+| milestone | M2 |
+| window | 66ae7eef502eb996f4b2d7f096e0ee73090204b2..bbf48290ef738eca04a41d57886da5d41996aba4 |
+| command | sdlc milestone-close --issue 151 --milestone M2 |
+| reviewer | codex |
+| timestamp | 2026-08-30T23:14:15-07:00 |
+| verdict | REWORK |
+
+## Review
+
+```verdict
+verdict: REWORK
+confidence: high
+```
+
+BR-18 is addressed: monotonic attempt identity is propagated through effects, origins, and results, with a mutation-sensitive stale-A-after-B regression covering every operation and outcome. However, frame-local completion handling still correlates frames only by kind and stack depth. Navigation remains enabled in flight, so an old completion can pop a newer confirmation or draft occupying the same structural position. This correctness defect blocks M2.
+
+1. Strengths
+
+- BR-18’s regression covers switch, resume, park, name, describe, and start across success/failure outcomes; removing attempt matching would mutate attempt B.
+- Result correlation occurs before returned inventory is accepted at [menu.go](/Users/xianxu/workspace/pair/cmd/internal/couchtty/menu.go:183).
+- Operation-attempt exhaustion fails closed at [menu.go](/Users/xianxu/workspace/pair/cmd/internal/couchtty/menu.go:880).
+- The Core concepts inventory accurately distinguishes current M2 surface from deferred M3 work, and its contract test passes.
+- `atlas/couch.md` accurately documents the inert M2 core; README changes are correctly deferred because the user-facing Console is not yet wired.
+
+2. Critical findings
+
+- [menu.go](/Users/xianxu/workspace/pair/cmd/internal/couchtty/menu.go:824), [menu.go](/Users/xianxu/workspace/pair/cmd/internal/couchtty/menu.go:851): operation restoration mistakes a replacement frame for the originating frame.
+
+  `menuOperationOriginFrame` checks only `Depth` and `FrameKind`. While park A is in flight, the user can Escape back to root and open park confirmation B at the same depth. A’s failure then treats B as A’s origin and pops B. Similarly, a successful name/describe completion can discard a newly reopened draft for the same thread/action.
+
+  **This is the 4th finding in family `operation-result-origin-correlation`.** Earlier rounds fixed instances. Do not patch only park: state the class rule and sweep every operation/outcome. Frame-local effects must require an unforgeable menu-lifetime frame-instance identity, not structural equivalence. Cover park failure, name/describe success, start failure, and every other operation/outcome that performs or deliberately avoids frame-local restoration. Add mutation-sensitive dispatch → navigate/reopen replacement frame → completion traces.
+
+3. Important findings
+
+None.
+
+4. Minor findings
+
+None.
+
+5. Test coverage notes
+
+- Passed: `go test -p 20 ./... -count=1`.
+- Passed: focused BR-18 operation-correlation tests.
+- Passed: M2 Core concepts contract test.
+- Passed: `git diff --check`.
+- Missing: in-flight completion tests where the original frame is removed and a structurally identical replacement frame is opened before completion.
+
+6. Architectural notes for upcoming work
+
+- `ARCH-DRY`: Pass. Shared matching and reducer authorities avoid parallel terminal-specific logic.
+- `ARCH-PURE`: Pass. Reducer, scheduling, layout, and rendering remain deterministic and directly unit-tested without I/O.
+- `ARCH-PURPOSE`: Flag. “Exact captured origin” is under-delivered because structural frame coordinates can alias a later frame.
+- `ARCH-MOCK`: Pass. M2 introduces no new external call path; external integration remains deferred behind the documented M3 seams.
+- `ARCH-CONSTRAINTS`: Pass for M2. Input bounds, single-running/single-pending preview scheduling, minimum geometry, and 100-row rendering are exercised; target-device measurements remain appropriately scheduled for M3.
+
+7. Plan revision recommendations
+
+Append a `## Revisions` entry recording that operation attempt identity and UI-frame identity are separate axes. Require monotonic frame-instance identities for frame-local completion restoration and an exhaustive operation × outcome × original-frame-replaced trace before retrying M2.
+
+```findings
+dispose:
+  - id: BR-18
+    disposition: addressed
+    note: |
+      Exact nonzero attempt identity is propagated through every operation effect, origin, and result; the stale-A-after-B regression covers all six operations and fails if attempt matching is removed.
+findings:
+  - id: new
+    severity: Critical
+    family: operation-result-origin-correlation
+    title: |
+      Operation completions can mutate a replacement frame at the same depth
+    detail: |
+      This is the 4th finding in family operation-result-origin-correlation. menuOperationOriginFrame identifies an origin only by frame kind and depth, so navigation during in-flight work can replace park A's confirmation or name/describe A's draft with frame B at the same position; A's completion then pops B. State the class rule that frame-local completion effects require an exact menu-lifetime frame-instance identity, sweep every operation and outcome, and add mutation-sensitive replacement-frame regressions.
+```

@@ -1148,3 +1148,16 @@ inventory acceptance or state mutation. The exhaustive operation × outcome ×
 address-shape table now composes A completion, identical B dispatch, and stale
 A replay for switch, resume, park, name, describe, and start; exhaustion
 refuses dispatch (ARCH-PURE, ARCH-PURPOSE).
+
+### 2026-08-30 — identify frame instances independently from operation attempts
+
+**Reason:** the seventh M2 boundary review found that kind/depth structural
+coordinates can alias a replacement confirmation or draft after navigation
+(`BR-19`, `operation-result-origin-correlation`).
+
+**Delta:** every frame has a monotonic menu-lifetime instance identity captured
+by its operation origin. Frame-local restoration requires that exact instance;
+global successful park/resume/start restoration remains explicit. The complete
+operation × outcome table replaces the origin frame before completion and
+proves all frame-local actions preserve the replacement; frame-identity
+exhaustion refuses navigation (ARCH-PURE, ARCH-PURPOSE).

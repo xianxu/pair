@@ -391,6 +391,19 @@ outcome. One exhaustive stale-A-after-B table covers switch, resume, park,
 name, describe, and start across success/failure result-address shapes, with
 fail-safe refusal on identity exhaustion (ARCH-PURE, ARCH-PURPOSE).
 
+### 2026-08-30 — distinguish frame instances from structural positions
+
+**Reason:** the seventh M2 boundary review found that frame kind/depth can alias
+a newly reopened confirmation or draft after the originating frame is removed,
+letting the old completion mutate the replacement.
+
+**Delta:** every frame receives one monotonic menu-lifetime instance identity;
+operation origins capture it alongside attempt/target identity. Frame-local
+restoration requires the exact instance, while global successful
+park/resume/start restoration remains explicit. The operation × outcome ×
+replaced-frame table covers all six operations and fail-safe frame-identity
+exhaustion (ARCH-PURE, ARCH-PURPOSE).
+
 ## Done when
 
 - Enter switches to/resumes the selected work thread; thread-list Tab enters
@@ -653,3 +666,12 @@ a delayed duplicate after an identical successor dispatch. The exhaustive
 six-operation stale-A-after-B regression went red without attempt identity and
 green after each effect/origin/result carried one monotonic menu-lifetime
 attempt; exhaustion refuses work (`ARCH-PURE`, `ARCH-PURPOSE`).
+
+### 2026-08-30 — M2 boundary review round 7
+
+The review disposed BR-18, then showed that kind/depth could alias a reopened
+frame at the same structural position. The six-operation replacement-frame
+table went red for park failure and name/describe success, then green after
+origins captured monotonic frame-instance identity; global successful
+park/resume/start behavior stays explicit and identity exhaustion refuses
+navigation (`ARCH-PURE`, `ARCH-PURPOSE`).

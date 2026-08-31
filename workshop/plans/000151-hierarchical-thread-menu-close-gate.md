@@ -249,6 +249,23 @@ rounds:
           round: 9
       boundary: M2
       blocked: true
+    - "n": 10
+      timestamp: "2026-08-30T23:14:15-07:00"
+      agent: codex
+      dispose:
+        - id: BR-18
+          disposition: addressed
+          note: Exact nonzero attempt identity is propagated through every operation effect, origin, and result; the stale-A-after-B regression covers all six operations and fails if attempt matching is removed.
+          round: 10
+      findings:
+        - id: BR-19
+          severity: Critical
+          title: Operation completions can mutate a replacement frame at the same depth
+          detail: This is the 4th finding in family operation-result-origin-correlation. menuOperationOriginFrame identifies an origin only by frame kind and depth, so navigation during in-flight work can replace park A's confirmation or name/describe A's draft with frame B at the same position; A's completion then pops B. State the class rule that frame-local completion effects require an exact menu-lifetime frame-instance identity, sweep every operation and outcome, and add mutation-sensitive replacement-frame regressions.
+          family: operation-result-origin-correlation
+          round: 10
+      boundary: M2
+      blocked: true
 ---
 
 # Gate ledger — pair#151 (boundary-review)
@@ -369,6 +386,17 @@ later rounds disposed of them. Generated — edit the gate, not this file.
 - **BR-18** [Critical] `operation-result-origin-correlation` Delayed duplicate results can retire a newer identical operation
   This is the 3rd finding in family operation-result-origin-correlation. MenuOperationOrigin and MenuEvent correlate only by operation and address, so a duplicate result from completed attempt A matches later attempt B for the same operation and target, clears B's InFlight state, and applies A's outcome. Add one menu-lifetime attempt identity and carry it through every operation effect and result; sweep switch, resume, park, name, describe, and start with a mutation-sensitive stale-A-after-B regression.
 
+## Round 10 — 2026-08-30T23:14:15-07:00 (codex) — BLOCKED
+
+### Disposed
+
+- BR-18 — addressed — Exact nonzero attempt identity is propagated through every operation effect, origin, and result; the stale-A-after-B regression covers all six operations and fails if attempt matching is removed.
+
+### Raised
+
+- **BR-19** [Critical] `operation-result-origin-correlation` Operation completions can mutate a replacement frame at the same depth
+  This is the 4th finding in family operation-result-origin-correlation. menuOperationOriginFrame identifies an origin only by frame kind and depth, so navigation during in-flight work can replace park A's confirmation or name/describe A's draft with frame B at the same position; A's completion then pops B. State the class rule that frame-local completion effects require an exact menu-lifetime frame-instance identity, sweep every operation and outcome, and add mutation-sensitive replacement-frame regressions.
+
 ## Open findings
 
-- **BR-18** [Critical] `operation-result-origin-correlation` Delayed duplicate results can retire a newer identical operation
+- **BR-19** [Critical] `operation-result-origin-correlation` Operation completions can mutate a replacement frame at the same depth

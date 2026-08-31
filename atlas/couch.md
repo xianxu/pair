@@ -42,8 +42,8 @@ thread-bound action, confirmation, and text frames; a global start frame
 overlays the preserved originating stack. `ReduceMenu` is the only transition
 authority for semantic keys, exact-address operation effects, inventory
 refreshes, preview results, notices, and ephemeral per-thread bells. It
-allocates one monotonic menu-lifetime attempt identity, captures its exact
-operation/frame origin before dispatch, and rejects a mismatched attempt before
+allocates monotonic menu-lifetime attempt and frame-instance identities,
+captures both before dispatch, and rejects a mismatched attempt before
 accepting its returned inventory. Existing-thread
 operations correlate both outcomes with the captured request address; a failed
 start needs no created address, while start success does. Effects that assert
