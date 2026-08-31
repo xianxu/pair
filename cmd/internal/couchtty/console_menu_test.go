@@ -86,15 +86,6 @@ func TestMenuOpenDoesNotWaitForActionableProvider(t *testing.T) {
 	f := newFixture(t, 24, 80)
 	started := make(chan struct{}, 1)
 	canceled := make(chan struct{}, 2)
-	legacyRead := make(chan string, 2)
-	f.con.SetSummaries(func() ([]couchcore.ThreadSummary, error) {
-		legacyRead <- "summaries"
-		return nil, nil
-	})
-	f.con.SetResolver(func(string) ([]couchcore.ThreadAddress, error) {
-		legacyRead <- "resolver"
-		return nil, nil
-	})
 	f.con.SetActionableProvider(func(ctx context.Context, observations []couchcore.LiveTTYObservation) ([]couchcore.ActionableThreadSummary, error) {
 		select {
 		case started <- struct{}{}:
@@ -108,8 +99,8 @@ func TestMenuOpenDoesNotWaitForActionableProvider(t *testing.T) {
 	f.host.Reset()
 
 	_, _ = f.stdin.Write([]byte("\x00"))
-	waitUpTo(t, 250*time.Millisecond, "panel repaint while inventory is blocked", func() bool {
-		return strings.Contains(f.host.Written(), "couch — actors")
+	waitUpTo(t, 250*time.Millisecond, "menu repaint while inventory is blocked", func() bool {
+		return strings.Contains(f.host.Written(), "threads")
 	})
 	select {
 	case <-started:
@@ -121,12 +112,6 @@ func TestMenuOpenDoesNotWaitForActionableProvider(t *testing.T) {
 	waitUpTo(t, 250*time.Millisecond, "filter repaint while inventory is blocked", func() bool {
 		return strings.Contains(f.host.Written(), "filter: x")
 	})
-	select {
-	case call := <-legacyRead:
-		t.Fatalf("menu keystroke performed synchronous legacy %s I/O", call)
-	default:
-	}
-
 	f.con.Stop()
 	_ = f.stdin.Close()
 	select {

@@ -1,6 +1,7 @@
 package sessioninventory
 
 import (
+	"context"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -59,9 +60,22 @@ func SessionForOwner(inventory Inventory, scopeKey, tag string, agent Agent) Ses
 // QuerySession reads one exact owner ledger and validates only its proof-named
 // artifacts. Proofless legacy bindings remain unavailable for automatic use.
 func QuerySession(runtime Runtime, scopeKey, tag string, agent Agent) (SessionQuery, error) {
+	return QuerySessionContext(context.Background(), runtime, scopeKey, tag, agent)
+}
+
+func QuerySessionContext(ctx context.Context, runtime Runtime, scopeKey, tag string, agent Agent) (SessionQuery, error) {
+	if ctx == nil {
+		ctx = context.Background()
+	}
+	if err := ctx.Err(); err != nil {
+		return SessionQuery{}, err
+	}
 	query := SessionQuery{Status: BindingUnbound}
 	pairRoot := runtime.PairDataRoot()
 	files, listErr := runtime.ListFiles(pairRoot)
+	if err := ctx.Err(); err != nil {
+		return SessionQuery{}, err
+	}
 	var issues *ListingIssuesError
 	if listErr != nil && !errors.As(listErr, &issues) {
 		return SessionQuery{}, listErr
@@ -84,6 +98,9 @@ func QuerySession(runtime Runtime, scopeKey, tag string, agent Agent) (SessionQu
 	}
 	raw, err := runtime.ReadFile(ledger, 8<<20)
 	if err != nil {
+		return SessionQuery{}, err
+	}
+	if err := ctx.Err(); err != nil {
 		return SessionQuery{}, err
 	}
 	parsed := sessionledger.ParseLedger(raw)
@@ -113,8 +130,14 @@ func QuerySession(runtime Runtime, scopeKey, tag string, agent Agent) (SessionQu
 		if saved, readErr := advancer.LoadSessionInventoryCatalog(); readErr == nil {
 			catalog = saved
 		}
+		if err := ctx.Err(); err != nil {
+			return SessionQuery{}, err
+		}
 	}
 	validation, diagnostics, err := NewIncrementalInventory(runtime, catalog).ValidateBindingProof(agent, *current.Binding.AuthorizationProof)
+	if contextErr := ctx.Err(); contextErr != nil {
+		return SessionQuery{}, contextErr
+	}
 	query.Diagnostics = append(query.Diagnostics, diagnostics...)
 	if err != nil {
 		return query, nil
@@ -122,6 +145,9 @@ func QuerySession(runtime Runtime, scopeKey, tag string, agent Agent) (SessionQu
 	if persists && !catalogCoversValidation(catalog, validation) {
 		if publishErr := advancer.PublishSessionInventoryValidations([]TargetValidation{validation}); publishErr != nil {
 			query.Diagnostics = append(query.Diagnostics, diagnosticWithSource(DiagnosticStorageUnreadable, agent, &current.Binding.RootNativeID, "session inventory catalog", "validated query advancement could not be persisted"))
+		}
+		if err := ctx.Err(); err != nil {
+			return SessionQuery{}, err
 		}
 	}
 	inventory := BuildForest([]Fact{validation.Fact})
@@ -190,7 +216,47 @@ func (inventory IncrementalInventory) ValidateBindingProof(agent Agent, proof se
 	}
 	advanced, found, err := AdvanceTargetValidation(inventory.runtime, prior, selected.Eligible)
 	diagnostics = append(diagnostics, found...)
-	return advanced, diagnostics, err
+	if err == nil || !proofAllowsFullGrowthRevalidation(proof, selected.Eligible) {
+		return advanced, diagnostics, err
+	}
+	// Some filesystems expose stable file identity but no true generation
+	// token. A proof-authorized transcript may still grow normally after the
+	// binding is committed. In that exact monotonic-growth case, validate the
+	// one proof-named target from byte zero rather than revoking the established
+	// root or broadening into a corpus scan.
+	validated, fallbackDiagnostics := ValidateTargetWork(inventory.runtime, agent, selected.Eligible)
+	diagnostics = append(diagnostics, fallbackDiagnostics...)
+	if len(validated) != 1 {
+		return TargetValidation{}, diagnostics, ErrArtifactChanged
+	}
+	candidate := validated[0]
+	if candidate.State.Agent != agent || candidate.State.NativeID != proof.RootNativeID || candidate.State.Role != RoleRoot || candidate.State.ScannerSchema != proof.ScannerSchema || candidate.State.Disputed {
+		return TargetValidation{}, diagnostics, ErrArtifactChanged
+	}
+	return candidate, diagnostics, nil
+}
+
+func proofAllowsFullGrowthRevalidation(proof sessionledger.AuthorizationProof, current []ArtifactObservation) bool {
+	if len(current) != len(proof.Artifacts) || len(current) == 0 {
+		return false
+	}
+	grew, missingGeneration := false, false
+	for _, observation := range current {
+		artifact, ok := proofArtifactByKey(proof, targetArtifactKey(observation.Entry.Artifact))
+		if !ok || string(observation.Entry.StableFileID) != artifact.StableFileID || observation.Entry.Size < artifact.Size {
+			return false
+		}
+		if artifact.GenerationToken == "" {
+			missingGeneration = true
+			if observation.Entry.GenerationToken != "" {
+				return false
+			}
+		} else if string(observation.Entry.GenerationToken) != artifact.GenerationToken {
+			return false
+		}
+		grew = grew || observation.Entry.Size > artifact.Size
+	}
+	return grew && missingGeneration
 }
 
 func proofArtifactByKey(proof sessionledger.AuthorizationProof, key string) (sessionledger.ArtifactProof, bool) {

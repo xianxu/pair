@@ -421,7 +421,7 @@ func wireResolver(console *couchtty.Console, c *couchcore.Couch) {
 			return nil, ctx.Err()
 		default:
 		}
-		rows, err := c.ActionableThreadInventory(observations)
+		rows, err := c.ActionableThreadInventoryContext(ctx, observations)
 		if err != nil {
 			return nil, err
 		}

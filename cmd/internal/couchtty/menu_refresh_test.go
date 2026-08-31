@@ -58,13 +58,13 @@ func TestReduceMenuInventoryFailurePreservesLastGoodAndInitialUnavailable(t *tes
 	state := NewMenuState(lastGood, active)
 	state, _ = ReduceMenu(state, MenuEvent{Kind: MenuEventRefreshStarted})
 	got, effects := ReduceMenu(state, MenuEvent{Kind: MenuEventInventory, Error: "corrupt manifest"})
-	if len(effects) != 0 || !reflect.DeepEqual(got.Inventory, lastGood) || !got.InventoryReady || got.RefreshPending || got.Notice != "thread inventory unavailable: corrupt manifest" {
+	if len(effects) != 0 || !reflect.DeepEqual(got.Inventory, lastGood) || !got.InventoryReady || got.RefreshPending || got.Notice.Text != "thread inventory unavailable: corrupt manifest" {
 		t.Fatalf("failed refresh replaced last-good state = state %+v effects %+v", got, effects)
 	}
 
 	initial := NewMenuState(nil, couchcore.ThreadAddress{})
 	initial, _ = ReduceMenu(initial, MenuEvent{Kind: MenuEventRefreshStarted})
-	if initial.InventoryReady || !initial.RefreshPending || initial.Notice != "thread inventory unavailable" {
+	if initial.InventoryReady || !initial.RefreshPending || initial.Notice.Text != "thread inventory unavailable" {
 		t.Fatalf("initial refresh did not distinguish unavailable from empty = %+v", initial)
 	}
 	initial, _ = ReduceMenu(initial, MenuEvent{Kind: MenuEventInventory, Inventory: []couchcore.ActionableThreadSummary{}})

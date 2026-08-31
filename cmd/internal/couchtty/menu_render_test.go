@@ -2,6 +2,7 @@ package couchtty
 
 import (
 	"fmt"
+	"reflect"
 	"strings"
 	"testing"
 	"time"
@@ -11,7 +12,7 @@ import (
 	"github.com/xianxu/pair/cmd/internal/textwidth"
 )
 
-func TestChooseMenuLayoutBoundsWideNarrowAndResize(t *testing.T) {
+func TestChooseMenuLayoutUsesOneLeftAnchoredSurfaceAtEverySupportedSize(t *testing.T) {
 	state := NewMenuState(menuThreads(), menuAddress("couch-one"))
 	state, _ = reduceKey(state, PanelKey{Kind: KeyTab})
 	for _, tc := range []struct {
@@ -19,13 +20,13 @@ func TestChooseMenuLayoutBoundsWideNarrowAndResize(t *testing.T) {
 		width, height int
 		want          MenuLayoutKind
 	}{
-		{name: "wide", width: 120, height: 40, want: MenuLayoutWide},
-		{name: "narrow minimum", width: 40, height: 10, want: MenuLayoutNarrow},
+		{name: "wide", width: 120, height: 40, want: MenuLayoutSingle},
+		{name: "minimum", width: 40, height: 10, want: MenuLayoutSingle},
 		{name: "too narrow", width: 39, height: 10, want: MenuLayoutResize},
 		{name: "too short", width: 80, height: 9, want: MenuLayoutResize},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
-			layout := ChooseMenuLayout(state, tc.width, tc.height)
+			layout := ChooseMenuLayout(tc.width, tc.height)
 			if layout.Kind != tc.want {
 				t.Fatalf("layout = %+v, want kind %v", layout, tc.want)
 			}
@@ -34,34 +35,54 @@ func TestChooseMenuLayoutBoundsWideNarrowAndResize(t *testing.T) {
 					t.Fatalf("layout rect escapes terminal %dx%d: %+v", tc.width, tc.height, rect)
 				}
 			}
+			if tc.want == MenuLayoutSingle && (len(layout.Frames) != 1 || layout.Frames[0].X != 0 || layout.Frames[0].Y != 0) {
+				t.Fatalf("supported layout = %+v, want one surface at origin", layout)
+			}
 		})
 	}
 }
 
-func TestChooseMenuLayoutAnchorsWideChildrenToSelectedParentRows(t *testing.T) {
-	state := NewMenuState(menuThreads(), menuAddress("couch-one"))
-	state, _ = reduceKey(state, PanelKey{Kind: KeyDown})
-	state, _ = reduceKey(state, PanelKey{Kind: KeyTab})
-	layout := ChooseMenuLayout(state, 120, 40)
-	if layout.Kind != MenuLayoutWide || len(layout.Frames) != 2 || layout.Frames[1].Y != 3 {
-		t.Fatalf("wide child geometry = %+v, want child beside root row 3", layout)
-	}
+func TestRenderMenuUsesSingleSurfaceBreadcrumbs(t *testing.T) {
+	root := NewMenuState(menuThreads(), menuAddress("couch-one"))
+	actions, _ := reduceKey(root, PanelKey{Kind: KeyTab})
+	park, _ := reduceKey(actions, PanelKey{Kind: KeyEnter})
+	rename := cloneMenuState(actions)
+	rename.Frames[len(rename.Frames)-1].SelectedItem = "name"
+	rename, _ = reduceKey(rename, PanelKey{Kind: KeyEnter})
+	describe := cloneMenuState(actions)
+	describe.Frames[len(describe.Frames)-1].SelectedItem = "describe"
+	describe, _ = reduceKey(describe, PanelKey{Kind: KeyEnter})
+	leave, _ := ReduceMenu(root, MenuEvent{Kind: MenuEventParkHotkey, Operation: "leave", Address: menuAddress("couch-one")})
+	startFromConfirmation, _ := reduceKey(park, PanelKey{Kind: KeyCtrlSpace})
 
-	state = NewMenuState(menuThreads(), menuAddress("couch-one"))
-	state, _ = reduceKey(state, PanelKey{Kind: KeyTab})
-	state, _ = reduceKey(state, PanelKey{Kind: KeyEnter})
-	layout = ChooseMenuLayout(state, 160, 40)
-	if layout.Kind != MenuLayoutWide || len(layout.Frames) != 3 || layout.Frames[1].Y != 2 || layout.Frames[2].Y != 4 {
-		t.Fatalf("nested wide geometry = %+v, want child rows 2 then 4", layout)
-	}
-}
-
-func TestChooseMenuLayoutPlacesNarrowChildBelowParentList(t *testing.T) {
-	state := NewMenuState(menuThreads(), menuAddress("couch-one"))
-	state, _ = reduceKey(state, PanelKey{Kind: KeyTab})
-	layout := ChooseMenuLayout(state, 60, 20)
-	if layout.Kind != MenuLayoutNarrow || len(layout.Frames) != 2 || layout.Frames[0].Height != 4 || layout.Frames[1].Y != 4 {
-		t.Fatalf("narrow child geometry = %+v, want child below four-row root list", layout)
+	for _, tc := range []struct {
+		name       string
+		state      MenuState
+		breadcrumb string
+		absent     []string
+	}{
+		{name: "root", state: root, breadcrumb: "threads"},
+		{name: "actions", state: actions, breadcrumb: "threads › compiler › actions", absent: []string{"/repo/one", "review"}},
+		{name: "park", state: park, breadcrumb: "threads › compiler › park", absent: []string{"/repo/one", "rename"}},
+		{name: "rename", state: rename, breadcrumb: "threads › compiler › rename", absent: []string{"/repo/one", "park"}},
+		{name: "describe", state: describe, breadcrumb: "threads › compiler › describe", absent: []string{"/repo/one", "park"}},
+		{name: "leave", state: leave, breadcrumb: "threads › compiler › leave couch", absent: []string{"actions", "/repo/one"}},
+		{name: "global start", state: startFromConfirmation, breadcrumb: "start thread", absent: []string{"threads", "compiler", "park"}},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			for _, size := range [][2]int{{120, 40}, {40, 10}} {
+				plain := string(ansi.Strip([]byte(RenderMenu(tc.state, size[0], size[1], time.Time{}, false))))
+				if first := strings.Split(plain, "\r\n")[0]; first != tc.breadcrumb {
+					t.Fatalf("%dx%d breadcrumb = %q, want %q; render=%q", size[0], size[1], first, tc.breadcrumb, plain)
+				}
+				for _, absent := range tc.absent {
+					if strings.Contains(plain, absent) {
+						t.Fatalf("%dx%d retained inactive %q: %q", size[0], size[1], absent, plain)
+					}
+				}
+				assertRenderedBounds(t, plain, size[0], size[1])
+			}
+		})
 	}
 }
 
@@ -115,14 +136,15 @@ func TestRenderMenuKeepsSelectedRowVisibleAndBounded(t *testing.T) {
 	assertRenderedBounds(t, got, 40, 10)
 }
 
-func TestRenderMenuWideChildStaysInsideTerminal(t *testing.T) {
+func TestRenderMenuSingleSurfaceStaysInsideTerminalWithLongBreadcrumb(t *testing.T) {
 	threads := menuThreads()
 	threads[0].Name = strings.Repeat("wide", 40)
 	state := NewMenuState(threads, menuAddress("couch-one"))
 	state, _ = reduceKey(state, PanelKey{Kind: KeyTab})
 	got := RenderMenu(state, 120, 40, time.Unix(200000, 0).UTC(), true)
-	if !strings.Contains(got, "actions · wide") || !strings.Contains(got, "park") {
-		t.Fatalf("wide render omitted child frame: %q", got)
+	plain := string(ansi.Strip([]byte(got)))
+	if !strings.HasPrefix(plain, "threads › wide") || !strings.Contains(plain, "park") || strings.Contains(plain, "/repo/one") {
+		t.Fatalf("single-surface render retained or omitted the wrong content: %q", got)
 	}
 	assertRenderedBounds(t, got, 120, 40)
 }
@@ -133,6 +155,20 @@ func TestRenderMenuUsesOperationPresentationLabels(t *testing.T) {
 	plain := string(ansi.Strip([]byte(RenderMenu(state, 120, 40, time.Time{}, false))))
 	if !strings.Contains(plain, "rename") || strings.Contains(plain, "\nname") || strings.Contains(plain, "\r\n  name") {
 		t.Fatalf("action menu leaked operation identifier instead of label: %q", plain)
+	}
+}
+
+func TestRenderMenuUsesSubduedBreadcrumbWhenColorIsAvailable(t *testing.T) {
+	state := NewMenuState(menuThreads(), menuAddress("couch-one"))
+	state, _ = reduceKey(state, PanelKey{Kind: KeyTab})
+	got := RenderMenu(state, 120, 40, time.Time{}, true)
+	want := "\x1b[38;5;245mthreads › compiler › actions\x1b[0m"
+	if first := strings.Split(got, "\r\n")[0]; first != want {
+		t.Fatalf("colored breadcrumb = %q, want %q", first, want)
+	}
+	plain := RenderMenu(state, 120, 40, time.Time{}, false)
+	if first := strings.Split(plain, "\r\n")[0]; first != "threads › compiler › actions" {
+		t.Fatalf("plain breadcrumb = %q", first)
 	}
 }
 
@@ -174,6 +210,101 @@ func TestRenderMenuBelowMinimumOnlyRequestsResize(t *testing.T) {
 	plain := string(ansi.Strip([]byte(got)))
 	if plain != "resize terminal to at least 40x10" {
 		t.Fatalf("small render = %q", got)
+	}
+}
+
+func TestRenderMenuAnimatesProgressWithStableOneCellFrame(t *testing.T) {
+	state := NewMenuState(menuThreads(), menuAddress("couch-one"))
+	state.Notice = MenuNotice{Level: MenuNoticeProgress, Text: "resolving", Owner: MenuProgressOwner{PreviewGeneration: 7}}
+	for phase, frame := range []string{"◐", "◓", "◑", "◒"} {
+		state.SpinnerPhase = uint8(phase)
+		body := string(ansi.Strip([]byte(RenderMenuView(state, 80, 23, time.Unix(100, 0), false).Body)))
+		if !strings.Contains(body, frame+" resolving…") {
+			t.Fatalf("phase %d body = %q, want %q", phase, body, frame+" resolving…")
+		}
+	}
+}
+
+func TestRenderMenuPlacesTypedBannerBelowEveryBreadcrumb(t *testing.T) {
+	root := NewMenuState(menuThreads(), menuAddress("couch-one"))
+	actions, _ := reduceKey(root, PanelKey{Kind: KeyTab})
+	start, _ := reduceKey(actions, PanelKey{Kind: KeyCtrlSpace})
+
+	errorState, _ := ReduceMenu(actions, MenuEvent{Kind: MenuEventInventory, Error: "store unavailable"})
+	progressState, _ := reduceKey(start, PanelKey{Kind: KeyEnter})
+	for _, tc := range []struct {
+		name       string
+		state      MenuState
+		breadcrumb string
+		banner     string
+		control    string
+	}{
+		{name: "nested error", state: errorState, breadcrumb: "threads › compiler › actions", banner: "error: thread inventory unavailable: store unavailable", control: "park"},
+		{name: "start progress", state: progressState, breadcrumb: "start thread", banner: "resolving", control: "▸ path"},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			plain := string(ansi.Strip([]byte(RenderMenu(tc.state, 120, 40, time.Time{}, false))))
+			lines := strings.Split(plain, "\r\n")
+			if len(lines) < 4 || lines[0] != tc.breadcrumb || !strings.Contains(lines[1], tc.banner) || lines[2] != "" || !strings.Contains(lines[3], tc.control) {
+				t.Fatalf("banner/control placement = %#v", lines)
+			}
+		})
+	}
+}
+
+func TestRenderMenuRetainsNoticeWhileBelowMinimum(t *testing.T) {
+	state := NewMenuState(menuThreads(), menuAddress("couch-one"))
+	state, _ = ReduceMenu(state, MenuEvent{Kind: MenuEventInventory, Error: "offline"})
+	if got := RenderMenu(state, 39, 9, time.Time{}, false); got != "resize terminal to at least 40x10" {
+		t.Fatalf("below-minimum render = %q", got)
+	}
+	if got := RenderMenu(state, 40, 10, time.Time{}, false); !strings.Contains(got, "\r\nerror: thread inventory unavailable: off\r\n") {
+		t.Fatalf("clipped notice did not reappear after resize: %q", got)
+	}
+}
+
+func TestRenderMenuCursorIntentUsesFinalFieldCells(t *testing.T) {
+	root := NewMenuState(menuThreads(), menuAddress("couch-one"))
+	root.Frames[0].Filter = "界"
+	actions, _ := reduceKey(NewMenuState(menuThreads(), menuAddress("couch-one")), PanelKey{Kind: KeyTab})
+	actions.Frames[len(actions.Frames)-1].Filter = "pa"
+	start, _ := reduceKey(NewMenuState(menuThreads(), menuAddress("couch-one")), PanelKey{Kind: KeyCtrlSpace})
+	startUnicode := cloneMenuState(start)
+	startUnicode.Frames[len(startUnicode.Frames)-1].Path = "e\u0301界"
+	startBanner := cloneMenuState(start)
+	startBanner.Notice = errorMenuNotice("bad path")
+	startAgent := cloneMenuState(start)
+	startAgent.Frames[len(startAgent.Frames)-1].FormField = MenuFieldAgent
+	rename := NewMenuState(menuThreads(), menuAddress("couch-one"))
+	appendMenuFrame(&rename, MenuFrame{Kind: MenuFrameText, Thread: menuAddress("couch-one"), Action: "name"})
+
+	for _, tc := range []struct {
+		name          string
+		state         MenuState
+		width, height int
+		want          *MenuCursorIntent
+	}{
+		{name: "root wide glyph filter", state: root, width: 120, height: 40, want: &MenuCursorIntent{Row: 4, Col: 11}},
+		{name: "action filter", state: actions, width: 120, height: 40, want: &MenuCursorIntent{Row: 4, Col: 11}},
+		{name: "empty rename", state: rename, width: 120, height: 40, want: &MenuCursorIntent{Row: 3, Col: 3}},
+		{name: "empty path", state: start, width: 120, height: 40, want: &MenuCursorIntent{Row: 3, Col: 9}},
+		{name: "combining and wide path", state: startUnicode, width: 120, height: 40, want: &MenuCursorIntent{Row: 3, Col: 12}},
+		{name: "banner shifts path", state: startBanner, width: 120, height: 40, want: &MenuCursorIntent{Row: 4, Col: 9}},
+		{name: "agent focus hides", state: startAgent, width: 120, height: 40},
+		{name: "resize hides", state: start, width: 39, height: 9},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			got := RenderMenuView(tc.state, tc.width, tc.height, time.Time{}, false).Cursor
+			if !reflect.DeepEqual(got, tc.want) {
+				t.Fatalf("cursor = %+v, want %+v", got, tc.want)
+			}
+		})
+	}
+
+	clipped := cloneMenuState(start)
+	clipped.Frames[len(clipped.Frames)-1].Path = strings.Repeat("界", 40)
+	if got := RenderMenuView(clipped, 40, 10, time.Time{}, false).Cursor; got == nil || got.Row != 3 || got.Col != 40 {
+		t.Fatalf("clipped cursor = %+v, want row 3 column 40", got)
 	}
 }
 

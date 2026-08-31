@@ -15,7 +15,7 @@ import (
 	"github.com/xianxu/pair/cmd/internal/sessionledger"
 )
 
-func TestRunEstablishesOnlyAfterCompletedCorroboratedRound(t *testing.T) {
+func TestRunEstablishesAfterOneShortCompletedCorroboratedRound(t *testing.T) {
 	t.Parallel()
 	dataDir := t.TempDir()
 	native := sessioninventorytest.NewFakeRuntime()
@@ -24,7 +24,7 @@ func TestRunEstablishesOnlyAfterCompletedCorroboratedRound(t *testing.T) {
 	sid := "019eff64-6ceb-7e72-9d41-a735a97029ac"
 	relative := "2026/08/28/rollout-test-" + sid + ".jsonl"
 	artifact := sessioninventory.Artifact{StorageRoot: nativeRoot.Name, RelativePath: relative, Kind: sessioninventory.ArtifactTranscript}
-	text := "please inspect the durable watcher boundary now"
+	text := "hello"
 	native.PutFile(sessioninventory.FileEntry{Artifact: artifact, StableFileID: "stable", GenerationToken: "gen:1", MutationToken: "ctime:1"}, codexRound(sid, text))
 	native.SetProcess("1234", "native-identity", nil, []string{filepath.Join(nativeRoot.Path, filepath.FromSlash(relative))})
 
@@ -289,6 +289,39 @@ func TestWatcherIncrementalReadsOnlyAppendedProgressOnSecondPoll(t *testing.T) {
 	}
 	if got := native.OperationCount(sessioninventorytest.OperationReadAt, artifact.StorageRoot+":"+artifact.RelativePath); got != 2 {
 		t.Fatalf("range reads=%d, want one initial and one suffix read", got)
+	}
+}
+
+func TestWatcherEstablishesClaudeRoundWithQueuedSecondOperator(t *testing.T) {
+	t.Parallel()
+	dataDir := t.TempDir()
+	native := sessioninventorytest.NewFakeRuntime()
+	root := sessioninventory.StorageRoot{Agent: sessioninventory.AgentClaude, Name: "claude-projects"}
+	native.AddRoot(root)
+	sid := "689103dd-5d67-4269-af57-87f42267c0a8"
+	artifact := sessioninventory.Artifact{StorageRoot: root.Name, RelativePath: "-Users-xianxu-workspace-brain/" + sid + ".jsonl", Kind: sessioninventory.ArtifactTranscript}
+	first := "tell me about this repo"
+	second := "when is last commit?"
+	prefix := []byte(`{"type":"user","sessionId":"` + sid + `","isSidechain":false,"message":{"role":"user","content":[{"type":"text","text":"` + first + `"}]}}` + "\n")
+	native.PutFile(sessioninventory.FileEntry{Artifact: artifact, StableFileID: "stable", MutationToken: "ctime:1"}, prefix)
+
+	paths := mustScopedPaths(t, dataDir, "work")
+	runtime := newWatcherRuntime(native)
+	runtime.files[paths.Ledger()] = mustLaunchRecord(t, sessionledger.Record{Version: 2, Kind: sessionledger.RecordLaunch, ScopeKey: "scope", Tag: "work", Agent: "claude", LaunchArtifactBoundaries: []sessionledger.LaunchArtifactBoundary{}})
+	runtime.files[paths.Log()] = []byte("## 2026-08-31 14:27:22\n\n" + first + "\n\n---\n\n## 2026-08-31 14:27:40\n\n" + second + "\n\n---\n\n")
+	runtime.onSleep = func() {
+		native.AppendFile(artifact, []byte(
+			`{"type":"assistant","sessionId":"`+sid+`","message":{"role":"assistant","content":[{"type":"tool_use","id":"first"}]}}`+"\n"+
+				`{"type":"queue-operation","operation":"enqueue","content":"`+second+`","sessionId":"`+sid+`"}`+"\n"+
+				`{"type":"assistant","sessionId":"`+sid+`","message":{"role":"assistant","content":[{"type":"tool_use","id":"second"}]}}`+"\n"+
+				`{"type":"queue-operation","operation":"remove","content":"`+second+`","sessionId":"`+sid+`"}`+"\n"), "ctime:2")
+		runtime.onSleep = nil
+	}
+	if err := Run(Options{Agent: "claude", Tag: "work", ScopeKey: "scope", LaunchOrdinal: 1, Home: "/home", DataDir: dataDir, PIDWait: time.Nanosecond, Timeout: time.Second, Poll: time.Millisecond}, runtime); err != nil {
+		t.Fatal(err)
+	}
+	if len(runtime.store.records) != 1 || runtime.store.records[0].RootNativeID != sid || runtime.store.records[0].AuthorizationProof == nil {
+		t.Fatalf("records=%#v", runtime.store.records)
 	}
 }
 

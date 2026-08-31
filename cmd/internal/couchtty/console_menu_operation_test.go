@@ -1,12 +1,17 @@
 package couchtty
 
 import (
+	"context"
 	"errors"
 	"reflect"
+	"strings"
 	"testing"
 	"time"
 
+	"github.com/xianxu/pair/cmd/internal/ansi"
 	"github.com/xianxu/pair/cmd/internal/couchcore"
+	"github.com/xianxu/pair/cmd/internal/hostty"
+	"github.com/xianxu/pair/cmd/internal/ptychild"
 )
 
 func TestConsoleMenuOperationFailureUsesExactReducerOrigin(t *testing.T) {
@@ -42,6 +47,28 @@ func TestConsoleMenuOperationFailureUsesExactReducerOrigin(t *testing.T) {
 	})
 }
 
+func TestConsoleMenuMissingDispatcherPaintsLocalError(t *testing.T) {
+	f := newFixture(t, 24, 80)
+	target := menuAddress("couch-one")
+	state := NewMenuState(menuThreads(), target)
+	state, effects := dispatchThreadOperation(state, "switch", target)
+	f.con.mu.Lock()
+	f.con.ops = nil
+	f.con.menu, f.con.menuReady = state, true
+	f.con.focus = FocusPanel()
+	f.con.mu.Unlock()
+	f.host.Reset()
+	f.con.dispatchMenuEffects(effects)
+
+	got := f.con.menuSnapshot()
+	if got.InFlight.Operation != "" || got.Notice.Level != MenuNoticeError || got.Notice.Text != "no action dispatcher wired" {
+		t.Fatalf("missing-dispatcher state = %+v", got)
+	}
+	if screen := string(ansi.Strip([]byte(lastConsoleScreen(f.host.Written())))); !strings.Contains(screen, "error: no action dispatcher wired") {
+		t.Fatalf("missing dispatcher was not painted locally: %q", screen)
+	}
+}
+
 func TestConsoleMenuStartAttachesBeforeSuccessfulRestoration(t *testing.T) {
 	f := newFixture(t, 24, 80)
 	state := NewMenuState(menuThreads(), menuAddress("couch-one"))
@@ -73,4 +100,117 @@ func TestConsoleMenuStartAttachesBeforeSuccessfulRestoration(t *testing.T) {
 		_, attached := f.con.panes[start.Handle.ID()]
 		return attached && f.con.menu.InFlight.Operation == ""
 	})
+}
+
+func TestConsoleMenuResumeLandsOnExactReturnedHandle(t *testing.T) {
+	f := newFixture(t, 24, 80)
+	target := menuAddress("couch-two")
+	state := NewMenuState(menuThreads(), menuAddress("couch-one"))
+	state.Frames[0].SelectedAddress = target
+	state, effects := dispatchThreadOperation(state, "resume", target)
+	if len(effects) != 1 {
+		t.Fatalf("resume effects = %+v", effects)
+	}
+	started, _ := attachStartResult(t, "resumed-actor", target)
+	started.Handle.(couchcore.TerminalHandle).Terminal().Feed([]byte("RESUMED-EXACT-SCREEN"))
+	setTestOps(f.con, func(name string, _ map[string]string) (any, error) {
+		if name != "resume" {
+			return nil, errors.New("unexpected owner operation " + name)
+		}
+		return started, nil
+	})
+	f.con.mu.Lock()
+	f.con.menu, f.con.menuReady = state, true
+	f.con.focus = FocusPanel()
+	f.con.mu.Unlock()
+	f.host.Reset()
+	f.con.dispatchMenuEffects(effects)
+
+	waitUpTo(t, 250*time.Millisecond, "exact resumed handle landing", func() bool {
+		f.con.mu.Lock()
+		active, focus, inflight := f.con.active, f.con.focus, f.con.menu.InFlight.Operation
+		f.con.mu.Unlock()
+		return active == started.Handle.ID() && focus == FocusActor(started.Handle.ID()) && inflight == "" && strings.Contains(f.host.Written(), "RESUMED-EXACT-SCREEN")
+	})
+	if strings.Contains(lastConsoleScreen(f.host.Written()), "threads") {
+		t.Fatalf("successful resume repainted the switcher: %q", f.host.Written())
+	}
+}
+
+func TestConsoleAttachAndSwitchIgnoreDonePaneAwaitingExit(t *testing.T) {
+	con := New(hostty.NewFakeHost(ptychild.Size{Rows: 24, Cols: 80}), nil)
+	t.Cleanup(con.Stop)
+	address := couchcore.ThreadAddress{RepoScope: "repo", Tag: "couch-resume"}
+	old := ptychild.NewFakeChild(nil)
+	con.attachThreadActor("old-handle", "old-actor", address, "/repo", "old", old)
+	old.Exit(0)
+	if !old.Done() {
+		t.Fatal("old pane did not enter done-but-queued state")
+	}
+
+	started, _ := attachStartResult(t, "new-actor", address)
+	if _, err := con.ExecuteConsoleOperation(attachCall(context.Background(), started)); err != nil {
+		t.Fatalf("done pane blocked replacement attach: %v", err)
+	}
+	con.mu.Lock()
+	con.active = "old-handle"
+	con.focus = FocusActor("old-handle")
+	con.mu.Unlock()
+	if _, err := con.ExecuteConsoleOperation(couchcore.OperationCall{
+		Name: "switch", Args: map[string]string{"repo-scope": address.RepoScope, "tag": string(address.Tag)},
+	}); err != nil {
+		t.Fatal(err)
+	}
+	con.mu.Lock()
+	active := con.active
+	con.mu.Unlock()
+	if active != started.Handle.ID() {
+		t.Fatalf("address switch selected %q, want live replacement %q", active, started.Handle.ID())
+	}
+
+	_ = con.onExit(childExit{id: "old-handle", code: 0})
+	con.mu.Lock()
+	_, replacementPresent := con.panes[started.Handle.ID()]
+	active = con.active
+	con.mu.Unlock()
+	if !replacementPresent || active != started.Handle.ID() {
+		t.Fatalf("old queued exit removed or redirected replacement: present=%t active=%q", replacementPresent, active)
+	}
+}
+
+func TestConsoleMenuAttachRefusalPaintsLocalErrorBanner(t *testing.T) {
+	f := newFixture(t, 24, 80)
+	f.con.mu.Lock()
+	existing := f.con.panes[f.con.root].thread
+	f.con.mu.Unlock()
+	state := NewMenuState([]couchcore.ActionableThreadSummary{{Address: existing, Name: "root", State: couchcore.ThreadLive}}, existing)
+	state, _ = reduceKey(state, PanelKey{Kind: KeyCtrlSpace})
+	state, effects := dispatchMenuOperation(state, MenuEffect{Operation: "start", Args: map[string]string{"path": "/repo", "token": "accepted"}}, couchcore.ThreadAddress{})
+	started, _ := attachStartResult(t, "duplicate-actor", existing)
+	setTestOps(f.con, func(name string, _ map[string]string) (any, error) {
+		if name != "start" {
+			return nil, errors.New("unexpected owner operation " + name)
+		}
+		return started, nil
+	})
+	f.con.mu.Lock()
+	f.con.menu, f.con.menuReady = state, true
+	f.con.focus = FocusPanel()
+	f.con.mu.Unlock()
+	f.host.Reset()
+	f.con.dispatchMenuEffects(effects)
+
+	waitUpTo(t, 250*time.Millisecond, "attach refusal completion", func() bool {
+		return f.con.menuSnapshot().InFlight.Operation == ""
+	})
+	screen := string(ansi.Strip([]byte(lastConsoleScreen(f.host.Written()))))
+	if !strings.Contains(screen, "start thread\r\nerror: thread ") || !strings.Contains(screen, "already attached") {
+		t.Fatalf("attach refusal was not painted locally: %q", screen)
+	}
+	f.con.mu.Lock()
+	focus, inflight := f.con.focus, f.con.menu.InFlight.Operation
+	f.con.mu.Unlock()
+	if !focus.IsPanel() || inflight != "" {
+		t.Fatalf("attach refusal focus=%+v inflight=%q, want restored switcher", focus, inflight)
+	}
 }

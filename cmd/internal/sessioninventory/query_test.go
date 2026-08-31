@@ -87,6 +87,34 @@ func TestQuerySessionPersistsAppendAdvancementAcrossQueries(t *testing.T) {
 	}
 }
 
+func TestQuerySessionRevalidatesAndCachesGrowthWithoutGenerationToken(t *testing.T) {
+	const nativeID = "019d1111-1111-7111-8111-111111111111"
+	runtime, transcript, _ := proofBackedCodexFixtureWithGeneration(t, nativeID, nil, "")
+	primed, err := sessioninventory.QuerySession(runtime, "scope", "work", sessioninventory.AgentCodex)
+	if err != nil || primed.Status != sessioninventory.BindingEstablished || primed.Root == nil {
+		t.Fatalf("prime query=%#v err=%v", primed, err)
+	}
+	runtime.AppendFile(transcript, []byte(
+		`{"timestamp":"2026-08-28T10:05:00Z","type":"event_msg","payload":{"type":"agent_message","message":"done"}}`+"\n"), "ctime:2")
+
+	first, err := sessioninventory.QuerySession(runtime, "scope", "work", sessioninventory.AgentCodex)
+	if err != nil || first.Status != sessioninventory.BindingEstablished || first.Root == nil || first.Root.NativeID != nativeID {
+		t.Fatalf("first query=%#v err=%v", first, err)
+	}
+	readsAfterFirst := runtime.OperationCount(sessioninventorytest.OperationReadAt, transcript.StorageRoot+":"+transcript.RelativePath)
+	if readsAfterFirst == 0 {
+		t.Fatal("first grown query did not revalidate the exact transcript")
+	}
+
+	second, err := sessioninventory.QuerySession(runtime, "scope", "work", sessioninventory.AgentCodex)
+	if err != nil || second.Status != sessioninventory.BindingEstablished || second.Root == nil || second.Root.NativeID != nativeID {
+		t.Fatalf("second query=%#v err=%v", second, err)
+	}
+	if got := runtime.OperationCount(sessioninventorytest.OperationReadAt, transcript.StorageRoot+":"+transcript.RelativePath); got != readsAfterFirst {
+		t.Fatalf("cached current validation repeated body reads: before=%d after=%d", readsAfterFirst, got)
+	}
+}
+
 func TestOwnerCLIUsesBoundedPersistentQuery(t *testing.T) {
 	const nativeID = "019d1111-1111-7111-8111-111111111111"
 	runtime, _, _ := proofBackedCodexFixture(t, nativeID, nil)
@@ -265,13 +293,17 @@ func hasDiagnostic(diagnostics []sessioninventory.Diagnostic, code sessioninvent
 }
 
 func proofBackedCodexFixture(t *testing.T, nativeID string, modTime *time.Time) (*sessioninventorytest.FakeRuntime, sessioninventory.Artifact, sessioninventory.Artifact) {
+	return proofBackedCodexFixtureWithGeneration(t, nativeID, modTime, "gen:1")
+}
+
+func proofBackedCodexFixtureWithGeneration(t *testing.T, nativeID string, modTime *time.Time, generation sessioninventory.GenerationToken) (*sessioninventorytest.FakeRuntime, sessioninventory.Artifact, sessioninventory.Artifact) {
 	t.Helper()
 	runtime := sessioninventorytest.NewFakeRuntime()
 	nativeRoot := sessioninventory.StorageRoot{Agent: sessioninventory.AgentCodex, Name: "codex-sessions", Path: "/native/codex"}
 	runtime.AddRoot(nativeRoot)
 	transcript := sessioninventory.Artifact{StorageRoot: nativeRoot.Name, RelativePath: "2026/08/28/rollout-test-" + nativeID + ".jsonl"}
 	content := []byte(`{"timestamp":"2026-08-28T10:04:00Z","type":"session_meta","payload":{"id":"` + nativeID + `","parent_thread_id":null,"source":"cli"}}` + "\n")
-	entry := sessioninventory.FileEntry{Artifact: transcript, StableFileID: "dev:1/ino:1", GenerationToken: "gen:1", MutationToken: "ctime:1", ModTime: modTime}
+	entry := sessioninventory.FileEntry{Artifact: transcript, StableFileID: "dev:1/ino:1", GenerationToken: generation, MutationToken: "ctime:1", ModTime: modTime}
 	runtime.PutFile(entry, content)
 
 	state, err := json.Marshal(sessioninventory.ScannerState{
@@ -282,7 +314,7 @@ func proofBackedCodexFixture(t *testing.T, nativeID string, modTime *time.Time) 
 		t.Fatal(err)
 	}
 	proof := sessionledger.AuthorizationProof{Version: 1, RootNativeID: nativeID, ScannerSchema: "codex-v1", ScannerState: state, Artifacts: []sessionledger.ArtifactProof{{
-		StorageRoot: transcript.StorageRoot, RelativePath: transcript.RelativePath, StableFileID: "dev:1/ino:1", GenerationToken: "gen:1", MutationToken: "ctime:1", Size: int64(len(content)), ParserCompleteOffset: int64(len(content)),
+		StorageRoot: transcript.StorageRoot, RelativePath: transcript.RelativePath, StableFileID: "dev:1/ino:1", GenerationToken: string(generation), MutationToken: "ctime:1", Size: int64(len(content)), ParserCompleteOffset: int64(len(content)),
 	}}}
 	pairRoot := sessioninventory.StorageRoot{Name: "pair-data", Path: "/pair/scope"}
 	runtime.SetPairDataRoot(pairRoot)

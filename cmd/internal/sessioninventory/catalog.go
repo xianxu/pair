@@ -130,8 +130,8 @@ func MergeCatalogPublication(current, incoming CatalogEntry) CatalogEntry {
 		return cloneCatalogEntry(incoming)
 	}
 	if current.Fingerprint.StableFileID != incoming.Fingerprint.StableFileID ||
-		current.Fingerprint.GenerationToken == "" ||
-		current.Fingerprint.GenerationToken != incoming.Fingerprint.GenerationToken ||
+		(current.Fingerprint.GenerationToken == "") != (incoming.Fingerprint.GenerationToken == "") ||
+		(current.Fingerprint.GenerationToken != "" && current.Fingerprint.GenerationToken != incoming.Fingerprint.GenerationToken) ||
 		current.ScannerSchema != incoming.ScannerSchema ||
 		current.ProviderContract != incoming.ProviderContract {
 		return cloneCatalogEntry(current)

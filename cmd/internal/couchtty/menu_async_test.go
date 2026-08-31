@@ -67,7 +67,7 @@ func TestReduceMenuStartPreviewArmsOneGenerationBoundSubmit(t *testing.T) {
 	generation := state.CurrentFrame().Generation
 
 	state, effects = reduceKey(state, PanelKey{Kind: KeyEnter})
-	if len(effects) != 0 || state.CurrentFrame().SubmitGeneration != generation || state.Notice != "resolving" {
+	if len(effects) != 0 || state.CurrentFrame().SubmitGeneration != generation || state.Notice.Text != "resolving" {
 		t.Fatalf("pending submit = state %+v effects %+v", state, effects)
 	}
 	stale := couchcore.PreparedStart{Token: "stale", Resolution: couchcore.StartResolution{CanonicalPath: "/stale"}}
@@ -109,7 +109,7 @@ func TestReduceMenuStartPreviewEditCancelsArmedSubmitAndFailurePreservesForm(t *
 	state, _ = reduceKey(state, PanelKey{Kind: KeyTab})
 	generation := state.CurrentFrame().Generation
 	state, effects = ReduceMenu(state, MenuEvent{Kind: MenuEventPreviewResult, Generation: generation, Error: "policy unavailable"})
-	if len(effects) != 0 || state.CurrentFrame().Path != "x" || state.Notice != "policy unavailable" {
+	if len(effects) != 0 || state.CurrentFrame().Path != "x" || state.Notice.Text != "policy unavailable" {
 		t.Fatalf("preview failure did not preserve form: state=%+v effects=%+v", state, effects)
 	}
 }

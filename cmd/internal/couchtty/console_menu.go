@@ -3,8 +3,11 @@ package couchtty
 import (
 	"context"
 	"errors"
+	"io"
+	"time"
 
 	"github.com/xianxu/pair/cmd/internal/couchcore"
+	"github.com/xianxu/pair/cmd/internal/hostty"
 )
 
 // ActionableThreadProvider is the Console's only inventory I/O seam. The
@@ -128,9 +131,67 @@ func (c *Console) finishMenuRefresh(result menuRefreshResult) {
 	panelFocused := c.focus.IsPanel()
 	c.mu.Unlock()
 	if panelFocused {
-		c.rebuildPanel()
-		c.showPanel()
+		c.showMenu()
 	}
+}
+
+// reduceMenu is the Console's single bridge from semantic events to the pure
+// menu. Effects are dispatched only after releasing the state mutex; rendering
+// takes another immutable snapshot so neither terminal IO nor operations hold
+// the Console lock.
+func (c *Console) reduceMenu(event MenuEvent) {
+	c.mu.Lock()
+	if !c.menuReady {
+		c.menu = NewMenuState(nil, couchcore.ThreadAddress{})
+		c.menu.Notice = infoMenuNotice("thread inventory unavailable")
+		c.menuReady = true
+	}
+	var effects []MenuEffect
+	c.menu, effects = ReduceMenu(c.menu, event)
+	panelFocused := c.focus.IsPanel()
+	c.mu.Unlock()
+
+	if panelFocused {
+		c.showMenu()
+	}
+	c.dispatchMenuEffects(effects)
+}
+
+func (c *Console) onMenuKey(key PanelKey) {
+	c.reduceMenu(MenuEvent{Kind: MenuEventKey, Key: key})
+}
+
+func (c *Console) onMenuInput(raw []byte) {
+	buf := raw
+	if len(c.panelHeld) > 0 {
+		buf = append(append([]byte(nil), c.panelHeld...), raw...)
+		c.panelHeld = nil
+	}
+	keys, held := DecodePanelKeys(buf)
+	c.panelHeld = held
+	for _, key := range keys {
+		c.onMenuKey(key)
+	}
+}
+
+func (c *Console) showMenu() {
+	c.mu.Lock()
+	state := cloneMenuState(c.menu)
+	size := c.size
+	c.mu.Unlock()
+	height := int(size.Rows) - 1
+	if height < 1 {
+		height = 1
+	}
+	view := RenderMenuView(state, int(size.Cols), height, time.Now(), true)
+	_, _ = c.host.Write([]byte(hostty.HideCursor))
+	c.takeOverScreen([]byte(view.Body))
+	c.paintNow()
+	if view.Cursor == nil {
+		_, _ = c.host.Write([]byte(hostty.HideCursor))
+		return
+	}
+	_, _ = io.WriteString(c.host, hostty.MoveTo(view.Cursor.Row, view.Cursor.Col)+hostty.ShowCursor)
 }
 
 func panelSummariesFromActionable(rows []couchcore.ActionableThreadSummary) []couchcore.ThreadSummary {
@@ -257,4 +318,10 @@ func (c *Console) finishMenuPreview(result menuPreviewResult) {
 	c.mu.Unlock()
 	c.advanceMenuPreview(PreviewScheduleEvent{Kind: PreviewFinished, Generation: result.generation})
 	c.dispatchMenuEffects(menuEffects)
+	c.mu.Lock()
+	panelFocused := c.focus.IsPanel()
+	c.mu.Unlock()
+	if panelFocused {
+		c.showMenu()
+	}
 }

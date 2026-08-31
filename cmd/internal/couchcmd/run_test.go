@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"context"
 	"crypto/rand"
+	"errors"
 	"fmt"
 	"io"
 	"os"
@@ -1005,7 +1006,7 @@ func TestConsoleGetsCouchsOwnResolver(t *testing.T) {
 	}
 }
 
-func TestWireResolverInjectsActionableInventoryWithObservations(t *testing.T) {
+func TestWireResolverOmitsUnboundParkButRetainsDiagnosticInventory(t *testing.T) {
 	rt := newRT(t, "/repo")
 	parked := seedVerifiedPark(t, rt, "/repo")
 	c, err := rt.NewCouch()
@@ -1019,8 +1020,63 @@ func TestWireResolverInjectsActionableInventoryWithObservations(t *testing.T) {
 		t.Fatal("production wiring left actionable provider nil")
 	}
 	rows, err := provider(context.Background(), nil)
-	if err != nil || len(rows) != 1 || rows[0].Address != parked.Address || rows[0].State != couchcore.ThreadParked {
-		t.Fatalf("actionable rows = %+v, %v", rows, err)
+	if err != nil || len(rows) != 0 {
+		t.Fatalf("unbound actionable rows = %+v, %v", rows, err)
+	}
+	diagnostic, err := console.Summaries()()
+	if err != nil || len(diagnostic) != 1 || diagnostic[0].Address != parked.Address {
+		t.Fatalf("diagnostic inventory = %+v, %v; parked record must remain visible to list/show", diagnostic, err)
+	}
+}
+
+type blockingActionableArtifacts struct {
+	*couchcore.FakeThreadArtifactCollisionChecker
+	entered chan struct{}
+	release chan struct{}
+}
+
+func (a *blockingActionableArtifacts) ResolveEstablished(ctx context.Context, _, _, _ string) (couchcore.NativeBindingResolution, error) {
+	close(a.entered)
+	select {
+	case <-ctx.Done():
+		return couchcore.NativeBindingResolution{}, ctx.Err()
+	case <-a.release:
+		return couchcore.NativeBindingResolution{}, errors.New("released without cancellation")
+	}
+}
+
+func TestWireResolverPropagatesContextIntoActionableInventory(t *testing.T) {
+	rt := newRT(t, "/repo")
+	seedVerifiedPark(t, rt, "/repo")
+	c, err := rt.NewCouch()
+	if err != nil {
+		t.Fatal(err)
+	}
+	artifacts := &blockingActionableArtifacts{
+		FakeThreadArtifactCollisionChecker: couchcore.NewFakeThreadArtifactCollisionChecker(),
+		entered:                            make(chan struct{}),
+		release:                            make(chan struct{}),
+	}
+	c.Artifacts = artifacts
+	console, _ := consoleRunnerFor("start", map[string]string{}, strings.NewReader(""), true, nil, nil)
+	wireResolver(console, c)
+	ctx, cancel := context.WithCancel(context.Background())
+	done := make(chan error, 1)
+	go func() {
+		_, err := console.ActionableProvider()(ctx, nil)
+		done <- err
+	}()
+	<-artifacts.entered
+	cancel()
+	select {
+	case err := <-done:
+		if !errors.Is(err, context.Canceled) {
+			t.Fatalf("provider error = %v, want context canceled", err)
+		}
+	case <-time.After(250 * time.Millisecond):
+		close(artifacts.release)
+		<-done
+		t.Fatal("provider did not propagate cancellation into binding resolution")
 	}
 }
 

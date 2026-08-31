@@ -110,6 +110,10 @@ type Console struct {
 	forget func(couchcore.Worktree, couchcore.ActorID) error
 	feed   *Feed
 	size   ptychild.Size
+	// expectedExits are exact child handles whose successful Park already
+	// authorized shutdown. They bridge the race between the child-exit channel
+	// and the asynchronous operation-completion channel.
+	expectedExits map[string]bool
 
 	// paintPending means a repaint was wanted while the host stream was
 	// mid-sequence, and is owed as soon as it is safe.
@@ -178,6 +182,7 @@ func New(host hostty.Host, stdin io.Reader) *Console {
 		refreshRequests: make(chan struct{}, 1),
 		refreshResults:  make(chan menuRefreshResult, 1),
 		previewResults:  make(chan menuPreviewResult, 1),
+		expectedExits:   map[string]bool{},
 		lifetime:        lifetime,
 		cancelLifetime:  cancelLifetime,
 		stop:            make(chan struct{}),
@@ -347,7 +352,7 @@ func (c *Console) installObservedThreadActor(ctx context.Context, handleID strin
 		return fmt.Errorf("terminal handle %q is already attached", handleID)
 	}
 	for _, installed := range c.panes {
-		if installed.thread == thread {
+		if installed.thread == thread && !installed.child.Done() {
 			c.mu.Unlock()
 			return fmt.Errorf("thread %s/%s is already attached", thread.RepoScope, thread.Tag)
 		}
@@ -362,7 +367,7 @@ func (c *Console) installObservedThreadActor(ctx context.Context, handleID strin
 	}
 	if !c.menuReady {
 		c.menu = NewMenuState(nil, thread)
-		c.menu.Notice = "thread inventory unavailable"
+		c.menu.Notice = infoMenuNotice("thread inventory unavailable")
 		c.menuReady = true
 	}
 	c.mu.Unlock()
@@ -425,6 +430,7 @@ func (c *Console) switchTo(id string, force bool) {
 	if known {
 		c.active = id
 		c.focus = FocusActor(id)
+		c.menu.ActiveAddress = p.thread
 		// Landing on an actor is looking at it: whatever it wanted is now the
 		// operator's problem rather than a pending flag.
 		p.bell = false
@@ -481,6 +487,9 @@ func (c *Console) Run() int {
 	var it Interceptor
 	var inputEscapeTimer, panelEscapeTimer *time.Timer
 	var inputEscapeC, panelEscapeC <-chan time.Time
+	var spinnerTimer *time.Timer
+	var spinnerC <-chan time.Time
+	var spinnerOwner MenuProgressOwner
 	stopTimer := func(timer *time.Timer) {
 		if timer != nil && !timer.Stop() {
 			select {
@@ -513,6 +522,39 @@ func (c *Console) Run() int {
 		}
 		panelEscapeC = panelEscapeTimer.C
 	}
+	stopSpinner := func() {
+		if spinnerTimer != nil && !spinnerTimer.Stop() {
+			select {
+			case <-spinnerTimer.C:
+			default:
+			}
+		}
+		spinnerC = nil
+		spinnerOwner = MenuProgressOwner{}
+	}
+	defer stopSpinner()
+	syncSpinner := func() {
+		c.mu.Lock()
+		notice := c.menu.Notice
+		focused := c.focus.IsPanel()
+		c.mu.Unlock()
+		active := focused && notice.Level == MenuNoticeProgress && notice.Owner != (MenuProgressOwner{})
+		if !active {
+			stopSpinner()
+			return
+		}
+		if spinnerC != nil && spinnerOwner == notice.Owner {
+			return
+		}
+		stopSpinner()
+		spinnerOwner = notice.Owner
+		if spinnerTimer == nil {
+			spinnerTimer = time.NewTimer(100 * time.Millisecond)
+		} else {
+			spinnerTimer.Reset(100 * time.Millisecond)
+		}
+		spinnerC = spinnerTimer.C
+	}
 	route := func(raw []byte) {
 		if len(raw) == 0 {
 			return
@@ -523,7 +565,7 @@ func (c *Console) Run() int {
 		if toPanel {
 			stopTimer(panelEscapeTimer)
 			panelEscapeC = nil
-			c.onPanelInput(raw)
+			c.onMenuInput(raw)
 			armPanelEscape()
 			return
 		}
@@ -567,14 +609,21 @@ func (c *Console) Run() int {
 			toPanel := c.focus.IsPanel()
 			c.mu.Unlock()
 			if toPanel && bytes.Equal(literal, []byte{0x1b}) {
-				c.onPanelKey(PanelKey{Kind: KeyEscape})
+				c.onMenuKey(PanelKey{Kind: KeyEscape})
 			} else {
 				route(literal)
 			}
 		case <-panelEscapeC:
 			panelEscapeC = nil
 			c.panelHeld = nil
-			c.onPanelKey(PanelKey{Kind: KeyEscape})
+			c.onMenuKey(PanelKey{Kind: KeyEscape})
+		case <-spinnerC:
+			owner := spinnerOwner
+			spinnerC = nil
+			c.reduceMenu(MenuEvent{
+				Kind: MenuEventTick, Attempt: owner.OperationAttempt,
+				Generation: owner.PreviewGeneration,
+			})
 		case event := <-c.exited:
 			// A child's pump delivers every chunk before it closes Exited, but
 			// select may choose the exit channel while those chunks are already
@@ -599,6 +648,7 @@ func (c *Console) Run() int {
 		case <-c.stop:
 			return 0
 		}
+		syncSpinner()
 	}
 }
 
@@ -675,8 +725,11 @@ func (c *Console) onExit(event childExit) bool {
 	if wasFocused {
 		c.focus = FocusPanel()
 	}
-	exitNotice := ExitNotice(p.actorID, p.label, event.code)
-	c.feed.Push(exitNotice)
+	expected := c.consumeExpectedParkExitLocked(event.id, p.thread)
+	if !expected {
+		exitNotice := ExitNotice(p.actorID, p.label, event.code)
+		c.feed.Push(exitNotice)
+	}
 	forget := c.forget
 	last := len(c.panes) == 0
 	c.mu.Unlock()
@@ -691,8 +744,7 @@ func (c *Console) onExit(event childExit) bool {
 		return true
 	}
 	if wasFocused || panelFocused {
-		c.rebuildPanel()
-		c.showPanel()
+		c.showMenu()
 	} else {
 		c.paintNow()
 	}
@@ -908,6 +960,13 @@ func (c *Console) onResize() {
 		c.size = s
 		c.mu.Unlock()
 	}
+	c.mu.Lock()
+	menuFocused := c.focus.IsPanel()
+	c.mu.Unlock()
+	if menuFocused {
+		c.showMenu()
+		return
+	}
 	c.applyLayout()
 	c.repaint()
 }
@@ -940,15 +999,9 @@ func (c *Console) pumpStdin() {
 func (c *Console) onHotkey() {
 	c.mu.Lock()
 	cur, root := c.focus, c.root
-	prompting := c.promptFn != nil
 	c.mu.Unlock()
 	if cur.IsPanel() {
-		if !prompting {
-			c.startPrompt("start in path: ", func(path string) {
-				c.runOp("start", map[string]string{"path": path})
-			})
-		}
-		c.showPanel()
+		c.onMenuKey(PanelKey{Kind: KeyCtrlSpace})
 		return
 	}
 
@@ -963,7 +1016,7 @@ func (c *Console) onHotkey() {
 
 	if next.IsPanel() {
 		c.requestMenuRefresh()
-		c.showPanel()
+		c.showMenu()
 		return
 	}
 	c.onSwitch(next.Actor())
@@ -976,42 +1029,20 @@ func (c *Console) onParkHotkey() {
 	c.mu.Lock()
 	p := c.panes[c.active]
 	isRoot := c.active != "" && c.active == c.root
-	prompting := c.promptFn != nil
 	if p != nil {
 		c.focus = FocusPanel()
+		c.menu.ActiveAddress = p.thread
 	}
 	c.mu.Unlock()
 	if p == nil {
 		c.setNotice("park: no active thread")
 		return
 	}
-	if prompting {
-		c.showPanel()
-		return
-	}
+	operation := "park"
 	if isRoot {
-		c.startPrompt("leave couch and park all actors? type yes: ", func(answer string) {
-			if strings.TrimSpace(strings.ToLower(answer)) != "yes" {
-				c.setNotice("leave: cancelled")
-				return
-			}
-			c.runOpAsync("leave", nil)
-		})
-		c.showPanel()
-		return
+		operation = "leave"
 	}
-	address := p.thread
-	c.startPrompt("park "+string(address.Tag)+"? type yes: ", func(answer string) {
-		if strings.TrimSpace(strings.ToLower(answer)) != "yes" {
-			c.setNotice("park: cancelled")
-			return
-		}
-		c.runOpAsync("park", map[string]string{
-			"repo-scope": address.RepoScope,
-			"tag":        string(address.Tag),
-		})
-	})
-	c.showPanel()
+	c.reduceMenu(MenuEvent{Kind: MenuEventParkHotkey, Operation: operation, Address: p.thread})
 }
 
 // actorAlive is the liveness predicate Up consults.
@@ -1062,8 +1093,8 @@ func (c *Console) rebuildPanel() {
 		summaries = panelSummariesFromActionable(menu.Inventory)
 		if !menu.InventoryReady {
 			panelErr = "thread inventory unavailable"
-		} else if strings.HasPrefix(menu.Notice, "thread inventory unavailable") {
-			panelErr = menu.Notice
+		} else if strings.HasPrefix(menu.Notice.Text, "thread inventory unavailable") {
+			panelErr = menu.Notice.Text
 		}
 	} else if provider != nil {
 		var err error
@@ -1377,7 +1408,9 @@ func (c *Console) runMenuOperation(effect MenuEffect) {
 	origin := c.menu.InFlight
 	c.mu.Unlock()
 	if fn == nil {
-		c.setNotice("no action dispatcher wired")
+		c.finishOperation(operationCompletion{
+			name: effect.Operation, origin: origin, err: errors.New("no action dispatcher wired"),
+		})
 		return
 	}
 	if origin.Operation != effect.Operation || origin.Attempt == 0 || origin.Attempt != effect.Attempt {
@@ -1415,8 +1448,15 @@ func (c *Console) finishOperation(completed operationCompletion) bool {
 
 	err := completed.err
 	address := completed.origin.Address
+	if parked, ok := completed.value.(couchcore.ParkResult); ok && parked.Thread.Address != (couchcore.ThreadAddress{}) {
+		address = parked.Thread.Address
+	}
+	startedHandleID := ""
 	if started, ok := completed.value.(couchcore.StartResult); ok {
 		address = started.Record.Thread
+		if started.Handle != nil {
+			startedHandleID = started.Handle.ID()
+		}
 		if err == nil {
 			c.mu.Lock()
 			fn := c.ops
@@ -1439,14 +1479,44 @@ func (c *Console) finishOperation(completed operationCompletion) bool {
 		event.Error = err.Error()
 	}
 	c.mu.Lock()
+	if completed.origin.Operation == "park" && err == nil {
+		for id, p := range c.panes {
+			if p.thread == address {
+				c.expectedExits[id] = true
+			}
+		}
+	}
 	if c.menuReady {
 		c.menu, _ = ReduceMenu(c.menu, event)
 	}
+	panelFocused := c.focus.IsPanel()
 	c.mu.Unlock()
+	if completed.origin.Operation == "leave" && err == nil {
+		c.Stop()
+		return true
+	}
+	if completed.origin.Operation == "resume" && err == nil && startedHandleID != "" {
+		c.forceSwitch(startedHandleID)
+		return false
+	}
 	c.requestMenuRefresh()
-	c.rebuildPanel()
-	c.showPanel()
+	if panelFocused {
+		c.showMenu()
+	}
 	return false
+}
+
+// consumeExpectedParkExitLocked classifies only the exact child selected by a
+// Park attempt as expected. It handles either event order: while the operation
+// is in flight its immutable origin is authority; after successful completion
+// the exact handle marker bridges until the child-exit event arrives.
+func (c *Console) consumeExpectedParkExitLocked(id string, address couchcore.ThreadAddress) bool {
+	if c.expectedExits[id] {
+		delete(c.expectedExits, id)
+		return true
+	}
+	origin := c.menu.InFlight
+	return origin.Operation == "park" && origin.Attempt != 0 && origin.Address == address
 }
 
 func cloneOperationArgs(args map[string]string) map[string]string {
@@ -1464,13 +1534,7 @@ func (c *Console) ExecuteConsoleOperation(call couchcore.OperationCall) (any, er
 	switch call.Name {
 	case "switch":
 		c.mu.Lock()
-		var target string
-		for id, p := range c.panes {
-			if p.thread == address {
-				target = id
-				break
-			}
-		}
+		target := c.switchTargetForAddressLocked(address)
 		c.mu.Unlock()
 		if target == "" {
 			return nil, fmt.Errorf("thread %s/%s is not attached to this console", address.RepoScope, address.Tag)
@@ -1506,6 +1570,16 @@ func (c *Console) ExecuteConsoleOperation(call couchcore.OperationCall) (any, er
 	default:
 		return nil, fmt.Errorf("%s is not a console-local operation", call.Name)
 	}
+}
+
+func (c *Console) switchTargetForAddressLocked(address couchcore.ThreadAddress) string {
+	for _, id := range c.order {
+		pane := c.panes[id]
+		if pane != nil && pane.thread == address && !pane.child.Done() {
+			return id
+		}
+	}
+	return ""
 }
 
 func (c *Console) setNotice(text string) {

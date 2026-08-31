@@ -563,15 +563,16 @@ func goVocabularyViolations(rel string, fileSet *token.FileSet, file *ast.File, 
 }
 
 var permittedVocabularyCallees = map[string]bool{
-	"builtin.append":   true,
-	"errors.New":       true,
-	"flag.NewFlagSet":  true,
-	"fmt.Fprintf":      true,
-	"fmt.Sprintf":      true,
-	"function.logf":    true,
-	"method.Log":       true,
-	"method.traceWrap": true,
-	"os/exec.Command":  true,
+	"builtin.append":           true,
+	"errors.New":               true,
+	"flag.NewFlagSet":          true,
+	"fmt.Fprintf":              true,
+	"fmt.Sprintf":              true,
+	"function.logf":            true,
+	"function.nativeTextEvent": true,
+	"method.Log":               true,
+	"method.traceWrap":         true,
+	"os/exec.Command":          true,
 }
 
 func astParents(root ast.Node) map[ast.Node]ast.Node {

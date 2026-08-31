@@ -66,7 +66,7 @@ func TestReduceMenuRootZeroSelectionHasNoEffect(t *testing.T) {
 		before := state
 		var effects []MenuEffect
 		state, effects = reduceKey(state, key)
-		if len(effects) != 0 || len(state.Frames) != len(before.Frames) || state.Notice != "no selection" {
+		if len(effects) != 0 || len(state.Frames) != len(before.Frames) || state.Notice.Text != "no selection" {
 			t.Fatalf("key %v changed zero-selection state: state=%+v effects=%+v", key.Kind, state, effects)
 		}
 	}
@@ -76,7 +76,7 @@ func TestReduceMenuRootEnterDispatchesExactSwitchOrResume(t *testing.T) {
 	state := NewMenuState(menuThreads(), menuAddress("couch-one"))
 	liveState, effects := reduceKey(state, PanelKey{Kind: KeyEnter})
 	wantLive := []MenuEffect{{Operation: "switch", Attempt: 1, Args: map[string]string{"repo-scope": "scope", "tag": "couch-one"}}}
-	if !reflect.DeepEqual(effects, wantLive) || liveState.Notice != "" {
+	if !reflect.DeepEqual(effects, wantLive) || liveState.Notice.Level != MenuNoticeProgress || liveState.Notice.Owner.OperationAttempt != 1 {
 		t.Fatalf("live enter = state %+v effects %+v", liveState, effects)
 	}
 
@@ -151,7 +151,7 @@ func TestReduceMenuBellCommitsOnlyAfterSuccessfulSwitch(t *testing.T) {
 	failed, _ := ReduceMenu(state, correlatedMenuResult(state, MenuEvent{
 		Operation: "switch", Address: menuAddress("couch-two"), Error: "focus failed",
 	}))
-	if !failed.Bells[menuAddress("couch-two")] || failed.Notice != "focus failed" {
+	if !failed.Bells[menuAddress("couch-two")] || failed.Notice.Text != "focus failed" {
 		t.Fatalf("failed switch lost bell: %+v", failed)
 	}
 
@@ -243,7 +243,7 @@ func TestReduceMenuRefreshReconcilesFramesByIdentity(t *testing.T) {
 
 	state, effects = ReduceMenu(state, MenuEvent{Kind: MenuEventInventory, Inventory: menuThreads()[:1]})
 	if len(effects) != 0 || len(state.Frames) != 1 || state.CurrentFrame().SelectedAddress != menuAddress("couch-one") ||
-		!strings.Contains(state.Notice, "review") || !strings.Contains(state.Notice, "scope/couch-two") {
+		!strings.Contains(state.Notice.Text, "review") || !strings.Contains(state.Notice.Text, "scope/couch-two") {
 		t.Fatalf("hidden target reconciliation = state %+v effects %+v", state, effects)
 	}
 }
@@ -279,7 +279,7 @@ func TestReduceMenuOperationResultDoesNotRedispatchAndRestoresByOutcome(t *testi
 		Operation: "park", Address: menuAddress("couch-one"), Error: "cleanup failed",
 		Inventory: menuThreads(), InventorySet: true,
 	}))
-	if len(effects) != 0 || failed.CurrentFrame().Kind != MenuFrameActions || failed.Notice != "cleanup failed" {
+	if len(effects) != 0 || failed.CurrentFrame().Kind != MenuFrameActions || failed.Notice.Text != "cleanup failed" {
 		t.Fatalf("failed result = state %+v effects %+v", failed, effects)
 	}
 
@@ -311,7 +311,7 @@ func TestReduceMenuRootResumeFailureUsesCapturedOperationOrigin(t *testing.T) {
 		Operation: "resume", Address: menuAddress("couch-two"), Error: "resume failed",
 		Inventory: menuThreads(), InventorySet: true,
 	}))
-	if len(effects) != 0 || failed.Notice != "resume failed" || failed.CurrentFrame().Kind != MenuFrameRoot || failed.CurrentFrame().SelectedAddress != menuAddress("couch-two") {
+	if len(effects) != 0 || failed.Notice.Text != "resume failed" || failed.CurrentFrame().Kind != MenuFrameRoot || failed.CurrentFrame().SelectedAddress != menuAddress("couch-two") {
 		t.Fatalf("root resume failure = state %+v effects %+v", failed, effects)
 	}
 }
@@ -343,7 +343,7 @@ func TestReduceMenuOperationResultRequiresExactCapturedOperation(t *testing.T) {
 	if len(dispatched) != 1 || dispatched[0].Operation != "name" {
 		t.Fatalf("rename dispatch = %+v", dispatched)
 	}
-	state.Notice = "keep"
+	state.Notice = infoMenuNotice("keep")
 
 	before := state
 	got, effects := ReduceMenu(state, correlatedMenuResult(state, MenuEvent{
@@ -366,8 +366,8 @@ func TestReduceMenuOperationResultPreservesHiddenTargetDiagnostic(t *testing.T) 
 		Operation: "park", Address: menuAddress("couch-one"), Error: "cleanup failed",
 		Inventory: menuThreads()[1:], InventorySet: true,
 	}))
-	if len(effects) != 0 || len(got.Frames) != 1 || !strings.Contains(got.Notice, "compiler") ||
-		!strings.Contains(got.Notice, "scope/couch-one") || strings.Contains(got.Notice, "cleanup failed") {
+	if len(effects) != 0 || len(got.Frames) != 1 || !strings.Contains(got.Notice.Text, "compiler") ||
+		!strings.Contains(got.Notice.Text, "scope/couch-one") || strings.Contains(got.Notice.Text, "cleanup failed") {
 		t.Fatalf("hidden operation target = state %+v effects %+v", got, effects)
 	}
 }
@@ -414,7 +414,7 @@ func TestReduceMenuStartFailureWithoutCreatedAddressClearsDispatchAndRestoresFor
 	got, effects := ReduceMenu(state, correlatedMenuResult(state, MenuEvent{
 		Operation: "start", Error: "launch failed",
 	}))
-	if len(effects) != 0 || got.Notice != "launch failed" || got.CurrentFrame().Kind != MenuFrameStart || got.InFlight.Operation != "" {
+	if len(effects) != 0 || got.Notice.Text != "launch failed" || got.CurrentFrame().Kind != MenuFrameStart || got.InFlight.Operation != "" {
 		t.Fatalf("failed start completion = state %+v effects %+v", got, effects)
 	}
 }
@@ -494,8 +494,217 @@ func TestMenuOperationAttemptRejectsDelayedDuplicateAcrossEveryOperation(t *test
 	exhausted := NewMenuState(menuThreads(), target)
 	exhausted.OperationSequence = ^uint64(0)
 	got, effects := dispatchMenuOperation(exhausted, MenuEffect{Operation: "switch"}, target)
-	if len(effects) != 0 || got.InFlight.Operation != "" || got.Notice != "operation attempt identity exhausted" {
+	if len(effects) != 0 || got.InFlight.Operation != "" || got.Notice.Text != "operation attempt identity exhausted" {
 		t.Fatalf("exhausted operation identity authorized work: state=%+v effects=%+v", got, effects)
+	}
+}
+
+func TestMenuDispatchInstallsOperationProgressBeforeEffect(t *testing.T) {
+	target := menuAddress("couch-one")
+	tests := []struct {
+		operation string
+		address   couchcore.ThreadAddress
+		want      string
+	}{
+		{operation: "start", want: "starting thread"},
+		{operation: "resume", address: menuAddress("couch-two"), want: "resuming review"},
+		{operation: "park", address: target, want: "parking compiler"},
+		{operation: "leave", address: target, want: "leaving couch"},
+		{operation: "name", address: target, want: "renaming compiler"},
+		{operation: "describe", address: target, want: "saving compiler description"},
+	}
+	for _, tc := range tests {
+		t.Run(tc.operation, func(t *testing.T) {
+			state := NewMenuState(menuThreads(), target)
+			got, effects := dispatchMenuOperation(state, MenuEffect{Operation: tc.operation}, tc.address)
+			if len(effects) != 1 || got.Notice.Level != MenuNoticeProgress || got.Notice.Text != tc.want {
+				t.Fatalf("dispatch = notice %+v effects %+v, want progress %q before effect", got.Notice, effects, tc.want)
+			}
+		})
+	}
+}
+
+func TestMenuNavigationPreservesCurrentOperationProgress(t *testing.T) {
+	state := NewMenuState(menuThreads(), menuAddress("couch-one"))
+	state, effects := dispatchThreadOperation(state, "resume", menuAddress("couch-two"))
+	if len(effects) != 1 {
+		t.Fatalf("dispatch effects = %+v", effects)
+	}
+	progress := state.Notice
+	state.SpinnerPhase = 2
+	got, emitted := ReduceMenu(state, MenuEvent{Kind: MenuEventKey, Key: PanelKey{Kind: KeyDown}})
+	if len(emitted) != 0 || got.Notice != progress || got.SpinnerPhase != 2 {
+		t.Fatalf("navigation changed progress: got notice=%+v phase=%d, want notice=%+v phase=2", got.Notice, got.SpinnerPhase, progress)
+	}
+}
+
+func TestMenuSpinnerTickRequiresExactProgressIdentity(t *testing.T) {
+	state := NewMenuState(menuThreads(), menuAddress("couch-one"))
+	state, effects := dispatchThreadOperation(state, "resume", menuAddress("couch-two"))
+	if len(effects) != 1 {
+		t.Fatalf("dispatch effects = %+v", effects)
+	}
+	exact, _ := ReduceMenu(state, MenuEvent{Kind: MenuEventTick, Attempt: effects[0].Attempt})
+	if exact.SpinnerPhase != 1 || exact.Notice != state.Notice {
+		t.Fatalf("exact tick = notice %+v phase %d, want preserved notice and phase 1", exact.Notice, exact.SpinnerPhase)
+	}
+	stale, _ := ReduceMenu(exact, MenuEvent{Kind: MenuEventTick, Attempt: effects[0].Attempt + 1})
+	if stale.SpinnerPhase != exact.SpinnerPhase || stale.Notice != exact.Notice {
+		t.Fatalf("stale tick changed progress: before=%+v/%d after=%+v/%d", exact.Notice, exact.SpinnerPhase, stale.Notice, stale.SpinnerPhase)
+	}
+}
+
+func TestMenuResolvingProgressOwnsExactPreviewGeneration(t *testing.T) {
+	state := NewMenuState(menuThreads(), menuAddress("couch-one"))
+	state.Agents = []string{"claude"}
+	state.RootAgent = "claude"
+	state, _ = reduceKey(state, PanelKey{Kind: KeyCtrlSpace})
+	state, effects := reduceKey(state, PanelKey{Kind: KeyEnter})
+	if len(effects) != 1 || effects[0].Preview == nil {
+		t.Fatalf("preview effects = %+v", effects)
+	}
+	generation := effects[0].Preview.Generation
+	if state.Notice.Level != MenuNoticeProgress || state.Notice.Text != "resolving" || state.Notice.Owner.PreviewGeneration != generation {
+		t.Fatalf("resolving notice = %+v, want generation %d", state.Notice, generation)
+	}
+	got, _ := ReduceMenu(state, MenuEvent{Kind: MenuEventTick, Generation: generation})
+	if got.SpinnerPhase != 1 {
+		t.Fatalf("preview tick phase = %d, want 1", got.SpinnerPhase)
+	}
+}
+
+func TestMenuExactSuccessClearsOnlyItsOwnedProgress(t *testing.T) {
+	target := menuAddress("couch-two")
+	state := NewMenuState(menuThreads(), menuAddress("couch-one"))
+	state, effects := dispatchThreadOperation(state, "resume", target)
+	if len(effects) != 1 {
+		t.Fatalf("dispatch effects = %+v", effects)
+	}
+	event := MenuEvent{
+		Kind: MenuEventOperationResult, Operation: "resume", Attempt: effects[0].Attempt,
+		Address: target, Success: true,
+	}
+	cleared, _ := ReduceMenu(state, event)
+	if cleared.Notice != (MenuNotice{}) {
+		t.Fatalf("owned progress survived exact success: %+v", cleared.Notice)
+	}
+
+	state.Notice = errorMenuNotice("inventory failed")
+	preserved, _ := ReduceMenu(state, event)
+	if preserved.Notice != state.Notice {
+		t.Fatalf("exact success erased unrelated error: got %+v want %+v", preserved.Notice, state.Notice)
+	}
+}
+
+func TestMenuEscapeCancelsResolvingProgress(t *testing.T) {
+	state := NewMenuState(menuThreads(), menuAddress("couch-one"))
+	state.Agents = []string{"claude"}
+	state.RootAgent = "claude"
+	state, _ = reduceKey(state, PanelKey{Kind: KeyCtrlSpace})
+	state, _ = reduceKey(state, PanelKey{Kind: KeyEnter})
+	if state.Notice.Level != MenuNoticeProgress {
+		t.Fatalf("precondition notice = %+v", state.Notice)
+	}
+	got, effects := reduceKey(state, PanelKey{Kind: KeyEscape})
+	if len(effects) != 0 || got.CurrentFrame().Kind != MenuFrameRoot || got.Notice != (MenuNotice{}) {
+		t.Fatalf("escape = frame %+v notice %+v effects %+v", got.CurrentFrame(), got.Notice, effects)
+	}
+}
+
+func TestMenuUnrelatedInfoDoesNotReplaceCurrentProgress(t *testing.T) {
+	state := NewMenuState(nil, couchcore.ThreadAddress{})
+	state.Notice = MenuNotice{
+		Level: MenuNoticeProgress, Text: "resolving",
+		Owner: MenuProgressOwner{PreviewGeneration: 7},
+	}
+	got, _ := ReduceMenu(state, MenuEvent{Kind: MenuEventRefreshStarted})
+	if got.Notice != state.Notice || !got.RefreshPending {
+		t.Fatalf("refresh start replaced progress: got %+v want %+v", got.Notice, state.Notice)
+	}
+}
+
+func TestMenuEditingPendingPreviewClearsObsoleteProgress(t *testing.T) {
+	state := NewMenuState(menuThreads(), menuAddress("couch-one"))
+	state.Agents = []string{"claude"}
+	state.RootAgent = "claude"
+	state, _ = reduceKey(state, PanelKey{Kind: KeyCtrlSpace})
+	state, _ = reduceKey(state, PanelKey{Kind: KeyEnter})
+	priorGeneration := state.Notice.Owner.PreviewGeneration
+	got, effects := reduceKey(state, PanelKey{Kind: KeyRune, Rune: 'x'})
+	if len(effects) != 0 || got.Notice != (MenuNotice{}) || got.CurrentFrame().Generation == priorGeneration {
+		t.Fatalf("preview edit = notice %+v generation %d effects %+v; want cleared obsolete progress and new generation", got.Notice, got.CurrentFrame().Generation, effects)
+	}
+}
+
+func TestMenuParkHotkeyOpensSemanticParkOrLeaveConfirmation(t *testing.T) {
+	target := menuAddress("couch-one")
+	for _, operation := range []string{"park", "leave"} {
+		t.Run(operation, func(t *testing.T) {
+			state := NewMenuState(menuThreads(), target)
+			got, effects := ReduceMenu(state, MenuEvent{Kind: MenuEventParkHotkey, Operation: operation, Address: target})
+			if len(effects) != 0 || got.CurrentFrame().Kind != MenuFrameConfirmation || got.CurrentFrame().Action != operation || got.CurrentFrame().SelectedItem != "cancel" {
+				t.Fatalf("hotkey state=%+v effects=%+v", got, effects)
+			}
+			got, _ = ReduceMenu(got, MenuEvent{Kind: MenuEventKey, Key: PanelKey{Kind: KeyDown}})
+			got, effects = ReduceMenu(got, MenuEvent{Kind: MenuEventKey, Key: PanelKey{Kind: KeyEnter}})
+			if len(effects) != 1 || effects[0].Operation != operation || effects[0].Attempt == 0 {
+				t.Fatalf("confirmed %s = state %+v effects %+v", operation, got, effects)
+			}
+		})
+	}
+}
+
+func TestMenuLeaveEffectCarriesNoThreadArguments(t *testing.T) {
+	target := menuAddress("couch-one")
+	state := NewMenuState(menuThreads(), target)
+	state, _ = ReduceMenu(state, MenuEvent{Kind: MenuEventParkHotkey, Operation: "leave", Address: target})
+	state, _ = reduceKey(state, PanelKey{Kind: KeyDown})
+	_, effects := reduceKey(state, PanelKey{Kind: KeyEnter})
+	if len(effects) != 1 || effects[0].Operation != "leave" || len(effects[0].Args) != 0 {
+		t.Fatalf("leave effects = %+v, want one argument-free leave", effects)
+	}
+}
+
+func TestMenuStartSuccessKeepsReturnedSelectionUntilRefreshAddsRow(t *testing.T) {
+	state := NewMenuState(menuThreads(), menuAddress("couch-one"))
+	state, _ = reduceKey(state, PanelKey{Kind: KeyCtrlSpace})
+	state.CurrentFrame()
+	state, effects := dispatchMenuOperation(state, MenuEffect{Operation: "start"}, couchcore.ThreadAddress{})
+	if len(effects) != 1 {
+		t.Fatalf("start effects = %+v", effects)
+	}
+	created := menuAddress("couch-created")
+	state, _ = ReduceMenu(state, MenuEvent{
+		Kind: MenuEventOperationResult, Operation: "start", Attempt: effects[0].Attempt,
+		Address: created, Success: true,
+	})
+	if state.CurrentFrame().Kind != MenuFrameRoot || state.CurrentFrame().SelectedAddress != created {
+		t.Fatalf("pre-refresh start selection = %+v, want returned address %v", state.CurrentFrame(), created)
+	}
+	rows := append(menuThreads(), couchcore.ActionableThreadSummary{Address: created, Name: "created", State: couchcore.ThreadLive})
+	state, _ = ReduceMenu(state, MenuEvent{Kind: MenuEventInventory, Inventory: rows, InventorySet: true})
+	if state.CurrentFrame().SelectedAddress != created {
+		t.Fatalf("post-refresh selection = %v, want %v", state.CurrentFrame().SelectedAddress, created)
+	}
+}
+
+func TestMenuHorizontalArrowsNavigateFrameHierarchy(t *testing.T) {
+	state := NewMenuState(menuThreads(), menuAddress("couch-one"))
+	state, effects := reduceKey(state, PanelKey{Kind: KeyRight})
+	if len(effects) != 0 || state.CurrentFrame().Kind != MenuFrameActions {
+		t.Fatalf("root Right = state %+v effects %+v, want actions", state, effects)
+	}
+	state, effects = reduceKey(state, PanelKey{Kind: KeyRight})
+	if len(effects) != 0 || state.CurrentFrame().Kind != MenuFrameConfirmation {
+		t.Fatalf("actions Right = state %+v effects %+v, want confirmation", state, effects)
+	}
+	state, _ = reduceKey(state, PanelKey{Kind: KeyLeft})
+	if state.CurrentFrame().Kind != MenuFrameActions {
+		t.Fatalf("confirmation Left = %+v, want actions", state.CurrentFrame())
+	}
+	state, _ = reduceKey(state, PanelKey{Kind: KeyLeft})
+	if state.CurrentFrame().Kind != MenuFrameRoot {
+		t.Fatalf("actions Left = %+v, want root", state.CurrentFrame())
 	}
 }
 
@@ -566,7 +775,7 @@ func TestMenuOperationCompletionNeverMistakesReplacementFrameForOrigin(t *testin
 	exhausted.FrameSequence = ^uint64(0)
 	before := append([]MenuFrame(nil), exhausted.Frames...)
 	got, effects := reduceKey(exhausted, PanelKey{Kind: KeyTab})
-	if len(effects) != 0 || !reflect.DeepEqual(got.Frames, before) || got.Notice != "menu frame identity exhausted" {
+	if len(effects) != 0 || !reflect.DeepEqual(got.Frames, before) || got.Notice.Text != "menu frame identity exhausted" {
 		t.Fatalf("exhausted frame identity authorized navigation: state=%+v effects=%+v", got, effects)
 	}
 }

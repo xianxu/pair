@@ -32,28 +32,27 @@ func repoDocument(t *testing.T, path ...string) string {
 	return string(raw)
 }
 
-// M1 introduces the proof-bearing inventory authority, but the shipped flat
-// panel remains on raw diagnostic inventory until M3 migrates the consumer.
-// Guard the source and every durable current-state summary together so a staged
-// migration cannot be described as already delivered (BR-4).
-func TestM1DocsMatchTransitionalPanelInventoryProvider(t *testing.T) {
-	if source := repoDocument(t, "cmd", "internal", "couchcmd", "run.go"); !strings.Contains(source, "return c.ThreadInventory()") {
-		t.Fatal("M1 contract expects the transitional panel to consume raw ThreadInventory")
+// M3 moves the ordinary switcher to proof-bearing actionable inventory while
+// retaining ThreadInventory for diagnostics. Guard source and current-state
+// summaries together so later edits cannot collapse those two views.
+func TestM3DocsMatchActionableSwitcherInventoryProvider(t *testing.T) {
+	if source := repoDocument(t, "cmd", "internal", "couchcmd", "run.go"); !strings.Contains(source, "console.SetActionableProvider") || !strings.Contains(source, "c.ActionableThreadInventoryContext") {
+		t.Fatal("M3 contract expects the switcher to consume context-bearing actionable inventory")
 	}
 
 	checks := []struct {
 		path []string
 		want string
 	}{
-		{[]string{"atlas", "couch.md"}, "transitional flat panel remains wired to raw `ThreadInventory`"},
-		{[]string{"workshop", "projects", "couch.md"}, "transitional flat panel remains wired to raw `ThreadInventory`"},
-		{[]string{"workshop", "issues", "000151-hierarchical-thread-menu.md"}, "transitional flat panel remains wired to raw `ThreadInventory`"},
-		{[]string{"workshop", "plans", "000151-hierarchical-thread-menu-plan.md"}, "M1 exposes the authority while M3 adopts it"},
-		{[]string{"README.md"}, "current flat panel remains wired to Couch's raw diagnostic inventory through #151 M1"},
+		{[]string{"atlas", "couch.md"}, "ordinary switcher reads the\nactionable projection"},
+		{[]string{"workshop", "projects", "couch.md"}, "hierarchical switcher the reachable Console UI over the\nproof-bearing actionable projection"},
+		{[]string{"workshop", "issues", "000151-hierarchical-thread-menu.md"}, "100-row harness now covers open, filter, navigation"},
+		{[]string{"workshop", "plans", "000151-hierarchical-thread-menu-plan.md"}, "target performance harness | `cmd/internal/couchtty/menu_perf_test.go` | new | M3 | present"},
+		{[]string{"README.md"}, "Unsupported or ambiguous lifecycle\nrecords stay available through `couch list/show` diagnostics"},
 	}
 	for _, check := range checks {
 		if doc := repoDocument(t, check.path...); !strings.Contains(doc, check.want) {
-			t.Errorf("%s does not declare the current M1 consumer stage %q", filepath.Join(check.path...), check.want)
+			t.Errorf("%s does not declare the current M3 consumer stage %q", filepath.Join(check.path...), check.want)
 		}
 	}
 }

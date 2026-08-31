@@ -137,7 +137,11 @@ func QualifyTurnSequence(pairFacts []PairLogFact, nativeFacts []NativeEventFact)
 	singleUsed := make([]bool, len(pairTurns))
 	for pairIndex, pairTurn := range pairTurns {
 		fingerprintKey := agentFingerprintKey(pairTurn.agent, pairTurn.fingerprint)
-		if len([]byte(pairTurn.text)) < 32 || pairTurn.words < 5 || pairSingles[fingerprintKey] != 1 || nativeSingles[fingerprintKey] != 1 {
+		// One completed round is enough to preserve a new thread, even when the
+		// operator's only message is short. Once multiple turns exist, retain the
+		// stronger single-turn threshold and let the paired-turn matcher below
+		// establish short exchanges without weakening ambiguity rejection.
+		if (len(pairTurns) != 1 && (len([]byte(pairTurn.text)) < 32 || pairTurn.words < 5)) || pairSingles[fingerprintKey] != 1 || nativeSingles[fingerprintKey] != 1 {
 			continue
 		}
 		for _, root := range roots {

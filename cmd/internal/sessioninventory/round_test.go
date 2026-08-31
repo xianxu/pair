@@ -29,6 +29,15 @@ func TestQualifyTurnSequence(t *testing.T) {
 			want: []RoundObservation{{RootNodeID: "node-a", PairPositions: []uint64{10}, NativePositions: []uint64{7}, ProgressPositions: []uint64{8}}},
 		},
 		{
+			name: "one unique short completed round",
+			pair: []PairLogFact{{Position: 10, Text: "hello"}},
+			native: []NativeEventFact{
+				{RootNodeID: "node-a", Position: 7, Event: NativeEvent{Kind: EventOperator, Text: "hello"}},
+				{RootNodeID: "node-a", Position: 8, Event: NativeEvent{Kind: EventAssistant}},
+			},
+			want: []RoundObservation{{RootNodeID: "node-a", PairPositions: []uint64{10}, NativePositions: []uint64{7}, ProgressPositions: []uint64{8}}},
+		},
+		{
 			name: "composer text without progress remains provisional",
 			pair: []PairLogFact{{Position: 10, Text: strong}},
 			native: []NativeEventFact{
@@ -108,7 +117,7 @@ func TestQualifyTurnSequence(t *testing.T) {
 	}
 }
 
-func TestQualifyTurnSequenceExactThresholds(t *testing.T) {
+func TestQualifyTurnSequenceSingleCompletedRoundHasNoContentThreshold(t *testing.T) {
 	t.Parallel()
 	for _, test := range []struct {
 		name string
@@ -116,8 +125,8 @@ func TestQualifyTurnSequenceExactThresholds(t *testing.T) {
 		want bool
 	}{
 		{name: "32 bytes and five words", text: "one two three four five " + strings.Repeat("x", 8), want: true},
-		{name: "31 bytes", text: "one two three four five " + strings.Repeat("x", 7)},
-		{name: "four words", text: "extraordinary words remain only" + strings.Repeat("x", 8)},
+		{name: "31 bytes", text: "one two three four five " + strings.Repeat("x", 7), want: true},
+		{name: "four words", text: "extraordinary words remain only" + strings.Repeat("x", 8), want: true},
 	} {
 		test := test
 		t.Run(test.name, func(t *testing.T) {

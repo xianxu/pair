@@ -22,8 +22,9 @@ write-ahead journal for membership or multi-record changes.
 `registry.json` remains as a transitional live-handle cache for the shipped
 console. It is not an admission, metadata, or display authority. On first load,
 Couch journal-imports its actors into ThreadStore as conservative unknown
-legacy incarnations and marks the cutover. CLI and panel read the same
-one-row-per-composite-thread inventory.
+legacy incarnations and marks the cutover. CLI diagnostics read the raw
+one-row-per-composite-thread inventory; the ordinary switcher reads the
+actionable projection described below.
 
 That raw `ThreadInventory` remains the diagnostic/recovery view: persisted
 incarnation states are shown even when Couch cannot prove a usable terminal.
@@ -32,11 +33,11 @@ same snapshot plus exact owner observations. It emits only `live` when one
 durable live PID/start identity exactly matches one observed TTY owner, or
 `parked` when verified park exists with no active park transaction, reservation,
 or incarnation. Contradictory and undecodable records stay available to
-diagnostics. The transitional flat panel remains wired to raw `ThreadInventory`
-until #151 M3 replaces that Console integration; M1 introduces the authority
-without claiming the ordinary switcher has adopted it already.
+diagnostics. Since #151 M3, Console refreshes this projection asynchronously
+from exact hosted PID/start observations and never promotes raw persisted
+lifecycle state into a user-visible `live` or `parked` row.
 
-#151 M2 adds the inert pure core that M3 will wire into that Console. One
+#151 M2 added the pure core and M3 wired it into Console. One
 immutable-by-copy `MenuState` stack owns the root filter/selection plus exact
 thread-bound action, confirmation, and text frames; a global start frame
 overlays the preserved originating stack. `ReduceMenu` is the only transition
@@ -89,9 +90,12 @@ duplicate results cannot allocate or reuse authority incorrectly. An unchanged
 accepted generation reuses its one grant, non-sticky fallback agents remain
 omitted from the preparation request so path history can resolve them, and the
 accepted agent plus agent/argv provenance are rendered from the shared
-resolution. The current Console still presents the flat compatibility panel
-through M2; asynchronous actionable inventory, scheduler workers, and
-hierarchical rendering become reachable in #151 M3.
+resolution. Console opens and navigates from the last-good in-memory
+projection. One single-flight refresh plus one dirty follow-up owns inventory
+I/O; one running and one replaceable-latest preview bound start resolution.
+Lifecycle operations run on the existing capacity-one queue with exact
+attempt/frame correlation, so input and repaint never wait for store, process,
+or harness work.
 
 `cmd/internal/artifactpath` is the sole constructor for Pair's tag-bearing
 files. Standalone Pair selects its own `{repo_scope, tag}`; Couch allocates the
@@ -222,36 +226,36 @@ panel — a bare ESC is held briefly because it may be the first byte of a split
 arrow sequence; the Run loop's ambiguity timer turns it into an Escape key only
 when no continuation arrives.
 
-The panel is couch's own screen. It owns input while visible, suppresses
-background-child painting, and has one flat interaction language. Printable
-input—including colons and digits—is typeahead; arrows move selection; Enter
-forces the selected live actor's clear-and-replay attach path or resumes the
-selected verified-parked thread; Escape clears the filter or returns. Ctrl-Space from
-the panel opens the start-path input, and Ctrl-Space inside that input is inert.
-`start` dispatches through `DispatchOperation`; its returned `StartResult`
-is load-bearing because a separately declared typed `attach` operation joins
-the terminal to its exact thread, rebuilds the list, and selects that address
-without leaving the panel. Failed starts
-retain filter and selection and report through the notice feed.
+The hierarchical switcher is Couch's own single terminal surface. It owns input
+while visible and suppresses background-child painting. The root lists only
+actionable durable threads; Tab/Right opens the selected thread's actions,
+Enter switches a proven live row or resumes an exact verified-park row, and
+Escape/Left restores the preserved parent frame. Printable keys filter the
+current list from memory. Breadcrumb plus one local banner identify nesting,
+progress, validation failures, and operation errors without a second status
+channel. Ctrl-Space opens the global path/agent start form from any list frame;
+its cursor follows the active text row and its preview uses Pair's shared
+token-bound preference resolution.
 
-The row state is three-way: a local-live row has a console routing target and
-Enter switches to it; a remote-live row is present in the global summary but
-has no local target and reports that #147 transport is required; only a
-non-live historical row dispatches `resume`. Active rows name `[live]`;
-inactive rows carry no `[parked]` mode label and render identically before and
-after Couch restart. Ephemeral console targets bind only to durable live rows,
+`start` and `resume` return a load-bearing `StartResult`. The separately
+declared typed `attach` operation must join that exact terminal before success
+can select or land on it; attach failure aborts the exact newly started actor
+and retains the form plus local error. Park, leave, rename, and description use
+the same declared operation surface. Each accepted slow action paints an
+identity-owned spinner before dispatch, and stale completions cannot mutate a
+replacement frame.
+
+The ordinary row state is deliberately only `live` or `parked`; unsupported,
+ambiguous, legacy-unverified, and transitional records remain in `couch
+list/show` diagnostics instead of leaking lifecycle implementation states into
+the switcher. Ephemeral console targets bind only to durable proven-live rows,
 so a stale child handle cannot turn an inactive row's Enter into switch. If
-Park removes the final actor while the panel owns focus, the
-console remains on that resumable row; Escape with no actor returns to the
-parent shell. When the active actor exits and another remains, the console
-promotes its current root as the active target so panel Alt+x never addresses
-an empty routing slot. Alt+x on a non-root actor parks only that actor. Alt+x
-on the root is the typed `leave` operation: confirm immediately, park every
-active/parking thread sequentially, and close the console only after all parks
-have durable successful completion and the exact Pair child identity is dead.
-Any failure leaves Couch open and the failed transaction occupied for recovery.
-Liveness and local routing capability
-are deliberately separate facts (ARCH-PURPOSE).
+Park removes the final actor while the switcher owns focus, the console remains
+available for the refreshed resumable row. Alt+x on a non-root actor parks only
+that actor. Alt+x on the root opens the typed `leave` confirmation, parks every
+active/parking thread sequentially, and closes the console only after durable
+success and exact Pair-child death. Any failure leaves Couch open and occupied
+for recovery (ARCH-PURPOSE).
 
 The park trigger writes the exact typed quit intent and then deletes only the
 indexed Pair/Zellij session. That deletion returns Pair's blocking handoff so
@@ -265,9 +269,8 @@ Pair/Zellij recovery; blocked observation or teardown therefore cannot delay
 startup or fan out across pending parks
 (ARCH-PURE, ARCH-MOCK, ARCH-CONSTRAINTS).
 
-There is no numbered jump or `:` command state. Tab/thread actions are deferred
-to #151 after #149 provides the durable work-thread identity those actions
-target; the current panel does not advertise Tab.
+There is no numbered jump or `:` command state. Colons and digits are ordinary
+filter text; actions are discoverable from the selected durable thread.
 
 A panel row carries three non-interchangeable addresses: `ThreadAddress`
 (`{repo scope, tag}`) is durable identity, working path is a displayed/start
@@ -276,17 +279,26 @@ Filtering delegates to launcher's portable thread matcher; target joins and
 selection use only `ThreadAddress`. Two Brain threads at one path therefore
 remain distinct rows and cannot steal each other's local target.
 
-Rows always start at `Couch.ThreadInventory()`, the same exact ThreadStore
-snapshot as `couch list`; a pure join adds only hosted-child routing IDs and
-bell state. Human name leads, the opaque tag is the unnamed fallback, and
-operator description remains separate from the agent-published summary. The
-legacy `SelectTree` adapter succeeds only when one visible thread has that path.
-The inventory and reference callbacks both carry errors. A failed authoritative
-ThreadStore read preserves the last valid panel model (or starts empty if none
-exists) and renders the failure in the owned screen; it never turns corruption
-into an authoritative empty inventory or no-match result. CLI `list` remains
-name-first, while `show` always includes the full immutable composite address
-for diagnostics.
+Rows start at `Couch.ActionableThreadInventory()` plus exact Console-owned TTY
+observations. Human name leads, the opaque tag is the unnamed fallback, and
+operator description remains separate from the agent-published summary. A
+failed authoritative refresh preserves the complete last-good menu state and
+renders the error locally; it never turns corruption into an authoritative
+empty inventory or no-match result. CLI `list` remains name-first over the raw
+diagnostic inventory, while `show` always includes the full immutable composite
+address.
+
+## Switcher operating envelope
+
+The primary UI is keystroke-critical: 100 actionable rows at 120x40 are the
+supported fixture, with a 50 ms open budget, 16 ms filter/navigation/render and
+refresh-apply budgets, and 100 ms first-progress budget. The committed
+`BenchmarkMenu100` records all six paths and portable tests bound allocations,
+input sizes, queue topology, and minimum 40x10 behavior. The opt-in
+`TestMenuTargetPerformance` runs 20 warmups plus 200 samples for each path in
+one baseline and two trials beside exactly four joined SHA-256 CPU workers on
+the target M2 Max. No load process or unbounded goroutine fan-out is introduced
+(ARCH-CONSTRAINTS).
 
 ## Exit, detach, and terminal lifecycle
 
@@ -568,15 +580,14 @@ not fidelity to Erlang.
 - **path** — canonical starting/working location and policy input; not identity.
 - **incarnation** — one creating/live/unknown run attached to a thread, with
   verified process identity and normalized policy evidence.
-- **actor / ActorID** — the transitional hosted-child/cache identity used by
-  the current console; later milestones finish deriving it from ThreadStore.
-- **parked thread** — durable historical thread with no verified live
-  incarnation; #152 owns the proof and age semantics.
+- **actor / ActorID** — a hosted child/cache identity; routing and notices use
+  it, while every switcher action uses the durable thread address.
+- **parked thread** — a durable thread with an exact verified resume handle and
+  no occupied incarnation.
 
 ## Planned, not built
 
-`pair#151` adds the hierarchical thread menu;
-`pair#152` verified park/age; `pair#153` managed-worktree lifecycle; `pair#147`
+`pair#153` adds managed-worktree lifecycle; `pair#147`
 cluster transport and queries; `pair#148` brain as advisor. Cross-repo enabler
 `ariadne#199` exposes the query API. Ariadne #200's normalized policy provider
 is implemented and consumed at the #149 M1 boundary.

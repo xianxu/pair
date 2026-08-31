@@ -37,6 +37,7 @@ const (
 	// may die or couch may be signalled before it emits its own paired restore.
 	LeaveAltScreen = "\x1b[?1049l"
 	ShowCursor     = "\x1b[?25h"
+	HideCursor     = "\x1b[?25l"
 
 	// ResetInteractiveModes returns input/display handling to a shell-safe
 	// baseline after Couch has replayed a child's terminal modes. Raw termios

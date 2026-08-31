@@ -450,6 +450,21 @@ filtering, parent-anchored geometry, and hidden-target label/location
 diagnostics. The boundary remains M2; these are corrections to its promised
 reducer/renderer semantics, not M3 Console integration.
 
+<a id="pair-151-m3"></a>
+### pair#151 M3 — Console integration and performance evidence
+
+**est:** 7.60 (whole issue)
+
+M3 makes the hierarchical switcher the reachable Console UI over the
+proof-bearing actionable projection. Inventory and preference preview are
+bounded asynchronous work, operation completions are correlated to exact frame
+and attempt identities, and start/resume land only after transactional terminal
+attach. A committed 100-row harness passes the M2 Max baseline plus two
+four-worker co-tenancy trials; clean-store operator smoke covers park, exact
+resume, Leave Couch, and terminal restoration. Raw lifecycle detail remains in
+`couch list/show`, not in the two-state switcher (ARCH-CONSTRAINTS, ARCH-DRY,
+ARCH-PURE, ARCH-PURPOSE).
+
 ## Log
 
 ### 2026-08-26 — pair#149 M5 implementation ready for boundary

@@ -73,10 +73,10 @@
 | `Couch.PrepareStart` / `Couch.SpawnPrepared` | `cmd/internal/couchcore/startresolution.go`, `couch.go` | new | M1 | present | path, policy, preference/default reads, runner launch |
 | `StartGrantStore` | `cmd/internal/couchcore/startgrant.go` | new | M1 | present | owner-local random issuance, TTL, and atomic consumption |
 | context-bearing shared operations and post-start cleanup | `cmd/internal/couchcore/ops.go`, `operationdispatch.go`, `couch.go` | modified | M1 | context dispatch and exact started-actor abort present | owner operation dispatch, cancellation, exact-handle cleanup |
-| `Console` menu controller | `cmd/internal/couchtty/console_menu.go`, `console.go` | modified | M3 | refresh, preview, action, and transactional attach controllers present; render migration pending | host input/output, pane observations, bounded async workers |
-| `wireResolver` composition | `cmd/internal/couchcmd/run.go` | modified | M3 | actionable refresh, shared action, and attach-abort wiring present; render migration pending | Couch core providers and Console operation dispatcher |
+| `Console` menu controller | `cmd/internal/couchtty/console_menu.go`, `console.go` | modified | M3 | hierarchical render, refresh, preview, action, and transactional attach controllers present | host input/output, pane observations, bounded async workers |
+| `wireResolver` composition | `cmd/internal/couchcmd/run.go` | modified | M3 | actionable refresh, shared action, attach-abort, and hierarchical render wiring present | Couch core providers and Console operation dispatcher |
 | context-bearing `Runner` / `FakeRunner` / `hostty.FakeHost` | existing test seams | modified | M1 | modified, present | cancelable child lifecycle and terminal behavior |
-| target performance harness | `cmd/internal/couchtty/menu_perf_test.go` | new | M3 | absent | clock samples and deterministic four-worker CPU load |
+| target performance harness | `cmd/internal/couchtty/menu_perf_test.go` | new | M3 | present | clock samples and deterministic four-worker CPU load |
 
 - **`Couch.ActionableThreadInventory`** — snapshots durable records, then calls the pure projector with caller-supplied exact observations.
   - **Injected into:** Console refresh worker; Console alone derives observations from its registered panes and child identities.
@@ -1441,3 +1441,16 @@ ticks/results preserve both banner and timer state; newly accepted work replaces
 either with new phase-zero progress. Table-test every producer against preview
 and operation progress, then run the focused reducer and Console race suites at
 `-p 20` (`ARCH-PURE`, `ARCH-PURPOSE`, `ARCH-CONSTRAINTS`).
+
+### 2026-08-31 — record M3 delivery and target evidence
+
+**Reason:** Task 12 removed the reachable compatibility UI and Task 13 landed
+the performance harness, so the executable Core concepts table's earlier
+“render migration pending” and “absent” entries became false.
+
+**Delta:** mark the Console renderer and command composition current, and mark
+`menu_perf_test.go` present. The harness measures the 100-row Console
+input/repaint, refresh/repaint, pure-render, and progress paths across one
+baseline and two four-worker co-tenancy trials on the M2 Max. No production
+benchmark mode or additional runtime scheduler was added (`ARCH-CONSTRAINTS`,
+`ARCH-PURPOSE`).

@@ -1,6 +1,7 @@
 package couchcore
 
 import (
+	"context"
 	"fmt"
 	"sync"
 
@@ -63,7 +64,7 @@ func (f *FakeThreadArtifactCollisionChecker) SetNativeBinding(address ThreadAddr
 	f.nativeBindings[nativeBindingKey{Address: address, Agent: agent}] = NativeBindingResolution{Status: status, NativeID: nativeID}
 }
 
-func (f *FakeThreadArtifactCollisionChecker) ResolveEstablished(repoScope, tag, agent string) (NativeBindingResolution, error) {
+func (f *FakeThreadArtifactCollisionChecker) ResolveEstablished(_ context.Context, repoScope, tag, agent string) (NativeBindingResolution, error) {
 	f.mu.Lock()
 	defer f.mu.Unlock()
 	resolution, ok := f.nativeBindings[nativeBindingKey{Address: ThreadAddress{RepoScope: repoScope, Tag: ThreadTag(tag)}, Agent: agent}]

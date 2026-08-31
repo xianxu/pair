@@ -59,6 +59,32 @@ const (
 	MenuFieldAgent
 )
 
+type MenuNoticeLevel uint8
+
+const (
+	MenuNoticeUnknown MenuNoticeLevel = iota
+	MenuNoticeInfo
+	MenuNoticeProgress
+	MenuNoticeError
+)
+
+type MenuNotice struct {
+	Level MenuNoticeLevel
+	Text  string
+	Owner MenuProgressOwner
+}
+
+type MenuProgressOwner struct {
+	PreviewGeneration uint64
+	OperationAttempt  uint64
+}
+
+func infoMenuNotice(text string) MenuNotice { return MenuNotice{Level: MenuNoticeInfo, Text: text} }
+func progressMenuNotice(text string) MenuNotice {
+	return MenuNotice{Level: MenuNoticeProgress, Text: text}
+}
+func errorMenuNotice(text string) MenuNotice { return MenuNotice{Level: MenuNoticeError, Text: text} }
+
 // MenuState is immutable-by-copy reducer state. Frames retain identities and
 // text; the inventory remains one separately owned slice.
 type MenuState struct {
@@ -74,7 +100,8 @@ type MenuState struct {
 	PreviewSequence   uint64
 	OperationSequence uint64
 	FrameSequence     uint64
-	Notice            string
+	SpinnerPhase      uint8
+	Notice            MenuNotice
 }
 
 // MenuOperationOrigin captures the exact frame that emitted asynchronous
@@ -98,6 +125,8 @@ const (
 	MenuEventInventory
 	MenuEventOperationResult
 	MenuEventPreviewResult
+	MenuEventParkHotkey
+	MenuEventTick
 )
 
 type MenuEvent struct {
@@ -186,21 +215,32 @@ func visibleRootThreads(inventory []couchcore.ActionableThreadSummary, frame Men
 // transition so callers can retain prior states safely.
 func ReduceMenu(state MenuState, event MenuEvent) (MenuState, []MenuEffect) {
 	next := cloneMenuState(state)
+	if event.Kind == MenuEventTick {
+		if menuProgressMatches(next.Notice, event) {
+			next.SpinnerPhase = (next.SpinnerPhase + 1) % 4
+		}
+		return next, nil
+	}
 	if event.Kind == MenuEventOperationResult && !menuOperationMatches(next.InFlight, event) {
 		return next, nil
 	}
-	next.Notice = ""
+	if next.Notice.Level != MenuNoticeProgress && event.Kind != MenuEventOperationResult && event.Kind != MenuEventPreviewResult {
+		next.Notice = MenuNotice{}
+	}
+	if event.Kind == MenuEventParkHotkey {
+		return reduceParkHotkey(next, event), nil
+	}
 	if event.Kind == MenuEventRefreshStarted {
 		next.RefreshPending = true
-		if !next.InventoryReady {
-			next.Notice = "thread inventory unavailable"
+		if !next.InventoryReady && next.Notice.Level != MenuNoticeProgress {
+			next.Notice = infoMenuNotice("thread inventory unavailable")
 		}
 		return next, nil
 	}
 	if event.Kind == MenuEventInventory {
 		next.RefreshPending = false
 		if event.Error != "" {
-			next.Notice = "thread inventory unavailable: " + event.Error
+			next.Notice = errorMenuNotice("thread inventory unavailable: " + event.Error)
 			return next, nil
 		}
 		previous := append([]couchcore.ActionableThreadSummary(nil), next.Inventory...)
@@ -252,7 +292,21 @@ func ReduceMenu(state MenuState, event MenuEvent) (MenuState, []MenuEffect) {
 	}
 }
 
+func menuProgressMatches(notice MenuNotice, event MenuEvent) bool {
+	if notice.Level != MenuNoticeProgress {
+		return false
+	}
+	if notice.Owner.OperationAttempt != 0 {
+		return event.Attempt == notice.Owner.OperationAttempt && event.Generation == 0
+	}
+	if notice.Owner.PreviewGeneration != 0 {
+		return event.Generation == notice.Owner.PreviewGeneration && event.Attempt == 0
+	}
+	return false
+}
+
 func reduceRootKey(state MenuState, key PanelKey) (MenuState, []MenuEffect) {
+	key = hierarchyNavigationKey(key, KeyTab)
 	frame := &state.Frames[len(state.Frames)-1]
 	switch key.Kind {
 	case KeyRune:
@@ -273,7 +327,7 @@ func reduceRootKey(state MenuState, key PanelKey) (MenuState, []MenuEffect) {
 	case KeyEnter:
 		thread, ok := selectedMenuThread(state)
 		if !ok {
-			state.Notice = "no selection"
+			state.Notice = errorMenuNotice("no selection")
 			return state, nil
 		}
 		operation := "resume"
@@ -284,7 +338,7 @@ func reduceRootKey(state MenuState, key PanelKey) (MenuState, []MenuEffect) {
 	case KeyTab:
 		thread, ok := selectedMenuThread(state)
 		if !ok {
-			state.Notice = "no selection"
+			state.Notice = errorMenuNotice("no selection")
 			return state, nil
 		}
 		items := menuActionItems(thread)
@@ -300,7 +354,7 @@ func reduceRootKey(state MenuState, key PanelKey) (MenuState, []MenuEffect) {
 		}
 		active, ok := findMenuThread(state.Inventory, state.ActiveAddress)
 		if !ok || !active.Live() {
-			state.Notice = "no live thread can receive focus"
+			state.Notice = errorMenuNotice("no live thread can receive focus")
 			return state, nil
 		}
 		return dispatchThreadOperation(state, "switch", active.Address)
@@ -308,7 +362,28 @@ func reduceRootKey(state MenuState, key PanelKey) (MenuState, []MenuEffect) {
 	return state, nil
 }
 
+func reduceParkHotkey(state MenuState, event MenuEvent) MenuState {
+	if event.Operation != "park" && event.Operation != "leave" {
+		state.Notice = errorMenuNotice("park action is unavailable")
+		return state
+	}
+	thread, ok := findMenuThread(state.Inventory, event.Address)
+	if !ok || !thread.Live() {
+		state.Notice = errorMenuNotice("active thread is no longer actionable")
+		return state
+	}
+	state.Frames = state.Frames[:1]
+	state.Frames[0].SelectedAddress = event.Address
+	if !appendMenuFrame(&state, MenuFrame{
+		Kind: MenuFrameConfirmation, Thread: event.Address, Action: event.Operation, SelectedItem: "cancel",
+	}) {
+		return state
+	}
+	return state
+}
+
 func reduceActionKey(state MenuState, key PanelKey) (MenuState, []MenuEffect) {
+	key = hierarchyNavigationKey(key, KeyEnter)
 	frame := &state.Frames[len(state.Frames)-1]
 	thread, ok := findMenuThread(state.Inventory, frame.Thread)
 	if !ok {
@@ -333,7 +408,7 @@ func reduceActionKey(state MenuState, key PanelKey) (MenuState, []MenuEffect) {
 		state.Frames = state.Frames[:len(state.Frames)-1]
 	case KeyEnter:
 		if !containsMenuItem(items, frame.SelectedItem) {
-			state.Notice = "no selection"
+			state.Notice = errorMenuNotice("no selection")
 			return state, nil
 		}
 		switch frame.SelectedItem {
@@ -353,12 +428,13 @@ func reduceActionKey(state MenuState, key PanelKey) (MenuState, []MenuEffect) {
 }
 
 func reduceConfirmationKey(state MenuState, key PanelKey) (MenuState, []MenuEffect) {
+	key = hierarchyNavigationKey(key, KeyEnter)
 	frame := &state.Frames[len(state.Frames)-1]
 	thread, ok := findMenuThread(state.Inventory, frame.Thread)
 	if !ok {
 		return discardThreadFrames(state, frame.Thread, "thread is no longer actionable"), nil
 	}
-	items := confirmationMenuItems(thread)
+	items := confirmationMenuItems(frame.Action, thread)
 	visible := filterMenuItems(items, frame.Filter)
 	switch key.Kind {
 	case KeyRune:
@@ -378,22 +454,25 @@ func reduceConfirmationKey(state MenuState, key PanelKey) (MenuState, []MenuEffe
 		state.Frames = state.Frames[:len(state.Frames)-1]
 	case KeyEnter:
 		if !containsMenuItem(visible, frame.SelectedItem) {
-			state.Notice = "no selection"
+			state.Notice = errorMenuNotice("no selection")
 			return state, nil
 		}
 		if frame.SelectedItem == "cancel" {
 			state.Frames = state.Frames[:len(state.Frames)-1]
 			return state, nil
 		}
-		if frame.SelectedItem != "park" || !thread.Live() {
+		if frame.SelectedItem != frame.Action || (frame.Action != "park" && frame.Action != "leave") || !thread.Live() {
 			return discardThreadFrames(state, frame.Thread, "thread action is no longer applicable"), nil
 		}
-		return dispatchThreadOperation(state, "park", thread.Address)
+		return dispatchThreadOperation(state, frame.Action, thread.Address)
 	}
 	return state, nil
 }
 
 func reduceTextKey(state MenuState, key PanelKey) (MenuState, []MenuEffect) {
+	if key.Kind == KeyLeft {
+		key.Kind = KeyEscape
+	}
 	frame := &state.Frames[len(state.Frames)-1]
 	thread, ok := findMenuThread(state.Inventory, frame.Thread)
 	if !ok {
@@ -504,12 +583,20 @@ func reduceStartKey(state MenuState, key PanelKey) (MenuState, []MenuEffect) {
 			return dispatchMenuOperation(state, startMenuEffect(*frame), couchcore.ThreadAddress{})
 		}
 		frame.SubmitGeneration = frame.Generation
-		state.Notice = "resolving"
+		state.SpinnerPhase = 0
+		state.Notice = MenuNotice{
+			Level: MenuNoticeProgress,
+			Text:  "resolving",
+			Owner: MenuProgressOwner{PreviewGeneration: frame.Generation},
+		}
 		if frame.PreviewPending == frame.Generation {
 			return state, nil
 		}
 		return requestStartPreview(state)
 	case KeyEscape:
+		if state.Notice.Level == MenuNoticeProgress && state.Notice.Owner.PreviewGeneration == frame.Generation {
+			state.Notice = MenuNotice{}
+		}
 		state.Frames = state.Frames[:len(state.Frames)-1]
 	}
 	return state, nil
@@ -536,6 +623,9 @@ func selectStartAgent(frame *MenuFrame, agents []string, delta int) bool {
 }
 
 func invalidateStartPreview(state *MenuState, frame *MenuFrame) bool {
+	if state.Notice.Level == MenuNoticeProgress && state.Notice.Owner.PreviewGeneration == frame.Generation {
+		state.Notice = MenuNotice{}
+	}
 	generation, ok := nextPreviewGeneration(state)
 	clearStartPreview(frame)
 	if ok {
@@ -548,7 +638,7 @@ func invalidateStartPreview(state *MenuState, frame *MenuFrame) bool {
 
 func nextPreviewGeneration(state *MenuState) (uint64, bool) {
 	if state.PreviewSequence == ^uint64(0) {
-		state.Notice = "start preview identity exhausted"
+		state.Notice = errorMenuNotice("start preview identity exhausted")
 		return 0, false
 	}
 	state.PreviewSequence++
@@ -598,9 +688,9 @@ func reducePreviewResult(state MenuState, event MenuEvent) (MenuState, []MenuEff
 	frame.PreviewPending = 0
 	if event.Error != "" || event.Prepared == nil || event.Prepared.Token == "" {
 		frame.SubmitGeneration = 0
-		state.Notice = event.Error
-		if state.Notice == "" {
-			state.Notice = "start preview failed"
+		state.Notice = errorMenuNotice(event.Error)
+		if state.Notice.Text == "" {
+			state.Notice = errorMenuNotice("start preview failed")
 		}
 		return state, nil
 	}
@@ -643,7 +733,10 @@ func menuActionItems(thread couchcore.ActionableThreadSummary) []string {
 	return []string{first, "name", "describe"}
 }
 
-func confirmationMenuItems(thread couchcore.ActionableThreadSummary) []string {
+func confirmationMenuItems(action string, thread couchcore.ActionableThreadSummary) []string {
+	if action == "leave" {
+		return []string{"cancel", "leave couch"}
+	}
 	return []string{"cancel", "park " + thread.Label()}
 }
 
@@ -719,7 +812,7 @@ func discardThreadFrames(state MenuState, address couchcore.ThreadAddress, notic
 	state.Frames = state.Frames[:1]
 	state.Frames[0].SelectedAddress = address
 	reconcileRootSelection(&state, address)
-	state.Notice = notice
+	state.Notice = errorMenuNotice(notice)
 	return state
 }
 
@@ -789,34 +882,35 @@ func reconcileMenuFrames(state MenuState, previous ...[]couchcore.ActionableThre
 		thread, ok := findMenuThread(state.Inventory, frame.Thread)
 		if !ok {
 			invalidThreadFrame = true
-			state.Notice = hiddenThreadNotice(priorInventory, frame.Thread)
+			state.Notice = errorMenuNotice(hiddenThreadNotice(priorInventory, frame.Thread))
 			continue
 		}
 		switch frame.Kind {
 		case MenuFrameActions:
 			if bound != (couchcore.ThreadAddress{}) {
 				invalidThreadFrame = true
-				state.Notice = "thread action is no longer applicable"
+				state.Notice = errorMenuNotice("thread action is no longer applicable")
 				continue
 			}
 			reconcileItemSelection(&frame, filterMenuItems(menuActionItems(thread), frame.Filter))
 			bound = frame.Thread
 		case MenuFrameConfirmation:
-			if bound != frame.Thread || frame.Action != "park" || !thread.Live() {
+			if (bound != (couchcore.ThreadAddress{}) && bound != frame.Thread) ||
+				(frame.Action != "park" && frame.Action != "leave") || !thread.Live() {
 				invalidThreadFrame = true
-				state.Notice = "thread action is no longer applicable"
+				state.Notice = errorMenuNotice("thread action is no longer applicable")
 				continue
 			}
-			reconcileItemSelection(&frame, filterMenuItems(confirmationMenuItems(thread), frame.Filter))
+			reconcileItemSelection(&frame, filterMenuItems(confirmationMenuItems(frame.Action, thread), frame.Filter))
 		case MenuFrameText:
 			if bound != frame.Thread || (frame.Action != "name" && frame.Action != "describe") {
 				invalidThreadFrame = true
-				state.Notice = "thread input is no longer applicable"
+				state.Notice = errorMenuNotice("thread input is no longer applicable")
 				continue
 			}
 		default:
 			invalidThreadFrame = true
-			state.Notice = "menu frame is no longer valid"
+			state.Notice = errorMenuNotice("menu frame is no longer valid")
 			continue
 		}
 		state.Frames = append(state.Frames, frame)
@@ -845,14 +939,18 @@ func reduceOperationResult(state MenuState, event MenuEvent) MenuState {
 	}
 	originFrame, originVisible := menuOperationOriginFrame(state, origin)
 	if !event.Success {
-		if event.Operation == "park" && origin.FrameKind == MenuFrameConfirmation && originVisible {
+		if (event.Operation == "park" || event.Operation == "leave") && origin.FrameKind == MenuFrameConfirmation && originVisible {
 			state = restoreMenuPrefixPreservingStart(state, origin.Depth-1, origin)
 		}
-		state.Notice = event.Error
-		if state.Notice == "" {
-			state.Notice = event.Operation + " failed"
+		state.Notice = errorMenuNotice(event.Error)
+		if state.Notice.Text == "" {
+			state.Notice = errorMenuNotice(event.Operation + " failed")
 		}
+		state.Notice.Owner = MenuProgressOwner{OperationAttempt: origin.Attempt}
 		return state
+	}
+	if state.Notice.Level == MenuNoticeProgress && state.Notice.Owner.OperationAttempt == origin.Attempt {
+		state.Notice = MenuNotice{}
 	}
 
 	switch event.Operation {
@@ -862,7 +960,12 @@ func reduceOperationResult(state MenuState, event MenuEvent) MenuState {
 		if origin.FrameKind == MenuFrameText && originVisible && originFrame.Thread == origin.Address && originFrame.Action == event.Operation {
 			state.Frames = state.Frames[:origin.Depth-1]
 		}
-	case "park", "resume", "start":
+	case "start":
+		if originVisible {
+			state = restoreMenuPrefixPreservingStart(state, 1, origin)
+			state.Frames[0].SelectedAddress = event.Address
+		}
+	case "park", "resume", "leave":
 		state = restoreMenuPrefixPreservingStart(state, 1, origin)
 		state.Frames[0].SelectedAddress = event.Address
 		reconcileRootSelection(&state, event.Address)
@@ -930,7 +1033,7 @@ func dispatchMenuOperation(state MenuState, effect MenuEffect, address couchcore
 		return state, nil
 	}
 	if state.OperationSequence == ^uint64(0) {
-		state.Notice = "operation attempt identity exhausted"
+		state.Notice = errorMenuNotice("operation attempt identity exhausted")
 		return state, nil
 	}
 	state.OperationSequence++
@@ -943,12 +1046,41 @@ func dispatchMenuOperation(state MenuState, effect MenuEffect, address couchcore
 		FrameKind:     state.CurrentFrame().Kind,
 		Depth:         len(state.Frames),
 	}
+	state.SpinnerPhase = 0
+	state.Notice = MenuNotice{
+		Level: MenuNoticeProgress,
+		Text:  menuOperationProgressText(state, effect.Operation, address),
+		Owner: MenuProgressOwner{OperationAttempt: effect.Attempt},
+	}
 	return state, []MenuEffect{effect}
+}
+
+func menuOperationProgressText(state MenuState, operation string, address couchcore.ThreadAddress) string {
+	label := string(address.Tag)
+	if thread, ok := findMenuThread(state.Inventory, address); ok {
+		label = thread.Label()
+	}
+	switch operation {
+	case "start":
+		return "starting thread"
+	case "resume":
+		return "resuming " + label
+	case "park":
+		return "parking " + label
+	case "leave":
+		return "leaving couch"
+	case "name":
+		return "renaming " + label
+	case "describe":
+		return "saving " + label + " description"
+	default:
+		return operation
+	}
 }
 
 func appendMenuFrame(state *MenuState, frame MenuFrame) bool {
 	if state.FrameSequence == ^uint64(0) {
-		state.Notice = "menu frame identity exhausted"
+		state.Notice = errorMenuNotice("menu frame identity exhausted")
 		return false
 	}
 	state.FrameSequence++
@@ -971,10 +1103,23 @@ func findMenuThread(inventory []couchcore.ActionableThreadSummary, address couch
 }
 
 func threadEffect(operation string, address couchcore.ThreadAddress) MenuEffect {
+	if operation == "leave" {
+		return MenuEffect{Operation: operation}
+	}
 	return MenuEffect{Operation: operation, Args: map[string]string{
 		"repo-scope": address.RepoScope,
 		"tag":        string(address.Tag),
 	}}
+}
+
+func hierarchyNavigationKey(key PanelKey, forward PanelKeyKind) PanelKey {
+	switch key.Kind {
+	case KeyLeft:
+		key.Kind = KeyEscape
+	case KeyRight:
+		key.Kind = forward
+	}
+	return key
 }
 
 func cloneMenuState(state MenuState) MenuState {

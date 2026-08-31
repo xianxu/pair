@@ -776,6 +776,67 @@ against the reviewed code and green after correlation stopped requiring
 result-generated identity and bell clearing moved to successful completion
 (`ARCH-PURE`, `ARCH-PURPOSE`).
 
+### 2026-08-31 — smoke: preserve one short completed round and classify park exits
+
+Operator smoke produced a complete Claude `hello` → assistant round, but the
+parked thread disappeared. Exact artifacts showed the submitted Pair log and
+the matching scanner-authorized Claude transcript; the ledger remained launch-
+only because `QualifyTurnSequence` still required a 32-byte/five-word single
+turn. Changed the single-turn rule to accept one globally unique completed
+round regardless of content length, while retaining the stronger threshold and
+paired-turn matcher once multiple turns exist. Pure matching plus watcher-level
+tests now cover the short round (`ARCH-PURPOSE`).
+
+The same smoke left `[actor] exited (0)` stuck after a successful park because
+Console classified every child exit as an unexpected control notice. Console
+now correlates the immutable in-flight Park origin and, when completion wins
+the channel race, retains the exact expected child handle until its exit is
+consumed. Both event orders suppress only the expected shutdown; ordinary exits
+remain notices. Focused race tests and the full sessioninventory, sessionwatch,
+couchcore, and couchcmd race suites pass at `-p 20`. The full couchtty suite
+still reaches the pre-existing flat-panel compatibility failures (including its
+nil legacy `PanelModel` assertion) after the hierarchical UI migration
+(`ARCH-PURE`, `ARCH-CONSTRAINTS`).
+
+### 2026-08-31 — correction: Claude queued input was the two-round blocker
+
+A second operator smoke falsified the short-turn-only diagnosis above. The
+new Brain thread had two submitted Pair turns and complete Claude work, yet its
+ledger was still launch-only. Replaying those exact artifacts through the
+production scanner showed that Claude encodes input submitted while busy as
+`queue-operation {operation:"enqueue", content:...}` and later emits a matching
+`remove`; the normalizer ignored both. Pair therefore saw two turns while the
+native matcher saw only the first, preventing both the short-single and paired-
+turn paths. The normalizer now emits one operator event for a non-empty
+`enqueue`, ignores `remove`, and fails closed on unknown queue operations. A
+stateful watcher regression reproduces the macOS no-generation-token append,
+two Pair turns, queued Claude operator, progress, and exact proof-bearing ledger
+binding. The real saved smoke artifacts replay to one qualified round with this
+change. Full sessioninventory/sessionwatch race suites pass at `-p 20`; rebuilt
+`bin/pair` and `bin/couch` carry the fix (`ARCH-PURPOSE`, `ARCH-CONSTRAINTS`).
+
+### 2026-08-31 — smoke: established proof survived natural transcript growth
+
+The next smoke established a proof-bearing binding correctly, then still hid
+the row after park. The binding proof named the exact Claude root at 47 KiB;
+normal agent work grew that same stable file to 531 KiB. On the operator's APFS
+volume `st_gen` is unavailable, so exact-query advancement rejected the append
+and downgraded the already established root. This made normal transcript growth
+act like identity revocation.
+
+For a proof-named target with the same stable file identity, no truncation, no
+available-generation disagreement, and monotonic growth, exact query now falls
+back once to full validation of that one file—never the corpus—checks the same
+agent/root/schema, and publishes the newer authorized snapshot. Validated
+publications with both generation tokens absent may advance monotonically;
+stale/lower cursors, crossed parser cursors, disputes, stable-ID replacement,
+truncation, and generation mismatch remain fail-closed. The second query reuses
+the published snapshot with zero body reads. The exact failed owner
+`couch-ab578f9435b532ba` was revalidated to Claude root `67761ab3…`, restoring
+its actionable resume authority. Full sessioninventory/sessionwatch race suites
+pass at `-p 20`; binaries rebuilt (`ARCH-PURE`, `ARCH-PURPOSE`,
+`ARCH-CONSTRAINTS`).
+
 ### 2026-08-30 — M2 boundary review round 3
 
 The review confirmed BR-12 and the bell implementation, but required the bell
@@ -1119,3 +1180,29 @@ is the progress owned by the same exact generation/attempt; it cannot erase a
 newer or unrelated diagnostic. A matching failure is the latest result of the
 requested work and replaces the current banner with its owned error
 (`ARCH-PURE`, `ARCH-PURPOSE`).
+
+### 2026-08-31 — M3 Task 13 performance and operator evidence
+
+The committed 100-row harness now covers open, filter, navigation, pure render,
+refresh apply, and first lifecycle feedback. Portable allocation/bound tests
+and five `BenchmarkMenu100` runs pass. The optimized target binary was built by
+`go1.26.6 darwin/arm64` with SHA-256
+`227d5590559606b5e5a9d04a7646dbf17b8db28ea244c713eb5ae764cdbe662d`.
+
+On the Apple M2 Max, 20 warmups plus 200 samples per path passed in one baseline
+and two trials beside exactly four joined CPU workers. The worst p95 across the
+three trials was: open 69.334µs (50 ms budget), filter 128µs, navigation
+192.458µs, pure render 57.334µs, refresh apply 213.75µs (each 16 ms budget),
+and first progress feedback 328.959µs (100 ms budget). Boundaries were Console
+input-to-repaint return, refresh-result-to-repaint return, and pure render
+call-to-ANSI return as applicable (`ARCH-CONSTRAINTS`).
+
+Operator smoke used an isolated `COUCH_STORE_DIR=$(mktemp -d)` store and
+verified hierarchical navigation, start progress, local error banners, cursor
+placement, clean-store park and exact resume after one and two exchanges,
+renamed-thread persistence, Leave Couch parking all actors, and terminal-mode
+restoration after exit. The final APFS no-generation-token failure was
+reproduced with exact Claude root `67761ab3-d9ee-477d-b01c-d34b452159c1` and
+fixed by one exact validated growth read followed by cached zero-content-read
+queries. The operator then confirmed the parked row reappeared and separately
+verified mouse movement no longer emitted escape bytes after Couch quit.

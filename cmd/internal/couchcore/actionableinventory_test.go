@@ -1,9 +1,13 @@
 package couchcore
 
 import (
+	"context"
+	"errors"
 	"reflect"
 	"testing"
 	"time"
+
+	"github.com/xianxu/pair/cmd/internal/sessioninventory"
 )
 
 func TestProjectActionableThreadsRequiresExactLifecycleProof(t *testing.T) {
@@ -13,6 +17,7 @@ func TestProjectActionableThreadsRequiresExactLifecycleProof(t *testing.T) {
 		PID: 42, Identity: "live-process", State: IncarnationLive,
 	}}
 	parked := actionableTestThread("couch-0000000000000001", now.Add(-time.Hour))
+	parked.LatestLaunchProfile = &LaunchProfile{Agent: "claude", Argv: []string{}}
 	markActionableParked(&parked, now.Add(-time.Hour))
 
 	rows := ProjectActionableThreads(
@@ -20,7 +25,7 @@ func TestProjectActionableThreadsRequiresExactLifecycleProof(t *testing.T) {
 		[]LiveTTYObservation{{
 			Address: live.Address,
 			Process: ProcessIdentity{PID: 42, Identity: "live-process"},
-		}},
+		}}, []ParkedResumeObservation{{Address: parked.Address, Agent: "claude", NativeID: "native-root-1"}},
 	)
 
 	want := []ActionableThreadSummary{
@@ -29,6 +34,55 @@ func TestProjectActionableThreadsRequiresExactLifecycleProof(t *testing.T) {
 	}
 	if !reflect.DeepEqual(rows, want) {
 		t.Fatalf("actionable rows = %+v, want %+v", rows, want)
+	}
+}
+
+func TestProjectActionableThreadsOmitsVerifiedParkWithoutResumeAuthority(t *testing.T) {
+	now := time.Unix(100, 0).UTC()
+	parked := actionableTestThread("couch-0000000000000001", now)
+	parked.LatestLaunchProfile = &LaunchProfile{Agent: "claude", Argv: []string{}}
+	markActionableParked(&parked, now)
+
+	if rows := ProjectActionableThreads([]ThreadRecord{parked}, nil, nil); len(rows) != 0 {
+		t.Fatalf("unbound verified park projected as actionable: %+v", rows)
+	}
+}
+
+func TestProjectActionableThreadsRequiresOneMatchingSupportedResumeProof(t *testing.T) {
+	now := time.Unix(100, 0).UTC()
+	base := actionableTestThread("couch-0000000000000001", now)
+	base.LatestLaunchProfile = &LaunchProfile{Agent: "claude", Argv: []string{}}
+	markActionableParked(&base, now)
+	proof := ParkedResumeObservation{Address: base.Address, Agent: "claude", NativeID: "native-root-1"}
+	tests := []struct {
+		name   string
+		mutate func(*ThreadRecord)
+		proofs []ParkedResumeObservation
+		want   int
+	}{
+		{name: "exact", proofs: []ParkedResumeObservation{proof}, want: 1},
+		{name: "missing"},
+		{name: "duplicate", proofs: []ParkedResumeObservation{proof, proof}},
+		{name: "wrong address", proofs: []ParkedResumeObservation{{Address: ThreadAddress{RepoScope: "other", Tag: base.Address.Tag}, Agent: "claude", NativeID: "native-root-1"}}},
+		{name: "wrong agent", proofs: []ParkedResumeObservation{{Address: base.Address, Agent: "codex", NativeID: "native-root-1"}}},
+		{name: "empty native id", proofs: []ParkedResumeObservation{{Address: base.Address, Agent: "claude"}}},
+		{name: "unsupported saved agent", mutate: func(record *ThreadRecord) {
+			record.LatestLaunchProfile.Agent = "unknown"
+		}, proofs: []ParkedResumeObservation{{Address: base.Address, Agent: "unknown", NativeID: "native-root-1"}}},
+		{name: "missing argv", mutate: func(record *ThreadRecord) {
+			record.LatestLaunchProfile.Argv = nil
+		}, proofs: []ParkedResumeObservation{proof}},
+	}
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			record := cloneThreadRecord(base)
+			if tc.mutate != nil {
+				tc.mutate(&record)
+			}
+			if rows := ProjectActionableThreads([]ThreadRecord{record}, nil, tc.proofs); len(rows) != tc.want {
+				t.Fatalf("rows = %+v, want %d", rows, tc.want)
+			}
+		})
 	}
 }
 
@@ -106,7 +160,7 @@ func TestProjectActionableThreadsFailsClosedOnContradictoryEvidence(t *testing.T
 				observation.Address = record.Address
 				observations = append(observations, observation)
 			}
-			if rows := ProjectActionableThreads([]ThreadRecord{record}, observations); len(rows) != 0 {
+			if rows := ProjectActionableThreads([]ThreadRecord{record}, observations, nil); len(rows) != 0 {
 				t.Fatalf("contradictory row projected as actionable: %+v", rows)
 			}
 		})
@@ -151,6 +205,104 @@ func TestActionableThreadInventorySnapshotsAndOwnsRows(t *testing.T) {
 	again, err := couch.ActionableThreadInventory(observations)
 	if err != nil || len(again) != 1 || again[0].Name != "compiler" {
 		t.Fatalf("inventory row aliases durable state: %+v, %v", again, err)
+	}
+}
+
+func TestActionableThreadInventoryIncludesOnlyEstablishedParkedBinding(t *testing.T) {
+	store, _ := newTestThreadStore(t)
+	record := actionableTestThread("couch-0000000000000001", time.Unix(100, 0).UTC())
+	record.LatestLaunchProfile = &LaunchProfile{Agent: "claude", Argv: []string{}}
+	markActionableParked(&record, record.LastActiveAt)
+	created, err := store.CreateThread(record)
+	if err != nil {
+		t.Fatal(err)
+	}
+	artifacts := NewFakeThreadArtifactCollisionChecker()
+	artifacts.SetNativeBinding(created.Address, "claude", sessioninventory.BindingEstablished, "native-root-1")
+	couch := &Couch{Threads: store, Artifacts: artifacts, Path: NewFakePathOps(nil)}
+
+	rows, err := couch.ActionableThreadInventory(nil)
+	if err != nil || len(rows) != 1 || rows[0].Address != created.Address || rows[0].State != ThreadParked {
+		t.Fatalf("established parked inventory = %+v, %v", rows, err)
+	}
+}
+
+func TestActionableThreadInventoryOmitsParkedThreadWithUnavailableWorkingPath(t *testing.T) {
+	store, _ := newTestThreadStore(t)
+	record := actionableTestThread("couch-0000000000000001", time.Unix(100, 0).UTC())
+	record.LatestLaunchProfile = &LaunchProfile{Agent: "claude", Argv: []string{}}
+	markActionableParked(&record, record.LastActiveAt)
+	created, err := store.CreateThread(record)
+	if err != nil {
+		t.Fatal(err)
+	}
+	artifacts := NewFakeThreadArtifactCollisionChecker()
+	artifacts.SetNativeBinding(created.Address, "claude", sessioninventory.BindingEstablished, "native-root-1")
+	paths := NewFakePathOps(nil)
+	paths.Fail(record.WorkingPath)
+	couch := &Couch{Threads: store, Artifacts: artifacts, Path: paths}
+
+	rows, err := couch.ActionableThreadInventory(nil)
+	if err != nil || len(rows) != 0 {
+		t.Fatalf("missing-path parked inventory = %+v, %v", rows, err)
+	}
+}
+
+func TestActionableThreadInventoryExposesContextBoundQuery(t *testing.T) {
+	type contextInventory interface {
+		ActionableThreadInventoryContext(context.Context, []LiveTTYObservation) ([]ActionableThreadSummary, error)
+	}
+	if _, ok := any(&Couch{}).(contextInventory); !ok {
+		t.Fatal("Couch actionable inventory has no context-bound query")
+	}
+}
+
+type cancelingNativeBindingArtifacts struct {
+	*FakeThreadArtifactCollisionChecker
+	entered chan struct{}
+}
+
+func (a *cancelingNativeBindingArtifacts) ResolveEstablished(ctx context.Context, _, _, _ string) (NativeBindingResolution, error) {
+	close(a.entered)
+	<-ctx.Done()
+	return NativeBindingResolution{}, ctx.Err()
+}
+
+func TestActionableThreadInventoryCancelsBlockedBindingResolution(t *testing.T) {
+	store, _ := newTestThreadStore(t)
+	record := actionableTestThread("couch-0000000000000001", time.Unix(100, 0).UTC())
+	record.LatestLaunchProfile = &LaunchProfile{Agent: "claude", Argv: []string{}}
+	markActionableParked(&record, record.LastActiveAt)
+	if _, err := store.CreateThread(record); err != nil {
+		t.Fatal(err)
+	}
+	artifacts := &cancelingNativeBindingArtifacts{
+		FakeThreadArtifactCollisionChecker: NewFakeThreadArtifactCollisionChecker(),
+		entered:                            make(chan struct{}),
+	}
+	couch := &Couch{Threads: store, Artifacts: artifacts, Path: NewFakePathOps(nil)}
+	ctx, cancel := context.WithCancel(context.Background())
+	done := make(chan error, 1)
+	go func() {
+		_, err := couch.ActionableThreadInventoryContext(ctx, nil)
+		done <- err
+	}()
+
+	select {
+	case <-artifacts.entered:
+		cancel()
+	case err := <-done:
+		t.Fatalf("inventory returned before entering context resolver: %v", err)
+	case <-time.After(250 * time.Millisecond):
+		t.Fatal("inventory did not enter binding resolver")
+	}
+	select {
+	case err := <-done:
+		if !errors.Is(err, context.Canceled) {
+			t.Fatalf("inventory error = %v, want context canceled", err)
+		}
+	case <-time.After(250 * time.Millisecond):
+		t.Fatal("canceled inventory did not return")
 	}
 }
 

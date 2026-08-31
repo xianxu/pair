@@ -70,6 +70,8 @@ func normalizeClaudeEvent(record []byte) ([]NativeEvent, EventDisposition) {
 	var value struct {
 		Type        string `json:"type"`
 		IsSidechain bool   `json:"isSidechain"`
+		Operation   string `json:"operation"`
+		Content     string `json:"content"`
 		Message     struct {
 			Role    string          `json:"role"`
 			Content json.RawMessage `json:"content"`
@@ -81,9 +83,23 @@ func normalizeClaudeEvent(record []byte) ([]NativeEvent, EventDisposition) {
 	if value.IsSidechain {
 		return nil, EventIgnored
 	}
+	if value.Type == "queue-operation" {
+		switch value.Operation {
+		case "enqueue":
+			event, ok := nativeTextEvent(EventOperator, value.Content, "queue-operation.enqueue")
+			if !ok {
+				return nil, EventNearMiss
+			}
+			return []NativeEvent{event}, EventAccepted
+		case "remove":
+			return nil, EventIgnored
+		default:
+			return nil, EventNearMiss
+		}
+	}
 	if value.Type != "user" && value.Type != "assistant" {
 		switch value.Type {
-		case "attachment", "queue-operation", "ai-title", "last-prompt", "atis-latch", "system":
+		case "attachment", "ai-title", "last-prompt", "atis-latch", "system":
 			return nil, EventIgnored
 		default:
 			return nil, EventNearMiss
