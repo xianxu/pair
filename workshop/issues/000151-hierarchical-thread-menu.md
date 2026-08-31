@@ -437,3 +437,10 @@ Added the fail-closed actionable projection and its one-snapshot Couch wrapper.
 Focused projection, wrapper, and raw-inventory tests pass with `-p 20`. The
 broader `couchcore` run remains blocked by the known #152 plan-contract test,
 which still opens the completed plan from `workshop/plans/`.
+
+### 2026-08-30 — M1 bounded start grants
+
+Added a mutex-owned, in-memory one-attempt grant table. The focused suite and
+race detector pass with `-p 20`, covering entropy/collision limits, defensive
+resolution ownership, atomic claim, pre-claim expiry, capacity, finish, and
+owner-restart invalidation (ARCH-PURE, ARCH-CONSTRAINTS).

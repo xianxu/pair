@@ -181,7 +181,7 @@ Run: `go test -p 20 ./cmd/internal/couchcore -run 'Test(ProjectActionableThreads
 
 Expected: PASS.
 
-- [ ] **Step 8: Commit Task 1**
+- [x] **Step 8: Commit Task 1**
 
 ```bash
 git add cmd/internal/couchcore/actionableinventory.go cmd/internal/couchcore/actionableinventory_test.go cmd/internal/couchcore/threadinventory.go cmd/internal/couchcore/threadinventory_test.go
@@ -195,30 +195,30 @@ git commit -m "#151 M1: project actionable Couch threads"
 - Create: `cmd/internal/couchcore/startgrant_test.go`
 - Modify: `cmd/internal/couchcore/couch.go`
 
-- [ ] **Step 1: Write failing grant authority tests**
+- [x] **Step 1: Write failing grant authority tests**
 
 Apply the `StartGrantStore.Issue/Claim/Finish` reference-state strategy to entropy
 failure, collision, replay, and atomic claim authority. Pin 32-byte raw-URL tokens
 and three total collision draws.
 
-- [ ] **Step 2: Write failing lifecycle/bound tests**
+- [x] **Step 2: Write failing lifecycle/bound tests**
 
 Use the same model to pin the 16-entry total bound, five-minute pre-claim TTL,
 non-evictable consuming state, terminal removal, and restart invalidation.
 
-- [ ] **Step 3: Run tests and verify RED**
+- [x] **Step 3: Run tests and verify RED**
 
 Run: `go test -p 20 ./cmd/internal/couchcore -run 'TestStartGrant' -count=1`
 
 Expected: FAIL because `StartGrantStore` does not exist.
 
-- [ ] **Step 4: Implement minimal grant storage**
+- [x] **Step 4: Implement minimal grant storage**
 
 Implement the Core-concepts grant lifecycle behind one mutex with cloned
 resolution ownership and existing clock/entropy injection; grants remain
 owner-local and non-persistent.
 
-- [ ] **Step 5: Run focused and package tests**
+- [x] **Step 5: Run focused and package tests**
 
 Run: `go test -p 20 ./cmd/internal/couchcore -run 'TestStartGrant' -count=1`
 
