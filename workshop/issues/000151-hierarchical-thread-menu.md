@@ -753,3 +753,14 @@ the shared operation queue. Controller tests cover replacement, Stop
 cancellation/join, stale-safe result application, and pending submit; targeted
 race and full TTY/command suites pass (`ARCH-PURE`, `ARCH-PURPOSE`,
 `ARCH-CONSTRAINTS`).
+
+### 2026-08-31 — M3 Task 11 exact started-actor abort
+
+`Couch.AbortStarted` now owns the failure half after a successful start is
+transferred but terminal attachment does not commit. It refuses nil,
+unregistered, or record/handle identity mismatches without effects; an exact
+match reuses the existing post-ack handle and Pair-session quiesce/reconcile
+authority, then removes and persists the transitional registry record. Tests
+prove mismatches cannot kill or quiesce another actor and exact cleanup leaves
+the durable incarnation fail-closed. Targeted race and full core suites pass
+(`ARCH-DRY`, `ARCH-PURPOSE`).

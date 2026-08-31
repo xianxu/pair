@@ -793,22 +793,22 @@ typed results back through reducer/projector authority.
 
 Re-run Step 18. Expected: PASS.
 
-- [ ] **Step 21: Write failing exact-handle abort tests**
+- [x] **Step 21: Write failing exact-handle abort tests**
 
 Apply the exact-handle cleanup strategy to `Couch.AbortStarted`; identity
 validation and completed quiesce/reconciliation are the guards.
 
-- [ ] **Step 22: Run exact-handle abort tests and verify RED**
+- [x] **Step 22: Run exact-handle abort tests and verify RED**
 
 Run: `go test -p 20 ./cmd/internal/couchcore -run 'TestAbortStarted' -count=1`
 
 Expected: FAIL because the owner method is absent.
 
-- [ ] **Step 23: Implement exact-handle abort**
+- [x] **Step 23: Implement exact-handle abort**
 
 Add the narrow owner method and reuse the existing cleanup authority without duplicating signals/reconciliation.
 
-- [ ] **Step 24: Run exact-handle abort tests and verify GREEN**
+- [x] **Step 24: Run exact-handle abort tests and verify GREEN**
 
 Re-run Step 22. Expected: PASS.
 

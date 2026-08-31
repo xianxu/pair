@@ -354,6 +354,43 @@ func (c *Couch) failPostAckStart(address ThreadAddress, h Handle, cause error) e
 	return errors.Join(cause, cleanupErr, reconcileErr, markErr)
 }
 
+// AbortStarted is the corresponding failure half after Spawn HAS transferred
+// a StartResult to the Console but owner-local terminal attachment did not
+// commit. The supplied record and handle must still identify the exact actor
+// registered by this Couch; otherwise cleanup could kill an unrelated reused
+// PID or a handle forged by another caller.
+func (c *Couch) AbortStarted(start StartResult, cause error) error {
+	if c == nil || start.Handle == nil {
+		return errors.Join(cause, errors.New("abort started: start handle is unavailable"))
+	}
+	if err := validateThreadAddress(start.Record.Thread); err != nil {
+		return errors.Join(cause, fmt.Errorf("abort started: invalid thread address: %w", err))
+	}
+	if start.Record.ID == "" || start.Record.PID <= 0 || start.Record.Identity == "" ||
+		start.Handle.PID() != start.Record.PID || start.Handle.Identity() != start.Record.Identity {
+		return errors.Join(cause, errors.New("abort started: record/handle process identity mismatch"))
+	}
+	registered := false
+	for _, record := range c.reg.Records() {
+		if record.ID != start.Record.ID {
+			continue
+		}
+		if record.Thread != start.Record.Thread || record.Args.Worktree != start.Record.Args.Worktree ||
+			record.PID != start.Record.PID || record.Identity != start.Record.Identity {
+			return errors.Join(cause, errors.New("abort started: registered actor identity mismatch"))
+		}
+		registered = true
+		break
+	}
+	if !registered {
+		return errors.Join(cause, errors.New("abort started: actor is not registered by this Couch"))
+	}
+
+	cleanupErr := c.failPostAckStart(start.Record.Thread, start.Handle, cause)
+	c.reg = c.reg.RemoveActor(start.Record.Args.Worktree, start.Record.ID)
+	return errors.Join(cleanupErr, c.Store.Save(c.reg, c.names))
+}
+
 // quiescePostAckStart retains the live Handle on this call stack and retries
 // every unproven cleanup class. It deliberately has no bounded "give up" path:
 // returning would transfer an error without a supervisor, and the operation
