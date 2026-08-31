@@ -2,6 +2,7 @@ package couchtty
 
 import (
 	"bytes"
+	"context"
 	"fmt"
 	"io"
 	"os"
@@ -28,6 +29,7 @@ type childExit struct {
 type pane struct {
 	tree    couchcore.Worktree
 	thread  couchcore.ThreadAddress
+	process couchcore.ProcessIdentity
 	actorID couchcore.ActorID
 	label   string
 	desc    string
@@ -75,9 +77,12 @@ type Console struct {
 	// INJECTED rather than implemented, so the panel resolves exactly what the
 	// CLI and #148's advisor resolve (Decision 12). Nil degrades to showing
 	// everything rather than to a private match rule.
-	query     string
-	resolve   func(string) ([]couchcore.ThreadAddress, error)
-	summaries func() ([]couchcore.ThreadSummary, error)
+	query      string
+	resolve    func(string) ([]couchcore.ThreadAddress, error)
+	summaries  func() ([]couchcore.ThreadSummary, error)
+	actionable ActionableThreadProvider
+	menu       MenuState
+	menuReady  bool
 
 	// panel is live state, not rebuilt per keystroke: the highlight has to
 	// survive typing, or the cursor resets under the operator's fingers.
@@ -128,15 +133,20 @@ type Console struct {
 	// the writer singular removes the class rather than the two instances:
 	// there is no longer a way to reach the screen except through the loop that
 	// tracks where the stream is.
-	chunks         chan chunk
-	resized        chan struct{}
-	switching      chan string
-	input          chan []byte
-	exited         chan childExit
-	operationQueue *operationQueue
-	stop           chan struct{}
-	once           sync.Once
-	workers        sync.WaitGroup
+	chunks          chan chunk
+	resized         chan struct{}
+	switching       chan string
+	input           chan []byte
+	exited          chan childExit
+	operationQueue  *operationQueue
+	refreshRequests chan struct{}
+	refreshResults  chan menuRefreshResult
+	refreshSchedule RefreshSchedule
+	lifetime        context.Context
+	cancelLifetime  context.CancelFunc
+	stop            chan struct{}
+	once            sync.Once
+	workers         sync.WaitGroup
 }
 
 // errw is where the console reports its own failures. Separate from the host
@@ -149,18 +159,23 @@ func (c *Console) errw() io.Writer {
 }
 
 func New(host hostty.Host, stdin io.Reader) *Console {
+	lifetime, cancelLifetime := context.WithCancel(context.Background())
 	c := &Console{
-		host:           host,
-		stdin:          stdin,
-		panes:          map[string]*pane{},
-		chunks:         make(chan chunk, 256),
-		resized:        make(chan struct{}, 1),
-		switching:      make(chan string, 8),
-		input:          make(chan []byte, 64),
-		exited:         make(chan childExit, 64),
-		operationQueue: newOperationQueue(16),
-		stop:           make(chan struct{}),
-		feed:           NewFeed(8),
+		host:            host,
+		stdin:           stdin,
+		panes:           map[string]*pane{},
+		chunks:          make(chan chunk, 256),
+		resized:         make(chan struct{}, 1),
+		switching:       make(chan string, 8),
+		input:           make(chan []byte, 64),
+		exited:          make(chan childExit, 64),
+		operationQueue:  newOperationQueue(16),
+		refreshRequests: make(chan struct{}, 1),
+		refreshResults:  make(chan menuRefreshResult, 1),
+		lifetime:        lifetime,
+		cancelLifetime:  cancelLifetime,
+		stop:            make(chan struct{}),
+		feed:            NewFeed(8),
 	}
 	if s, err := host.Size(); err == nil {
 		c.size = s
@@ -280,15 +295,25 @@ func (c *Console) AttachActor(handleID string, actorID couchcore.ActorID, tree c
 // It stays package-private so production callers cannot bypass the declared
 // attach operation with an exact composite address.
 func (c *Console) attachThreadActor(handleID string, actorID couchcore.ActorID, thread couchcore.ThreadAddress, tree couchcore.Worktree, label string, child *ptychild.Child) {
+	c.attachObservedThreadActor(handleID, actorID, thread, tree, label, child, couchcore.ProcessIdentity{})
+}
+
+func (c *Console) attachObservedThreadActor(handleID string, actorID couchcore.ActorID, thread couchcore.ThreadAddress, tree couchcore.Worktree, label string, child *ptychild.Child, process couchcore.ProcessIdentity) {
 	c.mu.Lock()
-	c.panes[handleID] = &pane{tree: tree, thread: thread, actorID: actorID, label: label, child: child}
+	c.panes[handleID] = &pane{tree: tree, thread: thread, process: process, actorID: actorID, label: label, child: child}
 	c.order = append(c.order, handleID)
 	if c.active == "" {
 		c.active = handleID
 		c.root = handleID
 		c.focus = FocusActor(handleID)
 	}
+	if !c.menuReady {
+		c.menu = NewMenuState(nil, thread)
+		c.menu.Notice = "thread inventory unavailable"
+		c.menuReady = true
+	}
 	c.mu.Unlock()
+	c.requestMenuRefresh()
 
 	c.workers.Add(1)
 	go func() {
@@ -368,7 +393,12 @@ func (c *Console) switchTo(id string, force bool) {
 
 // Stop tears the console down. Safe to call more than once, and from any
 // goroutine.
-func (c *Console) Stop() { c.once.Do(func() { close(c.stop) }) }
+func (c *Console) Stop() {
+	c.once.Do(func() {
+		c.cancelLifetime()
+		close(c.stop)
+	})
+}
 
 // Run owns the operator's terminal until the actor-focused last child exits or
 // Stop is called. If the panel already owns focus, a last-child exit leaves it
@@ -501,6 +531,10 @@ func (c *Console) Run() int {
 			if c.onExit(event) {
 				return event.code
 			}
+		case <-c.refreshRequests:
+			c.advanceMenuRefresh(RefreshScheduleEvent{Kind: RefreshRequested})
+		case result := <-c.refreshResults:
+			c.finishMenuRefresh(result)
 		case completed := <-c.operationQueue.results:
 			if completed.err != nil {
 				c.setNotice(completed.name + ": " + completed.err.Error())
@@ -511,6 +545,7 @@ func (c *Console) Run() int {
 				}
 				c.setNotice(completed.name + ": done")
 			}
+			c.requestMenuRefresh()
 			c.rebuildPanel()
 			c.showPanel()
 		case <-terminated:
@@ -601,6 +636,7 @@ func (c *Console) onExit(event childExit) bool {
 			c.setNotice(fmt.Sprintf("forget %s: %v", p.label, err))
 		}
 	}
+	c.requestMenuRefresh()
 	if last && !panelFocused {
 		return true
 	}
@@ -876,6 +912,7 @@ func (c *Console) onHotkey() {
 	c.mu.Unlock()
 
 	if next.IsPanel() {
+		c.requestMenuRefresh()
 		c.showPanel()
 		return
 	}
@@ -941,6 +978,8 @@ func (c *Console) actorAlive(id string) bool {
 func (c *Console) rebuildPanel() {
 	c.mu.Lock()
 	provider := c.summaries
+	useActionable := c.actionable != nil
+	menu := cloneMenuState(c.menu)
 	var fallback []couchcore.ThreadSummary
 	targets := make([]PanelTarget, 0, len(c.order))
 	for _, id := range c.order {
@@ -956,6 +995,10 @@ func (c *Console) rebuildPanel() {
 	}
 	var selected couchcore.ThreadAddress
 	query, resolve := c.query, c.resolve
+	if useActionable {
+		provider = nil
+		resolve = actionableMemoryResolver(menu.Inventory)
+	}
 	if c.panel != nil {
 		if row, ok := c.panel.Selected(); ok {
 			selected = row.Address
@@ -964,7 +1007,15 @@ func (c *Console) rebuildPanel() {
 	c.mu.Unlock()
 
 	summaries := fallback
-	if provider != nil {
+	panelErr := ""
+	if useActionable {
+		summaries = panelSummariesFromActionable(menu.Inventory)
+		if !menu.InventoryReady {
+			panelErr = "thread inventory unavailable"
+		} else if strings.HasPrefix(menu.Notice, "thread inventory unavailable") {
+			panelErr = menu.Notice
+		}
+	} else if provider != nil {
 		var err error
 		summaries, err = provider()
 		if err != nil {
@@ -1000,7 +1051,7 @@ func (c *Console) rebuildPanel() {
 
 	c.mu.Lock()
 	c.panel = m
-	c.panelErr = ""
+	c.panelErr = panelErr
 	c.mu.Unlock()
 }
 
@@ -1013,6 +1064,9 @@ func (c *Console) showPanel() {
 		c.mu.Lock()
 	}
 	query, resolve := c.query, c.resolve
+	if c.actionable != nil {
+		resolve = actionableMemoryResolver(c.menu.Inventory)
+	}
 	c.mu.Unlock()
 
 	var addresses []couchcore.ThreadAddress
@@ -1305,8 +1359,9 @@ func (c *Console) ExecuteConsoleOperation(call couchcore.OperationCall) (any, er
 		if !ok {
 			return nil, fmt.Errorf("child has no terminal to attach")
 		}
-		c.attachThreadActor(start.Handle.ID(), start.Record.ID, start.Record.Thread,
-			start.Record.Args.Worktree, start.Record.Args.Worktree.Repo(), th.Terminal())
+		c.attachObservedThreadActor(start.Handle.ID(), start.Record.ID, start.Record.Thread,
+			start.Record.Args.Worktree, start.Record.Args.Worktree.Repo(), th.Terminal(),
+			couchcore.ProcessIdentity{PID: start.Handle.PID(), Identity: start.Handle.Identity()})
 		return address, nil
 	default:
 		return nil, fmt.Errorf("%s is not a console-local operation", call.Name)

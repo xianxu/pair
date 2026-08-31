@@ -697,3 +697,14 @@ dispatch. The six-operation success/failure navigation sweep went red for
 resume success, park failure/success, and start success, then green after
 restoration became a captured-prefix transform that retains unrelated later
 start overlays by frame instance (`ARCH-PURE`, `ARCH-PURPOSE`).
+
+### 2026-08-31 — M3 Task 10 bounded actionable refresh
+
+Added the pure one-running/one-dirty refresh schedule and a single-flight
+Console controller over a context-bearing actionable-inventory provider.
+Console snapshots exact hosted PID/start identities under its mutex, performs
+store projection outside it, and applies terminal results only through the
+menu reducer. Barrier tests prove open/filter repaint do not wait for blocked
+inventory I/O and teardown cancels and joins it within 250 ms; failures retain
+last-good state and initial unavailable remains distinct from successful empty
+(`ARCH-PURE`, `ARCH-PURPOSE`, `ARCH-CONSTRAINTS`).

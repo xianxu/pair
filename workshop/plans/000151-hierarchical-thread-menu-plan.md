@@ -14,14 +14,14 @@
 
 ### Pure entities
 
-| Name | Lives in | Planned change | Delivery | Current at M2 |
+| Name | Lives in | Planned change | Delivery | Current after M3 Task 10 |
 |------|----------|----------------|----------|---------------|
 | `ActionableThreadSummary` / `LiveTTYObservation` / `ProjectActionableThreads` | `cmd/internal/couchcore/actionableinventory.go` | new | M1 | present |
 | `StartResolution` / `StartResolutionFingerprint` / `ResolveStartResolution` | `cmd/internal/couchcore/startresolution.go` | new | M1 | present |
 | `MenuState` / `MenuFrame` / `MenuEvent` / `ReduceMenu` | `cmd/internal/couchtty/menu.go` | new | M2 | present |
 | `MenuLayout` / `AgeBand` / `RenderMenu` | `cmd/internal/couchtty/menu_render.go` | new | M2 | present |
 | `PreviewSchedule` / `AdvancePreviewSchedule` | `cmd/internal/couchtty/menu_async.go` | new | M2 | present |
-| `RefreshSchedule` / `AdvanceRefreshSchedule` | `cmd/internal/couchtty/menu_refresh.go` | new | M3 | absent |
+| `RefreshSchedule` / `AdvanceRefreshSchedule` | `cmd/internal/couchtty/menu_refresh.go` | new | M3 | present |
 | `PanelKey` / `DecodePanelKeys` | `cmd/internal/couchtty/panelkeys.go` | modified | M2 | modified, present |
 | `PanelModel` / resolver-driven `Filter` | `cmd/internal/couchtty/panel.go` | deleted | M3 | present compatibility adapter |
 
@@ -67,14 +67,14 @@
 
 ### Integration points
 
-| Name | Lives in | Planned change | Delivery | Current at M2 | Wraps |
+| Name | Lives in | Planned change | Delivery | Current after M3 Task 10 | Wraps |
 |------|----------|----------------|----------|---------------|-------|
 | `Couch.ActionableThreadInventory` | `cmd/internal/couchcore/actionableinventory.go` | new | M1 | present | `ThreadStore.Snapshot` plus live-owner observations |
 | `Couch.PrepareStart` / `Couch.SpawnPrepared` | `cmd/internal/couchcore/startresolution.go`, `couch.go` | new | M1 | present | path, policy, preference/default reads, runner launch |
 | `StartGrantStore` | `cmd/internal/couchcore/startgrant.go` | new | M1 | present | owner-local random issuance, TTL, and atomic consumption |
 | context-bearing shared operations and post-start cleanup | `cmd/internal/couchcore/ops.go`, `operationdispatch.go`, `couch.go` | modified | M1 | modified, present | owner operation dispatch, cancellation, exact-handle cleanup |
-| `Console` menu controller | `cmd/internal/couchtty/console_menu.go`, `console.go` | modified | M3 | `console_menu.go` absent; flat Console present | host input/output, pane observations, bounded async workers |
-| `wireResolver` composition | `cmd/internal/couchcmd/run.go` | modified | M3 | M1 start authority present; menu wiring pending | Couch core providers and Console operation dispatcher |
+| `Console` menu controller | `cmd/internal/couchtty/console_menu.go`, `console.go` | modified | M3 | refresh controller present; action/render migration pending | host input/output, pane observations, bounded async workers |
+| `wireResolver` composition | `cmd/internal/couchcmd/run.go` | modified | M3 | actionable refresh wiring present; action/render migration pending | Couch core providers and Console operation dispatcher |
 | context-bearing `Runner` / `FakeRunner` / `hostty.FakeHost` | existing test seams | modified | M1 | modified, present | cancelable child lifecycle and terminal behavior |
 | target performance harness | `cmd/internal/couchtty/menu_perf_test.go` | new | M3 | absent | clock samples and deterministic four-worker CPU load |
 
@@ -1175,3 +1175,16 @@ prefix, then retains a distinct later global start overlay by frame-instance
 identity unless target-invalid reconciliation has removed it. A real reducer
 navigation table covers every operation across success and failure after the
 later overlay opens (ARCH-PURE, ARCH-PURPOSE).
+
+### 2026-08-31 — advance the executable concept inventory through M3 Task 10
+
+**Reason:** M2's boundary contract intentionally rejected future M3 files as
+current. Landing the refresh scheduler and Console inventory controller changes
+that filesystem truth while action execution and renderer replacement remain
+pending.
+
+**Delta:** the Core concepts tables and their executable contract now report
+the refresh scheduler, context-bearing actionable provider, exact pane
+observations, and bounded Console refresh worker as present after Task 10. They
+continue to identify the flat panel, action/render migration, and performance
+harness as unfinished (ARCH-PURPOSE, ARCH-CONSTRAINTS).

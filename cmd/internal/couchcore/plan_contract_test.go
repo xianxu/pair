@@ -724,51 +724,51 @@ func TestIssue152DeliveredCoreConceptsResolveToGoDeclarations(t *testing.T) {
 	}
 }
 
-func TestIssue151CoreConceptsMatchM2Boundary(t *testing.T) {
+func TestIssue151CoreConceptsMatchCurrentBoundary(t *testing.T) {
 	root := filepath.Clean(filepath.Join("..", "..", ".."))
 	planPath := findPlanArtifact(t, root, "000151-hierarchical-thread-menu-plan.md")
 	raw, err := os.ReadFile(planPath)
 	if err != nil {
 		t.Fatal(err)
 	}
-	if err := validateIssue151M2Concepts(root, string(raw)); err != nil {
+	if err := validateIssue151CurrentConcepts(root, string(raw)); err != nil {
 		t.Fatal(err)
 	}
 
 	mutated := strings.Replace(string(raw),
-		"| `RefreshSchedule` / `AdvanceRefreshSchedule` | `cmd/internal/couchtty/menu_refresh.go` | new | M3 | absent |",
-		"| `RefreshSchedule` / `AdvanceRefreshSchedule` | `cmd/internal/couchtty/menu_refresh.go` | new | M3 | present |", 1)
+		"| `RefreshSchedule` / `AdvanceRefreshSchedule` | `cmd/internal/couchtty/menu_refresh.go` | new | M3 | present |",
+		"| `RefreshSchedule` / `AdvanceRefreshSchedule` | `cmd/internal/couchtty/menu_refresh.go` | new | M3 | absent |", 1)
 	if mutated == string(raw) {
-		t.Fatal("failed to construct future-as-current mutation")
+		t.Fatal("failed to construct current-as-absent mutation")
 	}
-	if err := validateIssue151M2Concepts(root, mutated); err == nil {
-		t.Fatal("future M3 surface presented as current passed the M2 boundary contract")
+	if err := validateIssue151CurrentConcepts(root, mutated); err == nil {
+		t.Fatal("landed M3 surface presented as absent passed the current-boundary contract")
 	}
 }
 
-type issue151M2ConceptContract struct {
+type issue151ConceptContract struct {
 	delivery string
 	current  string
 	present  []string
 	absent   []string
 }
 
-func validateIssue151M2Concepts(root, plan string) error {
-	want := map[string]issue151M2ConceptContract{
+func validateIssue151CurrentConcepts(root, plan string) error {
+	want := map[string]issue151ConceptContract{
 		"`ActionableThreadSummary` / `LiveTTYObservation` / `ProjectActionableThreads`": {"M1", "present", []string{"cmd/internal/couchcore/actionableinventory.go"}, nil},
 		"`StartResolution` / `StartResolutionFingerprint` / `ResolveStartResolution`":   {"M1", "present", []string{"cmd/internal/couchcore/startresolution.go"}, nil},
 		"`MenuState` / `MenuFrame` / `MenuEvent` / `ReduceMenu`":                        {"M2", "present", []string{"cmd/internal/couchtty/menu.go"}, nil},
 		"`MenuLayout` / `AgeBand` / `RenderMenu`":                                       {"M2", "present", []string{"cmd/internal/couchtty/menu_render.go"}, nil},
 		"`PreviewSchedule` / `AdvancePreviewSchedule`":                                  {"M2", "present", []string{"cmd/internal/couchtty/menu_async.go"}, nil},
-		"`RefreshSchedule` / `AdvanceRefreshSchedule`":                                  {"M3", "absent", nil, []string{"cmd/internal/couchtty/menu_refresh.go"}},
+		"`RefreshSchedule` / `AdvanceRefreshSchedule`":                                  {"M3", "present", []string{"cmd/internal/couchtty/menu_refresh.go"}, nil},
 		"`PanelKey` / `DecodePanelKeys`":                                                {"M2", "modified, present", []string{"cmd/internal/couchtty/panelkeys.go"}, nil},
 		"`PanelModel` / resolver-driven `Filter`":                                       {"M3", "present compatibility adapter", []string{"cmd/internal/couchtty/panel.go"}, nil},
 		"`Couch.ActionableThreadInventory`":                                             {"M1", "present", []string{"cmd/internal/couchcore/actionableinventory.go"}, nil},
 		"`Couch.PrepareStart` / `Couch.SpawnPrepared`":                                  {"M1", "present", []string{"cmd/internal/couchcore/startresolution.go", "cmd/internal/couchcore/couch.go"}, nil},
 		"`StartGrantStore`": {"M1", "present", []string{"cmd/internal/couchcore/startgrant.go"}, nil},
 		"context-bearing shared operations and post-start cleanup":    {"M1", "modified, present", []string{"cmd/internal/couchcore/ops.go", "cmd/internal/couchcore/operationdispatch.go", "cmd/internal/couchcore/couch.go"}, nil},
-		"`Console` menu controller":                                   {"M3", "`console_menu.go` absent; flat Console present", []string{"cmd/internal/couchtty/console.go"}, []string{"cmd/internal/couchtty/console_menu.go"}},
-		"`wireResolver` composition":                                  {"M3", "M1 start authority present; menu wiring pending", []string{"cmd/internal/couchcmd/run.go"}, nil},
+		"`Console` menu controller":                                   {"M3", "refresh controller present; action/render migration pending", []string{"cmd/internal/couchtty/console_menu.go", "cmd/internal/couchtty/console.go"}, nil},
+		"`wireResolver` composition":                                  {"M3", "actionable refresh wiring present; action/render migration pending", []string{"cmd/internal/couchcmd/run.go"}, nil},
 		"context-bearing `Runner` / `FakeRunner` / `hostty.FakeHost`": {"M1", "modified, present", []string{"cmd/internal/couchcore/runner.go", "cmd/internal/couchcore/runner_fake.go", "cmd/internal/hostty/fake.go"}, nil},
 		"target performance harness":                                  {"M3", "absent", nil, []string{"cmd/internal/couchtty/menu_perf_test.go"}},
 	}

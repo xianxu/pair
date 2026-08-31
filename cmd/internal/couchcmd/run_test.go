@@ -1005,6 +1005,25 @@ func TestConsoleGetsCouchsOwnResolver(t *testing.T) {
 	}
 }
 
+func TestWireResolverInjectsActionableInventoryWithObservations(t *testing.T) {
+	rt := newRT(t, "/repo")
+	parked := seedVerifiedPark(t, rt, "/repo")
+	c, err := rt.NewCouch()
+	if err != nil {
+		t.Fatal(err)
+	}
+	console, _ := consoleRunnerFor("start", map[string]string{}, strings.NewReader(""), true, nil, nil)
+	wireResolver(console, c)
+	provider := console.ActionableProvider()
+	if provider == nil {
+		t.Fatal("production wiring left actionable provider nil")
+	}
+	rows, err := provider(context.Background(), nil)
+	if err != nil || len(rows) != 1 || rows[0].Address != parked.Address || rows[0].State != couchcore.ThreadParked {
+		t.Fatalf("actionable rows = %+v, %v", rows, err)
+	}
+}
+
 func TestConsoleWiringPropagatesAuthoritativeThreadStoreFailures(t *testing.T) {
 	rt := newRT(t, "/repo")
 	seedThread(t, rt, "/repo")

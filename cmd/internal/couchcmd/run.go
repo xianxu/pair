@@ -415,6 +415,23 @@ func wireResolver(console *couchtty.Console, c *couchcore.Couch) {
 	console.SetSummaries(func() ([]couchcore.ThreadSummary, error) {
 		return c.ThreadInventory()
 	})
+	console.SetActionableProvider(func(ctx context.Context, observations []couchcore.LiveTTYObservation) ([]couchcore.ActionableThreadSummary, error) {
+		select {
+		case <-ctx.Done():
+			return nil, ctx.Err()
+		default:
+		}
+		rows, err := c.ActionableThreadInventory(observations)
+		if err != nil {
+			return nil, err
+		}
+		select {
+		case <-ctx.Done():
+			return nil, ctx.Err()
+		default:
+			return rows, nil
+		}
+	})
 	console.SetForget(c.Forget)
 
 	// The panel's actions run through the SAME declared table the CLI

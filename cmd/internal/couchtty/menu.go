@@ -63,6 +63,8 @@ const (
 // text; the inventory remains one separately owned slice.
 type MenuState struct {
 	Inventory         []couchcore.ActionableThreadSummary
+	InventoryReady    bool
+	RefreshPending    bool
 	Frames            []MenuFrame
 	ActiveAddress     couchcore.ThreadAddress
 	Agents            []string
@@ -92,6 +94,7 @@ const (
 	MenuEventUnknown MenuEventKind = iota
 	MenuEventKey
 	MenuEventBell
+	MenuEventRefreshStarted
 	MenuEventInventory
 	MenuEventOperationResult
 	MenuEventPreviewResult
@@ -126,7 +129,7 @@ func NewMenuState(inventory []couchcore.ActionableThreadSummary, active couchcor
 	if len(owned) > 0 {
 		root.SelectedAddress = owned[0].Address
 	}
-	return MenuState{Inventory: owned, Frames: []MenuFrame{root}, ActiveAddress: active, FrameSequence: 1}
+	return MenuState{Inventory: owned, InventoryReady: inventory != nil, Frames: []MenuFrame{root}, ActiveAddress: active, FrameSequence: 1}
 }
 
 func (s MenuState) CurrentFrame() MenuFrame {
@@ -187,9 +190,22 @@ func ReduceMenu(state MenuState, event MenuEvent) (MenuState, []MenuEffect) {
 		return next, nil
 	}
 	next.Notice = ""
+	if event.Kind == MenuEventRefreshStarted {
+		next.RefreshPending = true
+		if !next.InventoryReady {
+			next.Notice = "thread inventory unavailable"
+		}
+		return next, nil
+	}
 	if event.Kind == MenuEventInventory {
+		next.RefreshPending = false
+		if event.Error != "" {
+			next.Notice = "thread inventory unavailable: " + event.Error
+			return next, nil
+		}
 		previous := append([]couchcore.ActionableThreadSummary(nil), next.Inventory...)
 		next.Inventory = append([]couchcore.ActionableThreadSummary(nil), event.Inventory...)
+		next.InventoryReady = true
 		return reconcileMenuFrames(next, previous), nil
 	}
 	if event.Kind == MenuEventOperationResult {
