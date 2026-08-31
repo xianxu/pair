@@ -163,12 +163,12 @@ func (c *Console) onMenuKey(key PanelKey) {
 
 func (c *Console) onMenuInput(raw []byte) {
 	buf := raw
-	if len(c.panelHeld) > 0 {
-		buf = append(append([]byte(nil), c.panelHeld...), raw...)
-		c.panelHeld = nil
+	if len(c.menuHeld) > 0 {
+		buf = append(append([]byte(nil), c.menuHeld...), raw...)
+		c.menuHeld = nil
 	}
 	keys, held := DecodePanelKeys(buf)
-	c.panelHeld = held
+	c.menuHeld = held
 	for _, key := range keys {
 		c.onMenuKey(key)
 	}
@@ -192,34 +192,6 @@ func (c *Console) showMenu() {
 		return
 	}
 	_, _ = io.WriteString(c.host, hostty.MoveTo(view.Cursor.Row, view.Cursor.Col)+hostty.ShowCursor)
-}
-
-func panelSummariesFromActionable(rows []couchcore.ActionableThreadSummary) []couchcore.ThreadSummary {
-	summaries := make([]couchcore.ThreadSummary, len(rows))
-	for i, row := range rows {
-		summaries[i] = couchcore.ThreadSummary{
-			Address: row.Address, StartingPath: row.StartingPath, WorkingPath: row.WorkingPath,
-			Name: row.Name, Description: row.Description, PublishedSummary: row.PublishedSummary,
-		}
-		if row.Live() {
-			summaries[i].Incarnations = []couchcore.ThreadIncarnation{{State: couchcore.IncarnationLive}}
-		}
-	}
-	return summaries
-}
-
-func actionableMemoryResolver(rows []couchcore.ActionableThreadSummary) func(string) ([]couchcore.ThreadAddress, error) {
-	fields := make([]couchcore.ThreadReferenceFields, len(rows))
-	for i, row := range rows {
-		fields[i] = couchcore.ThreadReferenceFields{Address: row.Address, Name: row.Name, WorkingPath: row.WorkingPath}
-	}
-	return func(ref string) ([]couchcore.ThreadAddress, error) {
-		addresses, err := couchcore.MatchThreadReferenceFields(fields, ref)
-		if errors.Is(err, couchcore.ErrThreadReferenceNotFound) {
-			return nil, nil
-		}
-		return addresses, err
-	}
 }
 
 // dispatchMenuEffects is the thin stateful shell around the pure menu. Preview

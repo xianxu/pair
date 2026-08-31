@@ -23,7 +23,7 @@
 | `PreviewSchedule` / `AdvancePreviewSchedule` | `cmd/internal/couchtty/menu_async.go` | new | M2 | present |
 | `RefreshSchedule` / `AdvanceRefreshSchedule` | `cmd/internal/couchtty/menu_refresh.go` | new | M3 | present |
 | `PanelKey` / `DecodePanelKeys` | `cmd/internal/couchtty/panelkeys.go` | modified | M2 | modified, present |
-| `PanelModel` / resolver-driven `Filter` | `cmd/internal/couchtty/panel.go` | deleted | M3 | present compatibility adapter |
+| `PanelModel` / resolver-driven `Filter` | `cmd/internal/couchtty/panel.go` | deleted | M3 | deleted |
 
 - **`ActionableThreadSummary` / `LiveTTYObservation` / `ProjectActionableThreads`** — the only interpretation that turns internal thread lifecycle into user-facing `live` or `parked` rows.
   - **Relationships:** N durable `ThreadRecord`s and N exact owner observations produce 0..N `ActionableThreadSummary` rows; each row retains one composite `ThreadAddress`. A live row requires one observation matching one durable incarnation's PID and process identity; a parked row requires exact `VerifiedPark`, no active `Park`, and no occupied incarnation.
@@ -1454,3 +1454,32 @@ input/repaint, refresh/repaint, pure-render, and progress paths across one
 baseline and two four-worker co-tenancy trials on the M2 Max. No production
 benchmark mode or additional runtime scheduler was added (`ARCH-CONSTRAINTS`,
 `ARCH-PURPOSE`).
+
+### 2026-08-31 — close M3 operation, authority, and evidence gaps
+
+**Reason:** the first M3 boundary review found that production operation
+completions did not supply the inventories used by reducer tests, the declared
+deleted flat-panel authority still compiled beside the menu, and target timing
+bypassed `Console.Run`.
+
+**Delta:** every successful switcher operation now follows one exhaustive
+projection policy. `start`, `park`, `resume`, `name`, and `describe` mark the
+current projection visibly pending until a successful actionable-provider
+refresh; refresh failure preserves last-good rows, the pending marker, and a
+local error. `switch` changes only focus and `leave` has no subsequent frame.
+An operation result carrying an inventory applies it immediately and clears the
+marker. Pure and Console tests cover all seven operations, including the
+resume early-return path and failed refresh (`ARCH-PURE`, `ARCH-PURPOSE`).
+
+Delete `PanelModel`, `panel.go`, its tests, the resolver/summary callbacks,
+prompt fields, and old Console controller. The #151 current-boundary contract
+requires `panel.go` absent, while the #146 concept contract treats its
+historical compatibility row as retired and scans production sources for
+returning authority (`ARCH-DRY`, `ARCH-PURPOSE`).
+
+Target evidence now drives a running Console with raw input, resize, and typed
+refresh results and completes a sample only when `hostty.FakeHost` observes the
+corresponding emitted frame. Open, filter, navigation, repaint, refresh, and
+first feedback all use this lifecycle boundary across 100 rows, 20 warmups,
+200 samples, and the baseline plus two exactly-four-worker co-tenancy trials
+(`ARCH-MOCK`, `ARCH-CONSTRAINTS`).

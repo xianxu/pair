@@ -36,7 +36,19 @@ func TestConsoleStopCancelsOperationAndJoinsWorker(t *testing.T) {
 				finished <- call.Context.Err()
 				return nil, call.Context.Err()
 			})
-			f.con.runOpAsync(operation, map[string]string{"repo-scope": "repo", "tag": "couch-cancel"})
+			origin := MenuOperationOrigin{
+				Operation: operation, Attempt: 1, Address: menuAddress("couch-cancel"),
+				FrameInstance: 1, FrameKind: MenuFrameRoot, Depth: 1,
+			}
+			f.con.mu.Lock()
+			f.con.menu = NewMenuState(menuThreads(), menuAddress("couch-one"))
+			f.con.menu.InFlight = origin
+			f.con.menuReady = true
+			f.con.mu.Unlock()
+			f.con.runMenuOperation(MenuEffect{
+				Operation: operation, Attempt: 1,
+				Args: map[string]string{"repo-scope": "repo", "tag": "couch-cancel"},
+			})
 			select {
 			case <-started:
 			case <-time.After(250 * time.Millisecond):

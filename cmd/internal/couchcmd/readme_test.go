@@ -62,7 +62,7 @@ func TestM3DocsMatchActionableSwitcherInventoryProvider(t *testing.T) {
 // has a home in README, instead of relying on a boundary reviewer to remember.
 func TestREADMEDocumentsEveryPanelControl(t *testing.T) {
 	doc := readme(t)
-	for _, control := range couchtty.PanelControls() {
+	for _, control := range couchtty.MenuControls() {
 		if !strings.Contains(doc, control.Keys) {
 			t.Errorf("README does not document panel key %q (%s)", control.Keys, control.Action)
 		}

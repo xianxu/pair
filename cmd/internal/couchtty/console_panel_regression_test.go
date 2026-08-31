@@ -16,8 +16,8 @@ import (
 func TestNonRootAltXParksOnlySelectedActor(t *testing.T) {
 	con := New(hostty.NewFakeHost(ptychild.Size{Rows: 24, Cols: 80}), nil)
 	t.Cleanup(con.Stop)
-	rootAddress := panelAddress("root")
-	otherAddress := panelAddress("other")
+	rootAddress := menuAddress("root")
+	otherAddress := menuAddress("other")
 	con.attachThreadActor("root", "root", rootAddress, "/w/root", "root", ptychild.NewFakeChild(nil))
 	con.attachThreadActor("other", "other", otherAddress, "/w/other", "other", ptychild.NewFakeChild(nil))
 	con.mu.Lock()
@@ -38,7 +38,7 @@ func TestNonRootAltXParksOnlySelectedActor(t *testing.T) {
 }
 
 func TestLastActorExitWhileMenuFocusedKeepsConsoleForResume(t *testing.T) {
-	address := panelAddress("parked")
+	address := menuAddress("parked")
 	con := New(hostty.NewFakeHost(ptychild.Size{Rows: 24, Cols: 80}), nil)
 	t.Cleanup(con.Stop)
 	child := ptychild.NewFakeChild(nil)
@@ -74,7 +74,7 @@ func TestExpectedParkExitDoesNotPublishActorExitNotice(t *testing.T) {
 			name = "completion-before-exit"
 		}
 		t.Run(name, func(t *testing.T) {
-			address := panelAddress("parked")
+			address := menuAddress("parked")
 			con := New(hostty.NewFakeHost(ptychild.Size{Rows: 24, Cols: 80}), nil)
 			t.Cleanup(con.Stop)
 			child := ptychild.NewFakeChild(nil)
@@ -110,8 +110,8 @@ func TestActiveNonRootExitFallsBackToRootForMenuActions(t *testing.T) {
 	t.Cleanup(con.Stop)
 	root := ptychild.NewFakeChild(nil)
 	other := ptychild.NewFakeChild(nil)
-	con.attachThreadActor("root", "root-actor", panelAddress("root"), "/w/root", "root", root)
-	con.attachThreadActor("other", "other-actor", panelAddress("other"), "/w/other", "other", other)
+	con.attachThreadActor("root", "root-actor", menuAddress("root"), "/w/root", "root", root)
+	con.attachThreadActor("other", "other-actor", menuAddress("other"), "/w/other", "other", other)
 	con.mu.Lock()
 	con.active = "other"
 	con.focus = FocusPanel()

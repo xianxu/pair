@@ -1206,3 +1206,23 @@ reproduced with exact Claude root `67761ab3-d9ee-477d-b01c-d34b452159c1` and
 fixed by one exact validated growth read followed by cached zero-content-read
 queries. The operator then confirmed the parked row reappeared and separately
 verified mouse movement no longer emitted escape bytes after Couch quit.
+
+### 2026-08-31 — M3 boundary-review disposition
+
+The first M3 boundary returned REWORK. The three finding families were swept
+as classes: all seven operation results now have a declared projection policy;
+mutating successes remain visibly `refresh pending` until a successful
+actionable inventory arrives, including after provider failure. The obsolete
+`PanelModel`, resolver/summary callbacks, prompt/controller state, source, and
+tests are deleted, with executable absence checks. The target performance
+protocol now enters through raw input/result channels on a running Console and
+ends only on a correlated `FakeHost` frame (`ARCH-DRY`, `ARCH-PURE`,
+`ARCH-PURPOSE`, `ARCH-MOCK`, `ARCH-CONSTRAINTS`).
+
+The corrected M2 Max protocol passed 20 warmups and 200 samples for each of six
+paths in a baseline and two trials beside exactly four joined CPU workers. The
+worst observed p95 was 290.625µs (first feedback); every path remained below
+291µs. The boundary for every value is semantic input/result through
+`Console.Run` to the matching unique per-sample emitted frame. The optimized
+`go1.26.6 darwin/arm64` test binary SHA-256 was
+`006ec35437d410a5c0757a1ad17a6db811e05c602ca310a51faf6d560807e97b`.

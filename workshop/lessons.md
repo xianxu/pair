@@ -2695,3 +2695,14 @@ must update the entire class together (`ARCH-PURPOSE`).
   split reads. Likewise, bounded rendering must reserve mandatory semantic
   cues before clipping variable text; a row that fits but hides state is not
   operationally bounded (`ARCH-PURPOSE`, `ARCH-CONSTRAINTS`).
+- Reducer-only result fixtures can invent data production never supplies. For
+  each shared operation, enumerate the production result shape and require
+  either immediate projection or an explicit visible-pending state that
+  survives refresh failure (`ARCH-PURE`, `ARCH-PURPOSE`).
+- A replacement is incomplete while its superseded state, callbacks, or
+  controller still compile. Make retirement executable with absence checks
+  over both source files and owning symbols (`ARCH-DRY`, `ARCH-PURPOSE`).
+- Latency evidence must cross the lifecycle boundary named by the claim. Drive
+  semantic input/result through the running owner and stop timing only on a
+  correlated emitted frame; private-method return times do not validate an
+  interactive path (`ARCH-MOCK`, `ARCH-CONSTRAINTS`).

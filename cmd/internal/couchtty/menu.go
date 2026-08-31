@@ -8,6 +8,30 @@ import (
 	"github.com/xianxu/pair/cmd/internal/couchcore"
 )
 
+// MenuControl is one operator-entered switcher surface. README checks consume
+// this inventory so a new key cannot ship undocumented.
+type MenuControl struct {
+	Keys   string
+	Action string
+}
+
+var menuControls = []MenuControl{
+	{Keys: "typeahead", Action: "filter"},
+	{Keys: "↑↓", Action: "select"},
+	{Keys: "Enter", Action: "switch/resume"},
+	{Keys: "Tab", Action: "actions"},
+	{Keys: "Left", Action: "back"},
+	{Keys: "Right", Action: "forward"},
+	{Keys: "Ctrl-Space", Action: "start"},
+	{Keys: "Alt+x", Action: "park/leave"},
+	{Keys: "Escape", Action: "clear/back"},
+}
+
+// MenuControls returns the shared, immutable-by-copy key inventory.
+func MenuControls() []MenuControl {
+	return append([]MenuControl(nil), menuControls...)
+}
+
 const (
 	menuFilterLimit = 1024
 	menuNameLimit   = 1024
@@ -91,6 +115,7 @@ type MenuState struct {
 	Inventory         []couchcore.ActionableThreadSummary
 	InventoryReady    bool
 	RefreshPending    bool
+	ProjectionPending bool
 	Frames            []MenuFrame
 	ActiveAddress     couchcore.ThreadAddress
 	Agents            []string
@@ -243,6 +268,7 @@ func ReduceMenu(state MenuState, event MenuEvent) (MenuState, []MenuEffect) {
 			next.Notice = errorMenuNotice("thread inventory unavailable: " + event.Error)
 			return next, nil
 		}
+		next.ProjectionPending = false
 		previous := append([]couchcore.ActionableThreadSummary(nil), next.Inventory...)
 		next.Inventory = append([]couchcore.ActionableThreadSummary(nil), event.Inventory...)
 		next.InventoryReady = true
@@ -250,6 +276,7 @@ func ReduceMenu(state MenuState, event MenuEvent) (MenuState, []MenuEffect) {
 	}
 	if event.Kind == MenuEventOperationResult {
 		if event.InventorySet {
+			next.ProjectionPending = false
 			previous := append([]couchcore.ActionableThreadSummary(nil), next.Inventory...)
 			next.Inventory = append([]couchcore.ActionableThreadSummary(nil), event.Inventory...)
 			next = reconcileMenuFrames(next, previous)
@@ -952,6 +979,9 @@ func reduceOperationResult(state MenuState, event MenuEvent) MenuState {
 	if state.Notice.Level == MenuNoticeProgress && state.Notice.Owner.OperationAttempt == origin.Attempt {
 		state.Notice = MenuNotice{}
 	}
+	if !event.InventorySet && operationNeedsProjectionRefresh(event.Operation) {
+		state.ProjectionPending = true
+	}
 
 	switch event.Operation {
 	case "switch":
@@ -971,6 +1001,22 @@ func reduceOperationResult(state MenuState, event MenuEvent) MenuState {
 		reconcileRootSelection(&state, event.Address)
 	}
 	return state
+}
+
+// operationNeedsProjectionRefresh is the exhaustive projection policy for all
+// switcher operations. Mutations whose result does not carry an actionable
+// inventory must visibly defer to the next provider refresh. Switch only moves
+// terminal focus; leave terminates the console and has no next frame to update.
+func operationNeedsProjectionRefresh(operation string) bool {
+	switch operation {
+	case "start", "park", "resume", "name", "describe":
+		return true
+	case "switch", "leave":
+		return false
+	default:
+		// Fail safe: a new successful operation may have changed the inventory.
+		return true
+	}
 }
 
 func restoreMenuPrefixPreservingStart(state MenuState, keep int, origin MenuOperationOrigin) MenuState {

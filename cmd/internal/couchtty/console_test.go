@@ -89,7 +89,7 @@ func TestConsoleSwitchOperationUsesExactThreadAndRefusesStaleTarget(t *testing.T
 	f := newFixture(t, 24, 80)
 	other := ptychild.NewFakeChild(nil)
 	other.SetSink(func(chunk []byte) { f.con.Deliver("c2", chunk) })
-	f.con.attachThreadActor("c2", "c2", panelAddress("c2"), "c1", "brain", other)
+	f.con.attachThreadActor("c2", "c2", menuAddress("c2"), "c1", "brain", other)
 
 	dispatch := f.con.Ops()
 	_, err := dispatch(couchcore.OperationCall{
@@ -108,7 +108,7 @@ func TestConsoleSwitchOperationUsesExactThreadAndRefusesStaleTarget(t *testing.T
 
 	_, err = dispatch(couchcore.OperationCall{
 		Name: "switch", Implicit: true,
-		Args: map[string]string{"repo-scope": panelAddress("c2").RepoScope, "tag": string(panelAddress("c2").Tag)},
+		Args: map[string]string{"repo-scope": menuAddress("c2").RepoScope, "tag": string(menuAddress("c2").Tag)},
 	})
 	if err != nil {
 		t.Fatal(err)

@@ -762,7 +762,7 @@ func validateIssue151CurrentConcepts(root, plan string) error {
 		"`PreviewSchedule` / `AdvancePreviewSchedule`":                                  {"M2", "present", []string{"cmd/internal/couchtty/menu_async.go"}, nil},
 		"`RefreshSchedule` / `AdvanceRefreshSchedule`":                                  {"M3", "present", []string{"cmd/internal/couchtty/menu_refresh.go"}, nil},
 		"`PanelKey` / `DecodePanelKeys`":                                                {"M2", "modified, present", []string{"cmd/internal/couchtty/panelkeys.go"}, nil},
-		"`PanelModel` / resolver-driven `Filter`":                                       {"M3", "present compatibility adapter", []string{"cmd/internal/couchtty/panel.go"}, nil},
+		"`PanelModel` / resolver-driven `Filter`":                                       {"M3", "deleted", nil, []string{"cmd/internal/couchtty/panel.go"}},
 		"`Couch.ActionableThreadInventory`":                                             {"M1", "present", []string{"cmd/internal/couchcore/actionableinventory.go"}, nil},
 		"`Couch.PrepareStart` / `Couch.SpawnPrepared`":                                  {"M1", "present", []string{"cmd/internal/couchcore/startresolution.go", "cmd/internal/couchcore/couch.go"}, nil},
 		"`StartGrantStore`": {"M1", "present", []string{"cmd/internal/couchcore/startgrant.go"}, nil},

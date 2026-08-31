@@ -964,13 +964,9 @@ func TestConsoleRunnerDeclinesWithoutATerminalWiring(t *testing.T) {
 	}
 }
 
-// The panel's resolver must be couch's own rule, not left nil.
-//
-// Decision 12's wiring check: an injection seam nothing passes is a seam that
-// does nothing, and the panel would silently degrade to "show everything" with
-// typeahead inert. Asserting the FUNCTION IDENTITY is the only way to catch
-// that, since a nil resolver still renders a panel.
-func TestConsoleGetsCouchsOwnResolver(t *testing.T) {
+// The hierarchical switcher's actionable provider must be wired on the real
+// run path. Typeahead itself is deliberately pure and in-memory.
+func TestConsoleGetsCouchsActionableProvider(t *testing.T) {
 	rt := newRT(t, "/repo")
 	c, err := rt.NewCouch()
 	if err != nil {
@@ -980,11 +976,8 @@ func TestConsoleGetsCouchsOwnResolver(t *testing.T) {
 	if console == nil {
 		t.Fatal("no console to wire")
 	}
-	if console.Resolver() != nil {
-		t.Fatal("a resolver was set before the run path; this test would prove nothing")
-	}
-	if console.Summaries() != nil {
-		t.Fatal("a summary provider was set before the run path; this test would prove nothing")
+	if console.ActionableProvider() != nil {
+		t.Fatal("an actionable provider was set before the run path; this test would prove nothing")
 	}
 
 	// Drive the REAL path. The child has already exited, so Run returns at once
@@ -995,14 +988,12 @@ func TestConsoleGetsCouchsOwnResolver(t *testing.T) {
 	}
 	runConsole(console, c, couchcore.StartResult{Record: rec, Handle: h}, &bytes.Buffer{})
 
-	if console.Resolver() == nil {
-		t.Fatal("the run path left the panel's resolver nil — typeahead would be inert")
+	provider := console.ActionableProvider()
+	if provider == nil {
+		t.Fatal("the run path left the actionable provider nil")
 	}
-	if console.Summaries() == nil {
-		t.Fatal("the run path left the panel's summary provider nil — parked trees would disappear")
-	}
-	if got, err := console.Resolver()("anything"); err != nil || len(got) != 0 {
-		t.Fatalf("resolver returned %v, %v for an empty registry", got, err)
+	if got, err := provider(context.Background(), nil); err != nil || len(got) != 0 {
+		t.Fatalf("provider returned %v, %v for an empty registry", got, err)
 	}
 }
 
@@ -1023,7 +1014,7 @@ func TestWireResolverOmitsUnboundParkButRetainsDiagnosticInventory(t *testing.T)
 	if err != nil || len(rows) != 0 {
 		t.Fatalf("unbound actionable rows = %+v, %v", rows, err)
 	}
-	diagnostic, err := console.Summaries()()
+	diagnostic, err := c.ThreadInventory()
 	if err != nil || len(diagnostic) != 1 || diagnostic[0].Address != parked.Address {
 		t.Fatalf("diagnostic inventory = %+v, %v; parked record must remain visible to list/show", diagnostic, err)
 	}
@@ -1092,41 +1083,8 @@ func TestConsoleWiringPropagatesAuthoritativeThreadStoreFailures(t *testing.T) {
 	if err := os.WriteFile(filepath.Join(rt.dir, "threadstore", "manifest.json"), []byte("{corrupt"), 0o600); err != nil {
 		t.Fatal(err)
 	}
-	if _, err := console.Summaries()(); err == nil {
-		t.Fatal("production summary callback swallowed corrupt ThreadStore")
-	}
-	if _, err := console.Resolver()("repo"); err == nil {
-		t.Fatal("production reference callback swallowed corrupt ThreadStore")
-	}
-}
-
-func TestConsoleWiringReturnsEveryAmbiguousHumanMatch(t *testing.T) {
-	rt := newRT(t, "/repo")
-	localScope, err := launcher.ResolveRepoScope("/repo")
-	if err != nil {
-		t.Fatal(err)
-	}
-	otherScope, err := launcher.ResolveRepoScope("/other")
-	if err != nil {
-		t.Fatal(err)
-	}
-	first := seedThreadAtAddress(t, rt, localScope.Key, "couch-0102030405060708", "/repo")
-	second := seedThreadAtAddress(t, rt, otherScope.Key, "couch-1112131415161718", "/other")
-	c, err := rt.NewCouch()
-	if err != nil {
-		t.Fatal(err)
-	}
-	name := "compiler"
-	for _, address := range []couchcore.ThreadAddress{first.Address, second.Address} {
-		if _, err := c.ApplyThreadMetadata(address, couchcore.ThreadMetadataPatch{Name: &name}); err != nil {
-			t.Fatal(err)
-		}
-	}
-	console, _ := consoleRunnerFor("start", map[string]string{}, strings.NewReader(""), true, nil, nil)
-	wireResolver(console, c)
-	matches, err := console.Resolver()(name)
-	if err != nil || len(matches) != 2 {
-		t.Fatalf("ambiguous typeahead matches = %+v, %v", matches, err)
+	if _, err := console.ActionableProvider()(context.Background(), nil); err == nil {
+		t.Fatal("production actionable provider swallowed corrupt ThreadStore")
 	}
 }
 

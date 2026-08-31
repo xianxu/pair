@@ -100,6 +100,9 @@ func TestConsoleMenuStartAttachesBeforeSuccessfulRestoration(t *testing.T) {
 		_, attached := f.con.panes[start.Handle.ID()]
 		return attached && f.con.menu.InFlight.Operation == ""
 	})
+	if !f.con.menuSnapshot().ProjectionPending {
+		t.Fatal("successful start silently presented the pre-start inventory as current")
+	}
 }
 
 func TestConsoleMenuResumeLandsOnExactReturnedHandle(t *testing.T) {
@@ -135,6 +138,63 @@ func TestConsoleMenuResumeLandsOnExactReturnedHandle(t *testing.T) {
 	if strings.Contains(lastConsoleScreen(f.host.Written()), "threads") {
 		t.Fatalf("successful resume repainted the switcher: %q", f.host.Written())
 	}
+	if !f.con.menuSnapshot().ProjectionPending {
+		t.Fatal("successful resume silently presented the pre-resume inventory as current")
+	}
+}
+
+func TestConsoleSuccessfulOperationsApplyExhaustiveProjectionPolicy(t *testing.T) {
+	for _, test := range []struct {
+		operation string
+		pending   bool
+	}{
+		{operation: "park", pending: true},
+		{operation: "name", pending: true},
+		{operation: "describe", pending: true},
+		{operation: "switch", pending: false},
+	} {
+		t.Run(test.operation, func(t *testing.T) {
+			con := New(hostty.NewFakeHost(ptychild.Size{Rows: 24, Cols: 80}), nil)
+			t.Cleanup(con.Stop)
+			target := menuAddress("couch-one")
+			state := NewMenuState(menuThreads(), target)
+			state.InFlight = MenuOperationOrigin{
+				Operation: test.operation, Attempt: 1, Address: target,
+				FrameInstance: state.Frames[0].Instance, FrameKind: MenuFrameRoot, Depth: 1,
+			}
+			con.mu.Lock()
+			con.menu, con.menuReady = state, true
+			con.mu.Unlock()
+
+			con.finishOperation(operationCompletion{name: test.operation, origin: state.InFlight})
+			if got := con.menuSnapshot().ProjectionPending; got != test.pending {
+				t.Fatalf("ProjectionPending = %v, want %v", got, test.pending)
+			}
+		})
+	}
+}
+
+func TestConsoleRefreshFailureKeepsCommittedMutationVisiblyPending(t *testing.T) {
+	f := newFixture(t, 24, 80)
+	target := menuAddress("couch-one")
+	state := NewMenuState(menuThreads(), target)
+	state.InFlight = MenuOperationOrigin{
+		Operation: "park", Attempt: 1, Address: target,
+		FrameInstance: state.Frames[0].Instance, FrameKind: MenuFrameRoot, Depth: 1,
+	}
+	f.con.mu.Lock()
+	f.con.menu, f.con.menuReady, f.con.focus = state, true, FocusPanel()
+	f.con.refreshSchedule = RefreshSchedule{Sequence: 1, Running: 1}
+	f.con.mu.Unlock()
+	f.con.finishOperation(operationCompletion{name: "park", origin: state.InFlight})
+	f.host.Reset()
+	f.con.refreshResults <- menuRefreshResult{generation: 1, err: errors.New("store unavailable")}
+
+	waitUpTo(t, 250*time.Millisecond, "failed refresh pending banner", func() bool {
+		state := f.con.menuSnapshot()
+		screen := string(ansi.Strip([]byte(lastConsoleScreen(f.host.Written()))))
+		return state.ProjectionPending && strings.Contains(screen, "error: thread inventory unavailable: store unavailable; refresh pending")
+	})
 }
 
 func TestConsoleAttachAndSwitchIgnoreDonePaneAwaitingExit(t *testing.T) {

@@ -356,10 +356,8 @@ func consoleRunnerFor(name string, args map[string]string, stdin io.Reader, hasT
 // displaces render's StartResult branch, which printed a line and then blocked
 // on Handle.Wait for the child's lifetime.
 func runConsole(console *couchtty.Console, c *couchcore.Couch, start couchcore.StartResult, stdout io.Writer) int {
-	// Wire the panel's match rule HERE, on the path that actually runs a
-	// console -- not at a call site a test can bypass. An injection seam
-	// nothing passes is a seam that does nothing (Decision 12's wiring check),
-	// and the panel would silently degrade to "show everything".
+	// Wire the switcher's actionable projection HERE, on the path that actually
+	// runs a console. Typeahead stays pure over the resulting in-memory rows.
 	wireResolver(console, c)
 
 	_, ok := start.Handle.(couchcore.TerminalHandle)
@@ -394,27 +392,9 @@ func dispatchInitialAttach(console *couchtty.Console, start couchcore.StartResul
 	return err
 }
 
-// wireResolver gives the panel couch's OWN match rule.
-//
-// Without this the injection seam exists and nothing uses it, which is the
-// failure mode Decision 12's wiring check names: the panel would silently fall
-// back to "show everything" and typeahead would do nothing.
+// wireResolver supplies the proof-bearing actionable projection. Reference
+// matching for keystrokes is intentionally in-memory inside the pure menu.
 func wireResolver(console *couchtty.Console, c *couchcore.Couch) {
-	console.SetResolver(func(ref string) ([]couchcore.ThreadAddress, error) {
-		matches, err := c.ResolveThreadReference("", ref)
-		var ambiguous *couchcore.AmbiguousThreadReferenceError
-		if err != nil && !errors.Is(err, couchcore.ErrThreadReferenceNotFound) && !errors.As(err, &ambiguous) {
-			return nil, err
-		}
-		addresses := make([]couchcore.ThreadAddress, len(matches))
-		for i := range matches {
-			addresses[i] = matches[i].Address
-		}
-		return addresses, nil
-	})
-	console.SetSummaries(func() ([]couchcore.ThreadSummary, error) {
-		return c.ThreadInventory()
-	})
 	console.SetActionableProvider(func(ctx context.Context, observations []couchcore.LiveTTYObservation) ([]couchcore.ActionableThreadSummary, error) {
 		select {
 		case <-ctx.Done():
@@ -434,10 +414,10 @@ func wireResolver(console *couchtty.Console, c *couchcore.Couch) {
 	})
 	console.SetForget(c.Forget)
 
-	// The panel's actions run through the SAME declared table the CLI
+	// The switcher's actions run through the SAME declared table the CLI
 	// dispatches: the console names an operation and couchcore performs it, so
 	// there is no operator action the advisor cannot also perform (#148's
-	// design test) and no way for the panel to grow a private verb.
+	// design test) and no way for the switcher to grow a private verb.
 	couchLive := couchcore.CouchLiveOwnerExecutor(c)
 	console.SetOperationDispatcher(func(call couchcore.OperationCall) (any, error) {
 		return couchcore.DispatchOperation(couchcore.OperationExecutors{

@@ -112,9 +112,15 @@ func RenderMenuView(state MenuState, width, height int, now time.Time, color256 
 func renderedMenuNotice(state MenuState) string {
 	notice := state.Notice
 	if notice.Text == "" {
+		if state.ProjectionPending {
+			return "refresh pending"
+		}
 		return ""
 	}
 	if notice.Level == MenuNoticeError {
+		if state.ProjectionPending {
+			return "error: " + notice.Text + "; refresh pending"
+		}
 		return "error: " + notice.Text
 	}
 	if notice.Level == MenuNoticeProgress {
@@ -225,7 +231,7 @@ func renderRootMenuFrame(state MenuState, frame MenuFrame, width, height int, no
 	if frame.Filter != "" {
 		rowBudget--
 	}
-	if state.Notice.Text != "" {
+	if state.Notice.Text != "" || state.ProjectionPending {
 		rowBudget--
 	}
 	if rowBudget < 1 {

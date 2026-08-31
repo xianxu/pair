@@ -467,6 +467,17 @@ ARCH-PURE, ARCH-PURPOSE).
 
 ## Log
 
+### 2026-08-31 — pair#151 M3 first-review disposition ready
+
+The first M3 boundary review's operation-consumer, superseded-authority, and
+lifecycle-evidence findings are addressed across their full families. Mutating
+operation success is visibly refresh-pending until actionable projection
+converges; the flat compatibility authority is removed and absence-enforced;
+and all six target latency paths now traverse the running Console to a
+correlated emitted frame. Corrected M2 Max trials pass with exactly four joined
+co-tenancy workers (`ARCH-DRY`, `ARCH-PURE`, `ARCH-PURPOSE`, `ARCH-MOCK`,
+`ARCH-CONSTRAINTS`).
+
 ### 2026-08-26 — pair#149 M5 implementation ready for boundary
 
 M5 preserves every legacy source while completing composite addressing all the

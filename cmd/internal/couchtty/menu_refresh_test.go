@@ -2,7 +2,9 @@ package couchtty
 
 import (
 	"reflect"
+	"strings"
 	"testing"
+	"time"
 
 	"github.com/xianxu/pair/cmd/internal/couchcore"
 )
@@ -70,5 +72,40 @@ func TestReduceMenuInventoryFailurePreservesLastGoodAndInitialUnavailable(t *tes
 	initial, _ = ReduceMenu(initial, MenuEvent{Kind: MenuEventInventory, Inventory: []couchcore.ActionableThreadSummary{}})
 	if !initial.InventoryReady || initial.RefreshPending || len(initial.Inventory) != 0 {
 		t.Fatalf("successful empty inventory remained unavailable = %+v", initial)
+	}
+}
+
+func TestSuccessfulOperationsDeclareProjectionRefreshPolicy(t *testing.T) {
+	for _, operation := range []string{"start", "park", "resume", "name", "describe", "switch", "leave"} {
+		t.Run(operation, func(t *testing.T) {
+			state := NewMenuState(menuThreads(), menuAddress("couch-one"))
+			state.InFlight = MenuOperationOrigin{
+				Operation: operation, Attempt: 1, Address: menuAddress("couch-one"),
+				FrameInstance: state.Frames[0].Instance, FrameKind: MenuFrameRoot, Depth: 1,
+			}
+			got, _ := ReduceMenu(state, MenuEvent{
+				Kind: MenuEventOperationResult, Operation: operation, Attempt: 1,
+				Address: menuAddress("couch-one"), Success: true,
+			})
+			wantPending := operation == "start" || operation == "park" || operation == "resume" || operation == "name" || operation == "describe"
+			if got.ProjectionPending != wantPending {
+				t.Fatalf("ProjectionPending = %v, want %v", got.ProjectionPending, wantPending)
+			}
+		})
+	}
+}
+
+func TestProjectionPendingSurvivesRefreshFailureAndClearsOnSuccess(t *testing.T) {
+	state := NewMenuState(menuThreads(), menuAddress("couch-one"))
+	state.ProjectionPending = true
+
+	failed, _ := ReduceMenu(state, MenuEvent{Kind: MenuEventInventory, Error: "store unavailable"})
+	if !failed.ProjectionPending || !strings.Contains(RenderMenu(failed, 80, 24, time.Time{}, false), "refresh pending") {
+		t.Fatalf("failed refresh hid stale projection: %+v", failed)
+	}
+
+	fresh, _ := ReduceMenu(failed, MenuEvent{Kind: MenuEventInventory, Inventory: menuThreads()})
+	if fresh.ProjectionPending {
+		t.Fatalf("successful refresh retained pending projection: %+v", fresh)
 	}
 }

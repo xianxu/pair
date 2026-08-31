@@ -293,6 +293,30 @@ rounds:
           round: 12
       boundary: M2
       blocked: false
+    - "n": 13
+      timestamp: "2026-08-31T15:42:38-07:00"
+      agent: codex
+      findings:
+        - id: BR-21
+          severity: Critical
+          title: Successful operation projections are exercised only in reducer tests and never supplied by production
+          detail: 'This is the 3rd finding in family `shared-operation-consumer-sweep`. Earlier rounds fixed instances. Do NOT fix this instance alone: enumerate every operation result and state the shared rule for projecting or visibly deferring its committed state. `finishOperation` extracts only addresses from park/start results and never sets `InventorySet`; every production search hit for `InventorySet: true` is in tests. Start, park, name, and describe therefore repaint stale inventory before refresh, and a failed refresh can leave that stale view indefinitely rather than using returned state or remaining visibly refresh-pending.'
+          family: shared-operation-consumer-sweep
+          round: 13
+        - id: BR-22
+          severity: Critical
+          title: The planned deleted flat-panel authority remains as a parallel implementation
+          detail: The Core concepts row declares `PanelModel` deleted in M3 and its narrative says `MenuState` replaces it, but `panel.go`, legacy Console state, resolver/summaries callbacks, prompt state, and the old panel/action controller remain. The executable contract was changed to require this compatibility adapter rather than proving its removal. Delete the superseded authority and make the contract fail while any declared legacy symbols or production fields remain.
+          family: superseded-ui-authority-retirement
+          round: 13
+        - id: BR-23
+          severity: Important
+          title: Target latency evidence bypasses the Console run-loop boundary it claims to measure
+          detail: 'This is the 2nd finding in family `lifecycle-evidence-validation`. Earlier rounds fixed instances. Do NOT patch one timing label: state the evidence rule and apply it to every measured path. The harness directly calls `showMenu`, `onMenuInput`, and `finishMenuRefresh`, then times function return; it never sends raw bytes through the host input channel, runs `Console.Run`, or correlates a generation-specific repaint. Delays or misrouting in the actual select loop would not fail these measurements.'
+          family: lifecycle-evidence-validation
+          round: 13
+      boundary: M3
+      blocked: true
 ---
 
 # Gate ledger — pair#151 (boundary-review)
@@ -441,6 +465,19 @@ later rounds disposed of them. Generated — edit the gate, not this file.
 
 - BR-20 — addressed — Completion restoration now transforms only its captured prefix and preserves a distinct later global start frame; the all-operation, all-outcome regression fails when that preservation is removed.
 
+## Round 13 — 2026-08-31T15:42:38-07:00 (codex) — BLOCKED
+
+### Raised
+
+- **BR-21** [Critical] `shared-operation-consumer-sweep` Successful operation projections are exercised only in reducer tests and never supplied by production
+  This is the 3rd finding in family `shared-operation-consumer-sweep`. Earlier rounds fixed instances. Do NOT fix this instance alone: enumerate every operation result and state the shared rule for projecting or visibly deferring its committed state. `finishOperation` extracts only addresses from park/start results and never sets `InventorySet`; every production search hit for `InventorySet: true` is in tests. Start, park, name, and describe therefore repaint stale inventory before refresh, and a failed refresh can leave that stale view indefinitely rather than using returned state or remaining visibly refresh-pending.
+- **BR-22** [Critical] `superseded-ui-authority-retirement` The planned deleted flat-panel authority remains as a parallel implementation
+  The Core concepts row declares `PanelModel` deleted in M3 and its narrative says `MenuState` replaces it, but `panel.go`, legacy Console state, resolver/summaries callbacks, prompt state, and the old panel/action controller remain. The executable contract was changed to require this compatibility adapter rather than proving its removal. Delete the superseded authority and make the contract fail while any declared legacy symbols or production fields remain.
+- **BR-23** [Important] `lifecycle-evidence-validation` Target latency evidence bypasses the Console run-loop boundary it claims to measure
+  This is the 2nd finding in family `lifecycle-evidence-validation`. Earlier rounds fixed instances. Do NOT patch one timing label: state the evidence rule and apply it to every measured path. The harness directly calls `showMenu`, `onMenuInput`, and `finishMenuRefresh`, then times function return; it never sends raw bytes through the host input channel, runs `Console.Run`, or correlates a generation-specific repaint. Delays or misrouting in the actual select loop would not fail these measurements.
+
 ## Open findings
 
-(none — every finding has been disposed)
+- **BR-21** [Critical] `shared-operation-consumer-sweep` Successful operation projections are exercised only in reducer tests and never supplied by production
+- **BR-22** [Critical] `superseded-ui-authority-retirement` The planned deleted flat-panel authority remains as a parallel implementation
+- **BR-23** [Important] `lifecycle-evidence-validation` Target latency evidence bypasses the Console run-loop boundary it claims to measure
