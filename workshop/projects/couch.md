@@ -416,7 +416,7 @@ there is almost nothing to preserve until native progress completes the round
 ### pair#151 M1 — actionable inventory and token-bound start authority
 
 **est:** 7.60 (whole issue)
-**actual:** 4.74h
+**actual:** 5.14h
 **closed:** 2026-08-30
 
 Couch now exposes only proof-bearing live and verified-parked rows to the
