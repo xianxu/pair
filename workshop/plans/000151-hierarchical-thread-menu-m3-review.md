@@ -464,3 +464,122 @@ The scratch unmarked-authority mutation unexpectedly passed, which is the decisi
 ### Plan revision recommendation
 
 Append a `## Revisions` entry recording that the six-marker contract was not exhaustive. Its delta should define a closed-set declaration-disposition rule, require exact paths and dependencies for every architectural entry, and add a mutation proving a newly introduced unmarked authority fails.
+
+---
+
+## Re-review — 2026-08-31T16:44:11-07:00 (REWORK)
+
+| field | value |
+|-------|-------|
+| issue | 151 — couch: hierarchical work-thread menu |
+| repo | pair |
+| issue file | workshop/issues/000151-hierarchical-thread-menu.md |
+| boundary | milestone M3 |
+| milestone | M3 |
+| window | 0c40a8d1880b49a9cac1a7f4d8cd24a2c713dba7..7ff7d8c43e3ce85fcfe3febc776dd521dd73adca |
+| command | sdlc milestone-close --issue 151 --milestone M3 |
+| reviewer | codex |
+| timestamp | 2026-08-31T16:44:11-07:00 |
+| verdict | REWORK |
+
+## Review
+
+```verdict
+verdict: REWORK
+confidence: high
+```
+
+The implementation and broader verification remain strong, and BR-21 through BR-25 are substantively addressed. M3 still cannot close: BR-26’s new “closed-set disposition” contract records declaration names but not their architectural/detail classification, so removing a `pair:m3-concept` marker silently reclassifies authority while leaving the plan and all tests green. The same contract also derives a historical milestone from mutable current-worktree state rather than pinned base/head objects.
+
+```findings
+dispose:
+  - id: BR-21
+    disposition: addressed
+    note: |
+      The shared generation-qualified projection policy and reachable Console regression remain present and pass.
+  - id: BR-22
+    disposition: addressed
+    note: |
+      The flat-panel production authority and tests remain deleted, with executable retirement checks.
+  - id: BR-23
+    disposition: addressed
+    note: |
+      The performance harness continues to drive the running Console and correlate semantic input with emitted frames.
+  - id: BR-24
+    disposition: addressed
+    note: |
+      The complete M3 checklist state is pinned by a mutation test that rejects delivered work being unchecked.
+  - id: BR-25
+    disposition: addressed
+    note: |
+      Boundary headings and README root-Escape behavior match the reducer and remain covered by drift tests.
+  - id: BR-26
+    disposition: not-addressed
+    note: |
+      The digest inventories declaration names but omits their architectural/detail disposition; removing a concept marker leaves the digest unchanged and the marker validator accepts any remaining count, so source classification can contradict the plan without failing.
+findings:
+  - id: new
+    severity: Important
+    family: historical-boundary-oracle-pinning
+    title: |
+      The M3 declaration oracle reads an unpinned diff and mutable worktree bytes
+    detail: |
+      The source-set test runs git diff from the M2 base to the repository's current HEAD, while the digest parses current filesystem files. Any later Go change will rewrite this supposedly historical M3 boundary or fail unrelated CI. Pin both paths and bytes to the supplied M3 head object.
+```
+
+### 1. Strengths
+
+- The Core concepts table now accurately includes `ParkedResumeObservation`, `NativeBindingResolver`, the session-inventory dependency, and resolvable repository paths ([plan](/Users/xianxu/workspace/pair/workshop/plans/000151-hierarchical-thread-menu-plan.md:19)).
+- Parked authority is modeled explicitly and separately from live-owner proof ([actionableinventory.go](/Users/xianxu/workspace/pair/cmd/internal/couchcore/actionableinventory.go:28)).
+- Production resolver integration remains context-bearing and shares the session-inventory seam ([resume.go](/Users/xianxu/workspace/pair/cmd/internal/couchcore/resume.go:140)).
+- README and atlas both changed in the boundary, satisfying the documentation-surface gate.
+- The obsolete panel implementation is deleted rather than retained as parallel authority.
+
+### 2. Critical findings
+
+- **BR-26 — ARCH-PURPOSE:** [plan_contract_test.go](/Users/xianxu/workspace/pair/cmd/internal/couchcore/plan_contract_test.go:923) hashes only `path | declaration kind | receiver | name`. It never includes the `pair:m3-concept` disposition. Meanwhile, the marker validator at [line 986](/Users/xianxu/workspace/pair/cmd/internal/couchcore/plan_contract_test.go:986) no longer requires an expected marker set or count.
+
+  Removing the marker from `ParkedResumeObservation`, for example, changes neither the declaration digest nor the plan. The validator simply stops checking that declaration, leaving the source classification (“implementation detail”) inconsistent with the Core concepts table (“architectural”) while all contracts pass.
+
+  Fix the class by making the closed-set ledger encode each declaration’s explicit disposition and validating architectural entries bidirectionally against the plan. Add mutations for:
+
+  - removing an existing architectural marker;
+  - changing architectural → detail while leaving the plan row;
+  - changing detail → architectural without adding the complete plan entry;
+  - adding a declaration without an explicit ledger disposition.
+
+### 3. Important findings
+
+- **Historical boundary oracle is not pinned:** [plan_contract_test.go:883](/Users/xianxu/workspace/pair/cmd/internal/couchcore/plan_contract_test.go:883) runs `git diff <base>` without an M3 head, and [line 929](/Users/xianxu/workspace/pair/cmd/internal/couchcore/plan_contract_test.go:929) reads current filesystem bytes. Pin an `issue151M3Head`, derive paths with `git diff <base> <head>`, and parse bytes from that same head object. Deleted-source checks should inspect the pinned tree, not current `os.Stat`.
+
+### 4. Minor findings
+
+None.
+
+### 5. Test coverage notes
+
+Passed on the pinned head:
+
+- Focused issue-151 concept, declaration, and checklist contracts.
+- `git diff --check`.
+- `go test -p 20 ./... -count=1`.
+- Race tests for `couchcore`, `couchtty`, `couchcmd`, and `sessioninventory`.
+
+The target-hardware performance protocol was inspected through its committed harness/evidence but not rerun.
+
+### 6. Architectural notes for upcoming work
+
+- **ARCH-DRY — pass:** actionable projection is centralized and the superseded panel authority is removed.
+- **ARCH-PURE — pass:** projection, reducer, renderer, and schedulers remain pure; terminal, resolver, and Git inspection stay at integration/test edges.
+- **ARCH-PURPOSE — flag:** BR-26’s contract protects declaration membership, not the promised exhaustive architectural classification.
+- **ARCH-MOCK — pass:** production and tests share context-bearing resolver, runner, host, and Console seams with stateful doubles.
+- **ARCH-CONSTRAINTS — pass:** refresh/preview work remains bounded, race suites pass, and the performance harness exercises the real Console lifecycle at the declared workload.
+
+### 7. Plan revision recommendations
+
+Append a `## Revisions` entry stating:
+
+- The declaration ledger includes an explicit disposition for every declaration, and its digest covers that disposition.
+- Source markers and Core concepts rows are validated bidirectionally.
+- Marker removal/reclassification mutations must fail.
+- Historical M3 paths and bytes are both read from the pinned `0c40a8d… → 7ff7d8c…` range.

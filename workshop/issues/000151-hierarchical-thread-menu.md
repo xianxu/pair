@@ -1261,3 +1261,12 @@ architectural, all other declarations are explicit implementation detail, and
 deleted panel sources are retired. Adding the reviewer's unmarked exported
 authority or an unclassified source changes the closed set and fails the
 contract (`BR-26`, `ARCH-PURPOSE`).
+
+The sixth boundary review exposed two remaining oracle flaws. The declaration
+digest now includes each declaration's architectural/detail/retired
+classification, and an exact marker name/path ledger is validated in both
+directions against Core concepts. Marker removal, both reclassification
+directions, and new unmarked declarations are mutation-tested. Historical M3
+paths and bytes are read only from pinned range
+`0c40a8d1..7ff7d8c4`, so later work cannot rewrite this boundary (`BR-26`,
+`BR-27`, `ARCH-PURPOSE`).

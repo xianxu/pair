@@ -1558,3 +1558,19 @@ adds an unmarked exported `ReviewAddedM3Authority` changes the declaration
 digest and fails before the Core concepts rows are accepted. Architectural
 markers still require an exact entity and repo-relative path in the plan
 (`ARCH-PURPOSE`).
+
+### 2026-08-31 — pin and classify the M3 declaration oracle
+
+**Reason:** the sixth M3 boundary review found that the declaration digest
+covered membership but omitted the architectural/detail classification, so
+removing a concept marker did not change it. It also read the current worktree
+rather than a stable historical M3 snapshot (`BR-26`, `BR-27`).
+
+**Delta:** M3 paths are derived only from `0c40a8d1..7ff7d8c4`, and every parsed
+byte comes from the pinned `7ff7d8c4` Git object. Each declaration digest key
+now includes `architectural` or `detail`; deleted panel files carry `retired`.
+An exact name/path ledger is compared bidirectionally with all six architectural
+markers, and those entries must each appear at their exact Core concepts path.
+Mutation tests reject marker removal, architectural-to-detail and detail-to-
+architectural reclassification, and an added unmarked declaration
+(`ARCH-PURPOSE`).

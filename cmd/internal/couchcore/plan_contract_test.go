@@ -28,9 +28,10 @@ const (
 	issue149M5Base = "6a714336"
 	issue149M5Head = "c434016"
 	issue151M3Base = "0c40a8d1"
+	issue151M3Head = "7ff7d8c4"
 )
 
-const issue151M3DeclarationDigest = "03be4164c2fad38193a5a91dd251d0d0ea4738ddaf8af2680f8e65e5cb1561c9"
+const issue151M3DeclarationDigest = "b9f66d5e2f08d3cb632f90e40e98630c779572b935c1fe7a17e28b99cf34ca85"
 
 // issue151M3GoSources is the exhaustive net set of Go sources changed by M3.
 // The declaration digest gives every declaration a closed-set disposition:
@@ -104,6 +105,15 @@ var issue151M3GoSources = []string{
 var issue151M3DeletedGoSources = []string{
 	"cmd/internal/couchtty/panel.go",
 	"cmd/internal/couchtty/panel_test.go",
+}
+
+var issue151M3ArchitecturalDeclarations = map[string]string{
+	"ActionableThreadSummary":               "cmd/internal/couchcore/actionableinventory.go",
+	"LiveTTYObservation":                    "cmd/internal/couchcore/actionableinventory.go",
+	"NativeBindingResolver":                 "cmd/internal/couchcore/resume.go",
+	"ParkedResumeObservation":               "cmd/internal/couchcore/actionableinventory.go",
+	"ProjectActionableThreads":              "cmd/internal/couchcore/actionableinventory.go",
+	"SessionInventoryNativeBindingResolver": "cmd/internal/couchcore/resume.go",
 }
 
 // issue149M5GoSources is the exhaustive set of Go sources touched by M5. Every
@@ -880,7 +890,7 @@ func TestIssue151M3DeclarationDispositionSourceSetMatchesMilestoneDiff(t *testin
 	}
 	want := append(append([]string(nil), issue151M3GoSources...), issue151M3DeletedGoSources...)
 	sort.Strings(want)
-	command := exec.Command("git", "-C", root, "diff", "--name-only", issue151M3Base, "--", "*.go")
+	command := exec.Command("git", "-C", root, "diff", "--name-only", issue151M3Base, issue151M3Head, "--", "*.go")
 	raw, err := command.Output()
 	if err != nil {
 		t.Fatal(err)
@@ -903,54 +913,85 @@ func TestIssue151M3DeclarationDispositionSetIsClosed(t *testing.T) {
 	}
 }
 
-func TestIssue151M3UnmarkedAuthorityMutationFailsClosed(t *testing.T) {
+func TestIssue151M3DeclarationDispositionMutationsFailClosed(t *testing.T) {
 	root := filepath.Clean(filepath.Join("..", "..", ".."))
 	path := "cmd/internal/couchcore/actionableinventory.go"
-	raw, err := os.ReadFile(filepath.Join(root, path))
+	raw, err := issue151M3SourceAtHead(root, path)
 	if err != nil {
 		t.Fatal(err)
 	}
-	mutated := append(append([]byte(nil), raw...), []byte("\n// intentionally unmarked review mutation\ntype ReviewAddedM3Authority struct{}\n")...)
-	got, err := issue151M3SourceDeclarationDigest(root, map[string][]byte{path: mutated})
-	if err != nil {
-		t.Fatal(err)
+	mutations := map[string][]byte{
+		"add unmarked declaration": append(append([]byte(nil), raw...), []byte("\n// intentionally unmarked review mutation\ntype ReviewAddedM3Authority struct{}\n")...),
+		"architectural to detail":  []byte(strings.Replace(string(raw), "// pair:m3-concept ParkedResumeObservation\n", "", 1)),
+		"detail to architectural":  []byte(strings.Replace(string(raw), "type ActionableThreadState string", "// pair:m3-concept ActionableThreadState\ntype ActionableThreadState string", 1)),
 	}
-	if got == issue151M3DeclarationDigest {
-		t.Fatal("an unmarked M3 authority left the closed declaration disposition unchanged")
+	for name, mutated := range mutations {
+		t.Run(name, func(t *testing.T) {
+			got, digestErr := issue151M3SourceDeclarationDigest(root, map[string][]byte{path: mutated})
+			if digestErr == nil && got == issue151M3DeclarationDigest {
+				t.Fatal("classification mutation left the closed declaration disposition unchanged")
+			}
+		})
 	}
 }
 
 func issue151M3SourceDeclarationDigest(root string, override map[string][]byte) (string, error) {
 	keys := make([]string, 0, len(issue151M3GoSources)+len(issue151M3DeletedGoSources))
+	foundArchitectural := make(map[string]string, len(issue151M3ArchitecturalDeclarations))
 	for _, rel := range issue151M3GoSources {
 		raw, ok := override[rel]
 		if !ok {
 			var err error
-			raw, err = os.ReadFile(filepath.Join(root, rel))
+			raw, err = issue151M3SourceAtHead(root, rel)
 			if err != nil {
 				return "", fmt.Errorf("read M3 disposition source %s: %w", rel, err)
 			}
 		}
-		file, err := parser.ParseFile(token.NewFileSet(), rel, raw, 0)
+		file, err := parser.ParseFile(token.NewFileSet(), rel, raw, parser.ParseComments)
 		if err != nil {
 			return "", fmt.Errorf("parse M3 disposition source %s: %w", rel, err)
 		}
 		for _, decl := range file.Decls {
 			switch typed := decl.(type) {
 			case *ast.FuncDecl:
+				disposition, err := issue151M3Disposition(typed.Name.Name, typed.Doc)
+				if err != nil {
+					return "", fmt.Errorf("%s: %w", rel, err)
+				}
+				if disposition == "architectural" {
+					foundArchitectural[typed.Name.Name] = rel
+				}
 				receiver := ""
 				if typed.Recv != nil && len(typed.Recv.List) == 1 {
 					receiver = issue149ReceiverName(typed.Recv.List[0].Type)
 				}
-				keys = append(keys, rel+"|func|"+receiver+"|"+typed.Name.Name)
+				keys = append(keys, rel+"|func|"+receiver+"|"+typed.Name.Name+"|"+disposition)
 			case *ast.GenDecl:
 				for _, spec := range typed.Specs {
 					switch item := spec.(type) {
 					case *ast.TypeSpec:
-						keys = append(keys, rel+"|"+typed.Tok.String()+"|"+item.Name.Name)
+						doc := item.Doc
+						if doc == nil {
+							doc = typed.Doc
+						}
+						disposition, err := issue151M3Disposition(item.Name.Name, doc)
+						if err != nil {
+							return "", fmt.Errorf("%s: %w", rel, err)
+						}
+						if disposition == "architectural" {
+							foundArchitectural[item.Name.Name] = rel
+						}
+						keys = append(keys, rel+"|"+typed.Tok.String()+"|"+item.Name.Name+"|"+disposition)
 					case *ast.ValueSpec:
 						for _, name := range item.Names {
-							keys = append(keys, rel+"|"+typed.Tok.String()+"|"+name.Name)
+							disposition, err := issue151M3Disposition(name.Name, typed.Doc)
+							if err != nil {
+								return "", fmt.Errorf("%s: %w", rel, err)
+							}
+							if disposition == "architectural" {
+								foundArchitectural[name.Name] = rel
+							}
+							keys = append(keys, rel+"|"+typed.Tok.String()+"|"+name.Name+"|"+disposition)
 						}
 					}
 				}
@@ -960,14 +1001,66 @@ func issue151M3SourceDeclarationDigest(root string, override map[string][]byte) 
 		}
 	}
 	for _, rel := range issue151M3DeletedGoSources {
-		if _, err := os.Stat(filepath.Join(root, rel)); !errors.Is(err, os.ErrNotExist) {
-			return "", fmt.Errorf("retired M3 source %s exists or cannot be classified: %v", rel, err)
+		if _, err := issue151M3SourceAtHead(root, rel); err == nil {
+			return "", fmt.Errorf("retired M3 source %s exists at pinned head", rel)
+		} else if !isGitObjectMissing(err) {
+			return "", fmt.Errorf("inspect retired M3 source %s: %w", rel, err)
 		}
 		keys = append(keys, rel+"|retired")
+	}
+	if !equalStringMap(foundArchitectural, issue151M3ArchitecturalDeclarations) {
+		return "", fmt.Errorf("M3 architectural declarations = %v, want exact bidirectional ledger %v", foundArchitectural, issue151M3ArchitecturalDeclarations)
 	}
 	sort.Strings(keys)
 	digest := sha256.Sum256([]byte(strings.Join(keys, "\n")))
 	return fmt.Sprintf("%x", digest), nil
+}
+
+func issue151M3Disposition(name string, doc *ast.CommentGroup) (string, error) {
+	if doc == nil {
+		return "detail", nil
+	}
+	for _, line := range doc.List {
+		text := strings.TrimSpace(strings.TrimPrefix(line.Text, "//"))
+		if !strings.HasPrefix(text, "pair:m3-concept ") {
+			continue
+		}
+		marked := strings.TrimSpace(strings.TrimPrefix(text, "pair:m3-concept "))
+		if len(strings.Fields(marked)) != 1 {
+			continue
+		}
+		if marked != name {
+			return "", fmt.Errorf("declaration %s has mismatched architectural marker %q", name, marked)
+		}
+		return "architectural", nil
+	}
+	return "detail", nil
+}
+
+func issue151M3SourceAtHead(root, rel string) ([]byte, error) {
+	command := exec.Command("git", "-C", root, "show", issue151M3Head+":"+rel)
+	raw, err := command.Output()
+	if err != nil {
+		return nil, err
+	}
+	return raw, nil
+}
+
+func isGitObjectMissing(err error) bool {
+	var exitErr *exec.ExitError
+	return errors.As(err, &exitErr) && exitErr.ExitCode() != 0
+}
+
+func equalStringMap(left, right map[string]string) bool {
+	if len(left) != len(right) {
+		return false
+	}
+	for key, value := range left {
+		if right[key] != value {
+			return false
+		}
+	}
+	return true
 }
 
 func validateIssue151M3SourceConcepts(root, plan string) error {
@@ -983,49 +1076,20 @@ func validateIssue151M3SourceConcepts(root, plan string) error {
 	if strings.Contains(core, "existing test seams") {
 		return errors.New("Core concepts contains a non-resolvable source location")
 	}
-	const marker = "// pair:m3-concept "
-	err := filepath.WalkDir(filepath.Join(root, "cmd", "internal"), func(path string, entry os.DirEntry, walkErr error) error {
-		if walkErr != nil {
-			return walkErr
-		}
-		if entry.IsDir() || !strings.HasSuffix(path, ".go") || strings.HasSuffix(path, "_test.go") {
-			return nil
-		}
-		raw, err := os.ReadFile(path)
-		if err != nil {
-			return err
-		}
-		rel, err := filepath.Rel(root, path)
-		if err != nil {
-			return err
-		}
-		for _, line := range strings.Split(string(raw), "\n") {
-			line = strings.TrimSpace(line)
-			if !strings.HasPrefix(line, marker) {
-				continue
-			}
-			name := strings.TrimSpace(strings.TrimPrefix(line, marker))
-			if name == "" {
-				return fmt.Errorf("empty M3 concept marker in %s", rel)
-			}
-			if err := requireGoDeclaration(path, name); err != nil {
-				return fmt.Errorf("M3 concept %s in %s: %w", name, rel, err)
-			}
-			rowFound := false
-			for _, planLine := range strings.Split(core, "\n") {
-				if strings.HasPrefix(planLine, "| ") && strings.Contains(planLine, "`"+name+"`") && strings.Contains(planLine, "`"+filepath.ToSlash(rel)+"`") {
-					rowFound = true
-					break
-				}
-			}
-			if !rowFound {
-				return fmt.Errorf("M3 source concept %s at %s is absent from an exact Core concepts row", name, filepath.ToSlash(rel))
-			}
-		}
-		return nil
-	})
-	if err != nil {
+	if _, err := issue151M3SourceDeclarationDigest(root, nil); err != nil {
 		return err
+	}
+	for name, rel := range issue151M3ArchitecturalDeclarations {
+		rowFound := false
+		for _, planLine := range strings.Split(core, "\n") {
+			if strings.HasPrefix(planLine, "| ") && strings.Contains(planLine, "`"+name+"`") && strings.Contains(planLine, "`"+rel+"`") {
+				rowFound = true
+				break
+			}
+		}
+		if !rowFound {
+			return fmt.Errorf("M3 architectural declaration %s at %s is absent from an exact Core concepts row", name, rel)
+		}
 	}
 	return nil
 }

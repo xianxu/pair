@@ -394,6 +394,43 @@ rounds:
           round: 17
       boundary: M3
       blocked: true
+    - "n": 18
+      timestamp: "2026-08-31T16:44:11-07:00"
+      agent: codex
+      dispose:
+        - id: BR-21
+          disposition: addressed
+          note: The shared generation-qualified projection policy and reachable Console regression remain present and pass.
+          round: 18
+        - id: BR-22
+          disposition: addressed
+          note: The flat-panel production authority and tests remain deleted, with executable retirement checks.
+          round: 18
+        - id: BR-23
+          disposition: addressed
+          note: The performance harness continues to drive the running Console and correlate semantic input with emitted frames.
+          round: 18
+        - id: BR-24
+          disposition: addressed
+          note: The complete M3 checklist state is pinned by a mutation test that rejects delivered work being unchecked.
+          round: 18
+        - id: BR-25
+          disposition: addressed
+          note: Boundary headings and README root-Escape behavior match the reducer and remain covered by drift tests.
+          round: 18
+        - id: BR-26
+          disposition: not-addressed
+          note: The digest inventories declaration names but omits their architectural/detail disposition; removing a concept marker leaves the digest unchanged and the marker validator accepts any remaining count, so source classification can contradict the plan without failing.
+          round: 18
+      findings:
+        - id: BR-27
+          severity: Important
+          title: The M3 declaration oracle reads an unpinned diff and mutable worktree bytes
+          detail: The source-set test runs git diff from the M2 base to the repository's current HEAD, while the digest parses current filesystem files. Any later Go change will rewrite this supposedly historical M3 boundary or fail unrelated CI. Pin both paths and bytes to the supplied M3 head object.
+          family: historical-boundary-oracle-pinning
+          round: 18
+      boundary: M3
+      blocked: true
 ---
 
 # Gate ledger — pair#151 (boundary-review)
@@ -596,6 +633,23 @@ later rounds disposed of them. Generated — edit the gate, not this file.
 
 - BR-26 — not-addressed — This is the 6th finding in family `documentation-current-state-accuracy`: the known rows are fixed, but an unmarked architectural declaration still passes because the source-derived contract scans only opt-in markers and hardcodes six concepts.
 
+## Round 18 — 2026-08-31T16:44:11-07:00 (codex) — BLOCKED
+
+### Disposed
+
+- BR-21 — addressed — The shared generation-qualified projection policy and reachable Console regression remain present and pass.
+- BR-22 — addressed — The flat-panel production authority and tests remain deleted, with executable retirement checks.
+- BR-23 — addressed — The performance harness continues to drive the running Console and correlate semantic input with emitted frames.
+- BR-24 — addressed — The complete M3 checklist state is pinned by a mutation test that rejects delivered work being unchecked.
+- BR-25 — addressed — Boundary headings and README root-Escape behavior match the reducer and remain covered by drift tests.
+- BR-26 — not-addressed — The digest inventories declaration names but omits their architectural/detail disposition; removing a concept marker leaves the digest unchanged and the marker validator accepts any remaining count, so source classification can contradict the plan without failing.
+
+### Raised
+
+- **BR-27** [Important] `historical-boundary-oracle-pinning` The M3 declaration oracle reads an unpinned diff and mutable worktree bytes
+  The source-set test runs git diff from the M2 base to the repository's current HEAD, while the digest parses current filesystem files. Any later Go change will rewrite this supposedly historical M3 boundary or fail unrelated CI. Pin both paths and bytes to the supplied M3 head object.
+
 ## Open findings
 
 - **BR-26** [Critical] `documentation-current-state-accuracy` Core concepts inventory still omits delivered parked-resume proof authority
+- **BR-27** [Important] `historical-boundary-oracle-pinning` The M3 declaration oracle reads an unpinned diff and mutable worktree bytes

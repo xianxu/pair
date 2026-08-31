@@ -2720,3 +2720,7 @@ that a key token appears cannot detect a contradictory behavioral sentence
   markers alone. Pin the complete milestone source and declaration set first;
   only then classify each declaration as architectural, detail, or retired, so
   both a new unmarked authority and a new source fail closed (`ARCH-PURPOSE`).
+- A declaration ledger must hash the disposition as well as the declaration;
+  otherwise removing a concept marker silently changes architecture into
+  detail. Historical boundary contracts must also read both their path set and
+  bytes from pinned Git objects, never the moving worktree (`ARCH-PURPOSE`).
