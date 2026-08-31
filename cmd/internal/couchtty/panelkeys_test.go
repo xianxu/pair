@@ -109,7 +109,7 @@ func TestDecodeCarriesAPartialSequence(t *testing.T) {
 }
 
 func FuzzDecodePanelKeys(f *testing.F) {
-	for _, s := range []string{"", "\x1b", "\x1b[A", "\x1b[<0;1;1M", "abc", "\x1b[", "\x7f\r\n"} {
+	for _, s := range []string{"", "\x1b", "\x1b[A", "\x1b[<0;1;1M", "abc", "\x1b[", "\x7f\r\n", "\t", "\x1b[9u", "\x1b[9;5u"} {
 		f.Add([]byte(s))
 	}
 	f.Fuzz(func(t *testing.T, in []byte) {
@@ -196,5 +196,31 @@ func TestDecodeDoesNotTypeControlCodepoints(t *testing.T) {
 		if k.Kind == KeyRune {
 			t.Fatalf("a modified key was typed as the rune %q", k.Rune)
 		}
+	}
+}
+
+func TestDecodePanelKeysTabAcrossEverySplit(t *testing.T) {
+	for _, sequence := range []string{"\t", "\x1b[9u"} {
+		for split := 0; split <= len(sequence); split++ {
+			keys, held := DecodePanelKeys([]byte(sequence[:split]))
+			keys2, held2 := DecodePanelKeys(append(held, []byte(sequence[split:])...))
+			keys = append(keys, keys2...)
+			if len(held2) != 0 || len(keys) != 1 || keys[0].Kind != KeyTab {
+				t.Fatalf("sequence %q split %d = keys %+v held %q", sequence, split, keys, held2)
+			}
+		}
+	}
+}
+
+func TestDecodePanelKeysTabRejectsModifiedCSIu(t *testing.T) {
+	keys, held := DecodePanelKeys([]byte("\x1b[9;5u"))
+	if len(keys) != 0 || len(held) != 0 {
+		t.Fatalf("modified Tab became input: keys=%+v held=%q", keys, held)
+	}
+}
+
+func TestDecodePanelKeysTabHasFailSafeZeroKind(t *testing.T) {
+	if PanelKeyKind(0) != KeyUnknown || KeyRune == KeyUnknown {
+		t.Fatalf("zero kind authorizes input: unknown=%v rune=%v", KeyUnknown, KeyRune)
 	}
 }

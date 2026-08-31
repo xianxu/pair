@@ -500,3 +500,11 @@ tests pin terminal-column clipping, control-sequence stripping, live versus
 parked age text, three age bands, optional grayscale, 100-row viewports, and a
 wide two-frame boundary whose separator previously exceeded the declared width
 (ARCH-PURE, ARCH-CONSTRAINTS).
+
+### 2026-08-30 — M2 semantic Tab framing
+
+The shared terminal decoder now maps legacy HT and unmodified Kitty CSI-u Tab
+to one semantic key across every input split, drops modified CSI-u Tab, and
+reserves the zero key kind as unknown. The decoder fuzz corpus carries all
+three forms so framing changes cannot leak escape bytes into filter text
+(ARCH-DRY, ARCH-PURE).

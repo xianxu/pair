@@ -498,29 +498,29 @@ git commit -m "#151 M2: render bounded menu frames"
 - Modify: `cmd/internal/couchtty/panelkeys.go`
 - Modify: `cmd/internal/couchtty/panelkeys_test.go`
 
-- [ ] **Step 1: Write failing decoder tests**
+- [x] **Step 1: Write failing decoder tests**
 
 Apply the seeded `DecodePanelKeys` framing/fuzz strategy to legacy HT and
 unmodified Kitty CSI-u Tab encodings.
 
-- [ ] **Step 2: Run decoder tests and verify RED**
+- [x] **Step 2: Run decoder tests and verify RED**
 
 Run: `go test -p 20 ./cmd/internal/couchtty -run 'TestDecode.*Tab' -count=1`
 
 Expected: FAIL because Tab is currently ignored.
 
-- [ ] **Step 3: Implement semantic Tab decoding**
+- [x] **Step 3: Implement semantic Tab decoding**
 
 Map only the two approved encodings to the semantic Tab key while preserving
 partial framing and fail-safe dropping.
 
-- [ ] **Step 4: Run decoder tests and verify GREEN**
+- [x] **Step 4: Run decoder tests and verify GREEN**
 
 Run: `go test -p 20 ./cmd/internal/couchtty -run 'TestDecode' -count=1`
 
 Expected: PASS.
 
-- [ ] **Step 5: Commit Task 7**
+- [x] **Step 5: Commit Task 7**
 
 ```bash
 git add cmd/internal/couchtty/panelkeys.go cmd/internal/couchtty/panelkeys_test.go

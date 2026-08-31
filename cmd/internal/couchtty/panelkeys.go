@@ -12,7 +12,8 @@ import (
 type PanelKeyKind uint8
 
 const (
-	KeyRune PanelKeyKind = iota
+	KeyUnknown PanelKeyKind = iota
+	KeyRune
 	KeyUp
 	KeyDown
 	KeyEnter
@@ -92,6 +93,8 @@ func DecodePanelKeys(in []byte) (keys []PanelKey, held []byte) {
 		switch {
 		case b == '\r' || b == '\n':
 			keys = append(keys, PanelKey{Kind: KeyEnter})
+		case b == '\t':
+			keys = append(keys, PanelKey{Kind: KeyTab})
 		case b == 0x7f || b == 0x08:
 			keys = append(keys, PanelKey{Kind: KeyBackspace})
 		case b >= 0x20 && b < 0x7f:
@@ -192,6 +195,10 @@ func decodeCSIu(seq []byte) (PanelKey, bool) {
 		return PanelKey{Kind: KeyEnter}, true
 	case 127, 8:
 		return PanelKey{Kind: KeyBackspace}, true
+	case 9:
+		if !modified {
+			return PanelKey{Kind: KeyTab}, true
+		}
 	}
 	if r := rune(n); !modified && utf8.ValidRune(r) && unicode.IsPrint(r) {
 		return PanelKey{Kind: KeyRune, Rune: r}, true
