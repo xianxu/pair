@@ -364,7 +364,7 @@
 - Modify: `cmd/internal/couchtty/notice.go`
 - Modify: `cmd/internal/couchtty/notice_test.go`
 
-- [ ] **Step 1: Write failing pure ledger transition tests**
+- [x] **Step 1: Write failing pure ledger transition tests**
 
   | Function | Adversarial strategy and mechanical guard |
   |----------|-------------------------------------------|
@@ -372,17 +372,17 @@
   | `AttentionLedger.Capture` / `Acknowledge` / `Cancel` | Permute dispatch, rebase, later arrival/deduplication, success, and failure; only identities present at capture are clearable. |
   | `AttentionLedger.DropActor` / `Projection` / `NewestActor` | Mutate actor lifecycles and caller-owned projections; removed/fresh actors expose no stale or aliased state. |
 
-- [ ] **Step 2: Run ledger tests and verify they fail**
+- [x] **Step 2: Run ledger tests and verify they fail**
 
   Run: `go test -p 20 ./cmd/internal/couchtty -run 'TestAttentionLedger' -count=1`
 
   Expected: FAIL because the ledger does not exist.
 
-- [ ] **Step 3: Implement the pure ledger with immutable projections**
+- [x] **Step 3: Implement the pure ledger with immutable projections**
 
   Implement the named pure transitions with `couchcore.ThreadAddress` identity, owned projections, three messages per actor, and message-less legacy BEL compatibility.
 
-- [ ] **Step 4: Write failing deterministic Console integration and race tests**
+- [x] **Step 4: Write failing deterministic Console integration and race tests**
 
   | Function | Adversarial strategy and mechanical guard |
   |----------|-------------------------------------------|
@@ -393,7 +393,7 @@
 
   Expected: FAIL because Console still owns parallel bell state and does not route typed notification parts.
 
-- [ ] **Step 5: Replace parallel bell authority, capture the switch watermark, and pass integration tests**
+- [x] **Step 5: Replace parallel bell authority, capture the switch watermark, and pass integration tests**
 
   Replace `pane.bell`, `MenuState.Bells`, and `MenuEventBell` with the sole Console-owned ledger, wiring the named capture/acknowledge/cancel/drop transitions at existing operation and lifecycle boundaries.
 
@@ -401,13 +401,13 @@
 
   Expected: PASS.
 
-- [ ] **Step 6: Run ledger and menu reducer suites together**
+- [x] **Step 6: Run ledger and menu reducer suites together**
 
   Run: `go test -p 20 ./cmd/internal/couchtty -run 'Test(AttentionLedger|Menu|ConsoleMenuOperation)' -count=1`
 
   Expected: PASS with no `Bells` or `pane.bell` authority remaining (`rg -n 'Bells|\.bell' cmd/internal/couchtty` finds only intentional terminal-bell compatibility test prose, if any).
 
-- [ ] **Step 7: Commit attention ownership**
+- [x] **Step 7: Commit attention ownership**
 
   Run:
 

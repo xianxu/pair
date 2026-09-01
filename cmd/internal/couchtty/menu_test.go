@@ -133,33 +133,18 @@ func TestReduceMenuActionUsesExistingNameOperation(t *testing.T) {
 	}
 }
 
-func TestReduceMenuBellCommitsOnlyAfterSuccessfulSwitch(t *testing.T) {
+func TestReduceMenuAttentionProjectionIsImmutableByCopy(t *testing.T) {
 	threads := menuThreads()
 	threads[1].State = couchcore.ThreadLive
 	state := NewMenuState(threads, menuAddress("couch-one"))
+	state.Attention = map[couchcore.ThreadAddress][]AttentionMessage{
+		menuAddress("couch-two"): {{Sequence: 1, Text: "ready"}},
+	}
 	original := state
-	state, _ = ReduceMenu(state, MenuEvent{Kind: MenuEventBell, Address: menuAddress("couch-two"), Bell: true})
 	state, _ = reduceKey(state, PanelKey{Kind: KeyDown})
-	if !state.Bells[menuAddress("couch-two")] || original.Bells[menuAddress("couch-two")] {
-		t.Fatalf("bell ownership aliased: original=%v next=%v", original.Bells, state.Bells)
-	}
-	state, effects := reduceKey(state, PanelKey{Kind: KeyEnter})
-	if !state.Bells[menuAddress("couch-two")] || len(effects) != 1 || effects[0].Operation != "switch" {
-		t.Fatalf("switch dispatch changed bell: state=%+v effects=%+v", state, effects)
-	}
-
-	failed, _ := ReduceMenu(state, correlatedMenuResult(state, MenuEvent{
-		Operation: "switch", Address: menuAddress("couch-two"), Error: "focus failed",
-	}))
-	if !failed.Bells[menuAddress("couch-two")] || failed.Notice.Text != "focus failed" {
-		t.Fatalf("failed switch lost bell: %+v", failed)
-	}
-
-	succeeded, _ := ReduceMenu(state, correlatedMenuResult(state, MenuEvent{
-		Operation: "switch", Address: menuAddress("couch-two"), Success: true,
-	}))
-	if succeeded.Bells[menuAddress("couch-two")] {
-		t.Fatalf("successful switch retained bell: %+v", succeeded)
+	state.Attention[menuAddress("couch-two")][0].Text = "mutated"
+	if got := original.Attention[menuAddress("couch-two")][0].Text; got != "ready" {
+		t.Fatalf("attention projection aliased: %q", got)
 	}
 }
 

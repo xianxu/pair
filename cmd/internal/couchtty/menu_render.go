@@ -266,7 +266,7 @@ func renderRootMenuFrame(state MenuState, frame MenuFrame, width, height int, no
 			stateText = "parked · " + relativeMenuAge(now, thread.LastActiveAt)
 		}
 		suffix := "  " + stateText
-		if state.Bells[thread.Address] {
+		if len(state.Attention[thread.Address]) > 0 {
 			suffix += " *"
 		}
 		prefixWidth := width - textwidth.Width(suffix)

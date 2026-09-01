@@ -92,6 +92,90 @@ func TestCrossActorNotificationDeferral(t *testing.T) {
 	}
 }
 
+func TestConsoleInactiveNotificationCreatesAttentionAndFocusedDoesNot(t *testing.T) {
+	con, _ := notificationConsole(t)
+	var screen ptychild.Screen
+	inactive := observedBatch(&screen, notifyosc.Encode("review ready"))
+	con.onChunk(chunk{id: "c2", batch: inactive, focusedAtDelivery: false})
+	con.mu.Lock()
+	c2 := con.panes["c2"].thread
+	got := attentionTexts(con.attention.Projection(c2))
+	con.mu.Unlock()
+	if len(got) != 1 || got[0] != "review ready" {
+		t.Fatalf("inactive attention = %v", got)
+	}
+
+	con.mu.Lock()
+	con.attention.Acknowledge(con.attention.Capture(c2))
+	con.syncAttentionLocked()
+	con.mu.Unlock()
+	con.switchTo("c2", false)
+	var focusedScreen ptychild.Screen
+	con.onChunk(chunk{id: "c2", batch: observedBatch(&focusedScreen, notifyosc.Encode("already seen")), focusedAtDelivery: true})
+	con.mu.Lock()
+	got = attentionTexts(con.attention.Projection(c2))
+	con.mu.Unlock()
+	if len(got) != 0 {
+		t.Fatalf("focused notification became unread: %v", got)
+	}
+}
+
+func TestSwitchAttentionAcknowledgesCapturedMessagesOnlyOnSuccess(t *testing.T) {
+	con, _ := notificationConsole(t)
+	con.mu.Lock()
+	address := con.panes["c2"].thread
+	con.attention.Mark(address, "captured")
+	capture := con.attention.Capture(address)
+	con.attention.Mark(address, "later")
+	con.mu.Unlock()
+
+	origin := MenuOperationOrigin{Operation: "switch", Attempt: 1, Address: address, AttentionCapture: capture}
+	con.finishOperation(operationCompletion{origin: origin, err: errOperationQueueOverloaded})
+	con.mu.Lock()
+	got := attentionTexts(con.attention.Projection(address))
+	retry := con.attention.Capture(address)
+	con.mu.Unlock()
+	if len(got) != 2 {
+		t.Fatalf("failed switch cleared attention: %v", got)
+	}
+
+	origin.AttentionCapture = retry
+	con.finishOperation(operationCompletion{origin: origin})
+	con.mu.Lock()
+	got = attentionTexts(con.attention.Projection(address))
+	con.mu.Unlock()
+	if len(got) != 0 {
+		t.Fatalf("successful switch retained captured attention: %v", got)
+	}
+}
+
+func TestExpectedParkExitDropsOnlyExitedActorAttention(t *testing.T) {
+	con, _ := notificationConsole(t)
+	con.mu.Lock()
+	one := con.panes["c1"].thread
+	two := con.panes["c2"].thread
+	con.attention.Mark(one, "gone")
+	con.attention.Mark(two, "kept")
+	con.expectedExits["c1"] = true
+	con.mu.Unlock()
+	con.onExit(childExit{id: "c1", code: 0})
+	if got := con.attention.Projection(one); len(got) != 0 {
+		t.Fatalf("exited actor attention remains: %+v", got)
+	}
+	if got := attentionTexts(con.attention.Projection(two)); len(got) != 1 || got[0] != "kept" {
+		t.Fatalf("other actor attention changed: %v", got)
+	}
+}
+
+func TestAttentionHandlingStartsNoAuxiliaryWork(t *testing.T) {
+	con, _ := notificationConsole(t)
+	var screen ptychild.Screen
+	con.onChunk(chunk{id: "c2", batch: observedBatch(&screen, notifyosc.Encode("ready"))})
+	if len(con.refreshRequests) != 0 || len(con.operationQueue.requests) != 0 {
+		t.Fatalf("attention started auxiliary work: refresh=%d operations=%d", len(con.refreshRequests), len(con.operationQueue.requests))
+	}
+}
+
 func stringsContains(haystack, needle string) bool {
 	return bytes.Contains([]byte(haystack), []byte(needle))
 }

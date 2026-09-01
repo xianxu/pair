@@ -37,11 +37,6 @@ type pane struct {
 	desc    string
 	child   *ptychild.Child
 
-	// bell is sticky until the operator looks at this actor. The row's job is
-	// to say who wants attention, so a signal that cleared itself on the next
-	// repaint would be invisible in practice.
-	bell bool
-
 	// rowDirty is the same shape for the reserved row: an INACTIVE pane's
 	// erase or margin reset is real, it just cannot be acted on yet. The first
 	// version consumed the child's latch for every pane and acted on it only
@@ -89,10 +84,11 @@ type Console struct {
 	// Ops dispatches an operator action. Injected so the console never learns
 	// what an operation IS -- it names one and couchcore runs it, which is
 	// what keeps the panel from growing a private verb (#148's design test).
-	ops    func(couchcore.OperationCall) (any, error)
-	forget func(couchcore.Worktree, couchcore.ActorID) error
-	feed   *Feed
-	size   ptychild.Size
+	ops       func(couchcore.OperationCall) (any, error)
+	forget    func(couchcore.Worktree, couchcore.ActorID) error
+	feed      *Feed
+	attention AttentionLedger
+	size      ptychild.Size
 	// expectedExits are exact child handles whose successful Park already
 	// authorized shutdown. They bridge the race between the child-exit channel
 	// and the asynchronous operation-completion channel.
@@ -400,9 +396,6 @@ func (c *Console) switchTo(id string, force bool) {
 		c.active = id
 		c.focus = FocusActor(id)
 		c.menu.ActiveAddress = p.thread
-		// Landing on an actor is looking at it: whatever it wanted is now the
-		// operator's problem rather than a pending flag.
-		p.bell = false
 		p.rowDirty = false
 	}
 	c.mu.Unlock()
@@ -674,6 +667,8 @@ func (c *Console) onExit(event childExit) bool {
 	panelFocused := c.focus.IsPanel()
 	wasActive := c.active == event.id
 	delete(c.panes, event.id)
+	c.attention.DropActor(p.thread)
+	c.syncAttentionLocked()
 	for i, id := range c.order {
 		if id == event.id {
 			c.order = append(c.order[:i:i], c.order[i+1:]...)
@@ -840,12 +835,22 @@ func (c *Console) paintNow() {
 		model.Actors = append(model.Actors, StatusActor{
 			Label:  p.label,
 			Active: id == c.active,
-			Bell:   p.bell,
+			Bell:   len(c.attention.Projection(p.thread)) > 0,
 		})
 	}
 	c.mu.Unlock()
 
 	c.writeOwn(Reserve(rows) + PaintRow(rows, RenderStatusRow(cols, model)))
+}
+
+func (c *Console) syncAttentionLocked() {
+	projection := make(map[couchcore.ThreadAddress][]AttentionMessage)
+	for _, p := range c.panes {
+		if messages := c.attention.Projection(p.thread); len(messages) > 0 {
+			projection[p.thread] = messages
+		}
+	}
+	c.menu.Attention = projection
 }
 
 // onChunk routes one child write.
@@ -873,6 +878,7 @@ func (c *Console) onChunk(ch chunk) {
 	if len(parts) == 0 && len(ch.batch.Raw) > 0 && ch.batch.RingEnd == 0 && ch.batch.ReplaySafeEnd == 0 {
 		parts = []ptychild.OutputPart{{Bytes: ch.batch.Raw}}
 	}
+	attentionChanged := false
 	for i, part := range parts {
 		if len(part.Bytes) > 0 && isActive {
 			c.writeChild(part.Bytes)
@@ -890,8 +896,15 @@ func (c *Console) onChunk(ch chunk) {
 				return
 			}
 			// Pair's envelope is still valid outer-terminal OSC. Couch observes
-			// it but does not swallow it; Task 4 consumes its semantic message.
+			// it but does not swallow it.
 			c.writeChild(part.Notification.Raw)
+			if !ch.focusedAtDelivery {
+				c.mu.Lock()
+				c.attention.Mark(p.thread, part.Notification.Message)
+				c.syncAttentionLocked()
+				c.mu.Unlock()
+				attentionChanged = true
+			}
 		}
 	}
 	c.mu.Lock()
@@ -908,11 +921,10 @@ func (c *Console) onChunk(ch chunk) {
 		c.paintNow()
 	}
 	c.flushDeferredNotifications()
-	// Derived state is consumed whether or not the child is on screen: an
-	// inactive child that rings still has something to say.
-	// The child's latch is per-chunk, so it is consumed for every pane -- but
-	// KEPT on the pane, so an inactive child's damage survives until the
-	// operator lands on it.
+	if attentionChanged {
+		c.repaint()
+	}
+	// Derived state is consumed whether or not the child is on screen.
 	if ch.batch.RowDirty {
 		c.mu.Lock()
 		p.rowDirty = true
@@ -922,8 +934,8 @@ func (c *Console) onChunk(ch chunk) {
 		c.mu.Lock()
 		// An actor the operator is already looking at is not "wanting" them.
 		if !isActive {
-			p.bell = true
-			c.feed.Push(BellNotice(p.actorID, p.label))
+			c.attention.Mark(p.thread, "")
+			c.syncAttentionLocked()
 		}
 		c.mu.Unlock()
 		c.repaint()
@@ -1054,6 +1066,13 @@ func (c *Console) onHotkey() {
 		c.showMenu()
 		return
 	}
+	c.mu.Lock()
+	if p := c.panes[next.Actor()]; p != nil {
+		capture := c.attention.Capture(p.thread)
+		c.attention.Acknowledge(capture)
+		c.syncAttentionLocked()
+	}
+	c.mu.Unlock()
 	c.onSwitch(next.Actor())
 }
 
@@ -1092,6 +1111,10 @@ func (c *Console) runMenuOperation(effect MenuEffect) {
 	c.mu.Lock()
 	fn := c.ops
 	origin := c.menu.InFlight
+	if origin.Operation == "switch" && origin.AttentionCapture == 0 {
+		origin.AttentionCapture = c.attention.Capture(origin.Address)
+		c.menu.InFlight.AttentionCapture = origin.AttentionCapture
+	}
 	c.mu.Unlock()
 	if fn == nil {
 		c.finishOperation(operationCompletion{
@@ -1149,6 +1172,14 @@ func (c *Console) finishOperation(completed operationCompletion) bool {
 		event.Error = err.Error()
 	}
 	c.mu.Lock()
+	if completed.origin.Operation == "switch" {
+		if event.Success {
+			c.attention.Acknowledge(completed.origin.AttentionCapture)
+		} else {
+			c.attention.Cancel(completed.origin.AttentionCapture)
+		}
+		c.syncAttentionLocked()
+	}
 	if event.Success && operationNeedsProjectionRefresh(event.Operation) {
 		event.ProjectionAfterGeneration = c.refreshSchedule.Sequence
 	}

@@ -246,7 +246,7 @@ OSC bytes and Couch-local attention state.
 ## Plan
 
 - [x] Write and approve the implementation plan.
-- [ ] Normalize Pair notification emission and add chunk-safe Couch observation.
+- [x] Normalize Pair notification emission and add chunk-safe Couch observation.
 - [ ] Add bounded per-actor inbox state plus status/switcher presentation.
 - [ ] Verify byte-faithful forwarding, acknowledgement races, and operating
       bounds through pure, integration, conformance, and performance tests.
@@ -303,6 +303,15 @@ Focused tests pass across every candidate split, takeover, replay cut, nested
 OSC payload, and cross-actor deferral. The sustained malformed-stream benchmark
 measured 119.31 MiB/s on the operator's M2 Max (`ARCH-PURPOSE`,
 `ARCH-CONSTRAINTS`).
+
+The pure `AttentionLedger` is now the only unread authority. It retains three
+deduplicated messages per thread, owns dispatch-time acknowledgement captures,
+rebases records and in-flight captures together at sequence overflow, and
+drops state with actor teardown. Console uses delivery-time focus for semantic
+consumption and processing-time focus for raw bytes; successful switches clear
+only captured identities, failures preserve them, and later arrivals survive.
+The former pane/menu bell maps and bell status notices are removed
+(`ARCH-PURE`, `ARCH-DRY`).
 
 ## Revisions
 

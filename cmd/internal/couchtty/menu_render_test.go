@@ -196,7 +196,9 @@ func TestRenderMenuProtectsStateAgeAndBellSuffixAtMinimumWidth(t *testing.T) {
 		{Address: menuAddress("parked"), Name: long, WorkingPath: "/" + long, State: couchcore.ThreadParked, LastActiveAt: now.Add(-2 * 24 * time.Hour)},
 	}
 	state := NewMenuState(threads, threads[0].Address)
-	state.Bells = map[couchcore.ThreadAddress]bool{threads[0].Address: true, threads[1].Address: true}
+	state.Attention = map[couchcore.ThreadAddress][]AttentionMessage{
+		threads[0].Address: {{Sequence: 1}}, threads[1].Address: {{Sequence: 2}},
+	}
 	plain := string(ansi.Strip([]byte(RenderMenu(state, 40, 10, now, false))))
 	lines := strings.Split(plain, "\r\n")
 	if len(lines) < 4 || !strings.HasSuffix(lines[2], "live *") || !strings.HasSuffix(lines[3], "parked · 2d ago *") {
