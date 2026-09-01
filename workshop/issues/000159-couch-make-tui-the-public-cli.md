@@ -141,6 +141,12 @@ accepted token only, makes terminal/process teardown explicit and bounded, and
 enforces a repository-wide current-source shadow sweep for obsolete argv
 (`ARCH-PURPOSE`, `ARCH-CONSTRAINTS`).
 
+The first SDLC plan-quality round raised two Important findings. The plan now
+expresses verification as named-function adversarial strategies rather than
+prose test inventories/diff choreography, and states explicit non-goals with
+rationale. This keeps the plan executable without duplicating the tests or code
+it will produce (`ARCH-PURE`, `ARCH-PURPOSE`).
+
 ## Revisions
 
 ### 2026-09-01T09:18:00-07:00 — close the argv and operation projections

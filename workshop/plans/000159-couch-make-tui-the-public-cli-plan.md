@@ -60,6 +60,21 @@ Pure tests in `cli_test.go` and `ops_declarations_test.go` use no filesystem, su
 
 Runtime constraints: `ParseCLI` is O(argv bytes), performs no IO, and allocates only invocation/error data. Launch performs existing work only after terminal validation; diagnostics do not acquire the live-owner lease. Tests never exceed `go test -p 20` (`ARCH-CONSTRAINTS`).
 
+### Non-goals
+
+- **No compatibility aliases:** the repository is still developing, and keeping
+  `couch start` or lifecycle argv would preserve the command-suite model this
+  issue removes.
+- **No second executable:** `couch-internal` would add packaging and installation
+  surface for one Pair-owned hook.
+- **No generalized internal protocol:** only `publish-description` currently
+  crosses a process boundary; future operations must justify widening the
+  registry presentation explicitly.
+- **No owner-routing transport:** TUI operations already execute inside the live
+  owner; cross-process routing remains separate #147 scope.
+- **No packaging/distribution validation:** this issue proves the compiled Couch
+  entrypoint with production seams, not Homebrew or release installation.
+
 ## Chunk 1: Closed CLI projection and migration
 
 ### Task 0: Pin the installed bare-command regression before implementation
@@ -122,29 +137,17 @@ must be included in Task 3's green commit, not bypassed or skipped.
 - Modify: `cmd/internal/couchtty/menu_async_test.go`
 - Modify: `cmd/internal/couchtty/console_menu_operation_test.go`
 
-- [ ] **Step 1: Write the failing exhaustive projection test**
+- [ ] **Step 1: Write failing registry-projection tests**
 
-Add an independent expected table covering all thirteen operations:
-
-```go
-want := map[string]couchcore.OperationPresentation{
-    "list": couchcore.PresentationPublicList,
-    "show": couchcore.PresentationPublicShow,
-    "publish-description": couchcore.PresentationInternal,
-    "prepare-start": couchcore.PresentationTUI,
-    "start": couchcore.PresentationTUI,
-    "stop": couchcore.PresentationTUI,
-    "name": couchcore.PresentationTUI,
-    "describe": couchcore.PresentationTUI,
-    "switch": couchcore.PresentationTUI,
-    "attach": couchcore.PresentationTUI,
-    "park": couchcore.PresentationTUI,
-    "leave": couchcore.PresentationTUI,
-    "resume": couchcore.PresentationTUI,
-}
-```
-
-Assert exact key-set equality, nonzero presentation, and exactly one internal operation. Update the independent `start` arity expectation from four arguments to its owner-local `token` only; launch path belongs to `prepare-start`, while `--agent` and `--no-console` are removed. Replace `operationdispatch_test.go`'s stale `start{path,agent}` empty-agent case with the remaining value-required `prepare-start{agent:""}` case, and add a rejection proving `start` refuses undeclared `path`/`agent` arguments before its executor.
+`Operations` presentation closure → an independent expectation asserts
+`list/show/publish-description` have their exact exceptional presentations,
+every other declared operation is TUI-only, no declaration is unclassified,
+and no extra declaration escapes the assertion. `DispatchOperation(start)`
+schema narrowing → adversarial legacy path/agent arguments are rejected before
+the executor, while value-required validation remains pinned on
+`prepare-start.agent`. `startMenuEffect` accepted-preview handoff → stateful
+menu/console tests prove path/agent enter prepare and only the token enters
+start.
 
 - [ ] **Step 2: Run the focused test and observe RED**
 
@@ -154,9 +157,12 @@ go test -p 20 ./cmd/internal/couchcore -run 'Test(OperationDeclarations|Operatio
 
 Expected: FAIL because `OperationPresentation` and the field do not exist.
 
-- [ ] **Step 3: Add the enum and classify every declaration**
+- [ ] **Step 3: Implement the minimal registry and token-only handoff**
 
-Add a non-authorizing zero value plus `PresentationTUI`, `PresentationPublicList`, `PresentationPublicShow`, and `PresentationInternal`. Put `Presentation OperationPresentation` on `Operation`, assign every row, and remove `path`, `agent`, and `no-console` from `start.Args`; retain its implicit required token. Update `startMenuEffect` to send only the accepted preview token: path/agent were inputs to `prepare-start` and are already fingerprinted by that token. Update the async/effect/console-operation tests to prove prepare receives path/agent while start receives token only.
+Add the non-authorizing presentation enum/field and assign declarations from the
+Spec table. Narrow start to its required implicit token and make
+`startMenuEffect` forward the accepted preview token; keep path/agent ownership
+on prepare-start.
 
 - [ ] **Step 4: Run the package and observe GREEN**
 
@@ -179,15 +185,16 @@ git commit -m "#159: classify Couch operation presentation"
 - Create: `cmd/internal/couchcmd/cli.go`
 - Create: `cmd/internal/couchcmd/cli_test.go`
 
-- [ ] **Step 1: Write table-driven valid-form tests**
+- [ ] **Step 1: Write failing pure parser tests**
 
-Cover `[]`, `["/repo"]`, `["--", "--repo"]`, `--list`, `--show ref`, `--help`, `-h`, and `--internal publish-description text`, including explicit empty text. Assert exact variant and payload.
+`ParseCLI` over arbitrary argv shapes → table tests seeded from every valid Spec
+form plus malformed token classes assert exactly one closed invocation or an
+error with no partial result; fuzz the same invariant, including flag/path
+ambiguity and internal-presentation authorization. The mechanical guard is the
+closed invocation kind plus registry presentation, not duplicated operation
+names.
 
-- [ ] **Step 2: Write table-driven malformed-form tests**
-
-Cover empty path; missing/extra `--show`; combined or repeated flags; flags after a path; help mixed with another token; bare `--`; extra paths; unknown single-dash and double-dash flags; `--internal`; `--internal=...`; unknown, TUI, or public operations behind `--internal`; missing/extra internal args; and `--` within internal args. Assert error and no invocation. Pin that a dash-prefixed path succeeds only through `couch -- <path>`.
-
-- [ ] **Step 3: Run parser tests and observe RED**
+- [ ] **Step 2: Run parser tests and observe RED**
 
 ```bash
 go test -p 20 ./cmd/internal/couchcmd -run '^TestParseCLI' -count=1
@@ -195,11 +202,11 @@ go test -p 20 ./cmd/internal/couchcmd -run '^TestParseCLI' -count=1
 
 Expected: FAIL because `ParseCLI` is undefined.
 
-- [ ] **Step 4: Implement the minimal parser**
+- [ ] **Step 3: Implement the minimal parser**
 
 Use an unexported invocation-kind enum and payload struct. `ParseCLI(args, operations)` performs no IO. For `--internal`, resolve through declarations and require `PresentationInternal`; do not maintain a second whitelist. Return usage-class errors without printing help.
 
-- [ ] **Step 5: Run parser tests and observe GREEN**
+- [ ] **Step 4: Run parser tests and observe GREEN**
 
 ```bash
 go test -p 20 ./cmd/internal/couchcmd -run '^TestParseCLI' -count=1
@@ -207,7 +214,7 @@ go test -p 20 ./cmd/internal/couchcmd -run '^TestParseCLI' -count=1
 
 Expected: PASS.
 
-- [ ] **Step 6: Commit**
+- [ ] **Step 5: Commit**
 
 ```bash
 git add cmd/internal/couchcmd/cli.go cmd/internal/couchcmd/cli_test.go
@@ -220,19 +227,16 @@ git commit -m "#159: parse the Couch TUI-first CLI"
 - Modify: `cmd/internal/couchcmd/run.go`
 - Modify: `cmd/internal/couchcmd/run_test.go`
 
-- [ ] **Step 1: Replace old surface tests with failing public-contract tests**
+- [ ] **Step 1: Write failing runtime-shell strategy tests**
 
-Pin all of these behaviors:
-
-- help contains `couch [path]`, `--list`, and `--show`, but no `start`, lifecycle operation, `publish-description`, or `--internal`;
-- parser tests prove bare/path argv selects launch; the existing `consoleRunnerFor` seam proves a true terminal selects Console/PtyRunner; the previously red installed PTY smoke from Task 0 proves the composed production path reaches prepare-start/start;
-- bare/path launch without a terminal fails before namespace, policy, store, lease, or runner effects;
-- `--list` stays global and `--show` derives scope only from CWD;
-- `--internal publish-description` uses composite thread environment and supports empty clearing;
-- old operation argv spellings are rejected or treated solely as paths;
-- parse errors return 2 without `ResolveNamespace`.
-
-Retain domain tests by calling the extracted private launch/operation executor instead of deprecated argv. Remove tests for public `--agent`, `--no-console`, generic operation help, and generic binding where that behavior no longer exists.
+`RunWithRuntime` parse/effect ordering → a stateful tracking runtime proves parse
+errors and non-terminal launch make zero namespace/policy/store/lease/runner
+calls. `terminalFiles`/`consoleRunnerFor` → pipes and PTYs mechanically select
+refusal versus Console/PtyRunner. `runLaunch` → the fake dispatcher records
+prepare-start followed by token-only start. Public help and diagnostic/internal
+projection → registry-derived positive/negative assertions prove only the Spec
+homes are reachable. Existing orchestration tests call the private executor
+rather than deprecated argv.
 
 - [ ] **Step 2: Run focused tests and observe RED**
 
@@ -242,9 +246,13 @@ go test -p 20 ./cmd/internal/couchcmd -run 'Test(Public|Bare|Path|Help|List|Show
 
 Expected: FAIL because zero args still select help and the registry is exposed as commands.
 
-- [ ] **Step 3: Split parsing from execution**
+- [ ] **Step 3: Implement the thin runtime projection**
 
-Refactor `RunWithRuntime` into: `ParseCLI` before runtime methods; fixed public help; an explicit `terminalFiles(stdin, stdout) (in, out *os.File, ok bool)` decision made before any launch runtime method; `runLaunch(path, console, runner, ...)` dispatching `prepare-start{path}` then implicit token-bound `start`; public list/show and hidden publish-description through `DispatchOperation`; and existing result rendering. Production feeds `terminalFiles` into the existing `consoleRunnerFor` seam. Tests use buffers to prove `ok=false` has zero runtime effects and `pty.Open` plus `consoleRunnerFor(..., true, slave, slave)` to pin Console/PtyRunner wiring; no new ambient Runtime method or package-global override is introduced. Keep the domain executor private for focused orchestration tests. Delete operation-enumerating usage and argv reachability audits. Update capacity guidance to `couch --list`.
+Keep `RunWithRuntime` responsible only for pure parsing, fixed public help,
+terminal gating, and selecting private launch/typed-operation execution.
+`terminalFiles` feeds the existing `consoleRunnerFor`; `runLaunch` composes
+prepare-start and token-only start. Delete generic operation help/reachability
+as public CLI concepts and update capacity guidance to `couch --list`.
 
 - [ ] **Step 4: Run Couch command tests and observe GREEN**
 
@@ -289,9 +297,14 @@ git commit -m "#159: make Couch launch the default mode"
 - Modify: `cmd/internal/couchcore/store.go`
 - Modify: `workshop/issues/000159-couch-make-tui-the-public-cli.md`
 
-- [ ] **Step 1: Write failing projection/documentation tests**
+- [ ] **Step 1: Write failing projection/documentation strategy tests**
 
-Replace `TestREADMEDocumentsEveryOperation` with an exhaustive presentation audit: public diagnostics appear in README as flags; TUI-only operations never appear as commands and operator-visible ones have menu documentation; internal operations have an atlas protocol home but no README/help entry; and every enum value is handled. Update checks requiring `--no-console`, direct resume, `couch list/show`, or operation enumeration. Add `TestNoCurrentSourcesAdvertiseObsoleteCouchArgv`, scanning README, atlas, active issues/projects, probes, and tracked `cmd/**/*.go` production/test sources for old command spellings. Explicit removal discussions in #159 Revisions, parser rejection fixtures, and dated historical project scope events are the only allowlisted contexts; every current instruction, code comment, and caller must use the new forms.
+`TestOperationPresentationDocs` over every registry declaration → presentation
+selects exactly one documentation home and TUI/internal operations cannot appear
+as public commands. `TestNoCurrentSourcesAdvertiseObsoleteCouchArgv` over current
+docs, active artifacts, probes, and Go sources → token/context-specific
+allowlists permit only removal prose, parser rejection fixtures, and immutable
+dated scope events; all current instructions/comments must use the new forms.
 
 - [ ] **Step 2: Run docs tests and observe RED**
 
@@ -301,7 +314,7 @@ go test -p 20 ./cmd/internal/couchcmd -run 'Test(README|M3Docs|OperationPresenta
 
 Expected: FAIL against command-oriented docs.
 
-- [ ] **Step 3: Rewrite user and architecture surfaces**
+- [ ] **Step 3: Migrate each presentation consumer**
 
 README documents only:
 
@@ -369,6 +382,20 @@ git commit -m "#159: verify the Couch public entrypoint"
 ```
 
 ## Revisions
+
+### 2026-09-01T10:29:00-07:00 — compress verification into named risk strategies
+
+**Reason:** the SDLC plan-quality gate found that Tasks 1–4 enumerated test
+cases and prescribed diff choreography instead of naming risky functions,
+adversarial input classes, and mechanical guards. It also required an explicit
+non-goals boundary.
+
+**Delta:** Tasks 1–4 now specify strategies for `Operations`,
+`DispatchOperation`, `startMenuEffect`, `ParseCLI`, `RunWithRuntime`,
+`terminalFiles`, `consoleRunnerFor`, `runLaunch`, and the documentation audits;
+concrete cases remain owned by executable tests. A Non-goals section excludes
+aliases, a second binary, generalized internal protocol, owner routing, and
+packaging validation with rationale (`ARCH-PURE`, `ARCH-PURPOSE`).
 
 ### 2026-09-01T10:13:00-07:00 — execute the current-source audit in RED
 
