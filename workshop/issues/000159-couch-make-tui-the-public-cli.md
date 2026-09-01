@@ -5,7 +5,7 @@ deps: []
 github_issue:
 created: 2026-09-01
 updated: 2026-09-01
-estimate_hours:
+estimate_hours: 2.41
 started: 2026-09-01T09:03:30-07:00
 ---
 
@@ -116,6 +116,26 @@ bare invocation (`ARCH-MOCK`, `ARCH-CONSTRAINTS`).
   internal operations do not silently select a different behavior.
 - Automated tests cover parsing, help, public launch/diagnostics, every required
   internal call site, and the installed bare-command path.
+
+## Estimate
+
+Produced via `brain/data/life/42shots/velocity/estimate-logic-v3.1.md` against
+`baseline-v3.1.md`. Method A only. The work extends familiar Go command and TUI
+seams; no novel stack or missing-library adjustment applies.
+
+```estimate
+model: estimate-logic-v3.1
+familiarity: 1.0
+item: issue-spec design=0.80 impl=0.08
+item: smaller-go-module design=0.06 impl=0.16
+item: cross-cutting-refactor design=0.10 impl=0.16
+item: cross-cutting-refactor design=0.10 impl=0.16
+item: smaller-go-module design=0.06 impl=0.20
+item: atlas-docs design=0.10 impl=0.08
+item: milestone-review design=0.04 impl=0.12
+design-buffer: 0.15
+total: 2.41
+```
 
 ## Plan
 
