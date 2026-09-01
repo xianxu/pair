@@ -14,21 +14,23 @@ import (
 )
 
 type Options struct {
-	Agent         string
-	Tag           string
-	ScopeKey      string
-	LaunchOrdinal uint64
-	Cwd           string
-	RepoRoot      string
-	RepoName      string
-	Args          []string
-	Home          string
-	DataDir       string
-	PIDWait       time.Duration
-	Timeout       time.Duration
-	Poll          time.Duration
-	SlowPoll      time.Duration
-	PIDNotBefore  time.Time
+	Agent           string
+	Tag             string
+	ScopeKey        string
+	LaunchOrdinal   uint64
+	Cwd             string
+	RepoRoot        string
+	RepoName        string
+	Args            []string
+	Home            string
+	DataDir         string
+	PIDWait         time.Duration
+	Timeout         time.Duration
+	Poll            time.Duration
+	SlowPoll        time.Duration
+	PIDNotBefore    time.Time
+	FollowLifecycle bool
+	AppendLifecycle func(string, LifecycleRecord) error
 }
 
 // Runtime keeps only watcher scheduling, Pair cache IO, and access to the two
@@ -73,6 +75,8 @@ func Run(opts Options, rt Runtime) error {
 	owner := sessionledger.Owner{ScopeKey: opts.ScopeKey, Tag: opts.Tag, Agent: opts.Agent}
 	nativeRuntime := rt.NativeRuntime(opts.Home, opts.DataDir)
 	trackedTargets := map[string]sessioninventory.TargetValidation{}
+	boundRootNodeID := ""
+	lifecycleWatermark := uint64(0)
 	deadline := watchStart.Add(opts.Timeout)
 	for {
 		if rootIdentity != "" && rt.ProcessIdentity(rootPID) != rootIdentity {
@@ -86,13 +90,29 @@ func Run(opts Options, rt Runtime) error {
 		if !ok || current.Launch.Ordinal != opts.LaunchOrdinal {
 			return sessionledger.ErrStaleLaunch
 		}
-		if current.Binding != nil && current.Binding.AuthorizationProof == nil {
+		if current.Binding != nil && boundRootNodeID == "" && current.Binding.AuthorizationProof == nil {
 			if err := migrateProoflessBinding(rt, nativeRuntime, owner, paths.Ledger(), current); err != nil {
 				rt.Log(adapt.NearMiss, "legacy binding proof migration unavailable: "+err.Error())
 			}
 			return nil
 		}
-		if current.Binding != nil {
+		if current.Binding != nil && boundRootNodeID == "" {
+			if opts.FollowLifecycle && agent == sessioninventory.AgentCodex && current.Binding.AuthorizationProof != nil {
+				validation, err := validateBoundLifecycleTarget(rt, nativeRuntime, paths.SessionInventoryCatalog(), agent, *current.Binding.AuthorizationProof)
+				if err != nil {
+					rt.Log(adapt.NearMiss, "bound lifecycle target unavailable: "+err.Error())
+					return nil
+				}
+				trackedTargets[validation.State.NativeID] = validation
+				boundRootNodeID = sessioninventory.StableID("node", string(agent), validation.State.NativeID)
+				for _, event := range validation.Events {
+					if event.Position > lifecycleWatermark {
+						lifecycleWatermark = event.Position
+					}
+				}
+				rt.Sleep(opts.Poll)
+				continue
+			}
 			return nil
 		}
 		if current.Launch.Version != 2 {
@@ -113,6 +133,15 @@ func Run(opts Options, rt Runtime) error {
 		if err := persistTrackedCatalog(rt.CatalogStore(), paths.SessionInventoryCatalog(), trackedTargets); err != nil {
 			proofs = map[string]sessionledger.AuthorizationProof{}
 			inventory.Diagnostics = append(inventory.Diagnostics, sessioninventory.DiagnosticWithSource(sessioninventory.DiagnosticStorageUnreadable, agent, nil, "session inventory catalog", "catalog publication failed; binding authority withheld"))
+		}
+		if boundRootNodeID != "" {
+			var publishErr error
+			lifecycleWatermark, publishErr = publishAuthorizedLifecycle(opts, rt, paths.LifecycleJournal(), trackedTargets, events, boundRootNodeID, lifecycleWatermark)
+			if publishErr != nil {
+				return publishErr
+			}
+			rt.Sleep(opts.Poll)
+			continue
 		}
 		beforeRoots, beforeAvailable := processAuthorizedRoots(nativeRuntime, inventory, agent, corroborationPID)
 		pairLog, logDiagnostics := readPairLog(rt, paths.Log(), agent)
@@ -147,8 +176,18 @@ func Run(opts Options, rt Runtime) error {
 			rt.Log(adapt.NearMiss, "binding committed with cleanup warning: "+persistErr.Error())
 		}
 		if len(resolved.Bindings) == 1 && resolved.Bindings[0].Status == sessioninventory.BindingEstablished {
-			rt.Log(adapt.Fired, "session_id="+nativeIDForRoot(inventory.Forests, agent, valueOrEmpty(resolved.Bindings[0].RootNodeID)))
-			return nil
+			boundRootNodeID = valueOrEmpty(resolved.Bindings[0].RootNodeID)
+			rt.Log(adapt.Fired, "session_id="+nativeIDForRoot(inventory.Forests, agent, boundRootNodeID))
+			if !opts.FollowLifecycle || agent != sessioninventory.AgentCodex {
+				return nil
+			}
+			var publishErr error
+			lifecycleWatermark, publishErr = publishAuthorizedLifecycle(opts, rt, paths.LifecycleJournal(), trackedTargets, events, boundRootNodeID, lifecycleWatermark)
+			if publishErr != nil {
+				return publishErr
+			}
+			rt.Sleep(opts.Poll)
+			continue
 		}
 		if rootPID == "" && !rt.Now().Before(deadline) {
 			rt.Log(adapt.Fail, "no completed native round within startup deadline (agent="+opts.Agent+")")
@@ -160,6 +199,17 @@ func Run(opts Options, rt Runtime) error {
 		}
 		rt.Sleep(poll)
 	}
+}
+
+func validateBoundLifecycleTarget(rt Runtime, nativeRuntime sessioninventory.Runtime, catalogPath string, agent sessioninventory.Agent, proof sessionledger.AuthorizationProof) (sessioninventory.TargetValidation, error) {
+	catalog := sessioninventory.Catalog{Version: sessioninventory.CatalogVersion}
+	if saved, err := rt.CatalogStore().Read(catalogPath); err == nil {
+		catalog = saved
+	} else if !errors.Is(err, os.ErrNotExist) && !errors.Is(err, sessioninventory.ErrCatalogCorrupt) {
+		return sessioninventory.TargetValidation{}, err
+	}
+	validation, _, err := sessioninventory.NewIncrementalInventory(nativeRuntime, catalog).ValidateBindingProof(agent, proof)
+	return validation, err
 }
 
 func migrateProoflessBinding(rt Runtime, nativeRuntime sessioninventory.Runtime, owner sessionledger.Owner, ledgerPath string, current sessionledger.Current) error {

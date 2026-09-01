@@ -263,6 +263,8 @@ type proxy struct {
 	lifecycleTimer        *time.Timer
 	lifecycleTimerKind    ObservationKind
 	lifecycleTimerToken   uint64
+	lifecycleJournalPath  string
+	lifecycleJournal      *LifecycleJournalTailer
 	writeTTY              func(fd int, p []byte) (int, error)
 	// pair-slug spawn debounce (#000027)
 	lastSlug time.Time
@@ -466,6 +468,7 @@ func (p *proxy) resolvePaths() {
 	p.agentPIDPath = paths.AgentPID()
 	p.agentReadyPath, _ = paths.AgentReadyChecked(p.agentBasename)
 	p.wrapEventsPath = paths.WrapEvents()
+	p.lifecycleJournalPath = paths.LifecycleJournal()
 }
 
 func (p *proxy) publishAgentReady(pid int) error {
@@ -2368,6 +2371,15 @@ argsDone:
 	if p.notifyModeActive != "idle" {
 		p.idleS = 0
 	}
+	if p.agentBasename == "codex" && p.lifecycleJournalPath != "" {
+		if ordinal, err := strconv.ParseUint(os.Getenv("PAIR_LAUNCH_ORDINAL"), 10, 64); err == nil && ordinal != 0 {
+			if tailer, err := OpenLifecycleJournalTailer(p.lifecycleJournalPath, ordinal); err != nil {
+				p.debug("LIFECYCLE-open-fail", err.Error())
+			} else {
+				p.lifecycleJournal = tailer
+			}
+		}
+	}
 
 	p.writeStartupBanner()
 
@@ -2601,6 +2613,13 @@ func (p *proxy) masterPump() {
 
 	captureTick := time.NewTicker(50 * time.Millisecond)
 	defer captureTick.Stop()
+	var lifecycleJournalTick <-chan time.Time
+	var lifecycleJournalTicker *time.Ticker
+	if p.lifecycleJournal != nil {
+		lifecycleJournalTicker = time.NewTicker(50 * time.Millisecond)
+		lifecycleJournalTick = lifecycleJournalTicker.C
+		defer lifecycleJournalTicker.Stop()
+	}
 	stdoutFlushTick := time.NewTicker(p.stdoutFlushInterval())
 	defer stdoutFlushTick.Stop()
 	if p.stdoutPump == nil {
@@ -2612,6 +2631,16 @@ func (p *proxy) masterPump() {
 
 	for {
 		select {
+		case <-lifecycleJournalTick:
+			records, err := p.lifecycleJournal.Advance()
+			if err != nil {
+				p.debug("LIFECYCLE-tail-fail", err.Error())
+				lifecycleJournalTick = nil
+				continue
+			}
+			for _, record := range records {
+				p.processLifecycleRecord(record)
+			}
 		case <-lifecycleTimer.C:
 			kind, token := p.lifecycleTimerKind, p.lifecycleTimerToken
 			p.processLifecycleObservation(TurnObservation{Kind: kind, Token: token})

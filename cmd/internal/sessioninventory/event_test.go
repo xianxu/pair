@@ -27,7 +27,7 @@ func TestNormalizeNativeEvent(t *testing.T) {
 		{name: "codex assistant", agent: AgentCodex, record: `{"type":"response_item","payload":{"type":"message","role":"assistant","content":[{"type":"output_text","text":"working"}]}}`, disposition: EventAccepted, kinds: []NativeEventKind{EventAssistant}, text: "working"},
 		{name: "codex function call", agent: AgentCodex, record: `{"type":"response_item","payload":{"type":"function_call","name":"tool"}}`, disposition: EventAccepted, kinds: []NativeEventKind{EventToolCall}},
 		{name: "codex custom tool result", agent: AgentCodex, record: `{"type":"response_item","payload":{"type":"custom_tool_call_output","call_id":"tool"}}`, disposition: EventAccepted, kinds: []NativeEventKind{EventToolResult}},
-		{name: "codex terminal", agent: AgentCodex, record: `{"type":"event_msg","payload":{"type":"task_complete"}}`, disposition: EventAccepted, kinds: []NativeEventKind{EventTerminal}},
+		{name: "codex terminal", agent: AgentCodex, record: `{"type":"event_msg","payload":{"type":"task_complete","turn_id":"turn-1"}}`, disposition: EventAccepted, kinds: []NativeEventKind{EventTerminal}},
 		{name: "codex aborted terminal", agent: AgentCodex, record: `{"type":"turn_aborted","payload":{"reason":"interrupted"}}`, disposition: EventAccepted, kinds: []NativeEventKind{EventTerminal}},
 		{name: "codex reasoning ignored", agent: AgentCodex, record: `{"type":"response_item","payload":{"type":"reasoning"}}`, disposition: EventIgnored},
 		{name: "agy wrapped operator", agent: AgentAgy, record: `{"type":"USER_INPUT","content":"<USER_REQUEST>hello</USER_REQUEST>"}`, disposition: EventAccepted, kinds: []NativeEventKind{EventOperator}, text: "hello"},
@@ -69,6 +69,31 @@ func TestNormalizeNativeEvent(t *testing.T) {
 	}
 }
 
+func TestNormalizeCodexLifecycleEnvelope(t *testing.T) {
+	tests := []struct {
+		name       string
+		record     string
+		kind       NativeEventKind
+		turnID     string
+		sourceKind string
+	}{
+		{"started", `{"timestamp":"2026-06-25T16:00:35.820Z","type":"event_msg","payload":{"type":"task_started","turn_id":"turn-1","started_at":1782403235}}`, EventTurnStart, "turn-1", "event_msg.task_started"},
+		{"complete", `{"timestamp":"2026-06-25T16:01:12.954Z","type":"event_msg","payload":{"type":"task_complete","turn_id":"turn-1","last_agent_message":"done"}}`, EventTerminal, "turn-1", "event_msg.task_complete"},
+		{"aborted", `{"timestamp":"2026-06-25T16:01:12.954Z","type":"event_msg","payload":{"type":"turn_aborted","turn_id":"turn-1","reason":"interrupted"}}`, EventTerminal, "turn-1", "event_msg.turn_aborted"},
+	}
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			events, disposition := NormalizeNativeEvent(AgentCodex, []byte(test.record))
+			if disposition != EventAccepted || len(events) != 1 {
+				t.Fatalf("events=%+v disposition=%s", events, disposition)
+			}
+			if got := events[0]; got.Kind != test.kind || got.TurnID != test.turnID || got.SourceKind != test.sourceKind || got.Timestamp.IsZero() {
+				t.Fatalf("event=%+v", got)
+			}
+		})
+	}
+}
+
 func FuzzNormalizeNativeEvent(f *testing.F) {
 	f.Add("claude", []byte(`{"type":"user","message":{"role":"user","content":"sanitized prompt"}}`))
 	f.Add("codex", []byte(`{"type":"response_item","payload":{"type":"future"}}`))
@@ -86,7 +111,7 @@ func FuzzNormalizeNativeEvent(f *testing.F) {
 		}
 		for _, event := range events {
 			switch event.Kind {
-			case EventOperator, EventAssistant, EventToolCall, EventToolResult, EventTerminal:
+			case EventOperator, EventAssistant, EventToolCall, EventToolResult, EventTurnStart, EventTerminal:
 			default:
 				t.Fatalf("unknown event kind %q", event.Kind)
 			}

@@ -1,6 +1,10 @@
 package wrapcmd
 
-import "time"
+import (
+	"time"
+
+	"github.com/xianxu/pair/cmd/internal/sessionwatch"
+)
 
 const (
 	lifecycleWatchdogAfter = 60 * time.Second
@@ -165,6 +169,22 @@ func (p *proxy) processLifecycleObservation(observation TurnObservation) {
 		p.emitOuter(decision.Message)
 	}
 	p.syncLifecycleTimer()
+}
+
+func (p *proxy) processLifecycleRecord(record sessionwatch.LifecycleRecord) {
+	observation := TurnObservation{TurnID: record.TurnID, Message: record.Message}
+	switch record.Outcome {
+	case "started":
+		observation.Kind = ObservationTranscriptStarted
+	case "completed":
+		observation.Kind = ObservationTranscriptCompletion
+	case "aborted", "error":
+		observation.Kind = ObservationTranscriptAbort
+	default:
+		p.debug("LIFECYCLE-skip", "unknown transcript outcome "+record.Outcome)
+		return
+	}
+	p.processLifecycleObservation(observation)
 }
 
 func (p *proxy) syncLifecycleTimer() {

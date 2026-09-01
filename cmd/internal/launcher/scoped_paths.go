@@ -52,6 +52,8 @@ func (p ScopedPaths) Ledger() string {
 	return p.resolved().Ledger()
 }
 
+func (p ScopedPaths) LifecycleJournal() string { return p.resolved().LifecycleJournal() }
+
 func (p ScopedPaths) Draft() string { return p.resolved().Draft() }
 
 func (p ScopedPaths) Log() string { return p.resolved().Log() }

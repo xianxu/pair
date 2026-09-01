@@ -243,12 +243,12 @@ fixtures/parser support before release—never accepted by broad fallback parsin
 - Create: `cmd/internal/wrapcmd/lifecycle_journal.go`
 - Create: `cmd/internal/wrapcmd/lifecycle_journal_test.go`
 
-- [ ] Write failing `AppendLifecycleRecord` and
+- [x] Write failing `AppendLifecycleRecord` and
   `LifecycleJournalTailer.Advance` tests according to their named stateful-stream
   risk strategies above.
-- [ ] Implement the canonical `artifactpath`, append, reconciliation, and tailing
+- [x] Implement the canonical `artifactpath`, append, reconciliation, and tailing
   entities exactly as specified by Core concepts.
-- [ ] Run `go test ./cmd/internal/sessionwatch ./cmd/internal/wrapcmd ./cmd/internal/launcher -run 'Lifecycle|ScopedPaths' -count=1`; expect PASS.
+- [x] Run `go test ./cmd/internal/sessionwatch ./cmd/internal/wrapcmd ./cmd/internal/launcher -run 'Lifecycle|ScopedPaths' -count=1`; expect PASS.
 
 ### Task 5: Continue following the authorized Codex root
 
@@ -261,14 +261,14 @@ fixtures/parser support before release—never accepted by broad fallback parsin
 - Modify: `cmd/internal/sessioninventory/jsonl_incremental.go` only if required to expose existing absolute offsets
 - Modify: `cmd/internal/wrapcmd/wrap.go`
 
-- [ ] Write failing `FollowAuthorizedTranscript` tests according to the concurrent
+- [x] Write failing `FollowAuthorizedTranscript` tests according to the concurrent
   mutable-artifact risk strategy. Keep one named acceptance regression for a
   transcript-only short turn already complete when binding occurs.
-- [ ] Implement `FollowAuthorizedTranscript` and wrapper integration exactly as
+- [x] Implement `FollowAuthorizedTranscript` and wrapper integration exactly as
   specified by Core concepts, the binding watermark contract, and operating
   envelope.
-- [ ] Run `go test ./cmd/internal/sessioninventory ./cmd/internal/sessionwatch ./cmd/internal/wrapcmd ./cmd/internal/launcher -count=1`; expect PASS without leaks/stale publication.
-- [ ] Commit `couch: #161 M3 follow authorized Codex turn completion`, update
+- [x] Run `go test ./cmd/internal/sessioninventory ./cmd/internal/sessionwatch ./cmd/internal/wrapcmd ./cmd/internal/launcher -count=1`; expect PASS without leaks/stale publication.
+- [x] Commit `couch: #161 M3 follow authorized Codex turn completion`, update
   `atlas/session-identity.md` and architecture, tick/log M3, and run
   `sdlc milestone-close --issue 161 --milestone M3`.
 

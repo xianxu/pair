@@ -135,7 +135,7 @@ total: 6.93
 - [x] M1 — Correct and regression-test Claude's Unicode marker-verb grammar.
 - [x] M2 — Add the pure turn lifecycle reducer, semantic deduplication, Claude
   OSC progress transitions, and activity-gated timers.
-- [ ] M3 — Extend the existing authorized Codex session watcher to tail the
+- [x] M3 — Extend the existing authorized Codex session watcher to tail the
   bound rollout and publish transcript completion observations to `pair-wrap`.
 - [ ] M4 — Add rendered Codex `Working` recovery and verify canonical
   notifications through Couch's status and switcher surfaces.
@@ -143,6 +143,14 @@ total: 6.93
 ## Log
 
 ### 2026-09-01
+- M3 implementation: captured live Codex envelopes confirmed keyed
+  `task_started`, `task_complete`, and `turn_aborted`. RED/GREEN coverage pins
+  strict parsing, launch/generation/offset journal identity, interrupted append
+  reconciliation, prior-EOF/current-launch tailing, partial/oversized/
+  replaced/truncated fail-closed behavior, a transcript-only short completed
+  turn at binding, an appended long-turn completion, cross-root rejection, and
+  canonical wrapper notification. GREEN:
+  `go test ./cmd/internal/sessioninventory ./cmd/internal/sessionwatch ./cmd/internal/wrapcmd ./cmd/internal/launcher ./cmd/internal/artifactpath -count=1`; `git diff --check` (`ARCH-IDENTITY`, `ARCH-MOCK`, `ARCH-DRY`).
 - 2026-09-01: closed M2 — RED semantic legacy/KKP send, real Codex/Claude send-to-native delivery, source-order/key/abort/fuzz invariants, and artifact inventory; GREEN go test ./cmd/internal/wrapcmd ./cmd/internal/artifactpath -count=1, 2s lifecycle fuzz, git diff --check.; review verdict: SHIP
 - M2 implementation: RED covered absent lifecycle types, OSC progress at every
   split in marker/native modes, one proxy-owned timer, resumed work cancelling
