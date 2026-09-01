@@ -8,6 +8,29 @@ import (
 	"time"
 )
 
+func TestEmitOuterDoesNotCommitRateLimitAfterShortWrite(t *testing.T) {
+	dir := t.TempDir()
+	tty := filepath.Join(dir, "tty")
+	if err := os.WriteFile(tty, nil, 0o600); err != nil {
+		t.Fatal(err)
+	}
+	sidecar := filepath.Join(dir, "outer")
+	if err := os.WriteFile(sidecar, []byte(tty+"\n"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	p := &proxy{
+		outerTTYFile: sidecar,
+		lastSlug:     time.Now(),
+		writeTTY: func(_ int, p []byte) (int, error) {
+			return len(p) - 1, nil
+		},
+	}
+	p.emitOuter("ready")
+	if !p.lastEmit.IsZero() {
+		t.Fatal("short write was committed as a successful notification")
+	}
+}
+
 func TestNotificationRewriterEverySplit(t *testing.T) {
 	cases := []struct {
 		name         string

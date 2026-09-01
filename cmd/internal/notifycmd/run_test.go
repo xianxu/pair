@@ -3,6 +3,8 @@ package notifycmd
 import (
 	"bytes"
 	"errors"
+	"io"
+	"os"
 	"strings"
 	"testing"
 )
@@ -12,6 +14,20 @@ type fakeRuntime struct {
 	files    map[string][]byte
 	writes   map[string][][]byte
 	writeErr error
+}
+
+func TestOSRuntimeReportsShortNonblockingWrite(t *testing.T) {
+	file, err := os.CreateTemp(t.TempDir(), "outer-tty")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := file.Close(); err != nil {
+		t.Fatal(err)
+	}
+	rt := OSRuntime{write: func(_ int, p []byte) (int, error) { return len(p) - 1, nil }}
+	if err := rt.WriteNonblocking(file.Name(), []byte("envelope")); !errors.Is(err, io.ErrShortWrite) {
+		t.Fatalf("short write error = %v, want io.ErrShortWrite", err)
+	}
 }
 
 func (f *fakeRuntime) Getenv(key string) string { return f.env[key] }

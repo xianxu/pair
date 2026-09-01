@@ -331,6 +331,14 @@ four-worker co-tenancy, all 100-actor/300-message switcher paths measured below
 0.7 ms p95; notification skip measured 179.93 MiB/s in the target protocol and
 155.10 MiB/s in the final benchmark smoke (`ARCH-CONSTRAINTS`, `ARCH-PURPOSE`).
 
+Close review round 1 raised BR-1/BR-2/BR-3. The replay concept table now names
+the delivered Screen/Child owners and records the change as a plan revision.
+Both direct nonblocking TTY consumers reject short writes through reachable
+regressions, covering the full `external-write-completeness` family. README now
+documents the command, legacy option normalization, tolerant hook failures,
+and Couch attention behavior. The corresponding prevention rules were added to
+`workshop/lessons.md` (`ARCH-PURPOSE`, `ARCH-MOCK`).
+
 ## Revisions
 
 ### 2026-08-31T20:22:00-07:00 — close transport, framing, and acknowledgement ownership

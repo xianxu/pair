@@ -21,7 +21,8 @@
 | `notifyosc.Notification` and codec | `cmd/internal/notifyosc/notification.go` | new |
 | `wrapcmd.NotificationRewriter` | `cmd/internal/wrapcmd/notification_rewriter.go` | new |
 | `ptychild.Screen` notification observation | `cmd/internal/ptychild/screen.go` | modified |
-| `ptychild.ReplayWindow` | `cmd/internal/ptychild/replay.go` | modified |
+| `ptychild.Screen` replay-safe offset | `cmd/internal/ptychild/screen.go` | modified |
+| `ptychild.Child.ReplayThrough` and notification spans | `cmd/internal/ptychild/child.go` | modified |
 | `couchtty.AttentionLedger` | `cmd/internal/couchtty/attention.go` | new |
 | `couchtty.MenuState` attention projection | `cmd/internal/couchtty/menu.go` | modified |
 | `couchtty.StatusActor` attention presentation | `cmd/internal/couchtty/reserve.go` | modified |
@@ -41,10 +42,10 @@
   - **DRY rationale:** Reusing the screen parser's pending/skip state prevents a second terminal parser with divergent chunk semantics.
   - **Future extensions:** Other Pair-owned terminal metadata can become typed observations at the same framing boundary.
 
-- **`ptychild.ReplayWindow`** — identifies the absolute ring offset whose bytes have been processed and are safe to replay, plus absolute completed-notification spans to exclude even when ring retention bisects one.
-  - **Relationships:** Each child owns one monotonically advancing ring position and bounded span index; each Console pane records at most one processed replay-safe cutoff.
-  - **DRY rationale:** Replay and live delivery use the same observer decision instead of independently guessing whether a partial OSC is safe.
-  - **Future extensions:** Snapshot consumers can request other explicit historical cutoffs without changing the ring's retention policy.
+- **`ptychild.Screen` replay-safe offset and `ptychild.Child.ReplayThrough`** — Screen identifies the absolute raw-stream offset that does not bisect a withheld canonical candidate; Child retains completed notification spans beside its bounded ring and removes every intersection through the Console-processed cutoff.
+  - **Relationships:** Each Screen owns one monotonically advancing stream position; its Child owns the bounded span index; each Console pane records at most one processed replay-safe cutoff.
+  - **DRY rationale:** Replay and live delivery derive from the same Screen observations instead of independently guessing whether a partial OSC is safe.
+  - **Future extensions:** Other snapshot consumers can request explicit historical cutoffs through Child without changing ring retention policy.
 
 - **`couchtty.AttentionLedger`** — the sole pure authority for per-actor retained messages, monotonic unread order, deduplication, eviction, newest-source selection, overflow rebasing, and sequence-qualified clearing.
   - **Relationships:** One Console owns exactly one ledger; it contains 0:3 messages per actor and projects N:1 into status and switcher models.
@@ -539,6 +540,17 @@
   Review `git status --short`, `git diff main...HEAD --stat`, and the issue checklist. Then run `sdlc close --issue 158 --verified '<exact commands and observed results>'` only after every task above is checked and the implementation is smoke-testable. The close command owns the mandatory fresh-context boundary review; do not dispatch a redundant review manually.
 
 ## Revisions
+
+### 2026-08-31T23:42:00-07:00 — align replay concepts with delivered ownership
+
+**Reason:** close review BR-1 found that the Core concepts table named a
+planned `ptychild.ReplayWindow` in `replay.go`, but implementation placed the
+two responsibilities on their existing lifecycle owners.
+
+**Delta:** the table and prose now name `Screen` as replay-safe stream-offset
+owner and `Child.ReplayThrough` plus Child's retained spans as replay-filtering
+owner. No standalone ReplayWindow entity or `replay.go` modification exists;
+the revised model matches the tested implementation (`ARCH-PURPOSE`).
 
 ### 2026-08-31T22:11:42-07:00 — preserve canonical framing across asynchronous takeover
 

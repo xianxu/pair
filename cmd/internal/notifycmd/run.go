@@ -18,18 +18,30 @@ type Runtime interface {
 	WriteNonblocking(string, []byte) error
 }
 
-type OSRuntime struct{}
+type OSRuntime struct {
+	write func(fd int, p []byte) (int, error)
+}
 
 func (OSRuntime) Getenv(key string) string             { return os.Getenv(key) }
 func (OSRuntime) ReadFile(path string) ([]byte, error) { return os.ReadFile(path) }
-func (OSRuntime) WriteNonblocking(path string, p []byte) error {
+func (rt OSRuntime) WriteNonblocking(path string, p []byte) error {
 	fd, err := unix.Open(path, unix.O_WRONLY|unix.O_NONBLOCK, 0)
 	if err != nil {
 		return err
 	}
 	defer unix.Close(fd)
-	_, err = unix.Write(fd, p)
-	return err
+	write := rt.write
+	if write == nil {
+		write = unix.Write
+	}
+	n, err := write(fd, p)
+	if err != nil {
+		return err
+	}
+	if n != len(p) {
+		return io.ErrShortWrite
+	}
+	return nil
 }
 
 func Run(args []string, rt Runtime, stderr io.Writer) int {

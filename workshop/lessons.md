@@ -1,5 +1,29 @@
 # Lessons
 
+## Boundary tables must name delivered entities, not design placeholders
+
+A plan's Core concepts table retained the proposed `ReplayWindow` name and
+`replay.go` location after implementation correctly placed replay-safe offsets
+on `Screen` and retained spans/filtering on `Child`. Tests passed, but the
+review contract could no longer trace the declared entity to code.
+
+**Rule.** Before a boundary, resolve every Core concepts row against a real
+symbol and changed path. When implementation changes ownership, append a plan
+revision and update both the table and its relationship prose; a useful design
+placeholder is not a delivered entity. Caught during #000158 close review.
+
+## A successful write means every required byte was accepted
+
+Two nonblocking outer-TTY writers checked only the error returned by
+`unix.Write`. A nil error with a short count would publish a truncated OSC and,
+in the proxy, incorrectly consume the rate-limit slot as though delivery had
+succeeded.
+
+**Rule.** Every single-call write of an atomic protocol record must check both
+`err` and `n == len(record)`. Make partial success representable at the OS seam,
+test it through each production consumer, and update success bookkeeping only
+after the full count is confirmed. Caught during #000158 close review.
+
 ## Historical source contracts must pin bytes as well as paths
 
 A historical declaration guard derived its filenames from an immutable commit

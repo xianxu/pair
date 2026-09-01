@@ -258,6 +258,7 @@ type proxy struct {
 	// OSC rate limiting
 	lastEmit             time.Time
 	notificationRewriter NotificationRewriter
+	writeTTY             func(fd int, p []byte) (int, error)
 	// pair-slug spawn debounce (#000027)
 	lastSlug time.Time
 
@@ -629,8 +630,17 @@ func (p *proxy) emitOuter(msg string) {
 	}
 	defer unix.Close(fd)
 	osc := notifyosc.Encode(msg)
-	if _, err := unix.Write(fd, osc); err != nil {
+	write := p.writeTTY
+	if write == nil {
+		write = unix.Write
+	}
+	n, err := write(fd, osc)
+	if err != nil {
 		p.debug("EMIT-fail", fmt.Sprintf("%s: %v", path, err))
+		return
+	}
+	if n != len(osc) {
+		p.debug("EMIT-fail", fmt.Sprintf("%s: short write %d/%d", path, n, len(osc)))
 		return
 	}
 	p.lastEmit = now
