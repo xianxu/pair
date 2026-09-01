@@ -534,7 +534,7 @@
   git commit -m "#158: verify actor notification routing"
   ```
 
-- [ ] **Step 8: Stop at the SDLC close boundary**
+- [x] **Step 8: Stop at the SDLC close boundary**
 
   Review `git status --short`, `git diff main...HEAD --stat`, and the issue checklist. Then run `sdlc close --issue 158 --verified '<exact commands and observed results>'` only after every task above is checked and the implementation is smoke-testable. The close command owns the mandatory fresh-context boundary review; do not dispatch a redundant review manually.
 
