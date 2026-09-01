@@ -1,12 +1,13 @@
 ---
 id: 000159
-status: working
+status: codecomplete
 deps: []
 github_issue:
 created: 2026-09-01
 updated: 2026-09-01
 estimate_hours: 2.41
 started: 2026-09-01T09:03:30-07:00
+actual_hours: 2.03
 ---
 
 # couch: make TUI the public CLI
@@ -147,6 +148,7 @@ total: 2.41
 ## Log
 
 ### 2026-09-01
+- 2026-09-01: closed — closed public grammar rejects flag-shaped show refs; installed PTY asserts exact pair resume tag --layout2; full go test -p 20 ./... and focused race suites pass; review verdict: SHIP
 
 The operator selected a TUI-first surface: `couch [path]`, with `--list` and
 `--show` as diagnostic flags. There is no `start` compatibility alias and no

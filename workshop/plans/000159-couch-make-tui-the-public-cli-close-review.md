@@ -177,3 +177,84 @@ findings:
     detail: |
       The smoke recognizes only the pair resume prefix and finally checks only for pair followed by a space, so it stays green if the generated tag or required --layout2 argument disappears. Assert the exact recorded pair resume <tag> --layout2 call at the process seam.
 ```
+
+---
+
+## Re-review — 2026-09-01T11:28:57-07:00 (SHIP)
+
+| field | value |
+|-------|-------|
+| issue | 159 — couch: make TUI the public CLI |
+| repo | pair |
+| issue file | workshop/issues/000159-couch-make-tui-the-public-cli.md |
+| boundary | whole-issue close |
+| milestone | — |
+| window | 0088ac064c29e835a46b613712f86980ad072f1d..def48f1bf8ebaaf16ae7a6182d63e6aa25441e66 |
+| command | sdlc close --issue 159 |
+| reviewer | codex |
+| timestamp | 2026-09-01T11:28:57-07:00 |
+| verdict | SHIP |
+
+## Review
+
+```verdict
+verdict: SHIP
+confidence: high
+```
+
+The boundary fulfills the TUI-first CLI specification, both open prior findings are addressed with reachable regressions, documentation and atlas changes cover the new surface, and focused plus race verification passed. No blocking or advisory findings remain.
+
+```findings
+dispose:
+  - id: BR-3
+    disposition: addressed
+    note: |
+      ParseCLI rejects flag-shaped show references, and parser regressions enumerate the public reserved-flag class.
+  - id: BR-4
+    disposition: addressed
+    note: |
+      The installed smoke requires exactly one pair resume <16-hex Couch tag> --layout2 invocation.
+```
+
+1. Strengths
+
+- The closed parser rejects malformed combinations before runtime initialization ([cli.go](/Users/xianxu/workspace/pair/cmd/internal/couchcmd/cli.go:31)).
+- BR-3 is pinned by explicit `--show --list`, `--show --help`, and unknown-flag cases ([cli_test.go](/Users/xianxu/workspace/pair/cmd/internal/couchcmd/cli_test.go:37)); removing the flag-prefix guard makes these cases fail.
+- BR-4 is pinned at the real process seam with exact command shape, one-call cardinality, hexadecimal tag validation, and mandatory `--layout2` ([main_test.go](/Users/xianxu/workspace/pair/cmd/couch/main_test.go:142)).
+- Operation presentation is registry-owned, exhaustive, and fail-safe at zero ([ops.go](/Users/xianxu/workspace/pair/cmd/internal/couchcore/ops.go:78)).
+- README and `atlas/couch.md` were updated in the reviewed range.
+
+2. Critical findings
+
+None.
+
+3. Important findings
+
+None.
+
+4. Minor findings
+
+None.
+
+5. Test coverage notes
+
+Passed:
+
+- Focused command, core, TTY, dispatcher, entrypoint, runtime-bundle, and artifact tests.
+- Race tests for `couchcmd`, `couchcore`, and `couchtty`.
+- Installed-command PTY smoke.
+- `git diff --check`.
+
+The Core concepts table matches the delivered symbols and paths. PURE parser and presentation tests require no filesystem, subprocess, terminal, or mocks. Integration behavior uses the existing injected runtime/fake seams.
+
+6. Architectural notes for upcoming work
+
+- `ARCH-DRY`: Pass — argv classification and operation presentation each have one authority.
+- `ARCH-PURE`: Pass — parsing remains pure; terminal/runtime effects stay in the shell.
+- `ARCH-PURPOSE`: Pass — public argv, internal protocol, TUI-only operations, tests, README, and atlas all follow the declared projection.
+- `ARCH-MOCK`: Pass — the installed smoke exercises production process boundaries with stateful call logs and exact argv assertions.
+- `ARCH-CONSTRAINTS`: Pass — parsing is bounded and effect-free; terminal refusal precedes runtime effects, while PTY teardown is bounded.
+
+7. Plan revision recommendations
+
+None.

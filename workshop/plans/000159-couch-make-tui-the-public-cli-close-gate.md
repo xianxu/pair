@@ -46,6 +46,19 @@ rounds:
           family: integration-smoke-observable-contract
           round: 2
       blocked: true
+    - "n": 3
+      timestamp: "2026-09-01T11:28:57-07:00"
+      agent: codex
+      dispose:
+        - id: BR-3
+          disposition: addressed
+          note: ParseCLI rejects flag-shaped show references, and parser regressions enumerate the public reserved-flag class.
+          round: 3
+        - id: BR-4
+          disposition: addressed
+          note: The installed smoke requires exactly one pair resume <16-hex Couch tag> --layout2 invocation.
+          round: 3
+      blocked: false
 ---
 
 # Gate ledger — pair#159 (boundary-review)
@@ -76,7 +89,13 @@ later rounds disposed of them. Generated — edit the gate, not this file.
 - **BR-4** [Important] `integration-smoke-observable-contract` Installed smoke does not enforce the promised exact Pair invocation
   The smoke recognizes only the pair resume prefix and finally checks only for pair followed by a space, so it stays green if the generated tag or required --layout2 argument disappears. Assert the exact recorded pair resume <tag> --layout2 call at the process seam.
 
+## Round 3 — 2026-09-01T11:28:57-07:00 (codex) — passed
+
+### Disposed
+
+- BR-3 — addressed — ParseCLI rejects flag-shaped show references, and parser regressions enumerate the public reserved-flag class.
+- BR-4 — addressed — The installed smoke requires exactly one pair resume <16-hex Couch tag> --layout2 invocation.
+
 ## Open findings
 
-- **BR-3** [Critical] `closed-public-argv-grammar` --show accepts another public flag as its reference
-- **BR-4** [Important] `integration-smoke-observable-contract` Installed smoke does not enforce the promised exact Pair invocation
+(none — every finding has been disposed)
