@@ -30,39 +30,55 @@ mode because it currently relies on native OSC notification output.
 
 ## Spec
 
+### First slice: Claude Unicode marker
+
+- In `endOfTurnByAgent["claude"]`, accept a marker verb made of one or more
+  Unicode code points whose General Category is Letter (`L`). Precomposed
+  `Sautéed` therefore matches; combining marks (`M`), digits, punctuation,
+  whitespace, and an empty verb do not. Do not add Unicode normalization.
+- Preserve the existing marker prefix and duration grammar. Optional trailing
+  status/time text remains outside the parsed prefix.
+- Preserve the current ownership boundary: only a newly finalized colored span
+  can authorize this signal through `finalizeSpan -> emitOuter`. Quoted history,
+  uncolored text, duplicate-span suppression, rate limiting, and delivery remain
+  unchanged (`ARCH-DRY`, `ARCH-PURE`).
+
+### Deferred: Codex completion
+
 - Surface Codex completion notifications for Pair sessions in Couch's status
   bar and switcher.
 - Keep the two surfaces consistent so a completed agent is not silently missed.
-- As a first bounded slice, accept one or more Unicode letters in Claude's
-  marker verb while preserving the existing marker prefix and duration grammar.
-  Optional trailing status/time text remains outside the parsed prefix.
-- Preserve the current ownership boundary: only a newly finalized colored span
-  in Claude marker mode can authorize this signal. Quoted history, uncolored
-  text, duplicate-span suppression, rate limiting, normalization, and delivery
-  remain unchanged (`ARCH-DRY`, `ARCH-PURE`).
-- Do not broaden the Claude verb to arbitrary non-space punctuation. This
-  grammar correction does not modify Codex behavior or pre-decide a broader
-  semantic turn-state detector.
+- This first slice does not modify Codex behavior or pre-decide whether the
+  durable source is native OSC, transcript state, or a composed hook.
 
 ## Done when
+
+### First-slice acceptance
+
+- A production-path regression proves
+  `✻ Sautéed for 34s · done 1:39 PM` reaches Claude's existing notification
+  sink through `finalizeSpan -> emitOuter`.
+- Existing ASCII markers retain behavior.
+- Focused grammar tests prove an empty verb and any verb containing a non-`L`
+  code point do not match.
+
+### Later issue acceptance
 
 - A Codex completion in Pair produces a visible notification in the Couch
   status bar.
 - The same completion is visible in the Couch switcher.
-- Automated coverage reproduces the missed-notification path and prevents a
-  regression.
-- A production-path regression proves
-  `✻ Sautéed for 34s · done 1:39 PM` reaches Claude's existing notification
-  sink, while ASCII markers retain behavior and malformed spans gain no
-  notification authority.
+- Automated coverage reproduces the missed Codex path and prevents regression.
 
 ## Plan
+
+- [ ] Correct and regression-test Claude's Unicode marker-verb grammar first.
+
+Deferred after the first slice:
 
 - [ ] Reproduce and identify where the Codex completion event is lost.
 - [ ] Add a failing test for the observed Pair/Codex completion path.
 - [ ] Restore notification propagation to the status bar and switcher.
 - [ ] Verify both surfaces from completion through display.
-- [ ] Correct and regression-test Claude's Unicode marker-verb grammar first.
 
 ## Log
 
@@ -86,6 +102,12 @@ and optional injected hooks. Its design explicitly notes Codex has one legacy
 design must not silently overwrite it; viable alternatives are transcript
 state, chaining the existing handler, or verified multi-hook injection.
 
+Fresh-context spec review found that the Claude-first slice was not independently
+finishable because Codex criteria still governed `Done when`, and that "Unicode
+letters" and malformed input were underspecified. Split immediate and deferred
+acceptance, named the pure grammar and production delivery seams, and defined the
+verb as General Category `L` code points only.
+
 ## Revisions
 
 ### 2026-09-01 — add confirmed Claude failure mode
@@ -93,3 +115,9 @@ state, chaining the existing handler, or verified multi-hook injection.
 Expanded the issue after dogfood evidence showed the two missing notification
 surfaces are not Codex-only. Added a bounded first slice for Unicode Claude
 marker verbs without changing the still-open Codex completion design.
+
+### 2026-09-01 — separate first-slice acceptance after review
+
+Separated the Claude patch from deferred Codex acceptance and plan ordering.
+Specified the exact Unicode category boundary and the pure-parser and
+production-delivery seams the regression tests must exercise.
