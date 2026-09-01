@@ -143,6 +143,16 @@ total: 6.93
 ## Log
 
 ### 2026-09-01
+- M4 implementation: sanitized Codex 0.152.0 raw PTY output to the real
+  animated `• Working (… esc to interrupt)` paint and its later clear repaint
+  at 120×38, retaining no conversational payload. RED/GREEN incremental replay pins exact
+  bottom-status recognition, quoted/prose/other-status rejection, appearance
+  and disappearance through `handleChunk`, grace expiry, canonical OSC 777,
+  and Couch status/switcher projections. A 2-second arbitrary-cell fuzz run
+  completed 268,405 executions. Installed-session conformance confirmed keyed
+  Codex lifecycle start/completion order; the broader pre-existing inventory
+  check still reports `parent_conflict`, `parent_missing`, and
+  `schema_near_miss` (`ARCH-PURE`, `ARCH-MOCK`, `ARCH-PURPOSE`).
 - 2026-09-01: closed M3 — RED producer reconciliation collision matrix across malformed framing, unknown fields, unauthorized authority values, and all same-identity semantic differences; GREEN strict shared decode plus complete observation equality; five-package focused tests and git diff --check.; review verdict: SHIP
 - M3 implementation: captured live Codex envelopes confirmed keyed
   `task_started`, `task_complete`, and `turn_aborted`. RED/GREEN coverage pins

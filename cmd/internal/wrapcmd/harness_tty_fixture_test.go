@@ -94,6 +94,12 @@ func TestHarnessTTYFixtureConformance(t *testing.T) {
 			negatives[metadata.Agent] = true
 		}
 		for _, name := range sortedKeys(rawFiles) {
+			if name == "working.raw" {
+				// Lifecycle replay owns this full Working-to-final transition in
+				// codex_working_test.go. The generic Return harness tries every
+				// byte split and is both unrelated and quadratic for this capture.
+				continue
+			}
 			wantComposer, ok := ttyFixtureReturnExpectation(metadata.Agent, name)
 			if !ok {
 				t.Errorf("%s: raw file %q has no recorded Return expectation", metadataPath, name)

@@ -263,6 +263,7 @@ type proxy struct {
 	lifecycleTimer        *time.Timer
 	lifecycleTimerKind    ObservationKind
 	lifecycleTimerToken   uint64
+	codexWorkingRendered  bool
 	lifecycleJournalPath  string
 	lifecycleJournal      lifecycleJournalAdvancer
 	writeTTY              func(fd int, p []byte) (int, error)
@@ -2808,6 +2809,8 @@ func (p *proxy) handleChunk(data []byte, rolling *[]byte) {
 		if p.terminal != nil {
 			if err := p.terminal.Feed(data); err != nil {
 				p.debug("TERMINAL-feed-fail", err.Error())
+			} else {
+				p.observeCodexWorking()
 			}
 		}
 		*rolling = append(*rolling, data...)

@@ -19,7 +19,7 @@
 | `TurnObservation` | `cmd/internal/wrapcmd/notification_lifecycle.go` | delivered M2 |
 | `NotificationLifecycle` | `cmd/internal/wrapcmd/notification_lifecycle.go` | delivered M2 |
 | `LifecycleDecision` | `cmd/internal/wrapcmd/notification_lifecycle.go` | delivered M2 |
-| `RecognizeCodexWorking` | `cmd/internal/wrapcmd/codex_working.go` | planned M4 |
+| `RecognizeCodexWorking` | `cmd/internal/wrapcmd/codex_working.go` | delivered M4 |
 | `LifecycleRecord` | `cmd/internal/sessionwatch/lifecycle_event.go` | delivered M3 |
 | Claude marker grammar | `cmd/internal/wrapcmd/wrap.go` | delivered M1 |
 | Codex native-event grammar | `cmd/internal/sessioninventory/event.go` | delivered M3 |
@@ -78,8 +78,8 @@ generation boundary.
 | `Run` authorized transcript continuation | `cmd/internal/sessionwatch/run.go` | delivered M3 | validated Codex rollout + child lifetime |
 | `AppendLifecycleRecord` | `cmd/internal/sessionwatch/lifecycle_event.go` | delivered M3 | append-only launch event sidecar |
 | `LifecycleJournalTailer` | `cmd/internal/wrapcmd/lifecycle_journal.go` | delivered M3 | incremental event delivery to proxy loop |
-| `terminalModel` | `cmd/internal/wrapcmd/terminal_model.go` | planned M4 | rendered Codex screen |
-| Couch projection | `cmd/internal/couchtty/console.go` | planned M4 | canonical OSC to unread/status/switcher |
+| `terminalModel` | `cmd/internal/wrapcmd/terminal_model.go` | consumed by M4 | rendered Codex screen |
+| Couch projection | `cmd/internal/couchtty/console.go` | verified M4 | canonical OSC to unread/status/switcher |
 
 - **`NotificationRewriter`** must preserve progress bytes while emitting typed
   observations. Existing every-split stream tests are the stateful fake.
@@ -283,11 +283,11 @@ fixtures/parser support before release—never accepted by broad fallback parsin
 - Create: `cmd/internal/wrapcmd/testdata/tty/codex/<captured-version>/working.raw`
 - Modify: `cmd/internal/wrapcmd/harness_tty_fixture_test.go`
 
-- [ ] Capture/sanitize a real animated Working-to-final-output PTY fixture and
+- [x] Capture/sanitize a real animated Working-to-final-output PTY fixture and
   record Codex version/terminal size; do not synthesize guessed ANSI.
-- [ ] Write failing `RecognizeCodexWorking` tests according to the arbitrary
+- [x] Write failing `RecognizeCodexWorking` tests according to the arbitrary
   rendered-cell risk strategy above.
-- [ ] Implement `RecognizeCodexWorking` and its thin terminal-model observation
+- [x] Implement `RecognizeCodexWorking` and its thin terminal-model observation
   adapter according to Core concepts.
 
 ### Task 7: Prove Couch status and switcher behavior
@@ -297,11 +297,11 @@ fixtures/parser support before release—never accepted by broad fallback parsin
 - Modify: `cmd/internal/wrapcmd/harness_tty_integration_test.go` or add a focused cross-package test at the existing accessible seam
 - Modify: `atlas/architecture.md`
 
-- [ ] Add the production acceptance test that passes wrapper-emitted OSC 777
+- [x] Add the production acceptance test that passes wrapper-emitted OSC 777
   through Couch and asserts the issue's two named user-facing surfaces.
-- [ ] Run focused package tests, then `go test ./... -count=1` and
+- [x] Run focused package tests, then `go test ./... -count=1` and
   `git diff --check`; expect PASS.
-- [ ] Run the extended opt-in `TestLiveNativeSessionShapeConformance` against the
+- [x] Run the extended opt-in `TestLiveNativeSessionShapeConformance` against the
   installed Codex and record version/results in the issue Log.
 - [ ] Commit `couch: #161 M4 recover and display stopped agent work`, tick/log
   M4 with fixture versions, update atlas, and run
@@ -355,3 +355,14 @@ complete semantic content equals the attempted record. Producer-path regressions
 enumerate malformed framing, unknown fields, unauthorized authority values, and
 same-identity differences in version, outcome, turn, message, transcript path,
 and event timestamp.
+
+### 2026-09-01 — ground M4 in captured rendered transitions
+
+Installed Codex 0.152.0 did not reproduce the older literal `Working (` label
+during a new 30-second prompt, so do not broaden recognition to its unrelated
+`Booting MCP server … esc to interrupt` status. Use the existing raw Pair PTY
+capture that contains the reported Working animation and its corresponding
+clear repaint, sanitize it to those exact paint operations, replay it
+incrementally through the production terminal model, and retain the
+installed-version startup capture plus exact fixture provenance.
+The terminal model itself remains unchanged; M4 consumes its snapshots.
