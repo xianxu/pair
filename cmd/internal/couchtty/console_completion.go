@@ -13,17 +13,29 @@ type DirectoryBatchReader interface {
 	ReadDirectoryBatches(context.Context, string, int, func([]CompletionEntry) bool) error
 }
 
-type OSDirectoryBatchReader struct{}
+type directoryCursor interface {
+	ReadDir(int) ([]os.DirEntry, error)
+	Close() error
+	Name() string
+}
 
-func (OSDirectoryBatchReader) ReadDirectoryBatches(ctx context.Context, directory string, batchSize int, yield func([]CompletionEntry) bool) error {
+type OSDirectoryBatchReader struct {
+	Open func(string) (directoryCursor, error)
+}
+
+func (reader OSDirectoryBatchReader) ReadDirectoryBatches(ctx context.Context, directory string, batchSize int, yield func([]CompletionEntry) bool) (resultErr error) {
 	if directory == "" {
 		directory = "."
 	}
-	file, err := os.Open(directory)
+	open := reader.Open
+	if open == nil {
+		open = func(path string) (directoryCursor, error) { return os.Open(path) }
+	}
+	file, err := open(directory)
 	if err != nil {
 		return err
 	}
-	defer file.Close()
+	defer func() { resultErr = errors.Join(resultErr, file.Close()) }()
 	for {
 		if err := ctx.Err(); err != nil {
 			return err

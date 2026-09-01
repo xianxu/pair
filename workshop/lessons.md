@@ -2813,3 +2813,8 @@ that a key token appears cannot detect a contradictory behavioral sentence
   auxiliary symbol/import/type index. Every path and byte participating in the
   oracle—including indexes—must come from the same immutable object, with a
   worktree-only declaration used as the negative regression (`ARCH-PURPOSE`).
+- An injected streaming or batched IO fake must enforce the same chunk bound,
+  cancellation, and terminal-error contract as production; yielding one whole
+  fixture only proves the interface shape. Give resource cursors an injected
+  close-capable seam and join close failures so cleanup cannot silently turn a
+  failed operation into success (`ARCH-MOCK`, `ARCH-CONSTRAINTS`).

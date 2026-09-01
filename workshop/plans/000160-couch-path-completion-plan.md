@@ -137,3 +137,11 @@ first revision. Applied its class-wide rule to every Task 1–6 test surface:
 `named function → one adversarial input class → one mechanical guard`. Removed
 all fixture enumerations, state matrices, field inventories, and procedural diff
 instructions while retaining exact RED/GREEN commands and architectural owners.
+
+### 2026-09-01 — close-review IO contract corrections
+
+Boundary review BR-1/BR-2 found that production discarded directory-close
+errors and the stateful fake did not enforce its declared batch bound. Added an
+injected close-capable directory cursor with joined errors, made the fake emit
+bounded observable chunks and errors, and pinned both contracts plus local
+Console error preservation under the race detector (`ARCH-MOCK`).

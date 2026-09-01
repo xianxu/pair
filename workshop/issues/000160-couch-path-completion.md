@@ -238,6 +238,14 @@ Verification passed: `go test -race ./cmd/internal/couchtty -run
 runtime-bundle generator; the exhaustive artifact-source inventory was updated
 for the two new production files.
 
+The first close review returned FIX-THEN-SHIP with BR-1
+(`filesystem-terminal-error-propagation`) and BR-2
+(`external-double-contract-fidelity`). The OS seam now injects a close-capable
+cursor and joins terminal close failures; the stateful fake now chunks by the
+requested bound, records batch sizes, propagates configured errors, and drives
+a Console-level local-error assertion. Added the generalized prevention rule to
+`workshop/lessons.md` (`ARCH-MOCK`, `ARCH-CONSTRAINTS`).
+
 ## Revisions
 
 ### 2026-09-01 — close first spec-review ambiguities

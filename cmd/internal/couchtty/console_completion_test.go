@@ -2,11 +2,16 @@ package couchtty
 
 import (
 	"context"
+	"errors"
 	"os"
 	"path/filepath"
 	"reflect"
 	"sort"
+	"strings"
 	"testing"
+	"time"
+
+	"github.com/xianxu/pair/cmd/internal/couchcore"
 )
 
 func TestOSDirectoryBatchReaderReturnsOnlyNavigableDirectoriesInBatches(t *testing.T) {
@@ -44,21 +49,71 @@ func TestOSDirectoryBatchReaderReturnsOnlyNavigableDirectoriesInBatches(t *testi
 	}
 }
 
+type closeErrorDirectory struct {
+	directoryCursor
+	err error
+}
+
+func (d closeErrorDirectory) Close() error {
+	return errors.Join(d.directoryCursor.Close(), d.err)
+}
+
+func TestOSDirectoryBatchReaderReturnsCloseFailure(t *testing.T) {
+	want := errors.New("close failed")
+	reader := OSDirectoryBatchReader{Open: func(path string) (directoryCursor, error) {
+		file, err := os.Open(path)
+		return closeErrorDirectory{directoryCursor: file, err: want}, err
+	}}
+	if err := reader.ReadDirectoryBatches(context.Background(), t.TempDir(), 2, func([]CompletionEntry) bool { return true }); !errors.Is(err, want) {
+		t.Fatalf("close error = %v, want joined %v", err, want)
+	}
+}
+
 type fakeDirectoryBatchReader struct {
 	started chan string
 	release chan struct{}
 	entries map[string][]CompletionEntry
+	batches chan int
+	errors  map[string]error
 }
 
-func (f *fakeDirectoryBatchReader) ReadDirectoryBatches(ctx context.Context, directory string, _ int, yield func([]CompletionEntry) bool) error {
-	f.started <- directory
-	select {
-	case <-f.release:
-	case <-ctx.Done():
-		return ctx.Err()
+func (f *fakeDirectoryBatchReader) ReadDirectoryBatches(ctx context.Context, directory string, batchSize int, yield func([]CompletionEntry) bool) error {
+	if f.started != nil {
+		f.started <- directory
 	}
-	yield(f.entries[directory])
-	return nil
+	if f.release != nil {
+		select {
+		case <-f.release:
+		case <-ctx.Done():
+			return ctx.Err()
+		}
+	}
+	entries := f.entries[directory]
+	for len(entries) > 0 {
+		count := min(batchSize, len(entries))
+		if f.batches != nil {
+			f.batches <- count
+		}
+		if !yield(append([]CompletionEntry(nil), entries[:count]...)) {
+			return context.Canceled
+		}
+		entries = entries[count:]
+	}
+	return f.errors[directory]
+}
+
+func TestFakeDirectoryBatchReaderModelsBoundedBatchesAndErrors(t *testing.T) {
+	want := errors.New("unreadable")
+	entries := make([]CompletionEntry, completionBatchSize+3)
+	reader := &fakeDirectoryBatchReader{entries: map[string][]CompletionEntry{".": entries}, batches: make(chan int, 2), errors: map[string]error{".": want}}
+	var total int
+	err := reader.ReadDirectoryBatches(context.Background(), ".", completionBatchSize, func(batch []CompletionEntry) bool {
+		total += len(batch)
+		return true
+	})
+	if !errors.Is(err, want) || total != len(entries) || <-reader.batches != completionBatchSize || <-reader.batches != 3 {
+		t.Fatalf("fake contract: err=%v total=%d", err, total)
+	}
 }
 
 func TestConsoleCompletionRunsLatestPendingRequest(t *testing.T) {
@@ -75,4 +130,22 @@ func TestConsoleCompletionRunsLatestPendingRequest(t *testing.T) {
 	}
 	close(reader.release)
 	f.con.Stop()
+}
+
+func TestConsoleCompletionReaderErrorStaysLocalToCurrentPath(t *testing.T) {
+	f := newFixture(t, 24, 80)
+	want := errors.New("directory unreadable")
+	f.con.SetDirectoryBatchReader(&fakeDirectoryBatchReader{errors: map[string]error{".": want}})
+	state := NewMenuState(nil, couchcore.ThreadAddress{})
+	state, _ = reduceKey(state, PanelKey{Kind: KeyCtrlSpace})
+	state, _ = reduceKey(state, PanelKey{Kind: KeyRune, Rune: 'x'})
+	state, effects := reduceKey(state, PanelKey{Kind: KeyTab})
+	f.con.mu.Lock()
+	f.con.menu, f.con.menuReady = state, true
+	f.con.mu.Unlock()
+	f.con.dispatchMenuEffects(effects)
+	waitUpTo(t, 250*time.Millisecond, "completion error", func() bool {
+		got := f.con.menuSnapshot()
+		return got.CurrentFrame().Path == "x" && got.Notice.Level == MenuNoticeError && strings.Contains(got.Notice.Text, want.Error())
+	})
 }
