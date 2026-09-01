@@ -409,3 +409,77 @@ findings:
     detail: |
       lifecycleIdentityPresent permissively decodes rows and compares only launch, artifact generation, and offset, so a malformed or semantically different row can suppress the intended append and silently lose notification authority. This is the 4th finding in family lifecycle-contract-coverage; enforce strict complete-record equivalence across every reconciliation candidate and pin the enumerable malformed and semantic-mismatch classes with producer-path regressions.
 ```
+
+---
+
+## Re-review — 2026-09-01T15:49:42-07:00 (SHIP)
+
+| field | value |
+|-------|-------|
+| issue | 161 — Couch misses Codex completion notifications |
+| repo | 000161-couch-missed-codex-notifications |
+| issue file | workshop/issues/000161-couch-missed-codex-notifications.md |
+| boundary | milestone M3 |
+| milestone | M3 |
+| window | dc43a9e8e67f940eee9dc6daeb789bcdf2b16392..99fb1bab89ef360275006671de000c07d9f8f4e3 |
+| command | sdlc milestone-close --issue 161 --milestone M3 |
+| reviewer | codex |
+| timestamp | 2026-09-01T15:49:42-07:00 |
+| verdict | SHIP |
+
+## Review
+
+```verdict
+verdict: SHIP
+confidence: high
+```
+
+The M3 boundary is ready. BR-10 is addressed with strict, complete-record reconciliation and a reachable producer-path regression. The focused M3 packages pass, documentation and the Core concepts inventory match the delivered surface, and no new blocking findings were identified.
+
+## Strengths
+
+- Reconciliation first strictly decodes and validates candidates, then compares every lifecycle field, including outcome, turn, message, path, offset, and timestamp ([lifecycle_event.go](/Users/xianxu/workspace/worktree/pair/000161-couch-missed-codex-notifications/cmd/internal/sessionwatch/lifecycle_event.go:38), [lifecycle_event.go](/Users/xianxu/workspace/worktree/pair/000161-couch-missed-codex-notifications/cmd/internal/sessionwatch/lifecycle_event.go:70)).
+- The producer-path regression enumerates malformed JSON, unauthorized semantics, and valid semantic mismatches ([lifecycle_event_test.go](/Users/xianxu/workspace/worktree/pair/000161-couch-missed-codex-notifications/cmd/internal/sessionwatch/lifecycle_event_test.go:90)).
+- Transcript publication remains rooted in the existing authorized session watcher, with incremental offsets and current-launch filtering rather than a parallel resolver.
+- Journal filesystem work runs outside the PTY master loop through a bounded, backpressured channel.
+- The new lifecycle journal and transcript-authority flow are documented in both relevant atlas pages.
+
+## Critical findings
+
+None.
+
+## Important findings
+
+None.
+
+## Minor findings
+
+None.
+
+## Test coverage notes
+
+- BR-10 mutation check: replacing complete equality with the former launch/artifact/offset-only comparison made `TestAppendLifecycleRecordDoesNotReconcileDifferentOrInvalidObservation` fail for outcome, turn ID, message, transcript path, and timestamp. The fix is therefore reachable and regression-pinned.
+- Passed:
+  `go test ./cmd/internal/sessioninventory ./cmd/internal/sessionwatch ./cmd/internal/wrapcmd ./cmd/internal/launcher ./cmd/internal/artifactpath -count=1`
+- `git diff --check` passed.
+- `go test ./... -count=1` exercised the remaining packages successfully but returned failure because `cmd/internal/runtimebundle/assets/runtime/files` was absent for `go:embed`. This is outside the reviewed diff; the M3 packages themselves passed.
+
+## Architectural notes for upcoming work
+
+- `ARCH-DRY`: Pass — transcript selection reuses the established watcher/inventory authority and lifecycle delivery converges on the existing reducer.
+- `ARCH-PURE`: Pass — lifecycle projection and reduction remain pure; filesystem polling and journal IO stay in thin boundary workers.
+- `ARCH-PURPOSE`: Pass — short and appended Codex turns publish keyed opener/terminal records, and concurrency/root authorization is preserved.
+- `ARCH-MOCK`: Pass — mutable transcript and filesystem behavior use injected stateful runtimes; live lifecycle conformance validates the production envelope.
+- `ARCH-CONSTRAINTS`: Pass — transcript polling, journal work, record size, channel capacity, and PTY non-blocking behavior enforce the declared M3 envelope.
+
+## Plan revision recommendations
+
+None.
+
+```findings
+dispose:
+  - id: BR-10
+    disposition: addressed
+    note: |
+      Strict decoding plus complete-record equality now governs reconciliation, and the producer-path regression fails when the former permissive three-field comparison is restored.
+```

@@ -143,6 +143,7 @@ total: 6.93
 ## Log
 
 ### 2026-09-01
+- 2026-09-01: closed M3 — RED producer reconciliation collision matrix across malformed framing, unknown fields, unauthorized authority values, and all same-identity semantic differences; GREEN strict shared decode plus complete observation equality; five-package focused tests and git diff --check.; review verdict: SHIP
 - M3 implementation: captured live Codex envelopes confirmed keyed
   `task_started`, `task_complete`, and `turn_aborted`. RED/GREEN coverage pins
   strict parsing, launch/generation/offset journal identity, interrupted append

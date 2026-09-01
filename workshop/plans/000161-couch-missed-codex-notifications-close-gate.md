@@ -171,6 +171,16 @@ rounds:
           round: 7
       boundary: M3
       blocked: true
+    - "n": 8
+      timestamp: "2026-09-01T15:49:42-07:00"
+      agent: codex
+      dispose:
+        - id: BR-10
+          disposition: addressed
+          note: Strict decoding plus complete-record equality now governs reconciliation, and the producer-path regression fails when the former permissive three-field comparison is restored.
+          round: 8
+      boundary: M3
+      blocked: false
 ---
 
 # Gate ledger — 000161-couch-missed-codex-notifications#161 (boundary-review)
@@ -255,6 +265,12 @@ later rounds disposed of them. Generated — edit the gate, not this file.
 - **BR-10** [Critical] `lifecycle-contract-coverage` Journal reconciliation treats unauthorized identity collisions as committed lifecycle records
   lifecycleIdentityPresent permissively decodes rows and compares only launch, artifact generation, and offset, so a malformed or semantically different row can suppress the intended append and silently lose notification authority. This is the 4th finding in family lifecycle-contract-coverage; enforce strict complete-record equivalence across every reconciliation candidate and pin the enumerable malformed and semantic-mismatch classes with producer-path regressions.
 
+## Round 8 — 2026-09-01T15:49:42-07:00 (codex) — passed
+
+### Disposed
+
+- BR-10 — addressed — Strict decoding plus complete-record equality now governs reconciliation, and the producer-path regression fails when the former permissive three-field comparison is restored.
+
 ## Open findings
 
-- **BR-10** [Critical] `lifecycle-contract-coverage` Journal reconciliation treats unauthorized identity collisions as committed lifecycle records
+(none — every finding has been disposed)
