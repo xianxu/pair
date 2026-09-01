@@ -149,3 +149,19 @@ func TestConsoleCompletionReaderErrorStaysLocalToCurrentPath(t *testing.T) {
 		return got.CurrentFrame().Path == "x" && got.Notice.Level == MenuNoticeError && strings.Contains(got.Notice.Text, want.Error())
 	})
 }
+
+func TestConsoleCompletionCancellationPreservesJoinedTerminalFailure(t *testing.T) {
+	f := newFixture(t, 24, 80)
+	want := errors.New("close failed after cancellation")
+	f.con.SetDirectoryBatchReader(&fakeDirectoryBatchReader{errors: map[string]error{".": errors.Join(context.Canceled, want)}})
+	state := NewMenuState(nil, couchcore.ThreadAddress{})
+	state, _ = reduceKey(state, PanelKey{Kind: KeyCtrlSpace})
+	state, effects := reduceKey(state, PanelKey{Kind: KeyTab})
+	f.con.mu.Lock()
+	f.con.menu, f.con.menuReady = state, true
+	f.con.mu.Unlock()
+	f.con.dispatchMenuEffects(effects)
+	waitUpTo(t, 250*time.Millisecond, "joined terminal error", func() bool {
+		return strings.Contains(f.con.menuSnapshot().Notice.Text, want.Error())
+	})
+}

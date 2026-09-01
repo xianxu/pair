@@ -145,3 +145,10 @@ errors and the stateful fake did not enforce its declared batch bound. Added an
 injected close-capable directory cursor with joined errors, made the fake emit
 bounded observable chunks and errors, and pinned both contracts plus local
 Console error preservation under the race detector (`ARCH-MOCK`).
+
+### 2026-09-01 — preserve joined failures during cancellation
+
+Close-review round two showed BR-1 remained open because worker cancellation
+filtering discarded an entire joined error. Replaced broad `errors.Is`
+suppression with cancellation-leaf removal and added a Console regression where
+cancellation and close failure arrive together.

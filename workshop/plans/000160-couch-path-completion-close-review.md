@@ -79,3 +79,84 @@ findings:
     detail: |
       The fake ignores batchSize and yields all configured entries at once, so the integration path cannot enforce the production seam's bounded-batch contract or several claimed cancellation and error behaviors. Make the fake stateful and batch-faithful, then pin those worker behaviors.
 ```
+
+---
+
+## Re-review — 2026-09-01T13:20:05-07:00 (FIX-THEN-SHIP)
+
+| field | value |
+|-------|-------|
+| issue | 160 — Couch start path tab completion |
+| repo | 000160-couch-path-completion |
+| issue file | workshop/issues/000160-couch-path-completion.md |
+| boundary | whole-issue close |
+| milestone | — |
+| window | bf65381d5127ffb4d662a54ae0d34fe929a852dc..31d499d2d03693080edbd65a4a2e832d85683553 |
+| command | sdlc close --issue 160 |
+| reviewer | codex |
+| timestamp | 2026-09-01T13:20:05-07:00 |
+| verdict | FIX-THEN-SHIP |
+
+## Review
+
+```verdict
+verdict: FIX-THEN-SHIP
+confidence: high
+```
+
+The implementation substantially delivers the specified asynchronous, bounded directory completion and documents the new surface. BR-2 is demonstrably fixed. BR-1 remains incomplete: cancellation can cause the worker to discard a close error joined with `context.Canceled`. Fix that error classification and add a combined cancellation-plus-close regression test before shipping.
+
+```findings
+dispose:
+  - id: BR-1
+    disposition: not-addressed
+    note: |
+      The reader now joins Close failures, but the worker clears the entire joined error whenever errors.Is(err, context.Canceled), silently discarding a simultaneous Close failure.
+  - id: BR-2
+    disposition: addressed
+    note: |
+      The stateful fake now emits bounded chunks and configured terminal errors; its direct contract test would fail with the prior all-at-once implementation.
+```
+
+## Strengths
+
+- The pure accumulator retains a deterministic lexical top 200 without materializing all matches ([menu_completion.go](/Users/xianxu/workspace/worktree/pair/000160-couch-path-completion/cmd/internal/couchtty/menu_completion.go:65)).
+- Exact frame-instance/generation matching makes stale completion results inert, with completion slices cloned for reducer immutability ([menu.go](/Users/xianxu/workspace/worktree/pair/000160-couch-path-completion/cmd/internal/couchtty/menu.go:741)).
+- Production enumeration uses bounded `ReadDir` calls and follows symlinks only at the IO boundary ([console_completion.go](/Users/xianxu/workspace/worktree/pair/000160-couch-path-completion/cmd/internal/couchtty/console_completion.go:26)).
+- README and atlas both describe the new interaction and architecture.
+- Existing preview authorization remains the only start-dispatch path.
+
+## Critical findings
+
+None.
+
+## Important findings
+
+- **BR-1 — `filesystem-terminal-error-propagation`: cancellation still swallows joined cleanup failures.** At [console_completion.go:117](/Users/xianxu/workspace/worktree/pair/000160-couch-path-completion/cmd/internal/couchtty/console_completion.go:117), `errors.Is(err, context.Canceled)` sets the complete error to `nil`. When `ReadDirectoryBatches` returns `errors.Join(context.Canceled, closeErr)`, this erases `closeErr`.
+
+  **This is the 2nd finding in family `filesystem-terminal-error-propagation`.** Apply the class-wide rule: expected cancellation may be suppressed only when it is the sole terminal condition; non-cancellation read/cleanup errors must survive. Add a test combining cancellation with an injected close failure and verify the close failure remains observable. The current close-only test does not cover this path.
+
+## Minor findings
+
+None.
+
+## Test coverage notes
+
+- Targeted race tests passed.
+- `go test ./cmd/internal/couchtty -count=1` passed.
+- BR-2’s test directly observes 128+3 batching and configured errors.
+- The full `go test ./... -count=1` run reached unrelated `cmd/pair-go` tests but failed because the sandbox denied `/bin/ps`; no issue-specific package failed.
+- `git diff --check` for the pinned range passed.
+- The worktree contains an unrelated untracked `.nvimlog`; it was not inspected as part of the committed range.
+
+## Architectural notes
+
+- `ARCH-DRY`: Pass — preview and completion share the generic latest-wins scheduler.
+- `ARCH-PURE`: Pass — query, accumulation, reducer transitions, scheduling, and rendering remain IO-free.
+- `ARCH-PURPOSE`: Pass — completion stays advisory and does not bypass preview/token authorization.
+- `ARCH-MOCK`: Pass — production and tests share `DirectoryBatchReader`, and the fake is stateful and batch-faithful.
+- `ARCH-CONSTRAINTS`: Pass — one active/one pending scan, 128-entry reads, 200 retained candidates, and bounded rendering implement the declared envelope.
+
+## Plan revision recommendations
+
+Add a `## Revisions` entry recording the terminal-error rule: cancellation suppression must preserve any joined non-cancellation read or cleanup failure, with the combined cancellation-plus-close regression test named as its guard.

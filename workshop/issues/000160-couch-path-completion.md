@@ -246,6 +246,11 @@ requested bound, records batch sizes, propagates configured errors, and drives
 a Console-level local-error assertion. Added the generalized prevention rule to
 `workshop/lessons.md` (`ARCH-MOCK`, `ARCH-CONSTRAINTS`).
 
+Close-review round two disposed BR-2 and kept BR-1 open: broad cancellation
+filtering erased a sibling close failure from `errors.Join`. The worker now
+removes only cancellation leaves and preserves all other terminal errors; a
+Console-level combined cancellation/close regression is green under `-race`.
+
 ## Revisions
 
 ### 2026-09-01 — close first spec-review ambiguities

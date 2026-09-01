@@ -2817,4 +2817,6 @@ that a key token appears cannot detect a contradictory behavioral sentence
   cancellation, and terminal-error contract as production; yielding one whole
   fixture only proves the interface shape. Give resource cursors an injected
   close-capable seam and join close failures so cleanup cannot silently turn a
-  failed operation into success (`ARCH-MOCK`, `ARCH-CONSTRAINTS`).
+  failed operation into success. When cancellation is expected, remove only
+  cancellation leaves from a joined terminal error; never discard sibling read
+  or cleanup failures (`ARCH-MOCK`, `ARCH-CONSTRAINTS`).

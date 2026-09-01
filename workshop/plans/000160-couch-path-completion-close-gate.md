@@ -20,6 +20,19 @@ rounds:
           family: external-double-contract-fidelity
           round: 1
       blocked: true
+    - "n": 2
+      timestamp: "2026-09-01T13:20:05-07:00"
+      agent: codex
+      dispose:
+        - id: BR-1
+          disposition: not-addressed
+          note: The reader now joins Close failures, but the worker clears the entire joined error whenever errors.Is(err, context.Canceled), silently discarding a simultaneous Close failure.
+          round: 2
+        - id: BR-2
+          disposition: addressed
+          note: The stateful fake now emits bounded chunks and configured terminal errors; its direct contract test would fail with the prior all-at-once implementation.
+          round: 2
+      blocked: true
 ---
 
 # Gate ledger — 000160-couch-path-completion#160 (boundary-review)
@@ -36,7 +49,13 @@ later rounds disposed of them. Generated — edit the gate, not this file.
 - **BR-2** [Important] `external-double-contract-fidelity` The directory-reader fake does not model bounded batching
   The fake ignores batchSize and yields all configured entries at once, so the integration path cannot enforce the production seam's bounded-batch contract or several claimed cancellation and error behaviors. Make the fake stateful and batch-faithful, then pin those worker behaviors.
 
+## Round 2 — 2026-09-01T13:20:05-07:00 (codex) — BLOCKED
+
+### Disposed
+
+- BR-1 — not-addressed — The reader now joins Close failures, but the worker clears the entire joined error whenever errors.Is(err, context.Canceled), silently discarding a simultaneous Close failure.
+- BR-2 — addressed — The stateful fake now emits bounded chunks and configured terminal errors; its direct contract test would fail with the prior all-at-once implementation.
+
 ## Open findings
 
 - **BR-1** [Important] `filesystem-terminal-error-propagation` Directory close failures are silently discarded
-- **BR-2** [Important] `external-double-contract-fidelity` The directory-reader fake does not model bounded batching

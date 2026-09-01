@@ -114,9 +114,7 @@ func (c *Console) startMenuCompletion(request CompletionRequest) {
 			accumulator.Add(batch)
 			return ctx.Err() == nil
 		})
-		if errors.Is(err, context.Canceled) {
-			err = nil
-		}
+		err = completionTerminalError(err)
 		result := CompletionResult{Identity: request.Identity, Matches: accumulator.Result()}
 		if err != nil {
 			result.Error = err.Error()
@@ -126,6 +124,25 @@ func (c *Console) startMenuCompletion(request CompletionRequest) {
 		case <-c.stop:
 		}
 	}()
+}
+
+func completionTerminalError(err error) error {
+	if err == nil {
+		return nil
+	}
+	if joined, ok := err.(interface{ Unwrap() []error }); ok {
+		remaining := make([]error, 0, len(joined.Unwrap()))
+		for _, child := range joined.Unwrap() {
+			if child = completionTerminalError(child); child != nil {
+				remaining = append(remaining, child)
+			}
+		}
+		return errors.Join(remaining...)
+	}
+	if errors.Is(err, context.Canceled) {
+		return nil
+	}
+	return err
 }
 
 func (c *Console) finishMenuCompletion(completed menuCompletionResult) {
