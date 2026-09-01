@@ -95,3 +95,90 @@ findings:
     detail: |
       The checked plan claims arbitrary keyed/keyless sequences and source permutations, but coverage omits ordering permutations, key mismatches, differing keyed starts, abort outcome distinction, and production submission integration.
 ```
+
+---
+
+## Re-review — 2026-09-01T15:12:52-07:00 (SHIP)
+
+| field | value |
+|-------|-------|
+| issue | 161 — Couch misses Codex completion notifications |
+| repo | 000161-couch-missed-codex-notifications |
+| issue file | workshop/issues/000161-couch-missed-codex-notifications.md |
+| boundary | milestone M2 |
+| milestone | M2 |
+| window | fcdbdae9792e322a331fe85b5c35df57a0fa360b..fcdbdae9792e322a331fe85b5c35df57a0fa360b |
+| command | sdlc milestone-close --issue 161 --milestone M2 |
+| reviewer | codex |
+| timestamp | 2026-09-01T15:12:52-07:00 |
+| verdict | SHIP |
+
+## Review
+
+```verdict
+verdict: SHIP
+confidence: medium
+```
+
+M2’s prior findings are addressed in the pinned tree. Semantic Alt+Enter branches now open lifecycle generations, native completion is tested through the production flow, the lifecycle source is classified, and reducer coverage exercises source ordering, keyed mismatches, new keyed turns, abort outcomes, and arbitrary sequences. Confidence is medium because the supplied review range is zero-width (`base == head`) and the full suite cannot compile four runtime-bundle consumers due to absent generated assets; focused affected-package and inventory tests pass.
+
+1. Strengths
+
+- Both legacy and KKP Alt+Enter publish `ObservationUserSubmission` at the semantic send boundary ([wrap.go](/Users/xianxu/workspace/worktree/pair/000161-couch-missed-codex-notifications/cmd/internal/wrapcmd/wrap.go:1829), [wrap.go](/Users/xianxu/workspace/worktree/pair/000161-couch-missed-codex-notifications/cmd/internal/wrapcmd/wrap.go:1848)).
+- Plain Enter is explicitly verified as non-authoritative, while both Alt+Enter encodings are covered for Codex and Claude ([harness_tty_integration_test.go](/Users/xianxu/workspace/worktree/pair/000161-couch-missed-codex-notifications/cmd/internal/wrapcmd/harness_tty_integration_test.go:70)).
+- The native regression now drives composer submission through lifecycle processing to canonical outer OSC emission without an unrelated progress opener ([notification_rewriter_test.go](/Users/xianxu/workspace/worktree/pair/000161-couch-missed-codex-notifications/cmd/internal/wrapcmd/notification_rewriter_test.go:139)).
+- The reducer remains deterministic and IO-free; proxy/timer integration stays outside `Reduce` ([notification_lifecycle.go](/Users/xianxu/workspace/worktree/pair/000161-couch-missed-codex-notifications/cmd/internal/wrapcmd/notification_lifecycle.go:52)).
+- `notification_lifecycle.go` is included in the exhaustive non-artifact inventory ([manifest.go](/Users/xianxu/workspace/worktree/pair/000161-couch-missed-codex-notifications/cmd/internal/artifactpath/manifest.go:700)).
+
+2. Critical findings
+
+None.
+
+3. Important findings
+
+None.
+
+4. Minor findings
+
+None.
+
+5. Test coverage notes
+
+- `go test ./cmd/internal/wrapcmd -count=1`: PASS.
+- Exhaustive production artifact-classification test: PASS.
+- `git diff --check`: PASS.
+- `go test ./... -count=1`: affected packages passed, but the overall command failed because `cmd/internal/runtimebundle/assets/runtime/files` is absent, preventing four packages from compiling.
+- Removing either submission publication call would make its corresponding production-flow assertion fail; the fix is reachable rather than guarded dead code.
+
+6. Architectural notes for upcoming work
+
+- `ARCH-DRY`: Pass — all completion sources converge through `Reduce` and `emitOuter`.
+- `ARCH-PURE`: Pass — lifecycle policy is pure; channel, timer, and outer-TTY effects remain in the proxy shell.
+- `ARCH-PURPOSE`: Pass for M2 — both affected harnesses and both supported submit encodings are covered, rather than only the originally reported instance.
+- `ARCH-MOCK`: Pass for M2 — stream behavior uses the production parser boundary and stateful harness fake; M3’s transcript fake/conformance work remains correctly deferred.
+- `ARCH-CONSTRAINTS`: Pass — one proxy-owned tokenized timer enforces bounded grace/watchdog behavior without blocking PTY forwarding.
+- Atlas documents the new lifecycle reducer and submission semantics. No new README-facing command, flag, configuration key, or workflow was introduced.
+
+7. Plan revision recommendations
+
+None.
+
+```findings
+dispose:
+  - id: BR-1
+    disposition: addressed
+    note: |
+      Legacy and KKP Alt+Enter now publish the lifecycle opener for Codex and Claude, with production-flow tests.
+  - id: BR-2
+    disposition: addressed
+    note: |
+      Submission-to-native completion is restored as an independent regression; progress-opened native completion remains separate.
+  - id: BR-3
+    disposition: addressed
+    note: |
+      notification_lifecycle.go is classified and the exhaustive artifact inventory test passes.
+  - id: BR-4
+    disposition: addressed
+    note: |
+      Tests cover source order, keyed mismatch and replacement, distinct abort fallback, arbitrary sequences, and production submission integration.
+```

@@ -143,6 +143,7 @@ total: 6.93
 ## Log
 
 ### 2026-09-01
+- 2026-09-01: closed M2 — RED semantic legacy/KKP send, real Codex/Claude send-to-native delivery, source-order/key/abort/fuzz invariants, and artifact inventory; GREEN go test ./cmd/internal/wrapcmd ./cmd/internal/artifactpath -count=1, 2s lifecycle fuzz, git diff --check.; review verdict: SHIP
 - M2 implementation: RED covered absent lifecycle types, OSC progress at every
   split in marker/native modes, one proxy-owned timer, resumed work cancelling
   stale grace, and transcript start activating a submitted turn. GREEN:

@@ -38,6 +38,28 @@ rounds:
           round: 2
       boundary: M2
       blocked: true
+    - "n": 3
+      timestamp: "2026-09-01T15:12:52-07:00"
+      agent: codex
+      dispose:
+        - id: BR-1
+          disposition: addressed
+          note: Legacy and KKP Alt+Enter now publish the lifecycle opener for Codex and Claude, with production-flow tests.
+          round: 3
+        - id: BR-2
+          disposition: addressed
+          note: Submission-to-native completion is restored as an independent regression; progress-opened native completion remains separate.
+          round: 3
+        - id: BR-3
+          disposition: addressed
+          note: notification_lifecycle.go is classified and the exhaustive artifact inventory test passes.
+          round: 3
+        - id: BR-4
+          disposition: addressed
+          note: Tests cover source order, keyed mismatch and replacement, distinct abort fallback, arbitrary sequences, and production submission integration.
+          round: 3
+      boundary: M2
+      blocked: false
 ---
 
 # Gate ledger — 000161-couch-missed-codex-notifications#161 (boundary-review)
@@ -60,9 +82,15 @@ later rounds disposed of them. Generated — edit the gate, not this file.
 - **BR-4** [Important] `lifecycle-contract-coverage` Reducer tests do not exercise the plan's keyed and source-order contract
   The checked plan claims arbitrary keyed/keyless sequences and source permutations, but coverage omits ordering permutations, key mismatches, differing keyed starts, abort outcome distinction, and production submission integration.
 
+## Round 3 — 2026-09-01T15:12:52-07:00 (codex) — passed
+
+### Disposed
+
+- BR-1 — addressed — Legacy and KKP Alt+Enter now publish the lifecycle opener for Codex and Claude, with production-flow tests.
+- BR-2 — addressed — Submission-to-native completion is restored as an independent regression; progress-opened native completion remains separate.
+- BR-3 — addressed — notification_lifecycle.go is classified and the exhaustive artifact inventory test passes.
+- BR-4 — addressed — Tests cover source order, keyed mismatch and replacement, distinct abort fallback, arbitrary sequences, and production submission integration.
+
 ## Open findings
 
-- **BR-1** [Critical] `submission-boundary-reachability` Normal composer submissions do not open a lifecycle generation
-- **BR-2** [Important] `regression-test-reachability` Native notification regression injects an unrelated progress opener
-- **BR-3** [Important] `production-source-inventory` New lifecycle source is absent from the exhaustive artifact inventory
-- **BR-4** [Important] `lifecycle-contract-coverage` Reducer tests do not exercise the plan's keyed and source-order contract
+(none — every finding has been disposed)
