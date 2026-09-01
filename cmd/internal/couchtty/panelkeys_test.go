@@ -32,6 +32,18 @@ func TestDecodeArrowsInBothModes(t *testing.T) {
 			t.Fatalf("%q decoded to %+v, want one KeyDown", seq, keys)
 		}
 	}
+	for _, seq := range []string{"\x1b[D", "\x1bOD"} {
+		keys, _ := DecodePanelKeys([]byte(seq))
+		if len(keys) != 1 || keys[0].Kind != KeyLeft {
+			t.Fatalf("%q decoded to %+v, want one KeyLeft", seq, keys)
+		}
+	}
+	for _, seq := range []string{"\x1b[C", "\x1bOC"} {
+		keys, _ := DecodePanelKeys([]byte(seq))
+		if len(keys) != 1 || keys[0].Kind != KeyRight {
+			t.Fatalf("%q decoded to %+v, want one KeyRight", seq, keys)
+		}
+	}
 }
 
 func TestDecodeRecognisedKeysAtEverySplit(t *testing.T) {
@@ -43,6 +55,10 @@ func TestDecodeRecognisedKeysAtEverySplit(t *testing.T) {
 		{"\x1b[B", KeyDown},
 		{"\x1bOA", KeyUp},
 		{"\x1bOB", KeyDown},
+		{"\x1b[D", KeyLeft},
+		{"\x1b[C", KeyRight},
+		{"\x1bOD", KeyLeft},
+		{"\x1bOC", KeyRight},
 		{"\x1b[27u", KeyEscape},
 		{"\x1b[13u", KeyEnter},
 		{"\x1b[127u", KeyBackspace},
@@ -60,6 +76,34 @@ func TestDecodeRecognisedKeysAtEverySplit(t *testing.T) {
 				}
 			})
 		}
+	}
+}
+
+func TestDecodedHorizontalArrowsDriveStartAgentSelection(t *testing.T) {
+	for _, tc := range []struct {
+		sequence string
+		want     string
+	}{
+		{sequence: "\x1b[D", want: "codex"},
+		{sequence: "\x1bOD", want: "codex"},
+		{sequence: "\x1b[C", want: "muse"},
+		{sequence: "\x1bOC", want: "muse"},
+	} {
+		t.Run(strconv.Quote(tc.sequence), func(t *testing.T) {
+			state := NewMenuState(menuThreads(), menuAddress("couch-one"))
+			state.Agents = []string{"codex", "claude", "muse"}
+			state.RootAgent = "claude"
+			state, _ = reduceKey(state, PanelKey{Kind: KeyCtrlSpace})
+			state, _ = reduceKey(state, PanelKey{Kind: KeyTab})
+			keys, held := DecodePanelKeys([]byte(tc.sequence))
+			if len(held) != 0 || len(keys) != 1 {
+				t.Fatalf("decoded keys=%+v held=%q", keys, held)
+			}
+			state, _ = reduceKey(state, keys[0])
+			if got := state.CurrentFrame().Agent; got != tc.want {
+				t.Fatalf("agent = %q, want %q", got, tc.want)
+			}
+		})
 	}
 }
 
@@ -109,7 +153,7 @@ func TestDecodeCarriesAPartialSequence(t *testing.T) {
 }
 
 func FuzzDecodePanelKeys(f *testing.F) {
-	for _, s := range []string{"", "\x1b", "\x1b[A", "\x1b[<0;1;1M", "abc", "\x1b[", "\x7f\r\n"} {
+	for _, s := range []string{"", "\x1b", "\x1b[A", "\x1b[<0;1;1M", "abc", "\x1b[", "\x7f\r\n", "\t", "\x1b[9u", "\x1b[9;5u"} {
 		f.Add([]byte(s))
 	}
 	f.Fuzz(func(t *testing.T, in []byte) {
@@ -196,5 +240,31 @@ func TestDecodeDoesNotTypeControlCodepoints(t *testing.T) {
 		if k.Kind == KeyRune {
 			t.Fatalf("a modified key was typed as the rune %q", k.Rune)
 		}
+	}
+}
+
+func TestDecodePanelKeysTabAcrossEverySplit(t *testing.T) {
+	for _, sequence := range []string{"\t", "\x1b[9u"} {
+		for split := 0; split <= len(sequence); split++ {
+			keys, held := DecodePanelKeys([]byte(sequence[:split]))
+			keys2, held2 := DecodePanelKeys(append(held, []byte(sequence[split:])...))
+			keys = append(keys, keys2...)
+			if len(held2) != 0 || len(keys) != 1 || keys[0].Kind != KeyTab {
+				t.Fatalf("sequence %q split %d = keys %+v held %q", sequence, split, keys, held2)
+			}
+		}
+	}
+}
+
+func TestDecodePanelKeysTabRejectsModifiedCSIu(t *testing.T) {
+	keys, held := DecodePanelKeys([]byte("\x1b[9;5u"))
+	if len(keys) != 0 || len(held) != 0 {
+		t.Fatalf("modified Tab became input: keys=%+v held=%q", keys, held)
+	}
+}
+
+func TestDecodePanelKeysTabHasFailSafeZeroKind(t *testing.T) {
+	if PanelKeyKind(0) != KeyUnknown || KeyRune == KeyUnknown {
+		t.Fatalf("zero kind authorizes input: unknown=%v rune=%v", KeyUnknown, KeyRune)
 	}
 }

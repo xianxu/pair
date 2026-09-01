@@ -22,15 +22,67 @@ func readme(t *testing.T) string {
 	return string(raw)
 }
 
+func repoDocument(t *testing.T, path ...string) string {
+	t.Helper()
+	parts := append([]string{"..", "..", ".."}, path...)
+	raw, err := os.ReadFile(filepath.Join(parts...))
+	if err != nil {
+		t.Fatalf("read %s: %v", filepath.Join(path...), err)
+	}
+	return string(raw)
+}
+
+// M3 moves the ordinary switcher to proof-bearing actionable inventory while
+// retaining ThreadInventory for diagnostics. Guard source and current-state
+// summaries together so later edits cannot collapse those two views.
+func TestM3DocsMatchActionableSwitcherInventoryProvider(t *testing.T) {
+	if source := repoDocument(t, "cmd", "internal", "couchcmd", "run.go"); !strings.Contains(source, "console.SetActionableProvider") || !strings.Contains(source, "c.ActionableThreadInventoryContext") {
+		t.Fatal("M3 contract expects the switcher to consume context-bearing actionable inventory")
+	}
+
+	checks := []struct {
+		path []string
+		want string
+	}{
+		{[]string{"atlas", "couch.md"}, "ordinary switcher reads the\nactionable projection"},
+		{[]string{"workshop", "projects", "couch.md"}, "hierarchical switcher the reachable Console UI over the\nproof-bearing actionable projection"},
+		{[]string{"workshop", "issues", "000151-hierarchical-thread-menu.md"}, "100-row harness now covers open, filter, navigation"},
+		{[]string{"workshop", "plans", "000151-hierarchical-thread-menu-plan.md"}, "`TestMenuTargetPerformance` | `cmd/internal/couchtty/menu_perf_test.go`, `cmd/internal/couchcore/actionableinventory.go`, `cmd/internal/couchtty/focus.go`, `cmd/internal/couchtty/menu.go`, `cmd/internal/couchtty/menu_refresh.go`, `cmd/internal/ptychild/child.go` | new | M3 | present"},
+		{[]string{"README.md"}, "Unsupported or ambiguous lifecycle\nrecords stay available through `couch list/show` diagnostics"},
+	}
+	for _, check := range checks {
+		if doc := repoDocument(t, check.path...); !strings.Contains(doc, check.want) {
+			t.Errorf("%s does not declare the current M3 consumer stage %q", filepath.Join(check.path...), check.want)
+		}
+	}
+}
+
 // The panel renderer and README consume the same key inventory. Adding a key
 // to the UI therefore makes this test fail until its operator documentation
 // has a home in README, instead of relying on a boundary reviewer to remember.
 func TestREADMEDocumentsEveryPanelControl(t *testing.T) {
 	doc := readme(t)
-	for _, control := range couchtty.PanelControls() {
+	for _, control := range couchtty.MenuControls() {
 		if !strings.Contains(doc, control.Keys) {
 			t.Errorf("README does not document panel key %q (%s)", control.Keys, control.Action)
 		}
+	}
+}
+
+func TestREADMERootEscapeMatchesReducerWhenNoActorIsLive(t *testing.T) {
+	const documented = "with no live actor, the switcher stays open and reports why"
+	if doc := readme(t); !strings.Contains(doc, documented) {
+		t.Fatalf("README does not document root Escape semantics %q", documented)
+	}
+	state := couchtty.NewMenuState([]couchcore.ActionableThreadSummary{{
+		Address: couchcore.ThreadAddress{RepoScope: "repo", Tag: "couch-parked"},
+		State:   couchcore.ThreadParked,
+	}}, couchcore.ThreadAddress{})
+	got, effects := couchtty.ReduceMenu(state, couchtty.MenuEvent{
+		Kind: couchtty.MenuEventKey, Key: couchtty.PanelKey{Kind: couchtty.KeyEscape},
+	})
+	if len(effects) != 0 || got.Notice.Text != "no live thread can receive focus" || len(got.Frames) != 1 {
+		t.Fatalf("root Escape behavior drifted from README: state=%+v effects=%+v", got, effects)
 	}
 }
 
@@ -48,8 +100,9 @@ func TestREADMEDocumentsEveryPanelControl(t *testing.T) {
 // it either (M2 BR-39). An exemption that names another home has to check that
 // home.
 var agentFacing = map[string]bool{
-	"switch": true,
-	"attach": true,
+	"prepare-start": true,
+	"switch":        true,
+	"attach":        true,
 }
 
 func documentsCommand(doc, command string) bool {

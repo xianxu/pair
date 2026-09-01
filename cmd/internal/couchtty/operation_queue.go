@@ -8,14 +8,18 @@ import (
 var errOperationQueueOverloaded = errors.New("operation queue is full")
 
 type operationRequest struct {
-	key  string
-	name string
-	run  func() error
+	key    string
+	name   string
+	origin MenuOperationOrigin
+	run    func() (any, error)
 }
 
 type operationCompletion struct {
-	name string
-	err  error
+	key    string
+	name   string
+	origin MenuOperationOrigin
+	value  any
+	err    error
 }
 
 type operationQueue struct {
@@ -57,12 +61,12 @@ func (q *operationQueue) Run(stop <-chan struct{}) {
 	for {
 		select {
 		case request := <-q.requests:
-			err := request.run()
+			value, err := request.run()
 			q.mu.Lock()
 			delete(q.pending, request.key)
 			q.mu.Unlock()
 			select {
-			case q.results <- operationCompletion{name: request.name, err: err}:
+			case q.results <- operationCompletion{key: request.key, name: request.name, origin: request.origin, value: value, err: err}:
 			case <-stop:
 				return
 			}

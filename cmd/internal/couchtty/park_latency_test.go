@@ -45,16 +45,16 @@ func TestParkLatencySmoke(t *testing.T) {
 	commits := make([]time.Duration, 0, 100)
 	for sample := 0; sample < 100; sample++ {
 		started := time.Now()
-		accepted, err := queue.Enqueue(operationRequest{key: fmt.Sprintf("park-%d", sample), name: "park", run: func() error {
+		accepted, err := queue.Enqueue(operationRequest{key: fmt.Sprintf("park-%d", sample), name: "park", run: func() (any, error) {
 			current, err := store.GetThread(record.Address)
 			if err != nil {
-				return err
+				return nil, err
 			}
 			_, err = store.UpdateExistingThread(record.Address, current.Revision, func(next *couchcore.ThreadRecord) error {
 				next.Description = fmt.Sprintf("sample-%d", sample)
 				return nil
 			})
-			return err
+			return nil, err
 		}})
 		feedback = append(feedback, time.Since(started))
 		if !accepted || err != nil {
@@ -68,10 +68,10 @@ func TestParkLatencySmoke(t *testing.T) {
 	}
 
 	overload := newOperationQueue(1)
-	_, _ = overload.Enqueue(operationRequest{key: "held", name: "park", run: func() error { return nil }})
-	accepted, overloadErr := overload.Enqueue(operationRequest{key: "overflow", name: "park", run: func() error {
+	_, _ = overload.Enqueue(operationRequest{key: "held", name: "park", run: func() (any, error) { return nil, nil }})
+	accepted, overloadErr := overload.Enqueue(operationRequest{key: "overflow", name: "park", run: func() (any, error) {
 		t.Fatal("overloaded request executed")
-		return nil
+		return nil, nil
 	}})
 	if accepted || !errors.Is(overloadErr, errOperationQueueOverloaded) {
 		t.Fatalf("overload = accepted %v, err %v", accepted, overloadErr)

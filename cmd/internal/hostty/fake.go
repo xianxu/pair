@@ -21,6 +21,7 @@ type FakeHost struct {
 	mu         sync.Mutex
 	size       ptychild.Size
 	written    strings.Builder
+	writes     chan []byte
 	rawDepth   int
 	resized    chan struct{}
 	terminated chan os.Signal
@@ -33,15 +34,25 @@ var _ TerminationHost = (*FakeHost)(nil)
 func NewFakeHost(size ptychild.Size) *FakeHost {
 	return &FakeHost{
 		size: size, resized: make(chan struct{}, 1),
-		terminated: make(chan os.Signal, 1),
+		terminated: make(chan os.Signal, 1), writes: make(chan []byte, 16384),
 	}
 }
 
 func (h *FakeHost) Write(p []byte) (int, error) {
 	h.mu.Lock()
 	defer h.mu.Unlock()
-	return h.written.Write(p)
+	n, err := h.written.Write(p)
+	copy := append([]byte(nil), p...)
+	select {
+	case h.writes <- copy:
+	default:
+	}
+	return n, err
 }
+
+// Writes exposes individual host writes so integration tests can correlate a
+// semantic input/result with the frame emitted by the running Console.
+func (h *FakeHost) Writes() <-chan []byte { return h.writes }
 
 func (h *FakeHost) Written() string {
 	h.mu.Lock()
@@ -53,8 +64,15 @@ func (h *FakeHost) Written() string {
 // than on everything since construction.
 func (h *FakeHost) Reset() {
 	h.mu.Lock()
-	defer h.mu.Unlock()
 	h.written.Reset()
+	h.mu.Unlock()
+	for {
+		select {
+		case <-h.writes:
+		default:
+			return
+		}
+	}
 }
 
 func (h *FakeHost) Size() (ptychild.Size, error) {

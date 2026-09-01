@@ -11,6 +11,7 @@ import (
 )
 
 type trackedThreadLaunch struct {
+	Context        context.Context
 	Thread         ThreadRecord
 	Nonce          string
 	Args           StartArgs
@@ -23,6 +24,10 @@ type trackedThreadLaunch struct {
 // launchTrackedThread is the single post-claim launch path for both a newly
 // allocated thread and an exact verified-park resume.
 func (c *Couch) launchTrackedThread(in trackedThreadLaunch) (ActorRecord, Handle, error) {
+	ctx := in.Context
+	if ctx == nil {
+		ctx = context.Background()
+	}
 	thread := in.Thread
 	argv := []string{"pair", "resume", string(thread.Address.Tag), "--layout2"}
 	env := []string{
@@ -41,12 +46,15 @@ func (c *Couch) launchTrackedThread(in trackedThreadLaunch) (ActorRecord, Handle
 	if in.UseRepoDefault {
 		env[len(env)-1] = "PAIR_USE_REPO_DEFAULT=1"
 	}
-	h, err := c.Runner.StartBlocked(in.Args.WorkingDir(), argv, env, 10*time.Second)
+	h, err := c.Runner.StartBlocked(ctx, in.Args.WorkingDir(), argv, env, 10*time.Second)
 	if err != nil {
 		return ActorRecord{}, nil, errors.Join(
 			fmt.Errorf("spawn %s: %w", in.Args.Worktree, err),
 			c.rollbackTrackedStart(thread, in.Nonce),
 		)
+	}
+	if err := ctx.Err(); err != nil {
+		return ActorRecord{}, h, c.failTrackedPreAckStart(thread, in.Nonce, h, err)
 	}
 	recorded, err := c.Threads.AdvanceStart(thread.Address, thread.Revision, StartEvent{
 		Kind:   StartHelperRecorded,
@@ -65,15 +73,21 @@ func (c *Couch) launchTrackedThread(in trackedThreadLaunch) (ActorRecord, Handle
 		return ActorRecord{}, h, errors.Join(fmt.Errorf("record blocked helper %+v: %w", thread.Address, err), cancelErr, rollbackErr)
 	}
 	thread = recorded
+	if err := ctx.Err(); err != nil {
+		return ActorRecord{}, h, c.failTrackedPreAckStart(thread, in.Nonce, h, err)
+	}
 	if err := h.Acknowledge(); err != nil {
 		cause := fmt.Errorf("acknowledge blocked helper %+v: %w", thread.Address, err)
 		return ActorRecord{}, h, c.failTrackedPostAckStart(in.Resume, thread, in.Nonce, h, cause)
+	}
+	if err := ctx.Err(); err != nil {
+		return ActorRecord{}, h, c.failTrackedPostAckStart(in.Resume, thread, in.Nonce, h, err)
 	}
 	registrationTimeout := 5 * time.Second
 	if in.Resume && c.resumeRegistrationTimeout > 0 {
 		registrationTimeout = c.resumeRegistrationTimeout
 	}
-	registrationContext, cancelRegistration := context.WithTimeout(context.Background(), registrationTimeout)
+	registrationContext, cancelRegistration := context.WithTimeout(ctx, registrationTimeout)
 	if in.Resume {
 		err = c.awaitResumeRegistration(registrationContext, thread.Address)
 	} else {
@@ -101,6 +115,18 @@ func (c *Couch) launchTrackedThread(in trackedThreadLaunch) (ActorRecord, Handle
 		return record, h, c.failPostAckStart(thread.Address, h, fmt.Errorf("persist registry: %w", err))
 	}
 	return record, h, nil
+}
+
+func (c *Couch) failTrackedPreAckStart(thread ThreadRecord, nonce string, h BlockedHandle, cause error) error {
+	cancelErr := h.Cancel()
+	if cancelErr == nil {
+		_ = h.Wait()
+	}
+	var rollbackErr error
+	if cancelErr == nil && !h.Alive() {
+		rollbackErr = c.rollbackTrackedStart(thread, nonce)
+	}
+	return errors.Join(cause, cancelErr, rollbackErr)
 }
 
 func (c *Couch) failTrackedPostAckStart(resume bool, thread ThreadRecord, nonce string, h Handle, cause error) error {

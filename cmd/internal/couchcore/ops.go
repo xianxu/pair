@@ -44,6 +44,7 @@ const (
 	EffectUnknown OperationEffect = iota
 	EffectRead
 	EffectMetadata
+	EffectAuthority
 	EffectProcess
 	EffectConsole
 )
@@ -65,6 +66,7 @@ type OperationResult uint8
 
 const (
 	ResultUnknown OperationResult = iota
+	ResultStartResolution
 	ResultStart
 	ResultThreadInventory
 	ResultStop
@@ -113,6 +115,14 @@ type ActorView struct {
 func Operations() []Operation {
 	return []Operation{
 		{
+			Name: "prepare-start", Summary: "Resolve a start request and issue one owner-local authorization token",
+			Execution: ExecuteLiveOwner, Effect: EffectAuthority, Confirmation: ConfirmNone, Result: ResultStartResolution,
+			Args: []ArgSpec{
+				{Name: "path", Summary: "repo or subdirectory to start in (default: .)", Required: false},
+				{Name: "agent", Summary: "Pair agent to use instead of path/root history (--agent=<name>)", Required: false, FlagOnly: true, ValueRequired: true},
+			},
+		},
+		{
 			Name: "start", Summary: "Start an agent on a peer repo (or a subdirectory of one)",
 			Execution: ExecuteLiveOwner, Effect: EffectProcess, Confirmation: ConfirmNone, Result: ResultStart,
 			Args: []ArgSpec{
@@ -125,6 +135,7 @@ func Operations() []Operation {
 				// layer of terminal ownership.
 				{Name: "no-console", Summary: "inherit couch's stdio instead of allocating a pty (--no-console)", Required: false, FlagOnly: true},
 				{Name: "agent", Summary: "Pair agent to use instead of path/root history (--agent=<name>)", Required: false, FlagOnly: true, ValueRequired: true},
+				{Name: "token", Summary: "accepted start resolution from the live owner", Required: true, Implicit: true},
 			},
 		},
 		{

@@ -12,12 +12,17 @@ import (
 type PanelKeyKind uint8
 
 const (
-	KeyRune PanelKeyKind = iota
+	KeyUnknown PanelKeyKind = iota
+	KeyRune
 	KeyUp
 	KeyDown
 	KeyEnter
 	KeyEscape
 	KeyBackspace
+	KeyTab
+	KeyLeft
+	KeyRight
+	KeyCtrlSpace
 )
 
 // PanelKey is one decoded keystroke.
@@ -88,6 +93,8 @@ func DecodePanelKeys(in []byte) (keys []PanelKey, held []byte) {
 		switch {
 		case b == '\r' || b == '\n':
 			keys = append(keys, PanelKey{Kind: KeyEnter})
+		case b == '\t':
+			keys = append(keys, PanelKey{Kind: KeyTab})
 		case b == 0x7f || b == 0x08:
 			keys = append(keys, PanelKey{Kind: KeyBackspace})
 		case b >= 0x20 && b < 0x7f:
@@ -132,22 +139,20 @@ func decodeSequence(seq []byte) (PanelKey, bool) {
 	case bytes.Equal(seq, []byte("\x1b\x1b")):
 		// ESC ESC: a pressed Escape while an app mode is on.
 		return PanelKey{Kind: KeyEscape}, true
-	case bytes.HasSuffix(seq, []byte("A")):
-		if isCSI(seq) {
-			return PanelKey{Kind: KeyUp}, true
-		}
-	case bytes.HasSuffix(seq, []byte("B")):
-		if isCSI(seq) {
-			return PanelKey{Kind: KeyDown}, true
-		}
 	case bytes.HasSuffix(seq, []byte("u")):
 		return decodeCSIu(seq)
 	}
-	if bytes.Equal(seq, []byte("\x1bOA")) {
-		return PanelKey{Kind: KeyUp}, true
-	}
-	if bytes.Equal(seq, []byte("\x1bOB")) {
-		return PanelKey{Kind: KeyDown}, true
+	if len(seq) > 0 && (isCSI(seq) || isSS3(seq)) {
+		switch seq[len(seq)-1] {
+		case 'A':
+			return PanelKey{Kind: KeyUp}, true
+		case 'B':
+			return PanelKey{Kind: KeyDown}, true
+		case 'C':
+			return PanelKey{Kind: KeyRight}, true
+		case 'D':
+			return PanelKey{Kind: KeyLeft}, true
+		}
 	}
 	return PanelKey{}, false
 }
@@ -157,6 +162,10 @@ func decodeSequence(seq []byte) (PanelKey, bool) {
 // modifier.
 func isCSI(seq []byte) bool {
 	return len(seq) >= 3 && seq[0] == 0x1b && seq[1] == '['
+}
+
+func isSS3(seq []byte) bool {
+	return len(seq) == 3 && seq[0] == 0x1b && seq[1] == 'O'
 }
 
 // decodeCSIu reads the Kitty protocol's `CSI <codepoint> [;<modifiers>] u`.
@@ -188,6 +197,10 @@ func decodeCSIu(seq []byte) (PanelKey, bool) {
 		return PanelKey{Kind: KeyEnter}, true
 	case 127, 8:
 		return PanelKey{Kind: KeyBackspace}, true
+	case 9:
+		if !modified {
+			return PanelKey{Kind: KeyTab}, true
+		}
 	}
 	if r := rune(n); !modified && utf8.ValidRune(r) && unicode.IsPrint(r) {
 		return PanelKey{Kind: KeyRune, Rune: r}, true

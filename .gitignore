@@ -22,6 +22,9 @@ bin/lib/*
 !bin/lib/*.sh
 cache/
 
+# superpowers brainstorming previews and server lifecycle markers
+.superpowers/
+
 /AGENTS.md
 /.claude/skills/
 /.claude/settings.json

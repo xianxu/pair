@@ -2609,6 +2609,18 @@ an unsupported owner through every downstream projection (`ARCH-DRY`,
   probe can pass after the production trigger is bypassed. Add an intent-only
   mutation that leaves the real handoff blocked and therefore fails
   (`ARCH-MOCK`, `ARCH-PURPOSE`).
+- Changing a shared operation's required arguments is a consumer migration,
+  not a declaration-only edit. Enumerate every production dispatch site and
+  run each consumer package's integration regressions in the same boundary;
+  focused executor tests cannot expose a Console rejected before its fake runs
+  (`ARCH-DRY`, `ARCH-PURPOSE`).
+- A fail-closed projection over durable records must invoke the record's shared
+  structural validator before interpreting selected fields. Positive fixtures
+  must themselves be valid persisted shapes; otherwise tests normalize corrupt
+  evidence as the happy path (`ARCH-PURPOSE`).
+- When production-source participation is exhaustive, every new source file
+  must be classified in the same commit and the exhaustive inventory test must
+  be part of changed-package verification (`ARCH-PURPOSE`).
 
 ## Terminal release must reset emulator modes as well as termios
 
@@ -2636,3 +2648,99 @@ the child stream and asserting the reset follows it before return
   Stateful host-daemon fixtures that are not isolated must run sequentially
   even when each package retains its normal internal test parallelism
   (`ARCH-MOCK`, `ARCH-CONSTRAINTS`).
+
+## Staged consumer migrations need a cross-document current-state contract
+
+Correcting one atlas sentence left a project milestone claiming that an
+authority introduced in M1 was already consumed by a UI deliberately deferred
+to M3.
+
+**Rule.** For a staged consumer migration, distinguish “authority exists” from
+“consumer is wired” in every current-state surface: atlas, project milestone,
+issue log, plan revision, and operator README. Pin the actual production
+provider and those declarations in one regression so the consumer migration
+must update the entire class together. Current-state table headings and
+operator key semantics belong in that executable contract too; checking only
+that a key token appears cannot detect a contradictory behavioral sentence
+(`ARCH-PURPOSE`).
+- An architectural inventory cannot prove its own completeness from a
+  hand-maintained expected map. Mark delivered declarations in production,
+  derive the expected concepts and exact repo-relative paths from those
+  markers, and mutation-test entity and dependency-path omission. Reject vague
+  locations such as “existing seams” (`ARCH-PURPOSE`, `ARCH-MOCK`).
+
+## Hierarchical reducers must preserve identity across every projection
+
+- Capture a unique attempt identity plus the operation's target and originating
+  frame instance when dispatch occurs, then reject mismatched completions before applying
+  their returned inventory. Operation/address identifies a target, not an
+  attempt, and frame kind/depth identifies a structural position, not the frame
+  that occupied it; otherwise an old completion can mutate newer work.
+  Looking only at the currently visible frame loses root-level operations and
+  lets stale results rewrite state (`ARCH-PURE`, `ARCH-PURPOSE`).
+- Exact origin identity bounds what an asynchronous completion owns; it does
+  not grant ownership of UI created afterward. When completion restores or
+  collapses the captured stack, transform only its originating prefix and
+  preserve unrelated later overlays by instance. Sweep every operation and
+  outcome after legal post-dispatch navigation, not only replacement at the
+  origin slot (`ARCH-PURE`, `ARCH-PURPOSE`).
+- Correlation cannot require identity produced only by success: enumerate every
+  operation across success/failure and present/missing result fields. Commit
+  optimistic UI changes only after correlated success, so a failed external
+  operation preserves the state it did not actually change.
+- A list frame's applicability comes from its captured parent/action identity,
+  not its filtered selection. Zero matches legitimately means no selection;
+  refresh must retain the frame and reconcile selection afterward.
+- Keep operation identifiers separate from presentation labels and use one
+  descriptor mapping for filtering, rendering, and dispatch. An internal
+  operation such as `name` may be presented as `rename` without changing the
+  shared operation contract (`ARCH-DRY`).
+- Hierarchical layout requires semantic geometry: selected parent-row offsets
+  for wide children and measured parent-list height for narrow children.
+  Equal partitions are bounded rectangles but do not express the hierarchy.
+- Reducer support is not user reachability. Every semantic key must be driven
+  through the production decoder in every accepted terminal mode and across
+  split reads. Likewise, bounded rendering must reserve mandatory semantic
+  cues before clipping variable text; a row that fits but hides state is not
+  operationally bounded (`ARCH-PURPOSE`, `ARCH-CONSTRAINTS`).
+- Reducer-only result fixtures can invent data production never supplies. For
+  each shared operation, enumerate the production result shape and require
+  either immediate projection or an explicit visible-pending state that
+  survives refresh failure. When refreshes overlap mutation, capture provenance
+  so only a snapshot admitted after the mutation can clear that state
+  (`ARCH-PURE`, `ARCH-PURPOSE`).
+- A replacement is incomplete while its superseded state, callbacks, or
+  controller still compile. Make retirement executable with absence checks
+  over both source files and owning symbols (`ARCH-DRY`, `ARCH-PURPOSE`).
+- Latency evidence must cross the lifecycle boundary named by the claim. Drive
+  semantic input/result through the running owner and stop timing only on a
+  correlated emitted frame; private-method return times do not validate an
+  interactive path (`ARCH-MOCK`, `ARCH-CONSTRAINTS`).
+- An architectural inventory cannot derive exhaustiveness from opt-in concept
+  markers alone. Pin the complete milestone source and declaration set first;
+  only then classify each declaration as architectural, detail, or retired, so
+  both a new unmarked authority and a new source fail closed (`ARCH-PURPOSE`).
+- A declaration ledger must hash the disposition as well as the declaration;
+  otherwise removing a concept marker silently changes architecture into
+  detail. Historical boundary contracts must also read both their path set and
+  bytes from pinned Git objects, never the moving worktree (`ARCH-PURPOSE`).
+- Grouped architecture rows and a selected marker subset create two granularities
+  that can disagree. Use one entity per row and one typed ledger for kind,
+  lifecycle, source, dependencies, and retirement. When the oracle itself must
+  be committed, snapshot the reviewed implementation first and install the
+  immutable oracle in a following docs/test-only commit (`ARCH-DRY`,
+  `ARCH-PURPOSE`).
+- Declaring-source completeness is not dependency completeness. Define the
+  boundary for architectural dependencies, sweep every Integration entity, and
+  fingerprint source plus dependencies independently of the prose consumer; an
+  exact table can otherwise agree with an equally incomplete ledger
+  (`ARCH-PURPOSE`).
+- Fingerprinting a hand-authored dependency list proves closure only over known
+  entries. Derive repo-owned references from pinned signatures/bodies and
+  receiver fields, compare the exact set with the ledger, and mutation-test the
+  implementation side; otherwise an omitted seam is invisible to every
+  ledger-only test (`ARCH-DRY`, `ARCH-PURPOSE`).
+- Pinning a historical target body is insufficient when resolution uses an
+  auxiliary symbol/import/type index. Every path and byte participating in the
+  oracle—including indexes—must come from the same immutable object, with a
+  worktree-only declaration used as the negative regression (`ARCH-PURPOSE`).

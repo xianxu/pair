@@ -6,6 +6,7 @@ package main
 
 import (
 	"bytes"
+	"context"
 	"errors"
 	"fmt"
 	"os"
@@ -57,7 +58,7 @@ func runScenario(helper string, establish bool) error {
 	defer claim.Release()
 
 	runner := couchcore.ExecRunner{LaunchHelper: helper}
-	handle, err := runner.StartBlocked(root, []string{"sh", "-c", "sleep 30"}, nil, 3*time.Second)
+	handle, err := runner.StartBlocked(context.Background(), root, []string{"sh", "-c", "sleep 30"}, nil, 3*time.Second)
 	if err != nil {
 		return err
 	}

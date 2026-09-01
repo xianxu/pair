@@ -227,8 +227,34 @@ func RunWithRuntime(args []string, stdin io.Reader, stdout, stderr io.Writer, rt
 	if ownsLive {
 		executors.LiveOwner = couchcore.CouchLiveOwnerExecutor(c)
 	}
+	callArgs := parsed
+	if op.Name == "start" {
+		prepareArgs := map[string]string{}
+		if path := parsed["path"]; path != "" {
+			prepareArgs["path"] = path
+		}
+		if agent := parsed["agent"]; agent != "" {
+			prepareArgs["agent"] = agent
+		}
+		preparedValue, prepareErr := couchcore.DispatchOperation(executors, couchcore.OperationCall{
+			Name:    "prepare-start",
+			Args:    prepareArgs,
+			Context: context.Background(),
+		})
+		if prepareErr != nil {
+			renderError(stderr, prepareErr)
+			return 1
+		}
+		prepared, ok := preparedValue.(couchcore.PreparedStart)
+		if !ok {
+			fmt.Fprintf(stderr, "couch: prepare-start returned %T\n", preparedValue)
+			return 1
+		}
+		callArgs = cloneArgs(parsed)
+		callArgs["token"] = string(prepared.Token)
+	}
 	result, err := couchcore.DispatchOperation(executors, couchcore.OperationCall{
-		Name: op.Name, Args: parsed, Implicit: true,
+		Name: op.Name, Args: callArgs, Implicit: true, Context: context.Background(),
 	})
 	if err != nil {
 		renderError(stderr, err)
@@ -249,6 +275,14 @@ func RunWithRuntime(args []string, stdin io.Reader, stdout, stderr io.Writer, rt
 		}
 	}
 	return render(stdout, op, result)
+}
+
+func cloneArgs(args map[string]string) map[string]string {
+	out := make(map[string]string, len(args)+1)
+	for name, value := range args {
+		out[name] = value
+	}
+	return out
 }
 
 func operationUsesCurrentRepoScope(name string) bool {
@@ -322,10 +356,8 @@ func consoleRunnerFor(name string, args map[string]string, stdin io.Reader, hasT
 // displaces render's StartResult branch, which printed a line and then blocked
 // on Handle.Wait for the child's lifetime.
 func runConsole(console *couchtty.Console, c *couchcore.Couch, start couchcore.StartResult, stdout io.Writer) int {
-	// Wire the panel's match rule HERE, on the path that actually runs a
-	// console -- not at a call site a test can bypass. An injection seam
-	// nothing passes is a seam that does nothing (Decision 12's wiring check),
-	// and the panel would silently degrade to "show everything".
+	// Wire the switcher's actionable projection HERE, on the path that actually
+	// runs a console. Typeahead stays pure over the resulting in-memory rows.
 	wireResolver(console, c)
 
 	_, ok := start.Handle.(couchcore.TerminalHandle)
@@ -360,40 +392,45 @@ func dispatchInitialAttach(console *couchtty.Console, start couchcore.StartResul
 	return err
 }
 
-// wireResolver gives the panel couch's OWN match rule.
-//
-// Without this the injection seam exists and nothing uses it, which is the
-// failure mode Decision 12's wiring check names: the panel would silently fall
-// back to "show everything" and typeahead would do nothing.
+// wireResolver supplies the proof-bearing actionable projection. Reference
+// matching for keystrokes is intentionally in-memory inside the pure menu.
 func wireResolver(console *couchtty.Console, c *couchcore.Couch) {
-	console.SetResolver(func(ref string) ([]couchcore.ThreadAddress, error) {
-		matches, err := c.ResolveThreadReference("", ref)
-		var ambiguous *couchcore.AmbiguousThreadReferenceError
-		if err != nil && !errors.Is(err, couchcore.ErrThreadReferenceNotFound) && !errors.As(err, &ambiguous) {
+	console.SetActionableProvider(func(ctx context.Context, observations []couchcore.LiveTTYObservation) ([]couchcore.ActionableThreadSummary, error) {
+		select {
+		case <-ctx.Done():
+			return nil, ctx.Err()
+		default:
+		}
+		rows, err := c.ActionableThreadInventoryContext(ctx, observations)
+		if err != nil {
 			return nil, err
 		}
-		addresses := make([]couchcore.ThreadAddress, len(matches))
-		for i := range matches {
-			addresses[i] = matches[i].Address
+		select {
+		case <-ctx.Done():
+			return nil, ctx.Err()
+		default:
+			return rows, nil
 		}
-		return addresses, nil
-	})
-	console.SetSummaries(func() ([]couchcore.ThreadSummary, error) {
-		return c.ThreadInventory()
 	})
 	console.SetForget(c.Forget)
 
-	// The panel's actions run through the SAME declared table the CLI
+	// The switcher's actions run through the SAME declared table the CLI
 	// dispatches: the console names an operation and couchcore performs it, so
 	// there is no operator action the advisor cannot also perform (#148's
-	// design test) and no way for the panel to grow a private verb.
+	// design test) and no way for the switcher to grow a private verb.
 	couchLive := couchcore.CouchLiveOwnerExecutor(c)
 	console.SetOperationDispatcher(func(call couchcore.OperationCall) (any, error) {
 		return couchcore.DispatchOperation(couchcore.OperationExecutors{
 			DirectStore: couchcore.DirectStoreExecutor(c),
 			LiveOwner: func(call couchcore.OperationCall) (any, error) {
 				if call.Operation.Effect == couchcore.EffectConsole {
-					return console.ExecuteConsoleOperation(call)
+					result, err := console.ExecuteConsoleOperation(call)
+					if err != nil && call.Operation.Name == "attach" {
+						if start, ok := call.TypedPayload.(couchcore.StartResult); ok {
+							return nil, c.AbortStarted(start, err)
+						}
+					}
+					return result, err
 				}
 				return couchLive(call)
 			},

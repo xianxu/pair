@@ -7,7 +7,10 @@
 // output belongs here; anything counting a budget does not.
 package textwidth
 
-import "strings"
+import (
+	"strings"
+	"unicode"
+)
 
 // Width counts terminal columns. Only the wide case that actually occurs in
 // Pair's output is modeled: emoji and other East-Asian-Wide runes take two
@@ -15,6 +18,9 @@ import "strings"
 func Width(s string) int {
 	w := 0
 	for _, r := range s {
+		if unicode.Is(unicode.Mn, r) || unicode.Is(unicode.Me, r) {
+			continue
+		}
 		if isWide(r) {
 			w += 2
 			continue

@@ -359,21 +359,22 @@ agent inside a couch-hosted session. Every other chord — `Alt+j`, `Alt+k`,
 the old spawn-and-inherit-stdio behaviour with no interception at all.
 
 Focus has three levels. From a non-home actor, `ctrl-space` returns to the first
-actor couch hosted (home); from home it opens the actors panel. In the panel,
-ordinary printable input is direct typeahead. Use `↑↓` and `Enter` to select and
-switch; active rows say `[live]`, while inactive threads remain as ordinary
-history rows and Enter resumes that exact thread. `Alt+x` on a non-home actor
+actor couch hosted (home); from home it opens the thread switcher. Printable
+input filters the current list from memory. Use `↑↓` and `Enter` to select and
+switch/resume; `Tab` or `Right` opens the selected thread's actions, while
+`Left` or `Escape` restores its parent. Rows expose only proven `live` and exact
+verified `parked` states. `Alt+x` on a non-home actor
 parks only that actor; `Alt+x` on the home actor confirms **Leave Couch**, parks
 every active actor sequentially, and returns to the parent shell only after all
-parks are verified. `Escape` clears the filter, returns to an attached
-actor, or exits Couch when no actor remains. Press `ctrl-space` again from the
-panel to enter a path for a new actor; an empty path uses the existing `.`
+parks are verified. `Escape` clears the filter or returns to an attached actor;
+with no live actor, the switcher stays open and reports why. Press `ctrl-space` again from the
+switcher to open the path/agent start form; an empty path uses the existing `.`
 default. Colons and digits are
 ordinary filter text—there is no command namespace or numbered jump mode.
-If a row is live in another couch process, Enter leaves it selected and explains
-that cross-process attachment follows in #147; it never starts a duplicate.
-Thread actions behind Tab follow in #151 after #149 supplies durable thread
-identity; Tab is intentionally inactive for now.
+Slow start/park/resume actions show local progress, and validation or operation
+failures remain in the switcher banner. Unsupported or ambiguous lifecycle
+records stay available through `couch list/show` diagnostics rather than being
+mislabeled in the ordinary switcher.
 
 ## Command Usage
 

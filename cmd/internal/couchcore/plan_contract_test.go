@@ -1,13 +1,16 @@
 package couchcore
 
 import (
+	"archive/tar"
 	"bufio"
+	"bytes"
 	"crypto/sha256"
 	"errors"
 	"fmt"
 	"go/ast"
 	"go/parser"
 	"go/token"
+	"io"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -27,7 +30,131 @@ const issue149M5DeclarationDigest = "748b33313dc565abbbfd5db00e690892441c4fb408b
 const (
 	issue149M5Base = "6a714336"
 	issue149M5Head = "c434016"
+	issue151M3Base = "0c40a8d1"
+	issue151M3Head = "d3ee08d548aebb38eb8a6f15bea78cf71c2dafc8"
 )
+
+const issue151M3DeclarationDigest = "8a193b51373583eec2f7b9c25e4a8df6fdc2bb6b8113adf0005d6f1cc878344f"
+const issue151M3ArchitecturalLedgerDigest = "632927f3012589a88f61b150c82dcafbe01a7882b2d2bf76aeb1690614ddf5bd"
+
+// issue151M3GoSources is the exhaustive net set of Go sources changed by M3.
+// The declaration digest gives every declaration a closed-set disposition from
+// issue151M3ArchitecturalDeclarations; every remaining declaration is detail.
+// A declaration cannot be added under either label without deliberately
+// updating the immutable snapshot ledger and its plan contract.
+var issue151M3GoSources = []string{
+	"cmd/internal/artifactpath/coverage_test.go",
+	"cmd/internal/artifactpath/manifest.go",
+	"cmd/internal/couchcmd/readme_test.go",
+	"cmd/internal/couchcmd/run.go",
+	"cmd/internal/couchcmd/run_test.go",
+	"cmd/internal/couchcore/abort_started_test.go",
+	"cmd/internal/couchcore/actionableinventory.go",
+	"cmd/internal/couchcore/actionableinventory_test.go",
+	"cmd/internal/couchcore/artifactcollision.go",
+	"cmd/internal/couchcore/artifactcollision_fake.go",
+	"cmd/internal/couchcore/couch.go",
+	"cmd/internal/couchcore/couch_test.go",
+	"cmd/internal/couchcore/launch_existing.go",
+	"cmd/internal/couchcore/launchhelper.go",
+	"cmd/internal/couchcore/operationdispatch.go",
+	"cmd/internal/couchcore/operationdispatch_test.go",
+	"cmd/internal/couchcore/plan_contract_test.go",
+	"cmd/internal/couchcore/ptyrunner.go",
+	"cmd/internal/couchcore/ptyrunner_test.go",
+	"cmd/internal/couchcore/resume.go",
+	"cmd/internal/couchcore/runner.go",
+	"cmd/internal/couchcore/runner_contract_test.go",
+	"cmd/internal/couchcore/runner_fake.go",
+	"cmd/internal/couchcore/runner_test.go",
+	"cmd/internal/couchcore/starttransaction_integration_test.go",
+	"cmd/internal/couchcore/tracked_launch_cancellation_test.go",
+	"cmd/internal/couchtty/console.go",
+	"cmd/internal/couchtty/console_attach_transaction_test.go",
+	"cmd/internal/couchtty/console_menu.go",
+	"cmd/internal/couchtty/console_menu_operation_test.go",
+	"cmd/internal/couchtty/console_menu_test.go",
+	"cmd/internal/couchtty/console_panel_regression_test.go",
+	"cmd/internal/couchtty/console_preview_test.go",
+	"cmd/internal/couchtty/console_run_menu_test.go",
+	"cmd/internal/couchtty/console_test.go",
+	"cmd/internal/couchtty/core_concepts_contract_test.go",
+	"cmd/internal/couchtty/menu.go",
+	"cmd/internal/couchtty/menu_async_test.go",
+	"cmd/internal/couchtty/menu_perf_test.go",
+	"cmd/internal/couchtty/menu_refresh.go",
+	"cmd/internal/couchtty/menu_refresh_test.go",
+	"cmd/internal/couchtty/menu_render.go",
+	"cmd/internal/couchtty/menu_render_test.go",
+	"cmd/internal/couchtty/menu_test.go",
+	"cmd/internal/couchtty/operation_queue.go",
+	"cmd/internal/couchtty/operation_queue_test.go",
+	"cmd/internal/couchtty/park_latency_test.go",
+	"cmd/internal/hostty/control.go",
+	"cmd/internal/hostty/fake.go",
+	"cmd/internal/hostty/hostty_test.go",
+	"cmd/internal/sessioninventory/catalog.go",
+	"cmd/internal/sessioninventory/event.go",
+	"cmd/internal/sessioninventory/event_test.go",
+	"cmd/internal/sessioninventory/query.go",
+	"cmd/internal/sessioninventory/query_test.go",
+	"cmd/internal/sessioninventory/round.go",
+	"cmd/internal/sessioninventory/round_test.go",
+	"cmd/internal/sessionwatch/run_test.go",
+	"cmd/internal/textwidth/textwidth.go",
+	"cmd/internal/textwidth/textwidth_test.go",
+	"cmd/probes/couchstartrecovery/main.go",
+}
+
+var issue151M3DeletedGoSources = []string{
+	"cmd/internal/couchtty/panel.go",
+	"cmd/internal/couchtty/panel_test.go",
+}
+
+type issue151ArchitecturalDeclaration struct {
+	kind, delivery, current, source string
+	present, absent                 []string
+}
+
+var issue151M3ArchitecturalDeclarations = map[string]issue151ArchitecturalDeclaration{
+	"ActionableThreadSummary":               {"pure", "M1/M3", "present", "cmd/internal/couchcore/actionableinventory.go", []string{"cmd/internal/couchcore/actionableinventory.go"}, nil},
+	"LiveTTYObservation":                    {"pure", "M1", "present", "cmd/internal/couchcore/actionableinventory.go", []string{"cmd/internal/couchcore/actionableinventory.go"}, nil},
+	"ParkedResumeObservation":               {"pure", "M3", "present", "cmd/internal/couchcore/actionableinventory.go", []string{"cmd/internal/couchcore/actionableinventory.go"}, nil},
+	"ProjectActionableThreads":              {"pure", "M1/M3", "present", "cmd/internal/couchcore/actionableinventory.go", []string{"cmd/internal/couchcore/actionableinventory.go"}, nil},
+	"StartResolution":                       {"pure", "M1", "present", "cmd/internal/couchcore/startresolution.go", []string{"cmd/internal/couchcore/startresolution.go"}, nil},
+	"StartResolutionFingerprint":            {"pure", "M1", "present", "cmd/internal/couchcore/startresolution.go", []string{"cmd/internal/couchcore/startresolution.go"}, nil},
+	"ResolveStartResolution":                {"pure", "M1", "present", "cmd/internal/couchcore/startresolution.go", []string{"cmd/internal/couchcore/startresolution.go"}, nil},
+	"MenuState":                             {"pure", "M2", "present", "cmd/internal/couchtty/menu.go", []string{"cmd/internal/couchtty/menu.go"}, nil},
+	"MenuFrame":                             {"pure", "M2", "present", "cmd/internal/couchtty/menu.go", []string{"cmd/internal/couchtty/menu.go"}, nil},
+	"MenuEvent":                             {"pure", "M2", "present", "cmd/internal/couchtty/menu.go", []string{"cmd/internal/couchtty/menu.go"}, nil},
+	"ReduceMenu":                            {"pure", "M2", "present", "cmd/internal/couchtty/menu.go", []string{"cmd/internal/couchtty/menu.go"}, nil},
+	"MenuLayout":                            {"pure", "M2", "present", "cmd/internal/couchtty/menu_render.go", []string{"cmd/internal/couchtty/menu_render.go"}, nil},
+	"AgeBand":                               {"pure", "M2", "present", "cmd/internal/couchtty/menu_render.go", []string{"cmd/internal/couchtty/menu_render.go"}, nil},
+	"RenderMenu":                            {"pure", "M2", "present", "cmd/internal/couchtty/menu_render.go", []string{"cmd/internal/couchtty/menu_render.go"}, nil},
+	"PreviewSchedule":                       {"pure", "M2", "present", "cmd/internal/couchtty/menu_async.go", []string{"cmd/internal/couchtty/menu_async.go"}, nil},
+	"AdvancePreviewSchedule":                {"pure", "M2", "present", "cmd/internal/couchtty/menu_async.go", []string{"cmd/internal/couchtty/menu_async.go"}, nil},
+	"RefreshSchedule":                       {"pure", "M3", "present", "cmd/internal/couchtty/menu_refresh.go", []string{"cmd/internal/couchtty/menu_refresh.go"}, nil},
+	"AdvanceRefreshSchedule":                {"pure", "M3", "present", "cmd/internal/couchtty/menu_refresh.go", []string{"cmd/internal/couchtty/menu_refresh.go"}, nil},
+	"PanelKey":                              {"pure", "M2", "modified, present", "cmd/internal/couchtty/panelkeys.go", []string{"cmd/internal/couchtty/panelkeys.go"}, nil},
+	"DecodePanelKeys":                       {"pure", "M2", "modified, present", "cmd/internal/couchtty/panelkeys.go", []string{"cmd/internal/couchtty/panelkeys.go"}, nil},
+	"PanelModel":                            {"pure", "M3", "deleted", "cmd/internal/couchtty/panel.go", nil, []string{"cmd/internal/couchtty/panel.go"}},
+	"PanelModel.Filter":                     {"pure", "M3", "deleted", "cmd/internal/couchtty/panel.go", nil, []string{"cmd/internal/couchtty/panel.go"}},
+	"Couch.ActionableThreadInventory":       {"integration", "M1/M3", "present", "cmd/internal/couchcore/actionableinventory.go", []string{"cmd/internal/couchcore/actionableinventory.go", "cmd/internal/couchcore/artifactcollision.go", "cmd/internal/couchcore/couch.go", "cmd/internal/couchcore/parktransaction.go", "cmd/internal/couchcore/pathops.go", "cmd/internal/couchcore/resume.go", "cmd/internal/couchcore/threadstore.go", "cmd/internal/launcher/agent_defaults.go"}, nil},
+	"NativeBindingResolver":                 {"integration", "M3", "context-bearing exact parked-resume binding resolution present", "cmd/internal/couchcore/resume.go", []string{"cmd/internal/couchcore/resume.go"}, nil},
+	"SessionInventoryNativeBindingResolver": {"integration", "M3", "context-bearing exact parked-resume binding resolution present", "cmd/internal/couchcore/resume.go", []string{"cmd/internal/couchcore/resume.go", "cmd/internal/couchcore/couch.go", "cmd/internal/sessioninventory/model.go", "cmd/internal/sessioninventory/query.go", "cmd/internal/sessioninventory/runtime.go"}, nil},
+	"Couch.PrepareStart":                    {"integration", "M1", "present", "cmd/internal/couchcore/couch.go", []string{"cmd/internal/couchcore/couch.go", "cmd/internal/couchcore/startargs.go", "cmd/internal/couchcore/startgrant.go"}, nil},
+	"Couch.SpawnPrepared":                   {"integration", "M1", "present", "cmd/internal/couchcore/couch.go", []string{"cmd/internal/couchcore/couch.go", "cmd/internal/couchcore/registry.go", "cmd/internal/couchcore/runner.go", "cmd/internal/couchcore/startargs.go", "cmd/internal/couchcore/startgrant.go", "cmd/internal/couchcore/worktree.go"}, nil},
+	"StartGrantStore":                       {"integration", "M1", "present", "cmd/internal/couchcore/startgrant.go", []string{"cmd/internal/couchcore/startgrant.go", "cmd/internal/couchcore/clock.go"}, nil},
+	"OperationCall":                         {"integration", "M1", "context dispatch present", "cmd/internal/couchcore/operationdispatch.go", []string{"cmd/internal/couchcore/operationdispatch.go", "cmd/internal/couchcore/ops.go"}, nil},
+	"DispatchOperation":                     {"integration", "M1", "context dispatch present", "cmd/internal/couchcore/operationdispatch.go", []string{"cmd/internal/couchcore/operationdispatch.go", "cmd/internal/couchcore/ops.go"}, nil},
+	"Couch.AbortStarted":                    {"integration", "M1", "exact started-actor abort present", "cmd/internal/couchcore/couch.go", []string{"cmd/internal/couchcore/couch.go", "cmd/internal/couchcore/naming.go", "cmd/internal/couchcore/ops.go", "cmd/internal/couchcore/registry.go", "cmd/internal/couchcore/runner.go", "cmd/internal/couchcore/store.go", "cmd/internal/couchcore/worktree.go"}, nil},
+	"Console":                               {"integration", "M3", "hierarchical render, refresh, preview, action, and transactional attach controllers present", "cmd/internal/couchtty/console.go", []string{"cmd/internal/couchtty/console.go", "cmd/internal/couchcore/actorid.go", "cmd/internal/couchcore/operationdispatch.go", "cmd/internal/couchcore/ops.go", "cmd/internal/couchcore/park.go", "cmd/internal/couchcore/ptyrunner.go", "cmd/internal/couchcore/starttransaction.go", "cmd/internal/couchcore/thread.go", "cmd/internal/couchcore/worktree.go", "cmd/internal/couchtty/console_menu.go", "cmd/internal/couchtty/focus.go", "cmd/internal/couchtty/keys.go", "cmd/internal/couchtty/menu.go", "cmd/internal/couchtty/menu_async.go", "cmd/internal/couchtty/menu_refresh.go", "cmd/internal/couchtty/notice.go", "cmd/internal/couchtty/panelkeys.go", "cmd/internal/couchtty/reserve.go", "cmd/internal/hostty/host.go", "cmd/internal/ptychild/child.go", "cmd/internal/ptychild/screen.go"}, nil},
+	"wireResolver":                          {"integration", "M3", "actionable refresh, shared action, attach-abort, and hierarchical render wiring present", "cmd/internal/couchcmd/run.go", []string{"cmd/internal/couchcmd/run.go", "cmd/internal/couchcore/actionableinventory.go", "cmd/internal/couchcore/couch.go", "cmd/internal/couchcore/operationdispatch.go", "cmd/internal/couchcore/ops.go", "cmd/internal/couchtty/console.go"}, nil},
+	"Runner":                                {"integration", "M1", "context-bearing child lifecycle present", "cmd/internal/couchcore/runner.go", []string{"cmd/internal/couchcore/runner.go"}, nil},
+	"FakeRunner":                            {"integration", "M1", "stateful context-bearing double present", "cmd/internal/couchcore/runner_fake.go", []string{"cmd/internal/couchcore/runner_fake.go", "cmd/internal/couchcore/runner.go", "cmd/internal/ptychild/child.go", "cmd/internal/ptychild/fake.go"}, nil},
+	"hostty.FakeHost":                       {"integration", "M3", "observable terminal double present", "cmd/internal/hostty/fake.go", []string{"cmd/internal/hostty/fake.go", "cmd/internal/ptychild/child.go"}, nil},
+	"TestMenuTargetPerformance":             {"integration", "M3", "present", "cmd/internal/couchtty/menu_perf_test.go", []string{"cmd/internal/couchtty/menu_perf_test.go", "cmd/internal/couchcore/actionableinventory.go", "cmd/internal/couchtty/focus.go", "cmd/internal/couchtty/menu.go", "cmd/internal/couchtty/menu_refresh.go", "cmd/internal/ptychild/child.go"}, nil},
+}
 
 // issue149M5GoSources is the exhaustive set of Go sources touched by M5. Every
 // declaration in these files receives a disposition: a pair:m5-concept marker
@@ -173,7 +300,7 @@ func TestIssue149M5DeclarationDispositionSetIsClosed(t *testing.T) {
 
 func TestIssue149M5CoreConceptInventoryContract(t *testing.T) {
 	root := filepath.Join("..", "..", "..")
-	raw, err := os.ReadFile(findIssue149Plan(t, root))
+	raw, err := os.ReadFile(findPlanArtifact(t, root, "000149-couch-opaque-tags-and-a-human-naming-layer-plan.md"))
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -196,7 +323,7 @@ func TestIssue149M5UnmarkedExportedAuthorityFailsClosed(t *testing.T) {
 
 func TestIssue149M5CoreConceptInventoryRejectsRowMutation(t *testing.T) {
 	root := filepath.Join("..", "..", "..")
-	raw, err := os.ReadFile(findIssue149Plan(t, root))
+	raw, err := os.ReadFile(findPlanArtifact(t, root, "000149-couch-opaque-tags-and-a-human-naming-layer-plan.md"))
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -550,7 +677,7 @@ func issue149ReceiverName(expr ast.Expr) string {
 
 func TestIssue149CurrentCoreConceptKinds(t *testing.T) {
 	root := filepath.Join("..", "..", "..")
-	path := findIssue149Plan(t, root)
+	path := findPlanArtifact(t, root, "000149-couch-opaque-tags-and-a-human-naming-layer-plan.md")
 	f, err := os.Open(path)
 	if err != nil {
 		t.Fatal(err)
@@ -610,9 +737,8 @@ func TestIssue149CurrentCoreConceptKinds(t *testing.T) {
 	}
 }
 
-func findIssue149Plan(t *testing.T, root string) string {
+func findPlanArtifact(t *testing.T, root, name string) string {
 	t.Helper()
-	name := "000149-couch-opaque-tags-and-a-human-naming-layer-plan.md"
 	active := filepath.Join(root, "workshop", "plans", name)
 	if _, err := os.Stat(active); err == nil {
 		return active
@@ -663,8 +789,8 @@ func TestIssue149PureCoreTestsStayAtPureBoundary(t *testing.T) {
 
 func TestIssue149BlockedRunnersDelegateToOneHandshakeAuthority(t *testing.T) {
 	want := map[string]string{
-		"runner.go":    "return startBlockedChild(startExecChild, r.LaunchHelper, dir, argv, env, timeout)",
-		"ptyrunner.go": "return startBlockedChild(r.start, r.LaunchHelper, dir, argv, env, timeout)",
+		"runner.go":    "return startBlockedChild(ctx, startExecChild, r.LaunchHelper, dir, argv, env, timeout)",
+		"ptyrunner.go": "return startBlockedChild(ctx, r.start, r.LaunchHelper, dir, argv, env, timeout)",
 	}
 	for name, delegation := range want {
 		raw, err := os.ReadFile(name)
@@ -685,7 +811,7 @@ func TestIssue149BlockedRunnersDelegateToOneHandshakeAuthority(t *testing.T) {
 
 func TestIssue152DeliveredCoreConceptsResolveToGoDeclarations(t *testing.T) {
 	root := filepath.Clean(filepath.Join("..", "..", ".."))
-	planPath := filepath.Join(root, "workshop", "plans", "000152-couch-verified-park-resume-plan.md")
+	planPath := findPlanArtifact(t, root, "000152-couch-verified-park-resume-plan.md")
 	raw, err := os.ReadFile(planPath)
 	if err != nil {
 		t.Fatal(err)
@@ -723,6 +849,824 @@ func TestIssue152DeliveredCoreConceptsResolveToGoDeclarations(t *testing.T) {
 	if resolved != 21 {
 		t.Fatalf("resolved %d delivered concepts, want 21", resolved)
 	}
+}
+
+func TestIssue151CoreConceptsMatchCurrentBoundary(t *testing.T) {
+	root := filepath.Clean(filepath.Join("..", "..", ".."))
+	planPath := findPlanArtifact(t, root, "000151-hierarchical-thread-menu-plan.md")
+	raw, err := os.ReadFile(planPath)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := validateIssue151CurrentConcepts(root, string(raw)); err != nil {
+		t.Fatal(err)
+	}
+
+	mutated := strings.Replace(string(raw),
+		"| `RefreshSchedule` | `cmd/internal/couchtty/menu_refresh.go` | new | M3 | present |",
+		"| `RefreshSchedule` | `cmd/internal/couchtty/menu_refresh.go` | new | M3 | absent |", 1)
+	if mutated == string(raw) {
+		t.Fatal("failed to construct current-as-absent mutation")
+	}
+	if err := validateIssue151CurrentConcepts(root, mutated); err == nil {
+		t.Fatal("landed M3 surface presented as absent passed the current-boundary contract")
+	}
+
+	missingDependency := strings.Replace(string(raw), ", `cmd/internal/sessioninventory/query.go`", "", 1)
+	if missingDependency == string(raw) {
+		t.Fatal("failed to construct omitted-dependency-path mutation")
+	}
+	if err := validateIssue151CurrentConcepts(root, missingDependency); err == nil {
+		t.Fatal("Core concepts row with an omitted dependency path passed the boundary contract")
+	}
+}
+
+func TestIssue151M3ChecklistMatchesCurrentBoundary(t *testing.T) {
+	root := filepath.Clean(filepath.Join("..", "..", ".."))
+	planPath := findPlanArtifact(t, root, "000151-hierarchical-thread-menu-plan.md")
+	raw, err := os.ReadFile(planPath)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := validateIssue151M3Checklist(string(raw)); err != nil {
+		t.Fatal(err)
+	}
+
+	mutated := strings.Replace(string(raw),
+		"- [x] **Step 1: Write failing pure refresh-schedule traces**",
+		"- [ ] **Step 1: Write failing pure refresh-schedule traces**", 1)
+	if mutated == string(raw) {
+		t.Fatal("failed to construct delivered-as-unchecked mutation")
+	}
+	if err := validateIssue151M3Checklist(mutated); err == nil {
+		t.Fatal("delivered M3 step presented as unchecked passed the boundary contract")
+	}
+}
+
+func TestIssue151M3SourceConceptsAppearAtExactPlanPaths(t *testing.T) {
+	root := filepath.Clean(filepath.Join("..", "..", ".."))
+	planPath := findPlanArtifact(t, root, "000151-hierarchical-thread-menu-plan.md")
+	raw, err := os.ReadFile(planPath)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := validateIssue151M3SourceConcepts(root, string(raw)); err != nil {
+		t.Fatal(err)
+	}
+
+	mutated := strings.Replace(string(raw), "| `ParkedResumeObservation` | `cmd/internal/couchcore/actionableinventory.go` | new | M3 | present |\n", "", 1)
+	if mutated == string(raw) {
+		t.Fatal("failed to construct omitted-source-concept mutation")
+	}
+	if err := validateIssue151M3SourceConcepts(root, mutated); err == nil {
+		t.Fatal("omitted M3 source concept passed the architectural inventory contract")
+	}
+}
+
+func TestIssue151M3DeclarationDispositionSourceSetMatchesMilestoneDiff(t *testing.T) {
+	root := filepath.Clean(filepath.Join("..", "..", ".."))
+	if _, err := os.Stat(filepath.Join(root, ".git")); err != nil {
+		t.Skip("source archive has no Git metadata; the checked-in disposition set remains the oracle")
+	}
+	want := append(append([]string(nil), issue151M3GoSources...), issue151M3DeletedGoSources...)
+	sort.Strings(want)
+	command := exec.Command("git", "-C", root, "diff", "--name-only", issue151M3Base, issue151M3Head, "--", "*.go")
+	raw, err := command.Output()
+	if err != nil {
+		t.Fatal(err)
+	}
+	got := strings.Fields(string(raw))
+	sort.Strings(got)
+	if !equalStrings(got, want) {
+		t.Fatalf("M3 declaration disposition sources = %v, want exact milestone diff %v", got, want)
+	}
+}
+
+func TestIssue151M3DeclarationDispositionSetIsClosed(t *testing.T) {
+	root := filepath.Clean(filepath.Join("..", "..", ".."))
+	got, err := issue151M3SourceDeclarationDigest(root, nil, nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got != issue151M3DeclarationDigest {
+		t.Fatalf("M3 declaration set changed without an explicit architectural/detail/retired disposition: got %s, want %s", got, issue151M3DeclarationDigest)
+	}
+}
+
+func TestIssue151M3ArchitecturalLedgerIsClosed(t *testing.T) {
+	if got := issue151M3ArchitecturalLedgerFingerprint("", ""); got != issue151M3ArchitecturalLedgerDigest {
+		t.Fatalf("M3 architectural ledger changed without an explicit entity/dependency disposition: got %s, want %s", got, issue151M3ArchitecturalLedgerDigest)
+	}
+	if got := issue151M3ArchitecturalLedgerFingerprint("Couch.ActionableThreadInventory", "cmd/internal/couchcore/threadstore.go"); got == issue151M3ArchitecturalLedgerDigest {
+		t.Fatal("removing an enumerated dependency left the architectural ledger unchanged")
+	}
+}
+
+func TestIssue151M3IntegrationDependenciesMatchPinnedSource(t *testing.T) {
+	root := filepath.Clean(filepath.Join("..", "..", ".."))
+	index, err := buildIssue151DeclarationIndex(root)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if path := index.declarations["cmd/internal/couchcore"]["TestIssue151M3IntegrationDependenciesMatchPinnedSource"]; path != "" {
+		t.Fatalf("worktree-only declaration leaked into pinned dependency index from %s", path)
+	}
+	for name, declaration := range issue151M3ArchitecturalDeclarations {
+		if declaration.kind != "integration" {
+			continue
+		}
+		got, err := index.dependencies(root, name, declaration.source, nil)
+		if err != nil {
+			t.Errorf("%s: %v", name, err)
+			continue
+		}
+		want := make([]string, 0, len(declaration.present))
+		for _, path := range declaration.present {
+			if path != declaration.source {
+				want = append(want, path)
+			}
+		}
+		sort.Strings(want)
+		if !equalStrings(got, want) {
+			t.Errorf("%s pinned source dependencies = %v, ledger = %v", name, got, want)
+		}
+	}
+}
+
+func TestIssue151M3ImplementationDependencyRemovalFails(t *testing.T) {
+	root := filepath.Clean(filepath.Join("..", "..", ".."))
+	index, err := buildIssue151DeclarationIndex(root)
+	if err != nil {
+		t.Fatal(err)
+	}
+	path := "cmd/internal/couchcore/actionableinventory.go"
+	raw, err := issue151M3SourceAtHead(root, path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	removed := "\t\t\tif _, pathErr := c.Path.Physical(record.WorkingPath); pathErr != nil {\n\t\t\t\tcontinue\n\t\t\t}\n"
+	mutated := strings.Replace(string(raw), removed, "", 1)
+	mutated = strings.Replace(mutated, " || c.Path == nil", "", 1)
+	if mutated == string(raw) {
+		t.Fatal("failed to remove pinned PathOps dependency")
+	}
+	got, err := index.dependencies(root, "Couch.ActionableThreadInventory", path, map[string][]byte{path: []byte(mutated)})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if containsString(got, "cmd/internal/couchcore/pathops.go") {
+		t.Fatal("removed PathOps reference remained in mechanically derived dependencies")
+	}
+	declaration := issue151M3ArchitecturalDeclarations["Couch.ActionableThreadInventory"]
+	var want []string
+	for _, dependency := range declaration.present {
+		if dependency != declaration.source {
+			want = append(want, dependency)
+		}
+	}
+	sort.Strings(want)
+	if equalStrings(got, want) {
+		t.Fatal("implementation dependency removal still matched the closed ledger")
+	}
+}
+
+type issue151DeclarationIndex struct {
+	files        map[string]*ast.File
+	imports      map[string]map[string]string
+	declarations map[string]map[string]string
+	methods      map[string]map[string]string
+	fields       map[string]map[string]map[string]string
+}
+
+func buildIssue151DeclarationIndex(root string) (*issue151DeclarationIndex, error) {
+	index := &issue151DeclarationIndex{
+		files: make(map[string]*ast.File), imports: make(map[string]map[string]string),
+		declarations: make(map[string]map[string]string), methods: make(map[string]map[string]string),
+		fields: make(map[string]map[string]map[string]string),
+	}
+	archive, err := exec.Command("git", "-C", root, "archive", issue151M3Head, "--", "cmd/internal").Output()
+	if err != nil {
+		return nil, err
+	}
+	reader := tar.NewReader(bytes.NewReader(archive))
+	for {
+		header, readErr := reader.Next()
+		if errors.Is(readErr, io.EOF) {
+			break
+		}
+		if readErr != nil {
+			return nil, readErr
+		}
+		rel := filepath.ToSlash(header.Name)
+		if header.Typeflag != tar.TypeReg || !strings.HasSuffix(rel, ".go") {
+			continue
+		}
+		raw, err := io.ReadAll(reader)
+		if err != nil {
+			return nil, err
+		}
+		file, err := parser.ParseFile(token.NewFileSet(), rel, raw, 0)
+		if err != nil {
+			return nil, err
+		}
+		dir := filepath.ToSlash(filepath.Dir(rel))
+		index.files[rel] = file
+		index.imports[rel] = make(map[string]string)
+		for _, spec := range file.Imports {
+			importPath := strings.Trim(spec.Path.Value, "\"")
+			if !strings.HasPrefix(importPath, "github.com/xianxu/pair/") {
+				continue
+			}
+			alias := filepath.Base(importPath)
+			if spec.Name != nil {
+				alias = spec.Name.Name
+			}
+			index.imports[rel][alias] = strings.TrimPrefix(importPath, "github.com/xianxu/pair/")
+		}
+		if index.declarations[dir] == nil {
+			index.declarations[dir] = make(map[string]string)
+			index.methods[dir] = make(map[string]string)
+			index.fields[dir] = make(map[string]map[string]string)
+		}
+		for _, decl := range file.Decls {
+			switch typed := decl.(type) {
+			case *ast.FuncDecl:
+				if typed.Recv == nil {
+					if ast.IsExported(typed.Name.Name) || issue151M3ArchitecturalDeclarations[typed.Name.Name].source != "" {
+						index.declarations[dir][typed.Name.Name] = rel
+					}
+					continue
+				}
+				receiver := strings.TrimPrefix(issue149ReceiverName(typed.Recv.List[0].Type), "*")
+				if ast.IsExported(typed.Name.Name) || issue151M3ArchitecturalDeclarations[receiver+"."+typed.Name.Name].source != "" {
+					index.methods[dir][receiver+"."+typed.Name.Name] = rel
+				}
+			case *ast.GenDecl:
+				for _, spec := range typed.Specs {
+					typeSpec, ok := spec.(*ast.TypeSpec)
+					if !ok {
+						continue
+					}
+					if ast.IsExported(typeSpec.Name.Name) || issue151M3ArchitecturalDeclarations[typeSpec.Name.Name].source != "" || issue151M3ArchitecturalDeclarations[file.Name.Name+"."+typeSpec.Name.Name].source != "" {
+						index.declarations[dir][typeSpec.Name.Name] = rel
+					}
+					structType, ok := typeSpec.Type.(*ast.StructType)
+					if !ok {
+						continue
+					}
+					index.fields[dir][typeSpec.Name.Name] = make(map[string]string)
+					for _, field := range structType.Fields.List {
+						ref := issue151TypeReference(field.Type)
+						for _, name := range field.Names {
+							index.fields[dir][typeSpec.Name.Name][name.Name] = ref
+						}
+					}
+				}
+			}
+		}
+	}
+	return index, nil
+}
+
+func issue151TypeReference(expr ast.Expr) string {
+	switch typed := expr.(type) {
+	case *ast.Ident:
+		return typed.Name
+	case *ast.StarExpr:
+		return issue151TypeReference(typed.X)
+	case *ast.IndexExpr:
+		return issue151TypeReference(typed.X)
+	case *ast.IndexListExpr:
+		return issue151TypeReference(typed.X)
+	case *ast.SelectorExpr:
+		if pkg, ok := typed.X.(*ast.Ident); ok {
+			return pkg.Name + "." + typed.Sel.Name
+		}
+	}
+	return ""
+}
+
+func (index *issue151DeclarationIndex) dependencies(root, entity, source string, override map[string][]byte) ([]string, error) {
+	raw, ok := override[source]
+	if !ok {
+		var err error
+		raw, err = issue151M3SourceAtHead(root, source)
+		if err != nil {
+			return nil, err
+		}
+	}
+	file, err := parser.ParseFile(token.NewFileSet(), source, raw, 0)
+	if err != nil {
+		return nil, err
+	}
+	dir := filepath.ToSlash(filepath.Dir(source))
+	short := strings.TrimPrefix(entity, file.Name.Name+".")
+	parts := strings.Split(short, ".")
+	var roots []ast.Node
+	for _, decl := range file.Decls {
+		switch typed := decl.(type) {
+		case *ast.FuncDecl:
+			if len(parts) == 2 && typed.Recv != nil && strings.TrimPrefix(issue149ReceiverName(typed.Recv.List[0].Type), "*") == parts[0] && strings.HasPrefix(typed.Name.Name, parts[1]) {
+				roots = append(roots, typed)
+			} else if len(parts) == 1 && typed.Recv == nil && typed.Name.Name == parts[0] {
+				roots = append(roots, typed)
+			} else if len(parts) == 1 && typed.Recv != nil && strings.TrimPrefix(issue149ReceiverName(typed.Recv.List[0].Type), "*") == parts[0] {
+				roots = append(roots, typed)
+			}
+		case *ast.GenDecl:
+			for _, spec := range typed.Specs {
+				if typeSpec, ok := spec.(*ast.TypeSpec); ok && len(parts) == 1 && typeSpec.Name.Name == parts[0] {
+					roots = append(roots, typeSpec)
+				}
+			}
+		}
+	}
+	if len(roots) == 0 {
+		return nil, fmt.Errorf("cannot resolve pinned declaration")
+	}
+	dependencies := make(map[string]bool)
+	addRef := func(ref string) {
+		refParts := strings.Split(ref, ".")
+		refDir := dir
+		name := refParts[len(refParts)-1]
+		if len(refParts) == 2 {
+			if imported := index.imports[source][refParts[0]]; imported != "" {
+				refDir = imported
+			}
+		}
+		if path := index.declarations[refDir][name]; path != "" && path != source {
+			dependencies[path] = true
+		}
+	}
+	for _, root := range roots {
+		variables := make(map[string]string)
+		if function, ok := root.(*ast.FuncDecl); ok {
+			if function.Recv != nil {
+				for _, field := range function.Recv.List {
+					for _, name := range field.Names {
+						variables[name.Name] = issue151TypeReference(field.Type)
+					}
+				}
+			}
+			if function.Type.Params != nil {
+				for _, field := range function.Type.Params.List {
+					for _, name := range field.Names {
+						variables[name.Name] = issue151TypeReference(field.Type)
+					}
+				}
+			}
+		}
+		ast.Inspect(root, func(node ast.Node) bool {
+			switch typed := node.(type) {
+			case *ast.Ident:
+				addRef(typed.Name)
+			case *ast.SelectorExpr:
+				if base, ok := typed.X.(*ast.Ident); ok {
+					addRef(base.Name + "." + typed.Sel.Name)
+					if variableType := variables[base.Name]; variableType != "" {
+						typeParts := strings.Split(variableType, ".")
+						typeDir := dir
+						typeName := typeParts[len(typeParts)-1]
+						if len(typeParts) == 2 && index.imports[source][typeParts[0]] != "" {
+							typeDir = index.imports[source][typeParts[0]]
+						}
+						if ref := index.fields[typeDir][typeName][typed.Sel.Name]; ref != "" {
+							if typeDir != dir && !strings.Contains(ref, ".") {
+								ref = filepath.Base(typeDir) + "." + ref
+							}
+							addRef(ref)
+						}
+					}
+				}
+			}
+			return true
+		})
+	}
+	out := make([]string, 0, len(dependencies))
+	for path := range dependencies {
+		out = append(out, path)
+	}
+	sort.Strings(out)
+	return out, nil
+}
+
+func issue151M3ArchitecturalLedgerFingerprint(removeEntity, removePath string) string {
+	keys := make([]string, 0, len(issue151M3ArchitecturalDeclarations))
+	for name, declaration := range issue151M3ArchitecturalDeclarations {
+		paths := append([]string(nil), declaration.present...)
+		if name == removeEntity {
+			filtered := paths[:0]
+			for _, path := range paths {
+				if path != removePath {
+					filtered = append(filtered, path)
+				}
+			}
+			paths = filtered
+		}
+		sort.Strings(paths)
+		absent := append([]string(nil), declaration.absent...)
+		sort.Strings(absent)
+		keys = append(keys, strings.Join([]string{name, declaration.kind, declaration.delivery, declaration.current, declaration.source, strings.Join(paths, ","), strings.Join(absent, ",")}, "|"))
+	}
+	sort.Strings(keys)
+	digest := sha256.Sum256([]byte(strings.Join(keys, "\n")))
+	return fmt.Sprintf("%x", digest)
+}
+
+func TestIssue151M3HistoricalOracleRejectsMovingHeadAndWorktreeBytes(t *testing.T) {
+	root := filepath.Clean(filepath.Join("..", "..", ".."))
+	path := "cmd/internal/couchcore/plan_contract_test.go"
+	if _, err := issue151M3SourceAtRef(root, "HEAD", path); err == nil {
+		t.Fatal("moving HEAD was accepted as the immutable M3 source ref")
+	}
+	worktree, err := os.ReadFile(filepath.Join(root, path))
+	if err != nil {
+		t.Fatal(err)
+	}
+	got, digestErr := issue151M3SourceDeclarationDigest(root, map[string][]byte{path: worktree}, nil)
+	if digestErr == nil && got == issue151M3DeclarationDigest {
+		t.Fatal("mutable worktree bytes reproduced the immutable M3 declaration snapshot")
+	}
+}
+
+func TestIssue151M3DeclarationDispositionMutationsFailClosed(t *testing.T) {
+	root := filepath.Clean(filepath.Join("..", "..", ".."))
+	path := "cmd/internal/couchcore/actionableinventory.go"
+	raw, err := issue151M3SourceAtHead(root, path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	mutated := append(append([]byte(nil), raw...), []byte("\ntype ReviewAddedM3Authority struct{}\n")...)
+	if got, digestErr := issue151M3SourceDeclarationDigest(root, map[string][]byte{path: mutated}, nil); digestErr == nil && got == issue151M3DeclarationDigest {
+		t.Fatal("unlisted declaration left the closed disposition snapshot unchanged")
+	}
+	for name, disposition := range map[string]map[string]string{
+		"architectural to detail": {"ParkedResumeObservation": "detail"},
+		"detail to architectural": {"ActionableThreadState": "architectural"},
+	} {
+		t.Run(name, func(t *testing.T) {
+			got, digestErr := issue151M3SourceDeclarationDigest(root, nil, disposition)
+			if digestErr == nil && got == issue151M3DeclarationDigest {
+				t.Fatal("classification mutation left the closed declaration disposition unchanged")
+			}
+		})
+	}
+}
+
+func issue151M3SourceDeclarationDigest(root string, sourceOverride map[string][]byte, dispositionOverride map[string]string) (string, error) {
+	keys := make([]string, 0, len(issue151M3GoSources)+len(issue151M3DeletedGoSources))
+	foundArchitectural := make(map[string]string, len(issue151M3ArchitecturalDeclarations))
+	for _, rel := range issue151M3GoSources {
+		raw, ok := sourceOverride[rel]
+		if !ok {
+			var err error
+			raw, err = issue151M3SourceAtHead(root, rel)
+			if err != nil {
+				return "", fmt.Errorf("read M3 disposition source %s: %w", rel, err)
+			}
+		}
+		file, err := parser.ParseFile(token.NewFileSet(), rel, raw, 0)
+		if err != nil {
+			return "", fmt.Errorf("parse M3 disposition source %s: %w", rel, err)
+		}
+		for _, decl := range file.Decls {
+			switch typed := decl.(type) {
+			case *ast.FuncDecl:
+				receiver := ""
+				if typed.Recv != nil && len(typed.Recv.List) == 1 {
+					receiver = issue149ReceiverName(typed.Recv.List[0].Type)
+				}
+				name := typed.Name.Name
+				if receiver != "" {
+					name = strings.TrimPrefix(receiver, "*") + "." + name
+				} else if _, ok := issue151M3ArchitecturalDeclarations[file.Name.Name+"."+name]; ok {
+					name = file.Name.Name + "." + name
+				}
+				disposition := issue151M3Disposition(name, rel, dispositionOverride)
+				if disposition == "architectural" {
+					foundArchitectural[name] = rel
+				}
+				keys = append(keys, rel+"|func|"+receiver+"|"+typed.Name.Name+"|"+disposition)
+			case *ast.GenDecl:
+				for _, spec := range typed.Specs {
+					switch item := spec.(type) {
+					case *ast.TypeSpec:
+						name := item.Name.Name
+						if _, ok := issue151M3ArchitecturalDeclarations[file.Name.Name+"."+name]; ok {
+							name = file.Name.Name + "." + name
+						}
+						disposition := issue151M3Disposition(name, rel, dispositionOverride)
+						if disposition == "architectural" {
+							foundArchitectural[name] = rel
+						}
+						keys = append(keys, rel+"|"+typed.Tok.String()+"|"+item.Name.Name+"|"+disposition)
+					case *ast.ValueSpec:
+						for _, name := range item.Names {
+							qualified := name.Name
+							if _, ok := issue151M3ArchitecturalDeclarations[file.Name.Name+"."+qualified]; ok {
+								qualified = file.Name.Name + "." + qualified
+							}
+							disposition := issue151M3Disposition(qualified, rel, dispositionOverride)
+							if disposition == "architectural" {
+								foundArchitectural[qualified] = rel
+							}
+							keys = append(keys, rel+"|"+typed.Tok.String()+"|"+name.Name+"|"+disposition)
+						}
+					}
+				}
+			default:
+				return "", fmt.Errorf("unclassified declaration kind %T in %s", decl, rel)
+			}
+		}
+	}
+	for _, rel := range issue151M3DeletedGoSources {
+		if _, err := issue151M3SourceAtHead(root, rel); err == nil {
+			return "", fmt.Errorf("retired M3 source %s exists at pinned head", rel)
+		} else if !isGitObjectMissing(err) {
+			return "", fmt.Errorf("inspect retired M3 source %s: %w", rel, err)
+		}
+		keys = append(keys, rel+"|retired")
+	}
+	for name, declaration := range issue151M3ArchitecturalDeclarations {
+		if !containsString(issue151M3GoSources, declaration.source) {
+			continue
+		}
+		if foundArchitectural[name] != declaration.source {
+			return "", fmt.Errorf("M3 architectural declaration %s classified at %q, want %q", name, foundArchitectural[name], declaration.source)
+		}
+	}
+	for name, rel := range foundArchitectural {
+		declaration, ok := issue151M3ArchitecturalDeclarations[name]
+		if !ok || declaration.source != rel {
+			return "", fmt.Errorf("unexpected M3 architectural declaration %s at %s", name, rel)
+		}
+	}
+	sort.Strings(keys)
+	digest := sha256.Sum256([]byte(strings.Join(keys, "\n")))
+	return fmt.Sprintf("%x", digest), nil
+}
+
+func issue151M3Disposition(name, rel string, override map[string]string) string {
+	if disposition := override[name]; disposition != "" {
+		return disposition
+	}
+	if declaration, ok := issue151M3ArchitecturalDeclarations[name]; ok && declaration.source == rel {
+		return "architectural"
+	}
+	return "detail"
+}
+
+func issue151M3SourceAtHead(root, rel string) ([]byte, error) {
+	return issue151M3SourceAtRef(root, issue151M3Head, rel)
+}
+
+func issue151M3SourceAtRef(root, ref, rel string) ([]byte, error) {
+	resolved, err := exec.Command("git", "-C", root, "rev-parse", ref+"^{commit}").Output()
+	if err != nil {
+		return nil, err
+	}
+	if strings.TrimSpace(string(resolved)) != issue151M3Head {
+		return nil, fmt.Errorf("M3 source ref %q resolves to %s, want immutable %s", ref, strings.TrimSpace(string(resolved)), issue151M3Head)
+	}
+	command := exec.Command("git", "-C", root, "show", issue151M3Head+":"+rel)
+	raw, err := command.Output()
+	if err != nil {
+		return nil, err
+	}
+	return raw, nil
+}
+
+func isGitObjectMissing(err error) bool {
+	var exitErr *exec.ExitError
+	return errors.As(err, &exitErr) && exitErr.ExitCode() != 0
+}
+
+func containsString(values []string, want string) bool {
+	for _, value := range values {
+		if value == want {
+			return true
+		}
+	}
+	return false
+}
+
+func validateIssue151M3SourceConcepts(root, plan string) error {
+	coreParts := strings.SplitN(plan, "## Core concepts", 2)
+	if len(coreParts) != 2 {
+		return errors.New("plan has no Core concepts section")
+	}
+	coreParts = strings.SplitN(coreParts[1], "## Function-level test strategies", 2)
+	if len(coreParts) != 2 {
+		return errors.New("Core concepts section has no boundary")
+	}
+	core := coreParts[0]
+	if strings.Contains(core, "existing test seams") {
+		return errors.New("Core concepts contains a non-resolvable source location")
+	}
+	if _, err := issue151M3SourceDeclarationDigest(root, nil, nil); err != nil {
+		return err
+	}
+	for name, declaration := range issue151M3ArchitecturalDeclarations {
+		if len(declaration.absent) == 0 {
+			found, err := issue151M3PinnedDeclarationExists(root, name, declaration.source)
+			if err != nil {
+				return err
+			}
+			if !found {
+				return fmt.Errorf("M3 architectural declaration %s is absent from pinned source %s", name, declaration.source)
+			}
+		}
+		rowFound := false
+		for _, planLine := range strings.Split(core, "\n") {
+			if strings.HasPrefix(planLine, "| `"+name+"` |") && strings.Contains(planLine, "`"+declaration.source+"`") {
+				rowFound = true
+				break
+			}
+		}
+		if !rowFound {
+			return fmt.Errorf("M3 architectural declaration %s at %s is absent from an exact Core concepts row", name, declaration.source)
+		}
+	}
+	return nil
+}
+
+func issue151M3PinnedDeclarationExists(root, want, rel string) (bool, error) {
+	raw, err := issue151M3SourceAtHead(root, rel)
+	if err != nil {
+		return false, fmt.Errorf("read pinned architectural source %s: %w", rel, err)
+	}
+	file, err := parser.ParseFile(token.NewFileSet(), rel, raw, 0)
+	if err != nil {
+		return false, fmt.Errorf("parse pinned architectural source %s: %w", rel, err)
+	}
+	for _, decl := range file.Decls {
+		switch typed := decl.(type) {
+		case *ast.FuncDecl:
+			name := typed.Name.Name
+			if typed.Recv != nil && len(typed.Recv.List) == 1 {
+				name = strings.TrimPrefix(issue149ReceiverName(typed.Recv.List[0].Type), "*") + "." + name
+			} else if file.Name.Name+"."+name == want {
+				name = want
+			}
+			if name == want {
+				return true, nil
+			}
+		case *ast.GenDecl:
+			for _, spec := range typed.Specs {
+				typeSpec, ok := spec.(*ast.TypeSpec)
+				if !ok {
+					continue
+				}
+				name := typeSpec.Name.Name
+				if file.Name.Name+"."+name == want {
+					name = want
+				}
+				if name == want {
+					return true, nil
+				}
+			}
+		}
+	}
+	return false, nil
+}
+
+func validateIssue151M3Checklist(plan string) error {
+	wantSteps := map[int]int{10: 9, 11: 33, 12: 6, 13: 9}
+	for task, count := range wantSteps {
+		startMarker := fmt.Sprintf("### Task %d:", task)
+		start := strings.Index(plan, startMarker)
+		if start < 0 {
+			return fmt.Errorf("missing M3 Task %d", task)
+		}
+		section := plan[start+len(startMarker):]
+		if next := strings.Index(section, "\n### Task "); next >= 0 {
+			section = section[:next]
+		} else if next := strings.Index(section, "\n## Revisions"); next >= 0 {
+			section = section[:next]
+		}
+		steps := make([]bool, 0, count)
+		for _, line := range strings.Split(section, "\n") {
+			if strings.HasPrefix(line, "- [x] **Step ") {
+				steps = append(steps, true)
+			} else if strings.HasPrefix(line, "- [ ] **Step ") {
+				steps = append(steps, false)
+			}
+		}
+		if len(steps) != count {
+			return fmt.Errorf("M3 Task %d has %d checklist steps, want %d", task, len(steps), count)
+		}
+		for index, checked := range steps {
+			wantChecked := task != 13 || index < 7
+			if checked != wantChecked {
+				return fmt.Errorf("M3 Task %d Step %d checked=%t, want %t", task, index+1, checked, wantChecked)
+			}
+		}
+	}
+	return nil
+}
+
+func validateIssue151CurrentConcepts(root, plan string) error {
+	core := strings.SplitN(plan, "## Core concepts", 2)
+	if len(core) != 2 {
+		return errors.New("plan has no Core concepts section")
+	}
+	core = strings.SplitN(core[1], "## Function-level test strategies", 2)
+	if len(core) != 2 {
+		return errors.New("Core concepts section has no boundary")
+	}
+	if strings.Count(core[0], "Current at M3 boundary") != 2 || strings.Contains(core[0], "Current after M3 Task") {
+		return errors.New("Core concepts current-state columns do not name the M3 boundary")
+	}
+	seen := make(map[string]bool, len(issue151M3ArchitecturalDeclarations))
+	kind := "pure"
+	for _, line := range strings.Split(core[0], "\n") {
+		if line == "### Integration points" {
+			kind = "integration"
+			continue
+		}
+		if !strings.HasPrefix(line, "| ") {
+			continue
+		}
+		cells := strings.Split(line, "|")
+		if len(cells) < 7 {
+			continue
+		}
+		nameCell := strings.TrimSpace(cells[1])
+		if nameCell == "Name" || strings.HasPrefix(nameCell, "---") {
+			continue
+		}
+		names := backtickedPlanValues(nameCell)
+		if len(names) != 1 || nameCell != "`"+names[0]+"`" {
+			return fmt.Errorf("Core concepts row must name exactly one architectural entity: %q", nameCell)
+		}
+		name := names[0]
+		contract, ok := issue151M3ArchitecturalDeclarations[name]
+		if !ok {
+			return fmt.Errorf("unclassified Core concepts row %q", name)
+		}
+		if seen[name] {
+			return fmt.Errorf("duplicate Core concepts row %q", name)
+		}
+		seen[name] = true
+		if kind != contract.kind {
+			return fmt.Errorf("%s kind = %q, want %q", name, kind, contract.kind)
+		}
+		delivery := strings.TrimSpace(cells[4])
+		current := strings.TrimSpace(cells[5])
+		if delivery != contract.delivery || current != contract.current {
+			return fmt.Errorf("%s boundary = delivery %q current %q, want %q / %q", name, delivery, current, contract.delivery, contract.current)
+		}
+		wantPaths := append(append([]string(nil), contract.present...), contract.absent...)
+		gotPaths := backtickedPlanValues(strings.TrimSpace(cells[2]))
+		sort.Strings(wantPaths)
+		sort.Strings(gotPaths)
+		if !equalStrings(gotPaths, wantPaths) {
+			return fmt.Errorf("%s paths = %v, want exact repo-relative paths %v", name, gotPaths, wantPaths)
+		}
+		for _, path := range contract.present {
+			if _, err := os.Stat(filepath.Join(root, path)); err != nil {
+				return fmt.Errorf("%s says present but %s is unavailable: %w", name, path, err)
+			}
+		}
+		for _, path := range contract.absent {
+			if _, err := os.Stat(filepath.Join(root, path)); !errors.Is(err, os.ErrNotExist) {
+				return fmt.Errorf("%s says absent but %s exists or cannot be classified: %v", name, path, err)
+			}
+		}
+	}
+	if len(seen) != len(issue151M3ArchitecturalDeclarations) {
+		return fmt.Errorf("classified %d Core concepts rows, want %d", len(seen), len(issue151M3ArchitecturalDeclarations))
+	}
+	return nil
+}
+
+func backtickedPlanValues(cell string) []string {
+	var values []string
+	for {
+		start := strings.IndexByte(cell, '`')
+		if start < 0 {
+			return values
+		}
+		cell = cell[start+1:]
+		end := strings.IndexByte(cell, '`')
+		if end < 0 {
+			return values
+		}
+		values = append(values, cell[:end])
+		cell = cell[end+1:]
+	}
+}
+
+func equalStrings(left, right []string) bool {
+	if len(left) != len(right) {
+		return false
+	}
+	for index := range left {
+		if left[index] != right[index] {
+			return false
+		}
+	}
+	return true
 }
 
 func requireGoDeclaration(path, qualifiedName string) error {

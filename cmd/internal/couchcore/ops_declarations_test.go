@@ -15,6 +15,7 @@ func TestOperationDeclarationsAreClosureFreeCompleteAndOwned(t *testing.T) {
 		confirmation OperationConfirmation
 		result       OperationResult
 	}{
+		"prepare-start":       {ExecuteLiveOwner, EffectAuthority, ConfirmNone, ResultStartResolution},
 		"start":               {ExecuteLiveOwner, EffectProcess, ConfirmNone, ResultStart},
 		"list":                {ExecuteDirectStore, EffectRead, ConfirmNone, ResultThreadInventory},
 		"show":                {ExecuteDirectStore, EffectRead, ConfirmNone, ResultThreadInventory},

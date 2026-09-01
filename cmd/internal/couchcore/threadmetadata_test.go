@@ -164,6 +164,40 @@ func TestResolveThreadReferenceUsesCouchOwnedNotFoundErrors(t *testing.T) {
 	}
 }
 
+func TestThreadReferenceFieldsExactWinsAcrossTheWholeSet(t *testing.T) {
+	fields := []ThreadReferenceFields{
+		{Address: ThreadAddress{RepoScope: "scope", Tag: "work"}, Name: "unrelated", WorkingPath: "/repo/one"},
+		{Address: ThreadAddress{RepoScope: "scope", Tag: "other"}, Name: "work queue", WorkingPath: "/repo/work"},
+	}
+
+	matches, err := MatchThreadReferenceFields(fields, "  work  ")
+	if err != nil {
+		t.Fatal(err)
+	}
+	want := []ThreadAddress{fields[0].Address}
+	if !reflect.DeepEqual(matches, want) {
+		t.Fatalf("matches = %+v, want exact-only %+v", matches, want)
+	}
+
+	if got, err := ClassifyThreadReferenceFields(fields[1], "work"); err != nil || got != ThreadReferenceFuzzy {
+		t.Fatalf("fuzzy classification = %v, %v", got, err)
+	}
+}
+
+func TestThreadReferenceFieldsRejectInvalidQueryBeforeMatching(t *testing.T) {
+	fields := []ThreadReferenceFields{{
+		Address:     ThreadAddress{RepoScope: "scope", Tag: "bad\x00reference"},
+		Name:        "bad\x00reference",
+		WorkingPath: "/repo/bad\x00reference",
+	}}
+	for _, query := range []string{"", " \t\n ", "bad\x00reference"} {
+		matches, err := MatchThreadReferenceFields(fields, query)
+		if matches != nil || !errors.Is(err, ErrThreadReferenceNotFound) {
+			t.Fatalf("query %q = %+v, %v; want owned not-found error", query, matches, err)
+		}
+	}
+}
+
 func threadAddresses(records []ThreadRecord) []ThreadAddress {
 	addresses := make([]ThreadAddress, len(records))
 	for i := range records {

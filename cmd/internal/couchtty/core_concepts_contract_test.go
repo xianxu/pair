@@ -66,6 +66,13 @@ func TestCoreConceptsContract(t *testing.T) {
 	for _, row := range rows {
 		row := row
 		t.Run(row.kind+"/"+row.name, func(t *testing.T) {
+			// #151 supersedes #146's temporary flat-panel authority. Keep the
+			// historical row in the inventory, but invert its current contract:
+			// neither its source nor its owning type may return unnoticed.
+			if row.name == "`PanelModel` / `Filter` / `SelectTree` / target join" {
+				assertRetiredPanelAuthority(t, root)
+				return
+			}
 			if strings.Contains(strings.ToLower(row.status), "planned") {
 				return
 			}
@@ -99,6 +106,29 @@ func TestCoreConceptsContract(t *testing.T) {
 				assertDirectTest(t, paths, row.symbols)
 			}
 		})
+	}
+}
+
+func assertRetiredPanelAuthority(t *testing.T, root string) {
+	t.Helper()
+	if _, err := os.Stat(filepath.Join(root, "cmd/internal/couchtty/panel.go")); !os.IsNotExist(err) {
+		t.Fatalf("retired panel.go exists or cannot be classified: %v", err)
+	}
+	paths, err := filepath.Glob(filepath.Join(root, "cmd/internal/couchtty/*.go"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, path := range paths {
+		if strings.HasSuffix(path, "_test.go") {
+			continue
+		}
+		raw, err := os.ReadFile(path)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if regexp.MustCompile(`\b(type\s+PanelModel|func\s+Filter|func\s+SelectTree)\b`).Match(raw) {
+			t.Errorf("retired flat-panel authority remains in %s", path)
+		}
 	}
 }
 

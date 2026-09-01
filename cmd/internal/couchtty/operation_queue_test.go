@@ -15,9 +15,10 @@ import (
 func TestOperationQueueCoalescesAndRefusesOverloadWithoutEffects(t *testing.T) {
 	queue := newOperationQueue(1)
 	effects := 0
-	request := operationRequest{key: "park/scope/tag", name: "park", run: func() error {
+	want := couchcore.ThreadAddress{RepoScope: "scope", Tag: "tag"}
+	request := operationRequest{key: "park/scope/tag", name: "park", run: func() (any, error) {
 		effects++
-		return nil
+		return want, nil
 	}}
 	accepted, err := queue.Enqueue(request)
 	if !accepted || err != nil {
@@ -27,9 +28,9 @@ func TestOperationQueueCoalescesAndRefusesOverloadWithoutEffects(t *testing.T) {
 	if accepted || err != nil {
 		t.Fatalf("duplicate enqueue = %v, %v", accepted, err)
 	}
-	accepted, err = queue.Enqueue(operationRequest{key: "park/scope/other", name: "park", run: func() error {
+	accepted, err = queue.Enqueue(operationRequest{key: "park/scope/other", name: "park", run: func() (any, error) {
 		effects++
-		return nil
+		return nil, nil
 	}})
 	if accepted || !errors.Is(err, errOperationQueueOverloaded) || effects != 0 {
 		t.Fatalf("overload = accepted %v err %v effects %d", accepted, err, effects)
@@ -40,11 +41,59 @@ func TestOperationQueueCoalescesAndRefusesOverloadWithoutEffects(t *testing.T) {
 	go queue.Run(stop)
 	select {
 	case result := <-queue.results:
-		if result.err != nil || result.name != "park" || effects != 1 {
+		if result.err != nil || result.name != "park" || result.key != request.key || !reflect.DeepEqual(result.value, want) || effects != 1 {
 			t.Fatalf("result = %+v effects %d", result, effects)
 		}
 	case <-time.After(time.Second):
 		t.Fatal("timed out waiting for queued operation")
+	}
+
+	retry := operationRequest{key: "park/scope/other", name: "park", run: func() (any, error) {
+		effects++
+		return "retried", nil
+	}}
+	accepted, err = queue.Enqueue(retry)
+	if !accepted || err != nil {
+		t.Fatalf("overload did not restore rejected request = %v, %v", accepted, err)
+	}
+	result := <-queue.results
+	if result.key != retry.key || result.value != "retried" || effects != 2 {
+		t.Fatalf("retried result = %+v effects %d", result, effects)
+	}
+	select {
+	case extra := <-queue.results:
+		t.Fatalf("request emitted duplicate completion %+v", extra)
+	case <-time.After(10 * time.Millisecond):
+	}
+}
+
+func TestOperationQueueCarriesTypedResultForEveryMenuOperation(t *testing.T) {
+	for _, operation := range []string{"switch", "resume", "park", "name", "describe", "start", "leave"} {
+		t.Run(operation, func(t *testing.T) {
+			queue := newOperationQueue(1)
+			stop := make(chan struct{})
+			defer close(stop)
+			go queue.Run(stop)
+			want := struct {
+				Operation string
+				Sequence  int
+			}{Operation: operation, Sequence: 7}
+			accepted, err := queue.Enqueue(operationRequest{
+				key: operation + "/scope/tag", name: operation,
+				run: func() (any, error) { return want, nil },
+			})
+			if !accepted || err != nil {
+				t.Fatalf("enqueue = %v, %v", accepted, err)
+			}
+			select {
+			case result := <-queue.results:
+				if result.name != operation || result.key != operation+"/scope/tag" || !reflect.DeepEqual(result.value, want) || result.err != nil {
+					t.Fatalf("completion = %+v", result)
+				}
+			case <-time.After(time.Second):
+				t.Fatal("timed out waiting for typed result")
+			}
+		})
 	}
 }
 

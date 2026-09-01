@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"context"
 	"crypto/rand"
+	"errors"
 	"fmt"
 	"io"
 	"os"
@@ -384,7 +385,7 @@ func TestEveryOperationHasASummaryAndDescribedArgs(t *testing.T) {
 func TestOperationArityMatchesExpectation(t *testing.T) {
 	// Declared in the test rather than read from the operation itself, so
 	// this cannot degrade into asserting X == X.
-	want := map[string]int{"start": 3, "list": 0, "show": 2, "stop": 1, "name": 3, "describe": 3, "publish-description": 3, "switch": 2, "attach": 2, "park": 4, "resume": 3}
+	want := map[string]int{"prepare-start": 2, "start": 4, "list": 0, "show": 2, "stop": 1, "name": 3, "describe": 3, "publish-description": 3, "switch": 2, "attach": 2, "park": 4, "resume": 3}
 	for _, op := range couchcore.Operations() {
 		if got := len(op.Args); got != want[op.Name] {
 			t.Errorf("%s has %d args, want %d", op.Name, got, want[op.Name])
@@ -963,13 +964,9 @@ func TestConsoleRunnerDeclinesWithoutATerminalWiring(t *testing.T) {
 	}
 }
 
-// The panel's resolver must be couch's own rule, not left nil.
-//
-// Decision 12's wiring check: an injection seam nothing passes is a seam that
-// does nothing, and the panel would silently degrade to "show everything" with
-// typeahead inert. Asserting the FUNCTION IDENTITY is the only way to catch
-// that, since a nil resolver still renders a panel.
-func TestConsoleGetsCouchsOwnResolver(t *testing.T) {
+// The hierarchical switcher's actionable provider must be wired on the real
+// run path. Typeahead itself is deliberately pure and in-memory.
+func TestConsoleGetsCouchsActionableProvider(t *testing.T) {
 	rt := newRT(t, "/repo")
 	c, err := rt.NewCouch()
 	if err != nil {
@@ -979,11 +976,8 @@ func TestConsoleGetsCouchsOwnResolver(t *testing.T) {
 	if console == nil {
 		t.Fatal("no console to wire")
 	}
-	if console.Resolver() != nil {
-		t.Fatal("a resolver was set before the run path; this test would prove nothing")
-	}
-	if console.Summaries() != nil {
-		t.Fatal("a summary provider was set before the run path; this test would prove nothing")
+	if console.ActionableProvider() != nil {
+		t.Fatal("an actionable provider was set before the run path; this test would prove nothing")
 	}
 
 	// Drive the REAL path. The child has already exited, so Run returns at once
@@ -994,14 +988,86 @@ func TestConsoleGetsCouchsOwnResolver(t *testing.T) {
 	}
 	runConsole(console, c, couchcore.StartResult{Record: rec, Handle: h}, &bytes.Buffer{})
 
-	if console.Resolver() == nil {
-		t.Fatal("the run path left the panel's resolver nil — typeahead would be inert")
+	provider := console.ActionableProvider()
+	if provider == nil {
+		t.Fatal("the run path left the actionable provider nil")
 	}
-	if console.Summaries() == nil {
-		t.Fatal("the run path left the panel's summary provider nil — parked trees would disappear")
+	if got, err := provider(context.Background(), nil); err != nil || len(got) != 0 {
+		t.Fatalf("provider returned %v, %v for an empty registry", got, err)
 	}
-	if got, err := console.Resolver()("anything"); err != nil || len(got) != 0 {
-		t.Fatalf("resolver returned %v, %v for an empty registry", got, err)
+}
+
+func TestWireResolverOmitsUnboundParkButRetainsDiagnosticInventory(t *testing.T) {
+	rt := newRT(t, "/repo")
+	parked := seedVerifiedPark(t, rt, "/repo")
+	c, err := rt.NewCouch()
+	if err != nil {
+		t.Fatal(err)
+	}
+	console, _ := consoleRunnerFor("start", map[string]string{}, strings.NewReader(""), true, nil, nil)
+	wireResolver(console, c)
+	provider := console.ActionableProvider()
+	if provider == nil {
+		t.Fatal("production wiring left actionable provider nil")
+	}
+	rows, err := provider(context.Background(), nil)
+	if err != nil || len(rows) != 0 {
+		t.Fatalf("unbound actionable rows = %+v, %v", rows, err)
+	}
+	diagnostic, err := c.ThreadInventory()
+	if err != nil || len(diagnostic) != 1 || diagnostic[0].Address != parked.Address {
+		t.Fatalf("diagnostic inventory = %+v, %v; parked record must remain visible to list/show", diagnostic, err)
+	}
+}
+
+type blockingActionableArtifacts struct {
+	*couchcore.FakeThreadArtifactCollisionChecker
+	entered chan struct{}
+	release chan struct{}
+}
+
+func (a *blockingActionableArtifacts) ResolveEstablished(ctx context.Context, _, _, _ string) (couchcore.NativeBindingResolution, error) {
+	close(a.entered)
+	select {
+	case <-ctx.Done():
+		return couchcore.NativeBindingResolution{}, ctx.Err()
+	case <-a.release:
+		return couchcore.NativeBindingResolution{}, errors.New("released without cancellation")
+	}
+}
+
+func TestWireResolverPropagatesContextIntoActionableInventory(t *testing.T) {
+	rt := newRT(t, "/repo")
+	seedVerifiedPark(t, rt, "/repo")
+	c, err := rt.NewCouch()
+	if err != nil {
+		t.Fatal(err)
+	}
+	artifacts := &blockingActionableArtifacts{
+		FakeThreadArtifactCollisionChecker: couchcore.NewFakeThreadArtifactCollisionChecker(),
+		entered:                            make(chan struct{}),
+		release:                            make(chan struct{}),
+	}
+	c.Artifacts = artifacts
+	console, _ := consoleRunnerFor("start", map[string]string{}, strings.NewReader(""), true, nil, nil)
+	wireResolver(console, c)
+	ctx, cancel := context.WithCancel(context.Background())
+	done := make(chan error, 1)
+	go func() {
+		_, err := console.ActionableProvider()(ctx, nil)
+		done <- err
+	}()
+	<-artifacts.entered
+	cancel()
+	select {
+	case err := <-done:
+		if !errors.Is(err, context.Canceled) {
+			t.Fatalf("provider error = %v, want context canceled", err)
+		}
+	case <-time.After(250 * time.Millisecond):
+		close(artifacts.release)
+		<-done
+		t.Fatal("provider did not propagate cancellation into binding resolution")
 	}
 }
 
@@ -1017,41 +1083,8 @@ func TestConsoleWiringPropagatesAuthoritativeThreadStoreFailures(t *testing.T) {
 	if err := os.WriteFile(filepath.Join(rt.dir, "threadstore", "manifest.json"), []byte("{corrupt"), 0o600); err != nil {
 		t.Fatal(err)
 	}
-	if _, err := console.Summaries()(); err == nil {
-		t.Fatal("production summary callback swallowed corrupt ThreadStore")
-	}
-	if _, err := console.Resolver()("repo"); err == nil {
-		t.Fatal("production reference callback swallowed corrupt ThreadStore")
-	}
-}
-
-func TestConsoleWiringReturnsEveryAmbiguousHumanMatch(t *testing.T) {
-	rt := newRT(t, "/repo")
-	localScope, err := launcher.ResolveRepoScope("/repo")
-	if err != nil {
-		t.Fatal(err)
-	}
-	otherScope, err := launcher.ResolveRepoScope("/other")
-	if err != nil {
-		t.Fatal(err)
-	}
-	first := seedThreadAtAddress(t, rt, localScope.Key, "couch-0102030405060708", "/repo")
-	second := seedThreadAtAddress(t, rt, otherScope.Key, "couch-1112131415161718", "/other")
-	c, err := rt.NewCouch()
-	if err != nil {
-		t.Fatal(err)
-	}
-	name := "compiler"
-	for _, address := range []couchcore.ThreadAddress{first.Address, second.Address} {
-		if _, err := c.ApplyThreadMetadata(address, couchcore.ThreadMetadataPatch{Name: &name}); err != nil {
-			t.Fatal(err)
-		}
-	}
-	console, _ := consoleRunnerFor("start", map[string]string{}, strings.NewReader(""), true, nil, nil)
-	wireResolver(console, c)
-	matches, err := console.Resolver()(name)
-	if err != nil || len(matches) != 2 {
-		t.Fatalf("ambiguous typeahead matches = %+v, %v", matches, err)
+	if _, err := console.ActionableProvider()(context.Background(), nil); err == nil {
+		t.Fatal("production actionable provider swallowed corrupt ThreadStore")
 	}
 }
 
@@ -1112,6 +1145,35 @@ func TestInitialConsoleAttachDispatchesDeclaredOperation(t *testing.T) {
 	if got.Name != "attach" || !got.Implicit || !reflect.DeepEqual(got.TypedPayload, start) ||
 		got.Args["repo-scope"] != wantAddress.RepoScope || got.Args["tag"] != string(wantAddress.Tag) {
 		t.Fatalf("initial attach call = %+v", got)
+	}
+}
+
+func TestWireAttachAbortCleansStartedActorAfterConsoleRefusal(t *testing.T) {
+	rt := newRT(t, "/repo")
+	c, err := rt.NewCouch()
+	if err != nil {
+		t.Fatal(err)
+	}
+	record, handle, err := c.Spawn(couchcore.StartArgs{Cwd: "/repo"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	console, _ := consoleRunnerFor("start", map[string]string{}, strings.NewReader(""), true, nil, nil)
+	console.Stop()
+	wireResolver(console, c)
+
+	_, err = console.Ops()(couchcore.OperationCall{
+		Name: "attach", Implicit: true, TypedPayload: couchcore.StartResult{Record: record, Handle: handle},
+		Args: map[string]string{"repo-scope": record.Thread.RepoScope, "tag": string(record.Thread.Tag)},
+	})
+	if err == nil {
+		t.Fatal("stopped Console attach unexpectedly succeeded")
+	}
+	if handle.Alive() {
+		t.Fatal("failed wired attach left started handle alive")
+	}
+	if got := c.List(); len(got) != 0 {
+		t.Fatalf("failed wired attach left actor registered: %+v", got)
 	}
 }
 

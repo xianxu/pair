@@ -138,18 +138,18 @@ func refuseResume(code ResumeDiagnosticCode, diagnostic string) error {
 }
 
 type NativeBindingResolver interface {
-	ResolveEstablished(repoScope, tag, agent string) (NativeBindingResolution, error)
+	ResolveEstablished(context.Context, string, string, string) (NativeBindingResolution, error)
 }
 
 type SessionInventoryNativeBindingResolver struct {
 	Runtime sessioninventory.Runtime
 }
 
-func (r SessionInventoryNativeBindingResolver) ResolveEstablished(repoScope, tag, agent string) (NativeBindingResolution, error) {
+func (r SessionInventoryNativeBindingResolver) ResolveEstablished(ctx context.Context, repoScope, tag, agent string) (NativeBindingResolution, error) {
 	if r.Runtime == nil {
 		return NativeBindingResolution{}, errors.New("native binding resolver has no runtime")
 	}
-	query, err := sessioninventory.QuerySession(r.Runtime, repoScope, tag, sessioninventory.Agent(agent))
+	query, err := sessioninventory.QuerySessionContext(ctx, r.Runtime, repoScope, tag, sessioninventory.Agent(agent))
 	if err != nil {
 		return NativeBindingResolution{}, err
 	}
@@ -168,6 +168,16 @@ var _ NativeBindingResolver = SessionInventoryNativeBindingResolver{}
 // Resume reoccupies one verified parked address using only its exact saved
 // path, launch profile, and established native root binding.
 func (c *Couch) Resume(address ThreadAddress) (ActorRecord, Handle, error) {
+	return c.ResumeContext(context.Background(), address)
+}
+
+func (c *Couch) ResumeContext(ctx context.Context, address ThreadAddress) (ActorRecord, Handle, error) {
+	if ctx == nil {
+		ctx = context.Background()
+	}
+	if err := ctx.Err(); err != nil {
+		return ActorRecord{}, nil, err
+	}
 	if c == nil || c.Threads == nil {
 		return ActorRecord{}, nil, errors.New("resume: Couch is unavailable")
 	}
@@ -187,7 +197,7 @@ func (c *Couch) Resume(address ThreadAddress) (ActorRecord, Handle, error) {
 	if thread.LatestLaunchProfile != nil {
 		agent = thread.LatestLaunchProfile.Agent
 	}
-	binding, err := bindings.ResolveEstablished(address.RepoScope, string(address.Tag), agent)
+	binding, err := bindings.ResolveEstablished(ctx, address.RepoScope, string(address.Tag), agent)
 	if err != nil {
 		return ActorRecord{}, nil, err
 	}
@@ -206,7 +216,7 @@ func (c *Couch) Resume(address ThreadAddress) (ActorRecord, Handle, error) {
 		return ActorRecord{}, nil, err
 	}
 	startedAt := c.Clock.Now()
-	thread, err = ReconcileResumeAdmission(context.Background(), c.Threads, c.PolicyResolver, ResumeAdmissionInput{
+	thread, err = ReconcileResumeAdmission(ctx, c.Threads, c.PolicyResolver, ResumeAdmissionInput{
 		Address: address, StartedAt: startedAt,
 		Owner: SupervisorOwner{PID: owner.PID, Identity: owner.Identity},
 		Nonce: nonce, Profile: eligible.Profile,
@@ -218,7 +228,7 @@ func (c *Couch) Resume(address ThreadAddress) (ActorRecord, Handle, error) {
 	// Recheck after the durable address claim and immediately before any child
 	// effects. A native session replacement in this window is a refusal, never
 	// permission to create a different session under the same Pair address.
-	currentBinding, err := bindings.ResolveEstablished(address.RepoScope, string(address.Tag), eligible.Profile.Agent)
+	currentBinding, err := bindings.ResolveEstablished(ctx, address.RepoScope, string(address.Tag), eligible.Profile.Agent)
 	if err != nil {
 		return ActorRecord{}, nil, errors.Join(err, c.rollbackTrackedStart(thread, nonce))
 	}
@@ -236,7 +246,8 @@ func (c *Couch) Resume(address ThreadAddress) (ActorRecord, Handle, error) {
 		Stack: eligible.Profile.Agent, ExtraArgs: cloneArgv(eligible.Profile.Argv),
 	}
 	return c.launchTrackedThread(trackedThreadLaunch{
-		Thread: thread, Nonce: nonce, Args: args, StartedAt: startedAt,
+		Context: ctx,
+		Thread:  thread, Nonce: nonce, Args: args, StartedAt: startedAt,
 		ProfileRaw: profileRaw, Resume: true,
 	})
 }

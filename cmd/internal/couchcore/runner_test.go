@@ -1,6 +1,7 @@
 package couchcore
 
 import (
+	"context"
 	"os"
 	"path/filepath"
 	"reflect"
@@ -175,7 +176,7 @@ func TestExecRunnerBuildsCommandWithUniqueAuthoritativeChildEnvironment(t *testi
 func TestExecRunnerBlockedStartRunsTargetOnlyAfterAcknowledgement(t *testing.T) {
 	marker := filepath.Join(t.TempDir(), "target-ran")
 	r := ExecRunner{LaunchHelper: os.Args[0]}
-	h, err := r.StartBlocked(t.TempDir(), []string{"sh", "-c", "printf exec > \"$PAIR_TEST_TARGET_MARKER\""}, []string{
+	h, err := r.StartBlocked(context.Background(), t.TempDir(), []string{"sh", "-c", "printf exec > \"$PAIR_TEST_TARGET_MARKER\""}, []string{
 		"PAIR_TEST_RUNNER_HELPER=1",
 		"PAIR_TEST_TARGET_MARKER=" + marker,
 	}, 2*time.Second)
@@ -200,7 +201,7 @@ func TestExecRunnerBlockedStartRunsTargetOnlyAfterAcknowledgement(t *testing.T) 
 func TestExecRunnerBlockedStartCancelNeverRunsTarget(t *testing.T) {
 	marker := filepath.Join(t.TempDir(), "target-ran")
 	r := ExecRunner{LaunchHelper: os.Args[0]}
-	h, err := r.StartBlocked(t.TempDir(), []string{"sh", "-c", "printf exec > \"$PAIR_TEST_TARGET_MARKER\""}, []string{
+	h, err := r.StartBlocked(context.Background(), t.TempDir(), []string{"sh", "-c", "printf exec > \"$PAIR_TEST_TARGET_MARKER\""}, []string{
 		"PAIR_TEST_RUNNER_HELPER=1",
 		"PAIR_TEST_TARGET_MARKER=" + marker,
 	}, 2*time.Second)
@@ -261,7 +262,7 @@ func TestFakeRunnerAutoExitEndsTheTerminalToo(t *testing.T) {
 
 func TestFakeRunnerBlockedStartDoesNotExecUntilAcknowledged(t *testing.T) {
 	f := NewFakeRunner()
-	h, err := f.StartBlocked("/repo", []string{"pair", "resume", "tag"}, []string{"K=V"}, time.Second)
+	h, err := f.StartBlocked(context.Background(), "/repo", []string{"pair", "resume", "tag"}, []string{"K=V"}, time.Second)
 	if err != nil {
 		t.Fatalf("StartBlocked: %v", err)
 	}
@@ -283,7 +284,7 @@ func TestFakeRunnerBlockedStartDoesNotExecUntilAcknowledged(t *testing.T) {
 
 func TestFakeRunnerBlockedStartCancelNeverExecs(t *testing.T) {
 	f := NewFakeRunner()
-	h, err := f.StartBlocked("/repo", []string{"pair"}, nil, time.Second)
+	h, err := f.StartBlocked(context.Background(), "/repo", []string{"pair"}, nil, time.Second)
 	if err != nil {
 		t.Fatalf("StartBlocked: %v", err)
 	}

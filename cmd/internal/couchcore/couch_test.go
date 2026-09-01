@@ -41,7 +41,7 @@ func (r realDescendantRunner) Start(_ string, argv, env []string) (Handle, error
 	return ExecRunner{}.Start(filepath.Dir(r.marker), argv, env)
 }
 
-func (r realDescendantRunner) StartBlocked(_ string, _ []string, _ []string, timeout time.Duration) (BlockedHandle, error) {
+func (r realDescendantRunner) StartBlocked(ctx context.Context, _ string, _ []string, _ []string, timeout time.Duration) (BlockedHandle, error) {
 	script := `trap '' TERM; sleep 300 & child=$!; printf '%s' "$child" > "$PAIR_TEST_DESCENDANT_PID"; wait "$child"`
 	argv := []string{"sh", "-c", script}
 	env := []string{
@@ -51,9 +51,9 @@ func (r realDescendantRunner) StartBlocked(_ string, _ []string, _ []string, tim
 	var h BlockedHandle
 	var err error
 	if r.pty {
-		h, err = (&PtyRunner{LaunchHelper: os.Args[0]}).StartBlocked(filepath.Dir(r.marker), argv, env, timeout)
+		h, err = (&PtyRunner{LaunchHelper: os.Args[0]}).StartBlocked(ctx, filepath.Dir(r.marker), argv, env, timeout)
 	} else {
-		h, err = (ExecRunner{LaunchHelper: os.Args[0]}).StartBlocked(filepath.Dir(r.marker), argv, env, timeout)
+		h, err = (ExecRunner{LaunchHelper: os.Args[0]}).StartBlocked(ctx, filepath.Dir(r.marker), argv, env, timeout)
 	}
 	if err != nil {
 		return nil, err
@@ -191,6 +191,113 @@ func (e *testEnv) boundedOne(path string) {
 		Capacity:      PolicyCapacity{Kind: CapacityBounded, Limit: 1},
 		OnCapacity:    CapacityReject,
 	}, nil)
+}
+
+func TestPrepareStartHasNoLaunchEffectsAndSpawnPreparedReusesAcceptedAuthority(t *testing.T) {
+	env := newTestEnv(t, "/repo")
+	prepared, err := env.Couch.PrepareStart(context.Background(), StartArgs{Worktree: "/repo", Stack: "codex"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if prepared.Token == "" || prepared.Resolution.Profile.Agent != "codex" || len(env.Runner.Ops) != 0 {
+		t.Fatalf("preparation = %+v, runner ops = %q", prepared, env.Runner.Ops)
+	}
+	before, err := env.Couch.Threads.Snapshot()
+	if err != nil || len(before.Records) != 0 {
+		t.Fatalf("prepare allocated durable state: %+v, %v", before.Records, err)
+	}
+
+	record, _, err := env.Couch.SpawnPrepared(context.Background(), prepared.Token)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if record.Args.Stack != "codex" || len(env.Runner.Ops) == 0 {
+		t.Fatalf("prepared spawn = %+v, runner ops = %q", record, env.Runner.Ops)
+	}
+	resolver := env.Couch.PolicyResolver.(*FakePolicyResolver)
+	if calls := resolver.Calls(); !reflect.DeepEqual(calls, []string{"/repo", "/repo"}) {
+		t.Fatalf("candidate policy calls = %q, want prepare and revalidation only", calls)
+	}
+}
+
+func TestSpawnPreparedRefusesChangedEvidenceBeforeAllocationOrFork(t *testing.T) {
+	env := newTestEnv(t, "/repo")
+	resolver := env.Couch.PolicyResolver.(*FakePolicyResolver)
+	first := admissionPolicy(CapacityUnbounded, 0, CapacityActionUnknown)
+	second := first
+	second.PolicyDigest = strings.Repeat("b", 64)
+	resolver.Queue("/repo", first, nil)
+	resolver.Queue("/repo", second, nil)
+	prepared, err := env.Couch.PrepareStart(context.Background(), StartArgs{Worktree: "/repo"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, _, err := env.Couch.SpawnPrepared(context.Background(), prepared.Token); !errors.Is(err, ErrStartResolutionChanged) {
+		t.Fatalf("changed evidence err = %v", err)
+	}
+	if len(env.Runner.Ops) != 0 {
+		t.Fatalf("changed evidence forked: %q", env.Runner.Ops)
+	}
+	snapshot, err := env.Couch.Threads.Snapshot()
+	if err != nil || len(snapshot.Records) != 0 {
+		t.Fatalf("changed evidence allocated: %+v, %v", snapshot.Records, err)
+	}
+	if _, _, err := env.Couch.SpawnPrepared(context.Background(), prepared.Token); !errors.Is(err, ErrStartGrantUnavailable) {
+		t.Fatalf("failed attempt replay err = %v", err)
+	}
+}
+
+func TestSpawnPreparedRefusesPreferenceAndDefaultDriftBeforeEffects(t *testing.T) {
+	t.Run("path preference", func(t *testing.T) {
+		env := newTestEnv(t, "/repo")
+		prepared, err := env.Couch.PrepareStart(context.Background(), StartArgs{Worktree: "/repo", Stack: "claude"})
+		if err != nil {
+			t.Fatal(err)
+		}
+		preference := PathLaunchPreference{
+			SchemaVersion: PathLaunchPreferenceSchemaVersion,
+			RepoIdentity:  "fake-repo", PhysicalPath: "/repo", LastAgent: "claude",
+			ArgvByAgent: map[string][]string{"claude": {"--model", "opus"}}, Revision: 1,
+		}
+		if err := writePathLaunchPreferenceForTest(env.Couch.Threads, preference); err != nil {
+			t.Fatal(err)
+		}
+		if _, _, err := env.Couch.SpawnPrepared(context.Background(), prepared.Token); !errors.Is(err, ErrStartResolutionChanged) {
+			t.Fatalf("preference drift err = %v", err)
+		}
+		assertPreparedStartHadNoEffects(t, env)
+	})
+
+	t.Run("repository default", func(t *testing.T) {
+		env := newTestEnv(t, "/repo")
+		calls := 0
+		env.Couch.RepoAgentDefault = func(_, agent string) (LaunchProfile, bool, error) {
+			calls++
+			return LaunchProfile{Agent: agent, Argv: []string{"--generation", strconv.Itoa(calls)}}, true, nil
+		}
+		prepared, err := env.Couch.PrepareStart(context.Background(), StartArgs{Worktree: "/repo", Stack: "claude"})
+		if err != nil {
+			t.Fatal(err)
+		}
+		if _, _, err := env.Couch.SpawnPrepared(context.Background(), prepared.Token); !errors.Is(err, ErrStartResolutionChanged) {
+			t.Fatalf("default drift err = %v", err)
+		}
+		if calls != 2 {
+			t.Fatalf("repository default calls = %d, want prepare and revalidation", calls)
+		}
+		assertPreparedStartHadNoEffects(t, env)
+	})
+}
+
+func assertPreparedStartHadNoEffects(t *testing.T, env *testEnv) {
+	t.Helper()
+	if len(env.Runner.Ops) != 0 {
+		t.Fatalf("changed evidence forked: %q", env.Runner.Ops)
+	}
+	snapshot, err := env.Couch.Threads.Snapshot()
+	if err != nil || len(snapshot.Records) != 0 {
+		t.Fatalf("changed evidence allocated: %+v, %v", snapshot.Records, err)
+	}
 }
 
 func TestSpawnStartsPairAndRecordsTheActor(t *testing.T) {

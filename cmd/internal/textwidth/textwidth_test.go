@@ -10,10 +10,11 @@ func TestWidthCountsColumnsNotRunesOrBytes(t *testing.T) {
 		want int
 	}{
 		{"pair", 4},
-		{"📁pair", 6},        // 5 runes, 8 bytes, 6 columns
-		{"Alt+⏎", 5},         // ⏎ U+23CE is NOT in a wide block — narrow
+		{"📁pair", 6}, // 5 runes, 8 bytes, 6 columns
+		{"Alt+⏎", 5}, // ⏎ U+23CE is NOT in a wide block — narrow
 		{"", 0},
-		{"日本", 4},           // CJK: two runes, four columns
+		{"日本", 4},      // CJK: two runes, four columns
+		{"e\u0301", 1}, // combining acute extends the prior cell
 	}
 	for _, c := range cases {
 		if got := Width(c.in); got != c.want {

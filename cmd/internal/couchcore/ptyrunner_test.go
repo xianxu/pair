@@ -1,6 +1,7 @@
 package couchcore
 
 import (
+	"context"
 	"os"
 	"path/filepath"
 	"strings"
@@ -119,7 +120,7 @@ func TestPtyRunnerBlockedStartPreservesTerminalAndWaitsForAcknowledgement(t *tes
 		LaunchHelper: os.Args[0],
 		Size:         func() ptychild.Size { return ptychild.Size{Rows: 24, Cols: 80} },
 	}
-	h, err := r.StartBlocked(t.TempDir(), []string{"sh", "-c", "printf exec > \"$PAIR_TEST_TARGET_MARKER\""}, []string{
+	h, err := r.StartBlocked(context.Background(), t.TempDir(), []string{"sh", "-c", "printf exec > \"$PAIR_TEST_TARGET_MARKER\""}, []string{
 		"PAIR_TEST_RUNNER_HELPER=1",
 		"PAIR_TEST_TARGET_MARKER=" + marker,
 	}, 2*time.Second)

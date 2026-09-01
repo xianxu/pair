@@ -14,6 +14,7 @@ type OperationCall struct {
 	Args         map[string]string
 	Implicit     bool
 	TypedPayload any
+	Context      context.Context
 	Operation    Operation
 }
 
@@ -175,13 +176,19 @@ func requireOperationRepoScope(args map[string]string) error {
 func CouchLiveOwnerExecutor(c *Couch) OperationExecutor {
 	return func(call OperationCall) (any, error) {
 		a := call.Args
+		ctx := call.Context
+		if ctx == nil {
+			ctx = context.Background()
+		}
 		switch call.Operation.Name {
-		case "start":
+		case "prepare-start":
 			path := a["path"]
 			if path == "" {
 				path = "."
 			}
-			rec, h, err := c.Spawn(StartArgs{Cwd: path, Stack: a["agent"]})
+			return c.PrepareStart(ctx, StartArgs{Cwd: path, Stack: a["agent"]})
+		case "start":
+			rec, h, err := c.SpawnPrepared(ctx, StartGrantToken(a["token"]))
 			if err != nil {
 				return nil, err
 			}
@@ -217,24 +224,24 @@ func CouchLiveOwnerExecutor(c *Couch) OperationExecutor {
 			}
 			switch a["mode"] {
 			case "", "normal":
-				return c.PairLifecycle.Park(context.Background(), address)
+				return c.PairLifecycle.Park(ctx, address)
 			case "retry":
-				return c.PairLifecycle.Retry(context.Background(), address)
+				return c.PairLifecycle.Retry(ctx, address)
 			case "recover":
-				return c.PairLifecycle.Recover(context.Background(), address)
+				return c.PairLifecycle.Recover(ctx, address)
 			case "abandon":
-				return c.PairLifecycle.Abandon(context.Background(), address)
+				return c.PairLifecycle.Abandon(ctx, address)
 			default:
 				return nil, fmt.Errorf("park: invalid mode %q (want normal, retry, recover, or abandon)", a["mode"])
 			}
 		case "leave":
-			return c.Leave(context.Background())
+			return c.Leave(ctx)
 		case "resume":
 			address, err := resolveOperationThread(c, a)
 			if err != nil {
 				return nil, err
 			}
-			record, handle, err := c.Resume(address)
+			record, handle, err := c.ResumeContext(ctx, address)
 			if err != nil {
 				return nil, err
 			}

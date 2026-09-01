@@ -1,6 +1,7 @@
 package couchcore
 
 import (
+	"context"
 	"errors"
 	"fmt"
 	"os"
@@ -185,7 +186,7 @@ func (c ScopedThreadArtifactCollisionChecker) TriggerQuit(session string, intent
 	return nil
 }
 
-func (c ScopedThreadArtifactCollisionChecker) ResolveEstablished(repoScope, tag, agent string) (NativeBindingResolution, error) {
+func (c ScopedThreadArtifactCollisionChecker) ResolveEstablished(ctx context.Context, repoScope, tag, agent string) (NativeBindingResolution, error) {
 	paths, err := artifactpath.Resolve(artifactpath.Address{
 		DataDir: c.GlobalDataDir, RepoScope: repoScope, Tag: tag,
 	})
@@ -198,7 +199,7 @@ func (c ScopedThreadArtifactCollisionChecker) ResolveEstablished(repoScope, tag,
 	}
 	return (SessionInventoryNativeBindingResolver{
 		Runtime: sessioninventory.NewOSRuntime(home, paths.ScopeDir()),
-	}).ResolveEstablished(repoScope, tag, agent)
+	}).ResolveEstablished(ctx, repoScope, tag, agent)
 }
 
 var _ NativeBindingResolver = ScopedThreadArtifactCollisionChecker{}

@@ -30,6 +30,7 @@ type Couch struct {
 	IDs              IDGen
 	PolicyResolver   PolicyResolver
 	Threads          *ThreadStore
+	StartGrants      *StartGrantStore[StartResolution]
 	Entropy          io.Reader
 	Artifacts        ThreadArtifactController
 	PairLifecycle    *PairLifecycleController
@@ -111,8 +112,9 @@ func New(namespace CouchNamespace, r Runner, p PathOps, g GitRunner, proc ProcOp
 		Runner:    r, Path: p, Git: g, Proc: proc, Store: s, Clock: c, IDs: ids,
 		PolicyResolver: resolver,
 		Threads:        threads, Entropy: entropy,
-		Artifacts: artifacts,
-		reg:       reg, names: names,
+		StartGrants: NewStartGrantStore[StartResolution](c, entropy, cloneStartResolution),
+		Artifacts:   artifacts,
+		reg:         reg, names: names,
 		postAckQuiesceTimeout:     500 * time.Millisecond,
 		postAckRetryDelay:         100 * time.Millisecond,
 		resumeRegistrationTimeout: 5 * time.Second,
@@ -144,60 +146,128 @@ func (c *Couch) ResolveTree(path string) (Worktree, error) { return Resolve(path
 // after Wait a second shell running `couch list` would see an empty registry
 // for the entire session -- which is most of the time.
 func (c *Couch) Spawn(args StartArgs) (ActorRecord, Handle, error) {
-	// An empty path is refused rather than quietly meaning "wherever this
-	// process happens to be".
-	//
-	// `filepath.Abs("")` returns the cwd, so an unset path used to spawn
-	// somewhere plausible by accident -- which made the CLI's explicit `.`
-	// default dead weight that could be deleted with every test still green
-	// (found while deletion-checking M2 BR-24). Two mechanisms producing one
-	// result means neither is pinned; this leaves the explicit one.
-	if args.WorkingDir() == "" {
-		return ActorRecord{}, nil, fmt.Errorf("spawn: no path given")
-	}
-	tree, err := c.ResolveTree(args.WorkingDir())
+	resolution, err := c.resolveStartResolution(context.Background(), args)
 	if err != nil {
 		return ActorRecord{}, nil, err
 	}
-	args.Worktree = tree
-	// Canonicalise the recorded cwd. StartArgs is persisted so a revival can
-	// reproduce the launch; storing the operator's relative path ("../pair")
-	// makes that record meaningless from any other directory.
-	if physical, err := c.Path.Physical(NormalizePath(args.WorkingDir())); err == nil {
-		args.Cwd = physical
-	} else {
-		args.Cwd = NormalizePath(args.WorkingDir())
-	}
+	return c.spawnResolved(context.Background(), resolution)
+}
 
-	// Keep the transitional registry cache tidy for old list/attach clients.
-	//
-	// Without this the guard refuses on registry membership alone, and since
-	// `couch start` blocks until the child exits and nothing unregisters on
-	// exit, the ordinary end of a session leaves a dead record that refuses
-	// its tree forever. The registry is a cache of what is running, so a
-	// record whose identity no longer matches is not evidence of anything.
+type PreparedStart struct {
+	Token      StartGrantToken `json:"token"`
+	Resolution StartResolution `json:"resolution"`
+}
+
+func (c *Couch) PrepareStart(ctx context.Context, args StartArgs) (PreparedStart, error) {
+	resolution, err := c.resolveStartResolution(ctx, args)
+	if err != nil {
+		return PreparedStart{}, err
+	}
+	token, err := c.StartGrants.Issue(resolution)
+	if err != nil {
+		return PreparedStart{}, err
+	}
+	return PreparedStart{Token: token, Resolution: cloneStartResolution(resolution)}, nil
+}
+
+func (c *Couch) SpawnPrepared(ctx context.Context, token StartGrantToken) (record ActorRecord, handle Handle, err error) {
+	accepted, err := c.StartGrants.Claim(token)
+	if err != nil {
+		return ActorRecord{}, nil, err
+	}
+	defer func() { err = errors.Join(err, c.StartGrants.Finish(token)) }()
+	current, err := c.resolveStartResolution(ctx, StartArgs{
+		Worktree: accepted.Worktree, Cwd: accepted.CanonicalPath,
+		Stack: accepted.RequestedAgent, Issue: accepted.Issue,
+	})
+	if err != nil {
+		return ActorRecord{}, nil, err
+	}
+	if current.Fingerprint != accepted.Fingerprint {
+		return ActorRecord{}, nil, ErrStartResolutionChanged
+	}
+	return c.spawnResolved(ctx, accepted)
+}
+
+func (c *Couch) resolveStartResolution(ctx context.Context, args StartArgs) (StartResolution, error) {
+	if args.WorkingDir() == "" {
+		return StartResolution{}, fmt.Errorf("spawn: no path given")
+	}
+	tree, err := c.ResolveTree(args.WorkingDir())
+	if err != nil {
+		return StartResolution{}, err
+	}
+	canonicalPath := NormalizePath(args.WorkingDir())
+	if physical, physicalErr := c.Path.Physical(canonicalPath); physicalErr == nil {
+		canonicalPath = physical
+	}
+	policy, err := c.PolicyResolver.ResolvePolicy(ctx, canonicalPath)
+	if err != nil {
+		return StartResolution{}, err
+	}
+	preference, found, err := c.Threads.GetPathLaunchPreference(policy.RepoIdentity, canonicalPath)
+	if err != nil {
+		return StartResolution{}, fmt.Errorf("read launch preference: %w", err)
+	}
+	var pathPreference *PathLaunchPreference
+	if found {
+		pathPreference = &preference
+	}
+	rootAgent := c.RootAgent
+	if rootAgent == "" {
+		rootAgent = "claude"
+	}
+	selected, err := ResolveLaunchProfile(LaunchProfileInputs{
+		ExplicitAgent: args.Stack, Path: pathPreference, RootAgent: rootAgent,
+	})
+	if err != nil {
+		return StartResolution{}, err
+	}
+	if !launcher.IsSupportedAgent(selected.Profile.Agent) {
+		return StartResolution{}, fmt.Errorf("unsupported launch agent %q", selected.Profile.Agent)
+	}
+	var repoDefault *LaunchProfile
+	if c.RepoAgentDefault != nil {
+		value, ok, defaultErr := c.RepoAgentDefault(string(tree), selected.Profile.Agent)
+		if defaultErr != nil {
+			return StartResolution{}, fmt.Errorf("read %s repository default: %w", selected.Profile.Agent, defaultErr)
+		}
+		if ok {
+			repoDefault = &value
+		}
+	}
+	return ResolveStartResolution(StartResolutionInput{
+		CanonicalPath: canonicalPath, Worktree: tree, Issue: args.Issue,
+		LaunchProfileInputs: LaunchProfileInputs{
+			ExplicitAgent: args.Stack, Path: pathPreference, RootAgent: rootAgent, RepoDefault: repoDefault,
+		},
+		CandidatePolicy: policy,
+	})
+}
+
+func (c *Couch) spawnResolved(ctx context.Context, resolution StartResolution) (ActorRecord, Handle, error) {
+	args := StartArgs{
+		Worktree: resolution.Worktree, Cwd: resolution.CanonicalPath,
+		Stack: resolution.Profile.Agent, ExtraArgs: cloneArgv(resolution.Profile.Argv), Issue: resolution.Issue,
+	}
 	if err := c.PruneDead(); err != nil {
 		return ActorRecord{}, nil, err
 	}
-
-	scope, err := launcher.ResolveRepoScope(string(tree))
+	scope, err := launcher.ResolveRepoScope(string(resolution.Worktree))
 	if err != nil {
 		return ActorRecord{}, nil, err
 	}
 	startedAt := c.Clock.Now()
-	thread, err := c.Threads.AllocateThreadTag(scope.Key, args.Cwd, startedAt, c.Entropy, c.Artifacts)
+	thread, err := c.Threads.AllocateThreadTag(scope.Key, resolution.CanonicalPath, startedAt, c.Entropy, c.Artifacts)
 	if err != nil {
 		return ActorRecord{}, nil, err
 	}
 	threadAddress := thread.Address
-	thread, err = ReconcileAdmission(context.Background(), c.Threads, c.PolicyResolver, threadAddress, startedAt)
+	thread, err = ReconcileAdmissionPrepared(ctx, c.Threads, c.PolicyResolver, threadAddress, startedAt, resolution.CandidatePolicy)
 	if err != nil {
 		return ActorRecord{}, nil, errors.Join(err, c.releaseClaimIfThreadAbsent(threadAddress))
 	}
-	profile, err := c.resolveLaunchProfile(thread, args)
-	if err != nil {
-		return ActorRecord{}, nil, errors.Join(err, c.rollbackUnforkedStart(thread))
-	}
+	profile := LaunchProfileResolution{Profile: cloneLaunchProfile(resolution.Profile), AgentSource: resolution.AgentSource, ArgvSource: resolution.ArgvSource}
 	args.Stack = profile.Profile.Agent
 	args.ExtraArgs = cloneArgv(profile.Profile.Argv)
 	owner, err := c.Proc.Current()
@@ -254,49 +324,9 @@ func (c *Couch) Spawn(args StartArgs) (ActorRecord, Handle, error) {
 		return ActorRecord{}, nil, errors.Join(err, c.rollbackTrackedStart(thread, nonce))
 	}
 	return c.launchTrackedThread(trackedThreadLaunch{
-		Thread: thread, Nonce: nonce, Args: args, StartedAt: startedAt,
+		Context: ctx,
+		Thread:  thread, Nonce: nonce, Args: args, StartedAt: startedAt,
 		ProfileRaw: profileRaw, UseRepoDefault: profile.ArgvSource == ArgvSourceRepoDefault,
-	})
-}
-
-func (c *Couch) resolveLaunchProfile(thread ThreadRecord, args StartArgs) (LaunchProfileResolution, error) {
-	if len(thread.Incarnations) != 1 || thread.Incarnations[0].Policy == nil {
-		return LaunchProfileResolution{}, fmt.Errorf("thread %+v has no admitted repository identity", thread.Address)
-	}
-	repoIdentity := thread.Incarnations[0].Policy.RepoIdentity
-	preference, found, err := c.Threads.GetPathLaunchPreference(repoIdentity, args.Cwd)
-	if err != nil {
-		return LaunchProfileResolution{}, fmt.Errorf("read launch preference: %w", err)
-	}
-	var pathPreference *PathLaunchPreference
-	if found {
-		pathPreference = &preference
-	}
-	rootAgent := c.RootAgent
-	if rootAgent == "" {
-		rootAgent = "claude"
-	}
-	selected, err := ResolveLaunchProfile(LaunchProfileInputs{
-		ExplicitAgent: args.Stack, Path: pathPreference, RootAgent: rootAgent,
-	})
-	if err != nil {
-		return LaunchProfileResolution{}, err
-	}
-	if !launcher.IsSupportedAgent(selected.Profile.Agent) {
-		return LaunchProfileResolution{}, fmt.Errorf("unsupported launch agent %q", selected.Profile.Agent)
-	}
-	var repoDefault *LaunchProfile
-	if c.RepoAgentDefault != nil {
-		value, ok, err := c.RepoAgentDefault(string(args.Worktree), selected.Profile.Agent)
-		if err != nil {
-			return LaunchProfileResolution{}, fmt.Errorf("read %s repository default: %w", selected.Profile.Agent, err)
-		}
-		if ok {
-			repoDefault = &value
-		}
-	}
-	return ResolveLaunchProfile(LaunchProfileInputs{
-		ExplicitAgent: args.Stack, Path: pathPreference, RootAgent: rootAgent, RepoDefault: repoDefault,
 	})
 }
 
@@ -322,6 +352,43 @@ func (c *Couch) failPostAckStart(address ThreadAddress, h Handle, cause error) e
 		markErr = getErr
 	}
 	return errors.Join(cause, cleanupErr, reconcileErr, markErr)
+}
+
+// AbortStarted is the corresponding failure half after Spawn HAS transferred
+// a StartResult to the Console but owner-local terminal attachment did not
+// commit. The supplied record and handle must still identify the exact actor
+// registered by this Couch; otherwise cleanup could kill an unrelated reused
+// PID or a handle forged by another caller.
+func (c *Couch) AbortStarted(start StartResult, cause error) error {
+	if c == nil || start.Handle == nil {
+		return errors.Join(cause, errors.New("abort started: start handle is unavailable"))
+	}
+	if err := validateThreadAddress(start.Record.Thread); err != nil {
+		return errors.Join(cause, fmt.Errorf("abort started: invalid thread address: %w", err))
+	}
+	if start.Record.ID == "" || start.Record.PID <= 0 || start.Record.Identity == "" ||
+		start.Handle.PID() != start.Record.PID || start.Handle.Identity() != start.Record.Identity {
+		return errors.Join(cause, errors.New("abort started: record/handle process identity mismatch"))
+	}
+	registered := false
+	for _, record := range c.reg.Records() {
+		if record.ID != start.Record.ID {
+			continue
+		}
+		if record.Thread != start.Record.Thread || record.Args.Worktree != start.Record.Args.Worktree ||
+			record.PID != start.Record.PID || record.Identity != start.Record.Identity {
+			return errors.Join(cause, errors.New("abort started: registered actor identity mismatch"))
+		}
+		registered = true
+		break
+	}
+	if !registered {
+		return errors.Join(cause, errors.New("abort started: actor is not registered by this Couch"))
+	}
+
+	cleanupErr := c.failPostAckStart(start.Record.Thread, start.Handle, cause)
+	c.reg = c.reg.RemoveActor(start.Record.Args.Worktree, start.Record.ID)
+	return errors.Join(cleanupErr, c.Store.Save(c.reg, c.names))
 }
 
 // quiescePostAckStart retains the live Handle on this call stack and retries

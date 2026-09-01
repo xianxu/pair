@@ -42,6 +42,22 @@ func TestAdmissionReconcileResolvesOutsideStoreLockAndCommitsCreatingOccupant(t 
 	}
 }
 
+func TestReconcileAdmissionPreparedDoesNotRereadCandidatePolicy(t *testing.T) {
+	store, ns := newTestThreadStore(t)
+	candidate := allocateAdmissionCandidate(t, store, ns, "0123456789abcdef", 1, time.Now())
+	policy := admissionPolicy(CapacityUnbounded, 0, CapacityActionUnknown)
+	resolver := PolicyResolverFunc(func(_ context.Context, path string) (PolicyResult, error) {
+		return PolicyResult{}, errors.New("unexpected policy read for " + path)
+	})
+	claimed, err := ReconcileAdmissionPrepared(context.Background(), store, resolver, candidate.Address, time.Now(), policy)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(claimed.Incarnations) != 1 || claimed.Incarnations[0].Policy == nil || *claimed.Incarnations[0].Policy != policy {
+		t.Fatalf("prepared admission = %+v", claimed)
+	}
+}
+
 func TestAdmissionReconcileCountsUnknownAndRollsBackRefusedCandidate(t *testing.T) {
 	store, ns := newTestThreadStore(t)
 	now := time.Now()
