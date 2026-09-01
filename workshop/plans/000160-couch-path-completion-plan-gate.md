@@ -14,6 +14,15 @@ rounds:
           family: executable-test-strategy
           round: 1
       blocked: true
+    - "n": 2
+      timestamp: "2026-09-01T12:45:46-07:00"
+      agent: codex
+      dispose:
+        - id: PQ-1
+          disposition: not-addressed
+          note: Tasks 1–6 remain case inventories and procedural diff instructions compressed into sentences; replace each with the named function, one adversarial-input class, and one mechanical guard.
+          round: 2
+      blocked: true
 ---
 
 # Gate ledger — pair#160 (plan-quality)
@@ -27,6 +36,12 @@ later rounds disposed of them. Generated — edit the gate, not this file.
 
 - **PQ-1** [Important] `executable-test-strategy` Compress enumerated test cases and procedural diff instructions into named-function strategies
   Tasks 1–6 prescribe exact fixture tables, case-by-case assertions, production declarations, field inventories, and stepwise implementation mechanics. Replace those inventories with the functions under test—such as SplitCompletionPath, CompletionAccumulator.Add/Result, advanceLatestSchedule, ReduceMenu, RenderMenuView, and the directory-reader/Console seams—and one adversarial-input class plus mechanical guard per risky function; keep only commands, observable acceptance criteria, and architectural ownership needed to execute the work.
+
+## Round 2 — 2026-09-01T12:45:46-07:00 (codex) — BLOCKED
+
+### Disposed
+
+- PQ-1 — not-addressed — Tasks 1–6 remain case inventories and procedural diff instructions compressed into sentences; replace each with the named function, one adversarial-input class, and one mechanical guard.
 
 ## Open findings
 

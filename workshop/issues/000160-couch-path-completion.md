@@ -194,6 +194,10 @@ The first `change-code` plan-quality round raised PQ-1
 and diff procedure. Tasks 1–6 now name each tested function and its adversarial
 input/mechanical guard while leaving executable cases to test code.
 
+The second plan-quality round found compact case inventories still violated the
+same PQ-1 class. The plan now applies one uniform rule to every risky surface:
+named function, one adversarial input class, and one mechanical guard only.
+
 ## Revisions
 
 ### 2026-09-01 — close first spec-review ambiguities
@@ -220,3 +224,8 @@ close handoff in the canonical plan artifact.
 Compressed the entire implementation plan from enumerated fixture/diff prose to
 named-function test strategies, observable outcomes, architectural ownership,
 and exact RED/GREEN commands.
+
+### 2026-09-01 — apply PQ-1 as a class-wide rule
+
+Removed the remaining parenthetical case lists and procedural mechanics across
+Tasks 1–6; each test step now follows the gate's exact strategy-line contract.
