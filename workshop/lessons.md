@@ -2740,3 +2740,7 @@ that a key token appears cannot detect a contradictory behavioral sentence
   receiver fields, compare the exact set with the ledger, and mutation-test the
   implementation side; otherwise an omitted seam is invisible to every
   ledger-only test (`ARCH-DRY`, `ARCH-PURPOSE`).
+- Pinning a historical target body is insufficient when resolution uses an
+  auxiliary symbol/import/type index. Every path and byte participating in the
+  oracle—including indexes—must come from the same immutable object, with a
+  worktree-only declaration used as the negative regression (`ARCH-PURPOSE`).

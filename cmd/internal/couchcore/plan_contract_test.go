@@ -1,13 +1,16 @@
 package couchcore
 
 import (
+	"archive/tar"
 	"bufio"
+	"bytes"
 	"crypto/sha256"
 	"errors"
 	"fmt"
 	"go/ast"
 	"go/parser"
 	"go/token"
+	"io"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -965,6 +968,9 @@ func TestIssue151M3IntegrationDependenciesMatchPinnedSource(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
+	if path := index.declarations["cmd/internal/couchcore"]["TestIssue151M3IntegrationDependenciesMatchPinnedSource"]; path != "" {
+		t.Fatalf("worktree-only declaration leaked into pinned dependency index from %s", path)
+	}
 	for name, declaration := range issue151M3ArchitecturalDeclarations {
 		if declaration.kind != "integration" {
 			continue
@@ -1038,19 +1044,31 @@ func buildIssue151DeclarationIndex(root string) (*issue151DeclarationIndex, erro
 		declarations: make(map[string]map[string]string), methods: make(map[string]map[string]string),
 		fields: make(map[string]map[string]map[string]string),
 	}
-	err := filepath.WalkDir(filepath.Join(root, "cmd", "internal"), func(path string, entry os.DirEntry, walkErr error) error {
-		if walkErr != nil || entry.IsDir() || !strings.HasSuffix(path, ".go") {
-			return walkErr
+	archive, err := exec.Command("git", "-C", root, "archive", issue151M3Head, "--", "cmd/internal").Output()
+	if err != nil {
+		return nil, err
+	}
+	reader := tar.NewReader(bytes.NewReader(archive))
+	for {
+		header, readErr := reader.Next()
+		if errors.Is(readErr, io.EOF) {
+			break
 		}
-		rel, err := filepath.Rel(root, path)
+		if readErr != nil {
+			return nil, readErr
+		}
+		rel := filepath.ToSlash(header.Name)
+		if header.Typeflag != tar.TypeReg || !strings.HasSuffix(rel, ".go") {
+			continue
+		}
+		raw, err := io.ReadAll(reader)
 		if err != nil {
-			return err
+			return nil, err
 		}
-		file, err := parser.ParseFile(token.NewFileSet(), path, nil, 0)
+		file, err := parser.ParseFile(token.NewFileSet(), rel, raw, 0)
 		if err != nil {
-			return err
+			return nil, err
 		}
-		rel = filepath.ToSlash(rel)
 		dir := filepath.ToSlash(filepath.Dir(rel))
 		index.files[rel] = file
 		index.imports[rel] = make(map[string]string)
@@ -1106,9 +1124,8 @@ func buildIssue151DeclarationIndex(root string) (*issue151DeclarationIndex, erro
 				}
 			}
 		}
-		return nil
-	})
-	return index, err
+	}
+	return index, nil
 }
 
 func issue151TypeReference(expr ast.Expr) string {

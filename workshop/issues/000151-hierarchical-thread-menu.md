@@ -1298,3 +1298,10 @@ Integration ledger rows. The complete table was regenerated from that result.
 Removing the pinned `c.Path.Physical` branch drops `pathops.go` from the derived
 set and fails against the unchanged ledger (`BR-26`, `ARCH-DRY`,
 `ARCH-PURPOSE`).
+
+The tenth boundary review found that dependency targets were pinned but their
+declaration/import/receiver-field index still came from the worktree. The index
+now obtains every Go path and byte from one `git archive` of `cmd/internal` at
+the full immutable M3 commit. A worktree-only exported test declaration added
+after that snapshot must remain absent from the index
+(`BR-27`, `ARCH-PURPOSE`).

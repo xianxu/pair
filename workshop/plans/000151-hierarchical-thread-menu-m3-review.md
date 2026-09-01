@@ -852,3 +852,101 @@ dispose:
     note: |
       The source-set range is fixed and parsed bytes come from the immutable full M3 head object; regressions reject moving HEAD and mutable worktree bytes.
 ```
+
+---
+
+## Re-review — 2026-08-31T17:40:18-07:00 (REWORK)
+
+| field | value |
+|-------|-------|
+| issue | 151 — couch: hierarchical work-thread menu |
+| repo | pair |
+| issue file | workshop/issues/000151-hierarchical-thread-menu.md |
+| boundary | milestone M3 |
+| milestone | M3 |
+| window | 0c40a8d1880b49a9cac1a7f4d8cd24a2c713dba7..f7de2f202f6eb96e72a1a9d4d9d56522cac69947 |
+| command | sdlc milestone-close --issue 151 --milestone M3 |
+| reviewer | codex |
+| timestamp | 2026-08-31T17:40:18-07:00 |
+| verdict | REWORK |
+
+## Review
+
+```verdict
+verdict: REWORK
+confidence: high
+```
+
+The delivered M3 behavior and BR-26 inventory fix are well tested, and all affected package tests pass. However, BR-27 is no longer fully addressed: the new dependency oracle combines pinned source bytes with a declaration index parsed from the mutable worktree. This makes the supposedly historical M3 dependency inventory dependent on later checkout state.
+
+## Strengths
+
+- BR-26’s missing entities and dependencies now appear in the Core concepts table, including `ParkedResumeObservation`, `NativeBindingResolver`, and session-inventory paths.
+- The `PathOps` fix has a meaningful mutation test: [plan_contract_test.go](/Users/xianxu/workspace/pair/cmd/internal/couchcore/plan_contract_test.go:990) removes the actual production reference and verifies the derived dependency set stops matching.
+- The architectural ledger compares mechanically derived Integration dependencies bidirectionally with documented paths.
+- Both [README.md](/Users/xianxu/workspace/pair/README.md) and [atlas/couch.md](/Users/xianxu/workspace/pair/atlas/couch.md) changed in the boundary range.
+
+## Critical findings
+
+- **BR-27 remains open — historical dependency resolution reads mutable worktree state.** [plan_contract_test.go](/Users/xianxu/workspace/pair/cmd/internal/couchcore/plan_contract_test.go:1035) builds the declaration index with `filepath.WalkDir`, and line 1049 parses files directly from disk. Only the entity being analyzed is loaded from the pinned Git object at line 1136. Consequently, later declaration moves, additions, imports, or receiver-field changes can alter the dependency result for the historical M3 snapshot. The existing worktree-rejection test at line 1259 exercises the declaration digest, not this new dependency-index path.
+
+  This is the 2nd finding in family `historical-boundary-oracle-pinning`. Do not patch only `PathOps`: state and enforce the rule that every byte and path participating in a historical oracle—including indexes used to resolve references—comes from the same pinned Git object. Build the index from a deterministic pinned path set using `issue151M3SourceAtHead`, and add a mutation proving changed worktree-only declaration/index bytes cannot affect the result.
+
+## Important findings
+
+None.
+
+## Minor findings
+
+None.
+
+## Test coverage notes
+
+- Focused M3 declaration, dependency, mutation, ledger, and historical-oracle tests passed.
+- Affected-package suite passed for `couchcore`, `couchtty`, `couchcmd`, `artifactpath`, `sessioninventory`, `sessionwatch`, `hostty`, and `textwidth`.
+- `git diff --check` passed.
+- The target-machine performance run and race suite were not repeated in this review.
+
+## Architectural notes
+
+- **ARCH-DRY:** Pass. One typed ledger and shared dependency derivation replace parallel hand-maintained inventories.
+- **ARCH-PURE:** Pass. Pure menu/projection authorities remain separated from Console and provider I/O.
+- **ARCH-PURPOSE:** Flagged by BR-27. A historical oracle is not fulfilled while one of its resolution inputs remains mutable.
+- **ARCH-MOCK:** Pass. Production integration continues through the established runner, host, and lifecycle seams with stateful doubles.
+- **ARCH-CONSTRAINTS:** Pass. The bounded single-flight scheduling and 100-row Console performance harness remain present.
+
+## Plan revision recommendations
+
+Append a `## Revisions` entry recording that the dependency oracle’s declaration/import/field index must also be built entirely from pinned Git-object paths and bytes, with a worktree-divergence regression.
+
+```findings
+dispose:
+  - id: BR-21
+    disposition: addressed
+    note: |
+      Production operation projections remain supplied through the shared completion and refresh policy.
+  - id: BR-22
+    disposition: addressed
+    note: |
+      The obsolete panel implementation remains deleted in the pinned range.
+  - id: BR-23
+    disposition: addressed
+    note: |
+      Target evidence continues to exercise the Console run-loop boundary.
+  - id: BR-24
+    disposition: addressed
+    note: |
+      The authoritative M3 implementation steps are checked, leaving only boundary and issue closure open.
+  - id: BR-25
+    disposition: addressed
+    note: |
+      Current documentation and the executable root-Escape contract remain aligned.
+  - id: BR-26
+    disposition: addressed
+    note: |
+      The Core concepts ledger now includes parked-resume authority and mechanically derived Integration dependencies, with a PathOps-removal mutation test.
+  - id: BR-27
+    disposition: not-addressed
+    note: |
+      The new dependency oracle parses its declaration/import/field index from mutable worktree files even though the analyzed declaration comes from the pinned M3 Git object.
+```

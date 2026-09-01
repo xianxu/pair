@@ -1653,3 +1653,16 @@ thread/artifact/binding/profile dependencies. A mutation removes the pinned
 `c.Path.Physical` branch and proves the derived set no longer matches the ledger;
 this catches implementation-side omission rather than only edits to known
 ledger entries (`ARCH-DRY`, `ARCH-PURPOSE`).
+
+### 2026-08-31 — pin every dependency-index input
+
+**Reason:** the tenth M3 boundary review accepted mechanical dependency
+derivation but found its symbol/import/receiver-field index still parsed mutable
+worktree files while target declarations came from pinned Git bytes (`BR-27`).
+
+**Delta:** dependency indexing reads one `git archive` of `cmd/internal` at the
+full immutable M3 commit, so its complete path set and every indexed byte share
+one Git-object boundary with target reads. No worktree path or byte participates.
+A regression names an exported contract test introduced after the
+snapshot and proves that worktree-only declaration is absent from the pinned
+index (`ARCH-PURPOSE`).

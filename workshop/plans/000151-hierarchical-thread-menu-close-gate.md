@@ -493,6 +493,40 @@ rounds:
           round: 21
       boundary: M3
       blocked: true
+    - "n": 22
+      timestamp: "2026-08-31T17:40:18-07:00"
+      agent: codex
+      dispose:
+        - id: BR-21
+          disposition: addressed
+          note: Production operation projections remain supplied through the shared completion and refresh policy.
+          round: 22
+        - id: BR-22
+          disposition: addressed
+          note: The obsolete panel implementation remains deleted in the pinned range.
+          round: 22
+        - id: BR-23
+          disposition: addressed
+          note: Target evidence continues to exercise the Console run-loop boundary.
+          round: 22
+        - id: BR-24
+          disposition: addressed
+          note: The authoritative M3 implementation steps are checked, leaving only boundary and issue closure open.
+          round: 22
+        - id: BR-25
+          disposition: addressed
+          note: Current documentation and the executable root-Escape contract remain aligned.
+          round: 22
+        - id: BR-26
+          disposition: addressed
+          note: The Core concepts ledger now includes parked-resume authority and mechanically derived Integration dependencies, with a PathOps-removal mutation test.
+          round: 22
+        - id: BR-27
+          disposition: not-addressed
+          note: The new dependency oracle parses its declaration/import/field index from mutable worktree files even though the analyzed declaration comes from the pinned M3 Git object.
+          round: 22
+      boundary: M3
+      blocked: false
 ---
 
 # Gate ledger — pair#151 (boundary-review)
@@ -737,6 +771,18 @@ later rounds disposed of them. Generated — edit the gate, not this file.
 - BR-26 — not-addressed — The typed ledger omits the PathOps seam directly used by Couch.ActionableThreadInventory, and its tests cannot discover dependencies omitted from the hand-maintained ledger itself.
 - BR-27 — addressed — The source-set range is fixed and parsed bytes come from the immutable full M3 head object; regressions reject moving HEAD and mutable worktree bytes.
 
+## Round 22 — 2026-08-31T17:40:18-07:00 (codex) — passed
+
+### Disposed
+
+- BR-21 — addressed — Production operation projections remain supplied through the shared completion and refresh policy.
+- BR-22 — addressed — The obsolete panel implementation remains deleted in the pinned range.
+- BR-23 — addressed — Target evidence continues to exercise the Console run-loop boundary.
+- BR-24 — addressed — The authoritative M3 implementation steps are checked, leaving only boundary and issue closure open.
+- BR-25 — addressed — Current documentation and the executable root-Escape contract remain aligned.
+- BR-26 — addressed — The Core concepts ledger now includes parked-resume authority and mechanically derived Integration dependencies, with a PathOps-removal mutation test.
+- BR-27 — not-addressed — The new dependency oracle parses its declaration/import/field index from mutable worktree files even though the analyzed declaration comes from the pinned M3 Git object.
+
 ## Open findings
 
-- **BR-26** [Critical] `documentation-current-state-accuracy` Core concepts inventory still omits delivered parked-resume proof authority
+- **BR-27** [Important] `historical-boundary-oracle-pinning` The M3 declaration oracle reads an unpinned diff and mutable worktree bytes
