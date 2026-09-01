@@ -628,7 +628,7 @@ total: 7.60
       token-bound start preparation/admission contracts.
 - [x] M2 — Build the pure hierarchical menu reducer, renderer, key semantics,
       reconciliation, and bounded preview scheduler.
-- [ ] M3 — Integrate asynchronous inventory/actions/forms with Console, add
+- [x] M3 — Integrate asynchronous inventory/actions/forms with Console, add
       full-console/performance evidence, and update the Couch atlas.
 
 ## Log
@@ -777,6 +777,7 @@ result-generated identity and bell clearing moved to successful completion
 (`ARCH-PURE`, `ARCH-PURPOSE`).
 
 ### 2026-08-31 — smoke: preserve one short completed round and classify park exits
+- 2026-08-31: closed M3 — Committed c6dab1a. Focused post-commit M3 contract suite passed: go test -p 20 ./cmd/internal/couchcore ./cmd/internal/couchcmd -run TestIssue151|TestM3Docs -count=1. Pre-commit full suite passed: go test -p 20 ./... -count=1. Race suite passed with -race -p 20 for couchcore, couchtty, couchcmd, and sessioninventory. Historical dependency indexing now reads every path and byte from one immutable git archive; worktree-only declarations are rejected. User smoke-tested quit cleanup, mouse restoration, hierarchy/navigation, and parked-row discovery.; review verdict: SHIP
 
 Operator smoke produced a complete Claude `hello` → assistant round, but the
 parked thread disappeared. Exact artifacts showed the submitted Pair log and

@@ -174,7 +174,7 @@ gate `#147` and `#148` respectively; `#145` and `#146` do not depend on them.
 - [x] verified park and activity age [pair#152]
 - [x] actionable inventory and token-bound start authority [pair#151 M1]
 - [x] pure hierarchical menu and scheduler [pair#151 M2]
-- [ ] Console integration and performance evidence [pair#151 M3]
+- [x] Console integration and performance evidence [pair#151 M3]
 - [ ] managed-worktree lifecycle [pair#153]
 - [ ] expose query API to peer actors [ariadne#199]
 - [x] fleet thread inventory [ariadne#200]
@@ -454,6 +454,8 @@ reducer/renderer semantics, not M3 Console integration.
 ### pair#151 M3 — Console integration and performance evidence
 
 **est:** 7.60 (whole issue)
+**closed:** 2026-08-31
+**actual:** 11.18h
 
 M3 makes the hierarchical switcher the reachable Console UI over the
 proof-bearing actionable projection. Inventory and preference preview are

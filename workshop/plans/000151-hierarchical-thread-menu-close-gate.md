@@ -527,6 +527,40 @@ rounds:
           round: 22
       boundary: M3
       blocked: false
+    - "n": 23
+      timestamp: "2026-08-31T17:51:00-07:00"
+      agent: codex
+      dispose:
+        - id: BR-21
+          disposition: addressed
+          note: Successful operation projections remain production-reachable and protected by the generation-qualified Console regression.
+          round: 23
+        - id: BR-22
+          disposition: addressed
+          note: The superseded flat-panel implementation is deleted and guarded against restoration.
+          round: 23
+        - id: BR-23
+          disposition: addressed
+          note: The performance harness measures the Console run-loop from semantic input to correlated emitted frames.
+          round: 23
+        - id: BR-24
+          disposition: addressed
+          note: The delivered M3 checklist is checked and protected by a mutation contract.
+          round: 23
+        - id: BR-25
+          disposition: addressed
+          note: README, atlas, plan, and executable root-Escape behavior remain aligned.
+          round: 23
+        - id: BR-26
+          disposition: addressed
+          note: The Core concepts ledger includes parked-resume authority and mechanically derived Integration dependencies.
+          round: 23
+        - id: BR-27
+          disposition: addressed
+          note: Every dependency-index path and byte now comes from one immutable M3 Git archive, and a post-snapshot declaration regression fails if mutable worktree indexing returns.
+          round: 23
+      boundary: M3
+      blocked: false
 ---
 
 # Gate ledger — pair#151 (boundary-review)
@@ -783,6 +817,18 @@ later rounds disposed of them. Generated — edit the gate, not this file.
 - BR-26 — addressed — The Core concepts ledger now includes parked-resume authority and mechanically derived Integration dependencies, with a PathOps-removal mutation test.
 - BR-27 — not-addressed — The new dependency oracle parses its declaration/import/field index from mutable worktree files even though the analyzed declaration comes from the pinned M3 Git object.
 
+## Round 23 — 2026-08-31T17:51:00-07:00 (codex) — passed
+
+### Disposed
+
+- BR-21 — addressed — Successful operation projections remain production-reachable and protected by the generation-qualified Console regression.
+- BR-22 — addressed — The superseded flat-panel implementation is deleted and guarded against restoration.
+- BR-23 — addressed — The performance harness measures the Console run-loop from semantic input to correlated emitted frames.
+- BR-24 — addressed — The delivered M3 checklist is checked and protected by a mutation contract.
+- BR-25 — addressed — README, atlas, plan, and executable root-Escape behavior remain aligned.
+- BR-26 — addressed — The Core concepts ledger includes parked-resume authority and mechanically derived Integration dependencies.
+- BR-27 — addressed — Every dependency-index path and byte now comes from one immutable M3 Git archive, and a post-snapshot declaration regression fails if mutable worktree indexing returns.
+
 ## Open findings
 
-- **BR-27** [Important] `historical-boundary-oracle-pinning` The M3 declaration oracle reads an unpinned diff and mutable worktree bytes
+(none — every finding has been disposed)

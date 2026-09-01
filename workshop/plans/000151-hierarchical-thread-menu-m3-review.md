@@ -950,3 +950,104 @@ dispose:
     note: |
       The new dependency oracle parses its declaration/import/field index from mutable worktree files even though the analyzed declaration comes from the pinned M3 Git object.
 ```
+
+---
+
+## Re-review — 2026-08-31T17:51:00-07:00 (SHIP)
+
+| field | value |
+|-------|-------|
+| issue | 151 — couch: hierarchical work-thread menu |
+| repo | pair |
+| issue file | workshop/issues/000151-hierarchical-thread-menu.md |
+| boundary | milestone M3 |
+| milestone | M3 |
+| window | 0c40a8d1880b49a9cac1a7f4d8cd24a2c713dba7..c6dab1a6af6fde762f69504aa1c39383f750ec28 |
+| command | sdlc milestone-close --issue 151 --milestone M3 |
+| reviewer | codex |
+| timestamp | 2026-08-31T17:51:00-07:00 |
+| verdict | SHIP |
+
+## Review
+
+```verdict
+verdict: SHIP
+confidence: high
+```
+
+The M3 boundary is ready. BR-27 is addressed: every dependency-index path and byte now comes from the same immutable Git archive, and the regression would fail if worktree indexing returned. The focused contracts, full repository suite, race suite, documentation gate, and prior-finding anchors all pass inspection.
+
+### 1. Strengths
+
+- The dependency index is built entirely from `git archive` at the pinned M3 snapshot ([plan_contract_test.go](/Users/xianxu/workspace/pair/cmd/internal/couchcore/plan_contract_test.go:1041)).
+- The regression proves a post-snapshot worktree declaration cannot enter that index ([plan_contract_test.go](/Users/xianxu/workspace/pair/cmd/internal/couchcore/plan_contract_test.go:965)).
+- Integration dependencies are mechanically compared with the closed architectural ledger, including a production-reference removal mutation.
+- The obsolete flat-panel authority is deleted and guarded against reintroduction.
+- README and atlas accurately document the reachable hierarchical switcher and its operating envelope.
+
+### 2. Critical findings
+
+None.
+
+### 3. Important findings
+
+None.
+
+### 4. Minor findings
+
+None.
+
+### 5. Test coverage notes
+
+Passed:
+
+- Focused M3 historical-oracle, dependency, checklist, and ledger contracts.
+- `go test -p 20 ./... -count=1`
+- `go test -race -p 20 ./cmd/internal/couchcore ./cmd/internal/couchtty ./cmd/internal/couchcmd -count=1`
+- `git diff --check` for the pinned range.
+
+The target-specific M2 Max performance protocol was not repeated; portable bounds and the production Console lifecycle harness passed.
+
+### 6. Architectural notes for upcoming work
+
+- **ARCH-DRY — pass:** one typed ledger and shared dependency derivation govern the architectural inventory.
+- **ARCH-PURE — pass:** projection, reducers, rendering, and schedulers remain pure; Console owns the thin I/O shell.
+- **ARCH-PURPOSE — pass:** the historical oracle now pins every participating path and byte, including its resolution index.
+- **ARCH-MOCK — pass:** runner, host, provider, and lifecycle tests use the same injected seams as production with stateful doubles.
+- **ARCH-CONSTRAINTS — pass:** scheduling is bounded, the 100-row envelope is tested, and the Console performance harness exercises semantic input through correlated output frames.
+
+### 7. Plan revision recommendations
+
+None. The plan already records the pinned dependency-index rule and its regression.
+
+```findings
+dispose:
+  - id: BR-21
+    disposition: addressed
+    note: |
+      Successful operation projections remain production-reachable and protected by the generation-qualified Console regression.
+  - id: BR-22
+    disposition: addressed
+    note: |
+      The superseded flat-panel implementation is deleted and guarded against restoration.
+  - id: BR-23
+    disposition: addressed
+    note: |
+      The performance harness measures the Console run-loop from semantic input to correlated emitted frames.
+  - id: BR-24
+    disposition: addressed
+    note: |
+      The delivered M3 checklist is checked and protected by a mutation contract.
+  - id: BR-25
+    disposition: addressed
+    note: |
+      README, atlas, plan, and executable root-Escape behavior remain aligned.
+  - id: BR-26
+    disposition: addressed
+    note: |
+      The Core concepts ledger includes parked-resume authority and mechanically derived Integration dependencies.
+  - id: BR-27
+    disposition: addressed
+    note: |
+      Every dependency-index path and byte now comes from one immutable M3 Git archive, and a post-snapshot declaration regression fails if mutable worktree indexing returns.
+```
