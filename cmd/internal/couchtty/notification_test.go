@@ -121,32 +121,6 @@ func TestConsoleInactiveNotificationCreatesAttentionAndFocusedDoesNot(t *testing
 	}
 }
 
-func TestCanonicalWrapperNotificationProjectsToStatusAndSwitcher(t *testing.T) {
-	con, host := notificationConsole(t)
-	var screen ptychild.Screen
-	host.Reset()
-	con.onChunk(chunk{
-		id: "c2", batch: observedBatch(&screen, notifyosc.Encode("agent stopped working")),
-		focusedAtDelivery: false,
-	})
-
-	con.mu.Lock()
-	c2 := con.panes["c2"].thread
-	switcherMessages := attentionTexts(con.menu.Attention[c2])
-	con.mu.Unlock()
-	if len(switcherMessages) != 1 || switcherMessages[0] != "agent stopped working" {
-		t.Fatalf("switcher projection = %v", switcherMessages)
-	}
-
-	wantStatus := RenderStatusRow(80, StatusModel{Actors: []StatusActor{
-		{Label: "one", Active: true},
-		{Label: "two", Bell: true},
-	}})
-	if got := host.Written(); !stringsContains(got, wantStatus) {
-		t.Fatalf("status projection lacks pending actor chip: got %q want fragment %q", got, wantStatus)
-	}
-}
-
 func TestSwitchAttentionAcknowledgesCapturedMessagesOnlyOnSuccess(t *testing.T) {
 	con, _ := notificationConsole(t)
 	con.mu.Lock()

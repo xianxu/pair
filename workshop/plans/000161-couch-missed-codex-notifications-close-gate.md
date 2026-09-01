@@ -181,6 +181,18 @@ rounds:
           round: 8
       boundary: M3
       blocked: false
+    - "n": 9
+      timestamp: "2026-09-01T16:15:08-07:00"
+      agent: codex
+      findings:
+        - id: BR-11
+          severity: Important
+          title: The claimed wrapper-to-Couch production acceptance path is split across disconnected tests
+          detail: This is the 3rd finding in family `submission-boundary-reachability`. `codex_working_test.go` verifies wrapper output against `notifyosc.Encode`, while `notification_test.go` independently injects bytes from that same encoder rather than bytes emitted by the wrapper. State and enforce the class rule that cross-package acceptance tests transport upstream production output into the downstream production consumer; replay the Codex fixture through `handleChunk`, feed those exact emitted bytes into Couch, and assert both status and switcher projections.
+          family: submission-boundary-reachability
+          round: 9
+      boundary: M4
+      blocked: true
 ---
 
 # Gate ledger — 000161-couch-missed-codex-notifications#161 (boundary-review)
@@ -271,6 +283,13 @@ later rounds disposed of them. Generated — edit the gate, not this file.
 
 - BR-10 — addressed — Strict decoding plus complete-record equality now governs reconciliation, and the producer-path regression fails when the former permissive three-field comparison is restored.
 
+## Round 9 — 2026-09-01T16:15:08-07:00 (codex) — BLOCKED
+
+### Raised
+
+- **BR-11** [Important] `submission-boundary-reachability` The claimed wrapper-to-Couch production acceptance path is split across disconnected tests
+  This is the 3rd finding in family `submission-boundary-reachability`. `codex_working_test.go` verifies wrapper output against `notifyosc.Encode`, while `notification_test.go` independently injects bytes from that same encoder rather than bytes emitted by the wrapper. State and enforce the class rule that cross-package acceptance tests transport upstream production output into the downstream production consumer; replay the Codex fixture through `handleChunk`, feed those exact emitted bytes into Couch, and assert both status and switcher projections.
+
 ## Open findings
 
-(none — every finding has been disposed)
+- **BR-11** [Important] `submission-boundary-reachability` The claimed wrapper-to-Couch production acceptance path is split across disconnected tests

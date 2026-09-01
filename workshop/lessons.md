@@ -1,5 +1,17 @@
 # Lessons
 
+## Cross-package acceptance must transport upstream production output
+
+Wrapper tests proved emitted bytes matched a shared encoder, while Couch tests
+independently injected that encoder's bytes. Both stayed green even if no test
+joined the upstream adapter to the downstream consumer.
+
+**Rule.** A cross-package delivery acceptance test must capture bytes from the
+upstream production path and feed those exact bytes into the downstream
+production consumer, then assert the named user-facing projections. Shared
+encoding assertions are component tests, not delivery proof. Caught during
+#000161 M4 close review.
+
 ## Durable identity locates a record; it does not prove semantic equality
 
 A lifecycle append retry reconciled any committed row with the same launch,

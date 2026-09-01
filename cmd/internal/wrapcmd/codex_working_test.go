@@ -2,13 +2,20 @@ package wrapcmd
 
 import (
 	"bytes"
+	"context"
+	"io"
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 	"time"
 
 	uv "github.com/charmbracelet/ultraviolet"
+	"github.com/xianxu/pair/cmd/internal/couchcore"
+	"github.com/xianxu/pair/cmd/internal/couchtty"
+	"github.com/xianxu/pair/cmd/internal/hostty"
 	"github.com/xianxu/pair/cmd/internal/notifyosc"
+	"github.com/xianxu/pair/cmd/internal/ptychild"
 )
 
 func TestRecognizeCodexWorkingCapturedRenderedFrame(t *testing.T) {
@@ -68,6 +75,14 @@ func TestRecognizeCodexWorkingRequiresStatusLocation(t *testing.T) {
 }
 
 func TestHandleChunkPublishesCodexWorkingPresenceAndDisappearance(t *testing.T) {
+	written := captureCodexVisualNotification(t)
+	if want := notifyosc.Encode("agent stopped working"); !bytes.Equal(written, want) {
+		t.Fatalf("outer notification = %q, want %q", written, want)
+	}
+}
+
+func captureCodexVisualNotification(t *testing.T) []byte {
+	t.Helper()
 	raw, err := os.ReadFile(filepath.Join("testdata", "tty", "codex", "0.152.0", "working.raw"))
 	if err != nil {
 		t.Fatal(err)
@@ -112,9 +127,62 @@ func TestHandleChunkPublishesCodexWorkingPresenceAndDisappearance(t *testing.T) 
 	if err != nil {
 		t.Fatal(err)
 	}
-	if want := notifyosc.Encode("agent stopped working"); !bytes.Equal(written, want) {
-		t.Fatalf("outer notification = %q, want %q", written, want)
+	return written
+}
+
+func TestCodexWorkingNotificationReachesCouchStatusAndSwitcher(t *testing.T) {
+	wrapperBytes := captureCodexVisualNotification(t)
+	host := hostty.NewFakeHost(ptychild.Size{Rows: 24, Cols: 80})
+	reader, writer := io.Pipe()
+	con := couchtty.New(host, reader)
+	addresses := []couchcore.ThreadAddress{
+		{RepoScope: "legacy", Tag: "c1"},
+		{RepoScope: "legacy", Tag: "c2"},
 	}
+	con.SetActionableProvider(func(context.Context, []couchcore.LiveTTYObservation) ([]couchcore.ActionableThreadSummary, error) {
+		return []couchcore.ActionableThreadSummary{
+			{Address: addresses[0], Name: "one", State: couchcore.ThreadLive},
+			{Address: addresses[1], Name: "two", State: couchcore.ThreadLive},
+		}, nil
+	})
+	one, two := ptychild.NewFakeChild(nil), ptychild.NewFakeChild(nil)
+	one.SetSink(func(batch ptychild.OutputBatch) { con.Deliver("c1", batch) })
+	two.SetSink(func(batch ptychild.OutputBatch) { con.Deliver("c2", batch) })
+	con.Attach("c1", "one", one)
+	con.Attach("c2", "two", two)
+	done := make(chan int, 1)
+	go func() { done <- con.Run() }()
+	t.Cleanup(func() {
+		con.Stop()
+		_ = writer.Close()
+		select {
+		case <-done:
+		case <-time.After(time.Second):
+			t.Error("Couch console did not stop")
+		}
+	})
+
+	two.Feed(wrapperBytes)
+	wantStatus := couchtty.RenderStatusRow(80, couchtty.StatusModel{Actors: []couchtty.StatusActor{
+		{Label: "one", Active: true}, {Label: "two", Bell: true},
+	}})
+	waitForCodexCouch(t, func() bool { return strings.Contains(host.Written(), wantStatus) }, "pending status chip")
+	if _, err := writer.Write([]byte{0}); err != nil {
+		t.Fatal(err)
+	}
+	waitForCodexCouch(t, func() bool { return strings.Contains(host.Written(), "agent stopped working") }, "switcher message")
+}
+
+func waitForCodexCouch(t *testing.T, ready func() bool, what string) {
+	t.Helper()
+	deadline := time.Now().Add(time.Second)
+	for time.Now().Before(deadline) {
+		if ready() {
+			return
+		}
+		time.Sleep(2 * time.Millisecond)
+	}
+	t.Fatalf("timed out waiting for Couch %s", what)
 }
 
 func TestHandleChunkDoesNotPublishCodexStopWithoutPriorWorkingFrame(t *testing.T) {

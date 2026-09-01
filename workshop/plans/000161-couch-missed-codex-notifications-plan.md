@@ -366,3 +366,12 @@ clear repaint, sanitize it to those exact paint operations, replay it
 incrementally through the production terminal model, and retain the
 installed-version startup capture plus exact fixture provenance.
 The terminal model itself remains unchanged; M4 consumes its snapshots.
+
+### 2026-09-01 — join wrapper production to Couch production
+
+M4 review found that the wrapper and Couch assertions independently used the
+shared OSC encoder, so neither could catch a broken handoff between packages.
+Replace that split proof with one acceptance test that captures bytes emitted by
+the rendered Codex production adapter, feeds those exact bytes through a Couch
+fake PTY child into the running Console, and observes both the pending status
+chip and switcher message (`ARCH-PURPOSE`, `ARCH-MOCK`).
