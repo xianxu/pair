@@ -96,7 +96,7 @@ func newVTFixture(t *testing.T, rows, cols uint16) (*vtHost, *ptychild.Child, *C
 	con := New(host, pr)
 
 	child := ptychild.NewFakeChild(nil)
-	child.SetSink(func(chunk []byte) { con.Deliver("c1", chunk) })
+	child.SetSink(func(batch ptychild.OutputBatch) { con.Deliver("c1", batch) })
 	con.Attach("c1", "brain", child)
 
 	done := make(chan int, 1)

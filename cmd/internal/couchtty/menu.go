@@ -123,7 +123,7 @@ type MenuState struct {
 	ActiveAddress             couchcore.ThreadAddress
 	Agents                    []string
 	RootAgent                 string
-	Bells                     map[couchcore.ThreadAddress]bool
+	Attention                 map[couchcore.ThreadAddress][]AttentionMessage
 	InFlight                  MenuOperationOrigin
 	PreviewSequence           uint64
 	OperationSequence         uint64
@@ -135,12 +135,13 @@ type MenuState struct {
 // MenuOperationOrigin captures the exact frame that emitted asynchronous
 // work, so completion does not depend on whichever frame is visible later.
 type MenuOperationOrigin struct {
-	Operation     string
-	Attempt       uint64
-	Address       couchcore.ThreadAddress
-	FrameInstance uint64
-	FrameKind     MenuFrameKind
-	Depth         int
+	Operation        string
+	Attempt          uint64
+	Address          couchcore.ThreadAddress
+	FrameInstance    uint64
+	FrameKind        MenuFrameKind
+	Depth            int
+	AttentionCapture AttentionCapture
 }
 
 type MenuEventKind uint8
@@ -148,7 +149,6 @@ type MenuEventKind uint8
 const (
 	MenuEventUnknown MenuEventKind = iota
 	MenuEventKey
-	MenuEventBell
 	MenuEventRefreshStarted
 	MenuEventInventory
 	MenuEventOperationResult
@@ -161,7 +161,6 @@ type MenuEvent struct {
 	Kind         MenuEventKind
 	Key          PanelKey
 	Address      couchcore.ThreadAddress
-	Bell         bool
 	Inventory    []couchcore.ActionableThreadSummary
 	InventorySet bool
 	Operation    string
@@ -295,17 +294,6 @@ func ReduceMenu(state MenuState, event MenuEvent) (MenuState, []MenuEffect) {
 	}
 	if event.Kind == MenuEventPreviewResult {
 		return reducePreviewResult(next, event)
-	}
-	if event.Kind == MenuEventBell {
-		if next.Bells == nil {
-			next.Bells = make(map[couchcore.ThreadAddress]bool)
-		}
-		if event.Bell {
-			next.Bells[event.Address] = true
-		} else {
-			delete(next.Bells, event.Address)
-		}
-		return next, nil
 	}
 	if len(next.Frames) == 0 || event.Kind != MenuEventKey {
 		return next, nil
@@ -996,7 +984,6 @@ func reduceOperationResult(state MenuState, event MenuEvent) MenuState {
 
 	switch event.Operation {
 	case "switch":
-		delete(state.Bells, origin.Address)
 	case "name", "describe":
 		if origin.FrameKind == MenuFrameText && originVisible && originFrame.Thread == origin.Address && originFrame.Action == event.Operation {
 			state.Frames = state.Frames[:origin.Depth-1]
@@ -1184,10 +1171,10 @@ func cloneMenuState(state MenuState) MenuState {
 	next.Inventory = append([]couchcore.ActionableThreadSummary(nil), state.Inventory...)
 	next.Frames = append([]MenuFrame(nil), state.Frames...)
 	next.Agents = append([]string(nil), state.Agents...)
-	if state.Bells != nil {
-		next.Bells = make(map[couchcore.ThreadAddress]bool, len(state.Bells))
-		for address, bell := range state.Bells {
-			next.Bells[address] = bell
+	if state.Attention != nil {
+		next.Attention = make(map[couchcore.ThreadAddress][]AttentionMessage, len(state.Attention))
+		for address, messages := range state.Attention {
+			next.Attention[address] = append([]AttentionMessage(nil), messages...)
 		}
 	}
 	return next

@@ -19,6 +19,15 @@ type Size struct {
 	Rows, Cols uint16
 }
 
+type OutputBatch struct {
+	Raw           []byte
+	Parts         []OutputPart
+	Bell          bool
+	RowDirty      bool
+	RingEnd       uint64
+	ReplaySafeEnd uint64
+}
+
 // Options configures a child. Everything here is what the CALLER knows; nothing
 // about switching policy belongs in it.
 type Options struct {
@@ -38,7 +47,7 @@ type Options struct {
 	//
 	// The ring and the screen are updated BEFORE Sink runs, so a caller that
 	// switches away inside Sink still repaints a current screen.
-	Sink func([]byte)
+	Sink func(OutputBatch)
 }
 
 // Child is one process on a pty, with the window of output needed to repaint it
@@ -46,11 +55,15 @@ type Options struct {
 type Child struct {
 	cmd  *exec.Cmd
 	ptmx *os.File
-	sink func([]byte)
+	sink func(OutputBatch)
 
 	mu     sync.Mutex
 	ring   *Ring
 	screen *Screen
+	// notificationSpans are absolute positions in the raw child stream. They
+	// stay alongside the retained ring window so replay can remove a canonical
+	// envelope even when the ring begins in its middle.
+	notificationSpans []notificationSpan
 
 	// done closes once the child has been reaped; code is written before the
 	// close, so reading it after <-done needs no further synchronisation.
@@ -118,11 +131,12 @@ func (c *Child) pump() {
 			c.mu.Lock()
 			c.ring.Append(chunk)
 			c.screen.Feed(chunk)
+			batch := c.outputBatchLocked(chunk)
 			sink := c.sink
 			c.mu.Unlock()
 
 			if sink != nil {
-				sink(chunk)
+				sink(batch)
 			}
 		}
 		if err != nil {
@@ -130,6 +144,38 @@ func (c *Child) pump() {
 		}
 	}
 	c.code = procutil.WaitCode(c.cmd)
+}
+
+func (c *Child) outputBatchLocked(raw []byte) OutputBatch {
+	parts := c.screen.TakeOutputParts()
+	for _, part := range parts {
+		if part.Notification != nil {
+			c.notificationSpans = append(c.notificationSpans, notificationSpan{
+				start: part.Notification.Start,
+				end:   part.Notification.End,
+			})
+		}
+	}
+	ringStart := c.screen.StreamEnd() - uint64(c.ring.Len())
+	firstRetained := 0
+	for firstRetained < len(c.notificationSpans) && c.notificationSpans[firstRetained].end <= ringStart {
+		firstRetained++
+	}
+	if firstRetained > 0 {
+		copy(c.notificationSpans, c.notificationSpans[firstRetained:])
+		c.notificationSpans = c.notificationSpans[:len(c.notificationSpans)-firstRetained]
+	}
+	batch := OutputBatch{
+		Raw:           raw,
+		Parts:         parts,
+		RingEnd:       c.screen.StreamEnd(),
+		ReplaySafeEnd: c.screen.ReplaySafeEnd(),
+	}
+	if c.sink != nil {
+		batch.Bell = c.screen.TakeBell()
+		batch.RowDirty = c.screen.TakeRowDirty()
+	}
+	return batch
 }
 
 // Write sends bytes to the child's terminal.
@@ -172,7 +218,59 @@ func (c *Child) Snapshot() []byte {
 // removed, so landing on this child cannot re-ask the host terminal and have
 // the answer arrive as another child's input (#127).
 func (c *Child) Replay() []byte {
-	return StripQueries(c.Snapshot())
+	c.mu.Lock()
+	cutoff := c.screen.ReplaySafeEnd()
+	c.mu.Unlock()
+	return c.ReplayThrough(cutoff)
+}
+
+// ReplaySafeEnd is the newest absolute stream offset that does not bisect a
+// withheld canonical notification candidate.
+func (c *Child) ReplaySafeEnd() uint64 {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	return c.screen.ReplaySafeEnd()
+}
+
+type notificationSpan struct{ start, end uint64 }
+
+// ReplayThrough returns retained terminal history whose absolute position is
+// below cutoff. Pair-owned notification envelopes are excluded: Couch already
+// consumed their meaning and replaying them would notify again (or expose a
+// bisected private control sequence after ring eviction).
+func (c *Child) ReplayThrough(cutoff uint64) []byte {
+	c.mu.Lock()
+	snapshot := c.ring.Snapshot()
+	streamEnd := c.screen.StreamEnd()
+	ringStart := streamEnd - uint64(len(snapshot))
+	spans := append([]notificationSpan(nil), c.notificationSpans...)
+	c.mu.Unlock()
+
+	if cutoff < ringStart {
+		return nil
+	}
+	if cutoff > streamEnd {
+		cutoff = streamEnd
+	}
+	snapshot = snapshot[:int(cutoff-ringStart)]
+	out := make([]byte, 0, len(snapshot))
+	position := ringStart
+	for _, span := range spans {
+		if span.end <= position || span.start >= cutoff {
+			continue
+		}
+		keepEnd := min(span.start, cutoff)
+		if keepEnd > position {
+			out = append(out, snapshot[position-ringStart:keepEnd-ringStart]...)
+		}
+		if span.end > position {
+			position = min(span.end, cutoff)
+		}
+	}
+	if position < cutoff {
+		out = append(out, snapshot[position-ringStart:cutoff-ringStart]...)
+	}
+	return StripQueries(out)
 }
 
 func (c *Child) AltScreen() bool {

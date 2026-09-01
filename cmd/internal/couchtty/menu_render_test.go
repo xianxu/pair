@@ -196,13 +196,31 @@ func TestRenderMenuProtectsStateAgeAndBellSuffixAtMinimumWidth(t *testing.T) {
 		{Address: menuAddress("parked"), Name: long, WorkingPath: "/" + long, State: couchcore.ThreadParked, LastActiveAt: now.Add(-2 * 24 * time.Hour)},
 	}
 	state := NewMenuState(threads, threads[0].Address)
-	state.Bells = map[couchcore.ThreadAddress]bool{threads[0].Address: true, threads[1].Address: true}
+	state.Attention = map[couchcore.ThreadAddress][]AttentionMessage{
+		threads[0].Address: {{Sequence: 1, Text: "ready"}}, threads[1].Address: {{Sequence: 2, Text: "approval"}},
+	}
 	plain := string(ansi.Strip([]byte(RenderMenu(state, 40, 10, now, false))))
 	lines := strings.Split(plain, "\r\n")
-	if len(lines) < 4 || !strings.HasSuffix(lines[2], "live *") || !strings.HasSuffix(lines[3], "parked · 2d ago *") {
+	if len(lines) < 6 || !strings.HasSuffix(lines[2], "live") || strings.TrimSpace(lines[3]) != "ready" || !strings.HasSuffix(lines[4], "parked · 2d ago") || strings.TrimSpace(lines[5]) != "approval" {
 		t.Fatalf("minimum-width semantic suffixes were clipped: %q", plain)
 	}
 	assertRenderedBounds(t, plain, 40, 10)
+}
+
+func TestRenderMenuAttentionChildrenAreIndentedAndDisplayOnly(t *testing.T) {
+	threads := menuThreads()
+	state := NewMenuState(threads, threads[0].Address)
+	state.Attention = map[couchcore.ThreadAddress][]AttentionMessage{
+		threads[0].Address: {{Sequence: 1, Text: "review ready"}, {Sequence: 2, Text: "tests need approval"}},
+	}
+	plain := string(ansi.Strip([]byte(RenderMenu(state, 80, 12, time.Time{}, false))))
+	if !strings.Contains(plain, "\r\n    review ready\r\n    tests need approval") {
+		t.Fatalf("notification children are not vertical and indented: %q", plain)
+	}
+	next, _ := reduceKey(state, PanelKey{Kind: KeyDown})
+	if next.CurrentFrame().SelectedAddress != threads[1].Address {
+		t.Fatalf("navigation selected a message child: %+v", next.CurrentFrame())
+	}
 }
 
 func TestRenderMenuBelowMinimumOnlyRequestsResize(t *testing.T) {

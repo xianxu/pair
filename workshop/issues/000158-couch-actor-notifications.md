@@ -1,12 +1,13 @@
 ---
 id: 000158
-status: working
+status: codecomplete
 deps: [151]
 github_issue:
 created: 2026-08-31
 updated: 2026-08-31
-estimate_hours:
+estimate_hours: 5.69
 started: 2026-08-31T20:07:23-07:00
+actual_hours: 3.30
 ---
 
 # couch: actor notifications and attention routing
@@ -56,6 +57,18 @@ the signal regardless of which actor is focused. Unknown, unsupported, or
 malformed OSC follows Couch's ordinary child-output rule—byte-faithful when the
 actor is focused and hidden with the rest of an inactive actor's output—and
 creates no Couch state.
+
+The outer terminal is still one serialized byte stream. If its displayed actor
+is mid-sequence, a complete notification from another actor cannot be inserted
+safely. Couch defers that envelope until the focused stream reaches a real
+boundary or a takeover resets it. The child-to-Console handoff permits at most
+one unacknowledged batch per actor: Couch withholds that batch's acknowledgement,
+which backpressures only its source PTY while the focused actor and other panes
+continue. A safe boundary forwards the exact envelope, acknowledges the batch,
+and permits that actor's pump to read again. Memory is bounded by one PTY batch
+per attached actor without swallowing, coalescing, or evicting outer-terminal
+events. Deferred envelopes flush in arrival-sequence order before later
+Couch-owned paint bytes.
 
 ### Ephemeral per-actor inbox
 
@@ -113,12 +126,14 @@ mutex, is the sole authority for retained messages and unread sequences. Status
 rendering and switcher rendering receive projections from that ledger; the menu
 does not keep a parallel bell/inbox map. On switch dispatch, Console captures
 the target actor and its greatest current unread sequence in the existing
-operation origin. The existing successful `forceSwitch` completion is the only
-acknowledgement event: Console applies a pure conditional-clear transition to
-remove messages for that actor at or below the captured sequence, then repaints
-both consumers. Dispatch failure or focus failure applies no clear. A message
-sequenced after dispatch therefore survives a successful switch, and a later
-event highlights the actor again (`ARCH-PURE`).
+operation origin. The ledger registers that attempt's exact current retained
+message identities. The existing successful `forceSwitch` completion is the
+only acknowledgement event: Console asks the ledger to clear exactly those
+captured identities, then repaints both consumers. Dispatch failure or focus
+failure cancels the capture without clearing. A message accepted or
+deduplicated after dispatch therefore survives. Because the ledger owns both
+retained sequences and pending captures, overflow rebase remaps them atomically
+(`ARCH-PURE`).
 
 ### Operating envelope and failure behavior
 
@@ -147,6 +162,39 @@ messages, so the bound covers 100 actors and 300 notification children. Portable
 tests retain allocation and no-I/O/no-goroutine assertions; target runs use the
 same baseline and four-worker co-tenancy protocol as `BenchmarkMenu100`
 (`ARCH-CONSTRAINTS`).
+
+To preserve a canonical notification across a Couch screen takeover, the child
+observer may withhold only a byte prefix that still exactly matches the
+canonical `OSC 777;notify;pair;...` envelope. A mismatch releases the candidate
+bytes immediately as ordinary output. A complete valid candidate is released
+as one ordered notification part, so a switch between PTY reads cannot splice
+Couch repaint bytes into the OSC. Candidate storage is bounded by the canonical
+header, 4 KiB sanitized message, and terminator; exceeding that exact encoded
+bound releases the buffered bytes and enters transparent passthrough through
+the real terminator with no enrichment. An unterminated in-bound canonical
+candidate remains withheld until terminator or actor teardown, while subsequent
+non-candidate reads, the child loop, other actors, and Couch UI remain live.
+This is the sole exception to immediate focused raw forwarding; it delays only
+a possible Pair-owned envelope, normally until the next PTY read, in exchange
+for exact-once terminal framing across takeover (`ARCH-PURPOSE`).
+
+Each child output batch carries an absolute ring end and a replay-safe end. The
+Console advances a pane's replay cutoff only after processing that batch; bytes
+still withheld as a canonical candidate are not replay-safe. Switching replays
+only through that cutoff and removes completed Pair notification envelopes, so
+replay cannot expose a partial candidate, overtake a queued batch, or re-notify
+an earlier event.
+
+Raw byte parts use focus at Console processing time, not delivery time. Thus a
+queued batch from the actor switched into is painted rather than lost, while a
+queued batch from the actor switched away from stays hidden and becomes visible
+through that actor's later replay. The delivery-time focus stamp is used only
+to decide whether a completed notification was immediately consumed.
+
+The ring records absolute spans for completed canonical notifications. Replay
+removes intersecting spans, including when retention's oldest byte bisects an
+envelope; a retained suffix can therefore never replay a body tail or
+terminator as terminal input.
 
 The stream scanner additionally has a sustained malformed-input envelope: on
 the M2 Max it processes 10 MiB of 4 KiB chunks through an oversized unterminated
@@ -198,15 +246,41 @@ OSC bytes and Couch-local attention state.
 
 ## Plan
 
-- [ ] Write and approve the implementation plan.
-- [ ] Normalize Pair notification emission and add chunk-safe Couch observation.
-- [ ] Add bounded per-actor inbox state plus status/switcher presentation.
-- [ ] Verify byte-faithful forwarding, acknowledgement races, and operating
+- [x] Write and approve the implementation plan.
+- [x] Normalize Pair notification emission and add chunk-safe Couch observation.
+- [x] Add bounded per-actor inbox state plus status/switcher presentation.
+- [x] Verify byte-faithful forwarding, acknowledgement races, and operating
       bounds through pure, integration, conformance, and performance tests.
+
+## Estimate
+
+Produced via `brain/data/life/42shots/velocity/estimate-logic-v3.1.md` against
+`baseline-v3.1.md`. Method A only. `sdlc estimate-source` reports the calibration
+source as stale, so this estimate is provisional. Existing terminal, PTY,
+Console, and reducer seams were treated as available current-stack libraries;
+no greenfield terminal framework is budgeted.
+
+```estimate
+model: estimate-logic-v3.1
+familiarity: 1.0
+item: issue-spec design=0.80 impl=0.08
+item: greenfield-go-module design=0.40 impl=0.32
+item: smaller-go-module design=0.06 impl=0.20
+item: cross-cutting-refactor design=0.20 impl=0.20
+item: cross-cutting-refactor design=0.60 impl=0.20
+item: greenfield-go-module design=0.40 impl=0.32
+item: tui-screen design=0.40 impl=0.40
+item: smaller-go-module design=0.06 impl=0.20
+item: atlas-docs design=0.10 impl=0.08
+item: milestone-review design=0.08 impl=0.12
+design-buffer: 0.15
+total: 5.69
+```
 
 ## Log
 
 ### 2026-08-31
+- 2026-08-31: closed — Full 12-package suite passed with -p 20 after the framing-only fix; focused race suite passed with -p 20; the sustained Console-output regression failed before FeedFraming and now passes; real-PTY notification conformance and M2 Max 100-actor performance targets previously passed; git diff --check passed.; review verdict: SHIP
 
 Operator selected an in-band terminal contract over a new IPC channel or a
 Pair-as-library refactor. Pair filters agent output once; Couch observes the
@@ -214,6 +288,72 @@ normalized event on the actor PTY as a byte-faithful tee. The UI keeps stable
 actor order, colors the existing status-row label, nests up to three messages
 under the actor in the switcher, and makes `Ctrl-Space` + Enter the fast path to
 the newest unread source.
+
+The implementation plan cleared `sdlc change-code` plan-quality after its test
+strategy was expressed at named production-function boundaries. Estimate model
+v3.1 produced 5.69 ship-hours; estimate-quality passed with an INFO that the
+terminal/replay verification surface may make that optimistic. Branch
+`000158-couch-actor-notifications` was created in place.
+
+Pair-owned OSC observation now lives at the child parser boundary. Output
+batches preserve exact canonical candidates across PTY reads, carry absolute
+replay-safe offsets, and keep completed notification spans out of takeover
+replay even when ring retention bisects them. Console processing-time focus
+owns ordinary bytes; unsafe cross-actor OSC suffixes retain one source
+acknowledgement and flush in arrival order at the next safe host boundary.
+Focused tests pass across every candidate split, takeover, replay cut, nested
+OSC payload, and cross-actor deferral. The sustained malformed-stream benchmark
+measured 119.31 MiB/s on the operator's M2 Max (`ARCH-PURPOSE`,
+`ARCH-CONSTRAINTS`).
+
+The pure `AttentionLedger` is now the only unread authority. It retains three
+deduplicated messages per thread, owns dispatch-time acknowledgement captures,
+rebases records and in-flight captures together at sequence overflow, and
+drops state with actor teardown. Console uses delivery-time focus for semantic
+consumption and processing-time focus for raw bytes; successful switches clear
+only captured identities, failures preserve them, and later arrivals survive.
+The former pane/menu bell maps and bell status notices are removed
+(`ARCH-PURE`, `ARCH-DRY`).
+
+Unread attention now colors only the existing inactive actor label on the
+compact status row—no star or extra cells. The switcher renders retained
+messages as indented display-only rows beneath their source actor; filtering,
+navigation, and stable actor order remain actor-only. Opening with
+`Ctrl-Space` selects the source of the newest resident unread event and leaves
+the operator one Enter from switching. Portable bounds pass with the declared
+100-actor/300-message fixture (`ARCH-CONSTRAINTS`).
+
+Final conformance drives the production notification command through a real
+child PTY: the inactive event reaches the host exactly once and enters the
+ledger; the focused event reaches the host exactly once without unread state.
+Runtime assets regenerate cleanly, and the exhaustive artifact inventory now
+assigns the new codec, command, rewriter, and ledger sources. The 12-package
+bounded suite and terminal-path race suite pass. On the M2 Max under
+four-worker co-tenancy, all 100-actor/300-message switcher paths measured below
+0.7 ms p95; notification skip measured 179.93 MiB/s in the target protocol and
+155.10 MiB/s in the final benchmark smoke (`ARCH-CONSTRAINTS`, `ARCH-PURPOSE`).
+
+Close review round 1 raised BR-1/BR-2/BR-3. The replay concept table now names
+the delivered Screen/Child owners and records the change as a plan revision.
+Both direct nonblocking TTY consumers reject short writes through reachable
+regressions, covering the full `external-write-completeness` family. README now
+documents the command, legacy option normalization, tolerant hook failures,
+and Couch attention behavior. The corresponding prevention rules were added to
+`workshop/lessons.md` (`ARCH-PURPOSE`, `ARCH-MOCK`).
+
+Close review round 2 disposed BR-1/2/3 and raised BR-4, a repeated
+`plan-code-traceability` instance. A full committed-path sweep now separates
+tracked changed entities, unchanged verification consumers/indexes, and ignored
+derived runtime output throughout the Core concepts and Task file lists. The
+lesson now states that mechanical boundary rule rather than only the first
+placeholder-name symptom (`ARCH-PURPOSE`).
+
+Close review round 3 disposed BR-4 and raised BR-5: the Console's framing-only
+`hostScan` used the observation-retaining `Screen.Feed`, accumulating focused
+actor output indefinitely. `Screen.FeedFraming` now gives every framing-only
+consumer an explicit non-retaining seam, and a sustained Console-output
+regression proves this path retains no observation parts (`ARCH-PURE`,
+`ARCH-CONSTRAINTS`).
 
 ## Revisions
 
@@ -253,3 +393,20 @@ real BEL/ST or teardown while raw forwarding, the child loop, and other actors
 continue. It forbids guessed resynchronization, distinguishes stream liveness
 from semantic enrichment, and adds a 10 MiB sustained skip-mode benchmark with
 memory/allocation bounds (`ARCH-PURPOSE`, `ARCH-CONSTRAINTS`).
+
+### 2026-08-31T22:11:42-07:00 — make canonical framing atomic across takeover
+
+**Reason:** implementation-plan review proved that immediate forwarding of a
+canonical OSC prefix and byte-faithful Couch screen takeover are mutually
+exclusive when the PTY splits the envelope across reads.
+
+**Delta:** the observer now withholds only bytes that still match Pair's exact
+canonical envelope, within its encoded bound, and releases the complete
+notification as one ordered part. Prefix mismatch or overrun returns to
+transparent passthrough immediately; all unrelated output remains live. The
+operator approved this narrow exception to the raw-path rule. The same revision
+adds processed replay cutoffs, one unacknowledged batch of per-actor
+backpressure for unsafe cross-actor forwarding, absolute notification spans at
+ring-retention boundaries, and ledger-owned acknowledgement captures so
+overflow rebase cannot invalidate an in-flight switch
+(`ARCH-PURPOSE`, `ARCH-CONSTRAINTS`).

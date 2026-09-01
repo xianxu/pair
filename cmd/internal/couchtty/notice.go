@@ -34,13 +34,6 @@ func ExitNotice(actor couchcore.ActorID, label string, code int) Notice {
 	}
 }
 
-// BellNotice is deliberately keyed by actor rather than by the global kind
-// "bell": repeated pages from one actor collapse, while two actors remain two
-// obligations.
-func BellNotice(actor couchcore.ActorID, label string) Notice {
-	return Notice{Actor: actor, Kind: "bell", Body: label + " wants you"}
-}
-
 // Feed is the bounded rolling status-row history. couchcore.Enqueue remains the
 // single owner of collapse, capacity, and control-priority policy; Feed owns
 // only the capacity and Notice-to-Message key convention.

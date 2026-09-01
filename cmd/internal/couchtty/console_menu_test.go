@@ -84,7 +84,7 @@ func TestConsoleSnapshotsExactPaneObservations(t *testing.T) {
 	address := couchcore.ThreadAddress{RepoScope: "repo", Tag: "couch-exact"}
 	process := couchcore.ProcessIdentity{PID: 42, Identity: "pid-start:exact"}
 	child := ptychild.NewFakeChild(nil)
-	child.SetSink(func(chunk []byte) { f.con.Deliver("exact", chunk) })
+	child.SetSink(func(batch ptychild.OutputBatch) { f.con.Deliver("exact", batch) })
 	f.con.attachObservedThreadActor("exact", "actor-exact", address, "/repo", "exact", child, process)
 
 	got := f.con.snapshotMenuObservations()

@@ -11,6 +11,7 @@ import (
 	"github.com/xianxu/pair/cmd/internal/contextcmd"
 	"github.com/xianxu/pair/cmd/internal/keyscmd"
 	"github.com/xianxu/pair/cmd/internal/layoutcmd"
+	"github.com/xianxu/pair/cmd/internal/notifycmd"
 	"github.com/xianxu/pair/cmd/internal/opener"
 	"github.com/xianxu/pair/cmd/internal/reviewcmd"
 	"github.com/xianxu/pair/cmd/internal/scrollbackcmd"
@@ -56,6 +57,7 @@ func Families() []CommandFamily {
 		{Name: "layout toggle-focused", Summary: "toggle focused workbench side width", Status: "implemented"},
 		{Name: "layout focus-terminal", Summary: "focus the floating right terminal pane by id", Status: "implemented"},
 		{Name: "slug", Summary: "session orientation slug generation", Status: "implemented"},
+		{Name: "notify", Summary: "emit a normalized notification to Pair's outer TTY", Status: "implemented"},
 		{Name: "wrap", Summary: "PTY proxy around a TUI agent", Status: "implemented", Streaming: true},
 		{Name: "term", Summary: "right workbench terminal with pane-local shortcuts", Status: "implemented", Streaming: true},
 		{Name: "scribe", Summary: "PTY logging wrapper", Status: "implemented", Streaming: true},
@@ -186,6 +188,10 @@ func Dispatch(args []string) Result {
 		})
 	case "slug":
 		return dispatchSlug(rest)
+	case "notify":
+		return bufferedStderr(func(stderr *bytes.Buffer) int {
+			return notifycmd.Run(rest, notifycmd.OSRuntime{}, stderr)
+		})
 	case "session-inventory":
 		return bufferedStdoutStderr(func(stdout, stderr *bytes.Buffer) int {
 			return sessioninventory.RunCLI(rest, os.Getenv, stdout, stderr)

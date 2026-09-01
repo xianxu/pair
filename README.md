@@ -399,6 +399,8 @@ pair rename <old> <new>          # rename every tag-scoped file in
                                  # Ctrl+Alt+n's (R) inside a session for
                                  # the live equivalent)
 pair keys                        # in-session keybindings (what Alt+h shows)
+pair notify "review ready"      # emit Pair's canonical outer-TTY notification
+pair notify --osc 9 "ready"     # legacy selector accepted; output is canonical
 pair session-inventory          # stable native forests + Pair binding status
 pair session-inventory --json   # schema-v1 JSON for agents/tools
 pair session-inventory --scope all --json
@@ -524,6 +526,20 @@ You produce a continuation by pressing **`Alt+Shift+C`** (compact in place — i
 ## Notifications
 
 Pair forwards "agent needs attention" signals to your outer terminal automatically — useful for outer wrappers like [cmux](https://github.com/saharNooby/cmux) that surface badges per session.
+
+Agent hooks can send the same signal explicitly with `pair notify "message"`
+or the compatibility name `pair-notify "message"`. Legacy `--osc 9` and
+`--osc 777` options remain accepted, but Pair always sanitizes the message and
+emits its single canonical `OSC 777;notify;pair;…` envelope. Hook delivery is
+best-effort: outside a Pair session, or when the recorded outer TTY is missing
+or stale, the command warns on stderr and exits successfully so a notification
+failure does not break the agent hook.
+
+Under Couch, unread events color the source actor's existing status label.
+`Ctrl-Space` opens the switcher with the newest unread actor selected; up to
+three messages appear as indented, display-only rows beneath that actor. Enter
+switches to it, and only a successful switch acknowledges the messages that
+were unread when the switch began.
 
 ## Troubleshooting
 

@@ -556,15 +556,15 @@ Alt+x leaves the draft, queue, and history intact — the next session resumes t
 
 ### Outer-TTY capture and notification routing — `bin/pair-wrap`, `bin/pair-notify`
 
-**Why.** Zellij parses every escape on the way out for its virtual-screen reconstruction and drops sequences it doesn't recognize. OSC 9 and OSC 777 (the notification escapes outer wrappers like cmux watch for) fall in that bucket and never reach the host terminal. BEL is forwarded since zellij 0.44, but cmux specifically watches OSC, not BEL — so BEL forwarding doesn't help that integration. Filed as #000011.
+**Why.** Zellij parses escapes on the way out for its virtual-screen reconstruction and does not reliably preserve agent notification protocols to an outer wrapper. Pair therefore normalizes every actionable agent event to one owned envelope, `OSC 777;notify;pair;<message>`, and writes it to the recorded outer TTY. Filed as #000011; Couch observation and attention routing are #000158.
 
 **Mechanism, in two layers:**
 
 1. **Outer-TTY capture (in the launcher — `RecordOuterTTY`).** Before invoking zellij, on every attach (both create and reattach branches), the launcher resolves the path of its controlling TTY — which is precisely the outer PTY (the one allocated by whatever wraps pair: cmux, a terminal emulator, etc.). That path gets written through `artifactpath.Paths.OuterTTY`; children receive the exact `$PAIR_OUTER_TTY_PATH`. Refreshed on every attach because the outer PTY changes across detach/reattach, while pane-shell env stays frozen at zellij session-creation time.
 
-2. **Two consumers** of the captured path:
+2. **Two producers** share the canonical codec and captured path:
 
-   - **`bin/pair-wrap`** (Go, `cmd/pair-wrap`). Transparent PTY proxy. The zellij agent pane runs `pair-wrap $PAIR_AGENT $PAIR_AGENT_ARGS` instead of the agent directly (wired identically in `zellij/layouts/main-{2,3}.kdl`). The wrapper allocates a fresh PTY for the agent, forwards stdin/stdout transparently with SIGWINCH propagation, and watches the agent's output stream for OSC notifications. On detection it writes OSC 9 directly to the recorded outer-TTY path — bypassing zellij.
+   - **`bin/pair-wrap`** (Go, `cmd/pair-wrap`). Transparent PTY proxy. The zellij agent pane runs `pair-wrap $PAIR_AGENT $PAIR_AGENT_ARGS` instead of the agent directly (wired identically in `zellij/layouts/main-{2,3}.kdl`). The wrapper allocates a fresh PTY for the agent, forwards stdin/stdout with SIGWINCH propagation, and incrementally frames native OSC notifications. Recognized OSC 9 and OSC 777 are removed from the forwarded agent stream and replaced exactly once by Pair's canonical envelope on the recorded outer TTY; unknown OSC stays byte-transparent.
 
      **Stdin raw mode.** The wrapper switches its stdin (zellij's pane PTY) into termios raw mode for the duration. Without this the kernel's line discipline does local echo + canonical buffering on the bytes flowing toward the wrapped TUI, which double-echoes keystrokes and corrupts terminal-response sequences. Saved/restored in a `finally` block.
 
@@ -580,9 +580,9 @@ Alt+x leaves the draft, queue, and history intact — the next session resumes t
 
      *Conformance.* `cmd/internal/wrapcmd/testdata/tty/<agent>/<version>/` holds literal bytes captured from the real CLI through a bounded PTY seam, with a `metadata.json` recording version, argv, capture time, and SHA-256 per raw file. `composer.raw` must remap to the harness's own `keymap.plainCR` (LF for Codex/Muse/Agy, backslash-CR for Claude — the expectation is read from the profile, not restated); an `overlay.raw` must stay bare CR. `TestHarnessTTYFixtureConformance` replays each fixture through the production proxy at every split from 0 to len and requires the recognizer, overlay arming, and `emitPlainCR` bytes to match the unsplit baseline, so chunk boundaries can never change what Return does. `PAIR_LIVE_HARNESS=<agent>` runs the live checks against the installed CLI; they assert behavior, not byte identity, because real output embeds per-account and per-moment content and harnesses self-update. On drift they print the exact recapture destination, and `PAIR_LIVE_CAPTURE_OUT` writes the new prefix atomically. **These live checks are manual and opt-in — nothing schedules them.** Harness drift is therefore caught when someone runs them, not automatically; the frozen-fixture replay is the part that runs on every `go test`. A harness whose gate has no captured declining state must be named in `ttyFixtureNegativeGaps` with the reason; `TestHarnessTTYFixtureConformance` fails for any positively gated harness that is neither covered by an `overlay.raw` nor acknowledged there, and fails again once an acknowledgment outlives its gap.
 
-     **OSC filter (`is_actionable_osc`).** Parsing every OSC `<Ps>;<body>` and discriminating is essential — naive "any BEL → emit" over-fires constantly because claude (and similar agents) update OSC 0 (window title) every second with a spinner, and every title set's BEL terminator looks like a "lone bell." The filter:
+     **Native notification normalizer.** Parsing every OSC `<Ps>;<body>` and discriminating is essential — naive "any BEL → emit" over-fires constantly because claude (and similar agents) update OSC 0 (window title) every second with a spinner. The chunk-safe rewriter:
      - **Skip** OSC 0/1/2 (title sets), OSC 9;4;... (iTerm progress codes — fire on every tool-call cycle).
-     - **Forward** OSC 777;... (urxvt-style `Notify`) and OSC 9;`<text>` (iTerm-style notification with content).
+     - **Replace** recognized OSC 777 `notify;<title>;<body>` and OSC 9 `<text>` with one canonical Pair event; the message body wins, then title, then `agent attention`.
      - Bare BEL (no OSC framing in the rolling buffer) → **logged but not forwarded by default**; set `PAIR_WRAP_BELL_FALLBACK=1` to re-enable forwarding (issue #000014).
 
      Rate-limited to one emit per 0.5s. Empirically: claude emits `OSC 777;notify;Claude Code;Claude is waiting for your input` after ~60s of idle waiting — that's the actionable signal that gets through.
@@ -606,16 +606,18 @@ Alt+x leaves the draft, queue, and history intact — the next session resumes t
      | `OSC<N>-skip: b'<body>'` | OSC `<N>` recognized but filtered (title set, progress, etc.) |
      | `BEL: b'<context>'` | bare BEL fallback fired (only with `PAIR_WRAP_BELL_FALLBACK=1`) |
      | `BEL-skip: b'<context>'` | bare BEL detected but not forwarded (default) |
-     | `EMIT: 'wrote OSC 9 to <path>'` | successful write to outer TTY (cmux should have badged) |
+     | `EMIT: 'wrote canonical OSC 777 to <path>'` | successful write to outer TTY (cmux should have badged) |
      | `EMIT-skip: 'rate-limited (...)'` | within 0.5s of last emit; collapsed |
      | `EMIT-skip: 'no outer-tty file...'` | not running under pair, or `record_outer_tty` failed |
      | `EMIT-fail: '<path>: ...'` | tried to write but the recorded path is gone or unwritable |
 
      Reading strategy: look for `OSC` or `BEL` lines that fired around moments where the agent was waiting — that's the actionable signal. If only `-skip` lines appear, either (a) the agent has no attention notification protocol and you'll need a hook-based path (`pair-notify`), or (b) the agent uses an OSC family `is_actionable_osc()` doesn't yet recognize — extend the filter.
 
-   - **`bin/pair-notify`** (bash). Hook-driven helper for richer signals. `pair-notify [--osc 9|777] "msg"` reads the same outer-TTY file and writes the OSC. Intended for Claude Code `Notification`/`Stop` hooks where you want semantic events with custom message text rather than relying on the agent's native OSC stream.
+   - **`pair notify`** (Go, with `bin/pair-notify` as a compatibility shim). Hook-driven helper for richer signals. `pair-notify [--osc 9|777] "msg"` accepts the legacy selector but always sanitizes and emits the same canonical Pair envelope through `$PAIR_OUTER_TTY_PATH`. Intended for agent `Notification`/`Stop` hooks where semantic text is available directly.
 
-**Failure mode.** Both are designed to never block the agent. `pair-wrap` swallows exceptions in the detection/emission path and keeps proxying. `pair-notify` exits 0 with a stderr warning when `PAIR_TAG` is unset, the file is missing, or the recorded path isn't writable.
+3. **Couch tee and ephemeral attention.** When Pair runs inside a Couch actor, the recorded outer TTY is that actor's Couch-owned PTY. `ptychild.Screen` recognizes only the exact bounded Pair envelope, packages it atomically across read splits, and Couch forwards the original envelope onward so the host terminal may still react. Inactive delivery records up to three deduplicated messages in one in-memory `AttentionLedger`; focused delivery is consumed immediately. Status and switcher views are projections of that ledger. A switch captures exact message identities at dispatch and acknowledges them only after success, so failures and later arrivals remain unread. Replay uses absolute processed cutoffs and completed-envelope spans, preventing takeover from replaying or bisecting private notification controls.
+
+**Failure mode.** Both producers are designed to never block the agent. `pair-wrap` isolates detection/emission failures and keeps proxying. `pair notify` uses a nonblocking TTY write and exits 0 with a stderr warning when `PAIR_TAG` is unset, the exact binding is missing, or the recorded path is stale. Couch backpressures at most one unsafe notification-bearing batch per source actor while another actor's host sequence is incomplete; other actors and the UI remain live.
 
 ### Colored scrollback dump — `pair-wrap`, `pair-scrollback-render`, `pair-scrollback-open`, `nvim/scrollback.lua`
 

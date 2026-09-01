@@ -237,25 +237,17 @@ func renderRootMenuFrame(state MenuState, frame MenuFrame, width, height int, no
 	if rowBudget < 1 {
 		rowBudget = 1
 	}
-	selected := 0
-	for i, thread := range visible {
-		if thread.Address == frame.SelectedAddress {
-			selected = i
-			break
-		}
-	}
-	start := selected - rowBudget + 1
-	if start < 0 {
-		start = 0
-	}
-	end := start + rowBudget
-	if end > len(visible) {
-		end = len(visible)
-	}
 	if len(visible) == 0 {
 		lines = append(lines, "  (no match)")
 	}
-	for _, thread := range visible[start:end] {
+	type rootLine struct {
+		text       string
+		selected   bool
+		actorStart bool
+	}
+	var rows []rootLine
+	selectedStart, selectedEnd := 0, 0
+	for _, thread := range visible {
 		selectedRow := thread.Address == frame.SelectedAddress
 		marker := "  "
 		if selectedRow {
@@ -266,9 +258,6 @@ func renderRootMenuFrame(state MenuState, frame MenuFrame, width, height int, no
 			stateText = "parked · " + relativeMenuAge(now, thread.LastActiveAt)
 		}
 		suffix := "  " + stateText
-		if state.Bells[thread.Address] {
-			suffix += " *"
-		}
 		prefixWidth := width - textwidth.Width(suffix)
 		if prefixWidth < 0 {
 			prefixWidth = 0
@@ -279,7 +268,32 @@ func renderRootMenuFrame(state MenuState, frame MenuFrame, width, height int, no
 		} else if !thread.Live() && color256 {
 			plain = ageColor(AgeBandFor(now, thread.LastActiveAt)) + plain + "\x1b[0m"
 		}
-		lines = append(lines, plain)
+		if selectedRow {
+			selectedStart = len(rows)
+		}
+		rows = append(rows, rootLine{text: plain, selected: selectedRow, actorStart: true})
+		for _, message := range state.Attention[thread.Address] {
+			if message.Text != "" {
+				rows = append(rows, rootLine{text: clipMenuLine("    "+message.Text, width)})
+			}
+		}
+		if selectedRow {
+			selectedEnd = len(rows)
+		}
+	}
+	start := selectedEnd - rowBudget
+	if start < 0 {
+		start = 0
+	}
+	for start < selectedStart && start < len(rows) && !rows[start].actorStart {
+		start++
+	}
+	end := min(start+rowBudget, len(rows))
+	for _, row := range rows[start:end] {
+		if row.selected {
+			row.text = selectedMenuLine(string(ansi.Strip([]byte(row.text))), true, width)
+		}
+		lines = append(lines, row.text)
 	}
 	if frame.Filter != "" {
 		lines = append(lines, clipMenuLine("filter: "+frame.Filter, width))

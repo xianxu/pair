@@ -1320,7 +1320,7 @@ func TestNonGoConsumersUseExactPathBindings(t *testing.T) {
 		required  string
 		forbidden string
 	}{
-		{path: "bin/pair-notify", required: "PAIR_OUTER_TTY_PATH", forbidden: "outer-tty-$tag"},
+		{path: "cmd/internal/notifycmd/run.go", required: "PAIR_OUTER_TTY_PATH", forbidden: "outer-tty-$tag"},
 		{path: "nvim/init.lua", required: "PAIR_IMAGE_CAPTURE_DONE_PATH", forbidden: "cap_path .. '.done'"},
 		{path: "nvim/init.lua", required: "PAIR_CHANGELOG_READY_PATH", forbidden: "base .. '.ready'"},
 		{path: "cmd/internal/opener/run.go", required: "ChangelogArtifacts", forbidden: "base+\".anchor\""},

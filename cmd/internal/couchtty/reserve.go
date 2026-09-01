@@ -89,26 +89,42 @@ func RenderStatusRow(width int, m StatusModel) string {
 	if width <= 0 {
 		return ""
 	}
-	var chips []string
+	var row strings.Builder
+	used := 0
+	appendText := func(text string, attention bool) {
+		if used >= width || text == "" {
+			return
+		}
+		clipped := truncate(text, width-used)
+		if clipped == "" {
+			return
+		}
+		if attention {
+			row.WriteString("\x1b[38;5;220m")
+		}
+		row.WriteString(clipped)
+		if attention {
+			row.WriteString("\x1b[0m")
+		}
+		used += textwidth.Width(clipped)
+	}
 	for _, a := range m.Actors {
 		label := sanitize(a.Label)
-		switch {
-		case a.Active:
+		if a.Active {
 			label = "[" + label + "]"
-		case a.Bell:
-			label += "*"
 		}
-		chips = append(chips, label)
+		if used > 0 {
+			appendText("  ", false)
+		}
+		appendText(label, a.Bell && !a.Active)
 	}
-
-	row := strings.Join(chips, "  ")
 	if n := sanitize(m.Notice); n != "" {
-		if row != "" {
-			row += "  · "
+		if used > 0 {
+			appendText("  · ", false)
 		}
-		row += n
+		appendText(n, false)
 	}
-	return truncate(row, width)
+	return row.String()
 }
 
 // sanitize removes escape SEQUENCES first, then any remaining C0 control or

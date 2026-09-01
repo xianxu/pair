@@ -1,5 +1,47 @@
 # Lessons
 
+## Adding retained observations changes every parser consumer contract
+
+`Screen.Feed` gained buffered notification observations, but an existing
+Console scanner used the same parser only to answer whether its byte stream was
+mid-sequence. Because that framing-only consumer never drained observations,
+ordinary focused output accumulated for the lifetime of the view.
+
+**Rule.** When a shared parser gains retained output, enumerate every feed
+consumer and classify it as observation-owning or framing-only. Give
+framing-only consumers an explicit non-retaining seam; do not rely on them to
+drain data they never requested. Add a sustained-input regression at each such
+production consumer and assert the retained observer state remains empty or
+bounded. Caught during #000158 close review round 3.
+
+## Boundary tables must name delivered entities, not design placeholders
+
+A plan's Core concepts table retained the proposed `ReplayWindow` name and
+`replay.go` location after implementation correctly placed replay-safe offsets
+on `Screen` and retained spans/filtering on `Child`. Tests passed, but the
+review contract could no longer trace the declared entity to code.
+
+**Rule.** Before a boundary, mechanically sweep every Core concepts row against
+the committed `git diff --name-status`: resolve a real symbol, require `new` or
+`modified` to match the tracked path status, and separate unchanged indexes and
+ignored/generated verification outputs from committed modifications. Apply the
+same classification to prospective task file lists. When implementation changes
+ownership, append a plan revision and update both the table and relationship
+prose; a useful design placeholder is not a delivered entity. Caught during
+#000158 close review rounds 1–2.
+
+## A successful write means every required byte was accepted
+
+Two nonblocking outer-TTY writers checked only the error returned by
+`unix.Write`. A nil error with a short count would publish a truncated OSC and,
+in the proxy, incorrectly consume the rate-limit slot as though delivery had
+succeeded.
+
+**Rule.** Every single-call write of an atomic protocol record must check both
+`err` and `n == len(record)`. Make partial success representable at the OS seam,
+test it through each production consumer, and update success bookkeeping only
+after the full count is confirmed. Caught during #000158 close review.
+
 ## Historical source contracts must pin bytes as well as paths
 
 A historical declaration guard derived its filenames from an immutable commit

@@ -17,8 +17,10 @@ import (
 
 // chunk is one child write on its way to the screen.
 type chunk struct {
-	id   string
-	data []byte
+	id                string
+	batch             ptychild.OutputBatch
+	focusedAtDelivery bool
+	ack               chan struct{}
 }
 
 type childExit struct {
@@ -35,17 +37,16 @@ type pane struct {
 	desc    string
 	child   *ptychild.Child
 
-	// bell is sticky until the operator looks at this actor. The row's job is
-	// to say who wants attention, so a signal that cleared itself on the next
-	// repaint would be invisible in practice.
-	bell bool
-
 	// rowDirty is the same shape for the reserved row: an INACTIVE pane's
 	// erase or margin reset is real, it just cannot be acted on yet. The first
 	// version consumed the child's latch for every pane and acted on it only
 	// for the active one, so a background child's damage was thrown away and
 	// attaching to it would land on a screen with no status row.
 	rowDirty bool
+
+	// replayCutoff advances only after Run has processed a delivered batch.
+	// A takeover therefore cannot replay bytes still queued behind the switch.
+	replayCutoff uint64
 }
 
 // Console routes the operator's terminal to one child at a time.
@@ -83,10 +84,11 @@ type Console struct {
 	// Ops dispatches an operator action. Injected so the console never learns
 	// what an operation IS -- it names one and couchcore runs it, which is
 	// what keeps the panel from growing a private verb (#148's design test).
-	ops    func(couchcore.OperationCall) (any, error)
-	forget func(couchcore.Worktree, couchcore.ActorID) error
-	feed   *Feed
-	size   ptychild.Size
+	ops       func(couchcore.OperationCall) (any, error)
+	forget    func(couchcore.Worktree, couchcore.ActorID) error
+	feed      *Feed
+	attention AttentionLedger
+	size      ptychild.Size
 	// expectedExits are exact child handles whose successful Park already
 	// authorized shutdown. They bridge the race between the child-exit channel
 	// and the asynchronous operation-completion channel.
@@ -95,6 +97,12 @@ type Console struct {
 	// paintPending means a repaint was wanted while the host stream was
 	// mid-sequence, and is owed as soon as it is safe.
 	paintPending bool
+	// deferredNotifications holds batch suffixes whose first part is a
+	// notification that cannot yet be inserted into the outer host stream.
+	// Keeping the original acknowledgement open backpressures that source actor
+	// while other actors and the focused UI continue independently.
+	deferredNotifications []chunk
+	flushingNotifications bool
 
 	// hostScan frames the bytes the console has WRITTEN to the host.
 	//
@@ -222,9 +230,17 @@ func (c *Console) ChildSize() ptychild.Size {
 //
 // It still yields to stop, so teardown cannot deadlock behind a child that is
 // mid-write.
-func (c *Console) Deliver(id string, data []byte) {
+func (c *Console) Deliver(id string, batch ptychild.OutputBatch) {
+	c.mu.Lock()
+	focused := c.focus == FocusActor(id)
+	c.mu.Unlock()
+	ack := make(chan struct{})
 	select {
-	case c.chunks <- chunk{id: id, data: data}:
+	case c.chunks <- chunk{id: id, batch: batch, focusedAtDelivery: focused, ack: ack}:
+		select {
+		case <-ack:
+		case <-c.stop:
+		}
 	case <-c.stop:
 	}
 }
@@ -304,7 +320,10 @@ func (c *Console) installObservedThreadActor(ctx context.Context, handleID strin
 		}
 	}
 	c.workers.Add(1)
-	c.panes[handleID] = &pane{tree: tree, thread: thread, process: process, actorID: actorID, label: label, child: child}
+	c.panes[handleID] = &pane{
+		tree: tree, thread: thread, process: process, actorID: actorID,
+		label: label, child: child, replayCutoff: child.ReplaySafeEnd(),
+	}
 	c.order = append(c.order, handleID)
 	if c.active == "" {
 		c.active = handleID
@@ -377,9 +396,6 @@ func (c *Console) switchTo(id string, force bool) {
 		c.active = id
 		c.focus = FocusActor(id)
 		c.menu.ActiveAddress = p.thread
-		// Landing on an actor is looking at it: whatever it wanted is now the
-		// operator's problem rather than a pending flag.
-		p.bell = false
 		p.rowDirty = false
 	}
 	c.mu.Unlock()
@@ -392,7 +408,8 @@ func (c *Console) switchTo(id string, force bool) {
 	// capability queries the child emitted at startup, and re-asking the host
 	// terminal lands the ANSWER in the newly active child's stdin -- #127's bug
 	// arriving at a new site.
-	c.takeOverScreen(p.child.Replay())
+	c.takeOverScreen(p.child.ReplayThrough(p.replayCutoff))
+	c.flushDeferredNotifications()
 	c.paintNow()
 }
 
@@ -650,6 +667,8 @@ func (c *Console) onExit(event childExit) bool {
 	panelFocused := c.focus.IsPanel()
 	wasActive := c.active == event.id
 	delete(c.panes, event.id)
+	c.attention.DropActor(p.thread)
+	c.syncAttentionLocked()
 	for i, id := range c.order {
 		if id == event.id {
 			c.order = append(c.order[:i:i], c.order[i+1:]...)
@@ -760,7 +779,7 @@ func (c *Console) repaint() { c.paintNow() }
 // of it.
 func (c *Console) writeChild(p []byte) {
 	c.mu.Lock()
-	c.hostScan.Feed(p)
+	c.hostScan.FeedFraming(p)
 	c.mu.Unlock()
 	_, _ = c.host.Write(p)
 }
@@ -816,7 +835,7 @@ func (c *Console) paintNow() {
 		model.Actors = append(model.Actors, StatusActor{
 			Label:  p.label,
 			Active: id == c.active,
-			Bell:   p.bell,
+			Bell:   len(c.attention.Projection(p.thread)) > 0,
 		})
 	}
 	c.mu.Unlock()
@@ -824,8 +843,26 @@ func (c *Console) paintNow() {
 	c.writeOwn(Reserve(rows) + PaintRow(rows, RenderStatusRow(cols, model)))
 }
 
+func (c *Console) syncAttentionLocked() {
+	projection := make(map[couchcore.ThreadAddress][]AttentionMessage)
+	for _, p := range c.panes {
+		if messages := c.attention.Projection(p.thread); len(messages) > 0 {
+			projection[p.thread] = messages
+		}
+	}
+	c.menu.Attention = projection
+}
+
 // onChunk routes one child write.
 func (c *Console) onChunk(ch chunk) {
+	ackHere := ch.ack != nil
+	if ch.ack != nil {
+		defer func() {
+			if ackHere {
+				close(ch.ack)
+			}
+		}()
+	}
 	c.mu.Lock()
 	p, known := c.panes[ch.id]
 	// "Active" means the operator is looking at this child. With the panel up
@@ -837,9 +874,44 @@ func (c *Console) onChunk(ch chunk) {
 		return
 	}
 
-	if isActive {
-		c.writeChild(ch.data)
+	parts := ch.batch.Parts
+	if len(parts) == 0 && len(ch.batch.Raw) > 0 && ch.batch.RingEnd == 0 && ch.batch.ReplaySafeEnd == 0 {
+		parts = []ptychild.OutputPart{{Bytes: ch.batch.Raw}}
 	}
+	attentionChanged := false
+	for i, part := range parts {
+		if len(part.Bytes) > 0 && isActive {
+			c.writeChild(part.Bytes)
+		}
+		if part.Notification != nil {
+			c.mu.Lock()
+			unsafe := c.hostScan.MidSequence()
+			if unsafe {
+				ch.batch.Parts = append([]ptychild.OutputPart(nil), parts[i:]...)
+				c.deferredNotifications = append(c.deferredNotifications, ch)
+			}
+			c.mu.Unlock()
+			if unsafe {
+				ackHere = false
+				return
+			}
+			// Pair's envelope is still valid outer-terminal OSC. Couch observes
+			// it but does not swallow it.
+			c.writeChild(part.Notification.Raw)
+			if !ch.focusedAtDelivery {
+				c.mu.Lock()
+				c.attention.Mark(p.thread, part.Notification.Message)
+				c.syncAttentionLocked()
+				c.mu.Unlock()
+				attentionChanged = true
+			}
+		}
+	}
+	c.mu.Lock()
+	if ch.batch.ReplaySafeEnd > p.replayCutoff {
+		p.replayCutoff = ch.batch.ReplaySafeEnd
+	}
+	c.mu.Unlock()
 	// A paint deferred while the stream was mid-sequence is owed as soon as
 	// the stream is whole again.
 	c.mu.Lock()
@@ -848,22 +920,22 @@ func (c *Console) onChunk(ch chunk) {
 	if owed {
 		c.paintNow()
 	}
-	// Derived state is consumed whether or not the child is on screen: an
-	// inactive child that rings still has something to say.
-	// The child's latch is per-chunk, so it is consumed for every pane -- but
-	// KEPT on the pane, so an inactive child's damage survives until the
-	// operator lands on it.
-	if p.child.TakeRowDirty() {
+	c.flushDeferredNotifications()
+	if attentionChanged {
+		c.repaint()
+	}
+	// Derived state is consumed whether or not the child is on screen.
+	if ch.batch.RowDirty {
 		c.mu.Lock()
 		p.rowDirty = true
 		c.mu.Unlock()
 	}
-	if p.child.TakeBell() {
+	if ch.batch.Bell {
 		c.mu.Lock()
 		// An actor the operator is already looking at is not "wanting" them.
 		if !isActive {
-			p.bell = true
-			c.feed.Push(BellNotice(p.actorID, p.label))
+			c.attention.Mark(p.thread, "")
+			c.syncAttentionLocked()
 		}
 		c.mu.Unlock()
 		c.repaint()
@@ -877,6 +949,35 @@ func (c *Console) onChunk(ch chunk) {
 	c.mu.Unlock()
 	if dirty {
 		c.repaint()
+	}
+}
+
+// flushDeferredNotifications releases arrival-ordered batch suffixes once
+// inserting another actor's OSC cannot corrupt a partial host sequence.
+func (c *Console) flushDeferredNotifications() {
+	c.mu.Lock()
+	if c.flushingNotifications || c.hostScan.MidSequence() || len(c.deferredNotifications) == 0 {
+		c.mu.Unlock()
+		return
+	}
+	c.flushingNotifications = true
+	c.mu.Unlock()
+	defer func() {
+		c.mu.Lock()
+		c.flushingNotifications = false
+		c.mu.Unlock()
+	}()
+
+	for {
+		c.mu.Lock()
+		if c.hostScan.MidSequence() || len(c.deferredNotifications) == 0 {
+			c.mu.Unlock()
+			return
+		}
+		deferred := c.deferredNotifications[0]
+		c.deferredNotifications = c.deferredNotifications[1:]
+		c.mu.Unlock()
+		c.onChunk(deferred)
 	}
 }
 
@@ -958,6 +1059,13 @@ func (c *Console) onHotkey() {
 
 	c.mu.Lock()
 	c.focus = next
+	if next.IsPanel() {
+		if newest := c.attention.NewestActor(); newest != (couchcore.ThreadAddress{}) && len(c.menu.Frames) > 0 {
+			c.menu.Frames = c.menu.Frames[:1]
+			c.menu.Frames[0].Filter = ""
+			c.menu.Frames[0].SelectedAddress = newest
+		}
+	}
 	c.mu.Unlock()
 
 	if next.IsPanel() {
@@ -965,6 +1073,13 @@ func (c *Console) onHotkey() {
 		c.showMenu()
 		return
 	}
+	c.mu.Lock()
+	if p := c.panes[next.Actor()]; p != nil {
+		capture := c.attention.Capture(p.thread)
+		c.attention.Acknowledge(capture)
+		c.syncAttentionLocked()
+	}
+	c.mu.Unlock()
 	c.onSwitch(next.Actor())
 }
 
@@ -1003,6 +1118,10 @@ func (c *Console) runMenuOperation(effect MenuEffect) {
 	c.mu.Lock()
 	fn := c.ops
 	origin := c.menu.InFlight
+	if origin.Operation == "switch" && origin.AttentionCapture == 0 {
+		origin.AttentionCapture = c.attention.Capture(origin.Address)
+		c.menu.InFlight.AttentionCapture = origin.AttentionCapture
+	}
 	c.mu.Unlock()
 	if fn == nil {
 		c.finishOperation(operationCompletion{
@@ -1060,6 +1179,14 @@ func (c *Console) finishOperation(completed operationCompletion) bool {
 		event.Error = err.Error()
 	}
 	c.mu.Lock()
+	if completed.origin.Operation == "switch" {
+		if event.Success {
+			c.attention.Acknowledge(completed.origin.AttentionCapture)
+		} else {
+			c.attention.Cancel(completed.origin.AttentionCapture)
+		}
+		c.syncAttentionLocked()
+	}
 	if event.Success && operationNeedsProjectionRefresh(event.Operation) {
 		event.ProjectionAfterGeneration = c.refreshSchedule.Sequence
 	}

@@ -4,6 +4,7 @@ import (
 	"bytes"
 
 	"github.com/xianxu/pair/cmd/internal/ansi"
+	"github.com/xianxu/pair/cmd/internal/notifyosc"
 )
 
 // maxPending bounds the partial sequence held across reads.
@@ -58,7 +59,36 @@ type Screen struct {
 	// terminator. Whole and split then agree at every length -- neither counts
 	// the sequence's own terminator, both count a bell after it.
 	skipping skipKind
+
+	outputParts       []OutputPart
+	notifyCandidate   []byte
+	notifyStart       uint64
+	streamEnd         uint64
+	replaySafeEnd     uint64
+	notifyPassthrough skipKind
+	notifyPassESC     bool
 }
+
+type NotificationObservation struct {
+	Message string
+	Raw     []byte
+	Start   uint64
+	End     uint64
+}
+
+type OutputPart struct {
+	Bytes        []byte
+	Notification *NotificationObservation
+}
+
+func (s *Screen) TakeOutputParts() []OutputPart {
+	parts := s.outputParts
+	s.outputParts = nil
+	return parts
+}
+
+func (s *Screen) ReplaySafeEnd() uint64 { return s.replaySafeEnd }
+func (s *Screen) StreamEnd() uint64     { return s.streamEnd }
 
 type skipKind uint8
 
@@ -125,6 +155,22 @@ func (s *Screen) Feed(p []byte) {
 	if len(p) == 0 {
 		return
 	}
+	s.observeNotifications(p)
+	s.feedFraming(p)
+}
+
+// FeedFraming consumes a chunk only for terminal state and sequence-boundary
+// tracking. Unlike Feed, it does not retain output for notification observers.
+// Use it when the caller already owns the bytes and only needs MidSequence and
+// the other screen-state answers.
+func (s *Screen) FeedFraming(p []byte) {
+	if len(p) == 0 {
+		return
+	}
+	s.feedFraming(p)
+}
+
+func (s *Screen) feedFraming(p []byte) {
 	buf := p
 	if len(s.pending) > 0 {
 		buf = append(s.pending, p...)
@@ -193,6 +239,109 @@ func (s *Screen) Feed(p []byte) {
 		s.classify(buf[:size])
 		buf = buf[size:]
 	}
+}
+
+func (s *Screen) observeNotifications(p []byte) {
+	for _, b := range p {
+		pos := s.streamEnd
+		s.streamEnd++
+		if s.notifyPassthrough != skipNone {
+			s.appendOutputByte(b)
+			s.replaySafeEnd = s.streamEnd
+			done := s.notifyPassthrough == skipCSI && b >= 0x40 && b <= 0x7e
+			if s.notifyPassthrough == skipOSC && (b == 0x07 || s.notifyPassESC && b == '\\') {
+				done = true
+			}
+			if done {
+				s.notifyPassthrough = skipNone
+			}
+			s.notifyPassESC = b == 0x1b
+			continue
+		}
+		if len(s.notifyCandidate) == 0 {
+			if b == 0x1b {
+				s.notifyStart = pos
+				s.notifyCandidate = append(s.notifyCandidate, b)
+				continue
+			}
+			s.appendOutputByte(b)
+			s.replaySafeEnd = s.streamEnd
+			continue
+		}
+
+		s.notifyCandidate = append(s.notifyCandidate, b)
+		if len(s.notifyCandidate) <= len(notifyosc.Prefix) {
+			if !bytes.Equal(s.notifyCandidate, []byte(notifyosc.Prefix[:len(s.notifyCandidate)])) {
+				candidate := append([]byte(nil), s.notifyCandidate...)
+				s.flushNotifyCandidate()
+				s.beginNotifyPassthrough(candidate)
+			}
+			continue
+		}
+
+		if b == 0x07 || len(s.notifyCandidate) >= 2 && s.notifyCandidate[len(s.notifyCandidate)-2] == 0x1b && b == '\\' {
+			raw := append([]byte(nil), s.notifyCandidate...)
+			if notification, ok := notifyosc.DecodeOSC(raw); ok {
+				obs := &NotificationObservation{Message: notification.Message, Raw: raw, Start: s.notifyStart, End: s.streamEnd}
+				s.outputParts = append(s.outputParts, OutputPart{Notification: obs})
+				s.notifyCandidate = nil
+				s.replaySafeEnd = s.streamEnd
+				continue
+			}
+			s.flushNotifyCandidate()
+			continue
+		}
+		if len(s.notifyCandidate) >= 2 && s.notifyCandidate[len(s.notifyCandidate)-2] == 0x1b {
+			s.flushNotifyCandidate()
+			s.notifyPassthrough = skipOSC
+			s.notifyPassESC = b == 0x1b
+			continue
+		}
+		messageBytes := len(s.notifyCandidate) - len(notifyosc.Prefix)
+		if b == 0x1b {
+			messageBytes-- // possible first byte of ST
+		}
+		if messageBytes > notifyosc.MaxMessageBytes {
+			s.flushNotifyCandidate()
+			s.notifyPassthrough = skipOSC
+			s.notifyPassESC = b == 0x1b
+		}
+	}
+}
+
+func (s *Screen) beginNotifyPassthrough(candidate []byte) {
+	if _, ok := frame(candidate); ok || len(candidate) < 2 {
+		return
+	}
+	switch candidate[1] {
+	case '[', 'O':
+		s.notifyPassthrough = skipCSI
+	case ']', 'P', '_', '^', 'X':
+		s.notifyPassthrough = skipOSC
+		s.notifyPassESC = candidate[len(candidate)-1] == 0x1b
+	}
+}
+
+func (s *Screen) flushNotifyCandidate() {
+	if len(s.notifyCandidate) == 0 {
+		return
+	}
+	s.appendOutputBytes(s.notifyCandidate)
+	s.notifyCandidate = nil
+	s.replaySafeEnd = s.streamEnd
+}
+
+func (s *Screen) appendOutputByte(b byte) { s.appendOutputBytes([]byte{b}) }
+
+func (s *Screen) appendOutputBytes(p []byte) {
+	if len(p) == 0 {
+		return
+	}
+	if n := len(s.outputParts); n > 0 && s.outputParts[n-1].Notification == nil {
+		s.outputParts[n-1].Bytes = append(s.outputParts[n-1].Bytes, p...)
+		return
+	}
+	s.outputParts = append(s.outputParts, OutputPart{Bytes: append([]byte(nil), p...)})
 }
 
 // skipTerminator consumes buf while inside an over-long sequence, returning how
