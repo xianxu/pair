@@ -1270,3 +1270,13 @@ directions, and new unmarked declarations are mutation-tested. Historical M3
 paths and bytes are read only from pinned range
 `0c40a8d1..7ff7d8c4`, so later work cannot rewrite this boundary (`BR-26`,
 `BR-27`, `ARCH-PURPOSE`).
+
+The seventh boundary review found that the marker subset still contradicted
+documented concepts such as `RefreshSchedule`. Both tables are now one exact
+declaration per row, backed by a single 37-entry typed ledger containing kind,
+delivery, current status, source, dependencies, and retirement. The immutable
+declaration digest derives classifications from that ledger; source markers
+were removed as a parallel authority. Pinned commit `d3ee08d5` is the reviewed
+runtime-plus-ledger snapshot, while the following commit only installs its
+test/documentation oracle, avoiding self-reference (`BR-26`, `BR-27`,
+`ARCH-DRY`, `ARCH-PURPOSE`).

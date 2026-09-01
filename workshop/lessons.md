@@ -2724,3 +2724,9 @@ that a key token appears cannot detect a contradictory behavioral sentence
   otherwise removing a concept marker silently changes architecture into
   detail. Historical boundary contracts must also read both their path set and
   bytes from pinned Git objects, never the moving worktree (`ARCH-PURPOSE`).
+- Grouped architecture rows and a selected marker subset create two granularities
+  that can disagree. Use one entity per row and one typed ledger for kind,
+  lifecycle, source, dependencies, and retirement. When the oracle itself must
+  be committed, snapshot the reviewed implementation first and install the
+  immutable oracle in a following docs/test-only commit (`ARCH-DRY`,
+  `ARCH-PURPOSE`).

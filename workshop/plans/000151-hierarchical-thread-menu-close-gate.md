@@ -431,6 +431,40 @@ rounds:
           round: 18
       boundary: M3
       blocked: true
+    - "n": 19
+      timestamp: "2026-08-31T16:55:47-07:00"
+      agent: codex
+      dispose:
+        - id: BR-21
+          disposition: addressed
+          note: The generation-qualified projection policy remains production-reachable, and its Console regression fails if a pre-mutation refresh is allowed to clear pending state.
+          round: 19
+        - id: BR-22
+          disposition: addressed
+          note: The flat-panel implementation is deleted, and executable source scans reject restoration of PanelModel or its parallel authority.
+          round: 19
+        - id: BR-23
+          disposition: addressed
+          note: The target harness drives Console.Run through semantic input and correlated emitted frames; the complete M2 Max protocol passed in this review.
+          round: 19
+        - id: BR-24
+          disposition: addressed
+          note: The complete M3 checklist is pinned, including a mutation that rejects reverting a delivered step to unchecked.
+          round: 19
+        - id: BR-25
+          disposition: addressed
+          note: The plan headings and README root-Escape behavior match the reducer and remain protected by executable drift tests.
+          round: 19
+        - id: BR-26
+          disposition: not-addressed
+          note: The closed ledger calls unmarked declarations detail, yet RefreshSchedule and AdvanceRefreshSchedule are authoritative Core concepts without architectural markers; the validator compares only its hardcoded six-entry subset.
+          round: 19
+        - id: BR-27
+          disposition: not-addressed
+          note: Both source paths and bytes are pinned to 7ff7d8c4, not the supplied M3 head d3ee08d; reverting the path query to current HEAD would still pass because the changed Go path set is identical.
+          round: 19
+      boundary: M3
+      blocked: true
 ---
 
 # Gate ledger — pair#151 (boundary-review)
@@ -648,6 +682,18 @@ later rounds disposed of them. Generated — edit the gate, not this file.
 
 - **BR-27** [Important] `historical-boundary-oracle-pinning` The M3 declaration oracle reads an unpinned diff and mutable worktree bytes
   The source-set test runs git diff from the M2 base to the repository's current HEAD, while the digest parses current filesystem files. Any later Go change will rewrite this supposedly historical M3 boundary or fail unrelated CI. Pin both paths and bytes to the supplied M3 head object.
+
+## Round 19 — 2026-08-31T16:55:47-07:00 (codex) — BLOCKED
+
+### Disposed
+
+- BR-21 — addressed — The generation-qualified projection policy remains production-reachable, and its Console regression fails if a pre-mutation refresh is allowed to clear pending state.
+- BR-22 — addressed — The flat-panel implementation is deleted, and executable source scans reject restoration of PanelModel or its parallel authority.
+- BR-23 — addressed — The target harness drives Console.Run through semantic input and correlated emitted frames; the complete M2 Max protocol passed in this review.
+- BR-24 — addressed — The complete M3 checklist is pinned, including a mutation that rejects reverting a delivered step to unchecked.
+- BR-25 — addressed — The plan headings and README root-Escape behavior match the reducer and remain protected by executable drift tests.
+- BR-26 — not-addressed — The closed ledger calls unmarked declarations detail, yet RefreshSchedule and AdvanceRefreshSchedule are authoritative Core concepts without architectural markers; the validator compares only its hardcoded six-entry subset.
+- BR-27 — not-addressed — Both source paths and bytes are pinned to 7ff7d8c4, not the supplied M3 head d3ee08d; reverting the path query to current HEAD would still pass because the changed Go path set is identical.
 
 ## Open findings
 

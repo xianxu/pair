@@ -16,14 +16,28 @@
 
 | Name | Lives in | Planned change | Delivery | Current at M3 boundary |
 |------|----------|----------------|----------|---------------|
-| `ActionableThreadSummary` / `LiveTTYObservation` / `ParkedResumeObservation` / `ProjectActionableThreads` | `cmd/internal/couchcore/actionableinventory.go` | new | M1/M3 | present |
-| `StartResolution` / `StartResolutionFingerprint` / `ResolveStartResolution` | `cmd/internal/couchcore/startresolution.go` | new | M1 | present |
-| `MenuState` / `MenuFrame` / `MenuEvent` / `ReduceMenu` | `cmd/internal/couchtty/menu.go` | new | M2 | present |
-| `MenuLayout` / `AgeBand` / `RenderMenu` | `cmd/internal/couchtty/menu_render.go` | new | M2 | present |
-| `PreviewSchedule` / `AdvancePreviewSchedule` | `cmd/internal/couchtty/menu_async.go` | new | M2 | present |
-| `RefreshSchedule` / `AdvanceRefreshSchedule` | `cmd/internal/couchtty/menu_refresh.go` | new | M3 | present |
-| `PanelKey` / `DecodePanelKeys` | `cmd/internal/couchtty/panelkeys.go` | modified | M2 | modified, present |
-| `PanelModel` / resolver-driven `Filter` | `cmd/internal/couchtty/panel.go` | deleted | M3 | deleted |
+| `ActionableThreadSummary` | `cmd/internal/couchcore/actionableinventory.go` | new | M1/M3 | present |
+| `LiveTTYObservation` | `cmd/internal/couchcore/actionableinventory.go` | new | M1 | present |
+| `ParkedResumeObservation` | `cmd/internal/couchcore/actionableinventory.go` | new | M3 | present |
+| `ProjectActionableThreads` | `cmd/internal/couchcore/actionableinventory.go` | new | M1/M3 | present |
+| `StartResolution` | `cmd/internal/couchcore/startresolution.go` | new | M1 | present |
+| `StartResolutionFingerprint` | `cmd/internal/couchcore/startresolution.go` | new | M1 | present |
+| `ResolveStartResolution` | `cmd/internal/couchcore/startresolution.go` | new | M1 | present |
+| `MenuState` | `cmd/internal/couchtty/menu.go` | new | M2 | present |
+| `MenuFrame` | `cmd/internal/couchtty/menu.go` | new | M2 | present |
+| `MenuEvent` | `cmd/internal/couchtty/menu.go` | new | M2 | present |
+| `ReduceMenu` | `cmd/internal/couchtty/menu.go` | new | M2 | present |
+| `MenuLayout` | `cmd/internal/couchtty/menu_render.go` | new | M2 | present |
+| `AgeBand` | `cmd/internal/couchtty/menu_render.go` | new | M2 | present |
+| `RenderMenu` | `cmd/internal/couchtty/menu_render.go` | new | M2 | present |
+| `PreviewSchedule` | `cmd/internal/couchtty/menu_async.go` | new | M2 | present |
+| `AdvancePreviewSchedule` | `cmd/internal/couchtty/menu_async.go` | new | M2 | present |
+| `RefreshSchedule` | `cmd/internal/couchtty/menu_refresh.go` | new | M3 | present |
+| `AdvanceRefreshSchedule` | `cmd/internal/couchtty/menu_refresh.go` | new | M3 | present |
+| `PanelKey` | `cmd/internal/couchtty/panelkeys.go` | modified | M2 | modified, present |
+| `DecodePanelKeys` | `cmd/internal/couchtty/panelkeys.go` | modified | M2 | modified, present |
+| `PanelModel` | `cmd/internal/couchtty/panel.go` | deleted | M3 | deleted |
+| `PanelModel.Filter` | `cmd/internal/couchtty/panel.go` | deleted | M3 | deleted |
 
 - **`ActionableThreadSummary` / `LiveTTYObservation` / `ParkedResumeObservation` / `ProjectActionableThreads`** — the only interpretation that turns internal thread lifecycle into user-facing `live` or `parked` rows.
   - **Relationships:** N durable `ThreadRecord`s, N exact live-owner observations, and N exact parked-resume observations produce 0..N `ActionableThreadSummary` rows; each row retains one composite `ThreadAddress`. A live row requires one observation matching one durable incarnation's PID and process identity. A parked row requires exact `VerifiedPark`, no active `Park`, no occupied incarnation, and exactly one non-empty native binding observation whose agent matches the saved launch profile.
@@ -70,14 +84,20 @@
 | Name | Lives in | Planned change | Delivery | Current at M3 boundary | Wraps |
 |------|----------|----------------|----------|---------------|-------|
 | `Couch.ActionableThreadInventory` | `cmd/internal/couchcore/actionableinventory.go` | new | M1/M3 | present | `ThreadStore.Snapshot`, live-owner observations, and `NativeBindingResolver` parked proof |
-| `NativeBindingResolver` / `SessionInventoryNativeBindingResolver` | `cmd/internal/couchcore/resume.go`, `cmd/internal/sessioninventory/query.go` | new | M3 | context-bearing exact parked-resume binding resolution present | session inventory exact established-root query |
-| `Couch.PrepareStart` / `Couch.SpawnPrepared` | `cmd/internal/couchcore/startresolution.go`, `cmd/internal/couchcore/couch.go` | new | M1 | present | path, policy, preference/default reads, runner launch |
+| `NativeBindingResolver` | `cmd/internal/couchcore/resume.go` | new | M3 | context-bearing exact parked-resume binding resolution present | session inventory exact established-root query |
+| `SessionInventoryNativeBindingResolver` | `cmd/internal/couchcore/resume.go`, `cmd/internal/sessioninventory/query.go` | new | M3 | context-bearing exact parked-resume binding resolution present | session inventory exact established-root query |
+| `Couch.PrepareStart` | `cmd/internal/couchcore/couch.go` | new | M1 | present | path, policy, preference/default reads |
+| `Couch.SpawnPrepared` | `cmd/internal/couchcore/couch.go` | new | M1 | present | grant consumption and runner launch |
 | `StartGrantStore` | `cmd/internal/couchcore/startgrant.go` | new | M1 | present | owner-local random issuance, TTL, and atomic consumption |
-| context-bearing shared operations and post-start cleanup | `cmd/internal/couchcore/ops.go`, `cmd/internal/couchcore/operationdispatch.go`, `cmd/internal/couchcore/couch.go` | modified | M1 | context dispatch and exact started-actor abort present | owner operation dispatch, cancellation, exact-handle cleanup |
-| `Console` menu controller | `cmd/internal/couchtty/console_menu.go`, `cmd/internal/couchtty/console.go` | modified | M3 | hierarchical render, refresh, preview, action, and transactional attach controllers present | host input/output, pane observations, bounded async workers |
-| `wireResolver` composition | `cmd/internal/couchcmd/run.go` | modified | M3 | actionable refresh, shared action, attach-abort, and hierarchical render wiring present | Couch core providers and Console operation dispatcher |
-| context-bearing `Runner` / `FakeRunner` / `hostty.FakeHost` | `cmd/internal/couchcore/runner.go`, `cmd/internal/couchcore/runner_fake.go`, `cmd/internal/hostty/fake.go` | modified | M1/M3 | modified, present | cancelable child lifecycle and observable terminal behavior |
-| target performance harness | `cmd/internal/couchtty/menu_perf_test.go` | new | M3 | present | clock samples and deterministic four-worker CPU load |
+| `OperationCall` | `cmd/internal/couchcore/operationdispatch.go` | modified | M1 | context dispatch present | owner operation dispatch and cancellation |
+| `DispatchOperation` | `cmd/internal/couchcore/operationdispatch.go` | modified | M1 | context dispatch present | owner operation declaration and executor routing |
+| `Couch.AbortStarted` | `cmd/internal/couchcore/couch.go` | new | M1 | exact started-actor abort present | exact-handle cleanup |
+| `Console` | `cmd/internal/couchtty/console_menu.go`, `cmd/internal/couchtty/console.go` | modified | M3 | hierarchical render, refresh, preview, action, and transactional attach controllers present | host input/output, pane observations, bounded async workers |
+| `wireResolver` | `cmd/internal/couchcmd/run.go` | modified | M3 | actionable refresh, shared action, attach-abort, and hierarchical render wiring present | Couch core providers and Console operation dispatcher |
+| `Runner` | `cmd/internal/couchcore/runner.go` | modified | M1 | context-bearing child lifecycle present | cancelable child lifecycle |
+| `FakeRunner` | `cmd/internal/couchcore/runner_fake.go` | modified | M1 | stateful context-bearing double present | cancelable child lifecycle |
+| `hostty.FakeHost` | `cmd/internal/hostty/fake.go` | modified | M3 | observable terminal double present | emitted terminal frames and modes |
+| `TestMenuTargetPerformance` | `cmd/internal/couchtty/menu_perf_test.go` | new | M3 | present | clock samples and deterministic four-worker CPU load |
 
 - **`Couch.ActionableThreadInventory`** — snapshots durable records, resolves exact established native bindings for structurally eligible parked records, then calls the pure projector with live and parked proof observations.
   - **Injected into:** Console refresh worker; Console alone derives live observations from its registered panes and child identities, while `NativeBindingResolver` supplies context-bearing parked proof through session inventory.
@@ -1574,3 +1594,27 @@ markers, and those entries must each appear at their exact Core concepts path.
 Mutation tests reject marker removal, architectural-to-detail and detail-to-
 architectural reclassification, and an added unmarked declaration
 (`ARCH-PURPOSE`).
+
+### 2026-08-31 — make every Core concept one classified declaration
+
+**Reason:** the seventh M3 boundary review showed that the six-entry marker
+ledger was still a subset of the architectural table: for example,
+`RefreshSchedule` and `AdvanceRefreshSchedule` were documented authorities but
+were classified as detail. It also clarified that the immutable snapshot must
+be separated from the commit that installs its oracle (`BR-26`, `BR-27`).
+
+**Delta:** both Core concepts tables now contain exactly one declaration per
+row. One typed ledger owns each declaration's Pure/Integration kind, delivery,
+current status, source declaration path, complete dependency paths, and retired
+paths. It covers all 37 current or retired declarations; plan parsing and pinned
+source resolution both derive from it, and every row must occur exactly once.
+The historical declaration digest uses this same complete ledger for
+architectural/detail/retired classification rather than source markers, which
+have been removed as a parallel authority. Classification and membership
+mutations fail closed.
+
+The runtime-plus-ledger snapshot is pinned at reviewed commit `d3ee08d5`. The
+following oracle-installation commit changes only tests and documentation and
+validates that immutable snapshot, avoiding a self-referential commit hash.
+Future source changes therefore do not rewrite M3 history (`ARCH-DRY`,
+`ARCH-PURPOSE`).

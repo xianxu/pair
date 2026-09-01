@@ -583,3 +583,111 @@ Append a `## Revisions` entry stating:
 - Source markers and Core concepts rows are validated bidirectionally.
 - Marker removal/reclassification mutations must fail.
 - Historical M3 paths and bytes are both read from the pinned `0c40a8d… → 7ff7d8c…` range.
+
+---
+
+## Re-review — 2026-08-31T16:55:47-07:00 (REWORK)
+
+| field | value |
+|-------|-------|
+| issue | 151 — couch: hierarchical work-thread menu |
+| repo | pair |
+| issue file | workshop/issues/000151-hierarchical-thread-menu.md |
+| boundary | milestone M3 |
+| milestone | M3 |
+| window | 0c40a8d1880b49a9cac1a7f4d8cd24a2c713dba7..d3ee08d548aebb38eb8a6f15bea78cf71c2dafc8 |
+| command | sdlc milestone-close --issue 151 --milestone M3 |
+| reviewer | codex |
+| timestamp | 2026-08-31T16:55:47-07:00 |
+| verdict | REWORK |
+
+## Review
+
+```verdict
+verdict: REWORK
+confidence: high
+```
+
+The M3 runtime implementation is well-tested and the previously accepted production fixes remain sound. However, BR-26 and BR-27 are still not addressed: the declaration ledger contradicts the plan’s architectural inventory, and the historical oracle pins the parent commit rather than the supplied M3 head. Both require another review round.
+
+```findings
+dispose:
+  - id: BR-21
+    disposition: addressed
+    note: |
+      The generation-qualified projection policy remains production-reachable, and its Console regression fails if a pre-mutation refresh is allowed to clear pending state.
+  - id: BR-22
+    disposition: addressed
+    note: |
+      The flat-panel implementation is deleted, and executable source scans reject restoration of PanelModel or its parallel authority.
+  - id: BR-23
+    disposition: addressed
+    note: |
+      The target harness drives Console.Run through semantic input and correlated emitted frames; the complete M2 Max protocol passed in this review.
+  - id: BR-24
+    disposition: addressed
+    note: |
+      The complete M3 checklist is pinned, including a mutation that rejects reverting a delivered step to unchecked.
+  - id: BR-25
+    disposition: addressed
+    note: |
+      The plan headings and README root-Escape behavior match the reducer and remain protected by executable drift tests.
+  - id: BR-26
+    disposition: not-addressed
+    note: |
+      The closed ledger calls unmarked declarations detail, yet RefreshSchedule and AdvanceRefreshSchedule are authoritative Core concepts without architectural markers; the validator compares only its hardcoded six-entry subset.
+  - id: BR-27
+    disposition: not-addressed
+    note: |
+      Both source paths and bytes are pinned to 7ff7d8c4, not the supplied M3 head d3ee08d; reverting the path query to current HEAD would still pass because the changed Go path set is identical.
+```
+
+1. Strengths
+
+- BR-21 is correctly enforced through the production Console lifecycle and `TestConsolePreMutationRefreshCannotAuthorizeCommittedProjection`.
+- BR-22’s obsolete `panel.go` authority is deleted and guarded against reintroduction.
+- BR-23’s performance harness exercises raw input, refresh results, and correlated repaint output through the running Console. All baseline and four-worker-load trials passed.
+- README and atlas updates cover the new hierarchical switcher surface and root-Escape semantics.
+- The pure reducer/scheduler core remains cleanly separated from injected provider, runner, and host I/O.
+
+2. Critical findings
+
+- **BR-26 — `documentation-current-state-accuracy`, `ARCH-DRY`, `ARCH-PURPOSE`: architectural classification remains internally contradictory.** The plan declares `RefreshSchedule` and `AdvanceRefreshSchedule` as delivered Core concepts at `workshop/plans/000151-hierarchical-thread-menu-plan.md:24`, and they exist at `cmd/internal/couchtty/menu_refresh.go:5` and `:38`. Neither carries an M3 architectural marker. Consequently, `issue151M3Disposition` classifies them as detail at `cmd/internal/couchcore/plan_contract_test.go:1019-1037`, while the six-entry architectural ledger at `:110-117` and validator at `:1082-1093` never compare the full Core-concept set bidirectionally.
+
+  This repeated family needs a class-level fix: enumerate every exact entity in both Core-concept tables and require one matching source disposition, path, kind, and current status; then require every architectural source declaration to occur exactly once in those tables. Do not merely add markers for this example.
+
+3. Important findings
+
+- **BR-27 — `historical-boundary-oracle-pinning`: the oracle does not represent the reviewed head.** `issue151M3Head` is `7ff7d8c4` at `cmd/internal/couchcore/plan_contract_test.go:31`, while this review’s supplied head is `d3ee08d`. Both the path query at `:893` and source-byte reader at `:1041` therefore omit the final boundary commit’s version of `plan_contract_test.go`.
+
+  Use an immutable source/blob manifest derived from the supplied boundary or otherwise separate final oracle installation from the snapshot it validates. Add mutations proving that replacing pinned paths with `HEAD` and pinned bytes with worktree reads both fail. The current path test would still pass after reverting to `HEAD` because no new Go pathname was added between `7ff7d8c4` and `d3ee08d`.
+
+4. Minor findings
+
+None.
+
+5. Test coverage notes
+
+Passed:
+
+- `go test -p 20 ./... -count=1`
+- `go test -race -p 20 ./cmd/internal/couchcore ./cmd/internal/couchtty ./cmd/internal/couchcmd -count=1`
+- `PAIR_MENU_PERF_TARGET=m2-max go test -p 20 ./cmd/internal/couchtty -run '^TestMenuTargetPerformance$' -count=1 -v`
+- `git diff --check` for the pinned review range
+
+The open oracle defects pass the suite because their baselines encode the incorrect six-entry classification and parent-commit snapshot.
+
+6. Architectural notes for upcoming work
+
+- **ARCH-DRY — flag:** the hardcoded Core-concept contract and six-entry source ledger are parallel authorities and already disagree.
+- **ARCH-PURE — pass:** reducer, renderer, refresh scheduling, and projection logic remain directly testable without I/O.
+- **ARCH-PURPOSE — flag:** the claimed exhaustive architectural inventory and supplied-head pinning are not actually exhaustive or pinned to the reviewed boundary.
+- **ARCH-MOCK — pass:** production runner/provider/host flows share injected seams with stateful fakes; no new direct external runtime dependency was introduced.
+- **ARCH-CONSTRAINTS — pass:** bounded scheduling, 100-row workload, four-worker co-tenancy, and semantic-input-to-frame latency were exercised successfully.
+
+7. Plan revision recommendations
+
+Append—not overwrite—two `## Revisions` entries:
+
+- Record that the six-entry declaration ledger contradicted the complete Core-concept tables, and define the bidirectional entity/path/kind/status rule used by the replacement contract.
+- Record that `7ff7d8c4` was the parent rather than the reviewed M3 head, then describe the immutable blob/snapshot mechanism and the mutations proving independence from `HEAD` and worktree bytes.
