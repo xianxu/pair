@@ -1,12 +1,13 @@
 ---
 id: 000151
-status: working
+status: codecomplete
 deps: [149, 152]
 github_issue:
 created: 2026-08-24
-updated: 2026-08-30
+updated: 2026-08-31
 estimate_hours: 7.60
 started: 2026-08-30T15:58:54-07:00
+actual_hours: 20.07
 ---
 
 # couch: hierarchical work-thread menu
@@ -777,6 +778,7 @@ result-generated identity and bell clearing moved to successful completion
 (`ARCH-PURE`, `ARCH-PURPOSE`).
 
 ### 2026-08-31 — smoke: preserve one short completed round and classify park exits
+- 2026-08-31: closed — Fresh full repository suite passed with go test -p 20 ./... -count=1; focused M3 contracts and affected-package race suites passed; operator smoke verified Couch quit cleanup, terminal mouse restoration, hierarchical navigation, and parked-thread rediscovery/resume behavior.; review verdict: SHIP
 - 2026-08-31: closed M3 — Committed c6dab1a. Focused post-commit M3 contract suite passed: go test -p 20 ./cmd/internal/couchcore ./cmd/internal/couchcmd -run TestIssue151|TestM3Docs -count=1. Pre-commit full suite passed: go test -p 20 ./... -count=1. Race suite passed with -race -p 20 for couchcore, couchtty, couchcmd, and sessioninventory. Historical dependency indexing now reads every path and byte from one immutable git archive; worktree-only declarations are rejected. User smoke-tested quit cleanup, mouse restoration, hierarchy/navigation, and parked-row discovery.; review verdict: SHIP
 
 Operator smoke produced a complete Claude `hello` → assistant round, but the

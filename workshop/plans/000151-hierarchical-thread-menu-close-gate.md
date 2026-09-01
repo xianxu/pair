@@ -561,6 +561,11 @@ rounds:
           round: 23
       boundary: M3
       blocked: false
+    - "n": 24
+      timestamp: "2026-08-31T18:17:17-07:00"
+      agent: codex
+      blocked: false
+      protocol_error: no valid findings block
 ---
 
 # Gate ledger — pair#151 (boundary-review)
@@ -828,6 +833,10 @@ later rounds disposed of them. Generated — edit the gate, not this file.
 - BR-25 — addressed — README, atlas, plan, and executable root-Escape behavior remain aligned.
 - BR-26 — addressed — The Core concepts ledger includes parked-resume authority and mechanically derived Integration dependencies.
 - BR-27 — addressed — Every dependency-index path and byte now comes from one immutable M3 Git archive, and a post-snapshot declaration regression fails if mutable worktree indexing returns.
+
+## Round 24 — 2026-08-31T18:17:17-07:00 (codex) — passed
+
+**Protocol error:** no valid findings block — this round contributed no findings.
 
 ## Open findings
 
