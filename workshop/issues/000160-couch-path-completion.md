@@ -189,6 +189,11 @@ The approved spec was translated into the durable implementation plan at
 `workshop/plans/000160-couch-path-completion-plan.md`; no milestone tags are
 used because this is one atomic review boundary.
 
+The first `change-code` plan-quality round raised PQ-1
+(`executable-test-strategy`): the plan was over-specified with prose fixtures
+and diff procedure. Tasks 1–6 now name each tested function and its adversarial
+input/mechanical guard while leaving executable cases to test code.
+
 ## Revisions
 
 ### 2026-09-01 — close first spec-review ambiguities
@@ -209,3 +214,9 @@ regression contract.
 Replaced the placeholder plan row with four checkable delivery groups and added
 the detailed TDD sequence, core-concept inventory, operating envelope, and SDLC
 close handoff in the canonical plan artifact.
+
+### 2026-09-01 — address plan-quality PQ-1
+
+Compressed the entire implementation plan from enumerated fixture/diff prose to
+named-function test strategies, observable outcomes, architectural ownership,
+and exact RED/GREEN commands.
