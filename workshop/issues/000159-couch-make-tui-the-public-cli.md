@@ -140,9 +140,9 @@ total: 2.41
 ## Plan
 
 - [x] Write and approve a durable implementation plan.
-- [ ] Implement the public CLI projection and hidden protocol using TDD.
-- [ ] Update every Pair/Couch caller, README, and atlas surface.
-- [ ] Verify focused, installed-command, and bounded full-suite behavior.
+- [x] Implement the public CLI projection and hidden protocol using TDD.
+- [x] Update every Pair/Couch caller, README, and atlas surface.
+- [x] Verify focused, installed-command, and bounded full-suite behavior.
 
 ## Log
 
@@ -174,6 +174,14 @@ atlas, active #153 guidance, probes, and production Go; historical milestone
 records remain intact. The installed PTY smoke proves bare launch reaches the
 fake Pair process, while the piped form proves terminal refusal happens before
 policy or actor effects (`ARCH-PURPOSE`, `ARCH-DRY`, `ARCH-CONSTRAINTS`).
+
+Verification passed: the installed smoke passed five consecutive runs; the
+focused Couch/dispatcher/entrypoint/runtime-bundle/artifact suite passed; the
+race suite passed for `couchcmd`, `couchcore`, and `couchtty`; and
+`go test -p 20 ./... -count=1` passed repository-wide. The first full-suite run
+exposed a smoke-only scheduler deadline and cancellation leak under co-tenancy;
+the observer now exits with its context and uses a generous 15-second safety
+bound rather than treating scheduler throughput as product latency.
 
 ## Revisions
 

@@ -80,11 +80,16 @@ sleep 2
 		go func() {
 			ticker := time.NewTicker(10 * time.Millisecond)
 			defer ticker.Stop()
-			for range ticker.C {
-				calls, _ := os.ReadFile(callLog)
-				if bytes.Contains(calls, []byte("pair resume ")) {
-					pairCalled <- struct{}{}
+			for {
+				select {
+				case <-ctx.Done():
 					return
+				case <-ticker.C:
+					calls, _ := os.ReadFile(callLog)
+					if bytes.Contains(calls, []byte("pair resume ")) {
+						pairCalled <- struct{}{}
+						return
+					}
 				}
 			}
 		}()
@@ -92,7 +97,7 @@ sleep 2
 		timedOut := false
 		select {
 		case <-pairCalled:
-		case <-time.After(5 * time.Second):
+		case <-time.After(15 * time.Second):
 			timedOut = true
 		}
 		cancel()

@@ -172,7 +172,7 @@ go test -p 20 ./cmd/internal/couchcore ./cmd/internal/couchtty -run 'Test(Operat
 
 Expected: PASS.
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```bash
 git add cmd/internal/couchcore/ops.go cmd/internal/couchcore/ops_declarations_test.go cmd/internal/couchcore/ops_test.go cmd/internal/couchcore/operationdispatch_test.go cmd/internal/couchtty/menu.go cmd/internal/couchtty/menu_async_test.go cmd/internal/couchtty/console_menu_operation_test.go
@@ -214,7 +214,7 @@ go test -p 20 ./cmd/internal/couchcmd -run '^TestParseCLI' -count=1
 
 Expected: PASS.
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```bash
 git add cmd/internal/couchcmd/cli.go cmd/internal/couchcmd/cli_test.go
@@ -262,7 +262,7 @@ go test -p 20 ./cmd/internal/couchcmd -count=1
 
 Expected: PASS.
 
-- [ ] **Step 5: Run affected integration tests**
+- [x] **Step 5: Run affected integration tests**
 
 ```bash
 go test -p 20 ./cmd/internal/couchcore ./cmd/internal/couchtty ./cmd/internal/couchcmd -count=1
@@ -270,7 +270,7 @@ go test -p 20 ./cmd/internal/couchcore ./cmd/internal/couchtty ./cmd/internal/co
 
 Expected: PASS.
 
-- [ ] **Step 6: Commit**
+- [x] **Step 6: Commit**
 
 ```bash
 git add cmd/internal/couchcmd/run.go cmd/internal/couchcmd/run_test.go
@@ -335,7 +335,7 @@ go test -p 20 ./cmd/internal/couchcmd ./cmd/internal/couchcore ./cmd/internal/co
 
 Expected: PASS.
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```bash
 git add README.md atlas/couch.md workshop/projects/couch.md workshop/issues/000153-couch-managed-worktree-lifecycle.md probes/zellijpark/main.go cmd/internal/couchcmd/readme_test.go cmd/internal/couchcore/couch.go cmd/internal/couchcore/couch_test.go cmd/internal/couchcore/procops.go cmd/internal/couchcore/ptyrunner.go cmd/internal/couchcore/ptyrunner_test.go cmd/internal/couchcore/registry.go cmd/internal/couchcore/runner_fake.go cmd/internal/couchcore/store.go workshop/issues/000159-couch-make-tui-the-public-cli.md
@@ -362,7 +362,7 @@ Expected: PASS. The same test failed in Task 0 before implementation.
 
 Classify only the new production file `cmd/internal/couchcmd/cli.go` in `NonArtifactSources` or `SourceClassifications`, according to whether its literals intersect artifact vocabulary. Do not add `cli_test.go` or `main_test.go`: `productionSourceFile` deliberately excludes `_test.go` files. Preserve the existing single-source inventory rules.
 
-- [ ] **Step 3: Run bounded verification**
+- [x] **Step 3: Run bounded verification**
 
 ```bash
 go test -p 20 ./cmd/couch ./cmd/internal/couchcmd ./cmd/internal/couchcore ./cmd/internal/couchtty ./cmd/internal/dispatcher ./cmd/internal/entrypoint ./cmd/internal/runtimebundle ./cmd/internal/artifactpath -count=1
@@ -372,7 +372,7 @@ git diff --check
 
 Expected: all tests PASS, installed smoke observes the fake Pair marker, race suite passes, and diff check is silent. Never exceed 20 Go test workers.
 
-- [ ] **Step 4: Record evidence and stop at close**
+- [x] **Step 4: Record evidence and stop at close**
 
 Update issue Plan/Log with exact evidence, commit the smoke/inventory/evidence, then run `sdlc close --issue 159 --verified '<observed commands and results>'`. Close owns the fresh-context boundary review.
 
