@@ -1,5 +1,18 @@
 # Lessons
 
+## Durable identity locates a record; it does not prove semantic equality
+
+A lifecycle append retry reconciled any committed row with the same launch,
+artifact generation, and transcript offset. An invalid or different observation
+at that transport identity could suppress the intended append while reporting
+success, silently losing notification authority.
+
+**Rule.** Reconciliation may use stable identity to find candidates, but it must
+strictly decode, validate, and compare the complete attempted operation before
+reporting it committed. Enumerate every semantic field plus malformed framing
+and unknown fields in producer-path collision tests. Caught during #000161 M3
+close review round 7.
+
 ## Authority readers must enforce the producer's complete closed grammar
 
 A lifecycle journal reader rejected missing fields but accepted any non-empty

@@ -138,6 +138,39 @@ rounds:
           round: 6
       boundary: M3
       blocked: true
+    - "n": 7
+      timestamp: "2026-09-01T15:45:01-07:00"
+      agent: codex
+      dispose:
+        - id: BR-5
+          disposition: addressed
+          note: Journal IO now runs in a dedicated bounded worker, and a production master-pump regression proves PTY forwarding continues while injected journal IO blocks.
+          round: 7
+        - id: BR-6
+          disposition: addressed
+          note: The Core concepts table now distinguishes planned M4 entities from delivered entities and uses declarations present at their stated paths.
+          round: 7
+        - id: BR-9
+          disposition: addressed
+          note: Strict EOF framing and a shared closed record validator now reject invalid agent, source, outcome, identity, and timestamp fields, with reader-path regressions.
+          round: 7
+        - id: BR-7
+          disposition: addressed
+          note: The opt-in live conformance test invokes the new keyed Codex lifecycle-envelope validator.
+          round: 7
+        - id: BR-8
+          disposition: addressed
+          note: The pinned review range now contains the substantive M3 implementation and regression changes.
+          round: 7
+      findings:
+        - id: BR-10
+          severity: Critical
+          title: Journal reconciliation treats unauthorized identity collisions as committed lifecycle records
+          detail: lifecycleIdentityPresent permissively decodes rows and compares only launch, artifact generation, and offset, so a malformed or semantically different row can suppress the intended append and silently lose notification authority. This is the 4th finding in family lifecycle-contract-coverage; enforce strict complete-record equivalence across every reconciliation candidate and pin the enumerable malformed and semantic-mismatch classes with producer-path regressions.
+          family: lifecycle-contract-coverage
+          round: 7
+      boundary: M3
+      blocked: true
 ---
 
 # Gate ledger — 000161-couch-missed-codex-notifications#161 (boundary-review)
@@ -207,8 +240,21 @@ later rounds disposed of them. Generated — edit the gate, not this file.
 - **BR-9** [Critical] `lifecycle-contract-coverage` Lifecycle journal validation accepts malformed or unauthorized record semantics
   This is the 3rd finding in family lifecycle-contract-coverage. Advance decodes one JSON value without requiring EOF, and validates only that agent, source, and outcome are non-empty; a line containing a valid record followed by garbage, or a current-launch record for another agent/source with outcome completed, can reach the notification reducer despite the fail-closed contract. Do not patch only trailing JSON: state and enforce the complete accepted-record rule, including exact framing, agent, source, outcome, identity, and timestamp constraints, with production-path regressions that fail when each guard is removed.
 
+## Round 7 — 2026-09-01T15:45:01-07:00 (codex) — BLOCKED
+
+### Disposed
+
+- BR-5 — addressed — Journal IO now runs in a dedicated bounded worker, and a production master-pump regression proves PTY forwarding continues while injected journal IO blocks.
+- BR-6 — addressed — The Core concepts table now distinguishes planned M4 entities from delivered entities and uses declarations present at their stated paths.
+- BR-9 — addressed — Strict EOF framing and a shared closed record validator now reject invalid agent, source, outcome, identity, and timestamp fields, with reader-path regressions.
+- BR-7 — addressed — The opt-in live conformance test invokes the new keyed Codex lifecycle-envelope validator.
+- BR-8 — addressed — The pinned review range now contains the substantive M3 implementation and regression changes.
+
+### Raised
+
+- **BR-10** [Critical] `lifecycle-contract-coverage` Journal reconciliation treats unauthorized identity collisions as committed lifecycle records
+  lifecycleIdentityPresent permissively decodes rows and compares only launch, artifact generation, and offset, so a malformed or semantically different row can suppress the intended append and silently lose notification authority. This is the 4th finding in family lifecycle-contract-coverage; enforce strict complete-record equivalence across every reconciliation candidate and pin the enumerable malformed and semantic-mismatch classes with producer-path regressions.
+
 ## Open findings
 
-- **BR-5** [Critical] `lifecycle-contract-coverage` Journal IO blocks the PTY master loop instead of using the required bounded delivery seam
-- **BR-6** [Critical] `plan-entity-inventory` The Core concepts table does not describe entities that actually exist at M3
-- **BR-9** [Critical] `lifecycle-contract-coverage` Lifecycle journal validation accepts malformed or unauthorized record semantics
+- **BR-10** [Critical] `lifecycle-contract-coverage` Journal reconciliation treats unauthorized identity collisions as committed lifecycle records

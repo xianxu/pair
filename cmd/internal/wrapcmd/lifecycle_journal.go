@@ -1,9 +1,7 @@
 package wrapcmd
 
 import (
-	"bufio"
 	"bytes"
-	"encoding/json"
 	"errors"
 	"fmt"
 	"io"
@@ -115,17 +113,8 @@ func (t *LifecycleJournalTailer) Advance() ([]sessionwatch.LifecycleRecord, erro
 		if len(line)+1 > lifecycleJournalMaxRecord {
 			return nil, t.stop(errors.New("lifecycle journal record exceeds 64 KiB"))
 		}
-		var record sessionwatch.LifecycleRecord
-		decoder := json.NewDecoder(bufio.NewReader(bytes.NewReader(line)))
-		decoder.DisallowUnknownFields()
-		if err := decoder.Decode(&record); err != nil {
-			return nil, t.stop(fmt.Errorf("decode lifecycle journal: %w", err))
-		}
-		var trailing any
-		if err := decoder.Decode(&trailing); !errors.Is(err, io.EOF) {
-			return nil, t.stop(errors.New("lifecycle journal record has trailing data"))
-		}
-		if err := sessionwatch.ValidateLifecycleRecord(record); err != nil {
+		record, err := sessionwatch.DecodeLifecycleRecord(line)
+		if err != nil {
 			return nil, t.stop(fmt.Errorf("invalid lifecycle journal record: %w", err))
 		}
 		if record.LaunchOrdinal == t.launchOrdinal {

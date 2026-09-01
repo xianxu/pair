@@ -49,10 +49,30 @@ func ValidateLifecycleRecord(r LifecycleRecord) error {
 	return nil
 }
 
-func (r LifecycleRecord) sameIdentity(other LifecycleRecord) bool {
-	return r.LaunchOrdinal == other.LaunchOrdinal &&
-		r.ArtifactGeneration == other.ArtifactGeneration &&
-		r.TranscriptOffset == other.TranscriptOffset
+// DecodeLifecycleRecord accepts exactly one complete, validated JSON record.
+func DecodeLifecycleRecord(line []byte) (LifecycleRecord, error) {
+	var record LifecycleRecord
+	decoder := json.NewDecoder(bytes.NewReader(line))
+	decoder.DisallowUnknownFields()
+	if err := decoder.Decode(&record); err != nil {
+		return LifecycleRecord{}, fmt.Errorf("decode lifecycle record: %w", err)
+	}
+	var trailing any
+	if err := decoder.Decode(&trailing); !errors.Is(err, io.EOF) {
+		return LifecycleRecord{}, errors.New("lifecycle record has trailing data")
+	}
+	if err := ValidateLifecycleRecord(record); err != nil {
+		return LifecycleRecord{}, err
+	}
+	return record, nil
+}
+
+func (r LifecycleRecord) sameObservation(other LifecycleRecord) bool {
+	return r.Version == other.Version && r.Agent == other.Agent &&
+		r.LaunchOrdinal == other.LaunchOrdinal && r.ArtifactGeneration == other.ArtifactGeneration &&
+		r.Source == other.Source && r.Outcome == other.Outcome && r.TurnID == other.TurnID &&
+		r.Message == other.Message && r.TranscriptPath == other.TranscriptPath &&
+		r.TranscriptOffset == other.TranscriptOffset && r.EventTimestamp.Equal(other.EventTimestamp)
 }
 
 // AppendLifecycleRecord appends one newline-committed record under the shared
@@ -170,8 +190,8 @@ func lifecycleIdentityPresent(raw []byte, want LifecycleRecord) bool {
 		return false
 	}
 	for _, line := range bytes.Split(raw[:len(raw)-1], []byte{'\n'}) {
-		var got LifecycleRecord
-		if json.Unmarshal(line, &got) == nil && got.sameIdentity(want) {
+		got, err := DecodeLifecycleRecord(line)
+		if err == nil && got.sameObservation(want) {
 			return true
 		}
 	}

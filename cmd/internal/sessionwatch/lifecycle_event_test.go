@@ -2,6 +2,7 @@ package sessionwatch
 
 import (
 	"bytes"
+	"encoding/json"
 	"errors"
 	"io"
 	"os"
@@ -83,6 +84,53 @@ func TestAppendLifecycleRecordRetrySeparatesUncommittedPartialRow(t *testing.T) 
 	lines := bytes.Split(bytes.TrimSuffix(runtime.data, []byte{'\n'}), []byte{'\n'})
 	if len(lines) != 2 || !bytes.Contains(lines[1], []byte(`"transcript_record_offset":42`)) {
 		t.Fatalf("retry did not establish a committed record boundary: %q", runtime.data)
+	}
+}
+
+func TestAppendLifecycleRecordDoesNotReconcileDifferentOrInvalidObservation(t *testing.T) {
+	want := testLifecycleRecord()
+	encodedWant, err := json.Marshal(want)
+	if err != nil {
+		t.Fatal(err)
+	}
+	tests := map[string]func(LifecycleRecord) []byte{
+		"trailing garbage": func(r LifecycleRecord) []byte {
+			raw, _ := json.Marshal(r)
+			return append(raw, []byte(" garbage")...)
+		},
+		"unknown field": func(r LifecycleRecord) []byte {
+			raw, _ := json.Marshal(r)
+			return append(raw[:len(raw)-1], []byte(`,"extra":true}`)...)
+		},
+		"wrong version": func(r LifecycleRecord) []byte { r.Version = 2; raw, _ := json.Marshal(r); return raw },
+		"wrong agent":   func(r LifecycleRecord) []byte { r.Agent = "claude"; raw, _ := json.Marshal(r); return raw },
+		"wrong source":  func(r LifecycleRecord) []byte { r.Source = "native"; raw, _ := json.Marshal(r); return raw },
+		"other outcome": func(r LifecycleRecord) []byte { r.Outcome = "completed"; raw, _ := json.Marshal(r); return raw },
+		"other turn":    func(r LifecycleRecord) []byte { r.TurnID = "turn-2"; raw, _ := json.Marshal(r); return raw },
+		"other message": func(r LifecycleRecord) []byte { r.Message = "different"; raw, _ := json.Marshal(r); return raw },
+		"other path": func(r LifecycleRecord) []byte {
+			r.TranscriptPath = "/other.jsonl"
+			raw, _ := json.Marshal(r)
+			return raw
+		},
+		"other timestamp": func(r LifecycleRecord) []byte {
+			r.EventTimestamp = r.EventTimestamp.Add(time.Second)
+			raw, _ := json.Marshal(r)
+			return raw
+		},
+	}
+	for name, existing := range tests {
+		t.Run(name, func(t *testing.T) {
+			runtime := newLifecycleMemoryRuntime()
+			runtime.data = append(existing(want), '\n')
+			if err := AppendLifecycleRecord(runtime, "/journal", want); err != nil {
+				t.Fatal(err)
+			}
+			lines := bytes.Split(bytes.TrimSuffix(runtime.data, []byte{'\n'}), []byte{'\n'})
+			if len(lines) != 2 || !bytes.Equal(lines[1], encodedWant) {
+				t.Fatalf("journal=%q, want distinct attempted record appended", runtime.data)
+			}
+		})
 	}
 }
 

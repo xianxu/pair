@@ -301,3 +301,111 @@ Add a `## Revisions` entry that:
 - Requires producer and consumer to share that validation rule.
 - Replaces the BR-5 helper-only test with a production master-loop reachability regression.
 - Changes `terminalModel` to `planned M4`, Couch projection to `planned/verified M4`, and consistently names the future declaration `RecognizeCodexWorking`.
+
+---
+
+## Re-review — 2026-09-01T15:45:01-07:00 (REWORK)
+
+| field | value |
+|-------|-------|
+| issue | 161 — Couch misses Codex completion notifications |
+| repo | 000161-couch-missed-codex-notifications |
+| issue file | workshop/issues/000161-couch-missed-codex-notifications.md |
+| boundary | milestone M3 |
+| milestone | M3 |
+| window | dc43a9e8e67f940eee9dc6daeb789bcdf2b16392..6ff1a8aef21ba01e1fb9f5ea5cf2c2d33623b711 |
+| command | sdlc milestone-close --issue 161 --milestone M3 |
+| reviewer | codex |
+| timestamp | 2026-09-01T15:45:01-07:00 |
+| verdict | REWORK |
+
+## Review
+
+```verdict
+verdict: REWORK
+confidence: high
+```
+
+M3 now correctly moves journal IO off the PTY loop, closes the record grammar, and repairs the Core concepts inventory. Focused tests pass. One blocking fail-closed gap remains: journal reconciliation accepts any JSON row sharing three identity fields as proof that the intended record committed, even when that row is malformed or semantically different. This can silently suppress the authoritative lifecycle record and lose a completion notification.
+
+## Strengths
+
+- Journal IO and decoding now run in a dedicated worker, while reducer mutation remains on the PTY owner loop ([lifecycle_journal.go:145](/Users/xianxu/workspace/worktree/pair/000161-couch-missed-codex-notifications/cmd/internal/wrapcmd/lifecycle_journal.go:145), [wrap.go:2616](/Users/xianxu/workspace/worktree/pair/000161-couch-missed-codex-notifications/cmd/internal/wrapcmd/wrap.go:2616)).
+- The production-path regression demonstrates PTY forwarding while injected journal IO is blocked ([lifecycle_journal_test.go:279](/Users/xianxu/workspace/worktree/pair/000161-couch-missed-codex-notifications/cmd/internal/wrapcmd/lifecycle_journal_test.go:279)).
+- Reader framing is strict: unknown fields, trailing JSON, oversized records, replacement, and truncation fail closed.
+- `ValidateLifecycleRecord` now single-sources the accepted agent/source/outcome/identity grammar for producer and consumer ([lifecycle_event.go:35](/Users/xianxu/workspace/worktree/pair/000161-couch-missed-codex-notifications/cmd/internal/sessionwatch/lifecycle_event.go:35)).
+- Atlas changes describe the new lifecycle journal and session-identity surface; no new user-typed README surface was introduced.
+
+## Critical findings
+
+- [lifecycle_event.go:168](/Users/xianxu/workspace/worktree/pair/000161-couch-missed-codex-notifications/cmd/internal/sessionwatch/lifecycle_event.go:168) — `lifecycleIdentityPresent` uses permissive `json.Unmarshal` and compares only launch ordinal, artifact generation, and transcript offset. An existing row with those fields but an unauthorized agent/source, invalid outcome, different turn, or different event semantics makes `AppendLifecycleRecord` return success through reconciliation without committing the intended record. If the tailer opened after that row, it will never inspect it, so the notification is silently lost.
+
+  **This is the 4th finding in family `lifecycle-contract-coverage`.** Earlier rounds fixed instances. Do not patch only one malformed-row case: state and enforce the class rule that durability reconciliation may succeed only when a complete, strictly decoded, validated committed row represents the exact intended lifecycle observation. Add regressions enumerating malformed framing, unknown fields, invalid authority fields, and same transport identity with differing semantic fields; each must fail without the fix. (`ARCH-PURPOSE`)
+
+## Important findings
+
+None.
+
+## Minor findings
+
+None.
+
+## Test coverage notes
+
+Focused tests passed:
+
+```text
+go test ./cmd/internal/sessioninventory ./cmd/internal/sessionwatch ./cmd/internal/wrapcmd ./cmd/internal/launcher ./cmd/internal/artifactpath -count=1
+```
+
+`git diff --check` passed.
+
+`go test ./... -count=1` exercised the remaining packages successfully but ended `FAIL` because the checkout lacks generated `cmd/internal/runtimebundle/assets/runtime/files`, causing setup failures in packages embedding that path. This appears unrelated to the reviewed range, but a fully prepared close environment should rerun the suite.
+
+The new reconciliation defect has no regression test. Existing indeterminate-write tests cover exact valid rows only.
+
+## Architectural notes
+
+- `ARCH-DRY`: Pass. Record validation and lifecycle reduction have shared authorities rather than parallel implementations.
+- `ARCH-PURE`: Pass. Reducer mutation remains single-threaded and journal IO is isolated behind an injected advancer.
+- `ARCH-PURPOSE`: Flagged. Reconciliation does not enforce the complete fail-closed lifecycle-record rule.
+- `ARCH-MOCK`: Pass. Stateful runtime and blocked-IO fakes exercise the production seams; live Codex envelope conformance is wired into the opt-in test.
+- `ARCH-CONSTRAINTS`: Pass. Reads are capped at 64 KiB plus a sentinel, delivery uses bounded backpressure, and blocking filesystem work is outside the PTY loop.
+
+## Plan revision recommendations
+
+Add under `## Revisions`:
+
+> Durability reconciliation must strictly decode and validate every candidate committed row and may report the attempted observation committed only when its complete semantic content matches the attempted record. Enumerate malformed framing, unknown fields, unauthorized authority fields, and same stable transport identity with differing lifecycle semantics in producer-path regressions.
+
+```findings
+dispose:
+  - id: BR-5
+    disposition: addressed
+    note: |
+      Journal IO now runs in a dedicated bounded worker, and a production master-pump regression proves PTY forwarding continues while injected journal IO blocks.
+  - id: BR-6
+    disposition: addressed
+    note: |
+      The Core concepts table now distinguishes planned M4 entities from delivered entities and uses declarations present at their stated paths.
+  - id: BR-9
+    disposition: addressed
+    note: |
+      Strict EOF framing and a shared closed record validator now reject invalid agent, source, outcome, identity, and timestamp fields, with reader-path regressions.
+  - id: BR-7
+    disposition: addressed
+    note: |
+      The opt-in live conformance test invokes the new keyed Codex lifecycle-envelope validator.
+  - id: BR-8
+    disposition: addressed
+    note: |
+      The pinned review range now contains the substantive M3 implementation and regression changes.
+findings:
+  - id: new
+    severity: Critical
+    family: lifecycle-contract-coverage
+    title: |
+      Journal reconciliation treats unauthorized identity collisions as committed lifecycle records
+    detail: |
+      lifecycleIdentityPresent permissively decodes rows and compares only launch, artifact generation, and offset, so a malformed or semantically different row can suppress the intended append and silently lose notification authority. This is the 4th finding in family lifecycle-contract-coverage; enforce strict complete-record equivalence across every reconciliation candidate and pin the enumerable malformed and semantic-mismatch classes with producer-path regressions.
+```

@@ -345,3 +345,13 @@ planned M4 surfaces from delivered M3 declarations, and single-source a closed
 record grammar shared by journal writer and reader. A committed record is one
 complete JSON value for the current Codex transcript authority with a supported
 outcome, stable identity fields, non-empty turn ID, and native timestamp.
+
+### 2026-09-01 — make durability reconciliation semantic
+
+The next M3 review found that append reconciliation treated the stable transport
+identity alone as proof that the attempted observation was committed. Reuse the
+strict journal decoder for reconciliation and accept a candidate only when its
+complete semantic content equals the attempted record. Producer-path regressions
+enumerate malformed framing, unknown fields, unauthorized authority values, and
+same-identity differences in version, outcome, turn, message, transcript path,
+and event timestamp.
