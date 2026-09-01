@@ -119,7 +119,7 @@ bare invocation (`ARCH-MOCK`, `ARCH-CONSTRAINTS`).
 
 ## Plan
 
-- [ ] Write and approve a durable implementation plan.
+- [x] Write and approve a durable implementation plan.
 - [ ] Implement the public CLI projection and hidden protocol using TDD.
 - [ ] Update every Pair/Couch caller, README, and atlas surface.
 - [ ] Verify focused, installed-command, and bounded full-suite behavior.
@@ -133,6 +133,13 @@ The operator selected a TUI-first surface: `couch [path]`, with `--list` and
 separate `couch-internal` executable. Necessary cross-process operations live
 behind an undocumented `--internal` flag; all user lifecycle actions remain in
 the TUI.
+
+The durable implementation plan passed fresh-context review after five rounds.
+The final plan puts the installed bare-command PTY smoke under RED before code,
+classifies every typed operation in the registry, migrates TUI start to its
+accepted token only, makes terminal/process teardown explicit and bounded, and
+enforces a repository-wide current-source shadow sweep for obsolete argv
+(`ARCH-PURPOSE`, `ARCH-CONSTRAINTS`).
 
 ## Revisions
 
