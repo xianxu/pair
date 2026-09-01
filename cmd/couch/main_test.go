@@ -3,6 +3,7 @@ package main
 import (
 	"bytes"
 	"context"
+	"encoding/hex"
 	"fmt"
 	"os"
 	"os/exec"
@@ -117,9 +118,10 @@ sleep 2
 		if err != nil {
 			t.Fatal(err)
 		}
-		if !bytes.Contains(calls, []byte("sdlc fleet policy --path "+root+" --json")) || !bytes.Contains(calls, []byte("pair ")) {
+		if !bytes.Contains(calls, []byte("sdlc fleet policy --path "+root+" --json")) {
 			t.Fatalf("installed calls = %q", calls)
 		}
+		assertExactPairResumeCall(t, calls)
 	})
 
 	t.Run("pipe refuses before effects", func(t *testing.T) {
@@ -135,6 +137,29 @@ sleep 2
 			t.Fatalf("non-terminal launch performed effects: before=%q after=%q", before, after)
 		}
 	})
+}
+
+func assertExactPairResumeCall(t *testing.T, calls []byte) {
+	t.Helper()
+	var pairCalls [][]string
+	for _, line := range strings.Split(strings.TrimSpace(string(calls)), "\n") {
+		fields := strings.Fields(line)
+		if len(fields) > 0 && fields[0] == "pair" {
+			pairCalls = append(pairCalls, fields)
+		}
+	}
+	if len(pairCalls) != 1 {
+		t.Fatalf("pair calls = %q, want exactly one", pairCalls)
+	}
+	call := pairCalls[0]
+	if len(call) != 4 {
+		t.Fatalf("pair call = %q, want exactly pair resume <generated-couch-tag> --layout2", call)
+	}
+	tagHex := strings.TrimPrefix(call[2], "couch-")
+	_, tagErr := hex.DecodeString(tagHex)
+	if call[1] != "resume" || !strings.HasPrefix(call[2], "couch-") || len(tagHex) != 16 || tagErr != nil || call[3] != "--layout2" {
+		t.Fatalf("pair call = %q, want exactly pair resume <generated-couch-tag> --layout2", call)
+	}
 }
 
 func waitInstalled(t *testing.T, cmd *exec.Cmd, cancel context.CancelFunc, waitResult <-chan error) {

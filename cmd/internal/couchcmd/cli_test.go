@@ -39,6 +39,7 @@ func TestParseCLIRejectsMalformedOrUnpublishedForms(t *testing.T) {
 	for _, args := range [][]string{
 		{""}, {"a", "b"}, {"--"}, {"--", ""}, {"--", "a", "b"},
 		{"--list", "x"}, {"--show"}, {"--show", ""}, {"--show", "x", "y"},
+		{"--show", "--list"}, {"--show", "--help"}, {"--show", "--unknown"},
 		{"--help", "x"}, {"-h", "x"}, {"--unknown"}, {"--agent=claude"},
 		{"--internal"}, {"--internal=publish-description"}, {"--internal", ""},
 		{"--internal", "list"}, {"--internal", "start"}, {"--internal", "missing"},

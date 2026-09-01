@@ -84,3 +84,96 @@ findings:
     detail: |
       TestNoCurrentSourcesAdvertiseObsoleteCouchArgv skips all _test.go files, while runRT reconstructs the removed start argv schema and current tests still express obsolete command contracts. Migrate these tests to a typed private-operation helper and sweep test sources with narrow rejection-fixture allowlists.
 ```
+
+---
+
+## Re-review — 2026-09-01T11:20:57-07:00 (REWORK)
+
+| field | value |
+|-------|-------|
+| issue | 159 — couch: make TUI the public CLI |
+| repo | pair |
+| issue file | workshop/issues/000159-couch-make-tui-the-public-cli.md |
+| boundary | whole-issue close |
+| milestone | — |
+| window | 0088ac064c29e835a46b613712f86980ad072f1d..f9d61ae94a421146a5a4e58643d9e080d4e88917 |
+| command | sdlc close --issue 159 |
+| reviewer | codex |
+| timestamp | 2026-09-01T11:20:57-07:00 |
+| verdict | REWORK |
+
+## Review
+
+```verdict
+verdict: REWORK
+confidence: high
+```
+
+The core TUI-first projection is cleanly structured, documentation is updated, both prior findings are addressed, and the full test suite passes. However, the parser accepts flag-shaped values after `--show`, contradicting the Spec’s closed grammar. The installed smoke also does not enforce the exact Pair invocation promised by the plan.
+
+### 1. Strengths
+
+- `ParseCLI` is a small, deterministic IO-free parser, while runtime initialization remains behind classification and terminal validation ([cli.go](/Users/xianxu/workspace/pair/cmd/internal/couchcmd/cli.go:31), [run.go](/Users/xianxu/workspace/pair/cmd/internal/couchcmd/run.go:149)).
+- Operation presentation is fail-closed through a non-authorizing zero value and exhaustive registry expectations ([ops.go](/Users/xianxu/workspace/pair/cmd/internal/couchcore/ops.go:78)).
+- Non-terminal launch refusal occurs before namespace, policy, store, lease, or actor effects ([run.go](/Users/xianxu/workspace/pair/cmd/internal/couchcmd/run.go:159)).
+- README and atlas both reflect the new TUI-first public surface.
+- The obsolete-argv audit now scans all Go sources under `cmd`, including tests, with line-local negative-fixture allowances ([readme_test.go](/Users/xianxu/workspace/pair/cmd/internal/couchcmd/readme_test.go:190)).
+
+### 2. Critical findings
+
+- [cli.go](/Users/xianxu/workspace/pair/cmd/internal/couchcmd/cli.go:49): `--show` accepts any non-empty second token, including `--list`, `--help`, and other flag-shaped values. The Spec says public flag forms cannot be combined with another flag. Reject flag-shaped references here and add regressions for `--show --list`, `--show --help`, and `--show --unknown`. This is an `ARCH-PURPOSE` contract violation.
+
+### 3. Important findings
+
+- [main_test.go](/Users/xianxu/workspace/pair/cmd/couch/main_test.go:94): the installed smoke waits only for the prefix `pair resume ` and later asserts merely that some `pair ` call exists. It would pass if the tag or required `--layout2` argument disappeared. The plan and its revision promise an exact process-boundary assertion. Parse the recorded call and require exactly `pair resume <generated-tag> --layout2`.
+
+### 4. Minor findings
+
+None.
+
+### 5. Test coverage notes
+
+- Focused package suite passed.
+- `go test -p 20 ./... -count=1` passed.
+- `git diff --check` passed.
+- Parser tests cover most valid and malformed forms but omit flag-shaped `--show` references.
+- The installed PTY smoke covers launch, cancellation/reaping, and pre-effect pipe refusal, but its child-argv assertion is too weak.
+
+### 6. Architectural notes for upcoming work
+
+- `ARCH-DRY`: Pass. Registry presentation is the single authority for operation exposure.
+- `ARCH-PURE`: Pass. Classification remains pure and runtime/terminal work stays in the shell.
+- `ARCH-PURPOSE`: Flagged. The public grammar is not fully enforced for `--show`.
+- `ARCH-MOCK`: Pass with a test-strength caveat. Production and test flows share the process seam and stateful call log, but exact child argv must be asserted.
+- `ARCH-CONSTRAINTS`: Pass. Parsing is bounded and linear; terminal refusal precedes expensive effects; subprocess teardown is bounded.
+
+### 7. Plan revision recommendations
+
+None. The plan already states the intended exact grammar and installed-call assertion; implementation and tests need to conform to it.
+
+```findings
+dispose:
+  - id: BR-1
+    disposition: addressed
+    note: |
+      The Core concepts table, explanatory prose, and delivered symbol now consistently name package-private cliInvocation.
+  - id: BR-2
+    disposition: addressed
+    note: |
+      Command tests now use typed-operation or explicit launch helpers, and the obsolete-argv audit scans all Go tests with line-local rejection-fixture allowances.
+findings:
+  - id: new
+    severity: Critical
+    family: closed-public-argv-grammar
+    title: |
+      --show accepts another public flag as its reference
+    detail: |
+      ParseCLI accepts any non-empty second token after --show, so forms such as --show --list and --show --help succeed despite the Spec requiring every public flag form to reject combination with another flag. Reject flag-shaped references and pin the full public-flag class with parser tests. This violates ARCH-PURPOSE.
+  - id: new
+    severity: Important
+    family: integration-smoke-observable-contract
+    title: |
+      Installed smoke does not enforce the promised exact Pair invocation
+    detail: |
+      The smoke recognizes only the pair resume prefix and finally checks only for pair followed by a space, so it stays green if the generated tag or required --layout2 argument disappears. Assert the exact recorded pair resume <tag> --layout2 call at the process seam.
+```

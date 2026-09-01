@@ -47,7 +47,7 @@ func ParseCLI(args []string, operations []couchcore.Operation) (cliInvocation, e
 		}
 		return cliInvocation{kind: cliList}, nil
 	case "--show":
-		if len(args) != 2 || args[1] == "" {
+		if len(args) != 2 || args[1] == "" || strings.HasPrefix(args[1], "-") {
 			return invalid("--show requires exactly one non-empty reference")
 		}
 		return cliInvocation{kind: cliShow, ref: args[1]}, nil

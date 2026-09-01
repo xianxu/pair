@@ -190,6 +190,13 @@ values or use an explicit launch helper, and the current-source audit now scans
 all Go tests with line-local allowances only for negative obsolete-argv
 fixtures (`ARCH-PURPOSE`).
 
+Close review round 2 confirmed those fixes and found two remaining contract
+classes. `--show` now rejects every flag-shaped reference, with public flag
+cross-class regressions. The installed PTY smoke parses the call log and
+requires exactly one `pair resume <16-hex Couch tag> --layout2` invocation, so
+loss of the identity or layout contract cannot pass as mere process reachability
+(`ARCH-PURPOSE`, `ARCH-MOCK`).
+
 ## Revisions
 
 ### 2026-09-01T09:18:00-07:00 — close the argv and operation projections

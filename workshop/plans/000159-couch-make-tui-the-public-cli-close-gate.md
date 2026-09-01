@@ -20,6 +20,32 @@ rounds:
           family: current-source-shadow-sweep
           round: 1
       blocked: true
+    - "n": 2
+      timestamp: "2026-09-01T11:20:57-07:00"
+      agent: codex
+      dispose:
+        - id: BR-1
+          disposition: addressed
+          note: The Core concepts table, explanatory prose, and delivered symbol now consistently name package-private cliInvocation.
+          round: 2
+        - id: BR-2
+          disposition: addressed
+          note: Command tests now use typed-operation or explicit launch helpers, and the obsolete-argv audit scans all Go tests with line-local rejection-fixture allowances.
+          round: 2
+      findings:
+        - id: BR-3
+          severity: Critical
+          title: --show accepts another public flag as its reference
+          detail: ParseCLI accepts any non-empty second token after --show, so forms such as --show --list and --show --help succeed despite the Spec requiring every public flag form to reject combination with another flag. Reject flag-shaped references and pin the full public-flag class with parser tests. This violates ARCH-PURPOSE.
+          family: closed-public-argv-grammar
+          round: 2
+        - id: BR-4
+          severity: Important
+          title: Installed smoke does not enforce the promised exact Pair invocation
+          detail: The smoke recognizes only the pair resume prefix and finally checks only for pair followed by a space, so it stays green if the generated tag or required --layout2 argument disappears. Assert the exact recorded pair resume <tag> --layout2 call at the process seam.
+          family: integration-smoke-observable-contract
+          round: 2
+      blocked: true
 ---
 
 # Gate ledger — pair#159 (boundary-review)
@@ -36,7 +62,21 @@ later rounds disposed of them. Generated — edit the gate, not this file.
 - **BR-2** [Important] `current-source-shadow-sweep` The obsolete-argv sweep excludes tests that retain a legacy command interpreter
   TestNoCurrentSourcesAdvertiseObsoleteCouchArgv skips all _test.go files, while runRT reconstructs the removed start argv schema and current tests still express obsolete command contracts. Migrate these tests to a typed private-operation helper and sweep test sources with narrow rejection-fixture allowlists.
 
+## Round 2 — 2026-09-01T11:20:57-07:00 (codex) — BLOCKED
+
+### Disposed
+
+- BR-1 — addressed — The Core concepts table, explanatory prose, and delivered symbol now consistently name package-private cliInvocation.
+- BR-2 — addressed — Command tests now use typed-operation or explicit launch helpers, and the obsolete-argv audit scans all Go tests with line-local rejection-fixture allowances.
+
+### Raised
+
+- **BR-3** [Critical] `closed-public-argv-grammar` --show accepts another public flag as its reference
+  ParseCLI accepts any non-empty second token after --show, so forms such as --show --list and --show --help succeed despite the Spec requiring every public flag form to reject combination with another flag. Reject flag-shaped references and pin the full public-flag class with parser tests. This violates ARCH-PURPOSE.
+- **BR-4** [Important] `integration-smoke-observable-contract` Installed smoke does not enforce the promised exact Pair invocation
+  The smoke recognizes only the pair resume prefix and finally checks only for pair followed by a space, so it stays green if the generated tag or required --layout2 argument disappears. Assert the exact recorded pair resume <tag> --layout2 call at the process seam.
+
 ## Open findings
 
-- **BR-1** [Critical] `plan-code-entity-traceability` Core concepts names CLIInvocation, but only cliInvocation exists
-- **BR-2** [Important] `current-source-shadow-sweep` The obsolete-argv sweep excludes tests that retain a legacy command interpreter
+- **BR-3** [Critical] `closed-public-argv-grammar` --show accepts another public flag as its reference
+- **BR-4** [Important] `integration-smoke-observable-contract` Installed smoke does not enforce the promised exact Pair invocation

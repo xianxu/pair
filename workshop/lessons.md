@@ -1,5 +1,18 @@
 # Lessons
 
+## Closed command grammars need cross-class and exact-boundary assertions
+
+A closed CLI parser validated the arity of `--show <ref>` but accepted another
+public flag as `<ref>`. Its installed smoke proved that Pair launched, yet only
+matched the `pair resume` prefix and would not catch loss of the tag or required
+layout argument.
+
+**Rule.** For a closed argv grammar, test the cross-product between each
+value-bearing position and every reserved token class, not only missing/extra
+arity. At a subprocess boundary, assert the complete normalized argv vector and
+validate generated fields structurally; a command prefix proves reachability,
+not the integration contract. Caught during #000159 close review round 2.
+
 ## Public-surface migrations include test vocabulary and helpers
 
 A CLI migration removed lifecycle argv in production while command tests kept a
