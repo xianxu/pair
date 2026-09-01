@@ -153,6 +153,9 @@ total: 6.93
   Codex lifecycle start/completion order; the broader pre-existing inventory
   check still reports `parent_conflict`, `parent_missing`, and
   `schema_near_miss` (`ARCH-PURE`, `ARCH-MOCK`, `ARCH-PURPOSE`).
+- M4 verification: after generating the ignored runtime bundle from tracked
+  inputs, `go test ./... -count=1` and `git diff --check` pass from the clean
+  `f6117aac` implementation commit.
 - 2026-09-01: closed M3 — RED producer reconciliation collision matrix across malformed framing, unknown fields, unauthorized authority values, and all same-identity semantic differences; GREEN strict shared decode plus complete observation equality; five-package focused tests and git diff --check.; review verdict: SHIP
 - M3 implementation: captured live Codex envelopes confirmed keyed
   `task_started`, `task_complete`, and `turn_aborted`. RED/GREEN coverage pins

@@ -303,10 +303,10 @@ fixtures/parser support before release—never accepted by broad fallback parsin
   `git diff --check`; expect PASS.
 - [x] Run the extended opt-in `TestLiveNativeSessionShapeConformance` against the
   installed Codex and record version/results in the issue Log.
-- [ ] Commit `couch: #161 M4 recover and display stopped agent work`, tick/log
+- [x] Commit `couch: #161 M4 recover and display stopped agent work`, tick/log
   M4 with fixture versions, update atlas, and run
   `sdlc milestone-close --issue 161 --milestone M4`.
-- [ ] Re-run `go test ./... -count=1 && git diff --check` from a clean worktree.
+- [x] Re-run `go test ./... -count=1 && git diff --check` from a clean worktree.
 - [ ] Close with `sdlc close --issue 161 --verified '<focused lifecycle, watcher concurrency, real TTY fixture, Couch projection, and full Go test evidence>'`; omit guessed actuals so the gate measures them.
 
 ## Revisions
