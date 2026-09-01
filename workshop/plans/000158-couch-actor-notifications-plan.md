@@ -111,7 +111,11 @@
 
 - [ ] **Step 1: Write codec tests that pin exact bytes and all sanitization boundaries**
 
-  Table-test BEL and ST input recognition, invalid UTF-8 replacement, every C0/DEL/C1 code point, embedded `ESC ]` text after control stripping, an exact 4096-byte result, a multibyte rune crossing the limit, wrong OSC family/title, malformed termination, and encode/decode round trips. Assert exact canonical bytes, not semantic equivalence.
+  | Function | Adversarial strategy and mechanical guard |
+  |----------|-------------------------------------------|
+  | `notifyosc.Sanitize` | Fuzz invalid UTF-8, control runes, and boundary-sized multibyte text; assert valid UTF-8, no C0/DEL/C1, whole-rune output, and `len <= MaxMessageBytes`. |
+  | `notifyosc.Encode` | Fuzz arbitrary messages; assert one exact canonical envelope whose decoded message equals `Sanitize(input)`. |
+  | `notifyosc.DecodeOSC` | Fuzz arbitrary terminal bytes seeded with BEL/ST canonical and near-canonical forms; accept only one complete exact Pair envelope and never panic. |
 
 - [ ] **Step 2: Run the codec test and verify the package is absent**
 
@@ -143,7 +147,10 @@
 
 - [ ] **Step 5: Write failing stateful-runtime tests for `notifycmd.Run` and dispatcher routing**
 
-  Cover canonical bytes written once, missing message exit 2, both legacy `--osc` spellings accepted but normalized to 777, invalid `--osc` exit 2, and tolerant exit 0 with a warning for missing tag/path sidecar/stale TTY/write failure. The fake must model sidecar contents and writes, not assert function-call choreography.
+  | Function | Adversarial strategy and mechanical guard |
+  |----------|-------------------------------------------|
+  | `notifycmd.Run` | Drive malformed CLI/environment and every stateful sidecar/TTY state through one fake runtime; assert tolerant hook exits and exactly one canonical write only from a valid state. |
+  | `dispatcher.Dispatch` | Resolve legacy option forms and invalid commands through the real dispatcher; assert both supported OSC options converge on `notifycmd.Run`. |
 
 - [ ] **Step 6: Run the command tests and verify the route is missing**
 
@@ -153,7 +160,7 @@
 
 - [ ] **Step 7: Implement `pair notify` and reduce the shell helper to delegation**
 
-  Add `notify` as a buffered dispatcher family. Keep filesystem/open behavior behind a `notifycmd.Runtime` with a production implementation; use `unix.Open(..., O_WRONLY|O_NONBLOCK, 0)` and the shared encoder. Keep `pair-notify` in `entrypoint.nonBusybox`: it remains a hook-facing shell shim. In that shim, resolve `BASH_SOURCE[0]` through symlinks exactly as `bin/pair-dev` does, derive its real sibling directory, and `exec "$here/pair" notify "$@"`. This works in source, installed, and extracted-runtime layouts without depending on the caller's `PATH` or requiring `PAIR_HOME`.
+  Implement the named codec and `notifycmd.Runtime` contracts above. Route `pair notify` through the buffered dispatcher and keep `pair-notify` as a symlink-safe hook shim delegating to its sibling `pair`; all encoding remains in Go.
 
 - [ ] **Step 8: Run focused command tests and shell syntax checks**
 
@@ -182,7 +189,10 @@
 
 - [ ] **Step 1: Write failing arbitrary-split tests for the native notification rewriter**
 
-  For every byte split of representative OSC 9 and OSC 777 sequences, assert: recognized actionable native OSC is absent from passthrough and yields one sanitized notification; unknown/non-actionable/malformed OSC is byte-identical passthrough; adjacent text preserves order; BEL and ST terminators agree; incomplete and overlong frames remain bounded and recover only at their real terminator. Include a non-actionable OSC followed by an actionable one and vice versa. Pin extraction: OSC 9 uses its entire body after `9;`; OSC 777 applies `strings.SplitN(body, ";", 3)`, requires fields `[0] == "notify"`, treats `[1]` as title and the entire `[2]` remainder (including embedded semicolons) as body, prefers non-empty body, falls back to non-empty title, then to `agent attention` when both sanitize empty. Fewer than three fields and OSC 9 `4;...` are non-actionable passthrough.
+  | Function | Adversarial strategy and mechanical guard |
+  |----------|-------------------------------------------|
+  | `nativeNotification` | Fuzz OSC family/body fields seeded with OSC 9/777 and embedded delimiters; apply the documented `SplitN(..., 3)` extraction and reject non-actionable forms. |
+  | `NotificationRewriter.Feed` | Fuzz arbitrary chunk partitions and malformed/overlong streams; recognized events normalize once, all other bytes preserve order, and pending memory stays bounded through the real terminator. |
 
 - [ ] **Step 2: Run the rewriter tests and verify they fail**
 
@@ -192,7 +202,7 @@
 
 - [ ] **Step 3: Implement the minimal incremental rewriter**
 
-  Give it one bounded pending buffer and explicit OSC skip state. Replace the boolean-only classifier with one `nativeNotification(ps, body) (message string, actionable bool)` decision implementing the extraction table above, so classification and extraction cannot disagree, and return ordered results:
+  Implement one bounded incremental rewriter using the following contract; `nativeNotification` is the sole classification/extraction decision:
 
   ```go
   type RewriteResult struct {
@@ -212,7 +222,10 @@
 
 - [ ] **Step 5: Write failing proxy regressions for singular emission**
 
-  Assert native actionable OSC reaches the inner stdout zero times and the outer sink once as canonical 777; unknown OSC reaches inner stdout unchanged and outer sink zero times; marker/idle/BEL fallback emissions use the same encoder; overlay recognition still sees raw native bytes; rate limiting remains one decision at `emitOuter`.
+  | Function | Adversarial strategy and mechanical guard |
+  |----------|-------------------------------------------|
+  | `proxy.handleAgentOutput` | Feed mixed actionable/unknown OSC while observing inner and outer sinks; assert one output owner per byte and raw overlay evidence remains available. |
+  | `proxy.emitOuter` | Drive native/marker/idle/fallback sources through the shared sink and rate limiter; assert every accepted source writes `notifyosc.Encode` exactly once. |
 
 - [ ] **Step 6: Run proxy singular-emission regressions red**
 
@@ -222,7 +235,7 @@
 
 - [ ] **Step 7: Wire the rewriter into the stdout pump and shared encoder into `emitOuter`**
 
-  Feed raw chunks to screen/overlay detection first, then write only rewriter passthrough to ordinary stdout. Replace the rolling regex notification emission with rewriter events and change `emitOuter` to accept semantic text and write `notifyosc.Encode`. Preserve panic/error isolation and nonblocking outer-TTY writes.
+  Integrate `NotificationRewriter.Feed` as the sole native replacement decision while preserving the existing raw overlay observer and failure-isolated, nonblocking outer sink.
 
 - [ ] **Step 8: Run all wrapcmd tests including race-sensitive batch cases**
 
@@ -263,7 +276,10 @@
 
 - [ ] **Step 1: Add failing Screen tests for notification observations**
 
-  Test whole/every-split canonical envelopes, BEL/ST, exact raw-envelope retention, defensive sanitized message, unknown/malformed byte-for-byte passthrough, and ordered text/notification/text events. Pin the exception precisely: bytes are withheld only while they remain an exact prefix of `ESC ] 777 ; notify ; pair ;`; a mismatch flushes the whole prefix immediately; once the header matches, storage remains bounded by header + 4096 message bytes + terminator. Overrun flushes buffered bytes and passes subsequent bytes transparently through the real terminator with no notification. An in-bound unterminated candidate stays withheld while later unrelated input processing and independent Screens remain live. Keep legacy bare BEL as a separate message-less attention event.
+  | Function | Adversarial strategy and mechanical guard |
+  |----------|-------------------------------------------|
+  | `Screen.Feed` / `TakeOutputParts` | Fuzz arbitrary PTY partitions seeded with canonical-prefix mismatch, termination, overrun, and incompletion; only an exact bounded candidate is withheld, all other bytes preserve order, and independent Screen state remains isolated. |
+  | `Screen.TakeBell` | Mix bare BEL with framed terminators; only a ground-state BEL produces the compatibility event. |
 
 - [ ] **Step 2: Run Screen tests and verify notification access is missing**
 
@@ -295,15 +311,16 @@
   func (s *Screen) TakeOutputParts() []OutputPart
   ```
 
-  Decode only a complete bounded candidate through `notifyosc.DecodeOSC`. Ordinary bytes and mismatched/overlong candidates become byte-faithful `OutputPart.Bytes`; a canonical envelope becomes one notification part carrying its exact raw bytes. Track absolute ring positions and set `ReplaySafeEnd` only through bytes for which the observer has emitted a decision; an in-progress canonical candidate therefore holds the cutoff before its prefix. Record each completed canonical envelope's absolute `[start,end)` span in a ring-bounded index and prune spans only after their end precedes the retained oldest offset. Change `ptychild.Options.Sink` and fake `SetSink` from `func([]byte)` to `func(OutputBatch)` and, inside the existing pump critical section, feed Screen and atomically drain parts/latches produced by that exact raw chunk into one owned batch before invoking Sink. Update every finite consumer listed above: non-Couch consumers use `batch.Raw`; Couch's `Deliver` blocks until the Console acknowledges that actor's batch, guaranteeing at most one unacknowledged batch per child pump. Copy retained bytes. Do not start a goroutine or perform IO in Screen.
+  Implement the typed contracts above. `Screen.Feed` owns canonical-candidate decisions and replay-safe offsets; `Child.pump` atomically packages those decisions with the raw ring append. Non-Couch sinks consume `Raw`; Couch uses ordered parts and an acknowledged one-batch-per-actor handoff.
 
 - [ ] **Step 4: Write and run failing focus-order, takeover, and replay tests**
 
-  Add deterministic Console tests for delivery-before-switch (consumed, no inbox), switch-before-delivery (retained), and a canonical envelope split across takeover in both focus directions. Cover every append/deliver/replay ordering: queued ordinary batches are excluded by the last Console-processed cutoff; every partial canonical split is excluded by `ReplaySafeEnd`; mismatch, overrun, termination, and teardown advance or discard the cutoff correctly. Raw parts use focus at processing time: queued bytes from the actor switched into paint once, while queued bytes from the actor switched away stay hidden and appear once on its later replay. Notification consumption alone uses the delivery stamp. Assert no canonical prefix reaches the host before completion, takeover/status bytes remain outside the OSC, and the complete ordered host stream contains exactly one full envelope.
-
-  In `replay_test.go`, add failing cases proving completed Pair envelopes are removed while ordinary text, unknown complete OSC, and non-notification controls remain byte-faithful. Set the ring's retained-oldest boundary at every byte offset through a completed Pair envelope and prove neither its prefix, body tail, nor terminator survives replay.
-
-  Also create a focused actor partial CSI and partial OSC, then deliver an inactive actor notification. Assert that actor's `Deliver` remains blocked with exactly one unacknowledged batch while the focused actor continues to deliver its terminator; the notification then forwards exactly once and releases only its source actor. Takeover must reset the boundary and release it as well. Verify 100 blocked inactive actors consume at most one batch each and do not prevent focused-actor progress.
+  | Function | Adversarial strategy and mechanical guard |
+  |----------|-------------------------------------------|
+  | `Child.ReplayThrough` | Fuzz ring-retention cuts and processed cutoffs seeded at every canonical-envelope offset; absolute spans remove every intersecting notification while preserving unrelated retained bytes. |
+  | `Console.Deliver` / `onChunk` | Deterministically permute append, delivery, focus switch, processing, and teardown; processing-time focus owns raw bytes, delivery-time focus owns notification consumption, and each byte appears once on the correct screen. |
+  | `Console.flushDeferredNotifications` | Hold the host scanner in partial CSI/OSC while many actors notify; one unacknowledged batch backpressures each source, focused progress reaches a safe boundary, and arrival-ordered envelopes then flush exactly once. |
+  | `Console.switchTo` | Split canonical candidates across takeover and replay; processed cutoffs and notification spans keep Console control bytes outside every envelope. |
 
   Run: `go test -p 20 ./cmd/internal/ptychild ./cmd/internal/couchtty -run 'Test(OutputBatchFocusOrder|SplitNotificationAcrossTakeover|StripReplayNotifications|CrossActorNotificationDeferral)' -count=1`
 
@@ -311,13 +328,13 @@
 
 - [ ] **Step 5: Implement Console batch routing and replay filtering, then pass focused tests**
 
-  Implement Console behavior only after the red run. `Deliver` stamps notification visibility under `Console.mu`, sends a chunk carrying a private acknowledgement channel, and waits for acknowledgement or Console stop. `onChunk` decides raw visibility from current focus, advances the pane cutoff only after processing, and acknowledges ordinary/safe batches immediately. Takeover calls `ReplayThrough(processedSafeEnd)`; Replay uses absolute notification spans to remove every intersection, including a retention-bisected envelope. If `hostScan` is unsafe, retain that one chunk without acknowledging it, continue processing other actors, then forward and acknowledge it at the next real boundary or immediately after takeover resets the scanner, before later Console paint bytes. Then rerun: `go test -p 20 ./cmd/internal/ptychild ./cmd/internal/couchtty -run 'Test(OutputBatchFocusOrder|SplitNotificationAcrossTakeover|StripReplayNotifications|CrossActorNotificationDeferral)' -count=1`.
+  Implement the four named contracts above, keeping replay/filtering pure and Console as the thin serialized host-IO owner. Then rerun: `go test -p 20 ./cmd/internal/ptychild ./cmd/internal/couchtty -run 'Test(OutputBatchFocusOrder|SplitNotificationAcrossTakeover|StripReplayNotifications|CrossActorNotificationDeferral)' -count=1`.
 
   Expected: PASS.
 
 - [ ] **Step 6: Add allocation and throughput benchmark coverage**
 
-  Benchmark 10 MiB of 4 KiB chunks through an oversized unterminated OSC. Add a portable `AllocsPerRun` assertion that steady skip-mode chunks allocate zero and a benchmark reporting bytes/sec; reserve the target `>=10 MiB/s` assertion for `PAIR_MENU_PERF_TARGET=m2-max`.
+  Benchmark `Screen.Feed` with sustained malformed 4 KiB chunks; guard bounded pending memory and zero steady skip-mode allocation, while the target-only protocol enforces `>=10 MiB/s`.
 
 - [ ] **Step 7: Run all sink consumers and benchmark smoke**
 
@@ -349,7 +366,11 @@
 
 - [ ] **Step 1: Write failing pure ledger transition tests**
 
-  Cover focused immediate consumption, inactive insertion, exact-string dedup moving newest, three-message eviction, stable actor order, newest unread source, actor removal, attempt capture and exact-identity acknowledgement, arrival/deduplication after dispatch survival, failed-switch capture cancellation, zero/out-of-range sequence safety, `uint64` overflow rebasing that atomically remaps retained messages plus pending captures, the combined dispatch → overflow rebase → new arrival → successful completion race, and a newly constructed ledger/Console containing no state from a prior instance.
+  | Function | Adversarial strategy and mechanical guard |
+  |----------|-------------------------------------------|
+  | `AttentionLedger.Mark` | Generate repeated/distinct messages across actors and near sequence overflow; enforce three-message bounds, exact deduplication, stable newest ordering, and atomic retained/capture rebase. |
+  | `AttentionLedger.Capture` / `Acknowledge` / `Cancel` | Permute dispatch, rebase, later arrival/deduplication, success, and failure; only identities present at capture are clearable. |
+  | `AttentionLedger.DropActor` / `Projection` / `NewestActor` | Mutate actor lifecycles and caller-owned projections; removed/fresh actors expose no stale or aliased state. |
 
 - [ ] **Step 2: Run ledger tests and verify they fail**
 
@@ -359,11 +380,14 @@
 
 - [ ] **Step 3: Implement the pure ledger with immutable projections**
 
-  Use actor identity as `couchcore.ThreadAddress`; retain at most three `AttentionMessage{Text, Sequence}` values per address. Mutators execute under `Console.mu`, while `Projection()` returns owned copies for renderers. Legacy bare BEL calls `Mark(address, "")`, highlights the actor, and creates no child message row.
+  Implement the named pure transitions with `couchcore.ThreadAddress` identity, owned projections, three messages per actor, and message-less legacy BEL compatibility.
 
 - [ ] **Step 4: Write failing deterministic Console integration and race tests**
 
-  Use the existing stateful console fixture to prove: inactive canonical OSC is forwarded outward exactly once and retained; focused OSC is forwarded exactly once but not retained; unknown OSC follows ordinary focused/hidden rules; switch failure retains; a notification injected after dispatch but before success survives; success acknowledges only the captured identities; actor exit/park drops state; a fresh Console begins empty. Preserve all ordinary operation and actor-exit notices—the change removes only bell/notification authority. Add `TestAttentionHandlingStartsNoAuxiliaryWork`: inject a notification synchronously and assert inventory-provider calls, refresh generation, operation queues, and goroutine-launch seams remain unchanged; use fakes that fail on any persistence/filesystem access. Pure ledger tests import no IO runtime and use no mocks.
+  | Function | Adversarial strategy and mechanical guard |
+  |----------|-------------------------------------------|
+  | `Console.onChunk` | Drive focused/inactive/malformed observations through the stateful child/host fake; forwarding and ledger ownership remain singular with no persistence, refresh, or auxiliary work. |
+  | `Console.finishOperation` | Interleave switch result with later attention and actor park/exit; success acknowledges captured identities, failure preserves them, and lifecycle teardown drops only ephemeral state. |
 
   Run: `go test -p 20 ./cmd/internal/couchtty -run 'Test(Console.*Attention|Switch.*Attention|Expected.*Exit|AttentionHandlingStartsNoAuxiliaryWork)' -count=1`
 
@@ -371,7 +395,7 @@
 
 - [ ] **Step 5: Replace parallel bell authority, capture the switch watermark, and pass integration tests**
 
-  Delete `pane.bell`, `MenuState.Bells`, `MenuEventBell`, and their reducers. Add the ledger to Console. At switch dispatch, call `ledger.Capture(attempt, address)` so the ledger owns the exact retained identities under the same lock as sequences. On successful `forceSwitch`, call `ledger.Acknowledge(attempt)`; on failure call `ledger.Cancel(attempt)`. Rebase remaps retained identities and every pending capture in one pure transition, so later arrivals never match an older attempt accidentally. No other action clears attention. Actor exit and successful park call `DropActor` and remove captures for that actor.
+  Replace `pane.bell`, `MenuState.Bells`, and `MenuEventBell` with the sole Console-owned ledger, wiring the named capture/acknowledge/cancel/drop transitions at existing operation and lifecycle boundaries.
 
   Run: `go test -p 20 ./cmd/internal/couchtty -run 'Test(Console.*Attention|Switch.*Attention|Expected.*Exit|AttentionHandlingStartsNoAuxiliaryWork)' -count=1`
 
@@ -404,11 +428,17 @@
 
 - [ ] **Step 1: Write failing status-row presentation tests**
 
-  Pin that attention changes only ANSI color around the existing inactive label, adds no star/dot/count, preserves actor spacing and visible width, clips narrow rows correctly, and never marks the focused actor. Include three active actors with attention on one inactive actor.
+  | Function | Adversarial strategy and mechanical guard |
+  |----------|-------------------------------------------|
+  | `RenderStatusRow` | Fuzz widths and actor projections; attention changes only ANSI style around inactive labels and never changes measured cells, roster order, or focused treatment. |
 
 - [ ] **Step 2: Write failing switcher hierarchy and selection tests**
 
-  With 100 actors and three messages each, assert each message is an indented line immediately below its actor, children are display-only, Up/Down visit actor rows only, filtering considers actor fields but not message text, actor order is unchanged, and opening selects the actor with greatest unread sequence. Pin viewport behavior when children expand beyond terminal height and width-aware clipping of hostile/wide text.
+  | Function | Adversarial strategy and mechanical guard |
+  |----------|-------------------------------------------|
+  | `RenderMenu` | Fuzz terminal dimensions and hostile/wide message text across the 100-actor/300-child bound; notification children stay clipped, indented, and display-only. |
+  | `VisibleMenuThreads` / `reduceKey` | Generate filters and navigation over actors with children; only actor fields admit rows and only actor identities participate in order/selection. |
+  | `Console.showMenu` | Vary unread sequences without changing inventory order; initial selection is the ledger's newest unread actor from resident state. |
 
 - [ ] **Step 3: Run render tests and verify the old star/bell UI fails**
 
@@ -418,11 +448,11 @@
 
 - [ ] **Step 4: Implement read-only attention projections in both render paths**
 
-  Change `StatusActor.Bell` to `Attention bool` and apply one existing palette-compatible attention style without changing cell width. Add `Attention map[ThreadAddress][]AttentionMessage` (or an equivalent immutable projection) to the menu render model, not its reducer authority. Calculate viewport height from visual lines while selection indexes actor rows. On `Ctrl-Space`, initialize the root frame selection from `ledger.NewestActor()` without sorting inventory.
+  Implement the three named rendering/selection contracts from immutable ledger projections; the menu reducer gains no parallel attention authority.
 
 - [ ] **Step 5: Extend the 100-row performance fixture and target protocol**
 
-  Give every actor three retained messages. Keep 20 warmups and 200 samples at 120x40, four load workers, `<50 ms p95` first frame, and `<16 ms p95` selection/navigation/render computation. Update portable allocation bounds only from measured stable results; do not loosen them speculatively.
+  Exercise `RenderMenu`, `reduceKey`, and `Console.showMenu` at the declared 100-actor/300-message target using the existing 20-warmup/200-sample, four-worker protocol and its p95 budgets.
 
 - [ ] **Step 6: Run render, Console, and portable performance tests**
 
@@ -525,3 +555,14 @@ backpressures one batch per source actor, and acknowledgement captures live
 inside the ledger so overflow rebase updates them atomically.
 Tests cover every split and append/deliver/replay ordering plus the complete
 outer host byte stream (`ARCH-PURPOSE`, `ARCH-PURE`, `ARCH-CONSTRAINTS`).
+
+### 2026-08-31T22:28:00-07:00 — express verification at named function boundaries
+
+**Reason:** the `change-code` plan-quality gate rejected enumerated prose cases
+and procedural diff restatements as a lossy duplicate of the tests and code.
+
+**Delta:** Tasks 1–5 now name every risky production function and give one
+adversarial-input/mechanical-guard strategy line per function. Red/green
+commands, integration seams, public contracts, and acceptance evidence remain;
+case enumeration and implementation choreography were removed (`ARCH-PURE`,
+`ARCH-PURPOSE`).
