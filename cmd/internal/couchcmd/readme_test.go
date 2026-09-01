@@ -91,9 +91,14 @@ func TestREADMEDocumentsOnlyThePublicProjection(t *testing.T) {
 			t.Errorf("README does not document %q", command)
 		}
 	}
-	for _, command := range []string{"couch start", "couch park", "couch resume", "couch publish-description", "--no-console", "--agent="} {
-		if strings.Contains(doc, command) {
-			t.Errorf("README exposes removed public form %q", command)
+	for _, op := range couchcore.Operations() {
+		if op.Presentation != couchcore.PresentationList && op.Presentation != couchcore.PresentationShow && strings.Contains(doc, "couch "+op.Name) {
+			t.Errorf("README exposes non-public operation %q", op.Name)
+		}
+	}
+	for _, option := range []string{"--no-console", "--agent="} {
+		if strings.Contains(doc, option) {
+			t.Errorf("README exposes removed public option %q", option)
 		}
 	}
 }
@@ -193,7 +198,7 @@ func TestNoCurrentSourcesAdvertiseObsoleteCouchArgv(t *testing.T) {
 		if err != nil {
 			return err
 		}
-		if !info.IsDir() && strings.HasSuffix(path, ".go") && !strings.HasSuffix(path, "_test.go") {
+		if !info.IsDir() && strings.HasSuffix(path, ".go") {
 			rel, relErr := filepath.Rel(root, path)
 			if relErr != nil {
 				return relErr
@@ -211,8 +216,10 @@ func TestNoCurrentSourcesAdvertiseObsoleteCouchArgv(t *testing.T) {
 		if err != nil {
 			t.Fatal(err)
 		}
-		if match := obsolete.Find(raw); match != nil {
-			t.Errorf("%s advertises obsolete argv %q", rel, match)
+		for lineNumber, line := range strings.Split(string(raw), "\n") {
+			if match := obsolete.FindString(line); match != "" && !strings.Contains(line, "obsolete-argv-rejection") {
+				t.Errorf("%s:%d advertises obsolete argv %q", rel, lineNumber+1, match)
+			}
 		}
 	}
 }

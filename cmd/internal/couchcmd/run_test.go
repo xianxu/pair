@@ -80,12 +80,8 @@ func (t testRT) NewCouch() (*couchcore.Couch, error) {
 	return t.NewCouchWith(t.runner, t.namespace)
 }
 
-// NewCouchWith IGNORES the caller's runner and keeps the fake.
-//
-// That is the point: production picks a PtyRunner for `start`, and a CLI test
-// must still drive the whole dispatch against fakes. What the test asserts is
-// which BRANCH was taken (console vs --no-console), which is observable in the
-// rendered output, not which concrete runner object was constructed.
+// NewCouchWith ignores the caller's runner and keeps the fake so typed
+// orchestration tests drive the full dispatch without spawning a process.
 func (t testRT) NewCouchWith(couchcore.Runner, couchcore.CouchNamespace) (*couchcore.Couch, error) {
 	c, err := couchcore.New(
 		t.namespace, t.runner, couchcore.NewFakePathOps(nil), t.git, t.proc,
@@ -107,7 +103,7 @@ func (t testRT) NewCouchWith(couchcore.Runner, couchcore.CouchNamespace) (*couch
 func newRT(t *testing.T, trees ...string) testRT {
 	t.Helper()
 	runner := couchcore.NewFakeRunner()
-	// couch start blocks on Handle.Wait for the child's lifetime -- right in
+	// Couch owns Handle.Wait for the child's lifetime -- right in
 	// production, and a hang rather than a failure against a fake child that
 	// never finishes.
 	runner.AutoExit(0)
@@ -151,7 +147,7 @@ func TestStartComposesRootAgentAndMatchingRepoDefaultThroughSharedLauncherProfil
 	rt.agentDefaults["/repo\x00codex"] = launcher.AgentDefault{Agent: "codex", Args: []string{"--sandbox", "workspace-write"}}
 	rt.boundedOne("/repo")
 
-	if _, stderr, code := runRT(rt, "start", "/repo", "--no-console"); code != 0 {
+	if _, stderr, code := runLaunchRT(rt, "/repo", ""); code != 0 {
 		t.Fatalf("start: code=%d stderr=%q", code, stderr)
 	}
 	child := rt.runner.Child("couch-fake-1")
@@ -264,7 +260,7 @@ func seedVerifiedPark(t *testing.T, rt testRT, path string) couchcore.ThreadReco
 
 func TestStartAcquiresAndReleasesSupervisorLease(t *testing.T) {
 	rt := newRT(t, "/repo")
-	if _, errw, code := runRT(rt, "start", "/repo"); code != 0 {
+	if _, errw, code := runLaunchRT(rt, "/repo", ""); code != 0 {
 		t.Fatalf("start: code=%d stderr=%q", code, errw)
 	}
 	if rt.supervisor.acquired != 1 || rt.supervisor.released != 1 {
@@ -275,7 +271,7 @@ func TestStartAcquiresAndReleasesSupervisorLease(t *testing.T) {
 func TestResumeAcquiresAndReleasesSupervisorLease(t *testing.T) {
 	rt := newRT(t, "/repo")
 	rt.supervisor.err = fmt.Errorf("resume reached singleton acquisition")
-	_, errw, code := runRT(rt, "resume", "couch-0102030405060708")
+	_, errw, code := runTypedRT(rt, couchcore.OperationCall{Name: "resume", Args: map[string]string{"ref": "couch-0102030405060708"}})
 	if code == 0 || !strings.Contains(errw, "resume reached singleton acquisition") {
 		t.Fatalf("resume: code=%d stderr=%q", code, errw)
 	}
@@ -291,7 +287,7 @@ func TestResumeRunsAsTheNewLiveOwner(t *testing.T) {
 		return nil
 	}
 
-	out, errw, code := runRT(rt, "resume", string(parked.Address.Tag))
+	out, errw, code := runTypedRT(rt, couchcore.OperationCall{Name: "resume", Args: map[string]string{"ref": string(parked.Address.Tag)}})
 	if code != 0 {
 		t.Fatalf("resume: code=%d stdout=%q stderr=%q", code, out, errw)
 	}
@@ -305,7 +301,7 @@ func TestResumeRunsAsTheNewLiveOwner(t *testing.T) {
 
 func TestDirectStoreOperationDoesNotAcquireSupervisorLease(t *testing.T) {
 	rt := newRT(t)
-	if _, errw, code := runRT(rt, "list"); code != 0 {
+	if _, errw, code := runTypedRT(rt, couchcore.OperationCall{Name: "list"}); code != 0 {
 		t.Fatalf("list: code=%d stderr=%q", code, errw)
 	}
 	if rt.supervisor.acquired != 0 || rt.supervisor.released != 0 {
@@ -316,7 +312,7 @@ func TestDirectStoreOperationDoesNotAcquireSupervisorLease(t *testing.T) {
 func TestHeldSupervisorRefusesBeforeStartingActor(t *testing.T) {
 	rt := newRT(t, "/repo")
 	rt.supervisor.err = fmt.Errorf("namespace is supervised by pid 42")
-	_, errw, code := runRT(rt, "start", "/repo")
+	_, errw, code := runLaunchRT(rt, "/repo", "")
 	if code == 0 || !strings.Contains(errw, "pid 42") {
 		t.Fatalf("start: code=%d stderr=%q", code, errw)
 	}
@@ -349,49 +345,52 @@ func (rt testRT) boundedOne(path string) {
 	}, nil)
 }
 
-func runRT(rt testRT, args ...string) (string, string, int) {
+func runTypedRT(rt testRT, call couchcore.OperationCall) (string, string, int) {
 	var out, errw bytes.Buffer
-	// Most tests in this file exercise typed Couch operations rather than the
-	// public argv projection. Keep those tests on the in-process boundary that
-	// the TUI uses; dedicated Public/Parse tests exercise RunWithRuntime.
-	if len(args) > 0 {
-		if op, ok := Resolve(args[0]); ok && args[0] != "prepare-start" {
-			if op.Name == "start" {
-				legacy := couchcore.Operation{Args: []couchcore.ArgSpec{
-					{Name: "path"},
-					{Name: "no-console", FlagOnly: true},
-					{Name: "agent", FlagOnly: true, ValueRequired: true},
-				}}
-				parsed, err := bindArgs(legacy, args[1:])
-				if err != nil {
-					fmt.Fprintf(&errw, "couch start: %v\n", err)
-					return out.String(), errw.String(), 2
-				}
-				prepare := map[string]string{"path": parsed["path"]}
-				if prepare["path"] == "" {
-					prepare["path"] = "."
-				}
-				if parsed["agent"] != "" {
-					prepare["agent"] = parsed["agent"]
-				}
-				code := runTypedOperation(op, map[string]string{}, prepare, false, nil, nil, strings.NewReader(""), &out, &errw, rt)
-				return out.String(), errw.String(), code
-			}
-			parsed, err := bindArgs(op, args[1:])
-			if err != nil {
-				fmt.Fprintf(&errw, "couch %s: %v\n", op.Name, err)
-				return out.String(), errw.String(), 2
-			}
-			if op.Name == "publish-description" {
-				parsed["repo-scope"] = rt.Getenv("COUCH_THREAD_SCOPE")
-				parsed["tag"] = rt.Getenv("COUCH_THREAD_TAG")
-			}
-			code := runTypedOperation(op, parsed, nil, false, nil, nil, strings.NewReader(""), &out, &errw, rt)
-			return out.String(), errw.String(), code
-		}
+	op, ok := Resolve(call.Name)
+	if !ok {
+		fmt.Fprintf(&errw, "unknown typed operation %q\n", call.Name)
+		return out.String(), errw.String(), 2
 	}
+	args := call.Args
+	if args == nil {
+		args = map[string]string{}
+	}
+	if op.Name == "publish-description" {
+		args = cloneStringMap(args)
+		args["repo-scope"] = rt.Getenv("COUCH_THREAD_SCOPE")
+		args["tag"] = rt.Getenv("COUCH_THREAD_TAG")
+	}
+	code := runTypedOperation(op, args, nil, false, nil, nil, strings.NewReader(""), &out, &errw, rt)
+	return out.String(), errw.String(), code
+}
+
+func runLaunchRT(rt testRT, path, agent string) (string, string, int) {
+	var out, errw bytes.Buffer
+	prepare := map[string]string{"path": path}
+	if prepare["path"] == "" {
+		prepare["path"] = "."
+	}
+	if agent != "" {
+		prepare["agent"] = agent
+	}
+	op, _ := Resolve("start")
+	code := runTypedOperation(op, map[string]string{}, prepare, false, nil, nil, strings.NewReader(""), &out, &errw, rt)
+	return out.String(), errw.String(), code
+}
+
+func runPublicRT(rt testRT, args ...string) (string, string, int) {
+	var out, errw bytes.Buffer
 	code := RunWithRuntime(args, strings.NewReader(""), &out, &errw, rt)
 	return out.String(), errw.String(), code
+}
+
+func cloneStringMap(in map[string]string) map[string]string {
+	out := make(map[string]string, len(in))
+	for key, value := range in {
+		out[key] = value
+	}
+	return out
 }
 
 func TestDispatchTableIsIdenticalToTheDeclaredOperationSet(t *testing.T) {
@@ -456,7 +455,7 @@ func TestPublishDescriptionUsesCompositeThreadEnvironment(t *testing.T) {
 	rt.env["COUCH_THREAD_SCOPE"] = created.Address.RepoScope
 	rt.env["COUCH_THREAD_TAG"] = string(created.Address.Tag)
 
-	if _, errw, code := runRT(rt, "publish-description", "agent summary"); code != 0 {
+	if _, errw, code := runTypedRT(rt, couchcore.OperationCall{Name: "publish-description", Args: map[string]string{"description": "agent summary"}}); code != 0 {
 		t.Fatalf("publish-description: code=%d stderr=%q", code, errw)
 	}
 	got, err := c.Threads.GetThread(created.Address)
@@ -466,7 +465,7 @@ func TestPublishDescriptionUsesCompositeThreadEnvironment(t *testing.T) {
 	if got.PublishedSummary != "agent summary" || got.Description != "" {
 		t.Fatalf("published thread = %+v", got)
 	}
-	if _, errw, code := runRT(rt, "publish-description", ""); code != 0 {
+	if _, errw, code := runTypedRT(rt, couchcore.OperationCall{Name: "publish-description", Args: map[string]string{"description": ""}}); code != 0 {
 		t.Fatalf("clear publish-description: code=%d stderr=%q", code, errw)
 	}
 	got, err = c.Threads.GetThread(created.Address)
@@ -479,7 +478,7 @@ func TestPublishDescriptionUsesCompositeThreadEnvironment(t *testing.T) {
 }
 
 func TestListOnEmptyThreadStore(t *testing.T) {
-	out, errw, code := runRT(newRT(t), "list")
+	out, errw, code := runTypedRT(newRT(t), couchcore.OperationCall{Name: "list"})
 	if code != 0 {
 		t.Fatalf("exit %d, stderr %q", code, errw)
 	}
@@ -550,7 +549,7 @@ func TestPublicInternalPublishDescriptionIsTheOnlyHiddenOperation(t *testing.T) 
 }
 
 func TestUnknownPublicOptionIsNonZero(t *testing.T) {
-	out, errw, code := runRT(newRT(t), "--frobnicate")
+	out, errw, code := runPublicRT(newRT(t), "--frobnicate")
 	if code == 0 {
 		t.Fatal("unknown operation must be non-zero")
 	}
@@ -561,17 +560,17 @@ func TestUnknownPublicOptionIsNonZero(t *testing.T) {
 }
 
 func TestMissingRequiredArgumentIsRejectedBeforeAnyWork(t *testing.T) {
-	_, errw, code := runRT(newRT(t), "show")
+	_, errw, code := runPublicRT(newRT(t), "--show")
 	if code == 0 {
 		t.Fatal("a missing required argument must be non-zero")
 	}
-	if !strings.Contains(errw, "missing required argument") {
+	if !strings.Contains(errw, "requires exactly one non-empty reference") {
 		t.Fatalf("stderr = %q", errw)
 	}
 }
 
 func TestPublicHelpListsOnlyPublicSurface(t *testing.T) {
-	out, _, code := runRT(newRT(t), "--help")
+	out, _, code := runPublicRT(newRT(t), "--help")
 	if code != 0 {
 		t.Fatalf("exit %d", code)
 	}
@@ -603,7 +602,7 @@ func TestReadmeDoesNotAdvertiseOwnerRequiredStopAsExternalCommand(t *testing.T) 
 	if err != nil {
 		t.Fatal(err)
 	}
-	if strings.Contains(string(raw), "couch stop <ref>") {
+	if strings.Contains(string(raw), "couch stop <ref>") { // obsolete-argv-rejection
 		t.Fatal("README advertises stop as a second-process command before #147 owner routing exists")
 	}
 }
@@ -639,16 +638,16 @@ func TestBindArgsRejectsMissingOrEmptyValueBearingFlag(t *testing.T) {
 }
 
 func TestCLIRejectsMissingOrEmptyExplicitAgentBeforeSpawn(t *testing.T) {
-	for _, argv := range [][]string{{"start", "/repo", "--agent", "--no-console"}, {"start", "/repo", "--agent=", "--no-console"}} {
+	for _, argv := range [][]string{{"--agent"}, {"--agent="}} {
 		t.Run(strings.Join(argv, "_"), func(t *testing.T) {
 			rt := newRT(t, "/repo")
 			rt.boundedOne("/repo")
-			_, stderr, code := runRT(rt, argv...)
-			if code == 0 || !strings.Contains(stderr, "--agent requires a non-empty value") {
-				t.Fatalf("runRT(%q): code=%d stderr=%q", argv, code, stderr)
+			_, stderr, code := runPublicRT(rt, argv...)
+			if code == 0 || !strings.Contains(stderr, "unknown option") {
+				t.Fatalf("runPublicRT(%q): code=%d stderr=%q", argv, code, stderr)
 			}
 			if len(rt.runner.Ops) != 0 {
-				t.Fatalf("runRT(%q) reached runner operations %q", argv, rt.runner.Ops)
+				t.Fatalf("runPublicRT(%q) reached runner operations %q", argv, rt.runner.Ops)
 			}
 		})
 	}
@@ -660,10 +659,10 @@ func TestListShowsANamedTreeWithNoAgent(t *testing.T) {
 	// visible row, not filtered out.
 	rt := newRT(t, "/repo")
 	seedThread(t, rt, "/repo")
-	if _, errw, code := runRT(rt, "name", "/repo", "the pair tree"); code != 0 {
+	if _, errw, code := runTypedRT(rt, couchcore.OperationCall{Name: "name", Args: map[string]string{"ref": "/repo", "name": "the pair tree"}}); code != 0 {
 		t.Fatalf("name failed: %s", errw)
 	}
-	out, _, code := runRT(rt, "list")
+	out, _, code := runTypedRT(rt, couchcore.OperationCall{Name: "list"})
 	if code != 0 {
 		t.Fatalf("exit %d", code)
 	}
@@ -678,10 +677,10 @@ func TestListShowsANamedTreeWithNoAgent(t *testing.T) {
 func TestCLIEmptyNameClearsHumanThreadName(t *testing.T) {
 	rt := newRT(t, "/repo")
 	created := seedThread(t, rt, "/repo")
-	if _, errw, code := runRT(rt, "name", string(created.Address.Tag), "compiler"); code != 0 {
+	if _, errw, code := runTypedRT(rt, couchcore.OperationCall{Name: "name", Args: map[string]string{"ref": string(created.Address.Tag), "name": "compiler"}}); code != 0 {
 		t.Fatalf("set name: code=%d stderr=%q", code, errw)
 	}
-	if _, errw, code := runRT(rt, "name", string(created.Address.Tag), ""); code != 0 {
+	if _, errw, code := runTypedRT(rt, couchcore.OperationCall{Name: "name", Args: map[string]string{"ref": string(created.Address.Tag), "name": ""}}); code != 0 {
 		t.Fatalf("clear name: code=%d stderr=%q", code, errw)
 	}
 	c, err := rt.NewCouch()
@@ -700,10 +699,10 @@ func TestCLIEmptyNameClearsHumanThreadName(t *testing.T) {
 func TestShowResolvesANameToItsTreePath(t *testing.T) {
 	rt := newRT(t, "/repo")
 	created := seedThread(t, rt, "/repo")
-	if _, errw, code := runRT(rt, "name", "/repo", "pairtree"); code != 0 {
+	if _, errw, code := runTypedRT(rt, couchcore.OperationCall{Name: "name", Args: map[string]string{"ref": "/repo", "name": "pairtree"}}); code != 0 {
 		t.Fatalf("name failed: %s", errw)
 	}
-	out, errw, code := runRT(rt, "show", "pairtree")
+	out, errw, code := runTypedRT(rt, couchcore.OperationCall{Name: "show", Args: map[string]string{"ref": "pairtree"}})
 	if code != 0 {
 		t.Fatalf("exit %d, stderr %q", code, errw)
 	}
@@ -729,13 +728,13 @@ func TestCLICompositeReferencesDeriveCurrentRepositoryScope(t *testing.T) {
 	local := seedThreadAtAddress(t, rt, localScope.Key, repeatedTag, "/repo")
 	other := seedThreadAtAddress(t, rt, otherScope.Key, repeatedTag, "/other")
 
-	if _, errw, code := runRT(rt, "name", repeatedTag, "local thread"); code != 0 {
+	if _, errw, code := runTypedRT(rt, couchcore.OperationCall{Name: "name", Args: map[string]string{"ref": repeatedTag, "name": "local thread"}}); code != 0 {
 		t.Fatalf("name: code=%d stderr=%q", code, errw)
 	}
-	if _, errw, code := runRT(rt, "describe", repeatedTag, "local description"); code != 0 {
+	if _, errw, code := runTypedRT(rt, couchcore.OperationCall{Name: "describe", Args: map[string]string{"ref": repeatedTag, "description": "local description"}}); code != 0 {
 		t.Fatalf("describe: code=%d stderr=%q", code, errw)
 	}
-	out, errw, code := runRT(rt, "show", repeatedTag)
+	out, errw, code := runTypedRT(rt, couchcore.OperationCall{Name: "show", Args: map[string]string{"ref": repeatedTag}})
 	if code != 0 || !strings.Contains(out, "/repo") || strings.Contains(out, "/other") {
 		t.Fatalf("show: code=%d out=%q stderr=%q", code, out, errw)
 	}
@@ -782,8 +781,8 @@ func TestRenderedOutputHasNoANSIWhenNotATerminal(t *testing.T) {
 	// otherwise piped or captured output carries escape codes.
 	rt := newRT(t, "/repo")
 	seedThread(t, rt, "/repo")
-	_, _, _ = runRT(rt, "name", "/repo", "plain")
-	out, _, _ := runRT(rt, "list")
+	_, _, _ = runTypedRT(rt, couchcore.OperationCall{Name: "name", Args: map[string]string{"ref": "/repo", "name": "plain"}})
+	out, _, _ := runTypedRT(rt, couchcore.OperationCall{Name: "list"})
 	if strings.Contains(out, "\x1b[") {
 		t.Fatalf("ANSI leaked into non-terminal output: %q", out)
 	}
@@ -809,17 +808,13 @@ func TestRenderThreadsIsNameFirstAndKeepsSamePathThreadsDistinct(t *testing.T) {
 // two views of one source and therefore could not fail.
 //
 // A reviewer added an undeclared `couch nuke` branch ahead of the table lookup
-// and the suite stayed green. This drives the CLI itself: every declared name
-// must resolve, and a corpus of plausible undeclared names must be rejected.
-// It is not a proof for arbitrary strings -- that guarantee comes from
-// RunWithRuntime having a single table-only Resolve and no switch -- but it
-// does catch the attack that got through.
-func TestCLIAcceptsExactlyTheDeclaredOperations(t *testing.T) {
+// The in-process registry is closed independently from the public argv parser.
+func TestTypedRegistryResolvesExactlyDeclaredOperations(t *testing.T) {
 	declared := map[string]bool{}
 	for _, name := range couchcore.OperationNames() {
 		declared[name] = true
 		if _, ok := Resolve(name); !ok {
-			t.Errorf("declared operation %q does not resolve in the CLI", name)
+			t.Errorf("declared operation %q does not resolve", name)
 		}
 	}
 	for _, name := range []string{"nuke", "kill", "restart", "attach", "switch", "ls", "run", "exec"} {
@@ -827,10 +822,7 @@ func TestCLIAcceptsExactlyTheDeclaredOperations(t *testing.T) {
 			continue
 		}
 		if _, ok := Resolve(name); ok {
-			t.Errorf("CLI resolves %q, which is not a declared operation", name)
-		}
-		if _, errw, code := runRT(newRT(t), name); code == 0 {
-			t.Errorf("CLI accepted undeclared operation %q (stderr %q)", name, errw)
+			t.Errorf("typed registry resolves undeclared operation %q", name)
 		}
 	}
 }
@@ -839,12 +831,12 @@ func TestStartRendersTheRefusalWithThePolicyShapedOffer(t *testing.T) {
 	// Done-when 2's rendering had no reachable test before the Runtime seam.
 	rt := newRT(t, "/repo")
 	rt.boundedOne("/repo")
-	if out, errw, code := runRT(rt, "start", "/repo"); code != 0 {
+	if out, errw, code := runLaunchRT(rt, "/repo", ""); code != 0 {
 		t.Fatalf("first start: code=%d out=%q err=%q", code, out, errw)
 	}
 	// Mark the child live so the guard has something real to refuse for.
 	rt.markLive(t)
-	_, errw, code := runRT(rt, "start", "/repo")
+	_, errw, code := runLaunchRT(rt, "/repo", "")
 	if code == 0 {
 		t.Fatal("a second start on an occupied tree must fail")
 	}
@@ -865,94 +857,35 @@ func TestProvisionWorktreeRefusalNames153WithoutInventingAPath(t *testing.T) {
 	if !strings.Contains(got, "pair#153") || !strings.Contains(got, "no path was created") {
 		t.Fatalf("provision refusal = %q", got)
 	}
-	if strings.Contains(got, "couch start ") {
+	if strings.Contains(got, "couch start ") { // obsolete-argv-rejection
 		t.Fatalf("provision refusal invented a runnable path: %q", got)
 	}
 }
 
 func TestExternalStopRefusesUntilOwnerRoutingExists(t *testing.T) {
 	rt := newRT(t, "/repo")
-	if _, errw, code := runRT(rt, "start", "/repo"); code != 0 {
+	if _, errw, code := runLaunchRT(rt, "/repo", ""); code != 0 {
 		t.Fatalf("start: %s", errw)
 	}
 	rt.markLive(t)
-	_, errw, code := runRT(rt, "stop", "/repo")
+	_, errw, code := runTypedRT(rt, couchcore.OperationCall{Name: "stop", Args: map[string]string{"ref": "/repo"}})
 	if code == 0 || !strings.Contains(errw, "routing requires #147") {
 		t.Fatalf("stop: code=%d err=%q", code, errw)
 	}
 }
 
-func TestRemovedAdmissionBypassCannotBindInAnyForm(t *testing.T) {
-	rt := newRT(t, "/repo")
-	_, errw, code := runRT(rt, "start", "/repo", "true")
-	if code == 0 {
-		t.Fatal("a positional word was accepted as an admission bypass")
-	}
-	if !strings.Contains(errw, "unexpected argument") {
-		t.Fatalf("stderr = %q", errw)
-	}
-	if _, errw, code := runRT(rt, "start", "/repo", "--same-tree"); code == 0 || !strings.Contains(errw, "unknown flag") {
-		t.Fatalf("removed bypass was accepted: code=%d stderr=%q", code, errw)
-	}
-}
-
-func TestOptionalPositionalArgsStillBind(t *testing.T) {
-	// The rule is "guard bypasses are flag-only", NOT "optional args never
-	// bind" -- the broader version broke `couch describe <ref> <text>`.
+func TestTypedMetadataOperationsPreserveOptionalDescription(t *testing.T) {
 	rt := newRT(t, "/repo")
 	seedThread(t, rt, "/repo")
-	if _, errw, code := runRT(rt, "name", "/repo", "thing"); code != 0 {
+	if _, errw, code := runTypedRT(rt, couchcore.OperationCall{Name: "name", Args: map[string]string{"ref": "/repo", "name": "thing"}}); code != 0 {
 		t.Fatalf("name: %s", errw)
 	}
-	if _, errw, code := runRT(rt, "describe", "thing", "what it is doing"); code != 0 {
-		t.Fatalf("describe with a positional description: %s", errw)
+	if _, errw, code := runTypedRT(rt, couchcore.OperationCall{Name: "describe", Args: map[string]string{"ref": "thing", "description": "what it is doing"}}); code != 0 {
+		t.Fatalf("describe: %s", errw)
 	}
-	out, _, _ := runRT(rt, "describe", "thing")
+	out, _, _ := runTypedRT(rt, couchcore.OperationCall{Name: "describe", Args: map[string]string{"ref": "thing"}})
 	if !strings.Contains(out, "what it is doing") {
 		t.Fatalf("out = %q", out)
-	}
-}
-
-// The escape hatch announces itself. A silent degradation is how a fallback
-// becomes the default nobody noticed (Decision 2).
-func TestStartWithNoConsoleAnnouncesTheFallback(t *testing.T) {
-	out, errw, code := runRT(newRT(t, "/repo"), "start", "/repo", "--no-console")
-	if code != 0 {
-		t.Fatalf("exit %d, stderr %q", code, errw)
-	}
-	if !strings.Contains(out, "no console") {
-		t.Fatalf("the fallback did not announce itself: %q", out)
-	}
-	if !strings.Contains(out, "started ") {
-		t.Fatalf("the no-console path did not report the actor: %q", out)
-	}
-}
-
-// A guard bypass must never bind positionally: a stray word must not be able to
-// turn off the console. It must remain explicitly named.
-func TestNoConsoleNeverBindsPositionally(t *testing.T) {
-	_, errw, code := runRT(newRT(t, "/repo"), "start", "/repo", "no-console")
-	if code == 0 {
-		t.Fatalf("a positional `no-console` was accepted; it must not bind (stderr %q)", errw)
-	}
-}
-
-// `couch start` with no terminal must fall back, loudly, to the stdio path.
-//
-// The first cut spawned the child, sized it to a ZERO-ROW pty, then exited 1
-// with nothing printed -- so a scripted or piped invocation left a registered
-// actor the operator could neither see nor use (M2 BR-23). runRT drives exactly
-// this shape: its stdout is a buffer, not a tty.
-func TestStartWithoutATerminalFallsBackLoudly(t *testing.T) {
-	out, errw, code := runRT(newRT(t, "/repo"), "start", "/repo")
-	if code != 0 {
-		t.Fatalf("exit %d, stderr %q", code, errw)
-	}
-	if !strings.Contains(out, "no console") {
-		t.Fatalf("the fallback did not announce itself: %q", out)
-	}
-	if !strings.Contains(out, "started ") {
-		t.Fatalf("no actor was reported: %q", out)
 	}
 }
 
@@ -967,22 +900,20 @@ func TestWantsConsole(t *testing.T) {
 	cases := []struct {
 		name        string
 		op          string
-		args        map[string]string
 		hasTerminal bool
 		want        bool
 	}{
-		{"start on a terminal", "start", nil, true, true},
-		{"start with --no-console", "start", map[string]string{"no-console": "true"}, true, false},
-		{"start with no terminal", "start", nil, false, false},
-		{"resume on a terminal", "resume", nil, true, true},
-		{"resume with no terminal", "resume", nil, false, false},
-		{"a read-only operation", "list", nil, true, false},
-		{"stop never takes the terminal", "stop", nil, true, false},
+		{"start on a terminal", "start", true, true},
+		{"start with no terminal", "start", false, false},
+		{"resume on a terminal", "resume", true, true},
+		{"resume with no terminal", "resume", false, false},
+		{"a read-only operation", "list", true, false},
+		{"stop never takes the terminal", "stop", true, false},
 	}
 	for _, c := range cases {
 		t.Run(c.name, func(t *testing.T) {
-			if got := WantsConsole(c.op, c.args, c.hasTerminal); got != c.want {
-				t.Fatalf("WantsConsole(%q, %v, %v) = %v, want %v", c.op, c.args, c.hasTerminal, got, c.want)
+			if got := WantsConsole(c.op, c.hasTerminal); got != c.want {
+				t.Fatalf("WantsConsole(%q, %v) = %v, want %v", c.op, c.hasTerminal, got, c.want)
 			}
 		})
 	}
@@ -991,7 +922,7 @@ func TestWantsConsole(t *testing.T) {
 // The plumbing half, still unconditional: with no terminal there must be no
 // console and the stdio runner.
 func TestConsoleRunnerDeclinesWithoutATerminal(t *testing.T) {
-	console, runner := consoleRunner("start", map[string]string{}, strings.NewReader(""), &bytes.Buffer{})
+	console, runner := consoleRunner("start", strings.NewReader(""), &bytes.Buffer{})
 	if console != nil {
 		t.Fatal("a console was built with no terminal")
 	}
@@ -1000,8 +931,7 @@ func TestConsoleRunnerDeclinesWithoutATerminal(t *testing.T) {
 	}
 }
 
-// `start` with no path defaults to "." -- which is what makes `cd brain && couch
-// start` the way home is chosen (Decision 1).
+// Internal launch with no path defaults to ".", matching bare Couch launch.
 //
 // It asserts the SPAWN, not the ArgSpec: the first version checked that `path`
 // was not Required, which stayed green with the default deleted (BR-24).
@@ -1014,9 +944,9 @@ func TestStartDefaultsItsPathToCwd(t *testing.T) {
 		t.Fatalf("Getwd: %v", err)
 	}
 	rt := newRT(t, wd)
-	out, errw, code := runRT(rt, "start")
+	out, errw, code := runLaunchRT(rt, "", "")
 	if code != 0 {
-		t.Fatalf("`couch start` with no path: exit %d, stderr %q", code, errw)
+		t.Fatalf("launch with no path: exit %d, stderr %q", code, errw)
 	}
 	if !strings.Contains(out, "started ") {
 		t.Fatalf("no actor was started: %q", out)
@@ -1030,7 +960,7 @@ func TestStartDefaultsItsPathToCwd(t *testing.T) {
 // console AND a PtyRunner. Forcing consoleRunner to decline left the whole suite
 // green twice over (BR-24).
 func TestConsoleRunnerWiresThePtyRunnerWhenATerminalExists(t *testing.T) {
-	console, runner := consoleRunnerFor("start", map[string]string{}, strings.NewReader(""), true, nil, nil)
+	console, runner := consoleRunnerFor("start", strings.NewReader(""), true, nil, nil)
 	if console == nil {
 		t.Fatal("no console was built for `start` with a terminal")
 	}
@@ -1050,7 +980,7 @@ func TestConsoleRunnerDetectsARealPTY(t *testing.T) {
 	defer master.Close()
 	defer slave.Close()
 
-	console, runner := consoleRunner("start", map[string]string{}, slave, slave)
+	console, runner := consoleRunner("start", slave, slave)
 	if console == nil {
 		t.Fatal("production consoleRunner declined a real pty")
 	}
@@ -1060,7 +990,7 @@ func TestConsoleRunnerDetectsARealPTY(t *testing.T) {
 }
 
 func TestConsoleRunnerDeclinesWithoutATerminalWiring(t *testing.T) {
-	console, runner := consoleRunnerFor("start", map[string]string{}, strings.NewReader(""), false, nil, nil)
+	console, runner := consoleRunnerFor("start", strings.NewReader(""), false, nil, nil)
 	if console != nil {
 		t.Fatal("a console was built with no terminal")
 	}
@@ -1077,7 +1007,7 @@ func TestConsoleGetsCouchsActionableProvider(t *testing.T) {
 	if err != nil {
 		t.Fatalf("NewCouch: %v", err)
 	}
-	console, _ := consoleRunnerFor("start", map[string]string{}, strings.NewReader(""), true, nil, nil)
+	console, _ := consoleRunnerFor("start", strings.NewReader(""), true, nil, nil)
 	if console == nil {
 		t.Fatal("no console to wire")
 	}
@@ -1109,7 +1039,7 @@ func TestWireResolverOmitsUnboundParkButRetainsDiagnosticInventory(t *testing.T)
 	if err != nil {
 		t.Fatal(err)
 	}
-	console, _ := consoleRunnerFor("start", map[string]string{}, strings.NewReader(""), true, nil, nil)
+	console, _ := consoleRunnerFor("start", strings.NewReader(""), true, nil, nil)
 	wireResolver(console, c)
 	provider := console.ActionableProvider()
 	if provider == nil {
@@ -1154,7 +1084,7 @@ func TestWireResolverPropagatesContextIntoActionableInventory(t *testing.T) {
 		release:                            make(chan struct{}),
 	}
 	c.Artifacts = artifacts
-	console, _ := consoleRunnerFor("start", map[string]string{}, strings.NewReader(""), true, nil, nil)
+	console, _ := consoleRunnerFor("start", strings.NewReader(""), true, nil, nil)
 	wireResolver(console, c)
 	ctx, cancel := context.WithCancel(context.Background())
 	done := make(chan error, 1)
@@ -1183,7 +1113,7 @@ func TestConsoleWiringPropagatesAuthoritativeThreadStoreFailures(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	console, _ := consoleRunnerFor("start", map[string]string{}, strings.NewReader(""), true, nil, nil)
+	console, _ := consoleRunnerFor("start", strings.NewReader(""), true, nil, nil)
 	wireResolver(console, c)
 	if err := os.WriteFile(filepath.Join(rt.dir, "threadstore", "manifest.json"), []byte("{corrupt"), 0o600); err != nil {
 		t.Fatal(err)
@@ -1202,7 +1132,7 @@ func TestConsoleGetsAnActionDispatcher(t *testing.T) {
 	if err != nil {
 		t.Fatalf("NewCouch: %v", err)
 	}
-	console, _ := consoleRunnerFor("start", map[string]string{}, strings.NewReader(""), true, nil, nil)
+	console, _ := consoleRunnerFor("start", strings.NewReader(""), true, nil, nil)
 	if console == nil {
 		t.Fatal("no console to wire")
 	}
@@ -1232,7 +1162,7 @@ func TestConsoleGetsAnActionDispatcher(t *testing.T) {
 }
 
 func TestInitialConsoleAttachDispatchesDeclaredOperation(t *testing.T) {
-	console, _ := consoleRunnerFor("start", map[string]string{}, strings.NewReader(""), true, nil, nil)
+	console, _ := consoleRunnerFor("start", strings.NewReader(""), true, nil, nil)
 	if console == nil {
 		t.Fatal("no console")
 	}
@@ -1263,7 +1193,7 @@ func TestWireAttachAbortCleansStartedActorAfterConsoleRefusal(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	console, _ := consoleRunnerFor("start", map[string]string{}, strings.NewReader(""), true, nil, nil)
+	console, _ := consoleRunnerFor("start", strings.NewReader(""), true, nil, nil)
 	console.Stop()
 	wireResolver(console, c)
 
@@ -1288,7 +1218,7 @@ func TestConsoleExitForgetsThroughCouchRegistry(t *testing.T) {
 	if err != nil {
 		t.Fatalf("NewCouch: %v", err)
 	}
-	console, _ := consoleRunnerFor("start", map[string]string{}, strings.NewReader(""), true, nil, nil)
+	console, _ := consoleRunnerFor("start", strings.NewReader(""), true, nil, nil)
 	rec, h, err := c.Spawn(couchcore.StartArgs{Cwd: "/repo"})
 	if err != nil {
 		t.Fatalf("Spawn: %v", err)
@@ -1309,11 +1239,11 @@ func TestConsoleExitForgetsThroughCouchRegistry(t *testing.T) {
 func TestCapacityRefusalNamesOnlyRunnableCommands(t *testing.T) {
 	rt := newRT(t, "/repo")
 	rt.boundedOne("/repo")
-	if _, errw, code := runRT(rt, "start", "/repo"); code != 0 {
+	if _, errw, code := runLaunchRT(rt, "/repo", ""); code != 0 {
 		t.Fatalf("first start failed: %d %q", code, errw)
 	}
 	rt.markLive(t) // the guard needs a live incumbent to refuse for
-	_, errw, code := runRT(rt, "start", "/repo")
+	_, errw, code := runLaunchRT(rt, "/repo", "")
 	if code == 0 {
 		t.Fatal("a second start on an occupied tree was allowed")
 	}

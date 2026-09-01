@@ -16,12 +16,12 @@
 
 | Name | Lives in | Status |
 |---|---|---|
-| `CLIInvocation` closed variants | `cmd/internal/couchcmd/cli.go` | new |
+| `cliInvocation` closed variants | `cmd/internal/couchcmd/cli.go` | new |
 | `ParseCLI` | `cmd/internal/couchcmd/cli.go` | new |
 | `OperationPresentation` | `cmd/internal/couchcore/ops.go` | new |
 | `Operation.Presentation` | `cmd/internal/couchcore/ops.go` | modified |
 
-- **`CLIInvocation`** — one of launch, list, show, internal, or help; parse failure is an error rather than a partial invocation.
+- **`cliInvocation`** — one of launch, list, show, internal, or help; parse failure is an error rather than a partial invocation.
   - **Relationships:** One argv vector produces at most one invocation. Launch owns one path, show owns one reference, and internal owns one whitelisted typed-operation request.
   - **DRY rationale:** Public precedence lives in one parser instead of being split between execution, generic operation binding, help, and tests.
   - **Future extensions:** A new public mode requires a new closed variant; adding an operation cannot expose it accidentally.
@@ -395,6 +395,19 @@ and retains bounded cancellation, reap, and reader joins, but observes the fake
 Pair invocation through its stateful call log. The fake also emits the marker,
 while the assertion is the exact `pair resume <tag> --layout2` process boundary
 plus the absence of any effect in the piped case (`ARCH-MOCK`, `ARCH-PURPOSE`).
+
+### 2026-09-01T12:06:00-07:00 — align delivered parser entity and test-source migration
+
+**Reason:** close review found the Core concepts table named an exported
+`CLIInvocation` while implementation deliberately kept `cliInvocation`
+package-private, and the current-source sweep excluded tests whose helper still
+reconstructed removed argv.
+
+**Delta:** the Core concepts table and prose now name the delivered private
+entity. Couch command tests invoke typed `OperationCall` values or an explicit
+launch helper rather than interpreting legacy argv, and the obsolete-argv sweep
+includes test sources with narrow parser-rejection allowances
+(`ARCH-PURPOSE`).
 
 ### 2026-09-01T10:29:00-07:00 — compress verification into named risk strategies
 

@@ -26,7 +26,7 @@ func waitUntilTrue(t *testing.T, what string, cond func() bool) {
 
 // The capability check is only meaningful if a runner can FAIL it. ExecRunner
 // hands the child couch's own stdio and has no terminal to offer, which is what
-// makes `--no-console` a real fallback rather than a different spelling.
+// keeps the non-console runner a real injected seam rather than dead plumbing.
 func TestExecRunnerHandleIsNotATerminalHandle(t *testing.T) {
 	h, err := ExecRunner{}.Start(t.TempDir(), []string{"sh", "-c", "exit 0"}, nil)
 	if err != nil {

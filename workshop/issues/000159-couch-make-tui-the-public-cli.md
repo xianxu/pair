@@ -183,6 +183,13 @@ exposed a smoke-only scheduler deadline and cancellation leak under co-tenancy;
 the observer now exits with its context and uses a generous 15-second safety
 bound rather than treating scheduler throughput as product latency.
 
+Close review round 1 found two traceability classes. The plan now names the
+delivered package-private `cliInvocation` exactly. Command tests no longer
+reconstruct the removed lifecycle argv: they dispatch typed `OperationCall`
+values or use an explicit launch helper, and the current-source audit now scans
+all Go tests with line-local allowances only for negative obsolete-argv
+fixtures (`ARCH-PURPOSE`).
+
 ## Revisions
 
 ### 2026-09-01T09:18:00-07:00 — close the argv and operation projections

@@ -1,5 +1,19 @@
 # Lessons
 
+## Public-surface migrations include test vocabulary and helpers
+
+A CLI migration removed lifecycle argv in production while command tests kept a
+test-only legacy argv interpreter and comments asserting removed shell forms.
+The current-source shadow sweep excluded `_test.go`, so the checked migration
+claim could not see the largest remaining consumer of the old model.
+
+**Rule.** When removing or projecting a public interface, enumerate production,
+documentation, probes, and tests as current consumers. Test helpers must invoke
+the replacement boundary directly rather than emulate the removed interface.
+Sweep test sources too, allowing obsolete spellings only on explicitly marked
+negative fixtures; do not exempt whole test files. Caught during #000159 close
+review.
+
 ## Adding retained observations changes every parser consumer contract
 
 `Screen.Feed` gained buffered notification observations, but an existing

@@ -236,9 +236,9 @@ func runTypedOperation(op couchcore.Operation, parsed, prepareArgs map[string]st
 	var console *couchtty.Console
 	var runner couchcore.Runner
 	if forceConsole {
-		console, runner = consoleRunnerFor(op.Name, parsed, stdin, true, inFile, outFile)
+		console, runner = consoleRunnerFor(op.Name, stdin, true, inFile, outFile)
 	} else {
-		console, runner = consoleRunner(op.Name, parsed, stdin, stdout)
+		console, runner = consoleRunner(op.Name, stdin, stdout)
 	}
 
 	c, err := rt.NewCouchWith(runner, namespace)
@@ -311,9 +311,8 @@ func operationOwnsLive(name string) bool {
 // consoleRunner decides which Runner this invocation gets, and builds the
 // Console when it is the pty one.
 //
-// Returning (nil, ExecRunner{}) is the fallback path: `--no-console` and every
-// non-start operation. The escape hatch announces itself at render time rather
-// than degrading silently.
+// Returning (nil, ExecRunner{}) is the injected fallback for non-console typed
+// operations.
 // WantsConsole is the console DECISION, separated from building one.
 //
 // Pure, and that is the point: the previous pins for this needed a real pty and
@@ -325,20 +324,17 @@ func operationOwnsLive(name string) bool {
 // hasTerminal must be true for BOTH directions. couch measures the input fd and
 // draws on the output fd, so a redirected stdout with a tty stdin would
 // otherwise build a console that paints into a file.
-func WantsConsole(name string, args map[string]string, hasTerminal bool) bool {
-	return operationOwnsLive(name) && args["no-console"] != "true" && hasTerminal
+func WantsConsole(name string, hasTerminal bool) bool {
+	return operationOwnsLive(name) && hasTerminal
 }
 
-func consoleRunner(name string, args map[string]string, stdin io.Reader, stdout io.Writer) (*couchtty.Console, couchcore.Runner) {
+func consoleRunner(name string, stdin io.Reader, stdout io.Writer) (*couchtty.Console, couchcore.Runner) {
 	inFile, _ := stdin.(*os.File)
 	outFile, _ := stdout.(*os.File)
 
-	// No terminal, no console. Piped, redirected, or run from a script, the
-	// console cannot measure a size or go raw -- and the first cut of this
-	// spawned the child anyway, sized it to a ZERO-ROW pty, then exited 1 with
-	// nothing printed (M2 BR-23). Falling back means the operator gets a working
-	// session and a reason, instead of a registered actor they cannot see.
-	return consoleRunnerFor(name, args, stdin, isTerminal(inFile) && isTerminal(outFile), inFile, outFile)
+	// Typed non-console operations use ExecRunner. Public launch is separately
+	// terminal-gated before it can reach this seam.
+	return consoleRunnerFor(name, stdin, isTerminal(inFile) && isTerminal(outFile), inFile, outFile)
 }
 
 // consoleRunnerFor is consoleRunner with the terminal question already answered,
@@ -347,8 +343,8 @@ func consoleRunner(name string, args map[string]string, stdin io.Reader, stdout 
 // Splitting it is not decoration: pinning only WantsConsole left "does
 // consoleRunner actually use it" uncovered, and forcing consoleRunner to return
 // (nil, ExecRunner) kept the whole suite green (M2 BR-24, twice).
-func consoleRunnerFor(name string, args map[string]string, stdin io.Reader, hasTerminal bool, inFile, outFile *os.File) (*couchtty.Console, couchcore.Runner) {
-	if !WantsConsole(name, args, hasTerminal) {
+func consoleRunnerFor(name string, stdin io.Reader, hasTerminal bool, inFile, outFile *os.File) (*couchtty.Console, couchcore.Runner) {
+	if !WantsConsole(name, hasTerminal) {
 		return nil, couchcore.ExecRunner{}
 	}
 
@@ -506,9 +502,8 @@ func bindArgs(op couchcore.Operation, argv []string) (map[string]string, error) 
 func render(w io.Writer, op couchcore.Operation, result any) int {
 	switch v := result.(type) {
 	case couchcore.StartResult:
-		// Reached on --no-console, and when there is no terminal to drive.
-		// Loud either way: a silent degradation is how an escape hatch becomes
-		// the default nobody noticed (Decision 2).
+		// Reached only through injected/internal non-console orchestration. Public
+		// launch is terminal-gated before actor creation.
 		fmt.Fprintf(w, "couch: no console — inheriting stdio, no pty, no reserved row\n")
 		fmt.Fprintf(w, "started %s on %s (pid %d)\n", v.Record.ID, v.Record.Args.Worktree, v.Record.PID)
 		if v.Handle != nil {
