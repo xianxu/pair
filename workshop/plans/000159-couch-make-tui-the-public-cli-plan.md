@@ -121,7 +121,7 @@ go test -p 20 ./cmd/couch -run '^TestBareCouchInstalledCommand' -count=1 -v
 Expected: FAIL because current bare Couch prints help and never invokes fake
 `sdlc`/Pair. This proves the smoke distinguishes the original behavior.
 
-- [ ] **Step 3: Commit the red regression with the implementation series only after it turns green**
+- [x] **Step 3: Commit the red regression with the implementation series only after it turns green**
 
 Leave the failing test uncommitted while Tasks 1–3 implement the behavior; it
 must be included in Task 3's green commit, not bypassed or skipped.
@@ -227,7 +227,7 @@ git commit -m "#159: parse the Couch TUI-first CLI"
 - Modify: `cmd/internal/couchcmd/run.go`
 - Modify: `cmd/internal/couchcmd/run_test.go`
 
-- [ ] **Step 1: Write failing runtime-shell strategy tests**
+- [x] **Step 1: Write failing runtime-shell strategy tests**
 
 `RunWithRuntime` parse/effect ordering → a stateful tracking runtime proves parse
 errors and non-terminal launch make zero namespace/policy/store/lease/runner
@@ -238,7 +238,7 @@ projection → registry-derived positive/negative assertions prove only the Spec
 homes are reachable. Existing orchestration tests call the private executor
 rather than deprecated argv.
 
-- [ ] **Step 2: Run focused tests and observe RED**
+- [x] **Step 2: Run focused tests and observe RED**
 
 ```bash
 go test -p 20 ./cmd/internal/couchcmd -run 'Test(Public|Bare|Path|Help|List|Show|Internal|ParseError|NonTerminal)' -count=1
@@ -246,7 +246,7 @@ go test -p 20 ./cmd/internal/couchcmd -run 'Test(Public|Bare|Path|Help|List|Show
 
 Expected: FAIL because zero args still select help and the registry is exposed as commands.
 
-- [ ] **Step 3: Implement the thin runtime projection**
+- [x] **Step 3: Implement the thin runtime projection**
 
 Keep `RunWithRuntime` responsible only for pure parsing, fixed public help,
 terminal gating, and selecting private launch/typed-operation execution.
@@ -254,7 +254,7 @@ terminal gating, and selecting private launch/typed-operation execution.
 prepare-start and token-only start. Delete generic operation help/reachability
 as public CLI concepts and update capacity guidance to `couch --list`.
 
-- [ ] **Step 4: Run Couch command tests and observe GREEN**
+- [x] **Step 4: Run Couch command tests and observe GREEN**
 
 ```bash
 go test -p 20 ./cmd/internal/couchcmd -count=1

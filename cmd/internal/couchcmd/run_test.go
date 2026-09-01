@@ -351,6 +351,45 @@ func (rt testRT) boundedOne(path string) {
 
 func runRT(rt testRT, args ...string) (string, string, int) {
 	var out, errw bytes.Buffer
+	// Most tests in this file exercise typed Couch operations rather than the
+	// public argv projection. Keep those tests on the in-process boundary that
+	// the TUI uses; dedicated Public/Parse tests exercise RunWithRuntime.
+	if len(args) > 0 {
+		if op, ok := Resolve(args[0]); ok && args[0] != "prepare-start" {
+			if op.Name == "start" {
+				legacy := couchcore.Operation{Args: []couchcore.ArgSpec{
+					{Name: "path"},
+					{Name: "no-console", FlagOnly: true},
+					{Name: "agent", FlagOnly: true, ValueRequired: true},
+				}}
+				parsed, err := bindArgs(legacy, args[1:])
+				if err != nil {
+					fmt.Fprintf(&errw, "couch start: %v\n", err)
+					return out.String(), errw.String(), 2
+				}
+				prepare := map[string]string{"path": parsed["path"]}
+				if prepare["path"] == "" {
+					prepare["path"] = "."
+				}
+				if parsed["agent"] != "" {
+					prepare["agent"] = parsed["agent"]
+				}
+				code := runTypedOperation(op, map[string]string{}, prepare, false, nil, nil, strings.NewReader(""), &out, &errw, rt)
+				return out.String(), errw.String(), code
+			}
+			parsed, err := bindArgs(op, args[1:])
+			if err != nil {
+				fmt.Fprintf(&errw, "couch %s: %v\n", op.Name, err)
+				return out.String(), errw.String(), 2
+			}
+			if op.Name == "publish-description" {
+				parsed["repo-scope"] = rt.Getenv("COUCH_THREAD_SCOPE")
+				parsed["tag"] = rt.Getenv("COUCH_THREAD_TAG")
+			}
+			code := runTypedOperation(op, parsed, nil, false, nil, nil, strings.NewReader(""), &out, &errw, rt)
+			return out.String(), errw.String(), code
+		}
+	}
 	code := RunWithRuntime(args, strings.NewReader(""), &out, &errw, rt)
 	return out.String(), errw.String(), code
 }
@@ -449,13 +488,74 @@ func TestListOnEmptyThreadStore(t *testing.T) {
 	}
 }
 
-func TestUnknownOperationIsNonZeroAndListsWhatExists(t *testing.T) {
-	out, errw, code := runRT(newRT(t), "frobnicate")
+func TestPublicListAndShowUseDiagnosticFlags(t *testing.T) {
+	rt := newRT(t, "/repo")
+	seedThread(t, rt, "/repo")
+	var out, errw bytes.Buffer
+	if code := RunWithRuntime([]string{"--list"}, strings.NewReader(""), &out, &errw, rt); code != 0 {
+		t.Fatalf("--list: code=%d stderr=%q", code, errw.String())
+	}
+	if !strings.Contains(out.String(), "/repo") {
+		t.Fatalf("--list output = %q", out.String())
+	}
+	out.Reset()
+	errw.Reset()
+	if code := RunWithRuntime([]string{"--show", "couch-0102030405060708"}, strings.NewReader(""), &out, &errw, rt); code != 0 {
+		t.Fatalf("--show: code=%d stderr=%q", code, errw.String())
+	}
+	if !strings.Contains(out.String(), "address:") {
+		t.Fatalf("--show output = %q", out.String())
+	}
+}
+
+func TestPublicNonTerminalLaunchRefusesBeforeEffects(t *testing.T) {
+	rt := newRT(t, "/repo")
+	var out, errw bytes.Buffer
+	code := RunWithRuntime([]string{"/repo"}, strings.NewReader(""), &out, &errw, rt)
+	if code == 0 || !strings.Contains(errw.String(), "requires terminal") {
+		t.Fatalf("launch: code=%d stderr=%q", code, errw.String())
+	}
+	if rt.supervisor.acquired != 0 || len(rt.runner.Ops) != 0 {
+		t.Fatalf("non-terminal launch performed effects: supervisor=%d runner=%v", rt.supervisor.acquired, rt.runner.Ops)
+	}
+}
+
+func TestPublicInternalPublishDescriptionIsTheOnlyHiddenOperation(t *testing.T) {
+	rt := newRT(t)
+	record := couchcore.ThreadRecord{
+		SchemaVersion: couchcore.ThreadSchemaVersion,
+		Address:       couchcore.ThreadAddress{RepoScope: "scope", Tag: "couch-0102030405060708"},
+		StartingPath:  "/repo", WorkingPath: "/repo", CreatedAt: time.Unix(1, 0).UTC(), Revision: 1,
+	}
+	c, err := rt.NewCouch()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := c.Threads.CreateThread(record); err != nil {
+		t.Fatal(err)
+	}
+	rt.env["COUCH_THREAD_SCOPE"] = "scope"
+	rt.env["COUCH_THREAD_TAG"] = "couch-0102030405060708"
+	var out, errw bytes.Buffer
+	if code := RunWithRuntime([]string{"--internal", "publish-description", "working"}, strings.NewReader(""), &out, &errw, rt); code != 0 {
+		t.Fatalf("internal publish: code=%d stderr=%q", code, errw.String())
+	}
+	got, err := c.Threads.GetThread(record.Address)
+	if err != nil || got.PublishedSummary != "working" {
+		t.Fatalf("published record = %+v, %v", got, err)
+	}
+	if code := RunWithRuntime([]string{"--internal", "list"}, strings.NewReader(""), &out, &errw, rt); code != 2 {
+		t.Fatalf("internal list code=%d, want 2", code)
+	}
+}
+
+func TestUnknownPublicOptionIsNonZero(t *testing.T) {
+	out, errw, code := runRT(newRT(t), "--frobnicate")
 	if code == 0 {
 		t.Fatal("unknown operation must be non-zero")
 	}
-	if !strings.Contains(errw, "unknown operation") || !strings.Contains(errw, "start") {
-		t.Fatalf("stderr = %q; the error should name what does exist", errw)
+	if !strings.Contains(errw, "unknown option") {
+		t.Fatalf("stderr = %q", errw)
 	}
 	_ = out
 }
@@ -470,14 +570,19 @@ func TestMissingRequiredArgumentIsRejectedBeforeAnyWork(t *testing.T) {
 	}
 }
 
-func TestHelpListsEveryDeclaredOperation(t *testing.T) {
+func TestPublicHelpListsOnlyPublicSurface(t *testing.T) {
 	out, _, code := runRT(newRT(t), "--help")
 	if code != 0 {
 		t.Fatalf("exit %d", code)
 	}
-	for _, name := range couchcore.OperationNames() {
-		if !strings.Contains(out, name) {
-			t.Errorf("help omits %q", name)
+	for _, want := range []string{"couch [path]", "couch --list", "couch --show", "couch --help"} {
+		if !strings.Contains(out, want) {
+			t.Errorf("help omits %q", want)
+		}
+	}
+	for _, hidden := range []string{"start", "park", "resume", "publish-description", "--internal"} {
+		if strings.Contains(out, hidden) {
+			t.Errorf("help exposes %q", hidden)
 		}
 	}
 }
@@ -503,18 +608,18 @@ func TestReadmeDoesNotAdvertiseOwnerRequiredStopAsExternalCommand(t *testing.T) 
 	}
 }
 
-func TestBindArgsAcceptsFlagsAndPositionals(t *testing.T) {
+func TestBindArgsAcceptsPrepareStartFlagsAndPositionals(t *testing.T) {
 	var start couchcore.Operation
 	for _, op := range couchcore.Operations() {
-		if op.Name == "start" {
+		if op.Name == "prepare-start" {
 			start = op
 		}
 	}
-	got, err := bindArgs(start, []string{"../pair", "--no-console"})
+	got, err := bindArgs(start, []string{"../pair", "--agent=claude"})
 	if err != nil {
 		t.Fatalf("bindArgs: %v", err)
 	}
-	if got["path"] != "../pair" || got["no-console"] != "true" {
+	if got["path"] != "../pair" || got["agent"] != "claude" {
 		t.Fatalf("bound = %v", got)
 	}
 }
@@ -522,7 +627,7 @@ func TestBindArgsAcceptsFlagsAndPositionals(t *testing.T) {
 func TestBindArgsRejectsMissingOrEmptyValueBearingFlag(t *testing.T) {
 	var start couchcore.Operation
 	for _, op := range couchcore.Operations() {
-		if op.Name == "start" {
+		if op.Name == "prepare-start" {
 			start = op
 		}
 	}
@@ -743,7 +848,7 @@ func TestStartRendersTheRefusalWithThePolicyShapedOffer(t *testing.T) {
 	if code == 0 {
 		t.Fatal("a second start on an occupied tree must fail")
 	}
-	for _, want := range []string{"at capacity 1", `admission key "/repo"`, "couch list"} {
+	for _, want := range []string{"at capacity 1", `admission key "/repo"`, "couch --list"} {
 		if !strings.Contains(errw, want) {
 			t.Errorf("refusal missing %q; got %q", want, errw)
 		}
@@ -1216,12 +1321,8 @@ func TestCapacityRefusalNamesOnlyRunnableCommands(t *testing.T) {
 	if strings.Contains(errw, "switch to it") {
 		t.Errorf("the refusal still offers an action couch cannot perform: %q", errw)
 	}
-	// Every `couch <verb>` it suggests must be a declared operation.
-	declared := map[string]bool{}
-	for _, n := range couchcore.OperationNames() {
-		declared[n] = true
-	}
-	// Only the SUGGESTION lines (`  -> couch <verb> ...`) are commands; the
+	// Every suggested Couch argv must be accepted by the public parser.
+	// Only the SUGGESTION lines (`  -> couch <args> ...`) are commands; the
 	// rest is prose and may legitimately mention couch.
 	found := 0
 	for _, line := range strings.Split(errw, "\n") {
@@ -1234,8 +1335,8 @@ func TestCapacityRefusalNamesOnlyRunnableCommands(t *testing.T) {
 			continue
 		}
 		found++
-		if !declared[fields[0]] {
-			t.Errorf("the refusal suggests `couch %s`, which is not a declared operation", fields[0])
+		if _, err := ParseCLI(fields[:1], couchcore.Operations()); err != nil {
+			t.Errorf("the refusal suggests unrunnable `couch %s`: %v", fields[0], err)
 		}
 	}
 	if found == 0 {

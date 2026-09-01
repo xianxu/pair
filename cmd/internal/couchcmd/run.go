@@ -14,7 +14,6 @@ import (
 	"io"
 	"os"
 	"path/filepath"
-	"sort"
 	"strings"
 
 	"golang.org/x/term"
@@ -131,12 +130,9 @@ func Run(args []string, stdin io.Reader, stdout, stderr io.Writer) int {
 	return RunWithRuntime(args, stdin, stdout, stderr, OSRuntime{})
 }
 
-// Dispatch is the operation table, built FROM couchcore.Operations(). There is
-// deliberately no argv switch: the audit asserts this table's key set is
-// identical to the declared operation set, so an operation reachable here but
-// never declared cannot exist.
-// Resolve is the single lookup the CLI performs. Exported so a test can assert
-// that the set of names it accepts is exactly the declared set.
+// Resolve and Dispatch expose the typed in-process registry to Couch's own
+// presentation layers. Public argv reachability is separately constrained by
+// Operation.Presentation and ParseCLI.
 func Resolve(name string) (couchcore.Operation, bool) {
 	op, ok := Dispatch()[name]
 	return op, ok
@@ -151,23 +147,41 @@ func Dispatch() map[string]couchcore.Operation {
 }
 
 func RunWithRuntime(args []string, stdin io.Reader, stdout, stderr io.Writer, rt Runtime) int {
-	table := Dispatch()
-	if len(args) == 0 || args[0] == "-h" || args[0] == "--help" {
-		usage(stdout, table)
-		return 0
-	}
-	// Resolution is table-only. There is deliberately no switch here: an
-	// operation reachable from the CLI but absent from couchcore.Operations()
-	// would be invisible to the advisor in pair#148, and a reviewer proved a
-	// hand-added branch ahead of this lookup went undetected.
-	op, ok := Resolve(args[0])
-	if !ok {
-		fmt.Fprintf(stderr, "couch: unknown operation %q\n\n", args[0])
-		usage(stderr, table)
+	invocation, err := ParseCLI(args, couchcore.Operations())
+	if err != nil {
+		fmt.Fprintf(stderr, "couch: %v\n", err)
 		return 2
 	}
+	if invocation.kind == cliHelp {
+		usage(stdout)
+		return 0
+	}
+	if invocation.kind == cliLaunch {
+		inFile, outFile, ok := terminalFiles(stdin, stdout)
+		if !ok {
+			fmt.Fprintln(stderr, "couch: interactive launch requires terminal stdin and stdout")
+			return 1
+		}
+		op, _ := Resolve("start")
+		return runTypedOperation(op, map[string]string{}, map[string]string{"path": invocation.path}, true, inFile, outFile, stdin, stdout, stderr, rt)
+	}
 
-	parsed, err := bindArgs(op, args[1:])
+	var op couchcore.Operation
+	var argv []string
+	switch invocation.kind {
+	case cliList:
+		op, _ = Resolve("list")
+	case cliShow:
+		op, _ = Resolve("show")
+		argv = []string{invocation.ref}
+	case cliInternal:
+		op, _ = Resolve(invocation.operation)
+		argv = invocation.args
+	default:
+		fmt.Fprintln(stderr, "couch: invalid invocation")
+		return 2
+	}
+	parsed, err := bindArgs(op, argv)
 	// A spawned child receives the exact composite thread address, so an agent
 	// can publish its summary without resolving a mutable path or human label.
 	if op.Name == "publish-description" && parsed != nil {
@@ -179,9 +193,19 @@ func RunWithRuntime(args []string, stdin io.Reader, stdout, stderr io.Writer, rt
 		}
 	}
 	if err != nil {
-		fmt.Fprintf(stderr, "couch %s: %v\n", op.Name, err)
+		fmt.Fprintf(stderr, "couch: %v\n", err)
 		return 2
 	}
+	return runTypedOperation(op, parsed, nil, false, nil, nil, stdin, stdout, stderr, rt)
+}
+
+func terminalFiles(stdin io.Reader, stdout io.Writer) (*os.File, *os.File, bool) {
+	inFile, inOK := stdin.(*os.File)
+	outFile, outOK := stdout.(*os.File)
+	return inFile, outFile, inOK && outOK && isTerminal(inFile) && isTerminal(outFile)
+}
+
+func runTypedOperation(op couchcore.Operation, parsed, prepareArgs map[string]string, forceConsole bool, inFile, outFile *os.File, stdin io.Reader, stdout, stderr io.Writer, rt Runtime) int {
 	if operationUsesCurrentRepoScope(op.Name) {
 		scope, err := rt.CurrentRepoScope()
 		if err != nil {
@@ -209,13 +233,13 @@ func RunWithRuntime(args []string, stdin io.Reader, stdout, stderr io.Writer, rt
 		defer lease.Close()
 	}
 
-	// `start` without --no-console becomes THE CONSOLE: it allocates a pty per
-	// child and owns the operator's terminal for its lifetime. Everything else
-	// -- and --no-console -- keeps the stdio-inheriting runner.
-	//
-	// couchcmd constructs and drives the Console; couchcore never learns that a
-	// terminal exists.
-	console, runner := consoleRunner(op.Name, parsed, stdin, stdout)
+	var console *couchtty.Console
+	var runner couchcore.Runner
+	if forceConsole {
+		console, runner = consoleRunnerFor(op.Name, parsed, stdin, true, inFile, outFile)
+	} else {
+		console, runner = consoleRunner(op.Name, parsed, stdin, stdout)
+	}
 
 	c, err := rt.NewCouchWith(runner, namespace)
 	if err != nil {
@@ -228,14 +252,7 @@ func RunWithRuntime(args []string, stdin io.Reader, stdout, stderr io.Writer, rt
 		executors.LiveOwner = couchcore.CouchLiveOwnerExecutor(c)
 	}
 	callArgs := parsed
-	if op.Name == "start" {
-		prepareArgs := map[string]string{}
-		if path := parsed["path"]; path != "" {
-			prepareArgs["path"] = path
-		}
-		if agent := parsed["agent"]; agent != "" {
-			prepareArgs["agent"] = agent
-		}
+	if prepareArgs != nil {
 		preparedValue, prepareErr := couchcore.DispatchOperation(executors, couchcore.OperationCall{
 			Name:    "prepare-start",
 			Args:    prepareArgs,
@@ -250,8 +267,7 @@ func RunWithRuntime(args []string, stdin io.Reader, stdout, stderr io.Writer, rt
 			fmt.Fprintf(stderr, "couch: prepare-start returned %T\n", preparedValue)
 			return 1
 		}
-		callArgs = cloneArgs(parsed)
-		callArgs["token"] = string(prepared.Token)
+		callArgs = map[string]string{"token": string(prepared.Token)}
 	}
 	result, err := couchcore.DispatchOperation(executors, couchcore.OperationCall{
 		Name: op.Name, Args: callArgs, Implicit: true, Context: context.Background(),
@@ -275,14 +291,6 @@ func RunWithRuntime(args []string, stdin io.Reader, stdout, stderr io.Writer, rt
 		}
 	}
 	return render(stdout, op, result)
-}
-
-func cloneArgs(args map[string]string) map[string]string {
-	out := make(map[string]string, len(args)+1)
-	for name, value := range args {
-		out[name] = value
-	}
-	return out
 }
 
 func operationUsesCurrentRepoScope(name string) bool {
@@ -641,27 +649,15 @@ func renderError(w io.Writer, err error) {
 	if full.Action == couchcore.CapacityProvisionWorktree {
 		fmt.Fprintln(w, "  -> managed worktree provisioning is tracked by pair#153; no path was created")
 	} else {
-		fmt.Fprintln(w, "  -> couch list   inspect the existing thread")
+		fmt.Fprintln(w, "  -> couch --list   inspect the existing thread")
 	}
 }
 
-func usage(w io.Writer, table map[string]couchcore.Operation) {
-	names := make([]string, 0, len(table))
-	for n := range table {
-		names = append(names, n)
-	}
-	sort.Strings(names)
+func usage(w io.Writer) {
 	fmt.Fprintln(w, "couch - supervise agent actors, one per working tree")
 	fmt.Fprintln(w)
-	for _, n := range names {
-		op := table[n]
-		fmt.Fprintf(w, "  %-10s %s\n", op.Name, op.Summary)
-		for _, a := range op.Args {
-			req := ""
-			if a.Required {
-				req = " (required)"
-			}
-			fmt.Fprintf(w, "  %-10s   <%s>%s -- %s\n", "", a.Name, req, a.Summary)
-		}
-	}
+	fmt.Fprintln(w, "usage: couch [path]")
+	fmt.Fprintln(w, "       couch --list")
+	fmt.Fprintln(w, "       couch --show <thread>")
+	fmt.Fprintln(w, "       couch --help")
 }
