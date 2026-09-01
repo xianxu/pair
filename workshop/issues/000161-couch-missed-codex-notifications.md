@@ -132,7 +132,7 @@ total: 6.93
 
 ## Plan
 
-- [ ] M1 — Correct and regression-test Claude's Unicode marker-verb grammar.
+- [x] M1 — Correct and regression-test Claude's Unicode marker-verb grammar.
 - [ ] M2 — Add the pure turn lifecycle reducer, semantic deduplication, Claude
   OSC progress transitions, and activity-gated timers.
 - [ ] M3 — Extend the existing authorized Codex session watcher to tail the
@@ -221,6 +221,13 @@ the function-level test-strategy rule was still duplicated by scenario lists and
 diff recipes in later task steps. Removed those restatements across every chunk;
 the plan now retains one adversarial-input/mechanical-guard strategy per risky
 function plus architectural contracts and production acceptance only.
+
+M1 used strict TDD. The grammar and production-path regressions both failed
+before implementation: precomposed `Sautéed` was rejected and the colored span
+emitted no outer notification. Replacing only the ASCII verb class with
+`\p{L}+` made the focused tests and the full `wrapcmd` package pass. A rune-level
+fuzz property pins the General Category `L` boundary; no atlas text restated the
+old grammar (`ARCH-PURE`).
 
 ## Revisions
 

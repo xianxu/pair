@@ -103,15 +103,15 @@ const notifyModeDefault = "native"
 
 // Per-agent end-of-turn pattern, applied only in "marker" notify mode.
 // Matched against finalized colored spans (post-SGR-stripping by the
-// span extractor). The Python regex (raw bytes form):
+// span extractor). The grammar is:
 //
-//	rb"^\xe2\x9c\xbb\s*[A-Za-z]+\s+for\s+\d+[hms](?:\s+\d+[hms])*"
+//	^\x{273B}\s*\p{L}+\s+for\s+\d+[hms](?:\s+\d+[hms])*
 //
 // ✻ = U+273B = 0xE2 0x9C 0xBB in UTF-8. Anchored on ✻ so the
 // quoted-history form ("> ✻ Churned for 21s", different color) won't
 // double-emit. Durations accept multiple `\d+[hms]` parts: 1m 52s, 2h 13m 4s, etc.
 var endOfTurnByAgent = map[string]*regexp.Regexp{
-	"claude": regexp.MustCompile(`^\x{273B}\s*[A-Za-z]+\s+for\s+\d+[hms](?:\s+\d+[hms])*`),
+	"claude": regexp.MustCompile(`^\x{273B}\s*\p{L}+\s+for\s+\d+[hms](?:\s+\d+[hms])*`),
 }
 
 // Agents we trust the colored-span extractor to handle. Outside this set,

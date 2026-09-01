@@ -181,16 +181,16 @@ fixtures/parser support before release—never accepted by broad fallback parsin
 - Create: `cmd/internal/wrapcmd/notification_marker_test.go`
 - Modify: `cmd/internal/wrapcmd/update_agent_output_test.go`
 
-- [ ] Write the failing `endOfTurnByAgent["claude"].Match` tests according to the
+- [x] Write the failing `endOfTurnByAgent["claude"].Match` tests according to the
   named UTF-8 marker risk strategy above.
-- [ ] Run `go test ./cmd/internal/wrapcmd -run TestClaudeEndOfTurnGrammar -count=1`;
+- [x] Run `go test ./cmd/internal/wrapcmd -run TestClaudeEndOfTurnGrammar -count=1`;
   expect the `Sautéed` case to fail.
-- [ ] Change only `[A-Za-z]+` to `\p{L}+`; retain the anchored star, whitespace,
+- [x] Change only `[A-Za-z]+` to `\p{L}+`; retain the anchored star, whitespace,
   duration, and prefix-only trailing text.
-- [ ] Add the production-path regression for the reported `Sautéed` span through
+- [x] Add the production-path regression for the reported `Sautéed` span through
   `updateAgentOutput` / `finalizeSpan` and the outer-TTY seam.
-- [ ] Run `go test ./cmd/internal/wrapcmd -run 'TestClaudeEndOfTurnGrammar|Test.*Saut' -count=1`; expect PASS.
-- [ ] Commit `couch: #161 M1 accept Unicode Claude marker verbs`, tick M1,
+- [x] Run `go test ./cmd/internal/wrapcmd -run 'TestClaudeEndOfTurnGrammar|Test.*Saut' -count=1`; expect PASS.
+- [x] Commit `couch: #161 M1 accept Unicode Claude marker verbs`, tick M1,
   append evidence, update atlas only if its grammar is stale, and run
   `sdlc milestone-close --issue 161 --milestone M1`.
 

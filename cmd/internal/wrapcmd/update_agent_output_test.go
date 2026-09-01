@@ -1,9 +1,13 @@
 package wrapcmd
 
 import (
+	"bytes"
 	"container/list"
+	"os"
+	"path/filepath"
 	"strings"
 	"testing"
+	"time"
 )
 
 // newAgentProxy builds a proxy wired just enough for updateAgentOutput
@@ -76,6 +80,36 @@ func TestUpdateAgentOutput_DefaultFGNotCaptured(t *testing.T) {
 	got := spanTexts(p)
 	if len(got) != 0 {
 		t.Errorf("got %q, want empty", got)
+	}
+}
+
+func TestUpdateAgentOutput_SautedMarkerEmitsOuterNotification(t *testing.T) {
+	dir := t.TempDir()
+	tty := filepath.Join(dir, "tty")
+	if err := os.WriteFile(tty, nil, 0o600); err != nil {
+		t.Fatal(err)
+	}
+	sidecar := filepath.Join(dir, "outer-path")
+	if err := os.WriteFile(sidecar, []byte(tty+"\n"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+
+	p := newAgentProxy()
+	p.agentBasename = "claude"
+	p.endOfTurnRe = endOfTurnByAgent["claude"]
+	p.outerTTYFile = sidecar
+	p.lastSlug = time.Now()
+	var written []byte
+	p.writeTTY = func(_ int, data []byte) (int, error) {
+		written = append(written, data...)
+		return len(data), nil
+	}
+
+	marker := "✻ Sautéed for 34s · done 1:39 PM"
+	p.updateAgentOutput([]byte(sgr("31") + marker + sgr("0")))
+	want := []byte("\x1b]777;notify;pair;" + marker + "\x07")
+	if !bytes.Equal(written, want) {
+		t.Fatalf("outer notification = %q, want %q", written, want)
 	}
 }
 
@@ -159,4 +193,3 @@ func TestUpdateAgentOutput_LRUMoveToBackOrdersByRecency(t *testing.T) {
 		t.Errorf("got %q, want %q", got, want)
 	}
 }
-
