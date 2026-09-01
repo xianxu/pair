@@ -556,7 +556,8 @@ func (p *proxy) traceWrap(label string, fields map[string]any) {
 
 // ----- Outer-TTY OSC emit -----------------------------------------------------
 
-// emitOuter writes \x1b]9;<msg>\x07 to the path recorded in outerTTYFile.
+// emitOuter writes Pair's canonical OSC 777 notification to the path recorded
+// in outerTTYFile.
 // maybeSpawnSlug fires pair-slug in the background to refresh the orientation
 // slug (#000027 M3). Debounced by slugDebounceS so closely-spaced turn-end
 // signals don't double-spawn. pair-slug self-gates (no-op without PAIR_TAG)

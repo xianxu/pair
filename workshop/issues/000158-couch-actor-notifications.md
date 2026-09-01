@@ -248,7 +248,7 @@ OSC bytes and Couch-local attention state.
 - [x] Write and approve the implementation plan.
 - [x] Normalize Pair notification emission and add chunk-safe Couch observation.
 - [x] Add bounded per-actor inbox state plus status/switcher presentation.
-- [ ] Verify byte-faithful forwarding, acknowledgement races, and operating
+- [x] Verify byte-faithful forwarding, acknowledgement races, and operating
       bounds through pure, integration, conformance, and performance tests.
 
 ## Estimate
@@ -320,6 +320,16 @@ navigation, and stable actor order remain actor-only. Opening with
 `Ctrl-Space` selects the source of the newest resident unread event and leaves
 the operator one Enter from switching. Portable bounds pass with the declared
 100-actor/300-message fixture (`ARCH-CONSTRAINTS`).
+
+Final conformance drives the production notification command through a real
+child PTY: the inactive event reaches the host exactly once and enters the
+ledger; the focused event reaches the host exactly once without unread state.
+Runtime assets regenerate cleanly, and the exhaustive artifact inventory now
+assigns the new codec, command, rewriter, and ledger sources. The 12-package
+bounded suite and terminal-path race suite pass. On the M2 Max under
+four-worker co-tenancy, all 100-actor/300-message switcher paths measured below
+0.7 ms p95; notification skip measured 179.93 MiB/s in the target protocol and
+155.10 MiB/s in the final benchmark smoke (`ARCH-CONSTRAINTS`, `ARCH-PURPOSE`).
 
 ## Revisions
 

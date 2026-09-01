@@ -36,16 +36,21 @@ func TestMenu100Bounds(t *testing.T) {
 	state.Attention = menu100Attention(rows)
 	now := time.Unix(1_800_000_000, 0)
 
-	if got := testing.AllocsPerRun(100, func() {
-		_ = RenderMenu(state, 120, 40, now, true)
-	}); got > 1400 {
-		t.Fatalf("100-row/300-message render allocations = %.0f, want <= 1400", got)
-	}
-	if got := testing.AllocsPerRun(100, func() {
-		next, _ := reduceKey(state, PanelKey{Kind: KeyRune, Rune: 't'})
-		_ = next
-	}); got > 130 {
-		t.Fatalf("100-row/300-message filter allocations = %.0f, want <= 130", got)
+	// The race runtime instruments allocations and changes this measurement;
+	// race behavior is covered by the suite, while allocation budgets belong
+	// to the ordinary target binary.
+	if !raceEnabled {
+		if got := testing.AllocsPerRun(100, func() {
+			_ = RenderMenu(state, 120, 40, now, true)
+		}); got > 1400 {
+			t.Fatalf("100-row/300-message render allocations = %.0f, want <= 1400", got)
+		}
+		if got := testing.AllocsPerRun(100, func() {
+			next, _ := reduceKey(state, PanelKey{Kind: KeyRune, Rune: 't'})
+			_ = next
+		}); got > 130 {
+			t.Fatalf("100-row/300-message filter allocations = %.0f, want <= 130", got)
+		}
 	}
 	if len(state.Inventory) != menuPerfRows || len(state.Frames) != 1 {
 		t.Fatalf("fixture/state bounds changed: rows=%d frames=%d", len(state.Inventory), len(state.Frames))

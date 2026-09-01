@@ -481,27 +481,27 @@
 - Modify: `atlas/index.md`
 - Modify: `workshop/issues/000158-couch-actor-notifications.md`
 
-- [ ] **Step 1: Write a real-PTY conformance test over the completed production path**
+- [x] **Step 1: Write a real-PTY conformance test over the completed production path**
 
   Start a controlled child on a real PTY that invokes the production canonical notification command against its recorded outer TTY. Prove the host receives the exact envelope once and Console attributes the decoded message to the inactive actor. Repeat focused to prove exact once-forwarding with no retained attention. Use bounded deadlines only as safety guards and always join/reap the child.
 
-- [ ] **Step 2: Run the conformance test as independent verification**
+- [x] **Step 2: Run the conformance test as independent verification**
 
   Run: `go test -p 20 ./cmd/internal/couchtty -run '^TestNotificationPTYConformance$' -count=1 -v`
 
   Expected: PASS. If it fails, return to the owning earlier task and add a focused failing regression before changing production code; do not add test-only injection or an unspecified wiring patch here.
 
-- [ ] **Step 3: Regenerate and verify the runtime bundle from tracked inputs**
+- [x] **Step 3: Regenerate and verify the runtime bundle from tracked inputs**
 
   Run: `make runtimebundle-generate && go test -p 20 ./cmd/internal/runtimebundle ./cmd/internal/artifactpath -count=1`
 
   Expected: PASS; generated manifest and `pair-notify` mirror match tracked sources in both directions.
 
-- [ ] **Step 4: Update architecture and issue log**
+- [x] **Step 4: Update architecture and issue log**
 
   In `atlas/architecture.md`, replace the old independent OSC 9/777 helper description with the singular canonical Pair envelope, native replacement path, Couch tee behavior, bounded ephemeral ledger, and successful-switch acknowledgement. Ensure `atlas/index.md` still links the map. Append implementation discoveries and verification commands to the issue `## Log`; do not rewrite prior revisions.
 
-- [ ] **Step 5: Run the complete bounded verification suite**
+- [x] **Step 5: Run the complete bounded verification suite**
 
   Run:
 
@@ -515,7 +515,7 @@
 
   Expected: all tests PASS, benchmark reports bounded allocations/throughput, shell syntax is clean, and `git diff --check` prints nothing. Never exceed 20 Go test workers.
 
-- [ ] **Step 6: Run the target M2 Max performance protocol**
+- [x] **Step 6: Run the target M2 Max performance protocol**
 
   Run on the operator's otherwise normal development machine:
 
@@ -525,7 +525,7 @@
 
   Expected: PASS with the 100-actor/300-message UI p95 limits and malformed-stream throughput `>=10 MiB/s` under the documented four-worker co-tenancy load.
 
-- [ ] **Step 7: Commit the conformance evidence and documentation**
+- [x] **Step 7: Commit the conformance evidence and documentation**
 
   Run:
 
