@@ -126,6 +126,54 @@ turns separated by submission, and a delayed duplicate after new activity.
   generation and recovers from the journal.
 - Network/GPU: N/A.
 
+### Non-goals
+
+- **No Codex notify-hook mutation:** Codex has one legacy slot that may belong to
+  another integration; transcript authority makes mutation unnecessary.
+- **No newest-file/cwd-only transcript selection:** it violates Pair's root and
+  launch identity model under concurrent sessions.
+- **No `Worked for…` completion authority:** it is presentation text and can be
+  absent on short turns; it remains diagnostic evidence only.
+- **No transcript normalization:** consume captured native envelopes and fail
+  closed on unknown shapes rather than silently invent compatibility.
+- **No new Couch projection policy:** Couch already projects canonical OSC into
+  status and switcher state; this issue fixes the upstream signal.
+- **No uncaptured `turn_complete` support:** add an envelope only after live
+  conformance proves its exact nesting and identity fields.
+
+### Test strategy
+
+- `endOfTurnByAgent["claude"].Match` over arbitrary UTF-8 marker verbs -> table
+  and fuzz seeds enforce General Category `L` without expanding prefix grammar.
+- `Reduce` over arbitrary keyed/keyless observation sequences -> property/table
+  tests enforce at-most-once per generation and no notification without an
+  authorized opener.
+- `NotificationRewriter.Feed` over arbitrary chunk boundaries and malformed OSC
+  -> every-split/fuzz tests enforce byte preservation and one typed observation.
+- `AppendLifecycleRecord` over injected filesystem outcome boundaries -> the
+  stateful runtime enforces non-authoritative/indeterminate/committed recovery by
+  stable composite identity.
+- `LifecycleJournalTailer.Advance` over append/truncate/replace/partial streams ->
+  stateful folder tests enforce committed-line framing, bounds, and monotonic
+  cursor behavior.
+- `FollowAuthorizedTranscript` over concurrent mutable artifact/process state ->
+  the existing sessionwatch runtime fake enforces root/generation/watermark
+  authorization and incremental-only publication.
+- `RecognizeCodexWorking` over arbitrary rendered cells -> fixture plus fuzz seeds
+  enforce exact live-status structure and reject prose/history lookalikes.
+
+### Live conformance (`ARCH-MOCK`)
+
+Extend `TestLiveNativeSessionShapeConformance` in
+`cmd/internal/sessioninventory/conformance_live_test.go` to launch an installed
+Codex against a bounded deterministic prompt and assert root `session_meta`,
+`task_started(turn_id)`, successful `task_complete` with the same identity,
+abort/error disposition when the harness can induce it, and monotonic record
+offsets. Run it manually before each Pair release and in the scheduled
+macOS/live-toolchain conformance job; it remains opt-in for ordinary unit tests.
+Unknown/moved envelopes fail the conformance test and are added to sanitized
+fixtures/parser support before release—never accepted by broad fallback parsing.
+
 ## Chunk 1: Claude marker correctness (M1)
 
 ### Task 1: Pin and correct the Unicode marker grammar
@@ -135,17 +183,14 @@ turns separated by submission, and a delayed duplicate after new activity.
 - Create: `cmd/internal/wrapcmd/notification_marker_test.go`
 - Modify: `cmd/internal/wrapcmd/update_agent_output_test.go`
 
-- [ ] Write table tests using `endOfTurnByAgent["claude"]`: accept `Baked` and
-  precomposed `Sautéed`; reject empty, combining-mark, digit, punctuation, and
-  whitespace-containing verbs.
+- [ ] Write the failing `endOfTurnByAgent["claude"].Match` tests according to the
+  named UTF-8 marker risk strategy above.
 - [ ] Run `go test ./cmd/internal/wrapcmd -run TestClaudeEndOfTurnGrammar -count=1`;
   expect the `Sautéed` case to fail.
 - [ ] Change only `[A-Za-z]+` to `\p{L}+`; retain the anchored star, whitespace,
   duration, and prefix-only trailing text.
-- [ ] Feed a finalized colored SGR span containing
-  `✻ Sautéed for 34s · done 1:39 PM` through `updateAgentOutput` /
-  `finalizeSpan` and a temp outer-TTY seam. Assert one canonical notification;
-  duplicates and quoted/uncolored variants add none.
+- [ ] Add the production-path regression for the reported `Sautéed` span through
+  `updateAgentOutput` / `finalizeSpan` and the outer-TTY seam.
 - [ ] Run `go test ./cmd/internal/wrapcmd -run 'TestClaudeEndOfTurnGrammar|Test.*Saut' -count=1`; expect PASS.
 - [ ] Commit `couch: #161 M1 accept Unicode Claude marker verbs`, tick M1,
   append evidence, update atlas only if its grammar is stale, and run
@@ -160,24 +205,16 @@ turns separated by submission, and a delayed duplicate after new activity.
 - Create: `cmd/internal/wrapcmd/notification_lifecycle_test.go`
 - Modify: `cmd/internal/wrapcmd/wrap.go`
 
-- [ ] Write reducer tests for native completion; activity then completion;
-  duplicate sources more than 500 ms apart; distinct transcript turn IDs inside
-  500 ms; stop without activity; activity-gated watchdog; user input clearing a
-  stale fallback; richer-message grace; abort/error attention outcomes. Include
-  every ordering in the lifecycle transition contract, including two keyless
-  turns separated by submission and a delayed old keyed event after new work.
+- [ ] Write failing `Reduce` tests according to the arbitrary observation-
+  sequence risk strategy and lifecycle transition contract above.
 - [ ] Run `go test ./cmd/internal/wrapcmd -run TestNotificationLifecycle -count=1`;
   expect compile failure for missing lifecycle types.
 - [ ] Implement pure
   `Reduce(state, observation, now) (state, decision)`. Prefer transcript turn ID;
   otherwise use activity generation. Decisions request notify or timer actions;
   the reducer performs no IO and reads no clock.
-- [ ] Add one proxy-owned observation path. Route existing native OSC and marker
-  sources through it; only reducer decisions call `emitOuter`. Use `p.now` and
-  one owned resettable timer in the proxy `select`, with all lifecycle state on
-  that goroutine. Every arm returns a monotonically increasing timer token plus
-  generation; a firing is ignored unless both still match. Stop, drain, reset,
-  child-exit, and stale-fire/rearm behavior get deterministic loop tests.
+- [ ] Wire reducer decisions to the proxy-owned observation/timer path defined in
+  Core concepts; `emitOuter` remains delivery only.
 - [ ] Detect the existing agent-facing submit action in the stdin translation
   path and enqueue `submitted`; ordinary typing does not open generations.
 - [ ] Run focused lifecycle/rewriter/marker tests; expect one same-turn
@@ -191,9 +228,8 @@ turns separated by submission, and a delayed duplicate after new activity.
 - Modify: `cmd/internal/wrapcmd/osc_test.go`
 - Modify: `cmd/internal/wrapcmd/wrap.go`
 
-- [ ] Add every-split tests proving OSC `9;4;3` and `9;4;0` pass through
-  byte-for-byte while producing typed working/stopped observations. Pin startup
-  `9;4;0` without prior working as silent; retain malformed/overlong behavior.
+- [ ] Write failing `NotificationRewriter.Feed` tests according to the arbitrary
+  chunk/malformed OSC risk strategy above.
 - [ ] Extend the rewriter result with progress observations and map Claude
   `3 -> working`, `0 -> stopped`; other states remain non-authoritative.
 - [ ] On `3 -> 0`, briefly await a richer marker/native message before generic
@@ -218,15 +254,13 @@ turns separated by submission, and a delayed duplicate after new activity.
 - Create: `cmd/internal/wrapcmd/lifecycle_journal.go`
 - Create: `cmd/internal/wrapcmd/lifecycle_journal_test.go`
 
-- [ ] Write codec/tailer tests for the stable composite identity, partial trailing
-  line, malformed/oversized record, replayed transcript identity, truncation,
-  replacement, stale launch, and tailer restart at prior EOF. Use portable temp
-  folders.
+- [ ] Write failing `AppendLifecycleRecord` and
+  `LifecycleJournalTailer.Advance` tests according to their named stateful-stream
+  risk strategies above.
 - [ ] Add one canonical path through `artifactpath`; make launcher/watcher/wrapper
   derive from it. Update manifest, cleanup, and path-family tests.
-- [ ] Mirror `sessionledger` append outcomes and lock protocol. Test open, lock,
-  partial/full write, sync, close, unlock, indeterminate rescan/retry, and exact
-  committed replay reconciliation. Newline is commit authority.
+- [ ] Implement the sessionledger-mirroring append/reconciliation contract from
+  Core concepts behind the injected filesystem runtime.
 - [ ] Implement bounded incremental tailing from the pre-spawn EOF. Validate the
   composite identity/current launch, stop on replacement/truncation, and deliver
   terminal records through a capacity-32 channel without blocking PTY IO.
@@ -243,14 +277,9 @@ turns separated by submission, and a delayed duplicate after new activity.
 - Modify: `cmd/internal/sessioninventory/jsonl_incremental.go` only if required to expose existing absolute offsets
 - Modify: `cmd/internal/wrapcmd/wrap.go`
 
-- [ ] Add stateful fake-runtime cases: fresh binding whose causal round ends in
-  `task_complete`; later appended turns; short response; concurrent sibling/root
-  transcripts; rejected subagent; stale launch; partial record; truncate/replace;
-  child exit and cleanup. Include pre-launch terminal records, the unique binding
-  round's `task_started` plus terminal, and a later turn; only the validated
-  binding-round pair and later turn may publish. The short-turn regression binds
-  after both causal records already exist, with no native OSC/rendered activity,
-  and must notify exactly once.
+- [ ] Write failing `FollowAuthorizedTranscript` tests according to the concurrent
+  mutable-artifact risk strategy. Keep one named acceptance regression for a
+  transcript-only short turn already complete when binding occurs.
 - [ ] Preserve the captured `event_msg.payload.type=task_complete` schema. Add
   `turn_complete` only from a real sanitized fixture. Keep success, aborted, and
   fatal error outcomes distinct. Capture/publish `task_started(turn_id)` as the
@@ -288,8 +317,8 @@ turns separated by submission, and a delayed duplicate after new activity.
 
 - [ ] Capture/sanitize a real animated Working-to-final-output PTY fixture and
   record Codex version/terminal size; do not synthesize guessed ANSI.
-- [ ] Feed it through `terminalModel` and assert absent -> present -> absent.
-  Reject quoted `> • Working…`, prose, and `─ Worked for…`.
+- [ ] Write failing `RecognizeCodexWorking` tests according to the arbitrary
+  rendered-cell risk strategy above.
 - [ ] After each terminal feed, compare pure recognized presence and enqueue only
   transitions. Transcript/native authority deduplicates visual stop.
 - [ ] With fake time prove prompt-only idleness is silent, observed activity can
@@ -308,6 +337,8 @@ turns separated by submission, and a delayed duplicate after new activity.
   status and switcher projections.
 - [ ] Run focused package tests, then `go test ./... -count=1` and
   `git diff --check`; expect PASS.
+- [ ] Run the extended opt-in `TestLiveNativeSessionShapeConformance` against the
+  installed Codex and record version/results in the issue Log.
 - [ ] Commit `couch: #161 M4 recover and display stopped agent work`, tick/log
   M4 with fixture versions, update atlas, and run
   `sdlc milestone-close --issue 161 --milestone M4`.

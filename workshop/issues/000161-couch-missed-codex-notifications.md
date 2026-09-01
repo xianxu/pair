@@ -182,6 +182,13 @@ causal round's `task_started(turn_id)` and matching terminal together, in order,
 after binding, then follows only records beyond the terminal watermark. A
 transcript-only short-turn regression pins this first-turn behavior.
 
+The SDLC plan-quality gate then required three cross-cutting plan rules: name
+adversarial-input/mechanical-guard strategies per risky function instead of
+enumerating test cases; explicitly state excluded behaviors and why; and extend
+the existing opt-in native-session live conformance test with Codex lifecycle
+identity/envelope assertions on the pre-release and scheduled macOS cadence.
+The durable plan now carries all three (`ARCH-PURPOSE`, `ARCH-MOCK`).
+
 ## Revisions
 
 ### 2026-09-01 — add confirmed Claude failure mode
@@ -227,3 +234,9 @@ ownership, and enforced polling/resource bounds after plan review.
 Required the binding handoff to publish both the validated causal round opener
 and terminal so a short turn completed before binding still opens, completes,
 and notifies exactly once without visual or native rescue.
+
+### 2026-09-01 — satisfy executable-plan and live-conformance rules
+
+Compressed test prose into named function-level risk strategies, added explicit
+non-goals, and made installed-Codex lifecycle envelope checking part of Pair's
+recurring native-session conformance seam.
