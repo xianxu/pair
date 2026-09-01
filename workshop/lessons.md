@@ -2871,3 +2871,7 @@ that a key token appears cannot detect a contradictory behavioral sentence
   failed operation into success. When cancellation is expected, remove only
   cancellation leaves from a joined terminal error; never discard sibling read
   or cleanup failures (`ARCH-MOCK`, `ARCH-CONSTRAINTS`).
+- A shared protocol parser does not imply shared semantic authority. At the
+  production adapter, enumerate every supported consumer and test both the
+  authorized case and all unauthorized cases before feeding a common reducer;
+  preserve untrusted protocol bytes as terminal output (`ARCH-PURPOSE`).

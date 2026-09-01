@@ -2742,8 +2742,10 @@ func (p *proxy) handleChunk(data []byte, rolling *[]byte) {
 	}
 
 	rewritten := p.notificationRewriter.Feed(data, p.notifyModeActive == "native")
-	for _, observation := range rewritten.Observations {
-		p.processLifecycleObservation(observation)
+	if progressOSCAuthorized(p.agentBasename) {
+		for _, observation := range rewritten.Observations {
+			p.processLifecycleObservation(observation)
+		}
 	}
 	for _, notification := range rewritten.Notifications {
 		p.processLifecycleObservation(TurnObservation{Kind: ObservationNativeCompletion, Message: notification.Message})

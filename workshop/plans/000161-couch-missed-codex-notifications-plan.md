@@ -375,3 +375,16 @@ Replace that split proof with one acceptance test that captures bytes emitted by
 the rendered Codex production adapter, feeds those exact bytes through a Couch
 fake PTY child into the running Console, and observes both the pending status
 chip and switcher message (`ARCH-PURPOSE`, `ARCH-MOCK`).
+
+### 2026-09-01 — enforce lifecycle source authority by agent
+
+The whole-issue review found that Claude's iTerm progress OSC was parsed at a
+shared terminal seam and then granted lifecycle authority to every wrapped
+agent. The complete authority matrix is: Claude may use progress OSC and its
+finalized colored marker; Codex may use native completion OSC, authorized
+transcript journal records, and the rendered Working transition; other agents
+retain only their explicitly existing native completion sources. Source
+adapters must gate authority before calling the shared reducer. Production-path
+coverage now proves Claude progress is authoritative while the same bytes from
+Codex, Agy, and Muse remain transparent and cannot mutate lifecycle state
+(`ARCH-PURPOSE`).

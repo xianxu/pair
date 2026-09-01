@@ -191,7 +191,7 @@ func TestProxyProgressOpenedNativeNotificationCanonicalEmission(t *testing.T) {
 		t.Fatal(err)
 	}
 	now := time.Unix(1_800_000_000, 0)
-	p := &proxy{notifyModeActive: "native", outerTTYFile: sidecar, stdoutPump: newStdoutPump(io.Discard), lastSlug: now, now: func() time.Time { return now }}
+	p := &proxy{agentBasename: "claude", notifyModeActive: "native", outerTTYFile: sidecar, stdoutPump: newStdoutPump(io.Discard), lastSlug: now, now: func() time.Time { return now }}
 	rolling := []byte(nil)
 	p.handleChunk([]byte("\x1b]9;4;3;\x07\x1b]777;notify;Agent;done\x07"), &rolling)
 	p.flushStdout("test")
@@ -201,6 +201,36 @@ func TestProxyProgressOpenedNativeNotificationCanonicalEmission(t *testing.T) {
 	}
 	if string(written) != "\x1b]777;notify;pair;done\x07" {
 		t.Fatalf("outer = %q", written)
+	}
+}
+
+func TestProxyProgressOSCAuthorityIsClaudeOnly(t *testing.T) {
+	progress := []byte("\x1b]9;4;3;\x07\x1b]9;4;0;\x07")
+	for _, agent := range []string{"claude", "codex", "agy", "muse"} {
+		t.Run(agent, func(t *testing.T) {
+			var stdout bytes.Buffer
+			p := &proxy{
+				agentBasename: agent,
+				stdoutPump:    newStdoutPump(&stdout),
+				now:           time.Now,
+			}
+			rolling := []byte(nil)
+			p.handleChunk(progress, &rolling)
+			p.flushStdout("test")
+
+			if !bytes.Equal(stdout.Bytes(), progress) {
+				t.Fatalf("stdout = %q, want unchanged %q", stdout.Bytes(), progress)
+			}
+			if agent == "claude" {
+				if !p.notificationLifecycle.Active || !p.notificationLifecycle.ActivitySeen || !p.notificationLifecycle.GracePending {
+					t.Fatalf("Claude lifecycle = %+v, want active progress stopped into grace", p.notificationLifecycle)
+				}
+				return
+			}
+			if p.notificationLifecycle != (NotificationLifecycle{}) {
+				t.Fatalf("%s lifecycle = %+v, want no progress authority", agent, p.notificationLifecycle)
+			}
+		})
 	}
 }
 

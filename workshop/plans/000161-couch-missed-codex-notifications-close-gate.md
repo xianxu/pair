@@ -203,6 +203,62 @@ rounds:
           round: 10
       boundary: M4
       blocked: false
+    - "n": 11
+      timestamp: "2026-09-01T16:25:01-07:00"
+      agent: codex
+      dispose:
+        - id: BR-1
+          disposition: addressed
+          note: Legacy and KKP Alt+Enter production paths publish submission boundaries, with plain Enter remaining non-authoritative.
+          round: 11
+        - id: BR-2
+          disposition: addressed
+          note: Native completion regressions now traverse real send boundaries without an unrelated progress opener.
+          round: 11
+        - id: BR-3
+          disposition: addressed
+          note: The lifecycle sources are present in the exhaustive artifact manifest.
+          round: 11
+        - id: BR-4
+          disposition: addressed
+          note: Reducer tests cover source ordering, keyed mismatch, new keyed turns, and abort outcomes.
+          round: 11
+        - id: BR-5
+          disposition: addressed
+          note: Journal advancement runs in a worker, and a masterPump test proves PTY forwarding while injected journal IO blocks.
+          round: 11
+        - id: BR-6
+          disposition: addressed
+          note: The Core concepts table names greppable entities with accurate delivered milestone statuses.
+          round: 11
+        - id: BR-7
+          disposition: addressed
+          note: The opt-in live conformance invokes lifecycle validation for keyed same-root opener and terminal ordering.
+          round: 11
+        - id: BR-8
+          disposition: addressed
+          note: The pinned range contains the M3 implementation and subsequent fixes.
+          round: 11
+        - id: BR-9
+          disposition: addressed
+          note: Writer and tailer share strict decoding and closed validation of lifecycle record semantics.
+          round: 11
+        - id: BR-10
+          disposition: addressed
+          note: Reconciliation requires complete semantic equality, with a producer collision matrix covering each field.
+          round: 11
+        - id: BR-11
+          disposition: addressed
+          note: The joined acceptance test feeds wrapper-emitted bytes into the running Couch console and verifies both named surfaces.
+          round: 11
+      findings:
+        - id: BR-12
+          severity: Critical
+          title: Claude progress OSC grants completion authority to every wrapped agent
+          detail: 'NotificationRewriter emits Working and Stopped observations independently of agent identity, and handleChunk reduces them unconditionally. This is the 5th finding in family lifecycle-contract-coverage: define and enforce the complete per-agent source-authority matrix, with negative production-path coverage for every unauthorized supported agent.'
+          family: lifecycle-contract-coverage
+          round: 11
+      blocked: true
 ---
 
 # Gate ledger — 000161-couch-missed-codex-notifications#161 (boundary-review)
@@ -306,6 +362,27 @@ later rounds disposed of them. Generated — edit the gate, not this file.
 
 - BR-11 — addressed — The acceptance test transports bytes emitted by handleChunk through Couch's running Console and asserts both the pending status chip and switcher message.
 
+## Round 11 — 2026-09-01T16:25:01-07:00 (codex) — BLOCKED
+
+### Disposed
+
+- BR-1 — addressed — Legacy and KKP Alt+Enter production paths publish submission boundaries, with plain Enter remaining non-authoritative.
+- BR-2 — addressed — Native completion regressions now traverse real send boundaries without an unrelated progress opener.
+- BR-3 — addressed — The lifecycle sources are present in the exhaustive artifact manifest.
+- BR-4 — addressed — Reducer tests cover source ordering, keyed mismatch, new keyed turns, and abort outcomes.
+- BR-5 — addressed — Journal advancement runs in a worker, and a masterPump test proves PTY forwarding while injected journal IO blocks.
+- BR-6 — addressed — The Core concepts table names greppable entities with accurate delivered milestone statuses.
+- BR-7 — addressed — The opt-in live conformance invokes lifecycle validation for keyed same-root opener and terminal ordering.
+- BR-8 — addressed — The pinned range contains the M3 implementation and subsequent fixes.
+- BR-9 — addressed — Writer and tailer share strict decoding and closed validation of lifecycle record semantics.
+- BR-10 — addressed — Reconciliation requires complete semantic equality, with a producer collision matrix covering each field.
+- BR-11 — addressed — The joined acceptance test feeds wrapper-emitted bytes into the running Couch console and verifies both named surfaces.
+
+### Raised
+
+- **BR-12** [Critical] `lifecycle-contract-coverage` Claude progress OSC grants completion authority to every wrapped agent
+  NotificationRewriter emits Working and Stopped observations independently of agent identity, and handleChunk reduces them unconditionally. This is the 5th finding in family lifecycle-contract-coverage: define and enforce the complete per-agent source-authority matrix, with negative production-path coverage for every unauthorized supported agent.
+
 ## Open findings
 
-(none — every finding has been disposed)
+- **BR-12** [Critical] `lifecycle-contract-coverage` Claude progress OSC grants completion authority to every wrapped agent

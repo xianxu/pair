@@ -275,6 +275,12 @@ emitted no outer notification. Replacing only the ASCII verb class with
 fuzz property pins the General Category `L` boundary; no atlas text restated the
 old grammar (`ARCH-PURE`).
 
+The whole-issue close review found BR-12: Claude's progress OSC observations
+reached the reducer for every wrapped agent. A production-path authority-matrix
+regression failed for Codex, Agy, and Muse before the fix and now proves that
+only Claude can mutate lifecycle state from OSC 9;4 progress; all agents still
+receive the original terminal bytes unchanged (`ARCH-PURPOSE`).
+
 ## Revisions
 
 ### 2026-09-01 — add confirmed Claude failure mode

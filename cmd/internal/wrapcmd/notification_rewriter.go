@@ -105,6 +105,13 @@ func progressObservation(ps, body []byte) (TurnObservation, bool) {
 	}
 }
 
+// progressOSCAuthorized keeps Claude's iTerm progress protocol from becoming
+// lifecycle authority for arbitrary wrapped programs. The sequence remains
+// transparent terminal output for every agent; only Claude may drive Reduce.
+func progressOSCAuthorized(agent string) bool {
+	return agent == "claude"
+}
+
 func rewriteOSCEnd(buf []byte) (size int, complete, malformed bool) {
 	for i := 2; i < len(buf); i++ {
 		switch buf[i] {
