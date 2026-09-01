@@ -129,9 +129,14 @@ messages per attached actor; repeated events cannot grow it without limit. The
 framer reuses the existing 64 KiB partial-terminal-sequence bound. A canonical
 message is at most 4 KiB, so any candidate exceeding 64 KiB is invalid for Couch
 enrichment: the scanner stops buffering, continues framing in O(1) memory until
-BEL or ST, creates no inbox entry, and then resumes ordinary parsing. Focused
-bytes remain on the raw pass-through path; inactive invalid candidates remain
-hidden like other inactive output.
+BEL or ST, creates no inbox entry, and then resumes ordinary parsing. An
+unterminated OSC has no protocol-safe recovery boundary: a later opener is
+payload until the original sequence terminates. Enrichment for that actor is
+therefore intentionally suspended until BEL/ST or actor teardown rather than
+guessing and raising a false notification. The child read loop and raw forwarding
+never wait for enrichment, memory remains bounded, and other actors' independent
+scanners continue normally. Focused bytes remain on the raw pass-through path;
+inactive invalid candidates remain hidden like other inactive output.
 Status-row repaint and `Ctrl-Space` selection use already-resident state and
 must not block on refresh or optional inventory work. The feature inherits
 #151's measured switcher envelope on the operator's M2 Max: with 100 actor rows
@@ -143,12 +148,21 @@ tests retain allocation and no-I/O/no-goroutine assertions; target runs use the
 same baseline and four-worker co-tenancy protocol as `BenchmarkMenu100`
 (`ARCH-CONSTRAINTS`).
 
-Message text is untrusted terminal input. Framing must survive arbitrary PTY
-chunk boundaries, BEL and ST terminators, long or incomplete OSC, embedded
-delimiter text, and control-byte attempts. Stored/rendered text is sanitized
-and clipped by the existing width-aware renderer, while the original envelope
-is forwarded byte-for-byte. Parser failure affects only Couch enrichment: it
-must never stall or corrupt the actor stream.
+The stream scanner additionally has a sustained malformed-input envelope: on
+the M2 Max it processes 10 MiB of 4 KiB chunks through an oversized unterminated
+OSC at at least 10 MiB/s, retains no more than the existing 64 KiB bound, starts
+no goroutine, and performs no allocation per chunk after entering skip mode.
+Portable tests enforce the memory, allocation, independent-actor, and
+terminator-recovery invariants; the target benchmark records throughput rather
+than putting wall-clock assertions in ordinary CI.
+
+Message text is untrusted terminal input. Framing must be invariant across
+arbitrary PTY chunk boundaries and BEL/ST terminators, and remain memory-bounded
+for long or incomplete OSC, embedded delimiter text, and control-byte attempts.
+Stored/rendered text is sanitized and clipped by the existing width-aware
+renderer, while the original envelope is forwarded byte-for-byte. Parser
+failure affects only Couch enrichment: it must never stall or corrupt the child
+read/forwarding path.
 
 Unread ordering uses a process-lifetime `uint64` sequence. If increment would
 wrap, the pure ledger rebases retained actor/message sequences to their stable
@@ -227,3 +241,15 @@ left C1 controls such as 8-bit ST able to terminate or inject into the envelope.
 replace invalid UTF-8, remove all C0/DEL/C1 code points, and apply the 4 KiB bound
 after sanitization on a rune boundary. Framing tests cover every control class
 and chunk boundary (`ARCH-DRY`, `ARCH-PURPOSE`).
+
+### 2026-08-31T20:32:00-07:00 — define incomplete-OSC recovery honestly
+
+**Reason:** the third fresh-context review found that a bounded skip mode still
+cannot resume enrichment after an unterminated OSC because the terminal protocol
+provides no safe boundary.
+
+**Delta:** the spec now states that enrichment for only that actor waits for a
+real BEL/ST or teardown while raw forwarding, the child loop, and other actors
+continue. It forbids guessed resynchronization, distinguishes stream liveness
+from semantic enrichment, and adds a 10 MiB sustained skip-mode benchmark with
+memory/allocation bounds (`ARCH-PURPOSE`, `ARCH-CONSTRAINTS`).
