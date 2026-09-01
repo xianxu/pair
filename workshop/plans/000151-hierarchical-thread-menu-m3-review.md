@@ -776,3 +776,79 @@ dispose:
     note: |
       The oracle pins d3ee08d5 rather than the supplied ccba4978 head, and reverting the source-set diff to moving HEAD leaves its test green because both ranges currently have the same Go path membership; this is the 2nd historical-boundary-oracle-pinning finding.
 ```
+
+---
+
+## Re-review — 2026-08-31T17:26:34-07:00 (REWORK)
+
+| field | value |
+|-------|-------|
+| issue | 151 — couch: hierarchical work-thread menu |
+| repo | pair |
+| issue file | workshop/issues/000151-hierarchical-thread-menu.md |
+| boundary | milestone M3 |
+| milestone | M3 |
+| window | 0c40a8d1880b49a9cac1a7f4d8cd24a2c713dba7..90999ea472ec063effb2f2e6c4dfa13368cb6568 |
+| command | sdlc milestone-close --issue 151 --milestone M3 |
+| reviewer | codex |
+| timestamp | 2026-08-31T17:26:34-07:00 |
+| verdict | REWORK |
+
+## Review
+
+```verdict
+verdict: REWORK
+confidence: high
+```
+
+The implementation and full test suite are healthy, and BR-27 is addressed. BR-26 remains blocking: the architectural ledger is internally consistent but still cannot detect dependencies omitted from both the ledger and plan. `Couch.ActionableThreadInventory` directly invokes the `PathOps` seam, yet its dependency inventory omits `pathops.go`, demonstrating that the claimed exhaustive sweep is not enforced.
+
+### Strengths
+
+- Historical M3 source bytes are read from the immutable full commit ID in `issue151M3SourceAtRef` ([plan_contract_test.go:1128](/Users/xianxu/workspace/pair/cmd/internal/couchcore/plan_contract_test.go:1128)).
+- The Core concepts tables now use one entity per row and correctly include `ParkedResumeObservation`, `NativeBindingResolver`, and `SessionInventoryNativeBindingResolver`.
+- The declaration oracle classifies all changed Go sources and verifies retired panel files.
+- README and atlas changes cover the new hierarchical-menu surface.
+- `go test -p 20 ./...` and the focused issue-151 contract tests pass.
+
+### Critical findings
+
+- **BR-26 remains not addressed — ARCH-PURPOSE.** This is now the sixth observed instance in family `documentation-current-state-accuracy`. `Couch.ActionableThreadInventory` calls `c.Path.Physical` ([actionableinventory.go:165](/Users/xianxu/workspace/pair/cmd/internal/couchcore/actionableinventory.go:165)), whose repo-owned seam is declared in `cmd/internal/couchcore/pathops.go`, but its ledger entry omits that path ([plan_contract_test.go:139](/Users/xianxu/workspace/pair/cmd/internal/couchcore/plan_contract_test.go:139)). The mutation test only removes an already-enumerated dependency from the hand-maintained map ([plan_contract_test.go:953](/Users/xianxu/workspace/pair/cmd/internal/couchcore/plan_contract_test.go:953)); it cannot detect an omitted dependency.
+
+  Fix the class: mechanically derive repo-owned seams referenced by each Integration declaration’s signature/body and compare that exact set with the typed ledger. Then sweep all Integration rows, including `PathOps`, and mutation-test removal of a dependency reference from pinned implementation—not merely removal from the ledger.
+
+### Important findings
+
+None.
+
+### Minor findings
+
+None.
+
+### Test coverage notes
+
+BR-27 has a meaningful regression: moving `HEAD` and worktree bytes are explicitly rejected. BR-26 lacks the required failing-without-the-fix proof because implementation-to-ledger dependency completeness is not tested.
+
+### Architectural notes
+
+- `ARCH-DRY`: Pass—the typed ledger is the single table authority.
+- `ARCH-PURE`: Pass—reducers, projection, scheduling, and rendering remain pure; Console owns the injected IO boundary.
+- `ARCH-PURPOSE`: Flag—dependency exhaustiveness remains asserted rather than enforced.
+- `ARCH-MOCK`: Pass—stateful `FakeRunner` and `FakeHost` exercise production seams.
+- `ARCH-CONSTRAINTS`: Pass—bounded workers and the target performance harness cover the declared operating envelope.
+
+### Plan revision recommendations
+
+Append a `## Revisions` entry stating that the prior “complete Integration dependency inventory” claim was disproven by the omitted `PathOps` seam. Record the mechanically enforced dependency rule, the complete Integration-row resweep, and the mutation proving an implementation dependency omission fails.
+
+```findings
+dispose:
+  - id: BR-26
+    disposition: not-addressed
+    note: |
+      The typed ledger omits the PathOps seam directly used by Couch.ActionableThreadInventory, and its tests cannot discover dependencies omitted from the hand-maintained ledger itself.
+  - id: BR-27
+    disposition: addressed
+    note: |
+      The source-set range is fixed and parsed bytes come from the immutable full M3 head object; regressions reject moving HEAD and mutable worktree bytes.
+```

@@ -32,7 +32,7 @@ const (
 )
 
 const issue151M3DeclarationDigest = "8a193b51373583eec2f7b9c25e4a8df6fdc2bb6b8113adf0005d6f1cc878344f"
-const issue151M3ArchitecturalLedgerDigest = "d7b79d020f140ce3b98695690c8525a44e5bf947b2daefcdd795d6909cb300bf"
+const issue151M3ArchitecturalLedgerDigest = "632927f3012589a88f61b150c82dcafbe01a7882b2d2bf76aeb1690614ddf5bd"
 
 // issue151M3GoSources is the exhaustive net set of Go sources changed by M3.
 // The declaration digest gives every declaration a closed-set disposition from
@@ -136,21 +136,21 @@ var issue151M3ArchitecturalDeclarations = map[string]issue151ArchitecturalDeclar
 	"DecodePanelKeys":                       {"pure", "M2", "modified, present", "cmd/internal/couchtty/panelkeys.go", []string{"cmd/internal/couchtty/panelkeys.go"}, nil},
 	"PanelModel":                            {"pure", "M3", "deleted", "cmd/internal/couchtty/panel.go", nil, []string{"cmd/internal/couchtty/panel.go"}},
 	"PanelModel.Filter":                     {"pure", "M3", "deleted", "cmd/internal/couchtty/panel.go", nil, []string{"cmd/internal/couchtty/panel.go"}},
-	"Couch.ActionableThreadInventory":       {"integration", "M1/M3", "present", "cmd/internal/couchcore/actionableinventory.go", []string{"cmd/internal/couchcore/actionableinventory.go", "cmd/internal/couchcore/threadstore.go", "cmd/internal/couchcore/resume.go"}, nil},
+	"Couch.ActionableThreadInventory":       {"integration", "M1/M3", "present", "cmd/internal/couchcore/actionableinventory.go", []string{"cmd/internal/couchcore/actionableinventory.go", "cmd/internal/couchcore/artifactcollision.go", "cmd/internal/couchcore/couch.go", "cmd/internal/couchcore/parktransaction.go", "cmd/internal/couchcore/pathops.go", "cmd/internal/couchcore/resume.go", "cmd/internal/couchcore/threadstore.go", "cmd/internal/launcher/agent_defaults.go"}, nil},
 	"NativeBindingResolver":                 {"integration", "M3", "context-bearing exact parked-resume binding resolution present", "cmd/internal/couchcore/resume.go", []string{"cmd/internal/couchcore/resume.go"}, nil},
-	"SessionInventoryNativeBindingResolver": {"integration", "M3", "context-bearing exact parked-resume binding resolution present", "cmd/internal/couchcore/resume.go", []string{"cmd/internal/couchcore/resume.go", "cmd/internal/sessioninventory/query.go"}, nil},
-	"Couch.PrepareStart":                    {"integration", "M1", "present", "cmd/internal/couchcore/couch.go", []string{"cmd/internal/couchcore/couch.go", "cmd/internal/couchcore/startresolution.go", "cmd/internal/couchcore/startgrant.go", "cmd/internal/couchcore/pathops.go"}, nil},
-	"Couch.SpawnPrepared":                   {"integration", "M1", "present", "cmd/internal/couchcore/couch.go", []string{"cmd/internal/couchcore/couch.go", "cmd/internal/couchcore/startgrant.go", "cmd/internal/couchcore/runner.go"}, nil},
-	"StartGrantStore":                       {"integration", "M1", "present", "cmd/internal/couchcore/startgrant.go", []string{"cmd/internal/couchcore/startgrant.go"}, nil},
-	"OperationCall":                         {"integration", "M1", "context dispatch present", "cmd/internal/couchcore/operationdispatch.go", []string{"cmd/internal/couchcore/operationdispatch.go"}, nil},
+	"SessionInventoryNativeBindingResolver": {"integration", "M3", "context-bearing exact parked-resume binding resolution present", "cmd/internal/couchcore/resume.go", []string{"cmd/internal/couchcore/resume.go", "cmd/internal/couchcore/couch.go", "cmd/internal/sessioninventory/model.go", "cmd/internal/sessioninventory/query.go", "cmd/internal/sessioninventory/runtime.go"}, nil},
+	"Couch.PrepareStart":                    {"integration", "M1", "present", "cmd/internal/couchcore/couch.go", []string{"cmd/internal/couchcore/couch.go", "cmd/internal/couchcore/startargs.go", "cmd/internal/couchcore/startgrant.go"}, nil},
+	"Couch.SpawnPrepared":                   {"integration", "M1", "present", "cmd/internal/couchcore/couch.go", []string{"cmd/internal/couchcore/couch.go", "cmd/internal/couchcore/registry.go", "cmd/internal/couchcore/runner.go", "cmd/internal/couchcore/startargs.go", "cmd/internal/couchcore/startgrant.go", "cmd/internal/couchcore/worktree.go"}, nil},
+	"StartGrantStore":                       {"integration", "M1", "present", "cmd/internal/couchcore/startgrant.go", []string{"cmd/internal/couchcore/startgrant.go", "cmd/internal/couchcore/clock.go"}, nil},
+	"OperationCall":                         {"integration", "M1", "context dispatch present", "cmd/internal/couchcore/operationdispatch.go", []string{"cmd/internal/couchcore/operationdispatch.go", "cmd/internal/couchcore/ops.go"}, nil},
 	"DispatchOperation":                     {"integration", "M1", "context dispatch present", "cmd/internal/couchcore/operationdispatch.go", []string{"cmd/internal/couchcore/operationdispatch.go", "cmd/internal/couchcore/ops.go"}, nil},
-	"Couch.AbortStarted":                    {"integration", "M1", "exact started-actor abort present", "cmd/internal/couchcore/couch.go", []string{"cmd/internal/couchcore/couch.go", "cmd/internal/couchcore/runner.go", "cmd/internal/couchcore/artifactcollision.go", "cmd/internal/couchcore/threadstore.go"}, nil},
-	"Console":                               {"integration", "M3", "hierarchical render, refresh, preview, action, and transactional attach controllers present", "cmd/internal/couchtty/console.go", []string{"cmd/internal/couchtty/console.go", "cmd/internal/couchtty/console_menu.go", "cmd/internal/couchtty/menu.go", "cmd/internal/couchtty/menu_refresh.go", "cmd/internal/couchtty/menu_render.go", "cmd/internal/couchtty/operation_queue.go", "cmd/internal/couchcore/actionableinventory.go", "cmd/internal/hostty/host.go"}, nil},
-	"wireResolver":                          {"integration", "M3", "actionable refresh, shared action, attach-abort, and hierarchical render wiring present", "cmd/internal/couchcmd/run.go", []string{"cmd/internal/couchcmd/run.go", "cmd/internal/couchcore/actionableinventory.go", "cmd/internal/couchcore/operationdispatch.go", "cmd/internal/couchcore/couch.go", "cmd/internal/couchtty/console_menu.go"}, nil},
-	"Runner":                                {"integration", "M1", "context-bearing child lifecycle present", "cmd/internal/couchcore/runner.go", []string{"cmd/internal/couchcore/runner.go", "cmd/internal/couchcore/launchhelper.go"}, nil},
-	"FakeRunner":                            {"integration", "M1", "stateful context-bearing double present", "cmd/internal/couchcore/runner_fake.go", []string{"cmd/internal/couchcore/runner_fake.go", "cmd/internal/couchcore/runner.go", "cmd/internal/ptychild/child.go"}, nil},
-	"hostty.FakeHost":                       {"integration", "M3", "observable terminal double present", "cmd/internal/hostty/fake.go", []string{"cmd/internal/hostty/fake.go", "cmd/internal/hostty/host.go", "cmd/internal/ptychild/child.go"}, nil},
-	"TestMenuTargetPerformance":             {"integration", "M3", "present", "cmd/internal/couchtty/menu_perf_test.go", []string{"cmd/internal/couchtty/menu_perf_test.go", "cmd/internal/couchtty/console.go", "cmd/internal/couchtty/menu.go", "cmd/internal/couchtty/menu_render.go", "cmd/internal/couchtty/menu_refresh.go", "cmd/internal/hostty/fake.go"}, nil},
+	"Couch.AbortStarted":                    {"integration", "M1", "exact started-actor abort present", "cmd/internal/couchcore/couch.go", []string{"cmd/internal/couchcore/couch.go", "cmd/internal/couchcore/naming.go", "cmd/internal/couchcore/ops.go", "cmd/internal/couchcore/registry.go", "cmd/internal/couchcore/runner.go", "cmd/internal/couchcore/store.go", "cmd/internal/couchcore/worktree.go"}, nil},
+	"Console":                               {"integration", "M3", "hierarchical render, refresh, preview, action, and transactional attach controllers present", "cmd/internal/couchtty/console.go", []string{"cmd/internal/couchtty/console.go", "cmd/internal/couchcore/actorid.go", "cmd/internal/couchcore/operationdispatch.go", "cmd/internal/couchcore/ops.go", "cmd/internal/couchcore/park.go", "cmd/internal/couchcore/ptyrunner.go", "cmd/internal/couchcore/starttransaction.go", "cmd/internal/couchcore/thread.go", "cmd/internal/couchcore/worktree.go", "cmd/internal/couchtty/console_menu.go", "cmd/internal/couchtty/focus.go", "cmd/internal/couchtty/keys.go", "cmd/internal/couchtty/menu.go", "cmd/internal/couchtty/menu_async.go", "cmd/internal/couchtty/menu_refresh.go", "cmd/internal/couchtty/notice.go", "cmd/internal/couchtty/panelkeys.go", "cmd/internal/couchtty/reserve.go", "cmd/internal/hostty/host.go", "cmd/internal/ptychild/child.go", "cmd/internal/ptychild/screen.go"}, nil},
+	"wireResolver":                          {"integration", "M3", "actionable refresh, shared action, attach-abort, and hierarchical render wiring present", "cmd/internal/couchcmd/run.go", []string{"cmd/internal/couchcmd/run.go", "cmd/internal/couchcore/actionableinventory.go", "cmd/internal/couchcore/couch.go", "cmd/internal/couchcore/operationdispatch.go", "cmd/internal/couchcore/ops.go", "cmd/internal/couchtty/console.go"}, nil},
+	"Runner":                                {"integration", "M1", "context-bearing child lifecycle present", "cmd/internal/couchcore/runner.go", []string{"cmd/internal/couchcore/runner.go"}, nil},
+	"FakeRunner":                            {"integration", "M1", "stateful context-bearing double present", "cmd/internal/couchcore/runner_fake.go", []string{"cmd/internal/couchcore/runner_fake.go", "cmd/internal/couchcore/runner.go", "cmd/internal/ptychild/child.go", "cmd/internal/ptychild/fake.go"}, nil},
+	"hostty.FakeHost":                       {"integration", "M3", "observable terminal double present", "cmd/internal/hostty/fake.go", []string{"cmd/internal/hostty/fake.go", "cmd/internal/ptychild/child.go"}, nil},
+	"TestMenuTargetPerformance":             {"integration", "M3", "present", "cmd/internal/couchtty/menu_perf_test.go", []string{"cmd/internal/couchtty/menu_perf_test.go", "cmd/internal/couchcore/actionableinventory.go", "cmd/internal/couchtty/focus.go", "cmd/internal/couchtty/menu.go", "cmd/internal/couchtty/menu_refresh.go", "cmd/internal/ptychild/child.go"}, nil},
 }
 
 // issue149M5GoSources is the exhaustive set of Go sources touched by M5. Every
@@ -957,6 +957,280 @@ func TestIssue151M3ArchitecturalLedgerIsClosed(t *testing.T) {
 	if got := issue151M3ArchitecturalLedgerFingerprint("Couch.ActionableThreadInventory", "cmd/internal/couchcore/threadstore.go"); got == issue151M3ArchitecturalLedgerDigest {
 		t.Fatal("removing an enumerated dependency left the architectural ledger unchanged")
 	}
+}
+
+func TestIssue151M3IntegrationDependenciesMatchPinnedSource(t *testing.T) {
+	root := filepath.Clean(filepath.Join("..", "..", ".."))
+	index, err := buildIssue151DeclarationIndex(root)
+	if err != nil {
+		t.Fatal(err)
+	}
+	for name, declaration := range issue151M3ArchitecturalDeclarations {
+		if declaration.kind != "integration" {
+			continue
+		}
+		got, err := index.dependencies(root, name, declaration.source, nil)
+		if err != nil {
+			t.Errorf("%s: %v", name, err)
+			continue
+		}
+		want := make([]string, 0, len(declaration.present))
+		for _, path := range declaration.present {
+			if path != declaration.source {
+				want = append(want, path)
+			}
+		}
+		sort.Strings(want)
+		if !equalStrings(got, want) {
+			t.Errorf("%s pinned source dependencies = %v, ledger = %v", name, got, want)
+		}
+	}
+}
+
+func TestIssue151M3ImplementationDependencyRemovalFails(t *testing.T) {
+	root := filepath.Clean(filepath.Join("..", "..", ".."))
+	index, err := buildIssue151DeclarationIndex(root)
+	if err != nil {
+		t.Fatal(err)
+	}
+	path := "cmd/internal/couchcore/actionableinventory.go"
+	raw, err := issue151M3SourceAtHead(root, path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	removed := "\t\t\tif _, pathErr := c.Path.Physical(record.WorkingPath); pathErr != nil {\n\t\t\t\tcontinue\n\t\t\t}\n"
+	mutated := strings.Replace(string(raw), removed, "", 1)
+	mutated = strings.Replace(mutated, " || c.Path == nil", "", 1)
+	if mutated == string(raw) {
+		t.Fatal("failed to remove pinned PathOps dependency")
+	}
+	got, err := index.dependencies(root, "Couch.ActionableThreadInventory", path, map[string][]byte{path: []byte(mutated)})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if containsString(got, "cmd/internal/couchcore/pathops.go") {
+		t.Fatal("removed PathOps reference remained in mechanically derived dependencies")
+	}
+	declaration := issue151M3ArchitecturalDeclarations["Couch.ActionableThreadInventory"]
+	var want []string
+	for _, dependency := range declaration.present {
+		if dependency != declaration.source {
+			want = append(want, dependency)
+		}
+	}
+	sort.Strings(want)
+	if equalStrings(got, want) {
+		t.Fatal("implementation dependency removal still matched the closed ledger")
+	}
+}
+
+type issue151DeclarationIndex struct {
+	files        map[string]*ast.File
+	imports      map[string]map[string]string
+	declarations map[string]map[string]string
+	methods      map[string]map[string]string
+	fields       map[string]map[string]map[string]string
+}
+
+func buildIssue151DeclarationIndex(root string) (*issue151DeclarationIndex, error) {
+	index := &issue151DeclarationIndex{
+		files: make(map[string]*ast.File), imports: make(map[string]map[string]string),
+		declarations: make(map[string]map[string]string), methods: make(map[string]map[string]string),
+		fields: make(map[string]map[string]map[string]string),
+	}
+	err := filepath.WalkDir(filepath.Join(root, "cmd", "internal"), func(path string, entry os.DirEntry, walkErr error) error {
+		if walkErr != nil || entry.IsDir() || !strings.HasSuffix(path, ".go") {
+			return walkErr
+		}
+		rel, err := filepath.Rel(root, path)
+		if err != nil {
+			return err
+		}
+		file, err := parser.ParseFile(token.NewFileSet(), path, nil, 0)
+		if err != nil {
+			return err
+		}
+		rel = filepath.ToSlash(rel)
+		dir := filepath.ToSlash(filepath.Dir(rel))
+		index.files[rel] = file
+		index.imports[rel] = make(map[string]string)
+		for _, spec := range file.Imports {
+			importPath := strings.Trim(spec.Path.Value, "\"")
+			if !strings.HasPrefix(importPath, "github.com/xianxu/pair/") {
+				continue
+			}
+			alias := filepath.Base(importPath)
+			if spec.Name != nil {
+				alias = spec.Name.Name
+			}
+			index.imports[rel][alias] = strings.TrimPrefix(importPath, "github.com/xianxu/pair/")
+		}
+		if index.declarations[dir] == nil {
+			index.declarations[dir] = make(map[string]string)
+			index.methods[dir] = make(map[string]string)
+			index.fields[dir] = make(map[string]map[string]string)
+		}
+		for _, decl := range file.Decls {
+			switch typed := decl.(type) {
+			case *ast.FuncDecl:
+				if typed.Recv == nil {
+					if ast.IsExported(typed.Name.Name) || issue151M3ArchitecturalDeclarations[typed.Name.Name].source != "" {
+						index.declarations[dir][typed.Name.Name] = rel
+					}
+					continue
+				}
+				receiver := strings.TrimPrefix(issue149ReceiverName(typed.Recv.List[0].Type), "*")
+				if ast.IsExported(typed.Name.Name) || issue151M3ArchitecturalDeclarations[receiver+"."+typed.Name.Name].source != "" {
+					index.methods[dir][receiver+"."+typed.Name.Name] = rel
+				}
+			case *ast.GenDecl:
+				for _, spec := range typed.Specs {
+					typeSpec, ok := spec.(*ast.TypeSpec)
+					if !ok {
+						continue
+					}
+					if ast.IsExported(typeSpec.Name.Name) || issue151M3ArchitecturalDeclarations[typeSpec.Name.Name].source != "" || issue151M3ArchitecturalDeclarations[file.Name.Name+"."+typeSpec.Name.Name].source != "" {
+						index.declarations[dir][typeSpec.Name.Name] = rel
+					}
+					structType, ok := typeSpec.Type.(*ast.StructType)
+					if !ok {
+						continue
+					}
+					index.fields[dir][typeSpec.Name.Name] = make(map[string]string)
+					for _, field := range structType.Fields.List {
+						ref := issue151TypeReference(field.Type)
+						for _, name := range field.Names {
+							index.fields[dir][typeSpec.Name.Name][name.Name] = ref
+						}
+					}
+				}
+			}
+		}
+		return nil
+	})
+	return index, err
+}
+
+func issue151TypeReference(expr ast.Expr) string {
+	switch typed := expr.(type) {
+	case *ast.Ident:
+		return typed.Name
+	case *ast.StarExpr:
+		return issue151TypeReference(typed.X)
+	case *ast.IndexExpr:
+		return issue151TypeReference(typed.X)
+	case *ast.IndexListExpr:
+		return issue151TypeReference(typed.X)
+	case *ast.SelectorExpr:
+		if pkg, ok := typed.X.(*ast.Ident); ok {
+			return pkg.Name + "." + typed.Sel.Name
+		}
+	}
+	return ""
+}
+
+func (index *issue151DeclarationIndex) dependencies(root, entity, source string, override map[string][]byte) ([]string, error) {
+	raw, ok := override[source]
+	if !ok {
+		var err error
+		raw, err = issue151M3SourceAtHead(root, source)
+		if err != nil {
+			return nil, err
+		}
+	}
+	file, err := parser.ParseFile(token.NewFileSet(), source, raw, 0)
+	if err != nil {
+		return nil, err
+	}
+	dir := filepath.ToSlash(filepath.Dir(source))
+	short := strings.TrimPrefix(entity, file.Name.Name+".")
+	parts := strings.Split(short, ".")
+	var roots []ast.Node
+	for _, decl := range file.Decls {
+		switch typed := decl.(type) {
+		case *ast.FuncDecl:
+			if len(parts) == 2 && typed.Recv != nil && strings.TrimPrefix(issue149ReceiverName(typed.Recv.List[0].Type), "*") == parts[0] && strings.HasPrefix(typed.Name.Name, parts[1]) {
+				roots = append(roots, typed)
+			} else if len(parts) == 1 && typed.Recv == nil && typed.Name.Name == parts[0] {
+				roots = append(roots, typed)
+			} else if len(parts) == 1 && typed.Recv != nil && strings.TrimPrefix(issue149ReceiverName(typed.Recv.List[0].Type), "*") == parts[0] {
+				roots = append(roots, typed)
+			}
+		case *ast.GenDecl:
+			for _, spec := range typed.Specs {
+				if typeSpec, ok := spec.(*ast.TypeSpec); ok && len(parts) == 1 && typeSpec.Name.Name == parts[0] {
+					roots = append(roots, typeSpec)
+				}
+			}
+		}
+	}
+	if len(roots) == 0 {
+		return nil, fmt.Errorf("cannot resolve pinned declaration")
+	}
+	dependencies := make(map[string]bool)
+	addRef := func(ref string) {
+		refParts := strings.Split(ref, ".")
+		refDir := dir
+		name := refParts[len(refParts)-1]
+		if len(refParts) == 2 {
+			if imported := index.imports[source][refParts[0]]; imported != "" {
+				refDir = imported
+			}
+		}
+		if path := index.declarations[refDir][name]; path != "" && path != source {
+			dependencies[path] = true
+		}
+	}
+	for _, root := range roots {
+		variables := make(map[string]string)
+		if function, ok := root.(*ast.FuncDecl); ok {
+			if function.Recv != nil {
+				for _, field := range function.Recv.List {
+					for _, name := range field.Names {
+						variables[name.Name] = issue151TypeReference(field.Type)
+					}
+				}
+			}
+			if function.Type.Params != nil {
+				for _, field := range function.Type.Params.List {
+					for _, name := range field.Names {
+						variables[name.Name] = issue151TypeReference(field.Type)
+					}
+				}
+			}
+		}
+		ast.Inspect(root, func(node ast.Node) bool {
+			switch typed := node.(type) {
+			case *ast.Ident:
+				addRef(typed.Name)
+			case *ast.SelectorExpr:
+				if base, ok := typed.X.(*ast.Ident); ok {
+					addRef(base.Name + "." + typed.Sel.Name)
+					if variableType := variables[base.Name]; variableType != "" {
+						typeParts := strings.Split(variableType, ".")
+						typeDir := dir
+						typeName := typeParts[len(typeParts)-1]
+						if len(typeParts) == 2 && index.imports[source][typeParts[0]] != "" {
+							typeDir = index.imports[source][typeParts[0]]
+						}
+						if ref := index.fields[typeDir][typeName][typed.Sel.Name]; ref != "" {
+							if typeDir != dir && !strings.Contains(ref, ".") {
+								ref = filepath.Base(typeDir) + "." + ref
+							}
+							addRef(ref)
+						}
+					}
+				}
+			}
+			return true
+		})
+	}
+	out := make([]string, 0, len(dependencies))
+	for path := range dependencies {
+		out = append(out, path)
+	}
+	sort.Strings(out)
+	return out, nil
 }
 
 func issue151M3ArchitecturalLedgerFingerprint(removeEntity, removePath string) string {

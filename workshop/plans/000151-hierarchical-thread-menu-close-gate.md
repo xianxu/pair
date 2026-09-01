@@ -479,6 +479,20 @@ rounds:
           round: 20
       boundary: M3
       blocked: true
+    - "n": 21
+      timestamp: "2026-08-31T17:26:34-07:00"
+      agent: codex
+      dispose:
+        - id: BR-26
+          disposition: not-addressed
+          note: The typed ledger omits the PathOps seam directly used by Couch.ActionableThreadInventory, and its tests cannot discover dependencies omitted from the hand-maintained ledger itself.
+          round: 21
+        - id: BR-27
+          disposition: addressed
+          note: The source-set range is fixed and parsed bytes come from the immutable full M3 head object; regressions reject moving HEAD and mutable worktree bytes.
+          round: 21
+      boundary: M3
+      blocked: true
 ---
 
 # Gate ledger — pair#151 (boundary-review)
@@ -716,7 +730,13 @@ later rounds disposed of them. Generated — edit the gate, not this file.
 - BR-26 — not-addressed — The typed ledger enumerates declarations but still omits exhaustive dependency locations and validates the plan against the same incomplete path slices; this is the 6th documentation-current-state-accuracy finding.
 - BR-27 — not-addressed — The oracle pins d3ee08d5 rather than the supplied ccba4978 head, and reverting the source-set diff to moving HEAD leaves its test green because both ranges currently have the same Go path membership; this is the 2nd historical-boundary-oracle-pinning finding.
 
+## Round 21 — 2026-08-31T17:26:34-07:00 (codex) — BLOCKED
+
+### Disposed
+
+- BR-26 — not-addressed — The typed ledger omits the PathOps seam directly used by Couch.ActionableThreadInventory, and its tests cannot discover dependencies omitted from the hand-maintained ledger itself.
+- BR-27 — addressed — The source-set range is fixed and parsed bytes come from the immutable full M3 head object; regressions reject moving HEAD and mutable worktree bytes.
+
 ## Open findings
 
 - **BR-26** [Critical] `documentation-current-state-accuracy` Core concepts inventory still omits delivered parked-resume proof authority
-- **BR-27** [Important] `historical-boundary-oracle-pinning` The M3 declaration oracle reads an unpinned diff and mutable worktree bytes

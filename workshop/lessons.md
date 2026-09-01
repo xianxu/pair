@@ -2735,3 +2735,8 @@ that a key token appears cannot detect a contradictory behavioral sentence
   fingerprint source plus dependencies independently of the prose consumer; an
   exact table can otherwise agree with an equally incomplete ledger
   (`ARCH-PURPOSE`).
+- Fingerprinting a hand-authored dependency list proves closure only over known
+  entries. Derive repo-owned references from pinned signatures/bodies and
+  receiver fields, compare the exact set with the ledger, and mutation-test the
+  implementation side; otherwise an omitted seam is invisible to every
+  ledger-only test (`ARCH-DRY`, `ARCH-PURPOSE`).

@@ -1289,3 +1289,12 @@ were swept; one independent architectural-ledger digest covers entity, kind,
 lifecycle, declaration source, dependency paths, and retirement, and a
 dependency-removal mutation fails without consulting plan text (`BR-26`,
 `ARCH-PURPOSE`).
+
+The ninth boundary review found `PathOps` in pinned actionable-inventory code
+but not in that closed ledger. Integration dependencies are now mechanically
+derived from pinned declaration/method-family signatures and bodies, receiver
+fields, and repo-owned selector/type references, then compared exactly with all
+Integration ledger rows. The complete table was regenerated from that result.
+Removing the pinned `c.Path.Physical` branch drops `pathops.go` from the derived
+set and fails against the unchanged ledger (`BR-26`, `ARCH-DRY`,
+`ARCH-PURPOSE`).

@@ -83,21 +83,21 @@
 
 | Name | Lives in | Planned change | Delivery | Current at M3 boundary | Wraps |
 |------|----------|----------------|----------|---------------|-------|
-| `Couch.ActionableThreadInventory` | `cmd/internal/couchcore/actionableinventory.go`, `cmd/internal/couchcore/threadstore.go`, `cmd/internal/couchcore/resume.go` | new | M1/M3 | present | `ThreadStore.Snapshot`, live-owner observations, and `NativeBindingResolver` parked proof |
+| `Couch.ActionableThreadInventory` | `cmd/internal/couchcore/actionableinventory.go`, `cmd/internal/couchcore/artifactcollision.go`, `cmd/internal/couchcore/couch.go`, `cmd/internal/couchcore/parktransaction.go`, `cmd/internal/couchcore/pathops.go`, `cmd/internal/couchcore/resume.go`, `cmd/internal/couchcore/threadstore.go`, `cmd/internal/launcher/agent_defaults.go` | new | M1/M3 | present | `ThreadStore.Snapshot`, `PathOps`, artifact/binding proof, valid agent profiles, and live-owner observations |
 | `NativeBindingResolver` | `cmd/internal/couchcore/resume.go` | new | M3 | context-bearing exact parked-resume binding resolution present | session inventory exact established-root query |
-| `SessionInventoryNativeBindingResolver` | `cmd/internal/couchcore/resume.go`, `cmd/internal/sessioninventory/query.go` | new | M3 | context-bearing exact parked-resume binding resolution present | session inventory exact established-root query |
-| `Couch.PrepareStart` | `cmd/internal/couchcore/couch.go`, `cmd/internal/couchcore/startresolution.go`, `cmd/internal/couchcore/startgrant.go`, `cmd/internal/couchcore/pathops.go` | new | M1 | present | path, policy, preference/default reads |
-| `Couch.SpawnPrepared` | `cmd/internal/couchcore/couch.go`, `cmd/internal/couchcore/startgrant.go`, `cmd/internal/couchcore/runner.go` | new | M1 | present | grant consumption and runner launch |
-| `StartGrantStore` | `cmd/internal/couchcore/startgrant.go` | new | M1 | present | owner-local random issuance, TTL, and atomic consumption |
-| `OperationCall` | `cmd/internal/couchcore/operationdispatch.go` | modified | M1 | context dispatch present | owner operation dispatch and cancellation |
+| `SessionInventoryNativeBindingResolver` | `cmd/internal/couchcore/resume.go`, `cmd/internal/couchcore/couch.go`, `cmd/internal/sessioninventory/model.go`, `cmd/internal/sessioninventory/query.go`, `cmd/internal/sessioninventory/runtime.go` | new | M3 | context-bearing exact parked-resume binding resolution present | session inventory runtime, model, and exact established-root query |
+| `Couch.PrepareStart` | `cmd/internal/couchcore/couch.go`, `cmd/internal/couchcore/startargs.go`, `cmd/internal/couchcore/startgrant.go` | new | M1 | present | start arguments and grant issuance |
+| `Couch.SpawnPrepared` | `cmd/internal/couchcore/couch.go`, `cmd/internal/couchcore/registry.go`, `cmd/internal/couchcore/runner.go`, `cmd/internal/couchcore/startargs.go`, `cmd/internal/couchcore/startgrant.go`, `cmd/internal/couchcore/worktree.go` | new | M1 | present | grant consumption, worktree/registry state, and runner launch |
+| `StartGrantStore` | `cmd/internal/couchcore/startgrant.go`, `cmd/internal/couchcore/clock.go` | new | M1 | present | owner-local clock, random issuance, TTL, and atomic consumption |
+| `OperationCall` | `cmd/internal/couchcore/operationdispatch.go`, `cmd/internal/couchcore/ops.go` | modified | M1 | context dispatch present | declared owner operation and cancellation |
 | `DispatchOperation` | `cmd/internal/couchcore/operationdispatch.go`, `cmd/internal/couchcore/ops.go` | modified | M1 | context dispatch present | owner operation declaration and executor routing |
-| `Couch.AbortStarted` | `cmd/internal/couchcore/couch.go`, `cmd/internal/couchcore/runner.go`, `cmd/internal/couchcore/artifactcollision.go`, `cmd/internal/couchcore/threadstore.go` | new | M1 | exact started-actor abort present | exact-handle cleanup |
-| `Console` | `cmd/internal/couchtty/console.go`, `cmd/internal/couchtty/console_menu.go`, `cmd/internal/couchtty/menu.go`, `cmd/internal/couchtty/menu_refresh.go`, `cmd/internal/couchtty/menu_render.go`, `cmd/internal/couchtty/operation_queue.go`, `cmd/internal/couchcore/actionableinventory.go`, `cmd/internal/hostty/host.go` | modified | M3 | hierarchical render, refresh, preview, action, and transactional attach controllers present | host input/output, pane observations, bounded async workers |
-| `wireResolver` | `cmd/internal/couchcmd/run.go`, `cmd/internal/couchcore/actionableinventory.go`, `cmd/internal/couchcore/operationdispatch.go`, `cmd/internal/couchcore/couch.go`, `cmd/internal/couchtty/console_menu.go` | modified | M3 | actionable refresh, shared action, attach-abort, and hierarchical render wiring present | Couch core providers and Console operation dispatcher |
-| `Runner` | `cmd/internal/couchcore/runner.go`, `cmd/internal/couchcore/launchhelper.go` | modified | M1 | context-bearing child lifecycle present | cancelable child lifecycle |
-| `FakeRunner` | `cmd/internal/couchcore/runner_fake.go`, `cmd/internal/couchcore/runner.go`, `cmd/internal/ptychild/child.go` | modified | M1 | stateful context-bearing double present | cancelable child lifecycle |
-| `hostty.FakeHost` | `cmd/internal/hostty/fake.go`, `cmd/internal/hostty/host.go`, `cmd/internal/ptychild/child.go` | modified | M3 | observable terminal double present | emitted terminal frames and modes |
-| `TestMenuTargetPerformance` | `cmd/internal/couchtty/menu_perf_test.go`, `cmd/internal/couchtty/console.go`, `cmd/internal/couchtty/menu.go`, `cmd/internal/couchtty/menu_render.go`, `cmd/internal/couchtty/menu_refresh.go`, `cmd/internal/hostty/fake.go` | new | M3 | present | clock samples and deterministic four-worker CPU load |
+| `Couch.AbortStarted` | `cmd/internal/couchcore/couch.go`, `cmd/internal/couchcore/naming.go`, `cmd/internal/couchcore/ops.go`, `cmd/internal/couchcore/registry.go`, `cmd/internal/couchcore/runner.go`, `cmd/internal/couchcore/store.go`, `cmd/internal/couchcore/worktree.go` | new | M1 | exact started-actor abort present | exact handle, registry/store, naming, and worktree cleanup |
+| `Console` | `cmd/internal/couchtty/console.go`, `cmd/internal/couchcore/actorid.go`, `cmd/internal/couchcore/operationdispatch.go`, `cmd/internal/couchcore/ops.go`, `cmd/internal/couchcore/park.go`, `cmd/internal/couchcore/ptyrunner.go`, `cmd/internal/couchcore/starttransaction.go`, `cmd/internal/couchcore/thread.go`, `cmd/internal/couchcore/worktree.go`, `cmd/internal/couchtty/console_menu.go`, `cmd/internal/couchtty/focus.go`, `cmd/internal/couchtty/keys.go`, `cmd/internal/couchtty/menu.go`, `cmd/internal/couchtty/menu_async.go`, `cmd/internal/couchtty/menu_refresh.go`, `cmd/internal/couchtty/notice.go`, `cmd/internal/couchtty/panelkeys.go`, `cmd/internal/couchtty/reserve.go`, `cmd/internal/hostty/host.go`, `cmd/internal/ptychild/child.go`, `cmd/internal/ptychild/screen.go` | modified | M3 | hierarchical render, refresh, preview, action, and transactional attach controllers present | host input/output, pane observations, lifecycle identities, and bounded async workers |
+| `wireResolver` | `cmd/internal/couchcmd/run.go`, `cmd/internal/couchcore/actionableinventory.go`, `cmd/internal/couchcore/couch.go`, `cmd/internal/couchcore/operationdispatch.go`, `cmd/internal/couchcore/ops.go`, `cmd/internal/couchtty/console.go` | modified | M3 | actionable refresh, shared action, attach-abort, and hierarchical render wiring present | Couch core providers, operation declarations, and Console dispatcher |
+| `Runner` | `cmd/internal/couchcore/runner.go` | modified | M1 | context-bearing child lifecycle present | cancelable child lifecycle contract |
+| `FakeRunner` | `cmd/internal/couchcore/runner_fake.go`, `cmd/internal/couchcore/runner.go`, `cmd/internal/ptychild/child.go`, `cmd/internal/ptychild/fake.go` | modified | M1 | stateful context-bearing double present | runner contract and fake terminal child lifecycle |
+| `hostty.FakeHost` | `cmd/internal/hostty/fake.go`, `cmd/internal/ptychild/child.go` | modified | M3 | observable terminal double present | terminal sizing and emitted frames |
+| `TestMenuTargetPerformance` | `cmd/internal/couchtty/menu_perf_test.go`, `cmd/internal/couchcore/actionableinventory.go`, `cmd/internal/couchtty/focus.go`, `cmd/internal/couchtty/menu.go`, `cmd/internal/couchtty/menu_refresh.go`, `cmd/internal/ptychild/child.go` | new | M3 | present | actionable rows, focus/input, refresh, terminal dimensions, clock samples, and deterministic four-worker CPU load |
 
 - **`Couch.ActionableThreadInventory`** — snapshots durable records, resolves exact established native bindings for structurally eligible parked records, then calls the pure projector with live and parked proof observations.
   - **Injected into:** Console refresh worker; Console alone derives live observations from its registered panes and child identities, while `NativeBindingResolver` supplies context-bearing parked proof through session inventory.
@@ -1636,3 +1636,20 @@ ledger, not plan prose, owns those unions. A separate stable digest covers name,
 kind, delivery, current state, declaration source, dependencies, and retirement;
 a mutation removing an enumerated dependency fails independently of the plan
 (`ARCH-PURPOSE`).
+
+### 2026-08-31 — derive Integration dependencies from pinned implementation
+
+**Reason:** the ninth M3 boundary review disproved the closed ledger again:
+`Couch.ActionableThreadInventoryContext` directly uses the `PathOps` seam, but
+`pathops.go` was absent from the hand-maintained dependency set (`BR-26`).
+
+**Delta:** the dependency contract now parses pinned Integration declarations,
+their architectural method families, signatures, bodies, receiver fields, and
+repo-owned selector/type references. It resolves those references through a
+repository declaration index and requires the resulting exact path set to equal
+each ledger entry. Every Integration row was regenerated from that mechanical
+result. The actionable-inventory family now includes `PathOps` together with
+thread/artifact/binding/profile dependencies. A mutation removes the pinned
+`c.Path.Physical` branch and proves the derived set no longer matches the ledger;
+this catches implementation-side omission rather than only edits to known
+ledger entries (`ARCH-DRY`, `ARCH-PURPOSE`).
