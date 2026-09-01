@@ -68,13 +68,16 @@ accepted event receives a Console-local monotonic unread sequence so Couch can
 identify the source of the newest unread notification without consulting disk
 or wall time.
 
-Pair's encoder first bounds the normalized message to 4 KiB and removes C0/DEL
-control bytes that could terminate or inject a sequence. Couch decodes UTF-8,
-replaces invalid encodings, applies the existing terminal-control sanitizer,
-and uses exact equality of that sanitized, unclipped string for deduplication.
-Unicode is not otherwise normalized; width clipping happens only while
-rendering and never changes inbox identity. Repeated equality moves the retained
-message to newest position and assigns the new unread sequence.
+Pair's encoder first decodes UTF-8 with invalid input replaced, removes every
+Unicode C0, DEL, and C1 control (`U+0000–U+001F`, `U+007F–U+009F`) that could
+terminate or inject a 7-bit or 8-bit terminal sequence, then bounds the sanitized
+message to 4 KiB without splitting a UTF-8 encoding. The limit therefore applies
+after sanitization and always produces valid UTF-8. Couch applies the same
+shared sanitizer defensively and uses exact equality of that sanitized,
+unclipped string for deduplication. Unicode is not otherwise normalized; width
+clipping happens only while rendering and never changes inbox identity.
+Repeated equality moves the retained message to newest position and assigns the
+new unread sequence.
 
 Notification state is deliberately ephemeral. It is never written to thread
 records, session inventory, or resume metadata. Actor exit, successful park,
@@ -214,3 +217,13 @@ feed status and switcher consumers; defines dispatch-to-success acknowledgement,
 sanitized-string equality, filter behavior, overflow rebasing, and #151's exact
 100-actor latency protocol (`ARCH-DRY`, `ARCH-PURE`, `ARCH-PURPOSE`,
 `ARCH-CONSTRAINTS`).
+
+### 2026-08-31T20:28:00-07:00 — close the complete terminal-control class
+
+**Reason:** the second fresh-context review found that removing C0/DEL alone
+left C1 controls such as 8-bit ST able to terminate or inject into the envelope.
+
+**Delta:** the canonical encoder and defensive Couch decoder now share one rule:
+replace invalid UTF-8, remove all C0/DEL/C1 code points, and apply the 4 KiB bound
+after sanitization on a rune boundary. Framing tests cover every control class
+and chunk boundary (`ARCH-DRY`, `ARCH-PURPOSE`).
