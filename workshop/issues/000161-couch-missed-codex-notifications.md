@@ -143,6 +143,7 @@ total: 6.93
 ## Log
 
 ### 2026-09-01
+- 2026-09-01: closed M1 — Judgment actual: 0.25h because telemetry reported no transcript events. RED: Unicode grammar rejected Sautéed and production path emitted no OSC. GREEN: focused grammar/production/fuzz tests and go test ./cmd/internal/wrapcmd -count=1 pass; git diff --check clean. No atlas: pure regex bugfix with no new architectural surface and no atlas restatement of the old grammar.; review verdict: SHIP
 
 Captured from initial Couch dogfood testing. Codex finished work in Pair, but
 no notification appeared in the status bar or switcher. Investigation was
