@@ -339,6 +339,13 @@ documents the command, legacy option normalization, tolerant hook failures,
 and Couch attention behavior. The corresponding prevention rules were added to
 `workshop/lessons.md` (`ARCH-PURPOSE`, `ARCH-MOCK`).
 
+Close review round 2 disposed BR-1/2/3 and raised BR-4, a repeated
+`plan-code-traceability` instance. A full committed-path sweep now separates
+tracked changed entities, unchanged verification consumers/indexes, and ignored
+derived runtime output throughout the Core concepts and Task file lists. The
+lesson now states that mechanical boundary rule rather than only the first
+placeholder-name symptom (`ARCH-PURPOSE`).
+
 ## Revisions
 
 ### 2026-08-31T20:22:00-07:00 — close transport, framing, and acknowledgement ownership

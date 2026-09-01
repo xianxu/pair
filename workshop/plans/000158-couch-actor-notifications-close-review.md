@@ -95,3 +95,89 @@ findings:
     detail: |
       The dispatcher adds the user-invokable `pair notify` surface and legacy option behavior, but README.md is unchanged. Document its invocation, canonical OSC behavior, and tolerant hook failure semantics.
 ```
+
+---
+
+## Re-review — 2026-08-31T23:44:46-07:00 (REWORK)
+
+| field | value |
+|-------|-------|
+| issue | 158 — couch: actor notifications and attention routing |
+| repo | pair |
+| issue file | workshop/issues/000158-couch-actor-notifications.md |
+| boundary | whole-issue close |
+| milestone | — |
+| window | f93bd568361d3c26ac46ea487c607ff695407689..b05206fa71a890f0b61d9784b00933c274816934 |
+| command | sdlc close --issue 158 |
+| reviewer | codex |
+| timestamp | 2026-08-31T23:44:46-07:00 |
+| verdict | REWORK |
+
+## Review
+
+```verdict
+verdict: REWORK
+confidence: high
+```
+
+The implementation and focused suites are strong, and all three prior findings are addressed. However, the revised Core concepts table still claims generated runtime-bundle files and `atlas/index.md` were modified, although none are present in the pinned diff. The review contract treats a Core concepts contradiction as Critical, so the plan must be corrected before close.
+
+```findings
+dispose:
+  - id: BR-1
+    disposition: addressed
+    note: |
+      The plan now names the delivered Screen replay-safe offset and Child replay-span entities, with an appended revision explaining the ownership change.
+  - id: BR-2
+    disposition: addressed
+    note: |
+      OSRuntime rejects n != len(p), and TestOSRuntimeReportsShortNonblockingWrite directly fails against the prior implementation.
+  - id: BR-3
+    disposition: addressed
+    note: |
+      README now documents pair notify, canonical OSC 777 output, legacy options, and tolerant hook failure behavior.
+findings:
+  - id: new
+    severity: Critical
+    family: plan-code-traceability
+    title: |
+      Core concepts table still marks unchanged generated and index files as modified
+    detail: |
+      workshop/plans/000158-couch-actor-notifications-plan.md:74 claims the runtime pair-notify mirror, runtime manifest, and atlas/index.md are modified, but none appears in the pinned range; the runtime assets are ignored generated files rather than tracked changes. This is the 2nd finding in family plan-code-traceability. Do not patch only this row: state and apply the rule that every Core concepts path/status must resolve against the committed boundary diff, separating tracked modified surfaces from unchanged indexes and derived ignored outputs.
+```
+
+1. Strengths
+
+- The canonical codec centralizes sanitization and framing in `notifyosc`, avoiding parallel Pair/Couch protocol definitions.
+- `OSRuntime.WriteNonblocking` now validates the complete atomic write, with a regression that directly exercises the production seam.
+- Attention state is centralized in the pure `AttentionLedger`, including bounded retention, deduplication, capture-qualified acknowledgement, and overflow rebasing.
+- README and `atlas/architecture.md` cover the new command and notification flow.
+- Focused verification passed across `notifyosc`, `notifycmd`, `dispatcher`, `wrapcmd`, `ptychild`, `couchcore`, `termcmd`, `couchcmd`, and `couchtty`; `git diff --check` was clean.
+
+2. Critical findings
+
+- [000158 plan:74](/Users/xianxu/workspace/pair/workshop/plans/000158-couch-actor-notifications-plan.md:74): Correct the Core concepts integration row using a full committed-path/status sweep. Split `atlas/architecture.md` as modified; describe runtime assets as derived/ignored if appropriate; do not claim `atlas/index.md` changed.
+
+3. Important findings
+
+None.
+
+4. Minor findings
+
+None.
+
+5. Test coverage notes
+
+The short-write regression would fail without BR-2’s count check. Pure codec/ledger tests, stateful integration coverage, real-PTY conformance, malformed-stream benchmarks, and focused package suites cover the principal failure classes.
+
+6. Architectural notes
+
+- `ARCH-DRY`: Pass—canonical encoding and attention ownership each have one source.
+- `ARCH-PURE`: Pass—codec, framing decisions, and ledger transitions are separated from terminal IO.
+- `ARCH-PURPOSE`: Pass for runtime behavior; flag for the inaccurate boundary traceability record.
+- `ARCH-MOCK`: Pass—production seams are injected and exercised with fakes plus real-PTY conformance.
+- `ARCH-CONSTRAINTS`: Pass—retention, scanner memory, batch backpressure, throughput, and UI latency envelopes are bounded and tested.
+
+7. Plan revision recommendations
+
+Append a `## Revisions` entry stating that a committed-range sweep found the bundled integration row conflated tracked modifications, unchanged indexes, and ignored derived outputs. Record the corrected classifications and apply that classification rule to every Core concepts row.

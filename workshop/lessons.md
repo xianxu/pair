@@ -7,10 +7,14 @@ A plan's Core concepts table retained the proposed `ReplayWindow` name and
 on `Screen` and retained spans/filtering on `Child`. Tests passed, but the
 review contract could no longer trace the declared entity to code.
 
-**Rule.** Before a boundary, resolve every Core concepts row against a real
-symbol and changed path. When implementation changes ownership, append a plan
-revision and update both the table and its relationship prose; a useful design
-placeholder is not a delivered entity. Caught during #000158 close review.
+**Rule.** Before a boundary, mechanically sweep every Core concepts row against
+the committed `git diff --name-status`: resolve a real symbol, require `new` or
+`modified` to match the tracked path status, and separate unchanged indexes and
+ignored/generated verification outputs from committed modifications. Apply the
+same classification to prospective task file lists. When implementation changes
+ownership, append a plan revision and update both the table and relationship
+prose; a useful design placeholder is not a delivered entity. Caught during
+#000158 close review rounds 1–2.
 
 ## A successful write means every required byte was accepted
 

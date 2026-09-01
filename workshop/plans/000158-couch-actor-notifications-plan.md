@@ -71,7 +71,7 @@
 | `wrapcmd.proxy` output pump | `cmd/internal/wrapcmd/wrap.go` | modified | agent PTY stdout and Pair outer TTY |
 | `ptychild.Child` observation handoff | `cmd/internal/ptychild/child.go` | modified | actor PTY read pump |
 | `couchtty.Console` attention routing | `cmd/internal/couchtty/console.go` | modified | actor chunks, host terminal, switch completion |
-| Runtime bundle and architecture map | `cmd/internal/runtimebundle/assets/runtime/files/bin/pair-notify`, `cmd/internal/runtimebundle/assets/runtime/manifest.json`, `atlas/architecture.md`, `atlas/index.md` | modified | packaged shim and operator-facing system map |
+| Architecture map | `atlas/architecture.md` | modified | operator-facing notification system map |
 
 - **`notifycmd.Run`** — validates hook arguments and Pair environment, reads the exact recorded outer-TTY path, and writes `notifyosc.Encode(message)` through an injected runtime using nonblocking semantics.
   - **Injected into:** Tests use a stateful runtime that records files, writability, and bytes written; production uses filesystem/open syscalls.
@@ -93,9 +93,9 @@
   - **Injected into:** Existing stateful fake child/host and real PTY conformance harness.
   - **Future extensions:** An outer workspace can observe the same forwarded standard OSC without Couch-specific IPC.
 
-- **Runtime bundle and architecture map** — regenerates the tracked runtime manifest/mirror and documents the singular notification byte path and ephemeral Couch ownership.
-  - **Injected into:** Installed Pair distributions and future maintainers.
-  - **Future extensions:** None; these mirror the implemented surface.
+- **Architecture map** — documents the singular notification byte path and ephemeral Couch ownership. Runtime bundle generation verifies that ignored derived assets already match tracked inputs; `atlas/index.md` already links this map and remains unchanged.
+  - **Injected into:** Future maintainers; installed Pair distributions derive their runtime mirror from the tracked shim.
+  - **Future extensions:** None; the map describes the implemented surface while generated output stays derived.
 
 ### Task 1: Build the canonical notification codec and hook command
 
@@ -107,8 +107,7 @@
 - Modify: `cmd/internal/dispatcher/dispatcher.go`
 - Modify: `cmd/internal/dispatcher/dispatcher_test.go`
 - Modify: `bin/pair-notify`
-- Modify: `cmd/internal/entrypoint/alias.go`
-- Modify: `cmd/internal/entrypoint/alias_test.go`
+- Verify unchanged: `cmd/internal/entrypoint/alias.go`, `cmd/internal/entrypoint/alias_test.go` (dispatcher discovery already owns the command)
 
 - [x] **Step 1: Write codec tests that pin exact bytes and all sanitization boundaries**
 
@@ -184,9 +183,7 @@
 - Create: `cmd/internal/wrapcmd/notification_rewriter.go`
 - Test: `cmd/internal/wrapcmd/notification_rewriter_test.go`
 - Modify: `cmd/internal/wrapcmd/wrap.go`
-- Modify: `cmd/internal/wrapcmd/osc_test.go`
-- Modify: `cmd/internal/wrapcmd/stdout_batch_test.go`
-- Modify: `cmd/internal/wrapcmd/picker_overlay_test.go`
+- Verify unchanged: `cmd/internal/wrapcmd/osc_test.go`, `cmd/internal/wrapcmd/stdout_batch_test.go`, `cmd/internal/wrapcmd/picker_overlay_test.go` (new rewriter tests cover the replacement seam; existing suites remain consumers)
 
 - [x] **Step 1: Write failing arbitrary-split tests for the native notification rewriter**
 
@@ -257,17 +254,16 @@
 
 **Files:**
 - Modify: `cmd/internal/ptychild/screen.go`
-- Modify: `cmd/internal/ptychild/screen_test.go`
+- Verify unchanged: `cmd/internal/ptychild/screen_test.go` (notification-specific Screen coverage lives in `notification_test.go`)
 - Modify: `cmd/internal/ptychild/child.go`
 - Modify: `cmd/internal/ptychild/child_test.go`
 - Modify: `cmd/internal/ptychild/fake.go`
-- Modify: `cmd/internal/ptychild/replay.go`
+- Verify unchanged: `cmd/internal/ptychild/replay.go` (query stripping is unchanged; notification spans belong to Child)
 - Modify: `cmd/internal/ptychild/replay_test.go`
 - Modify: `cmd/internal/couchcore/ptyrunner.go`
 - Modify: `cmd/internal/couchcore/ptyrunner_test.go`
 - Modify: `cmd/internal/termcmd/run.go`
-- Modify: `cmd/internal/termcmd/run_test.go`
-- Modify: `cmd/internal/couchcmd/run.go`
+- Verify unchanged: `cmd/internal/termcmd/run_test.go`, `cmd/internal/couchcmd/run.go` (compile/full-suite coverage verifies their existing typed wiring)
 - Modify: `cmd/internal/couchtty/console.go`
 - Modify: `cmd/internal/couchtty/console_menu_test.go`
 - Modify: `cmd/internal/couchtty/console_live_test.go`
@@ -361,7 +357,7 @@
 - Modify: `cmd/internal/couchtty/menu_test.go`
 - Modify: `cmd/internal/couchtty/console.go`
 - Modify: `cmd/internal/couchtty/console_test.go`
-- Modify: `cmd/internal/couchtty/console_menu_operation_test.go`
+- Verify unchanged: `cmd/internal/couchtty/console_menu_operation_test.go` (switch acknowledgement regressions live with notification integration tests)
 - Modify: `cmd/internal/couchtty/notice.go`
 - Modify: `cmd/internal/couchtty/notice_test.go`
 
@@ -474,12 +470,11 @@
 
 **Files:**
 - Test: `cmd/internal/couchtty/notification_pty_test.go`
-- Modify: `cmd/internal/runtimebundle/assets/runtime/files/bin/pair-notify`
-- Modify: `cmd/internal/runtimebundle/assets/runtime/manifest.json`
-- Modify: `cmd/internal/runtimebundle/embed_test.go`
+- Verify derived unchanged: `cmd/internal/runtimebundle/assets/runtime/files/bin/pair-notify`, `cmd/internal/runtimebundle/assets/runtime/manifest.json` (ignored generated outputs already matched tracked inputs)
+- Verify unchanged: `cmd/internal/runtimebundle/embed_test.go`
 - Modify: `cmd/internal/artifactpath/coverage_test.go`
 - Modify: `atlas/architecture.md`
-- Modify: `atlas/index.md`
+- Verify unchanged: `atlas/index.md` (already links `atlas/architecture.md`)
 - Modify: `workshop/issues/000158-couch-actor-notifications.md`
 
 - [x] **Step 1: Write a real-PTY conformance test over the completed production path**
@@ -540,6 +535,22 @@
   Review `git status --short`, `git diff main...HEAD --stat`, and the issue checklist. Then run `sdlc close --issue 158 --verified '<exact commands and observed results>'` only after every task above is checked and the implementation is smoke-testable. The close command owns the mandatory fresh-context boundary review; do not dispatch a redundant review manually.
 
 ## Revisions
+
+### 2026-08-31T23:51:00-07:00 — classify every declared path against the committed diff
+
+**Reason:** close review BR-4 found that the integration table bundled one
+tracked atlas modification with an unchanged index and ignored generated
+runtime outputs. This repeated the `plan-code-traceability` family from BR-1.
+
+**Delta:** every Core concepts row was checked against `git diff --name-status
+f93bd568..HEAD`; only real symbols at tracked changed paths retain `new` or
+`modified`. The architecture row now names only `atlas/architecture.md`.
+Prospective Task file lists that remained unchanged are explicitly classified
+`Verify unchanged`, and runtime assets are `Verify derived unchanged` because
+they are ignored generator output that already matched tracked inputs. The
+rule is: a boundary table describes committed entities; verification-only and
+derived surfaces are stated separately, never labeled modified
+(`ARCH-PURPOSE`).
 
 ### 2026-08-31T23:42:00-07:00 — align replay concepts with delivered ownership
 
