@@ -28,7 +28,7 @@ const (
 	issue149M5Base = "6a714336"
 	issue149M5Head = "c434016"
 	issue151M3Base = "0c40a8d1"
-	issue151M3Head = "d3ee08d5"
+	issue151M3Head = "d3ee08d548aebb38eb8a6f15bea78cf71c2dafc8"
 )
 
 const issue151M3DeclarationDigest = "8a193b51373583eec2f7b9c25e4a8df6fdc2bb6b8113adf0005d6f1cc878344f"
@@ -949,6 +949,22 @@ func TestIssue151M3DeclarationDispositionSetIsClosed(t *testing.T) {
 	}
 }
 
+func TestIssue151M3HistoricalOracleRejectsMovingHeadAndWorktreeBytes(t *testing.T) {
+	root := filepath.Clean(filepath.Join("..", "..", ".."))
+	path := "cmd/internal/couchcore/plan_contract_test.go"
+	if _, err := issue151M3SourceAtRef(root, "HEAD", path); err == nil {
+		t.Fatal("moving HEAD was accepted as the immutable M3 source ref")
+	}
+	worktree, err := os.ReadFile(filepath.Join(root, path))
+	if err != nil {
+		t.Fatal(err)
+	}
+	got, digestErr := issue151M3SourceDeclarationDigest(root, map[string][]byte{path: worktree}, nil)
+	if digestErr == nil && got == issue151M3DeclarationDigest {
+		t.Fatal("mutable worktree bytes reproduced the immutable M3 declaration snapshot")
+	}
+}
+
 func TestIssue151M3DeclarationDispositionMutationsFailClosed(t *testing.T) {
 	root := filepath.Clean(filepath.Join("..", "..", ".."))
 	path := "cmd/internal/couchcore/actionableinventory.go"
@@ -1077,6 +1093,17 @@ func issue151M3Disposition(name, rel string, override map[string]string) string 
 }
 
 func issue151M3SourceAtHead(root, rel string) ([]byte, error) {
+	return issue151M3SourceAtRef(root, issue151M3Head, rel)
+}
+
+func issue151M3SourceAtRef(root, ref, rel string) ([]byte, error) {
+	resolved, err := exec.Command("git", "-C", root, "rev-parse", ref+"^{commit}").Output()
+	if err != nil {
+		return nil, err
+	}
+	if strings.TrimSpace(string(resolved)) != issue151M3Head {
+		return nil, fmt.Errorf("M3 source ref %q resolves to %s, want immutable %s", ref, strings.TrimSpace(string(resolved)), issue151M3Head)
+	}
 	command := exec.Command("git", "-C", root, "show", issue151M3Head+":"+rel)
 	raw, err := command.Output()
 	if err != nil {
