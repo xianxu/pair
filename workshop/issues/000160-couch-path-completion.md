@@ -29,12 +29,23 @@ so completion also needs an explicit field-navigation model.
   final path segment. Absolute and relative paths retain their original form in
   the editable value; completion does not silently replace a relative path with
   an absolute one.
+- Relative paths are interpreted from Couch's process working directory, the
+  same base used by the existing start flow. Empty input lists that directory
+  and inserts a relative candidate such as `src/`. An exact `.` or `..` becomes
+  `./` or `../`; a following `Tab` then lists its children. A value already
+  ending in a path separator lists that directory's children. Repeated
+  separators are retained in the editable prefix, while the OS resolves them
+  for listing. `~` has no special expansion because the start flow is not a
+  shell; it is matched as a literal filename.
 - One matching directory completes immediately. Multiple matches open a
   bounded menu beneath the path field, with the first match selected.
 - While the completion menu is open, `Up` and `Down` move its selection and
   `Enter` accepts the selected directory. Accepting a directory writes the
   candidate into the path field with a trailing path separator so the operator
-  can continue navigating. `Tab` advances through the same candidates.
+  can continue navigating. Immediate single-match completion uses the same
+  trailing separator. `Tab` advances through candidates only after the menu is
+  visible; the `Tab` that requested the result leaves the first candidate
+  selected.
 - When no completion menu is open, `Up` and `Down` move between the path and
   agent fields. Agent choice continues to use `Left` and `Right`.
 - `Escape` closes an open completion menu without leaving the start form. A
@@ -44,25 +55,40 @@ so completion also needs an explicit field-navigation model.
   is not open.
 - Directory names are ordered lexically. Hidden directories are offered only
   when the segment being completed begins with `.`. Symlinks that resolve to
-  directories count as directories.
+  directories count as directories, and accepting one preserves the typed
+  symlink spelling rather than substituting its resolved target.
+- Ordering compares the displayed entry names bytewise, case-sensitively. This
+  is deterministic across supported platforms and does not depend on the
+  filesystem's enumeration order.
 
 ### Architecture and data flow
 
 The existing `MenuState`/`ReduceMenu` reducer remains the sole transition
-authority. Completion state records the request generation, candidates, and
-selected candidate on the start frame. A `Tab` key transition emits a typed
-directory-completion effect containing the unmodified path text and a unique
-generation. This extends the existing reducer/effect pattern rather than
-creating a second input path (`ARCH-DRY`).
+authority. Completion state records the request identity, candidates, and
+selected candidate on the start frame. A request identity is the start frame's
+immutable instance plus a monotonically increasing completion generation. A
+`Tab` key transition emits a typed directory-completion effect containing that
+identity and the unmodified path text. This extends the existing reducer/effect
+pattern rather than creating a second input path (`ARCH-DRY`).
 
 The Console effect shell performs the filesystem read asynchronously and sends
 a completion-result event back to the reducer. Filesystem access is injected
 behind a narrow directory-listing seam so production uses the OS filesystem and
 tests use a deterministic stateful fake; selection, filtering, ordering, and
 path reconstruction remain pure reducer/helper behavior (`ARCH-PURE`,
-`ARCH-MOCK`). Results whose generation or frame identity no longer matches the
-visible start frame are discarded, including results arriving after edits,
-field changes, or form exit.
+`ARCH-MOCK`). The effect and result both carry the complete request identity.
+Editing the path, changing fields, or leaving the form advances/clears the
+frame's accepted completion generation before emitting any later request. A
+result may mutate candidates, path, selection, or notices only when both its
+frame instance and generation exactly equal the visible start frame's current
+request; every other result is inert.
+
+Repeated `Tab` for the same path while its request is pending coalesces into the
+existing request. If input changes and a new `Tab` arrives while an older
+filesystem scan is still running, the shell retains only the newest pending
+request behind the one active scan; another newer request replaces that pending
+request. Completion work therefore has one active and at most one queued query,
+and the reducer identity rule makes results from superseded work harmless.
 
 Completion is advisory only. It does not grant start authorization or replace
 the existing preview/token validation. The completed path still passes through
@@ -73,17 +99,24 @@ the ordinary start preview and canonical resolution flow (`ARCH-PURPOSE`).
 An absent or unreadable parent directory produces a local error notice and
 leaves the typed path unchanged. No matches produces an informational “no
 matching directories” notice and no menu. Cancellation or stale completion
-results do not overwrite a newer notice or path.
+results do not overwrite a newer notice or path. Completion notices carry the
+same frame-instance/generation owner as their request. Only an exact current
+result may publish success, error, no-match, or truncation state; editing,
+changing fields, or leaving the frame clears a notice owned by the invalidated
+request without disturbing notices owned by other menu work.
 
 Completion is a keystroke-driven UI path (`ARCH-CONSTRAINTS`). Filesystem reads
-must not block reducer input or painting. The shell requests at most one listing
-per explicit `Tab`, results expose at most 200 matching directories, and the
-rendered menu is clipped to the available terminal rows. If more than 200
+must not block reducer input or painting. The shell runs at most one filesystem
+listing and retains at most one latest-wins pending query; results expose at
+most 200 matching directories, and the rendered menu is clipped to the
+available terminal rows. If more than 200
 directories match, the UI says the result is truncated; the operator can type a
 longer prefix and request completion again. CPU, memory, and concurrent work are
 therefore bounded by one directory scan and 200 retained candidates per active
 start frame. Network-mounted filesystem latency is tolerated asynchronously;
-newer input makes its eventual result stale rather than blocking the UI.
+newer input makes its eventual result stale rather than blocking the UI. The
+single worker can remain occupied by a slow OS read, but it cannot multiply
+unbounded work or prevent input, painting, cancellation, or form exit.
 
 ### Testing
 
@@ -94,8 +127,9 @@ newer input makes its eventual result stale rather than blocking the UI.
   directory-only filtering, hidden-directory rules, directory symlinks,
   trailing separators, no matches, and the 200-result bound.
 - Console integration tests use a stateful fake directory lister to prove the
-  UI stays responsive, errors remain local, and stale/out-of-order results
-  cannot mutate current state.
+  UI stays responsive, errors remain local, repeated requests coalesce, pending
+  work is latest-wins and bounded, and stale/out-of-order results cannot mutate
+  current state or notices.
 - Rendering tests cover bounded candidate rows, selection, truncation text, and
   narrow/short terminals. Existing menu lifecycle and performance suites remain
   green.
@@ -123,3 +157,15 @@ newer input makes its eventual result stale rather than blocking the UI.
 Claimed the issue and entered planning. The operator approved a directories-only
 completion menu: `Tab` completes/cycles paths, `Up`/`Down` navigate fields when
 closed and candidates when open, and `Left`/`Right` retain agent selection.
+
+The first fresh-context spec review found ambiguous path bases and async
+ownership. The spec now defines literal path semantics, exact frame/generation
+identity, owned notices, and a one-active/one-latest-pending filesystem queue.
+
+## Revisions
+
+### 2026-09-01 — close first spec-review ambiguities
+
+Defined empty/relative/dot/separator/tilde behavior and deterministic ordering;
+made the first versus subsequent `Tab` behavior explicit; and added exact
+request/notice ownership plus bounded latest-wins filesystem concurrency.
