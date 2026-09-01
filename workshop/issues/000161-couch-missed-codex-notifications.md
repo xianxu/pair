@@ -54,9 +54,11 @@ form notification authority.
   bar and switcher.
 - Keep the two surfaces consistent so a completed agent is not silently missed.
 - Use the Codex rollout transcript as the primary durable completion source.
-  Bind the rollout JSONL to the `pair-wrap`-spawned Codex PID (open file
-  descriptor or a launch-bounded candidate confirmed against that PID), never
-  by newest-file or cwd-only guessing. Tail new records and treat
+  Reuse Pair's existing `sessionwatch`/`sessioninventory` authority: scanner-
+  validated root `session_meta`, current launch generation, spawned process
+  incarnation, and descendant open-file evidence establish the rollout binding.
+  Process evidence corroborates but never independently selects a transcript;
+  never use newest-file or cwd-only guessing. Tail new records and treat
   `task_complete` / `turn_complete` as turn completion, including short turns
   whose TUI does not visibly retain a `Working` bar (`ARCH-IDENTITY`).
 - Keep native notification OSC as an immediate accepted source. Treat the
@@ -103,18 +105,13 @@ form notification authority.
 
 ## Plan
 
-- [ ] Correct and regression-test Claude's Unicode marker-verb grammar first.
-
-Deferred after the first slice:
-
-- [ ] Capture representative short and long Codex rollout/PTY fixtures and pin
-  the transcript completion events and optional rendered activity states.
-- [ ] Resolve each spawned Codex PID to its own rollout JSONL and tail new state.
-- [ ] Route transcript completion through the canonical notification sink.
-- [ ] Add deduplicated native-OSC, rendered-transition, and activity-gated idle
-  recovery around the transcript authority.
-- [ ] Model Claude `9;4;3 -> 9;4;0` activity and retain its richer marker fallback.
-- [ ] Verify both surfaces from completion through display.
+- [ ] M1 — Correct and regression-test Claude's Unicode marker-verb grammar.
+- [ ] M2 — Add the pure turn lifecycle reducer, semantic deduplication, Claude
+  OSC progress transitions, and activity-gated timers.
+- [ ] M3 — Extend the existing authorized Codex session watcher to tail the
+  bound rollout and publish transcript completion observations to `pair-wrap`.
+- [ ] M4 — Add rendered Codex `Working` recovery and verify canonical
+  notifications through Couch's status and switcher surfaces.
 
 ## Log
 
@@ -160,6 +157,31 @@ OSC `9;4;3` working and `9;4;0` stopped state rather than treating a ten-second
 progress silence as completion; retain the colored marker for richer text and
 compatibility.
 
+Planning reconnaissance corrected one integration detail from the cmux analogy.
+Pair already has stronger transcript identity in `sessionwatch` and
+`sessioninventory`: validated root metadata and launch generation are the
+authority, while PID/open-file evidence only corroborates the causal candidate.
+The implementation will extend that pipeline and publish launch-scoped lifecycle
+observations rather than add a second resolver inside `pair-wrap` (`ARCH-DRY`,
+`ARCH-PURE`). It also identified the existing 500 ms `emitOuter` limiter as
+delivery throttling, not turn deduplication; semantic dedup belongs in a pure
+turn lifecycle reducer before the sink.
+
+Fresh-context plan review required the lifecycle contract to become executable,
+not merely directional. The plan now pins `task_started(turn_id)` and user submit
+as generation boundaries; keyed/keyless late-arrival rules; sessionledger-style
+journal commit and indeterminate-write recovery; the unique causal-round terminal
+watermark; tokenized proxy-owned timers; bounded durable-channel backpressure;
+and a 100 ms watcher + 50 ms tailer latency budget. These close the duplicate,
+cross-turn, replay, stale-timer, and first-completion ambiguity classes before
+code begins (`ARCH-PURPOSE`, `ARCH-CONSTRAINTS`).
+
+A second plan review found the binding handoff could publish a completed short
+turn without its earlier keyed opener. The plan now publishes the validated
+causal round's `task_started(turn_id)` and matching terminal together, in order,
+after binding, then follows only records beyond the terminal watermark. A
+transcript-only short-turn regression pins this first-turn behavior.
+
 ## Revisions
 
 ### 2026-09-01 — add confirmed Claude failure mode
@@ -186,3 +208,22 @@ Replaced the unresolved Codex source choice with PID-bound rollout transcript
 events as the durable authority. Added native OSC and rendered activity as
 deduplicated fast signals, activity-gated idle recovery, and Claude's explicit
 OSC progress transition with its existing marker fallback.
+
+### 2026-09-01 — align transcript binding with Pair identity authority
+
+Replaced the cmux-derived direct PID selection wording with Pair's established
+scanner-authorized root binding, using process evidence only as corroboration.
+Split implementation into four genuine review boundaries: Claude grammar,
+lifecycle core, Codex transcript authority, and rendered/Couch recovery.
+
+### 2026-09-01 — make lifecycle and journal contracts executable
+
+Specified exact keyed/keyless generation transitions, durable append/replay
+outcomes, causal-round authorization watermark, proxy-loop timer/channel
+ownership, and enforced polling/resource bounds after plan review.
+
+### 2026-09-01 — preserve the first causal turn opener
+
+Required the binding handoff to publish both the validated causal round opener
+and terminal so a short turn completed before binding still opens, completes,
+and notifies exactly once without visual or native rescue.
