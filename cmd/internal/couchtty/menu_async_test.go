@@ -9,6 +9,51 @@ import (
 	"github.com/xianxu/pair/cmd/internal/couchcore"
 )
 
+type latestTestRequest struct {
+	ID      int
+	Payload string
+}
+
+func TestAdvanceLatestScheduleKeepsOneRunningAndLatestPayload(t *testing.T) {
+	key := func(request latestTestRequest) int { return request.ID }
+	valid := func(id int) bool { return id > 0 }
+	first := latestTestRequest{ID: 1, Payload: "one"}
+	second := latestTestRequest{ID: 2, Payload: "two"}
+	latest := latestTestRequest{ID: 3, Payload: "three"}
+
+	var state latestSchedule[latestTestRequest]
+	state, effects := advanceLatestSchedule(state, latestScheduleEvent[latestTestRequest, int]{Kind: latestRequested, Request: first}, key, valid)
+	if len(effects) != 1 || effects[0].Kind != latestStart || effects[0].Request != first {
+		t.Fatalf("first request = state %+v effects %+v", state, effects)
+	}
+	first.Payload = "mutated"
+	if state.Running == nil || state.Running.Payload != "one" {
+		t.Fatalf("schedule retained caller storage: %+v", state)
+	}
+	unchanged := state
+	state, effects = advanceLatestSchedule(state, latestScheduleEvent[latestTestRequest, int]{Kind: latestRequested, Request: latestTestRequest{ID: 1}}, key, valid)
+	if len(effects) != 0 || !reflect.DeepEqual(state, unchanged) {
+		t.Fatalf("duplicate request changed state: %+v %+v", state, effects)
+	}
+	state, effects = advanceLatestSchedule(state, latestScheduleEvent[latestTestRequest, int]{Kind: latestRequested, Request: second}, key, valid)
+	if len(effects) != 1 || effects[0].Kind != latestCancel || effects[0].Identity != 1 {
+		t.Fatalf("replacement = state %+v effects %+v", state, effects)
+	}
+	state, effects = advanceLatestSchedule(state, latestScheduleEvent[latestTestRequest, int]{Kind: latestRequested, Request: latest}, key, valid)
+	if len(effects) != 0 || state.Pending == nil || *state.Pending != latest {
+		t.Fatalf("latest pending = state %+v effects %+v", state, effects)
+	}
+	before := state
+	state, effects = advanceLatestSchedule(state, latestScheduleEvent[latestTestRequest, int]{Kind: latestFinished, Identity: 99}, key, valid)
+	if len(effects) != 0 || !reflect.DeepEqual(state, before) {
+		t.Fatalf("stale finish changed state: %+v %+v", state, effects)
+	}
+	state, effects = advanceLatestSchedule(state, latestScheduleEvent[latestTestRequest, int]{Kind: latestFinished, Identity: 1}, key, valid)
+	if len(effects) != 1 || effects[0].Kind != latestStart || effects[0].Request != latest || state.Running == nil || *state.Running != latest || state.Pending != nil {
+		t.Fatalf("matching finish = state %+v effects %+v", state, effects)
+	}
+}
+
 func TestAdvancePreviewScheduleKeepsOneRunningAndLatestPending(t *testing.T) {
 	var state PreviewSchedule
 	request1 := PreviewRequest{Generation: 1, Path: "/one", Agent: "claude"}
