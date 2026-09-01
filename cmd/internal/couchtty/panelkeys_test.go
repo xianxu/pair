@@ -94,7 +94,7 @@ func TestDecodedHorizontalArrowsDriveStartAgentSelection(t *testing.T) {
 			state.Agents = []string{"codex", "claude", "muse"}
 			state.RootAgent = "claude"
 			state, _ = reduceKey(state, PanelKey{Kind: KeyCtrlSpace})
-			state, _ = reduceKey(state, PanelKey{Kind: KeyTab})
+			state, _ = reduceKey(state, PanelKey{Kind: KeyDown})
 			keys, held := DecodePanelKeys([]byte(tc.sequence))
 			if len(held) != 0 || len(keys) != 1 {
 				t.Fatalf("decoded keys=%+v held=%q", keys, held)

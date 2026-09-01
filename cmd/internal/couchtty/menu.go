@@ -52,27 +52,33 @@ const (
 
 // MenuFrame owns the navigation state for exactly one menu level.
 type MenuFrame struct {
-	Instance           uint64
-	Kind               MenuFrameKind
-	Filter             string
-	SelectedAddress    couchcore.ThreadAddress
-	SelectedItem       string
-	Thread             couchcore.ThreadAddress
-	Action             string
-	Input              string
-	FormField          MenuFormField
-	Path               string
-	Agent              string
-	AgentSticky        bool
-	Generation         uint64
-	PreviewPending     uint64
-	PreviewAccepted    uint64
-	PreviewToken       couchcore.StartGrantToken
-	PreviewPath        string
-	PreviewAgent       string
-	PreviewAgentSource couchcore.AgentSource
-	PreviewArgvSource  couchcore.ArgvSource
-	SubmitGeneration   uint64
+	Instance             uint64
+	Kind                 MenuFrameKind
+	Filter               string
+	SelectedAddress      couchcore.ThreadAddress
+	SelectedItem         string
+	Thread               couchcore.ThreadAddress
+	Action               string
+	Input                string
+	FormField            MenuFormField
+	Path                 string
+	Agent                string
+	AgentSticky          bool
+	Generation           uint64
+	PreviewPending       uint64
+	PreviewAccepted      uint64
+	PreviewToken         couchcore.StartGrantToken
+	PreviewPath          string
+	PreviewAgent         string
+	PreviewAgentSource   couchcore.AgentSource
+	PreviewArgvSource    couchcore.ArgvSource
+	SubmitGeneration     uint64
+	CompletionRequest    CompletionIdentity
+	CompletionPath       string
+	CompletionPending    bool
+	CompletionCandidates []string
+	CompletionSelected   int
+	CompletionTruncated  bool
 }
 
 type MenuFormField uint8
@@ -101,6 +107,7 @@ type MenuNotice struct {
 type MenuProgressOwner struct {
 	PreviewGeneration uint64
 	OperationAttempt  uint64
+	Completion        CompletionIdentity
 }
 
 func infoMenuNotice(text string) MenuNotice { return MenuNotice{Level: MenuNoticeInfo, Text: text} }
@@ -126,6 +133,7 @@ type MenuState struct {
 	Attention                 map[couchcore.ThreadAddress][]AttentionMessage
 	InFlight                  MenuOperationOrigin
 	PreviewSequence           uint64
+	CompletionSequence        uint64
 	OperationSequence         uint64
 	FrameSequence             uint64
 	SpinnerPhase              uint8
@@ -153,6 +161,7 @@ const (
 	MenuEventInventory
 	MenuEventOperationResult
 	MenuEventPreviewResult
+	MenuEventCompletionResult
 	MenuEventParkHotkey
 	MenuEventTick
 )
@@ -172,14 +181,16 @@ type MenuEvent struct {
 	// predates a committed operation mutation.
 	ProjectionAfterGeneration uint64
 	Prepared                  *couchcore.PreparedStart
+	Completion                *CompletionResult
 }
 
 // MenuEffect is an operation request for the thin Console shell.
 type MenuEffect struct {
-	Operation string
-	Attempt   uint64
-	Args      map[string]string
-	Preview   *PreviewRequest
+	Operation  string
+	Attempt    uint64
+	Args       map[string]string
+	Preview    *PreviewRequest
+	Completion *CompletionRequest
 }
 
 func NewMenuState(inventory []couchcore.ActionableThreadSummary, active couchcore.ThreadAddress) MenuState {
@@ -254,7 +265,10 @@ func ReduceMenu(state MenuState, event MenuEvent) (MenuState, []MenuEffect) {
 	if event.Kind == MenuEventOperationResult && !menuOperationMatches(next.InFlight, event) {
 		return next, nil
 	}
-	if next.Notice.Level != MenuNoticeProgress && event.Kind != MenuEventOperationResult && event.Kind != MenuEventPreviewResult {
+	if event.Kind == MenuEventCompletionResult && !completionResultMatches(next, event.Completion) {
+		return next, nil
+	}
+	if next.Notice.Level != MenuNoticeProgress && event.Kind != MenuEventOperationResult && event.Kind != MenuEventPreviewResult && event.Kind != MenuEventCompletionResult {
 		next.Notice = MenuNotice{}
 	}
 	if event.Kind == MenuEventParkHotkey {
@@ -294,6 +308,9 @@ func ReduceMenu(state MenuState, event MenuEvent) (MenuState, []MenuEffect) {
 	}
 	if event.Kind == MenuEventPreviewResult {
 		return reducePreviewResult(next, event)
+	}
+	if event.Kind == MenuEventCompletionResult {
+		return reduceCompletionResult(next, *event.Completion), nil
 	}
 	if len(next.Frames) == 0 || event.Kind != MenuEventKey {
 		return next, nil
@@ -573,6 +590,7 @@ func reduceStartKey(state MenuState, key PanelKey) (MenuState, []MenuEffect) {
 		}
 		candidate := frame.Path + string(key.Rune)
 		if utf8.RuneLen(key.Rune) > 0 && len(candidate) <= menuTextLimit {
+			invalidateStartCompletion(&state, frame)
 			frame.Path = candidate
 			invalidateStartPreview(&state, frame)
 		}
@@ -581,15 +599,32 @@ func reduceStartKey(state MenuState, key PanelKey) (MenuState, []MenuEffect) {
 			before := frame.Path
 			frame.Path = removeLastRune(frame.Path)
 			if frame.Path != before {
+				invalidateStartCompletion(&state, frame)
 				invalidateStartPreview(&state, frame)
 			}
 		}
 	case KeyTab:
 		if frame.FormField == MenuFieldPath {
-			frame.FormField = MenuFieldAgent
-			return requestStartPreview(state)
-		} else {
+			if len(frame.CompletionCandidates) > 0 {
+				frame.CompletionSelected = (frame.CompletionSelected + 1) % len(frame.CompletionCandidates)
+				return state, nil
+			}
+			return requestPathCompletion(state)
+		}
+	case KeyUp:
+		if len(frame.CompletionCandidates) > 0 {
+			frame.CompletionSelected = (frame.CompletionSelected - 1 + len(frame.CompletionCandidates)) % len(frame.CompletionCandidates)
+		} else if frame.FormField == MenuFieldAgent {
 			frame.FormField = MenuFieldPath
+			invalidateStartCompletion(&state, frame)
+		}
+	case KeyDown:
+		if len(frame.CompletionCandidates) > 0 {
+			frame.CompletionSelected = (frame.CompletionSelected + 1) % len(frame.CompletionCandidates)
+		} else if frame.FormField == MenuFieldPath {
+			frame.FormField = MenuFieldAgent
+			invalidateStartCompletion(&state, frame)
+			return requestStartPreview(state)
 		}
 	case KeyLeft:
 		if frame.FormField == MenuFieldAgent {
@@ -604,6 +639,13 @@ func reduceStartKey(state MenuState, key PanelKey) (MenuState, []MenuEffect) {
 			}
 		}
 	case KeyEnter:
+		if len(frame.CompletionCandidates) > 0 {
+			path := frame.CompletionCandidates[frame.CompletionSelected]
+			invalidateStartCompletion(&state, frame)
+			frame.Path = path
+			invalidateStartPreview(&state, frame)
+			return state, nil
+		}
 		if frame.PreviewAccepted == frame.Generation && frame.PreviewToken != "" {
 			return dispatchMenuOperation(state, startMenuEffect(*frame), couchcore.ThreadAddress{})
 		}
@@ -619,6 +661,10 @@ func reduceStartKey(state MenuState, key PanelKey) (MenuState, []MenuEffect) {
 		}
 		return requestStartPreview(state)
 	case KeyEscape:
+		if len(frame.CompletionCandidates) > 0 {
+			invalidateStartCompletion(&state, frame)
+			return state, nil
+		}
 		if state.Notice.Level == MenuNoticeProgress && state.Notice.Owner.PreviewGeneration == frame.Generation {
 			state.Notice = MenuNotice{}
 		}
@@ -659,6 +705,80 @@ func invalidateStartPreview(state *MenuState, frame *MenuFrame) bool {
 		frame.Generation = 0
 	}
 	return ok
+}
+
+func requestPathCompletion(state MenuState) (MenuState, []MenuEffect) {
+	frame := &state.Frames[len(state.Frames)-1]
+	if frame.CompletionPending && frame.CompletionPath == frame.Path {
+		return state, nil
+	}
+	query := SplitCompletionPath(frame.Path)
+	if query.Immediate != "" {
+		invalidateStartCompletion(&state, frame)
+		frame.Path = query.Immediate
+		invalidateStartPreview(&state, frame)
+		return state, nil
+	}
+	if state.CompletionSequence == ^uint64(0) {
+		state.Notice = errorMenuNotice("path completion identity exhausted")
+		return state, nil
+	}
+	state.CompletionSequence++
+	identity := CompletionIdentity{FrameInstance: frame.Instance, Generation: state.CompletionSequence}
+	invalidateStartCompletion(&state, frame)
+	frame.CompletionRequest = identity
+	frame.CompletionPath = frame.Path
+	frame.CompletionPending = true
+	request := CompletionRequest{Identity: identity, Path: frame.Path}
+	return state, []MenuEffect{{Completion: &request}}
+}
+
+func invalidateStartCompletion(state *MenuState, frame *MenuFrame) {
+	identity := frame.CompletionRequest
+	frame.CompletionRequest = CompletionIdentity{}
+	frame.CompletionPath = ""
+	frame.CompletionPending = false
+	frame.CompletionCandidates = nil
+	frame.CompletionSelected = 0
+	frame.CompletionTruncated = false
+	if state.Notice.Owner.Completion == identity && identity != (CompletionIdentity{}) {
+		state.Notice = MenuNotice{}
+	}
+}
+
+func completionResultMatches(state MenuState, result *CompletionResult) bool {
+	if result == nil || result.Identity.FrameInstance == 0 || result.Identity.Generation == 0 || state.CurrentFrame().Kind != MenuFrameStart {
+		return false
+	}
+	frame := state.CurrentFrame()
+	return frame.Instance == result.Identity.FrameInstance && frame.CompletionRequest == result.Identity
+}
+
+func reduceCompletionResult(state MenuState, result CompletionResult) MenuState {
+	frame := &state.Frames[len(state.Frames)-1]
+	frame.CompletionPending = false
+	frame.CompletionCandidates = nil
+	frame.CompletionSelected = 0
+	frame.CompletionTruncated = false
+	owner := MenuProgressOwner{Completion: result.Identity}
+	if result.Error != "" {
+		state.Notice = MenuNotice{Level: MenuNoticeError, Text: result.Error, Owner: owner}
+		return state
+	}
+	paths := append([]string(nil), result.Matches.Paths...)
+	if len(paths) == 0 {
+		state.Notice = MenuNotice{Level: MenuNoticeInfo, Text: "no matching directories", Owner: owner}
+		return state
+	}
+	if len(paths) == 1 {
+		frame.Path = paths[0]
+		invalidateStartCompletion(&state, frame)
+		invalidateStartPreview(&state, frame)
+		return state
+	}
+	frame.CompletionCandidates = paths
+	frame.CompletionTruncated = result.Matches.Truncated
+	return state
 }
 
 func nextPreviewGeneration(state *MenuState) (uint64, bool) {
@@ -1159,6 +1279,9 @@ func cloneMenuState(state MenuState) MenuState {
 	next := state
 	next.Inventory = append([]couchcore.ActionableThreadSummary(nil), state.Inventory...)
 	next.Frames = append([]MenuFrame(nil), state.Frames...)
+	for i := range next.Frames {
+		next.Frames[i].CompletionCandidates = append([]string(nil), state.Frames[i].CompletionCandidates...)
+	}
 	next.Agents = append([]string(nil), state.Agents...)
 	if state.Attention != nil {
 		next.Attention = make(map[couchcore.ThreadAddress][]AttentionMessage, len(state.Attention))

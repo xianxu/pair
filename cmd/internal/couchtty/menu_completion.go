@@ -46,6 +46,22 @@ type CompletionMatches struct {
 	Truncated bool
 }
 
+type CompletionIdentity struct {
+	FrameInstance uint64
+	Generation    uint64
+}
+
+type CompletionRequest struct {
+	Identity CompletionIdentity
+	Path     string
+}
+
+type CompletionResult struct {
+	Identity CompletionIdentity
+	Matches  CompletionMatches
+	Error    string
+}
+
 type CompletionAccumulator struct {
 	query   CompletionQuery
 	limit   int

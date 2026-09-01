@@ -54,6 +54,46 @@ func TestAdvanceLatestScheduleKeepsOneRunningAndLatestPayload(t *testing.T) {
 	}
 }
 
+func TestReduceMenuStartCompletionIdentityRejectsStaleResults(t *testing.T) {
+	state := NewMenuState(menuThreads(), menuAddress("couch-one"))
+	state, _ = reduceKey(state, PanelKey{Kind: KeyCtrlSpace})
+	state, _ = reduceKey(state, PanelKey{Kind: KeyRune, Rune: 's'})
+	state, effects := reduceKey(state, PanelKey{Kind: KeyTab})
+	frame := state.CurrentFrame()
+	if len(effects) != 1 || effects[0].Completion == nil || effects[0].Completion.Path != "s" ||
+		effects[0].Completion.Identity != frame.CompletionRequest || frame.CompletionRequest.FrameInstance != frame.Instance ||
+		frame.CompletionRequest.Generation == 0 || !frame.CompletionPending {
+		t.Fatalf("completion request = state %+v effects %+v", state, effects)
+	}
+
+	before := state
+	state, effects = reduceKey(state, PanelKey{Kind: KeyTab})
+	if len(effects) != 0 || !reflect.DeepEqual(state, before) {
+		t.Fatalf("duplicate Tab changed pending request: state=%+v effects=%+v", state, effects)
+	}
+
+	stale := CompletionResult{
+		Identity: CompletionIdentity{FrameInstance: frame.Instance, Generation: frame.CompletionRequest.Generation + 1},
+		Matches:  CompletionMatches{Paths: []string{"stale/"}},
+	}
+	state, effects = ReduceMenu(state, MenuEvent{Kind: MenuEventCompletionResult, Completion: &stale})
+	if len(effects) != 0 || !reflect.DeepEqual(state, before) {
+		t.Fatalf("stale result changed state: state=%+v effects=%+v", state, effects)
+	}
+
+	identity := frame.CompletionRequest
+	state, _ = reduceKey(state, PanelKey{Kind: KeyRune, Rune: 'r'})
+	if current := state.CurrentFrame(); current.CompletionRequest != (CompletionIdentity{}) || current.CompletionPending || len(current.CompletionCandidates) != 0 {
+		t.Fatalf("path edit retained completion state: %+v", current)
+	}
+	late := CompletionResult{Identity: identity, Matches: CompletionMatches{Paths: []string{"src/"}}}
+	before = state
+	state, effects = ReduceMenu(state, MenuEvent{Kind: MenuEventCompletionResult, Completion: &late})
+	if len(effects) != 0 || !reflect.DeepEqual(state, before) {
+		t.Fatalf("invalidated result changed state: state=%+v effects=%+v", state, effects)
+	}
+}
+
 func TestAdvancePreviewScheduleKeepsOneRunningAndLatestPending(t *testing.T) {
 	var state PreviewSchedule
 	request1 := PreviewRequest{Generation: 1, Path: "/one", Agent: "claude"}
@@ -105,7 +145,7 @@ func TestReduceMenuStartPreviewArmsOneGenerationBoundSubmit(t *testing.T) {
 	for _, r := range "/repo" {
 		state, _ = reduceKey(state, PanelKey{Kind: KeyRune, Rune: r})
 	}
-	state, effects := reduceKey(state, PanelKey{Kind: KeyTab})
+	state, effects := reduceKey(state, PanelKey{Kind: KeyDown})
 	if len(effects) != 1 || effects[0].Preview == nil || effects[0].Preview.Generation != state.CurrentFrame().Generation || effects[0].Preview.Path != "/repo" {
 		t.Fatalf("leaving path did not request preview: state=%+v effects=%+v", state, effects)
 	}
@@ -151,7 +191,7 @@ func TestReduceMenuStartPreviewEditCancelsArmedSubmitAndFailurePreservesForm(t *
 		t.Fatalf("edit did not cancel armed generation: %+v", state.CurrentFrame())
 	}
 
-	state, _ = reduceKey(state, PanelKey{Kind: KeyTab})
+	state, _ = reduceKey(state, PanelKey{Kind: KeyDown})
 	generation := state.CurrentFrame().Generation
 	state, effects = ReduceMenu(state, MenuEvent{Kind: MenuEventPreviewResult, Generation: generation, Error: "policy unavailable"})
 	if len(effects) != 0 || state.CurrentFrame().Path != "x" || state.Notice.Text != "policy unavailable" {
@@ -168,7 +208,7 @@ func TestReduceMenuStartPreviewPreservesOptionalAgentAndAcceptedProvenance(t *te
 		state, _ = reduceKey(state, PanelKey{Kind: KeyRune, Rune: r})
 	}
 
-	state, effects := reduceKey(state, PanelKey{Kind: KeyTab})
+	state, effects := reduceKey(state, PanelKey{Kind: KeyDown})
 	if len(effects) != 1 || effects[0].Preview == nil || effects[0].Preview.Agent != "" {
 		t.Fatalf("non-sticky preview made fallback agent explicit: %+v", effects)
 	}
@@ -192,7 +232,7 @@ func TestReduceMenuStartPreviewReusesAcceptedGeneration(t *testing.T) {
 	state.Agents = []string{"claude"}
 	state.RootAgent = "claude"
 	state, _ = reduceKey(state, PanelKey{Kind: KeyCtrlSpace})
-	state, effects := reduceKey(state, PanelKey{Kind: KeyTab})
+	state, effects := reduceKey(state, PanelKey{Kind: KeyDown})
 	if len(effects) != 1 || effects[0].Preview == nil {
 		t.Fatalf("initial preview = %+v", effects)
 	}
@@ -202,8 +242,8 @@ func TestReduceMenuStartPreviewReusesAcceptedGeneration(t *testing.T) {
 		AgentSource: couchcore.AgentSourceRoot, ArgvSource: couchcore.ArgvSourceRepoDefault,
 	}}
 	state, _ = ReduceMenu(state, MenuEvent{Kind: MenuEventPreviewResult, Generation: generation, Prepared: &prepared})
-	state, _ = reduceKey(state, PanelKey{Kind: KeyTab})
-	state, effects = reduceKey(state, PanelKey{Kind: KeyTab})
+	state, _ = reduceKey(state, PanelKey{Kind: KeyUp})
+	state, effects = reduceKey(state, PanelKey{Kind: KeyDown})
 	if len(effects) != 0 {
 		t.Fatalf("accepted generation requested another grant: %+v", effects)
 	}
@@ -214,7 +254,7 @@ func TestReduceMenuPreviewIdentitySurvivesEscapeAndReopen(t *testing.T) {
 	state.Agents = []string{"claude"}
 	state.RootAgent = "claude"
 	state, _ = reduceKey(state, PanelKey{Kind: KeyCtrlSpace})
-	state, effects := reduceKey(state, PanelKey{Kind: KeyTab})
+	state, effects := reduceKey(state, PanelKey{Kind: KeyDown})
 	if len(effects) != 1 || effects[0].Preview == nil {
 		t.Fatalf("first form preview = %+v", effects)
 	}
@@ -224,7 +264,7 @@ func TestReduceMenuPreviewIdentitySurvivesEscapeAndReopen(t *testing.T) {
 
 	state, _ = reduceKey(state, PanelKey{Kind: KeyEscape})
 	state, _ = reduceKey(state, PanelKey{Kind: KeyCtrlSpace})
-	state, effects = reduceKey(state, PanelKey{Kind: KeyTab})
+	state, effects = reduceKey(state, PanelKey{Kind: KeyDown})
 	if len(effects) != 1 || effects[0].Preview == nil {
 		t.Fatalf("reopened form preview = %+v", effects)
 	}
