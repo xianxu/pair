@@ -67,9 +67,7 @@ distinct. Transcript `task_started` is the hard keyed boundary and is published
 even if the TUI Working bar never persists. A delayed keyed terminal is matched
 to its keyed generation/tombstone, not to whichever generation is current;
 unknown old keys are ignored after their native timestamp precedes the current
-generation boundary. Reducer tests enumerate native->transcript,
-transcript->native, visual->transcript, marker->progress-stop, two keyless rapid
-turns separated by submission, and a delayed duplicate after new activity.
+generation boundary.
 
 ### Integration points
 
@@ -209,14 +207,8 @@ fixtures/parser support before release—never accepted by broad fallback parsin
   sequence risk strategy and lifecycle transition contract above.
 - [ ] Run `go test ./cmd/internal/wrapcmd -run TestNotificationLifecycle -count=1`;
   expect compile failure for missing lifecycle types.
-- [ ] Implement pure
-  `Reduce(state, observation, now) (state, decision)`. Prefer transcript turn ID;
-  otherwise use activity generation. Decisions request notify or timer actions;
-  the reducer performs no IO and reads no clock.
-- [ ] Wire reducer decisions to the proxy-owned observation/timer path defined in
-  Core concepts; `emitOuter` remains delivery only.
-- [ ] Detect the existing agent-facing submit action in the stdin translation
-  path and enqueue `submitted`; ordinary typing does not open generations.
+- [ ] Implement `Reduce` and its thin proxy event/timer integration exactly as
+  specified by Core concepts and the lifecycle transition contract.
 - [ ] Run focused lifecycle/rewriter/marker tests; expect one same-turn
   notification across source permutations and two distinct rapid turns.
 
@@ -230,11 +222,8 @@ fixtures/parser support before release—never accepted by broad fallback parsin
 
 - [ ] Write failing `NotificationRewriter.Feed` tests according to the arbitrary
   chunk/malformed OSC risk strategy above.
-- [ ] Extend the rewriter result with progress observations and map Claude
-  `3 -> working`, `0 -> stopped`; other states remain non-authoritative.
-- [ ] On `3 -> 0`, briefly await a richer marker/native message before generic
-  notify. Never infer completion from ten seconds without progress. Arm 60-second
-  recovery only after activity and emit once per generation.
+- [ ] Implement `NotificationRewriter.Feed` progress observations and lifecycle
+  integration according to Core concepts.
 - [ ] Run `go test ./cmd/internal/wrapcmd -count=1`; expect PASS.
 - [ ] Commit `couch: #161 M2 unify notification lifecycle signals`, document
   precedence/grace/timer ownership in the atlas, tick/log M2, and run
@@ -257,13 +246,8 @@ fixtures/parser support before release—never accepted by broad fallback parsin
 - [ ] Write failing `AppendLifecycleRecord` and
   `LifecycleJournalTailer.Advance` tests according to their named stateful-stream
   risk strategies above.
-- [ ] Add one canonical path through `artifactpath`; make launcher/watcher/wrapper
-  derive from it. Update manifest, cleanup, and path-family tests.
-- [ ] Implement the sessionledger-mirroring append/reconciliation contract from
-  Core concepts behind the injected filesystem runtime.
-- [ ] Implement bounded incremental tailing from the pre-spawn EOF. Validate the
-  composite identity/current launch, stop on replacement/truncation, and deliver
-  terminal records through a capacity-32 channel without blocking PTY IO.
+- [ ] Implement the canonical `artifactpath`, append, reconciliation, and tailing
+  entities exactly as specified by Core concepts.
 - [ ] Run `go test ./cmd/internal/sessionwatch ./cmd/internal/wrapcmd ./cmd/internal/launcher -run 'Lifecycle|ScopedPaths' -count=1`; expect PASS.
 
 ### Task 5: Continue following the authorized Codex root
@@ -280,25 +264,9 @@ fixtures/parser support before release—never accepted by broad fallback parsin
 - [ ] Write failing `FollowAuthorizedTranscript` tests according to the concurrent
   mutable-artifact risk strategy. Keep one named acceptance regression for a
   transcript-only short turn already complete when binding occurs.
-- [ ] Preserve the captured `event_msg.payload.type=task_complete` schema. Add
-  `turn_complete` only from a real sanitized fixture. Keep success, aborted, and
-  fatal error outcomes distinct. Capture/publish `task_started(turn_id)` as the
-  keyed generation opener.
-- [ ] Factor existing authorized target advancement so the watcher persists the
-  binding plus an authorization watermark derived from the unique causal round:
-  authorized artifact identity/generation and the parser-complete opener/terminal
-  offsets beyond the launch artifact boundary. Persist the binding first; then
-  publish the validated causal `task_started(turn_id)` followed by its matching
-  terminal, even though both are now behind the follow watermark. Follow only
-  records beyond the terminal watermark thereafter. Never publish unrelated
-  earlier openers/terminals. Reuse process incarnation,
-  descendant-FD corroboration, inventory bounds, and ledger guard.
-- [ ] Start/stop the wrapper tailer with the child and validate
-  `PAIR_LAUNCH_ORDINAL`. Prove native OSC plus transcript deduplicates, while two
-  transcript turn IDs notify twice.
-- [ ] Use 100 ms post-binding transcript polls and the wrapper's 50 ms journal
-  poll. Fake-clock tests enforce <=150 ms scheduling latency; record one live
-  fixture measurement under the <250 ms end-to-end budget.
+- [ ] Implement `FollowAuthorizedTranscript` and wrapper integration exactly as
+  specified by Core concepts, the binding watermark contract, and operating
+  envelope.
 - [ ] Run `go test ./cmd/internal/sessioninventory ./cmd/internal/sessionwatch ./cmd/internal/wrapcmd ./cmd/internal/launcher -count=1`; expect PASS without leaks/stale publication.
 - [ ] Commit `couch: #161 M3 follow authorized Codex turn completion`, update
   `atlas/session-identity.md` and architecture, tick/log M3, and run
@@ -319,11 +287,8 @@ fixtures/parser support before release—never accepted by broad fallback parsin
   record Codex version/terminal size; do not synthesize guessed ANSI.
 - [ ] Write failing `RecognizeCodexWorking` tests according to the arbitrary
   rendered-cell risk strategy above.
-- [ ] After each terminal feed, compare pure recognized presence and enqueue only
-  transitions. Transcript/native authority deduplicates visual stop.
-- [ ] With fake time prove prompt-only idleness is silent, observed activity can
-  recover once by disappearance/watchdog, and new activity/input cancels stale
-  timers.
+- [ ] Implement `RecognizeCodexWorking` and its thin terminal-model observation
+  adapter according to Core concepts.
 
 ### Task 7: Prove Couch status and switcher behavior
 
@@ -332,9 +297,8 @@ fixtures/parser support before release—never accepted by broad fallback parsin
 - Modify: `cmd/internal/wrapcmd/harness_tty_integration_test.go` or add a focused cross-package test at the existing accessible seam
 - Modify: `atlas/architecture.md`
 
-- [ ] Pass wrapper-emitted OSC 777 through the real Couch console/screen path.
-  Assert the inactive thread becomes unread and the same completion appears in
-  status and switcher projections.
+- [ ] Add the production acceptance test that passes wrapper-emitted OSC 777
+  through Couch and asserts the issue's two named user-facing surfaces.
 - [ ] Run focused package tests, then `go test ./... -count=1` and
   `git diff --check`; expect PASS.
 - [ ] Run the extended opt-in `TestLiveNativeSessionShapeConformance` against the

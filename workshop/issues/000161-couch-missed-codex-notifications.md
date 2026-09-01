@@ -189,6 +189,12 @@ the existing opt-in native-session live conformance test with Codex lifecycle
 identity/envelope assertions on the pre-release and scheduled macOS cadence.
 The durable plan now carries all three (`ARCH-PURPOSE`, `ARCH-MOCK`).
 
+The next gate round accepted the non-goals and conformance contract but found
+the function-level test-strategy rule was still duplicated by scenario lists and
+diff recipes in later task steps. Removed those restatements across every chunk;
+the plan now retains one adversarial-input/mechanical-guard strategy per risky
+function plus architectural contracts and production acceptance only.
+
 ## Revisions
 
 ### 2026-09-01 — add confirmed Claude failure mode
@@ -240,3 +246,8 @@ and notifies exactly once without visual or native rescue.
 Compressed test prose into named function-level risk strategies, added explicit
 non-goals, and made installed-Codex lifecycle envelope checking part of Pair's
 recurring native-session conformance seam.
+
+### 2026-09-01 — apply executable test strategy across all chunks
+
+Removed remaining scenario inventories and procedural diff recipes so the named
+function-level risk strategies are the single plan authority for test design.
