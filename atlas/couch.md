@@ -97,6 +97,15 @@ Lifecycle operations run on the existing capacity-one queue with exact
 attempt/frame correlation, so input and repaint never wait for store, process,
 or harness work.
 
+#160 extends the same reducer/effect boundary with directory-only path
+completion. `SplitCompletionPath` preserves editable relative/absolute spelling;
+the Console reads at most 128 entries per filesystem batch behind
+`DirectoryBatchReader`, while `CompletionAccumulator` retains the lexical top
+200. One active scan and one replaceable pending request share the generic
+latest-wins scheduler. Exact frame/generation identity makes canceled or late
+results inert, and rendering reserves start-form controls before allocating a
+selected-candidate viewport (ARCH-DRY, ARCH-PURE, ARCH-MOCK, ARCH-CONSTRAINTS).
+
 `cmd/internal/artifactpath` is the sole constructor for Pair's tag-bearing
 files. Standalone Pair selects its own `{repo_scope, tag}`; Couch allocates the
 same address shape for a hosted start and Pair establishes the pre-reserved

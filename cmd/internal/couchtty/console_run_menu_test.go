@@ -88,6 +88,46 @@ func TestConsoleRunStartPathOwnsCursorOnHighlightedPathRow(t *testing.T) {
 	}
 }
 
+func TestConsoleRunStartPathCompletionNavigatesFakeFilesystem(t *testing.T) {
+	f := liveMenuFixture(t)
+	reader := &fakeDirectoryBatchReader{
+		started: make(chan string, 1),
+		release: make(chan struct{}),
+		entries: map[string][]CompletionEntry{".": {
+			{Name: "src", Directory: true}, {Name: "sample", Directory: true}, {Name: "notes.txt"},
+		}},
+	}
+	f.con.SetDirectoryBatchReader(reader)
+	close(reader.release)
+
+	_, _ = f.stdin.Write([]byte{0})
+	waitUpTo(t, 250*time.Millisecond, "root menu", func() bool {
+		return strings.Contains(lastConsoleScreen(f.host.Written()), "threads")
+	})
+	_, _ = f.stdin.Write([]byte{0})
+	waitUpTo(t, 250*time.Millisecond, "start form", func() bool {
+		return strings.Contains(lastConsoleScreen(f.host.Written()), "start thread")
+	})
+	f.host.Reset()
+	_, _ = f.stdin.Write([]byte("s\t"))
+	waitUpTo(t, 250*time.Millisecond, "directory candidates", func() bool {
+		screen := lastConsoleScreen(f.host.Written())
+		return strings.Contains(screen, "sample/") && strings.Contains(screen, "src/") && !strings.Contains(screen, "notes.txt")
+	})
+	select {
+	case directory := <-reader.started:
+		if directory != "." {
+			t.Fatalf("completion base = %q, want Couch cwd", directory)
+		}
+	default:
+		t.Fatal("completion did not reach filesystem seam")
+	}
+	_, _ = f.stdin.Write([]byte("\t\r"))
+	waitUpTo(t, 250*time.Millisecond, "accepted cycled candidate", func() bool {
+		return f.con.menuSnapshot().CurrentFrame().Path == "src/"
+	})
+}
+
 func TestConsoleRunMenuOwnsInputAndBackgroundPainting(t *testing.T) {
 	f := liveMenuFixture(t)
 	_, _ = f.stdin.Write([]byte{0})
