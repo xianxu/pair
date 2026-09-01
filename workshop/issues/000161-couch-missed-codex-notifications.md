@@ -78,6 +78,14 @@ finalized colored-span marker while Codex relies on native OSC. Captured
 verb class rejects `é`. The operator approved a first slice that widens only
 the verb to Unicode letters and leaves Codex discovery open.
 
+Reviewed sibling `cmux` as prior art. cmux accepts OSC 9/99/777 and documents
+Codex's `notify` command as one completion source, but its more robust agent
+integration uses a PATH wrapper it controls plus PID-anchored transcript state
+and optional injected hooks. Its design explicitly notes Codex has one legacy
+`notify` slot that may already belong to another integration, so a later Pair
+design must not silently overwrite it; viable alternatives are transcript
+state, chaining the existing handler, or verified multi-hook injection.
+
 ## Revisions
 
 ### 2026-09-01 — add confirmed Claude failure mode
