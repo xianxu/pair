@@ -109,7 +109,7 @@
 - Modify: `cmd/internal/entrypoint/alias.go`
 - Modify: `cmd/internal/entrypoint/alias_test.go`
 
-- [ ] **Step 1: Write codec tests that pin exact bytes and all sanitization boundaries**
+- [x] **Step 1: Write codec tests that pin exact bytes and all sanitization boundaries**
 
   | Function | Adversarial strategy and mechanical guard |
   |----------|-------------------------------------------|
@@ -117,13 +117,13 @@
   | `notifyosc.Encode` | Fuzz arbitrary messages; assert one exact canonical envelope whose decoded message equals `Sanitize(input)`. |
   | `notifyosc.DecodeOSC` | Fuzz arbitrary terminal bytes seeded with BEL/ST canonical and near-canonical forms; accept only one complete exact Pair envelope and never panic. |
 
-- [ ] **Step 2: Run the codec test and verify the package is absent**
+- [x] **Step 2: Run the codec test and verify the package is absent**
 
   Run: `go test -p 20 ./cmd/internal/notifyosc -count=1`
 
   Expected: FAIL because `Notification`, `Sanitize`, `Encode`, and `DecodeOSC` do not exist.
 
-- [ ] **Step 3: Implement the minimal pure codec**
+- [x] **Step 3: Implement the minimal pure codec**
 
   Use these contracts:
 
@@ -139,36 +139,36 @@
 
   `Sanitize` must decode invalid input with replacement, remove runes in `U+0000..001F`, `U+007F..009F`, then append whole UTF-8 runes until the 4096-byte bound. `DecodeOSC` accepts only complete canonical Pair envelopes terminated by BEL or ST, defensively sanitizes the body, and rejects all other OSC.
 
-- [ ] **Step 4: Run codec tests and verify they pass**
+- [x] **Step 4: Run codec tests and verify they pass**
 
   Run: `go test -p 20 ./cmd/internal/notifyosc -count=1`
 
   Expected: PASS.
 
-- [ ] **Step 5: Write failing stateful-runtime tests for `notifycmd.Run` and dispatcher routing**
+- [x] **Step 5: Write failing stateful-runtime tests for `notifycmd.Run` and dispatcher routing**
 
   | Function | Adversarial strategy and mechanical guard |
   |----------|-------------------------------------------|
   | `notifycmd.Run` | Drive malformed CLI/environment and every stateful sidecar/TTY state through one fake runtime; assert tolerant hook exits and exactly one canonical write only from a valid state. |
   | `dispatcher.Dispatch` | Resolve legacy option forms and invalid commands through the real dispatcher; assert both supported OSC options converge on `notifycmd.Run`. |
 
-- [ ] **Step 6: Run the command tests and verify the route is missing**
+- [x] **Step 6: Run the command tests and verify the route is missing**
 
   Run: `go test -p 20 ./cmd/internal/notifycmd ./cmd/internal/dispatcher ./cmd/internal/entrypoint -count=1`
 
   Expected: FAIL because `notifycmd.Run`, the `notify` family, and shim delegation are not implemented.
 
-- [ ] **Step 7: Implement `pair notify` and reduce the shell helper to delegation**
+- [x] **Step 7: Implement `pair notify` and reduce the shell helper to delegation**
 
   Implement the named codec and `notifycmd.Runtime` contracts above. Route `pair notify` through the buffered dispatcher and keep `pair-notify` as a symlink-safe hook shim delegating to its sibling `pair`; all encoding remains in Go.
 
-- [ ] **Step 8: Run focused command tests and shell syntax checks**
+- [x] **Step 8: Run focused command tests and shell syntax checks**
 
   Run: `go test -p 20 ./cmd/internal/notifyosc ./cmd/internal/notifycmd ./cmd/internal/dispatcher ./cmd/internal/entrypoint -count=1 && bash -n bin/pair-notify`
 
   Expected: PASS and no shell syntax output.
 
-- [ ] **Step 9: Commit the canonical emission boundary**
+- [x] **Step 9: Commit the canonical emission boundary**
 
   Run:
 

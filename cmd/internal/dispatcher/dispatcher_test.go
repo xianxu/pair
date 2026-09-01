@@ -17,7 +17,7 @@ func TestDispatchNamesDeriveFromImplementedStatus(t *testing.T) {
 	// keys off DispatchNames(), so if one of these were accidentally left
 	// `planned`, `pair changelog` would fall through to the launcher (start a
 	// session) with no other test catching it.
-	for _, want := range []string{"agent", "context", "layout", "scrollback", "wrap", "term", "slug", "changelog", "continuation", "session-inventory", "session-watch", "session-log", "scribe", "review", "clip", "title", "keys"} {
+	for _, want := range []string{"agent", "context", "layout", "scrollback", "wrap", "term", "slug", "notify", "changelog", "continuation", "session-inventory", "session-watch", "session-log", "scribe", "review", "clip", "title", "keys"} {
 		if !containsStr(names, want) {
 			t.Fatalf("DispatchNames() = %v, missing implemented %q", names, want)
 		}
@@ -61,6 +61,7 @@ func TestResolveNestedFlatAndAlias(t *testing.T) {
 		{[]string{"session-log", "commit"}, "session-log commit", []string{}, true},
 		{[]string{"session-inventory", "--json"}, "session-inventory", []string{"--json"}, true},
 		{[]string{"context", "T", "claude"}, "context", []string{"T", "claude"}, true},
+		{[]string{"notify", "ready"}, "notify", []string{"ready"}, true},
 		{[]string{"scrollback-render"}, "", nil, false}, // the M2 transitional alias is gone (#104 M3)
 		{[]string{"changelog"}, "", nil, false},         // bare group token is not a family
 		{[]string{"review"}, "", nil, false},            // group token alone is not a family
@@ -75,6 +76,13 @@ func TestResolveNestedFlatAndAlias(t *testing.T) {
 		if ok && len(rest) != len(c.wantRest) {
 			t.Errorf("Resolve(%v) rest = %v, want %v", c.args, rest, c.wantRest)
 		}
+	}
+}
+
+func TestDispatchRoutesNotifyUsage(t *testing.T) {
+	res := Dispatch([]string{"notify"})
+	if res.ExitCode != 2 || !strings.Contains(res.Stderr, "missing message") {
+		t.Fatalf("result=%#v", res)
 	}
 }
 
