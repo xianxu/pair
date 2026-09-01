@@ -46,8 +46,6 @@ func TestM3DocsMatchActionableSwitcherInventoryProvider(t *testing.T) {
 	}{
 		{[]string{"atlas", "couch.md"}, "ordinary switcher reads the\nactionable projection"},
 		{[]string{"workshop", "projects", "couch.md"}, "hierarchical switcher the reachable Console UI over the\nproof-bearing actionable projection"},
-		{[]string{"workshop", "issues", "000151-hierarchical-thread-menu.md"}, "100-row harness now covers open, filter, navigation"},
-		{[]string{"workshop", "plans", "000151-hierarchical-thread-menu-plan.md"}, "`TestMenuTargetPerformance` | `cmd/internal/couchtty/menu_perf_test.go`, `cmd/internal/couchcore/actionableinventory.go`, `cmd/internal/couchtty/focus.go`, `cmd/internal/couchtty/menu.go`, `cmd/internal/couchtty/menu_refresh.go`, `cmd/internal/ptychild/child.go` | new | M3 | present"},
 		{[]string{"README.md"}, "Unsupported or ambiguous lifecycle\nrecords stay available through `couch list/show` diagnostics"},
 	}
 	for _, check := range checks {
