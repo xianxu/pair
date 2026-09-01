@@ -5,7 +5,7 @@ deps: []
 github_issue:
 created: 2026-09-01
 updated: 2026-09-01
-estimate_hours:
+estimate_hours: 3.60
 started: 2026-09-01T12:02:48-07:00
 ---
 
@@ -162,6 +162,28 @@ unbounded work or prevent input, painting, cancellation, or form exit.
 - Automated reducer, completion, shell-integration, rendering, and regression
   tests prove the specified behavior.
 
+## Estimate
+
+```estimate
+model: estimate-logic-v3.1
+familiarity: 1.0
+item: issue-spec design=1.00 impl=0.08
+item: greenfield-go-module design=0.30 impl=0.32
+item: smaller-go-module design=0.06 impl=0.16
+item: tui-screen design=0.40 impl=0.40
+item: cross-cutting-refactor design=0.10 impl=0.20
+item: atlas-docs design=0.05 impl=0.05
+item: milestone-review design=0.05 impl=0.14
+design-buffer: 0.15
+total: 3.60
+```
+
+Produced via `brain/data/life/42shots/velocity/estimate-logic-v3.1.md`
+against `baseline-v3.1.md`. Method A only. The calibration source is marked
+stale, so the estimate is provisional. The approved plan earns the 15% design
+buffer; implementation values are already scaled to 40% of the v2/v2.1 table,
+and the existing Couch/Go architecture keeps familiarity at 1.0.
+
 ## Plan
 
 - [ ] Build the pure path query, bounded accumulator, and shared latest-wins scheduler.
@@ -198,6 +220,10 @@ The second plan-quality round found compact case inventories still violated the
 same PQ-1 class. The plan now applies one uniform rule to every risky surface:
 named function, one adversarial input class, and one mechanical guard only.
 
+The third plan-quality round disposed PQ-1 as addressed. The reconciled 3.60h
+estimate was then derived with estimate-logic-v3.1 from the accepted scope; the
+calibration source reports stale, so the value is provisional.
+
 ## Revisions
 
 ### 2026-09-01 — close first spec-review ambiguities
@@ -229,3 +255,8 @@ and exact RED/GREEN commands.
 
 Removed the remaining parenthetical case lists and procedural mechanics across
 Tasks 1–6; each test step now follows the gate's exact strategy-line contract.
+
+### 2026-09-01 — derive post-gate estimate
+
+Added the estimate-logic-v3.1 Method A primitive block and reconciled
+`estimate_hours` only after the plan-quality gate cleared, as required.

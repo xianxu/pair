@@ -23,6 +23,16 @@ rounds:
           note: Tasks 1–6 remain case inventories and procedural diff instructions compressed into sentences; replace each with the named function, one adversarial-input class, and one mechanical guard.
           round: 2
       blocked: true
+    - "n": 3
+      timestamp: "2026-09-01T12:47:46-07:00"
+      agent: codex
+      dispose:
+        - id: PQ-1
+          disposition: addressed
+          note: Tasks 1–6 uniformly use named-function strategies with one adversarial-input class and one mechanical guard, with the prior fixture, assertion, inventory, and procedural-diff detail removed.
+          round: 3
+      blocked: false
+content_hash: 5458a724210a63719387a7245dad9da943d6e4ce257751e76dc1ff105b01f5e5
 ---
 
 # Gate ledger — pair#160 (plan-quality)
@@ -43,6 +53,12 @@ later rounds disposed of them. Generated — edit the gate, not this file.
 
 - PQ-1 — not-addressed — Tasks 1–6 remain case inventories and procedural diff instructions compressed into sentences; replace each with the named function, one adversarial-input class, and one mechanical guard.
 
+## Round 3 — 2026-09-01T12:47:46-07:00 (codex) — passed
+
+### Disposed
+
+- PQ-1 — addressed — Tasks 1–6 uniformly use named-function strategies with one adversarial-input class and one mechanical guard, with the prior fixture, assertion, inventory, and procedural-diff detail removed.
+
 ## Open findings
 
-- **PQ-1** [Important] `executable-test-strategy` Compress enumerated test cases and procedural diff instructions into named-function strategies
+(none — every finding has been disposed)
