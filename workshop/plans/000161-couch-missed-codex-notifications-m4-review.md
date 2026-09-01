@@ -74,3 +74,78 @@ findings:
     detail: |
       This is the 3rd finding in family `submission-boundary-reachability`. `codex_working_test.go` verifies wrapper output against `notifyosc.Encode`, while `notification_test.go` independently injects bytes from that same encoder rather than bytes emitted by the wrapper. State and enforce the class rule that cross-package acceptance tests transport upstream production output into the downstream production consumer; replay the Codex fixture through `handleChunk`, feed those exact emitted bytes into Couch, and assert both status and switcher projections.
 ```
+
+---
+
+## Re-review — 2026-09-01T16:21:56-07:00 (SHIP)
+
+| field | value |
+|-------|-------|
+| issue | 161 — Couch misses Codex completion notifications |
+| repo | 000161-couch-missed-codex-notifications |
+| issue file | workshop/issues/000161-couch-missed-codex-notifications.md |
+| boundary | milestone M4 |
+| milestone | M4 |
+| window | 2fb98f8bae84baf80736ef2f7524cf18e7a65bc2..bb629670a9bb1ca10c3a5deeafd20c416cb49d6c |
+| command | sdlc milestone-close --issue 161 --milestone M4 |
+| reviewer | codex |
+| timestamp | 2026-09-01T16:21:56-07:00 |
+| verdict | SHIP |
+
+## Review
+
+```verdict
+verdict: SHIP
+confidence: high
+```
+
+M4 is ready to ship. The rendered Codex recovery is bounded and production-reachable, the wrapper-to-Couch acceptance path now transports actual wrapper-emitted bytes into the running Couch console, and both required UI projections are asserted. The full Go suite and `git diff --check` pass.
+
+### Strengths
+
+- `RecognizeCodexWorking` is a pure, bounded recognizer restricted to the bottom status region ([codex_working.go](/Users/xianxu/workspace/worktree/pair/000161-couch-missed-codex-notifications/cmd/internal/wrapcmd/codex_working.go:13)).
+- The captured Codex 0.152.0 fixture exercises incremental terminal-model replay, appearance, disappearance, and lifecycle grace.
+- The acceptance test feeds bytes captured from `handleChunk`/`emitOuter` directly into Couch and verifies both the pending status chip and switcher message ([codex_working_test.go](/Users/xianxu/workspace/worktree/pair/000161-couch-missed-codex-notifications/cmd/internal/wrapcmd/codex_working_test.go:133)).
+- Quoted text, prose, unrelated statuses, invalid locations, and stop-without-activity are rejected.
+- Atlas documentation records the new rendered-recovery surface.
+
+### Critical findings
+
+None.
+
+### Important findings
+
+None.
+
+### Minor findings
+
+None.
+
+### Test coverage notes
+
+- BR-11: `addressed`. The new test calls `captureCodexVisualNotification`, which replays the real fixture through `proxy.handleChunk`, reads the exact emitted outer-TTY bytes, feeds those bytes through a fake PTY child into the running Couch console, and observes both projections.
+- The upstream capture helper also asserts that Working was actually observed and that the final frame entered grace, so the acceptance path cannot silently pass with an inactive adapter.
+- `go test ./cmd/internal/wrapcmd ./cmd/internal/couchtty -count=1`: PASS.
+- `go test ./... -count=1`: PASS.
+- `git diff --check` across the pinned range: PASS.
+- The live native-session conformance test remains opt-in, appropriately, because it depends on an installed Codex session.
+
+### Architectural notes for upcoming work
+
+- `ARCH-DRY`: Pass — lifecycle observations converge on the existing reducer and single `emitOuter` sink.
+- `ARCH-PURE`: Pass — recognition is deterministic; terminal IO and Couch delivery remain thin integration seams.
+- `ARCH-PURPOSE`: Pass — actual wrapper output reaches both status and switcher consumers.
+- `ARCH-MOCK`: Pass — production and test flows share the PTY/console boundary, backed by stateful fake host and children.
+- `ARCH-CONSTRAINTS`: Pass — recognition scans at most six bounded terminal rows per received chunk; the captured 120×38 workload exercises the intended environment without unbounded work.
+
+### Plan revision recommendations
+
+None. The Core concepts inventory matches the code, and the existing “join wrapper production to Couch production” revision accurately records the BR-11 class rule and implementation.
+
+```findings
+dispose:
+  - id: BR-11
+    disposition: addressed
+    note: |
+      The acceptance test transports bytes emitted by handleChunk through Couch's running Console and asserts both the pending status chip and switcher message.
+```

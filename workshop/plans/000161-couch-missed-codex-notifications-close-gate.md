@@ -193,6 +193,16 @@ rounds:
           round: 9
       boundary: M4
       blocked: true
+    - "n": 10
+      timestamp: "2026-09-01T16:21:56-07:00"
+      agent: codex
+      dispose:
+        - id: BR-11
+          disposition: addressed
+          note: The acceptance test transports bytes emitted by handleChunk through Couch's running Console and asserts both the pending status chip and switcher message.
+          round: 10
+      boundary: M4
+      blocked: false
 ---
 
 # Gate ledger — 000161-couch-missed-codex-notifications#161 (boundary-review)
@@ -290,6 +300,12 @@ later rounds disposed of them. Generated — edit the gate, not this file.
 - **BR-11** [Important] `submission-boundary-reachability` The claimed wrapper-to-Couch production acceptance path is split across disconnected tests
   This is the 3rd finding in family `submission-boundary-reachability`. `codex_working_test.go` verifies wrapper output against `notifyosc.Encode`, while `notification_test.go` independently injects bytes from that same encoder rather than bytes emitted by the wrapper. State and enforce the class rule that cross-package acceptance tests transport upstream production output into the downstream production consumer; replay the Codex fixture through `handleChunk`, feed those exact emitted bytes into Couch, and assert both status and switcher projections.
 
+## Round 10 — 2026-09-01T16:21:56-07:00 (codex) — passed
+
+### Disposed
+
+- BR-11 — addressed — The acceptance test transports bytes emitted by handleChunk through Couch's running Console and asserts both the pending status chip and switcher message.
+
 ## Open findings
 
-- **BR-11** [Important] `submission-boundary-reachability` The claimed wrapper-to-Couch production acceptance path is split across disconnected tests
+(none — every finding has been disposed)

@@ -137,12 +137,13 @@ total: 6.93
   OSC progress transitions, and activity-gated timers.
 - [x] M3 — Extend the existing authorized Codex session watcher to tail the
   bound rollout and publish transcript completion observations to `pair-wrap`.
-- [ ] M4 — Add rendered Codex `Working` recovery and verify canonical
+- [x] M4 — Add rendered Codex `Working` recovery and verify canonical
   notifications through Couch's status and switcher surfaces.
 
 ## Log
 
 ### 2026-09-01
+- 2026-09-01: closed M4 — Joined acceptance transports rendered-Codex wrapper bytes through Couch fake PTY into running Console and observes pending status plus switcher message; focused packages, full go test ./..., and git diff --check pass.; review verdict: SHIP
 - M4 implementation: sanitized Codex 0.152.0 raw PTY output to the real
   animated `• Working (… esc to interrupt)` paint and its later clear repaint
   at 120×38, retaining no conversational payload. RED/GREEN incremental replay pins exact
