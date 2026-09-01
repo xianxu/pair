@@ -57,6 +57,18 @@ malformed OSC follows Couch's ordinary child-output rule—byte-faithful when th
 actor is focused and hidden with the rest of an inactive actor's output—and
 creates no Couch state.
 
+The outer terminal is still one serialized byte stream. If its displayed actor
+is mid-sequence, a complete notification from another actor cannot be inserted
+safely. Couch defers that envelope until the focused stream reaches a real
+boundary or a takeover resets it. The child-to-Console handoff permits at most
+one unacknowledged batch per actor: Couch withholds that batch's acknowledgement,
+which backpressures only its source PTY while the focused actor and other panes
+continue. A safe boundary forwards the exact envelope, acknowledges the batch,
+and permits that actor's pump to read again. Memory is bounded by one PTY batch
+per attached actor without swallowing, coalescing, or evicting outer-terminal
+events. Deferred envelopes flush in arrival-sequence order before later
+Couch-owned paint bytes.
+
 ### Ephemeral per-actor inbox
 
 Couch attributes a normalized event from the stream to that exact live actor
@@ -113,12 +125,14 @@ mutex, is the sole authority for retained messages and unread sequences. Status
 rendering and switcher rendering receive projections from that ledger; the menu
 does not keep a parallel bell/inbox map. On switch dispatch, Console captures
 the target actor and its greatest current unread sequence in the existing
-operation origin. The existing successful `forceSwitch` completion is the only
-acknowledgement event: Console applies a pure conditional-clear transition to
-remove messages for that actor at or below the captured sequence, then repaints
-both consumers. Dispatch failure or focus failure applies no clear. A message
-sequenced after dispatch therefore survives a successful switch, and a later
-event highlights the actor again (`ARCH-PURE`).
+operation origin. The ledger registers that attempt's exact current retained
+message identities. The existing successful `forceSwitch` completion is the
+only acknowledgement event: Console asks the ledger to clear exactly those
+captured identities, then repaints both consumers. Dispatch failure or focus
+failure cancels the capture without clearing. A message accepted or
+deduplicated after dispatch therefore survives. Because the ledger owns both
+retained sequences and pending captures, overflow rebase remaps them atomically
+(`ARCH-PURE`).
 
 ### Operating envelope and failure behavior
 
@@ -147,6 +161,39 @@ messages, so the bound covers 100 actors and 300 notification children. Portable
 tests retain allocation and no-I/O/no-goroutine assertions; target runs use the
 same baseline and four-worker co-tenancy protocol as `BenchmarkMenu100`
 (`ARCH-CONSTRAINTS`).
+
+To preserve a canonical notification across a Couch screen takeover, the child
+observer may withhold only a byte prefix that still exactly matches the
+canonical `OSC 777;notify;pair;...` envelope. A mismatch releases the candidate
+bytes immediately as ordinary output. A complete valid candidate is released
+as one ordered notification part, so a switch between PTY reads cannot splice
+Couch repaint bytes into the OSC. Candidate storage is bounded by the canonical
+header, 4 KiB sanitized message, and terminator; exceeding that exact encoded
+bound releases the buffered bytes and enters transparent passthrough through
+the real terminator with no enrichment. An unterminated in-bound canonical
+candidate remains withheld until terminator or actor teardown, while subsequent
+non-candidate reads, the child loop, other actors, and Couch UI remain live.
+This is the sole exception to immediate focused raw forwarding; it delays only
+a possible Pair-owned envelope, normally until the next PTY read, in exchange
+for exact-once terminal framing across takeover (`ARCH-PURPOSE`).
+
+Each child output batch carries an absolute ring end and a replay-safe end. The
+Console advances a pane's replay cutoff only after processing that batch; bytes
+still withheld as a canonical candidate are not replay-safe. Switching replays
+only through that cutoff and removes completed Pair notification envelopes, so
+replay cannot expose a partial candidate, overtake a queued batch, or re-notify
+an earlier event.
+
+Raw byte parts use focus at Console processing time, not delivery time. Thus a
+queued batch from the actor switched into is painted rather than lost, while a
+queued batch from the actor switched away from stays hidden and becomes visible
+through that actor's later replay. The delivery-time focus stamp is used only
+to decide whether a completed notification was immediately consumed.
+
+The ring records absolute spans for completed canonical notifications. Replay
+removes intersecting spans, including when retention's oldest byte bisects an
+envelope; a retained suffix can therefore never replay a body tail or
+terminator as terminal input.
 
 The stream scanner additionally has a sustained malformed-input envelope: on
 the M2 Max it processes 10 MiB of 4 KiB chunks through an oversized unterminated
@@ -253,3 +300,20 @@ real BEL/ST or teardown while raw forwarding, the child loop, and other actors
 continue. It forbids guessed resynchronization, distinguishes stream liveness
 from semantic enrichment, and adds a 10 MiB sustained skip-mode benchmark with
 memory/allocation bounds (`ARCH-PURPOSE`, `ARCH-CONSTRAINTS`).
+
+### 2026-08-31T22:11:42-07:00 — make canonical framing atomic across takeover
+
+**Reason:** implementation-plan review proved that immediate forwarding of a
+canonical OSC prefix and byte-faithful Couch screen takeover are mutually
+exclusive when the PTY splits the envelope across reads.
+
+**Delta:** the observer now withholds only bytes that still match Pair's exact
+canonical envelope, within its encoded bound, and releases the complete
+notification as one ordered part. Prefix mismatch or overrun returns to
+transparent passthrough immediately; all unrelated output remains live. The
+operator approved this narrow exception to the raw-path rule. The same revision
+adds processed replay cutoffs, one unacknowledged batch of per-actor
+backpressure for unsafe cross-actor forwarding, absolute notification spans at
+ring-retention boundaries, and ledger-owned acknowledgement captures so
+overflow rebase cannot invalidate an in-flight switch
+(`ARCH-PURPOSE`, `ARCH-CONSTRAINTS`).
