@@ -76,7 +76,7 @@ func TestConsoleMenuStartAttachesBeforeSuccessfulRestoration(t *testing.T) {
 		t.Fatal("could not build start form")
 	}
 	state, effects := dispatchMenuOperation(state, MenuEffect{
-		Operation: "start", Args: map[string]string{"path": "/repo", "token": "accepted"},
+		Operation: "start", Args: map[string]string{"token": "accepted"},
 	}, couchcore.ThreadAddress{})
 	if len(effects) != 1 {
 		t.Fatalf("dispatch effects = %+v", effects)
@@ -292,7 +292,7 @@ func TestConsoleMenuAttachRefusalPaintsLocalErrorBanner(t *testing.T) {
 	f.con.mu.Unlock()
 	state := NewMenuState([]couchcore.ActionableThreadSummary{{Address: existing, Name: "root", State: couchcore.ThreadLive}}, existing)
 	state, _ = reduceKey(state, PanelKey{Kind: KeyCtrlSpace})
-	state, effects := dispatchMenuOperation(state, MenuEffect{Operation: "start", Args: map[string]string{"path": "/repo", "token": "accepted"}}, couchcore.ThreadAddress{})
+	state, effects := dispatchMenuOperation(state, MenuEffect{Operation: "start", Args: map[string]string{"token": "accepted"}}, couchcore.ThreadAddress{})
 	started, _ := attachStartResult(t, "duplicate-actor", existing)
 	setTestOps(f.con, func(name string, _ map[string]string) (any, error) {
 		if name != "start" {

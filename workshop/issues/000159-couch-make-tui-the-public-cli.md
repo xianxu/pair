@@ -167,6 +167,14 @@ prose test inventories/diff choreography, and states explicit non-goals with
 rationale. This keeps the plan executable without duplicating the tests or code
 it will produce (`ARCH-PURE`, `ARCH-PURPOSE`).
 
+Implementation now projects the typed registry into four explicit homes: TUI,
+public list, public show, and hidden process protocol. A repository-wide current
+source guard rejects obsolete command-shaped Couch instructions across README,
+atlas, active #153 guidance, probes, and production Go; historical milestone
+records remain intact. The installed PTY smoke proves bare launch reaches the
+fake Pair process, while the piped form proves terminal refusal happens before
+policy or actor effects (`ARCH-PURPOSE`, `ARCH-DRY`, `ARCH-CONSTRAINTS`).
+
 ## Revisions
 
 ### 2026-09-01T09:18:00-07:00 — close the argv and operation projections

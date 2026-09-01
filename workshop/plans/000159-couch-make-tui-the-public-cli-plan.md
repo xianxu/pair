@@ -297,7 +297,7 @@ git commit -m "#159: make Couch launch the default mode"
 - Modify: `cmd/internal/couchcore/store.go`
 - Modify: `workshop/issues/000159-couch-make-tui-the-public-cli.md`
 
-- [ ] **Step 1: Write failing projection/documentation strategy tests**
+- [x] **Step 1: Write failing projection/documentation strategy tests**
 
 `TestOperationPresentationDocs` over every registry declaration → presentation
 selects exactly one documentation home and TUI/internal operations cannot appear
@@ -306,7 +306,7 @@ docs, active artifacts, probes, and Go sources → token/context-specific
 allowlists permit only removal prose, parser rejection fixtures, and immutable
 dated scope events; all current instructions/comments must use the new forms.
 
-- [ ] **Step 2: Run docs tests and observe RED**
+- [x] **Step 2: Run docs tests and observe RED**
 
 ```bash
 go test -p 20 ./cmd/internal/couchcmd -run 'Test(README|M3Docs|OperationPresentationDocs|NoCurrentSources)' -count=1
@@ -314,7 +314,7 @@ go test -p 20 ./cmd/internal/couchcmd -run 'Test(README|M3Docs|OperationPresenta
 
 Expected: FAIL against command-oriented docs.
 
-- [ ] **Step 3: Migrate each presentation consumer**
+- [x] **Step 3: Migrate each presentation consumer**
 
 README documents only:
 
@@ -327,7 +327,7 @@ couch --show <ref>    diagnostic detail
 
 Describe lifecycle actions as TUI operations and remove `--agent`, `--no-console`, direct lifecycle commands, and public `publish-description`. Atlas records hidden `couch --internal publish-description <text>`, presentation classification, and root launch's internal prepare-start/start composition. Sweep the active `workshop/projects/couch.md` portfolio: revise current guidance and append a dated scope event without falsifying historical milestone records. Update #153's ordinary-start wording and the zellij park probe's direct `couch stop` comments/labels. Rewrite current `couchcore`/`couchcmd` comments and test descriptions listed above to say Couch launch, `--list`, or TUI Park rather than teaching removed argv. Append the issue Log with the repository-wide `ARCH-PURPOSE` migration audit.
 
-- [ ] **Step 4: Run docs and affected tests**
+- [x] **Step 4: Run docs and affected tests**
 
 ```bash
 go test -p 20 ./cmd/internal/couchcmd ./cmd/internal/couchcore ./cmd/internal/couchtty -count=1
@@ -350,7 +350,7 @@ git commit -m "#159: document Couch as a TUI"
 - Modify: `cmd/internal/artifactpath/coverage_test.go`
 - Modify: `workshop/issues/000159-couch-make-tui-the-public-cli.md`
 
-- [ ] **Step 1: Re-run the previously red installed smoke and observe GREEN**
+- [x] **Step 1: Re-run the previously red installed smoke and observe GREEN**
 
 ```bash
 go test -p 20 ./cmd/couch -run '^TestBareCouchInstalledCommand' -count=1 -v
@@ -358,7 +358,7 @@ go test -p 20 ./cmd/couch -run '^TestBareCouchInstalledCommand' -count=1 -v
 
 Expected: PASS. The same test failed in Task 0 before implementation.
 
-- [ ] **Step 2: Update exhaustive artifact inventory**
+- [x] **Step 2: Update exhaustive artifact inventory**
 
 Classify only the new production file `cmd/internal/couchcmd/cli.go` in `NonArtifactSources` or `SourceClassifications`, according to whether its literals intersect artifact vocabulary. Do not add `cli_test.go` or `main_test.go`: `productionSourceFile` deliberately excludes `_test.go` files. Preserve the existing single-source inventory rules.
 
@@ -382,6 +382,19 @@ git commit -m "#159: verify the Couch public entrypoint"
 ```
 
 ## Revisions
+
+### 2026-09-01T11:48:00-07:00 — observe installed child launch at the process seam
+
+**Reason:** the fake Pair process writes its marker before Couch attaches the
+new pane, so an instantaneous child can exit before that byte is painted onto
+the outer PTY. Requiring the outer terminal to display it conflated launch with
+the terminal replay timing this issue does not change.
+
+**Delta:** the installed smoke still runs the compiled binary under a real PTY
+and retains bounded cancellation, reap, and reader joins, but observes the fake
+Pair invocation through its stateful call log. The fake also emits the marker,
+while the assertion is the exact `pair resume <tag> --layout2` process boundary
+plus the absence of any effect in the piped case (`ARCH-MOCK`, `ARCH-PURPOSE`).
 
 ### 2026-09-01T10:29:00-07:00 — compress verification into named risk strategies
 

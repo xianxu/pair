@@ -512,7 +512,7 @@ func render(w io.Writer, op couchcore.Operation, result any) int {
 		fmt.Fprintf(w, "couch: no console — inheriting stdio, no pty, no reserved row\n")
 		fmt.Fprintf(w, "started %s on %s (pid %d)\n", v.Record.ID, v.Record.Args.Worktree, v.Record.PID)
 		if v.Handle != nil {
-			// couch start blocks for the child's lifetime: this milestone has
+			// Couch launch waits for the child's lifetime: this path has
 			// no pty, so the child owns the terminal until it exits (#146).
 			return v.Handle.Wait()
 		}

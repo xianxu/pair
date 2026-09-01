@@ -81,7 +81,7 @@ func TestReduceMenuStartPreviewArmsOneGenerationBoundSubmit(t *testing.T) {
 	}}
 	state, effects = ReduceMenu(state, MenuEvent{Kind: MenuEventPreviewResult, Generation: generation, Prepared: &prepared})
 	want := []MenuEffect{{Operation: "start", Attempt: 1, Args: map[string]string{
-		"path": "/repo", "agent": "claude", "token": "accepted",
+		"token": "accepted",
 	}}}
 	if !reflect.DeepEqual(effects, want) || state.CurrentFrame().SubmitGeneration != 0 {
 		t.Fatalf("accepted preview did not submit once: state=%+v effects=%+v want=%+v", state, effects, want)

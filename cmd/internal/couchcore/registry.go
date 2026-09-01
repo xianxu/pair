@@ -3,7 +3,7 @@ package couchcore
 import "time"
 
 // ActorRecord is one live actor. Liveness is not stored: it is recomputed out
-// of process by comparing Identity, because `couch start` blocks and so every
+// of process by comparing Identity, because Couch owns the console and so every
 // read runs in a second process with no Handle.
 type ActorRecord struct {
 	ID        ActorID       `json:"id"`

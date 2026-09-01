@@ -264,22 +264,12 @@ bug must not break your ability to fix it, and launching pair directly always
 still works. See [atlas/couch.md](atlas/couch.md).
 
 ```
-couch start [<repo>]     host a session in this terminal (default: .)
-couch start . --no-console   spawn without taking the terminal (no pty, no row)
-couch start . --agent=codex  explicitly select one Pair-supported agent
-couch list               every durable work thread across all repositories
-couch show <ref>         one current-repository thread by tag, path, or name
-couch park <ref>         fully quit a live thread after verified Pair cleanup
-couch park <ref> --mode=retry|recover|abandon
-                         explicitly continue or abandon a durable park transaction
-couch leave              park every active thread, then leave the root console
-couch resume <ref>       resume an exact verified-parked thread as the new root console
-couch name <ref> <name>  set a thread's short human name ("" clears it)
-couch describe <ref> [<text>]  read or set its operator description ("" clears)
-couch publish-description <text>  publish this hosted agent's summary ("" clears)
+couch [<repo>]           open the Couch TUI (default: .)
+couch --list             every durable work thread across all repositories
+couch --show <ref>       one current-repository thread by tag, path, or name
 ```
 
-`<ref>` resolution for `show`, `name`, and `describe` is scoped to the Git
+`<ref>` resolution for `--show` is scoped to the Git
 repository containing the current directory. An exact opaque tag wins; human
 name and canonical working path are also accepted, and an ambiguous match
 refuses instead of choosing. `list` is intentionally global. It renders one
@@ -288,24 +278,12 @@ path. A human name leads when present; otherwise the opaque tag is the label.
 The agent-published summary is displayed ahead of the operator description,
 without overwriting it.
 
-`couch list` stays compact and name-first. `couch show` is the diagnostic view:
+`couch --list` stays compact and name-first. `couch --show` is the diagnostic view:
 it always prints the immutable `{repository scope}/{opaque tag}` address, even
-when a human name is present, so exact follow-up operations never depend on a
-mutable label.
-
-Omit the description from `couch describe <ref>` to read it. Pass an explicit
-empty string to `name`, `describe`, or `publish-description` to clear only that
-field. `publish-description` uses the exact scope and tag injected into a
-couch-hosted session, so it refuses outside one rather than resolving mutable
-human text.
-
-Start, stop, switch, and attach are live-owner operations. The root console
-invokes them through the same declared operation dispatcher used by the CLI and
-future advisor; switch and attach carry exact composite addresses and are
-console-internal. A second `couch` process cannot route these operations while
-the console holds the singleton namespace. The `couch stop`, `switch`, and
-`attach` CLI spellings are therefore not usable against a live root console;
-cross-process owner routing belongs to Pair #147.
+when a human name is present. Name, description, start, Park, Resume, switch,
+and Leave Couch are TUI actions, all routed through Couch's typed in-process
+dispatcher. They are deliberately not shell commands; an explicit empty string
+in the name or description form clears that field.
 
 Park and Resume are also live-owner operations. Couch intercepts Pair's Alt+x
 while hosting an actor, paints confirmation before doing lifecycle work, and
@@ -316,24 +294,23 @@ interaction path. On the target M2 Max under ordinary development co-tenancy,
 the contract is feedback and requested-commit P95 below 100 ms and commit max
 below 1 second; adversarial OS starvation is outside that claim. Pair cleanup
 retains its 10-second outer deadline and 5-second exact-Zellij inner wait.
-After Leave Couch returns to the shell, run `couch resume <ref>` directly; it
-acquires the singleton and hosts that exact thread as the new root console. It
-does not allocate a temporary actor first. Resume uses the ordinary local start
-path and adds no full native inventory scan.
+Leave Couch parks every active actor and returns to the shell. A later bare
+`couch` reopens the switcher, where Enter resumes an exact parked thread. Resume
+does not allocate a temporary actor first or add a full native inventory scan.
 Alt+d remains Pair-local detach; Couch exposes no detach operation.
 
-Every `couch start` allocates a distinct opaque durable thread. Admission comes
+Every TUI start allocates a distinct opaque durable thread. Admission comes
 from the repository's normalized Ariadne fleet policy (`sdlc fleet policy`): a
 bounded key refuses when occupied, while an unbounded path admits concurrent
 threads. A `provision-worktree` policy currently returns a typed refusal; managed
 worktree creation belongs to Pair #153. There is no local admission override.
 
-`couch start` allocates a pty for the session and **reserves the bottom row of
+Launching Couch allocates a pty for the session and **reserves the bottom row of
 your screen** for a status line. The path argument is optional and defaults to
-`.`, so `cd <repo> && couch start` is the usual form — the first session you
-start is "home".
+`.`, so `cd <repo> && couch` is the usual form — the first session is "home".
 
-For a new thread, the agent resolves from `--agent=<name>`, then the last agent
+For a new thread, the TUI's agent field resolves explicitly selected agents,
+then the last agent
 successfully used at that exact physical path, then the root actor's
 `$PAIR_AGENT` (or Claude when Couch was started outside Pair). Arguments resolve
 independently: Couch reuses the selected agent's last successful arguments at
@@ -355,8 +332,7 @@ now, change a repository default by launching Pair directly in that repo with
 before the child sees it, in both encodings a terminal may send it (the legacy
 NUL and the Kitty protocol's `CSI 32;5u`), so it will not reach your editor or
 agent inside a couch-hosted session. Every other chord — `Alt+j`, `Alt+k`,
-`Alt+t` and the rest — passes through untouched. Use `--no-console` if you want
-the old spawn-and-inherit-stdio behaviour with no interception at all.
+`Alt+t` and the rest — passes through untouched.
 
 Focus has three levels. From a non-home actor, `ctrl-space` returns to the first
 actor couch hosted (home); from home it opens the thread switcher. Printable
@@ -373,7 +349,7 @@ default. Colons and digits are
 ordinary filter text—there is no command namespace or numbered jump mode.
 Slow start/park/resume actions show local progress, and validation or operation
 failures remain in the switcher banner. Unsupported or ambiguous lifecycle
-records stay available through `couch list/show` diagnostics rather than being
+records stay available through `couch --list` / `couch --show` diagnostics rather than being
 mislabeled in the ordinary switcher.
 
 ## Command Usage

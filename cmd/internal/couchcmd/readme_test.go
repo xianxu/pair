@@ -46,7 +46,7 @@ func TestM3DocsMatchActionableSwitcherInventoryProvider(t *testing.T) {
 	}{
 		{[]string{"atlas", "couch.md"}, "ordinary switcher reads the\nactionable projection"},
 		{[]string{"workshop", "projects", "couch.md"}, "hierarchical switcher the reachable Console UI over the\nproof-bearing actionable projection"},
-		{[]string{"README.md"}, "Unsupported or ambiguous lifecycle\nrecords stay available through `couch list/show` diagnostics"},
+		{[]string{"README.md"}, "Unsupported or ambiguous lifecycle\nrecords stay available through `couch --list` / `couch --show` diagnostics"},
 	}
 	for _, check := range checks {
 		if doc := repoDocument(t, check.path...); !strings.Contains(doc, check.want) {
@@ -84,47 +84,17 @@ func TestREADMERootEscapeMatchesReducerWhenNoActorIsLive(t *testing.T) {
 	}
 }
 
-// Every operation couch declares must appear in the README.
-//
-// This is the README counterpart of the atlas identifier check (M2 BR-38): the
-// atlas sweep caught stale identifiers, and the same class then recurred at the
-// one documented surface the sweep did not cover. Enumerating from
-// couchcore.Operations() means a NEW operation is documented by existing, not by
-// somebody remembering.
-// agentFacing names the operations an operator never types, so the README is
-// not the place for them. Each must still be documented SOMEWHERE, which the
-// test below enforces -- the first version of this exemption was a bare
-// `continue` with a comment pointing at atlas/couch.md, which did not document
-// it either (M2 BR-39). An exemption that names another home has to check that
-// home.
-var agentFacing = map[string]bool{
-	"prepare-start": true,
-	"switch":        true,
-	"attach":        true,
-}
-
-func documentsCommand(doc, command string) bool {
-	return regexp.MustCompile(regexp.QuoteMeta(command) + "(?:\\s|`|$)").MatchString(doc)
-}
-
-func TestREADMEDocumentsEveryOperation(t *testing.T) {
+func TestREADMEDocumentsOnlyThePublicProjection(t *testing.T) {
 	doc := readme(t)
-	for _, op := range couchcore.Operations() {
-		if agentFacing[op.Name] {
-			continue // checked against the atlas instead, below
-		}
-		if !documentsCommand(doc, "couch "+op.Name) {
-			t.Errorf("README does not document `couch %s`", op.Name)
+	for _, command := range []string{"couch [<repo>]", "couch --list", "couch --show <ref>"} {
+		if !strings.Contains(doc, command) {
+			t.Errorf("README does not document %q", command)
 		}
 	}
-}
-
-func TestDocumentsCommandDoesNotAcceptALongerOperationPrefix(t *testing.T) {
-	if documentsCommand("run `couch stop-all` here", "couch stop") {
-		t.Fatal("couch stop-all must not document couch stop")
-	}
-	if !documentsCommand("run `couch stop TAG` here", "couch stop") {
-		t.Fatal("couch stop TAG should document couch stop")
+	for _, command := range []string{"couch start", "couch park", "couch resume", "couch publish-description", "--no-console", "--agent="} {
+		if strings.Contains(doc, command) {
+			t.Errorf("README exposes removed public form %q", command)
+		}
 	}
 }
 
@@ -135,9 +105,8 @@ func TestDocumentsCommandDoesNotAcceptALongerOperationPrefix(t *testing.T) {
 func TestREADMEDocumentsTheOperatorFacingSurface(t *testing.T) {
 	doc := readme(t)
 	for _, want := range []string{
-		"--no-console", // the escape hatch
-		"ctrl-space",   // the key couch takes from every child
-		"default: .",   // the path default, which is how "home" is chosen
+		"ctrl-space", // the key couch takes from every child
+		"default: .", // the path default, which is how "home" is chosen
 		"reserves the bottom row",
 	} {
 		if !strings.Contains(doc, want) {
@@ -168,43 +137,82 @@ func TestREADMEDocumentsM3ThreadSemantics(t *testing.T) {
 	}
 }
 
-// Every FlagOnly argument is a bypass of something; each must be documented, or
-// an operator meets a refusal with no stated way past it.
-func TestREADMEDocumentsEveryBypassFlag(t *testing.T) {
-	doc := readme(t)
-	for _, op := range couchcore.Operations() {
-		for _, a := range op.Args {
-			if !a.FlagOnly {
-				continue
-			}
-			if !strings.Contains(doc, "--"+a.Name) {
-				t.Errorf("README does not document the `--%s` bypass on `couch %s`", a.Name, op.Name)
-			}
-		}
-	}
-}
-
-// The other half of the exemption: every agent-facing operation must be
-// documented in the atlas, since the README deliberately skips it.
-func TestAtlasDocumentsEveryAgentFacingOperation(t *testing.T) {
+// The atlas owns the complete typed operation vocabulary; public README help
+// intentionally owns only the presentation projection.
+func TestAtlasDocumentsEveryTypedOperation(t *testing.T) {
 	raw, err := os.ReadFile(filepath.Join("..", "..", "..", "atlas", "couch.md"))
 	if err != nil {
 		t.Fatalf("read atlas/couch.md: %v", err)
 	}
 	doc := string(raw)
-	for name := range agentFacing {
-		if !strings.Contains(doc, name) {
-			t.Errorf("atlas/couch.md does not document the agent-facing `%s`", name)
+	for _, op := range couchcore.Operations() {
+		if !strings.Contains(doc, op.Name) {
+			t.Errorf("atlas/couch.md does not document typed operation `%s`", op.Name)
 		}
 	}
-	// And the exemption list may not name an operation that no longer exists.
-	declared := map[string]bool{}
+}
+
+func TestOperationPresentationDocs(t *testing.T) {
+	readme := readme(t)
+	atlas := repoDocument(t, "atlas", "couch.md")
 	for _, op := range couchcore.Operations() {
-		declared[op.Name] = true
+		switch op.Presentation {
+		case couchcore.PresentationList:
+			if !strings.Contains(readme, "couch --list") {
+				t.Error("list presentation has no README home")
+			}
+		case couchcore.PresentationShow:
+			if !strings.Contains(readme, "couch --show") {
+				t.Error("show presentation has no README home")
+			}
+		case couchcore.PresentationInternal:
+			if !strings.Contains(atlas, "couch --internal "+op.Name) {
+				t.Errorf("internal operation %q has no atlas protocol home", op.Name)
+			}
+		case couchcore.PresentationTUI:
+			if !strings.Contains(atlas, op.Name) {
+				t.Errorf("TUI operation %q has no atlas home", op.Name)
+			}
+		default:
+			t.Errorf("operation %q has unknown presentation", op.Name)
+		}
+		if op.Presentation != couchcore.PresentationList && op.Presentation != couchcore.PresentationShow && strings.Contains(readme, "couch "+op.Name) {
+			t.Errorf("non-public operation %q appears as a README command", op.Name)
+		}
 	}
-	for name := range agentFacing {
-		if !declared[name] {
-			t.Errorf("agentFacing exempts %q, which couch no longer declares", name)
+}
+
+func TestNoCurrentSourcesAdvertiseObsoleteCouchArgv(t *testing.T) {
+	root := filepath.Join("..", "..", "..")
+	paths := []string{
+		"README.md", "atlas/couch.md",
+		"workshop/issues/000153-couch-managed-worktree-lifecycle.md",
+		"probes/zellijpark/main.go",
+	}
+	err := filepath.Walk(filepath.Join(root, "cmd"), func(path string, info os.FileInfo, err error) error {
+		if err != nil {
+			return err
+		}
+		if !info.IsDir() && strings.HasSuffix(path, ".go") && !strings.HasSuffix(path, "_test.go") {
+			rel, relErr := filepath.Rel(root, path)
+			if relErr != nil {
+				return relErr
+			}
+			paths = append(paths, rel)
+		}
+		return nil
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	obsolete := regexp.MustCompile(`couch (start|list|show|publish-description|resume|park|leave|stop|name|describe)(?:\s|["` + "`" + `])`)
+	for _, rel := range paths {
+		raw, err := os.ReadFile(filepath.Join(root, rel))
+		if err != nil {
+			t.Fatal(err)
+		}
+		if match := obsolete.Find(raw); match != nil {
+			t.Errorf("%s advertises obsolete argv %q", rel, match)
 		}
 	}
 }

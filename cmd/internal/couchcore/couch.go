@@ -142,8 +142,8 @@ func (c *Couch) ResolveTree(path string) (Worktree, error) { return Resolve(path
 // Spawn brings up an agent on a tree.
 //
 // Order matters: the snapshot is persisted BEFORE the caller waits on the
-// child. `couch start` blocks for the child's lifetime, so if Save happened
-// after Wait a second shell running `couch list` would see an empty registry
+// child. Couch owns the child for its lifetime, so if Save happened after Wait
+// a second shell running `couch --list` would see an empty registry
 // for the entire session -- which is most of the time.
 func (c *Couch) Spawn(args StartArgs) (ActorRecord, Handle, error) {
 	resolution, err := c.resolveStartResolution(context.Background(), args)
@@ -888,7 +888,7 @@ func (c *Couch) PruneDead() error {
 // Stop signals an actor's child and then forgets it.
 //
 // Order matters and is the opposite of what it was: forgetting first would
-// free the tree while the agent kept running, so the next `couch start` would
+// free the tree while the agent kept running, so the next TUI start would
 // be allowed and two agents would share one index lock and one branch --
 // opening the exact hazard the registry exists to close.
 //

@@ -14,7 +14,7 @@ import (
 // Store persists couch's registry, naming table and policy.
 //
 // The location is UNSCOPED -- the registry spans every worktree, which is the
-// whole point of `couch list`, so a per-tree ScopedLaunchDataDir would mean
+// whole point of `couch --list`, so a per-tree ScopedLaunchDataDir would mean
 // spawning in /a and listing from /b read different files.
 //
 // It is a snapshot, not an append-only log: osfs.FS.WriteAtomic is temp+rename
