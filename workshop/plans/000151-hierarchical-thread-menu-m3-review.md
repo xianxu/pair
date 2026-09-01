@@ -691,3 +691,88 @@ Append—not overwrite—two `## Revisions` entries:
 
 - Record that the six-entry declaration ledger contradicted the complete Core-concept tables, and define the bidirectional entity/path/kind/status rule used by the replacement contract.
 - Record that `7ff7d8c4` was the parent rather than the reviewed M3 head, then describe the immutable blob/snapshot mechanism and the mutations proving independence from `HEAD` and worktree bytes.
+
+---
+
+## Re-review — 2026-08-31T17:14:48-07:00 (REWORK)
+
+| field | value |
+|-------|-------|
+| issue | 151 — couch: hierarchical work-thread menu |
+| repo | pair |
+| issue file | workshop/issues/000151-hierarchical-thread-menu.md |
+| boundary | milestone M3 |
+| milestone | M3 |
+| window | 0c40a8d1880b49a9cac1a7f4d8cd24a2c713dba7..ccba497882fab0a10a33e1dd2fc515896a79ce43 |
+| command | sdlc milestone-close --issue 151 --milestone M3 |
+| reviewer | codex |
+| timestamp | 2026-08-31T17:14:48-07:00 |
+| verdict | REWORK |
+
+## Review
+
+```verdict
+verdict: REWORK
+confidence: high
+```
+
+The implementation and full test suite are healthy, and the latest commits materially improve the declaration ledger. However, both open findings remain: the Core concepts inventory still validates its own incomplete dependency list, and the historical oracle is pinned to `d3ee08d5`, not the supplied M3 head `ccba4978`. BR-26 is Critical, so the boundary cannot close.
+
+1. Strengths
+
+- The flat-panel authority is genuinely removed; `panel.go` and `panel_test.go` are deleted.
+- Pure reducer/projection logic remains separated from Console, filesystem, and process I/O.
+- The new typed declaration ledger gives each listed concept an individual lifecycle and source entry.
+- README and atlas changes accompany the user-facing menu surface.
+- `go test ./... -count=1 -p 20` passed across the repository.
+
+2. Critical findings
+
+- **BR-26 — not addressed:** [plan_contract_test.go](/Users/xianxu/workspace/pair/cmd/internal/couchcore/plan_contract_test.go:115) treats each ledger entry’s `present` slice as the complete location set, but many entries contain only their declaration file. For example, the plan says `Couch.ActionableThreadInventory` wraps `ThreadStore.Snapshot`, live-owner observations, and `NativeBindingResolver`, while its ledger entry at line 138 lists only `actionableinventory.go`. Similar omitted dependency locations remain for Console and other integration rows. The validator at lines 1129–1166 compares the plan against that same manually incomplete ledger, so both can agree while dependencies are absent.
+
+  **This is the 6th finding in family `documentation-current-state-accuracy`.** Do not patch another row. Define what counts as an architectural dependency, enumerate those dependencies for every integration entity with exhaustive repo-relative paths, and make a mutation removing any enumerated dependency fail independently of the plan text. `ARCH-PURPOSE` is flagged.
+
+3. Important findings
+
+- **BR-27 — not addressed:** [plan_contract_test.go](/Users/xianxu/workspace/pair/cmd/internal/couchcore/plan_contract_test.go:31) pins `d3ee08d5`, while the supplied M3 head is `ccba4978`. The range `d3ee08d5..ccba4978` changes four Go files, including production sources. Moreover, the base-to-`d3ee08d5` and base-to-HEAD Go path sets are currently identical, so reverting line 929 to an unpinned diff would still pass. The test at lines 952–966 checks the Git-object helper, not that the source-set oracle itself goes red when its head argument is removed.
+
+  **This is the 2nd finding in family `historical-boundary-oracle-pinning`.** Pin the complete oracle to the boundary-supplied snapshot through an immutable boundary datum/manifest, and mutation-test the actual source-set command with a fixture where moving HEAD changes membership. `ARCH-PURPOSE` is flagged.
+
+4. Minor findings
+
+None.
+
+5. Test coverage notes
+
+- Passed: `go test ./... -count=1 -p 20`.
+- Passed focused packages: `couchcore`, `couchtty`, and `couchcmd`.
+- The target M2 Max performance protocol is opt-in and was skipped without `PAIR_MENU_PERF_TARGET=m2-max`; prior recorded evidence was not rerun here.
+- BR-27’s claimed source-set fix lacks a test that fails when that specific fix is reverted.
+
+6. Architectural notes for upcoming work
+
+- `ARCH-DRY`: Pass. The typed ledger replaces the earlier parallel marker authority.
+- `ARCH-PURE`: Pass. Projection/reducer/scheduling logic remains pure, with Console as the I/O shell.
+- `ARCH-PURPOSE`: Flag. The documentation authority and historical oracle still under-deliver their stated exhaustive/pinned contracts.
+- `ARCH-MOCK`: Pass. Production boundaries use stateful `FakeRunner` and `FakeHost` seams.
+- `ARCH-CONSTRAINTS`: Pass. The 100-row envelope, bounded scheduling, allocation checks, and Console lifecycle harness are present.
+
+7. Plan revision recommendations
+
+Append a `## Revisions` entry that:
+
+- replaces the false claim that the current ledger exhaustively owns dependencies with the precise dependency-enumeration rule and completed sweep;
+- records the actual immutable boundary snapshot mechanism;
+- names the mutation tests proving dependency removal and moving-head source-set reads fail.
+
+```findings
+dispose:
+  - id: BR-26
+    disposition: not-addressed
+    note: |
+      The typed ledger enumerates declarations but still omits exhaustive dependency locations and validates the plan against the same incomplete path slices; this is the 6th documentation-current-state-accuracy finding.
+  - id: BR-27
+    disposition: not-addressed
+    note: |
+      The oracle pins d3ee08d5 rather than the supplied ccba4978 head, and reverting the source-set diff to moving HEAD leaves its test green because both ranges currently have the same Go path membership; this is the 2nd historical-boundary-oracle-pinning finding.
+```

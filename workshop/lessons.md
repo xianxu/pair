@@ -2730,3 +2730,8 @@ that a key token appears cannot detect a contradictory behavioral sentence
   be committed, snapshot the reviewed implementation first and install the
   immutable oracle in a following docs/test-only commit (`ARCH-DRY`,
   `ARCH-PURPOSE`).
+- Declaring-source completeness is not dependency completeness. Define the
+  boundary for architectural dependencies, sweep every Integration entity, and
+  fingerprint source plus dependencies independently of the prose consumer; an
+  exact table can otherwise agree with an equally incomplete ledger
+  (`ARCH-PURPOSE`).

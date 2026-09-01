@@ -32,6 +32,7 @@ const (
 )
 
 const issue151M3DeclarationDigest = "8a193b51373583eec2f7b9c25e4a8df6fdc2bb6b8113adf0005d6f1cc878344f"
+const issue151M3ArchitecturalLedgerDigest = "d7b79d020f140ce3b98695690c8525a44e5bf947b2daefcdd795d6909cb300bf"
 
 // issue151M3GoSources is the exhaustive net set of Go sources changed by M3.
 // The declaration digest gives every declaration a closed-set disposition from
@@ -135,21 +136,21 @@ var issue151M3ArchitecturalDeclarations = map[string]issue151ArchitecturalDeclar
 	"DecodePanelKeys":                       {"pure", "M2", "modified, present", "cmd/internal/couchtty/panelkeys.go", []string{"cmd/internal/couchtty/panelkeys.go"}, nil},
 	"PanelModel":                            {"pure", "M3", "deleted", "cmd/internal/couchtty/panel.go", nil, []string{"cmd/internal/couchtty/panel.go"}},
 	"PanelModel.Filter":                     {"pure", "M3", "deleted", "cmd/internal/couchtty/panel.go", nil, []string{"cmd/internal/couchtty/panel.go"}},
-	"Couch.ActionableThreadInventory":       {"integration", "M1/M3", "present", "cmd/internal/couchcore/actionableinventory.go", []string{"cmd/internal/couchcore/actionableinventory.go"}, nil},
+	"Couch.ActionableThreadInventory":       {"integration", "M1/M3", "present", "cmd/internal/couchcore/actionableinventory.go", []string{"cmd/internal/couchcore/actionableinventory.go", "cmd/internal/couchcore/threadstore.go", "cmd/internal/couchcore/resume.go"}, nil},
 	"NativeBindingResolver":                 {"integration", "M3", "context-bearing exact parked-resume binding resolution present", "cmd/internal/couchcore/resume.go", []string{"cmd/internal/couchcore/resume.go"}, nil},
 	"SessionInventoryNativeBindingResolver": {"integration", "M3", "context-bearing exact parked-resume binding resolution present", "cmd/internal/couchcore/resume.go", []string{"cmd/internal/couchcore/resume.go", "cmd/internal/sessioninventory/query.go"}, nil},
-	"Couch.PrepareStart":                    {"integration", "M1", "present", "cmd/internal/couchcore/couch.go", []string{"cmd/internal/couchcore/couch.go"}, nil},
-	"Couch.SpawnPrepared":                   {"integration", "M1", "present", "cmd/internal/couchcore/couch.go", []string{"cmd/internal/couchcore/couch.go"}, nil},
+	"Couch.PrepareStart":                    {"integration", "M1", "present", "cmd/internal/couchcore/couch.go", []string{"cmd/internal/couchcore/couch.go", "cmd/internal/couchcore/startresolution.go", "cmd/internal/couchcore/startgrant.go", "cmd/internal/couchcore/pathops.go"}, nil},
+	"Couch.SpawnPrepared":                   {"integration", "M1", "present", "cmd/internal/couchcore/couch.go", []string{"cmd/internal/couchcore/couch.go", "cmd/internal/couchcore/startgrant.go", "cmd/internal/couchcore/runner.go"}, nil},
 	"StartGrantStore":                       {"integration", "M1", "present", "cmd/internal/couchcore/startgrant.go", []string{"cmd/internal/couchcore/startgrant.go"}, nil},
 	"OperationCall":                         {"integration", "M1", "context dispatch present", "cmd/internal/couchcore/operationdispatch.go", []string{"cmd/internal/couchcore/operationdispatch.go"}, nil},
-	"DispatchOperation":                     {"integration", "M1", "context dispatch present", "cmd/internal/couchcore/operationdispatch.go", []string{"cmd/internal/couchcore/operationdispatch.go"}, nil},
-	"Couch.AbortStarted":                    {"integration", "M1", "exact started-actor abort present", "cmd/internal/couchcore/couch.go", []string{"cmd/internal/couchcore/couch.go"}, nil},
-	"Console":                               {"integration", "M3", "hierarchical render, refresh, preview, action, and transactional attach controllers present", "cmd/internal/couchtty/console.go", []string{"cmd/internal/couchtty/console_menu.go", "cmd/internal/couchtty/console.go"}, nil},
-	"wireResolver":                          {"integration", "M3", "actionable refresh, shared action, attach-abort, and hierarchical render wiring present", "cmd/internal/couchcmd/run.go", []string{"cmd/internal/couchcmd/run.go"}, nil},
-	"Runner":                                {"integration", "M1", "context-bearing child lifecycle present", "cmd/internal/couchcore/runner.go", []string{"cmd/internal/couchcore/runner.go"}, nil},
-	"FakeRunner":                            {"integration", "M1", "stateful context-bearing double present", "cmd/internal/couchcore/runner_fake.go", []string{"cmd/internal/couchcore/runner_fake.go"}, nil},
-	"hostty.FakeHost":                       {"integration", "M3", "observable terminal double present", "cmd/internal/hostty/fake.go", []string{"cmd/internal/hostty/fake.go"}, nil},
-	"TestMenuTargetPerformance":             {"integration", "M3", "present", "cmd/internal/couchtty/menu_perf_test.go", []string{"cmd/internal/couchtty/menu_perf_test.go"}, nil},
+	"DispatchOperation":                     {"integration", "M1", "context dispatch present", "cmd/internal/couchcore/operationdispatch.go", []string{"cmd/internal/couchcore/operationdispatch.go", "cmd/internal/couchcore/ops.go"}, nil},
+	"Couch.AbortStarted":                    {"integration", "M1", "exact started-actor abort present", "cmd/internal/couchcore/couch.go", []string{"cmd/internal/couchcore/couch.go", "cmd/internal/couchcore/runner.go", "cmd/internal/couchcore/artifactcollision.go", "cmd/internal/couchcore/threadstore.go"}, nil},
+	"Console":                               {"integration", "M3", "hierarchical render, refresh, preview, action, and transactional attach controllers present", "cmd/internal/couchtty/console.go", []string{"cmd/internal/couchtty/console.go", "cmd/internal/couchtty/console_menu.go", "cmd/internal/couchtty/menu.go", "cmd/internal/couchtty/menu_refresh.go", "cmd/internal/couchtty/menu_render.go", "cmd/internal/couchtty/operation_queue.go", "cmd/internal/couchcore/actionableinventory.go", "cmd/internal/hostty/host.go"}, nil},
+	"wireResolver":                          {"integration", "M3", "actionable refresh, shared action, attach-abort, and hierarchical render wiring present", "cmd/internal/couchcmd/run.go", []string{"cmd/internal/couchcmd/run.go", "cmd/internal/couchcore/actionableinventory.go", "cmd/internal/couchcore/operationdispatch.go", "cmd/internal/couchcore/couch.go", "cmd/internal/couchtty/console_menu.go"}, nil},
+	"Runner":                                {"integration", "M1", "context-bearing child lifecycle present", "cmd/internal/couchcore/runner.go", []string{"cmd/internal/couchcore/runner.go", "cmd/internal/couchcore/launchhelper.go"}, nil},
+	"FakeRunner":                            {"integration", "M1", "stateful context-bearing double present", "cmd/internal/couchcore/runner_fake.go", []string{"cmd/internal/couchcore/runner_fake.go", "cmd/internal/couchcore/runner.go", "cmd/internal/ptychild/child.go"}, nil},
+	"hostty.FakeHost":                       {"integration", "M3", "observable terminal double present", "cmd/internal/hostty/fake.go", []string{"cmd/internal/hostty/fake.go", "cmd/internal/hostty/host.go", "cmd/internal/ptychild/child.go"}, nil},
+	"TestMenuTargetPerformance":             {"integration", "M3", "present", "cmd/internal/couchtty/menu_perf_test.go", []string{"cmd/internal/couchtty/menu_perf_test.go", "cmd/internal/couchtty/console.go", "cmd/internal/couchtty/menu.go", "cmd/internal/couchtty/menu_render.go", "cmd/internal/couchtty/menu_refresh.go", "cmd/internal/hostty/fake.go"}, nil},
 }
 
 // issue149M5GoSources is the exhaustive set of Go sources touched by M5. Every
@@ -947,6 +948,38 @@ func TestIssue151M3DeclarationDispositionSetIsClosed(t *testing.T) {
 	if got != issue151M3DeclarationDigest {
 		t.Fatalf("M3 declaration set changed without an explicit architectural/detail/retired disposition: got %s, want %s", got, issue151M3DeclarationDigest)
 	}
+}
+
+func TestIssue151M3ArchitecturalLedgerIsClosed(t *testing.T) {
+	if got := issue151M3ArchitecturalLedgerFingerprint("", ""); got != issue151M3ArchitecturalLedgerDigest {
+		t.Fatalf("M3 architectural ledger changed without an explicit entity/dependency disposition: got %s, want %s", got, issue151M3ArchitecturalLedgerDigest)
+	}
+	if got := issue151M3ArchitecturalLedgerFingerprint("Couch.ActionableThreadInventory", "cmd/internal/couchcore/threadstore.go"); got == issue151M3ArchitecturalLedgerDigest {
+		t.Fatal("removing an enumerated dependency left the architectural ledger unchanged")
+	}
+}
+
+func issue151M3ArchitecturalLedgerFingerprint(removeEntity, removePath string) string {
+	keys := make([]string, 0, len(issue151M3ArchitecturalDeclarations))
+	for name, declaration := range issue151M3ArchitecturalDeclarations {
+		paths := append([]string(nil), declaration.present...)
+		if name == removeEntity {
+			filtered := paths[:0]
+			for _, path := range paths {
+				if path != removePath {
+					filtered = append(filtered, path)
+				}
+			}
+			paths = filtered
+		}
+		sort.Strings(paths)
+		absent := append([]string(nil), declaration.absent...)
+		sort.Strings(absent)
+		keys = append(keys, strings.Join([]string{name, declaration.kind, declaration.delivery, declaration.current, declaration.source, strings.Join(paths, ","), strings.Join(absent, ",")}, "|"))
+	}
+	sort.Strings(keys)
+	digest := sha256.Sum256([]byte(strings.Join(keys, "\n")))
+	return fmt.Sprintf("%x", digest)
 }
 
 func TestIssue151M3HistoricalOracleRejectsMovingHeadAndWorktreeBytes(t *testing.T) {

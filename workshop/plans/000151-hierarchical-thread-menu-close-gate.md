@@ -465,6 +465,20 @@ rounds:
           round: 19
       boundary: M3
       blocked: true
+    - "n": 20
+      timestamp: "2026-08-31T17:14:48-07:00"
+      agent: codex
+      dispose:
+        - id: BR-26
+          disposition: not-addressed
+          note: The typed ledger enumerates declarations but still omits exhaustive dependency locations and validates the plan against the same incomplete path slices; this is the 6th documentation-current-state-accuracy finding.
+          round: 20
+        - id: BR-27
+          disposition: not-addressed
+          note: The oracle pins d3ee08d5 rather than the supplied ccba4978 head, and reverting the source-set diff to moving HEAD leaves its test green because both ranges currently have the same Go path membership; this is the 2nd historical-boundary-oracle-pinning finding.
+          round: 20
+      boundary: M3
+      blocked: true
 ---
 
 # Gate ledger — pair#151 (boundary-review)
@@ -694,6 +708,13 @@ later rounds disposed of them. Generated — edit the gate, not this file.
 - BR-25 — addressed — The plan headings and README root-Escape behavior match the reducer and remain protected by executable drift tests.
 - BR-26 — not-addressed — The closed ledger calls unmarked declarations detail, yet RefreshSchedule and AdvanceRefreshSchedule are authoritative Core concepts without architectural markers; the validator compares only its hardcoded six-entry subset.
 - BR-27 — not-addressed — Both source paths and bytes are pinned to 7ff7d8c4, not the supplied M3 head d3ee08d; reverting the path query to current HEAD would still pass because the changed Go path set is identical.
+
+## Round 20 — 2026-08-31T17:14:48-07:00 (codex) — BLOCKED
+
+### Disposed
+
+- BR-26 — not-addressed — The typed ledger enumerates declarations but still omits exhaustive dependency locations and validates the plan against the same incomplete path slices; this is the 6th documentation-current-state-accuracy finding.
+- BR-27 — not-addressed — The oracle pins d3ee08d5 rather than the supplied ccba4978 head, and reverting the source-set diff to moving HEAD leaves its test green because both ranges currently have the same Go path membership; this is the 2nd historical-boundary-oracle-pinning finding.
 
 ## Open findings
 

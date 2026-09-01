@@ -1280,3 +1280,12 @@ were removed as a parallel authority. Pinned commit `d3ee08d5` is the reviewed
 runtime-plus-ledger snapshot, while the following commit only installs its
 test/documentation oracle, avoiding self-reference (`BR-26`, `BR-27`,
 `ARCH-DRY`, `ARCH-PURPOSE`).
+
+The eighth boundary review found that exact declaration rows still did not own
+their Integration dependency paths. The class rule now includes every repo-owned
+seam directly named by an Integration signature/body or `Wraps` contract, while
+stdlib types and private same-file helpers remain detail. All Integration rows
+were swept; one independent architectural-ledger digest covers entity, kind,
+lifecycle, declaration source, dependency paths, and retirement, and a
+dependency-removal mutation fails without consulting plan text (`BR-26`,
+`ARCH-PURPOSE`).
