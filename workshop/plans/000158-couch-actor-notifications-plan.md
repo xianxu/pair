@@ -187,20 +187,20 @@
 - Modify: `cmd/internal/wrapcmd/stdout_batch_test.go`
 - Modify: `cmd/internal/wrapcmd/picker_overlay_test.go`
 
-- [ ] **Step 1: Write failing arbitrary-split tests for the native notification rewriter**
+- [x] **Step 1: Write failing arbitrary-split tests for the native notification rewriter**
 
   | Function | Adversarial strategy and mechanical guard |
   |----------|-------------------------------------------|
   | `nativeNotification` | Fuzz OSC family/body fields seeded with OSC 9/777 and embedded delimiters; apply the documented `SplitN(..., 3)` extraction and reject non-actionable forms. |
   | `NotificationRewriter.Feed` | Fuzz arbitrary chunk partitions and malformed/overlong streams; recognized events normalize once, all other bytes preserve order, and pending memory stays bounded through the real terminator. |
 
-- [ ] **Step 2: Run the rewriter tests and verify they fail**
+- [x] **Step 2: Run the rewriter tests and verify they fail**
 
   Run: `go test -p 20 ./cmd/internal/wrapcmd -run 'TestNotificationRewriter' -count=1`
 
   Expected: FAIL because `NotificationRewriter` does not exist.
 
-- [ ] **Step 3: Implement the minimal incremental rewriter**
+- [x] **Step 3: Implement the minimal incremental rewriter**
 
   Implement one bounded incremental rewriter using the following contract; `nativeNotification` is the sole classification/extraction decision:
 
@@ -214,36 +214,36 @@
 
   Do not make the rewriter an overlay detector or terminal emulator. It owns only notification replacement; callers continue feeding raw bytes to those existing observers.
 
-- [ ] **Step 4: Run the rewriter tests and verify they pass**
+- [x] **Step 4: Run the rewriter tests and verify they pass**
 
   Run: `go test -p 20 ./cmd/internal/wrapcmd -run 'TestNotificationRewriter' -count=1`
 
   Expected: PASS.
 
-- [ ] **Step 5: Write failing proxy regressions for singular emission**
+- [x] **Step 5: Write failing proxy regressions for singular emission**
 
   | Function | Adversarial strategy and mechanical guard |
   |----------|-------------------------------------------|
   | `proxy.handleAgentOutput` | Feed mixed actionable/unknown OSC while observing inner and outer sinks; assert one output owner per byte and raw overlay evidence remains available. |
   | `proxy.emitOuter` | Drive native/marker/idle/fallback sources through the shared sink and rate limiter; assert every accepted source writes `notifyosc.Encode` exactly once. |
 
-- [ ] **Step 6: Run proxy singular-emission regressions red**
+- [x] **Step 6: Run proxy singular-emission regressions red**
 
   Run: `go test -p 20 ./cmd/internal/wrapcmd -run 'TestProxy.*(NativeNotification|CanonicalEmission|UnknownOSC|Overlay)' -count=1`
 
   Expected: FAIL because the proxy still forwards native actionable OSC to inner stdout and emits the legacy OSC 9 envelope.
 
-- [ ] **Step 7: Wire the rewriter into the stdout pump and shared encoder into `emitOuter`**
+- [x] **Step 7: Wire the rewriter into the stdout pump and shared encoder into `emitOuter`**
 
   Integrate `NotificationRewriter.Feed` as the sole native replacement decision while preserving the existing raw overlay observer and failure-isolated, nonblocking outer sink.
 
-- [ ] **Step 8: Run all wrapcmd tests including race-sensitive batch cases**
+- [x] **Step 8: Run all wrapcmd tests including race-sensitive batch cases**
 
   Run: `go test -p 20 ./cmd/internal/wrapcmd -count=1`
 
   Expected: PASS.
 
-- [ ] **Step 9: Commit native normalization**
+- [x] **Step 9: Commit native normalization**
 
   Run:
 

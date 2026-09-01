@@ -65,6 +65,7 @@ import (
 	"github.com/xianxu/pair/cmd/internal/draftroute"
 	"github.com/xianxu/pair/cmd/internal/launcher"
 	"github.com/xianxu/pair/cmd/internal/layoutcmd"
+	"github.com/xianxu/pair/cmd/internal/notifyosc"
 	"github.com/xianxu/pair/cmd/internal/readiness"
 	"github.com/xianxu/pair/cmd/internal/sessionledger"
 	"github.com/xianxu/pair/cmd/internal/sessionwatch"
@@ -255,7 +256,8 @@ type proxy struct {
 	now             func() time.Time // clock seam; defaults to time.Now (#59)
 
 	// OSC rate limiting
-	lastEmit time.Time
+	lastEmit             time.Time
+	notificationRewriter NotificationRewriter
 	// pair-slug spawn debounce (#000027)
 	lastSlug time.Time
 
@@ -625,13 +627,13 @@ func (p *proxy) emitOuter(msg string) {
 		return
 	}
 	defer unix.Close(fd)
-	osc := fmt.Sprintf("\x1b]9;%s\x07", msg)
-	if _, err := unix.Write(fd, []byte(osc)); err != nil {
+	osc := notifyosc.Encode(msg)
+	if _, err := unix.Write(fd, osc); err != nil {
 		p.debug("EMIT-fail", fmt.Sprintf("%s: %v", path, err))
 		return
 	}
 	p.lastEmit = now
-	p.debug("EMIT", "wrote OSC 9 to "+path)
+	p.debug("EMIT", "wrote canonical OSC 777 to "+path)
 }
 
 // pickerOpenOSCBody is the OSC 777 body claude emits when a blocking
@@ -868,13 +870,8 @@ func textSuffix(s string, max int) string {
 // 9;4;... (iTerm progress codes), and 1337 (iTerm proprietary). Forward
 // 777 (urxvt notification) and 9 with non-"4;" body (iTerm notification).
 func isActionableOSC(ps, body []byte) bool {
-	switch string(ps) {
-	case "777":
-		return true
-	case "9":
-		return !strings.HasPrefix(string(body), "4;")
-	}
-	return false
+	_, ok := nativeNotification(ps, body)
+	return ok
 }
 
 // ----- Span LRU + agent-output file -------------------------------------------
@@ -2663,7 +2660,11 @@ func (p *proxy) handleChunk(data []byte, rolling *[]byte) {
 		p.maybeFinalizeEarly()
 	}
 
-	if out := p.stdoutChunk(data); len(out) > 0 {
+	rewritten := p.notificationRewriter.Feed(data, p.notifyModeActive == "native")
+	for _, notification := range rewritten.Notifications {
+		p.emitOuter(notification.Message)
+	}
+	if out := p.stdoutChunk(rewritten.Passthrough); len(out) > 0 {
 		if p.stdoutPump == nil {
 			p.stdoutPump = newStdoutPump(p.stdout)
 		}
@@ -2734,17 +2735,12 @@ func (p *proxy) handleChunk(data []byte, rolling *[]byte) {
 		matches := oscRe.FindAllSubmatchIndex(*rolling, -1)
 		if len(matches) > 0 {
 			last := matches[len(matches)-1]
-			actioned := false
 			for _, m := range matches {
 				ps := (*rolling)[m[2]:m[3]]
 				body := (*rolling)[m[4]:m[5]]
 				if isActionableOSC(ps, body) {
 					if p.notifyModeActive == "native" {
-						p.debug("OSC"+string(ps), string(capBytes(body, 80)))
-						if !actioned {
-							p.emitOuter("")
-							actioned = true
-						}
+						p.debug("OSC"+string(ps)+"-normalized", string(capBytes(body, 80)))
 					} else {
 						p.debug("OSC"+string(ps)+"-swallow", string(capBytes(body, 80)))
 					}
