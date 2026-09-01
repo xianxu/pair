@@ -77,7 +77,7 @@ func TestChildExitClosesThePump(t *testing.T) {
 	var mu sync.Mutex
 	chunks := 0
 	c := startSh(t, "printf hello; exit 0", func(o *Options) {
-		o.Sink = func([]byte) { mu.Lock(); chunks++; mu.Unlock() }
+		o.Sink = func(OutputBatch) { mu.Lock(); chunks++; mu.Unlock() }
 	})
 	c.Wait()
 	waitFor(t, "the pump to finish", func() bool { return c.Done() })
@@ -108,7 +108,7 @@ func TestChildSinkSeesEveryChunkAndTheRingIsCurrentFirst(t *testing.T) {
 	o := Options{
 		Argv: []string{"sh", "-c", "printf one; sleep 0.1; printf two; sleep 5"},
 		Size: Size{Rows: 24, Cols: 80},
-		Sink: func(p []byte) {
+		Sink: func(batch OutputBatch) {
 			mu.Lock()
 			defer mu.Unlock()
 			ringAtSink = append(ringAtSink, child.Snapshot())

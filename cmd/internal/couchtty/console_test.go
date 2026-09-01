@@ -57,7 +57,7 @@ func newFixture(t *testing.T, rows, cols uint16) *consoleFixture {
 	con := New(host, pr)
 
 	child := ptychild.NewFakeChild(nil)
-	child.SetSink(func(chunk []byte) { con.Deliver("c1", chunk) })
+	child.SetSink(func(batch ptychild.OutputBatch) { con.Deliver("c1", batch) })
 	con.Attach("c1", "brain", child)
 	setTestOps(con, func(string, map[string]string) (any, error) { return nil, nil })
 
@@ -88,7 +88,7 @@ func setTestOps(con *Console, effect func(string, map[string]string) (any, error
 func TestConsoleSwitchOperationUsesExactThreadAndRefusesStaleTarget(t *testing.T) {
 	f := newFixture(t, 24, 80)
 	other := ptychild.NewFakeChild(nil)
-	other.SetSink(func(chunk []byte) { f.con.Deliver("c2", chunk) })
+	other.SetSink(func(batch ptychild.OutputBatch) { f.con.Deliver("c2", batch) })
 	f.con.attachThreadActor("c2", "c2", menuAddress("c2"), "c1", "brain", other)
 
 	dispatch := f.con.Ops()
@@ -124,7 +124,7 @@ func TestConsoleSwitchOperationUsesExactThreadAndRefusesStaleTarget(t *testing.T
 func TestActiveChildExitFocusesPanelRecordsCauseAndForgetsActor(t *testing.T) {
 	f := newFixture(t, 24, 80)
 	other := ptychild.NewFakeChild(nil)
-	other.SetSink(func(chunk []byte) { f.con.Deliver("c2", chunk) })
+	other.SetSink(func(batch ptychild.OutputBatch) { f.con.Deliver("c2", batch) })
 	f.con.AttachTree("c2", "/w/pair", "pair", other)
 
 	var forgotTree couchcore.Worktree
@@ -167,7 +167,7 @@ func TestFinalQueuedOutputIsWrittenBeforeLastChildExit(t *testing.T) {
 	waitFor(t, "the console to start", func() bool { return len(f.child.Resizes()) > 0 })
 	f.host.Reset()
 
-	f.con.Deliver("c1", []byte("final output"))
+	f.con.Deliver("c1", ptychild.OutputBatch{Raw: []byte("final output")})
 	f.child.Exit(0)
 	select {
 	case <-f.done:
@@ -182,7 +182,7 @@ func TestFinalQueuedOutputIsWrittenBeforeLastChildExit(t *testing.T) {
 func TestInactiveChildExitKeepsFocusAndRecordsNotice(t *testing.T) {
 	f := newFixture(t, 24, 80)
 	other := ptychild.NewFakeChild([]byte("pair screen"))
-	other.SetSink(func(chunk []byte) { f.con.Deliver("c2", chunk) })
+	other.SetSink(func(batch ptychild.OutputBatch) { f.con.Deliver("c2", batch) })
 	f.con.AttachTree("c2", "/w/pair", "pair", other)
 	f.con.SetForget(func(couchcore.Worktree, couchcore.ActorID) error { return nil })
 	waitFor(t, "the console to start", func() bool { return len(f.child.Resizes()) > 0 })
@@ -547,7 +547,7 @@ func TestConsoleRepaintsOnceTheChildStreamIsSafeAgain(t *testing.T) {
 func TestConsoleMarksAnInactiveActorThatRangTheBell(t *testing.T) {
 	f := newFixture(t, 24, 80)
 	other := ptychild.NewFakeChild(nil)
-	other.SetSink(func(chunk []byte) { f.con.Deliver("c2", chunk) })
+	other.SetSink(func(batch ptychild.OutputBatch) { f.con.Deliver("c2", batch) })
 	f.con.AttachTree("c2", "/w/ariadne", "ariadne", other)
 	waitFor(t, "the console to start", func() bool { return len(f.child.Resizes()) > 0 })
 	f.host.Reset()
@@ -663,7 +663,7 @@ func (h *refusingHost) MakeRaw() (func() error, error) {
 func TestConsoleKeepsAnInactivePanesRowDamage(t *testing.T) {
 	f := newFixture(t, 24, 80)
 	other := ptychild.NewFakeChild(nil)
-	other.SetSink(func(chunk []byte) { f.con.Deliver("c2", chunk) })
+	other.SetSink(func(batch ptychild.OutputBatch) { f.con.Deliver("c2", batch) })
 	f.con.Attach("c2", "ariadne", other)
 	waitFor(t, "the console to start", func() bool { return len(f.child.Resizes()) > 0 })
 
@@ -687,7 +687,7 @@ func TestConsoleKeepsAnInactivePanesRowDamage(t *testing.T) {
 func TestConsoleKeepsInactiveChildOutputOffScreenButInItsRing(t *testing.T) {
 	f := newFixture(t, 24, 80)
 	other := ptychild.NewFakeChild(nil)
-	other.SetSink(func(chunk []byte) { f.con.Deliver("c2", chunk) })
+	other.SetSink(func(batch ptychild.OutputBatch) { f.con.Deliver("c2", batch) })
 	f.con.Attach("c2", "ariadne", other)
 	waitFor(t, "the console to start", func() bool { return len(f.child.Resizes()) > 0 })
 	f.host.Reset()
@@ -723,7 +723,7 @@ func TestConsoleKeepsInactiveChildOutputOffScreenButInItsRing(t *testing.T) {
 func TestConsoleReplaysOnAttach(t *testing.T) {
 	f := newFixture(t, 24, 80)
 	other := ptychild.NewFakeChild([]byte("earlier output from ariadne"))
-	other.SetSink(func(chunk []byte) { f.con.Deliver("c2", chunk) })
+	other.SetSink(func(batch ptychild.OutputBatch) { f.con.Deliver("c2", batch) })
 	f.con.Attach("c2", "ariadne", other)
 	waitFor(t, "the console to start", func() bool { return len(f.child.Resizes()) > 0 })
 	f.host.Reset()
@@ -742,7 +742,7 @@ func TestConsoleReplaysOnAttach(t *testing.T) {
 func TestConsoleStripsQueriesFromTheReplay(t *testing.T) {
 	f := newFixture(t, 24, 80)
 	other := ptychild.NewFakeChild([]byte("prompt \x1b[c\x1b[?1006h done"))
-	other.SetSink(func(chunk []byte) { f.con.Deliver("c2", chunk) })
+	other.SetSink(func(batch ptychild.OutputBatch) { f.con.Deliver("c2", batch) })
 	f.con.Attach("c2", "ariadne", other)
 	waitFor(t, "the console to start", func() bool { return len(f.child.Resizes()) > 0 })
 	f.host.Reset()
@@ -765,7 +765,7 @@ func TestConsoleStripsQueriesFromTheReplay(t *testing.T) {
 func TestConsoleRepaintsTheRowAfterTheReplay(t *testing.T) {
 	f := newFixture(t, 24, 80)
 	other := ptychild.NewFakeChild([]byte("ariadne screen"))
-	other.SetSink(func(chunk []byte) { f.con.Deliver("c2", chunk) })
+	other.SetSink(func(batch ptychild.OutputBatch) { f.con.Deliver("c2", batch) })
 	f.con.Attach("c2", "ariadne", other)
 	waitFor(t, "the console to start", func() bool { return len(f.child.Resizes()) > 0 })
 	f.host.Reset()
@@ -797,7 +797,7 @@ func TestConsoleIgnoresASwitchToAnUnknownActor(t *testing.T) {
 func TestHotkeyFromANonRootChildGoesHome(t *testing.T) {
 	f := newFixture(t, 24, 80)
 	other := ptychild.NewFakeChild([]byte("ariadne screen"))
-	other.SetSink(func(chunk []byte) { f.con.Deliver("c2", chunk) })
+	other.SetSink(func(batch ptychild.OutputBatch) { f.con.Deliver("c2", batch) })
 	f.con.Attach("c2", "ariadne", other)
 	waitFor(t, "the console to start", func() bool { return len(f.child.Resizes()) > 0 })
 

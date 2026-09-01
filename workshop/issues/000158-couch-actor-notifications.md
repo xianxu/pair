@@ -293,6 +293,17 @@ v3.1 produced 5.69 ship-hours; estimate-quality passed with an INFO that the
 terminal/replay verification surface may make that optimistic. Branch
 `000158-couch-actor-notifications` was created in place.
 
+Pair-owned OSC observation now lives at the child parser boundary. Output
+batches preserve exact canonical candidates across PTY reads, carry absolute
+replay-safe offsets, and keep completed notification spans out of takeover
+replay even when ring retention bisects them. Console processing-time focus
+owns ordinary bytes; unsafe cross-actor OSC suffixes retain one source
+acknowledgement and flush in arrival order at the next safe host boundary.
+Focused tests pass across every candidate split, takeover, replay cut, nested
+OSC payload, and cross-actor deferral. The sustained malformed-stream benchmark
+measured 119.31 MiB/s on the operator's M2 Max (`ARCH-PURPOSE`,
+`ARCH-CONSTRAINTS`).
+
 ## Revisions
 
 ### 2026-08-31T20:22:00-07:00 — close transport, framing, and acknowledgement ownership

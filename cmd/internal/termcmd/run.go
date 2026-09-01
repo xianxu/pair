@@ -711,9 +711,9 @@ func (m *terminalMux) newTab() error {
 		// The sink hands each chunk to the existing pump. Routing it to the
 		// screen stays this mux's decision -- ptychild never learns which tab
 		// is active.
-		Sink: func(chunk []byte) {
+		Sink: func(batch ptychild.OutputBatch) {
 			<-ready
-			m.output <- ptyChunk{id: id, data: chunk}
+			m.output <- ptyChunk{id: id, data: batch.Raw}
 		},
 	})
 	if err != nil {

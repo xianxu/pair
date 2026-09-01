@@ -8,7 +8,7 @@ import (
 
 const MaxMessageBytes = 4 << 10
 
-const prefix = "\x1b]777;notify;pair;"
+const Prefix = "\x1b]777;notify;pair;"
 
 type Notification struct {
 	Message string
@@ -35,8 +35,8 @@ func Sanitize(raw []byte) string {
 // Encode returns the one Pair-owned notification envelope.
 func Encode(message string) []byte {
 	clean := Sanitize([]byte(message))
-	out := make([]byte, 0, len(prefix)+len(clean)+1)
-	out = append(out, prefix...)
+	out := make([]byte, 0, len(Prefix)+len(clean)+1)
+	out = append(out, Prefix...)
 	out = append(out, clean...)
 	out = append(out, 0x07)
 	return out
@@ -44,7 +44,7 @@ func Encode(message string) []byte {
 
 // DecodeOSC accepts one complete canonical Pair envelope and nothing else.
 func DecodeOSC(sequence []byte) (Notification, bool) {
-	if len(sequence) < len(prefix)+1 || string(sequence[:len(prefix)]) != prefix {
+	if len(sequence) < len(Prefix)+1 || string(sequence[:len(Prefix)]) != Prefix {
 		return Notification{}, false
 	}
 	end := len(sequence) - 1
@@ -55,5 +55,5 @@ func DecodeOSC(sequence []byte) (Notification, bool) {
 	default:
 		return Notification{}, false
 	}
-	return Notification{Message: Sanitize(sequence[len(prefix):end])}, true
+	return Notification{Message: Sanitize(sequence[len(Prefix):end])}, true
 }

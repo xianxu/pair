@@ -17,8 +17,10 @@ import (
 
 // chunk is one child write on its way to the screen.
 type chunk struct {
-	id   string
-	data []byte
+	id                string
+	batch             ptychild.OutputBatch
+	focusedAtDelivery bool
+	ack               chan struct{}
 }
 
 type childExit struct {
@@ -46,6 +48,10 @@ type pane struct {
 	// for the active one, so a background child's damage was thrown away and
 	// attaching to it would land on a screen with no status row.
 	rowDirty bool
+
+	// replayCutoff advances only after Run has processed a delivered batch.
+	// A takeover therefore cannot replay bytes still queued behind the switch.
+	replayCutoff uint64
 }
 
 // Console routes the operator's terminal to one child at a time.
@@ -95,6 +101,12 @@ type Console struct {
 	// paintPending means a repaint was wanted while the host stream was
 	// mid-sequence, and is owed as soon as it is safe.
 	paintPending bool
+	// deferredNotifications holds batch suffixes whose first part is a
+	// notification that cannot yet be inserted into the outer host stream.
+	// Keeping the original acknowledgement open backpressures that source actor
+	// while other actors and the focused UI continue independently.
+	deferredNotifications []chunk
+	flushingNotifications bool
 
 	// hostScan frames the bytes the console has WRITTEN to the host.
 	//
@@ -222,9 +234,17 @@ func (c *Console) ChildSize() ptychild.Size {
 //
 // It still yields to stop, so teardown cannot deadlock behind a child that is
 // mid-write.
-func (c *Console) Deliver(id string, data []byte) {
+func (c *Console) Deliver(id string, batch ptychild.OutputBatch) {
+	c.mu.Lock()
+	focused := c.focus == FocusActor(id)
+	c.mu.Unlock()
+	ack := make(chan struct{})
 	select {
-	case c.chunks <- chunk{id: id, data: data}:
+	case c.chunks <- chunk{id: id, batch: batch, focusedAtDelivery: focused, ack: ack}:
+		select {
+		case <-ack:
+		case <-c.stop:
+		}
 	case <-c.stop:
 	}
 }
@@ -304,7 +324,10 @@ func (c *Console) installObservedThreadActor(ctx context.Context, handleID strin
 		}
 	}
 	c.workers.Add(1)
-	c.panes[handleID] = &pane{tree: tree, thread: thread, process: process, actorID: actorID, label: label, child: child}
+	c.panes[handleID] = &pane{
+		tree: tree, thread: thread, process: process, actorID: actorID,
+		label: label, child: child, replayCutoff: child.ReplaySafeEnd(),
+	}
 	c.order = append(c.order, handleID)
 	if c.active == "" {
 		c.active = handleID
@@ -392,7 +415,8 @@ func (c *Console) switchTo(id string, force bool) {
 	// capability queries the child emitted at startup, and re-asking the host
 	// terminal lands the ANSWER in the newly active child's stdin -- #127's bug
 	// arriving at a new site.
-	c.takeOverScreen(p.child.Replay())
+	c.takeOverScreen(p.child.ReplayThrough(p.replayCutoff))
+	c.flushDeferredNotifications()
 	c.paintNow()
 }
 
@@ -826,6 +850,14 @@ func (c *Console) paintNow() {
 
 // onChunk routes one child write.
 func (c *Console) onChunk(ch chunk) {
+	ackHere := ch.ack != nil
+	if ch.ack != nil {
+		defer func() {
+			if ackHere {
+				close(ch.ack)
+			}
+		}()
+	}
 	c.mu.Lock()
 	p, known := c.panes[ch.id]
 	// "Active" means the operator is looking at this child. With the panel up
@@ -837,9 +869,36 @@ func (c *Console) onChunk(ch chunk) {
 		return
 	}
 
-	if isActive {
-		c.writeChild(ch.data)
+	parts := ch.batch.Parts
+	if len(parts) == 0 && len(ch.batch.Raw) > 0 && ch.batch.RingEnd == 0 && ch.batch.ReplaySafeEnd == 0 {
+		parts = []ptychild.OutputPart{{Bytes: ch.batch.Raw}}
 	}
+	for i, part := range parts {
+		if len(part.Bytes) > 0 && isActive {
+			c.writeChild(part.Bytes)
+		}
+		if part.Notification != nil {
+			c.mu.Lock()
+			unsafe := c.hostScan.MidSequence()
+			if unsafe {
+				ch.batch.Parts = append([]ptychild.OutputPart(nil), parts[i:]...)
+				c.deferredNotifications = append(c.deferredNotifications, ch)
+			}
+			c.mu.Unlock()
+			if unsafe {
+				ackHere = false
+				return
+			}
+			// Pair's envelope is still valid outer-terminal OSC. Couch observes
+			// it but does not swallow it; Task 4 consumes its semantic message.
+			c.writeChild(part.Notification.Raw)
+		}
+	}
+	c.mu.Lock()
+	if ch.batch.ReplaySafeEnd > p.replayCutoff {
+		p.replayCutoff = ch.batch.ReplaySafeEnd
+	}
+	c.mu.Unlock()
 	// A paint deferred while the stream was mid-sequence is owed as soon as
 	// the stream is whole again.
 	c.mu.Lock()
@@ -848,17 +907,18 @@ func (c *Console) onChunk(ch chunk) {
 	if owed {
 		c.paintNow()
 	}
+	c.flushDeferredNotifications()
 	// Derived state is consumed whether or not the child is on screen: an
 	// inactive child that rings still has something to say.
 	// The child's latch is per-chunk, so it is consumed for every pane -- but
 	// KEPT on the pane, so an inactive child's damage survives until the
 	// operator lands on it.
-	if p.child.TakeRowDirty() {
+	if ch.batch.RowDirty {
 		c.mu.Lock()
 		p.rowDirty = true
 		c.mu.Unlock()
 	}
-	if p.child.TakeBell() {
+	if ch.batch.Bell {
 		c.mu.Lock()
 		// An actor the operator is already looking at is not "wanting" them.
 		if !isActive {
@@ -877,6 +937,35 @@ func (c *Console) onChunk(ch chunk) {
 	c.mu.Unlock()
 	if dirty {
 		c.repaint()
+	}
+}
+
+// flushDeferredNotifications releases arrival-ordered batch suffixes once
+// inserting another actor's OSC cannot corrupt a partial host sequence.
+func (c *Console) flushDeferredNotifications() {
+	c.mu.Lock()
+	if c.flushingNotifications || c.hostScan.MidSequence() || len(c.deferredNotifications) == 0 {
+		c.mu.Unlock()
+		return
+	}
+	c.flushingNotifications = true
+	c.mu.Unlock()
+	defer func() {
+		c.mu.Lock()
+		c.flushingNotifications = false
+		c.mu.Unlock()
+	}()
+
+	for {
+		c.mu.Lock()
+		if c.hostScan.MidSequence() || len(c.deferredNotifications) == 0 {
+			c.mu.Unlock()
+			return
+		}
+		deferred := c.deferredNotifications[0]
+		c.deferredNotifications = c.deferredNotifications[1:]
+		c.mu.Unlock()
+		c.onChunk(deferred)
 	}
 }
 

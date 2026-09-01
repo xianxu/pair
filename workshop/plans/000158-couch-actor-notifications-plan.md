@@ -274,20 +274,20 @@
 - Modify: `cmd/internal/couchtty/vtscreen_test.go`
 - Test: `cmd/internal/ptychild/notification_benchmark_test.go`
 
-- [ ] **Step 1: Add failing Screen tests for notification observations**
+- [x] **Step 1: Add failing Screen tests for notification observations**
 
   | Function | Adversarial strategy and mechanical guard |
   |----------|-------------------------------------------|
   | `Screen.Feed` / `TakeOutputParts` | Fuzz arbitrary PTY partitions seeded with canonical-prefix mismatch, termination, overrun, and incompletion; only an exact bounded candidate is withheld, all other bytes preserve order, and independent Screen state remains isolated. |
   | `Screen.TakeBell` | Mix bare BEL with framed terminators; only a ground-state BEL produces the compatibility event. |
 
-- [ ] **Step 2: Run Screen tests and verify notification access is missing**
+- [x] **Step 2: Run Screen tests and verify notification access is missing**
 
   Run: `go test -p 20 ./cmd/internal/ptychild -run 'TestScreen.*(Notification|OSC|Bell)' -count=1`
 
   Expected: FAIL because `TakeOutputParts` and typed observations do not exist.
 
-- [ ] **Step 3: Extend Screen classification and child access atomically**
+- [x] **Step 3: Extend Screen classification and child access atomically**
 
   Add:
 
@@ -313,7 +313,7 @@
 
   Implement the typed contracts above. `Screen.Feed` owns canonical-candidate decisions and replay-safe offsets; `Child.pump` atomically packages those decisions with the raw ring append. Non-Couch sinks consume `Raw`; Couch uses ordered parts and an acknowledged one-batch-per-actor handoff.
 
-- [ ] **Step 4: Write and run failing focus-order, takeover, and replay tests**
+- [x] **Step 4: Write and run failing focus-order, takeover, and replay tests**
 
   | Function | Adversarial strategy and mechanical guard |
   |----------|-------------------------------------------|
@@ -326,23 +326,23 @@
 
   Expected: FAIL because Console has no focus-stamped notification batches and replay still includes Pair envelopes.
 
-- [ ] **Step 5: Implement Console batch routing and replay filtering, then pass focused tests**
+- [x] **Step 5: Implement Console batch routing and replay filtering, then pass focused tests**
 
   Implement the four named contracts above, keeping replay/filtering pure and Console as the thin serialized host-IO owner. Then rerun: `go test -p 20 ./cmd/internal/ptychild ./cmd/internal/couchtty -run 'Test(OutputBatchFocusOrder|SplitNotificationAcrossTakeover|StripReplayNotifications|CrossActorNotificationDeferral)' -count=1`.
 
   Expected: PASS.
 
-- [ ] **Step 6: Add allocation and throughput benchmark coverage**
+- [x] **Step 6: Add allocation and throughput benchmark coverage**
 
   Benchmark `Screen.Feed` with sustained malformed 4 KiB chunks; guard bounded pending memory and zero steady skip-mode allocation, while the target-only protocol enforces `>=10 MiB/s`.
 
-- [ ] **Step 7: Run all sink consumers and benchmark smoke**
+- [x] **Step 7: Run all sink consumers and benchmark smoke**
 
   Run: `go test -p 20 ./cmd/internal/ptychild ./cmd/internal/couchcore ./cmd/internal/termcmd ./cmd/internal/couchcmd ./cmd/internal/couchtty -count=1 && go test -p 20 ./cmd/internal/ptychild -run '^$' -bench 'NotificationSkip' -benchtime=100x`
 
   Expected: PASS; benchmark reports throughput and allocations without a CI wall-clock gate.
 
-- [ ] **Step 8: Commit terminal observation**
+- [x] **Step 8: Commit terminal observation**
 
   Run:
 

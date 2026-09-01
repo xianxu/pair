@@ -31,7 +31,7 @@ type PtyRunner struct {
 	// Sink receives every chunk a child writes, tagged with its handle id.
 	// Installed INSIDE Start so a child that writes immediately cannot lose
 	// chunks from the live path to a race with the caller wiring it up.
-	Sink func(id string, chunk []byte)
+	Sink func(id string, batch ptychild.OutputBatch)
 }
 
 var _ Runner = (*PtyRunner)(nil)
@@ -81,9 +81,9 @@ func (r *PtyRunner) start(dir string, argv, env []string, extraFiles []*os.File)
 		Env:        env,
 		Size:       size,
 		ExtraFiles: extraFiles,
-		Sink: func(chunk []byte) {
+		Sink: func(batch ptychild.OutputBatch) {
 			if r.Sink != nil {
-				r.Sink(h.ID(), chunk)
+				r.Sink(h.ID(), batch)
 			}
 		},
 	})

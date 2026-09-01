@@ -81,7 +81,7 @@ func TestPtyRunnerInstallsTheSinkBeforeTheChildCanWrite(t *testing.T) {
 	var got []string
 	r := &PtyRunner{
 		Size: func() ptychild.Size { return ptychild.Size{Rows: 24, Cols: 80} },
-		Sink: func(id string, chunk []byte) {
+		Sink: func(id string, batch ptychild.OutputBatch) {
 			// The sink runs on the child's pump goroutine.
 			mu.Lock()
 			defer mu.Unlock()

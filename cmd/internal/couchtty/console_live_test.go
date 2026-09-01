@@ -51,7 +51,7 @@ func startLiveChild(t *testing.T, argv []string, rows, cols uint16) (*vtHost, *p
 		Argv: argv,
 		Env:  []string{"TERM=xterm-256color"},
 		Size: con.ChildSize(),
-		Sink: func(chunk []byte) { con.Deliver("c1", chunk) },
+		Sink: func(batch ptychild.OutputBatch) { con.Deliver("c1", batch) },
 	})
 	if err2 != nil {
 		t.Fatalf("start %v: %v", argv, err2)

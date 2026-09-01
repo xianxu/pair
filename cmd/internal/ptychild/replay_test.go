@@ -1,6 +1,47 @@
 package ptychild
 
-import "testing"
+import (
+	"bytes"
+	"testing"
+
+	"github.com/xianxu/pair/cmd/internal/notifyosc"
+)
+
+// A replay may begin or end at any retained byte. Pair-owned notification
+// envelopes are metadata, never terminal history: remove every intersecting
+// byte even when ring retention bisects the envelope.
+func TestStripReplayNotificationsAtEveryRetentionCut(t *testing.T) {
+	envelope := notifyosc.Encode("review ready")
+	stream := append(append([]byte("before"), envelope...), []byte("after")...)
+
+	for capacity := 1; capacity <= len(stream); capacity++ {
+		t.Run(string(rune(capacity)), func(t *testing.T) {
+			child := &Child{ring: NewRing(capacity), screen: &Screen{}, done: make(chan struct{}), fake: &fakeState{}}
+			child.Feed(stream)
+			got := child.ReplayThrough(uint64(len(stream)))
+
+			retainedStart := len(stream) - capacity
+			want := append([]byte(nil), stream[retainedStart:]...)
+			envelopeStart, envelopeEnd := len("before"), len("before")+len(envelope)
+			left := max(retainedStart, envelopeStart) - retainedStart
+			right := max(retainedStart, envelopeEnd) - retainedStart
+			left = min(left, len(want))
+			right = min(right, len(want))
+			want = append(want[:left], want[right:]...)
+			if !bytes.Equal(got, want) {
+				t.Fatalf("capacity %d replay = %q, want %q", capacity, got, want)
+			}
+		})
+	}
+}
+
+func TestReplayThroughStopsAtProcessedSafeCutoff(t *testing.T) {
+	child := &Child{ring: NewRing(64), screen: &Screen{}, done: make(chan struct{}), fake: &fakeState{}}
+	child.Feed([]byte("processedqueued"))
+	if got := string(child.ReplayThrough(uint64(len("processed")))); got != "processed" {
+		t.Fatalf("ReplayThrough = %q, want processed", got)
+	}
+}
 
 // Every row of the deny-list is stripped out of a replay.
 func TestStripTerminalQueriesRemovesEachRow(t *testing.T) {
