@@ -1,12 +1,13 @@
 ---
 id: 000161
-status: working
+status: codecomplete
 deps: []
 github_issue:
 created: 2026-09-01
 updated: 2026-09-01
 estimate_hours: 6.93
 started: 2026-09-01T13:35:54-07:00
+actual_hours: 0.45
 ---
 
 # Couch misses Codex completion notifications
@@ -143,6 +144,7 @@ total: 6.93
 ## Log
 
 ### 2026-09-01
+- 2026-09-01: closed — Claude Unicode markers, agent-scoped progress authority across Claude/Codex/Agy/Muse, progress lifecycle, strict Codex transcript authority/journal, rendered Working recovery, actual wrapper-to-Couch status/switcher delivery, 268k fuzz, installed lifecycle envelope conformance, full go test ./..., and git diff --check verified.; review verdict: SHIP
 - 2026-09-01: closed M4 — Joined acceptance transports rendered-Codex wrapper bytes through Couch fake PTY into running Console and observes pending status plus switcher message; focused packages, full go test ./..., and git diff --check pass.; review verdict: SHIP
 - M4 implementation: sanitized Codex 0.152.0 raw PTY output to the real
   animated `• Working (… esc to interrupt)` paint and its later clear repaint

@@ -259,6 +259,59 @@ rounds:
           family: lifecycle-contract-coverage
           round: 11
       blocked: true
+    - "n": 12
+      timestamp: "2026-09-01T16:31:28-07:00"
+      agent: codex
+      dispose:
+        - id: BR-1
+          disposition: addressed
+          note: Legacy and KKP Alt+Enter publish submission boundaries; plain Enter remains non-authoritative.
+          round: 12
+        - id: BR-2
+          disposition: addressed
+          note: Native completion tests traverse real submission boundaries without an unrelated progress opener.
+          round: 12
+        - id: BR-3
+          disposition: addressed
+          note: Lifecycle sources are included in the exhaustive artifact inventory.
+          round: 12
+        - id: BR-4
+          disposition: addressed
+          note: Reducer coverage pins source ordering, keyed mismatch, new keyed turns, and abort outcomes.
+          round: 12
+        - id: BR-5
+          disposition: addressed
+          note: Journal IO runs outside the PTY loop, with blocked-IO forwarding coverage.
+          round: 12
+        - id: BR-6
+          disposition: addressed
+          note: The Core concepts table names existing entities at accurate paths and statuses.
+          round: 12
+        - id: BR-7
+          disposition: addressed
+          note: Live conformance checks keyed Codex opener/terminal ordering and identity.
+          round: 12
+        - id: BR-8
+          disposition: addressed
+          note: The pinned range contains the claimed M3 implementation and fixes.
+          round: 12
+        - id: BR-9
+          disposition: addressed
+          note: Lifecycle records use strict framing and closed semantic validation.
+          round: 12
+        - id: BR-10
+          disposition: addressed
+          note: Reconciliation requires exact semantic equality and is covered by the collision matrix.
+          round: 12
+        - id: BR-11
+          disposition: addressed
+          note: Joined acceptance coverage feeds wrapper output into Couch and verifies status and switcher state.
+          round: 12
+        - id: BR-12
+          disposition: addressed
+          note: Claude-only progress authority is gated before reduction; the production matrix covers every supported unauthorized agent and fails when the gate is removed.
+          round: 12
+      blocked: false
 ---
 
 # Gate ledger — 000161-couch-missed-codex-notifications#161 (boundary-review)
@@ -383,6 +436,23 @@ later rounds disposed of them. Generated — edit the gate, not this file.
 - **BR-12** [Critical] `lifecycle-contract-coverage` Claude progress OSC grants completion authority to every wrapped agent
   NotificationRewriter emits Working and Stopped observations independently of agent identity, and handleChunk reduces them unconditionally. This is the 5th finding in family lifecycle-contract-coverage: define and enforce the complete per-agent source-authority matrix, with negative production-path coverage for every unauthorized supported agent.
 
+## Round 12 — 2026-09-01T16:31:28-07:00 (codex) — passed
+
+### Disposed
+
+- BR-1 — addressed — Legacy and KKP Alt+Enter publish submission boundaries; plain Enter remains non-authoritative.
+- BR-2 — addressed — Native completion tests traverse real submission boundaries without an unrelated progress opener.
+- BR-3 — addressed — Lifecycle sources are included in the exhaustive artifact inventory.
+- BR-4 — addressed — Reducer coverage pins source ordering, keyed mismatch, new keyed turns, and abort outcomes.
+- BR-5 — addressed — Journal IO runs outside the PTY loop, with blocked-IO forwarding coverage.
+- BR-6 — addressed — The Core concepts table names existing entities at accurate paths and statuses.
+- BR-7 — addressed — Live conformance checks keyed Codex opener/terminal ordering and identity.
+- BR-8 — addressed — The pinned range contains the claimed M3 implementation and fixes.
+- BR-9 — addressed — Lifecycle records use strict framing and closed semantic validation.
+- BR-10 — addressed — Reconciliation requires exact semantic equality and is covered by the collision matrix.
+- BR-11 — addressed — Joined acceptance coverage feeds wrapper output into Couch and verifies status and switcher state.
+- BR-12 — addressed — Claude-only progress authority is gated before reduction; the production matrix covers every supported unauthorized agent and fails when the gate is removed.
+
 ## Open findings
 
-- **BR-12** [Critical] `lifecycle-contract-coverage` Claude progress OSC grants completion authority to every wrapped agent
+(none — every finding has been disposed)
