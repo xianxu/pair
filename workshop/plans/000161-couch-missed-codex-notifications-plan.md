@@ -34,7 +34,7 @@
   (`ARCH-PURE`, `ARCH-DRY`).
 - **`LifecycleDecision`** contains notify/message and timer actions, with no IO
   or clock reads.
-- **`CodexWorkingRecognizer`** recognizes only the live rendered
+- **`RecognizeCodexWorking`** recognizes only the live rendered
   `• Working (… esc to interrupt)` status. `Worked for…`, prose, and quoted
   copies have no authority.
 - **`LifecycleRecord`** is versioned launch-scoped JSONL containing agent,
@@ -78,12 +78,12 @@ generation boundary.
 | `Run` authorized transcript continuation | `cmd/internal/sessionwatch/run.go` | delivered M3 | validated Codex rollout + child lifetime |
 | `AppendLifecycleRecord` | `cmd/internal/sessionwatch/lifecycle_event.go` | delivered M3 | append-only launch event sidecar |
 | `LifecycleJournalTailer` | `cmd/internal/wrapcmd/lifecycle_journal.go` | delivered M3 | incremental event delivery to proxy loop |
-| `terminalModel` | `cmd/internal/wrapcmd/terminal_model.go` | modified | rendered Codex screen |
-| Couch projection | `cmd/internal/couchtty/console.go` | verified | canonical OSC to unread/status/switcher |
+| `terminalModel` | `cmd/internal/wrapcmd/terminal_model.go` | planned M4 | rendered Codex screen |
+| Couch projection | `cmd/internal/couchtty/console.go` | planned M4 | canonical OSC to unread/status/switcher |
 
 - **`NotificationRewriter`** must preserve progress bytes while emitting typed
   observations. Existing every-split stream tests are the stateful fake.
-- **`AuthorizedTranscriptFollower`** reuses the existing `sessionwatch.Runtime`
+- **`FollowAuthorizedTranscript`** reuses the existing `sessionwatch.Runtime`
   fake and scanner-authorized root selection. No second `lsof`, newest-file, or
   cwd resolver is permitted (`ARCH-DRY`, `ARCH-MOCK`).
 - **Journal/tailer** bridge the detached watcher to the wrapper. The current
@@ -334,3 +334,14 @@ master loop. Mark every Core concepts row by delivered milestone or planned
 milestone and use greppable declaration names. As a class rule, every native
 production envelope promoted to notification authority must gain an assertion
 in the recurring opt-in live conformance seam in the same milestone.
+
+### 2026-09-01 — close M3 review contract gaps
+
+The M3 re-review found that the worker regression bypassed `masterPump`, the
+entity table still described M4 surfaces as delivered, and the journal reader
+accepted a valid JSON prefix or arbitrary non-empty agent/source/outcome values.
+Exercise blocked journal IO through the production master-pump seam, distinguish
+planned M4 surfaces from delivered M3 declarations, and single-source a closed
+record grammar shared by journal writer and reader. A committed record is one
+complete JSON value for the current Codex transcript authority with a supported
+outcome, stable identity fields, non-empty turn ID, and native timestamp.

@@ -14,7 +14,7 @@ import (
 func lifecycleJSONLine(t *testing.T, launch uint64, offset int64) []byte {
 	t.Helper()
 	record := sessionwatch.LifecycleRecord{Version: 1, Agent: "codex", LaunchOrdinal: launch,
-		ArtifactGeneration: "dev:1", Source: "transcript", Outcome: "task_complete",
+		ArtifactGeneration: "dev:1", Source: "transcript", Outcome: "completed", TurnID: "turn-1",
 		TranscriptPath: "/rollout.jsonl", TranscriptOffset: offset, EventTimestamp: time.Unix(offset, 0).UTC()}
 	raw, err := json.Marshal(record)
 	if err != nil {
@@ -87,6 +87,72 @@ func TestLifecycleJournalTailerWaitsForPartialLine(t *testing.T) {
 	if records, err := tailer.Advance(); err != nil || len(records) != 1 {
 		t.Fatalf("committed: %#v, %v", records, err)
 	}
+}
+
+func TestLifecycleJournalTailerRejectsMalformedAndUnauthorizedRecords(t *testing.T) {
+	valid := sessionwatch.LifecycleRecord{
+		Version: 1, Agent: "codex", LaunchOrdinal: 7, ArtifactGeneration: "gen:1",
+		Source: "transcript", Outcome: "completed", TurnID: "turn-1",
+		TranscriptPath: "/rollout.jsonl", TranscriptOffset: 3,
+		EventTimestamp: time.Unix(3, 0).UTC(),
+	}
+	tests := map[string]func(*sessionwatch.LifecycleRecord){
+		"wrong version":    func(r *sessionwatch.LifecycleRecord) { r.Version = 2 },
+		"wrong agent":      func(r *sessionwatch.LifecycleRecord) { r.Agent = "claude" },
+		"missing launch":   func(r *sessionwatch.LifecycleRecord) { r.LaunchOrdinal = 0 },
+		"wrong source":     func(r *sessionwatch.LifecycleRecord) { r.Source = "native" },
+		"unknown outcome":  func(r *sessionwatch.LifecycleRecord) { r.Outcome = "finished" },
+		"missing turn id":  func(r *sessionwatch.LifecycleRecord) { r.TurnID = "" },
+		"missing artifact": func(r *sessionwatch.LifecycleRecord) { r.ArtifactGeneration = "" },
+		"missing path":     func(r *sessionwatch.LifecycleRecord) { r.TranscriptPath = "" },
+		"negative offset":  func(r *sessionwatch.LifecycleRecord) { r.TranscriptOffset = -1 },
+		"zero timestamp":   func(r *sessionwatch.LifecycleRecord) { r.EventTimestamp = time.Time{} },
+	}
+	for name, mutate := range tests {
+		t.Run(name, func(t *testing.T) {
+			path := filepath.Join(t.TempDir(), "lifecycle.jsonl")
+			if err := os.WriteFile(path, nil, 0o600); err != nil {
+				t.Fatal(err)
+			}
+			tailer, err := OpenLifecycleJournalTailer(path, 7)
+			if err != nil {
+				t.Fatal(err)
+			}
+			record := valid
+			mutate(&record)
+			raw, err := json.Marshal(record)
+			if err != nil {
+				t.Fatal(err)
+			}
+			if err := os.WriteFile(path, append(raw, '\n'), 0o600); err != nil {
+				t.Fatal(err)
+			}
+			if records, err := tailer.Advance(); err == nil || len(records) != 0 {
+				t.Fatalf("records=%+v err=%v, want fail closed", records, err)
+			}
+		})
+	}
+
+	t.Run("trailing json garbage", func(t *testing.T) {
+		path := filepath.Join(t.TempDir(), "lifecycle.jsonl")
+		if err := os.WriteFile(path, nil, 0o600); err != nil {
+			t.Fatal(err)
+		}
+		tailer, err := OpenLifecycleJournalTailer(path, 7)
+		if err != nil {
+			t.Fatal(err)
+		}
+		raw, err := json.Marshal(valid)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if err := os.WriteFile(path, append(raw, []byte(" garbage\n")...), 0o600); err != nil {
+			t.Fatal(err)
+		}
+		if records, err := tailer.Advance(); err == nil || len(records) != 0 {
+			t.Fatalf("records=%+v err=%v, want fail closed", records, err)
+		}
+	})
 }
 
 func TestLifecycleJournalTailerFailsClosedOnOversizeTruncateAndReplace(t *testing.T) {
@@ -210,27 +276,46 @@ func (b blockingLifecycleAdvancer) Advance() ([]sessionwatch.LifecycleRecord, er
 	return nil, nil
 }
 
-func TestLifecycleJournalWorkerIsolatesBlockedIOFromReducerOwner(t *testing.T) {
-	entered, release := make(chan struct{}), make(chan struct{})
-	stop := make(chan struct{})
-	records, failures := make(chan sessionwatch.LifecycleRecord, 32), make(chan error, 1)
-	go followLifecycleJournal(blockingLifecycleAdvancer{entered: entered, release: release}, records, failures, stop)
-	select {
-	case <-entered:
-	case <-time.After(time.Second):
-		t.Fatal("journal worker did not enter injected IO")
+func TestMasterPumpForwardsPTYWhileLifecycleJournalIOIsBlocked(t *testing.T) {
+	reader, writer, err := os.Pipe()
+	if err != nil {
+		t.Fatal(err)
 	}
-	p := &proxy{}
+	defer reader.Close()
+	entered, release := make(chan struct{}), make(chan struct{})
+	out := newDrainBuffer()
+	p := &proxy{
+		ptmx: reader, agentBasename: "codex", stdoutPump: newStdoutPump(out),
+		stdoutFlushEvery: 5 * time.Millisecond, captureWindow: defaultCaptureWindow,
+		notifyModeActive: notifyModeDefault, now: time.Now,
+		lifecycleJournal: blockingLifecycleAdvancer{entered: entered, release: release},
+	}
 	done := make(chan struct{})
 	go func() {
-		p.processLifecycleObservation(TurnObservation{Kind: ObservationWorking})
+		p.masterPump()
 		close(done)
 	}()
 	select {
-	case <-done:
-	case <-time.After(100 * time.Millisecond):
-		t.Fatal("blocked journal IO delayed reducer owner")
+	case <-entered:
+	case <-time.After(time.Second):
+		t.Fatal("production journal worker did not enter injected IO")
 	}
+	if _, err := writer.Write([]byte("still-forwarded")); err != nil {
+		t.Fatal(err)
+	}
+	waitForStdoutBatch(t, 250*time.Millisecond, func() bool {
+		return string(out.Bytes()) == "still-forwarded"
+	})
 	close(release)
-	close(stop)
+	if err := writer.Close(); err != nil {
+		t.Fatal(err)
+	}
+	waitForStdoutBatch(t, 250*time.Millisecond, func() bool {
+		select {
+		case <-done:
+			return true
+		default:
+			return false
+		}
+	})
 }

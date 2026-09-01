@@ -1,5 +1,31 @@
 # Lessons
 
+## Authority readers must enforce the producer's complete closed grammar
+
+A lifecycle journal reader rejected missing fields but accepted any non-empty
+agent, source, and outcome, and decoded only the first JSON value on a committed
+line. A syntactically valid prefix or unauthorized record could therefore reach
+the notification reducer even though the watcher never intentionally emitted it.
+
+**Rule.** Single-source validation for an authority record across every writer
+and reader. Validate exact framing, closed discriminants, stable identity,
+required correlation keys, positions, and timestamps; table-test removal or
+mutation of each guard through the production consumer. Caught during #000161
+M3 close review round 6.
+
+## Isolation tests must traverse the production scheduling owner
+
+A journal-worker regression blocked an injected advancer and concurrently called
+the reducer directly. It proved those two helpers were independently callable,
+but would still pass if production moved blocking filesystem IO back onto the
+PTY master loop.
+
+**Rule.** A concurrency-isolation regression must enter the real scheduling
+owner, block the external seam there, and prove an independent production event
+still crosses that same owner. Prefer a narrow interface injection over testing
+worker and consumer helpers in parallel. Caught during #000161 M3 close review
+round 6.
+
 ## Closed command grammars need cross-class and exact-boundary assertions
 
 A closed CLI parser validated the arity of `--show <ref>` but accepted another

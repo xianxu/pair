@@ -187,3 +187,117 @@ findings:
     detail: |
       Base and head are the same commit and tree, so stat, name-status, and full patch are empty. This is the 2nd finding in family `submission-boundary-reachability`; enforce a class rule that milestone review rejects identical pre/post boundaries, then rerun with the actual pre-fix base and post-fix head.
 ```
+
+---
+
+## Re-review — 2026-09-01T15:36:56-07:00 (REWORK)
+
+| field | value |
+|-------|-------|
+| issue | 161 — Couch misses Codex completion notifications |
+| repo | 000161-couch-missed-codex-notifications |
+| issue file | workshop/issues/000161-couch-missed-codex-notifications.md |
+| boundary | milestone M3 |
+| milestone | M3 |
+| window | dc43a9e8e67f940eee9dc6daeb789bcdf2b16392..d82dc7819df470a1cce1044b6445c1a54eaa9fa6 |
+| command | sdlc milestone-close --issue 161 --milestone M3 |
+| reviewer | codex |
+| timestamp | 2026-09-01T15:36:56-07:00 |
+| verdict | REWORK |
+
+## Review
+
+```verdict
+verdict: REWORK
+confidence: high
+```
+
+The pinned range is valid, non-empty, and substantially improves M3: journal IO now runs in a bounded worker, lifecycle records are incrementally read, live Codex conformance is extended, atlas documentation is updated, and focused packages pass. The boundary remains blocked because the prior IO-isolation regression does not exercise the production master-loop wiring, the Core concepts inventory still claims undelivered M4 surfaces, and malformed journal records can authorize notifications instead of failing closed.
+
+```findings
+dispose:
+  - id: BR-5
+    disposition: not-addressed
+    note: |
+      The worker is wired in production, but its regression invokes the worker and reducer independently; reverting the master-loop integration would not make this test fail.
+  - id: BR-6
+    disposition: not-addressed
+    note: |
+      The table still marks terminalModel modified and Couch projection verified although their M4 work remains unchecked, and the prose names CodexWorkingRecognizer while the planned declaration is RecognizeCodexWorking.
+  - id: BR-7
+    disposition: addressed
+    note: |
+      The opt-in live conformance test now scans Codex events and requires a keyed task_started followed by same-root task_complete with timestamps and increasing positions.
+  - id: BR-8
+    disposition: addressed
+    note: |
+      The pinned objects exist and the range contains 26 changed files with substantive production and test changes.
+findings:
+  - id: new
+    severity: Critical
+    family: lifecycle-contract-coverage
+    title: |
+      Lifecycle journal validation accepts malformed or unauthorized record semantics
+    detail: |
+      This is the 3rd finding in family lifecycle-contract-coverage. Advance decodes one JSON value without requiring EOF, and validates only that agent, source, and outcome are non-empty; a line containing a valid record followed by garbage, or a current-launch record for another agent/source with outcome completed, can reach the notification reducer despite the fail-closed contract. Do not patch only trailing JSON: state and enforce the complete accepted-record rule, including exact framing, agent, source, outcome, identity, and timestamp constraints, with production-path regressions that fail when each guard is removed.
+```
+
+1. Strengths
+
+- `followLifecycleJournal` performs filesystem work outside the PTY master loop and uses a capacity-32 record channel with stop-aware backpressure ([lifecycle_journal.go](/Users/xianxu/workspace/worktree/pair/000161-couch-missed-codex-notifications/cmd/internal/wrapcmd/lifecycle_journal.go:143)).
+- Each tail advance is bounded to roughly 64 KiB rather than reading the journal suffix without limit ([lifecycle_journal.go](/Users/xianxu/workspace/worktree/pair/000161-couch-missed-codex-notifications/cmd/internal/wrapcmd/lifecycle_journal.go:93)).
+- Transcript projection preserves keyed opener-before-terminal ordering and filters by the authorized root.
+- Live conformance now checks the production envelopes consumed by notification authority.
+- Atlas updates document the new journal, identity model, worker boundary, and failure behavior.
+
+2. Critical findings
+
+- [lifecycle_journal.go:118](/Users/xianxu/workspace/worktree/pair/000161-couch-missed-codex-notifications/cmd/internal/wrapcmd/lifecycle_journal.go:118): `Decode` is called only once, so trailing non-whitespace data is not rejected. Require a second decode to return `io.EOF`, and centralize strict semantic validation shared with `LifecycleRecord.validate`.
+- [lifecycle_journal.go:124](/Users/xianxu/workspace/worktree/pair/000161-couch-missed-codex-notifications/cmd/internal/wrapcmd/lifecycle_journal.go:124): enforce the exact accepted envelope—Codex agent, transcript source, supported outcomes, non-empty keyed identity, and current launch—before returning any record.
+
+3. Important findings
+
+None newly raised. BR-6 remains open as disposed above.
+
+4. Minor findings
+
+None.
+
+5. Test coverage notes
+
+Focused tests passed:
+
+```text
+go test ./cmd/internal/sessioninventory ./cmd/internal/sessionwatch \
+  ./cmd/internal/wrapcmd ./cmd/internal/launcher \
+  ./cmd/internal/artifactpath -count=1
+```
+
+The full `go test ./... -count=1` run could not complete because generated `cmd/internal/runtimebundle/assets/runtime/files` content is absent; all packages that compiled before the final `FAIL` otherwise passed.
+
+The BR-5 regression at [lifecycle_journal_test.go:213](/Users/xianxu/workspace/worktree/pair/000161-couch-missed-codex-notifications/cmd/internal/wrapcmd/lifecycle_journal_test.go:213) proves that a separately launched worker does not block an unrelated reducer goroutine. It does not prove that `masterPump` uses that worker. Add a proxy/master-pump seam with an injected blocking advancer, demonstrate PTY forwarding continues, and verify the test fails if `Advance` is moved onto the owner loop.
+
+Add tests that reject:
+
+- A valid JSON object followed by another value or garbage.
+- Non-Codex agents and non-transcript sources.
+- Unknown or empty outcomes.
+- Missing turn IDs for all supported lifecycle outcomes.
+- A malformed current-launch record before any notification is emitted.
+
+6. Architectural notes for upcoming work
+
+- `ARCH-DRY`: Pass overall. Existing session inventory authority and the shared lifecycle reducer are reused. Consolidate writer and reader record validation to avoid parallel contract definitions.
+- `ARCH-PURE`: Pass. Lifecycle reduction remains separate from journal IO, and reducer mutation stays on the owner loop.
+- `ARCH-PURPOSE`: Flag. Fail-closed journal authority and production-reachable IO isolation are part of M3’s core purpose; the remaining validation and reachability gaps are not separable follow-ups.
+- `ARCH-MOCK`: Pass for the watcher/inventory seam and live conformance extension. The BR-5 integration regression still needs to exercise the actual production seam.
+- `ARCH-CONSTRAINTS`: Pass in implementation shape: 50 ms polling, bounded reads, bounded channel capacity, and worker isolation are present. Production-loop isolation needs the reachable regression described above.
+
+7. Plan revision recommendations
+
+Add a `## Revisions` entry that:
+
+- Defines the exhaustive accepted lifecycle-record envelope and requires strict single-value JSON framing.
+- Requires producer and consumer to share that validation rule.
+- Replaces the BR-5 helper-only test with a production master-loop reachability regression.
+- Changes `terminalModel` to `planned M4`, Couch projection to `planned/verified M4`, and consistently names the future declaration `RecognizeCodexWorking`.

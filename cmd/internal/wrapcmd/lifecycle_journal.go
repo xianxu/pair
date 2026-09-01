@@ -121,10 +121,12 @@ func (t *LifecycleJournalTailer) Advance() ([]sessionwatch.LifecycleRecord, erro
 		if err := decoder.Decode(&record); err != nil {
 			return nil, t.stop(fmt.Errorf("decode lifecycle journal: %w", err))
 		}
-		if record.Version != 1 || record.Agent == "" || record.LaunchOrdinal == 0 ||
-			record.ArtifactGeneration == "" || record.Source == "" || record.Outcome == "" ||
-			record.TranscriptPath == "" || record.TranscriptOffset < 0 || record.EventTimestamp.IsZero() {
-			return nil, t.stop(errors.New("invalid lifecycle journal record"))
+		var trailing any
+		if err := decoder.Decode(&trailing); !errors.Is(err, io.EOF) {
+			return nil, t.stop(errors.New("lifecycle journal record has trailing data"))
+		}
+		if err := sessionwatch.ValidateLifecycleRecord(record); err != nil {
+			return nil, t.stop(fmt.Errorf("invalid lifecycle journal record: %w", err))
 		}
 		if record.LaunchOrdinal == t.launchOrdinal {
 			records = append(records, record)

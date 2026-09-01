@@ -109,6 +109,35 @@ rounds:
           round: 5
       boundary: M3
       blocked: true
+    - "n": 6
+      timestamp: "2026-09-01T15:36:56-07:00"
+      agent: codex
+      dispose:
+        - id: BR-5
+          disposition: not-addressed
+          note: The worker is wired in production, but its regression invokes the worker and reducer independently; reverting the master-loop integration would not make this test fail.
+          round: 6
+        - id: BR-6
+          disposition: not-addressed
+          note: The table still marks terminalModel modified and Couch projection verified although their M4 work remains unchecked, and the prose names CodexWorkingRecognizer while the planned declaration is RecognizeCodexWorking.
+          round: 6
+        - id: BR-7
+          disposition: addressed
+          note: The opt-in live conformance test now scans Codex events and requires a keyed task_started followed by same-root task_complete with timestamps and increasing positions.
+          round: 6
+        - id: BR-8
+          disposition: addressed
+          note: The pinned objects exist and the range contains 26 changed files with substantive production and test changes.
+          round: 6
+      findings:
+        - id: BR-9
+          severity: Critical
+          title: Lifecycle journal validation accepts malformed or unauthorized record semantics
+          detail: 'This is the 3rd finding in family lifecycle-contract-coverage. Advance decodes one JSON value without requiring EOF, and validates only that agent, source, and outcome are non-empty; a line containing a valid record followed by garbage, or a current-launch record for another agent/source with outcome completed, can reach the notification reducer despite the fail-closed contract. Do not patch only trailing JSON: state and enforce the complete accepted-record rule, including exact framing, agent, source, outcome, identity, and timestamp constraints, with production-path regressions that fail when each guard is removed.'
+          family: lifecycle-contract-coverage
+          round: 6
+      boundary: M3
+      blocked: true
 ---
 
 # Gate ledger — 000161-couch-missed-codex-notifications#161 (boundary-review)
@@ -164,9 +193,22 @@ later rounds disposed of them. Generated — edit the gate, not this file.
 - **BR-8** [Critical] `submission-boundary-reachability` The pinned M3 review range contains no changes
   Base and head are the same commit and tree, so stat, name-status, and full patch are empty. This is the 2nd finding in family `submission-boundary-reachability`; enforce a class rule that milestone review rejects identical pre/post boundaries, then rerun with the actual pre-fix base and post-fix head.
 
+## Round 6 — 2026-09-01T15:36:56-07:00 (codex) — BLOCKED
+
+### Disposed
+
+- BR-5 — not-addressed — The worker is wired in production, but its regression invokes the worker and reducer independently; reverting the master-loop integration would not make this test fail.
+- BR-6 — not-addressed — The table still marks terminalModel modified and Couch projection verified although their M4 work remains unchecked, and the prose names CodexWorkingRecognizer while the planned declaration is RecognizeCodexWorking.
+- BR-7 — addressed — The opt-in live conformance test now scans Codex events and requires a keyed task_started followed by same-root task_complete with timestamps and increasing positions.
+- BR-8 — addressed — The pinned objects exist and the range contains 26 changed files with substantive production and test changes.
+
+### Raised
+
+- **BR-9** [Critical] `lifecycle-contract-coverage` Lifecycle journal validation accepts malformed or unauthorized record semantics
+  This is the 3rd finding in family lifecycle-contract-coverage. Advance decodes one JSON value without requiring EOF, and validates only that agent, source, and outcome are non-empty; a line containing a valid record followed by garbage, or a current-launch record for another agent/source with outcome completed, can reach the notification reducer despite the fail-closed contract. Do not patch only trailing JSON: state and enforce the complete accepted-record rule, including exact framing, agent, source, outcome, identity, and timestamp constraints, with production-path regressions that fail when each guard is removed.
+
 ## Open findings
 
 - **BR-5** [Critical] `lifecycle-contract-coverage` Journal IO blocks the PTY master loop instead of using the required bounded delivery seam
 - **BR-6** [Critical] `plan-entity-inventory` The Core concepts table does not describe entities that actually exist at M3
-- **BR-7** [Important] `regression-test-reachability` The required live Codex lifecycle conformance remains unchanged
-- **BR-8** [Critical] `submission-boundary-reachability` The pinned M3 review range contains no changes
+- **BR-9** [Critical] `lifecycle-contract-coverage` Lifecycle journal validation accepts malformed or unauthorized record semantics

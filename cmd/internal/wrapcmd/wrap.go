@@ -264,7 +264,7 @@ type proxy struct {
 	lifecycleTimerKind    ObservationKind
 	lifecycleTimerToken   uint64
 	lifecycleJournalPath  string
-	lifecycleJournal      *LifecycleJournalTailer
+	lifecycleJournal      lifecycleJournalAdvancer
 	writeTTY              func(fd int, p []byte) (int, error)
 	// pair-slug spawn debounce (#000027)
 	lastSlug time.Time

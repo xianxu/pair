@@ -15,7 +15,7 @@ import (
 func testLifecycleRecord() LifecycleRecord {
 	return LifecycleRecord{
 		Version: 1, Agent: "codex", LaunchOrdinal: 7, ArtifactGeneration: "dev:1",
-		Source: "transcript", Outcome: "task_started", TurnID: "turn-1",
+		Source: "transcript", Outcome: "started", TurnID: "turn-1",
 		TranscriptPath: "/rollout.jsonl", TranscriptOffset: 42,
 		EventTimestamp: time.Date(2026, 9, 1, 12, 0, 0, 0, time.UTC),
 	}

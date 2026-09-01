@@ -32,10 +32,19 @@ type LifecycleRecord struct {
 	EventTimestamp     time.Time `json:"event_timestamp"`
 }
 
-func (r LifecycleRecord) validate() error {
-	if r.Version != 1 || r.Agent == "" || r.LaunchOrdinal == 0 || r.ArtifactGeneration == "" ||
-		r.Source == "" || r.Outcome == "" || r.TranscriptPath == "" || r.TranscriptOffset < 0 || r.EventTimestamp.IsZero() {
+// ValidateLifecycleRecord defines the complete journal grammar shared by its
+// sole producer and consumer. Only authorized Codex transcript observations
+// may become notification authority.
+func ValidateLifecycleRecord(r LifecycleRecord) error {
+	if r.Version != 1 || r.Agent != "codex" || r.LaunchOrdinal == 0 || r.ArtifactGeneration == "" ||
+		r.Source != "transcript" || r.TurnID == "" || r.TranscriptPath == "" ||
+		r.TranscriptOffset < 0 || r.EventTimestamp.IsZero() {
 		return errors.New("invalid lifecycle record")
+	}
+	switch r.Outcome {
+	case "started", "completed", "aborted", "error":
+	default:
+		return errors.New("invalid lifecycle record outcome")
 	}
 	return nil
 }
@@ -53,7 +62,7 @@ func AppendLifecycleRecord(runtime sessionledger.Runtime, path string, record Li
 	if runtime == nil || path == "" {
 		return errors.New("lifecycle journal path or runtime is empty")
 	}
-	if err := record.validate(); err != nil {
+	if err := ValidateLifecycleRecord(record); err != nil {
 		return err
 	}
 	encoded, err := json.Marshal(record)
