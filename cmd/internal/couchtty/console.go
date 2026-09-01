@@ -123,24 +123,29 @@ type Console struct {
 	// the writer singular removes the class rather than the two instances:
 	// there is no longer a way to reach the screen except through the loop that
 	// tracks where the stream is.
-	chunks          chan chunk
-	resized         chan struct{}
-	switching       chan string
-	input           chan []byte
-	exited          chan childExit
-	operationQueue  *operationQueue
-	refreshRequests chan struct{}
-	refreshResults  chan menuRefreshResult
-	refreshSchedule RefreshSchedule
-	previewResults  chan menuPreviewResult
-	previewSchedule PreviewSchedule
-	previewCancel   context.CancelFunc
-	previewRunning  uint64
-	lifetime        context.Context
-	cancelLifetime  context.CancelFunc
-	stop            chan struct{}
-	once            sync.Once
-	workers         sync.WaitGroup
+	chunks             chan chunk
+	resized            chan struct{}
+	switching          chan string
+	input              chan []byte
+	exited             chan childExit
+	operationQueue     *operationQueue
+	refreshRequests    chan struct{}
+	refreshResults     chan menuRefreshResult
+	refreshSchedule    RefreshSchedule
+	previewResults     chan menuPreviewResult
+	previewSchedule    PreviewSchedule
+	previewCancel      context.CancelFunc
+	previewRunning     uint64
+	directoryReader    DirectoryBatchReader
+	completionResults  chan menuCompletionResult
+	completionSchedule latestSchedule[CompletionRequest]
+	completionCancel   context.CancelFunc
+	completionRunning  CompletionIdentity
+	lifetime           context.Context
+	cancelLifetime     context.CancelFunc
+	stop               chan struct{}
+	once               sync.Once
+	workers            sync.WaitGroup
 }
 
 // errw is where the console reports its own failures. Separate from the host
@@ -155,23 +160,25 @@ func (c *Console) errw() io.Writer {
 func New(host hostty.Host, stdin io.Reader) *Console {
 	lifetime, cancelLifetime := context.WithCancel(context.Background())
 	c := &Console{
-		host:            host,
-		stdin:           stdin,
-		panes:           map[string]*pane{},
-		chunks:          make(chan chunk, 256),
-		resized:         make(chan struct{}, 1),
-		switching:       make(chan string, 8),
-		input:           make(chan []byte, 64),
-		exited:          make(chan childExit, 64),
-		operationQueue:  newOperationQueue(16),
-		refreshRequests: make(chan struct{}, 1),
-		refreshResults:  make(chan menuRefreshResult, 1),
-		previewResults:  make(chan menuPreviewResult, 1),
-		expectedExits:   map[string]bool{},
-		lifetime:        lifetime,
-		cancelLifetime:  cancelLifetime,
-		stop:            make(chan struct{}),
-		feed:            NewFeed(8),
+		host:              host,
+		stdin:             stdin,
+		panes:             map[string]*pane{},
+		chunks:            make(chan chunk, 256),
+		resized:           make(chan struct{}, 1),
+		switching:         make(chan string, 8),
+		input:             make(chan []byte, 64),
+		exited:            make(chan childExit, 64),
+		operationQueue:    newOperationQueue(16),
+		refreshRequests:   make(chan struct{}, 1),
+		refreshResults:    make(chan menuRefreshResult, 1),
+		previewResults:    make(chan menuPreviewResult, 1),
+		directoryReader:   OSDirectoryBatchReader{},
+		completionResults: make(chan menuCompletionResult, 1),
+		expectedExits:     map[string]bool{},
+		lifetime:          lifetime,
+		cancelLifetime:    cancelLifetime,
+		stop:              make(chan struct{}),
+		feed:              NewFeed(8),
 	}
 	if s, err := host.Size(); err == nil {
 		c.size = s
@@ -602,6 +609,8 @@ func (c *Console) Run() int {
 			c.finishMenuRefresh(result)
 		case result := <-c.previewResults:
 			c.finishMenuPreview(result)
+		case result := <-c.completionResults:
+			c.finishMenuCompletion(result)
 		case completed := <-c.operationQueue.results:
 			if c.finishOperation(completed) {
 				continue
