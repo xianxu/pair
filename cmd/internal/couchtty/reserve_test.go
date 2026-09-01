@@ -4,6 +4,7 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/xianxu/pair/cmd/internal/ansi"
 	"github.com/xianxu/pair/cmd/internal/textwidth"
 )
 
@@ -68,11 +69,22 @@ func TestRenderStatusRowMarksActiveAndPendingDistinctly(t *testing.T) {
 	if !strings.Contains(got, "[brain]") {
 		t.Fatalf("the active actor is not marked: %q", got)
 	}
-	if !strings.Contains(got, "pair*") {
-		t.Fatalf("the actor with pending activity is not marked: %q", got)
+	if strings.Contains(got, "*") || !strings.Contains(got, "\x1b[") {
+		t.Fatalf("pending attention should color the existing label without adding cells: %q", got)
 	}
-	if strings.Contains(got, "[pair]") || strings.Contains(got, "brain*") {
+	plain := string(ansi.Strip([]byte(got)))
+	if plain != "[brain]  pair  ariadne" {
+		t.Fatalf("attention changed status text or order: %q", plain)
+	}
+	if strings.Contains(got, "[pair]") {
 		t.Fatalf("active and pending are not distinct: %q", got)
+	}
+}
+
+func TestRenderStatusAttentionDoesNotRestyleFocusedActor(t *testing.T) {
+	got := RenderStatusRow(80, StatusModel{Actors: []StatusActor{{Label: "pair", Active: true, Bell: true}}})
+	if got != "[pair]" {
+		t.Fatalf("focused attention treatment = %q, want ordinary focused chip", got)
 	}
 }
 

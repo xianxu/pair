@@ -247,7 +247,7 @@ OSC bytes and Couch-local attention state.
 
 - [x] Write and approve the implementation plan.
 - [x] Normalize Pair notification emission and add chunk-safe Couch observation.
-- [ ] Add bounded per-actor inbox state plus status/switcher presentation.
+- [x] Add bounded per-actor inbox state plus status/switcher presentation.
 - [ ] Verify byte-faithful forwarding, acknowledgement races, and operating
       bounds through pure, integration, conformance, and performance tests.
 
@@ -312,6 +312,14 @@ consumption and processing-time focus for raw bytes; successful switches clear
 only captured identities, failures preserve them, and later arrivals survive.
 The former pane/menu bell maps and bell status notices are removed
 (`ARCH-PURE`, `ARCH-DRY`).
+
+Unread attention now colors only the existing inactive actor label on the
+compact status row—no star or extra cells. The switcher renders retained
+messages as indented display-only rows beneath their source actor; filtering,
+navigation, and stable actor order remain actor-only. Opening with
+`Ctrl-Space` selects the source of the newest resident unread event and leaves
+the operator one Enter from switching. Portable bounds pass with the declared
+100-actor/300-message fixture (`ARCH-CONSTRAINTS`).
 
 ## Revisions
 

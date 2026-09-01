@@ -33,18 +33,19 @@ func menu100Fixture() []couchcore.ActionableThreadSummary {
 func TestMenu100Bounds(t *testing.T) {
 	rows := menu100Fixture()
 	state := NewMenuState(rows, rows[0].Address)
+	state.Attention = menu100Attention(rows)
 	now := time.Unix(1_800_000_000, 0)
 
 	if got := testing.AllocsPerRun(100, func() {
 		_ = RenderMenu(state, 120, 40, now, true)
-	}); got > 800 {
-		t.Fatalf("100-row render allocations = %.0f, want <= 800", got)
+	}); got > 1400 {
+		t.Fatalf("100-row/300-message render allocations = %.0f, want <= 1400", got)
 	}
 	if got := testing.AllocsPerRun(100, func() {
 		next, _ := reduceKey(state, PanelKey{Kind: KeyRune, Rune: 't'})
 		_ = next
-	}); got > 40 {
-		t.Fatalf("100-row filter allocations = %.0f, want <= 40", got)
+	}); got > 130 {
+		t.Fatalf("100-row/300-message filter allocations = %.0f, want <= 130", got)
 	}
 	if len(state.Inventory) != menuPerfRows || len(state.Frames) != 1 {
 		t.Fatalf("fixture/state bounds changed: rows=%d frames=%d", len(state.Inventory), len(state.Frames))
@@ -52,6 +53,18 @@ func TestMenu100Bounds(t *testing.T) {
 	if got := RenderMenu(state, 39, 10, now, false); got != "resize terminal to at least 40x10" {
 		t.Fatalf("minimum-width refusal = %q", got)
 	}
+}
+
+func menu100Attention(rows []couchcore.ActionableThreadSummary) map[couchcore.ThreadAddress][]AttentionMessage {
+	attention := make(map[couchcore.ThreadAddress][]AttentionMessage, len(rows))
+	for i, row := range rows {
+		attention[row.Address] = []AttentionMessage{
+			{Sequence: uint64(i*3 + 1), Text: "review ready"},
+			{Sequence: uint64(i*3 + 2), Text: "tests need approval"},
+			{Sequence: uint64(i*3 + 3), Text: "build finished"},
+		}
+	}
+	return attention
 }
 
 func TestMenuFeedbackBounds(t *testing.T) {
@@ -74,6 +87,7 @@ func BenchmarkMenu100(b *testing.B) {
 	rows := menu100Fixture()
 	now := time.Unix(1_800_000_000, 0)
 	base := NewMenuState(rows, rows[0].Address)
+	base.Attention = menu100Attention(rows)
 
 	b.Run("open", func(b *testing.B) {
 		for i := 0; i < b.N; i++ {
@@ -152,6 +166,7 @@ func TestMenuTargetPerformance(t *testing.T) {
 						marker := fmt.Sprintf("epoch-%d-row-%03d", epoch, markerRow)
 						inventory[markerRow].Name = marker
 						f.con.menu = NewMenuState(inventory, rows[0].Address)
+						f.con.menu.Attention = menu100Attention(inventory)
 						f.con.menuReady = true
 						f.con.focus = focus
 						f.con.size = ptychild.Size{Rows: 41, Cols: 120}

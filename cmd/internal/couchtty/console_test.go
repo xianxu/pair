@@ -555,7 +555,7 @@ func TestConsoleMarksAnInactiveActorThatRangTheBell(t *testing.T) {
 	other.Feed([]byte("\x07"))
 
 	waitFor(t, "the row to mark the actor", func() bool {
-		return strings.Contains(f.host.Written(), "ariadne*")
+		return strings.Contains(f.host.Written(), "\x1b[38;5;220mariadne\x1b[0m")
 	})
 	if strings.Contains(f.host.Written(), "[ariadne]") {
 		t.Fatal("the inactive actor was marked active")

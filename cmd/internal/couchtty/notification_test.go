@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"testing"
 
+	"github.com/xianxu/pair/cmd/internal/couchcore"
 	"github.com/xianxu/pair/cmd/internal/hostty"
 	"github.com/xianxu/pair/cmd/internal/notifyosc"
 	"github.com/xianxu/pair/cmd/internal/ptychild"
@@ -173,6 +174,33 @@ func TestAttentionHandlingStartsNoAuxiliaryWork(t *testing.T) {
 	con.onChunk(chunk{id: "c2", batch: observedBatch(&screen, notifyosc.Encode("ready"))})
 	if len(con.refreshRequests) != 0 || len(con.operationQueue.requests) != 0 {
 		t.Fatalf("attention started auxiliary work: refresh=%d operations=%d", len(con.refreshRequests), len(con.operationQueue.requests))
+	}
+}
+
+func TestConsoleMenuAttentionSelectsNewestUnreadWithoutReordering(t *testing.T) {
+	con, _ := notificationConsole(t)
+	con.mu.Lock()
+	one, two := con.panes["c1"].thread, con.panes["c2"].thread
+	con.menu = NewMenuState([]couchcore.ActionableThreadSummary{
+		{Address: one, Name: "one", State: couchcore.ThreadLive},
+		{Address: two, Name: "two", State: couchcore.ThreadLive},
+	}, one)
+	con.menuReady = true
+	con.attention.Mark(two, "newest")
+	con.syncAttentionLocked()
+	con.focus = FocusActor("c1")
+	con.mu.Unlock()
+
+	con.onHotkey()
+	con.mu.Lock()
+	selected := con.menu.CurrentFrame().SelectedAddress
+	first, second := con.menu.Inventory[0].Address, con.menu.Inventory[1].Address
+	con.mu.Unlock()
+	if selected != two {
+		t.Fatalf("selected = %+v, want newest unread %+v", selected, two)
+	}
+	if first != one || second != two {
+		t.Fatalf("attention reordered actors: %+v, %+v", first, second)
 	}
 }
 

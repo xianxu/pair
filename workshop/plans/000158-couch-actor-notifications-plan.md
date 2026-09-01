@@ -426,13 +426,13 @@
 - Modify: `cmd/internal/couchtty/menu_perf_test.go`
 - Modify: `cmd/internal/couchtty/console.go`
 
-- [ ] **Step 1: Write failing status-row presentation tests**
+- [x] **Step 1: Write failing status-row presentation tests**
 
   | Function | Adversarial strategy and mechanical guard |
   |----------|-------------------------------------------|
   | `RenderStatusRow` | Fuzz widths and actor projections; attention changes only ANSI style around inactive labels and never changes measured cells, roster order, or focused treatment. |
 
-- [ ] **Step 2: Write failing switcher hierarchy and selection tests**
+- [x] **Step 2: Write failing switcher hierarchy and selection tests**
 
   | Function | Adversarial strategy and mechanical guard |
   |----------|-------------------------------------------|
@@ -440,27 +440,27 @@
   | `VisibleMenuThreads` / `reduceKey` | Generate filters and navigation over actors with children; only actor fields admit rows and only actor identities participate in order/selection. |
   | `Console.showMenu` | Vary unread sequences without changing inventory order; initial selection is the ledger's newest unread actor from resident state. |
 
-- [ ] **Step 3: Run render tests and verify the old star/bell UI fails**
+- [x] **Step 3: Run render tests and verify the old star/bell UI fails**
 
   Run: `go test -p 20 ./cmd/internal/couchtty -run 'Test(RenderStatus|RenderMenu|Menu.*Attention)' -count=1`
 
   Expected: FAIL because current renderers use bell stars and have no notification children.
 
-- [ ] **Step 4: Implement read-only attention projections in both render paths**
+- [x] **Step 4: Implement read-only attention projections in both render paths**
 
   Implement the three named rendering/selection contracts from immutable ledger projections; the menu reducer gains no parallel attention authority.
 
-- [ ] **Step 5: Extend the 100-row performance fixture and target protocol**
+- [x] **Step 5: Extend the 100-row performance fixture and target protocol**
 
   Exercise `RenderMenu`, `reduceKey`, and `Console.showMenu` at the declared 100-actor/300-message target using the existing 20-warmup/200-sample, four-worker protocol and its p95 budgets.
 
-- [ ] **Step 6: Run render, Console, and portable performance tests**
+- [x] **Step 6: Run render, Console, and portable performance tests**
 
   Run: `go test -p 20 ./cmd/internal/couchtty -count=1`
 
   Expected: PASS, including `TestMenu100Bounds`; target-only latency test skips unless explicitly enabled.
 
-- [ ] **Step 7: Commit the user-facing attention UI**
+- [x] **Step 7: Commit the user-facing attention UI**
 
   Run:
 

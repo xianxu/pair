@@ -1059,6 +1059,13 @@ func (c *Console) onHotkey() {
 
 	c.mu.Lock()
 	c.focus = next
+	if next.IsPanel() {
+		if newest := c.attention.NewestActor(); newest != (couchcore.ThreadAddress{}) && len(c.menu.Frames) > 0 {
+			c.menu.Frames = c.menu.Frames[:1]
+			c.menu.Frames[0].Filter = ""
+			c.menu.Frames[0].SelectedAddress = newest
+		}
+	}
 	c.mu.Unlock()
 
 	if next.IsPanel() {
