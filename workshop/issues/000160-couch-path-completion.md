@@ -1,12 +1,13 @@
 ---
 id: 000160
-status: working
+status: codecomplete
 deps: []
 github_issue:
 created: 2026-09-01
 updated: 2026-09-01
 estimate_hours: 3.60
 started: 2026-09-01T12:02:48-07:00
+actual_hours: N/A
 ---
 
 # Couch start path tab completion
@@ -194,6 +195,7 @@ and the existing Couch/Go architecture keeps familiarity at 1.0.
 ## Log
 
 ### 2026-09-01
+- 2026-09-01: closed — go test -race ./cmd/internal/couchtty -run ^(TestConsoleCompletion|TestOSDirectoryBatchReader|TestFakeDirectoryBatchReader)$ -count=1; go test ./cmd/internal/couchtty -count=1; go test ./... -count=1; git diff --check; live Console run-loop fake-filesystem completion coverage passes; review verdict: SHIP
 
 Claimed the issue and entered planning. The operator approved a directories-only
 completion menu: `Tab` completes/cycles paths, `Up`/`Down` navigate fields when

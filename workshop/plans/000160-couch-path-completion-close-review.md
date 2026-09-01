@@ -160,3 +160,81 @@ None.
 ## Plan revision recommendations
 
 Add a `## Revisions` entry recording the terminal-error rule: cancellation suppression must preserve any joined non-cancellation read or cleanup failure, with the combined cancellation-plus-close regression test named as its guard.
+
+---
+
+## Re-review — 2026-09-01T13:23:26-07:00 (SHIP)
+
+| field | value |
+|-------|-------|
+| issue | 160 — Couch start path tab completion |
+| repo | 000160-couch-path-completion |
+| issue file | workshop/issues/000160-couch-path-completion.md |
+| boundary | whole-issue close |
+| milestone | — |
+| window | bf65381d5127ffb4d662a54ae0d34fe929a852dc..09f6ee1aab146d1d4c49cbf2b5a5b3baa51c9f3e |
+| command | sdlc close --issue 160 |
+| reviewer | codex |
+| timestamp | 2026-09-01T13:23:26-07:00 |
+| verdict | SHIP |
+
+## Review
+
+```verdict
+verdict: SHIP
+confidence: high
+```
+
+The implementation matches the issue’s completion behavior and architectural envelope. The remaining BR-1 fix preserves non-cancellation leaves from joined terminal errors, and its Console-level regression would fail under the previous broad cancellation suppression. BR-2’s bounded stateful fake remains directly pinned. Targeted race and package tests pass; the only full-suite failures are sandbox-denied `/bin/ps` executions in unrelated `cmd/pair-go` tests.
+
+```findings
+dispose:
+  - id: BR-1
+    disposition: addressed
+    note: |
+      completionTerminalError removes cancellation leaves while preserving joined close failures; the Console regression exercises the production worker path and fails with the prior errors.Is suppression.
+  - id: BR-2
+    disposition: addressed
+    note: |
+      The stateful fake emits requested-size batches and terminal errors, with a direct contract test that fails under the former all-at-once behavior.
+```
+
+## Strengths
+
+- Exact frame-instance and generation matching rejects stale results after edits, exits, and later form lifetimes ([menu.go](/Users/xianxu/workspace/worktree/pair/000160-couch-path-completion/cmd/internal/couchtty/menu.go:749)).
+- Completion preserves literal editable prefixes, including relative paths and repeated separators ([menu_completion.go](/Users/xianxu/workspace/worktree/pair/000160-couch-path-completion/cmd/internal/couchtty/menu_completion.go:20)).
+- The accumulator deterministically retains only the lexical top 200 matches ([menu_completion.go](/Users/xianxu/workspace/worktree/pair/000160-couch-path-completion/cmd/internal/couchtty/menu_completion.go:75)).
+- The filesystem shell uses bounded reads, injected enumeration, and target-following symlink classification ([console_completion.go](/Users/xianxu/workspace/worktree/pair/000160-couch-path-completion/cmd/internal/couchtty/console_completion.go:26)).
+- README and atlas both document the new user-facing and architectural surfaces.
+
+## Critical findings
+
+None.
+
+## Important findings
+
+None.
+
+## Minor findings
+
+None.
+
+## Test coverage notes
+
+- `go test -race ./cmd/internal/couchtty -run '^(TestConsoleCompletion|TestOSDirectoryBatchReader|TestFakeDirectoryBatchReader)' -count=1` passed.
+- `go test ./cmd/internal/couchtty -count=1` passed.
+- `git diff --check` passed.
+- The BR-1 regression reaches the real Console worker and result reducer. Restoring the prior `errors.Is(err, context.Canceled)` suppression would remove the expected notice.
+- The full suite passed all issue-relevant packages. `cmd/pair-go` alone failed because the review sandbox prohibits `/bin/ps`, not because of a product assertion.
+
+## Architectural notes for upcoming work
+
+- `ARCH-DRY`: Pass — preview and completion share the generalized latest-wins scheduler.
+- `ARCH-PURE`: Pass — path splitting, bounded accumulation, scheduling, reducer transitions, and rendering are IO-free.
+- `ARCH-PURPOSE`: Pass — completion fulfills the directories-only workflow while leaving preview-token authorization as the sole start path.
+- `ARCH-MOCK`: Pass — production and integration tests use the same batched reader seam, backed by a stateful, batch-faithful fake.
+- `ARCH-CONSTRAINTS`: Pass — one active/one pending scan, 128-entry batches, 200 retained candidates, asynchronous IO, and terminal-height clipping enforce the declared envelope.
+
+## Plan revision recommendations
+
+None. The Core concepts table, completed tasks, and existing revisions agree with the code.

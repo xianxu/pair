@@ -33,6 +33,19 @@ rounds:
           note: The stateful fake now emits bounded chunks and configured terminal errors; its direct contract test would fail with the prior all-at-once implementation.
           round: 2
       blocked: true
+    - "n": 3
+      timestamp: "2026-09-01T13:23:26-07:00"
+      agent: codex
+      dispose:
+        - id: BR-1
+          disposition: addressed
+          note: completionTerminalError removes cancellation leaves while preserving joined close failures; the Console regression exercises the production worker path and fails with the prior errors.Is suppression.
+          round: 3
+        - id: BR-2
+          disposition: addressed
+          note: The stateful fake emits requested-size batches and terminal errors, with a direct contract test that fails under the former all-at-once behavior.
+          round: 3
+      blocked: false
 ---
 
 # Gate ledger — 000160-couch-path-completion#160 (boundary-review)
@@ -56,6 +69,13 @@ later rounds disposed of them. Generated — edit the gate, not this file.
 - BR-1 — not-addressed — The reader now joins Close failures, but the worker clears the entire joined error whenever errors.Is(err, context.Canceled), silently discarding a simultaneous Close failure.
 - BR-2 — addressed — The stateful fake now emits bounded chunks and configured terminal errors; its direct contract test would fail with the prior all-at-once implementation.
 
+## Round 3 — 2026-09-01T13:23:26-07:00 (codex) — passed
+
+### Disposed
+
+- BR-1 — addressed — completionTerminalError removes cancellation leaves while preserving joined close failures; the Console regression exercises the production worker path and fails with the prior errors.Is suppression.
+- BR-2 — addressed — The stateful fake emits requested-size batches and terminal errors, with a direct contract test that fails under the former all-at-once behavior.
+
 ## Open findings
 
-- **BR-1** [Important] `filesystem-terminal-error-propagation` Directory close failures are silently discarded
+(none — every finding has been disposed)
