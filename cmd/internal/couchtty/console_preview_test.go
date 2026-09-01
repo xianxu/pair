@@ -19,7 +19,7 @@ func previewFormState(t *testing.T, submit bool) (MenuState, []MenuEffect) {
 	for _, r := range "/repo" {
 		state, _ = ReduceMenu(state, MenuEvent{Kind: MenuEventKey, Key: PanelKey{Kind: KeyRune, Rune: r}})
 	}
-	key := KeyTab
+	key := KeyDown
 	if submit {
 		key = KeyEnter
 	}

@@ -50,24 +50,24 @@ This is a keystroke UI path: input and paint perform no IO; one worker plus one 
 
 **Files:** Create `cmd/internal/couchtty/menu_completion.go`; create `cmd/internal/couchtty/menu_completion_test.go`.
 
-- [ ] **RED — `SplitCompletionPath` / `CompletionQuery.CompletedPath`:** arbitrary path text → preserve literal editable spelling while producing one bounded lookup query; guard exact-dot navigation with explicit non-IO completion.
-- [ ] Run `go test ./cmd/internal/couchtty -run '^TestSplitCompletionPath' -count=1`; expect failure for absent behavior.
-- [ ] Implement the named pure functions.
-- [ ] **RED — `CompletionAccumulator.Add/Result`:** arbitrary classified batches → deterministic directory-only lexical output; guard memory with a fixed-cap top-N structure and overflow bit.
-- [ ] Run `go test ./cmd/internal/couchtty -run '^TestCompletionAccumulator' -count=1`; expect failure for absent behavior.
-- [ ] Implement the named pure functions.
-- [ ] Run `go test ./cmd/internal/couchtty -run '^(TestSplitCompletionPath|TestCompletionAccumulator)' -count=1`; expect PASS.
-- [ ] Commit the two files as `couch: #160 add bounded directory completion core`.
+- [x] **RED — `SplitCompletionPath` / `CompletionQuery.CompletedPath`:** arbitrary path text → preserve literal editable spelling while producing one bounded lookup query; guard exact-dot navigation with explicit non-IO completion.
+- [x] Run `go test ./cmd/internal/couchtty -run '^TestSplitCompletionPath' -count=1`; expect failure for absent behavior.
+- [x] Implement the named pure functions.
+- [x] **RED — `CompletionAccumulator.Add/Result`:** arbitrary classified batches → deterministic directory-only lexical output; guard memory with a fixed-cap top-N structure and overflow bit.
+- [x] Run `go test ./cmd/internal/couchtty -run '^TestCompletionAccumulator' -count=1`; expect failure for absent behavior.
+- [x] Implement the named pure functions.
+- [x] Run `go test ./cmd/internal/couchtty -run '^(TestSplitCompletionPath|TestCompletionAccumulator)' -count=1`; expect PASS.
+- [x] Commit the two files as `couch: #160 add bounded directory completion core`.
 
 ### Task 2: Latest-wins scheduling
 
 **Files:** Modify `cmd/internal/couchtty/menu_async.go`; modify `cmd/internal/couchtty/menu_async_test.go`.
 
-- [ ] **RED — `advanceLatestSchedule`:** adversarial request/finish ordering and caller mutation → preserve payload and value ownership; guard concurrency with one running slot, one replaceable pending slot, and one cancellation latch. Existing `AdvancePreviewSchedule` behavior is the parity oracle.
-- [ ] Run `go test ./cmd/internal/couchtty -run '^Test(AdvancePreviewSchedule|AdvanceLatestSchedule)' -count=1`; expect missing generic behavior.
-- [ ] Extract the generic transition and retain preview's existing wrapper API.
-- [ ] Run the same command; expect PASS.
-- [ ] Commit both files as `couch: #160 share latest-wins async scheduling`.
+- [x] **RED — `advanceLatestSchedule`:** adversarial request/finish ordering and caller mutation → preserve payload and value ownership; guard concurrency with one running slot, one replaceable pending slot, and one cancellation latch. Existing `AdvancePreviewSchedule` behavior is the parity oracle.
+- [x] Run `go test ./cmd/internal/couchtty -run '^Test(AdvancePreviewSchedule|AdvanceLatestSchedule)' -count=1`; expect missing generic behavior.
+- [x] Extract the generic transition and retain preview's existing wrapper API.
+- [x] Run the same command; expect PASS.
+- [x] Commit both files as `couch: #160 share latest-wins async scheduling`.
 
 ## Chunk 2: Reducer and renderer
 
@@ -75,24 +75,24 @@ This is a keystroke UI path: input and paint perform no IO; one worker plus one 
 
 **Files:** Modify `cmd/internal/couchtty/menu.go`, `menu_test.go`, and `menu_async_test.go`.
 
-- [ ] **RED — `ReduceMenu` completion results:** adversarial asynchronous identity and slice ownership → stale work is inert and prior states remain immutable; guard mutation with exact frame/generation matching, owned notices, centralized invalidation, and deep cloning.
-- [ ] Run `go test ./cmd/internal/couchtty -run '^TestReduceMenuStartCompletionIdentity' -count=1`; expect missing completion vocabulary.
-- [ ] Implement completion request/result state and identity handling.
-- [ ] **RED — `reduceStartKey`:** arbitrary approved start-form key sequences → completion, field navigation, agent navigation, escape, and start submission remain unambiguous; guard authorization by leaving preview-token dispatch as the only start path.
-- [ ] Run `go test ./cmd/internal/couchtty -run '^TestReduceMenuStartCompletionInteraction' -count=1`; expect old key behavior.
-- [ ] Implement completion key transitions and update affected legacy expectations.
-- [ ] Run `go test ./cmd/internal/couchtty -run '^(TestReduceMenuStart|TestAdvancePreviewSchedule)' -count=1`; expect PASS.
-- [ ] Commit the three files as `couch: #160 add path completion reducer behavior`.
+- [x] **RED — `ReduceMenu` completion results:** adversarial asynchronous identity and slice ownership → stale work is inert and prior states remain immutable; guard mutation with exact frame/generation matching, owned notices, centralized invalidation, and deep cloning.
+- [x] Run `go test ./cmd/internal/couchtty -run '^TestReduceMenuStartCompletionIdentity' -count=1`; expect missing completion vocabulary.
+- [x] Implement completion request/result state and identity handling.
+- [x] **RED — `reduceStartKey`:** arbitrary approved start-form key sequences → completion, field navigation, agent navigation, escape, and start submission remain unambiguous; guard authorization by leaving preview-token dispatch as the only start path.
+- [x] Run `go test ./cmd/internal/couchtty -run '^TestReduceMenuStartCompletionInteraction' -count=1`; expect old key behavior.
+- [x] Implement completion key transitions and update affected legacy expectations.
+- [x] Run `go test ./cmd/internal/couchtty -run '^(TestReduceMenuStart|TestAdvancePreviewSchedule)' -count=1`; expect PASS.
+- [x] Commit the three files as `couch: #160 add path completion reducer behavior`.
 
 ### Task 4: Candidate presentation
 
 **Files:** Modify `cmd/internal/couchtty/menu_render.go` and `menu_render_test.go`.
 
-- [ ] **RED — `RenderMenuView`:** adversarial candidate text/count and terminal geometry → preserve controls, cursor, selection, truncation, and terminal bounds; guard layout with reserved fixed rows plus a selected-item viewport.
-- [ ] Run `go test ./cmd/internal/couchtty -run '^TestRenderMenuStartCompletion' -count=1`; expect absent candidates.
-- [ ] Implement the bounded start-frame candidate renderer using existing sanitation/clipping helpers.
-- [ ] Run `go test ./cmd/internal/couchtty -run '^(TestRenderMenuStartCompletion|TestRenderMenuCursorIntent|TestChooseMenuLayout)' -count=1`; expect PASS.
-- [ ] Commit both files as `couch: #160 render bounded path candidates`.
+- [x] **RED — `RenderMenuView`:** adversarial candidate text/count and terminal geometry → preserve controls, cursor, selection, truncation, and terminal bounds; guard layout with reserved fixed rows plus a selected-item viewport.
+- [x] Run `go test ./cmd/internal/couchtty -run '^TestRenderMenuStartCompletion' -count=1`; expect absent candidates.
+- [x] Implement the bounded start-frame candidate renderer using existing sanitation/clipping helpers.
+- [x] Run `go test ./cmd/internal/couchtty -run '^(TestRenderMenuStartCompletion|TestRenderMenuCursorIntent|TestChooseMenuLayout)' -count=1`; expect PASS.
+- [x] Commit both files as `couch: #160 render bounded path candidates`.
 
 ## Chunk 3: IO shell and delivery
 
@@ -100,31 +100,31 @@ This is a keystroke UI path: input and paint perform no IO; one worker plus one 
 
 **Files:** Create `cmd/internal/couchtty/console_completion.go` and `console_completion_test.go`; modify `console.go` and `console_menu.go`.
 
-- [ ] **RED — OS `DirectoryBatchReader`:** adversarial filesystem entry kinds and IO outcomes → emit only navigable directory facts without whole-directory retention; guard classification with target-following stat and each opened cursor with one close owner.
-- [ ] Run `go test ./cmd/internal/couchtty -run '^TestOSDirectoryBatchReader' -count=1`; expect absent seam.
-- [ ] Implement the bounded OS reader.
-- [ ] **RED — Console completion worker:** adversarial scheduling, cancellation, teardown, and error interleavings → one result/cleanup outcome per identity; guard concurrency with the shared scheduler and cleanup with joined terminal errors plus worker join.
-- [ ] Run `go test ./cmd/internal/couchtty -run '^TestConsoleCompletion' -count=1`; expect absent wiring.
-- [ ] Wire the reader/worker through Console's existing effect, result, repaint, and teardown paths.
-- [ ] Run `go test -race ./cmd/internal/couchtty -run '^(TestConsoleCompletion|TestOSDirectoryBatchReader)' -count=1`; expect PASS without races or leaks.
-- [ ] Commit the four files as `couch: #160 wire asynchronous directory completion`.
+- [x] **RED — OS `DirectoryBatchReader`:** adversarial filesystem entry kinds and IO outcomes → emit only navigable directory facts without whole-directory retention; guard classification with target-following stat and each opened cursor with one close owner.
+- [x] Run `go test ./cmd/internal/couchtty -run '^TestOSDirectoryBatchReader' -count=1`; expect absent seam.
+- [x] Implement the bounded OS reader.
+- [x] **RED — Console completion worker:** adversarial scheduling, cancellation, teardown, and error interleavings → one result/cleanup outcome per identity; guard concurrency with the shared scheduler and cleanup with joined terminal errors plus worker join.
+- [x] Run `go test ./cmd/internal/couchtty -run '^TestConsoleCompletion' -count=1`; expect absent wiring.
+- [x] Wire the reader/worker through Console's existing effect, result, repaint, and teardown paths.
+- [x] Run `go test -race ./cmd/internal/couchtty -run '^(TestConsoleCompletion|TestOSDirectoryBatchReader)' -count=1`; expect PASS without races or leaks.
+- [x] Commit the four files as `couch: #160 wire asynchronous directory completion`.
 
 ### Task 6: End-to-end behavior and docs
 
 **Files:** Modify `cmd/internal/couchtty/console_run_menu_test.go`, `README.md`, `atlas/couch.md`, the issue, and this plan.
 
-- [ ] **RED — Console run-loop completion:** arbitrary real key/event timing through fake stdin/host/filesystem → visible completion remains responsive and start remains token-authorized; guard the product boundary with the stateful fake and final rendered/reducer observations.
-- [ ] Run `go test ./cmd/internal/couchtty -run '^TestConsoleRunStartPathCompletion' -count=1`; expect missing end-to-end behavior.
-- [ ] Close integration gaps only at their owning seams.
-- [ ] Update README and `atlas/couch.md` with the shipped keys, behavior, bounds, and seam.
-- [ ] Run `go test ./cmd/internal/couchtty -count=1`, `go test ./... -count=1`, and `git diff --check`; expect PASS/clean.
-- [ ] Tick completed Task 1–6 rows, append issue verification/decisions, and commit as `couch: #160 document and verify path completion`.
+- [x] **RED — Console run-loop completion:** arbitrary real key/event timing through fake stdin/host/filesystem → visible completion remains responsive and start remains token-authorized; guard the product boundary with the stateful fake and final rendered/reducer observations.
+- [x] Run `go test ./cmd/internal/couchtty -run '^TestConsoleRunStartPathCompletion' -count=1`; expect missing end-to-end behavior.
+- [x] Close integration gaps only at their owning seams.
+- [x] Update README and `atlas/couch.md` with the shipped keys, behavior, bounds, and seam.
+- [x] Run `go test ./cmd/internal/couchtty -count=1`, `go test ./... -count=1`, and `git diff --check`; expect PASS/clean.
+- [x] Tick completed Task 1–6 rows, append issue verification/decisions, and commit as `couch: #160 document and verify path completion`.
 
 ### Task 7: SDLC close and publish
 
-- [ ] Inspect `git status --short`, `git diff main...HEAD --stat`, and `sdlc actual --issue 160`.
-- [ ] Run `sdlc close --issue 160 --verified 'go test ./cmd/internal/couchtty -count=1; go test ./... -count=1; git diff --check; live-loop fake-host completion coverage passes'`.
-- [ ] Apply the printed post-verdict protocol, rerun full verification after fixes, explicitly stage only inspected issue paths/sidecars, and commit the reviewed `codecomplete` anchor as `couch: #160 close path completion`.
+- [x] Inspect `git status --short`, `git diff main...HEAD --stat`, and `sdlc actual --issue 160`.
+- [x] Run `sdlc close --issue 160 --verified 'go test ./cmd/internal/couchtty -count=1; go test ./... -count=1; git diff --check; live-loop fake-host completion coverage passes'`.
+- [x] Apply the printed post-verdict protocol, rerun full verification after fixes, explicitly stage only inspected issue paths/sidecars, and commit the reviewed `codecomplete` anchor as `couch: #160 close path completion`.
 
 Post-publish commands are non-checkable because publishing archives this plan: run `sdlc pr`, `gh pr checks --watch`, and `sdlc merge --yes` on the expected feature branch; use `sdlc push --yes` only for an explicitly retained main topology. Verify main, clean status, published commit, and gate-reported `done`/archive state.
 
@@ -137,3 +137,18 @@ first revision. Applied its class-wide rule to every Task 1–6 test surface:
 `named function → one adversarial input class → one mechanical guard`. Removed
 all fixture enumerations, state matrices, field inventories, and procedural diff
 instructions while retaining exact RED/GREEN commands and architectural owners.
+
+### 2026-09-01 — close-review IO contract corrections
+
+Boundary review BR-1/BR-2 found that production discarded directory-close
+errors and the stateful fake did not enforce its declared batch bound. Added an
+injected close-capable directory cursor with joined errors, made the fake emit
+bounded observable chunks and errors, and pinned both contracts plus local
+Console error preservation under the race detector (`ARCH-MOCK`).
+
+### 2026-09-01 — preserve joined failures during cancellation
+
+Close-review round two showed BR-1 remained open because worker cancellation
+filtering discarded an entire joined error. Replaced broad `errors.Is`
+suppression with cancellation-leaf removal and added a Console regression where
+cancellation and close failure arrive together.

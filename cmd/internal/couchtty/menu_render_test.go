@@ -326,6 +326,32 @@ func TestRenderMenuCursorIntentUsesFinalFieldCells(t *testing.T) {
 	}
 }
 
+func TestRenderMenuStartCompletionBoundsSelectedViewportAndControls(t *testing.T) {
+	state := NewMenuState(menuThreads(), menuAddress("couch-one"))
+	state, _ = reduceKey(state, PanelKey{Kind: KeyCtrlSpace})
+	frame := &state.Frames[len(state.Frames)-1]
+	frame.Path = "src/"
+	frame.CompletionCandidates = []string{
+		"src/d00/", "src/d01/", "src/d02/", "src/d03/", "src/d04/", "src/d05/",
+		"src/d06/", "src/d07/", "src/d08/", "src/d09/", "src/\x1b[31md10/", "src/d11/",
+	}
+	frame.CompletionSelected = 10
+	frame.CompletionTruncated = true
+
+	view := RenderMenuView(state, 40, 10, time.Time{}, false)
+	plain := string(ansi.Strip([]byte(view.Body)))
+	lines := strings.Split(plain, "\r\n")
+	if len(lines) != 10 || !strings.Contains(plain, "path  src/") || !strings.Contains(plain, "agent ") || !strings.Contains(plain, "more matching directories") {
+		t.Fatalf("bounded completion controls = %q", plain)
+	}
+	if !strings.Contains(plain, "src/d10/") || strings.Contains(plain, "\x1b") || strings.Contains(plain, "src/d00/") {
+		t.Fatalf("selected sanitized viewport = %q", plain)
+	}
+	if view.Cursor == nil || view.Cursor.Row != 3 {
+		t.Fatalf("path cursor = %+v, want row 3", view.Cursor)
+	}
+}
+
 func TestClipMenuLineUsesTerminalColumns(t *testing.T) {
 	if got := clipMenuLine("ab界cd", 4); got != "ab界" {
 		t.Fatalf("clip = %q, want %q", got, "ab界")

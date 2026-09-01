@@ -206,22 +206,61 @@ func renderMenuFrame(state MenuState, frame MenuFrame, width, height int, now ti
 	case MenuFrameText:
 		return []string{clipMenuLine(menuItemLabel(frame.Action), width), "", clipMenuLine("> "+frame.Input, width)}
 	case MenuFrameStart:
-		pathMarker, agentMarker := "▸ ", "  "
-		if frame.FormField == MenuFieldAgent {
-			pathMarker, agentMarker = "  ", "▸ "
-		}
-		lines := []string{
-			clipMenuLine("start thread", width), "",
-			selectedMenuLine(pathMarker+"path  "+frame.Path, frame.FormField == MenuFieldPath, width),
-			selectedMenuLine(agentMarker+"agent "+frame.Agent+menuSourceSuffix(string(frame.PreviewAgentSource)), frame.FormField == MenuFieldAgent, width),
-		}
-		if frame.PreviewArgvSource != "" {
-			lines = append(lines, clipMenuLine("  args  "+string(frame.PreviewArgvSource), width))
-		}
-		return lines
+		return renderStartMenuFrame(state, frame, width, height)
 	default:
 		return []string{"menu unavailable"}
 	}
+}
+
+func renderStartMenuFrame(state MenuState, frame MenuFrame, width, height int) []string {
+	pathMarker, agentMarker := "▸ ", "  "
+	if frame.FormField == MenuFieldAgent {
+		pathMarker, agentMarker = "  ", "▸ "
+	}
+	lines := []string{
+		clipMenuLine("start thread", width), "",
+		selectedMenuLine(pathMarker+"path  "+frame.Path, frame.FormField == MenuFieldPath, width),
+	}
+	fixedRows := 4
+	if frame.PreviewArgvSource != "" {
+		fixedRows++
+	}
+	if frame.CompletionTruncated {
+		fixedRows++
+	}
+	if renderedMenuNotice(state) != "" {
+		fixedRows++
+	}
+	budget := max(height-fixedRows, 0)
+	if budget > len(frame.CompletionCandidates) {
+		budget = len(frame.CompletionCandidates)
+	}
+	selected := frame.CompletionSelected
+	if selected < 0 || selected >= len(frame.CompletionCandidates) {
+		selected = 0
+	}
+	start := selected - budget + 1
+	if start < 0 {
+		start = 0
+	}
+	if end := min(start+budget, len(frame.CompletionCandidates)); start < end {
+		for index := start; index < end; index++ {
+			isSelected := index == selected
+			marker := "  "
+			if isSelected {
+				marker = "▸ "
+			}
+			lines = append(lines, selectedMenuLine(marker+frame.CompletionCandidates[index], isSelected, width))
+		}
+	}
+	if frame.CompletionTruncated {
+		lines = append(lines, clipMenuLine("  … more matching directories", width))
+	}
+	lines = append(lines, selectedMenuLine(agentMarker+"agent "+frame.Agent+menuSourceSuffix(string(frame.PreviewAgentSource)), frame.FormField == MenuFieldAgent, width))
+	if frame.PreviewArgvSource != "" {
+		lines = append(lines, clipMenuLine("  args  "+string(frame.PreviewArgvSource), width))
+	}
+	return lines
 }
 
 func renderRootMenuFrame(state MenuState, frame MenuFrame, width, height int, now time.Time, color256 bool) []string {

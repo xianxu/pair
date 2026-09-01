@@ -1,12 +1,13 @@
 ---
 id: 000160
-status: working
+status: codecomplete
 deps: []
 github_issue:
 created: 2026-09-01
 updated: 2026-09-01
 estimate_hours: 3.60
 started: 2026-09-01T12:02:48-07:00
+actual_hours: N/A
 ---
 
 # Couch start path tab completion
@@ -186,14 +187,15 @@ and the existing Couch/Go architecture keeps familiarity at 1.0.
 
 ## Plan
 
-- [ ] Build the pure path query, bounded accumulator, and shared latest-wins scheduler.
-- [ ] Add completion identity, key transitions, invalidation, notices, and bounded rendering to the menu reducer.
-- [ ] Wire batched filesystem enumeration through the Console with a stateful fake and bounded worker schedule.
-- [ ] Exercise the real input loop, update README/Atlas, run full verification, and close through the SDLC gate.
+- [x] Build the pure path query, bounded accumulator, and shared latest-wins scheduler.
+- [x] Add completion identity, key transitions, invalidation, notices, and bounded rendering to the menu reducer.
+- [x] Wire batched filesystem enumeration through the Console with a stateful fake and bounded worker schedule.
+- [x] Exercise the real input loop, update README/Atlas, run full verification, and close through the SDLC gate.
 
 ## Log
 
 ### 2026-09-01
+- 2026-09-01: closed — go test -race ./cmd/internal/couchtty -run ^(TestConsoleCompletion|TestOSDirectoryBatchReader|TestFakeDirectoryBatchReader)$ -count=1; go test ./cmd/internal/couchtty -count=1; go test ./... -count=1; git diff --check; live Console run-loop fake-filesystem completion coverage passes; review verdict: SHIP
 
 Claimed the issue and entered planning. The operator approved a directories-only
 completion menu: `Tab` completes/cycles paths, `Up`/`Down` navigate fields when
@@ -223,6 +225,33 @@ named function, one adversarial input class, and one mechanical guard only.
 The third plan-quality round disposed PQ-1 as addressed. The reconciled 3.60h
 estimate was then derived with estimate-logic-v3.1 from the accepted scope; the
 calibration source reports stale, so the value is provisional.
+
+Implementation kept completion advisory behind the existing preview grant.
+The pure query/accumulator caps retained names at 200, the Console reads 128
+filesystem entries per batch behind an injected seam, and the generalized
+latest-wins scheduler admits one active plus one newest pending request
+(`ARCH-DRY`, `ARCH-PURE`, `ARCH-MOCK`, `ARCH-CONSTRAINTS`). Exact
+frame/generation matching rejects late results after edits or form lifetimes.
+
+Verification passed: `go test -race ./cmd/internal/couchtty -run
+'^(TestConsoleCompletion|TestOSDirectoryBatchReader)' -count=1`, `go test
+./cmd/internal/couchtty -count=1`, `go test ./... -count=1`, and `git diff
+--check`. The full-suite worktree prerequisite was generated with the declared
+runtime-bundle generator; the exhaustive artifact-source inventory was updated
+for the two new production files.
+
+The first close review returned FIX-THEN-SHIP with BR-1
+(`filesystem-terminal-error-propagation`) and BR-2
+(`external-double-contract-fidelity`). The OS seam now injects a close-capable
+cursor and joins terminal close failures; the stateful fake now chunks by the
+requested bound, records batch sizes, propagates configured errors, and drives
+a Console-level local-error assertion. Added the generalized prevention rule to
+`workshop/lessons.md` (`ARCH-MOCK`, `ARCH-CONSTRAINTS`).
+
+Close-review round two disposed BR-2 and kept BR-1 open: broad cancellation
+filtering erased a sibling close failure from `errors.Join`. The worker now
+removes only cancellation leaves and preserves all other terminal errors; a
+Console-level combined cancellation/close regression is green under `-race`.
 
 ## Revisions
 
