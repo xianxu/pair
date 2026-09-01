@@ -346,6 +346,13 @@ derived runtime output throughout the Core concepts and Task file lists. The
 lesson now states that mechanical boundary rule rather than only the first
 placeholder-name symptom (`ARCH-PURPOSE`).
 
+Close review round 3 disposed BR-4 and raised BR-5: the Console's framing-only
+`hostScan` used the observation-retaining `Screen.Feed`, accumulating focused
+actor output indefinitely. `Screen.FeedFraming` now gives every framing-only
+consumer an explicit non-retaining seam, and a sustained Console-output
+regression proves this path retains no observation parts (`ARCH-PURE`,
+`ARCH-CONSTRAINTS`).
+
 ## Revisions
 
 ### 2026-08-31T20:22:00-07:00 — close transport, framing, and acknowledgement ownership

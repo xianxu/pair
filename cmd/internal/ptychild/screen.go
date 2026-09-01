@@ -156,6 +156,21 @@ func (s *Screen) Feed(p []byte) {
 		return
 	}
 	s.observeNotifications(p)
+	s.feedFraming(p)
+}
+
+// FeedFraming consumes a chunk only for terminal state and sequence-boundary
+// tracking. Unlike Feed, it does not retain output for notification observers.
+// Use it when the caller already owns the bytes and only needs MidSequence and
+// the other screen-state answers.
+func (s *Screen) FeedFraming(p []byte) {
+	if len(p) == 0 {
+		return
+	}
+	s.feedFraming(p)
+}
+
+func (s *Screen) feedFraming(p []byte) {
 	buf := p
 	if len(s.pending) > 0 {
 		buf = append(s.pending, p...)

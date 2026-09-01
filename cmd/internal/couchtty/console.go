@@ -779,7 +779,7 @@ func (c *Console) repaint() { c.paintNow() }
 // of it.
 func (c *Console) writeChild(p []byte) {
 	c.mu.Lock()
-	c.hostScan.Feed(p)
+	c.hostScan.FeedFraming(p)
 	c.mu.Unlock()
 	_, _ = c.host.Write(p)
 }

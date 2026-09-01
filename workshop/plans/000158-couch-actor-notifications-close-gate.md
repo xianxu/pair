@@ -50,6 +50,22 @@ rounds:
           family: plan-code-traceability
           round: 2
       blocked: true
+    - "n": 3
+      timestamp: "2026-08-31T23:50:32-07:00"
+      agent: codex
+      dispose:
+        - id: BR-4
+          disposition: addressed
+          note: The committed Core concepts table now lists only tracked new or modified entities and explicitly classifies atlas/index.md and generated runtime mirrors as unchanged or derived outputs.
+          round: 3
+      findings:
+        - id: BR-5
+          severity: Critical
+          title: Console hostScan retains the entire active child output stream
+          detail: cmd/internal/couchtty/console.go:782 feeds the notification-buffering Screen used as hostScan but never drains TakeOutputParts; cmd/internal/ptychild/screen.go:229-329 therefore accumulates ordinary bytes indefinitely. This violates ARCH-CONSTRAINTS and the issue's bounded-memory contract. Give framing-only consumers a non-retaining seam or drain observations after every feed, and add a Console-level sustained-output regression that fails without the fix.
+          family: bounded-observer-state
+          round: 3
+      blocked: true
 ---
 
 # Gate ledger — pair#158 (boundary-review)
@@ -81,6 +97,17 @@ later rounds disposed of them. Generated — edit the gate, not this file.
 - **BR-4** [Critical] `plan-code-traceability` Core concepts table still marks unchanged generated and index files as modified
   workshop/plans/000158-couch-actor-notifications-plan.md:74 claims the runtime pair-notify mirror, runtime manifest, and atlas/index.md are modified, but none appears in the pinned range; the runtime assets are ignored generated files rather than tracked changes. This is the 2nd finding in family plan-code-traceability. Do not patch only this row: state and apply the rule that every Core concepts path/status must resolve against the committed boundary diff, separating tracked modified surfaces from unchanged indexes and derived ignored outputs.
 
+## Round 3 — 2026-08-31T23:50:32-07:00 (codex) — BLOCKED
+
+### Disposed
+
+- BR-4 — addressed — The committed Core concepts table now lists only tracked new or modified entities and explicitly classifies atlas/index.md and generated runtime mirrors as unchanged or derived outputs.
+
+### Raised
+
+- **BR-5** [Critical] `bounded-observer-state` Console hostScan retains the entire active child output stream
+  cmd/internal/couchtty/console.go:782 feeds the notification-buffering Screen used as hostScan but never drains TakeOutputParts; cmd/internal/ptychild/screen.go:229-329 therefore accumulates ordinary bytes indefinitely. This violates ARCH-CONSTRAINTS and the issue's bounded-memory contract. Give framing-only consumers a non-retaining seam or drain observations after every feed, and add a Console-level sustained-output regression that fails without the fix.
+
 ## Open findings
 
-- **BR-4** [Critical] `plan-code-traceability` Core concepts table still marks unchanged generated and index files as modified
+- **BR-5** [Critical] `bounded-observer-state` Console hostScan retains the entire active child output stream

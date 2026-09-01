@@ -1,5 +1,19 @@
 # Lessons
 
+## Adding retained observations changes every parser consumer contract
+
+`Screen.Feed` gained buffered notification observations, but an existing
+Console scanner used the same parser only to answer whether its byte stream was
+mid-sequence. Because that framing-only consumer never drained observations,
+ordinary focused output accumulated for the lifetime of the view.
+
+**Rule.** When a shared parser gains retained output, enumerate every feed
+consumer and classify it as observation-owning or framing-only. Give
+framing-only consumers an explicit non-retaining seam; do not rely on them to
+drain data they never requested. Add a sustained-input regression at each such
+production consumer and assert the retained observer state remains empty or
+bounded. Caught during #000158 close review round 3.
+
 ## Boundary tables must name delivered entities, not design placeholders
 
 A plan's Core concepts table retained the proposed `ReplayWindow` name and

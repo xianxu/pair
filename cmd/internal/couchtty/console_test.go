@@ -85,6 +85,20 @@ func setTestOps(con *Console, effect func(string, map[string]string) (any, error
 	})
 }
 
+func TestWriteChildDoesNotRetainFramingOnlyOutput(t *testing.T) {
+	host := hostty.NewFakeHost(ptychild.Size{Rows: 24, Cols: 80})
+	con := New(host, bytes.NewReader(nil))
+	chunk := bytes.Repeat([]byte("ordinary child output"), 1024)
+
+	for range 100 {
+		con.writeChild(chunk)
+	}
+
+	if parts := con.hostScan.TakeOutputParts(); len(parts) != 0 {
+		t.Fatalf("framing-only scanner retained %d output parts", len(parts))
+	}
+}
+
 func TestConsoleSwitchOperationUsesExactThreadAndRefusesStaleTarget(t *testing.T) {
 	f := newFixture(t, 24, 80)
 	other := ptychild.NewFakeChild(nil)

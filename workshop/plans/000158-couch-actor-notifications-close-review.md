@@ -181,3 +181,88 @@ The short-write regression would fail without BR-2’s count check. Pure codec/l
 7. Plan revision recommendations
 
 Append a `## Revisions` entry stating that a committed-range sweep found the bundled integration row conflated tracked modifications, unchanged indexes, and ignored derived outputs. Record the corrected classifications and apply that classification rule to every Core concepts row.
+
+---
+
+## Re-review — 2026-08-31T23:50:32-07:00 (REWORK)
+
+| field | value |
+|-------|-------|
+| issue | 158 — couch: actor notifications and attention routing |
+| repo | pair |
+| issue file | workshop/issues/000158-couch-actor-notifications.md |
+| boundary | whole-issue close |
+| milestone | — |
+| window | f93bd568361d3c26ac46ea487c607ff695407689..9328ba13e6d5b26de71aaf07fd636abfae882ab1 |
+| command | sdlc close --issue 158 |
+| reviewer | codex |
+| timestamp | 2026-08-31T23:50:32-07:00 |
+| verdict | REWORK |
+
+## Review
+
+```verdict
+verdict: REWORK
+confidence: high
+```
+
+The boundary delivers the intended notification pipeline with strong codec, replay, acknowledgement, real-PTY, and race coverage. BR-4 is addressed: the committed plan now distinguishes changed tracked entities from unchanged indexes and ignored generated assets. Shipping is blocked by one production memory-bound violation: the Console’s framing-only `hostScan` accumulates every active child byte indefinitely because the new observation output is never drained.
+
+1. Strengths
+
+- The shared codec centralizes sanitization, framing, and the 4 KiB limit in `cmd/internal/notifyosc/notification.go`, satisfying `ARCH-DRY`.
+- Replay removes notification spans even when ring retention bisects an envelope, with exhaustive retention-cut coverage.
+- `AttentionLedger` is a pure, bounded authority with tests for deduplication, eviction, acknowledgement races, and sequence rebasing (`ARCH-PURE`).
+- Stateful Console tests and real-PTY conformance cover focused and inactive exact-once delivery (`ARCH-MOCK`).
+- README and atlas changes document both the user-facing command and architectural byte path.
+
+2. Critical findings
+
+- `cmd/internal/couchtty/console.go:782` — `hostScan.Feed(p)` now invokes `Screen.observeNotifications`, which appends ordinary bytes to `outputParts`; this framing-only consumer never calls `TakeOutputParts`. Consequently, uninterrupted active-child output grows memory without bound at `cmd/internal/ptychild/screen.go:229` and `:325`, contradicting the issue’s bounded-memory operating envelope (`ARCH-CONSTRAINTS`).
+
+  Fix sketch: either give framing-only consumers a non-observing feed seam, or drain/discard observation parts after every `hostScan.Feed`. Add a Console-level regression that sends many ordinary chunks through `writeChild` and proves retained observer state remains bounded; it must fail before the fix.
+
+3. Important findings
+
+None.
+
+4. Minor findings
+
+None.
+
+5. Test coverage notes
+
+Focused tests passed:
+
+- `notifyosc`, `notifycmd`, `wrapcmd`, `ptychild`, `couchtty`, `couchcore`, `dispatcher`, and `termcmd`.
+- Race tests passed for `ptychild` and `couchtty`.
+- BR-2’s short-write fixes are reachable and pinned by direct tests for both production writers.
+- Missing coverage: no test exercises retained `hostScan.outputParts` under sustained ordinary Console output, which is why the unbounded growth passes the current suites.
+
+6. Architectural notes for upcoming work
+
+- `ARCH-DRY`: Pass; canonical encoding and sanitization have one owner.
+- `ARCH-PURE`: Pass; ledger and rendering projections remain pure, with IO at Console/runtime seams.
+- `ARCH-PURPOSE`: Pass; normalization, exact-once forwarding, local attention, and acknowledgement semantics are delivered.
+- `ARCH-MOCK`: Pass; production seams have stateful doubles plus real-PTY conformance.
+- `ARCH-CONSTRAINTS`: Flag; the framing-only `hostScan` silently violates the declared bounded-memory envelope.
+
+7. Plan revision recommendations
+
+Append a `## Revisions` entry explaining that introducing buffered notification observations changed the contract for every `Screen.Feed` consumer: observation consumers must drain parts, while framing-only consumers must use a non-retaining seam or explicitly discard them. Add the sustained Console-output regression to the verification strategy.
+
+```findings
+dispose:
+  - id: BR-4
+    disposition: addressed
+    note: |
+      The committed Core concepts table now lists only tracked new or modified entities and explicitly classifies atlas/index.md and generated runtime mirrors as unchanged or derived outputs.
+findings:
+  - id: new
+    severity: Critical
+    family: bounded-observer-state
+    title: |
+      Console hostScan retains the entire active child output stream
+    detail: |
+      cmd/internal/couchtty/console.go:782 feeds the notification-buffering Screen used as hostScan but never drains TakeOutputParts; cmd/internal/ptychild/screen.go:229-329 therefore accumulates ordinary bytes indefinitely. This violates ARCH-CONSTRAINTS and the issue's bounded-memory contract. Give framing-only consumers a non-retaining seam or drain observations after every feed, and add a Console-level sustained-output regression that fails without the fix.
+```

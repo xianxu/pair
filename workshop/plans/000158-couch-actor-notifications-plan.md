@@ -536,6 +536,19 @@
 
 ## Revisions
 
+### 2026-09-01T00:05:00-07:00 — separate observation from framing-only feeds
+
+**Reason:** close review BR-5 found that adding retained notification output to
+`Screen.Feed` changed the contract for every consumer. The Console's
+framing-only `hostScan` never drained those parts, so focused actor output grew
+without bound.
+
+**Delta:** `Screen.FeedFraming` is the explicit non-retaining seam for callers
+that only need terminal state and `MidSequence`; observation-owning child pumps
+continue to use `Feed` and drain `TakeOutputParts`. A Console-level sustained
+ordinary-output regression asserts that the framing-only scanner retains no
+output parts (`ARCH-PURE`, `ARCH-CONSTRAINTS`).
+
 ### 2026-08-31T23:51:00-07:00 — classify every declared path against the committed diff
 
 **Reason:** close review BR-4 found that the integration table bundled one
