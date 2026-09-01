@@ -31,34 +31,77 @@ Two read-only diagnostic exceptions remain as flags:
 - `couch --show <ref>` prints one current-repository thread by tag, path, or
   operator name.
 
+The public argv grammar is closed:
+
+| argv | result |
+|---|---|
+| `couch` | launch the TUI at `.` |
+| `couch <path>` | launch the TUI at that path |
+| `couch -- <path>` | launch a path whose spelling begins with `-` |
+| `couch --list` | print the global durable inventory |
+| `couch --show <ref>` | print one thread, resolving repository scope only from process CWD |
+| `couch --help` / `couch -h` | print public help without runtime initialization |
+| anything else | exit 2 with an argv error; do not initialize policy, storage, or actors |
+
+Every public flag form is exact: it cannot be combined with a path or another
+flag, repeated, or placed after a positional path. `--help` is valid only as
+the sole token. `--` accepts exactly one following non-empty path. An empty
+positional path fails. `--internal=<operation>`, a missing internal operation,
+and `--` within internal arguments fail rather than choosing another mode.
+Relative paths resolve from CWD; symlinks, repository subdirectories,
+non-repository directories, and existing non-directory paths retain the
+existing canonical Couch/Git resolution behavior and errors. A word matching a
+removed operation, such as `start`, is only a path and receives the same
+validation.
+
 `couch --help` documents only `couch [path]`, `--list`, `--show`, and help. It
 does not enumerate lifecycle actions or protocol endpoints. Park, resume,
 leave, switch, stop, name, and describe are TUI actions only; their existing
 typed operations remain the single in-process authority used by the TUI
 (`ARCH-DRY`, `ARCH-PURPOSE`).
 
-The few operations that genuinely cross a process boundary remain reachable
-through the hidden machine protocol `couch --internal <operation> [arguments]`.
+The one operation that genuinely crosses a process boundary remains reachable
+through the hidden machine protocol `couch --internal publish-description
+<text>`.
 This is the existing `couch` executable, not a new `couch-internal` binary.
-Normal help and user documentation omit `--internal`; Pair-owned hooks and
-launch/attach call sites use it explicitly. Internal resolution still derives
-from the typed Couch operation registry, so the new CLI projection does not
-create a parallel operation model (`ARCH-DRY`). Unknown internal operations,
-malformed flags, missing values, nonexistent paths, and extra public positional
-arguments fail nonzero with a local, actionable error.
+Normal help and user documentation omit `--internal`; the hosted agent
+description hook migrates from `couch publish-description <text>` to this exact
+form. The description may be the explicit empty argv value to clear it, and
+scope/tag still come only from `$COUCH_THREAD_SCOPE` and `$COUCH_THREAD_TAG`.
+Internal resolution first checks a deliberate whitelist containing only
+`publish-description`, then derives its schema and execution from the typed
+Couch operation registry. Adding a registry operation never exposes it through
+argv automatically (`ARCH-DRY`, `ARCH-PURPOSE`).
 
-Argument classification is a small pure parser: public flags are recognized
-before path launch, `--` permits a path beginning with `-`, and internal
-arguments are passed to the existing typed binder only after the hidden
-boundary is selected. IO, namespace acquisition, policy lookup, admission, and
-console construction stay in the current runtime shell (`ARCH-PURE`).
+Every typed operation has one allowed presentation:
 
-This is a startup/UI interaction. Parsing adds no filesystem scan or external
-process and must be negligible relative to existing Couch startup; the change
-must not move policy lookup, thread inventory work, or actor launch ahead of
-the first TUI response. Verification uses the injected runtime and existing
-stateful Couch fakes, plus an installed-command smoke for bare invocation
-(`ARCH-MOCK`, `ARCH-CONSTRAINTS`).
+| operation | allowed presentation |
+|---|---|
+| `list` | public `--list` diagnostic |
+| `show` | public `--show <ref>` diagnostic |
+| `publish-description` | hidden process protocol only |
+| `prepare-start`, `start`, `attach`, `switch`, `park`, `resume`, `leave`, `stop`, `name`, `describe` | TUI/in-process dispatch only; never argv-reachable |
+
+Current documentation and tests for old `start`, `list`, `show`, `resume`, and
+lifecycle command forms migrate to the table above rather than remaining as
+aliases. Root launch no longer accepts `--agent` or `--no-console`: agent choice
+belongs to Couch/Pair defaults and the TUI's start-thread flow, while a bare or
+path launch without terminal stdin/stdout exits nonzero before policy lookup or
+actor creation. Installed-command smoke runs under a real PTY.
+
+Argument classification is a small pure parser returning one closed result:
+`Launch{Path}`, `List`, `Show{Ref}`, `Internal{Operation, Args}`, `Help`, or
+`ParseError`. Internal arguments are passed to the existing typed binder only
+after the whitelist boundary is selected. IO, namespace acquisition, policy
+lookup, admission, and console construction stay in the current runtime shell
+(`ARCH-PURE`).
+
+This is a startup/UI interaction. Parsing is pure, allocation-bounded by the
+small argv vector, linear in argv bytes, and adds no filesystem scan or external
+process. The change must not move policy lookup, thread inventory work, or actor
+launch ahead of the existing TUI startup point. Verification uses the injected
+runtime and existing stateful Couch fakes, plus an installed-command smoke for
+bare invocation (`ARCH-MOCK`, `ARCH-CONSTRAINTS`).
 
 ## Done when
 
@@ -90,3 +133,19 @@ The operator selected a TUI-first surface: `couch [path]`, with `--list` and
 separate `couch-internal` executable. Necessary cross-process operations live
 behind an undocumented `--internal` flag; all user lifecycle actions remain in
 the TUI.
+
+## Revisions
+
+### 2026-09-01T09:18:00-07:00 — close the argv and operation projections
+
+**Reason:** fresh-context spec review found that the first draft did not
+enumerate the internal whitelist, current caller migration, removed launch
+options, parser precedence, path behavior, or non-terminal startup.
+
+**Delta:** the spec now gives closed argv and operation-presentation tables;
+whitelists only `publish-description` for hidden process invocation; removes
+`--agent` and `--no-console`; makes non-terminal launch fail before effects;
+defines path/flag precedence and canonical-resolution ownership; and names the
+pure parser's finite result variants. These enumerations make the central
+public/internal projection exhaustively testable (`ARCH-PURPOSE`, `ARCH-PURE`,
+`ARCH-CONSTRAINTS`).
