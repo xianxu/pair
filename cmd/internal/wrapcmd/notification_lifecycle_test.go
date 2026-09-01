@@ -37,6 +37,47 @@ func TestNotificationLifecycleRapidSubmissionsOpenDistinctTurns(t *testing.T) {
 	}
 }
 
+func TestNotificationLifecycleCompletionSourcesNotifyAtMostOnceInEitherOrder(t *testing.T) {
+	for _, order := range [][]ObservationKind{
+		{ObservationNativeCompletion, ObservationMarkerCompletion},
+		{ObservationMarkerCompletion, ObservationNativeCompletion},
+	} {
+		state, _ := Reduce(NotificationLifecycle{}, TurnObservation{Kind: ObservationUserSubmission})
+		notifications := 0
+		for _, kind := range order {
+			var decision LifecycleDecision
+			state, decision = Reduce(state, TurnObservation{Kind: kind, Message: "done"})
+			if decision.Notify {
+				notifications++
+			}
+		}
+		if notifications != 1 {
+			t.Fatalf("order %v emitted %d notifications", order, notifications)
+		}
+	}
+}
+
+func TestNotificationLifecycleKeyedTurnsRejectMismatchedTerminals(t *testing.T) {
+	state, _ := Reduce(NotificationLifecycle{}, TurnObservation{Kind: ObservationTranscriptStarted, TurnID: "one"})
+	state, wrong := Reduce(state, TurnObservation{Kind: ObservationTranscriptCompletion, TurnID: "two", Message: "wrong"})
+	if wrong.Notify {
+		t.Fatalf("mismatched terminal notified: %+v", wrong)
+	}
+	state, _ = Reduce(state, TurnObservation{Kind: ObservationTranscriptStarted, TurnID: "two"})
+	_, right := Reduce(state, TurnObservation{Kind: ObservationTranscriptCompletion, TurnID: "two", Message: "right"})
+	if !right.Notify || right.Message != "right" {
+		t.Fatalf("new keyed turn completion = %+v", right)
+	}
+}
+
+func TestNotificationLifecycleAbortHasDistinctFallbackOutcome(t *testing.T) {
+	state, _ := Reduce(NotificationLifecycle{}, TurnObservation{Kind: ObservationTranscriptStarted, TurnID: "one"})
+	_, aborted := Reduce(state, TurnObservation{Kind: ObservationTranscriptAbort, TurnID: "one"})
+	if !aborted.Notify || aborted.Message == "" || aborted.Message == "agent finished working" {
+		t.Fatalf("abort outcome = %+v", aborted)
+	}
+}
+
 func TestNotificationLifecycleProgressStopWaitsForRicherMessage(t *testing.T) {
 	state, started := Reduce(NotificationLifecycle{}, TurnObservation{Kind: ObservationWorking})
 	if started.WatchdogToken == 0 {
@@ -108,4 +149,39 @@ func TestProxyLifecycleUsesOneOwnedResettableTimer(t *testing.T) {
 	if p.lifecycleTimerKind != ObservationUnknown || p.lifecycleTimerToken != 0 {
 		t.Fatalf("completed timer = kind %v token %d", p.lifecycleTimerKind, p.lifecycleTimerToken)
 	}
+}
+
+func FuzzNotificationLifecycleAtMostOncePerGeneration(f *testing.F) {
+	f.Add([]byte{0, 2, 3, 4, 5})
+	f.Add([]byte{6, 7, 8, 9, 1, 4})
+	f.Fuzz(func(t *testing.T, input []byte) {
+		state := NotificationLifecycle{}
+		notified := make(map[uint64]bool)
+		for _, raw := range input {
+			kind := ObservationKind(raw%byte(ObservationGraceExpired) + 1)
+			turnID := "turn-a"
+			if raw&0x80 != 0 {
+				turnID = "turn-b"
+			}
+			observation := TurnObservation{Kind: kind, TurnID: turnID, Message: "done"}
+			switch kind {
+			case ObservationWatchdogExpired:
+				observation.Token = state.WatchdogToken
+			case ObservationGraceExpired:
+				observation.Token = state.GraceToken
+			}
+			var decision LifecycleDecision
+			state, decision = Reduce(state, observation)
+			if !decision.Notify {
+				continue
+			}
+			if state.Generation == 0 {
+				t.Fatal("notification emitted without an opened generation")
+			}
+			if notified[state.Generation] {
+				t.Fatalf("generation %d notified more than once", state.Generation)
+			}
+			notified[state.Generation] = true
+		}
+	})
 }

@@ -697,6 +697,7 @@ var NonArtifactSources = []string{
 	"cmd/internal/workbenchshortcut/render_lua.go",
 	"cmd/internal/wrapcmd/composer_recognizers.go",
 	"cmd/internal/wrapcmd/harness_tty.go",
+	"cmd/internal/wrapcmd/notification_lifecycle.go",
 	"cmd/internal/wrapcmd/notification_rewriter.go",
 	"cmd/internal/wrapcmd/terminal_model.go",
 	"cmd/internal/zellijpane/zellijpane.go",

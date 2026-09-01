@@ -2,6 +2,7 @@ package wrapcmd
 
 import (
 	"bytes"
+	"io"
 	"os"
 	"path/filepath"
 	"testing"
@@ -136,6 +137,50 @@ func equalStrings(a, b []string) bool {
 }
 
 func TestProxyNativeNotificationCanonicalEmission(t *testing.T) {
+	for _, harness := range []string{"codex", "claude"} {
+		t.Run(harness, func(t *testing.T) {
+			dir := t.TempDir()
+			outer := filepath.Join(dir, "outer")
+			if err := os.WriteFile(outer, nil, 0o600); err != nil {
+				t.Fatal(err)
+			}
+			sidecar := filepath.Join(dir, "outer-path")
+			if err := os.WriteFile(sidecar, []byte(outer+"\n"), 0o600); err != nil {
+				t.Fatal(err)
+			}
+			var stdout bytes.Buffer
+			now := time.Unix(1_800_000_000, 0)
+			f := newHarnessSessionFake(t, harness, true)
+			t.Cleanup(f.close)
+			p := f.proxy
+			p.notifyModeActive = "native"
+			p.outerTTYFile = sidecar
+			p.stdoutPump = newStdoutPump(&stdout)
+			p.lastSlug = now
+			p.now = func() time.Time { return now }
+			p.lifecycleEvents = make(chan TurnObservation, 2)
+			if harness == "codex" {
+				f.output(codexLiveComposerPaint())
+			} else {
+				f.output(claudeLiveComposerPaint())
+			}
+			_ = f.altEnter()
+			p.processLifecycleObservation(<-p.lifecycleEvents)
+
+			p.handleChunk([]byte("a\x1b]777;notify;Agent;needs input\x07b"), &f.rolling)
+			p.flushStdout("test")
+			written, err := os.ReadFile(outer)
+			if err != nil {
+				t.Fatal(err)
+			}
+			if string(written) != "\x1b]777;notify;pair;needs input\x07" {
+				t.Fatalf("outer = %q", written)
+			}
+		})
+	}
+}
+
+func TestProxyProgressOpenedNativeNotificationCanonicalEmission(t *testing.T) {
 	dir := t.TempDir()
 	outer := filepath.Join(dir, "outer")
 	if err := os.WriteFile(outer, nil, 0o600); err != nil {
@@ -145,27 +190,16 @@ func TestProxyNativeNotificationCanonicalEmission(t *testing.T) {
 	if err := os.WriteFile(sidecar, []byte(outer+"\n"), 0o600); err != nil {
 		t.Fatal(err)
 	}
-	var stdout bytes.Buffer
 	now := time.Unix(1_800_000_000, 0)
-	p := &proxy{
-		agentBasename:    "claude",
-		notifyModeActive: "native",
-		outerTTYFile:     sidecar,
-		stdoutPump:       newStdoutPump(&stdout),
-		lastSlug:         now,
-		now:              func() time.Time { return now },
-	}
+	p := &proxy{notifyModeActive: "native", outerTTYFile: sidecar, stdoutPump: newStdoutPump(io.Discard), lastSlug: now, now: func() time.Time { return now }}
 	rolling := []byte(nil)
-	p.handleChunk([]byte("\x1b]9;4;3\x07a\x1b]777;notify;Claude;needs input\x07b"), &rolling)
+	p.handleChunk([]byte("\x1b]9;4;3;\x07\x1b]777;notify;Agent;done\x07"), &rolling)
 	p.flushStdout("test")
-	if stdout.String() != "\x1b]9;4;3\x07ab" {
-		t.Fatalf("stdout = %q", stdout.String())
-	}
 	written, err := os.ReadFile(outer)
 	if err != nil {
 		t.Fatal(err)
 	}
-	if string(written) != "\x1b]777;notify;pair;needs input\x07" {
+	if string(written) != "\x1b]777;notify;pair;done\x07" {
 		t.Fatalf("outer = %q", written)
 	}
 }

@@ -1781,9 +1781,6 @@ func (p *proxy) emitPlainCR(out []byte) []byte {
 	}
 	decision := decidePlainReturn(*p.ttyProfile, overlayActive, snapshot)
 	p.adapt.Log(1, "return-remap", decision.outcome, decision.reason)
-	if len(decision.bytes) == 1 && decision.bytes[0] == '\r' {
-		p.publishLifecycleObservation(TurnObservation{Kind: ObservationUserSubmission})
-	}
 	return append(out, decision.bytes...)
 }
 
@@ -1832,6 +1829,7 @@ func (p *proxy) translateChunk(data []byte, inPaste bool) ([]byte, []byte, bool)
 			// KKP Alt+Enter: \x1b[13;3u → send.
 			if startsWith(data[i:], enterKKPAlt) {
 				out = append(out, p.ttyProfile.keymap.altCR...)
+				p.publishLifecycleObservation(TurnObservation{Kind: ObservationUserSubmission})
 				i += len(enterKKPAlt)
 				continue
 			}
@@ -1850,6 +1848,7 @@ func (p *proxy) translateChunk(data []byte, inPaste bool) ([]byte, []byte, bool)
 			// Legacy Alt+Enter: \x1b\r.
 			if startsWith(data[i:], enterLegacyAlt) {
 				out = append(out, p.ttyProfile.keymap.altCR...)
+				p.publishLifecycleObservation(TurnObservation{Kind: ObservationUserSubmission})
 				i += len(enterLegacyAlt)
 				continue
 			}

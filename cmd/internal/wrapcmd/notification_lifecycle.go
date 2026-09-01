@@ -110,11 +110,27 @@ func Reduce(state NotificationLifecycle, observation TurnObservation) (Notificat
 		}
 	case ObservationNativeCompletion, ObservationMarkerCompletion:
 		if state.Active && !state.Completed {
-			complete(observation.Message)
+			message := observation.Message
+			if message == "" {
+				message = "agent finished working"
+			}
+			complete(message)
 		}
-	case ObservationTranscriptCompletion, ObservationTranscriptAbort:
+	case ObservationTranscriptCompletion:
 		if state.Active && !state.Completed && observation.TurnID != "" && observation.TurnID == state.TurnID {
-			complete(observation.Message)
+			message := observation.Message
+			if message == "" {
+				message = "agent finished working"
+			}
+			complete(message)
+		}
+	case ObservationTranscriptAbort:
+		if state.Active && !state.Completed && observation.TurnID != "" && observation.TurnID == state.TurnID {
+			message := observation.Message
+			if message == "" {
+				message = "agent stopped with an error"
+			}
+			complete(message)
 		}
 	case ObservationWatchdogExpired:
 		if state.Active && state.ActivitySeen && observation.Token != 0 && observation.Token == state.WatchdogToken {

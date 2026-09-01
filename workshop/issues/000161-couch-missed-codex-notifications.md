@@ -150,6 +150,13 @@ total: 6.93
   reducer now deduplicates native/marker terminals per generation; Claude
   `OSC 9;4;3;` arms activity and `OSC 9;4;0;` enters a 250 ms richer-message
   grace, with a tokenized 60-second activity watchdog (`ARCH-PURE`, `ARCH-DRY`).
+- M2 boundary review reopened the milestone. The send boundary had been coupled
+  to a bare-CR encoding even though Pair's semantic send chord is Alt+Enter and
+  each harness owns its output bytes. RED production-flow tests now cover legacy
+  and KKP Alt+Enter for Codex and Claude, plain Enter non-submission, native
+  completion after a real send, source-order deduplication, keyed mismatch/new
+  turns, and distinct abort fallback. Added the lifecycle source to the
+  exhaustive artifact inventory (`ARCH-PURPOSE`).
 - 2026-09-01: closed M1 — Judgment actual: 0.25h because telemetry reported no transcript events. RED: Unicode grammar rejected Sautéed and production path emitted no OSC. GREEN: focused grammar/production/fuzz tests and go test ./cmd/internal/wrapcmd -count=1 pass; git diff --check clean. No atlas: pure regex bugfix with no new architectural surface and no atlas restatement of the old grammar.; review verdict: SHIP
 
 Captured from initial Couch dogfood testing. Codex finished work in Pair, but

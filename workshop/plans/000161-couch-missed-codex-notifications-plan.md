@@ -308,3 +308,17 @@ fixtures/parser support before release—never accepted by broad fallback parsin
   `sdlc milestone-close --issue 161 --milestone M4`.
 - [ ] Re-run `go test ./... -count=1 && git diff --check` from a clean worktree.
 - [ ] Close with `sdlc close --issue 161 --verified '<focused lifecycle, watcher concurrency, real TTY fixture, Couch projection, and full Go test evidence>'`; omit guessed actuals so the gate measures them.
+
+## Revisions
+
+### 2026-09-01 — reopen M2 after boundary review
+
+The first M2 implementation inferred submission from emitted bare-CR bytes,
+which confused harness-specific Return encoding with the semantic send action;
+its native regression then masked that missing opener with an unrelated progress
+event. Keep the lifecycle contract unchanged, but publish submission at both
+legacy and KKP Alt+Enter branches, explicitly keep plain Enter and overlay
+confirmation non-authoritative, and pin Codex/Claude send-to-native production
+flows. Expand the pure reducer sweep across completion-source order, keyed
+mismatch/new-turn behavior, and distinct abort fallback, and classify every new
+production source in the exhaustive artifact manifest.
