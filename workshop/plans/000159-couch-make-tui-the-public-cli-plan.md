@@ -82,7 +82,7 @@ Runtime constraints: `ParseCLI` is O(argv bytes), performs no IO, and allocates 
 **Files:**
 - Create: `cmd/couch/main_test.go`
 
-- [ ] **Step 1: Write the installed-command smoke and exact teardown**
+- [x] **Step 1: Write the installed-command smoke and exact teardown**
 
 Build `./cmd/couch` into `t.TempDir()`. Create executable fake `sdlc` and
 `pair` programs in a temporary PATH. Resolve the test repo's physical Git
@@ -112,7 +112,7 @@ already exited and cannot leak.
 Add the piped variant: bare invocation must reject non-terminal launch before
 either fake records a call.
 
-- [ ] **Step 2: Run the installed smoke and observe RED**
+- [x] **Step 2: Run the installed smoke and observe RED**
 
 ```bash
 go test -p 20 ./cmd/couch -run '^TestBareCouchInstalledCommand' -count=1 -v
@@ -137,7 +137,7 @@ must be included in Task 3's green commit, not bypassed or skipped.
 - Modify: `cmd/internal/couchtty/menu_async_test.go`
 - Modify: `cmd/internal/couchtty/console_menu_operation_test.go`
 
-- [ ] **Step 1: Write failing registry-projection tests**
+- [x] **Step 1: Write failing registry-projection tests**
 
 `Operations` presentation closure → an independent expectation asserts
 `list/show/publish-description` have their exact exceptional presentations,
@@ -149,7 +149,7 @@ the executor, while value-required validation remains pinned on
 menu/console tests prove path/agent enter prepare and only the token enters
 start.
 
-- [ ] **Step 2: Run the focused test and observe RED**
+- [x] **Step 2: Run the focused test and observe RED**
 
 ```bash
 go test -p 20 ./cmd/internal/couchcore -run 'Test(OperationDeclarations|OperationArity|OperationPresentation)' -count=1
@@ -157,14 +157,14 @@ go test -p 20 ./cmd/internal/couchcore -run 'Test(OperationDeclarations|Operatio
 
 Expected: FAIL because `OperationPresentation` and the field do not exist.
 
-- [ ] **Step 3: Implement the minimal registry and token-only handoff**
+- [x] **Step 3: Implement the minimal registry and token-only handoff**
 
 Add the non-authorizing presentation enum/field and assign declarations from the
 Spec table. Narrow start to its required implicit token and make
 `startMenuEffect` forward the accepted preview token; keep path/agent ownership
 on prepare-start.
 
-- [ ] **Step 4: Run the package and observe GREEN**
+- [x] **Step 4: Run the package and observe GREEN**
 
 ```bash
 go test -p 20 ./cmd/internal/couchcore ./cmd/internal/couchtty -run 'Test(Operation|Start|MenuPreview)' -count=1
