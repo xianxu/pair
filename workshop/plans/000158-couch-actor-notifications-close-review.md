@@ -266,3 +266,78 @@ findings:
     detail: |
       cmd/internal/couchtty/console.go:782 feeds the notification-buffering Screen used as hostScan but never drains TakeOutputParts; cmd/internal/ptychild/screen.go:229-329 therefore accumulates ordinary bytes indefinitely. This violates ARCH-CONSTRAINTS and the issue's bounded-memory contract. Give framing-only consumers a non-retaining seam or drain observations after every feed, and add a Console-level sustained-output regression that fails without the fix.
 ```
+
+---
+
+## Re-review — 2026-08-31T23:58:15-07:00 (SHIP)
+
+| field | value |
+|-------|-------|
+| issue | 158 — couch: actor notifications and attention routing |
+| repo | pair |
+| issue file | workshop/issues/000158-couch-actor-notifications.md |
+| boundary | whole-issue close |
+| milestone | — |
+| window | f93bd568361d3c26ac46ea487c607ff695407689..f8ab9e02a500bf52ecca2564017883de67356e9d |
+| command | sdlc close --issue 158 |
+| reviewer | codex |
+| timestamp | 2026-08-31T23:58:15-07:00 |
+| verdict | SHIP |
+
+## Review
+
+```verdict
+verdict: SHIP
+confidence: high
+```
+
+The pinned range fulfills issue #158’s Spec and Plan. BR-5 is addressed by a dedicated non-retaining framing seam and a reachable Console-level sustained-output regression. All requested package and race suites passed; no new blocking findings emerged.
+
+```findings
+dispose:
+  - id: BR-5
+    disposition: addressed
+    note: |
+      Console now uses FeedFraming, and the sustained-output regression directly proves hostScan retains no output parts.
+```
+
+1. Strengths
+
+- [console.go:780](/Users/xianxu/workspace/pair/cmd/internal/couchtty/console.go:780) uses `FeedFraming` for the framing-only host scanner.
+- [screen.go:153](/Users/xianxu/workspace/pair/cmd/internal/ptychild/screen.go:153) cleanly separates notification observation from terminal framing.
+- [console_test.go:88](/Users/xianxu/workspace/pair/cmd/internal/couchtty/console_test.go:88) exercises 100 sustained ordinary-output writes through the production Console path.
+- The Core concepts table matches the delivered entities and changed paths.
+- README and atlas changes document the new command, envelope, Couch routing, and attention UI.
+
+2. Critical findings
+
+None.
+
+3. Important findings
+
+None.
+
+4. Minor findings
+
+None.
+
+5. Test coverage notes
+
+- BR-5’s test is reachable and would fail with the former `c.hostScan.Feed(p)` call: ordinary bytes are appended to `Screen.outputParts`, making the assertion nonzero.
+- The production `Screen.Feed` owner in `ptychild.Child` drains `TakeOutputParts`; Console’s framing-only owner uses `FeedFraming`.
+- Passed the complete specified non-race package suite.
+- Passed race tests for `notifyosc`, `wrapcmd`, `ptychild`, and `couchtty`.
+- The focused BR-5 regression passed independently.
+- `bash -n bin/pair-notify` and `git diff --check` passed.
+
+6. Architectural notes for upcoming work
+
+- `ARCH-DRY`: Pass — the shared codec and Screen parser remain the singular framing/sanitization authorities.
+- `ARCH-PURE`: Pass — codec, ledger, rewriting, and framing logic are separated from thin IO owners.
+- `ARCH-PURPOSE`: Pass — normalized exact-once routing, bounded attention, acknowledgement, replay safety, UI presentation, and documentation are all delivered.
+- `ARCH-MOCK`: Pass — external TTY behavior uses injected/stateful fakes plus real-PTY conformance coverage.
+- `ARCH-CONSTRAINTS`: Pass — retained observer state, inbox size, malformed input, replay spans, and UI workload are bounded and tested.
+
+7. Plan revision recommendations
+
+None; the existing `## Revisions` entry accurately records BR-5’s cause, rule, and delivered fix.

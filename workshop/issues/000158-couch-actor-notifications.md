@@ -1,12 +1,13 @@
 ---
 id: 000158
-status: working
+status: codecomplete
 deps: [151]
 github_issue:
 created: 2026-08-31
 updated: 2026-08-31
 estimate_hours: 5.69
 started: 2026-08-31T20:07:23-07:00
+actual_hours: 3.30
 ---
 
 # couch: actor notifications and attention routing
@@ -279,6 +280,7 @@ total: 5.69
 ## Log
 
 ### 2026-08-31
+- 2026-08-31: closed — Full 12-package suite passed with -p 20 after the framing-only fix; focused race suite passed with -p 20; the sustained Console-output regression failed before FeedFraming and now passes; real-PTY notification conformance and M2 Max 100-actor performance targets previously passed; git diff --check passed.; review verdict: SHIP
 
 Operator selected an in-band terminal contract over a new IPC channel or a
 Pair-as-library refactor. Pair filters agent output once; Couch observes the

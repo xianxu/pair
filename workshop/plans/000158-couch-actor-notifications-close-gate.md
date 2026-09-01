@@ -66,6 +66,15 @@ rounds:
           family: bounded-observer-state
           round: 3
       blocked: true
+    - "n": 4
+      timestamp: "2026-08-31T23:58:15-07:00"
+      agent: codex
+      dispose:
+        - id: BR-5
+          disposition: addressed
+          note: Console now uses FeedFraming, and the sustained-output regression directly proves hostScan retains no output parts.
+          round: 4
+      blocked: false
 ---
 
 # Gate ledger — pair#158 (boundary-review)
@@ -108,6 +117,12 @@ later rounds disposed of them. Generated — edit the gate, not this file.
 - **BR-5** [Critical] `bounded-observer-state` Console hostScan retains the entire active child output stream
   cmd/internal/couchtty/console.go:782 feeds the notification-buffering Screen used as hostScan but never drains TakeOutputParts; cmd/internal/ptychild/screen.go:229-329 therefore accumulates ordinary bytes indefinitely. This violates ARCH-CONSTRAINTS and the issue's bounded-memory contract. Give framing-only consumers a non-retaining seam or drain observations after every feed, and add a Console-level sustained-output regression that fails without the fix.
 
+## Round 4 — 2026-08-31T23:58:15-07:00 (codex) — passed
+
+### Disposed
+
+- BR-5 — addressed — Console now uses FeedFraming, and the sustained-output regression directly proves hostScan retains no output parts.
+
 ## Open findings
 
-- **BR-5** [Critical] `bounded-observer-state` Console hostScan retains the entire active child output stream
+(none — every finding has been disposed)
