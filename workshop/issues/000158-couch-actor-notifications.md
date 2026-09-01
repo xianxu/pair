@@ -5,7 +5,7 @@ deps: [151]
 github_issue:
 created: 2026-08-31
 updated: 2026-08-31
-estimate_hours:
+estimate_hours: 5.69
 started: 2026-08-31T20:07:23-07:00
 ---
 
@@ -245,11 +245,36 @@ OSC bytes and Couch-local attention state.
 
 ## Plan
 
-- [ ] Write and approve the implementation plan.
+- [x] Write and approve the implementation plan.
 - [ ] Normalize Pair notification emission and add chunk-safe Couch observation.
 - [ ] Add bounded per-actor inbox state plus status/switcher presentation.
 - [ ] Verify byte-faithful forwarding, acknowledgement races, and operating
       bounds through pure, integration, conformance, and performance tests.
+
+## Estimate
+
+Produced via `brain/data/life/42shots/velocity/estimate-logic-v3.1.md` against
+`baseline-v3.1.md`. Method A only. `sdlc estimate-source` reports the calibration
+source as stale, so this estimate is provisional. Existing terminal, PTY,
+Console, and reducer seams were treated as available current-stack libraries;
+no greenfield terminal framework is budgeted.
+
+```estimate
+model: estimate-logic-v3.1
+familiarity: 1.0
+item: issue-spec design=0.80 impl=0.08
+item: greenfield-go-module design=0.40 impl=0.32
+item: smaller-go-module design=0.06 impl=0.20
+item: cross-cutting-refactor design=0.20 impl=0.20
+item: cross-cutting-refactor design=0.60 impl=0.20
+item: greenfield-go-module design=0.40 impl=0.32
+item: tui-screen design=0.40 impl=0.40
+item: smaller-go-module design=0.06 impl=0.20
+item: atlas-docs design=0.10 impl=0.08
+item: milestone-review design=0.08 impl=0.12
+design-buffer: 0.15
+total: 5.69
+```
 
 ## Log
 
@@ -261,6 +286,12 @@ normalized event on the actor PTY as a byte-faithful tee. The UI keeps stable
 actor order, colors the existing status-row label, nests up to three messages
 under the actor in the switcher, and makes `Ctrl-Space` + Enter the fast path to
 the newest unread source.
+
+The implementation plan cleared `sdlc change-code` plan-quality after its test
+strategy was expressed at named production-function boundaries. Estimate model
+v3.1 produced 5.69 ship-hours; estimate-quality passed with an INFO that the
+terminal/replay verification surface may make that optimistic. Branch
+`000158-couch-actor-notifications` was created in place.
 
 ## Revisions
 
