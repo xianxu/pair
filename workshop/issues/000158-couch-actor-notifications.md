@@ -28,12 +28,23 @@ the responsible actor.
 
 Pair remains the only agent-specific notification interpreter. Its wrapper
 recognizes native Claude, Codex, and other harness signals once and emits a
-normalized Pair-owned OSC notification envelope to the recorded outer TTY.
+normalized Pair-owned OSC notification envelope to Pair's recorded outer TTY.
 Couch does not repeat Pair's native OSC filter or learn agent-specific patterns;
 it observes only the normalized envelope on each actor's existing PTY stream
 (`ARCH-DRY`, `ARCH-PURE`). The initial canonical envelope is the existing
 `OSC 777;notify;pair;<message>` form supported by `pair-notify`. Pair's native,
 marker, idle, and hook-driven notification paths converge on the same encoder.
+
+The byte path is singular. When Pair runs under Couch, Pair's recorded outer TTY
+is the slave side of the actor PTY created by Couch; Pair's direct write bypasses
+its inner Zellij but arrives at Couch's actor-PTY master. When Pair runs directly
+under a terminal, the same write arrives at that terminal. Pair emits no second
+copy on its ordinary stdout. For a native actionable OSC, `pair-wrap` suppresses
+that recognized native notification from the inner Zellij stream and replaces
+it with the one normalized outer-TTY envelope. Unknown and non-actionable OSC
+continues transparently through the inner stream. Byte-faithfulness below means
+the normalized envelope and all unrecognized terminal output—not preservation
+of an agent-specific notification that Pair intentionally normalized.
 
 The envelope remains an ordinary standards-compatible terminal notification.
 Couch observes it as a tee and never swallows, rewrites, terminates, or
@@ -42,7 +53,9 @@ exactly once. Inactive actor output remains hidden, but Couch forwards the exact
 notification sequence to its own outer terminal while retaining the decoded
 message. Thus cmux, terminal badges, and future outer wrappers continue to see
 the signal regardless of which actor is focused. Unknown, unsupported, or
-malformed OSC remains byte-faithful terminal output and creates no Couch state.
+malformed OSC follows Couch's ordinary child-output rule—byte-faithful when the
+actor is focused and hidden with the rest of an inactive actor's output—and
+creates no Couch state.
 
 ### Ephemeral per-actor inbox
 
@@ -54,6 +67,14 @@ collapse in place to the newest occurrence rather than adding rows. Each
 accepted event receives a Console-local monotonic unread sequence so Couch can
 identify the source of the newest unread notification without consulting disk
 or wall time.
+
+Pair's encoder first bounds the normalized message to 4 KiB and removes C0/DEL
+control bytes that could terminate or inject a sequence. Couch decodes UTF-8,
+replaces invalid encodings, applies the existing terminal-control sanitizer,
+and uses exact equality of that sanitized, unclipped string for deduplication.
+Unicode is not otherwise normalized; width clipping happens only while
+rendering and never changes inbox identity. Repeated equality moves the retained
+message to newest position and assigns the new unread sequence.
 
 Notification state is deliberately ephemeral. It is never written to thread
 records, session inventory, or resume metadata. Actor exit, successful park,
@@ -79,23 +100,45 @@ row. Up/Down navigate actor rows, not message rows. Existing filter, stable
 identity, action-menu, and bounded-width rules continue to apply; notification
 children never become independent work-thread identities.
 
+Filtering continues to match the existing actor/thread row fields only. A
+notification is displayed when its parent actor row is present; notification
+text does not independently admit an otherwise filtered-out actor.
+
 Merely opening the switcher, selecting an actor, or attempting a switch does
-not acknowledge attention. Switch dispatch captures the actor's current unread
-sequence. Only successful focus transfer clears messages at or before that
-captured sequence. A failed switch clears nothing, and a notification arriving
-during the switch remains unread. After successful clearing, a later event
-highlights the actor again.
+not acknowledge attention. One pure `AttentionLedger`, owned under the Console
+mutex, is the sole authority for retained messages and unread sequences. Status
+rendering and switcher rendering receive projections from that ledger; the menu
+does not keep a parallel bell/inbox map. On switch dispatch, Console captures
+the target actor and its greatest current unread sequence in the existing
+operation origin. The existing successful `forceSwitch` completion is the only
+acknowledgement event: Console applies a pure conditional-clear transition to
+remove messages for that actor at or below the captured sequence, then repaints
+both consumers. Dispatch failure or focus failure applies no clear. A message
+sequenced after dispatch therefore survives a successful switch, and a later
+event highlights the actor again (`ARCH-PURE`).
 
 ### Operating envelope and failure behavior
 
 Notification parsing and state transition run incrementally on the existing
 child-output path. They perform no filesystem, transcript, subprocess, or
 network work and start no per-notification goroutine. State is bounded by three
-messages per attached actor; repeated events cannot grow it without limit.
+messages per attached actor; repeated events cannot grow it without limit. The
+framer reuses the existing 64 KiB partial-terminal-sequence bound. A canonical
+message is at most 4 KiB, so any candidate exceeding 64 KiB is invalid for Couch
+enrichment: the scanner stops buffering, continues framing in O(1) memory until
+BEL or ST, creates no inbox entry, and then resumes ordinary parsing. Focused
+bytes remain on the raw pass-through path; inactive invalid candidates remain
+hidden like other inactive output.
 Status-row repaint and `Ctrl-Space` selection use already-resident state and
-must not block on refresh or optional inventory work. Representative tests use
-up to 100 actor rows and require the keystroke-to-render path to remain inside
-the existing interactive switcher budget (`ARCH-CONSTRAINTS`).
+must not block on refresh or optional inventory work. The feature inherits
+#151's measured switcher envelope on the operator's M2 Max: with 100 actor rows
+at 120x40, opening produces its first frame within 50 ms p95 and selection,
+navigation, and render computation each complete within 16 ms p95 after 20
+warmups and across 200 samples. The fixture gives every actor three retained
+messages, so the bound covers 100 actors and 300 notification children. Portable
+tests retain allocation and no-I/O/no-goroutine assertions; target runs use the
+same baseline and four-worker co-tenancy protocol as `BenchmarkMenu100`
+(`ARCH-CONSTRAINTS`).
 
 Message text is untrusted terminal input. Framing must survive arbitrary PTY
 chunk boundaries, BEL and ST terminators, long or incomplete OSC, embedded
@@ -103,6 +146,11 @@ delimiter text, and control-byte attempts. Stored/rendered text is sanitized
 and clipped by the existing width-aware renderer, while the original envelope
 is forwarded byte-for-byte. Parser failure affects only Couch enrichment: it
 must never stall or corrupt the actor stream.
+
+Unread ordering uses a process-lifetime `uint64` sequence. If increment would
+wrap, the pure ledger rebases retained actor/message sequences to their stable
+relative ranks before accepting the event; ordering remains total rather than
+silently wrapping newest attention behind older attention.
 
 ### Verification strategy
 
@@ -149,3 +197,20 @@ normalized event on the actor PTY as a byte-faithful tee. The UI keeps stable
 actor order, colors the existing status-row label, nests up to three messages
 under the actor in the switcher, and makes `Ctrl-Space` + Enter the fast path to
 the newest unread source.
+
+## Revisions
+
+### 2026-08-31T20:22:00-07:00 — close transport, framing, and acknowledgement ownership
+
+**Reason:** fresh-context spec review found that the first draft did not state
+how Pair's outer-TTY write reaches Couch, whether native and normalized OSC could
+duplicate, how incomplete frames remain memory-bounded, or which authority
+performs sequence-qualified clearing.
+
+**Delta:** the spec now gives one exact PTY byte path and replacement rule for
+recognized native OSC; caps canonical messages at 4 KiB and reuses the 64 KiB
+O(1) skip-through-terminator rule; makes one Console-owned pure attention ledger
+feed status and switcher consumers; defines dispatch-to-success acknowledgement,
+sanitized-string equality, filter behavior, overflow rebasing, and #151's exact
+100-actor latency protocol (`ARCH-DRY`, `ARCH-PURE`, `ARCH-PURPOSE`,
+`ARCH-CONSTRAINTS`).
