@@ -124,6 +124,9 @@ func TestConsolePendingSubmitDispatchesAcceptedTokenOnce(t *testing.T) {
 				t.Fatal("menu effect dispatched without Console context")
 			}
 			got = append(got, call.Name+":"+call.Args["token"])
+			if call.Name == "start" && !reflect.DeepEqual(call.Args, map[string]string{"token": "accepted"}) {
+				t.Fatalf("start args = %#v, want accepted token only", call.Args)
+			}
 		case <-time.After(250 * time.Millisecond):
 			t.Fatalf("operation sequence = %v, want prepare-start then start", got)
 		}

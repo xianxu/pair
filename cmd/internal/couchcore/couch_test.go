@@ -1223,8 +1223,8 @@ func TestRefusedSpawnStartsNoProcess(t *testing.T) {
 }
 
 func TestSnapshotIsOnDiskWhileTheChildIsStillAlive(t *testing.T) {
-	// `couch start` blocks for the child's lifetime, so if Save happened after
-	// Wait a second shell running `couch list` would see nothing for the whole
+	// Couch owns the child for its lifetime, so if Save happened after Wait a
+	// second shell running `couch --list` would see nothing for the whole
 	// session -- which is most of the time.
 	env := newTestEnv(t, "/repo")
 	_, h := env.spawn(t, StartArgs{Worktree: "/repo"})

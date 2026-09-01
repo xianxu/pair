@@ -734,19 +734,8 @@ func reducePreviewResult(state MenuState, event MenuEvent) (MenuState, []MenuEff
 }
 
 func startMenuEffect(frame MenuFrame) MenuEffect {
-	path := frame.PreviewPath
-	if path == "" {
-		path = frame.Path
-		if path == "" {
-			path = "."
-		}
-	}
-	agent := frame.PreviewAgent
-	if agent == "" {
-		agent = frame.Agent
-	}
 	return MenuEffect{Operation: "start", Args: map[string]string{
-		"path": path, "agent": agent, "token": string(frame.PreviewToken),
+		"token": string(frame.PreviewToken),
 	}}
 }
 

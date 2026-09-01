@@ -464,7 +464,7 @@ and attempt identities, and start/resume land only after transactional terminal
 attach. A committed 100-row harness passes the M2 Max baseline plus two
 four-worker co-tenancy trials; clean-store operator smoke covers park, exact
 resume, Leave Couch, and terminal restoration. Raw lifecycle detail remains in
-`couch list/show`, not in the two-state switcher (ARCH-CONSTRAINTS, ARCH-DRY,
+`couch --list` / `couch --show`, not in the two-state switcher (ARCH-CONSTRAINTS, ARCH-DRY,
 ARCH-PURE, ARCH-PURPOSE).
 
 ## Log
@@ -924,6 +924,15 @@ and #155 native root through a read-only established Pair marker. Alt+d remains
 Pair-local detach and there is no Couch detach surface. The #151 menu can now
 consume these operations without inventing lifecycle semantics
 (ARCH-CONSTRAINTS, ARCH-DRY, ARCH-PURPOSE).
+
+### 2026-09-01 — pair#159 makes the TUI Couch's public interface
+
+Bare `couch` opens the current directory and `couch <path>` opens another path.
+Only `--list` and `--show <ref>` remain as public diagnostics; lifecycle and
+metadata actions live in the TUI's typed in-process dispatcher. The one hosted
+agent process boundary uses hidden `--internal publish-description`, so adding
+a typed operation cannot accidentally grow the public CLI (`ARCH-PURPOSE`,
+`ARCH-DRY`, `ARCH-CONSTRAINTS`).
 
 [pair#155 M1]: #pair-155-m1
 [pair#155 M2]: #pair-155-m2

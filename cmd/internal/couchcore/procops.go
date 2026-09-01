@@ -42,7 +42,7 @@ func (l Liveness) String() string {
 
 // ProcOps is the seam for out-of-process liveness.
 //
-// It exists because `couch start` blocks (the child inherits our stdio), so
+// It exists because Couch owns the child console, so
 // every read command runs in a SECOND process with no Handle. Liveness is
 // recomputed from the persisted {PID, Identity} pair rather than held in
 // memory, and Identity is a kernel start token so a recycled PID does not
@@ -55,7 +55,7 @@ type ProcOps interface {
 	// Identity returns the kernel start token, or an error if it could not be
 	// read -- which is NOT the same as the process being absent.
 	Identity(pid int) (string, error)
-	// Signal delivers sig to pid. couch stop has no Handle -- the process that
+	// Signal delivers sig to pid. TUI Stop has no Handle -- the process that
 	// spawned the child is a different one, blocked in Wait -- so stopping
 	// goes through the pid, guarded by the identity token.
 	Signal(pid int, sig os.Signal) error
@@ -118,7 +118,7 @@ func (OSProcOps) Signal(pid int, sig os.Signal) error {
 	return nil
 }
 
-// TermSignal is what `couch stop` sends: SIGTERM, so a child that wants to
+// TermSignal is what direct process stop sends: SIGTERM, so a child that wants to
 // clean up gets the chance. Nothing escalates to SIGKILL automatically -- an
 // agent mid-write is worse to truncate than to leave running.
 var TermSignal os.Signal = syscall.SIGTERM

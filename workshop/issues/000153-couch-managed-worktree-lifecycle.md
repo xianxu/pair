@@ -23,7 +23,7 @@ safe garbage collection.
 
 Provisioning is a typed response to a full admission key, not a fallback based
 on repository name. The lifecycle owner creates a worktree using the owning
-repo's declared strategy, returns its canonical path for ordinary `couch start`,
+repo's declared strategy, returns its canonical path for ordinary TUI start,
 and records enough provenance to distinguish couch-managed trees from user-made
 ones.
 

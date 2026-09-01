@@ -118,14 +118,17 @@ Generated-runtime coverage builds a temporary mirror from declared source
 inputs. The clean-bootstrap regression starts without `.git` or that mirror and
 proves the public test target generates it before every consumer.
 
-**The operation set is deliberately not listed here.** `couchcore.Operations()`
-is the closure-free capability schema: typed argument/result family, effect,
-confirmation, and execution owner. `DispatchOperation` validates a call and
-invokes exactly one injected direct-store or live-owner executor. Missing owner
-capability returns the typed #147 routing refusal; it never falls back to a
-second process. The console supplies exact-address switch/attach effects, while
-CLI and future advisor consume the same declarations. Run `couch --help`, which
-renders the declared set.
+`couchcore.Operations()` is the closure-free capability schema: typed
+argument/result family, effect, confirmation, execution owner, and presentation.
+`list` and `show` project only as public `--list` and `--show`; the hosted-agent
+hook `publish-description` projects only through hidden
+`couch --internal publish-description <text>`. `prepare-start`, `start`,
+`attach`, `switch`, `park`, `resume`, `leave`, `stop`, `name`, and `describe`
+are TUI/in-process operations. Adding a typed operation cannot expose argv
+without assigning a presentation. `DispatchOperation` validates a call and
+invokes exactly one injected direct-store or live-owner executor; missing owner
+capability returns the typed #147 routing refusal and never falls back to a
+second process.
 
 Start is a two-operation owner contract. Agent-facing `prepare-start` resolves
 canonical path, selected agent/argv and provenance, preference revision,
@@ -134,7 +137,7 @@ length-delimited fingerprint. It returns a 256-bit raw-URL token from an
 owner-local `StartGrantStore`; at most 16 issued-plus-consuming grants exist,
 unclaimed grants expire after five minutes, collision issuance stops after
 three draws, and consuming grants are never evicted. Tokens are in-memory and
-therefore invalid after owner restart. The public `couch start` command performs
+therefore invalid after owner restart. Root launch and the TUI start form perform
 that operation followed by implicit token-bound `start`; the latter claims the
 grant once, re-resolves and compares evidence, then removes it terminally after
 the attempt. Acquisition of owner authority remains separate from the
@@ -148,7 +151,7 @@ the agent child is never spawned by Go — zellij spawns it from a KDL layout, a
 `entrypoint.ValidRootMarkers` *defines* a valid pair install as having those
 layouts.
 
-**`couch start` IS the console (`pair#146` M2).** It allocates a pty per child,
+**Couch launch IS the console (`pair#146` M2).** It allocates a pty per child,
 puts the operator's terminal in raw mode, and routes bytes -- so it no longer
 hands the child its own stdio and blocks. The mechanism is shared with `pair term`
 rather than written twice: `cmd/internal/ptychild` (a child on a pty, its
@@ -157,10 +160,9 @@ bounded replay ring, the #127 query deny-list, one scanner over its output) and
 resizes, the control constants). See `atlas/architecture.md`, "The terminal
 plumbing is shared with couch".
 
-`--no-console` keeps the stdio-inheriting path, and announces itself loudly. It
-is not dead code kept for symmetry: it is the fallback if the tty layer
-misbehaves, which is why `ExecRunner` stays a live production path with a live
-conformance check behind it.
+Public launch requires terminal stdin and stdout before policy, store, lease, or
+actor work. The stdio runner remains an injected domain seam and live
+conformance target, but is no longer selected by public argv.
 
 **The pty is a CAPABILITY on a handle, not a second Runner signature.**
 `Runner.Start` is unchanged; a handle from `PtyRunner` additionally satisfies
@@ -326,11 +328,11 @@ on the same `{repo_scope, tag}`, reuses the exact saved working path, agent argv
 and established #155 native root, and read-only validates Pair's existing
 established address marker. It rechecks that root immediately before child
 effects. Verified park is cleared only after the exact Pair session registers;
-ambiguous execution remains occupied/unknown. `couch resume <ref>` is, alongside
-new-thread `start`, a singleton bootstrap entrypoint: after Leave Couch it takes
-the owner lease and terminal, resumes that exact thread, and makes it the new
-root console. It never creates an intervening actor whose admission could block
-the parked thread (ARCH-PURPOSE, ARCH-PURE).
+ambiguous execution remains occupied/unknown. TUI Resume, alongside new-thread
+`start`, is a singleton-owner operation: after a later Couch launch the
+switcher resumes that exact thread and makes it the root console. It never
+creates an intervening actor whose admission could block the parked thread
+(`ARCH-PURPOSE`, `ARCH-PURE`).
 
 Every hosted pane retains three identities with separate jobs: the pty handle
 routes bytes inside this console, `ActorID` addresses registry persistence and
@@ -474,7 +476,7 @@ ARCH-PURPOSE).
 ## Couch metadata and resolution
 
 Name, operator description, and agent-published summary are independent mutable
-fields on the revisioned ThreadRecord. `couch publish-description` is run by a
+fields on the revisioned ThreadRecord. `couch --internal publish-description` is run by a
 session with its exact `$COUCH_THREAD_SCOPE` and `$COUCH_THREAD_TAG`; it cannot
 resolve a mutable path/name or overwrite operator prose.
 
@@ -552,7 +554,7 @@ child inline and unseamed.
 
 ## Liveness is recomputed, never stored
 
-Because `couch start` blocks, every read command runs in a **second process**
+Because Couch owns the console, diagnostic flags run in a **second process**
 with no `Handle`. So `ActorRecord` persists `{PID, Identity}` where `Identity`
 is `procutil`'s kernel start token, and a reader recompares it: a recycled PID
 reports not-live because the token differs.

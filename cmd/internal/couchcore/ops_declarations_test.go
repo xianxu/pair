@@ -14,20 +14,21 @@ func TestOperationDeclarationsAreClosureFreeCompleteAndOwned(t *testing.T) {
 		effect       OperationEffect
 		confirmation OperationConfirmation
 		result       OperationResult
+		presentation OperationPresentation
 	}{
-		"prepare-start":       {ExecuteLiveOwner, EffectAuthority, ConfirmNone, ResultStartResolution},
-		"start":               {ExecuteLiveOwner, EffectProcess, ConfirmNone, ResultStart},
-		"list":                {ExecuteDirectStore, EffectRead, ConfirmNone, ResultThreadInventory},
-		"show":                {ExecuteDirectStore, EffectRead, ConfirmNone, ResultThreadInventory},
-		"stop":                {ExecuteLiveOwner, EffectProcess, ConfirmRequired, ResultStop},
-		"name":                {ExecuteDirectStore, EffectMetadata, ConfirmNone, ResultThread},
-		"describe":            {ExecuteDirectStore, EffectMetadata, ConfirmNone, ResultDescription},
-		"publish-description": {ExecuteDirectStore, EffectMetadata, ConfirmNone, ResultThread},
-		"switch":              {ExecuteLiveOwner, EffectConsole, ConfirmNone, ResultConsole},
-		"attach":              {ExecuteLiveOwner, EffectConsole, ConfirmNone, ResultConsole},
-		"park":                {ExecuteLiveOwner, EffectProcess, ConfirmRequired, ResultThread},
-		"leave":               {ExecuteLiveOwner, EffectProcess, ConfirmRequired, ResultConsole},
-		"resume":              {ExecuteLiveOwner, EffectProcess, ConfirmNone, ResultStart},
+		"prepare-start":       {ExecuteLiveOwner, EffectAuthority, ConfirmNone, ResultStartResolution, PresentationTUI},
+		"start":               {ExecuteLiveOwner, EffectProcess, ConfirmNone, ResultStart, PresentationTUI},
+		"list":                {ExecuteDirectStore, EffectRead, ConfirmNone, ResultThreadInventory, PresentationList},
+		"show":                {ExecuteDirectStore, EffectRead, ConfirmNone, ResultThreadInventory, PresentationShow},
+		"stop":                {ExecuteLiveOwner, EffectProcess, ConfirmRequired, ResultStop, PresentationTUI},
+		"name":                {ExecuteDirectStore, EffectMetadata, ConfirmNone, ResultThread, PresentationTUI},
+		"describe":            {ExecuteDirectStore, EffectMetadata, ConfirmNone, ResultDescription, PresentationTUI},
+		"publish-description": {ExecuteDirectStore, EffectMetadata, ConfirmNone, ResultThread, PresentationInternal},
+		"switch":              {ExecuteLiveOwner, EffectConsole, ConfirmNone, ResultConsole, PresentationTUI},
+		"attach":              {ExecuteLiveOwner, EffectConsole, ConfirmNone, ResultConsole, PresentationTUI},
+		"park":                {ExecuteLiveOwner, EffectProcess, ConfirmRequired, ResultThread, PresentationTUI},
+		"leave":               {ExecuteLiveOwner, EffectProcess, ConfirmRequired, ResultConsole, PresentationTUI},
+		"resume":              {ExecuteLiveOwner, EffectProcess, ConfirmNone, ResultStart, PresentationTUI},
 	}
 	for _, op := range Operations() {
 		expected, ok := want[op.Name]
@@ -36,9 +37,9 @@ func TestOperationDeclarationsAreClosureFreeCompleteAndOwned(t *testing.T) {
 			continue
 		}
 		delete(want, op.Name)
-		if op.Execution == ExecuteUnknown || op.Execution != expected.execution || op.Effect != expected.effect || op.Confirmation != expected.confirmation || op.Result != expected.result {
-			t.Errorf("%s declaration = execution %v effect %v confirmation %v result %v; want %+v",
-				op.Name, op.Execution, op.Effect, op.Confirmation, op.Result, expected)
+		if op.Execution == ExecuteUnknown || op.Presentation == PresentationUnknown || op.Execution != expected.execution || op.Effect != expected.effect || op.Confirmation != expected.confirmation || op.Result != expected.result || op.Presentation != expected.presentation {
+			t.Errorf("%s declaration = execution %v effect %v confirmation %v result %v presentation %v; want %+v",
+				op.Name, op.Execution, op.Effect, op.Confirmation, op.Result, op.Presentation, expected)
 		}
 		for _, arg := range op.Args {
 			if arg.ValueRequired && !arg.FlagOnly {

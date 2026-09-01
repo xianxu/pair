@@ -75,6 +75,19 @@ const (
 	ResultConsole
 )
 
+// OperationPresentation assigns every typed operation exactly one UI/process
+// home. Zero is deliberately invalid so a new operation cannot become argv
+// reachable merely by being added to the registry.
+type OperationPresentation uint8
+
+const (
+	PresentationUnknown OperationPresentation = iota
+	PresentationTUI
+	PresentationList
+	PresentationShow
+	PresentationInternal
+)
+
 // Operation is one thing couch can do. The terminal UI and the advisor are
 // both clients of this set; there is deliberately no second dispatch path, so
 // the operator's surface and the advisor's cannot drift apart.
@@ -86,6 +99,7 @@ type Operation struct {
 	Effect       OperationEffect
 	Confirmation OperationConfirmation
 	Result       OperationResult
+	Presentation OperationPresentation
 }
 
 // StartResult is what `start` returns before the caller waits on the child.
@@ -117,6 +131,7 @@ func Operations() []Operation {
 		{
 			Name: "prepare-start", Summary: "Resolve a start request and issue one owner-local authorization token",
 			Execution: ExecuteLiveOwner, Effect: EffectAuthority, Confirmation: ConfirmNone, Result: ResultStartResolution,
+			Presentation: PresentationTUI,
 			Args: []ArgSpec{
 				{Name: "path", Summary: "repo or subdirectory to start in (default: .)", Required: false},
 				{Name: "agent", Summary: "Pair agent to use instead of path/root history (--agent=<name>)", Required: false, FlagOnly: true, ValueRequired: true},
@@ -125,26 +140,20 @@ func Operations() []Operation {
 		{
 			Name: "start", Summary: "Start an agent on a peer repo (or a subdirectory of one)",
 			Execution: ExecuteLiveOwner, Effect: EffectProcess, Confirmation: ConfirmNone, Result: ResultStart,
+			Presentation: PresentationTUI,
 			Args: []ArgSpec{
-				// Optional, defaulting to "." in the start operation: `cd brain && couch
-				// start` is what makes brain home, which is the Spec's
-				// "whatever session couch launched in" delivered by convention
-				// rather than by couch knowing about brain (Decision 1).
-				{Name: "path", Summary: "repo or subdirectory to start in (default: .)", Required: false},
-				// A stray positional word must not be able to turn off a whole
-				// layer of terminal ownership.
-				{Name: "no-console", Summary: "inherit couch's stdio instead of allocating a pty (--no-console)", Required: false, FlagOnly: true},
-				{Name: "agent", Summary: "Pair agent to use instead of path/root history (--agent=<name>)", Required: false, FlagOnly: true, ValueRequired: true},
 				{Name: "token", Summary: "accepted start resolution from the live owner", Required: true, Implicit: true},
 			},
 		},
 		{
 			Name: "list", Summary: "List every durable work thread",
 			Execution: ExecuteDirectStore, Effect: EffectRead, Confirmation: ConfirmNone, Result: ResultThreadInventory,
+			Presentation: PresentationList,
 		},
 		{
 			Name: "show", Summary: "Show one work thread by tag, path, or name",
 			Execution: ExecuteDirectStore, Effect: EffectRead, Confirmation: ConfirmNone, Result: ResultThreadInventory,
+			Presentation: PresentationShow,
 			Args: []ArgSpec{
 				{Name: "ref", Summary: "thread tag, path, or operator-assigned name", Required: true},
 				{Name: "repo-scope", Summary: "repository scope derived from caller context", Required: true, Implicit: true},
@@ -153,11 +162,13 @@ func Operations() []Operation {
 		{
 			Name: "stop", Summary: "Signal an actor's child and forget it",
 			Execution: ExecuteLiveOwner, Effect: EffectProcess, Confirmation: ConfirmRequired, Result: ResultStop,
-			Args: []ArgSpec{{Name: "ref", Summary: "path or operator-assigned name", Required: true}},
+			Presentation: PresentationTUI,
+			Args:         []ArgSpec{{Name: "ref", Summary: "path or operator-assigned name", Required: true}},
 		},
 		{
 			Name: "name", Summary: "Give a work thread a short human name",
 			Execution: ExecuteDirectStore, Effect: EffectMetadata, Confirmation: ConfirmNone, Result: ResultThread,
+			Presentation: PresentationTUI,
 			Args: []ArgSpec{
 				{Name: "ref", Summary: "thread tag, path, or existing name", Required: true},
 				{Name: "name", Summary: "the new short name", Required: true},
@@ -167,6 +178,7 @@ func Operations() []Operation {
 		{
 			Name: "describe", Summary: "Read or set a work thread's operator description",
 			Execution: ExecuteDirectStore, Effect: EffectMetadata, Confirmation: ConfirmNone, Result: ResultDescription,
+			Presentation: PresentationTUI,
 			Args: []ArgSpec{
 				{Name: "ref", Summary: "thread tag, path, or name", Required: true},
 				{Name: "description", Summary: "omit to read the cached value", Required: false},
@@ -176,6 +188,7 @@ func Operations() []Operation {
 		{
 			Name: "publish-description", Summary: "Publish this session's own one-line summary (run by the agent inside its thread)",
 			Execution: ExecuteDirectStore, Effect: EffectMetadata, Confirmation: ConfirmNone, Result: ResultThread,
+			Presentation: PresentationInternal,
 			Args: []ArgSpec{
 				{Name: "description", Summary: "what this session is working on", Required: true},
 				{Name: "repo-scope", Summary: "exact thread scope from $COUCH_THREAD_SCOPE", Implicit: true},
@@ -185,6 +198,7 @@ func Operations() []Operation {
 		{
 			Name: "switch", Summary: "Switch the operator terminal to a hosted work thread",
 			Execution: ExecuteLiveOwner, Effect: EffectConsole, Confirmation: ConfirmNone, Result: ResultConsole,
+			Presentation: PresentationTUI,
 			Args: []ArgSpec{
 				{Name: "repo-scope", Summary: "exact hosted thread scope", Required: true, Implicit: true},
 				{Name: "tag", Summary: "exact hosted thread tag", Required: true, Implicit: true},
@@ -193,6 +207,7 @@ func Operations() []Operation {
 		{
 			Name: "attach", Summary: "Attach a newly started terminal to its durable work thread",
 			Execution: ExecuteLiveOwner, Effect: EffectConsole, Confirmation: ConfirmNone, Result: ResultConsole,
+			Presentation: PresentationTUI,
 			Args: []ArgSpec{
 				{Name: "repo-scope", Summary: "exact started thread scope", Required: true, Implicit: true},
 				{Name: "tag", Summary: "exact started thread tag", Required: true, Implicit: true},
@@ -201,6 +216,7 @@ func Operations() []Operation {
 		{
 			Name: "park", Summary: "Fully quit a work thread after verified Pair cleanup",
 			Execution: ExecuteLiveOwner, Effect: EffectProcess, Confirmation: ConfirmRequired, Result: ResultThread,
+			Presentation: PresentationTUI,
 			Args: []ArgSpec{
 				{Name: "ref", Summary: "thread tag, path, or name", Required: false},
 				{Name: "tag", Summary: "exact thread tag from trusted owner context", Implicit: true},
@@ -211,10 +227,12 @@ func Operations() []Operation {
 		{
 			Name: "leave", Summary: "Park every active work thread and leave Couch",
 			Execution: ExecuteLiveOwner, Effect: EffectProcess, Confirmation: ConfirmRequired, Result: ResultConsole,
+			Presentation: PresentationTUI,
 		},
 		{
 			Name: "resume", Summary: "Resume an exact verified-parked work thread",
 			Execution: ExecuteLiveOwner, Effect: EffectProcess, Confirmation: ConfirmNone, Result: ResultStart,
+			Presentation: PresentationTUI,
 			Args: []ArgSpec{
 				{Name: "ref", Summary: "thread tag, path, or name", Required: false},
 				{Name: "tag", Summary: "exact thread tag from trusted owner context", Implicit: true},

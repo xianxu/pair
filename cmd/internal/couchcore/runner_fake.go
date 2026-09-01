@@ -125,7 +125,7 @@ func (f *FakeRunner) start(dir string, argv, env []string, blocked bool) (Handle
 
 // AutoExit makes every subsequent Start return an already-exited child.
 //
-// It exists because `couch start` blocks on Handle.Wait for the child's
+// It exists because Couch launch waits on Handle.Wait for the child's
 // lifetime, which is right in production and makes a CLI test hang forever
 // against a fake that never finishes. Modelling "the child ran and exited" is
 // the honest way to drive that path.

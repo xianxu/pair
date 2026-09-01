@@ -5,7 +5,7 @@
 // if the session outlives the client then the work outlives the console, and
 // couch needs no daemon -- only deterministic re-entry. If it does not, the
 // daemon question reopens. `workshop/projects/couch.md` separately asserts
-// "`couch stop` is a kill, not a park", which is the same fact stated the other
+// "a direct SIGTERM is a kill, not TUI Park", which is the same fact stated the other
 // way round and has never been measured.
 //
 // It creates a throwaway session, kills the client, looks, and deletes the
@@ -52,7 +52,7 @@ func main() {
 		name string
 		sig  syscall.Signal
 	}{
-		{"SIGTERM (what `couch stop` sends)", syscall.SIGTERM},
+		{"SIGTERM (direct process stop)", syscall.SIGTERM},
 		{"SIGKILL (what a crashed console leaves behind)", syscall.SIGKILL},
 	} {
 		fmt.Printf("== killing the CLIENT with %s\n", step.name)
