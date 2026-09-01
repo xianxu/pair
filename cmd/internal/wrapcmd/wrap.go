@@ -256,9 +256,14 @@ type proxy struct {
 	now             func() time.Time // clock seam; defaults to time.Now (#59)
 
 	// OSC rate limiting
-	lastEmit             time.Time
-	notificationRewriter NotificationRewriter
-	writeTTY             func(fd int, p []byte) (int, error)
+	lastEmit              time.Time
+	notificationRewriter  NotificationRewriter
+	notificationLifecycle NotificationLifecycle
+	lifecycleEvents       chan TurnObservation
+	lifecycleTimer        *time.Timer
+	lifecycleTimerKind    ObservationKind
+	lifecycleTimerToken   uint64
+	writeTTY              func(fd int, p []byte) (int, error)
 	// pair-slug spawn debounce (#000027)
 	lastSlug time.Time
 
@@ -955,7 +960,12 @@ func (p *proxy) finalizeSpan() bool {
 	if p.endOfTurnRe != nil && p.endOfTurnRe.Match(text) {
 		msg := string(text)
 		p.debug("END-OF-TURN", msg)
-		p.emitOuter(msg)
+		// A finalized colored marker is itself positive activity evidence for
+		// older Claude versions which do not emit progress OSC.
+		if p.notificationLifecycle.Generation == 0 && !p.notificationLifecycle.Active {
+			p.processLifecycleObservation(TurnObservation{Kind: ObservationWorking})
+		}
+		p.processLifecycleObservation(TurnObservation{Kind: ObservationMarkerCompletion, Message: msg})
 	}
 	return true
 }
@@ -1771,6 +1781,9 @@ func (p *proxy) emitPlainCR(out []byte) []byte {
 	}
 	decision := decidePlainReturn(*p.ttyProfile, overlayActive, snapshot)
 	p.adapt.Log(1, "return-remap", decision.outcome, decision.reason)
+	if len(decision.bytes) == 1 && decision.bytes[0] == '\r' {
+		p.publishLifecycleObservation(TurnObservation{Kind: ObservationUserSubmission})
+	}
 	return append(out, decision.bytes...)
 }
 
@@ -2258,18 +2271,19 @@ func run(args []string, stdin io.Reader, stdout, stderr io.Writer) (int, error) 
 	stdinFile, _ := stdin.(*os.File)
 	stdoutFile, _ := stdout.(*os.File)
 	p := &proxy{
-		stdin:         stdin,
-		stdinFile:     stdinFile,
-		stdout:        stdout,
-		stdoutFile:    stdoutFile,
-		stderr:        stderr,
-		spans:         make(map[string]*spanEntry),
-		spanOrder:     list.New(),
-		idleS:         envDuration("PAIR_WRAP_IDLE_S", defaultIdleS),
-		captureWindow: envDuration("PAIR_WRAP_CAPTURE_S", defaultCaptureWindow),
-		debugLogPath:  os.Getenv("PAIR_WRAP_LOG"),
-		bellFallback:  envFlag("PAIR_WRAP_BELL_FALLBACK"),
-		now:           time.Now,
+		stdin:           stdin,
+		stdinFile:       stdinFile,
+		stdout:          stdout,
+		stdoutFile:      stdoutFile,
+		stderr:          stderr,
+		spans:           make(map[string]*spanEntry),
+		spanOrder:       list.New(),
+		idleS:           envDuration("PAIR_WRAP_IDLE_S", defaultIdleS),
+		captureWindow:   envDuration("PAIR_WRAP_CAPTURE_S", defaultCaptureWindow),
+		debugLogPath:    os.Getenv("PAIR_WRAP_LOG"),
+		bellFallback:    envFlag("PAIR_WRAP_BELL_FALLBACK"),
+		now:             time.Now,
+		lifecycleEvents: make(chan TurnObservation, 32),
 	}
 
 	// Argv: strip our own flags before resolving the command. argparse
@@ -2576,6 +2590,15 @@ func (p *proxy) masterPump() {
 	if p.idleS > 0 {
 		idleTimer.Reset(p.idleS)
 	}
+	lifecycleTimer := time.NewTimer(time.Hour)
+	if !lifecycleTimer.Stop() {
+		<-lifecycleTimer.C
+	}
+	p.lifecycleTimer = lifecycleTimer
+	defer func() {
+		p.stopLifecycleTimer()
+		p.lifecycleTimer = nil
+	}()
 
 	captureTick := time.NewTicker(50 * time.Millisecond)
 	defer captureTick.Stop()
@@ -2590,6 +2613,11 @@ func (p *proxy) masterPump() {
 
 	for {
 		select {
+		case <-lifecycleTimer.C:
+			kind, token := p.lifecycleTimerKind, p.lifecycleTimerToken
+			p.processLifecycleObservation(TurnObservation{Kind: kind, Token: token})
+		case observation := <-p.lifecycleEvents:
+			p.processLifecycleObservation(observation)
 		case ev, ok := <-ch:
 			if !ok {
 				p.traceWrap("master-read-end", nil)
@@ -2607,6 +2635,18 @@ func (p *proxy) masterPump() {
 				p.traceWrap("master-read-end", map[string]any{"error": ev.err.Error(), "normal": false})
 				return
 			}
+			// Submission is written before the child can causally produce this
+			// output, but the two pumps use separate channels. Drain already-
+			// queued boundaries before reducing output observations.
+			for {
+				select {
+				case observation := <-p.lifecycleEvents:
+					p.processLifecycleObservation(observation)
+				default:
+					goto lifecycleDrained
+				}
+			}
+		lifecycleDrained:
 			p.handleChunk(ev.data, &rolling)
 			if p.idleS > 0 {
 				// Stop+drain+reset is safe here because only this
@@ -2672,8 +2712,11 @@ func (p *proxy) handleChunk(data []byte, rolling *[]byte) {
 	}
 
 	rewritten := p.notificationRewriter.Feed(data, p.notifyModeActive == "native")
+	for _, observation := range rewritten.Observations {
+		p.processLifecycleObservation(observation)
+	}
 	for _, notification := range rewritten.Notifications {
-		p.emitOuter(notification.Message)
+		p.processLifecycleObservation(TurnObservation{Kind: ObservationNativeCompletion, Message: notification.Message})
 	}
 	if out := p.stdoutChunk(rewritten.Passthrough); len(out) > 0 {
 		if p.stdoutPump == nil {

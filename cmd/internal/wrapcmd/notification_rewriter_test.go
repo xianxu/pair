@@ -67,6 +67,39 @@ func TestNotificationRewriterEverySplit(t *testing.T) {
 	}
 }
 
+func TestNotificationRewriterProgressEverySplitPreservesBytesAndObservesState(t *testing.T) {
+	cases := []struct {
+		name  string
+		input []byte
+		want  ObservationKind
+	}{
+		{"working", []byte("a\x1b]9;4;3;\x07b"), ObservationWorking},
+		{"stopped", []byte("a\x1b]9;4;0;\x1b\\b"), ObservationStopped},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			for _, normalize := range []bool{false, true} {
+				for split := 0; split <= len(tc.input); split++ {
+					var r NotificationRewriter
+					var output []byte
+					var observations []TurnObservation
+					for _, chunk := range [][]byte{tc.input[:split], tc.input[split:]} {
+						got := r.Feed(chunk, normalize)
+						output = append(output, got.Passthrough...)
+						observations = append(observations, got.Observations...)
+					}
+					if !bytes.Equal(output, tc.input) {
+						t.Fatalf("normalize %v split %d changed bytes: got %q want %q", normalize, split, output, tc.input)
+					}
+					if len(observations) != 1 || observations[0].Kind != tc.want {
+						t.Fatalf("normalize %v split %d observations = %+v, want one %v", normalize, split, observations, tc.want)
+					}
+				}
+			}
+		})
+	}
+}
+
 func TestNotificationRewriterDisabledIsTransparent(t *testing.T) {
 	input := []byte("a\x1b]9;needs input\x07b")
 	var r NotificationRewriter
@@ -123,9 +156,9 @@ func TestProxyNativeNotificationCanonicalEmission(t *testing.T) {
 		now:              func() time.Time { return now },
 	}
 	rolling := []byte(nil)
-	p.handleChunk([]byte("a\x1b]777;notify;Claude;needs input\x07b"), &rolling)
+	p.handleChunk([]byte("\x1b]9;4;3\x07a\x1b]777;notify;Claude;needs input\x07b"), &rolling)
 	p.flushStdout("test")
-	if stdout.String() != "ab" {
+	if stdout.String() != "\x1b]9;4;3\x07ab" {
 		t.Fatalf("stdout = %q", stdout.String())
 	}
 	written, err := os.ReadFile(outer)

@@ -203,13 +203,13 @@ fixtures/parser support before release—never accepted by broad fallback parsin
 - Create: `cmd/internal/wrapcmd/notification_lifecycle_test.go`
 - Modify: `cmd/internal/wrapcmd/wrap.go`
 
-- [ ] Write failing `Reduce` tests according to the arbitrary observation-
+- [x] Write failing `Reduce` tests according to the arbitrary observation-
   sequence risk strategy and lifecycle transition contract above.
-- [ ] Run `go test ./cmd/internal/wrapcmd -run TestNotificationLifecycle -count=1`;
+- [x] Run `go test ./cmd/internal/wrapcmd -run TestNotificationLifecycle -count=1`;
   expect compile failure for missing lifecycle types.
-- [ ] Implement `Reduce` and its thin proxy event/timer integration exactly as
+- [x] Implement `Reduce` and its thin proxy event/timer integration exactly as
   specified by Core concepts and the lifecycle transition contract.
-- [ ] Run focused lifecycle/rewriter/marker tests; expect one same-turn
+- [x] Run focused lifecycle/rewriter/marker tests; expect one same-turn
   notification across source permutations and two distinct rapid turns.
 
 ### Task 3: Turn Claude progress OSC into activity observations
@@ -220,12 +220,12 @@ fixtures/parser support before release—never accepted by broad fallback parsin
 - Modify: `cmd/internal/wrapcmd/osc_test.go`
 - Modify: `cmd/internal/wrapcmd/wrap.go`
 
-- [ ] Write failing `NotificationRewriter.Feed` tests according to the arbitrary
+- [x] Write failing `NotificationRewriter.Feed` tests according to the arbitrary
   chunk/malformed OSC risk strategy above.
-- [ ] Implement `NotificationRewriter.Feed` progress observations and lifecycle
+- [x] Implement `NotificationRewriter.Feed` progress observations and lifecycle
   integration according to Core concepts.
-- [ ] Run `go test ./cmd/internal/wrapcmd -count=1`; expect PASS.
-- [ ] Commit `couch: #161 M2 unify notification lifecycle signals`, document
+- [x] Run `go test ./cmd/internal/wrapcmd -count=1`; expect PASS.
+- [x] Commit `couch: #161 M2 unify notification lifecycle signals`, document
   precedence/grace/timer ownership in the atlas, tick/log M2, and run
   `sdlc milestone-close --issue 161 --milestone M2`.
 

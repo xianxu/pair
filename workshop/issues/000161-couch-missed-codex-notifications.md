@@ -133,7 +133,7 @@ total: 6.93
 ## Plan
 
 - [x] M1 — Correct and regression-test Claude's Unicode marker-verb grammar.
-- [ ] M2 — Add the pure turn lifecycle reducer, semantic deduplication, Claude
+- [x] M2 — Add the pure turn lifecycle reducer, semantic deduplication, Claude
   OSC progress transitions, and activity-gated timers.
 - [ ] M3 — Extend the existing authorized Codex session watcher to tail the
   bound rollout and publish transcript completion observations to `pair-wrap`.
@@ -143,6 +143,13 @@ total: 6.93
 ## Log
 
 ### 2026-09-01
+- M2 implementation: RED covered absent lifecycle types, OSC progress at every
+  split in marker/native modes, one proxy-owned timer, resumed work cancelling
+  stale grace, and transcript start activating a submitted turn. GREEN:
+  `go test ./cmd/internal/wrapcmd -count=1` and `git diff --check`. The pure
+  reducer now deduplicates native/marker terminals per generation; Claude
+  `OSC 9;4;3;` arms activity and `OSC 9;4;0;` enters a 250 ms richer-message
+  grace, with a tokenized 60-second activity watchdog (`ARCH-PURE`, `ARCH-DRY`).
 - 2026-09-01: closed M1 — Judgment actual: 0.25h because telemetry reported no transcript events. RED: Unicode grammar rejected Sautéed and production path emitted no OSC. GREEN: focused grammar/production/fuzz tests and go test ./cmd/internal/wrapcmd -count=1 pass; git diff --check clean. No atlas: pure regex bugfix with no new architectural surface and no atlas restatement of the old grammar.; review verdict: SHIP
 
 Captured from initial Couch dogfood testing. Codex finished work in Pair, but

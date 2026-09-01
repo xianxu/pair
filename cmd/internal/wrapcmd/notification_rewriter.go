@@ -12,6 +12,7 @@ const notificationRewriteMaxPending = 64 << 10
 type RewriteResult struct {
 	Passthrough   []byte
 	Notifications []notifyosc.Notification
+	Observations  []TurnObservation
 }
 
 type NotificationRewriter struct {
@@ -21,9 +22,6 @@ type NotificationRewriter struct {
 }
 
 func (r *NotificationRewriter) Feed(chunk []byte, normalize bool) RewriteResult {
-	if !normalize {
-		return RewriteResult{Passthrough: append([]byte(nil), chunk...)}
-	}
 	buf := append(append([]byte(nil), r.pending...), chunk...)
 	r.pending = nil
 	var result RewriteResult
@@ -72,14 +70,39 @@ func (r *NotificationRewriter) Feed(chunk []byte, normalize bool) RewriteResult 
 		}
 		seq := buf[:size]
 		ps, body, ok := splitOSC(seq)
-		if message, actionable := nativeNotification(ps, body); ok && actionable {
-			result.Notifications = append(result.Notifications, notifyosc.Notification{Message: notifyosc.Sanitize([]byte(message))})
+		if observation, progress := progressObservation(ps, body); ok && progress {
+			result.Passthrough = append(result.Passthrough, seq...)
+			result.Observations = append(result.Observations, observation)
+		} else if message, actionable := nativeNotification(ps, body); ok && actionable {
+			if normalize {
+				result.Notifications = append(result.Notifications, notifyosc.Notification{Message: notifyosc.Sanitize([]byte(message))})
+			} else {
+				result.Passthrough = append(result.Passthrough, seq...)
+			}
 		} else {
 			result.Passthrough = append(result.Passthrough, seq...)
 		}
 		buf = buf[size:]
 	}
 	return result
+}
+
+func progressObservation(ps, body []byte) (TurnObservation, bool) {
+	if string(ps) != "9" || !bytes.HasPrefix(body, []byte("4;")) {
+		return TurnObservation{}, false
+	}
+	state := body[len("4;"):]
+	if i := bytes.IndexByte(state, ';'); i >= 0 {
+		state = state[:i]
+	}
+	switch string(state) {
+	case "3":
+		return TurnObservation{Kind: ObservationWorking}, true
+	case "0":
+		return TurnObservation{Kind: ObservationStopped}, true
+	default:
+		return TurnObservation{}, false
+	}
 }
 
 func rewriteOSCEnd(buf []byte) (size int, complete, malformed bool) {
