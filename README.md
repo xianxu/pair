@@ -345,7 +345,11 @@ every active actor sequentially, and returns to the parent shell only after all
 parks are verified. `Escape` clears the filter or returns to an attached actor;
 with no live actor, the switcher stays open and reports why. Press `ctrl-space` again from the
 switcher to open the path/agent start form; an empty path uses the existing `.`
-default. Colons and digits are
+default. In the path field, `Tab` asynchronously completes directories only:
+one match is inserted and multiple matches open a bounded menu. `Tab`/`↑↓`
+cycle that menu, `Enter` accepts, and `Escape` closes it. With the menu closed,
+`↑↓` moves between path and agent and `←→` selects the agent. Hidden directories
+appear only after a leading dot; directory symlinks remain navigable. Colons and digits are
 ordinary filter text—there is no command namespace or numbered jump mode.
 Slow start/park/resume actions show local progress, and validation or operation
 failures remain in the switcher banner. Unsupported or ambiguous lifecycle

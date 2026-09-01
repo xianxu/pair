@@ -199,6 +199,10 @@ func (c *Console) showMenu() {
 // Console's one sequential operation queue.
 func (c *Console) dispatchMenuEffects(effects []MenuEffect) {
 	for _, effect := range effects {
+		if effect.Completion != nil {
+			c.advanceMenuCompletion(latestScheduleEvent[CompletionRequest, CompletionIdentity]{Kind: latestRequested, Request: *effect.Completion})
+			continue
+		}
 		if effect.Preview != nil {
 			c.advanceMenuPreview(PreviewScheduleEvent{Kind: PreviewRequested, Request: *effect.Preview})
 			continue

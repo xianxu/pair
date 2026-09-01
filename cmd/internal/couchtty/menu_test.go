@@ -184,12 +184,12 @@ func TestReduceMenuStartFormKeepsStickyAgentAndOriginatingStack(t *testing.T) {
 	for _, r := range "/repo/one" {
 		state, _ = reduceKey(state, PanelKey{Kind: KeyRune, Rune: r})
 	}
-	state, _ = reduceKey(state, PanelKey{Kind: KeyTab})
+	state, _ = reduceKey(state, PanelKey{Kind: KeyDown})
 	state, _ = reduceKey(state, PanelKey{Kind: KeyRight})
 	if frame := state.CurrentFrame(); frame.Agent != "codex" || !frame.AgentSticky || frame.FormField != MenuFieldAgent {
 		t.Fatalf("explicit agent choice = %+v", frame)
 	}
-	state, _ = reduceKey(state, PanelKey{Kind: KeyTab})
+	state, _ = reduceKey(state, PanelKey{Kind: KeyUp})
 	state, _ = reduceKey(state, PanelKey{Kind: KeyBackspace})
 	if frame := state.CurrentFrame(); frame.Agent != "codex" || !frame.AgentSticky || frame.Path != "/repo/on" {
 		t.Fatalf("path edit lost sticky agent = %+v", frame)
@@ -198,6 +198,74 @@ func TestReduceMenuStartFormKeepsStickyAgentAndOriginatingStack(t *testing.T) {
 	state, _ = reduceKey(state, PanelKey{Kind: KeyEscape})
 	if !reflect.DeepEqual(state.Frames, origin) {
 		t.Fatalf("originating stack = %+v, want %+v", state.Frames, origin)
+	}
+}
+
+func TestReduceMenuStartCompletionInteractionOwnsKeys(t *testing.T) {
+	state := NewMenuState(menuThreads(), menuAddress("couch-one"))
+	state.Agents = []string{"claude", "codex"}
+	state.RootAgent = "claude"
+	state, _ = reduceKey(state, PanelKey{Kind: KeyCtrlSpace})
+	state, _ = reduceKey(state, PanelKey{Kind: KeyRune, Rune: 's'})
+	state, effects := reduceKey(state, PanelKey{Kind: KeyTab})
+	result := CompletionResult{
+		Identity: state.CurrentFrame().CompletionRequest,
+		Matches:  CompletionMatches{Paths: []string{"sample/", "src/"}},
+	}
+	state, effects = ReduceMenu(state, MenuEvent{Kind: MenuEventCompletionResult, Completion: &result})
+	if len(effects) != 0 || state.CurrentFrame().CompletionSelected != 0 || !reflect.DeepEqual(state.CurrentFrame().CompletionCandidates, result.Matches.Paths) {
+		t.Fatalf("completion menu = state %+v effects %+v", state, effects)
+	}
+	state, _ = reduceKey(state, PanelKey{Kind: KeyTab})
+	if state.CurrentFrame().CompletionSelected != 1 {
+		t.Fatalf("Tab selection = %+v", state.CurrentFrame())
+	}
+	state, _ = reduceKey(state, PanelKey{Kind: KeyDown})
+	if state.CurrentFrame().CompletionSelected != 0 || state.CurrentFrame().FormField != MenuFieldPath {
+		t.Fatalf("Down selection = %+v", state.CurrentFrame())
+	}
+	state, _ = reduceKey(state, PanelKey{Kind: KeyUp})
+	if state.CurrentFrame().CompletionSelected != 1 {
+		t.Fatalf("Up selection = %+v", state.CurrentFrame())
+	}
+	state, effects = reduceKey(state, PanelKey{Kind: KeyEnter})
+	if len(effects) != 0 || state.CurrentFrame().Path != "src/" || len(state.CurrentFrame().CompletionCandidates) != 0 {
+		t.Fatalf("accepted candidate = state %+v effects %+v", state, effects)
+	}
+
+	state, _ = reduceKey(state, PanelKey{Kind: KeyDown})
+	if state.CurrentFrame().FormField != MenuFieldAgent {
+		t.Fatalf("Down did not focus agent: %+v", state.CurrentFrame())
+	}
+	state, _ = reduceKey(state, PanelKey{Kind: KeyRight})
+	if state.CurrentFrame().Agent != "codex" {
+		t.Fatalf("Right did not select agent: %+v", state.CurrentFrame())
+	}
+	state, _ = reduceKey(state, PanelKey{Kind: KeyUp})
+	if state.CurrentFrame().FormField != MenuFieldPath {
+		t.Fatalf("Up did not focus path: %+v", state.CurrentFrame())
+	}
+}
+
+func TestReduceMenuStartCompletionEscapeAndImmediateDot(t *testing.T) {
+	state := NewMenuState(menuThreads(), menuAddress("couch-one"))
+	state, _ = reduceKey(state, PanelKey{Kind: KeyCtrlSpace})
+	state, _ = reduceKey(state, PanelKey{Kind: KeyRune, Rune: '.'})
+	state, effects := reduceKey(state, PanelKey{Kind: KeyTab})
+	if len(effects) != 0 || state.CurrentFrame().Path != "./" {
+		t.Fatalf("dot completion = state %+v effects %+v", state, effects)
+	}
+	state, effects = reduceKey(state, PanelKey{Kind: KeyTab})
+	result := CompletionResult{Identity: state.CurrentFrame().CompletionRequest, Matches: CompletionMatches{Paths: []string{"./one/", "./two/"}}}
+	state, _ = ReduceMenu(state, MenuEvent{Kind: MenuEventCompletionResult, Completion: &result})
+	depth := len(state.Frames)
+	state, _ = reduceKey(state, PanelKey{Kind: KeyEscape})
+	if len(state.Frames) != depth || len(state.CurrentFrame().CompletionCandidates) != 0 {
+		t.Fatalf("first Escape left form or candidates: %+v", state.Frames)
+	}
+	state, _ = reduceKey(state, PanelKey{Kind: KeyEscape})
+	if len(state.Frames) != depth-1 {
+		t.Fatalf("second Escape did not leave form: %+v", state.Frames)
 	}
 }
 
@@ -901,6 +969,12 @@ func TestReduceMenuGeneratedTracesPreserveStructuralBounds(t *testing.T) {
 				t.Fatalf("key %v nested start forms: %+v", key.Kind, next.Frames)
 			}
 			for _, effect := range effects {
+				if effect.Completion != nil {
+					if effect.Operation != "" || effect.Completion.Identity.FrameInstance == 0 || effect.Completion.Identity.Generation == 0 {
+						t.Fatalf("key %v emitted malformed completion %+v", key.Kind, effect)
+					}
+					continue
+				}
 				if effect.Preview != nil {
 					if effect.Operation != "" || effect.Preview.Generation == 0 {
 						t.Fatalf("key %v emitted malformed preview %+v", key.Kind, effect)
