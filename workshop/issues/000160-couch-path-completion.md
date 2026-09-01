@@ -164,7 +164,10 @@ unbounded work or prevent input, painting, cancellation, or form exit.
 
 ## Plan
 
-- [ ] Write the implementation plan after the approved spec passes review.
+- [ ] Build the pure path query, bounded accumulator, and shared latest-wins scheduler.
+- [ ] Add completion identity, key transitions, invalidation, notices, and bounded rendering to the menu reducer.
+- [ ] Wire batched filesystem enumeration through the Console with a stateful fake and bounded worker schedule.
+- [ ] Exercise the real input loop, update README/Atlas, run full verification, and close through the SDLC gate.
 
 ## Log
 
@@ -182,6 +185,10 @@ The second review caught whole-directory materialization beneath the result
 cap. The filesystem contract now enumerates in bounded batches and retains only
 a bounded lexical top set.
 
+The approved spec was translated into the durable implementation plan at
+`workshop/plans/000160-couch-path-completion-plan.md`; no milestone tags are
+used because this is one atomic review boundary.
+
 ## Revisions
 
 ### 2026-09-01 — close first spec-review ambiguities
@@ -196,3 +203,9 @@ Replaced whole-directory materialization with 128-entry batched enumeration and
 a pure bounded lexical top-200 accumulator. Clarified that invalidation clears
 completion state immediately and added both halves of request identity to the
 regression contract.
+
+### 2026-09-01 — add durable implementation plan
+
+Replaced the placeholder plan row with four checkable delivery groups and added
+the detailed TDD sequence, core-concept inventory, operating envelope, and SDLC
+close handoff in the canonical plan artifact.
