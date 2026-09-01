@@ -78,10 +78,20 @@ tests use a deterministic stateful fake; selection, filtering, ordering, and
 path reconstruction remain pure reducer/helper behavior (`ARCH-PURE`,
 `ARCH-MOCK`). The effect and result both carry the complete request identity.
 Editing the path, changing fields, or leaving the form advances/clears the
-frame's accepted completion generation before emitting any later request. A
-result may mutate candidates, path, selection, or notices only when both its
-frame instance and generation exactly equal the visible start frame's current
-request; every other result is inert.
+frame's accepted completion generation and immediately clears candidates and
+any completion-owned notice before emitting any later request. A result may
+mutate candidates, path, selection, or notices only when both its frame instance
+and generation exactly equal the visible start frame's current request; every
+other result is inert, including a result delivered to a later start frame that
+happens to reuse the same numeric generation.
+
+The directory-listing seam is batched rather than an API that materializes a
+whole directory. Production opens one directory and reads at most 128 entries
+per batch, classifying directory symlinks at the IO boundary. A pure bounded
+accumulator consumes those facts and retains the lexically smallest 200 matching
+names plus an overflow bit. It scans all entries to make lexical truncation
+deterministic, but memory remains bounded to the current 128-entry batch and 200
+retained candidates. The stateful fake implements the same batched contract.
 
 Repeated `Tab` for the same path while its request is pending coalesces into the
 existing request. If input changes and a new `Tab` arrives while an older
@@ -113,7 +123,10 @@ available terminal rows. If more than 200
 directories match, the UI says the result is truncated; the operator can type a
 longer prefix and request completion again. CPU, memory, and concurrent work are
 therefore bounded by one directory scan and 200 retained candidates per active
-start frame. Network-mounted filesystem latency is tolerated asynchronously;
+start frame. A huge directory costs one O(N) sequential scan, O(N log 200)
+bounded-selection CPU in the worst case, at most 128 enumerated entries plus 200
+candidate names in memory, and one metadata lookup per symlink needed for
+directory classification. Network-mounted filesystem latency is tolerated asynchronously;
 newer input makes its eventual result stale rather than blocking the UI. The
 single worker can remain occupied by a slow OS read, but it cannot multiply
 unbounded work or prevent input, painting, cancellation, or form exit.
@@ -125,11 +138,14 @@ unbounded work or prevent input, painting, cancellation, or form exit.
   invalidate results, and preservation of the existing Enter-to-start path.
 - Pure path-completion tests cover relative and absolute inputs, lexical order,
   directory-only filtering, hidden-directory rules, directory symlinks,
-  trailing separators, no matches, and the 200-result bound.
+  trailing separators, no matches, batched accumulation, deterministic
+  top-200 truncation, and the memory-sized retained bound.
 - Console integration tests use a stateful fake directory lister to prove the
   UI stays responsive, errors remain local, repeated requests coalesce, pending
   work is latest-wins and bounded, and stale/out-of-order results cannot mutate
-  current state or notices.
+  current state or notices. Reducer cases explicitly cover results after form
+  exit and a later frame reusing the same generation with a different frame
+  instance.
 - Rendering tests cover bounded candidate rows, selection, truncation text, and
   narrow/short terminals. Existing menu lifecycle and performance suites remain
   green.
@@ -162,6 +178,10 @@ The first fresh-context spec review found ambiguous path bases and async
 ownership. The spec now defines literal path semantics, exact frame/generation
 identity, owned notices, and a one-active/one-latest-pending filesystem queue.
 
+The second review caught whole-directory materialization beneath the result
+cap. The filesystem contract now enumerates in bounded batches and retains only
+a bounded lexical top set.
+
 ## Revisions
 
 ### 2026-09-01 — close first spec-review ambiguities
@@ -169,3 +189,10 @@ identity, owned notices, and a one-active/one-latest-pending filesystem queue.
 Defined empty/relative/dot/separator/tilde behavior and deterministic ordering;
 made the first versus subsequent `Tab` behavior explicit; and added exact
 request/notice ownership plus bounded latest-wins filesystem concurrency.
+
+### 2026-09-01 — bound huge-directory enumeration
+
+Replaced whole-directory materialization with 128-entry batched enumeration and
+a pure bounded lexical top-200 accumulator. Clarified that invalidation clears
+completion state immediately and added both halves of request identity to the
+regression contract.
