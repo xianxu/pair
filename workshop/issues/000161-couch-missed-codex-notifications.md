@@ -53,8 +53,29 @@ form notification authority.
 - Surface Codex completion notifications for Pair sessions in Couch's status
   bar and switcher.
 - Keep the two surfaces consistent so a completed agent is not silently missed.
-- This first slice does not modify Codex behavior or pre-decide whether the
-  durable source is native OSC, transcript state, or a composed hook.
+- Use the Codex rollout transcript as the primary durable completion source.
+  Bind the rollout JSONL to the `pair-wrap`-spawned Codex PID (open file
+  descriptor or a launch-bounded candidate confirmed against that PID), never
+  by newest-file or cwd-only guessing. Tail new records and treat
+  `task_complete` / `turn_complete` as turn completion, including short turns
+  whose TUI does not visibly retain a `Working` bar (`ARCH-IDENTITY`).
+- Keep native notification OSC as an immediate accepted source. Treat the
+  rendered `• Working (… esc to interrupt)` present-to-absent transition as a
+  secondary signal and a previously-active 60-second idle timeout as last-resort
+  recovery. `Worked for…` is supporting evidence, not completion authority.
+- Feed every source through one deduplicating notification sink so a single turn
+  produces at most one unread/outer notification (`ARCH-DRY`). Do not overwrite
+  Codex's single legacy `notify` hook.
+
+### Later signal hardening: Claude activity
+
+- Interpret Claude OSC progress state `9;4;3` as working and `9;4;0` as work
+  stopped. After the explicit stop, briefly allow a richer native notification
+  or finalized `✻ <verb> for <duration>` marker to arrive before emitting a
+  generic completion.
+- Retain the colored completion marker as compatibility fallback. Do not infer
+  completion merely because no progress event arrived for ten seconds; arm any
+  longer idle recovery only after working activity was observed.
 
 ## Done when
 
@@ -69,6 +90,12 @@ form notification authority.
 
 ### Later issue acceptance
 
+- PID-bound transcript tests prove both a short direct response and a longer
+  response emit on `task_complete` / `turn_complete`, without cross-session
+  attribution when multiple Codex processes run concurrently.
+- Native OSC, transcript completion, rendered activity transition, and timeout
+  converge on one notification per turn; unobserved prompt idleness does not
+  notify.
 - A Codex completion in Pair produces a visible notification in the Couch
   status bar.
 - The same completion is visible in the Couch switcher.
@@ -80,9 +107,13 @@ form notification authority.
 
 Deferred after the first slice:
 
-- [ ] Reproduce and identify where the Codex completion event is lost.
-- [ ] Add a failing test for the observed Pair/Codex completion path.
-- [ ] Restore notification propagation to the status bar and switcher.
+- [ ] Capture representative short and long Codex rollout/PTY fixtures and pin
+  the transcript completion events and optional rendered activity states.
+- [ ] Resolve each spawned Codex PID to its own rollout JSONL and tail new state.
+- [ ] Route transcript completion through the canonical notification sink.
+- [ ] Add deduplicated native-OSC, rendered-transition, and activity-gated idle
+  recovery around the transcript authority.
+- [ ] Model Claude `9;4;3 -> 9;4;0` activity and retain its richer marker fallback.
 - [ ] Verify both surfaces from completion through display.
 
 ## Log
@@ -119,6 +150,16 @@ in `pair-wrap`; Codex still takes the native OSC path. This evidence narrows the
 later reproduction, but does not yet establish that rendered text is a stable or
 authoritative completion protocol.
 
+The operator clarified that `Worked for…` appears for sufficiently long Codex
+turns, while short responses can render output directly. Adopted cmux's stronger
+pattern: Pair already owns the spawned Codex PID, so bind that process to the
+rollout JSONL it writes and derive completion from `task_complete` /
+`turn_complete`. Visual `Working` transitions and native OSC remain useful fast
+signals, but all sources deduplicate through one sink. For Claude, use explicit
+OSC `9;4;3` working and `9;4;0` stopped state rather than treating a ten-second
+progress silence as completion; retain the colored marker for richer text and
+compatibility.
+
 ## Revisions
 
 ### 2026-09-01 — add confirmed Claude failure mode
@@ -138,3 +179,10 @@ production-delivery seams the regression tests must exercise.
 Recorded the observed `Worked for` rendering and its `> `-prefixed duplicate so
 later Codex design tests the actual terminal stream and does not mistake quoted
 or replayed text for a live completion.
+
+### 2026-09-01 — choose transcript-authoritative Codex lifecycle
+
+Replaced the unresolved Codex source choice with PID-bound rollout transcript
+events as the durable authority. Added native OSC and rendered activity as
+deduplicated fast signals, activity-gated idle recovery, and Claude's explicit
+OSC progress transition with its existing marker fallback.
