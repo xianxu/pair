@@ -2613,12 +2613,17 @@ func (p *proxy) masterPump() {
 
 	captureTick := time.NewTicker(50 * time.Millisecond)
 	defer captureTick.Stop()
-	var lifecycleJournalTick <-chan time.Time
-	var lifecycleJournalTicker *time.Ticker
+	var lifecycleJournalRecords <-chan sessionwatch.LifecycleRecord
+	var lifecycleJournalFailures <-chan error
+	var lifecycleJournalStop chan struct{}
 	if p.lifecycleJournal != nil {
-		lifecycleJournalTicker = time.NewTicker(50 * time.Millisecond)
-		lifecycleJournalTick = lifecycleJournalTicker.C
-		defer lifecycleJournalTicker.Stop()
+		records := make(chan sessionwatch.LifecycleRecord, 32)
+		failures := make(chan error, 1)
+		lifecycleJournalStop = make(chan struct{})
+		lifecycleJournalRecords = records
+		lifecycleJournalFailures = failures
+		go followLifecycleJournal(p.lifecycleJournal, records, failures, lifecycleJournalStop)
+		defer close(lifecycleJournalStop)
 	}
 	stdoutFlushTick := time.NewTicker(p.stdoutFlushInterval())
 	defer stdoutFlushTick.Stop()
@@ -2631,16 +2636,12 @@ func (p *proxy) masterPump() {
 
 	for {
 		select {
-		case <-lifecycleJournalTick:
-			records, err := p.lifecycleJournal.Advance()
-			if err != nil {
-				p.debug("LIFECYCLE-tail-fail", err.Error())
-				lifecycleJournalTick = nil
-				continue
-			}
-			for _, record := range records {
-				p.processLifecycleRecord(record)
-			}
+		case err := <-lifecycleJournalFailures:
+			p.debug("LIFECYCLE-tail-fail", err.Error())
+			lifecycleJournalFailures = nil
+			lifecycleJournalRecords = nil
+		case record := <-lifecycleJournalRecords:
+			p.processLifecycleRecord(record)
 		case <-lifecycleTimer.C:
 			kind, token := p.lifecycleTimerKind, p.lifecycleTimerToken
 			p.processLifecycleObservation(TurnObservation{Kind: kind, Token: token})

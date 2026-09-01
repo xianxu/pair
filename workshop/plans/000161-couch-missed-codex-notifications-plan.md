@@ -16,13 +16,13 @@
 
 | Name | Lives in | Status |
 |------|----------|--------|
-| `TurnObservation` | `cmd/internal/wrapcmd/notification_lifecycle.go` | new |
-| `NotificationLifecycle` | `cmd/internal/wrapcmd/notification_lifecycle.go` | new |
-| `LifecycleDecision` | `cmd/internal/wrapcmd/notification_lifecycle.go` | new |
-| `CodexWorkingRecognizer` | `cmd/internal/wrapcmd/codex_working.go` | new |
-| `LifecycleRecord` | `cmd/internal/sessionwatch/lifecycle_event.go` | new |
-| Claude marker grammar | `cmd/internal/wrapcmd/wrap.go` | modified |
-| Codex native-event grammar | `cmd/internal/sessioninventory/event.go` | modified |
+| `TurnObservation` | `cmd/internal/wrapcmd/notification_lifecycle.go` | delivered M2 |
+| `NotificationLifecycle` | `cmd/internal/wrapcmd/notification_lifecycle.go` | delivered M2 |
+| `LifecycleDecision` | `cmd/internal/wrapcmd/notification_lifecycle.go` | delivered M2 |
+| `RecognizeCodexWorking` | `cmd/internal/wrapcmd/codex_working.go` | planned M4 |
+| `LifecycleRecord` | `cmd/internal/sessionwatch/lifecycle_event.go` | delivered M3 |
+| Claude marker grammar | `cmd/internal/wrapcmd/wrap.go` | delivered M1 |
+| Codex native-event grammar | `cmd/internal/sessioninventory/event.go` | delivered M3 |
 
 - **`TurnObservation`** normalizes native OSC, markers, progress OSC,
   transcript events, rendered state, and watchdog expiry. N observations reduce
@@ -75,9 +75,9 @@ generation boundary.
 |------|----------|--------|-------|
 | `emitOuter` | `cmd/internal/wrapcmd/wrap.go` | modified | outer TTY OSC 777 + slug refresh |
 | `NotificationRewriter` | `cmd/internal/wrapcmd/notification_rewriter.go` | modified | OSC 9/99/777 and 9;4 stream |
-| `AuthorizedTranscriptFollower` | `cmd/internal/sessionwatch/run.go` | modified | validated Codex rollout + child lifetime |
-| `LifecycleJournal` | `cmd/internal/sessionwatch/lifecycle_event.go` | new | append-only launch event sidecar |
-| `LifecycleJournalTailer` | `cmd/internal/wrapcmd/lifecycle_journal.go` | new | incremental event delivery to proxy loop |
+| `Run` authorized transcript continuation | `cmd/internal/sessionwatch/run.go` | delivered M3 | validated Codex rollout + child lifetime |
+| `AppendLifecycleRecord` | `cmd/internal/sessionwatch/lifecycle_event.go` | delivered M3 | append-only launch event sidecar |
+| `LifecycleJournalTailer` | `cmd/internal/wrapcmd/lifecycle_journal.go` | delivered M3 | incremental event delivery to proxy loop |
 | `terminalModel` | `cmd/internal/wrapcmd/terminal_model.go` | modified | rendered Codex screen |
 | Couch projection | `cmd/internal/couchtty/console.go` | verified | canonical OSC to unread/status/switcher |
 
@@ -322,3 +322,15 @@ confirmation non-authoritative, and pin Codex/Claude send-to-native production
 flows. Expand the pure reducer sweep across completion-source order, keyed
 mismatch/new-turn behavior, and distinct abort fallback, and classify every new
 production source in the exhaustive artifact manifest.
+
+### 2026-09-01 — enforce the M3 boundary contracts
+
+The first M3 cut performed journal IO on the PTY owner loop, left planned M4
+entities indistinguishable from delivered M3 declarations, and added native
+envelope authority without extending live conformance. Move all journal
+stat/open/read/decode work to a dedicated worker with capacity-32 durable
+backpressure and 64 KiB advancement bounds; keep only reducer mutation on the
+master loop. Mark every Core concepts row by delivered milestone or planned
+milestone and use greppable declaration names. As a class rule, every native
+production envelope promoted to notification authority must gain an assertion
+in the recurring opt-in live conformance seam in the same milestone.

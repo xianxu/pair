@@ -151,6 +151,13 @@ total: 6.93
   turn at binding, an appended long-turn completion, cross-root rejection, and
   canonical wrapper notification. GREEN:
   `go test ./cmd/internal/sessioninventory ./cmd/internal/sessionwatch ./cmd/internal/wrapcmd ./cmd/internal/launcher ./cmd/internal/artifactpath -count=1`; `git diff --check` (`ARCH-IDENTITY`, `ARCH-MOCK`, `ARCH-DRY`).
+- M3 boundary review reopened the milestone: journal IO was still synchronous
+  on the PTY loop, Core concept statuses mixed planned and delivered entities,
+  and live conformance did not assert the newly authoritative envelopes. The
+  class fix moves all bounded journal IO/decoding to a backpressured worker,
+  makes entity milestones explicit, and requires recurring conformance to prove
+  keyed same-root opener/terminal ordering and timestamps (`ARCH-CONSTRAINTS`,
+  `ARCH-MOCK`, `ARCH-PURPOSE`).
 - 2026-09-01: closed M2 — RED semantic legacy/KKP send, real Codex/Claude send-to-native delivery, source-order/key/abort/fuzz invariants, and artifact inventory; GREEN go test ./cmd/internal/wrapcmd ./cmd/internal/artifactpath -count=1, 2s lifecycle fuzz, git diff --check.; review verdict: SHIP
 - M2 implementation: RED covered absent lifecycle types, OSC progress at every
   split in marker/native modes, one proxy-owned timer, resumed work cancelling

@@ -30,4 +30,10 @@ func TestLiveNativeSessionShapeConformance(t *testing.T) {
 	if conformanceErr != nil {
 		t.Fatal(conformanceErr)
 	}
+	codexScan := ScanCodex(runtime)
+	codexInventory := BuildForest(codexScan.Facts)
+	codexEvents, _ := NativeEventsWithRuntime(runtime, codexInventory, AgentCodex)
+	if err := ValidateCodexLifecycleConformance(codexEvents); err != nil {
+		t.Fatalf("Codex lifecycle envelope drift: %v", err)
+	}
 }

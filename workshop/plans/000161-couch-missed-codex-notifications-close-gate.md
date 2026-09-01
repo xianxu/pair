@@ -60,6 +60,55 @@ rounds:
           round: 3
       boundary: M2
       blocked: false
+    - "n": 4
+      timestamp: "2026-09-01T15:28:31-07:00"
+      agent: codex
+      findings:
+        - id: BR-5
+          severity: Critical
+          title: Journal IO blocks the PTY master loop instead of using the required bounded delivery seam
+          detail: 'This is the 2nd finding in family `lifecycle-contract-coverage`. The master-loop ticker calls Advance synchronously; Advance performs stat, open, seek, an effectively suffix-sized ReadAll, JSON decoding, and processing of every returned record before PTY events resume. This violates the declared separate-goroutine/channel contract and permits journal growth or slow filesystem IO to stall terminal forwarding. Do not patch only the ReadAll site: enforce the class rule that all lifecycle journal IO remains outside the PTY owner loop, with bounded incremental reads and durable-cursor backpressure, while only reducer mutation executes on the master loop.'
+          family: lifecycle-contract-coverage
+          round: 4
+        - id: BR-6
+          severity: Critical
+          title: The Core concepts table does not describe entities that actually exist at M3
+          detail: The table marks CodexWorkingRecognizer as new although its M4 file does not exist, and names AuthorizedTranscriptFollower and LifecycleJournal entities that have no matching declarations at their stated paths. Under the Core concepts cross-check this is a code/plan contradiction. Revise statuses to distinguish planned from delivered entities and use the actual declaration names, or implement the declared surfaces.
+          family: plan-entity-inventory
+          round: 4
+        - id: BR-7
+          severity: Important
+          title: The required live Codex lifecycle conformance remains unchanged
+          detail: 'This is the 2nd finding in family `regression-test-reachability`. The plan requires TestLiveNativeSessionShapeConformance to assert task_started/task_complete identity and monotonic offsets, but the pinned range does not modify that test; it still only runs the generic inventory report. State the rule for all production envelopes consumed by notification authority: each must be asserted through the recurring live conformance seam when parser support is introduced.'
+          family: regression-test-reachability
+          round: 4
+      boundary: M3
+      blocked: true
+    - "n": 5
+      timestamp: "2026-09-01T15:33:23-07:00"
+      agent: codex
+      dispose:
+        - id: BR-5
+          disposition: not-addressed
+          note: Candidate worker isolation and a regression exist at HEAD, but the pinned range is empty, so the fix and its fail-without-fix test cannot be reviewed.
+          round: 5
+        - id: BR-6
+          disposition: not-addressed
+          note: The HEAD plan appears corrected, but no plan change or mechanical reachability check exists in the pinned range.
+          round: 5
+        - id: BR-7
+          disposition: not-addressed
+          note: HEAD invokes lifecycle conformance validation, but the empty range contains no live-conformance modification attributable to this boundary.
+          round: 5
+      findings:
+        - id: BR-8
+          severity: Critical
+          title: The pinned M3 review range contains no changes
+          detail: Base and head are the same commit and tree, so stat, name-status, and full patch are empty. This is the 2nd finding in family `submission-boundary-reachability`; enforce a class rule that milestone review rejects identical pre/post boundaries, then rerun with the actual pre-fix base and post-fix head.
+          family: submission-boundary-reachability
+          round: 5
+      boundary: M3
+      blocked: true
 ---
 
 # Gate ledger — 000161-couch-missed-codex-notifications#161 (boundary-review)
@@ -91,6 +140,33 @@ later rounds disposed of them. Generated — edit the gate, not this file.
 - BR-3 — addressed — notification_lifecycle.go is classified and the exhaustive artifact inventory test passes.
 - BR-4 — addressed — Tests cover source order, keyed mismatch and replacement, distinct abort fallback, arbitrary sequences, and production submission integration.
 
+## Round 4 — 2026-09-01T15:28:31-07:00 (codex) — BLOCKED
+
+### Raised
+
+- **BR-5** [Critical] `lifecycle-contract-coverage` Journal IO blocks the PTY master loop instead of using the required bounded delivery seam
+  This is the 2nd finding in family `lifecycle-contract-coverage`. The master-loop ticker calls Advance synchronously; Advance performs stat, open, seek, an effectively suffix-sized ReadAll, JSON decoding, and processing of every returned record before PTY events resume. This violates the declared separate-goroutine/channel contract and permits journal growth or slow filesystem IO to stall terminal forwarding. Do not patch only the ReadAll site: enforce the class rule that all lifecycle journal IO remains outside the PTY owner loop, with bounded incremental reads and durable-cursor backpressure, while only reducer mutation executes on the master loop.
+- **BR-6** [Critical] `plan-entity-inventory` The Core concepts table does not describe entities that actually exist at M3
+  The table marks CodexWorkingRecognizer as new although its M4 file does not exist, and names AuthorizedTranscriptFollower and LifecycleJournal entities that have no matching declarations at their stated paths. Under the Core concepts cross-check this is a code/plan contradiction. Revise statuses to distinguish planned from delivered entities and use the actual declaration names, or implement the declared surfaces.
+- **BR-7** [Important] `regression-test-reachability` The required live Codex lifecycle conformance remains unchanged
+  This is the 2nd finding in family `regression-test-reachability`. The plan requires TestLiveNativeSessionShapeConformance to assert task_started/task_complete identity and monotonic offsets, but the pinned range does not modify that test; it still only runs the generic inventory report. State the rule for all production envelopes consumed by notification authority: each must be asserted through the recurring live conformance seam when parser support is introduced.
+
+## Round 5 — 2026-09-01T15:33:23-07:00 (codex) — BLOCKED
+
+### Disposed
+
+- BR-5 — not-addressed — Candidate worker isolation and a regression exist at HEAD, but the pinned range is empty, so the fix and its fail-without-fix test cannot be reviewed.
+- BR-6 — not-addressed — The HEAD plan appears corrected, but no plan change or mechanical reachability check exists in the pinned range.
+- BR-7 — not-addressed — HEAD invokes lifecycle conformance validation, but the empty range contains no live-conformance modification attributable to this boundary.
+
+### Raised
+
+- **BR-8** [Critical] `submission-boundary-reachability` The pinned M3 review range contains no changes
+  Base and head are the same commit and tree, so stat, name-status, and full patch are empty. This is the 2nd finding in family `submission-boundary-reachability`; enforce a class rule that milestone review rejects identical pre/post boundaries, then rerun with the actual pre-fix base and post-fix head.
+
 ## Open findings
 
-(none — every finding has been disposed)
+- **BR-5** [Critical] `lifecycle-contract-coverage` Journal IO blocks the PTY master loop instead of using the required bounded delivery seam
+- **BR-6** [Critical] `plan-entity-inventory` The Core concepts table does not describe entities that actually exist at M3
+- **BR-7** [Important] `regression-test-reachability` The required live Codex lifecycle conformance remains unchanged
+- **BR-8** [Critical] `submission-boundary-reachability` The pinned M3 review range contains no changes

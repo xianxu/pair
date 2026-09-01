@@ -171,3 +171,66 @@ func TestLifecycleJournalRecordsDriveCanonicalNotification(t *testing.T) {
 		t.Fatalf("outer=%q", written)
 	}
 }
+
+func TestLifecycleJournalTailerBoundsWorkPerAdvance(t *testing.T) {
+	path := filepath.Join(t.TempDir(), "lifecycle.jsonl")
+	if err := os.WriteFile(path, nil, 0o600); err != nil {
+		t.Fatal(err)
+	}
+	tailer, err := OpenLifecycleJournalTailer(path, 7)
+	if err != nil {
+		t.Fatal(err)
+	}
+	record := func(offset int64) []byte {
+		r := sessionwatch.LifecycleRecord{Version: 1, Agent: "codex", LaunchOrdinal: 7, ArtifactGeneration: "gen:1", Source: "transcript", Outcome: "completed", TurnID: "turn", Message: strings.Repeat("x", 40<<10), TranscriptPath: "rollout.jsonl", TranscriptOffset: offset, EventTimestamp: time.Unix(offset, 0).UTC()}
+		raw, _ := json.Marshal(r)
+		return append(raw, '\n')
+	}
+	if err := os.WriteFile(path, append(record(10), record(20)...), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	first, err := tailer.Advance()
+	if err != nil || len(first) != 1 {
+		t.Fatalf("first bounded advance: records=%d err=%v", len(first), err)
+	}
+	second, err := tailer.Advance()
+	if err != nil || len(second) != 1 {
+		t.Fatalf("second bounded advance: records=%d err=%v", len(second), err)
+	}
+}
+
+type blockingLifecycleAdvancer struct {
+	entered chan struct{}
+	release chan struct{}
+}
+
+func (b blockingLifecycleAdvancer) Advance() ([]sessionwatch.LifecycleRecord, error) {
+	close(b.entered)
+	<-b.release
+	return nil, nil
+}
+
+func TestLifecycleJournalWorkerIsolatesBlockedIOFromReducerOwner(t *testing.T) {
+	entered, release := make(chan struct{}), make(chan struct{})
+	stop := make(chan struct{})
+	records, failures := make(chan sessionwatch.LifecycleRecord, 32), make(chan error, 1)
+	go followLifecycleJournal(blockingLifecycleAdvancer{entered: entered, release: release}, records, failures, stop)
+	select {
+	case <-entered:
+	case <-time.After(time.Second):
+		t.Fatal("journal worker did not enter injected IO")
+	}
+	p := &proxy{}
+	done := make(chan struct{})
+	go func() {
+		p.processLifecycleObservation(TurnObservation{Kind: ObservationWorking})
+		close(done)
+	}()
+	select {
+	case <-done:
+	case <-time.After(100 * time.Millisecond):
+		t.Fatal("blocked journal IO delayed reducer owner")
+	}
+	close(release)
+	close(stop)
+}

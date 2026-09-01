@@ -8,11 +8,16 @@ import (
 	"fmt"
 	"io"
 	"os"
+	"time"
 
 	"github.com/xianxu/pair/cmd/internal/sessionwatch"
 )
 
 const lifecycleJournalMaxRecord = 64 << 10
+
+// One sentinel byte beyond the record limit lets an advance reject an
+// over-limit unterminated record without a second filesystem pass.
+const lifecycleJournalReadChunk = lifecycleJournalMaxRecord + 1
 
 // LifecycleJournalTailer incrementally reads committed records appended after
 // it opens. It permanently stops when the journal is replaced, truncated, or
@@ -85,7 +90,11 @@ func (t *LifecycleJournalTailer) Advance() ([]sessionwatch.LifecycleRecord, erro
 	if _, err := f.Seek(t.position, io.SeekStart); err != nil {
 		return nil, t.stop(fmt.Errorf("seek lifecycle journal: %w", err))
 	}
-	newRaw, err := io.ReadAll(io.LimitReader(f, info.Size()-t.position))
+	remaining := info.Size() - t.position
+	if remaining > lifecycleJournalReadChunk {
+		remaining = lifecycleJournalReadChunk
+	}
+	newRaw, err := io.ReadAll(io.LimitReader(f, remaining))
 	if err != nil {
 		return nil, t.stop(fmt.Errorf("read lifecycle journal: %w", err))
 	}
@@ -125,6 +134,37 @@ func (t *LifecycleJournalTailer) Advance() ([]sessionwatch.LifecycleRecord, erro
 		return nil, t.stop(errors.New("lifecycle journal record exceeds 64 KiB"))
 	}
 	return records, nil
+}
+
+type lifecycleJournalAdvancer interface {
+	Advance() ([]sessionwatch.LifecycleRecord, error)
+}
+
+func followLifecycleJournal(tailer lifecycleJournalAdvancer, records chan<- sessionwatch.LifecycleRecord, failures chan<- error, stop <-chan struct{}) {
+	ticker := time.NewTicker(50 * time.Millisecond)
+	defer ticker.Stop()
+	for {
+		select {
+		case <-stop:
+			return
+		case <-ticker.C:
+			observed, err := tailer.Advance()
+			if err != nil {
+				select {
+				case failures <- err:
+				case <-stop:
+				}
+				return
+			}
+			for _, record := range observed {
+				select {
+				case records <- record:
+				case <-stop:
+					return
+				}
+			}
+		}
+	}
 }
 
 func (t *LifecycleJournalTailer) stop(err error) error {
