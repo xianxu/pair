@@ -28,6 +28,11 @@ Claude marker mode currently requires the verb after `✻` to match ASCII-only
 from reaching the shared notification sink. Codex remains a separate failure
 mode because it currently relies on native OSC notification output.
 
+A captured Codex completion renders as `─ Worked for 3m 57s ─…`. The same
+capture also showed a copy prefixed by `> `. Investigation must distinguish the
+live colored status line from quoted or replayed copies before granting either
+form notification authority.
+
 ## Spec
 
 ### First slice: Claude Unicode marker
@@ -108,6 +113,12 @@ letters" and malformed input were underspecified. Split immediate and deferred
 acceptance, named the pure grammar and production delivery seams, and defined the
 verb as General Category `L` code points only.
 
+Captured a concrete Codex stopped-state rendering: `─ Worked for 3m 57s ─…`,
+with another observed copy prefixed by `> `. No current Codex text marker exists
+in `pair-wrap`; Codex still takes the native OSC path. This evidence narrows the
+later reproduction, but does not yet establish that rendered text is a stable or
+authoritative completion protocol.
+
 ## Revisions
 
 ### 2026-09-01 — add confirmed Claude failure mode
@@ -121,3 +132,9 @@ marker verbs without changing the still-open Codex completion design.
 Separated the Claude patch from deferred Codex acceptance and plan ordering.
 Specified the exact Unicode category boundary and the pure-parser and
 production-delivery seams the regression tests must exercise.
+
+### 2026-09-01 — add captured Codex stopped-state line
+
+Recorded the observed `Worked for` rendering and its `> `-prefixed duplicate so
+later Codex design tests the actual terminal stream and does not mistake quoted
+or replayed text for a live completion.
