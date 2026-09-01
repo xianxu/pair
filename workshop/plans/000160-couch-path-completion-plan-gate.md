@@ -32,6 +32,11 @@ rounds:
           note: Tasks 1–6 uniformly use named-function strategies with one adversarial-input class and one mechanical guard, with the prior fixture, assertion, inventory, and procedural-diff detail removed.
           round: 3
       blocked: false
+    - "n": 4
+      timestamp: "2026-09-01T12:50:44-07:00"
+      agent: codex
+      blocked: false
+      protocol_error: no valid findings block
 content_hash: 5458a724210a63719387a7245dad9da943d6e4ce257751e76dc1ff105b01f5e5
 ---
 
@@ -58,6 +63,10 @@ later rounds disposed of them. Generated — edit the gate, not this file.
 ### Disposed
 
 - PQ-1 — addressed — Tasks 1–6 uniformly use named-function strategies with one adversarial-input class and one mechanical guard, with the prior fixture, assertion, inventory, and procedural-diff detail removed.
+
+## Round 4 — 2026-09-01T12:50:44-07:00 (codex) — passed
+
+**Protocol error:** no valid findings block — this round contributed no findings.
 
 ## Open findings
 
