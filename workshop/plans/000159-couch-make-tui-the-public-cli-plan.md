@@ -185,7 +185,7 @@ git commit -m "#159: classify Couch operation presentation"
 - Create: `cmd/internal/couchcmd/cli.go`
 - Create: `cmd/internal/couchcmd/cli_test.go`
 
-- [ ] **Step 1: Write failing pure parser tests**
+- [x] **Step 1: Write failing pure parser tests**
 
 `ParseCLI` over arbitrary argv shapes → table tests seeded from every valid Spec
 form plus malformed token classes assert exactly one closed invocation or an
@@ -194,7 +194,7 @@ ambiguity and internal-presentation authorization. The mechanical guard is the
 closed invocation kind plus registry presentation, not duplicated operation
 names.
 
-- [ ] **Step 2: Run parser tests and observe RED**
+- [x] **Step 2: Run parser tests and observe RED**
 
 ```bash
 go test -p 20 ./cmd/internal/couchcmd -run '^TestParseCLI' -count=1
@@ -202,11 +202,11 @@ go test -p 20 ./cmd/internal/couchcmd -run '^TestParseCLI' -count=1
 
 Expected: FAIL because `ParseCLI` is undefined.
 
-- [ ] **Step 3: Implement the minimal parser**
+- [x] **Step 3: Implement the minimal parser**
 
 Use an unexported invocation-kind enum and payload struct. `ParseCLI(args, operations)` performs no IO. For `--internal`, resolve through declarations and require `PresentationInternal`; do not maintain a second whitelist. Return usage-class errors without printing help.
 
-- [ ] **Step 4: Run parser tests and observe GREEN**
+- [x] **Step 4: Run parser tests and observe GREEN**
 
 ```bash
 go test -p 20 ./cmd/internal/couchcmd -run '^TestParseCLI' -count=1
