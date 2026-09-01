@@ -5,7 +5,7 @@ deps: []
 github_issue:
 created: 2026-09-01
 updated: 2026-09-01
-estimate_hours:
+estimate_hours: 6.93
 started: 2026-09-01T13:35:54-07:00
 ---
 
@@ -102,6 +102,33 @@ form notification authority.
   status bar.
 - The same completion is visible in the Couch switcher.
 - Automated coverage reproduces the missed Codex path and prevents regression.
+
+## Estimate
+
+Produced via `brain/data/life/42shots/velocity/estimate-logic-v3.1.md` against
+`baseline-v3.1.md`. Method A only. `sdlc estimate-source` reports the calibration
+source as stale, so the number is provisional but uses the required method.
+
+```estimate
+model: estimate-logic-v3.1
+familiarity: 1.0
+item: issue-spec design=0.30 impl=0.08
+item: smaller-go-module design=0.06 impl=0.20
+item: tui-screen design=0.40 impl=0.40
+item: cross-cutting-refactor design=0.20 impl=0.20
+item: greenfield-go-module design=0.40 impl=0.32
+item: api-integration design=0.60 impl=0.60
+item: smaller-go-module design=0.06 impl=0.20
+item: tui-screen design=0.40 impl=0.40
+item: api-integration design=0.20 impl=0.24
+item: atlas-docs design=0.20 impl=0.20
+item: milestone-review design=0.08 impl=0.12
+item: milestone-review design=0.08 impl=0.12
+item: milestone-review design=0.08 impl=0.12
+item: milestone-review design=0.08 impl=0.12
+design-buffer: 0.15
+total: 6.93
+```
 
 ## Plan
 
