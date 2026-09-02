@@ -2897,3 +2897,40 @@ that a key token appears cannot detect a contradictory behavioral sentence
   production adapter, enumerate every supported consumer and test both the
   authorized case and all unauthorized cases before feeding a common reducer;
   preserve untrusted protocol bytes as terminal output (`ARCH-PURPOSE`).
+- A rule delivered as a pure model is not delivered until the code that DERIVES
+  its inputs is driven through production. Tests that hand-feed the derived
+  value into the funnel prove the rule and nothing about the decision; inverting
+  the derivation then ships the behavior backwards with a green suite. Enumerate
+  the seams that compute the inputs, drive raw input through them, and
+  mutation-check that each seam's inversion reddens a test (`ARCH-PURPOSE`).
+- When a behavior must hold "on every X, whatever the mechanism", find every
+  site that performs X before choosing where to put it. A funnel that handles
+  the common path is not the only path: initialization and teardown routinely
+  land the same state without passing through it, and the rule is then true for
+  the paths that remembered (`ARCH-DRY`).
+- Moving a rule to a new owner means DELETING it from the old one. Leaving both
+  is two authorities for one fact; idempotence makes it harmless today and
+  invisible when they drift. If the old site retains a half (a failure path, a
+  cleanup), say in the comment which half it keeps and why.
+- A `default:` arm in a dispatch over a closed enum silently absorbs the values
+  added next. Make the switch exhaustive and give not-yet-wired cases an empty
+  branch with the milestone that claims them; the alternative is a new key that
+  does something plausible and wrong.
+- Deleting a concept is not license to delete its test file. Trim it: the file
+  usually also pins invariants of the type that survives, and their loss is
+  invisible because nothing fails. Check what a whole-file deletion took with it
+  before staging it.
+- An executable architectural contract that reads ONE pinned source has a hole
+  at every source added later. Widening it to read all sources is the right fix
+  and may surface a backlog of drifted historical rows — that backlog is a
+  finding, not a reason to loosen the assertions. Bound the widening explicitly
+  and record what the general fix would cost, rather than silently reverting to
+  the single-row repair (`ARCH-PURPOSE`).
+- A milestone that claims a key without wiring it is a regression: the chord is
+  taken from the child and returns nothing for a whole milestone. Claim the
+  encoding and its handler in the same boundary, and document the deferral where
+  the plan promised otherwise.
+- Before treating a `make test` failure as yours, run the same target at
+  `$(git merge-base HEAD origin/main)`. A suite that stops at the first failure
+  gives a change no coverage at all beyond that point, so also run the targets
+  AFTER the pre-existing failure explicitly.
