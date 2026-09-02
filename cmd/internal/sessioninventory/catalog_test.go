@@ -75,3 +75,59 @@ func TestMergeCatalogPublicationNeverRegressesSameArtifact(t *testing.T) {
 		t.Fatalf("crossed cursors regressed parser state: %#v", got)
 	}
 }
+
+// GenerationID answers "WHICH INCARNATION of this artifact path" -- the
+// question ArtifactGeneration exists to answer in a lifecycle record.
+//
+// It must never be empty for a populated fingerprint, because a consumer that
+// treats it as required identity would otherwise refuse every artifact on every
+// platform pair supports. GenerationToken is the ideal source and is
+// unavailable everywhere: Linux never populates it, the portable fallback never
+// populates it, and darwin populates it only from st_gen, which APFS reports as
+// 0 for unprivileged callers.
+func TestArtifactFingerprintGenerationID(t *testing.T) {
+	birth := time.Date(2026, 8, 28, 1, 0, 0, 0, time.UTC)
+	other := time.Date(2026, 8, 29, 1, 0, 0, 0, time.UTC)
+
+	// Only emptiness is a contract; the exact spelling is not, so it is not
+	// asserted. What IS asserted is the incarnation property, below.
+	for _, test := range []struct {
+		name        string
+		fingerprint ArtifactFingerprint
+		wantEmpty   bool
+	}{
+		{"generation token present", ArtifactFingerprint{StableFileID: "dev:1:ino:2", GenerationToken: "gen:7", BirthTime: &birth}, false},
+		{"no generation token, birth time present", ArtifactFingerprint{StableFileID: "dev:1:ino:2", BirthTime: &birth}, false},
+		{"no generation token, no birth time", ArtifactFingerprint{StableFileID: "dev:1:ino:2"}, false},
+		{"no identity at all", ArtifactFingerprint{}, true},
+	} {
+		t.Run(test.name, func(t *testing.T) {
+			got := test.fingerprint.GenerationID()
+			if (got == "") != test.wantEmpty {
+				t.Fatalf("GenerationID() = %q, wantEmpty=%v", got, test.wantEmpty)
+			}
+		})
+	}
+
+	// A filesystem-provided generation token still wins, because it also
+	// distinguishes inode REUSE, which dev:ino alone cannot.
+	withToken := ArtifactFingerprint{StableFileID: "dev:1:ino:2", GenerationToken: "gen:7", BirthTime: &birth}
+	if withToken.GenerationID() != "gen:7" {
+		t.Fatalf("GenerationID() = %q, want the filesystem token to win", withToken.GenerationID())
+	}
+
+	// The property that matters: a replaced artifact must not share an
+	// incarnation identity with the one it replaced.
+	base := ArtifactFingerprint{StableFileID: "dev:1:ino:2", BirthTime: &birth}
+	replaced := ArtifactFingerprint{StableFileID: "dev:1:ino:9", BirthTime: &birth}
+	recreated := ArtifactFingerprint{StableFileID: "dev:1:ino:2", BirthTime: &other}
+	if base.GenerationID() == replaced.GenerationID() {
+		t.Fatal("a different inode shares an incarnation identity")
+	}
+	if base.GenerationID() == recreated.GenerationID() {
+		t.Fatal("a recreated file shares an incarnation identity with its predecessor")
+	}
+	if base.GenerationID() != (ArtifactFingerprint{StableFileID: "dev:1:ino:2", BirthTime: &birth}).GenerationID() {
+		t.Fatal("the same incarnation produced two identities")
+	}
+}
