@@ -5,7 +5,7 @@ deps: []
 github_issue:
 created: 2026-09-02
 updated: 2026-09-02
-estimate_hours: 7.53
+estimate_hours: 10.69
 started: 2026-09-02T11:03:39-07:00
 ---
 
@@ -173,55 +173,136 @@ pair's `ChordAltX` as `seqPark` (`couchtty/keys.go:69-75`). pair already binds
 ```estimate
 model: estimate-logic-v3.1
 familiarity: 1.0
-item: issue-spec               design=0.75 impl=0.12
-item: greenfield-go-module     design=0.30 impl=0.48
-item: cross-cutting-refactor   design=0.34 impl=0.68
-item: tui-screen               design=0.56 impl=0.72
-item: smaller-go-module        design=0.41 impl=1.30
-item: real-api-discovery       design=0.00 impl=0.18
-item: milestone-review         design=0.00 impl=1.00
-item: atlas-docs               design=0.09 impl=0.23
+item: issue-spec                 design=1.50 impl=0.12
+item: issue-spec                 design=0.10 impl=0.04
+item: greenfield-go-module       design=0.20 impl=0.28
+item: smaller-go-module          design=0.04 impl=0.14
+item: smaller-go-module          design=0.04 impl=0.14
+item: smaller-go-module          design=0.06 impl=0.16
+item: smaller-go-module          design=0.03 impl=0.10
+item: smaller-go-module          design=0.06 impl=0.18
+item: smaller-go-module          design=0.06 impl=0.16
+item: smaller-go-module          design=0.06 impl=0.20
+item: smaller-go-module          design=0.04 impl=0.16
+item: smaller-go-module          design=0.06 impl=0.20
+item: smaller-go-module          design=0.06 impl=0.20
+item: smaller-go-module          design=0.04 impl=0.16
+item: smaller-go-module          design=0.04 impl=0.16
+item: tui-screen                 design=0.20 impl=0.24
+item: tui-screen                 design=0.20 impl=0.28
+item: tui-screen                 design=0.16 impl=0.20
+item: cross-cutting-refactor     design=0.08 impl=0.14
+item: cross-cutting-refactor     design=0.10 impl=0.20
+item: cross-cutting-refactor     design=0.10 impl=0.18
+item: cross-cutting-refactor     design=0.06 impl=0.16
+item: cross-cutting-refactor     design=0.06 impl=0.16
+item: cross-repo-refactor-small  design=0.04 impl=0.08
+item: real-api-discovery         design=0.00 impl=0.18
+item: scope-pivot                design=0.50 impl=0.20
+item: ux-rename-iteration        design=0.15 impl=0.06
+item: ux-rename-iteration        design=0.15 impl=0.06
+item: milestone-review           design=0.00 impl=0.20
+item: milestone-review           design=0.00 impl=0.20
+item: milestone-review           design=0.00 impl=0.20
+item: milestone-review           design=0.00 impl=0.20
+item: milestone-review           design=0.00 impl=0.20
+item: atlas-docs                 design=0.02 impl=0.05
+item: atlas-docs                 design=0.02 impl=0.05
+item: atlas-docs                 design=0.02 impl=0.05
+item: atlas-docs                 design=0.03 impl=0.08
 design-buffer: 0.15
-total: 7.53
+total: 10.69
 ```
 
 *Produced via `brain/data/life/42shots/velocity/estimate-logic-v3.1.md` against
 `baseline-v3.1.md`. Method A only.*
 
-**Derivation notes** — where judgment entered, so the close-time calibration can
-score it rather than guess at it:
+**One line per instance, deliberately.** Repeated same-slug `item:` lines are
+legal, and aggregating them would let a close-time miss be attributed to the
+issue rather than to a primitive — which is the one thing the ledger exists to
+prevent. In order, the instances are:
 
-- **`issue-spec` carries the plan authoring**, and is the one item that does
-  *not* take the ×0.2 spec-quality discount. The issue Spec pre-resolved the
-  behavior, but it explicitly left the hard question open ("deciding what of
-  `couchcore` is deleted ... needs a read of the current surface"), plus the
-  detach mechanism and three key-layer ambiguities. That design genuinely
-  happened in-window: a 21k-line surface survey, four operator decisions, two
-  fresh-context plan reviews and two plan-quality gate rounds. Discounted ×0.5,
-  not ×0.2.
-- **Everything else takes ×0.2.** The plan doc fixes files, signatures, test
+| Slug | Instances |
+| --- | --- |
+| `issue-spec` | plan authoring (this session); the M2 follow-up issue for the crash reconciler |
+| `greenfield-go-module` | `Couch.Detach` + its typed operation |
+| `smaller-go-module` | `SwitchTracker`; ctrl+backspace both encodings; `DetachedSessionResolver` + fake; `ProcOps.SignalGroup`; `RetireIncarnation` + the `DeleteStart` predicate; `ThreadDetached` projection; the three resume gates; `SelectUniqueResumableRoot`; `CommitStartClaim`; the `Policy`→`RepoIdentity` migration + its characterization test; the `couchcore.New` signature change + probe repair; the M2 refresh benchmark + conditional snapshot cache |
+| `tui-screen` | leave as a global frame; previous + notification focus + acknowledgement; `alt+d` wiring + menu rows |
+| `cross-cutting-refactor` | retire the focus ladder; D1 admission/policy sweep; D2 start-grant collapse; D3–D5 deletions; `plan_contract_test.go` digest-ledger + `NonArtifactSources` repair |
+| `cross-repo-refactor-small` | ariadne policy-arm disposition, plus dropping the workflow and `make test-couch-policy-live` |
+| `real-api-discovery` | zellij detach conformance (a session surviving its client's death) |
+| `scope-pivot` | one in-flight design discovery (see below) |
+| `ux-rename-iteration` | two TUI smoke rounds |
+| `milestone-review` | M1, M2, M3, M4, issue close |
+| `atlas-docs` | M1, M2, M3, M4 + project file |
+
+**Where judgment entered:**
+
+- **`issue-spec` for plan authoring takes NO spec-quality discount.** Step 3's
+  discount exists because the spec pre-resolved a primitive's decisions, and the
+  spec-authoring primitive cannot be pre-resolved by its own output. The issue
+  Spec fixed the behavior but explicitly left the hard question open ("deciding
+  what of `couchcore` is deleted ... needs a read of the current surface"), plus
+  the detach mechanism and three key-layer ambiguities. Range top, ×1.0.
+  Empirical check: `started:` is 11:03 and the plan cleared its gate at ~12:07,
+  all of it design, so ~1.07h was already consumed before implementation began —
+  against 1.85h budgeted here. An earlier draft of this block discounted it ×0.5
+  and budgeted 0.98h, which the clock had already overrun at gate time.
+- **Every other design line takes ×0.2.** The plan fixes files, signatures, test
   strategies and mechanical guards per task, so the remaining design cost is
-  reading rather than deciding — which is exactly the condition Step 3 names.
+  reading rather than deciding — the condition Step 3 names.
+- **`ux-rename-iteration` ×2, at ×0.5 design.** `estimate-logic-v2.1.md`'s Known
+  Limitations names UX iteration round count (3–5 typical for TUI features, not
+  1) as a documented unparameterized bias, and this is a keyboard-UX issue whose
+  five-layer smoke (Ghostty → couch → pair → zellij → claude) covers behaviour
+  the plan admits no test proves end to end. Two rounds rather than three,
+  because the Spec pinned the keys and the switch rule unusually precisely — the
+  iteration is about feel, not about decisions.
+- **`scope-pivot` ×1, at full design (×1.0).** A pivot is by definition not
+  pre-resolved by the spec. It is budgeted prospectively, not retrospectively:
+  this plan discovered three load-bearing mechanisms *during pre-flight review*
+  — `RetireIncarnation` (round 1), `ProcOps.SignalGroup` and the `DeleteStart`
+  predicate (round 2), the `arrival` argument and the tombstone branch order
+  (plan-quality round 1) — and a design with that profile discovers a fourth in
+  flight. `pair#152`, the nearest sibling, budgeted the same line at the same
+  values. This is not double-counting the `issue-spec` line, which covers design
+  already done; this covers design not yet done.
 - **Design buffer +15%, not +30%** (v2.1 Step 6): the plan doc is thorough, and
   +30% on top of a ×0.2 discount double-counts the same thoroughness.
-- **`impl=` values are already v3.1-scaled** to 40% of the v2/v2.1 table, per the
-  model. No separate scale field.
-- **`milestone-review` ×5** (M1–M4 boundaries plus the issue close), at the top
-  of its range: three of the four boundaries cross code that the plan review
-  already showed is easy to get subtly wrong, so budgeting round-trips is honest
-  rather than pessimistic.
-- **`real-api-discovery` ×1** for the zellij detach conformance check — the one
-  external-binary behavior this issue newly depends on (a session surviving its
-  client's death with zero clients).
-- **`familiarity: 1.0`.** couch is a codebase this session surveyed rather than
-  wrote, which argues for >1.0; the plan's per-task file/line specificity argues
-  for <1.0. Left neutral rather than tuned to reach a number.
+- **`impl=` values are already v3.1-scaled** to 40% of the v2/v2.1 table. No
+  separate scale field.
+- **`familiarity: 1.0`** on its own terms: couch is twelve recently closed issues
+  of established patterns, so the impl multiplier is neutral. (Plan thoroughness
+  is deliberately *not* an input here — v2 Step 5 keeps familiarity off design,
+  and Step 3 is where spec quality is already paid. Using it twice would
+  double-count.)
 
-**Known risk to the estimate**, stated rather than buried: the deletion
-milestone (M4) is the widest-blast-radius item and the least mechanically
-verifiable up front — its cost is dominated by what the compiler finds after
-`policyresolver` leaves, across four packages plus a probe binary. If this
-estimate misses, that is where.
+**Known risks to this estimate**, stated rather than buried:
+
+- **M4 is the tail.** The deletion milestone has the widest blast radius and the
+  least mechanically verifiable cost up front — dominated by what the compiler
+  finds after `policyresolver` leaves, across four packages plus a probe binary.
+  If this estimate misses, that is where.
+- **`milestone-review` sits at the model's ceiling and may still be low.** Five
+  boundaries at 0.5h × 0.40 is twelve minutes of ship wall-clock per boundary,
+  covering an auto-dispatched fresh-context review *and* its fix round-trips.
+  Review overhead is the least AI-compressible primitive in the table, so the
+  flat 0.40 impl scale is least supported here — `baseline-v3.1.md` open question
+  #2. Left model-conformant rather than hand-tuned.
+- **Direction: contested, and the closest prior argues LOW.** An earlier draft of
+  this block concluded "more likely high than low" from the issue's own ratio
+  table (shape-known couch issues at 1.19–2.27x). That comparator set is wrong for
+  this issue: #156/#158/#159/#167 are all 6–21 items and 0–1 milestones. The
+  structural match is **`pair#155`** — same v3.1 model, 20 items, 3 milestones,
+  three `cross-cutting-refactor` lines over a migration touching every Go, shell,
+  launcher and Neovim consumer — and it closed **7.85 estimated against 14.01
+  actual (0.56x)**, under-calling by ~1.8x. This issue is larger: 4 boundaries,
+  five packages, a deletion milestone. So the honest read is that `cross-cutting-
+  refactor` at this scale has one precedent and it ran nearly double; the
+  `issue-spec` line's ~0.7h of slack does not cover that. The number is left as
+  derived rather than hand-inflated — bending items to hit a feared total is the
+  back-fitting the gate exists to catch — but the risk direction is recorded here
+  so the close-time ledger reads it correctly.
 
 ## Plan
 
