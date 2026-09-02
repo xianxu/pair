@@ -5,7 +5,7 @@ deps: []
 github_issue:
 created: 2026-09-02
 updated: 2026-09-02
-estimate_hours:
+estimate_hours: 7.53
 started: 2026-09-02T11:03:39-07:00
 ---
 
@@ -168,21 +168,86 @@ pair's `ChordAltX` as `seqPark` (`couchtty/keys.go:69-75`). pair already binds
 - `workshop/projects/couch.md` carries a scope event recording the rescope, and
   #147, #148 and #153 are dispositioned against it.
 
+## Estimate
+
+```estimate
+model: estimate-logic-v3.1
+familiarity: 1.0
+item: issue-spec               design=0.75 impl=0.12
+item: greenfield-go-module     design=0.30 impl=0.48
+item: cross-cutting-refactor   design=0.34 impl=0.68
+item: tui-screen               design=0.56 impl=0.72
+item: smaller-go-module        design=0.41 impl=1.30
+item: real-api-discovery       design=0.00 impl=0.18
+item: milestone-review         design=0.00 impl=1.00
+item: atlas-docs               design=0.09 impl=0.23
+design-buffer: 0.15
+total: 7.53
+```
+
+*Produced via `brain/data/life/42shots/velocity/estimate-logic-v3.1.md` against
+`baseline-v3.1.md`. Method A only.*
+
+**Derivation notes** — where judgment entered, so the close-time calibration can
+score it rather than guess at it:
+
+- **`issue-spec` carries the plan authoring**, and is the one item that does
+  *not* take the ×0.2 spec-quality discount. The issue Spec pre-resolved the
+  behavior, but it explicitly left the hard question open ("deciding what of
+  `couchcore` is deleted ... needs a read of the current surface"), plus the
+  detach mechanism and three key-layer ambiguities. That design genuinely
+  happened in-window: a 21k-line surface survey, four operator decisions, two
+  fresh-context plan reviews and two plan-quality gate rounds. Discounted ×0.5,
+  not ×0.2.
+- **Everything else takes ×0.2.** The plan doc fixes files, signatures, test
+  strategies and mechanical guards per task, so the remaining design cost is
+  reading rather than deciding — which is exactly the condition Step 3 names.
+- **Design buffer +15%, not +30%** (v2.1 Step 6): the plan doc is thorough, and
+  +30% on top of a ×0.2 discount double-counts the same thoroughness.
+- **`impl=` values are already v3.1-scaled** to 40% of the v2/v2.1 table, per the
+  model. No separate scale field.
+- **`milestone-review` ×5** (M1–M4 boundaries plus the issue close), at the top
+  of its range: three of the four boundaries cross code that the plan review
+  already showed is easy to get subtly wrong, so budgeting round-trips is honest
+  rather than pessimistic.
+- **`real-api-discovery` ×1** for the zellij detach conformance check — the one
+  external-binary behavior this issue newly depends on (a session surviving its
+  client's death with zero clients).
+- **`familiarity: 1.0`.** couch is a codebase this session surveyed rather than
+  wrote, which argues for >1.0; the plan's per-task file/line specificity argues
+  for <1.0. Left neutral rather than tuned to reach a number.
+
+**Known risk to the estimate**, stated rather than buried: the deletion
+milestone (M4) is the widest-blast-radius item and the least mechanically
+verifiable up front — its cost is dominated by what the compiler finds after
+`policyresolver` leaves, across four packages plus a probe binary. If this
+estimate misses, that is where.
+
 ## Plan
 
-- [ ] Claim, then design the rescope via `superpowers-writing-plans` into
+Design landed at `workshop/plans/000170-rescope-couch-to-couch-lite-plan.md`.
+Four review boundaries; each is independently operable.
+
+- [x] Claim, then design the rescope via `superpowers-writing-plans` into
       `workshop/plans/000170-rescope-couch-to-couch-lite-plan.md`. The hard part
       is not the new behavior but deciding what of `couchcore` is deleted; that
       needs a read of the current surface before it is committed to.
-- [ ] Switch rule: `entered_via_notification` plus the single `previous` slot,
-      as a pure model with tests, before any key wiring.
-- [ ] Key layer: `ctrl-space` becomes switcher-only; add `ctrl+backspace` (both
-      encodings) and `alt+d`; fix the two `panelkeys.go` sites.
-- [ ] Detach: `alt+d` path, and detached sessions listed and reattachable.
-- [ ] Resume a live session in the current tree.
-- [ ] Notification focus in the switcher.
-- [ ] Delete the machinery the rescope orphans.
-- [ ] Scope event in `workshop/projects/couch.md`; disposition #147, #148, #153.
+- [ ] M1 — Switch rule and key layer. `SwitchTracker` as a pure model with
+      tests before any wiring; `ctrl-space` becomes switcher-only and the
+      focus ladder plus root-actor concept go; `ctrl+backspace` in both
+      encodings, including the `panelkeys.go` modified-flag fix; `alt+x` on
+      the panel becomes `leave couch`; the switcher opens focused on the
+      actor with the latest notification.
+- [ ] M2 — Detach. `alt+d` intercepted from the canonical chord table;
+      `ThreadDetached` derived (not persisted) from `launcher`'s existing
+      0-client zellij classification; detached rows listed and reattachable;
+      `leave couch` detaches every thread instead of parking them.
+- [ ] M3 — Start or resume in a folder. `SelectUniqueParkedRoot` widens to
+      `SelectUniqueResumableRoot` over parked *or* detached rows.
+- [ ] M4 — Delete the machinery the rescope orphans: admission + the fleet
+      policy provider, start grants, legacy migration, the never-instantiated
+      actor loop, and the dead registry-era surface. Atlas and project file
+      updated; operator smoke on the real stack.
 
 ## Log
 
@@ -216,3 +281,139 @@ flags=1, so this belongs in the table's comment rather than in the work.
   live introspection helps only the hung case; a journal helps the case that
   already went wrong. `couchcore/storejournal.go` and pair's existing jsonl
   ledgers are the existing muscle.
+
+### 2026-09-02 — design complete
+
+Plan at `workshop/plans/000170-rescope-couch-to-couch-lite-plan.md`, four
+milestones.
+
+**Four decisions taken with the operator, each closing a Spec ambiguity:**
+
+1. `ctrl-space` from an actor opens the switcher; `ctrl-space` *inside* the
+   switcher still opens the start form. The ladder that dies is child ->
+   root-actor -> panel; the panel's own `ctrl-space` is not a rung of it, and
+   it is the only route to starting a thread (`couchtty/menu.go:318`).
+2. `alt+x` on the panel means `leave couch`. Removing the root-actor concept
+   removes `leave`'s only trigger (`couchtty/console.go:1101`). Deriving it
+   from focus — alt+x quits what you are looking at — needs no new key and
+   reuses the existing typed `leave` confirmation.
+3. `leave couch` detaches every thread instead of parking them. Raised by the
+   operator: `alt+d` is categorically safe, `alt+x` is not, because park kills
+   the agent process — so parking on the way out kills every agent, including
+   ones mid-turn. This makes *detached* the normal resting state, which is what
+   makes M3's startup reattach worth having.
+4. couch keeps intercepting `alt+x`. Interception does not add the risk:
+   `pair quit` kills the agent identically whether couch intercepts or pair's
+   own `PairConfirmQuit` handles it. What interception buys is the durable park
+   transaction — without it couch sees only a child exit, the incarnation
+   becomes conservative `unknown`, and `ProjectActionableThreads` hides the row
+   (`couchcore/actionableinventory.go:106-126`), so the thread disappears from
+   the switcher. Not intercepting is strictly worse.
+
+**The deletion decision** (the plan item flagged as the hard part). Applying the
+issue's own razor honestly — *machinery that exists only to defend multi-owner
+or multi-host cases* — deletes less than the Problem section's framing suggests,
+because several named candidates defend a single-host failure instead. Deleted:
+admission + the ariadne fleet-policy provider (with its stateful fake and the
+`test-couch-policy-live` conformance target), start grants, legacy migration and
+cutover, the never-instantiated actor loop, and the dead registry-era surface in
+`couch.go`/`couchcmd`. Kept, each with a stated reason in the plan: the
+supervisor lease (it *enforces* the singleton couch-lite asserts), the park
+transaction (a two-process handshake is protocol defence, not multi-owner, and
+`VerifiedPark` *is* the parked row), the write-ahead journal (single-host crash
+safety; its non-journal helpers must survive regardless), the fail-closed
+actionable projection (the switcher's only data source — M2 extends it), the
+artifact controller (only `Claim`/`Release` are "collision", and they serialize
+against standalone pair), and the start transaction (single-host crash recovery;
+deleting it means rewriting the start path, which is the ontology churn this
+rescope exists to stop).
+
+**Two findings that shaped the design, both from reading rather than guessing:**
+
+- `launcher` already models detached sessions: `SessionDetached` is a live
+  zellij session with zero clients (`launcher/session.go:10`,
+  `launcher/list.go:23`, `launcher/zellij.go:30`) and `launcher/decision.go:33-37` already
+  reattaches onto one. So couch's detached state needs no new observation
+  machinery and no new `ThreadRecord` field — it is *derived* on each inventory
+  refresh, consistent with couch's existing "liveness is recomputed, never
+  stored" rule. Detach is therefore just the existing process-group teardown
+  minus the session deletion, with the surviving session as its success proof.
+- Deleting the policy provider threatened to orphan `path-preferences/` (the
+  operator's per-path agent+argv memory), because `advanceSuccessfulStart` keys
+  those files by `incarnation.Policy.RepoIdentity`
+  (`couchcore/threadstore.go:613-618`). It does not have to: `repo_identity` is
+  just the git common dir — verified against the live store
+  (`"repo_identity": "/Users/xianxu/workspace/tools/.git"` for
+  `physical_path: /Users/xianxu/workspace/tools`) and against ariadne's own
+  fixtures (`fleet/json_test.go:61`) — and couch already has a `GitRunner` seam,
+  so the identical value is derivable locally. `ThreadIncarnation.Policy`
+  becomes `RepoIdentity string` and every existing preference file stays
+  readable; a characterization test pins the digest before anything moves.
+
+`ARCH-DRY` (one selector, one observation authority, chord bytes from the
+canonical table), `ARCH-PURE` (the switch rule and the detached rule are pure;
+teardown and observation stay in the shell), `ARCH-CONSTRAINTS` (the switcher's
+committed keystroke envelope is the budget; the new session query runs once per
+refresh on the existing single-flight worker, off the keystroke path).
+
+**Plan review round 1** found a material hole in the detach design, worth
+recording because the fix changed the design rather than the prose. The draft
+claimed detach needed no durable transition. It does: `FinalizePark`
+(`couchcore/threadstore.go:391`) is the only path that removes an incarnation,
+and `reconcileInterruptedStarts` only touches records with an open start
+transaction — so killing the pair client would leave a dead-PID
+`IncarnationLive` on the record forever. That hides the row in the projector,
+and `DecideResume` refuses any occupied incarnation at `couchcore/resume.go:73-86`
+*before* it reaches the verified-park check, so the thread could never reattach.
+Both detach Done-when bullets would have failed. Fixed by adding
+`ThreadStore.RetireIncarnation` — `FinalizePark`'s removal half without the park
+transaction — and requiring **zero** incarnations for `ThreadDetached`, which
+keeps the projector fail-closed instead of teaching it to tolerate stale state.
+
+Two further corrections worth keeping: detach must **not** reuse `handleCleanup`
+(`couchcore/couch.go:450-479`), which SIGKILLs unconditionally and says so in its
+own comment — under the leave-detaches-everything decision that would run against
+every thread on every exit, contradicting the safety argument the decision rests
+on; detach now sends SIGTERM only and fails safe. And `LookupTrees`/`knownTrees`/
+`Describe` were wrongly listed for deletion: they are live via `ResolveRef` <-
+`couchcore/operationdispatch.go:197`, the `stop` arm.
+
+One pre-existing gap is named and excluded rather than absorbed: a couch that
+dies *without* leaving cleanly still leaves stale `IncarnationLive` records whose
+threads are invisible and unresumable. That is today's behavior, not a
+regression; `RetireIncarnation` is the transition a startup reconciler would use,
+and a follow-up issue is filed at M2 close.
+
+**Plan review round 2** verified those fixes and found seven more. Two would
+have shipped broken and one destroyed data:
+
+- `ReconcileResumeAdmission` (`couchcore/admission.go:183`) is a *second*
+  `VerifiedPark == nil` refusal, reached from `ResumeContext` after
+  `DecideResume` returns. Widening only `DecideResume` would ship a detached row
+  whose Enter fails "is not verified parked". Both are widened now, and M4's
+  `CommitStartClaim` carries the precondition forward so the fix does not
+  silently regress when admission is deleted.
+- Detached resume could **delete the thread record**. `DeleteStart`
+  (`couchcore/threadstore.go:724-756`) keeps the record when a verified park
+  exists and otherwise falls through to `deleteThreadIf` — so any post-claim
+  failure would remove the record, its label, description and
+  `LatestLaunchProfile` while the zellij session kept running.
+  `starttransaction.go:83-86` names the premise: the verified park *is* the
+  rollback authority. Fixed as the class rather than the instance
+  (`ARCH-PURPOSE`) — a record carrying a `LatestLaunchProfile` is durable
+  history and is never deleted.
+- Detach needed a seam that does not exist: `ProcOps.Signal` is single-PID, and
+  under couch the sidecars deliberately share the actor's process group
+  (`launcher/osruntime.go:399-408` suppresses `Setsid`), so detach would orphan
+  the session-watcher and title-poller every time. Added `ProcOps.SignalGroup`,
+  implemented by lifting the existing `signalOwnedProcessGroup`
+  (`couchcore/runner.go:180-190`) out of `execHandle`.
+
+Also: `leave`'s confirmation is thread-bound and fails at five sites with no
+live actor — one of them asynchronously on the next refresh — so it becomes a
+**global** frame, the shape the menu already uses for the start form;
+`DetachedSessions` takes addresses rather than returning a whole set, because
+the session-name index is per repo scope; and the switcher's envelope claim was
+wrong — `ZellijSource.Snapshot` spawns 2 + N subprocesses
+(`launcher/zellij.go:15-41`), now bounded to detach *candidates* with a
+measurement step before M2 closes.
