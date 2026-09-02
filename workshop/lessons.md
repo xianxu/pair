@@ -2897,3 +2897,17 @@ that a key token appears cannot detect a contradictory behavioral sentence
   production adapter, enumerate every supported consumer and test both the
   authorized case and all unauthorized cases before feeding a common reducer;
   preserve untrusted protocol bytes as terminal output (`ARCH-PURPOSE`).
+- A mechanism can be complete and inert — built, tested, and connected at
+  neither end. Four instances surfaced in one day: `Actor` exists, is
+  unit-tested, and no command starts one; the actor description has a sidecar,
+  a fallback order, an untrusted-text sanitizer and a fuzzy matcher, but no
+  writer and no display, so lookup matches against a permanently empty string;
+  `defaultIdleS` is a built 60s fallback gated behind a notify mode nothing
+  ever selects; the lifecycle reducer notifies only on turn *ends*, so a
+  consumer wanting "is it working now" cannot exist. Nothing fails and no test
+  goes red — the cost lands as an estimate miss instead (`#149`, 17.80h →
+  56.46h built the middle and neither end). The signature is mechanical: a
+  field nothing writes, a symbol nothing calls, a gate compared against a value
+  nothing produces. Check the ends at the boundary, not the diff
+  (`ARCH-PURPOSE`); `deadcode` catches the unreferenced-symbol case and none of
+  the other three.
