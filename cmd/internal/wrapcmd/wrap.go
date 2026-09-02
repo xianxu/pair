@@ -103,15 +103,15 @@ const notifyModeDefault = "native"
 
 // Per-agent end-of-turn pattern, applied only in "marker" notify mode.
 // Matched against finalized colored spans (post-SGR-stripping by the
-// span extractor). The Python regex (raw bytes form):
+// span extractor). The grammar is:
 //
-//	rb"^\xe2\x9c\xbb\s*[A-Za-z]+\s+for\s+\d+[hms](?:\s+\d+[hms])*"
+//	^\x{273B}\s*\p{L}+\s+for\s+\d+[hms](?:\s+\d+[hms])*
 //
 // ✻ = U+273B = 0xE2 0x9C 0xBB in UTF-8. Anchored on ✻ so the
 // quoted-history form ("> ✻ Churned for 21s", different color) won't
 // double-emit. Durations accept multiple `\d+[hms]` parts: 1m 52s, 2h 13m 4s, etc.
 var endOfTurnByAgent = map[string]*regexp.Regexp{
-	"claude": regexp.MustCompile(`^\x{273B}\s*[A-Za-z]+\s+for\s+\d+[hms](?:\s+\d+[hms])*`),
+	"claude": regexp.MustCompile(`^\x{273B}\s*\p{L}+\s+for\s+\d+[hms](?:\s+\d+[hms])*`),
 }
 
 // Agents we trust the colored-span extractor to handle. Outside this set,
@@ -256,9 +256,17 @@ type proxy struct {
 	now             func() time.Time // clock seam; defaults to time.Now (#59)
 
 	// OSC rate limiting
-	lastEmit             time.Time
-	notificationRewriter NotificationRewriter
-	writeTTY             func(fd int, p []byte) (int, error)
+	lastEmit              time.Time
+	notificationRewriter  NotificationRewriter
+	notificationLifecycle NotificationLifecycle
+	lifecycleEvents       chan TurnObservation
+	lifecycleTimer        *time.Timer
+	lifecycleTimerKind    ObservationKind
+	lifecycleTimerToken   uint64
+	codexWorkingRendered  bool
+	lifecycleJournalPath  string
+	lifecycleJournal      lifecycleJournalAdvancer
+	writeTTY              func(fd int, p []byte) (int, error)
 	// pair-slug spawn debounce (#000027)
 	lastSlug time.Time
 
@@ -461,6 +469,7 @@ func (p *proxy) resolvePaths() {
 	p.agentPIDPath = paths.AgentPID()
 	p.agentReadyPath, _ = paths.AgentReadyChecked(p.agentBasename)
 	p.wrapEventsPath = paths.WrapEvents()
+	p.lifecycleJournalPath = paths.LifecycleJournal()
 }
 
 func (p *proxy) publishAgentReady(pid int) error {
@@ -955,7 +964,12 @@ func (p *proxy) finalizeSpan() bool {
 	if p.endOfTurnRe != nil && p.endOfTurnRe.Match(text) {
 		msg := string(text)
 		p.debug("END-OF-TURN", msg)
-		p.emitOuter(msg)
+		// A finalized colored marker is itself positive activity evidence for
+		// older Claude versions which do not emit progress OSC.
+		if p.notificationLifecycle.Generation == 0 && !p.notificationLifecycle.Active {
+			p.processLifecycleObservation(TurnObservation{Kind: ObservationWorking})
+		}
+		p.processLifecycleObservation(TurnObservation{Kind: ObservationMarkerCompletion, Message: msg})
 	}
 	return true
 }
@@ -1819,6 +1833,7 @@ func (p *proxy) translateChunk(data []byte, inPaste bool) ([]byte, []byte, bool)
 			// KKP Alt+Enter: \x1b[13;3u → send.
 			if startsWith(data[i:], enterKKPAlt) {
 				out = append(out, p.ttyProfile.keymap.altCR...)
+				p.publishLifecycleObservation(TurnObservation{Kind: ObservationUserSubmission})
 				i += len(enterKKPAlt)
 				continue
 			}
@@ -1837,6 +1852,7 @@ func (p *proxy) translateChunk(data []byte, inPaste bool) ([]byte, []byte, bool)
 			// Legacy Alt+Enter: \x1b\r.
 			if startsWith(data[i:], enterLegacyAlt) {
 				out = append(out, p.ttyProfile.keymap.altCR...)
+				p.publishLifecycleObservation(TurnObservation{Kind: ObservationUserSubmission})
 				i += len(enterLegacyAlt)
 				continue
 			}
@@ -2258,18 +2274,19 @@ func run(args []string, stdin io.Reader, stdout, stderr io.Writer) (int, error) 
 	stdinFile, _ := stdin.(*os.File)
 	stdoutFile, _ := stdout.(*os.File)
 	p := &proxy{
-		stdin:         stdin,
-		stdinFile:     stdinFile,
-		stdout:        stdout,
-		stdoutFile:    stdoutFile,
-		stderr:        stderr,
-		spans:         make(map[string]*spanEntry),
-		spanOrder:     list.New(),
-		idleS:         envDuration("PAIR_WRAP_IDLE_S", defaultIdleS),
-		captureWindow: envDuration("PAIR_WRAP_CAPTURE_S", defaultCaptureWindow),
-		debugLogPath:  os.Getenv("PAIR_WRAP_LOG"),
-		bellFallback:  envFlag("PAIR_WRAP_BELL_FALLBACK"),
-		now:           time.Now,
+		stdin:           stdin,
+		stdinFile:       stdinFile,
+		stdout:          stdout,
+		stdoutFile:      stdoutFile,
+		stderr:          stderr,
+		spans:           make(map[string]*spanEntry),
+		spanOrder:       list.New(),
+		idleS:           envDuration("PAIR_WRAP_IDLE_S", defaultIdleS),
+		captureWindow:   envDuration("PAIR_WRAP_CAPTURE_S", defaultCaptureWindow),
+		debugLogPath:    os.Getenv("PAIR_WRAP_LOG"),
+		bellFallback:    envFlag("PAIR_WRAP_BELL_FALLBACK"),
+		now:             time.Now,
+		lifecycleEvents: make(chan TurnObservation, 32),
 	}
 
 	// Argv: strip our own flags before resolving the command. argparse
@@ -2354,6 +2371,15 @@ argsDone:
 	}
 	if p.notifyModeActive != "idle" {
 		p.idleS = 0
+	}
+	if p.agentBasename == "codex" && p.lifecycleJournalPath != "" {
+		if ordinal, err := strconv.ParseUint(os.Getenv("PAIR_LAUNCH_ORDINAL"), 10, 64); err == nil && ordinal != 0 {
+			if tailer, err := OpenLifecycleJournalTailer(p.lifecycleJournalPath, ordinal); err != nil {
+				p.debug("LIFECYCLE-open-fail", err.Error())
+			} else {
+				p.lifecycleJournal = tailer
+			}
+		}
 	}
 
 	p.writeStartupBanner()
@@ -2576,9 +2602,30 @@ func (p *proxy) masterPump() {
 	if p.idleS > 0 {
 		idleTimer.Reset(p.idleS)
 	}
+	lifecycleTimer := time.NewTimer(time.Hour)
+	if !lifecycleTimer.Stop() {
+		<-lifecycleTimer.C
+	}
+	p.lifecycleTimer = lifecycleTimer
+	defer func() {
+		p.stopLifecycleTimer()
+		p.lifecycleTimer = nil
+	}()
 
 	captureTick := time.NewTicker(50 * time.Millisecond)
 	defer captureTick.Stop()
+	var lifecycleJournalRecords <-chan sessionwatch.LifecycleRecord
+	var lifecycleJournalFailures <-chan error
+	var lifecycleJournalStop chan struct{}
+	if p.lifecycleJournal != nil {
+		records := make(chan sessionwatch.LifecycleRecord, 32)
+		failures := make(chan error, 1)
+		lifecycleJournalStop = make(chan struct{})
+		lifecycleJournalRecords = records
+		lifecycleJournalFailures = failures
+		go followLifecycleJournal(p.lifecycleJournal, records, failures, lifecycleJournalStop)
+		defer close(lifecycleJournalStop)
+	}
 	stdoutFlushTick := time.NewTicker(p.stdoutFlushInterval())
 	defer stdoutFlushTick.Stop()
 	if p.stdoutPump == nil {
@@ -2590,6 +2637,17 @@ func (p *proxy) masterPump() {
 
 	for {
 		select {
+		case err := <-lifecycleJournalFailures:
+			p.debug("LIFECYCLE-tail-fail", err.Error())
+			lifecycleJournalFailures = nil
+			lifecycleJournalRecords = nil
+		case record := <-lifecycleJournalRecords:
+			p.processLifecycleRecord(record)
+		case <-lifecycleTimer.C:
+			kind, token := p.lifecycleTimerKind, p.lifecycleTimerToken
+			p.processLifecycleObservation(TurnObservation{Kind: kind, Token: token})
+		case observation := <-p.lifecycleEvents:
+			p.processLifecycleObservation(observation)
 		case ev, ok := <-ch:
 			if !ok {
 				p.traceWrap("master-read-end", nil)
@@ -2607,6 +2665,18 @@ func (p *proxy) masterPump() {
 				p.traceWrap("master-read-end", map[string]any{"error": ev.err.Error(), "normal": false})
 				return
 			}
+			// Submission is written before the child can causally produce this
+			// output, but the two pumps use separate channels. Drain already-
+			// queued boundaries before reducing output observations.
+			for {
+				select {
+				case observation := <-p.lifecycleEvents:
+					p.processLifecycleObservation(observation)
+				default:
+					goto lifecycleDrained
+				}
+			}
+		lifecycleDrained:
 			p.handleChunk(ev.data, &rolling)
 			if p.idleS > 0 {
 				// Stop+drain+reset is safe here because only this
@@ -2672,8 +2742,13 @@ func (p *proxy) handleChunk(data []byte, rolling *[]byte) {
 	}
 
 	rewritten := p.notificationRewriter.Feed(data, p.notifyModeActive == "native")
+	if progressOSCAuthorized(p.agentBasename) {
+		for _, observation := range rewritten.Observations {
+			p.processLifecycleObservation(observation)
+		}
+	}
 	for _, notification := range rewritten.Notifications {
-		p.emitOuter(notification.Message)
+		p.processLifecycleObservation(TurnObservation{Kind: ObservationNativeCompletion, Message: notification.Message})
 	}
 	if out := p.stdoutChunk(rewritten.Passthrough); len(out) > 0 {
 		if p.stdoutPump == nil {
@@ -2736,6 +2811,8 @@ func (p *proxy) handleChunk(data []byte, rolling *[]byte) {
 		if p.terminal != nil {
 			if err := p.terminal.Feed(data); err != nil {
 				p.debug("TERMINAL-feed-fail", err.Error())
+			} else {
+				p.observeCodexWorking()
 			}
 		}
 		*rolling = append(*rolling, data...)

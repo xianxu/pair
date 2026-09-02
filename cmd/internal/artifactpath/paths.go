@@ -508,6 +508,9 @@ func (p Paths) SlugProposed() string { return p.tagged("slug-proposed-", "") }
 func (p Paths) TitlePID() string     { return p.tagged("title-pid-", "") }
 func (p Paths) PairWrapPID() string  { return p.tagged("pair-wrap-pid-", "") }
 func (p Paths) WrapEvents() string   { return p.tagged("wrap-events-", ".jsonl") }
+func (p Paths) LifecycleJournal() string {
+	return p.tagged("lifecycle-", ".jsonl")
+}
 func (p Paths) ScrollbackPending() string {
 	return p.tagged("scrollback-pending-", ".md")
 }
@@ -538,6 +541,7 @@ func (p Paths) RenameArtifacts(agents []string) []string {
 		p.AgentPID(), p.AgentOutput(), p.AgentPicks(), p.LayoutMode(),
 		p.WorkbenchLayout(), p.QueueDir(), p.Quote(), p.ImageCapture(),
 		p.ImageCaptureDone(), p.Draft(), p.Log(), p.Ledger(),
+		p.LifecycleJournal(),
 		p.NvimPID("draft"), p.NvimPID("scrollback"),
 	}
 	for _, agent := range agents {
@@ -565,6 +569,7 @@ func (p Paths) EnvironmentBindings(agent string) ([]Binding, error) {
 		{Name: "PAIR_DRAFT_PATH", Path: p.Draft()},
 		{Name: "PAIR_LOG_PATH", Path: p.Log()},
 		{Name: "PAIR_LEDGER_PATH", Path: p.Ledger()},
+		{Name: "PAIR_LIFECYCLE_JOURNAL_PATH", Path: p.LifecycleJournal()},
 		{Name: "PAIR_QUEUE_DIR", Path: p.QueueDir()},
 		{Name: "PAIR_AGENT_PATH", Path: p.Agent()},
 		{Name: "PAIR_AGENT_PID_PATH", Path: p.AgentPID()},

@@ -675,10 +675,17 @@ var harnessTTYDrivenScenarios = map[string][]harnessTTYDrivenScenario{
 	// Codex paints its update interstitial whenever a newer release exists and
 	// the startup check is left enabled. Its footer is a registered picker
 	// marker, so this is overlay-layer evidence as well as gate evidence.
-	"codex": {{
-		name: "update interstitial", args: []string{"--no-alt-screen"},
-		until: "Press enter to continue", wantComposer: false, file: "overlay.raw",
-	}},
+	"codex": {
+		{
+			name: "update interstitial", args: []string{"--no-alt-screen"},
+			until: "Press enter to continue", wantComposer: false, file: "overlay.raw",
+		},
+		{
+			name: "working status", args: []string{"--no-alt-screen", "-c", "check_for_update_on_startup=false"},
+			send: "Briefly explain why the sky is blue.\r", until: "Working (",
+			wantComposer: true, file: "working.raw", timeout: 30 * time.Second,
+		},
+	},
 	"claude": {
 		// Bash mode repaints both the prompt glyph and the rule colour, so it
 		// is the fixture that would catch a future colour- or glyph-pinned

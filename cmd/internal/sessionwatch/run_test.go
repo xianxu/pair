@@ -52,6 +52,94 @@ func TestRunEstablishesAfterOneShortCompletedCorroboratedRound(t *testing.T) {
 	}
 }
 
+func TestRunPublishesTranscriptOnlyShortTurnAfterAuthorizedBinding(t *testing.T) {
+	dataDir := t.TempDir()
+	native := sessioninventorytest.NewFakeRuntime()
+	root := sessioninventory.StorageRoot{Agent: sessioninventory.AgentCodex, Name: "codex-sessions", Path: "/home/.codex/sessions"}
+	native.AddRoot(root)
+	sid := "019eff64-6ceb-7e72-9d41-a735a97029ac"
+	text := "short response with no retained working bar"
+	relative := "2026/08/28/rollout-test-" + sid + ".jsonl"
+	artifact := sessioninventory.Artifact{StorageRoot: root.Name, RelativePath: relative, Kind: sessioninventory.ArtifactTranscript}
+	native.PutFile(sessioninventory.FileEntry{Artifact: artifact, StableFileID: "stable", GenerationToken: "gen:1", MutationToken: "ctime:1"}, codexLifecycleRound(sid, "turn-1", text))
+	native.SetProcess("1234", "native-identity", nil, []string{filepath.Join(root.Path, filepath.FromSlash(relative))})
+
+	paths := mustScopedPaths(t, dataDir, "work")
+	runtime := newWatcherRuntime(native)
+	runtime.files[paths.Ledger()] = mustLaunchRecord(t, sessionledger.Record{Version: 2, Kind: sessionledger.RecordLaunch, ScopeKey: "scope", Tag: "work", Agent: "codex", LaunchArtifactBoundaries: []sessionledger.LaunchArtifactBoundary{}})
+	runtime.files[paths.Log()] = []byte("## 2026-08-28 01:00:01\n\n" + text + "\n\n---\n\n")
+	runtime.files[paths.AgentPID()] = []byte("1234\n")
+	runtime.modTimes[paths.AgentPID()] = runtime.now
+	runtime.identities["1234"] = "pair-identity"
+	var lifecycle []LifecycleRecord
+	runtime.onSleep = func() {
+		runtime.identities["1234"] = "changed"
+		runtime.onSleep = nil
+	}
+	err := Run(Options{
+		Agent: "codex", Tag: "work", ScopeKey: "scope", LaunchOrdinal: 1,
+		Home: "/home", DataDir: dataDir, PIDWait: time.Second, Timeout: time.Second, Poll: time.Millisecond,
+		FollowLifecycle: true,
+		AppendLifecycle: func(_ string, record LifecycleRecord) error {
+			lifecycle = append(lifecycle, record)
+			return nil
+		},
+	}, runtime)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(lifecycle) != 2 || lifecycle[0].Outcome != "started" || lifecycle[1].Outcome != "completed" || lifecycle[0].TurnID != "turn-1" || lifecycle[1].TurnID != "turn-1" {
+		t.Fatalf("lifecycle=%+v", lifecycle)
+	}
+}
+
+func TestRunFollowsAuthorizedTranscriptToLaterCompletion(t *testing.T) {
+	dataDir := t.TempDir()
+	native := sessioninventorytest.NewFakeRuntime()
+	root := sessioninventory.StorageRoot{Agent: sessioninventory.AgentCodex, Name: "codex-sessions", Path: "/home/.codex/sessions"}
+	native.AddRoot(root)
+	sid, turnID := "019eff64-6ceb-7e72-9d41-a735a97029ac", "turn-long"
+	text := "long response completes after binding"
+	relative := "2026/08/28/rollout-test-" + sid + ".jsonl"
+	artifact := sessioninventory.Artifact{StorageRoot: root.Name, RelativePath: relative, Kind: sessioninventory.ArtifactTranscript}
+	prefix := []byte(`{"timestamp":"2026-08-28T01:00:00Z","type":"session_meta","payload":{"id":"` + sid + `","parent_thread_id":null,"source":"cli"}}` + "\n" +
+		`{"timestamp":"2026-08-28T01:00:01Z","type":"event_msg","payload":{"type":"task_started","turn_id":"` + turnID + `"}}` + "\n" +
+		`{"timestamp":"2026-08-28T01:00:02Z","type":"response_item","payload":{"type":"message","role":"user","content":[{"type":"input_text","text":"` + text + `"}]}}` + "\n" +
+		`{"timestamp":"2026-08-28T01:00:03Z","type":"response_item","payload":{"type":"function_call","name":"tool"}}` + "\n")
+	native.PutFile(sessioninventory.FileEntry{Artifact: artifact, StableFileID: "stable", GenerationToken: "gen:1", MutationToken: "ctime:1"}, prefix)
+	native.SetProcess("1234", "native-identity", nil, []string{filepath.Join(root.Path, filepath.FromSlash(relative))})
+	paths := mustScopedPaths(t, dataDir, "work")
+	runtime := newWatcherRuntime(native)
+	runtime.files[paths.Ledger()] = mustLaunchRecord(t, sessionledger.Record{Version: 2, Kind: sessionledger.RecordLaunch, ScopeKey: "scope", Tag: "work", Agent: "codex", LaunchArtifactBoundaries: []sessionledger.LaunchArtifactBoundary{}})
+	runtime.files[paths.Log()] = []byte("## 2026-08-28 01:00:01\n\n" + text + "\n\n---\n\n")
+	runtime.files[paths.AgentPID()] = []byte("1234\n")
+	runtime.modTimes[paths.AgentPID()] = runtime.now
+	runtime.identities["1234"] = "pair-identity"
+	var lifecycle []LifecycleRecord
+	sleeps := 0
+	runtime.onSleep = func() {
+		sleeps++
+		if sleeps == 1 {
+			native.AppendFile(artifact, []byte(`{"timestamp":"2026-08-28T01:00:04Z","type":"event_msg","payload":{"type":"task_complete","turn_id":"`+turnID+`"}}`+"\n"), "ctime:2")
+		} else {
+			runtime.identities["1234"] = "changed"
+			runtime.onSleep = nil
+		}
+	}
+	if err := Run(Options{Agent: "codex", Tag: "work", ScopeKey: "scope", LaunchOrdinal: 1, Home: "/home", DataDir: dataDir, PIDWait: time.Second, Timeout: time.Second, Poll: time.Millisecond, FollowLifecycle: true, AppendLifecycle: func(_ string, record LifecycleRecord) error {
+		lifecycle = append(lifecycle, record)
+		return nil
+	}}, runtime); err != nil {
+		t.Fatal(err)
+	}
+	if len(lifecycle) != 2 || lifecycle[0].Outcome != "started" || lifecycle[1].Outcome != "completed" {
+		t.Fatalf("lifecycle=%+v", lifecycle)
+	}
+	if got := native.OperationCount(sessioninventorytest.OperationReadAt, artifact.StorageRoot+":"+artifact.RelativePath); got != 2 {
+		t.Fatalf("range reads=%d, want initial plus appended suffix", got)
+	}
+}
+
 func TestWatcherIncrementalV2PublishesProofFromOnlyPostBoundaryArtifact(t *testing.T) {
 	t.Parallel()
 	dataDir := t.TempDir()
@@ -525,6 +613,13 @@ func codexRound(sid, text string) []byte {
 	return []byte(`{"timestamp":"2026-08-28T01:00:00Z","type":"session_meta","payload":{"id":"` + sid + `","parent_thread_id":null,"source":"cli"}}` + "\n" +
 		`{"type":"response_item","payload":{"type":"message","role":"user","content":[{"type":"input_text","text":"` + text + `"}]}}` + "\n" +
 		`{"type":"response_item","payload":{"type":"function_call"}}` + "\n")
+}
+
+func codexLifecycleRound(sid, turnID, text string) []byte {
+	return []byte(`{"timestamp":"2026-08-28T01:00:00Z","type":"session_meta","payload":{"id":"` + sid + `","parent_thread_id":null,"source":"cli"}}` + "\n" +
+		`{"timestamp":"2026-08-28T01:00:01Z","type":"event_msg","payload":{"type":"task_started","turn_id":"` + turnID + `"}}` + "\n" +
+		`{"timestamp":"2026-08-28T01:00:02Z","type":"response_item","payload":{"type":"message","role":"user","content":[{"type":"input_text","text":"` + text + `"}]}}` + "\n" +
+		`{"timestamp":"2026-08-28T01:00:03Z","type":"event_msg","payload":{"type":"task_complete","turn_id":"` + turnID + `","last_agent_message":"done"}}` + "\n")
 }
 
 func mustLaunchRecord(t *testing.T, record sessionledger.Record) []byte {

@@ -16,13 +16,13 @@
 
 | Name | Lives in | Status |
 |------|----------|--------|
-| `TurnObservation` | `cmd/internal/wrapcmd/notification_lifecycle.go` | new |
-| `NotificationLifecycle` | `cmd/internal/wrapcmd/notification_lifecycle.go` | new |
-| `LifecycleDecision` | `cmd/internal/wrapcmd/notification_lifecycle.go` | new |
-| `CodexWorkingRecognizer` | `cmd/internal/wrapcmd/codex_working.go` | new |
-| `LifecycleRecord` | `cmd/internal/sessionwatch/lifecycle_event.go` | new |
-| Claude marker grammar | `cmd/internal/wrapcmd/wrap.go` | modified |
-| Codex native-event grammar | `cmd/internal/sessioninventory/event.go` | modified |
+| `TurnObservation` | `cmd/internal/wrapcmd/notification_lifecycle.go` | delivered M2 |
+| `NotificationLifecycle` | `cmd/internal/wrapcmd/notification_lifecycle.go` | delivered M2 |
+| `LifecycleDecision` | `cmd/internal/wrapcmd/notification_lifecycle.go` | delivered M2 |
+| `RecognizeCodexWorking` | `cmd/internal/wrapcmd/codex_working.go` | delivered M4 |
+| `LifecycleRecord` | `cmd/internal/sessionwatch/lifecycle_event.go` | delivered M3 |
+| Claude marker grammar | `cmd/internal/wrapcmd/wrap.go` | delivered M1 |
+| Codex native-event grammar | `cmd/internal/sessioninventory/event.go` | delivered M3 |
 
 - **`TurnObservation`** normalizes native OSC, markers, progress OSC,
   transcript events, rendered state, and watchdog expiry. N observations reduce
@@ -34,7 +34,7 @@
   (`ARCH-PURE`, `ARCH-DRY`).
 - **`LifecycleDecision`** contains notify/message and timer actions, with no IO
   or clock reads.
-- **`CodexWorkingRecognizer`** recognizes only the live rendered
+- **`RecognizeCodexWorking`** recognizes only the live rendered
   `• Working (… esc to interrupt)` status. `Worked for…`, prose, and quoted
   copies have no authority.
 - **`LifecycleRecord`** is versioned launch-scoped JSONL containing agent,
@@ -75,15 +75,15 @@ generation boundary.
 |------|----------|--------|-------|
 | `emitOuter` | `cmd/internal/wrapcmd/wrap.go` | modified | outer TTY OSC 777 + slug refresh |
 | `NotificationRewriter` | `cmd/internal/wrapcmd/notification_rewriter.go` | modified | OSC 9/99/777 and 9;4 stream |
-| `AuthorizedTranscriptFollower` | `cmd/internal/sessionwatch/run.go` | modified | validated Codex rollout + child lifetime |
-| `LifecycleJournal` | `cmd/internal/sessionwatch/lifecycle_event.go` | new | append-only launch event sidecar |
-| `LifecycleJournalTailer` | `cmd/internal/wrapcmd/lifecycle_journal.go` | new | incremental event delivery to proxy loop |
-| `terminalModel` | `cmd/internal/wrapcmd/terminal_model.go` | modified | rendered Codex screen |
-| Couch projection | `cmd/internal/couchtty/console.go` | verified | canonical OSC to unread/status/switcher |
+| `Run` authorized transcript continuation | `cmd/internal/sessionwatch/run.go` | delivered M3 | validated Codex rollout + child lifetime |
+| `AppendLifecycleRecord` | `cmd/internal/sessionwatch/lifecycle_event.go` | delivered M3 | append-only launch event sidecar |
+| `LifecycleJournalTailer` | `cmd/internal/wrapcmd/lifecycle_journal.go` | delivered M3 | incremental event delivery to proxy loop |
+| `terminalModel` | `cmd/internal/wrapcmd/terminal_model.go` | consumed by M4 | rendered Codex screen |
+| Couch projection | `cmd/internal/couchtty/console.go` | verified M4 | canonical OSC to unread/status/switcher |
 
 - **`NotificationRewriter`** must preserve progress bytes while emitting typed
   observations. Existing every-split stream tests are the stateful fake.
-- **`AuthorizedTranscriptFollower`** reuses the existing `sessionwatch.Runtime`
+- **`FollowAuthorizedTranscript`** reuses the existing `sessionwatch.Runtime`
   fake and scanner-authorized root selection. No second `lsof`, newest-file, or
   cwd resolver is permitted (`ARCH-DRY`, `ARCH-MOCK`).
 - **Journal/tailer** bridge the detached watcher to the wrapper. The current
@@ -181,16 +181,16 @@ fixtures/parser support before release—never accepted by broad fallback parsin
 - Create: `cmd/internal/wrapcmd/notification_marker_test.go`
 - Modify: `cmd/internal/wrapcmd/update_agent_output_test.go`
 
-- [ ] Write the failing `endOfTurnByAgent["claude"].Match` tests according to the
+- [x] Write the failing `endOfTurnByAgent["claude"].Match` tests according to the
   named UTF-8 marker risk strategy above.
-- [ ] Run `go test ./cmd/internal/wrapcmd -run TestClaudeEndOfTurnGrammar -count=1`;
+- [x] Run `go test ./cmd/internal/wrapcmd -run TestClaudeEndOfTurnGrammar -count=1`;
   expect the `Sautéed` case to fail.
-- [ ] Change only `[A-Za-z]+` to `\p{L}+`; retain the anchored star, whitespace,
+- [x] Change only `[A-Za-z]+` to `\p{L}+`; retain the anchored star, whitespace,
   duration, and prefix-only trailing text.
-- [ ] Add the production-path regression for the reported `Sautéed` span through
+- [x] Add the production-path regression for the reported `Sautéed` span through
   `updateAgentOutput` / `finalizeSpan` and the outer-TTY seam.
-- [ ] Run `go test ./cmd/internal/wrapcmd -run 'TestClaudeEndOfTurnGrammar|Test.*Saut' -count=1`; expect PASS.
-- [ ] Commit `couch: #161 M1 accept Unicode Claude marker verbs`, tick M1,
+- [x] Run `go test ./cmd/internal/wrapcmd -run 'TestClaudeEndOfTurnGrammar|Test.*Saut' -count=1`; expect PASS.
+- [x] Commit `couch: #161 M1 accept Unicode Claude marker verbs`, tick M1,
   append evidence, update atlas only if its grammar is stale, and run
   `sdlc milestone-close --issue 161 --milestone M1`.
 
@@ -203,13 +203,13 @@ fixtures/parser support before release—never accepted by broad fallback parsin
 - Create: `cmd/internal/wrapcmd/notification_lifecycle_test.go`
 - Modify: `cmd/internal/wrapcmd/wrap.go`
 
-- [ ] Write failing `Reduce` tests according to the arbitrary observation-
+- [x] Write failing `Reduce` tests according to the arbitrary observation-
   sequence risk strategy and lifecycle transition contract above.
-- [ ] Run `go test ./cmd/internal/wrapcmd -run TestNotificationLifecycle -count=1`;
+- [x] Run `go test ./cmd/internal/wrapcmd -run TestNotificationLifecycle -count=1`;
   expect compile failure for missing lifecycle types.
-- [ ] Implement `Reduce` and its thin proxy event/timer integration exactly as
+- [x] Implement `Reduce` and its thin proxy event/timer integration exactly as
   specified by Core concepts and the lifecycle transition contract.
-- [ ] Run focused lifecycle/rewriter/marker tests; expect one same-turn
+- [x] Run focused lifecycle/rewriter/marker tests; expect one same-turn
   notification across source permutations and two distinct rapid turns.
 
 ### Task 3: Turn Claude progress OSC into activity observations
@@ -220,12 +220,12 @@ fixtures/parser support before release—never accepted by broad fallback parsin
 - Modify: `cmd/internal/wrapcmd/osc_test.go`
 - Modify: `cmd/internal/wrapcmd/wrap.go`
 
-- [ ] Write failing `NotificationRewriter.Feed` tests according to the arbitrary
+- [x] Write failing `NotificationRewriter.Feed` tests according to the arbitrary
   chunk/malformed OSC risk strategy above.
-- [ ] Implement `NotificationRewriter.Feed` progress observations and lifecycle
+- [x] Implement `NotificationRewriter.Feed` progress observations and lifecycle
   integration according to Core concepts.
-- [ ] Run `go test ./cmd/internal/wrapcmd -count=1`; expect PASS.
-- [ ] Commit `couch: #161 M2 unify notification lifecycle signals`, document
+- [x] Run `go test ./cmd/internal/wrapcmd -count=1`; expect PASS.
+- [x] Commit `couch: #161 M2 unify notification lifecycle signals`, document
   precedence/grace/timer ownership in the atlas, tick/log M2, and run
   `sdlc milestone-close --issue 161 --milestone M2`.
 
@@ -243,12 +243,12 @@ fixtures/parser support before release—never accepted by broad fallback parsin
 - Create: `cmd/internal/wrapcmd/lifecycle_journal.go`
 - Create: `cmd/internal/wrapcmd/lifecycle_journal_test.go`
 
-- [ ] Write failing `AppendLifecycleRecord` and
+- [x] Write failing `AppendLifecycleRecord` and
   `LifecycleJournalTailer.Advance` tests according to their named stateful-stream
   risk strategies above.
-- [ ] Implement the canonical `artifactpath`, append, reconciliation, and tailing
+- [x] Implement the canonical `artifactpath`, append, reconciliation, and tailing
   entities exactly as specified by Core concepts.
-- [ ] Run `go test ./cmd/internal/sessionwatch ./cmd/internal/wrapcmd ./cmd/internal/launcher -run 'Lifecycle|ScopedPaths' -count=1`; expect PASS.
+- [x] Run `go test ./cmd/internal/sessionwatch ./cmd/internal/wrapcmd ./cmd/internal/launcher -run 'Lifecycle|ScopedPaths' -count=1`; expect PASS.
 
 ### Task 5: Continue following the authorized Codex root
 
@@ -261,14 +261,14 @@ fixtures/parser support before release—never accepted by broad fallback parsin
 - Modify: `cmd/internal/sessioninventory/jsonl_incremental.go` only if required to expose existing absolute offsets
 - Modify: `cmd/internal/wrapcmd/wrap.go`
 
-- [ ] Write failing `FollowAuthorizedTranscript` tests according to the concurrent
+- [x] Write failing `FollowAuthorizedTranscript` tests according to the concurrent
   mutable-artifact risk strategy. Keep one named acceptance regression for a
   transcript-only short turn already complete when binding occurs.
-- [ ] Implement `FollowAuthorizedTranscript` and wrapper integration exactly as
+- [x] Implement `FollowAuthorizedTranscript` and wrapper integration exactly as
   specified by Core concepts, the binding watermark contract, and operating
   envelope.
-- [ ] Run `go test ./cmd/internal/sessioninventory ./cmd/internal/sessionwatch ./cmd/internal/wrapcmd ./cmd/internal/launcher -count=1`; expect PASS without leaks/stale publication.
-- [ ] Commit `couch: #161 M3 follow authorized Codex turn completion`, update
+- [x] Run `go test ./cmd/internal/sessioninventory ./cmd/internal/sessionwatch ./cmd/internal/wrapcmd ./cmd/internal/launcher -count=1`; expect PASS without leaks/stale publication.
+- [x] Commit `couch: #161 M3 follow authorized Codex turn completion`, update
   `atlas/session-identity.md` and architecture, tick/log M3, and run
   `sdlc milestone-close --issue 161 --milestone M3`.
 
@@ -283,11 +283,11 @@ fixtures/parser support before release—never accepted by broad fallback parsin
 - Create: `cmd/internal/wrapcmd/testdata/tty/codex/<captured-version>/working.raw`
 - Modify: `cmd/internal/wrapcmd/harness_tty_fixture_test.go`
 
-- [ ] Capture/sanitize a real animated Working-to-final-output PTY fixture and
+- [x] Capture/sanitize a real animated Working-to-final-output PTY fixture and
   record Codex version/terminal size; do not synthesize guessed ANSI.
-- [ ] Write failing `RecognizeCodexWorking` tests according to the arbitrary
+- [x] Write failing `RecognizeCodexWorking` tests according to the arbitrary
   rendered-cell risk strategy above.
-- [ ] Implement `RecognizeCodexWorking` and its thin terminal-model observation
+- [x] Implement `RecognizeCodexWorking` and its thin terminal-model observation
   adapter according to Core concepts.
 
 ### Task 7: Prove Couch status and switcher behavior
@@ -297,14 +297,94 @@ fixtures/parser support before release—never accepted by broad fallback parsin
 - Modify: `cmd/internal/wrapcmd/harness_tty_integration_test.go` or add a focused cross-package test at the existing accessible seam
 - Modify: `atlas/architecture.md`
 
-- [ ] Add the production acceptance test that passes wrapper-emitted OSC 777
+- [x] Add the production acceptance test that passes wrapper-emitted OSC 777
   through Couch and asserts the issue's two named user-facing surfaces.
-- [ ] Run focused package tests, then `go test ./... -count=1` and
+- [x] Run focused package tests, then `go test ./... -count=1` and
   `git diff --check`; expect PASS.
-- [ ] Run the extended opt-in `TestLiveNativeSessionShapeConformance` against the
+- [x] Run the extended opt-in `TestLiveNativeSessionShapeConformance` against the
   installed Codex and record version/results in the issue Log.
-- [ ] Commit `couch: #161 M4 recover and display stopped agent work`, tick/log
+- [x] Commit `couch: #161 M4 recover and display stopped agent work`, tick/log
   M4 with fixture versions, update atlas, and run
   `sdlc milestone-close --issue 161 --milestone M4`.
-- [ ] Re-run `go test ./... -count=1 && git diff --check` from a clean worktree.
+- [x] Re-run `go test ./... -count=1 && git diff --check` from a clean worktree.
 - [ ] Close with `sdlc close --issue 161 --verified '<focused lifecycle, watcher concurrency, real TTY fixture, Couch projection, and full Go test evidence>'`; omit guessed actuals so the gate measures them.
+
+## Revisions
+
+### 2026-09-01 — reopen M2 after boundary review
+
+The first M2 implementation inferred submission from emitted bare-CR bytes,
+which confused harness-specific Return encoding with the semantic send action;
+its native regression then masked that missing opener with an unrelated progress
+event. Keep the lifecycle contract unchanged, but publish submission at both
+legacy and KKP Alt+Enter branches, explicitly keep plain Enter and overlay
+confirmation non-authoritative, and pin Codex/Claude send-to-native production
+flows. Expand the pure reducer sweep across completion-source order, keyed
+mismatch/new-turn behavior, and distinct abort fallback, and classify every new
+production source in the exhaustive artifact manifest.
+
+### 2026-09-01 — enforce the M3 boundary contracts
+
+The first M3 cut performed journal IO on the PTY owner loop, left planned M4
+entities indistinguishable from delivered M3 declarations, and added native
+envelope authority without extending live conformance. Move all journal
+stat/open/read/decode work to a dedicated worker with capacity-32 durable
+backpressure and 64 KiB advancement bounds; keep only reducer mutation on the
+master loop. Mark every Core concepts row by delivered milestone or planned
+milestone and use greppable declaration names. As a class rule, every native
+production envelope promoted to notification authority must gain an assertion
+in the recurring opt-in live conformance seam in the same milestone.
+
+### 2026-09-01 — close M3 review contract gaps
+
+The M3 re-review found that the worker regression bypassed `masterPump`, the
+entity table still described M4 surfaces as delivered, and the journal reader
+accepted a valid JSON prefix or arbitrary non-empty agent/source/outcome values.
+Exercise blocked journal IO through the production master-pump seam, distinguish
+planned M4 surfaces from delivered M3 declarations, and single-source a closed
+record grammar shared by journal writer and reader. A committed record is one
+complete JSON value for the current Codex transcript authority with a supported
+outcome, stable identity fields, non-empty turn ID, and native timestamp.
+
+### 2026-09-01 — make durability reconciliation semantic
+
+The next M3 review found that append reconciliation treated the stable transport
+identity alone as proof that the attempted observation was committed. Reuse the
+strict journal decoder for reconciliation and accept a candidate only when its
+complete semantic content equals the attempted record. Producer-path regressions
+enumerate malformed framing, unknown fields, unauthorized authority values, and
+same-identity differences in version, outcome, turn, message, transcript path,
+and event timestamp.
+
+### 2026-09-01 — ground M4 in captured rendered transitions
+
+Installed Codex 0.152.0 did not reproduce the older literal `Working (` label
+during a new 30-second prompt, so do not broaden recognition to its unrelated
+`Booting MCP server … esc to interrupt` status. Use the existing raw Pair PTY
+capture that contains the reported Working animation and its corresponding
+clear repaint, sanitize it to those exact paint operations, replay it
+incrementally through the production terminal model, and retain the
+installed-version startup capture plus exact fixture provenance.
+The terminal model itself remains unchanged; M4 consumes its snapshots.
+
+### 2026-09-01 — join wrapper production to Couch production
+
+M4 review found that the wrapper and Couch assertions independently used the
+shared OSC encoder, so neither could catch a broken handoff between packages.
+Replace that split proof with one acceptance test that captures bytes emitted by
+the rendered Codex production adapter, feeds those exact bytes through a Couch
+fake PTY child into the running Console, and observes both the pending status
+chip and switcher message (`ARCH-PURPOSE`, `ARCH-MOCK`).
+
+### 2026-09-01 — enforce lifecycle source authority by agent
+
+The whole-issue review found that Claude's iTerm progress OSC was parsed at a
+shared terminal seam and then granted lifecycle authority to every wrapped
+agent. The complete authority matrix is: Claude may use progress OSC and its
+finalized colored marker; Codex may use native completion OSC, authorized
+transcript journal records, and the rendered Working transition; other agents
+retain only their explicitly existing native completion sources. Source
+adapters must gate authority before calling the shared reducer. Production-path
+coverage now proves Claude progress is authoritative while the same bytes from
+Codex, Agy, and Muse remain transparent and cannot mutate lifecycle state
+(`ARCH-PURPOSE`).

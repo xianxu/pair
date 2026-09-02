@@ -3,6 +3,7 @@ package sessioninventory
 import (
 	"encoding/json"
 	"strings"
+	"time"
 )
 
 type NativeEventKind string
@@ -12,6 +13,7 @@ const (
 	EventAssistant  NativeEventKind = "assistant"
 	EventToolCall   NativeEventKind = "tool_call"
 	EventToolResult NativeEventKind = "tool_result"
+	EventTurnStart  NativeEventKind = "turn_start"
 	EventTerminal   NativeEventKind = "terminal"
 )
 
@@ -30,6 +32,8 @@ type NativeEvent struct {
 	Kind       NativeEventKind `json:"kind"`
 	Text       string          `json:"text"`
 	SourceKind string          `json:"source_kind"`
+	TurnID     string          `json:"turn_id,omitempty"`
+	Timestamp  time.Time       `json:"timestamp,omitempty"`
 }
 
 func (e NativeEvent) Progress() bool {
@@ -178,11 +182,13 @@ func normalizeClaudeEvent(record []byte) ([]NativeEvent, EventDisposition) {
 
 func normalizeCodexEvent(record []byte) ([]NativeEvent, EventDisposition) {
 	var value struct {
-		Type    string `json:"type"`
-		Payload struct {
+		Timestamp time.Time `json:"timestamp"`
+		Type      string    `json:"type"`
+		Payload   struct {
 			Type    string      `json:"type"`
 			Role    string      `json:"role"`
 			Content []textBlock `json:"content"`
+			TurnID  string      `json:"turn_id"`
 		} `json:"payload"`
 	}
 	if decodeStrictJSON(record, &value) != nil {
@@ -226,9 +232,17 @@ func normalizeCodexEvent(record []byte) ([]NativeEvent, EventDisposition) {
 	}
 	if value.Type == "event_msg" {
 		switch value.Payload.Type {
+		case "task_started":
+			if value.Payload.TurnID == "" {
+				return nil, EventNearMiss
+			}
+			return []NativeEvent{{Kind: EventTurnStart, SourceKind: "event_msg.task_started", TurnID: value.Payload.TurnID, Timestamp: value.Timestamp}}, EventAccepted
 		case "task_complete", "turn_aborted":
-			return []NativeEvent{{Kind: EventTerminal, SourceKind: "event_msg." + value.Payload.Type}}, EventAccepted
-		case "token_count", "agent_message", "patch_apply_end", "sub_agent_activity", "task_started", "user_message", "thread_settings_applied", "context_compacted", "web_search_end", "thread_rolled_back":
+			if value.Payload.TurnID == "" {
+				return nil, EventNearMiss
+			}
+			return []NativeEvent{{Kind: EventTerminal, SourceKind: "event_msg." + value.Payload.Type, TurnID: value.Payload.TurnID, Timestamp: value.Timestamp}}, EventAccepted
+		case "token_count", "agent_message", "patch_apply_end", "sub_agent_activity", "user_message", "thread_settings_applied", "context_compacted", "web_search_end", "thread_rolled_back":
 			return nil, EventIgnored
 		default:
 			return nil, EventNearMiss

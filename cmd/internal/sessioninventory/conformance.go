@@ -73,6 +73,37 @@ func RenderConformance(report ConformanceReport) ([]byte, error) {
 	return output.Bytes(), nil
 }
 
+// ValidateCodexLifecycleConformance checks the exact production envelopes that
+// notification authority consumes. At least one keyed successful turn must be
+// present, and every accepted terminal must follow its same-root opener.
+func ValidateCodexLifecycleConformance(events []NativeEventFact) error {
+	started := map[string]uint64{}
+	completed := 0
+	sort.Slice(events, func(i, j int) bool { return events[i].Position < events[j].Position })
+	for _, fact := range events {
+		key := fact.RootNodeID + "\x00" + fact.Event.TurnID
+		switch fact.Event.SourceKind {
+		case "event_msg.task_started":
+			if fact.Event.TurnID == "" || fact.Event.Timestamp.IsZero() {
+				return errors.New("Codex task_started lacks turn identity or timestamp")
+			}
+			started[key] = fact.Position
+		case "event_msg.task_complete", "event_msg.turn_aborted":
+			position, ok := started[key]
+			if fact.Event.TurnID == "" || fact.Event.Timestamp.IsZero() || !ok || fact.Position <= position {
+				return errors.New("Codex terminal lacks a prior same-turn opener")
+			}
+			if fact.Event.SourceKind == "event_msg.task_complete" {
+				completed++
+			}
+		}
+	}
+	if completed == 0 {
+		return errors.New("Codex lifecycle conformance found no completed keyed turn")
+	}
+	return nil
+}
+
 func conformanceAvailability(runtime Runtime, agent Agent) (bool, error) {
 	available := false
 	for _, root := range runtime.NativeRoots(agent) {

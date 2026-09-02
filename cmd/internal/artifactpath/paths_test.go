@@ -74,6 +74,7 @@ func TestEveryArtifactPathStaysInsideCompositeScope(t *testing.T) {
 		"title pid":         paths.TitlePID(),
 		"pair wrap pid":     paths.PairWrapPID(),
 		"wrap events":       paths.WrapEvents(),
+		"lifecycle journal": paths.LifecycleJournal(),
 		"pending":           paths.ScrollbackPending(),
 		"last left":         paths.LastLeftPane(),
 		"last terminal":     paths.LastTerminalPane(),
@@ -96,6 +97,16 @@ func TestEveryArtifactPathStaysInsideCompositeScope(t *testing.T) {
 	}
 	if got["parked scrollback"] != wantScope+"/parked-scrollback-work-20260826T120000" {
 		t.Fatalf("ParkedScrollback() = %q", got["parked scrollback"])
+	}
+}
+
+func TestLifecycleJournalUsesCanonicalScopedPath(t *testing.T) {
+	paths, err := Resolve(Address{DataDir: "/data", RepoScope: "0123456789abcdef", Tag: "work"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got, want := paths.LifecycleJournal(), "/data/repos/0123456789abcdef/lifecycle-work.jsonl"; got != want {
+		t.Fatalf("LifecycleJournal() = %q, want %q", got, want)
 	}
 }
 

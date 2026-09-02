@@ -67,6 +67,51 @@ func (f *harnessSessionFake) close() {
 	}
 }
 
+func TestHarnessTTYSubmissionObservationUsesSendChord(t *testing.T) {
+	for _, harness := range []string{"codex", "claude"} {
+		t.Run(harness, func(t *testing.T) {
+			f := newHarnessSessionFake(t, harness, true)
+			t.Cleanup(f.close)
+			f.proxy.lifecycleEvents = make(chan TurnObservation, 2)
+			if harness == "codex" {
+				f.output(codexLiveComposerPaint())
+			} else {
+				f.output(claudeLiveComposerPaint())
+			}
+
+			_ = f.enter()
+			select {
+			case got := <-f.proxy.lifecycleEvents:
+				t.Fatalf("plain Enter published submission: %+v", got)
+			default:
+			}
+
+			_ = f.altEnter()
+			select {
+			case got := <-f.proxy.lifecycleEvents:
+				if got.Kind != ObservationUserSubmission {
+					t.Fatalf("Alt+Enter observation = %+v", got)
+				}
+			default:
+				t.Fatal("Alt+Enter did not publish submission")
+			}
+
+			out, leftover, paste := f.proxy.translateChunk(enterKKPAlt, false)
+			if !bytes.Equal(out, []byte{'\r'}) || len(leftover) != 0 || paste {
+				t.Fatalf("KKP Alt+Enter translation = %q leftover=%q paste=%t", out, leftover, paste)
+			}
+			select {
+			case got := <-f.proxy.lifecycleEvents:
+				if got.Kind != ObservationUserSubmission {
+					t.Fatalf("KKP Alt+Enter observation = %+v", got)
+				}
+			default:
+				t.Fatal("KKP Alt+Enter did not publish submission")
+			}
+		})
+	}
+}
+
 func TestHarnessTTYIntegration_ProfileSelectionAndTerminalLifecycle(t *testing.T) {
 	f := newHarnessSessionFake(t, "agy", true)
 	if f.proxy.ttyProfile == nil || f.proxy.terminal == nil {

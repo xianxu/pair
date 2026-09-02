@@ -27,6 +27,13 @@ func TestLiveNativeSessionShapeConformance(t *testing.T) {
 		t.Fatalf("conformance output leaked an absolute path: %s", rendered)
 	}
 	t.Logf("native session conformance (redacted): %s", rendered)
+	codexScan := ScanCodex(runtime)
+	codexInventory := BuildForest(codexScan.Facts)
+	codexEvents, _ := NativeEventsWithRuntime(runtime, codexInventory, AgentCodex)
+	if err := ValidateCodexLifecycleConformance(codexEvents); err != nil {
+		t.Fatalf("Codex lifecycle envelope drift: %v", err)
+	}
+	t.Log("Codex lifecycle envelopes: keyed start/completion order conforms")
 	if conformanceErr != nil {
 		t.Fatal(conformanceErr)
 	}

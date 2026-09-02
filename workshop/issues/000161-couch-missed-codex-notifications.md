@@ -1,12 +1,13 @@
 ---
 id: 000161
-status: working
+status: codecomplete
 deps: []
 github_issue:
 created: 2026-09-01
 updated: 2026-09-01
 estimate_hours: 6.93
 started: 2026-09-01T13:35:54-07:00
+actual_hours: 0.45
 ---
 
 # Couch misses Codex completion notifications
@@ -132,17 +133,64 @@ total: 6.93
 
 ## Plan
 
-- [ ] M1 — Correct and regression-test Claude's Unicode marker-verb grammar.
-- [ ] M2 — Add the pure turn lifecycle reducer, semantic deduplication, Claude
+- [x] M1 — Correct and regression-test Claude's Unicode marker-verb grammar.
+- [x] M2 — Add the pure turn lifecycle reducer, semantic deduplication, Claude
   OSC progress transitions, and activity-gated timers.
-- [ ] M3 — Extend the existing authorized Codex session watcher to tail the
+- [x] M3 — Extend the existing authorized Codex session watcher to tail the
   bound rollout and publish transcript completion observations to `pair-wrap`.
-- [ ] M4 — Add rendered Codex `Working` recovery and verify canonical
+- [x] M4 — Add rendered Codex `Working` recovery and verify canonical
   notifications through Couch's status and switcher surfaces.
 
 ## Log
 
 ### 2026-09-01
+- 2026-09-01: closed — Claude Unicode markers, agent-scoped progress authority across Claude/Codex/Agy/Muse, progress lifecycle, strict Codex transcript authority/journal, rendered Working recovery, actual wrapper-to-Couch status/switcher delivery, 268k fuzz, installed lifecycle envelope conformance, full go test ./..., and git diff --check verified.; review verdict: SHIP
+- 2026-09-01: closed M4 — Joined acceptance transports rendered-Codex wrapper bytes through Couch fake PTY into running Console and observes pending status plus switcher message; focused packages, full go test ./..., and git diff --check pass.; review verdict: SHIP
+- M4 implementation: sanitized Codex 0.152.0 raw PTY output to the real
+  animated `• Working (… esc to interrupt)` paint and its later clear repaint
+  at 120×38, retaining no conversational payload. RED/GREEN incremental replay pins exact
+  bottom-status recognition, quoted/prose/other-status rejection, appearance
+  and disappearance through `handleChunk`, grace expiry, canonical OSC 777,
+  and Couch status/switcher projections. A 2-second arbitrary-cell fuzz run
+  completed 268,405 executions. Installed-session conformance confirmed keyed
+  Codex lifecycle start/completion order; the broader pre-existing inventory
+  check still reports `parent_conflict`, `parent_missing`, and
+  `schema_near_miss` (`ARCH-PURE`, `ARCH-MOCK`, `ARCH-PURPOSE`).
+- M4 verification: after generating the ignored runtime bundle from tracked
+  inputs, `go test ./... -count=1` and `git diff --check` pass from the clean
+  `f6117aac` implementation commit.
+- 2026-09-01: closed M3 — RED producer reconciliation collision matrix across malformed framing, unknown fields, unauthorized authority values, and all same-identity semantic differences; GREEN strict shared decode plus complete observation equality; five-package focused tests and git diff --check.; review verdict: SHIP
+- M3 implementation: captured live Codex envelopes confirmed keyed
+  `task_started`, `task_complete`, and `turn_aborted`. RED/GREEN coverage pins
+  strict parsing, launch/generation/offset journal identity, interrupted append
+  reconciliation, prior-EOF/current-launch tailing, partial/oversized/
+  replaced/truncated fail-closed behavior, a transcript-only short completed
+  turn at binding, an appended long-turn completion, cross-root rejection, and
+  canonical wrapper notification. GREEN:
+  `go test ./cmd/internal/sessioninventory ./cmd/internal/sessionwatch ./cmd/internal/wrapcmd ./cmd/internal/launcher ./cmd/internal/artifactpath -count=1`; `git diff --check` (`ARCH-IDENTITY`, `ARCH-MOCK`, `ARCH-DRY`).
+- M3 boundary review reopened the milestone: journal IO was still synchronous
+  on the PTY loop, Core concept statuses mixed planned and delivered entities,
+  and live conformance did not assert the newly authoritative envelopes. The
+  class fix moves all bounded journal IO/decoding to a backpressured worker,
+  makes entity milestones explicit, and requires recurring conformance to prove
+  keyed same-root opener/terminal ordering and timestamps (`ARCH-CONSTRAINTS`,
+  `ARCH-MOCK`, `ARCH-PURPOSE`).
+- 2026-09-01: closed M2 — RED semantic legacy/KKP send, real Codex/Claude send-to-native delivery, source-order/key/abort/fuzz invariants, and artifact inventory; GREEN go test ./cmd/internal/wrapcmd ./cmd/internal/artifactpath -count=1, 2s lifecycle fuzz, git diff --check.; review verdict: SHIP
+- M2 implementation: RED covered absent lifecycle types, OSC progress at every
+  split in marker/native modes, one proxy-owned timer, resumed work cancelling
+  stale grace, and transcript start activating a submitted turn. GREEN:
+  `go test ./cmd/internal/wrapcmd -count=1` and `git diff --check`. The pure
+  reducer now deduplicates native/marker terminals per generation; Claude
+  `OSC 9;4;3;` arms activity and `OSC 9;4;0;` enters a 250 ms richer-message
+  grace, with a tokenized 60-second activity watchdog (`ARCH-PURE`, `ARCH-DRY`).
+- M2 boundary review reopened the milestone. The send boundary had been coupled
+  to a bare-CR encoding even though Pair's semantic send chord is Alt+Enter and
+  each harness owns its output bytes. RED production-flow tests now cover legacy
+  and KKP Alt+Enter for Codex and Claude, plain Enter non-submission, native
+  completion after a real send, source-order deduplication, keyed mismatch/new
+  turns, and distinct abort fallback. Added the lifecycle source to the
+  exhaustive artifact inventory (`ARCH-PURPOSE`).
+- 2026-09-01: closed M1 — Judgment actual: 0.25h because telemetry reported no transcript events. RED: Unicode grammar rejected Sautéed and production path emitted no OSC. GREEN: focused grammar/production/fuzz tests and go test ./cmd/internal/wrapcmd -count=1 pass; git diff --check clean. No atlas: pure regex bugfix with no new architectural surface and no atlas restatement of the old grammar.; review verdict: SHIP
 
 Captured from initial Couch dogfood testing. Codex finished work in Pair, but
 no notification appeared in the status bar or switcher. Investigation was
@@ -221,6 +269,19 @@ the function-level test-strategy rule was still duplicated by scenario lists and
 diff recipes in later task steps. Removed those restatements across every chunk;
 the plan now retains one adversarial-input/mechanical-guard strategy per risky
 function plus architectural contracts and production acceptance only.
+
+M1 used strict TDD. The grammar and production-path regressions both failed
+before implementation: precomposed `Sautéed` was rejected and the colored span
+emitted no outer notification. Replacing only the ASCII verb class with
+`\p{L}+` made the focused tests and the full `wrapcmd` package pass. A rune-level
+fuzz property pins the General Category `L` boundary; no atlas text restated the
+old grammar (`ARCH-PURE`).
+
+The whole-issue close review found BR-12: Claude's progress OSC observations
+reached the reducer for every wrapped agent. A production-path authority-matrix
+regression failed for Codex, Agy, and Muse before the fix and now proves that
+only Claude can mutate lifecycle state from OSC 9;4 progress; all agents still
+receive the original terminal bytes unchanged (`ARCH-PURPOSE`).
 
 ## Revisions
 

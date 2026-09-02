@@ -1,5 +1,56 @@
 # Lessons
 
+## Cross-package acceptance must transport upstream production output
+
+Wrapper tests proved emitted bytes matched a shared encoder, while Couch tests
+independently injected that encoder's bytes. Both stayed green even if no test
+joined the upstream adapter to the downstream consumer.
+
+**Rule.** A cross-package delivery acceptance test must capture bytes from the
+upstream production path and feed those exact bytes into the downstream
+production consumer, then assert the named user-facing projections. Shared
+encoding assertions are component tests, not delivery proof. Caught during
+#000161 M4 close review.
+
+## Durable identity locates a record; it does not prove semantic equality
+
+A lifecycle append retry reconciled any committed row with the same launch,
+artifact generation, and transcript offset. An invalid or different observation
+at that transport identity could suppress the intended append while reporting
+success, silently losing notification authority.
+
+**Rule.** Reconciliation may use stable identity to find candidates, but it must
+strictly decode, validate, and compare the complete attempted operation before
+reporting it committed. Enumerate every semantic field plus malformed framing
+and unknown fields in producer-path collision tests. Caught during #000161 M3
+close review round 7.
+
+## Authority readers must enforce the producer's complete closed grammar
+
+A lifecycle journal reader rejected missing fields but accepted any non-empty
+agent, source, and outcome, and decoded only the first JSON value on a committed
+line. A syntactically valid prefix or unauthorized record could therefore reach
+the notification reducer even though the watcher never intentionally emitted it.
+
+**Rule.** Single-source validation for an authority record across every writer
+and reader. Validate exact framing, closed discriminants, stable identity,
+required correlation keys, positions, and timestamps; table-test removal or
+mutation of each guard through the production consumer. Caught during #000161
+M3 close review round 6.
+
+## Isolation tests must traverse the production scheduling owner
+
+A journal-worker regression blocked an injected advancer and concurrently called
+the reducer directly. It proved those two helpers were independently callable,
+but would still pass if production moved blocking filesystem IO back onto the
+PTY master loop.
+
+**Rule.** A concurrency-isolation regression must enter the real scheduling
+owner, block the external seam there, and prove an independent production event
+still crosses that same owner. Prefer a narrow interface injection over testing
+worker and consumer helpers in parallel. Caught during #000161 M3 close review
+round 6.
+
 ## Closed command grammars need cross-class and exact-boundary assertions
 
 A closed CLI parser validated the arity of `--show <ref>` but accepted another
@@ -2820,3 +2871,7 @@ that a key token appears cannot detect a contradictory behavioral sentence
   failed operation into success. When cancellation is expected, remove only
   cancellation leaves from a joined terminal error; never discard sibling read
   or cleanup failures (`ARCH-MOCK`, `ARCH-CONSTRAINTS`).
+- A shared protocol parser does not imply shared semantic authority. At the
+  production adapter, enumerate every supported consumer and test both the
+  authorized case and all unauthorized cases before feeding a common reducer;
+  preserve untrusted protocol bytes as terminal output (`ARCH-PURPOSE`).

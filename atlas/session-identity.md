@@ -62,6 +62,17 @@ durable background proof publication, and ledger projection selects the newest
 same-root binding so the upgrade becomes visible. An unbound v1 launch has no
 safe metadata boundary and therefore stops without a compatibility corpus scan.
 
+For Codex, the same detached watcher remains attached after a proof-bearing
+binding and incrementally follows only that authorized rollout generation. It
+projects captured `task_started`, `task_complete`, and `turn_aborted` envelopes
+with their native `turn_id`, timestamp, and absolute transcript-record offset
+into `lifecycle-<tag>.jsonl`. A locked newline commit and stable
+`(launch ordinal, artifact generation, transcript offset)` identity make retry
+safe. `pair-wrap` opens the journal at its prior EOF before spawning Codex,
+accepts only its current launch, and feeds committed records into the shared
+notification reducer; partial lines wait, while replacement, truncation,
+malformed records, or stale launches fail closed (`ARCH-IDENTITY`, `ARCH-DRY`).
+
 `pair session-inventory [--agent ...] [--scope current|all] [--json]
 [--conformance]` exposes the canonical forests, correlations, ambiguities, and
 coded diagnostics. A dedicated public DTO keeps schema v1 exact: internal root
@@ -109,6 +120,7 @@ config-<tag>-<agent>.json
 agent-default-<agent>.json
 agent-ready-<tag>-<agent>.json
 ledger-<tag>.jsonl
+lifecycle-<tag>.jsonl
 session-inventory-catalog.json
 scrollback-<tag>-<agent>.raw
 scrollback-<tag>-<agent>.events.jsonl
