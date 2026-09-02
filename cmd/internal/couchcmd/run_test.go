@@ -299,6 +299,31 @@ func TestResumeRunsAsTheNewLiveOwner(t *testing.T) {
 	}
 }
 
+func TestInteractiveLaunchResumesUniqueParkedRoot(t *testing.T) {
+	rt := newRT(t, "/repo")
+	rt.boundedOne("/repo")
+	parked := seedVerifiedPark(t, rt, "/repo")
+	rt.artifacts.SetNativeBinding(parked.Address, "claude", sessioninventory.BindingEstablished, "native-root-1")
+	rt.runner.AfterAcknowledge = func(string) error {
+		rt.artifacts.SetPairSession(parked.Address, "pair-"+string(parked.Address.Tag), true)
+		return nil
+	}
+	c, err := rt.NewCouch()
+	if err != nil {
+		t.Fatal(err)
+	}
+	start, err := dispatchInteractiveStart(c, map[string]string{"path": "/repo"})
+	if err != nil {
+		t.Fatalf("interactive launch: %v", err)
+	}
+	if start.Record.Thread != parked.Address {
+		t.Fatalf("interactive root = %+v, want %+v", start.Record.Thread, parked.Address)
+	}
+	if len(rt.runner.Ops) == 0 || !strings.Contains(rt.runner.Ops[0], "pair resume "+string(parked.Address.Tag)+" --layout2") {
+		t.Fatalf("interactive child operations = %v, want resumed parked root", rt.runner.Ops)
+	}
+}
+
 func TestDirectStoreOperationDoesNotAcquireSupervisorLease(t *testing.T) {
 	rt := newRT(t)
 	if _, errw, code := runTypedRT(rt, couchcore.OperationCall{Name: "list"}); code != 0 {

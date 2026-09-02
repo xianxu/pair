@@ -154,7 +154,8 @@ func (c *Couch) ActionableThreadInventoryContext(ctx context.Context, observatio
 	var resumable []ParkedResumeObservation
 	resolver, _ := c.Artifacts.(NativeBindingResolver)
 	if resolver != nil {
-		for _, record := range snapshot.Records {
+		for i := range snapshot.Records {
+			record := snapshot.Records[i]
 			if err := ctx.Err(); err != nil {
 				return nil, err
 			}
@@ -165,9 +166,11 @@ func (c *Couch) ActionableThreadInventoryContext(ctx context.Context, observatio
 			if !launcher.IsSupportedAgent(agent) || record.LatestLaunchProfile.Argv == nil || c.Path == nil {
 				continue
 			}
-			if _, pathErr := c.Path.Physical(record.WorkingPath); pathErr != nil {
+			physicalPath, pathErr := c.Path.Physical(record.WorkingPath)
+			if pathErr != nil {
 				continue
 			}
+			snapshot.Records[i].WorkingPath = physicalPath
 			binding, resolveErr := resolver.ResolveEstablished(ctx, record.Address.RepoScope, string(record.Address.Tag), agent)
 			if resolveErr != nil || bindingResumeDiagnostic(binding) != "" {
 				continue
