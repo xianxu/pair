@@ -2934,3 +2934,20 @@ that a key token appears cannot detect a contradictory behavioral sentence
   `$(git merge-base HEAD origin/main)`. A suite that stops at the first failure
   gives a change no coverage at all beyond that point, so also run the targets
   AFTER the pre-existing failure explicitly.
+- A field the schema marks optional (`omitempty`) must never become required
+  identity downstream. Before depending on one, check what each platform's
+  producer actually writes: `GenerationToken` was read as mandatory while Linux
+  never populated it and APFS reports `st_gen` as 0, so the consumer rejected
+  every artifact on every supported platform and the feature was dead from the
+  day it shipped. When a required identity is wanted, DERIVE it from what the
+  platform provides rather than requiring what it might (`ARCH-PURPOSE`).
+- A green suite over invented fixtures proves nothing about production. The
+  Codex lifecycle tests passed because they hardcoded `GenerationToken: "gen:1"`
+  — a value no platform ever emits. When a fixture supplies an optional field,
+  ask whether production ever does; if the answer is "not on any platform we
+  run on", the realistic fixture is the empty one (`ARCH-MOCK`).
+- A shell/CLI test that outlives a refactor of the code beneath it will assert
+  the OLD contract in a way no compiler catches. When a migration commit says
+  it touched "every consumer", the shell tests are consumers too — and when one
+  fails long enough to be labelled 'pre-existing', suspect a stale assertion
+  before suspecting the environment.
