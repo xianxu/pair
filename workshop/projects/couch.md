@@ -189,11 +189,12 @@ gate `#147` and `#148` respectively; `#145` and `#146` do not depend on them.
 - [-] brain advisor role [pair#148]
 - [ ] rescope to couch-lite [pair#170]
 - [x] switch rule and key layer [pair#170 M1]
+- [x] detach, and detached threads that reattach [pair#170 M2]
 
 <a id="pair-170"></a>
 ### pair#170 — rescope to couch-lite
 **est:** 10.69
-**status:** in progress — M1 closed; plan at `workshop/plans/000170-rescope-couch-to-couch-lite-plan.md`
+**status:** in progress — M1+M2 closed; plan at `workshop/plans/000170-rescope-couch-to-couch-lite-plan.md`
 **started:** 2026-09-02
 
 Narrows couch to a switcher over a group of live coding sessions whose unit is a
@@ -852,6 +853,52 @@ its predecessor. And #146's Core-concepts contract pinned `Focus` / `Up`; it was
 revised at its source with a Revisions note rather than by loosening the test,
 so the contract keeps defending the rows that are still true.
 
+<a id="pair-170-m2"></a>
+### pair#170 M2 — detach, and detached threads that reattach
+
+**est:** 10.69
+**actual:** 1.6h
+**closed:** 2026-09-02
+
+`alt+d` detaches: the Pair client and its sidecars go, the zellij server session
+and the agent inside it stay, and the row remains in the switcher where `Enter`
+reattaches it. `leave` detaches every thread instead of parking them, so quitting
+couch no longer kills a running agent — which is what turns *detached* from an
+edge case into the normal resting state.
+
+**Detached is derived, not persisted**, and that was the design win: `launcher`
+already classifies a zero-client live session as `SessionDetached` and
+`pair resume` already reattaches onto one, so couch adds no `ThreadRecord` field
+— it asks. The projector's detached branch requires **zero** incarnations, which
+is the fail-closed property that keeps a crashed couch's stale `IncarnationLive`
+from masquerading as a clean detach.
+
+**What the plan got wrong and review caught, in order.** The first draft claimed
+detach needed no durable transition at all; in fact `FinalizePark` is the only
+path that removes a live incarnation, so detach would have left a dead-PID
+incarnation forever — hiding the row *and* tripping `DecideResume`'s
+occupied-incarnation gate. Hence `RetireIncarnation`. Then round two found that
+reattach was blocked by a **second** verified-park refusal in
+`ReconcileResumeAdmission`, reached after `DecideResume` returns, so widening one
+gate would have listed a row whose Enter failed. And that a detached resume's
+rollback would **delete the record** — the verified park had been the only
+rollback authority, and an unnamed detached thread has none, so a post-claim
+failure took the agent and argv needed to reattach while the session kept
+running.
+
+Two smaller things worth keeping. `reduceParkHotkey` returned no effects, so
+`alt+d` decoded, reduced, and silently did nothing — caught only because the
+test drove raw bytes through the production path rather than the reducer.
+And the ordering decision (detach leads park in the action list: safe before
+destructive) broke a dozen fixtures that navigated by counting `Down` presses;
+they now select by name, because a fixture that silently retargets to a
+different operation when a list is reordered is worse than the reorder.
+
+The crashed-couch case is explicitly **not** solved here — `pair#171` owns it.
+Conflating a crash with a clean exit is the exact fail-closed weakening the
+projector refused to make.
+
+[pair#170 M2]: #pair-170-m2
 [pair#170 M1]: #pair-170-m1
 [pair#146 M1]: #pair-146-m1
 [pair#146 M2]: #pair-146-m2
