@@ -223,11 +223,11 @@ Retiring the incarnation fixes all three at the source and keeps the projector f
 
 | Name | Lives in | Status |
 |------|----------|--------|
-| `ActionableThreadState` (`ThreadDetached`) | `cmd/internal/couchcore/actionableinventory.go` | modified |
-| `DetachedSessionObservation` | `cmd/internal/couchcore/actionableinventory.go` | new |
-| `ProjectActionableThreads` | `cmd/internal/couchcore/actionableinventory.go` | modified |
-| `DecideResume` | `cmd/internal/couchcore/resume.go` | modified |
-| `menuActionItems` / `reduceRootFrame` | `cmd/internal/couchtty/menu.go` | modified |
+| `ActionableThreadState` (`ThreadDetached`) | `cmd/internal/couchcore/actionableinventory.go` | planned (M2) |
+| `DetachedSessionObservation` | `cmd/internal/couchcore/actionableinventory.go` | planned (M2) |
+| `ProjectActionableThreads` | `cmd/internal/couchcore/actionableinventory.go` | planned (M2) |
+| `DecideResume` | `cmd/internal/couchcore/resume.go` | planned (M2) |
+| `menuActionItems` / `reduceRootFrame` | `cmd/internal/couchtty/menu.go` | planned (M2) |
 
 - **`ThreadDetached`** — a third actionable state beside `ThreadLive` and `ThreadParked`. Emitted only when the record is not reserved, has no active park transaction, has **zero incarnations** and no verified park, carries a `LatestLaunchProfile`, and exactly one `DetachedSessionObservation` matches its address. The zero-incarnation requirement is what keeps the projector fail-closed: a record with a stale `IncarnationLive` stays hidden exactly as today, so a couch that died without detaching cannot masquerade as a clean detach.
   - **Relationships:** 1:1 with a `ThreadRecord` at a time; mutually exclusive with `ThreadLive` and `ThreadParked` by construction (a live thread has a TTY observation; a parked thread has no zellij session).
@@ -240,15 +240,15 @@ Retiring the incarnation fixes all three at the source and keeps the projector f
 
 | Name | Lives in | Status | Wraps |
 |------|----------|--------|-------|
-| `DetachedSessionResolver` | `cmd/internal/couchcore/artifactcollision.go` | new | `launcher` session classification |
-| `ProcOps.SignalGroup` | `cmd/internal/couchcore/procops.go` | new | `syscall.Kill(-pid, sig)` |
-| `ThreadStore.RetireIncarnation` | `cmd/internal/couchcore/threadstore.go` | new | journaled record CAS |
-| `ThreadStore.DeleteStart` | `cmd/internal/couchcore/threadstore.go` | modified | journaled record CAS / delete |
-| `Couch.Detach` | `cmd/internal/couchcore/detach.go` | new | SIGTERM + bounded wait + session observation |
-| `detach` operation | `cmd/internal/couchcore/ops.go`, `operationdispatch.go` | new | typed operation surface |
-| `Couch.Leave` | `cmd/internal/couchcore/park.go` | modified | now detaches rather than parks |
-| `Couch.ActionableThreadInventoryContext` | `cmd/internal/couchcore/actionableinventory.go` | modified | adds one session-list query per refresh |
-| `Console.onDetachHotkey` | `cmd/internal/couchtty/console.go` | new | `alt+d` → typed `detach` |
+| `DetachedSessionResolver` | `cmd/internal/couchcore/artifactcollision.go` | planned (M2) | `launcher` session classification |
+| `ProcOps.SignalGroup` | `cmd/internal/couchcore/procops.go` | planned (M2) | `syscall.Kill(-pid, sig)` |
+| `ThreadStore.RetireIncarnation` | `cmd/internal/couchcore/threadstore.go` | planned (M2) | journaled record CAS |
+| `ThreadStore.DeleteStart` | `cmd/internal/couchcore/threadstore.go` | planned (M2) | journaled record CAS / delete |
+| `Couch.Detach` | `cmd/internal/couchcore/detach.go` | planned (M2) | SIGTERM + bounded wait + session observation |
+| `detach` operation | `cmd/internal/couchcore/ops.go`, `operationdispatch.go` | planned (M2) | typed operation surface |
+| `Couch.Leave` | `cmd/internal/couchcore/park.go` | planned (M2) | now detaches rather than parks |
+| `Couch.ActionableThreadInventoryContext` | `cmd/internal/couchcore/actionableinventory.go` | planned (M2) | adds one session-list query per refresh |
+| `Console.onDetachHotkey` | `cmd/internal/couchtty/console.go` | planned (M2) | `alt+d` → typed `detach` |
 
 - **`DetachedSessionResolver`** — one method, **`DetachedSessions(ctx context.Context, addresses []ThreadAddress) ([]DetachedSessionObservation, error)`**, satisfied by `ScopedThreadArtifactCollisionChecker` alongside the `NativeBindingResolver` it already satisfies (`artifactcollision.go:205`). Obtained by type assertion on `Couch.Artifacts`, the pattern `actionableinventory.go:155` and `resume.go:192` already use.
   - **Why it takes addresses rather than returning the whole set:** the session-name index is **per repo scope** — `artifactpath.Resolve` puts it at `<dataDir>/repos/<RepoScope>/session-names.jsonl` (`paths.go:353,500`), and `PairSession` (`artifactcollision.go:130-167`) reads exactly one scope's index. A no-argument whole-set method would need a `<dataDir>/repos/*` enumeration the checker does not have and this plan should not add. Taking addresses mirrors the existing `PairSession(address)` / `ResolveEstablished(scope, tag, agent)` shape (`ARCH-DRY`), and the caller already holds the record set.
@@ -381,8 +381,8 @@ Retiring the incarnation fixes all three at the source and keeps the projector f
 
 | Name | Lives in | Status |
 |------|----------|--------|
-| `SelectUniqueResumableRoot` | `cmd/internal/couchcore/startup.go` | modified |
-| `SelectUniqueParkedRoot` | `cmd/internal/couchcore/startup.go` | deleted |
+| `SelectUniqueResumableRoot` | `cmd/internal/couchcore/startup.go` | planned (M3) |
+| `SelectUniqueParkedRoot` | `cmd/internal/couchcore/startup.go` | planned (M3) |
 
 - **`SelectUniqueResumableRoot`** — renames and widens `SelectUniqueParkedRoot` (`startup.go:11`) from `State == ThreadParked` to `State == ThreadParked || State == ThreadDetached`, with the exact scope + physical path match and the exact-cardinality-one rule unchanged. Deliberately no ranking and no prompt: a parked and a detached row at one path is *two* matches and therefore creates a new root, as two parked rows do today.
   - **DRY rationale:** one selector, not a parked one and a detached one — `ARCH-DRY`. The rename is load-bearing: leaving the name `Parked` while it selects detached rows is a lie the next reader pays for.
@@ -392,7 +392,7 @@ Retiring the incarnation fixes all three at the source and keeps the projector f
 
 | Name | Lives in | Status | Wraps |
 |------|----------|--------|-------|
-| `Couch.StartInteractive` | `cmd/internal/couchcore/startup.go` | modified | path/git resolution, actionable inventory, `ResumeContext`, the resolved start path |
+| `Couch.StartInteractive` | `cmd/internal/couchcore/startup.go` | planned (M3) | path/git resolution, actionable inventory, `ResumeContext`, the resolved start path |
 
 - **`Couch.StartInteractive`** — unchanged in shape; it swaps which selector it calls. It remains the thin IO shell around the pure selector, and every dependency is already in the Couch composition root, so its tests keep using the existing stateful fakes (`ARCH-PURE`, `ARCH-MOCK`). No new seam is introduced by M3 — the detached observation it now depends on was added at M2 and reaches it through the same `ActionableThreadInventoryContext` call it already makes.
 
@@ -451,12 +451,12 @@ It does not have to. The provider's `repo_identity` is the git common dir (verif
 
 | Name | Lives in | Status |
 |------|----------|--------|
-| `ThreadIncarnation.Policy` → `RepoIdentity` | `cmd/internal/couchcore/thread.go` | modified |
-| `Admission`, `AdmissionDecision`, `CapacityExceededError`, `PolicyResult` | `cmd/internal/couchcore/admission.go`, `policyresolver.go` | deleted |
-| `StartGrantStore`, `StartGrantToken` | `cmd/internal/couchcore/startgrant.go` | deleted |
-| `MigrateLegacyRecord` | `cmd/internal/couchcore/migration.go` | deleted |
-| `Actor` | `cmd/internal/couchcore/actor.go` | deleted |
-| `TreeSummary`, `ActorView` | `cmd/internal/couchcore/couch.go` | deleted |
+| `ThreadIncarnation.Policy` → `RepoIdentity` | `cmd/internal/couchcore/thread.go` | planned (M4) |
+| `Admission`, `AdmissionDecision`, `CapacityExceededError`, `PolicyResult` | `cmd/internal/couchcore/admission.go`, `policyresolver.go` | planned (M4) |
+| `StartGrantStore`, `StartGrantToken` | `cmd/internal/couchcore/startgrant.go` | planned (M4) |
+| `MigrateLegacyRecord` | `cmd/internal/couchcore/migration.go` | planned (M4) |
+| `Actor` | `cmd/internal/couchcore/actor.go` | planned (M4) |
+| `TreeSummary`, `ActorView` | `cmd/internal/couchcore/couch.go` | planned (M4) |
 
 - **`ThreadIncarnation.RepoIdentity`** — replaces the persisted `PolicyResult` with the one field anything still reads from it: the git common dir that keys the path launch preference. A plain string, validated non-empty at the same site `advanceSuccessfulStart` validates today (`threadstore.go:613`).
   - **DRY rationale:** collapses a six-field provider record persisted per incarnation down to the single value with a consumer — `ARCH-DRY`, and it is what makes the preference files survive (see "The one migration D1 forces").
@@ -465,9 +465,9 @@ It does not have to. The provider's `repo_identity` is the git common dir (verif
 
 | Name | Lives in | Status | Wraps |
 |------|----------|--------|-------|
-| `ThreadStore.CommitStartClaim` | `cmd/internal/couchcore/threadstore.go` | new | journaled record CAS |
-| `ThreadStore.CommitThreadReplacements`, `DeletePristineThread` | `cmd/internal/couchcore/threadstore.go` | deleted | — |
-| `PolicyResolver` seam | `cmd/internal/couchcore/couch.go` | deleted | `sdlc fleet policy --json` |
+| `ThreadStore.CommitStartClaim` | `cmd/internal/couchcore/threadstore.go` | planned (M4) | journaled record CAS |
+| `ThreadStore.CommitThreadReplacements`, `DeletePristineThread` | `cmd/internal/couchcore/threadstore.go` | planned (M4) | — |
+| `PolicyResolver` seam | `cmd/internal/couchcore/couch.go` | planned (M4) | `sdlc fleet policy --json` |
 
 - **`ThreadStore.CommitStartClaim(address, event StartEvent) (ThreadRecord, error)`** — the single revision-checked transition that replaces the four things admission did besides deciding capacity: clear the pristine `Reservation`, append the first `IncarnationCreating` carrying `{RepoIdentity, StartedAt}`, apply the supplied `StartEvent` (`StartClaimed`) through the **existing** `AdvanceStartTransaction`, and roll the record back to pristine on failure.
   - **Injected into:** `Couch.spawnResolved` (`couch.go:266`) and `Couch.ResumeContext` (`resume.go:219`) — the only two admission call sites. It is a `ThreadStore` method rather than a free function because it is one journaled multi-field CAS, which is exactly what `UpdateExistingThread` already is; it reuses that write path rather than opening a second one (`ARCH-DRY`).
@@ -686,3 +686,57 @@ data-loss note was over-claimed: `threadHasMetadata` already protects a *named*
 record, so the real exposure is an **unnamed** detached thread's
 `LatestLaunchProfile` — narrowed, since the fix is right but the stated reason
 was not.
+
+### 2026-09-02 — M1 delivery deviations and boundary review
+
+**`alt+d` deferred from M1 to M2.** Chunk 1's Core-concepts prose said
+`knownSequences` "gains `ctrl+backspace` in both encodings and `alt+d` from the
+canonical table". Only `ctrl+backspace` shipped. Claiming `alt+d` without the
+console branch that acts on it would take Pair's own detach chord away from the
+hosted child for a whole milestone and give nothing back — M1 would have been
+*less* operable than its predecessor. `seqDetach`/`HitDetach` landed early as
+enum values with an explicit unreachable `case` in `Run`'s dispatch; Task 11
+adds the `knownSequences` row and the handler together.
+
+**`panelkeys.go:98` deliberately unchanged**, though the issue Spec names it as
+one of "two existing sites". All operator input passes `Interceptor.FeedHit`
+before `onMenuInput`, so the panel never sees a legacy `ctrl+backspace` once the
+interceptor claims `0x08`; and inside a bracketed paste, where the interceptor
+forwards content verbatim, `0x08` *should* stay a backspace. Only `:198` moved.
+Recorded here so the Spec's two-site claim does not read as unfinished at close.
+
+**M1 boundary review (FIX-THEN-SHIP) — seven Important findings, all fixed in
+the close commit.** The one that mattered: no test covered the two *production*
+seams that reach the switch rule — the `arrival` derivation in
+`ExecuteConsoleOperation` and `HitPrevious`'s dispatch in `Run`. Every console
+test hand-fed `arrival` into `switchTo`, so inverting the derivation would have
+shipped the headline behavior backwards with a green suite. The plan had written
+that enumeration ("raw bytes into `processInput`, not direct method calls") and
+the round swept only part of it. Fixed with two stdin-driven tests over a
+two-thread live console, both mutation-verified: inverting the derivation and
+deleting the `HitPrevious` arm each redden them.
+
+Also fixed: `Run`'s `default:` arm turned any unhandled hit into "open the
+switcher", which would have made M2's first `alt+d` press silently open the
+switcher — the dispatch is now exhaustive. `focus_test.go` was deleted wholesale
+rather than trimmed, dropping `TestFocusEquality`, which pins the load-bearing
+`FocusPanel() != FocusActor("")` invariant that this milestone's own `alt+x`
+branch depends on; restored. Two README paragraphs still named the deleted
+home/root-actor concept. And the notification acknowledgement had two
+authorities (`switchTo` and `finishOperation`); `switchTo` now owns success and
+`finishOperation` keeps only the failure release, because no landing occurred.
+
+**Core-concepts contract: the class fix was attempted and bounded.** #170's
+table was pinned by nothing, because `findConceptPlan` hard-coded #146's plan —
+a hole exactly where each milestone adds an entity. The by-construction fix
+(scan every plan, filter by declared path) was implemented and **backed out**:
+it surfaces ~10 rows across #151/#160 whose historical declarations have drifted
+from the tree — retired `panel.go` authorities, renamed helpers, rows carrying
+no backticked symbol. Those are real findings and worth an issue, but fixing ten
+unrelated historical rows inside a milestone fix window, or loosening the
+assertions to make them pass, are both worse than naming the boundary. What
+shipped instead: an explicit additive `conceptPlans` list that #170 joins, a
+parser fix so a table ends at the next heading (M4's `### Deleted` table was
+being read as Integration points), and `planned (Mx)` statuses on rows for
+milestones that have not shipped — so the status column doubles as the build
+tracker, and flipping a row at its milestone is what turns its assertion on.

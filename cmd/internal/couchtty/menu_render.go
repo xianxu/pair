@@ -182,11 +182,8 @@ func menuBreadcrumb(state MenuState, frame MenuFrame) string {
 	case MenuFrameActions:
 		parts = append(parts, "actions")
 	case MenuFrameConfirmation:
-		leaf := frame.Action
-		if leaf == "leave" {
-			leaf = "leave couch"
-		}
-		parts = append(parts, leaf)
+		// `leave` never reaches here -- it returns early above as a global frame.
+		parts = append(parts, frame.Action)
 	case MenuFrameText:
 		parts = append(parts, menuItemLabel(frame.Action))
 	}

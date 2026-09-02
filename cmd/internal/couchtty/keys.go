@@ -146,8 +146,8 @@ var knownSequences = func() []struct {
 // to the child being left and y to the one landed on. The shape is
 // workbenchshortcut.FindChord's, deliberately -- that is the repo's existing
 // answer to "find a key in a stream and split around it". The chord TABLE is
-// not shared: couch has one key, the workbench has a dozen, and merging opposed
-// tables is the bug rather than the cleanup.
+// not shared: couch claims a handful of keys, the workbench has a dozen, and
+// merging opposed tables is the bug rather than the cleanup.
 //
 // One piece of state, and it earns its place: a bracketed paste can carry
 // arbitrary bytes, and a pasted NUL that silently switches actors while eating a

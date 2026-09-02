@@ -105,7 +105,7 @@ func TestExpectedParkExitDoesNotPublishActorExitNotice(t *testing.T) {
 	}
 }
 
-func TestActiveNonRootExitFallsBackToRootForMenuActions(t *testing.T) {
+func TestActiveExitFallsBackToASurvivingActorForMenuActions(t *testing.T) {
 	con := New(hostty.NewFakeHost(ptychild.Size{Rows: 24, Cols: 80}), nil)
 	t.Cleanup(con.Stop)
 	root := ptychild.NewFakeChild(nil)

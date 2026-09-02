@@ -7,6 +7,7 @@ import (
 	"os"
 	"path/filepath"
 	"regexp"
+	"sort"
 	"strings"
 	"testing"
 )
@@ -29,6 +30,11 @@ var conceptInventory = []struct{ kind, name string }{
 	{"PURE", "`Screen`"},
 	{"PURE", "`updateMouseMode`"},
 	{"PURE", "`Focus`"},
+	// pair#170 M1 — the switch rule and the key layer that reaches it.
+	{"PURE", "`SwitchTracker`"},
+	{"PURE", "`Up`"},
+	{"PURE", "`sequenceAt` / `knownSequences`"},
+	{"PURE", "`DecodePanelKeys` CSI-u branch"},
 	{"PURE", "`PanelModel` / `Filter` / `SelectTree` / target join"},
 	{"PURE", "`PanelKey` / `DecodePanelKeys`"},
 	{"PURE", "`StatusModel` / `RenderStatusRow`"},
@@ -57,8 +63,7 @@ var conceptInventory = []struct{ kind, name string }{
 // seams and must have direct unit coverage. Future rows are explicit and skipped.
 func TestCoreConceptsContract(t *testing.T) {
 	root := filepath.Join("..", "..", "..")
-	plan := findConceptPlan(t, root)
-	rows := parseConceptRows(t, plan)
+	rows := conceptRowsForPackage(t, root)
 	if len(rows) == 0 {
 		t.Fatal("Core concepts contract has no rows")
 	}
@@ -176,24 +181,85 @@ func conceptInventoryProblems(rows []conceptContractRow) []string {
 	return problems
 }
 
-func findConceptPlan(t *testing.T, root string) string {
+// conceptPlans are the plans whose Core concepts tables this contract pins.
+//
+// It used to be #146 alone, which left a hole exactly where each later
+// milestone added an entity: #170 declared `SwitchTracker` new/PURE and nothing
+// asserted it, because the only plan being read predated it.
+//
+// The by-construction fix -- scan every plan and filter by declared path -- was
+// tried and backed out: it surfaces ~10 rows across #151/#160 whose historical
+// declarations have drifted from the tree (retired `panel.go` authorities,
+// renamed helpers, rows with no backticked symbol). Those are real findings but
+// a separate piece of work, tracked as its own issue; jamming them into a
+// milestone fix window would have meant either fixing ten unrelated historical
+// rows or loosening the assertions that make this contract worth having.
+//
+// Until then this list is additive and explicit: a plan that declares a
+// couchtty entity joins it. Rows for milestones that have not shipped carry a
+// `planned` status, which the row loop skips -- so the status column doubles as
+// the build tracker, and flipping a row to `new` at its milestone is what turns
+// the assertion on.
+var conceptPlans = []string{
+	"000146-couch-tty-switching-and-attach-plan.md",
+	"000170-rescope-couch-to-couch-lite-plan.md",
+}
+
+func findConceptPlans(t *testing.T, root string) []string {
 	t.Helper()
-	name := "000146-couch-tty-switching-and-attach-plan.md"
-	active := filepath.Join(root, "workshop", "plans", name)
-	if _, err := os.Stat(active); err == nil {
-		return active
-	}
-	var found string
-	_ = filepath.WalkDir(filepath.Join(root, "workshop", "history"), func(path string, d os.DirEntry, err error) error {
-		if err == nil && !d.IsDir() && d.Name() == name {
-			found = path
+	var found []string
+	for _, name := range conceptPlans {
+		active := filepath.Join(root, "workshop", "plans", name)
+		if _, err := os.Stat(active); err == nil {
+			found = append(found, active)
+			continue
 		}
-		return nil
-	})
-	if found == "" {
-		t.Fatalf("find %s in active or archived plans", name)
+		var archived string
+		_ = filepath.WalkDir(filepath.Join(root, "workshop", "history"), func(path string, d os.DirEntry, err error) error {
+			if err == nil && !d.IsDir() && d.Name() == name {
+				archived = path
+			}
+			return nil
+		})
+		if archived == "" {
+			t.Fatalf("find %s in active or archived plans", name)
+		}
+		found = append(found, archived)
 	}
+	sort.Strings(found)
 	return found
+}
+
+// conceptRowsForPackage unions every declared plan's rows and keeps only those
+// whose declared paths are inside this package.
+func conceptRowsForPackage(t *testing.T, root string) []conceptContractRow {
+	t.Helper()
+	seen := map[string]bool{}
+	var rows []conceptContractRow
+	for _, plan := range findConceptPlans(t, root) {
+		for _, row := range parseConceptRows(t, plan) {
+			// No path filter: a plan named in conceptPlans is this package's
+			// plan, and its INTEGRATION rows deliberately reach outside the
+			// package (ptychild, hostty, termcmd) -- that is what makes them
+			// integration points.
+			if strings.Contains(strings.ToLower(row.status), "planned") {
+				// Declared for a milestone that has not shipped. Invisible to
+				// both the inventory and the assertions until its status flips
+				// -- at which point the inventory reports it as an unexpected
+				// row until someone adds it, which is the signal we want.
+				continue
+			}
+			key := row.kind + "\x00" + row.name
+			if seen[key] {
+				// A later plan restating an entity is not a second entity; the
+				// first declaration owns its contract.
+				continue
+			}
+			seen[key] = true
+			rows = append(rows, row)
+		}
+	}
+	return rows
 }
 
 func parseConceptRows(t *testing.T, path string) []conceptContractRow {
@@ -208,14 +274,18 @@ func parseConceptRows(t *testing.T, path string) []conceptContractRow {
 	s := bufio.NewScanner(f)
 	for s.Scan() {
 		line := s.Text()
-		switch line {
-		case "### Pure entities":
+		switch {
+		case line == "### Pure entities":
 			kind = "PURE"
 			continue
-		case "### Integration points":
+		case line == "### Integration points":
 			kind = "INTEGRATION"
 			continue
-		case "## Milestones":
+		case strings.HasPrefix(line, "#"):
+			// Any other heading ENDS the table. Without this the section
+			// leaks: #170's M4 chunk has a `### Deleted` table of deletion
+			// groups, which inherited INTEGRATION from the Integration points
+			// table above it and was asserted as if its rows named symbols.
 			kind = ""
 		}
 		if kind == "" || !strings.HasPrefix(line, "|") || strings.Contains(line, "|---") || strings.HasPrefix(line, "| Name |") {

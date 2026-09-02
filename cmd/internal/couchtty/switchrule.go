@@ -37,6 +37,13 @@ type SwitchTracker struct {
 // special-cased. Callers must route EVERY landing through here, whatever the
 // mechanism, or the invariant is only true for the paths that remembered.
 func (t *SwitchTracker) Switch(target couchcore.ThreadAddress, viaNotification bool) {
+	if target == t.current {
+		// Landing on the actor already current is a repaint, not a switch --
+		// returning from the panel to where you were, or a redundant Enter.
+		// Recording it would copy `current` into `previous` and spend the slot
+		// on a no-op, losing the actor the operator could actually go back to.
+		return
+	}
 	if !t.currentViaNotification {
 		t.previous = t.current
 	}

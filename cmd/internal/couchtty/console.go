@@ -442,6 +442,9 @@ func (c *Console) switchTo(id string, force bool, how arrival) {
 		c.focus = FocusActor(id)
 		c.menu.ActiveAddress = p.thread
 		p.rowDirty = false
+		// Unconditional: SwitchTracker itself ignores a landing on the actor
+		// already current, so the rule stays in one place rather than being
+		// half-enforced by whichever caller remembered.
 		c.tracker.Switch(p.thread, how.viaNotification())
 		// Whatever brought the operator here, they are here now.
 		c.attention.Acknowledge(c.attention.Capture(p.thread))
@@ -592,13 +595,20 @@ func (c *Console) Run() int {
 			if hit == HitNone {
 				return
 			}
+			// Exhaustive on purpose. A `default: c.onHotkey()` would turn any
+			// hit the console does not yet handle into "open the switcher" --
+			// so the moment M2 registers alt+d, pressing it would silently open
+			// the switcher until someone remembered to touch this switch too.
 			switch hit {
+			case HitSwitch:
+				c.onHotkey()
 			case HitPark:
 				c.onParkHotkey()
 			case HitPrevious:
 				c.onPreviousHotkey()
-			default:
-				c.onHotkey()
+			case HitDetach:
+				// Claimed by M2, together with the knownSequences row that can
+				// produce it. Unreachable today.
 			}
 			raw = rest
 		}
@@ -1155,17 +1165,32 @@ func (c *Console) onPreviousHotkey() {
 	c.mu.Unlock()
 
 	if !ok {
-		c.setNotice("previous: nowhere to return to")
+		c.reportPrevious("previous: nowhere to return to")
 		return
 	}
 	if target == "" {
 		// The thread is durable but has no live pane here -- parked, detached,
-		// or exited. A notice beats blanking the screen or silently doing
+		// or exited. Saying so beats blanking the screen or silently doing
 		// nothing.
-		c.setNotice("previous: that thread is no longer attached")
+		c.reportPrevious("previous: that thread is no longer attached")
 		return
 	}
 	c.switchTo(target, true, arrivalPrevious)
+}
+
+// reportPrevious puts a ctrl+backspace refusal where the operator is actually
+// looking. The status row is behind the panel while the switcher owns the
+// screen, so a setNotice there would make the key silently do nothing -- which
+// is exactly what the operator would report as the bug.
+func (c *Console) reportPrevious(text string) {
+	c.mu.Lock()
+	panel := c.focus.IsPanel()
+	c.mu.Unlock()
+	if panel {
+		c.reduceMenu(MenuEvent{Kind: MenuEventNotice, Error: text})
+		return
+	}
+	c.setNotice(text)
 }
 
 // onParkHotkey handles Pair's Alt+x chord at the Couch ownership boundary.
@@ -1265,12 +1290,14 @@ func (c *Console) finishOperation(completed operationCompletion) bool {
 	}
 	c.mu.Lock()
 	if completed.origin.Operation == "switch" {
-		if event.Success {
-			c.attention.Acknowledge(completed.origin.AttentionCapture)
-		} else {
+		// Success is acknowledged by switchTo, which is the only place that
+		// knows a landing actually happened -- two authorities for one rule is
+		// how they drift. Failure still has to release the capture here,
+		// because no landing occurred to do it.
+		if !event.Success {
 			c.attention.Cancel(completed.origin.AttentionCapture)
+			c.syncAttentionLocked()
 		}
-		c.syncAttentionLocked()
 	}
 	if event.Success && operationNeedsProjectionRefresh(event.Operation) {
 		event.ProjectionAfterGeneration = c.refreshSchedule.Sequence

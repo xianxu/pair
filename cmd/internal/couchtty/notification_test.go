@@ -121,33 +121,50 @@ func TestConsoleInactiveNotificationCreatesAttentionAndFocusedDoesNot(t *testing
 	}
 }
 
-func TestSwitchAttentionAcknowledgesCapturedMessagesOnlyOnSuccess(t *testing.T) {
-	con, _ := notificationConsole(t)
-	con.mu.Lock()
-	address := con.panes["c2"].thread
-	con.attention.Mark(address, "captured")
-	capture := con.attention.Capture(address)
-	con.attention.Mark(address, "later")
-	con.mu.Unlock()
+// Acknowledgement has ONE authority: switchTo, which is the only place that
+// knows a landing actually happened. finishOperation keeps just the failure
+// half, because a switch that failed never landed and its capture still has to
+// be released.
+func TestSwitchAttentionAcknowledgesOnLandingAndReleasesOnFailure(t *testing.T) {
+	t.Run("a failed switch keeps the notifications", func(t *testing.T) {
+		con, _ := notificationConsole(t)
+		con.mu.Lock()
+		address := con.panes["c2"].thread
+		con.attention.Mark(address, "captured")
+		capture := con.attention.Capture(address)
+		con.attention.Mark(address, "later")
+		con.mu.Unlock()
 
-	origin := MenuOperationOrigin{Operation: "switch", Attempt: 1, Address: address, AttentionCapture: capture}
-	con.finishOperation(operationCompletion{origin: origin, err: errOperationQueueOverloaded})
-	con.mu.Lock()
-	got := attentionTexts(con.attention.Projection(address))
-	retry := con.attention.Capture(address)
-	con.mu.Unlock()
-	if len(got) != 2 {
-		t.Fatalf("failed switch cleared attention: %v", got)
-	}
+		con.finishOperation(operationCompletion{
+			origin: MenuOperationOrigin{Operation: "switch", Attempt: 1, Address: address, AttentionCapture: capture},
+			err:    errOperationQueueOverloaded,
+		})
 
-	origin.AttentionCapture = retry
-	con.finishOperation(operationCompletion{origin: origin})
-	con.mu.Lock()
-	got = attentionTexts(con.attention.Projection(address))
-	con.mu.Unlock()
-	if len(got) != 0 {
-		t.Fatalf("successful switch retained captured attention: %v", got)
-	}
+		con.mu.Lock()
+		got := attentionTexts(con.attention.Projection(address))
+		con.mu.Unlock()
+		if len(got) != 2 {
+			t.Fatalf("failed switch cleared attention: %v", got)
+		}
+	})
+
+	t.Run("landing clears them", func(t *testing.T) {
+		con, _ := notificationConsole(t)
+		con.mu.Lock()
+		address := con.panes["c2"].thread
+		con.attention.Mark(address, "captured")
+		con.attention.Mark(address, "later")
+		con.mu.Unlock()
+
+		con.switchTo("c2", true, arrivalNotification)
+
+		con.mu.Lock()
+		got := attentionTexts(con.attention.Projection(address))
+		con.mu.Unlock()
+		if len(got) != 0 {
+			t.Fatalf("landing retained attention: %v", got)
+		}
+	})
 }
 
 func TestExpectedParkExitDropsOnlyExitedActorAttention(t *testing.T) {
@@ -264,10 +281,10 @@ func TestConsolePreviousSurvivesNotificationHops(t *testing.T) {
 	one, two, three := con.panes["c1"].thread, con.panes["c2"].thread, con.panes["c3"].thread
 	con.mu.Unlock()
 
-	con.switchTo("c1", true, arrivalOrdinary)      // working in one
-	con.switchTo("c2", true, arrivalNotification)  // paged to two
-	con.switchTo("c3", true, arrivalNotification)  // paged to three
-	con.switchTo("c2", true, arrivalOrdinary)      // manual detour
+	con.switchTo("c1", true, arrivalOrdinary)     // working in one
+	con.switchTo("c2", true, arrivalNotification) // paged to two
+	con.switchTo("c3", true, arrivalNotification) // paged to three
+	con.switchTo("c2", true, arrivalOrdinary)     // manual detour
 
 	con.mu.Lock()
 	previous, ok := con.tracker.Previous()

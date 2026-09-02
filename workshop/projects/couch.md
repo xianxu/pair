@@ -188,11 +188,12 @@ gate `#147` and `#148` respectively; `#145` and `#146` do not depend on them.
 - [-] cluster transport and queries [pair#147]
 - [-] brain advisor role [pair#148]
 - [ ] rescope to couch-lite [pair#170]
+- [x] switch rule and key layer [pair#170 M1]
 
 <a id="pair-170"></a>
 ### pair#170 — rescope to couch-lite
-**est:** tbd — derived after the plan clears plan-quality
-**status:** in progress — spec written, plan not yet designed
+**est:** 10.69
+**status:** in progress — M1 closed; plan at `workshop/plans/000170-rescope-couch-to-couch-lite-plan.md`
 **started:** 2026-09-02
 
 Narrows couch to a switcher over a group of live coding sessions whose unit is a
@@ -814,6 +815,44 @@ repository default when that path has no history for the selected agent. The
 durable thread separately records its latest incarnation profile, and neither a
 cancelled selection nor a failed start changes the remembered preference.
 
+<a id="pair-170-m1"></a>
+### pair#170 M1 — switch rule and key layer
+
+**est:** 10.69
+**actual:** 0.36h
+**closed:** 2026-09-02
+
+`ctrl-space` now means one thing — open the switcher, focused on whoever paged —
+and the child → root-actor → panel ladder is gone with the root-actor/home
+concept. `ctrl+backspace` returns to `previous`, one slot governed by one boolean
+carried on the *current* actor, so a notification hop never spends it.
+
+Three things were more entangled than the plan expected, and each is the kind of
+thing that ships silently broken. **`switchTo` owes two rules per landing, not
+one:** record the landing, *and* acknowledge the landed actor's notifications.
+Rule 2 had been living in the ctrl-space home-landing path this milestone
+deleted, so `ctrl+backspace` home would have landed on a still-lit actor —
+`NewestActor()` would then name the actor the operator is sitting in, and the
+next `ctrl-space` would open on the wrong row. `previous` itself would have
+worked perfectly; a test that only checked `previous` would have passed.
+**Three landing sites, not one:** `installObservedThreadActor` lands the first
+actor without passing through `switchTo` (so the tracker is seeded there, or the
+starting actor is never recorded), and `onExit` must *drop* rather than record,
+since the operator lands on the panel and a dead thread must never become the
+return target. **`leave`'s confirmation was thread-bound by accident:** it rode
+the root actor's live address, so five separate thread lookups passed — one of
+them asynchronously, on the next inventory refresh. It became a global frame,
+the shape the start form already used. That matters more once `leave` detaches
+rather than parks: an all-detached couch is then the *normal* state to quit from.
+
+Two smaller notes worth keeping. `alt+d` was deliberately deferred to M2 rather
+than claimed here: intercepting it without wiring it would take Pair's own
+detach chord from the child and give nothing back, leaving M1 less operable than
+its predecessor. And #146's Core-concepts contract pinned `Focus` / `Up`; it was
+revised at its source with a Revisions note rather than by loosening the test,
+so the contract keeps defending the rows that are still true.
+
+[pair#170 M1]: #pair-170-m1
 [pair#146 M1]: #pair-146-m1
 [pair#146 M2]: #pair-146-m2
 [pair#146 M3]: #pair-146-m3

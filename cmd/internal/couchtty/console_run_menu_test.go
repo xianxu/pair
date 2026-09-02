@@ -8,6 +8,7 @@ import (
 
 	"github.com/xianxu/pair/cmd/internal/couchcore"
 	"github.com/xianxu/pair/cmd/internal/hostty"
+	"github.com/xianxu/pair/cmd/internal/ptychild"
 )
 
 func liveMenuFixture(t *testing.T) *consoleFixture {
@@ -291,4 +292,111 @@ func TestConsoleRunPaintsAndAnimatesProgressWhileOperationBlocks(t *testing.T) {
 		screen := lastConsoleScreen(f.host.Written())
 		return strings.Contains(screen, "filter: x") && strings.Contains(screen, "parking root…")
 	})
+}
+
+// twoThreadMenuFixture is a live console hosting two actors, both projected as
+// actionable, so a menu switch resolves to a real pane through the production
+// dispatcher.
+func twoThreadMenuFixture(t *testing.T) (*consoleFixture, couchcore.ThreadAddress, couchcore.ThreadAddress) {
+	t.Helper()
+	f := newFixture(t, 24, 100)
+	second := ptychild.NewFakeChild([]byte("second screen"))
+	second.SetSink(func(batch ptychild.OutputBatch) { f.con.Deliver("c2", batch) })
+	f.con.Attach("c2", "worker", second)
+
+	f.con.mu.Lock()
+	one := f.con.panes["c1"].thread
+	two := f.con.panes["c2"].thread
+	f.con.panes["c1"].process = couchcore.ProcessIdentity{PID: 41, Identity: "one-start"}
+	f.con.panes["c2"].process = couchcore.ProcessIdentity{PID: 42, Identity: "two-start"}
+	f.con.menu.ActiveAddress = one
+	f.con.mu.Unlock()
+
+	f.con.SetActionableProvider(func(context.Context, []couchcore.LiveTTYObservation) ([]couchcore.ActionableThreadSummary, error) {
+		return []couchcore.ActionableThreadSummary{
+			{Address: one, WorkingPath: "/repo/one", Name: "one", State: couchcore.ThreadLive, LastActiveAt: time.Now()},
+			{Address: two, WorkingPath: "/repo/two", Name: "two", State: couchcore.ThreadLive, LastActiveAt: time.Now()},
+		}, nil
+	})
+	waitUpTo(t, 250*time.Millisecond, "two-thread inventory", func() bool {
+		return f.con.menuSnapshot().InventoryReady && len(f.con.menuSnapshot().Inventory) == 2
+	})
+	return f, one, two
+}
+
+// The headline behavior, driven end to end through the PRODUCTION input path:
+// raw bytes into stdin, the real interceptor, the real dispatcher, the real
+// arrival derivation. Every other test hand-feeds `arrival` into switchTo, so
+// inverting the derivation at console.go's "switch" arm would ship the behavior
+// backwards with a green suite -- and nothing proved HitPrevious reaches
+// onPreviousHotkey rather than Run's default arm.
+func TestConsoleRunNotificationHopThenPreviousReturnsHome(t *testing.T) {
+	f, one, two := twoThreadMenuFixture(t)
+
+	// Working in one.
+	f.con.switchTo("c1", true, arrivalOrdinary)
+	// two pages the operator.
+	f.con.mu.Lock()
+	f.con.attention.Mark(two, "review ready")
+	f.con.syncAttentionLocked()
+	f.con.mu.Unlock()
+
+	// ctrl-space opens the switcher focused on the paged actor; Return switches.
+	_, _ = f.stdin.Write([]byte("\x00"))
+	waitUpTo(t, 250*time.Millisecond, "switcher focused on the paged actor", func() bool {
+		return f.con.menuSnapshot().CurrentFrame().SelectedAddress == two
+	})
+	_, _ = f.stdin.Write([]byte("\r"))
+	waitUpTo(t, time.Second, "the notification hop to land", func() bool {
+		f.con.mu.Lock()
+		defer f.con.mu.Unlock()
+		return f.con.active == "c2"
+	})
+
+	// ctrl+backspace must return to one -- which only holds if the arrival was
+	// derived as a notification hop, so it never became `previous`.
+	_, _ = f.stdin.Write([]byte("\x08"))
+	waitUpTo(t, time.Second, "ctrl+backspace to return home", func() bool {
+		f.con.mu.Lock()
+		defer f.con.mu.Unlock()
+		return f.con.active == "c1"
+	})
+
+	f.con.mu.Lock()
+	previous, ok := f.con.tracker.Previous()
+	f.con.mu.Unlock()
+	if !ok || previous != one {
+		t.Fatalf("previous = (%+v, %v), want %+v -- home must stay pinned", previous, ok, one)
+	}
+}
+
+// The negative twin: switching to an UNPAGED row is an ordinary arrival, so it
+// does spend the previous slot. Without this, a derivation that always returned
+// arrivalNotification would pass the test above.
+func TestConsoleRunOrdinarySwitchAdvancesPrevious(t *testing.T) {
+	f, one, two := twoThreadMenuFixture(t)
+	f.con.switchTo("c1", true, arrivalOrdinary)
+
+	// No notification on two: selecting it is an ordinary switch.
+	_, _ = f.stdin.Write([]byte("\x00"))
+	waitUpTo(t, 250*time.Millisecond, "the switcher", func() bool {
+		return len(f.con.menuSnapshot().Frames) > 0
+	})
+	f.con.mu.Lock()
+	f.con.menu.Frames[0].SelectedAddress = two
+	f.con.mu.Unlock()
+	_, _ = f.stdin.Write([]byte("\r"))
+	waitUpTo(t, time.Second, "the ordinary switch to land", func() bool {
+		f.con.mu.Lock()
+		defer f.con.mu.Unlock()
+		return f.con.active == "c2"
+	})
+
+	f.con.mu.Lock()
+	previous, ok := f.con.tracker.Previous()
+	f.con.mu.Unlock()
+	if !ok || previous != one {
+		t.Fatalf("previous = (%+v, %v), want %+v -- an ordinary switch pins what it left",
+			previous, ok, one)
+	}
 }

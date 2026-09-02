@@ -312,12 +312,12 @@ override.
 
 Launching Couch allocates a pty for the session and **reserves the bottom row of
 your screen** for a status line. The path argument is optional and defaults to
-`.`, so `cd <repo> && couch` is the usual form — the first session is "home".
+`.`, so `cd <repo> && couch` is the usual form.
 
 For a new thread, the TUI's agent field resolves explicitly selected agents,
 then the last agent
-successfully used at that exact physical path, then the root actor's
-`$PAIR_AGENT` (or Claude when Couch was started outside Pair). Arguments resolve
+successfully used at that exact physical path, then couch's own `$PAIR_AGENT`
+(or Claude when Couch was started outside Pair). Arguments resolve
 independently: Couch reuses the selected agent's last successful arguments at
 that path, never another agent's; otherwise it uses that agent's repository
 default. Thus switching Claude → Codex → Claude restores each harness's own

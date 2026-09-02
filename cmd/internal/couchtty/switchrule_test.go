@@ -70,6 +70,22 @@ func TestSwitchTrackerPrevious(t *testing.T) {
 			want: a, wantOK: true,
 		},
 		{
+			name: "switching to the actor already current does not spend the slot",
+			hops: []struct {
+				target couchcore.ThreadAddress
+				notify bool
+			}{{a, false}, {c, false}, {c, false}},
+			want: a, wantOK: true,
+		},
+		{
+			name: "switching to previous itself leaves the slot on the actor left behind",
+			hops: []struct {
+				target couchcore.ThreadAddress
+				notify bool
+			}{{a, false}, {c, false}, {a, false}},
+			want: c, wantOK: true,
+		},
+		{
 			name: "returning home from a notification actor leaves previous == current",
 			hops: []struct {
 				target couchcore.ThreadAddress

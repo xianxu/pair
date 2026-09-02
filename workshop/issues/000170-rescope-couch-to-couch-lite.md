@@ -333,6 +333,7 @@ Four review boundaries; each is independently operable.
 ## Log
 
 ### 2026-09-02
+- 2026-09-02: closed M1 — go test ./cmd/... green. SwitchTracker drives the Spec sequences (A->N1->N2->manual detour keeps A pinned; the second ctrl+backspace is a no-op by construction). TestEveryArrivalAcknowledgesTheLandedActor asserts the acknowledge rule across all three arrival kinds independently of previous, plus the negative (a switch that does not land keeps the bell). Both ctrl+backspace encodings decode to HitPrevious through the production interceptor at every read split and stay inert inside a bracketed paste; plain 0x7f still reaches the panel. TestDecodePanelKeysDistinguishesCtrlBackspaceFromBackspace pins the panelkeys modified-flag fix. TestLeaveConfirmationNeedsNoLiveThread + SurvivesAnInventoryRefresh cover leave from a couch with no live actor including the async reconcileMenuFrames site; TestParkConfirmationStillDiesWithItsThread pins the counterpart. Ladder deletion proved by go build ./... and GOOS=linux go build ./... with no residue. make test: test-session-watch and test-review fail identically at the merge-base (pre-existing, recorded in memory); every target after them passes.; review verdict: FIX-THEN-SHIP
 
 Opened from a brain session working over
 `brain/workshop/pensive/2026-08-20-01-pensive-couch-agent-switcher.md`. The
@@ -498,3 +499,36 @@ the session-name index is per repo scope; and the switcher's envelope claim was
 wrong — `ZellijSource.Snapshot` spawns 2 + N subprocesses
 (`launcher/zellij.go:15-41`), now bounded to detach *candidates* with a
 measurement step before M2 closes.
+
+### 2026-09-02 — M1 verification and envelope
+
+Commands run for M1 (window `88fe1de0..HEAD`):
+
+- `go build ./... && GOOS=linux go build ./...` — clean, which is how the focus
+  ladder's removal is proved. Grep cannot see an unused method; `actorAlive` had
+  to be deleted deliberately.
+- `go test ./cmd/... -count=1` — green.
+- `env -u PAIR_SESSION_ID -u PAIR_TAG make test` — stops at `test-session-watch`
+  and `test-review`, both of which fail **identically at the merge-base**, so
+  they are pre-existing rather than regressions. Verified by checking out
+  `$(git merge-base HEAD origin/main)` and running each target there. Every
+  target after them passes; run them explicitly, because `make test` stops at
+  the first failure and would otherwise give a change no coverage at all.
+- `git diff --check` — clean over the milestone's own files.
+
+**Operating envelope (ARCH-CONSTRAINTS), measured not asserted.**
+`BenchmarkMenu100`: open 99 µs, filter 87 µs, navigation 215 µs, render 202 µs —
+against the committed 50 ms open and 16 ms filter/navigation/render budgets, so
+roughly two orders of magnitude of headroom. M1's additions to the keystroke
+path are one extra byte comparison per input byte (the legacy `0x08` branch),
+one extra exact-string row in `knownSequences` (no timing window, and `\x1b[1`
+was already a partial prefix via `ChordAltX`), and one `reconcileRootSelection`
+per `ctrl-space` — which is O(inventory) once per keypress of that key, not per
+keystroke.
+
+**Mutation evidence for the two production seams** the boundary review found
+untested: inverting the `arrival` derivation in `ExecuteConsoleOperation`
+reddens `TestConsoleRunNotificationHopThenPreviousReturnsHome` (previous becomes
+c2 instead of c1), and deleting `Run`'s `case HitPrevious` arm reddens it by
+timeout. Both were run and reverted, so the tests are known to pin the seams
+rather than merely to pass beside them.

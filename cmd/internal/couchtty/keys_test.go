@@ -454,4 +454,3 @@ func TestInterceptorIgnoresCtrlBackspaceInsideAPaste(t *testing.T) {
 		}
 	}
 }
-

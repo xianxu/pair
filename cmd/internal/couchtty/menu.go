@@ -165,6 +165,10 @@ const (
 	MenuEventCompletionResult
 	MenuEventParkHotkey
 	MenuEventTick
+	// MenuEventNotice reports a console-side refusal on the menu's own surface.
+	// The status row is behind the panel while the switcher owns the screen, so
+	// a refusal sent there would read to the operator as the key doing nothing.
+	MenuEventNotice
 )
 
 type MenuEvent struct {
@@ -271,6 +275,10 @@ func ReduceMenu(state MenuState, event MenuEvent) (MenuState, []MenuEffect) {
 	}
 	if next.Notice.Level != MenuNoticeProgress && event.Kind != MenuEventOperationResult && event.Kind != MenuEventPreviewResult && event.Kind != MenuEventCompletionResult {
 		next.Notice = MenuNotice{}
+	}
+	if event.Kind == MenuEventNotice {
+		next.Notice = errorMenuNotice(event.Error)
+		return next, nil
 	}
 	if event.Kind == MenuEventParkHotkey {
 		return reduceParkHotkey(next, event), nil
