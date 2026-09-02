@@ -17,6 +17,17 @@ import (
 // hotkeyByte is ctrl-space in the LEGACY encoding: ctrl-@ is NUL.
 const hotkeyByte = 0x00
 
+// previousByte is ctrl+backspace in the LEGACY encoding. Unlike every other
+// chord couch intercepts it is a bare byte, not an escape sequence, so it needs
+// a branch beside hotkeyByte rather than a knownSequences row.
+//
+// Accepted cost, deliberate and not a discovery: in legacy encoding 0x08 IS
+// ^H, so intercepting ctrl+backspace also takes ctrl-h from the child (readline
+// and nvim insert-mode treat it as backspace). Under the Kitty protocol the two
+// separate cleanly -- \x1b[104;5u vs \x1b[127;5u -- and zellij pushes the
+// protocol, so this only bites with the protocol off.
+const previousByte = 0x08
+
 // escapeAmbiguity is the one deadline used by both terminal-input framers to
 // distinguish an ESC key from the first byte of a split escape sequence.
 const escapeAmbiguity = 35 * time.Millisecond
@@ -30,8 +41,37 @@ const (
 	seqPasteEnd
 	seqSwitch
 	seqPark
+	seqPrevious
+	seqDetach
 	seqHotkey = seqSwitch // compatibility name for the switch-sequence tests
 )
+
+// intercepts reports whether a sequence is CONSUMED by couch rather than
+// forwarded to the child. Derived rather than enumerated at each site: a new
+// chord that forgot to update a hand-written list would be silently forwarded,
+// which is exactly the failure the Kitty encoding already caused once.
+func (k seqKind) intercepts() bool {
+	switch k {
+	case seqSwitch, seqPark, seqPrevious, seqDetach:
+		return true
+	}
+	return false
+}
+
+// hit maps an intercepted sequence to what the console should do about it.
+func (k seqKind) hit() InterceptorHit {
+	switch k {
+	case seqSwitch:
+		return HitSwitch
+	case seqPark:
+		return HitPark
+	case seqPrevious:
+		return HitPrevious
+	case seqDetach:
+		return HitDetach
+	}
+	return HitNone
+}
 
 type InterceptorHit uint8
 
@@ -39,6 +79,13 @@ const (
 	HitNone InterceptorHit = iota
 	HitSwitch
 	HitPark
+	// HitPrevious is ctrl+backspace: return to the actor recorded by
+	// SwitchTracker. The key labelled `delete` on an Apple keyboard, not
+	// forward-delete -- no fn in the chord.
+	HitPrevious
+	// HitDetach is alt+d: stop this thread's pair client without tearing down
+	// its zellij session.
+	HitDetach
 )
 
 // knownSequences is every multi-byte sequence the console must recognise in the
@@ -67,12 +114,29 @@ var knownSequences = func() []struct {
 		{[]byte("\x1b[200~"), seqPasteStart},
 		{[]byte("\x1b[201~"), seqPasteEnd},
 		{[]byte("\x1b[32;5u"), seqSwitch},
+		// ctrl+backspace under the Kitty protocol: codepoint 127 with modifier
+		// bitmask 4 encoded as 4+1. Its legacy form is the bare byte handled
+		// above, not a sequence.
+		{[]byte("\x1b[127;5u"), seqPrevious},
 	}
-	for _, encoding := range workbenchshortcut.ChordEncodings(workbenchshortcut.ChordAltX) {
-		sequences = append(sequences, struct {
-			bytes []byte
-			kind  seqKind
-		}{encoding, seqPark})
+	for _, chord := range []struct {
+		chord workbenchshortcut.Chord
+		kind  seqKind
+	}{
+		{workbenchshortcut.ChordAltX, seqPark},
+		// alt+d is Pair's own detach chord, intercepted here for the same
+		// reason alt+x is: un-intercepted it would leave couch with a dead
+		// child and a stale live incarnation, which the fail-closed projection
+		// hides -- so the operator's most common gesture would make the thread
+		// disappear from the switcher.
+		{workbenchshortcut.ChordAltD, seqDetach},
+	} {
+		for _, encoding := range workbenchshortcut.ChordEncodings(chord.chord) {
+			sequences = append(sequences, struct {
+				bytes []byte
+				kind  seqKind
+			}{encoding, chord.kind})
+		}
 	}
 	return sequences
 }()
@@ -130,6 +194,9 @@ func (i *Interceptor) FeedHit(in []byte) (before []byte, hit InterceptorHit, res
 		if !i.inPaste && buf[idx] == hotkeyByte {
 			return out, HitSwitch, buf[idx+1:]
 		}
+		if !i.inPaste && buf[idx] == previousByte {
+			return out, HitPrevious, buf[idx+1:]
+		}
 		if buf[idx] == 0x1b {
 			n, kind := sequenceAt(buf[idx:])
 			switch kind {
@@ -146,13 +213,9 @@ func (i *Interceptor) FeedHit(in []byte) (before []byte, hit InterceptorHit, res
 				out = append(out, buf[idx:idx+n]...)
 				idx += n
 				continue
-			case seqSwitch, seqPark:
+			case seqSwitch, seqPark, seqPrevious, seqDetach:
 				if !i.inPaste {
-					hit := HitSwitch
-					if kind == seqPark {
-						hit = HitPark
-					}
-					return out, hit, buf[idx+n:]
+					return out, kind.hit(), buf[idx+n:]
 				}
 				// Inside a paste it is content, like any other byte.
 				out = append(out, buf[idx:idx+n]...)

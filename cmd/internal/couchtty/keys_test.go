@@ -256,9 +256,9 @@ func TestInterceptorRecognisesEverySequenceAtEverySplit(t *testing.T) {
 					t.Fatalf("first feed = (%q, %v, %q), want held", before, hit, rest)
 				}
 				before, hit, rest = it.Feed(seq.bytes[split:])
-				if seq.kind == seqSwitch || seq.kind == seqPark {
+				if seq.kind.intercepts() {
 					if len(before) != 0 || !hit || len(rest) != 0 {
-						t.Fatalf("completed hotkey = (%q, %v, %q)", before, hit, rest)
+						t.Fatalf("completed chord %q = (%q, %v, %q), want it consumed", seq.bytes, before, hit, rest)
 					}
 					return
 				}
@@ -380,6 +380,98 @@ func TestInterceptorHoldsNothingAfterACompleteChunk(t *testing.T) {
 		it.Feed([]byte(in))
 		if len(it.held) != 0 {
 			t.Fatalf("after %q the interceptor still holds %q", in, it.held)
+		}
+	}
+}
+
+// ctrl+backspace arrives in two encodings and BOTH have to be recognised. The
+// legacy form is the bare byte 0x08, not an escape sequence, so it needs the
+// same shape of branch as ctrl-space's NUL rather than a knownSequences row;
+// the Kitty form is an ordinary exact string. Missing either gives a home key
+// that works in one terminal mode and silently types a backspace in the other.
+func TestInterceptorRecognisesCtrlBackspaceInBothEncodings(t *testing.T) {
+	for _, tc := range []struct {
+		name  string
+		chord []byte
+	}{
+		{"legacy 0x08", []byte{0x08}},
+		{"kitty CSI-u", []byte("\x1b[127;5u")},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			var it Interceptor
+			in := append(append([]byte("before"), tc.chord...), []byte("after")...)
+			before, hit, rest := it.FeedHit(in)
+			if hit != HitPrevious {
+				t.Fatalf("hit = %v, want HitPrevious", hit)
+			}
+			if string(before) != "before" || string(rest) != "after" {
+				t.Fatalf("split = (%q, %q), want (\"before\", \"after\")", before, rest)
+			}
+		})
+	}
+}
+
+// Plain backspace must stay plain: it is how the operator edits the switcher's
+// filter, and stealing it would be far worse than never adding the home key.
+func TestInterceptorLeavesPlainBackspaceAlone(t *testing.T) {
+	var it Interceptor
+	before, hit, rest := it.FeedHit([]byte{0x7f})
+	if hit != HitNone || len(rest) != 0 || string(before) != "\x7f" {
+		t.Fatalf("FeedHit(0x7f) = (%q, %v, %q), want the byte forwarded untouched", before, hit, rest)
+	}
+}
+
+// A read boundary is not a keystroke boundary. The Kitty form can arrive split
+// anywhere, and a naive implementation forwards its prefix to the child.
+func TestInterceptorHoldsASplitCtrlBackspace(t *testing.T) {
+	full := []byte("\x1b[127;5u")
+	for cut := 1; cut < len(full); cut++ {
+		var it Interceptor
+		before, hit, _ := it.FeedHit(full[:cut])
+		if hit != HitNone || len(before) != 0 {
+			t.Fatalf("cut %d: prefix leaked (%q, %v)", cut, before, hit)
+		}
+		before, hit, rest := it.FeedHit(full[cut:])
+		if hit != HitPrevious || len(before) != 0 || len(rest) != 0 {
+			t.Fatalf("cut %d: resumed = (%q, %v, %q), want a clean HitPrevious", cut, before, hit, rest)
+		}
+	}
+}
+
+// Inside a bracketed paste every byte is content. A pasted 0x08 that silently
+// switched actors would be data loss the operator could never trace back --
+// the same reason ctrl-space suspends inside a paste.
+func TestInterceptorIgnoresCtrlBackspaceInsideAPaste(t *testing.T) {
+	for _, chord := range [][]byte{{0x08}, []byte("\x1b[127;5u")} {
+		var it Interceptor
+		in := append(append([]byte("\x1b[200~x"), chord...), []byte("y\x1b[201~")...)
+		before, hit, rest := it.FeedHit(in)
+		if hit != HitNone || len(rest) != 0 {
+			t.Fatalf("chord %q inside a paste fired: hit=%v rest=%q", chord, hit, rest)
+		}
+		if !bytes.Contains(before, chord) {
+			t.Fatalf("chord %q was eaten from paste content: %q", chord, before)
+		}
+	}
+}
+
+// alt+d comes from the canonical chord table rather than a re-spelled literal.
+// It has exactly one encoding -- the table declares no legacy "\x1bd" form --
+// so with the Kitty protocol off it passes through to the child. zellij pushes
+// the protocol; this is a documented edge, not a gap.
+func TestInterceptorRecognisesAltDFromTheCanonicalTable(t *testing.T) {
+	encodings := workbenchshortcut.ChordEncodings(workbenchshortcut.ChordAltD)
+	if len(encodings) == 0 {
+		t.Fatal("ChordAltD has no encodings")
+	}
+	for _, encoding := range encodings {
+		var it Interceptor
+		before, hit, rest := it.FeedHit(append(append([]byte("x"), encoding...), []byte("y")...))
+		if hit != HitDetach {
+			t.Fatalf("encoding %q: hit = %v, want HitDetach", encoding, hit)
+		}
+		if string(before) != "x" || string(rest) != "y" {
+			t.Fatalf("encoding %q: split = (%q, %q)", encoding, before, rest)
 		}
 	}
 }

@@ -268,3 +268,36 @@ func TestDecodePanelKeysTabHasFailSafeZeroKind(t *testing.T) {
 		t.Fatalf("zero kind authorizes input: unknown=%v rune=%v", KeyUnknown, KeyRune)
 	}
 }
+
+// The panel decoder computed `modified` and then ignored it for backspace, so
+// ctrl+backspace decoded as a plain backspace -- a latent bug independent of
+// interception, and the reason the home key would have worked everywhere except
+// inside the switcher, which is where it is used most.
+func TestDecodePanelKeysDistinguishesCtrlBackspaceFromBackspace(t *testing.T) {
+	for _, tc := range []struct {
+		name string
+		in   string
+		want []PanelKey
+	}{
+		{"plain backspace stays backspace", "\x7f", []PanelKey{{Kind: KeyBackspace}}},
+		{"legacy 0x08 stays backspace for the panel", "\x08", []PanelKey{{Kind: KeyBackspace}}},
+		{"unmodified CSI-u backspace", "\x1b[127u", []PanelKey{{Kind: KeyBackspace}}},
+		{"explicitly unmodified CSI-u backspace", "\x1b[127;1u", []PanelKey{{Kind: KeyBackspace}}},
+		{"ctrl+backspace is NOT backspace", "\x1b[127;5u", nil},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			got, rest := DecodePanelKeys([]byte(tc.in))
+			if len(rest) != 0 {
+				t.Fatalf("rest = %q, want none", rest)
+			}
+			if len(got) != len(tc.want) {
+				t.Fatalf("keys = %+v, want %+v", got, tc.want)
+			}
+			for i := range got {
+				if got[i] != tc.want[i] {
+					t.Fatalf("keys = %+v, want %+v", got, tc.want)
+				}
+			}
+		})
+	}
+}
