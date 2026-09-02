@@ -119,17 +119,15 @@ var knownSequences = func() []struct {
 		// above, not a sequence.
 		{[]byte("\x1b[127;5u"), seqPrevious},
 	}
+	// alt+d (seqDetach) is claimed in M2, together with the console branch that
+	// acts on it. Claiming it here would take Pair's own detach chord away from
+	// the child and give nothing back -- a key that did something yesterday and
+	// nothing today is worse than one that has not arrived yet.
 	for _, chord := range []struct {
 		chord workbenchshortcut.Chord
 		kind  seqKind
 	}{
 		{workbenchshortcut.ChordAltX, seqPark},
-		// alt+d is Pair's own detach chord, intercepted here for the same
-		// reason alt+x is: un-intercepted it would leave couch with a dead
-		// child and a stale live incarnation, which the fail-closed projection
-		// hides -- so the operator's most common gesture would make the thread
-		// disappear from the switcher.
-		{workbenchshortcut.ChordAltD, seqDetach},
 	} {
 		for _, encoding := range workbenchshortcut.ChordEncodings(chord.chord) {
 			sequences = append(sequences, struct {

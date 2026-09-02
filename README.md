@@ -333,21 +333,32 @@ selection, cancellation, fork failure, and registration failure do not. For
 now, change a repository default by launching Pair directly in that repo with
 `pair -- <agent-arguments>` before returning to Couch.
 
-**`Ctrl-Space` belongs to couch while a session is hosted.** It is intercepted
-before the child sees it, in both encodings a terminal may send it (the legacy
-NUL and the Kitty protocol's `CSI 32;5u`), so it will not reach your editor or
-agent inside a couch-hosted session. Every other chord — `Alt+j`, `Alt+k`,
+**`Ctrl-Space` and `Ctrl-Backspace` belong to couch while a session is hosted.**
+Both are intercepted before the child sees them, in both encodings a terminal
+may send them (the legacy bytes and the Kitty protocol's `CSI 32;5u` and
+`CSI 127;5u`), so they will not reach your editor or agent inside a
+couch-hosted session. In legacy encoding `Ctrl-Backspace` is `^H`, so that
+chord is taken from the child too; under the Kitty protocol, which zellij
+enables, the two separate cleanly. Every other chord — `Alt+j`, `Alt+k`,
 `Alt+t` and the rest — passes through untouched.
 
-Focus has three levels. From a non-home actor, `ctrl-space` returns to the first
-actor couch hosted (home); from home it opens the thread switcher. Printable
-input filters the current list from memory. Use `↑↓` and `Enter` to select and
-switch/resume; `Tab` or `Right` opens the selected thread's actions, while
-`Left` or `Escape` restores its parent. Rows expose only proven `live` and exact
-verified `parked` states. `Alt+x` on a non-home actor
-parks only that actor; `Alt+x` on the home actor confirms **Leave Couch**, parks
-every active actor sequentially, and returns to the parent shell only after all
-parks are verified. `Escape` clears the filter or returns to an attached actor;
+`Ctrl-Space` means one thing: **open the switcher**, from any actor, focused on
+the actor with the most recent notification (or on the thread you are leaving
+when nothing is paging). There is no focus ladder and no home actor — following
+a page is one key plus `Enter`.
+
+`Ctrl-Backspace` means **previous**: return to the actor you were working in.
+One slot, not a stack, and a notification hop never spends it — so chasing two
+pages, or detouring manually to check a third thread, still brings you back to
+where you actually were. Returning home twice is deliberately a no-op: you are
+home, and there is nowhere to bounce to.
+
+Printable input filters the current list from memory. Use `↑↓` and `Enter` to
+select and switch/resume; `Tab` or `Right` opens the selected thread's actions,
+while `Left` or `Escape` restores its parent. Rows expose only proven `live` and
+exact verified `parked` states. `Alt+x` quits what you are looking at: on an
+actor it parks that actor, and on couch's own switcher it confirms **Leave
+Couch**. `Escape` clears the filter or returns to an attached actor;
 with no live actor, the switcher stays open and reports why. Press `ctrl-space` again from the
 switcher to open the path/agent start form; an empty path uses the existing `.`
 default. In the path field, `Tab` asynchronously completes directories only:

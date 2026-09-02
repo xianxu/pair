@@ -455,23 +455,3 @@ func TestInterceptorIgnoresCtrlBackspaceInsideAPaste(t *testing.T) {
 	}
 }
 
-// alt+d comes from the canonical chord table rather than a re-spelled literal.
-// It has exactly one encoding -- the table declares no legacy "\x1bd" form --
-// so with the Kitty protocol off it passes through to the child. zellij pushes
-// the protocol; this is a documented edge, not a gap.
-func TestInterceptorRecognisesAltDFromTheCanonicalTable(t *testing.T) {
-	encodings := workbenchshortcut.ChordEncodings(workbenchshortcut.ChordAltD)
-	if len(encodings) == 0 {
-		t.Fatal("ChordAltD has no encodings")
-	}
-	for _, encoding := range encodings {
-		var it Interceptor
-		before, hit, rest := it.FeedHit(append(append([]byte("x"), encoding...), []byte("y")...))
-		if hit != HitDetach {
-			t.Fatalf("encoding %q: hit = %v, want HitDetach", encoding, hit)
-		}
-		if string(before) != "x" || string(rest) != "y" {
-			t.Fatalf("encoding %q: split = (%q, %q)", encoding, before, rest)
-		}
-	}
-}

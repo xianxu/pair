@@ -73,6 +73,10 @@ type Console struct {
 	menu       MenuState
 	menuReady  bool
 
+	// tracker is where ctrl+backspace goes. Ephemeral by design: `previous` is
+	// a property of this sitting, not of the durable thread store.
+	tracker SwitchTracker
+
 	// menuHeld carries a partial escape sequence across reads.
 	menuHeld []byte
 
@@ -330,6 +334,11 @@ func (c *Console) installObservedThreadActor(ctx context.Context, handleID strin
 	if c.active == "" {
 		c.active = handleID
 		c.focus = FocusActor(handleID)
+		// The first attach lands the operator on an actor WITHOUT going through
+		// switchTo, so the tracker has to be seeded here or the actor they
+		// started in is never recorded -- and the first notification hop would
+		// then pin nothing instead of pinning it.
+		c.tracker.Switch(thread, false)
 	}
 	if !c.menuReady {
 		c.menu = NewMenuState(nil, thread)
@@ -382,14 +391,49 @@ func (c *Console) Switch(id string) {
 //
 // Order is the whole contract: clear, replay the child's own screen, THEN the
 // status row. Painting the row first means the landing paints over it.
-func (c *Console) onSwitch(id string) { c.switchTo(id, false) }
+func (c *Console) onSwitch(id string) { c.switchTo(id, false, arrivalOrdinary) }
 
 // forceSwitch repaints even when the actor is already active -- which is the
 // case when returning from the panel, where the SCREEN changed but the active
 // actor did not.
-func (c *Console) forceSwitch(id string) { c.switchTo(id, true) }
+func (c *Console) forceSwitch(id string) { c.switchTo(id, true, arrivalOrdinary) }
 
-func (c *Console) switchTo(id string, force bool) {
+// arrival says HOW the operator landed on an actor. It is not decoration: the
+// switch rule keys off it (only a notification hop is non-pinning), while the
+// notification-acknowledgement rule deliberately does not (every landing clears
+// the bell). Separating them is what keeps ctrl+backspace home from leaving the
+// actor the operator is sitting in marked as still paging.
+type arrival uint8
+
+const (
+	// arrivalOrdinary is a switch that is not a notification hop: the switcher's
+	// Enter on an unpaged row, a post-start attach, a programmatic Switch.
+	arrivalOrdinary arrival = iota
+	// arrivalNotification is ctrl-space + Return on an actor that HAD a pending
+	// notification. Only this one is non-pinning.
+	arrivalNotification
+	// arrivalPrevious is ctrl+backspace. Never a notification hop even when the
+	// actor happens to be paging, because the operator is going home.
+	arrivalPrevious
+)
+
+func (a arrival) viaNotification() bool { return a == arrivalNotification }
+
+// switchTo is the funnel every landing on an actor goes through, and it owes
+// two rules on each one:
+//
+//  1. record the landing in the switch tracker, so ctrl+backspace knows where
+//     home is; and
+//  2. acknowledge the landed actor's pending notifications, because the Spec's
+//     rule is that an actor does not notify while the operator is attached to
+//     it.
+//
+// Rule 2 used to live in the ctrl-space home-landing path, which #170 deleted.
+// Leaving it there would have meant ctrl+backspace home to A lands on an A that
+// is still lit, NewestActor() then names the actor the operator is SITTING IN,
+// and the next ctrl-space opens the switcher on it instead of on whoever paged
+// -- the headline behaviour, inverted.
+func (c *Console) switchTo(id string, force bool, how arrival) {
 	c.mu.Lock()
 	p, known := c.panes[id]
 	already := c.active == id && !force
@@ -398,6 +442,10 @@ func (c *Console) switchTo(id string, force bool) {
 		c.focus = FocusActor(id)
 		c.menu.ActiveAddress = p.thread
 		p.rowDirty = false
+		c.tracker.Switch(p.thread, how.viaNotification())
+		// Whatever brought the operator here, they are here now.
+		c.attention.Acknowledge(c.attention.Capture(p.thread))
+		c.syncAttentionLocked()
 	}
 	c.mu.Unlock()
 	if !known || already {
@@ -544,9 +592,12 @@ func (c *Console) Run() int {
 			if hit == HitNone {
 				return
 			}
-			if hit == HitPark {
+			switch hit {
+			case HitPark:
 				c.onParkHotkey()
-			} else {
+			case HitPrevious:
+				c.onPreviousHotkey()
+			default:
 				c.onHotkey()
 			}
 			raw = rest
@@ -670,6 +721,10 @@ func (c *Console) onExit(event childExit) bool {
 	panelFocused := c.focus.IsPanel()
 	wasActive := c.active == event.id
 	delete(c.panes, event.id)
+	// Not a landing: on exit the operator goes to the panel, so recording one
+	// would make the dead thread the return target -- the single place
+	// ctrl+backspace can never usefully go.
+	c.tracker.Drop(p.thread)
 	c.attention.DropActor(p.thread)
 	c.syncAttentionLocked()
 	for i, id := range c.order {
@@ -1064,15 +1119,53 @@ func (c *Console) onHotkey() {
 	// Open focused on whoever paged. This used to run only when the ladder
 	// happened to land on the panel; now it is the point of the key, so it runs
 	// on every ctrl-space from an actor.
-	if newest := c.attention.NewestActor(); newest != (couchcore.ThreadAddress{}) && len(c.menu.Frames) > 0 {
+	if len(c.menu.Frames) > 0 {
+		focus := c.attention.NewestActor()
+		if focus == (couchcore.ThreadAddress{}) {
+			// The defined default with nothing paging: the thread being left.
+			// Routed through reconcileRootSelection rather than assigned, because
+			// ActiveAddress can name a thread that is no longer in the inventory
+			// -- and that reconciler already means "preferred if present, else
+			// the first visible row".
+			focus = c.menu.ActiveAddress
+		}
 		c.menu.Frames = c.menu.Frames[:1]
 		c.menu.Frames[0].Filter = ""
-		c.menu.Frames[0].SelectedAddress = newest
+		reconcileRootSelection(&c.menu, focus)
 	}
 	c.mu.Unlock()
 
 	c.requestMenuRefresh()
 	c.showMenu()
+}
+
+// onPreviousHotkey handles ctrl+backspace: return to the actor the operator was
+// working in before they were paged away.
+//
+// Runs on the Run goroutine. Resolving through the durable address rather than a
+// remembered pane id is what lets `previous` survive a park/resume or
+// detach/reattach cycle, which mints a new pane for the same thread.
+func (c *Console) onPreviousHotkey() {
+	c.mu.Lock()
+	address, ok := c.tracker.Previous()
+	target := ""
+	if ok {
+		target = c.switchTargetForAddressLocked(address)
+	}
+	c.mu.Unlock()
+
+	if !ok {
+		c.setNotice("previous: nowhere to return to")
+		return
+	}
+	if target == "" {
+		// The thread is durable but has no live pane here -- parked, detached,
+		// or exited. A notice beats blanking the screen or silently doing
+		// nothing.
+		c.setNotice("previous: that thread is no longer attached")
+		return
+	}
+	c.switchTo(target, true, arrivalPrevious)
 }
 
 // onParkHotkey handles Pair's Alt+x chord at the Couch ownership boundary.
@@ -1239,11 +1332,21 @@ func (c *Console) ExecuteConsoleOperation(call couchcore.OperationCall) (any, er
 	case "switch":
 		c.mu.Lock()
 		target := c.switchTargetForAddressLocked(address)
+		// A notification hop is ctrl-space + Return on an actor that HAD a
+		// pending notification. runMenuOperation captured that set before
+		// dispatch, so a nonzero capture is exactly "the target was paging when
+		// the operator chose it" -- the value that was true when they chose,
+		// not after.
+		how := arrivalOrdinary
+		if c.menu.InFlight.Operation == "switch" && c.menu.InFlight.Address == address &&
+			c.menu.InFlight.AttentionCapture != 0 {
+			how = arrivalNotification
+		}
 		c.mu.Unlock()
 		if target == "" {
 			return nil, fmt.Errorf("thread %s/%s is not attached to this console", address.RepoScope, address.Tag)
 		}
-		c.forceSwitch(target)
+		c.switchTo(target, true, how)
 		return address, nil
 	case "attach":
 		start, ok := call.TypedPayload.(couchcore.StartResult)

@@ -23,6 +23,7 @@ var menuControls = []MenuControl{
 	{Keys: "Left", Action: "back"},
 	{Keys: "Right", Action: "forward"},
 	{Keys: "Ctrl-Space", Action: "start"},
+	{Keys: "Ctrl-Backspace", Action: "previous"},
 	{Keys: "Alt+x", Action: "park/leave"},
 	{Keys: "Escape", Action: "clear/back"},
 }
