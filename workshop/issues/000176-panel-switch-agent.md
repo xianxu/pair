@@ -76,12 +76,23 @@ and raw rather than distilled — a worse summary and a strictly more available
 one. Where the source agent is healthy, a continuation is still the better
 carrier; the two are complementary, and this issue owns the fallback.
 
-**The hazard to solve, not discover:** the scrollback paths are per-tag
-(`PAIR_SCROLLBACK_RAW_PATH`, `PAIR_SCROLLBACK_ANSI_PATH`,
-`PAIR_LOG_PATH`). A new session under the *same tag* resolves to the *same
-paths* and will write over them. Pointing the new session at "the old
-transcript" therefore names a file the new session is already overwriting.
-Rotate or snapshot before the new driver starts, and hand over the rotated path.
+**The prior transcript is already preserved — two mechanisms, neither needing
+work.** Tags are opaque and stable across a restart (the tag *is* the work
+identity), so the collision question is settled elsewhere:
+
+- Per-agent artifacts carry the agent in the filename —
+  `scrollback-<tag>-<agent>.raw` — so a claude→codex switch writes a different
+  file by construction. Tag-scoped artifacts (draft, log, ledger, queue) are
+  deliberately shared, which is the `#115` model.
+- pair's quit path already **moves** the scrollback to a timestamped
+  `parked-scrollback-<tag>-<ts>` base — "move on quit, copy on compaction"
+  (`launcher/osruntime.go:841-856`, `runtime.go:219`) — so a same-agent restart
+  also leaves the prior content intact.
+
+So the work is **selection, not rotation**: those snapshots accumulate per tag,
+and the handover must name *which* `parked-scrollback-<tag>-<ts>` belongs to the
+session just replaced. Reuse `ParkedScrollbackArtifacts` rather than adding a
+second snapshot path (`ARCH-DRY`).
 
 ## Done when
 
@@ -92,8 +103,9 @@ Rotate or snapshot before the new driver starts, and hand over the rotated path.
   acknowledgment from the stopped process; a source that dies without
   acknowledging still completes cleanly. This is #135's failure, so it is the
   acceptance test, not a note.
-- The new session is told the path of the **prior** transcript, and that file
-  still holds the prior session's content after the new one has started writing.
+- The new session is told the exact `parked-scrollback-<tag>-<ts>` of the
+  session it replaced — not merely the newest file matching the tag — asserted
+  with earlier snapshots already present for that tag.
 - A failed switch leaves the thread usable — no lock or claim that permanently
   disables it (`#135`'s requirement, carried forward).
 - The operation is `ConfirmRequired` and declared in the same table as the
@@ -103,14 +115,20 @@ Rotate or snapshot before the new driver starts, and hand over the rotated path.
 
 - [ ] Declare `switch-agent` in `ops.go` + the declaration table.
 - [ ] Quiesce-and-observe on couch's side; test a source that dies silently.
-- [ ] Transcript rotation before the new driver starts, and the handover of the
-      rotated path.
+- [ ] Identify the replaced session's `parked-scrollback-<tag>-<ts>` via
+      `ParkedScrollbackArtifacts` and hand that exact path over.
 - [ ] Restart = same call, target == current; assert one code path.
 - [ ] Failure path: assert the thread is still startable after a failed switch.
 
 ## Log
 
 ### 2026-09-02
+
+Correction, recorded so it is not re-derived: an earlier draft of this issue
+claimed the new session would overwrite the prior transcript and asked for
+rotation. Wrong on both paths — the agent suffix separates a cross-agent
+switch, and quit already moves the scrollback to a timestamped
+`parked-scrollback-` base. What remains is picking the right snapshot.
 
 Raised as two commands — "switch agent" and "restart" — and collapsed to one on
 the operator's own observation that restart is switching to the same agent.
