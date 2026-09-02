@@ -118,3 +118,7 @@ Compressed enumerated prose cases across Tasks 1–5 into named-function adversa
 ### 2026-09-01 — Close review BR-1
 
 The first acceptance test stopped at `dispatchInteractiveStart`, below the production `runTypedOperation` branch and `dispatchInitialAttach`. Reopened Task 5 steps 1–2: the replacement must traverse production interactive routing over reconstructed durable state and observe the resumed identity at initial Console attachment.
+
+### 2026-09-01 — Close review BR-2 round 2
+
+The first README correction updated the Leave Couch sentence but left the adjacent always-allocate statement contradictory. Swept the complete README startup description and qualified durable allocation/admission as new-root behavior; unique automatic resume reuses the parked thread.

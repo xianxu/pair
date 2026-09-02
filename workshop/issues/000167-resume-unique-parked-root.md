@@ -134,3 +134,8 @@ and fails the exact parked-address assertion. BR-2 is addressed by updating the
 README's Leave Couch workflow with unique automatic resume and zero/ambiguous
 fallback. Focused production-boundary tests and the three changed Go packages
 pass after both fixes.
+
+Close review round 2 disposed BR-1 and found one remaining BR-2 shadow sentence:
+the adjacent README paragraph still said every TUI start allocates. The complete
+startup description now distinguishes new-root allocation/admission from unique
+resume, which reuses the parked thread.

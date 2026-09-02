@@ -83,3 +83,83 @@ findings:
     detail: |
       README.md says bare couch reopens the switcher for manual Enter, but the implementation now automatically resumes one exact eligible parked root. Document automatic unique resume and the zero-or-ambiguous new-root fallback.
 ```
+
+---
+
+## Re-review — 2026-09-01T18:39:12-07:00 (REWORK)
+
+| field | value |
+|-------|-------|
+| issue | 167 — Resume unique parked root on Couch startup |
+| repo | pair |
+| issue file | workshop/issues/000167-resume-unique-parked-root.md |
+| boundary | whole-issue close |
+| milestone | — |
+| window | 1047ed5c5c962a1890c74cdd8a99667d3c39583d..bf931c652432517b8d0aace07d281ea06be6c910 |
+| command | sdlc close --issue 167 |
+| reviewer | codex |
+| timestamp | 2026-09-01T18:39:12-07:00 |
+| verdict | REWORK |
+
+## Review
+
+```verdict
+verdict: REWORK
+confidence: high
+```
+
+The implementation and production-path acceptance are sound, and BR-1 is addressed. BR-2 remains open: the revised README correctly describes automatic resume, but the immediately following paragraph still claims every TUI start allocates a new thread, contradicting resumed-root behavior.
+
+1. Strengths
+
+- The acceptance test traverses `runTypedOperationWithConsole`, the production interactive routing branch, and `dispatchInitialAttach`; reverting that routing would attach a new root and fail the address assertion ([run_test.go](/Users/xianxu/workspace/pair/cmd/internal/couchcmd/run_test.go:303)).
+- `SelectUniqueParkedRoot` is pure, exact, and rejects ambiguous candidates ([startup.go](/Users/xianxu/workspace/pair/cmd/internal/couchcore/startup.go:11)).
+- Inventory and Resume failures propagate without creating a fallback root ([startup.go](/Users/xianxu/workspace/pair/cmd/internal/couchcore/startup.go:29)).
+- Physical path projection remains in the integration shell with conservative per-record omission ([actionableinventory.go](/Users/xianxu/workspace/pair/cmd/internal/couchcore/actionableinventory.go:143)).
+- Atlas documents the new surface and bounded behavior.
+
+2. Critical findings
+
+None.
+
+3. Important findings
+
+- BR-2 remains open at [README.md](/Users/xianxu/workspace/pair/README.md:304): “Every TUI start allocates a distinct opaque durable thread” contradicts lines 297–300, because a uniquely resumed startup reuses an existing thread. This is the second instance in family `user-surface-documentation`; apply the rule across the complete README startup description, not merely the originally identified sentence. Qualify allocation as applying to new-root startup.
+
+4. Minor findings
+
+None.
+
+5. Test coverage notes
+
+Passed:
+
+- `go test ./cmd/internal/couchcore ./cmd/internal/couchcmd ./cmd/internal/artifactpath -count=1`
+- `go test ./... -count=1`
+- `git diff --check <base> <head>`
+
+BR-1’s replacement test reaches production routing and initial attachment and checks the parked address and saved native identity. Pure and integration tests cover exact selection, ambiguity, inventory failure, path physicalization, and Resume refusal.
+
+6. Architectural notes for upcoming work
+
+- `ARCH-DRY`: Pass. Eligibility and Resume authority reuse existing sources.
+- `ARCH-PURE`: Pass. Selection is deterministic; IO remains in thin orchestration.
+- `ARCH-PURPOSE`: Runtime behavior passes. Documentation still contains one shadow description of the old always-allocate model.
+- `ARCH-MOCK`: Pass. Existing stateful seams are used; no dependency was introduced.
+- `ARCH-CONSTRAINTS`: Pass. One bounded local inventory pass and O(n) selection; no retries, fleet scan, prompt, or fan-out.
+
+7. Plan revision recommendations
+
+Append a revision for BR-2 noting that the README sweep includes both the Leave Couch paragraph and the general TUI allocation statement, then correct the latter.
+
+```findings
+dispose:
+  - id: BR-1
+    disposition: addressed
+    note: |
+      The replacement test traverses production interactive routing and initial console attachment; reverting the routing would attach a new root and fail its exact parked-address assertion.
+  - id: BR-2
+    disposition: not-addressed
+    note: |
+      README now describes automatic unique resume, but its immediately following “Every TUI start allocates” statement still contradicts resumed startup.
+```

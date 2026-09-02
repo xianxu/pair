@@ -301,11 +301,13 @@ candidates, Couch creates a new root instead; it does not rank, prompt, or guess
 Resume does not allocate a temporary actor first or add a full native inventory
 scan. Alt+d remains Pair-local detach; Couch exposes no detach operation.
 
-Every TUI start allocates a distinct opaque durable thread. Admission comes
-from the repository's normalized Ariadne fleet policy (`sdlc fleet policy`): a
-bounded key refuses when occupied, while an unbounded path admits concurrent
-threads. A `provision-worktree` policy currently returns a typed refusal; managed
-worktree creation belongs to Pair #153. There is no local admission override.
+A TUI startup that creates a new root allocates a distinct opaque durable
+thread; automatic unique resume reuses the parked thread instead. New-thread
+admission comes from the repository's normalized Ariadne fleet policy (`sdlc
+fleet policy`): a bounded key refuses when occupied, while an unbounded path
+admits concurrent threads. A `provision-worktree` policy currently returns a
+typed refusal; managed worktree creation belongs to Pair #153. There is no local
+admission override.
 
 Launching Couch allocates a pty for the session and **reserves the bottom row of
 your screen** for a status line. The path argument is optional and defaults to

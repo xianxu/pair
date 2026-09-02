@@ -17,8 +17,10 @@ Atlas documented automatic unique-root resume while README still instructed the
 operator to reopen the switcher and press Enter.
 
 **Rule.** For a user-visible behavior migration, sweep README plus atlas and
-tests for the old workflow sentence; architectural documentation does not
-replace operator-facing usage documentation. Caught during #000167 close review.
+tests for the old workflow model, including adjacent generalizations—not only
+the first contradictory sentence. Architectural documentation does not replace
+operator-facing usage documentation. Caught during #000167 close review rounds
+1–2.
 
 ## Cross-package acceptance must transport upstream production output
 
