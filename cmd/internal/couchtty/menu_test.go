@@ -91,9 +91,11 @@ func TestReduceMenuRootEnterDispatchesExactSwitchOrResume(t *testing.T) {
 func TestReduceMenuActionAndConfirmationCaptureExactThread(t *testing.T) {
 	state := NewMenuState(menuThreads(), menuAddress("couch-one"))
 	state, _ = reduceKey(state, PanelKey{Kind: KeyTab})
-	if frame := state.CurrentFrame(); frame.Kind != MenuFrameActions || frame.Thread != menuAddress("couch-one") || frame.SelectedItem != "park" {
+	// Detach leads the list for a live row: safe before destructive.
+	if frame := state.CurrentFrame(); frame.Kind != MenuFrameActions || frame.Thread != menuAddress("couch-one") || frame.SelectedItem != "detach" {
 		t.Fatalf("action frame = %+v", frame)
 	}
+	state = selectMenuItem(state, "park")
 
 	beforeTab := state
 	state, effects := reduceKey(state, PanelKey{Kind: KeyTab})
@@ -116,7 +118,7 @@ func TestReduceMenuActionAndConfirmationCaptureExactThread(t *testing.T) {
 func TestReduceMenuActionUsesExistingNameOperation(t *testing.T) {
 	state := NewMenuState(menuThreads(), menuAddress("couch-one"))
 	state, _ = reduceKey(state, PanelKey{Kind: KeyTab})
-	state, _ = reduceKey(state, PanelKey{Kind: KeyDown})
+	state = selectMenuItem(state, "name")
 	state, _ = reduceKey(state, PanelKey{Kind: KeyEnter})
 	if frame := state.CurrentFrame(); frame.Kind != MenuFrameText || frame.Action != "name" {
 		t.Fatalf("text frame = %+v", frame)
@@ -151,7 +153,7 @@ func TestReduceMenuAttentionProjectionIsImmutableByCopy(t *testing.T) {
 func TestReduceMenuTextBoundsUTF8AndRestoresActionFrame(t *testing.T) {
 	state := NewMenuState(menuThreads(), menuAddress("couch-one"))
 	state, _ = reduceKey(state, PanelKey{Kind: KeyTab})
-	state, _ = reduceKey(state, PanelKey{Kind: KeyDown})
+	state = selectMenuItem(state, "name")
 	state, _ = reduceKey(state, PanelKey{Kind: KeyEnter})
 	state.Frames[len(state.Frames)-1].Input = strings.Repeat("a", menuNameLimit-1)
 
@@ -284,7 +286,7 @@ func TestReduceMenuRefreshReconcilesFramesByIdentity(t *testing.T) {
 	state := NewMenuState(menuThreads(), menuAddress("couch-one"))
 	state, _ = reduceKey(state, PanelKey{Kind: KeyDown})
 	state, _ = reduceKey(state, PanelKey{Kind: KeyTab})
-	state, _ = reduceKey(state, PanelKey{Kind: KeyDown})
+	state = selectMenuItem(state, "name")
 	state, _ = reduceKey(state, PanelKey{Kind: KeyEnter})
 	state.Frames[len(state.Frames)-1].Input = "draft"
 
@@ -321,6 +323,7 @@ func TestReduceMenuReconcileKeepsGlobalStartAndDropsInvalidOrigin(t *testing.T) 
 func TestReduceMenuOperationResultDoesNotRedispatchAndRestoresByOutcome(t *testing.T) {
 	state := NewMenuState(menuThreads(), menuAddress("couch-one"))
 	state, _ = reduceKey(state, PanelKey{Kind: KeyTab})
+	state = selectMenuItem(state, "park")
 	state, _ = reduceKey(state, PanelKey{Kind: KeyEnter})
 	state, _ = reduceKey(state, PanelKey{Kind: KeyDown})
 	state, dispatched := reduceKey(state, PanelKey{Kind: KeyEnter})
@@ -389,7 +392,7 @@ func TestReduceMenuRootResumeSuccessAppliesReturnedInventory(t *testing.T) {
 func TestReduceMenuOperationResultRequiresExactCapturedOperation(t *testing.T) {
 	state := NewMenuState(menuThreads(), menuAddress("couch-one"))
 	state, _ = reduceKey(state, PanelKey{Kind: KeyTab})
-	state, _ = reduceKey(state, PanelKey{Kind: KeyDown})
+	state = selectMenuItem(state, "name")
 	state, _ = reduceKey(state, PanelKey{Kind: KeyEnter})
 	state, _ = reduceKey(state, PanelKey{Kind: KeyRune, Rune: 'x'})
 	state, dispatched := reduceKey(state, PanelKey{Kind: KeyEnter})
@@ -411,6 +414,7 @@ func TestReduceMenuOperationResultRequiresExactCapturedOperation(t *testing.T) {
 func TestReduceMenuOperationResultPreservesHiddenTargetDiagnostic(t *testing.T) {
 	state := NewMenuState(menuThreads(), menuAddress("couch-one"))
 	state, _ = reduceKey(state, PanelKey{Kind: KeyTab})
+	state = selectMenuItem(state, "park")
 	state, _ = reduceKey(state, PanelKey{Kind: KeyEnter})
 	state, _ = reduceKey(state, PanelKey{Kind: KeyDown})
 	state, _ = reduceKey(state, PanelKey{Kind: KeyEnter})
@@ -747,6 +751,7 @@ func TestMenuHorizontalArrowsNavigateFrameHierarchy(t *testing.T) {
 	if len(effects) != 0 || state.CurrentFrame().Kind != MenuFrameActions {
 		t.Fatalf("root Right = state %+v effects %+v, want actions", state, effects)
 	}
+	state = selectMenuItem(state, "park")
 	state, effects = reduceKey(state, PanelKey{Kind: KeyRight})
 	if len(effects) != 0 || state.CurrentFrame().Kind != MenuFrameConfirmation {
 		t.Fatalf("actions Right = state %+v effects %+v, want confirmation", state, effects)
@@ -833,6 +838,16 @@ func TestMenuOperationCompletionNeverMistakesReplacementFrameForOrigin(t *testin
 	}
 }
 
+// selectMenuItem picks an action by NAME rather than by counting Down presses.
+// The action list's order is a deliberate product decision (detach leads park,
+// safe before destructive) and has changed once already; a positional fixture
+// silently retargets to a different operation when it does.
+func selectMenuItem(state MenuState, item string) MenuState {
+	next := cloneMenuState(state)
+	next.Frames[len(next.Frames)-1].SelectedItem = item
+	return next
+}
+
 func TestMenuOperationCompletionPreservesLaterGlobalStartOverlay(t *testing.T) {
 	for _, operation := range []string{"switch", "resume", "park", "name", "describe", "start"} {
 		for _, success := range []bool{false, true} {
@@ -849,17 +864,13 @@ func TestMenuOperationCompletionPreservesLaterGlobalStartOverlay(t *testing.T) {
 					state, effects = reduceKey(state, PanelKey{Kind: KeyEnter})
 				case "park":
 					state, _ = reduceKey(state, PanelKey{Kind: KeyTab})
+					state = selectMenuItem(state, "park")
 					state, _ = reduceKey(state, PanelKey{Kind: KeyEnter})
 					state, _ = reduceKey(state, PanelKey{Kind: KeyDown})
 					state, effects = reduceKey(state, PanelKey{Kind: KeyEnter})
 				case "name", "describe":
 					state, _ = reduceKey(state, PanelKey{Kind: KeyTab})
-					if operation == "name" {
-						state, _ = reduceKey(state, PanelKey{Kind: KeyDown})
-					} else {
-						state, _ = reduceKey(state, PanelKey{Kind: KeyDown})
-						state, _ = reduceKey(state, PanelKey{Kind: KeyDown})
-					}
+					state = selectMenuItem(state, operation)
 					state, _ = reduceKey(state, PanelKey{Kind: KeyEnter})
 					state, effects = reduceKey(state, PanelKey{Kind: KeyEnter})
 				case "start":
@@ -917,6 +928,7 @@ func TestReduceMenuRefreshKeepsApplicableZeroMatchActionFrame(t *testing.T) {
 func TestReduceMenuConfirmationUsesSharedListFiltering(t *testing.T) {
 	state := NewMenuState(menuThreads(), menuAddress("couch-one"))
 	state, _ = reduceKey(state, PanelKey{Kind: KeyTab})
+	state = selectMenuItem(state, "park")
 	state, _ = reduceKey(state, PanelKey{Kind: KeyEnter})
 	for _, r := range "compiler" {
 		state, _ = reduceKey(state, PanelKey{Kind: KeyRune, Rune: r})

@@ -57,6 +57,11 @@ type ResumeEligibilityInput struct {
 	Thread            ThreadRecord
 	WorkingPathExists bool
 	Binding           NativeBindingResolution
+	// Detached is proof that this thread's zellij session is alive with no
+	// client attached. It is the resume authority for a thread that was
+	// detached rather than parked -- a detached thread has no verified park to
+	// point at, because nothing was torn down.
+	Detached bool
 }
 
 type ResumeEligibility struct {
@@ -85,7 +90,14 @@ func DecideResume(input ResumeEligibilityInput) (ResumeEligibility, error) {
 			}
 		}
 	}
-	if record.VerifiedPark == nil {
+	if record.VerifiedPark == nil && !input.Detached {
+		// The tombstone scan is reached ONLY when neither authority holds, and
+		// that ordering is load-bearing. It refuses on ANY tombstoned entry in
+		// the whole history, with no break, and AbandonPark appends tombstones
+		// permanently -- so a thread once abandoned mid-park, later started
+		// again and detached, would be permanently unreattachable if the
+		// detached branch sat after it. The rule means "there is no valid park
+		// to resume from"; a detached thread is not resuming from a park.
 		for i := len(record.ParkHistory) - 1; i >= 0; i-- {
 			if record.ParkHistory[i].Tombstoned {
 				return ResumeEligibility{}, refuseResume(ResumeTombstoned, "latest park transaction was abandoned")
@@ -201,8 +213,22 @@ func (c *Couch) ResumeContext(ctx context.Context, address ThreadAddress) (Actor
 	if err != nil {
 		return ActorRecord{}, nil, err
 	}
+	// A thread with no verified park may still be resumable: it may have been
+	// DETACHED, in which case its zellij session is alive with no client and
+	// that survival is the authority. Ask only when it could matter, so an
+	// ordinary parked resume costs no extra observation.
+	detached := false
+	if thread.VerifiedPark == nil {
+		if resolver, ok := c.Artifacts.(DetachedSessionResolver); ok {
+			observed, observeErr := resolver.DetachedSessions(ctx, []ThreadAddress{address})
+			if observeErr != nil {
+				return ActorRecord{}, nil, fmt.Errorf("observe detached session for %+v: %w", address, observeErr)
+			}
+			detached = len(observed) == 1 && observed[0].Address == address
+		}
+	}
 	eligible, err := DecideResume(ResumeEligibilityInput{
-		Thread: thread, WorkingPathExists: pathExists, Binding: binding,
+		Thread: thread, WorkingPathExists: pathExists, Binding: binding, Detached: detached,
 	})
 	if err != nil {
 		return ActorRecord{}, nil, err
@@ -219,7 +245,7 @@ func (c *Couch) ResumeContext(ctx context.Context, address ThreadAddress) (Actor
 	thread, err = ReconcileResumeAdmission(ctx, c.Threads, c.PolicyResolver, ResumeAdmissionInput{
 		Address: address, StartedAt: startedAt,
 		Owner: SupervisorOwner{PID: owner.PID, Identity: owner.Identity},
-		Nonce: nonce, Profile: eligible.Profile,
+		Nonce: nonce, Profile: eligible.Profile, Detached: detached,
 	})
 	if err != nil {
 		return ActorRecord{}, nil, err

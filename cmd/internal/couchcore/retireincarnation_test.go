@@ -157,3 +157,70 @@ func TestThreadStoreRetireIncarnation(t *testing.T) {
 		}
 	})
 }
+
+// A detached resume has no verified park, and DeleteStart's no-verified-park
+// branch used to fall through to deleteThreadIf. threadHasMetadata protects a
+// NAMED record; the exposure was the unnamed one, whose LatestLaunchProfile
+// nothing guarded -- so a post-claim rollback deleted the agent and argv needed
+// to reattach while the zellij session it names kept running.
+func TestDeleteStartKeepsARecordThatHasEverStarted(t *testing.T) {
+	address := ThreadAddress{RepoScope: "0123456789abcdef", Tag: "couch-0001020304050607"}
+	profile := &LaunchProfile{Agent: "claude", Argv: []string{"--flag"}}
+
+	for _, test := range []struct {
+		name       string
+		profile    *LaunchProfile
+		named      bool
+		wantRecord bool
+	}{
+		{name: "unnamed but previously started -- the exposed case", profile: profile, wantRecord: true},
+		{name: "named and previously started", profile: profile, named: true, wantRecord: true},
+		{name: "never started and unnamed is still deleted", wantRecord: false},
+	} {
+		t.Run(test.name, func(t *testing.T) {
+			store, ns := newTestThreadStore(t)
+			seed := validThreadRecord(t)
+			seed.Address, seed.StartingPath, seed.WorkingPath = address, ns.Dir(), ns.Dir()
+			record, err := store.CreateThread(seed)
+			if err != nil {
+				t.Fatal(err)
+			}
+			record, err = store.UpdateExistingThread(address, record.Revision, func(next *ThreadRecord) error {
+				next.Reservation = false
+				next.LatestLaunchProfile = test.profile
+				if test.named {
+					next.Name = "compiler"
+				}
+				next.Incarnations = []ThreadIncarnation{{
+					State: IncarnationCreating, StartedAt: time.Unix(10, 0).UTC(),
+					Start: &ThreadStartClaim{Nonce: "start-0001020304050607", OwnerPID: 7, OwnerIdentity: "owner"},
+				}}
+				return nil
+			})
+			if err != nil {
+				t.Fatal(err)
+			}
+
+			if err := store.DeleteStart(address, record.Revision, "start-0001020304050607"); err != nil {
+				t.Fatalf("DeleteStart() = %v", err)
+			}
+
+			after, err := store.GetThread(address)
+			if !test.wantRecord {
+				if err == nil {
+					t.Fatalf("record survived: %+v", after)
+				}
+				return
+			}
+			if err != nil {
+				t.Fatalf("record was deleted, losing the profile reattach needs: %v", err)
+			}
+			if len(after.Incarnations) != 0 {
+				t.Fatalf("start claim was not rolled back: %+v", after.Incarnations)
+			}
+			if after.LatestLaunchProfile == nil || after.LatestLaunchProfile.Agent != "claude" {
+				t.Fatalf("launch profile lost: %+v", after.LatestLaunchProfile)
+			}
+		})
+	}
+}

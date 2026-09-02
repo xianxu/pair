@@ -156,6 +156,9 @@ func reconcileAdmission(ctx context.Context, store *ThreadStore, resolver Policy
 // allocating or replacing it. Refusal leaves the parked record unchanged; a
 // successful admission retains VerifiedPark until Pair registration succeeds.
 type ResumeAdmissionInput struct {
+	// Detached carries DecideResume's proof forward, so this gate accepts the
+	// same two authorities rather than a stricter subset.
+	Detached  bool
 	Address   ThreadAddress
 	StartedAt time.Time
 	Owner     SupervisorOwner
@@ -180,8 +183,17 @@ func ReconcileResumeAdmission(ctx context.Context, store *ThreadStore, resolver 
 		if !ok {
 			return ThreadRecord{}, fmt.Errorf("resume candidate thread %+v is absent", input.Address)
 		}
-		if candidate.Reservation || candidate.Park != nil || candidate.VerifiedPark == nil || len(candidate.Incarnations) != 0 || candidate.LatestLaunchProfile == nil {
-			return ThreadRecord{}, fmt.Errorf("resume candidate thread %+v is not verified parked", input.Address)
+		// A detached thread has no verified park -- nothing was torn down, so
+		// there was nothing to verify. Its resume authority is the surviving
+		// zellij session, already proved by the caller. Widening here as well
+		// as in DecideResume is required: this gate runs AFTER that one, so
+		// widening only DecideResume ships a detached row whose Enter fails
+		// with "is not verified parked".
+		if candidate.Reservation || candidate.Park != nil || len(candidate.Incarnations) != 0 || candidate.LatestLaunchProfile == nil {
+			return ThreadRecord{}, fmt.Errorf("resume candidate thread %+v is not resumable", input.Address)
+		}
+		if candidate.VerifiedPark == nil && !input.Detached {
+			return ThreadRecord{}, fmt.Errorf("resume candidate thread %+v is neither verified parked nor proved detached", input.Address)
 		}
 		candidatePolicy, err := resolver.ResolvePolicy(ctx, candidate.WorkingPath)
 		if err != nil {

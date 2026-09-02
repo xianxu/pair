@@ -381,9 +381,12 @@ func reduceRootKey(state MenuState, key PanelKey) (MenuState, []MenuEffect) {
 			state.Notice = errorMenuNotice("no selection")
 			return state, nil
 		}
-		operation := "resume"
-		if thread.Live() {
-			operation = "switch"
+		// Live rows switch; parked and detached rows both resume. Parked is
+		// cold and detached is warm, but the effect is one `pair resume` either
+		// way, so this asks Resumable() rather than enumerating states.
+		operation := "switch"
+		if thread.Resumable() {
+			operation = "resume"
 		}
 		return dispatchThreadOperation(state, operation, thread.Address)
 	case KeyTab:
@@ -494,6 +497,10 @@ func reduceActionKey(state MenuState, key PanelKey) (MenuState, []MenuEffect) {
 			appendMenuFrame(&state, MenuFrame{
 				Kind: MenuFrameConfirmation, Thread: thread.Address, Action: "park", SelectedItem: "cancel",
 			})
+		case "detach":
+			// No confirmation: detach destroys nothing. That asymmetry with
+			// park is the whole reason both actions exist.
+			return dispatchThreadOperation(state, "detach", thread.Address)
 		case "resume":
 			return dispatchThreadOperation(state, "resume", thread.Address)
 		case "name", "describe":
@@ -902,11 +909,13 @@ func startMenuEffect(frame MenuFrame) MenuEffect {
 }
 
 func menuActionItems(thread couchcore.ActionableThreadSummary) []string {
-	first := "resume"
 	if thread.Live() {
-		first = "park"
+		// Detach first: it is the safe, everyday gesture -- the agent keeps
+		// running and only the client goes. Park is destructive and sits
+		// behind it, in the position the operator has to travel to.
+		return []string{"detach", "park", "name", "describe"}
 	}
-	return []string{first, "name", "describe"}
+	return []string{"resume", "name", "describe"}
 }
 
 func confirmationMenuItems(action string, thread couchcore.ActionableThreadSummary) []string {
@@ -1151,7 +1160,7 @@ func reduceOperationResult(state MenuState, event MenuEvent) MenuState {
 			state = restoreMenuPrefixPreservingStart(state, 1, origin)
 			state.Frames[0].SelectedAddress = event.Address
 		}
-	case "park", "resume", "leave":
+	case "park", "detach", "resume", "leave":
 		state = restoreMenuPrefixPreservingStart(state, 1, origin)
 		state.Frames[0].SelectedAddress = event.Address
 		reconcileRootSelection(&state, event.Address)
@@ -1165,7 +1174,7 @@ func reduceOperationResult(state MenuState, event MenuEvent) MenuState {
 // terminal focus; leave terminates the console and has no next frame to update.
 func operationNeedsProjectionRefresh(operation string) bool {
 	switch operation {
-	case "start", "park", "resume", "name", "describe":
+	case "start", "park", "detach", "resume", "name", "describe":
 		return true
 	case "switch", "leave":
 		return false
@@ -1269,6 +1278,8 @@ func menuOperationProgressText(state MenuState, operation string, address couchc
 		return "resuming " + label
 	case "park":
 		return "parking " + label
+	case "detach":
+		return "detaching " + label
 	case "leave":
 		return "leaving couch"
 	case "name":

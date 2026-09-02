@@ -210,7 +210,8 @@ func TestConsoleRunHorizontalArrowsNavigateSingleSurfaceHierarchy(t *testing.T) 
 	})
 
 	f.host.Reset()
-	_, _ = f.stdin.Write([]byte("\x1bOC\x1bOC"))
+	// Detach leads the action list, so Down selects park before descending.
+	_, _ = f.stdin.Write([]byte("\x1bOC\x1b[B\x1bOC"))
 	waitUpTo(t, 250*time.Millisecond, "SS3 Right to park confirmation", func() bool {
 		return strings.Contains(f.host.Written(), "threads › root › park") && strings.Contains(f.host.Written(), "cancel")
 	})
@@ -273,7 +274,7 @@ func TestConsoleRunPaintsAndAnimatesProgressWhileOperationBlocks(t *testing.T) {
 		return strings.Contains(lastConsoleScreen(f.host.Written()), "threads")
 	})
 	f.host.Reset()
-	_, _ = f.stdin.Write([]byte("\x1b[C\x1b[C\x1b[B\r"))
+	_, _ = f.stdin.Write([]byte("\x1b[C\x1b[B\x1b[C\x1b[B\r"))
 	select {
 	case screen := <-started:
 		if !strings.Contains(screen, "◐ parking root…") {

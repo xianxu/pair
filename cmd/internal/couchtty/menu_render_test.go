@@ -45,7 +45,11 @@ func TestChooseMenuLayoutUsesOneLeftAnchoredSurfaceAtEverySupportedSize(t *testi
 func TestRenderMenuUsesSingleSurfaceBreadcrumbs(t *testing.T) {
 	root := NewMenuState(menuThreads(), menuAddress("couch-one"))
 	actions, _ := reduceKey(root, PanelKey{Kind: KeyTab})
-	park, _ := reduceKey(actions, PanelKey{Kind: KeyEnter})
+	// Detach leads the action list for a live row (safe before destructive), so
+	// the park frame is selected explicitly rather than by taking the default.
+	parkSelected := cloneMenuState(actions)
+	parkSelected.Frames[len(parkSelected.Frames)-1].SelectedItem = "park"
+	park, _ := reduceKey(parkSelected, PanelKey{Kind: KeyEnter})
 	rename := cloneMenuState(actions)
 	rename.Frames[len(rename.Frames)-1].SelectedItem = "name"
 	rename, _ = reduceKey(rename, PanelKey{Kind: KeyEnter})
@@ -260,7 +264,7 @@ func TestRenderMenuPlacesTypedBannerBelowEveryBreadcrumb(t *testing.T) {
 		banner     string
 		control    string
 	}{
-		{name: "nested error", state: errorState, breadcrumb: "threads › compiler › actions", banner: "error: thread inventory unavailable: store unavailable", control: "park"},
+		{name: "nested error", state: errorState, breadcrumb: "threads › compiler › actions", banner: "error: thread inventory unavailable: store unavailable", control: "detach"},
 		{name: "start progress", state: progressState, breadcrumb: "start thread", banner: "resolving", control: "▸ path"},
 	} {
 		t.Run(tc.name, func(t *testing.T) {

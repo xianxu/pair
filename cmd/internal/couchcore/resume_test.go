@@ -114,3 +114,112 @@ func TestDecideResumeEligibilityMatrix(t *testing.T) {
 		})
 	}
 }
+
+// A detached thread has no verified park -- nothing was torn down. Its
+// authority is the surviving zellij session.
+//
+// The tombstone cross is the case that would otherwise ship a permanently
+// unreattachable class: the ParkHistory scan refuses on ANY tombstoned entry
+// with no break, and AbandonPark appends tombstones permanently, so a thread
+// once abandoned mid-park and later detached must still resume.
+func TestDecideResumeAcceptsDetachedWithoutVerifiedPark(t *testing.T) {
+	address := ThreadAddress{RepoScope: "0123456789abcdef", Tag: "couch-0001020304050607"}
+	profile := &LaunchProfile{Agent: "claude", Argv: []string{}}
+	binding := NativeBindingResolution{Status: sessioninventory.BindingEstablished, NativeID: "native-1"}
+
+	base := func() ThreadRecord {
+		return ThreadRecord{
+			SchemaVersion: ThreadSchemaVersion, Address: address,
+			StartingPath: "/repo", WorkingPath: "/repo",
+			CreatedAt: time.Unix(1, 0).UTC(), Revision: 1,
+			LatestLaunchProfile: profile,
+		}
+	}
+
+	tests := []struct {
+		name     string
+		mutate   func(*ThreadRecord)
+		detached bool
+		wantCode ResumeDiagnosticCode
+	}{
+		{name: "detached proof admits a record with no verified park", detached: true},
+		{
+			name:     "without the proof the same record refuses",
+			wantCode: ResumeLegacyUnverified,
+		},
+		{
+			name: "a tombstoned history does not block a detached resume",
+			mutate: func(r *ThreadRecord) {
+				r.ParkHistory = []ParkTransaction{{Tombstoned: true, Closed: true}}
+			},
+			detached: true,
+		},
+		{
+			name: "a tombstoned history still blocks a NON-detached resume",
+			mutate: func(r *ThreadRecord) {
+				r.ParkHistory = []ParkTransaction{{Tombstoned: true, Closed: true}}
+			},
+			wantCode: ResumeTombstoned,
+		},
+		{
+			name: "an occupied incarnation refuses even with the detached proof",
+			mutate: func(r *ThreadRecord) {
+				r.Incarnations = []ThreadIncarnation{{State: IncarnationLive, PID: 1, Identity: "x", StartedAt: time.Unix(2, 0).UTC()}}
+			},
+			detached: true,
+			wantCode: ResumeLive,
+		},
+		{
+			name:     "a detached record still needs a saved launch profile",
+			mutate:   func(r *ThreadRecord) { r.LatestLaunchProfile = nil },
+			detached: true,
+			wantCode: ResumeProfileMissing,
+		},
+	}
+
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			record := base()
+			if test.mutate != nil {
+				test.mutate(&record)
+			}
+			_, err := DecideResume(ResumeEligibilityInput{
+				Thread: record, WorkingPathExists: true, Binding: binding, Detached: test.detached,
+			})
+			if test.wantCode == "" {
+				if err != nil {
+					t.Fatalf("DecideResume() = %v, want acceptance", err)
+				}
+				return
+			}
+			if got := ResumeDiagnosticOf(err); got != test.wantCode {
+				t.Fatalf("DecideResume() diagnostic = %q, want %q (err %v)", got, test.wantCode, err)
+			}
+		})
+	}
+}
+
+// A 0-client zellij session must still resolve an established native binding.
+// If it did not, the whole reattach path would be dead while every test above
+// still passed on a hand-built binding.
+func TestDetachedResumeStillRequiresAnEstablishedBinding(t *testing.T) {
+	address := ThreadAddress{RepoScope: "0123456789abcdef", Tag: "couch-0001020304050607"}
+	record := ThreadRecord{
+		SchemaVersion: ThreadSchemaVersion, Address: address,
+		StartingPath: "/repo", WorkingPath: "/repo",
+		CreatedAt: time.Unix(1, 0).UTC(), Revision: 1,
+		LatestLaunchProfile: &LaunchProfile{Agent: "claude", Argv: []string{}},
+	}
+	for _, status := range []sessioninventory.BindingStatus{
+		sessioninventory.BindingProvisional,
+		sessioninventory.BindingAmbiguous,
+		sessioninventory.BindingUnbound,
+	} {
+		if _, err := DecideResume(ResumeEligibilityInput{
+			Thread: record, WorkingPathExists: true, Detached: true,
+			Binding: NativeBindingResolution{Status: status},
+		}); err == nil {
+			t.Fatalf("binding %q was accepted for a detached resume", status)
+		}
+	}
+}
