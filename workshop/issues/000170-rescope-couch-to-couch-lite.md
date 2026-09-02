@@ -313,7 +313,7 @@ Four review boundaries; each is independently operable.
       `workshop/plans/000170-rescope-couch-to-couch-lite-plan.md`. The hard part
       is not the new behavior but deciding what of `couchcore` is deleted; that
       needs a read of the current surface before it is committed to.
-- [ ] M1 — Switch rule and key layer. `SwitchTracker` as a pure model with
+- [x] M1 — Switch rule and key layer. `SwitchTracker` as a pure model with
       tests before any wiring; `ctrl-space` becomes switcher-only and the
       focus ladder plus root-actor concept go; `ctrl+backspace` in both
       encodings, including the `panelkeys.go` modified-flag fix; `alt+x` on

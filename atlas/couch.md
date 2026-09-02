@@ -228,9 +228,38 @@ because a concatenated buffer cannot say which child the tail belongs to. It
 suspends inside a bracketed paste: a pasted NUL that switched actors and ate a
 byte would be untraceable data loss.
 
-The focus ladder is deliberately small: a non-root child goes to the root
-actor, the root actor goes to couch's panel, and the panel stays put. Liveness
-is consulted before going home so a dead root cannot become a frozen landing.
+`ctrl-space` means one thing: **open the switcher**, from any actor, focused on
+the actor with the latest notification -- or, with nothing pending, on the
+thread being left, reconciled through `reconcileRootSelection` so a stale
+`ActiveAddress` degrades to the first visible row rather than to no selection.
+The child -> root-actor -> panel ladder and the root-actor/home concept are gone
+(`pair#170`); `Up`, `Console.root` and `actorAlive` went with them, and #146's
+Core-concepts contract was revised at its source rather than loosened. Inside
+the panel `ctrl-space` still opens the global start form -- that is the panel's
+own binding, not a rung of the deleted ladder, and it remains the only route to
+starting a thread.
+
+`ctrl+backspace` is **previous**, in both encodings: the legacy bare byte `0x08`
+(a branch beside `hotkeyByte`, since it is not an escape sequence) and the Kitty
+`\x1b[127;5u` (an ordinary `knownSequences` row). In legacy encoding `0x08` is
+`^H`, so ctrl-h is taken from the child too -- deliberate, and harmless under
+the Kitty protocol zellij pushes. `panelkeys.go` computed a `modified` flag and
+then ignored it for backspace, so the CSI-u form decoded as a plain backspace;
+that is fixed as defence in depth, since the interceptor claims both encodings
+before the panel sees them but forwards paste content verbatim.
+
+`SwitchTracker` (`couchtty/switchrule.go`) is the whole rule: one `previous`
+slot and one boolean carried on the CURRENT actor. `Console.switchTo` is the
+funnel, and it owes two rules on every landing -- record it in the tracker, and
+acknowledge the landed actor's pending notifications, because an actor does not
+notify while the operator is attached to it. The rules key off `arrival`
+differently: only a notification hop is non-pinning, but every landing clears
+the bell. Two sites land without passing through `switchTo` and are handled
+explicitly: the first attach seeds the tracker, and an exit `Drop`s rather than
+records, because the operator lands on the panel and a dead thread must never
+become the return target. Returning home twice is a no-op by construction, and
+that is intended.
+
 The stdin pump does not treat a `Read` boundary as an event boundary: after it
 finds a hotkey, it waits for the Run loop to acknowledge the focus transition
 before routing the suffix. The same stream rule holds for legacy Escape in the
@@ -263,10 +292,17 @@ list/show` diagnostics instead of leaking lifecycle implementation states into
 the switcher. Ephemeral console targets bind only to durable proven-live rows,
 so a stale child handle cannot turn an inactive row's Enter into switch. If
 Park removes the final actor while the switcher owns focus, the console remains
-available for the refreshed resumable row. Alt+x on a non-root actor parks only
-that actor. Alt+x on the root opens the typed `leave` confirmation, parks every
-active/parking thread sequentially, and closes the console only after durable
-success and exact Pair-child death. Any failure leaves Couch open and occupied
+available for the refreshed resumable row. Alt+x quits what the operator is
+looking at: on an actor it parks that actor, and on couch's own panel it opens
+the typed `leave` confirmation, parks every active/parking thread sequentially,
+and closes the console only after durable success and exact Pair-child death.
+That confirmation is a **global frame** -- `menuFrameBindsThread` is false for
+it -- because it names couch rather than a thread. It used to ride the root
+actor's live address, so five thread lookups passed by accident; one of them,
+`reconcileMenuFrames`, fires on the next inventory refresh rather than on a
+keypress, so a keystroke-only test would watch the confirmation appear and then
+vanish. With `leave` reachable from a couch with no live thread at all, none of
+the five applies to it. Any failure leaves Couch open and occupied
 for recovery (ARCH-PURPOSE).
 
 The park trigger writes the exact typed quit intent and then deletes only the
