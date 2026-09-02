@@ -223,10 +223,12 @@ Retiring the incarnation fixes all three at the source and keeps the projector f
 
 | Name | Lives in | Status |
 |------|----------|--------|
-| `ActionableThreadState` (`ThreadDetached`) | `cmd/internal/couchcore/actionableinventory.go` | new |
+| `ActionableThreadState` (`ThreadDetached`) | `cmd/internal/couchcore/actionableinventory.go` | modified |
 | `DetachedSessionObservation` | `cmd/internal/couchcore/actionableinventory.go` | new |
-| `ProjectActionableThreads` | `cmd/internal/couchcore/actionableinventory.go` | new |
-| `DecideResume` | `cmd/internal/couchcore/resume.go` | new |
+| `ActionableThreadSummary.Detached` / `.Resumable` | `cmd/internal/couchcore/actionableinventory.go` | new |
+| `ProjectActionableThreads` | `cmd/internal/couchcore/actionableinventory.go` | modified |
+| `ProjectDetachedSessions` / `SessionNameBinding` | `cmd/internal/couchcore/detachedsessions.go` | new |
+| `DecideResume` | `cmd/internal/couchcore/resume.go` | modified |
 | `menuActionItems` / `reduceRootKey` | `cmd/internal/couchtty/menu.go` | modified |
 
 - **`ThreadDetached`** — a third actionable state beside `ThreadLive` and `ThreadParked`. Emitted only when the record is not reserved, has no active park transaction, has **zero incarnations** and no verified park, carries a `LatestLaunchProfile`, and exactly one `DetachedSessionObservation` matches its address. The zero-incarnation requirement is what keeps the projector fail-closed: a record with a stale `IncarnationLive` stays hidden exactly as today, so a couch that died without detaching cannot masquerade as a clean detach.
@@ -242,12 +244,13 @@ Retiring the incarnation fixes all three at the source and keeps the projector f
 |------|----------|--------|-------|
 | `DetachedSessionResolver` | `cmd/internal/couchcore/artifactcollision.go` | new | `launcher` session classification |
 | `ProcOps.SignalGroup` | `cmd/internal/couchcore/procops.go` | new | `syscall.Kill(-pid, sig)` |
+| `ZellijSource.SnapshotContext` | `cmd/internal/launcher/zellij.go` | new | bounded `zellij` CLI queries |
 | `ThreadStore.RetireIncarnation` | `cmd/internal/couchcore/threadstore.go` | new | journaled record CAS |
-| `ThreadStore.DeleteStart` | `cmd/internal/couchcore/threadstore.go` | new | journaled record CAS / delete |
+| `ThreadStore.DeleteStart` | `cmd/internal/couchcore/threadstore.go` | modified | journaled record CAS / delete |
 | `Couch.Detach` | `cmd/internal/couchcore/detach.go` | new | SIGTERM + bounded wait + session observation |
 | `detach` operation | `cmd/internal/couchcore/ops.go`, `operationdispatch.go` | new | typed operation surface |
-| `Couch.Leave` | `cmd/internal/couchcore/park.go` | new | now detaches rather than parks |
-| `Couch.ActionableThreadInventoryContext` | `cmd/internal/couchcore/actionableinventory.go` | new | adds one session-list query per refresh |
+| `Couch.Leave` | `cmd/internal/couchcore/park.go` | modified | now detaches rather than parks |
+| `Couch.ActionableThreadInventoryContext` | `cmd/internal/couchcore/actionableinventory.go` | modified | adds one bounded session snapshot per refresh |
 | `Console.onDetachHotkey` | `cmd/internal/couchtty/console.go` | new | `alt+d` → typed `detach` |
 
 - **`DetachedSessionResolver`** — one method, **`DetachedSessions(ctx context.Context, addresses []ThreadAddress) ([]DetachedSessionObservation, error)`**, satisfied by `ScopedThreadArtifactCollisionChecker` alongside the `NativeBindingResolver` it already satisfies (`artifactcollision.go:205`). Obtained by type assertion on `Couch.Artifacts`, the pattern `actionableinventory.go:155` and `resume.go:192` already use.
@@ -278,7 +281,7 @@ Retiring the incarnation fixes all three at the source and keeps the projector f
 - `ARCH-DRY`: no new zellij observation path, no new resume effect, no new confirmation machinery; `Leave`'s loop is reused with a different per-thread verb.
 - `ARCH-MOCK`: the zellij dependency is already behind `ScopedThreadArtifactCollisionChecker` with a stateful fake and a live conformance target (`make test-couch-zellij-live`, `TestSessionQuiescenceLive`). Detach is the *inverse* assertion of quiescence — the session must still be there — so the live check gains a detach case rather than a new harness.
 - `ARCH-PURPOSE`: the deliverable is the class, not the instance. `alt+d`, the detached row, reattach, startup selection (M3) and `leave` all derive from the one detached state; none is deferred.
-- `ARCH-CONSTRAINTS`: the inventory refresh is **not** on the keystroke path — it runs on the existing single-flight refresh worker with one dirty follow-up (`console_menu.go:88-113`), and the switcher renders from the last-good projection meanwhile. **The honest cost is 2 + N subprocess spawns per refresh, not one.** `ZellijSource.Snapshot` (`launcher/zellij.go:15-40`) runs `zellij list-sessions --short`, `zellij list-sessions --no-formatting`, and one `zellij --session <name> action list-clients` **per pair session** for the client count (`zellij.go:30,41`). N is bounded to *candidate* records — zero incarnations, no verified park, a launch profile — not to all threads, which is the mitigation; a couch with no detached threads pays 2 spawns and no per-session calls. The 100 ms first-progress budget applies to the *open*, which reads the in-memory projection, so it is unaffected. Measure the refresh against the committed `BenchmarkMenu100` fixture before M2 closes; if candidate-bounded refresh still regresses the 16 ms refresh-apply budget, the answer is to cache the snapshot across refreshes, not to move the query onto the keystroke path. Detach itself is a bounded lifecycle operation on the existing capacity-one queue, under the same operation deadline park uses; a hung teardown blocks that queue, not input or repaint.
+- `ARCH-CONSTRAINTS`: the inventory refresh is **not** on the keystroke path — it runs on the existing single-flight refresh worker with one dirty follow-up (`console_menu.go:88-113`), and the switcher renders from the last-good projection meanwhile. **The honest cost is 2 + N subprocess spawns per refresh, not one.** `ZellijSource.Snapshot` (`launcher/zellij.go:15-40`) runs `zellij list-sessions --short`, `zellij list-sessions --no-formatting`, and one `zellij --session <name> action list-clients` **per pair session** for the client count (`zellij.go:30,41`). **An earlier draft of this paragraph got the mitigation wrong** and the M2 boundary review caught it: `clientCount` runs once per non-exited session **on the host**, so N is every pair session, not the candidate count. Passing candidates bounds *whether* the snapshot runs — a couch with nothing detachable pays nothing at all — but not its N once it does. What bounds the damage instead is a per-query timeout (`zellijQueryTimeout`), added because M2 newly puts this snapshot on the periodic refresh worker, where a hung zellij would otherwise wedge it silently and the switcher would render its last-good projection forever. The 100 ms first-progress budget applies to the *open*, which reads the in-memory projection, so it is unaffected. Measure the refresh against the committed `BenchmarkMenu100` fixture before M2 closes; if candidate-bounded refresh still regresses the 16 ms refresh-apply budget, the answer is to cache the snapshot across refreshes, not to move the query onto the keystroke path. Detach itself is a bounded lifecycle operation on the existing capacity-one queue, under the same operation deadline park uses; a hung teardown blocks that queue, not input or repaint.
 
 ### Task 7: Observe detached sessions
 

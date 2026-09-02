@@ -164,3 +164,43 @@ func TestCouchDetach(t *testing.T) {
 		}
 	})
 }
+
+// The record's revision is read before a SIGTERM, a bounded wait and two zellij
+// observations. Anything that writes in that window used to abandon a thread
+// whose client was already dead -- leaving the stale-IncarnationLive state
+// pair#171 describes, reached from an ordinary failure path rather than a crash.
+func TestCouchDetachRetriesARevisionConflictAfterTeardown(t *testing.T) {
+	f := newDetachFixture(t)
+
+	// Move the revision while detach is between its observation and its CAS.
+	bumped := false
+	f.artifact.BeforePairSession = func(ThreadAddress) error {
+		if bumped {
+			return nil
+		}
+		bumped = true
+		record, err := f.store.GetThread(f.address)
+		if err != nil {
+			return err
+		}
+		_, err = f.store.UpdateExistingThread(f.address, record.Revision, func(next *ThreadRecord) error {
+			next.Description = "edited mid-detach"
+			return nil
+		})
+		return err
+	}
+
+	if _, err := f.couch.Detach(context.Background(), f.address); err != nil {
+		t.Fatalf("Detach() = %v -- a concurrent write must not abandon a dead client", err)
+	}
+	record, err := f.store.GetThread(f.address)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(record.Incarnations) != 0 {
+		t.Fatalf("incarnations = %+v, want the retire to have retried through the conflict", record.Incarnations)
+	}
+	if record.Description != "edited mid-detach" {
+		t.Fatalf("the concurrent edit was lost: %q", record.Description)
+	}
+}

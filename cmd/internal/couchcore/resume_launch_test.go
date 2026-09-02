@@ -295,3 +295,55 @@ func assertVerifiedParkRestored(t *testing.T, store *ThreadStore, parked ThreadR
 		t.Fatalf("resume rollback = %+v, want verified park %+v", got, parked)
 	}
 }
+
+// The milestone's headline capability, pinned at the SEAM rather than at the
+// pure functions beneath it.
+//
+// DecideResume and ReconcileResumeAdmission are tested with `Detached` hand-fed,
+// which proves the rules and nothing about the code that DERIVES the value.
+// Mutating ResumeContext's observation to `if false && …` left the whole suite
+// green -- exactly the trap workshop/lessons.md gained an entry for this round.
+// Here the ONLY difference between admissible and refused is
+// SetDetachedSession, so that mutation reddens.
+func TestResumeContextDerivesTheDetachedProofItself(t *testing.T) {
+	for _, test := range []struct {
+		name     string
+		detached bool
+	}{
+		{name: "no detached session refuses for want of a verified park"},
+		{name: "a detached session makes the same record admissible", detached: true},
+	} {
+		t.Run(test.name, func(t *testing.T) {
+			env := newTestEnv(t, "/repo")
+			profile := LaunchProfile{Agent: "claude", Argv: []string{}}
+			// A record with no verified park and no incarnation: the shape an
+			// alt+d detach leaves behind.
+			record := validThreadRecord(t)
+			record.StartingPath, record.WorkingPath = "/repo", "/repo/sub"
+			record.Reservation = false
+			record.LatestLaunchProfile = &profile
+			created, err := env.Couch.Threads.CreateThread(record)
+			if err != nil {
+				t.Fatal(err)
+			}
+			env.Artifacts.SetNativeBinding(created.Address, "claude", sessioninventory.BindingEstablished, "native-root-1")
+			env.Artifacts.SetPairSession(created.Address, "pair-"+string(created.Address.Tag), true)
+			if test.detached {
+				env.Artifacts.SetDetachedSession(created.Address, "pair-"+string(created.Address.Tag))
+			}
+
+			_, _, err = env.Couch.ResumeContext(context.Background(), created.Address)
+
+			got := ResumeDiagnosticOf(err)
+			if test.detached {
+				if got == ResumeLegacyUnverified {
+					t.Fatalf("a proved-detached thread was refused for want of a verified park: %v", err)
+				}
+				return
+			}
+			if got != ResumeLegacyUnverified {
+				t.Fatalf("diagnostic = %q (err %v), want %q", got, err, ResumeLegacyUnverified)
+			}
+		})
+	}
+}

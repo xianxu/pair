@@ -397,8 +397,13 @@ one name -- and the projector's detached branch requires ZERO incarnations, whic
 is what keeps a crashed Couch's stale `IncarnationLive` from masquerading as a
 clean detach. `DetachedSessions` takes addresses rather than returning the whole
 set, because the session-name index is per repo scope; the inventory passes only
-candidates (no incarnation, no verified park, a saved profile), so refresh cost
-is proportional to detached threads rather than to all of them.
+candidates (no incarnation, no verified park, a saved profile), which bounds
+*whether* the zellij snapshot runs -- a couch with nothing detachable pays
+nothing. It does not bound the snapshot's own cost: that is two `list-sessions`
+runs plus one `action list-clients` per non-exited session **on the host**. Since
+this now runs on the periodic refresh worker, each query carries
+`zellijQueryTimeout`; a hung zellij would otherwise wedge that worker and the
+switcher would render its last-good projection forever without noticing.
 
 Resume accepts verified park **or proved detachment**. A detached thread has no
 verified park because nothing was torn down; its authority is the surviving
@@ -412,7 +417,9 @@ retires the incarnation and the record passes on its own merits.
 `DeleteStart` no longer deletes a record carrying a `LatestLaunchProfile`: the
 verified park used to be the only rollback authority, and an unnamed detached
 thread has none, so a post-claim failure would have deleted the agent and argv
-needed to reattach while its session kept running. It atomically records a creating/start claim
+needed to reattach while its session kept running.
+
+**Resume**, continued: it atomically records a creating/start claim
 on the same `{repo_scope, tag}`, reuses the exact saved working path, agent argv,
 and established #155 native root, and read-only validates Pair's existing
 established address marker. It rechecks that root immediately before child

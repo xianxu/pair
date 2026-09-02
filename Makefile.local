@@ -82,7 +82,7 @@ test-couch-policy-live:
 
 .PHONY: test-couch-zellij-live
 test-couch-zellij-live:
-	PAIR_LIVE_COUCH=1 go test -p 20 ./cmd/internal/launcher -run '^(TestSessionQuiescenceLive|TestQuitLifecycleLive)$$' -count=1 -v
+	PAIR_LIVE_COUCH=1 go test -p 20 ./cmd/internal/launcher -run '^(TestSessionQuiescenceLive|TestSessionDetachLive|TestQuitLifecycleLive)$$' -count=1 -v
 	PAIR_LIVE_COUCH=1 go test -p 20 ./cmd/internal/couchcore -run '^(TestParkLifecycleLive|TestParkLifecycleLiveIntentOnlyMutation)$$' -count=1 -v
 
 .PHONY: test-couch-start-recovery

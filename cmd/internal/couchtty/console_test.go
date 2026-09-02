@@ -830,3 +830,25 @@ func TestHotkeyFromAnyActorOpensTheSwitcher(t *testing.T) {
 		t.Fatal("ctrl-space walked to another actor instead of opening the switcher")
 	}
 }
+
+// LeaveResult exists so the operator learns what leaving did, especially about
+// threads Couch deliberately did NOT park because it could not prove their
+// state. A field written at zero read sites teaches nobody anything.
+func TestConsoleReportsWhatLeaveDid(t *testing.T) {
+	f := newFixture(t, 24, 80)
+	var out bytes.Buffer
+	f.con.stderr = &out
+
+	f.con.reportLeave(couchcore.LeaveResult{
+		Detached: []couchcore.ThreadAddress{{RepoScope: "s", Tag: "couch-one"}},
+		Parked:   []couchcore.ThreadAddress{{RepoScope: "s", Tag: "couch-two"}},
+		Skipped:  []couchcore.ThreadAddress{{RepoScope: "s", Tag: "couch-three"}},
+	})
+
+	got := out.String()
+	for _, want := range []string{"detached 1", "parked 1", "couch-three", "occupied"} {
+		if !strings.Contains(got, want) {
+			t.Fatalf("leave report = %q, want it to mention %q", got, want)
+		}
+	}
+}

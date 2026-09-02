@@ -346,3 +346,48 @@ func TestConsolePreviousWithNowhereToGoSaysSo(t *testing.T) {
 		_ = one
 	})
 }
+
+// A lifecycle operation's child exit is expected whichever way the race goes.
+// The exit channel and the operation-result channel are separate select cases,
+// so roughly half the time the completion lands first and clears InFlight --
+// leaving consumeExpectedParkExitLocked's InFlight arm nothing to match. Both
+// halves must know about both operations, or every other alt+d prints an exit
+// notice for a child the operator deliberately stopped.
+func TestDeliberateChildExitsAreExpectedInEitherEventOrder(t *testing.T) {
+	for _, operation := range []string{"park", "detach"} {
+		for _, completionFirst := range []bool{false, true} {
+			name := operation
+			if completionFirst {
+				name += "/completion-first"
+			} else {
+				name += "/exit-first"
+			}
+			t.Run(name, func(t *testing.T) {
+				con, _ := notificationConsole(t)
+				con.mu.Lock()
+				address := con.panes["c2"].thread
+				origin := MenuOperationOrigin{Operation: operation, Attempt: 1, Address: address}
+				con.menu.InFlight = origin
+				con.mu.Unlock()
+
+				if completionFirst {
+					con.finishOperation(operationCompletion{origin: origin})
+					con.mu.Lock()
+					con.menu.InFlight = MenuOperationOrigin{} // ReduceMenu clears it
+					expected := con.consumeExpectedParkExitLocked("c2", address)
+					con.mu.Unlock()
+					if !expected {
+						t.Fatalf("%s exit after its completion was reported as unexpected", operation)
+					}
+					return
+				}
+				con.mu.Lock()
+				expected := con.consumeExpectedParkExitLocked("c2", address)
+				con.mu.Unlock()
+				if !expected {
+					t.Fatalf("%s exit before its completion was reported as unexpected", operation)
+				}
+			})
+		}
+	}
+}

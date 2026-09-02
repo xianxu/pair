@@ -128,6 +128,19 @@ func (c ScopedThreadArtifactCollisionChecker) Quiesce(address ThreadAddress) err
 	return launcher.QuiesceThreadSession(c.GlobalDataDir, address.RepoScope, string(address.Tag), c.Sessions)
 }
 
+// lookupSessionName finds the zellij session name bound to one address,
+// scanning the index backwards so the newest binding wins. One implementation
+// for PairSession and DetachedSessions, which asked the same question twice.
+func lookupSessionName(index launcher.SessionNameIndex, address ThreadAddress) string {
+	for i := len(index.Entries) - 1; i >= 0; i-- {
+		entry := index.Entries[i]
+		if entry.ScopeKey == address.RepoScope && entry.Tag == string(address.Tag) {
+			return entry.SessionName
+		}
+	}
+	return ""
+}
+
 func (c ScopedThreadArtifactCollisionChecker) PairSession(address ThreadAddress) (PairSessionBinding, error) {
 	if err := validateThreadAddress(address); err != nil {
 		return PairSessionBinding{}, err
@@ -143,14 +156,7 @@ func (c ScopedThreadArtifactCollisionChecker) PairSession(address ThreadAddress)
 	if err != nil {
 		return PairSessionBinding{}, fmt.Errorf("read exact Pair session index: %w", err)
 	}
-	name := ""
-	for i := len(index.Entries) - 1; i >= 0; i-- {
-		entry := index.Entries[i]
-		if entry.ScopeKey == address.RepoScope && entry.Tag == string(address.Tag) {
-			name = entry.SessionName
-			break
-		}
-	}
+	name := lookupSessionName(index, address)
 	if name == "" {
 		return PairSessionBinding{}, fmt.Errorf("exact Pair session binding is absent for %+v", address)
 	}
@@ -180,8 +186,14 @@ type DetachedSessionResolver interface {
 }
 
 // DetachedSessions reads each requested scope's session-name index once and
-// takes ONE zellij snapshot for all of them -- `OSRuntime.Sessions` ignores its
-// receiver's scope, so a snapshot per scope would be the same query repeated.
+// takes ONE zellij snapshot for all of them -- the snapshot ignores scope, so a
+// snapshot per scope would be the same query repeated.
+//
+// Cost, stated honestly: the snapshot is two `list-sessions` runs plus one
+// `action list-clients` per non-exited session ON THE HOST. Passing candidates
+// bounds WHETHER the snapshot runs -- a couch with nothing detachable pays
+// nothing -- but it does not bound N once it does. Each query carries
+// SnapshotContext's timeout so a hung zellij cannot wedge the refresh worker.
 //
 // Index reads fail closed per scope: a scope whose index cannot be read
 // contributes no bindings rather than an empty answer that would silently hide
@@ -223,14 +235,7 @@ func (c ScopedThreadArtifactCollisionChecker) DetachedSessions(ctx context.Conte
 			continue
 		}
 		for _, address := range scoped {
-			name := ""
-			for i := len(index.Entries) - 1; i >= 0; i-- {
-				entry := index.Entries[i]
-				if entry.ScopeKey == address.RepoScope && entry.Tag == string(address.Tag) {
-					name = entry.SessionName
-					break
-				}
-			}
+			name := lookupSessionName(index, address)
 			if name != "" {
 				bindings = append(bindings, SessionNameBinding{Address: address, SessionName: name})
 			}
@@ -239,7 +244,7 @@ func (c ScopedThreadArtifactCollisionChecker) DetachedSessions(ctx context.Conte
 	if len(bindings) == 0 {
 		return nil, nil
 	}
-	sessions, err := launcher.OSRuntime{}.Sessions()
+	sessions, err := (launcher.ZellijSource{}).SnapshotContext(ctx)
 	if err != nil {
 		return nil, fmt.Errorf("observe zellij sessions: %w", err)
 	}

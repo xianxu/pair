@@ -2951,3 +2951,26 @@ that a key token appears cannot detect a contradictory behavioral sentence
   it touched "every consumer", the shell tests are consumers too — and when one
   fails long enough to be labelled 'pre-existing', suspect a stale assertion
   before suspecting the environment.
+- A boundary or code review that mutation-checks by editing the tree can LEAVE
+  its mutation behind. After any review that reports "reverting X produced no
+  failure", diff the working tree before staging: an `if false &&` guard left in
+  a reviewed file is one `git add -A` from shipping the capability disabled.
+- A cost bound must name the variable it bounds. "Proportional to candidates"
+  was wrong because the underlying query fans out over every session on the
+  host; passing candidates bounded only WHETHER the query ran. State which
+  quantity the filter reduces, and read the callee before claiming its shape.
+- A subprocess query that moves onto a periodic worker needs a timeout it did
+  not need on a one-shot path. A hung child there is silent: the UI keeps
+  rendering its last-good projection and simply never learns anything again.
+- When a rule spans two event orders, fix both halves. A guard keyed on
+  in-flight state and a guard keyed on a recorded expectation are the same rule
+  seen from either side of a race; fixing the one a test happened to exercise
+  leaves the other failing about half the time (`ARCH-PURPOSE`).
+- A result struct nobody reads is documentation, not behavior. If the design
+  says a value exists "so the operator learns X", find the site that tells
+  them — or say in the doc comment that it is for tests.
+- Mutation-check the ACTUAL pre-fix shape, not an approximation of it. Removing
+  a retry's `continue` while leaving its re-read in place proves nothing; the
+  real predecessor used a stale revision, and only that mutation exercises the
+  path. A green mutation run means the mutation was wrong at least as often as
+  it means the test is weak.

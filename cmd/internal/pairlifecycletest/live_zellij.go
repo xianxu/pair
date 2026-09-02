@@ -8,6 +8,7 @@ import (
 	"os"
 	"os/exec"
 	"strings"
+	"syscall"
 	"time"
 
 	"github.com/creack/pty"
@@ -52,6 +53,25 @@ func StartControlledZellij(ctx context.Context, session string) (*ControlledZell
 		case <-ticker.C:
 		}
 	}
+}
+
+// KillClient terminates the attached zellij CLIENT and leaves the server
+// session running -- the exact shape Couch's detach produces.
+//
+// It closes the pty first, because a client blocked writing to a terminal
+// nobody reads can outlive its SIGTERM.
+func (f *ControlledZellij) KillClient() error {
+	if f == nil || f.command == nil || f.command.Process == nil {
+		return errors.New("controlled zellij has no client process")
+	}
+	if f.pty != nil {
+		_ = f.pty.Close()
+	}
+	if err := f.command.Process.Signal(syscall.SIGTERM); err != nil {
+		return err
+	}
+	_, err := f.command.Process.Wait()
+	return err
 }
 
 func (f *ControlledZellij) Close() error {

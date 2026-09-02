@@ -151,9 +151,16 @@ func actionableThreadState(record ThreadRecord, observations []ProcessIdentity, 
 	// live rule and is hidden there for want of a matching TTY observation. A
 	// stale incarnation therefore can never masquerade as a clean detach.
 	if len(record.Incarnations) == 0 {
+		// The profile checks mirror parkedResumeProofMatches deliberately: this
+		// function's contract is that it fails closed on its own, so it does not
+		// rely on the caller having filtered candidates. Enter on a row whose
+		// saved agent is unsupported cannot work, and a row that cannot work
+		// must not be offered.
 		if len(observations) == 0 && len(detached) == 1 &&
 			detached[0].Address == record.Address && detached[0].SessionName != "" &&
-			record.LatestLaunchProfile != nil {
+			record.LatestLaunchProfile != nil &&
+			launcher.IsSupportedAgent(record.LatestLaunchProfile.Agent) &&
+			record.LatestLaunchProfile.Argv != nil {
 			return ThreadDetached, true
 		}
 		return "", false

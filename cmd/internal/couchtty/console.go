@@ -1192,6 +1192,26 @@ func (c *Console) reportPrevious(text string) {
 	c.setNotice(text)
 }
 
+// reportLeave writes a final line to the operator's terminal on the way out.
+//
+// The console is being torn down, so this goes to stderr rather than through
+// the menu: by the time it runs, the surface that would have rendered a notice
+// is about to stop existing.
+func (c *Console) reportLeave(result couchcore.LeaveResult) {
+	if c.stderr == nil {
+		return
+	}
+	if len(result.Detached) > 0 {
+		fmt.Fprintf(c.stderr, "couch: detached %d thread(s); their agents keep running\n", len(result.Detached))
+	}
+	if len(result.Parked) > 0 {
+		fmt.Fprintf(c.stderr, "couch: parked %d thread(s) that were already shutting down\n", len(result.Parked))
+	}
+	for _, address := range result.Skipped {
+		fmt.Fprintf(c.stderr, "couch: left %s occupied — its state could not be proved detachable\n", address.Tag)
+	}
+}
+
 // onDetachHotkey handles Pair's Alt+d chord at the Couch ownership boundary.
 //
 // No confirmation, unlike park: detach destroys nothing -- the agent keeps
@@ -1322,7 +1342,14 @@ func (c *Console) finishOperation(completed operationCompletion) bool {
 	if event.Success && operationNeedsProjectionRefresh(event.Operation) {
 		event.ProjectionAfterGeneration = c.refreshSchedule.Sequence
 	}
-	if completed.origin.Operation == "park" && err == nil {
+	// A lifecycle operation's child exit is expected in EITHER event order.
+	// c.exited and c.operationQueue.results are separate select cases and Go
+	// picks uniformly among ready ones, so roughly half the time the completion
+	// wins the race, ReduceMenu clears InFlight, and the exit falls through to
+	// consumeExpectedParkExitLocked's InFlight arm with nothing to match. This
+	// bridge is the other half of that rule, and detach needs it as much as
+	// park does -- both end their child deliberately.
+	if err == nil && (completed.origin.Operation == "park" || completed.origin.Operation == "detach") {
 		for id, p := range c.panes {
 			if p.thread == address {
 				c.expectedExits[id] = true
@@ -1335,6 +1362,14 @@ func (c *Console) finishOperation(completed operationCompletion) bool {
 	panelFocused := c.focus.IsPanel()
 	c.mu.Unlock()
 	if completed.origin.Operation == "leave" && err == nil {
+		// Report what leave actually did before the terminal goes. Skipped
+		// threads are the ones that matter: Couch could not prove them
+		// detachable, so it deliberately did NOT park them, and they stay
+		// occupied. Told here, that is a fact; discovered later, it is a
+		// mystery occupied thread.
+		if result, ok := completed.value.(couchcore.LeaveResult); ok {
+			c.reportLeave(result)
+		}
 		c.Stop()
 		return true
 	}

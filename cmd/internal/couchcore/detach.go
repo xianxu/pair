@@ -95,11 +95,31 @@ func (c *Couch) Detach(ctx context.Context, address ThreadAddress) (ThreadRecord
 		return ThreadRecord{}, fmt.Errorf("thread %+v lost its Pair session during detach", address)
 	}
 
-	detached, err := c.Threads.RetireIncarnation(address, record.Revision, identity)
-	if err != nil {
-		return ThreadRecord{}, fmt.Errorf("retire detached incarnation for %+v: %w", address, err)
+	// Retry on a revision conflict rather than giving up. The revision was read
+	// BEFORE a SIGTERM, a bounded wait and two zellij observations, so anything
+	// touching the record in that window -- a metadata edit, a refresh-driven
+	// write -- would otherwise abandon a thread whose client is already dead,
+	// leaving exactly the stale-IncarnationLive state pair#171 describes,
+	// reached from an ordinary failure path rather than a crash.
+	//
+	// The loop shape is MarkIncarnationUnknown's: re-read, re-attempt, and let
+	// RetireIncarnation's own preconditions refuse if the record genuinely
+	// stopped being retirable.
+	for {
+		current, err := c.Threads.GetThread(address)
+		if err != nil {
+			return ThreadRecord{}, fmt.Errorf("retire detached incarnation for %+v: %w", address, err)
+		}
+		detached, err := c.Threads.RetireIncarnation(address, current.Revision, identity)
+		var conflict *ThreadRevisionError
+		if errors.As(err, &conflict) {
+			continue
+		}
+		if err != nil {
+			return ThreadRecord{}, fmt.Errorf("retire detached incarnation for %+v: %w", address, err)
+		}
+		return detached, nil
 	}
-	return detached, nil
 }
 
 // awaitExactProcessExit waits for one exact process to be gone, bounded.

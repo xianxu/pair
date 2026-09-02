@@ -477,3 +477,34 @@ func TestProjectActionableThreadsDetachedDoesNotDisturbOtherStates(t *testing.T)
 		t.Fatalf("rows = %+v, want the live verdict unchanged", withStray)
 	}
 }
+
+// The detached branch must fail closed on its own, not because the caller
+// happened to filter candidates: a row whose saved agent is unsupported, or
+// whose argv was never recorded, offers an Enter that cannot work.
+func TestProjectActionableThreadsDetachedRequiresAUsableProfile(t *testing.T) {
+	address := ThreadAddress{RepoScope: "scope-a", Tag: "couch-0000000000000001"}
+	detached := []DetachedSessionObservation{{Address: address, SessionName: "pair-one"}}
+
+	for _, test := range []struct {
+		name    string
+		profile *LaunchProfile
+		wantRow bool
+	}{
+		{name: "supported agent with argv", profile: &LaunchProfile{Agent: "claude", Argv: []string{}}, wantRow: true},
+		{name: "unsupported agent", profile: &LaunchProfile{Agent: "not-an-agent", Argv: []string{}}},
+		{name: "nil argv was never recorded", profile: &LaunchProfile{Agent: "claude"}},
+	} {
+		t.Run(test.name, func(t *testing.T) {
+			record := ThreadRecord{
+				SchemaVersion: ThreadSchemaVersion, Address: address,
+				StartingPath: "/repo", WorkingPath: "/repo",
+				CreatedAt: time.Unix(1, 0).UTC(), Revision: 1,
+				LatestLaunchProfile: test.profile,
+			}
+			rows := ProjectActionableThreads([]ThreadRecord{record}, nil, nil, detached)
+			if (len(rows) == 1) != test.wantRow {
+				t.Fatalf("rows = %+v, wantRow = %v", rows, test.wantRow)
+			}
+		})
+	}
+}

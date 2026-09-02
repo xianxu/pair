@@ -294,10 +294,11 @@ interaction path. On the target M2 Max under ordinary development co-tenancy,
 the contract is feedback and requested-commit P95 below 100 ms and commit max
 below 1 second; adversarial OS starvation is outside that claim. Pair cleanup
 retains its 10-second outer deadline and 5-second exact-Zellij inner wait.
-Leave Couch parks every active actor and returns to the shell. A later bare
-`couch` automatically resumes the sole exact verified parked thread for that
-physical repository path and restores it as home. With zero or multiple exact
-candidates, Couch creates a new root instead; it does not rank, prompt, or guess.
+Leave Couch **detaches** every active actor and returns to the shell, so quitting
+never kills a running agent. A later bare `couch` automatically resumes the sole
+exact resumable thread for that physical repository path and attaches it. With
+zero or multiple exact candidates, Couch starts a new thread instead; it does not
+rank, prompt, or guess.
 Resume does not allocate a temporary actor first or add a full native inventory
 scan. Alt+d is intercepted by Couch as its own detach operation: un-intercepted
 it would leave Couch with a dead child and a stale incarnation, and the thread
