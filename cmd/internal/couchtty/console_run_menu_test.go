@@ -14,7 +14,7 @@ func liveMenuFixture(t *testing.T) *consoleFixture {
 	t.Helper()
 	f := newFixture(t, 24, 100)
 	f.con.mu.Lock()
-	root := f.con.panes[f.con.root]
+	root := f.con.panes[f.con.order[0]]
 	address := root.thread
 	root.process = couchcore.ProcessIdentity{PID: 42, Identity: "root-start"}
 	f.con.menu.ActiveAddress = address
@@ -215,10 +215,13 @@ func TestConsoleRunHorizontalArrowsNavigateSingleSurfaceHierarchy(t *testing.T) 
 	})
 }
 
-func TestConsoleRunMenuAltXOpensLeaveConfirmation(t *testing.T) {
+// Alt+x quits what you are looking at. On couch's own panel that is couch
+// itself, which is how `leave` is reachable now that #170 deleted the root
+// actor it used to hang off. Ctrl-space first, so the panel has focus.
+func TestConsoleRunMenuAltXOnThePanelOpensLeaveConfirmation(t *testing.T) {
 	f := liveMenuFixture(t)
 	f.host.Reset()
-	_, _ = f.stdin.Write([]byte("\x1bx"))
+	_, _ = f.stdin.Write([]byte("\x00\x1bx"))
 	waitUpTo(t, 250*time.Millisecond, "leave confirmation", func() bool {
 		screen := lastConsoleScreen(f.host.Written())
 		return strings.Contains(screen, "threads › root › leave couch") && strings.Contains(screen, "cancel")
@@ -242,7 +245,7 @@ func TestConsoleRunConfirmedLeaveUsesArgumentFreeOperationAndExits(t *testing.T)
 		return nil, nil
 	})
 
-	_, _ = f.stdin.Write([]byte("\x1bx\x1b[B\r"))
+	_, _ = f.stdin.Write([]byte("\x00\x1bx\x1b[B\r"))
 	select {
 	case <-called:
 	case <-time.After(250 * time.Millisecond):

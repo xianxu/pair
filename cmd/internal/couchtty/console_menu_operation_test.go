@@ -288,7 +288,7 @@ func TestConsoleAttachAndSwitchIgnoreDonePaneAwaitingExit(t *testing.T) {
 func TestConsoleMenuAttachRefusalPaintsLocalErrorBanner(t *testing.T) {
 	f := newFixture(t, 24, 80)
 	f.con.mu.Lock()
-	existing := f.con.panes[f.con.root].thread
+	existing := f.con.panes[f.con.order[0]].thread
 	f.con.mu.Unlock()
 	state := NewMenuState([]couchcore.ActionableThreadSummary{{Address: existing, Name: "root", State: couchcore.ThreadLive}}, existing)
 	state, _ = reduceKey(state, PanelKey{Kind: KeyCtrlSpace})

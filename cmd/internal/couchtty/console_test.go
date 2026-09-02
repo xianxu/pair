@@ -806,9 +806,12 @@ func TestConsoleIgnoresASwitchToAnUnknownActor(t *testing.T) {
 	})
 }
 
-// The property the whole project rests on: from a NON-root child, one key goes
-// home to the root actor -- not to the panel.
-func TestHotkeyFromANonRootChildGoesHome(t *testing.T) {
+// ctrl-space means the switcher, from ANY actor -- #170 deleted the child ->
+// root-actor -> panel ladder, so there is no longer a first actor that one key
+// goes "home" to. The predecessor of this test asserted the opposite; it is
+// replaced rather than deleted, because the key still has to do something
+// definite from a non-first child and that is the interesting case.
+func TestHotkeyFromAnyActorOpensTheSwitcher(t *testing.T) {
 	f := newFixture(t, 24, 80)
 	other := ptychild.NewFakeChild([]byte("ariadne screen"))
 	other.SetSink(func(batch ptychild.OutputBatch) { f.con.Deliver("c2", batch) })
@@ -820,10 +823,10 @@ func TestHotkeyFromANonRootChildGoesHome(t *testing.T) {
 	f.host.Reset()
 
 	_, _ = f.stdin.Write([]byte("\x00"))
-	waitFor(t, "to land back on the root actor", func() bool {
-		return strings.Contains(f.host.Written(), "[brain]")
+	waitFor(t, "the switcher to open", func() bool {
+		return strings.Contains(f.host.Written(), "threads")
 	})
-	if strings.Contains(f.host.Written(), "couch — actors") {
-		t.Fatal("ctrl-space from a non-root child opened the panel instead of going home")
+	if strings.Contains(f.host.Written(), "[brain]") {
+		t.Fatal("ctrl-space walked to another actor instead of opening the switcher")
 	}
 }

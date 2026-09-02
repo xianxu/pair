@@ -28,7 +28,7 @@ var conceptInventory = []struct{ kind, name string }{
 	{"PURE", "`StripQueries` + query deny-list"},
 	{"PURE", "`Screen`"},
 	{"PURE", "`updateMouseMode`"},
-	{"PURE", "`Focus` / `Up`"},
+	{"PURE", "`Focus`"},
 	{"PURE", "`PanelModel` / `Filter` / `SelectTree` / target join"},
 	{"PURE", "`PanelKey` / `DecodePanelKeys`"},
 	{"PURE", "`StatusModel` / `RenderStatusRow`"},

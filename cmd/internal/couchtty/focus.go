@@ -44,32 +44,3 @@ func (f Focus) String() string {
 	}
 	return "actor:" + f.actor
 }
-
-// Up moves the focus one level toward couch: a child goes HOME to the root
-// actor, the root actor goes to the panel, the panel stays.
-//
-// The child -> root-actor step is the property the whole project rests on. The
-// obvious wrong version is "up = panel", which costs the operator a second
-// keystroke every time they come home -- and they come home constantly, so a
-// switcher that charges two keys for it is one they stop using. Richer
-// navigation lives in the panel, where there is typeahead and a screen to read.
-//
-// alive is consulted rather than assumed: landing on a dead actor gives the
-// operator a frozen screen with no way to tell it is frozen, which is worse
-// than landing on the panel. Passed in rather than looked up so this stays pure
-// -- liveness is the console's to know.
-func Up(cur Focus, rootActor string, alive func(string) bool) Focus {
-	if cur.IsPanel() {
-		return FocusPanel()
-	}
-	// The root actor's own step is UP to the panel, including when it is the
-	// only child -- otherwise couch's first session could never reach the
-	// panel and the operator would have no way to start a second one.
-	if cur.Actor() == rootActor {
-		return FocusPanel()
-	}
-	if rootActor == "" || alive == nil || !alive(rootActor) {
-		return FocusPanel()
-	}
-	return FocusActor(rootActor)
-}

@@ -65,11 +65,6 @@ type Console struct {
 	order  []string
 	active string
 
-	// root is the actor `ctrl-space` goes home to: the FIRST child attached,
-	// which is "whatever session couch launched in" delivered by convention
-	// (Decision 1). Nothing here knows what brain is.
-	root string
-
 	// focus is what the terminal is pointed at. It is not the same as `active`:
 	// the switcher is a focus with no actor behind it.
 	focus Focus
@@ -334,7 +329,6 @@ func (c *Console) installObservedThreadActor(ctx context.Context, handleID strin
 	c.order = append(c.order, handleID)
 	if c.active == "" {
 		c.active = handleID
-		c.root = handleID
 		c.focus = FocusActor(handleID)
 	}
 	if !c.menuReady {
@@ -684,17 +678,16 @@ func (c *Console) onExit(event childExit) bool {
 			break
 		}
 	}
-	if event.id == c.root {
-		c.root = ""
-		if len(c.order) > 0 {
-			c.root = c.order[0]
-		}
-	}
 	if wasActive {
 		// Panel actions address the active actor, not merely the highlighted
-		// durable row. Preserve that invariant after either the root or a
-		// non-root active actor exits by falling back to the current root.
-		c.active = c.root
+		// durable row, so the active slot has to keep naming a live actor after
+		// one exits. c.order is attach order and has already had the dead id
+		// removed, so its head is the surviving actor to fall back to; empty
+		// order correctly leaves no active actor at all.
+		c.active = ""
+		if len(c.order) > 0 {
+			c.active = c.order[0]
+		}
 	}
 	if wasFocused {
 		c.focus = FocusPanel()
@@ -1047,49 +1040,39 @@ func (c *Console) pumpStdin() {
 	}
 }
 
-// onHotkey handles ctrl-space: up one level.
+// onHotkey handles ctrl-space: OPEN THE SWITCHER, and nothing else.
 //
-// Runs on the Run goroutine. Liveness is passed to Up rather than assumed --
-// landing on a dead root actor gives the operator a frozen screen with no way
-// to tell it is frozen.
+// It used to mean "up one level" -- child to root actor, root actor to panel.
+// That ladder is gone (#170), and with it the root-actor/home concept: one key
+// now has one meaning wherever it is pressed from an actor. The panel keeps its
+// own ctrl-space (the global start form), which is not a rung of the deleted
+// ladder but the panel's own binding, and remains the only route to starting a
+// thread.
+//
+// Runs on the Run goroutine.
 func (c *Console) onHotkey() {
 	c.mu.Lock()
-	cur, root := c.focus, c.root
+	cur := c.focus
 	c.mu.Unlock()
 	if cur.IsPanel() {
 		c.onMenuKey(PanelKey{Kind: KeyCtrlSpace})
 		return
 	}
 
-	next := Up(cur, root, c.actorAlive)
-	if next == cur {
-		return // already at the top
-	}
-
 	c.mu.Lock()
-	c.focus = next
-	if next.IsPanel() {
-		if newest := c.attention.NewestActor(); newest != (couchcore.ThreadAddress{}) && len(c.menu.Frames) > 0 {
-			c.menu.Frames = c.menu.Frames[:1]
-			c.menu.Frames[0].Filter = ""
-			c.menu.Frames[0].SelectedAddress = newest
-		}
+	c.focus = FocusPanel()
+	// Open focused on whoever paged. This used to run only when the ladder
+	// happened to land on the panel; now it is the point of the key, so it runs
+	// on every ctrl-space from an actor.
+	if newest := c.attention.NewestActor(); newest != (couchcore.ThreadAddress{}) && len(c.menu.Frames) > 0 {
+		c.menu.Frames = c.menu.Frames[:1]
+		c.menu.Frames[0].Filter = ""
+		c.menu.Frames[0].SelectedAddress = newest
 	}
 	c.mu.Unlock()
 
-	if next.IsPanel() {
-		c.requestMenuRefresh()
-		c.showMenu()
-		return
-	}
-	c.mu.Lock()
-	if p := c.panes[next.Actor()]; p != nil {
-		capture := c.attention.Capture(p.thread)
-		c.attention.Acknowledge(capture)
-		c.syncAttentionLocked()
-	}
-	c.mu.Unlock()
-	c.onSwitch(next.Actor())
+	c.requestMenuRefresh()
+	c.showMenu()
 }
 
 // onParkHotkey handles Pair's Alt+x chord at the Couch ownership boundary.
@@ -1098,7 +1081,10 @@ func (c *Console) onHotkey() {
 func (c *Console) onParkHotkey() {
 	c.mu.Lock()
 	p := c.panes[c.active]
-	isRoot := c.active != "" && c.active == c.root
+	// Alt+x quits what you are looking at: an actor parks, couch's own panel
+	// leaves couch. With the root actor gone (#170) that is what `leave` is
+	// reachable by, and it is derived from focus rather than special-cased.
+	isPanel := c.focus.IsPanel()
 	if p != nil {
 		c.focus = FocusPanel()
 		c.menu.ActiveAddress = p.thread
@@ -1109,18 +1095,10 @@ func (c *Console) onParkHotkey() {
 		return
 	}
 	operation := "park"
-	if isRoot {
+	if isPanel {
 		operation = "leave"
 	}
 	c.reduceMenu(MenuEvent{Kind: MenuEventParkHotkey, Operation: operation, Address: p.thread})
-}
-
-// actorAlive is the liveness predicate Up consults.
-func (c *Console) actorAlive(id string) bool {
-	c.mu.Lock()
-	defer c.mu.Unlock()
-	p, ok := c.panes[id]
-	return ok && !p.child.Done()
 }
 
 func (c *Console) runMenuOperation(effect MenuEffect) {
