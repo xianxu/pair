@@ -1,11 +1,12 @@
 ---
 id: 000167
-status: open
+status: working
 deps: []
 github_issue:
 created: 2026-09-01
 updated: 2026-09-01
 estimate_hours:
+started: 2026-09-01T17:56:17-07:00
 ---
 
 # Resume unique parked root on Couch startup
