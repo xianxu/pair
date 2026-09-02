@@ -206,6 +206,12 @@ func terminalFiles(stdin io.Reader, stdout io.Writer) (*os.File, *os.File, bool)
 }
 
 func runTypedOperation(op couchcore.Operation, parsed, prepareArgs map[string]string, forceConsole bool, inFile, outFile *os.File, stdin io.Reader, stdout, stderr io.Writer, rt Runtime) int {
+	return runTypedOperationWithConsole(op, parsed, prepareArgs, forceConsole, inFile, outFile, stdin, stdout, stderr, rt, runConsole)
+}
+
+type consoleFinisher func(*couchtty.Console, *couchcore.Couch, couchcore.StartResult, io.Writer) int
+
+func runTypedOperationWithConsole(op couchcore.Operation, parsed, prepareArgs map[string]string, forceConsole bool, inFile, outFile *os.File, stdin io.Reader, stdout, stderr io.Writer, rt Runtime, finishConsole consoleFinisher) int {
 	if operationUsesCurrentRepoScope(op.Name) {
 		scope, err := rt.CurrentRepoScope()
 		if err != nil {
@@ -292,7 +298,7 @@ func runTypedOperation(op couchcore.Operation, parsed, prepareArgs map[string]st
 	}
 	if console != nil {
 		if start, ok := result.(couchcore.StartResult); ok {
-			return runConsole(console, c, start, stdout)
+			return finishConsole(console, c, start, stdout)
 		}
 	}
 	return render(stdout, op, result)

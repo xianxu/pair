@@ -125,3 +125,12 @@ Verification completed:
 - `go test ./... -count=1` — pass.
 - `git diff --check` — pass.
 - `make test` — all targets through `test-emitter-health` passed, then the unchanged host-dependent `test-session-watch` reproducibly failed because authorized Codex lifecycle artifact identity is unavailable. Running the remaining targets separately passed through `test-zellij-trace`; `test-review` then reached the unchanged `pair-review-target-test`, which failed its host session stamp. No sessionwatch/review-target production or test source is changed by #167.
+
+Close review round 1 raised BR-1 (`production-path-acceptance`) and BR-2
+(`user-surface-documentation`). BR-1 is addressed by routing the stateful
+restart fixture through `runTypedOperation`'s production interactive branch and
+the real `dispatchInitialAttach`; reverting that branch now attaches a new root
+and fails the exact parked-address assertion. BR-2 is addressed by updating the
+README's Leave Couch workflow with unique automatic resume and zero/ambiguous
+fallback. Focused production-boundary tests and the three changed Go packages
+pass after both fixes.

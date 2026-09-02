@@ -1,5 +1,25 @@
 # Lessons
 
+## Acceptance tests must cross routing and attachment boundaries
+
+A Couch startup test called the new domain helper directly, so it remained green
+if the public CLI reverted to the old prepare/start route and never delivered the
+resumed actor to initial Console attachment.
+
+**Rule.** When a feature changes entrypoint routing, acceptance must enter above
+the routing decision and observe the result below the final attachment/consumer
+boundary. Domain-helper tests prove orchestration logic, not public delivery.
+Caught during #000167 close review (`ARCH-PURPOSE`).
+
+## Public behavior changes must update operator prose in the same window
+
+Atlas documented automatic unique-root resume while README still instructed the
+operator to reopen the switcher and press Enter.
+
+**Rule.** For a user-visible behavior migration, sweep README plus atlas and
+tests for the old workflow sentence; architectural documentation does not
+replace operator-facing usage documentation. Caught during #000167 close review.
+
 ## Cross-package acceptance must transport upstream production output
 
 Wrapper tests proved emitted bytes matched a shared encoder, while Couch tests

@@ -114,3 +114,7 @@
 ### 2026-09-01 — Plan-quality gate PQ-1
 
 Compressed enumerated prose cases across Tasks 1–5 into named-function adversarial input classes and mechanical guards. Concrete cases remain the responsibility of executable tests; the behavioral scope and architecture are unchanged.
+
+### 2026-09-01 — Close review BR-1
+
+The first acceptance test stopped at `dispatchInteractiveStart`, below the production `runTypedOperation` branch and `dispatchInitialAttach`. Reopened Task 5 steps 1–2: the replacement must traverse production interactive routing over reconstructed durable state and observe the resumed identity at initial Console attachment.

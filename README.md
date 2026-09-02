@@ -295,9 +295,11 @@ the contract is feedback and requested-commit P95 below 100 ms and commit max
 below 1 second; adversarial OS starvation is outside that claim. Pair cleanup
 retains its 10-second outer deadline and 5-second exact-Zellij inner wait.
 Leave Couch parks every active actor and returns to the shell. A later bare
-`couch` reopens the switcher, where Enter resumes an exact parked thread. Resume
-does not allocate a temporary actor first or add a full native inventory scan.
-Alt+d remains Pair-local detach; Couch exposes no detach operation.
+`couch` automatically resumes the sole exact verified parked thread for that
+physical repository path and restores it as home. With zero or multiple exact
+candidates, Couch creates a new root instead; it does not rank, prompt, or guess.
+Resume does not allocate a temporary actor first or add a full native inventory
+scan. Alt+d remains Pair-local detach; Couch exposes no detach operation.
 
 Every TUI start allocates a distinct opaque durable thread. Admission comes
 from the repository's normalized Ariadne fleet policy (`sdlc fleet policy`): a
