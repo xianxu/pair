@@ -1,11 +1,12 @@
 ---
 id: 000170
-status: open
+status: working
 deps: []
 github_issue:
 created: 2026-09-02
 updated: 2026-09-02
 estimate_hours:
+started: 2026-09-02T11:03:39-07:00
 ---
 
 # Rescope couch to couch-lite
