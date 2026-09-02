@@ -1,0 +1,131 @@
+package couchcore
+
+import (
+	"context"
+	"errors"
+	"fmt"
+	"time"
+)
+
+// detachExitPoll is how often Detach re-observes the client it asked to leave.
+// Couch has no wait seam -- Wait belongs to PairLifecycleController -- so the
+// bounded wait is a poll, the same shape awaitThreadRegistration already uses.
+const detachExitPoll = 10 * time.Millisecond
+
+// detachExitTimeout bounds that wait. A client that has not gone by then is not
+// killed; detach fails and the thread stays live.
+const detachExitTimeout = 15 * time.Second
+
+// Detach stops a thread's Pair client and leaves its zellij session running.
+//
+// This is the warm counterpart to park. Park writes a quit intent, tears the
+// zellij session down, and records a verified park as the resume authority --
+// which kills the agent. Detach kills nothing that matters: the pair client and
+// the zellij client it hosts go, the session-watcher and title-poller sidecars
+// sharing its process group go with them, and the zellij SERVER session plus the
+// agent running inside it survive. Reattaching is a fresh
+// `pair resume <tag> --layout2` onto that surviving session.
+//
+// It deliberately does not reuse handleCleanup, whose own comment says "this
+// path is rollback, not graceful actor shutdown": that path escalates to an
+// unconditional SIGKILL, and detach is the everyday gesture -- and, once leaving
+// couch detaches rather than parks, the gesture applied to every thread on the
+// way out. Truncating an agent mid-write is the outcome detach exists to avoid,
+// so SIGTERM is the only signal sent and a client that ignores it makes the
+// operation FAIL rather than escalate. Nothing was destroyed, so failing is
+// safe and needs no recovery mode.
+//
+// Two proofs are required before any durable write, because a record whose
+// incarnation is retired without a surviving session is worse than one left
+// occupied: the switcher would offer a reattach that cannot work.
+func (c *Couch) Detach(ctx context.Context, address ThreadAddress) (ThreadRecord, error) {
+	if ctx == nil {
+		ctx = context.Background()
+	}
+	if err := ctx.Err(); err != nil {
+		return ThreadRecord{}, err
+	}
+	if err := validateThreadAddress(address); err != nil {
+		return ThreadRecord{}, err
+	}
+	if c.Threads == nil || c.Proc == nil || c.Artifacts == nil {
+		return ThreadRecord{}, errors.New("detach requires a thread store, process ops, and an artifact controller")
+	}
+	sessions, ok := c.Artifacts.(PairSessionIO)
+	if !ok {
+		return ThreadRecord{}, errors.New("detach requires Pair session observation")
+	}
+
+	record, err := c.Threads.GetThread(address)
+	if err != nil {
+		return ThreadRecord{}, err
+	}
+	if record.Park != nil {
+		return ThreadRecord{}, errors.New("cannot detach a thread with an open park transaction")
+	}
+	if len(record.Incarnations) != 1 || record.Incarnations[0].State != IncarnationLive {
+		return ThreadRecord{}, fmt.Errorf("thread %+v has no live incarnation to detach", address)
+	}
+	incarnation := record.Incarnations[0]
+	identity := ProcessIdentity{PID: incarnation.PID, Identity: incarnation.Identity}
+
+	// Observe the session BEFORE signalling: if it is not there now, detaching
+	// would leave a thread with no view and nothing to reattach to.
+	before, err := sessions.PairSession(address)
+	if err != nil {
+		return ThreadRecord{}, fmt.Errorf("observe Pair session before detach: %w", err)
+	}
+	if !before.Present {
+		return ThreadRecord{}, fmt.Errorf("thread %+v has no live Pair session to detach from", address)
+	}
+
+	if err := c.Proc.SignalGroup(identity.PID, TermSignal); err != nil {
+		return ThreadRecord{}, fmt.Errorf("detach %+v: %w", address, err)
+	}
+	if err := c.awaitExactProcessExit(ctx, identity); err != nil {
+		return ThreadRecord{}, err
+	}
+
+	// And after: the whole point is that it survived its client.
+	after, err := sessions.PairSession(address)
+	if err != nil {
+		return ThreadRecord{}, fmt.Errorf("observe Pair session after detach: %w", err)
+	}
+	if !after.Present {
+		return ThreadRecord{}, fmt.Errorf("thread %+v lost its Pair session during detach", address)
+	}
+
+	detached, err := c.Threads.RetireIncarnation(address, record.Revision, identity)
+	if err != nil {
+		return ThreadRecord{}, fmt.Errorf("retire detached incarnation for %+v: %w", address, err)
+	}
+	return detached, nil
+}
+
+// awaitExactProcessExit waits for one exact process to be gone, bounded.
+//
+// Unknown liveness is not exit: a process couch cannot observe has not been
+// proved to have left, and treating it as gone would retire an incarnation that
+// might still be running.
+func (c *Couch) awaitExactProcessExit(ctx context.Context, identity ProcessIdentity) error {
+	sleep := c.sleep
+	if sleep == nil {
+		sleep = time.Sleep
+	}
+	deadline := detachExitTimeout
+	for waited := time.Duration(0); ; waited += detachExitPoll {
+		switch observeExactProcess(c.Proc, identity) {
+		case Dead:
+			return nil
+		case Unknown:
+			return fmt.Errorf("cannot observe whether pid %d exited", identity.PID)
+		}
+		if waited >= deadline {
+			return fmt.Errorf("pid %d did not exit within %s of SIGTERM; thread left running", identity.PID, deadline)
+		}
+		if err := ctx.Err(); err != nil {
+			return err
+		}
+		sleep(detachExitPoll)
+	}
+}

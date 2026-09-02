@@ -3,7 +3,9 @@ package couchcore
 import (
 	"context"
 	"errors"
+	"os"
 	"reflect"
+	"syscall"
 	"testing"
 	"time"
 
@@ -241,7 +243,10 @@ func TestParkRetainsOccupiedTransactionWhenCompletionPrecedesChildDeathDeadline(
 	}
 }
 
-func TestLeaveParksLiveThreadsSequentiallyAndRetainsPartialFailure(t *testing.T) {
+// Leave DETACHES rather than parks: quitting couch must not kill every agent,
+// including any mid-turn. The partial-failure property is unchanged -- a failure
+// mid-sweep preserves what already succeeded and leaves the rest occupied.
+func TestLeaveDetachesLiveThreadsSequentiallyAndRetainsPartialFailure(t *testing.T) {
 	store, ns, first := createControllerThread(t)
 	second := validThreadRecord(t)
 	second.Address.Tag = "couch-fedcba9876543210"
@@ -254,37 +259,74 @@ func TestLeaveParksLiveThreadsSequentiallyAndRetainsPartialFailure(t *testing.T)
 	if err != nil {
 		t.Fatal(err)
 	}
-	now := time.Date(2026, 8, 30, 13, 0, 0, 0, time.UTC)
-	lifecycle := &fakeControllerLifecycle{model: pairlifecycletest.New(now)}
-	lifecycle.onPublish = func(pairlifecycle.QuitRequest) { lifecycle.completion = nil }
 	artifacts := NewFakeThreadArtifactCollisionChecker()
 	artifacts.SetPairSession(first.Address, "pair-first", true)
 	artifacts.SetPairSession(second.Address, "pair-second", true)
-	triggers := 0
-	artifacts.TriggerQuitHook = func(_ string, _ launcher.QuitIntent) error {
-		triggers++
-		if triggers == 2 {
-			return errors.New("second trigger failed")
-		}
-		completion := successCompletion(lifecycle.lastRequest, now)
-		lifecycle.completion = &completion
-		return nil
-	}
-	controller := &PairLifecycleController{
-		Threads: store, DataDir: t.TempDir(), Lifecycle: lifecycle, Sessions: artifacts,
-		Proc: NewFakeProcOps(), Clock: FixedClock{T: now},
-		Nonce: func() (string, error) { return "park-leave-sequential", nil },
-	}
-	couch := &Couch{Threads: store, PairLifecycle: controller}
+
+	proc := NewFakeProcOps()
+	firstIncarnation := first.Incarnations[0]
+	proc.Set(firstIncarnation.PID, firstIncarnation.Identity)
+	proc.DiesOn = map[int]os.Signal{firstIncarnation.PID: syscall.SIGTERM}
+	// The second client ignores SIGTERM, so its detach fails.
+	proc.Set(43, "pair-second")
+
+	couch := &Couch{Threads: store, Proc: proc, Artifacts: artifacts, sleep: func(time.Duration) {}}
 
 	result, err := couch.Leave(context.Background())
-	if err == nil || len(result.Parked) != 1 || result.Parked[0] != first.Address {
-		t.Fatalf("Leave = %+v, %v", result, err)
+	if err == nil {
+		t.Fatalf("Leave = %+v, want the second detach to fail", result)
 	}
-	parked, _ := store.GetThread(first.Address)
+	if len(result.Detached) != 1 || result.Detached[0] != first.Address {
+		t.Fatalf("Leave = %+v, want the first thread detached", result)
+	}
+	detached, _ := store.GetThread(first.Address)
 	occupied, _ := store.GetThread(second.Address)
-	if parked.VerifiedPark == nil || parked.Park != nil || occupied.Park == nil || len(occupied.Incarnations) != 1 {
-		t.Fatalf("first=%+v second=%+v", parked, occupied)
+	if len(detached.Incarnations) != 0 || detached.VerifiedPark != nil {
+		t.Fatalf("first = %+v, want a retired incarnation and no verified park", detached)
+	}
+	if len(occupied.Incarnations) != 1 {
+		t.Fatalf("second = %+v, want it left occupied", occupied)
+	}
+	// Nothing was torn down: leaving couch keeps every agent alive.
+	if got := artifacts.Quiesces(); len(got) != 0 {
+		t.Fatalf("leave quiesced sessions: %+v", got)
+	}
+	if got := artifacts.TriggeredQuits(); len(got) != 0 {
+		t.Fatalf("leave triggered Pair quits: %+v", got)
+	}
+}
+
+// An unknown incarnation is skipped, not parked. Parking is the destructive
+// option and Couch cannot vouch for what that thread is doing.
+func TestLeaveSkipsUnknownIncarnationsRatherThanParkingThem(t *testing.T) {
+	ns := testCouchNamespace(t)
+	store := NewThreadStore(ns)
+	unknown := validThreadRecord(t)
+	unknown.Address.Tag = "couch-aaaabbbbccccdddd"
+	unknown.StartingPath, unknown.WorkingPath = ns.Dir(), ns.Dir()
+	unknown.Reservation = false
+	unknown.Incarnations = []ThreadIncarnation{{PID: 77, Identity: "gone", State: IncarnationUnknown}}
+	unknown, err := store.CreateThread(unknown)
+	if err != nil {
+		t.Fatal(err)
+	}
+	artifacts := NewFakeThreadArtifactCollisionChecker()
+	proc := NewFakeProcOps()
+	couch := &Couch{Threads: store, Proc: proc, Artifacts: artifacts, sleep: func(time.Duration) {}}
+
+	result, _ := couch.Leave(context.Background())
+	found := false
+	for _, address := range result.Skipped {
+		if address == unknown.Address {
+			found = true
+		}
+	}
+	if !found {
+		t.Fatalf("Leave = %+v, want the unknown-incarnation thread reported as skipped", result)
+	}
+	after, _ := store.GetThread(unknown.Address)
+	if len(after.Incarnations) != 1 || after.VerifiedPark != nil {
+		t.Fatalf("unknown thread = %+v, want it untouched", after)
 	}
 }
 

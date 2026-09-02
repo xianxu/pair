@@ -397,6 +397,44 @@ func (s *ThreadStore) FinalizePark(address ThreadAddress, expectedRevision uint6
 	})
 }
 
+// RetireIncarnation removes the one live incarnation whose exact process
+// identity matches, leaving the record with no incarnation and NO verified park.
+//
+// It is FinalizePark's removal half without the park transaction, and that is
+// the whole difference between detach and park: park tears the zellij session
+// down and records a verified park as the resume authority, while detach leaves
+// the session alive and lets its survival BE the authority. Writing a verified
+// park here would claim a teardown that never happened.
+//
+// Exact {PID, Identity} is the authorization -- the same rule observeExactProcess
+// and MarkIncarnationUnknown use -- so a recycled PID cannot retire a thread
+// that is genuinely live. It refuses an `unknown` incarnation deliberately:
+// unknown is precisely the state the fail-closed projector exists to keep out of
+// the switcher, and retiring one would let an unproven thread present as cleanly
+// detached.
+func (s *ThreadStore) RetireIncarnation(address ThreadAddress, expectedRevision uint64, identity ProcessIdentity) (ThreadRecord, error) {
+	return s.UpdateExistingThread(address, expectedRevision, func(next *ThreadRecord) error {
+		if next.Park != nil {
+			return errors.New("cannot retire an incarnation while a park transaction is open")
+		}
+		if len(next.Incarnations) != 1 {
+			return fmt.Errorf("retire needs exactly one incarnation, found %d", len(next.Incarnations))
+		}
+		incarnation := next.Incarnations[0]
+		if incarnation.State != IncarnationLive {
+			return fmt.Errorf("retire needs a live incarnation, found %q", incarnation.State)
+		}
+		if incarnation.Start != nil {
+			return errors.New("cannot retire an incarnation with an open start transaction")
+		}
+		if incarnation.PID != identity.PID || incarnation.Identity != identity.Identity {
+			return errors.New("retire does not match the recorded incarnation process identity")
+		}
+		next.Incarnations = nil
+		return nil
+	})
+}
+
 func (s *ThreadStore) AbandonPark(address ThreadAddress, expectedRevision uint64, identity ParkIdentity) (ThreadRecord, error) {
 	return s.UpdateExistingThread(address, expectedRevision, func(next *ThreadRecord) error {
 		if next.Park == nil || next.Park.Identity != identity {
@@ -737,6 +775,33 @@ func (s *ThreadStore) DeleteStart(address ThreadAddress, expectedRevision uint64
 			incarnation := record.Incarnations[0]
 			if incarnation.State != IncarnationCreating || incarnation.Start == nil || incarnation.Start.Nonce != nonce {
 				return fmt.Errorf("thread %+v is no longer parked start %q at revision %d", address, nonce, expectedRevision)
+			}
+			record.Incarnations = nil
+			return nil
+		})
+		return err
+	}
+	if current.LatestLaunchProfile != nil {
+		// A record that has ever started successfully is durable history and is
+		// never deleted -- roll the start claim back instead.
+		//
+		// The verified park used to be the only rollback authority (see
+		// starttransaction.go's "Until this transition the verified park remains
+		// the rollback authority"), which was fine while every resumable thread
+		// had one. A DETACHED thread has none: its authority is the surviving
+		// zellij session. Without this branch, any post-claim failure on a
+		// detached resume deletes the record -- and with it the agent and argv
+		// needed to reattach -- while the session it names keeps running.
+		//
+		// threadHasMetadata already protects a NAMED record; this protects the
+		// unnamed one, whose LatestLaunchProfile nothing else guards.
+		_, err := s.UpdateExistingThread(address, expectedRevision, func(record *ThreadRecord) error {
+			if record.Reservation || len(record.Incarnations) != 1 {
+				return fmt.Errorf("thread %+v is no longer start %q at revision %d", address, nonce, expectedRevision)
+			}
+			incarnation := record.Incarnations[0]
+			if incarnation.State != IncarnationCreating || incarnation.Start == nil || incarnation.Start.Nonce != nonce {
+				return fmt.Errorf("thread %+v is no longer start %q at revision %d", address, nonce, expectedRevision)
 			}
 			record.Incarnations = nil
 			return nil

@@ -595,7 +595,15 @@ func renderThreadRows(w io.Writer, threads []couchcore.ThreadSummary, includeAdd
 			}
 		}
 		if len(thread.Incarnations) == 0 {
-			fmt.Fprintf(w, "%s  (no agent running)%s\n", open, close)
+			// A thread with no incarnation is not necessarily idle: a DETACHED
+			// thread's agent is still running behind its zellij session, and
+			// only the client is gone. Saying "no agent running" there would
+			// contradict the switcher, which offers that row for reattach.
+			state := "(no client attached; agent may still be running)"
+			if thread.Parked {
+				state = "(parked; no agent running)"
+			}
+			fmt.Fprintf(w, "%s  %s%s\n", open, state, close)
 		}
 	}
 }

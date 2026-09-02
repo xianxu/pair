@@ -225,7 +225,20 @@ func Operations() []Operation {
 			},
 		},
 		{
-			Name: "leave", Summary: "Park every active work thread and leave Couch",
+			// Detach is the warm counterpart to park: the agent keeps running
+			// behind its zellij session and only the client goes. Nothing is
+			// destroyed, so unlike park it needs no confirmation.
+			Name: "detach", Summary: "Stop a work thread's Pair client and leave its session running",
+			Execution: ExecuteLiveOwner, Effect: EffectProcess, Confirmation: ConfirmNone, Result: ResultThread,
+			Presentation: PresentationTUI,
+			Args: []ArgSpec{
+				{Name: "ref", Summary: "thread tag, path, or name", Required: false},
+				{Name: "tag", Summary: "exact thread tag from trusted owner context", Implicit: true},
+				{Name: "repo-scope", Summary: "repository scope derived from caller context", Required: true, Implicit: true},
+			},
+		},
+		{
+			Name: "leave", Summary: "Detach every active work thread and leave Couch",
 			Execution: ExecuteLiveOwner, Effect: EffectProcess, Confirmation: ConfirmRequired, Result: ResultConsole,
 			Presentation: PresentationTUI,
 		},

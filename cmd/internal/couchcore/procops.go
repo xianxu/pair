@@ -59,6 +59,14 @@ type ProcOps interface {
 	// spawned the child is a different one, blocked in Wait -- so stopping
 	// goes through the pid, guarded by the identity token.
 	Signal(pid int, sig os.Signal) error
+	// SignalGroup delivers sig to pid's whole process group.
+	//
+	// Couch-launched children deliberately do NOT get their own session
+	// (launcher/osruntime.go suppresses Setsid when COUCH_THREAD_SCOPE is set),
+	// so the session-watcher and title-poller sidecars share the actor's group.
+	// Signalling the pid alone orphans them, which is why detach needs this and
+	// not Signal.
+	SignalGroup(pid int, sig os.Signal) error
 }
 
 type OSProcOps struct{}
@@ -107,6 +115,13 @@ func (OSProcOps) Identity(pid int) (string, error) {
 	return id, nil
 }
 
+// SignalGroup is the Handle-free form of runner.go's signalOwnedProcessGroup:
+// Couch.Detach runs from the live-owner executor, which holds no Handle. One
+// implementation, reached two ways, rather than two spellings of kill(-pid).
+func (OSProcOps) SignalGroup(pid int, sig os.Signal) error {
+	return signalOwnedProcessGroup(pid, sig)
+}
+
 func (OSProcOps) Signal(pid int, sig os.Signal) error {
 	proc, err := os.FindProcess(pid)
 	if err != nil {
@@ -126,9 +141,12 @@ var TermSignal os.Signal = syscall.SIGTERM
 // FakeProcOps models a pid table, including the case that matters most: a
 // probe that cannot answer.
 type FakeProcOps struct {
-	ids            map[int]string
-	unknown        map[int]bool
-	Signals        map[int][]os.Signal
+	ids     map[int]string
+	unknown map[int]bool
+	Signals map[int][]os.Signal
+	// GroupSignals records only the signals sent to a whole process group, so a
+	// test can distinguish "signalled the pid" from "signalled the group".
+	GroupSignals   map[int][]os.Signal
 	DiesOn         map[int]os.Signal
 	IdentityErr    map[int]bool
 	CurrentProcess ProcessIdentity
@@ -182,6 +200,16 @@ func (f *FakeProcOps) Identity(pid int) (string, error) {
 		return "", fmt.Errorf("no such pid %d", pid)
 	}
 	return id, nil
+}
+
+// SignalGroup records into the same log as Signal, tagged by group, so a test
+// can assert BOTH that the right signal was sent and that it went to the group.
+func (f *FakeProcOps) SignalGroup(pid int, sig os.Signal) error {
+	if f.GroupSignals == nil {
+		f.GroupSignals = map[int][]os.Signal{}
+	}
+	f.GroupSignals[pid] = append(f.GroupSignals[pid], sig)
+	return f.Signal(pid, sig)
 }
 
 func (f *FakeProcOps) Signal(pid int, sig os.Signal) error {

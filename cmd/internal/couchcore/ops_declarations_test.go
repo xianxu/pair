@@ -27,6 +27,7 @@ func TestOperationDeclarationsAreClosureFreeCompleteAndOwned(t *testing.T) {
 		"switch":              {ExecuteLiveOwner, EffectConsole, ConfirmNone, ResultConsole, PresentationTUI},
 		"attach":              {ExecuteLiveOwner, EffectConsole, ConfirmNone, ResultConsole, PresentationTUI},
 		"park":                {ExecuteLiveOwner, EffectProcess, ConfirmRequired, ResultThread, PresentationTUI},
+		"detach":              {ExecuteLiveOwner, EffectProcess, ConfirmNone, ResultThread, PresentationTUI},
 		"leave":               {ExecuteLiveOwner, EffectProcess, ConfirmRequired, ResultConsole, PresentationTUI},
 		"resume":              {ExecuteLiveOwner, EffectProcess, ConfirmNone, ResultStart, PresentationTUI},
 	}
@@ -52,9 +53,14 @@ func TestOperationDeclarationsAreClosureFreeCompleteAndOwned(t *testing.T) {
 	}
 }
 
-func TestParkLeaveResumeAndNoCouchDetachSurface(t *testing.T) {
-	var park, resume *Operation
-	var leave *Operation
+// This test used to assert that Couch exposes NO detach operation -- Alt+d was
+// Pair-local. #170 reverses that: un-intercepted, Alt+d leaves Couch with a dead
+// child and a stale live incarnation, which the fail-closed projector hides, so
+// the operator's most common gesture would make the thread vanish. It is
+// inverted rather than deleted, because the reversal is worth recording where
+// the superseded claim lived.
+func TestParkDetachLeaveAndResumeSurface(t *testing.T) {
+	var park, resume, leave, detach *Operation
 	for _, operation := range Operations() {
 		op := operation
 		switch op.Name {
@@ -65,11 +71,19 @@ func TestParkLeaveResumeAndNoCouchDetachSurface(t *testing.T) {
 		case "leave":
 			leave = &op
 		case "detach":
-			t.Fatal("Couch exposes a detach operation")
+			detach = &op
 		}
 	}
-	if park == nil || leave == nil || resume == nil {
-		t.Fatalf("park/leave/resume declarations = %+v, %+v, %+v", park, leave, resume)
+	if park == nil || leave == nil || resume == nil || detach == nil {
+		t.Fatalf("park/detach/leave/resume declarations = %+v, %+v, %+v, %+v", park, detach, leave, resume)
+	}
+	// Detach destroys nothing, so it must not demand a confirmation the way
+	// park does -- that asymmetry is the whole reason both exist.
+	if detach.Confirmation != ConfirmNone {
+		t.Fatalf("detach confirmation = %v, want none", detach.Confirmation)
+	}
+	if park.Confirmation != ConfirmRequired {
+		t.Fatalf("park confirmation = %v, want required", park.Confirmation)
 	}
 	wantParkArgs := []ArgSpec{
 		{Name: "ref", Summary: "thread tag, path, or name", Required: false},

@@ -469,7 +469,7 @@ func TestEveryOperationHasASummaryAndDescribedArgs(t *testing.T) {
 func TestOperationArityMatchesExpectation(t *testing.T) {
 	// Declared in the test rather than read from the operation itself, so
 	// this cannot degrade into asserting X == X.
-	want := map[string]int{"prepare-start": 2, "start": 1, "list": 0, "show": 2, "stop": 1, "name": 3, "describe": 3, "publish-description": 3, "switch": 2, "attach": 2, "park": 4, "resume": 3}
+	want := map[string]int{"prepare-start": 2, "start": 1, "list": 0, "show": 2, "stop": 1, "name": 3, "describe": 3, "publish-description": 3, "switch": 2, "attach": 2, "park": 4, "detach": 3, "resume": 3}
 	for _, op := range couchcore.Operations() {
 		if got := len(op.Args); got != want[op.Name] {
 			t.Errorf("%s has %d args, want %d", op.Name, got, want[op.Name])
@@ -700,9 +700,14 @@ func TestCLIRejectsMissingOrEmptyExplicitAgentBeforeSpawn(t *testing.T) {
 }
 
 func TestListShowsANamedTreeWithNoAgent(t *testing.T) {
-	// The forgetting case: a tree that was named and then parked has no actor,
-	// but it is exactly the thread the operator loses track of. It must be a
-	// visible row, not filtered out.
+	// The forgetting case: a tree with no running client has no actor, but it
+	// is exactly the thread the operator loses track of. It must be a visible
+	// row, not filtered out.
+	//
+	// This fixture carries no verified park, so it is the DETACHED-shaped case:
+	// its agent may well still be running behind a live zellij session, and the
+	// row must not claim otherwise. The parked wording is covered by
+	// TestRenderThreadRowsDistinguishesParkedFromDetached.
 	rt := newRT(t, "/repo")
 	seedThread(t, rt, "/repo")
 	if _, errw, code := runTypedRT(rt, couchcore.OperationCall{Name: "name", Args: map[string]string{"ref": "/repo", "name": "the pair tree"}}); code != 0 {
@@ -715,8 +720,39 @@ func TestListShowsANamedTreeWithNoAgent(t *testing.T) {
 	if !strings.Contains(out, "the pair tree") {
 		t.Fatalf("out = %q; a named tree must appear even with no agent", out)
 	}
-	if !strings.Contains(out, "(no agent running)") {
-		t.Fatalf("out = %q; the absence of an agent must be stated", out)
+	if !strings.Contains(out, "no client attached") {
+		t.Fatalf("out = %q; the absence of a client must be stated", out)
+	}
+}
+
+// A thread with no incarnation is not necessarily idle. Parked means the
+// session was torn down and the agent is gone; detached means only the client
+// left. Reporting both as "no agent running" contradicts the switcher, which
+// offers the detached row for reattach.
+func TestRenderThreadRowsDistinguishesParkedFromDetached(t *testing.T) {
+	address := couchcore.ThreadAddress{RepoScope: "816fc349d3faebf8", Tag: "couch-0001020304050607"}
+	for _, test := range []struct {
+		name   string
+		parked bool
+		want   string
+		unwant string
+	}{
+		{name: "parked", parked: true, want: "no agent running", unwant: "may still be running"},
+		{name: "detached", parked: false, want: "may still be running", unwant: "(parked"},
+	} {
+		t.Run(test.name, func(t *testing.T) {
+			var buf bytes.Buffer
+			renderThreadRows(&buf, []couchcore.ThreadSummary{{
+				Address: address, WorkingPath: "/repo", Name: "compiler", Parked: test.parked,
+			}}, false)
+			out := buf.String()
+			if !strings.Contains(out, test.want) {
+				t.Fatalf("out = %q, want it to mention %q", out, test.want)
+			}
+			if strings.Contains(out, test.unwant) {
+				t.Fatalf("out = %q, must not mention %q", out, test.unwant)
+			}
+		})
 	}
 }
 

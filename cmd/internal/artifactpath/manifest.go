@@ -507,6 +507,7 @@ var NonArtifactSources = []string{
 	"cmd/internal/couchcore/artifactcollision_fake.go",
 	"cmd/internal/couchcore/clock.go",
 	"cmd/internal/couchcore/couch.go",
+	"cmd/internal/couchcore/detach.go",
 	"cmd/internal/couchcore/detachedsessions.go",
 	"cmd/internal/couchcore/git.go",
 	"cmd/internal/couchcore/git_fake.go",

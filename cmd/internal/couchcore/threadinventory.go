@@ -13,6 +13,12 @@ type ThreadSummary struct {
 	Description      string              `json:"description,omitempty"`
 	PublishedSummary string              `json:"published_summary,omitempty"`
 	Incarnations     []ThreadIncarnation `json:"incarnations,omitempty"`
+	// Parked distinguishes the two ways a thread can have no incarnation: a
+	// verified park tore its session down and its agent is gone, while a
+	// detached thread's agent is still running behind a live zellij session.
+	// Without it the diagnostic view reports both as "no agent running" and
+	// contradicts the switcher, which offers the detached row for reattach.
+	Parked bool `json:"parked,omitempty"`
 }
 
 func (s ThreadSummary) Label() string {
@@ -50,6 +56,7 @@ func BuildThreadInventory(records []ThreadRecord) []ThreadSummary {
 			Description:      cloned.Description,
 			PublishedSummary: cloned.PublishedSummary,
 			Incarnations:     cloned.Incarnations,
+			Parked:           cloned.VerifiedPark != nil,
 		})
 	}
 	sort.Slice(rows, func(i, j int) bool {

@@ -105,42 +105,72 @@ type ParkResult struct {
 	CleanupError            error
 }
 
-// LeaveResult names the exact threads whose verified park completed before
-// Couch may release the operator terminal. On failure it preserves partial
-// progress so the caller can report what is already safely historical.
+// LeaveResult names what happened to each thread before Couch released the
+// operator terminal. On failure it preserves partial progress so the caller can
+// report what is already safely historical.
 type LeaveResult struct {
+	// Detached threads kept their agent running behind a live zellij session.
+	Detached []ThreadAddress
+	// Parked threads were mid-park already and were driven to completion.
 	Parked []ThreadAddress
+	// Skipped threads could not be proved detachable -- an `unknown`
+	// incarnation, whose state Couch cannot vouch for. Named rather than
+	// silently dropped, so the operator learns about them here instead of
+	// discovering an occupied thread later.
+	Skipped []ThreadAddress
 }
 
-// Leave parks active threads one at a time. Parking is shutdown work, not a
-// throughput path: serial execution avoids multiplying Pair/Zellij cleanup IO
-// and gives each exact identity the full bounded completion budget.
+// Leave DETACHES active threads one at a time, then releases the terminal.
+//
+// It used to park them, which killed every agent -- including any mid-turn --
+// every time the operator quit couch. Detaching kills nothing: the agents keep
+// running behind their zellij sessions and the next couch reattaches them. That
+// is what makes detached the normal resting state rather than an edge case.
+//
+// Two threads are not detached, for opposite reasons. One already mid-park is
+// driven to completion instead: it is already being shut down, and interrupting
+// that leaves a half-torn-down session nobody owns. One carrying an `unknown`
+// incarnation is SKIPPED rather than parked: parking is the destructive option,
+// and taking it on state Couch cannot prove is precisely what detaching on the
+// way out exists to avoid. It stays occupied and the next startup reconciles it.
+//
+// Serial by choice: shutdown is not a throughput path, and each exact identity
+// gets the full bounded budget rather than competing for it.
 func (c *Couch) Leave(ctx context.Context) (LeaveResult, error) {
 	var result LeaveResult
-	if c == nil || c.Threads == nil || c.PairLifecycle == nil {
-		return result, errors.New("Pair lifecycle controller is unavailable")
+	if c == nil || c.Threads == nil {
+		return result, errors.New("thread store is unavailable")
 	}
 	snapshot, err := c.Threads.Snapshot()
 	if err != nil {
 		return result, err
 	}
 	for _, record := range snapshot.Records {
-		if record.Park == nil && !hasActiveIncarnation(record) {
+		if record.Park != nil {
+			if c.PairLifecycle == nil {
+				return result, errors.New("Pair lifecycle controller is unavailable")
+			}
+			parkResult, parkErr := c.PairLifecycle.Recover(ctx, record.Address)
+			if parkErr != nil {
+				return result, fmt.Errorf("leave couch: recover park %s: %w", record.Address.Tag, parkErr)
+			}
+			if parkResult.Thread.VerifiedPark == nil || parkResult.Thread.Park != nil {
+				return result, fmt.Errorf("leave couch: park %s did not produce verified inactive history", record.Address.Tag)
+			}
+			result.Parked = append(result.Parked, record.Address)
 			continue
 		}
-		var parkResult ParkResult
-		if record.Park == nil {
-			parkResult, err = c.PairLifecycle.Park(ctx, record.Address)
-		} else {
-			parkResult, err = c.PairLifecycle.Recover(ctx, record.Address)
+		if !hasActiveIncarnation(record) {
+			continue
 		}
-		if err != nil {
-			return result, fmt.Errorf("leave couch: park %s: %w", record.Address.Tag, err)
+		if len(record.Incarnations) != 1 || record.Incarnations[0].State != IncarnationLive {
+			result.Skipped = append(result.Skipped, record.Address)
+			continue
 		}
-		if parkResult.Thread.VerifiedPark == nil || parkResult.Thread.Park != nil {
-			return result, fmt.Errorf("leave couch: park %s did not produce verified inactive history", record.Address.Tag)
+		if _, detachErr := c.Detach(ctx, record.Address); detachErr != nil {
+			return result, fmt.Errorf("leave couch: detach %s: %w", record.Address.Tag, detachErr)
 		}
-		result.Parked = append(result.Parked, record.Address)
+		result.Detached = append(result.Detached, record.Address)
 	}
 	return result, nil
 }

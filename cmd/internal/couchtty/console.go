@@ -1340,7 +1340,22 @@ func (c *Console) consumeExpectedParkExitLocked(id string, address couchcore.Thr
 		return true
 	}
 	origin := c.menu.InFlight
-	return origin.Operation == "park" && origin.Attempt != 0 && origin.Address == address
+	if origin.Attempt == 0 {
+		return false
+	}
+	switch origin.Operation {
+	case "park":
+		return origin.Address == address
+	case "detach":
+		return origin.Address == address
+	case "leave":
+		// Leave detaches every thread, so every child exit it causes is
+		// expected. Without this the operator gets a burst of exit notices on
+		// the way out -- exactly the noise the notification design exists to
+		// keep meaningful.
+		return true
+	}
+	return false
 }
 
 func cloneOperationArgs(args map[string]string) map[string]string {
