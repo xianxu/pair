@@ -32,6 +32,11 @@ type FakeThreadArtifactCollisionChecker struct {
 	// hook may consult another stateful fake or call back into this one.
 	BeforeRegistration func(ThreadAddress) error
 	BeforePairSession  func(ThreadAddress) error
+
+	detachedSessions map[ThreadAddress]string
+	// DetachedSessionsHook lets a test fail the observation, or interleave a
+	// durable change at the moment the projector asks who is detached.
+	DetachedSessionsHook func([]ThreadAddress) error
 }
 
 type nativeBindingKey struct {
@@ -51,11 +56,47 @@ type fakeRegistration struct {
 
 func NewFakeThreadArtifactCollisionChecker() *FakeThreadArtifactCollisionChecker {
 	return &FakeThreadArtifactCollisionChecker{
-		values:         map[ThreadAddress]fakeArtifactCollision{},
-		registrations:  map[ThreadAddress]fakeRegistration{},
-		pairSessions:   map[ThreadAddress]PairSessionBinding{},
-		nativeBindings: map[nativeBindingKey]NativeBindingResolution{},
+		values:           map[ThreadAddress]fakeArtifactCollision{},
+		registrations:    map[ThreadAddress]fakeRegistration{},
+		pairSessions:     map[ThreadAddress]PairSessionBinding{},
+		nativeBindings:   map[nativeBindingKey]NativeBindingResolution{},
+		detachedSessions: map[ThreadAddress]string{},
 	}
+}
+
+// SetDetachedSession marks one thread as having a live zellij session with no
+// client attached. An empty name clears it.
+func (f *FakeThreadArtifactCollisionChecker) SetDetachedSession(address ThreadAddress, sessionName string) {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	if sessionName == "" {
+		delete(f.detachedSessions, address)
+		return
+	}
+	f.detachedSessions[address] = sessionName
+}
+
+// DetachedSessions answers only for addresses the caller asked about, exactly
+// as the real checker does -- a fake that answered for the whole world would
+// hide a caller that forgot to pass its candidates.
+func (f *FakeThreadArtifactCollisionChecker) DetachedSessions(ctx context.Context, addresses []ThreadAddress) ([]DetachedSessionObservation, error) {
+	if err := ctx.Err(); err != nil {
+		return nil, err
+	}
+	if hook := f.DetachedSessionsHook; hook != nil {
+		if err := hook(append([]ThreadAddress(nil), addresses...)); err != nil {
+			return nil, err
+		}
+	}
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	var out []DetachedSessionObservation
+	for _, address := range addresses {
+		if name := f.detachedSessions[address]; name != "" {
+			out = append(out, DetachedSessionObservation{Address: address, SessionName: name})
+		}
+	}
+	return out, nil
 }
 
 func (f *FakeThreadArtifactCollisionChecker) SetNativeBinding(address ThreadAddress, agent string, status sessioninventory.BindingStatus, nativeID string) {
@@ -205,3 +246,7 @@ func (f *FakeThreadArtifactCollisionChecker) Calls() []ThreadAddress {
 	defer f.mu.Unlock()
 	return append([]ThreadAddress{}, f.calls...)
 }
+
+// The fake must satisfy the same seams production does, or a test can pass
+// against a double that production could not substitute.
+var _ DetachedSessionResolver = (*FakeThreadArtifactCollisionChecker)(nil)

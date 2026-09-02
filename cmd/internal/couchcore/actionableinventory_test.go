@@ -25,7 +25,7 @@ func TestProjectActionableThreadsRequiresExactLifecycleProof(t *testing.T) {
 		[]LiveTTYObservation{{
 			Address: live.Address,
 			Process: ProcessIdentity{PID: 42, Identity: "live-process"},
-		}}, []ParkedResumeObservation{{Address: parked.Address, Agent: "claude", NativeID: "native-root-1"}},
+		}}, []ParkedResumeObservation{{Address: parked.Address, Agent: "claude", NativeID: "native-root-1"}}, nil,
 	)
 
 	want := []ActionableThreadSummary{
@@ -43,7 +43,7 @@ func TestProjectActionableThreadsOmitsVerifiedParkWithoutResumeAuthority(t *test
 	parked.LatestLaunchProfile = &LaunchProfile{Agent: "claude", Argv: []string{}}
 	markActionableParked(&parked, now)
 
-	if rows := ProjectActionableThreads([]ThreadRecord{parked}, nil, nil); len(rows) != 0 {
+	if rows := ProjectActionableThreads([]ThreadRecord{parked}, nil, nil, nil); len(rows) != 0 {
 		t.Fatalf("unbound verified park projected as actionable: %+v", rows)
 	}
 }
@@ -79,7 +79,7 @@ func TestProjectActionableThreadsRequiresOneMatchingSupportedResumeProof(t *test
 			if tc.mutate != nil {
 				tc.mutate(&record)
 			}
-			if rows := ProjectActionableThreads([]ThreadRecord{record}, nil, tc.proofs); len(rows) != tc.want {
+			if rows := ProjectActionableThreads([]ThreadRecord{record}, nil, tc.proofs, nil); len(rows) != tc.want {
 				t.Fatalf("rows = %+v, want %d", rows, tc.want)
 			}
 		})
@@ -160,7 +160,7 @@ func TestProjectActionableThreadsFailsClosedOnContradictoryEvidence(t *testing.T
 				observation.Address = record.Address
 				observations = append(observations, observation)
 			}
-			if rows := ProjectActionableThreads([]ThreadRecord{record}, observations, nil); len(rows) != 0 {
+			if rows := ProjectActionableThreads([]ThreadRecord{record}, observations, nil, nil); len(rows) != 0 {
 				t.Fatalf("contradictory row projected as actionable: %+v", rows)
 			}
 		})
@@ -366,4 +366,114 @@ func markActionableParked(record *ThreadRecord, parkedAt time.Time) {
 		Closed: true, SuccessfulAttempt: 1,
 	}}
 	record.VerifiedPark = &VerifiedPark{Identity: identity, Attempt: 1, ParkedAt: parkedAt}
+}
+
+// ThreadDetached is the third actionable state. Its fail-closed property is the
+// point: a record still carrying an incarnation stays HIDDEN even when a
+// detached session matches it, so a couch that died without detaching cannot
+// masquerade as a clean detach.
+func TestProjectActionableThreadsDetached(t *testing.T) {
+	address := ThreadAddress{RepoScope: "scope-a", Tag: "couch-0000000000000001"}
+	profile := &LaunchProfile{Agent: "claude", Argv: []string{}}
+	detached := []DetachedSessionObservation{{Address: address, SessionName: "pair-one"}}
+
+	base := func() ThreadRecord {
+		return ThreadRecord{
+			SchemaVersion: ThreadSchemaVersion, Address: address,
+			StartingPath: "/repo", WorkingPath: "/repo", CreatedAt: time.Unix(1, 0).UTC(), Revision: 1,
+			LatestLaunchProfile: profile,
+		}
+	}
+
+	tests := []struct {
+		name     string
+		mutate   func(*ThreadRecord)
+		observed []DetachedSessionObservation
+		want     ActionableThreadState
+		wantRow  bool
+	}{
+		{
+			name:     "zero incarnations plus a matching detached session",
+			observed: detached, want: ThreadDetached, wantRow: true,
+		},
+		{
+			name:     "no detached observation means no row",
+			observed: nil,
+		},
+		{
+			// The regression that matters: a crashed couch leaves this shape.
+			name: "a stale live incarnation stays hidden",
+			mutate: func(r *ThreadRecord) {
+				r.Incarnations = []ThreadIncarnation{{State: IncarnationLive, PID: 4242, Identity: "gone", StartedAt: time.Unix(1, 0).UTC()}}
+			},
+			observed: detached,
+		},
+		{
+			name: "an unknown incarnation stays hidden",
+			mutate: func(r *ThreadRecord) {
+				r.Incarnations = []ThreadIncarnation{{State: IncarnationUnknown, PID: 4242, Identity: "gone", StartedAt: time.Unix(1, 0).UTC()}}
+			},
+			observed: detached,
+		},
+		{
+			name:     "no launch profile means nothing to reattach with",
+			mutate:   func(r *ThreadRecord) { r.LatestLaunchProfile = nil },
+			observed: detached,
+		},
+		{
+			name:     "a reserved record is never actionable",
+			mutate:   func(r *ThreadRecord) { r.Reservation = true },
+			observed: detached,
+		},
+		{
+			name:     "an observation for another address does not match",
+			observed: []DetachedSessionObservation{{Address: ThreadAddress{RepoScope: "scope-a", Tag: "couch-0000000000000009"}, SessionName: "pair-other"}},
+		},
+		{
+			name: "two observations for one address are ambiguous",
+			observed: []DetachedSessionObservation{
+				{Address: address, SessionName: "pair-one"},
+				{Address: address, SessionName: "pair-two"},
+			},
+		},
+	}
+
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			record := base()
+			if test.mutate != nil {
+				test.mutate(&record)
+			}
+			rows := ProjectActionableThreads([]ThreadRecord{record}, nil, nil, test.observed)
+			if !test.wantRow {
+				if len(rows) != 0 {
+					t.Fatalf("rows = %+v, want none", rows)
+				}
+				return
+			}
+			if len(rows) != 1 || rows[0].State != test.want {
+				t.Fatalf("rows = %+v, want one %s row", rows, test.want)
+			}
+			if rows[0].Detached() != (test.want == ThreadDetached) {
+				t.Fatalf("Detached() disagrees with State %q", rows[0].State)
+			}
+		})
+	}
+}
+
+// A detached observation must not disturb the live or parked verdicts.
+func TestProjectActionableThreadsDetachedDoesNotDisturbOtherStates(t *testing.T) {
+	address := ThreadAddress{RepoScope: "scope-a", Tag: "couch-0000000000000001"}
+	live := ThreadRecord{
+		SchemaVersion: ThreadSchemaVersion, Address: address,
+		StartingPath: "/repo", WorkingPath: "/repo", CreatedAt: time.Unix(1, 0).UTC(), Revision: 1,
+		Incarnations: []ThreadIncarnation{{State: IncarnationLive, PID: 10, Identity: "id-10", StartedAt: time.Unix(1, 0).UTC()}},
+	}
+	ttys := []LiveTTYObservation{{Address: address, Process: ProcessIdentity{PID: 10, Identity: "id-10"}}}
+	stray := []DetachedSessionObservation{{Address: address, SessionName: "pair-one"}}
+
+	withStray := ProjectActionableThreads([]ThreadRecord{live}, ttys, nil, stray)
+	if len(withStray) != 1 || withStray[0].State != ThreadLive {
+		t.Fatalf("rows = %+v, want the live verdict unchanged", withStray)
+	}
 }
