@@ -305,9 +305,10 @@ A TUI startup that creates a new root allocates a distinct opaque durable
 thread; automatic unique resume reuses the parked thread instead. New-thread
 admission comes from the repository's normalized Ariadne fleet policy (`sdlc
 fleet policy`): a bounded key refuses when occupied, while an unbounded path
-admits concurrent threads. A `provision-worktree` policy currently returns a
-typed refusal; managed worktree creation belongs to Pair #153. There is no local
-admission override.
+admits concurrent threads. A `provision-worktree` policy returns a typed
+refusal and nothing creates the worktree for you — managed worktree lifecycle
+(Pair #153) is punted, so provision it by hand. There is no local admission
+override.
 
 Launching Couch allocates a pty for the session and **reserves the bottom row of
 your screen** for a status line. The path argument is optional and defaults to

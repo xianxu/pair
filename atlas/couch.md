@@ -136,8 +136,9 @@ hook `publish-description` projects only through hidden
 are TUI/in-process operations. Adding a typed operation cannot expose argv
 without assigning a presentation. `DispatchOperation` validates a call and
 invokes exactly one injected direct-store or live-owner executor; missing owner
-capability returns the typed #147 routing refusal and never falls back to a
-second process.
+capability returns the typed cross-actor routing refusal and never falls back
+to a second process. No caller produces that refusal today: cross-actor routing
+was punted with `pair#147`.
 
 Start is a two-operation owner contract. Agent-facing `prepare-start` resolves
 canonical path, selected agent/argv and provenance, preference revision,
@@ -373,8 +374,7 @@ keeps running and filling its bounded replay ring; returning from the panel and
 switching between children use the same clear-and-replay attach path. Beyond a
 console process, warmth belongs to zellij's server session plus couch's forced
 Pair tag: the console hosts a zellij client, so losing the client loses the view
-and a new couch deterministically reattaches. `pair#147` transport is not on
-that path.
+and a new couch deterministically reattaches.
 
 Console teardown has one owner. Normal stop, last-child exit, SIGTERM, and
 SIGHUP all revoke child-enabled mouse/focus/paste/synchronized-output/extended-
@@ -531,7 +531,9 @@ zellij session can outlive that client; #152 owns verified quiescence. Mixed
 policy epochs retry as a cohort and fail closed after three attempts.
 
 Bounded policy returns either `reject` or the typed `provision-worktree` action;
-#149 never creates the path (#153 owns that lifecycle). Unbounded policy admits
+#149 never creates the path, and nothing else does either: managed-worktree
+lifecycle was punted with `pair#153`, so a bounded-policy `provision-worktree`
+action is returned to an operator who provisions by hand. Unbounded policy admits
 multiple threads. The former public same-path override and local policy file no
 longer exist. A source-level shadow sweep prevents those parallel authorities
 from returning (ARCH-DRY, ARCH-PURPOSE).
@@ -580,12 +582,13 @@ Within one process, `ExecRunner` reaps its children in a background goroutine
 and liveness is a closed channel — **not** `kill -0`, which succeeds for a
 zombie and would report an exited-but-unreaped child as running.
 
-## Actor loop — built, unit-tested, not yet instantiated
+## Actor loop — built, unit-tested, never instantiated
 
 `Actor` exists and is tested, but **no command starts one**: `Couch.Spawn`
-launches a child and returns. It is groundwork for `pair#147`, where messages
-between actors begin to exist. Described here because the design constraints are
-the interesting part, not because a running couch has one.
+launches a child and returns. It was groundwork for `pair#147`, where messages
+between actors would begin to exist. That scope is punted, so this is now
+unreferenced code and a deletion candidate under `pair#170` — kept described
+here only until that plan decides its fate.
 
 The intended shape is one goroutine per actor, holding a bounded mailbox. `Enqueue` is a pure function
 (collapse by kind, drop the oldest non-control entry over capacity, never drop
@@ -613,7 +616,17 @@ not fidelity to Erlang.
 
 ## Planned, not built
 
-`pair#153` adds managed-worktree lifecycle; `pair#147`
-cluster transport and queries; `pair#148` brain as advisor. Cross-repo enabler
-`ariadne#199` exposes the query API. Ariadne #200's normalized policy provider
-is implemented and consumed at the #149 M1 boundary.
+`pair#170` rescopes couch to **couch-lite**: a switcher over a group of live
+coding sessions whose unit is a pair session. It adds resume of a live session,
+`alt+d` detach with detached sessions listed and reattachable,
+notification-focused switching, and a single `previous` slot whose one rule
+(`entered_via_notification`) keeps a notification hop from costing the operator
+their place. It also decides what of the machinery above is deleted.
+
+**Punted by that rescope, not rejected:** `pair#153` managed-worktree lifecycle,
+`pair#147` cluster transport and queries, `pair#148` brain as advisor, and the
+cross-repo enabler `ariadne#199` exposing the query API. The reasoning is the
+scope event in `workshop/projects/couch.md`.
+
+Ariadne #200's normalized policy provider is implemented and consumed at the
+#149 M1 boundary.

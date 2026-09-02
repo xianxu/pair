@@ -1,16 +1,23 @@
 ---
 type: project
 name: couch
-goal: Stop losing track of concurrent work across peer repos by turning agent sessions into addressable actors the operator can enumerate, switch between, and be paged by.
-done_when: The operator works inside a single terminal window, managing a fleet of agents across peer repos, and it works better than today's manual tracking across many tabs.
-status: defined
-mvp_scope: [pair#145, pair#146, pair#147, pair#148, pair#149, pair#151, pair#152, pair#153, pair#155, ariadne#199, ariadne#200]
+goal: Let the operator run a group of live coding sessions from one terminal — enumerate them, switch between them, and be paged by them — instead of tracking them across tabs.
+done_when: The operator runs a group of live coding sessions in one terminal window — starting, resuming, detaching, reattaching, and following notifications between them — and prefers it to tabs.
+status: executing
+mvp_scope: [pair#145, pair#146, pair#149, pair#151, pair#152, pair#155, pair#170, ariadne#200]
 created: 2026-08-21
-updated: 2026-08-30
+updated: 2026-09-02
 sources: [brain/workshop/pensive/2026-08-20-01-pensive-couch-agent-switcher.md]
 ---
 
 # couch
+
+> **Current scope: couch-lite (2026-09-02).** couch is a switcher over a group
+> of live coding sessions, not an actor cluster. The brain advisor, cluster
+> transport, cross-actor queries and managed worktrees are punted — see the
+> scope event at the top of the Log, and `pair#170`. The PRD below is the
+> original intent, kept for its reasoning rather than as a description of what
+> is being built.
 
 A prototype tty switcher that turns pair sessions into an Erlang-style actor
 cluster on a single host, with brain as the always-home advisor. **The headline
@@ -175,11 +182,29 @@ gate `#147` and `#148` respectively; `#145` and `#146` do not depend on them.
 - [x] actionable inventory and token-bound start authority [pair#151 M1]
 - [x] pure hierarchical menu and scheduler [pair#151 M2]
 - [x] Console integration and performance evidence [pair#151 M3]
-- [ ] managed-worktree lifecycle [pair#153]
-- [ ] expose query API to peer actors [ariadne#199]
+- [-] managed-worktree lifecycle [pair#153]
+- [-] expose query API to peer actors [ariadne#199]
 - [x] fleet thread inventory [ariadne#200]
-- [ ] cluster transport and queries [pair#147]
-- [ ] brain advisor role [pair#148]
+- [-] cluster transport and queries [pair#147]
+- [-] brain advisor role [pair#148]
+- [ ] rescope to couch-lite [pair#170]
+
+<a id="pair-170"></a>
+### pair#170 — rescope to couch-lite
+**est:** tbd — derived after the plan clears plan-quality
+**status:** in progress — spec written, plan not yet designed
+**started:** 2026-09-02
+
+Narrows couch to a switcher over a group of live coding sessions whose unit is a
+**pair session**, not a terminal. Adds resume of a *live* session, `alt+d` detach
+with detached sessions listed and reattachable, notification-focused switching,
+and a single `previous` slot governed by one rule — `entered_via_notification`,
+which makes a notification hop ephemeral so following a page never costs the
+operator their place. Retires the actor-cluster scope and makes the machinery
+that only defended it a deletion candidate.
+
+Spec, the measured ctrl+backspace encodings, and the two `panelkeys.go` sites
+that currently swallow that chord are in the issue.
 
 <a id="pair-149-m1"></a>
 ### pair#149 M1 — singleton namespace and normalized admission
@@ -468,6 +493,42 @@ resume, Leave Couch, and terminal restoration. Raw lifecycle detail remains in
 ARCH-PURE, ARCH-PURPOSE).
 
 ## Log
+
+### 2026-09-02 — scope event: rescoped to couch-lite
+
+**Demoted from MVP**, punted rather than rejected: `pair#147` cluster transport
+and queries, `pair#148` brain advisor role, `pair#153` managed-worktree
+lifecycle, `ariadne#199` expose query API to peer actors. **Added:** `pair#170`
+rescope to couch-lite.
+
+**Why.** ~172 measured hours across twelve closed issues bought a switcher that
+replaced the substrate — tabs became a switcher — without yet adding a
+capability, and ~139 of those went into the switcher and identity layers. The
+root cause is not ephemerality but the missing razor: without a clear view of
+what couch was, the gap filled with generality — admission control, supervisor
+leases, start grants, park transactions and fail-closed projections defending
+one operator on one host across ~22k lines. The estimate ratios separate cleanly
+along that seam: shape-unknown work ran #146 0.28x, #149 0.32x, #154 0.27x, #151
+0.38x, while shape-known work ran #156 2.27x, #158 1.72x, #159 1.19x, #167
+1.95x. pair avoided the same ambiguity by exposing CLI options and letting usage
+reveal the right configuration; couch decided in advance and encoded the
+decision in types, so every later discovery meant changing the ontology instead
+of adding a flag.
+
+**What the narrowed project is.** A switcher over a group of live coding
+sessions, whose unit is a pair session rather than a terminal — that being the
+one thing that cannot be bought, and the boundary that keeps the scope from
+creeping back. One LLM stack, one path. No mesh, no relay, no cross-actor
+queries.
+
+**What this does not solve, stated plainly.** The project was opened for
+*forgetting a thread exists*, with a dated cost: the rogii submission whose
+2026-08-05 deadline passed unnoticed. A switcher does not catch that. Whether
+couch-lite keeps a durable `{tree, what, when}` list plus a clock is open, and
+is recorded in `pair#170`'s Log rather than assumed here.
+
+Source: brain session 2026-09-02 working over
+`brain/workshop/pensive/2026-08-20-01-pensive-couch-agent-switcher.md`.
 
 ### 2026-08-31 — pair#151 M3 architectural inventory completed
 

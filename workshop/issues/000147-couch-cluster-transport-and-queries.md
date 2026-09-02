@@ -1,10 +1,10 @@
 ---
 id: 000147
-status: open
+status: punt
 deps: [ariadne#199]
 github_issue:
 created: 2026-08-21
-updated: 2026-08-26
+updated: 2026-09-02
 estimate_hours:
 ---
 
@@ -161,3 +161,11 @@ revision and cannot bleed between equal-path threads (ARCH-PURPOSE).
 
 Split out of the former root ticket on promotion to a project. Depends on
 `ariadne#199` for the exposed query surface.
+
+### 2026-09-02
+
+Punted by the couch-lite rescope (`pair#170`). couch narrows to a switcher over
+a group of live coding sessions — one LLM stack, one path, no cluster transport,
+no advisor, no managed worktrees. This is deferral, not rejection: the spec above
+stands and the scope event in `workshop/projects/couch.md` records why it stopped
+being the next thing to build.

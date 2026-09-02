@@ -1,10 +1,10 @@
 ---
 id: 000153
-status: open
+status: punt
 deps: [149, 152]
 github_issue:
 created: 2026-08-25
-updated: 2026-08-25
+updated: 2026-09-02
 estimate_hours:
 ---
 
@@ -80,3 +80,11 @@ from Pair's local-tool workflow (ARCH-PURPOSE, ARCH-MOCK).
 
 Split from #149 so consuming `ariadne#200`'s normalized policy cannot quietly
 grow a second, Pair-specific worktree strategy.
+
+### 2026-09-02
+
+Punted by the couch-lite rescope (`pair#170`). couch narrows to a switcher over
+a group of live coding sessions — one LLM stack, one path, no cluster transport,
+no advisor, no managed worktrees. This is deferral, not rejection: the spec above
+stands and the scope event in `workshop/projects/couch.md` records why it stopped
+being the next thing to build.
