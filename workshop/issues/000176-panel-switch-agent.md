@@ -23,6 +23,14 @@ the operator is already looking at the actor they want to change.
 current driver, start a new one on the same thread, and give the new session a
 way to pick up where the old one was.
 
+**And restart's purpose is refreshing the pair subsystem, not the agent.** The
+value is a genuinely new zellij session, nvim panes, and `pair-wrap` — the agent
+restarting is a consequence. pair's own chord table already draws this line:
+`ChordAltN → ActionRestartPair` versus `ChordAltShiftN → ActionRestartAgent`
+(`workbenchshortcut/shortcut.go:124,128`). The panel operation is the *former*.
+An implementation that replaces only the agent child would satisfy every other
+sentence in this issue and miss the point of it (`ARCH-PURPOSE`).
+
 **The prior art matters here.** `pair#115` (done) established the model — *the
 tag identifies the work; the agent is an exclusive, replaceable driver* — and
 shipped switching for an **exited or recent** tag via continuation-backed
@@ -70,11 +78,20 @@ and **requires the source agent to still work**. That is precisely wrong for the
 motivating cases, which #135 lists as a degraded provider, exhausted quota, or
 an agent that "can no longer produce the continuation document itself."
 
-So the carrier here is a **path to the prior session's transcript**, handed to
-the new session to read if it wants. Free, requires nothing of the dying agent,
-and raw rather than distilled — a worse summary and a strictly more available
-one. Where the source agent is healthy, a continuation is still the better
-carrier; the two are complementary, and this issue owns the fallback.
+So the carrier is chosen by **source health, not by which case triggered it** —
+one rule covering switch and restart alike:
+
+- **Source agent healthy** (the ordinary restart-to-refresh, and a switch made
+  by choice) ⇒ a continuation, as `#115` does. Distilled, and the agent is
+  there to write it.
+- **Source agent degraded or gone** (quota, provider outage, a wedged session)
+  ⇒ the **path to the prior transcript**, handed over for the new session to
+  read if it wants. Free, requires nothing of the dying agent, raw rather than
+  distilled — a worse summary and a strictly more available one.
+
+The fallback is what makes the operation usable in the cases that motivate it;
+the continuation is what makes it good in the common one. Both, with the health
+check deciding.
 
 **The prior transcript is already preserved — two mechanisms, neither needing
 work.** Tags are opaque and stable across a restart (the tag *is* the work
@@ -98,7 +115,12 @@ second snapshot path (`ARCH-DRY`).
 
 - One panel operation switches a live actor from claude to codex and back,
   under the same thread, tag, and working path — no new thread record.
-- The same operation with target == current agent restarts in place.
+- The same operation with target == current agent restarts in place, and the
+  **zellij session, nvim panes and `pair-wrap` are all new** — asserted by
+  identity, not by "the agent came back". A restart that recycles the
+  subsystem has not delivered the refresh it exists for.
+- A healthy source hands over a continuation; a source that cannot produce one
+  still completes, handing over the transcript path instead.
 - Quiescence is proven by couch observing the child's exit, not by an
   acknowledgment from the stopped process; a source that dies without
   acknowledging still completes cleanly. This is #135's failure, so it is the
@@ -117,12 +139,20 @@ second snapshot path (`ARCH-DRY`).
 - [ ] Quiesce-and-observe on couch's side; test a source that dies silently.
 - [ ] Identify the replaced session's `parked-scrollback-<tag>-<ts>` via
       `ParkedScrollbackArtifacts` and hand that exact path over.
-- [ ] Restart = same call, target == current; assert one code path.
+- [ ] Restart = same call, target == current; assert one code path, and pin
+      subsystem-identity change (zellij/nvim/pair-wrap), not just agent liveness.
+- [ ] Carrier selection on source health: continuation when available,
+      transcript path when not.
 - [ ] Failure path: assert the thread is still startable after a failed switch.
 
 ## Log
 
 ### 2026-09-02
+
+Operator's stated purpose for restart: refresh the pair subsystem. That is why
+it is worth having beside the agent-switch case rather than being folded into
+"just relaunch the agent", and it is the constraint most likely to be lost in
+implementation.
 
 Correction, recorded so it is not re-derived: an earlier draft of this issue
 claimed the new session would overwrite the prior transcript and asked for
