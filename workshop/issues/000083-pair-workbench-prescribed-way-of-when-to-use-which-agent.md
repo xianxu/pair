@@ -1,9 +1,9 @@
 ---
 id: 000083
-status: open
+status: punt
 deps: []
 created: 2026-06-29
-updated: 2026-06-29
+updated: 2026-09-01
 ---
 
 # pair-workbench: prescribed way of when to use which agent
@@ -17,16 +17,24 @@ I guess in terms of priority, ariadne#129 is more important, this ticket seems t
 
 ## Done when
 
--
+- Reconsider only if Pair and Couch's launch-profile/startup surfaces leave a
+  concrete recurring workflow that requires a separate prescribed workbench.
 
 ## Spec
 
 
 ## Plan
 
-- [ ]
+- [ ] If reopened, identify the remaining startup gap and prove it does not
+  duplicate Pair or Couch configuration.
 
 ## Log
 
 ### 2026-06-29
 
+### 2026-09-01 — punted as obsolete
+
+The prescribed workbench/startup layer is no longer compelling. Pair and Couch
+now provide several more direct ways to select and remember agent launch
+profiles, and the current Couch work is simplifying startup further. Defer this
+indefinitely rather than add another overlapping configuration surface.
