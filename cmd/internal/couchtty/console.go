@@ -607,8 +607,7 @@ func (c *Console) Run() int {
 			case HitPrevious:
 				c.onPreviousHotkey()
 			case HitDetach:
-				// Claimed by M2, together with the knownSequences row that can
-				// produce it. Unreachable today.
+				c.onDetachHotkey()
 			}
 			raw = rest
 		}
@@ -1191,6 +1190,27 @@ func (c *Console) reportPrevious(text string) {
 		return
 	}
 	c.setNotice(text)
+}
+
+// onDetachHotkey handles Pair's Alt+d chord at the Couch ownership boundary.
+//
+// No confirmation, unlike park: detach destroys nothing -- the agent keeps
+// running behind its zellij session and only the client goes. Making the safe
+// gesture cheap and the destructive one deliberate is the whole point of having
+// both.
+func (c *Console) onDetachHotkey() {
+	c.mu.Lock()
+	panel := c.focus.IsPanel()
+	p := c.panes[c.active]
+	c.mu.Unlock()
+
+	if panel || p == nil {
+		// The panel is not a thread. Alt+d there has nothing to detach, and
+		// silently doing nothing is what the operator would report as a bug.
+		c.setNotice("detach: no attached thread")
+		return
+	}
+	c.reduceMenu(MenuEvent{Kind: MenuEventParkHotkey, Operation: "detach", Address: p.thread})
 }
 
 // onParkHotkey handles Pair's Alt+x chord at the Couch ownership boundary.

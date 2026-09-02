@@ -299,7 +299,9 @@ Leave Couch parks every active actor and returns to the shell. A later bare
 physical repository path and restores it as home. With zero or multiple exact
 candidates, Couch creates a new root instead; it does not rank, prompt, or guess.
 Resume does not allocate a temporary actor first or add a full native inventory
-scan. Alt+d remains Pair-local detach; Couch exposes no detach operation.
+scan. Alt+d is intercepted by Couch as its own detach operation: un-intercepted
+it would leave Couch with a dead child and a stale incarnation, and the thread
+would vanish from the switcher.
 
 A TUI startup that creates a new root allocates a distinct opaque durable
 thread; automatic unique resume reuses the parked thread instead. New-thread
@@ -358,7 +360,12 @@ select and switch/resume; `Tab` or `Right` opens the selected thread's actions,
 while `Left` or `Escape` restores its parent. Rows expose only proven `live` and
 exact verified `parked` states. `Alt+x` quits what you are looking at: on an
 actor it parks that actor, and on couch's own switcher it confirms **Leave
-Couch**. `Escape` clears the filter or returns to an attached actor;
+Couch** — which now **detaches** every thread rather than parking them, so
+quitting couch never kills a running agent. `Alt+d` detaches the attached
+thread with no confirmation: its agent keeps running behind a live zellij
+session and only the client goes, so the row stays in the switcher and `Enter`
+reattaches it. Park is the deliberate, confirmed teardown; detach is the
+everyday one. `Escape` clears the filter or returns to an attached actor;
 with no live actor, the switcher stays open and reports why. Press `ctrl-space` again from the
 switcher to open the path/agent start form; an empty path uses the existing `.`
 default. In the path field, `Tab` asynchronously completes directories only:

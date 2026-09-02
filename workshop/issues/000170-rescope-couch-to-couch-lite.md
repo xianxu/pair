@@ -319,7 +319,7 @@ Four review boundaries; each is independently operable.
       encodings, including the `panelkeys.go` modified-flag fix; `alt+x` on
       the panel becomes `leave couch`; the switcher opens focused on the
       actor with the latest notification.
-- [ ] M2 — Detach. `alt+d` intercepted from the canonical chord table;
+- [x] M2 — Detach. `alt+d` intercepted from the canonical chord table;
       `ThreadDetached` derived (not persisted) from `launcher`'s existing
       0-client zellij classification; detached rows listed and reattachable;
       `leave couch` detaches every thread instead of parking them.

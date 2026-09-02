@@ -9,6 +9,7 @@ import (
 	"github.com/xianxu/pair/cmd/internal/couchcore"
 	"github.com/xianxu/pair/cmd/internal/hostty"
 	"github.com/xianxu/pair/cmd/internal/ptychild"
+	"github.com/xianxu/pair/cmd/internal/workbenchshortcut"
 )
 
 func liveMenuFixture(t *testing.T) *consoleFixture {
@@ -400,4 +401,50 @@ func TestConsoleRunOrdinarySwitchAdvancesPrevious(t *testing.T) {
 		t.Fatalf("previous = (%+v, %v), want %+v -- an ordinary switch pins what it left",
 			previous, ok, one)
 	}
+}
+
+// alt+d dispatches detach for the attached thread, with NO confirmation --
+// unlike alt+x, which confirms because park destroys the agent. Driven through
+// the production input path, because a reducer that supports the operation
+// proves nothing about the key reaching it.
+func TestConsoleRunAltDDetachesWithoutConfirmation(t *testing.T) {
+	f, _, _ := twoThreadMenuFixture(t)
+	f.con.switchTo("c1", true, arrivalOrdinary)
+
+	dispatched := make(chan string, 4)
+	setTestOps(f.con, func(name string, _ map[string]string) (any, error) {
+		dispatched <- name
+		return nil, nil
+	})
+
+	for _, encoding := range workbenchshortcut.ChordEncodings(workbenchshortcut.ChordAltD) {
+		_, _ = f.stdin.Write(encoding)
+	}
+
+	select {
+	case name := <-dispatched:
+		if name != "detach" {
+			t.Fatalf("alt+d dispatched %q, want detach", name)
+		}
+	case <-time.After(500 * time.Millisecond):
+		t.Fatal("alt+d dispatched nothing")
+	}
+	if screen := lastConsoleScreen(f.host.Written()); strings.Contains(screen, "cancel") {
+		t.Fatalf("alt+d rendered a confirmation: %q", screen)
+	}
+}
+
+// On the panel there is no attached thread to detach; saying so beats silence.
+func TestConsoleRunAltDOnThePanelSaysThereIsNothingToDetach(t *testing.T) {
+	f, _, _ := twoThreadMenuFixture(t)
+	_, _ = f.stdin.Write([]byte("\x00"))
+	waitUpTo(t, 250*time.Millisecond, "the switcher", func() bool {
+		return strings.Contains(f.host.Written(), "threads")
+	})
+	for _, encoding := range workbenchshortcut.ChordEncodings(workbenchshortcut.ChordAltD) {
+		_, _ = f.stdin.Write(encoding)
+	}
+	waitUpTo(t, 250*time.Millisecond, "the no-thread notice", func() bool {
+		return strings.Contains(f.con.feed.Latest(), "detach")
+	})
 }

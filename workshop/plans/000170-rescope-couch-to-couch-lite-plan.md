@@ -223,11 +223,11 @@ Retiring the incarnation fixes all three at the source and keeps the projector f
 
 | Name | Lives in | Status |
 |------|----------|--------|
-| `ActionableThreadState` (`ThreadDetached`) | `cmd/internal/couchcore/actionableinventory.go` | planned (M2) |
-| `DetachedSessionObservation` | `cmd/internal/couchcore/actionableinventory.go` | planned (M2) |
-| `ProjectActionableThreads` | `cmd/internal/couchcore/actionableinventory.go` | planned (M2) |
-| `DecideResume` | `cmd/internal/couchcore/resume.go` | planned (M2) |
-| `menuActionItems` / `reduceRootFrame` | `cmd/internal/couchtty/menu.go` | planned (M2) |
+| `ActionableThreadState` (`ThreadDetached`) | `cmd/internal/couchcore/actionableinventory.go` | new |
+| `DetachedSessionObservation` | `cmd/internal/couchcore/actionableinventory.go` | new |
+| `ProjectActionableThreads` | `cmd/internal/couchcore/actionableinventory.go` | new |
+| `DecideResume` | `cmd/internal/couchcore/resume.go` | new |
+| `menuActionItems` / `reduceRootKey` | `cmd/internal/couchtty/menu.go` | modified |
 
 - **`ThreadDetached`** — a third actionable state beside `ThreadLive` and `ThreadParked`. Emitted only when the record is not reserved, has no active park transaction, has **zero incarnations** and no verified park, carries a `LatestLaunchProfile`, and exactly one `DetachedSessionObservation` matches its address. The zero-incarnation requirement is what keeps the projector fail-closed: a record with a stale `IncarnationLive` stays hidden exactly as today, so a couch that died without detaching cannot masquerade as a clean detach.
   - **Relationships:** 1:1 with a `ThreadRecord` at a time; mutually exclusive with `ThreadLive` and `ThreadParked` by construction (a live thread has a TTY observation; a parked thread has no zellij session).
@@ -240,15 +240,15 @@ Retiring the incarnation fixes all three at the source and keeps the projector f
 
 | Name | Lives in | Status | Wraps |
 |------|----------|--------|-------|
-| `DetachedSessionResolver` | `cmd/internal/couchcore/artifactcollision.go` | planned (M2) | `launcher` session classification |
-| `ProcOps.SignalGroup` | `cmd/internal/couchcore/procops.go` | planned (M2) | `syscall.Kill(-pid, sig)` |
-| `ThreadStore.RetireIncarnation` | `cmd/internal/couchcore/threadstore.go` | planned (M2) | journaled record CAS |
-| `ThreadStore.DeleteStart` | `cmd/internal/couchcore/threadstore.go` | planned (M2) | journaled record CAS / delete |
-| `Couch.Detach` | `cmd/internal/couchcore/detach.go` | planned (M2) | SIGTERM + bounded wait + session observation |
-| `detach` operation | `cmd/internal/couchcore/ops.go`, `operationdispatch.go` | planned (M2) | typed operation surface |
-| `Couch.Leave` | `cmd/internal/couchcore/park.go` | planned (M2) | now detaches rather than parks |
-| `Couch.ActionableThreadInventoryContext` | `cmd/internal/couchcore/actionableinventory.go` | planned (M2) | adds one session-list query per refresh |
-| `Console.onDetachHotkey` | `cmd/internal/couchtty/console.go` | planned (M2) | `alt+d` → typed `detach` |
+| `DetachedSessionResolver` | `cmd/internal/couchcore/artifactcollision.go` | new | `launcher` session classification |
+| `ProcOps.SignalGroup` | `cmd/internal/couchcore/procops.go` | new | `syscall.Kill(-pid, sig)` |
+| `ThreadStore.RetireIncarnation` | `cmd/internal/couchcore/threadstore.go` | new | journaled record CAS |
+| `ThreadStore.DeleteStart` | `cmd/internal/couchcore/threadstore.go` | new | journaled record CAS / delete |
+| `Couch.Detach` | `cmd/internal/couchcore/detach.go` | new | SIGTERM + bounded wait + session observation |
+| `detach` operation | `cmd/internal/couchcore/ops.go`, `operationdispatch.go` | new | typed operation surface |
+| `Couch.Leave` | `cmd/internal/couchcore/park.go` | new | now detaches rather than parks |
+| `Couch.ActionableThreadInventoryContext` | `cmd/internal/couchcore/actionableinventory.go` | new | adds one session-list query per refresh |
+| `Console.onDetachHotkey` | `cmd/internal/couchtty/console.go` | new | `alt+d` → typed `detach` |
 
 - **`DetachedSessionResolver`** — one method, **`DetachedSessions(ctx context.Context, addresses []ThreadAddress) ([]DetachedSessionObservation, error)`**, satisfied by `ScopedThreadArtifactCollisionChecker` alongside the `NativeBindingResolver` it already satisfies (`artifactcollision.go:205`). Obtained by type assertion on `Couch.Artifacts`, the pattern `actionableinventory.go:155` and `resume.go:192` already use.
   - **Why it takes addresses rather than returning the whole set:** the session-name index is **per repo scope** — `artifactpath.Resolve` puts it at `<dataDir>/repos/<RepoScope>/session-names.jsonl` (`paths.go:353,500`), and `PairSession` (`artifactcollision.go:130-167`) reads exactly one scope's index. A no-argument whole-set method would need a `<dataDir>/repos/*` enumeration the checker does not have and this plan should not add. Taking addresses mirrors the existing `PairSession(address)` / `ResolveEstablished(scope, tag, agent)` shape (`ARCH-DRY`), and the caller already holds the record set.
@@ -286,10 +286,10 @@ Retiring the incarnation fixes all three at the source and keeps the projector f
 - Modify: `cmd/internal/couchcore/artifactcollision.go`, `artifactcollision_fake.go`
 - Modify: `cmd/internal/couchcore/artifactcollision_test.go`
 
-- [ ] **Step 1: Write failing tests for `DetachedSessions`.** Strategy: drive the scoped checker over session-index and zellij-listing states — session present with clients, present with zero clients, exited, absent, malformed index, listing error, and a session name that binds to no known thread. Mechanical guard: an observation is emitted only for a live zero-client session whose name binds to an exact `{scope, tag}`; every ambiguous or unreadable state emits nothing and a listing error propagates rather than becoming an empty set.
-- [ ] **Step 2: Run `go test ./cmd/internal/couchcore -run 'DetachedSession' -count=1`; confirm failure.**
-- [ ] **Step 3: Implement `DetachedSessions` on `ScopedThreadArtifactCollisionChecker`,** reusing the session-name index read that `PairSession` (`artifactcollision.go:126`) already performs and `launcher`'s existing state classification. Add `var _ DetachedSessionResolver = ScopedThreadArtifactCollisionChecker{}`. Extend the fake with the same state model.
-- [ ] **Step 4: Run the focused tests; confirm pass. Commit.**
+- [x] **Step 1: Write failing tests for `DetachedSessions`.** Strategy: drive the scoped checker over session-index and zellij-listing states — session present with clients, present with zero clients, exited, absent, malformed index, listing error, and a session name that binds to no known thread. Mechanical guard: an observation is emitted only for a live zero-client session whose name binds to an exact `{scope, tag}`; every ambiguous or unreadable state emits nothing and a listing error propagates rather than becoming an empty set.
+- [x] **Step 2: Run `go test ./cmd/internal/couchcore -run 'DetachedSession' -count=1`; confirm failure.**
+- [x] **Step 3: Implement `DetachedSessions` on `ScopedThreadArtifactCollisionChecker`,** reusing the session-name index read that `PairSession` (`artifactcollision.go:126`) already performs and `launcher`'s existing state classification. Add `var _ DetachedSessionResolver = ScopedThreadArtifactCollisionChecker{}`. Extend the fake with the same state model.
+- [x] **Step 4: Run the focused tests; confirm pass. Commit.**
 
 ### Task 8: Project the detached row
 
@@ -297,10 +297,10 @@ Retiring the incarnation fixes all three at the source and keeps the projector f
 - Modify: `cmd/internal/couchcore/actionableinventory.go`
 - Modify: `cmd/internal/couchcore/actionableinventory_test.go`
 
-- [ ] **Step 1: Write failing tests for `ProjectActionableThreads` with detached observations.** Strategy: cross the new observation against every existing record class — reserved, mid-park, verified-park, live-with-matching-TTY, **live-without-TTY (the stale-incarnation case)**, multi-incarnation, zero-incarnation without a launch profile, two observations for one address, one observation for an unknown address. Mechanical guards: `ThreadDetached` is emitted only for a record with **zero incarnations**, no verified park, a `LatestLaunchProfile`, and exactly one matching observation; a record still carrying an incarnation stays **hidden** even when a detached observation matches it (this is the fail-closed property — a crashed couch must not look like a clean detach); and `ThreadLive`/`ThreadParked` results are byte-identical to today for every input containing no detached observation (a regression fixture pins this).
-- [ ] **Step 2: Run `go test ./cmd/internal/couchcore -run 'ProjectActionableThreads' -count=1`; confirm failure.**
-- [ ] **Step 3: Implement.** Add `ThreadDetached` to the state enum and one branch to `actionableThreadState` (`actionableinventory.go:104`); add the parameter to `ProjectActionableThreads` and the single query to `ActionableThreadInventoryContext`. Add `.Detached()` beside `.Live()`.
-- [ ] **Step 4: Run `go test ./cmd/internal/couchcore -count=1`; confirm pass. Commit.**
+- [x] **Step 1: Write failing tests for `ProjectActionableThreads` with detached observations.** Strategy: cross the new observation against every existing record class — reserved, mid-park, verified-park, live-with-matching-TTY, **live-without-TTY (the stale-incarnation case)**, multi-incarnation, zero-incarnation without a launch profile, two observations for one address, one observation for an unknown address. Mechanical guards: `ThreadDetached` is emitted only for a record with **zero incarnations**, no verified park, a `LatestLaunchProfile`, and exactly one matching observation; a record still carrying an incarnation stays **hidden** even when a detached observation matches it (this is the fail-closed property — a crashed couch must not look like a clean detach); and `ThreadLive`/`ThreadParked` results are byte-identical to today for every input containing no detached observation (a regression fixture pins this).
+- [x] **Step 2: Run `go test ./cmd/internal/couchcore -run 'ProjectActionableThreads' -count=1`; confirm failure.**
+- [x] **Step 3: Implement.** Add `ThreadDetached` to the state enum and one branch to `actionableThreadState` (`actionableinventory.go:104`); add the parameter to `ProjectActionableThreads` and the single query to `ActionableThreadInventoryContext`. Add `.Detached()` beside `.Live()`.
+- [x] **Step 4: Run `go test ./cmd/internal/couchcore -count=1`; confirm pass. Commit.**
 
 ### Task 9: The detach operation
 
@@ -309,25 +309,25 @@ Retiring the incarnation fixes all three at the source and keeps the projector f
 - Modify: `cmd/internal/couchcore/ops.go`, `operationdispatch.go`, `park.go` (`Leave`)
 - Modify: `cmd/internal/couchcore/ops_test.go`, `operationdispatch_test.go`, `park_test.go`
 
-- [ ] **Step 1: Write failing tests for `ThreadStore.RetireIncarnation` first.** Strategy: cross record shape (zero / one / several incarnations; open park transaction; open start transaction; verified park present) against the supplied identity (exact match, recycled PID with a different start token, no match) against revision (current, stale). Mechanical guards: exactly the exactly-matching incarnation is removed and nothing else on the record changes; `LatestLaunchProfile` survives; every non-matching or transaction-bearing case refuses without a write; a stale revision refuses.
-- [ ] **Step 2: Run `go test ./cmd/internal/couchcore -run 'RetireIncarnation' -count=1`; confirm failure. Implement it as `FinalizePark`'s removal half over `UpdateExistingThread`; re-run and confirm pass.**
-- [ ] **Step 3: Write failing tests for `Couch.Detach` and the retargeted `Leave`.** Strategy: drive teardown and post-teardown observation through the existing fake Runner/Proc/artifact seams across: clean detach; the client ignoring SIGTERM until the deadline; session absent after exit; session still attached (non-zero clients) after exit; the process still alive after the wait; context cancellation mid-wait; detach of an address with no live incarnation; a `RetireIncarnation` CAS failure after a successful teardown; and `Leave` over zero, one and several threads, with a mid-park thread among them and with a failure in the middle. Mechanical guards, each asserted rather than assumed:
+- [x] **Step 1: Write failing tests for `ThreadStore.RetireIncarnation` first.** Strategy: cross record shape (zero / one / several incarnations; open park transaction; open start transaction; verified park present) against the supplied identity (exact match, recycled PID with a different start token, no match) against revision (current, stale). Mechanical guards: exactly the exactly-matching incarnation is removed and nothing else on the record changes; `LatestLaunchProfile` survives; every non-matching or transaction-bearing case refuses without a write; a stale revision refuses.
+- [x] **Step 2: Run `go test ./cmd/internal/couchcore -run 'RetireIncarnation' -count=1`; confirm failure. Implement it as `FinalizePark`'s removal half over `UpdateExistingThread`; re-run and confirm pass.**
+- [x] **Step 3: Write failing tests for `Couch.Detach` and the retargeted `Leave`.** Strategy: drive teardown and post-teardown observation through the existing fake Runner/Proc/artifact seams across: clean detach; the client ignoring SIGTERM until the deadline; session absent after exit; session still attached (non-zero clients) after exit; the process still alive after the wait; context cancellation mid-wait; detach of an address with no live incarnation; a `RetireIncarnation` CAS failure after a successful teardown; and `Leave` over zero, one and several threads, with a mid-park thread among them and with a failure in the middle. Mechanical guards, each asserted rather than assumed:
       1. `Quiesce`/`DeleteSession` is **never** called on the detach path (assert the fake's call log — this is the entire difference from park).
       2. **No SIGKILL is ever sent** on the detach path (assert the fake `ProcOps` signal log) — this is what makes Decision 3 safe to apply to every thread on the way out.
       3. `RetireIncarnation` is called only after *both* proofs (session survives, process gone); a failed proof leaves the record untouched and the thread live.
       4. After a successful detach the record has zero incarnations, no verified park, and an intact `LatestLaunchProfile`, so `hasActiveIncarnation` is false and `DecideResume`'s occupied-incarnation gate passes.
       5. `Leave` parks a mid-park thread to completion rather than detaching it, and reports partial progress on failure without closing the console.
-- [ ] **Step 4: Run `go test ./cmd/internal/couchcore -run 'Detach|Leave' -count=1`; confirm failure.**
-- [ ] **Step 5: Implement `Couch.Detach` in `cmd/internal/couchcore/detach.go`;** declare `detach` in `Operations()` with a confirmation-free presentation and the same execution owner `park` uses, and route it in `DispatchOperation`. Retarget `Leave`'s per-thread call and rename `LeaveResult.Parked` (no consumer outside `park.go:143` and `park_test.go:281`).
-- [ ] **Step 5b: Retire the superseded "couch has no detach" invariant — in the same step that violates it, not later.** Three places assert it and one of them is a test that fails the moment `detach` is declared:
+- [x] **Step 4: Run `go test ./cmd/internal/couchcore -run 'Detach|Leave' -count=1`; confirm failure.**
+- [x] **Step 5: Implement `Couch.Detach` in `cmd/internal/couchcore/detach.go`;** declare `detach` in `Operations()` with a confirmation-free presentation and the same execution owner `park` uses, and route it in `DispatchOperation`. Retarget `Leave`'s per-thread call and rename `LeaveResult.Parked` (no consumer outside `park.go:143` and `park_test.go:281`).
+- [x] **Step 5b: Retire the superseded "couch has no detach" invariant — in the same step that violates it, not later.** Three places assert it and one of them is a test that fails the moment `detach` is declared:
       - `cmd/internal/couchcore/ops_declarations_test.go:55`, `TestParkLeaveResumeAndNoCouchDetachSurface`, contains `case "detach": t.Fatal("Couch exposes a detach operation")`. **Invert it** — assert `detach` is declared with the expected effect and owner — rather than deleting it; it encodes a decision that is being reversed, and an inverted test records the reversal where the next reader will find it. Rename it accordingly.
       - `README.md:302` — "Alt+d remains Pair-local detach; Couch exposes no detach operation."
       - `atlas/couch.md:333` — the same claim in prose.
       Leaving these to Task 11 means Task 10 Step 4's `go test ./cmd/...` fails for a reason two tasks away from its cause.
-- [ ] **Step 5c: Add `"detach"` and `"leave"` to `consumeExpectedParkExitLocked`** (`console.go:1234-1240`), which today matches only `origin.Operation == "park"`. Without it every detach — and every thread on `leave` — pushes a spurious `ExitNotice` into the operator's status row, which is exactly the noise the notification design is trying to keep meaningful.
-- [ ] **Step 5d: Fix `couch --list`'s zero-incarnation rendering** (`couchcmd/run.go:596-598`), which prints "(no agent running)". For a detached thread the agent *is* running — only the client is gone — so the CLI would contradict the switcher.
-- [ ] **Step 6: Register `cmd/internal/couchcore/detach.go` in `NonArtifactSources`** (`cmd/internal/artifactpath/manifest.go`) — same requirement as Task 1 Step 5; without it `make test` fails at Task 11.
-- [ ] **Step 7: Run `go test ./cmd/internal/couchcore ./cmd/internal/artifactpath -count=1`; confirm pass. Commit.**
+- [x] **Step 5c: Add `"detach"` and `"leave"` to `consumeExpectedParkExitLocked`** (`console.go:1234-1240`), which today matches only `origin.Operation == "park"`. Without it every detach — and every thread on `leave` — pushes a spurious `ExitNotice` into the operator's status row, which is exactly the noise the notification design is trying to keep meaningful.
+- [x] **Step 5d: Fix `couch --list`'s zero-incarnation rendering** (`couchcmd/run.go:596-598`), which prints "(no agent running)". For a detached thread the agent *is* running — only the client is gone — so the CLI would contradict the switcher.
+- [x] **Step 6: Register `cmd/internal/couchcore/detach.go` in `NonArtifactSources`** (`cmd/internal/artifactpath/manifest.go`) — same requirement as Task 1 Step 5; without it `make test` fails at Task 11.
+- [x] **Step 7: Run `go test ./cmd/internal/couchcore ./cmd/internal/artifactpath -count=1`; confirm pass. Commit.**
 
 ### Task 10: Reattach a detached thread
 
@@ -338,17 +338,17 @@ Retiring the incarnation fixes all three at the source and keeps the projector f
 - Modify: `cmd/internal/couchtty/menu.go` (`menuActionItems`, the `KeyEnter` branch at `menu.go:369-379`)
 - Modify: `cmd/internal/couchtty/menu_test.go`
 
-- [ ] **Step 1: Write failing tests.** Strategy: for `DecideResume`, cross verified-park presence against detached-proof presence against launch-profile presence against incarnation state (zero / live / creating / unknown) **against `ParkHistory` tombstone presence**, including both-proofs-present and neither-present. The tombstoned-history × detached cross is the one that would otherwise ship a permanently unreattachable class. For the menu, drive `KeyEnter` and `KeyTab` over live/parked/detached rows. Mechanical guards: a detached record resumes without a verified park and without clearing one; **a record carrying any occupied incarnation still refuses even with a detached proof** (the `resume.go:73-86` gate is unchanged — retirement is what a real detach relies on, not a relaxed check); a record with neither proof refuses; Enter on a detached row dispatches `resume`; its action list offers `detach` for live rows and `resume` for detached ones.
-- [ ] **Step 1b: Add the rollback test that pins the data-loss fix.** Strategy: drive a detached resume to failure at each post-claim site (`resume.go:233,236,242`) and through `StartRollback` at a fresh `New()`. Mechanical guard: **the thread record still exists** afterwards with its name, description and `LatestLaunchProfile` intact, and the row returns to `ThreadDetached` on the next refresh. Write this before the fix; on today's code it fails by deleting the record, which is the behaviour being removed.
-- [ ] **Step 2: Run the focused tests; confirm failure.**
-- [ ] **Step 3: Implement — three edits, not one.**
+- [x] **Step 1: Write failing tests.** Strategy: for `DecideResume`, cross verified-park presence against detached-proof presence against launch-profile presence against incarnation state (zero / live / creating / unknown) **against `ParkHistory` tombstone presence**, including both-proofs-present and neither-present. The tombstoned-history × detached cross is the one that would otherwise ship a permanently unreattachable class. For the menu, drive `KeyEnter` and `KeyTab` over live/parked/detached rows. Mechanical guards: a detached record resumes without a verified park and without clearing one; **a record carrying any occupied incarnation still refuses even with a detached proof** (the `resume.go:73-86` gate is unchanged — retirement is what a real detach relies on, not a relaxed check); a record with neither proof refuses; Enter on a detached row dispatches `resume`; its action list offers `detach` for live rows and `resume` for detached ones.
+- [x] **Step 1b: Add the rollback test that pins the data-loss fix.** Strategy: drive a detached resume to failure at each post-claim site (`resume.go:233,236,242`) and through `StartRollback` at a fresh `New()`. Mechanical guard: **the thread record still exists** afterwards with its name, description and `LatestLaunchProfile` intact, and the row returns to `ThreadDetached` on the next refresh. Write this before the fix; on today's code it fails by deleting the record, which is the behaviour being removed.
+- [x] **Step 2: Run the focused tests; confirm failure.**
+- [x] **Step 3: Implement — three edits, not one.**
       1. `resume.go:88-95`: add the detached branch to the `VerifiedPark == nil` refusal, carrying the detached proof in a new `ResumeEligibilityInput` field (the proof has to reach `DecideResume` somehow, and a field keeps the function pure). Leave the occupied-incarnation loop at `:73-86` untouched — retirement is what a real detach relies on, not a relaxed check.
          **The detached proof is checked BEFORE the `ParkHistory` tombstone scan**, and the ordering is load-bearing. That scan (`resume.go:89-92`) refuses on *any* tombstoned entry, has no `break`, and `AbandonPark` appends tombstones permanently (`threadstore.go:414-415`). So a thread that was once abandoned mid-park, then started again and detached, would be **permanently unreattachable** if the detached branch sat after it. The tombstone rule means "there is no valid park to resume from"; a detached thread is not resuming from a park at all, so the rule does not apply to it. Order the branch accordingly and say so in the code comment.
       2. `admission.go:183`: widen `ReconcileResumeAdmission`'s `candidate.VerifiedPark == nil` refusal the same way. Without this the row still fails with "is not verified parked" after `DecideResume` passes.
       3. `threadstore.go`, `DeleteStart`'s no-verified-park accept predicate: refuse deletion when `LatestLaunchProfile != nil` and clear the start claim instead.
       Then in `menu.go` treat `ThreadDetached` like `ThreadParked` for Enter (`operation = "resume"`, the arm at `menu.go:369-379`) and give `menuActionItems` (`menu.go:862`) a detach entry for live rows.
-- [ ] **Step 3b: Assert the native binding still resolves for a 0-client session.** A detached record must reach `BindingEstablished` — if `bindingResumeDiagnostic` (`resume.go:107`) refuses because the session has no clients, the whole reattach path is dead and every test above would still pass on mocked bindings.
-- [ ] **Step 4: Run `go test ./cmd/... -count=1`; confirm pass. Commit.**
+- [x] **Step 3b: Assert the native binding still resolves for a 0-client session.** A detached record must reach `BindingEstablished` — if `bindingResumeDiagnostic` (`resume.go:107`) refuses because the session has no clients, the whole reattach path is dead and every test above would still pass on mocked bindings.
+- [x] **Step 4: Run `go test ./cmd/... -count=1`; confirm pass. Commit.**
 
 ### Task 11: `alt+d` and the M2 close
 
@@ -356,15 +356,15 @@ Retiring the incarnation fixes all three at the source and keeps the projector f
 - Modify: `cmd/internal/couchtty/keys.go`, `console.go`, `keys_test.go`, `console_test.go`
 - Modify: `atlas/couch.md`
 
-- [ ] **Step 1: Write failing tests.** Strategy: feed `ChordEncodings(ChordAltD)` through `FeedHit` split across read boundaries and inside a paste, and through a console with an actor focused and with the panel focused. Mechanical guards: exactly one `HitDetach` per press with a correct split; no fire inside a paste; `alt+d` on an actor dispatches typed `detach` for that actor; `alt+d` on the panel is a no-op notice (there is no actor to detach).
-- [ ] **Step 2: Run the focused tests; confirm failure.**
-- [ ] **Step 3: Implement.** Add `seqDetach`/`HitDetach` built from `workbenchshortcut.ChordEncodings(workbenchshortcut.ChordAltD)` exactly as `seqPark` is (`keys.go:69-75`); add the `processInput` branch and `onDetachHotkey`.
-- [ ] **Step 4: Add the live conformance case** to `TestSessionQuiescenceLive`'s neighbourhood: detach an ephemeral real session and assert the session survives with zero clients (the inverse of the quiescence assertion). Gate it behind the existing `make test-couch-zellij-live`.
-- [ ] **Step 4b: Land M2's documentation with M2's behavior.** Add the `Alt+d detach` row to `menuControls` here (Task 5 deliberately left it out so no milestone ships a documented key that does nothing), and rewrite `README.md:350-352` — "parks every active actor sequentially, and returns to the parent shell only after all parks are verified" becomes false the moment `Leave` detaches. No other task claims that sentence.
-- [ ] **Step 4c: Measure the refresh, do not assert it.** Run the committed `BenchmarkMenu100` fixture plus a refresh-apply timing with N detached candidates, and record the numbers in the issue `## Log`. The envelope paragraph claims 2 + N subprocess spawns bounded to candidates and a 16 ms refresh-apply budget; without this step that claim ships unverified. If it regresses, cache the snapshot across refreshes — do not move the query onto the keystroke path.
-- [ ] **Step 5: Run `env -u PAIR_SESSION_ID -u PAIR_TAG make test`; confirm pass. Update `atlas/couch.md`** — the detached state and its two proofs, `RetireIncarnation` as the second incarnation-removal path beside `FinalizePark`, the `Leave`-detaches change, and the `alt+d` interception (which contradicts the current "Alt+d remains Pair-local detach and is not a Couch operation" sentence).
-- [ ] **Step 6: File the follow-up issue** for startup reconciliation of stale `IncarnationLive` records left by a crashed couch (`sdlc issue new`), referencing `RetireIncarnation` as the transition it would use. This is the pre-existing gap named above; recording it is what keeps it from being silently absorbed.
-- [ ] **Step 7: `sdlc milestone-close --issue 170 --milestone M2`.**
+- [x] **Step 1: Write failing tests.** Strategy: feed `ChordEncodings(ChordAltD)` through `FeedHit` split across read boundaries and inside a paste, and through a console with an actor focused and with the panel focused. Mechanical guards: exactly one `HitDetach` per press with a correct split; no fire inside a paste; `alt+d` on an actor dispatches typed `detach` for that actor; `alt+d` on the panel is a no-op notice (there is no actor to detach).
+- [x] **Step 2: Run the focused tests; confirm failure.**
+- [x] **Step 3: Implement.** Add `seqDetach`/`HitDetach` built from `workbenchshortcut.ChordEncodings(workbenchshortcut.ChordAltD)` exactly as `seqPark` is (`keys.go:69-75`); add the `processInput` branch and `onDetachHotkey`.
+- [x] **Step 4: Add the live conformance case** to `TestSessionQuiescenceLive`'s neighbourhood: detach an ephemeral real session and assert the session survives with zero clients (the inverse of the quiescence assertion). Gate it behind the existing `make test-couch-zellij-live`.
+- [x] **Step 4b: Land M2's documentation with M2's behavior.** Add the `Alt+d detach` row to `menuControls` here (Task 5 deliberately left it out so no milestone ships a documented key that does nothing), and rewrite `README.md:350-352` — "parks every active actor sequentially, and returns to the parent shell only after all parks are verified" becomes false the moment `Leave` detaches. No other task claims that sentence.
+- [x] **Step 4c: Measure the refresh, do not assert it.** Run the committed `BenchmarkMenu100` fixture plus a refresh-apply timing with N detached candidates, and record the numbers in the issue `## Log`. The envelope paragraph claims 2 + N subprocess spawns bounded to candidates and a 16 ms refresh-apply budget; without this step that claim ships unverified. If it regresses, cache the snapshot across refreshes — do not move the query onto the keystroke path.
+- [x] **Step 5: Run `env -u PAIR_SESSION_ID -u PAIR_TAG make test`; confirm pass. Update `atlas/couch.md`** — the detached state and its two proofs, `RetireIncarnation` as the second incarnation-removal path beside `FinalizePark`, the `Leave`-detaches change, and the `alt+d` interception (which contradicts the current "Alt+d remains Pair-local detach and is not a Couch operation" sentence).
+- [x] **Step 6: File the follow-up issue** for startup reconciliation of stale `IncarnationLive` records left by a crashed couch (`sdlc issue new`), referencing `RetireIncarnation` as the transition it would use. This is the pre-existing gap named above; recording it is what keeps it from being silently absorbed.
+- [x] **Step 7: `sdlc milestone-close --issue 170 --milestone M2`.**
 
 ---
 

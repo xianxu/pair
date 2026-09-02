@@ -1,7 +1,9 @@
 package couchcore
 
 import (
+	"context"
 	"testing"
+	"time"
 
 	"github.com/xianxu/pair/cmd/internal/launcher"
 )
@@ -91,5 +93,95 @@ func TestProjectDetachedSessions(t *testing.T) {
 				}
 			}
 		})
+	}
+}
+
+// The refresh's detached observation costs 2 + N zellij subprocesses
+// (list-sessions twice, plus one list-clients per pair session), so what keeps
+// it proportional is asking ONLY about records that could be detached. This
+// pins that bound directly, because a benchmark of the pure reducer cannot see
+// it -- the query lives on the refresh worker, not the keystroke path.
+func TestActionableInventoryAsksOnlyAboutDetachCandidates(t *testing.T) {
+	ns := testCouchNamespace(t)
+	store := NewThreadStore(ns)
+	profile := &LaunchProfile{Agent: "claude", Argv: []string{}}
+
+	newRecord := func(tag string, mutate func(*ThreadRecord)) ThreadAddress {
+		t.Helper()
+		seed := validThreadRecord(t)
+		seed.Address.Tag = ThreadTag(tag)
+		seed.StartingPath, seed.WorkingPath = ns.Dir(), ns.Dir()
+		created, err := store.CreateThread(seed)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if _, err := store.UpdateExistingThread(created.Address, created.Revision, func(next *ThreadRecord) error {
+			next.Reservation = false
+			next.LatestLaunchProfile = profile
+			mutate(next)
+			return nil
+		}); err != nil {
+			t.Fatal(err)
+		}
+		return created.Address
+	}
+
+	candidate := newRecord("couch-0000000000000001", func(*ThreadRecord) {})
+	// Occupied: it has an incarnation, so it cannot be detached.
+	newRecord("couch-0000000000000002", func(r *ThreadRecord) {
+		r.Incarnations = []ThreadIncarnation{{State: IncarnationLive, PID: 5, Identity: "id-5", StartedAt: time.Unix(2, 0).UTC()}}
+	})
+	// No profile: nothing to reattach with, so asking about it is wasted IO.
+	newRecord("couch-0000000000000003", func(r *ThreadRecord) { r.LatestLaunchProfile = nil })
+
+	artifacts := NewFakeThreadArtifactCollisionChecker()
+	var asked [][]ThreadAddress
+	artifacts.DetachedSessionsHook = func(addresses []ThreadAddress) error {
+		asked = append(asked, addresses)
+		return nil
+	}
+	couch := &Couch{Threads: store, Artifacts: artifacts, Path: NewFakePathOps(nil)}
+
+	if _, err := couch.ActionableThreadInventoryContext(context.Background(), nil); err != nil {
+		t.Fatal(err)
+	}
+	if len(asked) != 1 {
+		t.Fatalf("DetachedSessions called %d times, want exactly one batched query", len(asked))
+	}
+	if len(asked[0]) != 1 || asked[0][0] != candidate {
+		t.Fatalf("asked about %+v, want only the candidate %+v", asked[0], candidate)
+	}
+}
+
+// With no candidates at all, the refresh must not spawn the query.
+func TestActionableInventorySkipsTheQueryWithNoCandidates(t *testing.T) {
+	ns := testCouchNamespace(t)
+	store := NewThreadStore(ns)
+	seed := validThreadRecord(t)
+	seed.StartingPath, seed.WorkingPath = ns.Dir(), ns.Dir()
+	created, err := store.CreateThread(seed)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := store.UpdateExistingThread(created.Address, created.Revision, func(next *ThreadRecord) error {
+		next.Reservation = false
+		next.Incarnations = []ThreadIncarnation{{State: IncarnationLive, PID: 5, Identity: "id-5", StartedAt: time.Unix(2, 0).UTC()}}
+		return nil
+	}); err != nil {
+		t.Fatal(err)
+	}
+
+	artifacts := NewFakeThreadArtifactCollisionChecker()
+	called := 0
+	artifacts.DetachedSessionsHook = func([]ThreadAddress) error {
+		called++
+		return nil
+	}
+	couch := &Couch{Threads: store, Artifacts: artifacts, Path: NewFakePathOps(nil)}
+	if _, err := couch.ActionableThreadInventoryContext(context.Background(), nil); err != nil {
+		t.Fatal(err)
+	}
+	if called != 0 {
+		t.Fatalf("DetachedSessions was called %d times with no candidates", called)
 	}
 }

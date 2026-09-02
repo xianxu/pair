@@ -24,6 +24,7 @@ var menuControls = []MenuControl{
 	{Keys: "Right", Action: "forward"},
 	{Keys: "Ctrl-Space", Action: "start"},
 	{Keys: "Ctrl-Backspace", Action: "previous"},
+	{Keys: "Alt+d", Action: "detach"},
 	{Keys: "Alt+x", Action: "park/leave"},
 	{Keys: "Escape", Action: "clear/back"},
 }
@@ -281,7 +282,7 @@ func ReduceMenu(state MenuState, event MenuEvent) (MenuState, []MenuEffect) {
 		return next, nil
 	}
 	if event.Kind == MenuEventParkHotkey {
-		return reduceParkHotkey(next, event), nil
+		return reduceParkHotkey(next, event)
 	}
 	if event.Kind == MenuEventRefreshStarted {
 		next.RefreshPending = true
@@ -437,16 +438,34 @@ func menuFrameBindsThread(frame MenuFrame) bool {
 	return frame.Kind == MenuFrameActions || frame.Kind == MenuFrameConfirmation || frame.Kind == MenuFrameText
 }
 
-func reduceParkHotkey(state MenuState, event MenuEvent) MenuState {
-	if event.Operation != "park" && event.Operation != "leave" {
-		state.Notice = errorMenuNotice("park action is unavailable")
-		return state
+// reduceParkHotkey handles the Alt+x/Alt+d ownership-boundary chords.
+//
+// It returns effects because detach dispatches IMMEDIATELY -- it needs no
+// confirmation, so there is no later Enter to carry the effect. Park and leave
+// still return none: they only open a confirmation frame, and the effect comes
+// when that frame is confirmed.
+func reduceParkHotkey(state MenuState, event MenuEvent) (MenuState, []MenuEffect) {
+	switch event.Operation {
+	case "park", "detach", "leave":
+	default:
+		state.Notice = errorMenuNotice("action is unavailable")
+		return state, nil
+	}
+	if event.Operation == "detach" {
+		thread, ok := findMenuThread(state.Inventory, event.Address)
+		if !ok || !thread.Live() {
+			state.Notice = errorMenuNotice("active thread is no longer actionable")
+			return state, nil
+		}
+		state.Frames = state.Frames[:1]
+		state.Frames[0].SelectedAddress = event.Address
+		return dispatchThreadOperation(state, "detach", event.Address)
 	}
 	if event.Operation == "park" {
 		thread, ok := findMenuThread(state.Inventory, event.Address)
 		if !ok || !thread.Live() {
 			state.Notice = errorMenuNotice("active thread is no longer actionable")
-			return state
+			return state, nil
 		}
 	}
 	state.Frames = state.Frames[:1]
@@ -458,9 +477,9 @@ func reduceParkHotkey(state MenuState, event MenuEvent) MenuState {
 		frame.Thread = event.Address
 	}
 	if !appendMenuFrame(&state, frame) {
-		return state
+		return state, nil
 	}
-	return state
+	return state, nil
 }
 
 func reduceActionKey(state MenuState, key PanelKey) (MenuState, []MenuEffect) {

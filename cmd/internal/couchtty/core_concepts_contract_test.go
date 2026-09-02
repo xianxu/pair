@@ -35,6 +35,9 @@ var conceptInventory = []struct{ kind, name string }{
 	{"PURE", "`Up`"},
 	{"PURE", "`sequenceAt` / `knownSequences`"},
 	{"PURE", "`DecodePanelKeys` CSI-u branch"},
+	// pair#170 M2 — detach reaches the switcher.
+	{"PURE", "`menuActionItems` / `reduceRootKey`"},
+	{"INTEGRATION", "`Console.onDetachHotkey`"},
 	{"PURE", "`PanelModel` / `Filter` / `SelectTree` / target join"},
 	{"PURE", "`PanelKey` / `DecodePanelKeys`"},
 	{"PURE", "`StatusModel` / `RenderStatusRow`"},
@@ -200,18 +203,32 @@ func conceptInventoryProblems(rows []conceptContractRow) []string {
 // `planned` status, which the row loop skips -- so the status column doubles as
 // the build tracker, and flipping a row to `new` at its milestone is what turns
 // the assertion on.
-var conceptPlans = []string{
-	"000146-couch-tty-switching-and-attach-plan.md",
-	"000170-rescope-couch-to-couch-lite-plan.md",
+var conceptPlans = []conceptPlan{
+	// #146's table IS this package's architecture table: its INTEGRATION rows
+	// deliberately reach outside couchtty (ptychild, hostty, termcmd) because
+	// those are the seams couchtty consumes. All of its rows are pinned here.
+	{name: "000146-couch-tty-switching-and-attach-plan.md", allRows: true},
+	// A later plan spans several packages and contributes only the rows whose
+	// declared path lives here; its couchcore entities are couchcore's to pin.
+	{name: "000170-rescope-couch-to-couch-lite-plan.md"},
 }
 
-func findConceptPlans(t *testing.T, root string) []string {
+type conceptPlan struct {
+	name    string
+	allRows bool
+}
+
+// conceptPackage is the package this contract defends.
+const conceptPackage = "cmd/internal/couchtty/"
+
+func findConceptPlans(t *testing.T, root string) []conceptPlan {
 	t.Helper()
-	var found []string
-	for _, name := range conceptPlans {
+	var found []conceptPlan
+	for _, plan := range conceptPlans {
+		name := plan.name
 		active := filepath.Join(root, "workshop", "plans", name)
 		if _, err := os.Stat(active); err == nil {
-			found = append(found, active)
+			found = append(found, conceptPlan{name: active, allRows: plan.allRows})
 			continue
 		}
 		var archived string
@@ -224,9 +241,9 @@ func findConceptPlans(t *testing.T, root string) []string {
 		if archived == "" {
 			t.Fatalf("find %s in active or archived plans", name)
 		}
-		found = append(found, archived)
+		found = append(found, conceptPlan{name: archived, allRows: plan.allRows})
 	}
-	sort.Strings(found)
+	sort.Slice(found, func(i, j int) bool { return found[i].name < found[j].name })
 	return found
 }
 
@@ -237,11 +254,20 @@ func conceptRowsForPackage(t *testing.T, root string) []conceptContractRow {
 	seen := map[string]bool{}
 	var rows []conceptContractRow
 	for _, plan := range findConceptPlans(t, root) {
-		for _, row := range parseConceptRows(t, plan) {
-			// No path filter: a plan named in conceptPlans is this package's
-			// plan, and its INTEGRATION rows deliberately reach outside the
-			// package (ptychild, hostty, termcmd) -- that is what makes them
-			// integration points.
+		for _, row := range parseConceptRows(t, plan.name) {
+			if !plan.allRows {
+				// A multi-package plan contributes only the rows that live
+				// here; its other packages' entities are theirs to pin.
+				owned := false
+				for _, path := range row.paths {
+					if strings.HasPrefix(path, conceptPackage) {
+						owned = true
+					}
+				}
+				if !owned {
+					continue
+				}
+			}
 			if strings.Contains(strings.ToLower(row.status), "planned") {
 				// Declared for a milestone that has not shipped. Invisible to
 				// both the inventory and the assertions until its status flips

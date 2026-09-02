@@ -366,10 +366,53 @@ canonical chord table, renders confirmation first, and submits confirmed work
 through the `PairLifecycleController`'s bounded, capacity-one worker. Startup
 recovery, Park, Retry, Recover, Abandon, and Leave all enter that same boundary;
 same-address/same-nonce overlap shares one future, while other work overloads
-without lifecycle effects. Alt+d remains Pair-local detach and is not a Couch
-operation.
+without lifecycle effects.
 
-Resume accepts only verified park. It atomically records a creating/start claim
+**Alt+d is Couch's own detach** (`pair#170`), intercepted like Alt+x and for the
+same reason: un-intercepted, Pair's `PairConfirmDetach` runs `zellij action
+detach` from inside the session, leaving Couch with a dead child and a stale live
+incarnation that the fail-closed projection hides -- the operator's safest
+gesture would make the thread disappear. Detach is park's WARM counterpart:
+`Couch.Detach` SIGTERMs the actor's process group (never SIGKILL -- it does not
+reuse `handleCleanup`, whose own comment calls that path rollback rather than
+graceful shutdown), waits bounded for exit, proves the zellij session is still
+there before AND after, and only then retires the incarnation by CAS through
+`ThreadStore.RetireIncarnation` -- FinalizePark's removal half without the park
+transaction, because nothing was torn down and writing a verified park would
+claim a teardown that never happened. A client that ignores SIGTERM makes detach
+FAIL rather than escalate; nothing was destroyed, so failing is safe. It needs no
+confirmation, and that asymmetry with park is why both exist.
+
+`Leave` detaches every active thread instead of parking them, so quitting Couch
+no longer kills a running agent. A thread already mid-park is driven to
+completion, and one carrying an `unknown` incarnation is SKIPPED and reported --
+parking is the destructive option and Couch cannot vouch for that state.
+
+**Detached is a derived actionable state, not a persisted one.** `launcher`
+already classifies a live zellij session with zero clients as `SessionDetached`,
+and `pair resume` already reattaches onto one, so `ProjectDetachedSessions`
+consumes that rather than teaching Couch a second way to ask. It fails closed
+both ways -- two addresses claiming one session name, or two zellij rows sharing
+one name -- and the projector's detached branch requires ZERO incarnations, which
+is what keeps a crashed Couch's stale `IncarnationLive` from masquerading as a
+clean detach. `DetachedSessions` takes addresses rather than returning the whole
+set, because the session-name index is per repo scope; the inventory passes only
+candidates (no incarnation, no verified park, a saved profile), so refresh cost
+is proportional to detached threads rather than to all of them.
+
+Resume accepts verified park **or proved detachment**. A detached thread has no
+verified park because nothing was torn down; its authority is the surviving
+session. Both `DecideResume` and `ReconcileResumeAdmission` carry that second
+authority -- the latter runs after the former, so widening only one would list a
+row whose Enter fails. The detached branch is checked BEFORE the `ParkHistory`
+tombstone scan, which refuses on any tombstoned entry with no break: a thread
+once abandoned mid-park and later detached would otherwise be permanently
+unreattachable. The occupied-incarnation refusal is unchanged, because detach
+retires the incarnation and the record passes on its own merits.
+`DeleteStart` no longer deletes a record carrying a `LatestLaunchProfile`: the
+verified park used to be the only rollback authority, and an unnamed detached
+thread has none, so a post-claim failure would have deleted the agent and argv
+needed to reattach while its session kept running. It atomically records a creating/start claim
 on the same `{repo_scope, tag}`, reuses the exact saved working path, agent argv,
 and established #155 native root, and read-only validates Pair's existing
 established address marker. It rechecks that root immediately before child

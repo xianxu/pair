@@ -1015,7 +1015,7 @@ func TestLeaveConfirmationNeedsNoLiveThread(t *testing.T) {
 	state := NewMenuState(nil, couchcore.ThreadAddress{})
 	state.InventoryReady = true
 
-	state = reduceParkHotkey(state, MenuEvent{Kind: MenuEventParkHotkey, Operation: "leave"})
+	state, _ = reduceParkHotkey(state, MenuEvent{Kind: MenuEventParkHotkey, Operation: "leave"})
 
 	if len(state.Frames) != 2 || state.Frames[1].Kind != MenuFrameConfirmation {
 		t.Fatalf("frames = %+v, want a confirmation frame over an empty inventory", state.Frames)
@@ -1038,7 +1038,7 @@ func TestLeaveConfirmationSurvivesAnInventoryRefresh(t *testing.T) {
 	}
 	state := NewMenuState([]couchcore.ActionableThreadSummary{live}, live.Address)
 	state.InventoryReady = true
-	state = reduceParkHotkey(state, MenuEvent{Kind: MenuEventParkHotkey, Operation: "leave"})
+	state, _ = reduceParkHotkey(state, MenuEvent{Kind: MenuEventParkHotkey, Operation: "leave"})
 	if len(state.Frames) != 2 {
 		t.Fatalf("frames = %+v, want the leave confirmation", state.Frames)
 	}
@@ -1061,7 +1061,7 @@ func TestParkConfirmationStillDiesWithItsThread(t *testing.T) {
 	}
 	state := NewMenuState([]couchcore.ActionableThreadSummary{live}, live.Address)
 	state.InventoryReady = true
-	state = reduceParkHotkey(state, MenuEvent{Kind: MenuEventParkHotkey, Operation: "park", Address: live.Address})
+	state, _ = reduceParkHotkey(state, MenuEvent{Kind: MenuEventParkHotkey, Operation: "park", Address: live.Address})
 	if len(state.Frames) != 2 {
 		t.Fatalf("frames = %+v, want the park confirmation", state.Frames)
 	}
@@ -1071,5 +1071,51 @@ func TestParkConfirmationStillDiesWithItsThread(t *testing.T) {
 
 	if len(state.Frames) != 1 {
 		t.Fatalf("frames after refresh = %+v, want the park confirmation dropped with its thread", state.Frames)
+	}
+}
+
+// A live row leads with detach and a resumable row offers resume: the action
+// list is where the operator discovers that park is not the only way to put a
+// thread down. Detach first because it is safe and park is not.
+func TestMenuActionItemsLeadWithTheSafeAction(t *testing.T) {
+	live := couchcore.ActionableThreadSummary{State: couchcore.ThreadLive}
+	if got := menuActionItems(live); len(got) == 0 || got[0] != "detach" {
+		t.Fatalf("live actions = %v, want detach first", got)
+	}
+	if !containsMenuItem(menuActionItems(live), "park") {
+		t.Fatalf("live actions = %v, want park still offered", menuActionItems(live))
+	}
+	for _, state := range []couchcore.ActionableThreadState{couchcore.ThreadParked, couchcore.ThreadDetached} {
+		row := couchcore.ActionableThreadSummary{State: state}
+		got := menuActionItems(row)
+		if len(got) == 0 || got[0] != "resume" {
+			t.Fatalf("%s actions = %v, want resume first", state, got)
+		}
+		if containsMenuItem(got, "detach") || containsMenuItem(got, "park") {
+			t.Fatalf("%s actions = %v, want no detach/park on a row with no client", state, got)
+		}
+	}
+}
+
+// reduceRootKey routes Enter by what the row can do: live rows switch, parked
+// and detached rows both resume.
+func TestReduceRootKeyEnterRoutesByRowState(t *testing.T) {
+	for _, test := range []struct {
+		state couchcore.ActionableThreadState
+		want  string
+	}{
+		{couchcore.ThreadLive, "switch"},
+		{couchcore.ThreadParked, "resume"},
+		{couchcore.ThreadDetached, "resume"},
+	} {
+		address := couchcore.ThreadAddress{RepoScope: "scope", Tag: "couch-one"}
+		state := NewMenuState([]couchcore.ActionableThreadSummary{
+			{Address: address, Name: "one", State: test.state},
+		}, address)
+		state.InventoryReady = true
+		_, effects := reduceRootKey(state, PanelKey{Kind: KeyEnter})
+		if len(effects) != 1 || effects[0].Operation != test.want {
+			t.Fatalf("%s Enter = %+v, want one %q effect", test.state, effects, test.want)
+		}
 	}
 }

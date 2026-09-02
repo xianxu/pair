@@ -119,15 +119,23 @@ var knownSequences = func() []struct {
 		// above, not a sequence.
 		{[]byte("\x1b[127;5u"), seqPrevious},
 	}
-	// alt+d (seqDetach) is claimed in M2, together with the console branch that
-	// acts on it. Claiming it here would take Pair's own detach chord away from
-	// the child and give nothing back -- a key that did something yesterday and
-	// nothing today is worse than one that has not arrived yet.
 	for _, chord := range []struct {
 		chord workbenchshortcut.Chord
 		kind  seqKind
 	}{
 		{workbenchshortcut.ChordAltX, seqPark},
+		// alt+d is Pair's own detach chord, intercepted for the same reason
+		// alt+x is: un-intercepted, PairConfirmDetach runs `zellij action
+		// detach` from inside the session, leaving couch with a dead child and
+		// a stale live incarnation -- which the fail-closed projector hides. The
+		// operator's safest gesture would make the thread vanish from the
+		// switcher. Intercepting costs the hosted Pair its own chord and buys
+		// the durable retirement that makes the thread reattachable.
+		//
+		// ChordAltD has exactly one encoding: the table declares no legacy
+		// "\x1bd", so with the Kitty protocol off alt+d passes through to the
+		// child. zellij pushes the protocol, so this is a documented edge.
+		{workbenchshortcut.ChordAltD, seqDetach},
 	} {
 		for _, encoding := range workbenchshortcut.ChordEncodings(chord.chord) {
 			sequences = append(sequences, struct {
