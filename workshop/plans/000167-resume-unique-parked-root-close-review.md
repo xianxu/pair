@@ -163,3 +163,80 @@ dispose:
     note: |
       README now describes automatic unique resume, but its immediately following “Every TUI start allocates” statement still contradicts resumed startup.
 ```
+
+---
+
+## Re-review — 2026-09-01T18:43:55-07:00 (SHIP)
+
+| field | value |
+|-------|-------|
+| issue | 167 — Resume unique parked root on Couch startup |
+| repo | pair |
+| issue file | workshop/issues/000167-resume-unique-parked-root.md |
+| boundary | whole-issue close |
+| milestone | — |
+| window | 1047ed5c5c962a1890c74cdd8a99667d3c39583d..94252cd63a1d56a82251ab7d877f8fee7ebe89fd |
+| command | sdlc close --issue 167 |
+| reviewer | codex |
+| timestamp | 2026-09-01T18:43:55-07:00 |
+| verdict | SHIP |
+
+## Review
+
+```verdict
+verdict: SHIP
+confidence: high
+```
+
+The pinned range fulfills the issue’s Spec and Plan. Automatic unique parked-root resume crosses the production CLI and console-attachment boundary, conservative fallbacks and failures are covered, documentation now matches runtime behavior, and the full Go suite passes. BR-2 is addressed.
+
+1. Strengths
+
+- `SelectUniqueParkedRoot` is deterministic, exact, and rejects ambiguous candidates ([startup.go](/Users/xianxu/workspace/pair/cmd/internal/couchcore/startup.go:11)).
+- `StartInteractive` cleanly reuses actionable inventory and existing Resume authority while preserving new-root fallback ([startup.go](/Users/xianxu/workspace/pair/cmd/internal/couchcore/startup.go:29)).
+- The acceptance test traverses production interactive dispatch through initial console attachment and verifies both parked-thread identity and saved native-session identity ([run_test.go](/Users/xianxu/workspace/pair/cmd/internal/couchcmd/run_test.go:303)).
+- Physical-path normalization remains in the IO shell, with per-record failures conservatively omitted ([actionableinventory.go](/Users/xianxu/workspace/pair/cmd/internal/couchcore/actionableinventory.go:143)).
+- README and atlas both document unique resume, zero/ambiguous fallback, and refusal behavior.
+
+2. Critical findings
+
+None.
+
+3. Important findings
+
+None.
+
+4. Minor findings
+
+None.
+
+5. Test coverage notes
+
+Passed:
+
+- Focused selector, startup, and actionable-inventory tests.
+- Production-boundary `TestInteractiveLaunchResumesUniqueParkedRoot`.
+- `go test ./... -count=1`.
+- Pinned-range `git diff --check`.
+
+BR-1 was also mutation-verified in a scratch archive: disabling the production `StartInteractive` routing made `TestInteractiveLaunchResumesUniqueParkedRoot` fail because a newly allocated root was attached instead of the parked address.
+
+6. Architectural notes for upcoming work
+
+- `ARCH-DRY`: Pass. Eligibility and Resume authority remain single-sourced.
+- `ARCH-PURE`: Pass. Cardinality/identity selection is pure; filesystem, inventory, launch, and attachment remain in thin shells.
+- `ARCH-PURPOSE`: Pass. The public startup path delivers unique resume through final root attachment, with complete documented fallback behavior.
+- `ARCH-MOCK`: Pass. No new external dependency was introduced; integration coverage uses existing stateful seams and durable temporary storage.
+- `ARCH-CONSTRAINTS`: Pass. Startup performs one bounded local inventory pass plus O(n) selection, without retries, prompts, fleet scans, or fan-out.
+
+7. Plan revision recommendations
+
+None. The Core concepts table matches the delivered entities and paths, and the existing BR-2 revision accurately records the completed README sweep.
+
+```findings
+dispose:
+  - id: BR-2
+    disposition: addressed
+    note: |
+      README now documents automatic unique resume, zero-or-ambiguous new-root fallback, and correctly limits durable-thread allocation to startups that create a new root.
+```

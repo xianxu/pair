@@ -1,12 +1,13 @@
 ---
 id: 000167
-status: working
+status: codecomplete
 deps: []
 github_issue:
 created: 2026-09-01
 updated: 2026-09-01
 estimate_hours: 1.89
 started: 2026-09-01T17:56:17-07:00
+actual_hours: 0.97
 ---
 
 # Resume unique parked root on Couch startup
@@ -104,6 +105,7 @@ total: 1.89
 ## Log
 
 ### 2026-09-01
+- 2026-09-01: closed — Production-path restart acceptance traverses runTypedOperation and dispatchInitialAttach with exact parked address/native binding; focused changed-package and full Go suites pass; README/atlas consistently distinguish unique resume from new-root allocation. Host-only make test identity failures recorded.; review verdict: SHIP
 
 Captured from operator experience after using Leave Couch: the desired narrow
 behavior is automatic adoption only for one exact safe candidate. Multiple
