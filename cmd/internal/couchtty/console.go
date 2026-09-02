@@ -1080,25 +1080,30 @@ func (c *Console) onHotkey() {
 // confirmation and runs off the terminal event loop.
 func (c *Console) onParkHotkey() {
 	c.mu.Lock()
-	p := c.panes[c.active]
 	// Alt+x quits what you are looking at: an actor parks, couch's own panel
-	// leaves couch. With the root actor gone (#170) that is what `leave` is
-	// reachable by, and it is derived from focus rather than special-cased.
+	// leaves couch. With the root actor gone (#170) that is how `leave` is
+	// reachable at all, and it is derived from the focus we already have rather
+	// than special-cased.
 	isPanel := c.focus.IsPanel()
-	if p != nil {
+	p := c.panes[c.active]
+	if !isPanel && p != nil {
 		c.focus = FocusPanel()
 		c.menu.ActiveAddress = p.thread
 	}
 	c.mu.Unlock()
+
+	if isPanel {
+		// Deliberately BEFORE the no-active-thread check: leaving couch needs
+		// no live actor, and once leave detaches rather than parks, an
+		// all-detached couch is the normal state to quit from.
+		c.reduceMenu(MenuEvent{Kind: MenuEventParkHotkey, Operation: "leave"})
+		return
+	}
 	if p == nil {
 		c.setNotice("park: no active thread")
 		return
 	}
-	operation := "park"
-	if isPanel {
-		operation = "leave"
-	}
-	c.reduceMenu(MenuEvent{Kind: MenuEventParkHotkey, Operation: operation, Address: p.thread})
+	c.reduceMenu(MenuEvent{Kind: MenuEventParkHotkey, Operation: "park", Address: p.thread})
 }
 
 func (c *Console) runMenuOperation(effect MenuEffect) {

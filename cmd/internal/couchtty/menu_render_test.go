@@ -66,7 +66,10 @@ func TestRenderMenuUsesSingleSurfaceBreadcrumbs(t *testing.T) {
 		{name: "park", state: park, breadcrumb: "threads › compiler › park", absent: []string{"/repo/one", "rename"}},
 		{name: "rename", state: rename, breadcrumb: "threads › compiler › rename", absent: []string{"/repo/one", "park"}},
 		{name: "describe", state: describe, breadcrumb: "threads › compiler › describe", absent: []string{"/repo/one", "park"}},
-		{name: "leave", state: leave, breadcrumb: "threads › compiler › leave couch", absent: []string{"actions", "/repo/one"}},
+		// Leave is a GLOBAL frame since #170: it names couch, not a thread, so
+		// its breadcrumb no longer borrows an actor's label -- and "compiler"
+		// is now asserted ABSENT, because borrowing one is the bug.
+		{name: "leave", state: leave, breadcrumb: "threads › leave couch", absent: []string{"actions", "/repo/one", "compiler"}},
 		{name: "global start", state: startFromConfirmation, breadcrumb: "start thread", absent: []string{"threads", "compiler", "park"}},
 	} {
 		t.Run(tc.name, func(t *testing.T) {

@@ -169,6 +169,10 @@ func menuBreadcrumb(state MenuState, frame MenuFrame) string {
 	if frame.Kind == MenuFrameStart {
 		return "start thread"
 	}
+	if frame.Kind == MenuFrameConfirmation && frame.Action == "leave" {
+		// A global frame: it names couch, not a thread.
+		return "threads › leave couch"
+	}
 	thread, ok := findMenuThread(state.Inventory, frame.Thread)
 	if !ok {
 		return "threads"

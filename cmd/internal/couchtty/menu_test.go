@@ -994,3 +994,70 @@ func TestReduceMenuGeneratedTracesPreserveStructuralBounds(t *testing.T) {
 	state.RootAgent = "claude"
 	walk(state, 0)
 }
+
+// Leave is reachable from a couch with NO live thread. That is not an exotic
+// case: once leaving detaches rather than parks (#170), an all-detached couch is
+// the normal state the operator quits from, and the root actor that used to lend
+// `leave` an address is gone.
+func TestLeaveConfirmationNeedsNoLiveThread(t *testing.T) {
+	state := NewMenuState(nil, couchcore.ThreadAddress{})
+	state.InventoryReady = true
+
+	state = reduceParkHotkey(state, MenuEvent{Kind: MenuEventParkHotkey, Operation: "leave"})
+
+	if len(state.Frames) != 2 || state.Frames[1].Kind != MenuFrameConfirmation {
+		t.Fatalf("frames = %+v, want a confirmation frame over an empty inventory", state.Frames)
+	}
+	if state.Frames[1].Thread != (couchcore.ThreadAddress{}) {
+		t.Fatalf("leave confirmation bound thread %+v, want none -- it is about couch",
+			state.Frames[1].Thread)
+	}
+	if state.Notice.Level == MenuNoticeError {
+		t.Fatalf("leave refused with %q", state.Notice.Text)
+	}
+}
+
+// The site a keystroke-only test cannot reach: reconcileMenuFrames runs on the
+// next inventory refresh, so a leave confirmation that survives every keypress
+// can still be dropped a second later by a background refresh.
+func TestLeaveConfirmationSurvivesAnInventoryRefresh(t *testing.T) {
+	live := couchcore.ActionableThreadSummary{
+		Address: couchcore.ThreadAddress{RepoScope: "s", Tag: "t"}, Name: "one", State: couchcore.ThreadLive,
+	}
+	state := NewMenuState([]couchcore.ActionableThreadSummary{live}, live.Address)
+	state.InventoryReady = true
+	state = reduceParkHotkey(state, MenuEvent{Kind: MenuEventParkHotkey, Operation: "leave"})
+	if len(state.Frames) != 2 {
+		t.Fatalf("frames = %+v, want the leave confirmation", state.Frames)
+	}
+
+	// Every thread goes away -- exactly what `leave` itself causes.
+	state.Inventory = nil
+	state = reconcileMenuFrames(state)
+
+	if len(state.Frames) != 2 || state.Frames[1].Kind != MenuFrameConfirmation ||
+		state.Frames[1].Action != "leave" {
+		t.Fatalf("frames after refresh = %+v, want the leave confirmation retained", state.Frames)
+	}
+}
+
+// The counterpart: a PARK confirmation is about a thread and must still vanish
+// with it. Asserted so the global-frame predicate cannot be widened by accident.
+func TestParkConfirmationStillDiesWithItsThread(t *testing.T) {
+	live := couchcore.ActionableThreadSummary{
+		Address: couchcore.ThreadAddress{RepoScope: "s", Tag: "t"}, Name: "one", State: couchcore.ThreadLive,
+	}
+	state := NewMenuState([]couchcore.ActionableThreadSummary{live}, live.Address)
+	state.InventoryReady = true
+	state = reduceParkHotkey(state, MenuEvent{Kind: MenuEventParkHotkey, Operation: "park", Address: live.Address})
+	if len(state.Frames) != 2 {
+		t.Fatalf("frames = %+v, want the park confirmation", state.Frames)
+	}
+
+	state.Inventory = nil
+	state = reconcileMenuFrames(state)
+
+	if len(state.Frames) != 1 {
+		t.Fatalf("frames after refresh = %+v, want the park confirmation dropped with its thread", state.Frames)
+	}
+}

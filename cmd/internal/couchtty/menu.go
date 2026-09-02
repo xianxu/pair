@@ -404,21 +404,48 @@ func reduceRootKey(state MenuState, key PanelKey) (MenuState, []MenuEffect) {
 	return state, nil
 }
 
+// menuFrameBindsThread reports whether a frame's validity depends on a durable
+// thread still being live and visible.
+//
+// Almost every frame does: an actions list, a park confirmation and a rename
+// prompt are all *about* one thread, and must vanish when it does. The `leave`
+// confirmation is the exception -- it is about couch itself. It used to ride
+// the root actor's address, so every thread-bound check passed by accident;
+// with the root actor gone (#170) it carries no address, and an all-detached
+// couch (the normal resting state once leave detaches rather than parks) has no
+// live thread to borrow one from.
+//
+// One predicate rather than a `leave` exception at each of the five sites that
+// resolve a frame's thread: the sites ask about frame SCOPE, which is a real
+// property, instead of each re-deriving what leave means.
+func menuFrameBindsThread(frame MenuFrame) bool {
+	if frame.Kind == MenuFrameConfirmation && frame.Action == "leave" {
+		return false
+	}
+	return frame.Kind == MenuFrameActions || frame.Kind == MenuFrameConfirmation || frame.Kind == MenuFrameText
+}
+
 func reduceParkHotkey(state MenuState, event MenuEvent) MenuState {
 	if event.Operation != "park" && event.Operation != "leave" {
 		state.Notice = errorMenuNotice("park action is unavailable")
 		return state
 	}
-	thread, ok := findMenuThread(state.Inventory, event.Address)
-	if !ok || !thread.Live() {
-		state.Notice = errorMenuNotice("active thread is no longer actionable")
-		return state
+	if event.Operation == "park" {
+		thread, ok := findMenuThread(state.Inventory, event.Address)
+		if !ok || !thread.Live() {
+			state.Notice = errorMenuNotice("active thread is no longer actionable")
+			return state
+		}
 	}
 	state.Frames = state.Frames[:1]
-	state.Frames[0].SelectedAddress = event.Address
-	if !appendMenuFrame(&state, MenuFrame{
-		Kind: MenuFrameConfirmation, Thread: event.Address, Action: event.Operation, SelectedItem: "cancel",
-	}) {
+	if event.Operation == "park" {
+		state.Frames[0].SelectedAddress = event.Address
+	}
+	frame := MenuFrame{Kind: MenuFrameConfirmation, Action: event.Operation, SelectedItem: "cancel"}
+	if event.Operation == "park" {
+		frame.Thread = event.Address
+	}
+	if !appendMenuFrame(&state, frame) {
 		return state
 	}
 	return state
@@ -472,9 +499,14 @@ func reduceActionKey(state MenuState, key PanelKey) (MenuState, []MenuEffect) {
 func reduceConfirmationKey(state MenuState, key PanelKey) (MenuState, []MenuEffect) {
 	key = hierarchyNavigationKey(key, KeyEnter)
 	frame := &state.Frames[len(state.Frames)-1]
-	thread, ok := findMenuThread(state.Inventory, frame.Thread)
-	if !ok {
-		return discardThreadFrames(state, frame.Thread, "thread is no longer actionable"), nil
+	binds := menuFrameBindsThread(*frame)
+	var thread couchcore.ActionableThreadSummary
+	if binds {
+		found, ok := findMenuThread(state.Inventory, frame.Thread)
+		if !ok {
+			return discardThreadFrames(state, frame.Thread, "thread is no longer actionable"), nil
+		}
+		thread = found
 	}
 	items := confirmationMenuItems(frame.Action, thread)
 	visible := filterMenuItems(items, frame.Filter)
@@ -503,7 +535,8 @@ func reduceConfirmationKey(state MenuState, key PanelKey) (MenuState, []MenuEffe
 			state.Frames = state.Frames[:len(state.Frames)-1]
 			return state, nil
 		}
-		if frame.SelectedItem != frame.Action || (frame.Action != "park" && frame.Action != "leave") || !thread.Live() {
+		if frame.SelectedItem != frame.Action || (frame.Action != "park" && frame.Action != "leave") ||
+			(binds && !thread.Live()) {
 			return discardThreadFrames(state, frame.Thread, "thread action is no longer applicable"), nil
 		}
 		return dispatchThreadOperation(state, frame.Action, thread.Address)
@@ -1006,7 +1039,14 @@ func reconcileMenuFrames(state MenuState, previous ...[]couchcore.ActionableThre
 	invalidThreadFrame := false
 	var bound couchcore.ThreadAddress
 	for _, frame := range original[1:] {
-		if frame.Kind == MenuFrameStart {
+		if frame.Kind == MenuFrameStart || !menuFrameBindsThread(frame) {
+			// Not about a thread, so no inventory change can invalidate it.
+			// Without this a leave confirmation is dropped ASYNCHRONOUSLY by
+			// the next refresh -- a keystroke-only test would never see it.
+			if frame.Kind == MenuFrameConfirmation {
+				reconcileItemSelection(&frame, filterMenuItems(
+					confirmationMenuItems(frame.Action, couchcore.ActionableThreadSummary{}), frame.Filter))
+			}
 			state.Frames = append(state.Frames, frame)
 			continue
 		}

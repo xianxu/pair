@@ -224,7 +224,7 @@ func TestConsoleRunMenuAltXOnThePanelOpensLeaveConfirmation(t *testing.T) {
 	_, _ = f.stdin.Write([]byte("\x00\x1bx"))
 	waitUpTo(t, 250*time.Millisecond, "leave confirmation", func() bool {
 		screen := lastConsoleScreen(f.host.Written())
-		return strings.Contains(screen, "threads › root › leave couch") && strings.Contains(screen, "cancel")
+		return strings.Contains(screen, "threads › leave couch") && strings.Contains(screen, "cancel")
 	})
 	if strings.Contains(f.host.Written(), "type yes") {
 		t.Fatalf("Alt+x fell back to compatibility prompt: %q", f.host.Written())
