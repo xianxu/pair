@@ -64,6 +64,14 @@ is testable without goroutines or a terminal (`ARCH-PURE`), and reusing it
 rather than adding a second emit path keeps one owner for "has this turn been
 reported" (`ARCH-DRY`).
 
+**The requirement is "it always fires", not "the timer is wired".** This is a
+floor: after an open turn goes unreported for the interval, the operator hears
+something, whatever the agent did or did not emit. A trigger a repainting pane
+can defeat is not a floor. If the measurement below shows the byte stream never
+goes quiet, the trigger moves — to time since the last *lifecycle transition*,
+or failing that time since turn open — rather than the requirement bending to
+what the existing timer happens to measure.
+
 **Verify this empirically before building it.** The idle timer resets on every
 output chunk (`wrap.go:2680-2690`), so it measures *byte* silence, not agent
 silence. If a claude pane repaints while idle at its composer — cursor blink,
@@ -84,6 +92,11 @@ raw chunks (e.g. reset only on chunks that change the rendered screen).
 - The `"idle"` notify-mode value no longer exists in the source.
 - A recorded measurement of byte-quiet duration for an idle claude pane is in
   the `## Log`, taken before the trigger design was fixed.
+- **A pane that repaints while waiting still notifies.** Drive a turn that
+  emits output continuously with no completion, and assert exactly one
+  notification at the interval. This is the acceptance test for "floor" — if
+  the byte-reset trigger cannot pass it, the trigger changes, not this
+  criterion.
 
 ## Plan
 
@@ -93,10 +106,26 @@ raw chunks (e.g. reset only on chunks that change the rendered screen).
       uncovered case and the no-duplicate case.
 - [ ] Remove the mode gate and the `"idle"` mode value; arm the timer always.
 - [ ] Honest message text; confirm it survives the OSC 777 envelope into couch.
+- [ ] Repainting-pane test: continuous output, no completion, exactly one
+      notification at the interval.
 
 ## Log
 
 ### 2026-09-02
+
+Operator decision: the floor is the priority, and up to a minute of latency
+attending to something is acceptable. General notification robustness is
+separate later work.
+
+Motivating case, unresolved: a selection menu is displayed and nothing pages.
+For claude, **two** existing paths should already cover that — a progress-OSC
+`ObservationStopped` gives a 250ms grace to `agent stopped working`
+(`notification_lifecycle.go:109,145`), and the 60s watchdog armed by the
+earlier `ObservationWorking` fires regardless. Neither is observed, so the
+signal is failing upstream of every timer — most likely claude keeps emitting
+progress OSC while the menu is up, re-arming the watchdog. That is exactly the
+case that would also defeat a byte-reset idle timer, which is why the
+repainting-pane test above is an acceptance criterion and not a nicety.
 
 Found while tracing what state transitions a pair actor actually publishes to
 couch. Related finding, not fixed here: `decision.Notify` is set only inside
