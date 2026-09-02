@@ -343,6 +343,14 @@ switcher resumes that exact thread and makes it the root console. It never
 creates an intervening actor whose admission could block the parked thread
 (`ARCH-PURPOSE`, `ARCH-PURE`).
 
+Interactive `couch [<repo>]` startup resolves the requested repository scope
+and physical working path, then applies `SelectUniqueParkedRoot` to the same
+proof-bearing actionable inventory used by the switcher. Exactly one matching
+parked row is resumed and attached as home; zero or multiple matches create a
+new root. Inventory failure or a Resume refusal stops startup without creating
+a fallback actor. The bounded O(n) selector adds no ranking, prompt, fleet scan,
+or remembered root identity (`ARCH-DRY`, `ARCH-CONSTRAINTS`).
+
 Every hosted pane retains three identities with separate jobs: the pty handle
 routes bytes inside this console, `ActorID` addresses registry persistence and
 notices, and the canonical worktree drives transitional human resolution.

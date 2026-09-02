@@ -17,6 +17,7 @@ import (
 
 	"github.com/creack/pty"
 	"github.com/xianxu/pair/cmd/internal/couchcore"
+	"github.com/xianxu/pair/cmd/internal/couchtty"
 	"github.com/xianxu/pair/cmd/internal/launcher"
 	"github.com/xianxu/pair/cmd/internal/sessioninventory"
 )
@@ -296,6 +297,51 @@ func TestResumeRunsAsTheNewLiveOwner(t *testing.T) {
 	}
 	if len(rt.runner.Ops) == 0 || !strings.Contains(rt.runner.Ops[0], "pair resume "+string(parked.Address.Tag)+" --layout2") {
 		t.Fatalf("resume child operations = %v", rt.runner.Ops)
+	}
+}
+
+func TestInteractiveLaunchResumesUniqueParkedRoot(t *testing.T) {
+	rt := newRT(t, "/repo")
+	rt.boundedOne("/repo")
+	parked := seedVerifiedPark(t, rt, "/repo")
+	rt.artifacts.SetNativeBinding(parked.Address, "claude", sessioninventory.BindingEstablished, "native-root-1")
+	rt.runner = couchcore.NewFakeRunner()
+	rt.runner.AfterAcknowledge = func(string) error {
+		rt.artifacts.SetPairSession(parked.Address, "pair-"+string(parked.Address.Tag), true)
+		return nil
+	}
+	master, slave, err := pty.Open()
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer master.Close()
+	defer slave.Close()
+
+	var attached couchcore.StartResult
+	finish := func(console *couchtty.Console, c *couchcore.Couch, start couchcore.StartResult, _ io.Writer) int {
+		wireResolver(console, c)
+		if err := dispatchInitialAttach(console, start); err != nil {
+			t.Fatalf("initial attach: %v", err)
+		}
+		attached = start
+		return 0
+	}
+	op, _ := Resolve("start")
+	var stdout, stderr bytes.Buffer
+	code := runTypedOperationWithConsole(op, map[string]string{}, map[string]string{"path": "/repo"}, true, slave, slave, slave, &stdout, &stderr, rt, finish)
+	if code != 0 {
+		t.Fatalf("interactive launch: code=%d stdout=%q stderr=%q", code, stdout.String(), stderr.String())
+	}
+	defer rt.runner.SetExited(attached.Handle.ID(), 0)
+	if attached.Record.Thread != parked.Address {
+		t.Fatalf("interactive root = %+v, want %+v", attached.Record.Thread, parked.Address)
+	}
+	if len(rt.runner.Ops) == 0 || !strings.Contains(rt.runner.Ops[0], "pair resume "+string(parked.Address.Tag)+" --layout2") {
+		t.Fatalf("interactive child operations = %v, want resumed parked root", rt.runner.Ops)
+	}
+	child := rt.runner.Child(attached.Handle.ID())
+	if !strings.Contains(strings.Join(child.Env, "\n"), "native-root-1") {
+		t.Fatalf("attached resume env = %v, want saved native root", child.Env)
 	}
 }
 

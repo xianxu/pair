@@ -227,6 +227,27 @@ func TestActionableThreadInventoryIncludesOnlyEstablishedParkedBinding(t *testin
 	}
 }
 
+func TestActionableThreadInventoryProjectsPhysicalParkedWorkingPath(t *testing.T) {
+	store, _ := newTestThreadStore(t)
+	record := actionableTestThread("couch-0000000000000001", time.Unix(100, 0).UTC())
+	record.WorkingPath = "/link/repo"
+	record.LatestLaunchProfile = &LaunchProfile{Agent: "claude", Argv: []string{}}
+	markActionableParked(&record, record.LastActiveAt)
+	created, err := store.CreateThread(record)
+	if err != nil {
+		t.Fatal(err)
+	}
+	artifacts := NewFakeThreadArtifactCollisionChecker()
+	artifacts.SetNativeBinding(created.Address, "claude", sessioninventory.BindingEstablished, "native-root-1")
+	paths := NewFakePathOps(map[string]string{"/link/repo": "/real/repo"})
+	couch := &Couch{Threads: store, Artifacts: artifacts, Path: paths}
+
+	rows, err := couch.ActionableThreadInventory(nil)
+	if err != nil || len(rows) != 1 || rows[0].WorkingPath != "/real/repo" {
+		t.Fatalf("physical parked inventory = %+v, %v", rows, err)
+	}
+}
+
 func TestActionableThreadInventoryOmitsParkedThreadWithUnavailableWorkingPath(t *testing.T) {
 	store, _ := newTestThreadStore(t)
 	record := actionableTestThread("couch-0000000000000001", time.Unix(100, 0).UTC())

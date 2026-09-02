@@ -206,6 +206,12 @@ func terminalFiles(stdin io.Reader, stdout io.Writer) (*os.File, *os.File, bool)
 }
 
 func runTypedOperation(op couchcore.Operation, parsed, prepareArgs map[string]string, forceConsole bool, inFile, outFile *os.File, stdin io.Reader, stdout, stderr io.Writer, rt Runtime) int {
+	return runTypedOperationWithConsole(op, parsed, prepareArgs, forceConsole, inFile, outFile, stdin, stdout, stderr, rt, runConsole)
+}
+
+type consoleFinisher func(*couchtty.Console, *couchcore.Couch, couchcore.StartResult, io.Writer) int
+
+func runTypedOperationWithConsole(op couchcore.Operation, parsed, prepareArgs map[string]string, forceConsole bool, inFile, outFile *os.File, stdin io.Reader, stdout, stderr io.Writer, rt Runtime, finishConsole consoleFinisher) int {
 	if operationUsesCurrentRepoScope(op.Name) {
 		scope, err := rt.CurrentRepoScope()
 		if err != nil {
@@ -251,27 +257,32 @@ func runTypedOperation(op couchcore.Operation, parsed, prepareArgs map[string]st
 	if ownsLive {
 		executors.LiveOwner = couchcore.CouchLiveOwnerExecutor(c)
 	}
-	callArgs := parsed
-	if prepareArgs != nil {
-		preparedValue, prepareErr := couchcore.DispatchOperation(executors, couchcore.OperationCall{
-			Name:    "prepare-start",
-			Args:    prepareArgs,
-			Context: context.Background(),
+	var result any
+	if forceConsole && op.Name == "start" && prepareArgs != nil {
+		result, err = dispatchInteractiveStart(c, prepareArgs)
+	} else {
+		callArgs := parsed
+		if prepareArgs != nil {
+			preparedValue, prepareErr := couchcore.DispatchOperation(executors, couchcore.OperationCall{
+				Name:    "prepare-start",
+				Args:    prepareArgs,
+				Context: context.Background(),
+			})
+			if prepareErr != nil {
+				renderError(stderr, prepareErr)
+				return 1
+			}
+			prepared, ok := preparedValue.(couchcore.PreparedStart)
+			if !ok {
+				fmt.Fprintf(stderr, "couch: prepare-start returned %T\n", preparedValue)
+				return 1
+			}
+			callArgs = map[string]string{"token": string(prepared.Token)}
+		}
+		result, err = couchcore.DispatchOperation(executors, couchcore.OperationCall{
+			Name: op.Name, Args: callArgs, Implicit: true, Context: context.Background(),
 		})
-		if prepareErr != nil {
-			renderError(stderr, prepareErr)
-			return 1
-		}
-		prepared, ok := preparedValue.(couchcore.PreparedStart)
-		if !ok {
-			fmt.Fprintf(stderr, "couch: prepare-start returned %T\n", preparedValue)
-			return 1
-		}
-		callArgs = map[string]string{"token": string(prepared.Token)}
 	}
-	result, err := couchcore.DispatchOperation(executors, couchcore.OperationCall{
-		Name: op.Name, Args: callArgs, Implicit: true, Context: context.Background(),
-	})
 	if err != nil {
 		renderError(stderr, err)
 		return 1
@@ -287,10 +298,14 @@ func runTypedOperation(op couchcore.Operation, parsed, prepareArgs map[string]st
 	}
 	if console != nil {
 		if start, ok := result.(couchcore.StartResult); ok {
-			return runConsole(console, c, start, stdout)
+			return finishConsole(console, c, start, stdout)
 		}
 	}
 	return render(stdout, op, result)
+}
+
+func dispatchInteractiveStart(c *couchcore.Couch, args map[string]string) (couchcore.StartResult, error) {
+	return c.StartInteractive(context.Background(), couchcore.StartArgs{Cwd: args["path"], Stack: args["agent"]})
 }
 
 func operationUsesCurrentRepoScope(name string) bool {

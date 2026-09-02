@@ -534,6 +534,7 @@ var NonArtifactSources = []string{
 	"cmd/internal/couchcore/startargs.go",
 	"cmd/internal/couchcore/startgrant.go",
 	"cmd/internal/couchcore/startresolution.go",
+	"cmd/internal/couchcore/startup.go",
 	"cmd/internal/couchcore/starttransaction.go",
 	"cmd/internal/couchcore/store.go",
 	"cmd/internal/couchcore/storejournal.go",
