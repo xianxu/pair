@@ -10,13 +10,21 @@ import (
 	"github.com/xianxu/pair/cmd/internal/sessioninventory"
 )
 
-func TestSelectUniqueParkedRoot(t *testing.T) {
+// The selector admits BOTH resumable states. Parked is cold (the session was
+// torn down) and detached is warm (it survived its client), but `couch` in a
+// directory means the same thing either way: reattach what is already there.
+//
+// A live row is never selected: couch is a singleton holding its supervisor
+// lease for the whole run, so a live row at startup means THIS couch already
+// hosts it.
+func TestSelectUniqueResumableRoot(t *testing.T) {
 	want := ThreadAddress{RepoScope: "scope-a", Tag: "couch-0000000000000001"}
-	matching := ActionableThreadSummary{
-		Address:     want,
-		WorkingPath: "/real/repo",
-		State:       ThreadParked,
+	other := ThreadAddress{RepoScope: "scope-a", Tag: "couch-0000000000000002"}
+	row := func(address ThreadAddress, path string, state ActionableThreadState) ActionableThreadSummary {
+		return ActionableThreadSummary{Address: address, WorkingPath: path, State: state}
 	}
+	parked := row(want, "/real/repo", ThreadParked)
+	detached := row(want, "/real/repo", ThreadDetached)
 
 	tests := []struct {
 		name string
@@ -24,24 +32,40 @@ func TestSelectUniqueParkedRoot(t *testing.T) {
 		want ThreadAddress
 		ok   bool
 	}{
-		{name: "one exact parked row", rows: []ActionableThreadSummary{matching}, want: want, ok: true},
+		{name: "one exact parked row", rows: []ActionableThreadSummary{parked}, want: want, ok: true},
+		{name: "one exact detached row", rows: []ActionableThreadSummary{detached}, want: want, ok: true},
 		{name: "empty", rows: nil},
-		{name: "ambiguous exact parked rows", rows: []ActionableThreadSummary{matching, matching}},
-		{name: "live", rows: []ActionableThreadSummary{{Address: want, WorkingPath: "/real/repo", State: ThreadLive}}},
-		{name: "wrong scope", rows: []ActionableThreadSummary{{Address: ThreadAddress{RepoScope: "scope-b", Tag: want.Tag}, WorkingPath: "/real/repo", State: ThreadParked}}},
-		{name: "wrong path", rows: []ActionableThreadSummary{{Address: want, WorkingPath: "/real/other", State: ThreadParked}}},
-		{name: "one among nonmatches", rows: []ActionableThreadSummary{
-			{Address: want, WorkingPath: "/real/repo", State: ThreadLive},
-			matching,
-			{Address: ThreadAddress{RepoScope: "scope-b", Tag: "couch-0000000000000002"}, WorkingPath: "/real/repo", State: ThreadParked},
+		{name: "ambiguous parked rows", rows: []ActionableThreadSummary{parked, parked}},
+		{name: "ambiguous detached rows", rows: []ActionableThreadSummary{detached, detached}},
+		{
+			// Two resumable rows at one path is TWO matches, not a preference.
+			// Warm-over-cold would be a ranking policy, and this selector's
+			// whole contract is exactness.
+			name: "one parked and one detached at the same path is ambiguous",
+			rows: []ActionableThreadSummary{parked, row(other, "/real/repo", ThreadDetached)},
+		},
+		{name: "live is never selected", rows: []ActionableThreadSummary{row(want, "/real/repo", ThreadLive)}},
+		{name: "wrong scope", rows: []ActionableThreadSummary{row(ThreadAddress{RepoScope: "scope-b", Tag: want.Tag}, "/real/repo", ThreadParked)}},
+		{name: "wrong path", rows: []ActionableThreadSummary{row(want, "/real/other", ThreadParked)}},
+		{
+			// Paths are compared by exact string, so a row still carrying an
+			// unresolved alias does not match the physical target. This is what
+			// makes physicalizing detached rows load-bearing rather than tidy.
+			name: "an unresolved alias path does not match",
+			rows: []ActionableThreadSummary{row(want, "/link/repo", ThreadDetached)},
+		},
+		{name: "one resumable among nonmatches", rows: []ActionableThreadSummary{
+			row(want, "/real/repo", ThreadLive),
+			detached,
+			row(ThreadAddress{RepoScope: "scope-b", Tag: other.Tag}, "/real/repo", ThreadParked),
 		}, want: want, ok: true},
 	}
 
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
-			got, ok := SelectUniqueParkedRoot(test.rows, "scope-a", "/real/repo")
+			got, ok := SelectUniqueResumableRoot(test.rows, "scope-a", "/real/repo")
 			if ok != test.ok || got != test.want {
-				t.Fatalf("SelectUniqueParkedRoot() = (%+v, %v), want (%+v, %v)", got, ok, test.want, test.ok)
+				t.Fatalf("SelectUniqueResumableRoot() = (%+v, %v), want (%+v, %v)", got, ok, test.want, test.ok)
 			}
 		})
 	}

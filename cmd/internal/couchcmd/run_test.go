@@ -300,6 +300,124 @@ func TestResumeRunsAsTheNewLiveOwner(t *testing.T) {
 	}
 }
 
+// seedDetachedThread leaves a record in the shape an alt+d detach produces:
+// no incarnation, NO verified park, a saved launch profile, and a live zellij
+// session with no client.
+func seedDetachedThread(t *testing.T, rt testRT, path string) couchcore.ThreadRecord {
+	t.Helper()
+	rt.boundedOne(path)
+	scope, err := launcher.ResolveRepoScope(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	profile := couchcore.LaunchProfile{Agent: "claude", Argv: []string{}}
+	c, err := rt.NewCouch()
+	if err != nil {
+		t.Fatal(err)
+	}
+	created, err := c.Threads.CreateThread(couchcore.ThreadRecord{
+		SchemaVersion: couchcore.ThreadSchemaVersion,
+		Address:       couchcore.ThreadAddress{RepoScope: scope.Key, Tag: "couch-0102030405060708"},
+		StartingPath:  path, WorkingPath: path, CreatedAt: time.Unix(1, 0).UTC(), Revision: 1,
+		LatestLaunchProfile: &profile,
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	updated, err := c.Threads.UpdateExistingThread(created.Address, created.Revision, func(next *couchcore.ThreadRecord) error {
+		next.Reservation = false
+		return nil
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	return updated
+}
+
+// The M3 acceptance case, across a RESTART: a couch that detached a thread and
+// went away, then `couch` again in that tree. Driven through production
+// interactive routing all the way to initial Console attach -- not below it,
+// because reducer support is not user reachability.
+func TestInteractiveLaunchReattachesUniqueDetachedRoot(t *testing.T) {
+	rt := newRT(t, "/repo")
+	detached := seedDetachedThread(t, rt, "/repo")
+	rt.artifacts.SetNativeBinding(detached.Address, "claude", sessioninventory.BindingEstablished, "native-root-1")
+	// The surviving session IS the resume authority for a detached thread.
+	rt.artifacts.SetDetachedSession(detached.Address, "pair-"+string(detached.Address.Tag))
+	rt.runner = couchcore.NewFakeRunner()
+	rt.runner.AfterAcknowledge = func(string) error {
+		rt.artifacts.SetPairSession(detached.Address, "pair-"+string(detached.Address.Tag), true)
+		return nil
+	}
+	master, slave, err := pty.Open()
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer master.Close()
+	defer slave.Close()
+
+	var attached couchcore.StartResult
+	finish := func(console *couchtty.Console, c *couchcore.Couch, start couchcore.StartResult, _ io.Writer) int {
+		wireResolver(console, c)
+		if err := dispatchInitialAttach(console, start); err != nil {
+			t.Fatalf("initial attach: %v", err)
+		}
+		attached = start
+		return 0
+	}
+	op, _ := Resolve("start")
+	var stdout, stderr bytes.Buffer
+	code := runTypedOperationWithConsole(op, map[string]string{}, map[string]string{"path": "/repo"}, true, slave, slave, slave, &stdout, &stderr, rt, finish)
+	if code != 0 {
+		t.Fatalf("interactive launch: code=%d stdout=%q stderr=%q", code, stdout.String(), stderr.String())
+	}
+	defer rt.runner.SetExited(attached.Handle.ID(), 0)
+
+	if attached.Record.Thread != detached.Address {
+		t.Fatalf("interactive root = %+v, want the detached thread %+v", attached.Record.Thread, detached.Address)
+	}
+	if len(rt.runner.Ops) == 0 || !strings.Contains(rt.runner.Ops[0], "pair resume "+string(detached.Address.Tag)+" --layout2") {
+		t.Fatalf("child operations = %v, want the detached thread reattached", rt.runner.Ops)
+	}
+}
+
+// Without the surviving session there is no resume authority, so startup must
+// create a NEW thread rather than reattach one it cannot prove.
+func TestInteractiveLaunchStartsNewWhenNoSessionSurvives(t *testing.T) {
+	rt := newRT(t, "/repo")
+	stale := seedDetachedThread(t, rt, "/repo")
+	rt.artifacts.SetNativeBinding(stale.Address, "claude", sessioninventory.BindingEstablished, "native-root-1")
+	// Deliberately NO SetDetachedSession: the session did not survive.
+	rt.runner = couchcore.NewFakeRunner()
+	master, slave, err := pty.Open()
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer master.Close()
+	defer slave.Close()
+
+	var attached couchcore.StartResult
+	finish := func(console *couchtty.Console, c *couchcore.Couch, start couchcore.StartResult, _ io.Writer) int {
+		wireResolver(console, c)
+		if err := dispatchInitialAttach(console, start); err != nil {
+			t.Fatalf("initial attach: %v", err)
+		}
+		attached = start
+		return 0
+	}
+	op, _ := Resolve("start")
+	var stdout, stderr bytes.Buffer
+	code := runTypedOperationWithConsole(op, map[string]string{}, map[string]string{"path": "/repo"}, true, slave, slave, slave, &stdout, &stderr, rt, finish)
+	if code != 0 {
+		t.Fatalf("interactive launch: code=%d stdout=%q stderr=%q", code, stdout.String(), stderr.String())
+	}
+	defer rt.runner.SetExited(attached.Handle.ID(), 0)
+
+	if attached.Record.Thread == stale.Address {
+		t.Fatalf("startup reattached %+v with no surviving session", stale.Address)
+	}
+}
+
 func TestInteractiveLaunchResumesUniqueParkedRoot(t *testing.T) {
 	rt := newRT(t, "/repo")
 	rt.boundedOne("/repo")

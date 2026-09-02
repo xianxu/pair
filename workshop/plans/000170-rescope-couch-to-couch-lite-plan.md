@@ -384,8 +384,8 @@ Retiring the incarnation fixes all three at the source and keeps the projector f
 
 | Name | Lives in | Status |
 |------|----------|--------|
-| `SelectUniqueResumableRoot` | `cmd/internal/couchcore/startup.go` | planned (M3) |
-| `SelectUniqueParkedRoot` | `cmd/internal/couchcore/startup.go` | planned (M3) |
+| `SelectUniqueResumableRoot` | `cmd/internal/couchcore/startup.go` | new |
+| `SelectUniqueParkedRoot` | `cmd/internal/couchcore/startup.go` | deleted |
 
 - **`SelectUniqueResumableRoot`** — renames and widens `SelectUniqueParkedRoot` (`startup.go:11`) from `State == ThreadParked` to `State == ThreadParked || State == ThreadDetached`, with the exact scope + physical path match and the exact-cardinality-one rule unchanged. Deliberately no ranking and no prompt: a parked and a detached row at one path is *two* matches and therefore creates a new root, as two parked rows do today.
   - **DRY rationale:** one selector, not a parked one and a detached one — `ARCH-DRY`. The rename is load-bearing: leaving the name `Parked` while it selects detached rows is a lie the next reader pays for.
@@ -395,7 +395,7 @@ Retiring the incarnation fixes all three at the source and keeps the projector f
 
 | Name | Lives in | Status | Wraps |
 |------|----------|--------|-------|
-| `Couch.StartInteractive` | `cmd/internal/couchcore/startup.go` | planned (M3) | path/git resolution, actionable inventory, `ResumeContext`, the resolved start path |
+| `Couch.StartInteractive` | `cmd/internal/couchcore/startup.go` | modified | path/git resolution, actionable inventory, `ResumeContext`, the resolved start path |
 
 - **`Couch.StartInteractive`** — unchanged in shape; it swaps which selector it calls. It remains the thin IO shell around the pure selector, and every dependency is already in the Couch composition root, so its tests keep using the existing stateful fakes (`ARCH-PURE`, `ARCH-MOCK`). No new seam is introduced by M3 — the detached observation it now depends on was added at M2 and reaches it through the same `ActionableThreadInventoryContext` call it already makes.
 
@@ -407,13 +407,13 @@ Retiring the incarnation fixes all three at the source and keeps the projector f
 - Modify: `cmd/internal/couchcore/startup.go`, `startup_test.go`
 - Modify: `cmd/internal/couchcmd/run_test.go`
 
-- [ ] **Step 1: Write failing tests.** Strategy: cross row state (parked / detached / live / hidden) against scope and path identity against cardinality, including one-parked-one-detached-at-one-path and alias paths. Mechanical guard: exactly one resumable exact match resumes; zero or several create a new root; a live row is never selected (couch is a singleton — a live row means this couch already hosts it).
-- [ ] **Step 2: Run `go test ./cmd/internal/couchcore -run 'SelectUnique|StartInteractive' -count=1`; confirm failure.**
-- [ ] **Step 3: Rename and widen the selector; update `StartInteractive`'s call.**
-- [ ] **Step 3b: Make detached rows carry a physical `WorkingPath`, like parked ones.** `ActionableThreadInventoryContext` re-resolves the path to physical **only** inside the parked-candidate loop (`actionableinventory.go:169-173`); detached rows would keep the stored path. Since the selector compares paths by exact string, parked and detached rows at one alias path would compare asymmetrically — one matching, one not — which is a selection bug that only shows up on a symlinked tree. Extend the physicalization to detached candidates. Step 1's alias-path cross is what proves it.
-- [ ] **Step 4: Add a restart-level acceptance test** in `cmd/internal/couchcmd/run_test.go` using the existing `newRT` temp-namespace runtime: detach a thread, construct a fresh `Couch`, and assert interactive launch reattaches that exact address through production routing to initial Console attach (not below it — `workshop/lessons.md`: reducer support is not user reachability, and a prior close review already caught a test that stopped above `dispatchInitialAttach`).
-- [ ] **Step 5: Run `env -u PAIR_SESSION_ID -u PAIR_TAG make test`; confirm pass. Update `atlas/couch.md`'s startup paragraph.**
-- [ ] **Step 6: `sdlc milestone-close --issue 170 --milestone M3`.**
+- [x] **Step 1: Write failing tests.** Strategy: cross row state (parked / detached / live / hidden) against scope and path identity against cardinality, including one-parked-one-detached-at-one-path and alias paths. Mechanical guard: exactly one resumable exact match resumes; zero or several create a new root; a live row is never selected (couch is a singleton — a live row means this couch already hosts it).
+- [x] **Step 2: Run `go test ./cmd/internal/couchcore -run 'SelectUnique|StartInteractive' -count=1`; confirm failure.**
+- [x] **Step 3: Rename and widen the selector; update `StartInteractive`'s call.**
+- [x] **Step 3b: Make detached rows carry a physical `WorkingPath`, like parked ones.** `ActionableThreadInventoryContext` re-resolves the path to physical **only** inside the parked-candidate loop (`actionableinventory.go:169-173`); detached rows would keep the stored path. Since the selector compares paths by exact string, parked and detached rows at one alias path would compare asymmetrically — one matching, one not — which is a selection bug that only shows up on a symlinked tree. Extend the physicalization to detached candidates. Step 1's alias-path cross is what proves it.
+- [x] **Step 4: Add a restart-level acceptance test** in `cmd/internal/couchcmd/run_test.go` using the existing `newRT` temp-namespace runtime: detach a thread, construct a fresh `Couch`, and assert interactive launch reattaches that exact address through production routing to initial Console attach (not below it — `workshop/lessons.md`: reducer support is not user reachability, and a prior close review already caught a test that stopped above `dispatchInitialAttach`).
+- [x] **Step 5: Run `env -u PAIR_SESSION_ID -u PAIR_TAG make test`; confirm pass. Update `atlas/couch.md`'s startup paragraph.**
+- [x] **Step 6: `sdlc milestone-close --issue 170 --milestone M3`.**
 
 ---
 

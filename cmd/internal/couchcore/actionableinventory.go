@@ -206,8 +206,9 @@ func (c *Couch) ActionableThreadInventoryContext(ctx context.Context, observatio
 	var resumable []ParkedResumeObservation
 	// detachedCandidates are the ONLY records that could be detached: no
 	// incarnation, no verified park, and a saved profile to reattach with.
-	// Bounding the session query to these keeps the refresh cost proportional
-	// to detached threads rather than to every thread in the store.
+	// Passing candidates bounds WHETHER the zellij snapshot runs at all -- a
+	// couch with nothing detachable pays nothing -- though not the snapshot's
+	// own fan-out, which is per session on the host.
 	var detachedCandidates []ThreadAddress
 	resolver, _ := c.Artifacts.(NativeBindingResolver)
 	for i := range snapshot.Records {

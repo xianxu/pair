@@ -431,12 +431,33 @@ creates an intervening actor whose admission could block the parked thread
 (`ARCH-PURPOSE`, `ARCH-PURE`).
 
 Interactive `couch [<repo>]` startup resolves the requested repository scope
-and physical working path, then applies `SelectUniqueParkedRoot` to the same
+and physical working path, then applies `SelectUniqueResumableRoot` to the same
 proof-bearing actionable inventory used by the switcher. Exactly one matching
-parked row is resumed and attached as home; zero or multiple matches create a
-new root. Inventory failure or a Resume refusal stops startup without creating
-a fallback actor. The bounded O(n) selector adds no ranking, prompt, fleet scan,
-or remembered root identity (`ARCH-DRY`, `ARCH-CONSTRAINTS`).
+**resumable** row -- parked or detached -- is reattached; zero or multiple
+matches start a new thread. Inventory failure or a Resume refusal stops startup
+without creating a fallback actor. The bounded O(n) selector adds no ranking,
+prompt, fleet scan, or remembered root identity (`ARCH-DRY`,
+`ARCH-CONSTRAINTS`).
+
+Both resumable states qualify because `couch` in a directory means one thing
+either way -- reattach what is already there -- and both converge on a single
+`pair resume`. The name changed with the rule (`pair#170` M3): a selector called
+`Parked` while selecting detached rows is a lie the next reader pays for.
+Exactness is *preserved*, not relaxed: a parked row and a detached row at one
+path are TWO matches and start a new thread, exactly as two parked rows do.
+Preferring warm over cold would be a ranking policy, and this selector has none.
+
+Two neighbouring states are deliberately never selected. A session **attached
+elsewhere** yields no detached observation, so couch cannot steal it. A **stale
+`IncarnationLive` from a crashed couch** is invisible to the projection, so
+startup creates a new thread — the same behaviour as before detach existed, and
+the gap `pair#171` owns.
+
+Parked and detached candidates are physicalized alike, which the selector
+depends on rather than merely benefits from: it compares paths by exact string,
+so resolving one kind and not the other would match an alias path against a
+parked row and miss an identical detached one — a bug visible only on a
+symlinked checkout.
 
 Every hosted pane retains three identities with separate jobs: the pty handle
 routes bytes inside this console, `ActorID` addresses registry persistence and

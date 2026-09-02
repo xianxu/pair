@@ -190,11 +190,12 @@ gate `#147` and `#148` respectively; `#145` and `#146` do not depend on them.
 - [ ] rescope to couch-lite [pair#170]
 - [x] switch rule and key layer [pair#170 M1]
 - [x] detach, and detached threads that reattach [pair#170 M2]
+- [x] start or resume in a folder [pair#170 M3]
 
 <a id="pair-170"></a>
 ### pair#170 — rescope to couch-lite
 **est:** 10.69
-**status:** in progress — M1+M2 closed; plan at `workshop/plans/000170-rescope-couch-to-couch-lite-plan.md`
+**status:** in progress — M1–M3 closed; plan at `workshop/plans/000170-rescope-couch-to-couch-lite-plan.md`
 **started:** 2026-09-02
 
 Narrows couch to a switcher over a group of live coding sessions whose unit is a
@@ -898,6 +899,42 @@ The crashed-couch case is explicitly **not** solved here — `pair#171` owns it.
 Conflating a crash with a clean exit is the exact fail-closed weakening the
 projector refused to make.
 
+<a id="pair-170-m3"></a>
+### pair#170 M3 — start or resume in a folder
+
+**est:** 10.69
+**actual:** 0.4h
+**closed:** 2026-09-02
+
+`couch` in a directory now reattaches a **detached** thread as readily as a
+parked one. `SelectUniqueParkedRoot` becomes `SelectUniqueResumableRoot`, and the
+rename is the deliverable rather than a side effect: a selector still called
+`Parked` while selecting detached rows is a lie the next reader pays for.
+
+The Spec asked for "live or parked", which needed interpreting rather than
+implementing literally. couch holds its supervisor lease for the whole run, so at
+*startup* there is no other couch hosting anything — a thread whose zellij
+session is up with no client is exactly what M2 calls detached. "Live" therefore
+means detached, and a genuinely live row is now never selected, because it would
+be one this couch already hosts.
+
+Exactness survived the widening, deliberately. A parked row and a detached row at
+one path are TWO matches and start a new thread, exactly as two parked rows do.
+Preferring warm over cold is a ranking policy, and #167 established that this
+selector has none; #170 did not quietly add one. Recorded as a Revisions note on
+#167's archived plan rather than by editing what it said it delivered.
+
+The subtle part was paths, not states. The selector compares by exact string, and
+M2 had physicalized only parked candidates — so an alias path would have matched a
+parked row and missed an identical detached one, a bug visible only on a symlinked
+checkout. Both kinds are now resolved alike, proved end to end rather than by
+reading.
+
+Both acceptance tests run through production interactive routing to initial
+Console attach, and the reattach one is mutation-verified: narrowing the selector
+back to parked-only reddens it.
+
+[pair#170 M3]: #pair-170-m3
 [pair#170 M2]: #pair-170-m2
 [pair#170 M1]: #pair-170-m1
 [pair#146 M1]: #pair-146-m1

@@ -6,13 +6,27 @@ import (
 	"github.com/xianxu/pair/cmd/internal/launcher"
 )
 
-// SelectUniqueParkedRoot selects only an exact, unambiguous actionable parked
-// thread for an already-normalized repository scope and physical working path.
-func SelectUniqueParkedRoot(rows []ActionableThreadSummary, repoScope, workingPath string) (ThreadAddress, bool) {
+// SelectUniqueResumableRoot selects only an exact, unambiguous actionable
+// resumable row for one repository scope and physical path.
+//
+// Both resumable states qualify. Parked is cold -- the zellij session was torn
+// down -- and detached is warm, its session still running with no client; but
+// `couch` in a directory means the same thing either way, reattach what is
+// already there, and both converge on one `pair resume`. Naming it Parked while
+// it selects detached rows would be a lie the next reader pays for.
+//
+// A live row is deliberately never selected: couch is a singleton holding its
+// supervisor lease for the whole run, so a live row at startup is one THIS couch
+// already hosts.
+//
+// Exactness, not ranking: a parked row and a detached row at one path are TWO
+// matches and create a new thread, exactly as two parked rows do. Preferring
+// warm over cold would be a policy, and this selector deliberately has none.
+func SelectUniqueResumableRoot(rows []ActionableThreadSummary, repoScope, workingPath string) (ThreadAddress, bool) {
 	var selected ThreadAddress
 	found := false
 	for _, row := range rows {
-		if row.State != ThreadParked || row.Address.RepoScope != repoScope || row.WorkingPath != workingPath {
+		if !row.Resumable() || row.Address.RepoScope != repoScope || row.WorkingPath != workingPath {
 			continue
 		}
 		if found {
@@ -39,7 +53,7 @@ func (c *Couch) StartInteractive(ctx context.Context, args StartArgs) (StartResu
 	if err != nil {
 		return StartResult{}, err
 	}
-	if address, ok := SelectUniqueParkedRoot(rows, scope.Key, resolution.CanonicalPath); ok {
+	if address, ok := SelectUniqueResumableRoot(rows, scope.Key, resolution.CanonicalPath); ok {
 		record, handle, resumeErr := c.ResumeContext(ctx, address)
 		return StartResult{Record: record, Handle: handle}, resumeErr
 	}

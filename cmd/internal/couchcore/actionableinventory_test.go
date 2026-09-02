@@ -508,3 +508,51 @@ func TestProjectActionableThreadsDetachedRequiresAUsableProfile(t *testing.T) {
 		})
 	}
 }
+
+// Parked and detached rows must carry the SAME kind of path, or the startup
+// selector -- which compares by exact string -- matches one and misses the
+// other for the same tree. Only visible on a symlinked checkout, which is
+// exactly why it needs a test rather than a reading.
+func TestActionableInventoryPhysicalizesDetachedRowsLikeParkedOnes(t *testing.T) {
+	ns := testCouchNamespace(t)
+	store := NewThreadStore(ns)
+	profile := &LaunchProfile{Agent: "claude", Argv: []string{}}
+
+	seed := validThreadRecord(t)
+	seed.StartingPath, seed.WorkingPath = "/link/repo", "/link/repo"
+	created, err := store.CreateThread(seed)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := store.UpdateExistingThread(created.Address, created.Revision, func(next *ThreadRecord) error {
+		next.Reservation = false
+		next.LatestLaunchProfile = profile
+		return nil
+	}); err != nil {
+		t.Fatal(err)
+	}
+
+	artifacts := NewFakeThreadArtifactCollisionChecker()
+	artifacts.SetDetachedSession(created.Address, "pair-one")
+	couch := &Couch{
+		Threads:   store,
+		Artifacts: artifacts,
+		Path:      NewFakePathOps(map[string]string{"/link/repo": "/real/repo"}),
+	}
+
+	rows, err := couch.ActionableThreadInventoryContext(context.Background(), nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(rows) != 1 || rows[0].State != ThreadDetached {
+		t.Fatalf("rows = %+v, want one detached row", rows)
+	}
+	if rows[0].WorkingPath != "/real/repo" {
+		t.Fatalf("detached WorkingPath = %q, want the physical path -- the startup selector compares by exact string",
+			rows[0].WorkingPath)
+	}
+	// And the selector actually finds it at the physical path.
+	if _, ok := SelectUniqueResumableRoot(rows, created.Address.RepoScope, "/real/repo"); !ok {
+		t.Fatal("the detached row was not selectable at its physical path")
+	}
+}
