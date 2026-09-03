@@ -176,7 +176,23 @@ names is never reached. Its setup needs correcting either way.
   root-actor/home concept (`couchtty/console.go:68`).
 - **`ctrl+backspace` = previous.** This is the key labelled `delete` on an Apple
   keyboard, not forward-delete — no `fn` in the chord.
-- **`alt+d` = detach.**
+- **`alt+d` = detach EVERY actor and return to the shell.** Operator decision,
+  2026-09-03. The scope mapping is the argument: the gesture means "detach the
+  thing I am in", and in couch that is the fleet, not one row — which is also
+  what the operator expected it to do before being told otherwise.
+
+  That is `leave`'s existing behaviour ("Detach every active work thread and
+  leave Couch", `ops.go:234`), so `alt+d` becomes **`leave`'s chord**, not a new
+  operation (`ARCH-DRY`). Keep `leave`'s `ConfirmRequired`: it ends the session.
+  The per-thread detach *operation* stays available from the panel; what goes
+  away is the per-thread *chord*, so one key does not mean two scopes.
+
+  **Ordering constraint, blocking:** this must NOT land before the attach path
+  is fixed. Every detached thread is currently unreattachable
+  (`createflow.go:238`), so a fleet-wide `alt+d` strands the WHOLE fleet in one
+  keystroke instead of one thread. The detach guard on
+  `000170-detach-strand-fix` does not help — healthy threads pass it and are
+  stranded anyway. Fix the attach path first, then rebind.
 
 Encodings verified by probe in Ghostty, outside zellij, 2026-09-02:
 
@@ -522,3 +538,11 @@ Unrelated and pre-existing at `8bfdd846`: `./cmd/internal/couchcore` deadlocks
 (`pair-launch-helper: acknowledgement unavailable: EOF`), reproducing with the
 above changes stashed and outside the sandbox, so it is neither new nor an
 environment artifact.
+
+### 2026-09-03 — alt+d becomes fleet-wide
+
+Operator: "detach in couch should apply to all actors as well." Recorded in
+*Keys* above with the ordering constraint. Raising the priority of the attach
+path: with `alt+d` fleet-wide, the existing reattach refusal turns a one-thread
+mistake into a whole-fleet one, and `leave` already calls detach on every thread
+on the way out — so that exposure exists today, before any rebinding.
