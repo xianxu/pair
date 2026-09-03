@@ -8,6 +8,7 @@ import (
 	"fmt"
 	"io"
 	"os"
+	"path/filepath"
 	"sort"
 	"strings"
 	"syscall"
@@ -28,7 +29,6 @@ type Couch struct {
 	Store            Store
 	Clock            Clock
 	IDs              IDGen
-	PolicyResolver   PolicyResolver
 	Threads          *ThreadStore
 	StartGrants      *StartGrantStore[StartResolution]
 	Entropy          io.Reader
@@ -80,15 +80,12 @@ func (c *Couch) RecoverActiveParks(ctx context.Context) error {
 	return result
 }
 
-func New(namespace CouchNamespace, r Runner, p PathOps, g GitRunner, proc ProcOps, s Store, c Clock, ids IDGen, resolver PolicyResolver, entropy io.Reader, artifacts ThreadArtifactController) (*Couch, error) {
+func New(namespace CouchNamespace, r Runner, p PathOps, g GitRunner, proc ProcOps, s Store, c Clock, ids IDGen, entropy io.Reader, artifacts ThreadArtifactController) (*Couch, error) {
 	if namespace.Dir() == "" {
 		return nil, fmt.Errorf("new couch: empty namespace")
 	}
 	if s.Dir() != namespace.Dir() {
 		return nil, fmt.Errorf("store directory %q does not match couch namespace %q", s.Dir(), namespace.Dir())
-	}
-	if resolver == nil {
-		return nil, fmt.Errorf("new couch: nil policy resolver")
 	}
 	if entropy == nil {
 		entropy = rand.Reader
@@ -110,8 +107,7 @@ func New(namespace CouchNamespace, r Runner, p PathOps, g GitRunner, proc ProcOp
 	result := &Couch{
 		Namespace: namespace,
 		Runner:    r, Path: p, Git: g, Proc: proc, Store: s, Clock: c, IDs: ids,
-		PolicyResolver: resolver,
-		Threads:        threads, Entropy: entropy,
+		Threads: threads, Entropy: entropy,
 		StartGrants: NewStartGrantStore[StartResolution](c, entropy, cloneStartResolution),
 		Artifacts:   artifacts,
 		reg:         reg, names: names,
@@ -201,11 +197,11 @@ func (c *Couch) resolveStartResolution(ctx context.Context, args StartArgs) (Sta
 	if physical, physicalErr := c.Path.Physical(canonicalPath); physicalErr == nil {
 		canonicalPath = physical
 	}
-	policy, err := c.PolicyResolver.ResolvePolicy(ctx, canonicalPath)
+	repoIdentity, err := c.resolveRepoIdentity(canonicalPath)
 	if err != nil {
 		return StartResolution{}, err
 	}
-	preference, found, err := c.Threads.GetPathLaunchPreference(policy.RepoIdentity, canonicalPath)
+	preference, found, err := c.Threads.GetPathLaunchPreference(repoIdentity, canonicalPath)
 	if err != nil {
 		return StartResolution{}, fmt.Errorf("read launch preference: %w", err)
 	}
@@ -241,8 +237,45 @@ func (c *Couch) resolveStartResolution(ctx context.Context, args StartArgs) (Sta
 		LaunchProfileInputs: LaunchProfileInputs{
 			ExplicitAgent: args.Stack, Path: pathPreference, RootAgent: rootAgent, RepoDefault: repoDefault,
 		},
-		CandidatePolicy: policy,
+		RepoIdentity: repoIdentity,
 	})
+}
+
+// resolveRepoIdentity returns the Git common directory for a working path.
+//
+// This is the value the fleet-policy provider used to supply as
+// `repo_identity`, derived locally now that the provider is gone (pair#170 M4).
+// It must be BYTE-IDENTICAL to what that provider produced, because it keys the
+// operator's saved launch preferences: a different string silently orphans
+// every remembered agent+argv, and couch would simply forget which agent you
+// use in which tree.
+//
+// `rev-parse --git-common-dir` answers relative in a main checkout (".git") and
+// absolute in a linked worktree, so the result is joined against the query
+// directory before canonicalizing -- which is also what makes every worktree of
+// one repository share an identity, as the name promises. Verified against
+// ariadne's own derivation and against the operator's live preference files.
+func (c *Couch) resolveRepoIdentity(workingPath string) (string, error) {
+	if c.Git == nil {
+		return "", errors.New("resolve repository identity: no git runner")
+	}
+	out, err := c.Git.Run(workingPath, "rev-parse", "--git-common-dir")
+	if err != nil {
+		return "", fmt.Errorf("resolve repository identity for %q: %w", workingPath, err)
+	}
+	common := strings.TrimSpace(out)
+	if common == "" {
+		return "", fmt.Errorf("resolve repository identity for %q: empty git common dir", workingPath)
+	}
+	if !filepath.IsAbs(common) {
+		common = filepath.Join(workingPath, common)
+	}
+	if c.Path != nil {
+		if physical, physicalErr := c.Path.Physical(common); physicalErr == nil {
+			return physical, nil
+		}
+	}
+	return common, nil
 }
 
 func (c *Couch) spawnResolved(ctx context.Context, resolution StartResolution) (ActorRecord, Handle, error) {
@@ -263,32 +296,29 @@ func (c *Couch) spawnResolved(ctx context.Context, resolution StartResolution) (
 		return ActorRecord{}, nil, err
 	}
 	threadAddress := thread.Address
-	thread, err = ReconcileAdmissionPrepared(ctx, c.Threads, c.PolicyResolver, threadAddress, startedAt, resolution.CandidatePolicy)
-	if err != nil {
-		return ActorRecord{}, nil, errors.Join(err, c.releaseClaimIfThreadAbsent(threadAddress))
-	}
 	profile := LaunchProfileResolution{Profile: cloneLaunchProfile(resolution.Profile), AgentSource: resolution.AgentSource, ArgvSource: resolution.ArgvSource}
 	args.Stack = profile.Profile.Agent
 	args.ExtraArgs = cloneArgv(profile.Profile.Argv)
 	owner, err := c.Proc.Current()
 	if err != nil {
-		return ActorRecord{}, nil, errors.Join(fmt.Errorf("identify couch supervisor: %w", err), c.rollbackUnforkedStart(thread))
+		return ActorRecord{}, nil, errors.Join(fmt.Errorf("identify couch supervisor: %w", err), c.releaseClaimIfThreadAbsent(threadAddress))
 	}
 	nonce, err := allocateStartNonce(c.Entropy)
 	if err != nil {
-		return ActorRecord{}, nil, errors.Join(err, c.rollbackUnforkedStart(thread))
+		return ActorRecord{}, nil, errors.Join(err, c.releaseClaimIfThreadAbsent(threadAddress))
 	}
-	admittedThread := thread
-	startedThread, err := c.Threads.AdvanceStart(thread.Address, thread.Revision, StartEvent{
+	// One revision-checked write for what admission used to do around its
+	// capacity decision: clear the reservation, append the creating
+	// incarnation, and record the start claim.
+	thread, err = c.Threads.CommitStartClaim(threadAddress, thread.Revision, resolution.RepoIdentity, startedAt, StartEvent{
 		Kind:    StartClaimed,
 		Nonce:   nonce,
 		Owner:   SupervisorOwner{PID: owner.PID, Identity: owner.Identity},
 		Profile: &profile.Profile,
 	})
 	if err != nil {
-		return ActorRecord{}, nil, errors.Join(fmt.Errorf("record start transaction: %w", err), c.rollbackUnforkedStart(admittedThread))
+		return ActorRecord{}, nil, errors.Join(fmt.Errorf("record start transaction: %w", err), c.releaseClaimIfThreadAbsent(threadAddress))
 	}
-	thread = startedThread
 
 	// `pair resume <tag> --layout2` rather than a bare `pair`.
 	//

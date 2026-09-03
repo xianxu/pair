@@ -248,10 +248,20 @@ func (c *Couch) ResumeContext(ctx context.Context, address ThreadAddress) (Actor
 		return ActorRecord{}, nil, err
 	}
 	startedAt := c.Clock.Now()
-	thread, err = ReconcileResumeAdmission(ctx, c.Threads, c.PolicyResolver, ResumeAdmissionInput{
-		Address: address, StartedAt: startedAt,
-		Owner: SupervisorOwner{PID: owner.PID, Identity: owner.Identity},
-		Nonce: nonce, Profile: eligible.Profile, Detached: detached,
+	// The same single write the spawn path uses. Its precondition -- verified
+	// park OR proved detachment -- was already checked by DecideResume above;
+	// carrying both authorities forward here is what keeps M4 from silently
+	// re-breaking detached reattachment, which M2 fixed and admission's second
+	// verified-park gate used to enforce.
+	repoIdentity, err := c.resolveRepoIdentity(thread.WorkingPath)
+	if err != nil {
+		return ActorRecord{}, nil, err
+	}
+	thread, err = c.Threads.CommitStartClaim(address, thread.Revision, repoIdentity, startedAt, StartEvent{
+		Kind:    StartClaimed,
+		Nonce:   nonce,
+		Owner:   SupervisorOwner{PID: owner.PID, Identity: owner.Identity},
+		Profile: &eligible.Profile,
 	})
 	if err != nil {
 		return ActorRecord{}, nil, err

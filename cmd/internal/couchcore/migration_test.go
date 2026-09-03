@@ -13,13 +13,12 @@ import (
 func legacyMigrationRecord(t *testing.T) ThreadRecord {
 	t.Helper()
 	record := ThreadRecord{
-		SchemaVersion:   ThreadSchemaVersion,
-		Address:         ThreadAddress{RepoScope: "816fc349d3faebf8", Tag: "pair"},
-		StartingPath:    "/repo",
-		WorkingPath:     "/repo",
-		CreatedAt:       time.Unix(1, 0).UTC(),
-		Revision:        2,
-		ClaimGeneration: 1,
+		SchemaVersion: ThreadSchemaVersion,
+		Address:       ThreadAddress{RepoScope: "816fc349d3faebf8", Tag: "pair"},
+		StartingPath:  "/repo",
+		WorkingPath:   "/repo",
+		CreatedAt:     time.Unix(1, 0).UTC(),
+		Revision:      2,
 		Incarnations: []ThreadIncarnation{
 			{LegacyActorID: "actor-1", PID: 41, Identity: "one", State: IncarnationUnknown, StartedAt: time.Unix(1, 0).UTC()},
 			{LegacyActorID: "actor-2", PID: 42, Identity: "two", State: IncarnationUnknown, StartedAt: time.Unix(2, 0).UTC()},

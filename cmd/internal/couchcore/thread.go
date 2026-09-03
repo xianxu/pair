@@ -37,12 +37,15 @@ type ThreadStartClaim struct {
 }
 
 type ThreadIncarnation struct {
-	LegacyActorID ActorID           `json:"legacy_actor_id,omitempty"`
-	PID           int               `json:"pid,omitempty"`
-	Identity      string            `json:"identity,omitempty"`
-	State         IncarnationState  `json:"state"`
-	StartedAt     time.Time         `json:"started_at,omitempty"`
-	Policy        *PolicyResult     `json:"policy,omitempty"`
+	LegacyActorID ActorID          `json:"legacy_actor_id,omitempty"`
+	PID           int              `json:"pid,omitempty"`
+	Identity      string           `json:"identity,omitempty"`
+	State         IncarnationState `json:"state"`
+	StartedAt     time.Time        `json:"started_at,omitempty"`
+	// RepoIdentity is the Git common directory: the key under which this path's
+	// successful launch profile is remembered. It used to be read out of the
+	// fleet-policy record that admission attached here (pair#170 M4).
+	RepoIdentity  string            `json:"repo_identity,omitempty"`
 	Start         *ThreadStartClaim `json:"start,omitempty"`
 	LaunchProfile *LaunchProfile    `json:"launch_profile,omitempty"`
 }
@@ -54,7 +57,6 @@ type ThreadRecord struct {
 	WorkingPath         string              `json:"working_path"`
 	CreatedAt           time.Time           `json:"created_at"`
 	Revision            uint64              `json:"revision"`
-	ClaimGeneration     uint64              `json:"claim_generation"`
 	Reservation         bool                `json:"reservation,omitempty"`
 	Name                string              `json:"name,omitempty"`
 	Description         string              `json:"description,omitempty"`
@@ -88,7 +90,7 @@ func toPersistedThreadRecord(record ThreadRecord) threadrecord.Record {
 	out := threadrecord.Record{
 		SchemaVersion: record.SchemaVersion, Address: toPersistedThreadAddress(record.Address),
 		StartingPath: record.StartingPath, WorkingPath: record.WorkingPath, CreatedAt: record.CreatedAt,
-		Revision: record.Revision, ClaimGeneration: record.ClaimGeneration, Reservation: record.Reservation,
+		Revision: record.Revision, Reservation: record.Reservation,
 		Name: record.Name, Description: record.Description, PublishedSummary: record.PublishedSummary,
 		Incarnations: make([]threadrecord.Incarnation, len(record.Incarnations)),
 	}
@@ -127,14 +129,7 @@ func toPersistedThreadRecord(record ThreadRecord) threadrecord.Record {
 				out.Incarnations[i].Start.LaunchProfile = &threadrecord.LaunchProfile{Agent: profile.Agent, Argv: profile.Argv}
 			}
 		}
-		if incarnation.Policy != nil {
-			out.Incarnations[i].Policy = &threadrecord.Policy{
-				PolicyVersion: incarnation.Policy.PolicyVersion, PolicyDigest: incarnation.Policy.PolicyDigest,
-				RepoIdentity: incarnation.Policy.RepoIdentity, AdmissionKey: incarnation.Policy.AdmissionKey,
-				Capacity:   threadrecord.PolicyCapacity{Kind: string(incarnation.Policy.Capacity.Kind), Limit: incarnation.Policy.Capacity.Limit},
-				OnCapacity: string(incarnation.Policy.OnCapacity),
-			}
-		}
+		out.Incarnations[i].RepoIdentity = incarnation.RepoIdentity
 		if incarnation.LaunchProfile != nil {
 			profile := cloneLaunchProfile(*incarnation.LaunchProfile)
 			out.Incarnations[i].LaunchProfile = &threadrecord.LaunchProfile{Agent: profile.Agent, Argv: profile.Argv}
@@ -148,7 +143,7 @@ func fromPersistedThreadRecord(record threadrecord.Record) ThreadRecord {
 		SchemaVersion: record.SchemaVersion,
 		Address:       ThreadAddress{RepoScope: record.Address.RepoScope, Tag: ThreadTag(record.Address.Tag)},
 		StartingPath:  record.StartingPath, WorkingPath: record.WorkingPath, CreatedAt: record.CreatedAt,
-		Revision: record.Revision, ClaimGeneration: record.ClaimGeneration, Reservation: record.Reservation,
+		Revision: record.Revision, Reservation: record.Reservation,
 		Name: record.Name, Description: record.Description, PublishedSummary: record.PublishedSummary,
 		Incarnations: make([]ThreadIncarnation, len(record.Incarnations)),
 	}
@@ -187,14 +182,11 @@ func fromPersistedThreadRecord(record threadrecord.Record) ThreadRecord {
 				out.Incarnations[i].Start.LaunchProfile = &profile
 			}
 		}
-		if incarnation.Policy != nil {
-			out.Incarnations[i].Policy = &PolicyResult{
-				PolicyVersion: incarnation.Policy.PolicyVersion, PolicyDigest: incarnation.Policy.PolicyDigest,
-				RepoIdentity: incarnation.Policy.RepoIdentity, AdmissionKey: incarnation.Policy.AdmissionKey,
-				Capacity:   PolicyCapacity{Kind: PolicyCapacityKind(incarnation.Policy.Capacity.Kind), Limit: incarnation.Policy.Capacity.Limit},
-				OnCapacity: CapacityAction(incarnation.Policy.OnCapacity),
-			}
-		}
+		// DeprecatedPolicy is deliberately not read: the only value anything
+		// still wanted from it was the repository identity, which now has its
+		// own field. Old records keep decoding; the tombstone is dropped on the
+		// next write.
+		out.Incarnations[i].RepoIdentity = incarnation.RepoIdentity
 		if incarnation.LaunchProfile != nil {
 			profile := LaunchProfile{Agent: incarnation.LaunchProfile.Agent, Argv: cloneArgv(incarnation.LaunchProfile.Argv)}
 			out.Incarnations[i].LaunchProfile = &profile
@@ -207,10 +199,6 @@ func cloneThreadRecord(record ThreadRecord) ThreadRecord {
 	copy := record
 	copy.Incarnations = append([]ThreadIncarnation{}, record.Incarnations...)
 	for i := range copy.Incarnations {
-		if record.Incarnations[i].Policy != nil {
-			policy := *record.Incarnations[i].Policy
-			copy.Incarnations[i].Policy = &policy
-		}
 		if record.Incarnations[i].Start != nil {
 			start := *record.Incarnations[i].Start
 			if start.LaunchProfile != nil {

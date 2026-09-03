@@ -131,7 +131,6 @@ func (s *ThreadStore) CreateThread(record ThreadRecord) (ThreadRecord, error) {
 		} else if exists || manifestContains(manifest, record.Address) {
 			return &ThreadExistsError{Address: record.Address}
 		}
-		record.ClaimGeneration = manifest.Generation + 1
 		if err := ValidateThreadRecord(record); err != nil {
 			return err
 		}
@@ -243,7 +242,7 @@ func (s *ThreadStore) UpdateExistingThread(address ThreadAddress, expectedRevisi
 		if err := mutate(&next); err != nil {
 			return err
 		}
-		if next.Address != current.Address || next.SchemaVersion != current.SchemaVersion || next.StartingPath != current.StartingPath || next.CreatedAt != current.CreatedAt || next.ClaimGeneration != current.ClaimGeneration {
+		if next.Address != current.Address || next.SchemaVersion != current.SchemaVersion || next.StartingPath != current.StartingPath || next.CreatedAt != current.CreatedAt {
 			return errors.New("thread update changed immutable identity or origin fields")
 		}
 		next.Revision++
@@ -412,6 +411,45 @@ func (s *ThreadStore) FinalizePark(address ThreadAddress, expectedRevision uint6
 // unknown is precisely the state the fail-closed projector exists to keep out of
 // the switcher, and retiring one would let an unproven thread present as cleanly
 // detached.
+// CommitStartClaim is the durable transition that admission used to perform
+// around its capacity decision (pair#170 M4 deleted the decision, not the
+// transition): clear the pristine reservation, append the first creating
+// incarnation carrying the repository identity, and apply the start claim --
+// all in ONE revision-checked write.
+//
+// It is one commit rather than three because a crash between them leaves a
+// reserved record with a live incarnation, which is the state
+// ProjectActionableThreads hides: an invisible thread. Naming the transition is
+// what makes that atomicity checkable.
+//
+// It does NOT decide whether the start is allowed. Its callers have already
+// decided -- a new thread by allocating the tag, a resume by proving a verified
+// park or a surviving detached session -- and the revision CAS is what makes
+// the decision still true at the moment of the write.
+func (s *ThreadStore) CommitStartClaim(address ThreadAddress, expectedRevision uint64, repoIdentity string, startedAt time.Time, event StartEvent) (ThreadRecord, error) {
+	if repoIdentity == "" {
+		return ThreadRecord{}, errors.New("start claim has no repository identity")
+	}
+	return s.UpdateExistingThread(address, expectedRevision, func(next *ThreadRecord) error {
+		if len(next.Incarnations) != 0 {
+			return fmt.Errorf("thread %+v already has %d incarnation(s)", address, len(next.Incarnations))
+		}
+		if next.Park != nil {
+			return fmt.Errorf("thread %+v has an open park transaction", address)
+		}
+		next.Reservation = false
+		next.Incarnations = []ThreadIncarnation{{
+			State: IncarnationCreating, StartedAt: startedAt, RepoIdentity: repoIdentity,
+		}}
+		advanced, err := AdvanceStartTransaction(*next, event)
+		if err != nil {
+			return err
+		}
+		*next = advanced
+		return nil
+	})
+}
+
 func (s *ThreadStore) RetireIncarnation(address ThreadAddress, expectedRevision uint64, identity ProcessIdentity) (ThreadRecord, error) {
 	return s.UpdateExistingThread(address, expectedRevision, func(next *ThreadRecord) error {
 		if next.Park != nil {
@@ -529,7 +567,7 @@ func (s *ThreadStore) CommitThreadReplacements(snapshot ThreadSnapshot, replacem
 			if err != nil {
 				return err
 			}
-			if replacement.Revision != previous.Revision+1 || replacement.Address != previous.Address || replacement.SchemaVersion != previous.SchemaVersion || replacement.StartingPath != previous.StartingPath || replacement.CreatedAt != previous.CreatedAt || replacement.ClaimGeneration != previous.ClaimGeneration {
+			if replacement.Revision != previous.Revision+1 || replacement.Address != previous.Address || replacement.SchemaVersion != previous.SchemaVersion || replacement.StartingPath != previous.StartingPath || replacement.CreatedAt != previous.CreatedAt {
 				return fmt.Errorf("replacement %+v violates revision or immutable fields", replacement.Address)
 			}
 			if err := ValidateThreadRecord(replacement); err != nil {
@@ -648,10 +686,10 @@ func (s *ThreadStore) advanceSuccessfulStart(address ThreadAddress, expectedRevi
 			result = cloneThreadRecord(next)
 			return nil
 		}
-		if incarnation.Policy == nil || incarnation.Policy.RepoIdentity == "" {
+		if incarnation.RepoIdentity == "" {
 			return errors.New("successful start has no repository identity")
 		}
-		repoIdentity := incarnation.Policy.RepoIdentity
+		repoIdentity := incarnation.RepoIdentity
 		physicalPath := current.StartingPath
 		preferencePath := s.pathLaunchPreferencePath(repoIdentity, physicalPath)
 		preferenceRaw, preferenceExists, err := readOptionalFile(preferencePath)
@@ -889,13 +927,12 @@ func (s *ThreadStore) CutoverLegacyActors(actors []ActorRecord) error {
 			if !ok {
 				path := string(actor.Args.Worktree)
 				record = ThreadRecord{
-					SchemaVersion:   ThreadSchemaVersion,
-					Address:         address,
-					StartingPath:    path,
-					WorkingPath:     path,
-					CreatedAt:       actor.StartedAt,
-					Revision:        1,
-					ClaimGeneration: manifest.Generation + 1,
+					SchemaVersion: ThreadSchemaVersion,
+					Address:       address,
+					StartingPath:  path,
+					WorkingPath:   path,
+					CreatedAt:     actor.StartedAt,
+					Revision:      1,
 				}
 			}
 			if actor.StartedAt.Before(record.CreatedAt) {

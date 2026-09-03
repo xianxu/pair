@@ -785,3 +785,39 @@ the parked precedent and `couch --list` still shows it, but it is a new way for 
 with the diagnostic, and gate only startup selection — was not weighed when the
 gate was written. If the operator ever hits it, that is the fork to revisit; it
 belongs to the same family as `pair#171`.
+
+### 2026-09-02 — M4: the deletion sweep is a persisted-schema change
+
+Task 13 Step 5 says "drop `Reservation`, `ClaimGeneration`" and Step 3 says
+replace `ThreadIncarnation.Policy`. Those are not merely Go-struct edits: the
+same structs are the **on-disk record schema**, and `strictThreadStoreJSON` →
+`strictjson.Decode` sets `DisallowUnknownFields()`. Removing a field therefore
+makes every record that still carries it fail to decode, which means
+`decodeThreadRaw` errors and the thread disappears from every view at once.
+
+Measured against the operator's live store (17 records) rather than assumed:
+
+| field | where | records carrying it | removing it |
+| --- | --- | --- | --- |
+| `claim_generation` | top level | **17 / 17** | breaks **every** record |
+| `policy` | incarnation | **5 / 5** with incarnations | breaks those 5 |
+| `reservation` | top level | 0 (omitempty, currently always false) | safe |
+
+So the plan as written would have bricked the operator's entire couch store on
+the first startup after M4 — every thread unreadable, and the store is the only
+place the parked/detached history lives.
+
+**Approach, added to Task 13.** The removed fields become *tombstones in the
+persisted schema only*: `cmd/internal/threadrecord` keeps them as decode-only
+fields the domain type does not carry, so old records still decode and shed the
+field on their next write. No migration pass, no schema-version bump, no
+chicken-and-egg (a migration would itself have to decode the records it is
+migrating). The domain `ThreadIncarnation` loses `Policy` and gains
+`RepoIdentity`; `ClaimGeneration` leaves the domain type and stays a tombstone
+until every record has been rewritten.
+
+The irony is deliberate and worth stating: M4 deletes the legacy-migration
+machinery (D3) while adding a compatibility tombstone. They are not the same
+thing. D3's machinery was a *one-shot cutover pass* that has been a no-op since
+it ran; a tombstone is a permanent statement that a field may appear in old data
+and means nothing — cheaper, and it cannot fail halfway.

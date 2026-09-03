@@ -45,11 +45,18 @@ func TestResolveStartResolutionFingerprintCoversNormalizedAuthority(t *testing.T
 		"repository default": func(in *StartResolutionInput) {
 			in.LaunchProfileInputs.RepoDefault.Argv[0] = "--different-default"
 		},
-		"policy digest": func(in *StartResolutionInput) {
-			in.CandidatePolicy.PolicyDigest = "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb"
+		// The fleet-policy fields the fingerprint used to cover went with
+		// admission (pair#170 M4). The repository identity is the one that
+		// survived, and it still has to change the fingerprint -- it keys the
+		// saved launch preference, so two resolutions that disagree about it
+		// are not the same resolution.
+		// Changed on BOTH sides: the resolution validates that its preference
+		// agrees with its identity, so mutating one alone is an invalid input
+		// rather than a different fingerprint.
+		"repository identity": func(in *StartResolutionInput) {
+			in.RepoIdentity = "/repo/other/.git"
+			in.LaunchProfileInputs.Path.RepoIdentity = "/repo/other/.git"
 		},
-		"admission key": func(in *StartResolutionInput) { in.CandidatePolicy.AdmissionKey = "/repo/other-key" },
-		"capacity":      func(in *StartResolutionInput) { in.CandidatePolicy.Capacity.Limit++ },
 	}
 	for name, mutate := range mutations {
 		t.Run(name, func(t *testing.T) {
@@ -73,13 +80,13 @@ func TestResolveStartResolutionFingerprintCoversNormalizedAuthority(t *testing.T
 
 func TestResolveStartResolutionRejectsMalformedAuthority(t *testing.T) {
 	tests := map[string]func(*StartResolutionInput){
-		"relative path":     func(in *StartResolutionInput) { in.CanonicalPath = "relative" },
-		"relative worktree": func(in *StartResolutionInput) { in.Worktree = "relative" },
-		"invalid policy":    func(in *StartResolutionInput) { in.CandidatePolicy.PolicyDigest = "invalid" },
-		"preference repo":   func(in *StartResolutionInput) { in.LaunchProfileInputs.Path.RepoIdentity = "other" },
-		"preference path":   func(in *StartResolutionInput) { in.LaunchProfileInputs.Path.PhysicalPath = "/other" },
-		"nil default argv":  func(in *StartResolutionInput) { in.LaunchProfileInputs.RepoDefault.Argv = nil },
-		"unsupported agent": func(in *StartResolutionInput) { in.LaunchProfileInputs.ExplicitAgent = "unknown" },
+		"relative path":       func(in *StartResolutionInput) { in.CanonicalPath = "relative" },
+		"relative worktree":   func(in *StartResolutionInput) { in.Worktree = "relative" },
+		"empty repo identity": func(in *StartResolutionInput) { in.RepoIdentity = "" },
+		"preference repo":     func(in *StartResolutionInput) { in.LaunchProfileInputs.Path.RepoIdentity = "other" },
+		"preference path":     func(in *StartResolutionInput) { in.LaunchProfileInputs.Path.PhysicalPath = "/other" },
+		"nil default argv":    func(in *StartResolutionInput) { in.LaunchProfileInputs.RepoDefault.Argv = nil },
+		"unsupported agent":   func(in *StartResolutionInput) { in.LaunchProfileInputs.ExplicitAgent = "unknown" },
 	}
 	for name, mutate := range tests {
 		t.Run(name, func(t *testing.T) {
@@ -112,14 +119,7 @@ func validStartResolutionInput() StartResolutionInput {
 			},
 			RepoDefault: &LaunchProfile{Agent: "codex", Argv: []string{"--search"}},
 		},
-		CandidatePolicy: PolicyResult{
-			PolicyVersion: 1,
-			PolicyDigest:  "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
-			RepoIdentity:  "/repo/.git",
-			AdmissionKey:  "/repo",
-			Capacity:      PolicyCapacity{Kind: CapacityBounded, Limit: 2},
-			OnCapacity:    CapacityReject,
-		},
+		RepoIdentity: "/repo/.git",
 	}
 }
 

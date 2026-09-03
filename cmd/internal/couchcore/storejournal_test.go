@@ -39,7 +39,7 @@ func TestStoreJournalRecoversCrashAfterDurableIntent(t *testing.T) {
 	if err != nil {
 		t.Fatalf("GetThread after recovery: %v", err)
 	}
-	if got.ClaimGeneration != 1 || got.Revision != 1 {
+	if got.Revision != 1 {
 		t.Fatalf("recovered record = %+v", got)
 	}
 	if generation, _ := restarted.ManifestGeneration(); generation != 1 {

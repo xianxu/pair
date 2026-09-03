@@ -770,7 +770,11 @@ func TestOpaqueIdentityCommentDoesNotReintroducePathDerivedContract(t *testing.T
 
 func TestIssue149PureCoreTestsStayAtPureBoundary(t *testing.T) {
 	for _, name := range []string{
-		"thread_test.go", "starttransaction_test.go", "admission_test.go",
+		// admission_test.go was in this set until pair#170 M4 deleted admission.
+		// The rule it was here to enforce -- #149's PURE direct tests do not
+		// cross the integration boundary -- is unchanged for the files that
+		// remain.
+		"thread_test.go", "starttransaction_test.go",
 		"threadmetadata_model_test.go", "ops_declarations_test.go",
 		filepath.Join("..", "threadrecord", "record_test.go"),
 		filepath.Join("..", "strictjson", "decode_test.go"),

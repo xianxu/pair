@@ -36,49 +36,54 @@ type PolicyCapacity struct {
 	Limit int    `json:"limit,omitempty"`
 }
 
-type Policy struct {
-	PolicyVersion int            `json:"policy_version"`
-	PolicyDigest  string         `json:"policy_digest"`
-	RepoIdentity  string         `json:"repo_identity"`
-	AdmissionKey  string         `json:"admission_key"`
-	Capacity      PolicyCapacity `json:"capacity"`
-	OnCapacity    string         `json:"on_capacity,omitempty"`
-}
-
 type LaunchProfile struct {
 	Agent string   `json:"agent"`
 	Argv  []string `json:"argv"`
 }
 
 type Incarnation struct {
-	LegacyActorID string         `json:"legacy_actor_id,omitempty"`
-	PID           int            `json:"pid,omitempty"`
-	Identity      string         `json:"identity,omitempty"`
-	State         string         `json:"state"`
-	StartedAt     time.Time      `json:"started_at,omitempty"`
-	Policy        *Policy        `json:"policy,omitempty"`
-	Start         *StartClaim    `json:"start,omitempty"`
-	LaunchProfile *LaunchProfile `json:"launch_profile,omitempty"`
+	LegacyActorID string    `json:"legacy_actor_id,omitempty"`
+	PID           int       `json:"pid,omitempty"`
+	Identity      string    `json:"identity,omitempty"`
+	State         string    `json:"state"`
+	StartedAt     time.Time `json:"started_at,omitempty"`
+	// RepoIdentity is the Git common directory, the key for this path's saved
+	// launch preference. It replaces the fleet-policy record that used to carry
+	// it (pair#170 M4).
+	RepoIdentity string `json:"repo_identity,omitempty"`
+	// DeprecatedPolicy is a TOMBSTONE, not a field. Records written before
+	// pair#170 M4 carry a `policy` object, and strictjson disallows unknown
+	// fields -- so removing it outright would make every such record
+	// undecodable, and an undecodable record is a thread that vanishes from
+	// every view at once. It is decoded, never read, and never written, so a
+	// record sheds it on its next write with no migration pass.
+	DeprecatedPolicy json.RawMessage `json:"policy,omitempty"`
+	Start            *StartClaim     `json:"start,omitempty"`
+	LaunchProfile    *LaunchProfile  `json:"launch_profile,omitempty"`
 }
 
 type Record struct {
-	SchemaVersion       int               `json:"schema_version"`
-	Address             Address           `json:"address"`
-	StartingPath        string            `json:"starting_path"`
-	WorkingPath         string            `json:"working_path"`
-	CreatedAt           time.Time         `json:"created_at"`
-	Revision            uint64            `json:"revision"`
-	ClaimGeneration     uint64            `json:"claim_generation"`
-	Reservation         bool              `json:"reservation,omitempty"`
-	Name                string            `json:"name,omitempty"`
-	Description         string            `json:"description,omitempty"`
-	PublishedSummary    string            `json:"published_summary,omitempty"`
-	Incarnations        []Incarnation     `json:"incarnations,omitempty"`
-	LatestLaunchProfile *LaunchProfile    `json:"latest_launch_profile,omitempty"`
-	LastActiveAt        time.Time         `json:"last_active_at,omitempty"`
-	Park                *ParkTransaction  `json:"park,omitempty"`
-	VerifiedPark        *VerifiedPark     `json:"verified_park,omitempty"`
-	ParkHistory         []ParkTransaction `json:"park_history,omitempty"`
+	SchemaVersion int       `json:"schema_version"`
+	Address       Address   `json:"address"`
+	StartingPath  string    `json:"starting_path"`
+	WorkingPath   string    `json:"working_path"`
+	CreatedAt     time.Time `json:"created_at"`
+	Revision      uint64    `json:"revision"`
+	// DeprecatedClaimGeneration is a TOMBSTONE for the same reason as
+	// Incarnation.DeprecatedPolicy -- and a more urgent one: it appeared in
+	// EVERY record in the operator's store, so deleting it would have made the
+	// whole store unreadable at once.
+	DeprecatedClaimGeneration uint64            `json:"claim_generation,omitempty"`
+	Reservation               bool              `json:"reservation,omitempty"`
+	Name                      string            `json:"name,omitempty"`
+	Description               string            `json:"description,omitempty"`
+	PublishedSummary          string            `json:"published_summary,omitempty"`
+	Incarnations              []Incarnation     `json:"incarnations,omitempty"`
+	LatestLaunchProfile       *LaunchProfile    `json:"latest_launch_profile,omitempty"`
+	LastActiveAt              time.Time         `json:"last_active_at,omitempty"`
+	Park                      *ParkTransaction  `json:"park,omitempty"`
+	VerifiedPark              *VerifiedPark     `json:"verified_park,omitempty"`
+	ParkHistory               []ParkTransaction `json:"park_history,omitempty"`
 }
 
 var componentPattern = regexp.MustCompile(`^[A-Za-z0-9_-]+$`)
@@ -164,9 +169,6 @@ func ValidatePersisted(record Record, expected Address, validators Validators) e
 	if err := Validate(record, validators); err != nil {
 		return err
 	}
-	if record.ClaimGeneration == 0 {
-		return fmt.Errorf("stored thread has zero claim generation")
-	}
 	if record.Address != expected {
 		return fmt.Errorf("thread record path/address mismatch")
 	}
@@ -230,8 +232,8 @@ func migrateV1(legacy recordV1) Record {
 		SchemaVersion: SchemaVersion, Address: legacy.Address,
 		StartingPath: legacy.StartingPath, WorkingPath: legacy.WorkingPath,
 		CreatedAt: legacy.CreatedAt, Revision: legacy.Revision,
-		ClaimGeneration: legacy.ClaimGeneration, Reservation: legacy.Reservation,
-		Name: legacy.Name, Description: legacy.Description,
+		Reservation: legacy.Reservation,
+		Name:        legacy.Name, Description: legacy.Description,
 		PublishedSummary: legacy.PublishedSummary, Incarnations: legacy.Incarnations,
 	}
 }

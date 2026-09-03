@@ -92,7 +92,7 @@ func (r OSRuntime) NewCouchWith(runner couchcore.Runner, namespace couchcore.Cou
 	c, err := couchcore.New(
 		namespace, runner, couchcore.OSPathOps{}, couchcore.ExecGit{},
 		couchcore.OSProcOps{}, couchcore.NewStore(namespace.Dir()),
-		couchcore.SystemClock{}, couchcore.NewRandomIDGen(), couchcore.NewExecPolicyResolver("sdlc"), rand.Reader,
+		couchcore.SystemClock{}, couchcore.NewRandomIDGen(), rand.Reader,
 		couchcore.NewScopedThreadArtifactCollisionChecker(dataDir),
 	)
 	if err != nil {
@@ -652,23 +652,11 @@ func dimCodes(w io.Writer) (string, string) {
 	return "\x1b[2m", "\x1b[0m"
 }
 
-// renderError gives normalized capacity refusal a next-action shape without
-// inventing local policy or mutating paths on the provider's behalf.
+// renderError prints one error. Its capacity-refusal shape went with admission
+// (pair#170 M4): couch-lite has no capacity to exceed, so there is no refusal to
+// give a next action to.
 func renderError(w io.Writer, err error) {
-	var full *couchcore.CapacityExceededError
-	if !asCapacityExceeded(err, &full) {
-		fmt.Fprintf(w, "couch: %v\n", err)
-		return
-	}
-	fmt.Fprintf(w, "couch: %s is at capacity %d for admission key %q\n", full.RepoIdentity, full.Limit, full.AdmissionKey)
-	for _, address := range full.Incumbents {
-		fmt.Fprintf(w, "  %s/%s\n", address.RepoScope, address.Tag)
-	}
-	if full.Action == couchcore.CapacityProvisionWorktree {
-		fmt.Fprintln(w, "  -> managed worktree provisioning is tracked by pair#153; no path was created")
-	} else {
-		fmt.Fprintln(w, "  -> couch --list   inspect the existing thread")
-	}
+	fmt.Fprintf(w, "couch: %v\n", err)
 }
 
 func usage(w io.Writer) {

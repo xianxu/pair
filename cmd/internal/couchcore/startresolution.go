@@ -20,7 +20,11 @@ type StartResolutionInput struct {
 	Worktree            Worktree
 	Issue               string
 	LaunchProfileInputs LaunchProfileInputs
-	CandidatePolicy     PolicyResult
+	// RepoIdentity is the Git common directory. It replaces the fleet-policy
+	// record this input used to carry (pair#170 M4): the only value anything
+	// downstream still wanted from that record was this string, which keys the
+	// path's saved launch preference.
+	RepoIdentity string
 }
 
 // StartResolution is the immutable authority shared by preview and launch.
@@ -32,7 +36,7 @@ type StartResolution struct {
 	Profile            LaunchProfile              `json:"profile"`
 	AgentSource        AgentSource                `json:"agent_source"`
 	ArgvSource         ArgvSource                 `json:"argv_source"`
-	CandidatePolicy    PolicyResult               `json:"candidate_policy"`
+	RepoIdentity       string                     `json:"repo_identity"`
 	PreferenceRevision uint64                     `json:"preference_revision,omitempty"`
 	DefaultDigest      string                     `json:"default_digest,omitempty"`
 	Fingerprint        StartResolutionFingerprint `json:"fingerprint"`
@@ -42,15 +46,15 @@ func ResolveStartResolution(input StartResolutionInput) (StartResolution, error)
 	if !filepath.IsAbs(input.CanonicalPath) || !filepath.IsAbs(string(input.Worktree)) {
 		return StartResolution{}, errors.New("start resolution paths must be absolute")
 	}
-	if err := ValidatePolicyResult(input.CandidatePolicy); err != nil {
-		return StartResolution{}, err
+	if input.RepoIdentity == "" {
+		return StartResolution{}, errors.New("start resolution has no repository identity")
 	}
 	var preferenceRevision uint64
 	if preference := input.LaunchProfileInputs.Path; preference != nil {
 		if err := validatePathLaunchPreference(*preference); err != nil {
 			return StartResolution{}, err
 		}
-		if preference.RepoIdentity != input.CandidatePolicy.RepoIdentity || preference.PhysicalPath != input.CanonicalPath {
+		if preference.RepoIdentity != input.RepoIdentity || preference.PhysicalPath != input.CanonicalPath {
 			return StartResolution{}, errors.New("start resolution preference does not match candidate")
 		}
 		preferenceRevision = preference.Revision
@@ -77,7 +81,7 @@ func ResolveStartResolution(input StartResolutionInput) (StartResolution, error)
 		Profile:            cloneLaunchProfile(selected.Profile),
 		AgentSource:        selected.AgentSource,
 		ArgvSource:         selected.ArgvSource,
-		CandidatePolicy:    input.CandidatePolicy,
+		RepoIdentity:       input.RepoIdentity,
 		PreferenceRevision: preferenceRevision,
 		DefaultDigest:      defaultDigest,
 	}
@@ -115,13 +119,7 @@ func fingerprintStartResolution(resolution StartResolution) StartResolutionFinge
 	}
 	writeFingerprintField(digest, string(resolution.AgentSource))
 	writeFingerprintField(digest, string(resolution.ArgvSource))
-	writeFingerprintUint(digest, uint64(resolution.CandidatePolicy.PolicyVersion))
-	writeFingerprintField(digest, resolution.CandidatePolicy.PolicyDigest)
-	writeFingerprintField(digest, resolution.CandidatePolicy.RepoIdentity)
-	writeFingerprintField(digest, resolution.CandidatePolicy.AdmissionKey)
-	writeFingerprintField(digest, string(resolution.CandidatePolicy.Capacity.Kind))
-	writeFingerprintUint(digest, uint64(resolution.CandidatePolicy.Capacity.Limit))
-	writeFingerprintField(digest, string(resolution.CandidatePolicy.OnCapacity))
+	writeFingerprintField(digest, resolution.RepoIdentity)
 	writeFingerprintUint(digest, resolution.PreferenceRevision)
 	writeFingerprintField(digest, resolution.DefaultDigest)
 	return StartResolutionFingerprint(hex.EncodeToString(digest.Sum(nil)))

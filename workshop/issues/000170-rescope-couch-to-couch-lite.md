@@ -560,3 +560,21 @@ The per-session queries are independent, so this is bounded fan-out away from
 ~150 ms. That is a contained change but outside M3's scope, so it is filed
 rather than absorbed — expanding a milestone to fix what its review measured is
 how boundaries stop meaning anything.
+
+### 2026-09-02 — M4 would have bricked the live store
+
+The deletion sweep removes fields from types that ARE the on-disk record schema,
+and `strictjson.Decode` disallows unknown fields — so a removed field makes every
+record still carrying it undecodable. Measured against the live store
+(`~/.local/share/pair/couch/threadstore`, 17 records):
+`claim_generation` appears in **17/17**, `policy` in **5/5** incarnations,
+`reservation` in none.
+
+Dropping `ClaimGeneration` as Task 13 Step 5 describes would therefore have made
+every thread in the operator's store unreadable on the next `couch` startup —
+including the parked and detached history, which exists nowhere else.
+
+Caught before writing any deletion code, by enumerating the actual keys in the
+live store rather than reasoning from the Go types. Approach recorded in the plan
+Revisions: the removed fields become decode-only tombstones in `threadrecord`,
+so old records keep decoding and shed the fields on their next write.

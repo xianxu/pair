@@ -16,7 +16,6 @@ func metadataThread(scope string, tag ThreadTag, path, name string) ThreadRecord
 		WorkingPath:      path,
 		CreatedAt:        time.Unix(1, 0).UTC(),
 		Revision:         1,
-		ClaimGeneration:  1,
 		Name:             name,
 		Description:      "operator description",
 		PublishedSummary: "agent summary",
@@ -123,7 +122,7 @@ func TestResolveThreadReferenceReturnsDeepClones(t *testing.T) {
 	record.Incarnations = []ThreadIncarnation{{
 		Identity:      "original",
 		Start:         &ThreadStartClaim{LaunchProfile: &LaunchProfile{Argv: []string{"original-start"}}},
-		Policy:        &PolicyResult{PolicyDigest: "original-policy"},
+		RepoIdentity:  "/repo/.git",
 		LaunchProfile: &LaunchProfile{Argv: []string{"original-launch"}},
 	}}
 	records := []ThreadRecord{cloneThreadRecord(record)}
@@ -134,7 +133,7 @@ func TestResolveThreadReferenceReturnsDeepClones(t *testing.T) {
 	}
 	got[0].Incarnations[0].Identity = "changed"
 	got[0].Incarnations[0].Start.LaunchProfile.Argv[0] = "changed"
-	got[0].Incarnations[0].Policy.PolicyDigest = "changed"
+	got[0].Incarnations[0].RepoIdentity = "changed"
 	got[0].Incarnations[0].LaunchProfile.Argv[0] = "changed"
 	if !reflect.DeepEqual(records[0], record) {
 		t.Fatalf("mutating result changed input:\n got  %+v\n want %+v", records[0], record)

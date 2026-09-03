@@ -123,7 +123,7 @@ func runScenario(helper string, establish bool) error {
 	_, err = couchcore.New(
 		namespace, couchcore.NewFakeRunner(), couchcore.NewFakePathOps(nil), couchcore.NewFakeGit(nil), proc,
 		couchcore.NewStore(namespace.Dir()), couchcore.SystemClock{}, couchcore.NewFixedIDGen("probe"),
-		couchcore.NewFakePolicyResolver(), bytes.NewReader(make([]byte, 64)), artifacts,
+		bytes.NewReader(make([]byte, 64)), artifacts,
 	)
 	if err != nil {
 		return err

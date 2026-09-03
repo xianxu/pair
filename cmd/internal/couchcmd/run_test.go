@@ -34,7 +34,6 @@ type testRT struct {
 	proc       *couchcore.FakeProcOps
 	git        *couchcore.FakeGit
 	supervisor *fakeSupervisor
-	policy     *couchcore.FakePolicyResolver
 	artifacts  *couchcore.FakeThreadArtifactCollisionChecker
 	env        map[string]string
 	// ids is shared across invocations. Minting a fresh generator per
@@ -86,7 +85,7 @@ func (t testRT) NewCouch() (*couchcore.Couch, error) {
 func (t testRT) NewCouchWith(couchcore.Runner, couchcore.CouchNamespace) (*couchcore.Couch, error) {
 	c, err := couchcore.New(
 		t.namespace, t.runner, couchcore.NewFakePathOps(nil), t.git, t.proc,
-		couchcore.NewStore(t.dir), couchcore.FixedClock{T: time.Unix(1, 0)}, t.ids, t.policy,
+		couchcore.NewStore(t.dir), couchcore.FixedClock{T: time.Unix(1, 0)}, t.ids,
 		rand.Reader, t.artifacts,
 	)
 	if err != nil {
@@ -111,6 +110,9 @@ func newRT(t *testing.T, trees ...string) testRT {
 	replies := map[couchcore.GitCall]string{}
 	for _, tr := range trees {
 		replies[couchcore.GitCall{Dir: tr, Args: "rev-parse --show-toplevel"}] = tr
+		// The repository identity couch derives locally since pair#170 M4, in
+		// the shape real git answers it from a main checkout.
+		replies[couchcore.GitCall{Dir: tr, Args: "rev-parse --git-common-dir"}] = ".git"
 	}
 	ns, err := couchcore.ResolveCouchNamespace(t.TempDir(), "/unused")
 	if err != nil {
@@ -133,7 +135,6 @@ func newRT(t *testing.T, trees ...string) testRT {
 		proc:             couchcore.NewFakeProcOps(),
 		git:              couchcore.NewFakeGit(replies),
 		supervisor:       &fakeSupervisor{},
-		policy:           couchcore.NewFakePolicyResolver(),
 		artifacts:        artifacts,
 		env:              map[string]string{},
 		ids:              couchcore.NewFixedIDGen("ah8d", "b2c1", "c3d2", "e4f5"),
@@ -146,7 +147,6 @@ func TestStartComposesRootAgentAndMatchingRepoDefaultThroughSharedLauncherProfil
 	rt := newRT(t, "/repo")
 	rt.env["PAIR_AGENT"] = "codex"
 	rt.agentDefaults["/repo\x00codex"] = launcher.AgentDefault{Agent: "codex", Args: []string{"--sandbox", "workspace-write"}}
-	rt.boundedOne("/repo")
 
 	if _, stderr, code := runLaunchRT(rt, "/repo", ""); code != 0 {
 		t.Fatalf("start: code=%d stderr=%q", code, stderr)
@@ -217,11 +217,6 @@ func seedThreadAtAddress(t *testing.T, rt testRT, scope, tag, path string) couch
 
 func seedVerifiedPark(t *testing.T, rt testRT, path string) couchcore.ThreadRecord {
 	t.Helper()
-	rt.boundedOne(path)
-	policy, err := rt.policy.ResolvePolicy(context.Background(), path)
-	if err != nil {
-		t.Fatal(err)
-	}
 	scope, err := launcher.ResolveRepoScope(path)
 	if err != nil {
 		t.Fatal(err)
@@ -237,7 +232,7 @@ func seedVerifiedPark(t *testing.T, rt testRT, path string) couchcore.ThreadReco
 		StartingPath:  path, WorkingPath: path, CreatedAt: time.Unix(1, 0).UTC(), Revision: 1,
 		Incarnations: []couchcore.ThreadIncarnation{{
 			PID: 42, Identity: "pair-helper", State: couchcore.IncarnationLive,
-			Policy: &policy, LaunchProfile: &profile,
+			RepoIdentity: "/repo/.git", LaunchProfile: &profile,
 		}},
 		LatestLaunchProfile: &profile,
 	}
@@ -280,7 +275,6 @@ func TestResumeAcquiresAndReleasesSupervisorLease(t *testing.T) {
 
 func TestResumeRunsAsTheNewLiveOwner(t *testing.T) {
 	rt := newRT(t, "/repo")
-	rt.boundedOne("/repo")
 	parked := seedVerifiedPark(t, rt, "/repo")
 	rt.artifacts.SetNativeBinding(parked.Address, "claude", sessioninventory.BindingEstablished, "native-root-1")
 	rt.runner.AfterAcknowledge = func(string) error {
@@ -305,7 +299,6 @@ func TestResumeRunsAsTheNewLiveOwner(t *testing.T) {
 // session with no client.
 func seedDetachedThread(t *testing.T, rt testRT, path string) couchcore.ThreadRecord {
 	t.Helper()
-	rt.boundedOne(path)
 	scope, err := launcher.ResolveRepoScope(path)
 	if err != nil {
 		t.Fatal(err)
@@ -420,7 +413,6 @@ func TestInteractiveLaunchStartsNewWhenNoSessionSurvives(t *testing.T) {
 
 func TestInteractiveLaunchResumesUniqueParkedRoot(t *testing.T) {
 	rt := newRT(t, "/repo")
-	rt.boundedOne("/repo")
 	parked := seedVerifiedPark(t, rt, "/repo")
 	rt.artifacts.SetNativeBinding(parked.Address, "claude", sessioninventory.BindingEstablished, "native-root-1")
 	rt.runner = couchcore.NewFakeRunner()
@@ -496,17 +488,6 @@ func (rt testRT) markLive(t *testing.T) {
 	for _, r := range c.List() {
 		rt.proc.Set(r.PID, r.Identity)
 	}
-}
-
-func (rt testRT) boundedOne(path string) {
-	rt.policy.SetDefault(couchcore.PolicyResult{
-		PolicyVersion: 1,
-		PolicyDigest:  strings.Repeat("a", 64),
-		RepoIdentity:  "repo",
-		AdmissionKey:  path,
-		Capacity:      couchcore.PolicyCapacity{Kind: couchcore.CapacityBounded, Limit: 1},
-		OnCapacity:    couchcore.CapacityReject,
-	}, nil)
 }
 
 func runTypedRT(rt testRT, call couchcore.OperationCall) (string, string, int) {
@@ -805,7 +786,6 @@ func TestCLIRejectsMissingOrEmptyExplicitAgentBeforeSpawn(t *testing.T) {
 	for _, argv := range [][]string{{"--agent"}, {"--agent="}} {
 		t.Run(strings.Join(argv, "_"), func(t *testing.T) {
 			rt := newRT(t, "/repo")
-			rt.boundedOne("/repo")
 			_, stderr, code := runPublicRT(rt, argv...)
 			if code == 0 || !strings.Contains(stderr, "unknown option") {
 				t.Fatalf("runPublicRT(%q): code=%d stderr=%q", argv, code, stderr)
@@ -1024,41 +1004,6 @@ func TestTypedRegistryResolvesExactlyDeclaredOperations(t *testing.T) {
 		if _, ok := Resolve(name); ok {
 			t.Errorf("typed registry resolves undeclared operation %q", name)
 		}
-	}
-}
-
-func TestStartRendersTheRefusalWithThePolicyShapedOffer(t *testing.T) {
-	// Done-when 2's rendering had no reachable test before the Runtime seam.
-	rt := newRT(t, "/repo")
-	rt.boundedOne("/repo")
-	if out, errw, code := runLaunchRT(rt, "/repo", ""); code != 0 {
-		t.Fatalf("first start: code=%d out=%q err=%q", code, out, errw)
-	}
-	// Mark the child live so the guard has something real to refuse for.
-	rt.markLive(t)
-	_, errw, code := runLaunchRT(rt, "/repo", "")
-	if code == 0 {
-		t.Fatal("a second start on an occupied tree must fail")
-	}
-	for _, want := range []string{"at capacity 1", `admission key "/repo"`, "couch --list"} {
-		if !strings.Contains(errw, want) {
-			t.Errorf("refusal missing %q; got %q", want, errw)
-		}
-	}
-}
-
-func TestProvisionWorktreeRefusalNames153WithoutInventingAPath(t *testing.T) {
-	var out bytes.Buffer
-	renderError(&out, &couchcore.CapacityExceededError{
-		RepoIdentity: "web", AdmissionKey: "/repo", Limit: 1,
-		Action: couchcore.CapacityProvisionWorktree,
-	})
-	got := out.String()
-	if !strings.Contains(got, "pair#153") || !strings.Contains(got, "no path was created") {
-		t.Fatalf("provision refusal = %q", got)
-	}
-	if strings.Contains(got, "couch start ") { // obsolete-argv-rejection
-		t.Fatalf("provision refusal invented a runnable path: %q", got)
 	}
 }
 
@@ -1436,40 +1381,3 @@ func TestConsoleExitForgetsThroughCouchRegistry(t *testing.T) {
 
 // A refusal is a next-action spec: every remedy it names must be a command the
 // operator can run.
-func TestCapacityRefusalNamesOnlyRunnableCommands(t *testing.T) {
-	rt := newRT(t, "/repo")
-	rt.boundedOne("/repo")
-	if _, errw, code := runLaunchRT(rt, "/repo", ""); code != 0 {
-		t.Fatalf("first start failed: %d %q", code, errw)
-	}
-	rt.markLive(t) // the guard needs a live incumbent to refuse for
-	_, errw, code := runLaunchRT(rt, "/repo", "")
-	if code == 0 {
-		t.Fatal("a second start on an occupied tree was allowed")
-	}
-
-	if strings.Contains(errw, "switch to it") {
-		t.Errorf("the refusal still offers an action couch cannot perform: %q", errw)
-	}
-	// Every suggested Couch argv must be accepted by the public parser.
-	// Only the SUGGESTION lines (`  -> couch <args> ...`) are commands; the
-	// rest is prose and may legitimately mention couch.
-	found := 0
-	for _, line := range strings.Split(errw, "\n") {
-		line = strings.TrimSpace(line)
-		if !strings.HasPrefix(line, "-> couch ") {
-			continue
-		}
-		fields := strings.Fields(strings.TrimPrefix(line, "-> couch "))
-		if len(fields) == 0 {
-			continue
-		}
-		found++
-		if _, err := ParseCLI(fields[:1], couchcore.Operations()); err != nil {
-			t.Errorf("the refusal suggests unrunnable `couch %s`: %v", fields[0], err)
-		}
-	}
-	if found == 0 {
-		t.Errorf("the refusal names no runnable command at all: %q", errw)
-	}
-}

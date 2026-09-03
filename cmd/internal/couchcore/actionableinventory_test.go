@@ -342,14 +342,13 @@ func TestActionableThreadInventoryDistinguishesSnapshotFailureFromEmpty(t *testi
 
 func actionableTestThread(tag ThreadTag, active time.Time) ThreadRecord {
 	return ThreadRecord{
-		SchemaVersion:   ThreadSchemaVersion,
-		Address:         ThreadAddress{RepoScope: "816fc349d3faebf8", Tag: tag},
-		StartingPath:    "/repo",
-		WorkingPath:     "/repo",
-		CreatedAt:       time.Unix(1, 0).UTC(),
-		Revision:        1,
-		ClaimGeneration: 1,
-		LastActiveAt:    active,
+		SchemaVersion: ThreadSchemaVersion,
+		Address:       ThreadAddress{RepoScope: "816fc349d3faebf8", Tag: tag},
+		StartingPath:  "/repo",
+		WorkingPath:   "/repo",
+		CreatedAt:     time.Unix(1, 0).UTC(),
+		Revision:      1,
+		LastActiveAt:  active,
 	}
 }
 

@@ -15,12 +15,9 @@ package couchcore
 // check exists to prevent.
 
 import (
-	"context"
-	"errors"
 	"os"
 	"os/exec"
 	"path/filepath"
-	"reflect"
 	"testing"
 	"time"
 
@@ -34,96 +31,6 @@ func liveOnly(t *testing.T) {
 	}
 }
 
-func fleetPolicyLiveOnly(t *testing.T) string {
-	t.Helper()
-	if os.Getenv("PAIR_LIVE_FLEET_POLICY") != "1" {
-		t.Skip("set PAIR_LIVE_FLEET_POLICY=1 and PAIR_SDLC_BIN to run the provider conformance check")
-	}
-	binary := os.Getenv("PAIR_SDLC_BIN")
-	if binary == "" {
-		t.Fatal("PAIR_SDLC_BIN is required for live fleet-policy conformance")
-	}
-	physical, err := filepath.EvalSymlinks(binary)
-	if err != nil {
-		t.Fatalf("resolve PAIR_SDLC_BIN: %v", err)
-	}
-	return physical
-}
-
-func TestFleetPolicyResolverConformance(t *testing.T) {
-	binary := fleetPolicyLiveOnly(t)
-	repo := t.TempDir()
-	run := func(args ...string) {
-		t.Helper()
-		cmd := exec.Command("git", args...)
-		cmd.Dir = repo
-		if output, err := cmd.CombinedOutput(); err != nil {
-			t.Fatalf("git %v: %v\n%s", args, err, output)
-		}
-	}
-	run("init", "-q", "-b", "main", ".")
-	if err := os.MkdirAll(filepath.Join(repo, ".sdlc"), 0o755); err != nil {
-		t.Fatal(err)
-	}
-	writePolicy := func(raw string) {
-		t.Helper()
-		if err := os.WriteFile(filepath.Join(repo, ".sdlc", "fleet.json"), []byte(raw), 0o644); err != nil {
-			t.Fatal(err)
-		}
-	}
-	writePolicy(`{"version":1,"admission":{"key":{"kind":"repo","roots":[]},"capacity":{"kind":"bounded","limit":1},"onCapacity":"reject"}}`)
-
-	resolver := NewExecPolicyResolver(binary)
-	bounded, err := resolver.ResolvePolicy(context.Background(), repo)
-	if err != nil {
-		t.Fatalf("resolve bounded provider policy: %v", err)
-	}
-	wantRepoIdentity, err := filepath.EvalSymlinks(filepath.Join(repo, ".git"))
-	if err != nil {
-		t.Fatal(err)
-	}
-	if bounded.Capacity != (PolicyCapacity{Kind: CapacityBounded, Limit: 1}) || bounded.OnCapacity != CapacityReject || bounded.AdmissionKey != wantRepoIdentity || bounded.RepoIdentity != wantRepoIdentity {
-		t.Fatalf("bounded provider result = %+v", bounded)
-	}
-
-	writePolicy(`{"version":1,"admission":{"key":{"kind":"repo","roots":[]},"capacity":{"kind":"unbounded"}}}`)
-	unbounded, err := resolver.ResolvePolicy(context.Background(), repo)
-	if err != nil {
-		t.Fatalf("resolve unbounded provider policy: %v", err)
-	}
-	if unbounded.Capacity.Kind != CapacityUnbounded || unbounded.OnCapacity != CapacityActionUnknown || unbounded.PolicyDigest == bounded.PolicyDigest {
-		t.Fatalf("unbounded provider result = %+v after %+v", unbounded, bounded)
-	}
-
-	fake := NewFakePolicyResolver()
-	fake.Queue(repo, bounded, nil)
-	fake.Queue(repo, unbounded, nil)
-	fakeBounded, err := fake.ResolvePolicy(context.Background(), repo)
-	if err != nil {
-		t.Fatal(err)
-	}
-	fakeUnbounded, err := fake.ResolvePolicy(context.Background(), repo)
-	if err != nil {
-		t.Fatal(err)
-	}
-	if !reflect.DeepEqual([]PolicyResult{fakeBounded, fakeUnbounded}, []PolicyResult{bounded, unbounded}) {
-		t.Fatal("stateful fake cannot replay the real provider's policy transition")
-	}
-
-	if err := os.Remove(filepath.Join(repo, ".sdlc", "fleet.json")); err != nil {
-		t.Fatal(err)
-	}
-	_, err = resolver.ResolvePolicy(context.Background(), repo)
-	var refusal *PolicyRefusal
-	if !errors.As(err, &refusal) || refusal.Diagnostic.Code != "missing-policy" {
-		t.Fatalf("missing declaration err = %T %v", err, err)
-	}
-}
-
-// waitFile polls for a readiness marker. ExecRunner.Start returns as soon as
-// cmd.Start() succeeds, which is BEFORE the shell has reached its trap -- so
-// signalling immediately is a genuine race, not a slow machine. A sleep would
-// paper over it; a marker file does not.
 func waitFile(t *testing.T, path string) {
 	t.Helper()
 	deadline := time.Now().Add(5 * time.Second)

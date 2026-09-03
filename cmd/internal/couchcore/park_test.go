@@ -725,7 +725,7 @@ func TestParkCoordinatorConstructorDoesNotQueryPairSession(t *testing.T) {
 	go func() {
 		couch, err := New(
 			ns, NewFakeRunner(), NewFakePathOps(nil), NewFakeGit(nil), NewFakeProcOps(), NewStore(ns.Dir()),
-			FixedClock{T: now}, NewFixedIDGen("id"), NewFakePolicyResolver(), newIncrementingEntropy(), artifacts,
+			FixedClock{T: now}, NewFixedIDGen("id"), newIncrementingEntropy(), artifacts,
 		)
 		constructed <- newResult{couch: couch, err: err}
 	}()

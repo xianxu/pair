@@ -17,7 +17,6 @@ func TestApplyThreadMetadataPreservesIndependentFields(t *testing.T) {
 		WorkingPath:      "/repo/task",
 		CreatedAt:        time.Unix(1, 0).UTC(),
 		Revision:         1,
-		ClaimGeneration:  1,
 		Name:             "old name",
 		Description:      "operator description",
 		PublishedSummary: "agent summary",

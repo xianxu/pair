@@ -5,7 +5,6 @@ import (
 	"fmt"
 	"os"
 	"sort"
-	"strings"
 	"testing"
 	"time"
 
@@ -21,16 +20,12 @@ func TestParkLatencySmoke(t *testing.T) {
 		t.Fatal(err)
 	}
 	store := couchcore.NewThreadStore(ns)
-	policy := couchcore.PolicyResult{
-		PolicyVersion: 1, PolicyDigest: strings.Repeat("a", 64), RepoIdentity: "repo", AdmissionKey: "repo",
-		Capacity: couchcore.PolicyCapacity{Kind: couchcore.CapacityUnbounded}, OnCapacity: couchcore.CapacityActionUnknown,
-	}
 	profile := couchcore.LaunchProfile{Agent: "claude", Argv: []string{}}
 	record, err := store.CreateThread(couchcore.ThreadRecord{
 		SchemaVersion: couchcore.ThreadSchemaVersion,
 		Address:       couchcore.ThreadAddress{RepoScope: "816fc349d3faebf8", Tag: "couch-0102030405060708"},
 		StartingPath:  "/repo", WorkingPath: "/repo", CreatedAt: time.Unix(1, 0).UTC(), LastActiveAt: time.Unix(1, 0).UTC(),
-		Incarnations:        []couchcore.ThreadIncarnation{{PID: 42, Identity: "helper", State: couchcore.IncarnationLive, Policy: &policy, LaunchProfile: &profile}},
+		Incarnations:        []couchcore.ThreadIncarnation{{PID: 42, Identity: "helper", State: couchcore.IncarnationLive, RepoIdentity: "/repo/.git", LaunchProfile: &profile}},
 		LatestLaunchProfile: &profile, Revision: 1,
 	})
 	if err != nil {

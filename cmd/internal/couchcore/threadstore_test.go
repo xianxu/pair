@@ -324,11 +324,7 @@ func TestThreadStoreRegistrationAtomicallyCommitsThreadAndPathLaunchPreference(t
 	record.StartingPath, record.WorkingPath = ns.Dir(), ns.Dir()
 	record.Reservation = false
 	record.Incarnations = []ThreadIncarnation{{
-		State: IncarnationCreating,
-		Policy: &PolicyResult{
-			PolicyVersion: 1, PolicyDigest: strings.Repeat("a", 64), RepoIdentity: "repo-identity",
-			AdmissionKey: ns.Dir(), Capacity: PolicyCapacity{Kind: CapacityUnbounded},
-		},
+		State: IncarnationCreating, RepoIdentity: "repo-identity",
 	}}
 	created, err := store.CreateThread(record)
 	if err != nil {
@@ -373,11 +369,7 @@ func TestThreadStoreRecoversInterruptedThreadAndPathPreferenceCommit(t *testing.
 	record.StartingPath, record.WorkingPath = ns.Dir(), ns.Dir()
 	record.Reservation = false
 	record.Incarnations = []ThreadIncarnation{{
-		State: IncarnationCreating,
-		Policy: &PolicyResult{
-			PolicyVersion: 1, PolicyDigest: strings.Repeat("a", 64), RepoIdentity: "repo-identity",
-			AdmissionKey: ns.Dir(), Capacity: PolicyCapacity{Kind: CapacityUnbounded},
-		},
+		State: IncarnationCreating, RepoIdentity: "repo-identity",
 	}}
 	created, err := store.CreateThread(record)
 	if err != nil {

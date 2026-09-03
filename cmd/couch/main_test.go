@@ -25,20 +25,15 @@ func TestBareCouchInstalledCommand(t *testing.T) {
 		t.Fatalf("build couch: %v\n%s", err, out)
 	}
 
-	gitDirCmd := exec.Command("git", "rev-parse", "--absolute-git-dir")
-	gitDirCmd.Dir = root
-	gitDirRaw, err := gitDirCmd.Output()
-	if err != nil {
-		t.Fatal(err)
-	}
-	gitDir := strings.TrimSpace(string(gitDirRaw))
 	callLog := filepath.Join(t.TempDir(), "calls")
+	// A stub that FAILS if invoked. couch stopped consuming ariadne's fleet
+	// policy provider at pair#170 M4 -- the repository identity it wanted is
+	// derived locally now -- so any call here is a regression, and the call log
+	// below asserts none happened.
 	writeExecutable(t, filepath.Join(binDir, "sdlc"), fmt.Sprintf(`#!/bin/sh
 printf 'sdlc %%s\n' "$*" >> %q
-test "$1 $2 $3 $4" = "fleet policy --path %s" || exit 91
-test "$5" = "--json" || exit 92
-printf '%%s\n' '{"ok":true,"value":{"policy_version":1,"policy_digest":"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa","repo_identity":"%s","admission_key":"%s","capacity":{"kind":"unbounded"}}}'
-`, callLog, root, gitDir, gitDir))
+exit 90
+`, callLog))
 	writeExecutable(t, filepath.Join(binDir, "pair"), fmt.Sprintf(`#!/bin/sh
 printf 'pair %%s\n' "$*" >> %q
 printf 'COUCH_INSTALLED_PAIR_MARKER\n'
@@ -118,8 +113,11 @@ sleep 2
 		if err != nil {
 			t.Fatal(err)
 		}
-		if !bytes.Contains(calls, []byte("sdlc fleet policy --path "+root+" --json")) {
-			t.Fatalf("installed calls = %q", calls)
+		// Inverted at pair#170 M4: this asserted couch DID call the provider.
+		// The deletion's most externally visible consequence is that couch no
+		// longer shells out to sdlc at all, so the absence is the assertion.
+		if bytes.Contains(calls, []byte("sdlc")) {
+			t.Fatalf("couch still invoked sdlc: %q", calls)
 		}
 		assertExactPairResumeCall(t, calls)
 	})

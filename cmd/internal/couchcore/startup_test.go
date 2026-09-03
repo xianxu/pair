@@ -74,6 +74,7 @@ func TestSelectUniqueResumableRoot(t *testing.T) {
 func TestStartInteractiveResumesUniqueExactParkedRoot(t *testing.T) {
 	env := newTestEnv(t, "/repo")
 	env.Git.replies[GitCall{Dir: "/repo/sub", Args: "rev-parse --show-toplevel"}] = "/repo"
+	env.Git.replies[GitCall{Dir: "/repo/sub", Args: "rev-parse --git-common-dir"}] = ".git"
 	parked := actionableTestThread("couch-0000000000000001", time.Unix(100, 0).UTC())
 	parked.StartingPath, parked.WorkingPath = "/repo", "/repo/sub"
 	parked.LatestLaunchProfile = &LaunchProfile{Agent: "claude", Argv: []string{"--verbose"}}
@@ -262,6 +263,7 @@ func TestStartInteractiveSkipsDetachedRowsWithoutAResumableBinding(t *testing.T)
 func TestStartInteractiveResumesUniqueDetachedRoot(t *testing.T) {
 	env := newTestEnv(t, "/repo")
 	env.Git.replies[GitCall{Dir: "/repo/sub", Args: "rev-parse --show-toplevel"}] = "/repo"
+	env.Git.replies[GitCall{Dir: "/repo/sub", Args: "rev-parse --git-common-dir"}] = ".git"
 	detached := actionableTestThread("couch-0000000000000001", time.Unix(100, 0).UTC())
 	detached.StartingPath, detached.WorkingPath = "/repo", "/repo/sub"
 	detached.LatestLaunchProfile = &LaunchProfile{Agent: "claude", Argv: []string{"--verbose"}}
@@ -291,6 +293,7 @@ func TestStartInteractiveResumesUniqueDetachedRoot(t *testing.T) {
 func TestStartInteractiveStartsNewWhenNoSessionSurvives(t *testing.T) {
 	env := newTestEnv(t, "/repo")
 	env.Git.replies[GitCall{Dir: "/repo/sub", Args: "rev-parse --show-toplevel"}] = "/repo"
+	env.Git.replies[GitCall{Dir: "/repo/sub", Args: "rev-parse --git-common-dir"}] = ".git"
 	stale := actionableTestThread("couch-0000000000000001", time.Unix(100, 0).UTC())
 	stale.StartingPath, stale.WorkingPath = "/repo", "/repo/sub"
 	stale.LatestLaunchProfile = &LaunchProfile{Agent: "claude", Argv: []string{"--verbose"}}
