@@ -42,8 +42,8 @@ func TestStoreJournalRecoversCrashAfterDurableIntent(t *testing.T) {
 	if got.Revision != 1 {
 		t.Fatalf("recovered record = %+v", got)
 	}
-	if generation, _ := restarted.ManifestGeneration(); generation != 1 {
-		t.Fatalf("recovered manifest generation = %d", generation)
+	if snapshot, err := restarted.Snapshot(); err != nil || snapshot.Generation != 1 {
+		t.Fatalf("recovered manifest generation = %d, %v", snapshot.Generation, err)
 	}
 	if err := restarted.RecoverStoreJournal(); err != nil {
 		t.Fatalf("second recovery was not idempotent: %v", err)

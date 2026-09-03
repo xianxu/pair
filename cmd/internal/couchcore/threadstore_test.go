@@ -174,9 +174,9 @@ func TestThreadStoreUpdateExistingThreadUsesRevisionWithoutChangingManifest(t *t
 	if err != nil {
 		t.Fatalf("CreateThread: %v", err)
 	}
-	beforeGeneration, err := store.ManifestGeneration()
+	before, err := store.Snapshot()
 	if err != nil {
-		t.Fatalf("ManifestGeneration: %v", err)
+		t.Fatalf("Snapshot: %v", err)
 	}
 
 	other := NewThreadStore(ns)
@@ -190,12 +190,12 @@ func TestThreadStoreUpdateExistingThreadUsesRevisionWithoutChangingManifest(t *t
 	if updated.Revision != created.Revision+1 || updated.Description != "first description" {
 		t.Fatalf("updated = %+v", updated)
 	}
-	afterGeneration, err := store.ManifestGeneration()
+	after, err := store.Snapshot()
 	if err != nil {
-		t.Fatalf("ManifestGeneration(after): %v", err)
+		t.Fatalf("Snapshot(after): %v", err)
 	}
-	if afterGeneration != beforeGeneration {
-		t.Fatalf("single-record update changed manifest generation: %d -> %d", beforeGeneration, afterGeneration)
+	if after.Generation != before.Generation {
+		t.Fatalf("single-record update changed manifest generation: %d -> %d", before.Generation, after.Generation)
 	}
 
 	_, err = store.UpdateExistingThread(created.Address, created.Revision, func(next *ThreadRecord) error {

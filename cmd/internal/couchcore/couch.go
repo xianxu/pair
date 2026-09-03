@@ -9,7 +9,6 @@ import (
 	"io"
 	"os"
 	"path/filepath"
-	"sort"
 	"strings"
 	"syscall"
 	"time"
@@ -664,29 +663,6 @@ func (c *Couch) Liveness(a ActorRecord) Liveness {
 	return Live
 }
 
-// IsLive is the display-side convenience. Do not branch on it for anything
-// destructive -- it folds Unknown into false.
-func (c *Couch) IsLive(a ActorRecord) bool { return c.Liveness(a) == Live }
-
-func (c *Couch) List() []ActorRecord {
-	out := c.reg.Records()
-	sort.Slice(out, func(i, j int) bool { return out[i].Args.Worktree < out[j].Args.Worktree })
-	return out
-}
-
-func (c *Couch) Get(w Worktree) []ActorRecord { return c.reg.Get(w) }
-func (c *Couch) Entry(w Worktree) NameEntry   { return c.names.Entry(w) }
-
-func (c *Couch) SetName(w Worktree, name string) error {
-	c.names = c.names.SetName(w, name)
-	return c.Store.Save(c.reg, c.names)
-}
-
-func (c *Couch) SetDescription(w Worktree, desc string) error {
-	c.names = c.names.SetDescription(w, desc)
-	return c.Store.Save(c.reg, c.names)
-}
-
 // Forget drops an actor from the registry, freeing its tree.
 func (c *Couch) Forget(w Worktree, id ActorID) error {
 	c.reg = c.reg.RemoveActor(w, id)
@@ -777,22 +753,6 @@ func (c *Couch) ResolveRef(ref string) ([]ActorRecord, []Worktree, error) {
 	return out, trees, nil
 }
 
-// Views decorates records with the state that is computed rather than stored.
-func (c *Couch) Views(recs []ActorRecord) []ActorView {
-	out := make([]ActorView, 0, len(recs))
-	for _, r := range recs {
-		e := c.names.Entry(r.Args.Worktree)
-		out = append(out, ActorView{
-			Record: r,
-			Live:   c.Liveness(r) == Live,
-			State:  c.Liveness(r),
-			Name:   e.Name,
-			Desc:   c.Describe(r.Args.Worktree),
-		})
-	}
-	return out
-}
-
 // Describe returns the agent-supplied one-liner, preferring the sidecar the
 // live agent writes and falling back to the last value couch stored.
 //
@@ -804,83 +764,6 @@ func (c *Couch) Describe(w Worktree) string {
 		return s
 	}
 	return c.names.Entry(w).Description
-}
-
-// treeFor resolves a ref to exactly one tree, erroring on ambiguity rather
-// than guessing -- fuzzy in, exact out.
-func (c *Couch) treeFor(ref string) (Worktree, error) {
-	if trees := c.LookupTrees(ref); len(trees) == 1 {
-		return trees[0], nil
-	} else if len(trees) > 1 {
-		return "", fmt.Errorf("%q matches %d trees; be specific", ref, len(trees))
-	}
-	return c.ResolveTree(ref)
-}
-
-// TreeSummary is a worktree and whatever couch knows about it. A tree with no
-// live actor is still a row: a named tree nobody is running is exactly the
-// parked thread this project exists to stop losing.
-type TreeSummary struct {
-	Tree   Worktree    `json:"tree"`
-	Name   string      `json:"name,omitempty"`
-	Desc   string      `json:"description,omitempty"`
-	Actors []ActorView `json:"actors,omitempty"`
-}
-
-// Live reports whether any actor on this tree is running.
-func (s TreeSummary) Live() bool {
-	for _, a := range s.Actors {
-		if a.Live {
-			return true
-		}
-	}
-	return false
-}
-
-// Summarize groups actors by tree and folds in every tree that has a name or
-// description but no actor, so parked threads stay visible.
-func (c *Couch) Summarize(trees []Worktree) []TreeSummary {
-	seen := map[string]*TreeSummary{}
-	order := []string{}
-
-	add := func(w Worktree) *TreeSummary {
-		if s, ok := seen[w.Key()]; ok {
-			return s
-		}
-		e := c.names.Entry(w)
-		s := &TreeSummary{Tree: w, Name: e.Name, Desc: c.Describe(w)}
-		seen[w.Key()] = s
-		order = append(order, w.Key())
-		return s
-	}
-
-	// A non-empty filter RESTRICTS the result. Folding in every registry
-	// record regardless would make the argument additive only, so `show <ref>`
-	// would print exactly what `list` prints.
-	want := map[string]bool{}
-	for _, w := range trees {
-		want[w.Key()] = true
-		add(w)
-	}
-	for _, r := range c.reg.Records() {
-		if len(want) > 0 && !want[r.Args.Worktree.Key()] {
-			continue
-		}
-		sum := add(r.Args.Worktree)
-		sum.Actors = append(sum.Actors, c.Views([]ActorRecord{r})...)
-	}
-	if len(trees) == 0 {
-		for _, e := range c.names.All() {
-			add(e.Tree)
-		}
-	}
-
-	out := make([]TreeSummary, 0, len(order))
-	for _, k := range order {
-		out = append(out, *seen[k])
-	}
-	sort.Slice(out, func(i, j int) bool { return out[i].Tree < out[j].Tree })
-	return out
 }
 
 // PruneDead removes records whose process is gone and persists the result.

@@ -527,8 +527,6 @@ func render(w io.Writer, op couchcore.Operation, result any) int {
 			return v.Handle.Wait()
 		}
 		return 0
-	case []couchcore.TreeSummary:
-		renderTrees(w, v)
 	case []couchcore.ThreadSummary:
 		if op.Name == "show" {
 			renderThreadDetails(w, v)
@@ -604,40 +602,6 @@ func renderThreadRows(w io.Writer, threads []couchcore.ThreadSummary, includeAdd
 				state = "(parked; no agent running)"
 			}
 			fmt.Fprintf(w, "%s  %s%s\n", open, state, close)
-		}
-	}
-}
-
-// renderTrees prints one block per worktree. A tree with no live actor is
-// dimmed rather than omitted: a named tree nobody is running is exactly the
-// parked thread this project exists to stop losing, so it must stay visible.
-func renderTrees(w io.Writer, trees []couchcore.TreeSummary) {
-	if len(trees) == 0 {
-		fmt.Fprintln(w, "no trees")
-		return
-	}
-	dim, reset := dimCodes(w)
-	for _, t := range trees {
-		label := t.Name
-		if label == "" {
-			label = t.Tree.Repo()
-		}
-		open, close := dim, reset
-		if t.Live() {
-			open, close = "", ""
-		}
-		fmt.Fprintf(w, "%s%-22s %s%s\n", open, label, t.Tree, close)
-		if t.Desc != "" {
-			fmt.Fprintf(w, "%s  %s%s\n", open, t.Desc, close)
-		}
-		for _, a := range t.Actors {
-			// "unknown" is rendered distinctly: it means the probe could not
-			// answer, not that the agent is gone.
-			state := a.State.String()
-			fmt.Fprintf(w, "%s  %-14s %s  pid %d%s\n", open, a.Record.ID, state, a.Record.PID, close)
-		}
-		if len(t.Actors) == 0 {
-			fmt.Fprintf(w, "%s  (no agent running)%s\n", open, close)
 		}
 	}
 }

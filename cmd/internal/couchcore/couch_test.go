@@ -31,6 +31,49 @@ type testEnv struct {
 	Now       time.Time
 }
 
+// nameTree gives a worktree an operator label the way the data would actually
+// arrive: persisted, then read back by Store.Load. Couch.SetName and
+// Couch.SetDescription were the only writers of this table and had no
+// production caller, so pair#170 M4 deleted them -- but ResolveRef still
+// resolves by label, so the behaviour still needs pinning.
+//
+// Worth recording: the operator's live registry has "names": {}, and no
+// production code path writes one. This naming layer predates the thread
+// store, which carries its own Name/Description with a real setter
+// (ApplyThreadMetadata). The table below is very likely dead too; that is a
+// wider cut than M4's deletion sweep and is left to a follow-up.
+func (e *testEnv) nameTree(t *testing.T, tree Worktree, name, description string) {
+	t.Helper()
+	store := NewStore(e.Dir)
+	registry, names, err := store.Load()
+	if err != nil {
+		t.Fatalf("load store: %v", err)
+	}
+	if name != "" {
+		names = names.SetName(tree, name)
+	}
+	if description != "" {
+		names = names.SetDescription(tree, description)
+	}
+	if err := store.Save(registry, names); err != nil {
+		t.Fatalf("save store: %v", err)
+	}
+	e.Couch.names = names
+}
+
+// treeRecords reads the persisted registry directly. Couch.Get was a one-line
+// wrapper over it with no production caller (deleted in pair#170 M4), and
+// going to the store is the more honest assertion anyway: it proves what
+// SURVIVED the write, not what a live Couch happens to hold in memory.
+func (e *testEnv) treeRecords(t *testing.T, tree Worktree) []ActorRecord {
+	t.Helper()
+	registry, _, err := NewStore(e.Dir).Load()
+	if err != nil {
+		t.Fatalf("load registry: %v", err)
+	}
+	return registry.Get(tree)
+}
+
 type realDescendantRunner struct {
 	marker         string
 	acknowledgeErr error
@@ -1193,29 +1236,30 @@ func childEnvValue(env []string, key string) string {
 	return ""
 }
 
-func TestIsLiveRejectsARecycledPID(t *testing.T) {
+// Asserted through Liveness rather than the deleted IsLive wrapper, which
+// folded Unknown into false -- so this now pins the exact state, not just
+// "not live" (pair#170 M4).
+func TestLivenessRejectsARecycledPID(t *testing.T) {
 	env := newTestEnv(t, "/repo")
 	rec, _ := env.spawn(t, StartArgs{Worktree: "/repo"})
-	if !env.Couch.IsLive(rec) {
-		t.Fatal("a running actor must read as live")
+	if got := env.Couch.Liveness(rec); got != Live {
+		t.Fatalf("a running actor reads as %v, want Live", got)
 	}
 	// Same PID, different process: the kernel start token differs.
 	env.Proc.Set(rec.PID, "some-other-process")
-	if env.Couch.IsLive(rec) {
-		t.Fatal("a recycled PID must not read as the original actor")
+	if got := env.Couch.Liveness(rec); got != Dead {
+		t.Fatalf("a recycled PID reads as %v, want Dead", got)
 	}
 	env.Proc.Kill(rec.PID)
-	if env.Couch.IsLive(rec) {
-		t.Fatal("a dead PID must not read as live")
+	if got := env.Couch.Liveness(rec); got != Dead {
+		t.Fatalf("a dead PID reads as %v, want Dead", got)
 	}
 }
 
 func TestResolveRefFindsActorsByOperatorName(t *testing.T) {
 	env := newTestEnv(t, "/repo")
 	rec, _ := env.spawn(t, StartArgs{Worktree: "/repo"})
-	if err := env.Couch.SetName("/repo", "refactor thing"); err != nil {
-		t.Fatalf("SetName: %v", err)
-	}
+	env.nameTree(t, "/repo", "refactor thing", "")
 	got, _, err := env.Couch.ResolveRef("refactor")
 	if err != nil {
 		t.Fatalf("ResolveRef: %v", err)
@@ -1241,15 +1285,15 @@ func TestLookupTreesMatchesTheDisplayedRepoFallback(t *testing.T) {
 func TestNameAndDescriptionChangeMidSession(t *testing.T) {
 	env := newTestEnv(t, "/repo")
 	env.spawn(t, StartArgs{Worktree: "/repo"})
-	_ = env.Couch.SetName("/repo", "first")
-	_ = env.Couch.SetName("/repo", "second")
+	env.nameTree(t, "/repo", "first", "")
+	env.nameTree(t, "/repo", "second", "")
 	if got, _, err := env.Couch.ResolveRef("second"); err != nil || len(got) != 1 {
 		t.Fatalf("rename did not take effect: %v %v", got, err)
 	}
 	if got, _, err := env.Couch.ResolveRef("first"); err == nil && len(got) > 0 {
 		t.Fatal("the old name must stop resolving")
 	}
-	_ = env.Couch.SetDescription("/repo", "reworking the composer gate")
+	env.nameTree(t, "/repo", "", "reworking the composer gate")
 	if got, _, err := env.Couch.ResolveRef("composer"); err != nil || len(got) != 1 {
 		t.Fatalf("description did not take effect: %v %v", got, err)
 	}
@@ -1261,7 +1305,7 @@ func TestNameSurvivesActorReplacement(t *testing.T) {
 	// the tree rather than the incarnation.
 	env := newTestEnv(t, "/repo")
 	first, h := env.spawn(t, StartArgs{Worktree: "/repo"})
-	_ = env.Couch.SetName("/repo", "long lived")
+	env.nameTree(t, "/repo", "long lived", "")
 
 	env.Runner.SetExited(h.ID(), 0)
 	env.Proc.Kill(first.PID)
@@ -1320,7 +1364,7 @@ func TestStopSignalsTheChildBeforeForgettingIt(t *testing.T) {
 	if len(got) != 1 || got[0] != TermSignal {
 		t.Fatalf("signals = %v, want one SIGTERM", got)
 	}
-	if len(env.Couch.Get("/repo")) != 0 {
+	if len(env.treeRecords(t, "/repo")) != 0 {
 		t.Fatal("the record should be gone after Stop")
 	}
 }
@@ -1337,30 +1381,6 @@ func TestStopOnADeadActorForgetsWithoutSignalling(t *testing.T) {
 	}
 	if signalled {
 		t.Fatal("a dead actor must not be reported as signalled -- that implies a running agent was terminated")
-	}
-}
-
-func TestShowFilterRestrictsRatherThanAdds(t *testing.T) {
-	// BR-3. Summarize took a filter and then folded in every registry record,
-	// so `show <ref>` printed exactly what `list` printed. The old test passed
-	// only because its fixture had a single tree.
-	env := newTestEnv(t, "/repo", "/other")
-	env.spawn(t, StartArgs{Worktree: "/repo"})
-	env.spawn(t, StartArgs{Worktree: "/other"})
-
-	got := env.Couch.Summarize([]Worktree{"/repo"})
-	if len(got) != 1 {
-		var trees []Worktree
-		for _, s := range got {
-			trees = append(trees, s.Tree)
-		}
-		t.Fatalf("Summarize([/repo]) returned %v; a filter must restrict, not add", trees)
-	}
-	if got[0].Tree != "/repo" {
-		t.Fatalf("returned %q", got[0].Tree)
-	}
-	if len(env.Couch.Summarize(nil)) != 2 {
-		t.Fatal("an empty filter must still list everything")
 	}
 }
 
@@ -1456,9 +1476,7 @@ func TestSpawnTellsTheChildWhichTreeItIs(t *testing.T) {
 func TestDescribePrefersTheAgentsPublishedLineOverTheOperators(t *testing.T) {
 	env := newTestEnv(t, "/repo")
 	env.spawn(t, StartArgs{Worktree: "/repo"})
-	if err := env.Couch.SetDescription("/repo", "what the operator typed"); err != nil {
-		t.Fatalf("SetDescription: %v", err)
-	}
+	env.nameTree(t, "/repo", "", "what the operator typed")
 	if err := env.Couch.PublishDescription("/repo", "what the agent is doing"); err != nil {
 		t.Fatalf("PublishDescription: %v", err)
 	}
@@ -1481,7 +1499,7 @@ func TestPruneKeepsRecordsWhoseLivenessIsUnknown(t *testing.T) {
 	if err := env.Couch.PruneDead(); err != nil {
 		t.Fatalf("PruneDead: %v", err)
 	}
-	if len(env.Couch.Get("/repo")) != 1 {
+	if len(env.treeRecords(t, "/repo")) != 1 {
 		t.Fatal("an unknown-liveness record was pruned; the guard now protects nothing")
 	}
 	// The second half of this test used to assert that ADMISSION refused a
@@ -1560,7 +1578,7 @@ func TestCoTenantsAreAddressableByActorID(t *testing.T) {
 	if _, err := env.Couch.Stop(got[0]); err != nil {
 		t.Fatalf("Stop by id: %v", err)
 	}
-	if len(env.Couch.Get("/repo")) != 1 {
+	if len(env.treeRecords(t, "/repo")) != 1 {
 		t.Fatal("stopping one co-tenant must leave the other")
 	}
 }

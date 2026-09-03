@@ -44,6 +44,17 @@ type testRT struct {
 	agentDefaults    map[string]launcher.AgentDefault
 }
 
+// registryRecords reads the persisted registry directly. Couch.List was a
+// one-line wrapper over it with no production caller (deleted in pair#170 M4).
+func (t testRT) registryRecords(tb *testing.T) []couchcore.ActorRecord {
+	tb.Helper()
+	registry, _, err := couchcore.NewStore(t.dir).Load()
+	if err != nil {
+		tb.Fatalf("load registry: %v", err)
+	}
+	return registry.Records()
+}
+
 func (t testRT) Getenv(key string) string { return t.env[key] }
 func (t testRT) StoreDir() string         { return t.dir }
 func (t testRT) CurrentRepoScope() (string, error) {
@@ -481,11 +492,7 @@ func TestHeldSupervisorRefusesBeforeStartingActor(t *testing.T) {
 // spawned child would be.
 func (rt testRT) markLive(t *testing.T) {
 	t.Helper()
-	c, err := rt.NewCouch()
-	if err != nil {
-		t.Fatalf("NewCouch: %v", err)
-	}
-	for _, r := range c.List() {
+	for _, r := range rt.registryRecords(t) {
 		rt.proc.Set(r.PID, r.Identity)
 	}
 }
@@ -1352,7 +1359,7 @@ func TestWireAttachAbortCleansStartedActorAfterConsoleRefusal(t *testing.T) {
 	if handle.Alive() {
 		t.Fatal("failed wired attach left started handle alive")
 	}
-	if got := c.List(); len(got) != 0 {
+	if got := rt.registryRecords(t); len(got) != 0 {
 		t.Fatalf("failed wired attach left actor registered: %+v", got)
 	}
 }
@@ -1368,13 +1375,13 @@ func TestConsoleExitForgetsThroughCouchRegistry(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Spawn: %v", err)
 	}
-	if len(c.List()) != 1 {
+	if len(rt.registryRecords(t)) != 1 {
 		t.Fatal("test setup has no registered actor")
 	}
 
 	runConsole(console, c, couchcore.StartResult{Record: rec, Handle: h}, &bytes.Buffer{})
 
-	if got := c.List(); len(got) != 0 {
+	if got := rt.registryRecords(t); len(got) != 0 {
 		t.Fatalf("registry after terminal child exit = %+v, want empty", got)
 	}
 }

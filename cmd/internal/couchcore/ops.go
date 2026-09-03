@@ -116,16 +116,6 @@ type StopResult struct {
 	Signalled bool
 }
 
-// ActorView is a record plus the state that must be computed rather than
-// stored -- liveness, and whatever the operator or the agent has called it.
-type ActorView struct {
-	Record ActorRecord `json:"record"`
-	Live   bool        `json:"live"`
-	State  Liveness    `json:"state"`
-	Name   string      `json:"name,omitempty"`
-	Desc   string      `json:"description,omitempty"`
-}
-
 func Operations() []Operation {
 	return []Operation{
 		{

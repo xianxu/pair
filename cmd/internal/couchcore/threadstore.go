@@ -498,19 +498,6 @@ func (s *ThreadStore) AbandonPark(address ThreadAddress, expectedRevision uint64
 	})
 }
 
-func (s *ThreadStore) ManifestGeneration() (uint64, error) {
-	var generation uint64
-	err := s.withLock(func() error {
-		manifest, _, _, err := s.loadManifestLocked()
-		if err != nil {
-			return err
-		}
-		generation = manifest.Generation
-		return nil
-	})
-	return generation, err
-}
-
 func (s *ThreadStore) Snapshot() (ThreadSnapshot, error) {
 	var snapshot ThreadSnapshot
 	err := s.withLock(func() error {
@@ -534,72 +521,6 @@ func (s *ThreadStore) Snapshot() (ThreadSnapshot, error) {
 		return nil
 	})
 	return snapshot, err
-}
-
-func (s *ThreadStore) CommitThreadReplacements(snapshot ThreadSnapshot, replacements []ThreadRecord) error {
-	return s.withLock(func() error {
-		manifest, manifestRaw, _, err := s.loadManifestLocked()
-		if err != nil {
-			return err
-		}
-		if manifest.Generation != snapshot.Generation || !reflectBytesEqual(manifestRaw, snapshot.manifest) {
-			return &ThreadSnapshotConflictError{Detail: "manifest generation or image"}
-		}
-		for address, expected := range snapshot.raw {
-			current, exists, err := readOptionalFile(s.recordPath(address))
-			if err != nil {
-				return err
-			}
-			if !exists || !reflectBytesEqual(current, expected) {
-				return &ThreadSnapshotConflictError{Detail: fmt.Sprintf("record %+v", address)}
-			}
-		}
-		if len(replacements) == 0 {
-			return nil
-		}
-		entries := make([]storeJournalEntry, 0, len(replacements)+1)
-		seen := map[ThreadAddress]bool{}
-		for _, replacement := range replacements {
-			if seen[replacement.Address] {
-				return fmt.Errorf("duplicate replacement %+v", replacement.Address)
-			}
-			seen[replacement.Address] = true
-			expected, ok := snapshot.raw[replacement.Address]
-			if !ok {
-				return fmt.Errorf("replacement %+v absent from snapshot", replacement.Address)
-			}
-			previous, err := s.decodeThreadRaw(replacement.Address, expected)
-			if err != nil {
-				return err
-			}
-			if replacement.Revision != previous.Revision+1 || replacement.Address != previous.Address || replacement.SchemaVersion != previous.SchemaVersion || replacement.StartingPath != previous.StartingPath || replacement.CreatedAt != previous.CreatedAt {
-				return fmt.Errorf("replacement %+v violates revision or immutable fields", replacement.Address)
-			}
-			if err := ValidateThreadRecord(replacement); err != nil {
-				return err
-			}
-			raw, err := json.MarshalIndent(toPersistedThreadRecord(replacement), "", "  ")
-			if err != nil {
-				return err
-			}
-			after := append(raw, '\n')
-			expectedCopy := append([]byte{}, expected...)
-			entries = append(entries, storeJournalEntry{Path: relativeStorePath(s.root, s.recordPath(replacement.Address)), Expected: &expectedCopy, After: &after})
-		}
-		if len(entries) == 1 {
-			return s.applyJournalEntry(entries[0])
-		}
-		nextManifest := manifest
-		nextManifest.Generation++
-		nextRaw, err := json.MarshalIndent(nextManifest, "", "  ")
-		if err != nil {
-			return err
-		}
-		afterManifest := append(nextRaw, '\n')
-		expectedManifest := append([]byte{}, manifestRaw...)
-		entries = append(entries, storeJournalEntry{Path: relativeStorePath(s.root, s.manifestPath()), Expected: &expectedManifest, After: &afterManifest})
-		return s.commitJournalLocked(storeJournal{SchemaVersion: 1, Entries: entries})
-	})
 }
 
 func (s *ThreadStore) DeletePristineThread(address ThreadAddress) error {
