@@ -305,13 +305,12 @@ it would leave Couch with a dead child and a stale incarnation, and the thread
 would vanish from the switcher.
 
 A TUI startup that creates a new root allocates a distinct opaque durable
-thread; automatic unique resume reuses the resumable thread instead. New-thread
-admission comes from the repository's normalized Ariadne fleet policy (`sdlc
-fleet policy`): a bounded key refuses when occupied, while an unbounded path
-admits concurrent threads. A `provision-worktree` policy returns a typed
-refusal and nothing creates the worktree for you — managed worktree lifecycle
-(Pair #153) is punted, so provision it by hand. There is no local admission
-override.
+thread; automatic unique resume reuses the resumable thread instead. Any number
+of threads may share one path: Couch is a switcher over your own sessions, not
+a gatekeeper, and it does not refuse a start because a tree is already busy.
+Capacity limits used to come from Ariadne's fleet policy (`sdlc fleet policy`);
+that was a defence of the multi-owner case and went with the couch-lite rescope
+(Pair #170), along with its `provision-worktree` refusal.
 
 Launching Couch allocates a pty for the session and **reserves the bottom row of
 your screen** for a status line. The path argument is optional and defaults to

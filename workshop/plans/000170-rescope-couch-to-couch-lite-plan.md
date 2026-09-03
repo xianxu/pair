@@ -882,3 +882,60 @@ Delta:
   `TestShowFilterRestrictsRatherThanAdds` was removed outright, because the
   tree-summary rendering path whose filter semantics it pinned no longer
   exists.
+
+### 2026-09-02 — M4 boundary review: Task 13 Step 4's rollback was not delivered
+
+Reason: the review's Critical finding is a Step this plan marked done that the
+code does not do. Recording it so the checkbox stops claiming it.
+
+Delta:
+
+- **The pristine-reservation rollback was dropped, not carried forward.** Step 4
+  said "plus the pristine-reservation rollback on failure. A single
+  `ThreadStore.CommitStartClaim` CAS covers all four." The CAS landed; the
+  rollback did not. `AllocateThreadTag` claims the Pair artifact *and* writes a
+  pristine `Reservation: true` record, and all three post-allocation failure
+  sites were left calling `releaseClaimIfThreadAbsent`, which returns `nil` the
+  moment `GetThread` succeeds — and after allocation it always succeeds. That is
+  protection that can never fire, and the leak is permanent:
+  `ProjectActionableThreads` hides reserved records and
+  `reconcileInterruptedStarts` skips records with no start transaction, so
+  nothing ever reclaims it. Admission owned this before D1 deleted it, and the
+  two tests that pinned it (`TestSpawnCapacityRefusal…`,
+  `TestSpawnPolicyInstability…`) went with it. Replaced by
+  `Couch.rollbackPristineStart`, with `rollbackUnforkedStart` deleted, and pinned
+  by `TestStartFailuresAfterTagAllocationRollBackTheReservation` over both
+  post-allocation failure modes.
+- **A tombstone must be READ, not merely tolerated.** The earlier revision
+  treated decodability as the whole requirement. It is not: a pre-M4 incarnation
+  carries its repository identity inside `policy`, so ignoring the tombstone
+  loads `RepoIdentity == ""` and `advanceSuccessfulStart` refuses it. That fires
+  when an interrupted start written by the old binary is promoted after the
+  upgrade — inside `New()` — so couch would refuse to start at all. Same
+  whole-store blast radius the tombstone exists to prevent, reached the long way
+  round. `fromPersistedThreadRecord` now recovers the value.
+- **Two class guards replace two recall-driven sweeps.**
+  `TestEveryMakefileTestSelectorMatchesALiveTest` fails any `make` target whose
+  `-run` regex matches nothing — `go test` exits 0 with "[no tests to run]", so
+  `test-couch-policy-live` had been reporting green since D1 while the CI
+  workflow that would have failed loudly was the half that got deleted.
+  `TestDeletedVocabularyIsNotDescribedAsLive` greps a declared identifier set
+  against the docs, which is what would have caught README.md describing
+  fleet-policy admission as current after the atlas was swept by hand.
+- **`ValueRequired` was the wrong mechanism for the empty fingerprint.** The
+  declaration invariant reserves it for flag-only arguments, and an empty
+  required value is *meaningful* elsewhere — it is how `set-name` clears a name.
+  The guard belongs where emptiness is nonsense: `SpawnPrepared` now refuses an
+  empty accepted fingerprint as such, instead of reporting
+  `ErrStartResolutionChanged` for a drift that never happened.
+- **The git seam lost its last bounded IO and got it back.** D1 replaced a 5 s
+  fleet-policy subprocess with an unbounded `exec.Command` git call on the
+  preview worker. `GitRunner` gained `RunContext`, so a hung git no longer hangs
+  the start form. The seam's doc comment also described the wrong model:
+  `rev-parse --git-common-dir` answers relative to the QUERY directory — three
+  shapes, not two — measured against real git and now pinned both live
+  (`TestGitConformance_LinkedWorktree`) and with the fake.
+- **A 4.5 MB Mach-O binary was committed.** `couchstartrecovery` landed via
+  `go build` at the repo root plus `git add -A`. Dropped, and `.gitignore` now
+  covers every main package by root-anchored name, since this repo is the
+  ariadne base layer and such a blob propagates.

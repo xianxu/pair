@@ -133,7 +133,6 @@ func Operations() []Operation {
 			Presentation: PresentationTUI,
 			Args: []ArgSpec{
 				{Name: "path", Summary: "canonical path the preview resolved", Required: true, Implicit: true},
-				{Name: "worktree", Summary: "worktree the preview resolved", Required: true, Implicit: true},
 				{Name: "agent", Summary: "agent the operator explicitly requested, if any", Required: false, Implicit: true},
 				{Name: "issue", Summary: "issue the preview resolved, if any", Required: false, Implicit: true},
 				{Name: "fingerprint", Summary: "fingerprint of the resolution the preview accepted", Required: true, Implicit: true},

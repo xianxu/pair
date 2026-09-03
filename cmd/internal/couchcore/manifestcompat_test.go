@@ -3,6 +3,8 @@ package couchcore
 import (
 	"os"
 	"testing"
+
+	"github.com/xianxu/pair/cmd/internal/threadrecord"
 )
 
 // liveManifest is the operator's real thread-store manifest with its thread
@@ -47,5 +49,67 @@ func TestPreM4ManifestStillLoads(t *testing.T) {
 	}
 	if snapshot.Generation != 57 {
 		t.Fatalf("generation = %d, want 57", snapshot.Generation)
+	}
+}
+
+// livePreM4RecordWithOpenStart is a pre-pair#170 record carrying an INTERRUPTED
+// start: a `creating` incarnation whose repository identity lives inside the
+// `policy` object, because the top-level `repo_identity` field did not exist
+// yet.
+//
+// This is the shape that turns a decode-only tombstone into an outage.
+// reconcileInterruptedStarts runs inside New(), promotes this incarnation, and
+// advanceSuccessfulStart refuses an empty repository identity -- so if the
+// tombstone is merely tolerated rather than READ, couch refuses to start at
+// all after the upgrade. The operator's store has 5 records with `policy` and
+// none with an open start today, which is luck, not a guarantee.
+const livePreM4RecordWithOpenStart = `{
+  "schema_version": 2,
+  "address": {"repo_scope": "816fc349d3faebf8", "tag": "couch-0102030405060708"},
+  "starting_path": "/repo",
+  "working_path": "/repo",
+  "created_at": "2026-09-02T14:25:51.487991-07:00",
+  "revision": 3,
+  "claim_generation": 55,
+  "incarnations": [
+    {
+      "pid": 22870,
+      "identity": "1788384351.597473",
+      "state": "creating",
+      "started_at": "2026-09-02T14:25:51.487991-07:00",
+      "policy": {
+        "policy_version": 1,
+        "policy_digest": "b446286124e39db3c6117fe7b3f29aa4c43d266ff96eccfa475a84f1f8ba7844",
+        "repo_identity": "/repo/.git",
+        "admission_key": "/repo/.git",
+        "capacity": {"kind": "bounded", "limit": 1},
+        "on_capacity": "reject"
+      },
+      "start": {
+        "nonce": "start-0102030405060708",
+        "owner_pid": 4242,
+        "owner_identity": "1788384351.000001"
+      }
+    }
+  ],
+  "last_active_at": "0001-01-01T00:00:00Z"
+}`
+
+func TestPreM4StartCarriesItsRepositoryIdentityForward(t *testing.T) {
+	address := ThreadAddress{RepoScope: "816fc349d3faebf8", Tag: "couch-0102030405060708"}
+	persisted, err := threadrecord.DecodePersisted([]byte(livePreM4RecordWithOpenStart),
+		threadrecord.Address{RepoScope: address.RepoScope, Tag: string(address.Tag)},
+		threadRecordValidators)
+	if err != nil {
+		t.Fatalf("a pre-M4 record with an open start no longer decodes: %v", err)
+	}
+	record := fromPersistedThreadRecord(persisted)
+	if len(record.Incarnations) != 1 {
+		t.Fatalf("incarnations = %+v, want the one in the fixture", record.Incarnations)
+	}
+	// Not merely "it decoded": the VALUE has to survive, or promoting this
+	// start refuses and New() fails for the whole store.
+	if got := record.Incarnations[0].RepoIdentity; got != "/repo/.git" {
+		t.Fatalf("repository identity = %q, want it recovered from the policy tombstone", got)
 	}
 }

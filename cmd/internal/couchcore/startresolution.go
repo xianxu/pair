@@ -146,9 +146,11 @@ func writeFingerprintUint(digest hash.Hash, value uint64) {
 // fingerprint, failing the start with a drift error nobody drifted into.
 // One owner, one contract (ARCH-DRY).
 func (r StartResolution) CommitArgs() map[string]string {
+	// No worktree: StartArgs.WorkingDir prefers Cwd, which `path` supplies, so
+	// re-resolution never reads it. An argument nothing reads is one more thing
+	// a caller can get subtly wrong for no benefit.
 	return map[string]string{
 		"path":        r.CanonicalPath,
-		"worktree":    string(r.Worktree),
 		"agent":       r.RequestedAgent,
 		"issue":       r.Issue,
 		"fingerprint": string(r.Fingerprint),

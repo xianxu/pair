@@ -253,7 +253,7 @@ func (c *Couch) ResumeContext(ctx context.Context, address ThreadAddress) (Actor
 	// carrying both authorities forward here is what keeps M4 from silently
 	// re-breaking detached reattachment, which M2 fixed and admission's second
 	// verified-park gate used to enforce.
-	repoIdentity, err := c.resolveRepoIdentity(thread.WorkingPath)
+	repoIdentity, err := c.resolveRepoIdentity(ctx, thread.WorkingPath)
 	if err != nil {
 		return ActorRecord{}, nil, err
 	}

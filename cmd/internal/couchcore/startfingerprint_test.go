@@ -72,3 +72,18 @@ func TestSpawnPreparedRefusesDriftByFingerprint(t *testing.T) {
 		assertPreparedStartHadNoEffects(t, env)
 	})
 }
+
+// An empty fingerprint is a caller that never previewed, not a drift. Reported
+// as ErrStartResolutionChanged it sends the reader looking for a preference
+// change that never happened.
+func TestSpawnPreparedRefusesAnEmptyFingerprintAsSuchNotAsDrift(t *testing.T) {
+	env := newTestEnv(t, "/repo")
+	_, _, err := env.Couch.SpawnPrepared(context.Background(), StartArgs{Worktree: "/repo"}, "")
+	if err == nil {
+		t.Fatal("an empty accepted fingerprint started a thread")
+	}
+	if errors.Is(err, ErrStartResolutionChanged) {
+		t.Fatalf("empty fingerprint reported as drift: %v", err)
+	}
+	assertPreparedStartHadNoEffects(t, env)
+}

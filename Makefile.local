@@ -68,18 +68,6 @@ test-session-inventory-conformance:
 	PAIR_LIVE_SESSION_INVENTORY=1 go test -p 20 ./cmd/internal/sessioninventory -run '^TestLiveIncrementalInventoryPrelaunch$$' -count=1 -v
 	PAIR_LIVE_NATIVE_SESSIONS=1 go test -p 20 ./cmd/internal/sessioninventory -run '^TestLive(ProviderContractConformance|JSONLProviderBehaviorMatchesStatefulFake)$$' -count=1 -v
 
-SDLC_BIN ?= sdlc
-
-.PHONY: test-couch-policy-live
-test-couch-policy-live:
-	@sdlc_bin="$(SDLC_BIN)"; \
-	case "$$sdlc_bin" in \
-	  */*) sdlc_bin="$$(cd "$$(dirname "$$sdlc_bin")" && pwd -P)/$$(basename "$$sdlc_bin")" ;; \
-	  *) sdlc_bin="$$(command -v "$$sdlc_bin")" ;; \
-	esac; \
-	test -n "$$sdlc_bin"; \
-	PAIR_LIVE_FLEET_POLICY=1 PAIR_SDLC_BIN="$$sdlc_bin" go test ./cmd/internal/couchcore -run '^TestFleetPolicyResolverConformance$$' -count=1
-
 .PHONY: test-couch-zellij-live
 test-couch-zellij-live:
 	PAIR_LIVE_COUCH=1 go test -p 20 ./cmd/internal/launcher -run '^(TestSessionQuiescenceLive|TestSessionDetachLive|TestQuitLifecycleLive)$$' -count=1 -v

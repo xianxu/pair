@@ -14,6 +14,7 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"slices"
 	"sort"
 	"strings"
 	"testing"
@@ -1479,7 +1480,13 @@ func validateIssue151M3SourceConcepts(root, plan string) error {
 		return err
 	}
 	for name, declaration := range issue151M3ArchitecturalDeclarations {
-		if len(declaration.absent) == 0 {
+		// Skip only an entity whose OWN source file is gone -- there is nothing
+		// left to look the declaration up in. A DEPENDENCY being absent says
+		// nothing about whether the entity is declared where the ledger claims,
+		// and gating on `len(absent) != 0` conflated the two: when pair#170 M4
+		// recorded startgrant.go as a retired dependency of Couch.PrepareStart
+		// and Couch.SpawnPrepared, both silently stopped being checked at all.
+		if !slices.Contains(declaration.absent, declaration.source) {
 			found, err := issue151M3PinnedDeclarationExists(root, name, declaration.source)
 			if err != nil {
 				return err

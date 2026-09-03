@@ -56,11 +56,11 @@ func TestIsActionableOSC(t *testing.T) {
 // sequences without a terminator must not match.
 func TestOscRe_MatchesShape(t *testing.T) {
 	cases := []struct {
-		name     string
-		input    string
-		matches  bool
-		wantPs   string // captured first group, only checked on match
-		wantBody string // captured second group, only checked on match
+		name      string
+		input     string
+		matches   bool
+		wantPs    string // captured first group, only checked on match
+		wantBody  string // captured second group, only checked on match
 	}{
 		{
 			name:     "OSC 9 BEL-terminated",

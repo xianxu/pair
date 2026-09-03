@@ -92,6 +92,11 @@ func validateOperationCall(op Operation, call OperationCall) error {
 			return fmt.Errorf("%s: argument %q requires a non-empty value", op.Name, name)
 		}
 	}
+	// Presence, not non-emptiness: an empty value is MEANINGFUL for some
+	// required arguments -- `set-name` clears a name with one and
+	// `publish-description` clears a description. Arguments whose emptiness is
+	// nonsense guard themselves at the layer that knows (see SpawnPrepared's
+	// empty-fingerprint refusal).
 	for _, arg := range op.Args {
 		if _, supplied := call.Args[arg.Name]; arg.Required && !supplied {
 			return fmt.Errorf("%s: missing required argument %q", op.Name, arg.Name)
@@ -192,8 +197,7 @@ func CouchLiveOwnerExecutor(c *Couch) OperationExecutor {
 			// comparable. Passing the RESOLVED agent where the operator gave
 			// none would change AgentSource and therefore the fingerprint.
 			rec, h, err := c.SpawnPrepared(ctx, StartArgs{
-				Worktree: Worktree(a["worktree"]), Cwd: a["path"],
-				Stack: a["agent"], Issue: a["issue"],
+				Cwd: a["path"], Stack: a["agent"], Issue: a["issue"],
 			}, StartResolutionFingerprint(a["fingerprint"]))
 			if err != nil {
 				return nil, err

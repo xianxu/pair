@@ -126,12 +126,19 @@ func New(namespace CouchNamespace, r Runner, p PathOps, g GitRunner, proc ProcOp
 // ResolveTree turns an operator-supplied path into a canonical worktree.
 func (c *Couch) ResolveTree(path string) (Worktree, error) { return Resolve(path, c.Git, c.Path) }
 
-// Spawn brings up an agent on a tree.
+// Spawn is the TEST SEAM over the start path, not a production entry point.
+// The CLI and the console both go through PrepareStart/SpawnPrepared, which
+// let the operator see a resolution before committing to it; Spawn is the thin
+// wrapper that resolves and spawns in one call, which is what makes it useful
+// to a test and wrong for a user. Kept deliberately at pair#170 M4 (see the
+// plan's "Kept, and why"): it carries the coverage of the start path that same
+// milestone rewrote, and deleting it there would have dropped that coverage at
+// exactly the least safe moment.
 //
 // Order matters: the snapshot is persisted BEFORE the caller waits on the
 // child. Couch owns the child for its lifetime, so if Save happened after Wait
-// a second shell running `couch --list` would see an empty registry
-// for the entire session -- which is most of the time.
+// a second shell reading the registry would see it empty for the entire
+// session -- which is most of the time.
 func (c *Couch) Spawn(args StartArgs) (ActorRecord, Handle, error) {
 	resolution, err := c.resolveStartResolution(context.Background(), args)
 	if err != nil {
@@ -168,6 +175,16 @@ func (c *Couch) PrepareStart(ctx context.Context, args StartArgs) (PreparedStart
 // The token's other property -- at-most-one consumption -- was never a domain
 // guarantee. It is the start form's armed submit, and it lives in couchtty.
 func (c *Couch) SpawnPrepared(ctx context.Context, args StartArgs, accepted StartResolutionFingerprint) (ActorRecord, Handle, error) {
+	// Before the compare, not through it. An empty fingerprint is a caller that
+	// never previewed, and reporting it as ErrStartResolutionChanged blames a
+	// drift that did not happen -- sending whoever reads the error looking for
+	// a preference change instead of a missing argument. The operation schema
+	// cannot catch this: an empty required value is meaningful elsewhere (it is
+	// how set-name clears a name), so emptiness is judged where it means
+	// something.
+	if accepted == "" {
+		return ActorRecord{}, nil, errors.New("start: no accepted resolution fingerprint")
+	}
 	current, err := c.resolveStartResolution(ctx, args)
 	if err != nil {
 		return ActorRecord{}, nil, err
@@ -190,7 +207,7 @@ func (c *Couch) resolveStartResolution(ctx context.Context, args StartArgs) (Sta
 	if physical, physicalErr := c.Path.Physical(canonicalPath); physicalErr == nil {
 		canonicalPath = physical
 	}
-	repoIdentity, err := c.resolveRepoIdentity(canonicalPath)
+	repoIdentity, err := c.resolveRepoIdentity(ctx, canonicalPath)
 	if err != nil {
 		return StartResolution{}, err
 	}
@@ -243,16 +260,25 @@ func (c *Couch) resolveStartResolution(ctx context.Context, args StartArgs) (Sta
 // every remembered agent+argv, and couch would simply forget which agent you
 // use in which tree.
 //
-// `rev-parse --git-common-dir` answers relative in a main checkout (".git") and
-// absolute in a linked worktree, so the result is joined against the query
-// directory before canonicalizing -- which is also what makes every worktree of
-// one repository share an identity, as the name promises. Verified against
+// `rev-parse --git-common-dir` answers RELATIVE TO THE QUERY DIRECTORY, which
+// is three shapes, not two -- measured against real git by
+// TestGitConformance_LinkedWorktree:
+//
+//	repo root        ".git"
+//	subdirectory     "../.git"   (one ".." per level; NOT always ".git")
+//	linked worktree  "/abs/path/to/primary/.git"
+//
+// So the result is joined against the query directory before canonicalizing.
+// That join is load-bearing for the middle row, and it is also what makes every
+// worktree of one repository share an identity, as the name promises. An
+// earlier version of this comment claimed the answer was ".git" in any main
+// checkout, which would make the join look redundant. Verified against
 // ariadne's own derivation and against the operator's live preference files.
-func (c *Couch) resolveRepoIdentity(workingPath string) (string, error) {
+func (c *Couch) resolveRepoIdentity(ctx context.Context, workingPath string) (string, error) {
 	if c.Git == nil {
 		return "", errors.New("resolve repository identity: no git runner")
 	}
-	out, err := c.Git.Run(workingPath, "rev-parse", "--git-common-dir")
+	out, err := c.Git.RunContext(ctx, workingPath, "rev-parse", "--git-common-dir")
 	if err != nil {
 		return "", fmt.Errorf("resolve repository identity for %q: %w", workingPath, err)
 	}
@@ -294,11 +320,11 @@ func (c *Couch) spawnResolved(ctx context.Context, resolution StartResolution) (
 	args.ExtraArgs = cloneArgv(profile.Profile.Argv)
 	owner, err := c.Proc.Current()
 	if err != nil {
-		return ActorRecord{}, nil, errors.Join(fmt.Errorf("identify couch supervisor: %w", err), c.releaseClaimIfThreadAbsent(threadAddress))
+		return ActorRecord{}, nil, errors.Join(fmt.Errorf("identify couch supervisor: %w", err), c.rollbackPristineStart(threadAddress))
 	}
 	nonce, err := allocateStartNonce(c.Entropy)
 	if err != nil {
-		return ActorRecord{}, nil, errors.Join(err, c.releaseClaimIfThreadAbsent(threadAddress))
+		return ActorRecord{}, nil, errors.Join(err, c.rollbackPristineStart(threadAddress))
 	}
 	// One revision-checked write for what admission used to do around its
 	// capacity decision: clear the reservation, append the creating
@@ -310,7 +336,7 @@ func (c *Couch) spawnResolved(ctx context.Context, resolution StartResolution) (
 		Profile: &profile.Profile,
 	})
 	if err != nil {
-		return ActorRecord{}, nil, errors.Join(fmt.Errorf("record start transaction: %w", err), c.releaseClaimIfThreadAbsent(threadAddress))
+		return ActorRecord{}, nil, errors.Join(fmt.Errorf("record start transaction: %w", err), c.rollbackPristineStart(threadAddress))
 	}
 
 	// `pair resume <tag> --layout2` rather than a bare `pair`.
@@ -518,12 +544,23 @@ func allocateParkNonce(entropy io.Reader) (string, error) {
 	return "park-" + hex.EncodeToString(random[:]), nil
 }
 
-func (c *Couch) rollbackUnforkedStart(thread ThreadRecord) error {
-	deleteErr := c.Threads.DeleteUnstartedThread(thread.Address, thread.Revision)
-	if deleteErr != nil {
-		return deleteErr
+// rollbackPristineStart undoes AllocateThreadTag, which claims the Pair
+// artifact AND persists a pristine `Reservation: true` record -- so a failure
+// after it has two things to undo, in that order.
+//
+// releaseClaimIfThreadAbsent alone cannot do it: it returns nil the moment
+// GetThread succeeds, and after allocation the record always exists. Used on
+// its own it is protection that can never fire, and the leaked reservation is
+// PERMANENT -- ProjectActionableThreads hides reserved records from the
+// switcher and reconcileInterruptedStarts skips records with no start
+// transaction, so nothing ever reclaims it. Admission owned this rollback
+// until pair#170 M4 deleted it (`DeletePristineThread` was left uncalled);
+// pinned now by TestStartFailuresAfterTagAllocationRollBackTheReservation.
+func (c *Couch) rollbackPristineStart(address ThreadAddress) error {
+	if err := c.Threads.DeletePristineThread(address); err != nil {
+		return err
 	}
-	return c.releaseClaimIfThreadAbsent(thread.Address)
+	return c.releaseClaimIfThreadAbsent(address)
 }
 
 func (c *Couch) rollbackTrackedStart(thread ThreadRecord, nonce string) error {

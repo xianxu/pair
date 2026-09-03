@@ -262,6 +262,160 @@ rounds:
           round: 6
       boundary: M3
       blocked: false
+    - "n": 7
+      timestamp: "2026-09-02T21:53:25-07:00"
+      agent: claude
+      findings:
+        - id: BR-15
+          severity: Critical
+          title: Pristine-start rollback is gone; the call left in its place can never fire
+          detail: |-
+            AllocateThreadTag persists a reserved record and claims the artifact, so
+            releaseClaimIfThreadAbsent at couch.go:297,301,313 always finds the record
+            present and returns nil. A Proc.Current, entropy, or CommitStartClaim
+            failure therefore leaks a reserved record that ProjectActionableThreads
+            hides and reconcileInterruptedStarts never visits, plus its artifact claim.
+            DeletePristineThread and rollbackUnforkedStart now have zero callers, and
+            the two tests that pinned the property were deleted with admission. Plan
+            Task 13 Step 4 required this rollback explicitly. A test setting
+            FakeProcOps.CurrentErr and asserting zero records plus one release fails
+            today.
+          family: deleted-subsystem-drops-its-invariant
+          round: 7
+        - id: BR-16
+          severity: Important
+          title: Tombstone keeps old records decodable but drops the value they carry
+          detail: |-
+            A pre-M4 incarnation holds policy.repo_identity and no top-level
+            repo_identity; fromPersistedThreadRecord (thread.go:184) never reads the
+            tombstone, so RepoIdentity is empty and advanceSuccessfulStart
+            (threadstore.go:614) refuses. Reached when an interrupted start written by
+            the pre-M4 binary is promoted after the upgrade: reconcileInterruptedStarts
+            fails, New returns an error, and couch refuses to start at all -- the same
+            whole-store blast radius the manifest tombstone was added to prevent. The
+            operator's store has 5 records with policy and 0 open starts today, so it
+            does not fire on this host. Fix: read repo_identity out of DeprecatedPolicy
+            when the new field is empty, and extend the fixture with a start block.
+          family: compat-shim-preserves-shape-not-value
+          round: 7
+        - id: BR-17
+          severity: Important
+          title: Seven orphans survive the sweep, including a conformance target that now reports green
+          detail: |-
+            Each has exactly one reference, its own definition: threadrecord.PolicyCapacity
+            (record.go:34), ThreadStore.DeletePristineThread (threadstore.go:526),
+            Couch.rollbackUnforkedStart (couch.go:521), reflectBytesEqual
+            (threadstore.go:905), ThreadSnapshotConflictError (threadstore.go:30),
+            ThreadSnapshot.manifest/.raw (threadstore.go:39, write-only and copied per
+            Snapshot call), and Makefile.local:73 test-couch-policy-live. That last one
+            runs `go test -run TestFleetPolicyResolverConformance`, which now prints
+            "ok [no tests to run]" and exits 0 -- verified. This is also the 3rd
+            finding in family record-claims-unverified-delivery, since atlas/couch.md
+            and the issue Log both state the target was deleted. Do not fix only these
+            instances. The rule: a deletion is complete when the identifier set is
+            swept, not the package -- grep every removed symbol and target name across
+            Go, Makefile*, .github/, atlas/ and README.md before the commit, and let no
+            doc or log sentence claim a removal grep has not confirmed. lessons.md
+            states this rule in this very range and the range violates it, which argues
+            for making it mechanical.
+          family: deletion-leaves-orphaned-surface
+          round: 7
+        - id: BR-18
+          severity: Important
+          title: 4.5 MB Mach-O arm64 binary `couchstartrecovery` committed at the repo root
+          detail: |-
+            Landed in c11f61ea, almost certainly from `go build ./cmd/probes/couchstartrecovery`
+            during the Task 14 Step 6 probe repair; the Makefile target uses `go run`, so
+            nothing wants the file. No .gitignore rule covers the repo root. This is the
+            ariadne base layer, so the blob propagates to dependent repos and becomes
+            permanent history once merged -- the cost of removing it rises sharply at
+            this boundary. Drop it from the branch and add a root ignore rule.
+          family: build-artifact-committed
+          round: 7
+        - id: BR-19
+          severity: Important
+          title: README still documents fleet-policy admission, capacity refusal and provision-worktree
+          detail: |-
+            README.md:307-314 describes behavior D1 deleted. Plan Task 14's own Files
+            list names README and it was not touched. This is the 2nd finding in this
+            family, so do not fix only the paragraph. The rule: the docs sweep is
+            driven by an enumeration derived from the diff -- deleted identifiers plus
+            changed user-facing behavior -- grepped against README.md and atlas/
+            together, not from recall of which files felt relevant. The atlas half was
+            done well here and README was simply forgotten, which is exactly what a
+            shared enumeration removes. A grep-based check over the deleted vocabulary
+            would close the class.
+          family: readme-stale-for-shipped-surface
+          round: 7
+        - id: BR-20
+          severity: Important
+          title: Overloading `absent` silently disables the pinned-declaration check for two entries
+          detail: |-
+            plan_contract_test.go:1481 skips issue151M3PinnedDeclarationExists whenever
+            len(declaration.absent) != 0. Adding startgrant.go to the absent list of
+            Couch.PrepareStart and Couch.SpawnPrepared therefore turned off a check
+            both would still pass, since it reads the frozen git object rather than the
+            worktree. Only StartGrantStore, whose source IS the absent file, needs the
+            skip. Plan Task 14 Step 5 warned against loosening the pinned contract.
+            Gate line 1481 on whether declaration.source itself appears in absent.
+          family: guard-weakened-not-repaired
+          round: 7
+        - id: BR-21
+          severity: Important
+          title: The new git-common-dir seam has no live conformance case and one modeled answer shape
+          detail: |-
+            resolveRepoIdentity (couch.go:255) keys every saved launch preference off
+            `git rev-parse --git-common-dir`, the one value D1 had to preserve
+            byte-for-byte. Every fake reply in the tree is ".git" -- the repo-root case.
+            Real git answers relative to the CURRENT directory from a subdirectory
+            (measured: "../../../.git"), which is what production hits when the
+            operator runs couch in a subdir; filepath.Join handles it, but nothing
+            tests it and the function's doc comment states the model inaccurately
+            ("absolute in a linked worktree"). conformance_live_test.go has no
+            git-common-dir case. This is the 2nd finding in this family. The rule: a
+            fake's canned replies must cover every input shape production can pass the
+            seam -- enumerate the call sites' argument shapes and add a case per shape
+            -- and any answer the code reasons about earns a live conformance case
+            rather than a comment.
+          family: fixture-realism
+          round: 7
+        - id: BR-22
+          severity: Minor
+          title: RetireIncarnation's doc comment is now attached to CommitStartClaim
+          detail: |-
+            threadstore.go:405-419 -- the new function was inserted between the comment
+            and the function it documents, so godoc attributes RetireIncarnation's
+            detach-vs-park rationale to CommitStartClaim and RetireIncarnation
+            (threadstore.go:457) has no doc at all.
+          family: doc-comment-misattached
+          round: 7
+        - id: BR-23
+          severity: Minor
+          title: GitRunner still documents exactly one call; there are two, and its unused ctx went with the policy seam
+          detail: |-
+            git.go:8-9 says "couch needs exactly one call: rev-parse --show-toplevel".
+            Separately, resolveStartResolution's ctx parameter is now unused
+            (ResolvePolicy was its only consumer), and the bounded 5 s policy
+            subprocess it replaced is now an unbounded exec.Command git call on the
+            preview worker. Pre-existing for ResolveTree, so not new exposure, but the
+            last bounded IO on that path is gone. Couch.Spawn's doc (couch.go:128) also
+            still reads as a production entry point where the plan promised "test seam".
+          family: stale-doc-after-new-consumer
+          round: 7
+        - id: BR-24
+          severity: Minor
+          title: '`start` declares path/worktree/fingerprint Required but not ValueRequired, and worktree is never read'
+          detail: |-
+            ops.go:135-139 -- an empty fingerprint passes schema validation and is
+            caught only by the later compare. resolveStartResolution uses
+            WorkingDir(), which prefers Cwd, so the worktree arg CommitArgs emits is
+            inert. Also: unrelated gofmt churn in entrypoint/alias_test.go,
+            runtimebundle/store_test.go and two wrapcmd tests adds noise to the
+            deletion diff.
+          family: schema-looser-than-contract
+          round: 7
+      boundary: M4
+      blocked: true
 ---
 
 # Gate ledger — pair#170 (boundary-review)
@@ -414,6 +568,109 @@ later rounds disposed of them. Generated — edit the gate, not this file.
   :196) plus BR-9's 3 test sites. A resumableProfile(record) (*LaunchProfile, bool) helper
   covers both production sites and preserves the symmetry the comment defends (ARCH-DRY).
 
+## Round 7 — 2026-09-02T21:53:25-07:00 (claude) — BLOCKED
+
+### Raised
+
+- **BR-15** [Critical] `deleted-subsystem-drops-its-invariant` Pristine-start rollback is gone; the call left in its place can never fire
+  AllocateThreadTag persists a reserved record and claims the artifact, so
+  releaseClaimIfThreadAbsent at couch.go:297,301,313 always finds the record
+  present and returns nil. A Proc.Current, entropy, or CommitStartClaim
+  failure therefore leaks a reserved record that ProjectActionableThreads
+  hides and reconcileInterruptedStarts never visits, plus its artifact claim.
+  DeletePristineThread and rollbackUnforkedStart now have zero callers, and
+  the two tests that pinned the property were deleted with admission. Plan
+  Task 13 Step 4 required this rollback explicitly. A test setting
+  FakeProcOps.CurrentErr and asserting zero records plus one release fails
+  today.
+- **BR-16** [Important] `compat-shim-preserves-shape-not-value` Tombstone keeps old records decodable but drops the value they carry
+  A pre-M4 incarnation holds policy.repo_identity and no top-level
+  repo_identity; fromPersistedThreadRecord (thread.go:184) never reads the
+  tombstone, so RepoIdentity is empty and advanceSuccessfulStart
+  (threadstore.go:614) refuses. Reached when an interrupted start written by
+  the pre-M4 binary is promoted after the upgrade: reconcileInterruptedStarts
+  fails, New returns an error, and couch refuses to start at all -- the same
+  whole-store blast radius the manifest tombstone was added to prevent. The
+  operator's store has 5 records with policy and 0 open starts today, so it
+  does not fire on this host. Fix: read repo_identity out of DeprecatedPolicy
+  when the new field is empty, and extend the fixture with a start block.
+- **BR-17** [Important] `deletion-leaves-orphaned-surface` Seven orphans survive the sweep, including a conformance target that now reports green
+  Each has exactly one reference, its own definition: threadrecord.PolicyCapacity
+  (record.go:34), ThreadStore.DeletePristineThread (threadstore.go:526),
+  Couch.rollbackUnforkedStart (couch.go:521), reflectBytesEqual
+  (threadstore.go:905), ThreadSnapshotConflictError (threadstore.go:30),
+  ThreadSnapshot.manifest/.raw (threadstore.go:39, write-only and copied per
+  Snapshot call), and Makefile.local:73 test-couch-policy-live. That last one
+  runs `go test -run TestFleetPolicyResolverConformance`, which now prints
+  "ok [no tests to run]" and exits 0 -- verified. This is also the 3rd
+  finding in family record-claims-unverified-delivery, since atlas/couch.md
+  and the issue Log both state the target was deleted. Do not fix only these
+  instances. The rule: a deletion is complete when the identifier set is
+  swept, not the package -- grep every removed symbol and target name across
+  Go, Makefile*, .github/, atlas/ and README.md before the commit, and let no
+  doc or log sentence claim a removal grep has not confirmed. lessons.md
+  states this rule in this very range and the range violates it, which argues
+  for making it mechanical.
+- **BR-18** [Important] `build-artifact-committed` 4.5 MB Mach-O arm64 binary `couchstartrecovery` committed at the repo root
+  Landed in c11f61ea, almost certainly from `go build ./cmd/probes/couchstartrecovery`
+  during the Task 14 Step 6 probe repair; the Makefile target uses `go run`, so
+  nothing wants the file. No .gitignore rule covers the repo root. This is the
+  ariadne base layer, so the blob propagates to dependent repos and becomes
+  permanent history once merged -- the cost of removing it rises sharply at
+  this boundary. Drop it from the branch and add a root ignore rule.
+- **BR-19** [Important] `readme-stale-for-shipped-surface` README still documents fleet-policy admission, capacity refusal and provision-worktree
+  README.md:307-314 describes behavior D1 deleted. Plan Task 14's own Files
+  list names README and it was not touched. This is the 2nd finding in this
+  family, so do not fix only the paragraph. The rule: the docs sweep is
+  driven by an enumeration derived from the diff -- deleted identifiers plus
+  changed user-facing behavior -- grepped against README.md and atlas/
+  together, not from recall of which files felt relevant. The atlas half was
+  done well here and README was simply forgotten, which is exactly what a
+  shared enumeration removes. A grep-based check over the deleted vocabulary
+  would close the class.
+- **BR-20** [Important] `guard-weakened-not-repaired` Overloading `absent` silently disables the pinned-declaration check for two entries
+  plan_contract_test.go:1481 skips issue151M3PinnedDeclarationExists whenever
+  len(declaration.absent) != 0. Adding startgrant.go to the absent list of
+  Couch.PrepareStart and Couch.SpawnPrepared therefore turned off a check
+  both would still pass, since it reads the frozen git object rather than the
+  worktree. Only StartGrantStore, whose source IS the absent file, needs the
+  skip. Plan Task 14 Step 5 warned against loosening the pinned contract.
+  Gate line 1481 on whether declaration.source itself appears in absent.
+- **BR-21** [Important] `fixture-realism` The new git-common-dir seam has no live conformance case and one modeled answer shape
+  resolveRepoIdentity (couch.go:255) keys every saved launch preference off
+  `git rev-parse --git-common-dir`, the one value D1 had to preserve
+  byte-for-byte. Every fake reply in the tree is ".git" -- the repo-root case.
+  Real git answers relative to the CURRENT directory from a subdirectory
+  (measured: "../../../.git"), which is what production hits when the
+  operator runs couch in a subdir; filepath.Join handles it, but nothing
+  tests it and the function's doc comment states the model inaccurately
+  ("absolute in a linked worktree"). conformance_live_test.go has no
+  git-common-dir case. This is the 2nd finding in this family. The rule: a
+  fake's canned replies must cover every input shape production can pass the
+  seam -- enumerate the call sites' argument shapes and add a case per shape
+  -- and any answer the code reasons about earns a live conformance case
+  rather than a comment.
+- **BR-22** [Minor] `doc-comment-misattached` RetireIncarnation's doc comment is now attached to CommitStartClaim
+  threadstore.go:405-419 -- the new function was inserted between the comment
+  and the function it documents, so godoc attributes RetireIncarnation's
+  detach-vs-park rationale to CommitStartClaim and RetireIncarnation
+  (threadstore.go:457) has no doc at all.
+- **BR-23** [Minor] `stale-doc-after-new-consumer` GitRunner still documents exactly one call; there are two, and its unused ctx went with the policy seam
+  git.go:8-9 says "couch needs exactly one call: rev-parse --show-toplevel".
+  Separately, resolveStartResolution's ctx parameter is now unused
+  (ResolvePolicy was its only consumer), and the bounded 5 s policy
+  subprocess it replaced is now an unbounded exec.Command git call on the
+  preview worker. Pre-existing for ResolveTree, so not new exposure, but the
+  last bounded IO on that path is gone. Couch.Spawn's doc (couch.go:128) also
+  still reads as a production entry point where the plan promised "test seam".
+- **BR-24** [Minor] `schema-looser-than-contract` `start` declares path/worktree/fingerprint Required but not ValueRequired, and worktree is never read
+  ops.go:135-139 -- an empty fingerprint passes schema validation and is
+  caught only by the later compare. resolveStartResolution uses
+  WorkingDir(), which prefers Cwd, so the worktree arg CommitArgs emits is
+  inert. Also: unrelated gofmt churn in entrypoint/alias_test.go,
+  runtimebundle/store_test.go and two wrapcmd tests adds noise to the
+  deletion diff.
+
 ## Open findings
 
 - **BR-6** [Minor] `prose-duplication` The selector's rationale is restated near-verbatim in five artifacts
@@ -424,3 +681,13 @@ later rounds disposed of them. Generated — edit the gate, not this file.
 - **BR-12** [Important] `producer-emits-value-its-consumer-rejects` ProjectDetachedSessions emits a DetachedSessionObservation that ProjectActionableThreads now always rejects
 - **BR-13** [Important] `lesson-not-recorded-for-boundary-defect` M3 produced a Critical and a three-round family and added no rule to workshop/lessons.md
 - **BR-14** [Minor] `shared-helper-not-extracted` detachedResumeProofMatches repeats parkedResumeProofMatches' four-condition profile guard verbatim
+- **BR-15** [Critical] `deleted-subsystem-drops-its-invariant` Pristine-start rollback is gone; the call left in its place can never fire
+- **BR-16** [Important] `compat-shim-preserves-shape-not-value` Tombstone keeps old records decodable but drops the value they carry
+- **BR-17** [Important] `deletion-leaves-orphaned-surface` Seven orphans survive the sweep, including a conformance target that now reports green
+- **BR-18** [Important] `build-artifact-committed` 4.5 MB Mach-O arm64 binary `couchstartrecovery` committed at the repo root
+- **BR-19** [Important] `readme-stale-for-shipped-surface` README still documents fleet-policy admission, capacity refusal and provision-worktree
+- **BR-20** [Important] `guard-weakened-not-repaired` Overloading `absent` silently disables the pinned-declaration check for two entries
+- **BR-21** [Important] `fixture-realism` The new git-common-dir seam has no live conformance case and one modeled answer shape
+- **BR-22** [Minor] `doc-comment-misattached` RetireIncarnation's doc comment is now attached to CommitStartClaim
+- **BR-23** [Minor] `stale-doc-after-new-consumer` GitRunner still documents exactly one call; there are two, and its unused ctx went with the policy seam
+- **BR-24** [Minor] `schema-looser-than-contract` `start` declares path/worktree/fingerprint Required but not ValueRequired, and worktree is never read

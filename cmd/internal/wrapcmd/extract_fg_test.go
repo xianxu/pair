@@ -84,28 +84,28 @@ func TestExtractFG(t *testing.T) {
 			want:   []byte("2;255;0;0"),
 		},
 		{
-			name:    "empty parameter slot == 0 (reset)",
-			params:  ";1", // ECMA-48: omitted == 0
+			name:   "empty parameter slot == 0 (reset)",
+			params: ";1",       // ECMA-48: omitted == 0
 			current: []byte("31"),
-			want:    nil,
+			want:   nil,
 		},
 		{
-			name:    "malformed 38 (missing mode/index) is a no-op for FG",
-			params:  "38",
+			name:   "malformed 38 (missing mode/index) is a no-op for FG",
+			params: "38",
 			current: []byte("36"),
-			want:    []byte("36"),
+			want:   []byte("36"),
 		},
 		{
-			name:    "malformed 38;5 (missing index) is a no-op for FG",
-			params:  "38;5",
+			name:   "malformed 38;5 (missing index) is a no-op for FG",
+			params: "38;5",
 			current: []byte("36"),
-			want:    []byte("36"),
+			want:   []byte("36"),
 		},
 		{
-			name:    "malformed 38;2;R;G (missing B) is a no-op for FG",
-			params:  "38;2;1;2",
+			name:   "malformed 38;2;R;G (missing B) is a no-op for FG",
+			params: "38;2;1;2",
 			current: []byte("36"),
-			want:    []byte("36"),
+			want:   []byte("36"),
 		},
 	}
 	for _, c := range cases {

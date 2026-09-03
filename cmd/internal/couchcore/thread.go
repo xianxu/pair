@@ -1,6 +1,7 @@
 package couchcore
 
 import (
+	"encoding/json"
 	"time"
 
 	"github.com/xianxu/pair/cmd/internal/launcher"
@@ -181,11 +182,19 @@ func fromPersistedThreadRecord(record threadrecord.Record) ThreadRecord {
 				out.Incarnations[i].Start.LaunchProfile = &profile
 			}
 		}
-		// DeprecatedPolicy is deliberately not read: the only value anything
-		// still wanted from it was the repository identity, which now has its
-		// own field. Old records keep decoding; the tombstone is dropped on the
-		// next write.
+		// The tombstone has to be READ, not merely tolerated. A pre-M4
+		// incarnation carries its repository identity inside `policy` and has
+		// no top-level `repo_identity`, so ignoring the tombstone loads it as
+		// "" -- and advanceSuccessfulStart refuses an empty identity. That
+		// fires whenever an interrupted start written by the old binary is
+		// promoted after the upgrade: reconcileInterruptedStarts runs inside
+		// New(), so couch would refuse to START AT ALL. Decoding without
+		// carrying the value forward is the same whole-store blast radius the
+		// tombstone exists to prevent.
 		out.Incarnations[i].RepoIdentity = incarnation.RepoIdentity
+		if out.Incarnations[i].RepoIdentity == "" {
+			out.Incarnations[i].RepoIdentity = deprecatedPolicyRepoIdentity(incarnation.DeprecatedPolicy)
+		}
 		if incarnation.LaunchProfile != nil {
 			profile := LaunchProfile{Agent: incarnation.LaunchProfile.Agent, Argv: cloneArgv(incarnation.LaunchProfile.Argv)}
 			out.Incarnations[i].LaunchProfile = &profile
@@ -279,4 +288,22 @@ func fromPersistedParkTransaction(transaction threadrecord.ParkTransaction) Park
 		}
 	}
 	return out
+}
+
+// deprecatedPolicyRepoIdentity recovers the one field anything still wants from
+// the pre-pair#170 `policy` object. Best-effort by design: a malformed or
+// absent tombstone yields "", which is exactly the state the caller already
+// handles. It never resurrects the rest of the record -- capacity, provider
+// version and declaration digest went with admission and have no reader.
+func deprecatedPolicyRepoIdentity(raw json.RawMessage) string {
+	if len(raw) == 0 {
+		return ""
+	}
+	var legacy struct {
+		RepoIdentity string `json:"repo_identity"`
+	}
+	if err := json.Unmarshal(raw, &legacy); err != nil {
+		return ""
+	}
+	return legacy.RepoIdentity
 }

@@ -27,7 +27,7 @@ func TestDispatchOperationRoutesOnlyThroughDeclaredExecutor(t *testing.T) {
 	if err != nil || got != "stored" {
 		t.Fatalf("list dispatch = %#v, %v", got, err)
 	}
-	got, err = DispatchOperation(executors, OperationCall{Name: "start", Args: map[string]string{"path": "/repo", "worktree": "/repo", "fingerprint": "grant"}, Implicit: true})
+	got, err = DispatchOperation(executors, OperationCall{Name: "start", Args: map[string]string{"path": "/repo", "fingerprint": "grant"}, Implicit: true})
 	if err != nil || got != "owned" {
 		t.Fatalf("start dispatch = %#v, %v", got, err)
 	}
@@ -218,7 +218,7 @@ func TestPreparedStartResolvesThenCommitsByFingerprint(t *testing.T) {
 	}
 	if _, err := DispatchOperation(OperationExecutors{LiveOwner: executor}, OperationCall{
 		Name: "start", Args: map[string]string{
-			"path": "/repo", "worktree": "/repo", "agent": "codex", "fingerprint": "stale-fingerprint",
+			"path": "/repo", "agent": "codex", "fingerprint": "stale-fingerprint",
 		}, Implicit: true,
 	}); !errors.Is(err, ErrStartResolutionChanged) {
 		t.Fatalf("stale fingerprint err = %v, want ErrStartResolutionChanged", err)

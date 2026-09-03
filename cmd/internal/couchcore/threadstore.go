@@ -27,17 +27,13 @@ type ThreadRevisionError struct {
 	Got     uint64
 }
 
-type ThreadSnapshotConflictError struct{ Detail string }
-
-func (e *ThreadSnapshotConflictError) Error() string {
-	return "thread store snapshot changed: " + e.Detail
-}
-
+// ThreadSnapshot is a read-only view. It used to carry the manifest and each
+// record's exact bytes as compare-and-swap evidence for
+// CommitThreadReplacements, which pair#170 M4 deleted -- so copying them was
+// per-call work for no consumer.
 type ThreadSnapshot struct {
 	Generation uint64
 	Records    []ThreadRecord
-	manifest   []byte
-	raw        map[ThreadAddress][]byte
 }
 
 func (e *ThreadRevisionError) Error() string {
@@ -401,21 +397,6 @@ func (s *ThreadStore) FinalizePark(address ThreadAddress, expectedRevision uint6
 	})
 }
 
-// RetireIncarnation removes the one live incarnation whose exact process
-// identity matches, leaving the record with no incarnation and NO verified park.
-//
-// It is FinalizePark's removal half without the park transaction, and that is
-// the whole difference between detach and park: park tears the zellij session
-// down and records a verified park as the resume authority, while detach leaves
-// the session alive and lets its survival BE the authority. Writing a verified
-// park here would claim a teardown that never happened.
-//
-// Exact {PID, Identity} is the authorization -- the same rule observeExactProcess
-// and MarkIncarnationUnknown use -- so a recycled PID cannot retire a thread
-// that is genuinely live. It refuses an `unknown` incarnation deliberately:
-// unknown is precisely the state the fail-closed projector exists to keep out of
-// the switcher, and retiring one would let an unproven thread present as cleanly
-// detached.
 // CommitStartClaim is the durable transition that admission used to perform
 // around its capacity decision (pair#170 M4 deleted the decision, not the
 // transition): clear the pristine reservation, append the first creating
@@ -455,6 +436,21 @@ func (s *ThreadStore) CommitStartClaim(address ThreadAddress, expectedRevision u
 	})
 }
 
+// RetireIncarnation removes the one live incarnation whose exact process
+// identity matches, leaving the record with no incarnation and NO verified park.
+//
+// It is FinalizePark's removal half without the park transaction, and that is
+// the whole difference between detach and park: park tears the zellij session
+// down and records a verified park as the resume authority, while detach leaves
+// the session alive and lets its survival BE the authority. Writing a verified
+// park here would claim a teardown that never happened.
+//
+// Exact {PID, Identity} is the authorization -- the same rule observeExactProcess
+// and MarkIncarnationUnknown use -- so a recycled PID cannot retire a thread
+// that is genuinely live. It refuses an `unknown` incarnation deliberately:
+// unknown is precisely the state the fail-closed projector exists to keep out of
+// the switcher, and retiring one would let an unproven thread present as cleanly
+// detached.
 func (s *ThreadStore) RetireIncarnation(address ThreadAddress, expectedRevision uint64, identity ProcessIdentity) (ThreadRecord, error) {
 	return s.UpdateExistingThread(address, expectedRevision, func(next *ThreadRecord) error {
 		if next.Park != nil {
@@ -501,11 +497,11 @@ func (s *ThreadStore) AbandonPark(address ThreadAddress, expectedRevision uint64
 func (s *ThreadStore) Snapshot() (ThreadSnapshot, error) {
 	var snapshot ThreadSnapshot
 	err := s.withLock(func() error {
-		manifest, manifestRaw, _, err := s.loadManifestLocked()
+		manifest, _, _, err := s.loadManifestLocked()
 		if err != nil {
 			return err
 		}
-		snapshot = ThreadSnapshot{Generation: manifest.Generation, manifest: append([]byte{}, manifestRaw...), raw: map[ThreadAddress][]byte{}}
+		snapshot = ThreadSnapshot{Generation: manifest.Generation}
 		for _, address := range manifest.Threads {
 			raw, err := os.ReadFile(s.recordPath(address))
 			if err != nil {
@@ -516,7 +512,6 @@ func (s *ThreadStore) Snapshot() (ThreadSnapshot, error) {
 				return err
 			}
 			snapshot.Records = append(snapshot.Records, cloneThreadRecord(record))
-			snapshot.raw[address] = append([]byte{}, raw...)
 		}
 		return nil
 	})
@@ -900,18 +895,6 @@ func removeThreadAddress(addresses []ThreadAddress, remove ThreadAddress) []Thre
 		}
 	}
 	return out
-}
-
-func reflectBytesEqual(left, right []byte) bool {
-	if len(left) != len(right) {
-		return false
-	}
-	for i := range left {
-		if left[i] != right[i] {
-			return false
-		}
-	}
-	return true
 }
 
 func relativeStorePath(root, path string) string {

@@ -15,6 +15,7 @@ package couchcore
 // check exists to prevent.
 
 import (
+	"context"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -256,6 +257,43 @@ func TestGitConformance_LinkedWorktree(t *testing.T) {
 	}
 	if fakeRoot != primaryRoot {
 		t.Errorf("fake resolved %q, real resolved %q", fakeRoot, primaryRoot)
+	}
+
+	// --git-common-dir is the OTHER git answer couch now reasons about, and the
+	// one with the sharper consequence: it keys every saved launch preference,
+	// so a derivation that shifts silently orphans the operator's remembered
+	// agent+argv per tree. It is also the answer whose SHAPE varies -- git
+	// replies relative to the query directory, so a subdirectory gets
+	// "../../.git"-style output, not ".git". Every canned reply in the tree is
+	// the repo-root case, which is why this is measured against real git
+	// rather than modeled (pair#170 M4 review, ARCH-MOCK).
+	subdirectory := filepath.Join(primary, "sub")
+	for _, test := range []struct {
+		name string
+		dir  string
+		want string
+	}{
+		{name: "repository root", dir: primary, want: wantPrimary},
+		{name: "subdirectory", dir: subdirectory, want: wantPrimary},
+		{name: "linked worktree", dir: linked, want: wantPrimary},
+	} {
+		t.Run("git common dir/"+test.name, func(t *testing.T) {
+			raw, err := git.Run(test.dir, "rev-parse", "--git-common-dir")
+			if err != nil {
+				t.Fatalf("rev-parse --git-common-dir in %s: %v", test.dir, err)
+			}
+			t.Logf("real git answered %q from %s", raw, test.dir)
+
+			couch := &Couch{Git: git, Path: pathOps}
+			got, err := couch.resolveRepoIdentity(context.Background(), test.dir)
+			if err != nil {
+				t.Fatalf("resolveRepoIdentity(%s): %v", test.dir, err)
+			}
+			wantIdentity, _ := pathOps.Physical(filepath.Join(test.want, ".git"))
+			if got != wantIdentity {
+				t.Fatalf("repository identity from %s = %q, want %q", test.dir, got, wantIdentity)
+			}
+		})
 	}
 }
 

@@ -31,11 +31,6 @@ type StartClaim struct {
 	LaunchProfile *LaunchProfile `json:"launch_profile,omitempty"`
 }
 
-type PolicyCapacity struct {
-	Kind  string `json:"kind"`
-	Limit int    `json:"limit,omitempty"`
-}
-
 type LaunchProfile struct {
 	Agent string   `json:"agent"`
 	Argv  []string `json:"argv"`

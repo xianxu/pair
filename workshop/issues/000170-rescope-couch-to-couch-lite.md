@@ -636,3 +636,38 @@ D1–D5 landed in five commits. `make test` exits 0. Full detail in the plan's
 `NamingTable` looks dead too (live registry has `"names": {}`, no production
 writer survives D5), but cutting it is wider than this sweep — left as a
 follow-up.
+
+### 2026-09-02 — M4 boundary review: FIX-THEN-SHIP, 1 Critical + 6 Important
+
+The Critical is the one that matters: **deleting admission also deleted an
+invariant**, not just its code. `AllocateThreadTag` claims the Pair artifact and
+writes a pristine reservation; admission owned rolling both back on failure.
+After D1 the three post-allocation failure sites called
+`releaseClaimIfThreadAbsent`, which returns nil whenever the record exists — and
+there it always does. Protection that can never fire, leaking a record the
+switcher hides and the reconciler skips, so nothing ever reclaims it.
+
+The lesson generalizes past this instance: when deleting a subsystem, enumerate
+the *invariants* it enforced, not only the symbols it defined. A deleted
+guarantee leaves no compile error.
+
+Two related repairs:
+
+- The tombstone work was half-done. Decodability is not enough — a pre-M4
+  incarnation keeps its repository identity *inside* `policy`, so ignoring the
+  tombstone loads it empty and `advanceSuccessfulStart` refuses, inside `New()`,
+  for the whole store. Tolerating a legacy field is not the same as carrying its
+  value forward.
+- `make test-couch-policy-live` survived D1 and **reported green**: `go test`
+  exits 0 when `-run` matches nothing. I had deleted the CI workflow that would
+  have failed loudly and left the target that fails silently — exactly backwards
+  — and then wrote in this Log that the target was gone. Both are now mechanical:
+  `TestEveryMakefileTestSelectorMatchesALiveTest` and
+  `TestDeletedVocabularyIsNotDescribedAsLive`, each mutation-checked against the
+  case that motivated it.
+
+Also: a 4.5 MB Mach-O binary reached a commit through `go build` at the repo root
+plus `git add -A`. Dropped from the branch before it could propagate to the
+dependent repos this base layer feeds.
+
+`make test` exits 0 after all seven fixes.
