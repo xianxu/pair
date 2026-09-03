@@ -180,7 +180,7 @@ func assertVerifiedParkRestored(t *testing.T, store *ThreadStore, parked ThreadR
 // The milestone's headline capability, pinned at the SEAM rather than at the
 // pure functions beneath it.
 //
-// DecideResume and ReconcileResumeAdmission are tested with `Detached` hand-fed,
+// DecideResume and ProjectActionableThreads are tested with `Detached` hand-fed,
 // which proves the rules and nothing about the code that DERIVES the value.
 // Mutating ResumeContext's observation to `if false && …` left the whole suite
 // green -- exactly the trap workshop/lessons.md gained an entry for this round.

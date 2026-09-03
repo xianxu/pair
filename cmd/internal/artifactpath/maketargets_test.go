@@ -2,6 +2,7 @@ package artifactpath
 
 import (
 	"os"
+	"os/exec"
 	"path/filepath"
 	"regexp"
 	"sort"
@@ -139,40 +140,57 @@ func TestEveryMainPackageIsIgnoredAtTheRepoRoot(t *testing.T) {
 	}
 }
 
+// mainPackageDirs asks the Go toolchain which packages are `main`. The first
+// version of this tested whether a file's bytes began with "package main\n",
+// which 5 of the 8 main packages in this tree fail because they open with a doc
+// comment -- including cmd/probes/couchstartrecovery, the package whose stray
+// binary is the entire reason the guard exists. It reported green with
+// /couchstartrecovery deleted from .gitignore.
+//
+// The rule that came out of it: every axis of a mechanical guard's input must
+// come from an oracle that already owns the answer, and the guard must be
+// mutation-checked against the artifact that MOTIVATED it, not an arbitrary
+// member of the set. `go list` owns the answer to "is this package main".
 func mainPackageDirs(t *testing.T, repoRoot string) []string {
 	t.Helper()
-	seen := map[string]bool{}
-	err := filepath.WalkDir(repoRoot, func(path string, entry os.DirEntry, err error) error {
-		if err != nil {
-			return nil
-		}
-		if entry.IsDir() {
-			if entry.Name() == ".git" || entry.Name() == "workshop" {
-				return filepath.SkipDir
-			}
-			return nil
-		}
-		if !strings.HasSuffix(entry.Name(), ".go") || strings.HasSuffix(entry.Name(), "_test.go") {
-			return nil
-		}
-		raw, readErr := os.ReadFile(path)
-		if readErr != nil || !strings.HasPrefix(string(raw), "package main\n") {
-			return nil
-		}
-		relative, _ := filepath.Rel(repoRoot, filepath.Dir(path))
-		seen[relative] = true
-		return nil
-	})
+	// go list reports ABSOLUTE directories, so the base for filepath.Rel has to
+	// be absolute too -- with a relative base, Rel returns an error for every
+	// entry and the guard silently sees an empty set.
+	absoluteRoot, err := filepath.Abs(repoRoot)
 	if err != nil {
 		t.Fatal(err)
 	}
-	dirs := make([]string, 0, len(seen))
-	for directory := range seen {
-		dirs = append(dirs, directory)
+	command := exec.Command("go", "list", "-f", "{{if eq .Name \"main\"}}{{.Dir}}{{end}}", "./...")
+	command.Dir = absoluteRoot
+	out, listErr := command.Output()
+	if listErr != nil {
+		t.Skipf("go list unavailable: %v", listErr)
+	}
+	var dirs []string
+	for _, line := range strings.Split(strings.TrimSpace(string(out)), "\n") {
+		if strings.TrimSpace(line) == "" {
+			continue
+		}
+		relative, relErr := filepath.Rel(absoluteRoot, strings.TrimSpace(line))
+		if relErr != nil {
+			continue
+		}
+		dirs = append(dirs, relative)
 	}
 	sort.Strings(dirs)
 	if len(dirs) == 0 {
-		t.Fatal("found no main packages; the scan is broken, not the tree")
+		t.Fatal("go list found no main packages; the scan is broken, not the tree")
+	}
+	// The motivating artifact must be in scope, or the guard is green for the
+	// wrong reason -- which is exactly how the first version passed.
+	found := false
+	for _, directory := range dirs {
+		if strings.HasSuffix(directory, "couchstartrecovery") {
+			found = true
+		}
+	}
+	if !found {
+		t.Fatalf("main packages = %v; the package this guard was written for is not among them", dirs)
 	}
 	return dirs
 }

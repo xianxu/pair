@@ -49,9 +49,16 @@ type threadManifest struct {
 	// registry went with pair#170 M4, but these keys are in the operator's
 	// live manifest, and this envelope is decoded with DisallowUnknownFields:
 	// removing them outright makes the manifest undecodable, which takes the
-	// WHOLE STORE down rather than one record. Decoded, never read, never
-	// written -- the manifest sheds them on its next write.
-	// Guarded by TestPreM4ManifestStillLoads.
+	// WHOLE STORE down rather than one record.
+	//
+	// Unlike the record tombstones, these PERSIST: a record is rebuilt from a
+	// domain type that has no such field, so it sheds them, while the manifest
+	// is decoded and re-marshalled through this struct and carries them
+	// forward verbatim. That asymmetry is deliberate rather than tolerated --
+	// clearing `legacy_cutover` would tell a rolled-back pre-M4 binary that the
+	// registry cutover had never run, and it would run it again. Measured, and
+	// guarded by TestPreM4ManifestStillLoads plus
+	// TestManifestTombstonesSurviveAWrite.
 	DeprecatedLegacyCutover          json.RawMessage `json:"legacy_cutover,omitempty"`
 	DeprecatedLegacyMigrationVersion json.RawMessage `json:"legacy_migration_version,omitempty"`
 }

@@ -428,6 +428,160 @@ rounds:
       boundary: M4
       blocked: true
       protocol_error: no valid findings block
+    - "n": 10
+      timestamp: "2026-09-02T23:17:23-07:00"
+      agent: claude
+      dispose:
+        - id: BR-15
+          disposition: addressed
+          note: rollbackPristineStart at couch.go:573 called from all three post-allocation sites; pinned by TestStartFailuresAfterTagAllocationRollBackTheReservation, whose budgetedReader puts the entropy failure after allocation rather than before.
+          round: 10
+        - id: BR-16
+          disposition: addressed
+          note: 'Measured: a pre-M4 record with an open start loads with RepoIdentity "/repo/.git" recovered from the policy tombstone and persists it as top-level repo_identity on the next write.'
+          round: 10
+        - id: BR-17
+          disposition: addressed
+          note: All seven orphans gone, test-couch-policy-live removed, and both guards added; I mutation-checked the dead-symbol guard and it fired. The six symbols it now allowlists are raised separately.
+          round: 10
+        - id: BR-18
+          disposition: addressed
+          note: The binary is untracked and root-anchored ignore rules exist; the guard meant to keep the list honest is raised separately.
+          round: 10
+        - id: BR-19
+          disposition: addressed
+          note: README.md:307-313 now describes couch-lite's no-gatekeeper behaviour and historicises the fleet policy.
+          round: 10
+        - id: BR-20
+          disposition: addressed
+          note: plan_contract_test.go:1489 now gates on whether declaration.source itself is absent, so PrepareStart and SpawnPrepared are checked again.
+          round: 10
+        - id: BR-21
+          disposition: addressed
+          note: 'I ran PAIR_LIVE_COUCH=1 TestGitConformance_LinkedWorktree: real git answered ".git", "../.git" and an absolute path, and production resolveRepoIdentity reduced all three to one identity. The doc comment now states the three-shape model.'
+          round: 10
+        - id: BR-22
+          disposition: addressed
+          note: CommitStartClaim and RetireIncarnation each carry their own doc comment.
+          round: 10
+        - id: BR-23
+          disposition: addressed
+          note: GitRunner documents both calls, resolveStartResolution's ctx is used, Spawn is documented as the test seam, and the 5s bound now lives at the seam pinned by a test that takes 5.00s and fails without it.
+          round: 10
+        - id: BR-24
+          disposition: addressed
+          note: The inert worktree argument is gone from ops.go and CommitArgs; an empty fingerprint is refused as such at SpawnPrepared with its own test. The tree is gofmt-clean.
+          round: 10
+      findings:
+        - id: BR-25
+          severity: Important
+          title: The gitignore guard detects main packages by a byte prefix 5 of 8 fail, including the one that motivated it
+          detail: |-
+            3rd in this family, so the rule, not the instance. mainPackageDirs
+            (maketargets_test.go:152) requires a file to begin with "package main\n";
+            cmd/couch, cmd/pair-go, cmd/probes/couchstartrecovery, probes/termsmoke and
+            probes/zellijpark all open with a doc comment. Measured in a scratch copy:
+            deleting /couchstartrecovery, /couch, /pair-go, /termsmoke and /zellijpark
+            from .gitignore leaves the test green; it only reddens on
+            /pair-launch-helper. The plan Revision calls the list "Derived", and
+            .gitignore:44 says "named after the main packages" -- both describe 3/8.
+            Corroborating instance, same rule: deletedvocabulary_test.go derives its
+            file set from git ls-files but hand-lists 5 terms against the 53 unique
+            production declarations this window deletes, and one live-voice residue
+            survives (resume_launch_test.go:183 names ReconcileResumeAdmission in the
+            present tense). RULE: every axis of a mechanical guard's input must come
+            from an oracle that already owns the answer (go list / go-parser / the
+            boundary's deleted declarations), and the commit that adds the guard must
+            mutation-check it against the artifact that motivated it, not an arbitrary
+            member. This round's own lessons.md entry states that rule and this guard
+            breaks it.
+          family: assertion-admits-vacuous-pass
+          round: 10
+        - id: BR-26
+          severity: Important
+          title: Manifest tombstones are rewritten on every manifest write; two comments say they are never written
+          detail: |-
+            3rd in this family, so the rule, not the instance. nextManifest := manifest
+            (threadstore.go:143, :789) copies the decoded envelope including its
+            json.RawMessage tombstones and marshals it. Measured: after loading the
+            liveManifest fixture and creating a thread, the manifest on disk still
+            carries "legacy_cutover": true and "legacy_migration_version": 1.
+            threadstore.go:52-54 and manifestcompat_test.go:26-27 both state they are
+            "never written -- the manifest sheds them on its next write". Records DO
+            shed (toPersistedThreadRecord builds a fresh struct; verified), so the
+            asymmetry is silent. Harmless today, but a later milestone that deletes
+            these fields trusting the claim takes the whole store down -- the exact
+            blast radius the tombstone exists to prevent. RULE: a compat shim's stated
+            lifecycle (decoded / read / written) is part of its contract, and the test
+            that pins decodability must pin the rest of the sentence. The enumeration
+            is five: Incarnation.DeprecatedPolicy, Incarnation.DeprecatedLegacyActorID,
+            Record.DeprecatedClaimGeneration, threadManifest.DeprecatedLegacyCutover,
+            threadManifest.DeprecatedLegacyMigrationVersion -- all pinned only on
+            decode.
+          family: record-claims-unverified-delivery
+          round: 10
+        - id: BR-27
+          severity: Important
+          title: Six production orphans are allowlisted against pair#173, an issue that does not exist
+          detail: |-
+            3rd in this family, so the rule, not the instance. deadsymbols_test.go:38-46
+            admits PublishDescription, ReconcileActiveParks, OperationNames, Unregister,
+            ResumeDiagnosticOf and ClassifyThreadReferenceFields with the reason
+            "pair#173: ...", and the plan Revision repeats it. workshop/issues/ stops at
+            000172, and pair#173 appears in exactly two files in the repo: that test and
+            the plan. The allowlist's stated purpose -- "listed rather than silently
+            tolerated so the debt is countable" -- fails when the citation resolves to
+            nothing; as written it is six permanent exemptions. RULE: a deferral is only
+            a deferral once the thing deferred to exists. An allowlist entry, plan step
+            or comment naming an issue must name one that resolves, and the guard that
+            reads the allowlist should fail on a reason citing an absent issue file.
+            Cheapest fix: file the issue before the boundary and record its id.
+          family: deletion-leaves-orphaned-surface
+          round: 10
+        - id: BR-28
+          severity: Minor
+          title: The bound's regression test costs 5.00s of wall clock because repoIdentityTimeout is a const
+          detail: |-
+            Measured: TestRepoIdentityResolutionIsBoundedEvenWithAnUncancelledContext
+            takes 5.00s, since blockingGit waits for the real deadline. Making
+            repoIdentityTimeout a package var or a Couch field lets the test assert the
+            same property in 50 ms without weakening it.
+          family: envelope-claim-unmeasured
+          round: 10
+        - id: BR-29
+          severity: Minor
+          title: The vocabulary guard t.Skips when git ls-files fails, while its sibling scan-broken case t.Fatals
+          detail: |-
+            deletedvocabulary_test.go:45 skips on git failure, so the guard silently
+            vanishes wherever git is absent; the "found no tracked text files" case ten
+            lines below correctly fatals. Same class of broken scan, opposite posture.
+          family: assertion-admits-vacuous-pass
+          round: 10
+        - id: BR-30
+          severity: Minor
+          title: Two one-off README guards are now instances of what deletedVocabulary generalizes
+          detail: |-
+            TestReadmeDoesNotAdvertiseRemovedAdmissionFlags and
+            TestReadmeDoesNotAdvertiseOwnerRequiredStopAsExternalCommand
+            (couchcmd/run_test.go:741,752) each hand-roll one term against README.md.
+            Folding "--same-tree" and "couch stop <ref>" into the deletedVocabulary
+            table retires both (ARCH-DRY).
+          family: prose-duplication
+          round: 10
+        - id: BR-31
+          severity: Minor
+          title: Two stale live-voice mentions of deleted admission surface
+          detail: |-
+            resume_launch_test.go:183 states "DecideResume and ReconcileResumeAdmission
+            are tested with Detached hand-fed" for a function M4 deleted, and
+            threadstore_test.go:550 is still named
+            TestThreadStoreParkConflictsAndAbandonNeverReleaseAdmission. These are the
+            measured residue behind the vocabulary half of the guard finding above; fix
+            them via that rule rather than individually.
+          family: deletion-leaves-orphaned-surface
+          round: 10
+      boundary: M4
+      blocked: false
 ---
 
 # Gate ledger — pair#170 (boundary-review)
@@ -691,6 +845,96 @@ later rounds disposed of them. Generated — edit the gate, not this file.
 
 **Protocol error:** no valid findings block — this round contributed no findings.
 
+## Round 10 — 2026-09-02T23:17:23-07:00 (claude) — passed
+
+### Disposed
+
+- BR-15 — addressed — rollbackPristineStart at couch.go:573 called from all three post-allocation sites; pinned by TestStartFailuresAfterTagAllocationRollBackTheReservation, whose budgetedReader puts the entropy failure after allocation rather than before.
+- BR-16 — addressed — Measured: a pre-M4 record with an open start loads with RepoIdentity "/repo/.git" recovered from the policy tombstone and persists it as top-level repo_identity on the next write.
+- BR-17 — addressed — All seven orphans gone, test-couch-policy-live removed, and both guards added; I mutation-checked the dead-symbol guard and it fired. The six symbols it now allowlists are raised separately.
+- BR-18 — addressed — The binary is untracked and root-anchored ignore rules exist; the guard meant to keep the list honest is raised separately.
+- BR-19 — addressed — README.md:307-313 now describes couch-lite's no-gatekeeper behaviour and historicises the fleet policy.
+- BR-20 — addressed — plan_contract_test.go:1489 now gates on whether declaration.source itself is absent, so PrepareStart and SpawnPrepared are checked again.
+- BR-21 — addressed — I ran PAIR_LIVE_COUCH=1 TestGitConformance_LinkedWorktree: real git answered ".git", "../.git" and an absolute path, and production resolveRepoIdentity reduced all three to one identity. The doc comment now states the three-shape model.
+- BR-22 — addressed — CommitStartClaim and RetireIncarnation each carry their own doc comment.
+- BR-23 — addressed — GitRunner documents both calls, resolveStartResolution's ctx is used, Spawn is documented as the test seam, and the 5s bound now lives at the seam pinned by a test that takes 5.00s and fails without it.
+- BR-24 — addressed — The inert worktree argument is gone from ops.go and CommitArgs; an empty fingerprint is refused as such at SpawnPrepared with its own test. The tree is gofmt-clean.
+
+### Raised
+
+- **BR-25** [Important] `assertion-admits-vacuous-pass` The gitignore guard detects main packages by a byte prefix 5 of 8 fail, including the one that motivated it
+  3rd in this family, so the rule, not the instance. mainPackageDirs
+  (maketargets_test.go:152) requires a file to begin with "package main\n";
+  cmd/couch, cmd/pair-go, cmd/probes/couchstartrecovery, probes/termsmoke and
+  probes/zellijpark all open with a doc comment. Measured in a scratch copy:
+  deleting /couchstartrecovery, /couch, /pair-go, /termsmoke and /zellijpark
+  from .gitignore leaves the test green; it only reddens on
+  /pair-launch-helper. The plan Revision calls the list "Derived", and
+  .gitignore:44 says "named after the main packages" -- both describe 3/8.
+  Corroborating instance, same rule: deletedvocabulary_test.go derives its
+  file set from git ls-files but hand-lists 5 terms against the 53 unique
+  production declarations this window deletes, and one live-voice residue
+  survives (resume_launch_test.go:183 names ReconcileResumeAdmission in the
+  present tense). RULE: every axis of a mechanical guard's input must come
+  from an oracle that already owns the answer (go list / go-parser / the
+  boundary's deleted declarations), and the commit that adds the guard must
+  mutation-check it against the artifact that motivated it, not an arbitrary
+  member. This round's own lessons.md entry states that rule and this guard
+  breaks it.
+- **BR-26** [Important] `record-claims-unverified-delivery` Manifest tombstones are rewritten on every manifest write; two comments say they are never written
+  3rd in this family, so the rule, not the instance. nextManifest := manifest
+  (threadstore.go:143, :789) copies the decoded envelope including its
+  json.RawMessage tombstones and marshals it. Measured: after loading the
+  liveManifest fixture and creating a thread, the manifest on disk still
+  carries "legacy_cutover": true and "legacy_migration_version": 1.
+  threadstore.go:52-54 and manifestcompat_test.go:26-27 both state they are
+  "never written -- the manifest sheds them on its next write". Records DO
+  shed (toPersistedThreadRecord builds a fresh struct; verified), so the
+  asymmetry is silent. Harmless today, but a later milestone that deletes
+  these fields trusting the claim takes the whole store down -- the exact
+  blast radius the tombstone exists to prevent. RULE: a compat shim's stated
+  lifecycle (decoded / read / written) is part of its contract, and the test
+  that pins decodability must pin the rest of the sentence. The enumeration
+  is five: Incarnation.DeprecatedPolicy, Incarnation.DeprecatedLegacyActorID,
+  Record.DeprecatedClaimGeneration, threadManifest.DeprecatedLegacyCutover,
+  threadManifest.DeprecatedLegacyMigrationVersion -- all pinned only on
+  decode.
+- **BR-27** [Important] `deletion-leaves-orphaned-surface` Six production orphans are allowlisted against pair#173, an issue that does not exist
+  3rd in this family, so the rule, not the instance. deadsymbols_test.go:38-46
+  admits PublishDescription, ReconcileActiveParks, OperationNames, Unregister,
+  ResumeDiagnosticOf and ClassifyThreadReferenceFields with the reason
+  "pair#173: ...", and the plan Revision repeats it. workshop/issues/ stops at
+  000172, and pair#173 appears in exactly two files in the repo: that test and
+  the plan. The allowlist's stated purpose -- "listed rather than silently
+  tolerated so the debt is countable" -- fails when the citation resolves to
+  nothing; as written it is six permanent exemptions. RULE: a deferral is only
+  a deferral once the thing deferred to exists. An allowlist entry, plan step
+  or comment naming an issue must name one that resolves, and the guard that
+  reads the allowlist should fail on a reason citing an absent issue file.
+  Cheapest fix: file the issue before the boundary and record its id.
+- **BR-28** [Minor] `envelope-claim-unmeasured` The bound's regression test costs 5.00s of wall clock because repoIdentityTimeout is a const
+  Measured: TestRepoIdentityResolutionIsBoundedEvenWithAnUncancelledContext
+  takes 5.00s, since blockingGit waits for the real deadline. Making
+  repoIdentityTimeout a package var or a Couch field lets the test assert the
+  same property in 50 ms without weakening it.
+- **BR-29** [Minor] `assertion-admits-vacuous-pass` The vocabulary guard t.Skips when git ls-files fails, while its sibling scan-broken case t.Fatals
+  deletedvocabulary_test.go:45 skips on git failure, so the guard silently
+  vanishes wherever git is absent; the "found no tracked text files" case ten
+  lines below correctly fatals. Same class of broken scan, opposite posture.
+- **BR-30** [Minor] `prose-duplication` Two one-off README guards are now instances of what deletedVocabulary generalizes
+  TestReadmeDoesNotAdvertiseRemovedAdmissionFlags and
+  TestReadmeDoesNotAdvertiseOwnerRequiredStopAsExternalCommand
+  (couchcmd/run_test.go:741,752) each hand-roll one term against README.md.
+  Folding "--same-tree" and "couch stop <ref>" into the deletedVocabulary
+  table retires both (ARCH-DRY).
+- **BR-31** [Minor] `deletion-leaves-orphaned-surface` Two stale live-voice mentions of deleted admission surface
+  resume_launch_test.go:183 states "DecideResume and ReconcileResumeAdmission
+  are tested with Detached hand-fed" for a function M4 deleted, and
+  threadstore_test.go:550 is still named
+  TestThreadStoreParkConflictsAndAbandonNeverReleaseAdmission. These are the
+  measured residue behind the vocabulary half of the guard finding above; fix
+  them via that rule rather than individually.
+
 ## Open findings
 
 - **BR-6** [Minor] `prose-duplication` The selector's rationale is restated near-verbatim in five artifacts
@@ -701,13 +945,10 @@ later rounds disposed of them. Generated — edit the gate, not this file.
 - **BR-12** [Important] `producer-emits-value-its-consumer-rejects` ProjectDetachedSessions emits a DetachedSessionObservation that ProjectActionableThreads now always rejects
 - **BR-13** [Important] `lesson-not-recorded-for-boundary-defect` M3 produced a Critical and a three-round family and added no rule to workshop/lessons.md
 - **BR-14** [Minor] `shared-helper-not-extracted` detachedResumeProofMatches repeats parkedResumeProofMatches' four-condition profile guard verbatim
-- **BR-15** [Critical] `deleted-subsystem-drops-its-invariant` Pristine-start rollback is gone; the call left in its place can never fire
-- **BR-16** [Important] `compat-shim-preserves-shape-not-value` Tombstone keeps old records decodable but drops the value they carry
-- **BR-17** [Important] `deletion-leaves-orphaned-surface` Seven orphans survive the sweep, including a conformance target that now reports green
-- **BR-18** [Important] `build-artifact-committed` 4.5 MB Mach-O arm64 binary `couchstartrecovery` committed at the repo root
-- **BR-19** [Important] `readme-stale-for-shipped-surface` README still documents fleet-policy admission, capacity refusal and provision-worktree
-- **BR-20** [Important] `guard-weakened-not-repaired` Overloading `absent` silently disables the pinned-declaration check for two entries
-- **BR-21** [Important] `fixture-realism` The new git-common-dir seam has no live conformance case and one modeled answer shape
-- **BR-22** [Minor] `doc-comment-misattached` RetireIncarnation's doc comment is now attached to CommitStartClaim
-- **BR-23** [Minor] `stale-doc-after-new-consumer` GitRunner still documents exactly one call; there are two, and its unused ctx went with the policy seam
-- **BR-24** [Minor] `schema-looser-than-contract` `start` declares path/worktree/fingerprint Required but not ValueRequired, and worktree is never read
+- **BR-25** [Important] `assertion-admits-vacuous-pass` The gitignore guard detects main packages by a byte prefix 5 of 8 fail, including the one that motivated it
+- **BR-26** [Important] `record-claims-unverified-delivery` Manifest tombstones are rewritten on every manifest write; two comments say they are never written
+- **BR-27** [Important] `deletion-leaves-orphaned-surface` Six production orphans are allowlisted against pair#173, an issue that does not exist
+- **BR-28** [Minor] `envelope-claim-unmeasured` The bound's regression test costs 5.00s of wall clock because repoIdentityTimeout is a const
+- **BR-29** [Minor] `assertion-admits-vacuous-pass` The vocabulary guard t.Skips when git ls-files fails, while its sibling scan-broken case t.Fatals
+- **BR-30** [Minor] `prose-duplication` Two one-off README guards are now instances of what deletedVocabulary generalizes
+- **BR-31** [Minor] `deletion-leaves-orphaned-surface` Two stale live-voice mentions of deleted admission surface

@@ -31,6 +31,19 @@ var deletedVocabulary = []struct {
 	{term: "StartGrantStore", why: "the start-grant capability table was deleted by pair#170 M4"},
 	{term: "test-couch-policy-live", why: "the policy conformance target went with admission (pair#170 M4)"},
 	{term: "normalized provider", why: "the fleet-policy provider was deleted by pair#170 M4"},
+	{term: "ReconcileResumeAdmission", why: "the resume-side admission gate was deleted by pair#170 M4"},
+	{term: "ReconcileAdmission", why: "admission reconciliation was deleted by pair#170 M4"},
+	{term: "CapacityExceededError", why: "capacity refusal was deleted by pair#170 M4"},
+	{term: "PolicyResolver", why: "the policy seam was deleted by pair#170 M4"},
+	{term: "AdmissionDecision", why: "admission was deleted by pair#170 M4"},
+	{term: "CutoverLegacyActors", why: "the registry cutover was deleted by pair#170 M4"},
+	{term: "MigrateLegacyRecord", why: "the legacy metadata migration was deleted by pair#170 M4"},
+	{term: "CommitThreadReplacements", why: "the snapshot CAS was deleted by pair#170 M4"},
+	{term: "TreeSummary", why: "the tree-summary surface was deleted by pair#170 M4"},
+	{term: "renderTrees", why: "the tree renderer was deleted by pair#170 M4"},
+	{term: "ManifestGeneration", why: "superseded by Snapshot in pair#170 M4"},
+	{term: "DeleteUnstartedThread", why: "the legacy unstarted rollback was deleted by pair#170 M4"},
+	{term: "rollbackUnforkedStart", why: "replaced by rollbackPristineStart in pair#170 M4"},
 }
 
 // Prose may still NAME a deleted thing in order to say it was deleted. What

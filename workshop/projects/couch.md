@@ -904,7 +904,7 @@ projector refused to make.
 ### pair#170 M4 — delete the machinery the rescope orphans
 
 **est:** 10.69
-**actual:** measured at close
+**actual:** 8.95h
 **closed:** 2026-09-02
 
 Fleet admission and its cross-repo `sdlc fleet policy` provider, the start-grant

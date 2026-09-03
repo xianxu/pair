@@ -684,6 +684,11 @@ func TestIssue149CurrentCoreConceptKinds(t *testing.T) {
 		t.Fatal(err)
 	}
 	defer f.Close()
+	// This is #149's ledger, frozen at ITS boundary: the kinds these entities
+	// had when that milestone delivered them. Several were later deleted --
+	// PolicyResult and AdmissionDecision went with admission in pair#170 M4 --
+	// and that is fine here, because the assertion is about what #149's plan
+	// said, not about what the tree contains now.
 	want := map[string]string{
 		"CouchNamespace":      "integration",
 		"PolicyResult":        "pure",

@@ -547,7 +547,10 @@ func TestThreadStoreParkLifecycleUsesRevisionCASAndFinalizesExactIncarnation(t *
 	}
 }
 
-func TestThreadStoreParkConflictsAndAbandonNeverReleaseAdmission(t *testing.T) {
+// Named for admission until pair#170 M4 deleted it. The property outlived the
+// name: a park conflict or an abandon must never drop the thread's occupancy of
+// its address, which is what keeps a second agent off a tree that still has one.
+func TestThreadStoreParkConflictsAndAbandonNeverReleaseOccupancy(t *testing.T) {
 	store, ns := newTestThreadStore(t)
 	created, identity, _ := createParkableThread(t, store, ns, "park-1111111111111111")
 	concurrent, err := store.UpdateExistingThread(created.Address, created.Revision, func(next *ThreadRecord) error {

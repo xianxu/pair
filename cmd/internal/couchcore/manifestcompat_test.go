@@ -2,6 +2,7 @@ package couchcore
 
 import (
 	"os"
+	"strings"
 	"testing"
 
 	"github.com/xianxu/pair/cmd/internal/threadrecord"
@@ -23,8 +24,9 @@ import (
 //
 // Measured before pair#170 M4 deleted the legacy cutover: `legacy_cutover` and
 // `legacy_migration_version` were both present in the live manifest. They are
-// therefore TOMBSTONES -- decoded, never read, never written -- so the manifest
-// sheds them on its next write with no migration pass.
+// therefore TOMBSTONES -- decoded and never read. They are, however, WRITTEN:
+// see TestManifestTombstonesSurviveAWrite for why that is the right behaviour
+// rather than an oversight.
 const liveManifest = `{
   "schema_version": 1,
   "generation": 57,
@@ -111,5 +113,44 @@ func TestPreM4StartCarriesItsRepositoryIdentityForward(t *testing.T) {
 	// start refuses and New() fails for the whole store.
 	if got := record.Incarnations[0].RepoIdentity; got != "/repo/.git" {
 		t.Fatalf("repository identity = %q, want it recovered from the policy tombstone", got)
+	}
+}
+
+// The manifest keeps its tombstones; a record sheds them. The asymmetry is
+// easy to misread as a bug -- an earlier comment here claimed both shed -- so
+// it is pinned rather than described.
+//
+// A record is rebuilt from a domain type that has no deprecated field, so a
+// write drops it. The manifest has no such domain type: it is decoded and
+// re-marshalled through threadManifest, which carries the raw keys forward.
+//
+// Keeping them is what we want. `legacy_cutover` records that the one-time
+// registry import already ran; clearing it would tell a rolled-back pre-M4
+// binary that it never had, and that binary would import the registry a second
+// time.
+func TestManifestTombstonesSurviveAWrite(t *testing.T) {
+	store, _ := newTestThreadStore(t)
+	if err := os.MkdirAll(store.root, 0o700); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(store.manifestPath(), []byte(liveManifest), 0o600); err != nil {
+		t.Fatal(err)
+	}
+
+	record := validThreadRecord(t)
+	record.StartingPath, record.WorkingPath = store.namespace.Dir(), store.namespace.Dir()
+	if _, err := store.CreateThread(record); err != nil {
+		t.Fatal(err)
+	}
+
+	raw, err := os.ReadFile(store.manifestPath())
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, key := range []string{"legacy_cutover", "legacy_migration_version"} {
+		if !strings.Contains(string(raw), key) {
+			t.Fatalf("a manifest write dropped %q:\n%s\n"+
+				"a rolled-back pre-M4 binary would then re-run the registry cutover", key, raw)
+		}
 	}
 }

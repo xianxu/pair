@@ -3051,3 +3051,23 @@ that a key token appears cannot detect a contradictory behavioral sentence
 - Record a boundary round's lessons in `lessons.md` in the same commit that
   fixes the findings. The issue `## Log` is archived to `workshop/history/`,
   which the next agent is told not to read.
+- Mutation-check a guard against the artifact that MOTIVATED it, not an
+  arbitrary member of the set it covers. A guard written to stop a stray
+  `couchstartrecovery` binary detected main packages by a literal
+  `package main\n` prefix — which 5 of 8 packages fail because they open with a
+  doc comment, including that one. It reported green with its own motivating
+  entry deleted from `.gitignore`.
+- Every axis of a mechanical guard's input must come from an oracle that already
+  owns the answer. `go list` knows which packages are `main`; a byte-prefix test
+  only knows what it was shown. The same applies to the *term* axis of a
+  vocabulary guard: hand-picked strings check what you remembered, not what the
+  diff deleted.
+- A deferral whose ticket does not exist is not a deferral, it is a permanent
+  exemption. File the issue in the same commit that cites it.
+- State what the code does, not what you assumed it does. Two tombstone comments
+  claimed the fields are "never written"; the record ones shed (rebuilt from a
+  domain type without them) but the manifest ones persist (decoded and
+  re-marshalled through the same struct). The behaviour was right — keeping the
+  cutover flag stops a rolled-back binary re-running the migration — and only
+  the description was wrong, which is the kind of error that survives review
+  until someone measures.
