@@ -436,9 +436,9 @@ func TestReduceMenuStartCompletionUsesGlobalOperationOrigin(t *testing.T) {
 	state, _ = reduceKey(state, PanelKey{Kind: KeyCtrlSpace})
 	frame := &state.Frames[len(state.Frames)-1]
 	frame.PreviewAccepted = frame.Generation
-	frame.PreviewToken = "accepted"
-	frame.PreviewPath = "/repo/new"
-	frame.PreviewAgent = "claude"
+	frame.PreviewResolution.Fingerprint = "accepted"
+	frame.PreviewResolution.CanonicalPath = "/repo/new"
+	frame.PreviewResolution.Profile.Agent = "claude"
 	state, effects := reduceKey(state, PanelKey{Kind: KeyEnter})
 	if len(effects) != 1 || effects[0].Operation != "start" {
 		t.Fatalf("start dispatch = %+v", effects)
@@ -460,9 +460,9 @@ func TestReduceMenuStartFailureWithoutCreatedAddressClearsDispatchAndRestoresFor
 	state, _ = reduceKey(state, PanelKey{Kind: KeyCtrlSpace})
 	frame := &state.Frames[len(state.Frames)-1]
 	frame.PreviewAccepted = frame.Generation
-	frame.PreviewToken = "accepted"
-	frame.PreviewPath = "/repo/new"
-	frame.PreviewAgent = "claude"
+	frame.PreviewResolution.Fingerprint = "accepted"
+	frame.PreviewResolution.CanonicalPath = "/repo/new"
+	frame.PreviewResolution.Profile.Agent = "claude"
 	state, effects := reduceKey(state, PanelKey{Kind: KeyEnter})
 	if len(effects) != 1 || effects[0].Operation != "start" {
 		t.Fatalf("start dispatch = %+v", effects)
@@ -877,9 +877,9 @@ func TestMenuOperationCompletionPreservesLaterGlobalStartOverlay(t *testing.T) {
 					state, _ = reduceKey(state, PanelKey{Kind: KeyCtrlSpace})
 					frame := &state.Frames[len(state.Frames)-1]
 					frame.PreviewAccepted = frame.Generation
-					frame.PreviewToken = "accepted"
-					frame.PreviewPath = "/repo/new"
-					frame.PreviewAgent = "claude"
+					frame.PreviewResolution.Fingerprint = "accepted"
+					frame.PreviewResolution.CanonicalPath = "/repo/new"
+					frame.PreviewResolution.Profile.Agent = "claude"
 					state, effects = reduceKey(state, PanelKey{Kind: KeyEnter})
 				}
 				if len(effects) != 1 || effects[0].Operation != operation {
@@ -1116,6 +1116,41 @@ func TestReduceRootKeyEnterRoutesByRowState(t *testing.T) {
 		_, effects := reduceRootKey(state, PanelKey{Kind: KeyEnter})
 		if len(effects) != 1 || effects[0].Operation != test.want {
 			t.Fatalf("%s Enter = %+v, want one %q effect", test.state, effects, test.want)
+		}
+	}
+}
+
+// At-most-once submission. pair#170 M4 deleted the start-grant table, whose
+// one-shot claim used to make a replayed start impossible in couchcore; the
+// fingerprint that replaced it answers "does this resolution still hold", not
+// "has it been used". So the guarantee has to live here, in the form's armed
+// submit -- and this test is what makes that claim checkable rather than a
+// sentence in a commit message.
+func TestStartFormArmedSubmitDispatchesOnce(t *testing.T) {
+	state := NewMenuState(menuThreads(), menuAddress("couch-one"))
+	state.Agents = []string{"claude"}
+	state.RootAgent = "claude"
+	state, _ = reduceKey(state, PanelKey{Kind: KeyCtrlSpace})
+
+	frame := &state.Frames[len(state.Frames)-1]
+	frame.PreviewAccepted = frame.Generation
+	frame.PreviewResolution.Fingerprint = "accepted-fingerprint"
+	frame.PreviewResolution.CanonicalPath = "/repo/new"
+	frame.PreviewResolution.Profile.Agent = "claude"
+
+	first, effects := reduceKey(state, PanelKey{Kind: KeyEnter})
+	if len(effects) != 1 || effects[0].Operation != "start" {
+		t.Fatalf("first Enter = %+v, want one start effect", effects)
+	}
+	if got := effects[0].Args["fingerprint"]; got != "accepted-fingerprint" {
+		t.Fatalf("start carried fingerprint %q, want the accepted one", got)
+	}
+
+	// A second Enter on the state the first one produced must not start again.
+	_, again := reduceKey(first, PanelKey{Kind: KeyEnter})
+	for _, effect := range again {
+		if effect.Operation == "start" {
+			t.Fatalf("a second Enter dispatched another start: %+v", again)
 		}
 	}
 }

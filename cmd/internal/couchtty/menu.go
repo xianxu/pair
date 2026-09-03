@@ -54,26 +54,27 @@ const (
 
 // MenuFrame owns the navigation state for exactly one menu level.
 type MenuFrame struct {
-	Instance             uint64
-	Kind                 MenuFrameKind
-	Filter               string
-	SelectedAddress      couchcore.ThreadAddress
-	SelectedItem         string
-	Thread               couchcore.ThreadAddress
-	Action               string
-	Input                string
-	FormField            MenuFormField
-	Path                 string
-	Agent                string
-	AgentSticky          bool
-	Generation           uint64
-	PreviewPending       uint64
-	PreviewAccepted      uint64
-	PreviewToken         couchcore.StartGrantToken
-	PreviewPath          string
-	PreviewAgent         string
-	PreviewAgentSource   couchcore.AgentSource
-	PreviewArgvSource    couchcore.ArgvSource
+	Instance        uint64
+	Kind            MenuFrameKind
+	Filter          string
+	SelectedAddress couchcore.ThreadAddress
+	SelectedItem    string
+	Thread          couchcore.ThreadAddress
+	Action          string
+	Input           string
+	FormField       MenuFormField
+	Path            string
+	Agent           string
+	AgentSticky     bool
+	Generation      uint64
+	PreviewPending  uint64
+	PreviewAccepted uint64
+	// PreviewResolution is the accepted preview ITSELF, not a hand-copied
+	// shadow of its fields. The frame used to mirror path/agent/sources into
+	// separate members and rebuild the commit arguments from them, which is
+	// how a call site could silently commit something the operator never
+	// previewed (pair#170 M4).
+	PreviewResolution    couchcore.StartResolution
 	SubmitGeneration     uint64
 	CompletionRequest    CompletionIdentity
 	CompletionPath       string
@@ -714,7 +715,7 @@ func reduceStartKey(state MenuState, key PanelKey) (MenuState, []MenuEffect) {
 			invalidateStartPreview(&state, frame)
 			return state, nil
 		}
-		if frame.PreviewAccepted == frame.Generation && frame.PreviewToken != "" {
+		if frame.PreviewAccepted == frame.Generation && frame.PreviewResolution.Fingerprint != "" {
 			return dispatchMenuOperation(state, startMenuEffect(*frame), couchcore.ThreadAddress{})
 		}
 		frame.SubmitGeneration = frame.Generation
@@ -861,11 +862,7 @@ func nextPreviewGeneration(state *MenuState) (uint64, bool) {
 func clearStartPreview(frame *MenuFrame) {
 	frame.PreviewPending = 0
 	frame.PreviewAccepted = 0
-	frame.PreviewToken = ""
-	frame.PreviewPath = ""
-	frame.PreviewAgent = ""
-	frame.PreviewAgentSource = ""
-	frame.PreviewArgvSource = ""
+	frame.PreviewResolution = couchcore.StartResolution{}
 	frame.SubmitGeneration = 0
 }
 
@@ -875,7 +872,7 @@ func requestStartPreview(state MenuState) (MenuState, []MenuEffect) {
 		return state, nil
 	}
 	if frame.PreviewPending == frame.Generation ||
-		(frame.PreviewAccepted == frame.Generation && frame.PreviewToken != "") {
+		(frame.PreviewAccepted == frame.Generation && frame.PreviewResolution.Fingerprint != "") {
 		return state, nil
 	}
 	path := frame.Path
@@ -899,7 +896,7 @@ func reducePreviewResult(state MenuState, event MenuEvent) (MenuState, []MenuEff
 		return state, nil
 	}
 	frame.PreviewPending = 0
-	if event.Error != "" || event.Prepared == nil || event.Prepared.Token == "" {
+	if event.Error != "" || event.Prepared == nil || event.Prepared.Resolution.Fingerprint == "" {
 		frame.SubmitGeneration = 0
 		state.Notice = errorMenuNotice(event.Error)
 		if state.Notice.Text == "" {
@@ -908,12 +905,8 @@ func reducePreviewResult(state MenuState, event MenuEvent) (MenuState, []MenuEff
 		return state, nil
 	}
 	frame.PreviewAccepted = event.Generation
-	frame.PreviewToken = event.Prepared.Token
-	frame.PreviewPath = event.Prepared.Resolution.CanonicalPath
-	frame.PreviewAgent = event.Prepared.Resolution.Profile.Agent
+	frame.PreviewResolution = event.Prepared.Resolution
 	frame.Agent = event.Prepared.Resolution.Profile.Agent
-	frame.PreviewAgentSource = event.Prepared.Resolution.AgentSource
-	frame.PreviewArgvSource = event.Prepared.Resolution.ArgvSource
 	if frame.SubmitGeneration != event.Generation {
 		return state, nil
 	}
@@ -921,10 +914,14 @@ func reducePreviewResult(state MenuState, event MenuEvent) (MenuState, []MenuEff
 	return dispatchMenuOperation(state, startMenuEffect(*frame), couchcore.ThreadAddress{})
 }
 
+// startMenuEffect submits exactly what the preview accepted.
+//
+// It used to pass an opaque grant token the owner had to look up. It now passes
+// the resolution's own inputs plus its fingerprint, so the owner re-derives and
+// compares rather than trusting a snapshot -- the same refusal, without the
+// capability table (pair#170 M4).
 func startMenuEffect(frame MenuFrame) MenuEffect {
-	return MenuEffect{Operation: "start", Args: map[string]string{
-		"token": string(frame.PreviewToken),
-	}}
+	return MenuEffect{Operation: "start", Args: frame.PreviewResolution.CommitArgs()}
 }
 
 func menuActionItems(thread couchcore.ActionableThreadSummary) []string {

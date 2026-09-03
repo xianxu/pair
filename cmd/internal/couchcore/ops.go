@@ -129,7 +129,7 @@ type ActorView struct {
 func Operations() []Operation {
 	return []Operation{
 		{
-			Name: "prepare-start", Summary: "Resolve a start request and issue one owner-local authorization token",
+			Name: "prepare-start", Summary: "Resolve a start request without starting anything",
 			Execution: ExecuteLiveOwner, Effect: EffectAuthority, Confirmation: ConfirmNone, Result: ResultStartResolution,
 			Presentation: PresentationTUI,
 			Args: []ArgSpec{
@@ -142,7 +142,11 @@ func Operations() []Operation {
 			Execution: ExecuteLiveOwner, Effect: EffectProcess, Confirmation: ConfirmNone, Result: ResultStart,
 			Presentation: PresentationTUI,
 			Args: []ArgSpec{
-				{Name: "token", Summary: "accepted start resolution from the live owner", Required: true, Implicit: true},
+				{Name: "path", Summary: "canonical path the preview resolved", Required: true, Implicit: true},
+				{Name: "worktree", Summary: "worktree the preview resolved", Required: true, Implicit: true},
+				{Name: "agent", Summary: "agent the operator explicitly requested, if any", Required: false, Implicit: true},
+				{Name: "issue", Summary: "issue the preview resolved, if any", Required: false, Implicit: true},
+				{Name: "fingerprint", Summary: "fingerprint of the resolution the preview accepted", Required: true, Implicit: true},
 			},
 		},
 		{

@@ -185,7 +185,7 @@ func TestSpawnPreparedRefusesPreferenceAndDefaultDriftBeforeEffects(t *testing.T
 		if err := writePathLaunchPreferenceForTest(env.Couch.Threads, preference); err != nil {
 			t.Fatal(err)
 		}
-		if _, _, err := env.Couch.SpawnPrepared(context.Background(), prepared.Token); !errors.Is(err, ErrStartResolutionChanged) {
+		if _, _, err := env.Couch.SpawnPrepared(context.Background(), StartArgs{Worktree: "/repo"}, prepared.Resolution.Fingerprint); !errors.Is(err, ErrStartResolutionChanged) {
 			t.Fatalf("preference drift err = %v", err)
 		}
 		assertPreparedStartHadNoEffects(t, env)
@@ -202,7 +202,7 @@ func TestSpawnPreparedRefusesPreferenceAndDefaultDriftBeforeEffects(t *testing.T
 		if err != nil {
 			t.Fatal(err)
 		}
-		if _, _, err := env.Couch.SpawnPrepared(context.Background(), prepared.Token); !errors.Is(err, ErrStartResolutionChanged) {
+		if _, _, err := env.Couch.SpawnPrepared(context.Background(), StartArgs{Worktree: "/repo"}, prepared.Resolution.Fingerprint); !errors.Is(err, ErrStartResolutionChanged) {
 			t.Fatalf("default drift err = %v", err)
 		}
 		if calls != 2 {

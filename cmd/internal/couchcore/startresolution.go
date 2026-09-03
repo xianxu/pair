@@ -135,3 +135,22 @@ func writeFingerprintUint(digest hash.Hash, value uint64) {
 	binary.BigEndian.PutUint64(raw[:], value)
 	_, _ = digest.Write(raw[:])
 }
+
+// CommitArgs renders the operation arguments that commit this preview: the
+// SAME inputs it resolved from, plus the fingerprint the operator accepted.
+//
+// It exists because "the args that reproduce this resolution" was being
+// rebuilt by hand at every call site (CLI, console menu, tests), and a call
+// site that guessed wrong -- passing the RESOLVED agent where the operator
+// gave none, say -- changes AgentSource and so re-resolves to a different
+// fingerprint, failing the start with a drift error nobody drifted into.
+// One owner, one contract (ARCH-DRY).
+func (r StartResolution) CommitArgs() map[string]string {
+	return map[string]string{
+		"path":        r.CanonicalPath,
+		"worktree":    string(r.Worktree),
+		"agent":       r.RequestedAgent,
+		"issue":       r.Issue,
+		"fingerprint": string(r.Fingerprint),
+	}
+}

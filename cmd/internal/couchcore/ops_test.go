@@ -13,7 +13,7 @@ func TestStartOperationDefaultsEmptyPathToDot(t *testing.T) {
 		t.Fatalf("prepare-start empty path: %v", err)
 	}
 	prepared := preparedValue.(PreparedStart)
-	result, err := dispatchTestOperation(env.Couch, "start", map[string]string{"token": string(prepared.Token)})
+	result, err := dispatchTestOperation(env.Couch, "start", prepared.Resolution.CommitArgs())
 	if err != nil {
 		t.Fatalf("start empty path: %v", err)
 	}

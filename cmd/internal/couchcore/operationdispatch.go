@@ -188,7 +188,13 @@ func CouchLiveOwnerExecutor(c *Couch) OperationExecutor {
 			}
 			return c.PrepareStart(ctx, StartArgs{Cwd: path, Stack: a["agent"]})
 		case "start":
-			rec, h, err := c.SpawnPrepared(ctx, StartGrantToken(a["token"]))
+			// The SAME inputs the preview resolved from, so re-resolution is
+			// comparable. Passing the RESOLVED agent where the operator gave
+			// none would change AgentSource and therefore the fingerprint.
+			rec, h, err := c.SpawnPrepared(ctx, StartArgs{
+				Worktree: Worktree(a["worktree"]), Cwd: a["path"],
+				Stack: a["agent"], Issue: a["issue"],
+			}, StartResolutionFingerprint(a["fingerprint"]))
 			if err != nil {
 				return nil, err
 			}

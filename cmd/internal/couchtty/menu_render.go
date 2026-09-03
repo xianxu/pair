@@ -223,7 +223,7 @@ func renderStartMenuFrame(state MenuState, frame MenuFrame, width, height int) [
 		selectedMenuLine(pathMarker+"path  "+frame.Path, frame.FormField == MenuFieldPath, width),
 	}
 	fixedRows := 4
-	if frame.PreviewArgvSource != "" {
+	if frame.PreviewResolution.ArgvSource != "" {
 		fixedRows++
 	}
 	if frame.CompletionTruncated {
@@ -257,9 +257,9 @@ func renderStartMenuFrame(state MenuState, frame MenuFrame, width, height int) [
 	if frame.CompletionTruncated {
 		lines = append(lines, clipMenuLine("  … more matching directories", width))
 	}
-	lines = append(lines, selectedMenuLine(agentMarker+"agent "+frame.Agent+menuSourceSuffix(string(frame.PreviewAgentSource)), frame.FormField == MenuFieldAgent, width))
-	if frame.PreviewArgvSource != "" {
-		lines = append(lines, clipMenuLine("  args  "+string(frame.PreviewArgvSource), width))
+	lines = append(lines, selectedMenuLine(agentMarker+"agent "+frame.Agent+menuSourceSuffix(string(frame.PreviewResolution.AgentSource)), frame.FormField == MenuFieldAgent, width))
+	if frame.PreviewResolution.ArgvSource != "" {
+		lines = append(lines, clipMenuLine("  args  "+string(frame.PreviewResolution.ArgvSource), width))
 	}
 	return lines
 }

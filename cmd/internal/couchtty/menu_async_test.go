@@ -155,19 +155,17 @@ func TestReduceMenuStartPreviewArmsOneGenerationBoundSubmit(t *testing.T) {
 	if len(effects) != 0 || state.CurrentFrame().SubmitGeneration != generation || state.Notice.Text != "resolving" {
 		t.Fatalf("pending submit = state %+v effects %+v", state, effects)
 	}
-	stale := couchcore.PreparedStart{Token: "stale", Resolution: couchcore.StartResolution{CanonicalPath: "/stale"}}
+	stale := couchcore.PreparedStart{Resolution: couchcore.StartResolution{Fingerprint: "stale", CanonicalPath: "/stale"}}
 	state, effects = ReduceMenu(state, MenuEvent{Kind: MenuEventPreviewResult, Generation: generation - 1, Prepared: &stale})
 	if len(effects) != 0 || state.CurrentFrame().SubmitGeneration != generation {
 		t.Fatalf("stale preview consumed armed submit: state=%+v effects=%+v", state, effects)
 	}
 
-	prepared := couchcore.PreparedStart{Token: "accepted", Resolution: couchcore.StartResolution{
+	prepared := couchcore.PreparedStart{Resolution: couchcore.StartResolution{Fingerprint: "accepted",
 		CanonicalPath: "/repo", Profile: couchcore.LaunchProfile{Agent: "claude"},
 	}}
 	state, effects = ReduceMenu(state, MenuEvent{Kind: MenuEventPreviewResult, Generation: generation, Prepared: &prepared})
-	want := []MenuEffect{{Operation: "start", Attempt: 1, Args: map[string]string{
-		"token": "accepted",
-	}}}
+	want := []MenuEffect{{Operation: "start", Attempt: 1, Args: prepared.Resolution.CommitArgs()}}
 	if !reflect.DeepEqual(effects, want) || state.CurrentFrame().SubmitGeneration != 0 {
 		t.Fatalf("accepted preview did not submit once: state=%+v effects=%+v want=%+v", state, effects, want)
 	}
@@ -213,7 +211,7 @@ func TestReduceMenuStartPreviewPreservesOptionalAgentAndAcceptedProvenance(t *te
 		t.Fatalf("non-sticky preview made fallback agent explicit: %+v", effects)
 	}
 	generation := state.CurrentFrame().Generation
-	prepared := couchcore.PreparedStart{Token: "accepted", Resolution: couchcore.StartResolution{
+	prepared := couchcore.PreparedStart{Resolution: couchcore.StartResolution{Fingerprint: "accepted",
 		CanonicalPath: "/repo", Profile: couchcore.LaunchProfile{Agent: "codex", Argv: []string{"--search"}},
 		AgentSource: couchcore.AgentSourcePath, ArgvSource: couchcore.ArgvSourcePath,
 	}}
@@ -237,7 +235,7 @@ func TestReduceMenuStartPreviewReusesAcceptedGeneration(t *testing.T) {
 		t.Fatalf("initial preview = %+v", effects)
 	}
 	generation := state.CurrentFrame().Generation
-	prepared := couchcore.PreparedStart{Token: "accepted", Resolution: couchcore.StartResolution{
+	prepared := couchcore.PreparedStart{Resolution: couchcore.StartResolution{Fingerprint: "accepted",
 		CanonicalPath: "/repo", Profile: couchcore.LaunchProfile{Agent: "claude", Argv: []string{}},
 		AgentSource: couchcore.AgentSourceRoot, ArgvSource: couchcore.ArgvSourceRepoDefault,
 	}}
@@ -278,12 +276,12 @@ func TestReduceMenuPreviewIdentitySurvivesEscapeAndReopen(t *testing.T) {
 	}
 
 	state, _ = reduceKey(state, PanelKey{Kind: KeyEnter})
-	old := couchcore.PreparedStart{Token: "old-token", Resolution: couchcore.StartResolution{
+	old := couchcore.PreparedStart{Resolution: couchcore.StartResolution{Fingerprint: "old-token",
 		CanonicalPath: "/old", Profile: couchcore.LaunchProfile{Agent: "claude"},
 	}}
 	state, effects = ReduceMenu(state, MenuEvent{Kind: MenuEventPreviewResult, Generation: first.Generation, Prepared: &old})
 	frame := state.CurrentFrame()
-	if len(effects) != 0 || frame.PreviewToken != "" || frame.PreviewAccepted != 0 || frame.SubmitGeneration != second.Generation {
+	if len(effects) != 0 || frame.PreviewResolution.Fingerprint != "" || frame.PreviewAccepted != 0 || frame.SubmitGeneration != second.Generation {
 		t.Fatalf("old form completion populated or launched reopened form: state=%+v effects=%+v", state, effects)
 	}
 

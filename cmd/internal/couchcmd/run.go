@@ -277,7 +277,7 @@ func runTypedOperationWithConsole(op couchcore.Operation, parsed, prepareArgs ma
 				fmt.Fprintf(stderr, "couch: prepare-start returned %T\n", preparedValue)
 				return 1
 			}
-			callArgs = map[string]string{"token": string(prepared.Token)}
+			callArgs = prepared.Resolution.CommitArgs()
 		}
 		result, err = couchcore.DispatchOperation(executors, couchcore.OperationCall{
 			Name: op.Name, Args: callArgs, Implicit: true, Context: context.Background(),

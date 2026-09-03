@@ -30,7 +30,6 @@ type Couch struct {
 	Clock            Clock
 	IDs              IDGen
 	Threads          *ThreadStore
-	StartGrants      *StartGrantStore[StartResolution]
 	Entropy          io.Reader
 	Artifacts        ThreadArtifactController
 	PairLifecycle    *PairLifecycleController
@@ -108,9 +107,8 @@ func New(namespace CouchNamespace, r Runner, p PathOps, g GitRunner, proc ProcOp
 		Namespace: namespace,
 		Runner:    r, Path: p, Git: g, Proc: proc, Store: s, Clock: c, IDs: ids,
 		Threads: threads, Entropy: entropy,
-		StartGrants: NewStartGrantStore[StartResolution](c, entropy, cloneStartResolution),
-		Artifacts:   artifacts,
-		reg:         reg, names: names,
+		Artifacts: artifacts,
+		reg:       reg, names: names,
 		postAckQuiesceTimeout:     500 * time.Millisecond,
 		postAckRetryDelay:         100 * time.Millisecond,
 		resumeRegistrationTimeout: 5 * time.Second,
@@ -149,8 +147,9 @@ func (c *Couch) Spawn(args StartArgs) (ActorRecord, Handle, error) {
 	return c.spawnResolved(context.Background(), resolution)
 }
 
+// PreparedStart is one resolved-but-not-started launch: everything the operator
+// is about to commit to, plus the fingerprint that says whether it still holds.
 type PreparedStart struct {
-	Token      StartGrantToken `json:"token"`
 	Resolution StartResolution `json:"resolution"`
 }
 
@@ -159,30 +158,31 @@ func (c *Couch) PrepareStart(ctx context.Context, args StartArgs) (PreparedStart
 	if err != nil {
 		return PreparedStart{}, err
 	}
-	token, err := c.StartGrants.Issue(resolution)
-	if err != nil {
-		return PreparedStart{}, err
-	}
-	return PreparedStart{Token: token, Resolution: cloneStartResolution(resolution)}, nil
+	return PreparedStart{Resolution: cloneStartResolution(resolution)}, nil
 }
 
-func (c *Couch) SpawnPrepared(ctx context.Context, token StartGrantToken) (record ActorRecord, handle Handle, err error) {
-	accepted, err := c.StartGrants.Claim(token)
+// SpawnPrepared starts the launch a preview accepted, refusing if the world
+// moved underneath it.
+//
+// The accepted state used to be held owner-side behind a one-shot 256-bit grant
+// token with a TTL, a capacity of 16 and collision retries -- machinery for
+// defending a prepared start against ANOTHER OWNER, which couch-lite does not
+// have (pair#170 M4). The fingerprint carries the whole domain guarantee on its
+// own: re-resolve, compare, refuse on drift. It is also strictly more honest,
+// because it re-derives rather than trusting a snapshot that a claim happened
+// to still be holding.
+//
+// The token's other property -- at-most-one consumption -- was never a domain
+// guarantee. It is the start form's armed submit, and it lives in couchtty.
+func (c *Couch) SpawnPrepared(ctx context.Context, args StartArgs, accepted StartResolutionFingerprint) (ActorRecord, Handle, error) {
+	current, err := c.resolveStartResolution(ctx, args)
 	if err != nil {
 		return ActorRecord{}, nil, err
 	}
-	defer func() { err = errors.Join(err, c.StartGrants.Finish(token)) }()
-	current, err := c.resolveStartResolution(ctx, StartArgs{
-		Worktree: accepted.Worktree, Cwd: accepted.CanonicalPath,
-		Stack: accepted.RequestedAgent, Issue: accepted.Issue,
-	})
-	if err != nil {
-		return ActorRecord{}, nil, err
-	}
-	if current.Fingerprint != accepted.Fingerprint {
+	if current.Fingerprint != accepted {
 		return ActorRecord{}, nil, ErrStartResolutionChanged
 	}
-	return c.spawnResolved(ctx, accepted)
+	return c.spawnResolved(ctx, current)
 }
 
 func (c *Couch) resolveStartResolution(ctx context.Context, args StartArgs) (StartResolution, error) {
