@@ -453,6 +453,26 @@ elsewhere** yields no detached observation, so couch cannot steal it. A **stale
 startup creates a new thread — the same behaviour as before detach existed, and
 the gap `pair#171` owns.
 
+**The native-binding gate covers both resumable kinds.** `ActionableThreadInventoryContext`
+resolves `ResolveEstablished` for every candidate, parked or detached, and drops
+any whose binding is not one exact established root. This is not defence in
+depth: startup has NO fallback by design (`pair#167`), so a Resume refusal stops
+`couch` rather than starting something else, and the invariant that makes that
+safe is *a row the inventory offers is one resume can take*. Gating parked rows
+while leaving detached ones ungated meant a thread whose agent session data had
+been pruned, rotated or raced was auto-selected and `couch` exited 1 in the
+operator's own tree — with detached being the normal resting state since `leave`
+stopped parking. It is the same rule `actionableThreadState` states for itself:
+a row that cannot work must not be offered.
+
+The consequence, recorded rather than left to be discovered: a detached thread
+whose binding degrades is now **hidden from the switcher entirely while its
+zellij session keeps running an agent**. That matches the parked precedent and
+`couch --list` still shows it, but it is a new way for a live agent to become
+invisible. The alternative — list it, refuse its `Enter` with the diagnostic, and
+gate only startup selection — was not weighed when the gate was written; it is
+the fork to revisit if an operator hits this, and belongs to `pair#171`'s family.
+
 Parked and detached candidates are physicalized alike, which the selector
 depends on rather than merely benefits from: it compares paths by exact string,
 so resolving one kind and not the other would match an alias path against a
