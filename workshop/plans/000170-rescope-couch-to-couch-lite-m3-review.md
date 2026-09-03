@@ -400,3 +400,156 @@ findings:
       ThreadAddress would pass. TestStartInteractiveCreatesNewRootWithoutExactCandidate:109
       shows the stronger form; one line asserting a real new thread closes it.
 ```
+
+---
+
+## Re-review — 2026-09-02T17:52:49-07:00 (FIX-THEN-SHIP)
+
+| field | value |
+|-------|-------|
+| issue | 170 — Rescope couch to couch-lite |
+| repo | pair |
+| issue file | workshop/issues/000170-rescope-couch-to-couch-lite.md |
+| boundary | milestone M3 |
+| milestone | M3 |
+| window | a89878c31cd7bee06693257e05440c8c4eee7057..1d049ec2a967c881a7e65c73deb297ca72db0177 |
+| command | sdlc milestone-close --issue 170 --milestone M3 |
+| reviewer | claude |
+| timestamp | 2026-09-02T17:52:49-07:00 |
+| verdict | FIX-THEN-SHIP |
+
+## Review
+
+```verdict
+verdict: FIX-THEN-SHIP
+confidence: high
+```
+
+BR-8's class fix is real and I proved it in both directions rather than reading the commit: dropping the `Agent`/`NativeID` conjuncts from `detachedResumeProofMatches` reddens two subtests of the new `TestProjectActionableThreadsDetachedRequiresTheResumeProof`, and dropping the IO shell's proof-attach loop (`actionableinventory.go:288-294`, restoring `detached = observed`) reddens `TestActionableInventoryPhysicalizesDetachedRowsLikeParkedOnes`, `TestStartInteractiveResumesUniqueDetachedRoot` and the established-binding subtest — so the fix is both enforced and reachable, not a field set at zero call sites. I also re-verified BR-2 myself (narrowing `StartInteractive`'s rows to `ThreadParked` reddens `TestStartInteractiveResumesUniqueDetachedRoot`) and BR-4's atlas half (`atlas/couch.md:400-420` now names startup as the blocking caller, carries the measured 1.49 s, and drops "periodic" — there is no refresh ticker in `cmd/`, so that correction is accurate). Nothing here is a correctness risk. What keeps it off a clean SHIP is that the head commit's own architectural change — the proof now travelling on the observation and being enforced in the pure projector — landed in no durable record: the atlas section written one commit earlier still says the gate is `ActionableThreadInventoryContext`'s, and the plan's two Core-concepts bullets still describe the pre-fix struct and predicate. Plus one design residue the fix creates: `ProjectDetachedSessions`, the package's own pure producer of `DetachedSessionObservation`, emits a value `ProjectActionableThreads` now always rejects.
+
+## 1. Strengths
+
+- **The fix is the rule BR-8 stated, not the site it named.** `DetachedSessionObservation` gained both proof fields, `detachedResumeProofMatches` (`actionableinventory.go:186-193`) enforces them inside the projector, and the misleading comments at the old `:155-158` and `:44-46` are gone or now true. Mutation-verified here, not taken on trust.
+- **The new table test enumerates the failure modes rather than the one that motivated it** (`actionableinventory_test.go:568-608`): missing native id, agent disagreeing with the saved profile, missing session name, plus the positive. Two of the four go red under mutation A.
+- **Fail-closed on an unknown address.** An observation whose address is not in `detachedProof` picks up the zero value, and `IsSupportedAgent("")` is false, so a misbehaving resolver cannot inject a row. Worth having verified.
+- **The atlas records the *cost* of the gate, not just the gate** (`atlas/couch.md:479-487`): a detached thread whose binding degrades is now invisible while its agent keeps running, the alternative design is named, and the fork is assigned to `pair#171`'s family. That is the honest form of an architectural note.
+- **The envelope is measured, split by caller, and the slow half is filed** (`atlas/couch.md:400-420`, issue Log 540-556, `pair#172`) — the switcher's 50 ms/16 ms budgets are stated as untouched and the reason (event-driven, last-good render) is given rather than asserted.
+
+## 2. Critical findings
+
+None.
+
+## 3. Important findings
+
+**No durable record describes the layer the fix moved to.** *This is the 2nd finding in family `record-claims-unverified-delivery`.* Per the escalation rule I am not asking for these four lines to be patched. The rule: **a durable record that restates a code contract — a struct's field list, a projector's admission predicate, or which layer enforces an invariant — is a hand-maintained restatement with no derivation, so when the contract changes every record in the set must be swept in the same commit, and the set must be enumerated in the plan rather than rediscovered each round.** Measured prevalence, three rounds: BR-3 (one record crediting the wrong milestone); round 4's unrecorded item (three restatements of the candidate rule, two drifted, one swept last window); and this window, four records describing the pre-`1d049ec2` layering — `atlas/couch.md:470-472` ("`ActionableThreadInventoryContext` resolves `ResolveEstablished` … and drops any whose binding is not one exact established root", true but now half the mechanism), `workshop/projects/couch.md:939-941` ("fixed as one gate for both kinds"), `plan.md:238` (`DetachedSessionObservation` — `{Address ThreadAddress; SessionName string}`, now four fields), and `plan.md:234` (`ThreadDetached` "Emitted only when … exactly one `DetachedSessionObservation` matches its address", which now also requires agent agreement and a non-empty `NativeID`). Eight record sites across three rounds is the enumeration failing to exist, not eight typos. Cheapest durable form: name the enumeration once in the plan's Core concepts preamble ("these bullets restate code contracts; a change to the contract sweeps this list"), and stop transcribing field lists there at all — the table row plus the path is the claim worth keeping.
+
+**`ProjectDetachedSessions` emits a `DetachedSessionObservation` that `ProjectActionableThreads` now always rejects** (`detachedsessions.go:63` vs `actionableinventory.go:186-193`). Both are exported pure functions in one package; the obvious composition of them yields zero detached rows, silently, and no test covers that composition. The type's own doc (`actionableinventory.go:51-54`) now says an observation without `Agent`/`NativeID` "is not evidence of a resumable thread, only of a running session" — which is exactly what its only pure producer produces. Today this is invisible because `ActionableThreadInventoryContext:288-294` decorates in between and `resume.go:222-226` only reads `Address`, but the failure mode for a future caller is "startup silently stops reattaching", which fails open in the annoying direction and would pass every test. Fix sketch (ARCH-SECURE's make-invalid-state-unrepresentable lens): split the type — keep `DetachedSessionObservation{Address, SessionName}` as the session fact that `ProjectDetachedSessions` and `resume.go` share, and give the projector a `DetachedResumeObservation{Address, SessionName, Agent, NativeID}` assembled at the shell boundary. A doc comment on `ProjectDetachedSessions` is the minimum, but BR-8 is the precedent for comments not being the fix.
+
+**M3 produced a Critical and a three-round family and added nothing to `workshop/lessons.md`** (last touched at M2, `9f7d4245`). AGENTS.md §4 asks for the rule that prevents the repeat, and M1 (`dec5928a`) and M2 set the per-milestone precedent. Two entries are owed and both are two lines: (a) *widening an equivalence class widens its gates* — when a new state joins an existing one behind a shared predicate (`Resumable()`), every precondition the old member was gated on must be applied to the new one in the same commit; gating one member and not the other is how BR-1 shipped; (b) *a proof enforced in the IO shell is not part of the row's contract* — every precondition a row's action requires must travel to the pure projector as a field on its observation type, or the next caller reintroduces the bug.
+
+## 4. Minor findings
+
+- **`detachedResumeProofMatches` and `parkedResumeProofMatches` repeat the same four-condition profile guard verbatim** (`actionableinventory.go:187` and `:196`), differing only by `SessionName != ""`. *This is the 2nd finding in family `shared-helper-not-extracted`* (BR-9 is the test-side instance). The rule: **when a second variant of an existing predicate is added, the invariant part is extracted into a shared helper in the same commit — a doc comment asserting the two are "twins" documents the duplication instead of removing it.** Measured prevalence: two production sites here, three test sites in BR-9. `func resumableProfile(record ThreadRecord) (*LaunchProfile, bool)` covers both production sites and preserves the symmetry the comment is defending (`ARCH-DRY`).
+- The decoration loop overwrites `observation.Agent`/`NativeID` unconditionally (`actionableinventory.go:292`), so a resolver that ever populated them would be silently clobbered. Harmless today; a comment or a `!= ""` guard would say which layer owns those fields.
+- `detachedProof` is typed `map[ThreadAddress]ParkedResumeObservation` (`actionableinventory.go:227`) — the carrier for the *detached* proof is named for the parked one. Reuse is right; the name reads as a bug for a moment.
+
+## 5. Test coverage notes
+
+- Green here: `go build ./...`, `go vet ./cmd/internal/couchcore`, and `go test ./cmd/internal/couchcore -run 'SelectUnique|StartInteractive|ActionableInventory|ProjectActionable|Detached|Resume'`. A full `go test ./...` fails only with `ptychild: operation not permitted` — identical shape on untouched packages (`ptychild`, `hostty`, `keyscmd`, `cmd/couch`), so environmental, not this window's.
+- Mutations run, not assumed: (A) drop the two proof conjuncts → 2 subtests red; (B) restore `detached = observed` → 3 tests red; (C) filter `rows` to `ThreadParked` in `StartInteractive:55` → `TestStartInteractiveResumesUniqueDetachedRoot` red. The claims in `workshop/projects/couch.md:944-946` hold.
+- Uncovered: the `ProjectDetachedSessions` → `ProjectActionableThreads` composition (Important finding above). Nothing pins that the two pure halves agree on what a valid observation is.
+- The couchcmd acceptance pair (`run_test.go:322/377`) still cannot run anywhere without a pty, which remains why the couchcore-level twins matter.
+
+## 6. Architectural notes for upcoming work
+
+- **ARCH-DRY — flag** (Minor: the duplicated profile guard; BR-6's five prose copies still open). **ARCH-PURE — pass**, and improved by this window: the proof moved from the IO shell into the projector, and the new test runs `ProjectActionableThreads` with no IO, no fake and no clock. **ARCH-PURPOSE — pass on code, flag on records**: I ran the shadow-sweep BR-8 asked for and the projector-side enumeration is now complete (Live → TTY observation, Parked → `parkedResumeProofMatches`, Detached → `detachedResumeProofMatches`); the sweep of the *records* that describe it did not happen. **ARCH-MOCK — pass**: `FakeThreadArtifactCollisionChecker.DetachedSessions:82-97` produces the same undecorated shape as `ScopedThreadArtifactCollisionChecker:202-251`, so test and production share the boundary exactly — including, notably, the shape the Important finding above is about. `BenchmarkZellijSnapshotLive` still asserts nothing, so it is a measurement harness rather than the live conformance check; that belongs to `pair#172`. **ARCH-CONSTRAINTS — pass this window**: the envelope is measured (1.49 s / 13 live sessions), split by caller, bounded per query by `zellijQueryTimeout` (`launcher/zellij.go:20,84`), and the aggregate `(2+N)×5 s` worst case is stated with `pair#172` owning it. **ARCH-SECURE — pass**: the projector now parses observations into a validity decision at its boundary instead of trusting provenance, which is the right direction; no credential reaches a log, argv or fixture.
+- Carry to M4: `DetachedSessionObservation` is the type M4/#171/#172 will consume. Settling its dual contract now is cheaper than after a third consumer exists.
+
+## 7. Plan revision recommendations
+
+- Extend `### 2026-09-02 — M3 boundary review` with a fifth paragraph: the binding proof now travels on `DetachedSessionObservation` and is enforced in `ProjectActionableThreads`, with `ActionableThreadInventoryContext` reduced to assembling it. Without that, `plan.md:238`'s two-field struct and the atlas's shell-only framing send the next reader to the wrong layer — which is BR-3's failure mode repeating at a different address.
+- Correct `plan.md:238` (drop the transcribed field list; point at the symbol) and `plan.md:234` (`ThreadDetached` also requires agent agreement and a non-empty `NativeID`).
+- Add the enumeration named in the Important finding: which records restate a code contract, so the next contract change sweeps a written list instead of whichever copy a reviewer happens to grep.
+- `atlas/couch.md:470-472` and `workshop/projects/couch.md:939-941` need the same one-clause correction — the gate is enforced in the projector; the inventory supplies its evidence.
+
+```findings
+dispose:
+  - id: BR-4
+    disposition: addressed
+    note: |
+      atlas:400-420 now names startup as the blocking caller, carries the 1.49 s measurement, and drops "periodic" (no refresh ticker exists in cmd/).
+  - id: BR-6
+    disposition: not-addressed
+    note: |
+      Unchanged this window: startup.go:9-24, startup_test.go:12-18, atlas/couch.md, projects/couch.md all still carry the same rationale.
+  - id: BR-7
+    disposition: not-addressed
+    note: |
+      startup_test.go:36-38 still passes the same ThreadAddress twice for both ambiguity cases.
+  - id: BR-8
+    disposition: addressed
+    note: |
+      Agent+NativeID added and enforced in detachedResumeProofMatches; mutation-verified in both directions (enforcement and reachability).
+  - id: BR-9
+    disposition: not-addressed
+    note: |
+      startup_test.go:262-289 and :291-311 still hand-rebuild what seedStartupParked (:172-186) encapsulates.
+  - id: BR-10
+    disposition: not-addressed
+    note: |
+      startup_test.go:309 still asserts only inequality; a zero StartResult would pass.
+findings:
+  - id: new
+    severity: Important
+    family: record-claims-unverified-delivery
+    title: |
+      No durable record describes the layer the binding proof moved to; four records still describe the pre-fix shape
+    detail: |
+      2nd finding in this family -- do NOT patch the four lines. Rule: a record that
+      restates a code contract (a struct's fields, a projector's admission predicate,
+      which layer enforces an invariant) is a hand-maintained restatement with no
+      derivation, so a contract change must sweep the enumerated set in the same
+      commit, and the enumeration belongs in the plan. Measured prevalence over three
+      rounds: BR-3 (1 site), round 4's unrecorded candidate-rule item (3 sites, 2
+      drifted), and this window (4 sites) -- atlas/couch.md:470-472, projects/couch.md:939-941,
+      plan.md:238 (two-field struct, now four), plan.md:234 (admission predicate missing
+      the agent and NativeID conjuncts). Durable fix: name the enumeration once in the
+      plan's Core concepts preamble and stop transcribing field lists there.
+  - id: new
+    severity: Important
+    family: producer-emits-value-its-consumer-rejects
+    title: |
+      ProjectDetachedSessions emits a DetachedSessionObservation that ProjectActionableThreads now always rejects
+    detail: |
+      detachedsessions.go:63 sets only Address and SessionName; actionableinventory.go:186-193
+      now additionally requires Agent and NativeID. Both are exported pure functions in one
+      package, so composing them directly yields zero detached rows -- silently, with no test
+      covering it, and the operator-visible effect is "startup stops reattaching". Harmless
+      today only because ActionableThreadInventoryContext:288-294 decorates in between and
+      resume.go:222-226 reads only Address. Fix: split the type -- DetachedSessionObservation
+      {Address, SessionName} for the session fact, DetachedResumeObservation adding the proof,
+      assembled at the shell boundary (ARCH-SECURE: make the invalid state unrepresentable).
+  - id: new
+    severity: Important
+    family: lesson-not-recorded-for-boundary-defect
+    title: |
+      M3 produced a Critical and a three-round family and added no rule to workshop/lessons.md
+    detail: |
+      lessons.md was last touched at M2 (9f7d4245); M1 has its own lessons commit (dec5928a),
+      so per-milestone is this issue's own precedent and AGENTS.md section 4 asks for it. Two
+      entries are owed, both two lines: widening an equivalence class widens its gates (gating
+      one member of Resumable() and not the other is how BR-1 shipped); and a proof enforced
+      in the IO shell is not part of the row's contract (BR-8's rule).
+  - id: new
+    severity: Minor
+    family: shared-helper-not-extracted
+    title: |
+      detachedResumeProofMatches repeats parkedResumeProofMatches' four-condition profile guard verbatim
+    detail: |
+      2nd finding in this family -- do NOT patch the instance. Rule: when a second variant of
+      an existing predicate is added, the invariant part is extracted into a shared helper in
+      the same commit; a doc comment calling the two "twins" documents the duplication rather
+      than removing it. Measured prevalence: 2 production sites (actionableinventory.go:187,
+      :196) plus BR-9's 3 test sites. A resumableProfile(record) (*LaunchProfile, bool) helper
+      covers both production sites and preserves the symmetry the comment defends (ARCH-DRY).
+```

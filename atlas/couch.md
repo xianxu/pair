@@ -395,9 +395,13 @@ consumes that rather than teaching Couch a second way to ask. It fails closed
 both ways -- two addresses claiming one session name, or two zellij rows sharing
 one name -- and the projector's detached branch requires ZERO incarnations, which
 is what keeps a crashed Couch's stale `IncarnationLive` from masquerading as a
-clean detach. `DetachedSessions` takes addresses rather than returning the whole
-set, because the session-name index is per repo scope; the inventory passes only
-candidates (no incarnation, no verified park, a saved profile), which bounds
+clean detach. `DetachedSessions` takes **candidates** rather than returning the
+whole set, because the session-name index is per repo scope. Each candidate
+carries the resume proof its caller already resolved (agent + native id) and the
+observation carries it back, so `detachedResumeProofMatches` — the pure twin of
+`parkedResumeProofMatches` — enforces it in the projector rather than trusting
+the shell. The inventory passes only candidates (no incarnation, no verified
+park, a saved profile, an established binding), which bounds
 *whether* the zellij snapshot runs -- a couch with nothing detachable pays
 nothing. It does not bound the snapshot's own cost: that is two `list-sessions`
 runs plus one `action list-clients` per non-exited session **on the host** --

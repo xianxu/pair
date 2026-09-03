@@ -178,6 +178,90 @@ rounds:
           round: 5
       boundary: M3
       blocked: true
+    - "n": 6
+      timestamp: "2026-09-02T17:52:49-07:00"
+      agent: claude
+      dispose:
+        - id: BR-4
+          disposition: addressed
+          note: atlas:400-420 now names startup as the blocking caller, carries the 1.49 s measurement, and drops "periodic" (no refresh ticker exists in cmd/).
+          round: 6
+        - id: BR-6
+          disposition: not-addressed
+          note: 'Unchanged this window: startup.go:9-24, startup_test.go:12-18, atlas/couch.md, projects/couch.md all still carry the same rationale.'
+          round: 6
+        - id: BR-7
+          disposition: not-addressed
+          note: startup_test.go:36-38 still passes the same ThreadAddress twice for both ambiguity cases.
+          round: 6
+        - id: BR-8
+          disposition: addressed
+          note: Agent+NativeID added and enforced in detachedResumeProofMatches; mutation-verified in both directions (enforcement and reachability).
+          round: 6
+        - id: BR-9
+          disposition: not-addressed
+          note: startup_test.go:262-289 and :291-311 still hand-rebuild what seedStartupParked (:172-186) encapsulates.
+          round: 6
+        - id: BR-10
+          disposition: not-addressed
+          note: startup_test.go:309 still asserts only inequality; a zero StartResult would pass.
+          round: 6
+      findings:
+        - id: BR-11
+          severity: Important
+          title: No durable record describes the layer the binding proof moved to; four records still describe the pre-fix shape
+          detail: |-
+            2nd finding in this family -- do NOT patch the four lines. Rule: a record that
+            restates a code contract (a struct's fields, a projector's admission predicate,
+            which layer enforces an invariant) is a hand-maintained restatement with no
+            derivation, so a contract change must sweep the enumerated set in the same
+            commit, and the enumeration belongs in the plan. Measured prevalence over three
+            rounds: BR-3 (1 site), round 4's unrecorded candidate-rule item (3 sites, 2
+            drifted), and this window (4 sites) -- atlas/couch.md:470-472, projects/couch.md:939-941,
+            plan.md:238 (two-field struct, now four), plan.md:234 (admission predicate missing
+            the agent and NativeID conjuncts). Durable fix: name the enumeration once in the
+            plan's Core concepts preamble and stop transcribing field lists there.
+          family: record-claims-unverified-delivery
+          round: 6
+        - id: BR-12
+          severity: Important
+          title: ProjectDetachedSessions emits a DetachedSessionObservation that ProjectActionableThreads now always rejects
+          detail: |-
+            detachedsessions.go:63 sets only Address and SessionName; actionableinventory.go:186-193
+            now additionally requires Agent and NativeID. Both are exported pure functions in one
+            package, so composing them directly yields zero detached rows -- silently, with no test
+            covering it, and the operator-visible effect is "startup stops reattaching". Harmless
+            today only because ActionableThreadInventoryContext:288-294 decorates in between and
+            resume.go:222-226 reads only Address. Fix: split the type -- DetachedSessionObservation
+            {Address, SessionName} for the session fact, DetachedResumeObservation adding the proof,
+            assembled at the shell boundary (ARCH-SECURE: make the invalid state unrepresentable).
+          family: producer-emits-value-its-consumer-rejects
+          round: 6
+        - id: BR-13
+          severity: Important
+          title: M3 produced a Critical and a three-round family and added no rule to workshop/lessons.md
+          detail: |-
+            lessons.md was last touched at M2 (9f7d4245); M1 has its own lessons commit (dec5928a),
+            so per-milestone is this issue's own precedent and AGENTS.md section 4 asks for it. Two
+            entries are owed, both two lines: widening an equivalence class widens its gates (gating
+            one member of Resumable() and not the other is how BR-1 shipped); and a proof enforced
+            in the IO shell is not part of the row's contract (BR-8's rule).
+          family: lesson-not-recorded-for-boundary-defect
+          round: 6
+        - id: BR-14
+          severity: Minor
+          title: detachedResumeProofMatches repeats parkedResumeProofMatches' four-condition profile guard verbatim
+          detail: |-
+            2nd finding in this family -- do NOT patch the instance. Rule: when a second variant of
+            an existing predicate is added, the invariant part is extracted into a shared helper in
+            the same commit; a doc comment calling the two "twins" documents the duplication rather
+            than removing it. Measured prevalence: 2 production sites (actionableinventory.go:187,
+            :196) plus BR-9's 3 test sites. A resumableProfile(record) (*LaunchProfile, bool) helper
+            covers both production sites and preserves the symmetry the comment defends (ARCH-DRY).
+          family: shared-helper-not-extracted
+          round: 6
+      boundary: M3
+      blocked: false
 ---
 
 # Gate ledger — pair#170 (boundary-review)
@@ -283,11 +367,60 @@ later rounds disposed of them. Generated — edit the gate, not this file.
   ThreadAddress would pass. TestStartInteractiveCreatesNewRootWithoutExactCandidate:109
   shows the stronger form; one line asserting a real new thread closes it.
 
+## Round 6 — 2026-09-02T17:52:49-07:00 (claude) — passed
+
+### Disposed
+
+- BR-4 — addressed — atlas:400-420 now names startup as the blocking caller, carries the 1.49 s measurement, and drops "periodic" (no refresh ticker exists in cmd/).
+- BR-6 — not-addressed — Unchanged this window: startup.go:9-24, startup_test.go:12-18, atlas/couch.md, projects/couch.md all still carry the same rationale.
+- BR-7 — not-addressed — startup_test.go:36-38 still passes the same ThreadAddress twice for both ambiguity cases.
+- BR-8 — addressed — Agent+NativeID added and enforced in detachedResumeProofMatches; mutation-verified in both directions (enforcement and reachability).
+- BR-9 — not-addressed — startup_test.go:262-289 and :291-311 still hand-rebuild what seedStartupParked (:172-186) encapsulates.
+- BR-10 — not-addressed — startup_test.go:309 still asserts only inequality; a zero StartResult would pass.
+
+### Raised
+
+- **BR-11** [Important] `record-claims-unverified-delivery` No durable record describes the layer the binding proof moved to; four records still describe the pre-fix shape
+  2nd finding in this family -- do NOT patch the four lines. Rule: a record that
+  restates a code contract (a struct's fields, a projector's admission predicate,
+  which layer enforces an invariant) is a hand-maintained restatement with no
+  derivation, so a contract change must sweep the enumerated set in the same
+  commit, and the enumeration belongs in the plan. Measured prevalence over three
+  rounds: BR-3 (1 site), round 4's unrecorded candidate-rule item (3 sites, 2
+  drifted), and this window (4 sites) -- atlas/couch.md:470-472, projects/couch.md:939-941,
+  plan.md:238 (two-field struct, now four), plan.md:234 (admission predicate missing
+  the agent and NativeID conjuncts). Durable fix: name the enumeration once in the
+  plan's Core concepts preamble and stop transcribing field lists there.
+- **BR-12** [Important] `producer-emits-value-its-consumer-rejects` ProjectDetachedSessions emits a DetachedSessionObservation that ProjectActionableThreads now always rejects
+  detachedsessions.go:63 sets only Address and SessionName; actionableinventory.go:186-193
+  now additionally requires Agent and NativeID. Both are exported pure functions in one
+  package, so composing them directly yields zero detached rows -- silently, with no test
+  covering it, and the operator-visible effect is "startup stops reattaching". Harmless
+  today only because ActionableThreadInventoryContext:288-294 decorates in between and
+  resume.go:222-226 reads only Address. Fix: split the type -- DetachedSessionObservation
+  {Address, SessionName} for the session fact, DetachedResumeObservation adding the proof,
+  assembled at the shell boundary (ARCH-SECURE: make the invalid state unrepresentable).
+- **BR-13** [Important] `lesson-not-recorded-for-boundary-defect` M3 produced a Critical and a three-round family and added no rule to workshop/lessons.md
+  lessons.md was last touched at M2 (9f7d4245); M1 has its own lessons commit (dec5928a),
+  so per-milestone is this issue's own precedent and AGENTS.md section 4 asks for it. Two
+  entries are owed, both two lines: widening an equivalence class widens its gates (gating
+  one member of Resumable() and not the other is how BR-1 shipped); and a proof enforced
+  in the IO shell is not part of the row's contract (BR-8's rule).
+- **BR-14** [Minor] `shared-helper-not-extracted` detachedResumeProofMatches repeats parkedResumeProofMatches' four-condition profile guard verbatim
+  2nd finding in this family -- do NOT patch the instance. Rule: when a second variant of
+  an existing predicate is added, the invariant part is extracted into a shared helper in
+  the same commit; a doc comment calling the two "twins" documents the duplication rather
+  than removing it. Measured prevalence: 2 production sites (actionableinventory.go:187,
+  :196) plus BR-9's 3 test sites. A resumableProfile(record) (*LaunchProfile, bool) helper
+  covers both production sites and preserves the symmetry the comment defends (ARCH-DRY).
+
 ## Open findings
 
-- **BR-4** [Important] `envelope-claim-unmeasured` M3's stated startup envelope contradicts the M2-corrected cost model and is unmeasured
 - **BR-6** [Minor] `prose-duplication` The selector's rationale is restated near-verbatim in five artifacts
 - **BR-7** [Minor] `fixture-realism` The selector's ambiguity fixtures pass the same ThreadAddress twice, a shape the projector cannot emit
-- **BR-8** [Important] `listed-implies-resumable` The detached row's binding proof is enforced in the IO shell, not the pure projector, and two comments claim the opposite
 - **BR-9** [Minor] `shared-helper-not-extracted` The two new StartInteractive tests hand-rebuild the record setup seedStartupParked already encapsulates
 - **BR-10** [Minor] `assertion-admits-vacuous-pass` The no-surviving-session negative asserts only inequality, which a zero-valued record also satisfies
+- **BR-11** [Important] `record-claims-unverified-delivery` No durable record describes the layer the binding proof moved to; four records still describe the pre-fix shape
+- **BR-12** [Important] `producer-emits-value-its-consumer-rejects` ProjectDetachedSessions emits a DetachedSessionObservation that ProjectActionableThreads now always rejects
+- **BR-13** [Important] `lesson-not-recorded-for-boundary-defect` M3 produced a Critical and a three-round family and added no rule to workshop/lessons.md
+- **BR-14** [Minor] `shared-helper-not-extracted` detachedResumeProofMatches repeats parkedResumeProofMatches' four-condition profile guard verbatim

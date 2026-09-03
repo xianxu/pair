@@ -21,9 +21,9 @@ func TestProjectDetachedSessions(t *testing.T) {
 	}{
 		{
 			name:     "a live session with no client is detached",
-			bindings: []SessionNameBinding{{Address: one, SessionName: "pair-one"}},
+			bindings: []SessionNameBinding{{Address: one, SessionName: "pair-one", Agent: "claude", NativeID: "native-1"}},
 			sessions: []launcher.Session{{Name: "pair-one", State: launcher.SessionDetached}},
-			want:     []DetachedSessionObservation{{Address: one, SessionName: "pair-one"}},
+			want:     []DetachedSessionObservation{{Address: one, SessionName: "pair-one", Agent: "claude", NativeID: "native-1"}},
 		},
 		{
 			name:     "an attached session is not detached",
@@ -47,14 +47,14 @@ func TestProjectDetachedSessions(t *testing.T) {
 		{
 			name: "each bound address is judged independently",
 			bindings: []SessionNameBinding{
-				{Address: one, SessionName: "pair-one"},
-				{Address: two, SessionName: "pair-two"},
+				{Address: one, SessionName: "pair-one", Agent: "claude", NativeID: "native-1"},
+				{Address: two, SessionName: "pair-two", Agent: "claude", NativeID: "native-2"},
 			},
 			sessions: []launcher.Session{
 				{Name: "pair-one", State: launcher.SessionAttached},
 				{Name: "pair-two", State: launcher.SessionDetached},
 			},
-			want: []DetachedSessionObservation{{Address: two, SessionName: "pair-two"}},
+			want: []DetachedSessionObservation{{Address: two, SessionName: "pair-two", Agent: "claude", NativeID: "native-2"}},
 		},
 		{
 			name:     "an empty session name is never a binding",
@@ -188,5 +188,35 @@ func TestActionableInventorySkipsTheQueryWithNoCandidates(t *testing.T) {
 	}
 	if called != 0 {
 		t.Fatalf("DetachedSessions was called %d times with no candidates", called)
+	}
+}
+
+// The pure function must emit observations the pure PROJECTOR accepts.
+//
+// It used to emit {Address, SessionName} only, which
+// ProjectActionableThreads -- once it started enforcing the resume proof --
+// always rejected. Production worked anyway because the IO shell patched Agent
+// and NativeID onto the answer afterwards, which meant this function's own
+// tests asserted a shape nothing downstream would take. Composing the two pure
+// functions is the guard.
+func TestProjectDetachedSessionsEmitsObservationsTheProjectorAccepts(t *testing.T) {
+	address := ThreadAddress{RepoScope: "scope-a", Tag: "couch-0000000000000001"}
+	observed := ProjectDetachedSessions(
+		[]SessionNameBinding{{Address: address, SessionName: "pair-one", Agent: "claude", NativeID: "native-1"}},
+		[]launcher.Session{{Name: "pair-one", State: launcher.SessionDetached}},
+	)
+	if len(observed) != 1 {
+		t.Fatalf("ProjectDetachedSessions() = %+v, want one observation", observed)
+	}
+
+	record := ThreadRecord{
+		SchemaVersion: ThreadSchemaVersion, Address: address,
+		StartingPath: "/repo", WorkingPath: "/repo",
+		CreatedAt: time.Unix(1, 0).UTC(), Revision: 1,
+		LatestLaunchProfile: &LaunchProfile{Agent: "claude", Argv: []string{}},
+	}
+	rows := ProjectActionableThreads([]ThreadRecord{record}, nil, nil, observed)
+	if len(rows) != 1 || rows[0].State != ThreadDetached {
+		t.Fatalf("rows = %+v, want the projector to accept its own upstream's output", rows)
 	}
 }

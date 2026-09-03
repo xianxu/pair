@@ -903,7 +903,7 @@ projector refused to make.
 ### pair#170 M3 — start or resume in a folder
 
 **est:** 10.69
-**actual:** 0.4h
+**actual:** 1.0h
 **closed:** 2026-09-02
 
 `couch` in a directory now reattaches a **detached** thread as readily as a

@@ -11,6 +11,14 @@ import "github.com/xianxu/pair/cmd/internal/launcher"
 type SessionNameBinding struct {
 	Address     ThreadAddress
 	SessionName string
+	// Agent and NativeID are the resume proof the caller already resolved for
+	// this address. They travel through so ProjectDetachedSessions emits
+	// COMPLETE observations: without them the pure function produced a shape
+	// ProjectActionableThreads always rejects, and only worked because the IO
+	// shell patched the fields in afterwards -- a pure function whose output is
+	// unusable on its own, whose tests therefore assert nothing.
+	Agent    string
+	NativeID string
 }
 
 // ProjectDetachedSessions is the pure detached rule: a thread is detached when
@@ -60,7 +68,10 @@ func ProjectDetachedSessions(bindings []SessionNameBinding, sessions []launcher.
 		if state[binding.SessionName] != launcher.SessionDetached {
 			continue
 		}
-		out = append(out, DetachedSessionObservation{Address: binding.Address, SessionName: binding.SessionName})
+		out = append(out, DetachedSessionObservation{
+			Address: binding.Address, SessionName: binding.SessionName,
+			Agent: binding.Agent, NativeID: binding.NativeID,
+		})
 	}
 	return out
 }

@@ -223,8 +223,7 @@ func (c *Couch) ActionableThreadInventoryContext(ctx context.Context, observatio
 	// Passing candidates bounds WHETHER the zellij snapshot runs at all -- a
 	// couch with nothing detachable pays nothing -- though not the snapshot's
 	// own fan-out, which is per session on the host.
-	var detachedCandidates []ThreadAddress
-	detachedProof := map[ThreadAddress]ParkedResumeObservation{}
+	var detachedCandidates []DetachedCandidate
 	resolver, _ := c.Artifacts.(NativeBindingResolver)
 	for i := range snapshot.Records {
 		record := snapshot.Records[i]
@@ -265,8 +264,9 @@ func (c *Couch) ActionableThreadInventoryContext(ctx context.Context, observatio
 			continue
 		}
 		if record.VerifiedPark == nil {
-			detachedCandidates = append(detachedCandidates, record.Address)
-			detachedProof[record.Address] = ParkedResumeObservation{Address: record.Address, Agent: agent, NativeID: binding.NativeID}
+			detachedCandidates = append(detachedCandidates, DetachedCandidate{
+				Address: record.Address, Agent: agent, NativeID: binding.NativeID,
+			})
 			continue
 		}
 		resumable = append(resumable, ParkedResumeObservation{Address: record.Address, Agent: agent, NativeID: binding.NativeID})
@@ -285,13 +285,7 @@ func (c *Couch) ActionableThreadInventoryContext(ctx context.Context, observatio
 			// round, which is the fail-closed answer.
 			detached = nil
 		} else {
-			// Attach the binding proof the candidate gate already resolved, so
-			// the projector can enforce it instead of assuming it.
-			for _, observation := range observed {
-				proof := detachedProof[observation.Address]
-				observation.Agent, observation.NativeID = proof.Agent, proof.NativeID
-				detached = append(detached, observation)
-			}
+			detached = observed
 		}
 	}
 	if err := ctx.Err(); err != nil {

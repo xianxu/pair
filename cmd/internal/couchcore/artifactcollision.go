@@ -182,7 +182,16 @@ func (c ScopedThreadArtifactCollisionChecker) PairSession(address ThreadAddress)
 // a whole-set method would need a `repos/*` enumeration this checker does not
 // have. Taking addresses mirrors PairSession(address) and ResolveEstablished.
 type DetachedSessionResolver interface {
-	DetachedSessions(ctx context.Context, addresses []ThreadAddress) ([]DetachedSessionObservation, error)
+	DetachedSessions(ctx context.Context, candidates []DetachedCandidate) ([]DetachedSessionObservation, error)
+}
+
+// DetachedCandidate is one address worth asking about, carrying the resume proof
+// its caller already resolved. Passing the proof in rather than patching it onto
+// the answer keeps the observation complete at every layer.
+type DetachedCandidate struct {
+	Address  ThreadAddress
+	Agent    string
+	NativeID string
 }
 
 // DetachedSessions reads each requested scope's session-name index once and
@@ -199,7 +208,13 @@ type DetachedSessionResolver interface {
 // contributes no bindings rather than an empty answer that would silently hide
 // its detached threads. A snapshot failure is returned, because that one IS the
 // whole answer.
-func (c ScopedThreadArtifactCollisionChecker) DetachedSessions(ctx context.Context, addresses []ThreadAddress) ([]DetachedSessionObservation, error) {
+func (c ScopedThreadArtifactCollisionChecker) DetachedSessions(ctx context.Context, candidates []DetachedCandidate) ([]DetachedSessionObservation, error) {
+	addresses := make([]ThreadAddress, 0, len(candidates))
+	proof := make(map[ThreadAddress]DetachedCandidate, len(candidates))
+	for _, candidate := range candidates {
+		addresses = append(addresses, candidate.Address)
+		proof[candidate.Address] = candidate
+	}
 	if len(addresses) == 0 {
 		return nil, nil
 	}
@@ -237,7 +252,11 @@ func (c ScopedThreadArtifactCollisionChecker) DetachedSessions(ctx context.Conte
 		for _, address := range scoped {
 			name := lookupSessionName(index, address)
 			if name != "" {
-				bindings = append(bindings, SessionNameBinding{Address: address, SessionName: name})
+				candidate := proof[address]
+				bindings = append(bindings, SessionNameBinding{
+					Address: address, SessionName: name,
+					Agent: candidate.Agent, NativeID: candidate.NativeID,
+				})
 			}
 		}
 	}

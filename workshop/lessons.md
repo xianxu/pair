@@ -2974,3 +2974,26 @@ that a key token appears cannot detect a contradictory behavioral sentence
   real predecessor used a stale revision, and only that mutation exercises the
   path. A green mutation run means the mutation was wrong at least as often as
   it means the test is weak.
+- A widening is not only the code that widens. Adding a second admissible state
+  means re-asking every gate the first state already passed: the selector was
+  the visible change, but the native-binding gate one layer down was the
+  Critical one, and it appeared in no task step because the plan was written as
+  a pure-function widening. When a milestone admits a new case, enumerate what
+  the old case had to satisfy and check the new one against all of it.
+- "No fallback" turns a merely-wrong row into a dead end. Where a path
+  deliberately refuses rather than degrading — startup here — an entity that is
+  OFFERED must be one the refusing step accepts, or the refusal fires on the
+  happy path. State that invariant next to the no-fallback decision, because the
+  offering code and the refusing code are usually in different files.
+- An invariant claimed by a pure function must be enforced by it. Enforcing in
+  the IO shell and asserting "fails closed on its own" in the pure layer means
+  the next caller of that pure function gets neither. If the shell resolved a
+  proof, pass it in rather than patching it onto the answer — otherwise the pure
+  function emits a shape its own downstream rejects, and its tests assert
+  nothing.
+- Compose pure functions in a test when one feeds another. Each passing alone is
+  compatible with them disagreeing about the shape they exchange.
+- A gate that stops blocking has not stopped being right. When a review demotes
+  findings past a round cap and says no later gate picks them up, that is a
+  statement about enforcement, not about correctness — read them and decide on
+  the merits.

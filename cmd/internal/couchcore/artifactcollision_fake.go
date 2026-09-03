@@ -79,21 +79,29 @@ func (f *FakeThreadArtifactCollisionChecker) SetDetachedSession(address ThreadAd
 // DetachedSessions answers only for addresses the caller asked about, exactly
 // as the real checker does -- a fake that answered for the whole world would
 // hide a caller that forgot to pass its candidates.
-func (f *FakeThreadArtifactCollisionChecker) DetachedSessions(ctx context.Context, addresses []ThreadAddress) ([]DetachedSessionObservation, error) {
+func (f *FakeThreadArtifactCollisionChecker) DetachedSessions(ctx context.Context, candidates []DetachedCandidate) ([]DetachedSessionObservation, error) {
 	if err := ctx.Err(); err != nil {
 		return nil, err
 	}
 	if hook := f.DetachedSessionsHook; hook != nil {
-		if err := hook(append([]ThreadAddress(nil), addresses...)); err != nil {
+		addresses := make([]ThreadAddress, 0, len(candidates))
+		for _, candidate := range candidates {
+			addresses = append(addresses, candidate.Address)
+		}
+		if err := hook(addresses); err != nil {
 			return nil, err
 		}
 	}
 	f.mu.Lock()
 	defer f.mu.Unlock()
 	var out []DetachedSessionObservation
-	for _, address := range addresses {
-		if name := f.detachedSessions[address]; name != "" {
-			out = append(out, DetachedSessionObservation{Address: address, SessionName: name})
+	for _, candidate := range candidates {
+		if name := f.detachedSessions[candidate.Address]; name != "" {
+			// Echo the caller's proof, exactly as the real resolver does.
+			out = append(out, DetachedSessionObservation{
+				Address: candidate.Address, SessionName: name,
+				Agent: candidate.Agent, NativeID: candidate.NativeID,
+			})
 		}
 	}
 	return out, nil
