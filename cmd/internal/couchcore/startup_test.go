@@ -250,3 +250,63 @@ func TestStartInteractiveSkipsDetachedRowsWithoutAResumableBinding(t *testing.T)
 		})
 	}
 }
+
+// The twin of TestStartInteractiveResumesUniqueExactParkedRoot, driving
+// StartInteractive ITSELF -- which is the wiring the M3 review found unpinned.
+//
+// The earlier test in this file exercises the inventory and the selector
+// directly, so mutating StartInteractive's own call (filtering its rows to
+// parked) left the suite green. Only the couchcmd acceptance test covered it,
+// and that one hard-fails wherever a pty is unavailable -- which is every CI and
+// agent context, so in practice nothing covered it at all.
+func TestStartInteractiveResumesUniqueDetachedRoot(t *testing.T) {
+	env := newTestEnv(t, "/repo")
+	env.Git.replies[GitCall{Dir: "/repo/sub", Args: "rev-parse --show-toplevel"}] = "/repo"
+	detached := actionableTestThread("couch-0000000000000001", time.Unix(100, 0).UTC())
+	detached.StartingPath, detached.WorkingPath = "/repo", "/repo/sub"
+	detached.LatestLaunchProfile = &LaunchProfile{Agent: "claude", Argv: []string{"--verbose"}}
+	// Deliberately NOT parked: no verified park, no incarnation -- the shape an
+	// alt+d detach leaves behind.
+	var err error
+	detached, err = env.Couch.Threads.CreateThread(detached)
+	if err != nil {
+		t.Fatal(err)
+	}
+	env.Artifacts.SetNativeBinding(detached.Address, "claude", sessioninventory.BindingEstablished, "native-root-1")
+	env.Artifacts.SetPairSession(detached.Address, "pair-"+string(detached.Address.Tag), true)
+	// The surviving session is the resume authority.
+	env.Artifacts.SetDetachedSession(detached.Address, "pair-"+string(detached.Address.Tag))
+
+	start, err := env.Couch.StartInteractive(context.Background(), StartArgs{Cwd: "/repo/sub"})
+	if err != nil {
+		t.Fatalf("StartInteractive: %v", err)
+	}
+	if start.Record.Thread != detached.Address {
+		t.Fatalf("resumed address = %+v, want the detached thread %+v", start.Record.Thread, detached.Address)
+	}
+}
+
+// Its negative: with no surviving session there is no resume authority, so
+// startup must create a NEW thread rather than reattach one it cannot prove.
+func TestStartInteractiveStartsNewWhenNoSessionSurvives(t *testing.T) {
+	env := newTestEnv(t, "/repo")
+	env.Git.replies[GitCall{Dir: "/repo/sub", Args: "rev-parse --show-toplevel"}] = "/repo"
+	stale := actionableTestThread("couch-0000000000000001", time.Unix(100, 0).UTC())
+	stale.StartingPath, stale.WorkingPath = "/repo", "/repo/sub"
+	stale.LatestLaunchProfile = &LaunchProfile{Agent: "claude", Argv: []string{"--verbose"}}
+	var err error
+	stale, err = env.Couch.Threads.CreateThread(stale)
+	if err != nil {
+		t.Fatal(err)
+	}
+	env.Artifacts.SetNativeBinding(stale.Address, "claude", sessioninventory.BindingEstablished, "native-root-1")
+	// No SetDetachedSession: the session did not survive.
+
+	start, err := env.Couch.StartInteractive(context.Background(), StartArgs{Cwd: "/repo/sub"})
+	if err != nil {
+		t.Fatalf("StartInteractive: %v", err)
+	}
+	if start.Record.Thread == stale.Address {
+		t.Fatalf("startup reattached %+v with no surviving session", stale.Address)
+	}
+}

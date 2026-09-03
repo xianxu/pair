@@ -255,7 +255,7 @@ Retiring the incarnation fixes all three at the source and keeps the projector f
 
 - **`DetachedSessionResolver`** — one method, **`DetachedSessions(ctx context.Context, addresses []ThreadAddress) ([]DetachedSessionObservation, error)`**, satisfied by `ScopedThreadArtifactCollisionChecker` alongside the `NativeBindingResolver` it already satisfies (`artifactcollision.go:205`). Obtained by type assertion on `Couch.Artifacts`, the pattern `actionableinventory.go:155` and `resume.go:192` already use.
   - **Why it takes addresses rather than returning the whole set:** the session-name index is **per repo scope** — `artifactpath.Resolve` puts it at `<dataDir>/repos/<RepoScope>/session-names.jsonl` (`paths.go:353,500`), and `PairSession` (`artifactcollision.go:130-167`) reads exactly one scope's index. A no-argument whole-set method would need a `<dataDir>/repos/*` enumeration the checker does not have and this plan should not add. Taking addresses mirrors the existing `PairSession(address)` / `ResolveEstablished(scope, tag, agent)` shape (`ARCH-DRY`), and the caller already holds the record set.
-  - **Injected into:** `ActionableThreadInventoryContext`, which passes only **candidate** addresses — records with zero incarnations, no verified park and a `LatestLaunchProfile`, i.e. the only records that could *be* detached — and hands the result to the pure projector. Bounding the query to candidates is what keeps the refresh cost proportional to detached threads rather than to all threads. The existing `FakeThreadArtifactCollisionChecker` (`artifactcollision_fake.go`) gains a `detachedSessions` field and hook, so every projection test stays fake-driven — `ARCH-MOCK`.
+  - **Injected into:** `ActionableThreadInventoryContext`, which passes only **candidate** addresses and hands the result to the pure projector. A candidate is a record with zero incarnations, no verified park, a `LatestLaunchProfile` — **and an established native binding**, which M3's boundary review added: startup has no fallback, so a row the inventory offers must be one resume can take, and gating parked rows while leaving detached ones ungated killed `couch` in the operator's own tree. Bounding the query to candidates decides *whether* the zellij snapshot runs, not its size; an earlier draft claimed it made the cost proportional to detached threads, which `actionableinventory.go` was corrected to deny. The existing `FakeThreadArtifactCollisionChecker` (`artifactcollision_fake.go`) gains a `detachedSessions` field and hook, so every projection test stays fake-driven — `ARCH-MOCK`.
   - **Future extensions:** client counts, or an "attached by another client" state.
 - **`ProcOps.SignalGroup(pid int, sig os.Signal) error`** — signals the whole process group. `Couch.Detach` runs from `CouchLiveOwnerExecutor` (`operationdispatch.go:176`) with no `Handle`, and the only seam it has today is `ProcOps.Signal` (`procops.go:110-119`), which is `os.FindProcess(pid).Signal(sig)` — a **single PID**. Under couch, `launcher/osruntime.go:399-408` deliberately returns nil `SysProcAttr` (no `Setsid`) when `COUCH_THREAD_SCOPE`/`COUCH_THREAD_TAG` are set, so the session-watcher and title-poller share the actor's group; single-PID signalling would orphan them on every `alt+d` and on every thread of every `leave`.
   - **DRY rationale:** the implementation is the existing `signalOwnedProcessGroup` (`runner.go:180-190`, `syscall.Kill(-pid, sig)` with `ESRCH` treated as success), lifted from `execHandle` so both the Handle-holding and Handle-less callers share one group-signal implementation rather than two.
@@ -396,6 +396,7 @@ Retiring the incarnation fixes all three at the source and keeps the projector f
 | Name | Lives in | Status | Wraps |
 |------|----------|--------|-------|
 | `Couch.StartInteractive` | `cmd/internal/couchcore/startup.go` | modified | path/git resolution, actionable inventory, `ResumeContext`, the resolved start path |
+| `Couch.ActionableThreadInventoryContext` | `cmd/internal/couchcore/actionableinventory.go` | modified | native-binding gate now covers detached candidates too |
 
 - **`Couch.StartInteractive`** — unchanged in shape; it swaps which selector it calls. It remains the thin IO shell around the pure selector, and every dependency is already in the Couch composition root, so its tests keep using the existing stateful fakes (`ARCH-PURE`, `ARCH-MOCK`). No new seam is introduced by M3 — the detached observation it now depends on was added at M2 and reaches it through the same `ActionableThreadInventoryContext` call it already makes.
 
@@ -743,3 +744,44 @@ parser fix so a table ends at the next heading (M4's `### Deleted` table was
 being read as Integration points), and `planned (Mx)` statuses on rows for
 milestones that have not shipped — so the status column doubles as the build
 tracker, and flipping a row at its milestone is what turns its assertion on.
+
+### 2026-09-02 — M3 boundary review
+
+Recorded as an appended delta rather than only as in-place edits, per AGENTS.md
+§1. Two plan lines were edited in place during the fix round (Step 3b and the M3
+envelope paragraph); this entry is the timestamped record of why.
+
+**A delivery the chunk never described.** The native-binding gate now covers
+detached candidates as well as parked ones. Chunk 3 was written as a pure
+selector widening, and the gate lives one layer down in
+`ActionableThreadInventoryContext` — so the milestone's most consequential change
+appears in no task step. It is a Critical-severity fix, not a refinement:
+startup has no fallback by design, so a row the inventory offered but resume
+would refuse did not degrade to "start something new", it made `couch` exit 1 in
+the tree the operator was standing in. M2 had just made detached the normal
+resting state, so that was the ordinary row.
+
+**A credit moved.** Step 3b originally read "make detached rows carry a physical
+`WorkingPath`". That shipped at M2 (`fac153c9`), where its own review asked for
+it; M3 contributed the alias-path test that pins it. The step now says so. A
+record that credits the wrong milestone sends the next reader looking for a
+change that is not in the window.
+
+**An envelope corrected and measured.** The M3 envelope paragraph claimed
+"unchanged from `#167`". Since M2 the actionable snapshot costs two
+`list-sessions` runs plus one `action list-clients` per live session on the host
+— measured at **1.49 s** here (13 live sessions, ~100 ms each, serially) — and M3
+puts that on the *blocking* startup path, because `StartInteractive` must decide
+resume-vs-new before it attaches anything. The switcher is unaffected: refreshes
+are event-driven and render last-good. `pair#172` is filed to parallelize it;
+absorbing that into M3 would have meant a milestone growing to fix what its own
+review measured.
+
+**A known consequence, recorded rather than discovered later.** With the gate in
+place, a detached thread whose native binding degrades is now hidden from the
+switcher entirely while its zellij session keeps running an agent. That matches
+the parked precedent and `couch --list` still shows it, but it is a new way for a
+*live* agent to become invisible. The alternative — list it, refuse its `Enter`
+with the diagnostic, and gate only startup selection — was not weighed when the
+gate was written. If the operator ever hits it, that is the fork to revisit; it
+belongs to the same family as `pair#171`.

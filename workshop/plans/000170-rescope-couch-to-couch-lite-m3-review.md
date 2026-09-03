@@ -180,3 +180,75 @@ findings:
       record. The realistic distinct-address case exists two rows below, so this is
       fixture realism only.
 ```
+
+---
+
+## Re-review — 2026-09-02T17:22:10-07:00 (FIX-THEN-SHIP)
+
+| field | value |
+|-------|-------|
+| issue | 170 — Rescope couch to couch-lite |
+| repo | pair |
+| issue file | workshop/issues/000170-rescope-couch-to-couch-lite.md |
+| boundary | milestone M3 |
+| milestone | M3 |
+| window | a89878c31cd7bee06693257e05440c8c4eee7057..a89878c31cd7bee06693257e05440c8c4eee7057 |
+| command | sdlc milestone-close --issue 170 --milestone M3 |
+| reviewer | claude |
+| timestamp | 2026-09-02T17:22:10-07:00 |
+| verdict | FIX-THEN-SHIP |
+
+## Review
+
+```verdict
+verdict: FIX-THEN-SHIP
+confidence: high
+```
+
+The Critical from round 3 is genuinely fixed and I proved it both ways: the binding gate now sits ahead of the detached-candidate append (`actionableinventory.go:236-256`), and reverting that reorder in a scratch copy reddens all three non-established subtests of the new `TestStartInteractiveSkipsDetachedRowsWithoutAResumableBinding`. I also ran the class sweep behind it — every `DecideResume` refusal reason is now either filtered in the candidate loop (park transaction, occupied incarnation, missing/unsupported profile, binding) or unreachable from startup selection by construction (`ResumePathMissing` can only fire for a path the selector matched against the operator's own resolved cwd), so "listed ⇒ resumable" actually holds rather than holding for the one state the finding named. What does not block SHIP but is not done: BR-2's test gap survives verbatim — I re-ran its mutation (filter `rows` to `ThreadParked` before the `SelectUniqueResumableRoot` call in `startup.go:53`) and the entire `couchcore` suite is still green, because the new test stops at `ActionableThreadInventoryContext` + selector rather than calling `StartInteractive`; and BR-4 was only half-corrected — the plan sentence was fixed and the cost measured, but `atlas/couch.md:403-406` still frames the 1.49 s snapshot as refresh-worker-only. Both are cheap; neither is a correctness risk at the boundary.
+
+## 1. Strengths
+
+- **The fix is the class, not the site.** One gate covering both resumable kinds (`actionableinventory.go:236-256`) rather than a detached-specific check, and the comment states the invariant it defends instead of describing the mechanics. Mutation-verified in both directions here.
+- **The new test reproduces all three degraded binding states** (`startup_test.go:197-251`) — unbound, ambiguous, provisional — not just the one that was reported. That is the enumeration ARCH-PURPOSE asks for at the test level.
+- **`TestInteractiveLaunchStartsNewWhenNoSessionSurvives` (`run_test.go:377`)** is the more valuable of the two acceptance tests: it pins "startup must not reattach something it cannot prove", which is the exact failure mode the milestone's widening creates.
+- **`Resumable()` is consumed, not re-enumerated** (`actionableinventory.go:75`, used at `startup.go:29` and `menu.go`) — ARCH-DRY held under a widening that invited a second predicate.
+- **BR-3's misattribution correction is honest.** Plan Step 3b and `workshop/projects/couch.md:926-934` now say M3 delivered the proof and M2 the fix, with the reason stated. `git log -L` on the physicalization block agrees.
+- **The envelope was measured rather than argued** (`BenchmarkZellijSnapshotLive`, issue Log 2026-09-02), and the 1.4 s was filed as #172 with a bounded-concurrency spec instead of being absorbed into M3.
+
+## 2. Critical findings
+
+None. BR-1 is fixed and pinned.
+
+## 3. Important findings
+
+**BR-2 (re-raised, not-addressed) — `StartInteractive`'s detached wiring is still unpinned at the runnable level.** `startup_test.go:197` is named for `StartInteractive` but never calls it; it calls `ActionableThreadInventoryContext` then `SelectUniqueResumableRoot` directly, replicating the two lines under test. I applied BR-2's exact mutation to `startup.go:53` and the full `couchcore` package stayed green. The only tests that catch it are `run_test.go:322/377`, which fail at `pty.Open()` in this environment (`run_test.go:354: operation not permitted`) — so `workshop/projects/couch.md:944-946`'s "the reattach one is mutation-verified" remains unconfirmable from a pty-less shell, exactly as the prior round said. Fix sketch: in `TestStartInteractiveSkipsDetachedRowsWithoutAResumableBinding`, replace the two-line replication with `env.Couch.StartInteractive(ctx, StartArgs{Cwd: "/repo"})` and assert `start.Record.Thread` — that closes the seam and the binding gate in one test.
+
+**BR-4 (re-raised, not-addressed) — the atlas half of the envelope correction did not land, and no startup budget was stated.** `atlas/couch.md:403-406` still reads "Since this now runs on the periodic refresh worker, each query carries `zellijQueryTimeout`" — it does not say M3 put the same snapshot on the *blocking* startup path, which is the only reason the measurement mattered. (It also says "periodic", while the issue Log says refreshes are event-driven with no ticker.) Separately: the measured 1.49 s typical and the plan's own stated `(2+N)×5 s` worst case are now on the path between typing `couch` and the first frame, with no declared startup budget, no progress indication and no skip — ARCH-CONSTRAINTS asks for the bound and the bounded behavior when exceeded, not only the measurement. Deferring the *speedup* to #172 is right; declaring the envelope is this boundary's job.
+
+**New — the inventory's candidate rule is restated in three hand-maintained places and only one was swept.** *This is the 2nd finding in family `readme-stale-for-shipped-surface`.* Per the escalation rule I am not asking for the instances to be patched; here is the rule that covers them: **the inventory's admission predicate has no single source — README, `atlas/couch.md` and the plan each restate it in prose, so any change to the candidate rule must sweep the enumerated set in the same commit, and the enumeration belongs in the plan.** Measured prevalence this round: README.md:361-364 was updated (correct), `atlas/couch.md:399-401` still says candidates are "(no incarnation, no verified park, a saved profile)" with no mention of the established-binding requirement that is now the invariant startup's safety rests on, and `workshop/plans/…-plan.md:258` still says candidates are those three things *and* that bounding the query to them "keeps the refresh cost proportional to detached threads" — the precise claim the M3 code comment at `actionableinventory.go:208-210` was corrected to deny. Two of three restatements drifted from one commit's change; that is the rule failing, not two typos.
+
+## 4. Minor findings
+
+- **BR-6 (not-addressed)** — the selector's three-paragraph rationale is still verbatim in `startup.go:9-24`, `startup_test.go:13-19`, `atlas/couch.md:445-451` and `workshop/projects/couch.md:908-925`.
+- **BR-7 (not-addressed)** — `startup_test.go:38-39` still passes the same `ThreadAddress` twice for both ambiguity cases, a shape `ProjectActionableThreads` cannot emit (one row per record).
+- **New (family `listed-implies-resumable`, 2nd finding)** — the parked invariant is enforced *inside* the pure projector (`parkedResumeProofMatches` requires `NativeID != ""`), while the detached twin is enforced only in the IO caller's loop; yet `actionableThreadState`'s own comment at `actionableinventory.go:155-156` says it "fails closed on its own, so it does not rely on the caller having filtered candidates." That is now true of the profile checks and false of the binding. Rule, per the escalation protocol: **the evidence a row's `Enter` needs must travel in the observation type the pure projector consumes, so the projector enforces it — a gate that lives only in the IO shell is one refactor or one second caller away from reintroducing BR-1.** The class fix is to give `DetachedSessionObservation` a `NativeID` and require it, mirroring `ParkedResumeObservation`; the loop already holds the binding at that point. No live defect: `ScopedThreadArtifactCollisionChecker` is the only production `Artifacts`, and it is gated.
+- `BenchmarkZellijSnapshotLive` measures the real binary but asserts nothing, so it is a measurement harness, not the live conformance check ARCH-MOCK wants for the fake's modeled behavior. Fine for this boundary; worth naming in #172.
+
+## 5. Test coverage notes
+
+- Verified green in this environment: `go build ./...`, `GOOS=linux go build ./...`, `go test ./cmd/internal/couchcore -run 'SelectUnique|StartInteractive|ActionableInventory|Detached|Resume'`, the plan/concept contract tests, `launcher`, `sessioninventory`. The only failures anywhere are `ptychild: operation not permitted` (couchcore pty runner tests, `couchtty` notification-pty, all of `couchcmd/run_test.go`) — environmental, identical shape on untouched tests, not this window's doing.
+- Mutation results, run not assumed: reverting the gate reorder → 3 subtests red (BR-1's fix is real); filtering `rows` to parked in `StartInteractive` → suite green (BR-2's gap is real).
+- The couchcmd acceptance pair is the right shape (production routing through `dispatchInitialAttach`), but a milestone whose headline behavior is *only* provable where a pty exists has no coverage in any CI or agent context. That is what BR-2 is asking to fix, and it is 15 lines.
+
+## 6. Architectural notes for upcoming work
+
+- ARCH-DRY **pass** (one predicate, one gate) — flagged only for prose duplication (BR-6). ARCH-PURE **pass with the Minor above** — the selector is genuinely pure and table-tested without IO. ARCH-PURPOSE **pass on code, flag on records** — the refusal-reason sweep is complete in the loop; the docs shadow-sweep is not. ARCH-MOCK **pass** — `FakeThreadArtifactCollisionChecker` implements both resolvers behind the same seam as `ScopedThreadArtifactCollisionChecker`, so production and test share the boundary. ARCH-CONSTRAINTS **flag** — see BR-4. ARCH-SECURE **pass** — `bindingResumeDiagnostic`'s `default:` fails closed to unbound, a corrupt manifest errors instead of degrading (`TestStartInteractiveInventoryFailureCreatesNoRoot`), no credential reaches a log or argv.
+- Reachability consequence worth carrying to M4/#171: a detached thread whose binding degrades is now hidden from the switcher entirely while its zellij session keeps running an agent. That matches the parked precedent and `ThreadInventory` (the `list` op) still shows it, but it is a new way for a *live* agent to become invisible. The alternative design — list it, refuse its `Enter` with the diagnostic, and gate only startup selection — was not considered in writing; if the operator ever hits it, that is the fork to revisit.
+- The marginal cost of the fix is one `ResolveEstablished` (a scoped FS listing, no subprocess) per detached candidate per refresh. Against the parked-era baseline this is a wash — those same records used to pay it as parked candidates — so #172's fan-out remains the only startup-latency term worth optimizing.
+
+## 7. Plan revision recommendations
+
+- Append a `## Revisions` entry `### 2026-09-02 — M3 boundary review`, in the shape the M1 entry already set. The fix commit changed a production admission rule and edited two plan lines *in place* (Step 3b, the envelope paragraph) with inline parentheticals; AGENTS.md §1 asks for an appended timestamped delta instead. The entry should record: the binding gate as an M3 delivery the chunk never described, that the physicalization credit moved to M2, and the measured envelope with #172 filed against it.
+- Correct `workshop/plans/…-plan.md:258` (Chunk 2 Core concepts): candidates now also require an established native binding, and "keeps the refresh cost proportional to detached threads" is the claim `actionableinventory.go:208-210` was corrected to deny.
+- The M3 Core concepts table itself still matches the code — `SelectUniqueResumableRoot` new at `startup.go`, `SelectUniqueParkedRoot` deleted (no residue outside prose), `Couch.StartInteractive` modified — but `Couch.ActionableThreadInventoryContext` is now modified by M3 too and appears only in M2's table. Add it to M3's Integration points, or the next reader looks for this window's most consequential change in the wrong milestone — the same failure BR-3 named.

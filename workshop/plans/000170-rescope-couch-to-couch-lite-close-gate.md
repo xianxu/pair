@@ -96,6 +96,12 @@ rounds:
           round: 3
       boundary: M3
       blocked: true
+    - "n": 4
+      timestamp: "2026-09-02T17:22:10-07:00"
+      agent: claude
+      boundary: M3
+      blocked: true
+      protocol_error: no valid findings block
 ---
 
 # Gate ledger — pair#170 (boundary-review)
@@ -155,6 +161,10 @@ later rounds disposed of them. Generated — edit the gate, not this file.
   startup_test.go:37-38 duplicates one row; ProjectActionableThreads emits one row per
   record. The realistic distinct-address case exists two rows below, so this is
   fixture realism only.
+
+## Round 4 — 2026-09-02T17:22:10-07:00 (claude) — BLOCKED
+
+**Protocol error:** no valid findings block — this round contributed no findings.
 
 ## Open findings
 
