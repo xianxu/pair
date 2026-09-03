@@ -183,8 +183,17 @@ func TestDecideResumeAcceptsDetachedWithoutVerifiedPark(t *testing.T) {
 			if test.mutate != nil {
 				test.mutate(&record)
 			}
+			// A detached thread always carries the name of the session that
+			// survived -- that name IS its reattach proof, the way NativeID is
+			// a parked thread's. Supplying it here keeps these cases testing
+			// what they name instead of the missing-session refusal.
+			detachedSession := ""
+			if test.detached {
+				detachedSession = "📁repo-tag"
+			}
 			_, err := DecideResume(ResumeEligibilityInput{
-				Thread: record, WorkingPathExists: true, Binding: binding, Detached: test.detached,
+				Thread: record, WorkingPathExists: true, Binding: binding,
+				Detached: test.detached, DetachedSession: detachedSession,
 			})
 			if test.wantCode == "" {
 				if err != nil {

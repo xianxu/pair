@@ -417,15 +417,83 @@ func TestRequiredNativeResumeBindingLaunchesExactRootWithoutDefaults(t *testing.
 
 func TestRequiredNativeResumeRefusesAttachRace(t *testing.T) {
 	rt := newFakeRuntime()
-	rt.sessions = []Session{{Name: "📁work", Tag: "work", RepoName: "work", Agent: "codex", State: SessionDetached}}
+	scope := mustScope(t, "/home/u/work")
+	rt.sessions = []Session{{Name: "📁work-svc", State: SessionDetached}}
+	rt.sessionIndex = SessionNameIndex{Entries: []SessionNameEntry{{
+		SessionName: "📁work-svc", ScopeKey: scope.Key, RepoRoot: scope.Root,
+		RepoName: scope.DisplayName, Tag: "svc",
+	}}}
+	rt.blocksReuse["📁work-svc"] = true
+	rt.attachCode = 0
+	// The binding MUST be established for this test to mean what its name says.
+	// Without it EstablishedSessionID returns unbound, RequireNativeResumeBinding
+	// refuses first, and the resume-boundary guard under test is never reached --
+	// so the test passed while proving something else entirely.
+	rt.establishedSessions["svc|codex"] = "native-root-1"
+	rt.bindingStatuses["svc|codex"] = sessioninventory.BindingEstablished
 	args := LaunchArgs{
-		Agent: "codex", AgentExplicit: true, ForcedTag: "work",
+		Agent: "codex", AgentExplicit: true, ForcedTag: "svc",
 		AgentArgs: []string{}, AgentArgsExplicit: true, AgentArgsFromCouch: true,
 		ResumeRequired: true, RequiredSessionID: "native-root-1",
 	}
 	code, err := run(t, baseOpts(args), rt)
 	if err != nil || code != 1 || len(rt.attached) != 0 || rt.launchCount != 0 {
 		t.Fatalf("attach race = code %d err %v attached=%v launchCount=%d", code, err, rt.attached, rt.launchCount)
+	}
+}
+
+// A RECONSTRUCT wants a create boundary; a REATTACH wants an attach boundary
+// onto exactly the observed session. The pair is the whole point of the mode
+// split -- before it, both were required to be a create, which made every
+// detached thread unreattachable.
+func TestCouchReattachLandsOnItsLiveSession(t *testing.T) {
+	rt := newFakeRuntime()
+	scope := mustScope(t, "/home/u/work")
+	rt.sessions = []Session{{Name: "📁work-svc", State: SessionDetached}}
+	rt.sessionIndex = SessionNameIndex{Entries: []SessionNameEntry{{
+		SessionName: "📁work-svc", ScopeKey: scope.Key, RepoRoot: scope.Root,
+		RepoName: scope.DisplayName, Tag: "svc",
+	}}}
+	rt.blocksReuse["📁work-svc"] = true
+	rt.attachCode = 0
+	// Deliberately NO established binding: a reattach must not need one. The
+	// agent never died, so there is no native id to prove.
+	args := LaunchArgs{
+		Agent: "codex", AgentExplicit: true, ForcedTag: "svc",
+		AgentArgs: []string{}, AgentArgsExplicit: true, AgentArgsFromCouch: true,
+		ResumeRequired: true, ReattachSession: "📁work-svc",
+	}
+	code, err := run(t, baseOpts(args), rt)
+	if err != nil || code != 0 {
+		t.Fatalf("reattach = code %d err %v", code, err)
+	}
+	if len(rt.attached) != 1 || rt.attached[0] != "📁work-svc" {
+		t.Fatalf("attached = %v, want exactly the observed session", rt.attached)
+	}
+	if rt.launchCount != 0 {
+		t.Fatalf("launchCount = %d, want 0 -- a reattach must not create", rt.launchCount)
+	}
+}
+
+func TestCouchReattachRefusesWhenItsSessionIsGone(t *testing.T) {
+	// The session died between Couch observing it and this launch, so the
+	// decision falls back to create. Creating would silently start a FRESH,
+	// empty agent under the thread's identity and lose the conversation the
+	// reattach existed to reach -- and a reattach carries no native id to
+	// reconstruct from. Refusing is the only safe answer.
+	rt := newFakeRuntime()
+	rt.sessions = nil
+	args := LaunchArgs{
+		Agent: "codex", AgentExplicit: true, ForcedTag: "svc",
+		AgentArgs: []string{}, AgentArgsExplicit: true, AgentArgsFromCouch: true,
+		ResumeRequired: true, ReattachSession: "📁work-svc",
+	}
+	code, err := run(t, baseOpts(args), rt)
+	if err != nil || code != 1 {
+		t.Fatalf("vanished reattach = code %d err %v, want a refusal", code, err)
+	}
+	if rt.launchCount != 0 || len(rt.attached) != 0 {
+		t.Fatalf("refused reattach still acted: launchCount=%d attached=%v", rt.launchCount, rt.attached)
 	}
 }
 func (f *fakeRuntime) WriteAgentDefault(agent string, args []string) error {

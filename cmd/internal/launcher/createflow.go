@@ -235,9 +235,36 @@ func runOnce(opts LaunchOptions, env Env, rt Runtime, stderr io.Writer) (launchS
 	if requestedAgent != "" && agent != requestedAgent {
 		opts.Args.AgentArgs = nil
 	}
-	if opts.Args.ResumeRequired && decision.Action != ActionCreate {
-		fmt.Fprintf(stderr, "pair: %v\n", &LaunchRefusal{Code: NativeBindingChanged, Diagnostic: "required Couch resume no longer resolves to a create boundary"})
-		return launchStep{code: 1}, nil
+	// A Couch resume must land on the boundary its authority describes, and the
+	// two authorities want OPPOSITE boundaries:
+	//
+	//   reconstruct (RequiredSessionID) -- the agent is gone and is rebuilt from
+	//     its native id, so the launch must be a CREATE.
+	//   reattach (ReattachSession) -- the agent is still running behind a
+	//     client-less session, so the launch must be an ATTACH, onto exactly the
+	//     session Couch observed.
+	//
+	// Requiring a create boundary for both is what made every detached thread
+	// unreattachable: `pair resume <tag>` onto a live detached session resolves
+	// to ActionAttach (decision.go, sessionBlocksReuse counts SessionDetached),
+	// and this guard then refused it.
+	//
+	// The name equality is not decoration. If the session died between Couch's
+	// observation and this launch, the decision falls back to ActionCreate --
+	// and creating there would silently start a FRESH, empty agent under the
+	// thread's identity, losing the conversation the reattach existed to reach.
+	// A reattach with no native id has nothing to reconstruct from, so refusing
+	// is the only safe answer.
+	if opts.Args.ResumeRequired {
+		if opts.Args.ReattachSession != "" {
+			if decision.Action != ActionAttach || decision.SessionName != opts.Args.ReattachSession {
+				fmt.Fprintf(stderr, "pair: %v\n", &LaunchRefusal{Code: NativeBindingChanged, Diagnostic: "required Couch reattach no longer resolves to its live session"})
+				return launchStep{code: 1}, nil
+			}
+		} else if decision.Action != ActionCreate {
+			fmt.Fprintf(stderr, "pair: %v\n", &LaunchRefusal{Code: NativeBindingChanged, Diagnostic: "required Couch resume no longer resolves to a create boundary"})
+			return launchStep{code: 1}, nil
+		}
 	}
 
 	switch decision.Action {

@@ -21,7 +21,13 @@ type LaunchArgs struct {
 	// exact native root at launch and may never fall back to a fresh session.
 	ResumeRequired    bool
 	RequiredSessionID string
-	Layout            LayoutRequest
+	// ReattachSession is the resume authority's OTHER mode: reattach to this
+	// live zellij session by name. A detached thread's agent is still running,
+	// so there is nothing to reconstruct and no native id to prove -- the
+	// session name is the whole proof. Exactly one of RequiredSessionID and
+	// ReattachSession is set when ResumeRequired.
+	ReattachSession string
+	Layout          LayoutRequest
 
 	// rename (#99 M5b): `pair rename [--restart-check] <old> <new>`. Raw tags —
 	// validated exactly + gated in runRename so it owns operator-facing messages.

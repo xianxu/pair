@@ -62,6 +62,10 @@ type ResumeEligibilityInput struct {
 	// detached rather than parked -- a detached thread has no verified park to
 	// point at, because nothing was torn down.
 	Detached bool
+	// DetachedSession is the name of that surviving session, and it is the
+	// whole reattach proof: the agent never died, so there is no native id to
+	// verify, only a session to rejoin.
+	DetachedSession string
 }
 
 type ResumeEligibility struct {
@@ -69,6 +73,9 @@ type ResumeEligibility struct {
 	WorkingPath       string
 	Profile           LaunchProfile
 	RequiredSessionID string
+	// ReattachSession is set instead of RequiredSessionID when the thread was
+	// detached. Exactly one of the two is ever non-empty.
+	ReattachSession string
 }
 
 func DecideResume(input ResumeEligibilityInput) (ResumeEligibility, error) {
@@ -120,6 +127,15 @@ func DecideResume(input ResumeEligibilityInput) (ResumeEligibility, error) {
 	}
 	if code := bindingResumeDiagnostic(input.Binding); code != "" {
 		return ResumeEligibility{}, refuseResume(code, "native session binding is not one exact established root")
+	}
+	if input.Detached {
+		if input.DetachedSession == "" {
+			return ResumeEligibility{}, refuseResume(ResumeBindingUnbound, "detached thread has no session name to reattach to")
+		}
+		return ResumeEligibility{
+			Address: record.Address, WorkingPath: record.WorkingPath,
+			Profile: profile, ReattachSession: input.DetachedSession,
+		}, nil
 	}
 	return ResumeEligibility{
 		Address: record.Address, WorkingPath: record.WorkingPath,
@@ -218,6 +234,7 @@ func (c *Couch) ResumeContext(ctx context.Context, address ThreadAddress) (Actor
 	// that survival is the authority. Ask only when it could matter, so an
 	// ordinary parked resume costs no extra observation.
 	detached := false
+	detachedSession := ""
 	if thread.VerifiedPark == nil {
 		if resolver, ok := c.Artifacts.(DetachedSessionResolver); ok {
 			observed, observeErr := resolver.DetachedSessions(ctx, []DetachedCandidate{{
@@ -226,11 +243,14 @@ func (c *Couch) ResumeContext(ctx context.Context, address ThreadAddress) (Actor
 			if observeErr != nil {
 				return ActorRecord{}, nil, fmt.Errorf("observe detached session for %+v: %w", address, observeErr)
 			}
-			detached = len(observed) == 1 && observed[0].Address == address
+			if len(observed) == 1 && observed[0].Address == address {
+				detached, detachedSession = true, observed[0].SessionName
+			}
 		}
 	}
 	eligible, err := DecideResume(ResumeEligibilityInput{
-		Thread: thread, WorkingPathExists: pathExists, Binding: binding, Detached: detached,
+		Thread: thread, WorkingPathExists: pathExists, Binding: binding,
+		Detached: detached, DetachedSession: detachedSession,
 	})
 	if err != nil {
 		return ActorRecord{}, nil, err
@@ -270,12 +290,25 @@ func (c *Couch) ResumeContext(ctx context.Context, address ThreadAddress) (Actor
 	if err != nil {
 		return ActorRecord{}, nil, errors.Join(err, c.rollbackTrackedStart(thread, nonce))
 	}
-	if err := launcher.RequireNativeResumeBinding(eligible.RequiredSessionID, currentBinding.NativeID, currentBinding.Status); err != nil {
-		return ActorRecord{}, nil, errors.Join(err, c.rollbackTrackedStart(thread, nonce))
+	// Only a RECONSTRUCT needs the native binding to have held: it is about to
+	// rebuild a conversation from that id, so a replacement in this window is a
+	// refusal. A reattach rejoins a session that never died, so there is no id
+	// to have changed -- and requiring one here is what made every detached
+	// thread unreattachable. Its equivalent guard is the session-name equality
+	// in createflow's resume-boundary check.
+	var profileRaw string
+	if eligible.ReattachSession != "" {
+		profileRaw, err = launcher.BuildCouchReattachLaunchProfile(
+			string(address.Tag), eligible.Profile.Agent, eligible.Profile.Argv, eligible.ReattachSession,
+		)
+	} else {
+		if err := launcher.RequireNativeResumeBinding(eligible.RequiredSessionID, currentBinding.NativeID, currentBinding.Status); err != nil {
+			return ActorRecord{}, nil, errors.Join(err, c.rollbackTrackedStart(thread, nonce))
+		}
+		profileRaw, err = launcher.BuildCouchResumeLaunchProfile(
+			string(address.Tag), eligible.Profile.Agent, eligible.Profile.Argv, eligible.RequiredSessionID,
+		)
 	}
-	profileRaw, err := launcher.BuildCouchResumeLaunchProfile(
-		string(address.Tag), eligible.Profile.Agent, eligible.Profile.Argv, eligible.RequiredSessionID,
-	)
 	if err != nil {
 		return ActorRecord{}, nil, errors.Join(err, c.rollbackTrackedStart(thread, nonce))
 	}

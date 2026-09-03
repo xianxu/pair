@@ -49,6 +49,7 @@ type TrustedLaunchProfile struct {
 	ArgvSource        string   `json:"argv_source"`
 	ResumeRequired    bool     `json:"resume_required,omitempty"`
 	RequiredSessionID string   `json:"required_session_id,omitempty"`
+	ReattachSession   string   `json:"reattach_session,omitempty"`
 }
 
 func BuildCouchLaunchProfile(tag, agent string, argv []string, agentSource, argvSource string) (string, error) {
@@ -71,11 +72,25 @@ func BuildCouchLaunchProfile(tag, agent string, argv []string, agentSource, argv
 	return buf.String(), nil
 }
 
+// BuildCouchReattachLaunchProfile is BuildCouchResumeLaunchProfile's twin for a
+// DETACHED thread: its zellij session is alive with no client, so the launch
+// reattaches to that session by name instead of reconstructing a conversation
+// from a native id. Same trusted-profile machinery, different authority.
+func BuildCouchReattachLaunchProfile(tag, agent string, argv []string, sessionName string) (string, error) {
+	return buildCouchSavedProfile(TrustedLaunchProfile{
+		SchemaVersion: 1, Tag: tag, Agent: agent, Argv: append([]string(nil), argv...),
+		AgentSource: "saved", ArgvSource: "saved", ResumeRequired: true, ReattachSession: sessionName,
+	})
+}
+
 func BuildCouchResumeLaunchProfile(tag, agent string, argv []string, requiredSessionID string) (string, error) {
-	profile := TrustedLaunchProfile{
+	return buildCouchSavedProfile(TrustedLaunchProfile{
 		SchemaVersion: 1, Tag: tag, Agent: agent, Argv: append([]string(nil), argv...),
 		AgentSource: "saved", ArgvSource: "saved", ResumeRequired: true, RequiredSessionID: requiredSessionID,
-	}
+	})
+}
+
+func buildCouchSavedProfile(profile TrustedLaunchProfile) (string, error) {
 	if profile.Argv == nil {
 		profile.Argv = []string{}
 	}
@@ -105,8 +120,16 @@ func ValidateTrustedLaunchProfile(profile TrustedLaunchProfile) error {
 		return fmt.Errorf("couch launch profile has null argv")
 	}
 	if profile.ResumeRequired {
-		if profile.RequiredSessionID == "" {
-			return fmt.Errorf("resume-required couch launch profile has no required session ID")
+		// Exactly one mode. Reconstruct proves a native session id; reattach
+		// proves a live session NAME and needs no native id, because the agent
+		// never died. Allowing both would let a caller assert two different
+		// recoveries at once; allowing neither is the old "resume-required with
+		// nothing to resume onto".
+		switch {
+		case profile.RequiredSessionID == "" && profile.ReattachSession == "":
+			return fmt.Errorf("resume-required couch launch profile has neither a required session ID nor a reattach session")
+		case profile.RequiredSessionID != "" && profile.ReattachSession != "":
+			return fmt.Errorf("resume-required couch launch profile carries both a required session ID and a reattach session")
 		}
 		if profile.AgentSource != "saved" || profile.ArgvSource != "saved" {
 			return fmt.Errorf("resume-required couch launch profile requires saved agent and argv sources")
@@ -115,6 +138,9 @@ func ValidateTrustedLaunchProfile(profile TrustedLaunchProfile) error {
 	}
 	if profile.RequiredSessionID != "" {
 		return fmt.Errorf("ordinary couch launch profile carries a required session ID")
+	}
+	if profile.ReattachSession != "" {
+		return fmt.Errorf("ordinary couch launch profile carries a reattach session")
 	}
 	switch profile.AgentSource {
 	case "explicit", "path", "root":
@@ -152,6 +178,7 @@ func ApplyCouchLaunchProfile(args LaunchArgs, raw string) (LaunchArgs, string, e
 	args.AgentArgsFromCouch = true
 	args.ResumeRequired = profile.ResumeRequired
 	args.RequiredSessionID = profile.RequiredSessionID
+	args.ReattachSession = profile.ReattachSession
 	return args, profile.ArgvSource, nil
 }
 
