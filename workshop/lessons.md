@@ -2997,3 +2997,29 @@ that a key token appears cannot detect a contradictory behavioral sentence
   findings past a round cap and says no later gate picks them up, that is a
   statement about enforcement, not about correctness — read them and decide on
   the merits.
+- Before deleting a field from a type that IS an on-disk schema, enumerate the
+  keys in the live store. Strict decoding turns a removed field into an
+  undecodable artifact, and reasoning from the Go types cannot tell you which
+  fields real data still carries. Measure, then leave a decode-only tombstone
+  for anything present. Rank the blast radius too: a bad record loses one row,
+  a bad *manifest* or index loses everything at once, so an envelope deserves
+  its own guard, not a shared one.
+- "Absent from the one store I measured" is not "absent". When the cost of
+  being wrong is total and the cost of the guard is one line, keep the guard.
+- After retargeting a test off deleted surface, mutate the thing it now claims
+  to pin and confirm it reddens. A retarget that compiles and passes has proved
+  only that it compiles: three of this sweep's needed a second attempt, and one
+  was still satisfiable by a file the crashed run had already written.
+- A hardcoded fixture identity can make an assertion vacuous without ever
+  failing. A test that looked up a hardcoded address got ErrThreadNotFound
+  because that address was never allocated — so it "passed" while asserting the
+  exact opposite of the real behaviour, for as long as the identity stayed
+  stale. Assert over the collection when you can; a whole-snapshot assertion
+  cannot miss its own subject.
+- Deleting dead code is a good way to find live bugs. The redundant thing is
+  often the only thing holding several call sites to one contract; when it
+  goes, notice whether they were each restating that contract by hand, and give
+  it one owner instead (ARCH-DRY).
+- Deleting a subsystem is not done when the code compiles. Grep the Makefile,
+  CI workflows, and the atlas for the target and the vocabulary — a workflow
+  invoking a make target you removed fails on its next run, not on yours.

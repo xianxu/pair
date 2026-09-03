@@ -191,11 +191,12 @@ gate `#147` and `#148` respectively; `#145` and `#146` do not depend on them.
 - [x] switch rule and key layer [pair#170 M1]
 - [x] detach, and detached threads that reattach [pair#170 M2]
 - [x] start or resume in a folder [pair#170 M3]
+- [x] delete the machinery the rescope orphans [pair#170 M4]
 
 <a id="pair-170"></a>
 ### pair#170 — rescope to couch-lite
 **est:** 10.69
-**status:** in progress — M1–M3 closed; plan at `workshop/plans/000170-rescope-couch-to-couch-lite-plan.md`
+**status:** in progress — M1–M4 closed; plan at `workshop/plans/000170-rescope-couch-to-couch-lite-plan.md`
 **started:** 2026-09-02
 
 Narrows couch to a switcher over a group of live coding sessions whose unit is a
@@ -899,6 +900,54 @@ The crashed-couch case is explicitly **not** solved here — `pair#171` owns it.
 Conflating a crash with a clean exit is the exact fail-closed weakening the
 projector refused to make.
 
+<a id="pair-170-m4"></a>
+### pair#170 M4 — delete the machinery the rescope orphans
+
+**est:** 10.69
+**actual:** measured at close
+**closed:** 2026-09-02
+
+Fleet admission and its cross-repo `sdlc fleet policy` provider, the start-grant
+capability table, the legacy registry cutover, the never-instantiated actor
+loop, and the registry-era dead surface. The razor was the issue's own:
+machinery that exists only to defend multi-owner or multi-host cases. Applied
+honestly it deleted less than the framing suggested — the supervisor lease, park
+transaction, write-ahead journal and start transaction all defend *single-host*
+failures and stayed, each with its reason written down.
+
+The sweep's real content was not the deletions. Three things it surfaced:
+
+**Two persisted schemas would have been bricked.** `threadrecord.Record` and the
+store manifest ARE the on-disk format and are decoded with
+`DisallowUnknownFields`, so removing a field makes every artifact still carrying
+it undecodable. Measured against the operator's live store rather than reasoned
+from the Go types: `claim_generation` in 17/17 records, `policy` in 5/5
+incarnations, `legacy_cutover` and `legacy_migration_version` in the manifest.
+The manifest is the worse half — a bad record loses one thread, a bad manifest
+loses the whole store, because nothing can be listed, resumed or reattached at
+all. All became decode-only tombstones with fixtures copied from real data, and
+both guards were mutation-checked.
+
+**A dead-code deletion exposed a live bug.** The start-grant token was genuinely
+redundant, but removing it revealed that three call sites each rebuilt "the
+arguments that reproduce this resolution" by hand. Getting it wrong is silent:
+passing the resolved agent where the operator requested none changes
+`AgentSource`, so the commit re-resolves to a different fingerprint and refuses a
+drift that never happened. `StartResolution.CommitArgs` owns it now.
+
+**Two tests were passing vacuously.** The post-acknowledgement cancellation test
+asserted a hardcoded address that was never the one allocated, and asserted the
+*opposite* of the correct behaviour — registration is established, so
+occupied-or-proven-free keeps the record rather than deleting it. The entropy
+shift from another deletion is what exposed it. A retargeted journal test had the
+same defect and needed a second attempt before it reddened under mutation.
+
+Tests were retargeted rather than deleted wherever they pinned surviving
+behaviour; `IsLive` folded Unknown into false, so asserting `Liveness` directly
+made the recycled-PID test stronger on its way out. One finding was recorded and
+deliberately not acted on: the worktree `NamingTable` looks dead too, but cutting
+it is wider than this sweep.
+
 <a id="pair-170-m3"></a>
 ### pair#170 M3 — start or resume in a folder
 
@@ -944,6 +993,7 @@ Both acceptance tests run through production interactive routing to initial
 Console attach, and the reattach one is mutation-verified: narrowing the selector
 back to parked-only reddens it.
 
+[pair#170 M4]: #pair-170-m4
 [pair#170 M3]: #pair-170-m3
 [pair#170 M2]: #pair-170-m2
 [pair#170 M1]: #pair-170-m1
