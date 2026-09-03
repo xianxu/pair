@@ -924,11 +924,21 @@ Preferring warm over cold is a ranking policy, and #167 established that this
 selector has none; #170 did not quietly add one. Recorded as a Revisions note on
 #167's archived plan rather than by editing what it said it delivered.
 
-The subtle part was paths, not states. The selector compares by exact string, and
-M2 had physicalized only parked candidates — so an alias path would have matched a
-parked row and missed an identical detached one, a bug visible only on a symlinked
-checkout. Both kinds are now resolved alike, proved end to end rather than by
-reading.
+The subtle part was proof, not code. The path physicalization M3's commit first
+narrated as its own discovery had actually shipped at M2, where that review asked
+for it; what M3 added is the alias-path test that pins it. Corrected here after
+the M3 review caught the misattribution — a record that credits the wrong
+milestone makes the next reader look for a change that is not in the window.
+
+What M3 got genuinely wrong was the binding gate. Startup has no fallback by
+design, so a row the inventory OFFERS must be one resume can take — and the
+detached branch appended candidates before resolving the native binding that
+parked rows were already gated on. A thread whose agent session data had been
+pruned or raced was auto-selected and `couch` exited 1 with no way through, in
+the tree the operator was standing in, for what M2 had just made the normal
+resting state. Caught at the boundary as Critical, fixed as one gate for both
+kinds, and pinned by the couchcore-level test whose absence was the reason
+nothing caught it.
 
 Both acceptance tests run through production interactive routing to initial
 Console attach, and the reattach one is mutation-verified: narrowing the selector

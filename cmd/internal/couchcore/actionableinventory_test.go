@@ -534,6 +534,9 @@ func TestActionableInventoryPhysicalizesDetachedRowsLikeParkedOnes(t *testing.T)
 
 	artifacts := NewFakeThreadArtifactCollisionChecker()
 	artifacts.SetDetachedSession(created.Address, "pair-one")
+	// A detached row must clear the same native-binding gate a parked one does,
+	// or startup would offer a row resume cannot take.
+	artifacts.SetNativeBinding(created.Address, "claude", sessioninventory.BindingEstablished, "native-root-1")
 	couch := &Couch{
 		Threads:   store,
 		Artifacts: artifacts,

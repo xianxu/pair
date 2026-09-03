@@ -233,15 +233,24 @@ func (c *Couch) ActionableThreadInventoryContext(ctx context.Context, observatio
 		}
 		snapshot.Records[i].WorkingPath = physicalPath
 
-		if record.VerifiedPark == nil {
-			detachedCandidates = append(detachedCandidates, record.Address)
-			continue
-		}
+		// The native-binding gate applies to BOTH resumable kinds, not just the
+		// parked one. Startup has no fallback by design -- a Resume refusal
+		// stops it rather than starting something new -- so a row the inventory
+		// offers must be one resume can actually take. Gating parked rows and
+		// not detached ones meant a thread whose agent session data was pruned,
+		// rotated or raced was auto-selected and killed `couch` in that tree,
+		// with detached being the NORMAL resting state since leave stopped
+		// parking. Same rule actionableThreadState states for itself: a row
+		// that cannot work must not be offered.
 		if resolver == nil {
 			continue
 		}
 		binding, resolveErr := resolver.ResolveEstablished(ctx, record.Address.RepoScope, string(record.Address.Tag), agent)
 		if resolveErr != nil || bindingResumeDiagnostic(binding) != "" {
+			continue
+		}
+		if record.VerifiedPark == nil {
+			detachedCandidates = append(detachedCandidates, record.Address)
 			continue
 		}
 		resumable = append(resumable, ParkedResumeObservation{Address: record.Address, Agent: agent, NativeID: binding.NativeID})

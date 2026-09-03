@@ -6,6 +6,7 @@ import (
 	"time"
 
 	"github.com/xianxu/pair/cmd/internal/launcher"
+	"github.com/xianxu/pair/cmd/internal/sessioninventory"
 )
 
 func TestProjectDetachedSessions(t *testing.T) {
@@ -127,6 +128,7 @@ func TestActionableInventoryAsksOnlyAboutDetachCandidates(t *testing.T) {
 	}
 
 	candidate := newRecord("couch-0000000000000001", func(*ThreadRecord) {})
+	artifactsBinding := candidate
 	// Occupied: it has an incarnation, so it cannot be detached.
 	newRecord("couch-0000000000000002", func(r *ThreadRecord) {
 		r.Incarnations = []ThreadIncarnation{{State: IncarnationLive, PID: 5, Identity: "id-5", StartedAt: time.Unix(2, 0).UTC()}}
@@ -135,6 +137,9 @@ func TestActionableInventoryAsksOnlyAboutDetachCandidates(t *testing.T) {
 	newRecord("couch-0000000000000003", func(r *ThreadRecord) { r.LatestLaunchProfile = nil })
 
 	artifacts := NewFakeThreadArtifactCollisionChecker()
+	// Candidates must also clear the native-binding gate; without it the
+	// inventory skips them before ever asking about sessions.
+	artifacts.SetNativeBinding(artifactsBinding, "claude", sessioninventory.BindingEstablished, "native-root-1")
 	var asked [][]ThreadAddress
 	artifacts.DetachedSessionsHook = func(addresses []ThreadAddress) error {
 		asked = append(asked, addresses)

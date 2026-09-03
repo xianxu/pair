@@ -533,3 +533,29 @@ reddens `TestConsoleRunNotificationHopThenPreviousReturnsHome` (previous becomes
 c2 instead of c1), and deleting `Run`'s `case HitPrevious` arm reddens it by
 timeout. Both were run and reverted, so the tests are known to pin the seams
 rather than merely to pass beside them.
+
+### 2026-09-02 — M3 startup envelope, measured
+
+The M3 review was right that the "unchanged from #167" envelope claim was stale.
+Measured on this host (19 zellij sessions, 6 exited, 13 live):
+
+- `ZellijSource.Snapshot`: **1.49 s** (`BenchmarkZellijSnapshotLive`, 5 runs).
+- Breakdown: two `list-sessions` runs at ~16 ms, plus one
+  `action list-clients` per **live** session at ~100 ms each, serially —
+  13 × ~110 ms = 1.43 s, which accounts for essentially all of it.
+
+Where that lands:
+
+- **Startup: blocking.** `StartInteractive` must decide resume-vs-new before it
+  attaches anything, so a detach candidate adds ~1.4 s before the first frame.
+  M2 made detached the normal resting state, so this is the ordinary case, not
+  the edge one.
+- **Switcher open: not blocking.** Refreshes are event-driven (no ticker) and
+  run on the single-flight worker while the menu renders its last-good
+  projection, so the 50 ms open and 16 ms keystroke budgets are unaffected; the
+  rows simply converge ~1.4 s later.
+
+The per-session queries are independent, so this is bounded fan-out away from
+~150 ms. That is a contained change but outside M3's scope, so it is filed
+rather than absorbed — expanding a milestone to fix what its review measured is
+how boundaries stop meaning anything.

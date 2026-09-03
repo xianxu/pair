@@ -182,3 +182,71 @@ func seedStartupParked(t *testing.T, env *testEnv, tag ThreadTag, path string) T
 	env.Artifacts.SetNativeBinding(created.Address, "claude", sessioninventory.BindingEstablished, "native-"+string(tag))
 	return created
 }
+
+// The invariant #167's no-fallback startup rule rests on: a row the inventory
+// OFFERS must be one resume can actually take. Startup has no fallback by
+// design -- a Resume refusal stops it rather than creating a thread -- so
+// offering a row that cannot resume does not degrade to "start something new",
+// it kills `couch` in that tree.
+//
+// Detached rows must therefore clear the same native-binding gate parked rows
+// already do. Without it a thread whose agent session data was pruned, rotated
+// or raced is auto-selected and startup exits 1 with no way through -- and M2
+// made detached the NORMAL resting state, so that is the ordinary row at the
+// operator's own path.
+func TestStartInteractiveSkipsDetachedRowsWithoutAResumableBinding(t *testing.T) {
+	for _, test := range []struct {
+		name    string
+		binding func(*testEnv, ThreadAddress)
+		want    bool
+	}{
+		{
+			name: "established binding is resumable",
+			binding: func(env *testEnv, a ThreadAddress) {
+				env.Artifacts.SetNativeBinding(a, "claude", sessioninventory.BindingEstablished, "native-root-1")
+			},
+			want: true,
+		},
+		{
+			name:    "no binding at all",
+			binding: func(*testEnv, ThreadAddress) {},
+		},
+		{
+			name: "ambiguous binding",
+			binding: func(env *testEnv, a ThreadAddress) {
+				env.Artifacts.SetNativeBinding(a, "claude", sessioninventory.BindingAmbiguous, "native-root-1")
+			},
+		},
+		{
+			name: "provisional binding",
+			binding: func(env *testEnv, a ThreadAddress) {
+				env.Artifacts.SetNativeBinding(a, "claude", sessioninventory.BindingProvisional, "native-root-1")
+			},
+		},
+	} {
+		t.Run(test.name, func(t *testing.T) {
+			env := newTestEnv(t, "/repo")
+			profile := LaunchProfile{Agent: "claude", Argv: []string{}}
+			record := validThreadRecord(t)
+			record.StartingPath, record.WorkingPath = "/repo", "/repo"
+			record.Reservation = false
+			record.LatestLaunchProfile = &profile
+			created, err := env.Couch.Threads.CreateThread(record)
+			if err != nil {
+				t.Fatal(err)
+			}
+			env.Artifacts.SetDetachedSession(created.Address, "pair-"+string(created.Address.Tag))
+			test.binding(env, created.Address)
+
+			rows, err := env.Couch.ActionableThreadInventoryContext(context.Background(), nil)
+			if err != nil {
+				t.Fatal(err)
+			}
+			_, selected := SelectUniqueResumableRoot(rows, created.Address.RepoScope, "/repo")
+			if selected != test.want {
+				t.Fatalf("row offered for selection = %v, want %v (rows = %+v) -- an offered row must be resumable",
+					selected, test.want, rows)
+			}
+		})
+	}
+}

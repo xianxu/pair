@@ -305,7 +305,7 @@ it would leave Couch with a dead child and a stale incarnation, and the thread
 would vanish from the switcher.
 
 A TUI startup that creates a new root allocates a distinct opaque durable
-thread; automatic unique resume reuses the parked thread instead. New-thread
+thread; automatic unique resume reuses the resumable thread instead. New-thread
 admission comes from the repository's normalized Ariadne fleet policy (`sdlc
 fleet policy`): a bounded key refuses when occupied, while an unbounded path
 admits concurrent threads. A `provision-worktree` policy returns a typed
@@ -358,8 +358,10 @@ home, and there is nowhere to bounce to.
 
 Printable input filters the current list from memory. Use `↑↓` and `Enter` to
 select and switch/resume; `Tab` or `Right` opens the selected thread's actions,
-while `Left` or `Escape` restores its parent. Rows expose only proven `live` and
-exact verified `parked` states. `Alt+x` quits what you are looking at: on an
+while `Left` or `Escape` restores its parent. Rows expose only proven `live`, exact
+verified `parked`, and proved `detached` states — and a row is offered only when
+it can actually be acted on, so an offered detached row is one `Enter`
+reattaches. `Alt+x` quits what you are looking at: on an
 actor it parks that actor, and on couch's own switcher it confirms **Leave
 Couch** — which now **detaches** every thread rather than parking them, so
 quitting couch never kills a running agent. `Alt+d` detaches the attached
