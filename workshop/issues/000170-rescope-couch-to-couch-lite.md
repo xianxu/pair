@@ -98,6 +98,49 @@ Consequences, all derived rather than special-cased:
 
 An actor does not notify while the operator is attached to it.
 
+
+### Detach must never strand a thread
+
+`alt+d` is reachable, so the state it produces must be reachable back. Today it
+is not: a detached thread whose native binding is incomplete appears **nowhere**
+in the switcher, and the only way back in is `zellij attach '<session>'` from
+outside couch.
+
+Reproduced 2026-09-03, thread `couch-8d1a4da0f9fe730d`:
+
+- record has no incarnation (detach cleared it) and no `verified_park` (detach
+  destroys nothing, so it correctly writes none) — so it is neither `live` nor
+  `parked`, the only two states `ActionableThreadInventory` emits;
+- `📁pair-couch-24` is alive with no client, and `session-names.jsonl` maps it
+  to the thread correctly;
+- its ledger holds `launch × 1` and **zero `binding` records** (a healthy
+  thread has `binding × 2`), so there is no `NativeID`;
+- `ProjectDetachedSessions` requires Agent **and** NativeID to emit a complete
+  observation, so it emits none, and the row never appears.
+
+The trigger is ordinary, not a crash: two candidate claude transcripts appeared
+at startup (`c7245bc1`, `b36b9e12`), and round-gated identity discovery refuses
+to rank or guess between roots, so it bound neither.
+
+**The gating looks wrong on its own terms.** A detached row's Enter is a
+*reattach to a live zellij session by name* — the conversation is already loaded
+in the running session. `NativeID` is the proof needed to **resume a parked**
+thread, where the process is gone and must be reconstructed. Requiring
+native-resume proof for a reattach imports a precondition from the wrong
+operation. `ProjectDetachedSessions`'s own comment says `SessionDetached` is
+"exactly the state an `alt+d` leaves behind and exactly what `pair resume`
+reattaches onto" — and that reattach needs the session name, which the index
+has.
+
+So: **gate the detached row on the session-name binding, not on the resume
+proof.** The fail-closed cases the comment defends (two addresses bound to one
+session name; two zellij rows sharing a name) are genuine ambiguities about
+*which session* and must still refuse. A missing `NativeID` is not that.
+
+**Invariant to hold, whichever way the gating lands:** if a detached thread
+cannot be offered a row, `detach` must refuse rather than produce the state. A
+reachable operation must not create an unreachable one.
+
 ### Keys
 
 - **`ctrl-space` = switcher, and nothing else.** It no longer means "up one
@@ -165,6 +208,11 @@ pair's `ChordAltX` as `seqPark` (`couchtty/keys.go:69-75`). pair already binds
   N1 -> N2 -> manual-detour sequence.
 - `ctrl+backspace` is recognised in both encodings, including inside couch's
   own panel.
+- A detached thread always appears in the switcher and Enter reattaches it,
+  **including when no native binding was ever written** — asserted with a
+  thread whose ledger has zero `binding` records.
+- Where a detached row genuinely cannot be offered (ambiguous session name),
+  `detach` refuses instead of producing an unreachable thread.
 - `workshop/projects/couch.md` carries a scope event recording the rescope, and
   #147, #148 and #153 are dispositioned against it.
 
@@ -417,3 +465,10 @@ the session-name index is per repo scope; and the switcher's envelope claim was
 wrong — `ZellijSource.Snapshot` spawns 2 + N subprocesses
 (`launcher/zellij.go:15-41`), now bounded to detach *candidates* with a
 measurement step before M2 closes.
+
+### 2026-09-03
+
+Detach strands a thread with no native binding — full evidence in the new
+*Detach must never strand a thread* section above. Found from the operator
+detaching a live pair thread and finding no row to reattach to; recovered with
+`zellij attach '📁pair-couch-24'` outside couch.
