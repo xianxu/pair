@@ -325,7 +325,7 @@ Four review boundaries; each is independently operable.
       `leave couch` detaches every thread instead of parking them.
 - [x] M3 — Start or resume in a folder. `SelectUniqueParkedRoot` widens to
       `SelectUniqueResumableRoot` over parked *or* detached rows.
-- [ ] M4 — Delete the machinery the rescope orphans: admission + the fleet
+- [x] M4 — Delete the machinery the rescope orphans: admission + the fleet
       policy provider, start grants, legacy migration, the never-instantiated
       actor loop, and the dead registry-era surface. Atlas and project file
       updated; operator smoke on the real stack.
@@ -578,3 +578,61 @@ Caught before writing any deletion code, by enumerating the actual keys in the
 live store rather than reasoning from the Go types. Approach recorded in the plan
 Revisions: the removed fields become decode-only tombstones in `threadrecord`,
 so old records keep decoding and shed the fields on their next write.
+
+### 2026-09-02 — the manifest was the worse half of the same hazard
+
+The tombstone finding above covered thread *records*. Applying the same
+measurement to D3 found the sharper case: the store **manifest** carries
+`legacy_cutover: true` and `legacy_migration_version: 1`, and it is decoded by
+the same strict path. A bad record loses one thread; a bad manifest loses the
+whole store, because `loadManifestLocked` fails and nothing can be listed,
+resumed or reattached at all.
+
+Same remedy, separate guard: `TestPreM4ManifestStillLoads` in `couchcore`,
+fixtured from the operator's real manifest. Both guards were mutation-checked
+by deleting the tombstone field and confirming the test reddens.
+
+`legacy_actor_id` got a tombstone too even though the live store has none left
+(the cutover records it named were parked, which clears incarnations). "Absent
+from the one store I measured" is not "absent", and the cost of being wrong is
+the store.
+
+### 2026-09-02 — two tests were passing vacuously
+
+`TestTrackedLaunchCancellationAfterAcknowledgementReapsAndRollsBack` asserted
+`ErrThreadNotFound` at a **hardcoded** address that was never the address
+actually allocated, so it proved nothing. D2 shifted the entropy the tag derives
+from, the address collided with the real record, and the vacuum showed. The true
+behaviour is the correct opposite of the test's name: after acknowledgement the
+target has executed and Pair has registered, so occupied-or-proven-free keeps
+the record as an `unknown` incarnation rather than deleting it. Renamed, and now
+asserted over the whole snapshot so it cannot go vacuous again.
+
+The journal test retargeted off `CutoverLegacyActors` had the same problem in
+its first form: it still passed with `withLock`'s recovery removed, because the
+interrupted record's file was already on disk and the next commit clears the
+journal either way. Manifest membership is the only assertion that separates
+recovery from coincidence.
+
+Rule for the sweep, applied from here on: after retargeting a test off deleted
+surface, mutate the thing it now claims to pin and confirm it reddens. Three of
+the retargets needed a second attempt.
+
+### 2026-09-02 — D2 was a dead-code deletion that surfaced a live bug
+
+The start-grant token was genuinely redundant (in-process, single-owner). But
+removing it exposed that three call sites each rebuilt "the arguments that
+reproduce this resolution" by hand, and getting it wrong is silent: passing the
+*resolved* agent where the operator requested none changes `AgentSource`, so the
+commit re-resolves to a different fingerprint and fails with
+`ErrStartResolutionChanged` — a drift error for a drift that never happened.
+`StartResolution.CommitArgs` now owns that contract (`ARCH-DRY`), and
+`MenuFrame` holds the resolution itself instead of a seven-field copy of it.
+
+### 2026-09-02 — M4 deletion sweep complete
+
+D1–D5 landed in five commits. `make test` exits 0. Full detail in the plan's
+`## Revisions`. One finding deliberately **not** acted on: the worktree
+`NamingTable` looks dead too (live registry has `"names": {}`, no production
+writer survives D5), but cutting it is wider than this sweep — left as a
+follow-up.

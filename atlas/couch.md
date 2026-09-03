@@ -15,14 +15,15 @@ the pty console, actor panel, notices, and complete local lifecycle shipped in
 The absolute physical `COUCH_STORE_DIR` is one durable namespace. One Couch
 supervisor owns it through a non-inherited advisory lease; another supervisor
 refuses with verified PID/process-start identity. `couchcore.ThreadStore` is
-the mutable authority for composite thread records and admission incumbency,
-using one global store lock, revision-checked record updates, and a recoverable
-write-ahead journal for membership or multi-record changes.
+the mutable authority for composite thread records, using one global store
+lock, revision-checked record updates, and a recoverable write-ahead journal
+for membership or multi-record changes.
 
 `registry.json` remains as a transitional live-handle cache for the shipped
-console. It is not an admission, metadata, or display authority. On first load,
-Couch journal-imports its actors into ThreadStore as conservative unknown
-legacy incarnations and marks the cutover. CLI diagnostics read the raw
+console. It is not a metadata or display authority. The one-time journal import
+of its actors into ThreadStore went with `pair#170` M4: every store that needed
+it was cut over years of commits ago, and the manifest keys that recorded the
+cutover survive only as decode tombstones. CLI diagnostics read the raw
 one-row-per-composite-thread inventory; the ordinary switcher reads the
 actionable projection described below.
 
@@ -142,16 +143,21 @@ was punted with `pair#147`.
 
 Start is a two-operation owner contract. Agent-facing `prepare-start` resolves
 canonical path, selected agent/argv and provenance, preference revision,
-repository-default digest, and normalized candidate policy into one explicit
-length-delimited fingerprint. It returns a 256-bit raw-URL token from an
-owner-local `StartGrantStore`; at most 16 issued-plus-consuming grants exist,
-unclaimed grants expire after five minutes, collision issuance stops after
-three draws, and consuming grants are never evicted. Tokens are in-memory and
-therefore invalid after owner restart. Root launch and the TUI start form perform
-that operation followed by implicit token-bound `start`; the latter claims the
-grant once, re-resolves and compares evidence, then removes it terminally after
-the attempt. Acquisition of owner authority remains separate from the
-Console/PTY decision.
+repository-default digest, and repository identity into one explicit
+length-delimited fingerprint. `start` then commits by fingerprint: it re-resolves
+from the same inputs the preview used and refuses if the answer moved
+(`ErrStartResolutionChanged`), so an operator never launches a resolution they
+did not see. `StartResolution.CommitArgs` is the single owner of those inputs;
+every caller renders them through it rather than restating the map.
+
+The capability token that used to sit between the two operations went with
+`pair#170` M4. A 256-bit one-shot grant with a TTL and a capacity bound defends
+a prepared start against *another owner*; couch has none, so it only ever
+guarded the start form against itself -- which the form's own armed-submit
+identity already does. At-most-once now lives where the double-submit is, in
+the reducer.
+
+Acquisition of owner authority remains separate from the Console/PTY decision.
 
 **couch hosts `pair` whole.** The stack is couch → pair → zellij → agent+nvim.
 couch starts `pair resume <tag> --layout2` inside a child pty and owns the
@@ -170,7 +176,7 @@ bounded replay ring, the #127 query deny-list, one scanner over its output) and
 resizes, the control constants). See `atlas/architecture.md`, "The terminal
 plumbing is shared with couch".
 
-Public launch requires terminal stdin and stdout before policy, store, lease, or
+Public launch requires terminal stdin and stdout before store, lease, or
 actor work. The stdio runner remains an injected domain seam and live
 conformance target, but is no longer selected by public argv.
 
@@ -425,9 +431,12 @@ Where that lands differs by caller, and both matter:
 
 Resume accepts verified park **or proved detachment**. A detached thread has no
 verified park because nothing was torn down; its authority is the surviving
-session. Both `DecideResume` and `ReconcileResumeAdmission` carry that second
-authority -- the latter runs after the former, so widening only one would list a
-row whose Enter fails. The detached branch is checked BEFORE the `ParkHistory`
+session. Both `DecideResume` (Enter's gate) and
+`ProjectActionableThreads` (the switcher's list) carry that second authority --
+widening only one would list a row whose Enter fails, or hide a row that would
+have worked. A third gate used to sit between them, `ReconcileResumeAdmission`,
+which re-checked fleet capacity before relaunching; it went with admission in
+`pair#170` M4. The detached branch is checked BEFORE the `ParkHistory`
 tombstone scan, which refuses on any tombstoned entry with no break: a thread
 once abandoned mid-park and later detached would otherwise be permanently
 unreattachable. The occupied-incarnation refusal is unchanged, because detach
@@ -445,7 +454,7 @@ effects. Verified park is cleared only after the exact Pair session registers;
 ambiguous execution remains occupied/unknown. TUI Resume, alongside new-thread
 `start`, is a singleton-owner operation: after a later Couch launch the
 switcher resumes that exact thread and makes it the root console. It never
-creates an intervening actor whose admission could block the parked thread
+creates an intervening actor that would occupy the parked thread's address
 (`ARCH-PURPOSE`, `ARCH-PURE`).
 
 Interactive `couch [<repo>]` startup resolves the requested repository scope
@@ -535,13 +544,11 @@ while the other `hostty.Host` consumer, `pair term`, owns lifecycle elsewhere.
 ## Spawning: `pair resume <opaque-tag> --layout2`
 
 Every new start first atomically claims a final composite address
-`{repo_scope, couch-<16 lowercase hex>}`. Couch resolves normalized fleet
-policy before allocation. After the accepted fingerprint, admission receives
-that candidate policy directly rather than reading it again; only stale
-incumbents may invoke the resolver. A different incumbent policy epoch fails
-closed immediately because retrying cannot revise already-accepted candidate
-authority. Admission commits a `creating` incarnation before it forks, so
-capacity, drift, or provider refusal starts no child. The creating record then gains one
+`{repo_scope, couch-<16 lowercase hex>}`. `CommitStartClaim` then performs, in
+one revision-checked write, what admission used to do around its capacity
+decision: clear the reservation, append the `creating` incarnation, and record
+the start claim. It commits before the fork, so a resolution that drifted
+starts no child. The creating record then gains one
 `start-<16 hex>` nonce plus the exact supervisor identity. Couch forks the
 internal `pair-launch-helper`, which cannot exec Pair until Couch durably adds
 the helper's PID/process-start identity and sends one acknowledgement byte over
@@ -604,7 +611,7 @@ Except for matching the scope/tag to establish Pair's reserved address claim,
 Pair treats these Couch-owned values as opaque pass-through context for the
 hosted child: it does not resolve Couch names or paths and never reads or
 mutates Couch's manifest or records.
-Distinct starts at one policy-unbounded path therefore use distinct Pair
+Distinct starts at one path therefore use distinct Pair
 sessions and artifacts. Layout stays pinned to layout2: couch owns terminal
 switching, so layout3's third pane is the layer couch replaces.
 
@@ -645,7 +652,7 @@ resolve a mutable path/name or overwrite operator prose.
 `cmd/internal/threadrecord` owns the persisted Couch record wire schema, strict
 structural validation, and persisted address/generation checks. Couch alone
 reads and mutates those records through ThreadStore. Its inventory, human-name
-and path resolution, metadata edits, admission, and lifecycle transitions all
+and path resolution, metadata edits, and lifecycle transitions all
 stay on that authority; none are projected into standalone Pair.
 
 Pair independently owns exact scoped tag claims, sidecars, ledgers, public
@@ -657,36 +664,33 @@ socket binding; Couch's mutable human thread name or working path never renames
 that socket, decorates Pair's picker, or becomes valid `pair resume` input
 (ARCH-DRY, ARCH-PURPOSE, ARCH-PURE).
 
-## Identity and admission
+## Identity
 
 The durable address is `ThreadAddress{RepoScope, Tag}`. `RepoScope` is Pair's
 existing hidden repository scope; `Tag` is the opaque Pair thread tag. The
-canonical physical requested path is an attribute and admission input, not the
-thread identity, so Brain-style repositories can host several independent
-threads in one directory.
+canonical physical requested path is an attribute, not the thread identity, so
+Brain-style repositories can host several independent threads in one directory.
 
-Admission has one source: Ariadne's versioned `sdlc fleet policy --path P
---json` result. Pair strictly decodes and persists the normalized repo identity,
-admission key, capacity/action, provider version, and declaration digest with
-each occupied incarnation. It never parses declarations or infers policy from
-a repo name. Reconciliation performs provider IO outside the ThreadStore lock,
-then compare-and-swaps the exact cohort snapshot; live, unknown, and creating
-incarnations all count. Client PID evidence never releases capacity because the
-zellij session can outlive that client; #152 owns verified quiescence. Mixed
-policy epochs retry as a cohort and fail closed after three attempts.
+**Admission is gone** (`pair#170` M4). It normalized Ariadne's versioned
+`sdlc fleet policy --path P --json` result into a per-incarnation capacity
+decision, reconciled cohorts under compare-and-swap, and refused starts over
+capacity. Capacity and incumbency across a *fleet* is the multi-owner case
+exactly, and couch-lite is one operator on one host: the whole subsystem, its
+cross-repo provider dependency, its stateful fake and its live conformance
+target went together.
 
-Bounded policy returns either `reject` or the typed `provision-worktree` action;
-#149 never creates the path, and nothing else does either: managed-worktree
-lifecycle was punted with `pair#153`, so a bounded-policy `provision-worktree`
-action is returned to an operator who provisions by hand. Unbounded policy admits
-multiple threads. The former public same-path override and local policy file no
-longer exist. A source-level shadow sweep prevents those parallel authorities
-from returning (ARCH-DRY, ARCH-PURPOSE).
+One field survived it. `advanceSuccessfulStart` keyed the path launch
+preference by the policy record's `repo_identity`, which is just the Git common
+directory -- so `ThreadIncarnation.RepoIdentity` now carries it, resolved
+locally through couch's own `GitRunner` seam. The value is byte-identical, so
+every existing `path-preferences/` file stays readable and the operator's
+per-path agent+argv memory survives the deletion. The old `policy` object
+remains as a decode tombstone.
 
 `Worktree`, `ActorID`, and `registry.json` remain transitional live-console
 data. Working path is a start/display attribute and `ActorID` identifies one
-registry incarnation; neither selects a durable row, decides admission, or
-addresses Pair artifacts.
+registry incarnation; neither selects a durable row or addresses Pair
+artifacts.
 
 ## Seams
 
@@ -698,11 +702,10 @@ enumerated.
 
 The property that matters: each seam has a fake, and the fakes that model
 *behaviour* rather than data are compared against the real thing by
-`conformance_live_test.go`. `PAIR_LIVE_COUCH=1` checks process/git/pty behavior;
-`make test-couch-policy-live SDLC_BIN=/path/to/current/sdlc` checks the stateful
-policy fake and strict consumer against Ariadne's real provider, including a
-policy epoch transition and typed missing-declaration refusal. The latter runs
-on resolver changes plus a weekly/manual workflow. The process check found a
+`conformance_live_test.go`. `PAIR_LIVE_COUCH=1` checks process/git/pty behavior.
+(`make test-couch-policy-live` checked couch's policy consumer against Ariadne's
+real provider; it went with admission in `pair#170` M4, along with the weekly
+workflow that ran it.) The process check found a
 real bug -- `Alive()` reporting a zombie as running -- which no test against the
 fake could have. `TestSessionQuiescenceLive`, run by both `make test-live` and
 the focused `make test-couch-zellij-live`,
@@ -727,33 +730,31 @@ Within one process, `ExecRunner` reaps its children in a background goroutine
 and liveness is a closed channel — **not** `kill -0`, which succeeds for a
 zombie and would report an exited-but-unreaped child as running.
 
-## Actor loop — built, unit-tested, never instantiated
+## The bounded mailbox
 
-`Actor` exists and is tested, but **no command starts one**: `Couch.Spawn`
-launches a child and returns. It was groundwork for `pair#147`, where messages
-between actors would begin to exist. That scope is punted, so this is now
-unreferenced code and a deletion candidate under `pair#170` — kept described
-here only until that plan decides its fate.
+`Enqueue` (`mailbox.go`) is a pure function: collapse by kind, drop the oldest
+non-control entry over capacity, never drop control. `couchtty/notice.go` uses
+it for the exit/bell feed.
 
-The intended shape is one goroutine per actor, holding a bounded mailbox. `Enqueue` is a pure function
-(collapse by kind, drop the oldest non-control entry over capacity, never drop
-control) so the policy is testable without goroutines. The loop drains
-control-first.
+The goroutine loop that used to wrap it (`Actor`) was groundwork for
+`pair#147`, where messages between actors would begin to exist. That scope is
+punted, so the loop was built, unit-tested and never instantiated -- deleted in
+`pair#170` M4. The mailbox stayed, because it has a real consumer.
 
-It is a mutex-guarded queue rather than two channels with a priority select: the
-bounded/collapse policy must apply at insertion, and a buffered channel cannot
-collapse a duplicate already in it. Queries are direct calls behind the same
-mutex — Go shares memory, so message passing here buys ordering and decoupling,
-not fidelity to Erlang.
+Its shape is worth keeping on record: a mutex-guarded queue rather than two
+channels with a priority select, because the bounded/collapse policy must apply
+at insertion and a buffered channel cannot collapse a duplicate already in it.
+That is exactly why `Enqueue` is pure and survived on its own.
 
 ## Terminology
 
 - **namespace** — one canonical physical Couch store and its single live
   supervisor lease.
 - **thread** — one durable composite `{repo_scope, opaque tag}` record.
-- **path** — canonical starting/working location and policy input; not identity.
+- **path** — canonical starting/working location; not identity.
 - **incarnation** — one creating/live/unknown run attached to a thread, with
-  verified process identity and normalized policy evidence.
+  verified process identity and the repository identity that keys its saved
+  launch preference.
 - **actor / ActorID** — a hosted child/cache identity; routing and notices use
   it, while every switcher action uses the durable thread address.
 - **parked thread** — a durable thread with an exact verified resume handle and

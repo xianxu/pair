@@ -12,7 +12,7 @@ The whole thing is deliberately small — a handful of shell scripts, one nvim i
 
 `pairlifecycle` owns versioned quit requests/completions and the one ordered
 cleanup reducer used by direct Pair Alt+x and Couch Park. `couchcore` owns the
-ThreadStore transaction and admission decision; `launcher` owns the exact Pair
+ThreadStore transaction; `launcher` owns the exact Pair
 marker/native-session re-entry checks; `couchtty` owns only confirmation,
 bounded enqueueing, and presentation. Prepared/committed files use a stable
 advisory lock and immutable publication. A successful completion is the shared

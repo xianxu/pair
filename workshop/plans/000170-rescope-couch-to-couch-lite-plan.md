@@ -821,3 +821,64 @@ machinery (D3) while adding a compatibility tombstone. They are not the same
 thing. D3's machinery was a *one-shot cutover pass* that has been a no-op since
 it ran; a tombstone is a permanent statement that a field may appear in old data
 and means nothing — cheaper, and it cannot fail halfway.
+
+## Revisions
+
+### 2026-09-02 — M4 deletion sweep executed (D1–D5)
+
+Reason: recording what the sweep actually found, since three items diverged
+from the plan's predictions and two were caught only by measuring first.
+
+Delta:
+
+- **D1/D3 needed tombstones the plan did not anticipate.** The plan treated
+  removing `ThreadIncarnation.Policy` and the manifest's `LegacyCutover` /
+  `LegacyMigrationVersion` as pure deletions. Both persisted schemas are
+  decoded with `DisallowUnknownFields`, and both keys are in the operator's
+  live store — measured, not assumed: `claim_generation` in 17/17 records,
+  `policy` in 5/5 incarnations, `legacy_cutover` and
+  `legacy_migration_version` in the manifest. Deleting them outright makes
+  records undecodable, and for the *manifest* that is not one lost thread but
+  the whole store (`loadManifestLocked` fails, so nothing lists, resumes or
+  reattaches). All are now decode-only tombstones, guarded by
+  `TestPreM4RecordsStillDecode` and `TestPreM4ManifestStillLoads` against
+  fixtures copied from the operator's real data. No migration pass is needed:
+  a record sheds them on its next write.
+- **D2 surfaced a latent duplication bug rather than just dead code.** Three
+  call sites (CLI, console menu, tests) each rebuilt "the arguments that
+  reproduce this resolution" by hand. Getting it wrong is silent: passing the
+  *resolved* agent where the operator requested none changes `AgentSource`, so
+  the commit re-resolves to a different fingerprint and fails with a drift
+  error nobody drifted into. `StartResolution.CommitArgs` now owns it
+  (`ARCH-DRY`), and `MenuFrame` holds the resolution itself instead of a
+  seven-field hand-copied shadow.
+- **Two tests were passing vacuously and are now honest.**
+  `TestTrackedLaunchCancellationAfterAcknowledgementReapsAndRollsBack`
+  asserted `ErrThreadNotFound` at a *hardcoded* address that was never the one
+  allocated. The real post-acknowledgement behaviour is the correct opposite:
+  registration is established, so occupied-or-proven-free keeps the record as
+  an `unknown` incarnation. Renamed and asserted over the whole snapshot. The
+  journal test retargeted from `CutoverLegacyActors` also passed with
+  `withLock`'s recovery removed, because the interrupted record's file was
+  already on disk and the next commit clears the journal either way; manifest
+  membership is the only assertion that separates recovery from coincidence.
+- **The plan's D5 list was one item short and one item long.**
+  `ThreadStore.CommitThreadReplacements` was also dead (definition only, no
+  caller) and went with the cluster. `ReconcileAdmission` had already gone with
+  D1. `.github/workflows/couch-policy-conformance.yml` still invoked the
+  `make test-couch-policy-live` target D1 removed, so CI would have failed on
+  the next run; deleted.
+- **A finding recorded rather than acted on.** The worktree `NamingTable` that
+  `SetName`/`SetDescription` wrote is very likely dead too: the operator's live
+  registry has `"names": {}`, and after D5 no production code writes one.
+  `ResolveRef` still resolves by label, so the behaviour is pinned through
+  `Store.Save` instead. The thread store carries its own `Name`/`Description`
+  with a real setter (`ApplyThreadMetadata`), which is the surface that
+  superseded it. Cutting the naming layer is wider than this sweep; left as a
+  follow-up.
+- **Tests were retargeted, not deleted, wherever they pinned surviving
+  behaviour.** `IsLive` folded `Unknown` into false, so asserting `Liveness`
+  directly made the recycled-PID test *stronger* on the way out. Only
+  `TestShowFilterRestrictsRatherThanAdds` was removed outright, because the
+  tree-summary rendering path whose filter semantics it pinned no longer
+  exists.
