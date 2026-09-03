@@ -102,6 +102,82 @@ rounds:
       boundary: M3
       blocked: true
       protocol_error: no valid findings block
+    - "n": 5
+      timestamp: "2026-09-02T17:36:29-07:00"
+      agent: claude
+      dispose:
+        - id: BR-1
+          disposition: addressed
+          note: Gate reordered ahead of both appends; reverting it in a scratch copy reddens 3 subtests.
+          round: 5
+        - id: BR-2
+          disposition: addressed
+          note: New StartInteractive twin; the reviewer's exact parked-only mutation now reddens it.
+          round: 5
+        - id: BR-3
+          disposition: addressed
+          note: Plan Step 3b and workshop/projects/couch.md both credit M2 for the physicalization.
+          round: 5
+        - id: BR-4
+          disposition: not-addressed
+          note: Plan half corrected and measured; atlas/couch.md:399-406 still says refresh-worker-only, and "periodic" has no ticker.
+          round: 5
+        - id: BR-5
+          disposition: addressed
+          note: README.md:308 and :361 both rewritten for detached rows and resumable resume.
+          round: 5
+        - id: BR-6
+          disposition: not-addressed
+          note: All five copies of the selector rationale are unchanged in this window.
+          round: 5
+        - id: BR-7
+          disposition: not-addressed
+          note: startup_test.go:37-38 still duplicates one address for both ambiguity cases.
+          round: 5
+      findings:
+        - id: BR-8
+          severity: Important
+          title: The detached row's binding proof is enforced in the IO shell, not the pure projector, and two comments claim the opposite
+          detail: |-
+            2nd finding in this family -- do NOT patch the instance. Rule: every proof a
+            row's Enter requires must travel to ProjectActionableThreads as a field on that
+            row's observation type and be enforced inside actionableThreadState; a proof
+            enforced only in ActionableThreadInventoryContext's candidate loop is not part of
+            the row's contract. Swept enumeration: Live needs a TTY observation (in projector),
+            Parked needs NativeID (in projector, parkedResumeProofMatches at
+            actionableinventory.go:181-187), Detached needs SessionName (in projector) AND the
+            native binding (only at actionableinventory.go:250-253). That asymmetry is how BR-1
+            shipped. actionableinventory.go:155-158 asserts the function "fails closed on its
+            own, so it does not rely on the caller having filtered candidates" and :44-46 says
+            "proof arrives as observations" -- both false for the binding. Class fix: add
+            NativeID to DetachedSessionObservation and require it in the detached branch; the
+            loop already holds binding at line 255, and ProjectActionableThreads is exported so
+            a second caller is a public-API possibility. No live defect today
+            (ScopedThreadArtifactCollisionChecker is the only production Artifacts, and it is
+            gated). Minimum if the field threading is not cheap here: correct the two comments.
+          family: listed-implies-resumable
+          round: 5
+        - id: BR-9
+          severity: Minor
+          title: The two new StartInteractive tests hand-rebuild the record setup seedStartupParked already encapsulates
+          detail: |-
+            startup_test.go:262-277 and :290-304 each repeat ~10 lines that
+            seedStartupParked (startup_test.go:182-195) covers, differing only in
+            markActionableParked vs SetDetachedSession. A
+            seedStartupResumable(t, env, tag, path, kind) covers all three sites (ARCH-DRY).
+          family: shared-helper-not-extracted
+          round: 5
+        - id: BR-10
+          severity: Minor
+          title: The no-surviving-session negative asserts only inequality, which a zero-valued record also satisfies
+          detail: |-
+            startup_test.go:309 checks start.Record.Thread != stale.Address, so a zero
+            ThreadAddress would pass. TestStartInteractiveCreatesNewRootWithoutExactCandidate:109
+            shows the stronger form; one line asserting a real new thread closes it.
+          family: assertion-admits-vacuous-pass
+          round: 5
+      boundary: M3
+      blocked: true
 ---
 
 # Gate ledger — pair#170 (boundary-review)
@@ -166,12 +242,52 @@ later rounds disposed of them. Generated — edit the gate, not this file.
 
 **Protocol error:** no valid findings block — this round contributed no findings.
 
+## Round 5 — 2026-09-02T17:36:29-07:00 (claude) — BLOCKED
+
+### Disposed
+
+- BR-1 — addressed — Gate reordered ahead of both appends; reverting it in a scratch copy reddens 3 subtests.
+- BR-2 — addressed — New StartInteractive twin; the reviewer's exact parked-only mutation now reddens it.
+- BR-3 — addressed — Plan Step 3b and workshop/projects/couch.md both credit M2 for the physicalization.
+- BR-4 — not-addressed — Plan half corrected and measured; atlas/couch.md:399-406 still says refresh-worker-only, and "periodic" has no ticker.
+- BR-5 — addressed — README.md:308 and :361 both rewritten for detached rows and resumable resume.
+- BR-6 — not-addressed — All five copies of the selector rationale are unchanged in this window.
+- BR-7 — not-addressed — startup_test.go:37-38 still duplicates one address for both ambiguity cases.
+
+### Raised
+
+- **BR-8** [Important] `listed-implies-resumable` The detached row's binding proof is enforced in the IO shell, not the pure projector, and two comments claim the opposite
+  2nd finding in this family -- do NOT patch the instance. Rule: every proof a
+  row's Enter requires must travel to ProjectActionableThreads as a field on that
+  row's observation type and be enforced inside actionableThreadState; a proof
+  enforced only in ActionableThreadInventoryContext's candidate loop is not part of
+  the row's contract. Swept enumeration: Live needs a TTY observation (in projector),
+  Parked needs NativeID (in projector, parkedResumeProofMatches at
+  actionableinventory.go:181-187), Detached needs SessionName (in projector) AND the
+  native binding (only at actionableinventory.go:250-253). That asymmetry is how BR-1
+  shipped. actionableinventory.go:155-158 asserts the function "fails closed on its
+  own, so it does not rely on the caller having filtered candidates" and :44-46 says
+  "proof arrives as observations" -- both false for the binding. Class fix: add
+  NativeID to DetachedSessionObservation and require it in the detached branch; the
+  loop already holds binding at line 255, and ProjectActionableThreads is exported so
+  a second caller is a public-API possibility. No live defect today
+  (ScopedThreadArtifactCollisionChecker is the only production Artifacts, and it is
+  gated). Minimum if the field threading is not cheap here: correct the two comments.
+- **BR-9** [Minor] `shared-helper-not-extracted` The two new StartInteractive tests hand-rebuild the record setup seedStartupParked already encapsulates
+  startup_test.go:262-277 and :290-304 each repeat ~10 lines that
+  seedStartupParked (startup_test.go:182-195) covers, differing only in
+  markActionableParked vs SetDetachedSession. A
+  seedStartupResumable(t, env, tag, path, kind) covers all three sites (ARCH-DRY).
+- **BR-10** [Minor] `assertion-admits-vacuous-pass` The no-surviving-session negative asserts only inequality, which a zero-valued record also satisfies
+  startup_test.go:309 checks start.Record.Thread != stale.Address, so a zero
+  ThreadAddress would pass. TestStartInteractiveCreatesNewRootWithoutExactCandidate:109
+  shows the stronger form; one line asserting a real new thread closes it.
+
 ## Open findings
 
-- **BR-1** [Critical] `listed-implies-resumable` Detached rows are auto-selected at startup without the binding proof resume requires, so `couch` exits 1 with no way through
-- **BR-2** [Important] `seam-untested-at-runnable-level` No couchcore test pins StartInteractive's detached wiring; only the pty-gated couchcmd acceptance test covers it
-- **BR-3** [Important] `record-claims-unverified-delivery` Plan Step 3b, the project file and the commit credit M3 with a physicalization fix that shipped at M2
 - **BR-4** [Important] `envelope-claim-unmeasured` M3's stated startup envelope contradicts the M2-corrected cost model and is unmeasured
-- **BR-5** [Important] `readme-stale-for-shipped-surface` README still describes the switcher's row states and unique resume as parked-only
 - **BR-6** [Minor] `prose-duplication` The selector's rationale is restated near-verbatim in five artifacts
 - **BR-7** [Minor] `fixture-realism` The selector's ambiguity fixtures pass the same ThreadAddress twice, a shape the projector cannot emit
+- **BR-8** [Important] `listed-implies-resumable` The detached row's binding proof is enforced in the IO shell, not the pure projector, and two comments claim the opposite
+- **BR-9** [Minor] `shared-helper-not-extracted` The two new StartInteractive tests hand-rebuild the record setup seedStartupParked already encapsulates
+- **BR-10** [Minor] `assertion-admits-vacuous-pass` The no-surviving-session negative asserts only inequality, which a zero-valued record also satisfies

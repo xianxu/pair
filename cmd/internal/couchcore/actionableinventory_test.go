@@ -375,7 +375,7 @@ func markActionableParked(record *ThreadRecord, parkedAt time.Time) {
 func TestProjectActionableThreadsDetached(t *testing.T) {
 	address := ThreadAddress{RepoScope: "scope-a", Tag: "couch-0000000000000001"}
 	profile := &LaunchProfile{Agent: "claude", Argv: []string{}}
-	detached := []DetachedSessionObservation{{Address: address, SessionName: "pair-one"}}
+	detached := []DetachedSessionObservation{{Address: address, SessionName: "pair-one", Agent: "claude", NativeID: "native-root-1"}}
 
 	base := func() ThreadRecord {
 		return ThreadRecord{
@@ -427,13 +427,13 @@ func TestProjectActionableThreadsDetached(t *testing.T) {
 		},
 		{
 			name:     "an observation for another address does not match",
-			observed: []DetachedSessionObservation{{Address: ThreadAddress{RepoScope: "scope-a", Tag: "couch-0000000000000009"}, SessionName: "pair-other"}},
+			observed: []DetachedSessionObservation{{Address: ThreadAddress{RepoScope: "scope-a", Tag: "couch-0000000000000009"}, SessionName: "pair-other", Agent: "claude", NativeID: "native-root-1"}},
 		},
 		{
 			name: "two observations for one address are ambiguous",
 			observed: []DetachedSessionObservation{
-				{Address: address, SessionName: "pair-one"},
-				{Address: address, SessionName: "pair-two"},
+				{Address: address, SessionName: "pair-one", Agent: "claude", NativeID: "native-root-1"},
+				{Address: address, SessionName: "pair-two", Agent: "claude", NativeID: "native-root-1"},
 			},
 		},
 	}
@@ -470,7 +470,7 @@ func TestProjectActionableThreadsDetachedDoesNotDisturbOtherStates(t *testing.T)
 		Incarnations: []ThreadIncarnation{{State: IncarnationLive, PID: 10, Identity: "id-10", StartedAt: time.Unix(1, 0).UTC()}},
 	}
 	ttys := []LiveTTYObservation{{Address: address, Process: ProcessIdentity{PID: 10, Identity: "id-10"}}}
-	stray := []DetachedSessionObservation{{Address: address, SessionName: "pair-one"}}
+	stray := []DetachedSessionObservation{{Address: address, SessionName: "pair-one", Agent: "claude", NativeID: "native-root-1"}}
 
 	withStray := ProjectActionableThreads([]ThreadRecord{live}, ttys, nil, stray)
 	if len(withStray) != 1 || withStray[0].State != ThreadLive {
@@ -483,7 +483,7 @@ func TestProjectActionableThreadsDetachedDoesNotDisturbOtherStates(t *testing.T)
 // whose argv was never recorded, offers an Enter that cannot work.
 func TestProjectActionableThreadsDetachedRequiresAUsableProfile(t *testing.T) {
 	address := ThreadAddress{RepoScope: "scope-a", Tag: "couch-0000000000000001"}
-	detached := []DetachedSessionObservation{{Address: address, SessionName: "pair-one"}}
+	detached := []DetachedSessionObservation{{Address: address, SessionName: "pair-one", Agent: "claude", NativeID: "native-root-1"}}
 
 	for _, test := range []struct {
 		name    string
@@ -557,5 +557,54 @@ func TestActionableInventoryPhysicalizesDetachedRowsLikeParkedOnes(t *testing.T)
 	// And the selector actually finds it at the physical path.
 	if _, ok := SelectUniqueResumableRoot(rows, created.Address.RepoScope, "/real/repo"); !ok {
 		t.Fatal("the detached row was not selectable at its physical path")
+	}
+}
+
+// The PURE projector enforces the resume proof; it does not trust the IO shell
+// to have filtered its candidates.
+//
+// The binding requirement used to live only in ActionableThreadInventoryContext,
+// which made actionableThreadState's own "fails closed on its own" comment
+// false: a caller that forgot to gate would have got rows resume cannot take,
+// and startup has no fallback, so that is `couch` refusing to start rather than
+// a merely cosmetic row.
+func TestProjectActionableThreadsDetachedRequiresTheResumeProof(t *testing.T) {
+	address := ThreadAddress{RepoScope: "scope-a", Tag: "couch-0000000000000001"}
+	record := ThreadRecord{
+		SchemaVersion: ThreadSchemaVersion, Address: address,
+		StartingPath: "/repo", WorkingPath: "/repo",
+		CreatedAt: time.Unix(1, 0).UTC(), Revision: 1,
+		LatestLaunchProfile: &LaunchProfile{Agent: "claude", Argv: []string{}},
+	}
+
+	for _, test := range []struct {
+		name    string
+		observe DetachedSessionObservation
+		wantRow bool
+	}{
+		{
+			name:    "full proof",
+			observe: DetachedSessionObservation{Address: address, SessionName: "pair-one", Agent: "claude", NativeID: "native-root-1"},
+			wantRow: true,
+		},
+		{
+			name:    "no native id -- the shell resolved no established binding",
+			observe: DetachedSessionObservation{Address: address, SessionName: "pair-one", Agent: "claude"},
+		},
+		{
+			name:    "agent disagrees with the saved launch profile",
+			observe: DetachedSessionObservation{Address: address, SessionName: "pair-one", Agent: "codex", NativeID: "native-root-1"},
+		},
+		{
+			name:    "no session name is a session that is not there",
+			observe: DetachedSessionObservation{Address: address, Agent: "claude", NativeID: "native-root-1"},
+		},
+	} {
+		t.Run(test.name, func(t *testing.T) {
+			rows := ProjectActionableThreads([]ThreadRecord{record}, nil, nil, []DetachedSessionObservation{test.observe})
+			if (len(rows) == 1) != test.wantRow {
+				t.Fatalf("rows = %+v, wantRow = %v", rows, test.wantRow)
+			}
+		})
 	}
 }

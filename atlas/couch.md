@@ -400,10 +400,24 @@ set, because the session-name index is per repo scope; the inventory passes only
 candidates (no incarnation, no verified park, a saved profile), which bounds
 *whether* the zellij snapshot runs -- a couch with nothing detachable pays
 nothing. It does not bound the snapshot's own cost: that is two `list-sessions`
-runs plus one `action list-clients` per non-exited session **on the host**. Since
-this now runs on the periodic refresh worker, each query carries
-`zellijQueryTimeout`; a hung zellij would otherwise wedge that worker and the
-switcher would render its last-good projection forever without noticing.
+runs plus one `action list-clients` per non-exited session **on the host** --
+**measured at 1.49 s** on a 13-live-session host (~100 ms per session, serially),
+2026-09-02.
+
+Where that lands differs by caller, and both matter:
+
+- **Switcher refresh: not blocking.** Refreshes are event-driven and run on the
+  single-flight worker while the menu renders its last-good projection, so the
+  50 ms open and 16 ms keystroke budgets are untouched; rows simply converge
+  later. Each query carries `zellijQueryTimeout`, because a hung zellij would
+  otherwise wedge that worker and the switcher would render last-good forever
+  without ever noticing.
+- **Startup: blocking** (`pair#170` M3). `StartInteractive` must decide
+  resume-vs-new before it attaches anything, so a detach candidate adds that
+  cost before the first frame -- and `leave` detaching rather than parking makes
+  a detach candidate the normal case. `pair#172` parallelizes the per-session
+  queries, which are independent; the candidate filter decides only *whether*
+  the snapshot runs.
 
 Resume accepts verified park **or proved detachment**. A detached thread has no
 verified park because nothing was torn down; its authority is the surviving

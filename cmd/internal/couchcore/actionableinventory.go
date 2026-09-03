@@ -48,6 +48,12 @@ type ParkedResumeObservation struct {
 type DetachedSessionObservation struct {
 	Address     ThreadAddress
 	SessionName string
+	// Agent and NativeID carry the same resume proof ParkedResumeObservation
+	// does, so the PURE projector enforces it rather than trusting the IO shell
+	// to have filtered its candidates. An observation without them is not
+	// evidence of a resumable thread, only of a running session.
+	Agent    string
+	NativeID string
 }
 
 // ActionableThreadSummary contains only fields the ordinary switcher needs.
@@ -151,16 +157,7 @@ func actionableThreadState(record ThreadRecord, observations []ProcessIdentity, 
 	// live rule and is hidden there for want of a matching TTY observation. A
 	// stale incarnation therefore can never masquerade as a clean detach.
 	if len(record.Incarnations) == 0 {
-		// The profile checks mirror parkedResumeProofMatches deliberately: this
-		// function's contract is that it fails closed on its own, so it does not
-		// rely on the caller having filtered candidates. Enter on a row whose
-		// saved agent is unsupported cannot work, and a row that cannot work
-		// must not be offered.
-		if len(observations) == 0 && len(detached) == 1 &&
-			detached[0].Address == record.Address && detached[0].SessionName != "" &&
-			record.LatestLaunchProfile != nil &&
-			launcher.IsSupportedAgent(record.LatestLaunchProfile.Agent) &&
-			record.LatestLaunchProfile.Argv != nil {
+		if len(observations) == 0 && detachedResumeProofMatches(record, detached) {
 			return ThreadDetached, true
 		}
 		return "", false
@@ -176,6 +173,23 @@ func actionableThreadState(record ThreadRecord, observations []ProcessIdentity, 
 		return "", false
 	}
 	return ThreadLive, true
+}
+
+// detachedResumeProofMatches is parkedResumeProofMatches' twin, and the
+// symmetry is the point: both resumable kinds prove themselves the same way, in
+// the same layer.
+//
+// The binding requirement used to live only in the IO shell, which made this
+// function's own "fails closed on its own" claim false -- a caller that forgot
+// to gate its candidates would have got rows resume cannot take. Startup has no
+// fallback, so that is not a degraded row, it is `couch` refusing to start.
+func detachedResumeProofMatches(record ThreadRecord, observations []DetachedSessionObservation) bool {
+	if record.LatestLaunchProfile == nil || !launcher.IsSupportedAgent(record.LatestLaunchProfile.Agent) || record.LatestLaunchProfile.Argv == nil || len(observations) != 1 {
+		return false
+	}
+	observation := observations[0]
+	return observation.Address == record.Address && observation.SessionName != "" &&
+		observation.Agent == record.LatestLaunchProfile.Agent && observation.NativeID != ""
 }
 
 func parkedResumeProofMatches(record ThreadRecord, observations []ParkedResumeObservation) bool {
@@ -210,6 +224,7 @@ func (c *Couch) ActionableThreadInventoryContext(ctx context.Context, observatio
 	// couch with nothing detachable pays nothing -- though not the snapshot's
 	// own fan-out, which is per session on the host.
 	var detachedCandidates []ThreadAddress
+	detachedProof := map[ThreadAddress]ParkedResumeObservation{}
 	resolver, _ := c.Artifacts.(NativeBindingResolver)
 	for i := range snapshot.Records {
 		record := snapshot.Records[i]
@@ -251,6 +266,7 @@ func (c *Couch) ActionableThreadInventoryContext(ctx context.Context, observatio
 		}
 		if record.VerifiedPark == nil {
 			detachedCandidates = append(detachedCandidates, record.Address)
+			detachedProof[record.Address] = ParkedResumeObservation{Address: record.Address, Agent: agent, NativeID: binding.NativeID}
 			continue
 		}
 		resumable = append(resumable, ParkedResumeObservation{Address: record.Address, Agent: agent, NativeID: binding.NativeID})
@@ -269,7 +285,13 @@ func (c *Couch) ActionableThreadInventoryContext(ctx context.Context, observatio
 			// round, which is the fail-closed answer.
 			detached = nil
 		} else {
-			detached = observed
+			// Attach the binding proof the candidate gate already resolved, so
+			// the projector can enforce it instead of assuming it.
+			for _, observation := range observed {
+				proof := detachedProof[observation.Address]
+				observation.Agent, observation.NativeID = proof.Agent, proof.NativeID
+				detached = append(detached, observation)
+			}
 		}
 	}
 	if err := ctx.Err(); err != nil {

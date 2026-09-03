@@ -252,3 +252,151 @@ None. BR-1 is fixed and pinned.
 - Append a `## Revisions` entry `### 2026-09-02 — M3 boundary review`, in the shape the M1 entry already set. The fix commit changed a production admission rule and edited two plan lines *in place* (Step 3b, the envelope paragraph) with inline parentheticals; AGENTS.md §1 asks for an appended timestamped delta instead. The entry should record: the binding gate as an M3 delivery the chunk never described, that the physicalization credit moved to M2, and the measured envelope with #172 filed against it.
 - Correct `workshop/plans/…-plan.md:258` (Chunk 2 Core concepts): candidates now also require an established native binding, and "keeps the refresh cost proportional to detached threads" is the claim `actionableinventory.go:208-210` was corrected to deny.
 - The M3 Core concepts table itself still matches the code — `SelectUniqueResumableRoot` new at `startup.go`, `SelectUniqueParkedRoot` deleted (no residue outside prose), `Couch.StartInteractive` modified — but `Couch.ActionableThreadInventoryContext` is now modified by M3 too and appears only in M2's table. Add it to M3's Integration points, or the next reader looks for this window's most consequential change in the wrong milestone — the same failure BR-3 named.
+
+---
+
+## Re-review — 2026-09-02T17:36:29-07:00 (FIX-THEN-SHIP)
+
+| field | value |
+|-------|-------|
+| issue | 170 — Rescope couch to couch-lite |
+| repo | pair |
+| issue file | workshop/issues/000170-rescope-couch-to-couch-lite.md |
+| boundary | milestone M3 |
+| milestone | M3 |
+| window | a89878c31cd7bee06693257e05440c8c4eee7057..2943799d64dcf4ffa67d413fe6aacf4b757325d4 |
+| command | sdlc milestone-close --issue 170 --milestone M3 |
+| reviewer | claude |
+| timestamp | 2026-09-02T17:36:29-07:00 |
+| verdict | FIX-THEN-SHIP |
+
+## Review
+
+```verdict
+verdict: FIX-THEN-SHIP
+confidence: high
+```
+
+The two commits in this window do exactly one substantive thing — close BR-2 — and they close it properly. I verified by mutation rather than by reading: applying BR-2's exact mutation (filter `rows` to `ThreadParked` before `SelectUniqueResumableRoot` in `startup.go:53`) in a scratch copy now reddens `TestStartInteractiveResumesUniqueDetachedRoot`, where the previous round's test left the suite green. I also re-verified BR-1's fix from the base commit the same way: reverting the gate reorder in `actionableinventory.go:235-256` reddens all three non-established subtests. BR-3 and BR-5 are genuinely done (plan Step 3b + `workshop/projects/couch.md` credit M2 for the physicalization; README:308 and :361 both rewritten). What blocks a clean SHIP is small and doc-shaped: BR-4 was half-corrected — the plan sentence was fixed and the cost measured, but `atlas/couch.md:403-406` still frames the 1.49 s zellij snapshot as belonging to the refresh worker, and calls that worker "periodic" when there is no ticker anywhere in `cmd/`. Beyond the prior findings, one architectural item is worth the boundary: the binding proof for detached rows is enforced only in the IO shell's candidate loop, while its parked twin is enforced inside the pure projector — and both `actionableThreadState`'s own comment and `DetachedSessionObservation`'s doc currently assert the opposite. None of this is a correctness risk today; the milestone's behavior is right and pinned.
+
+## 1. Strengths
+
+- **BR-2's fix is the real thing, not a plausible-looking one.** `startup_test.go:262-286` calls `env.Couch.StartInteractive` and asserts `start.Record.Thread`, rather than replicating the two lines under test. Mutation-confirmed here in a scratch copy, not taken from the commit message.
+- **The negative twin was added unprompted** (`startup_test.go:290-311`): no surviving session ⇒ startup must create a new thread rather than reattach something it cannot prove. That is the failure mode the widening creates, and it traverses the full candidate path (binding resolved, `DetachedSessions` queried, empty answer).
+- **BR-1's fix is the class, not the site** — one gate ahead of both appends (`actionableinventory.go:235-256`), with a comment that states the invariant it defends instead of the mechanics.
+- **The plan `## Revisions` entry** (`plan.md:748-787`) is an honest appended delta per AGENTS.md §1, and names the delivery that appeared in no task step (the binding gate), the moved credit, and the measured envelope.
+- **`Resumable()` is consumed, not re-enumerated** (`actionableinventory.go:73-77`, used at `startup.go:28` and in `menu.go`) — ARCH-DRY held under a widening that invited a second predicate.
+- **`FakeThreadArtifactCollisionChecker.DetachedSessions` answers only for addresses asked about**, with the comment explaining why (`artifactcollision_fake.go:78-81`) — the fake would otherwise hide a caller that forgot its candidates. ARCH-MOCK done deliberately.
+
+## 2. Critical findings
+
+None. BR-1 is fixed and mutation-pinned.
+
+## 3. Important findings
+
+**BR-4 (not-addressed) — the atlas half of the envelope correction did not land.** `atlas/couch.md:403-406` still reads "Since this now runs on the periodic refresh worker, each query carries `zellijQueryTimeout`". Two problems: it attributes the cost to the refresh worker alone when M3 put the identical snapshot on the *blocking* startup path — the only reason the 1.49 s measurement mattered — and "periodic" is wrong on its own terms (`grep -rn NewTicker cmd` returns no actionable-refresh ticker; the issue Log says refreshes are event-driven). Adjacent in the same paragraph, `atlas/couch.md:399-401` still enumerates a candidate as "(no incarnation, no verified park, a saved profile)", omitting the established-binding requirement that is now the invariant startup's safety rests on — the gate paragraph 50 lines below states it, so the two now disagree. Fix: one paragraph, three sentences. Also state the startup budget and the bounded behavior when exceeded (worst case `(2+N)×5 s`, mitigated by the timeout, speedup deferred to #172) — ARCH-CONSTRAINTS asks for the bound, not only the measurement.
+
+**New (Important, family `listed-implies-resumable`) — the detached row's binding proof is enforced in the IO shell, not in the pure projector, and two comments claim otherwise.** *This is the 2nd finding in family `listed-implies-resumable`.* Per the escalation protocol I am not asking for this instance to be patched; here is the rule that covers the class:
+
+> **Every proof a row's `Enter` requires must travel to `ProjectActionableThreads` as a field on that row's observation type and be enforced inside `actionableThreadState`. A proof enforced only in `ActionableThreadInventoryContext`'s candidate loop is not part of the row's contract and can be dropped by any refactor or second caller of the exported projector.**
+
+The enumeration the rule implies, swept: `ThreadLive` needs a matching TTY observation — enforced in the projector ✅. `ThreadParked` needs the native binding — enforced in the projector, `parkedResumeProofMatches` requires `observation.NativeID != ""` (`actionableinventory.go:181-187`) ✅. `ThreadDetached` needs a surviving session (`SessionName != ""`, enforced ✅) *and* the native binding — enforced **only** at `actionableinventory.go:250-253` ❌. That asymmetry is precisely how BR-1 shipped. It is also actively mis-documented: `actionableinventory.go:155-158` says "this function's contract is that it fails closed on its own, so it does not rely on the caller having filtered candidates", and `DetachedSessionObservation`'s doc (`actionableinventory.go:44-46`) says "proof arrives as observations, never as persisted lifecycle state". Both are true of the profile checks and false of the binding. Class fix: add `NativeID string` to `DetachedSessionObservation` and require it in `actionableThreadState`'s detached branch, mirroring `ParkedResumeObservation` — the loop already holds `binding` at the append point (`actionableinventory.go:255`), and `ProjectActionableThreads` is exported, so the second caller is a public-API possibility, not a hypothetical. No live defect today: `ScopedThreadArtifactCollisionChecker` is the only production `Artifacts` and it is gated. If the operator judges the field threading not cheap at this boundary, the minimum is correcting the two comments so they stop asserting a contract the code does not hold.
+
+## 4. Minor findings
+
+- **BR-6 (not-addressed)** — the selector rationale is still verbatim in `startup.go:11-24`, `startup_test.go:13-19`, `atlas/couch.md:445-451` and `workshop/projects/couch.md:908-925`.
+- **BR-7 (not-addressed)** — `startup_test.go:37-38` still passes the same `ThreadAddress` twice for both ambiguity cases, a shape `ProjectActionableThreads` cannot emit (one row per record). Fixture realism only; the realistic distinct-address case is two rows below.
+- **New** — `TestStartInteractiveResumesUniqueDetachedRoot` (`startup_test.go:262-277`) and `TestStartInteractiveStartsNewWhenNoSessionSurvives` (`:290-304`) each hand-rebuild the ~10-line record setup that `seedStartupParked` (`startup_test.go:182-195`) already encapsulates; a `seedStartupResumable(t, env, tag, path, kind)` covers all three sites (ARCH-DRY).
+- **New** — `startup_test.go:309` asserts only `start.Record.Thread != stale.Address`, which a zero-valued record would also satisfy. `TestStartInteractiveCreatesNewRootWithoutExactCandidate:109` shows the stronger form (`== (ThreadAddress{}) || Handle == nil`); one extra line closes the vacuous pass.
+
+## 5. Test coverage notes
+
+- Verified in this environment: `go build ./...` ✅, `go vet ./cmd/internal/couchcore` ✅, `go test ./...` — every failure is `ptychild: operation not permitted` / `pty.Open: operation not permitted` (`cmd/couch`, `couchcmd`, `couchcore` pty runners, `couchtty`, `hostty`, `keyscmd`, `ptychild`, terminal mux). Same shape on untouched tests; environmental, not this window's doing. The `fatal error: all goroutines are asleep` in `couchcore` is a cascade of the pty-blocked blocked-runner tests, not a new hang.
+- Mutation results, run rather than assumed: filtering `rows` to `ThreadParked` inside `StartInteractive` → `TestStartInteractiveResumesUniqueDetachedRoot` red (BR-2 genuinely closed). Reverting the binding-gate reorder in `actionableinventory.go` → three subtests of `TestStartInteractiveSkipsDetachedRowsWithoutAResumableBinding` red (BR-1 genuinely closed).
+- The three `couchcmd` acceptance tests still fail at `pty.Open()` even outside the sandbox, so `workshop/projects/couch.md:942-944`'s "the reattach one is mutation-verified" remains unverifiable from an agent shell. The claim is now *harmless* because the couchcore twin proves the same wiring — but the sentence credits the wrong test; worth one word.
+
+## 6. Architectural notes for upcoming work
+
+- **ARCH-DRY** — pass on production code (one selector, one gate, `Resumable()` consumed not re-enumerated); flagged for prose (BR-6) and the test-setup triple (Minor). **ARCH-PURE** — pass: `SelectUniqueResumableRoot` is genuinely pure and table-tested with no IO; the new tests drive the IO shell entirely through injected fakes. Flagged only by the projector-enforcement finding, which is an ARCH-PURE argument as much as a correctness one — the invariant belongs in the pure layer. **ARCH-PURPOSE** — pass on code (the refusal-reason sweep behind BR-1 is complete), flag on records (BR-4's atlas half). **ARCH-MOCK** — pass: `FakeThreadArtifactCollisionChecker` implements both resolvers behind the same seam as `ScopedThreadArtifactCollisionChecker`, so production and test share the boundary; `BenchmarkZellijSnapshotLive` measures the real binary but asserts nothing, so it is a measurement harness, not a conformance check — fine here, worth naming in #172. **ARCH-CONSTRAINTS** — flag, see BR-4. **ARCH-SECURE** — pass: `bindingResumeDiagnostic` fails closed to unbound by `default:`, a corrupt manifest errors rather than degrading (`TestStartInteractiveInventoryFailureCreatesNoRoot`), no credential reaches a log, argv or fixture.
+- Carry to M4/#171: with the gate in place, a detached thread whose binding degrades is hidden from the switcher while its zellij session keeps running an agent. The atlas now records this and names the unexplored fork (list it, refuse `Enter` with the diagnostic, gate only startup selection) — good practice; keep the fork alive rather than letting the recorded consequence become the settled design.
+
+## 7. Plan revision recommendations
+
+The plan matches the code after this window's edits — the `## Revisions` entry, the Chunk 2 candidate-rule correction (`plan.md:258`) and the added `Couch.ActionableThreadInventoryContext` Integration-points row all landed, and the Core concepts cross-check passes (`SelectUniqueResumableRoot` new at `startup.go:25`; `SelectUniqueParkedRoot` deleted with no residue outside archived prose; both integration rows modified as stated). Two small additions:
+
+- Extend the existing `### 2026-09-02 — M3 boundary review` entry with a fifth paragraph recording that the binding gate is enforced in the IO shell rather than the projector, and that `DetachedSessionObservation` carrying `NativeID` is the deferred class fix — otherwise the next reader sees `parkedResumeProofMatches` and assumes symmetry.
+- Correct `workshop/projects/couch.md:942-944`: the mutation verification that actually runs belongs to the couchcore twin, not to the pty-gated acceptance test.
+
+```findings
+dispose:
+  - id: BR-1
+    disposition: addressed
+    note: |
+      Gate reordered ahead of both appends; reverting it in a scratch copy reddens 3 subtests.
+  - id: BR-2
+    disposition: addressed
+    note: |
+      New StartInteractive twin; the reviewer's exact parked-only mutation now reddens it.
+  - id: BR-3
+    disposition: addressed
+    note: |
+      Plan Step 3b and workshop/projects/couch.md both credit M2 for the physicalization.
+  - id: BR-4
+    disposition: not-addressed
+    note: |
+      Plan half corrected and measured; atlas/couch.md:399-406 still says refresh-worker-only, and "periodic" has no ticker.
+  - id: BR-5
+    disposition: addressed
+    note: |
+      README.md:308 and :361 both rewritten for detached rows and resumable resume.
+  - id: BR-6
+    disposition: not-addressed
+    note: |
+      All five copies of the selector rationale are unchanged in this window.
+  - id: BR-7
+    disposition: not-addressed
+    note: |
+      startup_test.go:37-38 still duplicates one address for both ambiguity cases.
+findings:
+  - id: new
+    severity: Important
+    family: listed-implies-resumable
+    title: |
+      The detached row's binding proof is enforced in the IO shell, not the pure projector, and two comments claim the opposite
+    detail: |
+      2nd finding in this family -- do NOT patch the instance. Rule: every proof a
+      row's Enter requires must travel to ProjectActionableThreads as a field on that
+      row's observation type and be enforced inside actionableThreadState; a proof
+      enforced only in ActionableThreadInventoryContext's candidate loop is not part of
+      the row's contract. Swept enumeration: Live needs a TTY observation (in projector),
+      Parked needs NativeID (in projector, parkedResumeProofMatches at
+      actionableinventory.go:181-187), Detached needs SessionName (in projector) AND the
+      native binding (only at actionableinventory.go:250-253). That asymmetry is how BR-1
+      shipped. actionableinventory.go:155-158 asserts the function "fails closed on its
+      own, so it does not rely on the caller having filtered candidates" and :44-46 says
+      "proof arrives as observations" -- both false for the binding. Class fix: add
+      NativeID to DetachedSessionObservation and require it in the detached branch; the
+      loop already holds binding at line 255, and ProjectActionableThreads is exported so
+      a second caller is a public-API possibility. No live defect today
+      (ScopedThreadArtifactCollisionChecker is the only production Artifacts, and it is
+      gated). Minimum if the field threading is not cheap here: correct the two comments.
+  - id: new
+    severity: Minor
+    family: shared-helper-not-extracted
+    title: |
+      The two new StartInteractive tests hand-rebuild the record setup seedStartupParked already encapsulates
+    detail: |
+      startup_test.go:262-277 and :290-304 each repeat ~10 lines that
+      seedStartupParked (startup_test.go:182-195) covers, differing only in
+      markActionableParked vs SetDetachedSession. A
+      seedStartupResumable(t, env, tag, path, kind) covers all three sites (ARCH-DRY).
+  - id: new
+    severity: Minor
+    family: assertion-admits-vacuous-pass
+    title: |
+      The no-surviving-session negative asserts only inequality, which a zero-valued record also satisfies
+    detail: |
+      startup_test.go:309 checks start.Record.Thread != stale.Address, so a zero
+      ThreadAddress would pass. TestStartInteractiveCreatesNewRootWithoutExactCandidate:109
+      shows the stronger form; one line asserting a real new thread closes it.
+```
