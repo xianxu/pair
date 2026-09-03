@@ -141,6 +141,34 @@ session name; two zellij rows sharing a name) are genuine ambiguities about
 cannot be offered a row, `detach` must refuse rather than produce the state. A
 reachable operation must not create an unreachable one.
 
+**The second half — Enter is refused for EVERY detached thread.** Confirmed by
+reading the chain: `createflow.go:238` refuses on `ResumeRequired &&
+decision.Action != ActionCreate`; `decision.go:32-36` resolves a `ForcedTag`
+onto a blocking session to `ActionAttach`; `decision.go:95` counts
+`SessionDetached` as blocking. couch resume spawns `pair resume <tag>` with
+`ResumeRequired`, so a detached thread always lands on `ActionAttach` and is
+refused — a healthy binding and a correct `NativeID` do not help.
+
+So making the row appear does not restore reattach. The blocker is that
+`ValidateTrustedLaunchProfile` (`launch_args_policy.go:105`) rejects
+`ResumeRequired` with an empty `RequiredSessionID`, so the launch profile has no
+way to say *"reattach to this session name; no native proof needed"* — even
+though `AttachExistingSession` takes only tag/session/agent and
+`RequireNativeResumeBinding` lives only inside `runCreate`. The fix is a second
+authority on the profile, not a loosened gate.
+
+**Hazard for that work:** with no `NativeID`, a session that dies between
+observation and launch leaves nothing to recover from — it must **refuse**, never
+fall through to create, or a fresh empty agent silently replaces the
+conversation. `NativeID` is a fallback for *reconstruct*, not a precondition for
+*reattach*.
+
+`createflow_test.go:417` (`TestRequiredNativeResumeRefusesAttachRace`) pins the
+current refusal and will fail when this is fixed — a deliberate decision, not an
+accident. It also passes for the wrong reason today: it sets no binding
+statuses, so the unbound path refuses first and the attach-boundary guard it
+names is never reached. Its setup needs correcting either way.
+
 ### Keys
 
 - **`ctrl-space` = switcher, and nothing else.** It no longer means "up one
@@ -210,7 +238,10 @@ pair's `ChordAltX` as `seqPark` (`couchtty/keys.go:69-75`). pair already binds
   own panel.
 - A detached thread always appears in the switcher and Enter reattaches it,
   **including when no native binding was ever written** — asserted with a
-  thread whose ledger has zero `binding` records.
+  thread whose ledger has zero `binding` records. Not satisfied by the detach
+  guard alone: the attach path must stop refusing `ActionAttach` first.
+- Reattach with no `NativeID` whose session died between observation and launch
+  **refuses**; it never falls through to create.
 - Where a detached row genuinely cannot be offered (ambiguous session name),
   `detach` refuses instead of producing an unreachable thread.
 - `workshop/projects/couch.md` carries a scope event recording the rescope, and
@@ -472,3 +503,22 @@ Detach strands a thread with no native binding — full evidence in the new
 *Detach must never strand a thread* section above. Found from the operator
 detaching a live pair thread and finding no row to reattach to; recovered with
 `zellij attach '📁pair-couch-24'` outside couch.
+
+### 2026-09-03 — detach guard landed; attach path outstanding
+
+Branch `000170-detach-strand-fix` (`e7ecf245`, off `8bfdd846`) adds the third
+precondition to `Detach`: resolve the native binding through the same
+`NativeBindingResolver` seam Resume uses, refuse when it is not one established
+root, before the SIGTERM so refusing costs nothing. Tests cover unbound,
+ambiguous and established-with-no-root-id, each asserting the incarnation is
+untouched and no group signal was sent; reverting only `detach.go` fails all
+three.
+
+That stops detach *manufacturing* the unreachable state. It does **not** restore
+reattach — see *The second half* above. The invariant is not met until the
+attach path lands.
+
+Unrelated and pre-existing at `8bfdd846`: `./cmd/internal/couchcore` deadlocks
+(`pair-launch-helper: acknowledgement unavailable: EOF`), reproducing with the
+above changes stashed and outside the sandbox, so it is neither new nor an
+environment artifact.
