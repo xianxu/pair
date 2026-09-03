@@ -1,6 +1,6 @@
 ---
 id: 000178
-status: open
+status: wontfix
 deps: []
 github_issue:
 created: 2026-09-02
@@ -103,3 +103,17 @@ own configuration, not something pair ships. Worth knowing when this is tested
 on another machine: cmd+delete does nothing there until the same binding
 exists, while `^U` typed directly works everywhere. If pair should ship that
 binding, that is a separate question about pair owning terminal config.
+
+### 2026-09-02 — closed as a duplicate of `pair#165`
+
+Same feature. `#165` was already open for clearing couch's edit boxes; the
+operator's call is that the chord is **cmd+delete**, not `Alt+Delete`, and that
+it clears **all** text rather than one line of a multiline field. `#165` is now
+the canonical issue and carries everything found here — the dropped `0x15`, the
+four `menu.go` text handlers, the draft-pane override and its undo requirement.
+
+Closed as `wontfix` because **the status set has no `dup`**
+(`ariadne/construct/vocabulary/issue.cue`: `terminal: ["done", "wontfix",
+"punt"]`). `wontfix` reads as "rejected", which is wrong — this work is being
+done, under another id. Tracked as `ariadne#209`; re-status this issue once
+`dup` exists.
