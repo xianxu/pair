@@ -115,5 +115,5 @@ four `menu.go` text handlers, the draft-pane override and its undo requirement.
 Closed as `wontfix` because **the status set has no `dup`**
 (`ariadne/construct/vocabulary/issue.cue`: `terminal: ["done", "wontfix",
 "punt"]`). `wontfix` reads as "rejected", which is wrong — this work is being
-done, under another id. Tracked as `ariadne#209`; re-status this issue once
+done, under another id. Tracked as `ariadne#212`; re-status this issue once
 `dup` exists.
