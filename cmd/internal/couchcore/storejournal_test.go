@@ -106,49 +106,16 @@ func TestStoreJournalFailsClosedOnThirdTargetState(t *testing.T) {
 	}
 }
 
-func TestStoreJournalLegacyCutoverKeepsCoTenantsAndSeparatesRepoScopes(t *testing.T) {
-	store, _ := newTestThreadStore(t)
-	started := time.Date(2026, 8, 20, 10, 0, 0, 0, time.UTC)
-	actors := []ActorRecord{
-		{ID: "couch-a", Args: StartArgs{Worktree: "/one/repo", Cwd: "/one/repo"}, PID: 10, Identity: "a", StartedAt: started},
-		{ID: "couch-b", Args: StartArgs{Worktree: "/one/repo", Cwd: "/one/repo/sub"}, PID: 11, Identity: "b", StartedAt: started.Add(time.Minute)},
-		{ID: "couch-c", Args: StartArgs{Worktree: "/two/repo", Cwd: "/two/repo"}, PID: 12, Identity: "c", StartedAt: started},
-	}
-	if err := store.CutoverLegacyActors(actors); err != nil {
-		t.Fatalf("CutoverLegacyActors: %v", err)
-	}
-	firstAddress, err := legacyThreadAddress(actors[0])
-	if err != nil {
-		t.Fatal(err)
-	}
-	secondAddress, err := legacyThreadAddress(actors[2])
-	if err != nil {
-		t.Fatal(err)
-	}
-	if firstAddress.Tag != secondAddress.Tag || firstAddress.RepoScope == secondAddress.RepoScope {
-		t.Fatalf("legacy composite addresses = %+v and %+v", firstAddress, secondAddress)
-	}
-	first, err := store.GetThread(firstAddress)
-	if err != nil {
-		t.Fatalf("GetThread(first): %v", err)
-	}
-	if len(first.Incarnations) != 2 || first.Incarnations[0].State != IncarnationUnknown || first.Incarnations[1].State != IncarnationUnknown {
-		t.Fatalf("same-tree co-tenants = %+v", first.Incarnations)
-	}
-	if _, err := store.GetThread(secondAddress); err != nil {
-		t.Fatalf("GetThread(second): %v", err)
-	}
-	generation, _ := store.ManifestGeneration()
-	if err := store.CutoverLegacyActors(actors); err != nil {
-		t.Fatalf("repeated cutover: %v", err)
-	}
-	after, _ := store.ManifestGeneration()
-	if after != generation {
-		t.Fatalf("repeated cutover changed generation: %d -> %d", generation, after)
-	}
-}
-
-func TestStoreJournalLegacyCutoverRecoversAsOneMutation(t *testing.T) {
+// Every other recovery test here calls RecoverStoreJournal explicitly. This
+// one pins the property an operator actually depends on: a pending journal is
+// rolled forward TRANSPARENTLY by the next ordinary operation, because
+// withLock recovers before running it. Nobody calls RecoverStoreJournal on the
+// real startup path.
+//
+// It used to pin this through CutoverLegacyActors, deleted in pair#170 M4.
+// The cutover was only ever the vehicle; the journal property is the subject,
+// so it moved to CreateThread rather than going out with the cutover.
+func TestStoreJournalPendingWorkRecoversOnTheNextOrdinaryOperation(t *testing.T) {
 	_, ns := newTestThreadStore(t)
 	crashing := newThreadStoreWithHooks(ns, threadStoreHooks{
 		AfterTarget: func(index int) error {
@@ -158,17 +125,42 @@ func TestStoreJournalLegacyCutoverRecoversAsOneMutation(t *testing.T) {
 			return nil
 		},
 	})
-	actor := ActorRecord{ID: "couch-a", Args: StartArgs{Worktree: "/one/repo", Cwd: "/one/repo"}, PID: 10, Identity: "a", StartedAt: time.Now()}
-	if err := crashing.CutoverLegacyActors([]ActorRecord{actor}); !errors.Is(err, errInjectedStoreCrash) {
-		t.Fatalf("cutover crash err = %v", err)
+	interrupted := journalTestRecord(t, ns)
+	if _, err := crashing.CreateThread(interrupted); !errors.Is(err, errInjectedStoreCrash) {
+		t.Fatalf("CreateThread crash err = %v", err)
 	}
+	if _, err := os.Stat(crashing.journalPath()); err != nil {
+		t.Fatalf("durable intent missing after crash: %v", err)
+	}
+
+	// No RecoverStoreJournal call: the next operation must do it.
 	restarted := NewThreadStore(ns)
-	if err := restarted.CutoverLegacyActors([]ActorRecord{actor}); err != nil {
-		t.Fatalf("recover/retry cutover: %v", err)
+	next := journalTestRecord(t, ns)
+	next.Address.Tag = "couch-1112131415161718"
+	if _, err := restarted.CreateThread(next); err != nil {
+		t.Fatalf("ordinary operation on a store with a pending journal: %v", err)
 	}
-	address, _ := legacyThreadAddress(actor)
-	if _, err := restarted.GetThread(address); err != nil {
-		t.Fatalf("legacy record missing after recovery: %v", err)
+	// The manifest is the only evidence that distinguishes recovery from
+	// coincidence. The interrupted record's FILE was already on disk when the
+	// crash hit -- the hook fires after target 0 -- and the next commit clears
+	// the journal whether or not it rolled anything forward. Only manifest
+	// MEMBERSHIP requires the pending entry to have actually been replayed.
+	snapshot, err := restarted.Snapshot()
+	if err != nil {
+		t.Fatalf("Snapshot after transparent recovery: %v", err)
+	}
+	listed := map[ThreadAddress]bool{}
+	for _, record := range snapshot.Records {
+		listed[record.Address] = true
+	}
+	if !listed[interrupted.Address] {
+		t.Fatalf("interrupted record was not rolled into the manifest: %+v", snapshot.Records)
+	}
+	if !listed[next.Address] {
+		t.Fatalf("the recovering operation did not commit its own work: %+v", snapshot.Records)
+	}
+	if _, err := os.Stat(restarted.journalPath()); !errors.Is(err, os.ErrNotExist) {
+		t.Fatalf("journal survived recovery: %v", err)
 	}
 }
 

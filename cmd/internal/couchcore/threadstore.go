@@ -10,7 +10,6 @@ import (
 	"sort"
 	"time"
 
-	"github.com/xianxu/pair/cmd/internal/launcher"
 	"github.com/xianxu/pair/cmd/internal/threadrecord"
 )
 
@@ -49,10 +48,16 @@ type threadManifest struct {
 	SchemaVersion int             `json:"schema_version"`
 	Generation    uint64          `json:"generation"`
 	Threads       []ThreadAddress `json:"threads"`
-	LegacyCutover bool            `json:"legacy_cutover,omitempty"`
-	// LegacyMigrationVersion records enrichment of M1 cutover records without
-	// rewriting or deleting the preserved registry snapshot.
-	LegacyMigrationVersion int `json:"legacy_migration_version,omitempty"`
+	// DeprecatedLegacyCutover and DeprecatedLegacyMigrationVersion are
+	// TOMBSTONES, not fields. The one-time import of the old tree-keyed
+	// registry went with pair#170 M4, but these keys are in the operator's
+	// live manifest, and this envelope is decoded with DisallowUnknownFields:
+	// removing them outright makes the manifest undecodable, which takes the
+	// WHOLE STORE down rather than one record. Decoded, never read, never
+	// written -- the manifest sheds them on its next write.
+	// Guarded by TestPreM4ManifestStillLoads.
+	DeprecatedLegacyCutover          json.RawMessage `json:"legacy_cutover,omitempty"`
+	DeprecatedLegacyMigrationVersion json.RawMessage `json:"legacy_migration_version,omitempty"`
 }
 
 // pair:m5-concept integration
@@ -899,108 +904,6 @@ func (s *ThreadStore) deleteThreadIf(address ThreadAddress, accept func(ThreadRe
 			{Path: relativeStorePath(s.root, s.manifestPath()), Expected: &expectedManifest, After: &afterManifest},
 		}})
 	})
-}
-
-// CutoverLegacyActors imports the old tree-keyed registry as one journaled
-// membership mutation. Co-tenants remain conservative unknown incarnations of
-// one legacy thread; identical display tags in different repo scopes remain
-// separate composite records.
-func (s *ThreadStore) CutoverLegacyActors(actors []ActorRecord) error {
-	return s.withLock(func() error {
-		manifest, manifestRaw, manifestExists, err := s.loadManifestLocked()
-		if err != nil {
-			return err
-		}
-		if manifest.LegacyCutover {
-			return nil
-		}
-		grouped := map[ThreadAddress]ThreadRecord{}
-		for _, actor := range actors {
-			address, err := legacyThreadAddress(actor)
-			if err != nil {
-				return err
-			}
-			if actor.StartedAt.IsZero() {
-				return fmt.Errorf("legacy actor %q has no start time", actor.ID)
-			}
-			record, ok := grouped[address]
-			if !ok {
-				path := string(actor.Args.Worktree)
-				record = ThreadRecord{
-					SchemaVersion: ThreadSchemaVersion,
-					Address:       address,
-					StartingPath:  path,
-					WorkingPath:   path,
-					CreatedAt:     actor.StartedAt,
-					Revision:      1,
-				}
-			}
-			if actor.StartedAt.Before(record.CreatedAt) {
-				record.CreatedAt = actor.StartedAt
-			}
-			record.Incarnations = append(record.Incarnations, ThreadIncarnation{
-				LegacyActorID: actor.ID,
-				PID:           actor.PID,
-				Identity:      actor.Identity,
-				State:         IncarnationUnknown,
-				StartedAt:     actor.StartedAt,
-			})
-			grouped[address] = record
-		}
-
-		addresses := make([]ThreadAddress, 0, len(grouped))
-		for address := range grouped {
-			addresses = append(addresses, address)
-		}
-		sortThreadAddresses(addresses)
-		entries := make([]storeJournalEntry, 0, len(addresses)+1)
-		for _, address := range addresses {
-			record := grouped[address]
-			if err := ValidateThreadRecord(record); err != nil {
-				return fmt.Errorf("legacy thread %+v: %w", address, err)
-			}
-			if _, exists, err := readOptionalFile(s.recordPath(address)); err != nil {
-				return err
-			} else if exists || manifestContains(manifest, address) {
-				return fmt.Errorf("legacy cutover collides with existing thread %+v", address)
-			}
-			raw, err := json.MarshalIndent(toPersistedThreadRecord(record), "", "  ")
-			if err != nil {
-				return err
-			}
-			after := append(raw, '\n')
-			entries = append(entries, storeJournalEntry{Path: relativeStorePath(s.root, s.recordPath(address)), After: &after})
-		}
-		nextManifest := manifest
-		nextManifest.SchemaVersion = 1
-		nextManifest.Generation++
-		nextManifest.LegacyCutover = true
-		nextManifest.Threads = append(nextManifest.Threads, addresses...)
-		sortThreadAddresses(nextManifest.Threads)
-		nextRaw, err := json.MarshalIndent(nextManifest, "", "  ")
-		if err != nil {
-			return err
-		}
-		afterManifest := append(nextRaw, '\n')
-		var expectedManifest *[]byte
-		if manifestExists {
-			copy := append([]byte{}, manifestRaw...)
-			expectedManifest = &copy
-		}
-		entries = append(entries, storeJournalEntry{Path: relativeStorePath(s.root, s.manifestPath()), Expected: expectedManifest, After: &afterManifest})
-		return s.commitJournalLocked(storeJournal{SchemaVersion: 1, Entries: entries})
-	})
-}
-
-func legacyThreadAddress(actor ActorRecord) (ThreadAddress, error) {
-	if actor.Args.Worktree == "" {
-		return ThreadAddress{}, errors.New("legacy actor has no worktree")
-	}
-	scope, err := launcher.ResolveRepoScope(string(actor.Args.Worktree))
-	if err != nil {
-		return ThreadAddress{}, fmt.Errorf("resolve legacy repo scope: %w", err)
-	}
-	return ThreadAddress{RepoScope: scope.Key, Tag: ThreadTag(launcher.DefaultTag(string(actor.Args.Worktree)))}, nil
 }
 
 func sortThreadAddresses(addresses []ThreadAddress) {

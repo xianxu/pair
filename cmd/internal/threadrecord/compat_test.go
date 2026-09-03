@@ -17,6 +17,12 @@ import (
 // `claim_generation` was in 17/17 records and `policy` in 5/5 incarnations, so
 // deleting them outright would have made the whole store unreadable.
 //
+// `legacy_actor_id` is here for a different reason: the live store has none
+// left (the registry-cutover records it named were parked, which clears
+// incarnations), but a store where one is still live would be bricked by its
+// removal, and "absent from the one store I measured" is not "absent". The
+// tombstone costs a line; being wrong costs the store.
+//
 // They are therefore TOMBSTONES: decoded, ignored, never written back, so
 // records shed them on their next write without any migration pass.
 const liveRecordV2 = `{
@@ -29,6 +35,7 @@ const liveRecordV2 = `{
   "claim_generation": 55,
   "incarnations": [
     {
+      "legacy_actor_id": "couch-d80d318b",
       "pid": 22870,
       "identity": "1788384351.597473",
       "state": "live",

@@ -37,11 +37,10 @@ type ThreadStartClaim struct {
 }
 
 type ThreadIncarnation struct {
-	LegacyActorID ActorID          `json:"legacy_actor_id,omitempty"`
-	PID           int              `json:"pid,omitempty"`
-	Identity      string           `json:"identity,omitempty"`
-	State         IncarnationState `json:"state"`
-	StartedAt     time.Time        `json:"started_at,omitempty"`
+	PID       int              `json:"pid,omitempty"`
+	Identity  string           `json:"identity,omitempty"`
+	State     IncarnationState `json:"state"`
+	StartedAt time.Time        `json:"started_at,omitempty"`
 	// RepoIdentity is the Git common directory: the key under which this path's
 	// successful launch profile is remembered. It used to be read out of the
 	// fleet-policy record that admission attached here (pair#170 M4).
@@ -117,7 +116,7 @@ func toPersistedThreadRecord(record ThreadRecord) threadrecord.Record {
 	}
 	for i, incarnation := range record.Incarnations {
 		out.Incarnations[i] = threadrecord.Incarnation{
-			LegacyActorID: string(incarnation.LegacyActorID), PID: incarnation.PID,
+			PID:      incarnation.PID,
 			Identity: incarnation.Identity, State: string(incarnation.State), StartedAt: incarnation.StartedAt,
 		}
 		if incarnation.Start != nil {
@@ -170,7 +169,7 @@ func fromPersistedThreadRecord(record threadrecord.Record) ThreadRecord {
 	}
 	for i, incarnation := range record.Incarnations {
 		out.Incarnations[i] = ThreadIncarnation{
-			LegacyActorID: ActorID(incarnation.LegacyActorID), PID: incarnation.PID,
+			PID:      incarnation.PID,
 			Identity: incarnation.Identity, State: IncarnationState(incarnation.State), StartedAt: incarnation.StartedAt,
 		}
 		if incarnation.Start != nil {

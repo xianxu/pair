@@ -513,7 +513,6 @@ var NonArtifactSources = []string{
 	"cmd/internal/couchcore/launch_existing.go",
 	"cmd/internal/couchcore/launchprofile.go",
 	"cmd/internal/couchcore/mailbox.go",
-	"cmd/internal/couchcore/migration.go",
 	"cmd/internal/couchcore/namespace.go",
 	"cmd/internal/couchcore/naming.go",
 	"cmd/internal/couchcore/operationdispatch.go",

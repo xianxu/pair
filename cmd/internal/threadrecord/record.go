@@ -42,11 +42,16 @@ type LaunchProfile struct {
 }
 
 type Incarnation struct {
-	LegacyActorID string    `json:"legacy_actor_id,omitempty"`
-	PID           int       `json:"pid,omitempty"`
-	Identity      string    `json:"identity,omitempty"`
-	State         string    `json:"state"`
-	StartedAt     time.Time `json:"started_at,omitempty"`
+	// DeprecatedLegacyActorID is a TOMBSTONE. Only the one-time registry
+	// cutover ever wrote it, and pair#170 M4 deleted the cutover. The
+	// operator's live store has none left (the imported records were parked,
+	// which clears incarnations), but "none in ONE store" is not "none
+	// anywhere", and the cost of being wrong is an undecodable record.
+	DeprecatedLegacyActorID json.RawMessage `json:"legacy_actor_id,omitempty"`
+	PID                     int             `json:"pid,omitempty"`
+	Identity                string          `json:"identity,omitempty"`
+	State                   string          `json:"state"`
+	StartedAt               time.Time       `json:"started_at,omitempty"`
 	// RepoIdentity is the Git common directory, the key for this path's saved
 	// launch preference. It replaces the fleet-policy record that used to carry
 	// it (pair#170 M4).
