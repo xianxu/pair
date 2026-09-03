@@ -693,32 +693,101 @@ func TestMenuEditingPendingPreviewClearsObsoleteProgress(t *testing.T) {
 	}
 }
 
-func TestMenuParkHotkeyOpensSemanticParkOrLeaveConfirmation(t *testing.T) {
+// Park is confirmed at BOTH scopes and detach at neither: the confirmation
+// rides the disposition, which is what the key chose, not the surface it was
+// pressed on. The whole-couch forms arrive as `leave` carrying that
+// disposition.
+func TestMenuHotkeyConfirmationFollowsTheDispositionNotTheScope(t *testing.T) {
 	target := menuAddress("couch-one")
-	for _, operation := range []string{"park", "leave"} {
-		t.Run(operation, func(t *testing.T) {
+	for _, tc := range []struct {
+		name      string
+		event     MenuEvent
+		confirmed bool
+		operation string
+		args      map[string]string
+	}{
+		{
+			name:      "park one thread",
+			event:     MenuEvent{Kind: MenuEventParkHotkey, Operation: "park", Address: target},
+			confirmed: true, operation: "park",
+			args: map[string]string{"repo-scope": target.RepoScope, "tag": string(target.Tag)},
+		},
+		{
+			name:      "park every thread",
+			event:     MenuEvent{Kind: MenuEventParkHotkey, Operation: "leave", Mode: string(couchcore.LeavePark)},
+			confirmed: true, operation: "leave",
+			args: map[string]string{"mode": "park"},
+		},
+		{
+			name:      "detach one thread",
+			event:     MenuEvent{Kind: MenuEventParkHotkey, Operation: "detach", Address: target},
+			operation: "detach",
+			args:      map[string]string{"repo-scope": target.RepoScope, "tag": string(target.Tag)},
+		},
+		{
+			name:      "detach every thread",
+			event:     MenuEvent{Kind: MenuEventParkHotkey, Operation: "leave", Mode: string(couchcore.LeaveDetach)},
+			operation: "leave",
+			args:      map[string]string{"mode": "detach"},
+		},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
 			state := NewMenuState(menuThreads(), target)
-			got, effects := ReduceMenu(state, MenuEvent{Kind: MenuEventParkHotkey, Operation: operation, Address: target})
-			if len(effects) != 0 || got.CurrentFrame().Kind != MenuFrameConfirmation || got.CurrentFrame().Action != operation || got.CurrentFrame().SelectedItem != "cancel" {
+			got, effects := ReduceMenu(state, tc.event)
+			if !tc.confirmed {
+				if len(effects) != 1 || effects[0].Operation != tc.operation || !reflect.DeepEqual(effects[0].Args, tc.args) {
+					t.Fatalf("unconfirmed %s = effects %+v", tc.name, effects)
+				}
+				if got.CurrentFrame().Kind == MenuFrameConfirmation {
+					t.Fatalf("%s opened a confirmation: %+v", tc.name, got.CurrentFrame())
+				}
+				return
+			}
+			if len(effects) != 0 || got.CurrentFrame().Kind != MenuFrameConfirmation ||
+				got.CurrentFrame().Action != tc.operation || got.CurrentFrame().SelectedItem != "cancel" {
 				t.Fatalf("hotkey state=%+v effects=%+v", got, effects)
 			}
 			got, _ = ReduceMenu(got, MenuEvent{Kind: MenuEventKey, Key: PanelKey{Kind: KeyDown}})
 			got, effects = ReduceMenu(got, MenuEvent{Kind: MenuEventKey, Key: PanelKey{Kind: KeyEnter}})
-			if len(effects) != 1 || effects[0].Operation != operation || effects[0].Attempt == 0 {
-				t.Fatalf("confirmed %s = state %+v effects %+v", operation, got, effects)
+			if len(effects) != 1 || effects[0].Operation != tc.operation || effects[0].Attempt == 0 ||
+				!reflect.DeepEqual(effects[0].Args, tc.args) {
+				t.Fatalf("confirmed %s = state %+v effects %+v", tc.name, got, effects)
 			}
 		})
 	}
 }
 
-func TestMenuLeaveEffectCarriesNoThreadArguments(t *testing.T) {
+// Leave addresses no thread because it addresses all of them: the disposition
+// is its entire argument, and a stray thread argument would make the CLI form
+// and the switcher form disagree about what leaving means.
+func TestMenuLeaveEffectCarriesOnlyItsDisposition(t *testing.T) {
 	target := menuAddress("couch-one")
 	state := NewMenuState(menuThreads(), target)
-	state, _ = ReduceMenu(state, MenuEvent{Kind: MenuEventParkHotkey, Operation: "leave", Address: target})
+	state, _ = ReduceMenu(state, MenuEvent{Kind: MenuEventParkHotkey, Operation: "leave", Mode: string(couchcore.LeavePark)})
 	state, _ = reduceKey(state, PanelKey{Kind: KeyDown})
 	_, effects := reduceKey(state, PanelKey{Kind: KeyEnter})
-	if len(effects) != 1 || effects[0].Operation != "leave" || len(effects[0].Args) != 0 {
-		t.Fatalf("leave effects = %+v, want one argument-free leave", effects)
+	if len(effects) != 1 || effects[0].Operation != "leave" ||
+		!reflect.DeepEqual(effects[0].Args, map[string]string{"mode": "park"}) {
+		t.Fatalf("leave effects = %+v, want one leave carrying only its disposition", effects)
+	}
+}
+
+// The anti-trap property, asserted directly: with NOTHING live, the switcher's
+// safe key still leaves. Making the exit conditional on there being something
+// to act on is what stranded the operator in the switcher (#170).
+func TestMenuDetachEveryThreadLeavesEvenWithNothingLive(t *testing.T) {
+	state := NewMenuState(nil, couchcore.ThreadAddress{})
+	state.InventoryReady = true
+
+	got, effects := ReduceMenu(state, MenuEvent{
+		Kind: MenuEventParkHotkey, Operation: "leave", Mode: string(couchcore.LeaveDetach),
+	})
+
+	if len(effects) != 1 || effects[0].Operation != "leave" {
+		t.Fatalf("effects = %+v, want leave dispatched from an empty switcher", effects)
+	}
+	if got.Notice.Level == MenuNoticeError {
+		t.Fatalf("leave refused with %q", got.Notice.Text)
 	}
 }
 
@@ -1015,7 +1084,7 @@ func TestLeaveConfirmationNeedsNoLiveThread(t *testing.T) {
 	state := NewMenuState(nil, couchcore.ThreadAddress{})
 	state.InventoryReady = true
 
-	state, _ = reduceParkHotkey(state, MenuEvent{Kind: MenuEventParkHotkey, Operation: "leave"})
+	state, _ = reduceParkHotkey(state, MenuEvent{Kind: MenuEventParkHotkey, Operation: "leave", Mode: string(couchcore.LeavePark)})
 
 	if len(state.Frames) != 2 || state.Frames[1].Kind != MenuFrameConfirmation {
 		t.Fatalf("frames = %+v, want a confirmation frame over an empty inventory", state.Frames)
@@ -1038,7 +1107,7 @@ func TestLeaveConfirmationSurvivesAnInventoryRefresh(t *testing.T) {
 	}
 	state := NewMenuState([]couchcore.ActionableThreadSummary{live}, live.Address)
 	state.InventoryReady = true
-	state, _ = reduceParkHotkey(state, MenuEvent{Kind: MenuEventParkHotkey, Operation: "leave"})
+	state, _ = reduceParkHotkey(state, MenuEvent{Kind: MenuEventParkHotkey, Operation: "leave", Mode: string(couchcore.LeavePark)})
 	if len(state.Frames) != 2 {
 		t.Fatalf("frames = %+v, want the leave confirmation", state.Frames)
 	}

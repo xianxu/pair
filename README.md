@@ -294,15 +294,17 @@ interaction path. On the target M2 Max under ordinary development co-tenancy,
 the contract is feedback and requested-commit P95 below 100 ms and commit max
 below 1 second; adversarial OS starvation is outside that claim. Pair cleanup
 retains its 10-second outer deadline and 5-second exact-Zellij inner wait.
-Leave Couch **detaches** every active actor and returns to the shell, so quitting
-never kills a running agent. A later bare `couch` automatically resumes the sole
+Leave Couch applies one disposition to every live actor and returns to the
+shell: `Alt+d` **detaches** them, so quitting never kills a running agent, and
+`Alt+x` **parks** them behind the same confirmation a single park needs. A later bare `couch` automatically resumes the sole
 exact resumable thread for that physical repository path and attaches it. With
 zero or multiple exact candidates, Couch starts a new thread instead; it does not
 rank, prompt, or guess.
 Resume does not allocate a temporary actor first or add a full native inventory
 scan. Alt+d is intercepted by Couch as its own detach operation: un-intercepted
 it would leave Couch with a dead child and a stale incarnation, and the thread
-would vanish from the switcher.
+would vanish from the switcher. Detaching an actor moves focus to the switcher,
+which is also what keeps Couch alive when the last actor detaches.
 
 A TUI startup that creates a new root allocates a distinct opaque durable
 thread; automatic unique resume reuses the resumable thread instead. Any number
@@ -360,14 +362,17 @@ select and switch/resume; `Tab` or `Right` opens the selected thread's actions,
 while `Left` or `Escape` restores its parent. Rows expose only proven `live`, exact
 verified `parked`, and proved `detached` states — and a row is offered only when
 it can actually be acted on, so an offered detached row is one `Enter`
-reattaches. `Alt+x` quits what you are looking at: on an
-actor it parks that actor, and on couch's own switcher it confirms **Leave
-Couch** — which now **detaches** every thread rather than parking them, so
-quitting couch never kills a running agent. `Alt+d` detaches the attached
-thread with no confirmation: its agent keeps running behind a live zellij
-session and only the client goes, so the row stays in the switcher and `Enter`
-reattaches it. Park is the deliberate, confirmed teardown; detach is the
-everyday one. `Escape` clears the filter or returns to an attached actor;
+reattaches. The two lifecycle chords read as a grid: the **key** picks what
+happens (`Alt+x` parks — the agent stops; `Alt+d` detaches — the agent keeps
+running behind its zellij session and only the client goes) and **where you
+press it** picks the scope (in an actor it means that thread; in the switcher it
+means every live thread, and then leaves couch). So `Alt+d` in the switcher is
+how you quit: everything keeps running, you land back in your shell, and a later
+`couch` reattaches. `Alt+x` there parks every live thread first, behind a
+confirmation that names how many agents it stops. Confirmation follows the key,
+not the surface — park is confirmed at both scopes and detach at neither. Leaving
+never depends on there being something live to act on, so an empty switcher is
+never a dead end. `Escape` clears the filter or returns to an attached actor;
 with no live actor, the switcher stays open and reports why. Press `ctrl-space` again from the
 switcher to open the path/agent start form; an empty path uses the existing `.`
 default. In the path field, `Tab` asynchronously completes directories only:

@@ -2,6 +2,7 @@ package couchtty
 
 import (
 	"errors"
+	"strconv"
 	"strings"
 	"unicode/utf8"
 
@@ -24,8 +25,8 @@ var menuControls = []MenuControl{
 	{Keys: "Right", Action: "forward"},
 	{Keys: "Ctrl-Space", Action: "start"},
 	{Keys: "Ctrl-Backspace", Action: "previous"},
-	{Keys: "Alt+d", Action: "detach"},
-	{Keys: "Alt+x", Action: "park/leave"},
+	{Keys: "Alt+d", Action: "detach this thread · all + leave couch here"},
+	{Keys: "Alt+x", Action: "park this thread · all + leave couch here"},
 	{Keys: "Escape", Action: "clear/back"},
 }
 
@@ -61,6 +62,10 @@ type MenuFrame struct {
 	SelectedItem    string
 	Thread          couchcore.ThreadAddress
 	Action          string
+	// Mode qualifies Action for a confirmation whose verb is not enough on its
+	// own: a `leave` frame has to remember whether the operator asked to detach
+	// every thread or to park them, because the two differ by every agent.
+	Mode            string
 	Input           string
 	FormField       MenuFormField
 	Path            string
@@ -180,10 +185,13 @@ type MenuEvent struct {
 	Inventory    []couchcore.ActionableThreadSummary
 	InventorySet bool
 	Operation    string
-	Attempt      uint64
-	Success      bool
-	Error        string
-	Generation   uint64
+	// Mode is the operation's disposition where it has one: which of park or
+	// detach a whole-couch `leave` applies to every live thread.
+	Mode       string
+	Attempt    uint64
+	Success    bool
+	Error      string
+	Generation uint64
 	// ProjectionAfterGeneration records the newest inventory generation that
 	// predates a committed operation mutation.
 	ProjectionAfterGeneration uint64
@@ -452,6 +460,26 @@ func reduceParkHotkey(state MenuState, event MenuEvent) (MenuState, []MenuEffect
 		state.Notice = errorMenuNotice("action is unavailable")
 		return state, nil
 	}
+	if event.Operation == "leave" {
+		// The whole-couch scope. The key already chose the disposition, so the
+		// only thing left to decide is confirmation -- and that rides the
+		// disposition, not the scope: park stops agents at either scope and is
+		// confirmed at either, detach stops nothing and is confirmed at
+		// neither.
+		state.Frames = state.Frames[:1]
+		switch couchcore.LeaveDisposition(event.Mode) {
+		case couchcore.LeaveDetach:
+			return dispatchMenuOperation(state, leaveEffect(couchcore.LeaveDetach), couchcore.ThreadAddress{})
+		case couchcore.LeavePark:
+			appendMenuFrame(&state, MenuFrame{
+				Kind: MenuFrameConfirmation, Action: "leave", Mode: event.Mode, SelectedItem: "cancel",
+			})
+			return state, nil
+		default:
+			state.Notice = errorMenuNotice("action is unavailable")
+			return state, nil
+		}
+	}
 	if event.Operation == "detach" {
 		thread, ok := findMenuThread(state.Inventory, event.Address)
 		if !ok || !thread.Live() {
@@ -470,14 +498,10 @@ func reduceParkHotkey(state MenuState, event MenuEvent) (MenuState, []MenuEffect
 		}
 	}
 	state.Frames = state.Frames[:1]
-	if event.Operation == "park" {
-		state.Frames[0].SelectedAddress = event.Address
-	}
-	frame := MenuFrame{Kind: MenuFrameConfirmation, Action: event.Operation, SelectedItem: "cancel"}
-	if event.Operation == "park" {
-		frame.Thread = event.Address
-	}
-	if !appendMenuFrame(&state, frame) {
+	state.Frames[0].SelectedAddress = event.Address
+	if !appendMenuFrame(&state, MenuFrame{
+		Kind: MenuFrameConfirmation, Action: event.Operation, Thread: event.Address, SelectedItem: "cancel",
+	}) {
 		return state, nil
 	}
 	return state, nil
@@ -544,7 +568,7 @@ func reduceConfirmationKey(state MenuState, key PanelKey) (MenuState, []MenuEffe
 		}
 		thread = found
 	}
-	items := confirmationMenuItems(frame.Action, thread)
+	items := confirmationMenuItems(state, *frame)
 	visible := filterMenuItems(items, frame.Filter)
 	switch key.Kind {
 	case KeyRune:
@@ -574,6 +598,9 @@ func reduceConfirmationKey(state MenuState, key PanelKey) (MenuState, []MenuEffe
 		if frame.SelectedItem != frame.Action || (frame.Action != "park" && frame.Action != "leave") ||
 			(binds && !thread.Live()) {
 			return discardThreadFrames(state, frame.Thread, "thread action is no longer applicable"), nil
+		}
+		if frame.Action == "leave" {
+			return dispatchMenuOperation(state, leaveEffect(couchcore.LeaveDisposition(frame.Mode)), couchcore.ThreadAddress{})
 		}
 		return dispatchThreadOperation(state, frame.Action, thread.Address)
 	}
@@ -934,10 +961,30 @@ func menuActionItems(thread couchcore.ActionableThreadSummary) []string {
 	return []string{"resume", "name", "describe"}
 }
 
-func confirmationMenuItems(action string, thread couchcore.ActionableThreadSummary) []string {
-	if action == "leave" {
-		return []string{"cancel", "leave couch"}
+// confirmationMenuItems names what the operator is about to accept.
+//
+// The item is the only place that naming can live: the frame title never
+// reaches the screen, since RenderMenuView overwrites line 0 with the
+// breadcrumb. So the destructive whole-couch form spells out its cost here --
+// that many agents stop, any of them possibly mid-turn -- exactly as the
+// per-thread park names the thread it kills.
+func confirmationMenuItems(state MenuState, frame MenuFrame) []string {
+	if frame.Action == "leave" {
+		live := 0
+		for _, thread := range state.Inventory {
+			if thread.Live() {
+				live++
+			}
+		}
+		if couchcore.LeaveDisposition(frame.Mode) != couchcore.LeavePark || live == 0 {
+			return []string{"cancel", "leave couch"}
+		}
+		if live == 1 {
+			return []string{"cancel", "leave couch, parking 1 live thread"}
+		}
+		return []string{"cancel", "leave couch, parking " + strconv.Itoa(live) + " live threads"}
 	}
+	thread, _ := findMenuThread(state.Inventory, frame.Thread)
 	return []string{"cancel", "park " + thread.Label()}
 }
 
@@ -1078,8 +1125,7 @@ func reconcileMenuFrames(state MenuState, previous ...[]couchcore.ActionableThre
 			// Without this a leave confirmation is dropped ASYNCHRONOUSLY by
 			// the next refresh -- a keystroke-only test would never see it.
 			if frame.Kind == MenuFrameConfirmation {
-				reconcileItemSelection(&frame, filterMenuItems(
-					confirmationMenuItems(frame.Action, couchcore.ActionableThreadSummary{}), frame.Filter))
+				reconcileItemSelection(&frame, filterMenuItems(confirmationMenuItems(state, frame), frame.Filter))
 			}
 			state.Frames = append(state.Frames, frame)
 			continue
@@ -1109,7 +1155,7 @@ func reconcileMenuFrames(state MenuState, previous ...[]couchcore.ActionableThre
 				state.Notice = errorMenuNotice("thread action is no longer applicable")
 				continue
 			}
-			reconcileItemSelection(&frame, filterMenuItems(confirmationMenuItems(frame.Action, thread), frame.Filter))
+			reconcileItemSelection(&frame, filterMenuItems(confirmationMenuItems(state, frame), frame.Filter))
 		case MenuFrameText:
 			if bound != frame.Thread || (frame.Action != "name" && frame.Action != "describe") {
 				invalidThreadFrame = true
@@ -1332,13 +1378,16 @@ func findMenuThread(inventory []couchcore.ActionableThreadSummary, address couch
 }
 
 func threadEffect(operation string, address couchcore.ThreadAddress) MenuEffect {
-	if operation == "leave" {
-		return MenuEffect{Operation: operation}
-	}
 	return MenuEffect{Operation: operation, Args: map[string]string{
 		"repo-scope": address.RepoScope,
 		"tag":        string(address.Tag),
 	}}
+}
+
+// leaveEffect is the whole-couch operation. It addresses no thread because it
+// addresses all of them: the disposition is the entire argument.
+func leaveEffect(disposition couchcore.LeaveDisposition) MenuEffect {
+	return MenuEffect{Operation: "leave", Args: map[string]string{"mode": string(disposition)}}
 }
 
 func hierarchyNavigationKey(key PanelKey, forward PanelKeyKind) PanelKey {

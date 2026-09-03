@@ -231,9 +231,12 @@ func Operations() []Operation {
 			},
 		},
 		{
-			Name: "leave", Summary: "Detach every active work thread and leave Couch",
+			Name: "leave", Summary: "Apply one disposition to every live work thread and leave Couch",
 			Execution: ExecuteLiveOwner, Effect: EffectProcess, Confirmation: ConfirmRequired, Result: ResultConsole,
 			Presentation: PresentationTUI,
+			Args: []ArgSpec{
+				{Name: "mode", Summary: "detach (default) or park every live thread (--mode=<mode>)", FlagOnly: true, ValueRequired: true},
+			},
 		},
 		{
 			Name: "resume", Summary: "Resume an exact verified-parked work thread",

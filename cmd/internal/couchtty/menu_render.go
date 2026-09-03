@@ -198,12 +198,11 @@ func renderMenuFrame(state MenuState, frame MenuFrame, width, height int, now ti
 		thread, _ := findMenuThread(state.Inventory, frame.Thread)
 		return renderItemMenuFrame("actions · "+thread.Label(), filterMenuItems(menuActionItems(thread), frame.Filter), frame.SelectedItem, frame.Filter, width, height)
 	case MenuFrameConfirmation:
+		// The title argument is vestigial at every call site: RenderMenuView
+		// overwrites line 0 with the breadcrumb. What the operator reads is the
+		// ITEM, which is why the item names the action's cost.
 		thread, _ := findMenuThread(state.Inventory, frame.Thread)
-		title := "park " + thread.Label() + "?"
-		if frame.Action == "leave" {
-			title = "leave couch?"
-		}
-		return renderItemMenuFrame(title, filterMenuItems(confirmationMenuItems(frame.Action, thread), frame.Filter), confirmationDisplaySelection(frame), frame.Filter, width, height)
+		return renderItemMenuFrame("park "+thread.Label()+"?", filterMenuItems(confirmationMenuItems(state, frame), frame.Filter), confirmationDisplaySelection(frame), frame.Filter, width, height)
 	case MenuFrameText:
 		return []string{clipMenuLine(menuItemLabel(frame.Action), width), "", clipMenuLine("> "+frame.Input, width)}
 	case MenuFrameStart:

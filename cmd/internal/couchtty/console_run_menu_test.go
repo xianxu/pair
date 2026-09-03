@@ -3,6 +3,7 @@ package couchtty
 import (
 	"context"
 	"strings"
+	"sync/atomic"
 	"testing"
 	"time"
 
@@ -227,22 +228,28 @@ func TestConsoleRunMenuAltXOnThePanelOpensLeaveConfirmation(t *testing.T) {
 	_, _ = f.stdin.Write([]byte("\x00\x1bx"))
 	waitUpTo(t, 250*time.Millisecond, "leave confirmation", func() bool {
 		screen := lastConsoleScreen(f.host.Written())
-		return strings.Contains(screen, "threads › leave couch") && strings.Contains(screen, "cancel")
+		return strings.Contains(screen, "threads › leave couch") && strings.Contains(screen, "cancel") &&
+			// The destructive whole-couch action names its cost where the
+			// operator actually reads it -- on the item, since the frame title
+			// is overwritten by the breadcrumb.
+			strings.Contains(screen, "leave couch, parking 1 live thread")
 	})
 	if strings.Contains(f.host.Written(), "type yes") {
 		t.Fatalf("Alt+x fell back to compatibility prompt: %q", f.host.Written())
 	}
 }
 
-func TestConsoleRunConfirmedLeaveUsesArgumentFreeOperationAndExits(t *testing.T) {
+func TestConsoleRunConfirmedLeaveCarriesItsDispositionAndExits(t *testing.T) {
 	f := liveMenuFixture(t)
 	called := make(chan struct{}, 1)
 	setTestOps(f.con, func(name string, args map[string]string) (any, error) {
 		if name != "leave" {
 			t.Fatalf("operation = %q, want leave", name)
 		}
-		if len(args) != 0 {
-			t.Fatalf("leave args = %+v, want none", args)
+		// Alt+x is the park disposition. Its ONLY argument is that choice:
+		// leaving addresses every thread, so it names none of them.
+		if len(args) != 1 || args["mode"] != string(couchcore.LeavePark) {
+			t.Fatalf("leave args = %+v, want only mode=park", args)
 		}
 		called <- struct{}{}
 		return nil, nil
@@ -434,17 +441,142 @@ func TestConsoleRunAltDDetachesWithoutConfirmation(t *testing.T) {
 	}
 }
 
-// On the panel there is no attached thread to detach; saying so beats silence.
-func TestConsoleRunAltDOnThePanelSaysThereIsNothingToDetach(t *testing.T) {
+// The switcher IS couch, so Alt+d there applies to every live thread and then
+// leaves -- with no confirmation, because detach destroys nothing at either
+// scope. This is the operator's way out, and it used to be a refusal notice.
+func TestConsoleRunAltDOnThePanelDetachesEveryThreadAndLeaves(t *testing.T) {
 	f, _, _ := twoThreadMenuFixture(t)
+	dispatched := make(chan map[string]string, 4)
+	setTestOps(f.con, func(name string, args map[string]string) (any, error) {
+		if name == "leave" {
+			dispatched <- args
+		}
+		return nil, nil
+	})
 	_, _ = f.stdin.Write([]byte("\x00"))
 	waitUpTo(t, 250*time.Millisecond, "the switcher", func() bool {
 		return strings.Contains(f.host.Written(), "threads")
 	})
-	for _, encoding := range workbenchshortcut.ChordEncodings(workbenchshortcut.ChordAltD) {
-		_, _ = f.stdin.Write(encoding)
+
+	f.host.Reset()
+	_, _ = f.stdin.Write([]byte("\x1b[100;3u"))
+
+	select {
+	case args := <-dispatched:
+		if len(args) != 1 || args["mode"] != string(couchcore.LeaveDetach) {
+			t.Fatalf("leave args = %+v, want only mode=detach", args)
+		}
+	case <-time.After(500 * time.Millisecond):
+		t.Fatalf("alt+d in the switcher dispatched nothing; screen: %q", lastConsoleScreen(f.host.Written()))
 	}
-	waitUpTo(t, 250*time.Millisecond, "the no-thread notice", func() bool {
-		return strings.Contains(f.con.feed.Latest(), "detach")
+	if screen := lastConsoleScreen(f.host.Written()); strings.Contains(screen, "cancel") {
+		t.Fatalf("the safe whole-couch gesture asked for confirmation: %q", screen)
+	}
+	select {
+	case <-f.done:
+	case <-time.After(500 * time.Millisecond):
+		t.Fatal("leave did not exit Console.Run")
+	}
+}
+
+// The bug this grid replaced, pinned end to end: the last live actor is gone,
+// the operator is sitting in the switcher, and the safe key still gets them out.
+// Nothing here is live, so a whole-couch action with nothing to act on must
+// still leave -- that conditionality was the trap.
+func TestConsoleRunLeavesFromASwitcherWithNothingLive(t *testing.T) {
+	f := newFixture(t, 24, 100)
+	f.con.mu.Lock()
+	root := f.con.panes[f.con.order[0]]
+	address := root.thread
+	root.process = couchcore.ProcessIdentity{PID: 42, Identity: "root-start"}
+	f.con.menu.ActiveAddress = address
+	f.con.mu.Unlock()
+
+	var live atomic.Bool
+	live.Store(true)
+	f.con.SetActionableProvider(func(context.Context, []couchcore.LiveTTYObservation) ([]couchcore.ActionableThreadSummary, error) {
+		state := couchcore.ThreadDetached
+		if live.Load() {
+			state = couchcore.ThreadLive
+		}
+		return []couchcore.ActionableThreadSummary{{
+			Address: address, WorkingPath: "/repo", Name: "root", State: state, LastActiveAt: time.Now(),
+		}}, nil
 	})
+	waitUpTo(t, 250*time.Millisecond, "live inventory", func() bool {
+		return f.con.menuSnapshot().InventoryReady && len(f.con.menuSnapshot().Inventory) == 1
+	})
+
+	// Open the switcher, then lose the last live actor behind it.
+	_, _ = f.stdin.Write([]byte{0})
+	waitUpTo(t, 250*time.Millisecond, "the switcher", func() bool {
+		return strings.Contains(lastConsoleScreen(f.host.Written()), "threads")
+	})
+	live.Store(false)
+	f.child.Exit(0)
+	waitUpTo(t, 500*time.Millisecond, "the detached row", func() bool {
+		snapshot := f.con.menuSnapshot()
+		return len(snapshot.Inventory) == 1 && !snapshot.Inventory[0].Live()
+	})
+	select {
+	case code := <-f.done:
+		t.Fatalf("console exited on its own with %d", code)
+	case <-time.After(100 * time.Millisecond):
+	}
+
+	dispatched := make(chan string, 4)
+	setTestOps(f.con, func(name string, _ map[string]string) (any, error) {
+		dispatched <- name
+		return nil, nil
+	})
+	_, _ = f.stdin.Write([]byte("\x1b[100;3u"))
+	select {
+	case name := <-dispatched:
+		if name != "leave" {
+			t.Fatalf("alt+d in an empty switcher dispatched %q, want leave", name)
+		}
+	case <-time.After(500 * time.Millisecond):
+		t.Fatalf("alt+d in an empty switcher dispatched nothing; screen: %q", lastConsoleScreen(f.host.Written()))
+	}
+	select {
+	case <-f.done:
+	case <-time.After(500 * time.Millisecond):
+		t.Fatal("leave did not exit Console.Run")
+	}
+}
+
+// Detaching an ACTOR lands in the switcher rather than ending couch. The
+// console exits with its final child only when an actor still owns the focus,
+// so without this the safe gesture would quit couch out from under an operator
+// who detached their last thread.
+func TestConsoleRunAltDOnTheLastActorLandsInTheSwitcher(t *testing.T) {
+	f := liveMenuFixture(t)
+	dispatched := make(chan string, 4)
+	setTestOps(f.con, func(name string, _ map[string]string) (any, error) {
+		dispatched <- name
+		if name == "detach" {
+			f.child.Exit(0)
+		}
+		return nil, nil
+	})
+
+	_, _ = f.stdin.Write([]byte("\x1b[100;3u"))
+	select {
+	case name := <-dispatched:
+		if name != "detach" {
+			t.Fatalf("alt+d dispatched %q, want detach", name)
+		}
+	case <-time.After(500 * time.Millisecond):
+		t.Fatal("alt+d dispatched nothing")
+	}
+	waitUpTo(t, 500*time.Millisecond, "the switcher", func() bool {
+		f.con.mu.Lock()
+		defer f.con.mu.Unlock()
+		return f.con.focus.IsPanel()
+	})
+	select {
+	case code := <-f.done:
+		t.Fatalf("couch exited (%d) when its last actor detached", code)
+	case <-time.After(200 * time.Millisecond):
+	}
 }

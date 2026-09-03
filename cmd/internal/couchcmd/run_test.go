@@ -575,7 +575,7 @@ func TestEveryOperationHasASummaryAndDescribedArgs(t *testing.T) {
 func TestOperationArityMatchesExpectation(t *testing.T) {
 	// Declared in the test rather than read from the operation itself, so
 	// this cannot degrade into asserting X == X.
-	want := map[string]int{"prepare-start": 2, "start": 4, "list": 0, "show": 2, "stop": 1, "name": 3, "describe": 3, "publish-description": 3, "switch": 2, "attach": 2, "park": 4, "detach": 3, "resume": 3}
+	want := map[string]int{"prepare-start": 2, "start": 4, "list": 0, "show": 2, "stop": 1, "name": 3, "describe": 3, "publish-description": 3, "switch": 2, "attach": 2, "park": 4, "detach": 3, "leave": 1, "resume": 3}
 	for _, op := range couchcore.Operations() {
 		if got := len(op.Args); got != want[op.Name] {
 			t.Errorf("%s has %d args, want %d", op.Name, got, want[op.Name])

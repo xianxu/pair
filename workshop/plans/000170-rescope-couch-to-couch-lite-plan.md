@@ -991,3 +991,24 @@ Delta:
   stack, is the operator's to run and is deferred to the issue close. It was
   briefly ticked by a blanket edit and has been un-ticked; a plan that claims an
   unrun manual check is worse than one that admits it.
+
+### 2026-09-03 — lifecycle chords rebound to a 2x2 (operator smoke)
+
+Reason: the deferred operator smoke found the exit unfindable. Full reasoning
+and the superseded decisions are recorded in the issue's `## Revisions`; this
+note keeps the plan honest about what its Chunk 1 and Chunk 2 key layer now
+does.
+
+Delta against Chunk 1 Task 5 and Chunk 2 Task 11:
+
+- `alt+x` on the switcher no longer *is* `leave`. It is park at the whole-couch
+  scope, which happens to leave; `alt+d` on the switcher is detach at that same
+  scope. `Couch.Leave` carries the disposition (`LeaveDetach` | `LeavePark`).
+- `alt+d` on an actor now takes focus to the switcher, mirroring the park
+  hotkey. Chunk 2 left focus on the actor, which made `onExit`'s
+  `last && !panelFocused` quit couch when the last actor detached.
+- The whole-couch forms are unconditional: with nothing live they still leave.
+- `confirmationMenuItems` now reads the menu state so the park-all item can
+  name how many agents it stops. Discovered while writing it: the `title`
+  argument to `renderItemMenuFrame` is vestigial at every call site, since
+  `RenderMenuView` overwrites line 0 with the breadcrumb.

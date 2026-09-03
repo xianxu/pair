@@ -298,18 +298,24 @@ list/show` diagnostics instead of leaking lifecycle implementation states into
 the switcher. Ephemeral console targets bind only to durable proven-live rows,
 so a stale child handle cannot turn an inactive row's Enter into switch. If
 Park removes the final actor while the switcher owns focus, the console remains
-available for the refreshed resumable row. Alt+x quits what the operator is
-looking at: on an actor it parks that actor, and on couch's own panel it opens
-the typed `leave` confirmation, parks every active/parking thread sequentially,
-and closes the console only after durable success and exact Pair-child death.
+available for the refreshed resumable row. The two lifecycle chords read as a
+2x2: the KEY chooses the disposition (Alt+x parks, Alt+d detaches) and the
+SURFACE chooses the scope (an actor means that thread, the switcher means every
+live thread and then leaving). Alt+x on the switcher therefore opens the typed
+`leave` confirmation in its park disposition, parks every live thread
+sequentially, and closes the console only after durable success and exact
+Pair-child death; Alt+d there does the same sweep with detach and no
+confirmation. Confirmation rides the disposition, not the scope.
 That confirmation is a **global frame** -- `menuFrameBindsThread` is false for
 it -- because it names couch rather than a thread. It used to ride the root
 actor's live address, so five thread lookups passed by accident; one of them,
 `reconcileMenuFrames`, fires on the next inventory refresh rather than on a
 keypress, so a keystroke-only test would watch the confirmation appear and then
 vanish. With `leave` reachable from a couch with no live thread at all, none of
-the five applies to it. Any failure leaves Couch open and occupied
-for recovery (ARCH-PURPOSE).
+the five applies to it. Leaving is unconditional for the same reason: a switcher
+holding nothing live must still have a way out, and making the exit conditional
+on there being something to act on is exactly how the operator got stranded in
+it. Any failure leaves Couch open and occupied for recovery (ARCH-PURPOSE).
 
 The park trigger writes the exact typed quit intent and then deletes only the
 indexed Pair/Zellij session. That deletion returns Pair's blocking handoff so
@@ -387,12 +393,21 @@ there before AND after, and only then retires the incarnation by CAS through
 transaction, because nothing was torn down and writing a verified park would
 claim a teardown that never happened. A client that ignores SIGTERM makes detach
 FAIL rather than escalate; nothing was destroyed, so failing is safe. It needs no
-confirmation, and that asymmetry with park is why both exist.
+confirmation at either scope, and that asymmetry with park is why both exist.
+Detaching an actor moves focus to the switcher exactly as park does, which is
+also what keeps Couch alive when the LAST actor detaches: an actor-focused
+console exits with its final child, so without the focus move the safe gesture
+would end the session.
 
-`Leave` detaches every active thread instead of parking them, so quitting Couch
-no longer kills a running agent. A thread already mid-park is driven to
-completion, and one carrying an `unknown` incarnation is SKIPPED and reported --
-parking is the destructive option and Couch cannot vouch for that state.
+`Leave` is the whole-couch form of that same pair, carrying a
+`LeaveDisposition`: `LeaveDetach` applies `Detach` to every live thread,
+`LeavePark` applies `Park`. Detach is the default and the safe one -- quitting
+Couch does not kill a running agent unless the operator asked for park by name.
+An unknown disposition is refused rather than defaulted, since guessing either
+way silently contradicts the key that was pressed. A thread already mid-park is
+driven to completion under both, and one carrying an `unknown` incarnation is
+SKIPPED and reported under both -- Couch cannot vouch for that state, so neither
+killing it nor claiming to have safely detached it is honest.
 
 **Detached is a derived actionable state, not a persisted one.** `launcher`
 already classifies a live zellij session with zero clients as `SessionDetached`,

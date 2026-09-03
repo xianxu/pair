@@ -105,13 +105,33 @@ type ParkResult struct {
 	CleanupError            error
 }
 
+// LeaveDisposition is what leaving Couch does to threads that are still live.
+//
+// The KEY the operator pressed chooses it, not the surface they pressed it on:
+// Alt+d detaches and Alt+x parks, in an actor or in the switcher alike. Leaving
+// is the invariant either way -- a switcher with nothing live must still have a
+// way out, which is exactly the trap that produced this split (#170).
+type LeaveDisposition string
+
+const (
+	// LeaveDetach keeps every agent running behind its zellij session.
+	LeaveDetach LeaveDisposition = "detach"
+	// LeavePark stops every agent, the same teardown per-thread park performs.
+	LeavePark LeaveDisposition = "park"
+)
+
 // LeaveResult names what happened to each thread before Couch released the
 // operator terminal. On failure it preserves partial progress so the caller can
 // report what is already safely historical.
 type LeaveResult struct {
+	// Disposition is the one the caller asked for. Carried in the result
+	// because Parked means two different things across the two dispositions,
+	// and the report the operator reads has to say which.
+	Disposition LeaveDisposition
 	// Detached threads kept their agent running behind a live zellij session.
 	Detached []ThreadAddress
-	// Parked threads were mid-park already and were driven to completion.
+	// Parked threads were stopped: driven to completion because they were
+	// mid-park already, or parked outright under LeavePark.
 	Parked []ThreadAddress
 	// Skipped threads could not be proved detachable -- an `unknown`
 	// incarnation, whose state Couch cannot vouch for. Named rather than
@@ -120,24 +140,38 @@ type LeaveResult struct {
 	Skipped []ThreadAddress
 }
 
-// Leave DETACHES active threads one at a time, then releases the terminal.
+// Leave applies one disposition to every live thread, then releases the
+// terminal. It is the whole-couch form of the per-thread gesture: LeaveDetach
+// is Detach applied to all of them, LeavePark is Park.
 //
-// It used to park them, which killed every agent -- including any mid-turn --
-// every time the operator quit couch. Detaching kills nothing: the agents keep
-// running behind their zellij sessions and the next couch reattaches them. That
-// is what makes detached the normal resting state rather than an edge case.
+// The default remains detach, and it is the safe one: agents keep running
+// behind their zellij sessions and the next couch reattaches them, which is
+// what makes detached the normal resting state rather than an edge case. Park
+// is offered because the operator sometimes means it -- but only behind the
+// same confirmation the per-thread park demands, since it stops every agent
+// including any mid-turn.
 //
-// Two threads are not detached, for opposite reasons. One already mid-park is
-// driven to completion instead: it is already being shut down, and interrupting
-// that leaves a half-torn-down session nobody owns. One carrying an `unknown`
-// incarnation is SKIPPED rather than parked: parking is the destructive option,
-// and taking it on state Couch cannot prove is precisely what detaching on the
-// way out exists to avoid. It stays occupied and the next startup reconciles it.
+// Two threads take neither disposition, for opposite reasons. One already
+// mid-park is driven to completion instead: it is already being shut down, and
+// interrupting that leaves a half-torn-down session nobody owns. One carrying
+// an `unknown` incarnation is SKIPPED under BOTH dispositions -- Couch cannot
+// prove what it would be acting on, and neither killing nor claiming to have
+// safely detached it is honest. It stays occupied and the next startup
+// reconciles it.
 //
 // Serial by choice: shutdown is not a throughput path, and each exact identity
 // gets the full bounded budget rather than competing for it.
-func (c *Couch) Leave(ctx context.Context) (LeaveResult, error) {
-	var result LeaveResult
+func (c *Couch) Leave(ctx context.Context, disposition LeaveDisposition) (LeaveResult, error) {
+	result := LeaveResult{Disposition: disposition}
+	switch disposition {
+	case LeaveDetach, LeavePark:
+	default:
+		// No default disposition here. The caller that knows which key was
+		// pressed is the only one that can answer, and guessing "detach" for a
+		// caller that meant park would silently keep agents the operator asked
+		// to stop.
+		return result, fmt.Errorf("leave couch: unknown disposition %q", disposition)
+	}
 	if c == nil || c.Threads == nil {
 		return result, errors.New("thread store is unavailable")
 	}
@@ -165,6 +199,20 @@ func (c *Couch) Leave(ctx context.Context) (LeaveResult, error) {
 		}
 		if len(record.Incarnations) != 1 || record.Incarnations[0].State != IncarnationLive {
 			result.Skipped = append(result.Skipped, record.Address)
+			continue
+		}
+		if disposition == LeavePark {
+			if c.PairLifecycle == nil {
+				return result, errors.New("Pair lifecycle controller is unavailable")
+			}
+			parkResult, parkErr := c.PairLifecycle.Park(ctx, record.Address)
+			if parkErr != nil {
+				return result, fmt.Errorf("leave couch: park %s: %w", record.Address.Tag, parkErr)
+			}
+			if parkResult.Thread.VerifiedPark == nil || parkResult.Thread.Park != nil {
+				return result, fmt.Errorf("leave couch: park %s did not produce verified inactive history", record.Address.Tag)
+			}
+			result.Parked = append(result.Parked, record.Address)
 			continue
 		}
 		if _, detachErr := c.Detach(ctx, record.Address); detachErr != nil {

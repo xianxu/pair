@@ -272,7 +272,7 @@ func TestLeaveDetachesLiveThreadsSequentiallyAndRetainsPartialFailure(t *testing
 
 	couch := &Couch{Threads: store, Proc: proc, Artifacts: artifacts, sleep: func(time.Duration) {}}
 
-	result, err := couch.Leave(context.Background())
+	result, err := couch.Leave(context.Background(), LeaveDetach)
 	if err == nil {
 		t.Fatalf("Leave = %+v, want the second detach to fail", result)
 	}
@@ -314,7 +314,7 @@ func TestLeaveSkipsUnknownIncarnationsRatherThanParkingThem(t *testing.T) {
 	proc := NewFakeProcOps()
 	couch := &Couch{Threads: store, Proc: proc, Artifacts: artifacts, sleep: func(time.Duration) {}}
 
-	result, _ := couch.Leave(context.Background())
+	result, _ := couch.Leave(context.Background(), LeaveDetach)
 	found := false
 	for _, address := range result.Skipped {
 		if address == unknown.Address {
@@ -772,5 +772,70 @@ func TestParkCoordinatorConstructorDoesNotQueryPairSession(t *testing.T) {
 	}
 	if len(artifacts.TriggeredQuits()) != 1 {
 		t.Fatalf("worker recovery triggers = %v", artifacts.TriggeredQuits())
+	}
+}
+
+// The whole-couch form of PARK. Alt+x in the switcher means the operator asked
+// to stop every agent, so Leave has to perform the same verified teardown the
+// per-thread park does -- not a detach wearing park's name.
+func TestLeaveParkStopsEveryLiveThreadWithVerifiedParks(t *testing.T) {
+	store, _, thread := createControllerThread(t)
+	now := time.Date(2026, 9, 3, 9, 0, 0, 0, time.UTC)
+	model := pairlifecycletest.New(now)
+	model.SetSession("pair-exact", true)
+	lifecycle := &fakeControllerLifecycle{model: model, store: store}
+	artifacts := NewFakeThreadArtifactCollisionChecker()
+	artifacts.SetPairSession(thread.Address, "pair-exact", true)
+	artifacts.TriggerQuitHook = func(_ string, _ launcher.QuitIntent) error {
+		if err := model.DeliverTrigger(lifecycle.lastRequest); err != nil {
+			return err
+		}
+		completion := successCompletion(lifecycle.lastRequest, now)
+		lifecycle.completion = &completion
+		return model.CommitCompletion(lifecycle.lastRequest, pairlifecycle.CleanupResult{
+			Outcome: pairlifecycle.CompletionSuccess, CompletedAt: now,
+		})
+	}
+	controller := PairLifecycleController{
+		Threads: store, DataDir: t.TempDir(), Lifecycle: lifecycle, Sessions: artifacts,
+		Proc: NewFakeProcOps(), Clock: FixedClock{T: now},
+		Nonce: func() (string, error) { return "park-leave-0123456789", nil },
+	}
+	couch := &Couch{
+		Threads: store, Proc: NewFakeProcOps(), Artifacts: artifacts,
+		PairLifecycle: &controller, sleep: func(time.Duration) {},
+	}
+
+	result, err := couch.Leave(context.Background(), LeavePark)
+	if err != nil {
+		t.Fatalf("Leave: %v", err)
+	}
+	if len(result.Parked) != 1 || result.Parked[0] != thread.Address || len(result.Detached) != 0 {
+		t.Fatalf("Leave = %+v, want the live thread parked and nothing detached", result)
+	}
+	if result.Disposition != LeavePark {
+		t.Fatalf("Leave disposition = %q, want park -- the exit report has to say which ran", result.Disposition)
+	}
+	parked, err := store.GetThread(thread.Address)
+	if err != nil || parked.VerifiedPark == nil || parked.Park != nil || len(parked.Incarnations) != 0 {
+		t.Fatalf("thread = %+v, %v; want a verified park with no live incarnation", parked, err)
+	}
+	if got := artifacts.TriggeredQuits(); len(got) != 1 {
+		t.Fatalf("typed Pair quit triggers = %v, want exactly one", got)
+	}
+}
+
+// An unknown disposition is a refusal, not a default. Defaulting to detach
+// would silently keep alive the agents a caller asked to stop, and defaulting
+// to park would kill the ones it asked to keep.
+func TestLeaveRefusesAnUnknownDisposition(t *testing.T) {
+	store, _, _ := createControllerThread(t)
+	couch := &Couch{Threads: store, Proc: NewFakeProcOps(), Artifacts: NewFakeThreadArtifactCollisionChecker()}
+	result, err := couch.Leave(context.Background(), LeaveDisposition("evict"))
+	if err == nil {
+		t.Fatalf("Leave accepted an unknown disposition: %+v", result)
+	}
+	if len(result.Detached) != 0 || len(result.Parked) != 0 {
+		t.Fatalf("refused Leave still acted: %+v", result)
 	}
 }

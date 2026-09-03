@@ -329,6 +329,61 @@ Four review boundaries; each is independently operable.
       policy provider, start grants, legacy migration, the never-instantiated
       actor loop, and the dead registry-era surface. Atlas and project file
       updated; operator smoke on the real stack.
+- [x] Operator smoke finding — rebind the lifecycle chords to the 2x2 the
+      operator named (see Revisions, 2026-09-03). Key picks the disposition,
+      surface picks the scope, leaving is unconditional. Atlas + README follow.
+
+## Revisions
+
+### 2026-09-03 — the lifecycle chords are a 2x2, and leaving is unconditional
+
+Reason: operator smoke on the real stack (the M4 task that was deferred to the
+issue close) reported *"there seems no way to quit couch now — when the last
+live actor is detached or parked, the user is stuck in the switcher pane."*
+
+The mechanism was not broken. Two tests driving the production input path
+(panel focused, last child exits; and park-the-last-actor-then-leave) both
+reached `leave` and exited `Console.Run`. What was broken was that nothing on
+screen said so, and what the keys meant depended on where you pressed them:
+
+| | in an actor | in the switcher |
+| --- | --- | --- |
+| `alt+x` | park this thread (agent dies), confirmed | **leave couch** (safe, detaches everything) |
+| `alt+d` | detach this thread | **nothing** — `detach: no attached thread` |
+
+So the exit lived on the destructive-looking key, the safe key did nothing on
+the surface where the operator most wanted it, and the switcher's own key
+legend (`menuControls`) was consumed only by a README test — never rendered.
+`Escape` at the root with no live actor refuses with "no live thread can
+receive focus", every letter is typeahead, and ctrl-c/ctrl-d are swallowed as
+control bytes. Every key an operator would try either refused or filtered.
+
+Delta, decided with the operator:
+
+- **The key picks the disposition, the surface picks the scope.** `alt+x` parks
+  (destructive), `alt+d` detaches (safe); in an actor that means one thread, in
+  the switcher it means every live thread. Both switcher forms then leave couch.
+- **Leaving is an invariant, not a consequence.** A whole-couch action with
+  nothing live to act on still leaves — making the exit conditional on there
+  being something to act on is precisely the trap reported.
+- **Confirmation rides the disposition, not the scope.** Park is confirmed at
+  both scopes; detach at neither. The park-all confirmation names its cost
+  ("leave couch, parking 3 live threads") on the *item*, because the frame
+  title never reaches the screen: `RenderMenuView` overwrites line 0 with the
+  breadcrumb.
+- **Detaching an actor moves focus to the switcher**, as park already did. That
+  also fixes an accident: `onExit`'s `last && !panelFocused` meant detaching the
+  *last* actor quit couch outright.
+- `Couch.Leave` takes a `LeaveDisposition` (`LeaveDetach` | `LeavePark`) and
+  refuses an unknown one rather than defaulting — guessing either way silently
+  contradicts the key that was pressed. One operation with a mode, mirroring
+  park's existing `mode` argument, rather than a second verb (ARCH-DRY).
+
+This supersedes Spec §Keys' `alt+d` line and design decisions #2 and #3 in the
+2026-09-02 design-complete note: `alt+x` on the panel is no longer how `leave`
+is reached, and leaving now has two dispositions rather than always detaching.
+Decision #3's *reasoning* survives intact and is why detach stayed the default
+and the unconfirmed one.
 
 ## Log
 

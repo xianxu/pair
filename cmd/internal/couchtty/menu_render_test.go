@@ -56,7 +56,7 @@ func TestRenderMenuUsesSingleSurfaceBreadcrumbs(t *testing.T) {
 	describe := cloneMenuState(actions)
 	describe.Frames[len(describe.Frames)-1].SelectedItem = "describe"
 	describe, _ = reduceKey(describe, PanelKey{Kind: KeyEnter})
-	leave, _ := ReduceMenu(root, MenuEvent{Kind: MenuEventParkHotkey, Operation: "leave", Address: menuAddress("couch-one")})
+	leave, _ := ReduceMenu(root, MenuEvent{Kind: MenuEventParkHotkey, Operation: "leave", Mode: string(couchcore.LeavePark)})
 	startFromConfirmation, _ := reduceKey(park, PanelKey{Kind: KeyCtrlSpace})
 
 	for _, tc := range []struct {

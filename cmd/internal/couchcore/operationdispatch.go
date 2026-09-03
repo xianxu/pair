@@ -251,7 +251,16 @@ func CouchLiveOwnerExecutor(c *Couch) OperationExecutor {
 			}
 			return c.Detach(ctx, address)
 		case "leave":
-			return c.Leave(ctx)
+			// Mirrors park's mode argument rather than minting a second verb:
+			// leaving is one operation whose disposition the pressed key picks.
+			switch a["mode"] {
+			case "", "detach":
+				return c.Leave(ctx, LeaveDetach)
+			case "park":
+				return c.Leave(ctx, LeavePark)
+			default:
+				return nil, fmt.Errorf("leave: invalid mode %q (want detach or park)", a["mode"])
+			}
 		case "resume":
 			address, err := resolveOperationThread(c, a)
 			if err != nil {

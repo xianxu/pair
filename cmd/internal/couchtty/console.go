@@ -1205,7 +1205,11 @@ func (c *Console) reportLeave(result couchcore.LeaveResult) {
 		fmt.Fprintf(c.stderr, "couch: detached %d thread(s); their agents keep running\n", len(result.Detached))
 	}
 	if len(result.Parked) > 0 {
-		fmt.Fprintf(c.stderr, "couch: parked %d thread(s) that were already shutting down\n", len(result.Parked))
+		if result.Disposition == couchcore.LeavePark {
+			fmt.Fprintf(c.stderr, "couch: parked %d thread(s); their agents were stopped\n", len(result.Parked))
+		} else {
+			fmt.Fprintf(c.stderr, "couch: parked %d thread(s) that were already shutting down\n", len(result.Parked))
+		}
 	}
 	for _, address := range result.Skipped {
 		fmt.Fprintf(c.stderr, "couch: left %s occupied — its state could not be proved detachable\n", address.Tag)
@@ -1214,19 +1218,35 @@ func (c *Console) reportLeave(result couchcore.LeaveResult) {
 
 // onDetachHotkey handles Pair's Alt+d chord at the Couch ownership boundary.
 //
-// No confirmation, unlike park: detach destroys nothing -- the agent keeps
-// running behind its zellij session and only the client goes. Making the safe
-// gesture cheap and the destructive one deliberate is the whole point of having
-// both.
+// No confirmation at either scope, unlike park: detach destroys nothing -- the
+// agent keeps running behind its zellij session and only the client goes.
+// Making the safe gesture cheap and the destructive one deliberate is the whole
+// point of having both.
 func (c *Console) onDetachHotkey() {
 	c.mu.Lock()
-	panel := c.focus.IsPanel()
+	isPanel := c.focus.IsPanel()
 	p := c.panes[c.active]
+	if !isPanel && p != nil {
+		// Detaching an actor lands the operator in the switcher, exactly as
+		// park does. That is also what keeps couch alive when the LAST actor
+		// detaches: an actor-focused console exits with its final child, and
+		// the safe gesture must never be the one that ends the session by
+		// accident.
+		c.focus = FocusPanel()
+		c.menu.ActiveAddress = p.thread
+	}
 	c.mu.Unlock()
 
-	if panel || p == nil {
-		// The panel is not a thread. Alt+d there has nothing to detach, and
-		// silently doing nothing is what the operator would report as a bug.
+	if isPanel {
+		// The switcher IS couch, so the key applies to every live thread and
+		// then leaves. Unconditional: a switcher with nothing live must still
+		// have a way out, which is the trap this replaced (#170).
+		c.reduceMenu(MenuEvent{
+			Kind: MenuEventParkHotkey, Operation: "leave", Mode: string(couchcore.LeaveDetach),
+		})
+		return
+	}
+	if p == nil {
 		c.setNotice("detach: no attached thread")
 		return
 	}
@@ -1238,10 +1258,9 @@ func (c *Console) onDetachHotkey() {
 // confirmation and runs off the terminal event loop.
 func (c *Console) onParkHotkey() {
 	c.mu.Lock()
-	// Alt+x quits what you are looking at: an actor parks, couch's own panel
-	// leaves couch. With the root actor gone (#170) that is how `leave` is
-	// reachable at all, and it is derived from the focus we already have rather
-	// than special-cased.
+	// Alt+x parks what you are looking at: one actor from an actor, every live
+	// thread from couch's own switcher. Scope comes from the focus we already
+	// have rather than being special-cased per key.
 	isPanel := c.focus.IsPanel()
 	p := c.panes[c.active]
 	if !isPanel && p != nil {
@@ -1252,9 +1271,13 @@ func (c *Console) onParkHotkey() {
 
 	if isPanel {
 		// Deliberately BEFORE the no-active-thread check: leaving couch needs
-		// no live actor, and once leave detaches rather than parks, an
-		// all-detached couch is the normal state to quit from.
-		c.reduceMenu(MenuEvent{Kind: MenuEventParkHotkey, Operation: "leave"})
+		// no live actor, and an all-detached couch is the normal state to quit
+		// from. Park's whole-couch form stops every agent, so it keeps the
+		// confirmation its per-thread form has -- the disposition carries the
+		// confirmation, not the scope.
+		c.reduceMenu(MenuEvent{
+			Kind: MenuEventParkHotkey, Operation: "leave", Mode: string(couchcore.LeavePark),
+		})
 		return
 	}
 	if p == nil {
