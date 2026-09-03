@@ -527,22 +527,6 @@ func (s *ThreadStore) DeletePristineThread(address ThreadAddress) error {
 	})
 }
 
-// DeleteUnstartedThread rolls back only the exact creating claim that reached
-// admission but never forked. Any concurrent metadata or state change leaves
-// the record occupied for later reconciliation.
-func (s *ThreadStore) DeleteUnstartedThread(address ThreadAddress, expectedRevision uint64) error {
-	return s.deleteThreadIf(address, func(record ThreadRecord) error {
-		if record.Revision != expectedRevision || record.Reservation || threadHasMetadata(record) || len(record.Incarnations) != 1 {
-			return fmt.Errorf("thread %+v is no longer the expected unstarted claim", address)
-		}
-		incarnation := record.Incarnations[0]
-		if incarnation.State != IncarnationCreating || incarnation.Start != nil || incarnation.PID != 0 || incarnation.Identity != "" {
-			return fmt.Errorf("thread %+v is no longer the expected unstarted claim", address)
-		}
-		return nil
-	})
-}
-
 func (s *ThreadStore) AdvanceStart(address ThreadAddress, expectedRevision uint64, event StartEvent) (ThreadRecord, error) {
 	if event.Kind == StartRegistered || event.Kind == StartRecoveredUnknown {
 		return s.advanceSuccessfulStart(address, expectedRevision, event)

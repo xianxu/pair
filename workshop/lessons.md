@@ -3023,3 +3023,31 @@ that a key token appears cannot detect a contradictory behavioral sentence
 - Deleting a subsystem is not done when the code compiles. Grep the Makefile,
   CI workflows, and the atlas for the target and the vocabulary — a workflow
   invoking a make target you removed fails on its next run, not on yours.
+- When deleting a subsystem, enumerate the **invariants** it enforced, not only
+  the symbols it defined. A deleted guarantee leaves no compile error: removing
+  admission also removed the rollback of a pristine reservation, and the call
+  left in its place returned success unconditionally — protection that could
+  never fire, leaking a record the switcher hides and the reconciler skips.
+- Tolerating a legacy field is not the same as carrying its value forward. A
+  decode-only tombstone keeps old artifacts *loadable*; if a downstream reader
+  needs the value that field held, the tombstone must be READ or the artifact
+  fails later and further from the cause.
+- A guard's file set and matching unit must be derived, not listed. A per-row
+  file list reintroduces the exact recall step the guard exists to remove — one
+  written here omitted Go sources and missed two stale comments in the very
+  commit that installed it. And prose WRAPS: a line-oriented text guard silently
+  cannot fire on any multi-word term, which was true of a guard that passed its
+  own mutation test because the test wrote the term on one line.
+- Mutate against the real artifact, not a convenient reconstruction. A guard
+  checked against hand-written sample text proves less than the same guard
+  checked against the actual file from git history.
+- "Carries a context" is not a time bound. Cancellation bounds nothing when the
+  caller passes `context.Background()`; only a deadline does. An
+  operating-envelope claim in a comment, commit message or plan must name the
+  mechanism that enforces it and be pinned by a test that reddens when that
+  mechanism is removed.
+- When a milestone replaces a bounded external call with a cheaper one, check
+  that the *bound* came along. The envelope is part of what you are replacing.
+- Record a boundary round's lessons in `lessons.md` in the same commit that
+  fixes the findings. The issue `## Log` is archived to `workshop/history/`,
+  which the next agent is told not to read.

@@ -107,3 +107,72 @@ func goTestNames(t *testing.T, repoRoot string) []string {
 	}
 	return names
 }
+
+// `go build ./cmd/foo` writes its output into the CURRENT directory, so a stray
+// build from the repo root drops a binary next to the source and `git add -A`
+// sweeps it in. pair#170 M4 committed a 4.5 MB Mach-O this way, and this repo
+// is the ariadne base layer, so the blob would have propagated to every
+// dependent repo and been permanent once merged.
+//
+// The .gitignore fix for that was a hand-written list, which already missed two
+// of the eight main packages the day it landed -- the same recall failure one
+// level down. Derived here instead.
+func TestEveryMainPackageIsIgnoredAtTheRepoRoot(t *testing.T) {
+	repoRoot := filepath.Clean(filepath.Join("..", "..", ".."))
+	ignored, err := os.ReadFile(filepath.Join(repoRoot, ".gitignore"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	rules := map[string]bool{}
+	for _, line := range strings.Split(string(ignored), "\n") {
+		rules[strings.TrimSpace(line)] = true
+	}
+
+	for _, directory := range mainPackageDirs(t, repoRoot) {
+		// `go build` names the binary after the package's DIRECTORY.
+		binary := "/" + filepath.Base(directory)
+		if !rules[binary] {
+			t.Errorf("main package %s builds to %q at the repo root, which .gitignore does not cover.\n"+
+				"A stray `go build` there is one `git add -A` from committing a multi-megabyte binary.",
+				directory, strings.TrimPrefix(binary, "/"))
+		}
+	}
+}
+
+func mainPackageDirs(t *testing.T, repoRoot string) []string {
+	t.Helper()
+	seen := map[string]bool{}
+	err := filepath.WalkDir(repoRoot, func(path string, entry os.DirEntry, err error) error {
+		if err != nil {
+			return nil
+		}
+		if entry.IsDir() {
+			if entry.Name() == ".git" || entry.Name() == "workshop" {
+				return filepath.SkipDir
+			}
+			return nil
+		}
+		if !strings.HasSuffix(entry.Name(), ".go") || strings.HasSuffix(entry.Name(), "_test.go") {
+			return nil
+		}
+		raw, readErr := os.ReadFile(path)
+		if readErr != nil || !strings.HasPrefix(string(raw), "package main\n") {
+			return nil
+		}
+		relative, _ := filepath.Rel(repoRoot, filepath.Dir(path))
+		seen[relative] = true
+		return nil
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	dirs := make([]string, 0, len(seen))
+	for directory := range seen {
+		dirs = append(dirs, directory)
+	}
+	sort.Strings(dirs)
+	if len(dirs) == 0 {
+		t.Fatal("found no main packages; the scan is broken, not the tree")
+	}
+	return dirs
+}

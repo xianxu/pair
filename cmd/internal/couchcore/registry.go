@@ -16,8 +16,11 @@ type ActorRecord struct {
 
 // Registry maps a worktree to the actors on it.
 //
-// This is a transitional display/handle cache, not an admission authority.
-// ThreadStore plus normalized provider evidence owns admission.
+// This is a transitional display/handle cache. It decides nothing: ThreadStore
+// is the durable authority for what a thread is and what state it is in. It
+// used to be phrased as "not an admission authority", which stopped meaning
+// anything when pair#170 M4 deleted admission -- couch-lite does not gate
+// starts at all.
 type Registry struct {
 	byTree map[string][]ActorRecord
 }

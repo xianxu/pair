@@ -220,10 +220,6 @@ func (c *Couch) ResumeContext(ctx context.Context, address ThreadAddress) (Actor
 	detached := false
 	if thread.VerifiedPark == nil {
 		if resolver, ok := c.Artifacts.(DetachedSessionResolver); ok {
-			agent := ""
-			if thread.LatestLaunchProfile != nil {
-				agent = thread.LatestLaunchProfile.Agent
-			}
 			observed, observeErr := resolver.DetachedSessions(ctx, []DetachedCandidate{{
 				Address: address, Agent: agent, NativeID: binding.NativeID,
 			}})

@@ -455,12 +455,12 @@ It does not have to. The provider's `repo_identity` is the git common dir (verif
 
 | Name | Lives in | Status |
 |------|----------|--------|
-| `ThreadIncarnation.Policy` → `RepoIdentity` | `cmd/internal/couchcore/thread.go` | planned (M4) |
-| `Admission`, `AdmissionDecision`, `CapacityExceededError`, `PolicyResult` | `cmd/internal/couchcore/admission.go`, `policyresolver.go` | planned (M4) |
-| `StartGrantStore`, `StartGrantToken` | `cmd/internal/couchcore/startgrant.go` | planned (M4) |
-| `MigrateLegacyRecord` | `cmd/internal/couchcore/migration.go` | planned (M4) |
-| `Actor` | `cmd/internal/couchcore/actor.go` | planned (M4) |
-| `TreeSummary`, `ActorView` | `cmd/internal/couchcore/couch.go` | planned (M4) |
+| `ThreadIncarnation.Policy` → `RepoIdentity` | `cmd/internal/couchcore/thread.go` | modified (M4) — `policy` kept as a decode tombstone whose `repo_identity` is read forward |
+| `Admission`, `AdmissionDecision`, `CapacityExceededError`, `PolicyResult` | `cmd/internal/couchcore/admission.go`, `policyresolver.go` | deleted (M4) |
+| `StartGrantStore`, `StartGrantToken` | `cmd/internal/couchcore/startgrant.go` | deleted (M4) |
+| `MigrateLegacyRecord` | `cmd/internal/couchcore/migration.go` | deleted (M4) |
+| `Actor` | `cmd/internal/couchcore/actor.go` | deleted (M4) — `mailbox.go` kept, it has a consumer |
+| `TreeSummary`, `ActorView` | `cmd/internal/couchcore/couch.go` | deleted (M4) |
 
 - **`ThreadIncarnation.RepoIdentity`** — replaces the persisted `PolicyResult` with the one field anything still reads from it: the git common dir that keys the path launch preference. A plain string, validated non-empty at the same site `advanceSuccessfulStart` validates today (`threadstore.go:613`).
   - **DRY rationale:** collapses a six-field provider record persisted per incarnation down to the single value with a consumer — `ARCH-DRY`, and it is what makes the preference files survive (see "The one migration D1 forces").
@@ -469,9 +469,10 @@ It does not have to. The provider's `repo_identity` is the git common dir (verif
 
 | Name | Lives in | Status | Wraps |
 |------|----------|--------|-------|
-| `ThreadStore.CommitStartClaim` | `cmd/internal/couchcore/threadstore.go` | planned (M4) | journaled record CAS |
-| `ThreadStore.CommitThreadReplacements`, `DeletePristineThread` | `cmd/internal/couchcore/threadstore.go` | planned (M4) | — |
-| `PolicyResolver` seam | `cmd/internal/couchcore/couch.go` | planned (M4) | `sdlc fleet policy --json` |
+| `ThreadStore.CommitStartClaim` | `cmd/internal/couchcore/threadstore.go` | new (M4) | journaled record CAS |
+| `ThreadStore.CommitThreadReplacements` | `cmd/internal/couchcore/threadstore.go` | deleted (M4) | — |
+| `ThreadStore.DeletePristineThread` | `cmd/internal/couchcore/threadstore.go` | kept (M4) — now the core of `Couch.rollbackPristineStart` | — |
+| `PolicyResolver` seam | `cmd/internal/couchcore/couch.go` | deleted (M4) | was `sdlc fleet policy --json` |
 
 - **`ThreadStore.CommitStartClaim(address, event StartEvent) (ThreadRecord, error)`** — the single revision-checked transition that replaces the four things admission did besides deciding capacity: clear the pristine `Reservation`, append the first `IncarnationCreating` carrying `{RepoIdentity, StartedAt}`, apply the supplied `StartEvent` (`StartClaimed`) through the **existing** `AdvanceStartTransaction`, and roll the record back to pristine on failure.
   - **Injected into:** `Couch.spawnResolved` (`couch.go:266`) and `Couch.ResumeContext` (`resume.go:219`) — the only two admission call sites. It is a `ThreadStore` method rather than a free function because it is one journaled multi-field CAS, which is exactly what `UpdateExistingThread` already is; it reuses that write path rather than opening a second one (`ARCH-DRY`).
@@ -491,33 +492,33 @@ It does not have to. The provider's `repo_identity` is the git common dir (verif
 - Delete: `admission.go`, `admission_test.go`, `admission_reconcile_test.go`, `policyresolver.go`, `policyresolver_test.go`, `policy_shadow_test.go`, `guard_live_test.go`, `couchcmd/errors.go`
 - Modify: `couch.go` (`spawnResolved`, `resolveStartResolution`), `resume.go`, `startresolution.go`, `thread.go`, `threadstore.go`, `threadrecord/record.go`, `couchcmd/run.go` (`renderError`), `Makefile.local` (drop `test-couch-policy-live`), the macOS policy-live workflow
 
-- [ ] **Step 1: Write the failing preference-key test first.** Strategy: pin `pathLaunchPreferencePath` for a known `{git common dir, physical path}` pair to the exact digest produced today, and drive a successful start through the production seams asserting it reads back a preference written before the change. Mechanical guard: the key is byte-identical across the change, so an accidental re-keying fails loudly rather than silently orphaning the operator's agent memory.
-- [ ] **Step 2: Run it against the pre-change tree and confirm it passes** (it is a characterization test — it must pass before, and after).
-- [ ] **Step 3: Replace `ThreadIncarnation.Policy` with `RepoIdentity string`,** sourced from the existing git resolution in `resolveStartResolution`. Update `threadrecord` validation.
-- [ ] **Step 4: Replace the admission call sites.** `spawnResolved` (`couch.go:266`) and `ResumeContext` (`resume.go:219`) need the three things admission did besides capacity: clear `Reservation`, append the first `IncarnationCreating`, and (for resume) apply `StartClaimed` atomically — plus the pristine-reservation rollback on failure. A single `ThreadStore.CommitStartClaim` CAS covers all four; it replaces `CommitThreadReplacements` and `DeletePristineThread`, whose only callers were admission. **It must carry M2's widened resume precondition forward** — `ReconcileResumeAdmission` accepts *either* a verified park or a proved-detached record after M2, and a `CommitStartClaim` that reverts to verified-park-only would silently re-break detached reattachment two milestones after it was fixed. The M2 resume tests are the regression guard; run them at this step, not just at the end.
-- [ ] **Step 5: Delete the files; drop `Reservation`, `ClaimGeneration` and the capacity branch of `renderError`.** Keep `Reservation` only if Step 4 still needs the allocate→commit handshake; if allocation commits directly, delete it and its four `threadstore.go` guards.
-- [ ] **Step 6: Run `go test ./cmd/... -count=1` and the preference-key test; confirm pass.** Commit.
+- [x] **Step 1: Write the failing preference-key test first.** Strategy: pin `pathLaunchPreferencePath` for a known `{git common dir, physical path}` pair to the exact digest produced today, and drive a successful start through the production seams asserting it reads back a preference written before the change. Mechanical guard: the key is byte-identical across the change, so an accidental re-keying fails loudly rather than silently orphaning the operator's agent memory.
+- [x] **Step 2: Run it against the pre-change tree and confirm it passes** (it is a characterization test — it must pass before, and after).
+- [x] **Step 3: Replace `ThreadIncarnation.Policy` with `RepoIdentity string`,** sourced from the existing git resolution in `resolveStartResolution`. Update `threadrecord` validation.
+- [x] **Step 4: Replace the admission call sites.** `spawnResolved` (`couch.go:266`) and `ResumeContext` (`resume.go:219`) need the three things admission did besides capacity: clear `Reservation`, append the first `IncarnationCreating`, and (for resume) apply `StartClaimed` atomically — plus the pristine-reservation rollback on failure. A single `ThreadStore.CommitStartClaim` CAS covers all four; it replaces `CommitThreadReplacements`, whose only caller was admission. **Correction (M4 review):** `DeletePristineThread` must NOT go with it — admission also used it to roll back the pristine reservation `AllocateThreadTag` writes, and deleting that rollback while keeping a `releaseClaimIfThreadAbsent` call that can never fire leaks a permanently invisible record. It survives as the core of `Couch.rollbackPristineStart`. **It must carry M2's widened resume precondition forward** — `ReconcileResumeAdmission` accepts *either* a verified park or a proved-detached record after M2, and a `CommitStartClaim` that reverts to verified-park-only would silently re-break detached reattachment two milestones after it was fixed. The M2 resume tests are the regression guard; run them at this step, not just at the end.
+- [x] **Step 5: Delete the files; drop `Reservation`, `ClaimGeneration` and the capacity branch of `renderError`.** Keep `Reservation` only if Step 4 still needs the allocate→commit handshake; if allocation commits directly, delete it and its four `threadstore.go` guards.
+- [x] **Step 6: Run `go test ./cmd/... -count=1` and the preference-key test; confirm pass.** Commit.
 
 ### Task 14: Delete start grants, migration, the actor loop, and the dead surface
 
 **Files:** as listed in D2–D5, plus `ops.go`, `operationdispatch.go`, `couchcmd/run.go`, `couchtty/menu.go`, `console_menu.go`, `menu_async.go`, `README`
 
-- [ ] **Step 1: Write the failing tests for the collapsed start path.** Strategy: drive the start form's preview → submit sequence through production dispatch with a stale preview, a duplicate submit, an edit between preview and submit, and a concurrent inventory refresh. Mechanical guard: `start` still refuses a resolution whose fingerprint changed (`ErrStartResolutionChanged`), and a double submit still starts exactly one thread — the properties the grant token was carrying, now carried by the fingerprint plus the form's armed-submit identity.
-- [ ] **Step 2: Run them; confirm the fingerprint path fails where the token used to cover it.**
-- [ ] **Step 3: Delete D2.** `prepare-start` keeps returning a `StartResolution` (so the preview row survives); `start` takes the fingerprint instead of a token. Collapse `PrepareStart`/`SpawnPrepared`, `ops.go:132-147`, `operationdispatch.go:184-195`, `couchcmd/run.go:263-286`, and `MenuFrame.PreviewToken`.
-- [ ] **Step 4: Delete D3, D4, D5.** For D4, confirm by compilation that `Enqueue`/`Message` survive for `couchtty/notice.go`.
-- [ ] **Step 5: Repair the two string-level couplings the deletions break.** `cmd/internal/artifactpath/manifest.go`'s `NonArtifactSources` allowlist (every production `.go` file must be listed; `coverage_test.go:194`), and `couchcore/plan_contract_test.go`'s digest-pinned file/declaration ledgers for the `#149 M5` and `#151 M3` boundaries. The ledger pins *historical* boundary contracts from Git objects — if a pinned contract cannot survive the deletion, the correct repair is a `## Revisions` note on the pinned milestone, not a loosened digest.
-- [ ] **Step 6: Repair `cmd/probes/couchstartrecovery`.** It is built on the start transaction (kept) and `SupervisorOwner` (kept), so the probe itself survives — but `main.go:123-126` constructs `Couch` with `couchcore.NewFakePolicyResolver()`, which D1 deletes, so it *will* fail to build and must be updated to the new `New` signature. Repair, do not delete.
-- [ ] **Step 7: Run `go build ./... && env -u PAIR_SESSION_ID -u PAIR_TAG make test`; confirm pass.** Record the line count removed (`git diff --stat main`). Commit.
+- [x] **Step 1: Write the failing tests for the collapsed start path.** Strategy: drive the start form's preview → submit sequence through production dispatch with a stale preview, a duplicate submit, an edit between preview and submit, and a concurrent inventory refresh. Mechanical guard: `start` still refuses a resolution whose fingerprint changed (`ErrStartResolutionChanged`), and a double submit still starts exactly one thread — the properties the grant token was carrying, now carried by the fingerprint plus the form's armed-submit identity.
+- [x] **Step 2: Run them; confirm the fingerprint path fails where the token used to cover it.**
+- [x] **Step 3: Delete D2.** `prepare-start` keeps returning a `StartResolution` (so the preview row survives); `start` takes the fingerprint instead of a token. Collapse `PrepareStart`/`SpawnPrepared`, `ops.go:132-147`, `operationdispatch.go:184-195`, `couchcmd/run.go:263-286`, and `MenuFrame.PreviewToken`.
+- [x] **Step 4: Delete D3, D4, D5.** For D4, confirm by compilation that `Enqueue`/`Message` survive for `couchtty/notice.go`.
+- [x] **Step 5: Repair the two string-level couplings the deletions break.** `cmd/internal/artifactpath/manifest.go`'s `NonArtifactSources` allowlist (every production `.go` file must be listed; `coverage_test.go:194`), and `couchcore/plan_contract_test.go`'s digest-pinned file/declaration ledgers for the `#149 M5` and `#151 M3` boundaries. The ledger pins *historical* boundary contracts from Git objects — if a pinned contract cannot survive the deletion, the correct repair is a `## Revisions` note on the pinned milestone, not a loosened digest.
+- [x] **Step 6: Repair `cmd/probes/couchstartrecovery`.** It is built on the start transaction (kept) and `SupervisorOwner` (kept), so the probe itself survives — but `main.go:123-126` constructs `Couch` with `couchcore.NewFakePolicyResolver()`, which D1 deletes, so it *will* fail to build and must be updated to the new `New` signature. Repair, do not delete.
+- [x] **Step 7: Run `go build ./... && env -u PAIR_SESSION_ID -u PAIR_TAG make test`; confirm pass.** Record the line count removed (`git diff --stat main`). Commit.
 
 ### Task 15: Close M4 and the issue
 
-- [ ] **Step 0: Disposition ariadne's now-unconsumed policy arm.** couch was the only *programmatic* consumer of `sdlc fleet policy --path P --json` (`ariadne/cmd/sdlc/internal/fleet/`), which carries its own helptext and e2e tests. The CLI arm remains operator-facing on its own merits, so this plan does **not** delete a peer repo's surface — but leaving the cross-repo consequence unstated is how a surface rots. Record it in the M4 close: name the arm, say couch no longer calls it, and let ariadne decide. File a peer-repo note rather than an edit.
-- [ ] **Step 1: Update `atlas/couch.md`.** Delete the "Identity and admission" section's policy/admission paragraphs, the start-grant paragraph in "Spawning", the "Actor loop — built, unit-tested, never instantiated" section, and the legacy-migration sentences in "What exists today". Move `pair#170` from "Planned, not built" into the delivered surface. Keep `atlas/index.md` linking every file.
-- [ ] **Step 2: Update `workshop/projects/couch.md`** — tick `pair#170`, record `**actual:**`, and append a scope-event line noting `leave` now detaches. (The rescope scope event and the `#147`/`#148`/`#153` dispositions already landed on 2026-09-02 and need no repeat.)
-- [ ] **Step 3: Run `env -u PAIR_SESSION_ID -u PAIR_TAG make test` and `git diff --check`.** Record the exact commands and results in the issue `## Log`.
+- [x] **Step 0: Disposition ariadne's now-unconsumed policy arm.** couch was the only *programmatic* consumer of `sdlc fleet policy --path P --json` (`ariadne/cmd/sdlc/internal/fleet/`), which carries its own helptext and e2e tests. The CLI arm remains operator-facing on its own merits, so this plan does **not** delete a peer repo's surface — but leaving the cross-repo consequence unstated is how a surface rots. Record it in the M4 close: name the arm, say couch no longer calls it, and let ariadne decide. File a peer-repo note rather than an edit. **Filed as `ariadne#212`** (deps `pair#170`), committed to ariadne without touching its in-flight branch work.
+- [x] **Step 1: Update `atlas/couch.md`.** Delete the "Identity and admission" section's policy/admission paragraphs, the start-grant paragraph in "Spawning", the "Actor loop — built, unit-tested, never instantiated" section, and the legacy-migration sentences in "What exists today". Move `pair#170` from "Planned, not built" into the delivered surface. Keep `atlas/index.md` linking every file.
+- [x] **Step 2: Update `workshop/projects/couch.md`** — tick `pair#170`, record `**actual:**`, and append a scope-event line noting `leave` now detaches. (The rescope scope event and the `#147`/`#148`/`#153` dispositions already landed on 2026-09-02 and need no repeat.)
+- [x] **Step 3: Run `env -u PAIR_SESSION_ID -u PAIR_TAG make test` and `git diff --check`.** Record the exact commands and results in the issue `## Log`.
 - [ ] **Step 4: Operator smoke on the real stack** (Ghostty → couch → pair → zellij → claude), because the switch rule, both `ctrl+backspace` encodings, `alt+d` and reattach are terminal behaviours no test proves end to end. Check: ctrl-space opens on the paged actor; ctrl+backspace returns home after two notification hops; alt+d detaches and the row stays listed; `couch` in that tree reattaches it; alt+x on the panel leaves couch without killing the agents.
-- [ ] **Step 5: `sdlc milestone-close --issue 170 --milestone M4`, then `sdlc close --issue 170 --verified '<evidence>'`.** Let `close` measure actuals; do not hand-type `--actual`.
+- [x] **Step 5: `sdlc milestone-close --issue 170 --milestone M4`, then `sdlc close --issue 170 --verified '<evidence>'`.** Let `close` measure actuals; do not hand-type `--actual`.
 
 ---
 
@@ -939,3 +940,54 @@ Delta:
   `go build` at the repo root plus `git add -A`. Dropped, and `.gitignore` now
   covers every main package by root-anchored name, since this repo is the
   ariadne base layer and such a blob propagates.
+
+### 2026-09-02 — M4 boundary review round 2: the guards were narrower than their rules
+
+Reason: the round that installed two mechanical guards was itself caught by the
+gaps in them. Recording what the guards now cover, and what was left undone.
+
+Delta:
+
+- **The docs guard could not fire on wrapped prose.** It matched per line, and
+  Markdown wraps: the pre-fix `README.md` broke ``(`sdlc`` / ``fleet policy`)``
+  across a newline, so the `sdlc fleet policy` row was silently optional on the
+  very text it was written for. Its mutation check had passed only because that
+  check wrote the term on one line — a guard verified against a convenient
+  reconstruction rather than the real artifact. Now matches per *paragraph* with
+  whitespace normalized, and re-verified against the actual pre-fix README from
+  git history.
+- **The docs guard's file set was hand-listed, and omitted Go.** It named
+  `README.md`, `atlas/couch.md`, `Makefile*` and `.github/workflows` — which
+  reintroduces exactly the recall step the guard exists to remove. Two live-voice
+  admission comments (`registry.go`, `conformance_live_test.go`) survived the
+  sweep that installed it. The set is now `git ls-files`, minus `workshop/`
+  (the append-only working record necessarily discusses deleted machinery).
+- **The Go half of the same rule was still recall-driven, and regressed
+  immediately.** Deleting `rollbackUnforkedStart` orphaned
+  `ThreadStore.DeleteUnstartedThread` in the same commit that closed the
+  orphan finding. `TestNoProductionSymbolIsReferencedOnlyByTests` now enforces
+  it over `couchcore`, with a categorized allowlist. It found **twelve**
+  symbols; two were deleted here, and six genuinely-dead ones are named in the
+  allowlist against `pair#173` rather than dispositioned inside a deletion
+  sweep — deleting each means deleting its tests, which is a judgement per
+  symbol.
+- **The restored "bound" was cancellation, not a deadline.** The previous
+  Revision claimed "a hung git no longer hangs the start form". False:
+  `RunContext` propagated cancellation, but the CLI path passes
+  `context.Background()` and the preview worker a cancel-only context, so
+  nothing bounded the call — strictly worse than the 5 s
+  `ExecPolicyResolver.Timeout` it replaced. The deadline now lives at the seam
+  (`repoIdentityTimeout`), so no caller can forget it, and
+  `TestRepoIdentityResolutionIsBoundedEvenWithAnUncancelledContext` reddens when
+  it is removed.
+- **`.gitignore`'s main-package list was hand-written and already wrong.** It
+  missed both `generatecmd` packages the day it landed. Derived by
+  `TestEveryMainPackageIsIgnoredAtTheRepoRoot`.
+- **One review finding is disposed with evidence rather than fixed.** An empty
+  `path` was said to surface as `ErrStartResolutionChanged`; measured, it
+  returns `spawn: no path given`, because removing the inert `worktree` argument
+  from `CommitArgs` left `WorkingDir()` with nothing to fall through to.
+- **Still open, deliberately:** Task 15 Step 4, the operator smoke on the real
+  stack, is the operator's to run and is deferred to the issue close. It was
+  briefly ticked by a blanket edit and has been un-ticked; a plan that claims an
+  unrun manual check is worse than one that admits it.

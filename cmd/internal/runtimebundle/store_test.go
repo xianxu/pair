@@ -22,7 +22,7 @@ func TestStoreExtractsAssetsAndWritesMarker(t *testing.T) {
 		Manifest:  manifest,
 		ReadAsset: fakeAssetReader(map[string]string{
 			"bin/pair-wrap": shellContent,
-			"nvim/init.lua":  initContent,
+			"nvim/init.lua": initContent,
 		}),
 		Keep: 1,
 	})

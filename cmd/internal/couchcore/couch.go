@@ -251,6 +251,11 @@ func (c *Couch) resolveStartResolution(ctx context.Context, args StartArgs) (Sta
 	})
 }
 
+// repoIdentityTimeout matches the 5s bound the deleted ExecPolicyResolver
+// applied to the subprocess this call replaced, so the envelope did not widen
+// when the provider went (pair#170 M4).
+const repoIdentityTimeout = 5 * time.Second
+
 // resolveRepoIdentity returns the Git common directory for a working path.
 //
 // This is the value the fleet-policy provider used to supply as
@@ -278,7 +283,17 @@ func (c *Couch) resolveRepoIdentity(ctx context.Context, workingPath string) (st
 	if c.Git == nil {
 		return "", errors.New("resolve repository identity: no git runner")
 	}
-	out, err := c.Git.RunContext(ctx, workingPath, "rev-parse", "--git-common-dir")
+	// The bound lives HERE, not at the call sites. The fleet-policy subprocess
+	// this replaced carried its own 5s timeout internally, and the first
+	// attempt to restore it only propagated cancellation -- which bounds
+	// nothing when the CLI passes context.Background() and the preview worker
+	// passes a cancel-only context. A hung `git rev-parse` would then block an
+	// armed submit indefinitely and hang a CLI launch forever, strictly worse
+	// than what was deleted. Owning the deadline at the seam means no caller
+	// can forget it.
+	bounded, cancel := context.WithTimeout(ctx, repoIdentityTimeout)
+	defer cancel()
+	out, err := c.Git.RunContext(bounded, workingPath, "rev-parse", "--git-common-dir")
 	if err != nil {
 		return "", fmt.Errorf("resolve repository identity for %q: %w", workingPath, err)
 	}

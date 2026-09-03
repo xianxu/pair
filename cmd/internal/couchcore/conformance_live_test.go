@@ -236,11 +236,14 @@ func TestGitConformance_LinkedWorktree(t *testing.T) {
 	}
 	if primaryRoot == linkedRoot {
 		t.Fatalf("primary and linked worktree collapsed to one identity (%q) -- "+
-			"both could then never host agents concurrently", primaryRoot)
+			"each worktree's rows would then name the other's sessions", primaryRoot)
 	}
 
-	// The transitional display cache must preserve them as two trees. Runtime
-	// admission itself comes only from normalized provider keys.
+	// The transitional display cache must preserve them as two trees. Nothing
+	// gates on that separation any more -- pair#170 M4 deleted admission, so
+	// two worktrees of one repository may host agents concurrently by design.
+	// What still matters is that they remain DISTINCT: collapsing them would
+	// make one worktree's switcher row stand for the other's session.
 	reg := NewRegistry().Insert(ActorRecord{ID: "a", Args: StartArgs{Worktree: primaryRoot}})
 	reg = reg.Insert(ActorRecord{ID: "b", Args: StartArgs{Worktree: linkedRoot}})
 	if len(reg.Get(primaryRoot)) != 1 || len(reg.Get(linkedRoot)) != 1 {

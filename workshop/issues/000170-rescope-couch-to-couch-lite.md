@@ -671,3 +671,37 @@ plus `git add -A`. Dropped from the branch before it could propagate to the
 dependent repos this base layer feeds.
 
 `make test` exits 0 after all seven fixes.
+
+### 2026-09-02 — M4 review round 2: the guards were weaker than they looked
+
+No Criticals; the previous round's Critical was independently re-verified by the
+reviewer reverting each fix and watching the test redden. What this round caught
+was subtler and more useful: **both mechanical guards I added were narrower than
+the rules they encoded.**
+
+The sharpest is the docs guard. It matched per line, and Markdown prose wraps —
+the real pre-fix README broke ``(`sdlc`` / ``fleet policy`)`` across a newline,
+so that row could never fire on the text it was written for. My mutation check
+had passed because I wrote the term on one line. **A guard verified against a
+convenient reconstruction proves nothing about the real artifact**; re-verified
+now against the actual file from git history.
+
+Its file set was hand-listed too, which is the same recall step the guard exists
+to remove — it omitted Go sources, and two live-voice admission comments
+survived. And the Go half of that rule was never mechanised at all: deleting
+`rollbackUnforkedStart` orphaned `DeleteUnstartedThread` *in the commit that
+closed the orphan finding*.
+
+The other real catch: I claimed "a hung git no longer hangs the start form".
+That was false. `RunContext` carried cancellation, but the CLI passes
+`context.Background()`, so nothing bounded the call — strictly worse than the 5s
+timeout it replaced. **"Carries a context" is not a time bound.** The deadline is
+now at the seam and reddens when removed.
+
+Also filed `ariadne#212`, the peer-repo note Task 15 Step 0 required and the
+first close skipped: ariadne's `sdlc fleet policy --json` arm lost its only
+programmatic consumer when couch deleted admission, and the cross-repo
+conformance target went with it. Filed as a note, not an edit — the disposition
+is ariadne's.
+
+`make test` exits 0.

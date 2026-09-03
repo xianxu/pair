@@ -416,6 +416,18 @@ rounds:
           round: 7
       boundary: M4
       blocked: true
+    - "n": 8
+      timestamp: "2026-09-02T22:26:20-07:00"
+      agent: claude
+      boundary: M4
+      blocked: true
+      protocol_error: no valid findings block
+    - "n": 9
+      timestamp: "2026-09-02T22:41:43-07:00"
+      agent: claude
+      boundary: M4
+      blocked: true
+      protocol_error: no valid findings block
 ---
 
 # Gate ledger — pair#170 (boundary-review)
@@ -670,6 +682,14 @@ later rounds disposed of them. Generated — edit the gate, not this file.
   inert. Also: unrelated gofmt churn in entrypoint/alias_test.go,
   runtimebundle/store_test.go and two wrapcmd tests adds noise to the
   deletion diff.
+
+## Round 8 — 2026-09-02T22:26:20-07:00 (claude) — BLOCKED
+
+**Protocol error:** no valid findings block — this round contributed no findings.
+
+## Round 9 — 2026-09-02T22:41:43-07:00 (claude) — BLOCKED
+
+**Protocol error:** no valid findings block — this round contributed no findings.
 
 ## Open findings
 

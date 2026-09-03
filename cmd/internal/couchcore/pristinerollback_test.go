@@ -5,6 +5,7 @@ import (
 	"errors"
 	"io"
 	"testing"
+	"time"
 )
 
 // AllocateThreadTag claims the Pair artifact AND persists a pristine
@@ -114,5 +115,52 @@ func TestRepoIdentityResolutionHonoursCancellation(t *testing.T) {
 	})}
 	if _, err := couch.resolveRepoIdentity(ctx, "/repo"); !errors.Is(err, context.Canceled) {
 		t.Fatalf("cancelled identity resolution = %v, want context.Canceled", err)
+	}
+}
+
+// blockingGit hangs until its context is done, modelling a git that never
+// answers -- an unreachable network filesystem, a stuck credential helper.
+type blockingGit struct{ entered chan struct{} }
+
+func (g *blockingGit) Run(dir string, args ...string) (string, error) {
+	return g.RunContext(context.Background(), dir, args...)
+}
+
+func (g *blockingGit) RunContext(ctx context.Context, _ string, _ ...string) (string, error) {
+	select {
+	case g.entered <- struct{}{}:
+	default:
+	}
+	<-ctx.Done()
+	return "", ctx.Err()
+}
+
+// The seam must impose its OWN deadline, not merely carry the caller's context.
+// The CLI start path passes context.Background() and the preview worker passes
+// a cancel-only context, so a propagation-only fix bounds nothing: this test
+// passes a context that is never cancelled and requires the call to return
+// anyway.
+//
+// It is the regression test for an envelope claim that was written before the
+// mechanism existed -- "a hung git no longer hangs the start form" was true of
+// cancellation, not of a deadline, and nothing reddened when the deadline was
+// absent.
+func TestRepoIdentityResolutionIsBoundedEvenWithAnUncancelledContext(t *testing.T) {
+	couch := &Couch{Git: &blockingGit{entered: make(chan struct{}, 1)}}
+
+	done := make(chan error, 1)
+	go func() {
+		_, err := couch.resolveRepoIdentity(context.Background(), "/repo")
+		done <- err
+	}()
+
+	select {
+	case err := <-done:
+		if err == nil {
+			t.Fatal("a git that never answers returned a repository identity")
+		}
+	case <-time.After(repoIdentityTimeout + 2*time.Second):
+		t.Fatal("identity resolution never returned: the seam carries a context but sets no deadline, " +
+			"so a hung git hangs the start form and a CLI launch forever")
 	}
 }

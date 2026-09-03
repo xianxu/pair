@@ -273,3 +273,107 @@ findings:
       runtimebundle/store_test.go and two wrapcmd tests adds noise to the
       deletion diff.
 ```
+
+---
+
+## Re-review — 2026-09-02T22:26:20-07:00 (unknown)
+
+| field | value |
+|-------|-------|
+| issue | 170 — Rescope couch to couch-lite |
+| repo | pair |
+| issue file | workshop/issues/000170-rescope-couch-to-couch-lite.md |
+| boundary | milestone M4 |
+| milestone | M4 |
+| window | a89878c31cd7bee06693257e05440c8c4eee7057..bb3dcf55b016b6a5cf7685de297eb86e973bebbf |
+| command | sdlc milestone-close --issue 170 --milestone M4 |
+| reviewer | claude |
+| timestamp | 2026-09-02T22:26:20-07:00 |
+| verdict | unknown |
+
+## Review
+
+Failed to authenticate: OAuth session expired and could not be refreshed
+
+---
+
+## Re-review — 2026-09-02T22:41:43-07:00 (FIX-THEN-SHIP)
+
+| field | value |
+|-------|-------|
+| issue | 170 — Rescope couch to couch-lite |
+| repo | pair |
+| issue file | workshop/issues/000170-rescope-couch-to-couch-lite.md |
+| boundary | milestone M4 |
+| milestone | M4 |
+| window | a89878c31cd7bee06693257e05440c8c4eee7057..bb3dcf55b016b6a5cf7685de297eb86e973bebbf |
+| command | sdlc milestone-close --issue 170 --milestone M4 |
+| reviewer | claude |
+| timestamp | 2026-09-02T22:41:43-07:00 |
+| verdict | FIX-THEN-SHIP |
+
+## Review
+
+```verdict
+verdict: FIX-THEN-SHIP
+confidence: high
+```
+
+The M4 deletion sweep is sound and the prior round's Critical is genuinely fixed, not narrated: I reverted `rollbackPristineStart` to the old `releaseClaimIfThreadAbsent` in a scratch copy and `TestStartFailuresAfterTagAllocationRollBackTheReservation` went red on both post-allocation failure modes; I removed the `deprecatedPolicyRepoIdentity` fallback and `TestPreM4StartCarriesItsRepositoryIdentityForward` went red; I restored the deleted make target and the pre-fix README and both new mechanical guards fired. `go test ./...` exits 0 in the real checkout (all failures in the sandboxed run were `ptychild: operation not permitted`, i.e. the sandbox). Nine of ten prior findings are addressed. What keeps this off SHIP: BR-23's time bound was **not** restored — `RunContext` propagates cancellation but nothing sets a deadline, and the CLI start path passes `context.Background()`, so a hung `git rev-parse` is now strictly less bounded than the 5 s `ExecPolicyResolver.Timeout` it replaced; and the two new mechanical guards are each narrower than the rule they were written to encode, which is the same recall-driven gap one level up.
+
+## 1. Strengths
+
+- **The Critical fix is real and pinned at the right level.** `couch.go:559` `rollbackPristineStart` correctly undoes both halves of `AllocateThreadTag` in the right order (record first, then artifact release — `threadtag.go:40,47` confirms the claim precedes the record write), and `pristinerollback_test.go:34` uses a `budgetedReader` so the entropy failure lands *after* allocation rather than passing vacuously. That detail is called out in the test comment; it is exactly the trap that would have made the test green for the wrong reason.
+- **`TestEveryMakefileTestSelectorMatchesALiveTest` (`maketargets_test.go:27`) is the right shape of guard** — it names the actual mechanism (`go test -run` matching nothing exits 0) rather than the instance, handles Make's `$$` un-doubling, and fails loudly if the scan itself finds no tests. I added a mutant target and it fired.
+- **`StartResolution.CommitArgs` (`startresolution.go:148`) is a genuine ARCH-DRY win found by deleting dead code** — three call sites each rebuilt the commit arguments by hand, and the failure mode (passing the *resolved* agent where the operator gave none → different `AgentSource` → phantom drift) is silent. One owner now, and `MenuFrame` holds the resolution instead of a seven-field shadow (`menu.go:77`).
+- **The tombstone work is measured, not reasoned.** `threadrecord/record.go:38,52` and `compat_test.go` pin fixtures copied from the operator's live store with the counts stated (17/17 `claim_generation`, 5/5 `policy`), and `manifestcompat_test.go:22` correctly argues the *manifest* deserves its own guard because its blast radius is the whole store rather than one record.
+- **The atlas sweep is thorough and historicised properly** — `atlas/couch.md:153,437,674,707` all state the deletions in the past tense with the issue reference, and `index.md`/`architecture.md`/`session-identity.md` were swept for the same vocabulary.
+
+## 2. Critical findings
+
+None.
+
+## 3. Important findings
+
+**(a) `ThreadStore.DeleteUnstartedThread` is orphaned by this round's own deletion — `threadstore.go:533`.** Deleting `rollbackUnforkedStart` removed its only production caller. It now has exactly one reference outside its own definition, in `starttransaction_integration_test.go:58`, and its doc comment still reads "rolls back only the exact creating claim that reached **admission**". **This is the 2nd finding in family `deletion-leaves-orphaned-surface`** — do not just delete this symbol. BR-17's rule ("a deletion is complete when the identifier set is swept") was mechanised for *docs* only; the Go half stayed recall-driven and immediately regressed in the commit that closed BR-17. Make it mechanical: a `deadcode`/`staticcheck U1000` gate over `cmd/`, or a test in the same spirit as `maketargets_test.go` that fails when a `couchcore` production symbol has zero non-test references outside its declaration, with an explicit allowlist for the documented exceptions (`RecoverStoreJournal`, `Couch.Spawn`).
+
+**(b) The new docs guard's file set omits Go sources; two live-voice admission comments survive — `registry.go:19-20`, `conformance_live_test.go:242-243`.** Both describe "normalized provider evidence"/"normalized provider keys" as the *current* admission authority, and the conformance comment's stated consequence ("both could then never host agents concurrently") is the behaviour D1 deleted. `deletedvocabulary_test.go:27-46` targets `README.md`, `atlas/couch.md`, `Makefile*`, `.github/workflows` — a hand-listed subset, while BR-17's stated rule was "grep every removed symbol and target name across **Go**, Makefile\*, .github/, atlas/ and README.md". **This is the 3rd finding in family `readme-stale-for-shipped-surface`.** State and encode the rule: the enumeration's file set is *every tracked text file* (walk from the repo root, skipping `.git`/`workshop/history`), not a per-row list of files someone remembered — a per-row file list reintroduces the exact recall step the guard exists to remove.
+
+**(c) The docs guard matches per line, so a multi-word term wrapped across a line break can never fire — `deletedvocabulary_test.go:67`.** Measured: restoring the pre-fix `README.md` produced hits for `provision-worktree` and `test-couch-policy-live`, but **not** for `sdlc fleet policy`, because the historical text wrapped as ``(`sdlc`` / ``fleet policy`)``. Markdown prose wraps, so every multi-word row in this table is silently optional. **This is the 2nd finding in family `assertion-admits-vacuous-pass`.** The rule: a text guard over prose must match against whitespace-normalised content, not raw lines — join the file, collapse runs of whitespace, then search, and derive the reported line number from the match offset. Otherwise the guard's own regression test (adding a row) proves nothing about whether that row can fire.
+
+**(d) The "restored bound" is cancellation, not a deadline — `git.go:26-31`, `console_menu.go:238`, `couchcmd/run.go:267,282`.** The deleted `ExecPolicyResolver` applied `defaultPolicyTimeout = 5 * time.Second` internally (`policyresolver_exec.go:12,53` at base). The replacement adds `RunContext`, but `startMenuPreview` uses `context.WithCancel(c.lifetime)` with no deadline and the CLI path passes `context.Background()` outright — `grep WithTimeout|WithDeadline` over `couchcore`+`couchtty` finds only `park.go:505` and `launch_existing.go:90`. So a hung `git rev-parse --git-common-dir` blocks an armed submit indefinitely and hangs `couch start <path>` forever, where the deleted code returned in 5 s. `TestRepoIdentityResolutionHonoursCancellation` passes with no deadline anywhere in the tree, so it pins propagation and reads as pinning the bound. **This is the 2nd finding in family `envelope-claim-unmeasured`.** The rule: an operating-envelope claim in a doc comment, commit message or plan Revision must name the *mechanism* that enforces it and be pinned by a test that reddens when that mechanism is removed — "carries a context" is not a bound. Concretely: give the identity resolution its own `context.WithTimeout` at the seam (or at `PrepareStart`/`SpawnPrepared`), and assert the deadline fires against a fake that blocks.
+
+**(e) The plan still says M4 is unbuilt, and one step still describes surface the fix round resurrected — `workshop/plans/000170-…-plan.md:458-474, 494-520`.** All 19 M4 checkboxes are `- [ ]` while the work is committed; the Core concepts tables carry `planned (M4)` for `Admission`/`PolicyResult`/`StartGrantStore`/`MigrateLegacyRecord`/`Actor`/`TreeSummary`/`ActorView` and for the `PolicyResolver` seam, all of which are deleted in the tree; and Task 13 Step 4 (line 497) still asserts `CommitStartClaim` "replaces `CommitThreadReplacements` **and `DeletePristineThread`**, whose only callers were admission" — `DeletePristineThread` is now `rollbackPristineStart`'s core (`couch.go:560`). The plan's own convention (Revisions, line ~744) makes that status column a build tracker: "flipping a row at its milestone is what turns its assertion on". The couchtty contract only pins rows whose declared path is in `cmd/internal/couchtty/`, so the couchcore rows are unasserted and will stay stale silently. This may be in flight as part of Task 15 — dispose it if so.
+
+**(f) Task 15 Step 0's peer-repo note was not filed.** The plan requires the M4 close to record that couch, the only *programmatic* consumer of ariadne's `sdlc fleet policy --path P --json`, no longer calls it, and to let ariadne decide. `../ariadne/cmd/sdlc/internal/fleet/` is still present; grepping `../ariadne/workshop/issues/` and this repo's project/issue files finds no such note (`workshop/projects/couch.md:910` mentions the provider only as something couch deleted). This is exactly the "leaving the cross-repo consequence unstated is how a surface rots" case the step was written for, and it is one file to write.
+
+## 4. Minor findings
+
+- **`.gitignore:44-49` enumerates main packages by hand and already misses two of eight.** `grep -rl '^package main'` finds `cmd/internal/runtimebundle/generatecmd` and `cmd/internal/workbenchshortcut/generatecmd`; neither `/generatecmd` entry is present, so the comment's claim ("named after the main packages") is already false. **2nd in family `build-artifact-committed`** — derive the list in a test rather than extending it.
+- **This round's lessons live only in the issue `## Log`, not `workshop/lessons.md`.** The best sentence produced by the round — "when deleting a subsystem, enumerate the *invariants* it enforced, not only the symbols it defined; a deleted guarantee leaves no compile error" — plus the tombstone-must-be-read and `-run`-matches-nothing lessons are in the issue file, which is archived to `workshop/history/` and which AGENTS.md tells the next agent not to read. **2nd in family `lesson-not-recorded-for-boundary-defect`** — the rule: the commit that disposes boundary findings adds one `lessons.md` line per finding *class* in the same commit, so the write is part of the fix rather than a later recall step.
+- `resume.go:208-211` and `223-226` compute the same `agent` from `thread.LatestLaunchProfile` twice, the second shadowing the first. Trivial; noting rather than raising.
+- `CommitArgs` sends `r.CanonicalPath` as `path` while `ops.go:135` marks it `Required` without `ValueRequired`; an empty `path` still falls through to `WorkingDir()` and surfaces as `ErrStartResolutionChanged` — the same misdiagnosis the fingerprint guard was added to avoid, on the one remaining argument.
+
+## 5. Test coverage notes
+
+- The rollback test covers two of the three post-allocation failure sites; the `CommitStartClaim`-failure site (`couch.go:339`) is unexercised. It is safe by construction (CAS-atomic, so the record stays pristine and `DeletePristineThread` succeeds), so this is a gap in evidence rather than in behaviour.
+- `livePreM4RecordWithOpenStart` has a `start` block but no `launch_profile`, and `advanceSuccessfulStart` only reaches the empty-identity refusal when `profile != nil` (`threadstore.go:610`). So the fixture pins the *fix* (value carried forward through `fromPersistedThreadRecord`) but not the *outage* the plan Revision describes. The choke point is covered, so I did not raise it; adding `launch_profile` to that fixture would close the loop for one line.
+- `pathpreferencekey_test.go` pinning the digest of a filename that exists in the operator's live store is the right kind of characterization test — it cannot be satisfied by restating the implementation.
+
+## 6. Architectural notes
+
+- **ARCH-DRY — pass.** `CommitArgs` consolidates three hand-rolled arg maps; `CommitStartClaim` reuses `AdvanceStartTransaction` and the existing journal write path; the `GitRunner` doc now records the second call *and* explicitly re-states that the third-consumer threshold for lifting the seam has not moved. Only the trivial `resume.go` shadow above.
+- **ARCH-PURE — pass.** `ResolveStartResolution` stays a pure function over `RepoIdentity string`; the git call sits in the `Couch` shell and is injected. `pristinerollback_test.go`'s identity tests construct a bare `&Couch{Git: NewFakeGit(...)}` with no store, no filesystem — that is the pure boundary behaving as advertised.
+- **ARCH-PURPOSE — flag** (findings a, b). The shadow-sweep for a deletion is "every consumer of the removed vocabulary derives from its absence". Docs got a mechanism; Go symbols and Go comments did not, and both regressed in the same commit that installed the mechanism.
+- **ARCH-MOCK — pass.** `FakeGit.RunContext` honours cancellation before answering, so the fake can prove propagation; `TestGitConformance_LinkedWorktree` now measures all three real `--git-common-dir` shapes against production `resolveRepoIdentity`, and the unit test cans all three so the fake stops modelling only the repo-root case. The deleted seam took its fake and its conformance target with it, which is the correct direction.
+- **ARCH-CONSTRAINTS — flag** (finding d). Also worth carrying forward: identity resolution is now an uncached subprocess per preview generation. Cheaper than the `sdlc` subprocess it replaced, so no regression, but it is on a keystroke-adjacent path with no memoisation by `{dir}`.
+- **ARCH-SECURE — pass.** `deprecatedPolicyRepoIdentity` (`thread.go:298`) parses persisted, possibly hand-edited data best-effort and degrades to `""`, which `advanceSuccessfulStart` turns into a visible refusal rather than a fabricated identity — the right failure shape. No credentials in the diff; fixtures are anonymised except the preference-key test, where the real path *is* the pinned input.
+
+## 7. Plan revision recommendations
+
+Add one `## Revisions` entry dated 2026-09-02 to `workshop/plans/000170-rescope-couch-to-couch-lite-plan.md` covering:
+
+1. **Tick Chunk 4.** Flip the 19 M4 checkboxes in Tasks 13–15 that are delivered, and flip the Core concepts `Status` column from `planned (M4)` to `deleted` for `Admission`/`AdmissionDecision`/`CapacityExceededError`/`PolicyResult`, `StartGrantStore`/`StartGrantToken`, `MigrateLegacyRecord`, `Actor`, `TreeSummary`/`ActorView`, and the `PolicyResolver` seam; `ThreadIncarnation.Policy → RepoIdentity` and `ThreadStore.CommitStartClaim` become `new`/`modified`.
+2. **Correct Task 13 Step 4.** `CommitStartClaim` replaced `CommitThreadReplacements` only. `DeletePristineThread` survives and is now the core of `rollbackPristineStart`; the row `ThreadStore.CommitThreadReplacements, DeletePristineThread` must be split so it stops claiming a deletion the code contradicts.
+3. **Record that BR-23's time bound was not delivered.** The Revisions text currently says "so a hung git no longer hangs the start form" — state instead that cancellation was added and a deadline was not, name the CLI's `context.Background()` path, and either schedule the timeout or record the accepted exposure explicitly.
+4. **Record the two guards' declared scope.** Both new guards are narrower than the rules they encode (line-oriented matching; a hand-listed file set that excludes Go). Note the intended end state so the next reader does not mistake them for complete.
