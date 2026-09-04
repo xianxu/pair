@@ -4,9 +4,9 @@ name: couch
 goal: Let the operator run a group of live coding sessions from one terminal — enumerate them, switch between them, and be paged by them — instead of tracking them across tabs.
 done_when: The operator runs a group of live coding sessions in one terminal window — starting, resuming, detaching, reattaching, and following notifications between them — and prefers it to tabs.
 status: executing
-mvp_scope: [pair#145, pair#146, pair#149, pair#151, pair#152, pair#155, pair#170, ariadne#200]
+mvp_scope: [pair#145, pair#146, pair#149, pair#151, pair#152, pair#155, pair#170, pair#181, pair#182, ariadne#200]
 created: 2026-08-21
-updated: 2026-09-02
+updated: 2026-09-03
 sources: [brain/workshop/pensive/2026-08-20-01-pensive-couch-agent-switcher.md]
 ---
 
@@ -192,6 +192,65 @@ gate `#147` and `#148` respectively; `#145` and `#146` do not depend on them.
 - [x] detach, and detached threads that reattach [pair#170 M2]
 - [x] start or resume in a folder [pair#170 M3]
 - [x] delete the machinery the rescope orphans [pair#170 M4]
+- [x] one honest inventory: every thread gets a row and a reason [pair#181]
+- [x] total classification, no shell-side filtering [pair#181 M1]
+- [x] warm reattach: get back into a detached session [pair#181 M2]
+- [x] archive as the only exit, plus the startup and path rules [pair#181 M3]
+- [ ] relaunch an actor: restart Pair, keep the conversation [pair#182]
+- [-] reattach a detached thread without the cold binding [pair#179 — absorbed by pair#181 M2]
+- [-] retire finished threads into an archive [pair#180 — absorbed by pair#181 M3]
+- [-] preserve parked binding after failed resume [pair#168]
+- [-] persist operation failure diagnostics [pair#169]
+- [-] reconcile stale incarnations after a crash [pair#171]
+
+<a id="pair-181"></a>
+### pair#181 — one honest inventory: every thread gets a row and a reason
+
+**est:** 8.64
+**status:** M1-M3 closed; plan at `workshop/plans/000181-one-honest-inventory-every-thread-gets-a-row-and-a-reason-plan.md`
+**started:** 2026-09-03
+
+The switcher showed 4 rows over a store of 13, and `couch --list` showed all 13,
+with nothing reconciling them. Nine threads were invisible with no notice and no
+way to ask why, because "should this row exist" was fused with "can this row be
+acted on" and computed half in an IO loop -- where `continue` was the only
+vocabulary for "no" -- and half in a pure projector.
+
+M1 made classification total: one pure rule over `(record, evidence)` returning a
+state and, when unusable, a reason from a closed vocabulary. The evidence type
+carries a `ProofStatus` per question, because a total classifier that cannot say
+"we could not ask" turns one failed zellij query into an assertion that every
+detached session is gone -- and `session-gone` is a reason retirement acts on.
+
+M2 got the operator back into a detached session, which needed three sites to
+agree that reattaching is not resuming: the native binding is the COLD path's
+proof, and a warm reattach relaunches nothing. It also stopped sending Pair a
+resume profile it honours only at a create boundary, and `--layout2` to a session
+that already has its layout -- which sent Pair down a path offering to DELETE the
+live session.
+
+M3 replaced the planned retirement predicate with an `archive` action on the
+operator's instruction, made it a complete delete (stop the session, then file
+the record), ordered startup selection `detached -> parked -> recent`, enforced
+one thread per repo path, and labelled rows by directory rather than opaque tag.
+
+Absorbs `pair#179` (M2) and `pair#180` (M3).
+
+<a id="pair-182"></a>
+### pair#182 — relaunch an actor: restart Pair, keep the conversation
+
+**status:** open; the last issue between couch-lite and usable
+
+Developing Pair while working inside it has no clean restart: rebuild the binary
+and the running actor keeps the old code. couch has the symmetric move one level
+up -- `alt+d` leaves, rebuild, re-run `couch` -- but nothing at the actor level.
+Pair's own `Alt+n` restarts the workbench INSIDE the session couch already handed
+off to, so the process couch spawned is not replaced.
+
+Relaunch is park-then-resume as one action. The design question is failure
+semantics, not mechanism: park is destructive and resume can refuse, so a
+relaunch that parks and then fails to resume has destroyed a working session.
+The resume's preconditions therefore run BEFORE the park.
 
 <a id="pair-170"></a>
 ### pair#170 — rescope to couch-lite
@@ -497,6 +556,44 @@ resume, Leave Couch, and terminal restoration. Raw lifecycle detail remains in
 ARCH-PURE, ARCH-PURPOSE).
 
 ## Log
+
+### 2026-09-03 — scope event: couch-lite narrows to one remaining issue
+
+**Dropped from couch-lite, still open as standalone papercuts:** `pair#163`
+switcher description search, `pair#164` prefill edit values, `pair#165` alt+delete
+in editors. Not important enough to gate the project; they are switcher polish,
+not the difference between usable and not.
+
+**Punted, each with its reasoning in the issue Log:** `pair#168` (the eight
+threads its recovery would restore were archived as corrupted data, so it now
+recovers a population of zero -- and the honest fix widens Pair's binding
+authority, which is not worth it for nothing), `pair#169` (the half that bit --
+a failed action leaving no visible trace -- is fixed by pair#181 M1's total
+projection; the residue is the subprocess error text), `pair#171` (the crash
+shape is now visible as `stale-incarnation` and clearable by hand with archive;
+only the automatic reconciler is unbuilt).
+
+**Absorbed rather than closed separately:** `pair#179` shipped as pair#181 M2,
+`pair#180` as pair#181 M3 -- though #180 shipped as an *action* rather than the
+retirement predicate it specified, on the operator's instruction that an
+operator action beats a rule guessing what is finished.
+
+**Added:** `pair#182` relaunch an actor. It is the one remaining thing between
+couch-lite and usable: rebuilding Pair while working inside it currently has no
+clean restart, and couch has the symmetric move one level up (`alt+d`, rebuild,
+re-run `couch`) but nothing at the actor level, which is where Pair development
+happens.
+
+**Why the project moved this fast today.** pair#181 came from the operator
+looking at a switcher showing four rows over a store of thirteen. Making the
+inventory honest turned out to be the precondition for every other decision:
+once every thread had a row and a reason, "six threads in one repo" became
+visible as a ratchet in the startup selector, "I cannot reattach" became a
+one-line diagnosis, and "just delete the old ones" became an action rather than
+a predicate that had to guess. The measurements that redirected the work --
+1-of-8 recovery for pair#168, 19-of-21 ledgers agreeing on a session id, six
+resumable rows at one path -- were all taken against the operator's real store
+rather than fixtures.
 
 ### 2026-09-02 — scope event: rescoped to couch-lite
 

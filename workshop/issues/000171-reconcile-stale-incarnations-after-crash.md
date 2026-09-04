@@ -1,10 +1,10 @@
 ---
 id: 000171
-status: open
+status: punt
 deps: []
 github_issue:
 created: 2026-09-02
-updated: 2026-09-02
+updated: 2026-09-03
 estimate_hours:
 ---
 
@@ -76,6 +76,26 @@ whole-incarnation *quiescence* (that is `pair#152`'s territory).
       construct a fresh `Couch`, and assert the row returns.
 
 ## Log
+
+### 2026-09-03 — punted: visible, and manually clearable
+
+pair#181 M1 made the crash shape VISIBLE rather than invisible: a record
+claiming a live incarnation that nothing hosts classifies
+`unusable/stale-incarnation` and renders "stale — couch exited unexpectedly",
+where it previously produced no row at all. The operator saw exactly this on
+their own store (`brain-couch-19`, pid 67382).
+
+Two things then made automatic reconciliation less pressing. Leaving couch
+cleanly retires incarnations, so the row became `detached` on the next start
+without any reconciler running. And pair#181 M3's archive action gives a manual
+out for one that does not: archiving stops the session and files the record.
+
+The operator's call: manual archive is enough for now. What remains unbuilt is
+the automatic reconciliation -- clearing an incarnation whose process is
+provably gone and re-classifying the row without operator action.
+
+Reopen if crashed couches start leaving stale rows faster than they are worth
+clearing by hand.
 
 ### 2026-09-02
 

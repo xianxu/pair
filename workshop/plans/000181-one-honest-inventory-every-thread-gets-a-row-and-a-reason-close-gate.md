@@ -39,6 +39,12 @@ rounds:
       boundary: M1
       blocked: false
       protocol_error: no valid findings block
+    - "n": 3
+      timestamp: "2026-09-03T22:51:05-07:00"
+      agent: claude
+      boundary: M3
+      blocked: false
+      protocol_error: no valid findings block
 ---
 
 # Gate ledger — pair#181 (boundary-review)
@@ -65,6 +71,10 @@ later rounds disposed of them. Generated — edit the gate, not this file.
   (carried from plan-quality PQ-7, deferred to the boundary review)
 
 ## Round 2 — 2026-09-03T18:35:37-07:00 (claude) — passed
+
+**Protocol error:** no valid findings block — this round contributed no findings.
+
+## Round 3 — 2026-09-03T22:51:05-07:00 (claude) — passed
 
 **Protocol error:** no valid findings block — this round contributed no findings.
 

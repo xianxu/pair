@@ -1,10 +1,10 @@
 ---
 id: 000168
-status: open
+status: punt
 deps: []
 github_issue:
 created: 2026-09-01
-updated: 2026-09-01
+updated: 2026-09-03
 estimate_hours:
 ---
 
@@ -53,6 +53,29 @@ row. The exact owner query became provisional/empty and hid the parked thread.
 - [ ] Add boundary regressions through the authoritative ledger inventory and Couch startup path.
 
 ## Log
+
+### 2026-09-03 — punted: the threads it would recover are gone by choice
+
+Measured during pair#181 M2 against the operator's real ledgers. The fix as
+specified recovers **1 of the 8** lost threads: seven have ledger shape
+`legacy → launch` with no binding row ever written, so "a pending launch stops
+shadowing the last committed binding" has nothing to restore for them.
+
+Recovering those seven would have meant treating the legacy row's `session_id`
+as binding authority. That is tempting -- it equals the v2 binding root in 19 of
+21 couch ledgers, so it is the same fact in an older schema -- but the ledger
+deliberately refuses it: `sessioninventory/query.go:122` keeps even a v2 binding
+provisional without an `AuthorizationProof`, and `proof_migration.go` exists to
+re-derive one by scanning. The honest recovery therefore VERIFIES the transcript
+rather than trusting the id, which is a change to Pair's binding-authority path.
+
+The operator's call closed it: those eight threads held nothing durable, and
+they were archived as corrupted data during pair#181 M3's one-time cleanup.
+There is now nothing left for this issue to recover, and widening Pair's binding
+authority for a population of zero is not worth the risk.
+
+Reopen if a NEW thread loses its binding this way -- the diagnosis and the
+measurement stand, only the value of acting on them changed.
 
 ### 2026-09-01
 
