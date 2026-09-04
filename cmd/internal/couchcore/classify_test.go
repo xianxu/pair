@@ -499,3 +499,34 @@ func TestEvidencePassSkipsTheSessionQueryWithNoDetachCandidates(t *testing.T) {
 		t.Fatalf("detached query ran %d times with no candidate", artifacts.detachQueries)
 	}
 }
+
+// The two views over one store. `couch --list` showed thirteen rows while the
+// switcher showed four, and nothing reconciled them -- the operator found that
+// discrepancy before any test did, because no test compared them.
+func TestBothInventoriesReportTheSamePopulationAndStates(t *testing.T) {
+	couch, addresses := couchWithOneRecordOfEveryShape(t)
+
+	switcher, err := couch.ActionableThreadInventoryContext(context.Background(), nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	diagnostic, err := couch.ThreadInventoryContext(context.Background())
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	if len(switcher) != len(addresses) || len(diagnostic) != len(addresses) {
+		t.Fatalf("switcher=%d diagnostic=%d records=%d", len(switcher), len(diagnostic), len(addresses))
+	}
+	states := make(map[ThreadAddress]ActionableThreadState, len(switcher))
+	reasons := make(map[ThreadAddress]ThreadReason, len(switcher))
+	for _, row := range switcher {
+		states[row.Address], reasons[row.Address] = row.State, row.Reason
+	}
+	for _, row := range diagnostic {
+		if states[row.Address] != row.State || reasons[row.Address] != row.Reason {
+			t.Fatalf("%+v: diagnostic says (%q,%q), switcher says (%q,%q)",
+				row.Address, row.State, row.Reason, states[row.Address], reasons[row.Address])
+		}
+	}
+}

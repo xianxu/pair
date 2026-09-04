@@ -1,6 +1,9 @@
 package couchcore
 
-import "sort"
+import (
+	"context"
+	"sort"
+)
 
 // ThreadSummary is the diagnostic CLI/advisor row. It preserves the composite
 // address and every incarnation state; ordinary switchers use
@@ -13,12 +16,12 @@ type ThreadSummary struct {
 	Description      string              `json:"description,omitempty"`
 	PublishedSummary string              `json:"published_summary,omitempty"`
 	Incarnations     []ThreadIncarnation `json:"incarnations,omitempty"`
-	// Parked distinguishes the two ways a thread can have no incarnation: a
-	// verified park tore its session down and its agent is gone, while a
-	// detached thread's agent is still running behind a live zellij session.
-	// Without it the diagnostic view reports both as "no agent running" and
-	// contradicts the switcher, which offers the detached row for reattach.
-	Parked bool `json:"parked,omitempty"`
+	// State and Reason come from the SAME classifier the switcher uses. The
+	// diagnostic view used to derive its own two-case answer from a `Parked`
+	// bool, which is how one store could produce two different stories --
+	// exactly what #181 exists to stop.
+	State  ActionableThreadState `json:"state"`
+	Reason ThreadReason          `json:"reason,omitempty"`
 }
 
 func (s ThreadSummary) Label() string {
@@ -44,10 +47,13 @@ func (s ThreadSummary) Live() bool {
 	return false
 }
 
-func BuildThreadInventory(records []ThreadRecord) []ThreadSummary {
+// BuildThreadInventory is the diagnostic projection: every record, with its
+// lifecycle detail, classified by the one shared rule.
+func BuildThreadInventory(records []ThreadRecord, evidence map[ThreadAddress]ThreadEvidence) []ThreadSummary {
 	rows := make([]ThreadSummary, 0, len(records))
 	for _, record := range records {
 		cloned := cloneThreadRecord(record)
+		state, reason := ClassifyThread(cloned, evidence[cloned.Address])
 		rows = append(rows, ThreadSummary{
 			Address:          cloned.Address,
 			StartingPath:     cloned.StartingPath,
@@ -56,7 +62,8 @@ func BuildThreadInventory(records []ThreadRecord) []ThreadSummary {
 			Description:      cloned.Description,
 			PublishedSummary: cloned.PublishedSummary,
 			Incarnations:     cloned.Incarnations,
-			Parked:           cloned.VerifiedPark != nil,
+			State:            state,
+			Reason:           reason,
 		})
 	}
 	sort.Slice(rows, func(i, j int) bool {
@@ -69,9 +76,26 @@ func BuildThreadInventory(records []ThreadRecord) []ThreadSummary {
 }
 
 func (c *Couch) ThreadInventory() ([]ThreadSummary, error) {
-	snapshot, err := c.Threads.Snapshot()
+	return c.ThreadInventoryContext(context.Background())
+}
+
+// ThreadInventoryContext resolves the same evidence the switcher does.
+//
+// A CLI has no console, so its live proof comes from the OS: the recorded
+// process must still be alive AND carry the kernel start token recorded at
+// launch. Without that a running thread would read as a stale incarnation here
+// while the switcher called it live -- one store, two stories.
+func (c *Couch) ThreadInventoryContext(ctx context.Context) ([]ThreadSummary, error) {
+	if ctx == nil {
+		ctx = context.Background()
+	}
+	preview, err := c.Threads.Snapshot()
 	if err != nil {
 		return nil, err
 	}
-	return BuildThreadInventory(snapshot.Records), nil
+	snapshot, evidence, err := c.gatherThreadEvidence(ctx, c.ObserveRecordedProcesses(preview.Records))
+	if err != nil {
+		return nil, err
+	}
+	return BuildThreadInventory(snapshot.Records, evidence), nil
 }

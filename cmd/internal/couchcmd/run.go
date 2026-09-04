@@ -592,18 +592,29 @@ func renderThreadRows(w io.Writer, threads []couchcore.ThreadSummary, includeAdd
 				fmt.Fprintf(w, "%s  %s%s\n", open, incarnation.State, close)
 			}
 		}
-		if len(thread.Incarnations) == 0 {
-			// A thread with no incarnation is not necessarily idle: a DETACHED
-			// thread's agent is still running behind its zellij session, and
-			// only the client is gone. Saying "no agent running" there would
-			// contradict the switcher, which offers that row for reattach.
-			state := "(no client attached; agent may still be running)"
-			if thread.Parked {
-				state = "(parked; no agent running)"
-			}
-			fmt.Fprintf(w, "%s  %s%s\n", open, state, close)
-		}
+		// The classified state, from the same rule the switcher uses. This used
+		// to be a local two-case guess over a `Parked` bool, which is how one
+		// store produced two different stories about the same thread.
+		fmt.Fprintf(w, "%s  %s%s\n", open, threadStateText(thread), close)
 	}
+}
+
+// threadStateText is the diagnostic wording for a classified state. It says
+// more than the switcher's column has room for, and the two cannot disagree
+// about WHICH state a thread is in -- only about how much room they have to
+// describe it.
+func threadStateText(thread couchcore.ThreadSummary) string {
+	switch thread.State {
+	case couchcore.ThreadLive:
+		return "live"
+	case couchcore.ThreadDetached:
+		return "detached (no client attached; the agent is still running)"
+	case couchcore.ThreadParked:
+		return "parked (no agent running; resumable)"
+	case couchcore.ThreadBusy:
+		return "parking in progress"
+	}
+	return "unusable: " + string(thread.Reason)
 }
 
 // dimCodes returns ANSI dim/reset only when the destination is a real

@@ -124,7 +124,7 @@ func DirectStoreExecutor(c *Couch) OperationExecutor {
 		a := call.Args
 		switch call.Operation.Name {
 		case "list":
-			return c.ThreadInventory()
+			return c.ThreadInventoryContext(call.Context)
 		case "show":
 			if err := requireOperationRepoScope(a); err != nil {
 				return nil, err
@@ -133,7 +133,17 @@ func DirectStoreExecutor(c *Couch) OperationExecutor {
 			if err != nil {
 				return nil, err
 			}
-			return BuildThreadInventory(matches), nil
+			// Show resolves the same evidence list does, so the two diagnostic
+			// views cannot disagree about one thread either.
+			ctx := call.Context
+			if ctx == nil {
+				ctx = context.Background()
+			}
+			_, evidence, err := c.gatherThreadEvidence(ctx, c.ObserveRecordedProcesses(matches))
+			if err != nil {
+				return nil, err
+			}
+			return BuildThreadInventory(matches, evidence), nil
 		case "name":
 			if err := requireOperationRepoScope(a); err != nil {
 				return nil, err

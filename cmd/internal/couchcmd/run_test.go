@@ -825,8 +825,13 @@ func TestListShowsANamedTreeWithNoAgent(t *testing.T) {
 	if !strings.Contains(out, "the pair tree") {
 		t.Fatalf("out = %q; a named tree must appear even with no agent", out)
 	}
-	if !strings.Contains(out, "no client attached") {
-		t.Fatalf("out = %q; the absence of a client must be stated", out)
+	// The fixture carries no launch profile, so the classifier says exactly
+	// that rather than guessing at the session. What matters here is that the
+	// row appears WITH a stated reason: a named tree the operator cannot enter
+	// must still say why, which is the whole of #181. The parked/detached
+	// wording has its own test below.
+	if !strings.Contains(out, "unusable: profile-missing") {
+		t.Fatalf("out = %q; a row that cannot be entered must state why", out)
 	}
 }
 
@@ -838,17 +843,17 @@ func TestRenderThreadRowsDistinguishesParkedFromDetached(t *testing.T) {
 	address := couchcore.ThreadAddress{RepoScope: "816fc349d3faebf8", Tag: "couch-0001020304050607"}
 	for _, test := range []struct {
 		name   string
-		parked bool
+		state  couchcore.ActionableThreadState
 		want   string
 		unwant string
 	}{
-		{name: "parked", parked: true, want: "no agent running", unwant: "may still be running"},
-		{name: "detached", parked: false, want: "may still be running", unwant: "(parked"},
+		{name: "parked", state: couchcore.ThreadParked, want: "no agent running", unwant: "still running"},
+		{name: "detached", state: couchcore.ThreadDetached, want: "still running", unwant: "parked"},
 	} {
 		t.Run(test.name, func(t *testing.T) {
 			var buf bytes.Buffer
 			renderThreadRows(&buf, []couchcore.ThreadSummary{{
-				Address: address, WorkingPath: "/repo", Name: "compiler", Parked: test.parked,
+				Address: address, WorkingPath: "/repo", Name: "compiler", State: test.state,
 			}}, false)
 			out := buf.String()
 			if !strings.Contains(out, test.want) {

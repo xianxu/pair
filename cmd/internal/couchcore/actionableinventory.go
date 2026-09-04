@@ -289,12 +289,26 @@ func (c *Couch) ActionableThreadInventoryContext(ctx context.Context, observatio
 	if ctx == nil {
 		ctx = context.Background()
 	}
-	if err := ctx.Err(); err != nil {
+	snapshot, evidence, err := c.gatherThreadEvidence(ctx, observations)
+	if err != nil {
 		return nil, err
+	}
+	return ProjectActionableThreads(snapshot.Records, evidence), nil
+}
+
+// gatherThreadEvidence resolves what is knowable about every record and decides
+// nothing. Both inventories consume it, so the switcher and the diagnostic view
+// cannot derive different states from the same store (ARCH-DRY).
+//
+// It returns the snapshot too, because physicalizing a working path mutates the
+// record the caller projects.
+func (c *Couch) gatherThreadEvidence(ctx context.Context, observations []LiveTTYObservation) (ThreadSnapshot, map[ThreadAddress]ThreadEvidence, error) {
+	if err := ctx.Err(); err != nil {
+		return ThreadSnapshot{}, nil, err
 	}
 	snapshot, err := c.Threads.Snapshot()
 	if err != nil {
-		return nil, err
+		return ThreadSnapshot{}, nil, err
 	}
 	observed := make(map[ThreadAddress][]ProcessIdentity, len(observations))
 	for _, observation := range observations {
@@ -313,7 +327,7 @@ func (c *Couch) ActionableThreadInventoryContext(ctx context.Context, observatio
 	for i := range snapshot.Records {
 		record := snapshot.Records[i]
 		if err := ctx.Err(); err != nil {
-			return nil, err
+			return ThreadSnapshot{}, nil, err
 		}
 		item := ThreadEvidence{Live: observed[record.Address]}
 		// Physicalization and binding resolution are RESUME-SHAPED work. A
@@ -382,7 +396,7 @@ func (c *Couch) ActionableThreadInventoryContext(ctx context.Context, observatio
 		evidence[record.Address] = item
 	}
 	if err := ctx.Err(); err != nil {
-		return nil, err
+		return ThreadSnapshot{}, nil, err
 	}
 
 	for _, observation := range resumable {
@@ -391,6 +405,10 @@ func (c *Couch) ActionableThreadInventoryContext(ctx context.Context, observatio
 		evidence[observation.Address] = item
 	}
 
+	// A couch with no session resolver cannot ask the question at all, so its
+	// candidates stay unresolved rather than being told their sessions are
+	// gone. Production always has one; this is the degraded path, and the
+	// honest answer there is "unknown".
 	if detachedResolver, ok := c.Artifacts.(DetachedSessionResolver); ok && len(detachedCandidates) > 0 {
 		observed, detachErr := detachedResolver.DetachedSessions(ctx, detachedCandidates)
 		if detachErr == nil {
@@ -409,17 +427,44 @@ func (c *Couch) ActionableThreadInventoryContext(ctx context.Context, observatio
 				evidence[observation.Address] = item
 			}
 		}
-	} else if !ok {
-		// No resolver at all is a permanent answer, not a transient failure:
-		// this couch cannot observe sessions, so no record is detached.
-		for _, candidate := range detachedCandidates {
-			item := evidence[candidate.Address]
-			item.DetachedStatus = ProofResolved
-			evidence[candidate.Address] = item
-		}
 	}
 	if err := ctx.Err(); err != nil {
-		return nil, err
+		return ThreadSnapshot{}, nil, err
 	}
-	return ProjectActionableThreads(snapshot.Records, evidence), nil
+	return snapshot, evidence, nil
+}
+
+// ObserveRecordedProcesses derives live proof from the OS rather than from a
+// console's own children.
+//
+// The switcher's live proof is "I am hosting this pty", which only the couch
+// holding the terminal can supply. A CLI has no console, so without this it
+// would classify every running thread as a stale incarnation and disagree with
+// the switcher about the same store -- the exact split (#181) exists to close.
+// The defence against a recycled PID is the same either way: the kernel start
+// token must match the one recorded at launch.
+func (c *Couch) ObserveRecordedProcesses(records []ThreadRecord) []LiveTTYObservation {
+	if c == nil || c.Proc == nil {
+		return nil
+	}
+	var observations []LiveTTYObservation
+	for _, record := range records {
+		for _, incarnation := range record.Incarnations {
+			if incarnation.State != IncarnationLive || incarnation.PID <= 0 || incarnation.Identity == "" {
+				continue
+			}
+			if c.Proc.Exists(incarnation.PID) != Live {
+				continue
+			}
+			identity, err := c.Proc.Identity(incarnation.PID)
+			if err != nil || identity != incarnation.Identity {
+				continue
+			}
+			observations = append(observations, LiveTTYObservation{
+				Address: record.Address,
+				Process: ProcessIdentity{PID: incarnation.PID, Identity: incarnation.Identity},
+			})
+		}
+	}
+	return observations
 }

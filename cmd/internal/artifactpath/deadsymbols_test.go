@@ -27,6 +27,7 @@ var deadSymbolAllowlist = map[string]string{
 	"Spawn":                     "the test seam over the start path; documented as such at couch.go",
 	"Resume":                    "non-context wrapper; production calls ResumeContext",
 	"ActionableThreadInventory": "non-context wrapper; production calls ActionableThreadInventoryContext",
+	"ThreadInventory":           "non-context wrapper; production calls ThreadInventoryContext",
 	"RecoverStoreJournal":       "the explicit recovery entry point; withLock recovers implicitly on the real path",
 
 	// Fakes and hooks. A fake's only job is to be used by tests; these live
