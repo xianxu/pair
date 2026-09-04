@@ -241,6 +241,19 @@ func Operations() []Operation {
 			Result: ResultThreadInventory, Presentation: PresentationList,
 		},
 		{
+			// Relaunch replaces a thread's Pair process with the current binary
+			// and keeps the agent conversation. Confirmed because it stops a
+			// running agent; live-owner because both halves it composes are.
+			Name: "relaunch", Summary: "Restart a work thread's Pair, keeping its agent conversation",
+			Execution: ExecuteLiveOwner, Effect: EffectProcess, Confirmation: ConfirmRequired, Result: ResultThread,
+			Presentation: PresentationTUI,
+			Args: []ArgSpec{
+				{Name: "ref", Summary: "thread tag, path, or name", Required: false},
+				{Name: "tag", Summary: "exact thread tag from trusted owner context", Implicit: true},
+				{Name: "repo-scope", Summary: "repository scope derived from caller context", Required: true, Implicit: true},
+			},
+		},
+		{
 			// Archiving is the operator's "delete": remove a thread from the
 			// switcher so they can start anew. It is reversible by design --
 			// the record moves rather than being destroyed -- but it is still

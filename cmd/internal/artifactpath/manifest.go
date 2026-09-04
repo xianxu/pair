@@ -521,6 +521,7 @@ var NonArtifactSources = []string{
 	"cmd/internal/couchcore/parkworker.go",
 	"cmd/internal/couchcore/path.go",
 	"cmd/internal/couchcore/pathops.go",
+	"cmd/internal/couchcore/relaunch.go",
 	"cmd/internal/couchcore/procops.go",
 	"cmd/internal/couchcore/ptyrunner.go",
 	"cmd/internal/couchcore/registry.go",

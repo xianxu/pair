@@ -295,6 +295,15 @@ func CouchLiveOwnerExecutor(c *Couch) OperationExecutor {
 				return nil, err
 			}
 			return c.Detach(ctx, address)
+		case "relaunch":
+			// resolveOperationThread: the ONE thread-addressing dialect. The
+			// switcher sends {repo-scope, tag}, and reading only `ref` is how
+			// Tab -> archive shipped broken (pair#181 M3).
+			address, err := resolveOperationThread(c, a)
+			if err != nil {
+				return nil, err
+			}
+			return c.Relaunch(ctx, address)
 		case "leave":
 			// Mirrors park's mode argument rather than minting a second verb:
 			// leaving is one operation whose disposition the pressed key picks.

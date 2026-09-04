@@ -163,7 +163,7 @@ func TestResumePreconditionsMatchDecideResumeOnAPostParkRecord(t *testing.T) {
 **Files:**
 - Create: `cmd/internal/couchcore/relaunch.go`, `relaunch_test.go`
 
-- [ ] **Step 1: Write the failing test — a refusal destroys nothing**
+- [x] **Step 1: Write the failing test — a refusal destroys nothing**
 
 ```go
 func TestRelaunchRefusesBeforeParkingWhenTheResumeCouldNotSucceed(t *testing.T) {
@@ -202,13 +202,13 @@ func TestRelaunchRefusesBeforeParkingWhenTheResumeCouldNotSucceed(t *testing.T) 
 }
 ```
 
-- [ ] **Step 2: Run — FAIL, `undefined: Relaunch`**
-- [ ] **Step 3: Implement** in this order and no other: preconditions →
+- [x] **Step 2: Run — FAIL, `undefined: Relaunch`**
+- [x] **Step 3: Implement** in this order and no other: preconditions →
       `soleParkableIncarnation` → `PairLifecycle.Park` → `ResumeContext`.
-- [ ] **Step 4: Run — PASS, then MUTATION-CHECK the order**: move the
+- [x] **Step 4: Run — PASS, then MUTATION-CHECK the order**: move the
       precondition check after the park and confirm the test fails. A guard no
       test enters is not a guard (`pair#181` M3, BR-12).
-- [ ] **Step 5: Commit.**
+- [x] **Step 5: Commit.**
 
 ### Task 3: a failed park never attempts the resume, and names its recovery
 
