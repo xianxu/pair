@@ -2,6 +2,7 @@ package couchtty
 
 import (
 	"io"
+	"slices"
 	"strings"
 	"testing"
 	"time"
@@ -174,5 +175,51 @@ func relaunchConfirmationRoundTrip(t *testing.T, arrowDown string) {
 		}
 	case <-time.After(3 * time.Second):
 		t.Fatalf("Enter dispatched nothing; notice = %+v", con.menuSnapshot().Notice)
+	}
+}
+
+// The operator's second report: relaunch worked, the record said live, the
+// switcher rendered "live" -- and Return could not reach the thread because it
+// had no pane. couch had spawned a child and never adopted it. Adoption ran off
+// a concrete StartResult assertion that a RelaunchResult could not satisfy.
+func TestRelaunchResultIsAdoptedByTheConsole(t *testing.T) {
+	address := menuAddress("brain")
+	record := couchcore.ActorRecord{ID: "brain", Thread: address}
+	for _, tc := range []struct {
+		name   string
+		value  any
+		attach bool
+	}{
+		{"a completed relaunch is adopted", couchcore.RelaunchResult{
+			Outcome: couchcore.Relaunched, Record: record,
+		}, true},
+		{"a start is still adopted", couchcore.StartResult{Record: record}, true},
+		// Every other outcome accompanies an error and has no live child; a
+		// console that attached to one would be pointing at nothing.
+		{"a refused relaunch is not", couchcore.RelaunchResult{
+			Outcome: couchcore.RefusedBeforePark, Record: record,
+		}, false},
+		{"a park-without-resume is not", couchcore.RelaunchResult{
+			Outcome: couchcore.ParkedNotResumed, Record: record,
+		}, false},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			con := New(hostty.NewFakeHost(ptychild.Size{Rows: 24, Cols: 80}), nil)
+			t.Cleanup(con.Stop)
+			var dispatched []string
+			con.SetOperationDispatcher(func(call couchcore.OperationCall) (any, error) {
+				dispatched = append(dispatched, call.Name)
+				return nil, nil
+			})
+			con.finishOperation(operationCompletion{
+				name:   "relaunch",
+				value:  tc.value,
+				origin: MenuOperationOrigin{Operation: "relaunch", Address: address, Attempt: 1},
+			})
+			attached := slices.Contains(dispatched, "attach")
+			if attached != tc.attach {
+				t.Fatalf("attach dispatched = %v, want %v (dispatched %q)", attached, tc.attach, dispatched)
+			}
+		})
 	}
 }

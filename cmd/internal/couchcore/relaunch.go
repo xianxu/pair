@@ -45,6 +45,17 @@ type RelaunchResult struct {
 	Handle  Handle
 }
 
+// Started reports the resumed child for console adoption. Only a completed
+// relaunch has one: every other outcome either never parked or never resumed,
+// and handing back a half-finished relaunch as a startable child would attach
+// the console to a process that is not there.
+func (r RelaunchResult) Started() (StartResult, bool) {
+	if r.Outcome != Relaunched {
+		return StartResult{}, false
+	}
+	return StartResult{Record: r.Record, Handle: r.Handle}, true
+}
+
 // Relaunch replaces a thread's Pair process with the current binary, keeping the
 // agent conversation.
 //

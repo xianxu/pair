@@ -108,6 +108,23 @@ type StartResult struct {
 	Handle Handle
 }
 
+// StartedChild is implemented by any operation result that hands the console a
+// newly started child to adopt.
+//
+// Adoption is a PROPERTY of the result, not a closed list of concrete types.
+// finishOperation used to assert on StartResult alone, so relaunch -- which
+// returns its own struct around the same Record and Handle -- spawned a child
+// that was never adopted. It ran as couch's orphan: the record said live, the
+// switcher rendered "live", the status bar had no pane, and Return could not
+// reach it. A second operation that starts a child is exactly the case a type
+// switch cannot be trusted to remember.
+type StartedChild interface {
+	Started() (StartResult, bool)
+}
+
+// Started makes a StartResult its own adoption payload.
+func (s StartResult) Started() (StartResult, bool) { return s, true }
+
 // StopResult reports what stopping actually did: a record for an already-dead
 // actor is forgotten without a signal, and saying so avoids implying a running
 // agent was terminated.
@@ -245,7 +262,10 @@ func Operations() []Operation {
 			// and keeps the agent conversation. Confirmed because it stops a
 			// running agent; live-owner because both halves it composes are.
 			Name: "relaunch", Summary: "Restart a work thread's Pair, keeping its agent conversation",
-			Execution: ExecuteLiveOwner, Effect: EffectProcess, Confirmation: ConfirmRequired, Result: ResultThread,
+			// ResultStart, like resume: a completed relaunch hands back a child
+			// the console must adopt. Declaring ResultThread said otherwise and
+			// the declaration was simply false.
+			Execution: ExecuteLiveOwner, Effect: EffectProcess, Confirmation: ConfirmRequired, Result: ResultStart,
 			Presentation: PresentationTUI,
 			Args: []ArgSpec{
 				{Name: "ref", Summary: "thread tag, path, or name", Required: false},

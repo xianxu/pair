@@ -1366,22 +1366,27 @@ func (c *Console) finishOperation(completed operationCompletion) bool {
 		address = parked.Thread.Address
 	}
 	startedHandleID := ""
-	if started, ok := completed.value.(couchcore.StartResult); ok {
-		address = started.Record.Thread
-		if started.Handle != nil {
-			startedHandleID = started.Handle.ID()
-		}
-		if err == nil {
-			c.mu.Lock()
-			fn := c.ops
-			c.mu.Unlock()
-			if fn == nil {
-				err = errors.New("no action dispatcher wired")
-			} else {
-				_, err = fn(couchcore.OperationCall{
-					Name: "attach", Context: c.lifetime, Implicit: true, TypedPayload: started,
-					Args: map[string]string{"repo-scope": address.RepoScope, "tag": string(address.Tag)},
-				})
+	// StartedChild, not a StartResult type assertion: relaunch returns its own
+	// result struct around the same child, and asserting the concrete type left
+	// that child spawned but never adopted.
+	if child, ok := completed.value.(couchcore.StartedChild); ok {
+		if started, hasChild := child.Started(); hasChild {
+			address = started.Record.Thread
+			if started.Handle != nil {
+				startedHandleID = started.Handle.ID()
+			}
+			if err == nil {
+				c.mu.Lock()
+				fn := c.ops
+				c.mu.Unlock()
+				if fn == nil {
+					err = errors.New("no action dispatcher wired")
+				} else {
+					_, err = fn(couchcore.OperationCall{
+						Name: "attach", Context: c.lifetime, Implicit: true, TypedPayload: started,
+						Args: map[string]string{"repo-scope": address.RepoScope, "tag": string(address.Tag)},
+					})
+				}
 			}
 		}
 	}
