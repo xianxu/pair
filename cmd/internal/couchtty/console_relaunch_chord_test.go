@@ -2,7 +2,9 @@ package couchtty
 
 import (
 	"io"
+	"strings"
 	"testing"
+	"time"
 
 	"github.com/xianxu/pair/cmd/internal/couchcore"
 	"github.com/xianxu/pair/cmd/internal/hostty"
@@ -108,5 +110,69 @@ func TestAltShiftNBytesReachTheChildUntouched(t *testing.T) {
 	con.mu.Unlock()
 	if focus.IsPanel() {
 		t.Fatal("alt+shift+n opened couch's panel; it belongs to the hosted Pair")
+	}
+}
+
+// The operator's report, as a test: alt+n opened a confirmation whose only
+// action read "park brain" under a "relaunch" breadcrumb, and it could not be
+// chosen. Both halves are one defect -- the item's first word is its dispatch
+// id, so a hand-written "park " prefix both mislabels the screen and fails the
+// id == action guard that Enter checks.
+func TestRelaunchConfirmationNavigatesAndDispatchesRelaunch(t *testing.T) {
+	// Both arrow encodings, because the operator reaches this screen FROM the
+	// pair pane: nvim leaves the terminal in application-cursor mode, where
+	// down is \x1bOB rather than \x1b[B, and a decoder that knew only one
+	// would strand exactly this confirmation.
+	for _, arrow := range []string{"\x1b[B", "\x1bOB"} {
+		t.Run(renderInputBytes([]byte(arrow)), func(t *testing.T) {
+			relaunchConfirmationRoundTrip(t, arrow)
+		})
+	}
+}
+
+func relaunchConfirmationRoundTrip(t *testing.T, arrowDown string) {
+	t.Helper()
+	con, stdin, address := newChordFixture(t)
+	dispatched := make(chan string, 4)
+	setTestOps(con, func(name string, _ map[string]string) (any, error) {
+		dispatched <- name
+		return nil, nil
+	})
+	waitFor(t, "the console to start", func() bool { return con.menuSnapshot().Inventory != nil })
+
+	if _, err := stdin.Write([]byte("\x1b[110;3u")); err != nil {
+		t.Fatalf("write alt+n: %v", err)
+	}
+	waitFor(t, "the relaunch confirmation", func() bool {
+		frame := con.menuSnapshot().CurrentFrame()
+		return frame.Kind == MenuFrameConfirmation && frame.Action == "relaunch" && frame.Thread == address
+	})
+
+	// The action item must NAME relaunch, and must not name park.
+	items := confirmationMenuItems(con.menuSnapshot(), con.menuSnapshot().CurrentFrame())
+	if len(items) != 2 || !strings.HasPrefix(items[1], "relaunch ") {
+		t.Fatalf("confirmation items = %q, want the second to start with %q", items, "relaunch ")
+	}
+
+	// Arrow down off "cancel" must land on it.
+	if _, err := stdin.Write([]byte(arrowDown)); err != nil {
+		t.Fatalf("write arrow down: %v", err)
+	}
+	waitFor(t, "the arrow to move the selection off cancel", func() bool {
+		return con.menuSnapshot().CurrentFrame().SelectedItem == "relaunch"
+	})
+
+	// And Enter must actually dispatch, not bounce to the root with
+	// "thread action is no longer applicable".
+	if _, err := stdin.Write([]byte("\r")); err != nil {
+		t.Fatalf("write enter: %v", err)
+	}
+	select {
+	case name := <-dispatched:
+		if name != "relaunch" {
+			t.Fatalf("dispatched %q, want %q", name, "relaunch")
+		}
+	case <-time.After(3 * time.Second):
+		t.Fatalf("Enter dispatched nothing; notice = %+v", con.menuSnapshot().Notice)
 	}
 }

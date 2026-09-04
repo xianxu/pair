@@ -464,7 +464,7 @@ func menuFrameBindsThread(frame MenuFrame) bool {
 // when that frame is confirmed.
 func reduceParkHotkey(state MenuState, event MenuEvent) (MenuState, []MenuEffect) {
 	switch event.Operation {
-	case "park", "detach", "leave":
+	case "park", "detach", "leave", "relaunch":
 	default:
 		state.Notice = errorMenuNotice("action is unavailable")
 		return state, nil
@@ -499,10 +499,11 @@ func reduceParkHotkey(state MenuState, event MenuEvent) (MenuState, []MenuEffect
 		state.Frames[0].SelectedAddress = event.Address
 		return dispatchThreadOperation(state, "detach", event.Address)
 	}
-	if event.Operation == "park" {
+	if event.Operation == "park" || event.Operation == "relaunch" {
 		thread, ok := findMenuThread(state.Inventory, event.Address)
 		if !ok || !thread.Live() {
-			state.Notice = errorMenuNotice("active thread is no longer actionable")
+			state.Notice = errorMenuNotice("only a running thread can be " +
+				map[string]string{"park": "parked", "relaunch": "relaunched"}[event.Operation])
 			return state, nil
 		}
 	}
@@ -605,7 +606,7 @@ func reduceConfirmationKey(state MenuState, key PanelKey) (MenuState, []MenuEffe
 			return state, nil
 		}
 		if frame.SelectedItem != frame.Action ||
-			(frame.Action != "park" && frame.Action != "leave" && frame.Action != "archive") ||
+			(frame.Action != "park" && frame.Action != "leave" && frame.Action != "archive" && frame.Action != "relaunch") ||
 			(binds && frame.Action != "archive" && !thread.Live()) {
 			return discardThreadFrames(state, frame.Thread, "thread action is no longer applicable"), nil
 		}
@@ -1023,7 +1024,7 @@ func menuActionItems(thread couchcore.ActionableThreadSummary) []string {
 		// Detach first: it is the safe, everyday gesture -- the agent keeps
 		// running and only the client goes. Park is destructive and sits
 		// behind it, in the position the operator has to travel to.
-		return []string{"detach", "park", "name", "describe"}
+		return []string{"detach", "relaunch", "park", "name", "describe"}
 	}
 	// Archive is offered wherever couch is not hosting the thread. It refuses a
 	// live one in the store anyway, and offering an action that always fails is
@@ -1055,14 +1056,28 @@ func confirmationMenuItems(state MenuState, frame MenuFrame) []string {
 		return []string{"cancel", "leave couch, parking " + strconv.Itoa(live) + " live threads"}
 	}
 	thread, _ := findMenuThread(state.Inventory, frame.Thread)
-	if frame.Action == "archive" {
-		// The item says what archiving DOES, because the frame title never
-		// reaches the screen and "archive" alone reads like filing something
-		// away. It stops the session first: a record filed while its agent
-		// keeps running is the forgotten thread couch exists to prevent.
-		return []string{"cancel", "archive " + thread.Label() + " — stops its session"}
+	// The item's FIRST WORD is its id (menuItemID), and Enter dispatches only
+	// when that id equals frame.Action. So the action name is prepended
+	// STRUCTURALLY rather than written out per case: relaunch shipped with
+	// park's hand-written label, which made one confirmation both misdescribe
+	// the operation ("park brain" under a "relaunch" breadcrumb) and refuse to
+	// run it, because "park" != "relaunch" at the dispatch guard. A default
+	// that spells another action's name is not a default, it is a lie.
+	item := frame.Action + " " + thread.Label()
+	switch frame.Action {
+	case "archive":
+		// Say what archiving DOES, because the frame title never reaches the
+		// screen and "archive" alone reads like filing something away. It stops
+		// the session first: a record filed while its agent keeps running is
+		// the forgotten thread couch exists to prevent.
+		item += " — stops its session"
+	case "relaunch":
+		// Same reason, different confusion: the one thing an operator needs to
+		// know here is what park would have destroyed and this does not, and
+		// nothing else on a two-item screen says the conversation survives.
+		item += " — new Pair, same conversation"
 	}
-	return []string{"cancel", "park " + thread.Label()}
+	return []string{"cancel", item}
 }
 
 func filterMenuItems(items []string, query string) []string {
@@ -1230,7 +1245,7 @@ func reconcileMenuFrames(state MenuState, previous ...[]couchcore.ActionableThre
 			// action FOR rows that are not live, so demanding liveness would
 			// drop its confirmation on the next refresh.
 			if (bound != (couchcore.ThreadAddress{}) && bound != frame.Thread) ||
-				(frame.Action != "park" && frame.Action != "leave" && frame.Action != "archive") ||
+				(frame.Action != "park" && frame.Action != "leave" && frame.Action != "archive" && frame.Action != "relaunch") ||
 				(frame.Action != "archive" && !thread.Live()) {
 				invalidThreadFrame = true
 				state.Notice = errorMenuNotice("thread action is no longer applicable")
@@ -1303,7 +1318,7 @@ func reduceOperationResult(state MenuState, event MenuEvent) MenuState {
 			state = restoreMenuPrefixPreservingStart(state, 1, origin)
 			state.Frames[0].SelectedAddress = event.Address
 		}
-	case "park", "detach", "resume", "leave", "archive":
+	case "park", "detach", "resume", "leave", "archive", "relaunch":
 		state = restoreMenuPrefixPreservingStart(state, 1, origin)
 		state.Frames[0].SelectedAddress = event.Address
 		reconcileRootSelection(&state, event.Address)
@@ -1317,7 +1332,7 @@ func reduceOperationResult(state MenuState, event MenuEvent) MenuState {
 // terminal focus; leave terminates the console and has no next frame to update.
 func operationNeedsProjectionRefresh(operation string) bool {
 	switch operation {
-	case "start", "park", "detach", "resume", "name", "describe", "archive":
+	case "start", "park", "detach", "resume", "name", "describe", "archive", "relaunch":
 		return true
 	case "switch", "leave":
 		return false
@@ -1429,6 +1444,8 @@ func menuOperationProgressText(state MenuState, operation string, address couchc
 		return "renaming " + label
 	case "describe":
 		return "saving " + label + " description"
+	case "relaunch":
+		return "restarting " + label + "'s pair…"
 	case "archive":
 		return "archiving " + label
 	default:
