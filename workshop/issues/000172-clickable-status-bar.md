@@ -25,9 +25,14 @@ something already visible and already pointed at.
 **A. The reserved row.** Clicking a chip switches to that actor. Clicking bare
 row does nothing.
 
-**B. The switcher.** Single click selects a row; double click enters it —
-identical to pressing Return on that row. Clicking outside any row does
-nothing.
+**B. The switcher.** A single click selects **and enters** — identical to
+pressing Return on that actor. Clicking outside any actor does nothing.
+
+**A click anywhere in an actor's rendered extent counts**, not just its primary
+line: the notification line, and the description line once `#173` gives it one,
+all belong to that actor and all select it. The hit-test therefore maps a point
+to an **actor**, not to a line — an actor occupies a variable number of rows and
+that count changes as notifications arrive and descriptions appear.
 
 The switcher is materially easier than the row: couch draws the whole panel and
 no child is attached, so there is no forward-versus-swallow question there. The
@@ -49,22 +54,25 @@ click reporting (`?1000`), **not** motion tracking (`?1002`/`?1003`): motion
 reports arrive at pointer-movement rates and this feature needs human click
 rates (`ARCH-CONSTRAINTS`).
 
-**3. Double click, and why the timing window is acceptable here.** This project
-rejected double-ESC precisely because a double-tap needs a timing window that
-either delays every legitimate single press or forwards one it cannot retract.
-The difference that makes double-click fine: **the single press has a harmless
-meaning.** A too-slow second click merely re-selects the row it already
-selected; a mis-timed ESC changed a mode or cancelled a turn. So the window
-never has to be right, only reasonable — put the threshold in a named constant
-rather than a literal, and let a slow double-click degrade to two selects.
+**3. No double click, and therefore no timing window.** An earlier draft had
+click-to-select plus double-click-to-enter. Dropped: single-click-confirm
+matches pair's own insert-mode `<LeftMouse>` handler
+(`nvim/init.lua:3571`), which computes the target index and selects-and-confirms
+in one click inside the completion popup — so the workbench already has one
+click idiom, and a second would be the inconsistency.
 
-Note a deliberate inconsistency with the workbench: pair's insert-mode
-`<LeftMouse>` handler (`nvim/init.lua:3571`) computes the target index and
-**selects and confirms in one click** inside the completion popup. The switcher
-does not, because its Enter switches the operator's terminal — a misfire there
-is disruptive in a way that picking a completion is not. Reuse that handler's
-geometry approach (hit-test rows against the drawn box), not its one-click
-semantics.
+It also deletes a problem rather than solving one. This project rejected
+double-ESC because a double-tap needs a timing window that either delays every
+legitimate single press or forwards one it cannot retract; a double-click has
+the same shape. Not having one is strictly better than picking a good threshold
+for one.
+
+**What makes confirm-on-click safe here is `#170`'s switch rule:** a misfired
+switch costs one key. `ctrl+backspace` returns to `previous`, and — by the
+`entered_via_notification` rule — a click is a *manual* switch, so it re-pins
+`previous` and the bounce-back lands where the operator actually was. Reuse that
+handler's geometry approach (hit-test against the drawn box), and now its
+semantics too.
 
 **4. The real work is mode ownership, and it does not exist yet.** Mouse
 reporting is a terminal-global mode, not a per-region one, so:
@@ -93,14 +101,20 @@ by default.
 
 - Clicking a chip attaches to that actor; clicking empty row space does
   nothing.
-- In the switcher, a single click selects the clicked row and does not enter it;
-  a double click enters it, taking exactly the path Return takes — asserted
-  against the same handler, not a parallel one (`ARCH-DRY`).
-- A double click slower than the threshold degrades to two selects, never to a
-  half-action.
-- Row hit-testing is a pure function of the rendered menu and the click
-  coordinates, unit-tested with no terminal, including clicks outside every row
-  and on a scrolled/clipped list.
+- In the switcher, a single click enters the clicked actor, taking exactly the
+  path Return takes — asserted against the same handler, not a parallel one
+  (`ARCH-DRY`).
+- A click on an actor's notification line, or on its description line once
+  `#173` lands, selects that actor — asserted for an actor rendered across
+  several lines, not just its primary one.
+- A click on an actor is treated as a **manual** switch by `#170`'s rule: it
+  re-pins `previous`, so `ctrl+backspace` undoes it. Asserted, including a click
+  on an actor that is showing a notification — that must NOT count as
+  notification handling.
+- Point-to-actor hit-testing is a pure function of the rendered menu and the
+  click coordinates, unit-tested with no terminal: clicks outside every actor,
+  on a scrolled or clipped list, and on an actor whose line count differs from
+  its neighbours'.
 - Column-to-actor is unit-tested against the same render pass, including a
   width narrow enough to clip chips and one narrow enough to drop them.
 - A child that never enabled mouse tracking receives **zero** mouse bytes while
@@ -115,8 +129,10 @@ by default.
 
 - [ ] Chip spans out of `RenderStatusRow` + pure column-to-actor mapping, with
       clipping tests.
-- [ ] Row spans out of the menu renderer + pure point-to-row mapping.
-- [ ] Switcher click/double-click, routed into the existing Return handler.
+- [ ] Actor extents out of the menu renderer + pure point-to-actor mapping,
+      covering multi-line actors.
+- [ ] Switcher single-click routed into the existing Return handler, recorded as
+      a manual switch.
 - [ ] Child mouse-mode tracking in the console: observe the child's DECSET/DECRST
       for the mouse modes, hold the state, restore on attach/detach.
 - [ ] Enable `?1000;?1006` for couch; route last-row reports to couch and
@@ -145,3 +161,21 @@ The switcher half is the cheaper one and could land first: couch owns the whole
 panel with no child attached, so it needs the decoding and the hit-test but not
 the forward-versus-swallow arbitration. Worth sequencing that way if the row
 turns out to be as fiddly as `#139` suggests terminal input usually is.
+
+### 2026-09-03 — single click confirms
+
+Operator's call, overriding the two-stage draft above: a single click selects
+and confirms, matching the completion popup. It also removes the double-click
+timing window rather than tuning it.
+
+I had argued for two stages on the grounds that the switcher's Enter moves the
+operator's terminal. That objection is weaker than it looked: `#170` gives a
+misfire a one-key undo, and a click is a manual switch under the
+`entered_via_notification` rule, so `previous` re-pins and the bounce-back is
+correct. Recorded because "why isn't this two-stage like a file picker" is a
+question the next reader will ask.
+
+The extent requirement is the operator's too: every line belonging to an actor
+is clickable, including the notification line and the future `#173` description.
+That is what makes the hit-test point-to-ACTOR rather than point-to-row, and it
+is the part most likely to be built wrong if it is not stated.
