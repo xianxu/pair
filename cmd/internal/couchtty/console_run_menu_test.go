@@ -389,8 +389,17 @@ func TestConsoleRunOrdinarySwitchAdvancesPrevious(t *testing.T) {
 
 	// No notification on two: selecting it is an ordinary switch.
 	_, _ = f.stdin.Write([]byte("\x00"))
-	waitUpTo(t, 250*time.Millisecond, "the switcher", func() bool {
-		return len(f.con.menuSnapshot().Frames) > 0
+	// Wait for the state the KEYSTROKE produces, not for state that may already
+	// hold. `len(Frames) > 0` was true before ctrl-space was ever processed --
+	// the fixture's inventory refresh builds a root frame -- so the selection
+	// written below was promptly overwritten by onHotkey reopening the switcher
+	// on the thread being left, and Enter selected c1. Failed 2-3 runs in 10
+	// under -race. Panel focus happens only in onHotkey, so it is the signal
+	// that the chord actually landed.
+	waitUpTo(t, 250*time.Millisecond, "ctrl-space to open the switcher", func() bool {
+		f.con.mu.Lock()
+		defer f.con.mu.Unlock()
+		return f.con.focus.IsPanel()
 	})
 	f.con.mu.Lock()
 	f.con.menu.Frames[0].SelectedAddress = two

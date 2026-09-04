@@ -778,6 +778,10 @@ func (c *Console) teardown(restore func() error) {
 	c.mu.Lock()
 	tracer := c.trace
 	c.trace = nil
+	// The terminal is being handed back, so nothing may paint into it again.
+	// Leaving this set would let a late publish write a status row into the
+	// operator's restored shell -- damage, not a message.
+	c.started = false
 	c.mu.Unlock()
 	if err := tracer.Close(); err != nil {
 		fmt.Fprintf(c.errw(), "couch: close input trace: %v\n", err)

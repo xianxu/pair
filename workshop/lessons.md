@@ -3297,3 +3297,14 @@ that a key token appears cannot detect a contradictory behavioral sentence
   fires at the same moment, so it is an optimisation. A false rationale outlives
   the line it justifies and teaches the next reader to preserve it for a reason
   that was never true.
+- Wait for the state the KEYSTROKE produces, not for state that may already
+  hold. `TestConsoleRunOrdinarySwitchAdvancesPrevious` waited on
+  `len(Frames) > 0` after ctrl-space, which the fixture's inventory refresh had
+  already made true, so the test wrote its selection BEFORE the chord was
+  processed and `onHotkey` overwrote it — 2-3 failures in 10 under `-race`.
+  Panel focus happens only in `onHotkey`, so it is the signal that the chord
+  landed. When a wait predicate can be satisfied by setup, it is not a wait.
+- "`-race` passes" from one run is not evidence. A flake at 3-in-10 reads as
+  green most times you look, and quoting it as verification puts a false claim
+  in the permanent close record. Run a flaky-looking suite in a loop and report
+  the ratio.

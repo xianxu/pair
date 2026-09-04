@@ -15,6 +15,27 @@ import (
 // waiting the full lifetime and prove nothing about the arming.
 const testLifetime = 60 * time.Millisecond
 
+// lastPaintedRow is the text of the most recent reserved-row paint.
+//
+// The alternative -- host.Reset() then wait -- races the very paint it waits
+// for: on a loaded box the preceding poll can outlast a 60ms lifetime, the
+// expiry paint lands before the Reset, and the test then waits three seconds
+// for something that already happened. Asserting on the LAST row instead needs
+// no window and discards no evidence. (lastConsoleScreen is the wrong tool: it
+// splits on a full-screen takeover, which a row paint does not emit.)
+func lastPaintedRow(written string) string {
+	marker := hostty.SaveCursor
+	index := strings.LastIndex(written, marker)
+	if index < 0 {
+		return ""
+	}
+	row := written[index:]
+	if end := strings.Index(row, hostty.RestoreCursor); end >= 0 {
+		row = row[:end]
+	}
+	return row
+}
+
 // The half a pure Feed test cannot see: an idle console must REPAINT when the
 // row expires. Nothing else is guaranteed to happen at that moment, and the
 // operator's report was precisely that the sentence stayed on screen.
@@ -50,10 +71,14 @@ func TestAnIdleConsoleRepaintsWhenItsNoticeExpires(t *testing.T) {
 	// Now NOTHING happens except time passing. The console must repaint anyway;
 	// no other event is coming, which is exactly why the message used to stay on
 	// screen indefinitely.
-	host.Reset()
+	//
+	// Asserting on the LAST painted row rather than resetting the buffer first.
+	// A Reset here races the very paint it is waiting for: on a loaded box the
+	// poll above can outlast the 60ms lifetime, the expiry paint lands before
+	// the Reset, and the test then waits three seconds for a repaint that
+	// already happened. A test must not discard the evidence it is waiting for.
 	waitFor(t, "the row to repaint without the expired notice", func() bool {
-		painted := host.Written()
-		return painted != "" && !strings.Contains(painted, "nowhere to return to")
+		return !strings.Contains(lastPaintedRow(host.Written()), "nowhere to return to")
 	})
 }
 
@@ -80,10 +105,8 @@ func TestAnExitNoticeSurvivesAnIdleConsole(t *testing.T) {
 
 	// Several lifetimes of real time, since the point is that nothing retires it.
 	time.Sleep(5 * testLifetime)
-	host.Reset()
 	con.repaint()
-	waitFor(t, "a repaint after the wait", func() bool { return host.Written() != "" })
-	if !strings.Contains(host.Written(), "exited (1)") {
-		t.Fatal("an exit notice expired; it is an obligation, not an event")
-	}
+	waitFor(t, "the row to be repainted after the wait", func() bool {
+		return strings.Contains(lastPaintedRow(host.Written()), "exited (1)")
+	})
 }
