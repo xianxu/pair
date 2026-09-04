@@ -293,7 +293,7 @@ boundaries, because the work is two different problems: M1 is provable in
 `couchcore` with no terminal, and M2 is the terminal machinery M1 makes
 drivable.
 
-- [ ] M1 — relaunch as one operation. The resume preconditions split from the
+- [x] M1 — relaunch as one operation. The resume preconditions split from the
       occupancy rule they share with resume; `Couch.Relaunch` checking them
       BEFORE the park; the four-outcome failure model, including the park's own
       failure (the likeliest branch, and the one whose recovery is park's modes
@@ -384,3 +384,47 @@ rewritten from its pre-`change-code` state and swept into `335c027b`, dropping
 and the M1 plan framing. Repaired by rebuilding from `adeb90d3` and re-applying
 the design additively. If the implementation session has newer local state,
 that state wins over this file.
+
+### M1 smoke test (2026-09-04) — passed, after four defects it found
+
+Operator drove the real stack in `couch`: alt+n in a Pair pane, confirm,
+relaunch. Verified by the ledger, which is the only thing that can prove the
+claim: three complete `launch → binding` pairs all rooted at the SAME native
+session (`6d238ba2`), so the conversation survived every relaunch while the Pair
+process and zellij session were replaced.
+
+Four defects, found only because it was driven for real:
+
+1. **The chord was consumed and dropped.** `HitRelaunch` had no arm in
+   `processInput`'s exhaustive switch, so alt+n was intercepted and silently
+   forwarded nowhere. Fixed in `4a7d96e2`; `72b3508d` adds the test that drives
+   raw bytes through `Run`'s input loop, since every prior test stopped at the
+   Interceptor and could not see this.
+2. **The confirmation said `park brain` under a `relaunch` title.** A
+   hand-written `"park " + label` fallthrough — and because an item's first word
+   IS its dispatch id, the same string also failed the `id == frame.Action`
+   guard, so the row would have refused to run. `f879f252` builds the item from
+   the action, making the invariant structural.
+3. **Live everywhere but reachable nowhere.** `finishOperation` adopted a started
+   child by asserting the concrete `StartResult`; relaunch returns its own
+   struct, so the assertion failed, no `attach` was dispatched, and couch ran its
+   own child as an orphan. `30b9c27a` makes adoption a property of the result
+   (`StartedChild`) and corrects the declaration to `ResultStart`.
+4. **`thread action is no longer applicable` over a success.** Relaunch parks
+   before it resumes, so mid-operation the thread is not live by its own doing;
+   a refresh in that window judged the operation's own confirmation stale.
+   `abbf6b0a` exempts a frame whose operation is in flight.
+
+Plus `54052fab`: all four binding statuses shared one developer's sentence, and
+the operator hit the mildest of them — a thread whose agent had not completed a
+turn yet, which has no binding to resume by name. That is the ORDINARY state of
+a fresh session and the refusal relaunch meets most; it now says so.
+
+Three of the four are one shape: **a new case that did not join a hand-written
+list of old ones.** That is exactly what M2's six-site sweep is for, and it is
+now motivated by evidence rather than by the M1 review's argument alone.
+
+`6b3bd700` adds `COUCH_INPUT_TRACE`, a non-visual wire probe, because "the chord
+had no effect" has two indistinguishable causes and only the wire separates them.
+It is what disproved the dead-key theory: alt+n arrives as `\x1b[110;3u`.
+
