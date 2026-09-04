@@ -293,7 +293,7 @@ boundaries, because the work is two different problems: M1 is provable in
 `couchcore` with no terminal, and M2 is the terminal machinery M1 makes
 drivable.
 
-- [x] M1 — relaunch as one operation. The resume preconditions split from the
+- [ ] M1 — relaunch as one operation. The resume preconditions split from the
       occupancy rule they share with resume; `Couch.Relaunch` checking them
       BEFORE the park; the four-outcome failure model, including the park's own
       failure (the likeliest branch, and the one whose recovery is park's modes
