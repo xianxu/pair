@@ -3,6 +3,7 @@ package couchcore
 import (
 	"context"
 	"errors"
+	"path/filepath"
 	"sort"
 	"time"
 
@@ -128,10 +129,25 @@ func (s ActionableThreadSummary) Resumable() bool {
 }
 
 func (s ActionableThreadSummary) Label() string {
-	if s.Name != "" {
-		return s.Name
+	return threadLabel(s.Name, s.WorkingPath, s.Address.Tag)
+}
+
+// threadLabel is what the operator reads instead of an opaque address.
+//
+// The tag is a 16-hex identity, unique and unmemorable; a switcher of them
+// reads as noise. The working directory's last segment is what the operator
+// actually calls the thread -- `brain`, `pair`, `arc-agi-3` -- and with one
+// thread per path it identifies the row as well as the tag does. The tag stays
+// the fallback for a record with no path, and `couch --show` still prints the
+// full address, so nothing loses its exact identity.
+func threadLabel(name, workingPath string, tag ThreadTag) string {
+	if name != "" {
+		return name
 	}
-	return string(s.Address.Tag)
+	if base := filepath.Base(workingPath); base != "" && base != "." && base != string(filepath.Separator) {
+		return base
+	}
+	return string(tag)
 }
 
 func (s ActionableThreadSummary) DisplaySummary() string {
@@ -519,4 +535,39 @@ func (c *Couch) ObserveRecordedProcesses(records []ThreadRecord) []LiveTTYObserv
 		}
 	}
 	return observations
+}
+
+// LabelRow is one row's identity for display: what it would like to be called,
+// and the address that makes it unique.
+type LabelRow struct {
+	Address ThreadAddress
+	Label   string
+}
+
+// DisambiguateLabels gives every row a label the operator can act on.
+//
+// A thread's label is its directory's last segment, which is readable and, with
+// one thread per path, unique. A store that predates that rule is not: the
+// operator's holds six rows for `brain`, and six rows all reading `brain` is
+// worse than six opaque tags -- readable and useless. Colliding rows keep the
+// name and gain the short tail of their tag, so the common case stays clean and
+// the exceptional one stays actionable.
+func DisambiguateLabels(rows []LabelRow) map[ThreadAddress]string {
+	counts := make(map[string]int, len(rows))
+	for _, row := range rows {
+		counts[row.Label]++
+	}
+	out := make(map[ThreadAddress]string, len(rows))
+	for _, row := range rows {
+		if counts[row.Label] < 2 {
+			out[row.Address] = row.Label
+			continue
+		}
+		tag := string(row.Address.Tag)
+		if len(tag) > 8 {
+			tag = tag[len(tag)-8:]
+		}
+		out[row.Address] = row.Label + "·" + tag
+	}
+	return out
 }

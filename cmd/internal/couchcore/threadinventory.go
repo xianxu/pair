@@ -25,10 +25,7 @@ type ThreadSummary struct {
 }
 
 func (s ThreadSummary) Label() string {
-	if s.Name != "" {
-		return s.Name
-	}
-	return string(s.Address.Tag)
+	return threadLabel(s.Name, s.WorkingPath, s.Address.Tag)
 }
 
 func (s ThreadSummary) DisplaySummary() string {

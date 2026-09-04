@@ -287,6 +287,14 @@ func rootStateText(thread couchcore.ActionableThreadSummary, now time.Time) stri
 
 func renderRootMenuFrame(state MenuState, frame MenuFrame, width, height int, now time.Time, color256 bool) []string {
 	visible := visibleRootThreads(state.Inventory, frame)
+	// Labels are disambiguated against the WHOLE inventory, not the filtered
+	// view: a name that is unique only because the filter hid its twin would
+	// change as the operator types.
+	labelRows := make([]couchcore.LabelRow, 0, len(state.Inventory))
+	for _, thread := range state.Inventory {
+		labelRows = append(labelRows, couchcore.LabelRow{Address: thread.Address, Label: thread.Label()})
+	}
+	labels := couchcore.DisambiguateLabels(labelRows)
 	lines := []string{"threads", ""}
 	rowBudget := height - len(lines)
 	if frame.Filter != "" {
@@ -319,7 +327,7 @@ func renderRootMenuFrame(state MenuState, frame MenuFrame, width, height int, no
 		if prefixWidth < 0 {
 			prefixWidth = 0
 		}
-		plain := clipMenuLine(fmt.Sprintf("%s%s  %s", marker, thread.Label(), thread.WorkingPath), prefixWidth) + suffix
+		plain := clipMenuLine(fmt.Sprintf("%s%s  %s", marker, labels[thread.Address], thread.WorkingPath), prefixWidth) + suffix
 		if selectedRow {
 			plain = selectedMenuLine(plain, true, width)
 		} else if !thread.Live() && color256 {

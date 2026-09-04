@@ -573,6 +573,11 @@ func renderThreadRows(w io.Writer, threads []couchcore.ThreadSummary, includeAdd
 		return
 	}
 	dim, reset := dimCodes(w)
+	rows := make([]couchcore.LabelRow, 0, len(threads))
+	for _, thread := range threads {
+		rows = append(rows, couchcore.LabelRow{Address: thread.Address, Label: thread.Label()})
+	}
+	labels := couchcore.DisambiguateLabels(rows)
 	for _, thread := range threads {
 		// Dim by the CLASSIFIED state. Reading liveness from the incarnations
 		// here while the label came from the classifier printed a stale row
@@ -581,7 +586,7 @@ func renderThreadRows(w io.Writer, threads []couchcore.ThreadSummary, includeAdd
 		if thread.State == couchcore.ThreadLive {
 			open, close = "", ""
 		}
-		fmt.Fprintf(w, "%s%-22s %s%s\n", open, thread.Label(), thread.WorkingPath, close)
+		fmt.Fprintf(w, "%s%-22s %s%s\n", open, labels[thread.Address], thread.WorkingPath, close)
 		if includeAddress {
 			fmt.Fprintf(w, "%s  address: %s/%s%s\n", open, thread.Address.RepoScope, thread.Address.Tag, close)
 		}

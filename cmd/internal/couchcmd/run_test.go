@@ -997,8 +997,28 @@ func TestRenderThreadsIsNameFirstAndKeepsSamePathThreadsDistinct(t *testing.T) {
 	if !strings.Contains(text, "compiler") || strings.Contains(strings.Split(text, "\n")[0], "couch-0000000000000001") {
 		t.Fatalf("named row leads with opaque id: %q", text)
 	}
-	if !strings.Contains(text, "couch-0000000000000002") || strings.Count(text, "/repo") != 2 {
+	// The unnamed row now reads as its DIRECTORY rather than its tag. Here it
+	// does not collide -- the other row is named -- so it stays plain `repo`.
+	if !strings.Contains(text, "repo") || strings.Count(text, "/repo") != 2 {
 		t.Fatalf("same-path thread rows collapsed: %q", text)
+	}
+}
+
+// The collision this guard exists for, now that labels come from directories:
+// two UNNAMED rows at one path would both read `repo`. Readable and useless is
+// worse than opaque, so the tag's tail comes back for exactly those rows.
+func TestRenderThreadsQualifiesCollidingDirectoryLabels(t *testing.T) {
+	rows := []couchcore.ThreadSummary{
+		{Address: couchcore.ThreadAddress{RepoScope: "816fc349d3faebf8", Tag: "couch-0000000000000001"}, WorkingPath: "/repo"},
+		{Address: couchcore.ThreadAddress{RepoScope: "816fc349d3faebf8", Tag: "couch-0000000000000002"}, WorkingPath: "/repo"},
+	}
+	var out bytes.Buffer
+	renderThreads(&out, rows)
+	text := out.String()
+	for _, want := range []string{"repo·00000001", "repo·00000002"} {
+		if !strings.Contains(text, want) {
+			t.Fatalf("colliding rows = %q, want %q to distinguish them", text, want)
+		}
 	}
 }
 
