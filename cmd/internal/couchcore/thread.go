@@ -2,6 +2,7 @@ package couchcore
 
 import (
 	"encoding/json"
+	"fmt"
 	"time"
 
 	"github.com/xianxu/pair/cmd/internal/launcher"
@@ -306,4 +307,39 @@ func deprecatedPolicyRepoIdentity(raw json.RawMessage) string {
 		return ""
 	}
 	return legacy.RepoIdentity
+}
+
+// archivableRecord is the ONE occupancy rule archiving asks about.
+//
+// It used to be inlined in the store with a narrower set than DecideResume's --
+// it refused a live incarnation and an open park, but admitted `creating` and
+// `unknown`. That gap is reachable: archiving a thread mid-start passed the
+// guard, so Quiesce killed the session being created while the spawn was still
+// in flight, leaving the console owning a thread the store no longer lists --
+// precisely the state the guard exists to prevent.
+//
+// Occupancy is now one predicate over incarnation states, shared, and it
+// matches what resume refuses for the same reason: an occupied thread is one
+// something else is still doing something to.
+func archivableRecord(record ThreadRecord) error {
+	if record.Park != nil {
+		return fmt.Errorf("thread %s has a park in flight; let it finish before archiving", record.Address.Tag)
+	}
+	if occupied, state := occupiedIncarnation(record); occupied {
+		return fmt.Errorf("thread %s is %s; park or detach it before archiving", record.Address.Tag, state)
+	}
+	return nil
+}
+
+// occupiedIncarnation reports whether any incarnation is still doing something:
+// running, starting, or in a state couch cannot vouch for.
+func occupiedIncarnation(record ThreadRecord) (bool, IncarnationState) {
+	for _, state := range []IncarnationState{IncarnationLive, IncarnationCreating, IncarnationUnknown} {
+		for _, incarnation := range record.Incarnations {
+			if incarnation.State == state {
+				return true, state
+			}
+		}
+	}
+	return false, ""
 }

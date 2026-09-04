@@ -274,7 +274,9 @@ repository containing the current directory. An exact opaque tag wins; human
 name and canonical working path are also accepted, and an ambiguous match
 refuses instead of choosing. `list` is intentionally global. It renders one
 row per `{repository scope, opaque tag}` even when several threads share one
-path. A human name leads when present; otherwise the opaque tag is the label.
+path. A human name leads when present; otherwise the label is the working
+directory's last segment (`brain`, `pair`, `arc-agi-3`), with the tag's tail
+appended only when two rows would otherwise read the same.
 The agent-published summary is displayed ahead of the operator description,
 without overwriting it.
 
@@ -296,10 +298,13 @@ below 1 second; adversarial OS starvation is outside that claim. Pair cleanup
 retains its 10-second outer deadline and 5-second exact-Zellij inner wait.
 Leave Couch applies one disposition to every live actor and returns to the
 shell: `Alt+d` **detaches** them, so quitting never kills a running agent, and
-`Alt+x` **parks** them behind the same confirmation a single park needs. A later bare `couch` automatically resumes the sole
-exact resumable thread for that physical repository path and attaches it. With
-zero or multiple exact candidates, Couch starts a new thread instead; it does not
-rank, prompt, or guess.
+`Alt+x` **parks** them behind the same confirmation a single park needs. A later bare `couch` returns to the work already in
+that physical repository path: **detached first, then parked, most recently
+active within each class**. It starts a new thread only when there is nothing to
+return to. Ranking replaced an exactness rule that was a ratchet -- two
+resumable rows at one path created a third, guaranteeing the next startup
+created a fourth -- and wanting a fresh agent instead costs one chord inside
+Pair (`Alt+Shift+N` restarts the conversation, keeping the workbench).
 Resume does not allocate a temporary actor first or add a full native inventory
 scan. Alt+d is intercepted by Couch as its own detach operation: un-intercepted
 it would leave Couch with a dead child and a stale incarnation, and the thread
@@ -307,9 +312,13 @@ would vanish from the switcher. Detaching an actor moves focus to the switcher,
 which is also what keeps Couch alive when the last actor detaches.
 
 A TUI startup that creates a new root allocates a distinct opaque durable
-thread; automatic unique resume reuses the resumable thread instead. Any number
-of threads may share one path: Couch is a switcher over your own sessions, not
-a gatekeeper, and it does not refuse a start because a tree is already busy.
+thread; automatic resume reuses the thread already there instead. **Couch keeps
+one thread per repository path**, and refuses a start at a path that already
+holds a live, detached or parked one -- several threads at one path without
+separate worktrees is confusing, and per-repo policy is a design space of its
+own. Debris does not block: a path whose only rows are unusable is still
+startable. Two threads in one TREE at different subdirectories remain legal;
+only the exact path is one-at-a-time.
 Capacity limits used to come from Ariadne's fleet policy (`sdlc fleet policy`);
 that was a defence of the multi-owner case and went with the couch-lite rescope
 (Pair #170), along with its `provision-worktree` refusal.

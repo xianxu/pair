@@ -158,7 +158,7 @@ rather than to the issue. In order:
 | `issue-spec` | this issue + plan authoring (2 review rounds already spent); expanding Chunk 3 after M2's re-measurement |
 | `greenfield-go-module` | `ThreadReason` + `AllThreadReasons` in its own file; `DecideRetirement` + `RetirementVerdict` |
 | `smaller-go-module` | `ClassifyThread` + `liveProofMatches`; the cost call-count guard; M2's red tests; warm reattach; the startup refusal message; `CurrentLaunch` pending-vs-committed + property test; `ThreadStore.Archive`; the archive reader + restore; `couch prune` |
-| `cross-cutting-refactor` | the shell evidence pass + `ProjectActionableThreads`'s new signature across 36 call sites in 6 files |
+| `cross-cutting-refactor` | the shell evidence pass + `ProjectActionableThreads`'s new signature across 63 references across 15 files |
 | `tui-screen` | `rootStateText` + reason labels; Enter-on-unusable + `menuActionItems` |
 | `real-api-discovery` | reattaching `tools-couch-2` on the real zellij/pair stack |
 | `ux-rename-iteration` | one round on the reason labels — operator-facing text in a single column |

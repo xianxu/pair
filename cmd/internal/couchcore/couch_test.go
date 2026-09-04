@@ -1352,7 +1352,11 @@ func TestASecondThreadAtOnePathIsRefused(t *testing.T) {
 	}
 	// The refusal has to be navigable: which thread holds the path, and what to
 	// do about it. A bare "refused" leaves the operator with no next step.
-	for _, want := range []string{string(first.Thread.Tag), "couch /repo", "couch --show"} {
+	// Every named next step must be one the operator can actually take from
+	// where this fires. The first version named `couch <path>` (the command
+	// that just refused) and `couch --show` as a way to retire (it is
+	// read-only) -- advice that fails at the moment someone is already stuck.
+	for _, want := range []string{string(first.Thread.Tag), "ctrl-space", "Tab → archive", "couch --show"} {
 		if !strings.Contains(err.Error(), want) {
 			t.Fatalf("refusal %q does not mention %q", err, want)
 		}

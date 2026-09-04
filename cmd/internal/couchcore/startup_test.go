@@ -127,8 +127,10 @@ func TestStartInteractiveCreatesNewRootWithoutExactCandidate(t *testing.T) {
 // the superseded claim lived.
 func TestStartInteractiveResumesTheNewestOfSeveralParkedCandidates(t *testing.T) {
 	env := newTestEnv(t, "/repo")
-	first := seedStartupParked(t, env, "couch-0000000000000001", "/repo")
-	second := seedStartupParked(t, env, "couch-0000000000000002", "/repo")
+	// Distinct activity times, or "the newest" is decided by iteration order and
+	// the ranking this test names is never exercised.
+	first := seedStartupParked(t, env, "couch-0000000000000001", "/repo", time.Unix(100, 0).UTC())
+	second := seedStartupParked(t, env, "couch-0000000000000002", "/repo", time.Unix(9000, 0).UTC())
 	// Both must be genuinely resumable, or "it picked one" would be indistinguishable
 	// from "the one it picked happened to work".
 	env.Artifacts.SetPairSession(first.Address, "pair-"+string(first.Address.Tag), true)
@@ -138,8 +140,11 @@ func TestStartInteractiveResumesTheNewestOfSeveralParkedCandidates(t *testing.T)
 	if err != nil {
 		t.Fatalf("StartInteractive: %v", err)
 	}
-	if start.Record.Thread != first.Address && start.Record.Thread != second.Address {
-		t.Fatalf("startup created a new thread %+v instead of returning to one of the two", start.Record.Thread)
+	// The NEWEST of them, which is what the name promises: asserting only "one
+	// of the two" would pass with the ranking removed.
+	if start.Record.Thread != second.Address {
+		t.Fatalf("startup resumed %+v, want the more recently active %+v",
+			start.Record.Thread, second.Address)
 	}
 }
 
@@ -187,9 +192,13 @@ func TestStartInteractiveResumeRefusalDoesNotCreateFallbackRoot(t *testing.T) {
 	}
 }
 
-func seedStartupParked(t *testing.T, env *testEnv, tag ThreadTag, path string) ThreadRecord {
+func seedStartupParked(t *testing.T, env *testEnv, tag ThreadTag, path string, active ...time.Time) ThreadRecord {
 	t.Helper()
-	record := actionableTestThread(tag, time.Unix(100, 0).UTC())
+	at := time.Unix(100, 0).UTC()
+	if len(active) > 0 {
+		at = active[0]
+	}
+	record := actionableTestThread(tag, at)
 	record.StartingPath, record.WorkingPath = "/repo", path
 	record.LatestLaunchProfile = &LaunchProfile{Agent: "claude", Argv: []string{}}
 	markActionableParked(&record, record.LastActiveAt)

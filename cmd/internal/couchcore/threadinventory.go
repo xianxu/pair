@@ -46,8 +46,15 @@ func (s ThreadSummary) Live() bool {
 
 // BuildThreadInventory is the diagnostic projection: every record, with its
 // lifecycle detail, classified by the one shared rule.
-func BuildThreadInventory(records []ThreadRecord, evidence map[ThreadAddress]ThreadEvidence) []ThreadSummary {
+func BuildThreadInventory(records []ThreadRecord, evidence map[ThreadAddress]ThreadEvidence, malformed ...[]ThreadAddress) []ThreadSummary {
 	rows := make([]ThreadSummary, 0, len(records))
+	if len(malformed) > 0 {
+		for _, address := range malformed[0] {
+			rows = append(rows, ThreadSummary{
+				Address: address, State: ThreadUnusable, Reason: ReasonInvalid,
+			})
+		}
+	}
 	for _, record := range records {
 		cloned := cloneThreadRecord(record)
 		state, reason := ClassifyThread(cloned, evidence[cloned.Address])
@@ -93,7 +100,7 @@ func (c *Couch) ThreadInventoryContext(ctx context.Context) ([]ThreadSummary, er
 	if err != nil {
 		return nil, err
 	}
-	return BuildThreadInventory(snapshot.Records, evidence), nil
+	return BuildThreadInventory(snapshot.Records, evidence, snapshot.Malformed), nil
 }
 
 // BuildArchivedInventory projects retired records WITHOUT classifying them.

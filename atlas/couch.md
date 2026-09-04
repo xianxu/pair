@@ -513,48 +513,67 @@ switcher resumes that exact thread and makes it the root console. It never
 creates an intervening actor that would occupy the parked thread's address
 (`ARCH-PURPOSE`, `ARCH-PURE`).
 
-Interactive `couch [<repo>]` startup resolves the requested repository scope
-and physical working path, then applies `SelectUniqueResumableRoot` to the same
-proof-bearing actionable inventory used by the switcher. Exactly one matching
-**resumable** row -- parked or detached -- is reattached; zero or multiple
-matches start a new thread. Inventory failure or a Resume refusal stops startup
-without creating a fallback actor. The bounded O(n) selector adds no ranking,
-prompt, fleet scan, or remembered root identity (`ARCH-DRY`,
-`ARCH-CONSTRAINTS`).
+Interactive `couch [<repo>]` startup resolves the requested repository scope and
+physical working path, then applies `SelectResumableRoot` to the same
+proof-bearing actionable inventory used by the switcher. It RANKS: detached
+before parked, most recently active within each class, and starts a new thread
+only when nothing matches. Inventory failure or a Resume refusal stops startup
+without creating a fallback actor, and `startupResumeRefusal` wraps that refusal
+with the thread it names and the ways forward -- no-fallback was right, refusing
+mutely was not. The selector is bounded O(n) with no fleet scan or remembered
+root identity (`ARCH-DRY`, `ARCH-CONSTRAINTS`).
 
-Both resumable states qualify because `couch` in a directory means one thing
-either way -- reattach what is already there -- and both converge on a single
-`pair resume`. The name changed with the rule (`pair#170` M3): a selector called
-`Parked` while selecting detached rows is a lie the next reader pays for.
-Exactness is *preserved*, not relaxed: a parked row and a detached row at one
-path are TWO matches and start a new thread, exactly as two parked rows do.
-Preferring warm over cold would be a ranking policy, and this selector has none.
+**The ranking reverses `SelectUniqueResumableRoot`'s documented refusal to have
+one** ("Preferring warm over cold would be a policy, and this selector
+deliberately has none", `pair#170` M3). Exactness turned out to be a ratchet:
+two resumable rows at one path were two matches, so startup created a third,
+which guaranteed the next startup created a fourth. One repository reached six
+threads that way. Warm beats cold because a detached agent is already running,
+so reattaching preserves what it was doing; recency because that is the thread
+the operator was last in, and a wrong guess costs one `ctrl-space`
+(`pair#181`).
 
-Two neighbouring states are deliberately never selected. A session **attached
-elsewhere** yields no detached observation, so couch cannot steal it. A **stale
-`IncarnationLive` from a crashed couch** is invisible to the projection, so
-startup creates a new thread — the same behaviour as before detach existed, and
-the gap `pair#171` owns.
+`PathHoldsUsableThread` is the other half: **one thread per repository path**,
+enforced at the single site every creation entry funnels through
+(`spawnResolved`), refusing a start where a live, detached or parked row already
+holds the path. Debris does not block -- a path whose only rows are unusable
+must stay startable, or one corrupt record locks its repo out permanently. The
+TREE is not the bound; two threads in one tree at different subdirectories
+remain legal. There is deliberately no opt-in flag: `StartArgs.SameTree` looks
+like one and is documented as inert legacy serialization, so reading it would
+resurrect a dead field as policy.
 
-**The native-binding gate covers both resumable kinds.** `ActionableThreadInventoryContext`
-resolves `ResolveEstablished` for every candidate, parked or detached, and drops
-any whose binding is not one exact established root. This is not defence in
-depth: startup has NO fallback by design (`pair#167`), so a Resume refusal stops
-`couch` rather than starting something else, and the invariant that makes that
-safe is *a row the inventory offers is one resume can take*. Gating parked rows
-while leaving detached ones ungated meant a thread whose agent session data had
-been pruned, rotated or raced was auto-selected and `couch` exited 1 in the
-operator's own tree — with detached being the normal resting state since `leave`
-stopped parking. It is the same rule `actionableThreadState` states for itself:
-a row that cannot work must not be offered.
+A row's label is `threadLabel`: the human name, else the working directory's
+last segment, else the tag. `DisambiguateLabels` appends the tag's tail to
+labels that collide, computed over the whole inventory rather than the filtered
+view so a name does not change as the operator types.
 
-The consequence, recorded rather than left to be discovered: a detached thread
-whose binding degrades is now **hidden from the switcher entirely while its
-zellij session keeps running an agent**. That matches the parked precedent and
-`couch --list` still shows it, but it is a new way for a live agent to become
-invisible. The alternative — list it, refuse its `Enter` with the diagnostic, and
-gate only startup selection — was not weighed when the gate was written; it is
-the fork to revisit if an operator hits this, and belongs to `pair#171`'s family.
+Two neighbouring states are deliberately never SELECTED, though both are now
+listed. A session **attached elsewhere** yields no detached observation, so
+couch cannot steal it. A **stale `IncarnationLive` from a crashed couch** shows
+as `unusable/stale-incarnation` and is not selectable, so startup creates a new
+thread; automatic reconciliation is the gap `pair#171` owns, and archive is the
+manual out.
+
+**The native-binding gate no longer hides a row, and no longer applies to the
+warm path at all** (`pair#181`). It once did both: `ActionableThreadInventoryContext`
+dropped every candidate whose binding was not one exact established root, and
+`DecideResume` demanded that binding for detached threads too. The reasoning was
+sound and the conclusion was wrong. Startup has NO fallback by design
+(`pair#167`), so a Resume refusal stops `couch` rather than starting something
+else, and the invariant that makes that safe is *a row the inventory offers is
+one resume can take* — but the gate enforced it by making the row VANISH, and
+the native session id it demanded is the COLD path's proof, which a warm
+reattach never consumes.
+
+The atlas recorded the fork before it was taken: "The alternative — list it,
+refuse its `Enter` with the diagnostic, and gate only startup selection — was
+not weighed when the gate was written; it is the fork to revisit if an operator
+hits this." The operator hit it. That alternative is what `pair#181` built: the
+row is listed as `binding lost — repairable`, `Enter` explains, and
+`SelectResumableRoot` never offers it because only proven states rank. A
+detached thread whose binding degrades is now visible with its reason instead of
+being a live agent nothing mentions.
 
 Parked and detached candidates are physicalized alike, which the selector
 depends on rather than merely benefits from: it compares paths by exact string,

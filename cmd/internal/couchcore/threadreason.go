@@ -31,7 +31,7 @@ const (
 	// ReasonInvalid is a record that fails ValidateThreadRecord.
 	ReasonInvalid ThreadReason = "invalid"
 	// ReasonPathMissing is a working path that could not be physicalized. It
-	// must stay a refusal: SelectUniqueResumableRoot compares paths by exact
+	// must stay a refusal: SelectResumableRoot compares paths by exact
 	// string, so an unphysicalized row could be auto-selected at startup.
 	ReasonPathMissing ThreadReason = "path-missing"
 	// ReasonProfileMissing is a thread with no saved launch profile to resume from.

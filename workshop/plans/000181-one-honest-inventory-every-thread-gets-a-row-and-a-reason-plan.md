@@ -1002,6 +1002,36 @@ Delta:
   colliding labels qualified by the tag's tail. Not in the plan at all; the
   operator asked for it once the honest inventory made the tag columns visible.
 
+### 2026-09-03 — M3 review round 2: what the entity table should have said
+
+Reason: the M3 boundary review returned REWORK on five findings, three of which
+were rule-level rather than site-level.
+
+**Entities that landed** (the plan's table named only `ThreadStore.Archive` and
+`DecideRetirement`): `ThreadStore.ArchiveThread`, `ThreadStore.ArchivedThreads`,
+`Couch.ArchiveThread`, `BuildArchivedInventory`, `ThreadArchived`,
+`archivableRecord`, `occupiedIncarnation`, `ThreadSnapshot.Malformed`, plus the
+unplanned `SelectResumableRoot`, `PathHoldsUsableThread`, `threadLabel`,
+`LabelRow` / `DisambiguateLabels` / `LabelsFor`, `startupResumeRefusal`,
+`confirmStillDetached`, `ResumeSessionGone`, and `trackedThreadLaunch.Warm`.
+
+**The Spec's `invalid -> archive, inspectable` exit was NOT delivered, and is
+now.** `Snapshot` raised on any undecodable record, so one corrupt file failed
+the whole inventory and `ReasonInvalid` could not be produced by a real store --
+a documented, labelled, Enter-explained reason that was unreachable. The
+Done-when "rows == records, always, with no exceptions" was satisfied only by a
+fixture that structurally could not hold an invalid record. `Snapshot` now
+carries `Malformed` addresses, the projectors emit them as `invalid` rows, and
+archive moves bytes it cannot decode.
+
+**Three findings were rules, not sites**, and are recorded in
+`workshop/lessons.md` rather than only fixed here: reversing a documented rule
+sweeps every prose restatement in the same commit (7 sites stood); one fact gets
+one predicate (occupancy had five sites and four definitions, and the gap killed
+a session mid-start); test the seam, not both sides (`Tab -> archive` never
+worked -- the switcher sent `tag`, the executor read `ref`, and a green test sat
+on each side of that boundary).
+
 ### 2026-09-03 — M2: Task 9 is superseded by measurement
 
 Reason: measuring the operator's ledgers before implementing Task 9 showed the

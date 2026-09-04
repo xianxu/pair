@@ -348,11 +348,19 @@ func (c *Couch) spawnResolved(ctx context.Context, resolution StartResolution, r
 	// flag as policy. The deliberate second thread comes back with per-repo
 	// policy, as its own decision.
 	if held, occupied := PathHoldsUsableThread(rows, scope.Key, resolution.CanonicalPath); occupied {
+		// The next steps have to be ones that WORK from where the operator is.
+		// An earlier version said "return to it: couch <path>" -- the command
+		// they just ran, which refuses again, and which cannot take the
+		// supervisor lease from inside couch anyway -- and "retire it: couch
+		// --show <tag>", which is a read-only listing. Both were dead ends
+		// printed at the moment someone was already stuck. These are switcher
+		// gestures, because the switcher is where they are.
 		return ActorRecord{}, nil, fmt.Errorf(
 			"%s already has thread %s; couch keeps one thread per path for now\n"+
-				"  return to it:  couch %s\n"+
-				"  or retire it:  couch --show %s",
-			resolution.CanonicalPath, held.Tag, resolution.CanonicalPath, held.Tag)
+				"  return to it:  ctrl-space, select it, Enter\n"+
+				"  retire it:     ctrl-space, select it, Tab → archive\n"+
+				"  inspect it:    couch --show %s",
+			resolution.CanonicalPath, held.Tag, held.Tag)
 	}
 	startedAt := c.Clock.Now()
 	thread, err := c.Threads.AllocateThreadTag(scope.Key, resolution.CanonicalPath, startedAt, c.Entropy, c.Artifacts)

@@ -171,8 +171,18 @@ func (s ActionableThreadSummary) DisplaySummary() string {
 // closed is still the rule -- an unproved row is not actionable and startup
 // will not select it -- but it is now expressed as a state rather than as
 // absence (#181).
-func ProjectActionableThreads(records []ThreadRecord, evidence map[ThreadAddress]ThreadEvidence) []ActionableThreadSummary {
+func ProjectActionableThreads(records []ThreadRecord, evidence map[ThreadAddress]ThreadEvidence, malformed ...[]ThreadAddress) []ActionableThreadSummary {
 	rows := make([]ActionableThreadSummary, 0, len(records))
+	// A record the decoder rejected is still a thread the operator has. It gets
+	// a row carrying the only thing that could be read -- its address -- so it
+	// can be seen and archived rather than failing the whole inventory.
+	if len(malformed) > 0 {
+		for _, address := range malformed[0] {
+			rows = append(rows, ActionableThreadSummary{
+				Address: address, State: ThreadUnusable, Reason: ReasonInvalid,
+			})
+		}
+	}
 	for _, record := range records {
 		state, reason := ClassifyThread(record, evidence[record.Address])
 		rows = append(rows, ActionableThreadSummary{
@@ -340,7 +350,7 @@ func (c *Couch) ActionableThreadInventoryContext(ctx context.Context, observatio
 	if err != nil {
 		return nil, err
 	}
-	return ProjectActionableThreads(snapshot.Records, evidence), nil
+	return ProjectActionableThreads(snapshot.Records, evidence, snapshot.Malformed), nil
 }
 
 // gatherThreadEvidence resolves what is knowable about every record and decides
@@ -547,6 +557,17 @@ func (c *Couch) ObserveRecordedProcesses(records []ThreadRecord) []LiveTTYObserv
 type LabelRow struct {
 	Address ThreadAddress
 	Label   string
+}
+
+// LabelsFor builds the disambiguated label map from anything that can report an
+// address and a label, so the two renderers share the adapter instead of each
+// writing the same loop over a different summary type (ARCH-DRY).
+func LabelsFor[T any](rows []T, address func(T) ThreadAddress, label func(T) string) map[ThreadAddress]string {
+	out := make([]LabelRow, 0, len(rows))
+	for _, row := range rows {
+		out = append(out, LabelRow{Address: address(row), Label: label(row)})
+	}
+	return DisambiguateLabels(out)
 }
 
 // DisambiguateLabels gives every row a label the operator can act on.

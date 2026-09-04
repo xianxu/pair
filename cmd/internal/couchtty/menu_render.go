@@ -296,11 +296,9 @@ func renderRootMenuFrame(state MenuState, frame MenuFrame, width, height int, no
 	// Labels are disambiguated against the WHOLE inventory, not the filtered
 	// view: a name that is unique only because the filter hid its twin would
 	// change as the operator types.
-	labelRows := make([]couchcore.LabelRow, 0, len(state.Inventory))
-	for _, thread := range state.Inventory {
-		labelRows = append(labelRows, couchcore.LabelRow{Address: thread.Address, Label: thread.Label()})
-	}
-	labels := couchcore.DisambiguateLabels(labelRows)
+	labels := couchcore.LabelsFor(state.Inventory,
+		func(t couchcore.ActionableThreadSummary) couchcore.ThreadAddress { return t.Address },
+		func(t couchcore.ActionableThreadSummary) string { return t.Label() })
 	lines := []string{"threads", ""}
 	rowBudget := height - len(lines)
 	if frame.Filter != "" {

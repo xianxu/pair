@@ -3071,3 +3071,39 @@ that a key token appears cannot detect a contradictory behavioral sentence
   cutover flag stops a rolled-back binary re-running the migration — and only
   the description was wrong, which is the kind of error that survives review
   until someone measures.
+- A milestone that reverses a documented rule sweeps every prose restatement of
+  it in the SAME commit, enumerated mechanically rather than from memory: grep
+  the superseded symbol name and the rule's distinctive phrases before crossing
+  the boundary. pair#181 reversed the startup selector and the label rule and
+  left seven restatements standing across README and atlas — including "it does
+  not refuse a start because a tree is already busy", which the same window made
+  false. Two earlier rounds had fixed individual instances of this family, which
+  is how a finding becomes a rule.
+- One fact, one predicate, shared by every consumer. "Is this thread occupied"
+  was decided in five places with four definitions, and the gap was reachable:
+  the store's archive guard refused a LIVE incarnation but admitted `creating`,
+  so archiving a thread mid-start killed the session being created while the
+  spawn was still in flight. Deriving the same fact per call site is not
+  duplication of code, it is duplication of a DECISION, and the copies drift
+  toward whichever cases their author happened to think about.
+- Test the seam, not both sides of it. `Tab → archive` never worked: the
+  switcher dispatched `{repo-scope, tag}` and the direct-store executor read
+  `ref`. A store-level test and a menu-level test both passed — one asserted the
+  effect was emitted, the other that the store call worked — and nothing
+  dispatched a menu-originated operation through the real executor. Two green
+  halves are not evidence of a working whole, and the milestone's headline
+  action shipped broken.
+- An error message's suggested next steps must work from where the error fires.
+  A one-thread-per-path refusal offered "return to it: couch <path>" (the
+  command that just refused, and one that cannot take the supervisor lease from
+  inside couch) and "retire it: couch --show <tag>" (a read-only listing). Both
+  were dead ends printed at the moment someone was already stuck. Check each
+  suggestion against the state the error describes, not against the general case.
+- A failure path that degrades INVISIBLY is the one to look for when the feature
+  is about visibility. `couch` promised "every record gets a row"; one
+  undecodable record failed the entire inventory, so `--list` exited 1 and the
+  switcher showed nothing — and `invalid`, a reason with a label, an Enter
+  notice and a documented archive exit, could not be produced by any real store.
+  The fixture had six shapes and no invalid one, because the constructor cannot
+  build that shape: if a state is unreachable through your test helpers, it is
+  probably untested in production too.

@@ -161,10 +161,13 @@ func DirectStoreExecutor(c *Couch) OperationExecutor {
 			}
 			return BuildArchivedInventory(records), nil
 		case "archive":
-			if err := requireOperationRepoScope(a); err != nil {
-				return nil, err
-			}
-			matches, err := c.ResolveThreadReference(a["repo-scope"], a["ref"])
+			// resolveOperationThread, NOT ResolveThreadReference: the switcher
+			// dispatches through threadEffect, which sends {repo-scope, tag}
+			// and no ref. Reading only `ref` made every Tab -> archive fail
+			// with "empty reference" -- the milestone's headline action,
+			// unreachable from the only surface offering it. The two dialects
+			// are the bug; this is the one that accepts both (ARCH-DRY).
+			address, err := resolveOperationThread(c, a)
 			if err != nil {
 				return nil, err
 			}
@@ -172,29 +175,27 @@ func DirectStoreExecutor(c *Couch) OperationExecutor {
 			if ctx == nil {
 				ctx = context.Background()
 			}
-			return c.ArchiveThread(ctx, matches[0].Address)
+			return c.ArchiveThread(ctx, address)
 		case "name":
-			if err := requireOperationRepoScope(a); err != nil {
-				return nil, err
-			}
-			matches, err := c.ResolveThreadReference(a["repo-scope"], a["ref"])
+			address, err := resolveOperationThread(c, a)
 			if err != nil {
 				return nil, err
 			}
 			name := a["name"]
-			return c.ApplyThreadMetadata(matches[0].Address, ThreadMetadataPatch{Name: &name})
+			return c.ApplyThreadMetadata(address, ThreadMetadataPatch{Name: &name})
 		case "describe":
-			if err := requireOperationRepoScope(a); err != nil {
-				return nil, err
-			}
-			matches, err := c.ResolveThreadReference(a["repo-scope"], a["ref"])
+			address, err := resolveOperationThread(c, a)
 			if err != nil {
 				return nil, err
 			}
 			if d, supplied := a["description"]; supplied {
-				return c.ApplyThreadMetadata(matches[0].Address, ThreadMetadataPatch{Description: &d})
+				return c.ApplyThreadMetadata(address, ThreadMetadataPatch{Description: &d})
 			}
-			return matches[0].Description, nil
+			record, err := c.Threads.GetThread(address)
+			if err != nil {
+				return nil, err
+			}
+			return record.Description, nil
 		case "publish-description":
 			if a["repo-scope"] == "" || a["tag"] == "" {
 				return nil, fmt.Errorf("thread scope/tag are unavailable -- run this inside a couch-spawned session")

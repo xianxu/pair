@@ -3,6 +3,7 @@ package couchcore
 import (
 	"context"
 	"errors"
+	"os"
 	"testing"
 	"time"
 )
@@ -75,6 +76,27 @@ func TestArchiveThreadRefusesALiveOrParkingThread(t *testing.T) {
 	if _, err := store.GetThread(live.Address); err != nil {
 		t.Fatalf("refused archive still removed the record: %v", err)
 	}
+
+	// The mid-park branch this test was named for and never built. A park in
+	// flight is a teardown already underway; archiving through it would leave
+	// the transaction owning a record the store no longer lists.
+	parking := archivableThread(t, store, "couch-0000000000000002")
+	parked, err := store.UpdateExistingThread(parking.Address, parking.Revision, func(record *ThreadRecord) error {
+		record.Incarnations = []ThreadIncarnation{{PID: 43, Identity: "pair-parking", State: IncarnationLive}}
+		return nil
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	begun, err := store.BeginPark(parked.Address, parked.Revision, ParkIdentity{
+		Nonce: "park-0123456789abcdef", Address: parked.Address, PID: 43, ProcessIdentity: "pair-parking",
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := store.ArchiveThread(begun.Address); err == nil {
+		t.Fatal("archived a thread with a park in flight")
+	}
 }
 
 // An unusable thread is exactly what the operator wants gone, so no reason
@@ -136,5 +158,93 @@ func TestCouchArchiveRefusesWhenTheSessionCannotBeStopped(t *testing.T) {
 	archived, _ := store.ArchivedThreads()
 	if len(archived) != 0 {
 		t.Fatalf("archive = %+v, want nothing", archived)
+	}
+}
+
+// writeCorruptRecord puts a file the decoder cannot read into a real store,
+// listed in the manifest. CreateThread cannot produce this shape, which is why
+// no fixture had one -- and why `invalid` was a documented, labelled,
+// archive-exit reason that no store could actually produce.
+func writeCorruptRecord(t *testing.T, store *ThreadStore, sibling ThreadRecord, tag ThreadTag) ThreadAddress {
+	t.Helper()
+	address := ThreadAddress{RepoScope: sibling.Address.RepoScope, Tag: tag}
+	// Create it validly, then corrupt the bytes on disk: that is how a real
+	// store reaches this state (a truncated write, a rolled-back schema).
+	record := actionableTestThread(tag, time.Unix(100, 0).UTC())
+	record.Address.RepoScope = sibling.Address.RepoScope
+	if _, err := store.CreateThread(record); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(store.recordPath(address), []byte(`{"schema_version":99,"nope":`), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	return address
+}
+
+// The thesis of #181, applied to the one shape it never tested: a record the
+// decoder rejects must still produce a visible row, must not remove other rows,
+// and must be archivable. It previously did none of those -- one corrupt file
+// made `couch --list` exit 1 and the switcher show nothing.
+func TestAnUndecodableRecordIsAVisibleRowAndCanBeArchived(t *testing.T) {
+	store, _ := newTestThreadStore(t)
+	healthy := archivableThread(t, store, "couch-0000000000000001")
+	corrupt := writeCorruptRecord(t, store, healthy, "couch-0000000000000002")
+
+	couch := &Couch{
+		Threads: store, Artifacts: NewFakeThreadArtifactCollisionChecker(), Path: NewFakePathOps(nil),
+	}
+	rows, err := couch.ActionableThreadInventoryContext(context.Background(), nil)
+	if err != nil {
+		t.Fatalf("one corrupt record failed the whole inventory: %v", err)
+	}
+	if len(rows) != 2 {
+		t.Fatalf("rows = %d, want both threads listed: %+v", len(rows), rows)
+	}
+	found := false
+	for _, row := range rows {
+		if row.Address == corrupt {
+			found = true
+			if row.State != ThreadUnusable || row.Reason != ReasonInvalid {
+				t.Fatalf("corrupt row = %+v, want unusable/invalid", row)
+			}
+		}
+	}
+	if !found {
+		t.Fatalf("the corrupt record produced no row: %+v", rows)
+	}
+
+	// And it can leave: an unusable row the operator cannot remove is worse
+	// than one they cannot use.
+	if _, err := couch.ArchiveThread(context.Background(), corrupt); err != nil {
+		t.Fatalf("archiving an undecodable record: %v", err)
+	}
+	archived, err := store.ArchivedThreads()
+	if err != nil || len(archived) != 1 || archived[0].Address != corrupt {
+		t.Fatalf("archive = %+v, %v", archived, err)
+	}
+}
+
+// Occupancy is one rule now, and this is the case that made it matter: a thread
+// mid-start passed the store's narrower guard, so archiving it killed the
+// session being created while the spawn was still in flight.
+func TestArchiveRefusesEveryOccupiedIncarnationNotJustLive(t *testing.T) {
+	for _, state := range []IncarnationState{IncarnationLive, IncarnationCreating, IncarnationUnknown} {
+		t.Run(string(state), func(t *testing.T) {
+			store, _ := newTestThreadStore(t)
+			thread := archivableThread(t, store, "couch-0000000000000001")
+			updated, err := store.UpdateExistingThread(thread.Address, thread.Revision, func(record *ThreadRecord) error {
+				record.Incarnations = []ThreadIncarnation{{PID: 42, Identity: "pair-x", State: state}}
+				return nil
+			})
+			if err != nil {
+				t.Fatal(err)
+			}
+			if err := store.ArchiveThread(updated.Address); err == nil {
+				t.Fatalf("archived a thread with a %s incarnation", state)
+			}
+			if _, err := store.GetThread(updated.Address); err != nil {
+				t.Fatalf("a refused archive still moved the record: %v", err)
+			}
+		})
 	}
 }

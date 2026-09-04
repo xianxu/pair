@@ -176,9 +176,15 @@ func (c *Couch) ArchiveThread(ctx context.Context, address ThreadAddress) (Threa
 	if err := ctx.Err(); err != nil {
 		return ThreadRecord{}, err
 	}
-	record, err := c.Threads.GetThread(address)
-	if err != nil {
-		return ThreadRecord{}, err
+	// Read for the RESULT, not as a precondition. An undecodable record is
+	// exactly what the operator most wants gone, so failing here would leave a
+	// row that can be neither used nor removed -- the shape this action exists
+	// to clear. The store's own guard is what refuses an occupied thread, and
+	// it applies the same rule to a record it cannot read: unreadable means
+	// unprovable, so it is moved rather than acted on.
+	record, readErr := c.Threads.GetThread(address)
+	if readErr != nil {
+		record = ThreadRecord{Address: address}
 	}
 	if err := c.Artifacts.Quiesce(address); err != nil {
 		return ThreadRecord{}, fmt.Errorf("archive %s: its session could not be stopped: %w", address.Tag, err)

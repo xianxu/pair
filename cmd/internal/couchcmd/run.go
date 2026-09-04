@@ -575,11 +575,9 @@ func renderThreadRows(w io.Writer, threads []couchcore.ThreadSummary, includeAdd
 		return
 	}
 	dim, reset := dimCodes(w)
-	rows := make([]couchcore.LabelRow, 0, len(threads))
-	for _, thread := range threads {
-		rows = append(rows, couchcore.LabelRow{Address: thread.Address, Label: thread.Label()})
-	}
-	labels := couchcore.DisambiguateLabels(rows)
+	labels := couchcore.LabelsFor(threads,
+		func(t couchcore.ThreadSummary) couchcore.ThreadAddress { return t.Address },
+		func(t couchcore.ThreadSummary) string { return t.Label() })
 	for _, thread := range threads {
 		// Dim by the CLASSIFIED state. Reading liveness from the incarnations
 		// here while the label came from the classifier printed a stale row

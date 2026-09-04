@@ -36,6 +36,11 @@ type ThreadRevisionError struct {
 type ThreadSnapshot struct {
 	Generation uint64
 	Records    []ThreadRecord
+	// Malformed are manifest-listed addresses whose record could not be read or
+	// decoded. They are carried rather than raised, because one unreadable
+	// record must not remove every other row: a store with 13 threads and one
+	// corrupt file has 13 threads, one of which needs attention (#181).
+	Malformed []ThreadAddress
 }
 
 func (e *ThreadRevisionError) Error() string {
@@ -512,13 +517,22 @@ func (s *ThreadStore) Snapshot() (ThreadSnapshot, error) {
 		}
 		snapshot = ThreadSnapshot{Generation: manifest.Generation}
 		for _, address := range manifest.Threads {
+			// A record that cannot be read or decoded is REPORTED, not raised.
+			// Raising made one corrupt file fail the whole inventory: `couch
+			// --list` exited 1 and the switcher showed nothing, which is the
+			// opposite of what a total projection promises. It also made
+			// ReasonInvalid unreachable in production -- a documented state
+			// with a label, an Enter notice and an archive exit that no store
+			// could ever produce.
 			raw, err := os.ReadFile(s.recordPath(address))
 			if err != nil {
-				return fmt.Errorf("read manifest thread %+v: %w", address, err)
+				snapshot.Malformed = append(snapshot.Malformed, address)
+				continue
 			}
 			record, err := s.decodeThreadRaw(address, raw)
 			if err != nil {
-				return err
+				snapshot.Malformed = append(snapshot.Malformed, address)
+				continue
 			}
 			snapshot.Records = append(snapshot.Records, cloneThreadRecord(record))
 		}
@@ -967,16 +981,14 @@ func (s *ThreadStore) ArchiveThread(address ThreadAddress) error {
 		if !exists {
 			return fmt.Errorf("%w: %+v", ErrThreadNotFound, address)
 		}
-		record, err := s.decodeThreadRaw(address, raw)
-		if err != nil {
-			return err
-		}
-		if record.Park != nil {
-			return fmt.Errorf("thread %s has a park in flight; let it finish before archiving", address.Tag)
-		}
-		for _, incarnation := range record.Incarnations {
-			if incarnation.State == IncarnationLive {
-				return fmt.Errorf("thread %s is live; park or detach it before archiving", address.Tag)
+		// Decode to CHECK, not to gate the move: an undecodable record is
+		// exactly what the operator most wants gone, and refusing to archive it
+		// would leave a row that can neither be used nor removed. Its bytes are
+		// moved as they are.
+		record, decodeErr := s.decodeThreadRaw(address, raw)
+		if decodeErr == nil {
+			if err := archivableRecord(record); err != nil {
+				return err
 			}
 		}
 		nextManifest := manifest
@@ -1026,8 +1038,11 @@ func (s *ThreadStore) ArchivedThreads() ([]ThreadRecord, error) {
 		}
 		record, decodeErr := s.decodeThreadRaw(address, raw)
 		if decodeErr != nil {
-			// An archived record that no longer decodes is still evidence the
-			// operator may want; skipping it beats failing the whole listing.
+			// Its address is what could be read, so its address is what is
+			// listed. The previous comment said such a record "is still
+			// evidence the operator may want" and then dropped it, which is
+			// the invisible degradation this issue exists to remove.
+			records = append(records, ThreadRecord{Address: address})
 			return nil
 		}
 		records = append(records, record)

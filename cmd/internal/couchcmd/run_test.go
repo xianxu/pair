@@ -581,7 +581,7 @@ func TestEveryOperationHasASummaryAndDescribedArgs(t *testing.T) {
 func TestOperationArityMatchesExpectation(t *testing.T) {
 	// Declared in the test rather than read from the operation itself, so
 	// this cannot degrade into asserting X == X.
-	want := map[string]int{"prepare-start": 2, "start": 4, "list": 0, "show": 2, "stop": 1, "name": 3, "describe": 3, "publish-description": 3, "switch": 2, "attach": 2, "park": 4, "detach": 3, "leave": 1, "resume": 3, "archive": 3, "archived": 0}
+	want := map[string]int{"prepare-start": 2, "start": 4, "list": 0, "show": 2, "stop": 1, "name": 4, "describe": 4, "publish-description": 3, "switch": 2, "attach": 2, "park": 4, "detach": 3, "leave": 1, "resume": 3, "archive": 3, "archived": 0}
 	for _, op := range couchcore.Operations() {
 		if got := len(op.Args); got != want[op.Name] {
 			t.Errorf("%s has %d args, want %d", op.Name, got, want[op.Name])
@@ -1432,3 +1432,66 @@ func TestConsoleExitForgetsThroughCouchRegistry(t *testing.T) {
 
 // A refusal is a next-action spec: every remedy it names must be a command the
 // operator can run.
+
+// The seam that shipped a broken headline action: the switcher dispatches
+// thread operations through threadEffect, which sends {repo-scope, tag} and no
+// `ref`. The direct-store executor read only `ref`, so every Tab -> archive
+// failed with "empty reference" -- while a store-level test and a menu-level
+// test both passed, because neither crosses the boundary.
+//
+// One case per TUI-dispatched direct-store operation, in the argument dialect
+// the SWITCHER actually sends.
+func TestSwitcherDialectReachesEveryDirectStoreOperation(t *testing.T) {
+	for _, tc := range []struct {
+		name string
+		args map[string]string
+	}{
+		{name: "archive", args: map[string]string{}},
+		{name: "name", args: map[string]string{"name": "renamed"}},
+		{name: "describe", args: map[string]string{"description": "a description"}},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			rt := newRT(t, "/repo")
+			thread := seedThread(t, rt, "/repo")
+			args := map[string]string{
+				"repo-scope": thread.Address.RepoScope,
+				// tag, not ref: this is exactly what threadEffect sends.
+				"tag": string(thread.Address.Tag),
+			}
+			for k, v := range tc.args {
+				args[k] = v
+			}
+			_, errw, code := runTypedRT(rt, couchcore.OperationCall{
+				Name: tc.name, Args: args, Implicit: true,
+			})
+			if code != 0 {
+				t.Fatalf("%s from the switcher's dialect failed: code=%d err=%q", tc.name, code, errw)
+			}
+		})
+	}
+}
+
+// Archiving through the real runtime removes the thread from the working set
+// and puts it in the archive listing -- the operator's whole gesture, end to
+// end, rather than its halves.
+func TestArchiveThroughTheRuntimeMovesTheThreadToTheArchive(t *testing.T) {
+	rt := newRT(t, "/repo")
+	thread := seedThread(t, rt, "/repo")
+
+	_, errw, code := runTypedRT(rt, couchcore.OperationCall{
+		Name: "archive", Implicit: true,
+		Args: map[string]string{"repo-scope": thread.Address.RepoScope, "tag": string(thread.Address.Tag)},
+	})
+	if code != 0 {
+		t.Fatalf("archive failed: code=%d err=%q", code, errw)
+	}
+
+	listOut, _, code := runTypedRT(rt, couchcore.OperationCall{Name: "list"})
+	if code != 0 || strings.Contains(listOut, string(thread.Address.Tag)) {
+		t.Fatalf("archived thread still in the working set: %q", listOut)
+	}
+	archivedOut, _, code := runTypedRT(rt, couchcore.OperationCall{Name: "archived"})
+	if code != 0 || !strings.Contains(archivedOut, "archived") {
+		t.Fatalf("archive listing = %q (code %d)", archivedOut, code)
+	}
+}

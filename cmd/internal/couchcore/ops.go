@@ -163,7 +163,8 @@ func Operations() []Operation {
 			Execution: ExecuteDirectStore, Effect: EffectMetadata, Confirmation: ConfirmNone, Result: ResultThread,
 			Presentation: PresentationTUI,
 			Args: []ArgSpec{
-				{Name: "ref", Summary: "thread tag, path, or existing name", Required: true},
+				{Name: "ref", Summary: "thread tag, path, or existing name", Required: false},
+				{Name: "tag", Summary: "exact thread tag from trusted owner context", Implicit: true},
 				{Name: "name", Summary: "the new short name", Required: true},
 				{Name: "repo-scope", Summary: "repository scope derived from caller context", Required: true, Implicit: true},
 			},
@@ -173,7 +174,8 @@ func Operations() []Operation {
 			Execution: ExecuteDirectStore, Effect: EffectMetadata, Confirmation: ConfirmNone, Result: ResultDescription,
 			Presentation: PresentationTUI,
 			Args: []ArgSpec{
-				{Name: "ref", Summary: "thread tag, path, or name", Required: true},
+				{Name: "ref", Summary: "thread tag, path, or name", Required: false},
+				{Name: "tag", Summary: "exact thread tag from trusted owner context", Implicit: true},
 				{Name: "description", Summary: "omit to read the cached value", Required: false},
 				{Name: "repo-scope", Summary: "repository scope derived from caller context", Required: true, Implicit: true},
 			},
