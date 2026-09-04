@@ -129,7 +129,7 @@ over:**
 - Modify: `cmd/internal/couchcore/resume.go:74-144`
 - Test: `cmd/internal/couchcore/resume_test.go`
 
-- [ ] **Step 1: Write the failing test — the two callers agree**
+- [x] **Step 1: Write the failing test — the two callers agree**
 
 ```go
 func TestResumePreconditionsMatchDecideResumeOnAPostParkRecord(t *testing.T) {
@@ -149,12 +149,12 @@ func TestResumePreconditionsMatchDecideResumeOnAPostParkRecord(t *testing.T) {
 }
 ```
 
-- [ ] **Step 2: Run — FAIL, `undefined: CheckResumePreconditions`**
-- [ ] **Step 3: Extract the predicate**, with `DecideResume` calling it so there
+- [x] **Step 2: Run — FAIL, `undefined: CheckResumePreconditions`**
+- [x] **Step 3: Extract the predicate**, with `DecideResume` calling it so there
       is one copy. `DecideResume` keeps occupancy, the authority choice and the
       tombstone scan — those are about *this* resume, not about whether the
       thread could ever resume.
-- [ ] **Step 4: Run the couchcore suite** — PASS with the existing `DecideResume`
+- [x] **Step 4: Run the couchcore suite** — PASS with the existing `DecideResume`
       tests untouched, which is the evidence the extraction changed nothing.
 - [ ] **Step 5: Commit.**
 

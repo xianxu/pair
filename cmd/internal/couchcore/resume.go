@@ -100,19 +100,17 @@ func DecideResume(input ResumeEligibilityInput) (ResumeEligibility, error) {
 		}
 		return ResumeEligibility{}, refuseResume(ResumeLegacyUnverified, "thread has no verified park completion")
 	}
-	if record.WorkingPath == "" || !input.WorkingPathExists {
-		return ResumeEligibility{}, refuseResume(ResumePathMissing, "saved working path is unavailable")
-	}
-	if record.LatestLaunchProfile == nil {
-		return ResumeEligibility{}, refuseResume(ResumeProfileMissing, "thread has no successful saved launch profile")
-	}
-	if record.LatestLaunchProfile.Agent == "" || record.LatestLaunchProfile.Argv == nil {
-		return ResumeEligibility{}, refuseResume(ResumeProfileInvalid, "saved launch profile is incomplete")
+	// The rules that do not depend on the thread being unoccupied. Shared with
+	// relaunch, which asks them about a thread that is still LIVE.
+	if err := CheckResumePreconditions(record, input.Binding, input.WorkingPathExists); err != nil {
+		// The binding is the COLD path's proof only. A warm reattach consumes it
+		// nowhere, so its refusal must not reach a detached thread -- which is
+		// what CheckResumePreconditions cannot know and this caller does.
+		if code := ResumeDiagnosticOf(err); !isBindingDiagnostic(code) || record.VerifiedPark != nil {
+			return ResumeEligibility{}, err
+		}
 	}
 	profile := cloneLaunchProfile(*record.LatestLaunchProfile)
-	if !launcher.IsSupportedAgent(profile.Agent) {
-		return ResumeEligibility{}, refuseResume(ResumeAgentUnsupported, "saved launch agent is unsupported")
-	}
 	// The native binding is the COLD resume's proof: a parked thread has no
 	// agent, so Pair must create a session and relaunch it with
 	// `--resume <native id>`, and an unresolved id means that relaunch cannot
@@ -125,9 +123,6 @@ func DecideResume(input ResumeEligibilityInput) (ResumeEligibility, error) {
 	// input.Detached is it: an unambiguous name binding to this exact address,
 	// live, with zero clients.
 	if record.VerifiedPark != nil {
-		if code := bindingResumeDiagnostic(input.Binding); code != "" {
-			return ResumeEligibility{}, refuseResume(code, "native session binding is not one exact established root")
-		}
 		return ResumeEligibility{
 			Address: record.Address, WorkingPath: record.WorkingPath,
 			Profile: profile, RequiredSessionID: input.Binding.NativeID,
@@ -136,6 +131,50 @@ func DecideResume(input ResumeEligibilityInput) (ResumeEligibility, error) {
 	return ResumeEligibility{
 		Address: record.Address, WorkingPath: record.WorkingPath, Profile: profile,
 	}, nil
+}
+
+// CheckResumePreconditions is every resume rule that a park cannot change.
+//
+// It exists because relaunch has to ask "would this thread be resumable ONCE
+// PARKED?" -- and it cannot ask DecideResume, which refuses any occupied
+// incarnation and so always refuses a relaunch target. Splitting the rules is
+// what stops relaunch re-deriving them: two parallel derivations drift toward
+// whichever cases each author thought about, which is how the archive guard came
+// to admit `creating` while resume refused it (pair#181 M3).
+//
+// What stays with DecideResume is everything about THIS resume: the occupancy
+// refusal, the choice between park and detached authority, and the tombstone
+// scan. Those are not preconditions a park would satisfy.
+//
+// The binding rule is included, and the caller decides whether it applies: it is
+// the COLD path's proof, which a warm reattach consumes nowhere.
+func CheckResumePreconditions(record ThreadRecord, binding NativeBindingResolution, workingPathExists bool) error {
+	if record.WorkingPath == "" || !workingPathExists {
+		return refuseResume(ResumePathMissing, "saved working path is unavailable")
+	}
+	if record.LatestLaunchProfile == nil {
+		return refuseResume(ResumeProfileMissing, "thread has no successful saved launch profile")
+	}
+	if record.LatestLaunchProfile.Agent == "" || record.LatestLaunchProfile.Argv == nil {
+		return refuseResume(ResumeProfileInvalid, "saved launch profile is incomplete")
+	}
+	if !launcher.IsSupportedAgent(record.LatestLaunchProfile.Agent) {
+		return refuseResume(ResumeAgentUnsupported, "saved launch agent is unsupported")
+	}
+	if code := bindingResumeDiagnostic(binding); code != "" {
+		return refuseResume(code, "native session binding is not one exact established root")
+	}
+	return nil
+}
+
+// isBindingDiagnostic reports the refusals that come from the native binding, so
+// a caller can apply the rest and skip these.
+func isBindingDiagnostic(code ResumeDiagnosticCode) bool {
+	switch code {
+	case ResumeBindingProvisional, ResumeBindingAmbiguous, ResumeBindingUnbound, ResumeBindingRootMissing:
+		return true
+	}
+	return false
 }
 
 // occupiedResumeCode names WHICH occupancy refused, so the diagnostic stays as
