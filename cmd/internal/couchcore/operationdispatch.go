@@ -168,11 +168,11 @@ func DirectStoreExecutor(c *Couch) OperationExecutor {
 			if err != nil {
 				return nil, err
 			}
-			record := matches[0]
-			if err := c.Threads.ArchiveThread(record.Address); err != nil {
-				return nil, err
+			ctx := call.Context
+			if ctx == nil {
+				ctx = context.Background()
 			}
-			return record, nil
+			return c.ArchiveThread(ctx, matches[0].Address)
 		case "name":
 			if err := requireOperationRepoScope(a); err != nil {
 				return nil, err

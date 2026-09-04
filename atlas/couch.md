@@ -136,8 +136,10 @@ hidden `couch --internal publish-description <text>`. `prepare-start`, `start`,
 `attach`, `switch`, `park`, `resume`, `leave`, `stop`, `name`, `describe` and
 `archive` are TUI/in-process operations.
 
-`archive` is the operator's "delete": it removes a thread from the working set
-and KEEPS its record, moving `threadstore/records/<scope>/<tag>.json` to
+`archive` is the operator's "delete", and it is COMPLETE: it stops the thread's
+zellij session first (`Artifacts.Quiesce` -> `zellij delete-session --force`,
+polled until the session is verifiably gone), then removes the thread from the
+working set and KEEPS its record, moving `threadstore/records/<scope>/<tag>.json` to
 `threadstore/archive/<scope>/<tag>.json` and dropping the address from the
 manifest in one journal entry, so a crash cannot leave a record in both sets or
 neither. Restoring is that move reversed plus a manifest re-add -- `Snapshot`
@@ -146,7 +148,22 @@ invisible. It refuses a LIVE or mid-park thread: archiving a record couch is
 hosting would leave the console owning a thread the store no longer lists, which
 is the stale-incarnation shape by construction. Every other state goes,
 including every unusable reason, because the operator decides a thread is
-finished. Adding a typed operation cannot expose argv
+finished.
+
+Park cannot do the stopping and that is why Quiesce does: park drives a
+transaction through `PairLifecycle` and needs a live incarnation, which the
+debris archive exists for does not have. Quiesce runs FIRST and its failure
+refuses the archive -- the other order produces a record in the archive with a
+live session behind it, which is the forgotten thread the action removes. It is
+idempotent (nil when no session is bound), so a refused archive is safe to
+retry.
+
+What the archive does NOT touch is Pair's per-tag artifacts: the append-only
+`repos/<scope>/ledger-<tag>.jsonl`, its `agent-*`, `config-*` and
+`workbench-layout-*` files. That is deliberate -- it is what keeps an archived
+thread inspectable, since the ledger still maps the Pair tag to every native
+session id it ever bound. The ledger keeps ALL generations; only
+`CurrentLaunch`'s projection is latest-only. Adding a typed operation cannot expose argv
 without assigning a presentation. `DispatchOperation` validates a call and
 invokes exactly one injected direct-store or live-owner executor; missing owner
 capability returns the typed cross-actor routing refusal and never falls back

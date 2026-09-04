@@ -149,3 +149,42 @@ func (c *Couch) awaitExactProcessExit(ctx context.Context, identity ProcessIdent
 		sleep(detachExitPoll)
 	}
 }
+
+// ArchiveThread is the operator's delete, complete: the session it names stops,
+// then the record leaves the working set.
+//
+// The store's ArchiveThread is bookkeeping only, and bookkeeping alone leaves a
+// running agent nothing tracks -- exactly the forgotten thread couch exists to
+// prevent. Park cannot do the stopping: it drives a transaction through
+// PairLifecycle and needs a live incarnation, which the debris this action is
+// FOR does not have. Quiesce works one layer down (`zellij delete-session
+// --force`, polled until the session is verifiably gone), so it reaches the
+// case park cannot.
+//
+// Quiesce runs FIRST and a failure refuses the archive. The other order would
+// produce the precise state this exists to remove: a record in the archive with
+// a live session behind it. Quiesce is idempotent -- it returns nil when there
+// is no session bound to the address at all, which is the common debris case --
+// so a refused archive is safe to retry.
+func (c *Couch) ArchiveThread(ctx context.Context, address ThreadAddress) (ThreadRecord, error) {
+	if err := validateThreadAddress(address); err != nil {
+		return ThreadRecord{}, err
+	}
+	if c == nil || c.Threads == nil || c.Artifacts == nil {
+		return ThreadRecord{}, errors.New("archive requires a thread store and an artifact controller")
+	}
+	if err := ctx.Err(); err != nil {
+		return ThreadRecord{}, err
+	}
+	record, err := c.Threads.GetThread(address)
+	if err != nil {
+		return ThreadRecord{}, err
+	}
+	if err := c.Artifacts.Quiesce(address); err != nil {
+		return ThreadRecord{}, fmt.Errorf("archive %s: its session could not be stopped: %w", address.Tag, err)
+	}
+	if err := c.Threads.ArchiveThread(address); err != nil {
+		return ThreadRecord{}, err
+	}
+	return record, nil
+}

@@ -1,6 +1,8 @@
 package couchcore
 
 import (
+	"context"
+	"errors"
 	"testing"
 	"time"
 )
@@ -90,5 +92,49 @@ func TestArchiveThreadRefusesAnUnknownAddress(t *testing.T) {
 	err := store.ArchiveThread(ThreadAddress{RepoScope: "0123456789abcdef", Tag: "couch-0000000000000009"})
 	if err == nil {
 		t.Fatal("archived a thread that does not exist")
+	}
+}
+
+// The whole point of a complete delete: the session stops. A record filed while
+// its agent keeps running is the forgotten thread couch exists to prevent, and
+// the one-time cleanup produced exactly one of those before this existed.
+func TestCouchArchiveStopsTheSessionBeforeMovingTheRecord(t *testing.T) {
+	store, _ := newTestThreadStore(t)
+	thread := archivableThread(t, store, "couch-0000000000000001")
+	artifacts := NewFakeThreadArtifactCollisionChecker()
+	artifacts.SetPairSession(thread.Address, "pair-"+string(thread.Address.Tag), true)
+	couch := &Couch{Threads: store, Artifacts: artifacts, Path: NewFakePathOps(nil)}
+
+	if _, err := couch.ArchiveThread(context.Background(), thread.Address); err != nil {
+		t.Fatalf("ArchiveThread: %v", err)
+	}
+	if got := artifacts.Quiesces(); len(got) != 1 || got[0] != thread.Address {
+		t.Fatalf("quiesced %+v, want exactly the archived thread", got)
+	}
+	archived, err := store.ArchivedThreads()
+	if err != nil || len(archived) != 1 {
+		t.Fatalf("archive = %+v, %v", archived, err)
+	}
+}
+
+// Order is the property, not just the pair of effects. Archiving first and
+// stopping second would leave a record in the archive with a live session
+// behind it -- the exact state this action removes.
+func TestCouchArchiveRefusesWhenTheSessionCannotBeStopped(t *testing.T) {
+	store, _ := newTestThreadStore(t)
+	thread := archivableThread(t, store, "couch-0000000000000001")
+	artifacts := NewFakeThreadArtifactCollisionChecker()
+	artifacts.QuiesceHook = func(ThreadAddress) error { return errors.New("zellij is not answering") }
+	couch := &Couch{Threads: store, Artifacts: artifacts, Path: NewFakePathOps(nil)}
+
+	if _, err := couch.ArchiveThread(context.Background(), thread.Address); err == nil {
+		t.Fatal("archived a thread whose session could not be stopped")
+	}
+	if _, err := store.GetThread(thread.Address); err != nil {
+		t.Fatalf("a refused archive still moved the record: %v", err)
+	}
+	archived, _ := store.ArchivedThreads()
+	if len(archived) != 0 {
+		t.Fatalf("archive = %+v, want nothing", archived)
 	}
 }

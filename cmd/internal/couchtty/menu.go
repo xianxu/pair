@@ -1047,7 +1047,11 @@ func confirmationMenuItems(state MenuState, frame MenuFrame) []string {
 	}
 	thread, _ := findMenuThread(state.Inventory, frame.Thread)
 	if frame.Action == "archive" {
-		return []string{"cancel", "archive " + thread.Label()}
+		// The item says what archiving DOES, because the frame title never
+		// reaches the screen and "archive" alone reads like filing something
+		// away. It stops the session first: a record filed while its agent
+		// keeps running is the forgotten thread couch exists to prevent.
+		return []string{"cancel", "archive " + thread.Label() + " — stops its session"}
 	}
 	return []string{"cancel", "park " + thread.Label()}
 }
