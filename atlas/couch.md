@@ -133,8 +133,17 @@ argument/result family, effect, confirmation, execution owner, and presentation.
 `list`, `show` and `archived` project as public `--list`, `--show` and
 `--archived`; the hosted-agent hook `publish-description` projects only through
 hidden `couch --internal publish-description <text>`. `prepare-start`, `start`,
-`attach`, `switch`, `park`, `resume`, `leave`, `stop`, `name`, `describe` and
-`archive` are TUI/in-process operations.
+`attach`, `switch`, `park`, `resume`, `relaunch`, `leave`, `stop`, `name`,
+`describe` and `archive` are TUI/in-process operations.
+
+`relaunch` (`pair#182`) is detailed under **Exit, detach, and terminal
+lifecycle**; the one thing worth knowing at this level is that its commonest
+refusal is not a fault. A cold resume needs `--resume <native-id>`, and that
+name comes from the ledger's `binding` row, which is written only once the agent
+completes a turn. A thread started minutes ago and never used therefore has no
+proof of WHICH conversation to resume -- the ordinary state of a fresh session,
+and the state relaunch meets most, because relaunching is something you do to a
+session you just started. It says so rather than guessing.
 
 `archive` is the operator's "delete", and it is COMPLETE: it stops the thread's
 zellij session first (`Artifacts.Quiesce` -> `zellij delete-session --force`,
@@ -313,9 +322,13 @@ channel. Ctrl-Space opens the global path/agent start form from any list frame;
 its cursor follows the active text row and its preview uses Pair's shared
 token-bound preference resolution.
 
-`start` and `resume` return a load-bearing `StartResult`. The separately
-declared typed `attach` operation must join that exact terminal before success
-can select or land on it; attach failure aborts the exact newly started actor
+`start` and `resume` return a load-bearing `StartResult`, and `relaunch`
+returns its own result carrying the same child. Adoption is therefore a PROPERTY
+of the result (`couchcore.StartedChild`), not a concrete type: asserting
+`StartResult` alone left relaunch's child spawned and never adopted, so the
+record said live, the switcher rendered `live`, and no pane existed to switch
+to. The separately declared typed `attach` operation must join that exact
+terminal before success can select or land on it; attach failure aborts the exact newly started actor
 and retains the form plus local error. Park, leave, rename, and description use
 the same declared operation surface. Each accepted slow action paints an
 identity-owned spinner before dispatch, and stale completions cannot mutate a
