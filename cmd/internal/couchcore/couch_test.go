@@ -1335,15 +1335,27 @@ func TestNameSurvivesActorReplacement(t *testing.T) {
 // running several threads in one directory is a thing the operator does on
 // purpose (brain-style repositories were the motivating case). What still keeps
 // two agents off one workspace is Pair's own address claim, not couch's.
-func TestASecondThreadMayStartInOneTree(t *testing.T) {
+// #181 REVERSES this again, and the operator made the call: several threads at
+// one PATH without separate worktrees is confusing, and the accumulation it
+// produced -- six threads in one repo -- was the concrete cost. couch keeps one
+// thread per path until per-repo policy is modelled.
+//
+// The tree is still not the bound: two threads in one TREE at different
+// subdirectories remain legal, which is what TestCoTenantsAreAddressableByActorID
+// now exercises. Only the exact path is one-at-a-time.
+func TestASecondThreadAtOnePathIsRefused(t *testing.T) {
 	env := newTestEnv(t, "/repo")
 	first, _ := env.spawn(t, StartArgs{Worktree: "/repo"})
-	second, _, err := env.Couch.Spawn(StartArgs{Worktree: "/repo"})
-	if err != nil {
-		t.Fatalf("second thread in one tree refused: %v", err)
+	_, _, err := env.Couch.Spawn(StartArgs{Worktree: "/repo"})
+	if err == nil {
+		t.Fatal("a second thread started at a path that already had one")
 	}
-	if second.Thread == first.Thread {
-		t.Fatalf("second start reused the first thread's address %+v", second.Thread)
+	// The refusal has to be navigable: which thread holds the path, and what to
+	// do about it. A bare "refused" leaves the operator with no next step.
+	for _, want := range []string{string(first.Thread.Tag), "couch /repo", "couch --show"} {
+		if !strings.Contains(err.Error(), want) {
+			t.Fatalf("refusal %q does not mention %q", err, want)
+		}
 	}
 }
 
@@ -1556,11 +1568,17 @@ func TestAgentPublishedDescriptionResolvesNotJustDisplays(t *testing.T) {
 }
 
 func TestCoTenantsAreAddressableByActorID(t *testing.T) {
-	// BR-24. --same-tree co-tenants share a path and a label, so without an
-	// ActorID branch the escape hatch creates a state couch cannot exit.
+	// BR-24. Co-tenants share a tree and a label, so without an ActorID branch
+	// the escape hatch creates a state couch cannot exit.
+	//
+	// They now differ by PATH: one thread per repo path is enforced (#181), so
+	// two threads in one tree live in different subdirectories. The state this
+	// test protects is unchanged -- both still resolve from the tree ref, and
+	// only an ActorID separates them.
 	env := newTestEnv(t, "/repo")
+	env.cannedTree("/repo", "/repo/sub")
 	first, _ := env.spawn(t, StartArgs{Worktree: "/repo"})
-	second, _ := env.spawn(t, StartArgs{Worktree: "/repo", SameTree: true})
+	second, _ := env.spawn(t, StartArgs{Worktree: "/repo", Cwd: "/repo/sub"})
 	if first.ID == second.ID {
 		t.Fatal("expected two distinct actors")
 	}

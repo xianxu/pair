@@ -561,7 +561,7 @@ func TestActionableInventoryPhysicalizesDetachedRowsLikeParkedOnes(t *testing.T)
 			rows[0].WorkingPath)
 	}
 	// And the selector actually finds it at the physical path.
-	if _, ok := SelectUniqueResumableRoot(rows, created.Address.RepoScope, "/real/repo"); !ok {
+	if _, ok := SelectResumableRoot(rows, created.Address.RepoScope, "/real/repo"); !ok {
 		t.Fatal("the detached row was not selectable at its physical path")
 	}
 }

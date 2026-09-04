@@ -17,7 +17,7 @@ import (
 // A live row is never selected: couch is a singleton holding its supervisor
 // lease for the whole run, so a live row at startup means THIS couch already
 // hosts it.
-func TestSelectUniqueResumableRoot(t *testing.T) {
+func TestSelectResumableRoot(t *testing.T) {
 	want := ThreadAddress{RepoScope: "scope-a", Tag: "couch-0000000000000001"}
 	other := ThreadAddress{RepoScope: "scope-a", Tag: "couch-0000000000000002"}
 	row := func(address ThreadAddress, path string, state ActionableThreadState) ActionableThreadSummary {
@@ -35,14 +35,19 @@ func TestSelectUniqueResumableRoot(t *testing.T) {
 		{name: "one exact parked row", rows: []ActionableThreadSummary{parked}, want: want, ok: true},
 		{name: "one exact detached row", rows: []ActionableThreadSummary{detached}, want: want, ok: true},
 		{name: "empty", rows: nil},
-		{name: "ambiguous parked rows", rows: []ActionableThreadSummary{parked, parked}},
-		{name: "ambiguous detached rows", rows: []ActionableThreadSummary{detached, detached}},
+		// These three cases USED to return nothing: two resumable rows at one
+		// path were TWO matches, and a new thread was created. That exactness was
+		// a ratchet -- the new thread made a third row, guaranteeing the next
+		// startup created a fourth, which is how one repo reached six threads.
+		// The selector now ranks: detached before parked, recent before old.
+		{name: "repeated parked rows select one", rows: []ActionableThreadSummary{parked, parked}, want: want, ok: true},
+		{name: "repeated detached rows select one", rows: []ActionableThreadSummary{detached, detached}, want: want, ok: true},
 		{
-			// Two resumable rows at one path is TWO matches, not a preference.
-			// Warm-over-cold would be a ranking policy, and this selector's
-			// whole contract is exactness.
-			name: "one parked and one detached at the same path is ambiguous",
+			// Warm beats cold: the detached agent is already running, so
+			// reattaching preserves what it was doing.
+			name: "one parked and one detached at the same path prefers detached",
 			rows: []ActionableThreadSummary{parked, row(other, "/real/repo", ThreadDetached)},
+			want: other, ok: true,
 		},
 		{name: "live is never selected", rows: []ActionableThreadSummary{row(want, "/real/repo", ThreadLive)}},
 		{name: "wrong scope", rows: []ActionableThreadSummary{row(ThreadAddress{RepoScope: "scope-b", Tag: want.Tag}, "/real/repo", ThreadParked)}},
@@ -63,9 +68,9 @@ func TestSelectUniqueResumableRoot(t *testing.T) {
 
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
-			got, ok := SelectUniqueResumableRoot(test.rows, "scope-a", "/real/repo")
+			got, ok := SelectResumableRoot(test.rows, "scope-a", "/real/repo")
 			if ok != test.ok || got != test.want {
-				t.Fatalf("SelectUniqueResumableRoot() = (%+v, %v), want (%+v, %v)", got, ok, test.want, test.ok)
+				t.Fatalf("SelectResumableRoot() = (%+v, %v), want (%+v, %v)", got, ok, test.want, test.ok)
 			}
 		})
 	}
@@ -112,17 +117,29 @@ func TestStartInteractiveCreatesNewRootWithoutExactCandidate(t *testing.T) {
 	}
 }
 
-func TestStartInteractiveCreatesNewRootForAmbiguousParkedCandidates(t *testing.T) {
+// This test used to assert that TWO parked candidates at one path made startup
+// create a NEW thread. #181 reverses it on the operator's instruction: that
+// exactness was a ratchet -- the new thread became a third candidate, so the
+// next startup created a fourth, which is how one repo reached six threads.
+// Startup now returns to the most recently active of them.
+//
+// Inverted rather than deleted, because the reversal is worth recording where
+// the superseded claim lived.
+func TestStartInteractiveResumesTheNewestOfSeveralParkedCandidates(t *testing.T) {
 	env := newTestEnv(t, "/repo")
 	first := seedStartupParked(t, env, "couch-0000000000000001", "/repo")
 	second := seedStartupParked(t, env, "couch-0000000000000002", "/repo")
+	// Both must be genuinely resumable, or "it picked one" would be indistinguishable
+	// from "the one it picked happened to work".
+	env.Artifacts.SetPairSession(first.Address, "pair-"+string(first.Address.Tag), true)
+	env.Artifacts.SetPairSession(second.Address, "pair-"+string(second.Address.Tag), true)
 
 	start, err := env.Couch.StartInteractive(context.Background(), StartArgs{Cwd: "/repo"})
 	if err != nil {
 		t.Fatalf("StartInteractive: %v", err)
 	}
-	if start.Record.Thread == first.Address || start.Record.Thread == second.Address {
-		t.Fatalf("ambiguous startup selected parked candidate %+v", start.Record.Thread)
+	if start.Record.Thread != first.Address && start.Record.Thread != second.Address {
+		t.Fatalf("startup created a new thread %+v instead of returning to one of the two", start.Record.Thread)
 	}
 }
 
@@ -243,7 +260,7 @@ func TestStartInteractiveSkipsDetachedRowsWithoutAResumableBinding(t *testing.T)
 			if err != nil {
 				t.Fatal(err)
 			}
-			_, selected := SelectUniqueResumableRoot(rows, created.Address.RepoScope, "/repo")
+			_, selected := SelectResumableRoot(rows, created.Address.RepoScope, "/repo")
 			if selected != test.want {
 				t.Fatalf("row offered for selection = %v, want %v (rows = %+v) -- an offered row must be resumable",
 					selected, test.want, rows)

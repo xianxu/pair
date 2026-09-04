@@ -140,11 +140,16 @@ func (c *Couch) ResolveTree(path string) (Worktree, error) { return Resolve(path
 // a second shell reading the registry would see it empty for the entire
 // session -- which is most of the time.
 func (c *Couch) Spawn(args StartArgs) (ActorRecord, Handle, error) {
-	resolution, err := c.resolveStartResolution(context.Background(), args)
+	ctx := context.Background()
+	resolution, err := c.resolveStartResolution(ctx, args)
 	if err != nil {
 		return ActorRecord{}, nil, err
 	}
-	return c.spawnResolved(context.Background(), resolution)
+	rows, err := c.ActionableThreadInventoryContext(ctx, nil)
+	if err != nil {
+		return ActorRecord{}, nil, err
+	}
+	return c.spawnResolved(ctx, resolution, rows)
 }
 
 // PreparedStart is one resolved-but-not-started launch: everything the operator
@@ -192,7 +197,11 @@ func (c *Couch) SpawnPrepared(ctx context.Context, args StartArgs, accepted Star
 	if current.Fingerprint != accepted {
 		return ActorRecord{}, nil, ErrStartResolutionChanged
 	}
-	return c.spawnResolved(ctx, current)
+	rows, err := c.ActionableThreadInventoryContext(ctx, nil)
+	if err != nil {
+		return ActorRecord{}, nil, err
+	}
+	return c.spawnResolved(ctx, current, rows)
 }
 
 func (c *Couch) resolveStartResolution(ctx context.Context, args StartArgs) (StartResolution, error) {
@@ -312,7 +321,11 @@ func (c *Couch) resolveRepoIdentity(ctx context.Context, workingPath string) (st
 	return common, nil
 }
 
-func (c *Couch) spawnResolved(ctx context.Context, resolution StartResolution) (ActorRecord, Handle, error) {
+// spawnResolved creates a thread. `rows` is the caller's already-resolved
+// actionable inventory, used only for the one-thread-per-path guard -- passed
+// in rather than re-derived so an interactive startup does not pay for a second
+// zellij snapshot on the path it just inventoried.
+func (c *Couch) spawnResolved(ctx context.Context, resolution StartResolution, rows []ActionableThreadSummary) (ActorRecord, Handle, error) {
 	args := StartArgs{
 		Worktree: resolution.Worktree, Cwd: resolution.CanonicalPath,
 		Stack: resolution.Profile.Agent, ExtraArgs: cloneArgv(resolution.Profile.Argv), Issue: resolution.Issue,
@@ -323,6 +336,23 @@ func (c *Couch) spawnResolved(ctx context.Context, resolution StartResolution) (
 	scope, err := launcher.ResolveRepoScope(string(resolution.Worktree))
 	if err != nil {
 		return ActorRecord{}, nil, err
+	}
+	// One thread per repo path, enforced at the single site every creation
+	// entry funnels through. Several threads at one path without separate
+	// worktrees is confusing, and per-repo policy is a design space of its own
+	// -- so until it exists, a second thread has to be DELIBERATE.
+	//
+	// There is no opt-in yet, deliberately. StartArgs.SameTree looks like one
+	// but is documented as "an inert legacy serialization field... New
+	// decisions must never read it", so reading it here would resurrect a dead
+	// flag as policy. The deliberate second thread comes back with per-repo
+	// policy, as its own decision.
+	if held, occupied := PathHoldsUsableThread(rows, scope.Key, resolution.CanonicalPath); occupied {
+		return ActorRecord{}, nil, fmt.Errorf(
+			"%s already has thread %s; couch keeps one thread per path for now\n"+
+				"  return to it:  couch %s\n"+
+				"  or retire it:  couch --show %s",
+			resolution.CanonicalPath, held.Tag, resolution.CanonicalPath, held.Tag)
 	}
 	startedAt := c.Clock.Now()
 	thread, err := c.Threads.AllocateThreadTag(scope.Key, resolution.CanonicalPath, startedAt, c.Entropy, c.Artifacts)
