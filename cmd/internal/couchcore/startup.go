@@ -2,6 +2,7 @@ package couchcore
 
 import (
 	"context"
+	"fmt"
 
 	"github.com/xianxu/pair/cmd/internal/launcher"
 )
@@ -55,8 +56,31 @@ func (c *Couch) StartInteractive(ctx context.Context, args StartArgs) (StartResu
 	}
 	if address, ok := SelectUniqueResumableRoot(rows, scope.Key, resolution.CanonicalPath); ok {
 		record, handle, resumeErr := c.ResumeContext(ctx, address)
-		return StartResult{Record: record, Handle: handle}, resumeErr
+		return StartResult{Record: record, Handle: handle}, startupResumeRefusal(address, resumeErr)
 	}
 	record, handle, err := c.spawnResolved(ctx, resolution)
 	return StartResult{Record: record, Handle: handle}, err
+}
+
+// startupResumeRefusal makes a startup refusal actionable.
+//
+// Startup deliberately has NO fallback: `couch` in a tree that already holds a
+// resumable thread must not quietly start a second one, because two threads in
+// one tree is the confusion couch exists to prevent. What was wrong was
+// refusing MUTELY -- the operator saw a diagnostic code and had no next step.
+// So the refusal stands, and it says which thread, what happened, and the two
+// ways forward.
+func startupResumeRefusal(address ThreadAddress, err error) error {
+	if err == nil {
+		return nil
+	}
+	code := ResumeDiagnosticOf(err)
+	if code == "" {
+		return err
+	}
+	return fmt.Errorf(
+		"%w\n\ncouch found one resumable thread here (%s/%s) and will not start a second in the same tree.\n"+
+			"  inspect it:  couch --show %s\n"+
+			"  work anyway: pair          (in this tree, without couch)",
+		err, address.RepoScope, address.Tag, address.Tag)
 }

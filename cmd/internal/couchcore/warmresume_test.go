@@ -1,6 +1,7 @@
 package couchcore
 
 import (
+	"errors"
 	"slices"
 	"strings"
 	"testing"
@@ -126,5 +127,43 @@ func TestWarmReattachSendsNoResumeProfileAndNoLayout(t *testing.T) {
 		if !slices.Contains(child.Env, want) {
 			t.Fatalf("warm env = %q, missing %q", child.Env, want)
 		}
+	}
+}
+
+// Startup keeps its no-fallback rule -- a tree holding one resumable thread
+// must not quietly gain a second -- but the refusal has to be actionable. The
+// operator used to get a diagnostic code and no next step.
+func TestStartupResumeRefusalNamesTheThreadAndTheWayForward(t *testing.T) {
+	address := ThreadAddress{RepoScope: "0123456789abcdef", Tag: "couch-0001020304050607"}
+	wrapped := startupResumeRefusal(address, refuseResume(ResumeSessionGone, "the detached session is no longer running"))
+	if wrapped == nil {
+		t.Fatal("a refusal became a success")
+	}
+	message := wrapped.Error()
+	for _, want := range []string{
+		string(ResumeSessionGone), // what happened
+		string(address.Tag),       // which thread
+		"couch --show",            // how to inspect it
+		"pair",                    // how to work anyway
+	} {
+		if !strings.Contains(message, want) {
+			t.Fatalf("refusal %q does not mention %q", message, want)
+		}
+	}
+	// The typed refusal must survive wrapping: callers switch on the code.
+	if got := ResumeDiagnosticOf(wrapped); got != ResumeSessionGone {
+		t.Fatalf("wrapped diagnostic = %q, want %q", got, ResumeSessionGone)
+	}
+}
+
+// A non-refusal error is passed through untouched: only a resume DIAGNOSTIC
+// gets the operator guidance, because only it means "couch decided not to".
+func TestStartupResumeRefusalPassesThroughOtherErrors(t *testing.T) {
+	plain := errors.New("store is unreadable")
+	if got := startupResumeRefusal(ThreadAddress{}, plain); got != plain {
+		t.Fatalf("startupResumeRefusal rewrote a non-refusal: %v", got)
+	}
+	if startupResumeRefusal(ThreadAddress{}, nil) != nil {
+		t.Fatal("startupResumeRefusal invented an error")
 	}
 }
