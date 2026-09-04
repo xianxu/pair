@@ -3185,3 +3185,12 @@ that a key token appears cannot detect a contradictory behavioral sentence
   one answer onto three questions. Pin the agreement instead: anything counted
   as holding a path must be something the operator can actually reach, or couch
   refuses a start for a thread it will not offer.
+- A helper that exists to stop a list being hand-written only works if every
+  site uses it. `seqKind.intercepts()` in couch carries a comment saying exactly
+  why it exists — "a new chord that forgot to update a hand-written list would
+  be silently forwarded, which is exactly the failure the Kitty encoding already
+  caused once" — and the input loop twenty lines below it still enumerated the
+  kinds by hand. Adding a chord updated the two derived sites and was silently
+  forwarded anyway. When you write the helper, grep for the shape it replaces
+  and convert every instance in the same commit; a helper with one caller and
+  three copies is worse than no helper, because it reads as solved.

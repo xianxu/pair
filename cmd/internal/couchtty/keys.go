@@ -43,6 +43,7 @@ const (
 	seqPark
 	seqPrevious
 	seqDetach
+	seqRelaunch
 	seqHotkey = seqSwitch // compatibility name for the switch-sequence tests
 )
 
@@ -52,7 +53,7 @@ const (
 // which is exactly the failure the Kitty encoding already caused once.
 func (k seqKind) intercepts() bool {
 	switch k {
-	case seqSwitch, seqPark, seqPrevious, seqDetach:
+	case seqSwitch, seqPark, seqPrevious, seqDetach, seqRelaunch:
 		return true
 	}
 	return false
@@ -69,6 +70,8 @@ func (k seqKind) hit() InterceptorHit {
 		return HitPrevious
 	case seqDetach:
 		return HitDetach
+	case seqRelaunch:
+		return HitRelaunch
 	}
 	return HitNone
 }
@@ -86,6 +89,9 @@ const (
 	// HitDetach is alt+d: stop this thread's pair client without tearing down
 	// its zellij session.
 	HitDetach
+	// HitRelaunch is alt+n (or ctrl+alt+n): replace this thread's Pair process
+	// with the current binary, keeping the agent conversation.
+	HitRelaunch
 )
 
 // knownSequences is every multi-byte sequence the console must recognise in the
@@ -136,6 +142,33 @@ var knownSequences = func() []struct {
 		// "\x1bd", so with the Kitty protocol off alt+d passes through to the
 		// child. zellij pushes the protocol, so this is a documented edge.
 		{workbenchshortcut.ChordAltD, seqDetach},
+		// alt+n and ctrl+alt+n are Pair's own reload chords, intercepted for a
+		// reason that is sharper than alt+d's. Un-intercepted, Pair handles them
+		// INSIDE the process couch spawned: `pair restart` writes a marker and
+		// execs kill-session, the outer process unblocks, and createflow's loop
+		// re-enters runOnce in the same process image. There is no re-exec, so
+		// the binary in memory is the old one -- a rebuilt Pair is not what
+		// comes back. For pair development that is worse than not working,
+		// because it looks like it worked.
+		//
+		// BOTH aliases, and the second is not a nicety: on newer macOS
+		// Option+n is a dead-tilde composer, which is why Pair carries
+		// ctrl+alt+n at all. Taking only one would leave the operator's actual
+		// keystroke reaching the child.
+		//
+		// alt+SHIFT+n is deliberately NOT taken (\x1b[78;4u, a distinct
+		// sequence). It restarts only the agent conversation, and it is the
+		// cheap in-session escape hatch that has to survive couch claiming the
+		// heavier chord: alt+n means new code, same conversation;
+		// alt+shift+n means same code, new conversation.
+		//
+		// Kitty-protocol edge, inherited from ChordAltD: neither declares a
+		// legacy encoding, so with the protocol off both pass through to Pair
+		// and do its old in-place reload. zellij pushes the protocol, so this is
+		// a documented degradation -- but it means the behaviour differs
+		// silently by protocol state, which is why it is written here.
+		{workbenchshortcut.ChordAltN, seqRelaunch},
+		{workbenchshortcut.ChordCtrlAltN, seqRelaunch},
 	} {
 		for _, encoding := range workbenchshortcut.ChordEncodings(chord.chord) {
 			sequences = append(sequences, struct {
@@ -219,7 +252,14 @@ func (i *Interceptor) FeedHit(in []byte) (before []byte, hit InterceptorHit, res
 				out = append(out, buf[idx:idx+n]...)
 				idx += n
 				continue
-			case seqSwitch, seqPark, seqPrevious, seqDetach:
+			}
+			// intercepts(), not a hand-written list of kinds. This site used to
+			// enumerate them, which is the precise failure intercepts() exists
+			// to prevent -- its own comment says so: "a new chord that forgot to
+			// update a hand-written list would be silently forwarded". Adding
+			// seqRelaunch updated intercepts() and hit() and was still silently
+			// forwarded here, which is the third copy proving the point.
+			if kind.intercepts() {
 				if !i.inPaste {
 					return out, kind.hit(), buf[idx+n:]
 				}

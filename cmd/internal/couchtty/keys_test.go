@@ -490,3 +490,61 @@ func TestInterceptorIgnoresAltDInsideAPaste(t *testing.T) {
 		}
 	}
 }
+
+// Both aliases reach couch, and alt+SHIFT+n does not: that last assertion is
+// what protects the escape hatch. alt+n means new code with the same
+// conversation; alt+shift+n means the same code with a new conversation, and
+// couch taking the first must not cost the operator the second.
+func TestRelaunchChordsAreInterceptedAndAltShiftNIsNot(t *testing.T) {
+	for _, chord := range []workbenchshortcut.Chord{
+		workbenchshortcut.ChordAltN, workbenchshortcut.ChordCtrlAltN,
+	} {
+		for _, encoding := range workbenchshortcut.ChordEncodings(chord) {
+			t.Run(string(encoding), func(t *testing.T) {
+				var it Interceptor
+				before, hit, rest := it.FeedHit(encoding)
+				if hit != HitRelaunch {
+					t.Fatalf("hit = %v, want HitRelaunch", hit)
+				}
+				if len(before) != 0 || len(rest) != 0 {
+					t.Fatalf("split = %q / %q, want the chord consumed whole", before, rest)
+				}
+			})
+		}
+	}
+
+	// The escape hatch: alt+shift+n must reach the child untouched.
+	for _, encoding := range workbenchshortcut.ChordEncodings(workbenchshortcut.ChordAltShiftN) {
+		var it Interceptor
+		before, hit, _ := it.FeedHit(encoding)
+		if hit != HitNone {
+			t.Fatalf("alt+shift+n was intercepted as %v -- Pair's agent restart must survive", hit)
+		}
+		if string(before) != string(encoding) {
+			t.Fatalf("alt+shift+n reached the child as %q, want %q", before, encoding)
+		}
+	}
+}
+
+// A relaunch chord split across reads is still one chord, and inside a paste it
+// is content -- the same two properties every other intercepted chord has.
+func TestRelaunchChordSurvivesReadSplitsAndIsInertInAPaste(t *testing.T) {
+	encoding := workbenchshortcut.ChordEncodings(workbenchshortcut.ChordAltN)[0]
+	for split := 1; split < len(encoding); split++ {
+		var it Interceptor
+		if _, hit, _ := it.FeedHit(encoding[:split]); hit != HitNone {
+			t.Fatalf("split at %d fired early: %v", split, hit)
+		}
+		if _, hit, _ := it.FeedHit(encoding[split:]); hit != HitRelaunch {
+			t.Fatalf("split at %d lost the chord", split)
+		}
+	}
+
+	var it Interceptor
+	if _, hit, _ := it.FeedHit([]byte("\x1b[200~")); hit != HitNone {
+		t.Fatal("paste start fired a hit")
+	}
+	if _, hit, _ := it.FeedHit(encoding); hit != HitNone {
+		t.Fatal("a pasted relaunch chord fired -- inside a paste it is content")
+	}
+}
