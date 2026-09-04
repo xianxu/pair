@@ -197,6 +197,8 @@ gate `#147` and `#148` respectively; `#145` and `#146` do not depend on them.
 - [x] warm reattach: get back into a detached session [pair#181 M2]
 - [x] archive as the only exit, plus the startup and path rules [pair#181 M3]
 - [ ] relaunch an actor: restart Pair, keep the conversation [pair#182]
+- [ ] relaunch as one operation [pair#182 M1]
+- [ ] the gesture and a surface that outlives its child [pair#182 M2]
 - [-] reattach a detached thread without the cold binding [pair#179 — absorbed by pair#181 M2]
 - [-] retire finished threads into an archive [pair#180 — absorbed by pair#181 M3]
 - [-] preserve parked binding after failed resume [pair#168]
@@ -330,6 +332,31 @@ Relaunch is park-then-resume as one action. The design question is failure
 semantics, not mechanism: park is destructive and resume can refuse, so a
 relaunch that parks and then fails to resume has destroyed a working session.
 The resume's preconditions therefore run BEFORE the park.
+
+<a id="pair-182-m1"></a>
+### pair#182 M1 — relaunch as one operation
+
+**est:** 6.20 (whole issue)
+
+Relaunch is park-then-resume, and the whole design is the ORDER: park is
+destructive and resume can refuse, so a relaunch that parks and then finds the
+resume cannot run has traded a working session for a cold one. Every refusal a
+check can see is raised before anything is destroyed, and the two that cannot be
+seen early are named rather than hoped over. Four outcomes, each pinned by a test
+that asserts the STATE left behind rather than the error text — including that a
+failed park never attempts the resume and names park's own recovery modes, since
+`Enter` refuses `ResumeParking` on an open transaction.
+
+Three things the tests corrected that reading had not. A Pair *cleanup* failure
+is not a park failure — `CleanupAttempt` runs after the durable completion and
+the final CAS, so its error lands in `ParkResult.CleanupError` while the park
+returns nil; found by asserting the opposite and watching the relaunch succeed.
+`cloneArgv` normalizes a nil Argv to empty, so a test helper that cloned was
+silently repairing the very shape it was meant to compare. And the first seam
+test passed for a reason unrelated to what it claimed: relaunch is
+`ExecuteLiveOwner`, so `couchcmd`'s runtime refuses routing before any dialect
+code runs, and only the mutation check exposed it. "Test the seam" is not
+satisfied by testing at the layer that seems closest to it.
 
 <a id="pair-170"></a>
 ### pair#170 — rescope to couch-lite
@@ -1356,6 +1383,7 @@ a typed operation cannot accidentally grow the public CLI (`ARCH-PURPOSE`,
 
 [pair#155 M1]: #pair-155-m1
 [pair#155 M2]: #pair-155-m2
+[pair#182 M1]: #pair-182-m1
 [pair#181 M1]: #pair-181-m1
 [pair#181 M2]: #pair-181-m2
 [pair#181 M3]: #pair-181-m3
