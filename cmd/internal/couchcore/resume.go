@@ -29,6 +29,10 @@ const (
 	// ResumeSessionGone is the WARM path's staleness: the detached session a
 	// reattach was projected against died before the launch.
 	ResumeSessionGone ResumeDiagnosticCode = "resume-session-gone"
+	// ResumeNotRunning is a relaunch target that is not running at all. It is
+	// the OPPOSITE of ResumeLive, which the two used to share, so a parked row
+	// was told "resume-live" -- a code naming the state it is not in.
+	ResumeNotRunning ResumeDiagnosticCode = "resume-not-running"
 )
 
 type ResumeRefusal struct {
@@ -131,6 +135,38 @@ func DecideResume(input ResumeEligibilityInput) (ResumeEligibility, error) {
 	return ResumeEligibility{
 		Address: record.Address, WorkingPath: record.WorkingPath, Profile: profile,
 	}, nil
+}
+
+// resumeEvidence gathers what both resume and relaunch need to judge a thread:
+// the native binding, and whether its working path still resolves.
+//
+// Shared because the two had already diverged in their first copy —
+// ResumeContext starts pathExists at false and calls Physical unconditionally,
+// while Relaunch started at true and skipped the call when Path was nil, so a
+// nil Path made relaunch PASS the path precondition and then panic inside
+// ResumeContext one step later. The plan's own DRY rationale ("two parallel
+// derivations drift toward whichever cases each author thought about") applies
+// to the evidence as much as to the rules built on it.
+//
+// One nil-Path policy, stated here: no path operations means the path cannot be
+// proved, which is a refusal rather than an assumption.
+func (c *Couch) resumeEvidence(ctx context.Context, thread ThreadRecord) (NativeBindingResolution, bool, error) {
+	bindings, ok := c.Artifacts.(NativeBindingResolver)
+	if !ok {
+		return NativeBindingResolution{}, false, errors.New("native binding resolver is unavailable")
+	}
+	agent := ""
+	if thread.LatestLaunchProfile != nil {
+		agent = thread.LatestLaunchProfile.Agent
+	}
+	pathExists := false
+	if c.Path != nil {
+		if _, err := c.Path.Physical(thread.WorkingPath); err == nil {
+			pathExists = true
+		}
+	}
+	binding, err := bindings.ResolveEstablished(ctx, thread.Address.RepoScope, string(thread.Address.Tag), agent)
+	return binding, pathExists, err
 }
 
 // CheckResumePreconditions is every resume rule that a park cannot change.

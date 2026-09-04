@@ -331,6 +331,13 @@ func archivableRecord(record ThreadRecord) error {
 	return nil
 }
 
+// hasOccupiedIncarnation is occupiedIncarnation's boolean form, for callers that
+// need the fact rather than which state produced it.
+func hasOccupiedIncarnation(record ThreadRecord) bool {
+	occupied, _ := occupiedIncarnation(record)
+	return occupied
+}
+
 // occupiedIncarnation reports whether any incarnation is still doing something:
 // running, starting, or in a state couch cannot vouch for.
 func occupiedIncarnation(record ThreadRecord) (bool, IncarnationState) {

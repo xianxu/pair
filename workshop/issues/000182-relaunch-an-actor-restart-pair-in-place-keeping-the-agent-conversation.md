@@ -300,7 +300,10 @@ drivable.
       rather than `Enter`); a test for the SUCCESS path, which is the thing being
       built; the declared operation dispatched through the one thread-addressing
       dialect.
-- [ ] M2 — the gesture and a surface that outlives its child. `Alt+n` and
+- [ ] M2 — the gesture and a surface that outlives its child, plus the
+      six-site sweep that makes the declared operation actually reachable
+      (`menuActionItems` and five others; the M1 review found the plan asserting
+      declaration alone was enough). `Alt+n` and
       `Ctrl+Alt+n` intercepted before the child sees them, with `Alt+Shift+N`
       left to Pair; a pane that holds its slot and renders `relaunching…` with a
       live spinner rather than vanishing; and the three consequences that fall

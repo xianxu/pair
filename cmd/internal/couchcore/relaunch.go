@@ -78,6 +78,17 @@ func (c *Couch) Relaunch(ctx context.Context, address ThreadAddress) (RelaunchRe
 
 	// Park's own precondition, asked first because its failure is the one that
 	// would otherwise surface after Pair had been told to quit.
+	//
+	// Its two failures are opposite states and get opposite messages.
+	// soleParkableIncarnation fails for NO live incarnation as well as for two,
+	// and mapping both to ResumeLive told a parked row "resume-live" -- a code
+	// naming the state it is not in, with a message about park's internals and
+	// no next action. Parked rows reach this: the switcher's Alt+n relaunches
+	// the highlighted row, and highlighted rows are often parked.
+	if !hasOccupiedIncarnation(thread) {
+		return refused, refuseResume(ResumeNotRunning,
+			fmt.Sprintf("%s is not running, so there is no Pair to restart; Enter resumes it", address.Tag))
+	}
 	if _, err := soleParkableIncarnation(thread); err != nil {
 		return refused, refuseResume(ResumeLive, err.Error())
 	}
@@ -85,26 +96,17 @@ func (c *Couch) Relaunch(ctx context.Context, address ThreadAddress) (RelaunchRe
 	// Would this thread resume ONCE PARKED? DecideResume cannot answer -- it
 	// refuses any occupied incarnation, and a relaunch target is live by
 	// definition -- so relaunch asks the rules a park cannot change.
-	bindings, ok := c.Artifacts.(NativeBindingResolver)
-	if !ok {
-		return refused, errors.New("relaunch: native binding resolver is unavailable")
-	}
-	agent := ""
-	if thread.LatestLaunchProfile != nil {
-		agent = thread.LatestLaunchProfile.Agent
-	}
-	binding, bindingErr := bindings.ResolveEstablished(ctx, address.RepoScope, string(address.Tag), agent)
-	pathExists := true
-	if c.Path != nil {
-		if _, err := c.Path.Physical(thread.WorkingPath); err != nil {
-			pathExists = false
-		}
+	binding, pathExists, bindingErr := c.resumeEvidence(ctx, thread)
+	// A resolver IO failure is not a verdict about the binding. ResolveEstablished
+	// returns a ZERO resolution on a real error, which bindingResumeDiagnostic
+	// reads as `unbound` -- so the operator was told the binding is not
+	// established when the truth is that couch could not look. Raise the real
+	// cause first; only a typed ResumeRefusal is a verdict.
+	if bindingErr != nil && ResumeDiagnosticOf(bindingErr) == "" {
+		return refused, fmt.Errorf("relaunch %s: could not resolve its native session binding: %w", address.Tag, bindingErr)
 	}
 	if err := CheckResumePreconditions(thread, binding, pathExists); err != nil {
 		return refused, err
-	}
-	if bindingErr != nil {
-		return refused, bindingErr
 	}
 
 	// Only now is anything destroyed.

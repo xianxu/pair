@@ -3194,3 +3194,14 @@ that a key token appears cannot detect a contradictory behavioral sentence
   forwarded anyway. When you write the helper, grep for the shape it replaces
   and convert every instance in the same commit; a helper with one caller and
   three copies is worse than no helper, because it reads as solved.
+- "Declared" is not "reachable". A plan that says an operation is available "the
+  moment it is declared" is asserting something about six hand-maintained
+  per-operation sites — the action list, the confirmation wording, the frame
+  restore, the projection-refresh predicate, and both halves of the exit race —
+  none of which read the declaration. Check the claim by asking which code would
+  have to change for the operator to press it.
+- An IO failure is not a verdict about the thing being queried. A resolver that
+  returns a ZERO value alongside its error lets the caller read "could not look"
+  as "not established", and the branch meant to catch it becomes dead code
+  because the fabricated value is checked first. Raise the real cause before
+  interpreting a value the error already invalidated.

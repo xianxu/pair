@@ -75,9 +75,10 @@ func envWithLiveThread(t *testing.T) (*relaunchEnv, ThreadRecord) {
 // park -- otherwise the operator trades a working session for a cold one.
 func TestRelaunchRefusesBeforeParkingWhenTheResumeCouldNotSucceed(t *testing.T) {
 	for _, tc := range []struct {
-		name   string
-		breaks func(*relaunchEnv, ThreadRecord)
-		want   ResumeDiagnosticCode
+		name        string
+		breaks      func(*relaunchEnv, ThreadRecord)
+		want        ResumeDiagnosticCode
+		wantMessage string
 	}{
 		{
 			name: "no established binding",
@@ -92,6 +93,30 @@ func TestRelaunchRefusesBeforeParkingWhenTheResumeCouldNotSucceed(t *testing.T) 
 				env.Couch.Path.(*FakePathOps).Fail("/repo")
 			},
 			want: ResumePathMissing,
+		},
+		{
+			name: "the resolver itself fails",
+			breaks: func(env *relaunchEnv, live ThreadRecord) {
+				env.Couch.Artifacts = &erroringBindingArtifacts{
+					FakeThreadArtifactCollisionChecker: env.Artifacts,
+				}
+			},
+			// NOT a binding verdict: couch could not look, and saying "unbound"
+			// would be a fabricated claim about the binding.
+			wantMessage: "could not resolve its native session binding",
+		},
+		{
+			name: "the thread is not running at all",
+			breaks: func(env *relaunchEnv, live ThreadRecord) {
+				if _, err := env.Couch.Threads.UpdateExistingThread(live.Address, live.Revision, func(r *ThreadRecord) error {
+					r.Incarnations = nil
+					return nil
+				}); err != nil {
+					t.Fatal(err)
+				}
+			},
+			want:        ResumeNotRunning,
+			wantMessage: "Enter resumes it",
 		},
 		{
 			name: "two incarnations -- park's own precondition",
@@ -112,6 +137,13 @@ func TestRelaunchRefusesBeforeParkingWhenTheResumeCouldNotSucceed(t *testing.T) 
 		t.Run(tc.name, func(t *testing.T) {
 			env, live := envWithLiveThread(t)
 			tc.breaks(env, live)
+			// The state AFTER setup, not "still live": one case's setup is
+			// removing the incarnations, and asserting liveness there would be
+			// asserting the fixture rather than the refusal.
+			before, err := env.Couch.Threads.GetThread(live.Address)
+			if err != nil {
+				t.Fatal(err)
+			}
 
 			result, err := env.Couch.Relaunch(context.Background(), live.Address)
 
@@ -120,6 +152,9 @@ func TestRelaunchRefusesBeforeParkingWhenTheResumeCouldNotSucceed(t *testing.T) 
 			}
 			if got := ResumeDiagnosticOf(err); got != tc.want {
 				t.Fatalf("diagnostic = %q, want %q (err %v)", got, tc.want, err)
+			}
+			if tc.wantMessage != "" && !strings.Contains(err.Error(), tc.wantMessage) {
+				t.Fatalf("error %q does not say %q", err, tc.wantMessage)
 			}
 			// NOTHING happened. This is the assertion that matters: "it refuses"
 			// is cheap, "it refuses and nothing was destroyed" is the property.
@@ -133,8 +168,9 @@ func TestRelaunchRefusesBeforeParkingWhenTheResumeCouldNotSucceed(t *testing.T) 
 			if err != nil {
 				t.Fatal(err)
 			}
-			if len(after.Incarnations) == 0 || after.VerifiedPark != nil || after.Park != nil {
-				t.Fatalf("a refused relaunch changed the thread: %+v", after)
+			if after.Revision != before.Revision || len(after.Incarnations) != len(before.Incarnations) ||
+				after.VerifiedPark != nil || after.Park != nil {
+				t.Fatalf("a refused relaunch changed the thread:\n before %+v\n after  %+v", before, after)
 			}
 		})
 	}
@@ -346,4 +382,15 @@ func TestRelaunchResolvesTheSwitchersDialectThroughTheRealDispatcher(t *testing.
 	if !ok || relaunched.Outcome != Relaunched {
 		t.Fatalf("result = %#v, want a completed RelaunchResult", result)
 	}
+}
+
+// erroringBindingArtifacts fails the resolver the way a real IO error does:
+// ResolveEstablished returns a ZERO resolution alongside the error, which is
+// what made "could not look" indistinguishable from "not established".
+type erroringBindingArtifacts struct {
+	*FakeThreadArtifactCollisionChecker
+}
+
+func (e *erroringBindingArtifacts) ResolveEstablished(context.Context, string, string, string) (NativeBindingResolution, error) {
+	return NativeBindingResolution{}, errors.New("resolve home directory: permission denied")
 }

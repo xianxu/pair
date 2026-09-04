@@ -357,8 +357,30 @@ func TestASuccessfulRelaunchKeepsTheAddressTheRowAndTheConversation(t *testing.T
 
 ### Core concepts
 
-M1's operation is reachable from the switcher's action list the moment it is
-declared. M2 adds the chord, and a pane that does not vanish while its child is
+**Correction (M1 review, I-4): M1's operation is NOT reachable the moment it is
+declared, and the earlier draft of this preamble asserted it was.**
+`menuActionItems` returns hardcoded slices and consumes `Operations()` nowhere;
+`ParseCLI` is a closed flag set. So the issue's Done-when bullet — "an actor
+action `relaunch` appears alongside detach and park … reachable from the same
+declared-operation surface" — had no owning task in either milestone.
+
+**The class is six hand-maintained per-operation sites, not the two an earlier
+draft named.** Every one must learn `relaunch` or it half-works:
+
+| site | what it decides |
+| --- | --- |
+| `menu.go:1008` `menuActionItems` | whether the row offers it at all |
+| `menu.go` `confirmationMenuItems` | the confirmation wording (it is `ConfirmRequired`) |
+| `menu.go:1306` post-operation frame restore | where the switcher lands afterwards |
+| `menu.go:1320` `operationNeedsProjectionRefresh` | whether the inventory re-reads |
+| `console.go:1375` the `expectedExits` bridge | the completion-wins-the-race half |
+| `console.go:1425` `consumeExpectedParkExitLocked` | the exit-wins-the-race half |
+
+That enumeration is the deliverable, not the two sites: the same shape as
+`pair#181` M3's occupancy finding, where a rule applied at four of five sites
+left a reachable gap.
+
+M2 adds the chord, this sweep, and a pane that does not vanish while its child is
 replaced — the substantial new machinery.
 
 ### Pure entities
@@ -509,6 +531,11 @@ func TestAHoldingPaneSurvivesItsChildsExit(t *testing.T) {
 - [ ] **Step 2: No child-exited notice.** `endsItsOwnChild` replaces both
       hand-written lists; the test drives a relaunch through the production input
       path and asserts the feed carries no exit notice.
+- [ ] **Step 2b: Sweep all SIX per-operation sites** from the table above, not
+      the two this step originally named, and add a test that walks
+      `Operations()` asserting every `PresentationTUI` operation the switcher can
+      reach appears in `menuActionItems` for some row state — so the next
+      operation cannot ship declared-but-unreachable.
 - [ ] **Step 3: Both focus states dispatch, with different endings.** `Alt+n`
       from an actor relaunches it and ENDS ON IT; from the panel it relaunches the
       highlighted row and stays in the switcher. Two tests, because the endings
