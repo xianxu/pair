@@ -122,10 +122,12 @@ type Console struct {
 	// the writer singular removes the class rather than the two instances:
 	// there is no longer a way to reach the screen except through the loop that
 	// tracks where the stream is.
-	chunks             chan chunk
-	resized            chan struct{}
-	switching          chan string
-	input              chan []byte
+	chunks    chan chunk
+	resized   chan struct{}
+	switching chan string
+	input     chan []byte
+	// trace is nil unless COUCH_INPUT_TRACE names a file; see inputtrace.go.
+	trace              *inputTracer
 	exited             chan childExit
 	operationQueue     *operationQueue
 	refreshRequests    chan struct{}
@@ -166,6 +168,7 @@ func New(host hostty.Host, stdin io.Reader) *Console {
 		resized:           make(chan struct{}, 1),
 		switching:         make(chan string, 8),
 		input:             make(chan []byte, 64),
+		trace:             newInputTracer(),
 		exited:            make(chan childExit, 64),
 		operationQueue:    newOperationQueue(16),
 		refreshRequests:   make(chan struct{}, 1),
@@ -608,6 +611,8 @@ func (c *Console) Run() int {
 				c.onPreviousHotkey()
 			case HitDetach:
 				c.onDetachHotkey()
+			case HitRelaunch:
+				c.onRelaunchHotkey()
 			}
 			raw = rest
 		}
@@ -1092,6 +1097,7 @@ func (c *Console) pumpStdin() {
 		n, err := c.stdin.Read(buf)
 		if n > 0 {
 			chunk := append([]byte(nil), buf[:n]...)
+			c.trace.record(chunk)
 			select {
 			case c.input <- chunk:
 			case <-c.stop:
@@ -1253,6 +1259,41 @@ func (c *Console) onDetachHotkey() {
 	c.reduceMenu(MenuEvent{Kind: MenuEventParkHotkey, Operation: "detach", Address: p.thread})
 }
 
+// onRelaunchHotkey handles Alt+n and Ctrl+Alt+n: replace this thread's Pair
+// process with the current binary, keeping the agent conversation.
+//
+// Scope follows focus, WITH one deviation that is the point rather than an
+// oversight. Alt+x and Alt+d mean "what you are looking at": one actor from an
+// actor, every live thread from the switcher. Relaunch has no whole-couch form
+// -- that is alt+d, rebuild, re-run couch, the symmetry this completes -- so
+// from the panel it relaunches the HIGHLIGHTED ROW and leaves the operator in
+// the switcher, and from an actor it relaunches that actor.
+//
+// Runs on the Run goroutine.
+func (c *Console) onRelaunchHotkey() {
+	c.mu.Lock()
+	isPanel := c.focus.IsPanel()
+	p := c.panes[c.active]
+	target := couchcore.ThreadAddress{}
+	switch {
+	case isPanel:
+		target = c.menu.CurrentFrame().SelectedAddress
+	case p != nil:
+		target = p.thread
+		// An actor relaunch shows its progress on the panel, as park does, until
+		// the holding surface exists to keep the operator in place.
+		c.focus = FocusPanel()
+		c.menu.ActiveAddress = p.thread
+	}
+	c.mu.Unlock()
+
+	if target == (couchcore.ThreadAddress{}) {
+		c.setNotice("relaunch: no thread selected")
+		return
+	}
+	c.reduceMenu(MenuEvent{Kind: MenuEventParkHotkey, Operation: "relaunch", Address: target})
+}
+
 // onParkHotkey handles Pair's Alt+x chord at the Couch ownership boundary.
 // It renders confirmation immediately; durable park work starts only after
 // confirmation and runs off the terminal event loop.
@@ -1372,7 +1413,7 @@ func (c *Console) finishOperation(completed operationCompletion) bool {
 	// consumeExpectedParkExitLocked's InFlight arm with nothing to match. This
 	// bridge is the other half of that rule, and detach needs it as much as
 	// park does -- both end their child deliberately.
-	if err == nil && (completed.origin.Operation == "park" || completed.origin.Operation == "detach") {
+	if err == nil && endsItsOwnChild(completed.origin.Operation) {
 		for id, p := range c.panes {
 			if p.thread == address {
 				c.expectedExits[id] = true
@@ -1408,6 +1449,22 @@ func (c *Console) finishOperation(completed operationCompletion) bool {
 	return false
 }
 
+// endsItsOwnChild names the operations whose child exit is EXPECTED, so the two
+// sites that need the answer cannot disagree.
+//
+// They existed as two hand-written lists -- the expectedExits bridge and the
+// switch below -- because the exit/completion race resolves in either order and
+// each half needed the same fact. A third operation had to appear in both or the
+// operator gets a spurious child-exited notice for work they asked for; deriving
+// it is what stops the next one being added to one list only (ARCH-DRY).
+func endsItsOwnChild(operation string) bool {
+	switch operation {
+	case "park", "detach", "relaunch":
+		return true
+	}
+	return false
+}
+
 // consumeExpectedParkExitLocked classifies only the exact child selected by a
 // Park attempt as expected. It handles either event order: while the operation
 // is in flight its immutable origin is authority; after successful completion
@@ -1422,9 +1479,7 @@ func (c *Console) consumeExpectedParkExitLocked(id string, address couchcore.Thr
 		return false
 	}
 	switch origin.Operation {
-	case "park":
-		return origin.Address == address
-	case "detach":
+	case "park", "detach", "relaunch":
 		return origin.Address == address
 	case "leave":
 		// Leave detaches every thread, so every child exit it causes is
