@@ -26,6 +26,9 @@ const (
 	ResumeBindingAmbiguous   ResumeDiagnosticCode = "resume-binding-ambiguous"
 	ResumeBindingUnbound     ResumeDiagnosticCode = "resume-binding-unbound"
 	ResumeBindingRootMissing ResumeDiagnosticCode = "resume-binding-root-missing"
+	// ResumeSessionGone is the WARM path's staleness: the detached session a
+	// reattach was projected against died before the launch.
+	ResumeSessionGone ResumeDiagnosticCode = "resume-session-gone"
 )
 
 type ResumeRefusal struct {
@@ -118,12 +121,28 @@ func DecideResume(input ResumeEligibilityInput) (ResumeEligibility, error) {
 	if !launcher.IsSupportedAgent(profile.Agent) {
 		return ResumeEligibility{}, refuseResume(ResumeAgentUnsupported, "saved launch agent is unsupported")
 	}
-	if code := bindingResumeDiagnostic(input.Binding); code != "" {
-		return ResumeEligibility{}, refuseResume(code, "native session binding is not one exact established root")
+	// The native binding is the COLD resume's proof: a parked thread has no
+	// agent, so Pair must create a session and relaunch it with
+	// `--resume <native id>`, and an unresolved id means that relaunch cannot
+	// work. A warm reattach relaunches nothing -- the agent is alive behind a
+	// client-less zellij session and reattaching is `zellij attach` -- so the
+	// id is proof for a step that does not happen. Demanding it there refused
+	// threads that would have reattached fine (#179).
+	//
+	// The proof the warm path DOES require is the session itself, and
+	// input.Detached is it: an unambiguous name binding to this exact address,
+	// live, with zero clients.
+	if record.VerifiedPark != nil {
+		if code := bindingResumeDiagnostic(input.Binding); code != "" {
+			return ResumeEligibility{}, refuseResume(code, "native session binding is not one exact established root")
+		}
+		return ResumeEligibility{
+			Address: record.Address, WorkingPath: record.WorkingPath,
+			Profile: profile, RequiredSessionID: input.Binding.NativeID,
+		}, nil
 	}
 	return ResumeEligibility{
-		Address: record.Address, WorkingPath: record.WorkingPath,
-		Profile: profile, RequiredSessionID: input.Binding.NativeID,
+		Address: record.Address, WorkingPath: record.WorkingPath, Profile: profile,
 	}, nil
 }
 
@@ -209,9 +228,18 @@ func (c *Couch) ResumeContext(ctx context.Context, address ThreadAddress) (Actor
 	if thread.LatestLaunchProfile != nil {
 		agent = thread.LatestLaunchProfile.Agent
 	}
-	binding, err := bindings.ResolveEstablished(ctx, address.RepoScope, string(address.Tag), agent)
-	if err != nil {
-		return ActorRecord{}, nil, err
+	// Resolve the binding only where it is the authority. ResolveEstablished
+	// RETURNS AN ERROR for a provisional binding (resume.go's own resolver
+	// refuses), so asking on the warm path refused the thread here -- before
+	// DecideResume could decide anything, which is why relaxing that alone
+	// left the operator's detached thread unreachable.
+	var binding NativeBindingResolution
+	if thread.VerifiedPark != nil {
+		resolved, err := bindings.ResolveEstablished(ctx, address.RepoScope, string(address.Tag), agent)
+		if err != nil {
+			return ActorRecord{}, nil, err
+		}
+		binding = resolved
 	}
 	// A thread with no verified park may still be resumable: it may have been
 	// DETACHED, in which case its zellij session is alive with no client and
@@ -264,20 +292,32 @@ func (c *Couch) ResumeContext(ctx context.Context, address ThreadAddress) (Actor
 	}
 
 	// Recheck after the durable address claim and immediately before any child
-	// effects. A native session replacement in this window is a refusal, never
-	// permission to create a different session under the same Pair address.
-	currentBinding, err := bindings.ResolveEstablished(ctx, address.RepoScope, string(address.Tag), eligible.Profile.Agent)
-	if err != nil {
-		return ActorRecord{}, nil, errors.Join(err, c.rollbackTrackedStart(thread, nonce))
-	}
-	if err := launcher.RequireNativeResumeBinding(eligible.RequiredSessionID, currentBinding.NativeID, currentBinding.Status); err != nil {
-		return ActorRecord{}, nil, errors.Join(err, c.rollbackTrackedStart(thread, nonce))
-	}
-	profileRaw, err := launcher.BuildCouchResumeLaunchProfile(
-		string(address.Tag), eligible.Profile.Agent, eligible.Profile.Argv, eligible.RequiredSessionID,
-	)
-	if err != nil {
-		return ActorRecord{}, nil, errors.Join(err, c.rollbackTrackedStart(thread, nonce))
+	// effects. Each shape rechecks its OWN authority: a cold resume rechecks
+	// the native binding, because a session replacement in this window must be
+	// a refusal rather than permission to create a different session under the
+	// same Pair address. A warm reattach rechecks that its session is still
+	// there, which is the equivalent staleness -- and if it died in the window,
+	// there is nothing to attach to.
+	profileRaw := ""
+	if detached {
+		if err := c.confirmStillDetached(ctx, address, eligible.Profile.Agent); err != nil {
+			return ActorRecord{}, nil, errors.Join(err, c.rollbackTrackedStart(thread, nonce))
+		}
+	} else {
+		currentBinding, err := bindings.ResolveEstablished(ctx, address.RepoScope, string(address.Tag), eligible.Profile.Agent)
+		if err != nil {
+			return ActorRecord{}, nil, errors.Join(err, c.rollbackTrackedStart(thread, nonce))
+		}
+		if err := launcher.RequireNativeResumeBinding(eligible.RequiredSessionID, currentBinding.NativeID, currentBinding.Status); err != nil {
+			return ActorRecord{}, nil, errors.Join(err, c.rollbackTrackedStart(thread, nonce))
+		}
+		built, err := launcher.BuildCouchResumeLaunchProfile(
+			string(address.Tag), eligible.Profile.Agent, eligible.Profile.Argv, eligible.RequiredSessionID,
+		)
+		if err != nil {
+			return ActorRecord{}, nil, errors.Join(err, c.rollbackTrackedStart(thread, nonce))
+		}
+		profileRaw = built
 	}
 	args := StartArgs{
 		Worktree: Worktree(thread.StartingPath), Cwd: eligible.WorkingPath,
@@ -286,6 +326,30 @@ func (c *Couch) ResumeContext(ctx context.Context, address ThreadAddress) (Actor
 	return c.launchTrackedThread(trackedThreadLaunch{
 		Context: ctx,
 		Thread:  thread, Nonce: nonce, Args: args, StartedAt: startedAt,
-		ProfileRaw: profileRaw, Resume: true,
+		ProfileRaw: profileRaw, Resume: true, Warm: detached,
 	})
+}
+
+// confirmStillDetached re-proves a warm reattach's only precondition
+// immediately before any child effect: the zellij session it means to attach to
+// is still alive with no client.
+//
+// The cold path's equivalent is RequireNativeResumeBinding. Both exist for the
+// same reason -- the world can change between projecting a row and launching --
+// and each asks about the authority its own shape actually rests on.
+func (c *Couch) confirmStillDetached(ctx context.Context, address ThreadAddress, agent string) error {
+	resolver, ok := c.Artifacts.(DetachedSessionResolver)
+	if !ok {
+		return refuseResume(ResumeBindingUnbound, "detached sessions cannot be observed")
+	}
+	observed, err := resolver.DetachedSessions(ctx, []DetachedCandidate{{Address: address, Agent: agent}})
+	if err != nil {
+		return err
+	}
+	for _, observation := range observed {
+		if observation.Address == address && observation.SessionName != "" {
+			return nil
+		}
+	}
+	return refuseResume(ResumeSessionGone, "the detached session is no longer running")
 }

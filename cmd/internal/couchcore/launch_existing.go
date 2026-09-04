@@ -19,6 +19,9 @@ type trackedThreadLaunch struct {
 	ProfileRaw     string
 	UseRepoDefault bool
 	Resume         bool
+	// Warm marks a REATTACH: the agent is alive behind a client-less zellij
+	// session and Pair only has to attach to it.
+	Warm bool
 }
 
 // launchTrackedThread is the single post-claim launch path for both a newly
@@ -29,7 +32,25 @@ func (c *Couch) launchTrackedThread(in trackedThreadLaunch) (ActorRecord, Handle
 		ctx = context.Background()
 	}
 	thread := in.Thread
+	// A warm reattach sends NEITHER `--layout2` NOR a trusted resume profile,
+	// and both omissions are the fix rather than an oversight (#179).
+	//
+	// The profile carries ResumeRequired, which Pair honours only at a CREATE
+	// boundary (`createflow.go:238`) -- it exists to force `--resume <native
+	// id>` and skip a config picker, the two things a cold resume needs. A live
+	// session decides ATTACH, so sending that authority made Pair refuse the
+	// one path that would have worked. Without it, couch's child does exactly
+	// what the operator's own `pair resume <tag>` does, which is the behaviour
+	// they already rely on.
+	//
+	// `--layout2` is dropped for the same reason: a running session already has
+	// its layout, and asking for a different one sends Pair down a conflict
+	// path that offers to DELETE the live session -- destroying the agent this
+	// exists to preserve.
 	argv := []string{"pair", "resume", string(thread.Address.Tag), "--layout2"}
+	if in.Warm {
+		argv = []string{"pair", "resume", string(thread.Address.Tag)}
+	}
 	env := []string{
 		"COUCH_TREE=" + string(in.Args.Worktree),
 		"COUCH_STORE_DIR=" + c.Namespace.Dir(),
@@ -39,11 +60,13 @@ func (c *Couch) launchTrackedThread(in trackedThreadLaunch) (ActorRecord, Handle
 	if in.Resume {
 		env = append(env, "COUCH_THREAD_RESUME=1")
 	}
-	env = append(env,
-		launcher.CouchLaunchProfileEnv+"="+strings.TrimSpace(in.ProfileRaw),
-		"PAIR_USE_REPO_DEFAULT=",
-	)
-	if in.UseRepoDefault {
+	if !in.Warm {
+		env = append(env,
+			launcher.CouchLaunchProfileEnv+"="+strings.TrimSpace(in.ProfileRaw),
+			"PAIR_USE_REPO_DEFAULT=",
+		)
+	}
+	if in.UseRepoDefault && !in.Warm {
 		env[len(env)-1] = "PAIR_USE_REPO_DEFAULT=1"
 	}
 	h, err := c.Runner.StartBlocked(ctx, in.Args.WorkingDir(), argv, env, 10*time.Second)
