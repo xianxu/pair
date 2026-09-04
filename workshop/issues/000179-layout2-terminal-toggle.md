@@ -82,6 +82,13 @@ records how: query `are-floating-panes-visible`, then `show-floating-panes` /
 `toggle-floating-panes` opens a pane when none exists and so cannot express
 "show the one I already have".
 
+**Geometry: `alt+h`'s, verbatim.** `width "100%"`, `height "70%"`, `x "0"`,
+`y "15%"` (`config.kdl:167-170`) — operator-confirmed as the right size, so copy
+it rather than inventing one. It also leaves the workbench visible above and
+below, which is what makes this a quick check rather than a context switch;
+full-screen (`alt+l`'s `100%`x`100%`) would hide the agent the operator is
+checking *for*.
+
 **Reuse `pair term`, not a bare shell** — `layout3`'s pane is `exec pair term`
 (`main-3.kdl`), carrying resize watching, clip integration (`clipcmd`) and the
 pane-role plumbing (`termcmd/run.go:552`). A raw `sh` would be a second, subtly
@@ -171,3 +178,7 @@ The design question is no longer "how do we show a pane" — pair answered that
 three times already — but how the terminal shares the tab-wide floating
 visibility with the review pane. That is hazard 1, and it is the part worth
 thinking about before any code.
+
+Sizing settled the same day: `alt+h`'s geometry is already right
+(`100%`x`70%` at `y 15%`), so the terminal is not full-screen after all — the
+strip of workbench left visible is the point of a quick check.
