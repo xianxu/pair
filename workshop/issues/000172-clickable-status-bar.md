@@ -8,7 +8,7 @@ updated: 2026-09-02
 estimate_hours:
 ---
 
-# Clickable status bar switches to that actor
+# Mouse support: click the status bar and the switcher
 
 ## Problem
 
@@ -20,8 +20,18 @@ something already visible and already pointed at.
 
 ## Spec
 
-Clicking a chip on the reserved row switches to that actor. Clicking bare row
-does nothing.
+**Two surfaces, one mouse-mode owner.**
+
+**A. The reserved row.** Clicking a chip switches to that actor. Clicking bare
+row does nothing.
+
+**B. The switcher.** Single click selects a row; double click enters it —
+identical to pressing Return on that row. Clicking outside any row does
+nothing.
+
+The switcher is materially easier than the row: couch draws the whole panel and
+no child is attached, so there is no forward-versus-swallow question there. The
+mode ownership below is about the attached-child case only.
 
 **1. The row renderer publishes chip spans.** `RenderStatusRow(width, m)`
 returns the column range of each chip alongside the string it already returns.
@@ -39,7 +49,24 @@ click reporting (`?1000`), **not** motion tracking (`?1002`/`?1003`): motion
 reports arrive at pointer-movement rates and this feature needs human click
 rates (`ARCH-CONSTRAINTS`).
 
-**3. The real work is mode ownership, and it does not exist yet.** Mouse
+**3. Double click, and why the timing window is acceptable here.** This project
+rejected double-ESC precisely because a double-tap needs a timing window that
+either delays every legitimate single press or forwards one it cannot retract.
+The difference that makes double-click fine: **the single press has a harmless
+meaning.** A too-slow second click merely re-selects the row it already
+selected; a mis-timed ESC changed a mode or cancelled a turn. So the window
+never has to be right, only reasonable — put the threshold in a named constant
+rather than a literal, and let a slow double-click degrade to two selects.
+
+Note a deliberate inconsistency with the workbench: pair's insert-mode
+`<LeftMouse>` handler (`nvim/init.lua:3571`) computes the target index and
+**selects and confirms in one click** inside the completion popup. The switcher
+does not, because its Enter switches the operator's terminal — a misfire there
+is disruptive in a way that picking a completion is not. Reuse that handler's
+geometry approach (hit-test rows against the drawn box), not its one-click
+semantics.
+
+**4. The real work is mode ownership, and it does not exist yet.** Mouse
 reporting is a terminal-global mode, not a per-region one, so:
 
 - If the child never enabled tracking, the terminal sends nothing and couch
@@ -66,6 +93,14 @@ by default.
 
 - Clicking a chip attaches to that actor; clicking empty row space does
   nothing.
+- In the switcher, a single click selects the clicked row and does not enter it;
+  a double click enters it, taking exactly the path Return takes — asserted
+  against the same handler, not a parallel one (`ARCH-DRY`).
+- A double click slower than the threshold degrades to two selects, never to a
+  half-action.
+- Row hit-testing is a pure function of the rendered menu and the click
+  coordinates, unit-tested with no terminal, including clicks outside every row
+  and on a scrolled/clipped list.
 - Column-to-actor is unit-tested against the same render pass, including a
   width narrow enough to clip chips and one narrow enough to drop them.
 - A child that never enabled mouse tracking receives **zero** mouse bytes while
@@ -80,6 +115,8 @@ by default.
 
 - [ ] Chip spans out of `RenderStatusRow` + pure column-to-actor mapping, with
       clipping tests.
+- [ ] Row spans out of the menu renderer + pure point-to-row mapping.
+- [ ] Switcher click/double-click, routed into the existing Return handler.
 - [ ] Child mouse-mode tracking in the console: observe the child's DECSET/DECRST
       for the mouse modes, hold the state, restore on attach/detach.
 - [ ] Enable `?1000;?1006` for couch; route last-row reports to couch and
@@ -97,3 +134,14 @@ Raised while working through what the status row should carry. Depends on
 `pair#170` only for the switch semantics: a click is a *manual* switch, so it
 re-pins `previous` — it must not be treated as notification handling even when
 the chip clicked is the one showing a notification.
+
+### 2026-09-03
+
+Scope extended by the operator to the switcher: click selects, double click
+enters. Kept in this issue rather than split, because the mouse-mode ownership
+in (4) is the expensive half and both surfaces need it.
+
+The switcher half is the cheaper one and could land first: couch owns the whole
+panel with no child attached, so it needs the decoding and the hit-test but not
+the forward-versus-swallow arbitration. Worth sequencing that way if the row
+turns out to be as fiddly as `#139` suggests terminal input usually is.
