@@ -195,7 +195,7 @@ gate `#147` and `#148` respectively; `#145` and `#146` do not depend on them.
 - [x] one honest inventory: every thread gets a row and a reason [pair#181]
 - [x] total classification, no shell-side filtering [pair#181 M1]
 - [x] warm reattach: get back into a detached session [pair#181 M2]
-- [x] archive as the only exit, plus the startup and path rules [pair#181 M3]
+- [ ] archive as the only exit, plus the startup and path rules [pair#181 M3]
 - [ ] relaunch an actor: restart Pair, keep the conversation [pair#182]
 - [-] reattach a detached thread without the cold binding [pair#179 — absorbed by pair#181 M2]
 - [-] retire finished threads into an archive [pair#180 — absorbed by pair#181 M3]
@@ -235,6 +235,74 @@ the record), ordered startup selection `detached -> parked -> recent`, enforced
 one thread per repo path, and labelled rows by directory rather than opaque tag.
 
 Absorbs `pair#179` (M2) and `pair#180` (M3).
+
+<a id="pair-181-m1"></a>
+### pair#181 M1 — total classification, no shell-side filtering
+
+**est:** 8.64 (whole issue)
+**closed:** 2026-09-03
+**actual:** 0.85h
+
+The switcher showed 4 rows over a store of 13 and `couch --list` showed all 13,
+with nothing reconciling them. `ClassifyThread` is now one total rule over
+`(record, evidence)`: every record gets a state, and an unusable one always
+carries a reason from a closed vocabulary. The accepting branches are a
+byte-for-byte transcription of the projector they replace, pinned by a
+characterization test, so the milestone provably changed only the refusals. The
+surprise worth preserving is `ProofStatus`: a total classifier that cannot say
+"we could not ask" converts one failed zellij query into an assertion that every
+detached session is gone — and `session-gone` is a reason retirement acts on, so
+a transient subprocess failure would have become a path to archiving live
+sessions. Measured on the operator store: 13 rows, 2 live, 1 stale incarnation,
+1 detached, 1 parked, 8 binding-lost.
+
+<a id="pair-181-m2"></a>
+### pair#181 M2 — warm reattach: get back into a detached session
+
+**est:** 8.64 (whole issue)
+**closed:** 2026-09-03
+**actual:** 0.9h
+
+Reattaching a running agent needed three sites to agree that reattaching is not
+resuming: the native session id is the COLD path's proof, and a warm reattach
+relaunches nothing. The decisive correction came from the operator asking why it
+was not just a zellij command. It is — `AttachExistingSession` is env, a title
+poller and `zellij attach` — and couch was blocked only because it SENT
+`ResumeRequired`, an authority Pair honours at a create boundary. An earlier
+design threaded a `ResumeMode` through Pair's launch profile and had to defend
+two hazards inside its attach branch; both were artifacts of that design, and
+the shipped fix touches `launcher/` not at all. Also load-bearing: relaxing
+`DecideResume` alone would not have worked, because `ResolveEstablished` refuses
+a provisional binding earlier. Absorbs `pair#179`.
+
+<a id="pair-181-m3"></a>
+### pair#181 M3 — archive as the only exit, plus the startup and path rules
+
+**est:** 8.64 (whole issue)
+**closed:** 2026-09-04
+**actual:** 2.4h
+
+Replaced the planned retirement predicate with an `archive` action on the
+operator's instruction — an operator action beats a rule guessing what is
+finished — and made it a complete delete: stop the session, then move the record
+in one journal entry. Park cannot do the stopping (it needs a live incarnation,
+which the debris this exists for does not have), so the mechanism is `Quiesce` a
+layer down. Also landed: startup ranks `detached → parked → recent`, reversing a
+selector that documented its refusal to rank and was a ratchet — two resumable
+rows at one path created a third, which is how one repo reached six threads; one
+thread per path is enforced at the single site every creation entry funnels
+through; rows read as their directory rather than an opaque tag. The one-time
+cleanup archived 10 threads and left three live, one per repo.
+
+The milestone is also the clearest instance of a review earning its cost. It
+returned REWORK because the headline action never worked: `Tab → archive`
+dispatched `{repo-scope, tag}` while the executor read `ref`, and a green test
+sat on each side of that seam without one crossing it. Behind it, an undecodable
+record failed the WHOLE inventory while `invalid` was a documented, labelled,
+archive-exit reason no real store could produce — the fixture had six shapes and
+no invalid one because `CreateThread` cannot build that shape. Three of the five
+findings were rules rather than sites and are in `workshop/lessons.md`. Absorbs
+`pair#180`, which shipped as an action rather than the predicate it specified.
 
 <a id="pair-182"></a>
 ### pair#182 — relaunch an actor: restart Pair, keep the conversation
@@ -1277,5 +1345,8 @@ a typed operation cannot accidentally grow the public CLI (`ARCH-PURPOSE`,
 
 [pair#155 M1]: #pair-155-m1
 [pair#155 M2]: #pair-155-m2
+[pair#181 M1]: #pair-181-m1
+[pair#181 M2]: #pair-181-m2
+[pair#181 M3]: #pair-181-m3
 [pair#151 M1]: #pair-151-m1
 [pair#151 M2]: #pair-151-m2

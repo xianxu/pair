@@ -117,6 +117,32 @@ Open, to settle in design:
 
 ## Log
 
+### 2026-09-03 — shipped as pair#181 M3, as an action rather than a predicate
+
+Absorbed rather than worked separately, and deliberately narrowed.
+
+This issue specified a `DecideRetirement` predicate over the reason vocabulary,
+plus a `couch prune` verb. Neither was built. The operator's instruction was to
+add a delete action instead -- "remove it from the system, so that we can start
+anew" -- and they were right: an operator action beats a rule guessing what is
+finished on their behalf, and the guessing was the retirement matrix.
+
+What shipped is `archive`: a declared operation, confirmed, offered on every row
+couch is not hosting, which stops the thread's session and then moves its record
+to `threadstore/archive/<scope>/<tag>.json` in one journal entry. `couch
+--archived` lists what was retired.
+
+Two things the Spec did not anticipate. Park cannot do the stopping -- it needs
+a live incarnation, which the debris this exists for does not have -- so the
+mechanism is `Artifacts.Quiesce` a layer down. And the record move alone leaves
+a running agent nothing tracks; the one-time cleanup produced exactly one such
+orphan before that was fixed.
+
+The Spec's premise was also overturned by measurement: it assumed the working
+set held finished threads to retire. It held recoverable ones. The operator
+judged them corrupted data and the one-time cleanup archived 10, leaving three
+live threads, one per repo.
+
 ### 2026-09-03
 
 - Filed from the operator's request to keep the hand-inspected store clean.

@@ -176,6 +176,30 @@ Open questions to settle in design, not here:
 
 ## Log
 
+### 2026-09-03 — shipped as pair#181 M2
+
+Absorbed rather than worked separately: this issue's design became pair#181's
+second milestone, and its code landed there.
+
+What shipped matches the Spec's split -- the native binding is the COLD path's
+proof and a warm reattach consumes it nowhere -- with one correction the Spec
+had wrong. It assumed the fix needed a `ResumeMode` threaded through Pair's
+`TrustedLaunchProfile`, `LaunchArgs` and a new boundary guard. The operator
+asked why reattaching was not just a zellij command, and the honest answer was
+that it is: `AttachExistingSession` is env, a title poller and `zellij attach`,
+and standalone `pair resume <tag>` already reaches it. couch was blocked only
+because it SENT `ResumeRequired`, an authority Pair honours at a create
+boundary. So the fix is couch declining to send it, and `launcher/` was not
+touched at all.
+
+Also corrected: relaxing `DecideResume` alone would never have reached the
+operator's thread, because `ResolveEstablished` refuses a provisional binding at
+`resume.go:212` before any decision is made.
+
+Verified on the real stack: `tools-couch-2` reattached with its ledger unchanged
+at 6 rows (Pair appends a launch row only on create, so no new row proves no
+relaunch) and its zellij session still the one created 8h56m earlier.
+
 ### 2026-09-03
 
 - Filed from pair#170 operator smoke. Evidence above is measured against the
