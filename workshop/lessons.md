@@ -3205,3 +3205,24 @@ that a key token appears cannot detect a contradictory behavioral sentence
   as "not established", and the branch meant to catch it becomes dead code
   because the fabricated value is checked first. Raise the real cause before
   interpreting a value the error already invalidated.
+- A value is not stale for reflecting the side effect of the operation still in
+  flight over it. Couch's relaunch parks before it resumes, so between the two
+  the thread it is acting on is not live BY ITS OWN DOING; the refresh judged
+  the operation's own confirmation frame by that liveness and discarded it under
+  "thread action is no longer applicable" over a relaunch that succeeded. When a
+  validity rule reads state an in-flight operation is itself changing, the
+  operation's RESULT is the authority for the window it owns — and scope the
+  exemption to that window, with a test that the rule still fires outside it.
+- An operator-facing refusal must name the cause the operator can act on, and one
+  message for N causes guarantees it does not. Four distinct binding statuses in
+  couch shared "native session binding is not one exact established root"; the
+  commonest was not a fault at all — a thread whose agent had not yet completed a
+  turn, which is the ORDINARY state of a session you just started and the refusal
+  the operation meets most. Derive the sentence from the same code that chose the
+  refusal, so a status cannot inherit another's explanation.
+- Before "fixing" a branch, run it and read what it does. The park/leave failure
+  branch named `restoreMenuPrefixPreservingStart` and looked like it restored a
+  confirmation; it truncates to the frame BELOW one, and relaunch's absence from
+  the list was deliberate. Deleting the list as a redundant hand-written case
+  would have shipped a regression as a cleanup. Probe first when a name and an
+  intent disagree.
