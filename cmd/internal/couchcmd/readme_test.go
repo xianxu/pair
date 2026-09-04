@@ -46,7 +46,7 @@ func TestM3DocsMatchActionableSwitcherInventoryProvider(t *testing.T) {
 	}{
 		{[]string{"atlas", "couch.md"}, "ordinary switcher reads the\nactionable projection"},
 		{[]string{"workshop", "projects", "couch.md"}, "hierarchical switcher the reachable Console UI over the\nproof-bearing actionable projection"},
-		{[]string{"README.md"}, "Unsupported or ambiguous lifecycle\nrecords stay available through `couch --list` / `couch --show` diagnostics"},
+		{[]string{"README.md"}, "`couch --list` / `couch --show` report the same population and the same states"},
 	}
 	for _, check := range checks {
 		if doc := repoDocument(t, check.path...); !strings.Contains(doc, check.want) {

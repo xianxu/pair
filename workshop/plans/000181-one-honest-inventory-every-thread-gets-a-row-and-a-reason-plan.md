@@ -200,7 +200,7 @@ different change cadence from the projector.
 - Modify: `cmd/internal/couchcore/actionableinventory.go:11-23` (state vocabulary), `:144-176` (`actionableThreadState` → `ClassifyThread` + `liveProofMatches`)
 - Test: `cmd/internal/couchcore/actionableinventory_test.go`
 
-- [ ] **Step 1: Write the failing test — the totality property**
+- [x] **Step 1: Write the failing test — the totality property**
 
 ```go
 type classifyCase struct {
@@ -249,12 +249,12 @@ func TestClassifyThreadAcceptsExactlyWhatTheOldProjectorAccepted(t *testing.T) {
 }
 ```
 
-- [ ] **Step 2: Run it to verify it fails**
+- [x] **Step 2: Run it to verify it fails**
 
 Run: `env -u PAIR_SESSION_ID -u PAIR_TAG go test ./cmd/internal/couchcore/ -run TestClassifyThread -v`
 Expected: FAIL — `undefined: ClassifyThread`
 
-- [ ] **Step 3: Write `ClassifyThread`, keeping every acceptance rule unchanged**
+- [x] **Step 3: Write `ClassifyThread`, keeping every acceptance rule unchanged**
 
 Branch order is preserved from `actionableThreadState:144-176`: reservation and
 park first, verified park second, detached third (**before** live, so a stale
@@ -342,12 +342,12 @@ func liveProofMatches(record ThreadRecord, observations []ProcessIdentity) bool 
 }
 ```
 
-- [ ] **Step 4: Run tests to verify they pass**
+- [x] **Step 4: Run tests to verify they pass**
 
 Run: `env -u PAIR_SESSION_ID -u PAIR_TAG go test ./cmd/internal/couchcore/ -count=1`
 Expected: PASS
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```bash
 git add cmd/internal/couchcore/threadreason.go cmd/internal/couchcore/threadreason_test.go \
@@ -361,7 +361,7 @@ git commit -m "#181 M1: couch: classification becomes total, and refusals get na
 - Modify: `cmd/internal/couchcore/actionableinventory.go:101-142` (`ProjectActionableThreads` signature), `:209-295` (`ActionableThreadInventoryContext`), `:206-207` (`ActionableThreadInventory`)
 - Test: `cmd/internal/couchcore/actionableinventory_test.go`
 
-- [ ] **Step 1: Write the failing test — the shell drops nothing**
+- [x] **Step 1: Write the failing test — the shell drops nothing**
 
 ```go
 // The regression this whole issue is: nine of thirteen records reached no row.
@@ -386,11 +386,11 @@ func TestInventoryEmitsOneRowPerManifestRecord(t *testing.T) {
 }
 ```
 
-- [ ] **Step 2: Run it to verify it fails**
+- [x] **Step 2: Run it to verify it fails**
 
 Expected: FAIL — `rows = 2, records = 7 -- the shell dropped 5`
 
-- [ ] **Step 3: Replace the filter cascade with an evidence pass**
+- [x] **Step 3: Replace the filter cascade with an evidence pass**
 
 Each refusal at `:228-272` becomes a field. The two cost bounds survive as
 *lazy resolution*, not filtering — note the guard reproduces today's conditions
@@ -457,7 +457,7 @@ Then fold the resolved proofs into the map before projecting, and change
 map[ThreadAddress]ThreadEvidence)`, emitting one row per record with
 `ClassifyThread`'s answer.
 
-- [ ] **Step 4: Run the whole suite, not just the three couch packages**
+- [x] **Step 4: Run the whole suite, not just the three couch packages**
 
 Run: `env -u PAIR_SESSION_ID -u PAIR_TAG go test ./cmd/... -count=1`
 Expected: PASS, except the tests that assert an unprovable record produces NO
@@ -468,7 +468,7 @@ outside the couch packages. **Convert each to assert the row's reason; do not
 delete them.** The fail-closed property becomes "not actionable", not
 "invisible", and that is exactly what those tests should now pin.
 
-- [ ] **Step 5: Pin the cost bounds with call counts**
+- [x] **Step 5: Pin the cost bounds with call counts**
 
 ```go
 // The bound that matters is per-record work, and no existing test or benchmark
@@ -490,7 +490,7 @@ func TestEvidencePassAsksOnlyAboutResumeShapedRecords(t *testing.T) {
 }
 ```
 
-- [ ] **Step 6: Commit**
+- [x] **Step 6: Commit**
 
 ```bash
 git commit -am "#181 M1: couch: the IO shell gathers evidence and decides nothing"
@@ -502,7 +502,7 @@ git commit -am "#181 M1: couch: the IO shell gathers evidence and decides nothin
 - Modify: `cmd/internal/couchtty/menu_render.go:295-298`, adding `rootStateText` in the same file
 - Test: `cmd/internal/couchtty/menu_render_test.go`
 
-- [ ] **Step 1: Write the failing tests**
+- [x] **Step 1: Write the failing tests**
 
 ```go
 func TestRootRowStateTextNamesEveryState(t *testing.T) {
@@ -540,10 +540,10 @@ func TestEveryReasonRendersADistinctLabel(t *testing.T) {
 }
 ```
 
-- [ ] **Step 2: Run — FAIL, `undefined: rootStateText`**
-- [ ] **Step 3: Implement, switching on state then reason, defaulting to the raw reason string so a new reason is legible before it is styled**
-- [ ] **Step 4: Run `env -u PAIR_SESSION_ID -u PAIR_TAG go test ./cmd/internal/couchtty/ -count=1`** — PASS
-- [ ] **Step 5: Commit**
+- [x] **Step 2: Run — FAIL, `undefined: rootStateText`**
+- [x] **Step 3: Implement, switching on state then reason, defaulting to the raw reason string so a new reason is legible before it is styled**
+- [x] **Step 4: Run `env -u PAIR_SESSION_ID -u PAIR_TAG go test ./cmd/internal/couchtty/ -count=1`** — PASS
+- [x] **Step 5: Commit**
 
 ### Task 4: Enter on an unusable row explains instead of doing nothing
 
@@ -556,7 +556,7 @@ between keystrokes. After M1 nothing vanishes until archive, so it should
 either narrow to the archive case or go; decide with the diff in hand and say
 which in the commit message.
 
-- [ ] **Step 1: Write the failing test**
+- [x] **Step 1: Write the failing test**
 
 ```go
 // Silence is what the operator reports as a bug. An unusable row explains
@@ -582,10 +582,10 @@ func TestUnusableRowOffersOnlyMetadataActions(t *testing.T) {
 }
 ```
 
-- [ ] **Step 2: Run — FAIL** (today Enter dispatches `switch` for a non-resumable row)
-- [ ] **Step 3: Implement**
-- [ ] **Step 4: Run the couchtty suite** — PASS
-- [ ] **Step 5: Commit**
+- [x] **Step 2: Run — FAIL** (today Enter dispatches `switch` for a non-resumable row)
+- [x] **Step 3: Implement**
+- [x] **Step 4: Run the couchtty suite** — PASS
+- [x] **Step 5: Commit**
 
 ### Task 5: One population — `couch --list` and the switcher agree
 
@@ -600,10 +600,10 @@ it supplies process liveness instead: an incarnation is live when `c.Proc`
 (`couch.go:27`) confirms the exact `{PID, Identity}` — the same recycled-PID
 defence the TTY proof gives.
 
-- [ ] **Step 1: Write the failing test** — over one store, `--list` and the
+- [x] **Step 1: Write the failing test** — over one store, `--list` and the
       switcher return the same set of addresses.
-- [ ] **Step 2: Run — FAIL** (different populations)
-- [ ] **Step 3: Implement** — `ThreadInventory` classifies through
+- [x] **Step 2: Run — FAIL** (different populations)
+- [x] **Step 3: Implement** — `ThreadInventory` classifies through
       `ClassifyThread`, supplying `Live` from `ProcOps` **and resolving the same
       parked/detached proofs the switcher does**. Passing a stub with no proofs
       would make every healthy park read `binding-lost` and every healthy detach
@@ -614,30 +614,30 @@ defence the TTY proof gives.
       stated here rather than discovered.
       Per-incarnation diagnostic lines stay; the *population* is identical by
       construction.
-- [ ] **Step 4: Run `env -u PAIR_SESSION_ID -u PAIR_TAG go test ./cmd/... -count=1`** — PASS
-- [ ] **Step 5: Commit**
+- [x] **Step 4: Run `env -u PAIR_SESSION_ID -u PAIR_TAG go test ./cmd/... -count=1`** — PASS
+- [x] **Step 5: Commit**
 
 ### Task 6: Docs, real-store measurement, close M1
 
 **Files:**
 - Modify: `atlas/couch.md`, `README.md:385-387`, `cmd/internal/couchcmd/readme_test.go:49`
 
-- [ ] **Step 1: Fix the pinned README sentence that M1 makes false.**
+- [x] **Step 1: Fix the pinned README sentence that M1 makes false.**
       `README.md:385-387` currently claims unsupported or ambiguous lifecycle
       records "stay available through `couch --list` / `couch --show`
       diagnostics rather than being mislabeled in the ordinary switcher" — the
       exact invariant M1 reverses. It is pinned as a required substring by
       `readme_test.go:49`, so the suite stays green while the doc lies. Update
       both together.
-- [ ] **Step 2: Update `atlas/couch.md`** — the projection is total, the reason
+- [x] **Step 2: Update `atlas/couch.md`** — the projection is total, the reason
       vocabulary and its exits, and the one-population rule.
-- [ ] **Step 3: Measure the real store.** Run the switcher against the
+- [x] **Step 3: Measure the real store.** Run the switcher against the
       operator's live store and record the row count. Expected **13 rows**, up
       from 4: 3 live (one reading `stale — couch exited unexpectedly`), 1
       detached, 1 parked, 8 `binding lost`. Record the actual counts in the
       issue Log; if they differ, the classifier is wrong, not the expectation.
-- [ ] **Step 4: `env -u PAIR_SESSION_ID -u PAIR_TAG make test`** — exit 0.
-- [ ] **Step 5: `sdlc milestone-close --issue 181 --milestone M1`**
+- [x] **Step 4: `env -u PAIR_SESSION_ID -u PAIR_TAG make test`** — exit 0.
+- [x] **Step 5: `sdlc milestone-close --issue 181 --milestone M1`**
 
 ---
 

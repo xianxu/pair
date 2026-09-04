@@ -585,11 +585,15 @@ func renderThreadRows(w io.Writer, threads []couchcore.ThreadSummary, includeAdd
 		if summary := thread.DisplaySummary(); summary != "" {
 			fmt.Fprintf(w, "%s  %s%s\n", open, summary, close)
 		}
+		// The RECORDED lifecycle, labelled as such. Beside the classified state
+		// below it, the pair is the diagnostic: "recorded live / stale" is a
+		// couch that exited without detaching, and reading the two lines
+		// together is how the operator sees that at a glance.
 		for _, incarnation := range thread.Incarnations {
 			if incarnation.PID > 0 {
-				fmt.Fprintf(w, "%s  %-14s pid %d%s\n", open, incarnation.State, incarnation.PID, close)
+				fmt.Fprintf(w, "%s  recorded: %-8s pid %d%s\n", open, incarnation.State, incarnation.PID, close)
 			} else {
-				fmt.Fprintf(w, "%s  %s%s\n", open, incarnation.State, close)
+				fmt.Fprintf(w, "%s  recorded: %s%s\n", open, incarnation.State, close)
 			}
 		}
 		// The classified state, from the same rule the switcher uses. This used

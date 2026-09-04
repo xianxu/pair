@@ -293,9 +293,22 @@ identity-owned spinner before dispatch, and stale completions cannot mutate a
 replacement frame.
 
 The ordinary row state is deliberately only `live` or `parked`; unsupported,
-ambiguous, legacy-unverified, and transitional records remain in `couch
-list/show` diagnostics instead of leaking lifecycle implementation states into
-the switcher. Ephemeral console targets bind only to durable proven-live rows,
+**The projection is TOTAL** (`pair#181`): every record in the manifest becomes a
+row, and `ClassifyThread` returns a state plus, when the row cannot be acted on,
+a `ThreadReason` from one closed vocabulary -- `binding-lost`,
+`stale-incarnation`, `unrecorded-child`, `session-gone`, `never-started`,
+`invalid`, `path-missing`, `profile-missing`, `unsupported-agent`, `unknown`.
+Failing closed is unchanged -- an unproved row is not actionable and startup
+never selects it -- but it is expressed as a state rather than as absence. The
+IO shell (`gatherThreadEvidence`) resolves evidence and decides nothing;
+`ThreadEvidence` carries a `ProofStatus` per question, so "we asked and the
+answer was no" and "we could not ask" are different answers. Without that
+distinction one failed zellij query would assert `session-gone` on every
+detached row, and `session-gone` is a reason retirement acts on. `couch --list`
+and `--show` classify through the same function over the same evidence, with
+OS-derived liveness in place of the console's pty proof, so one store cannot
+produce two stories. Ambiguous and legacy-unverified records now appear in both
+views, named rather than hidden. Ephemeral console targets bind only to durable proven-live rows,
 so a stale child handle cannot turn an inactive row's Enter into switch. If
 Park removes the final actor while the switcher owns focus, the console remains
 available for the refreshed resumable row. The two lifecycle chords read as a

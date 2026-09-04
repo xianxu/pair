@@ -382,9 +382,13 @@ cycle that menu, `Enter` accepts, and `Escape` closes it. With the menu closed,
 appear only after a leading dot; directory symlinks remain navigable. Colons and digits are
 ordinary filter text—there is no command namespace or numbered jump mode.
 Slow start/park/resume actions show local progress, and validation or operation
-failures remain in the switcher banner. Unsupported or ambiguous lifecycle
-records stay available through `couch --list` / `couch --show` diagnostics rather than being
-mislabeled in the ordinary switcher.
+failures remain in the switcher banner. Every thread in the store gets a row
+and says what it is: `live`, `detached`, `parked`, `parking…`, or a reason it
+cannot be entered — `binding lost — repairable`, `stale — couch exited
+unexpectedly`, `session gone`, and so on. Nothing is hidden for want of proof;
+`Enter` on a row it cannot act on explains instead of doing nothing, and
+`couch --list` / `couch --show` report the same population and the same states
+with more room to describe them.
 
 ## Command Usage
 

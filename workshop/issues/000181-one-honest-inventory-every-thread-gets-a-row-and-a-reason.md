@@ -205,7 +205,7 @@ rather than to the issue. In order:
 
 Plan doc to follow. Three review boundaries:
 
-- [ ] M1 -- one total inventory. State becomes total, the shell stops
+- [x] M1 -- one total inventory. State becomes total, the shell stops
       filtering, reasons render, detached gets its own label. No behaviour
       change to what is actionable; the nine hidden threads simply become
       visible with their reasons.
