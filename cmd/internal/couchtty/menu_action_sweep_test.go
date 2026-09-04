@@ -65,3 +65,38 @@ func TestEveryOfferedActionIsReachableFromEnter(t *testing.T) {
 		})
 	}
 }
+
+// The direction the plan actually asked for, and the one the sweep above cannot
+// give. Offered-implies-reachable catches "this row offers an action that does
+// nothing"; it is blind to "this operation is declared and no row offers it",
+// which is the failure the guard was written for. Both directions, so membership
+// has one source of truth (Operation.RowAction) instead of two lists that agree
+// until someone adds to one.
+func TestRowActionDeclarationsAndTheMenuAgreeInBothDirections(t *testing.T) {
+	offered := map[string]bool{}
+	for _, state := range []couchcore.ActionableThreadState{
+		couchcore.ThreadLive, couchcore.ThreadParked, couchcore.ThreadBusy, couchcore.ThreadUnusable,
+		couchcore.ThreadDetached,
+	} {
+		for _, action := range menuActionItems(couchcore.ActionableThreadSummary{
+			Address: menuAddress("brain"), WorkingPath: "/w/brain", Name: "brain", State: state,
+		}) {
+			offered[action] = true
+		}
+	}
+	declared := map[string]bool{}
+	for _, name := range couchcore.RowActions() {
+		declared[name] = true
+	}
+
+	for name := range declared {
+		if !offered[name] {
+			t.Errorf("%q declares RowAction but no row state offers it — declared and unreachable", name)
+		}
+	}
+	for name := range offered {
+		if !declared[name] {
+			t.Errorf("the switcher offers %q on a row, but it does not declare RowAction", name)
+		}
+	}
+}

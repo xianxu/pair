@@ -2,6 +2,7 @@ package couchtty
 
 import (
 	"errors"
+	"slices"
 	"strconv"
 	"strings"
 	"unicode/utf8"
@@ -27,6 +28,7 @@ var menuControls = []MenuControl{
 	{Keys: "Ctrl-Backspace", Action: "previous"},
 	{Keys: "Alt+d", Action: "detach this thread · all + leave couch here"},
 	{Keys: "Alt+x", Action: "park this thread · all + leave couch here"},
+	{Keys: "Alt+n", Action: "relaunch: new Pair binary, same conversation (Ctrl+Alt+n aliases it)"},
 	{Keys: "Escape", Action: "clear/back"},
 	{Keys: "Tab → archive", Action: "remove a thread from couch, keeping its record"},
 }
@@ -1071,7 +1073,30 @@ func unusableThreadNotice(thread couchcore.ActionableThreadSummary) string {
 	return string(thread.Reason)
 }
 
+// declaredRowActions filters a row's offer to what Operations() declares as a
+// row action.
+//
+// A test asserts the two agree in both directions and fails loudly, which is
+// where a mistake should be caught. This is the production half of the same
+// rule: the declaration decides membership, so the switcher cannot offer an
+// operation that does not exist as one. In a build where the test passes it
+// changes nothing -- which is the point, not an argument against it.
+func declaredRowActions(items []string) []string {
+	declared := couchcore.RowActions()
+	out := make([]string, 0, len(items))
+	for _, item := range items {
+		if slices.Contains(declared, item) {
+			out = append(out, item)
+		}
+	}
+	return out
+}
+
 func menuActionItems(thread couchcore.ActionableThreadSummary) []string {
+	return declaredRowActions(menuActionItemsForState(thread))
+}
+
+func menuActionItemsForState(thread couchcore.ActionableThreadSummary) []string {
 	if thread.State == couchcore.ThreadBusy {
 		// Something else is still acting on this thread. Offering archive here
 		// would file a record mid-park -- the store refuses it, so the offer is

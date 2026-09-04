@@ -100,6 +100,30 @@ type Operation struct {
 	Confirmation OperationConfirmation
 	Result       OperationResult
 	Presentation OperationPresentation
+	// RowAction declares that the switcher offers this operation on a thread
+	// row. It is membership only -- WHICH row states offer it stays in
+	// menuActionItems, because that is real UI policy a bool cannot carry --
+	// but membership now has one source instead of two.
+	//
+	// PresentationTUI is not the same question: switch, attach, leave and start
+	// are all TUI operations that no row offers.
+	RowAction bool
+}
+
+// RowActions is every operation the switcher offers on a thread row.
+//
+// The guard written to stop an operation shipping declared-but-unreachable read
+// menuActionItems, so it could only ever prove offered-implies-reachable -- the
+// converse of the failure it was written for. A hand-maintained list cannot
+// catch the addition that skips it; this is the list the test compares against.
+func RowActions() []string {
+	var names []string
+	for _, op := range Operations() {
+		if op.RowAction {
+			names = append(names, op.Name)
+		}
+	}
+	return names
 }
 
 // StartResult is what `start` returns before the caller waits on the child.
@@ -178,7 +202,7 @@ func Operations() []Operation {
 		{
 			Name: "name", Summary: "Give a work thread a short human name",
 			Execution: ExecuteDirectStore, Effect: EffectMetadata, Confirmation: ConfirmNone, Result: ResultThread,
-			Presentation: PresentationTUI,
+			Presentation: PresentationTUI, RowAction: true,
 			Args: []ArgSpec{
 				{Name: "ref", Summary: "thread tag, path, or existing name", Required: false},
 				{Name: "tag", Summary: "exact thread tag from trusted owner context", Implicit: true},
@@ -189,7 +213,7 @@ func Operations() []Operation {
 		{
 			Name: "describe", Summary: "Read or set a work thread's operator description",
 			Execution: ExecuteDirectStore, Effect: EffectMetadata, Confirmation: ConfirmNone, Result: ResultDescription,
-			Presentation: PresentationTUI,
+			Presentation: PresentationTUI, RowAction: true,
 			Args: []ArgSpec{
 				{Name: "ref", Summary: "thread tag, path, or name", Required: false},
 				{Name: "tag", Summary: "exact thread tag from trusted owner context", Implicit: true},
@@ -228,7 +252,7 @@ func Operations() []Operation {
 		{
 			Name: "park", Summary: "Fully quit a work thread after verified Pair cleanup",
 			Execution: ExecuteLiveOwner, Effect: EffectProcess, Confirmation: ConfirmRequired, Result: ResultThread,
-			Presentation: PresentationTUI,
+			Presentation: PresentationTUI, RowAction: true,
 			Args: []ArgSpec{
 				{Name: "ref", Summary: "thread tag, path, or name", Required: false},
 				{Name: "tag", Summary: "exact thread tag from trusted owner context", Implicit: true},
@@ -242,7 +266,7 @@ func Operations() []Operation {
 			// destroyed, so unlike park it needs no confirmation.
 			Name: "detach", Summary: "Stop a work thread's Pair client and leave its session running",
 			Execution: ExecuteLiveOwner, Effect: EffectProcess, Confirmation: ConfirmNone, Result: ResultThread,
-			Presentation: PresentationTUI,
+			Presentation: PresentationTUI, RowAction: true,
 			Args: []ArgSpec{
 				{Name: "ref", Summary: "thread tag, path, or name", Required: false},
 				{Name: "tag", Summary: "exact thread tag from trusted owner context", Implicit: true},
@@ -266,7 +290,7 @@ func Operations() []Operation {
 			// the console must adopt. Declaring ResultThread said otherwise and
 			// the declaration was simply false.
 			Execution: ExecuteLiveOwner, Effect: EffectProcess, Confirmation: ConfirmRequired, Result: ResultStart,
-			Presentation: PresentationTUI,
+			Presentation: PresentationTUI, RowAction: true,
 			Args: []ArgSpec{
 				{Name: "ref", Summary: "thread tag, path, or name", Required: false},
 				{Name: "tag", Summary: "exact thread tag from trusted owner context", Implicit: true},
@@ -281,7 +305,7 @@ func Operations() []Operation {
 			// kind of change that should not happen by a mistyped keystroke.
 			Name: "archive", Summary: "Remove a work thread from Couch, keeping its record in the archive",
 			Execution: ExecuteDirectStore, Effect: EffectMetadata, Confirmation: ConfirmRequired, Result: ResultThread,
-			Presentation: PresentationTUI,
+			Presentation: PresentationTUI, RowAction: true,
 			Args: []ArgSpec{
 				{Name: "ref", Summary: "thread tag, path, or name", Required: false},
 				{Name: "tag", Summary: "exact thread tag from trusted owner context", Implicit: true},
@@ -299,7 +323,7 @@ func Operations() []Operation {
 		{
 			Name: "resume", Summary: "Resume an exact verified-parked work thread",
 			Execution: ExecuteLiveOwner, Effect: EffectProcess, Confirmation: ConfirmNone, Result: ResultStart,
-			Presentation: PresentationTUI,
+			Presentation: PresentationTUI, RowAction: true,
 			Args: []ArgSpec{
 				{Name: "ref", Summary: "thread tag, path, or name", Required: false},
 				{Name: "tag", Summary: "exact thread tag from trusted owner context", Implicit: true},

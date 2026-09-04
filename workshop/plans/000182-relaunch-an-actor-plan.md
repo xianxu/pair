@@ -578,3 +578,35 @@ func TestAHoldingPaneSurvivesItsChildsExit(t *testing.T) {
 3. **`--layout2` on the relaunch resume** is settled: relaunch behaves exactly as
    an ordinary cold resume, which sends it. Recorded because diverging here is the
    one change that would reintroduce the `pair#181` M2 session-deleting hazard.
+
+## Revisions
+
+### 2026-09-04 — M2's holding surface moved to `pair#186`
+
+**Reason.** M1 shipped and was smoke-tested on the real stack; the branch was 111
+commits. Carrying a working feature behind an unstarted surface is how a branch
+becomes unreviewable, so the pane that outlives its child left with its
+consequences. See `pair#182`'s own `## Revisions` for the full split.
+
+**Delta against this document, stated because a plan that still describes moved
+work is a plan that lies to its next reader** (the close review found it
+unpropagated — `plan-record-lags-code`):
+
+- **M2's Core-concepts table is now `pair#186`'s, not this plan's.** `paneState`
+  and `RenderHoldingPane` in `cmd/internal/couchtty/holding.go` are DECLARED
+  HERE AND EXIST NOWHERE — no such file, no such symbols. Read those rows as
+  `pair#186`'s design sketch, not as this issue's inventory.
+- **Task 9** (a pane that outlives its child), **Task 10 Steps 1 and 2**
+  (`previous` not spent; no spurious child-exited notice), **Task 11**
+  (rebuilt-binary verification) and **Task 12 Step 1**'s key documentation all
+  moved to `pair#186`.
+- **Task 8** (chord interception) and **Task 10 Step 2b** (the reachability
+  sweep) SHIPPED here; their unticked boxes below are stale, and the sweep
+  landed in a stronger form than specified — see the next point.
+- **Task 10 Step 2b asked for the direction this plan did not get first.** It
+  specified walking `Operations()` to assert every switcher-reachable operation
+  is OFFERED; what shipped first walked `menuActionItems` asserting every
+  offered action is REACHABLE. Those are converses, and only the former catches
+  declared-but-unreachable — the exact failure the step was written for. Both
+  directions now exist, over a declared `Operation.RowAction`.
+

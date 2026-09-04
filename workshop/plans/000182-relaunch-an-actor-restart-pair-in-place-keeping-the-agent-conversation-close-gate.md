@@ -613,6 +613,109 @@ rounds:
           round: 8
       boundary: M1
       blocked: false
+    - "n": 9
+      timestamp: "2026-09-04T16:37:19-07:00"
+      agent: claude
+      dispose:
+        - id: BR-1
+          disposition: not-addressed
+          note: Plan envelope untouched; verified 15s CompletionTimeout (couch.go:119) + 5s resumeRegistrationTimeout (couch.go:107) = ~20s, not ~30s.
+          round: 9
+        - id: BR-6
+          disposition: not-addressed
+          note: relaunch_test.go still has five cases; agent-unsupported and profile-missing remain pinned only at CheckResumePreconditions.
+          round: 9
+        - id: BR-7
+          disposition: not-addressed
+          note: plan Task 1 Step 5 still unticked; the stale-estimate warning still contradicts the re-derived Estimate. Subsumed by the rule in the new plan-record-lags-code finding.
+          round: 9
+        - id: BR-9
+          disposition: not-addressed
+          note: manifest.go:524 unchanged, and threadreason.go:503 is a second offender; one sort assertion over the manifest lists closes the family.
+          round: 9
+        - id: BR-10
+          disposition: not-addressed
+          note: Instance fixed and revert-verified (deleting the arm reds the chord test), but no enumeration from InterceptorHit to a handler exists, and README:141 plus menuControls still carry no Alt+n row.
+          round: 9
+        - id: BR-22
+          disposition: addressed
+          note: refuseBinding is now the only binding-refusal constructor and is called from resume.go:211, resume.go:316 and artifactcollision_fake.go:126; the fake's wording is pinned by test.
+          round: 9
+        - id: BR-23
+          disposition: addressed
+          note: pumpStdin now loads c.trace under c.mu (console.go:1195-1200); no test pins it, which is inherent for a latent race.
+          round: 9
+      findings:
+        - id: BR-24
+          severity: Important
+          title: The pair#186 split was written into one artifact and propagated to none of its three consumers
+          detail: |-
+            2nd in this family, so the deliverable is the RULE: a scope change is not
+            recorded until every artifact restating the scope derives from or cites the
+            one entry that made it. Enumeration, all live: the plan doc has no
+            "## Revisions" at all and its M2 Core-concepts table still declares
+            paneState and RenderHoldingPane in couchtty/holding.go, none of which exist
+            anywhere in the tree, with Tasks 8/10/11/12 carrying unticked steps though
+            Task 8 and Step 2b shipped; workshop/projects/couch.md:201 still describes
+            M2 as "the gesture and a surface that outlives its child" and lists no
+            pair#186 row; the issue's "## Done when" still claims "the operator ends on
+            the same actor, not in the switcher" while console.go:1383-1387 sets
+            FocusPanel unconditionally and its own comment says why; and BR-7's stale
+            estimate warning still stands. Also: "## Plan" marks M2 [x] with no
+            Review-Verdict trailer and no "closed M2" log line in the range.
+          family: plan-record-lags-code
+          round: 9
+        - id: BR-25
+          severity: Important
+          title: Both guards written to catch this class read a hand-maintained list, so the new chord and the new operation walked past them
+          detail: |-
+            7th in this family. Do NOT fix these two sites -- the rule is: a guard whose
+            source is a hand-maintained list is a guard the next addition can skip; it
+            must derive from the table the production path consumes. (1)
+            TestREADMEDocumentsEveryPanelControl (couchcmd/readme_test.go:61) exists so
+            "adding a key to the UI makes this test fail until its documentation has a
+            home in README" -- it iterates menuControls (menu.go:19). Alt+n and
+            Ctrl+Alt+n went into knownSequences (keys.go:170-171) and never into
+            menuControls, so the guard could not fire and README.md:141 still tells the
+            operator Alt+n reloads pair in place in "any pane", which is false inside
+            couch. (2) TestEveryOfferedActionIsReachableFromEnter tests the CONVERSE of
+            plan Task 10 Step 2b: it walks menuActionItems asserting each offered action
+            is reachable, where the plan asked it to walk Operations() asserting each
+            switcher-reachable PresentationTUI operation is OFFERED. Offered-implies-
+            reachable cannot catch declared-but-unreachable, the exact failure it was
+            written for, and the issue's Plan line claims otherwise. Cheap fix: a
+            row-action field on Operation that menuActionItems derives membership from,
+            which also collapses several of the seven restatements still standing.
+          family: declared-source-hand-maintained-consumers
+          round: 9
+        - id: BR-26
+          severity: Minor
+          title: onRelaunchHotkey's panel branch is production code with no test, and the Done-when bullet it serves is unpinned
+          detail: |-
+            2nd in this family, so the rule rather than the site: the enumeration IS the
+            Done-when list -- every bullet the issue still claims must cite the test
+            that pins it or the Revisions line that moved it. console.go:1378-1380
+            (panel focus takes the highlighted row) is never exercised; only the
+            actor-focus branch is driven by console_relaunch_chord_test.go. Done-when
+            "Alt+n on the switcher relaunches the highlighted row and leaves the
+            operator in the switcher" and plan Task 10 Step 3's "two tests, because the
+            endings differ" are both unmet.
+          family: done-when-untested
+          round: 9
+        - id: BR-27
+          severity: Minor
+          title: The gate handed this round the whole 111-commit branch, including three other issues' already-closed work
+          detail: |-
+            2nd in this family (BR-11 was the empty variant of the same rule). Base
+            88fe1de is the branch point, so the window is 164 files and +24177/-4669
+            spanning pair#170, pair#181 and pair#185, each of which already passed its
+            own close gate with its own review doc in this very diff. The window should
+            be the un-reviewed span: M1's close at b7ec5e64, or at most the first #182
+            commit. I reviewed b18f958e..HEAD for the code, which is #182 plus the
+            #183/#184/#185/#186 issue-sync commits.
+          family: review-window-degenerate
+          round: 9
+      blocked: true
 ---
 
 # Gate ledger — pair#182 (boundary-review)
@@ -980,6 +1083,70 @@ later rounds disposed of them. Generated — edit the gate, not this file.
   under `make test-race` (go test -race ./cmd/...), not reproducible today.
   Read it under c.mu in pumpStdin, or hold the tracer in an atomic.Pointer.
 
+## Round 9 — 2026-09-04T16:37:19-07:00 (claude) — BLOCKED
+
+### Disposed
+
+- BR-1 — not-addressed — Plan envelope untouched; verified 15s CompletionTimeout (couch.go:119) + 5s resumeRegistrationTimeout (couch.go:107) = ~20s, not ~30s.
+- BR-6 — not-addressed — relaunch_test.go still has five cases; agent-unsupported and profile-missing remain pinned only at CheckResumePreconditions.
+- BR-7 — not-addressed — plan Task 1 Step 5 still unticked; the stale-estimate warning still contradicts the re-derived Estimate. Subsumed by the rule in the new plan-record-lags-code finding.
+- BR-9 — not-addressed — manifest.go:524 unchanged, and threadreason.go:503 is a second offender; one sort assertion over the manifest lists closes the family.
+- BR-10 — not-addressed — Instance fixed and revert-verified (deleting the arm reds the chord test), but no enumeration from InterceptorHit to a handler exists, and README:141 plus menuControls still carry no Alt+n row.
+- BR-22 — addressed — refuseBinding is now the only binding-refusal constructor and is called from resume.go:211, resume.go:316 and artifactcollision_fake.go:126; the fake's wording is pinned by test.
+- BR-23 — addressed — pumpStdin now loads c.trace under c.mu (console.go:1195-1200); no test pins it, which is inherent for a latent race.
+
+### Raised
+
+- **BR-24** [Important] `plan-record-lags-code` The pair#186 split was written into one artifact and propagated to none of its three consumers
+  2nd in this family, so the deliverable is the RULE: a scope change is not
+  recorded until every artifact restating the scope derives from or cites the
+  one entry that made it. Enumeration, all live: the plan doc has no
+  "## Revisions" at all and its M2 Core-concepts table still declares
+  paneState and RenderHoldingPane in couchtty/holding.go, none of which exist
+  anywhere in the tree, with Tasks 8/10/11/12 carrying unticked steps though
+  Task 8 and Step 2b shipped; workshop/projects/couch.md:201 still describes
+  M2 as "the gesture and a surface that outlives its child" and lists no
+  pair#186 row; the issue's "## Done when" still claims "the operator ends on
+  the same actor, not in the switcher" while console.go:1383-1387 sets
+  FocusPanel unconditionally and its own comment says why; and BR-7's stale
+  estimate warning still stands. Also: "## Plan" marks M2 [x] with no
+  Review-Verdict trailer and no "closed M2" log line in the range.
+- **BR-25** [Important] `declared-source-hand-maintained-consumers` Both guards written to catch this class read a hand-maintained list, so the new chord and the new operation walked past them
+  7th in this family. Do NOT fix these two sites -- the rule is: a guard whose
+  source is a hand-maintained list is a guard the next addition can skip; it
+  must derive from the table the production path consumes. (1)
+  TestREADMEDocumentsEveryPanelControl (couchcmd/readme_test.go:61) exists so
+  "adding a key to the UI makes this test fail until its documentation has a
+  home in README" -- it iterates menuControls (menu.go:19). Alt+n and
+  Ctrl+Alt+n went into knownSequences (keys.go:170-171) and never into
+  menuControls, so the guard could not fire and README.md:141 still tells the
+  operator Alt+n reloads pair in place in "any pane", which is false inside
+  couch. (2) TestEveryOfferedActionIsReachableFromEnter tests the CONVERSE of
+  plan Task 10 Step 2b: it walks menuActionItems asserting each offered action
+  is reachable, where the plan asked it to walk Operations() asserting each
+  switcher-reachable PresentationTUI operation is OFFERED. Offered-implies-
+  reachable cannot catch declared-but-unreachable, the exact failure it was
+  written for, and the issue's Plan line claims otherwise. Cheap fix: a
+  row-action field on Operation that menuActionItems derives membership from,
+  which also collapses several of the seven restatements still standing.
+- **BR-26** [Minor] `done-when-untested` onRelaunchHotkey's panel branch is production code with no test, and the Done-when bullet it serves is unpinned
+  2nd in this family, so the rule rather than the site: the enumeration IS the
+  Done-when list -- every bullet the issue still claims must cite the test
+  that pins it or the Revisions line that moved it. console.go:1378-1380
+  (panel focus takes the highlighted row) is never exercised; only the
+  actor-focus branch is driven by console_relaunch_chord_test.go. Done-when
+  "Alt+n on the switcher relaunches the highlighted row and leaves the
+  operator in the switcher" and plan Task 10 Step 3's "two tests, because the
+  endings differ" are both unmet.
+- **BR-27** [Minor] `review-window-degenerate` The gate handed this round the whole 111-commit branch, including three other issues' already-closed work
+  2nd in this family (BR-11 was the empty variant of the same rule). Base
+  88fe1de is the branch point, so the window is 164 files and +24177/-4669
+  spanning pair#170, pair#181 and pair#185, each of which already passed its
+  own close gate with its own review doc in this very diff. The window should
+  be the un-reviewed span: M1's close at b7ec5e64, or at most the first #182
+  commit. I reviewed b18f958e..HEAD for the code, which is #182 plus the
+  #183/#184/#185/#186 issue-sync commits.
+
 ## Open findings
 
 - **BR-1** [Minor] `operating-envelope` Two of the envelope's three durations name budgets that do not exist as constants
@@ -987,5 +1154,7 @@ later rounds disposed of them. Generated — edit the gate, not this file.
 - **BR-7** [Minor] `plan-record-lags-code` Task 1 Step 5 is unticked though committed, and the issue's stale-estimate warning contradicts the re-derived Estimate block
 - **BR-9** [Minor] `manifest-ordering` relaunch.go inserted out of alphabetical order in NonArtifactSources
 - **BR-10** [Important] `declared-source-hand-maintained-consumers` Alt+n is intercepted and then silently dropped: HitRelaunch has no arm in processInput's switch
-- **BR-22** [Important] `declared-source-hand-maintained-consumers` bindingRefusalDiagnostic has one consumer while the real resolver and its stateful fake still hand-write the sentence it replaced
-- **BR-23** [Minor] `field-read-outside-its-mutex` pumpStdin reads c.trace without c.mu while SetInputTrace and teardown write it under the lock
+- **BR-24** [Important] `plan-record-lags-code` The pair#186 split was written into one artifact and propagated to none of its three consumers
+- **BR-25** [Important] `declared-source-hand-maintained-consumers` Both guards written to catch this class read a hand-maintained list, so the new chord and the new operation walked past them
+- **BR-26** [Minor] `done-when-untested` onRelaunchHotkey's panel branch is production code with no test, and the Done-when bullet it serves is unpinned
+- **BR-27** [Minor] `review-window-degenerate` The gate handed this round the whole 111-commit branch, including three other issues' already-closed work

@@ -303,3 +303,39 @@ func TestRelaunchDoesNotPreMarkTheChildItJustAdopted(t *testing.T) {
 		t.Error("the child relaunch replaced was NOT marked, so its exit raises a spurious notice")
 	}
 }
+
+// The class BR-10 named, not the instance. alt+n shipped intercepted with no
+// arm in the dispatch switch: the bytes were consumed and nothing ran, silently,
+// while every Interceptor test stayed green because the Interceptor's half was
+// right. A switch cannot report the case it forgot; walking the enumeration can.
+func TestEveryInterceptedChordHasAHandler(t *testing.T) {
+	con := New(hostty.NewFakeHost(ptychild.Size{Rows: 24, Cols: 80}), nil)
+	t.Cleanup(con.Stop)
+	handlers := con.hitHandlers()
+
+	for _, hit := range AllInterceptorHits() {
+		if handlers[hit] == nil {
+			t.Errorf("InterceptorHit %d is intercepted but the console has no handler for it", hit)
+		}
+	}
+	if len(handlers) != len(AllInterceptorHits()) {
+		t.Errorf("handler table has %d entries for %d hits", len(handlers), len(AllInterceptorHits()))
+	}
+	// HitNone must have none: it is the absence of a hit, and a handler for it
+	// would invent an action for "nothing happened".
+	if handlers[HitNone] != nil {
+		t.Error("HitNone has a handler")
+	}
+	// And every sequence the Interceptor consumes must map to a hit in that
+	// enumeration, so a chord cannot be intercepted into a gap.
+	for _, sequence := range knownSequences {
+		if !sequence.kind.intercepts() {
+			continue
+		}
+		hit := sequence.kind.hit()
+		if handlers[hit] == nil {
+			t.Errorf("sequence %q is intercepted but maps to hit %d with no handler",
+				renderInputBytes(sequence.bytes), hit)
+		}
+	}
+}

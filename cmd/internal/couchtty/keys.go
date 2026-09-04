@@ -94,6 +94,21 @@ const (
 	HitRelaunch
 )
 
+// AllInterceptorHits is every hit the console must be able to act on.
+//
+// It exists so "the dispatch switch is exhaustive" can be CHECKED rather than
+// remembered. alt+n shipped once intercepted with no arm in that switch: the
+// bytes were consumed and the operation never ran, silently, and every
+// interceptor test stayed green because the Interceptor's half was correct. A
+// hand-written switch cannot report the case it forgot; this list is what a test
+// walks to prove one exists for each.
+//
+// HitNone is deliberately absent: it is the ABSENCE of a hit, and giving it a
+// handler would be inventing an action for "nothing happened".
+func AllInterceptorHits() []InterceptorHit {
+	return []InterceptorHit{HitSwitch, HitPark, HitPrevious, HitDetach, HitRelaunch}
+}
+
 // knownSequences is every multi-byte sequence the console must recognise in the
 // operator's input. Everything else is forwarded untouched -- couch does not
 // frame the child's keyboard.

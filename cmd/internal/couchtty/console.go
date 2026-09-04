@@ -628,21 +628,14 @@ func (c *Console) Run() int {
 			if hit == HitNone {
 				return
 			}
-			// Exhaustive on purpose. A `default: c.onHotkey()` would turn any
-			// hit the console does not yet handle into "open the switcher" --
-			// so the moment M2 registers alt+d, pressing it would silently open
-			// the switcher until someone remembered to touch this switch too.
-			switch hit {
-			case HitSwitch:
-				c.onHotkey()
-			case HitPark:
-				c.onParkHotkey()
-			case HitPrevious:
-				c.onPreviousHotkey()
-			case HitDetach:
-				c.onDetachHotkey()
-			case HitRelaunch:
-				c.onRelaunchHotkey()
+			// One table, walked by a test against AllInterceptorHits, rather
+			// than a switch whose exhaustiveness is a promise. A `default:
+			// c.onHotkey()` would turn an unhandled hit into "open the
+			// switcher"; a switch with no default drops it silently, which is
+			// what alt+n did on its first ship. Neither can report the case it
+			// is missing -- the table can.
+			if handle := c.hitHandlers()[hit]; handle != nil {
+				handle()
 			}
 			raw = rest
 		}
@@ -1455,6 +1448,21 @@ func (c *Console) runMenuOperation(effect MenuEffect) {
 	}})
 	if err != nil {
 		c.finishOperation(operationCompletion{key: key, name: effect.Operation, origin: origin, err: err})
+	}
+}
+
+// hitHandlers maps every intercepted chord to what the console does about it.
+//
+// A method rather than a package var because the handlers are bound to this
+// Console; the point is that the mapping is DATA a test can walk, not control
+// flow it can only execute.
+func (c *Console) hitHandlers() map[InterceptorHit]func() {
+	return map[InterceptorHit]func(){
+		HitSwitch:   c.onHotkey,
+		HitPark:     c.onParkHotkey,
+		HitPrevious: c.onPreviousHotkey,
+		HitDetach:   c.onDetachHotkey,
+		HitRelaunch: c.onRelaunchHotkey,
 	}
 }
 

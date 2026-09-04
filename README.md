@@ -138,7 +138,7 @@ one-line description can't carry.
 | **Shift+Alt+Backspace** | nvim (normal/insert) | Erase history, draft, and queue for this session to "start anew". |
 | **Alt+d** | any pane | Detach from the current session (re-attach later via `pair`). |
 | **Alt+x** | any pane | Full quit — kill the session and everything in it. The agent's session id is saved, so it's resumable via `pair resume <tag>`; before discarding the scrollback pair offers to **park** it for a later `pair continue`. |
-| **Alt+n** (or **Ctrl+Alt+n**) | any pane | Reload pair — re-launch with the same tag, agent, args, AND agent session. Ctrl+Alt+n is the macOS alias (Option+n is a dead-tilde composer on newer macOS); pressing Alt+n twice also works. |
+| **Alt+n** (or **Ctrl+Alt+n**) | any pane | Reload pair — re-launch with the same tag, agent, args, AND agent session. Ctrl+Alt+n is the macOS alias (Option+n is a dead-tilde composer on newer macOS); pressing Alt+n twice also works. **Inside couch this chord belongs to couch**, which relaunches the thread instead: same conversation, but a genuinely new Pair process running the current binary, which the in-place reload cannot give you (it re-enters the loop in the same process image, so a rebuilt Pair is not what comes back). |
 | **Shift+Alt+N** | any pane | Restart only the coding agent, with a new conversation. Pair, Zellij, the draft, and terminal tabs stay alive. |
 | **Alt+Shift+C** (or **Ctrl+Alt+c**) | any pane | Compact in place: distill this session into a `continuation` doc (folding in the parked draft), then reincarnate the tag with a clean conversation seeded from it. Scrollback is parked first as a recovery net. |
 

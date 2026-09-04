@@ -195,13 +195,16 @@ session goes away and comes back.
   says so, proved by test.
 - The thread address, its row, and its ledger identity are unchanged across a
   relaunch.
-- `Alt+n` and `Ctrl+Alt+n` inside a hosted actor relaunch that actor; the
-  operator ends on the same actor, not in the switcher.
+- `Alt+n` and `Ctrl+Alt+n` inside a hosted actor relaunch that actor. The
+  operator ends **in the switcher**, not on the actor: `onRelaunchHotkey` sets
+  `FocusPanel` deliberately, because until a pane can outlive its child there is
+  no actor surface to stay on — the child is being replaced. Ending on the actor
+  is `pair#186`'s Done-when, and this bullet claimed it while the code said
+  otherwise.
 - `Alt+Shift+N` still reaches the hosted Pair and restarts only the agent.
 - `Alt+n` on the switcher relaunches the highlighted row and leaves the
   operator in the switcher.
-- The pane shows `relaunching <thread>…` with a live spinner for the whole gap,
-  and the operator is never shown a blank screen.
+- (moved to `pair#186`) The pane shows `relaunching <thread>…` for the whole gap.
 - A relaunch does not change what `ctrl+backspace` returns to, proved by test.
 - A relaunch produces no child-exited notice.
 
@@ -300,12 +303,10 @@ drivable.
       rather than `Enter`); a test for the SUCCESS path, which is the thing being
       built; the declared operation dispatched through the one thread-addressing
       dialect.
-- [x] M2 — the gesture. `Alt+n` and `Ctrl+Alt+n` intercepted before the child
-      sees them, with `Alt+Shift+N` left to Pair; and the six-site sweep that
-      makes the declared operation actually reachable (`menuActionItems` and five
-      others; the M1 review found the plan asserting declaration alone was
-      enough), landed as `TestEveryOfferedActionIsReachableFromEnter`.
-      **The holding surface moved to `pair#186`** — see `## Revisions`.
+- [x] The gesture — NOT a milestone; see `## Revisions`. `Alt+n` and
+      `Ctrl+Alt+n` intercepted before the child sees them, with `Alt+Shift+N`
+      left to Pair; and the reachability guard in both directions over a declared
+      `Operation.RowAction`. **The holding surface moved to `pair#186`.**
 ## Log
 
 ### 2026-09-03
@@ -365,14 +366,19 @@ was rewritten:
   of a spurious child-exited notice.
 - `## Plan` gains M2. M1 is untouched.
 
-**⚠ The estimate is now stale.** `estimate_hours: 6.20` was derived at
-`change-code` against the switcher-action-only scope, and its `tui-screen` line
-covers "the switcher action, its confirmation, and the two-phase progress
-notice" — not chord interception, not a pane that outlives its child. The
-estimate and `workshop/plans/000182-relaunch-an-actor-plan.md` both need a pass
-before M2 starts. Deliberately NOT re-derived here: the plan cleared
-plan-quality on the old scope, and re-costing without re-planning would produce
-a number with nothing behind it.
+**⚠ The estimate was stale, and is now resolved by the split (2026-09-04).**
+`estimate_hours: 6.20` was derived at `change-code` against the
+switcher-action-only scope; its `tui-screen` line covers "the switcher action,
+its confirmation, and the two-phase progress notice" — not chord interception,
+and not a pane that outlives its child. This warning then stood unresolved while
+the scope it warned about was moved out, which is the state the close review
+called out.
+
+Resolution: the pane that outlives its child left for `pair#186`, which carries
+its own estimate. What remained here beyond the original scope is chord
+interception, which the actual is measured against rather than re-costed —
+re-deriving an estimate after the work is done produces a number with nothing
+behind it, which is the same reason it was not re-derived at the time.
 
 **Provenance.** Authored from a brain advisor session, not from the
 implementation session that owns this branch. The two collided: this file was
@@ -442,6 +448,16 @@ one issue tidy.
 - MOVED to `pair#186` — the pane that outlives its child, the two consequences
   that hang off it (`previous` not spent, no spurious child-exited notice), the
   key documentation, and the rebuilt-binary verification.
+
+**M2 loses its `Mx` tag.** An `Mx` row is a review BOUNDARY that commits to its
+own `sdlc milestone-close` — a `Review-Verdict:` trailer and a `closed Mx` log
+line. With the holding surface gone, what remained has no boundary of its own:
+it shipped inside this issue's own review rounds, and I had ticked the row by
+hand with no verdict behind it, which the close review caught. Faking the
+milestone-close after the fact would put a boundary marker on a boundary that
+never happened, so the row becomes a plain checkbox instead. AGENTS.md §3 says
+this directly: tag `Mx` only for work with ≥2 boundaries you will genuinely
+close separately.
 
 **What this issue therefore claims.** Relaunch exists as one operation, reachable
 by chord and from the switcher, whose design is the order of its checks: every

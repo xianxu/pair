@@ -3316,3 +3316,23 @@ that a key token appears cannot detect a contradictory behavioral sentence
   one way it reaches the operator's eye (writeOwn can defer the paint). Neither
   had a live instance — which is exactly the sentence to write, because a
   stronger claim tells the next reader not to look.
+- A guard proves the direction you wrote, not the direction you meant. couch's
+  sweep walked `menuActionItems` asserting every OFFERED action is reachable,
+  where the plan asked it to walk `Operations()` asserting every declared
+  operation is OFFERED. Those are converses: offered-implies-reachable is blind
+  to declared-but-unreachable, the exact failure the guard existed for. When a
+  guard is meant to close a class, write both directions and name which failure
+  each catches.
+- A scope change is not recorded until every artifact that RESTATES the scope
+  cites the entry that changed it. Splitting pair#182's holding surface into
+  pair#186 landed in the issue's `## Revisions` and nowhere else: the plan doc
+  still declared entities in a file that does not exist, the project file still
+  described the old milestone, and a `## Done when` bullet still claimed
+  behaviour the code contradicted. Enumerate the consumers — plan, project,
+  roadmap, Done-when, estimate note — as part of making the change, not after a
+  reviewer finds them.
+- Do not hand-tick an `Mx` row. An `Mx` is a review boundary that owes a
+  `Review-Verdict:` trailer and a `closed Mx` log line; ticking it without one
+  puts a boundary marker where no boundary happened. If the work no longer has
+  its own boundary, drop the tag — that is the honest edit, not a retroactive
+  milestone-close.
