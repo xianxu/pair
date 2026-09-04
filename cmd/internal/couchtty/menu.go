@@ -1244,9 +1244,19 @@ func reconcileMenuFrames(state MenuState, previous ...[]couchcore.ActionableThre
 			// Archive is the exception to the live requirement: it is the
 			// action FOR rows that are not live, so demanding liveness would
 			// drop its confirmation on the next refresh.
+			//
+			// So is a frame whose OWN operation is still in flight, and that one
+			// was found by an operator watching a relaunch succeed. Relaunch
+			// parks before it resumes, so the thread it is acting on is briefly
+			// not live BY ITS OWN DOING; a refresh landing in that window judged
+			// the confirmation stale and reported "thread action is no longer
+			// applicable" over an operation that went on to work. The in-flight
+			// operation's own result is the authority on whether its frame
+			// survives -- not a liveness reading it is itself changing.
+			operationInFlight := state.InFlight.Operation != "" && state.InFlight.Address == frame.Thread
 			if (bound != (couchcore.ThreadAddress{}) && bound != frame.Thread) ||
 				(frame.Action != "park" && frame.Action != "leave" && frame.Action != "archive" && frame.Action != "relaunch") ||
-				(frame.Action != "archive" && !thread.Live()) {
+				(frame.Action != "archive" && !operationInFlight && !thread.Live()) {
 				invalidThreadFrame = true
 				state.Notice = errorMenuNotice("thread action is no longer applicable")
 				continue
