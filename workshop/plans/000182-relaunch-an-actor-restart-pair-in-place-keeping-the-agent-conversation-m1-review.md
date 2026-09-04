@@ -197,3 +197,152 @@ findings:
       artifactpath/manifest.go:524 places it between pathops.go and procops.go.
       Nothing enforces the order; noted so the next insert does not compound it.
 ```
+
+---
+
+## Re-review — 2026-09-04T11:04:55-07:00 (FIX-THEN-SHIP)
+
+| field | value |
+|-------|-------|
+| issue | 182 — Relaunch an actor: restart Pair in place, keeping the agent conversation |
+| repo | pair |
+| issue file | workshop/issues/000182-relaunch-an-actor-restart-pair-in-place-keeping-the-agent-conversation.md |
+| boundary | milestone M1 |
+| milestone | M1 |
+| window | 4a7d96e2df70b9ad0fea2482bc2dc3d6f1816637..4a7d96e2df70b9ad0fea2482bc2dc3d6f1816637 |
+| command | sdlc milestone-close --issue 182 --milestone M1 |
+| reviewer | claude |
+| timestamp | 2026-09-04T11:04:55-07:00 |
+| verdict | FIX-THEN-SHIP |
+
+## Review
+
+```verdict
+verdict: FIX-THEN-SHIP
+confidence: high
+```
+
+The M1 deliverable itself is sound and well-pinned: `CheckResumePreconditions` is a genuinely pure predicate whose agreement with `DecideResume` is asserted over nine record shapes without IO, `Couch.Relaunch` raises every visible refusal before the destructive park, all four outcomes have tests, and `atlas/couch.md` carries the outcome table. Two of the four claimed fixes I verified by reverting them in a scratch worktree — both went red, so BR-2 and BR-3 are real. **BR-4 is not addressed**: `resumeEvidence` was created but has exactly one caller (`relaunch.go:99`), `ResumeContext` still derives the same three facts itself with a different nil-Path policy, and the helper's own doc comment asserts a sharing that does not exist at HEAD — the "fix reads as protection while consolidating nothing" case the checklist exists to catch. One new Important: the M2 key-layer commit `4821dda3` landed inside this round's range and makes `Alt+n` a dead key — the interceptor returns `HitRelaunch` and `processInput`'s switch has no arm for it, so the chord is stolen from the hosted Pair and dropped silently. Nothing is Critical; none of this blocks the boundary once disposed.
+
+**A note on the window itself:** the pinned range was `4a7d96e2..4a7d96e2` — base equals head, so every recipe returned an empty diff. I reviewed `9acfd8e5..4a7d96e2` instead (the prior round's `Review-Window:` trailer records `88fe1de0..9acfd8e5`), which is what brought commit `4821dda3` into scope. Full `go test ./cmd/...` cannot be verified here: every failure is a pty-spawn `operation not permitted` from this agent environment, matching the known limitation; the couchcore/couchtty logic tests pass.
+
+## 1. Strengths
+
+- `cmd/internal/couchcore/precondition_test.go:89` — `TestResumePreconditionsMatchDecideResumeOnAPostParkRecord` asserts the *agreement* between the extracted predicate and `DecideResume` on a post-park transform, over nine shapes, and the `asParked` helper deliberately avoids `cloneThreadRecord` because `cloneArgv` would repair the "incomplete profile" case into a false agreement. That comment is the difference between a test and a real one.
+- `cmd/internal/couchcore/relaunch_test.go:159-174` — the refusal test's core assertion is "nothing was destroyed" (no lifecycle trace, no triggered quits, revision unchanged), not "it refused". The post-setup baseline (`before`, line 143) instead of "still live" is correct: the not-running case's setup *is* removing the incarnations.
+- `cmd/internal/couchcore/relaunch_test.go:259` — `TestRelaunchProceedsWhenOnlyPairsCleanupFailed` pins a genuinely non-obvious boundary (a `CleanupAttempt` failure lands in `ParkResult.CleanupError` with the park returning nil), and the comment records that it was found by asserting the opposite.
+- `cmd/internal/couchcore/relaunch_test.go:364` — the dispatch-seam test runs through `DispatchOperation` with production executors and its comment records that a `couchcmd`-level attempt passed for a reason unrelated to what it claimed. That is the honest version of the pair#181 M3 `Tab → archive` lesson.
+- `cmd/internal/couchtty/keys.go:255` — replacing `FeedHit`'s hand-written kind list with `kind.intercepts()` is the right generalisation, and the comment naming it "the third copy proving the point" is the kind of note that stops the fourth.
+
+## 2. Critical findings
+
+None.
+
+## 3. Important findings
+
+**I-1 — `HitRelaunch` is intercepted and then dropped; `Alt+n` is a dead key inside couch.** `cmd/internal/couchtty/keys.go:94` declares it and `keys.go:255` intercepts it, but `console.go:601-610`'s switch has arms only for `HitSwitch`/`HitPark`/`HitPrevious`/`HitDetach` and no `default`. So the chord is consumed off the child's input stream and falls through with no effect, no notice, and no way for the operator to tell it from a wedged terminal. Before `4821dda3` it reached Pair and did the in-place reload; README.md:141 still documents that behaviour and `menu.go:19` `menuControls` has no `Alt+n` row.
+
+> **This is the 2nd finding in family `declared-source-hand-maintained-consumers`.** Do NOT fix this instance. The rule: **a value the interceptor can emit must reach a handler by construction, not by a hand-maintained switch.** `intercepts()` and `hit()` derive; `processInput`'s switch (console.go:603-610) and the legacy branches at `keys.go:234,237` do not — three per-hit sites remain after the commit that claimed to close the class. Write the enumeration: a test that walks every `seqKind` through `hit()` plus the legacy branches and asserts each non-`HitNone` value routes to a console handler, so a declared-but-undispatched chord cannot ship. Fold this into the plan's Step 2b, which already commits to the operation-side enumeration — the two are the same rule at two seams.
+
+**I-2 — see BR-4's `not-addressed` disposition below.** The consolidation the prior round asked for was not delivered; the helper has one caller and `ResumeContext` still carries the parallel derivation.
+
+## 4. Minor findings
+
+- `relaunch.go:96-110` — the binding is resolved before `CheckResumePreconditions` runs, so a thread with a missing profile still pays a `QuerySessionContext` scan. Harmless (the precedence is correct — the profile checks refuse first), but the ordering is the reverse of "cheapest refusal first".
+- `menu.go:1320` `operationNeedsProjectionRefresh` already fail-safes to `true`, so its row in the plan's six-site table is a no-op site. Worth marking as such so the M2 sweep does not report six changes when five are real.
+- `cmd/internal/couchcmd/run.go:556` — the CLI renderer's `default` arm would print a `RelaunchResult` as a Go struct dump. Unreachable today (`ExecuteLiveOwner` refuses first, as the seam test's comment records), but it is one routing change away.
+
+## 5. Test coverage notes
+
+- The four-outcome design exists so consumers switch on `Outcome` instead of parsing errors; `operation_queue.go:69` and `finishOperation` (console.go:1321-1327) do carry `value` alongside `err`, so partial results survive — but nothing pins that. The dispatch-seam test covers only the success path. One case asserting a `ParkedNotResumed` result reaches the caller through `DispatchOperation` *alongside* its error would make the contract enforced rather than observed.
+- No test pins the nil-Path policy `resumeEvidence`'s doc comment states. Setting `c.Path = nil` and asserting `ResumePathMissing` would be two lines and would make the comment true.
+- ARCH-MOCK passes cleanly: `FakeThreadArtifactCollisionChecker.ResolveEstablished` (artifactcollision_fake.go:116-127) mirrors `SessionInventoryNativeBindingResolver`'s contract exactly, returning the resolution alongside a typed `ResumeRefusal`. `erroringBindingArtifacts` (relaunch_test.go:390) models the real IO failure faithfully — a zero resolution plus an untyped error — which is why the BR-2 revert test is meaningful.
+
+## 6. Architectural notes
+
+- **ARCH-DRY — flag.** Two live instances: the `resumeEvidence` non-consolidation (BR-4) and the per-hit dispatch enumeration (I-1). Both are the same shape: a helper or predicate introduced as the single source, with a consumer left hand-maintained beside it.
+- **ARCH-PURE — pass.** `CheckResumePreconditions`, `bindingResumeDiagnostic`, `isBindingDiagnostic`, `hasOccupiedIncarnation` are pure and tested without IO. `resumeEvidence` is correctly the IO seam and correctly a method on `*Couch`. `Couch.Relaunch` is thin glue over injected `PairLifecycle` + `Artifacts`.
+- **ARCH-PURPOSE — flag (I-1).** The shadow-sweep on `Operations()` as a declared source: BR-5's plan correction enumerates the six operation-side consumers, which is the right answer. But the same round shipped a *seventh* hand-maintained consumer class at the hit layer, and shipped it half-wired. The class is "declaration sites whose consumers do not derive," and it now has two enumerations, only one of which is written down.
+- **ARCH-MOCK — pass.** Both halves of relaunch run against the stateful `pairlifecycletest.Fake` and the artifact fake through the same seams production uses; `conformance_live_test.go` exists for the live check.
+- **ARCH-CONSTRAINTS — flag (BR-1, unchanged).** Verified against the code: `couch.go:119` is the 15s `CompletionTimeout`, `couch.go:107` sets `resumeRegistrationTimeout` to 5s. The plan's "5s exact-child-death wait" is not a separate budget (child death is awaited *inside* the 15s window, `park.go:549-556`) and the "10s blocked-start acknowledgement" is 5s. Worst case ~20s, not ~30s. Over-budgeting, so no decision changes — but M2's spinner copy will be written against these numbers.
+- **ARCH-SECURE — pass.** `validateThreadAddress` parses at the boundary; `hasOccupiedIncarnation` handles the empty-incarnation record; the resolver-IO fix (BR-2) is precisely the "degrade visibly rather than substituting a fabricated value downstream code reads as evidence" rule, and it now does.
+
+## 7. Plan revision recommendations
+
+- **`## Revisions` — envelope correction.** Replace the ARCH-CONSTRAINTS paragraph (plan lines 32-37) with the measured budgets, each citing its constant: `PairLifecycleController.CompletionTimeout` 15s (`couch.go:119`, covering both the completion wait and the exact-child-death wait, `park.go:549-556`) and `resumeRegistrationTimeout` 5s (`couch.go:107`, consumed at `launch_existing.go:109-111`). Worst case ~20s.
+- **`## Revisions` — landed entities.** The M1 Core-concepts table never gained `resumeEvidence`, `hasOccupiedIncarnation`, or `ResumeNotRunning`, all of which shipped. pair#181 M3 recorded its unplanned entities this way; do the same.
+- **Tick what landed.** Plan line 159 (Task 1 Step 5) and lines 472/476 (Task 8 Steps 1 and 2-5) are unchecked although `e7c6c6e8` and `4821dda3` landed them; `milestone-close`'s plan-unchecked guard will refuse on line 159.
+- **Issue `## Revisions`.** Drop or amend "⚠ The estimate is now stale" — `## Estimate` has since been re-derived for the grown scope (3.58 → 6.20) and `estimate_hours: 6.20` matches it. The warning now contradicts the block above it.
+- **Step 2b.** Extend it from the six operation sites to the hit-dispatch enumeration as well (see I-1), so one task owns the whole rule.
+
+```findings
+dispose:
+  - id: BR-1
+    disposition: not-addressed
+    note: |
+      Plan lines 32-37 unchanged; couch.go:119 is the 15s CompletionTimeout and couch.go:107 sets resumeRegistrationTimeout to 5s, so ~20s worst case, not ~30s.
+  - id: BR-2
+    disposition: addressed
+    note: |
+      Verified by revert: replacing the bindingErr guard with `_ = bindingErr` turns "the resolver itself fails" red with resume-binding-unbound.
+  - id: BR-3
+    disposition: addressed
+    note: |
+      Verified by revert: deleting the hasOccupiedIncarnation gate turns "the thread is not running at all" red with resume-live.
+  - id: BR-4
+    disposition: not-addressed
+    note: |
+      resumeEvidence has ONE caller (relaunch.go:99); ResumeContext (resume.go:298-321) still derives pathExists, the NativeBindingResolver assert and agent itself, with a different nil-Path policy, and the helper's "Shared because" comment is false at HEAD.
+  - id: BR-5
+    disposition: addressed
+    note: |
+      Plan now carries the six-site table plus Step 2b, and the issue's M2 bullet names the sweep; I verified all six sites exist. Delivery is M2's.
+  - id: BR-6
+    disposition: not-addressed
+    note: |
+      relaunch_test.go still has five cases; no agent-unsupported or profile-missing case reaches Relaunch.
+  - id: BR-7
+    disposition: not-addressed
+    note: |
+      Plan:159 still unticked, and now Task 8's steps (472/476) too though 4821dda3 landed them; the stale-estimate warning still contradicts the re-derived block; the M1 table never gained resumeEvidence / hasOccupiedIncarnation / ResumeNotRunning.
+  - id: BR-8
+    disposition: not-addressed
+    note: |
+      relaunch.go:42-46 unchanged. finishOperation does carry value alongside err, so the third arm is still what M2 must add.
+  - id: BR-9
+    disposition: not-addressed
+    note: |
+      manifest.go:524 still places relaunch.go between pathops.go and procops.go.
+findings:
+  - id: new
+    severity: Important
+    family: declared-source-hand-maintained-consumers
+    title: |
+      Alt+n is intercepted and then silently dropped: HitRelaunch has no arm in processInput's switch
+    detail: |
+      2nd finding in this family, so the deliverable is the RULE, not this site.
+      keys.go:94 declares HitRelaunch and keys.go:255 intercepts both chords, but
+      console.go:603-610 handles only Switch/Park/Previous/Detach and has no
+      default -- so the chord is consumed off the child's input stream and does
+      nothing. Before 4821dda3 it reached Pair and reloaded the workbench;
+      README.md:141 still documents that, and menu.go:19 menuControls has no
+      Alt+n row. Rule: a value the interceptor can emit must reach a handler by
+      construction. Three per-hit sites still enumerate by hand (console.go's
+      switch, keys.go:234, keys.go:237) after the commit that claimed to close
+      the class. Write the enumeration -- a test walking every seqKind through
+      hit() plus the legacy branches, asserting each non-HitNone value routes --
+      and fold it into Step 2b, which already owns the operation-side half of the
+      same rule. ARCH-DRY, ARCH-PURPOSE.
+  - id: new
+    severity: Minor
+    family: review-window-degenerate
+    title: |
+      The gate handed this round a base == head window, so every diff recipe returned empty
+    detail: |
+      base and head were both 4a7d96e2, so stat, name-status and full diff were
+      all empty and a reviewer following the recipes literally would have had
+      nothing to inspect. I reviewed 9acfd8e5..4a7d96e2 instead, derived from the
+      prior round's `Review-Window: 88fe1de0..9acfd8e5` trailer -- which is what
+      brought the unreviewed commit 4821dda3 into scope. Worth a look at how the
+      boundary computes BASE_SHA when the previous round's fix commit is HEAD.
+```

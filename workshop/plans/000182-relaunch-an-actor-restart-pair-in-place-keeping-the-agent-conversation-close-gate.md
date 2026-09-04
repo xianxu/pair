@@ -132,6 +132,80 @@ rounds:
           round: 2
       boundary: M1
       blocked: true
+    - "n": 3
+      timestamp: "2026-09-04T11:04:55-07:00"
+      agent: claude
+      dispose:
+        - id: BR-1
+          disposition: not-addressed
+          note: Plan lines 32-37 unchanged; couch.go:119 is the 15s CompletionTimeout and couch.go:107 sets resumeRegistrationTimeout to 5s, so ~20s worst case, not ~30s.
+          round: 3
+        - id: BR-2
+          disposition: addressed
+          note: 'Verified by revert: replacing the bindingErr guard with `_ = bindingErr` turns "the resolver itself fails" red with resume-binding-unbound.'
+          round: 3
+        - id: BR-3
+          disposition: addressed
+          note: 'Verified by revert: deleting the hasOccupiedIncarnation gate turns "the thread is not running at all" red with resume-live.'
+          round: 3
+        - id: BR-4
+          disposition: not-addressed
+          note: resumeEvidence has ONE caller (relaunch.go:99); ResumeContext (resume.go:298-321) still derives pathExists, the NativeBindingResolver assert and agent itself, with a different nil-Path policy, and the helper's "Shared because" comment is false at HEAD.
+          round: 3
+        - id: BR-5
+          disposition: addressed
+          note: Plan now carries the six-site table plus Step 2b, and the issue's M2 bullet names the sweep; I verified all six sites exist. Delivery is M2's.
+          round: 3
+        - id: BR-6
+          disposition: not-addressed
+          note: relaunch_test.go still has five cases; no agent-unsupported or profile-missing case reaches Relaunch.
+          round: 3
+        - id: BR-7
+          disposition: not-addressed
+          note: Plan:159 still unticked, and now Task 8's steps (472/476) too though 4821dda3 landed them; the stale-estimate warning still contradicts the re-derived block; the M1 table never gained resumeEvidence / hasOccupiedIncarnation / ResumeNotRunning.
+          round: 3
+        - id: BR-8
+          disposition: not-addressed
+          note: relaunch.go:42-46 unchanged. finishOperation does carry value alongside err, so the third arm is still what M2 must add.
+          round: 3
+        - id: BR-9
+          disposition: not-addressed
+          note: manifest.go:524 still places relaunch.go between pathops.go and procops.go.
+          round: 3
+      findings:
+        - id: BR-10
+          severity: Important
+          title: 'Alt+n is intercepted and then silently dropped: HitRelaunch has no arm in processInput''s switch'
+          detail: |-
+            2nd finding in this family, so the deliverable is the RULE, not this site.
+            keys.go:94 declares HitRelaunch and keys.go:255 intercepts both chords, but
+            console.go:603-610 handles only Switch/Park/Previous/Detach and has no
+            default -- so the chord is consumed off the child's input stream and does
+            nothing. Before 4821dda3 it reached Pair and reloaded the workbench;
+            README.md:141 still documents that, and menu.go:19 menuControls has no
+            Alt+n row. Rule: a value the interceptor can emit must reach a handler by
+            construction. Three per-hit sites still enumerate by hand (console.go's
+            switch, keys.go:234, keys.go:237) after the commit that claimed to close
+            the class. Write the enumeration -- a test walking every seqKind through
+            hit() plus the legacy branches, asserting each non-HitNone value routes --
+            and fold it into Step 2b, which already owns the operation-side half of the
+            same rule. ARCH-DRY, ARCH-PURPOSE.
+          family: declared-source-hand-maintained-consumers
+          round: 3
+        - id: BR-11
+          severity: Minor
+          title: The gate handed this round a base == head window, so every diff recipe returned empty
+          detail: |-
+            base and head were both 4a7d96e2, so stat, name-status and full diff were
+            all empty and a reviewer following the recipes literally would have had
+            nothing to inspect. I reviewed 9acfd8e5..4a7d96e2 instead, derived from the
+            prior round's `Review-Window: 88fe1de0..9acfd8e5` trailer -- which is what
+            brought the unreviewed commit 4821dda3 into scope. Worth a look at how the
+            boundary computes BASE_SHA when the previous round's fix commit is HEAD.
+          family: review-window-degenerate
+          round: 3
+      boundary: M1
+      blocked: true
 ---
 
 # Gate ledger — pair#182 (boundary-review)
@@ -220,14 +294,51 @@ later rounds disposed of them. Generated — edit the gate, not this file.
   artifactpath/manifest.go:524 places it between pathops.go and procops.go.
   Nothing enforces the order; noted so the next insert does not compound it.
 
+## Round 3 — 2026-09-04T11:04:55-07:00 (claude) — BLOCKED
+
+### Disposed
+
+- BR-1 — not-addressed — Plan lines 32-37 unchanged; couch.go:119 is the 15s CompletionTimeout and couch.go:107 sets resumeRegistrationTimeout to 5s, so ~20s worst case, not ~30s.
+- BR-2 — addressed — Verified by revert: replacing the bindingErr guard with `_ = bindingErr` turns "the resolver itself fails" red with resume-binding-unbound.
+- BR-3 — addressed — Verified by revert: deleting the hasOccupiedIncarnation gate turns "the thread is not running at all" red with resume-live.
+- BR-4 — not-addressed — resumeEvidence has ONE caller (relaunch.go:99); ResumeContext (resume.go:298-321) still derives pathExists, the NativeBindingResolver assert and agent itself, with a different nil-Path policy, and the helper's "Shared because" comment is false at HEAD.
+- BR-5 — addressed — Plan now carries the six-site table plus Step 2b, and the issue's M2 bullet names the sweep; I verified all six sites exist. Delivery is M2's.
+- BR-6 — not-addressed — relaunch_test.go still has five cases; no agent-unsupported or profile-missing case reaches Relaunch.
+- BR-7 — not-addressed — Plan:159 still unticked, and now Task 8's steps (472/476) too though 4821dda3 landed them; the stale-estimate warning still contradicts the re-derived block; the M1 table never gained resumeEvidence / hasOccupiedIncarnation / ResumeNotRunning.
+- BR-8 — not-addressed — relaunch.go:42-46 unchanged. finishOperation does carry value alongside err, so the third arm is still what M2 must add.
+- BR-9 — not-addressed — manifest.go:524 still places relaunch.go between pathops.go and procops.go.
+
+### Raised
+
+- **BR-10** [Important] `declared-source-hand-maintained-consumers` Alt+n is intercepted and then silently dropped: HitRelaunch has no arm in processInput's switch
+  2nd finding in this family, so the deliverable is the RULE, not this site.
+  keys.go:94 declares HitRelaunch and keys.go:255 intercepts both chords, but
+  console.go:603-610 handles only Switch/Park/Previous/Detach and has no
+  default -- so the chord is consumed off the child's input stream and does
+  nothing. Before 4821dda3 it reached Pair and reloaded the workbench;
+  README.md:141 still documents that, and menu.go:19 menuControls has no
+  Alt+n row. Rule: a value the interceptor can emit must reach a handler by
+  construction. Three per-hit sites still enumerate by hand (console.go's
+  switch, keys.go:234, keys.go:237) after the commit that claimed to close
+  the class. Write the enumeration -- a test walking every seqKind through
+  hit() plus the legacy branches, asserting each non-HitNone value routes --
+  and fold it into Step 2b, which already owns the operation-side half of the
+  same rule. ARCH-DRY, ARCH-PURPOSE.
+- **BR-11** [Minor] `review-window-degenerate` The gate handed this round a base == head window, so every diff recipe returned empty
+  base and head were both 4a7d96e2, so stat, name-status and full diff were
+  all empty and a reviewer following the recipes literally would have had
+  nothing to inspect. I reviewed 9acfd8e5..4a7d96e2 instead, derived from the
+  prior round's `Review-Window: 88fe1de0..9acfd8e5` trailer -- which is what
+  brought the unreviewed commit 4821dda3 into scope. Worth a look at how the
+  boundary computes BASE_SHA when the previous round's fix commit is HEAD.
+
 ## Open findings
 
 - **BR-1** [Minor] `operating-envelope` Two of the envelope's three durations name budgets that do not exist as constants
-- **BR-2** [Important] `swallowed-cause-fabricated-diagnostic` A resolver IO failure is reported as "binding is not established", and the branch meant to catch it is dead code
-- **BR-3** [Important] `refusal-names-no-next-action` Relaunch on a thread that is not running refuses with `resume-live` and names no next action
 - **BR-4** [Important] `parallel-derivation-drift` Resume's evidence-gathering preamble is re-derived in Relaunch, and the first copy already diverges
-- **BR-5** [Important] `declared-source-hand-maintained-consumers` The declared operation reaches no operator surface, and the plan asserts it does
 - **BR-6** [Minor] `done-when-untested` No Relaunch-level test for the agent-unsupported and profile-missing refusals
 - **BR-7** [Minor] `plan-record-lags-code` Task 1 Step 5 is unticked though committed, and the issue's stale-estimate warning contradicts the re-derived Estimate block
 - **BR-8** [Minor] `result-shape-forces-new-consumer-arm` RelaunchResult does not compose with finishOperation's existing ParkResult/StartResult arms
 - **BR-9** [Minor] `manifest-ordering` relaunch.go inserted out of alphabetical order in NonArtifactSources
+- **BR-10** [Important] `declared-source-hand-maintained-consumers` Alt+n is intercepted and then silently dropped: HitRelaunch has no arm in processInput's switch
+- **BR-11** [Minor] `review-window-degenerate` The gate handed this round a base == head window, so every diff recipe returned empty
