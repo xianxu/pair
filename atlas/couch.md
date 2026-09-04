@@ -292,7 +292,6 @@ the same declared operation surface. Each accepted slow action paints an
 identity-owned spinner before dispatch, and stale completions cannot mutate a
 replacement frame.
 
-The ordinary row state is deliberately only `live` or `parked`; unsupported,
 **The projection is TOTAL** (`pair#181`): every record in the manifest becomes a
 row, and `ClassifyThread` returns a state plus, when the row cannot be acted on,
 a `ThreadReason` from one closed vocabulary -- `binding-lost`,

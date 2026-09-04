@@ -67,3 +67,37 @@ func AllThreadReasons() []ThreadReason {
 		ReasonUnknown,
 	}
 }
+
+// Label is the operator's wording for a reason, and the single source of it.
+//
+// Three surfaces render these -- the switcher column, the switcher's Enter
+// notice and `couch --list` -- and only two had a guard, so the CLI printed raw
+// slugs while the switcher printed English. One switch, one guard, and a reason
+// added later cannot ship unlabelled anywhere.
+func (r ThreadReason) Label() string {
+	switch r {
+	case ReasonBindingLost:
+		return "binding lost — repairable"
+	case ReasonStaleIncarnation:
+		return "stale — couch exited unexpectedly"
+	case ReasonUnrecordedChild:
+		return "running but unrecorded"
+	case ReasonSessionGone:
+		return "session gone"
+	case ReasonNeverStarted:
+		return "never started"
+	case ReasonInvalid:
+		return "unreadable record"
+	case ReasonPathMissing:
+		return "path unavailable"
+	case ReasonProfileMissing:
+		return "no saved launch"
+	case ReasonAgentUnsupported:
+		return "unsupported agent"
+	case ReasonUnknown:
+		return "checking…"
+	}
+	// Legible beats silent: an unlabelled reason shows its slug rather than an
+	// empty column, and the vocabulary guard fails so it does not stay that way.
+	return string(r)
+}

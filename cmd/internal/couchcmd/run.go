@@ -574,8 +574,11 @@ func renderThreadRows(w io.Writer, threads []couchcore.ThreadSummary, includeAdd
 	}
 	dim, reset := dimCodes(w)
 	for _, thread := range threads {
+		// Dim by the CLASSIFIED state. Reading liveness from the incarnations
+		// here while the label came from the classifier printed a stale row
+		// undimmed above the words "stale — couch exited unexpectedly".
 		open, close := dim, reset
-		if thread.Live() {
+		if thread.State == couchcore.ThreadLive {
 			open, close = "", ""
 		}
 		fmt.Fprintf(w, "%s%-22s %s%s\n", open, thread.Label(), thread.WorkingPath, close)
@@ -618,7 +621,7 @@ func threadStateText(thread couchcore.ThreadSummary) string {
 	case couchcore.ThreadBusy:
 		return "parking in progress"
 	}
-	return "unusable: " + string(thread.Reason)
+	return "unusable: " + thread.Reason.Label()
 }
 
 // dimCodes returns ANSI dim/reset only when the destination is a real

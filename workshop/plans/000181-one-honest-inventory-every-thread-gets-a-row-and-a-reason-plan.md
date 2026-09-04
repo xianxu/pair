@@ -153,9 +153,8 @@ different change cadence from the projector.
   meanings, so `SelectUniqueResumableRoot` (`startup.go:29`) can never select an
   unusable row — verified: it filters on `Resumable()`.
 
-- **ActionableThreadSummary** — gains `Reason ThreadReason` and
-  `Incarnations []ThreadIncarnation`, the diagnostic detail `couch --list`
-  already prints, so both views can share one population (Task 5).
+- **ActionableThreadSummary** — gains `Reason ThreadReason`. (Superseded: the
+  plan also had it gain `Incarnations`; see Revisions.)
 
 - **rootStateText** — pure `func rootStateText(thread ActionableThreadSummary,
   now time.Time) string` for the right-hand column. Today `menu_render.go:295-298`
@@ -461,7 +460,7 @@ map[ThreadAddress]ThreadEvidence)`, emitting one row per record with
 
 Run: `env -u PAIR_SESSION_ID -u PAIR_TAG go test ./cmd/... -count=1`
 Expected: PASS, except the tests that assert an unprovable record produces NO
-row. 36 call sites across six files reference the projector or the inventory,
+row. 62 references across 15 files reach the projector or the inventory,
 including `couchcore/detachedsessions_test.go`, `couchcore/startup_test.go`,
 `couchcmd/readme_test.go` and `artifactpath/deadsymbols_test.go` — the last is
 outside the couch packages. **Convert each to assert the row's reason; do not
@@ -961,3 +960,46 @@ issue exists because the system already did that once by hiding rows.
 3. **Does the thread-health view become `couch doctor`?** The state × binding ×
    last-active table answered "why is this thread invisible" in one line. After
    M1 the switcher answers it, which may make the verb unnecessary.
+
+
+## Revisions
+
+### 2026-09-03 — M1 as shipped, and three claims corrected
+
+Reason: the M1 boundary review checked the plan against the tree and found the
+Core-concepts table describing a design that did not land, plus a reference
+count nobody had measured.
+
+Delta:
+
+- **`ActionableThreadSummary` does NOT gain `Incarnations`.** The plan had the
+  switcher row carry the diagnostic detail so both views could share one
+  population. What shipped instead gives `ThreadSummary` its own `State` and
+  `Reason` and deletes its `Parked` bool, so the two views share the
+  *classifier* rather than the row shape — the switcher row stays free of
+  lifecycle detail it does not render. M3's tables are written against the
+  shipped shape.
+- **The refactor's reach was stated without measuring it.** "36 call sites
+  across six files" appeared in the plan and twice in the issue; measured at
+  `c761b3cd` it is **62 references across 15 files**. It was the one line in
+  the estimate's risk section a reader could check, and it was wrong.
+- **`ReasonAgentUnsupported`'s value is `unsupported-agent`, not
+  `agent-unsupported`.** The obvious spelling contains the `agent-` artifact
+  family token, so `TestProductionArtifactReferencesAreExactlyClassified`
+  flagged the file. Renaming the value beat requesting an exemption; recorded
+  here because it had lived only in a commit message.
+- **Entities that landed and were not in the table:** `ProofStatus`,
+  `claimsLiveIncarnation`/`startInFlight`, `ThreadReason.Label`,
+  `gatherThreadEvidence`, `ObserveRecordedProcesses`, `ThreadInventoryContext`,
+  `BuildThreadInventory` (now takes evidence), `threadStateText`,
+  `menuThreadActionable`, `unusableThreadNotice`.
+- **Live proof is the union of both sources.** The plan had the console pass
+  its pty children and the CLI pass OS liveness. That let one store tell two
+  stories — a thread the console does not host reading `stale-incarnation`
+  while `--list` called it `live`. `gatherThreadEvidence` now unions both,
+  deduplicated, so the two views answer from one proof.
+- **A start in flight is `busy`, not stale.** `ClassifyThread` returned
+  `stale-incarnation` for any unhosted incarnation, which is the normal state
+  of every thread between `start` and Pair registration. A `creating`
+  incarnation whose process is still observable is `ThreadBusy`; one whose
+  process is gone is stale, which is what that word should mean.

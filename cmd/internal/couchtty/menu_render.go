@@ -282,39 +282,7 @@ func rootStateText(thread couchcore.ActionableThreadSummary, now time.Time) stri
 	case couchcore.ThreadBusy:
 		return "parking…"
 	}
-	return unusableReasonText(thread.Reason)
-}
-
-// unusableReasonText says what is wrong in the operator's terms, not the
-// projector's. The two recoverable reasons say so, because "lost" that reads as
-// "gone forever" is the wrong thing to tell someone whose agent is still
-// running.
-func unusableReasonText(reason couchcore.ThreadReason) string {
-	switch reason {
-	case couchcore.ReasonBindingLost:
-		return "binding lost — repairable"
-	case couchcore.ReasonStaleIncarnation:
-		return "stale — couch exited unexpectedly"
-	case couchcore.ReasonUnrecordedChild:
-		return "running but unrecorded"
-	case couchcore.ReasonSessionGone:
-		return "session gone"
-	case couchcore.ReasonNeverStarted:
-		return "never started"
-	case couchcore.ReasonInvalid:
-		return "unreadable record"
-	case couchcore.ReasonPathMissing:
-		return "path unavailable"
-	case couchcore.ReasonProfileMissing:
-		return "no saved launch"
-	case couchcore.ReasonAgentUnsupported:
-		return "unsupported agent"
-	case couchcore.ReasonUnknown:
-		return "checking…"
-	}
-	// A reason with no label is a vocabulary that outran this switch. Show it
-	// raw rather than an empty column: legible beats silent.
-	return string(reason)
+	return thread.Reason.Label()
 }
 
 func renderRootMenuFrame(state MenuState, frame MenuFrame, width, height int, now time.Time, color256 bool) []string {

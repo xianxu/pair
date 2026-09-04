@@ -200,6 +200,16 @@ func ClassifyThread(record ThreadRecord, evidence ThreadEvidence) (ActionableThr
 		if liveProofMatches(record, evidence.Live) {
 			return ThreadLive, ""
 		}
+		// A start in flight is not a crash. Between `start` and Pair
+		// registration an incarnation is `creating` and nothing hosts it yet --
+		// calling that "stale, couch exited unexpectedly" describes the normal
+		// path of every thread ever started. What separates it from a start
+		// that DIED is process evidence, not the recorded state: a creating
+		// incarnation whose process is gone is stale in exactly the way the
+		// word means.
+		if startInFlight(record, evidence.Live) {
+			return ThreadBusy, ""
+		}
 		return ThreadUnusable, ReasonStaleIncarnation
 	}
 	if len(evidence.Live) != 0 {
@@ -238,6 +248,22 @@ func ClassifyThread(record ThreadRecord, evidence ThreadEvidence) (ActionableThr
 	default:
 		return ThreadUnusable, ReasonSessionGone
 	}
+}
+
+// startInFlight reports a thread mid-start: an incarnation that does not yet
+// claim to be live, whose process the caller can still see.
+func startInFlight(record ThreadRecord, observations []ProcessIdentity) bool {
+	for _, incarnation := range record.Incarnations {
+		if incarnation.State == IncarnationLive {
+			continue
+		}
+		for _, observation := range observations {
+			if observation == (ProcessIdentity{PID: incarnation.PID, Identity: incarnation.Identity}) {
+				return true
+			}
+		}
+	}
+	return false
 }
 
 // liveProofMatches is the live rule, sitting beside the two proof matchers it
@@ -310,9 +336,31 @@ func (c *Couch) gatherThreadEvidence(ctx context.Context, observations []LiveTTY
 	if err != nil {
 		return ThreadSnapshot{}, nil, err
 	}
+	// Live proof is the UNION of what the caller can see: a console's own pty
+	// children, plus any recorded process the OS still vouches for. Keeping
+	// them separate is what let one store tell two stories -- the switcher
+	// calling a thread stale because it does not host it, while `couch --list`
+	// called the same thread live from the same records.
 	observed := make(map[ThreadAddress][]ProcessIdentity, len(observations))
+	seen := make(map[ThreadAddress]map[ProcessIdentity]bool, len(observations))
+	add := func(address ThreadAddress, process ProcessIdentity) {
+		if seen[address] == nil {
+			seen[address] = map[ProcessIdentity]bool{}
+		}
+		if seen[address][process] {
+			// Deduplicated on purpose: the live rule demands exactly one
+			// observation, so counting the same process through both proofs
+			// would classify a hosted thread as stale.
+			return
+		}
+		seen[address][process] = true
+		observed[address] = append(observed[address], process)
+	}
 	for _, observation := range observations {
-		observed[observation.Address] = append(observed[observation.Address], observation.Process)
+		add(observation.Address, observation.Process)
+	}
+	for _, observation := range c.ObserveRecordedProcesses(snapshot.Records) {
+		add(observation.Address, observation.Process)
 	}
 
 	evidence := make(map[ThreadAddress]ThreadEvidence, len(snapshot.Records))
@@ -450,7 +498,11 @@ func (c *Couch) ObserveRecordedProcesses(records []ThreadRecord) []LiveTTYObserv
 	var observations []LiveTTYObservation
 	for _, record := range records {
 		for _, incarnation := range record.Incarnations {
-			if incarnation.State != IncarnationLive || incarnation.PID <= 0 || incarnation.Identity == "" {
+			// Every recorded incarnation, not only the ones claiming to be
+			// live: a `creating` incarnation is what a start in flight looks
+			// like, and whether its process still exists is the difference
+			// between "starting" and "the start died".
+			if incarnation.PID <= 0 || incarnation.Identity == "" {
 				continue
 			}
 			if c.Proc.Exists(incarnation.PID) != Live {

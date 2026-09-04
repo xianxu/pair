@@ -89,11 +89,10 @@ func (c *Couch) ThreadInventoryContext(ctx context.Context) ([]ThreadSummary, er
 	if ctx == nil {
 		ctx = context.Background()
 	}
-	preview, err := c.Threads.Snapshot()
-	if err != nil {
-		return nil, err
-	}
-	snapshot, evidence, err := c.gatherThreadEvidence(ctx, c.ObserveRecordedProcesses(preview.Records))
+	// No observations to pass: gatherThreadEvidence derives OS liveness for
+	// every caller now, so the CLI and the console read the same proof and this
+	// no longer needs its own snapshot to build one from.
+	snapshot, evidence, err := c.gatherThreadEvidence(ctx, nil)
 	if err != nil {
 		return nil, err
 	}

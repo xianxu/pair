@@ -189,7 +189,7 @@ rather than to the issue. In order:
 **Known risks to this estimate:**
 
 - **M1's refactor is the widest surface.** `ProjectActionableThreads`'s
-  signature change reaches 36 call sites across six files, including one
+  signature change reaches 62 references across 15 files, including one
   (`artifactpath/deadsymbols_test.go`) outside the couch packages. One
   `cross-cutting-refactor` line at 0.20 impl is the least defensible number
   here; pair#155 is the precedent where a refactor of that shape ran ~1.8x its
@@ -205,7 +205,7 @@ rather than to the issue. In order:
 
 Plan doc to follow. Three review boundaries:
 
-- [ ] M1 -- one total inventory. State becomes total, the shell stops
+- [x] M1 -- one total inventory. State becomes total, the shell stops
       filtering, reasons render, detached gets its own label. No behaviour
       change to what is actionable; the nine hidden threads simply become
       visible with their reasons.
@@ -250,6 +250,7 @@ Delta:
 ## Log
 
 ### 2026-09-03
+- 2026-09-03: closed M1 — M1 (one total inventory) verified three ways. (1) Full `env -u PAIR_SESSION_ID -u PAIR_TAG make test` exits 0, zero FAIL lines. (2) Measured against the operator LIVE store via `couch --list`: 13 rows, up from 4 — 2 live proven through ProcOps, 1 stale-incarnation (record claims pid 67382, nothing hosts it — pair#171 shape now named), 1 detached correctly labelled detached rather than parked (tools-couch-2), 1 resumable park (parley), 8 binding-lost. pair-couch-24 reads binding-lost not session-gone: its zellij session WAS found alive and only the binding proof failed, which is pair#168 correctly named. (3) Properties pinned by test rather than by inspection: ClassifyThread total over 16 record shapes with a reason iff unusable; a characterization test proving the ACCEPTING branches are byte-identical to the old projector so M1 changed only refusals; rows==records identity over a store holding one record of every unusable shape (red first: rows = 1, records = 6, the shell dropped 5); both inventories agreeing on population, state and reason over one store; every reason rendering a distinct label and a distinct Enter explanation, iterated from AllThreadReasons since Go has no exhaustive-switch check; and a call-count guard on the cost bound that BenchmarkMenu100 could not see (it never reaches the inventory). Two defects the suite caught and kept: a detached row with an ambiguous binding became actionable and reached startup selection (M1 must not change what is actionable), and a couch that cannot observe sessions was asserting session-gone rather than unknown — the same class as the transient-failure case, one configuration down. actual: labeled judgment estimate, not measured — `sdlc actual --issue 181` reports no measurable activity though it works for #170, so the value is bounded by commit timestamps: 17:18 (plan committed) to 18:09 (docs), continuous TDD with no idle gap = 0.85h. The 16:38-17:18 design window belongs to the issue, not this milestone.; review verdict: FIX-THEN-SHIP
 
 - Filed to hold one design across pair#168, #171, #179 and #180 after the
   operator named the rule: everything in the directory is displayed, and

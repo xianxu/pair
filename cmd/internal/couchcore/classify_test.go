@@ -2,6 +2,7 @@ package couchcore
 
 import (
 	"context"
+	"errors"
 	"testing"
 	"time"
 
@@ -529,4 +530,86 @@ func TestBothInventoriesReportTheSamePopulationAndStates(t *testing.T) {
 				row.Address, row.State, row.Reason, states[row.Address], reasons[row.Address])
 		}
 	}
+}
+
+// detachedThreadStore is one record shaped exactly like the operator's
+// pair-couch-24: no incarnation, no verified park, a saved profile -- the only
+// shape that can be detached, and therefore the only one whose session question
+// can go unanswered.
+func detachedThreadStore(t *testing.T) (*ThreadStore, ThreadAddress) {
+	t.Helper()
+	store, _ := newTestThreadStore(t)
+	record := actionableTestThread("couch-0000000000000001", time.Unix(100, 0).UTC())
+	record.LatestLaunchProfile = &LaunchProfile{Agent: "claude", Argv: []string{}}
+	created, err := store.CreateThread(record)
+	if err != nil {
+		t.Fatal(err)
+	}
+	return store, created.Address
+}
+
+// The shell half of the absence-vs-negative rule, which lived only in the pure
+// layer: mutating `if detachErr == nil` to always-true produced no failure
+// anywhere in the suite. A failed session query must leave the question
+// UNRESOLVED -- asserting session-gone here hands retirement a reason to act on
+// because one subprocess call failed.
+func TestAFailedSessionQueryLeavesTheRowUnknownRatherThanGone(t *testing.T) {
+	store, address := detachedThreadStore(t)
+	artifacts := NewFakeThreadArtifactCollisionChecker()
+	artifacts.SetNativeBinding(address, "claude", sessioninventory.BindingEstablished, "native-root-1")
+	artifacts.DetachedSessionsHook = func([]ThreadAddress) error {
+		return errors.New("zellij is not answering")
+	}
+	couch := &Couch{Threads: store, Artifacts: artifacts, Path: NewFakePathOps(nil)}
+
+	rows, err := couch.ActionableThreadInventoryContext(context.Background(), nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(rows) != 1 {
+		t.Fatalf("rows = %+v, want one", rows)
+	}
+	if rows[0].State != ThreadUnusable || rows[0].Reason != ReasonUnknown {
+		t.Fatalf("row = %+v, want unusable/unknown -- a failed query is not evidence of absence", rows[0])
+	}
+}
+
+// The same rule one configuration down: a couch that cannot observe sessions at
+// all has not learned that they are gone.
+func TestACouchThatCannotObserveSessionsSaysUnknownRatherThanGone(t *testing.T) {
+	store, address := detachedThreadStore(t)
+	_ = address
+	artifacts := bindingOnlyArtifacts{binding: NativeBindingResolution{
+		Status: sessioninventory.BindingEstablished, NativeID: "native-root-1",
+	}}
+	couch := &Couch{Threads: store, Artifacts: artifacts, Path: NewFakePathOps(nil)}
+
+	rows, err := couch.ActionableThreadInventoryContext(context.Background(), nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(rows) != 1 || rows[0].State != ThreadUnusable || rows[0].Reason != ReasonUnknown {
+		t.Fatalf("rows = %+v, want one unusable/unknown", rows)
+	}
+}
+
+// bindingOnlyArtifacts resolves bindings but cannot observe sessions. It
+// implements ThreadArtifactController and NativeBindingResolver and NOTHING
+// else -- embedding the fake would inherit DetachedSessions and defeat the
+// point, which is the degraded shape the classifier must not mistake for an
+// answer.
+type bindingOnlyArtifacts struct {
+	binding NativeBindingResolution
+}
+
+func (bindingOnlyArtifacts) Claim(ThreadAddress) (ThreadArtifactClaim, error) {
+	return noopThreadArtifactClaim{}, nil
+}
+func (bindingOnlyArtifacts) Release(ThreadAddress) error { return nil }
+func (bindingOnlyArtifacts) Registration(ThreadAddress) (RegistrationEvidence, error) {
+	return RegistrationEstablished, nil
+}
+func (bindingOnlyArtifacts) Quiesce(ThreadAddress) error { return nil }
+func (b bindingOnlyArtifacts) ResolveEstablished(context.Context, string, string, string) (NativeBindingResolution, error) {
+	return b.binding, nil
 }

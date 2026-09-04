@@ -830,7 +830,7 @@ func TestListShowsANamedTreeWithNoAgent(t *testing.T) {
 	// row appears WITH a stated reason: a named tree the operator cannot enter
 	// must still say why, which is the whole of #181. The parked/detached
 	// wording has its own test below.
-	if !strings.Contains(out, "unusable: profile-missing") {
+	if !strings.Contains(out, "unusable: no saved launch") {
 		t.Fatalf("out = %q; a row that cannot be entered must state why", out)
 	}
 }

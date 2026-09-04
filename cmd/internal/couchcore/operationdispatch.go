@@ -133,17 +133,27 @@ func DirectStoreExecutor(c *Couch) OperationExecutor {
 			if err != nil {
 				return nil, err
 			}
-			// Show resolves the same evidence list does, so the two diagnostic
-			// views cannot disagree about one thread either.
-			ctx := call.Context
-			if ctx == nil {
-				ctx = context.Background()
-			}
-			_, evidence, err := c.gatherThreadEvidence(ctx, c.ObserveRecordedProcesses(matches))
+			// Show reads the same classified inventory list does and then
+			// narrows, rather than running its own evidence pass: a full-store
+			// pass to display one thread pays a zellij snapshot per --show, and
+			// projecting `matches` directly would skip the path
+			// physicalization list does -- the same field printed two ways by
+			// the two views this milestone unified.
+			rows, err := c.ThreadInventoryContext(call.Context)
 			if err != nil {
 				return nil, err
 			}
-			return BuildThreadInventory(matches, evidence), nil
+			wanted := make(map[ThreadAddress]bool, len(matches))
+			for _, match := range matches {
+				wanted[match.Address] = true
+			}
+			narrowed := make([]ThreadSummary, 0, len(matches))
+			for _, row := range rows {
+				if wanted[row.Address] {
+					narrowed = append(narrowed, row)
+				}
+			}
+			return narrowed, nil
 		case "name":
 			if err := requireOperationRepoScope(a); err != nil {
 				return nil, err
