@@ -391,6 +391,14 @@ func reduceRootKey(state MenuState, key PanelKey) (MenuState, []MenuEffect) {
 			state.Notice = errorMenuNotice("no selection")
 			return state, nil
 		}
+		// A row that cannot be acted on says why. Silence is what the operator
+		// reports as a bug, and dispatching a switch the console will refuse
+		// ("not attached to this console") reports the wrong layer -- the
+		// console's problem, not the thread's.
+		if !menuThreadActionable(thread) {
+			state.Notice = errorMenuNotice(thread.Label() + ": " + unusableThreadNotice(thread))
+			return state, nil
+		}
 		// Live rows switch; parked and detached rows both resume. Parked is
 		// cold and detached is warm, but the effect is one `pair resume` either
 		// way, so this asks Resumable() rather than enumerating states.
@@ -951,7 +959,54 @@ func startMenuEffect(frame MenuFrame) MenuEffect {
 	return MenuEffect{Operation: "start", Args: frame.PreviewResolution.CommitArgs()}
 }
 
+// menuThreadActionable is the one place the menu asks whether a row can be
+// acted on, so the Enter rule and the action list cannot disagree about it.
+func menuThreadActionable(thread couchcore.ActionableThreadSummary) bool {
+	switch thread.State {
+	case couchcore.ThreadLive, couchcore.ThreadParked, couchcore.ThreadDetached:
+		return true
+	}
+	return false
+}
+
+// unusableThreadNotice is what Enter says about a row it will not act on. It
+// separates the repairable cases from the finished ones, because "your agent is
+// still running, couch just lost the pointer" and "this is over" call for very
+// different reactions.
+func unusableThreadNotice(thread couchcore.ActionableThreadSummary) string {
+	switch thread.Reason {
+	case couchcore.ReasonBindingLost:
+		return "its resume binding was lost; the session may still be running (pair#168)"
+	case couchcore.ReasonStaleIncarnation:
+		return "couch exited without detaching it; its state needs reconciling (pair#171)"
+	case couchcore.ReasonUnrecordedChild:
+		return "a child is running that this thread's record does not know about"
+	case couchcore.ReasonSessionGone:
+		return "nothing left to resume"
+	case couchcore.ReasonNeverStarted:
+		return "it never started"
+	case couchcore.ReasonInvalid:
+		return "its record cannot be read"
+	case couchcore.ReasonPathMissing:
+		return "its working path is unavailable"
+	case couchcore.ReasonProfileMissing:
+		return "it has no saved launch to resume from"
+	case couchcore.ReasonAgentUnsupported:
+		return "its saved agent is not supported by this build"
+	case couchcore.ReasonUnknown:
+		return "couch could not check its state this refresh"
+	case "":
+		return "it is busy"
+	}
+	return string(thread.Reason)
+}
+
 func menuActionItems(thread couchcore.ActionableThreadSummary) []string {
+	if !menuThreadActionable(thread) {
+		// Metadata only. Naming a thread you cannot enter is still useful --
+		// it is how the operator marks what a lost row was for.
+		return []string{"name", "describe"}
+	}
 	if thread.Live() {
 		// Detach first: it is the safe, everyday gesture -- the agent keeps
 		// running and only the client goes. Park is destructive and sits

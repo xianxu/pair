@@ -377,3 +377,51 @@ func assertRenderedBounds(t *testing.T, rendered string, width, height int) {
 		}
 	}
 }
+
+func stateTextRow(state couchcore.ActionableThreadState, reason couchcore.ThreadReason, active time.Time) couchcore.ActionableThreadSummary {
+	return couchcore.ActionableThreadSummary{
+		Address: menuAddress("couch-one"), Name: "one", State: state, Reason: reason, LastActiveAt: active,
+	}
+}
+
+// The operator's own switcher labelled a DETACHED thread "parked", because
+// everything that was not live took the parked branch. Each state says what it
+// is now, and the two that carry an age keep it.
+func TestRootStateTextNamesEveryState(t *testing.T) {
+	now := time.Date(2026, 9, 3, 12, 0, 0, 0, time.UTC)
+	active := now.Add(-4 * time.Hour)
+	for _, tc := range []struct {
+		state  couchcore.ActionableThreadState
+		reason couchcore.ThreadReason
+		want   string
+	}{
+		{couchcore.ThreadLive, "", "live"},
+		{couchcore.ThreadDetached, "", "detached · 4h ago"},
+		{couchcore.ThreadParked, "", "parked · 4h ago"},
+		{couchcore.ThreadBusy, "", "parking…"},
+		{couchcore.ThreadUnusable, couchcore.ReasonBindingLost, "binding lost — repairable"},
+		{couchcore.ThreadUnusable, couchcore.ReasonStaleIncarnation, "stale — couch exited unexpectedly"},
+	} {
+		if got := rootStateText(stateTextRow(tc.state, tc.reason, active), now); got != tc.want {
+			t.Fatalf("%s/%s = %q, want %q", tc.state, tc.reason, got, tc.want)
+		}
+	}
+}
+
+// Go cannot check a switch for exhaustiveness, so the vocabulary checks itself:
+// every reason renders something, and no two render the same thing.
+func TestEveryReasonRendersADistinctLabel(t *testing.T) {
+	now := time.Date(2026, 9, 3, 12, 0, 0, 0, time.UTC)
+	seen := map[string]couchcore.ThreadReason{}
+	for _, reason := range couchcore.AllThreadReasons() {
+		label := rootStateText(stateTextRow(couchcore.ThreadUnusable, reason, now), now)
+		if label == "" || label == string(reason) {
+			t.Errorf("reason %q has no label of its own (rendered %q)", reason, label)
+			continue
+		}
+		if other, clash := seen[label]; clash {
+			t.Errorf("reasons %q and %q both render %q", reason, other, label)
+		}
+		seen[label] = reason
+	}
+}

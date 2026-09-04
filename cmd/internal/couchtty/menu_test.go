@@ -3,6 +3,7 @@ package couchtty
 import (
 	"fmt"
 	"reflect"
+	"slices"
 	"strings"
 	"testing"
 	"unicode/utf8"
@@ -1221,5 +1222,65 @@ func TestStartFormArmedSubmitDispatchesOnce(t *testing.T) {
 		if effect.Operation == "start" {
 			t.Fatalf("a second Enter dispatched another start: %+v", again)
 		}
+	}
+}
+
+func unusableMenuRow(reason couchcore.ThreadReason) couchcore.ActionableThreadSummary {
+	return couchcore.ActionableThreadSummary{
+		Address: menuAddress("couch-one"), WorkingPath: "/repo/one", Name: "compiler",
+		State: couchcore.ThreadUnusable, Reason: reason,
+	}
+}
+
+// Silence is what the operator reports as a bug, and a dispatched switch would
+// have failed with "not attached to this console" -- true of the console, and
+// nothing to do with why the thread cannot be entered.
+func TestEnterOnAnUnusableRowExplainsAndDispatchesNothing(t *testing.T) {
+	state := NewMenuState([]couchcore.ActionableThreadSummary{
+		unusableMenuRow(couchcore.ReasonBindingLost),
+	}, couchcore.ThreadAddress{})
+	state.InventoryReady = true
+
+	got, effects := reduceKey(state, PanelKey{Kind: KeyEnter})
+
+	if len(effects) != 0 {
+		t.Fatalf("unusable row dispatched %+v", effects)
+	}
+	if got.Notice.Level != MenuNoticeError || !strings.Contains(got.Notice.Text, "binding") {
+		t.Fatalf("notice = %+v, want the reason", got.Notice)
+	}
+	if !strings.Contains(got.Notice.Text, "compiler") {
+		t.Fatalf("notice = %q, want it to name the thread", got.Notice.Text)
+	}
+}
+
+// Every reason produces its own explanation, so a new one cannot ship saying
+// nothing. The two recoverable ones must not read as final.
+func TestEveryReasonExplainsItselfOnEnter(t *testing.T) {
+	seen := map[string]couchcore.ThreadReason{}
+	for _, reason := range couchcore.AllThreadReasons() {
+		notice := unusableThreadNotice(unusableMenuRow(reason))
+		if notice == "" || notice == string(reason) {
+			t.Errorf("reason %q has no explanation (got %q)", reason, notice)
+			continue
+		}
+		if other, clash := seen[notice]; clash {
+			t.Errorf("reasons %q and %q share an explanation", reason, other)
+		}
+		seen[notice] = reason
+	}
+}
+
+// An unusable row offers metadata actions only: naming a lost thread is how the
+// operator records what it was, but nothing may offer to resume it.
+func TestUnusableRowOffersOnlyMetadataActions(t *testing.T) {
+	items := menuActionItems(unusableMenuRow(couchcore.ReasonSessionGone))
+	for _, forbidden := range []string{"resume", "detach", "park"} {
+		if slices.Contains(items, forbidden) {
+			t.Fatalf("action items = %v, want metadata only", items)
+		}
+	}
+	if !slices.Contains(items, "name") || !slices.Contains(items, "describe") {
+		t.Fatalf("action items = %v, want name and describe", items)
 	}
 }

@@ -6,6 +6,7 @@ import (
 	"time"
 
 	"github.com/xianxu/pair/cmd/internal/ansi"
+	"github.com/xianxu/pair/cmd/internal/couchcore"
 	"github.com/xianxu/pair/cmd/internal/textwidth"
 )
 
@@ -263,6 +264,59 @@ func renderStartMenuFrame(state MenuState, frame MenuFrame, width, height int) [
 	return lines
 }
 
+// rootStateText is the right-hand column of one switcher row.
+//
+// It used to be two cases -- live, or "parked" for everything else -- which
+// made the operator's one detached thread claim to be parked, and gave the nine
+// unusable ones no way to appear at all. Every state and every reason has a
+// label, and the guard that keeps it that way iterates the vocabulary rather
+// than listing cases here (Go has no exhaustive-switch check).
+func rootStateText(thread couchcore.ActionableThreadSummary, now time.Time) string {
+	switch thread.State {
+	case couchcore.ThreadLive:
+		return "live"
+	case couchcore.ThreadDetached:
+		return "detached · " + relativeMenuAge(now, thread.LastActiveAt)
+	case couchcore.ThreadParked:
+		return "parked · " + relativeMenuAge(now, thread.LastActiveAt)
+	case couchcore.ThreadBusy:
+		return "parking…"
+	}
+	return unusableReasonText(thread.Reason)
+}
+
+// unusableReasonText says what is wrong in the operator's terms, not the
+// projector's. The two recoverable reasons say so, because "lost" that reads as
+// "gone forever" is the wrong thing to tell someone whose agent is still
+// running.
+func unusableReasonText(reason couchcore.ThreadReason) string {
+	switch reason {
+	case couchcore.ReasonBindingLost:
+		return "binding lost — repairable"
+	case couchcore.ReasonStaleIncarnation:
+		return "stale — couch exited unexpectedly"
+	case couchcore.ReasonUnrecordedChild:
+		return "running but unrecorded"
+	case couchcore.ReasonSessionGone:
+		return "session gone"
+	case couchcore.ReasonNeverStarted:
+		return "never started"
+	case couchcore.ReasonInvalid:
+		return "unreadable record"
+	case couchcore.ReasonPathMissing:
+		return "path unavailable"
+	case couchcore.ReasonProfileMissing:
+		return "no saved launch"
+	case couchcore.ReasonAgentUnsupported:
+		return "unsupported agent"
+	case couchcore.ReasonUnknown:
+		return "checking…"
+	}
+	// A reason with no label is a vocabulary that outran this switch. Show it
+	// raw rather than an empty column: legible beats silent.
+	return string(reason)
+}
+
 func renderRootMenuFrame(state MenuState, frame MenuFrame, width, height int, now time.Time, color256 bool) []string {
 	visible := visibleRootThreads(state.Inventory, frame)
 	lines := []string{"threads", ""}
@@ -292,11 +346,7 @@ func renderRootMenuFrame(state MenuState, frame MenuFrame, width, height int, no
 		if selectedRow {
 			marker = "▸ "
 		}
-		stateText := "live"
-		if !thread.Live() {
-			stateText = "parked · " + relativeMenuAge(now, thread.LastActiveAt)
-		}
-		suffix := "  " + stateText
+		suffix := "  " + rootStateText(thread, now)
 		prefixWidth := width - textwidth.Width(suffix)
 		if prefixWidth < 0 {
 			prefixWidth = 0
