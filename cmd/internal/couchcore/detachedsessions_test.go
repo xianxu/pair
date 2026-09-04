@@ -215,7 +215,7 @@ func TestProjectDetachedSessionsEmitsObservationsTheProjectorAccepts(t *testing.
 		CreatedAt: time.Unix(1, 0).UTC(), Revision: 1,
 		LatestLaunchProfile: &LaunchProfile{Agent: "claude", Argv: []string{}},
 	}
-	rows := ProjectActionableThreads([]ThreadRecord{record}, nil, nil, observed)
+	rows := actionableRows([]ThreadRecord{record}, nil, nil, observed)
 	if len(rows) != 1 || rows[0].State != ThreadDetached {
 		t.Fatalf("rows = %+v, want the projector to accept its own upstream's output", rows)
 	}

@@ -1179,12 +1179,22 @@ func TestConsoleGetsCouchsActionableProvider(t *testing.T) {
 	if provider == nil {
 		t.Fatal("the run path left the actionable provider nil")
 	}
-	if got, err := provider(context.Background(), nil); err != nil || len(got) != 0 {
-		t.Fatalf("provider returned %v, %v for an empty registry", got, err)
+	// The child exited, so its record carries an incarnation nothing hosts.
+	// Since #181 that is a row rather than a silence -- but still not one the
+	// operator can act on.
+	got, err := provider(context.Background(), nil)
+	if err != nil || len(got) != 1 {
+		t.Fatalf("provider returned %v, %v", got, err)
+	}
+	if got[0].State != couchcore.ThreadUnusable || got[0].Reason != couchcore.ReasonStaleIncarnation {
+		t.Fatalf("row = %+v, want unusable/stale-incarnation after the child exited", got[0])
 	}
 }
 
-func TestWireResolverOmitsUnboundParkButRetainsDiagnosticInventory(t *testing.T) {
+// An unbound verified park is not resumable, and both views now say so rather
+// than one of them silently omitting it (#181): the switcher shows it as
+// binding-lost, the diagnostic view keeps its lifecycle detail.
+func TestWireResolverReportsUnboundParkInBothViews(t *testing.T) {
 	rt := newRT(t, "/repo")
 	parked := seedVerifiedPark(t, rt, "/repo")
 	c, err := rt.NewCouch()
@@ -1198,8 +1208,11 @@ func TestWireResolverOmitsUnboundParkButRetainsDiagnosticInventory(t *testing.T)
 		t.Fatal("production wiring left actionable provider nil")
 	}
 	rows, err := provider(context.Background(), nil)
-	if err != nil || len(rows) != 0 {
+	if err != nil || len(rows) != 1 {
 		t.Fatalf("unbound actionable rows = %+v, %v", rows, err)
+	}
+	if rows[0].State != couchcore.ThreadUnusable || rows[0].Reason != couchcore.ReasonBindingLost {
+		t.Fatalf("row = %+v, want unusable/binding-lost", rows[0])
 	}
 	diagnostic, err := c.ThreadInventory()
 	if err != nil || len(diagnostic) != 1 || diagnostic[0].Address != parked.Address {

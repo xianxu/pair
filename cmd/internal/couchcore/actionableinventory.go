@@ -2,6 +2,7 @@ package couchcore
 
 import (
 	"context"
+	"errors"
 	"sort"
 	"time"
 
@@ -140,36 +141,19 @@ func (s ActionableThreadSummary) DisplaySummary() string {
 	return s.Description
 }
 
-// ProjectActionableThreads fails closed: a row is emitted only when one
-// durable lifecycle state has one unambiguous proof.
-func ProjectActionableThreads(records []ThreadRecord, observations []LiveTTYObservation, resumable []ParkedResumeObservation, detached []DetachedSessionObservation) []ActionableThreadSummary {
-	observed := make(map[ThreadAddress][]ProcessIdentity, len(observations))
-	for _, observation := range observations {
-		observed[observation.Address] = append(observed[observation.Address], observation.Process)
-	}
-	resumeProofs := make(map[ThreadAddress][]ParkedResumeObservation, len(resumable))
-	for _, observation := range resumable {
-		resumeProofs[observation.Address] = append(resumeProofs[observation.Address], observation)
-	}
-	detachedProofs := make(map[ThreadAddress][]DetachedSessionObservation, len(detached))
-	for _, observation := range detached {
-		detachedProofs[observation.Address] = append(detachedProofs[observation.Address], observation)
-	}
-
+// ProjectActionableThreads emits ONE ROW PER RECORD. It is total, and every
+// row that is not actionable says why.
+//
+// It used to fail closed by omission: a record whose lifecycle could not be
+// proved simply produced nothing, so the operator's switcher showed four rows
+// over a store of thirteen and had no way to report the other nine. Failing
+// closed is still the rule -- an unproved row is not actionable and startup
+// will not select it -- but it is now expressed as a state rather than as
+// absence (#181).
+func ProjectActionableThreads(records []ThreadRecord, evidence map[ThreadAddress]ThreadEvidence) []ActionableThreadSummary {
 	rows := make([]ActionableThreadSummary, 0, len(records))
 	for _, record := range records {
-		// Bridge, replaced in the total form: these callers only ever pass
-		// proofs they successfully resolved, so both questions are answered.
-		state, _ := ClassifyThread(record, ThreadEvidence{
-			Live:           observed[record.Address],
-			Parked:         resumeProofs[record.Address],
-			ParkedStatus:   ProofResolved,
-			Detached:       detachedProofs[record.Address],
-			DetachedStatus: ProofResolved,
-		})
-		if state != ThreadLive && state != ThreadParked && state != ThreadDetached {
-			continue
-		}
+		state, reason := ClassifyThread(record, evidence[record.Address])
 		rows = append(rows, ActionableThreadSummary{
 			Address:          record.Address,
 			StartingPath:     record.StartingPath,
@@ -178,6 +162,7 @@ func ProjectActionableThreads(records []ThreadRecord, observations []LiveTTYObse
 			Description:      record.Description,
 			PublishedSummary: record.PublishedSummary,
 			State:            state,
+			Reason:           reason,
 			LastActiveAt:     record.LastActiveAt,
 		})
 	}
@@ -311,6 +296,12 @@ func (c *Couch) ActionableThreadInventoryContext(ctx context.Context, observatio
 	if err != nil {
 		return nil, err
 	}
+	observed := make(map[ThreadAddress][]ProcessIdentity, len(observations))
+	for _, observation := range observations {
+		observed[observation.Address] = append(observed[observation.Address], observation.Process)
+	}
+
+	evidence := make(map[ThreadAddress]ThreadEvidence, len(snapshot.Records))
 	var resumable []ParkedResumeObservation
 	// detachedCandidates are the ONLY records that could be detached: no
 	// incarnation, no verified park, and a saved profile to reattach with.
@@ -324,66 +315,111 @@ func (c *Couch) ActionableThreadInventoryContext(ctx context.Context, observatio
 		if err := ctx.Err(); err != nil {
 			return nil, err
 		}
-		if record.Reservation || record.Park != nil || len(record.Incarnations) != 0 || record.LatestLaunchProfile == nil {
+		item := ThreadEvidence{Live: observed[record.Address]}
+		// Physicalization and binding resolution are RESUME-SHAPED work. A
+		// record carrying an incarnation never reached either before, and must
+		// not start to: a running agent whose directory moved is still running.
+		// This is one contract, and the call-count guard is what binds it.
+		resumeShaped := !record.Reservation && record.Park == nil && len(record.Incarnations) == 0 &&
+			len(item.Live) == 0 && record.LatestLaunchProfile != nil &&
+			launcher.IsSupportedAgent(record.LatestLaunchProfile.Agent) &&
+			record.LatestLaunchProfile.Argv != nil
+		if !resumeShaped {
+			evidence[record.Address] = item
+			continue
+		}
+		switch {
+		case c.Path == nil:
+			item.PathError = errors.New("path operations are unavailable")
+		default:
+			// Physicalize for parked AND detached candidates alike. The startup
+			// selector compares paths by exact string, so resolving one kind
+			// and not the other would make an alias path match a parked row and
+			// miss an otherwise identical detached one.
+			physicalPath, pathErr := c.Path.Physical(record.WorkingPath)
+			if pathErr != nil {
+				item.PathError = pathErr
+			} else {
+				snapshot.Records[i].WorkingPath = physicalPath
+			}
+		}
+		if item.PathError != nil || resolver == nil {
+			evidence[record.Address] = item
 			continue
 		}
 		agent := record.LatestLaunchProfile.Agent
-		if !launcher.IsSupportedAgent(agent) || record.LatestLaunchProfile.Argv == nil || c.Path == nil {
-			continue
-		}
-		// Physicalize for parked AND detached candidates alike. The startup
-		// selector compares paths by exact string, so resolving one kind and
-		// not the other would make an alias path match a parked row and miss
-		// an otherwise identical detached one.
-		physicalPath, pathErr := c.Path.Physical(record.WorkingPath)
-		if pathErr != nil {
-			continue
-		}
-		snapshot.Records[i].WorkingPath = physicalPath
-
-		// The native-binding gate applies to BOTH resumable kinds, not just the
-		// parked one. Startup has no fallback by design -- a Resume refusal
-		// stops it rather than starting something new -- so a row the inventory
-		// offers must be one resume can actually take. Gating parked rows and
-		// not detached ones meant a thread whose agent session data was pruned,
-		// rotated or raced was auto-selected and killed `couch` in that tree,
-		// with detached being the NORMAL resting state since leave stopped
-		// parking. Same rule actionableThreadState states for itself: a row
-		// that cannot work must not be offered.
-		if resolver == nil {
-			continue
-		}
 		binding, resolveErr := resolver.ResolveEstablished(ctx, record.Address.RepoScope, string(record.Address.Tag), agent)
-		if resolveErr != nil || bindingResumeDiagnostic(binding) != "" {
+		if record.VerifiedPark != nil {
+			// The parked question is answered either way: a refusal is a
+			// resolved "no binding", not an unresolved question.
+			item.ParkedStatus = ProofResolved
+			if resolveErr == nil && bindingResumeDiagnostic(binding) == "" {
+				resumable = append(resumable, ParkedResumeObservation{
+					Address: record.Address, Agent: agent, NativeID: binding.NativeID,
+				})
+			}
+			evidence[record.Address] = item
 			continue
 		}
-		if record.VerifiedPark == nil {
-			detachedCandidates = append(detachedCandidates, DetachedCandidate{
-				Address: record.Address, Agent: agent, NativeID: binding.NativeID,
-			})
-			continue
+		// A detach candidate regardless of binding health: whether the SESSION
+		// is alive is a different question from whether the agent's transcript
+		// id resolved, and conflating them is what hid a live detached thread.
+		//
+		// The id itself still travels only when it RESOLVED CLEANLY. That keeps
+		// the proof exactly as strict as it was -- an ambiguous binding carries
+		// a non-empty NativeID, so passing it through unchecked would make such
+		// a row actionable and offer it to startup selection, which is not a
+		// change this milestone makes. What the candidate buys here is the
+		// answer to the session question, which turns an invisible row into a
+		// visible `binding-lost` one instead of an asserted `session-gone`.
+		nativeID := ""
+		if resolveErr == nil && bindingResumeDiagnostic(binding) == "" {
+			nativeID = binding.NativeID
 		}
-		resumable = append(resumable, ParkedResumeObservation{Address: record.Address, Agent: agent, NativeID: binding.NativeID})
+		detachedCandidates = append(detachedCandidates, DetachedCandidate{
+			Address: record.Address, Agent: agent, NativeID: nativeID,
+		})
+		evidence[record.Address] = item
 	}
 	if err := ctx.Err(); err != nil {
 		return nil, err
 	}
-	var detached []DetachedSessionObservation
+
+	for _, observation := range resumable {
+		item := evidence[observation.Address]
+		item.Parked = append(item.Parked, observation)
+		evidence[observation.Address] = item
+	}
+
 	if detachedResolver, ok := c.Artifacts.(DetachedSessionResolver); ok && len(detachedCandidates) > 0 {
 		observed, detachErr := detachedResolver.DetachedSessions(ctx, detachedCandidates)
-		if detachErr != nil {
-			// One failed observation must not turn every OTHER row into an
-			// authoritative absence, and it must not fail the whole refresh
-			// either -- live and parked rows are proved by different evidence
-			// and remain correct. Detached rows are simply not proved this
-			// round, which is the fail-closed answer.
-			detached = nil
-		} else {
-			detached = observed
+		if detachErr == nil {
+			// Only now is the detached question answered. On failure every
+			// candidate keeps ProofUnresolved, which classifies `unknown`
+			// rather than asserting a session is gone -- the difference
+			// between a row that waits and a row retirement acts on.
+			for _, candidate := range detachedCandidates {
+				item := evidence[candidate.Address]
+				item.DetachedStatus = ProofResolved
+				evidence[candidate.Address] = item
+			}
+			for _, observation := range observed {
+				item := evidence[observation.Address]
+				item.Detached = append(item.Detached, observation)
+				evidence[observation.Address] = item
+			}
+		}
+	} else if !ok {
+		// No resolver at all is a permanent answer, not a transient failure:
+		// this couch cannot observe sessions, so no record is detached.
+		for _, candidate := range detachedCandidates {
+			item := evidence[candidate.Address]
+			item.DetachedStatus = ProofResolved
+			evidence[candidate.Address] = item
 		}
 	}
 	if err := ctx.Err(); err != nil {
 		return nil, err
 	}
-	return ProjectActionableThreads(snapshot.Records, observations, resumable, detached), nil
+	return ProjectActionableThreads(snapshot.Records, evidence), nil
 }

@@ -1,8 +1,11 @@
 package couchcore
 
 import (
+	"context"
 	"testing"
 	"time"
+
+	"github.com/xianxu/pair/cmd/internal/sessioninventory"
 )
 
 // classifyCase is one record shape plus the evidence the shell resolved about
@@ -264,3 +267,235 @@ var errTestPathBroken = errTestPath{}
 type errTestPath struct{}
 
 func (errTestPath) Error() string { return "working path is unavailable" }
+
+// couchWithOneRecordOfEveryShape builds a real store holding one record of each
+// shape the shell used to drop, so the identity below is asserted over
+// production code rather than a hand-built projection.
+func couchWithOneRecordOfEveryShape(t *testing.T) (*Couch, []ThreadAddress) {
+	t.Helper()
+	store, _ := newTestThreadStore(t)
+	active := time.Unix(100, 0).UTC()
+	var addresses []ThreadAddress
+
+	create := func(record ThreadRecord) ThreadRecord {
+		t.Helper()
+		created, err := store.CreateThread(record)
+		if err != nil {
+			t.Fatalf("create %s: %v", record.Address.Tag, err)
+		}
+		addresses = append(addresses, created.Address)
+		return created
+	}
+
+	// Parked with an established binding: the one row that already worked.
+	parked := actionableTestThread("couch-0000000000000001", active)
+	parked.LatestLaunchProfile = &LaunchProfile{Agent: "claude", Argv: []string{}}
+	markActionableParked(&parked, active)
+	parkedRecord := create(parked)
+
+	// Parked whose binding was lost -- eight of the operator's thirteen.
+	lost := actionableTestThread("couch-0000000000000002", active)
+	lost.LatestLaunchProfile = &LaunchProfile{Agent: "claude", Argv: []string{}}
+	markActionableParked(&lost, active)
+	create(lost)
+
+	// A record claiming a live incarnation that no console hosts.
+	stale := actionableTestThread("couch-0000000000000003", active)
+	stale.LatestLaunchProfile = &LaunchProfile{Agent: "claude", Argv: []string{}}
+	stale.Incarnations = []ThreadIncarnation{{PID: 4242, Identity: "gone", State: IncarnationLive}}
+	create(stale)
+
+	// No saved launch profile.
+	profileless := actionableTestThread("couch-0000000000000004", active)
+	create(profileless)
+
+	// A saved profile naming an agent this build cannot launch.
+	badAgent := actionableTestThread("couch-0000000000000005", active)
+	badAgent.LatestLaunchProfile = &LaunchProfile{Agent: "not-an-agent", Argv: []string{}}
+	create(badAgent)
+
+	// Nothing at all: no incarnation, no park, no session.
+	gone := actionableTestThread("couch-0000000000000006", active)
+	gone.LatestLaunchProfile = &LaunchProfile{Agent: "claude", Argv: []string{}}
+	create(gone)
+
+	artifacts := NewFakeThreadArtifactCollisionChecker()
+	artifacts.SetNativeBinding(parkedRecord.Address, "claude", sessioninventory.BindingEstablished, "native-root-1")
+	couch := &Couch{Threads: store, Artifacts: artifacts, Path: NewFakePathOps(nil)}
+	return couch, addresses
+}
+
+// The regression this issue is: nine of thirteen records reached no row.
+// Asserted as an identity between the store and the projection -- not a count
+// of the rows we expect to be actionable, but of the records that exist.
+func TestInventoryEmitsOneRowPerManifestRecord(t *testing.T) {
+	couch, addresses := couchWithOneRecordOfEveryShape(t)
+
+	rows, err := couch.ActionableThreadInventoryContext(context.Background(), nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	if len(rows) != len(addresses) {
+		t.Fatalf("rows = %d, records = %d -- the shell dropped %d",
+			len(rows), len(addresses), len(addresses)-len(rows))
+	}
+	for _, address := range addresses {
+		row, ok := findInventoryRow(rows, address)
+		if !ok {
+			t.Fatalf("record %+v produced no row", address)
+		}
+		if row.State == ThreadUnusable && row.Reason == "" {
+			t.Fatalf("row %+v is unusable with no reason", row)
+		}
+	}
+}
+
+// Every row that is NOT actionable carries a reason the operator can read, and
+// the actionable ones carry none.
+func TestInventoryRowsCarryAReasonExactlyWhenUnusable(t *testing.T) {
+	couch, _ := couchWithOneRecordOfEveryShape(t)
+	rows, err := couch.ActionableThreadInventoryContext(context.Background(), nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, row := range rows {
+		if (row.State == ThreadUnusable) != (row.Reason != "") {
+			t.Fatalf("row %+v: a reason iff unusable", row)
+		}
+	}
+}
+
+func findInventoryRow(rows []ActionableThreadSummary, address ThreadAddress) (ActionableThreadSummary, bool) {
+	for _, row := range rows {
+		if row.Address == address {
+			return row, true
+		}
+	}
+	return ActionableThreadSummary{}, false
+}
+
+// actionableRows is the pre-#181 shape of the projector: only the rows an
+// operator can act on.
+//
+// The projector is now total, so tests whose subject is which records are
+// ACTIONABLE -- the fail-closed property, unchanged -- filter for that
+// explicitly instead of counting rows. That every record produces a row is a
+// different property with its own tests above.
+func actionableRows(records []ThreadRecord, live []LiveTTYObservation, parked []ParkedResumeObservation, detached []DetachedSessionObservation) []ActionableThreadSummary {
+	evidence := make(map[ThreadAddress]ThreadEvidence, len(records))
+	for _, record := range records {
+		evidence[record.Address] = ThreadEvidence{ParkedStatus: ProofResolved, DetachedStatus: ProofResolved}
+	}
+	for _, observation := range live {
+		item := evidence[observation.Address]
+		item.Live = append(item.Live, observation.Process)
+		item.ParkedStatus, item.DetachedStatus = ProofResolved, ProofResolved
+		evidence[observation.Address] = item
+	}
+	for _, observation := range parked {
+		item := evidence[observation.Address]
+		item.Parked = append(item.Parked, observation)
+		item.ParkedStatus, item.DetachedStatus = ProofResolved, ProofResolved
+		evidence[observation.Address] = item
+	}
+	for _, observation := range detached {
+		item := evidence[observation.Address]
+		item.Detached = append(item.Detached, observation)
+		item.ParkedStatus, item.DetachedStatus = ProofResolved, ProofResolved
+		evidence[observation.Address] = item
+	}
+	var rows []ActionableThreadSummary
+	for _, row := range ProjectActionableThreads(records, evidence) {
+		switch row.State {
+		case ThreadLive, ThreadParked, ThreadDetached:
+			rows = append(rows, row)
+		}
+	}
+	return rows
+}
+
+// countingPathOps and countingArtifacts count the per-record work the evidence
+// pass does. They are test-local wrappers rather than counters on the shared
+// fakes: only this guard cares, and a counter every other test carries is a
+// counter every other test can accidentally assert on.
+type countingPathOps struct {
+	PathOps
+	calls int
+}
+
+func (c *countingPathOps) Physical(path string) (string, error) {
+	c.calls++
+	return c.PathOps.Physical(path)
+}
+
+type countingArtifacts struct {
+	*FakeThreadArtifactCollisionChecker
+	resolveCalls  int
+	detachQueries int
+}
+
+func (c *countingArtifacts) ResolveEstablished(ctx context.Context, scope, tag, agent string) (NativeBindingResolution, error) {
+	c.resolveCalls++
+	return c.FakeThreadArtifactCollisionChecker.ResolveEstablished(ctx, scope, tag, agent)
+}
+
+func (c *countingArtifacts) DetachedSessions(ctx context.Context, candidates []DetachedCandidate) ([]DetachedSessionObservation, error) {
+	c.detachQueries++
+	return c.FakeThreadArtifactCollisionChecker.DetachedSessions(ctx, candidates)
+}
+
+// The cost bound nothing observed before. BenchmarkMenu100 runs over a fixture
+// slice of summaries and never reaches the inventory, the resolver, Physical or
+// zellij, so it could not see per-record work at all. This can: resume-shaped
+// records pay, and every other record is free.
+func TestEvidencePassAsksOnlyAboutResumeShapedRecords(t *testing.T) {
+	couch, _ := couchWithOneRecordOfEveryShape(t)
+	paths := &countingPathOps{PathOps: couch.Path}
+	artifacts := &countingArtifacts{
+		FakeThreadArtifactCollisionChecker: couch.Artifacts.(*FakeThreadArtifactCollisionChecker),
+	}
+	couch.Path, couch.Artifacts = paths, artifacts
+
+	if _, err := couch.ActionableThreadInventoryContext(context.Background(), nil); err != nil {
+		t.Fatal(err)
+	}
+
+	// Of the six shapes, three are resume-shaped: the parked row with a
+	// binding, the parked row that lost one, and the one with nothing left.
+	// The stale incarnation, the profile-less record and the unsupported agent
+	// must cost nothing at all.
+	const resumeShaped = 3
+	if paths.calls != resumeShaped {
+		t.Fatalf("Physical called %d times, want %d -- a live or unstartable record must not pay", paths.calls, resumeShaped)
+	}
+	if artifacts.resolveCalls != resumeShaped {
+		t.Fatalf("binding resolver called %d times, want %d", artifacts.resolveCalls, resumeShaped)
+	}
+	// One detach candidate (the record with no park and no incarnation), so
+	// exactly one zellij query -- and it is a query per REFRESH, not per row.
+	if artifacts.detachQueries != 1 {
+		t.Fatalf("detached query ran %d times, want 1", artifacts.detachQueries)
+	}
+}
+
+// The other half of the bound: with nothing detachable, the zellij query does
+// not run at all.
+func TestEvidencePassSkipsTheSessionQueryWithNoDetachCandidates(t *testing.T) {
+	store, _ := newTestThreadStore(t)
+	record := actionableTestThread("couch-0000000000000001", time.Unix(100, 0).UTC())
+	record.LatestLaunchProfile = &LaunchProfile{Agent: "claude", Argv: []string{}}
+	markActionableParked(&record, record.LastActiveAt)
+	if _, err := store.CreateThread(record); err != nil {
+		t.Fatal(err)
+	}
+	artifacts := &countingArtifacts{FakeThreadArtifactCollisionChecker: NewFakeThreadArtifactCollisionChecker()}
+	couch := &Couch{Threads: store, Artifacts: artifacts, Path: NewFakePathOps(nil)}
+
+	if _, err := couch.ActionableThreadInventoryContext(context.Background(), nil); err != nil {
+		t.Fatal(err)
+	}
+	if artifacts.detachQueries != 0 {
+		t.Fatalf("detached query ran %d times with no candidate", artifacts.detachQueries)
+	}
+}

@@ -20,7 +20,7 @@ func TestProjectActionableThreadsRequiresExactLifecycleProof(t *testing.T) {
 	parked.LatestLaunchProfile = &LaunchProfile{Agent: "claude", Argv: []string{}}
 	markActionableParked(&parked, now.Add(-time.Hour))
 
-	rows := ProjectActionableThreads(
+	rows := actionableRows(
 		[]ThreadRecord{live, parked},
 		[]LiveTTYObservation{{
 			Address: live.Address,
@@ -43,7 +43,7 @@ func TestProjectActionableThreadsOmitsVerifiedParkWithoutResumeAuthority(t *test
 	parked.LatestLaunchProfile = &LaunchProfile{Agent: "claude", Argv: []string{}}
 	markActionableParked(&parked, now)
 
-	if rows := ProjectActionableThreads([]ThreadRecord{parked}, nil, nil, nil); len(rows) != 0 {
+	if rows := actionableRows([]ThreadRecord{parked}, nil, nil, nil); len(rows) != 0 {
 		t.Fatalf("unbound verified park projected as actionable: %+v", rows)
 	}
 }
@@ -79,7 +79,7 @@ func TestProjectActionableThreadsRequiresOneMatchingSupportedResumeProof(t *test
 			if tc.mutate != nil {
 				tc.mutate(&record)
 			}
-			if rows := ProjectActionableThreads([]ThreadRecord{record}, nil, tc.proofs, nil); len(rows) != tc.want {
+			if rows := actionableRows([]ThreadRecord{record}, nil, tc.proofs, nil); len(rows) != tc.want {
 				t.Fatalf("rows = %+v, want %d", rows, tc.want)
 			}
 		})
@@ -160,7 +160,7 @@ func TestProjectActionableThreadsFailsClosedOnContradictoryEvidence(t *testing.T
 				observation.Address = record.Address
 				observations = append(observations, observation)
 			}
-			if rows := ProjectActionableThreads([]ThreadRecord{record}, observations, nil, nil); len(rows) != 0 {
+			if rows := actionableRows([]ThreadRecord{record}, observations, nil, nil); len(rows) != 0 {
 				t.Fatalf("contradictory row projected as actionable: %+v", rows)
 			}
 		})
@@ -248,7 +248,11 @@ func TestActionableThreadInventoryProjectsPhysicalParkedWorkingPath(t *testing.T
 	}
 }
 
-func TestActionableThreadInventoryOmitsParkedThreadWithUnavailableWorkingPath(t *testing.T) {
+// A parked thread whose working path cannot be physicalized is NOT offered --
+// the startup selector compares paths by exact string, so an unphysicalized row
+// could be auto-selected. Since #181 it is still not offered, but it is no
+// longer invisible: it is a row that says path-missing.
+func TestActionableThreadInventoryRefusesParkedThreadWithUnavailableWorkingPath(t *testing.T) {
 	store, _ := newTestThreadStore(t)
 	record := actionableTestThread("couch-0000000000000001", time.Unix(100, 0).UTC())
 	record.LatestLaunchProfile = &LaunchProfile{Agent: "claude", Argv: []string{}}
@@ -264,8 +268,11 @@ func TestActionableThreadInventoryOmitsParkedThreadWithUnavailableWorkingPath(t 
 	couch := &Couch{Threads: store, Artifacts: artifacts, Path: paths}
 
 	rows, err := couch.ActionableThreadInventory(nil)
-	if err != nil || len(rows) != 0 {
+	if err != nil || len(rows) != 1 {
 		t.Fatalf("missing-path parked inventory = %+v, %v", rows, err)
+	}
+	if rows[0].State != ThreadUnusable || rows[0].Reason != ReasonPathMissing {
+		t.Fatalf("row = %+v, want unusable/path-missing", rows[0])
 	}
 }
 
@@ -443,7 +450,7 @@ func TestProjectActionableThreadsDetached(t *testing.T) {
 			if test.mutate != nil {
 				test.mutate(&record)
 			}
-			rows := ProjectActionableThreads([]ThreadRecord{record}, nil, nil, test.observed)
+			rows := actionableRows([]ThreadRecord{record}, nil, nil, test.observed)
 			if !test.wantRow {
 				if len(rows) != 0 {
 					t.Fatalf("rows = %+v, want none", rows)
@@ -471,7 +478,7 @@ func TestProjectActionableThreadsDetachedDoesNotDisturbOtherStates(t *testing.T)
 	ttys := []LiveTTYObservation{{Address: address, Process: ProcessIdentity{PID: 10, Identity: "id-10"}}}
 	stray := []DetachedSessionObservation{{Address: address, SessionName: "pair-one", Agent: "claude", NativeID: "native-root-1"}}
 
-	withStray := ProjectActionableThreads([]ThreadRecord{live}, ttys, nil, stray)
+	withStray := actionableRows([]ThreadRecord{live}, ttys, nil, stray)
 	if len(withStray) != 1 || withStray[0].State != ThreadLive {
 		t.Fatalf("rows = %+v, want the live verdict unchanged", withStray)
 	}
@@ -500,7 +507,7 @@ func TestProjectActionableThreadsDetachedRequiresAUsableProfile(t *testing.T) {
 				CreatedAt: time.Unix(1, 0).UTC(), Revision: 1,
 				LatestLaunchProfile: test.profile,
 			}
-			rows := ProjectActionableThreads([]ThreadRecord{record}, nil, nil, detached)
+			rows := actionableRows([]ThreadRecord{record}, nil, nil, detached)
 			if (len(rows) == 1) != test.wantRow {
 				t.Fatalf("rows = %+v, wantRow = %v", rows, test.wantRow)
 			}
@@ -600,7 +607,7 @@ func TestProjectActionableThreadsDetachedRequiresTheResumeProof(t *testing.T) {
 		},
 	} {
 		t.Run(test.name, func(t *testing.T) {
-			rows := ProjectActionableThreads([]ThreadRecord{record}, nil, nil, []DetachedSessionObservation{test.observe})
+			rows := actionableRows([]ThreadRecord{record}, nil, nil, []DetachedSessionObservation{test.observe})
 			if (len(rows) == 1) != test.wantRow {
 				t.Fatalf("rows = %+v, wantRow = %v", rows, test.wantRow)
 			}
