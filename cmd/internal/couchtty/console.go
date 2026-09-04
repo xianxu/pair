@@ -778,9 +778,12 @@ func (c *Console) teardown(restore func() error) {
 	c.mu.Lock()
 	tracer := c.trace
 	c.trace = nil
-	// The terminal is being handed back, so nothing may paint into it again.
-	// Leaving this set would let a late publish write a status row into the
-	// operator's restored shell -- damage, not a message.
+	// The terminal is being handed back, so a publish must stop painting into
+	// it. This CLOSES the window rather than sealing it: publishNotice reads
+	// started under the lock and paints after releasing it, so a publish that
+	// passed the check a moment before teardown can still land. Nothing does
+	// today -- every publisher is the Run goroutine that also runs teardown --
+	// and the honest statement is "no live instance", not "cannot happen".
 	c.started = false
 	c.mu.Unlock()
 	if err := tracer.Close(); err != nil {
@@ -1676,8 +1679,15 @@ func (c *Console) setNotice(text string) {
 	c.publishNotice(Notice{Kind: "status", Body: text})
 }
 
-// publishNotice is the ONE way a notice reaches the operator: it pushes to the
-// feed and repaints the row that shows it.
+// publishNotice is the one way a notice is PUBLISHED: it pushes to the feed and
+// repaints the row that shows it.
+//
+// Not the one way a notice reaches the operator's eye, which would be a stronger
+// claim than the code supports: writeOwn declines while the child's stream is
+// mid-sequence and defers the paint to the next child chunk, and an idle console
+// -- the case this exists for -- has none. Pathological today, and
+// takeOverScreen resets the scanner, so there is no live instance; the point is
+// that the sentence says what is true rather than what is nearly true.
 //
 // Pushing without repainting used to be merely late -- the sentence appeared
 // whenever something else next painted, and stayed forever once it did. Giving

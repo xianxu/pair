@@ -151,6 +151,57 @@ rounds:
           family: discarded-invariant-signal
           round: 2
       blocked: true
+    - "n": 3
+      timestamp: "2026-09-04T16:11:18-07:00"
+      agent: claude
+      dispose:
+        - id: BR-3
+          disposition: not-addressed
+          note: Still no shared arm helper; console.go:648 remains the fourth stop/reset/assign closure in Run.
+          round: 3
+        - id: BR-4
+          disposition: not-addressed
+          note: notice.go:94-99 unchanged; notice.go:100 is the only Feed literal in the tree, so both defaults stay unreachable.
+          round: 3
+        - id: BR-7
+          disposition: addressed
+          note: Verified by reversion — reverted wait fails 9/20 -race runs here; fixed wait is 100/100, full package 5/5.
+          round: 3
+        - id: BR-8
+          disposition: not-addressed
+          note: Only the started sub-item was touched, and its guard is TOCTOU-shaped; the class rule (one seam owns push, paint and deadline re-sync) is unchanged.
+          round: 3
+        - id: BR-9
+          disposition: addressed
+          note: lastPaintedRow needs no window and the rewrite keeps the pin — removing syncNoticeExpiry's arming still turns the test red; 50/50 green under -race.
+          round: 3
+        - id: BR-10
+          disposition: withdrawn
+          note: Counter-argument accepted — for a rolling feed a capacity drop is the policy, so ok=false carries no signal this caller could act on.
+          round: 3
+      findings:
+        - id: BR-11
+          severity: Minor
+          title: Two comments added this round assert guarantees the code does not deliver
+          detail: |-
+            This is the 2nd finding in family overstated-guard-rationale. Do NOT fix the
+            instances. The rule: a comment that states an absolute must name the condition
+            under which it does not hold, and the guarantee must be pinned by a test that
+            fails without it. Enumeration in this diff, prevalence 2 of 2 new absolute
+            claims. (a) console.go:781 says "nothing may paint into it again", but
+            publishNotice (console.go:1694-1700) reads started under c.mu, releases the
+            lock, then paints -- so a publish that passes the check before teardown runs
+            still writes into the restored shell. Prevalence 0 live, because every
+            publisher is the Run goroutine that also runs teardown; the hole opens exactly
+            when BR-8's class opens. (b) console.go:1693 describes publishNotice as the one
+            way a notice reaches the operator, but writeOwn (console.go:973) declines while
+            hostScan.MidSequence() and that debt is paid only by the next child chunk
+            (console.go:1079) -- on the idle console this issue is about, there is none.
+            Trigger is pathological and takeOverScreen resets hostScan, so 0 live there
+            too. Neither is a behavioural defect today; both are the same habit BR-2 named.
+          family: overstated-guard-rationale
+          round: 3
+      blocked: false
 ---
 
 # Gate ledger — pair#185 (boundary-review)
@@ -240,11 +291,39 @@ later rounds disposed of them. Generated — edit the gate, not this file.
   deliberately; nothing consumes it. Pre-existing behaviour, but publishNotice is the new
   line that drops it.
 
+## Round 3 — 2026-09-04T16:11:18-07:00 (claude) — passed
+
+### Disposed
+
+- BR-3 — not-addressed — Still no shared arm helper; console.go:648 remains the fourth stop/reset/assign closure in Run.
+- BR-4 — not-addressed — notice.go:94-99 unchanged; notice.go:100 is the only Feed literal in the tree, so both defaults stay unreachable.
+- BR-7 — addressed — Verified by reversion — reverted wait fails 9/20 -race runs here; fixed wait is 100/100, full package 5/5.
+- BR-8 — not-addressed — Only the started sub-item was touched, and its guard is TOCTOU-shaped; the class rule (one seam owns push, paint and deadline re-sync) is unchanged.
+- BR-9 — addressed — lastPaintedRow needs no window and the rewrite keeps the pin — removing syncNoticeExpiry's arming still turns the test red; 50/50 green under -race.
+- BR-10 — withdrawn — Counter-argument accepted — for a rolling feed a capacity drop is the policy, so ok=false carries no signal this caller could act on.
+
+### Raised
+
+- **BR-11** [Minor] `overstated-guard-rationale` Two comments added this round assert guarantees the code does not deliver
+  This is the 2nd finding in family overstated-guard-rationale. Do NOT fix the
+  instances. The rule: a comment that states an absolute must name the condition
+  under which it does not hold, and the guarantee must be pinned by a test that
+  fails without it. Enumeration in this diff, prevalence 2 of 2 new absolute
+  claims. (a) console.go:781 says "nothing may paint into it again", but
+  publishNotice (console.go:1694-1700) reads started under c.mu, releases the
+  lock, then paints -- so a publish that passes the check before teardown runs
+  still writes into the restored shell. Prevalence 0 live, because every
+  publisher is the Run goroutine that also runs teardown; the hole opens exactly
+  when BR-8's class opens. (b) console.go:1693 describes publishNotice as the one
+  way a notice reaches the operator, but writeOwn (console.go:973) declines while
+  hostScan.MidSequence() and that debt is paid only by the next child chunk
+  (console.go:1079) -- on the idle console this issue is about, there is none.
+  Trigger is pathological and takeOverScreen resets hostScan, so 0 live there
+  too. Neither is a behavioural defect today; both are the same habit BR-2 named.
+
 ## Open findings
 
 - **BR-3** [Minor] `repeated-timer-arm-shape` syncNoticeExpiry is the fourth near-identical arm-a-timer closure in Run
 - **BR-4** [Minor] `unreachable-constructor-default` NewFeed's nil-clock and lifetime<=0 defaults are unreachable and untested
-- **BR-7** [Important] `test-writes-state-the-loop-rebuilds` The package's -race suite fails 3 runs in 10, so the issue's "go test -race passes" Done-when is not a check that passes
 - **BR-8** [Minor] `row-must-track-the-feed` publishNotice owns the paint half of the row-tracks-the-feed rule; the Run loop still owns the deadline half
-- **BR-9** [Minor] `test-discards-evidence-it-awaits` The new console expiry test resets the host buffer after a poll loop that can outlast the 60ms lifetime
-- **BR-10** [Minor] `discarded-invariant-signal` Feed.Push's ok return is discarded at its only production call site
+- **BR-11** [Minor] `overstated-guard-rationale` Two comments added this round assert guarantees the code does not deliver

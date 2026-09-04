@@ -1,12 +1,13 @@
 ---
 id: 000185
-status: working
+status: codecomplete
 deps: []
 github_issue:
 created: 2026-09-04
 updated: 2026-09-04
 estimate_hours:
 started: 2026-09-04T15:18:33-07:00
+actual_hours: 0.75
 ---
 
 # Status-row notices never expire, so a momentary refusal reads as current state
@@ -113,6 +114,7 @@ pressure may discard an activity hint, never the fact that an actor ended).
 ## Log
 
 ### 2026-09-04
+- 2026-09-04: closed — ACTUAL IS A LABELED JUDGMENT ESTIMATE, NOT MEASURED: sdlc actual reports "no measurable activity for #185" — the work was done during #182 smoke testing and the issue filed after it, so no commit window attributes to it; 0.75h is my judgment of the focused time. Behaviour: a transient notice paints itself when pushed and retires itself on an idle console while a control (exit) notice stands — TestAnIdleConsoleRepaintsWhenItsNoticeExpires drives the operator own ctrl+backspace as bytes through Run with no other event, verified red both against a restored "return the newest unconditionally" and against publishNotice not repainting. Replacement lifetime, uncover-order and capacity-bound rules each have a pure test. Round-2 BR-7: the -race Done-when was quoted from ONE run of a 30%-flaky test; reproduced at 2/10, fixed at the cause (a wait predicate the fixture already satisfied), now 12/12 on that test and 6/6 on the whole package under -race. Both Minors fixed (the test no longer discards the paint it waits for; teardown clears started). Feed.Push ok return left alone with reason: Enqueue reports false whenever capacity forced a drop, which for a rolling feed is the policy working, and narrowing that to control-only overflow is a change to the mailbox contract rather than a status-row fix. Full ./cmd/... suite green.; review verdict: SHIP
 
 Found during pair#182 M1 smoke testing and filed separately rather than widening
 that issue: it is couch-lite paper cut, not relaunch.

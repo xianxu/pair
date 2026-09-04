@@ -3308,3 +3308,11 @@ that a key token appears cannot detect a contradictory behavioral sentence
   green most times you look, and quoting it as verification puts a false claim
   in the permanent close record. Run a flaky-looking suite in a loop and report
   the ratio.
+- Write "no live instance", not "cannot happen". Both round-1 BR-2 and round-3's
+  advisory in pair#185 were the same habit: a comment stating an absolute the
+  code does not enforce. `started = false` at teardown CLOSES a window rather
+  than sealing it (publishNotice reads the flag under the lock and paints after
+  releasing it), and publishNotice is the one way a notice is PUBLISHED, not the
+  one way it reaches the operator's eye (writeOwn can defer the paint). Neither
+  had a live instance — which is exactly the sentence to write, because a
+  stronger claim tells the next reader not to look.

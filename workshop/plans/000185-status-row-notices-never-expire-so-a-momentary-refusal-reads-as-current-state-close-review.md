@@ -291,3 +291,121 @@ findings:
       deliberately; nothing consumes it. Pre-existing behaviour, but publishNotice is the new
       line that drops it.
 ```
+
+---
+
+## Re-review — 2026-09-04T16:11:18-07:00 (SHIP)
+
+| field | value |
+|-------|-------|
+| issue | 185 — Status-row notices never expire, so a momentary refusal reads as current state |
+| repo | pair |
+| issue file | workshop/issues/000185-status-row-notices-never-expire-so-a-momentary-refusal-reads-as-current-state.md |
+| boundary | whole-issue close |
+| milestone | — |
+| window | 88fe1de011b4c6be58e5a8b20eed89dfa4000f5d..b50ed5d0315bbd83b136859a8f95cd050e247cfe |
+| command | sdlc close --issue 185 |
+| reviewer | claude |
+| timestamp | 2026-09-04T16:11:18-07:00 |
+| verdict | SHIP |
+
+## Review
+
+```verdict
+verdict: SHIP
+confidence: high
+```
+
+Round 3 of this gate. The one Important carried in (BR-7) is fixed at its named cause and I verified it by reversion, not by reading: with the `focus.IsPanel()` wait reverted to `len(Frames) > 0`, `TestConsoleRunOrdinarySwitchAdvancesPrevious` fails 9 of 20 `-race` runs on this machine; with the fix it is 100/100 green and the whole package is 5/5 green under `-race` (only `TestNotificationPTYConformance` fails, on this environment's `ptychild: operation not permitted`, which is unrelated to the diff). BR-9's test rewrite was the risky one — it changed the very test that pinned round 1's Critical — so I re-ran both mutations against the rewritten assertions: removing `syncNoticeExpiry`'s arming still turns `TestAnIdleConsoleRepaintsWhenItsNoticeExpires` red, removing `publishNotice`'s repaint still turns both console tests red, and giving control notices a lifetime turns three tests red. The fix preserved the test's power rather than sanding it down. What remains open is four Minors, none of which needs to happen before the boundary: BR-3 and BR-4 unchanged, BR-8's class rule unchanged (only its `started` sub-item was touched, and that touch is itself TOCTOU-shaped), and one new class finding about comments that assert more than the code delivers.
+
+**1. Strengths**
+
+- `console_run_menu_test.go:398` — the BR-7 fix is at the cause, not at the timeout. Waiting on `focus.IsPanel()` (set only in `onHotkey`) rather than on a frame count the fixture's inventory refresh had already satisfied is exactly the difference between "a wait" and "a wait a setup step can pass for you". Reversion-verified both directions.
+- `console_notice_expiry_test.go:26` — `lastPaintedRow` is the right shape for BR-9: it needs no window, discards no evidence, and the comment says why `lastConsoleScreen` was the wrong tool. Safe because `PaintRow` (`reserve.go:57`) is the only `SaveCursor` emitter in the tree and `paintNow` emits the whole row in one `io.WriteString`, so the helper can never read a half-written row.
+- `notice.go:104-125` — expiry keyed on `Message.Kind` (which *is* `Enqueue`'s collapse identity) plus a prune to the retained queue. I confirmed all four pure policy rules are load-bearing: mutating `Push` so control notices also expire turns `TestATransientNoticeStopsStandingAndAControlOneDoesNot`, `TestAnExpiredNoticeUncoversOnlyWhatIsStillTrue` and the console exit test red.
+- `workshop/lessons.md:3300` — "when a wait predicate can be satisfied by setup, it is not a wait" and "`-race` passes from one run is not evidence" are both the general rule, not the incident. That is the right level.
+- Docs gate satisfied in-window: `README.md:314` states the user-visible timing, `atlas/couch.md:910-937` records the standing rule, the repaint obligation, and the dedup-is-an-optimisation correction.
+
+**2. Critical findings**
+
+None.
+
+**3. Important findings**
+
+None.
+
+**4. Minor findings**
+
+- **BR-3, BR-4 carried forward unchanged.** No shared `arm(&timer, &ch, d)` helper (`console.go:648` is still the fourth stop/reset/assign closure in `Run`); `NewFeed`'s `now == nil` / `lifetime <= 0` defaults (`notice.go:94-99`) remain unreachable — I confirmed `notice.go:100` is the only `Feed` literal in the tree and all ten call sites pass a real clock and a positive lifetime.
+- **BR-8's class is not closed** — only its `started` sub-item was. Detail in the finding block below; see also the new finding, which is the same guard read from the documentation side.
+- `console.go:1693` — `publishNotice` is described as push-and-paint being one operation, but `repaint → paintNow → writeOwn` (`console.go:973`) declines to write while `hostScan.MidSequence()`, and that debt is paid only by the next child chunk (`console.go:1079`). On the idle console this issue is about there is no next chunk. Trigger is pathological (a child stalled mid-escape-sequence for a full lifetime, and `takeOverScreen` resets `hostScan` on panel/switch anyway), so this is documentation accuracy rather than a live defect — folded into the new finding below.
+
+**5. Test coverage notes**
+
+- Every Done-when has a test, and I re-verified the pins by mutation after BR-9's rewrite rather than trusting round 2's verification of the pre-rewrite test.
+- `-race` measurements at HEAD: `TestConsoleRunOrdinarySwitchAdvancesPrevious` 100/100 green; the two new console tests 50/50 green; the full package 5/5 green modulo the pty-blocked conformance test.
+- `go test ./...`: every failing package fails only on `ptychild: operation not permitted` (pty allocation is denied in this environment). One artifact worth naming so it isn't mistaken for a regression later: in `couchcore`, a re-exec'd helper subprocess prints `pair-launch-helper: launch helper: acknowledgement unavailable: EOF` and then `fatal error: all goroutines are asleep - deadlock!`. It appears only on the denied-pty path, is outside #185, and I did not chase it — but a helper that reports a failure and then hangs instead of exiting is worth a look on a machine that can allocate a pty.
+- `c.started = false` at `console.go:784` has no test and no test goes red without it. It is reachable (teardown always runs) but unobservable through any current caller, which is the same reason BR-8 measured 0 live instances; I am not asking for a test for an instance whose class fix would delete the flag's role.
+
+**6. Architectural notes**
+
+- **ARCH-DRY** — flag, unchanged: BR-3, the fourth timer-arm closure. Nothing new added to the pile this round.
+- **ARCH-PURE** — pass. `Feed` is pure by injection and its tests hand-advance a fake clock with no IO; the timer and the paint stay in the `Run` shell. The console-level test uses the real timer with a shortened lifetime, which is the only honest way to exercise the arming.
+- **ARCH-PURPOSE** — pass. The purpose (a transient retires *and* is seen) is delivered end to end and mutation-verified in both halves. Shadow sweep of notice surfaces: the status row (`Feed`) and the panel (`MenuState.Notice`, which retires on the operator's next gesture) — no surface left restating the model by hand. BR-7 was answered at the class level too: the round did not just add a timeout, it fixed the predicate and wrote the general rule into `lessons.md`.
+- **ARCH-MOCK** — pass. The clock is the external dependency and sits behind an injected seam; production and test flow share `time.NewTimer` at the same boundary.
+- **ARCH-CONSTRAINTS** — pass. One timer per row, deduped on deadline identity; `Row()` is an O(capacity=8) tail walk, and the extra per-iteration `c.mu` acquire from `syncNoticeExpiry` is negligible against the host write it precedes. Go 1.26 timer semantics mean `stopTimer`'s drain is redundant but harmless — no stale-fire hazard from `Reset`.
+- **ARCH-SECURE** — pass. Notice bodies (including a raw `err.Error()` from the trace-file open at `console.go:210`) reach the terminal only through `sanitize` (`reserve.go:130`), which strips escape sequences then C0/DEL. No credentials, no new external boundary, no untrusted persisted input.
+
+**7. Plan revision recommendations**
+
+None. The Spec now matches the code on all four consequences, including the corrected dedup rationale; all three Plan items are delivered and pinned. The issue has no durable plan file and no Core concepts table, which is right for work this size.
+
+```findings
+dispose:
+  - id: BR-3
+    disposition: not-addressed
+    note: |
+      Still no shared arm helper; console.go:648 remains the fourth stop/reset/assign closure in Run.
+  - id: BR-4
+    disposition: not-addressed
+    note: |
+      notice.go:94-99 unchanged; notice.go:100 is the only Feed literal in the tree, so both defaults stay unreachable.
+  - id: BR-7
+    disposition: addressed
+    note: |
+      Verified by reversion — reverted wait fails 9/20 -race runs here; fixed wait is 100/100, full package 5/5.
+  - id: BR-8
+    disposition: not-addressed
+    note: |
+      Only the started sub-item was touched, and its guard is TOCTOU-shaped; the class rule (one seam owns push, paint and deadline re-sync) is unchanged.
+  - id: BR-9
+    disposition: addressed
+    note: |
+      lastPaintedRow needs no window and the rewrite keeps the pin — removing syncNoticeExpiry's arming still turns the test red; 50/50 green under -race.
+  - id: BR-10
+    disposition: withdrawn
+    note: |
+      Counter-argument accepted — for a rolling feed a capacity drop is the policy, so ok=false carries no signal this caller could act on.
+findings:
+  - id: new
+    severity: Minor
+    family: overstated-guard-rationale
+    title: |
+      Two comments added this round assert guarantees the code does not deliver
+    detail: |
+      This is the 2nd finding in family overstated-guard-rationale. Do NOT fix the
+      instances. The rule: a comment that states an absolute must name the condition
+      under which it does not hold, and the guarantee must be pinned by a test that
+      fails without it. Enumeration in this diff, prevalence 2 of 2 new absolute
+      claims. (a) console.go:781 says "nothing may paint into it again", but
+      publishNotice (console.go:1694-1700) reads started under c.mu, releases the
+      lock, then paints -- so a publish that passes the check before teardown runs
+      still writes into the restored shell. Prevalence 0 live, because every
+      publisher is the Run goroutine that also runs teardown; the hole opens exactly
+      when BR-8's class opens. (b) console.go:1693 describes publishNotice as the one
+      way a notice reaches the operator, but writeOwn (console.go:973) declines while
+      hostScan.MidSequence() and that debt is paid only by the next child chunk
+      (console.go:1079) -- on the idle console this issue is about, there is none.
+      Trigger is pathological and takeOverScreen resets hostScan, so 0 live there
+      too. Neither is a behavioural defect today; both are the same habit BR-2 named.
+```
