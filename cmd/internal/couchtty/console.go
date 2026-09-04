@@ -1426,7 +1426,13 @@ func (c *Console) finishOperation(completed operationCompletion) bool {
 	// park does -- both end their child deliberately.
 	if err == nil && endsItsOwnChild(completed.origin.Operation) {
 		for id, p := range c.panes {
-			if p.thread == address {
+			// Excluding the child this operation just STARTED. A relaunch has
+			// already adopted its replacement by the time it gets here, so
+			// marking every pane on the address marked the new one -- and its
+			// first real death would then be swallowed as expected, which is the
+			// exact spurious-notice bug this bridge exists to prevent, inverted.
+			// The child a relaunch expects to exit is the one it replaced.
+			if p.thread == address && id != startedHandleID {
 				c.expectedExits[id] = true
 			}
 		}

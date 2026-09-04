@@ -320,6 +320,126 @@ rounds:
           round: 4
       boundary: M1
       blocked: true
+    - "n": 5
+      timestamp: "2026-09-04T14:17:13-07:00"
+      agent: claude
+      dispose:
+        - id: BR-1
+          disposition: not-addressed
+          note: Plan lines 32-37 unchanged; the plan file was not touched in this window at all.
+          round: 5
+        - id: BR-6
+          disposition: not-addressed
+          note: relaunch_test.go untouched this window; its five refusal cases still include no agent-unsupported or profile-missing case reaching Relaunch.
+          round: 5
+        - id: BR-7
+          disposition: not-addressed
+          note: plan:159 still unticked, Tasks 8/10/11 still unticked though shipped, and the issue's stale-estimate warning still contradicts the re-derived Estimate block.
+          round: 5
+        - id: BR-9
+          disposition: not-addressed
+          note: manifest.go:524 still places relaunch.go between pathops.go and procops.go.
+          round: 5
+        - id: BR-10
+          disposition: not-addressed
+          note: No test walks seqKind/InterceptorHit to a processInput arm; README.md:141 and menuControls are still unchanged, so the chord ships undocumented and the class deliverable is still the instance.
+          round: 5
+        - id: BR-12
+          disposition: addressed
+          note: Verified by revert - restoring the old park/archive+detach/resume switch reds TestEveryOfferedActionIsReachableFromEnter/live/relaunch. console.go:1451's literal is deliberate for M1 and noted as Minor.
+          round: 5
+        - id: BR-13
+          disposition: addressed
+          note: Verified by revert - making ResumeContext resolve unconditionally reds TestWarmReattachNeitherConsultsNorIsFailedByTheBindingResolver on both assertions.
+          round: 5
+        - id: BR-14
+          disposition: addressed
+          note: atlas/couch.md:764 documents the variable, the 0600 opt-in default, and that the pumpStdin tap captures everything typed or pasted into the hosted agent.
+          round: 5
+        - id: BR-15
+          disposition: addressed
+          note: newInputTracer returns an error and New pushes a control-priority notice; TestATraceThatCannotStartSaysSoInsteadOfTracingNothing asserts both halves.
+          round: 5
+      findings:
+        - id: BR-16
+          severity: Critical
+          title: A relaunch that parks and then fails has its recovery message erased by the next refresh
+          detail: |-
+            2nd finding in this family, so the deliverable is the RULE, not this site.
+            menu.go:1320 excludes relaunch from the park/leave confirmation-close, and
+            the comment justifies that by the transient RefusedBeforePark refusal. But
+            for ParkIncomplete and ParkedNotResumed the thread is NOT live, InFlight is
+            already cleared at menu.go:1306, and the refresh finishOperation always
+            requests (console.go:1456 -> menu.go:317 -> reconcileMenuFrames) hits the
+            "!operationInFlight && !thread.Live()" arm at menu.go:1271 - discarding the
+            confirmation AND overwriting the notice. Reproduced differentially - after
+            the result the notice is "relaunch brain: it is parked and the restart did
+            not take; Enter resumes it"; after one refresh it is "thread action is no
+            longer applicable" and the frames are back at root. That is the issue's
+            Done-when bullet ("leaves a resumable parked thread AND SAYS SO") true in
+            couchcore and false at the surface, on the destructive path, reading as the
+            data loss the Spec calls the whole design question. Rule - a notice carrying
+            a just-completed operation's outcome outranks a frame-reconciliation notice,
+            and reconciliation must not invalidate a frame on state the operation it
+            belongs to produced. The ownership hook exists already
+            (Notice.Owner = MenuProgressOwner{OperationAttempt}, menu.go:1324); use it
+            rather than adding relaunch to another hand-written list. Measured
+            prevalence - park and leave close their frame, archive is exempted by name,
+            detach and resume have no confirmation, so relaunch is the only current
+            instance and every future confirmed operation inherits it. ARCH-PURPOSE.
+          family: refusal-names-no-next-action
+          round: 5
+        - id: BR-17
+          severity: Important
+          title: The child a successful relaunch adopts is pre-marked as an expected exit, so its first real death is silent
+          detail: |-
+            console.go:1427 walks c.panes and marks every pane whose thread == address,
+            but the attach dispatched at console.go:1385 has already installed the NEW
+            child's pane synchronously (installObservedThreadActor). Verified with a
+            dispatcher that installs a pane on attach - expectedExits["new-child"] is
+            true when finishOperation returns. onExit (console.go:768) consumes the
+            marker and suppresses ExitNotice, so if the freshly relaunched Pair crashes
+            or the operator quits it, couch says nothing. Park and detach never hit this
+            because no pane is created for the address in the same completion; relaunch
+            is the first operation that both ends a child and starts one.
+            consumeExpectedParkExitLocked's own doc already states the right rule -
+            "only the EXACT child selected by a Park attempt" - while the bridge selects
+            by address. Fix - capture the dying pane ids before the attach dispatch, or
+            exclude startedHandleID's pane, so the marker names the child expected to
+            die rather than the address about to host two. Pin with a test that the
+            adopted pane is absent from expectedExits and that its later exit notices.
+          family: suppression-marker-overmatches
+          round: 5
+        - id: BR-18
+          severity: Minor
+          title: The in-flight frame exemption matches on address only, not on the operation that owns the frame
+          detail: |-
+            menu.go:1268 computes operationInFlight from state.InFlight.Address ==
+            frame.Thread without comparing state.InFlight.Operation to frame.Action, so
+            any confirmation opened on that thread while something is in flight is also
+            exempted from the staleness check - reduceActionKey has no in-flight guard,
+            only dispatchMenuOperation does (menu.go:1429). The consequence is a delayed
+            rather than wrong refusal, but the exemption is broader than the comment and
+            the recorded lesson both claim ("scope the exemption to that window"). Adding
+            the operation to the comparison is one clause.
+          family: exemption-wider-than-its-rationale
+          round: 5
+        - id: BR-19
+          severity: Minor
+          title: reduceParkHotkey builds its refusal wording from an inline two-entry map that silently yields an empty word
+          detail: |-
+            4th finding in this family; the family's routing/confirmation rule is now
+            delivered via OperationConfirms and the Enter sweep, so this is residue on a
+            different axis - wording, not routing. menu.go:506 allocates
+            map[string]string{"park": "parked", "relaunch": "relaunched"} per call and
+            indexes it with event.Operation; a third operation joining the guard two
+            lines above produces "only a running thread can be ". Do not re-derive the
+            whole family for this - a package-level map with a fallback word, or a
+            declared past participle, closes it.
+          family: declared-source-hand-maintained-consumers
+          round: 5
+      boundary: M1
+      blocked: true
 ---
 
 # Gate ledger — pair#182 (boundary-review)
@@ -517,6 +637,80 @@ later rounds disposed of them. Generated — edit the gate, not this file.
   observation. A one-line setNotice on the open failure satisfies it without
   letting a diagnostic take the console down.
 
+## Round 5 — 2026-09-04T14:17:13-07:00 (claude) — BLOCKED
+
+### Disposed
+
+- BR-1 — not-addressed — Plan lines 32-37 unchanged; the plan file was not touched in this window at all.
+- BR-6 — not-addressed — relaunch_test.go untouched this window; its five refusal cases still include no agent-unsupported or profile-missing case reaching Relaunch.
+- BR-7 — not-addressed — plan:159 still unticked, Tasks 8/10/11 still unticked though shipped, and the issue's stale-estimate warning still contradicts the re-derived Estimate block.
+- BR-9 — not-addressed — manifest.go:524 still places relaunch.go between pathops.go and procops.go.
+- BR-10 — not-addressed — No test walks seqKind/InterceptorHit to a processInput arm; README.md:141 and menuControls are still unchanged, so the chord ships undocumented and the class deliverable is still the instance.
+- BR-12 — addressed — Verified by revert - restoring the old park/archive+detach/resume switch reds TestEveryOfferedActionIsReachableFromEnter/live/relaunch. console.go:1451's literal is deliberate for M1 and noted as Minor.
+- BR-13 — addressed — Verified by revert - making ResumeContext resolve unconditionally reds TestWarmReattachNeitherConsultsNorIsFailedByTheBindingResolver on both assertions.
+- BR-14 — addressed — atlas/couch.md:764 documents the variable, the 0600 opt-in default, and that the pumpStdin tap captures everything typed or pasted into the hosted agent.
+- BR-15 — addressed — newInputTracer returns an error and New pushes a control-priority notice; TestATraceThatCannotStartSaysSoInsteadOfTracingNothing asserts both halves.
+
+### Raised
+
+- **BR-16** [Critical] `refusal-names-no-next-action` A relaunch that parks and then fails has its recovery message erased by the next refresh
+  2nd finding in this family, so the deliverable is the RULE, not this site.
+  menu.go:1320 excludes relaunch from the park/leave confirmation-close, and
+  the comment justifies that by the transient RefusedBeforePark refusal. But
+  for ParkIncomplete and ParkedNotResumed the thread is NOT live, InFlight is
+  already cleared at menu.go:1306, and the refresh finishOperation always
+  requests (console.go:1456 -> menu.go:317 -> reconcileMenuFrames) hits the
+  "!operationInFlight && !thread.Live()" arm at menu.go:1271 - discarding the
+  confirmation AND overwriting the notice. Reproduced differentially - after
+  the result the notice is "relaunch brain: it is parked and the restart did
+  not take; Enter resumes it"; after one refresh it is "thread action is no
+  longer applicable" and the frames are back at root. That is the issue's
+  Done-when bullet ("leaves a resumable parked thread AND SAYS SO") true in
+  couchcore and false at the surface, on the destructive path, reading as the
+  data loss the Spec calls the whole design question. Rule - a notice carrying
+  a just-completed operation's outcome outranks a frame-reconciliation notice,
+  and reconciliation must not invalidate a frame on state the operation it
+  belongs to produced. The ownership hook exists already
+  (Notice.Owner = MenuProgressOwner{OperationAttempt}, menu.go:1324); use it
+  rather than adding relaunch to another hand-written list. Measured
+  prevalence - park and leave close their frame, archive is exempted by name,
+  detach and resume have no confirmation, so relaunch is the only current
+  instance and every future confirmed operation inherits it. ARCH-PURPOSE.
+- **BR-17** [Important] `suppression-marker-overmatches` The child a successful relaunch adopts is pre-marked as an expected exit, so its first real death is silent
+  console.go:1427 walks c.panes and marks every pane whose thread == address,
+  but the attach dispatched at console.go:1385 has already installed the NEW
+  child's pane synchronously (installObservedThreadActor). Verified with a
+  dispatcher that installs a pane on attach - expectedExits["new-child"] is
+  true when finishOperation returns. onExit (console.go:768) consumes the
+  marker and suppresses ExitNotice, so if the freshly relaunched Pair crashes
+  or the operator quits it, couch says nothing. Park and detach never hit this
+  because no pane is created for the address in the same completion; relaunch
+  is the first operation that both ends a child and starts one.
+  consumeExpectedParkExitLocked's own doc already states the right rule -
+  "only the EXACT child selected by a Park attempt" - while the bridge selects
+  by address. Fix - capture the dying pane ids before the attach dispatch, or
+  exclude startedHandleID's pane, so the marker names the child expected to
+  die rather than the address about to host two. Pin with a test that the
+  adopted pane is absent from expectedExits and that its later exit notices.
+- **BR-18** [Minor] `exemption-wider-than-its-rationale` The in-flight frame exemption matches on address only, not on the operation that owns the frame
+  menu.go:1268 computes operationInFlight from state.InFlight.Address ==
+  frame.Thread without comparing state.InFlight.Operation to frame.Action, so
+  any confirmation opened on that thread while something is in flight is also
+  exempted from the staleness check - reduceActionKey has no in-flight guard,
+  only dispatchMenuOperation does (menu.go:1429). The consequence is a delayed
+  rather than wrong refusal, but the exemption is broader than the comment and
+  the recorded lesson both claim ("scope the exemption to that window"). Adding
+  the operation to the comparison is one clause.
+- **BR-19** [Minor] `declared-source-hand-maintained-consumers` reduceParkHotkey builds its refusal wording from an inline two-entry map that silently yields an empty word
+  4th finding in this family; the family's routing/confirmation rule is now
+  delivered via OperationConfirms and the Enter sweep, so this is residue on a
+  different axis - wording, not routing. menu.go:506 allocates
+  map[string]string{"park": "parked", "relaunch": "relaunched"} per call and
+  indexes it with event.Operation; a third operation joining the guard two
+  lines above produces "only a running thread can be ". Do not re-derive the
+  whole family for this - a package-level map with a fallback word, or a
+  declared past participle, closes it.
+
 ## Open findings
 
 - **BR-1** [Minor] `operating-envelope` Two of the envelope's three durations name budgets that do not exist as constants
@@ -524,7 +718,7 @@ later rounds disposed of them. Generated — edit the gate, not this file.
 - **BR-7** [Minor] `plan-record-lags-code` Task 1 Step 5 is unticked though committed, and the issue's stale-estimate warning contradicts the re-derived Estimate block
 - **BR-9** [Minor] `manifest-ordering` relaunch.go inserted out of alphabetical order in NonArtifactSources
 - **BR-10** [Important] `declared-source-hand-maintained-consumers` Alt+n is intercepted and then silently dropped: HitRelaunch has no arm in processInput's switch
-- **BR-12** [Critical] `declared-source-hand-maintained-consumers` relaunch is offered in the switcher's action list and Enter on it does nothing
-- **BR-13** [Critical] `shared-helper-widens-caller-contract` The resumeEvidence consolidation makes a warm reattach resolve a binding it never resolved, and fail when that resolver errors
-- **BR-14** [Important] `new-surface-undocumented` COUCH_INPUT_TRACE is a new operator surface that records every keystroke and is documented nowhere
-- **BR-15** [Minor] `swallowed-cause-fabricated-diagnostic` newInputTracer swallows its open error, so a failed probe reads as "the terminal sent nothing"
+- **BR-16** [Critical] `refusal-names-no-next-action` A relaunch that parks and then fails has its recovery message erased by the next refresh
+- **BR-17** [Important] `suppression-marker-overmatches` The child a successful relaunch adopts is pre-marked as an expected exit, so its first real death is silent
+- **BR-18** [Minor] `exemption-wider-than-its-rationale` The in-flight frame exemption matches on address only, not on the operation that owns the frame
+- **BR-19** [Minor] `declared-source-hand-maintained-consumers` reduceParkHotkey builds its refusal wording from an inline two-entry map that silently yields an empty word

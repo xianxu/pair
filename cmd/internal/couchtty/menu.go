@@ -125,6 +125,23 @@ func progressMenuNotice(text string) MenuNotice {
 }
 func errorMenuNotice(text string) MenuNotice { return MenuNotice{Level: MenuNoticeError, Text: text} }
 
+// setBookkeepingNotice writes a frame-validity message WITHOUT erasing an
+// operation's own result.
+//
+// A refresh discarding a frame is bookkeeping, and "thread action is no longer
+// applicable" tells the operator nothing they can act on. An operation's failure
+// notice does: `park-ok-resume-failed`'s entire value is the sentence saying
+// Enter resumes the thread. The two collided precisely on relaunch, because its
+// park makes the thread non-live and so invalidates the very frame whose
+// operation just failed -- so the next refresh replaced the recovery
+// instructions with bookkeeping, on the one outcome that most needs them.
+func setBookkeepingNotice(state *MenuState, text string) {
+	if state.Notice.Level == MenuNoticeError && state.Notice.Owner.OperationAttempt != 0 {
+		return
+	}
+	state.Notice = errorMenuNotice(text)
+}
+
 // MenuState is immutable-by-copy reducer state. Frames retain identities and
 // text; the inventory remains one separately owned slice.
 type MenuState struct {
@@ -502,8 +519,7 @@ func reduceParkHotkey(state MenuState, event MenuEvent) (MenuState, []MenuEffect
 	if event.Operation == "park" || event.Operation == "relaunch" {
 		thread, ok := findMenuThread(state.Inventory, event.Address)
 		if !ok || !thread.Live() {
-			state.Notice = errorMenuNotice("only a running thread can be " +
-				map[string]string{"park": "parked", "relaunch": "relaunched"}[event.Operation])
+			state.Notice = errorMenuNotice("only a running thread can be " + pastParticiple(event.Operation))
 			return state, nil
 		}
 	}
@@ -515,6 +531,22 @@ func reduceParkHotkey(state MenuState, event MenuEvent) (MenuState, []MenuEffect
 		return state, nil
 	}
 	return state, nil
+}
+
+// pastParticiple is the operator-facing verb form, with a FALLBACK.
+//
+// It was an inline two-entry map indexed by the operation, so a third operation
+// joining the guard above -- two lines away -- would have produced "only a
+// running thread can be " and nothing else. A lookup that can silently yield an
+// empty word is worse than a clumsy one.
+func pastParticiple(operation string) string {
+	switch operation {
+	case "park":
+		return "parked"
+	case "relaunch":
+		return "relaunched"
+	}
+	return operation + "ed"
 }
 
 func reduceActionKey(state MenuState, key PanelKey) (MenuState, []MenuEffect) {
@@ -1240,14 +1272,14 @@ func reconcileMenuFrames(state MenuState, previous ...[]couchcore.ActionableThre
 		thread, ok := findMenuThread(state.Inventory, frame.Thread)
 		if !ok {
 			invalidThreadFrame = true
-			state.Notice = errorMenuNotice(hiddenThreadNotice(priorInventory, frame.Thread))
+			setBookkeepingNotice(&state, hiddenThreadNotice(priorInventory, frame.Thread))
 			continue
 		}
 		switch frame.Kind {
 		case MenuFrameActions:
 			if bound != (couchcore.ThreadAddress{}) {
 				invalidThreadFrame = true
-				state.Notice = errorMenuNotice("thread action is no longer applicable")
+				setBookkeepingNotice(&state, "thread action is no longer applicable")
 				continue
 			}
 			reconcileItemSelection(&frame, filterMenuItems(menuActionItems(thread), frame.Filter))
@@ -1265,24 +1297,27 @@ func reconcileMenuFrames(state MenuState, previous ...[]couchcore.ActionableThre
 			// applicable" over an operation that went on to work. The in-flight
 			// operation's own result is the authority on whether its frame
 			// survives -- not a liveness reading it is itself changing.
-			operationInFlight := state.InFlight.Operation != "" && state.InFlight.Address == frame.Thread
+			// Address AND operation: an exemption wider than its rationale is
+			// not scoped to the window it explains, and the frame this protects
+			// is the one whose OWN operation is running.
+			operationInFlight := state.InFlight.Operation == frame.Action && state.InFlight.Address == frame.Thread
 			confirms, _ := couchcore.OperationConfirms(frame.Action)
 			if (bound != (couchcore.ThreadAddress{}) && bound != frame.Thread) || !confirms ||
 				(frame.Action != "archive" && !operationInFlight && !thread.Live()) {
 				invalidThreadFrame = true
-				state.Notice = errorMenuNotice("thread action is no longer applicable")
+				setBookkeepingNotice(&state, "thread action is no longer applicable")
 				continue
 			}
 			reconcileItemSelection(&frame, filterMenuItems(confirmationMenuItems(state, frame), frame.Filter))
 		case MenuFrameText:
 			if bound != frame.Thread || (frame.Action != "name" && frame.Action != "describe") {
 				invalidThreadFrame = true
-				state.Notice = errorMenuNotice("thread input is no longer applicable")
+				setBookkeepingNotice(&state, "thread input is no longer applicable")
 				continue
 			}
 		default:
 			invalidThreadFrame = true
-			state.Notice = errorMenuNotice("menu frame is no longer valid")
+			setBookkeepingNotice(&state, "menu frame is no longer valid")
 			continue
 		}
 		state.Frames = append(state.Frames, frame)

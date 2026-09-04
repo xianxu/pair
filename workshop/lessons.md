@@ -3226,3 +3226,18 @@ that a key token appears cannot detect a contradictory behavioral sentence
   the list was deliberate. Deleting the list as a redundant hand-written case
   would have shipped a regression as a cleanup. Probe first when a name and an
   intent disagree.
+- Bookkeeping must not overwrite an operation's own result. A refresh discarding
+  a stale frame wants to say "no longer applicable"; the operation that just
+  failed wants to say "it is parked, Enter resumes it". The second is the only
+  one the operator can act on, and couch's relaunch collided them exactly —
+  its park makes the thread non-live, invalidating the very frame whose
+  operation failed, so the next refresh erased the recovery instructions on the
+  one outcome that most needs them. Give the acting notice an owner and let the
+  bookkeeping one defer to it.
+- A "this is expected" marker applied by ADDRESS marks whatever currently holds
+  that address, which after a replace-in-place operation is the REPLACEMENT.
+  couch marked every pane on the relaunched thread as an expected exit, but
+  relaunch had already adopted its new child, so that child's first real death
+  would have been swallowed — the spurious-notice bug the marker exists to
+  prevent, inverted. Mark the thing you ended, identified by its own handle,
+  never by the slot it occupied.

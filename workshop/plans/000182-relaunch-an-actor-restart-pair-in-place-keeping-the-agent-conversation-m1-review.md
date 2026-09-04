@@ -556,3 +556,217 @@ findings:
       observation. A one-line setNotice on the open failure satisfies it without
       letting a diagnostic take the console down.
 ```
+
+---
+
+## Re-review — 2026-09-04T14:17:13-07:00 (REWORK)
+
+| field | value |
+|-------|-------|
+| issue | 182 — Relaunch an actor: restart Pair in place, keeping the agent conversation |
+| repo | pair |
+| issue file | workshop/issues/000182-relaunch-an-actor-restart-pair-in-place-keeping-the-agent-conversation.md |
+| boundary | milestone M1 |
+| milestone | M1 |
+| window | 4a7d96e2df70b9ad0fea2482bc2dc3d6f1816637..11db9fd2d71fe01874f716b580cb02d95da17045 |
+| command | sdlc milestone-close --issue 182 --milestone M1 |
+| reviewer | claude |
+| timestamp | 2026-09-04T14:17:13-07:00 |
+| verdict | REWORK |
+
+## Review
+
+```verdict
+verdict: REWORK
+confidence: high
+```
+
+This round's four claimed fixes are real and pinned — I confirmed BR-12 and BR-13 by reverting each in a scratch worktree and watching the named test go red, and BR-14/BR-15 by reading the shipped doc and the test that asserts both the error and the console notice. `OperationConfirms` is the right shape for the family that has now produced five instances: confirmation is declared once and read at all three copies, and `TestEveryOfferedActionIsReachableFromEnter` fails the moment an offered action stops routing. What blocks SHIP is a new Critical on the same surface, found by driving the *failure* half of the four-outcome model that M1 exists to deliver: after a relaunch that parked and then failed to resume, `reconcileMenuFrames` erases the recovery message ("it is parked … Enter resumes it") and replaces it with "thread action is no longer applicable" on the very next inventory refresh — the same defect `abbf6b0a` fixed over success, still live over failure, and directly contradicting the Done-when bullet "A resume failure after a successful park leaves a resumable parked thread **and says so**." Reproduced with a differential test. Plus an Important: the child adopted by a successful relaunch is pre-marked as an expected exit, so its first genuine death is silent. Five prior findings (BR-1, BR-6, BR-7, BR-9, BR-10) remain untouched — the plan file was not modified in this window at all, and `milestone-close`'s plan-unchecked guard will refuse on plan:159 regardless.
+
+## 1. Strengths
+
+- **`cmd/internal/couchcore/operationdispatch.go:69`** — `OperationConfirms` is the correct answer to the family, not a fourth list. Three transcriptions of "which actions confirm" (`menu.go:562`, `:620`, `:1269`) now read the declaration, and the declaration is the thing `ops_declarations_test.go` already pins.
+- **`cmd/internal/couchtty/menu_action_sweep_test.go:15`** — the sweep asserts *routing*, not presence, and cross-checks against the declaration. I reverted `reduceActionKey` to the old park/archive + detach/resume switch and it fails with `Enter on "relaunch" did nothing: frames 2→2, notice ""`. That is a genuine mutation detector.
+- **`cmd/internal/couchcore/resume.go:140,161`** — splitting `workingPathExists` from `resumeEvidence` along the axis the callers actually differ on is the right correction to BR-4's overshoot: one nil-`Path` policy survives, and the warm path pays nothing. `resume_warm_binding_test.go:47` fails both assertions under revert (`resolved the binding 1 time(s)` / `failed on the resolver error it should never have made`).
+- **`cmd/internal/couchcore/resume.go:256`** — `bindingRefusalDiagnostic` derives the operator sentence from the same code that chose the refusal, and `resume_binding_message_test.go` pins that no two statuses share a message. That is the class fix, not the instance.
+- **`atlas/couch.md:764`** — the `COUCH_INPUT_TRACE` entry says what it captures *and where the tap is* (`pumpStdin`, before the Interceptor), which is the part an operator needs before enabling it, not after.
+
+## 2. Critical findings
+
+**C-1 — a relaunch that parks and then fails has its recovery message erased by the next refresh, and its confirmation torn down anyway.** `cmd/internal/couchtty/menu.go:1320` + `:1268`.
+
+`reduceOperationResult`'s failure branch deliberately excludes `relaunch` from the park/leave confirmation-close, and its new comment says relaunch keeps its confirmation because its commonest refusal is transient. That reasoning holds only for `RefusedBeforePark`, where the thread stays live. For the two outcomes that actually changed state — `ParkIncomplete` and `ParkedNotResumed` — the thread is *not* live, `state.InFlight` has already been cleared by line 1306, and the next inventory refresh (which `finishOperation` requests unconditionally at `console.go:1456`, and which always runs `reconcileMenuFrames` via `menu.go:317`) hits the `!operationInFlight && !thread.Live()` arm: the confirmation is discarded *and* `state.Notice` is overwritten with `"thread action is no longer applicable"`.
+
+Reproduced in a scratch worktree:
+
+```
+after result:  notice="relaunch brain: it is parked and the restart did not take; Enter resumes it"  frame=Confirmation/"relaunch"
+after refresh: notice="thread action is no longer applicable"                                        frame=Root/""
+```
+
+So the operator whose session was just parked-and-not-restarted is told the action is inapplicable — which is false, reads as data loss, and erases the one sentence naming the recovery. That is the issue's Done-when bullet ("leaves a resumable parked thread **and says so**") shipping true in `couchcore` and false at the surface.
+
+**This is the 2nd finding in family `refusal-names-no-next-action`.** BR-3 fixed the message; this is the message being thrown away before it can be read. Do not special-case relaunch. The rule: **a notice carrying a just-completed operation's outcome outranks a frame-reconciliation notice, and reconciliation must not invalidate a frame on state the operation it belongs to produced.** The ownership hook already exists — `reduceOperationResult` stamps `state.Notice.Owner = MenuProgressOwner{OperationAttempt: origin.Attempt}` (`menu.go:1324`). Fix sketch: (a) have `reconcileMenuFrames` skip its `errorMenuNotice("thread action is no longer applicable")` when the current notice is owned by an operation attempt that has not yet been superseded; (b) extend the in-flight exemption to a *just-settled* window keyed on that same attempt, or close relaunch's confirmation on the non-live outcomes the way park does. Measured prevalence: `park`/`leave` close their frame so they never hit it, `archive` is exempted by name, `detach`/`resume` have no confirmation — relaunch is the only current instance, but the rule is general and the next confirmed operation inherits it. Pin with a test that a failed operation's error text survives one inventory refresh. ARCH-PURPOSE.
+
+## 3. Important findings
+
+**I-1 — the child a successful relaunch adopts is immediately marked as an expected exit, so its first real death is silent.** `cmd/internal/couchtty/console.go:1427`.
+
+`finishOperation` dispatches `attach` at line 1385, which runs `installObservedThreadActor` synchronously and inserts the *new* pane. Line 1427 then walks `c.panes` and sets `c.expectedExits[id] = true` for **every** pane whose `thread == address` — including the pane installed four lines earlier. Verified: with a dispatcher that installs a pane on `attach`, `con.expectedExits["new-child"]` is `true` after `finishOperation` returns. `onExit` (`console.go:768`) then consumes that marker and suppresses `ExitNotice`, so if the freshly relaunched Pair dies — crash, or the operator quitting it — the operator gets nothing. Park and detach never hit this because no pane is created for the address in the same completion; relaunch is the first operation that both ends a child and starts one.
+
+The function's own contract already states the right rule — `consumeExpectedParkExitLocked`'s doc says it "classifies only the **exact child** selected by a Park attempt as expected" — while the bridge selects by address. Fix sketch: capture the dying pane id(s) before the `attach` dispatch (or exclude `startedHandleID`'s pane), so the marker names the child that is expected to die rather than the address that will host two. Family `suppression-marker-overmatches`. Pin with a test asserting the adopted pane is not in `expectedExits` after a successful relaunch, and that a later exit of that pane does produce a notice.
+
+## 4. Minor findings
+
+- `cmd/internal/couchtty/menu.go:1268` — the in-flight exemption matches on `state.InFlight.Address == frame.Thread` only, not on `state.InFlight.Operation == frame.Action`, so an unrelated confirmation frame opened on the same thread while something is in flight is also exempted from the staleness check. The lesson recorded in `workshop/lessons.md` says to "scope the exemption to that window"; adding the operation to the comparison does that in one clause. Family `exemption-wider-than-its-rationale`.
+- `cmd/internal/couchtty/menu.go:506` — `map[string]string{"park": "parked", "relaunch": "relaunched"}[event.Operation]` allocates per call and yields `"only a running thread can be "` if a third operation ever joins the guard above it. A package-level map with a fallback word, or a declared past-participle, removes both.
+- `cmd/internal/couchtty/console.go:1451` — the landing arm is still `completed.origin.Operation == "resume"`. Correct for M1 (the actor form deliberately ends in the switcher until the holding pane exists, and `onRelaunchHotkey`'s comment says so), but it is the site M2 Task 10 Step 3 must touch and the sweep test does not reach it.
+- `workshop/issues/000184-couch-switch-thread-agent.md` was created inside this milestone's window (`c751b62a`, `a0620f14`). Tracker-only and harmless, but it widens the boundary's diff.
+
+## 5. Test coverage notes
+
+- The three chord/adoption/refusal regressions from the smoke test are now driven through `Run`'s real input loop against `hostty.NewFakeHost` + `ptychild.NewFakeChild` (`console_relaunch_chord_test.go`), including both arrow encodings. That is the layer the earlier interceptor-only tests could not see, and it is the right one.
+- Both new couchcore tests are differential: I confirmed each goes red under revert. `resume_warm_binding_test.go` does not assert that the warm reattach *succeeds*, only that it neither consults nor is failed by the resolver — adequate for its claim, but a `err == nil` assertion would make it a reattach test as well.
+- Gap that let C-1 through: every relaunch surface test drives the **success** path or `RefusedBeforePark`. Nothing drives `ParkIncomplete`/`ParkedNotResumed` through `ReduceMenu` plus one refresh, which is where the four-outcome model's operator value actually lands.
+- Gap that let I-1 through: `TestRelaunchResultIsAdoptedByTheConsole` uses a dispatcher that does not install a pane, so the interaction between `attach` and the `expectedExits` bridge is untested.
+- Not run: `make test`. `ptychild`-backed tests fail in this environment with `operation not permitted` (`TestNotificationPTYConformance`, the `couchcore` pty conformance set) — an environment restriction, not a defect. Everything else in `couchcore`, `couchtty` and `artifactpath` passes.
+
+## 6. Architectural notes
+
+- **ARCH-DRY — pass, with residue.** `OperationConfirms`, `endsItsOwnChild`, `bindingRefusalDiagnostic` and the structural `frame.Action + " " + label` are all genuine consolidations. Remaining hand-written per-operation lists: `menu.go:1349` (`reduceOperationResult`'s restore case), `menu.go:1362` (`operationNeedsProjectionRefresh`, fail-safe), `menu.go:506` (the wording map), `console.go:1451` (the landing arm). None is currently wrong; all four are the same shape the family keeps producing.
+- **ARCH-PURE — pass.** `OperationConfirms`, `endsItsOwnChild`, `bindingRefusalDiagnostic`, `workingPathExists` (thin IO seam) and every menu reducer are testable without IO, and the new tests do so.
+- **ARCH-PURPOSE — flag (C-1).** The Done-when bullet on post-park resume failure is satisfied in `couchcore` and contradicted at the terminal. Separately, BR-10's class deliverable (an enumeration from `seqKind`/`InterceptorHit` to a handler) is still absent while its instance stays fixed — the same pattern that produced round 3's Critical.
+- **ARCH-MOCK — pass.** `warmPathResolverProbe` embeds the stateful fake and models the real failure shape (zero resolution + untyped error) rather than stubbing a return; production and test flow share the `NativeBindingResolver` seam.
+- **ARCH-CONSTRAINTS — improved, one carry-over.** BR-13's fix removes a `ListFiles` + up-to-8 MB read + possible catalog write from the warm path. BR-1's envelope is still wrong in the plan (`CompletionTimeout` is 15s at `couch.go:119` and already covers child death; `resumeRegistrationTimeout` is 5s at `couch.go:107`, not 10s — worst case ~20s, not ~30s).
+- **ARCH-SECURE — pass.** The keystroke trace is opt-in, `0600`, and now documented with what it captures before an operator enables it. A trace that cannot open reports at control priority instead of presenting an empty file as an observation. Refusal strings are static and carry no operator data.
+
+## 7. Plan revision recommendations
+
+The plan file `workshop/plans/000182-relaunch-an-actor-plan.md` was **not modified in this window**, so all six of round 3's recommendations stand unaddressed:
+
+1. Replace the six-site table with the measured twelve; mark `console.go:1451` as the one still open (`menu.go:549` is now closed).
+2. Extend Task 10 Step 2b to "…**and** Enter on it yields a dispatch effect or a frame" (now delivered as `TestEveryOfferedActionIsReachableFromEnter` — record it), **and** add the hit-layer half BR-10 asked for: a test walking every `seqKind` through `hit()` to a `processInput` arm.
+3. Tick what shipped and add a `## Revisions` entry recording that M2's key layer (Task 8), the menu sweep (Task 10 Steps 2/2b/3, partially) and the real-stack verification (Task 11) landed inside M1's window. Task 1 Step 5 (plan:159) is still `- [ ]` and `milestone-close` will refuse on it.
+4. Fix the operating envelope (BR-1) with the constants cited above.
+5. Add `resumeEvidence`, `workingPathExists`, `hasOccupiedIncarnation`, `ResumeNotRunning`, `StartedChild` and `OperationConfirms` to the M1 Core-concepts table.
+6. In the issue, drop the `## Revisions` "⚠ The estimate is now stale" paragraph — `## Estimate` has since been re-derived to 6.20 for the grown scope and the warning contradicts the block it points at.
+
+New this round: record the notice-ownership rule from C-1 and the exact-child rule from I-1 in `workshop/lessons.md` alongside the three entries already added.
+
+```findings
+dispose:
+  - id: BR-1
+    disposition: not-addressed
+    note: |
+      Plan lines 32-37 unchanged; the plan file was not touched in this window at all.
+  - id: BR-6
+    disposition: not-addressed
+    note: |
+      relaunch_test.go untouched this window; its five refusal cases still include no agent-unsupported or profile-missing case reaching Relaunch.
+  - id: BR-7
+    disposition: not-addressed
+    note: |
+      plan:159 still unticked, Tasks 8/10/11 still unticked though shipped, and the issue's stale-estimate warning still contradicts the re-derived Estimate block.
+  - id: BR-9
+    disposition: not-addressed
+    note: |
+      manifest.go:524 still places relaunch.go between pathops.go and procops.go.
+  - id: BR-10
+    disposition: not-addressed
+    note: |
+      No test walks seqKind/InterceptorHit to a processInput arm; README.md:141 and menuControls are still unchanged, so the chord ships undocumented and the class deliverable is still the instance.
+  - id: BR-12
+    disposition: addressed
+    note: |
+      Verified by revert - restoring the old park/archive+detach/resume switch reds TestEveryOfferedActionIsReachableFromEnter/live/relaunch. console.go:1451's literal is deliberate for M1 and noted as Minor.
+  - id: BR-13
+    disposition: addressed
+    note: |
+      Verified by revert - making ResumeContext resolve unconditionally reds TestWarmReattachNeitherConsultsNorIsFailedByTheBindingResolver on both assertions.
+  - id: BR-14
+    disposition: addressed
+    note: |
+      atlas/couch.md:764 documents the variable, the 0600 opt-in default, and that the pumpStdin tap captures everything typed or pasted into the hosted agent.
+  - id: BR-15
+    disposition: addressed
+    note: |
+      newInputTracer returns an error and New pushes a control-priority notice; TestATraceThatCannotStartSaysSoInsteadOfTracingNothing asserts both halves.
+findings:
+  - id: new
+    severity: Critical
+    family: refusal-names-no-next-action
+    title: |
+      A relaunch that parks and then fails has its recovery message erased by the next refresh
+    detail: |
+      2nd finding in this family, so the deliverable is the RULE, not this site.
+      menu.go:1320 excludes relaunch from the park/leave confirmation-close, and
+      the comment justifies that by the transient RefusedBeforePark refusal. But
+      for ParkIncomplete and ParkedNotResumed the thread is NOT live, InFlight is
+      already cleared at menu.go:1306, and the refresh finishOperation always
+      requests (console.go:1456 -> menu.go:317 -> reconcileMenuFrames) hits the
+      "!operationInFlight && !thread.Live()" arm at menu.go:1271 - discarding the
+      confirmation AND overwriting the notice. Reproduced differentially - after
+      the result the notice is "relaunch brain: it is parked and the restart did
+      not take; Enter resumes it"; after one refresh it is "thread action is no
+      longer applicable" and the frames are back at root. That is the issue's
+      Done-when bullet ("leaves a resumable parked thread AND SAYS SO") true in
+      couchcore and false at the surface, on the destructive path, reading as the
+      data loss the Spec calls the whole design question. Rule - a notice carrying
+      a just-completed operation's outcome outranks a frame-reconciliation notice,
+      and reconciliation must not invalidate a frame on state the operation it
+      belongs to produced. The ownership hook exists already
+      (Notice.Owner = MenuProgressOwner{OperationAttempt}, menu.go:1324); use it
+      rather than adding relaunch to another hand-written list. Measured
+      prevalence - park and leave close their frame, archive is exempted by name,
+      detach and resume have no confirmation, so relaunch is the only current
+      instance and every future confirmed operation inherits it. ARCH-PURPOSE.
+  - id: new
+    severity: Important
+    family: suppression-marker-overmatches
+    title: |
+      The child a successful relaunch adopts is pre-marked as an expected exit, so its first real death is silent
+    detail: |
+      console.go:1427 walks c.panes and marks every pane whose thread == address,
+      but the attach dispatched at console.go:1385 has already installed the NEW
+      child's pane synchronously (installObservedThreadActor). Verified with a
+      dispatcher that installs a pane on attach - expectedExits["new-child"] is
+      true when finishOperation returns. onExit (console.go:768) consumes the
+      marker and suppresses ExitNotice, so if the freshly relaunched Pair crashes
+      or the operator quits it, couch says nothing. Park and detach never hit this
+      because no pane is created for the address in the same completion; relaunch
+      is the first operation that both ends a child and starts one.
+      consumeExpectedParkExitLocked's own doc already states the right rule -
+      "only the EXACT child selected by a Park attempt" - while the bridge selects
+      by address. Fix - capture the dying pane ids before the attach dispatch, or
+      exclude startedHandleID's pane, so the marker names the child expected to
+      die rather than the address about to host two. Pin with a test that the
+      adopted pane is absent from expectedExits and that its later exit notices.
+  - id: new
+    severity: Minor
+    family: exemption-wider-than-its-rationale
+    title: |
+      The in-flight frame exemption matches on address only, not on the operation that owns the frame
+    detail: |
+      menu.go:1268 computes operationInFlight from state.InFlight.Address ==
+      frame.Thread without comparing state.InFlight.Operation to frame.Action, so
+      any confirmation opened on that thread while something is in flight is also
+      exempted from the staleness check - reduceActionKey has no in-flight guard,
+      only dispatchMenuOperation does (menu.go:1429). The consequence is a delayed
+      rather than wrong refusal, but the exemption is broader than the comment and
+      the recorded lesson both claim ("scope the exemption to that window"). Adding
+      the operation to the comparison is one clause.
+  - id: new
+    severity: Minor
+    family: declared-source-hand-maintained-consumers
+    title: |
+      reduceParkHotkey builds its refusal wording from an inline two-entry map that silently yields an empty word
+    detail: |
+      4th finding in this family; the family's routing/confirmation rule is now
+      delivered via OperationConfirms and the Enter sweep, so this is residue on a
+      different axis - wording, not routing. menu.go:506 allocates
+      map[string]string{"park": "parked", "relaunch": "relaunched"} per call and
+      indexes it with event.Operation; a third operation joining the guard two
+      lines above produces "only a running thread can be ". Do not re-derive the
+      whole family for this - a package-level map with a fallback word, or a
+      declared past participle, closes it.
+```

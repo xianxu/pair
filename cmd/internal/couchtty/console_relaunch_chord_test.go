@@ -3,6 +3,7 @@ package couchtty
 import (
 	"errors"
 	"io"
+	"os"
 	"slices"
 	"strings"
 	"testing"
@@ -250,5 +251,55 @@ func TestRefusedRelaunchKeepsItsConfirmationAndSaysWhy(t *testing.T) {
 	frame := con.menuSnapshot().CurrentFrame()
 	if frame.Kind != MenuFrameConfirmation || frame.Action != "relaunch" || frame.Thread != address {
 		t.Fatalf("refused relaunch left frame = %+v, want its own confirmation restored", frame)
+	}
+}
+
+// stubHandle is only ever asked for its ID here.
+type stubHandle struct{ id string }
+
+func (s stubHandle) ID() string             { return s.id }
+func (s stubHandle) PID() int               { return 0 }
+func (s stubHandle) Identity() string       { return "" }
+func (s stubHandle) Alive() bool            { return true }
+func (s stubHandle) Signal(os.Signal) error { return nil }
+func (s stubHandle) Wait() int              { return 0 }
+
+// The expectedExits bridge marks the child a lifecycle operation deliberately
+// ended, so its exit does not raise a spurious notice. Relaunch has ALREADY
+// adopted its replacement child by the time it runs, so marking every pane on
+// the address marked the new one -- inverting the bug the bridge exists to
+// prevent, and making that child's first real death silent.
+func TestRelaunchDoesNotPreMarkTheChildItJustAdopted(t *testing.T) {
+	address := menuAddress("brain")
+	con := New(hostty.NewFakeHost(ptychild.Size{Rows: 24, Cols: 80}), nil)
+	t.Cleanup(con.Stop)
+	// The pane it replaced, already dead -- which is the only way two panes for
+	// one thread coexist: installObservedThreadActor refuses a second live one.
+	// This is the window where the completion wins the race against the old
+	// child's exit event, so both are still in the map.
+	replaced := ptychild.NewFakeChild(nil)
+	con.attachThreadActor("old-child", "brain", address, "/w/brain", "brain", replaced)
+	_ = replaced.Close()
+	waitFor(t, "the replaced child to finish", func() bool { return replaced.Done() })
+	con.attachThreadActor("new-child", "brain", address, "/w/brain", "brain", ptychild.NewFakeChild(nil))
+	con.SetOperationDispatcher(func(couchcore.OperationCall) (any, error) { return nil, nil })
+
+	con.finishOperation(operationCompletion{
+		name: "relaunch",
+		value: couchcore.RelaunchResult{
+			Outcome: couchcore.Relaunched,
+			Record:  couchcore.ActorRecord{ID: "brain", Thread: address},
+			Handle:  stubHandle{id: "new-child"},
+		},
+		origin: MenuOperationOrigin{Operation: "relaunch", Address: address, Attempt: 1},
+	})
+
+	con.mu.Lock()
+	defer con.mu.Unlock()
+	if con.expectedExits["new-child"] {
+		t.Error("the child relaunch just adopted was pre-marked as an expected exit; its first real death would be silent")
+	}
+	if !con.expectedExits["old-child"] {
+		t.Error("the child relaunch replaced was NOT marked, so its exit raises a spurious notice")
 	}
 }
