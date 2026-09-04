@@ -1,11 +1,12 @@
 ---
 id: 000180
-status: open
+status: codecomplete
 deps: [pair#168]
 github_issue:
 created: 2026-09-03
-updated: 2026-09-03
+updated: 2026-09-04
 estimate_hours:
+actual_hours: N/A
 ---
 
 # Retire finished threads out of the couch working set into an archive
@@ -105,18 +106,32 @@ Open, to settle in design:
 
 ## Plan
 
-- [ ] Blocked: land pair#168 first, then re-measure the real store. The
-      retirement rule is written against the post-fix population, not this one.
-- [ ] Pure `RetireThread` predicate over a record + its session/transcript
-      evidence, unit-tested across the state matrix (ARCH-PURE).
-- [ ] Archive move + reader that can list the archive without loading it into
-      the working set.
-- [ ] Operator-invoked verb first; decide automatic retirement separately.
-- [ ] Decide the Pair per-tag artifact question -- likely a separate pair-side
-      issue rather than couch reaching into pair's directory.
+Shipped as pair#181 M3, deliberately narrowed. Ticked against what landed, with
+the two items the operator's decision removed marked as not built.
+
+- [-] NOT BUILT: `DecideRetirement` over the reason vocabulary. The operator
+      replaced the predicate with an action — a rule guessing what is finished
+      is exactly what they did not want, and the guessing was the matrix.
+- [-] NOT BUILT: `couch prune`. With one thread per path enforced and archive
+      available per row, a bulk sweep has nothing to sweep; the one-time cleanup
+      ran as a throwaway program instead (10 archived, 3 live kept).
+- [x] `ThreadStore.ArchiveThread` moves the record and drops it from the
+      manifest in ONE journal entry, so a crash cannot leave it in both sets or
+      neither. It refuses a live, occupied or mid-park thread.
+- [x] `ThreadStore.ArchivedThreads` + `couch --archived` make the decision
+      visible, because an undo the operator cannot see is not one they trust.
+- [x] Archive is a complete delete: `Couch.ArchiveThread` stops the session
+      first (`Quiesce`), and its failure refuses the move — the other order
+      files a record with a live session behind it. Park could not do the
+      stopping: it needs a live incarnation, which the debris this exists for
+      does not have.
+- [x] Pair's per-tag artifacts are deliberately untouched, so an archived
+      thread stays inspectable through its ledger.
 
 ## Log
 
+
+- 2026-09-04: closed — Shipped as pair#181 M3, deliberately narrowed on the operator instruction: DecideRetirement and couch prune were NOT built — an operator action beats a predicate guessing what is finished, and the guessing was the retirement matrix. What shipped is archive: a declared operation, confirmed, offered on every row couch is not hosting, which stops the thread session and then moves its record to threadstore/archive/<scope>/<tag>.json in one journal entry; couch --archived lists what was retired. Verified against the operator LIVE store: the one-time cleanup archived 10 threads and kept 3 live, leaving exactly one thread per repo, and every archived record is intact with its Pair ledger untouched so tag→session-id history remains inspectable. Two things the Spec did not anticipate and the work found: park cannot do the stopping (it needs a live incarnation, which the debris this exists for lacks), so the mechanism is Artifacts.Quiesce a layer down; and a record move alone leaves a running agent nothing tracks — the cleanup produced exactly one such orphan before that was fixed, and it was then killed. The Spec premise was also overturned by measurement: it assumed the working set held finished threads to retire, and it held recoverable ones. --no-actual because the hours are recorded against pair#181 M3 and counting them twice would corrupt velocity calibration. --no-judge because this code was reviewed across five pair#181 M3 boundary rounds, which is where every archive finding came from. --no-atlas/--no-project because atlas/couch.md and workshop/projects/couch.md were both updated under pair#181, which lists this issue as absorbed.; review verdict: not-run
 ### 2026-09-03 — shipped as pair#181 M3, as an action rather than a predicate
 
 Absorbed rather than worked separately, and deliberately narrowed.

@@ -1,12 +1,13 @@
 ---
 id: 000179
-status: working
+status: codecomplete
 deps: []
 github_issue:
 created: 2026-09-03
-updated: 2026-09-03
+updated: 2026-09-04
 estimate_hours:
 started: 2026-09-03T16:18:09-07:00
+actual_hours: N/A
 ---
 
 # Reattach a detached thread without the cold-resume native binding
@@ -162,20 +163,33 @@ Open questions to settle in design, not here:
 
 ## Plan
 
-- [ ] Reproduce BOTH refusals as tests before any fix: (a) `DecideLaunch` +
-      the `createflow` guard refuse a couch resume onto a live detached
-      session; (b) `DecideResume` refuses detached + provisional binding.
-- [ ] Split the proof: warm reattach stops consuming the native binding, cold
-      resume keeps it. Own predicate for the warm launch precondition rather
-      than a relaxed `RequireNativeResumeBinding`.
-- [ ] Drop the mirrored gate in `ActionableThreadInventoryContext` for detached
-      candidates only, keeping it for parked ones.
-- [ ] Re-check the pair#170 M3 symptom: a detached row that cannot reattach
-      must not take couch down at startup.
-- [ ] Atlas: the two resume authorities and what each proves.
+Shipped as pair#181 M2. Ticked against what landed, with the one item that
+turned out unnecessary marked as such rather than claimed.
+
+- [x] Reproduce the refusal as a test before any fix. Only (b) was needed:
+      `DecideResume` refusing detached + provisional binding, red first with
+      `resume-binding-provisional`. (a) was never reached — see the item below.
+- [x] Split the proof: `DecideResume` applies the native-binding diagnostic only
+      to a verified park, and `ResumeContext` no longer resolves a binding at all
+      on the warm path. `confirmStillDetached` is the warm precondition,
+      mirroring `RequireNativeResumeBinding` rather than relaxing it.
+- [x] The mirrored inventory gate went in pair#181 M1, which made classification
+      total: the row is listed with its reason instead of being dropped.
+- [x] Startup no longer dies mutely on a resume refusal — `startupResumeRefusal`
+      names the thread and the ways forward. No-fallback was right; refusing
+      without a next step was not.
+- [x] Atlas: `atlas/couch.md` records the two resume authorities and what each
+      proves, and that the native-binding gate no longer applies to the warm path.
+- [-] NOT NEEDED: the `createflow` create-boundary guard. The Spec assumed a
+      `ResumeMode` threaded through Pair's launch profile to satisfy it. couch
+      simply stops sending `ResumeRequired` on a warm reattach, so the guard is
+      never reached and `launcher/` is untouched — which also keeps the standing
+      constraint that Pair must not be degraded.
 
 ## Log
 
+
+- 2026-09-04: closed — Shipped as pair#181 M2 and verified there: reattaching a detached session works on the real stack — tools-couch-2 reattached with its Pair ledger unchanged at 6 rows and its zellij session still the one created 8h56m earlier, proving a reattach rather than a relaunch; the couch restart auto-reattached the operator into the live pair session. The Spec was right about the split (the native binding is the COLD path proof; a warm reattach consumes it nowhere) and wrong about the mechanism: it assumed a ResumeMode threaded through Pair TrustedLaunchProfile and LaunchArgs, and the shipped fix touches launcher/ not at all — couch simply stops sending ResumeRequired, an authority Pair honours only at a create boundary, so the guard the Spec planned around is never reached. That also preserved the standing constraint that Pair keeps working standalone. --no-actual because the hours are recorded against pair#181 M2 and counting them twice would corrupt velocity calibration. --no-judge because this code was reviewed at the pair#181 M2 and M3 boundaries, five rounds, and a judge here would review a window containing none of it. --no-atlas/--no-project because atlas/couch.md and workshop/projects/couch.md were both updated under pair#181, which lists this issue as absorbed.; review verdict: not-run
 ### 2026-09-03 — shipped as pair#181 M2
 
 Absorbed rather than worked separately: this issue's design became pair#181's
