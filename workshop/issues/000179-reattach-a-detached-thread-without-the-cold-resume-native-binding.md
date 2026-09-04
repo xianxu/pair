@@ -1,11 +1,12 @@
 ---
 id: 000179
-status: open
+status: working
 deps: []
 github_issue:
 created: 2026-09-03
 updated: 2026-09-03
 estimate_hours:
+started: 2026-09-03T16:18:09-07:00
 ---
 
 # Reattach a detached thread without the cold-resume native binding
@@ -40,7 +41,33 @@ e108517d46ab4575/couch-8d1a4da0f9fe730d
   detached proof: complete
 ```
 
-**Root cause.** `DecideResume` applies `bindingResumeDiagnostic` to every
+**Root cause 1 (primary): couch's resume authority only exists at a CREATE
+boundary, and a detached thread is an ATTACH boundary.** Proven by reading the
+whole chain, every step exact:
+
+```
+couch      launch_existing.go:32   pair resume <tag> --layout2  +  COUCH_LAUNCH_PROFILE{ResumeRequired:true}
+pair       args.go:111             → ForcedTag
+pair       decision.go:32-36,90-98 → sessionBlocksReuse(SessionDetached)=true ⇒ ActionAttach
+pair       createflow.go:238       → ResumeRequired && Action != ActionCreate ⇒ REFUSED
+                                     "required Couch resume no longer resolves to a create boundary"
+```
+
+`ResumeRequired` is couch's trusted authority: don't prompt, don't pick, resume
+this exact native session. It was built for the COLD case, where the agent is
+dead and pair must create a fresh session running `--resume <native id>`. It
+additionally asserts "and this will be a create", which is false for every
+detached thread -- whose zellij session is alive by definition. Since #170 made
+`leave` detach rather than park, detached is the NORMAL resting state, so the
+normal way back in is the one path that cannot work.
+
+This was never covered end to end: M2/M3's reattach tests are couchcore-level
+with fakes on the artifact seam, and the refusal lives on the far side of a
+process boundary in pair's launcher. Both halves are green and the whole is
+broken.
+
+**Root cause 2: the cold proof gates the warm row.** `DecideResume` applies
+`bindingResumeDiagnostic` to every
 resume (`couchcore/resume.go:120-125`), and `ActionableThreadInventoryContext`
 applies the same gate before a row is even offered
 (`couchcore/actionableinventory.go:259-262`). That gate is the **cold** resume's
@@ -51,7 +78,10 @@ still running inside its live zellij session and `pair resume <tag>` reattaches
 to it (README: "If the tag's public zellij session is still running (for
 example, after `Alt+d` detach), `pair resume <tag>` re-attaches without
 prompting"). The native session id is irrelevant to that path, so demanding it
-hides a session that would reattach fine.
+hides a session that would reattach fine. This one fires EARLIER: a row it
+drops never reaches the create-boundary refusal, which is why the two threads
+fail differently. `pair-couch-24` is hidden by root cause 2; `tools-couch-2`
+passes every couch-side gate and would be refused by root cause 1.
 
 The gate reached detached rows deliberately, in pair#170 M3
 (`actionableinventory.go:249-258`): an ungated detached row could be
@@ -62,7 +92,32 @@ nothing consumes it, not the row being offered.
 
 ## Spec
 
-Split the resume proof by what the path actually needs:
+Two resume shapes, each refused at the other's boundary.
+
+**Warm reattach (the thread is proved detached).** couch's profile says so, and
+pair honours `ResumeRequired` at an ATTACH boundary: no config picker, no
+`composeResumeArgs`, no `RequiredSessionID`, no native-binding check. The proof
+is the SESSION -- an unambiguous name binding to this exact address, live, zero
+clients, which `ProjectDetachedSessions` already establishes -- not the agent's
+transcript id, which nothing on this path consumes.
+
+**Cold resume (the thread is verified-parked).** Exactly as today: a create
+boundary, an established binding with a non-empty root id, `--resume <id>`.
+
+The authority must be EXPLICIT, not inferred by pair from the session state.
+`TrustedLaunchProfile` carries which shape couch proved, and each shape is
+refused at the wrong boundary -- warm at a create means couch's detached proof
+went stale between projection and launch (the session died), and cold at an
+attach is today's refusal, still correct. Loosening :238 to accept any action
+under `ResumeRequired` would let a stale couch attach to a session it never
+proved, which is what that guard is for.
+
+**Pair must not regress.** Nothing changes when `ResumeRequired` is false --
+standalone `pair`, `pair resume <tag>`, and the picker keep their current
+behaviour, and the new profile field is optional with the cold shape as its
+zero value. A pair-standalone check is part of Done.
+
+Then, so the warm row can reach that path at all:
 
 - **Cold (verified park):** unchanged. An established native binding with a
   non-empty root id, carried into `BuildCouchResumeLaunchProfile` as
@@ -90,8 +145,14 @@ Open questions to settle in design, not here:
 
 ## Done when
 
+- A thread whose zellij session is alive with zero clients reattaches from the
+  switcher on Enter, landing in the running agent rather than refusing.
 - A thread that is proved detached with a provisional, unbound or absent native
   binding is listed in the switcher and reattaches on Enter.
+- A warm profile whose session died between projection and launch is REFUSED,
+  not silently upgraded to a create.
+- Standalone pair is unchanged: `pair`, `pair resume <tag>` and the picker
+  behave identically with no couch profile present, checked on the real stack.
 - A thread that is verified-parked with the same binding states is still
   refused, and the refusal still names its diagnostic code.
 - A test crosses the two authorities against the four binding statuses, so the
@@ -101,8 +162,9 @@ Open questions to settle in design, not here:
 
 ## Plan
 
-- [ ] Reproduce as a unit test over `DecideResume`: detached + provisional
-      binding is currently refused, and that refusal is the bug.
+- [ ] Reproduce BOTH refusals as tests before any fix: (a) `DecideLaunch` +
+      the `createflow` guard refuse a couch resume onto a live detached
+      session; (b) `DecideResume` refuses detached + provisional binding.
 - [ ] Split the proof: warm reattach stops consuming the native binding, cold
       resume keeps it. Own predicate for the warm launch precondition rather
       than a relaxed `RequireNativeResumeBinding`.
@@ -118,3 +180,25 @@ Open questions to settle in design, not here:
 
 - Filed from pair#170 operator smoke. Evidence above is measured against the
   live store and zellij, not derived from reading.
+- **Corrected the root cause after tracing into pair.** Filed blaming only the
+  native-binding gate; that gate is real but SECOND. The primary failure is
+  pair refusing a couch resume at an attach boundary, which no couch-side test
+  can see because it lives across the process seam in the launcher.
+- **Why that binding is provisional: pair#168, measured.** The ledger for
+  `couch-8d1a4da0f9fe730d` is a `launch` row with no `binding` row after it --
+  pair#168's exact description ("Pair appends a new launch row but before it
+  appends the corresponding binding"). The reattachable `couch-64bbe04986164fae`
+  has the complete `launch`/`binding` pairs:
+
+  ```
+  couch-8d1a4da0f9fe730d:  0 legacy(session_id)  1 launch                       <- provisional
+  couch-64bbe04986164fae:  0 legacy  1 launch  2 binding  3 legacy  4 launch  5 binding
+  ```
+
+  So #168 is the CAUSE and this issue is why the cause is FATAL. They are one
+  operator-visible bug from two directions and should be fixed knowing about
+  each other -- but they are not redundant: #168 restores a binding by falling
+  back to the previous established one, and this thread has none to fall back
+  to (row 0 is a legacy row, not a binding). Only the warm-path fix recovers
+  this instance, which is also the argument that the warm path should never
+  have depended on the binding.
