@@ -25,6 +25,11 @@ const (
 	// ThreadUnusable is a real thread the operator cannot act on right now.
 	// It always carries a ThreadReason.
 	ThreadUnusable ActionableThreadState = "unusable"
+	// ThreadArchived is a thread the operator retired. ClassifyThread never
+	// returns it -- an archived record is out of the working set, so asking
+	// whether its session is alive answers a question about a thread couch no
+	// longer tracks. Only the archive listing sets it.
+	ThreadArchived ActionableThreadState = "archived"
 	// ThreadDetached is a thread whose zellij session is still alive with no
 	// client attached: the agent is running, only the view is gone. Reattaching
 	// is a fresh `pair resume <tag>` onto the surviving session, which is why it

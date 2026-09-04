@@ -95,3 +95,17 @@ func (c *Couch) ThreadInventoryContext(ctx context.Context) ([]ThreadSummary, er
 	}
 	return BuildThreadInventory(snapshot.Records, evidence), nil
 }
+
+// BuildArchivedInventory projects retired records WITHOUT classifying them.
+//
+// Running the classifier over an archived record asks whether its session is
+// alive, which is a question about a thread couch no longer tracks -- and with
+// no evidence gathered the honest answer is "unknown", so every archived row
+// rendered as "checking...". They are not being checked. They are archived.
+func BuildArchivedInventory(records []ThreadRecord) []ThreadSummary {
+	rows := BuildThreadInventory(records, nil)
+	for i := range rows {
+		rows[i].State, rows[i].Reason = ThreadArchived, ""
+	}
+	return rows
+}

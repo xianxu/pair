@@ -159,10 +159,7 @@ func DirectStoreExecutor(c *Couch) OperationExecutor {
 			if err != nil {
 				return nil, err
 			}
-			// No evidence pass: an archived thread is out of the working set,
-			// so asking whether its session is alive would be answering a
-			// question about a thread couch no longer tracks.
-			return BuildThreadInventory(records, nil), nil
+			return BuildArchivedInventory(records), nil
 		case "archive":
 			if err := requireOperationRepoScope(a); err != nil {
 				return nil, err
