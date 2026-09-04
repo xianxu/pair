@@ -1,8 +1,13 @@
 package couchtty
 
 import (
+	"path/filepath"
 	"slices"
+	"strings"
 	"testing"
+
+	"github.com/xianxu/pair/cmd/internal/hostty"
+	"github.com/xianxu/pair/cmd/internal/ptychild"
 
 	"github.com/xianxu/pair/cmd/internal/workbenchshortcut"
 )
@@ -55,4 +60,41 @@ func TestRenderInputBytesKeepsTextReadableAndEscapesTheRest(t *testing.T) {
 func TestNilInputTracerRecordsWithoutPanicking(t *testing.T) {
 	var tracer *inputTracer
 	tracer.record([]byte("\x1b[110;3u"))
+}
+
+// An instrument that was asked for and could not start must SAY so. Returning a
+// nil tracer for both "off" and "could not open" made an unwritable path produce
+// an empty trace indistinguishable from "no bytes arrived" -- the exact
+// ambiguity the probe exists to remove.
+func TestATraceThatCannotStartSaysSoInsteadOfTracingNothing(t *testing.T) {
+	t.Setenv("COUCH_INPUT_TRACE", filepath.Join(t.TempDir(), "no-such-dir", "keys.log"))
+	tracer, err := newInputTracer()
+	if err == nil {
+		t.Fatal("an unopenable trace path reported no error")
+	}
+	if tracer != nil {
+		t.Fatal("a failed tracer was returned as usable")
+	}
+
+	// And the console surfaces it rather than starting silently blind.
+	con := New(hostty.NewFakeHost(ptychild.Size{Rows: 24, Cols: 80}), nil)
+	t.Cleanup(con.Stop)
+	var bodies []string
+	for _, message := range con.feed.Messages() {
+		bodies = append(bodies, message.Body)
+	}
+	if !slices.ContainsFunc(bodies, func(body string) bool {
+		return strings.Contains(body, "COUCH_INPUT_TRACE")
+	}) {
+		t.Fatalf("console started with a dead probe and said nothing: %q", bodies)
+	}
+}
+
+// Off is still silent: no env var, no tracer, no notice.
+func TestTracingOffIsSilent(t *testing.T) {
+	t.Setenv("COUCH_INPUT_TRACE", "")
+	tracer, err := newInputTracer()
+	if tracer != nil || err != nil {
+		t.Fatalf("tracing off produced tracer %v err %v", tracer, err)
+	}
 }

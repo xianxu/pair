@@ -547,20 +547,32 @@ func reduceActionKey(state MenuState, key PanelKey) (MenuState, []MenuEffect) {
 			return state, nil
 		}
 		switch frame.SelectedItem {
-		case "park", "archive":
-			appendMenuFrame(&state, MenuFrame{
-				Kind: MenuFrameConfirmation, Thread: thread.Address, Action: frame.SelectedItem, SelectedItem: "cancel",
-			})
-		case "detach":
-			// No confirmation: detach destroys nothing. That asymmetry with
-			// park is the whole reason both actions exist.
-			return dispatchThreadOperation(state, "detach", thread.Address)
-		case "resume":
-			return dispatchThreadOperation(state, "resume", thread.Address)
 		case "name", "describe":
+			// The genuine special case: these collect text before they can run,
+			// which no declaration expresses.
 			appendMenuFrame(&state, MenuFrame{
 				Kind: MenuFrameText, Thread: thread.Address, Action: frame.SelectedItem,
 			})
+		default:
+			// Everything else asks the DECLARATION whether it confirms, instead
+			// of being listed here. This switch used to name park and archive
+			// (confirm) and detach and resume (dispatch); relaunch joined the
+			// action list and neither arm, so Enter on it fell through the whole
+			// switch and did nothing at all. Detach still destroys nothing and
+			// still runs without a confirmation -- that asymmetry with park is
+			// why both actions exist -- but it is now DECLARED, not remembered.
+			confirms, declared := couchcore.OperationConfirms(frame.SelectedItem)
+			if !declared {
+				state.Notice = errorMenuNotice(frame.SelectedItem + " is not a declared operation")
+				return state, nil
+			}
+			if confirms {
+				appendMenuFrame(&state, MenuFrame{
+					Kind: MenuFrameConfirmation, Thread: thread.Address, Action: frame.SelectedItem, SelectedItem: "cancel",
+				})
+				return state, nil
+			}
+			return dispatchThreadOperation(state, frame.SelectedItem, thread.Address)
 		}
 	}
 	return state, nil
@@ -605,8 +617,8 @@ func reduceConfirmationKey(state MenuState, key PanelKey) (MenuState, []MenuEffe
 			state.Frames = state.Frames[:len(state.Frames)-1]
 			return state, nil
 		}
-		if frame.SelectedItem != frame.Action ||
-			(frame.Action != "park" && frame.Action != "leave" && frame.Action != "archive" && frame.Action != "relaunch") ||
+		confirms, _ := couchcore.OperationConfirms(frame.Action)
+		if frame.SelectedItem != frame.Action || !confirms ||
 			(binds && frame.Action != "archive" && !thread.Live()) {
 			return discardThreadFrames(state, frame.Thread, "thread action is no longer applicable"), nil
 		}
@@ -1254,8 +1266,8 @@ func reconcileMenuFrames(state MenuState, previous ...[]couchcore.ActionableThre
 			// operation's own result is the authority on whether its frame
 			// survives -- not a liveness reading it is itself changing.
 			operationInFlight := state.InFlight.Operation != "" && state.InFlight.Address == frame.Thread
-			if (bound != (couchcore.ThreadAddress{}) && bound != frame.Thread) ||
-				(frame.Action != "park" && frame.Action != "leave" && frame.Action != "archive" && frame.Action != "relaunch") ||
+			confirms, _ := couchcore.OperationConfirms(frame.Action)
+			if (bound != (couchcore.ThreadAddress{}) && bound != frame.Thread) || !confirms ||
 				(frame.Action != "archive" && !operationInFlight && !thread.Live()) {
 				invalidThreadFrame = true
 				state.Notice = errorMenuNotice("thread action is no longer applicable")

@@ -52,19 +52,25 @@ type inputTracer struct {
 	f  *os.File
 }
 
-// newInputTracer returns nil when tracing is off OR when the file cannot be
-// opened. A diagnostic that can take the console down is not worth having, and
-// nil is a working tracer here -- record has a nil receiver guard.
-func newInputTracer() *inputTracer {
+// newInputTracer returns a nil tracer when tracing is off, and an ERROR when it
+// was asked for and could not start.
+//
+// Returning nil for both was the same fabricated-diagnostic shape this probe
+// exists to eliminate: an unwritable COUCH_INPUT_TRACE produced an empty trace
+// file indistinguishable from "no bytes arrived", which is precisely the
+// ambiguity the operator turned the probe on to resolve. The INABILITY to
+// observe must never be presentable as an observation. The caller still must not
+// let a diagnostic take the console down -- it reports and carries on.
+func newInputTracer() (*inputTracer, error) {
 	path := os.Getenv("COUCH_INPUT_TRACE")
 	if path == "" {
-		return nil
+		return nil, nil
 	}
 	f, err := os.OpenFile(path, os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0o600)
 	if err != nil {
-		return nil
+		return nil, fmt.Errorf("COUCH_INPUT_TRACE: %w", err)
 	}
-	return &inputTracer{f: f}
+	return &inputTracer{f: f}, nil
 }
 
 func (t *inputTracer) record(chunk []byte) {

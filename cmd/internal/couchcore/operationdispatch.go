@@ -66,6 +66,23 @@ func DispatchOperation(executors OperationExecutors, call OperationCall) (any, e
 	return executors.LiveOwner(call)
 }
 
+// OperationConfirms reports whether a named operation DECLARES that it needs an
+// operator confirmation, and whether it is declared at all.
+//
+// The switcher carried three separate hand-written lists of "which actions
+// confirm" -- the action list's Enter, the confirmation's own dispatch guard,
+// and the refresh's frame-validity check -- none of which read the declaration
+// they were transcribing. relaunch joined the action list and none of the three,
+// so Enter on it did nothing whatsoever, silently. Confirmation is declared
+// exactly once, in Operations(); this is how the terminal asks.
+func OperationConfirms(name string) (confirms bool, declared bool) {
+	op, ok := operationByName(name)
+	if !ok {
+		return false, false
+	}
+	return op.Confirmation == ConfirmRequired, true
+}
+
 func operationByName(name string) (Operation, bool) {
 	for _, op := range Operations() {
 		if op.Name == name {

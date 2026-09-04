@@ -160,6 +160,7 @@ func (c *Console) errw() io.Writer {
 
 func New(host hostty.Host, stdin io.Reader) *Console {
 	lifetime, cancelLifetime := context.WithCancel(context.Background())
+	tracer, traceErr := newInputTracer()
 	c := &Console{
 		host:              host,
 		stdin:             stdin,
@@ -168,7 +169,6 @@ func New(host hostty.Host, stdin io.Reader) *Console {
 		resized:           make(chan struct{}, 1),
 		switching:         make(chan string, 8),
 		input:             make(chan []byte, 64),
-		trace:             newInputTracer(),
 		exited:            make(chan childExit, 64),
 		operationQueue:    newOperationQueue(16),
 		refreshRequests:   make(chan struct{}, 1),
@@ -181,6 +181,12 @@ func New(host hostty.Host, stdin io.Reader) *Console {
 		cancelLifetime:    cancelLifetime,
 		stop:              make(chan struct{}),
 		feed:              NewFeed(8),
+		trace:             tracer,
+	}
+	// Control priority: an instrument that was asked for and could not start has
+	// to say so, or its empty output reads as evidence.
+	if traceErr != nil {
+		c.feed.Push(Notice{Kind: "trace", Control: true, Body: traceErr.Error()})
 	}
 	if s, err := host.Size(); err == nil {
 		c.size = s

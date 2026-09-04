@@ -107,7 +107,10 @@ func (c *Couch) Relaunch(ctx context.Context, address ThreadAddress) (RelaunchRe
 	// Would this thread resume ONCE PARKED? DecideResume cannot answer -- it
 	// refuses any occupied incarnation, and a relaunch target is live by
 	// definition -- so relaunch asks the rules a park cannot change.
-	binding, pathExists, bindingErr := c.resumeEvidence(ctx, thread)
+	// Relaunch is always a COLD resume -- it parks first -- so it needs the
+	// binding, unlike a warm reattach.
+	pathExists := c.workingPathExists(thread)
+	binding, bindingErr := c.resumeEvidence(ctx, thread)
 	// A resolver IO failure is not a verdict about the binding. ResolveEstablished
 	// returns a ZERO resolution on a real error, which bindingResumeDiagnostic
 	// reads as `unbound` -- so the operator was told the binding is not

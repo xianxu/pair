@@ -761,6 +761,23 @@ unreadable present state fails closed.
 
 The child receives `COUCH_TREE`, `COUCH_STORE_DIR`, `COUCH_THREAD_SCOPE`, and
 `COUCH_THREAD_TAG`, and launches as `pair resume <opaque-tag> --layout2`.
+
+`COUCH_INPUT_TRACE=<path>` (`pair#182`) is the one env var couch reads for
+ITSELF rather than passing down: it appends every operator keystroke couch
+receives to that file. It exists because "the chord had no effect" has two
+indistinguishable causes — couch consumed it and dispatched nothing, or the
+terminal never sent the bytes couch watches for — and only the wire separates
+them. It is non-visual by necessity (the console hosts a child terminal, so a
+probe that painted anything would corrupt it), off unless set, and the file is
+created 0600.
+
+**Read what it captures before enabling it.** The tap is in `pumpStdin`, BEFORE
+the Interceptor splits anything, so the file holds everything typed or pasted
+into the hosted agent — prompts, pasted secrets, credentials. It is a debugging
+instrument for a session you own, not something to leave on. If it cannot open
+its file it says so on the status row at control priority rather than tracing
+nothing: an empty trace would otherwise read as "no bytes arrived", which is the
+exact ambiguity the probe exists to remove.
 Except for matching the scope/tag to establish Pair's reserved address claim,
 Pair treats these Couch-owned values as opaque pass-through context for the
 hosted child: it does not resolve Couch names or paths and never reads or

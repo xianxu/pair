@@ -206,6 +206,120 @@ rounds:
           round: 3
       boundary: M1
       blocked: true
+    - "n": 4
+      timestamp: "2026-09-04T13:55:31-07:00"
+      agent: claude
+      dispose:
+        - id: BR-1
+          disposition: not-addressed
+          note: Plan lines 32-37 unchanged; the plan file was not touched in this window at all.
+          round: 4
+        - id: BR-4
+          disposition: addressed
+          note: resumeEvidence now has two callers and ResumeContext derives none of the three facts itself; the consolidation's own side effect on the warm path is raised separately as a new Critical.
+          round: 4
+        - id: BR-6
+          disposition: not-addressed
+          note: relaunch_test.go still has five refusal cases; no agent-unsupported or profile-missing case reaches Relaunch.
+          round: 4
+        - id: BR-7
+          disposition: not-addressed
+          note: plan:159 still unticked; Task 8 and parts of Task 10/11 now shipped and unticked too; the issue's stale-estimate warning still contradicts the re-derived Estimate block.
+          round: 4
+        - id: BR-8
+          disposition: addressed
+          note: StartedChild generalises the arm instead of adding a third; verified by revert — restoring the concrete StartResult assertion reds TestRelaunchResultIsAdoptedByTheConsole/a_completed_relaunch_is_adopted.
+          round: 4
+        - id: BR-9
+          disposition: not-addressed
+          note: manifest.go:524 still places relaunch.go between pathops.go and procops.go; the new inputtrace.go entry was inserted in order, so the convention is being followed for new rows only.
+          round: 4
+        - id: BR-10
+          disposition: not-addressed
+          note: The instance is fixed and genuinely pinned (removing the case reds two byte-driven tests), but the requested deliverable was the enumeration and no test walks seqKind/InterceptorHit to a handler; the same class then shipped a new Critical at menu.go:549. README.md:141 and menuControls are also still unchanged.
+          round: 4
+        - id: BR-11
+          disposition: addressed
+          note: This round's window is a real range — 4a7d96e2..4ae9d278, 10 commits, 18 files; every diff recipe returned content.
+          round: 4
+      findings:
+        - id: BR-12
+          severity: Critical
+          title: relaunch is offered in the switcher's action list and Enter on it does nothing
+          detail: |-
+            3rd finding in this family, so the deliverable is the RULE, not this site.
+            menuActionItems (menu.go:1027) now returns "relaunch", but reduceActionKey's
+            Enter switch (menu.go:549) routes only park/archive, detach/resume and
+            name/describe and has no default -- so Enter on the row produces no frame,
+            no effect and no notice. Confirmed with a scratch test through ReduceMenu:
+            after Tab then Down, SelectedItem == "relaunch"; after Enter, frame.Action
+            == "" and effects == []. That is the issue's FIRST Done-when bullet shipped
+            half-wired, and the smoke test missed it because it drove only Alt+n.
+            Rule - an item a surface can OFFER must be routed by construction.
+            Measured prevalence this round - the plan names six per-operation sites,
+            the sweep touched twelve (menu.go 467, 502, 506, 609, 1027,
+            confirmationMenuItems, 1258, 1308, 1337, 1351, 1462; console.go 1467,
+            1487), and two remain - menu.go:549 and console.go:1445, whose landing arm
+            is still a literal == "resume" though RelaunchResult now satisfies
+            StartedChild. Extend Step 2b's enumeration from "appears in menuActionItems"
+            to "and Enter on it yields a dispatch effect or a frame". ARCH-DRY,
+            ARCH-PURPOSE.
+          family: declared-source-hand-maintained-consumers
+          round: 4
+        - id: BR-13
+          severity: Critical
+          title: The resumeEvidence consolidation makes a warm reattach resolve a binding it never resolved, and fail when that resolver errors
+          detail: |-
+            resume.go:347-353 - the VerifiedPark == nil branch now calls resumeEvidence,
+            which always calls ResolveEstablished and whose binding it then DISCARDS; it
+            wanted only pathExists. Any non-ResumeRefusal error now aborts the warm
+            reattach. At 4a7d96e2 that branch called the resolver zero times. Proved
+            differentially with one test in a scratch worktree - PASS at base, at HEAD
+            "warm reattach refused because the binding resolver failed: resolve home
+            directory: permission denied". The comment three lines above still states the
+            old contract ("Resolve the binding only where it is the authority ... which
+            is why relaxing that alone left the operator's detached thread
+            unreachable"), so code and contract now disagree, and nothing pins either
+            direction - TestDetachedResumeDoesNotRequireAnEstablishedBinding is a pure
+            DecideResume test. Reachable causes are ordinary - ListFiles ErrStorageAbsent
+            and ReadFile ErrReadLimit once a ledger sidecar passes 8 MB
+            (sessioninventory/runtime_os.go:157), besides os.UserHomeDir. Split the
+            helper along the axis the callers differ on so the warm branch pays no
+            resolver call, keeping ONE nil-Path policy; pin both directions.
+            ARCH-CONSTRAINTS (the warm path now pays a ListFiles, an up-to-8MB read,
+            proof validation and a possible catalog write, and throws the answer away).
+          family: shared-helper-widens-caller-contract
+          round: 4
+        - id: BR-14
+          severity: Important
+          title: COUCH_INPUT_TRACE is a new operator surface that records every keystroke and is documented nowhere
+          detail: |-
+            inputtrace.go:59. A tree-wide grep finds the name only in inputtrace.go, one
+            console.go comment and the issue Log - not README.md, not atlas/couch.md, not
+            menuControls. Two things need saying together - that it exists and how to
+            enable it, and WHAT it captures. pumpStdin traces every chunk before the
+            Interceptor splits it, so the file holds everything typed or pasted into the
+            hosted agent, prompts and credentials included. 0600 and opt-in are the right
+            defaults; the gap is telling the operator at the moment they enable it. Add
+            it to atlas/couch.md beside COUCH_STORE_DIR / COUCH_THREAD_*. ARCH-SECURE.
+          family: new-surface-undocumented
+          round: 4
+        - id: BR-15
+          severity: Minor
+          title: newInputTracer swallows its open error, so a failed probe reads as "the terminal sent nothing"
+          detail: |-
+            2nd finding in this family, so the deliverable is the RULE, not this site.
+            inputtrace.go:58-67 returns nil when os.OpenFile fails, so an unwritable
+            COUCH_INPUT_TRACE path yields an empty trace indistinguishable from "no bytes
+            arrived" - the exact ambiguity the probe exists to remove, and the same shape
+            as BR-2's zero resolution read as "unbound". Rule - an instrument that cannot
+            start must say so; the INABILITY to observe must never be presentable as an
+            observation. A one-line setNotice on the open failure satisfies it without
+            letting a diagnostic take the console down.
+          family: swallowed-cause-fabricated-diagnostic
+          round: 4
+      boundary: M1
+      blocked: true
 ---
 
 # Gate ledger — pair#182 (boundary-review)
@@ -332,13 +446,85 @@ later rounds disposed of them. Generated — edit the gate, not this file.
   brought the unreviewed commit 4821dda3 into scope. Worth a look at how the
   boundary computes BASE_SHA when the previous round's fix commit is HEAD.
 
+## Round 4 — 2026-09-04T13:55:31-07:00 (claude) — BLOCKED
+
+### Disposed
+
+- BR-1 — not-addressed — Plan lines 32-37 unchanged; the plan file was not touched in this window at all.
+- BR-4 — addressed — resumeEvidence now has two callers and ResumeContext derives none of the three facts itself; the consolidation's own side effect on the warm path is raised separately as a new Critical.
+- BR-6 — not-addressed — relaunch_test.go still has five refusal cases; no agent-unsupported or profile-missing case reaches Relaunch.
+- BR-7 — not-addressed — plan:159 still unticked; Task 8 and parts of Task 10/11 now shipped and unticked too; the issue's stale-estimate warning still contradicts the re-derived Estimate block.
+- BR-8 — addressed — StartedChild generalises the arm instead of adding a third; verified by revert — restoring the concrete StartResult assertion reds TestRelaunchResultIsAdoptedByTheConsole/a_completed_relaunch_is_adopted.
+- BR-9 — not-addressed — manifest.go:524 still places relaunch.go between pathops.go and procops.go; the new inputtrace.go entry was inserted in order, so the convention is being followed for new rows only.
+- BR-10 — not-addressed — The instance is fixed and genuinely pinned (removing the case reds two byte-driven tests), but the requested deliverable was the enumeration and no test walks seqKind/InterceptorHit to a handler; the same class then shipped a new Critical at menu.go:549. README.md:141 and menuControls are also still unchanged.
+- BR-11 — addressed — This round's window is a real range — 4a7d96e2..4ae9d278, 10 commits, 18 files; every diff recipe returned content.
+
+### Raised
+
+- **BR-12** [Critical] `declared-source-hand-maintained-consumers` relaunch is offered in the switcher's action list and Enter on it does nothing
+  3rd finding in this family, so the deliverable is the RULE, not this site.
+  menuActionItems (menu.go:1027) now returns "relaunch", but reduceActionKey's
+  Enter switch (menu.go:549) routes only park/archive, detach/resume and
+  name/describe and has no default -- so Enter on the row produces no frame,
+  no effect and no notice. Confirmed with a scratch test through ReduceMenu:
+  after Tab then Down, SelectedItem == "relaunch"; after Enter, frame.Action
+  == "" and effects == []. That is the issue's FIRST Done-when bullet shipped
+  half-wired, and the smoke test missed it because it drove only Alt+n.
+  Rule - an item a surface can OFFER must be routed by construction.
+  Measured prevalence this round - the plan names six per-operation sites,
+  the sweep touched twelve (menu.go 467, 502, 506, 609, 1027,
+  confirmationMenuItems, 1258, 1308, 1337, 1351, 1462; console.go 1467,
+  1487), and two remain - menu.go:549 and console.go:1445, whose landing arm
+  is still a literal == "resume" though RelaunchResult now satisfies
+  StartedChild. Extend Step 2b's enumeration from "appears in menuActionItems"
+  to "and Enter on it yields a dispatch effect or a frame". ARCH-DRY,
+  ARCH-PURPOSE.
+- **BR-13** [Critical] `shared-helper-widens-caller-contract` The resumeEvidence consolidation makes a warm reattach resolve a binding it never resolved, and fail when that resolver errors
+  resume.go:347-353 - the VerifiedPark == nil branch now calls resumeEvidence,
+  which always calls ResolveEstablished and whose binding it then DISCARDS; it
+  wanted only pathExists. Any non-ResumeRefusal error now aborts the warm
+  reattach. At 4a7d96e2 that branch called the resolver zero times. Proved
+  differentially with one test in a scratch worktree - PASS at base, at HEAD
+  "warm reattach refused because the binding resolver failed: resolve home
+  directory: permission denied". The comment three lines above still states the
+  old contract ("Resolve the binding only where it is the authority ... which
+  is why relaxing that alone left the operator's detached thread
+  unreachable"), so code and contract now disagree, and nothing pins either
+  direction - TestDetachedResumeDoesNotRequireAnEstablishedBinding is a pure
+  DecideResume test. Reachable causes are ordinary - ListFiles ErrStorageAbsent
+  and ReadFile ErrReadLimit once a ledger sidecar passes 8 MB
+  (sessioninventory/runtime_os.go:157), besides os.UserHomeDir. Split the
+  helper along the axis the callers differ on so the warm branch pays no
+  resolver call, keeping ONE nil-Path policy; pin both directions.
+  ARCH-CONSTRAINTS (the warm path now pays a ListFiles, an up-to-8MB read,
+  proof validation and a possible catalog write, and throws the answer away).
+- **BR-14** [Important] `new-surface-undocumented` COUCH_INPUT_TRACE is a new operator surface that records every keystroke and is documented nowhere
+  inputtrace.go:59. A tree-wide grep finds the name only in inputtrace.go, one
+  console.go comment and the issue Log - not README.md, not atlas/couch.md, not
+  menuControls. Two things need saying together - that it exists and how to
+  enable it, and WHAT it captures. pumpStdin traces every chunk before the
+  Interceptor splits it, so the file holds everything typed or pasted into the
+  hosted agent, prompts and credentials included. 0600 and opt-in are the right
+  defaults; the gap is telling the operator at the moment they enable it. Add
+  it to atlas/couch.md beside COUCH_STORE_DIR / COUCH_THREAD_*. ARCH-SECURE.
+- **BR-15** [Minor] `swallowed-cause-fabricated-diagnostic` newInputTracer swallows its open error, so a failed probe reads as "the terminal sent nothing"
+  2nd finding in this family, so the deliverable is the RULE, not this site.
+  inputtrace.go:58-67 returns nil when os.OpenFile fails, so an unwritable
+  COUCH_INPUT_TRACE path yields an empty trace indistinguishable from "no bytes
+  arrived" - the exact ambiguity the probe exists to remove, and the same shape
+  as BR-2's zero resolution read as "unbound". Rule - an instrument that cannot
+  start must say so; the INABILITY to observe must never be presentable as an
+  observation. A one-line setNotice on the open failure satisfies it without
+  letting a diagnostic take the console down.
+
 ## Open findings
 
 - **BR-1** [Minor] `operating-envelope` Two of the envelope's three durations name budgets that do not exist as constants
-- **BR-4** [Important] `parallel-derivation-drift` Resume's evidence-gathering preamble is re-derived in Relaunch, and the first copy already diverges
 - **BR-6** [Minor] `done-when-untested` No Relaunch-level test for the agent-unsupported and profile-missing refusals
 - **BR-7** [Minor] `plan-record-lags-code` Task 1 Step 5 is unticked though committed, and the issue's stale-estimate warning contradicts the re-derived Estimate block
-- **BR-8** [Minor] `result-shape-forces-new-consumer-arm` RelaunchResult does not compose with finishOperation's existing ParkResult/StartResult arms
 - **BR-9** [Minor] `manifest-ordering` relaunch.go inserted out of alphabetical order in NonArtifactSources
 - **BR-10** [Important] `declared-source-hand-maintained-consumers` Alt+n is intercepted and then silently dropped: HitRelaunch has no arm in processInput's switch
-- **BR-11** [Minor] `review-window-degenerate` The gate handed this round a base == head window, so every diff recipe returned empty
+- **BR-12** [Critical] `declared-source-hand-maintained-consumers` relaunch is offered in the switcher's action list and Enter on it does nothing
+- **BR-13** [Critical] `shared-helper-widens-caller-contract` The resumeEvidence consolidation makes a warm reattach resolve a binding it never resolved, and fail when that resolver errors
+- **BR-14** [Important] `new-surface-undocumented` COUCH_INPUT_TRACE is a new operator surface that records every keystroke and is documented nowhere
+- **BR-15** [Minor] `swallowed-cause-fabricated-diagnostic` newInputTracer swallows its open error, so a failed probe reads as "the terminal sent nothing"

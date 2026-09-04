@@ -137,36 +137,46 @@ func DecideResume(input ResumeEligibilityInput) (ResumeEligibility, error) {
 	}, nil
 }
 
-// resumeEvidence gathers what both resume and relaunch need to judge a thread:
-// the native binding, and whether its working path still resolves.
+// workingPathExists is the shared answer to "does this thread's working path
+// still resolve", and it carries the ONE nil-Path policy: no path operations
+// means the path cannot be PROVED, which is a refusal rather than an
+// assumption. Both resume paths and relaunch call it, which is what stops the
+// divergence its first two copies already had -- ResumeContext started at false
+// and called Physical unconditionally while Relaunch started at true and
+// skipped the call when Path was nil, so a nil Path made relaunch PASS the path
+// precondition and then panic one step later.
 //
-// Shared because the two had already diverged in their first copy —
-// ResumeContext starts pathExists at false and calls Physical unconditionally,
-// while Relaunch started at true and skipped the call when Path was nil, so a
-// nil Path made relaunch PASS the path precondition and then panic inside
-// ResumeContext one step later. The plan's own DRY rationale ("two parallel
-// derivations drift toward whichever cases each author thought about") applies
-// to the evidence as much as to the rules built on it.
+// workingPathExists is the one piece of evidence BOTH resume paths need, and it
+// is cheap. Kept separate from the binding for that reason: a warm reattach must
+// not pay for -- or be failed by -- a resolution it has no use for.
+func (c *Couch) workingPathExists(thread ThreadRecord) bool {
+	if c.Path == nil {
+		return false
+	}
+	_, err := c.Path.Physical(thread.WorkingPath)
+	return err == nil
+}
+
+// resumeEvidence resolves the native binding for a COLD resume: the one that
+// will pass `--resume <native-id>` and therefore needs proof of which
+// conversation it is resuming.
 //
-// One nil-Path policy, stated here: no path operations means the path cannot be
-// proved, which is a refusal rather than an assumption.
-func (c *Couch) resumeEvidence(ctx context.Context, thread ThreadRecord) (NativeBindingResolution, bool, error) {
+// It is not the warm path's evidence, and bundling the path check into it made
+// it look like it was. A detached thread's authority is its SURVIVING SESSION,
+// not a native id; asking here made a warm reattach do a ListFiles, an
+// up-to-8MB read, proof validation and a possible catalog write only to discard
+// the answer -- and, worse, fail outright when that resolver errored, which is a
+// failure mode the warm path never had.
+func (c *Couch) resumeEvidence(ctx context.Context, thread ThreadRecord) (NativeBindingResolution, error) {
 	bindings, ok := c.Artifacts.(NativeBindingResolver)
 	if !ok {
-		return NativeBindingResolution{}, false, errors.New("native binding resolver is unavailable")
+		return NativeBindingResolution{}, errors.New("native binding resolver is unavailable")
 	}
 	agent := ""
 	if thread.LatestLaunchProfile != nil {
 		agent = thread.LatestLaunchProfile.Agent
 	}
-	pathExists := false
-	if c.Path != nil {
-		if _, err := c.Path.Physical(thread.WorkingPath); err == nil {
-			pathExists = true
-		}
-	}
-	binding, err := bindings.ResolveEstablished(ctx, thread.Address.RepoScope, string(thread.Address.Tag), agent)
-	return binding, pathExists, err
+	return bindings.ResolveEstablished(ctx, thread.Address.RepoScope, string(thread.Address.Tag), agent)
 }
 
 // CheckResumePreconditions is every resume rule that a park cannot change.
@@ -327,29 +337,21 @@ func (c *Couch) ResumeContext(ctx context.Context, address ThreadAddress) (Actor
 	if !ok {
 		return ActorRecord{}, nil, errors.New("resume: native binding resolver is unavailable")
 	}
-	// The SAME evidence pass relaunch uses. It had been re-derived there, and
-	// the two copies diverged on their first day over the nil-Path case, which
-	// is the drift the shared helper exists to stop.
-	//
-	// Resolve the binding only where it is the authority. ResolveEstablished
-	// RETURNS AN ERROR for a provisional binding (resume.go's own resolver
-	// refuses), so asking on the warm path refused the thread here -- before
-	// DecideResume could decide anything, which is why relaxing that alone
-	// left the operator's detached thread unreachable.
+	// Resolve the binding ONLY where it is the authority -- the cold path, which
+	// is about to pass `--resume <native-id>`. A detached thread resumes warm off
+	// its surviving session and needs no native id, so it asks for none: the
+	// binding resolver is not consulted, cannot slow it down, and cannot fail it.
+	// (ResolveEstablished returns an ERROR for a provisional binding, so asking
+	// on the warm path refused the thread here, before DecideResume could decide
+	// anything -- which is how a detached thread became unreachable.)
+	pathExists := c.workingPathExists(thread)
 	var binding NativeBindingResolution
-	var pathExists bool
 	if thread.VerifiedPark != nil {
-		resolved, exists, err := c.resumeEvidence(ctx, thread)
+		resolved, err := c.resumeEvidence(ctx, thread)
 		if err != nil {
 			return ActorRecord{}, nil, err
 		}
-		binding, pathExists = resolved, exists
-	} else {
-		_, exists, err := c.resumeEvidence(ctx, thread)
-		if err != nil && ResumeDiagnosticOf(err) == "" {
-			return ActorRecord{}, nil, err
-		}
-		pathExists = exists
+		binding = resolved
 	}
 	// A thread with no verified park may still be resumable: it may have been
 	// DETACHED, in which case its zellij session is alive with no client and
