@@ -964,6 +964,31 @@ issue exists because the system already did that once by hiding rows.
 
 ## Revisions
 
+### 2026-09-03 — M2: Task 9 is superseded by measurement
+
+Reason: measuring the operator's ledgers before implementing Task 9 showed the
+fix it specifies recovers 1 of the 8 lost threads, and that the effective
+recovery runs through a mechanism the plan never named.
+
+Delta:
+
+- **Task 9 as written stays correct but nearly inert.** Seven of eight
+  `binding-lost` records never had a binding row at all (`legacy → launch`), so
+  "a pending launch does not shadow the last committed binding" has nothing to
+  restore. Only `couch-e78b962be29c4d9a` matches the shape the task describes.
+- **The missing evidence lives in the legacy row**, whose `session_id` equals
+  the v2 binding root in 19 of 21 ledgers -- the same fact in an older schema,
+  with the 2 exceptions detectable as multi-id.
+- **The correct fix is proof migration, not trust.** `query.go:122` keeps a
+  binding provisional when it has no `AuthorizationProof`, and
+  `sessioninventory/proof_migration.go` already re-derives one by scanning. A
+  recovery that mints authority from a legacy id without that scan asserts a
+  transcript exists; running the migration PROVES it.
+- **Not implemented under this milestone.** It is a change to Pair's binding
+  authority, and the standing constraint says Pair's semantics are chosen, not
+  drifted into. M2's headline -- reattaching a detached session -- does not
+  depend on it and is landed.
+
 ### 2026-09-03 — M1 as shipped, and three claims corrected
 
 Reason: the M1 boundary review checked the plan against the tree and found the
