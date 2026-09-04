@@ -267,6 +267,7 @@ still works. See [atlas/couch.md](atlas/couch.md).
 couch [<repo>]           open the Couch TUI (default: .)
 couch --list             every durable work thread across all repositories
 couch --show <ref>       one current-repository thread by tag, path, or name
+couch --archived         threads removed from couch, with their records kept
 ```
 
 `<ref>` resolution for `--show` is scoped to the Git
@@ -317,8 +318,11 @@ one thread per repository path**, and refuses a start at a path that already
 holds a live, detached or parked one -- several threads at one path without
 separate worktrees is confusing, and per-repo policy is a design space of its
 own. Debris does not block: a path whose only rows are unusable is still
-startable. Two threads in one TREE at different subdirectories remain legal;
-only the exact path is one-at-a-time.
+startable — with one exception, a record couch cannot READ at all, which blocks
+its whole repository because reading it is what would have said which path it
+holds. That refusal names the record's file, since in total version skew it is
+the only next step left. Two threads in one TREE at different subdirectories
+remain legal; only the exact path is one-at-a-time.
 Capacity limits used to come from Ariadne's fleet policy (`sdlc fleet policy`);
 that was a defence of the multi-owner case and went with the couch-lite rescope
 (Pair #170), along with its `provision-worktree` refusal.

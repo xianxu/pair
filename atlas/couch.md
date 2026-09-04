@@ -560,8 +560,16 @@ to prevent. One value makes the next omission a compile error.
 `PathHoldsUsableThread` is the other half: **one thread per repository path**,
 enforced at the single site every creation entry funnels through
 (`spawnResolved`), refusing a start where a live, detached or parked row already
-holds the path. Debris does not block -- a path whose only rows are unusable
-must stay startable, or one corrupt record locks its repo out permanently. The
+holds the path. Known debris does not block -- a path whose only rows are
+unusable-but-classified must stay startable. An UNREADABLE record is the
+deliberate exception, and it accepts the hazard this sentence used to warn
+against ("one corrupt record locks its repo out permanently"): couch cannot tell
+which path such a record holds, so it blocks the scope rather than risk a second
+thread over live work. The lockout is bounded by naming the record's file in the
+refusal, and by the switcher reached from another repository -- which is the
+recovery path, and is stated in the refusal because an unstated escape is no
+escape. In total version skew every record is unreadable and no repository
+starts; the file path is then the only honest next step. The
 TREE is not the bound; two threads in one tree at different subdirectories
 remain legal. There is deliberately no opt-in flag: `StartArgs.SameTree` looks
 like one and is documented as inert legacy serialization, so reading it would

@@ -352,11 +352,22 @@ func (c *Couch) spawnResolved(ctx context.Context, resolution StartResolution, r
 	// as absent would start a second thread in a tree that may already hold
 	// live work, silently, where the old code failed loudly.
 	if held, unreadable := PathHoldsUnreadableThread(rows, scope.Key); unreadable {
+		// Every gesture named here is executed by a test against the fixture
+		// that produces this refusal. The previous version of this block named
+		// `couch --show` (which answered "not found" for the very row that
+		// caused the refusal) and `Tab → archive` (unreachable, because the TUI
+		// never opens in a repository couch refuses to start in) -- three lines
+		// above the comment explaining why refusals must not do that.
+		//
+		// The switcher gesture works from ANOTHER repository, where couch does
+		// start and the switcher lists every scope. That escape existed and was
+		// never stated, which is the only reason the refusal was survivable.
 		return ActorRecord{}, nil, fmt.Errorf(
 			"couch cannot read thread %s in this repository, so it cannot tell whether %s is free\n"+
 				"  inspect it:  couch --show %s\n"+
-				"  retire it:   ctrl-space, select it, Tab → archive",
-			held.Tag, resolution.CanonicalPath, held.Tag)
+				"  retire it:   run couch in another repository, select it, Tab → archive\n"+
+				"  the record:  %s",
+			held.Tag, resolution.CanonicalPath, held.Tag, c.Threads.RecordPath(held))
 	}
 	if held, occupied := PathHoldsUsableThread(rows, scope.Key, resolution.CanonicalPath); occupied {
 		// The next steps have to be ones that WORK from where the operator is.

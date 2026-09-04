@@ -98,6 +98,18 @@ func newThreadStoreWithHooks(namespace CouchNamespace, hooks threadStoreHooks) *
 
 func (s *ThreadStore) manifestPath() string { return filepath.Join(s.root, "manifest.json") }
 
+// RecordPath is where a thread's record lives on disk.
+//
+// Exported for one purpose: a refusal the operator cannot act on through couch
+// must still tell them where to look. In total version skew -- an older binary
+// against a newer store -- EVERY record is unreadable, so every repository
+// refuses and no switcher gesture is reachable anywhere. Naming the file is the
+// only honest next step left, and a refusal with no next step at all is what
+// this whole class of finding is about.
+func (s *ThreadStore) RecordPath(address ThreadAddress) string {
+	return s.recordPath(address)
+}
+
 func (s *ThreadStore) recordPath(address ThreadAddress) string {
 	return filepath.Join(s.root, "records", address.RepoScope, string(address.Tag)+".json")
 }

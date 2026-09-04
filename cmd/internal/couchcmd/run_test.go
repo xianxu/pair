@@ -1539,3 +1539,45 @@ func TestAnUnreadableRecordCanBeArchivedThroughTheRuntime(t *testing.T) {
 		t.Fatalf("the unreadable row survived its archive: %q", after)
 	}
 }
+
+// The rule this test exists to enforce: a refusal that names a command is
+// pinned by a test that EXECUTES that command against the fixture which
+// produced the refusal, and asserts it works.
+//
+// Two refusals in couchcore have named dead ends. The one-thread-per-path
+// message offered `couch <path>` (the command that just refused) and
+// `couch --show` as a way to retire (it is read-only). Its replacement was
+// written three lines below a comment explaining that mistake, and repeated it:
+// it named `couch --show <tag>`, which answered "not found" for the very row
+// that caused the refusal.
+func TestARefusalsNamedCommandsActuallyWork(t *testing.T) {
+	rt := newRT(t, "/repo")
+	thread := seedThread(t, rt, "/repo")
+	path := filepath.Join(rt.StoreDir(), "threadstore", "records",
+		thread.Address.RepoScope, string(thread.Address.Tag)+".json")
+	if err := os.WriteFile(path, []byte(`{"schema_version":99,"nope":`), 0o600); err != nil {
+		t.Fatal(err)
+	}
+
+	// `couch --show <tag>`, exactly as the refusal spells it.
+	showOut, showErr, code := runTypedRT(rt, couchcore.OperationCall{
+		Name: "show", Implicit: true,
+		Args: map[string]string{"repo-scope": thread.Address.RepoScope, "ref": string(thread.Address.Tag)},
+	})
+	if code != 0 {
+		t.Fatalf("the refusal's `couch --show %s` failed: code=%d err=%q", thread.Address.Tag, code, showErr)
+	}
+	if !strings.Contains(showOut, string(thread.Address.Tag)) {
+		t.Fatalf("`couch --show` did not report the thread the refusal names: %q", showOut)
+	}
+
+	// And the retire gesture the refusal names, which is `archive` reached from
+	// a repository couch will start in.
+	_, archiveErr, code := runTypedRT(rt, couchcore.OperationCall{
+		Name: "archive", Implicit: true,
+		Args: map[string]string{"repo-scope": thread.Address.RepoScope, "tag": string(thread.Address.Tag)},
+	})
+	if code != 0 {
+		t.Fatalf("the refusal's retire gesture failed: code=%d err=%q", code, archiveErr)
+	}
+}

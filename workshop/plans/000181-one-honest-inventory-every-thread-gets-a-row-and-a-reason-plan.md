@@ -1021,8 +1021,9 @@ the whole inventory and `ReasonInvalid` could not be produced by a real store --
 a documented, labelled, Enter-explained reason that was unreachable. The
 Done-when "rows == records, always, with no exceptions" was satisfied only by a
 fixture that structurally could not hold an invalid record. `Snapshot` now
-carries `Malformed` addresses, the projectors emit them as `invalid` rows, and
-archive moves bytes it cannot decode.
+carries them (as `Unreadable`, renamed in the next round: "could not read" is
+not the verdict "invalid"), the projectors emit them as rows, and archive moves
+bytes it cannot decode.
 
 **Three findings were rules, not sites**, and are recorded in
 `workshop/lessons.md` rather than only fixed here: reversing a documented rule

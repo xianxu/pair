@@ -199,6 +199,107 @@ rounds:
           round: 5
       boundary: M3
       blocked: true
+    - "n": 6
+      timestamp: "2026-09-04T08:03:03-07:00"
+      agent: claude
+      dispose:
+        - id: BR-1
+          disposition: not-addressed
+          note: Unchanged this round -- menu.go's only edit was unusableThreadNotice; menuActionItems still offers archive to a ThreadBusy row and couchtty still has no ThreadBusy behavioural test.
+          round: 6
+        - id: BR-4
+          disposition: addressed
+          note: 'Verified by revert: restoring resolveOperationThread in the archive branch fails TestAnUnreadableRecordCanBeArchivedThroughTheRuntime with "couch: EOF". Row is visible and removable through the real dispatcher.'
+          round: 6
+        - id: BR-5
+          disposition: not-addressed
+          note: 'The atlas gained the unreadable-record entry, but the same window reversed "debris does not block" and swept none of its restatements: README:319-321, atlas:563-567 (four lines below the new paragraph, and it names the exact hazard now realized), issue Revisions:244-246, and the plan''s round-2 entry still says Snapshot carries "Malformed" emitted as "invalid" rows. README''s synopsis block still omits --archived.'
+          round: 6
+        - id: BR-6
+          disposition: not-addressed
+          note: 'Unchanged, and now worse: PathHoldsUnreadableThread is a sixth independent occupancy/actionability predicate. occupiedIncarnation still has one caller; DecideResume (resume.go:80-95) still inlines the same three states.'
+          round: 6
+        - id: BR-8
+          disposition: addressed
+          note: 'Verified by revert: deleting archivableRecord''s Park != nil branch now fails at archive_test.go:106. The startup recency half was fixed in the prior round.'
+          round: 6
+        - id: BR-9
+          disposition: addressed
+          note: TestUncheckedProjectMilestoneHasNoClosedMetadata is red at f9f6cdd6 and green at HEAD (measured both). M3's block carries no closed/actual and its row is unticked; M2 records the missing gate instead of inventing an actual; M1's "judgment estimate, not measured" qualification is restored. sdlc's upsertField inserts after **est:**, so the gate can still write them.
+          round: 6
+        - id: BR-10
+          disposition: addressed
+          note: 'ReasonUnreadable is split from ReasonInvalid at the layer where the read fails, and the record still blocks its scope. Two residues raised separately: ReasonInvalid.Label() still says "unreadable record", and the block has no seam test and no working next step.'
+          round: 6
+        - id: BR-11
+          disposition: addressed
+          note: ProjectActionableThreads and BuildThreadInventory both take ThreadProjectionInput, and FromSnapshot keeps records and unreadable together on the production path. The "next omission is a compile error" claim is overstated -- a named-field literal still omits Unreadable -- raised as a Minor.
+          round: 6
+      findings:
+        - id: BR-12
+          severity: Critical
+          title: The unreadable-record start refusal names two next steps, neither of which works, and has no seam test
+          detail: |-
+            2nd in family -- do not patch the message. Measured against the real dispatcher with one record
+            overwritten as `{"schema_version":99,"nope":`: `couch /repo` exits 1 (run.go:288 renders and returns,
+            so the TUI never opens in that repo), `couch --show <tag>` exits 1 with "thread reference not found",
+            and `ctrl-space, select it, Tab -> archive` is unreachable from the repository the refusal fires in.
+            The working escape -- start couch from a different repository, where the switcher is global -- is
+            stated nowhere; and in the version-skew case threadreason.go:36-39 names as the split's whole
+            motivation, no record decodes, so every scope is blocked and there is no unblocked repo to start from.
+            atlas/couch.md:565-566 states this hazard verbatim as the reason the old rule existed and the new
+            paragraph at :546-554 reverses it without answering it. The reason all of this survived: couch.go:350's
+            refusal has no test at any seam -- the only coverage is the pure predicate at archive_test.go:269.
+            The rule: a refusal that names a command or gesture is pinned by a test that executes that gesture in
+            the fixture that produced the refusal and asserts it succeeds. Enumerable today: couch.go:350,
+            couch.go:368, startup.go:138 -- only couch.go:368 has one (couch_test.go:1355).
+          family: unnavigable-refusal
+          round: 6
+        - id: BR-13
+          severity: Important
+          title: ResolveThreadReference still reads snapshot.Records only, so --show reports "not found" for a row --list shows
+          detail: |-
+            2nd in family -- do not special-case --show. threadmetadata.go:28-34 drops snapshot.Unreadable, so
+            every ref-resolving surface (show, name, describe, park, resume, archive-by-ref) answers "thread
+            reference not found" about a thread the inventory just printed. The tell that the rule was not stated:
+            archive was fixed by ADDING a second resolver (resolveThreadForArchive) that bypasses decoding, rather
+            than by making reference resolution total -- a per-consumer patch where a shared rule belongs. State
+            it as: every consumer of ThreadSnapshot that answers "does this thread exist" sees the unreadable set.
+            Enumeration: 7 `.Snapshot()` sites in couchcore; the four park/start-reconciliation loops legitimately
+            filter on record.Park, ResolveThreadReference does not.
+          family: decode-failure-drops-the-row
+          round: 6
+        - id: BR-14
+          severity: Important
+          title: ReasonInvalid still renders to the operator as "unreadable record", the word the round just gave the other state
+          detail: |-
+            2nd in family. threadreason.go:100-103 was not updated when menu.go:990-993 was, so one `couch --list`
+            can print "unreadable record" for `invalid` and "could not be read - needs a look" for `unreadable`
+            side by side. TestEveryReasonHasADistinctOperatorLabel passes because it compares exact strings, and a
+            label that borrows another state's defining word clears that bar. The rule: when a state is split,
+            every renderer of the old state is re-worded in the same commit, and the vocabulary guard checks
+            meaning-collision rather than string equality. Renderers are enumerable: Label(), unusableThreadNotice,
+            menu_render.go:286, atlas/couch.md, README.md.
+          family: transient-failure-as-verdict
+          round: 6
+        - id: BR-15
+          severity: Minor
+          title: Two behavioural claims added this window have no enforcing code, and one contradicts a comment 20 lines away
+          detail: |-
+            4th in family -- state the rule, do not edit the two comments. (1) threadreason.go:41 says `unreadable`
+            is "never archive-eligible": no archive-eligibility rule exists in the tree (DecideRetirement was not
+            built), menuActionItems offers archive to it, atlas:551-553 says it CAN be archived on purpose, and
+            ReasonUnknown at :59-60 still claims to be "the only one that is never archive-eligible by
+            construction". (2) actionableinventory.go:165-172, atlas:556-560 and lessons.md all claim one value
+            makes "the next omission a compile error" -- a named-field ThreadProjectionInput literal still omits
+            Unreadable silently, and BuildArchivedInventory (threadinventory.go:112) does exactly that. The rule:
+            a behavioural claim in a comment, atlas or lesson names the code that enforces it, and is deleted or
+            demoted to intent when no such code exists. Enumerable by grepping the window's added prose for
+            "never", "always", "cannot" and checking each against an enforcing site plus a test.
+          family: unbacked-existing-behavior-claim
+          round: 6
+      boundary: M3
+      blocked: true
 ---
 
 # Gate ledger — pair#181 (boundary-review)
@@ -313,13 +414,70 @@ later rounds disposed of them. Generated — edit the gate, not this file.
   omitting it silently restores "some records get no row" with no compile error and no failing test. Pass
   ThreadSnapshot or a single input struct -- the call sites already moved once for the evidence parameter.
 
+## Round 6 — 2026-09-04T08:03:03-07:00 (claude) — BLOCKED
+
+### Disposed
+
+- BR-1 — not-addressed — Unchanged this round -- menu.go's only edit was unusableThreadNotice; menuActionItems still offers archive to a ThreadBusy row and couchtty still has no ThreadBusy behavioural test.
+- BR-4 — addressed — Verified by revert: restoring resolveOperationThread in the archive branch fails TestAnUnreadableRecordCanBeArchivedThroughTheRuntime with "couch: EOF". Row is visible and removable through the real dispatcher.
+- BR-5 — not-addressed — The atlas gained the unreadable-record entry, but the same window reversed "debris does not block" and swept none of its restatements: README:319-321, atlas:563-567 (four lines below the new paragraph, and it names the exact hazard now realized), issue Revisions:244-246, and the plan's round-2 entry still says Snapshot carries "Malformed" emitted as "invalid" rows. README's synopsis block still omits --archived.
+- BR-6 — not-addressed — Unchanged, and now worse: PathHoldsUnreadableThread is a sixth independent occupancy/actionability predicate. occupiedIncarnation still has one caller; DecideResume (resume.go:80-95) still inlines the same three states.
+- BR-8 — addressed — Verified by revert: deleting archivableRecord's Park != nil branch now fails at archive_test.go:106. The startup recency half was fixed in the prior round.
+- BR-9 — addressed — TestUncheckedProjectMilestoneHasNoClosedMetadata is red at f9f6cdd6 and green at HEAD (measured both). M3's block carries no closed/actual and its row is unticked; M2 records the missing gate instead of inventing an actual; M1's "judgment estimate, not measured" qualification is restored. sdlc's upsertField inserts after **est:**, so the gate can still write them.
+- BR-10 — addressed — ReasonUnreadable is split from ReasonInvalid at the layer where the read fails, and the record still blocks its scope. Two residues raised separately: ReasonInvalid.Label() still says "unreadable record", and the block has no seam test and no working next step.
+- BR-11 — addressed — ProjectActionableThreads and BuildThreadInventory both take ThreadProjectionInput, and FromSnapshot keeps records and unreadable together on the production path. The "next omission is a compile error" claim is overstated -- a named-field literal still omits Unreadable -- raised as a Minor.
+
+### Raised
+
+- **BR-12** [Critical] `unnavigable-refusal` The unreadable-record start refusal names two next steps, neither of which works, and has no seam test
+  2nd in family -- do not patch the message. Measured against the real dispatcher with one record
+  overwritten as `{"schema_version":99,"nope":`: `couch /repo` exits 1 (run.go:288 renders and returns,
+  so the TUI never opens in that repo), `couch --show <tag>` exits 1 with "thread reference not found",
+  and `ctrl-space, select it, Tab -> archive` is unreachable from the repository the refusal fires in.
+  The working escape -- start couch from a different repository, where the switcher is global -- is
+  stated nowhere; and in the version-skew case threadreason.go:36-39 names as the split's whole
+  motivation, no record decodes, so every scope is blocked and there is no unblocked repo to start from.
+  atlas/couch.md:565-566 states this hazard verbatim as the reason the old rule existed and the new
+  paragraph at :546-554 reverses it without answering it. The reason all of this survived: couch.go:350's
+  refusal has no test at any seam -- the only coverage is the pure predicate at archive_test.go:269.
+  The rule: a refusal that names a command or gesture is pinned by a test that executes that gesture in
+  the fixture that produced the refusal and asserts it succeeds. Enumerable today: couch.go:350,
+  couch.go:368, startup.go:138 -- only couch.go:368 has one (couch_test.go:1355).
+- **BR-13** [Important] `decode-failure-drops-the-row` ResolveThreadReference still reads snapshot.Records only, so --show reports "not found" for a row --list shows
+  2nd in family -- do not special-case --show. threadmetadata.go:28-34 drops snapshot.Unreadable, so
+  every ref-resolving surface (show, name, describe, park, resume, archive-by-ref) answers "thread
+  reference not found" about a thread the inventory just printed. The tell that the rule was not stated:
+  archive was fixed by ADDING a second resolver (resolveThreadForArchive) that bypasses decoding, rather
+  than by making reference resolution total -- a per-consumer patch where a shared rule belongs. State
+  it as: every consumer of ThreadSnapshot that answers "does this thread exist" sees the unreadable set.
+  Enumeration: 7 `.Snapshot()` sites in couchcore; the four park/start-reconciliation loops legitimately
+  filter on record.Park, ResolveThreadReference does not.
+- **BR-14** [Important] `transient-failure-as-verdict` ReasonInvalid still renders to the operator as "unreadable record", the word the round just gave the other state
+  2nd in family. threadreason.go:100-103 was not updated when menu.go:990-993 was, so one `couch --list`
+  can print "unreadable record" for `invalid` and "could not be read - needs a look" for `unreadable`
+  side by side. TestEveryReasonHasADistinctOperatorLabel passes because it compares exact strings, and a
+  label that borrows another state's defining word clears that bar. The rule: when a state is split,
+  every renderer of the old state is re-worded in the same commit, and the vocabulary guard checks
+  meaning-collision rather than string equality. Renderers are enumerable: Label(), unusableThreadNotice,
+  menu_render.go:286, atlas/couch.md, README.md.
+- **BR-15** [Minor] `unbacked-existing-behavior-claim` Two behavioural claims added this window have no enforcing code, and one contradicts a comment 20 lines away
+  4th in family -- state the rule, do not edit the two comments. (1) threadreason.go:41 says `unreadable`
+  is "never archive-eligible": no archive-eligibility rule exists in the tree (DecideRetirement was not
+  built), menuActionItems offers archive to it, atlas:551-553 says it CAN be archived on purpose, and
+  ReasonUnknown at :59-60 still claims to be "the only one that is never archive-eligible by
+  construction". (2) actionableinventory.go:165-172, atlas:556-560 and lessons.md all claim one value
+  makes "the next omission a compile error" -- a named-field ThreadProjectionInput literal still omits
+  Unreadable silently, and BuildArchivedInventory (threadinventory.go:112) does exactly that. The rule:
+  a behavioural claim in a comment, atlas or lesson names the code that enforces it, and is deleted or
+  demoted to intent when no such code exists. Enumerable by grepping the window's added prose for
+  "never", "always", "cannot" and checking each against an enforcing site plus a test.
+
 ## Open findings
 
 - **BR-1** [Minor] `new-state-unhandled-at-consumers` ThreadBusy rows reach Enter and menuActionItems, where !Live() offers switch and resume
-- **BR-4** [Important] `decode-failure-drops-the-row` An unreadable record has no row, cannot be archived, and fails the whole inventory
 - **BR-5** [Important] `unbacked-existing-behavior-claim` README and atlas still assert the startup and label rules this window reversed
 - **BR-6** [Important] `new-state-unhandled-at-consumers` Occupancy is decided in five places with four different definitions
-- **BR-8** [Minor] `test-name-overclaims` TestArchiveThreadRefusesALiveOrParkingThread never exercises the parking branch
-- **BR-9** [Critical] `unbacked-existing-behavior-claim` The project's new detail blocks break a contract test and record closes the gates never ran
-- **BR-10** [Important] `transient-failure-as-verdict` Snapshot reports "could not read" as the verdict "invalid", and the record leaves the usable set
-- **BR-11** [Important] `new-state-unhandled-at-consumers` Malformed rows are an opt-in variadic, so the pre-181 behaviour is the compile-clean default
+- **BR-12** [Critical] `unnavigable-refusal` The unreadable-record start refusal names two next steps, neither of which works, and has no seam test
+- **BR-13** [Important] `decode-failure-drops-the-row` ResolveThreadReference still reads snapshot.Records only, so --show reports "not found" for a row --list shows
+- **BR-14** [Important] `transient-failure-as-verdict` ReasonInvalid still renders to the operator as "unreadable record", the word the round just gave the other state
+- **BR-15** [Minor] `unbacked-existing-behavior-claim` Two behavioural claims added this window have no enforcing code, and one contradicts a comment 20 lines away

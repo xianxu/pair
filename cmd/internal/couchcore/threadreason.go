@@ -99,9 +99,9 @@ func (r ThreadReason) Label() string {
 	case ReasonNeverStarted:
 		return "never started"
 	case ReasonInvalid:
-		return "unreadable record"
+		return "record failed validation"
 	case ReasonUnreadable:
-		return "could not be read — needs a look"
+		return "could not be read — may need a newer couch"
 	case ReasonPathMissing:
 		return "path unavailable"
 	case ReasonProfileMissing:

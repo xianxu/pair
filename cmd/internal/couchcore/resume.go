@@ -79,19 +79,11 @@ func DecideResume(input ResumeEligibilityInput) (ResumeEligibility, error) {
 	if record.Park != nil {
 		return ResumeEligibility{}, refuseResume(ResumeParking, "thread has an active park transaction")
 	}
-	for _, state := range []struct {
-		value IncarnationState
-		code  ResumeDiagnosticCode
-	}{
-		{IncarnationLive, ResumeLive},
-		{IncarnationCreating, ResumeCreating},
-		{IncarnationUnknown, ResumeUnknown},
-	} {
-		for _, incarnation := range record.Incarnations {
-			if incarnation.State == state.value {
-				return ResumeEligibility{}, refuseResume(state.code, "thread still has an occupied incarnation")
-			}
-		}
+	// One occupancy rule, shared with archive. It used to be inlined here and
+	// re-derived in the store with a narrower set, which is how archiving a
+	// thread mid-start passed a guard that resume would have refused.
+	if occupied, state := occupiedIncarnation(record); occupied {
+		return ResumeEligibility{}, refuseResume(occupiedResumeCode(state), "thread still has an occupied incarnation")
 	}
 	if record.VerifiedPark == nil && !input.Detached {
 		// The tombstone scan is reached ONLY when neither authority holds, and
@@ -144,6 +136,18 @@ func DecideResume(input ResumeEligibilityInput) (ResumeEligibility, error) {
 	return ResumeEligibility{
 		Address: record.Address, WorkingPath: record.WorkingPath, Profile: profile,
 	}, nil
+}
+
+// occupiedResumeCode names WHICH occupancy refused, so the diagnostic stays as
+// specific as it was when the three states were enumerated by hand.
+func occupiedResumeCode(state IncarnationState) ResumeDiagnosticCode {
+	switch state {
+	case IncarnationLive:
+		return ResumeLive
+	case IncarnationCreating:
+		return ResumeCreating
+	}
+	return ResumeUnknown
 }
 
 func bindingResumeDiagnostic(binding NativeBindingResolution) ResumeDiagnosticCode {

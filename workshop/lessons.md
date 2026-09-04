@@ -3134,3 +3134,23 @@ that a key token appears cannot detect a contradictory behavioral sentence
   operator still could not remove the row they could see. The commit that landed
   that fix had *written the lesson* "test the seam, not both sides of it" three
   hours earlier.
+- A refusal that names a command or gesture is pinned by a test that EXECUTES it
+  against the fixture which produced the refusal. Writing a good message is not
+  the fix: the second unnavigable refusal in couch was written three lines below
+  the comment explaining why the first one was wrong, and it named `couch --show
+  <tag>` for a record whose defining property is that reading it fails. The test
+  is what makes the claim checkable, and it is cheap — grep for error strings
+  with indented next-step lines and cover each one.
+- When a state is SPLIT, re-word every renderer of the old state in the same
+  commit, and make the vocabulary guard check meaning rather than string
+  equality. Splitting `unreadable` out of `invalid` left `invalid` labelled
+  "unreadable record", so both printed side by side in one listing with one
+  wearing the other's defining word — and the distinctness test passed, because
+  the strings differed.
+- A safety rule that can lock the operator out needs its escape stated IN the
+  refusal and reachable from where the refusal fires. Blocking starts on an
+  unreadable record is right — couch cannot tell which path it holds — but in
+  version skew every record is unreadable, so every repository refuses and the
+  in-switcher recovery is unreachable by construction. The escape (another
+  repository's switcher, and failing that the record's own file path) existed
+  and was unstated, which is the same as not existing.
