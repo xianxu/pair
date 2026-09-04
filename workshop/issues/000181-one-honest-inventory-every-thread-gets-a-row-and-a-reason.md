@@ -218,6 +218,49 @@ Plan doc to follow. Three review boundaries:
 
 ## Revisions
 
+### 2026-09-03 — one thread per repo, and startup stops guessing
+
+Reason: the operator looked at the honest inventory M1 produced and named what
+it showed -- six threads in brain, two in pair -- as the actual problem. The
+rules underneath it were the cause, and the decisions below are theirs.
+
+**Startup selection is ordered, not exact.** `SelectUniqueResumableRoot`
+reattaches only when EXACTLY ONE resumable row exists for a path; two matches
+create a new thread. That is a ratchet: two resumable rows make a third, which
+guarantees the next startup also creates one. It becomes
+`detached → parked → new`, most-recently-active first within a class. This
+REVERSES the selector's documented refusal to have a policy ("Preferring warm
+over cold would be a policy, and this selector deliberately has none") and the
+reversal is recorded in place.
+
+The escape hatch that makes it safe already exists: `Alt+Shift+N` in Pair is
+"restart only the agent conversation, keeping the workbench", so wanting a fresh
+agent costs one chord. What becomes deliberate rather than accidental is a
+second thread in one repo -- which is the next decision.
+
+**One thread per repo path is ENFORCED, for now.** Not merely preferred:
+creating a thread at a path that already holds a usable one is refused until
+per-repo policy is modelled, because several threads at one path without
+separate worktrees is confusing. Debris does NOT block -- only a live, detached
+or parked thread does -- or a path whose only rows are unusable could never be
+started in again.
+
+**Unusable threads are corrupted data, not treasure.** The operator's judgment
+on their own store: nothing durable is in the eight `binding-lost` rows, and
+they will start from scratch. So pair#168's recovery is NOT worth building --
+the proof-migration work in Pair's binding-authority path is dropped, and with
+it the risk of widening what counts as authority in a separate program.
+
+**A thread gets a delete action.** Removing a thread from the system entirely,
+so the operator can start anew, is the affordance that makes the rest work: it
+is how debris leaves, how an enforced path is freed, and how a wedged session is
+abandoned. It largely replaces M3's automatic retirement rule -- an operator
+action beats a predicate that has to guess what is finished.
+
+Consequences for the plan: M2's Task 9 is dropped, M3 is re-scoped from
+"retirement predicate + archive + prune" to "delete action + archive", and the
+startup rule lands before either.
+
 ### 2026-09-03 — nine reasons, not six; and two findings from the plan review
 
 Reason: writing the plan and reviewing it against the source widened the
