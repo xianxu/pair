@@ -30,6 +30,17 @@ const (
 	ReasonNeverStarted ThreadReason = "never-started"
 	// ReasonInvalid is a record that fails ValidateThreadRecord.
 	ReasonInvalid ThreadReason = "invalid"
+	// ReasonUnreadable is a manifest-listed record couch could not read or
+	// decode at all -- distinct from `invalid`, which is a verdict about a
+	// record that WAS read.
+	//
+	// The distinction is the same one ProofStatus draws one layer up. An older
+	// couch reading a store written by a newer one cannot decode any record:
+	// calling that "invalid" would classify every thread as debris and offer to
+	// archive the operator's live work. Unreadable means unknown, so it is
+	// never archive-eligible and it still BLOCKS its path -- a record couch
+	// cannot read is not evidence that the path is free.
+	ReasonUnreadable ThreadReason = "unreadable"
 	// ReasonPathMissing is a working path that could not be physicalized. It
 	// must stay a refusal: SelectResumableRoot compares paths by exact
 	// string, so an unphysicalized row could be auto-selected at startup.
@@ -61,6 +72,7 @@ func AllThreadReasons() []ThreadReason {
 		ReasonSessionGone,
 		ReasonNeverStarted,
 		ReasonInvalid,
+		ReasonUnreadable,
 		ReasonPathMissing,
 		ReasonProfileMissing,
 		ReasonAgentUnsupported,
@@ -88,6 +100,8 @@ func (r ThreadReason) Label() string {
 		return "never started"
 	case ReasonInvalid:
 		return "unreadable record"
+	case ReasonUnreadable:
+		return "could not be read — needs a look"
 	case ReasonPathMissing:
 		return "path unavailable"
 	case ReasonProfileMissing:

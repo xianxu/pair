@@ -162,6 +162,27 @@ func (s ActionableThreadSummary) DisplaySummary() string {
 	return s.Description
 }
 
+// ThreadProjectionInput is everything a projection needs, as ONE value.
+//
+// The three parts used to travel separately, with the unreadable set as a
+// trailing variadic -- so omitting it compiled cleanly and silently restored
+// "some records get no row", which is the regression this issue exists to
+// prevent. A consumer cannot opt out of part of a projection it is handed
+// whole, and the next omission is a compile error rather than a hidden filter.
+type ThreadProjectionInput struct {
+	Records    []ThreadRecord
+	Evidence   map[ThreadAddress]ThreadEvidence
+	Unreadable []ThreadAddress
+}
+
+// FromSnapshot pairs a store snapshot with the evidence resolved about it, so
+// the records and the addresses that could not become records stay together.
+func FromSnapshot(snapshot ThreadSnapshot, evidence map[ThreadAddress]ThreadEvidence) ThreadProjectionInput {
+	return ThreadProjectionInput{
+		Records: snapshot.Records, Evidence: evidence, Unreadable: snapshot.Unreadable,
+	}
+}
+
 // ProjectActionableThreads emits ONE ROW PER RECORD. It is total, and every
 // row that is not actionable says why.
 //
@@ -171,17 +192,16 @@ func (s ActionableThreadSummary) DisplaySummary() string {
 // closed is still the rule -- an unproved row is not actionable and startup
 // will not select it -- but it is now expressed as a state rather than as
 // absence (#181).
-func ProjectActionableThreads(records []ThreadRecord, evidence map[ThreadAddress]ThreadEvidence, malformed ...[]ThreadAddress) []ActionableThreadSummary {
+func ProjectActionableThreads(input ThreadProjectionInput) []ActionableThreadSummary {
+	records, evidence := input.Records, input.Evidence
 	rows := make([]ActionableThreadSummary, 0, len(records))
-	// A record the decoder rejected is still a thread the operator has. It gets
+	// A record couch could not read is still a thread the operator has. It gets
 	// a row carrying the only thing that could be read -- its address -- so it
-	// can be seen and archived rather than failing the whole inventory.
-	if len(malformed) > 0 {
-		for _, address := range malformed[0] {
-			rows = append(rows, ActionableThreadSummary{
-				Address: address, State: ThreadUnusable, Reason: ReasonInvalid,
-			})
-		}
+	// can be seen rather than silently removing itself from the inventory.
+	for _, address := range input.Unreadable {
+		rows = append(rows, ActionableThreadSummary{
+			Address: address, State: ThreadUnusable, Reason: ReasonUnreadable,
+		})
 	}
 	for _, record := range records {
 		state, reason := ClassifyThread(record, evidence[record.Address])
@@ -350,7 +370,7 @@ func (c *Couch) ActionableThreadInventoryContext(ctx context.Context, observatio
 	if err != nil {
 		return nil, err
 	}
-	return ProjectActionableThreads(snapshot.Records, evidence, snapshot.Malformed), nil
+	return ProjectActionableThreads(FromSnapshot(snapshot, evidence)), nil
 }
 
 // gatherThreadEvidence resolves what is knowable about every record and decides

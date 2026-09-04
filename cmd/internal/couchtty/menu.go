@@ -988,7 +988,9 @@ func unusableThreadNotice(thread couchcore.ActionableThreadSummary) string {
 	case couchcore.ReasonNeverStarted:
 		return "it never started"
 	case couchcore.ReasonInvalid:
-		return "its record cannot be read"
+		return "its record is not valid"
+	case couchcore.ReasonUnreadable:
+		return "couch could not read its record -- it may have been written by a newer couch"
 	case couchcore.ReasonPathMissing:
 		return "its working path is unavailable"
 	case couchcore.ReasonProfileMissing:

@@ -46,14 +46,13 @@ func (s ThreadSummary) Live() bool {
 
 // BuildThreadInventory is the diagnostic projection: every record, with its
 // lifecycle detail, classified by the one shared rule.
-func BuildThreadInventory(records []ThreadRecord, evidence map[ThreadAddress]ThreadEvidence, malformed ...[]ThreadAddress) []ThreadSummary {
+func BuildThreadInventory(input ThreadProjectionInput) []ThreadSummary {
+	records, evidence := input.Records, input.Evidence
 	rows := make([]ThreadSummary, 0, len(records))
-	if len(malformed) > 0 {
-		for _, address := range malformed[0] {
-			rows = append(rows, ThreadSummary{
-				Address: address, State: ThreadUnusable, Reason: ReasonInvalid,
-			})
-		}
+	for _, address := range input.Unreadable {
+		rows = append(rows, ThreadSummary{
+			Address: address, State: ThreadUnusable, Reason: ReasonUnreadable,
+		})
 	}
 	for _, record := range records {
 		cloned := cloneThreadRecord(record)
@@ -100,7 +99,7 @@ func (c *Couch) ThreadInventoryContext(ctx context.Context) ([]ThreadSummary, er
 	if err != nil {
 		return nil, err
 	}
-	return BuildThreadInventory(snapshot.Records, evidence, snapshot.Malformed), nil
+	return BuildThreadInventory(FromSnapshot(snapshot, evidence)), nil
 }
 
 // BuildArchivedInventory projects retired records WITHOUT classifying them.
@@ -110,7 +109,7 @@ func (c *Couch) ThreadInventoryContext(ctx context.Context) ([]ThreadSummary, er
 // no evidence gathered the honest answer is "unknown", so every archived row
 // rendered as "checking...". They are not being checked. They are archived.
 func BuildArchivedInventory(records []ThreadRecord) []ThreadSummary {
-	rows := BuildThreadInventory(records, nil)
+	rows := BuildThreadInventory(ThreadProjectionInput{Records: records})
 	for i := range rows {
 		rows[i].State, rows[i].Reason = ThreadArchived, ""
 	}

@@ -247,8 +247,13 @@ func TestClassifyThreadDoesNotApplyResumeShapedRefusalsToALiveRow(t *testing.T) 
 	}
 }
 
-// Every reason is reachable from some record shape. A reason nothing produces
-// is a vocabulary that has drifted from the classifier.
+// Every reason is reachable. A reason nothing produces is a vocabulary that has
+// drifted from the code, which is how `invalid` came to have a label, an Enter
+// notice and a documented archive exit that no real store could ever reach.
+//
+// The vocabulary has TWO producers and the guard covers both: ClassifyThread
+// answers about a record, and the projector answers about a manifest entry that
+// never became one. Exempting the second would be the same drift one layer up.
 func TestEveryReasonIsProducedBySomeShape(t *testing.T) {
 	produced := map[ThreadReason]bool{}
 	for _, tc := range everyThreadShape(t) {
@@ -256,9 +261,16 @@ func TestEveryReasonIsProducedBySomeShape(t *testing.T) {
 			produced[reason] = true
 		}
 	}
+	for _, row := range ProjectActionableThreads(ThreadProjectionInput{
+		Unreadable: []ThreadAddress{{RepoScope: "scope", Tag: "couch-0000000000000001"}},
+	}) {
+		if row.Reason != "" {
+			produced[row.Reason] = true
+		}
+	}
 	for _, reason := range AllThreadReasons() {
 		if !produced[reason] {
-			t.Errorf("no record shape produces reason %q", reason)
+			t.Errorf("nothing produces reason %q", reason)
 		}
 	}
 }
@@ -407,7 +419,7 @@ func actionableRows(records []ThreadRecord, live []LiveTTYObservation, parked []
 		evidence[observation.Address] = item
 	}
 	var rows []ActionableThreadSummary
-	for _, row := range ProjectActionableThreads(records, evidence) {
+	for _, row := range ProjectActionableThreads(ThreadProjectionInput{Records: records, Evidence: evidence}) {
 		switch row.State {
 		case ThreadLive, ThreadParked, ThreadDetached:
 			rows = append(rows, row)

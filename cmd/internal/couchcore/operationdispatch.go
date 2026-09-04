@@ -167,7 +167,12 @@ func DirectStoreExecutor(c *Couch) OperationExecutor {
 			// with "empty reference" -- the milestone's headline action,
 			// unreachable from the only surface offering it. The two dialects
 			// are the bug; this is the one that accepts both (ARCH-DRY).
-			address, err := resolveOperationThread(c, a)
+			// resolveThreadForArchive, not resolveOperationThread: resolving by
+			// tag calls GetThread, which DECODES -- so archiving an unreadable
+			// record failed with the decode error at exactly the moment the
+			// operator was trying to get rid of it. An archive target is
+			// addressed, not read.
+			address, err := resolveThreadForArchive(c, a)
 			if err != nil {
 				return nil, err
 			}
@@ -317,6 +322,27 @@ func CouchLiveOwnerExecutor(c *Couch) OperationExecutor {
 			return nil, fmt.Errorf("%s is not a live-owner operation", call.Operation.Name)
 		}
 	}
+}
+
+// resolveThreadForArchive addresses a thread without requiring it to be
+// readable.
+//
+// Every other resolver proves the thread exists by decoding it, which is right
+// for an operation that will act ON the record. Archive acts on the FILE: an
+// unreadable record is the case it most needs to reach, and the store's own
+// journal refuses an address that is not in the manifest, so existence is still
+// checked -- just not by a decoder that the corrupt case fails by definition.
+func resolveThreadForArchive(c *Couch, args map[string]string) (ThreadAddress, error) {
+	if err := requireOperationRepoScope(args); err != nil {
+		return ThreadAddress{}, err
+	}
+	if tag := args["tag"]; tag != "" {
+		if args["ref"] != "" {
+			return ThreadAddress{}, fmt.Errorf("thread ref and exact tag cannot both be supplied")
+		}
+		return ThreadAddress{RepoScope: args["repo-scope"], Tag: ThreadTag(tag)}, nil
+	}
+	return resolveOperationThread(c, args)
 }
 
 func resolveOperationThread(c *Couch, args map[string]string) (ThreadAddress, error) {

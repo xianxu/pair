@@ -347,6 +347,17 @@ func (c *Couch) spawnResolved(ctx context.Context, resolution StartResolution, r
 	// decisions must never read it", so reading it here would resurrect a dead
 	// flag as policy. The deliberate second thread comes back with per-repo
 	// policy, as its own decision.
+	// An unreadable record in this scope blocks too. It has no working path to
+	// match on -- reading it is what would have supplied one -- so treating it
+	// as absent would start a second thread in a tree that may already hold
+	// live work, silently, where the old code failed loudly.
+	if held, unreadable := PathHoldsUnreadableThread(rows, scope.Key); unreadable {
+		return ActorRecord{}, nil, fmt.Errorf(
+			"couch cannot read thread %s in this repository, so it cannot tell whether %s is free\n"+
+				"  inspect it:  couch --show %s\n"+
+				"  retire it:   ctrl-space, select it, Tab → archive",
+			held.Tag, resolution.CanonicalPath, held.Tag)
+	}
 	if held, occupied := PathHoldsUsableThread(rows, scope.Key, resolution.CanonicalPath); occupied {
 		// The next steps have to be ones that WORK from where the operator is.
 		// An earlier version said "return to it: couch <path>" -- the command

@@ -3107,3 +3107,30 @@ that a key token appears cannot detect a contradictory behavioral sentence
   The fixture had six shapes and no invalid one, because the constructor cannot
   build that shape: if a state is unreachable through your test helpers, it is
   probably untested in production too.
+- A number a gate produces is written BY that gate. Hand-writing `closed:` and
+  `actual:` into a project detail block ahead of `sdlc milestone-close` shipped
+  a red contract test and recorded a close for a milestone that never ran one —
+  in the same commit that claimed the milestone was reviewed. `**actual:**`
+  feeds velocity calibration, which is exactly what AGENTS.md §5 forbids
+  hand-typing. If a value was judged rather than measured, say so where it is
+  read, not only in the issue Log.
+- "I could not read it" is not the verdict "it is invalid". A decode failure can
+  mean the record is corrupt OR that this binary is older than the store that
+  wrote it — and conflating them means an older couch calls every thread debris
+  and offers to archive the operator's live work. Same shape as `ProofStatus`
+  one layer up: a total classifier that cannot say "unknown" converts a failed
+  read into an assertion. Unknown must also stay CONSERVATIVE — an unreadable
+  record blocks its path rather than freeing it, because absence of evidence is
+  not evidence the path is free.
+- A new required input must not be optional at the call site. Passing the
+  malformed-record set as a trailing variadic meant omitting it compiled cleanly
+  and silently restored "some records get no row" — the exact regression the
+  work existed to prevent, with no compile error and no failing test. Evidence
+  and the records it describes travel as one value, so the next omission is a
+  compile error rather than a hidden filter.
+- Fixing a finding below the seam is not fixing it. "An undecodable record can
+  be archived" was made true of `couch.ArchiveThread` and left false through the
+  real dispatcher, because resolving a thread by tag decodes it first — so the
+  operator still could not remove the row they could see. The commit that landed
+  that fix had *written the lesson* "test the seam, not both sides of it" three
+  hours earlier.

@@ -77,6 +77,27 @@ func PathHoldsUsableThread(rows []ActionableThreadSummary, repoScope, workingPat
 	return ThreadAddress{}, false
 }
 
+// PathHoldsUnreadableThread reports a record couch could not read at all.
+//
+// It is separate from PathHoldsUsableThread because it answers a different
+// question. An unreadable record has no working path -- reading it is what would
+// have supplied one -- so it cannot be matched by path, and treating "cannot
+// read" as "not here" would let a second thread be created in a tree that may
+// already hold live work. That is the ratchet M3 closed, reappearing silently
+// where the old code at least failed loudly.
+//
+// Scope-wide rather than path-exact, deliberately: unknown is unknown, and the
+// conservative reading of an unreadable record in this repo is that it might be
+// the one at this path.
+func PathHoldsUnreadableThread(rows []ActionableThreadSummary, repoScope string) (ThreadAddress, bool) {
+	for _, row := range rows {
+		if row.Address.RepoScope == repoScope && row.Reason == ReasonUnreadable {
+			return row.Address, true
+		}
+	}
+	return ThreadAddress{}, false
+}
+
 // StartInteractive chooses the root/home actor for one interactive Couch
 // startup before performing either resume or new-thread effects.
 func (c *Couch) StartInteractive(ctx context.Context, args StartArgs) (StartResult, error) {

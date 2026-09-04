@@ -97,6 +97,14 @@ func TestArchiveThreadRefusesALiveOrParkingThread(t *testing.T) {
 	if err := store.ArchiveThread(begun.Address); err == nil {
 		t.Fatal("archived a thread with a park in flight")
 	}
+	// DISCRIMINATING: the refusal must come from the park, not from the live
+	// incarnation the park needed in order to exist. Deleting the Park branch
+	// left this test green until it asked which rule fired.
+	if err := archivableRecord(ThreadRecord{
+		Address: begun.Address, Park: begun.Park,
+	}); err == nil {
+		t.Fatal("a park in flight with no incarnation was archivable -- the park branch is unexercised")
+	}
 }
 
 // An unusable thread is exactly what the operator wants gone, so no reason
@@ -204,8 +212,13 @@ func TestAnUndecodableRecordIsAVisibleRowAndCanBeArchived(t *testing.T) {
 	for _, row := range rows {
 		if row.Address == corrupt {
 			found = true
-			if row.State != ThreadUnusable || row.Reason != ReasonInvalid {
-				t.Fatalf("corrupt row = %+v, want unusable/invalid", row)
+			// `unreadable`, not `invalid`: couch could not read the bytes at
+			// all, which is a different claim from "this record is not valid"
+			// -- and the difference matters, because an older couch reading a
+			// newer store cannot read ANY record and must not call the
+			// operator's live work debris.
+			if row.State != ThreadUnusable || row.Reason != ReasonUnreadable {
+				t.Fatalf("corrupt row = %+v, want unusable/unreadable", row)
 			}
 		}
 	}
@@ -246,5 +259,33 @@ func TestArchiveRefusesEveryOccupiedIncarnationNotJustLive(t *testing.T) {
 				t.Fatalf("a refused archive still moved the record: %v", err)
 			}
 		})
+	}
+}
+
+// An unreadable record must BLOCK its repository rather than free it. It has no
+// working path to match on -- reading it is what would have supplied one -- so
+// treating it as absent starts a second thread in a tree that may already hold
+// live work, silently, where the old code failed loudly.
+func TestAnUnreadableRecordBlocksStartsInItsRepository(t *testing.T) {
+	rows := []ActionableThreadSummary{{
+		Address: ThreadAddress{RepoScope: "scope", Tag: "couch-0000000000000001"},
+		State:   ThreadUnusable, Reason: ReasonUnreadable,
+	}}
+	if _, blocked := PathHoldsUnreadableThread(rows, "scope"); !blocked {
+		t.Fatal("an unreadable record did not block its repository")
+	}
+	if _, blocked := PathHoldsUnreadableThread(rows, "other-scope"); blocked {
+		t.Fatal("an unreadable record blocked a different repository")
+	}
+	// Every other unusable reason is a KNOWN state, so it does not block:
+	// a path whose only rows are debris must stay startable.
+	for _, reason := range AllThreadReasons() {
+		if reason == ReasonUnreadable {
+			continue
+		}
+		rows[0].Reason = reason
+		if _, blocked := PathHoldsUnreadableThread(rows, "scope"); blocked {
+			t.Fatalf("reason %q blocked a start; only unreadable is unknown", reason)
+		}
 	}
 }

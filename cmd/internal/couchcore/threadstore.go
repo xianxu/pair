@@ -36,11 +36,15 @@ type ThreadRevisionError struct {
 type ThreadSnapshot struct {
 	Generation uint64
 	Records    []ThreadRecord
-	// Malformed are manifest-listed addresses whose record could not be read or
-	// decoded. They are carried rather than raised, because one unreadable
+	// Unreadable are manifest-listed addresses whose record could not be read
+	// or decoded. They are carried rather than raised, because one unreadable
 	// record must not remove every other row: a store with 13 threads and one
 	// corrupt file has 13 threads, one of which needs attention (#181).
-	Malformed []ThreadAddress
+	//
+	// "Unreadable" is deliberately not "invalid". A decode failure can mean the
+	// record is corrupt, or that this binary is older than the store that wrote
+	// it -- and the second case would otherwise classify every thread as debris.
+	Unreadable []ThreadAddress
 }
 
 func (e *ThreadRevisionError) Error() string {
@@ -526,12 +530,12 @@ func (s *ThreadStore) Snapshot() (ThreadSnapshot, error) {
 			// could ever produce.
 			raw, err := os.ReadFile(s.recordPath(address))
 			if err != nil {
-				snapshot.Malformed = append(snapshot.Malformed, address)
+				snapshot.Unreadable = append(snapshot.Unreadable, address)
 				continue
 			}
 			record, err := s.decodeThreadRaw(address, raw)
 			if err != nil {
-				snapshot.Malformed = append(snapshot.Malformed, address)
+				snapshot.Unreadable = append(snapshot.Unreadable, address)
 				continue
 			}
 			snapshot.Records = append(snapshot.Records, cloneThreadRecord(record))

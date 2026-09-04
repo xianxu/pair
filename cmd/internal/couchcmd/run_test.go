@@ -1495,3 +1495,47 @@ func TestArchiveThroughTheRuntimeMovesTheThreadToTheArchive(t *testing.T) {
 		t.Fatalf("archive listing = %q (code %d)", archivedOut, code)
 	}
 }
+
+// The residue of a "fixed" finding, caught by the rule its own commit wrote:
+// archiving an undecodable record worked when couchcore was called directly and
+// failed through the real dispatcher, because resolving a thread by tag or ref
+// reads the record first. A row the operator can see and cannot remove is worse
+// than one they cannot use.
+func TestAnUnreadableRecordCanBeArchivedThroughTheRuntime(t *testing.T) {
+	rt := newRT(t, "/repo")
+	thread := seedThread(t, rt, "/repo")
+
+	c, err := rt.NewCouch()
+	if err != nil {
+		t.Fatal(err)
+	}
+	// Corrupt it on disk, as a truncated write or a rolled-back schema would.
+	path := filepath.Join(rt.StoreDir(), "threadstore", "records",
+		thread.Address.RepoScope, string(thread.Address.Tag)+".json")
+	if err := os.WriteFile(path, []byte(`{"schema_version":99,"nope":`), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	_ = c
+
+	// It is listed, because a record couch cannot read is still a thread.
+	listOut, _, code := runTypedRT(rt, couchcore.OperationCall{Name: "list"})
+	if code != 0 {
+		t.Fatalf("list failed with an unreadable record: %q", listOut)
+	}
+	if !strings.Contains(listOut, "could not be read") {
+		t.Fatalf("list = %q, want the unreadable row", listOut)
+	}
+
+	// And it can leave, through the operator's actual gesture.
+	_, errw, code := runTypedRT(rt, couchcore.OperationCall{
+		Name: "archive", Implicit: true,
+		Args: map[string]string{"repo-scope": thread.Address.RepoScope, "tag": string(thread.Address.Tag)},
+	})
+	if code != 0 {
+		t.Fatalf("archiving an unreadable record through the runtime: code=%d err=%q", code, errw)
+	}
+	after, _, _ := runTypedRT(rt, couchcore.OperationCall{Name: "list"})
+	if strings.Contains(after, "could not be read") {
+		t.Fatalf("the unreadable row survived its archive: %q", after)
+	}
+}

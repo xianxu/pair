@@ -184,7 +184,11 @@ func (c *Couch) ArchiveThread(ctx context.Context, address ThreadAddress) (Threa
 	// unprovable, so it is moved rather than acted on.
 	record, readErr := c.Threads.GetThread(address)
 	if readErr != nil {
-		record = ThreadRecord{Address: address}
+		// Address-only, and marked as such: a synthesized record renders
+		// downstream as a real one with every field zero, which is a fabricated
+		// value read as evidence. Reservation says "this is not a description
+		// of a thread, only a claim on an address".
+		record = ThreadRecord{Address: address, Reservation: true}
 	}
 	if err := c.Artifacts.Quiesce(address); err != nil {
 		return ThreadRecord{}, fmt.Errorf("archive %s: its session could not be stopped: %w", address.Tag, err)

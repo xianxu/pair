@@ -241,7 +241,9 @@ Absorbs `pair#179` (M2) and `pair#180` (M3).
 
 **est:** 8.64 (whole issue)
 **closed:** 2026-09-03
-**actual:** 0.85h
+**actual:** 0.85h *(labeled judgment estimate, not measured: `sdlc actual --issue
+181` reports no measurable activity for this issue though it works for #170;
+bounded by commit timestamps. Excluded from calibration on that basis.)*
 
 The switcher showed 4 rows over a store of 13 and `couch --list` showed all 13,
 with nothing reconciling them. `ClassifyThread` is now one total rule over
@@ -260,8 +262,14 @@ sessions. Measured on the operator store: 13 rows, 2 live, 1 stale incarnation,
 ### pair#181 M2 — warm reattach: get back into a detached session
 
 **est:** 8.64 (whole issue)
-**closed:** 2026-09-03
-**actual:** 0.9h
+**closed:** — *(no `milestone-close` was run for M2; see the note below)*
+
+**Process deviation, recorded rather than papered over.** M2's code went straight
+into M3's work without its own boundary close, so it has no `Review-Verdict`
+trailer, no `closed M2` log line, and no measured actual. Its code WAS reviewed:
+the M3 window starts at M1's close, so every M3 review round covered it. What is
+missing is the recorded boundary, and an `**actual:**` invented for it would be
+exactly the hand-typed calibration input AGENTS.md §5 forbids.
 
 Reattaching a running agent needed three sites to agree that reattaching is not
 resuming: the native session id is the COLD path's proof, and a warm reattach
@@ -279,8 +287,6 @@ a provisional binding earlier. Absorbs `pair#179`.
 ### pair#181 M3 — archive as the only exit, plus the startup and path rules
 
 **est:** 8.64 (whole issue)
-**closed:** 2026-09-04
-**actual:** 2.4h
 
 Replaced the planned retirement predicate with an `archive` action on the
 operator's instruction — an operator action beats a rule guessing what is

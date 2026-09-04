@@ -122,6 +122,83 @@ rounds:
           round: 4
       boundary: M3
       blocked: true
+    - "n": 5
+      timestamp: "2026-09-04T07:35:28-07:00"
+      agent: claude
+      dispose:
+        - id: BR-1
+          disposition: not-addressed
+          note: Enter now refuses busy via menuThreadActionable and says "it is busy", but nothing pins it and menuActionItems still offers archive to a busy row; unchanged this round.
+          round: 5
+        - id: BR-2
+          disposition: addressed
+          note: issue:161 now reads 63 references across 15 files, and the plan records the measurement in its Revisions.
+          round: 5
+        - id: BR-3
+          disposition: addressed
+          note: 'Verified by overlay revert: restoring ResolveThreadReference(a["ref"]) makes both new seam tests fail with "empty reference".'
+          round: 5
+        - id: BR-4
+          disposition: not-addressed
+          note: 'The row is visible now, but archive is still unreachable for it: through the real dispatcher archive{tag} fails with "couch: EOF" and archive{ref} with "not found" -- the new test calls couch.ArchiveThread directly, below the very seam whose absence caused BR-3.'
+          round: 5
+        - id: BR-5
+          disposition: not-addressed
+          note: Six of seven sites swept well; README's synopsis block (255-270) still omits --archived while usage() prints it, and the new Malformed/invalid-row rule has no atlas entry.
+          round: 5
+        - id: BR-6
+          disposition: not-addressed
+          note: 'The reachable failure is fixed and well pinned, but the stated rule is not: occupiedIncarnation has one caller, DecideResume still inlines the same three states, and menuThreadActionable/PathHoldsUsableThread remain two copies of one set.'
+          round: 5
+        - id: BR-7
+          disposition: addressed
+          note: The refusal now names switcher gestures reachable from where it fires, and couch_test.go:1355 pins them.
+          round: 5
+        - id: BR-8
+          disposition: not-addressed
+          note: 'Verified by revert: deleting archivableRecord''s Park != nil branch leaves TestArchiveThreadRefusesALiveOrParkingThread green, because the fixture also carries a live incarnation. The startup recency half is genuinely fixed.'
+          round: 5
+      findings:
+        - id: BR-9
+          severity: Critical
+          title: The project's new detail blocks break a contract test and record closes the gates never ran
+          detail: |-
+            3rd in family -- state the rule, do not patch the block: a state or number in a portfolio artifact is
+            written by the gate that produced it, and a judged value says so where it is read. go test
+            ./cmd/internal/couchcore -run TestUncheckedProjectMilestoneHasNoClosedMetadata FAILS at HEAD and passed at
+            the base: M3's block carries closed/actual while its row is unticked. M2's block records closed 2026-09-03
+            and actual 0.9h though no milestone-close ever ran (no Review-Verdict trailer, no closed M2 log line, issue
+            Plan still unticked, project row hand-ticked in 6572ef69). M1's actual 0.85h drops the "judgment estimate,
+            not measured" qualification the issue Log carries. sdlc milestone-close owns the task row AND the detail
+            block; hand-writing actuals ahead of it pollutes velocity calibration, which is what the gate exists to stop.
+          family: unbacked-existing-behavior-claim
+          round: 5
+        - id: BR-10
+          severity: Important
+          title: Snapshot reports "could not read" as the verdict "invalid", and the record leaves the usable set
+          detail: |-
+            threadstore.go:517-537 folds an os.ReadFile error and a decode error into one Malformed list rendered as
+            ReasonInvalid, whose documented exit is archive. DecodePersisted rejects an unknown schema_version and
+            strictjson rejects unknown fields, so an older couch reading a newer store classifies every thread as
+            debris -- and because the record also leaves snapshot.Records, PathHoldsUsableThread stops blocking, so
+            couch <path> creates a fresh thread over live work. That is the ratchet M3 just closed, now silent where
+            the old code failed loudly. Same shape as M1's own ProofStatus lesson: separate unreadable from invalid,
+            and let an unreadable manifest-listed record still hold its path.
+          family: transient-failure-as-verdict
+          round: 5
+        - id: BR-11
+          severity: Important
+          title: Malformed rows are an opt-in variadic, so the pre-181 behaviour is the compile-clean default
+          detail: |-
+            3rd in family -- do not fix the two call sites. The rule: the records and the evidence describing them
+            travel as one value, so a consumer cannot opt out of part of the projection. ProjectActionableThreads
+            (actionableinventory.go:174) and BuildThreadInventory (threadinventory.go:49) take malformed as a variadic;
+            omitting it silently restores "some records get no row" with no compile error and no failing test. Pass
+            ThreadSnapshot or a single input struct -- the call sites already moved once for the evidence parameter.
+          family: new-state-unhandled-at-consumers
+          round: 5
+      boundary: M3
+      blocked: true
 ---
 
 # Gate ledger — pair#181 (boundary-review)
@@ -197,13 +274,52 @@ later rounds disposed of them. Generated — edit the gate, not this file.
   archive_test.go:59 builds only a live incarnation; threadstore.go:974's Park != nil refusal is unpinned. The same
   shape appears at startup_test.go:132, named "ResumesTheNewest" while asserting only "one of the two".
 
+## Round 5 — 2026-09-04T07:35:28-07:00 (claude) — BLOCKED
+
+### Disposed
+
+- BR-1 — not-addressed — Enter now refuses busy via menuThreadActionable and says "it is busy", but nothing pins it and menuActionItems still offers archive to a busy row; unchanged this round.
+- BR-2 — addressed — issue:161 now reads 63 references across 15 files, and the plan records the measurement in its Revisions.
+- BR-3 — addressed — Verified by overlay revert: restoring ResolveThreadReference(a["ref"]) makes both new seam tests fail with "empty reference".
+- BR-4 — not-addressed — The row is visible now, but archive is still unreachable for it: through the real dispatcher archive{tag} fails with "couch: EOF" and archive{ref} with "not found" -- the new test calls couch.ArchiveThread directly, below the very seam whose absence caused BR-3.
+- BR-5 — not-addressed — Six of seven sites swept well; README's synopsis block (255-270) still omits --archived while usage() prints it, and the new Malformed/invalid-row rule has no atlas entry.
+- BR-6 — not-addressed — The reachable failure is fixed and well pinned, but the stated rule is not: occupiedIncarnation has one caller, DecideResume still inlines the same three states, and menuThreadActionable/PathHoldsUsableThread remain two copies of one set.
+- BR-7 — addressed — The refusal now names switcher gestures reachable from where it fires, and couch_test.go:1355 pins them.
+- BR-8 — not-addressed — Verified by revert: deleting archivableRecord's Park != nil branch leaves TestArchiveThreadRefusesALiveOrParkingThread green, because the fixture also carries a live incarnation. The startup recency half is genuinely fixed.
+
+### Raised
+
+- **BR-9** [Critical] `unbacked-existing-behavior-claim` The project's new detail blocks break a contract test and record closes the gates never ran
+  3rd in family -- state the rule, do not patch the block: a state or number in a portfolio artifact is
+  written by the gate that produced it, and a judged value says so where it is read. go test
+  ./cmd/internal/couchcore -run TestUncheckedProjectMilestoneHasNoClosedMetadata FAILS at HEAD and passed at
+  the base: M3's block carries closed/actual while its row is unticked. M2's block records closed 2026-09-03
+  and actual 0.9h though no milestone-close ever ran (no Review-Verdict trailer, no closed M2 log line, issue
+  Plan still unticked, project row hand-ticked in 6572ef69). M1's actual 0.85h drops the "judgment estimate,
+  not measured" qualification the issue Log carries. sdlc milestone-close owns the task row AND the detail
+  block; hand-writing actuals ahead of it pollutes velocity calibration, which is what the gate exists to stop.
+- **BR-10** [Important] `transient-failure-as-verdict` Snapshot reports "could not read" as the verdict "invalid", and the record leaves the usable set
+  threadstore.go:517-537 folds an os.ReadFile error and a decode error into one Malformed list rendered as
+  ReasonInvalid, whose documented exit is archive. DecodePersisted rejects an unknown schema_version and
+  strictjson rejects unknown fields, so an older couch reading a newer store classifies every thread as
+  debris -- and because the record also leaves snapshot.Records, PathHoldsUsableThread stops blocking, so
+  couch <path> creates a fresh thread over live work. That is the ratchet M3 just closed, now silent where
+  the old code failed loudly. Same shape as M1's own ProofStatus lesson: separate unreadable from invalid,
+  and let an unreadable manifest-listed record still hold its path.
+- **BR-11** [Important] `new-state-unhandled-at-consumers` Malformed rows are an opt-in variadic, so the pre-181 behaviour is the compile-clean default
+  3rd in family -- do not fix the two call sites. The rule: the records and the evidence describing them
+  travel as one value, so a consumer cannot opt out of part of the projection. ProjectActionableThreads
+  (actionableinventory.go:174) and BuildThreadInventory (threadinventory.go:49) take malformed as a variadic;
+  omitting it silently restores "some records get no row" with no compile error and no failing test. Pass
+  ThreadSnapshot or a single input struct -- the call sites already moved once for the evidence parameter.
+
 ## Open findings
 
 - **BR-1** [Minor] `new-state-unhandled-at-consumers` ThreadBusy rows reach Enter and menuActionItems, where !Live() offers switch and resume
-- **BR-2** [Minor] `unbacked-existing-behavior-claim` Task 2's migration scope understates the affected files
-- **BR-3** [Critical] `dispatch-arg-contract-mismatch` Tab-archive always fails — the switcher sends "tag", the executor reads "ref"
 - **BR-4** [Important] `decode-failure-drops-the-row` An unreadable record has no row, cannot be archived, and fails the whole inventory
 - **BR-5** [Important] `unbacked-existing-behavior-claim` README and atlas still assert the startup and label rules this window reversed
 - **BR-6** [Important] `new-state-unhandled-at-consumers` Occupancy is decided in five places with four different definitions
-- **BR-7** [Important] `unnavigable-refusal` The one-thread-per-path refusal names two next steps, neither of which works
 - **BR-8** [Minor] `test-name-overclaims` TestArchiveThreadRefusesALiveOrParkingThread never exercises the parking branch
+- **BR-9** [Critical] `unbacked-existing-behavior-claim` The project's new detail blocks break a contract test and record closes the gates never ran
+- **BR-10** [Important] `transient-failure-as-verdict` Snapshot reports "could not read" as the verdict "invalid", and the record leaves the usable set
+- **BR-11** [Important] `new-state-unhandled-at-consumers` Malformed rows are an opt-in variadic, so the pre-181 behaviour is the compile-clean default
