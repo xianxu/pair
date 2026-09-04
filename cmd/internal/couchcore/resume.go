@@ -208,7 +208,7 @@ func CheckResumePreconditions(record ThreadRecord, binding NativeBindingResoluti
 		return refuseResume(ResumeAgentUnsupported, "saved launch agent is unsupported")
 	}
 	if code := bindingResumeDiagnostic(binding); code != "" {
-		return refuseResume(code, bindingRefusalDiagnostic(code))
+		return refuseBinding(code)
 	}
 	return nil
 }
@@ -263,6 +263,17 @@ func bindingResumeDiagnostic(binding NativeBindingResolution) ResumeDiagnosticCo
 // not a fault at all -- provisional is the ORDINARY state of a thread whose
 // agent has not answered yet, and it is the refusal a relaunch is most likely to
 // meet, because relaunching is something you do to a session you just started.
+// refuseBinding is the ONLY way to build a binding refusal.
+//
+// bindingRefusalDiagnostic gave each status its own actionable sentence and then
+// had exactly one consumer: the real resolver and its stateful fake both still
+// passed the developer's catch-all by hand, so the path an OPERATOR actually
+// travels never saw the improvement. A message function with one caller and two
+// hand-written copies is not a fix, it is a fix that looks applied.
+func refuseBinding(code ResumeDiagnosticCode) error {
+	return refuseResume(code, bindingRefusalDiagnostic(code))
+}
+
 func bindingRefusalDiagnostic(code ResumeDiagnosticCode) string {
 	switch code {
 	case ResumeBindingProvisional:
@@ -302,7 +313,7 @@ func (r SessionInventoryNativeBindingResolver) ResolveEstablished(ctx context.Co
 		resolution.NativeID = query.Root.NativeID
 	}
 	if code := bindingResumeDiagnostic(resolution); code != "" {
-		return resolution, refuseResume(code, "native session binding is not one exact established root")
+		return resolution, refuseBinding(code)
 	}
 	return resolution, nil
 }

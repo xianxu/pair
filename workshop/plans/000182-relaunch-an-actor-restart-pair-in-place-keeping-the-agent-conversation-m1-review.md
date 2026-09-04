@@ -940,3 +940,185 @@ findings:
       behind the same seam the rest of couchtty uses, and close the file in
       teardown.
 ```
+
+---
+
+## Re-review — 2026-09-04T14:46:26-07:00 (unknown)
+
+| field | value |
+|-------|-------|
+| issue | 182 — Relaunch an actor: restart Pair in place, keeping the agent conversation |
+| repo | pair |
+| issue file | workshop/issues/000182-relaunch-an-actor-restart-pair-in-place-keeping-the-agent-conversation.md |
+| boundary | milestone M1 |
+| milestone | M1 |
+| window | 4a7d96e2df70b9ad0fea2482bc2dc3d6f1816637..9e135654c51b6ed94662a66b59a7b9f3b8959e57 |
+| command | sdlc milestone-close --issue 182 --milestone M1 |
+| reviewer | claude |
+| timestamp | 2026-09-04T14:46:26-07:00 |
+| verdict | unknown |
+
+## Review
+
+Failed to authenticate. API Error: 401 OAuth access token has been revoked.
+
+---
+
+## Re-review — 2026-09-04T15:02:20-07:00 (FIX-THEN-SHIP)
+
+| field | value |
+|-------|-------|
+| issue | 182 — Relaunch an actor: restart Pair in place, keeping the agent conversation |
+| repo | pair |
+| issue file | workshop/issues/000182-relaunch-an-actor-restart-pair-in-place-keeping-the-agent-conversation.md |
+| boundary | milestone M1 |
+| milestone | M1 |
+| window | 4a7d96e2df70b9ad0fea2482bc2dc3d6f1816637..534baeded0e422eae51d5575993d0c5038e853a7 |
+| command | sdlc milestone-close --issue 182 --milestone M1 |
+| reviewer | claude |
+| timestamp | 2026-09-04T15:02:20-07:00 |
+| verdict | FIX-THEN-SHIP |
+
+## Review
+
+```verdict
+verdict: FIX-THEN-SHIP
+confidence: high
+```
+
+The M1 operation is solid and the round-5/6 fixes hold up: I revert-verified BR-16 (both halves — `clearsPreviousNotice` and the `setBookkeepingNotice` owner guard each red `TestAFailedRelaunchKeepsItsRecoveryMessageAcrossARefresh`), BR-18, BR-19, BR-20's named site and BR-21, and the offered→reachable sweep genuinely catches a reintroduced unhandled action. `go test ./cmd/internal/couchtty ./cmd/internal/couchcore ./cmd/internal/couchcmd` is green apart from the known `ptychild: operation not permitted` sandbox failures, and `-race` on couchtty is clean. Nothing here is Critical. What keeps it off SHIP: BR-10 is still the instance rather than the class (no enumeration from `InterceptorHit` to a handler, and `Alt+n`/`Ctrl+Alt+n` plus the new `relaunch` row in the Tab action list ship with README and `menuControls` unchanged — the docs gate), and this round's own single-source fix repeats the family it was written to close: `bindingRefusalDiagnostic` has one consumer while the real resolver and its stateful fake still hand-write the developer sentence it replaced, so the recovery gesture relaunch's own failure message names (`Enter resumes it`) lands the operator right back on that sentence. Four Minors carried from earlier rounds (BR-1, BR-6, BR-7, BR-9) are untouched in this window.
+
+## 1. Strengths
+
+- `cmd/internal/couchcore/relaunch.go:120-138` — the order is the design and the code reads that way: preconditions, then `soleParkableIncarnation`, then park, then resume, with a distinct recovery sentence per outcome. The failed-park branch names park's three modes and `TestRelaunchStopsAtAFailedParkAndNamesTheRecovery` asserts all three words plus "no spawn happened", so the guard is entered, not merely present.
+- `cmd/internal/couchcore/resume.go:329-354` — splitting `workingPathExists` from `resumeEvidence` is the right cut, and `resume_warm_binding_test.go` pins both regressions at once with a counting probe that *also* fails: a warm reattach must neither pay for the resolution nor be refused by it. That is a test written against the failure mode, not against the implementation.
+- `cmd/internal/couchtty/menu_action_sweep_test.go:16` — revert-verified: making `relaunch` fall through `reduceActionKey` reds `TestEveryOfferedActionIsReachableFromEnter/live/relaunch`. It also cross-checks the outcome against `OperationConfirms`, so the list and the declaration cannot drift apart again.
+- `cmd/internal/couchtty/menu.go:299-306` + `:139` — the round-5 correction is the interesting one. The guard was right and unreachable because `ReduceMenu` zeroed the notice upstream; the fix moved to the seam the operator's keystroke actually enters, and `workshop/lessons.md` records exactly that as a rule.
+- `cmd/internal/couchtty/console_relaunch_chord_test.go:56-79` — drives real bytes through `Run`'s input loop for both encodings, and `TestRelaunchConfirmationNavigatesAndDispatchesRelaunch` covers both `\x1b[B` and `\x1bOB` because the operator arrives from an nvim pane. That is the class of test the dropped chord needed.
+- `cmd/internal/couchtty/inputtrace.go:56-74` + `atlas/couch.md:764-780` — path as a parameter, failure reported instead of tracing silently, `0600`, and the atlas entry warns that the tap sits before the Interceptor and therefore captures pasted secrets. ARCH-SECURE handled deliberately rather than incidentally.
+
+## 2. Critical findings
+
+None.
+
+## 3. Important findings
+
+**I-1 — `bindingRefusalDiagnostic` is the declared source with one consumer; two production sites still spell the sentence it replaced.** `cmd/internal/couchcore/resume.go:305` and `cmd/internal/couchcore/artifactcollision_fake.go:124` both return `refuseResume(code, "native session binding is not one exact established root")`. `ResolveEstablished` returns that error alongside the resolution, and `ResumeContext:349-353` propagates it *before* `DecideResume` → `CheckResumePreconditions` can re-derive the good sentence. So Enter on a parked row whose agent never completed a turn — the recovery `relaunch`'s own `ParkedNotResumed` message names — still says "native session binding is not one exact established root". Relaunch's own post-park resume failure wraps the same error, which is precisely the branch the plan says cannot be checked early. `atlas/couch.md:139-146` now asserts "It says so rather than guessing", true for the pre-park refusal and false here. This is the 6th finding in family `declared-source-hand-maintained-consumers`, so the deliverable is the rule: **a helper introduced to replace a literal is not adopted until no production file still contains that literal.** Fix sketch: one `refuseBinding(code) error` calling `bindingRefusalDiagnostic`, called from all three sites, plus a conformance assertion that the real resolver and the fake yield the same code *and* the same message for each `BindingStatus` — the fake currently conforms to the wrong wording, which is how it stays wrong.
+
+**BR-10 (re-raised, not-addressed) — the class deliverable is still the instance, and the chord ships undocumented.** The dispatch arm at `console.go:634` is fixed and genuinely pinned. Still missing: (a) no test walks `seqKind.hit()`/`InterceptorHit` to a handler — `keys_test.go:506` only checks `HitRelaunch` by name, so the next hit added to `keys.go:82-95` can repeat the exact failure; (b) `README.md:376-391` documents the couch chord grid (`Alt+x`, `Alt+d`, `Tab → archive`) with no `Alt+n` row, while `README.md:141` still describes the un-intercepted Pair behaviour that is now wrong inside couch; (c) `menu.go:19` `menuControls` has no `Alt+n` row, and the `relaunch` action added to `menuActionItems:1092` is likewise undocumented. The plan parks (b)/(c) in Task 12 (M2), but the surface shipped in this window.
+
+## 4. Minor findings
+
+- **BR-1** not-addressed — plan lines 32-37 unchanged. `couch.go:119` is `CompletionTimeout: 15s`; there is no separate 5s child-death wait (`park.go:548-555` awaits inside that same timeout); `resumeRegistrationTimeout` is 5s (`couch.go:107`), not 10s. Real worst case ≈20s.
+- **BR-6** not-addressed — `relaunch_test.go:76` still has five cases; agent-unsupported and profile-missing are covered only at `CheckResumePreconditions`, so the diagnostic precedence through `Relaunch` is unpinned.
+- **BR-7** not-addressed — plan:159 still `- [ ]` though committed; Tasks 8 and parts of 10/11 shipped unticked; the issue's "⚠ The estimate is now stale" still contradicts the re-derived 6.20 block; the M1 table never gained `resumeEvidence`, `workingPathExists`, `hasOccupiedIncarnation`, `ResumeNotRunning`, `StartedChild`, `OperationConfirms`, `bindingRefusalDiagnostic`; Task 6 Step 2 still says the seam test lives in `couchcmd` while it lives at `couchcore/relaunch_test.go:364`.
+- **BR-9** not-addressed — `manifest.go:524` still places `relaunch.go` between `pathops.go` and `procops.go`; the new `inputtrace.go` row was inserted in order.
+- **New** — `console.go:1127` reads `c.trace` without `c.mu`, while `SetInputTrace:200-203` and `teardown:722-725` write it under the lock; `teardown` nils it before `c.Stop()` and before workers are joined, so `pumpStdin` can still be in flight. `record` is nil- and closed-safe, so the consequence is the unsynchronized field access itself — latent under `make test-race` (`go test -race ./cmd/...`), not reproducible today.
+- `pastParticiple` produces "archiveed" for its fallback, and the test bakes that in. Correct-by-construction but reads as a typo the first time a third operation reaches the guard.
+
+## 5. Test coverage notes
+
+- Verified by reverting, each red: `clearsPreviousNotice`, the `setBookkeepingNotice` owner guard, the `state.InFlight.Operation` clause, the `endsItsOwnChild` arm in the `expectedExits` bridge, and `reduceActionKey`'s declaration lookup.
+- **Gap:** reverting `consumeExpectedParkExitLocked` (`console.go:1519-1521`) to the old two-case switch leaves the whole couchtty suite green. That is the *exit-wins-the-race* half, and for relaunch it is the likelier ordering — the replaced child dies during the park, well before the resume completes. The bridge half is tested; this half is not.
+- `OperationConfirms` has no test in `couchcore`; it is exercised only through couchtty.
+- `teardown` closing the tracer is untested (`TestAClosedTracerStopsRecording` tests the tracer, not the console path).
+- The switcher-focus form of `Alt+n` (`onRelaunchHotkey`'s panel branch, `console.go:1303`) has no test; the chord suite covers the actor branch only. M2 Task 10 Step 3 owns it.
+
+## 6. Architectural notes
+
+- **ARCH-DRY — pass with one flag.** `OperationConfirms` (3 production consumers) and `endsItsOwnChild` (2) are real consolidations. Flagged: I-1. Four per-operation lists remain hand-maintained in `menu.go` — `reduceParkHotkey:505`, `reduceOperationResult:1405`, `operationNeedsProjectionRefresh:1419`, `menuOperationProgressText:1521` — plus `menuActionItems:1092`; these are M2 Task 10 Step 2b's declared scope, and `reduceOperationResult:1376`'s park/leave list is correctly a *different* fact, as `workshop/lessons.md` now records.
+- **ARCH-PURE — pass.** `CheckResumePreconditions`, `bindingRefusalDiagnostic`, `pastParticiple`, `clearsPreviousNotice`, `setBookkeepingNotice`, `renderInputBytes` are pure and unit-tested without IO; `workingPathExists`/`resumeEvidence` are the thin seam; `Couch.Relaunch` composes injected lifecycles.
+- **ARCH-PURPOSE — flag.** The shadow-sweep on this window's own new source is I-1. BR-10 is the same shape one layer up.
+- **ARCH-MOCK — pass, with a caveat.** Relaunch's effects run entirely through `PairLifecycle`/`Artifacts` and the stateful `FakeThreadArtifactCollisionChecker`, and `TestRelaunchResolvesTheSwitchersDialectThroughTheRealDispatcher` crosses the real `DispatchOperation` — its comment honestly records that the first attempt passed for an unrelated reason. Caveat: the fake duplicates the real resolver's refusal *text* rather than deriving it, so it will keep certifying the wrong wording.
+- **ARCH-CONSTRAINTS — flag (BR-1).** Separately: `c.trace.record` is a synchronous mutex-held `Fprintf` on the keystroke path. Off by default (nil returns immediately), so acceptable for a debug probe — worth one sentence in the atlas entry that enabling it puts a disk write in front of every keystroke.
+- **ARCH-SECURE — pass.** Ambient env out of the constructor, `0600`, failure surfaced at control priority, and the atlas warns the tap precedes the Interceptor. The Minor above is the only residue.
+- **Forward-looking:** `finishOperation`'s landing arm (`console.go:1481`) is hardcoded to `"resume"`, so a successful relaunch adopts its child but does not land on it — consistent with `onRelaunchHotkey`'s deliberate `FocusPanel()`, and it is the thing the M2 holding pane must replace. The issue's Done-when "the operator ends on the same actor" is therefore correctly still open at M1.
+
+## 7. Plan revision recommendations
+
+Add a `## Revisions` entry to `workshop/plans/000182-relaunch-an-actor-plan.md`:
+
+1. **Operating envelope corrected.** 15s `CompletionTimeout` (`couch.go:119`) covers the child-death wait (`park.go:548-555`); the blocked-start acknowledgement is `resumeRegistrationTimeout` = 5s (`couch.go:107`, `launch_existing.go:110-111`). Worst case ≈20s, not ~30s. Cite the constant by file:line for every duration.
+2. **M1 Core concepts table completed.** Add `resumeEvidence`, `workingPathExists`, `hasOccupiedIncarnation`, `ResumeNotRunning`, `StartedChild`, `OperationConfirms`, `bindingRefusalDiagnostic`; record that `relaunch` declares `ResultStart`, not `ResultThread`.
+3. **Task 6 Step 2 relocated.** The seam test lives at `couchcore/relaunch_test.go:364`, with the recorded reason a `couchcmd` test cannot reach it (`ExecuteLiveOwner` refuses at the CLI runtime first).
+4. **M2 re-scoped to what remains.** Task 8, Task 10 Step 2, and the confirm-half of Step 2b landed in the M1 window. What is left: the holding pane, the `previous` slot, the two-focus endings, the `InterceptorHit` enumeration, README + `menuControls`, and the four per-operation lists in §6.
+5. **Family prevalence updated.** Record `declared-source-hand-maintained-consumers` at 6, with `bindingRefusalDiagnostic`'s two unswept consumers named, so the sweep in M2 has an enumeration rather than a description.
+
+In the issue file: delete the "⚠ The estimate is now stale" paragraph from `## Revisions` — `## Estimate` has since been re-derived to 6.20 for the grown scope, and the warning now contradicts the block above it.
+
+```findings
+dispose:
+  - id: BR-1
+    disposition: not-addressed
+    note: |
+      Plan lines 32-37 untouched this window; 15s CompletionTimeout absorbs the child-death wait and the ack timeout is 5s, so ~20s not ~30s.
+  - id: BR-6
+    disposition: not-addressed
+    note: |
+      relaunch_test.go:76 still has five cases; agent-unsupported and profile-missing are pinned only at CheckResumePreconditions.
+  - id: BR-7
+    disposition: not-addressed
+    note: |
+      plan:159 still unticked, Tasks 8/10/11 shipped unticked, the stale-estimate warning stands, and the M1 table gained none of the seven new entities.
+  - id: BR-9
+    disposition: not-addressed
+    note: |
+      manifest.go:524 still places relaunch.go between pathops.go and procops.go; the new inputtrace.go row was ordered correctly.
+  - id: BR-10
+    disposition: not-addressed
+    note: |
+      Instance fixed and revert-verified; no enumeration from InterceptorHit to a handler, and README.md:141/376-391 plus menuControls still carry no Alt+n or relaunch row.
+  - id: BR-16
+    disposition: addressed
+    note: |
+      Revert-verified both halves: clearsPreviousNotice and the setBookkeepingNotice owner guard each red TestAFailedRelaunchKeepsItsRecoveryMessageAcrossARefresh through ReduceMenu.
+  - id: BR-18
+    disposition: addressed
+    note: |
+      Revert-verified: dropping the InFlight.Operation clause reds TestTheInFlightExemptionDoesNotCoverAnotherActionsConfirmation.
+  - id: BR-19
+    disposition: addressed
+    note: |
+      pastParticiple has a fallback and a direct test covering an operation it was not written for; "archiveed" is a cosmetic wart, not a silent empty word.
+  - id: BR-20
+    disposition: addressed
+    note: |
+      consumeExpectedParkExitLocked now calls endsItsOwnChild, so the helper's doc comment is true; the wider four-site sweep stays owned by Task 10 Step 2b, and the newly covered relaunch arm there has no test (see coverage notes).
+  - id: BR-21
+    disposition: addressed
+    note: |
+      New() no longer reads env, the path comes from the composition root, failure is surfaced, teardown closes; pinned by TestAConsoleOpensNoTraceUnlessAskedTo.
+findings:
+  - id: new
+    severity: Important
+    family: declared-source-hand-maintained-consumers
+    title: |
+      bindingRefusalDiagnostic has one consumer while the real resolver and its stateful fake still hand-write the sentence it replaced
+    detail: |
+      6th in this family, so the deliverable is the RULE, not the site: a helper
+      introduced to replace a literal is not adopted until no production file
+      still contains that literal. resume.go:305 and artifactcollision_fake.go:124
+      both still return refuseResume(code, "native session binding is not one
+      exact established root"). ResumeContext:349-353 propagates that error before
+      DecideResume/CheckResumePreconditions can re-derive the usable sentence, so
+      Enter on a parked row with a provisional binding -- the recovery relaunch's
+      own ParkedNotResumed message names -- and relaunch's own post-park resume
+      failure both land on the developer sentence that 54052fab, lessons.md and
+      atlas/couch.md:139-146 all claim was eliminated. Fix the class: one
+      refuseBinding(code) called from all three sites, plus a conformance
+      assertion that the real resolver and the fake produce the same code AND the
+      same message per BindingStatus -- the fake currently conforms to the wrong
+      wording, which is what will keep it wrong. ARCH-DRY, ARCH-PURPOSE, ARCH-MOCK.
+  - id: new
+    severity: Minor
+    family: field-read-outside-its-mutex
+    title: |
+      pumpStdin reads c.trace without c.mu while SetInputTrace and teardown write it under the lock
+    detail: |
+      console.go:1127 loads c.trace unsynchronized; console.go:200-203 and
+      723-725 store it under c.mu. teardown nils the field before c.Stop() and
+      before the workers are joined, so pumpStdin can still be in flight. record
+      is nil- and closed-safe, so the defect is the field access itself: latent
+      under `make test-race` (go test -race ./cmd/...), not reproducible today.
+      Read it under c.mu in pumpStdin, or hold the tracer in an atomic.Pointer.
+```

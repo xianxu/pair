@@ -3259,3 +3259,10 @@ that a key token appears cannot detect a contradictory behavioral sentence
   whose shell exported the variable. Take the path as a parameter from the
   composition root and close it in teardown. (Same family as the
   PAIR_SESSION_ID/PAIR_TAG leak already recorded here.)
+- A message helper with one consumer while the old wording survives elsewhere is
+  a fix that only looks applied. `bindingRefusalDiagnostic` gave each binding
+  status an actionable sentence, and the real resolver AND its stateful fake both
+  still passed the developer's catch-all by hand — so the path an operator
+  actually travels never improved, and the fake would have kept tests green on
+  wording production could not produce. Route every construction through one
+  constructor, fake included, and assert through the fake.

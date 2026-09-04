@@ -528,6 +528,91 @@ rounds:
           round: 6
       boundary: M1
       blocked: true
+    - "n": 7
+      timestamp: "2026-09-04T14:46:26-07:00"
+      agent: claude
+      boundary: M1
+      blocked: true
+      protocol_error: no valid findings block
+    - "n": 8
+      timestamp: "2026-09-04T15:02:20-07:00"
+      agent: claude
+      dispose:
+        - id: BR-1
+          disposition: not-addressed
+          note: Plan lines 32-37 untouched this window; 15s CompletionTimeout absorbs the child-death wait and the ack timeout is 5s, so ~20s not ~30s.
+          round: 8
+        - id: BR-6
+          disposition: not-addressed
+          note: relaunch_test.go:76 still has five cases; agent-unsupported and profile-missing are pinned only at CheckResumePreconditions.
+          round: 8
+        - id: BR-7
+          disposition: not-addressed
+          note: plan:159 still unticked, Tasks 8/10/11 shipped unticked, the stale-estimate warning stands, and the M1 table gained none of the seven new entities.
+          round: 8
+        - id: BR-9
+          disposition: not-addressed
+          note: manifest.go:524 still places relaunch.go between pathops.go and procops.go; the new inputtrace.go row was ordered correctly.
+          round: 8
+        - id: BR-10
+          disposition: not-addressed
+          note: Instance fixed and revert-verified; no enumeration from InterceptorHit to a handler, and README.md:141/376-391 plus menuControls still carry no Alt+n or relaunch row.
+          round: 8
+        - id: BR-16
+          disposition: addressed
+          note: 'Revert-verified both halves: clearsPreviousNotice and the setBookkeepingNotice owner guard each red TestAFailedRelaunchKeepsItsRecoveryMessageAcrossARefresh through ReduceMenu.'
+          round: 8
+        - id: BR-18
+          disposition: addressed
+          note: 'Revert-verified: dropping the InFlight.Operation clause reds TestTheInFlightExemptionDoesNotCoverAnotherActionsConfirmation.'
+          round: 8
+        - id: BR-19
+          disposition: addressed
+          note: pastParticiple has a fallback and a direct test covering an operation it was not written for; "archiveed" is a cosmetic wart, not a silent empty word.
+          round: 8
+        - id: BR-20
+          disposition: addressed
+          note: consumeExpectedParkExitLocked now calls endsItsOwnChild, so the helper's doc comment is true; the wider four-site sweep stays owned by Task 10 Step 2b, and the newly covered relaunch arm there has no test (see coverage notes).
+          round: 8
+        - id: BR-21
+          disposition: addressed
+          note: New() no longer reads env, the path comes from the composition root, failure is surfaced, teardown closes; pinned by TestAConsoleOpensNoTraceUnlessAskedTo.
+          round: 8
+      findings:
+        - id: BR-22
+          severity: Important
+          title: bindingRefusalDiagnostic has one consumer while the real resolver and its stateful fake still hand-write the sentence it replaced
+          detail: |-
+            6th in this family, so the deliverable is the RULE, not the site: a helper
+            introduced to replace a literal is not adopted until no production file
+            still contains that literal. resume.go:305 and artifactcollision_fake.go:124
+            both still return refuseResume(code, "native session binding is not one
+            exact established root"). ResumeContext:349-353 propagates that error before
+            DecideResume/CheckResumePreconditions can re-derive the usable sentence, so
+            Enter on a parked row with a provisional binding -- the recovery relaunch's
+            own ParkedNotResumed message names -- and relaunch's own post-park resume
+            failure both land on the developer sentence that 54052fab, lessons.md and
+            atlas/couch.md:139-146 all claim was eliminated. Fix the class: one
+            refuseBinding(code) called from all three sites, plus a conformance
+            assertion that the real resolver and the fake produce the same code AND the
+            same message per BindingStatus -- the fake currently conforms to the wrong
+            wording, which is what will keep it wrong. ARCH-DRY, ARCH-PURPOSE, ARCH-MOCK.
+          family: declared-source-hand-maintained-consumers
+          round: 8
+        - id: BR-23
+          severity: Minor
+          title: pumpStdin reads c.trace without c.mu while SetInputTrace and teardown write it under the lock
+          detail: |-
+            console.go:1127 loads c.trace unsynchronized; console.go:200-203 and
+            723-725 store it under c.mu. teardown nils the field before c.Stop() and
+            before the workers are joined, so pumpStdin can still be in flight. record
+            is nil- and closed-safe, so the defect is the field access itself: latent
+            under `make test-race` (go test -race ./cmd/...), not reproducible today.
+            Read it under c.mu in pumpStdin, or hold the tracer in an atomic.Pointer.
+          family: field-read-outside-its-mutex
+          round: 8
+      boundary: M1
+      blocked: false
 ---
 
 # Gate ledger — pair#182 (boundary-review)
@@ -851,6 +936,50 @@ later rounds disposed of them. Generated — edit the gate, not this file.
   behind the same seam the rest of couchtty uses, and close the file in
   teardown.
 
+## Round 7 — 2026-09-04T14:46:26-07:00 (claude) — BLOCKED
+
+**Protocol error:** no valid findings block — this round contributed no findings.
+
+## Round 8 — 2026-09-04T15:02:20-07:00 (claude) — passed
+
+### Disposed
+
+- BR-1 — not-addressed — Plan lines 32-37 untouched this window; 15s CompletionTimeout absorbs the child-death wait and the ack timeout is 5s, so ~20s not ~30s.
+- BR-6 — not-addressed — relaunch_test.go:76 still has five cases; agent-unsupported and profile-missing are pinned only at CheckResumePreconditions.
+- BR-7 — not-addressed — plan:159 still unticked, Tasks 8/10/11 shipped unticked, the stale-estimate warning stands, and the M1 table gained none of the seven new entities.
+- BR-9 — not-addressed — manifest.go:524 still places relaunch.go between pathops.go and procops.go; the new inputtrace.go row was ordered correctly.
+- BR-10 — not-addressed — Instance fixed and revert-verified; no enumeration from InterceptorHit to a handler, and README.md:141/376-391 plus menuControls still carry no Alt+n or relaunch row.
+- BR-16 — addressed — Revert-verified both halves: clearsPreviousNotice and the setBookkeepingNotice owner guard each red TestAFailedRelaunchKeepsItsRecoveryMessageAcrossARefresh through ReduceMenu.
+- BR-18 — addressed — Revert-verified: dropping the InFlight.Operation clause reds TestTheInFlightExemptionDoesNotCoverAnotherActionsConfirmation.
+- BR-19 — addressed — pastParticiple has a fallback and a direct test covering an operation it was not written for; "archiveed" is a cosmetic wart, not a silent empty word.
+- BR-20 — addressed — consumeExpectedParkExitLocked now calls endsItsOwnChild, so the helper's doc comment is true; the wider four-site sweep stays owned by Task 10 Step 2b, and the newly covered relaunch arm there has no test (see coverage notes).
+- BR-21 — addressed — New() no longer reads env, the path comes from the composition root, failure is surfaced, teardown closes; pinned by TestAConsoleOpensNoTraceUnlessAskedTo.
+
+### Raised
+
+- **BR-22** [Important] `declared-source-hand-maintained-consumers` bindingRefusalDiagnostic has one consumer while the real resolver and its stateful fake still hand-write the sentence it replaced
+  6th in this family, so the deliverable is the RULE, not the site: a helper
+  introduced to replace a literal is not adopted until no production file
+  still contains that literal. resume.go:305 and artifactcollision_fake.go:124
+  both still return refuseResume(code, "native session binding is not one
+  exact established root"). ResumeContext:349-353 propagates that error before
+  DecideResume/CheckResumePreconditions can re-derive the usable sentence, so
+  Enter on a parked row with a provisional binding -- the recovery relaunch's
+  own ParkedNotResumed message names -- and relaunch's own post-park resume
+  failure both land on the developer sentence that 54052fab, lessons.md and
+  atlas/couch.md:139-146 all claim was eliminated. Fix the class: one
+  refuseBinding(code) called from all three sites, plus a conformance
+  assertion that the real resolver and the fake produce the same code AND the
+  same message per BindingStatus -- the fake currently conforms to the wrong
+  wording, which is what will keep it wrong. ARCH-DRY, ARCH-PURPOSE, ARCH-MOCK.
+- **BR-23** [Minor] `field-read-outside-its-mutex` pumpStdin reads c.trace without c.mu while SetInputTrace and teardown write it under the lock
+  console.go:1127 loads c.trace unsynchronized; console.go:200-203 and
+  723-725 store it under c.mu. teardown nils the field before c.Stop() and
+  before the workers are joined, so pumpStdin can still be in flight. record
+  is nil- and closed-safe, so the defect is the field access itself: latent
+  under `make test-race` (go test -race ./cmd/...), not reproducible today.
+  Read it under c.mu in pumpStdin, or hold the tracer in an atomic.Pointer.
+
 ## Open findings
 
 - **BR-1** [Minor] `operating-envelope` Two of the envelope's three durations name budgets that do not exist as constants
@@ -858,8 +987,5 @@ later rounds disposed of them. Generated — edit the gate, not this file.
 - **BR-7** [Minor] `plan-record-lags-code` Task 1 Step 5 is unticked though committed, and the issue's stale-estimate warning contradicts the re-derived Estimate block
 - **BR-9** [Minor] `manifest-ordering` relaunch.go inserted out of alphabetical order in NonArtifactSources
 - **BR-10** [Important] `declared-source-hand-maintained-consumers` Alt+n is intercepted and then silently dropped: HitRelaunch has no arm in processInput's switch
-- **BR-16** [Critical] `refusal-names-no-next-action` A relaunch that parks and then fails has its recovery message erased by the next refresh
-- **BR-18** [Minor] `exemption-wider-than-its-rationale` The in-flight frame exemption matches on address only, not on the operation that owns the frame
-- **BR-19** [Minor] `declared-source-hand-maintained-consumers` reduceParkHotkey builds its refusal wording from an inline two-entry map that silently yields an empty word
-- **BR-20** [Important] `declared-source-hand-maintained-consumers` endsItsOwnChild has one call site while the second list it was written to replace still enumerates by hand
-- **BR-21** [Minor] `constructor-io-from-ambient-env` The input tracer is opened inside New() from ambient env and never closed
+- **BR-22** [Important] `declared-source-hand-maintained-consumers` bindingRefusalDiagnostic has one consumer while the real resolver and its stateful fake still hand-write the sentence it replaced
+- **BR-23** [Minor] `field-read-outside-its-mutex` pumpStdin reads c.trace without c.mu while SetInputTrace and teardown write it under the lock

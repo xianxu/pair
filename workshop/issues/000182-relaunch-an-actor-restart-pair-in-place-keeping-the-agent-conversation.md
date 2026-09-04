@@ -293,7 +293,7 @@ boundaries, because the work is two different problems: M1 is provable in
 `couchcore` with no terminal, and M2 is the terminal machinery M1 makes
 drivable.
 
-- [ ] M1 — relaunch as one operation. The resume preconditions split from the
+- [x] M1 — relaunch as one operation. The resume preconditions split from the
       occupancy rule they share with resume; `Couch.Relaunch` checking them
       BEFORE the park; the four-outcome failure model, including the park's own
       failure (the likeliest branch, and the one whose recovery is park's modes
@@ -320,6 +320,7 @@ drivable.
   deliberately kept out of pair#181 rather than appended to it.
 
 ### 2026-09-04 — advisor session (brain), no code touched
+- 2026-09-04: closed M1 — Operator smoke test on the real stack: alt+n in a Pair pane, confirm, relaunch — the ledger shows three complete launch→binding pairs all rooted at the same native session (6d238ba2), so the agent conversation survived while the Pair process and zellij session were replaced. Round-5 findings addressed at their real cause: BR-16 was a correct guard that could never fire because ReduceMenu zeroes the notice before reconcileMenuFrames runs — only operator-initiated events now retire a message, tested through ReduceMenu and verified red; BR-20 gives endsItsOwnChild the second call site it was written for; BR-21 moves the trace path out of the constructor to the composition root and closes it in teardown; BR-18/BR-19 now have the tests their disposition said were missing. Full ./cmd/... suite green.; review verdict: FIX-THEN-SHIP
 
 - Operator's question: "in pair `alt+n` restarts pair loading the previous agent
   session; in couch `alt+n` should do the same, so can we just perform the

@@ -1,6 +1,7 @@
 package couchcore
 
 import (
+	"context"
 	"strings"
 	"testing"
 
@@ -36,5 +37,29 @@ func TestEachBindingRefusalSaysSomethingDifferentAndUsable(t *testing.T) {
 	provisional := bindingRefusalDiagnostic(ResumeBindingProvisional)
 	if !strings.Contains(provisional, "retry") {
 		t.Errorf("provisional refusal does not tell the operator what to do: %q", provisional)
+	}
+}
+
+// The message function must reach the path an OPERATOR travels. It shipped with
+// one consumer while the real resolver and its stateful fake both hand-wrote the
+// catch-all it replaced, so every actual refusal still read "native session
+// binding is not one exact established root".
+func TestTheResolverAndItsFakeRefuseWithTheActionableSentence(t *testing.T) {
+	fake := NewFakeThreadArtifactCollisionChecker()
+	address := ThreadAddress{RepoScope: "0123456789abcdef", Tag: "couch-0001020304050607"}
+	fake.SetNativeBinding(address, "claude", sessioninventory.BindingProvisional, "")
+
+	_, err := fake.ResolveEstablished(context.Background(), address.RepoScope, string(address.Tag), "claude")
+	if err == nil {
+		t.Fatal("a provisional binding resolved without refusing")
+	}
+	if strings.Contains(err.Error(), "one exact established root") {
+		t.Errorf("the fake still hand-writes the catch-all: %v", err)
+	}
+	if !strings.Contains(err.Error(), "has not completed a turn yet") {
+		t.Errorf("refusal does not name the cause an operator can act on: %v", err)
+	}
+	if got := ResumeDiagnosticOf(err); got != ResumeBindingProvisional {
+		t.Errorf("diagnostic = %q, want %q", got, ResumeBindingProvisional)
 	}
 }

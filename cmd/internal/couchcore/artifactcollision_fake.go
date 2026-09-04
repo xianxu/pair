@@ -121,7 +121,9 @@ func (f *FakeThreadArtifactCollisionChecker) ResolveEstablished(_ context.Contex
 		resolution.Status = sessioninventory.BindingUnbound
 	}
 	if code := bindingResumeDiagnostic(resolution); code != "" {
-		return resolution, refuseResume(code, "native session binding is not one exact established root")
+		// The fake refuses through the SAME constructor as the real resolver, so
+		// a test can never pass on wording production would not produce.
+		return resolution, refuseBinding(code)
 	}
 	return resolution, nil
 }

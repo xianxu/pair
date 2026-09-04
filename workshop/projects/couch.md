@@ -197,7 +197,7 @@ gate `#147` and `#148` respectively; `#145` and `#146` do not depend on them.
 - [x] warm reattach: get back into a detached session [pair#181 M2]
 - [x] archive as the only exit, plus the startup and path rules [pair#181 M3]
 - [ ] relaunch an actor: restart Pair, keep the conversation [pair#182]
-- [ ] relaunch as one operation [pair#182 M1]
+- [x] relaunch as one operation [pair#182 M1]
 - [ ] the gesture and a surface that outlives its child [pair#182 M2]
 - [-] reattach a detached thread without the cold binding [pair#179 — absorbed by pair#181 M2]
 - [-] retire finished threads into an archive [pair#180 — absorbed by pair#181 M3]
@@ -337,6 +337,8 @@ The resume's preconditions therefore run BEFORE the park.
 ### pair#182 M1 — relaunch as one operation
 
 **est:** 6.20 (whole issue)
+**closed:** 2026-09-04
+**actual:** 6.57h
 
 Relaunch is park-then-resume, and the whole design is the ORDER: park is
 destructive and resume can refuse, so a relaunch that parks and then finds the

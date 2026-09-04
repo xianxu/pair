@@ -1124,7 +1124,14 @@ func (c *Console) pumpStdin() {
 		n, err := c.stdin.Read(buf)
 		if n > 0 {
 			chunk := append([]byte(nil), buf[:n]...)
-			c.trace.record(chunk)
+			// Under the mutex the field is WRITTEN under. record is nil- and
+			// closed-safe, so the hazard is the unsynchronised field read
+			// itself: teardown nils c.trace before the workers are joined, so
+			// this can still be in flight. Latent today, a data race under -race.
+			c.mu.Lock()
+			tracer := c.trace
+			c.mu.Unlock()
+			tracer.record(chunk)
 			select {
 			case c.input <- chunk:
 			case <-c.stop:
