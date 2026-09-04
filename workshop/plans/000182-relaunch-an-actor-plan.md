@@ -2,77 +2,39 @@
 
 > **For agentic workers:** Consult AGENTS.md Section 3 (Subagent Strategy) to determine the appropriate execution approach: use superpowers-subagent-driven-development (if subagents are suitable per AGENTS.md) or superpowers-executing-plans to implement this plan. Steps use checkbox (`- [ ]`) syntax for tracking.
 
-**Goal:** One action that replaces a thread's Pair process with the current
-binary while its agent conversation continues.
+**Goal:** `Alt+n` in a hosted actor replaces its Pair process with the current
+binary, in place, while the agent conversation continues — and the operator ends
+where they started, never looking at a blank screen.
 
-**Architecture:** Relaunch is park-then-resume, and both halves already exist as
-declared operations driven by `PairLifecycleController` and `ResumeContext`.
-Nothing new is mechanised. What is new is the **composition's failure
-semantics**, and that is the whole design: park destroys, resume can refuse, and
-a relaunch that parks successfully then fails to resume has destroyed a working
-session. So the resume's preconditions are evaluated **before** the park, and
-the one precondition that cannot be evaluated early is named rather than hoped
-over.
+**Architecture:** Two milestones, because this is two different problems with a
+real boundary between them. **M1 is the operation**: relaunch is park-then-resume,
+both halves exist, and what is new is the composition's failure semantics —
+provable entirely in `couchcore` with no terminal. **M2 is the gesture and the
+surface**: intercepting `Alt+n` before it reaches the child, and a pane that
+outlives its child so the operator's slot shows `relaunching…` rather than
+vanishing. M2 holds the substantial new machinery and cannot be written until
+M1's operation exists to drive.
 
-**Tech Stack:** Go. `cmd/internal/couchcore` (the operation, the precondition
-split, the durable lifecycle), `cmd/internal/couchtty` (the switcher action and
-its confirmation). `cmd/internal/launcher` is **not touched** — relaunch is
-couch composing Pair operations it already drives.
+**Tech Stack:** Go. `cmd/internal/couchcore` (M1), `cmd/internal/couchtty` (M2).
+`cmd/internal/launcher` is **not touched** — couch never runs `kill-session`
+itself: park publishes a nonce-bound quit request and the `QuitIntentCouch`
+marker (`couchcore/park.go:502,536`), Pair runs its own cleanup, couch observes
+the durable completion and CASes the incarnation away.
+
+**Why `Alt+n` must be intercepted at all.** Un-intercepted it reaches Pair, which
+handles it *inside the process couch already spawned*: `pair restart` writes a
+marker and execs kill-session, the outer process unblocks, and
+`createflow.go:77-86` loops back to `runOnce` **in the same process image**.
+There is no re-exec, so the binary in memory is the old one. For pair development
+that is worse than not working — it looks like it worked. Same argument `Alt+d`'s
+interception rests on, only sharper, because this failure is silent.
 
 **Operating envelope (ARCH-CONSTRAINTS).** Relaunch is the longest operation the
-switcher will ever run, and it chains two bounded ones: park's 15s completion
-timeout plus its 5s exact-child-death wait (`couch.go:119`), then the resume
-spawn's 10s blocked-start acknowledgement (`launch_existing.go`). Worst case is
-therefore ~30s, and the expected case is a few seconds. That is far past the
-100ms feedback contract the switcher holds for park, so relaunch runs through the
-same bounded, capacity-one operation queue park already uses — the switcher stays
-responsive, the progress notice names which half is running ("parking…" then
-"restarting…"), and the operator can navigate while it works. No new concurrency;
-the queue and its coalescing already exist.
-
-**The failure model, in full.** Relaunch has three outcomes beyond success, and
-the plan is mostly about which state each leaves behind:
-
-| where it fails | thread state after | recoverable how |
-| --- | --- | --- |
-| precondition, before the park | unchanged, still live | nothing happened; fix the cause |
-| the park itself | `record.Park != nil` — an OPEN transaction, and Pair has already been sent its quit intent (`park.go:534`) | park's own recovery modes (`retry`, `recover`, `abandon`); NOT `Enter`, because `DecideResume` refuses `ResumeParking` |
-| the resume, after a good park | verified park, no incarnation | `Enter` on the row — it is a normal parked thread |
-
-**Park failure is the likeliest branch, not the rarest.** `PairLifecycleController.Park`
-is a multi-phase transaction with six failure exits — commit deadline
-(`park.go:284`), publish failure (`:504`), the 15s completion timeout (`:573`),
-stale completion (`:608`), Pair cleanup failure (`:613`), child not gone
-(`:616`), revision conflict (`:628`). Every one leaves an open park transaction,
-which `pair#181`'s classifier renders as `ThreadBusy` / "parking…" — accurate,
-but a row the operator cannot act on and whose recovery is not `Enter`. Relaunch
-must not attempt the resume there, and must say which of park's recovery modes
-applies rather than reporting "relaunch failed".
-
-**Two preconditions cannot be evaluated early, and are named rather than hoped
-over:**
-
-1. **The native binding can change across the park.** `BindingEstablished` is
-   validated against a scan of the agent's LIVE native-session artifacts
-   (`sessioninventory/query.go:66-159`), read while the agent is still writing
-   them. Established before the park does not imply established after it.
-   Relaunch does not pretend otherwise: `ResumeContext` re-resolves it, and a
-   change lands in the park-ok/resume-failed row of the table — recoverable, and
-   reported as such. Checking early is what stops the *predictable* refusals
-   from destroying a session; it cannot close a window that is open by
-   construction.
-2. **`soleParkableIncarnation` (`park.go:268`) is park's own precondition** and
-   is absent from resume's rule set, so the extracted predicate does not cover
-   it. Relaunch checks it explicitly before the park, or a thread with two
-   incarnations refuses *after* the quit intent has gone out.
-
-**The asymmetry that shapes everything.** `DecideResume` refuses a thread with
-any occupied incarnation (`occupiedIncarnation`), and a relaunch target is LIVE
-by definition. So relaunch cannot ask "is this resumable?" — the answer is
-always no. It must ask **"would this be resumable once parked?"**, which is the
-same rule set minus occupancy. Extracting that is the plan's one real design
-move (ARCH-DRY): two callers, one set of rules, and the difference between them
-stated in code rather than duplicated.
+console will run: park's 15s completion timeout plus its 5s exact-child-death
+wait (`couch.go:119`), then the resume spawn's 10s blocked-start acknowledgement
+— ~30s worst case, a few seconds expected. It runs through the bounded,
+capacity-one operation queue park already uses. What M2 adds is that the
+operator's own pane, not just the switcher, has something to show for that gap.
 
 ---
 
@@ -84,48 +46,65 @@ stated in code rather than duplicated.
 
 | Name | Lives in | Status |
 |------|----------|--------|
-| `ResumePreconditions` | `cmd/internal/couchcore/resume.go` | new |
+| `CheckResumePreconditions` | `cmd/internal/couchcore/resume.go` | new |
 | `DecideResume` | `cmd/internal/couchcore/resume.go` | modified |
-| `RelaunchRefusal` | `cmd/internal/couchcore/relaunch.go` | new |
-| `RelaunchResult` | `cmd/internal/couchcore/relaunch.go` | new |
 | `RelaunchOutcome` | `cmd/internal/couchcore/relaunch.go` | new |
-| `menuActionItems` | `cmd/internal/couchtty/menu.go` | modified |
-| `confirmationMenuItems` | `cmd/internal/couchtty/menu.go` | modified |
+| `RelaunchResult` | `cmd/internal/couchcore/relaunch.go` | new |
 
-- **ResumePreconditions** — the resume rules that do NOT depend on the thread
-  being unoccupied: a working path that still resolves, a saved launch profile
-  with a supported agent and non-nil argv, and (for the cold path) an
-  established native binding with a non-empty root id.
-  - **Relationships:** consumed by `DecideResume` (which adds the occupancy
-    refusal and the park/detached authority) and by `Relaunch` (which asks the
-    same question about a thread that is currently live).
-  - **DRY rationale:** without it, relaunch re-derives four rules that resume
-    already owns, and they drift toward whichever cases each author thought
-    about — which is exactly how the archive guard came to admit `creating`
-    while resume refused it (`pair#181` M3, BR-6).
-  - **Future extensions:** if a warm relaunch is ever wanted (replace the
-    client, keep the session), it is this predicate plus a different authority.
+- **CheckResumePreconditions** — the resume rules that do NOT depend on the
+  thread being unoccupied: a working path that still resolves, a saved launch
+  profile with a supported agent and non-nil argv, an established native binding
+  with a non-empty root id.
+  - **Relationships:** consumed by `DecideResume` (which adds occupancy, the
+    park/detached authority and the tombstone scan) and by `Relaunch` (which asks
+    the same question about a thread that is live).
+  - **DRY rationale:** without it relaunch re-derives four rules resume owns, and
+    they drift toward whichever cases each author thought about — exactly how the
+    archive guard came to admit `creating` while resume refused it (`pair#181`
+    M3, BR-6).
 
-- **RelaunchRefusal** — why a relaunch will not start, evaluated BEFORE any
-  destructive step. It carries the `ResumeDiagnosticCode` that would have
-  refused the resume, so the operator sees the real reason rather than
-  "relaunch failed".
-  - **DRY rationale:** reuses resume's diagnostic vocabulary rather than
-    inventing a parallel one.
-
-- **RelaunchResult / RelaunchOutcome** — which of the four states the thread
-  ended in: `Relaunched`, `RefusedBeforePark` (nothing happened),
-  `ParkIncomplete` (an open transaction; recover through park's modes) and
-  `ParkedNotResumed` (a normal parked row; `Enter` resumes it). The outcome is
-  the thing consumers switch on, so no caller has to infer state from an error
-  string.
+- **RelaunchOutcome / RelaunchResult** — which of four states the thread ended
+  in: `Relaunched`, `RefusedBeforePark` (nothing happened), `ParkIncomplete` (an
+  open transaction; recover through park's modes), `ParkedNotResumed` (a normal
+  parked row; `Enter` resumes it). Consumers switch on the outcome, so none has
+  to infer state from an error string.
   - **DRY rationale:** follows `ArchiveResult` (`pair#181` M3) — an operation
     that mutated reports what it did and what it could not finish, rather than
     delivering a partial success on the error channel where every consumer reads
     it as total failure.
-  - **Why an enum rather than two bools:** `ParkIncomplete` and
-    `ParkedNotResumed` differ by which recovery works, and a boolean pair makes
-    the impossible fourth combination representable.
+  - **Why an enum, not two bools:** `ParkIncomplete` and `ParkedNotResumed`
+    differ by which recovery works, and a bool pair makes the impossible fourth
+    combination representable.
+
+**The failure model, in full.** Three outcomes beyond success, and the milestone
+is mostly about which state each leaves behind:
+
+| where it fails | thread state after | recoverable how |
+| --- | --- | --- |
+| precondition, before the park | unchanged, still live | nothing happened; fix the cause |
+| the park itself | `record.Park != nil` — OPEN transaction, Pair already sent its quit intent (`park.go:534`) | park's `retry`/`recover`/`abandon`; NOT `Enter`, which refuses `ResumeParking` |
+| the resume, after a good park | verified park, no incarnation | `Enter` on the row — a normal parked thread |
+
+**Park failure is the likeliest branch, not the rarest.** Six failure exits —
+commit deadline (`park.go:284`), publish failure (`:504`), completion timeout
+(`:573`), stale completion (`:608`), Pair cleanup failure (`:613`), child not gone
+(`:616`), revision conflict (`:628`) — each leaving an open transaction that
+`pair#181`'s classifier renders as `ThreadBusy` / "parking…".
+
+**Two preconditions cannot be evaluated early, and are named rather than hoped
+over:**
+
+1. **The native binding can change across the park.** `BindingEstablished` is
+   validated against a scan of the agent's LIVE native-session artifacts
+   (`sessioninventory/query.go:66-159`), read while the agent is still writing
+   them. Established before does not imply established after. `ResumeContext`
+   re-resolves it and a change lands in the park-ok/resume-failed row —
+   recoverable and reported. Checking early stops the *predictable* refusals from
+   destroying a session; it cannot close a window open by construction.
+2. **`soleParkableIncarnation` (`park.go:268`) is park's own precondition**, not
+   resume's, so the extracted predicate does not cover it. Relaunch checks it
+   explicitly before the park, or a thread with two incarnations refuses *after*
+   the quit intent has gone out.
 
 ### Integration points (where pure meets the world)
 
@@ -134,75 +113,59 @@ stated in code rather than duplicated.
 | `Couch.Relaunch` | `cmd/internal/couchcore/relaunch.go` | new | `PairLifecycle.Park` + `ResumeContext` |
 | `relaunch` operation | `cmd/internal/couchcore/ops.go` | new | the declared operation surface |
 
-- **Couch.Relaunch** — checks preconditions, parks, resumes.
-  - **Injected into:** nothing pure; it is the seam. Its two effects come from
-    the same injected `PairLifecycle` and `Artifacts` seams park and resume
-    already use, so the stateful fakes cover it (ARCH-MOCK).
+- **Couch.Relaunch** — checks preconditions, parks, resumes. Both effects come
+  from the injected `PairLifecycle` and `Artifacts` seams park and resume already
+  use, so the stateful fakes cover it (ARCH-MOCK).
   - **Order is the property:** preconditions before park, and a precondition
-    failure performs NOTHING. This is `pair#181` M3's archive lesson —
-    "guard before effect, and test that a refused operation had no effects" —
-    applied to a composition where the effect is destructive.
-
+    failure performs NOTHING — `pair#181` M3's "guard before effect, and test
+    that a refused operation had no effects", where the effect is destructive.
 - **relaunch operation** — `ExecuteLiveOwner`, `EffectProcess`,
-  `ConfirmRequired`, `ResultRelaunch`, `PresentationTUI`. Confirmed because it
-  stops a running agent; live-owner because it needs the console's dispatcher.
-  Declared rather than driven from the switcher, so the switcher cannot grow a
-  private verb (`pair#148`'s design test).
+  `ConfirmRequired`, `PresentationTUI`. Confirmed because it stops a running
+  agent; declared so the switcher cannot grow a private verb.
 
 ### Task 1: split the resume preconditions from the occupancy rule
 
 **Files:**
-- Modify: `cmd/internal/couchcore/resume.go:74-144` (`DecideResume`)
+- Modify: `cmd/internal/couchcore/resume.go:74-144`
 - Test: `cmd/internal/couchcore/resume_test.go`
 
 - [ ] **Step 1: Write the failing test — the two callers agree**
 
 ```go
-// The rules relaunch needs are the rules resume applies, minus the one that a
-// park is about to clear. Asserting the AGREEMENT is what stops them drifting:
-// pair#181 M3 shipped an archive guard that admitted `creating` while resume
-// refused it, from exactly this kind of parallel derivation.
-func TestResumePreconditionsMatchDecideResumeMinusOccupancy(t *testing.T) {
+func TestResumePreconditionsMatchDecideResumeOnAPostParkRecord(t *testing.T) {
 	for _, tc := range everyResumeShape(t) { // path missing, no profile,
 		// unsupported agent, bad binding, healthy — each currently LIVE
 		precondition := CheckResumePreconditions(tc.record, tc.binding, tc.pathExists)
-		// asParked models what the PARK will produce, which is the whole
-		// question: occupancy cleared, no open transaction, a verified park
-		// stamped. Clearing only the incarnations would compare against
-		// ResumeLegacyUnverified and assert a false equivalence -- the two
-		// would "disagree" for a reason that has nothing to do with the split.
+		// asParked models what the PARK will produce, which is the question
+		// relaunch actually asks. Clearing only incarnations would compare
+		// against ResumeLegacyUnverified and assert a false equivalence.
 		_, resumeErr := DecideResume(ResumeEligibilityInput{
-			Thread: asParked(tc.record), WorkingPathExists: tc.pathExists,
-			Binding: tc.binding,
+			Thread: asParked(tc.record), WorkingPathExists: tc.pathExists, Binding: tc.binding,
 		})
 		if (precondition == nil) != (resumeErr == nil) {
-			t.Fatalf("%s: precondition=%v, post-park resume=%v -- the two disagree", tc.name, precondition, resumeErr)
+			t.Fatalf("%s: precondition=%v, post-park resume=%v", tc.name, precondition, resumeErr)
 		}
 	}
 }
 ```
 
-- [ ] **Step 2: Run it — FAIL, `undefined: CheckResumePreconditions`**
-- [ ] **Step 3: Extract the predicate**, leaving `DecideResume` calling it so
-      there is one copy of the rules. `DecideResume` keeps the occupancy
-      refusal, the park/detached authority choice and the tombstone scan; those
-      are about *this* resume, not about whether the thread could ever resume.
-- [ ] **Step 4: Run the couchcore suite** — PASS, and the existing
-      `DecideResume` tests are untouched, which is the evidence the extraction
-      changed nothing.
+- [ ] **Step 2: Run — FAIL, `undefined: CheckResumePreconditions`**
+- [ ] **Step 3: Extract the predicate**, with `DecideResume` calling it so there
+      is one copy. `DecideResume` keeps occupancy, the authority choice and the
+      tombstone scan — those are about *this* resume, not about whether the
+      thread could ever resume.
+- [ ] **Step 4: Run the couchcore suite** — PASS with the existing `DecideResume`
+      tests untouched, which is the evidence the extraction changed nothing.
 - [ ] **Step 5: Commit.**
 
-### Task 2: `Couch.Relaunch`, with the refusal before the park
+### Task 2: `Couch.Relaunch` — the refusal before the park
 
 **Files:**
-- Create: `cmd/internal/couchcore/relaunch.go`, `cmd/internal/couchcore/relaunch_test.go`
+- Create: `cmd/internal/couchcore/relaunch.go`, `relaunch_test.go`
 
 - [ ] **Step 1: Write the failing test — a refusal destroys nothing**
 
 ```go
-// The property that makes relaunch safe to offer. A relaunch that parks and
-// then fails to resume has destroyed a working session, so a thread that could
-// not be resumed must not be parked in the first place.
 func TestRelaunchRefusesBeforeParkingWhenTheResumeCouldNotSucceed(t *testing.T) {
 	for _, tc := range []struct {
 		name    string
@@ -212,18 +175,18 @@ func TestRelaunchRefusesBeforeParkingWhenTheResumeCouldNotSucceed(t *testing.T) 
 		{name: "no established binding", breaks: unbindNative, wantErr: ResumeBindingProvisional},
 		{name: "working path is gone", breaks: removeWorkingPath, wantErr: ResumePathMissing},
 		{name: "unsupported saved agent", breaks: corruptAgent, wantErr: ResumeAgentUnsupported},
+		{name: "two incarnations", breaks: addSecondIncarnation, wantErr: ResumeLive},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			env, live := envWithLiveThread(t)
 			tc.breaks(env, live)
 
-			_, err := env.Couch.Relaunch(context.Background(), live.Address)
+			result, err := env.Couch.Relaunch(context.Background(), live.Address)
 
-			if got := ResumeDiagnosticOf(err); got != tc.wantErr {
-				t.Fatalf("Relaunch = %q, want %q", got, tc.wantErr)
+			if result.Outcome != RefusedBeforePark || ResumeDiagnosticOf(err) != tc.wantErr {
+				t.Fatalf("Relaunch = %+v, %v", result, err)
 			}
-			// Nothing happened: no park attempt, no quit trigger, no session torn
-			// down, and the thread is still live.
+			// NOTHING happened: no park attempt, no quit trigger, thread still live.
 			if got := env.Lifecycle.trace; len(got) != 0 {
 				t.Fatalf("a refused relaunch performed lifecycle work: %v", got)
 			}
@@ -231,7 +194,7 @@ func TestRelaunchRefusesBeforeParkingWhenTheResumeCouldNotSucceed(t *testing.T) 
 				t.Fatalf("a refused relaunch triggered quits: %v", got)
 			}
 			after, _ := env.Couch.Threads.GetThread(live.Address)
-			if len(after.Incarnations) != 1 || after.VerifiedPark != nil {
+			if len(after.Incarnations) == 0 || after.VerifiedPark != nil {
 				t.Fatalf("a refused relaunch changed the thread: %+v", after)
 			}
 		})
@@ -240,71 +203,21 @@ func TestRelaunchRefusesBeforeParkingWhenTheResumeCouldNotSucceed(t *testing.T) 
 ```
 
 - [ ] **Step 2: Run — FAIL, `undefined: Relaunch`**
-- [ ] **Step 3: Implement**, in this order and no other: check preconditions →
-      `PairLifecycle.Park` → `ResumeContext`. Every early return before the park
-      performs nothing.
-- [ ] **Step 4: Run — PASS. Then MUTATION-CHECK the order**: move the
-      precondition check after the park and confirm the test fails. A guard that
-      is not entered by a test is not a guard (`pair#181` M3, BR-12).
+- [ ] **Step 3: Implement** in this order and no other: preconditions →
+      `soleParkableIncarnation` → `PairLifecycle.Park` → `ResumeContext`.
+- [ ] **Step 4: Run — PASS, then MUTATION-CHECK the order**: move the
+      precondition check after the park and confirm the test fails. A guard no
+      test enters is not a guard (`pair#181` M3, BR-12).
 - [ ] **Step 5: Commit.**
 
-### Task 3: a resume failure after a good park is recoverable, and says so
+### Task 3: a failed park never attempts the resume, and names its recovery
 
 **Files:**
 - Modify: `cmd/internal/couchcore/relaunch.go`
 - Test: `cmd/internal/couchcore/relaunch_test.go`
 
-- [ ] **Step 1: Write the failing test**
-
-```go
-// The window that cannot be closed: the park succeeded and the resume failed.
-// The thread is PARKED — recoverable, listed, Enter resumes it — and the result
-// must say so, because "relaunch failed" reads as data loss when the work is
-// one keystroke away.
-func TestRelaunchThatParksThenFailsToResumeLeavesARecoverableThread(t *testing.T) {
-	env, live := envWithLiveThread(t)
-	failResumeAfterPark(env)
-
-	result, err := env.Couch.Relaunch(context.Background(), live.Address)
-
-	if err == nil {
-		t.Fatal("a failed resume reported success")
-	}
-	if !result.Parked || result.Resumed {
-		t.Fatalf("result = %+v, want parked-but-not-resumed", result)
-	}
-	if !strings.Contains(err.Error(), "parked") || !strings.Contains(err.Error(), "Enter") {
-		t.Fatalf("error %q does not tell the operator the work is recoverable", err)
-	}
-	// And the store agrees: a verified park, which the switcher lists as
-	// resumable.
-	after, _ := env.Couch.Threads.GetThread(live.Address)
-	if after.VerifiedPark == nil {
-		t.Fatalf("thread = %+v, want a verified park", after)
-	}
-	rows, _ := env.Couch.ActionableThreadInventoryContext(context.Background(), nil)
-	row, ok := findRow(rows, live.Address)
-	if !ok || row.State != ThreadParked {
-		t.Fatalf("row = %+v (found %v), want a parked row the operator can resume", row, ok)
-	}
-}
-```
-
-- [ ] **Step 2-4:** run (FAIL), implement the result + message, run (PASS).
-- [ ] **Step 5: Commit.**
-
-### Task 3b: a park failure never attempts the resume, and names its recovery
-
-**Files:**
-- Modify: `cmd/internal/couchcore/relaunch.go`
-- Test: `cmd/internal/couchcore/relaunch_test.go`
-
-The likeliest failure, and the one whose state is worst: Pair has already been
-sent its quit intent, the transaction is open, and `Enter` will NOT recover the
-row because `DecideResume` refuses `ResumeParking`.
-
-- [ ] **Step 1: Write the failing test**, one case per park failure exit that a
-      fake can produce (completion timeout, cleanup failure, child not gone):
+- [ ] **Step 1: Write the failing test**, one case per park failure exit a fake
+      can produce (completion timeout, cleanup failure, child not gone):
 
 ```go
 func TestRelaunchStopsAtAFailedParkAndNamesTheRecovery(t *testing.T) {
@@ -316,49 +229,75 @@ func TestRelaunchStopsAtAFailedParkAndNamesTheRecovery(t *testing.T) {
 	if result.Outcome != ParkIncomplete || err == nil {
 		t.Fatalf("result = %+v, err = %v", result, err)
 	}
-	// The resume must NOT have been attempted: a thread with an open park
-	// transaction is not resumable, and trying would report a second, confusing
-	// failure over the first.
+	// The resume must NOT be attempted: an open park transaction is not
+	// resumable, and trying reports a second, confusing failure over the first.
 	if got := env.Runner.Children(); len(got) != 0 {
 		t.Fatalf("a failed park still tried to start a child: %v", got)
 	}
-	// The message names park's recovery modes, not Enter -- `Enter` is refused
-	// with ResumeParking, and telling the operator to press it is the
-	// unnavigable-refusal class again (pair#181 M3).
-	for _, want := range []string{"park", "retry", "recover", "abandon"} {
+	// The message names PARK's recovery, not Enter — Enter is refused with
+	// ResumeParking, and naming it is the unnavigable-refusal class again.
+	for _, want := range []string{"retry", "recover", "abandon"} {
 		if !strings.Contains(err.Error(), want) {
 			t.Fatalf("error %q does not name park's recovery: missing %q", err, want)
 		}
 	}
 	after, _ := env.Couch.Threads.GetThread(live.Address)
 	if after.Park == nil {
-		t.Fatalf("thread = %+v, want the open park transaction the operator must recover", after)
+		t.Fatalf("thread = %+v, want the open transaction the operator must recover", after)
 	}
 }
 ```
 
 - [ ] **Step 2-4:** run (FAIL), implement, run (PASS). Mutation-check that the
-      resume is genuinely skipped: make the park fail and assert no child spawn.
+      resume is genuinely skipped: make the park fail, assert no spawn.
 - [ ] **Step 5: Commit.**
 
-### Task 3c: a successful relaunch, which is what the issue is for
+### Task 4: a resume failure after a good park is recoverable, and says so
+
+**Files:**
+- Modify: `cmd/internal/couchcore/relaunch.go`
+- Test: `cmd/internal/couchcore/relaunch_test.go`
+
+- [ ] **Step 1: Write the failing test**
+
+```go
+func TestRelaunchThatParksThenFailsToResumeLeavesARecoverableThread(t *testing.T) {
+	env, live := envWithLiveThread(t)
+	failResumeAfterPark(env)
+
+	result, err := env.Couch.Relaunch(context.Background(), live.Address)
+
+	if result.Outcome != ParkedNotResumed || err == nil {
+		t.Fatalf("result = %+v, err = %v", result, err)
+	}
+	// "relaunch failed" reads as data loss when the work is one keystroke away.
+	if !strings.Contains(err.Error(), "parked") || !strings.Contains(err.Error(), "Enter") {
+		t.Fatalf("error %q does not say the work is recoverable", err)
+	}
+	rows, _ := env.Couch.ActionableThreadInventoryContext(context.Background(), nil)
+	if row, ok := findRow(rows, live.Address); !ok || row.State != ThreadParked {
+		t.Fatalf("row = %+v (found %v), want a parked row Enter resumes", row, ok)
+	}
+}
+```
+
+- [ ] **Step 2-5:** run (FAIL), implement, run (PASS), commit.
+
+### Task 5: a successful relaunch, which is what the issue is for
 
 **Files:**
 - Test: `cmd/internal/couchcore/relaunch_test.go`
 
-Tasks 2, 3 and 3b all test failures. The branch being built had no test at all,
-which is the `done-when-untested` shape.
+Tasks 2-4 are all failure tests. The branch being built had no test at all in
+this plan's first draft, which is the `done-when-untested` shape.
 
-- [ ] **Step 1: Write the failing test** — the issue's last Done-when bullet:
+- [ ] **Step 1: Write the failing test** — three of the issue's Done-when bullets:
 
 ```go
-// The thing being built. One live incarnation at the SAME address afterwards,
-// the row still in the switcher, and the same ledger identity -- the agent
-// conversation continued rather than restarted, which is what distinguishes a
-// relaunch from starting over.
 func TestASuccessfulRelaunchKeepsTheAddressTheRowAndTheConversation(t *testing.T) {
 	env, live := envWithLiveThread(t)
 	before, _ := env.Couch.Threads.GetThread(live.Address)
+	nativeBefore := nativeIDOf(env, live.Address)
 
 	result, err := env.Couch.Relaunch(context.Background(), live.Address)
 	if err != nil || result.Outcome != Relaunched {
@@ -367,7 +306,7 @@ func TestASuccessfulRelaunchKeepsTheAddressTheRowAndTheConversation(t *testing.T
 
 	after, _ := env.Couch.Threads.GetThread(live.Address)
 	if after.Address != before.Address {
-		t.Fatalf("relaunch changed the thread address: %+v -> %+v", before.Address, after.Address)
+		t.Fatalf("relaunch changed the address: %+v -> %+v", before.Address, after.Address)
 	}
 	if len(after.Incarnations) != 1 || after.Incarnations[0].State != IncarnationLive {
 		t.Fatalf("after = %+v, want exactly one live incarnation", after)
@@ -375,12 +314,11 @@ func TestASuccessfulRelaunchKeepsTheAddressTheRowAndTheConversation(t *testing.T
 	if after.Incarnations[0].PID == before.Incarnations[0].PID {
 		t.Fatalf("the Pair process was not replaced (pid %d)", after.Incarnations[0].PID)
 	}
-	// The conversation continued: the resume carried the SAME native session
-	// id, which is the evidence pair#181 M2 used for reattach.
-	if got := requiredSessionIDOf(env, live.Address); got != nativeIDBefore {
-		t.Fatalf("resumed with native id %q, want the conversation's own %q", got, nativeIDBefore)
+	// The conversation continued: the resume carried the SAME native session id,
+	// which is the evidence pair#181 M2 used for reattach.
+	if got := requiredSessionIDOf(env, live.Address); got != nativeBefore {
+		t.Fatalf("resumed with native id %q, want the conversation's own %q", got, nativeBefore)
 	}
-	// And the row survives, which is what the operator sees.
 	rows, _ := env.Couch.ActionableThreadInventoryContext(context.Background(), nil)
 	if row, ok := findRow(rows, live.Address); !ok || row.State != ThreadLive {
 		t.Fatalf("row = %+v (found %v), want a live row at the same address", row, ok)
@@ -390,66 +328,226 @@ func TestASuccessfulRelaunchKeepsTheAddressTheRowAndTheConversation(t *testing.T
 
 - [ ] **Step 2-5:** run (FAIL), implement whatever it exposes, run (PASS), commit.
 
-### Task 4: the declared operation and the switcher action
+### Task 6: declare the operation and dispatch it
 
 **Files:**
-- Modify: `cmd/internal/couchcore/ops.go`, `cmd/internal/couchcore/operationdispatch.go`, `cmd/internal/couchcore/ops_declarations_test.go`, `cmd/internal/couchtty/menu.go`, `cmd/internal/couchcmd/run.go` (result rendering)
-- Test: `cmd/internal/couchtty/menu_test.go`, `cmd/internal/couchcmd/run_test.go`
+- Modify: `cmd/internal/couchcore/ops.go`, `operationdispatch.go`, `ops_declarations_test.go`
+- Test: `cmd/internal/couchcmd/run_test.go`
 
-- [ ] **Step 1: Declare `relaunch`** and dispatch it through
-      `resolveOperationThread` — the ONE thread-addressing dialect, because the
-      switcher sends `{repo-scope, tag}` and reading only `ref` is how
+- [ ] **Step 1: Declare `relaunch`**, dispatched through `resolveOperationThread`
+      — the ONE thread-addressing dialect, because reading only `ref` is how
       `Tab → archive` shipped broken (`pair#181` M3, C-1).
 - [ ] **Step 2: Write the seam test FIRST**, in `couchcmd`, dispatching
-      `relaunch` in the switcher's dialect through the real runtime. Neither a
-      store test nor a menu test crosses that boundary.
-- [ ] **Step 3: Offer it on LIVE rows only.** A parked or detached thread has no
-      Pair process to replace; offering an action that always refuses teaches
-      the operator to distrust the menu. Confirmed like park, and the
-      confirmation says what it does: "stops and restarts Pair; the conversation
-      continues".
-- [ ] **Step 4: Run the whole suite**, plus `menuControls` and the README row so
-      no key ships undocumented.
+      `relaunch` in the switcher's `{repo-scope, tag}` dialect through the real
+      runtime. Neither a store test nor a menu test crosses that boundary.
+- [ ] **Step 3-5:** implement, run, commit.
+
+### Task 7: close M1
+
+- [ ] **Step 1:** `atlas/couch.md` — relaunch beside detach and park, the
+      four-outcome table, and the axis that will otherwise be confused:
+      `Alt+Shift+N` restarts the *conversation* and keeps the code; relaunch
+      restarts the *code* and keeps the conversation.
+- [ ] **Step 2:** Full `env -u PAIR_SESSION_ID -u PAIR_TAG make test` — exit 0.
+- [ ] **Step 3:** `sdlc milestone-close --issue 182 --milestone M1`.
+
+---
+
+## Chunk 2: M2 — the gesture and a surface that outlives its child
+
+### Core concepts
+
+M1's operation is reachable from the switcher's action list the moment it is
+declared. M2 adds the chord, and a pane that does not vanish while its child is
+replaced — the substantial new machinery.
+
+### Pure entities
+
+| Name | Lives in | Status |
+|------|----------|--------|
+| `seqRelaunch` / `HitRelaunch` | `cmd/internal/couchtty/keys.go` | new |
+| `paneState` | `cmd/internal/couchtty/console.go` | new |
+| `RenderHoldingPane` | `cmd/internal/couchtty/holding.go` | new |
+| `endsItsOwnChild` | `cmd/internal/couchtty/console.go` | new |
+| `menuActionItems` | `cmd/internal/couchtty/menu.go` | modified |
+
+- **seqRelaunch / HitRelaunch** — `Alt+n` and `Ctrl+Alt+n` consumed before the
+  child sees them, encodings pulled from `workbenchshortcut.ChordEncodings`
+  rather than retyped, as `ChordAltX` and `ChordAltD` already are
+  (`keys.go:69-75`).
+  - **Both aliases are required, not a nicety.** On newer macOS `Option+n` is a
+    dead-tilde composer, which is why Pair carries `Ctrl+Alt+n` at all.
+    `ChordAltN` is `\x1b[110;3u`, `ChordCtrlAltN` is `\x1b[110;7u`.
+  - **`Alt+Shift+N` stays with Pair** — `\x1b[78;4u`, distinct, and it restarts
+    only the agent conversation. It is the cheap in-session escape hatch that
+    survives couch taking the heavier chord.
+  - **Kitty-protocol edge, inherited from `ChordAltD`.** Neither chord declares a
+    legacy encoding, so with the protocol off they pass through to Pair, which
+    does its old in-place reload. zellij pushes the protocol, so this is a
+    documented degradation — and it MUST be documented at the interception site
+    the way `ChordAltD`'s is, because behaviour then differs silently by protocol
+    state.
+  - **Accepted cost:** inside couch the operator loses Pair's cheap in-place
+    workbench reload; every `Alt+n` becomes a full process replacement. The same
+    trade `Alt+d` made, with the same justification.
+
+- **paneState** — `paneLive` or `paneHolding`. A holding pane has no child and
+  renders the holding surface; it keeps its slot in `c.order`, its `c.active`
+  claim, its thread address, label and actorID.
+  - **Relationships:** 1:1 with a pane. Today a pane is 1:1 with a *child*
+    (`console.go:31`) and `onExit` deletes the entry unconditionally
+    (`console.go:723-736`), so "a pane without a child" is not a state the
+    console can be in — that is the machinery this milestone adds.
+  - **Why not spawn onto the existing pty:** `pty.StartWithSize` mints the
+    master/slave pair per spawn (`ptychild/child.go:103`), and the screen and
+    scrollback live in the `Child` (the pane renders through
+    `child.ReplayThrough`). Handing a second process an existing master changes
+    ptychild's contract; a pane that swaps its child changes the console's, which
+    is where the problem is.
+
+- **RenderHoldingPane** — pure: `(label, phase, spinnerPhase, size) → string`.
+  **A blank page is indistinguishable from a hang**, and Pair's boot is not
+  instant, so this is a status page with a live spinner and the phase name
+  ("parking…" then "restarting…"), not an empty tty. Reuses the console's notice
+  spinner off `spinnerC`/`syncSpinner` — no new timer.
+
+- **endsItsOwnChild** — one predicate replacing two hand-written lists.
+  `console.go:1378`'s `expectedExits` bridge and
+  `consumeExpectedParkExitLocked`'s switch (`console.go:1425-1429`) each
+  enumerate `park`/`detach` today, and both exist because the exit/completion
+  race resolves in either order. Relaunch must appear in BOTH or the operator
+  gets a spurious child-exited notice.
+  - **DRY rationale:** `operationNeedsProjectionRefresh` (`menu.go:1318`) is the
+    existing shape. A third hand-written list is the wrong answer — the same
+    class as `pair#181` M3's occupancy finding.
+
+### Integration points
+
+| Name | Lives in | Status | Wraps |
+|------|----------|--------|-------|
+| `onRelaunchHotkey` | `cmd/internal/couchtty/console.go` | new | chord → operation dispatch |
+| `onExit` | `cmd/internal/couchtty/console.go` | modified | child death, non-fatal for a holding pane |
+| `finishOperation` | `cmd/internal/couchtty/console.go` | modified | installing the new child into the held pane |
+
+- **onRelaunchHotkey** — **scope follows focus, with one deviation that must be
+  stated.** `Alt+x` and `Alt+d` mean "what you are looking at": one actor from an
+  actor, every live thread from the switcher. Relaunch has NO whole-couch form —
+  that is `Alt+d`, rebuild, re-run `couch`, the symmetry this issue completes. So
+  from the panel `Alt+n` relaunches the HIGHLIGHTED ROW and leaves the operator in
+  the switcher; from an actor it relaunches that actor and returns to it. **The
+  ending differs by caller**, which is why it belongs to the console rather than
+  to the operation.
+  - `processInput`'s dispatch switch is exhaustive on purpose — its comment says
+    a `default` arm would turn any unhandled hit into "open the switcher".
+    `HitRelaunch` is handled in both focus states, never defaulted.
+
+### Task 8: the key layer
+
+**Files:**
+- Modify: `cmd/internal/couchtty/keys.go:35-140`
+- Test: `cmd/internal/couchtty/keys_test.go`
+
+- [ ] **Step 1: Write the failing test** — both chords decode to `HitRelaunch` at
+      every read split, stay inert inside a bracketed paste, and `Alt+Shift+N`
+      still passes through to the child. That last assertion protects the escape
+      hatch.
+- [ ] **Step 2-5:** run (FAIL), add `seqRelaunch`/`HitRelaunch` and both
+      `ChordEncodings` rows with the protocol-edge comment, run (PASS), commit.
+
+### Task 9: a pane that outlives its child
+
+**Files:**
+- Modify: `cmd/internal/couchtty/console.go:31-45`, `:721-800`
+- Create: `cmd/internal/couchtty/holding.go`, `holding_test.go`
+- Test: `cmd/internal/couchtty/console_test.go`
+
+- [ ] **Step 1: Write the failing test** — the property, not the mechanism:
+
+```go
+// The operator's slot survives the gap. Today onExit deletes the pane entry
+// unconditionally, so the child's death takes the pane, the slot and the
+// operator's place with it.
+func TestAHoldingPaneSurvivesItsChildsExit(t *testing.T) {
+	f := newFixture(t, 24, 80)
+	f.con.beginRelaunch("c1")
+	f.child.Exit(0)
+
+	waitUpTo(t, 250*time.Millisecond, "the holding surface", func() bool {
+		return strings.Contains(lastConsoleScreen(f.host.Written()), "relaunching")
+	})
+	f.con.mu.Lock()
+	defer f.con.mu.Unlock()
+	if _, held := f.con.panes["c1"]; !held {
+		t.Fatal("the pane went with its child")
+	}
+	if f.con.active != "c1" {
+		t.Fatalf("active = %q, want the held pane to keep the operator's slot", f.con.active)
+	}
+}
+```
+
+- [ ] **Step 2: Run — FAIL** (the pane is deleted; the screen is the switcher).
+- [ ] **Step 3: Implement** `paneState`, the `onExit` branch that keeps a holding
+      pane, and `RenderHoldingPane` driven by the existing spinner.
+- [ ] **Step 4: Run — PASS.** Then assert the spinner ADVANCES: a frozen glyph is
+      indistinguishable from the hang this surface exists to rule out.
 - [ ] **Step 5: Commit.**
 
-### Task 5: real-stack verification with a rebuilt binary
+### Task 10: the three consequences, each pinned
 
-- [ ] **Step 1:** Note the running Pair binary's mtime and the agent's current
-      conversation state in one thread.
-- [ ] **Step 2:** Rebuild Pair (`make` / the `pair` shell function's rebuild).
-- [ ] **Step 3:** Relaunch that thread from the switcher.
-- [ ] **Step 4:** Confirm BOTH halves: the new process is the rebuilt binary
-      (mtime/pid changed), and the agent conversation continued rather than
-      restarting (its native session id is unchanged in the ledger, which is the
-      same evidence `pair#181` M2 used for reattach).
-- [ ] **Step 5:** Record the observation in the issue Log — the measurement, not
-      "it worked".
+**Files:**
+- Modify: `cmd/internal/couchtty/console.go`
+- Test: `cmd/internal/couchtty/console_run_menu_test.go`
 
-### Task 6: docs and close
+- [ ] **Step 1: `previous` is not spent.** `onExit` calls `tracker.Drop`
+      unconditionally (`console.go:736`), emptying `current`; the landing that
+      follows copies that emptiness into `previous`. So a park/resume cycle spends
+      `ctrl+backspace` even though the operator never left — contradicting
+      `SwitchTracker`'s own doc comment. A holding pane dissolves it (no exit, no
+      `Drop`); the test asserts the property: relaunch, then `ctrl+backspace`,
+      then assert it lands where it did before.
+- [ ] **Step 2: No child-exited notice.** `endsItsOwnChild` replaces both
+      hand-written lists; the test drives a relaunch through the production input
+      path and asserts the feed carries no exit notice.
+- [ ] **Step 3: Both focus states dispatch, with different endings.** `Alt+n`
+      from an actor relaunches it and ENDS ON IT; from the panel it relaunches the
+      highlighted row and stays in the switcher. Two tests, because the endings
+      differ.
+- [ ] **Step 4:** run the whole suite.
+- [ ] **Step 5:** Commit.
 
-- [ ] **Step 1:** `atlas/couch.md` — relaunch beside detach and park, and why
-      its preconditions run first. Name the axis explicitly: `Alt+Shift+N`
-      restarts the *conversation* and keeps the workbench; relaunch restarts the
-      *code* and keeps the conversation. They are inverses and will be confused
-      otherwise.
-- [ ] **Step 2:** README — the action and its confirmation.
-- [ ] **Step 3:** Full `env -u PAIR_SESSION_ID -u PAIR_TAG make test` — exit 0.
-- [ ] **Step 4:** `sdlc milestone-close --issue 182 --milestone M1`.
+### Task 11: real-stack verification with a rebuilt binary
+
+- [ ] **Step 1:** Note the running Pair binary's mtime, the child PID, and the
+      agent's conversation state in one thread.
+- [ ] **Step 2:** Rebuild Pair.
+- [ ] **Step 3:** `Alt+n` in that actor.
+- [ ] **Step 4:** Confirm all four: the process is new (PID changed), it is the
+      REBUILT binary (mtime), the conversation continued rather than restarting
+      (ledger native session id unchanged — `pair#181` M2's evidence), and the
+      operator never saw a blank screen.
+- [ ] **Step 5:** Record the measurement in the issue Log, not "it worked".
+
+### Task 12: close M2
+
+- [ ] **Step 1:** `menuControls` + README rows for `Alt+n` / `Ctrl+Alt+n` so no
+      key ships undocumented; atlas gets the holding pane and the
+      scope-follows-focus deviation.
+- [ ] **Step 2:** Full `make test` — exit 0.
+- [ ] **Step 3:** `sdlc milestone-close --issue 182 --milestone M2`.
 
 ---
 
 ## Open questions, recorded rather than decided
 
-1. **Should relaunch be offered on a DETACHED row?** Its agent is running but
-   couch hosts no client, so "replace the Pair process" means something
-   different — reattach with the new binary, which is closer to M2's warm path
-   than to park-then-resume. Left out of scope; the row can be reattached and
-   then relaunched.
-2. **Does relaunch need its own chord?** The plan puts it behind `Tab` with the
-   other actions. A chord is cheap to add later and impossible to remove, and
-   the operator has not asked for one.
-3. **Is `--layout2` right on the relaunch resume?** The cold resume path sends
-   it today. A relaunch is a create boundary, so it should behave exactly as a
-   normal cold resume — but this is the setting that sent Pair down a
-   session-deleting path in `pair#181` M2, so it is worth confirming rather than
-   assuming.
+1. **Should relaunch be offered on a DETACHED row?** Its agent runs but couch
+   hosts no client, so "replace the Pair process" means
+   reattach-with-the-new-binary — closer to `pair#181` M2's warm path than to
+   park-then-resume. Out of scope; reattach then relaunch.
+2. **Does the holding pane keep the old screen behind the status page?** Showing
+   the dead child's last frame under a spinner would preserve context, but the
+   scrollback belongs to the `Child` being discarded. Deferred until the surface
+   exists and can be looked at.
+3. **`--layout2` on the relaunch resume** is settled: relaunch behaves exactly as
+   an ordinary cold resume, which sends it. Recorded because diverging here is the
+   one change that would reintroduce the `pair#181` M2 session-deleting hazard.

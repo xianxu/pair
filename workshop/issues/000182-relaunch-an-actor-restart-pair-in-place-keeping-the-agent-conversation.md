@@ -243,7 +243,7 @@ and three named console consequences; Done-when went from 5 bullets to 11.
 | Slug | Instances |
 | --- | --- |
 | `issue-spec` | this issue + plan authoring across two drafts, two plan-quality rounds, and the Spec rewrite that added M2 |
-| `smaller-go-module` | M1: the precondition extraction; refuse-before-park; the park-failure branch; the success test. M2: the key layer |
+| `smaller-go-module` | M1: the precondition extraction; refuse-before-park; the park-failure branch; the success test; the declared operation + its `couchcmd` seam test. M2: the key layer |
 | `greenfield-go-module` | M1: `Couch.Relaunch` + the outcome types. M2: the holding pane — a pane without a child is a state the console cannot currently be in |
 | `tui-screen` | the holding surface with its live spinner; the two-focus dispatch with different endings |
 | `cross-cutting-refactor` | `endsItsOwnChild` replacing two hand-written exit lists |

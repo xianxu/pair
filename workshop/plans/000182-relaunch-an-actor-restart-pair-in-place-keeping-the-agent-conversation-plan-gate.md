@@ -130,7 +130,26 @@ rounds:
           note: The plan now states the decision (behave exactly as a normal cold resume), which session_quiescence.go:153 supports.
           round: 2
       blocked: false
-content_hash: 5d4eed43803b41b1bab6d56b029e79806215422bf2516c85f245930ff9499b90
+    - "n": 3
+      timestamp: "2026-09-04T09:59:18-07:00"
+      agent: claude
+      findings:
+        - id: PQ-7
+          severity: Minor
+          title: Two of the envelope's three durations name budgets that do not exist as constants
+          detail: |-
+            Family repeat (2nd). Rule, not instance: every duration in the operating
+            envelope must cite the constant producing it by file:line, and say so
+            explicitly where the budget is derived rather than declared. Here the
+            "5s exact-child-death wait (couch.go:119)" is not separate — child death is
+            awaited inside the single 15s CompletionTimeout (park.go:549-555) — and the
+            "10s blocked-start acknowledgement" is actually resumeRegistrationTimeout,
+            5s (couch.go:107, launch_existing.go:110-111). Real worst case ~20s, not
+            ~30s; the plan over-budgets, so no downstream decision changes.
+          family: operating-envelope
+          round: 3
+      blocked: false
+content_hash: 3daf5f639fed110f2617e0519636851256b93b35d9e64185dbbf9a4a219a5dac
 ---
 
 # Gate ledger — pair#182 (plan-quality)
@@ -217,6 +236,20 @@ later rounds disposed of them. Generated — edit the gate, not this file.
 - PQ-5 — addressed — Envelope states workload class, ~30s worst case from verified constants, the progress notice, and the bounded queue.
 - PQ-6 — addressed — The plan now states the decision (behave exactly as a normal cold resume), which session_quiescence.go:153 supports.
 
+## Round 3 — 2026-09-04T09:59:18-07:00 (claude) — passed
+
+### Raised
+
+- **PQ-7** [Minor] `operating-envelope` Two of the envelope's three durations name budgets that do not exist as constants
+  Family repeat (2nd). Rule, not instance: every duration in the operating
+  envelope must cite the constant producing it by file:line, and say so
+  explicitly where the budget is derived rather than declared. Here the
+  "5s exact-child-death wait (couch.go:119)" is not separate — child death is
+  awaited inside the single 15s CompletionTimeout (park.go:549-555) — and the
+  "10s blocked-start acknowledgement" is actually resumeRegistrationTimeout,
+  5s (couch.go:107, launch_existing.go:110-111). Real worst case ~20s, not
+  ~30s; the plan over-budgets, so no downstream decision changes.
+
 ## Open findings
 
-(none — every finding has been disposed)
+- **PQ-7** [Minor] `operating-envelope` Two of the envelope's three durations name budgets that do not exist as constants
