@@ -300,16 +300,12 @@ drivable.
       rather than `Enter`); a test for the SUCCESS path, which is the thing being
       built; the declared operation dispatched through the one thread-addressing
       dialect.
-- [ ] M2 — the gesture and a surface that outlives its child, plus the
-      six-site sweep that makes the declared operation actually reachable
-      (`menuActionItems` and five others; the M1 review found the plan asserting
-      declaration alone was enough). `Alt+n` and
-      `Ctrl+Alt+n` intercepted before the child sees them, with `Alt+Shift+N`
-      left to Pair; a pane that holds its slot and renders `relaunching…` with a
-      live spinner rather than vanishing; and the three consequences that fall
-      out — `previous` not spent, no spurious child-exited notice, and both focus
-      states dispatching to different endings.
-
+- [x] M2 — the gesture. `Alt+n` and `Ctrl+Alt+n` intercepted before the child
+      sees them, with `Alt+Shift+N` left to Pair; and the six-site sweep that
+      makes the declared operation actually reachable (`menuActionItems` and five
+      others; the M1 review found the plan asserting declaration alone was
+      enough), landed as `TestEveryOfferedActionIsReachableFromEnter`.
+      **The holding surface moved to `pair#186`** — see `## Revisions`.
 ## Log
 
 ### 2026-09-03
@@ -429,3 +425,27 @@ now motivated by evidence rather than by the M1 review's argument alone.
 had no effect" has two indistinguishable causes and only the wire separates them.
 It is what disproved the dead-key theory: alt+n arrives as `\x1b[110;3u`.
 
+### 2026-09-04 — the holding surface moves to `pair#186`
+
+**Reason.** M1 is delivered and smoke-tested on the real stack: alt+n parks and
+resumes, and the ledger shows three complete `launch → binding` pairs rooted at
+one native session, so the agent conversation survives. The branch was 111
+commits by then, and carrying a working feature behind an unstarted surface is
+how a branch becomes unreviewable. Landing what works is worth more than keeping
+one issue tidy.
+
+**Delta.** M2's scope splits:
+
+- KEPT here and complete — the gesture (`Alt+n`, `Ctrl+Alt+n`, `Alt+Shift+N`
+  left to Pair) and the six-site sweep, which M1's round-3 review pulled forward
+  after the same defect shape appeared five times.
+- MOVED to `pair#186` — the pane that outlives its child, the two consequences
+  that hang off it (`previous` not spent, no spurious child-exited notice), the
+  key documentation, and the rebuilt-binary verification.
+
+**What this issue therefore claims.** Relaunch exists as one operation, reachable
+by chord and from the switcher, whose design is the order of its checks: every
+refusal that can be seen is raised BEFORE the park, so a relaunch that cannot
+resume never trades a working session for a cold one. What it does not claim is
+that the operation LOOKS like one operation — the pane still vanishes for the
+seconds Pair takes to boot, which is `pair#186`.
