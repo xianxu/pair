@@ -1527,14 +1527,18 @@ func TestAnUnreadableRecordCanBeArchivedThroughTheRuntime(t *testing.T) {
 	}
 
 	// And it can leave, through the operator's actual gesture.
-	_, errw, code := runTypedRT(rt, couchcore.OperationCall{
+	out, errw, code := runTypedRT(rt, couchcore.OperationCall{
 		Name: "archive", Implicit: true,
 		Args: map[string]string{"repo-scope": thread.Address.RepoScope, "tag": string(thread.Address.Tag)},
 	})
-	// It reports the warning rather than plain success -- couch filed the record
-	// without stopping a session it could not identify.
-	if !strings.Contains(errw, "did not stop its session") {
-		t.Fatalf("archiving an unreadable record = code %d err %q, want the warning", code, errw)
+	// It SUCCEEDS -- the archive happened -- and says on stdout what it did not
+	// do. Reporting this on the error channel made every consumer read a
+	// completed archive as a failed one.
+	if code != 0 {
+		t.Fatalf("archiving an unreadable record exited %d: %q", code, errw)
+	}
+	if !strings.Contains(out, "without stopping its session") {
+		t.Fatalf("archive output = %q, want the session warning", out)
 	}
 	after, _, _ := runTypedRT(rt, couchcore.OperationCall{Name: "list"})
 	if strings.Contains(after, "could not be read") {
@@ -1575,14 +1579,12 @@ func TestARefusalsNamedCommandsActuallyWork(t *testing.T) {
 
 	// And the retire gesture the refusal names, which is `archive` reached from
 	// a repository couch will start in.
-	_, archiveErr, _ := runTypedRT(rt, couchcore.OperationCall{
+	_, archiveErr, archiveCode := runTypedRT(rt, couchcore.OperationCall{
 		Name: "archive", Implicit: true,
 		Args: map[string]string{"repo-scope": thread.Address.RepoScope, "tag": string(thread.Address.Tag)},
 	})
-	// The gesture works; it warns that the session was left alone, which is the
-	// conservative answer for a record couch cannot read.
-	if archiveErr != "" && !strings.Contains(archiveErr, "did not stop its session") {
-		t.Fatalf("the refusal's retire gesture failed: err=%q", archiveErr)
+	if archiveCode != 0 {
+		t.Fatalf("the refusal's retire gesture failed: code=%d err=%q", archiveCode, archiveErr)
 	}
 	if listOut, _, _ := runTypedRT(rt, couchcore.OperationCall{Name: "list"}); strings.Contains(listOut, "could not be read") {
 		t.Fatalf("the retire gesture left the row in place: %q", listOut)

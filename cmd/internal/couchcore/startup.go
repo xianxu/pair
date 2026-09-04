@@ -56,6 +56,20 @@ func SelectResumableRoot(rows []ActionableThreadSummary, repoScope, workingPath 
 	return best.Address, true
 }
 
+// The occupancy questions, and why they are not one function.
+//
+// Three predicates read a thread's state and they are deliberately distinct,
+// because they ask different things: `occupiedIncarnation` asks whether
+// something is still ACTING on a thread (shared by archive and resume, and the
+// one that was genuinely duplicated); `PathHoldsUsableThread` asks whether a
+// path already holds work; `PathHoldsUnreadableThread` asks whether a scope
+// holds something couch could not read. Collapsing them would force one answer
+// onto three questions.
+//
+// What must not drift is their OVERLAP: anything `PathHoldsUsableThread`
+// counts as holding a path must also be something the operator can reach, and
+// TestOccupancyPredicatesAgreeWhereTheyOverlap pins that.
+
 // PathHoldsUsableThread reports whether a path already has a thread the
 // operator can get back into.
 //

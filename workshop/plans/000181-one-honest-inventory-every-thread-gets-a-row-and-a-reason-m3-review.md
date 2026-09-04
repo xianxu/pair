@@ -709,3 +709,160 @@ findings:
       consumer projecting the resolver's output relabels an unreadable record as
       a known state — the exact conflation this round split apart.
 ```
+
+---
+
+## Re-review — 2026-09-04T08:57:26-07:00 (FIX-THEN-SHIP)
+
+| field | value |
+|-------|-------|
+| issue | 181 — One honest inventory: every thread gets a row and a reason |
+| repo | pair |
+| issue file | workshop/issues/000181-one-honest-inventory-every-thread-gets-a-row-and-a-reason.md |
+| boundary | milestone M3 |
+| milestone | M3 |
+| window | abc39d62baaeedb8057caa05d94eb113dc1d3b1b..9c709f2d9a01a9db40268e20acccd895b436778e |
+| command | sdlc milestone-close --issue 181 --milestone M3 |
+| reviewer | claude |
+| timestamp | 2026-09-04T08:57:26-07:00 |
+| verdict | FIX-THEN-SHIP |
+
+## Review
+
+```verdict
+verdict: FIX-THEN-SHIP
+confidence: high
+```
+
+This round did the hard thing correctly: the two carried blockers are genuinely dead, and I verified each by mutation rather than by reading the commit message. Deleting the `PathHoldsUnreadableThread` block from `spawnResolved` now fails `TestSpawnRefusesWhileAnUnreadableRecordIsInTheRepository`; moving `Quiesce` back ahead of `archivableRecord` fails `TestARefusedArchiveStopsNothing`; quiescing on the unreadable branch fails `TestArchivingAnUnreadableRecordNeverStopsItsSession`; adding `ThreadBusy` to `menuThreadActionable` or disabling the new busy branch fails `TestEnterOnABusyRowExplainsAndOffersNoLifecycleAction`. Nothing Critical survives, and no logic test fails at HEAD (every failure is the documented `ptychild: operation not permitted` environment class). What keeps this off SHIP is that the round's own fix introduced a new consumer gap — `UnreadableArchiveWarning` is a *success* delivered on the failure channel, so the CLI exits 1 on an archive that worked and the switcher (the surface the start refusal names as the recovery path) shows a red error, stays in the archive confirmation frame, and then overwrites the "a session may still be running" warning with a routine notice — and that two carried findings were closed at a secondary site while the site they explicitly named still stands. BR-15 named `threadreason.go:41`; the commit fixed `:59` instead and the commit message claims all four artifacts now agree. They do not.
+
+## 1. Strengths
+
+- **`cmd/internal/couchcore/archive_test.go:349-368`** — `TestSpawnRefusesWhileAnUnreadableRecordIsInTheRepository` is the test BR-12 asked for, at the right seam. Verified: replacing the guard with `_ = PathHoldsUnreadableThread` fails it with "started a second thread while a record in this repository could not be read". The choice of `Spawn` as the funnel is right — one test covers `couch <path>`, the TUI start form and `SpawnPrepared`.
+- **`cmd/internal/couchcore/detach.go:186-200`** — guard-before-effect is the correct shape, and `TestARefusedArchiveStopsNothing` asserts the property worth asserting ("it refuses *and nothing happened*"), not just the refusal. The `lessons.md` entry generalises it correctly.
+- **`cmd/internal/couchcore/detach.go:201-211`** — declining to `Quiesce` a record couch could not read is the right call and is argued from the actual dependency (the guard proving a thread is dead needs the record that failed to decode). The behaviour is pinned by a discriminating test.
+- **Three address-only synthesis sites now agree** — `detach.go:203`, `threadmetadata.go:44`, `threadstore.go:1065` are all bare `ThreadRecord{Address: address}`. Dropping `Reservation` closes the `ClassifyThread:244` conflation, and this is the first round where the sweep is complete rather than 2-of-3.
+- **`cmd/internal/couchtty/menu_test.go:1343-1367`** — both halves discriminate (verified separately), and writing it found the busy-row archive offer, which is how a test earns its keep.
+
+## 2. Critical findings
+
+None.
+
+## 3. Important findings
+
+**I-1 — `UnreadableArchiveWarning` is a success on the failure channel, and every consumer reads it as "the archive failed."** `cmd/internal/couchcore/detach.go:211`
+
+**This is the 5th finding in family `new-state-unhandled-at-consumers`.** Do not fix the instance — state the rule. Measured through the real dispatcher and the pure menu reducer:
+
+| consumer | behaviour |
+|---|---|
+| CLI (`archive{tag}`) | **exit 1**, `couch: archived couch-…, but couch could not read its record…` — while `list` → `no threads` and `archived` → the row. A `&&` chain or script sees failure. |
+| `console.go:1349` | `Success: err == nil` → `reduceOperationResult` (`menu.go:1276`) takes the failure branch: red `MenuNoticeError`, stays in the **archive confirmation frame** (`frames=3 kind=confirmation action="archive"`), skips `ProjectionPending`. |
+| next refresh | the frame self-heals, but the notice becomes `thread compiler (scope/couch-one) is no longer actionable` — the "a session may still be running" warning, the entire reason the value exists, is the one thing the operator loses. |
+| `menu.go:1063` | the confirmation the operator accepts reads `archive <label> — stops its session`, which *this commit* made false for exactly this state. |
+| retry (the natural response to a red error) | `couch: thread not found: {RepoScope:816fc349d3faebf8 Tag:couch-0102030405060708}` — a raw struct dump. |
+
+The rule: **an outcome that is not a failure does not travel on the failure channel.** Either carry it on the result (`ArchiveResult{Record, SessionLeftRunning bool}`) so every renderer can show it as a warning, or keep the error type and update every consumer in the same commit. Enumeration is three sites: `operationdispatch.go:180` → `runTypedOperation`'s exit code, `console.go:1349`'s `Success`, and `confirmationMenuItems` (`menu.go:1058-1063`). Aggravating: the two tests that touched this were *weakened* rather than extended — `run_test.go:1536` dropped its `code != 0` assertion and `run_test.go:1584` now passes on an empty error too, so the exit-code change is both undecided and unpinned.
+
+**I-2 — BR-6's rule is still unstated in code, and the two remaining copies now actively disagree.** `cmd/internal/couchcore/startup.go:73`, `cmd/internal/couchtty/menu.go:968`
+
+Disposed `not-addressed`. The measured harms are fixed and pinned (`occupiedIncarnation` is shared by `archivableRecord` and `DecideResume`; the busy archive offer is gone) — but "one predicate over the classified state" is not. `PathHoldsUsableThread` and `menuThreadActionable` remain two hand-copies of `{ThreadLive, ThreadDetached, ThreadParked}` in two packages, and this round made them diverge: `menuActionItems` now treats `ThreadBusy` as occupied while `PathHoldsUsableThread` does not. Measured — `PathHoldsUsableThread(rows{State: ThreadBusy, WorkingPath: "/repo"}, "s", "/repo")` → `false`, so a start in flight at a path does not block a second start at that path. That is the one-thread-per-path ratchet with a hole at the exact state the round just protected in the archive path. Fix: one exported predicate in `couchcore` (`func (s ActionableThreadSummary) Occupied() bool`), called by both, with a test asserting they cannot answer differently.
+
+**I-3 — the plan's M3 Core-concepts tables name a file and a verb that do not exist.** `workshop/plans/…-plan.md:871-872`, `:906-908`
+
+**5th in family `unbacked-existing-behavior-claim`.** Verified against the tree: `cmd/internal/couchcore/retire.go` does not exist, `DecideRetirement`/`RetirementVerdict` are in no file, `couch prune` is in no registry, and `ThreadStore.Archive` shipped as `ThreadStore.ArchiveThread`. Four rows, four claims, zero backing — while Task 11/13 twenty lines below say `NOT BUILT`. Round 4 recommended the table carry a `not built — see Revisions` status in §7 and it was not done, so repeating it as a recommendation has already failed once; it is a finding now. The class rule is BR-15's: a claim in an artifact names the code that backs it, or is demoted. A greppable entity table is the highest-value place to enforce it, because it is the thing a future agent greps.
+
+## 4. Minor findings
+
+- `threadreason.go:41` still says `unreadable` is "never archive-eligible" — the exact line BR-15 named — contradicted by `menuActionItems` (measured: `[archive name describe]`), by two shipped tests that assert an unreadable record archives, and by `atlas/couch.md:549-551`. The commit fixed the *secondary* site (`:59`) and the commit message claims "one position now, in all four artifacts."
+- `startup.go:63-65` still justifies itself with "or a corrupted record would lock its repo out permanently" — the sentence the atlas swept and qualified four lines below the new predicate that now does exactly that.
+- `workshop/projects/couch.md:210` — `**status:** M1-M3 closed` while the M3 row is `- [ ]` and this gate has not passed. Pre-dates the window (`6572ef69`), but the window rewrote every other `#181` block around it. `TestUncheckedProjectMilestoneHasNoClosedMetadata` checks `**closed:**`/`**actual:**` only, not `**status:**`.
+- `operationdispatch.go:334-345` vs `:348-360` — `resolveThreadForArchive` still duplicates `resolveOperationThread`'s tag branch verbatim (round-4 Minor, unchanged). `ARCH-DRY`.
+- README documents `Tab → archive` in detail (`:388-391`) but not that archiving an unreadable record leaves its session running. The atlas covers it; the README paragraph that says archive is "offered on every row couch is not hosting" is also now false for `ThreadBusy`.
+
+## 5. Test coverage notes
+
+- Full suite at HEAD, `env -u PAIR_SESSION_ID -u PAIR_TAG go test ./... -count=1`: every failure is `ptychild: operation not permitted` / `fork/exec` / `mkstemp` — the documented environment class, identical across baseline and reverted runs. No logic failures. `go build ./...` and `go vet` clean. All docs contract tests pass.
+- Revert-verified this round, tree restored after each (`git status` clean at HEAD): the start guard, the guard/quiesce ordering, the unreadable no-quiesce rule, the busy `menuActionItems` branch and the busy Enter arm all go red when removed. Four for four — this is the first round of the five where every claimed fix is mutation-checked.
+- **The gap that ships I-1:** no test at any seam asserts what the CLI exit code or the switcher does with `UnreadableArchiveWarning`, and the two tests that could have caught it were relaxed to accommodate it.
+- BR-16 unmeasured by any test and confirmed by probe: `name{tag}`, `name{ref}`, `describe{tag}`, `describe{ref}` on an unreadable row all exit 1 with the raw `couch: EOF`, while `menuActionItems` offers both on exactly that row.
+- BR-12's own enumeration is 2 of 3 swept: `startup.go:141`'s refusal names `couch --show <tag>`, and `warmresume_test.go:138` asserts only that the *string* contains it — nothing executes it against the fixture that produced the refusal. The command does work; the pin does not exist.
+
+## 6. Architectural notes
+
+- **ARCH-DRY — flag.** I-2 (two copies of the state set, now disagreeing) and the `resolveThreadForArchive` duplication. Pass on `occupiedIncarnation`, `ThreadProjectionInput`/`FromSnapshot`, and the now-uniform address-only synthesis.
+- **ARCH-PURE — pass.** `PathHoldsUnreadableThread`, `archivableRecord`, `occupiedIncarnation`, `menuActionItems`, `SelectResumableRoot` are all pure and tested without IO; the read failure is classified in the IO shell and carried as data. The one glue-resident policy (`readErr != nil` → do not quiesce) is small and inherently tied to the read.
+- **ARCH-PURPOSE — flag.** Two fixes landed at a site adjacent to the one the finding named: BR-15 corrected `ReasonUnknown` and left `ReasonUnreadable`, BR-12's enumeration is 2/3. This is the instance/class inversion in its sharpest form — the class was *stated in the finding* and the sweep still stopped one line short.
+- **ARCH-MOCK — pass.** `FakeThreadArtifactCollisionChecker` with `Quiesces()` is what made the ordering bug measurable and is what its test asserts on; `newRT`/`runTypedRT` drive real dispatch against a real `ThreadStore` on a temp dir with a genuinely truncated record. Production and test share the boundary.
+- **ARCH-CONSTRAINTS — pass.** No new per-keystroke or per-start cost; `PathHoldsUnreadableThread` is O(rows) over an inventory the caller already holds.
+- **ARCH-SECURE — pass on the parse boundary.** A decode failure becomes a typed `Unreadable` address and degrades visibly; `validateThreadAddress`'s `^[A-Za-z0-9_-]+$` still makes traversal unrepresentable on the archive path; the `Reservation` overload is gone. Worth recording as a deliberate accepted risk: once an unreadable record is archived, `PathHoldsUnreadableThread` stops blocking, so `couch <path>` will start a new thread over an agent the warning just said might still be running. That is the operator's choice and the warning names it — but it is exactly the "second thread over live work" the atlas paragraph at `:546-554` argues the guard prevents, so the atlas should say the escape hands that risk back.
+
+## 7. Plan revision recommendations
+
+- **M3 Core concepts (`plan:869-908`)** — mark `RetirementVerdict`, `DecideRetirement` and `couch prune` `not built — see Revisions`, and rename `ThreadStore.Archive` → `ThreadStore.ArchiveThread`. I-3; a `deleted`/`not built` status column is what stops a grep of the table claiming a file that is not there.
+- **New `## Revisions` entry — "M3 review round 4"** — record the entities this round added that are in no table: `UnreadableArchiveWarning` (and that archiving an unreadable record deliberately does not quiesce), plus round 3's still-unrecorded `ThreadProjectionInput`, `FromSnapshot`, `PathHoldsUnreadableThread`, `ReasonUnreadable`, `resolveThreadForArchive`, `ThreadStore.RecordPath`. State which are PURE. This was recommended last round and not done.
+- **M1 Core concepts (`plan:75-84`)** — the vocabulary is still enumerated as nine reasons without `unreadable`, and still says `unknown` "is the only reason that is both transient and never archive-eligible" — the same clause the code just deleted from `threadreason.go:59`. Delete it here too.
+
+```findings
+dispose:
+  - id: BR-1
+    disposition: addressed
+    note: |
+      Verified by revert on both halves: adding ThreadBusy to menuThreadActionable makes the test fail with a dispatched switch effect, and disabling the new menuActionItems branch fails it with "busy row offers archive".
+  - id: BR-6
+    disposition: not-addressed
+    note: |
+      The harms are fixed and pinned, but the rule is not: startup.go:73 and menu.go:968 remain two copies of the state set, and this round made them disagree -- PathHoldsUsableThread returns false for a ThreadBusy row, so a start in flight does not block a second start at that path.
+  - id: BR-12
+    disposition: addressed
+    note: |
+      Verified by revert: replacing the guard with `_ = PathHoldsUnreadableThread` fails TestSpawnRefusesWhileAnUnreadableRecordIsInTheRepository. Residue -- startup.go:141's refusal names `couch --show <tag>` and warmresume_test.go:138 asserts only that the string contains it; nothing executes it.
+  - id: BR-15
+    disposition: not-addressed
+    note: |
+      The site the finding NAMED (threadreason.go:41, "never archive-eligible") still stands, contradicted by menuActionItems and by two shipped tests; only the secondary site at :59 was corrected, while the commit message claims all four artifacts now agree.
+  - id: BR-16
+    disposition: not-addressed
+    note: |
+      Re-measured through the real dispatcher: name{tag}, name{ref}, describe{tag} and describe{ref} on an unreadable row all exit 1 with the raw "couch: EOF", and menuActionItems still offers both on that row. Unchanged this round.
+findings:
+  - id: new
+    severity: Important
+    family: new-state-unhandled-at-consumers
+    title: |
+      UnreadableArchiveWarning is a success delivered on the failure channel, and every consumer reads it as a failed archive
+    detail: |
+      5th in family -- do not fix the instance, state the rule. Measured end to end. CLI: archive{tag} on an
+      unreadable record exits 1 with "couch: archived ..., but couch could not read its record ...", while
+      list reports "no threads" and archived lists the row -- the mutation happened. Switcher (the gesture
+      the start refusal names as the recovery path): console.go:1349 sets Success: err == nil, so
+      reduceOperationResult (menu.go:1276) takes the failure branch -- red error notice, stays in the archive
+      confirmation frame, skips ProjectionPending -- and one refresh later the notice is replaced by "thread
+      ... is no longer actionable", so the "a session may still be running" warning, the whole reason the
+      value exists, is the one thing the operator loses. The confirmation they accepted reads "archive <label>
+      -- stops its session" (menu.go:1063), which this same commit made false for this state. Retrying, the
+      natural response to a red error, yields the raw "thread not found: {RepoScope:... Tag:...}". The rule:
+      an outcome that is not a failure does not travel on the failure channel -- carry it on the result
+      (ArchiveResult{Record, SessionLeftRunning}) so every renderer can show a warning, or update every
+      consumer in the same commit. Enumeration is three sites: operationdispatch.go:180 -> exit code,
+      console.go:1349's Success, confirmationMenuItems (menu.go:1058-1063). Aggravating: run_test.go:1536
+      dropped its `code != 0` assertion and :1584 now passes on an empty error, so the exit-code change is
+      both undecided and unpinned.
+  - id: new
+    severity: Important
+    family: unbacked-existing-behavior-claim
+    title: |
+      The plan's M3 entity tables name a file and a verb that do not exist in the tree
+    detail: |
+      5th in family. Verified against the tree, not the prose: cmd/internal/couchcore/retire.go does not
+      exist, DecideRetirement and RetirementVerdict are in no file, "couch prune" is in no registry, and
+      ThreadStore.Archive shipped as ThreadStore.ArchiveThread -- four rows in the M3 Pure-entities and
+      Integration-points tables (plan:871-872, :906-908), four claims, zero backing, while Task 11 and Task 13
+      twenty lines below say NOT BUILT. Round 4 raised this as a section-7 plan-revision recommendation and it
+      was not actioned, so recommending it again has already failed once. The class rule is BR-15's own: a
+      claim in an artifact names the code that backs it or is demoted to intent -- and a greppable entity
+      table is the highest-value place to enforce it, because it is what a future agent greps instead of the
+      Revisions section. Fix: a `not built -- see Revisions` status on those rows, and the same sweep over the
+      M1 table's nine-reason list, which still omits `unreadable` and still carries the archive-eligibility
+      clause the code deleted from threadreason.go:59 this round.
+```

@@ -537,6 +537,11 @@ func render(w io.Writer, op couchcore.Operation, result any) int {
 		}
 	case couchcore.Worktree:
 		fmt.Fprintf(w, "%s\n", v)
+	case couchcore.ArchiveResult:
+		fmt.Fprintf(w, "archived %s\n", v.Record.Address.Tag)
+		if warning := v.Warning(); warning != "" {
+			fmt.Fprintf(w, "%s\n", warning)
+		}
 	case couchcore.StopResult:
 		if v.Signalled {
 			fmt.Fprintf(w, "signalled %s on %s (pid %d)\n", v.Record.ID, v.Record.Args.Worktree, v.Record.PID)

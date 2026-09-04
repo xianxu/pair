@@ -195,7 +195,7 @@ gate `#147` and `#148` respectively; `#145` and `#146` do not depend on them.
 - [x] one honest inventory: every thread gets a row and a reason [pair#181]
 - [x] total classification, no shell-side filtering [pair#181 M1]
 - [x] warm reattach: get back into a detached session [pair#181 M2]
-- [ ] archive as the only exit, plus the startup and path rules [pair#181 M3]
+- [x] archive as the only exit, plus the startup and path rules [pair#181 M3]
 - [ ] relaunch an actor: restart Pair, keep the conversation [pair#182]
 - [-] reattach a detached thread without the cold binding [pair#179 — absorbed by pair#181 M2]
 - [-] retire finished threads into an archive [pair#180 — absorbed by pair#181 M3]
@@ -287,6 +287,8 @@ a provisional binding earlier. Absorbs `pair#179`.
 ### pair#181 M3 — archive as the only exit, plus the startup and path rules
 
 **est:** 8.64 (whole issue)
+**closed:** 2026-09-04
+**actual:** 4.2h
 
 Replaced the planned retirement predicate with an `archive` action on the
 operator's instruction — an operator action beats a rule guessing what is

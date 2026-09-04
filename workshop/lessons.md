@@ -3172,3 +3172,16 @@ that a key token appears cannot detect a contradictory behavioral sentence
   pinned by an executing test — and deleting the entire guard still changed no
   test outcome, because nothing drove the path that produces it. Mutation-check
   new guards by removing them.
+- An operation that mutated is a SUCCESS; what it could not do belongs in the
+  result, not on the error channel. Archiving an unreadable record returned its
+  "I left the session running" warning as an error, so the CLI exited 1 with the
+  row already gone and the switcher took its failure branch — red notice,
+  confirmation frame left open, no refresh — making the recovery path a refusal
+  elsewhere names appear to fail. Warnings ride the value.
+- Predicates that answer different questions should stay separate; what must not
+  drift is their OVERLAP. Three occupancy checks in couch ask genuinely
+  different things (is something acting on this thread / does this path hold
+  work / does this scope hold something unreadable), and collapsing them forces
+  one answer onto three questions. Pin the agreement instead: anything counted
+  as holding a path must be something the operator can actually reach, or couch
+  refuses a start for a thread it will not offer.

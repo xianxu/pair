@@ -104,3 +104,22 @@ func TestSelectResumableRootHandlesACrowdedPath(t *testing.T) {
 		t.Fatalf("selected %+v (ok=%v), want the newest detached row", address, ok)
 	}
 }
+
+// The occupancy predicates answer different questions, so they are not one
+// function -- but they must not disagree where they overlap. A state that holds
+// a path has to be one the operator can actually reach, or couch refuses a
+// start for a thread it will not offer.
+func TestOccupancyPredicatesAgreeWhereTheyOverlap(t *testing.T) {
+	const path = "/repo"
+	for _, state := range []ActionableThreadState{
+		ThreadLive, ThreadDetached, ThreadParked, ThreadBusy, ThreadUnusable,
+	} {
+		row := selectRow("couch-0000000000000001", state, path, time.Unix(1000, 0).UTC())
+		_, holds := PathHoldsUsableThread([]ActionableThreadSummary{row}, "scope", path)
+		reachable := row.Live() || row.Resumable()
+		if holds != reachable {
+			t.Fatalf("state %q: holds path = %v, reachable by the operator = %v -- "+
+				"couch would refuse a start for a thread it will not offer", state, holds, reachable)
+		}
+	}
+}

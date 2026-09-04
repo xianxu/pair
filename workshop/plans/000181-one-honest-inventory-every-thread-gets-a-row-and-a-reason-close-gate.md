@@ -357,6 +357,72 @@ rounds:
           round: 7
       boundary: M3
       blocked: true
+    - "n": 8
+      timestamp: "2026-09-04T08:57:26-07:00"
+      agent: claude
+      dispose:
+        - id: BR-1
+          disposition: addressed
+          note: 'Verified by revert on both halves: adding ThreadBusy to menuThreadActionable makes the test fail with a dispatched switch effect, and disabling the new menuActionItems branch fails it with "busy row offers archive".'
+          round: 8
+        - id: BR-6
+          disposition: not-addressed
+          note: 'The harms are fixed and pinned, but the rule is not: startup.go:73 and menu.go:968 remain two copies of the state set, and this round made them disagree -- PathHoldsUsableThread returns false for a ThreadBusy row, so a start in flight does not block a second start at that path.'
+          round: 8
+        - id: BR-12
+          disposition: addressed
+          note: 'Verified by revert: replacing the guard with `_ = PathHoldsUnreadableThread` fails TestSpawnRefusesWhileAnUnreadableRecordIsInTheRepository. Residue -- startup.go:141''s refusal names `couch --show <tag>` and warmresume_test.go:138 asserts only that the string contains it; nothing executes it.'
+          round: 8
+        - id: BR-15
+          disposition: not-addressed
+          note: The site the finding NAMED (threadreason.go:41, "never archive-eligible") still stands, contradicted by menuActionItems and by two shipped tests; only the secondary site at :59 was corrected, while the commit message claims all four artifacts now agree.
+          round: 8
+        - id: BR-16
+          disposition: not-addressed
+          note: 'Re-measured through the real dispatcher: name{tag}, name{ref}, describe{tag} and describe{ref} on an unreadable row all exit 1 with the raw "couch: EOF", and menuActionItems still offers both on that row. Unchanged this round.'
+          round: 8
+      findings:
+        - id: BR-17
+          severity: Important
+          title: UnreadableArchiveWarning is a success delivered on the failure channel, and every consumer reads it as a failed archive
+          detail: |-
+            5th in family -- do not fix the instance, state the rule. Measured end to end. CLI: archive{tag} on an
+            unreadable record exits 1 with "couch: archived ..., but couch could not read its record ...", while
+            list reports "no threads" and archived lists the row -- the mutation happened. Switcher (the gesture
+            the start refusal names as the recovery path): console.go:1349 sets Success: err == nil, so
+            reduceOperationResult (menu.go:1276) takes the failure branch -- red error notice, stays in the archive
+            confirmation frame, skips ProjectionPending -- and one refresh later the notice is replaced by "thread
+            ... is no longer actionable", so the "a session may still be running" warning, the whole reason the
+            value exists, is the one thing the operator loses. The confirmation they accepted reads "archive <label>
+            -- stops its session" (menu.go:1063), which this same commit made false for this state. Retrying, the
+            natural response to a red error, yields the raw "thread not found: {RepoScope:... Tag:...}". The rule:
+            an outcome that is not a failure does not travel on the failure channel -- carry it on the result
+            (ArchiveResult{Record, SessionLeftRunning}) so every renderer can show a warning, or update every
+            consumer in the same commit. Enumeration is three sites: operationdispatch.go:180 -> exit code,
+            console.go:1349's Success, confirmationMenuItems (menu.go:1058-1063). Aggravating: run_test.go:1536
+            dropped its `code != 0` assertion and :1584 now passes on an empty error, so the exit-code change is
+            both undecided and unpinned.
+          family: new-state-unhandled-at-consumers
+          round: 8
+        - id: BR-18
+          severity: Important
+          title: The plan's M3 entity tables name a file and a verb that do not exist in the tree
+          detail: |-
+            5th in family. Verified against the tree, not the prose: cmd/internal/couchcore/retire.go does not
+            exist, DecideRetirement and RetirementVerdict are in no file, "couch prune" is in no registry, and
+            ThreadStore.Archive shipped as ThreadStore.ArchiveThread -- four rows in the M3 Pure-entities and
+            Integration-points tables (plan:871-872, :906-908), four claims, zero backing, while Task 11 and Task 13
+            twenty lines below say NOT BUILT. Round 4 raised this as a section-7 plan-revision recommendation and it
+            was not actioned, so recommending it again has already failed once. The class rule is BR-15's own: a
+            claim in an artifact names the code that backs it or is demoted to intent -- and a greppable entity
+            table is the highest-value place to enforce it, because it is what a future agent greps instead of the
+            Revisions section. Fix: a `not built -- see Revisions` status on those rows, and the same sweep over the
+            M1 table's nine-reason list, which still omits `unreadable` and still carries the archive-eligibility
+            clause the code deleted from threadreason.go:59 this round.
+          family: unbacked-existing-behavior-claim
+          round: 8
+      boundary: M3
+      blocked: false
 ---
 
 # Gate ledger — pair#181 (boundary-review)
@@ -561,10 +627,52 @@ later rounds disposed of them. Generated — edit the gate, not this file.
   consumer projecting the resolver's output relabels an unreadable record as
   a known state — the exact conflation this round split apart.
 
+## Round 8 — 2026-09-04T08:57:26-07:00 (claude) — passed
+
+### Disposed
+
+- BR-1 — addressed — Verified by revert on both halves: adding ThreadBusy to menuThreadActionable makes the test fail with a dispatched switch effect, and disabling the new menuActionItems branch fails it with "busy row offers archive".
+- BR-6 — not-addressed — The harms are fixed and pinned, but the rule is not: startup.go:73 and menu.go:968 remain two copies of the state set, and this round made them disagree -- PathHoldsUsableThread returns false for a ThreadBusy row, so a start in flight does not block a second start at that path.
+- BR-12 — addressed — Verified by revert: replacing the guard with `_ = PathHoldsUnreadableThread` fails TestSpawnRefusesWhileAnUnreadableRecordIsInTheRepository. Residue -- startup.go:141's refusal names `couch --show <tag>` and warmresume_test.go:138 asserts only that the string contains it; nothing executes it.
+- BR-15 — not-addressed — The site the finding NAMED (threadreason.go:41, "never archive-eligible") still stands, contradicted by menuActionItems and by two shipped tests; only the secondary site at :59 was corrected, while the commit message claims all four artifacts now agree.
+- BR-16 — not-addressed — Re-measured through the real dispatcher: name{tag}, name{ref}, describe{tag} and describe{ref} on an unreadable row all exit 1 with the raw "couch: EOF", and menuActionItems still offers both on that row. Unchanged this round.
+
+### Raised
+
+- **BR-17** [Important] `new-state-unhandled-at-consumers` UnreadableArchiveWarning is a success delivered on the failure channel, and every consumer reads it as a failed archive
+  5th in family -- do not fix the instance, state the rule. Measured end to end. CLI: archive{tag} on an
+  unreadable record exits 1 with "couch: archived ..., but couch could not read its record ...", while
+  list reports "no threads" and archived lists the row -- the mutation happened. Switcher (the gesture
+  the start refusal names as the recovery path): console.go:1349 sets Success: err == nil, so
+  reduceOperationResult (menu.go:1276) takes the failure branch -- red error notice, stays in the archive
+  confirmation frame, skips ProjectionPending -- and one refresh later the notice is replaced by "thread
+  ... is no longer actionable", so the "a session may still be running" warning, the whole reason the
+  value exists, is the one thing the operator loses. The confirmation they accepted reads "archive <label>
+  -- stops its session" (menu.go:1063), which this same commit made false for this state. Retrying, the
+  natural response to a red error, yields the raw "thread not found: {RepoScope:... Tag:...}". The rule:
+  an outcome that is not a failure does not travel on the failure channel -- carry it on the result
+  (ArchiveResult{Record, SessionLeftRunning}) so every renderer can show a warning, or update every
+  consumer in the same commit. Enumeration is three sites: operationdispatch.go:180 -> exit code,
+  console.go:1349's Success, confirmationMenuItems (menu.go:1058-1063). Aggravating: run_test.go:1536
+  dropped its `code != 0` assertion and :1584 now passes on an empty error, so the exit-code change is
+  both undecided and unpinned.
+- **BR-18** [Important] `unbacked-existing-behavior-claim` The plan's M3 entity tables name a file and a verb that do not exist in the tree
+  5th in family. Verified against the tree, not the prose: cmd/internal/couchcore/retire.go does not
+  exist, DecideRetirement and RetirementVerdict are in no file, "couch prune" is in no registry, and
+  ThreadStore.Archive shipped as ThreadStore.ArchiveThread -- four rows in the M3 Pure-entities and
+  Integration-points tables (plan:871-872, :906-908), four claims, zero backing, while Task 11 and Task 13
+  twenty lines below say NOT BUILT. Round 4 raised this as a section-7 plan-revision recommendation and it
+  was not actioned, so recommending it again has already failed once. The class rule is BR-15's own: a
+  claim in an artifact names the code that backs it or is demoted to intent -- and a greppable entity
+  table is the highest-value place to enforce it, because it is what a future agent greps instead of the
+  Revisions section. Fix: a `not built -- see Revisions` status on those rows, and the same sweep over the
+  M1 table's nine-reason list, which still omits `unreadable` and still carries the archive-eligibility
+  clause the code deleted from threadreason.go:59 this round.
+
 ## Open findings
 
-- **BR-1** [Minor] `new-state-unhandled-at-consumers` ThreadBusy rows reach Enter and menuActionItems, where !Live() offers switch and resume
 - **BR-6** [Important] `new-state-unhandled-at-consumers` Occupancy is decided in five places with four different definitions
-- **BR-12** [Critical] `unnavigable-refusal` The unreadable-record start refusal names two next steps, neither of which works, and has no seam test
 - **BR-15** [Minor] `unbacked-existing-behavior-claim` Two behavioural claims added this window have no enforcing code, and one contradicts a comment 20 lines away
 - **BR-16** [Minor] `new-state-unhandled-at-consumers` The switcher offers name and describe on an unreadable row; both fail with the raw decoder error "couch: EOF"
+- **BR-17** [Important] `new-state-unhandled-at-consumers` UnreadableArchiveWarning is a success delivered on the failure channel, and every consumer reads it as a failed archive
+- **BR-18** [Important] `unbacked-existing-behavior-claim` The plan's M3 entity tables name a file and a verb that do not exist in the tree

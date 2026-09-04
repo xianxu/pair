@@ -229,13 +229,15 @@ func TestAnUndecodableRecordIsAVisibleRowAndCanBeArchived(t *testing.T) {
 
 	// And it can leave: an unusable row the operator cannot remove is worse
 	// than one they cannot use.
-	// It archives, and it WARNS: couch could not read the record, so it did not
-	// stop the session -- quiescing would kill an agent on the strength of a
-	// record it just failed to read.
-	_, err = couch.ArchiveThread(context.Background(), corrupt)
-	var warning *UnreadableArchiveWarning
-	if !errors.As(err, &warning) {
-		t.Fatalf("archiving an undecodable record = %v, want an UnreadableArchiveWarning", err)
+	// It archives -- a SUCCESS, because the mutation happened -- and reports in
+	// the result that it did not stop the session, since quiescing would kill
+	// an agent on the strength of a record it just failed to read.
+	result, err := couch.ArchiveThread(context.Background(), corrupt)
+	if err != nil {
+		t.Fatalf("archiving an undecodable record: %v", err)
+	}
+	if !result.SessionNotStopped || result.Warning() == "" {
+		t.Fatalf("archive result = %+v, want it to report the session was left alone", result)
 	}
 	archived, err := store.ArchivedThreads()
 	if err != nil || len(archived) != 1 || archived[0].Address != corrupt {
@@ -257,8 +259,12 @@ func TestArchivingAnUnreadableRecordNeverStopsItsSession(t *testing.T) {
 	artifacts.SetPairSession(corrupt, "pair-"+string(corrupt.Tag), true)
 	couch := &Couch{Threads: store, Artifacts: artifacts, Path: NewFakePathOps(nil)}
 
-	if _, err := couch.ArchiveThread(context.Background(), corrupt); err == nil {
-		t.Fatal("archiving an unreadable record reported plain success")
+	result, err := couch.ArchiveThread(context.Background(), corrupt)
+	if err != nil {
+		t.Fatalf("archiving an unreadable record: %v", err)
+	}
+	if !result.SessionNotStopped {
+		t.Fatal("archive did not report that it left the session alone")
 	}
 	if got := artifacts.Quiesces(); len(got) != 0 {
 		t.Fatalf("quiesced %+v -- couch stopped a session it could not identify", got)

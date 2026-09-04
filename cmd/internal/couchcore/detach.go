@@ -166,15 +166,15 @@ func (c *Couch) awaitExactProcessExit(ctx context.Context, identity ProcessIdent
 // a live session behind it. Quiesce is idempotent -- it returns nil when there
 // is no session bound to the address at all, which is the common debris case --
 // so a refused archive is safe to retry.
-func (c *Couch) ArchiveThread(ctx context.Context, address ThreadAddress) (ThreadRecord, error) {
+func (c *Couch) ArchiveThread(ctx context.Context, address ThreadAddress) (ArchiveResult, error) {
 	if err := validateThreadAddress(address); err != nil {
-		return ThreadRecord{}, err
+		return ArchiveResult{}, err
 	}
 	if c == nil || c.Threads == nil || c.Artifacts == nil {
-		return ThreadRecord{}, errors.New("archive requires a thread store and an artifact controller")
+		return ArchiveResult{}, errors.New("archive requires a thread store and an artifact controller")
 	}
 	if err := ctx.Err(); err != nil {
-		return ThreadRecord{}, err
+		return ArchiveResult{}, err
 	}
 	// Read for the RESULT, not as a precondition. An undecodable record is
 	// exactly what the operator most wants gone, so failing here would leave a
@@ -189,10 +189,10 @@ func (c *Couch) ArchiveThread(ctx context.Context, address ThreadAddress) (Threa
 	// refused -- the agent dead, the record still listed.
 	if readErr == nil {
 		if err := archivableRecord(record); err != nil {
-			return ThreadRecord{}, err
+			return ArchiveResult{}, err
 		}
 		if err := c.Artifacts.Quiesce(address); err != nil {
-			return ThreadRecord{}, fmt.Errorf("archive %s: its session could not be stopped: %w", address.Tag, err)
+			return ArchiveResult{}, fmt.Errorf("archive %s: its session could not be stopped: %w", address.Tag, err)
 		}
 	} else {
 		// Unreadable: the operator can still remove the row -- that escape is
@@ -205,25 +205,33 @@ func (c *Couch) ArchiveThread(ctx context.Context, address ThreadAddress) (Threa
 		record = ThreadRecord{Address: address}
 	}
 	if err := c.Threads.ArchiveThread(address); err != nil {
-		return ThreadRecord{}, err
+		return ArchiveResult{}, err
 	}
-	if readErr != nil {
-		return record, &UnreadableArchiveWarning{Address: address}
-	}
-	return record, nil
+	return ArchiveResult{Record: record, SessionNotStopped: readErr != nil}, nil
 }
 
-// UnreadableArchiveWarning reports an archive that filed a record couch could
-// not read, and therefore deliberately did not stop.
+// ArchiveResult is what archiving did, including what it deliberately did NOT
+// do.
 //
-// It is an error value because the caller must not report plain success: a
-// session may still be running and nothing now tracks it. It is a WARNING
-// because the archive did happen -- the row is gone, which is what the operator
-// asked for.
-type UnreadableArchiveWarning struct{ Address ThreadAddress }
+// The warning used to travel as an error, which made every consumer read a
+// completed archive as a failed one: the CLI exited 1 while the row was gone,
+// and the switcher took its failure branch -- a red notice, the confirmation
+// frame left open, no projection refresh -- so the recovery path the start
+// refusal names appeared to fail. An operation that mutated is a success; what
+// it could not do belongs in the result.
+type ArchiveResult struct {
+	Record ThreadRecord
+	// SessionNotStopped means couch could not read the record and so left its
+	// session alone rather than stopping something it could not identify.
+	SessionNotStopped bool
+}
 
-func (w *UnreadableArchiveWarning) Error() string {
+// Warning is the operator-facing note, empty when there is nothing to say.
+func (r ArchiveResult) Warning() string {
+	if !r.SessionNotStopped {
+		return ""
+	}
 	return fmt.Sprintf(
-		"archived %s, but couch could not read its record and so did not stop its session; "+
-			"check `zellij list-sessions` if an agent is still running", w.Address.Tag)
+		"couch could not read %s, so it archived the record without stopping its session; "+
+			"check `zellij list-sessions` if an agent is still running", r.Record.Address.Tag)
 }

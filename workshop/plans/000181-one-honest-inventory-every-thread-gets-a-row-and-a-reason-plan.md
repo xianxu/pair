@@ -122,7 +122,7 @@ different change cadence from the projector.
   into a positive claim: a transient `DetachedSessions` failure (today handled
   at `actionableinventory.go:285-292` as "not proved this round") would assert
   `session-gone` on every detached row — and `session-gone` is a reason M3's
-  `DecideRetirement` acts on. That is a path from one failed subprocess call to
+  retirement acts on. That is a path from one failed subprocess call to
   archiving live sessions. `ProofUnresolved` classifies `unusable(unknown)`,
   which is **never archive-eligible**.
   - **Relationships:** 1:1 with a record, built per refresh, keyed by
@@ -867,12 +867,18 @@ evidence genuinely says finished, not one the system lost.
 
 ### Pure entities
 
+**NOT BUILT — superseded, see Revisions.** These rows described a retirement
+predicate the operator replaced with an operator action. `retire.go` does not
+exist and neither symbol is in the tree; the rows are kept struck through
+because a plan that quietly loses a proposal hides the decision that killed it.
+
 | Name | Lives in | Status |
 |------|----------|--------|
-| `RetirementVerdict` | `cmd/internal/couchcore/retire.go` | new |
-| `DecideRetirement` | `cmd/internal/couchcore/retire.go` | new |
+| ~~`RetirementVerdict`~~ | ~~`cmd/internal/couchcore/retire.go`~~ | not built |
+| ~~`DecideRetirement`~~ | ~~`cmd/internal/couchcore/retire.go`~~ | not built |
 
 ```go
+// NOT BUILT. Kept as the proposal an operator decision replaced.
 type RetirementVerdict struct {
 	Retire bool
 	Reason ThreadReason // the reason that justified retiring, empty when keeping
@@ -882,7 +888,7 @@ type RetirementVerdict struct {
 func DecideRetirement(summary ActionableThreadSummary, evidence ThreadEvidence) RetirementVerdict
 ```
 
-- **DecideRetirement** — retires only `never-started`, `invalid`, and
+- **DecideRetirement** *(not built)* — would have retired only `never-started`, `invalid`, and
   `session-gone` **with the transcript confirmed absent**. Never retires
   `binding-lost` or `stale-incarnation`: those are repairable, and retiring one
   is how a recoverable session becomes unrecoverable.
@@ -891,10 +897,19 @@ func DecideRetirement(summary ActionableThreadSummary, evidence ThreadEvidence) 
 
 ### Integration points
 
+**As shipped**, corrected against the tree: `ThreadStore.Archive` landed as
+`ThreadStore.ArchiveThread`, and `couch prune` was not built at all — with one
+thread per path enforced and archive available per row, a bulk sweep had nothing
+to sweep, so the one-time cleanup ran as a throwaway program instead.
+
 | Name | Lives in | Status | Wraps |
 |------|----------|--------|-------|
-| `ThreadStore.Archive` | `cmd/internal/couchcore/threadstore.go` | new | the records directory + manifest |
-| `couch prune` | `cmd/internal/couchcmd/run.go` | new | operator invocation |
+| `ThreadStore.ArchiveThread` | `cmd/internal/couchcore/threadstore.go` | new | the records directory + manifest |
+| `ThreadStore.ArchivedThreads` | `cmd/internal/couchcore/threadstore.go` | new | the archive directory |
+| `Couch.ArchiveThread` | `cmd/internal/couchcore/detach.go` | new | quiesce + the store move |
+| `ArchiveResult` | `cmd/internal/couchcore/detach.go` | new | what the archive did and did not do |
+| `archive` / `archived` operations | `cmd/internal/couchcore/ops.go` | new | the declared operation surface |
+| ~~`couch prune`~~ | ~~`cmd/internal/couchcmd/run.go`~~ | not built | — |
 
 - **ThreadStore.Archive** — moves `records/<scope>/<tag>.json` to
   `archive/<scope>/<tag>.json` and drops it from the manifest. Restoring is
