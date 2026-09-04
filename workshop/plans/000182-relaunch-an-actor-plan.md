@@ -334,21 +334,21 @@ func TestASuccessfulRelaunchKeepsTheAddressTheRowAndTheConversation(t *testing.T
 - Modify: `cmd/internal/couchcore/ops.go`, `operationdispatch.go`, `ops_declarations_test.go`
 - Test: `cmd/internal/couchcmd/run_test.go`
 
-- [ ] **Step 1: Declare `relaunch`**, dispatched through `resolveOperationThread`
+- [x] **Step 1: Declare `relaunch`**, dispatched through `resolveOperationThread`
       — the ONE thread-addressing dialect, because reading only `ref` is how
       `Tab → archive` shipped broken (`pair#181` M3, C-1).
-- [ ] **Step 2: Write the seam test FIRST**, in `couchcmd`, dispatching
+- [x] **Step 2: Write the seam test FIRST**, in `couchcmd`, dispatching
       `relaunch` in the switcher's `{repo-scope, tag}` dialect through the real
       runtime. Neither a store test nor a menu test crosses that boundary.
-- [ ] **Step 3-5:** implement, run, commit.
+- [x] **Step 3-5:** implement, run, commit.
 
 ### Task 7: close M1
 
-- [ ] **Step 1:** `atlas/couch.md` — relaunch beside detach and park, the
+- [x] **Step 1:** `atlas/couch.md` — relaunch beside detach and park, the
       four-outcome table, and the axis that will otherwise be confused:
       `Alt+Shift+N` restarts the *conversation* and keeps the code; relaunch
       restarts the *code* and keeps the conversation.
-- [ ] **Step 2:** Full `env -u PAIR_SESSION_ID -u PAIR_TAG make test` — exit 0.
+- [x] **Step 2:** Full `env -u PAIR_SESSION_ID -u PAIR_TAG make test` — exit 0.
 - [ ] **Step 3:** `sdlc milestone-close --issue 182 --milestone M1`.
 
 ---

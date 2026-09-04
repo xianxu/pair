@@ -315,3 +315,35 @@ func TestASuccessfulRelaunchKeepsTheAddressTheRowAndTheConversation(t *testing.T
 		t.Fatalf("row = %+v (found %v), want a live row at the same address", row, ok)
 	}
 }
+
+// The seam neither a store test nor a menu test crosses: the switcher
+// dispatches {repo-scope, tag} through threadEffect, and an executor reading
+// only `ref` is how Tab → archive shipped broken (pair#181 M3, C-1).
+//
+// It runs through DispatchOperation with the production executors, because that
+// is where the dialect is actually resolved. A couchcmd test cannot reach it:
+// relaunch is ExecuteLiveOwner, so the CLI runtime returns its routing refusal
+// before any of this code runs — which is exactly what a first attempt at this
+// test did, passing for a reason unrelated to what it claimed.
+func TestRelaunchResolvesTheSwitchersDialectThroughTheRealDispatcher(t *testing.T) {
+	env, live := envWithLiveThread(t)
+
+	result, err := DispatchOperation(OperationExecutors{
+		DirectStore: DirectStoreExecutor(env.Couch),
+		LiveOwner:   CouchLiveOwnerExecutor(env.Couch),
+	}, OperationCall{
+		Name: "relaunch", Implicit: true,
+		Args: map[string]string{
+			"repo-scope": live.Address.RepoScope,
+			// tag, not ref: exactly what threadEffect sends.
+			"tag": string(live.Address.Tag),
+		},
+	})
+	if err != nil {
+		t.Fatalf("relaunch through the switcher's dialect: %v", err)
+	}
+	relaunched, ok := result.(RelaunchResult)
+	if !ok || relaunched.Outcome != Relaunched {
+		t.Fatalf("result = %#v, want a completed RelaunchResult", result)
+	}
+}

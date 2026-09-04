@@ -440,6 +440,36 @@ also what keeps Couch alive when the LAST actor detaches: an actor-focused
 console exits with its final child, so without the focus move the safe gesture
 would end the session.
 
+**Relaunch replaces a thread's Pair process and keeps its agent conversation**
+(`pair#182`). It is park-then-resume composed as one operation, and the design is
+entirely in the ORDER: park is destructive and resume can refuse, so a relaunch
+that parks and then finds the resume cannot run has traded a working session for
+a cold one. Every refusal a check can see is raised BEFORE the park —
+`CheckResumePreconditions` (the resume rules a park cannot change, shared with
+`DecideResume` so the two cannot drift) plus `soleParkableIncarnation`, which is
+park's own precondition and not one of resume's.
+
+Four outcomes, and which state each leaves behind is the point:
+
+| outcome | thread after | recovery |
+| --- | --- | --- |
+| `Relaunched` | one live incarnation, same address, same conversation | — |
+| `RefusedBeforePark` | unchanged, still live | nothing happened |
+| `ParkIncomplete` | OPEN park transaction; Pair already sent its quit intent | park's `retry`/`recover`/`abandon` — NOT `Enter`, which refuses `ResumeParking` |
+| `park-ok-resume-failed` | verified park, no incarnation | `Enter` on the row |
+
+Two preconditions cannot be checked early and are named rather than hoped over:
+the native binding is validated against artifacts the agent is still writing, so
+established-before does not imply established-after (a change lands in the
+park-ok row, recoverable); and a Pair CLEANUP failure is not a park failure at
+all — `CleanupAttempt` runs after the durable completion and the final CAS
+(`park.go:642-643`), so its error lands in `ParkResult.CleanupError` while the
+park returns nil, and relaunch proceeds.
+
+**The axis that will otherwise be confused.** Pair's `Alt+Shift+N` restarts the
+*conversation* and keeps the code; relaunch restarts the *code* and keeps the
+conversation. They are inverses, and both exist.
+
 `Leave` is the whole-couch form of that same pair, carrying a
 `LeaveDisposition`: `LeaveDetach` applies `Detach` to every live thread,
 `LeavePark` applies `Park`. Detach is the default and the safe one -- quitting
