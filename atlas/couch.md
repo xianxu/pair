@@ -920,10 +920,20 @@ transient -- an older transient is staler, so it is never a better answer.
 
 The row's expiry is also a REPAINT obligation: nothing else is guaranteed to
 happen when a notice stops being true, so `Run` arms one timer for the row's own
-deadline beside `syncSpinner`, dedup on the deadline's identity so an
-event-heavy console cannot push it out forever. `Feed` takes both its clock and
-its lifetime, because the two are exercised at different levels -- pure expiry
-tests hand-advance a fake clock, a console test must let a real timer fire.
+deadline beside `syncSpinner`. That dedup is an OPTIMISATION and not a
+correctness rule: re-arming every iteration would still fire at the right
+moment, because the remaining duration shrinks with the deadline. Recorded that
+way deliberately -- the first version of this note claimed the notice would
+never retire without it, which was false, and a false rationale outlives the
+line it justifies. `Feed` takes both its clock and its lifetime, because the two
+are exercised at different levels: pure expiry tests hand-advance a fake clock,
+a console test must let a real timer fire.
+
+Pushing a notice and painting it are ONE operation (`publishNotice`). They were
+two until a lifetime existed, when "the sentence appears whenever something else
+next paints" stopped being merely late: on an idle console nothing else paints,
+so a notice could expire entirely unseen, which is worse than one that
+overstayed.
 
 The goroutine loop that used to wrap it (`Actor`) was groundwork for
 `pair#147`, where messages between actors would begin to exist. That scope is

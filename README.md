@@ -311,6 +311,10 @@ scan. Alt+d is intercepted by Couch as its own detach operation: un-intercepted
 it would leave Couch with a dead child and a stale incarnation, and the thread
 would vanish from the switcher. Detaching an actor moves focus to the switcher,
 which is also what keeps Couch alive when the last actor detaches.
+Messages on the reserved status row retire themselves: a momentary refusal
+("previous: nowhere to return to") goes after about twelve seconds, while an
+actor's exit stands until something replaces it -- one answers the keystroke you
+just pressed, the other explains why a pane disappeared.
 
 A TUI startup that creates a new root allocates a distinct opaque durable
 thread; automatic resume reuses the thread already there instead. **Couch keeps

@@ -55,9 +55,22 @@ Three consequences that are the design, not extras:
    at that moment — an idle console with no children producing output would keep
    painting a stale sentence forever — so the Run loop arms one timer for the
    row's own deadline, the same shape `syncSpinner` already uses, and re-arms at
-   the bottom of every iteration. It dedups on the deadline's identity: without
-   that, an event-heavy console would push the deadline out on every iteration
-   and the notice would never actually go.
+   the bottom of every iteration. It dedups on the deadline's identity, which is
+   an OPTIMISATION rather than a correctness rule — re-arming every iteration
+   would still fire at the right moment, since the remaining duration shrinks
+   with the deadline. Said plainly because this Spec first claimed the notice
+   "would never actually go" without it, which the close review disproved
+   (BR-2); a false rationale is worse than none, because it invites the next
+   reader to preserve a line for a reason that was never true.
+4. **Pushing a notice and painting it are one operation** (`publishNotice`).
+   They were two, and that was merely LATE while notices stood forever: the
+   sentence appeared whenever something else next painted. A lifetime turns it
+   into a correctness bug — on an idle console nothing else paints, so a refusal
+   can expire entirely UNSEEN, which is worse than one that overstayed. Found by
+   the close review as BR-1 (Critical), and it is a regression this change
+   introduced: the Log below had already noticed `setNotice` does not repaint and
+   deliberately left the question open, without connecting that adding expiry is
+   exactly what makes it load-bearing.
 
 **Both the clock and the lifetime are injected**, and that pair is load-bearing
 rather than over-parameterisation. Pure expiry tests hand-advance a fake clock;
@@ -110,9 +123,23 @@ out waiting for the row to lose the sentence and
 `TestATransientNoticeStopsStandingAndAControlOneDoesNot` fails on the pure
 policy.
 
-One design note worth keeping: `setNotice` does not itself repaint, so a notice
-reaches the screen on the next paint from some other cause. That is why the
-console test forces one `repaint()` before testing the expiry — the initial
-paint is not what is under test. Whether `setNotice` should repaint is a real
-question and deliberately NOT answered here; it would change when every notice
-in couch first appears.
+**The open question above was the bug.** The first version of this Log noted
+that `setNotice` does not repaint, called it "a real question deliberately NOT
+answered here", and had the console test force a `repaint()` so expiry could be
+tested past it. The close review named that BR-1, Critical, and was right: once
+transients expire, a notice nothing repaints is a notice the operator never
+sees — worse than one that overstayed. The forced `repaint()` in the test was
+the tell; a test step that exists to work around the code is usually reporting a
+defect rather than accommodating one. `publishNotice` now pushes and paints
+together, the test asserts the sentence reaches the row with no other event, and
+it is verified red.
+
+Lesson: an open question I raise about my own change is not neutral. If I can
+see the question, I can see the case where the answer matters — and here the
+same change that raised it is what made the answer load-bearing.
+
+BR-2, same round: the timer dedup was documented in four places (code, Spec,
+atlas, commit message) as the thing preventing the notice from never retiring.
+It is not — re-arming every iteration still fires at the right moment, because
+the remaining duration shrinks with the deadline. It is an optimisation, and all
+four now say so.

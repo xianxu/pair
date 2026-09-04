@@ -3279,3 +3279,21 @@ that a key token appears cannot detect a contradictory behavioral sentence
   twelve-second timer, so the arming looked exercised and was not. The lifetime
   had to be injectable too. If a test passes without the production mechanism
   running, the seam is in the wrong place.
+- A test step that works AROUND the code is usually reporting a defect, not
+  accommodating one. couch's notice test called `repaint()` by hand so the
+  expiry could be tested past the fact that pushing a notice paints nothing —
+  and that hand-call was the Critical the close review found: with a lifetime,
+  a notice nothing repaints is one the operator never sees. When a test needs a
+  step the operator has no way to perform, ask what that step is compensating
+  for.
+- An open question raised about your own change is not neutral. Flagging
+  "whether X should also happen is a real question, deliberately not answered"
+  and shipping is only safe if the change does not itself make the answer
+  load-bearing. Here it did: giving notices a lifetime is exactly what turned
+  "the paint is late" into "the message is never seen".
+- Never document a line as correctness-critical without testing the claim.
+  couch's timer dedup was justified in code, Spec, atlas AND commit message as
+  the thing stopping a notice from never retiring; re-arming every iteration
+  fires at the same moment, so it is an optimisation. A false rationale outlives
+  the line it justifies and teaches the next reader to preserve it for a reason
+  that was never true.

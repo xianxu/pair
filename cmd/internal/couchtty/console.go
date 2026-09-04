@@ -127,7 +127,11 @@ type Console struct {
 	switching chan string
 	input     chan []byte
 	// trace is nil unless COUCH_INPUT_TRACE names a file; see inputtrace.go.
-	trace              *inputTracer
+	trace *inputTracer
+	// started reports that Run owns the terminal, so a notice may paint itself.
+	// Its own field rather than something inferred from another: "is it safe to
+	// write to the operator's screen yet" is its own question.
+	started            bool
 	exited             chan childExit
 	operationQueue     *operationQueue
 	refreshRequests    chan struct{}
@@ -200,11 +204,11 @@ func (c *Console) SetInputTrace(path string) error {
 	c.mu.Lock()
 	previous := c.trace
 	c.trace = tracer
-	if err != nil {
-		c.feed.Push(Notice{Kind: "trace", Control: true, Body: err.Error()})
-	}
 	c.mu.Unlock()
 	_ = previous.Close()
+	if err != nil {
+		c.publishNotice(Notice{Kind: "trace", Control: true, Body: err.Error()})
+	}
 	return err
 }
 
@@ -509,6 +513,9 @@ func (c *Console) Run() int {
 		return 1
 	}
 	defer c.teardown(restore)
+	c.mu.Lock()
+	c.started = true
+	c.mu.Unlock()
 
 	c.applyLayout()
 	c.paintNow()
@@ -655,8 +662,13 @@ func (c *Console) Run() int {
 			noticeExpiry = time.Time{}
 			return
 		}
-		// Same deadline, same timer. Without this an event-heavy console would
-		// re-arm on every iteration and the notice would never actually go.
+		// Same deadline, same timer: an OPTIMISATION, not a correctness rule.
+		// Re-arming every iteration would still fire at the right moment, since
+		// Standing shrinks as the deadline approaches -- it would only churn the
+		// timer. Said plainly because the first version of this comment claimed
+		// the notice "would never actually go" without it, which is false, and a
+		// false rationale is worse than none: it invites the next reader to
+		// preserve a line for a reason that was never true.
 		if noticeC != nil && row.Expires.Equal(noticeExpiry) {
 			return
 		}
@@ -701,7 +713,13 @@ func (c *Console) Run() int {
 			c.onMenuKey(PanelKey{Kind: KeyEscape})
 		case <-noticeC:
 			// The row's own deadline: repaint so the expired sentence goes.
+			// Clearing the remembered deadline too, so the dedup above compares
+			// against nothing stale. Correct without it today -- an expired row
+			// reports a zero Expires -- but only by a coincidence two files
+			// apart, and an invariant that holds by coincidence is one edit from
+			// not holding.
 			noticeC = nil
+			noticeExpiry = time.Time{}
 			c.repaint()
 		case <-spinnerC:
 			owner := spinnerOwner
@@ -827,13 +845,16 @@ func (c *Console) onExit(event childExit) bool {
 		c.focus = FocusPanel()
 	}
 	expected := c.consumeExpectedParkExitLocked(event.id, p.thread)
-	if !expected {
-		exitNotice := ExitNotice(p.actorID, p.label, event.code)
-		c.feed.Push(exitNotice)
-	}
 	forget := c.forget
 	last := len(c.panes) == 0
 	c.mu.Unlock()
+
+	if !expected {
+		// Through publishNotice like every other notice, rather than a bare
+		// push: one path decides that a notice is shown, and this one is the
+		// operator's only explanation for a pane that just vanished.
+		c.publishNotice(ExitNotice(p.actorID, p.label, event.code))
+	}
 
 	if forget != nil {
 		if err := forget(p.tree, p.actorID); err != nil {
@@ -1648,7 +1669,29 @@ func (c *Console) switchTargetForAddressLocked(address couchcore.ThreadAddress) 
 }
 
 func (c *Console) setNotice(text string) {
+	c.publishNotice(Notice{Kind: "status", Body: text})
+}
+
+// publishNotice is the ONE way a notice reaches the operator: it pushes to the
+// feed and repaints the row that shows it.
+//
+// Pushing without repainting used to be merely late -- the sentence appeared
+// whenever something else next painted, and stayed forever once it did. Giving
+// transients a lifetime (pair#185) turned that into a correctness bug: on an
+// idle console with no child producing output, nothing repaints, so a refusal
+// could expire entirely UNSEEN. A message the operator never saw is worse than
+// one that overstayed. Push and paint are therefore one operation rather than
+// two things to remember in the right order.
+//
+// The repaint waits for Run: before it, the terminal is not in raw mode or the
+// alt screen, and painting a status row into the operator's shell is not a
+// message, it is damage. Whatever is queued by then is shown by the first paint.
+func (c *Console) publishNotice(n Notice) {
 	c.mu.Lock()
-	c.feed.Push(Notice{Kind: "status", Body: text})
+	c.feed.Push(n)
+	started := c.started
 	c.mu.Unlock()
+	if started {
+		c.repaint()
+	}
 }

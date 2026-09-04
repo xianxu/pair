@@ -39,13 +39,11 @@ func TestAnIdleConsoleRepaintsWhenItsNoticeExpires(t *testing.T) {
 	if _, err := writer.Write([]byte{previousByte}); err != nil {
 		t.Fatalf("write ctrl+backspace: %v", err)
 	}
-	waitFor(t, "the refusal to reach the feed", func() bool {
-		con.mu.Lock()
-		defer con.mu.Unlock()
-		return strings.Contains(con.feed.Row().Body, "nowhere to return to")
-	})
-	con.repaint()
-	waitFor(t, "the refusal to reach the row", func() bool {
+	// It must reach the SCREEN on its own. The first version of this test forced
+	// a repaint here, which hid the regression giving notices a lifetime
+	// introduced: on an idle console nothing else repaints, so a refusal that is
+	// never painted now expires UNSEEN -- worse than one that overstayed.
+	waitFor(t, "the refusal to reach the row with no other event", func() bool {
 		return strings.Contains(host.Written(), "nowhere to return to")
 	})
 
@@ -75,10 +73,7 @@ func TestAnExitNoticeSurvivesAnIdleConsole(t *testing.T) {
 	go con.Run()
 	waitFor(t, "the console to start", func() bool { return len(child.Resizes()) > 0 })
 
-	con.mu.Lock()
-	con.feed.Push(ExitNotice("couch-b1", "tools", 1))
-	con.mu.Unlock()
-	con.repaint()
+	con.publishNotice(ExitNotice("couch-b1", "tools", 1))
 	waitFor(t, "the exit notice to reach the row", func() bool {
 		return strings.Contains(host.Written(), "exited (1)")
 	})
