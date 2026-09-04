@@ -5,9 +5,11 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"io/fs"
 	"os"
 	"path/filepath"
 	"sort"
+	"strings"
 	"time"
 
 	"github.com/xianxu/pair/cmd/internal/threadrecord"
@@ -927,4 +929,118 @@ func (s *ThreadStore) commitJournalLocked(journal storeJournal) error {
 		return err
 	}
 	return syncDirectory(s.root)
+}
+
+// archivePath is where a retired record goes: the same layout under a
+// different root, so the same reader inspects it and restoring is a file move
+// plus a manifest re-add.
+func (s *ThreadStore) archivePath(address ThreadAddress) string {
+	return filepath.Join(s.root, "archive", address.RepoScope, string(address.Tag)+".json")
+}
+
+// ArchiveThread removes a thread from the working set and keeps its record.
+//
+// The operator's word for this is "delete" -- get it out of my switcher so I
+// can start anew -- and archiving is how that is done without being
+// irreversible. A record moves, it is not destroyed: the same decoder reads
+// `threadstore/archive/<scope>/<tag>.json`, and a mistake is undone by moving
+// the file back and re-adding the address to the manifest.
+//
+// It refuses a thread that is still LIVE or mid-park. Archiving a record while
+// couch hosts its child would leave the console owning a thread the store no
+// longer lists -- the same shape as the stale incarnations #181 exists to stop
+// producing. Everything else goes: parked, detached and every unusable reason,
+// because the operator is the one who decides a thread is finished.
+func (s *ThreadStore) ArchiveThread(address ThreadAddress) error {
+	if err := validateThreadAddress(address); err != nil {
+		return err
+	}
+	return s.withLock(func() error {
+		manifest, manifestRaw, _, err := s.loadManifestLocked()
+		if err != nil {
+			return err
+		}
+		raw, exists, err := readOptionalFile(s.recordPath(address))
+		if err != nil {
+			return err
+		}
+		if !exists {
+			return fmt.Errorf("%w: %+v", ErrThreadNotFound, address)
+		}
+		record, err := s.decodeThreadRaw(address, raw)
+		if err != nil {
+			return err
+		}
+		if record.Park != nil {
+			return fmt.Errorf("thread %s has a park in flight; let it finish before archiving", address.Tag)
+		}
+		for _, incarnation := range record.Incarnations {
+			if incarnation.State == IncarnationLive {
+				return fmt.Errorf("thread %s is live; park or detach it before archiving", address.Tag)
+			}
+		}
+		nextManifest := manifest
+		nextManifest.Generation++
+		nextManifest.Threads = removeThreadAddress(nextManifest.Threads, address)
+		nextRaw, err := json.MarshalIndent(nextManifest, "", "  ")
+		if err != nil {
+			return err
+		}
+		// One journal, three effects: the archive copy appears, the record
+		// disappears, the manifest stops listing it. A crash between them would
+		// otherwise leave a record in no set or in both.
+		archived := append([]byte{}, raw...)
+		expectedRecord := append([]byte{}, raw...)
+		expectedManifest := append([]byte{}, manifestRaw...)
+		afterManifest := append(nextRaw, '\n')
+		return s.commitJournalLocked(storeJournal{SchemaVersion: 1, Entries: []storeJournalEntry{
+			{Path: relativeStorePath(s.root, s.archivePath(address)), After: &archived},
+			{Path: relativeStorePath(s.root, s.recordPath(address)), Expected: &expectedRecord},
+			{Path: relativeStorePath(s.root, s.manifestPath()), Expected: &expectedManifest, After: &afterManifest},
+		}})
+	})
+}
+
+// ArchivedThreads lists what has been retired, without loading any of it into
+// the working set. It is how the operator inspects a decision they can undo.
+func (s *ThreadStore) ArchivedThreads() ([]ThreadRecord, error) {
+	root := filepath.Join(s.root, "archive")
+	var records []ThreadRecord
+	err := filepath.WalkDir(root, func(path string, entry fs.DirEntry, err error) error {
+		if err != nil {
+			if errors.Is(err, os.ErrNotExist) {
+				return nil
+			}
+			return err
+		}
+		if entry.IsDir() || filepath.Ext(path) != ".json" {
+			return nil
+		}
+		raw, readErr := os.ReadFile(path)
+		if readErr != nil {
+			return readErr
+		}
+		address := ThreadAddress{
+			RepoScope: filepath.Base(filepath.Dir(path)),
+			Tag:       ThreadTag(strings.TrimSuffix(filepath.Base(path), ".json")),
+		}
+		record, decodeErr := s.decodeThreadRaw(address, raw)
+		if decodeErr != nil {
+			// An archived record that no longer decodes is still evidence the
+			// operator may want; skipping it beats failing the whole listing.
+			return nil
+		}
+		records = append(records, record)
+		return nil
+	})
+	if err != nil {
+		return nil, err
+	}
+	sort.Slice(records, func(i, j int) bool {
+		if records[i].Address.RepoScope != records[j].Address.RepoScope {
+			return records[i].Address.RepoScope < records[j].Address.RepoScope
+		}
+		return records[i].Address.Tag < records[j].Address.Tag
+	})
+	return records, nil
 }

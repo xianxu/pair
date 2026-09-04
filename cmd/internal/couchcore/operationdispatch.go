@@ -154,6 +154,28 @@ func DirectStoreExecutor(c *Couch) OperationExecutor {
 				}
 			}
 			return narrowed, nil
+		case "archived":
+			records, err := c.Threads.ArchivedThreads()
+			if err != nil {
+				return nil, err
+			}
+			// No evidence pass: an archived thread is out of the working set,
+			// so asking whether its session is alive would be answering a
+			// question about a thread couch no longer tracks.
+			return BuildThreadInventory(records, nil), nil
+		case "archive":
+			if err := requireOperationRepoScope(a); err != nil {
+				return nil, err
+			}
+			matches, err := c.ResolveThreadReference(a["repo-scope"], a["ref"])
+			if err != nil {
+				return nil, err
+			}
+			record := matches[0]
+			if err := c.Threads.ArchiveThread(record.Address); err != nil {
+				return nil, err
+			}
+			return record, nil
 		case "name":
 			if err := requireOperationRepoScope(a); err != nil {
 				return nil, err

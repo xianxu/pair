@@ -372,7 +372,11 @@ how you quit: everything keeps running, you land back in your shell, and a later
 confirmation that names how many agents it stops. Confirmation follows the key,
 not the surface — park is confirmed at both scopes and detach at neither. Leaving
 never depends on there being something live to act on, so an empty switcher is
-never a dead end. `Escape` clears the filter or returns to an attached actor;
+never a dead end. `Tab → archive` removes a thread from couch and keeps its record: it is the
+operator's delete, offered on every row couch is not hosting, and undone by
+moving the file back from `threadstore/archive/` and re-adding its address to
+the manifest. `couch --archived` lists what has been retired. `Escape` clears
+the filter or returns to an attached actor;
 with no live actor, the switcher stays open and reports why. Press `ctrl-space` again from the
 switcher to open the path/agent start form; an empty path uses the existing `.`
 default. In the path field, `Tab` asynchronously completes directories only:

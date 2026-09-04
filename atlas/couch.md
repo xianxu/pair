@@ -130,11 +130,23 @@ proves the public test target generates it before every consumer.
 
 `couchcore.Operations()` is the closure-free capability schema: typed
 argument/result family, effect, confirmation, execution owner, and presentation.
-`list` and `show` project only as public `--list` and `--show`; the hosted-agent
-hook `publish-description` projects only through hidden
-`couch --internal publish-description <text>`. `prepare-start`, `start`,
-`attach`, `switch`, `park`, `resume`, `leave`, `stop`, `name`, and `describe`
-are TUI/in-process operations. Adding a typed operation cannot expose argv
+`list`, `show` and `archived` project as public `--list`, `--show` and
+`--archived`; the hosted-agent hook `publish-description` projects only through
+hidden `couch --internal publish-description <text>`. `prepare-start`, `start`,
+`attach`, `switch`, `park`, `resume`, `leave`, `stop`, `name`, `describe` and
+`archive` are TUI/in-process operations.
+
+`archive` is the operator's "delete": it removes a thread from the working set
+and KEEPS its record, moving `threadstore/records/<scope>/<tag>.json` to
+`threadstore/archive/<scope>/<tag>.json` and dropping the address from the
+manifest in one journal entry, so a crash cannot leave a record in both sets or
+neither. Restoring is that move reversed plus a manifest re-add -- `Snapshot`
+walks the manifest, so a restored file the manifest does not list stays
+invisible. It refuses a LIVE or mid-park thread: archiving a record couch is
+hosting would leave the console owning a thread the store no longer lists, which
+is the stale-incarnation shape by construction. Every other state goes,
+including every unusable reason, because the operator decides a thread is
+finished. Adding a typed operation cannot expose argv
 without assigning a presentation. `DispatchOperation` validates a call and
 invokes exactly one injected direct-store or live-owner executor; missing owner
 capability returns the typed cross-actor routing refusal and never falls back

@@ -13,6 +13,7 @@ const (
 	cliInvalid cliKind = iota
 	cliLaunch
 	cliList
+	cliArchived
 	cliShow
 	cliInternal
 	cliHelp
@@ -46,6 +47,11 @@ func ParseCLI(args []string, operations []couchcore.Operation) (cliInvocation, e
 			return invalid("--list takes no arguments")
 		}
 		return cliInvocation{kind: cliList}, nil
+	case "--archived":
+		if len(args) != 1 {
+			return invalid("--archived takes no arguments")
+		}
+		return cliInvocation{kind: cliArchived}, nil
 	case "--show":
 		if len(args) != 2 || args[1] == "" || strings.HasPrefix(args[1], "-") {
 			return invalid("--show requires exactly one non-empty reference")

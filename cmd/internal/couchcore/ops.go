@@ -231,6 +231,29 @@ func Operations() []Operation {
 			},
 		},
 		{
+			// The archive is inspectable on purpose: retiring a thread is a
+			// decision the operator can undo, and an undo they cannot see is
+			// not one they will trust.
+			Name: "archived", Summary: "List work threads removed from Couch",
+			Execution: ExecuteDirectStore, Effect: EffectRead, Confirmation: ConfirmNone,
+			Result: ResultThreadInventory, Presentation: PresentationList,
+		},
+		{
+			// Archiving is the operator's "delete": remove a thread from the
+			// switcher so they can start anew. It is reversible by design --
+			// the record moves rather than being destroyed -- but it is still
+			// confirmed, because a row leaving the working set is exactly the
+			// kind of change that should not happen by a mistyped keystroke.
+			Name: "archive", Summary: "Remove a work thread from Couch, keeping its record in the archive",
+			Execution: ExecuteDirectStore, Effect: EffectMetadata, Confirmation: ConfirmRequired, Result: ResultThread,
+			Presentation: PresentationTUI,
+			Args: []ArgSpec{
+				{Name: "ref", Summary: "thread tag, path, or name", Required: false},
+				{Name: "tag", Summary: "exact thread tag from trusted owner context", Implicit: true},
+				{Name: "repo-scope", Summary: "repository scope derived from caller context", Required: true, Implicit: true},
+			},
+		},
+		{
 			Name: "leave", Summary: "Apply one disposition to every live work thread and leave Couch",
 			Execution: ExecuteLiveOwner, Effect: EffectProcess, Confirmation: ConfirmRequired, Result: ResultConsole,
 			Presentation: PresentationTUI,

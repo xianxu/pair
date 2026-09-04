@@ -28,6 +28,7 @@ var menuControls = []MenuControl{
 	{Keys: "Alt+d", Action: "detach this thread · all + leave couch here"},
 	{Keys: "Alt+x", Action: "park this thread · all + leave couch here"},
 	{Keys: "Escape", Action: "clear/back"},
+	{Keys: "Tab → archive", Action: "remove a thread from couch, keeping its record"},
 }
 
 // MenuControls returns the shared, immutable-by-copy key inventory.
@@ -545,9 +546,9 @@ func reduceActionKey(state MenuState, key PanelKey) (MenuState, []MenuEffect) {
 			return state, nil
 		}
 		switch frame.SelectedItem {
-		case "park":
+		case "park", "archive":
 			appendMenuFrame(&state, MenuFrame{
-				Kind: MenuFrameConfirmation, Thread: thread.Address, Action: "park", SelectedItem: "cancel",
+				Kind: MenuFrameConfirmation, Thread: thread.Address, Action: frame.SelectedItem, SelectedItem: "cancel",
 			})
 		case "detach":
 			// No confirmation: detach destroys nothing. That asymmetry with
@@ -603,8 +604,9 @@ func reduceConfirmationKey(state MenuState, key PanelKey) (MenuState, []MenuEffe
 			state.Frames = state.Frames[:len(state.Frames)-1]
 			return state, nil
 		}
-		if frame.SelectedItem != frame.Action || (frame.Action != "park" && frame.Action != "leave") ||
-			(binds && !thread.Live()) {
+		if frame.SelectedItem != frame.Action ||
+			(frame.Action != "park" && frame.Action != "leave" && frame.Action != "archive") ||
+			(binds && frame.Action != "archive" && !thread.Live()) {
 			return discardThreadFrames(state, frame.Thread, "thread action is no longer applicable"), nil
 		}
 		if frame.Action == "leave" {
@@ -1003,9 +1005,10 @@ func unusableThreadNotice(thread couchcore.ActionableThreadSummary) string {
 
 func menuActionItems(thread couchcore.ActionableThreadSummary) []string {
 	if !menuThreadActionable(thread) {
-		// Metadata only. Naming a thread you cannot enter is still useful --
-		// it is how the operator marks what a lost row was for.
-		return []string{"name", "describe"}
+		// Naming a thread you cannot enter is still useful -- it is how the
+		// operator marks what a lost row was for -- and archiving is how it
+		// leaves, which is the point of a row that cannot be entered.
+		return []string{"archive", "name", "describe"}
 	}
 	if thread.Live() {
 		// Detach first: it is the safe, everyday gesture -- the agent keeps
@@ -1013,7 +1016,10 @@ func menuActionItems(thread couchcore.ActionableThreadSummary) []string {
 		// behind it, in the position the operator has to travel to.
 		return []string{"detach", "park", "name", "describe"}
 	}
-	return []string{"resume", "name", "describe"}
+	// Archive is offered wherever couch is not hosting the thread. It refuses a
+	// live one in the store anyway, and offering an action that always fails is
+	// how a switcher teaches an operator to distrust it.
+	return []string{"resume", "archive", "name", "describe"}
 }
 
 // confirmationMenuItems names what the operator is about to accept.
@@ -1040,6 +1046,9 @@ func confirmationMenuItems(state MenuState, frame MenuFrame) []string {
 		return []string{"cancel", "leave couch, parking " + strconv.Itoa(live) + " live threads"}
 	}
 	thread, _ := findMenuThread(state.Inventory, frame.Thread)
+	if frame.Action == "archive" {
+		return []string{"cancel", "archive " + thread.Label()}
+	}
 	return []string{"cancel", "park " + thread.Label()}
 }
 
@@ -1204,8 +1213,12 @@ func reconcileMenuFrames(state MenuState, previous ...[]couchcore.ActionableThre
 			reconcileItemSelection(&frame, filterMenuItems(menuActionItems(thread), frame.Filter))
 			bound = frame.Thread
 		case MenuFrameConfirmation:
+			// Archive is the exception to the live requirement: it is the
+			// action FOR rows that are not live, so demanding liveness would
+			// drop its confirmation on the next refresh.
 			if (bound != (couchcore.ThreadAddress{}) && bound != frame.Thread) ||
-				(frame.Action != "park" && frame.Action != "leave") || !thread.Live() {
+				(frame.Action != "park" && frame.Action != "leave" && frame.Action != "archive") ||
+				(frame.Action != "archive" && !thread.Live()) {
 				invalidThreadFrame = true
 				state.Notice = errorMenuNotice("thread action is no longer applicable")
 				continue
@@ -1277,7 +1290,7 @@ func reduceOperationResult(state MenuState, event MenuEvent) MenuState {
 			state = restoreMenuPrefixPreservingStart(state, 1, origin)
 			state.Frames[0].SelectedAddress = event.Address
 		}
-	case "park", "detach", "resume", "leave":
+	case "park", "detach", "resume", "leave", "archive":
 		state = restoreMenuPrefixPreservingStart(state, 1, origin)
 		state.Frames[0].SelectedAddress = event.Address
 		reconcileRootSelection(&state, event.Address)
@@ -1291,7 +1304,7 @@ func reduceOperationResult(state MenuState, event MenuEvent) MenuState {
 // terminal focus; leave terminates the console and has no next frame to update.
 func operationNeedsProjectionRefresh(operation string) bool {
 	switch operation {
-	case "start", "park", "detach", "resume", "name", "describe":
+	case "start", "park", "detach", "resume", "name", "describe", "archive":
 		return true
 	case "switch", "leave":
 		return false
@@ -1403,6 +1416,8 @@ func menuOperationProgressText(state MenuState, operation string, address couchc
 		return "renaming " + label
 	case "describe":
 		return "saving " + label + " description"
+	case "archive":
+		return "archiving " + label
 	default:
 		return operation
 	}

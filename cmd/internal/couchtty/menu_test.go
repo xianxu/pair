@@ -1284,3 +1284,54 @@ func TestUnusableRowOffersOnlyMetadataActions(t *testing.T) {
 		t.Fatalf("action items = %v, want name and describe", items)
 	}
 }
+
+// Archive is how a row leaves the switcher, so it has to be reachable from
+// exactly the rows the operator wants gone -- including the ones they cannot
+// enter, which is the whole point.
+func TestArchiveIsOfferedWhereverCouchIsNotHostingTheThread(t *testing.T) {
+	for _, tc := range []struct {
+		name   string
+		thread couchcore.ActionableThreadSummary
+		want   bool
+	}{
+		{name: "unusable", thread: unusableMenuRow(couchcore.ReasonBindingLost), want: true},
+		{name: "parked", thread: menuThreads()[1], want: true},
+		{name: "live", thread: menuThreads()[0], want: false},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			if got := slices.Contains(menuActionItems(tc.thread), "archive"); got != tc.want {
+				t.Fatalf("archive offered = %v, want %v (items %v)", got, tc.want, menuActionItems(tc.thread))
+			}
+		})
+	}
+}
+
+// It is confirmed, and the confirmation survives the inventory refresh that
+// follows it -- a park confirmation requires its thread to be live, and reusing
+// that rule would drop an archive confirmation the moment it appeared.
+func TestArchiveConfirmationDispatchesAndSurvivesARefresh(t *testing.T) {
+	row := unusableMenuRow(couchcore.ReasonSessionGone)
+	state := NewMenuState([]couchcore.ActionableThreadSummary{row}, couchcore.ThreadAddress{})
+	state.InventoryReady = true
+
+	state, _ = reduceKey(state, PanelKey{Kind: KeyTab})
+	frame := state.CurrentFrame()
+	frame.SelectedItem = "archive"
+	state.Frames[len(state.Frames)-1] = frame
+	state, effects := reduceKey(state, PanelKey{Kind: KeyEnter})
+	if len(effects) != 0 || state.CurrentFrame().Kind != MenuFrameConfirmation || state.CurrentFrame().Action != "archive" {
+		t.Fatalf("archive did not open a confirmation: %+v (effects %+v)", state.CurrentFrame(), effects)
+	}
+
+	// The refresh that would have dropped it.
+	state = reconcileMenuFrames(state)
+	if state.CurrentFrame().Kind != MenuFrameConfirmation || state.CurrentFrame().Action != "archive" {
+		t.Fatalf("the confirmation vanished on refresh: %+v", state.Frames)
+	}
+
+	state, _ = reduceKey(state, PanelKey{Kind: KeyDown})
+	_, effects = reduceKey(state, PanelKey{Kind: KeyEnter})
+	if len(effects) != 1 || effects[0].Operation != "archive" {
+		t.Fatalf("confirmed archive dispatched %+v", effects)
+	}
+}

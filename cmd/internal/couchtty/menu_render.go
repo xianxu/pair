@@ -203,7 +203,11 @@ func renderMenuFrame(state MenuState, frame MenuFrame, width, height int, now ti
 		// overwrites line 0 with the breadcrumb. What the operator reads is the
 		// ITEM, which is why the item names the action's cost.
 		thread, _ := findMenuThread(state.Inventory, frame.Thread)
-		return renderItemMenuFrame("park "+thread.Label()+"?", filterMenuItems(confirmationMenuItems(state, frame), frame.Filter), confirmationDisplaySelection(frame), frame.Filter, width, height)
+		title := "park " + thread.Label() + "?"
+		if frame.Action == "archive" {
+			title = "archive " + thread.Label() + "?"
+		}
+		return renderItemMenuFrame(title, filterMenuItems(confirmationMenuItems(state, frame), frame.Filter), confirmationDisplaySelection(frame), frame.Filter, width, height)
 	case MenuFrameText:
 		return []string{clipMenuLine(menuItemLabel(frame.Action), width), "", clipMenuLine("> "+frame.Input, width)}
 	case MenuFrameStart:

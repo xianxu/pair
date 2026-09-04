@@ -171,6 +171,8 @@ func RunWithRuntime(args []string, stdin io.Reader, stdout, stderr io.Writer, rt
 	switch invocation.kind {
 	case cliList:
 		op, _ = Resolve("list")
+	case cliArchived:
+		op, _ = Resolve("archived")
 	case cliShow:
 		op, _ = Resolve("show")
 		argv = []string{invocation.ref}
@@ -652,5 +654,6 @@ func usage(w io.Writer) {
 	fmt.Fprintln(w, "usage: couch [path]")
 	fmt.Fprintln(w, "       couch --list")
 	fmt.Fprintln(w, "       couch --show <thread>")
+	fmt.Fprintln(w, "       couch --archived")
 	fmt.Fprintln(w, "       couch --help")
 }
