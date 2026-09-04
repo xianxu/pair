@@ -35,6 +35,11 @@ var deadSymbolAllowlist = map[string]string{
 	"SetUnknown":              "fake helper for the unanswerable-probe case",
 	"newThreadStoreWithHooks": "crash-injection constructor for journal recovery tests",
 
+	// Vocabulary enumerations. Their job is to BE iterated by exhaustiveness
+	// guards -- Go cannot check a switch for exhaustiveness, so the enumeration
+	// is what does. A production caller would be the tail wagging the dog.
+	"AllThreadReasons": "the ThreadReason vocabulary; iterated by the guards that prove every reason is produced and rendered",
+
 	// Genuinely unreferenced, and NOT dispositioned here. Deleting each means
 	// deleting its tests, which is a judgement call per symbol rather than part
 	// of one deletion sweep -- pair#173 owns that, and it is a filed issue:

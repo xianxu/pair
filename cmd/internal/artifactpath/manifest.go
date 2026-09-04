@@ -500,6 +500,7 @@ var NonArtifactSources = []string{
 	"cmd/internal/couchcmd/cli.go",
 	"cmd/internal/couchcmd/run.go",
 	"cmd/internal/couchcore/actionableinventory.go",
+	"cmd/internal/couchcore/threadreason.go",
 	"cmd/internal/couchcore/actorid.go",
 	"cmd/internal/couchcore/artifactcollision_fake.go",
 	"cmd/internal/couchcore/clock.go",

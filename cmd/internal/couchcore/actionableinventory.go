@@ -9,12 +9,20 @@ import (
 )
 
 // ActionableThreadState is the complete state vocabulary of the ordinary
-// switcher. Records whose lifecycle cannot be proved are intentionally absent.
+// switcher, and it is TOTAL: every record in the manifest gets one. Records
+// whose lifecycle cannot be proved used to be absent, which meant the switcher
+// showed four rows over a store of thirteen and could not say why (#181).
 type ActionableThreadState string
 
 const (
 	ThreadLive   ActionableThreadState = "live"
 	ThreadParked ActionableThreadState = "parked"
+	// ThreadBusy is a park transaction in flight: not actionable, but not
+	// broken either, and it resolves on its own.
+	ThreadBusy ActionableThreadState = "busy"
+	// ThreadUnusable is a real thread the operator cannot act on right now.
+	// It always carries a ThreadReason.
+	ThreadUnusable ActionableThreadState = "unusable"
 	// ThreadDetached is a thread whose zellij session is still alive with no
 	// client attached: the agent is running, only the view is gone. Reattaching
 	// is a fresh `pair resume <tag>` onto the surviving session, which is why it
@@ -56,6 +64,40 @@ type DetachedSessionObservation struct {
 	NativeID string
 }
 
+// ProofStatus records whether the IO shell managed to ASK a question, as
+// distinct from what the answer was.
+//
+// Without it a total classifier cannot tell "no session" from "we could not
+// look", and turns every unresolved question into a positive claim -- one
+// failed zellij query would assert session-gone on every detached row.
+type ProofStatus uint8
+
+const (
+	// ProofUnresolved means the question was never asked, or asking failed.
+	ProofUnresolved ProofStatus = iota
+	// ProofResolved means the question was asked and answered, positively or not.
+	ProofResolved
+)
+
+// ThreadEvidence is everything the IO shell resolved about one record, and
+// whether it managed to resolve it.
+//
+// The shell gathers; it decides nothing. That split is the point: refusals used
+// to be `continue` statements in an IO loop, so no test could see them and no
+// row could report one (ARCH-PURE).
+type ThreadEvidence struct {
+	// Live is this console's proof that it hosts the recorded process.
+	Live []ProcessIdentity
+	// Parked and Detached are the two resume proofs, each with the status of
+	// the question that produced it.
+	Parked         []ParkedResumeObservation
+	ParkedStatus   ProofStatus
+	Detached       []DetachedSessionObservation
+	DetachedStatus ProofStatus
+	// PathError is a working path that could not be physicalized.
+	PathError error
+}
+
 // ActionableThreadSummary contains only fields the ordinary switcher needs.
 // It deliberately excludes diagnostic lifecycle state.
 type ActionableThreadSummary struct {
@@ -66,7 +108,9 @@ type ActionableThreadSummary struct {
 	Description      string                `json:"description,omitempty"`
 	PublishedSummary string                `json:"published_summary,omitempty"`
 	State            ActionableThreadState `json:"state"`
-	LastActiveAt     time.Time             `json:"last_active_at,omitempty"`
+	// Reason is set exactly when State is ThreadUnusable, and says why.
+	Reason       ThreadReason `json:"reason,omitempty"`
+	LastActiveAt time.Time    `json:"last_active_at,omitempty"`
 }
 
 func (s ActionableThreadSummary) Live() bool { return s.State == ThreadLive }
@@ -114,11 +158,16 @@ func ProjectActionableThreads(records []ThreadRecord, observations []LiveTTYObse
 
 	rows := make([]ActionableThreadSummary, 0, len(records))
 	for _, record := range records {
-		if ValidateThreadRecord(record) != nil {
-			continue
-		}
-		state, ok := actionableThreadState(record, observed[record.Address], resumeProofs[record.Address], detachedProofs[record.Address])
-		if !ok {
+		// Bridge, replaced in the total form: these callers only ever pass
+		// proofs they successfully resolved, so both questions are answered.
+		state, _ := ClassifyThread(record, ThreadEvidence{
+			Live:           observed[record.Address],
+			Parked:         resumeProofs[record.Address],
+			ParkedStatus:   ProofResolved,
+			Detached:       detachedProofs[record.Address],
+			DetachedStatus: ProofResolved,
+		})
+		if state != ThreadLive && state != ThreadParked && state != ThreadDetached {
 			continue
 		}
 		rows = append(rows, ActionableThreadSummary{
@@ -141,38 +190,83 @@ func ProjectActionableThreads(records []ThreadRecord, observations []LiveTTYObse
 	return rows
 }
 
-func actionableThreadState(record ThreadRecord, observations []ProcessIdentity, resumable []ParkedResumeObservation, detached []DetachedSessionObservation) (ActionableThreadState, bool) {
-	if record.Reservation || record.Park != nil {
-		return "", false
+// ClassifyThread is the single, TOTAL lifecycle rule: every record and its
+// evidence produce a state, and an unusable one always says why.
+//
+// Branch order is load-bearing and follows the projector it replaced. The LIVE
+// branch comes before the resume-shaped refusals because those refusals never
+// touched a live row: the shell skipped records carrying an incarnation, so
+// such a record was never physicalized and its profile was never read. Ordering
+// path/profile/agent first would make a running agent whose directory moved
+// classify unusable -- a behaviour change this does not make. Detached is
+// checked only for records with zero incarnations, which is what keeps a stale
+// incarnation from ever masquerading as a clean detach.
+func ClassifyThread(record ThreadRecord, evidence ThreadEvidence) (ActionableThreadState, ThreadReason) {
+	if ValidateThreadRecord(record) != nil {
+		return ThreadUnusable, ReasonInvalid
+	}
+	if record.Reservation {
+		return ThreadUnusable, ReasonNeverStarted
+	}
+	if record.Park != nil {
+		return ThreadBusy, ""
+	}
+	if len(record.Incarnations) != 0 {
+		if liveProofMatches(record, evidence.Live) {
+			return ThreadLive, ""
+		}
+		return ThreadUnusable, ReasonStaleIncarnation
+	}
+	if len(evidence.Live) != 0 {
+		return ThreadUnusable, ReasonUnrecordedChild
+	}
+	// Everything below is resume-shaped, and only here does the shell's
+	// resolution of paths, profiles and proofs matter.
+	if evidence.PathError != nil {
+		return ThreadUnusable, ReasonPathMissing
+	}
+	if record.LatestLaunchProfile == nil {
+		return ThreadUnusable, ReasonProfileMissing
+	}
+	if !launcher.IsSupportedAgent(record.LatestLaunchProfile.Agent) || record.LatestLaunchProfile.Argv == nil {
+		return ThreadUnusable, ReasonAgentUnsupported
 	}
 	if record.VerifiedPark != nil {
-		if len(record.Incarnations) == 0 && len(observations) == 0 && parkedResumeProofMatches(record, resumable) {
-			return ThreadParked, true
+		switch {
+		case evidence.ParkedStatus == ProofUnresolved:
+			return ThreadUnusable, ReasonUnknown
+		case parkedResumeProofMatches(record, evidence.Parked):
+			return ThreadParked, ""
+		default:
+			return ThreadUnusable, ReasonBindingLost
 		}
-		return "", false
 	}
-	// Detached is checked BEFORE the live rule and requires zero incarnations,
-	// which is what keeps the projector fail-closed: a record still carrying an
-	// incarnation -- the shape a crashed couch leaves -- falls through to the
-	// live rule and is hidden there for want of a matching TTY observation. A
-	// stale incarnation therefore can never masquerade as a clean detach.
-	if len(record.Incarnations) == 0 {
-		if len(observations) == 0 && detachedResumeProofMatches(record, detached) {
-			return ThreadDetached, true
-		}
-		return "", false
+	switch {
+	case evidence.DetachedStatus == ProofUnresolved:
+		// Not "no session" -- "we could not ask".
+		return ThreadUnusable, ReasonUnknown
+	case detachedResumeProofMatches(record, evidence.Detached):
+		return ThreadDetached, ""
+	case len(evidence.Detached) != 0:
+		// A live session whose binding is unusable: pair#168's shape.
+		return ThreadUnusable, ReasonBindingLost
+	default:
+		return ThreadUnusable, ReasonSessionGone
 	}
+}
+
+// liveProofMatches is the live rule, sitting beside the two proof matchers it
+// is a sibling of: one recorded incarnation, one hosted process, exact
+// identity match so a recycled PID cannot pass.
+func liveProofMatches(record ThreadRecord, observations []ProcessIdentity) bool {
 	if len(record.Incarnations) != 1 || len(observations) != 1 {
-		return "", false
+		return false
 	}
 	incarnation := record.Incarnations[0]
 	if incarnation.State != IncarnationLive || incarnation.PID <= 0 || incarnation.Identity == "" {
-		return "", false
+		return false
 	}
-	if observations[0] != (ProcessIdentity{PID: incarnation.PID, Identity: incarnation.Identity}) {
-		return "", false
-	}
-	return ThreadLive, true
+	return observations[0] == ProcessIdentity{PID: incarnation.PID, Identity: incarnation.Identity}
 }
 
 // detachedResumeProofMatches is parkedResumeProofMatches' twin, and the
