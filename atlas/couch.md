@@ -907,6 +907,24 @@ zombie and would report an exited-but-unreaped child as running.
 non-control entry over capacity, never drop control. `couchtty/notice.go` uses
 it for the exit/bell feed.
 
+**`Control` also decides how long a notice STANDS** (`pair#185`). Nothing used
+to retire one -- no timer, no clear on keystroke, no expiry -- so a momentary
+refusal like `previous: nowhere to return to` sat on the status row until an
+unrelated notice displaced it, reading as current state. The type already
+carried the distinction: an exit is an OBLIGATION (it says why a pane
+disappeared, and is still true later), a refusal is an EVENT about the keystroke
+just pressed. So a transient notice carries a lifetime and a control notice does
+not. `Feed.Row()` walks from the tail skipping what has expired, which is why an
+expired transient can uncover a control notice underneath but never an older
+transient -- an older transient is staler, so it is never a better answer.
+
+The row's expiry is also a REPAINT obligation: nothing else is guaranteed to
+happen when a notice stops being true, so `Run` arms one timer for the row's own
+deadline beside `syncSpinner`, dedup on the deadline's identity so an
+event-heavy console cannot push it out forever. `Feed` takes both its clock and
+its lifetime, because the two are exercised at different levels -- pure expiry
+tests hand-advance a fake clock, a console test must let a real timer fire.
+
 The goroutine loop that used to wrap it (`Actor`) was groundwork for
 `pair#147`, where messages between actors would begin to exist. That scope is
 punted, so the loop was built, unit-tested and never instantiated -- deleted in

@@ -179,7 +179,7 @@ func New(host hostty.Host, stdin io.Reader) *Console {
 		lifetime:          lifetime,
 		cancelLifetime:    cancelLifetime,
 		stop:              make(chan struct{}),
-		feed:              NewFeed(8),
+		feed:              NewFeed(8, time.Now, NoticeLifetime),
 	}
 	if s, err := host.Size(); err == nil {
 		c.size = s
@@ -526,6 +526,9 @@ func (c *Console) Run() int {
 	var inputEscapeTimer, panelEscapeTimer *time.Timer
 	var inputEscapeC, panelEscapeC <-chan time.Time
 	var spinnerTimer *time.Timer
+	var noticeTimer *time.Timer
+	var noticeC <-chan time.Time
+	var noticeExpiry time.Time
 	var spinnerC <-chan time.Time
 	var spinnerOwner MenuProgressOwner
 	stopTimer := func(timer *time.Timer) {
@@ -638,6 +641,36 @@ func (c *Console) Run() int {
 		}
 	}
 
+	// A transient notice stops being true on its own, and nothing else is
+	// guaranteed to happen when it does -- an idle console would keep painting a
+	// stale sentence forever. syncNoticeExpiry arms one repaint for the moment
+	// the row changes, the same shape syncSpinner uses for its animation.
+	syncNoticeExpiry := func() {
+		c.mu.Lock()
+		row := c.feed.Row()
+		c.mu.Unlock()
+		if row.Expires.IsZero() {
+			stopTimer(noticeTimer)
+			noticeC = nil
+			noticeExpiry = time.Time{}
+			return
+		}
+		// Same deadline, same timer. Without this an event-heavy console would
+		// re-arm on every iteration and the notice would never actually go.
+		if noticeC != nil && row.Expires.Equal(noticeExpiry) {
+			return
+		}
+		stopTimer(noticeTimer)
+		noticeExpiry = row.Expires
+		if noticeTimer == nil {
+			noticeTimer = time.NewTimer(row.Standing)
+		} else {
+			noticeTimer.Reset(row.Standing)
+		}
+		noticeC = noticeTimer.C
+	}
+	syncNoticeExpiry()
+
 	for {
 		select {
 		case ch := <-c.chunks:
@@ -666,6 +699,10 @@ func (c *Console) Run() int {
 			panelEscapeC = nil
 			c.menuHeld = nil
 			c.onMenuKey(PanelKey{Kind: KeyEscape})
+		case <-noticeC:
+			// The row's own deadline: repaint so the expired sentence goes.
+			noticeC = nil
+			c.repaint()
 		case <-spinnerC:
 			owner := spinnerOwner
 			spinnerC = nil
@@ -700,6 +737,7 @@ func (c *Console) Run() int {
 			return 0
 		}
 		syncSpinner()
+		syncNoticeExpiry()
 	}
 }
 
@@ -927,7 +965,7 @@ func (c *Console) paintNow() {
 	c.paintPending = false
 	rows := c.size.Rows
 	cols := int(c.size.Cols)
-	model := StatusModel{Notice: c.feed.Latest()}
+	model := StatusModel{Notice: c.feed.Row().Body}
 	for _, id := range c.order {
 		p := c.panes[id]
 		model.Actors = append(model.Actors, StatusActor{

@@ -3266,3 +3266,16 @@ that a key token appears cannot detect a contradictory behavioral sentence
   actually travels never improved, and the fake would have kept tests green on
   wording production could not produce. Route every construction through one
   constructor, fake included, and assert through the fake.
+- A message with no expiry is a claim about the present that outlives its
+  subject. couch's status row had two producers and nothing that ever retired
+  anything, so "previous: nowhere to return to" — an answer to one keystroke —
+  read as current state minutes later. When adding a surface that displays
+  events, decide at that moment which are OBLIGATIONS (stand until displaced)
+  and which are EVENTS (retire themselves); the distinction usually already
+  exists in the data.
+- Inject every seam a test level actually needs, not the first one that comes to
+  mind. couch's notice expiry took a clock, which made pure tests trivial and
+  the console test a lie: it advanced fake time while the console sat on a real
+  twelve-second timer, so the arming looked exercised and was not. The lifetime
+  had to be injectable too. If a test passes without the production mechanism
+  running, the seam is in the wrong place.

@@ -315,7 +315,7 @@ func TestConsolePreviousWithNowhereToGoSaysSo(t *testing.T) {
 	t.Run("no previous recorded", func(t *testing.T) {
 		con, _ := notificationConsole(t)
 		con.onPreviousHotkey()
-		if got := con.feed.Latest(); !stringsContains(got, "previous") {
+		if got := con.feed.Row().Body; !stringsContains(got, "previous") {
 			t.Fatalf("status = %q, want a previous-related notice", got)
 		}
 	})
@@ -334,7 +334,7 @@ func TestConsolePreviousWithNowhereToGoSaysSo(t *testing.T) {
 
 		con.onPreviousHotkey()
 
-		if got := con.feed.Latest(); !stringsContains(got, "no longer attached") {
+		if got := con.feed.Row().Body; !stringsContains(got, "no longer attached") {
 			t.Fatalf("status = %q, want the not-attached notice", got)
 		}
 		con.mu.Lock()
