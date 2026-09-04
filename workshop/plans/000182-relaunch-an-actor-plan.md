@@ -216,7 +216,7 @@ func TestRelaunchRefusesBeforeParkingWhenTheResumeCouldNotSucceed(t *testing.T) 
 - Modify: `cmd/internal/couchcore/relaunch.go`
 - Test: `cmd/internal/couchcore/relaunch_test.go`
 
-- [ ] **Step 1: Write the failing test**, one case per park failure exit a fake
+- [x] **Step 1: Write the failing test**, one case per park failure exit a fake
       can produce (completion timeout, cleanup failure, child not gone):
 
 ```go
@@ -248,9 +248,9 @@ func TestRelaunchStopsAtAFailedParkAndNamesTheRecovery(t *testing.T) {
 }
 ```
 
-- [ ] **Step 2-4:** run (FAIL), implement, run (PASS). Mutation-check that the
+- [x] **Step 2-4:** run (FAIL), implement, run (PASS). Mutation-check that the
       resume is genuinely skipped: make the park fail, assert no spawn.
-- [ ] **Step 5: Commit.**
+- [x] **Step 5: Commit.**
 
 ### Task 4: a resume failure after a good park is recoverable, and says so
 
@@ -258,7 +258,7 @@ func TestRelaunchStopsAtAFailedParkAndNamesTheRecovery(t *testing.T) {
 - Modify: `cmd/internal/couchcore/relaunch.go`
 - Test: `cmd/internal/couchcore/relaunch_test.go`
 
-- [ ] **Step 1: Write the failing test**
+- [x] **Step 1: Write the failing test**
 
 ```go
 func TestRelaunchThatParksThenFailsToResumeLeavesARecoverableThread(t *testing.T) {
@@ -281,7 +281,7 @@ func TestRelaunchThatParksThenFailsToResumeLeavesARecoverableThread(t *testing.T
 }
 ```
 
-- [ ] **Step 2-5:** run (FAIL), implement, run (PASS), commit.
+- [x] **Step 2-5:** run (FAIL), implement, run (PASS), commit.
 
 ### Task 5: a successful relaunch, which is what the issue is for
 
@@ -291,7 +291,7 @@ func TestRelaunchThatParksThenFailsToResumeLeavesARecoverableThread(t *testing.T
 Tasks 2-4 are all failure tests. The branch being built had no test at all in
 this plan's first draft, which is the `done-when-untested` shape.
 
-- [ ] **Step 1: Write the failing test** — three of the issue's Done-when bullets:
+- [x] **Step 1: Write the failing test** — three of the issue's Done-when bullets:
 
 ```go
 func TestASuccessfulRelaunchKeepsTheAddressTheRowAndTheConversation(t *testing.T) {
@@ -326,7 +326,7 @@ func TestASuccessfulRelaunchKeepsTheAddressTheRowAndTheConversation(t *testing.T
 }
 ```
 
-- [ ] **Step 2-5:** run (FAIL), implement whatever it exposes, run (PASS), commit.
+- [x] **Step 2-5:** run (FAIL), implement whatever it exposes, run (PASS), commit.
 
 ### Task 6: declare the operation and dispatch it
 
