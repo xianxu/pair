@@ -1289,6 +1289,12 @@ func reduceOperationResult(state MenuState, event MenuEvent) MenuState {
 	}
 	originFrame, originVisible := menuOperationOriginFrame(state, origin)
 	if !event.Success {
+		// park and leave CLOSE their confirmation on failure: both are terminal
+		// dispositions, and a failed one leaves nothing to retry from that
+		// screen. relaunch and archive deliberately keep theirs -- relaunch's
+		// commonest refusal ("its agent has not completed a turn yet") is
+		// transient and self-healing, so the operator wants to stay put, go give
+		// the agent a turn, and press Enter again rather than re-navigate.
 		if (event.Operation == "park" || event.Operation == "leave") && origin.FrameKind == MenuFrameConfirmation && originVisible {
 			state = restoreMenuPrefixPreservingStart(state, origin.Depth-1, origin)
 		}

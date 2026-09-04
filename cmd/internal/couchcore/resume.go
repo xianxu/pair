@@ -198,7 +198,7 @@ func CheckResumePreconditions(record ThreadRecord, binding NativeBindingResoluti
 		return refuseResume(ResumeAgentUnsupported, "saved launch agent is unsupported")
 	}
 	if code := bindingResumeDiagnostic(binding); code != "" {
-		return refuseResume(code, "native session binding is not one exact established root")
+		return refuseResume(code, bindingRefusalDiagnostic(code))
 	}
 	return nil
 }
@@ -241,6 +241,30 @@ func bindingResumeDiagnostic(binding NativeBindingResolution) ResumeDiagnosticCo
 	default:
 		return ResumeBindingUnbound
 	}
+}
+
+// bindingRefusalDiagnostic is the operator-facing half of
+// bindingResumeDiagnostic, derived from the same code rather than written once
+// for all four.
+//
+// One sentence covered every binding status, and it was a developer's sentence:
+// "native session binding is not one exact established root" tells an operator
+// neither what happened nor what to do. It also flattened the one status that is
+// not a fault at all -- provisional is the ORDINARY state of a thread whose
+// agent has not answered yet, and it is the refusal a relaunch is most likely to
+// meet, because relaunching is something you do to a session you just started.
+func bindingRefusalDiagnostic(code ResumeDiagnosticCode) string {
+	switch code {
+	case ResumeBindingProvisional:
+		return "its agent has not completed a turn yet, so there is no proof of which conversation to resume -- give it one and retry"
+	case ResumeBindingAmbiguous:
+		return "more than one native session matches it, so resuming could resume the wrong conversation"
+	case ResumeBindingUnbound:
+		return "no native session is bound to it yet"
+	case ResumeBindingRootMissing:
+		return "its binding records no native session id"
+	}
+	return "native session binding is not one exact established root"
 }
 
 func refuseResume(code ResumeDiagnosticCode, diagnostic string) error {
@@ -295,30 +319,37 @@ func (c *Couch) ResumeContext(ctx context.Context, address ThreadAddress) (Actor
 	if err != nil {
 		return ActorRecord{}, nil, err
 	}
-	pathExists := false
-	if _, err := c.Path.Physical(thread.WorkingPath); err == nil {
-		pathExists = true
+	agent := ""
+	if thread.LatestLaunchProfile != nil {
+		agent = thread.LatestLaunchProfile.Agent
 	}
 	bindings, ok := c.Artifacts.(NativeBindingResolver)
 	if !ok {
 		return ActorRecord{}, nil, errors.New("resume: native binding resolver is unavailable")
 	}
-	agent := ""
-	if thread.LatestLaunchProfile != nil {
-		agent = thread.LatestLaunchProfile.Agent
-	}
+	// The SAME evidence pass relaunch uses. It had been re-derived there, and
+	// the two copies diverged on their first day over the nil-Path case, which
+	// is the drift the shared helper exists to stop.
+	//
 	// Resolve the binding only where it is the authority. ResolveEstablished
 	// RETURNS AN ERROR for a provisional binding (resume.go's own resolver
 	// refuses), so asking on the warm path refused the thread here -- before
 	// DecideResume could decide anything, which is why relaxing that alone
 	// left the operator's detached thread unreachable.
 	var binding NativeBindingResolution
+	var pathExists bool
 	if thread.VerifiedPark != nil {
-		resolved, err := bindings.ResolveEstablished(ctx, address.RepoScope, string(address.Tag), agent)
+		resolved, exists, err := c.resumeEvidence(ctx, thread)
 		if err != nil {
 			return ActorRecord{}, nil, err
 		}
-		binding = resolved
+		binding, pathExists = resolved, exists
+	} else {
+		_, exists, err := c.resumeEvidence(ctx, thread)
+		if err != nil && ResumeDiagnosticOf(err) == "" {
+			return ActorRecord{}, nil, err
+		}
+		pathExists = exists
 	}
 	// A thread with no verified park may still be resumable: it may have been
 	// DETACHED, in which case its zellij session is alive with no client and

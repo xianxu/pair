@@ -1,6 +1,7 @@
 package couchtty
 
 import (
+	"errors"
 	"io"
 	"slices"
 	"strings"
@@ -221,5 +222,33 @@ func TestRelaunchResultIsAdoptedByTheConsole(t *testing.T) {
 				t.Fatalf("attach dispatched = %v, want %v (dispatched %q)", attached, tc.attach, dispatched)
 			}
 		})
+	}
+}
+
+// A refused relaunch must leave the operator on the confirmation that refused,
+// carrying the reason. The operator's report was "the screen flashes and goes
+// back to that menu" -- a failure that moved them somewhere they did not choose
+// and said nothing they could act on.
+func TestRefusedRelaunchKeepsItsConfirmationAndSaysWhy(t *testing.T) {
+	con, stdin, address := newChordFixture(t)
+	setTestOps(con, func(name string, _ map[string]string) (any, error) {
+		if name == "relaunch" {
+			return nil, errors.New("its agent has not completed a turn yet")
+		}
+		return nil, nil
+	})
+	waitFor(t, "the console to start", func() bool { return con.menuSnapshot().Inventory != nil })
+
+	if _, err := stdin.Write([]byte("\x1b[110;3u\x1b[B\r")); err != nil {
+		t.Fatalf("write chord, arrow and enter: %v", err)
+	}
+	waitFor(t, "the refusal notice on its own confirmation", func() bool {
+		snapshot := con.menuSnapshot()
+		return strings.Contains(snapshot.Notice.Text, "has not completed a turn yet") &&
+			snapshot.CurrentFrame().Kind == MenuFrameConfirmation
+	})
+	frame := con.menuSnapshot().CurrentFrame()
+	if frame.Kind != MenuFrameConfirmation || frame.Action != "relaunch" || frame.Thread != address {
+		t.Fatalf("refused relaunch left frame = %+v, want its own confirmation restored", frame)
 	}
 }
