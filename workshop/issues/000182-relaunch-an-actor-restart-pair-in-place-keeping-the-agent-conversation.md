@@ -1,11 +1,12 @@
 ---
 id: 000182
-status: open
+status: working
 deps: []
 github_issue:
 created: 2026-09-03
-updated: 2026-09-03
-estimate_hours:
+updated: 2026-09-04
+estimate_hours: 3.58
+started: 2026-09-04T09:16:38-07:00
 ---
 
 # Relaunch an actor: restart Pair in place, keeping the agent conversation
@@ -80,9 +81,86 @@ session goes away and comes back.
 - The thread address, its row, and its ledger identity are unchanged across a
   relaunch.
 
+## Estimate
+
+```estimate
+model: estimate-logic-v3.1
+familiarity: 1.0
+item: issue-spec                 design=0.90 impl=0.08
+item: smaller-go-module          design=0.06 impl=0.20
+item: greenfield-go-module       design=0.20 impl=0.28
+item: smaller-go-module          design=0.04 impl=0.16
+item: smaller-go-module          design=0.04 impl=0.16
+item: smaller-go-module          design=0.04 impl=0.16
+item: smaller-go-module          design=0.04 impl=0.14
+item: tui-screen                 design=0.16 impl=0.20
+item: real-api-discovery         design=0.00 impl=0.18
+item: atlas-docs                 design=0.03 impl=0.08
+item: milestone-review           design=0.00 impl=0.20
+design-buffer: 0.15
+total: 3.58
+```
+
+*Produced via `brain/data/life/42shots/velocity/estimate-logic-v3.1.md` against
+`baseline-v3.1.md`. Method A only.*
+
+| Slug | Instances |
+| --- | --- |
+| `issue-spec` | this issue + plan authoring, two plan-quality rounds spent |
+| `smaller-go-module` | the `CheckResumePreconditions` extraction; the refuse-before-park test; the park-failure branch; the success test |
+| `greenfield-go-module` | `Couch.Relaunch` + `RelaunchResult`/`RelaunchOutcome` |
+| `tui-screen` | the switcher action, its confirmation, and the two-phase progress notice |
+| `real-api-discovery` | the rebuilt-binary verification on the real stack |
+| `atlas-docs` | atlas + README |
+| `milestone-review` | one boundary |
+
+**Where judgment entered:**
+
+- **`issue-spec` at full design (×1.0), no spec-quality discount**, on pair#170's
+  precedent: the spec-authoring primitive cannot be pre-resolved by its own
+  output, and the hard question here — the failure model — was open until the
+  plan-quality gate closed it. Two rounds are already spent, one of them on a
+  Critical (the park-failure branch was missing entirely).
+- **Every other design line ×0.2.** The plan fixes files, signatures and test
+  strategies per task, so the remaining design cost is reading.
+- **One `real-api-discovery` line, not zero.** Verifying that the agent
+  conversation *continued* rather than restarted needs a rebuilt binary between
+  two observations on the live stack, and pair#181 M2 showed that kind of check
+  finds things a fake cannot (the ledger row count is what proved reattach).
+- **No `scope-pivot` line, unlike pair#170 and pair#181.** Both halves already
+  exist as tested operations, and the composition's semantics were settled by
+  the gate rather than left to be discovered. This is the "shape known" column
+  of pair#170's own ratio table.
+- **Design buffer +15%** (v2.1 Step 6): thorough plan doc, and +30% on top of a
+  ×0.2 discount double-counts the same thoroughness.
+- **`impl=` values are already v3.1-scaled** to 40% of the v2/v2.1 table.
+
+**Known risks:**
+
+- **The park-failure branch is the least testable part.** It needs a fake that
+  fails at specific park exits, and `pairlifecycletest` supports that — but if
+  this estimate misses, it is because reaching three distinct exits took longer
+  than one `smaller-go-module` line.
+- **Direction: more likely high than low.** Unlike pair#181, nothing here is a
+  measurement-driven redesign; the work is composition over two surfaces the
+  session has spent all day in.
+
+
 ## Plan
 
-- [ ] Decide where the composition lives: a `relaunch` operation in
+Design landed at `workshop/plans/000182-relaunch-an-actor-plan.md`. One review
+boundary — the work is one action composed from two existing operations, so
+splitting it would force a redundant milestone-close (AGENTS.md §3).
+
+- [ ] M1 — relaunch as one declared operation: the resume preconditions split
+      from the occupancy rule they share with resume, `Couch.Relaunch` checking
+      those preconditions BEFORE the park, a recoverable-and-stated outcome when
+      the park succeeds and the resume does not, the switcher action on live
+      rows only, and real-stack verification with a rebuilt binary.
+
+Superseded first draft, kept for its reasoning:
+
+- [-] Decide where the composition lives: a `relaunch` operation in
       `couchcore.Operations()` that sequences park and resume, versus the
       console driving two existing operations. Prefer the operation -- the
       switcher must not grow a private verb, and the precondition check has to
