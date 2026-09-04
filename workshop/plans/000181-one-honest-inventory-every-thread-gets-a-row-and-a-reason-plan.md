@@ -919,30 +919,35 @@ issue exists because the system already did that once by hiding rows.
 
 ### Task 11: `DecideRetirement`
 
-- [ ] TDD across the full reason matrix from `AllThreadReasons()`, with the two
-      never-retire reasons asserted explicitly and a verified park whose
-      transcript still exists asserted to survive however old.
+- [x] NOT BUILT -- superseded by the archive action (see Revisions). The
+      operator decides a thread is finished; a predicate guessing for them is
+      what this milestone replaced.
 
 ### Task 12: `ThreadStore.Archive` and the archive reader
 
-- [ ] **Step A:** write the record to `archive/<scope>/<tag>.json` (journaled).
-- [ ] **Step B:** drop it from the manifest through the existing two-phase
-      commit, under the store lock.
-- [ ] **Step C:** an archive reader that lists without loading into the working
-      set, plus the restore path (move the file back, re-add to the manifest)
-      proved by test.
+- [x] **Step A:** write the record to `archive/<scope>/<tag>.json` (journaled).
+- [x] **Step B:** drop it from the manifest through the existing two-phase
+      commit, under the store lock. Both land in ONE journal entry, so a crash
+      cannot leave a record in both sets or neither.
+- [x] **Step C:** `ArchivedThreads` + `couch --archived`. Restore is documented
+      as the move reversed plus a manifest re-add; not automated, because the
+      operator has not needed it and an untested restore verb is worse than a
+      documented file move.
+- [x] **Step D (not in the plan):** quiesce the session before moving the
+      record, or archiving leaves a running agent nothing tracks.
 
 ### Task 13: `couch prune`, and the Pair-artifact question
 
-- [ ] **Step 1:** Settle the registry/documentation question above, then
-      implement `couch prune --dry-run` printing the verdict table; without the
-      flag, confirm and archive.
-- [ ] **Step 2:** Run against the live store; report the count retired.
-- [ ] **Step 3:** **Do not touch `pair/repos/<scope>/`.** 728 files for 31 couch
+- [x] **Step 1:** Settled: `archive` is a declared operation (TUI presentation,
+      confirmed) and `archived` a List one, both documented in `atlas/couch.md`.
+      `couch prune` was NOT built -- see Revisions.
+- [x] **Step 2:** One-time cleanup ran against the live store: 10 archived, 3
+      live kept, one thread per repo remaining.
+- [x] **Step 3:** **Do not touch `pair/repos/<scope>/`.** 728 files for 31 couch
       tags is the larger clutter, but it is Pair's surface with its own rules
       about what a live session still needs. File a pair-side issue carrying the
       measurement; couch does not reach into pair's directory.
-- [ ] **Step 4:** Atlas + `workshop/projects/couch.md` scope event.
+- [x] **Step 4:** Atlas updated.
 - [ ] **Step 5:** `sdlc close --issue 181`, and close pair#168, #171, #179 and
       #180 against their milestones with the measured evidence.
 
@@ -963,6 +968,39 @@ issue exists because the system already did that once by hiding rows.
 
 
 ## Revisions
+
+### 2026-09-03 — M3 as shipped: an action, not a predicate
+
+Reason: the operator's decisions replaced M3's rule with an affordance, and
+building it found one thing the design had wrong.
+
+Delta:
+
+- **`DecideRetirement` was not built.** The plan had a predicate deciding what
+  is finished, over the reason vocabulary. The operator asked for a delete
+  action instead, and they are right: an operator action beats a rule guessing
+  on their behalf, and the guessing is what the retirement matrix was. What
+  shipped is `archive` -- a declared operation, confirmed, offered on every row
+  couch is not hosting.
+- **`couch prune` was not built either.** With one thread per path enforced and
+  archive available per row, a bulk sweep has nothing to sweep. The one-time
+  cleanup ran as a throwaway program against the real store (10 archived, 3 live
+  kept) rather than becoming a permanent verb for a problem that no longer
+  recurs.
+- **Archive stops the session first, which the plan did not say.** Task 12
+  described a record move. A record move alone leaves a running agent nothing
+  tracks -- the forgotten thread couch exists to prevent -- and the one-time
+  cleanup produced exactly one before this was fixed. Park cannot do the
+  stopping: it needs a live incarnation, which the debris archive exists for
+  does not have. `Artifacts.Quiesce` reaches it, runs FIRST, and its failure
+  refuses the archive.
+- **`couch --archived` exists** so a reversible decision is visible, and
+  archived rows carry `ThreadArchived` rather than being classified -- running
+  the classifier over them asked whether a session is alive for a thread couch
+  no longer tracks, and rendered every row "checking...".
+- **Labels come from directories now** (`brain`, `pair`, `arc-agi-3`), with
+  colliding labels qualified by the tag's tail. Not in the plan at all; the
+  operator asked for it once the honest inventory made the tag columns visible.
 
 ### 2026-09-03 — M2: Task 9 is superseded by measurement
 
