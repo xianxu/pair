@@ -37,7 +37,11 @@ func (c *Couch) ResolveThreadReference(repoScope, ref string) ([]ThreadRecord, e
 	}
 	records := snapshot.Records
 	for _, address := range snapshot.Unreadable {
-		records = append(records, ThreadRecord{Address: address, Reservation: true})
+		// Address ONLY. Not Reservation: ClassifyThread reads that flag as
+		// `never-started`, so a consumer projecting this output would relabel an
+		// unreadable record as a known state -- the exact conflation the split
+		// exists to prevent.
+		records = append(records, ThreadRecord{Address: address})
 	}
 	return ResolveThreadReference(records, repoScope, ref)
 }

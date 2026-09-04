@@ -546,16 +546,20 @@ Unknown is also CONSERVATIVE. `PathHoldsUnreadableThread` blocks a start
 anywhere in the repository scope of an unreadable record: reading it is what
 would have supplied its working path, so it cannot be matched by path, and
 treating it as absent would create a second thread in a tree that may hold live
-work -- silently, where the old code failed loudly. `unreadable` is never
-archive-eligible for the same reason, but it CAN be archived by the operator on
-purpose, and `resolveThreadForArchive` addresses a thread without decoding it so
-that gesture reaches the one record class that most needs it.
+work -- silently, where the old code failed loudly. An unreadable record CAN be archived by the operator -- that escape is what stops
+a corrupt record locking its repository -- and `resolveThreadForArchive`
+addresses a thread without decoding it so the gesture reaches the one record
+class that most needs it. But archiving one never stops its session: the guard
+that proves a thread is not live needs a decoded record, so quiescing would kill
+an agent on the strength of a record couch just failed to read. The archive
+returns an `UnreadableArchiveWarning` saying so.
 
 Both projections take one `ThreadProjectionInput` (records + evidence +
 unreadable). The three used to travel separately with the unreadable set as a
 trailing variadic, which meant omitting it compiled cleanly and silently
 restored "some records get no row" -- the regression the total projection exists
-to prevent. One value makes the next omission a compile error.
+to prevent. One value makes the omission named and visible at each construction site;
+`FromSnapshot` is the form that cannot forget.
 
 `PathHoldsUsableThread` is the other half: **one thread per repository path**,
 enforced at the single site every creation entry funnels through

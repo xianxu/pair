@@ -557,3 +557,155 @@ findings:
       demoted to intent when no such code exists. Enumerable by grepping the window's added prose for
       "never", "always", "cannot" and checking each against an enforcing site plus a test.
 ```
+
+---
+
+## Re-review — 2026-09-04T08:31:50-07:00 (REWORK)
+
+| field | value |
+|-------|-------|
+| issue | 181 — One honest inventory: every thread gets a row and a reason |
+| repo | pair |
+| issue file | workshop/issues/000181-one-honest-inventory-every-thread-gets-a-row-and-a-reason.md |
+| boundary | milestone M3 |
+| milestone | M3 |
+| window | abc39d62baaeedb8057caa05d94eb113dc1d3b1b..501d7be4bd3aa2c2ca385fc846796cc9c805c121 |
+| command | sdlc milestone-close --issue 181 --milestone M3 |
+| reviewer | claude |
+| timestamp | 2026-09-04T08:31:50-07:00 |
+| verdict | REWORK |
+
+## Review
+
+```verdict
+verdict: REWORK
+confidence: high
+```
+
+This round did real, well-pinned work: `ReasonUnreadable` is now split from `ReasonInvalid` at the layer where the read fails, `ResolveThreadReference` sees the unreadable set (verified by revert — restoring `snapshot.Records` makes the new seam test fail with "thread reference not found"), the variadic `malformed` parameter is gone in favour of `ThreadProjectionInput`, `DecideResume` now shares `occupiedIncarnation` with archive, the docs sweep landed, and the project's calibration blocks stopped recording closes that never ran. What blocks SHIP is that the *headline behaviour this round added* — an unreadable record blocking starts in its repository, with a refusal naming working next steps — is entered by **zero tests**: I deleted the whole `PathHoldsUnreadableThread` block from `spawnResolved` and not one test outcome changed. I then wrote the 12-line seam test BR-12's own rule asks for and confirmed it goes red without the guard (`Spawn err=<nil>` — a second thread created over an unreadable record) and green with it. Separately, BR-6's occupancy rule got measurably worse rather than better: the switcher offers `archive` on an `unreadable` row, and `Couch.ArchiveThread` calls `Quiesce` **before** any guard, so taking that offer kills a live agent and files the record — measured with the stateful artifact fake. That is precisely the harm `threadreason.go`, `atlas/couch.md` and this round's new `lessons.md` entry all claim the split prevents.
+
+### 1. Strengths
+
+- `cmd/internal/couchcmd/run_test.go:1543-1583` — `TestARefusalsNamedCommandsActuallyWork` executes `couch --show` against the corrupt fixture through the real typed dispatcher. Verified discriminating: reverting `threadmetadata.go:36-40` fails it with the exact "not found" the finding described. Production and test share the boundary (`ARCH-MOCK` pass) — a real `ThreadStore` on a temp dir with a real truncated record, not a stubbed decoder.
+- `cmd/internal/couchcore/threadreason.go:32-42` + `threadstore.go:39-47` — the `unreadable` / `invalid` split is placed at the layer where the read actually fails, and `ThreadSnapshot` carries the reason for the distinction in its own doc comment. `TestNoLabelBorrowsAnotherReasonsDefiningWord` (threadreason_test.go:17) is a genuinely better guard than string inequality.
+- `cmd/internal/couchcore/actionableinventory.go:165-184` — `ThreadProjectionInput` + `FromSnapshot` collapse two parallel projector signatures into one value. `ARCH-DRY` pass on the shape.
+- `cmd/internal/couchcore/archive_test.go:100-106` — the DISCRIMINATING assertion added to `TestArchiveThreadRefusesALiveOrParkingThread` calls `archivableRecord` with a park and *no* incarnation, so the park branch can no longer be deleted silently. This is the right pattern.
+- `workshop/projects/couch.md:262-273` — M2's block records "no `milestone-close` was run" instead of inventing an actual. Refusing to write a number the gate didn't produce is exactly right.
+
+### 2. Critical findings
+
+**BR-12 (carried, still open) — the unreadable-record start guard is entered by no test.** `cmd/internal/couchcore/couch.go:354-370`.
+The message is fixed (`--show` now works and is pinned; the switcher-from-another-repo escape and the record path are stated), but "has no seam test" is still literally true. Measured: replacing the whole block with `_ = PathHoldsUnreadableThread` changes zero test outcomes across `couchcore`/`couchcmd`/`couchtty`. Only three fixtures in the tree build a corrupt record (`run_test.go:1515`, `:1558`, `archive_test.go:186`) and none drives a start. Fix sketch — verified red-without / green-with in a scratch copy:
+
+```go
+func TestUnreadableRecordRefusesAStartAndSaysHow(t *testing.T) {
+	env := newTestEnv(t, "/repo")
+	first, _ := env.spawn(t, StartArgs{Worktree: "/repo"})
+	os.WriteFile(env.Couch.Threads.recordPath(first.Thread), []byte(`{"schema_version":99,"nope":`), 0o600)
+	_, _, err := env.Couch.Spawn(StartArgs{Worktree: "/repo"})
+	if err == nil { t.Fatal("a start proceeded in a scope holding a record couch cannot read") }
+	for _, want := range []string{string(first.Thread.Tag), "couch --show", "another repository", "Tab → archive", ".json"} {
+		if !strings.Contains(err.Error(), want) { t.Fatalf("refusal %q does not mention %q", err, want) }
+	}
+}
+```
+Without the guard this reports `Spawn err=<nil>` — a second thread created over an unreadable record. Also unswept from BR-12's own enumeration: `startup.go:132`'s refusal names `couch --show <tag>` and no test executes it.
+
+**BR-6 (carried, still open) — the occupancy guard is bypassed entirely for unreadable records, and `Quiesce` runs before it.** `cmd/internal/couchcore/detach.go:192-195`, `threadstore.go:990-996`, `menu.go:1006-1013`.
+Chain, each link verified: `menuActionItems` offers `archive` to every non-actionable row, including `unreadable` and `ThreadBusy` → `threadEffect` dispatches `{repo-scope, tag}` → `resolveThreadForArchive` returns the address without decoding → `Couch.ArchiveThread` calls `Artifacts.Quiesce(address)` → *then* `ThreadStore.ArchiveThread` runs `archivableRecord`, which is skipped when `decodeErr != nil`. Measured with `FakeThreadArtifactCollisionChecker`:
+- unreadable record + live Pair session → `err=<nil>`, `quiesced: [{816fc349d3faebf8 couch-…02}]`, record filed. The agent is killed and unlisted with no guard.
+- park-in-flight row → `quiesced BEFORE the refusal`, then `err=thread … has a park in flight`. Session dead, record still listed.
+
+This is the version-skew harm `threadreason.go:36-42`, `atlas/couch.md:549-551` and the new `lessons.md` entry all say is prevented.
+
+### 3. Important findings
+
+**BR-15 (carried, still open) — two behavioural claims still have no enforcing code, and were re-stated in two more artifacts this window.**
+- "never archive-eligible" (`threadreason.go:41`): no archive-eligibility rule exists; `ReasonUnknown` at `:59-60` still claims to be "the only one that is never archive-eligible by construction" 20 lines below; `atlas/couch.md:549-551` says it "CAN be archived by the operator on purpose"; and `run_test.go:1500` now *asserts* an unreadable record archives successfully. Four artifacts, three positions.
+- "the next omission is a compile error" (`actionableinventory.go:171-172`, and newly added to `atlas/couch.md:556-560` and `lessons.md`): still false. Shadow-sweep — 5 construction sites, 1 via `FromSnapshot`; `BuildArchivedInventory` (`threadinventory.go:112`) is production code building `ThreadProjectionInput{Records: records}` with `Unreadable` silently omitted. `ARCH-PURPOSE`: the single source is documentation, not enforcement.
+
+**BR-1 (carried, still open) — busy-row behaviour is unpinned.** `menuThreadActionable` does exclude `ThreadBusy`, so the switch/resume half of the original finding is not what the code does. What remains: no `couchtty` test drives Enter on a `ThreadBusy` row, and `TestEveryReasonExplainsItselfOnEnter` iterates `AllThreadReasons()`, which never reaches the `case ""` → "it is busy" arm.
+
+### 4. Minor findings
+
+- `operationdispatch.go:334-345` vs `:348-360` — `resolveThreadForArchive` duplicates `resolveOperationThread`'s tag branch verbatim, differing only in the `GetThread` call. Now that `ResolveThreadReference` is total, the clean shape is one resolver whose tag branch checks the *manifest* rather than the decoder; `resolveThreadForArchive` then deletes. This is the residue BR-13 predicted ("a per-consumer patch where a shared rule belongs"). `ARCH-DRY`.
+- Three address-only synthesis sites, two shapes: `detach.go:191` and `threadmetadata.go:40` set `Reservation: true`, `threadstore.go:1061` does not.
+- `plan …-plan.md:1013-1017` (round-2 Revisions) still lists `ThreadSnapshot.Malformed` among "entities that landed"; the issue's Revisions still names `SelectUniqueResumableRoot`. Both are historical entries, so low-stakes — but the round-2 one is a claim about the current tree.
+- `threadstore.go:101-110` — `RecordPath` exported solely to build one error string. Acceptable and documented; noting it as surface that now can't shrink.
+
+### 5. Test coverage notes
+
+Environment: `go build ./...` and `go vet` clean. All remaining failures in `couchcore`/`couchcmd`/`couchtty` are `ptychild: operation not permitted` / `fork/exec /bin/ps` — sandbox, not code, and identical in baseline and reverted runs. The docs contract tests (`TestREADMEDocumentsTheOperatorFacingSurface`, `TestAtlasDocumentsEveryTypedOperation`, `TestM3DocsMatchActionableSwitcherInventoryProvider`, and 7 more) all pass, so the `--archived` addition satisfies the README gate.
+
+The gap is not volume, it's placement: `TestAnUnreadableRecordBlocksStartsInItsRepository` (archive_test.go:270) tests the pure predicate directly and never reaches its caller, which is why deleting the caller costs nothing. Note that `TestASecondThreadAtOnePathIsRefused` (couch_test.go:1346) — the analogous seam test for the *other* refusal — runs fine in this environment, so the missing test is cheap.
+
+### 6. Architectural notes
+
+- **ARCH-DRY** — flag: `resolveThreadForArchive` duplication; occupancy/actionability still split across `menuThreadActionable`, `menuActionItems`, `PathHoldsUsableThread`, `PathHoldsUnreadableThread` (BR-6). Pass on `occupiedIncarnation` and `ThreadProjectionInput`.
+- **ARCH-PURE** — pass on the new pure entities. Flag: the refusal text is built inline in `spawnResolved`'s IO glue, which is *why* it went untested; a pure `unreadableStartRefusal(held, path, recordPath) error` would be directly assertable, though the seam test above is the more valuable fix.
+- **ARCH-PURPOSE** — flag: the "one value, compile error" single-source claim has a hand-maintained consumer left in production code (BR-15); BR-12's own 3-site enumeration was 2/3 swept.
+- **ARCH-MOCK** — pass. The new tests corrupt a real record in a real store and go through the real dispatcher; the stateful `FakeThreadArtifactCollisionChecker` is what let me measure the `Quiesce`-before-guard ordering at all.
+- **ARCH-CONSTRAINTS** — pass. `PathHoldsUnreadableThread` is O(rows) over the already-resolved inventory, one call per start, no new IO or fan-out.
+- **ARCH-SECURE** — pass on the parse boundary: a decode failure becomes a typed `Unreadable` address and degrades visibly. Flag: dropping the existence check in `resolveThreadForArchive` means `Quiesce` now fires on a caller-supplied address before anything validates it; and `Reservation: true` as a "synthesized, not real" marker overloads a flag `ClassifyThread:244` already reads as `never-started`, so any future consumer projecting the resolver's output relabels an unreadable record as a known state.
+
+### 7. Plan revision recommendations
+
+- **`## Revisions` — "M3 review round 3: the entities that landed"**: `ThreadProjectionInput`, `FromSnapshot`, `PathHoldsUnreadableThread`, `ReasonUnreadable`, `resolveThreadForArchive`, `ThreadStore.RecordPath`, `occupiedResumeCode` are all new and named in no entity table. State which are PURE.
+- Same entry: correct the round-2 list's `ThreadSnapshot.Malformed` → `Unreadable`.
+- **M1 Core concepts (plan:75-84)**: the vocabulary is enumerated as nine reasons without `unreadable`, and states `unknown` "is the only reason that is both transient and never archive-eligible" — the same unbacked claim as BR-15. Either delete the archive-eligibility clause or name the code that enforces it.
+- **M3 Core concepts (plan:868-887)**: still tables `RetirementVerdict` / `DecideRetirement` in `retire.go` as "new" while Task 11 is marked NOT BUILT. The Revisions entry explains it; the table should carry a `deleted — see Revisions` status so a grep of the table doesn't claim a file that isn't there.
+
+```findings
+dispose:
+  - id: BR-1
+    disposition: not-addressed
+    note: |
+      Enter's switch/resume half is not what the code does (menuThreadActionable excludes ThreadBusy), but no test drives Enter or the "it is busy" arm on a busy row; unchanged this round.
+  - id: BR-5
+    disposition: addressed
+    note: |
+      README gained --archived and the blocks-on-unreadable rule; atlas gained the unreadable, label and PathHoldsUsableThread entries; the rule is recorded in lessons.md. Residue is two historical Revisions entries.
+  - id: BR-6
+    disposition: not-addressed
+    note: |
+      DecideResume now shares occupiedIncarnation, but measured: archiving an unreadable-but-live row quiesces the agent and files the record with no guard, and a park-in-flight row is quiesced before the refusal.
+  - id: BR-12
+    disposition: not-addressed
+    note: |
+      Message and named gestures are fixed and pinned; the guard is not — deleting couch.go:354-370 changes zero test outcomes, and a 12-line seam test goes red without it (verified).
+  - id: BR-13
+    disposition: addressed
+    note: |
+      Verified by revert: restoring snapshot.Records fails TestARefusalsNamedCommandsActuallyWork with "thread reference not found". Residue: resolveThreadForArchive is now a near-duplicate that could fold back in.
+  - id: BR-14
+    disposition: addressed
+    note: |
+      ReasonInvalid renders "record failed validation", unusableThreadNotice reworded, and the new guard checks meaning-collision — though only over Label(), not unusableThreadNotice.
+  - id: BR-15
+    disposition: not-addressed
+    note: |
+      Both claims stand unenforced and were re-stated this window in atlas and lessons.md; "never archive-eligible" is now contradicted by a shipped test that archives an unreadable record.
+findings:
+  - id: new
+    severity: Minor
+    family: new-state-unhandled-at-consumers
+    title: |
+      The switcher offers name and describe on an unreadable row; both fail with the raw decoder error "couch: EOF"
+    detail: |
+      This is the 4th finding in family new-state-unhandled-at-consumers. Do not
+      fix the instance — state the rule. Measured through the real dispatcher
+      against a record overwritten as {"schema_version":99,"nope": — list and
+      show render "unusable: could not be read — may need a newer couch", while
+      name and describe both exit 1 with `couch: EOF`, and menuActionItems
+      (menu.go:1010-1013) offers both on exactly that row. The rule: when a
+      state is added, every consumer that OFFERS an action on a row in that
+      state either supports the action or does not offer it, and any refusal it
+      produces is couch's own worded message, not a raw decoder error.
+      Enumeration: menuActionItems (offers archive/name/describe to every
+      non-actionable row, including unreadable and busy), resolveOperationThread,
+      ApplyThreadMetadata. Related trap in the same class: the synthesized
+      ThreadRecord{Address, Reservation: true} at threadmetadata.go:40 overloads
+      a flag ClassifyThread:244 already reads as never-started, so a future
+      consumer projecting the resolver's output relabels an unreadable record as
+      a known state — the exact conflation this round split apart.
+```

@@ -1006,6 +1006,13 @@ func unusableThreadNotice(thread couchcore.ActionableThreadSummary) string {
 }
 
 func menuActionItems(thread couchcore.ActionableThreadSummary) []string {
+	if thread.State == couchcore.ThreadBusy {
+		// Something else is still acting on this thread. Offering archive here
+		// would file a record mid-park -- the store refuses it, so the offer is
+		// an action that always fails, which teaches the operator to distrust
+		// the menu. It resolves on its own; metadata still applies.
+		return []string{"name", "describe"}
+	}
 	if !menuThreadActionable(thread) {
 		// Naming a thread you cannot enter is still useful -- it is how the
 		// operator marks what a lost row was for -- and archiving is how it

@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"os"
+	"strings"
 	"testing"
 	"time"
 )
@@ -228,8 +229,13 @@ func TestAnUndecodableRecordIsAVisibleRowAndCanBeArchived(t *testing.T) {
 
 	// And it can leave: an unusable row the operator cannot remove is worse
 	// than one they cannot use.
-	if _, err := couch.ArchiveThread(context.Background(), corrupt); err != nil {
-		t.Fatalf("archiving an undecodable record: %v", err)
+	// It archives, and it WARNS: couch could not read the record, so it did not
+	// stop the session -- quiescing would kill an agent on the strength of a
+	// record it just failed to read.
+	_, err = couch.ArchiveThread(context.Background(), corrupt)
+	var warning *UnreadableArchiveWarning
+	if !errors.As(err, &warning) {
+		t.Fatalf("archiving an undecodable record = %v, want an UnreadableArchiveWarning", err)
 	}
 	archived, err := store.ArchivedThreads()
 	if err != nil || len(archived) != 1 || archived[0].Address != corrupt {
@@ -240,6 +246,54 @@ func TestAnUndecodableRecordIsAVisibleRowAndCanBeArchived(t *testing.T) {
 // Occupancy is one rule now, and this is the case that made it matter: a thread
 // mid-start passed the store's narrower guard, so archiving it killed the
 // session being created while the spawn was still in flight.
+// Unknown stays conservative: an unreadable record is filed, and its session is
+// NOT stopped. Quiescing there would kill an agent couch cannot identify, which
+// is the version-skew harm the unreadable/invalid split exists to prevent.
+func TestArchivingAnUnreadableRecordNeverStopsItsSession(t *testing.T) {
+	store, _ := newTestThreadStore(t)
+	healthy := archivableThread(t, store, "couch-0000000000000001")
+	corrupt := writeCorruptRecord(t, store, healthy, "couch-0000000000000002")
+	artifacts := NewFakeThreadArtifactCollisionChecker()
+	artifacts.SetPairSession(corrupt, "pair-"+string(corrupt.Tag), true)
+	couch := &Couch{Threads: store, Artifacts: artifacts, Path: NewFakePathOps(nil)}
+
+	if _, err := couch.ArchiveThread(context.Background(), corrupt); err == nil {
+		t.Fatal("archiving an unreadable record reported plain success")
+	}
+	if got := artifacts.Quiesces(); len(got) != 0 {
+		t.Fatalf("quiesced %+v -- couch stopped a session it could not identify", got)
+	}
+	archived, _ := store.ArchivedThreads()
+	if len(archived) != 1 || archived[0].Address != corrupt {
+		t.Fatalf("archive = %+v, want the unreadable record filed anyway", archived)
+	}
+}
+
+// The guard runs BEFORE any effect. It used to run inside the store, after
+// Quiesce, so a park-in-flight thread had its session killed and was then
+// refused: agent dead, record still listed.
+func TestARefusedArchiveStopsNothing(t *testing.T) {
+	store, _ := newTestThreadStore(t)
+	thread := archivableThread(t, store, "couch-0000000000000001")
+	live, err := store.UpdateExistingThread(thread.Address, thread.Revision, func(record *ThreadRecord) error {
+		record.Incarnations = []ThreadIncarnation{{PID: 42, Identity: "pair-live", State: IncarnationLive}}
+		return nil
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	artifacts := NewFakeThreadArtifactCollisionChecker()
+	artifacts.SetPairSession(live.Address, "pair-live-session", true)
+	couch := &Couch{Threads: store, Artifacts: artifacts, Path: NewFakePathOps(nil)}
+
+	if _, err := couch.ArchiveThread(context.Background(), live.Address); err == nil {
+		t.Fatal("archived a live thread")
+	}
+	if got := artifacts.Quiesces(); len(got) != 0 {
+		t.Fatalf("a REFUSED archive stopped %+v", got)
+	}
+}
+
 func TestArchiveRefusesEveryOccupiedIncarnationNotJustLive(t *testing.T) {
 	for _, state := range []IncarnationState{IncarnationLive, IncarnationCreating, IncarnationUnknown} {
 		t.Run(string(state), func(t *testing.T) {
@@ -286,6 +340,31 @@ func TestAnUnreadableRecordBlocksStartsInItsRepository(t *testing.T) {
 		rows[0].Reason = reason
 		if _, blocked := PathHoldsUnreadableThread(rows, "scope"); blocked {
 			t.Fatalf("reason %q blocked a start; only unreadable is unknown", reason)
+		}
+	}
+}
+
+// The guard this round ADDED, entered by a test at last. The reviewer deleted
+// the whole block from spawnResolved and no test outcome changed: the message
+// had been fixed and its commands pinned, but nothing proved the refusal fires.
+//
+// Spawn is the seam every creation entry funnels through, so this is the one
+// place that covers `couch <path>`, the TUI start form and SpawnPrepared alike.
+func TestSpawnRefusesWhileAnUnreadableRecordIsInTheRepository(t *testing.T) {
+	env := newTestEnv(t, "/repo")
+	healthy := archivableThread(t, env.Couch.Threads, "couch-0000000000000001")
+	corrupt := writeCorruptRecord(t, env.Couch.Threads, healthy, "couch-0000000000000002")
+
+	_, _, err := env.Couch.Spawn(StartArgs{Worktree: "/repo"})
+	if err == nil {
+		t.Fatal("started a second thread while a record in this repository could not be read")
+	}
+	// Every next step the refusal names is checked for presence here and
+	// EXECUTED in couchcmd's seam test; a refusal with unnamed steps is the
+	// class this issue kept reopening.
+	for _, want := range []string{string(corrupt.Tag), "couch --show", "another repository", "the record:"} {
+		if !strings.Contains(err.Error(), want) {
+			t.Fatalf("refusal %q does not mention %q", err, want)
 		}
 	}
 }

@@ -109,7 +109,9 @@ func (c *Couch) ThreadInventoryContext(ctx context.Context) ([]ThreadSummary, er
 // no evidence gathered the honest answer is "unknown", so every archived row
 // rendered as "checking...". They are not being checked. They are archived.
 func BuildArchivedInventory(records []ThreadRecord) []ThreadSummary {
-	rows := BuildThreadInventory(ThreadProjectionInput{Records: records})
+	// Unreadable is deliberately empty: an archived record is out of the
+	// working set, so there is no manifest entry that failed to become one.
+	rows := BuildThreadInventory(ThreadProjectionInput{Records: records, Unreadable: nil})
 	for i := range rows {
 		rows[i].State, rows[i].Reason = ThreadArchived, ""
 	}

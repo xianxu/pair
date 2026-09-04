@@ -56,8 +56,8 @@ const (
 	// classifier that cannot say so turns every unresolved question into a
 	// positive claim: one failed zellij query would assert session-gone on
 	// every detached row, and session-gone is a reason retirement acts on. This
-	// is the only transient reason, and the only one that is never
-	// archive-eligible by construction.
+	// is the only transient reason: it says the evidence did not resolve this
+	// round, not that anything about the thread is settled.
 	ReasonUnknown ThreadReason = "unknown"
 )
 

@@ -300,6 +300,63 @@ rounds:
           round: 6
       boundary: M3
       blocked: true
+    - "n": 7
+      timestamp: "2026-09-04T08:31:50-07:00"
+      agent: claude
+      dispose:
+        - id: BR-1
+          disposition: not-addressed
+          note: Enter's switch/resume half is not what the code does (menuThreadActionable excludes ThreadBusy), but no test drives Enter or the "it is busy" arm on a busy row; unchanged this round.
+          round: 7
+        - id: BR-5
+          disposition: addressed
+          note: README gained --archived and the blocks-on-unreadable rule; atlas gained the unreadable, label and PathHoldsUsableThread entries; the rule is recorded in lessons.md. Residue is two historical Revisions entries.
+          round: 7
+        - id: BR-6
+          disposition: not-addressed
+          note: 'DecideResume now shares occupiedIncarnation, but measured: archiving an unreadable-but-live row quiesces the agent and files the record with no guard, and a park-in-flight row is quiesced before the refusal.'
+          round: 7
+        - id: BR-12
+          disposition: not-addressed
+          note: Message and named gestures are fixed and pinned; the guard is not — deleting couch.go:354-370 changes zero test outcomes, and a 12-line seam test goes red without it (verified).
+          round: 7
+        - id: BR-13
+          disposition: addressed
+          note: 'Verified by revert: restoring snapshot.Records fails TestARefusalsNamedCommandsActuallyWork with "thread reference not found". Residue: resolveThreadForArchive is now a near-duplicate that could fold back in.'
+          round: 7
+        - id: BR-14
+          disposition: addressed
+          note: ReasonInvalid renders "record failed validation", unusableThreadNotice reworded, and the new guard checks meaning-collision — though only over Label(), not unusableThreadNotice.
+          round: 7
+        - id: BR-15
+          disposition: not-addressed
+          note: Both claims stand unenforced and were re-stated this window in atlas and lessons.md; "never archive-eligible" is now contradicted by a shipped test that archives an unreadable record.
+          round: 7
+      findings:
+        - id: BR-16
+          severity: Minor
+          title: 'The switcher offers name and describe on an unreadable row; both fail with the raw decoder error "couch: EOF"'
+          detail: |-
+            This is the 4th finding in family new-state-unhandled-at-consumers. Do not
+            fix the instance — state the rule. Measured through the real dispatcher
+            against a record overwritten as {"schema_version":99,"nope": — list and
+            show render "unusable: could not be read — may need a newer couch", while
+            name and describe both exit 1 with `couch: EOF`, and menuActionItems
+            (menu.go:1010-1013) offers both on exactly that row. The rule: when a
+            state is added, every consumer that OFFERS an action on a row in that
+            state either supports the action or does not offer it, and any refusal it
+            produces is couch's own worded message, not a raw decoder error.
+            Enumeration: menuActionItems (offers archive/name/describe to every
+            non-actionable row, including unreadable and busy), resolveOperationThread,
+            ApplyThreadMetadata. Related trap in the same class: the synthesized
+            ThreadRecord{Address, Reservation: true} at threadmetadata.go:40 overloads
+            a flag ClassifyThread:244 already reads as never-started, so a future
+            consumer projecting the resolver's output relabels an unreadable record as
+            a known state — the exact conflation this round split apart.
+          family: new-state-unhandled-at-consumers
+          round: 7
+      boundary: M3
+      blocked: true
 ---
 
 # Gate ledger — pair#181 (boundary-review)
@@ -472,12 +529,42 @@ later rounds disposed of them. Generated — edit the gate, not this file.
   demoted to intent when no such code exists. Enumerable by grepping the window's added prose for
   "never", "always", "cannot" and checking each against an enforcing site plus a test.
 
+## Round 7 — 2026-09-04T08:31:50-07:00 (claude) — BLOCKED
+
+### Disposed
+
+- BR-1 — not-addressed — Enter's switch/resume half is not what the code does (menuThreadActionable excludes ThreadBusy), but no test drives Enter or the "it is busy" arm on a busy row; unchanged this round.
+- BR-5 — addressed — README gained --archived and the blocks-on-unreadable rule; atlas gained the unreadable, label and PathHoldsUsableThread entries; the rule is recorded in lessons.md. Residue is two historical Revisions entries.
+- BR-6 — not-addressed — DecideResume now shares occupiedIncarnation, but measured: archiving an unreadable-but-live row quiesces the agent and files the record with no guard, and a park-in-flight row is quiesced before the refusal.
+- BR-12 — not-addressed — Message and named gestures are fixed and pinned; the guard is not — deleting couch.go:354-370 changes zero test outcomes, and a 12-line seam test goes red without it (verified).
+- BR-13 — addressed — Verified by revert: restoring snapshot.Records fails TestARefusalsNamedCommandsActuallyWork with "thread reference not found". Residue: resolveThreadForArchive is now a near-duplicate that could fold back in.
+- BR-14 — addressed — ReasonInvalid renders "record failed validation", unusableThreadNotice reworded, and the new guard checks meaning-collision — though only over Label(), not unusableThreadNotice.
+- BR-15 — not-addressed — Both claims stand unenforced and were re-stated this window in atlas and lessons.md; "never archive-eligible" is now contradicted by a shipped test that archives an unreadable record.
+
+### Raised
+
+- **BR-16** [Minor] `new-state-unhandled-at-consumers` The switcher offers name and describe on an unreadable row; both fail with the raw decoder error "couch: EOF"
+  This is the 4th finding in family new-state-unhandled-at-consumers. Do not
+  fix the instance — state the rule. Measured through the real dispatcher
+  against a record overwritten as {"schema_version":99,"nope": — list and
+  show render "unusable: could not be read — may need a newer couch", while
+  name and describe both exit 1 with `couch: EOF`, and menuActionItems
+  (menu.go:1010-1013) offers both on exactly that row. The rule: when a
+  state is added, every consumer that OFFERS an action on a row in that
+  state either supports the action or does not offer it, and any refusal it
+  produces is couch's own worded message, not a raw decoder error.
+  Enumeration: menuActionItems (offers archive/name/describe to every
+  non-actionable row, including unreadable and busy), resolveOperationThread,
+  ApplyThreadMetadata. Related trap in the same class: the synthesized
+  ThreadRecord{Address, Reservation: true} at threadmetadata.go:40 overloads
+  a flag ClassifyThread:244 already reads as never-started, so a future
+  consumer projecting the resolver's output relabels an unreadable record as
+  a known state — the exact conflation this round split apart.
+
 ## Open findings
 
 - **BR-1** [Minor] `new-state-unhandled-at-consumers` ThreadBusy rows reach Enter and menuActionItems, where !Live() offers switch and resume
-- **BR-5** [Important] `unbacked-existing-behavior-claim` README and atlas still assert the startup and label rules this window reversed
 - **BR-6** [Important] `new-state-unhandled-at-consumers` Occupancy is decided in five places with four different definitions
 - **BR-12** [Critical] `unnavigable-refusal` The unreadable-record start refusal names two next steps, neither of which works, and has no seam test
-- **BR-13** [Important] `decode-failure-drops-the-row` ResolveThreadReference still reads snapshot.Records only, so --show reports "not found" for a row --list shows
-- **BR-14** [Important] `transient-failure-as-verdict` ReasonInvalid still renders to the operator as "unreadable record", the word the round just gave the other state
 - **BR-15** [Minor] `unbacked-existing-behavior-claim` Two behavioural claims added this window have no enforcing code, and one contradicts a comment 20 lines away
+- **BR-16** [Minor] `new-state-unhandled-at-consumers` The switcher offers name and describe on an unreadable row; both fail with the raw decoder error "couch: EOF"

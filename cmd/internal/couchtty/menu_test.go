@@ -1335,3 +1335,33 @@ func TestArchiveConfirmationDispatchesAndSurvivesARefresh(t *testing.T) {
 		t.Fatalf("confirmed archive dispatched %+v", effects)
 	}
 }
+
+// ThreadBusy had no behavioural test at all: menuThreadActionable excludes it,
+// but nothing proved Enter refuses or that the row explains itself, and
+// TestEveryReasonExplainsItselfOnEnter iterates AllThreadReasons() so it never
+// reaches the empty-reason arm a busy row carries.
+func TestEnterOnABusyRowExplainsAndOffersNoLifecycleAction(t *testing.T) {
+	busy := couchcore.ActionableThreadSummary{
+		Address: menuAddress("couch-one"), WorkingPath: "/repo/one", Name: "compiler",
+		State: couchcore.ThreadBusy,
+	}
+	state := NewMenuState([]couchcore.ActionableThreadSummary{busy}, couchcore.ThreadAddress{})
+	state.InventoryReady = true
+
+	got, effects := reduceKey(state, PanelKey{Kind: KeyEnter})
+	if len(effects) != 0 {
+		t.Fatalf("a busy row dispatched %+v", effects)
+	}
+	if got.Notice.Level != MenuNoticeError || !strings.Contains(got.Notice.Text, "busy") {
+		t.Fatalf("notice = %+v, want it to say the thread is busy", got.Notice)
+	}
+
+	// And no lifecycle action is offered on a thread something else is still
+	// doing something to -- archiving one would file a record mid-park.
+	items := menuActionItems(busy)
+	for _, forbidden := range []string{"resume", "detach", "park", "archive"} {
+		if slices.Contains(items, forbidden) {
+			t.Fatalf("busy row offers %q: %v", forbidden, items)
+		}
+	}
+}

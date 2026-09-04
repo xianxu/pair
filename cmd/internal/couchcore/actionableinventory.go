@@ -167,8 +167,10 @@ func (s ActionableThreadSummary) DisplaySummary() string {
 // The three parts used to travel separately, with the unreadable set as a
 // trailing variadic -- so omitting it compiled cleanly and silently restored
 // "some records get no row", which is the regression this issue exists to
-// prevent. A consumer cannot opt out of part of a projection it is handed
-// whole, and the next omission is a compile error rather than a hidden filter.
+// prevent. The struct does not make omission impossible -- a literal can still
+// leave `Unreadable` unset -- but it makes the omission NAMED and visible at
+// every construction site, where a trailing variadic was invisible by
+// construction. `FromSnapshot` is the form that cannot forget.
 type ThreadProjectionInput struct {
 	Records    []ThreadRecord
 	Evidence   map[ThreadAddress]ThreadEvidence

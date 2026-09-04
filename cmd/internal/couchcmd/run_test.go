@@ -1531,8 +1531,10 @@ func TestAnUnreadableRecordCanBeArchivedThroughTheRuntime(t *testing.T) {
 		Name: "archive", Implicit: true,
 		Args: map[string]string{"repo-scope": thread.Address.RepoScope, "tag": string(thread.Address.Tag)},
 	})
-	if code != 0 {
-		t.Fatalf("archiving an unreadable record through the runtime: code=%d err=%q", code, errw)
+	// It reports the warning rather than plain success -- couch filed the record
+	// without stopping a session it could not identify.
+	if !strings.Contains(errw, "did not stop its session") {
+		t.Fatalf("archiving an unreadable record = code %d err %q, want the warning", code, errw)
 	}
 	after, _, _ := runTypedRT(rt, couchcore.OperationCall{Name: "list"})
 	if strings.Contains(after, "could not be read") {
@@ -1573,11 +1575,16 @@ func TestARefusalsNamedCommandsActuallyWork(t *testing.T) {
 
 	// And the retire gesture the refusal names, which is `archive` reached from
 	// a repository couch will start in.
-	_, archiveErr, code := runTypedRT(rt, couchcore.OperationCall{
+	_, archiveErr, _ := runTypedRT(rt, couchcore.OperationCall{
 		Name: "archive", Implicit: true,
 		Args: map[string]string{"repo-scope": thread.Address.RepoScope, "tag": string(thread.Address.Tag)},
 	})
-	if code != 0 {
-		t.Fatalf("the refusal's retire gesture failed: code=%d err=%q", code, archiveErr)
+	// The gesture works; it warns that the session was left alone, which is the
+	// conservative answer for a record couch cannot read.
+	if archiveErr != "" && !strings.Contains(archiveErr, "did not stop its session") {
+		t.Fatalf("the refusal's retire gesture failed: err=%q", archiveErr)
+	}
+	if listOut, _, _ := runTypedRT(rt, couchcore.OperationCall{Name: "list"}); strings.Contains(listOut, "could not be read") {
+		t.Fatalf("the retire gesture left the row in place: %q", listOut)
 	}
 }

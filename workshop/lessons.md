@@ -3126,8 +3126,10 @@ that a key token appears cannot detect a contradictory behavioral sentence
   malformed-record set as a trailing variadic meant omitting it compiled cleanly
   and silently restored "some records get no row" — the exact regression the
   work existed to prevent, with no compile error and no failing test. Evidence
-  and the records it describes travel as one value, so the next omission is a
-  compile error rather than a hidden filter.
+  and the records it describes travel as one value — which does not make
+  omission impossible, but makes it NAMED at each construction site instead of
+  invisible. Claiming "compile error" when a struct literal can still omit the
+  field is the same unbacked-claim habit the reviews keep finding.
 - Fixing a finding below the seam is not fixing it. "An undecodable record can
   be archived" was made true of `couch.ArchiveThread` and left false through the
   real dispatcher, because resolving a thread by tag decodes it first — so the
@@ -3154,3 +3156,19 @@ that a key token appears cannot detect a contradictory behavioral sentence
   in-switcher recovery is unreachable by construction. The escape (another
   repository's switcher, and failing that the record's own file path) existed
   and was unstated, which is the same as not existing.
+- Guard before effect, always — and test that a REFUSED operation had no
+  effects. Archive quiesced the session and then let the store refuse, so a
+  park-in-flight thread ended with its agent killed and its record still listed.
+  "It refuses" is not the property worth asserting; "it refuses and nothing
+  happened" is.
+- The escape hatch for an unknown state must be conservative in what it
+  DESTROYS, not just in what it claims. Archiving an unreadable record has to
+  work — otherwise a corrupt record locks its repository — but it must not stop
+  the session, because the guard proving the thread is not live needs the record
+  that could not be read. Filing the row and leaving the session alone, with a
+  warning, is the only combination that is both usable and honest.
+- Testing the message a guard prints is not testing the guard. The
+  unreadable-record refusal had its wording fixed and every command it names
+  pinned by an executing test — and deleting the entire guard still changed no
+  test outcome, because nothing drove the path that produces it. Mutation-check
+  new guards by removing them.

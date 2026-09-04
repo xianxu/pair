@@ -1001,6 +1001,10 @@ func (s *ThreadStore) ArchiveThread(address ThreadAddress) error {
 		// exactly what the operator most wants gone, and refusing to archive it
 		// would leave a row that can neither be used nor removed. Its bytes are
 		// moved as they are.
+		//
+		// Second line of defence: Couch.ArchiveThread runs the same guard
+		// before any effect, because by the time the store refuses, a quiesce
+		// would already have happened.
 		record, decodeErr := s.decodeThreadRaw(address, raw)
 		if decodeErr == nil {
 			if err := archivableRecord(record); err != nil {
