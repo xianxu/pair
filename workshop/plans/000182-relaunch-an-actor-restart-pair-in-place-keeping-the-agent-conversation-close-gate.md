@@ -440,6 +440,94 @@ rounds:
           round: 5
       boundary: M1
       blocked: true
+    - "n": 6
+      timestamp: "2026-09-04T14:37:05-07:00"
+      agent: claude
+      dispose:
+        - id: BR-1
+          disposition: not-addressed
+          note: workshop/plans/000182-relaunch-an-actor-plan.md is unmodified in this window; the ~30s figure and both phantom budgets stand.
+          round: 6
+        - id: BR-6
+          disposition: not-addressed
+          note: relaunch_test.go:84-122 still has five cases; no agent-unsupported and no profile-missing case at the Relaunch level.
+          round: 6
+        - id: BR-7
+          disposition: not-addressed
+          note: Plan line 159 is still "- [ ]" and the issue's Revisions still says "the estimate is now stale"; additionally M2's chord/sweep work landed here while Tasks 8-10 stay unchecked.
+          round: 6
+        - id: BR-9
+          disposition: not-addressed
+          note: manifest.go:524 still places relaunch.go between pathops.go and procops.go; the new inputtrace.go entry was ordered correctly.
+          round: 6
+        - id: BR-10
+          disposition: not-addressed
+          note: Instance fixed and pinned (revert-verified); the class enumeration over InterceptorHit, README.md:141, menuControls and Tab-relaunch remain.
+          round: 6
+        - id: BR-16
+          disposition: not-addressed
+          note: Guard cannot fire on the production path; reproduced the original symptom against HEAD through ReduceMenu.
+          round: 6
+        - id: BR-17
+          disposition: addressed
+          note: Revert-verified red; pane ids are handle ids (console.go:1562), so the exclusion names the right child in production too.
+          round: 6
+        - id: BR-18
+          disposition: not-addressed
+          note: The Operation clause landed at menu.go:1301 but the whole couchtty suite stays green when it is reverted; no test enters the narrowed case.
+          round: 6
+        - id: BR-19
+          disposition: not-addressed
+          note: pastParticiple landed with a fallback but nothing tests it, and only park/relaunch can reach the guard, so the fallback has no caller.
+          round: 6
+      findings:
+        - id: BR-20
+          severity: Important
+          title: endsItsOwnChild has one call site while the second list it was written to replace still enumerates by hand
+          detail: |-
+            This is the 5th finding in family `declared-source-hand-maintained-consumers`, so the deliverable is the RULE, not this
+            site. console.go:1477 declares endsItsOwnChild and its doc says it exists
+            "so the two sites that need the answer cannot disagree ... the expectedExits
+            bridge and the switch below". Only the bridge (console.go:1431) calls it;
+            consumeExpectedParkExitLocked at console.go:1499 still spells
+            `case "park", "detach", "relaunch":` itself. The two agree today, so nothing
+            is broken -- but the divergence the helper was written to remove is fully
+            intact, and the comment asserts a property the code does not have, which is
+            worse than no helper because the next reader trusts it.
+            Rule: a per-operation fact has exactly one predicate and EVERY consumer calls
+            it; a helper introduced for DRY with a single call site has not been adopted,
+            it has been added. Measured prevalence in couchtty after this window: seven
+            hand-maintained restatements of facts the Operation declaration already owns
+            or could own -- consumeExpectedParkExitLocked (console.go:1499),
+            operationNeedsProjectionRefresh (menu.go:1397), reduceOperationResult's case
+            list (menu.go:1384), reduceParkHotkey's case list (menu.go:483),
+            menuOperationProgressText (menu.go:1495), pastParticiple (menu.go:542), and
+            menuActionItems' hardcoded per-state slices (menu.go:1068). OperationConfirms
+            proves the shape works; write the enumeration and route these through it (or
+            through fields on Operation) as one sweep, and fold it into Task 10 Step 2b
+            which already owns the operation-side half. ARCH-DRY, ARCH-PURPOSE.
+          family: declared-source-hand-maintained-consumers
+          round: 6
+        - id: BR-21
+          severity: Minor
+          title: The input tracer is opened inside New() from ambient env and never closed
+          detail: |-
+            console.go:163 calls newInputTracer() from the Console constructor, which
+            reads os.Getenv("COUCH_INPUT_TRACE") (inputtrace.go:65) and opens a real file
+            for append. Nothing closes it -- neither Stop() nor teardown() touches
+            c.trace. In production that is one fd for the process lifetime, which is
+            fine. In tests it is not: couchtty builds many Consoles per run, so a
+            developer whose shell exports the variable (this repo has already been bitten
+            by PAIR_SESSION_ID/PAIR_TAG leaking into `make test`) gets one open fd per
+            constructed Console and a trace file polluted with fixture bytes. ARCH-SECURE's
+            at-review lens names exactly this: tests able to write real user state.
+            Take the path as a parameter from the composition root, or gate the Getenv
+            behind the same seam the rest of couchtty uses, and close the file in
+            teardown.
+          family: constructor-io-from-ambient-env
+          round: 6
+      boundary: M1
+      blocked: true
 ---
 
 # Gate ledger — pair#182 (boundary-review)
@@ -711,6 +799,58 @@ later rounds disposed of them. Generated — edit the gate, not this file.
   whole family for this - a package-level map with a fallback word, or a
   declared past participle, closes it.
 
+## Round 6 — 2026-09-04T14:37:05-07:00 (claude) — BLOCKED
+
+### Disposed
+
+- BR-1 — not-addressed — workshop/plans/000182-relaunch-an-actor-plan.md is unmodified in this window; the ~30s figure and both phantom budgets stand.
+- BR-6 — not-addressed — relaunch_test.go:84-122 still has five cases; no agent-unsupported and no profile-missing case at the Relaunch level.
+- BR-7 — not-addressed — Plan line 159 is still "- [ ]" and the issue's Revisions still says "the estimate is now stale"; additionally M2's chord/sweep work landed here while Tasks 8-10 stay unchecked.
+- BR-9 — not-addressed — manifest.go:524 still places relaunch.go between pathops.go and procops.go; the new inputtrace.go entry was ordered correctly.
+- BR-10 — not-addressed — Instance fixed and pinned (revert-verified); the class enumeration over InterceptorHit, README.md:141, menuControls and Tab-relaunch remain.
+- BR-16 — not-addressed — Guard cannot fire on the production path; reproduced the original symptom against HEAD through ReduceMenu.
+- BR-17 — addressed — Revert-verified red; pane ids are handle ids (console.go:1562), so the exclusion names the right child in production too.
+- BR-18 — not-addressed — The Operation clause landed at menu.go:1301 but the whole couchtty suite stays green when it is reverted; no test enters the narrowed case.
+- BR-19 — not-addressed — pastParticiple landed with a fallback but nothing tests it, and only park/relaunch can reach the guard, so the fallback has no caller.
+
+### Raised
+
+- **BR-20** [Important] `declared-source-hand-maintained-consumers` endsItsOwnChild has one call site while the second list it was written to replace still enumerates by hand
+  This is the 5th finding in family `declared-source-hand-maintained-consumers`, so the deliverable is the RULE, not this
+  site. console.go:1477 declares endsItsOwnChild and its doc says it exists
+  "so the two sites that need the answer cannot disagree ... the expectedExits
+  bridge and the switch below". Only the bridge (console.go:1431) calls it;
+  consumeExpectedParkExitLocked at console.go:1499 still spells
+  `case "park", "detach", "relaunch":` itself. The two agree today, so nothing
+  is broken -- but the divergence the helper was written to remove is fully
+  intact, and the comment asserts a property the code does not have, which is
+  worse than no helper because the next reader trusts it.
+  Rule: a per-operation fact has exactly one predicate and EVERY consumer calls
+  it; a helper introduced for DRY with a single call site has not been adopted,
+  it has been added. Measured prevalence in couchtty after this window: seven
+  hand-maintained restatements of facts the Operation declaration already owns
+  or could own -- consumeExpectedParkExitLocked (console.go:1499),
+  operationNeedsProjectionRefresh (menu.go:1397), reduceOperationResult's case
+  list (menu.go:1384), reduceParkHotkey's case list (menu.go:483),
+  menuOperationProgressText (menu.go:1495), pastParticiple (menu.go:542), and
+  menuActionItems' hardcoded per-state slices (menu.go:1068). OperationConfirms
+  proves the shape works; write the enumeration and route these through it (or
+  through fields on Operation) as one sweep, and fold it into Task 10 Step 2b
+  which already owns the operation-side half. ARCH-DRY, ARCH-PURPOSE.
+- **BR-21** [Minor] `constructor-io-from-ambient-env` The input tracer is opened inside New() from ambient env and never closed
+  console.go:163 calls newInputTracer() from the Console constructor, which
+  reads os.Getenv("COUCH_INPUT_TRACE") (inputtrace.go:65) and opens a real file
+  for append. Nothing closes it -- neither Stop() nor teardown() touches
+  c.trace. In production that is one fd for the process lifetime, which is
+  fine. In tests it is not: couchtty builds many Consoles per run, so a
+  developer whose shell exports the variable (this repo has already been bitten
+  by PAIR_SESSION_ID/PAIR_TAG leaking into `make test`) gets one open fd per
+  constructed Console and a trace file polluted with fixture bytes. ARCH-SECURE's
+  at-review lens names exactly this: tests able to write real user state.
+  Take the path as a parameter from the composition root, or gate the Getenv
+  behind the same seam the rest of couchtty uses, and close the file in
+  teardown.
+
 ## Open findings
 
 - **BR-1** [Minor] `operating-envelope` Two of the envelope's three durations name budgets that do not exist as constants
@@ -719,6 +859,7 @@ later rounds disposed of them. Generated — edit the gate, not this file.
 - **BR-9** [Minor] `manifest-ordering` relaunch.go inserted out of alphabetical order in NonArtifactSources
 - **BR-10** [Important] `declared-source-hand-maintained-consumers` Alt+n is intercepted and then silently dropped: HitRelaunch has no arm in processInput's switch
 - **BR-16** [Critical] `refusal-names-no-next-action` A relaunch that parks and then fails has its recovery message erased by the next refresh
-- **BR-17** [Important] `suppression-marker-overmatches` The child a successful relaunch adopts is pre-marked as an expected exit, so its first real death is silent
 - **BR-18** [Minor] `exemption-wider-than-its-rationale` The in-flight frame exemption matches on address only, not on the operation that owns the frame
 - **BR-19** [Minor] `declared-source-hand-maintained-consumers` reduceParkHotkey builds its refusal wording from an inline two-entry map that silently yields an empty word
+- **BR-20** [Important] `declared-source-hand-maintained-consumers` endsItsOwnChild has one call site while the second list it was written to replace still enumerates by hand
+- **BR-21** [Minor] `constructor-io-from-ambient-env` The input tracer is opened inside New() from ambient env and never closed

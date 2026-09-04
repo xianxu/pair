@@ -18,7 +18,11 @@ func TestAFailedRelaunchKeepsItsRecoveryMessageAcrossARefresh(t *testing.T) {
 	live := []couchcore.ActionableThreadSummary{{
 		Address: address, WorkingPath: "/w/brain", Name: "brain", State: couchcore.ThreadLive,
 	}}
+	parked := []couchcore.ActionableThreadSummary{{
+		Address: address, WorkingPath: "/w/brain", Name: "brain", State: couchcore.ThreadParked,
+	}}
 	state := NewMenuState(live, address)
+	state.InventoryReady = true
 	state, _ = reduceParkHotkey(state, MenuEvent{
 		Kind: MenuEventParkHotkey, Operation: "relaunch", Address: address,
 	})
@@ -26,7 +30,12 @@ func TestAFailedRelaunchKeepsItsRecoveryMessageAcrossARefresh(t *testing.T) {
 	state, _ = reduceConfirmationKey(state, PanelKey{Kind: KeyEnter})
 
 	const recovery = "brain is parked and was not resumed; Enter resumes it"
-	state = reduceOperationResult(state, MenuEvent{
+	// Through ReduceMenu, which is the production seam. Driving
+	// reconcileMenuFrames directly hid the real cause entirely: ReduceMenu zeroes
+	// the notice near the top of the transition, so the guard downstream was
+	// never reached and a direct test of it passed while the operator still lost
+	// the message.
+	state, _ = ReduceMenu(state, MenuEvent{
 		Kind: MenuEventOperationResult, Operation: "relaunch", Attempt: state.InFlight.Attempt,
 		Address: address, Success: false, Error: recovery,
 	})
@@ -35,14 +44,21 @@ func TestAFailedRelaunchKeepsItsRecoveryMessageAcrossARefresh(t *testing.T) {
 	}
 
 	// The refresh that follows: the thread is parked now, exactly because the
-	// relaunch got that far.
-	state.Inventory = []couchcore.ActionableThreadSummary{{
-		Address: address, WorkingPath: "/w/brain", Name: "brain", State: couchcore.ThreadParked,
-	}}
-	state = reconcileMenuFrames(state, live)
+	// relaunch got that far. Two of them, because one is not a pattern.
+	for round := 1; round <= 2; round++ {
+		state, _ = ReduceMenu(state, MenuEvent{
+			Kind: MenuEventInventory, Inventory: parked, Generation: uint64(round),
+		})
+		if !strings.Contains(state.Notice.Text, "Enter resumes it") {
+			t.Fatalf("refresh %d erased the recovery instructions: %q", round, state.Notice.Text)
+		}
+	}
 
-	if !strings.Contains(state.Notice.Text, "Enter resumes it") {
-		t.Fatalf("the refresh erased the recovery instructions: %q", state.Notice.Text)
+	// And the operator's next keystroke DOES retire it -- a message answers the
+	// last thing they did, and they have now done something else.
+	state, _ = ReduceMenu(state, MenuEvent{Kind: MenuEventKey, Key: PanelKey{Kind: KeyDown}})
+	if strings.Contains(state.Notice.Text, "Enter resumes it") {
+		t.Fatalf("a keystroke did not retire the message: %q", state.Notice.Text)
 	}
 }
 

@@ -284,6 +284,27 @@ func visibleRootThreads(inventory []couchcore.ActionableThreadSummary, frame Men
 	return visible
 }
 
+// clearsPreviousNotice reports whether an event retires the message on screen.
+//
+// Only what the OPERATOR does retires it. A message answers the last thing they
+// did and stands until they do the next thing; a background refresh is not the
+// next thing. This condition used to name only the three result kinds, so a
+// routine MenuEventInventory wiped the notice before anything else in the
+// transition ran -- which erased the recovery instructions from a failed
+// relaunch (`it is parked, Enter resumes it`) roughly one refresh later, and
+// made the guard inside reconcileMenuFrames unreachable on the production path
+// because the notice it was protecting had already been zeroed. A test that
+// drives reconcileMenuFrames directly cannot see any of this; it only shows
+// through ReduceMenu.
+func clearsPreviousNotice(kind MenuEventKind) bool {
+	switch kind {
+	case MenuEventOperationResult, MenuEventPreviewResult, MenuEventCompletionResult,
+		MenuEventInventory, MenuEventRefreshStarted, MenuEventTick:
+		return false
+	}
+	return true
+}
+
 // ReduceMenu is the single total transition authority for menu input and
 // asynchronous completions. The initial slice ownership is cloned before any
 // transition so callers can retain prior states safely.
@@ -301,7 +322,7 @@ func ReduceMenu(state MenuState, event MenuEvent) (MenuState, []MenuEffect) {
 	if event.Kind == MenuEventCompletionResult && !completionResultMatches(next, event.Completion) {
 		return next, nil
 	}
-	if next.Notice.Level != MenuNoticeProgress && event.Kind != MenuEventOperationResult && event.Kind != MenuEventPreviewResult && event.Kind != MenuEventCompletionResult {
+	if next.Notice.Level != MenuNoticeProgress && clearsPreviousNotice(event.Kind) {
 		next.Notice = MenuNotice{}
 	}
 	if event.Kind == MenuEventNotice {

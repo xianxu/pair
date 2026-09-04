@@ -3241,3 +3241,21 @@ that a key token appears cannot detect a contradictory behavioral sentence
   would have been swallowed — the spurious-notice bug the marker exists to
   prevent, inverted. Mark the thing you ended, identified by its own handle,
   never by the slot it occupied.
+- Test at the seam the PRODUCTION path goes through, or a guard can be correct
+  and unreachable. couch's fix for "a failed relaunch loses its recovery
+  message" was a guard inside `reconcileMenuFrames`, and a test that called
+  `reconcileMenuFrames` directly proved it worked. It never ran: `ReduceMenu`
+  zeroes the notice near the top of every transition, so the guarded code saw an
+  already-empty notice and the operator still lost the message. The reviewer
+  found it by reproducing the symptom through `ReduceMenu`. If a fix is a guard,
+  the test must enter through whatever the operator's keystroke enters through.
+- A message answers the last thing the OPERATOR did, so only what they do should
+  retire it. Clearing on every event kind meant a background inventory refresh
+  wiped an operation's own result about a second after it appeared.
+- Ambient env read from a constructor is a test-pollution hazard with a file
+  attached. `newInputTracer` called `os.Getenv` inside `Console.New`, so every
+  Console any test built opened a real append-mode file — one leaked fd each,
+  and fixture bytes written into a real operator artifact — for any developer
+  whose shell exported the variable. Take the path as a parameter from the
+  composition root and close it in teardown. (Same family as the
+  PAIR_SESSION_ID/PAIR_TAG leak already recorded here.)

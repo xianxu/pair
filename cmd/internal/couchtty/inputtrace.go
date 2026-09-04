@@ -52,17 +52,21 @@ type inputTracer struct {
 	f  *os.File
 }
 
-// newInputTracer returns a nil tracer when tracing is off, and an ERROR when it
-// was asked for and could not start.
+// newInputTracer returns a nil tracer when the path is empty, and an ERROR when
+// a path was given and could not be opened.
 //
-// Returning nil for both was the same fabricated-diagnostic shape this probe
-// exists to eliminate: an unwritable COUCH_INPUT_TRACE produced an empty trace
-// file indistinguishable from "no bytes arrived", which is precisely the
-// ambiguity the operator turned the probe on to resolve. The INABILITY to
-// observe must never be presentable as an observation. The caller still must not
-// let a diagnostic take the console down -- it reports and carries on.
-func newInputTracer() (*inputTracer, error) {
-	path := os.Getenv("COUCH_INPUT_TRACE")
+// The PATH IS A PARAMETER. Reading os.Getenv inside the constructor meant every
+// Console ever built opened a real file for append -- and couchtty builds many
+// per test run, so a developer whose shell exports the variable got one leaked
+// fd per Console and a trace file full of fixture bytes. This repo has already
+// been bitten by PAIR_SESSION_ID/PAIR_TAG leaking into `make test`; ambient env
+// reached from a constructor is the same hazard with a file attached.
+//
+// Returning nil for both "off" and "could not open" was a second problem: an
+// unwritable path produced an empty trace indistinguishable from "no bytes
+// arrived", which is precisely the ambiguity the probe exists to resolve. The
+// INABILITY to observe must never be presentable as an observation.
+func newInputTracer(path string) (*inputTracer, error) {
 	if path == "" {
 		return nil, nil
 	}
@@ -73,11 +77,29 @@ func newInputTracer() (*inputTracer, error) {
 	return &inputTracer{f: f}, nil
 }
 
+// Close releases the trace file. Nil-safe, like record.
+func (t *inputTracer) Close() error {
+	if t == nil {
+		return nil
+	}
+	t.mu.Lock()
+	defer t.mu.Unlock()
+	if t.f == nil {
+		return nil
+	}
+	err := t.f.Close()
+	t.f = nil
+	return err
+}
+
 func (t *inputTracer) record(chunk []byte) {
 	if t == nil {
 		return
 	}
 	t.mu.Lock()
 	defer t.mu.Unlock()
+	if t.f == nil {
+		return
+	}
 	fmt.Fprintf(t.f, "%s %s\n", time.Now().Format("15:04:05.000"), renderInputBytes(chunk))
 }

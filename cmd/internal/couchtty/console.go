@@ -160,7 +160,6 @@ func (c *Console) errw() io.Writer {
 
 func New(host hostty.Host, stdin io.Reader) *Console {
 	lifetime, cancelLifetime := context.WithCancel(context.Background())
-	tracer, traceErr := newInputTracer()
 	c := &Console{
 		host:              host,
 		stdin:             stdin,
@@ -181,17 +180,32 @@ func New(host hostty.Host, stdin io.Reader) *Console {
 		cancelLifetime:    cancelLifetime,
 		stop:              make(chan struct{}),
 		feed:              NewFeed(8),
-		trace:             tracer,
-	}
-	// Control priority: an instrument that was asked for and could not start has
-	// to say so, or its empty output reads as evidence.
-	if traceErr != nil {
-		c.feed.Push(Notice{Kind: "trace", Control: true, Body: traceErr.Error()})
 	}
 	if s, err := host.Size(); err == nil {
 		c.size = s
 	}
 	return c
+}
+
+// SetInputTrace opens the operator-keystroke probe at path, or turns it off when
+// path is empty. Called by the composition root with the environment's value, so
+// that a constructor never reaches for ambient env and a test never opens a real
+// file it did not ask for.
+//
+// A failed open is REPORTED, at control priority, rather than silently tracing
+// nothing: an empty trace would otherwise read as "no bytes arrived", the exact
+// ambiguity the probe exists to remove.
+func (c *Console) SetInputTrace(path string) error {
+	tracer, err := newInputTracer(path)
+	c.mu.Lock()
+	previous := c.trace
+	c.trace = tracer
+	if err != nil {
+		c.feed.Push(Notice{Kind: "trace", Control: true, Body: err.Error()})
+	}
+	c.mu.Unlock()
+	_ = previous.Close()
+	return err
 }
 
 // SetForget injects registry removal. Production passes Couch.Forget; keeping
@@ -705,6 +719,13 @@ func (c *Console) drainChunks() {
 // and join every worker before Run returns.
 func (c *Console) teardown(restore func() error) {
 	c.release()
+	c.mu.Lock()
+	tracer := c.trace
+	c.trace = nil
+	c.mu.Unlock()
+	if err := tracer.Close(); err != nil {
+		fmt.Fprintf(c.errw(), "couch: close input trace: %v\n", err)
+	}
 	if err := restore(); err != nil {
 		fmt.Fprintf(c.errw(), "couch: restore terminal: %v\n", err)
 	}
@@ -1495,9 +1516,10 @@ func (c *Console) consumeExpectedParkExitLocked(id string, address couchcore.Thr
 	if origin.Attempt == 0 {
 		return false
 	}
-	switch origin.Operation {
-	case "park", "detach", "relaunch":
+	if endsItsOwnChild(origin.Operation) {
 		return origin.Address == address
+	}
+	switch origin.Operation {
 	case "leave":
 		// Leave detaches every thread, so every child exit it causes is
 		// expected. Without this the operator gets a burst of exit notices on

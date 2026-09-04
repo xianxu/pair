@@ -1,6 +1,7 @@
 package couchtty
 
 import (
+	"os"
 	"path/filepath"
 	"slices"
 	"strings"
@@ -67,8 +68,8 @@ func TestNilInputTracerRecordsWithoutPanicking(t *testing.T) {
 // an empty trace indistinguishable from "no bytes arrived" -- the exact
 // ambiguity the probe exists to remove.
 func TestATraceThatCannotStartSaysSoInsteadOfTracingNothing(t *testing.T) {
-	t.Setenv("COUCH_INPUT_TRACE", filepath.Join(t.TempDir(), "no-such-dir", "keys.log"))
-	tracer, err := newInputTracer()
+	unwritable := filepath.Join(t.TempDir(), "no-such-dir", "keys.log")
+	tracer, err := newInputTracer(unwritable)
 	if err == nil {
 		t.Fatal("an unopenable trace path reported no error")
 	}
@@ -79,6 +80,9 @@ func TestATraceThatCannotStartSaysSoInsteadOfTracingNothing(t *testing.T) {
 	// And the console surfaces it rather than starting silently blind.
 	con := New(hostty.NewFakeHost(ptychild.Size{Rows: 24, Cols: 80}), nil)
 	t.Cleanup(con.Stop)
+	if err := con.SetInputTrace(unwritable); err == nil {
+		t.Fatal("SetInputTrace hid the failure from its caller")
+	}
 	var bodies []string
 	for _, message := range con.feed.Messages() {
 		bodies = append(bodies, message.Body)
@@ -86,15 +90,57 @@ func TestATraceThatCannotStartSaysSoInsteadOfTracingNothing(t *testing.T) {
 	if !slices.ContainsFunc(bodies, func(body string) bool {
 		return strings.Contains(body, "COUCH_INPUT_TRACE")
 	}) {
-		t.Fatalf("console started with a dead probe and said nothing: %q", bodies)
+		t.Fatalf("console kept a dead probe and said nothing: %q", bodies)
 	}
 }
 
-// Off is still silent: no env var, no tracer, no notice.
+// A Console must not open a trace file nobody asked it for. couchtty builds many
+// per test run, and reading os.Getenv from the constructor meant an exported
+// COUCH_INPUT_TRACE leaked one fd per Console plus fixture bytes into a real
+// operator file -- the same shape as the PAIR_SESSION_ID leak this repo already
+// hit in `make test`.
+func TestAConsoleOpensNoTraceUnlessAskedTo(t *testing.T) {
+	path := filepath.Join(t.TempDir(), "keys.log")
+	t.Setenv("COUCH_INPUT_TRACE", path)
+
+	con := New(hostty.NewFakeHost(ptychild.Size{Rows: 24, Cols: 80}), nil)
+	t.Cleanup(con.Stop)
+	con.mu.Lock()
+	tracer := con.trace
+	con.mu.Unlock()
+	if tracer != nil {
+		t.Fatal("the constructor read ambient env and opened a trace file")
+	}
+	if _, err := os.Stat(path); err == nil {
+		t.Fatal("the constructor created the trace file named by ambient env")
+	}
+}
+
+// Off is still silent: no path, no tracer, no notice.
 func TestTracingOffIsSilent(t *testing.T) {
-	t.Setenv("COUCH_INPUT_TRACE", "")
-	tracer, err := newInputTracer()
+	tracer, err := newInputTracer("")
 	if tracer != nil || err != nil {
 		t.Fatalf("tracing off produced tracer %v err %v", tracer, err)
+	}
+}
+
+// A closed tracer must not panic or write; teardown closes it.
+func TestAClosedTracerStopsRecording(t *testing.T) {
+	path := filepath.Join(t.TempDir(), "keys.log")
+	tracer, err := newInputTracer(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	tracer.record([]byte("a"))
+	if err := tracer.Close(); err != nil {
+		t.Fatal(err)
+	}
+	tracer.record([]byte("b"))
+	body, err := os.ReadFile(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if strings.Contains(string(body), "b") {
+		t.Fatalf("a closed tracer kept recording: %q", body)
 	}
 }

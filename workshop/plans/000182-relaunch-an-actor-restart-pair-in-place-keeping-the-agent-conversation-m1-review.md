@@ -770,3 +770,173 @@ findings:
       whole family for this - a package-level map with a fallback word, or a
       declared past participle, closes it.
 ```
+
+---
+
+## Re-review — 2026-09-04T14:37:05-07:00 (REWORK)
+
+| field | value |
+|-------|-------|
+| issue | 182 — Relaunch an actor: restart Pair in place, keeping the agent conversation |
+| repo | pair |
+| issue file | workshop/issues/000182-relaunch-an-actor-restart-pair-in-place-keeping-the-agent-conversation.md |
+| boundary | milestone M1 |
+| milestone | M1 |
+| window | 4a7d96e2df70b9ad0fea2482bc2dc3d6f1816637..a3c8c00f54d3d7589c0fed03af6d651ab992fa59 |
+| command | sdlc milestone-close --issue 182 --milestone M1 |
+| reviewer | claude |
+| timestamp | 2026-09-04T14:37:05-07:00 |
+| verdict | REWORK |
+
+## Review
+
+```verdict
+verdict: REWORK
+confidence: high
+```
+
+The round-4 work is mostly real and mostly well-pinned — I revert-verified the chord dispatch arm, the `expectedExits` exclusion, and the warm/cold evidence split, and each goes red without its fix. What blocks SHIP is BR-16: `setBookkeepingNotice`'s ownership guard (`menu.go:139`) can never fire on the path production actually takes. `ReduceMenu` blanks any non-progress notice at `menu.go:304-306` *before* dispatching to the `MenuEventInventory` arm that calls `reconcileMenuFrames` (`menu.go:334`), so the owner is already zero by the time the guard reads it. The test that "pins" the fix calls `reconcileMenuFrames` directly (`menu_recovery_notice_test.go:43`), bypassing that reset. I reproduced the original symptom against HEAD through the production event: after the failed relaunch the notice is `"brain is parked and was not resumed; Enter resumes it"`; after one `MenuEventInventory` through `ReduceMenu` it is `"thread action is no longer applicable"` — unchanged from the behaviour BR-16 described. This is the checklist's exact "reads as protection, does nothing" case, on the destructive path, on the Done-when bullet the Spec calls the whole design question.
+
+## 1. Strengths
+
+- **`console_relaunch_chord_test.go:47` drives real operator bytes through `Run`'s own input loop.** Removing `case HitRelaunch` from `console.go:619` makes it time out on both encodings — the first test in this package that can see a chord intercepted and then dropped.
+- **`TestRelaunchDoesNotPreMarkTheChildItJustAdopted` (`console_relaunch_chord_test.go:265`) is correctly pinned and correct in production.** Reverting `&& id != startedHandleID` (`console.go:1435`) turns it red, and pane ids genuinely are handle ids (`console.go:1562` installs with `start.Handle.ID()`), so the exclusion names the right child.
+- **`StartedChild` (`ops.go:111-125`) is the right shape for adoption** — a property of the result, with `RelaunchResult.Started()` (`relaunch.go:52`) refusing to hand back a child for any outcome but `Relaunched`, and the declaration corrected to `ResultStart` in both `ops.go:265` and `ops_declarations_test.go:32`.
+- **The warm/cold evidence split (`resume.go:141-180`) is a genuine improvement over the consolidation it replaces**, and `TestWarmReattachNeitherConsultsNorIsFailedByTheBindingResolver` fails when the cold-path guard is removed. It removes both an IO cost and a failure mode the warm path never had.
+- **`bindingRefusalDiagnostic` (`resume.go:266`) derives four operator sentences from the same code that chose the refusal**, and `resume_binding_message_test.go` asserts they are distinct and that the commonest one names a next action.
+- **The atlas `COUCH_INPUT_TRACE` entry names the capture hazard outright** (`atlas/couch.md`: "prompts, pasted secrets, credentials") rather than documenting only the happy path.
+
+## 2. Critical findings
+
+**BR-16 — the recovery-notice fix is unreachable on the production path** (`menu.go:139`, `menu.go:304-306`, `menu_recovery_notice_test.go:43`). Detail and reproduction in the findings block. Fix sketch, verified in a scratch worktree (whole `couchtty` suite green except the pre-existing pty failures):
+
+```go
+if next.Notice.Level != MenuNoticeProgress && event.Kind != MenuEventOperationResult &&
+    event.Kind != MenuEventPreviewResult && event.Kind != MenuEventCompletionResult &&
+    !(event.Kind == MenuEventInventory && next.Notice.Owner.OperationAttempt != 0) {
+    next.Notice = MenuNotice{}
+}
+```
+
+The test must be rewritten to deliver the refresh as `ReduceMenu(state, MenuEvent{Kind: MenuEventInventory, ...})`, not as a direct `reconcileMenuFrames` call — otherwise the next version of this fix is equally invisible.
+
+## 3. Important findings
+
+- **BR-10 (not-addressed):** the instance is fixed and pinned; the *class* deliverable is not. There is no test walking every `seqKind` through `hit()` (`keys.go:63`) asserting each non-`HitNone` value reaches a handler — `console.go:610-622` is still a hand-written switch inside a closure in `Run`, unreachable from a test. `README.md:141` still describes `Alt+n` as Pair's in-place workbench reload, `menuControls` (`menu.go:19`) has no `Alt+n` row, and the new `Tab → relaunch` action is undocumented alongside the existing `Tab → archive` row.
+- **New (5th in `declared-source-hand-maintained-consumers`):** `endsItsOwnChild` (`console.go:1477`) has exactly one call site while `consumeExpectedParkExitLocked` (`console.go:1499`) still hand-enumerates the same three operations — and the helper's own doc comment claims it unified both.
+
+## 4. Minor findings
+
+- BR-1 — the plan's operating envelope still cites two durations that no constant produces; `workshop/plans/000182-relaunch-an-actor-plan.md` is unmodified in this window.
+- BR-6 — `relaunch_test.go` still has no agent-unsupported / profile-missing case at the `Relaunch` level.
+- BR-7 — plan line 159 (`Step 5: Commit`) is still `- [ ]`; the issue's `## Revisions` still says "⚠ The estimate is now stale" over a re-derived `## Estimate`.
+- BR-9 — `relaunch.go` still sits between `pathops.go` and `procops.go` (`manifest.go:524`); the new `inputtrace.go` entry *was* inserted in order.
+- BR-18, BR-19 — the code clauses landed; nothing goes red without them.
+- New — `newInputTracer()` runs inside `New()` (`console.go:163`), reading ambient `COUCH_INPUT_TRACE` and opening a never-closed file.
+
+## 5. Test coverage notes
+
+Six of the nine claimed fixes are pinned by tests I confirmed go red when reverted. The two failures of the protocol are different in kind: BR-18/BR-19 landed *without* a test (cheap to add — one `pastParticiple("stop")` assertion, one reconcile case with `InFlight.Address == frame.Thread` but a different `Operation`), while BR-16 landed *with* a test that cannot observe the defect. The second is the dangerous one: `menu_recovery_notice_test.go` and `menu_inflight_frame_test.go` both call `reconcileMenuFrames` directly. Only the in-flight test is safe that way, because `InFlight` is state rather than notice. Any future assertion about notices must enter through `ReduceMenu`.
+
+## 6. Architectural notes
+
+- **ARCH-DRY — flag.** `endsItsOwnChild` at one call site; see the Important finding.
+- **ARCH-PURE — pass.** The reducers stay pure and `renderInputBytes` is pure and directly tested; `inputTracer` is the thin IO shell. One nit: `New()` now performs filesystem IO.
+- **ARCH-PURPOSE — flag.** `OperationConfirms` is the right move and three consumers now derive from it. Six per-operation facts remain hand-maintained restatements of the same declaration (`operationNeedsProjectionRefresh`, `endsItsOwnChild`, `reduceOperationResult`'s case list, `reduceParkHotkey`'s case list, `menuOperationProgressText`, `pastParticiple`). Also flagged: BR-16's fix is the site, not the class — the class is "an ownership guard placed downstream of the code that destroys ownership."
+- **ARCH-MOCK — pass.** Relaunch runs against the existing `PairLifecycle`/`Artifacts` fakes; the chord tests use `hostty.NewFakeHost` + `ptychild.NewFakeChild` at the same boundary production uses.
+- **ARCH-CONSTRAINTS — pass on the diff, flag on the plan (BR-1).** Nothing added blocks a keystroke path; `OperationConfirms`'s linear scan runs at most a few times per frame reconcile.
+- **ARCH-SECURE — pass with one note.** The keystroke tap is documented as a secret-capture hazard and the file is `0600`; the note is the ambient-env constructor read, which lets any test process inherit the variable and write real user state.
+
+## 7. Plan revision recommendations
+
+1. **Task 10 Step 2b** — extend the enumeration to the interceptor side: "every non-`HitNone` `InterceptorHit` reaches a handler, asserted by a test" requires extracting `processInput`'s switch out of `Run`'s closure into a testable method. Currently Step 2b covers only the operation half.
+2. **Task 12 Step 1** — state explicitly that `menuControls` needs both an `Alt+n` row and a `Tab → relaunch` row, and that `README.md:141` must be *rewritten* (not merely matched) because `TestREADMEDocumentsEveryPanelControl` passes on the existing string while it still documents the pre-interception behaviour.
+3. **Task 1 Step 5** — tick it; `e7c6c6e8` landed the commit and `milestone-close`'s plan-unchecked guard will refuse on it.
+4. **`## Revisions`** — a new entry recording that M2 work (the chord, the confirmation item, the six-site sweep, the input probe) landed inside the M1 window while Tasks 8–10 remain unchecked, so the plan stops under-claiming what the code delivers.
+5. **Operating envelope** — correct the three durations to the constants that produce them (`park.go:549-555` 15s `CompletionTimeout` covering child death, `resumeRegistrationTimeout` 5s at `couch.go:107`), giving ~20s worst case.
+
+```findings
+dispose:
+  - id: BR-1
+    disposition: not-addressed
+    note: |
+      workshop/plans/000182-relaunch-an-actor-plan.md is unmodified in this window; the ~30s figure and both phantom budgets stand.
+  - id: BR-6
+    disposition: not-addressed
+    note: |
+      relaunch_test.go:84-122 still has five cases; no agent-unsupported and no profile-missing case at the Relaunch level.
+  - id: BR-7
+    disposition: not-addressed
+    note: |
+      Plan line 159 is still "- [ ]" and the issue's Revisions still says "the estimate is now stale"; additionally M2's chord/sweep work landed here while Tasks 8-10 stay unchecked.
+  - id: BR-9
+    disposition: not-addressed
+    note: |
+      manifest.go:524 still places relaunch.go between pathops.go and procops.go; the new inputtrace.go entry was ordered correctly.
+  - id: BR-10
+    disposition: not-addressed
+    note: |
+      Instance fixed and pinned (revert-verified); the class enumeration over InterceptorHit, README.md:141, menuControls and Tab-relaunch remain.
+  - id: BR-16
+    disposition: not-addressed
+    note: |
+      Guard cannot fire on the production path; reproduced the original symptom against HEAD through ReduceMenu.
+  - id: BR-17
+    disposition: addressed
+    note: |
+      Revert-verified red; pane ids are handle ids (console.go:1562), so the exclusion names the right child in production too.
+  - id: BR-18
+    disposition: not-addressed
+    note: |
+      The Operation clause landed at menu.go:1301 but the whole couchtty suite stays green when it is reverted; no test enters the narrowed case.
+  - id: BR-19
+    disposition: not-addressed
+    note: |
+      pastParticiple landed with a fallback but nothing tests it, and only park/relaunch can reach the guard, so the fallback has no caller.
+findings:
+  - id: new
+    severity: Important
+    family: declared-source-hand-maintained-consumers
+    title: |
+      endsItsOwnChild has one call site while the second list it was written to replace still enumerates by hand
+    detail: |
+      This is the 5th finding in family `declared-source-hand-maintained-consumers`, so the deliverable is the RULE, not this
+      site. console.go:1477 declares endsItsOwnChild and its doc says it exists
+      "so the two sites that need the answer cannot disagree ... the expectedExits
+      bridge and the switch below". Only the bridge (console.go:1431) calls it;
+      consumeExpectedParkExitLocked at console.go:1499 still spells
+      `case "park", "detach", "relaunch":` itself. The two agree today, so nothing
+      is broken -- but the divergence the helper was written to remove is fully
+      intact, and the comment asserts a property the code does not have, which is
+      worse than no helper because the next reader trusts it.
+      Rule: a per-operation fact has exactly one predicate and EVERY consumer calls
+      it; a helper introduced for DRY with a single call site has not been adopted,
+      it has been added. Measured prevalence in couchtty after this window: seven
+      hand-maintained restatements of facts the Operation declaration already owns
+      or could own -- consumeExpectedParkExitLocked (console.go:1499),
+      operationNeedsProjectionRefresh (menu.go:1397), reduceOperationResult's case
+      list (menu.go:1384), reduceParkHotkey's case list (menu.go:483),
+      menuOperationProgressText (menu.go:1495), pastParticiple (menu.go:542), and
+      menuActionItems' hardcoded per-state slices (menu.go:1068). OperationConfirms
+      proves the shape works; write the enumeration and route these through it (or
+      through fields on Operation) as one sweep, and fold it into Task 10 Step 2b
+      which already owns the operation-side half. ARCH-DRY, ARCH-PURPOSE.
+  - id: new
+    severity: Minor
+    family: constructor-io-from-ambient-env
+    title: |
+      The input tracer is opened inside New() from ambient env and never closed
+    detail: |
+      console.go:163 calls newInputTracer() from the Console constructor, which
+      reads os.Getenv("COUCH_INPUT_TRACE") (inputtrace.go:65) and opens a real file
+      for append. Nothing closes it -- neither Stop() nor teardown() touches
+      c.trace. In production that is one fd for the process lifetime, which is
+      fine. In tests it is not: couchtty builds many Consoles per run, so a
+      developer whose shell exports the variable (this repo has already been bitten
+      by PAIR_SESSION_ID/PAIR_TAG leaking into `make test`) gets one open fd per
+      constructed Console and a trace file polluted with fixture bytes. ARCH-SECURE's
+      at-review lens names exactly this: tests able to write real user state.
+      Take the path as a parameter from the composition root, or gate the Getenv
+      behind the same seam the rest of couchtty uses, and close the file in
+      teardown.
+```

@@ -367,6 +367,10 @@ func consoleRunnerFor(name string, stdin io.Reader, hasTerminal bool, inFile, ou
 
 	host := hostty.NewOSHost(inFile, outFile)
 	console := couchtty.New(host, stdin)
+	// The composition root owns the environment read. A failed open reports
+	// itself on the status row; it must never take the console down, and it must
+	// never be mistaken for "the terminal sent nothing".
+	_ = console.SetInputTrace(os.Getenv("COUCH_INPUT_TRACE"))
 	return console, &couchcore.PtyRunner{
 		Size: console.ChildSize,
 		Sink: console.Deliver,
