@@ -262,14 +262,17 @@ sessions. Measured on the operator store: 13 rows, 2 live, 1 stale incarnation,
 ### pair#181 M2 — warm reattach: get back into a detached session
 
 **est:** 8.64 (whole issue)
-**closed:** — *(no `milestone-close` was run for M2; see the note below)*
+**actual:** 0.9h
+**closed:** 2026-09-04
 
 **Process deviation, recorded rather than papered over.** M2's code went straight
-into M3's work without its own boundary close, so it has no `Review-Verdict`
-trailer, no `closed M2` log line, and no measured actual. Its code WAS reviewed:
-the M3 window starts at M1's close, so every M3 review round covered it. What is
-missing is the recorded boundary, and an `**actual:**` invented for it would be
-exactly the hand-typed calibration input AGENTS.md §5 forbids.
+into M3's work without its own boundary close. The bookkeeping was closed
+afterwards with `--no-judge` and `Review-Verdict: not-run`, which is the honest
+record: M2's code HAD been reviewed -- the M3 window starts at M1's close, so all
+five M3 rounds contained it, and rounds 2 and 3 examined the warm-reattach code
+directly -- but a judge dispatched at close time would have reviewed
+`5be12bb9..HEAD`, an empty window, and produced a real-looking verdict over
+nothing.
 
 Reattaching a running agent needed three sites to agree that reattaching is not
 resuming: the native session id is the COLD path's proof, and a warm reattach
