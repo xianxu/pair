@@ -213,7 +213,7 @@ Plan doc to follow. Three review boundaries:
       boundary + drop the cold gate from the warm path) and pair#168 (stop
       shadowing the binding; fall back to prior binding, then the legacy row's
       session id). Re-measure the store and report what recovered.
-- [x] M3 -- archive as the only exit. pair#180's retirement rule against the
+- [ ] M3 -- archive as the only exit. pair#180's retirement rule against the
       post-repair population, operator-invoked.
 
 ## Revisions
