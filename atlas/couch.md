@@ -533,6 +533,30 @@ so reattaching preserves what it was doing; recency because that is the thread
 the operator was last in, and a wrong guess costs one `ctrl-space`
 (`pair#181`).
 
+**A record couch cannot READ is a third answer, not a verdict.** `Snapshot`
+carries such addresses as `ThreadSnapshot.Unreadable` rather than raising, so one
+corrupt file cannot fail the whole inventory -- a store with 13 threads and one
+bad record has 13 threads. They project as `unusable/unreadable`, which is
+deliberately NOT `invalid`: a decode failure can mean the record is corrupt, or
+that this binary is older than the store that wrote it, and conflating them
+would make an old couch call every thread debris and offer to archive live work.
+It is the same distinction `ProofStatus` draws about evidence, one layer down.
+
+Unknown is also CONSERVATIVE. `PathHoldsUnreadableThread` blocks a start
+anywhere in the repository scope of an unreadable record: reading it is what
+would have supplied its working path, so it cannot be matched by path, and
+treating it as absent would create a second thread in a tree that may hold live
+work -- silently, where the old code failed loudly. `unreadable` is never
+archive-eligible for the same reason, but it CAN be archived by the operator on
+purpose, and `resolveThreadForArchive` addresses a thread without decoding it so
+that gesture reaches the one record class that most needs it.
+
+Both projections take one `ThreadProjectionInput` (records + evidence +
+unreadable). The three used to travel separately with the unreadable set as a
+trailing variadic, which meant omitting it compiled cleanly and silently
+restored "some records get no row" -- the regression the total projection exists
+to prevent. One value makes the next omission a compile error.
+
 `PathHoldsUsableThread` is the other half: **one thread per repository path**,
 enforced at the single site every creation entry funnels through
 (`spawnResolved`), refusing a start where a live, detached or parked row already
