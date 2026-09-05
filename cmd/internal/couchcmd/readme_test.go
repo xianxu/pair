@@ -55,14 +55,38 @@ func TestM3DocsMatchActionableSwitcherInventoryProvider(t *testing.T) {
 	}
 }
 
+// couchREADMESection is the region of README that documents couch.
+//
+// The panel-control guard has to look HERE and not at the whole file: Pair has
+// its own keybinding table using the same key names, so a chord couch newly
+// intercepts is already "documented" by Pair's row describing what it used to
+// do. Alt+n passed the whole-file check that way while README still told the
+// operator it reloads pair in place in "any pane", which is false inside couch.
+//
+// Fatal rather than skip when the markers are gone: a guard that silently
+// stops checking is worse than one that fails.
+func couchREADMESection(t *testing.T) string {
+	t.Helper()
+	const start = "`make install` also installs a second binary, **`couch`**"
+	const end = "## Command Usage"
+	doc := readme(t)
+	from := strings.Index(doc, start)
+	to := strings.Index(doc, end)
+	if from < 0 || to < 0 || to <= from {
+		t.Fatalf("README's couch section is not delimited by %q..%q — the panel-control guard cannot scope itself", start, end)
+	}
+	return doc[from:to]
+}
+
 // The panel renderer and README consume the same key inventory. Adding a key
 // to the UI therefore makes this test fail until its operator documentation
-// has a home in README, instead of relying on a boundary reviewer to remember.
+// has a home in README's COUCH section, instead of relying on a boundary
+// reviewer to remember.
 func TestREADMEDocumentsEveryPanelControl(t *testing.T) {
-	doc := readme(t)
+	section := couchREADMESection(t)
 	for _, control := range couchtty.MenuControls() {
-		if !strings.Contains(doc, control.Keys) {
-			t.Errorf("README does not document panel key %q (%s)", control.Keys, control.Action)
+		if !strings.Contains(section, control.Keys) {
+			t.Errorf("README's couch section does not document panel key %q (%s)", control.Keys, control.Action)
 		}
 	}
 }

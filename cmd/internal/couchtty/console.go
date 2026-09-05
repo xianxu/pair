@@ -636,6 +636,12 @@ func (c *Console) Run() int {
 			// is missing -- the table can.
 			if handle := c.hitHandlers()[hit]; handle != nil {
 				handle()
+			} else {
+				// The bytes are already consumed, so silence here is a chord
+				// that does nothing with no way to tell. The test catches this
+				// at build time; this makes it observable to an operator in a
+				// build where it did not.
+				c.setNotice(fmt.Sprintf("chord %d is intercepted but has no handler", hit))
 			}
 			raw = rest
 		}

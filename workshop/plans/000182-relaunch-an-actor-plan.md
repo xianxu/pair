@@ -448,17 +448,21 @@ replaced — the substantial new machinery.
 | Name | Lives in | Status | Wraps |
 |------|----------|--------|-------|
 | `onRelaunchHotkey` | `cmd/internal/couchtty/console.go` | new | chord → operation dispatch |
-| `onExit` | `cmd/internal/couchtty/console.go` | modified | child death, non-fatal for a holding pane |
-| `finishOperation` | `cmd/internal/couchtty/console.go` | modified | installing the new child into the held pane |
+| `onExit` | `cmd/internal/couchtty/console.go` | modified | child death, non-fatal for a holding pane — **`pair#186`, unmodified here** |
+| `finishOperation` | `cmd/internal/couchtty/console.go` | modified | adopting the started child (`StartedChild`); the "into the held pane" half is **`pair#186`** |
 
 - **onRelaunchHotkey** — **scope follows focus, with one deviation that must be
   stated.** `Alt+x` and `Alt+d` mean "what you are looking at": one actor from an
   actor, every live thread from the switcher. Relaunch has NO whole-couch form —
   that is `Alt+d`, rebuild, re-run `couch`, the symmetry this issue completes. So
   from the panel `Alt+n` relaunches the HIGHLIGHTED ROW and leaves the operator in
-  the switcher; from an actor it relaunches that actor and returns to it. **The
-  ending differs by caller**, which is why it belongs to the console rather than
-  to the operation.
+  the switcher; from an actor it relaunches that actor and — **as shipped** —
+  also leaves the operator in the switcher, because until a pane can outlive its
+  child there is no actor surface to return to. This paragraph originally said it
+  "returns to it", which was the design for a holding pane that moved to
+  `pair#186`; the code sets `FocusPanel` in both branches and says why. **The
+  ending differing by caller is therefore `pair#186`'s property, not this
+  issue's** — but it still belongs to the console rather than the operation.
   - `processInput`'s dispatch switch is exhaustive on purpose — its comment says
     a `default` arm would turn any unhandled hit into "open the switcher".
     `HitRelaunch` is handled in both focus states, never defaulted.

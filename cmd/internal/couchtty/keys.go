@@ -47,19 +47,13 @@ const (
 	seqHotkey = seqSwitch // compatibility name for the switch-sequence tests
 )
 
-// intercepts reports whether a sequence is CONSUMED by couch rather than
-// forwarded to the child. Derived rather than enumerated at each site: a new
-// chord that forgot to update a hand-written list would be silently forwarded,
-// which is exactly the failure the Kitty encoding already caused once.
-func (k seqKind) intercepts() bool {
-	switch k {
-	case seqSwitch, seqPark, seqPrevious, seqDetach, seqRelaunch:
-		return true
-	}
-	return false
-}
-
-// hit maps an intercepted sequence to what the console should do about it.
+// hit maps a sequence to what the console should do about it, and is the ONE
+// place that knows. HitNone means the sequence is not couch's.
+//
+// intercepts() used to be a second switch over the same enum, so a new chord had
+// to join both or be silently forwarded -- the failure the Kitty encoding
+// already caused once, and the shape that let alt+n ship consumed-and-dropped.
+// Two switches over one enum agree until someone edits one.
 func (k seqKind) hit() InterceptorHit {
 	switch k {
 	case seqSwitch:
@@ -75,6 +69,10 @@ func (k seqKind) hit() InterceptorHit {
 	}
 	return HitNone
 }
+
+// intercepts reports whether a sequence is CONSUMED by couch rather than
+// forwarded to the child. Derived from hit(), so the two cannot disagree.
+func (k seqKind) intercepts() bool { return k.hit() != HitNone }
 
 type InterceptorHit uint8
 

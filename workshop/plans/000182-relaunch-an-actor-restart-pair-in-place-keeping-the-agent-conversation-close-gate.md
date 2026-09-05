@@ -716,6 +716,106 @@ rounds:
           family: review-window-degenerate
           round: 9
       blocked: true
+    - "n": 10
+      timestamp: "2026-09-04T16:56:08-07:00"
+      agent: claude
+      dispose:
+        - id: BR-1
+          disposition: not-addressed
+          note: plan lines 32-35 unchanged; measured CompletionTimeout=15s (couch.go:119) and resumeRegistrationTimeout=5s (couch.go:107), child death awaited inside the 15s (park.go:552).
+          round: 10
+        - id: BR-6
+          disposition: not-addressed
+          note: relaunch_test.go:76 still has five cases; no agent-unsupported or profile-missing case at the Relaunch level.
+          round: 10
+        - id: BR-7
+          disposition: not-addressed
+          note: the stale-estimate half is resolved in the issue's Revisions; plan lines 159 and 352 are still unticked for work that landed (e7c6c6e8, b7ec5e64) and the new Revisions note does not name them.
+          round: 10
+        - id: BR-9
+          disposition: not-addressed
+          note: artifactpath/manifest.go:524 still places relaunch.go between pathops.go and procops.go.
+          round: 10
+        - id: BR-10
+          disposition: addressed
+          note: hitHandlers table plus a knownSequences-driven test; the load-bearing direction is derived from the production table. Residual raised as new (intercepts() is still hand-maintained).
+          round: 10
+        - id: BR-24
+          disposition: addressed
+          note: plan gained a Revisions section naming the moved tasks and the entities declared-but-absent; project row and the FocusPanel Done-when corrected; M2's Mx tag dropped. Remaining unswept consumers raised as new.
+          round: 10
+        - id: BR-25
+          disposition: addressed
+          note: menuControls and README both fixed; RowAction gives membership one source and the declared-to-offered direction is mutation-verified red. The converse direction's unfalsifiability raised as new.
+          round: 10
+        - id: BR-26
+          disposition: not-addressed
+          note: console.go:1372-1373 (panel branch takes the highlighted row) still has no test; console_relaunch_chord_test.go drives only the actor branch.
+          round: 10
+        - id: BR-27
+          disposition: withdrawn
+          note: sdlc documents branch-point..HEAD as the whole-issue integration window by design (ariadne close.go:975-987), so the base is not a gate defect; the branch carrying four issues is a hygiene fact, not a window bug.
+          round: 10
+      findings:
+        - id: BR-28
+          severity: Important
+          title: intercepts() and hit() are still two hand-maintained switches over one enum, and the new guard skips whatever intercepts() forgets
+          detail: |-
+            8th in this family, so the deliverable is the enumeration, not the site. keys.go:50-76 keeps two switches over seqKind where hit() alone is the
+            mapping, and console_relaunch_chord_test.go:334 gates its sweep on intercepts() -- the list that can be wrong. Verified in a scratch worktree:
+            removing seqRelaunch from intercepts() leaves TestEveryInterceptedChordHasAHandler green. keys.go:270-276 records that this exact omission has
+            already shipped once. Fix: intercepts() returns k.hit() != HitNone, so one list remains and the test's skip clause derives from it. ARCH-DRY, ARCH-PURPOSE.
+          family: declared-source-hand-maintained-consumers
+          round: 10
+        - id: BR-29
+          severity: Important
+          title: menuActionItems filters through declaredRowActions, so the sweep's offered-implies-declared direction can never fail and its failure is now a silent UI drop
+          detail: |-
+            menu.go:1085-1097 filters the row's offer through couchcore.RowActions() before menu_action_sweep_test.go:96-100 reads it, so offered is a subset of
+            declared by construction. Verified: adding "bogus" to the live row in menuActionItemsForState produces zero test failures and the item simply
+            disappears from the switcher. The rule: a guard must be able to fail, and production must not coerce its input into agreement. Fix: build the test's
+            offered set from menuActionItemsForState, pre-filter.
+          family: guard-unfalsifiable-by-construction
+          round: 10
+        - id: BR-30
+          severity: Important
+          title: the pair#186 split is still unpropagated into four artifacts, including the two the fix edited
+          detail: |-
+            3rd in this family; the rule is already in lessons.md, so the deliverable is the sweep. Live: the issue's Done-when bullet 2 still claims the
+            rebuilt-binary verification that Revisions moved to pair#186 (the smoke test proved conversation survival, not a rebuilt binary), and the
+            ctrl+backspace bullet is likewise unmarked with no test; the plan's M2 Integration-points table still lists onExit/finishOperation as holding-pane
+            modifications and describes onRelaunchHotkey as returning to the actor, contradicting the code and the corrected Done-when; projects/couch.md:201
+            still labels the row [pair#182 M2] with no detail block though the Mx tag was dropped. ARCH-PURPOSE on bullet 2 -- the rebuilt binary is the point of the issue.
+          family: plan-record-lags-code
+          round: 10
+        - id: BR-31
+          severity: Important
+          title: the Alt+n interception reached neither atlas/couch.md's chord section nor README's couch section, and the README guard could not notice
+          detail: |-
+            2nd in this family. atlas/couch.md:436 has "Alt+d is Couch's own detach (pair#170), intercepted like Alt+x" with no Alt+n counterpart, and line 355
+            still frames the set as "two lifecycle chords"; README.md:382-389 does the same, documenting Alt+n only inside Pair's own keybinding table, and
+            neither records the switcher-row form or the deliberate FocusPanel ending. TestREADMEDocumentsEveryPanelControl substring-matches control.Keys
+            against the whole README, so the pre-existing Pair-table "Alt+n" satisfied it. Fix: an atlas paragraph beside Alt+d, a couch-section README sentence,
+            and scope the README guard to the couch section.
+          family: new-surface-undocumented
+          round: 10
+        - id: BR-32
+          severity: Minor
+          title: menuActionItems rebuilds the whole Operations() table on every action-menu render
+          detail: |-
+            menu.go:1096 calls couchcore.RowActions(), which constructs ~15 Operation structs with ArgSpec slices, once per render at menu_render.go:200 -- a
+            keystroke-path render. Negligible in absolute terms; a package-level memoized set costs nothing.
+          family: operating-envelope
+          round: 10
+        - id: BR-33
+          severity: Minor
+          title: processInput still consumes the chord bytes when a hit has no handler
+          detail: |-
+            console.go:636-638 drops the hit silently on the nil branch, so a gap is invisible at runtime even though the test now catches it at build time. A
+            status notice there would make the missing case observable to an operator.
+          family: declared-source-hand-maintained-consumers
+          round: 10
+      blocked: true
 ---
 
 # Gate ledger — pair#182 (boundary-review)
@@ -1147,14 +1247,61 @@ later rounds disposed of them. Generated — edit the gate, not this file.
   commit. I reviewed b18f958e..HEAD for the code, which is #182 plus the
   #183/#184/#185/#186 issue-sync commits.
 
+## Round 10 — 2026-09-04T16:56:08-07:00 (claude) — BLOCKED
+
+### Disposed
+
+- BR-1 — not-addressed — plan lines 32-35 unchanged; measured CompletionTimeout=15s (couch.go:119) and resumeRegistrationTimeout=5s (couch.go:107), child death awaited inside the 15s (park.go:552).
+- BR-6 — not-addressed — relaunch_test.go:76 still has five cases; no agent-unsupported or profile-missing case at the Relaunch level.
+- BR-7 — not-addressed — the stale-estimate half is resolved in the issue's Revisions; plan lines 159 and 352 are still unticked for work that landed (e7c6c6e8, b7ec5e64) and the new Revisions note does not name them.
+- BR-9 — not-addressed — artifactpath/manifest.go:524 still places relaunch.go between pathops.go and procops.go.
+- BR-10 — addressed — hitHandlers table plus a knownSequences-driven test; the load-bearing direction is derived from the production table. Residual raised as new (intercepts() is still hand-maintained).
+- BR-24 — addressed — plan gained a Revisions section naming the moved tasks and the entities declared-but-absent; project row and the FocusPanel Done-when corrected; M2's Mx tag dropped. Remaining unswept consumers raised as new.
+- BR-25 — addressed — menuControls and README both fixed; RowAction gives membership one source and the declared-to-offered direction is mutation-verified red. The converse direction's unfalsifiability raised as new.
+- BR-26 — not-addressed — console.go:1372-1373 (panel branch takes the highlighted row) still has no test; console_relaunch_chord_test.go drives only the actor branch.
+- BR-27 — withdrawn — sdlc documents branch-point..HEAD as the whole-issue integration window by design (ariadne close.go:975-987), so the base is not a gate defect; the branch carrying four issues is a hygiene fact, not a window bug.
+
+### Raised
+
+- **BR-28** [Important] `declared-source-hand-maintained-consumers` intercepts() and hit() are still two hand-maintained switches over one enum, and the new guard skips whatever intercepts() forgets
+  8th in this family, so the deliverable is the enumeration, not the site. keys.go:50-76 keeps two switches over seqKind where hit() alone is the
+  mapping, and console_relaunch_chord_test.go:334 gates its sweep on intercepts() -- the list that can be wrong. Verified in a scratch worktree:
+  removing seqRelaunch from intercepts() leaves TestEveryInterceptedChordHasAHandler green. keys.go:270-276 records that this exact omission has
+  already shipped once. Fix: intercepts() returns k.hit() != HitNone, so one list remains and the test's skip clause derives from it. ARCH-DRY, ARCH-PURPOSE.
+- **BR-29** [Important] `guard-unfalsifiable-by-construction` menuActionItems filters through declaredRowActions, so the sweep's offered-implies-declared direction can never fail and its failure is now a silent UI drop
+  menu.go:1085-1097 filters the row's offer through couchcore.RowActions() before menu_action_sweep_test.go:96-100 reads it, so offered is a subset of
+  declared by construction. Verified: adding "bogus" to the live row in menuActionItemsForState produces zero test failures and the item simply
+  disappears from the switcher. The rule: a guard must be able to fail, and production must not coerce its input into agreement. Fix: build the test's
+  offered set from menuActionItemsForState, pre-filter.
+- **BR-30** [Important] `plan-record-lags-code` the pair#186 split is still unpropagated into four artifacts, including the two the fix edited
+  3rd in this family; the rule is already in lessons.md, so the deliverable is the sweep. Live: the issue's Done-when bullet 2 still claims the
+  rebuilt-binary verification that Revisions moved to pair#186 (the smoke test proved conversation survival, not a rebuilt binary), and the
+  ctrl+backspace bullet is likewise unmarked with no test; the plan's M2 Integration-points table still lists onExit/finishOperation as holding-pane
+  modifications and describes onRelaunchHotkey as returning to the actor, contradicting the code and the corrected Done-when; projects/couch.md:201
+  still labels the row [pair#182 M2] with no detail block though the Mx tag was dropped. ARCH-PURPOSE on bullet 2 -- the rebuilt binary is the point of the issue.
+- **BR-31** [Important] `new-surface-undocumented` the Alt+n interception reached neither atlas/couch.md's chord section nor README's couch section, and the README guard could not notice
+  2nd in this family. atlas/couch.md:436 has "Alt+d is Couch's own detach (pair#170), intercepted like Alt+x" with no Alt+n counterpart, and line 355
+  still frames the set as "two lifecycle chords"; README.md:382-389 does the same, documenting Alt+n only inside Pair's own keybinding table, and
+  neither records the switcher-row form or the deliberate FocusPanel ending. TestREADMEDocumentsEveryPanelControl substring-matches control.Keys
+  against the whole README, so the pre-existing Pair-table "Alt+n" satisfied it. Fix: an atlas paragraph beside Alt+d, a couch-section README sentence,
+  and scope the README guard to the couch section.
+- **BR-32** [Minor] `operating-envelope` menuActionItems rebuilds the whole Operations() table on every action-menu render
+  menu.go:1096 calls couchcore.RowActions(), which constructs ~15 Operation structs with ArgSpec slices, once per render at menu_render.go:200 -- a
+  keystroke-path render. Negligible in absolute terms; a package-level memoized set costs nothing.
+- **BR-33** [Minor] `declared-source-hand-maintained-consumers` processInput still consumes the chord bytes when a hit has no handler
+  console.go:636-638 drops the hit silently on the nil branch, so a gap is invisible at runtime even though the test now catches it at build time. A
+  status notice there would make the missing case observable to an operator.
+
 ## Open findings
 
 - **BR-1** [Minor] `operating-envelope` Two of the envelope's three durations name budgets that do not exist as constants
 - **BR-6** [Minor] `done-when-untested` No Relaunch-level test for the agent-unsupported and profile-missing refusals
 - **BR-7** [Minor] `plan-record-lags-code` Task 1 Step 5 is unticked though committed, and the issue's stale-estimate warning contradicts the re-derived Estimate block
 - **BR-9** [Minor] `manifest-ordering` relaunch.go inserted out of alphabetical order in NonArtifactSources
-- **BR-10** [Important] `declared-source-hand-maintained-consumers` Alt+n is intercepted and then silently dropped: HitRelaunch has no arm in processInput's switch
-- **BR-24** [Important] `plan-record-lags-code` The pair#186 split was written into one artifact and propagated to none of its three consumers
-- **BR-25** [Important] `declared-source-hand-maintained-consumers` Both guards written to catch this class read a hand-maintained list, so the new chord and the new operation walked past them
 - **BR-26** [Minor] `done-when-untested` onRelaunchHotkey's panel branch is production code with no test, and the Done-when bullet it serves is unpinned
-- **BR-27** [Minor] `review-window-degenerate` The gate handed this round the whole 111-commit branch, including three other issues' already-closed work
+- **BR-28** [Important] `declared-source-hand-maintained-consumers` intercepts() and hit() are still two hand-maintained switches over one enum, and the new guard skips whatever intercepts() forgets
+- **BR-29** [Important] `guard-unfalsifiable-by-construction` menuActionItems filters through declaredRowActions, so the sweep's offered-implies-declared direction can never fail and its failure is now a silent UI drop
+- **BR-30** [Important] `plan-record-lags-code` the pair#186 split is still unpropagated into four artifacts, including the two the fix edited
+- **BR-31** [Important] `new-surface-undocumented` the Alt+n interception reached neither atlas/couch.md's chord section nor README's couch section, and the README guard could not notice
+- **BR-32** [Minor] `operating-envelope` menuActionItems rebuilds the whole Operations() table on every action-menu render
+- **BR-33** [Minor] `declared-source-hand-maintained-consumers` processInput still consumes the chord bytes when a hit has no handler

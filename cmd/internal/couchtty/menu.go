@@ -2,7 +2,6 @@ package couchtty
 
 import (
 	"errors"
-	"slices"
 	"strconv"
 	"strings"
 	"unicode/utf8"
@@ -1073,30 +1072,13 @@ func unusableThreadNotice(thread couchcore.ActionableThreadSummary) string {
 	return string(thread.Reason)
 }
 
-// declaredRowActions filters a row's offer to what Operations() declares as a
-// row action.
-//
-// A test asserts the two agree in both directions and fails loudly, which is
-// where a mistake should be caught. This is the production half of the same
-// rule: the declaration decides membership, so the switcher cannot offer an
-// operation that does not exist as one. In a build where the test passes it
-// changes nothing -- which is the point, not an argument against it.
-func declaredRowActions(items []string) []string {
-	declared := couchcore.RowActions()
-	out := make([]string, 0, len(items))
-	for _, item := range items {
-		if slices.Contains(declared, item) {
-			out = append(out, item)
-		}
-	}
-	return out
-}
-
+// menuActionItems is what a row offers. It is NOT filtered through the
+// declaration: a filter made the sweep's offered-implies-declared direction
+// unfalsifiable -- offered became a subset of declared by construction -- and
+// turned the mistake it was meant to catch into an item silently vanishing from
+// the switcher. A guard must be able to fail, and production must not coerce its
+// input into agreement. The test reads this function and compares.
 func menuActionItems(thread couchcore.ActionableThreadSummary) []string {
-	return declaredRowActions(menuActionItemsForState(thread))
-}
-
-func menuActionItemsForState(thread couchcore.ActionableThreadSummary) []string {
 	if thread.State == couchcore.ThreadBusy {
 		// Something else is still acting on this thread. Offering archive here
 		// would file a record mid-park -- the store refuses it, so the offer is

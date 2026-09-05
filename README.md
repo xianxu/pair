@@ -374,7 +374,7 @@ pages, or detouring manually to check a third thread, still brings you back to
 where you actually were. Returning home twice is deliberately a no-op: you are
 home, and there is nowhere to bounce to.
 
-Printable input filters the current list from memory. Use `↑↓` and `Enter` to
+Printable input filters the current list from memory (typeahead). Use `↑↓` and `Enter` to
 select and switch/resume; `Tab` or `Right` opens the selected thread's actions,
 while `Left` or `Escape` restores its parent. Rows expose only proven `live`, exact
 verified `parked`, and proved `detached` states — and a row is offered only when
@@ -387,7 +387,14 @@ means every live thread, and then leaves couch). So `Alt+d` in the switcher is
 how you quit: everything keeps running, you land back in your shell, and a later
 `couch` reattaches. `Alt+x` there parks every live thread first, behind a
 confirmation that names how many agents it stops. Confirmation follows the key,
-not the surface — park is confirmed at both scopes and detach at neither. Leaving
+not the surface — park is confirmed at both scopes and detach at neither.
+`Alt+n` (or `Ctrl+Alt+n`) is couch's third intercepted chord and does not follow
+that grid: it **relaunches** — a genuinely new Pair process running the current
+binary, keeping the agent conversation — which is how you pick up a rebuilt Pair
+without losing the session you are developing inside. Pair's own in-place reload
+cannot do it, because it re-enters its loop in the same process image. In the
+switcher it relaunches the highlighted row; in an actor it relaunches that actor
+and leaves you in the switcher while the new Pair boots. Leaving
 never depends on there being something live to act on, so an empty switcher is
 never a dead end. `Tab → archive` removes a thread from couch and keeps its record: it is the
 operator's delete, offered on every row couch is not hosting, and undone by

@@ -352,8 +352,9 @@ produce two stories. Ambiguous and legacy-unverified records now appear in both
 views, named rather than hidden. Ephemeral console targets bind only to durable proven-live rows,
 so a stale child handle cannot turn an inactive row's Enter into switch. If
 Park removes the final actor while the switcher owns focus, the console remains
-available for the refreshed resumable row. The two lifecycle chords read as a
-2x2: the KEY chooses the disposition (Alt+x parks, Alt+d detaches) and the
+available for the refreshed resumable row. The two LIFECYCLE chords read as a
+2x2 (Alt+n is a third intercepted chord and deliberately not part of this grid;
+see **Alt+n is Couch's own relaunch** below): the KEY chooses the disposition (Alt+x parks, Alt+d detaches) and the
 SURFACE chooses the scope (an actor means that thread, the switcher means every
 live thread and then leaving). Alt+x on the switcher therefore opens the typed
 `leave` confirmation in its park disposition, parks every live thread
@@ -433,6 +434,25 @@ through the `PairLifecycleController`'s bounded, capacity-one worker. Startup
 recovery, Park, Retry, Recover, Abandon, and Leave all enter that same boundary;
 same-address/same-nonce overlap shares one future, while other work overloads
 without lifecycle effects.
+
+**Alt+n is Couch's own relaunch** (`pair#182`), and it is the THIRD intercepted
+chord — the lifecycle grid above covers only Alt+x and Alt+d, which is why this
+one is easy to miss. It is intercepted for a sharper reason than they are:
+un-intercepted, Pair handles Alt+n INSIDE the process couch spawned, re-entering
+its loop in the same process image, so the binary in memory is still the old one
+and a rebuilt Pair is not what comes back. For Pair development that is worse
+than not working, because it looks like it worked. `Ctrl+Alt+n` aliases it and is
+not a nicety — on newer macOS Option+n is a dead-tilde composer. `Alt+Shift+N` is
+deliberately NOT taken: it restarts the conversation and keeps the code, the
+exact inverse, and it stays the cheap in-session escape hatch.
+
+Alt+n does not follow the lifecycle grid's scope rule, and the deviation is the
+point rather than an oversight: there is no whole-couch relaunch (that is Alt+d,
+rebuild, re-run couch), so from the switcher it relaunches the HIGHLIGHTED ROW.
+From an actor it relaunches that actor and leaves the operator in the SWITCHER,
+not on the actor, because until a pane can outlive its child there is no actor
+surface to stay on — the child is being replaced. Ending on the actor is
+`pair#186`.
 
 **Alt+d is Couch's own detach** (`pair#170`), intercepted like Alt+x and for the
 same reason: un-intercepted, Pair's `PairConfirmDetach` runs `zellij action

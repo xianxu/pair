@@ -110,22 +110,6 @@ type Operation struct {
 	RowAction bool
 }
 
-// RowActions is every operation the switcher offers on a thread row.
-//
-// The guard written to stop an operation shipping declared-but-unreachable read
-// menuActionItems, so it could only ever prove offered-implies-reachable -- the
-// converse of the failure it was written for. A hand-maintained list cannot
-// catch the addition that skips it; this is the list the test compares against.
-func RowActions() []string {
-	var names []string
-	for _, op := range Operations() {
-		if op.RowAction {
-			names = append(names, op.Name)
-		}
-	}
-	return names
-}
-
 // StartResult is what `start` returns before the caller waits on the child.
 type StartResult struct {
 	Record ActorRecord

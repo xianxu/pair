@@ -217,3 +217,178 @@ findings:
       commit. I reviewed b18f958e..HEAD for the code, which is #182 plus the
       #183/#184/#185/#186 issue-sync commits.
 ```
+
+---
+
+## Re-review — 2026-09-04T16:56:08-07:00 (FIX-THEN-SHIP)
+
+| field | value |
+|-------|-------|
+| issue | 182 — Relaunch an actor: restart Pair in place, keeping the agent conversation |
+| repo | pair |
+| issue file | workshop/issues/000182-relaunch-an-actor-restart-pair-in-place-keeping-the-agent-conversation.md |
+| boundary | whole-issue close |
+| milestone | — |
+| window | 88fe1de011b4c6be58e5a8b20eed89dfa4000f5d..511ebd1a9a815ddcea2df9a4524121b4c5c6a4b2 |
+| command | sdlc close --issue 182 |
+| reviewer | claude |
+| timestamp | 2026-09-04T16:56:08-07:00 |
+| verdict | FIX-THEN-SHIP |
+
+## Review
+
+```verdict
+verdict: FIX-THEN-SHIP
+confidence: high
+```
+
+The relaunch operation itself is in good shape: the check ordering that is the whole design is implemented as written and pinned by tests that assert the *state left behind* rather than the error text, the chord reaches a handler and the operator ending is now both corrected in `## Done when` and tested, and this round's two structural fixes are real — I verified by mutation that dropping `RowAction` from an operation turns `TestRowActionDeclarationsAndTheMenuAgreeInBothDirections` red, and that the `knownSequences` loop in `TestEveryInterceptedChordHasAHandler` is the direction that would have caught the original intercepted-and-dropped `alt+n`. What keeps this from SHIP is that both fixes stopped one step short of the class they were written to close — `intercepts()`/`hit()` are still two hand-maintained switches over one enum and the new guard *skips* the kinds `intercepts()` forgets (mutation-verified green), and `menuActionItems`'s new production filter makes the sweep's second direction unfalsifiable while turning its failure into a silent UI drop (mutation-verified: an undeclared action vanishes from the switcher with zero test failures) — plus the `pair#186` split is still unpropagated into three artifacts, and the new intercepted chord reached neither `atlas/couch.md`'s chord section nor README's couch section. All four are cheap.
+
+### 1. Strengths
+
+- **`relaunch.go:71-140`** — the refusal-before-park ordering reads exactly as the Spec specifies it, and the two preconditions that *cannot* be checked early are named in the comment rather than hoped over. `relaunch_test.go:157-172` asserts the property that matters ("it refuses and nothing was destroyed" — lifecycle trace empty, no quits triggered, revision and incarnation count unchanged), not just the refusal.
+- **`console_relaunch_chord_test.go:311`** — the second loop, over `knownSequences` filtered to intercepting kinds, is derived from the production table and is the direction that would have caught the original defect. That is the load-bearing half of BR-10's rule and it now exists.
+- **`ops.go:103-127` + `menu.go:1077-1097`** — `Operation.RowAction` is load-bearing in production, not test-only. I confirmed the declared→offered direction has teeth by adding `RowAction: true` to `stop`: `menu_action_sweep_test.go:94` fails with the right message.
+- **`console_relaunch_chord_test.go:72-76`** — the `FocusPanel` ending is asserted, and the `## Done when` bullet was rewritten to say what the code does *and* why. A corrected claim with a test behind it is the right shape.
+- **`atlas/couch.md:774-781`** — the `COUCH_INPUT_TRACE` entry says plainly that the tap sits before the Interceptor and captures pasted secrets. That is ARCH-SECURE done properly rather than ceremonially.
+
+### 2. Critical findings
+
+None.
+
+### 3. Important findings
+
+**I-1 — `intercepts()` and `hit()` are still two hand-maintained switches, and the new guard skips whatever `intercepts()` forgets** (`keys.go:50-76`, `console_relaunch_chord_test.go:334`). **This is the 8th finding in family `declared-source-hand-maintained-consumers`** — the rule is already written (BR-10: "a value the interceptor can emit must reach a handler by construction"), so the deliverable is not this site but finishing the enumeration. `hit()` already *is* the mapping; `intercepts()` duplicates its domain, and the guard's `if !sequence.kind.intercepts() { continue }` gates on the very list that can be wrong. Verified in a scratch worktree: removing `seqRelaunch` from `intercepts()` leaves `TestEveryInterceptedChordHasAHandler` green. `keys.go:270-276`'s own comment records that this exact omission has already shipped once. Fix: `func (k seqKind) intercepts() bool { return k.hit() != HitNone }` — one list, and the test's skip clause becomes derived rather than independent. ARCH-DRY, ARCH-PURPOSE.
+
+**I-2 — `declaredRowActions` makes the sweep's second direction unfalsifiable and converts its failure into a silent drop** (`menu.go:1085-1097`, `menu_action_sweep_test.go:96-100`). The test builds `offered` from `menuActionItems`, which now filters through `declaredRowActions`, so `offered ⊆ declared` holds by construction and the loop can never fail. Verified: adding `"bogus"` to the live row's list in `menuActionItemsForState` produces **no** test failure — the item is silently removed from the switcher instead. That is the same class the guard exists for, now invisible. Fix: build the test's `offered` set from `menuActionItemsForState` (pre-filter) so the direction has teeth; keep the production filter or drop it, but it must not be the only enforcement.
+
+**I-3 — the `pair#186` split still has unswept consumers, in the same files the fix edited.** **This is the 3rd finding in family `plan-record-lags-code`.** The rule was stated correctly in `lessons.md`; the enumeration was written and then partially applied. Still live: (a) `## Done when` bullet 2 claims "verified on the real stack by rebuilding Pair between the two observations" — that is Task 11, which `## Revisions` says moved to `pair#186`, and the smoke test proved conversation survival, not a rebuilt binary; (b) `## Done when` "A relaunch does not change what `ctrl+backspace` returns to, proved by test" — moved with the holding surface, no such test exists, bullet unmarked while the spinner bullet *was* marked `(moved to pair#186)`; (c) the plan's M2 Integration-points table still lists `onExit` and `finishOperation` as modified "for the held pane" and describes `onRelaunchHotkey` as returning the operator to the actor, which the code and the corrected Done-when both contradict, and the new `## Revisions` does not name either; (d) `workshop/projects/couch.md:201` still labels the row `[pair#182 M2]` (a dangling reference link, no detail block) though the issue's Revisions removes M2's `Mx` tag. Note (a) is also ARCH-PURPOSE: the rebuilt-binary check is the issue's headline claim, so deferring it needs to be visible in `## Done when`, not only in Revisions.
+
+**I-4 — the new intercepted chord reached no couch-facing doc.** **This is the 2nd finding in family `new-surface-undocumented`.** `atlas/couch.md:436` reads "**Alt+d is Couch's own detach** (`pair#170`), intercepted like Alt+x and for the same reason…" — the exact slot for an Alt+n counterpart, which is absent; `atlas/couch.md:355` still frames the interception set as "two lifecycle chords". README's couch section (`README.md:382-389`) likewise presents Alt+x/Alt+d as the complete grid, and neither doc records the switcher-row form or the deliberate `FocusPanel` ending. `TestREADMEDocumentsEveryPanelControl` could not catch this: it substring-matches `control.Keys` against the whole README, and "Alt+n" was already present in Pair's own keybinding table. Fix: an atlas paragraph beside Alt+d, a couch-section README sentence, and — since this is the same shape as I-2 — consider scoping the README guard to the couch section.
+
+### 4. Minor findings
+
+- `menuActionItems` now rebuilds the entire `Operations()` table (≈15 structs with `[]ArgSpec` literals) on every action-menu render (`menu_render.go:200`) for an O(n·m) `slices.Contains`. Trivial in absolute terms, but it is a keystroke-path render; a package-level memoized set would cost nothing.
+- `processInput` (`console.go:636-638`) still consumes the chord bytes when a hit has no handler, so a gap is silent at runtime even though the test now catches it. A status notice on the nil branch would make it visible in a build where the test was skipped.
+
+### 5. Test coverage notes
+
+- Mutation-verified this round: declared→offered has teeth; offered→declared does not (I-2); `intercepts()` omission is not caught (I-1).
+- The whole-issue suite is green except `ptychild`-backed tests (`TestNotificationPTYConformance`, `TestBlockedRunnerCancellationConformance/pty/*`, `couchcmd/run_test.go` interactive-launch cases), which fail with `operation not permitted` — a known environment restriction on pty allocation in this session, not a code defect. `go build ./...` and `go vet` on both couch packages are clean.
+- Still uncovered and re-raised as prior findings: the agent-unsupported and profile-missing refusals at the `Relaunch` level (BR-6), and `onRelaunchHotkey`'s panel branch (BR-26).
+
+### 6. Architectural notes
+
+- **ARCH-DRY — flag (I-1).** Two switches over one enum; the derivation is one line.
+- **ARCH-PURE — pass.** `CheckResumePreconditions`, `RowActions`, `declaredRowActions` and the outcome types are pure; IO stays behind `Threads`/`PairLifecycle`/`Path`/`Artifacts`. `hitHandlers()` is a table, not logic.
+- **ARCH-PURPOSE — flag (I-1, I-3).** Both this round's fixes resolved the site and left an enumerable sibling; the rebuilt-binary proof — the reason the issue exists — moved out without the Done-when following it.
+- **ARCH-MOCK — pass.** Fakes sit behind the same seams production uses, and `runner_contract_test.go` is a real fake-vs-pty conformance check.
+- **ARCH-CONSTRAINTS — flag.** BR-1 stands: the plan's ~30s envelope names two budgets that do not exist as constants (measured: `CompletionTimeout` 15s at `couch.go:119`, `resumeRegistrationTimeout` 5s at `couch.go:107`; child death is awaited *inside* the 15s at `park.go:552`). Plus the Minor render allocation above.
+- **ARCH-SECURE — pass.** Chord parsing is exact-match with a bounded held buffer; the trace is opt-in, 0600, fails loudly on an unopenable path, and its capture surface is documented.
+
+### 7. Plan revision recommendations
+
+The plan's new `## Revisions` is the right shape but incomplete. Append to it:
+
+- **The M2 Integration-points table's `onExit` and `finishOperation` rows are `pair#186`'s.** The holding-pane modifications they describe do not exist here; `finishOperation`'s actual change was child adoption via `StartedChild`, not installing a child into a held pane.
+- **`onRelaunchHotkey` does not return the operator to the actor.** The bullet under Integration points still says "from an actor it relaunches that actor and returns to it"; the shipped code sets `FocusPanel` deliberately and the issue's `## Done when` has been corrected to match. Correct it here too, or the plan re-teaches the wrong behaviour.
+- **Tick or annotate Task 1 Step 5 (line 159, landed in `e7c6c6e8`) and Task 7 Step 3 (line 352, the M1 milestone-close at `b7ec5e64`).** The existing "unticked boxes below are stale" note covers only Task 8 and Task 10 Step 2b.
+
+```findings
+dispose:
+  - id: BR-1
+    disposition: not-addressed
+    note: |
+      plan lines 32-35 unchanged; measured CompletionTimeout=15s (couch.go:119) and resumeRegistrationTimeout=5s (couch.go:107), child death awaited inside the 15s (park.go:552).
+  - id: BR-6
+    disposition: not-addressed
+    note: |
+      relaunch_test.go:76 still has five cases; no agent-unsupported or profile-missing case at the Relaunch level.
+  - id: BR-7
+    disposition: not-addressed
+    note: |
+      the stale-estimate half is resolved in the issue's Revisions; plan lines 159 and 352 are still unticked for work that landed (e7c6c6e8, b7ec5e64) and the new Revisions note does not name them.
+  - id: BR-9
+    disposition: not-addressed
+    note: |
+      artifactpath/manifest.go:524 still places relaunch.go between pathops.go and procops.go.
+  - id: BR-10
+    disposition: addressed
+    note: |
+      hitHandlers table plus a knownSequences-driven test; the load-bearing direction is derived from the production table. Residual raised as new (intercepts() is still hand-maintained).
+  - id: BR-24
+    disposition: addressed
+    note: |
+      plan gained a Revisions section naming the moved tasks and the entities declared-but-absent; project row and the FocusPanel Done-when corrected; M2's Mx tag dropped. Remaining unswept consumers raised as new.
+  - id: BR-25
+    disposition: addressed
+    note: |
+      menuControls and README both fixed; RowAction gives membership one source and the declared-to-offered direction is mutation-verified red. The converse direction's unfalsifiability raised as new.
+  - id: BR-26
+    disposition: not-addressed
+    note: |
+      console.go:1372-1373 (panel branch takes the highlighted row) still has no test; console_relaunch_chord_test.go drives only the actor branch.
+  - id: BR-27
+    disposition: withdrawn
+    note: |
+      sdlc documents branch-point..HEAD as the whole-issue integration window by design (ariadne close.go:975-987), so the base is not a gate defect; the branch carrying four issues is a hygiene fact, not a window bug.
+findings:
+  - id: new
+    severity: Important
+    family: declared-source-hand-maintained-consumers
+    title: |
+      intercepts() and hit() are still two hand-maintained switches over one enum, and the new guard skips whatever intercepts() forgets
+    detail: |
+      8th in this family, so the deliverable is the enumeration, not the site. keys.go:50-76 keeps two switches over seqKind where hit() alone is the
+      mapping, and console_relaunch_chord_test.go:334 gates its sweep on intercepts() -- the list that can be wrong. Verified in a scratch worktree:
+      removing seqRelaunch from intercepts() leaves TestEveryInterceptedChordHasAHandler green. keys.go:270-276 records that this exact omission has
+      already shipped once. Fix: intercepts() returns k.hit() != HitNone, so one list remains and the test's skip clause derives from it. ARCH-DRY, ARCH-PURPOSE.
+  - id: new
+    severity: Important
+    family: guard-unfalsifiable-by-construction
+    title: |
+      menuActionItems filters through declaredRowActions, so the sweep's offered-implies-declared direction can never fail and its failure is now a silent UI drop
+    detail: |
+      menu.go:1085-1097 filters the row's offer through couchcore.RowActions() before menu_action_sweep_test.go:96-100 reads it, so offered is a subset of
+      declared by construction. Verified: adding "bogus" to the live row in menuActionItemsForState produces zero test failures and the item simply
+      disappears from the switcher. The rule: a guard must be able to fail, and production must not coerce its input into agreement. Fix: build the test's
+      offered set from menuActionItemsForState, pre-filter.
+  - id: new
+    severity: Important
+    family: plan-record-lags-code
+    title: |
+      the pair#186 split is still unpropagated into four artifacts, including the two the fix edited
+    detail: |
+      3rd in this family; the rule is already in lessons.md, so the deliverable is the sweep. Live: the issue's Done-when bullet 2 still claims the
+      rebuilt-binary verification that Revisions moved to pair#186 (the smoke test proved conversation survival, not a rebuilt binary), and the
+      ctrl+backspace bullet is likewise unmarked with no test; the plan's M2 Integration-points table still lists onExit/finishOperation as holding-pane
+      modifications and describes onRelaunchHotkey as returning to the actor, contradicting the code and the corrected Done-when; projects/couch.md:201
+      still labels the row [pair#182 M2] with no detail block though the Mx tag was dropped. ARCH-PURPOSE on bullet 2 -- the rebuilt binary is the point of the issue.
+  - id: new
+    severity: Important
+    family: new-surface-undocumented
+    title: |
+      the Alt+n interception reached neither atlas/couch.md's chord section nor README's couch section, and the README guard could not notice
+    detail: |
+      2nd in this family. atlas/couch.md:436 has "Alt+d is Couch's own detach (pair#170), intercepted like Alt+x" with no Alt+n counterpart, and line 355
+      still frames the set as "two lifecycle chords"; README.md:382-389 does the same, documenting Alt+n only inside Pair's own keybinding table, and
+      neither records the switcher-row form or the deliberate FocusPanel ending. TestREADMEDocumentsEveryPanelControl substring-matches control.Keys
+      against the whole README, so the pre-existing Pair-table "Alt+n" satisfied it. Fix: an atlas paragraph beside Alt+d, a couch-section README sentence,
+      and scope the README guard to the couch section.
+  - id: new
+    severity: Minor
+    family: operating-envelope
+    title: |
+      menuActionItems rebuilds the whole Operations() table on every action-menu render
+    detail: |
+      menu.go:1096 calls couchcore.RowActions(), which constructs ~15 Operation structs with ArgSpec slices, once per render at menu_render.go:200 -- a
+      keystroke-path render. Negligible in absolute terms; a package-level memoized set costs nothing.
+  - id: new
+    severity: Minor
+    family: declared-source-hand-maintained-consumers
+    title: |
+      processInput still consumes the chord bytes when a hit has no handler
+    detail: |
+      console.go:636-638 drops the hit silently on the nil branch, so a gap is invisible at runtime even though the test now catches it at build time. A
+      status notice there would make the missing case observable to an operator.
+```

@@ -3336,3 +3336,21 @@ that a key token appears cannot detect a contradictory behavioral sentence
   puts a boundary marker where no boundary happened. If the work no longer has
   its own boundary, drop the tag — that is the honest edit, not a retroactive
   milestone-close.
+- A guard must be able to FAIL, and production must not coerce its input into
+  agreeing with it. Filtering `menuActionItems` through the declared row-action
+  set made the sweep's offered-implies-declared direction unfalsifiable —
+  offered became a subset of declared by construction — and turned the mistake
+  it was meant to catch into an item silently vanishing from the switcher. I
+  added the filter to satisfy a dead-symbol guard, which is the tell: when a
+  helper needs a production caller invented for it, delete the helper and let
+  the test read the declaration directly.
+- Two switches over one enum agree until someone edits one. `intercepts()` and
+  `hit()` both enumerated `seqKind`, so a new chord had to join both or be
+  silently forwarded. Derive one from the other (`intercepts() = hit() != None`)
+  so there is a single place that knows.
+- A documentation guard scoped to the whole file is satisfied by the wrong
+  section. couch newly intercepted `Alt+n`, and README's Pair keybinding table
+  already contained the string "Alt+n" describing what it used to do — so the
+  guard passed while the docs told the operator something false. Scope a guard
+  to the region that must change, and make it fail loudly if it can no longer
+  find that region.

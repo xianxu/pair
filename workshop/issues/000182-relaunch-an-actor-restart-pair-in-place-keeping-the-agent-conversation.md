@@ -185,9 +185,15 @@ session goes away and comes back.
 - An actor action `relaunch` appears alongside detach and park, confirmed like
   park, and reachable from the same declared-operation surface (no private
   switcher verb).
-- Relaunching an actor running an OLD Pair binary yields a session running the
-  CURRENT one, with the agent conversation continued rather than restarted --
-  verified on the real stack by rebuilding Pair between the two observations.
+- Relaunching an actor yields a session with the agent conversation continued
+  rather than restarted — verified on the real stack: the ledger holds three
+  complete `launch → binding` pairs all rooted at native session `6d238ba2`.
+  **The REBUILT-BINARY half moved to `pair#186`** and is not claimed here. The
+  smoke test proved conversation survival across a relaunch; it did not rebuild
+  Pair between the two observations, so "an OLD binary yields the CURRENT one"
+  has no measurement behind it yet. That is the point of the feature, so it is
+  owed a real one rather than an assumed one — `pair#186` Task "real-stack
+  verification" carries it.
 - Relaunch refuses BEFORE parking when its resume could not succeed, proved by
   a test that makes the binding unresumable and asserts the thread is still
   live afterwards.
@@ -205,8 +211,13 @@ session goes away and comes back.
 - `Alt+n` on the switcher relaunches the highlighted row and leaves the
   operator in the switcher.
 - (moved to `pair#186`) The pane shows `relaunching <thread>…` for the whole gap.
-- A relaunch does not change what `ctrl+backspace` returns to, proved by test.
-- A relaunch produces no child-exited notice.
+- (moved to `pair#186`) A relaunch does not change what `ctrl+backspace` returns
+  to. Unmarked and untested here on purpose: `onExit` still calls `tracker.Drop`
+  unconditionally, so a relaunch DOES spend the slot today. The holding pane is
+  what dissolves it.
+- (moved to `pair#186`) A relaunch produces no child-exited notice. Suppressed
+  today by `endsItsOwnChild` naming the operation; with a pane that outlives its
+  child there is no exit to suppress.
 
 ## Estimate
 
