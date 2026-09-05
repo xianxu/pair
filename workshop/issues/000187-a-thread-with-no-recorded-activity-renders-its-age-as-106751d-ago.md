@@ -182,7 +182,30 @@ reviewable — the same reason the holding surface was split to `pair#186`.
 
 ### 2026-09-04 — implementation notes
 
-**The retry-time test was written, verified vacuous, and deleted.** The Plan
+**The retry-time test now exists, and the reviewer was right that my conclusion
+was wrong.** I had concluded the retry branch was untestable and recorded it as a
+gap. The close review's answer was better: not "the branch is untestable" but
+"add the seam, here" — `threadStoreHooks.AfterGetThread`, fired once `GetThread`
+releases the lock, which is the one moment a caller's read-then-CAS window is
+open. `threadStoreHooks` was already a test-only seam (`AfterJournal`,
+`AfterTarget`), so this is consistent rather than new machinery.
+
+Getting it to fail took a third attempt, and the reason is worth keeping: Detach
+reads the record TWICE — once for its preconditions (`detach.go:64`) and once per
+loop attempt (`detach.go:118`). A hook that bumps on the first read is absorbed,
+because the loop re-reads and its CAS succeeds. Only a bump after the LOOP's read
+opens a window it must retry through. Verified three ways: moving the clock read
+into the loop reddens the test, replacing the retry `continue` with a panic
+reaches the panic, and removing the `MonotonicLastActiveAt` fold reddens the
+backward-clock test.
+
+`TestCouchDetachRetriesARevisionConflictAfterTeardown` is renamed to
+`...AbsorbsAConcurrentWriteBeforeItsLoop`, because that is what it does: it bumps
+before the loop, the re-read absorbs it, and the retry branch is never reached.
+Its old name is why the branch went untested for so long — the suite appeared to
+cover it.
+
+**The original attempt, kept because the wrong conclusion is the lesson.** The Plan
 asked for "a detach that retries on a revision conflict records the SAME time as
 one that does not", and the estimate review had already warned that the fixture's
 `FixedClock` would make it unfalsifiable. I wrote it with a `sequenceClock`

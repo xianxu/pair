@@ -88,6 +88,14 @@ func NewThreadStore(namespace CouchNamespace) *ThreadStore {
 type threadStoreHooks struct {
 	AfterJournal func() error
 	AfterTarget  func(int) error
+	// AfterGetThread fires once GetThread has released the lock, which is the
+	// ONE moment a caller's read-then-CAS window is open. Without it a
+	// revision-conflict retry cannot be reached from a test: every hook that
+	// exists fires inside a commit, after the revision check, and the artifact
+	// hooks fire before the caller's loop begins. Replacing detach's `continue`
+	// with a panic left the whole suite green, including the test named for
+	// that branch.
+	AfterGetThread func(ThreadAddress) error
 }
 
 func newThreadStoreWithHooks(namespace CouchNamespace, hooks threadStoreHooks) *ThreadStore {
@@ -213,6 +221,11 @@ func (s *ThreadStore) GetThread(address ThreadAddress) (ThreadRecord, error) {
 		result = cloneThreadRecord(record)
 		return nil
 	})
+	if err == nil && s.hooks.AfterGetThread != nil {
+		if hookErr := s.hooks.AfterGetThread(address); hookErr != nil {
+			return ThreadRecord{}, hookErr
+		}
+	}
 	return result, err
 }
 

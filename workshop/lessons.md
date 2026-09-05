@@ -3400,3 +3400,14 @@ that a key token appears cannot detect a contradictory behavioral sentence
   crashed a caller whose `Couch` had no clock; its guard now names the clock
   beside the store and proc ops. Whenever a function starts reading a new field,
   check its own precondition guard in the same edit.
+- "Untestable" is usually "no seam yet", and a reviewer saying WHERE to put one
+  beats an author concluding there is none. I recorded couch's detach retry
+  branch as an accepted testability gap; the close review named the exact seam
+  (`AfterGetThread`, fired once the read lock is released) and the branch became
+  reachable in minutes. Before recording a gap, name the window the test needs
+  and ask what would have to exist to open it.
+- When injecting a conflict to force a retry, check WHICH read you are racing.
+  Detach reads the record twice — once for preconditions, once per loop attempt
+  — and a bump after the first is absorbed by the loop's re-read, so the test
+  passes without ever retrying. Two attempts at this test were vacuous for that
+  reason. Count the reads before choosing where the hook fires.
