@@ -196,7 +196,7 @@ gate `#147` and `#148` respectively; `#145` and `#146` do not depend on them.
 - [x] total classification, no shell-side filtering [pair#181 M1]
 - [x] warm reattach: get back into a detached session [pair#181 M2]
 - [x] archive as the only exit, plus the startup and path rules [pair#181 M3]
-- [ ] relaunch an actor: restart Pair, keep the conversation [pair#182]
+- [x] relaunch an actor: restart Pair, keep the conversation [pair#182]
 - [x] relaunch as one operation [pair#182 M1]
 - [x] the alt+n gesture and the reachability sweep [pair#182 — not a milestone;
       the Mx tag was dropped when the holding surface left, see the issue's

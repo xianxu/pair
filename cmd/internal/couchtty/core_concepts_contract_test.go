@@ -199,13 +199,14 @@ func conceptInventoryProblems(rows []conceptContractRow) []string {
 // milestone added an entity: #170 declared `SwitchTracker` new/PURE and nothing
 // asserted it, because the only plan being read predated it.
 //
-// The by-construction fix -- scan every plan and filter by declared path -- was
-// tried and backed out: it surfaces ~10 rows across #151/#160 whose historical
-// declarations have drifted from the tree (retired `panel.go` authorities,
-// renamed helpers, rows with no backticked symbol). Those are real findings but
-// a separate piece of work, tracked as its own issue; jamming them into a
-// milestone fix window would have meant either fixing ten unrelated historical
-// rows or loosening the assertions that make this contract worth having.
+// The by-construction fix -- scan every plan and filter by declared path -- has
+// now been tried and backed out TWICE, and the second measurement supersedes the
+// first: at pair#182's HEAD it surfaces 14 unpinned rows across pair#121,
+// pair#181 and pair#182, plus PURE rows whose source imports os, a declared
+// symbol absent from its file, and rows carrying no backticked symbol to check.
+// (The first attempt, during a pair#170 milestone, counted ~10 rows across
+// #151/#160 -- the same drift, measured before two more plans existed.) Those
+// are real findings but a separate piece of work: pair#188.
 //
 // Until then this list is additive and explicit: a plan that declares a
 // couchtty entity joins it. Rows for milestones that have not shipped carry a

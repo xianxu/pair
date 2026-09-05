@@ -904,6 +904,64 @@ rounds:
           family: declared-source-hand-maintained-consumers
           round: 11
       blocked: true
+    - "n": 12
+      timestamp: "2026-09-04T18:08:27-07:00"
+      agent: claude
+      dispose:
+        - id: BR-34
+          disposition: addressed
+          note: SelectedThreadAddress (menu.go:1577-1595) fixes the question not the site; revert-verified — restoring CurrentFrame().SelectedAddress reds the drilled-in subtest.
+          round: 12
+        - id: BR-35
+          disposition: addressed
+          note: Plan joined conceptPlans, six live rows pinned, two moved rows marked `planned — pair#186`; revert-verified — repointing the endsItsOwnChild row at console.go reds the contract on two IO seams.
+          round: 12
+        - id: BR-26
+          disposition: addressed
+          note: The panel branch now has TestSwitcherRelaunchFindsTheThreadFromAnyDepth, and all eight still-claimed Done-when bullets are pinned by a named test.
+          round: 12
+        - id: BR-1
+          disposition: not-addressed
+          note: Plan lines 32-37 untouched; measured 15s CompletionTimeout (couch.go:119) + 5s resumeRegistrationTimeout (couch.go:107), child death inside the 15s (park.go:549-555).
+          round: 12
+        - id: BR-6
+          disposition: not-addressed
+          note: relaunch_test.go:76 still has five refusal cases; agent-unsupported and profile-missing reach Relaunch in none of them.
+          round: 12
+        - id: BR-7
+          disposition: not-addressed
+          note: Plan lines 159 and 352 still unticked for landed work; the issue's stale-estimate half IS now resolved by the Revisions rewrite.
+          round: 12
+        - id: BR-9
+          disposition: not-addressed
+          note: manifest.go:524 still places relaunch.go between pathops.go and procops.go; threadreason.go:503 is still the second offender.
+          round: 12
+      findings:
+        - id: BR-36
+          severity: Minor
+          title: conceptPlans carries two contradictory accounts of the same deferral in one doc comment
+          detail: |-
+            core_concepts_contract_test.go:196-225 is one contiguous comment holding two
+            descriptions of the same deferred discovery work: "~10 rows across #151/#160 …
+            tracked as its own issue" and "14 unpinned rows across pair#121, pair#181 and
+            pair#182 … so it is pair#188". A reader cannot tell which measurement is current.
+            2nd in family parallel-derivation-drift, so the rule rather than the line: when a
+            comment's claim is superseded, REPLACE it — appending leaves two live accounts of
+            one fact with no way to date them. ARCH-DRY.
+          family: parallel-derivation-drift
+          round: 12
+        - id: BR-37
+          severity: Minor
+          title: the moved endsItsOwnChild comment still cites "the switch below", which is no longer below it
+          detail: |-
+            menu.go:1423 names the second hand-written list as "the switch below", but
+            consumeExpectedParkExitLocked stayed in console.go when 58d3470d moved the function;
+            what is below it now is operationNeedsProjectionRefresh. 4th in family
+            plan-record-lags-code, so the rule: a relocation must carry its comment's positional
+            references with it, or resolve them to names instead of positions.
+          family: plan-record-lags-code
+          round: 12
+      blocked: false
 ---
 
 # Gate ledger — pair#182 (boundary-review)
@@ -1427,12 +1485,40 @@ later rounds disposed of them. Generated — edit the gate, not this file.
   table", discovered by scanning the directory, with the existing planned-status skip
   carrying rows whose work has moved to pair#186. ARCH-DRY.
 
+## Round 12 — 2026-09-04T18:08:27-07:00 (claude) — passed
+
+### Disposed
+
+- BR-34 — addressed — SelectedThreadAddress (menu.go:1577-1595) fixes the question not the site; revert-verified — restoring CurrentFrame().SelectedAddress reds the drilled-in subtest.
+- BR-35 — addressed — Plan joined conceptPlans, six live rows pinned, two moved rows marked `planned — pair#186`; revert-verified — repointing the endsItsOwnChild row at console.go reds the contract on two IO seams.
+- BR-26 — addressed — The panel branch now has TestSwitcherRelaunchFindsTheThreadFromAnyDepth, and all eight still-claimed Done-when bullets are pinned by a named test.
+- BR-1 — not-addressed — Plan lines 32-37 untouched; measured 15s CompletionTimeout (couch.go:119) + 5s resumeRegistrationTimeout (couch.go:107), child death inside the 15s (park.go:549-555).
+- BR-6 — not-addressed — relaunch_test.go:76 still has five refusal cases; agent-unsupported and profile-missing reach Relaunch in none of them.
+- BR-7 — not-addressed — Plan lines 159 and 352 still unticked for landed work; the issue's stale-estimate half IS now resolved by the Revisions rewrite.
+- BR-9 — not-addressed — manifest.go:524 still places relaunch.go between pathops.go and procops.go; threadreason.go:503 is still the second offender.
+
+### Raised
+
+- **BR-36** [Minor] `parallel-derivation-drift` conceptPlans carries two contradictory accounts of the same deferral in one doc comment
+  core_concepts_contract_test.go:196-225 is one contiguous comment holding two
+  descriptions of the same deferred discovery work: "~10 rows across #151/#160 …
+  tracked as its own issue" and "14 unpinned rows across pair#121, pair#181 and
+  pair#182 … so it is pair#188". A reader cannot tell which measurement is current.
+  2nd in family parallel-derivation-drift, so the rule rather than the line: when a
+  comment's claim is superseded, REPLACE it — appending leaves two live accounts of
+  one fact with no way to date them. ARCH-DRY.
+- **BR-37** [Minor] `plan-record-lags-code` the moved endsItsOwnChild comment still cites "the switch below", which is no longer below it
+  menu.go:1423 names the second hand-written list as "the switch below", but
+  consumeExpectedParkExitLocked stayed in console.go when 58d3470d moved the function;
+  what is below it now is operationNeedsProjectionRefresh. 4th in family
+  plan-record-lags-code, so the rule: a relocation must carry its comment's positional
+  references with it, or resolve them to names instead of positions.
+
 ## Open findings
 
 - **BR-1** [Minor] `operating-envelope` Two of the envelope's three durations name budgets that do not exist as constants
 - **BR-6** [Minor] `done-when-untested` No Relaunch-level test for the agent-unsupported and profile-missing refusals
 - **BR-7** [Minor] `plan-record-lags-code` Task 1 Step 5 is unticked though committed, and the issue's stale-estimate warning contradicts the re-derived Estimate block
 - **BR-9** [Minor] `manifest-ordering` relaunch.go inserted out of alphabetical order in NonArtifactSources
-- **BR-26** [Minor] `done-when-untested` onRelaunchHotkey's panel branch is production code with no test, and the Done-when bullet it serves is unpinned
-- **BR-34** [Important] `done-when-untested` onRelaunchHotkey reads the selection off CurrentFrame(), so Alt+n from the switcher refuses whenever the operator has drilled into a frame
-- **BR-35** [Important] `declared-source-hand-maintained-consumers` this plan's Core concepts table is enforced by no contract test, and two of its rows name symbols that exist nowhere
+- **BR-36** [Minor] `parallel-derivation-drift` conceptPlans carries two contradictory accounts of the same deferral in one doc comment
+- **BR-37** [Minor] `plan-record-lags-code` the moved endsItsOwnChild comment still cites "the switch below", which is no longer below it

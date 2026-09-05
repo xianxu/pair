@@ -1420,9 +1420,13 @@ func reduceOperationResult(state MenuState, event MenuEvent) MenuState {
 // endsItsOwnChild names the operations whose child exit is EXPECTED, so the two
 // sites that need the answer cannot disagree.
 //
-// They existed as two hand-written lists -- the expectedExits bridge and the
-// switch below -- because the exit/completion race resolves in either order and
-// each half needed the same fact. A third operation had to appear in both or the
+// They existed as two hand-written lists -- the expectedExits bridge and
+// consumeExpectedParkExitLocked, both in console.go -- because the
+// exit/completion race resolves in either order and each half needed the same
+// fact. Named, not pointed at: this comment said "the switch below" and then
+// the function moved here, leaving the reference aimed at whatever happened to
+// follow it. A relocation carries its comment's positional claims with it, and
+// the fix is to stop making positional claims. A third operation had to appear in both or the
 // operator gets a spurious child-exited notice for work they asked for; deriving
 // it is what stops the next one being added to one list only (ARCH-DRY).
 func endsItsOwnChild(operation string) bool {

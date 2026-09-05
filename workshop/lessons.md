@@ -3361,3 +3361,11 @@ that a key token appears cannot detect a contradictory behavioral sentence
   "no thread selected" whenever the operator had opened a row's actions first —
   the ordinary way of being pointed at a thread. Give the question one method;
   a second copy is a second chance to pick the wrong frame.
+- A comment that points ("the switch below", "see above") breaks silently when
+  the code moves. Moving `endsItsOwnChild` to a pure file left its comment aimed
+  at whatever happened to follow it. Name the thing and its file; a relocation
+  cannot carry a positional claim.
+- Two measurements of the same deferred work, written a milestone apart, read as
+  a contradiction rather than as history. When re-deferring something, supersede
+  the old number explicitly and say which is current — otherwise the next reader
+  cannot tell whether the scope changed or the count was wrong.

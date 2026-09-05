@@ -562,3 +562,137 @@ findings:
       table", discovered by scanning the directory, with the existing planned-status skip
       carrying rows whose work has moved to pair#186. ARCH-DRY.
 ```
+
+---
+
+## Re-review — 2026-09-04T18:08:27-07:00 (FIX-THEN-SHIP)
+
+| field | value |
+|-------|-------|
+| issue | 182 — Relaunch an actor: restart Pair in place, keeping the agent conversation |
+| repo | pair |
+| issue file | workshop/issues/000182-relaunch-an-actor-restart-pair-in-place-keeping-the-agent-conversation.md |
+| boundary | whole-issue close |
+| milestone | — |
+| window | 88fe1de011b4c6be58e5a8b20eed89dfa4000f5d..58d3470de758574c3a6c99f24a022f3ef18d0989 |
+| command | sdlc close --issue 182 |
+| reviewer | claude |
+| timestamp | 2026-09-04T18:08:27-07:00 |
+| verdict | FIX-THEN-SHIP |
+
+## Review
+
+```verdict
+verdict: FIX-THEN-SHIP
+confidence: high
+```
+
+Both Important findings from round 11 are genuinely closed, and I verified each by reverting rather than by reading the commit message: restoring `target = c.menu.CurrentFrame().SelectedAddress` reds `TestSwitcherRelaunchFindsTheThreadFromAnyDepth/drilled_into_the_row's_actions`, and pointing the plan's `endsItsOwnChild` row back at `console.go` reds `TestCoreConceptsContract/PURE/\`endsItsOwnChild\`` with two IO-seam violations. BR-34's fix is the right shape — `MenuState.SelectedThreadAddress` answers "which thread is the operator pointing at" once, from any depth, rather than patching the one call site — and BR-35's fix pins this plan's six live rows in an executable contract while deferring the discovery-based class to pair#188 with a *measured* cost (14 rows, five real assertion failures) recorded in the test's own comment, not just in the issue. All eight still-claimed `## Done when` bullets now have a named test behind them, which is the substance the `done-when-untested` family was asking for. Nothing Critical or Important remains: what keeps this off a bare SHIP is four Minors carried unaddressed for six-plus rounds plus two new ones introduced by this round's two commits, all cheap and all non-blocking.
+
+## 1. Strengths
+
+- **`cmd/internal/couchtty/menu.go:1577-1595`** — the BR-34 fix answers the *question* rather than the site, and the doc comment records why a second copy in the next chord handler would be a second chance to pick the wrong frame. It correctly routes the `leave` confirmation (which binds no thread) back to the root selection via the existing `menuFrameBindsThread` predicate rather than adding a second exception.
+- **`cmd/internal/couchtty/core_concepts_contract_test.go:61-68, 234`** — pinning the plan's six live rows and marking the two moved rows `planned — pair#186` makes the existing planned-skip carry the split, so the rows come back on automatically when pair#186 flips them. Revert-verified falsifiable.
+- **`cmd/internal/couchtty/menu.go:1420-1434`** — moving `endsItsOwnChild` out of `console.go` because a PURE row must not live beside `os`/`io` imports is a real fix, not bookkeeping: the contract test now enforces the classification the plan claims.
+- **`cmd/internal/couchcore/relaunch.go:88-124`** — the refusal order still reads exactly as the Spec promises, with `hasOccupiedIncarnation` before `soleParkableIncarnation` so a parked row (the ordinary switcher `Alt+n` target) gets "is not running… Enter resumes it" instead of a code naming a state it is not in.
+- **`cmd/internal/couchtty/console_relaunch_chord_test.go:72-77`** — the actor branch's deliberate `FocusPanel` ending *is* pinned, so the Done-when bullet that was rewritten to match the code is not merely prose.
+- **`cmd/internal/couchtty/inputtrace.go:69-75`** — `0600`, path-as-parameter, and an error (not `nil`) on an unopenable path, so "could not observe" can never present as "nothing arrived". ARCH-SECURE done substantively.
+
+## 2. Critical findings
+
+None.
+
+## 3. Important findings
+
+None.
+
+## 4. Minor findings
+
+**New this round:**
+
+- `cmd/internal/couchtty/core_concepts_contract_test.go:196-225` — the `conceptPlans` doc comment is now two stacked accounts of the *same* deferral, already diverged: paragraph one says discovery "was tried and backed out… ~10 rows across #151/#160… tracked as its own issue"; paragraph two says it "brings 14 unpinned rows across pair#121, pair#181 and pair#182… so it is pair#188". A reader cannot tell which measurement is current. **2nd in family `parallel-derivation-drift`** — so the rule, not the line: *when a comment's claim is superseded, replace it; appending leaves two live accounts of one fact and no way to date them.*
+- `cmd/internal/couchtty/menu.go:1423` — the moved comment still says the second hand-written list is "the switch below". `consumeExpectedParkExitLocked` is now in `console.go`; what is below is `operationNeedsProjectionRefresh`. **4th in family `plan-record-lags-code`** — the rule: *a relocation must carry its comment's positional references with it, or resolve them to names instead of positions.*
+
+**Carried, still open (all verified unchanged this round):**
+
+- BR-1 — plan lines 32-37 still claim "~30s worst case" over a "5s exact-child-death wait (`couch.go:119`)" and a "10s blocked-start acknowledgement" that do not exist. Measured: `CompletionTimeout` 15s (`couch.go:119`), `resumeRegistrationTimeout` 5s (`couch.go:107`), child death awaited *inside* the same 15s context (`park.go:549-555`). Real worst case ≈20s.
+- BR-6 — `relaunch_test.go:76` still has five refusal cases; agent-unsupported and profile-missing are pinned only at `CheckResumePreconditions`, never through `Relaunch`.
+- BR-7 — plan lines 159 and 352 unticked for work that landed (`e7c6c6e8`, `b7ec5e64`). The issue's stale-estimate half *is* now resolved by the Revisions rewrite.
+- BR-9 — `artifactpath/manifest.go:524` still places `relaunch.go` between `pathops.go` and `procops.go`; `threadreason.go:503` remains the second offender.
+
+## 5. Test coverage notes
+
+`go build ./...` and `go vet ./cmd/internal/couchtty ./cmd/internal/couchcore` are clean. `go test ./cmd/internal/couchcore -run 'Relaunch|Resume|Park|Precondition'` is green. The only failures in `./cmd/internal/{couchtty,couchcore,couchcmd}` are `ptychild: … operation not permitted` — the known environment restriction on spawning a pty child from this shell (`TestNotificationPTYConformance`, `TestPtyRunner*`, `TestSpawnPostAckFailures…/pty`, `TestInteractiveLaunch*`), plus one deadlock that cascades from those EPERMs inside the same test binary. None is attributable to this diff.
+
+The relaunch surface is well pinned: four outcomes each with a test, both chord aliases driven as raw bytes through `Run`'s own input loop rather than by calling handlers, `Alt+Shift+N` asserted to reach the child untouched, the confirmation's item-id invariant, adoption of the started child, and both switcher depths. The gap BR-6 names is the only meaningful one left, and it is two table rows.
+
+## 6. Architectural notes
+
+- **ARCH-DRY** — pass, with the two comment Minors above. `intercepts()` derives from `hit()`, `menuActionItems` reads `Operation.RowAction`, `endsItsOwnChild` has its two call sites, and `SelectedThreadAddress` is now the single answer to a question that had started to fork. `AllInterceptorHits()` remains hand-maintained but is not load-bearing (the sweep's other direction walks `knownSequences`).
+- **ARCH-PURE** — pass, and improved this round: the `endsItsOwnChild` move makes a PURE-declared entity actually live in an IO-free file, enforced. `Couch.Relaunch` stays a thin ordered shell over the pure `CheckResumePreconditions`.
+- **ARCH-PURPOSE** — pass. The purpose (Alt+n replaces the process, conversation survives) is delivered and reachable; the holding pane and rebuilt-binary verification left for pair#186 with Done-when bullets marked and a Revisions entry, not silently dropped. BR-34's class ask — a written bullet→test map — was not produced as an artifact, but I checked the enumeration by hand and all eight claimed bullets are pinned, so the rule holds in substance. Recording it as a map would make the next Done-when edit self-checking; worth doing in pair#186 rather than here.
+- **ARCH-MOCK** — pass. Relaunch runs entirely through injected `PairLifecycle`, `Artifacts`, `FakePathOps` and `FakeRunner`; production and test flows share the same seam, and `conformance_live_test.go` carries the live check.
+- **ARCH-CONSTRAINTS** — flagged at Minor (BR-1). The implementation's envelope is bounded and correct; it is the plan's *description* of it that is wrong, and over-stated rather than under-stated, so no downstream decision changes.
+- **ARCH-SECURE** — pass. `COUCH_INPUT_TRACE` is opt-in, `0600`, fails loudly on an unopenable path, and `atlas/couch.md:785-800` leads with the disclosure that the tap is upstream of the Interceptor and the file holds prompts and pasted secrets.
+
+## 7. Plan revision recommendations
+
+- Tick lines 159 (`Task 1 Step 5: Commit`) and 352 (`Task 7 Step 3: sdlc milestone-close M1`) — both landed (`e7c6c6e8`, `b7ec5e64`) — or extend the existing "their unticked boxes below are stale" Revisions note to name them; it currently covers only Task 8 and Task 10 Step 2b.
+- Correct the **Operating envelope (ARCH-CONSTRAINTS)** paragraph (lines 32-37) to the measured budgets: `CompletionTimeout` 15s (`couch.go:119`) with child death awaited inside it (`park.go:549-555`), plus `resumeRegistrationTimeout` 5s (`couch.go:107`, consumed at `launch_existing.go:110-111`) — ≈20s worst case. Cite the constant for each duration so the number cannot drift from its source again.
+
+```findings
+dispose:
+  - id: BR-34
+    disposition: addressed
+    note: |
+      SelectedThreadAddress (menu.go:1577-1595) fixes the question not the site; revert-verified — restoring CurrentFrame().SelectedAddress reds the drilled-in subtest.
+  - id: BR-35
+    disposition: addressed
+    note: |
+      Plan joined conceptPlans, six live rows pinned, two moved rows marked `planned — pair#186`; revert-verified — repointing the endsItsOwnChild row at console.go reds the contract on two IO seams.
+  - id: BR-26
+    disposition: addressed
+    note: |
+      The panel branch now has TestSwitcherRelaunchFindsTheThreadFromAnyDepth, and all eight still-claimed Done-when bullets are pinned by a named test.
+  - id: BR-1
+    disposition: not-addressed
+    note: |
+      Plan lines 32-37 untouched; measured 15s CompletionTimeout (couch.go:119) + 5s resumeRegistrationTimeout (couch.go:107), child death inside the 15s (park.go:549-555).
+  - id: BR-6
+    disposition: not-addressed
+    note: |
+      relaunch_test.go:76 still has five refusal cases; agent-unsupported and profile-missing reach Relaunch in none of them.
+  - id: BR-7
+    disposition: not-addressed
+    note: |
+      Plan lines 159 and 352 still unticked for landed work; the issue's stale-estimate half IS now resolved by the Revisions rewrite.
+  - id: BR-9
+    disposition: not-addressed
+    note: |
+      manifest.go:524 still places relaunch.go between pathops.go and procops.go; threadreason.go:503 is still the second offender.
+findings:
+  - id: new
+    severity: Minor
+    family: parallel-derivation-drift
+    title: |
+      conceptPlans carries two contradictory accounts of the same deferral in one doc comment
+    detail: |
+      core_concepts_contract_test.go:196-225 is one contiguous comment holding two
+      descriptions of the same deferred discovery work: "~10 rows across #151/#160 …
+      tracked as its own issue" and "14 unpinned rows across pair#121, pair#181 and
+      pair#182 … so it is pair#188". A reader cannot tell which measurement is current.
+      2nd in family parallel-derivation-drift, so the rule rather than the line: when a
+      comment's claim is superseded, REPLACE it — appending leaves two live accounts of
+      one fact with no way to date them. ARCH-DRY.
+  - id: new
+    severity: Minor
+    family: plan-record-lags-code
+    title: |
+      the moved endsItsOwnChild comment still cites "the switch below", which is no longer below it
+    detail: |
+      menu.go:1423 names the second hand-written list as "the switch below", but
+      consumeExpectedParkExitLocked stayed in console.go when 58d3470d moved the function;
+      what is below it now is operationNeedsProjectionRefresh. 4th in family
+      plan-record-lags-code, so the rule: a relocation must carry its comment's positional
+      references with it, or resolve them to names instead of positions.
+```

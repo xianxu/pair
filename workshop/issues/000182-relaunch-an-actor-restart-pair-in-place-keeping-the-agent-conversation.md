@@ -1,12 +1,13 @@
 ---
 id: 000182
-status: working
+status: codecomplete
 deps: []
 github_issue:
 created: 2026-09-03
 updated: 2026-09-04
 estimate_hours: 6.20
 started: 2026-09-04T09:16:38-07:00
+actual_hours: 10.96
 ---
 
 # Relaunch an actor: restart Pair in place, keeping the agent conversation
@@ -328,6 +329,7 @@ drivable.
   deliberately kept out of pair#181 rather than appended to it.
 
 ### 2026-09-04 — advisor session (brain), no code touched
+- 2026-09-04: closed — Relaunch exists as one operation, reachable by chord (Alt+n / Ctrl+Alt+n, Alt+Shift+N left to Pair) and from the switcher at any hierarchy depth, whose design is the order of its checks — every visible refusal is raised BEFORE the park, so a relaunch that cannot resume never trades a working session for a cold one. Verified on the real stack by the operator: the ledger holds three complete launch→binding pairs all rooted at native session 6d238ba2, so the agent conversation survived while the Pair process and zellij session were replaced. Round-10 findings: BR-34 was a genuine relaunch defect, not fallout — onRelaunchHotkey read CurrentFrame().SelectedAddress, which only the ROOT frame carries, so Alt+n refused with "no thread selected" whenever the operator had drilled into a row actions frame; fixed as MenuState.SelectedThreadAddress answering the question once from any depth, red-verified at both depths. BR-35 instance fixed: this plan joins the core-concepts contract, its six live rows are pinned, its two moved rows carry status planned — pair#186, and endsItsOwnChild moved from console.go to menu.go because a row declared PURE must live in a file with no IO imports. BR-35 CLASS deferred to pair#188 with its cost measured rather than waved at: discovery brings 14 unpinned rows across pair#121, pair#181 and pair#182 into scope plus five real assertion failures, a cleanup across three other issues plan documents inside a close ten rounds deep — the same widening the pair#186 split was made to avoid. Full ./cmd/... suite green; go test -race ./cmd/internal/couchtty/ green.; review verdict: FIX-THEN-SHIP
 - 2026-09-04: closed M1 — Operator smoke test on the real stack: alt+n in a Pair pane, confirm, relaunch — the ledger shows three complete launch→binding pairs all rooted at the same native session (6d238ba2), so the agent conversation survived while the Pair process and zellij session were replaced. Round-5 findings addressed at their real cause: BR-16 was a correct guard that could never fire because ReduceMenu zeroes the notice before reconcileMenuFrames runs — only operator-initiated events now retire a message, tested through ReduceMenu and verified red; BR-20 gives endsItsOwnChild the second call site it was written for; BR-21 moves the trace path out of the constructor to the composition root and closes it in teardown; BR-18/BR-19 now have the tests their disposition said were missing. Full ./cmd/... suite green.; review verdict: FIX-THEN-SHIP
 
 - Operator's question: "in pair `alt+n` restarts pair loading the previous agent
