@@ -1,5 +1,5 @@
 ---
-id: 000172
+id: 000191
 status: open
 deps: []
 github_issue:
@@ -76,3 +76,22 @@ Filed from `pair#170` M3's boundary review, which asked for the startup envelope
 to be measured rather than asserted. The measurement is what surfaced this: the
 review's finding was that the claim was stale, and the number behind it turned
 out to be worth its own issue.
+
+## Revisions
+
+### 2026-09-05 — renumbered from `#172` to `#191`
+
+Two files carried `id: 000172`: this one and its namesake. Both were created on
+2026-09-02 by concurrent sessions, each allocating what it saw as the next free
+ID — one through `issue-sync: update issues`, one through `sdlc issue new`, and
+neither could see the other's reservation because the broadcast to `main` fails
+in this checkout ("could not find a worktree on branch 'main'"). `sdlc claim
+--issue 172` refused with "multiple issue files match", which is
+the right failure but a blocking one.
+
+**Why this file moved and the other did not.** The namesake owns commit messages
+referencing `#172`, and AGENTS.md §12 makes `git log --grep
+"^#172"` the way an agent finds an issue's work. A commit message
+cannot be rewritten; prose references and code allowlists can. So the number
+follows the immutable claim, and the editable references were updated instead.
+

@@ -43,16 +43,16 @@ var deadSymbolAllowlist = map[string]string{
 
 	// Genuinely unreferenced, and NOT dispositioned here. Deleting each means
 	// deleting its tests, which is a judgement call per symbol rather than part
-	// of one deletion sweep -- pair#173 owns that, and it is a filed issue:
+	// of one deletion sweep -- pair#192 owns that, and it is a filed issue:
 	// workshop/issues/000173-disposition-six-production-symbols-reachable-only-from-tests.md.
 	// A deferral whose ticket does not exist is not deferred, it is exempted,
 	// which is what the M4 review caught this list doing.
-	"PublishDescription":            "pair#173: superseded by ApplyThreadMetadata, which the publish-description op calls directly",
-	"ReconcileActiveParks":          "pair#173: explicit reconciliation pass with no caller",
-	"OperationNames":                "pair#173: the CLI resolves operations by name without it",
-	"Unregister":                    "pair#173: registry mutation with no caller",
-	"ResumeDiagnosticOf":            "pair#173: diagnostic accessor with no caller",
-	"ClassifyThreadReferenceFields": "pair#173: per-row rule reached only through MatchThreadReferenceFields",
+	"PublishDescription":            "pair#192: superseded by ApplyThreadMetadata, which the publish-description op calls directly",
+	"ReconcileActiveParks":          "pair#192: explicit reconciliation pass with no caller",
+	"OperationNames":                "pair#192: the CLI resolves operations by name without it",
+	"Unregister":                    "pair#192: registry mutation with no caller",
+	"ResumeDiagnosticOf":            "pair#192: diagnostic accessor with no caller",
+	"ClassifyThreadReferenceFields": "pair#192: per-row rule reached only through MatchThreadReferenceFields",
 }
 
 // pair#170 M4 deleted ~3,900 lines and left seven orphans, because deletion was
