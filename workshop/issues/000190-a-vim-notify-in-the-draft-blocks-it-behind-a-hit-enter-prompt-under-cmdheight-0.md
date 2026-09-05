@@ -71,19 +71,30 @@ hint that Enter is what clears it.
 Route operator-facing draft diagnostics through the non-blocking affordance that
 already exists. `vim.notify` at ERROR/WARN should survive only where a message
 genuinely must stop the operator — and the bar for that inside a text buffer they
-are mid-sentence in is very high. Candidate rule: nothing in the draft blocks; if
-a failure needs more than a flash can carry, write it where it can be read later
-(the pair log) and flash a pointer.
+are mid-sentence in is very high.
+
+**Decided (2026-09-05, with the operator): ONE SEAM, not four conversions.**
+Add a single `pair_notify(message, level)` that renders through the flash and
+blocks nothing, and point every `vim.notify` site at it. Converting only the four
+image-paste sites fixes the reported instance and leaves eighteen others able to
+freeze the draft the same way — the hand-maintained-list shape that `pair#182`'s
+review found five times over. One seam also means a site added later cannot
+reintroduce the block without deliberately reaching past it.
+
+`vim.notify` may stay where a path is genuinely NOT draft-reachable (some
+`PairReview` and spell-check paths may not be), but the default flips: blocking
+is the exception that must be argued, not the idiom.
 
 Two things to decide rather than assume:
 
-1. **Is `flash_at_cursor` enough for a 100-character message?** Inline virt_text
-   at the cursor will wrap or clip. Either shorten the messages (they are
-   advice — "restart the pair session (Alt+n)" is the actionable half) or give
-   the flash a multi-line/echo-area variant that still does not block.
-2. **What about genuine errors outside the image path?** The other 18 `vim.notify`
-   calls need the same audit; some are in `PairReview` and spell-check paths that
-   may not run in the draft at all. Enumerate before converting.
+1. **`flash_at_cursor` is inline virt_text, so a 100-character message will wrap
+   or clip at the cursor.** The messages need shortening, which is an improvement
+   rather than a compromise: most of their length is the same advice repeated —
+   "restart the pair session (Alt+n)" is the actionable half, and three of the
+   four say it. If a failure genuinely needs more than a flash can carry, write
+   it to the pair log where it can be read later and flash a pointer.
+2. **Which sites are draft-reachable at all.** Enumerate before converting; a
+   site that can never run in the draft is not evidence for or against the rule.
 
 ## Done when
 
@@ -98,13 +109,17 @@ Two things to decide rather than assume:
 
 ## Plan
 
-- [ ] Reproduce: force one image-paste failure (unset `PAIR_IMAGE_CAPTURE_PATH`)
-      in a draft and confirm the hit-enter prompt, so the fix has a red state.
-- [ ] Convert the image-paste failures to the non-blocking affordance, shortening
-      the messages to their actionable half.
-- [ ] Audit the other `vim.notify` sites for draft reachability; convert or
-      record.
-- [ ] Document the `cmdheight=0` message rule beside the setting.
+- [ ] Reproduce first: force one image-paste failure (unset
+      `PAIR_IMAGE_CAPTURE_PATH`) in a draft and confirm the hit-enter prompt, so
+      the fix has a red state to be measured against. Without this the fix is
+      unfalsifiable — a draft that accepts input looks identical whether the
+      message was non-blocking or never fired.
+- [ ] Add `pair_notify`, routing through the flash. Shorten the four
+      image-paste messages to their actionable half as they move.
+- [ ] Enumerate the remaining `vim.notify` sites, convert the draft-reachable
+      ones, and record each survivor with the reason it must block.
+- [ ] Document the `cmdheight=0` message rule beside the setting, which today
+      explains only the `:w` half.
 
 ## Log
 
