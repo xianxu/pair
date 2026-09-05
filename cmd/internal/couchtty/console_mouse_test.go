@@ -284,3 +284,27 @@ func TestClickInTheSwitcherTakesTheReturnPath(t *testing.T) {
 		t.Fatal("a click in the switcher dispatched nothing")
 	}
 }
+
+// couch must not demote a child's tracking mode. 1000/1002/1003 are ONE
+// mutually-exclusive state, not additive flags, so re-asserting ?1000h under a
+// child holding ?1002h replaces button-event tracking with press/release --
+// and the child then never receives the motion that closes its drag, which is
+// nvim stuck in visual selection.
+//
+// This is the case a keyboard smoke test cannot reach: it needs a child using
+// motion tracking, and the damage is to that child's drag rather than to couch.
+func TestCouchDoesNotDemoteAChildsTrackingMode(t *testing.T) {
+	con, _, host, _ := newMouseFixture(t)
+	child := con.activeChild()
+	child.Feed([]byte("\x1b[?1002h"))
+	waitFor(t, "the child's motion tracking to register", func() bool { return child.Mouse() })
+
+	host.Reset()
+	con.repaint()
+	con.repaint()
+	waitFor(t, "a repaint", func() bool { return host.Written() != "" })
+
+	if strings.Contains(host.Written(), hostty.EnableMouseClicks) {
+		t.Fatal("couch re-asserted ?1000h under a child holding ?1002h, demoting it to press/release")
+	}
+}

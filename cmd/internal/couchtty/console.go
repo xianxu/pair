@@ -1020,12 +1020,25 @@ func (c *Console) paintNow() {
 	}
 	c.mu.Unlock()
 
-	// Re-asserted on every paint. Mouse reporting is a terminal-GLOBAL mode, so
-	// a child writing DECRST ?1000l turns couch's clicks off with no signal --
-	// the feature would simply stop, and the operator would have no way to know
-	// why. DECSET is additive and idempotent, so this cannot clobber a mode the
-	// child enabled for itself.
-	c.writeOwn(hostty.EnableMouseClicks)
+	// Re-asserted on every paint, but ONLY while no child holds tracking of its
+	// own. Two facts have to hold together here and my first version had one:
+	//
+	//   - A child writing DECRST ?1000l turns couch's clicks off globally, with
+	//     no signal, so the feature would silently stop (BR-16).
+	//   - Modes 1000/1002/1003 are ONE mutually-exclusive tracking state, not
+	//     additive flags -- xterm's send_mouse_pos, and Alacritty/kitty/Ghostty
+	//     /iTerm2 all replace rather than union. Setting 1000 under a child
+	//     holding 1002 demotes it to press/release, so the child never receives
+	//     the motion that closes its drag: nvim stuck in visual selection, the
+	//     exact symptom mouseinput.go documents (BR-22).
+	//
+	// So the child's mode wins whenever it has one. couch loses its own clicks
+	// for as long as that child is attached, which is the correct trade: the
+	// operator can still reach every actor by keyboard, and a wedged drag inside
+	// their editor is not recoverable by any keystroke.
+	if !c.childWantsMouse() {
+		c.writeOwn(hostty.EnableMouseClicks)
+	}
 	row := RenderStatusRow(cols, model)
 	c.mu.Lock()
 	c.statusChips = row.Chips
@@ -1484,6 +1497,16 @@ func (c *Console) runMenuOperation(effect MenuEffect) {
 	}
 }
 
+// childWantsMouse reports whether the ACTIVE child holds mouse tracking of its
+// own. Read from ptychild.Screen, which already scans the child's DECSETs --
+// couch adds no second tracker.
+func (c *Console) childWantsMouse() bool {
+	c.mu.Lock()
+	pane := c.panes[c.active]
+	c.mu.Unlock()
+	return pane != nil && pane.child.Mouse()
+}
+
 // onMouse routes one decoded mouse report.
 //
 // The ONE place the report's 1-based coordinates meet the render's 0-based
@@ -1501,8 +1524,8 @@ func (c *Console) onMouse(hit MouseHit) {
 	child := c.panes[c.active]
 	c.mu.Unlock()
 
-	childWantsMouse := child != nil && child.child.Mouse()
-	switch RouteMouseReport(hit.Event, rows, childWantsMouse, panel) {
+	wantsMouse := child != nil && child.child.Mouse()
+	switch RouteMouseReport(hit.Event, rows, wantsMouse, panel) {
 	case MouseForward:
 		if child != nil {
 			// The RAW bytes: the child gets exactly what the terminal sent.

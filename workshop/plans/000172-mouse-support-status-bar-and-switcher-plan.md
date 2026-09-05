@@ -115,7 +115,7 @@ required, since the legacy X10 encoding caps at 223 and fails *silently*.
 | `MouseDisposition` | `cmd/internal/couchtty/mouse.go` | new |
 | `RouteMouseReport` | `cmd/internal/couchtty/mouse.go` | new |
 | `mouseinput.Event` / `mouseinput.Find` | `cmd/internal/mouseinput/mouseinput.go` | new |
-| `seqMouse` | `cmd/internal/couchtty/keys.go` | new |
+| ~~`seqMouse`~~ | — | deleted — it was dead; FeedHit matches mouseinput predicate before the fixed-string table |
 | `RenderStatusRow` | `cmd/internal/couchtty/reserve.go` | modified |
 | `Interceptor.FeedHit` | `cmd/internal/couchtty/keys.go` | modified |
 

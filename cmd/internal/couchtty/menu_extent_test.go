@@ -151,3 +151,25 @@ func TestClampAndRunMergeAreLoadBearing(t *testing.T) {
 	// mean building a state the renderer cannot produce, which tests the test.
 	// The guard stays for the day those two bounds drift; its comment says so.
 }
+
+// ActorExtent's own contract. Half-open [Start, End), so End is the first row
+// that is NOT the actor's -- the boundary a click on the line below an actor
+// depends on.
+func TestActorExtentIsHalfOpen(t *testing.T) {
+	view := RenderedMenu{Extents: []ActorExtent{
+		{Thread: menuAddress("a"), Start: 2, End: 5},
+		{Thread: menuAddress("b"), Start: 5, End: 6},
+	}}
+	for row, want := range map[int]string{1: "", 2: "a", 4: "a", 5: "b", 6: ""} {
+		thread, ok := view.PointToActor(row, 0)
+		if want == "" {
+			if ok {
+				t.Errorf("row %d resolved to %+v, want nobody", row, thread)
+			}
+			continue
+		}
+		if !ok || thread != menuAddress(want) {
+			t.Errorf("row %d = (%+v,%v), want %q", row, thread, ok, want)
+		}
+	}
+}

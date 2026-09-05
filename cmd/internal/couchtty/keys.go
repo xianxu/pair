@@ -45,11 +45,6 @@ const (
 	seqPrevious
 	seqDetach
 	seqRelaunch
-	// seqMouse is an SGR mouse report. It is NOT a fixed string like the other
-	// rows, so knownSequences cannot hold it -- its shape is
-	// `\x1b[<button;col;rowM|m` with variable digits, and mouseinput owns the
-	// predicate.
-	seqMouse
 	seqHotkey = seqSwitch // compatibility name for the switch-sequence tests
 )
 
@@ -72,8 +67,6 @@ func (k seqKind) hit() InterceptorHit {
 		return HitDetach
 	case seqRelaunch:
 		return HitRelaunch
-	case seqMouse:
-		return HitMouse
 	}
 	return HitNone
 }
@@ -98,7 +91,14 @@ const (
 	// HitRelaunch is alt+n (or ctrl+alt+n): replace this thread's Pair process
 	// with the current binary, keeping the agent conversation.
 	HitRelaunch
-	// HitMouse is an SGR mouse report. Unlike every other hit it carries a
+	// HitMouse is an SGR mouse report. It has NO seqKind: a report's shape is
+	// `\x1b[<button;col;rowM|m` with variable digits, so knownSequences -- which
+	// holds fixed strings -- cannot express it, and FeedHit matches it against
+	// mouseinput's predicate BEFORE consulting that table. A seqKind for it
+	// existed briefly and was dead: sequenceAt can only return kinds the table
+	// carries.
+	//
+	// Unlike every other hit it carries a
 	// PAYLOAD -- the decoded event and the raw wire bytes, read with Mouse() --
 	// because a coordinate cannot be recovered from the hit alone and a
 	// forwarded report must be the bytes the terminal sent, not a re-encoding.

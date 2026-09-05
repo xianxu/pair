@@ -130,3 +130,33 @@ func TestAChipClippedToOneColumnIsStillClickable(t *testing.T) {
 		t.Fatalf("the one drawn column of a clipped chip is not clickable: (%+v,%v)", thread, ok)
 	}
 }
+
+// RenderedStatusRow's own contract, exercised by name rather than only through
+// the values other tests happen to build. Its ColumnToActor is the whole reason
+// the type exists: the Body and the Chips describe the SAME drawn row, so a
+// column resolved against one must agree with the other.
+func TestRenderedStatusRowIsSelfConsistent(t *testing.T) {
+	var empty RenderedStatusRow
+	if thread, ok := empty.ColumnToActor(0); ok {
+		t.Errorf("an empty row resolved column 0 to %+v", thread)
+	}
+	row := RenderedStatusRow{
+		Body: "alpha  beta",
+		Chips: []ChipSpan{
+			{Thread: menuAddress("a"), Start: 0, End: 5},
+			{Thread: menuAddress("b"), Start: 7, End: 11},
+		},
+	}
+	for column, want := range map[int]string{0: "a", 4: "a", 5: "", 6: "", 7: "b", 10: "b", 11: ""} {
+		thread, ok := row.ColumnToActor(column)
+		if want == "" {
+			if ok {
+				t.Errorf("column %d resolved to %+v, want nobody", column, thread)
+			}
+			continue
+		}
+		if !ok || thread != menuAddress(want) {
+			t.Errorf("column %d = (%+v,%v), want %q", column, thread, ok, want)
+		}
+	}
+}

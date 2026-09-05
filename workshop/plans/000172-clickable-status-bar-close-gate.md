@@ -408,6 +408,143 @@ rounds:
           round: 4
       boundary: M1
       blocked: true
+    - "n": 5
+      timestamp: "2026-09-05T16:47:31-07:00"
+      agent: claude
+      dispose:
+        - id: BR-3
+          disposition: addressed
+          note: Row is now hostty.EnableMouseClicks/DisableMouseClicks and both symbols exist; the prose bullet at plan:193 still says MouseClickTracking, raised separately as Minor.
+          round: 5
+        - id: BR-4
+          disposition: addressed
+          note: 'Verified: mutating reserve.go:175 to require the full label width reddens reserve_mouse_test.go:60 and :124.'
+          round: 5
+        - id: BR-5
+          disposition: not-addressed
+          note: Clamp half honestly dispositioned; the SCROLLED half is still unreachable -- the index mutation stays green because every extent test selects inventory[0].
+          round: 5
+        - id: BR-9
+          disposition: not-addressed
+          note: go doc ChipSpan still prints RenderStatusRow's rationale and go doc RenderStatusRow prints nothing; the added comment describes the fix instead of being it.
+          round: 5
+        - id: BR-10
+          disposition: addressed
+          note: run.go:453,459 now switch on mouseinput.WheelUp/WheelDown; no 64/65 literals remain.
+          round: 5
+        - id: BR-11
+          disposition: not-addressed
+          note: parseSGRMousePressPrefix is gone but the mousePressEvent alias at run.go:581 still has zero callers, under a comment claiming the aliases were removed.
+          round: 5
+        - id: BR-13
+          disposition: addressed
+          note: 'Verified: deleting the run-merge reddens TestClampAndRunMergeAreLoadBearing.'
+          round: 5
+        - id: BR-14
+          disposition: addressed
+          note: All three sites verified RED under mutation, and the four unmapped Done-when rows now have tests that reach production.
+          round: 5
+        - id: BR-15
+          disposition: addressed
+          note: The tests were paid inside this window and this M1 review covers the M2/M3 code; residual is that M2's own close now opens on a near-empty range and should be recorded as covered here.
+          round: 5
+        - id: BR-16
+          disposition: not-addressed
+          note: The re-assert landed but is unpinned (deleting it leaves the suite green) and it introduces a regression -- see the new Critical; the crossed enumeration was never written.
+          round: 5
+        - id: BR-17
+          disposition: not-addressed
+          note: enterOperationFor and the effects-gated Manual flag both landed and mutate RED; the third half survives -- a non-actionable row still gets a notice from Enter and silence from a click.
+          round: 5
+        - id: BR-19
+          disposition: not-addressed
+          note: 'Unchanged: go doc MenuEventMouseSwitch prints MenuEventNotice''s block and MenuEventNotice has none.'
+          round: 5
+        - id: BR-20
+          disposition: not-addressed
+          note: WheelUp/WheelDown got production callers, but DisableMouseClicks and the mousePressEvent alias still have none, and seqMouse joins the enumeration as a new zero-reachability symbol.
+          round: 5
+        - id: BR-21
+          disposition: not-addressed
+          note: console.go:647 still special-cases HitMouse before the table and hitHandlers()[HitMouse] is still an uncalled func(){} counted by the guard.
+          round: 5
+      findings:
+        - id: BR-22
+          severity: Critical
+          title: The per-paint ?1000h re-assert demotes a child that enabled ?1002/?1003, breaking the "child keeps its own events unchanged" Done-when
+          detail: |-
+            console.go:1024-1030 writes hostty.EnableMouseClicks on every paint. Mouse-tracking
+            modes 1000/1002/1003 are one mutually-exclusive state in xterm (send_mouse_pos),
+            Alacritty (removes MOUSE_MODE before inserting), kitty, Ghostty and iTerm2, so
+            setting 1000 while a child holds 1002 replaces button-event tracking with
+            press/release only. Screen.Mouse() still reports true, so couch keeps forwarding
+            presses into a child that will never receive the motion that closes its drag --
+            the "nvim stuck in visual selection" symptom mouseinput.go:19-23 documents.
+            paintNow is on the rowDirty/bell/attention path, so a full-screen child triggers
+            it continuously. The code comment and atlas/couch.md both assert the opposite.
+            This is the 3rd finding in family unspecified-event-policy. Do NOT patch this one
+            site. The rule the family keeps asking for: the disposition table must be crossed
+            with the CHILD's mode-transition events, and each cell must state what couch
+            writes AND what mode the child is left holding. Enumeration (unchanged from
+            BR-16): child enables 1000; child enables 1002/1003; child disables; child exits
+            with mouse on; switch between two children with different modes; replay
+            re-asserting over couch's. Measured prevalence: 1 of 6 cells implemented, 0 of 6
+            pinned -- deleting the paintNow re-assert leaves the whole couchtty suite green.
+          family: unspecified-event-policy
+          round: 5
+        - id: BR-23
+          severity: Important
+          title: assertDirectTest is satisfied by the contract's own conceptInventory literal, so every PURE row's coverage assertion is vacuous
+          detail: |-
+            core_concepts_contract_test.go:377-394 globs *_test.go in the package and greps
+            for the row's symbol; the contract file is in that glob and holds every symbol
+            name verbatim in conceptInventory, so the match always succeeds. seqMouse is the
+            demonstration -- its only occurrence in any _test.go is line 73 of the contract
+            itself, and seqMouse is dead code (sequenceAt can never return it; deleting
+            `case seqMouse: return HitMouse` leaves the suite green).
+            This is the 3rd finding in family guard-not-registered. Do NOT fix this one
+            guard. The rule covering both instances: an enumeration guard is satisfied only
+            by an artifact the production path reads. hitHandlers()[HitMouse] is a func(){}
+            the dispatcher skips; assertDirectTest matches on the inventory that declares the
+            requirement. Measured prevalence: 2 of 2 enumeration guards this issue touches
+            are self-satisfying. Fix: exclude the contract file from the glob, then give
+            whatever goes red a real test.
+          family: guard-not-registered
+          round: 5
+        - id: BR-24
+          severity: Minor
+          title: sgrMouseSize derives Terminators from mouseinput but restates the report-length rule
+          detail: |-
+            termcmd/rename_input.go:175-186 computes the report size as idx+3+1 after
+            scanning for mouseinput.Terminators. mouseinput.ParsePrefix already answers that
+            question as len(raw), and the package doc says it exists so there is ONE answer
+            to "where does this sequence end". This is the 2nd finding in family
+            promoted-constant-with-surviving-literal. Do NOT just rewrite this call. The
+            rule: a promotion is finished when every consumer derives the RULE, not only the
+            constant the diff happened to touch. Enumeration for this issue:
+            termcmd/run.go:453,459 (fixed this round), rename_input.go:183 (constant derived,
+            length rule restated). Note the two differ on malformed input -- ParsePrefix
+            validates the numbers and sgrMouseSize does not -- so the sweep must state which
+            behaviour wins.
+          family: promoted-constant-with-surviving-literal
+          round: 5
+        - id: BR-25
+          severity: Minor
+          title: The plan's Integration-points prose bullet still names hostty.MouseClickTracking after the Revisions entry renamed it
+          detail: |-
+            workshop/plans/000172-mouse-support-status-bar-and-switcher-plan.md:193 reads
+            "**hostty.MouseClickTracking**", seven lines below a Revisions entry recording
+            that it became EnableMouseClicks/DisableMouseClicks. A reader grepping the plan
+            for the symbol finds a name that exists nowhere in the tree.
+            This is the 2nd finding in family plan-table-claims-unshipped-code. Do NOT edit
+            only this line. The rule: a rename inside an artifact is finished when
+            grep <old-name> over the artifact returns zero, not when the machine-parsed row
+            is fixed -- the contract test reads the table, so the table is the only part the
+            last fix was forced to get right.
+          family: plan-table-claims-unshipped-code
+          round: 5
+      boundary: M1
+      blocked: true
 ---
 
 # Gate ledger — pair#172 (boundary-review)
@@ -633,19 +770,93 @@ later rounds disposed of them. Generated — edit the gate, not this file.
   is a payload valid only between one FeedHit and the next, kept correct by a
   hand-written ordering rather than by the type (ARCH-ORDER).
 
+## Round 5 — 2026-09-05T16:47:31-07:00 (claude) — BLOCKED
+
+### Disposed
+
+- BR-3 — addressed — Row is now hostty.EnableMouseClicks/DisableMouseClicks and both symbols exist; the prose bullet at plan:193 still says MouseClickTracking, raised separately as Minor.
+- BR-4 — addressed — Verified: mutating reserve.go:175 to require the full label width reddens reserve_mouse_test.go:60 and :124.
+- BR-5 — not-addressed — Clamp half honestly dispositioned; the SCROLLED half is still unreachable -- the index mutation stays green because every extent test selects inventory[0].
+- BR-9 — not-addressed — go doc ChipSpan still prints RenderStatusRow's rationale and go doc RenderStatusRow prints nothing; the added comment describes the fix instead of being it.
+- BR-10 — addressed — run.go:453,459 now switch on mouseinput.WheelUp/WheelDown; no 64/65 literals remain.
+- BR-11 — not-addressed — parseSGRMousePressPrefix is gone but the mousePressEvent alias at run.go:581 still has zero callers, under a comment claiming the aliases were removed.
+- BR-13 — addressed — Verified: deleting the run-merge reddens TestClampAndRunMergeAreLoadBearing.
+- BR-14 — addressed — All three sites verified RED under mutation, and the four unmapped Done-when rows now have tests that reach production.
+- BR-15 — addressed — The tests were paid inside this window and this M1 review covers the M2/M3 code; residual is that M2's own close now opens on a near-empty range and should be recorded as covered here.
+- BR-16 — not-addressed — The re-assert landed but is unpinned (deleting it leaves the suite green) and it introduces a regression -- see the new Critical; the crossed enumeration was never written.
+- BR-17 — not-addressed — enterOperationFor and the effects-gated Manual flag both landed and mutate RED; the third half survives -- a non-actionable row still gets a notice from Enter and silence from a click.
+- BR-19 — not-addressed — Unchanged: go doc MenuEventMouseSwitch prints MenuEventNotice's block and MenuEventNotice has none.
+- BR-20 — not-addressed — WheelUp/WheelDown got production callers, but DisableMouseClicks and the mousePressEvent alias still have none, and seqMouse joins the enumeration as a new zero-reachability symbol.
+- BR-21 — not-addressed — console.go:647 still special-cases HitMouse before the table and hitHandlers()[HitMouse] is still an uncalled func(){} counted by the guard.
+
+### Raised
+
+- **BR-22** [Critical] `unspecified-event-policy` The per-paint ?1000h re-assert demotes a child that enabled ?1002/?1003, breaking the "child keeps its own events unchanged" Done-when
+  console.go:1024-1030 writes hostty.EnableMouseClicks on every paint. Mouse-tracking
+  modes 1000/1002/1003 are one mutually-exclusive state in xterm (send_mouse_pos),
+  Alacritty (removes MOUSE_MODE before inserting), kitty, Ghostty and iTerm2, so
+  setting 1000 while a child holds 1002 replaces button-event tracking with
+  press/release only. Screen.Mouse() still reports true, so couch keeps forwarding
+  presses into a child that will never receive the motion that closes its drag --
+  the "nvim stuck in visual selection" symptom mouseinput.go:19-23 documents.
+  paintNow is on the rowDirty/bell/attention path, so a full-screen child triggers
+  it continuously. The code comment and atlas/couch.md both assert the opposite.
+  This is the 3rd finding in family unspecified-event-policy. Do NOT patch this one
+  site. The rule the family keeps asking for: the disposition table must be crossed
+  with the CHILD's mode-transition events, and each cell must state what couch
+  writes AND what mode the child is left holding. Enumeration (unchanged from
+  BR-16): child enables 1000; child enables 1002/1003; child disables; child exits
+  with mouse on; switch between two children with different modes; replay
+  re-asserting over couch's. Measured prevalence: 1 of 6 cells implemented, 0 of 6
+  pinned -- deleting the paintNow re-assert leaves the whole couchtty suite green.
+- **BR-23** [Important] `guard-not-registered` assertDirectTest is satisfied by the contract's own conceptInventory literal, so every PURE row's coverage assertion is vacuous
+  core_concepts_contract_test.go:377-394 globs *_test.go in the package and greps
+  for the row's symbol; the contract file is in that glob and holds every symbol
+  name verbatim in conceptInventory, so the match always succeeds. seqMouse is the
+  demonstration -- its only occurrence in any _test.go is line 73 of the contract
+  itself, and seqMouse is dead code (sequenceAt can never return it; deleting
+  `case seqMouse: return HitMouse` leaves the suite green).
+  This is the 3rd finding in family guard-not-registered. Do NOT fix this one
+  guard. The rule covering both instances: an enumeration guard is satisfied only
+  by an artifact the production path reads. hitHandlers()[HitMouse] is a func(){}
+  the dispatcher skips; assertDirectTest matches on the inventory that declares the
+  requirement. Measured prevalence: 2 of 2 enumeration guards this issue touches
+  are self-satisfying. Fix: exclude the contract file from the glob, then give
+  whatever goes red a real test.
+- **BR-24** [Minor] `promoted-constant-with-surviving-literal` sgrMouseSize derives Terminators from mouseinput but restates the report-length rule
+  termcmd/rename_input.go:175-186 computes the report size as idx+3+1 after
+  scanning for mouseinput.Terminators. mouseinput.ParsePrefix already answers that
+  question as len(raw), and the package doc says it exists so there is ONE answer
+  to "where does this sequence end". This is the 2nd finding in family
+  promoted-constant-with-surviving-literal. Do NOT just rewrite this call. The
+  rule: a promotion is finished when every consumer derives the RULE, not only the
+  constant the diff happened to touch. Enumeration for this issue:
+  termcmd/run.go:453,459 (fixed this round), rename_input.go:183 (constant derived,
+  length rule restated). Note the two differ on malformed input -- ParsePrefix
+  validates the numbers and sgrMouseSize does not -- so the sweep must state which
+  behaviour wins.
+- **BR-25** [Minor] `plan-table-claims-unshipped-code` The plan's Integration-points prose bullet still names hostty.MouseClickTracking after the Revisions entry renamed it
+  workshop/plans/000172-mouse-support-status-bar-and-switcher-plan.md:193 reads
+  "**hostty.MouseClickTracking**", seven lines below a Revisions entry recording
+  that it became EnableMouseClicks/DisableMouseClicks. A reader grepping the plan
+  for the symbol finds a name that exists nowhere in the tree.
+  This is the 2nd finding in family plan-table-claims-unshipped-code. Do NOT edit
+  only this line. The rule: a rename inside an artifact is finished when
+  grep <old-name> over the artifact returns zero, not when the machine-parsed row
+  is fixed -- the contract test reads the table, so the table is the only part the
+  last fix was forced to get right.
+
 ## Open findings
 
-- **BR-3** [Critical] `plan-table-claims-unshipped-code` Core-concepts row declares hostty.MouseClickTracking `new` when it exists nowhere
-- **BR-4** [Important] `onedirectional-geometry-assertion` The clipped-chip case is asserted only from above, so a lost span passes
 - **BR-5** [Important] `onedirectional-geometry-assertion` clampExtents and the scrolled list are unreachable from any test
 - **BR-9** [Minor] `orphaned-doc-comment` RenderStatusRow's doc block is now attached to ChipSpan
-- **BR-10** [Minor] `promoted-constant-with-surviving-literal` WheelUp/WheelDown have zero call sites while termcmd keeps the 64/65 literals
 - **BR-11** [Minor] `move-residue` mousePressEvent alias and parseSGRMousePressPrefix have no callers after the move
-- **BR-13** [Minor] `unpinned-exported-shape` The one-extent-per-actor run shape is unobservable through PointToActor
-- **BR-14** [Critical] `unpinned-exported-shape` Three shipped M2/M3 behaviours are unpinned - removing each leaves the whole couchtty suite green
-- **BR-15** [Important] `milestone-scope-overrun` M2 and M3 production code landed inside the M1 window, so their own boundary reviews open on an empty range
 - **BR-16** [Important] `unspecified-event-policy` couch's own mouse mode is written once and never re-asserted, so a child's DECRST silently ends the feature
 - **BR-17** [Important] `parallel-handler-restates-decision` The click reducer restates Enter's switch/resume rule and diverges from it, and sets Manual on a refused dispatch
 - **BR-19** [Minor] `orphaned-doc-comment` MenuEventNotice's doc block is now attached to MenuEventMouseSwitch, a second instance in the commit that left the first
 - **BR-20** [Minor] `move-residue` hostty.DisableMouseClicks joins two other zero-call-site symbols left by the promotion
 - **BR-21** [Minor] `guard-not-registered` The handler-table entry for HitMouse is a stub the dispatcher never reaches, so the enumeration guard proves nothing for it
+- **BR-22** [Critical] `unspecified-event-policy` The per-paint ?1000h re-assert demotes a child that enabled ?1002/?1003, breaking the "child keeps its own events unchanged" Done-when
+- **BR-23** [Important] `guard-not-registered` assertDirectTest is satisfied by the contract's own conceptInventory literal, so every PURE row's coverage assertion is vacuous
+- **BR-24** [Minor] `promoted-constant-with-surviving-literal` sgrMouseSize derives Terminators from mouseinput but restates the report-length rule
+- **BR-25** [Minor] `plan-table-claims-unshipped-code` The plan's Integration-points prose bullet still names hostty.MouseClickTracking after the Revisions entry renamed it

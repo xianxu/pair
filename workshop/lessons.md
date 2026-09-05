@@ -3448,3 +3448,16 @@ that a key token appears cannot detect a contradictory behavioral sentence
   so no test can redden it without constructing a state the renderer cannot
   produce. Keep the guard, say in its comment that it is unreachable and why,
   and do not manufacture a test that only tests the test.
+- A guard that greps the package's test files must EXCLUDE itself. couch's
+  core-concepts contract asserted every PURE row has a direct test by globbing
+  `*_test.go` and searching for the symbol — and the contract file is in its own
+  glob, listing every symbol verbatim in its inventory. So the match always
+  succeeded and the assertion was vacuous. Unmasking it immediately found three
+  types with no test at all, one of them shipped two issues ago. When a check
+  reads a directory, ask whether the check is IN that directory.
+- Terminal modes 1000/1002/1003 are ONE mutually-exclusive tracking state, not
+  additive flags. I "fixed" a silent-disable bug by re-asserting `?1000h` on
+  every paint, which demotes a child holding `?1002h` to press/release — so it
+  never receives the motion that closes a drag, and nvim wedges in visual
+  selection. Before re-asserting any terminal mode, check whether the protocol
+  unions or replaces; the fix for one silent failure introduced a worse one.

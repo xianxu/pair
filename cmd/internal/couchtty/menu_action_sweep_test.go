@@ -106,3 +106,20 @@ func TestRowActionDeclarationsAndTheMenuAgreeInBothDirections(t *testing.T) {
 		}
 	}
 }
+
+// endsItsOwnChild names the operations whose child exit is EXPECTED, so the two
+// sites that need the answer cannot disagree. It shipped in pair#182 with its
+// only _test.go occurrence being the concept inventory's own literal, which is
+// why the coverage assertion was passing vacuously.
+func TestEndsItsOwnChildNamesTheDeliberateOnes(t *testing.T) {
+	for _, operation := range []string{"park", "detach", "relaunch"} {
+		if !endsItsOwnChild(operation) {
+			t.Errorf("%q deliberately ends its child but is not named, so its exit raises a spurious notice", operation)
+		}
+	}
+	for _, operation := range []string{"switch", "resume", "archive", "name", "describe", "leave", ""} {
+		if endsItsOwnChild(operation) {
+			t.Errorf("%q does not end its own child, so marking its exit expected would SWALLOW a real one", operation)
+		}
+	}
+}
