@@ -5,7 +5,7 @@ deps: []
 github_issue:
 created: 2026-09-02
 updated: 2026-09-05
-estimate_hours: 2.42
+estimate_hours: 2.69
 started: 2026-09-05T12:13:46-07:00
 ---
 
@@ -158,7 +158,7 @@ item: atlas-docs                 design=0.02 impl=0.05
 item: real-api-discovery         design=0.00 impl=0.12
 item: milestone-review           design=0.00 impl=0.20
 design-buffer: 0.15
-total: 2.42
+total: 2.69
 ```
 
 *Produced via `brain/data/life/42shots/velocity/estimate-logic-v3.1.md` against
