@@ -103,7 +103,7 @@ func TestThreadStoreRetireIncarnation(t *testing.T) {
 				t.Fatal(err)
 			}
 
-			got, err := store.RetireIncarnation(address, record.Revision, test.identity)
+			got, err := store.RetireIncarnation(address, record.Revision, test.identity, time.Unix(1, 0))
 			if test.wantErr != "" {
 				if err == nil || !strings.Contains(err.Error(), test.wantErr) {
 					t.Fatalf("RetireIncarnation() error = %v, want one mentioning %q", err, test.wantErr)
@@ -152,7 +152,7 @@ func TestThreadStoreRetireIncarnation(t *testing.T) {
 		if err != nil {
 			t.Fatal(err)
 		}
-		if _, err := store.RetireIncarnation(address, record.Revision-1, identity); err == nil {
+		if _, err := store.RetireIncarnation(address, record.Revision-1, identity, time.Unix(1, 0)); err == nil {
 			t.Fatal("a stale revision was accepted")
 		}
 	})

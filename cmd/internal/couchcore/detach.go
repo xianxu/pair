@@ -48,8 +48,13 @@ func (c *Couch) Detach(ctx context.Context, address ThreadAddress) (ThreadRecord
 	if err := validateThreadAddress(address); err != nil {
 		return ThreadRecord{}, err
 	}
-	if c.Threads == nil || c.Proc == nil || c.Artifacts == nil {
-		return ThreadRecord{}, errors.New("detach requires a thread store, process ops, and an artifact controller")
+	// Clock joins the list because detach now RECORDS when the thread was last
+	// active (pair#187). A missing dependency must refuse here, where the
+	// message names it, rather than segfault deep in the retry loop -- which is
+	// what a nil clock did the moment this precondition was added and not
+	// declared.
+	if c.Threads == nil || c.Proc == nil || c.Artifacts == nil || c.Clock == nil {
+		return ThreadRecord{}, errors.New("detach requires a thread store, process ops, an artifact controller, and a clock")
 	}
 	sessions, ok := c.Artifacts.(PairSessionIO)
 	if !ok {
@@ -105,12 +110,16 @@ func (c *Couch) Detach(ctx context.Context, address ThreadAddress) (ThreadRecord
 	// The loop shape is MarkIncarnationUnknown's: re-read, re-attempt, and let
 	// RetireIncarnation's own preconditions refuse if the record genuinely
 	// stopped being retirable.
+	// ONCE, before the loop. Reading the clock per attempt would make the
+	// recorded activity time a function of how much revision contention there
+	// was, which is a measurement of the store rather than of the thread.
+	detachedAt := c.Clock.Now()
 	for {
 		current, err := c.Threads.GetThread(address)
 		if err != nil {
 			return ThreadRecord{}, fmt.Errorf("retire detached incarnation for %+v: %w", address, err)
 		}
-		detached, err := c.Threads.RetireIncarnation(address, current.Revision, identity)
+		detached, err := c.Threads.RetireIncarnation(address, current.Revision, identity, detachedAt)
 		var conflict *ThreadRevisionError
 		if errors.As(err, &conflict) {
 			continue

@@ -170,3 +170,41 @@ Found by the operator in live use while `pair#182` was landing; filed rather tha
 fixed on that branch, which was already nine review rounds deep and about to
 merge. Fixing unrelated code inside a close window is how a branch stops being
 reviewable — the same reason the holding surface was split to `pair#186`.
+
+### 2026-09-04 — implementation notes
+
+**The retry-time test was written, verified vacuous, and deleted.** The Plan
+asked for "a detach that retries on a revision conflict records the SAME time as
+one that does not", and the estimate review had already warned that the fixture's
+`FixedClock` would make it unfalsifiable. I wrote it with a `sequenceClock`
+instead — and it still could not fail, for a different reason: **nothing can
+force a retry.** The conflict hook (`BeforePairSession`) fires before the loop,
+and the loop re-reads `GetThread` on every iteration, so a bump before it is
+absorbed by the first read. The store's own hooks (`AfterJournal`,
+`AfterTarget`) fire inside the commit, after the revision check. There is no seam
+between the loop's read and its CAS.
+
+So the retry branch in `detach.go` is unreachable from tests, and the same is
+true of `TestCouchDetachRetriesARevisionConflictAfterTeardown`, which despite its
+name exercises "a concurrent write before the CAS does not break detach" — a
+property the re-read handles without ever retrying. Recorded as a testability
+gap rather than papered over with a green test that asserts nothing. The
+read-once placement is reasoned and commented at the call site; it is not pinned,
+and a future change that moves it into the loop will not be caught.
+
+**A nil clock was a segfault, not a refusal.** Adding `c.Clock.Now()` to `Detach`
+gave it a precondition it did not declare, and `TestLeaveDetachesLiveThreads...`
+panicked at `detach.go:111` because its `Couch` had no clock. Detach's own guard
+now names the clock alongside the store, proc ops and artifact controller — a
+missing dependency should refuse where the message says which one, not crash in
+the retry loop.
+
+**Side-quest, committed separately (`e903d546`).** `main` was red before this
+issue started: `TestNoCurrentSourcesAdvertiseObsoleteCouchArgv` named
+`workshop/issues/000153-...md` by path, and `pair#182`'s merge archived that
+issue to `workshop/history/`. Confirmed pre-existing by stashing. Widening the
+guard to every current issue was tried and rejected — it flags `pair#170` and
+`pair#172` for prose naming the resume OPERATION, which is not an argv
+advertisement. An issue Log is working notes; the guard defends what the operator
+reads.
+

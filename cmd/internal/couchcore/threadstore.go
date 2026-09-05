@@ -481,7 +481,17 @@ func (s *ThreadStore) CommitStartClaim(address ThreadAddress, expectedRevision u
 // unknown is precisely the state the fail-closed projector exists to keep out of
 // the switcher, and retiring one would let an unproven thread present as cleanly
 // detached.
-func (s *ThreadStore) RetireIncarnation(address ThreadAddress, expectedRevision uint64, identity ProcessIdentity) (ThreadRecord, error) {
+// RetireIncarnation removes a live incarnation and records that the thread was
+// active up to detachedAt.
+//
+// It takes the time rather than reading a clock because the caller's retry loop
+// must record ONE time regardless of how many attempts it takes: a value that
+// drifts with contention is not an observation of anything. Park is the
+// precedent -- it folds parkedAt through the same MonotonicLastActiveAt.
+//
+// Without this a detached thread had no recorded activity at all, so the
+// switcher rendered its age from the zero time and stated 106751 days (pair#187).
+func (s *ThreadStore) RetireIncarnation(address ThreadAddress, expectedRevision uint64, identity ProcessIdentity, detachedAt time.Time) (ThreadRecord, error) {
 	return s.UpdateExistingThread(address, expectedRevision, func(next *ThreadRecord) error {
 		if next.Park != nil {
 			return errors.New("cannot retire an incarnation while a park transaction is open")
@@ -500,6 +510,7 @@ func (s *ThreadStore) RetireIncarnation(address ThreadAddress, expectedRevision 
 			return errors.New("retire does not match the recorded incarnation process identity")
 		}
 		next.Incarnations = nil
+		next.LastActiveAt = MonotonicLastActiveAt(next.LastActiveAt, detachedAt)
 		return nil
 	})
 }

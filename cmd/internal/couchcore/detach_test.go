@@ -143,7 +143,7 @@ func TestCouchDetach(t *testing.T) {
 
 	t.Run("a thread with no live incarnation refuses", func(t *testing.T) {
 		f := newDetachFixture(t)
-		if _, err := f.store.RetireIncarnation(f.address, f.revision, f.identity); err != nil {
+		if _, err := f.store.RetireIncarnation(f.address, f.revision, f.identity, time.Unix(1, 0)); err != nil {
 			t.Fatal(err)
 		}
 		if _, err := f.couch.Detach(context.Background(), f.address); err == nil {
@@ -202,5 +202,35 @@ func TestCouchDetachRetriesARevisionConflictAfterTeardown(t *testing.T) {
 	}
 	if record.Description != "edited mid-detach" {
 		t.Fatalf("the concurrent edit was lost: %q", record.Description)
+	}
+}
+
+// A detached thread had no recorded activity at all -- LastActiveAt was written
+// only by park -- so the switcher rendered its age from the zero time and stated
+// `detached · 106751d ago`, which is MaxInt64 nanoseconds rather than a duration
+// anyone computed (pair#187).
+func TestDetachRecordsWhenTheThreadWasLastActive(t *testing.T) {
+	f := newDetachFixture(t)
+	before, err := f.store.GetThread(f.address)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !before.LastActiveAt.IsZero() {
+		t.Fatalf("fixture already has LastActiveAt %v; the test cannot show detach setting it", before.LastActiveAt)
+	}
+
+	if _, err := f.couch.Detach(context.Background(), f.address); err != nil {
+		t.Fatalf("Detach() = %v", err)
+	}
+
+	after, err := f.store.GetThread(f.address)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if after.LastActiveAt.IsZero() {
+		t.Fatal("detach left LastActiveAt unset, so the row has no age to render and will state a saturated one")
+	}
+	if want := time.Unix(100, 0).UTC(); !after.LastActiveAt.Equal(want) {
+		t.Errorf("LastActiveAt = %v, want the detach clock's %v", after.LastActiveAt, want)
 	}
 }

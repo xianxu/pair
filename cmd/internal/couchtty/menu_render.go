@@ -61,7 +61,21 @@ const (
 	AgeOld
 )
 
+// hasRecordedActivity reports whether a thread has an activity time at all.
+//
+// ONLY the zero value means absent. time.Unix(0, 0) is 1970 -- genuinely
+// ancient, and it must still render an age. Written once and asked by both
+// readers, so the two cannot drift into different ideas of "no age".
+//
+// The distinction matters because time.Duration is int64 nanoseconds:
+// now.Sub(time.Time{}) does not compute a large age, it OVERFLOWS and saturates
+// at MaxInt64 -- 106751.99 days, which the row then stated to the day.
+func hasRecordedActivity(lastActive time.Time) bool { return !lastActive.IsZero() }
+
 func AgeBandFor(now, lastActive time.Time) AgeBand {
+	if !hasRecordedActivity(lastActive) {
+		return AgeUnknown
+	}
 	age := now.Sub(lastActive)
 	if age < 24*time.Hour {
 		return AgeRecent
@@ -280,9 +294,9 @@ func rootStateText(thread couchcore.ActionableThreadSummary, now time.Time) stri
 	case couchcore.ThreadLive:
 		return "live"
 	case couchcore.ThreadDetached:
-		return "detached · " + relativeMenuAge(now, thread.LastActiveAt)
+		return withMenuAge("detached", now, thread.LastActiveAt)
 	case couchcore.ThreadParked:
-		return "parked · " + relativeMenuAge(now, thread.LastActiveAt)
+		return withMenuAge("parked", now, thread.LastActiveAt)
 	case couchcore.ThreadBusy:
 		return "parking…"
 	case couchcore.ThreadArchived:
@@ -430,6 +444,15 @@ func selectedMenuLine(line string, selected bool, width int) string {
 	return plain
 }
 
+// withMenuAge appends the ` · <age>` clause only when there is an age. The
+// state alone is the honest row for a thread that has never recorded activity.
+func withMenuAge(state string, now, lastActive time.Time) string {
+	if !hasRecordedActivity(lastActive) {
+		return state
+	}
+	return state + " · " + relativeMenuAge(now, lastActive)
+}
+
 func relativeMenuAge(now, lastActive time.Time) string {
 	age := now.Sub(lastActive)
 	if age < 0 {
@@ -446,6 +469,12 @@ func relativeMenuAge(now, lastActive time.Time) string {
 
 func ageColor(band AgeBand) string {
 	switch band {
+	case AgeUnknown:
+		// No age, so nothing to paint. Returning a dim escape would say "old",
+		// which is the claim this whole change exists to stop making -- and it
+		// would make the band unobservable, so its test could only assert the
+		// enum against itself.
+		return ""
 	case AgeRecent:
 		return "\x1b[38;5;250m"
 	case AgeDays:

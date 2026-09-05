@@ -334,6 +334,23 @@ the same declared operation surface. Each accepted slow action paints an
 identity-owned spinner before dispatch, and stale completions cannot mutate a
 replacement frame.
 
+**A row states an age only when it has one** (`pair#187`). `LastActiveAt` was
+written by park alone, so a thread that was DETACHED had never recorded activity
+— and `now.Sub(time.Time{})` does not compute a large age, it overflows int64
+nanoseconds and saturates, which the switcher then rendered as `detached ·
+106751d ago`. Detach now records the time too (read once, before its
+revision-conflict retry loop, so the value does not drift with contention), and
+both readers ask `hasRecordedActivity` first: `rootStateText` omits the ` · <age>`
+clause and `ageColor` paints nothing rather than claiming `AgeOld`. Only the ZERO
+VALUE means absent — `time.Unix(0, 0)` is 1970 and must still render a real age,
+which is what stops the guard being written as "very old implies absent".
+
+`SelectResumableRoot`'s recency ranking deliberately does NOT guard: the zero
+time is `Before` everything, so a never-active row cannot displace a better one,
+and ties are deterministic because the projection sorts by `(RepoScope, Tag)`.
+Correct as written, recorded here because the next reader would otherwise
+re-derive it.
+
 **The projection is TOTAL** (`pair#181`): every record in the manifest becomes a
 row, and `ClassifyThread` returns a state plus, when the row cannot be acted on,
 a `ThreadReason` from one closed vocabulary -- `binding-lost`,
