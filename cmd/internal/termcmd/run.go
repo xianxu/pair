@@ -450,13 +450,13 @@ func pumpStdinWithTimer(stdin io.Reader, mux ptyWriter, rt Runtime, stdout io.Wr
 						// the child needs it to close its drag.
 						case event.Release:
 							mux.writeActive(rawMouse)
-						case event.Button == 64:
+						case event.Button == mouseinput.WheelUp:
 							if mux.appMouseMode() {
 								mux.writeActive(rawMouse)
 							} else {
 								_ = rt.RunZellijAction("scroll-up")
 							}
-						case event.Button == 65:
+						case event.Button == mouseinput.WheelDown:
 							if mux.appMouseMode() {
 								mux.writeActive(rawMouse)
 							} else {
@@ -573,18 +573,12 @@ func currentRightTerminalPane(rt Runtime) (zellijpane.Pane, bool, error) {
 }
 
 // The SGR mouse parser moved to cmd/internal/mouseinput (pair#172): couch needs
-// the identical decode, and a second copy would be a second wire format. These
-// aliases keep this file's call sites unchanged, so the move is provably
-// behaviour-preserving -- termcmd's own suite is the regression for it.
+// the identical decode, and a second copy would be a second wire format.
+//
+// What remains here is what this file still CALLS. The move-time aliases that
+// kept the diff small are gone: an alias with no caller is dead surface, and
+// leaving them made the move look bigger than it was.
 type mousePressEvent = mouseinput.Event
-
-func parseSGRMousePress(data []byte) (mouseinput.Event, bool) {
-	return mouseinput.Parse(data)
-}
-
-func parseSGRMousePressPrefix(data []byte) (mouseinput.Event, []byte, []byte, bool) {
-	return mouseinput.ParsePrefix(data)
-}
 
 func findSGRMousePress(data []byte) ([]byte, mouseinput.Event, []byte, []byte, bool) {
 	return mouseinput.Find(data)

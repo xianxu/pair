@@ -83,6 +83,11 @@ type StatusModel struct {
 	Notice string
 }
 
+// The untrusted-text rationale below belongs to RenderStatusRow, and sat above
+// ChipSpan until a review pointed out that `go doc ChipSpan` printed it: a
+// comment separated from its subject by an intervening declaration documents the
+// wrong thing to every reader who arrives through the tool rather than the file.
+//
 // RenderStatusRow lays the model out in width columns.
 //
 // Labels and notices carry UNTRUSTED text: couchcore.Describe prefers a sidecar

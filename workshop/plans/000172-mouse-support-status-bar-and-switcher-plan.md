@@ -112,12 +112,12 @@ required, since the legacy X10 encoding caps at 223 and fails *silently*.
 | `ColumnToActor` | `cmd/internal/couchtty/reserve.go` | new |
 | `ActorExtent` | `cmd/internal/couchtty/menu_render.go` | new |
 | `PointToActor` | `cmd/internal/couchtty/menu_render.go` | new |
-| `MouseDisposition` | `cmd/internal/couchtty/mouse.go` | planned — M2 |
-| `RouteMouseReport` | `cmd/internal/couchtty/mouse.go` | planned — M2 |
+| `MouseDisposition` | `cmd/internal/couchtty/mouse.go` | new |
+| `RouteMouseReport` | `cmd/internal/couchtty/mouse.go` | new |
 | `mouseinput.Event` / `mouseinput.Find` | `cmd/internal/mouseinput/mouseinput.go` | new |
-| `seqMouse` | `cmd/internal/couchtty/keys.go` | planned — M2 |
+| `seqMouse` | `cmd/internal/couchtty/keys.go` | new |
 | `RenderStatusRow` | `cmd/internal/couchtty/reserve.go` | modified |
-| `Interceptor.FeedHit` | `cmd/internal/couchtty/keys.go` | planned — M2 |
+| `Interceptor.FeedHit` | `cmd/internal/couchtty/keys.go` | modified |
 
 - **ChipSpan / RenderedStatusRow** — the column range each actor occupies,
   returned *by the render*. `RenderStatusRow` returns
@@ -178,8 +178,8 @@ required, since the legacy X10 encoding caps at 223 and fails *silently*.
 
 | Name | Lives in | Status | Wraps |
 |------|----------|--------|-------|
-| `Console.onMouse` | `cmd/internal/couchtty/console.go` | planned — M3 | routing a decoded event to a switch |
-| `hostty.MouseClickTracking` | `cmd/internal/hostty/control.go` | planned — M2 | couch's own DECSET/DECRST |
+| `Console.onMouse` | `cmd/internal/couchtty/console.go` | new | routing a decoded event to a switch |
+| `hostty.EnableMouseClicks` / `DisableMouseClicks` | `cmd/internal/hostty/control.go` | new | couch's own DECSET/DECRST |
 
 - **Console.onMouse** — reads the child's mode from `Screen.Mouse()` (not from a
   new tracker), calls `RouteMouseReport`, and on `couch` maps the coordinate to an
@@ -485,3 +485,24 @@ and must stay identical.
 - [ ] **Step 3:** Re-evaluate `pair#166` against what landed — close, fix, or
       re-punt WITH a reason.
 - [ ] **Step 4:** Full `make test`; `sdlc milestone-close --issue 172 --milestone M3`.
+
+## Revisions
+
+### 2026-09-05 — the M2 rows shipped, and one row named a symbol that never existed
+
+**Reason.** The M1 boundary review found the Core-concepts table describing a
+tree that does not exist (BR-3, Critical), in both directions at once: six rows
+said `planned` for code that had already shipped in the same window, and one
+named `hostty.MouseClickTracking`, a symbol that was never written under that
+name.
+
+**Delta.** The six rows flip to `new`/`modified` and are pinned in
+`conceptInventory`. `hostty.MouseClickTracking` becomes
+`hostty.EnableMouseClicks` / `DisableMouseClicks`, which is what shipped.
+
+**Why it mattered rather than being bookkeeping.** The status column is what the
+contract test reads: a row marked `planned` is SKIPPED, so six shipped entities
+were asserting nothing while appearing to be covered. That is the same shape as
+the registration that silently did nothing (`pair#193`) — a guard that looks
+applied and is not.
+

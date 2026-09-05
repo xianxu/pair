@@ -180,6 +180,18 @@ func RenderMenuView(state MenuState, width, height int, now time.Time, color256 
 
 // clampExtents drops what the height clamp cut and truncates what it split. A
 // row the operator cannot see is a row they cannot click.
+//
+// UNREACHABLE TODAY, and kept deliberately. renderRootMenuFrame's own rowBudget
+// already subtracts the breadcrumb, the notice and the filter before choosing
+// its window, so RenderMenuView's `lines[:height]` truncation never fires while
+// extents exist -- measured across heights 3..16, where maxEnd never exceeds the
+// drawn count. It is a guard against the two bounds drifting apart, not live
+// behaviour, which is why no test can redden it: a test would have to construct
+// a state the renderer cannot produce.
+//
+// Said here rather than deleted because the invariant it protects is real, and
+// said explicitly rather than left as apparently-tested code, which is how a
+// boundary review reads it (pair#172 BR-5).
 func clampExtents(extents []ActorExtent, drawn int) []ActorExtent {
 	out := extents[:0]
 	for _, extent := range extents {

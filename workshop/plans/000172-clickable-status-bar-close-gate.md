@@ -327,6 +327,87 @@ rounds:
           round: 3
       boundary: M1
       blocked: true
+    - "n": 4
+      timestamp: "2026-09-05T16:25:23-07:00"
+      agent: claude
+      dispose:
+        - id: BR-3
+          disposition: not-addressed
+          note: Status flipped, but no plan Revisions entry, the row still names a symbol that exists nowhere, and six rows now claim `planned` for shipped code.
+          round: 4
+        - id: BR-4
+          disposition: not-addressed
+          note: 'Verified: dropping the span for any chip truncated below 3 columns leaves the whole suite green.'
+          round: 4
+        - id: BR-5
+          disposition: not-addressed
+          note: 'Verified twice: `return extents` and a scroll-offset re-base both stay green; the new fixture enters neither path.'
+          round: 4
+        - id: BR-9
+          disposition: not-addressed
+          note: '`go doc ChipSpan` still prints RenderStatusRow''s sanitize rationale; RenderStatusRow still has no doc.'
+          round: 4
+        - id: BR-10
+          disposition: not-addressed
+          note: run.go:453,459 still switch on the 64/65 literals; WheelUp/WheelDown remain test-only.
+          round: 4
+        - id: BR-11
+          disposition: not-addressed
+          note: run.go:579 and :585 still have zero references anywhere in the tree.
+          round: 4
+        - id: BR-13
+          disposition: not-addressed
+          note: 'Verified: deleting the run-merge at menu_render.go:465-469 leaves the suite green.'
+          round: 4
+        - id: BR-14
+          disposition: not-addressed
+          note: Two of the three named sites are now pinned, but three of THIS round's own fixes are not; seven unpinned behaviours measured.
+          round: 4
+        - id: BR-15
+          disposition: not-addressed
+          note: Merging M3 into M2 does not give M2 a diff; its close still opens on an empty range, carrying Task 12's manual check and pair#166 with it.
+          round: 4
+        - id: BR-16
+          disposition: not-addressed
+          note: The re-assert can be deleted with the suite green, and the child-mode-transition enumeration was never written.
+          round: 4
+        - id: BR-17
+          disposition: not-addressed
+          note: Both fixes are unpinned by mutation, and a non-actionable row still gets a notice from Enter and silence from a click.
+          round: 4
+        - id: BR-18
+          disposition: addressed
+          note: atlas/couch.md, README and the menuControls row all landed; the README guard fires on the new row.
+          round: 4
+        - id: BR-19
+          disposition: not-addressed
+          note: menu.go:200-209 unchanged; MenuEventNotice's block still reads as MenuEventMouseSwitch's.
+          round: 4
+        - id: BR-20
+          disposition: not-addressed
+          note: DisableMouseClicks, mousePressEvent, parseSGRMousePressPrefix and WheelUp/WheelDown all still have zero production call sites.
+          round: 4
+      findings:
+        - id: BR-21
+          severity: Minor
+          title: The handler-table entry for HitMouse is a stub the dispatcher never reaches, so the enumeration guard proves nothing for it
+          detail: |-
+            This is the 2nd finding in family `guard-not-registered`. Do NOT just delete
+            or fill in this one entry. The rule: an enumeration guard is satisfied only
+            by the thing it guards -- registering a value the production path never
+            reads converts the guard into a formality that reports coverage it does not
+            have. console.go:647 special-cases HitMouse BEFORE consulting the table, so
+            hitHandlers()[HitMouse] (console.go:1557) is a `func() {}` with no caller;
+            AllInterceptorHits still counts it as proven. The same shape is one edit
+            away for any future payload-carrying hit. Either widen the table's value to
+            carry the payload so every hit really does route through it, or have the
+            guard assert reachability rather than presence. Related: Interceptor.mouse
+            is a payload valid only between one FeedHit and the next, kept correct by a
+            hand-written ordering rather than by the type (ARCH-ORDER).
+          family: guard-not-registered
+          round: 4
+      boundary: M1
+      blocked: true
 ---
 
 # Gate ledger — pair#172 (boundary-review)
@@ -517,6 +598,41 @@ later rounds disposed of them. Generated — edit the gate, not this file.
   mouseinput.WheelUp/WheelDown which exist only in tests while run.go:453,459 keep the
   literals. deadSymbolScope is cmd/internal/couchcore, so no guard sees any of them.
 
+## Round 4 — 2026-09-05T16:25:23-07:00 (claude) — BLOCKED
+
+### Disposed
+
+- BR-3 — not-addressed — Status flipped, but no plan Revisions entry, the row still names a symbol that exists nowhere, and six rows now claim `planned` for shipped code.
+- BR-4 — not-addressed — Verified: dropping the span for any chip truncated below 3 columns leaves the whole suite green.
+- BR-5 — not-addressed — Verified twice: `return extents` and a scroll-offset re-base both stay green; the new fixture enters neither path.
+- BR-9 — not-addressed — `go doc ChipSpan` still prints RenderStatusRow's sanitize rationale; RenderStatusRow still has no doc.
+- BR-10 — not-addressed — run.go:453,459 still switch on the 64/65 literals; WheelUp/WheelDown remain test-only.
+- BR-11 — not-addressed — run.go:579 and :585 still have zero references anywhere in the tree.
+- BR-13 — not-addressed — Verified: deleting the run-merge at menu_render.go:465-469 leaves the suite green.
+- BR-14 — not-addressed — Two of the three named sites are now pinned, but three of THIS round's own fixes are not; seven unpinned behaviours measured.
+- BR-15 — not-addressed — Merging M3 into M2 does not give M2 a diff; its close still opens on an empty range, carrying Task 12's manual check and pair#166 with it.
+- BR-16 — not-addressed — The re-assert can be deleted with the suite green, and the child-mode-transition enumeration was never written.
+- BR-17 — not-addressed — Both fixes are unpinned by mutation, and a non-actionable row still gets a notice from Enter and silence from a click.
+- BR-18 — addressed — atlas/couch.md, README and the menuControls row all landed; the README guard fires on the new row.
+- BR-19 — not-addressed — menu.go:200-209 unchanged; MenuEventNotice's block still reads as MenuEventMouseSwitch's.
+- BR-20 — not-addressed — DisableMouseClicks, mousePressEvent, parseSGRMousePressPrefix and WheelUp/WheelDown all still have zero production call sites.
+
+### Raised
+
+- **BR-21** [Minor] `guard-not-registered` The handler-table entry for HitMouse is a stub the dispatcher never reaches, so the enumeration guard proves nothing for it
+  This is the 2nd finding in family `guard-not-registered`. Do NOT just delete
+  or fill in this one entry. The rule: an enumeration guard is satisfied only
+  by the thing it guards -- registering a value the production path never
+  reads converts the guard into a formality that reports coverage it does not
+  have. console.go:647 special-cases HitMouse BEFORE consulting the table, so
+  hitHandlers()[HitMouse] (console.go:1557) is a `func() {}` with no caller;
+  AllInterceptorHits still counts it as proven. The same shape is one edit
+  away for any future payload-carrying hit. Either widen the table's value to
+  carry the payload so every hit really does route through it, or have the
+  guard assert reachability rather than presence. Related: Interceptor.mouse
+  is a payload valid only between one FeedHit and the next, kept correct by a
+  hand-written ordering rather than by the type (ARCH-ORDER).
+
 ## Open findings
 
 - **BR-3** [Critical] `plan-table-claims-unshipped-code` Core-concepts row declares hostty.MouseClickTracking `new` when it exists nowhere
@@ -530,6 +646,6 @@ later rounds disposed of them. Generated — edit the gate, not this file.
 - **BR-15** [Important] `milestone-scope-overrun` M2 and M3 production code landed inside the M1 window, so their own boundary reviews open on an empty range
 - **BR-16** [Important] `unspecified-event-policy` couch's own mouse mode is written once and never re-asserted, so a child's DECRST silently ends the feature
 - **BR-17** [Important] `parallel-handler-restates-decision` The click reducer restates Enter's switch/resume rule and diverges from it, and sets Manual on a refused dispatch
-- **BR-18** [Important] `docs-lag-shipped-surface` atlas and README cover M1's geometry but not the routing, ownership and click gesture that shipped in the same window
 - **BR-19** [Minor] `orphaned-doc-comment` MenuEventNotice's doc block is now attached to MenuEventMouseSwitch, a second instance in the commit that left the first
 - **BR-20** [Minor] `move-residue` hostty.DisableMouseClicks joins two other zero-call-site symbols left by the promotion
+- **BR-21** [Minor] `guard-not-registered` The handler-table entry for HitMouse is a stub the dispatcher never reaches, so the enumeration guard proves nothing for it

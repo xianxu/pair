@@ -98,3 +98,35 @@ func TestColumnToActorIsTotal(t *testing.T) {
 		}
 	}
 }
+
+// A chip clipped to ONE column still has a span, and it is that one column.
+//
+// The width sweep above walks widths and asserts what it finds, so a rule that
+// drops narrow spans passes it: nothing there requires a span to EXIST at a
+// specific width. This constructs the case instead -- a width chosen so the
+// second chip draws exactly one column, and an assertion that a click on that
+// column lands on it.
+func TestAChipClippedToOneColumnIsStillClickable(t *testing.T) {
+	m := StatusModel{Actors: []StatusActor{
+		{Label: "alpha", Thread: menuAddress("a")},
+		{Label: "beta", Thread: menuAddress("b")},
+	}}
+	// "alpha" is 5, the separator 2, so width 8 leaves exactly one column of
+	// "beta".
+	row := RenderStatusRow(8, m)
+	var narrow *ChipSpan
+	for i := range row.Chips {
+		if row.Chips[i].Thread == menuAddress("b") {
+			narrow = &row.Chips[i]
+		}
+	}
+	if narrow == nil {
+		t.Fatalf("a chip that drew has no span: chips=%+v row=%q", row.Chips, row.Body)
+	}
+	if got := narrow.End - narrow.Start; got != 1 {
+		t.Fatalf("clipped span covers %d columns, want exactly the 1 it drew: %+v", got, narrow)
+	}
+	if thread, ok := row.ColumnToActor(narrow.Start); !ok || thread != menuAddress("b") {
+		t.Fatalf("the one drawn column of a clipped chip is not clickable: (%+v,%v)", thread, ok)
+	}
+}

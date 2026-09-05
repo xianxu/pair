@@ -431,3 +431,163 @@ findings:
       mouseinput.WheelUp/WheelDown which exist only in tests while run.go:453,459 keep the
       literals. deadSymbolScope is cmd/internal/couchcore, so no guard sees any of them.
 ```
+
+---
+
+## Re-review — 2026-09-05T16:25:23-07:00 (REWORK)
+
+| field | value |
+|-------|-------|
+| issue | 172 — Mouse support: click the status bar and the switcher |
+| repo | pair |
+| issue file | workshop/issues/000172-clickable-status-bar.md |
+| boundary | milestone M1 |
+| milestone | M1 |
+| window | c15030df41c64086f1e669576034d22bcbb0ea28..15eaf1919d98badcaef169ec54de061d7ab0a6b6 |
+| command | sdlc milestone-close --issue 172 --milestone M1 |
+| reviewer | claude |
+| timestamp | 2026-09-05T16:25:23-07:00 |
+| verdict | REWORK |
+
+## Review
+
+```verdict
+verdict: REWORK
+confidence: high
+```
+
+The geometry layer M1 owns is well built — the spans come out of the clipping pass, the extents come out of the drawn rows and are re-based where the notice shifts them, and the promoted `mouseinput` decoder is a genuine one-parser consolidation with its own tests. What blocks SHIP is not the design: it is that this round's *claimed fixes are unpinned by the same rule the round was opened to enforce*. I mutated every behaviour the commit message names and restored the tree each time. Three of the round's own fixes — BR-16's paint-time `EnableMouseClicks` re-assert, BR-17's `enterOperationFor` extraction, and BR-17's `len(effects) > 0` guard — can each be reverted with the whole `couchtty` suite staying green (only the pre-existing pty-sandbox failure remains). So can `clampExtents`, the extent run-merge, the scroll-offset re-base, and the chip span for a chip truncated below three columns. That is seven unpinned behaviours, three of them written *this round* in answer to a finding whose stated rule was "the check is the mutation, not the green run." Two claimed fixes are real and verified red (`child.child.Write(hit.Raw)`, `&& !origin.Manual`), and the docs gate is genuinely satisfied. The rest of the prior round is re-raised.
+
+**1. Strengths**
+
+- `cmd/internal/couchtty/reserve.go:164-172` — the span is recorded inside the same `appendText` that clips, exactly as the Spec demanded, so a dropped chip contributes no span by construction rather than by a parallel rule.
+- `cmd/internal/couchtty/menu_render.go:160-167` — re-basing extents in `RenderMenuView` after the index-1 notice insert, with the reason written down, is the right seam; `renderRootMenuFrame` genuinely cannot know what its caller inserts above it. `TestPointToActorSpansEveryLineOfAnActor` runs both notice states.
+- `cmd/internal/couchtty/mouse_test.go:52-67` — `TestNoReportReachesAChildThatNeverAskedForMouse` states the zero-bytes rule as a property over the whole (button × release × row) space instead of one case. That is the right shape for a Done-when bullet.
+- `cmd/internal/couchtty/console_mouse_test.go:28-58` — the fixture drives real SGR bytes through `Run`'s input loop and records in-flight state *at dispatch*. The comment explaining why reading `InFlight` after completion reads a zero value is the kind of correction that stops the next author repeating it, and the `!origin.Manual` mutation does redden it.
+- `cmd/internal/couchtty/keys.go:282-303` — the mouse arm sits before the fixed-string table with the bound applied in the same branch, and `TestAnUnterminatedMousePrefixDoesNotParkTheKeyboard` reddens without it. #127's hazard is actually closed here.
+
+**2. Critical findings** — see BR-14 and BR-3 in the block below (re-raised, not new).
+
+**3. Important findings** — BR-4, BR-5, BR-15, BR-16, BR-17 re-raised. One new Minor only.
+
+**4. Minor findings**
+
+- `console.go:1557` — `HitMouse: func() {}` satisfies the enumeration guard with a stub the dispatcher never reaches (`processInput` special-cases `HitMouse` at `:647` *before* the table). Raised below.
+- `console.go:528` vs `:1028` — the `Run` site is now redundant with the paint-time re-assert; deleting it alone leaves everything green. Not wrong, just untested and duplicative.
+- `mouseinput.Parse` accepts negative coordinates into the typed value (`\x1b[<-5;-5;-5M` → `ok=true`). Harmless today because `ColumnToActor`/`PointToActor` are total, but it weakens "parse into a typed value at the boundary and refuse what does not fit" (ARCH-SECURE).
+
+**5. Test coverage notes**
+
+Measured, each mutation applied to the working tree, suite run, tree restored to `15eaf191` (verified clean):
+
+| mutation | site | result |
+|---|---|---|
+| `clampExtents` → `return extents` | `menu_render.go:183` | **green** |
+| `index := len(lines) + start` | `menu_render.go:455` | **green** |
+| delete the run-merge | `menu_render.go:465-469` | **green** |
+| span only when drawn ≥ 3 cols | `reserve.go:170` | **green** |
+| delete paint-time `EnableMouseClicks` | `console.go:1028` | **green** |
+| `enterOperationFor(thread)` → `"switch"` | `menu.go:357` | **green** |
+| drop the `len(effects) > 0` guard | `menu.go:361` | **green** |
+| delete `child.child.Write(hit.Raw)` | `console.go:1503` | red ✓ |
+| drop `&& !origin.Manual` | `console.go:1461` | red ✓ |
+
+Also probed: the scrolled root list *is* reached by the suite (`TestRenderMenuKeepsSelectedRowVisibleAndBounded` panics on an injected `start > 0` probe) — so the fixture exists, but no test reads `Extents` there. And `clampExtents` looks not merely untested but unreachable: `rowBudget` already subtracts the header, filter and notice rows, so `len(lines)` lands at exactly `height` and the clamp never bites.
+
+**6. Architectural notes**
+
+- **ARCH-DRY — flag.** The `mouseinput` promotion is the good half. The bad half: `mousePressEvent` (`run.go:579`) and `parseSGRMousePressPrefix` (`run.go:585`) have zero references anywhere, `hostty.DisableMouseClicks` has zero, and `mouseinput.WheelUp/WheelDown` exist only in tests while `run.go:453,459` keep the `64`/`65` literals. The promotion added a source of truth without retiring one. (BR-10/BR-11/BR-20.)
+- **ARCH-PURE — pass.** Geometry and routing are pure and unit-tested with no terminal; the contract test enforces no IO imports on the PURE rows; IO stays in `console.go`/`keys.go`.
+- **ARCH-PURPOSE — flag.** The plan's Core-concepts table is the declared single source and six of its rows still say `planned` for code live in this window, so the guard skips them (BR-3). The Done-when→Task map is satisfied by test *names* rather than by tests that discriminate: `TestClickInTheSwitcherTakesTheReturnPath` only exercises a live thread, where Enter and click agree, so "same handler, not a parallel one" is unasserted.
+- **ARCH-MOCK — pass.** `hostty.FakeHost` and `ptychild.NewFakeChild` are stateful and sit on the production seam; `TestForwardPreservesRawBytes` feeds a real `\x1b[?1000h` through `Screen` rather than setting a flag. The missing piece is the live conformance leg — Task 12's manual nvim verification is the substitute and no `## Log` entry records it.
+- **ARCH-CONSTRAINTS — pass.** `?1000` over `?1002/1003` is reasoned from click-vs-motion rates; the Interceptor hold is bounded at 32 bytes; the per-paint 14-byte DECSET is negligible beside the row repaint it accompanies.
+- **ARCH-SECURE — pass.** Coordinate overflow is refused (`\x1b[<0;99999999999999999999;1M` → `ok=false`), untrusted labels are still sanitized, and out-of-range coordinates degrade to "nobody" rather than clamping.
+- **ARCH-ORDER — flag.** `ptychild.Screen` collapses `1000/1002/1003/1006` into **one bool** (`screen.go:39,415`), and `RouteMouseReport` reads that bool as "the child wants mouse". Two reachable consequences: (a) couch re-asserts `?1006` globally on every paint, so a child that requested `?1000` alone now receives SGR-encoded reports it did not ask for — forwarded *raw*, which is the "unchanged" Done-when broken by couch's own DECSET; (b) a child DECRSTing only `?1006` flips `Mouse()` false and couch starts swallowing that child's own clicks. Both are rows the BR-16 enumeration would have produced. Separately, `Interceptor.mouse` is a payload valid only between one `FeedHit` and the next, kept safe by a hand-written special case rather than by the type.
+- **Boundary shape.** After M1 closes at `15eaf191`, `M2` (which now absorbs M3) opens on an empty range — the Revisions entry merged the milestones but the merge does not create a diff for M2 to review, and Task 12's manual verification and the `pair#166` re-evaluation still ride on that boundary.
+
+**7. Plan revision recommendations**
+
+The plan has no `## Revisions` section at all; Chunk 3's heading was edited in place, which is what AGENTS.md §1 forbids. It needs:
+
+- **`## Revisions` — 2026-09-05, M3 folded into M2.** Reason + delta, replacing the parenthetical edit at line 427.
+- **`## Revisions` — 2026-09-05, Core-concepts rows flipped to shipped.** `MouseDisposition`, `RouteMouseReport`, `seqMouse`, `Interceptor.FeedHit` (lines 115-120), `Console.onMouse` (181) → `new`/`modified`, and line 182's `hostty.MouseClickTracking` → `hostty.EnableMouseClicks` / `DisableMouseClicks` with its milestone tag corrected. Flipping them will make `conceptInventory` report six unexpected rows until they are added to `core_concepts_contract_test.go` — that report is the signal, not a failure.
+- **`## Revisions` — the disposition table gains child-mode-transition rows.** The table at "The complete disposition table" is crossed only with the operator's report events; add the child's: enables, disables, exits with mouse on, requests `?1000` without `?1006`, disables `?1006` alone, and replay re-asserting over couch's.
+
+```findings
+dispose:
+  - id: BR-3
+    disposition: not-addressed
+    note: |
+      Status flipped, but no plan Revisions entry, the row still names a symbol that exists nowhere, and six rows now claim `planned` for shipped code.
+  - id: BR-4
+    disposition: not-addressed
+    note: |
+      Verified: dropping the span for any chip truncated below 3 columns leaves the whole suite green.
+  - id: BR-5
+    disposition: not-addressed
+    note: |
+      Verified twice: `return extents` and a scroll-offset re-base both stay green; the new fixture enters neither path.
+  - id: BR-9
+    disposition: not-addressed
+    note: |
+      `go doc ChipSpan` still prints RenderStatusRow's sanitize rationale; RenderStatusRow still has no doc.
+  - id: BR-10
+    disposition: not-addressed
+    note: |
+      run.go:453,459 still switch on the 64/65 literals; WheelUp/WheelDown remain test-only.
+  - id: BR-11
+    disposition: not-addressed
+    note: |
+      run.go:579 and :585 still have zero references anywhere in the tree.
+  - id: BR-13
+    disposition: not-addressed
+    note: |
+      Verified: deleting the run-merge at menu_render.go:465-469 leaves the suite green.
+  - id: BR-14
+    disposition: not-addressed
+    note: |
+      Two of the three named sites are now pinned, but three of THIS round's own fixes are not; seven unpinned behaviours measured.
+  - id: BR-15
+    disposition: not-addressed
+    note: |
+      Merging M3 into M2 does not give M2 a diff; its close still opens on an empty range, carrying Task 12's manual check and pair#166 with it.
+  - id: BR-16
+    disposition: not-addressed
+    note: |
+      The re-assert can be deleted with the suite green, and the child-mode-transition enumeration was never written.
+  - id: BR-17
+    disposition: not-addressed
+    note: |
+      Both fixes are unpinned by mutation, and a non-actionable row still gets a notice from Enter and silence from a click.
+  - id: BR-18
+    disposition: addressed
+    note: |
+      atlas/couch.md, README and the menuControls row all landed; the README guard fires on the new row.
+  - id: BR-19
+    disposition: not-addressed
+    note: |
+      menu.go:200-209 unchanged; MenuEventNotice's block still reads as MenuEventMouseSwitch's.
+  - id: BR-20
+    disposition: not-addressed
+    note: |
+      DisableMouseClicks, mousePressEvent, parseSGRMousePressPrefix and WheelUp/WheelDown all still have zero production call sites.
+findings:
+  - id: new
+    severity: Minor
+    family: guard-not-registered
+    title: |
+      The handler-table entry for HitMouse is a stub the dispatcher never reaches, so the enumeration guard proves nothing for it
+    detail: |
+      This is the 2nd finding in family `guard-not-registered`. Do NOT just delete
+      or fill in this one entry. The rule: an enumeration guard is satisfied only
+      by the thing it guards -- registering a value the production path never
+      reads converts the guard into a formality that reports coverage it does not
+      have. console.go:647 special-cases HitMouse BEFORE consulting the table, so
+      hitHandlers()[HitMouse] (console.go:1557) is a `func() {}` with no caller;
+      AllInterceptorHits still counts it as proven. The same shape is one edit
+      away for any future payload-carrying hit. Either widen the table's value to
+      carry the payload so every hit really does route through it, or have the
+      guard assert reachability rather than presence. Related: Interceptor.mouse
+      is a payload valid only between one FeedHit and the next, kept correct by a
+      hand-written ordering rather than by the type (ARCH-ORDER).
+```

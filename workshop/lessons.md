@@ -3434,3 +3434,17 @@ that a key token appears cannot detect a contradictory behavioral sentence
   file aside first and copy it back, which every other red-check in these
   sessions did correctly. If a habit has failed twice, change the tool, not the
   intention.
+- A test that SWEEPS a parameter and asserts whatever it finds cannot pin a rule
+  about what must EXIST. My chip-span test walked eight widths checking every
+  span it found was valid — so a change dropping spans for narrow chips passed
+  it, because nothing required a span at any particular width. Same shape for
+  actor extents: nothing asserted an actor's second line joins its first extent
+  rather than starting a new one, so deleting the run-merge stayed green.
+  Construct the case (a width where a chip draws exactly one column) instead of
+  sweeping and hoping the interesting one is in range.
+- Unreachable defensive code cannot be pinned, and saying so is the honest
+  answer. `clampExtents` guards against the renderer's row budget disagreeing
+  with the height clamp; measured across heights 3..16 the budget always wins,
+  so no test can redden it without constructing a state the renderer cannot
+  produce. Keep the guard, say in its comment that it is unreachable and why,
+  and do not manufacture a test that only tests the test.

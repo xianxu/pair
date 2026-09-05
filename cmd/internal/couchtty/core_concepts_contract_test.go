@@ -67,6 +67,12 @@ var conceptInventory = []struct{ kind, name string }{
 	{"PURE", "`ActorExtent`"},
 	{"PURE", "`PointToActor`"},
 	{"PURE", "`RenderStatusRow`"},
+	// pair#172 M2 -- routing, ownership and the gesture.
+	{"PURE", "`MouseDisposition`"},
+	{"PURE", "`RouteMouseReport`"},
+	{"PURE", "`seqMouse`"},
+	{"PURE", "`Interceptor.FeedHit`"},
+	{"INTEGRATION", "`Console.onMouse`"},
 	// pair#182 — relaunch. paneState and RenderHoldingPane are deliberately
 	// absent: their rows carry status `planned — pair#186`, so the
 	// planned-status skip keeps them out until that work ships.

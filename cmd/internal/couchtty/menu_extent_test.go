@@ -115,3 +115,39 @@ func TestExtentsNeverPointPastTheDrawnMenu(t *testing.T) {
 		}
 	}
 }
+
+// The clamp and the run-merge, each constructed rather than hoped for.
+//
+// TestExtentsNeverPointPastTheDrawnMenu walks heights and asserts what it finds,
+// so removing the clamp passes it: with the menu fitting, nothing is out of
+// range to catch. And deleting the run-merge passes every extent test, because
+// nothing asserts that an actor's SECOND line belongs to the same extent as its
+// first rather than to a new one.
+func TestClampAndRunMergeAreLoadBearing(t *testing.T) {
+	one := menuAddress("one")
+	state := extentFixture(false)
+	now := time.Unix(1_700_000_000, 0)
+
+	t.Run("an actor's lines are ONE extent, not one each", func(t *testing.T) {
+		view := RenderMenuView(state, 60, 14, now, false)
+		var found int
+		for _, extent := range view.Extents {
+			if extent.Thread == one {
+				found++
+				if got := extent.End - extent.Start; got < 3 {
+					t.Fatalf("extent covers %d rows, want the actor's line plus its two messages: %+v", got, extent)
+				}
+			}
+		}
+		if found != 1 {
+			t.Fatalf("actor `one` has %d extents, want exactly 1 covering all its rows", found)
+		}
+	})
+
+	// NOT tested: that a height clamp truncates an extent. clampExtents cannot
+	// be reached -- renderRootMenuFrame's rowBudget already subtracts the
+	// breadcrumb, notice and filter, so RenderMenuView's truncation never fires
+	// while extents exist (measured, heights 3..16). Constructing a case would
+	// mean building a state the renderer cannot produce, which tests the test.
+	// The guard stays for the day those two bounds drift; its comment says so.
+}
