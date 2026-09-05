@@ -76,6 +76,9 @@ func AgeBandFor(now, lastActive time.Time) AgeBand {
 	if !hasRecordedActivity(lastActive) {
 		return AgeUnknown
 	}
+	if lastActive.Before(now.Add(-maxRenderableAge)) {
+		return AgeOld
+	}
 	age := now.Sub(lastActive)
 	if age < 24*time.Hour {
 		return AgeRecent
@@ -453,10 +456,22 @@ func withMenuAge(state string, now, lastActive time.Time) string {
 	return state + " · " + relativeMenuAge(now, lastActive)
 }
 
+// maxRenderableAge bounds what relativeMenuAge will claim.
+//
+// time.Duration saturates at ~292 years, so the zero value is not the ONLY
+// timestamp that overflows -- a corrupt or hand-edited last_active_at from
+// before 1678 re-renders the same 106751 days that started this issue. Guarding
+// only the zero value fixes the reachable case and leaves the arithmetic still
+// able to lie.
+const maxRenderableAge = 100 * 365 * 24 * time.Hour
+
 func relativeMenuAge(now, lastActive time.Time) string {
 	age := now.Sub(lastActive)
 	if age < 0 {
 		age = 0
+	}
+	if age > maxRenderableAge || lastActive.Before(now.Add(-maxRenderableAge)) {
+		return "long ago"
 	}
 	if age < time.Hour {
 		return "<1h ago"
@@ -470,11 +485,21 @@ func relativeMenuAge(now, lastActive time.Time) string {
 func ageColor(band AgeBand) string {
 	switch band {
 	case AgeUnknown:
-		// No age, so nothing to paint. Returning a dim escape would say "old",
-		// which is the claim this whole change exists to stop making -- and it
-		// would make the band unobservable, so its test could only assert the
-		// enum against itself.
-		return ""
+		// Its OWN dim, and the two constraints that produce it are opposed, so
+		// the value is the only thing that satisfies both.
+		//
+		// Returning "" leaves the row in the terminal's DEFAULT, which is
+		// brighter than AgeRecent -- so "we do not know how old this is" reads
+		// as "this is the most recent one", the original bug's shape restored by
+		// its own fix. Returning AgeOld's escape instead makes the band
+		// unobservable: identical bytes, so a test could only assert the enum
+		// against itself.
+		//
+		// A distinct dim, below AgeOld's, is neither: it cannot be mistaken for
+		// recent, and it is visibly its own thing. The row's MISSING age clause
+		// is what carries "unknown" -- the colour only has to avoid claiming
+		// recency.
+		return "\x1b[38;5;238m"
 	case AgeRecent:
 		return "\x1b[38;5;250m"
 	case AgeDays:

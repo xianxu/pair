@@ -114,7 +114,21 @@ func (c *Couch) Detach(ctx context.Context, address ThreadAddress) (ThreadRecord
 	// recorded activity time a function of how much revision contention there
 	// was, which is a measurement of the store rather than of the thread.
 	detachedAt := c.Clock.Now()
-	for {
+	// Bounded, and it checks the context. The loop retries a revision conflict,
+	// which is a contended-store condition and not one that resolves by trying
+	// forever: an unbounded retry against a store that keeps losing the race
+	// spins a detach that has already SIGTERMed its client, with no way for the
+	// operator to interrupt it. The cap is generous because a real conflict
+	// clears in one attempt.
+	const maxRetireAttempts = 32
+	for attempt := 1; ; attempt++ {
+		if err := ctx.Err(); err != nil {
+			return ThreadRecord{}, fmt.Errorf("retire detached incarnation for %+v: %w", address, err)
+		}
+		if attempt > maxRetireAttempts {
+			return ThreadRecord{}, fmt.Errorf(
+				"retire detached incarnation for %+v: gave up after %d revision conflicts", address, maxRetireAttempts)
+		}
 		current, err := c.Threads.GetThread(address)
 		if err != nil {
 			return ThreadRecord{}, fmt.Errorf("retire detached incarnation for %+v: %w", address, err)

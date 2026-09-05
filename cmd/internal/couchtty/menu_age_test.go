@@ -1,6 +1,7 @@
 package couchtty
 
 import (
+	"strings"
 	"testing"
 	"time"
 
@@ -62,30 +63,112 @@ func TestRootStateTextOmitsTheAgeItDoesNotHave(t *testing.T) {
 	}
 }
 
-// The colouring carries the same claim more quietly: now.Sub(zero) saturates to
-// AgeOld, so a thread with no recorded activity is painted as though it were
+// The colouring carries the same claim more quietly: now.Sub(zero) saturated to
+// AgeOld, so a thread with no recorded activity was painted as though it were
 // ancient. Asserted through ageColor rather than on the band alone -- a band
-// that renders identically to another band is a distinction the operator cannot
-// see, and a test of it would only assert the enum against itself.
-func TestAgeColourSaysNothingWhenThereIsNoAge(t *testing.T) {
+// rendering identically to another is a distinction the operator cannot see.
+//
+// The rule the two findings converge on: unknown must be DISTINCT from every
+// other band (or its test asserts the enum against itself) and must not be
+// brighter than recent (or absence reads as recency). Nothing but its own dim
+// satisfies both.
+func TestAgeColourForAnUnknownAgeIsItsOwnAndNeverReadsAsRecent(t *testing.T) {
 	now := time.Unix(1_700_000_000, 0)
 	unknown := ageColor(AgeBandFor(now, time.Time{}))
-	if unknown != "" {
-		t.Errorf("a row with no recorded activity was coloured %q; absence has no age to paint", unknown)
+	if unknown == "" {
+		t.Fatal("an unknown age is unpainted, so it renders in the terminal default -- brighter than AgeRecent")
 	}
-	ancient := ageColor(AgeBandFor(now, time.Unix(0, 0)))
-	if ancient == "" || ancient == unknown {
-		t.Errorf("the epoch is a real age and must be coloured (got %q, unknown %q)", ancient, unknown)
+	seen := map[string]AgeBand{unknown: AgeUnknown}
+	for band, at := range map[AgeBand]time.Time{
+		AgeRecent: now.Add(-time.Hour),
+		AgeDays:   now.Add(-3 * 24 * time.Hour),
+		AgeOld:    now.Add(-30 * 24 * time.Hour),
+	} {
+		colour := ageColor(AgeBandFor(now, at))
+		if previous, clash := seen[colour]; clash {
+			t.Errorf("band %v shares its colour %q with %v", band, colour, previous)
+		}
+		seen[colour] = band
 	}
-	recent := ageColor(AgeBandFor(now, now.Add(-time.Hour)))
-	if recent == ancient {
-		t.Errorf("recent and ancient share a colour: %q", recent)
+}
+
+// The zero value is not the only timestamp that overflows time.Duration, which
+// saturates at ~292 years. Guarding only the zero value would fix the reachable
+// case and leave the arithmetic able to tell the same lie from a corrupt or
+// hand-edited record.
+func TestAnUnrenderablyOldTimeDoesNotResurrectTheSaturatedAge(t *testing.T) {
+	now := time.Unix(1_700_000_000, 0)
+	// An absolute date, because 300 years cannot be written as a Duration at all
+	// -- the compiler rejects the constant, which is the same overflow the render
+	// path hits at runtime.
+	ancient := time.Date(1500, time.January, 1, 0, 0, 0, 0, time.UTC)
+	if got := relativeMenuAge(now, ancient); strings.Contains(got, "106751") {
+		t.Errorf("relativeMenuAge = %q -- the saturated value is back", got)
 	}
-	// Band boundaries, pinned so the guard cannot quietly move them.
-	if got := AgeBandFor(now, now.Add(-25*time.Hour)); got != AgeDays {
-		t.Errorf("25h ago = %v, want AgeDays", got)
+	if got := relativeMenuAge(now, ancient); got != "long ago" {
+		t.Errorf("relativeMenuAge = %q, want %q", got, "long ago")
 	}
-	if got := AgeBandFor(now, now.Add(-8*24*time.Hour)); got != AgeOld {
-		t.Errorf("8d ago = %v, want AgeOld", got)
+	// It is still an AGE, not an absence: the row keeps its clause.
+	row := couchcore.ActionableThreadSummary{
+		Address: menuAddress("brain"), Name: "brain",
+		State: couchcore.ThreadDetached, LastActiveAt: ancient,
 	}
+	if got, want := rootStateText(row, now), "detached · long ago"; got != want {
+		t.Errorf("rootStateText = %q, want %q", got, want)
+	}
+	if got := AgeBandFor(now, ancient); got != AgeOld {
+		t.Errorf("AgeBandFor = %v, want AgeOld -- unrenderable is old, not unknown", got)
+	}
+}
+
+// The colour is applied at the ROW, so the rule has to hold there too.
+//
+// ageColor returning "" is not enough: the render site wrapped unconditionally,
+// so an unknown-age row became `"" + text + reset` — which paints in the
+// terminal's DEFAULT and therefore brighter than AgeRecent's grey. "We do not
+// know how old this is" then reads as "this is the most recent one", which is
+// the original bug's shape reintroduced by its own fix.
+func TestAnUnknownAgeRowIsNotPaintedLikeARecentOne(t *testing.T) {
+	now := time.Unix(1_700_000_000, 0)
+	// TWO rows, and the assertion is on the UNSELECTED one: a selected row takes
+	// selectedMenuLine and never reaches the age colouring at all, so a
+	// single-row state would test the wrong branch. The header carries its own
+	// escape too, which is why this reads one line rather than the whole render.
+	selected := menuAddress("selected")
+	subject := menuAddress("subject")
+	rowFor := func(at time.Time) string {
+		state := NewMenuState([]couchcore.ActionableThreadSummary{
+			{Address: selected, Name: "selected", WorkingPath: "/w/a", State: couchcore.ThreadParked, LastActiveAt: now},
+			{Address: subject, Name: "subject", WorkingPath: "/w/b", State: couchcore.ThreadParked, LastActiveAt: at},
+		}, selected)
+		for _, line := range strings.Split(RenderMenu(state, 60, 12, now, true), "\r\n") {
+			if strings.Contains(line, "subject") {
+				return line
+			}
+		}
+		t.Fatal("the subject row was not rendered")
+		return ""
+	}
+
+	unknown := rowFor(time.Time{})
+	recent := rowFor(now.Add(-time.Hour))
+	if !strings.Contains(unknown, "\x1b[38;5;") {
+		t.Errorf("an unknown-age row is unpainted, so it renders brighter than a recent one: %q", unknown)
+	}
+	if unknownColour, recentColour := ansiColourOf(unknown), ansiColourOf(recent); unknownColour == recentColour {
+		t.Errorf("an unknown-age row is painted like a recent one (%q); absence must not read as recency", unknownColour)
+	}
+}
+
+// ansiColourOf returns the first 256-colour escape in a rendered line.
+func ansiColourOf(line string) string {
+	const prefix = "\x1b[38;5;"
+	i := strings.Index(line, prefix)
+	if i < 0 {
+		return ""
+	}
+	if end := strings.Index(line[i:], "m"); end >= 0 {
+		return line[i : i+end+1]
+	}
+	return ""
 }

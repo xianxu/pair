@@ -21,6 +21,10 @@ type detachFixture struct {
 	// exists for. Installed after construction, so the fixture stays quiet
 	// unless a test asks.
 	hooks *threadStoreHooks
+	// unhooked reads and writes the same records WITHOUT firing AfterGetThread.
+	// A hook that reads through the hooked store counts its own read, so `reads`
+	// stops meaning "reads by Detach" and the retry assertion is confounded.
+	unhooked *ThreadStore
 }
 
 func newDetachFixture(t *testing.T) *detachFixture {
@@ -68,7 +72,8 @@ func newDetachFixture(t *testing.T) *detachFixture {
 			Clock: FixedClock{T: time.Unix(100, 0).UTC()}, sleep: func(time.Duration) {},
 		},
 		store: store, proc: proc, artifact: artifact, hooks: hooks,
-		address: address, identity: identity, revision: record.Revision,
+		unhooked: NewThreadStore(ns),
+		address:  address, identity: identity, revision: record.Revision,
 	}
 }
 
@@ -320,11 +325,11 @@ func TestDetachRecordsOneActivityTimeHoweverManyAttemptsItTakes(t *testing.T) {
 			return nil
 		}
 		bumped = true
-		record, err := f.store.GetThread(address)
+		record, err := f.unhooked.GetThread(address)
 		if err != nil {
 			return err
 		}
-		_, err = f.store.UpdateExistingThread(address, record.Revision, func(next *ThreadRecord) error {
+		_, err = f.unhooked.UpdateExistingThread(address, record.Revision, func(next *ThreadRecord) error {
 			next.Description = "edited between the read and the CAS"
 			return nil
 		})
@@ -334,8 +339,15 @@ func TestDetachRecordsOneActivityTimeHoweverManyAttemptsItTakes(t *testing.T) {
 	if _, err := f.couch.Detach(context.Background(), f.address); err != nil {
 		t.Fatalf("Detach() = %v -- the retry must absorb a conflict, not fail", err)
 	}
+	// `bumped` only proves the HOOK ran. The loop re-reads on every attempt, so
+	// a second loop read is the observable fact that the retry branch was taken:
+	// read 1 is Detach's precondition read, read 2 the first attempt, read 3 the
+	// retry. Asserting the hook fired would pass even if the CAS had succeeded.
 	if !bumped {
 		t.Fatal("the conflict never fired, so no retry happened and this proves nothing")
+	}
+	if reads < 3 {
+		t.Fatalf("GetThread was read %d times; the retry branch needs a third read (precondition, attempt, retry)", reads)
 	}
 	record, err := f.store.GetThread(f.address)
 	if err != nil {

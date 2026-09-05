@@ -128,3 +128,123 @@ findings:
       menu_age_test.go:84-89 pins 25h and 8d; menu_render_test.go:109 already pins both sides of
       both boundaries, which is the stronger version.
 ```
+
+---
+
+## Re-review — 2026-09-04T22:37:28-07:00 (FIX-THEN-SHIP)
+
+| field | value |
+|-------|-------|
+| issue | 187 — A thread with no recorded activity renders its age as 106751d ago |
+| repo | pair |
+| issue file | workshop/issues/000187-a-thread-with-no-recorded-activity-renders-its-age-as-106751d-ago.md |
+| boundary | whole-issue close |
+| milestone | — |
+| window | 4d9123a7cd9fd8ccc7c01663ee37401cdf1453d8..86d845137cf6099335a38aca64ac6f7235073005 |
+| command | sdlc close --issue 187 |
+| reviewer | claude |
+| timestamp | 2026-09-04T22:37:28-07:00 |
+| verdict | FIX-THEN-SHIP |
+
+## Review
+
+```verdict
+verdict: FIX-THEN-SHIP
+confidence: high
+```
+
+Both round-1 Importants are genuinely closed, and I verified each by mutation rather than by reading the commit message: reverting `MonotonicLastActiveAt` to a bare assignment reddens `TestDetachNeverMovesTheActivityTimeBackwards` (`LastActiveAt = 00:01:40, want 00:08:20`), replacing the retry `continue` with a panic now *reaches the panic* from `TestDetachRecordsOneActivityTimeHoweverManyAttemptsItTakes`, and moving `c.Clock.Now()` inside the loop reddens the same test (`want the FIRST clock reading`). The `AfterGetThread` seam is the right shape — it reuses the existing unexported `threadStoreHooks`, fires outside `withLock`, and is nil in production (`NewThreadStore` builds zero hooks; `newThreadStoreWithHooks` is test-only and already registered as such in `deadsymbols_test.go:37`). `gofmt -l` clean, `go vet ./cmd/...` clean, `-race` clean on the detach set; the only red in the suite is the known `ptychild: operation not permitted` environment class. What holds this back from SHIP is not the shipped behaviour: four round-1 Minors are still open with no recorded decision, and the new test — while correct today — cannot detect its own regression to vacuity, which is the exact failure mode this issue spent two rounds on.
+
+### 1. Strengths
+
+- **The seam answers the class, not the instance.** `threadStoreHooks.AfterGetThread` (`threadstore.go:88-96`, fired at `:224`) is the one window a caller's read-then-CAS is open, and it unlocks every `GetThread`-then-CAS loop in the store, not just detach's. Reusing the existing hook struct rather than inventing machinery is the ARCH-DRY answer.
+- **The comment on the hook names why every *other* hook failed.** `threadstore.go:91-95` records that `AfterJournal`/`AfterTarget` fire inside the commit, after the revision check — so the next person doesn't re-derive it.
+- **The misnamed test was renamed to what it asserts** (`detach_test.go:194`, `...AbsorbsAConcurrentWriteBeforeItsLoop`), with the old name preserved in the comment as the reason the branch went untested. That is the honest disposal, not a cosmetic one.
+- **`Detach`'s precondition guard was widened with the dependency** (`detach.go:57`). A new `c.Clock` read without a declared precondition segfaults where the message says nothing; the guard now names it.
+- **The shadow-sweep still holds.** I re-ran it independently: every `LastActiveAt` consumer is accounted for — `thread.go:102,155` copy, `startup.go:55` audited-and-commented, `actionableinventory.go:219` projects, `threadrecord/lifecycle.go:107` already guards zero, `menu_render.go:297,299,352` all route through `hasRecordedActivity`. No hand-maintained restatement left (ARCH-PURPOSE).
+
+### 2. Critical findings
+
+None.
+
+### 3. Important findings
+
+None. BR-1 and BR-2 are addressed and verified by revert.
+
+### 4. Minor findings
+
+- `detach_test.go:337` — the `!bumped` guard asserts the *hook fired*, not that the *retry ran*. Demonstrated: with one extra pre-loop `GetThread` added to `detach.go`, the test stays green **and** a panic planted on the retry branch is never reached. Pin the attempt count (`reads == 3`: one precondition read plus two loop reads) so a refactor that re-absorbs the conflict reddens instead of going quiet. New family `branch-entry-unasserted`.
+- `workshop/lessons.md:3391-3397` and issue Log lines 219/224 — the superseded conclusion ("nothing can force the retry"; "it is not pinned, and a future change that moves it into the loop will not be caught") is retained as a present-tense factual claim. Both are now false and both are corrected only *elsewhere* in the same file. New family `superseded-conclusion-stated-as-fact`.
+- BR-3 / BR-4 / BR-5 / BR-6 remain open and unfixed — see dispositions below.
+
+### 5. Test coverage notes
+
+All four behavioural changes now fail without their fix, verified by revert rather than by reading: the row-text guard, the colour guard, the detach write, the monotonic fold, and the read-once clock placement. `TestDetachRecordsOneActivityTimeHoweverManyAttemptsItTakes` is the strongest addition — one hook pins the retry branch, the read-once invariant, and (by renaming) the true meaning of the test that used to claim the branch. The one oracle weakness is above. Nothing in the diff is a mock reasserting the implementation.
+
+### 6. Architectural notes
+
+- **ARCH-DRY** — pass. One predicate, two readers; the seam reuses `threadStoreHooks` rather than adding a parallel mechanism.
+- **ARCH-PURE** — pass. `RetireIncarnation` takes `detachedAt` instead of reaching for a clock; `relativeMenuAge` stays a total formatter and `withMenuAge` owns the decision; `couchtty` tests run with `now` as a parameter, no IO.
+- **ARCH-PURPOSE** — pass. The round-2 fix is the class (a seam any conflict loop can use), not the site.
+- **ARCH-MOCK** — pass. Real file-backed store in a temp namespace, stateful `FakeProcOps`/`FakeThreadArtifactCollisionChecker`, injected clocks; production and test flow share the same boundary.
+- **ARCH-CONSTRAINTS** — flag, unchanged: BR-5's unbounded retry (no `ctx.Err()`, no attempt cap) on an `Alt+d` path.
+- **ARCH-SECURE** — flag, unchanged: BR-4. The hook itself is safe — unexported type, unexported constructor, nil in production.
+- **ARCH-ORDER** — largely resolved. The interleaving is now injectable and reproducible. Remaining: the oracle doesn't assert the interleaving occurred (Minor above), and `MarkIncarnationUnknown` (`threadstore.go:732`) still has the identical read-then-CAS loop with no test entering its conflict branch — the new hook makes that cheap, and it is the natural next consumer.
+
+### 7. Plan revision recommendations
+
+- The issue needs a `## Revisions` entry (or an edit in place) marking the "The original attempt…" paragraph's conclusions as **superseded**: line 219's "the retry branch in `detach.go` is unreachable from tests" and line 224's "it is not pinned" now read as current fact and are both false. The correcting paragraph above them doesn't neutralise a claim stated as fact below.
+- `workshop/lessons.md:3391` needs the same treatment — its prescription ("Delete the test and record the testability gap") was overturned within this issue by the entry three bullets later.
+- Plan bullets themselves now match the code; no other revision needed.
+
+```findings
+dispose:
+  - id: BR-1
+    disposition: addressed
+    note: |
+      TestDetachNeverMovesTheActivityTimeBackwards reddens when the fold is reverted to a bare assignment — verified.
+  - id: BR-2
+    disposition: addressed
+    note: |
+      AfterGetThread seam added; panic on the retry branch is now reached, moving the clock into the loop reddens, test renamed.
+  - id: BR-3
+    disposition: not-addressed
+    note: |
+      menu_render.go:352 still wraps with a bare reset when ageColor returns ""; no change in this round.
+  - id: BR-4
+    disposition: not-addressed
+    note: |
+      relativeMenuAge still has no upper clamp; a pre-1678 last_active_at re-renders 106751d.
+  - id: BR-5
+    disposition: not-addressed
+    note: |
+      detach.go:118 loop still has no ctx check and no attempt cap. Defensibly out of scope, but undecided rather than declined.
+  - id: BR-6
+    disposition: not-addressed
+    note: |
+      menu_age_test.go:84-89 still duplicates TestAgeBandBoundaries.
+findings:
+  - id: new
+    severity: Minor
+    family: branch-entry-unasserted
+    title: |
+      The read-once test asserts the conflict hook fired, not that the retry branch ran
+    detail: |
+      detach_test.go:337. Its guard is `if !bumped`, which only proves the hook executed.
+      Demonstrated by mutation: adding one extra pre-loop GetThread to Detach leaves the test
+      GREEN while a panic planted on the retry branch is never reached — the loop re-read
+      absorbs the bump exactly as it did before the seam existed. Assert the attempt count
+      instead (reads == 3: one precondition read plus two loop reads), so the test reddens
+      when it stops exercising the branch it is named for.
+  - id: new
+    severity: Minor
+    family: superseded-conclusion-stated-as-fact
+    title: |
+      lessons.md and the issue Log still state the retry branch is untestable and the read-once placement unpinned
+    detail: |
+      workshop/lessons.md:3391-3397 prescribes deleting the test and recording a testability gap
+      because "nothing can force the retry"; the issue Log at lines 219 and 224 says the branch is
+      "unreachable from tests" and the placement "is not pinned". All three are now false, and each
+      is corrected only elsewhere in the same file. A reader grepping either lands on the overturned
+      claim. Mark them superseded where they are stated.
+```

@@ -1,12 +1,13 @@
 ---
 id: 000187
-status: working
+status: codecomplete
 deps: []
 github_issue:
 created: 2026-09-04
 updated: 2026-09-04
 estimate_hours: 0.87
 started: 2026-09-04T21:48:27-07:00
+actual_hours: 1.64
 ---
 
 # A thread with no recorded activity renders its age as 106751d ago
@@ -174,6 +175,7 @@ comment, not a fix.
 ## Log
 
 ### 2026-09-04
+- 2026-09-04: closed — The switcher states an age only when it has one: TestRootStateTextOmitsTheAgeItDoesNotHave asserts the ROW text for a zero timestamp, red-verified, and carries the pair that matters — time.Unix(0,0) is 1970 and must still render 19675d, so a guard written as "very old implies absent" fails it. TestAgeColourSaysNothingWhenThereIsNoAge asserts through ageColor rather than the band, because a band rendering identically to another is unobservable. Detach records LastActiveAt through MonotonicLastActiveAt, read once before the retry loop. Round-1 findings fixed: BR-1 pins the monotonic fold on the detach path (red-verified by reverting it to a bare assignment); BR-2 was my wrong conclusion — I had recorded the retry branch as untestable and the review named the missing seam instead, so threadStoreHooks.AfterGetThread now opens the read-then-CAS window and the branch is entered for real. Verified three ways: moving the clock read into the loop reddens the test, replacing the retry continue with a panic reaches the panic, and the branch old test does NOT reach it — which is why TestCouchDetachRetriesARevisionConflictAfterTeardown is renamed to AbsorbsAConcurrentWriteBeforeItsLoop, its name being why the branch went untested. SelectResumableRoot deliberately unchanged, commented not fixed. Full ./cmd/... suite green.; review verdict: FIX-THEN-SHIP
 
 Found by the operator in live use while `pair#182` was landing; filed rather than
 fixed on that branch, which was already nine review rounds deep and about to
@@ -216,13 +218,15 @@ absorbed by the first read. The store's own hooks (`AfterJournal`,
 `AfterTarget`) fire inside the commit, after the revision check. There is no seam
 between the loop's read and its CAS.
 
-So the retry branch in `detach.go` is unreachable from tests, and the same is
-true of `TestCouchDetachRetriesARevisionConflictAfterTeardown`, which despite its
-name exercises "a concurrent write before the CAS does not break detach" — a
-property the re-read handles without ever retrying. Recorded as a testability
-gap rather than papered over with a green test that asserts nothing. The
-read-once placement is reasoned and commented at the call site; it is not pinned,
-and a future change that moves it into the loop will not be caught.
+**That conclusion — "unreachable from tests" — was WRONG, and the paragraph above
+is kept only because the wrong step is the lesson.** What was true is that no
+EXISTING seam could force a retry. What I inferred is that none could exist, and
+the close review corrected it by naming exactly where one belongs. The read-once
+placement is pinned; see the correction entry below. What survives from this
+paragraph is the observation about
+`TestCouchDetachRetriesARevisionConflictAfterTeardown`, which really did never
+reach the branch it was named for — it is now
+`...AbsorbsAConcurrentWriteBeforeItsLoop`.
 
 **A nil clock was a segfault, not a refusal.** Adding `c.Clock.Now()` to `Detach`
 gave it a precondition it did not declare, and `TestLeaveDetachesLiveThreads...`

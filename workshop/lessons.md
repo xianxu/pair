@@ -3391,10 +3391,12 @@ that a key token appears cannot detect a contradictory behavioral sentence
 - A test that cannot be made to fail is not evidence, and finding out WHY it
   cannot fail is the finding. couch's "a retry records the same time" test was
   written with a sequence clock precisely to avoid a fixed-clock trap, and was
-  still vacuous: nothing can force the retry, because the conflict hook fires
-  before the loop and the loop re-reads on every iteration. Delete the test and
-  record the testability gap; a green test asserting nothing is worse than an
-  acknowledged hole.
+  still vacuous: no EXISTING seam could force the retry. Deleting it and
+  recording the gap was right; concluding that no seam COULD exist was not, and
+  the close review supplied one in minutes. So: delete the vacuous test, then
+  name the window the test needs and ask what would have to exist to open it —
+  do not stop at "nothing does". (Superseded in part; the follow-up lesson on
+  seams is the operative half.)
 - Adding a dependency to a function adds a PRECONDITION, and an undeclared one
   segfaults where the message says nothing. `Detach` gained `c.Clock.Now()` and
   crashed a caller whose `Couch` had no clock; its guard now names the clock
@@ -3411,3 +3413,17 @@ that a key token appears cannot detect a contradictory behavioral sentence
   — and a bump after the first is absorbed by the loop's re-read, so the test
   passes without ever retrying. Two attempts at this test were vacuous for that
   reason. Count the reads before choosing where the hook fires.
+- Two findings can be opposed, and then only one value satisfies both. couch's
+  unknown-age colour had to be DISTINCT from every other band (or its test
+  asserts the enum against itself) and NOT brighter than "recent" (or absence
+  reads as recency). Returning "" satisfied the first reading of the second and
+  actually failed it — an unpainted row renders in the terminal's default, which
+  is the brightest thing on screen. Its own dim, below the oldest band, is the
+  only answer. When a fix satisfies one finding by violating another, the
+  constraint pair is the specification.
+- My red-check caught me shipping a non-fix. Skipping the colour wrap "fixed"
+  BR-3 in form and not in substance, and the mutation test printed nothing
+  because the assertion looked for a colour escape that was absent either way.
+  A red check that produces NO output is not a pass — it means the mutation was
+  not observed, and the next question is whether the test can see the property
+  at all.
