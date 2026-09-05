@@ -72,22 +72,49 @@ lies.
 
 ## Plan
 
-The audit named in the third bullet was done FIRST, because it decides the shape
-of the other two. Result below; it removed one change and added one.
+The audit named in the original third bullet was done FIRST, because it decides
+the shape of the others. It removed one change (`startup.go`) and added one
+(`AgeBandFor`).
 
-- [ ] `relativeMenuAge` reports whether there is an age at all, and
-      `rootStateText` builds the ` · <age>` clause only when there is one. Test
-      the row's TEXT for a zero timestamp, not just the helper — the helper can
-      be right while the row still lies.
-- [ ] `AgeBandFor` gets the same guard. Today `now.Sub(zero)` saturates to
-      `AgeOld`, so a thread with no recorded activity is coloured as though it
-      were ancient — the same absence-as-value claim, quieter. It needs a band
-      meaning "no age", not a band that asserts one.
-- [ ] `Detach` records the activity time. It lands in
-      `ThreadStore.RetireIncarnation`, which today takes no clock; the park path
-      is the precedent (`threadstore.go:425` passes `parkedAt` and folds it
-      through `MonotonicLastActiveAt`). One production caller
-      (`detach.go:113`), so the signature change is contained.
+**Shared predicate first, so the two guards cannot drift** (ARCH-DRY, and the
+plan-quality gate's own note): `hasRecordedActivity(lastActive time.Time) bool`
+in `menu_render.go`, `= !lastActive.IsZero()`. Both readers ask it rather than
+each testing the zero time in its own way.
+
+Its adversarial input class is the whole point and is the same for every bullet
+below: **only the ZERO VALUE means absent.** `time.Time{}` (year 1) is "never
+recorded"; `time.Unix(0, 0)` (1970) is a real, genuinely ancient timestamp that
+must still render as a real age. A guard written as "very old ⇒ absent" passes
+the operator's bug and fails this, which is why the tests carry both.
+
+- [ ] **`hasRecordedActivity`** — unit test: zero ⇒ false; `time.Unix(0,0)` ⇒
+      true; `now` ⇒ true.
+- [ ] **`relativeMenuAge(now, lastActive) (string, bool)`** reports whether
+      there is an age, and **`rootStateText`** builds the ` · <age>` clause only
+      when there is one. Unit-test `rootStateText`, not just the helper: the
+      helper can be correct while the row still lies, which is exactly how the
+      bug shipped. Inputs: zero (no clause), `time.Unix(0,0)` (a real age,
+      ~20000d), `now-2h` ("2h ago"), `now+1h` (clock skew — already clamped to
+      `<1h ago`, pinned so the clamp is not lost).
+- [ ] **`AgeBandFor(now, lastActive) AgeBand`** gains `AgeUnknown`, **and
+      `ageColor` renders it as NO age colouring at all** rather than as another
+      dim escape. Without that this guard is unobservable — `ageColor` maps
+      `AgeUnknown` and `AgeOld` to the same bytes, so a test could only assert
+      the enum against itself (PQ-1). "We do not know how old this is" and "this
+      is ancient" must not look identical. Unit-test `ageColor(AgeBandFor(...))`
+      end to end: zero ⇒ no escape; `time.Unix(0,0)` ⇒ the old-age escape;
+      `now-1h` ⇒ the recent escape; the 24h and 7d boundaries pinned.
+- [ ] **`Detach` records the activity time.** It lands in
+      `ThreadStore.RetireIncarnation`, which takes no clock today; the park path
+      is the precedent (`threadstore.go:425` folds `parkedAt` through
+      `MonotonicLastActiveAt`). The time comes from `c.Clock.Now()`
+      (`couch.go:29`) and is read **ONCE before `detach.go`'s revision-conflict
+      retry loop**, not per iteration — a retry must not shift the recorded
+      activity time, or the value depends on how much contention there was.
+      One production caller (`detach.go:113`), so the signature change is
+      contained. Test in `detach_test.go`: a detach sets `LastActiveAt`; a
+      detach that retries on a revision conflict records the SAME time as one
+      that does not; `MonotonicLastActiveAt` still refuses a backward clock.
 
 **Not changing `startup.go:49`, and that is a finding rather than an omission.**
 The ranking is `row.LastActiveAt.After(best.LastActiveAt)`, and the zero time is
@@ -95,9 +122,9 @@ The ranking is `row.LastActiveAt.After(best.LastActiveAt)`, and the zero time is
 already sorts last within its rank class, which is what we would want. The tie
 between two zero rows is decided by iteration order, and that order is
 deterministic: `ProjectActionableThreads` sorts by `(RepoScope, Tag)`
-(`actionableinventory.go:222`). So the ranking is correct, and correct for a
-reason worth writing down rather than left as an accident the next reader has to
-re-derive. Add the comment, not a fix.
+(`actionableinventory.go:222`). Correct, and correct for a reason worth writing
+down rather than left as an accident the next reader re-derives. Add the
+comment, not a fix.
 
 ## Log
 
