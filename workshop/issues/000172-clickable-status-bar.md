@@ -75,8 +75,9 @@ switch costs one key. `ctrl+backspace` returns to `previous`, and — by the
 handler's geometry approach (hit-test against the drawn box), and now its
 semantics too.
 
-**4. The real work is mode ownership, and it does not exist yet.** Mouse
-reporting is a terminal-global mode, not a per-region one, so:
+**4. Mode ownership — REVISED 2026-09-05, see `## Revisions`. The child's half
+already exists.** Mouse reporting is a terminal-global mode, not a per-region
+one, so:
 
 - If the child never enabled tracking, the terminal sends nothing and couch
   cannot see a click at all — couch must enable it itself. But then the child
@@ -87,11 +88,19 @@ reporting is a terminal-global mode, not a per-region one, so:
 - If the child *did* enable tracking (nvim, zellij), couch must forward its
   events untouched and must not disable them.
 
-couch has **no per-mode state today**: the only handling is a blanket
-`hostty.ResetInteractiveModes` at teardown (`couchtty/console.go:737`), which
-resets every mouse encoding at once. So this issue has to introduce tracking of
-which modes the *child* enabled, in order to decide forward-versus-swallow.
-That tracker is the deliverable; the click mapping is the easy half.
+**That tracker already exists.** `ptychild.Screen` scans the child's output for
+the mouse DECSETs and exposes `Mouse()` (`screen.go:104`, table at `:415`); its
+own comment records that it absorbed `termcmd.updateMouseMode` precisely so a
+sequence split across two pty reads is not missed. `ptychild` replay re-asserts
+the child's modes across a switch (`replay.go:46`). couch's blanket
+`hostty.ResetInteractiveModes` at teardown (`couchtty/console.go:891`) remains
+the teardown authority.
+
+So this issue does NOT introduce that tracker, and mode ownership is not the
+deliverable. What is missing is narrower and lives in `couchtty`: the operator's
+input path does not RECOGNISE a mouse report at all — the `Interceptor` forwards
+anything it does not know, so couch cannot withhold one — and there is no
+routing decision and no click-to-actor geometry.
 
 Note `pair#166` (punted) — "couch resume parked codex restores mouse mode" — is
 the same missing state seen from the park/resume side. Explicit mode ownership
@@ -119,7 +128,10 @@ by default.
 - Column-to-actor is unit-tested against the same render pass, including a
   width narrow enough to clip chips and one narrow enough to drop them.
 - A child that never enabled mouse tracking receives **zero** mouse bytes while
-  couch's tracking is on — asserted, not assumed.
+  couch's tracking is on — asserted, not assumed. This includes RELEASES: the
+  release-always-forwards rule `termcmd` uses is sound only where the child is
+  already receiving presses, and forwarding a release to a child that never saw
+  its press is both an unpaired event and a direct contradiction of this bullet.
 - A child that did enable tracking still receives its own events unchanged
   (nvim selection and scroll still work inside an attached pair session).
 - Teardown leaves the host terminal with mouse reporting off.
@@ -183,3 +195,33 @@ The extent requirement is the operator's too: every line belonging to an actor
 is clickable, including the notification line and the future `#173` description.
 That is what makes the hit-test point-to-ACTOR rather than point-to-row, and it
 is the part most likely to be built wrong if it is not stated.
+
+## Revisions
+
+### 2026-09-05 — mode ownership is not the deliverable; the child's half exists
+
+**Reason.** The plan-quality gate (PQ-1, Critical) found the first plan draft
+designing a mouse-mode scanner and an SGR parser that are both already in the
+tree, and this Spec is where that instruction came from.
+
+**Delta.**
+
+- `ptychild.Screen.Mouse()` already tracks the child's modes, split-read safe;
+  `ptychild` replay already re-asserts them across a switch. Section 4's "couch
+  has no per-mode state today ... that tracker is the deliverable" was wrong, and
+  is corrected above. `console.go:737` is now `:891`.
+- `termcmd` already parses SGR (`parseSGRMousePress`, `findSGRMousePress`,
+  `isSGRMousePrefix`) and already decides the wheel/release policy this Spec
+  never mentioned. The plan promotes them to a shared package rather than adding
+  a second parser.
+- The release rule is NARROWED for couch: a release forwards only when the child
+  has mouse mode. `termcmd`'s unconditional forward is correct in its own
+  context — the child there is already receiving presses — but in couch a child
+  with no tracking must receive nothing at all, which the Done-when now says
+  explicitly.
+- What remains is the real work: the `Interceptor` cannot withhold a report it
+  does not recognise, there is no routing decision, and there is no click-to-actor
+  geometry.
+
+Design: `workshop/plans/000172-mouse-support-status-bar-and-switcher-plan.md`.
+

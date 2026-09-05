@@ -38,6 +38,45 @@ What is genuinely absent is narrower and sits in `couchtty`: recognising a mouse
 report in the operator's input stream at all, deciding couch/forward/swallow, and
 mapping a click to an actor.
 
+## The complete disposition table
+
+Every mouse report reaching couch gets exactly one of four answers. Written as a
+table because the first draft had a rule per prose paragraph, and the gate found
+two of them contradicting each other (PQ-4, PQ-12).
+
+| report | child has mouse mode | disposition |
+|---|---|---|
+| press, button 0, on couch's row | either | **couch** — map to an actor |
+| press, any other button, on couch's row | no | **swallow** |
+| press, any other button, on couch's row | yes | **forward** |
+| release, on couch's row | no | **swallow** |
+| release, on couch's row | yes | **forward** — the child needs it to close a drag |
+| anything, elsewhere | no | **swallow** |
+| anything, elsewhere | yes | **forward** verbatim |
+| unparseable / over-long prefix | either | **release as literal input** — see below |
+
+**The release rule is NARROWER than `termcmd`'s, deliberately.** `termcmd`
+forwards every release unconditionally (`run.go:449-452`), which is correct where
+the child is already receiving presses. In couch a child that never enabled
+tracking must receive NOTHING — the Done-when says zero bytes — and a release it
+never saw a press for is an unpaired event as well as a contradiction. So the
+release forwards only when the child has mouse mode. Recorded here because the
+two rules differing is a decision, not an oversight.
+
+**The wheel** (buttons 64/65) is not couch's: on couch's row it swallows or
+forwards by the same rule as any other non-zero button. couch does not translate
+it to zellij scroll — that is `termcmd`'s job in `termcmd`'s context, and a
+second translator would be two policies for one gesture.
+
+**The unterminated prefix has a bound, and this is the #127 hazard.** The
+Interceptor's `seqPartial` arm holds bytes with no limit and returns `rest=nil`,
+so a stray or pasted `\x1b[<` with no terminator would park every following
+keystroke — the dead keyboard `run.go:575-580` records having shipped once. An
+SGR report is bounded (`\x1b[<` + three numbers + one of `Mm`, ~20 bytes), so:
+a held mouse prefix longer than `maxSGRReport` is released as ordinary input,
+and the existing escape-ambiguity timer already covers the "operator stopped
+typing mid-sequence" case. The bound is what releases the hold.
+
 ## Non-goals
 
 Stated because their absence was read as an oversight rather than a decision:
@@ -45,8 +84,8 @@ Stated because their absence was read as an oversight rather than a decision:
 - **Drag, hover, motion tracking.** couch requests `?1000` (click) and never
   `?1002`/`?1003`; motion reports arrive at pointer-movement rates for a feature
   that needs human click rates (`ARCH-CONSTRAINTS`).
-- **Right and middle click, and the wheel, on couch's own row.** Only button 0
-  press acts. Everything else on couch's row is swallowed, not guessed at.
+- **Right and middle click, and the wheel, as couch gestures.** Only button 0
+  press acts. See the table for what happens to the rest.
 - **Text selection and copy on the status row.** Enabling `?1000` costs the
   terminal's native selection on that row; that is a real loss and it is
   accepted, not solved here.
@@ -93,6 +132,25 @@ required, since the legacy X10 encoding caps at 223 and fails *silently*.
 - **ColumnToActor / ActorExtent / PointToActor** — total functions; a coordinate
   in no target returns false. An actor occupies a VARIABLE number of switcher
   rows, so the map is point→**actor**, never point→line.
+  - **Extents are DERIVED from what already exists** (PQ-8), not invented:
+    `renderRootMenuFrame` already builds `rootLine{actorStart: true}`
+    (`menu_render.go:336,360`) and already scroll-windows on actor boundaries
+    (`:374`), so multi-line actors are testable today without `#173`.
+  - **The rows shift after that, and the extents must be re-based.**
+    `RenderMenuView` replaces `lines[0]` with the breadcrumb and inserts the
+    notice at index 1 (`:100-127`), moving every actor row down. Extents are
+    therefore emitted from `RenderMenuView`, after the shift — computing them in
+    `renderRootMenuFrame` would be right by one line and wrong by one, which is
+    the least visible way to be wrong.
+
+- **The switcher's input path (PQ-11): there is no new one.** A click does not
+  enter through `panelkeys.go`, and no `PanelKey` kind is added. The `Interceptor`
+  sees ALL operator input before focus is considered, so `onMouse` is reached the
+  same way whether an actor or the panel has focus, and decides there: a report on
+  the last row maps through `ColumnToActor`; any other row, with the panel
+  focused, maps through `PointToActor`; any other row with an actor focused
+  forwards or swallows. Named explicitly because "no change needed" is a claim
+  that has to be checked, not an omission.
 
 - **mouseinput.Event / FindSGR** — `termcmd`'s parser, promoted to a package both
   callers import. Moved rather than copied: `termcmd` keeps working through the
@@ -104,7 +162,13 @@ required, since the legacy X10 encoding caps at 223 and fails *silently*.
   this" and "the child must never see this" are the two cases this issue exists
   to separate; a bool collapses them.
 
-- **seqMouse + `Interceptor.FeedHit`** — PQ-2, and it is why swallow is not free.
+- **seqMouse + `Interceptor.FeedHit`** — carries the RAW bytes alongside the
+  decoded event, never the event alone. The `forward` disposition writes the
+  child the exact bytes the terminal sent; re-encoding them from the parsed
+  fields would be a second source of truth for the wire format and would differ on any
+  form the encoder did not reproduce (`ARCH-DRY`, PQ-12). `findSGRMousePress`
+  already returns raw, so this is a matter of not discarding it.
+  PQ-2, and it is why swallow is not free.
   The Interceptor splits operator input and forwards anything it does not
   recognise, so today a mouse report reaches the child as ordinary bytes. It must
   learn the SGR shape to be able to withhold one. Its partial-sequence rule
@@ -129,6 +193,28 @@ required, since the legacy X10 encoding caps at 223 and fails *silently*.
 - **hostty.MouseClickTracking** — `?1000;?1006` on, and off, beside
   `ResetInteractiveModes` which already lists every mouse mode and remains the
   teardown authority.
+
+## Done-when → Task map
+
+PQ-11 asked for the RULE, not the instance: every Done-when bullet maps to a
+named task with a named test, and writing the map is what catches a bullet with
+no delivery. Two bullets had none — the switcher had no input path, and nvim
+scroll had no step — and both were found by building this table rather than by
+re-reading the plan.
+
+| Done-when bullet | Task | Test |
+|---|---|---|
+| chip click attaches; empty row does nothing | 3, 10 | `TestColumnToActor*`, `TestClickOnAChipTakesTheSwitchPath` |
+| switcher single click enters, same path as Return | 4, 10 | `TestClickInTheSwitcherTakesTheReturnPath` |
+| click on a multi-line actor's notification/description line selects it | 4 | `TestPointToActorSpansEveryLineOfAnActor` |
+| click is a MANUAL switch, re-pins `previous` | 11 | `TestClickIsAManualSwitch` (mutation-checked) |
+| point-to-actor is pure, unit-tested with no terminal | 4 | same |
+| column-to-actor tested against the same render pass, clipped and dropped | 2, 3 | `TestChipSpansMatchTheDrawnRowWhenClipped` |
+| child with no tracking receives ZERO mouse bytes | 6, 7, 8 | `TestMouseReportsAreNotForwardedAsOrdinaryBytes`, `TestChildWithoutTrackingReceivesNoMouseBytes` |
+| child WITH tracking still gets its events unchanged | 6, 8 | `TestForwardPreservesRawBytes` |
+| teardown leaves mouse reporting off | 8 | `TestTeardownDisablesMouseTracking` |
+| nvim selection and scroll still work in an attached session | 12 | **manual** — no automatic test; steps in Task 12 |
+| `pair#166` re-evaluated | 12 | n/a — a written answer, not a test |
 
 ## Chunk 1: M1 — geometry, and one parser instead of two
 
@@ -203,7 +289,11 @@ func TestChipSpansMatchTheDrawnRowWhenClipped(t *testing.T) {
       (primary + notification) and its neighbour across one: a click on the last
       line returns the SAME actor as a click on the first; a click on the
       neighbour returns the neighbour; a click below the last actor returns false.
-- [ ] **Step 2: Run — FAIL.**  **Step 3: Implement** out of `RenderMenuView`.
+      **Include a state with a NOTICE**, so the index-1 insert is exercised — an
+      extent computed before that shift is right by one line and wrong by one.
+- [ ] **Step 2: Run — FAIL.**  **Step 3: Implement** by deriving from the
+      existing `rootLine.actorStart` and emitting extents from `RenderMenuView`
+      AFTER the breadcrumb replacement and notice insert.
 - [ ] **Step 4: Run — PASS.** Add the scrolled case: mapping is against what is
       DRAWN, not the inventory index.
 - [ ] **Step 5: Commit.**
@@ -222,10 +312,12 @@ func TestChipSpansMatchTheDrawnRowWhenClipped(t *testing.T) {
 
 **Files:** Create `cmd/internal/couchtty/mouse.go`, `mouse_test.go`.
 
-- [ ] **Step 1:** Test the three-way table: couch's row → `couch`; elsewhere with
-      no child mouse mode → `swallow`; elsewhere with child mouse mode →
-      `forward`. Plus the inherited policy: a RELEASE always forwards, even on
-      couch's row, because the child needs it to close a drag.
+- [ ] **Step 1:** Test EVERY row of the disposition table above, including the
+      two that contradict a naive reading: a release to a child with NO mouse
+      mode is **swallowed** (forwarding it would break the zero-bytes Done-when
+      and hand the child an unpaired event), and a non-zero button on couch's own
+      row is swallowed or forwarded rather than acted on. Table-driven, one case
+      per row, so a row added later without a case is visible.
 - [ ] **Step 2: Run — FAIL.**  **Step 3: Implement** `RouteMouseReport`, reading
       the child's mode from `Screen.Mouse()`.
 - [ ] **Step 4: Run — PASS.**  **Step 5: Commit.**
@@ -261,8 +353,13 @@ func TestMouseReportsAreNotForwardedAsOrdinaryBytes(t *testing.T) {
 - [ ] **Step 2: Run — FAIL** (`seqMouse` and `HitMouse` do not exist; the bytes
       are copied through).
 - [ ] **Step 3: Implement** `seqMouse` via `mouseinput.IsSGRPrefix`, and widen
-      `FeedHit` to return the decoded event. `hit()`/`intercepts()` stay derived
-      from one switch.
+      `FeedHit` to return the decoded event AND the raw bytes — `forward` writes
+      the wire form, never a re-encoding.
+- [ ] **Step 3b: Bound the hold.** A held mouse prefix longer than
+      `maxSGRReport` is released as ordinary input. Test it directly: feed
+      `\x1b[<` followed by 100 digits and assert the keystrokes after it still
+      reach the child. Without this a stray prefix parks the keyboard, which is
+      #127 and it has shipped once already.
 - [ ] **Step 4: Run — PASS.** Confirm `AllInterceptorHits` and the
       handler-table test still hold with the payload-carrying hit.
 - [ ] **Step 5: Commit.**
