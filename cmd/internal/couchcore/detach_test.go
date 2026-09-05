@@ -17,12 +17,28 @@ type detachFixture struct {
 	address  ThreadAddress
 	identity ProcessIdentity
 	revision uint64
+	// hooks lets a test open the read-then-CAS window that detach's retry loop
+	// exists for. Installed after construction, so the fixture stays quiet
+	// unless a test asks.
+	hooks *threadStoreHooks
+	// unhooked reads and writes the same records WITHOUT firing AfterGetThread.
+	// A hook that reads through the hooked store counts its own read, so `reads`
+	// stops meaning "reads by Detach" and the retry assertion is confounded.
+	unhooked *ThreadStore
 }
 
 func newDetachFixture(t *testing.T) *detachFixture {
 	t.Helper()
 	ns := testCouchNamespace(t)
-	store := NewThreadStore(ns)
+	hooks := &threadStoreHooks{}
+	store := newThreadStoreWithHooks(ns, threadStoreHooks{
+		AfterGetThread: func(a ThreadAddress) error {
+			if hooks.AfterGetThread == nil {
+				return nil
+			}
+			return hooks.AfterGetThread(a)
+		},
+	})
 	address := ThreadAddress{RepoScope: "0123456789abcdef", Tag: "couch-0001020304050607"}
 	identity := ProcessIdentity{PID: 4242, Identity: "start-token"}
 
@@ -55,8 +71,9 @@ func newDetachFixture(t *testing.T) *detachFixture {
 			Namespace: ns, Threads: store, Proc: proc, Artifacts: artifact,
 			Clock: FixedClock{T: time.Unix(100, 0).UTC()}, sleep: func(time.Duration) {},
 		},
-		store: store, proc: proc, artifact: artifact,
-		address: address, identity: identity, revision: record.Revision,
+		store: store, proc: proc, artifact: artifact, hooks: hooks,
+		unhooked: NewThreadStore(ns),
+		address:  address, identity: identity, revision: record.Revision,
 	}
 }
 
@@ -143,7 +160,7 @@ func TestCouchDetach(t *testing.T) {
 
 	t.Run("a thread with no live incarnation refuses", func(t *testing.T) {
 		f := newDetachFixture(t)
-		if _, err := f.store.RetireIncarnation(f.address, f.revision, f.identity); err != nil {
+		if _, err := f.store.RetireIncarnation(f.address, f.revision, f.identity, time.Unix(1, 0)); err != nil {
 			t.Fatal(err)
 		}
 		if _, err := f.couch.Detach(context.Background(), f.address); err == nil {
@@ -169,7 +186,17 @@ func TestCouchDetach(t *testing.T) {
 // observations. Anything that writes in that window used to abandon a thread
 // whose client was already dead -- leaving the stale-IncarnationLive state
 // pair#171 describes, reached from an ordinary failure path rather than a crash.
-func TestCouchDetachRetriesARevisionConflictAfterTeardown(t *testing.T) {
+// Named for what it asserts, not for what it looks like it asserts. It bumps the
+// revision BEFORE detach's loop begins, and the loop re-reads on every attempt,
+// so the bump is absorbed by the first read and the CAS succeeds — the retry
+// branch is never reached. Confirmed: replacing that branch's `continue` with a
+// panic leaves this test green.
+//
+// It was called ...RetriesARevisionConflict..., which is why the branch went
+// untested for as long as it did: the suite appeared to cover it.
+// TestDetachRecordsOneActivityTimeHoweverManyAttemptsItTakes is the one that
+// actually enters it, via threadStoreHooks.AfterGetThread.
+func TestCouchDetachAbsorbsAConcurrentWriteBeforeItsLoop(t *testing.T) {
 	f := newDetachFixture(t)
 
 	// Move the revision while detach is between its observation and its CAS.
@@ -202,5 +229,132 @@ func TestCouchDetachRetriesARevisionConflictAfterTeardown(t *testing.T) {
 	}
 	if record.Description != "edited mid-detach" {
 		t.Fatalf("the concurrent edit was lost: %q", record.Description)
+	}
+}
+
+// A detached thread had no recorded activity at all -- LastActiveAt was written
+// only by park -- so the switcher rendered its age from the zero time and stated
+// `detached · 106751d ago`, which is MaxInt64 nanoseconds rather than a duration
+// anyone computed (pair#187).
+func TestDetachRecordsWhenTheThreadWasLastActive(t *testing.T) {
+	f := newDetachFixture(t)
+	before, err := f.store.GetThread(f.address)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !before.LastActiveAt.IsZero() {
+		t.Fatalf("fixture already has LastActiveAt %v; the test cannot show detach setting it", before.LastActiveAt)
+	}
+
+	if _, err := f.couch.Detach(context.Background(), f.address); err != nil {
+		t.Fatalf("Detach() = %v", err)
+	}
+
+	after, err := f.store.GetThread(f.address)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if after.LastActiveAt.IsZero() {
+		t.Fatal("detach left LastActiveAt unset, so the row has no age to render and will state a saturated one")
+	}
+	if want := time.Unix(100, 0).UTC(); !after.LastActiveAt.Equal(want) {
+		t.Errorf("LastActiveAt = %v, want the detach clock's %v", after.LastActiveAt, want)
+	}
+}
+
+// MonotonicLastActiveAt is on the detach path and nothing pinned it: reverting
+// the fold to a bare assignment left the whole couchcore suite green. Reachable
+// for real — park at T1, relaunch, detach under a backward wall clock — and the
+// consequence is a reduced recency that mis-ranks the row in SelectResumableRoot.
+func TestDetachNeverMovesTheActivityTimeBackwards(t *testing.T) {
+	f := newDetachFixture(t)
+	// Later than the fixture's clock (Unix 100), as a park would have left it.
+	const parked = 500
+	if _, err := f.store.UpdateExistingThread(f.address, f.revision, func(next *ThreadRecord) error {
+		next.LastActiveAt = time.Unix(parked, 0).UTC()
+		return nil
+	}); err != nil {
+		t.Fatal(err)
+	}
+
+	if _, err := f.couch.Detach(context.Background(), f.address); err != nil {
+		t.Fatalf("Detach() = %v", err)
+	}
+
+	record, err := f.store.GetThread(f.address)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if want := time.Unix(parked, 0).UTC(); !record.LastActiveAt.Equal(want) {
+		t.Errorf("LastActiveAt = %v, want %v -- a backward clock must not reduce recorded recency",
+			record.LastActiveAt, want)
+	}
+}
+
+// The read-once invariant, now that the retry branch is reachable.
+//
+// This test was written once before and DELETED because it could not fail:
+// nothing could force a retry, so the loop ran a single time and both clock
+// placements agreed. The close review's answer was better than my conclusion --
+// not "the branch is untestable" but "add the seam, here" -- so
+// threadStoreHooks.AfterGetThread now opens the read-then-CAS window that is the
+// only moment a conflict can be injected.
+func TestDetachRecordsOneActivityTimeHoweverManyAttemptsItTakes(t *testing.T) {
+	f := newDetachFixture(t)
+	first := time.Unix(1_000, 0).UTC()
+	f.couch.Clock = &sequenceClock{times: []time.Time{
+		first,
+		time.Unix(2_000, 0).UTC(),
+		time.Unix(3_000, 0).UTC(),
+	}}
+
+	// Bump the revision in the window between the LOOP's read and its CAS.
+	//
+	// Which read matters, and getting it wrong is why the first two attempts at
+	// this test were vacuous. Detach reads the record twice: once for its
+	// preconditions (detach.go:64) and once per loop attempt (detach.go:118).
+	// Bumping on the first is absorbed -- the loop re-reads and its CAS
+	// succeeds, so no retry happens and the test passes while proving nothing.
+	// Only a bump after the loop's own read opens a window it must retry
+	// through.
+	reads := 0
+	bumped := false
+	f.hooks.AfterGetThread = func(address ThreadAddress) error {
+		reads++
+		if reads < 2 || bumped {
+			return nil
+		}
+		bumped = true
+		record, err := f.unhooked.GetThread(address)
+		if err != nil {
+			return err
+		}
+		_, err = f.unhooked.UpdateExistingThread(address, record.Revision, func(next *ThreadRecord) error {
+			next.Description = "edited between the read and the CAS"
+			return nil
+		})
+		return err
+	}
+
+	if _, err := f.couch.Detach(context.Background(), f.address); err != nil {
+		t.Fatalf("Detach() = %v -- the retry must absorb a conflict, not fail", err)
+	}
+	// `bumped` only proves the HOOK ran. The loop re-reads on every attempt, so
+	// a second loop read is the observable fact that the retry branch was taken:
+	// read 1 is Detach's precondition read, read 2 the first attempt, read 3 the
+	// retry. Asserting the hook fired would pass even if the CAS had succeeded.
+	if !bumped {
+		t.Fatal("the conflict never fired, so no retry happened and this proves nothing")
+	}
+	if reads < 3 {
+		t.Fatalf("GetThread was read %d times; the retry branch needs a third read (precondition, attempt, retry)", reads)
+	}
+	record, err := f.store.GetThread(f.address)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !record.LastActiveAt.Equal(first) {
+		t.Errorf("LastActiveAt = %v, want the FIRST clock reading %v -- a later value means the clock was read inside the retry loop",
+			record.LastActiveAt, first)
 	}
 }

@@ -50,6 +50,28 @@ rounds:
           family: duplicated-guard-expression
           round: 1
       blocked: true
+    - "n": 2
+      timestamp: "2026-09-04T21:54:39-07:00"
+      agent: claude
+      dispose:
+        - id: PQ-1
+          disposition: addressed
+          note: Names AgeUnknown (menu_render.go:58) and makes it observable by removing colouring, not adding a fourth dim escape.
+          round: 2
+        - id: PQ-2
+          disposition: addressed
+          note: Every bullet now names a function, a test file, and the zero-vs-Unix(0,0) adversarial class.
+          round: 2
+        - id: PQ-3
+          disposition: addressed
+          note: c.Clock.Now() named as the seam, read once before detach.go:113's retry loop.
+          round: 2
+        - id: PQ-4
+          disposition: addressed
+          note: hasRecordedActivity is the shared predicate both readers call.
+          round: 2
+      blocked: false
+content_hash: dc5b975770a9e77effa33b33423e9cee6dde6af9f2c888f5490d3cb1ae5afa3e
 ---
 
 # Gate ledger — pair#187 (plan-quality)
@@ -84,9 +106,15 @@ later rounds disposed of them. Generated — edit the gate, not this file.
   "has recorded activity" predicate would keep the two guards from drifting
   (ARCH-DRY). Defensible to duplicate at this size.
 
+## Round 2 — 2026-09-04T21:54:39-07:00 (claude) — passed
+
+### Disposed
+
+- PQ-1 — addressed — Names AgeUnknown (menu_render.go:58) and makes it observable by removing colouring, not adding a fourth dim escape.
+- PQ-2 — addressed — Every bullet now names a function, a test file, and the zero-vs-Unix(0,0) adversarial class.
+- PQ-3 — addressed — c.Clock.Now() named as the seam, read once before detach.go:113's retry loop.
+- PQ-4 — addressed — hasRecordedActivity is the shared predicate both readers call.
+
 ## Open findings
 
-- **PQ-1** [Important] `unobservable-state-change` AgeBandFor guard changes nothing visible — ageColor maps AgeUnknown and AgeOld to the same escape
-- **PQ-2** [Important] `named-test-surface-missing` Two of three plan bullets name no function to unit-test and no adversarial input class
-- **PQ-3** [Minor] `unstated-injection-seam` Plan does not say where RetireIncarnation's new time argument comes from
-- **PQ-4** [Minor] `duplicated-guard-expression` Bullets 1 and 2 install two independent zero-guards over the same expression
+(none — every finding has been disposed)

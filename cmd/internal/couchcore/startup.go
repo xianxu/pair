@@ -45,6 +45,12 @@ func SelectResumableRoot(rows []ActionableThreadSummary, repoScope, workingPath 
 		if row.Address.RepoScope != repoScope || row.WorkingPath != workingPath || rank(row) == 0 {
 			continue
 		}
+		// A row with no recorded activity carries the ZERO time, which is Before
+		// everything, so After() is false and it can never displace a better
+		// row -- it sorts last within its rank class, which is what we want. No
+		// guard needed here, unlike the renderers (pair#187). Ties between two
+		// such rows are deterministic: ProjectActionableThreads sorts by
+		// (RepoScope, Tag).
 		if !found || rank(row) > rank(best) ||
 			(rank(row) == rank(best) && row.LastActiveAt.After(best.LastActiveAt)) {
 			best, found = row, true

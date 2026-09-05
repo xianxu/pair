@@ -1,12 +1,13 @@
 ---
 id: 000187
-status: working
+status: codecomplete
 deps: []
 github_issue:
 created: 2026-09-04
 updated: 2026-09-04
 estimate_hours: 0.87
 started: 2026-09-04T21:48:27-07:00
+actual_hours: 1.64
 ---
 
 # A thread with no recorded activity renders its age as 106751d ago
@@ -123,16 +124,16 @@ recorded"; `time.Unix(0, 0)` (1970) is a real, genuinely ancient timestamp that
 must still render as a real age. A guard written as "very old ⇒ absent" passes
 the operator's bug and fails this, which is why the tests carry both.
 
-- [ ] **`hasRecordedActivity`** — unit test: zero ⇒ false; `time.Unix(0,0)` ⇒
+- [x] **`hasRecordedActivity`** — unit test: zero ⇒ false; `time.Unix(0,0)` ⇒
       true; `now` ⇒ true.
-- [ ] **`relativeMenuAge(now, lastActive) (string, bool)`** reports whether
+- [x] **`relativeMenuAge`** — SHIPPED IN A DIFFERENT SHAPE, see the note below. reports whether
       there is an age, and **`rootStateText`** builds the ` · <age>` clause only
       when there is one. Unit-test `rootStateText`, not just the helper: the
       helper can be correct while the row still lies, which is exactly how the
       bug shipped. Inputs: zero (no clause), `time.Unix(0,0)` (a real age,
       ~20000d), `now-2h` ("2h ago"), `now+1h` (clock skew — already clamped to
       `<1h ago`, pinned so the clamp is not lost).
-- [ ] **`AgeBandFor(now, lastActive) AgeBand`** gains `AgeUnknown`, **and
+- [x] **`AgeBandFor(now, lastActive) AgeBand`** gains `AgeUnknown`, **and
       `ageColor` renders it as NO age colouring at all** rather than as another
       dim escape. Without that this guard is unobservable — `ageColor` maps
       `AgeUnknown` and `AgeOld` to the same bytes, so a test could only assert
@@ -140,7 +141,7 @@ the operator's bug and fails this, which is why the tests carry both.
       is ancient" must not look identical. Unit-test `ageColor(AgeBandFor(...))`
       end to end: zero ⇒ no escape; `time.Unix(0,0)` ⇒ the old-age escape;
       `now-1h` ⇒ the recent escape; the 24h and 7d boundaries pinned.
-- [ ] **`Detach` records the activity time.** It lands in
+- [x] **`Detach` records the activity time.** It lands in
       `ThreadStore.RetireIncarnation`, which takes no clock today; the park path
       is the precedent (`threadstore.go:425` folds `parkedAt` through
       `MonotonicLastActiveAt`). The time comes from `c.Clock.Now()`
@@ -151,6 +152,15 @@ the operator's bug and fails this, which is why the tests carry both.
       contained. Test in `detach_test.go`: a detach sets `LastActiveAt`; a
       detach that retries on a revision conflict records the SAME time as one
       that does not; `MonotonicLastActiveAt` still refuses a backward clock.
+
+**Deviation on bullet 2, stated rather than ticked away.** The plan had
+`relativeMenuAge` return `(string, bool)` — the guard inside the formatter. What
+shipped puts the decision one level up: `withMenuAge(state, now, lastActive)`
+asks `hasRecordedActivity` and only then calls `relativeMenuAge`, which keeps its
+`string` signature and stays a pure formatter that is never handed a timestamp it
+cannot format. Same behaviour, and the tests are the ones the plan named
+(`rootStateText` at the row). Recorded because "a formatter that also decides
+whether to format" was the plan's shape and is the worse one.
 
 **Not changing `startup.go:49`, and that is a finding rather than an omission.**
 The ranking is `row.LastActiveAt.After(best.LastActiveAt)`, and the zero time is
@@ -165,8 +175,72 @@ comment, not a fix.
 ## Log
 
 ### 2026-09-04
+- 2026-09-04: closed — The switcher states an age only when it has one: TestRootStateTextOmitsTheAgeItDoesNotHave asserts the ROW text for a zero timestamp, red-verified, and carries the pair that matters — time.Unix(0,0) is 1970 and must still render 19675d, so a guard written as "very old implies absent" fails it. TestAgeColourSaysNothingWhenThereIsNoAge asserts through ageColor rather than the band, because a band rendering identically to another is unobservable. Detach records LastActiveAt through MonotonicLastActiveAt, read once before the retry loop. Round-1 findings fixed: BR-1 pins the monotonic fold on the detach path (red-verified by reverting it to a bare assignment); BR-2 was my wrong conclusion — I had recorded the retry branch as untestable and the review named the missing seam instead, so threadStoreHooks.AfterGetThread now opens the read-then-CAS window and the branch is entered for real. Verified three ways: moving the clock read into the loop reddens the test, replacing the retry continue with a panic reaches the panic, and the branch old test does NOT reach it — which is why TestCouchDetachRetriesARevisionConflictAfterTeardown is renamed to AbsorbsAConcurrentWriteBeforeItsLoop, its name being why the branch went untested. SelectResumableRoot deliberately unchanged, commented not fixed. Full ./cmd/... suite green.; review verdict: FIX-THEN-SHIP
 
 Found by the operator in live use while `pair#182` was landing; filed rather than
 fixed on that branch, which was already nine review rounds deep and about to
 merge. Fixing unrelated code inside a close window is how a branch stops being
 reviewable — the same reason the holding surface was split to `pair#186`.
+
+### 2026-09-04 — implementation notes
+
+**The retry-time test now exists, and the reviewer was right that my conclusion
+was wrong.** I had concluded the retry branch was untestable and recorded it as a
+gap. The close review's answer was better: not "the branch is untestable" but
+"add the seam, here" — `threadStoreHooks.AfterGetThread`, fired once `GetThread`
+releases the lock, which is the one moment a caller's read-then-CAS window is
+open. `threadStoreHooks` was already a test-only seam (`AfterJournal`,
+`AfterTarget`), so this is consistent rather than new machinery.
+
+Getting it to fail took a third attempt, and the reason is worth keeping: Detach
+reads the record TWICE — once for its preconditions (`detach.go:64`) and once per
+loop attempt (`detach.go:118`). A hook that bumps on the first read is absorbed,
+because the loop re-reads and its CAS succeeds. Only a bump after the LOOP's read
+opens a window it must retry through. Verified three ways: moving the clock read
+into the loop reddens the test, replacing the retry `continue` with a panic
+reaches the panic, and removing the `MonotonicLastActiveAt` fold reddens the
+backward-clock test.
+
+`TestCouchDetachRetriesARevisionConflictAfterTeardown` is renamed to
+`...AbsorbsAConcurrentWriteBeforeItsLoop`, because that is what it does: it bumps
+before the loop, the re-read absorbs it, and the retry branch is never reached.
+Its old name is why the branch went untested for so long — the suite appeared to
+cover it.
+
+**The original attempt, kept because the wrong conclusion is the lesson.** The Plan
+asked for "a detach that retries on a revision conflict records the SAME time as
+one that does not", and the estimate review had already warned that the fixture's
+`FixedClock` would make it unfalsifiable. I wrote it with a `sequenceClock`
+instead — and it still could not fail, for a different reason: **nothing can
+force a retry.** The conflict hook (`BeforePairSession`) fires before the loop,
+and the loop re-reads `GetThread` on every iteration, so a bump before it is
+absorbed by the first read. The store's own hooks (`AfterJournal`,
+`AfterTarget`) fire inside the commit, after the revision check. There is no seam
+between the loop's read and its CAS.
+
+**That conclusion — "unreachable from tests" — was WRONG, and the paragraph above
+is kept only because the wrong step is the lesson.** What was true is that no
+EXISTING seam could force a retry. What I inferred is that none could exist, and
+the close review corrected it by naming exactly where one belongs. The read-once
+placement is pinned; see the correction entry below. What survives from this
+paragraph is the observation about
+`TestCouchDetachRetriesARevisionConflictAfterTeardown`, which really did never
+reach the branch it was named for — it is now
+`...AbsorbsAConcurrentWriteBeforeItsLoop`.
+
+**A nil clock was a segfault, not a refusal.** Adding `c.Clock.Now()` to `Detach`
+gave it a precondition it did not declare, and `TestLeaveDetachesLiveThreads...`
+panicked at `detach.go:111` because its `Couch` had no clock. Detach's own guard
+now names the clock alongside the store, proc ops and artifact controller — a
+missing dependency should refuse where the message says which one, not crash in
+the retry loop.
+
+**Side-quest, committed separately (`e903d546`).** `main` was red before this
+issue started: `TestNoCurrentSourcesAdvertiseObsoleteCouchArgv` named
+`workshop/issues/000153-...md` by path, and `pair#182`'s merge archived that
+issue to `workshop/history/`. Confirmed pre-existing by stashing. Widening the
+guard to every current issue was tried and rejected — it flags `pair#170` and
+`pair#172` for prose naming the resume OPERATION, which is not an argv
+advertisement. An issue Log is working notes; the guard defends what the operator
+reads.
+

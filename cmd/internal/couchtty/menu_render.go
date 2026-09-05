@@ -61,7 +61,24 @@ const (
 	AgeOld
 )
 
+// hasRecordedActivity reports whether a thread has an activity time at all.
+//
+// ONLY the zero value means absent. time.Unix(0, 0) is 1970 -- genuinely
+// ancient, and it must still render an age. Written once and asked by both
+// readers, so the two cannot drift into different ideas of "no age".
+//
+// The distinction matters because time.Duration is int64 nanoseconds:
+// now.Sub(time.Time{}) does not compute a large age, it OVERFLOWS and saturates
+// at MaxInt64 -- 106751.99 days, which the row then stated to the day.
+func hasRecordedActivity(lastActive time.Time) bool { return !lastActive.IsZero() }
+
 func AgeBandFor(now, lastActive time.Time) AgeBand {
+	if !hasRecordedActivity(lastActive) {
+		return AgeUnknown
+	}
+	if lastActive.Before(now.Add(-maxRenderableAge)) {
+		return AgeOld
+	}
 	age := now.Sub(lastActive)
 	if age < 24*time.Hour {
 		return AgeRecent
@@ -280,9 +297,9 @@ func rootStateText(thread couchcore.ActionableThreadSummary, now time.Time) stri
 	case couchcore.ThreadLive:
 		return "live"
 	case couchcore.ThreadDetached:
-		return "detached · " + relativeMenuAge(now, thread.LastActiveAt)
+		return withMenuAge("detached", now, thread.LastActiveAt)
 	case couchcore.ThreadParked:
-		return "parked · " + relativeMenuAge(now, thread.LastActiveAt)
+		return withMenuAge("parked", now, thread.LastActiveAt)
 	case couchcore.ThreadBusy:
 		return "parking…"
 	case couchcore.ThreadArchived:
@@ -430,10 +447,31 @@ func selectedMenuLine(line string, selected bool, width int) string {
 	return plain
 }
 
+// withMenuAge appends the ` · <age>` clause only when there is an age. The
+// state alone is the honest row for a thread that has never recorded activity.
+func withMenuAge(state string, now, lastActive time.Time) string {
+	if !hasRecordedActivity(lastActive) {
+		return state
+	}
+	return state + " · " + relativeMenuAge(now, lastActive)
+}
+
+// maxRenderableAge bounds what relativeMenuAge will claim.
+//
+// time.Duration saturates at ~292 years, so the zero value is not the ONLY
+// timestamp that overflows -- a corrupt or hand-edited last_active_at from
+// before 1678 re-renders the same 106751 days that started this issue. Guarding
+// only the zero value fixes the reachable case and leaves the arithmetic still
+// able to lie.
+const maxRenderableAge = 100 * 365 * 24 * time.Hour
+
 func relativeMenuAge(now, lastActive time.Time) string {
 	age := now.Sub(lastActive)
 	if age < 0 {
 		age = 0
+	}
+	if age > maxRenderableAge || lastActive.Before(now.Add(-maxRenderableAge)) {
+		return "long ago"
 	}
 	if age < time.Hour {
 		return "<1h ago"
@@ -446,6 +484,22 @@ func relativeMenuAge(now, lastActive time.Time) string {
 
 func ageColor(band AgeBand) string {
 	switch band {
+	case AgeUnknown:
+		// Its OWN dim, and the two constraints that produce it are opposed, so
+		// the value is the only thing that satisfies both.
+		//
+		// Returning "" leaves the row in the terminal's DEFAULT, which is
+		// brighter than AgeRecent -- so "we do not know how old this is" reads
+		// as "this is the most recent one", the original bug's shape restored by
+		// its own fix. Returning AgeOld's escape instead makes the band
+		// unobservable: identical bytes, so a test could only assert the enum
+		// against itself.
+		//
+		// A distinct dim, below AgeOld's, is neither: it cannot be mistaken for
+		// recent, and it is visibly its own thing. The row's MISSING age clause
+		// is what carries "unknown" -- the colour only has to avoid claiming
+		// recency.
+		return "\x1b[38;5;238m"
 	case AgeRecent:
 		return "\x1b[38;5;250m"
 	case AgeDays:

@@ -3383,3 +3383,47 @@ that a key token appears cannot detect a contradictory behavioral sentence
   a contradiction rather than as history. When re-deferring something, supersede
   the old number explicitly and say which is current — otherwise the next reader
   cannot tell whether the scope changed or the count was wrong.
+- Never `git checkout <file>` to undo a test mutation on a file with UNCOMMITTED
+  work — it reverts everything, not just the mutation. I lost a signature change
+  that way and had to re-apply it from memory. Copy the file aside before
+  mutating and copy it back, which is what the other red-checks in the same
+  session did correctly.
+- A test that cannot be made to fail is not evidence, and finding out WHY it
+  cannot fail is the finding. couch's "a retry records the same time" test was
+  written with a sequence clock precisely to avoid a fixed-clock trap, and was
+  still vacuous: no EXISTING seam could force the retry. Deleting it and
+  recording the gap was right; concluding that no seam COULD exist was not, and
+  the close review supplied one in minutes. So: delete the vacuous test, then
+  name the window the test needs and ask what would have to exist to open it —
+  do not stop at "nothing does". (Superseded in part; the follow-up lesson on
+  seams is the operative half.)
+- Adding a dependency to a function adds a PRECONDITION, and an undeclared one
+  segfaults where the message says nothing. `Detach` gained `c.Clock.Now()` and
+  crashed a caller whose `Couch` had no clock; its guard now names the clock
+  beside the store and proc ops. Whenever a function starts reading a new field,
+  check its own precondition guard in the same edit.
+- "Untestable" is usually "no seam yet", and a reviewer saying WHERE to put one
+  beats an author concluding there is none. I recorded couch's detach retry
+  branch as an accepted testability gap; the close review named the exact seam
+  (`AfterGetThread`, fired once the read lock is released) and the branch became
+  reachable in minutes. Before recording a gap, name the window the test needs
+  and ask what would have to exist to open it.
+- When injecting a conflict to force a retry, check WHICH read you are racing.
+  Detach reads the record twice — once for preconditions, once per loop attempt
+  — and a bump after the first is absorbed by the loop's re-read, so the test
+  passes without ever retrying. Two attempts at this test were vacuous for that
+  reason. Count the reads before choosing where the hook fires.
+- Two findings can be opposed, and then only one value satisfies both. couch's
+  unknown-age colour had to be DISTINCT from every other band (or its test
+  asserts the enum against itself) and NOT brighter than "recent" (or absence
+  reads as recency). Returning "" satisfied the first reading of the second and
+  actually failed it — an unpainted row renders in the terminal's default, which
+  is the brightest thing on screen. Its own dim, below the oldest band, is the
+  only answer. When a fix satisfies one finding by violating another, the
+  constraint pair is the specification.
+- My red-check caught me shipping a non-fix. Skipping the colour wrap "fixed"
+  BR-3 in form and not in substance, and the mutation test printed nothing
+  because the assertion looked for a colour escape that was absent either way.
+  A red check that produces NO output is not a pass — it means the mutation was
+  not observed, and the next question is whether the test can see the property
+  at all.

@@ -270,7 +270,7 @@ func TestLeaveDetachesLiveThreadsSequentiallyAndRetainsPartialFailure(t *testing
 	// The second client ignores SIGTERM, so its detach fails.
 	proc.Set(43, "pair-second")
 
-	couch := &Couch{Threads: store, Proc: proc, Artifacts: artifacts, sleep: func(time.Duration) {}}
+	couch := &Couch{Threads: store, Proc: proc, Artifacts: artifacts, Clock: FixedClock{T: time.Unix(100, 0).UTC()}, sleep: func(time.Duration) {}}
 
 	result, err := couch.Leave(context.Background(), LeaveDetach)
 	if err == nil {
@@ -312,7 +312,7 @@ func TestLeaveSkipsUnknownIncarnationsRatherThanParkingThem(t *testing.T) {
 	}
 	artifacts := NewFakeThreadArtifactCollisionChecker()
 	proc := NewFakeProcOps()
-	couch := &Couch{Threads: store, Proc: proc, Artifacts: artifacts, sleep: func(time.Duration) {}}
+	couch := &Couch{Threads: store, Proc: proc, Artifacts: artifacts, Clock: FixedClock{T: time.Unix(100, 0).UTC()}, sleep: func(time.Duration) {}}
 
 	result, _ := couch.Leave(context.Background(), LeaveDetach)
 	found := false

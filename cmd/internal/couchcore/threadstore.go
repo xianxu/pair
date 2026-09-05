@@ -88,6 +88,14 @@ func NewThreadStore(namespace CouchNamespace) *ThreadStore {
 type threadStoreHooks struct {
 	AfterJournal func() error
 	AfterTarget  func(int) error
+	// AfterGetThread fires once GetThread has released the lock, which is the
+	// ONE moment a caller's read-then-CAS window is open. Without it a
+	// revision-conflict retry cannot be reached from a test: every hook that
+	// exists fires inside a commit, after the revision check, and the artifact
+	// hooks fire before the caller's loop begins. Replacing detach's `continue`
+	// with a panic left the whole suite green, including the test named for
+	// that branch.
+	AfterGetThread func(ThreadAddress) error
 }
 
 func newThreadStoreWithHooks(namespace CouchNamespace, hooks threadStoreHooks) *ThreadStore {
@@ -213,6 +221,11 @@ func (s *ThreadStore) GetThread(address ThreadAddress) (ThreadRecord, error) {
 		result = cloneThreadRecord(record)
 		return nil
 	})
+	if err == nil && s.hooks.AfterGetThread != nil {
+		if hookErr := s.hooks.AfterGetThread(address); hookErr != nil {
+			return ThreadRecord{}, hookErr
+		}
+	}
 	return result, err
 }
 
@@ -481,7 +494,17 @@ func (s *ThreadStore) CommitStartClaim(address ThreadAddress, expectedRevision u
 // unknown is precisely the state the fail-closed projector exists to keep out of
 // the switcher, and retiring one would let an unproven thread present as cleanly
 // detached.
-func (s *ThreadStore) RetireIncarnation(address ThreadAddress, expectedRevision uint64, identity ProcessIdentity) (ThreadRecord, error) {
+// RetireIncarnation removes a live incarnation and records that the thread was
+// active up to detachedAt.
+//
+// It takes the time rather than reading a clock because the caller's retry loop
+// must record ONE time regardless of how many attempts it takes: a value that
+// drifts with contention is not an observation of anything. Park is the
+// precedent -- it folds parkedAt through the same MonotonicLastActiveAt.
+//
+// Without this a detached thread had no recorded activity at all, so the
+// switcher rendered its age from the zero time and stated 106751 days (pair#187).
+func (s *ThreadStore) RetireIncarnation(address ThreadAddress, expectedRevision uint64, identity ProcessIdentity, detachedAt time.Time) (ThreadRecord, error) {
 	return s.UpdateExistingThread(address, expectedRevision, func(next *ThreadRecord) error {
 		if next.Park != nil {
 			return errors.New("cannot retire an incarnation while a park transaction is open")
@@ -500,6 +523,7 @@ func (s *ThreadStore) RetireIncarnation(address ThreadAddress, expectedRevision 
 			return errors.New("retire does not match the recorded incarnation process identity")
 		}
 		next.Incarnations = nil
+		next.LastActiveAt = MonotonicLastActiveAt(next.LastActiveAt, detachedAt)
 		return nil
 	})
 }
