@@ -3383,3 +3383,20 @@ that a key token appears cannot detect a contradictory behavioral sentence
   a contradiction rather than as history. When re-deferring something, supersede
   the old number explicitly and say which is current — otherwise the next reader
   cannot tell whether the scope changed or the count was wrong.
+- Never `git checkout <file>` to undo a test mutation on a file with UNCOMMITTED
+  work — it reverts everything, not just the mutation. I lost a signature change
+  that way and had to re-apply it from memory. Copy the file aside before
+  mutating and copy it back, which is what the other red-checks in the same
+  session did correctly.
+- A test that cannot be made to fail is not evidence, and finding out WHY it
+  cannot fail is the finding. couch's "a retry records the same time" test was
+  written with a sequence clock precisely to avoid a fixed-clock trap, and was
+  still vacuous: nothing can force the retry, because the conflict hook fires
+  before the loop and the loop re-reads on every iteration. Delete the test and
+  record the testability gap; a green test asserting nothing is worse than an
+  acknowledged hole.
+- Adding a dependency to a function adds a PRECONDITION, and an undeclared one
+  segfaults where the message says nothing. `Detach` gained `c.Clock.Now()` and
+  crashed a caller whose `Couch` had no clock; its guard now names the clock
+  beside the store and proc ops. Whenever a function starts reading a new field,
+  check its own precondition guard in the same edit.
