@@ -388,9 +388,9 @@ replaced — the substantial new machinery.
 | Name | Lives in | Status |
 |------|----------|--------|
 | `seqRelaunch` / `HitRelaunch` | `cmd/internal/couchtty/keys.go` | new |
-| `paneState` | `cmd/internal/couchtty/console.go` | new |
-| `RenderHoldingPane` | `cmd/internal/couchtty/holding.go` | new |
-| `endsItsOwnChild` | `cmd/internal/couchtty/console.go` | new |
+| `paneState` | `cmd/internal/couchtty/console.go` | planned — `pair#186` |
+| `RenderHoldingPane` | `cmd/internal/couchtty/holding.go` | planned — `pair#186` |
+| `endsItsOwnChild` | `cmd/internal/couchtty/menu.go` | new |
 | `menuActionItems` | `cmd/internal/couchtty/menu.go` | modified |
 
 - **seqRelaunch / HitRelaunch** — `Alt+n` and `Ctrl+Alt+n` consumed before the

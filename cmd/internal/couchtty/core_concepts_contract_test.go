@@ -58,6 +58,15 @@ var conceptInventory = []struct{ kind, name string }{
 	{"INTEGRATION", "`termcmd.restoreTerminal`"},
 	{"INTEGRATION", "`consoleRunner` / `consoleRunnerFor`"},
 	{"INTEGRATION", "`TestTerminalConformance_LifecyclePredicates`"},
+	// pair#182 — relaunch. paneState and RenderHoldingPane are deliberately
+	// absent: their rows carry status `planned — pair#186`, so the
+	// planned-status skip keeps them out until that work ships.
+	{"PURE", "`seqRelaunch` / `HitRelaunch`"},
+	{"PURE", "`endsItsOwnChild`"},
+	{"PURE", "`menuActionItems`"},
+	{"INTEGRATION", "`onRelaunchHotkey`"},
+	{"INTEGRATION", "`onExit`"},
+	{"INTEGRATION", "`finishOperation`"},
 }
 
 // TestCoreConceptsContract turns pair#146's repeatedly drifting architecture
@@ -203,6 +212,17 @@ func conceptInventoryProblems(rows []conceptContractRow) []string {
 // `planned` status, which the row loop skips -- so the status column doubles as
 // the build tracker, and flipping a row to `new` at its milestone is what turns
 // the assertion on.
+// conceptPlans is the hand-maintained set of plans this contract defends, and
+// it is KNOWN to be the wrong shape -- a guard whose input is a hand-written
+// list is one the next addition skips, which is exactly how pair#182's table
+// went unenforced and shipped two rows naming symbols that exist nowhere.
+//
+// Discovery (scan workshop/plans + history for a Core concepts table) is the
+// right instrument and was measured before being deferred: it brings 14
+// unpinned rows across pair#121, pair#181 and pair#182 into scope, plus real
+// assertion failures -- PURE rows whose source imports os, a declared symbol
+// that is absent. That is a genuine fleet cleanup spanning three other issues'
+// plans, so it is pair#188 rather than a widening of the relaunch close.
 var conceptPlans = []conceptPlan{
 	// #146's table IS this package's architecture table: its INTEGRATION rows
 	// deliberately reach outside couchtty (ptychild, hostty, termcmd) because
@@ -211,6 +231,7 @@ var conceptPlans = []conceptPlan{
 	// A later plan spans several packages and contributes only the rows whose
 	// declared path lives here; its couchcore entities are couchcore's to pin.
 	{name: "000170-rescope-couch-to-couch-lite-plan.md"},
+	{name: "000182-relaunch-an-actor-plan.md"},
 }
 
 type conceptPlan struct {

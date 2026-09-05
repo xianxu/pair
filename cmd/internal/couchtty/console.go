@@ -1574,22 +1574,6 @@ func (c *Console) finishOperation(completed operationCompletion) bool {
 	return false
 }
 
-// endsItsOwnChild names the operations whose child exit is EXPECTED, so the two
-// sites that need the answer cannot disagree.
-//
-// They existed as two hand-written lists -- the expectedExits bridge and the
-// switch below -- because the exit/completion race resolves in either order and
-// each half needed the same fact. A third operation had to appear in both or the
-// operator gets a spurious child-exited notice for work they asked for; deriving
-// it is what stops the next one being added to one list only (ARCH-DRY).
-func endsItsOwnChild(operation string) bool {
-	switch operation {
-	case "park", "detach", "relaunch":
-		return true
-	}
-	return false
-}
-
 // consumeExpectedParkExitLocked classifies only the exact child selected by a
 // Park attempt as expected. It handles either event order: while the operation
 // is in flight its immutable origin is authority; after successful completion
