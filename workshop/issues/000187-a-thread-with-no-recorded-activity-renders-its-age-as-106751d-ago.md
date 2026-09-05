@@ -72,10 +72,32 @@ lies.
 
 ## Plan
 
-- [ ] Guard the renderer, with the zero-time test verified red.
-- [ ] Record `LastActiveAt` on detach through `MonotonicLastActiveAt`.
-- [ ] Audit the other `LastActiveAt` readers (`startup.go:49` ranking,
-      `AgeBandFor` colouring) for the same absence-as-value assumption.
+The audit named in the third bullet was done FIRST, because it decides the shape
+of the other two. Result below; it removed one change and added one.
+
+- [ ] `relativeMenuAge` reports whether there is an age at all, and
+      `rootStateText` builds the ` · <age>` clause only when there is one. Test
+      the row's TEXT for a zero timestamp, not just the helper — the helper can
+      be right while the row still lies.
+- [ ] `AgeBandFor` gets the same guard. Today `now.Sub(zero)` saturates to
+      `AgeOld`, so a thread with no recorded activity is coloured as though it
+      were ancient — the same absence-as-value claim, quieter. It needs a band
+      meaning "no age", not a band that asserts one.
+- [ ] `Detach` records the activity time. It lands in
+      `ThreadStore.RetireIncarnation`, which today takes no clock; the park path
+      is the precedent (`threadstore.go:425` passes `parkedAt` and folds it
+      through `MonotonicLastActiveAt`). One production caller
+      (`detach.go:113`), so the signature change is contained.
+
+**Not changing `startup.go:49`, and that is a finding rather than an omission.**
+The ranking is `row.LastActiveAt.After(best.LastActiveAt)`, and the zero time is
+`Before` everything, so a never-active row can never displace a better one — it
+already sorts last within its rank class, which is what we would want. The tie
+between two zero rows is decided by iteration order, and that order is
+deterministic: `ProjectActionableThreads` sorts by `(RepoScope, Tag)`
+(`actionableinventory.go:222`). So the ranking is correct, and correct for a
+reason worth writing down rather than left as an accident the next reader has to
+re-derive. Add the comment, not a fix.
 
 ## Log
 
