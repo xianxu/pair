@@ -334,6 +334,30 @@ the same declared operation surface. Each accepted slow action paints an
 identity-owned spinner before dispatch, and stale completions cannot mutate a
 replacement frame.
 
+**A click maps to an ACTOR, and the geometry comes from the render** (`pair#172`
+M1). `RenderStatusRow` returns `RenderedStatusRow{Body, Chips}`: each chip's
+column span is recorded by the same pass that CLIPS chips to width, so a chip the
+width dropped contributes no span and a clipped one contributes the columns it
+actually drew. A caller re-deriving spans from `StatusModel` would agree at
+comfortable widths and disagree at exactly the narrow ones, which is where a
+mis-mapped click is least catchable by eye.
+
+In the switcher the unit is the ACTOR, never the line: an actor occupies its own
+row plus one per pending attention message, so `RenderMenuView` returns
+`ActorExtent` runs derived from the `actorStart` boundary the scroll window
+already uses. They are re-based there rather than in `renderRootMenuFrame`,
+because the notice is inserted at index 1 and shifts every actor row down — an
+extent computed before that shift is right by one line and wrong by one. Both
+maps are TOTAL: a gap between chips, the breadcrumb, the notice, and anything
+past the drawn rows are nobody, which is how "clicking bare space does nothing"
+is a value rather than a branch at each call site.
+
+The SGR decoder lives in `cmd/internal/mouseinput`, moved out of `termcmd` rather
+than copied: one parser means one answer to "where does this sequence end", which
+is the decision `#127`'s dead keyboard came from making twice. A caller that holds
+on `IsPrefix` must bound the wait (`MaxReport`) — an unbounded hold parks every
+following keystroke.
+
 **A row states an age only when it has one** (`pair#187`). `LastActiveAt` was
 written by park alone, so a thread that was DETACHED had never recorded activity
 — and `now.Sub(time.Time{})` does not compute a large age, it overflows int64
