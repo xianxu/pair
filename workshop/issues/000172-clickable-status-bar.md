@@ -1,11 +1,12 @@
 ---
 id: 000172
-status: open
+status: working
 deps: []
 github_issue:
 created: 2026-09-02
-updated: 2026-09-02
+updated: 2026-09-05
 estimate_hours:
+started: 2026-09-05T12:13:46-07:00
 ---
 
 # Mouse support: click the status bar and the switcher
@@ -127,20 +128,23 @@ by default.
 
 ## Plan
 
-- [ ] Chip spans out of `RenderStatusRow` + pure column-to-actor mapping, with
-      clipping tests.
-- [ ] Actor extents out of the menu renderer + pure point-to-actor mapping,
-      covering multi-line actors.
-- [ ] Switcher single-click routed into the existing Return handler, recorded as
-      a manual switch.
-- [ ] Child mouse-mode tracking in the console: observe the child's DECSET/DECRST
-      for the mouse modes, hold the state, restore on attach/detach.
-- [ ] Enable `?1000;?1006` for couch; route last-row reports to couch and
-      swallow the rest when the child has no tracking of its own.
-- [ ] Wire the click to the existing switch path — the same operation
-      `ctrl-space` + Return performs, so notification bookkeeping stays
-      identical (`pair#170`'s `entered_via_notification` rule must see a click
-      the way it sees any other manual switch).
+Design landed at
+`workshop/plans/000172-mouse-support-status-bar-and-switcher-plan.md`. Three
+review boundaries, because the work is three different problems and only the
+middle one is hard.
+
+- [ ] M1 — the pure layer, testable with no terminal and no child: chip spans out
+      of the render pass that already clips them, actor extents out of the menu
+      renderer, point-to-**actor** hit-testing for actors that occupy a variable
+      number of lines, and SGR report parsing.
+- [ ] M2 — mode ownership, which the Spec calls the deliverable. Mouse reporting
+      is a terminal-GLOBAL mode, so couch cannot enable it for itself without
+      deciding what the child sees: scan the child's DECSET/DECRST to learn which
+      modes it enabled, hold that per PANE, and decide couch / forward / swallow
+      from it. The chunk-boundary case is the first test, not an afterthought.
+- [ ] M3 — wiring: the click routed into the switch path `ctrl-space`+Return
+      already takes, recorded as a MANUAL switch so `ctrl+backspace` undoes it,
+      plus the `pair#166` re-evaluation the Done-when requires.
 
 ## Log
 
