@@ -49,6 +49,10 @@ type RenderedMenu struct {
 // ActorExtent is the row range one actor occupies in the drawn menu, half-open
 // as [Start, End).
 //
+// ZERO-BASED, indexing the lines of Body. An SGR mouse report is ONE-based, so a
+// caller converts once at the boundary. Stated because both bases appear in this
+// feature and leaving it implicit is an off-by-one waiting to happen.
+//
 // An actor occupies a VARIABLE number of rows -- its own line plus one per
 // pending attention message, plus a description line once pair#173 lands -- so
 // a click maps to an ACTOR, never to a line. Derived from the rootLine
@@ -59,8 +63,10 @@ type ActorExtent struct {
 	End    int
 }
 
-// PointToActor maps a drawn row to the actor covering it. Total: the
+// PointToActor maps a ZERO-BASED drawn row to the actor covering it. Total: the
 // breadcrumb, the notice, a gap and anything past the last actor are nobody.
+//
+// The caller converts from the report's 1-based Y.
 //
 // The column is accepted and ignored TODAY, because every drawn column of an
 // actor's rows belongs to it. It is in the signature because the hit-test is

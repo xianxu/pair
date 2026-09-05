@@ -179,7 +179,7 @@ required, since the legacy X10 encoding caps at 223 and fails *silently*.
 | Name | Lives in | Status | Wraps |
 |------|----------|--------|-------|
 | `Console.onMouse` | `cmd/internal/couchtty/console.go` | planned — M3 | routing a decoded event to a switch |
-| `hostty.MouseClickTracking` | `cmd/internal/hostty/control.go` | new | couch's own DECSET/DECRST |
+| `hostty.MouseClickTracking` | `cmd/internal/hostty/control.go` | planned — M2 | couch's own DECSET/DECRST |
 
 - **Console.onMouse** — reads the child's mode from `Screen.Mouse()` (not from a
   new tracker), calls `RouteMouseReport`, and on `couch` maps the coordinate to an

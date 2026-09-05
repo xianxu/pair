@@ -79,3 +79,39 @@ func TestPointToActorSpansEveryLineOfAnActor(t *testing.T) {
 		})
 	}
 }
+
+// A row the height clamp cut is not drawn, so it is not clickable. Untested,
+// clampExtents could return extents pointing past the end of Body and a click
+// below the visible menu would select whatever the arithmetic landed on.
+func TestExtentsNeverPointPastTheDrawnMenu(t *testing.T) {
+	// More actors than rows, each with attention lines, so the clamp bites.
+	var inventory []couchcore.ActionableThreadSummary
+	attention := map[couchcore.ThreadAddress][]AttentionMessage{}
+	for i := 0; i < 12; i++ {
+		address := menuAddress(string(rune('a' + i)))
+		inventory = append(inventory, couchcore.ActionableThreadSummary{
+			Address: address, Name: string(rune('a' + i)), WorkingPath: "/w", State: couchcore.ThreadLive,
+		})
+		attention[address] = []AttentionMessage{{Text: "paging"}}
+	}
+	state := NewMenuState(inventory, inventory[0].Address)
+	state.Attention = attention
+
+	for _, height := range []int{10, 12, 16, 24} {
+		view := RenderMenuView(state, 60, height, time.Unix(1_700_000_000, 0), false)
+		drawn := len(strings.Split(view.Body, "\r\n"))
+		for _, extent := range view.Extents {
+			if extent.Start < 0 || extent.End > drawn || extent.Start >= extent.End {
+				t.Fatalf("height %d: extent %+v outside the %d drawn rows", height, extent, drawn)
+			}
+			// And the row it claims must really be that actor's.
+			if got, ok := view.PointToActor(extent.Start, 0); !ok || got != extent.Thread {
+				t.Fatalf("height %d: extent %+v does not map back to its own actor", height, extent)
+			}
+		}
+		// Nothing past the drawn menu resolves.
+		if _, ok := view.PointToActor(drawn, 0); ok {
+			t.Fatalf("height %d: row %d is past the drawn menu and still mapped", height, drawn)
+		}
+	}
+}

@@ -170,6 +170,11 @@ type MenuState struct {
 // MenuOperationOrigin captures the exact frame that emitted asynchronous
 // work, so completion does not depend on whichever frame is visible later.
 type MenuOperationOrigin struct {
+	// Manual suppresses the attention capture, so the landing is classified
+	// arrivalOrdinary even on a paging actor. A click is always a manual switch;
+	// Enter on a paging actor is not.
+	Manual bool
+
 	Operation        string
 	Attempt          uint64
 	Address          couchcore.ThreadAddress
@@ -194,6 +199,14 @@ const (
 	// MenuEventNotice reports a console-side refusal on the menu's own surface.
 	// The status row is behind the panel while the switcher owns the screen, so
 	// a refusal sent there would read to the operator as the key doing nothing.
+	// MenuEventMouseSwitch is a click on an actor. It dispatches the SAME
+	// declared `switch` operation Enter dispatches; the only difference is that
+	// it is always MANUAL, so ctrl+backspace undoes it even when the clicked
+	// actor was paging. Enter on a paging actor is a notification hop and
+	// therefore non-pinning, which is the one input where the two legitimately
+	// differ (pair#172).
+	MenuEventMouseSwitch
+
 	MenuEventNotice
 )
 
@@ -332,6 +345,23 @@ func ReduceMenu(state MenuState, event MenuEvent) (MenuState, []MenuEffect) {
 	}
 	if event.Kind == MenuEventParkHotkey {
 		return reduceParkHotkey(next, event)
+	}
+	if event.Kind == MenuEventMouseSwitch {
+		thread, ok := findMenuThread(next.Inventory, event.Address)
+		if !ok || !menuThreadActionable(thread) {
+			return next, nil
+		}
+		// Live rows switch; parked and detached rows resume -- the same rule
+		// Enter uses, asked the same way.
+		operation := "switch"
+		if thread.Resumable() {
+			operation = "resume"
+		}
+		next.Frames = next.Frames[:1]
+		next.Frames[0].SelectedAddress = event.Address
+		state, effects := dispatchThreadOperation(next, operation, event.Address)
+		state.InFlight.Manual = true
+		return state, effects
 	}
 	if event.Kind == MenuEventRefreshStarted {
 		next.RefreshPending = true

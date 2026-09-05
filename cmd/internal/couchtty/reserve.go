@@ -93,6 +93,11 @@ type StatusModel struct {
 // every remaining byte occupies the columns textwidth says it does.
 // ChipSpan is the column range one actor occupies on the drawn row, and the
 // actor a click there lands on. Half-open: [Start, End).
+//
+// ZERO-BASED, like the string it indexes. An SGR mouse report is ONE-based, so a
+// caller converts once at the boundary -- see RenderedStatusRow.ColumnToActor's
+// contract. Stated because the two bases meet in this feature and an unstated
+// one is an off-by-one waiting for a narrow terminal.
 type ChipSpan struct {
 	Thread couchcore.ThreadAddress
 	Start  int
@@ -110,10 +115,12 @@ type RenderedStatusRow struct {
 	Chips []ChipSpan
 }
 
-// ColumnToActor maps a column on the drawn row to the actor whose chip covers
-// it. Total: a column in a gap, past the last chip, or negative is nobody, which
-// is how "clicking bare row does nothing" is expressed as a value rather than as
-// a branch at the call site.
+// ColumnToActor maps a ZERO-BASED column on the drawn row to the actor whose
+// chip covers it. Total: a column in a gap, past the last chip, or negative is
+// nobody, which is how "clicking bare row does nothing" is expressed as a value
+// rather than as a branch at the call site.
+//
+// The caller converts from the report's 1-based X.
 func (r RenderedStatusRow) ColumnToActor(column int) (couchcore.ThreadAddress, bool) {
 	for _, chip := range r.Chips {
 		if column >= chip.Start && column < chip.End {

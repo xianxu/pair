@@ -3427,3 +3427,10 @@ that a key token appears cannot detect a contradictory behavioral sentence
   A red check that produces NO output is not a pass — it means the mutation was
   not observed, and the next question is whether the test can see the property
   at all.
+- I made the `git checkout <file>` mistake AGAIN, one day after writing the
+  lesson about it, and lost an hour of uncommitted work in `console.go`. Writing
+  a lesson does not install it. The durable fix is not "remember harder" — it is
+  never to reach for `git checkout` during a mutation check at all: copy the
+  file aside first and copy it back, which every other red-check in these
+  sessions did correctly. If a habit has failed twice, change the tool, not the
+  intention.

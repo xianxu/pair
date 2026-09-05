@@ -128,6 +128,12 @@ type Console struct {
 	input     chan []byte
 	// trace is nil unless COUCH_INPUT_TRACE names a file; see inputtrace.go.
 	trace *inputTracer
+	// menuExtents is where each actor was drawn by the LAST menu paint, so a
+	// click resolves against what the operator saw rather than a re-render,
+	// which a refresh or a notice could have changed in between.
+	menuExtents []ActorExtent
+	// statusChips is the same for the reserved row.
+	statusChips []ChipSpan
 	// started reports that Run owns the terminal, so a notice may paint itself.
 	// Its own field rather than something inferred from another: "is it safe to
 	// write to the operator's screen yet" is its own question.
@@ -516,6 +522,10 @@ func (c *Console) Run() int {
 	c.mu.Lock()
 	c.started = true
 	c.mu.Unlock()
+	// couch asks the TERMINAL for clicks. It never writes the CHILD's modes:
+	// ptychild replay re-asserts those across a switch, and a second writer
+	// would be two authorities for one terminal state.
+	c.writeOwn(hostty.EnableMouseClicks)
 
 	c.applyLayout()
 	c.paintNow()
@@ -634,7 +644,13 @@ func (c *Console) Run() int {
 			// switcher"; a switch with no default drops it silently, which is
 			// what alt+n did on its first ship. Neither can report the case it
 			// is missing -- the table can.
-			if handle := c.hitHandlers()[hit]; handle != nil {
+			if hit == HitMouse {
+				// The one hit with a payload: read it from the same Interceptor
+				// that produced it, before the next Feed overwrites it. The
+				// handler table still lists HitMouse so the enumeration guard
+				// proves every hit has somewhere to go.
+				c.onMouse(it.Mouse())
+			} else if handle := c.hitHandlers()[hit]; handle != nil {
 				handle()
 			} else {
 				// The bytes are already consumed, so silence here is a chord
@@ -1004,7 +1020,11 @@ func (c *Console) paintNow() {
 	}
 	c.mu.Unlock()
 
-	c.writeOwn(Reserve(rows) + PaintRow(rows, RenderStatusRow(cols, model).Body))
+	row := RenderStatusRow(cols, model)
+	c.mu.Lock()
+	c.statusChips = row.Chips
+	c.mu.Unlock()
+	c.writeOwn(Reserve(rows) + PaintRow(rows, row.Body))
 }
 
 func (c *Console) syncAttentionLocked() {
@@ -1432,7 +1452,7 @@ func (c *Console) runMenuOperation(effect MenuEffect) {
 	c.mu.Lock()
 	fn := c.ops
 	origin := c.menu.InFlight
-	if origin.Operation == "switch" && origin.AttentionCapture == 0 {
+	if origin.Operation == "switch" && origin.AttentionCapture == 0 && !origin.Manual {
 		origin.AttentionCapture = c.attention.Capture(origin.Address)
 		c.menu.InFlight.AttentionCapture = origin.AttentionCapture
 	}
@@ -1458,6 +1478,61 @@ func (c *Console) runMenuOperation(effect MenuEffect) {
 	}
 }
 
+// onMouse routes one decoded mouse report.
+//
+// The ONE place the report's 1-based coordinates meet the render's 0-based
+// geometry, converted here so no other site has to know two bases exist.
+//
+// Focus decides which surface a non-row click means, and the Interceptor is why
+// no new input path was needed: it sees every byte before focus is considered,
+// so the panel needs no PanelKey kind and panelkeys.go is untouched.
+func (c *Console) onMouse(hit MouseHit) {
+	c.mu.Lock()
+	rows := int(c.size.Rows)
+	panel := c.focus.IsPanel()
+	chips := c.statusChips
+	extents := c.menuExtents
+	child := c.panes[c.active]
+	c.mu.Unlock()
+
+	childWantsMouse := child != nil && child.child.Mouse()
+	switch RouteMouseReport(hit.Event, rows, childWantsMouse) {
+	case MouseForward:
+		if child != nil {
+			// The RAW bytes: the child gets exactly what the terminal sent.
+			_, _ = child.child.Write(hit.Raw)
+		}
+		return
+	case MouseSwallow:
+		return
+	}
+
+	// couch's own row, then the panel. The report is 1-based in both axes.
+	if hit.Event.Y == rows {
+		if thread, ok := (RenderedStatusRow{Chips: chips}).ColumnToActor(hit.Event.X - 1); ok {
+			c.switchToThread(thread)
+		}
+		return
+	}
+	if !panel {
+		return
+	}
+	if thread, ok := (RenderedMenu{Extents: extents}).PointToActor(hit.Event.Y-1, hit.Event.X-1); ok {
+		c.switchToThread(thread)
+	}
+}
+
+// switchToThread dispatches the SAME declared switch operation ctrl-space+Return
+// dispatches, marked MANUAL.
+//
+// Return on a PAGING actor is a notification hop and therefore non-pinning; a
+// click never is, so ctrl+backspace always undoes it. That flag is the only
+// difference -- the operation, the queue, the projection refresh and the notice
+// bookkeeping are all Return's.
+func (c *Console) switchToThread(thread couchcore.ThreadAddress) {
+	c.reduceMenu(MenuEvent{Kind: MenuEventMouseSwitch, Address: thread})
+}
+
 // hitHandlers maps every intercepted chord to what the console does about it.
 //
 // A method rather than a package var because the handlers are bound to this
@@ -1470,6 +1545,10 @@ func (c *Console) hitHandlers() map[InterceptorHit]func() {
 		HitPrevious: c.onPreviousHotkey,
 		HitDetach:   c.onDetachHotkey,
 		HitRelaunch: c.onRelaunchHotkey,
+		// HitMouse carries a payload the table's func() cannot; processInput
+		// reads it from the Interceptor. Registered so the enumeration guard
+		// still proves every hit has somewhere to go.
+		HitMouse: func() {},
 	}
 }
 

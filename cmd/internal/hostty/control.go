@@ -47,6 +47,19 @@ const (
 	// mouse encodings, focus events, alternate scroll, bracketed paste, and
 	// synchronized output. CSI = 0 u disables Kitty extended-key reporting.
 	ResetInteractiveModes = "\x1b[?9;1000;1001;1002;1003;1004;1005;1006;1007;1015;1016;2004;2026l\x1b[=0u"
+
+	// EnableMouseClicks asks for CLICK reporting (?1000) in SGR encoding
+	// (?1006), and nothing else.
+	//
+	// Not ?1002/?1003: motion reports arrive at pointer-movement rates, and the
+	// feature that needs this wants human click rates. Not the legacy encoding:
+	// it caps coordinates at 223 and fails SILENTLY on a wide or tall terminal,
+	// which is a wrong answer rather than a refused one.
+	EnableMouseClicks = "\x1b[?1000;1006h"
+	// DisableMouseClicks turns off exactly what EnableMouseClicks turned on.
+	// Teardown still uses ResetInteractiveModes, which remains the authority for
+	// returning the terminal to a shell-safe baseline.
+	DisableMouseClicks = "\x1b[?1000;1006l"
 )
 
 // SetRegion pins the scrolling region to rows top..bottom (1-based, inclusive).

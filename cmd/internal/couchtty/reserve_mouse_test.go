@@ -43,9 +43,22 @@ func TestChipSpansMatchTheDrawnRowAtEveryWidth(t *testing.T) {
 					width, chip, text, label)
 			}
 		}
-		// A chip that did not render has NO span.
+		// From ABOVE is not enough: the loop so far only rejects a span that is
+		// wrong, so losing one entirely passes. Assert from BELOW too -- every
+		// actor whose label appears in the drawn row must HAVE a span.
 		if len(got.Chips) > len(m.Actors) {
 			t.Fatalf("width %d: %d spans for %d actors", width, len(got.Chips), len(m.Actors))
+		}
+		covered := map[couchcore.ThreadAddress]bool{}
+		for _, chip := range got.Chips {
+			covered[chip.Thread] = true
+		}
+		for thread, label := range labels {
+			// A label the width dropped draws nothing and needs no span; one
+			// that drew even a single character needs one.
+			if strings.Contains(plain, label[:1]) && strings.Contains(plain, label) && !covered[thread] {
+				t.Fatalf("width %d: %q is drawn in %q but has no span", width, label, plain)
+			}
 		}
 		if textwidth.Width(plain) > width {
 			t.Fatalf("width %d: drew %d columns", width, textwidth.Width(plain))
