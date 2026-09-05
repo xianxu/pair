@@ -997,13 +997,14 @@ func (c *Console) paintNow() {
 		p := c.panes[id]
 		model.Actors = append(model.Actors, StatusActor{
 			Label:  p.label,
+			Thread: p.thread,
 			Active: id == c.active,
 			Bell:   len(c.attention.Projection(p.thread)) > 0,
 		})
 	}
 	c.mu.Unlock()
 
-	c.writeOwn(Reserve(rows) + PaintRow(rows, RenderStatusRow(cols, model)))
+	c.writeOwn(Reserve(rows) + PaintRow(rows, RenderStatusRow(cols, model).Body))
 }
 
 func (c *Console) syncAttentionLocked() {
