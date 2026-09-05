@@ -123,16 +123,16 @@ recorded"; `time.Unix(0, 0)` (1970) is a real, genuinely ancient timestamp that
 must still render as a real age. A guard written as "very old ⇒ absent" passes
 the operator's bug and fails this, which is why the tests carry both.
 
-- [ ] **`hasRecordedActivity`** — unit test: zero ⇒ false; `time.Unix(0,0)` ⇒
+- [x] **`hasRecordedActivity`** — unit test: zero ⇒ false; `time.Unix(0,0)` ⇒
       true; `now` ⇒ true.
-- [ ] **`relativeMenuAge(now, lastActive) (string, bool)`** reports whether
+- [x] **`relativeMenuAge`** — SHIPPED IN A DIFFERENT SHAPE, see the note below. reports whether
       there is an age, and **`rootStateText`** builds the ` · <age>` clause only
       when there is one. Unit-test `rootStateText`, not just the helper: the
       helper can be correct while the row still lies, which is exactly how the
       bug shipped. Inputs: zero (no clause), `time.Unix(0,0)` (a real age,
       ~20000d), `now-2h` ("2h ago"), `now+1h` (clock skew — already clamped to
       `<1h ago`, pinned so the clamp is not lost).
-- [ ] **`AgeBandFor(now, lastActive) AgeBand`** gains `AgeUnknown`, **and
+- [x] **`AgeBandFor(now, lastActive) AgeBand`** gains `AgeUnknown`, **and
       `ageColor` renders it as NO age colouring at all** rather than as another
       dim escape. Without that this guard is unobservable — `ageColor` maps
       `AgeUnknown` and `AgeOld` to the same bytes, so a test could only assert
@@ -140,7 +140,7 @@ the operator's bug and fails this, which is why the tests carry both.
       is ancient" must not look identical. Unit-test `ageColor(AgeBandFor(...))`
       end to end: zero ⇒ no escape; `time.Unix(0,0)` ⇒ the old-age escape;
       `now-1h` ⇒ the recent escape; the 24h and 7d boundaries pinned.
-- [ ] **`Detach` records the activity time.** It lands in
+- [x] **`Detach` records the activity time.** It lands in
       `ThreadStore.RetireIncarnation`, which takes no clock today; the park path
       is the precedent (`threadstore.go:425` folds `parkedAt` through
       `MonotonicLastActiveAt`). The time comes from `c.Clock.Now()`
@@ -151,6 +151,15 @@ the operator's bug and fails this, which is why the tests carry both.
       contained. Test in `detach_test.go`: a detach sets `LastActiveAt`; a
       detach that retries on a revision conflict records the SAME time as one
       that does not; `MonotonicLastActiveAt` still refuses a backward clock.
+
+**Deviation on bullet 2, stated rather than ticked away.** The plan had
+`relativeMenuAge` return `(string, bool)` — the guard inside the formatter. What
+shipped puts the decision one level up: `withMenuAge(state, now, lastActive)`
+asks `hasRecordedActivity` and only then calls `relativeMenuAge`, which keeps its
+`string` signature and stays a pure formatter that is never handed a timestamp it
+cannot format. Same behaviour, and the tests are the ones the plan named
+(`rootStateText` at the row). Recorded because "a formatter that also decides
+whether to format" was the plan's shape and is the worse one.
 
 **Not changing `startup.go:49`, and that is a finding rather than an omission.**
 The ranking is `row.LastActiveAt.After(best.LastActiveAt)`, and the zero time is
