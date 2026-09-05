@@ -103,7 +103,7 @@ required, since the legacy X10 encoding caps at 223 and fails *silently*.
 
 ## Core concepts
 
-### Pure entities (the conceptual core)
+### Pure entities
 
 | Name | Lives in | Status |
 |------|----------|--------|
@@ -112,12 +112,12 @@ required, since the legacy X10 encoding caps at 223 and fails *silently*.
 | `ColumnToActor` | `cmd/internal/couchtty/reserve.go` | new |
 | `ActorExtent` | `cmd/internal/couchtty/menu_render.go` | new |
 | `PointToActor` | `cmd/internal/couchtty/menu_render.go` | new |
-| `MouseDisposition` | `cmd/internal/couchtty/mouse.go` | new |
-| `RouteMouseReport` | `cmd/internal/couchtty/mouse.go` | new |
-| `mouseinput.Event` / `mouseinput.FindSGR` | `cmd/internal/mouseinput/mouseinput.go` | new (promoted from `termcmd`) |
-| `seqMouse` | `cmd/internal/couchtty/keys.go` | new |
+| `MouseDisposition` | `cmd/internal/couchtty/mouse.go` | planned — M2 |
+| `RouteMouseReport` | `cmd/internal/couchtty/mouse.go` | planned — M2 |
+| `mouseinput.Event` / `mouseinput.Find` | `cmd/internal/mouseinput/mouseinput.go` | new |
+| `seqMouse` | `cmd/internal/couchtty/keys.go` | planned — M2 |
 | `RenderStatusRow` | `cmd/internal/couchtty/reserve.go` | modified |
-| `Interceptor.FeedHit` | `cmd/internal/couchtty/keys.go` | modified |
+| `Interceptor.FeedHit` | `cmd/internal/couchtty/keys.go` | planned — M2 |
 
 - **ChipSpan / RenderedStatusRow** — the column range each actor occupies,
   returned *by the render*. `RenderStatusRow` returns
@@ -174,11 +174,11 @@ required, since the legacy X10 encoding caps at 223 and fails *silently*.
   learn the SGR shape to be able to withhold one. Its partial-sequence rule
   already exists (`held`) and `isSGRMousePrefix` supplies the predicate.
 
-### Integration points (where pure meets the world)
+### Integration points
 
 | Name | Lives in | Status | Wraps |
 |------|----------|--------|-------|
-| `Console.onMouse` | `cmd/internal/couchtty/console.go` | new | routing a decoded event to a switch |
+| `Console.onMouse` | `cmd/internal/couchtty/console.go` | planned — M3 | routing a decoded event to a switch |
 | `hostty.MouseClickTracking` | `cmd/internal/hostty/control.go` | new | couch's own DECSET/DECRST |
 
 - **Console.onMouse** — reads the child's mode from `Screen.Mouse()` (not from a
