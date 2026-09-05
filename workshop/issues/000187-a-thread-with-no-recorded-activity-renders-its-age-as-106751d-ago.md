@@ -5,7 +5,7 @@ deps: []
 github_issue:
 created: 2026-09-04
 updated: 2026-09-04
-estimate_hours:
+estimate_hours: 0.87
 started: 2026-09-04T21:48:27-07:00
 ---
 
@@ -69,6 +69,42 @@ lies.
 - No other caller of `LastActiveAt` reads the zero value as a real time — in
   particular `startup.go:49`, which RANKS resumable threads by it, so a zero
   sorts last where it may currently sort in a way nobody intended.
+
+## Estimate
+
+```estimate
+model: estimate-logic-v3.1
+familiarity: 1.0
+item: smaller-go-module          design=0.04 impl=0.14
+item: smaller-go-module          design=0.04 impl=0.14
+item: smaller-go-module          design=0.06 impl=0.16
+item: atlas-docs                 design=0.02 impl=0.05
+item: milestone-review           design=0.00 impl=0.20
+design-buffer: 0.15
+total: 0.87
+```
+
+*Produced via `brain/data/life/42shots/velocity/estimate-logic-v3.1.md` against
+`baseline-v3.1.md`. Method A only.*
+
+**One line per instance**, so a close-time miss is attributed to a primitive
+rather than to the issue. In order:
+
+| Slug | Instances |
+| --- | --- |
+| `smaller-go-module` | `hasRecordedActivity` + `relativeMenuAge` + `rootStateText`'s clause |
+| `smaller-go-module` | `AgeUnknown` in `AgeBandFor` + `ageColor` rendering no escape |
+| `smaller-go-module` | `RetireIncarnation` takes the activity time; `Detach` reads `c.Clock.Now()` once before its retry loop |
+| `atlas-docs` | the `startup.go` ranking comment, and the atlas note on absence-vs-age |
+| `milestone-review` | one close boundary; this is single-pass atomic work, so no `Mx` |
+
+Design hours carry the ×0.2 spec-quality discount: the Plan names every function,
+its test file, and its adversarial input class, so the decisions are already made
+and the estimator is reading rather than deciding. Buffer is +15% rather than
++30% for the same reason.
+
+Deliberately NOT budgeted: `startup.go`'s ranking, which the audit found already
+correct. Budgeting a fix I have decided not to make would be padding.
 
 ## Plan
 
