@@ -98,6 +98,77 @@ Consequences, all derived rather than special-cased:
 
 An actor does not notify while the operator is attached to it.
 
+
+### Detach must never strand a thread
+
+`alt+d` is reachable, so the state it produces must be reachable back. Today it
+is not: a detached thread whose native binding is incomplete appears **nowhere**
+in the switcher, and the only way back in is `zellij attach '<session>'` from
+outside couch.
+
+Reproduced 2026-09-03, thread `couch-8d1a4da0f9fe730d`:
+
+- record has no incarnation (detach cleared it) and no `verified_park` (detach
+  destroys nothing, so it correctly writes none) — so it is neither `live` nor
+  `parked`, the only two states `ActionableThreadInventory` emits;
+- `📁pair-couch-24` is alive with no client, and `session-names.jsonl` maps it
+  to the thread correctly;
+- its ledger holds `launch × 1` and **zero `binding` records** (a healthy
+  thread has `binding × 2`), so there is no `NativeID`;
+- `ProjectDetachedSessions` requires Agent **and** NativeID to emit a complete
+  observation, so it emits none, and the row never appears.
+
+The trigger is ordinary, not a crash: two candidate claude transcripts appeared
+at startup (`c7245bc1`, `b36b9e12`), and round-gated identity discovery refuses
+to rank or guess between roots, so it bound neither.
+
+**The gating looks wrong on its own terms.** A detached row's Enter is a
+*reattach to a live zellij session by name* — the conversation is already loaded
+in the running session. `NativeID` is the proof needed to **resume a parked**
+thread, where the process is gone and must be reconstructed. Requiring
+native-resume proof for a reattach imports a precondition from the wrong
+operation. `ProjectDetachedSessions`'s own comment says `SessionDetached` is
+"exactly the state an `alt+d` leaves behind and exactly what `pair resume`
+reattaches onto" — and that reattach needs the session name, which the index
+has.
+
+So: **gate the detached row on the session-name binding, not on the resume
+proof.** The fail-closed cases the comment defends (two addresses bound to one
+session name; two zellij rows sharing a name) are genuine ambiguities about
+*which session* and must still refuse. A missing `NativeID` is not that.
+
+**Invariant to hold, whichever way the gating lands:** if a detached thread
+cannot be offered a row, `detach` must refuse rather than produce the state. A
+reachable operation must not create an unreachable one.
+
+**The second half — Enter is refused for EVERY detached thread.** Confirmed by
+reading the chain: `createflow.go:238` refuses on `ResumeRequired &&
+decision.Action != ActionCreate`; `decision.go:32-36` resolves a `ForcedTag`
+onto a blocking session to `ActionAttach`; `decision.go:95` counts
+`SessionDetached` as blocking. couch resume spawns `pair resume <tag>` with
+`ResumeRequired`, so a detached thread always lands on `ActionAttach` and is
+refused — a healthy binding and a correct `NativeID` do not help.
+
+So making the row appear does not restore reattach. The blocker is that
+`ValidateTrustedLaunchProfile` (`launch_args_policy.go:105`) rejects
+`ResumeRequired` with an empty `RequiredSessionID`, so the launch profile has no
+way to say *"reattach to this session name; no native proof needed"* — even
+though `AttachExistingSession` takes only tag/session/agent and
+`RequireNativeResumeBinding` lives only inside `runCreate`. The fix is a second
+authority on the profile, not a loosened gate.
+
+**Hazard for that work:** with no `NativeID`, a session that dies between
+observation and launch leaves nothing to recover from — it must **refuse**, never
+fall through to create, or a fresh empty agent silently replaces the
+conversation. `NativeID` is a fallback for *reconstruct*, not a precondition for
+*reattach*.
+
+`createflow_test.go:417` (`TestRequiredNativeResumeRefusesAttachRace`) pins the
+current refusal and will fail when this is fixed — a deliberate decision, not an
+accident. It also passes for the wrong reason today: it sets no binding
+statuses, so the unbound path refuses first and the attach-boundary guard it
+names is never reached. Its setup needs correcting either way.
+
 ### Keys
 
 - **`ctrl-space` = switcher, and nothing else.** It no longer means "up one
@@ -105,7 +176,23 @@ An actor does not notify while the operator is attached to it.
   root-actor/home concept (`couchtty/console.go:68`).
 - **`ctrl+backspace` = previous.** This is the key labelled `delete` on an Apple
   keyboard, not forward-delete — no `fn` in the chord.
-- **`alt+d` = detach.**
+- **`alt+d` = detach EVERY actor and return to the shell.** Operator decision,
+  2026-09-03. The scope mapping is the argument: the gesture means "detach the
+  thing I am in", and in couch that is the fleet, not one row — which is also
+  what the operator expected it to do before being told otherwise.
+
+  That is `leave`'s existing behaviour ("Detach every active work thread and
+  leave Couch", `ops.go:234`), so `alt+d` becomes **`leave`'s chord**, not a new
+  operation (`ARCH-DRY`). Keep `leave`'s `ConfirmRequired`: it ends the session.
+  The per-thread detach *operation* stays available from the panel; what goes
+  away is the per-thread *chord*, so one key does not mean two scopes.
+
+  **Ordering constraint, blocking:** this must NOT land before the attach path
+  is fixed. Every detached thread is currently unreattachable
+  (`createflow.go:238`), so a fleet-wide `alt+d` strands the WHOLE fleet in one
+  keystroke instead of one thread. The detach guard on
+  `000170-detach-strand-fix` does not help — healthy threads pass it and are
+  stranded anyway. Fix the attach path first, then rebind.
 
 Encodings verified by probe in Ghostty, outside zellij, 2026-09-02:
 
@@ -165,6 +252,14 @@ pair's `ChordAltX` as `seqPark` (`couchtty/keys.go:69-75`). pair already binds
   N1 -> N2 -> manual-detour sequence.
 - `ctrl+backspace` is recognised in both encodings, including inside couch's
   own panel.
+- A detached thread always appears in the switcher and Enter reattaches it,
+  **including when no native binding was ever written** — asserted with a
+  thread whose ledger has zero `binding` records. Not satisfied by the detach
+  guard alone: the attach path must stop refusing `ActionAttach` first.
+- Reattach with no `NativeID` whose session died between observation and launch
+  **refuses**; it never falls through to create.
+- Where a detached row genuinely cannot be offered (ambiguous session name),
+  `detach` refuses instead of producing an unreachable thread.
 - `workshop/projects/couch.md` carries a scope event recording the rescope, and
   #147, #148 and #153 are dispositioned against it.
 
@@ -769,3 +864,37 @@ conformance target went with it. Filed as a note, not an edit — the dispositio
 is ariadne's.
 
 `make test` exits 0.
+
+### 2026-09-03
+
+Detach strands a thread with no native binding — full evidence in the new
+*Detach must never strand a thread* section above. Found from the operator
+detaching a live pair thread and finding no row to reattach to; recovered with
+`zellij attach '📁pair-couch-24'` outside couch.
+
+### 2026-09-03 — detach guard landed; attach path outstanding
+
+Branch `000170-detach-strand-fix` (`e7ecf245`, off `8bfdd846`) adds the third
+precondition to `Detach`: resolve the native binding through the same
+`NativeBindingResolver` seam Resume uses, refuse when it is not one established
+root, before the SIGTERM so refusing costs nothing. Tests cover unbound,
+ambiguous and established-with-no-root-id, each asserting the incarnation is
+untouched and no group signal was sent; reverting only `detach.go` fails all
+three.
+
+That stops detach *manufacturing* the unreachable state. It does **not** restore
+reattach — see *The second half* above. The invariant is not met until the
+attach path lands.
+
+Unrelated and pre-existing at `8bfdd846`: `./cmd/internal/couchcore` deadlocks
+(`pair-launch-helper: acknowledgement unavailable: EOF`), reproducing with the
+above changes stashed and outside the sandbox, so it is neither new nor an
+environment artifact.
+
+### 2026-09-03 — alt+d becomes fleet-wide
+
+Operator: "detach in couch should apply to all actors as well." Recorded in
+*Keys* above with the ordering constraint. Raising the priority of the attach
+path: with `alt+d` fleet-wide, the existing reattach refusal turns a one-thread
+mistake into a whole-fleet one, and `leave` already calls detach on every thread
+on the way out — so that exposure exists today, before any rebinding.
