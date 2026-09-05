@@ -816,6 +816,94 @@ rounds:
           family: declared-source-hand-maintained-consumers
           round: 10
       blocked: true
+    - "n": 11
+      timestamp: "2026-09-04T17:39:21-07:00"
+      agent: claude
+      dispose:
+        - id: BR-1
+          disposition: not-addressed
+          note: plan lines 32-37 untouched; measured 15s CompletionTimeout (couch.go:119) + 5s resumeRegistrationTimeout (couch.go:107), child death inside the 15s (park.go:552).
+          round: 11
+        - id: BR-6
+          disposition: not-addressed
+          note: relaunch_test.go:76 still has five refusal cases; no agent-unsupported or profile-missing case reaches Relaunch.
+          round: 11
+        - id: BR-7
+          disposition: not-addressed
+          note: plan lines 159 and 352 still unticked for landed work (e7c6c6e8, b7ec5e64); the new Revisions note names only Task 8's boxes.
+          round: 11
+        - id: BR-9
+          disposition: not-addressed
+          note: manifest.go:524 still places relaunch.go between pathops.go and procops.go; threadreason.go:503 is still the second offender.
+          round: 11
+        - id: BR-26
+          disposition: not-addressed
+          note: console.go:1379 still has no test, and the untested branch turns out to be wrong — raised as a new Important finding.
+          round: 11
+        - id: BR-28
+          disposition: addressed
+          note: intercepts() is now k.hit() != HitNone (keys.go:72); revert-verified — deleting the seqRelaunch arm of hit() reds five chord tests.
+          round: 11
+        - id: BR-29
+          disposition: addressed
+          note: declaredRowActions and RowActions() deleted; the sweep reads Operation.RowAction directly. Mutation-verified — adding "bogus" to the live row reds both directions.
+          round: 11
+        - id: BR-30
+          disposition: addressed
+          note: Done-when bullets 2/ctrl+backspace/child-exited, the plan's integration-points table and projects/couch.md:201 all now carry the pair#186 split.
+          round: 11
+        - id: BR-31
+          disposition: addressed
+          note: atlas/couch.md:438-455 and README.md:387-397 both document the chord, the scope deviation and the FocusPanel ending; readme_test.go:58-77 scopes the guard and fatals on a missing marker.
+          round: 11
+        - id: BR-32
+          disposition: addressed
+          note: the per-render Operations() rebuild is gone with declaredRowActions; menu.go no longer calls couchcore.RowActions() at all.
+          round: 11
+        - id: BR-33
+          disposition: addressed
+          note: console.go:639-644 sets a status notice on the nil-handler branch, so a gap is observable at runtime and not only at build time.
+          round: 11
+      findings:
+        - id: BR-34
+          severity: Important
+          title: onRelaunchHotkey reads the selection off CurrentFrame(), so Alt+n from the switcher refuses whenever the operator has drilled into a frame
+          detail: |-
+            console.go:1379 takes c.menu.CurrentFrame().SelectedAddress, but SelectedAddress is
+            populated only on the ROOT frame — the actions frame is built with Thread set and
+            SelectedAddress zero (menu.go:457-459), as are confirmation and text frames. So from
+            any non-root frame the target is the zero address and the operator gets
+            "relaunch: no thread selected" on the status row while the row is highlighted and its
+            action list is open. Verified in a scratch worktree: from the root frame the panel
+            branch opens the relaunch confirmation; after one Tab the same call changes nothing.
+            Reachable on an ordinary path — Alt+n pressed a second time on the confirmation it
+            just opened hits it too. 3rd in this family, so the deliverable is the rule, not the
+            line: every Done-when bullet still claimed must cite the test that pins it or the
+            Revisions line that moved it. Eight bullets are still claimed here; seven cite a test,
+            and the one that does not is the one that is broken. Fix: read the root selection
+            (c.menu.Frames[0].SelectedAddress, length-guarded), which is what reduceParkHotkey
+            already collapses to. ARCH-PURPOSE.
+          family: done-when-untested
+          round: 11
+        - id: BR-35
+          severity: Important
+          title: this plan's Core concepts table is enforced by no contract test, and two of its rows name symbols that exist nowhere
+          detail: |-
+            TestCoreConceptsContract exists to turn a drifting architecture table into an
+            executable contract, but it reads conceptPlans (core_concepts_contract_test.go:206-214),
+            a literal list of two filenames; couchcore/plan_contract_test.go pins 000149 and 000151
+            the same way. 000182-relaunch-an-actor-plan.md is in neither, so its table is prose.
+            Live: the M2 table declares paneState (console.go, "new") and RenderHoldingPane
+            (cmd/internal/couchtty/holding.go, "new"); grep -rn 'paneState|RenderHoldingPane' cmd/
+            returns nothing and holding.go does not exist. The Revisions entry disclaims them in
+            prose, which is why this is Important and not Critical. 10th in this family, so the
+            rule: a guard whose input is a hand-maintained list is a guard the next addition can
+            skip. The enumeration is "every plan under workshop/plans/ carrying a Core concepts
+            table", discovered by scanning the directory, with the existing planned-status skip
+            carrying rows whose work has moved to pair#186. ARCH-DRY.
+          family: declared-source-hand-maintained-consumers
+          round: 11
+      blocked: true
 ---
 
 # Gate ledger — pair#182 (boundary-review)
@@ -1292,6 +1380,53 @@ later rounds disposed of them. Generated — edit the gate, not this file.
   console.go:636-638 drops the hit silently on the nil branch, so a gap is invisible at runtime even though the test now catches it at build time. A
   status notice there would make the missing case observable to an operator.
 
+## Round 11 — 2026-09-04T17:39:21-07:00 (claude) — BLOCKED
+
+### Disposed
+
+- BR-1 — not-addressed — plan lines 32-37 untouched; measured 15s CompletionTimeout (couch.go:119) + 5s resumeRegistrationTimeout (couch.go:107), child death inside the 15s (park.go:552).
+- BR-6 — not-addressed — relaunch_test.go:76 still has five refusal cases; no agent-unsupported or profile-missing case reaches Relaunch.
+- BR-7 — not-addressed — plan lines 159 and 352 still unticked for landed work (e7c6c6e8, b7ec5e64); the new Revisions note names only Task 8's boxes.
+- BR-9 — not-addressed — manifest.go:524 still places relaunch.go between pathops.go and procops.go; threadreason.go:503 is still the second offender.
+- BR-26 — not-addressed — console.go:1379 still has no test, and the untested branch turns out to be wrong — raised as a new Important finding.
+- BR-28 — addressed — intercepts() is now k.hit() != HitNone (keys.go:72); revert-verified — deleting the seqRelaunch arm of hit() reds five chord tests.
+- BR-29 — addressed — declaredRowActions and RowActions() deleted; the sweep reads Operation.RowAction directly. Mutation-verified — adding "bogus" to the live row reds both directions.
+- BR-30 — addressed — Done-when bullets 2/ctrl+backspace/child-exited, the plan's integration-points table and projects/couch.md:201 all now carry the pair#186 split.
+- BR-31 — addressed — atlas/couch.md:438-455 and README.md:387-397 both document the chord, the scope deviation and the FocusPanel ending; readme_test.go:58-77 scopes the guard and fatals on a missing marker.
+- BR-32 — addressed — the per-render Operations() rebuild is gone with declaredRowActions; menu.go no longer calls couchcore.RowActions() at all.
+- BR-33 — addressed — console.go:639-644 sets a status notice on the nil-handler branch, so a gap is observable at runtime and not only at build time.
+
+### Raised
+
+- **BR-34** [Important] `done-when-untested` onRelaunchHotkey reads the selection off CurrentFrame(), so Alt+n from the switcher refuses whenever the operator has drilled into a frame
+  console.go:1379 takes c.menu.CurrentFrame().SelectedAddress, but SelectedAddress is
+  populated only on the ROOT frame — the actions frame is built with Thread set and
+  SelectedAddress zero (menu.go:457-459), as are confirmation and text frames. So from
+  any non-root frame the target is the zero address and the operator gets
+  "relaunch: no thread selected" on the status row while the row is highlighted and its
+  action list is open. Verified in a scratch worktree: from the root frame the panel
+  branch opens the relaunch confirmation; after one Tab the same call changes nothing.
+  Reachable on an ordinary path — Alt+n pressed a second time on the confirmation it
+  just opened hits it too. 3rd in this family, so the deliverable is the rule, not the
+  line: every Done-when bullet still claimed must cite the test that pins it or the
+  Revisions line that moved it. Eight bullets are still claimed here; seven cite a test,
+  and the one that does not is the one that is broken. Fix: read the root selection
+  (c.menu.Frames[0].SelectedAddress, length-guarded), which is what reduceParkHotkey
+  already collapses to. ARCH-PURPOSE.
+- **BR-35** [Important] `declared-source-hand-maintained-consumers` this plan's Core concepts table is enforced by no contract test, and two of its rows name symbols that exist nowhere
+  TestCoreConceptsContract exists to turn a drifting architecture table into an
+  executable contract, but it reads conceptPlans (core_concepts_contract_test.go:206-214),
+  a literal list of two filenames; couchcore/plan_contract_test.go pins 000149 and 000151
+  the same way. 000182-relaunch-an-actor-plan.md is in neither, so its table is prose.
+  Live: the M2 table declares paneState (console.go, "new") and RenderHoldingPane
+  (cmd/internal/couchtty/holding.go, "new"); grep -rn 'paneState|RenderHoldingPane' cmd/
+  returns nothing and holding.go does not exist. The Revisions entry disclaims them in
+  prose, which is why this is Important and not Critical. 10th in this family, so the
+  rule: a guard whose input is a hand-maintained list is a guard the next addition can
+  skip. The enumeration is "every plan under workshop/plans/ carrying a Core concepts
+  table", discovered by scanning the directory, with the existing planned-status skip
+  carrying rows whose work has moved to pair#186. ARCH-DRY.
+
 ## Open findings
 
 - **BR-1** [Minor] `operating-envelope` Two of the envelope's three durations name budgets that do not exist as constants
@@ -1299,9 +1434,5 @@ later rounds disposed of them. Generated — edit the gate, not this file.
 - **BR-7** [Minor] `plan-record-lags-code` Task 1 Step 5 is unticked though committed, and the issue's stale-estimate warning contradicts the re-derived Estimate block
 - **BR-9** [Minor] `manifest-ordering` relaunch.go inserted out of alphabetical order in NonArtifactSources
 - **BR-26** [Minor] `done-when-untested` onRelaunchHotkey's panel branch is production code with no test, and the Done-when bullet it serves is unpinned
-- **BR-28** [Important] `declared-source-hand-maintained-consumers` intercepts() and hit() are still two hand-maintained switches over one enum, and the new guard skips whatever intercepts() forgets
-- **BR-29** [Important] `guard-unfalsifiable-by-construction` menuActionItems filters through declaredRowActions, so the sweep's offered-implies-declared direction can never fail and its failure is now a silent UI drop
-- **BR-30** [Important] `plan-record-lags-code` the pair#186 split is still unpropagated into four artifacts, including the two the fix edited
-- **BR-31** [Important] `new-surface-undocumented` the Alt+n interception reached neither atlas/couch.md's chord section nor README's couch section, and the README guard could not notice
-- **BR-32** [Minor] `operating-envelope` menuActionItems rebuilds the whole Operations() table on every action-menu render
-- **BR-33** [Minor] `declared-source-hand-maintained-consumers` processInput still consumes the chord bytes when a hit has no handler
+- **BR-34** [Important] `done-when-untested` onRelaunchHotkey reads the selection off CurrentFrame(), so Alt+n from the switcher refuses whenever the operator has drilled into a frame
+- **BR-35** [Important] `declared-source-hand-maintained-consumers` this plan's Core concepts table is enforced by no contract test, and two of its rows name symbols that exist nowhere

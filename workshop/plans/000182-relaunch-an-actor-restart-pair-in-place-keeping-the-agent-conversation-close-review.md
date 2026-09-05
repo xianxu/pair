@@ -392,3 +392,173 @@ findings:
       console.go:636-638 drops the hit silently on the nil branch, so a gap is invisible at runtime even though the test now catches it at build time. A
       status notice there would make the missing case observable to an operator.
 ```
+
+---
+
+## Re-review — 2026-09-04T17:39:21-07:00 (FIX-THEN-SHIP)
+
+| field | value |
+|-------|-------|
+| issue | 182 — Relaunch an actor: restart Pair in place, keeping the agent conversation |
+| repo | pair |
+| issue file | workshop/issues/000182-relaunch-an-actor-restart-pair-in-place-keeping-the-agent-conversation.md |
+| boundary | whole-issue close |
+| milestone | — |
+| window | 88fe1de011b4c6be58e5a8b20eed89dfa4000f5d..f1201093d867b891db3c26c936b09eb1d6367f10 |
+| command | sdlc close --issue 182 |
+| reviewer | claude |
+| timestamp | 2026-09-04T17:39:21-07:00 |
+| verdict | FIX-THEN-SHIP |
+
+## Review
+
+```verdict
+verdict: FIX-THEN-SHIP
+confidence: high
+```
+
+Round 10's five findings are all genuinely closed, and I verified the two load-bearing ones by mutation rather than by commit message: adding `"bogus"` to the live row's offer now reds `TestRowActionDeclarationsAndTheMenuAgreeInBothDirections` (BR-29's guard can fail again), and deleting `case seqRelaunch` from `hit()` reds five chord tests through `intercepts()` (BR-28's two switches are now one). The relaunch operation itself is in good shape: the check order is the design, the four outcomes are distinct, adoption is a property of the result, and the docs gate is genuinely satisfied — `atlas/couch.md:438-455` and `README.md:387-397` both carry the chord, the scope deviation and the deliberate `FocusPanel` ending. What keeps this off SHIP is one live behaviour defect the still-open BR-26 was pointing at: `onRelaunchHotkey`'s panel branch reads the selection off `CurrentFrame()`, which is zero on every frame except the root, so `Alt+n` from the switcher's action list or from a confirmation refuses with "relaunch: no thread selected" while a row is plainly highlighted — the Done-when bullet that has never had a test. Plus one bookkeeping gap: this plan's Core-concepts table is enforced by no contract test, and two of its rows name symbols that exist nowhere.
+
+## 1. Strengths
+
+- **`relaunch.go:99-124`** — the refusal order reads exactly as the Spec promises, and the two failure states carry their *own* recovery text (`:128-134` names park's retry/recover/abandon; `:139-142` names Enter). `refuseResume(ResumeNotRunning, …)` at `:100` is the fix for a code that used to contradict the state it described, and it is still correct.
+- **`console.go:1470-1473` + `keys.go:70-72`** — the chord path now has exactly one mapping. `hitHandlers()` is data a test walks, `intercepts()` derives from `hit()`, and `TestEveryInterceptedChordHasAHandler` walks `knownSequences` (a production table) rather than a list a new chord could skip. Revert-verified.
+- **`menu.go:1075-1080` + `menu_action_sweep_test.go:87-107`** — deleting `declaredRowActions` instead of keeping a filter that made the guard unfalsifiable is the right call, and the comment records *why* the tempting fix was wrong. Mutation-verified red.
+- **`couchcmd/readme_test.go:58-77`** — scoping the README guard to the couch section and making a missing marker `t.Fatalf` rather than a skip is the correct shape for a guard that silently stopped checking.
+- **`menu.go:129-144` `setBookkeepingNotice`** — a refresh's frame-validity message no longer erases an operation's own result. That is the one outcome (`park-ok-resume-failed`) whose entire value is the sentence it would have overwritten.
+- **`atlas/couch.md:785-800`** — the `COUCH_INPUT_TRACE` entry puts the disclosure (the tap is upstream of the Interceptor; the file holds prompts and pasted secrets) *before* the how-to. ARCH-SECURE done substantively.
+
+## 2. Critical findings
+
+None.
+
+## 3. Important findings
+
+**`cmd/internal/couchtty/console.go:1379` — the panel branch reads the selection off the wrong frame, so `Alt+n` in the switcher refuses whenever the operator has drilled in.**
+`target = c.menu.CurrentFrame().SelectedAddress`. `SelectedAddress` is populated only on the root frame — `reduceRootKey`'s Tab handler builds the actions frame with `Thread:` set and `SelectedAddress` zero (`menu.go:457-459`), and confirmation/text frames likewise. So from any non-root frame the target is the zero address and the operator gets `relaunch: no thread selected` on the status row while the row is highlighted and its action list is open on screen. Confirmed in a scratch worktree: from the root frame `Alt+n` opens the relaunch confirmation; after one `Tab` the same call produces no frame change at all. Fix sketch: take the root selection — `c.menu.Frames[0].SelectedAddress` with a length guard — which is also what `reduceParkHotkey` collapses to (`menu.go:547-548`).
+
+**This is the 3rd finding in family `done-when-untested`.** So the deliverable is the rule, not this line: *every `## Done when` bullet the issue still claims must cite the test that pins it, or the `## Revisions` line that moved it.* Measured prevalence on this issue: eight bullets still claimed here; seven cite a test (`relaunch_test.go`, `console_relaunch_chord_test.go`, `menu_action_sweep_test.go`), and the one that does not — "Alt+n on the switcher relaunches the highlighted row" — is the one that turns out to be broken. Write the enumeration (a bullet-to-test map, checked once), and the panel test it forces will red on the line above.
+
+**`workshop/plans/000182-relaunch-an-actor-plan.md:126-133, 411-431` — this plan's Core-concepts table is enforced by nothing, and two of its rows name symbols that exist nowhere in the tree.**
+`TestCoreConceptsContract` exists precisely to turn "a repeatedly drifting architecture table" into an executable contract, but it reads `conceptPlans` (`core_concepts_contract_test.go:206-214`), a literal list of two plan filenames; `couchcore/plan_contract_test.go` pins `000149-…` and `000151-…` the same way. `000182-…-plan.md` was never added to either, so its table is prose. Live consequence: the M2 table still declares `paneState` (`console.go`, "new") and `RenderHoldingPane` (`cmd/internal/couchtty/holding.go`, "new") — `grep -rn 'paneState\|RenderHoldingPane' cmd/` returns nothing and `holding.go` does not exist. The Revisions entry disclaims them in prose, which is why this is Important rather than Critical, but a row marked `new` that the guard cannot see is the drift the guard was built for.
+
+**This is the 10th finding in family `declared-source-hand-maintained-consumers`.** The rule is by now well established and is exactly this: *a guard whose input is a hand-maintained list is a guard the next addition can skip.* The enumeration here is "every plan under `workshop/plans/` that contains a Core concepts table" — discovered by scanning the directory rather than by naming files, with the existing `planned`-status escape hatch (`core_concepts_contract_test.go:271-277`) carrying rows whose work has moved out. That single change makes both phantom rows fail loudly instead of needing a reader to notice the Revisions paragraph.
+
+## 4. Minor findings
+
+Carried, unchanged this round — see the dispositions block:
+
+- BR-1 — the plan's operating envelope still says ~30s over budgets that do not exist as named constants (measured: 15s `CompletionTimeout` + 5s `resumeRegistrationTimeout` ≈ 20s).
+- BR-6 — `relaunch_test.go:76` still has five refusal cases; the agent-unsupported / profile-missing precedence is pinned only at `CheckResumePreconditions`, never through `Relaunch`.
+- BR-7 — plan lines 159 and 352 unticked for work that landed (`e7c6c6e8`, `b7ec5e64`); `sdlc close`'s plan-unchecked guard will refuse on them.
+- BR-9 — `artifactpath/manifest.go:524` still places `relaunch.go` between `pathops.go` and `procops.go`; `threadreason.go:503` is the second offender.
+- BR-26 — the panel branch still has no test, and it now has a defect (above).
+- `AllInterceptorHits()` (`keys.go:97-100`) is a third hand-maintained enumeration, but it is not load-bearing — the sweep's other direction walks `knownSequences`, so a stale entry can only mask an unreachable hit. Noted, not raised.
+
+## 5. Test coverage notes
+
+Suite state: `./cmd/internal/couchcore`, `./cmd/internal/couchtty` and `./cmd/internal/couchcmd` pass for every relaunch-, chord- and README-related selector. The full `go test ./cmd/...` shows failures confined to pty/`fork-exec` conformance tests (`TestPtyRunner*`, `TestChild*`, `TestNotificationPTYConformance`, `TestOSHostConformsToTheFake`, `/bin/ps` enumeration) — the known environment limitation in this harness, not diff-related.
+
+Two mutation checks passed: BR-29's guard (adding an undeclared action to the live row reds both sweep directions) and BR-28's derivation (removing `seqRelaunch` from `hit()` reds five chord tests). The gap is `console.go:1372-1393`: the actor branch is driven end-to-end from raw bytes, the panel branch is driven by nothing, and that is where the defect is.
+
+## 6. Architectural notes
+
+- **ARCH-DRY — flag.** One flag, and it is the plan-contract list above; the code-side duplication this issue was about (`intercepts()`/`hit()`, `declaredRowActions`, the two exit lists, the three confirmation lists) is genuinely collapsed now.
+- **ARCH-PURE — pass.** `CheckResumePreconditions` is a total pure predicate over `(record, binding, pathExists)`; `precondition_test.go` runs it with no exec, net or fs. The IO — `workingPathExists`, `resumeEvidence`, `PairLifecycle.Park`, `ResumeContext` — sits on `*Couch` behind injected seams, and `Relaunch` is thin composition over them.
+- **ARCH-PURPOSE — flag.** The issue's headline claim (an old binary yields the *current* one) is explicitly not measured here; the split to `pair#186` is recorded in both `## Revisions` and the Done-when bullet, so this is a declared deferral rather than a silent under-delivery. The residual is NEW-1: a bullet still claimed here that the code does not deliver on one of its two paths.
+- **ARCH-MOCK — pass.** Both halves run through the same seams production uses — `PairLifecycle` against `pairlifecycletest.Fake` with `TriggerQuitHook` modelling Pair's real quit/cleanup/child-death sequence, `Artifacts` against the collision-checker fake, `Path` against `FakePathOps`. `conformance_live_test.go` is the live counterpart. No relaunch test reaches a real binary.
+- **ARCH-CONSTRAINTS — flag (Minor, BR-1).** The mechanism is right: relaunch runs on the bounded capacity-one operation queue off the terminal event loop, with a progress notice and spinner for the gap (`menu.go:1538-1539`). Only the plan's stated numbers are wrong, and they over-budget, so nothing downstream changes. `menuActionItems` no longer rebuilds `Operations()` per render.
+- **ARCH-SECURE — pass.** `COUCH_INPUT_TRACE` is the only new surface: opt-in, `0600`, path injected from the composition root (`couchcmd/run.go:373`) rather than read in the constructor, open failure surfaced at control priority instead of degrading to a silent empty file, closed in `teardown`, read under `c.mu` in `pumpStdin`. Relaunch parses no new persisted format and mints no credential.
+
+## 7. Plan revision recommendations
+
+- **`workshop/plans/000182-relaunch-an-actor-plan.md` — one `## Revisions` entry covering the enforcement gap**, not another prose disclaimer: either mark the `paneState` / `RenderHoldingPane` rows with a `planned` status so the contract's existing skip covers them, or move both rows out of this plan into `pair#186`'s, and add this plan to whatever list `TestCoreConceptsContract` reads (ideally replacing that list with directory discovery, per NEW-2).
+- **Same file, Tasks 1/7** — tick line 159 (`Step 5: Commit`, landed in `e7c6c6e8`) and line 352 (`milestone-close --issue 182 --milestone M1`, landed in `b7ec5e64`). The existing Revisions note declares Task 8's boxes "stale" but says nothing about these two, and `sdlc close`'s plan-unchecked guard reads boxes, not prose.
+- **Same file, "Operating envelope"** — restate as ~20s with the two constants cited by file:line (`couch.go:119` `CompletionTimeout: 15s`; `couch.go:107` `resumeRegistrationTimeout: 5s`, with child death awaited *inside* the 15s at `park.go:552`), and say explicitly that the figure is derived rather than declared.
+
+```findings
+dispose:
+  - id: BR-1
+    disposition: not-addressed
+    note: |
+      plan lines 32-37 untouched; measured 15s CompletionTimeout (couch.go:119) + 5s resumeRegistrationTimeout (couch.go:107), child death inside the 15s (park.go:552).
+  - id: BR-6
+    disposition: not-addressed
+    note: |
+      relaunch_test.go:76 still has five refusal cases; no agent-unsupported or profile-missing case reaches Relaunch.
+  - id: BR-7
+    disposition: not-addressed
+    note: |
+      plan lines 159 and 352 still unticked for landed work (e7c6c6e8, b7ec5e64); the new Revisions note names only Task 8's boxes.
+  - id: BR-9
+    disposition: not-addressed
+    note: |
+      manifest.go:524 still places relaunch.go between pathops.go and procops.go; threadreason.go:503 is still the second offender.
+  - id: BR-26
+    disposition: not-addressed
+    note: |
+      console.go:1379 still has no test, and the untested branch turns out to be wrong — raised as a new Important finding.
+  - id: BR-28
+    disposition: addressed
+    note: |
+      intercepts() is now k.hit() != HitNone (keys.go:72); revert-verified — deleting the seqRelaunch arm of hit() reds five chord tests.
+  - id: BR-29
+    disposition: addressed
+    note: |
+      declaredRowActions and RowActions() deleted; the sweep reads Operation.RowAction directly. Mutation-verified — adding "bogus" to the live row reds both directions.
+  - id: BR-30
+    disposition: addressed
+    note: |
+      Done-when bullets 2/ctrl+backspace/child-exited, the plan's integration-points table and projects/couch.md:201 all now carry the pair#186 split.
+  - id: BR-31
+    disposition: addressed
+    note: |
+      atlas/couch.md:438-455 and README.md:387-397 both document the chord, the scope deviation and the FocusPanel ending; readme_test.go:58-77 scopes the guard and fatals on a missing marker.
+  - id: BR-32
+    disposition: addressed
+    note: |
+      the per-render Operations() rebuild is gone with declaredRowActions; menu.go no longer calls couchcore.RowActions() at all.
+  - id: BR-33
+    disposition: addressed
+    note: |
+      console.go:639-644 sets a status notice on the nil-handler branch, so a gap is observable at runtime and not only at build time.
+findings:
+  - id: new
+    severity: Important
+    family: done-when-untested
+    title: |
+      onRelaunchHotkey reads the selection off CurrentFrame(), so Alt+n from the switcher refuses whenever the operator has drilled into a frame
+    detail: |
+      console.go:1379 takes c.menu.CurrentFrame().SelectedAddress, but SelectedAddress is
+      populated only on the ROOT frame — the actions frame is built with Thread set and
+      SelectedAddress zero (menu.go:457-459), as are confirmation and text frames. So from
+      any non-root frame the target is the zero address and the operator gets
+      "relaunch: no thread selected" on the status row while the row is highlighted and its
+      action list is open. Verified in a scratch worktree: from the root frame the panel
+      branch opens the relaunch confirmation; after one Tab the same call changes nothing.
+      Reachable on an ordinary path — Alt+n pressed a second time on the confirmation it
+      just opened hits it too. 3rd in this family, so the deliverable is the rule, not the
+      line: every Done-when bullet still claimed must cite the test that pins it or the
+      Revisions line that moved it. Eight bullets are still claimed here; seven cite a test,
+      and the one that does not is the one that is broken. Fix: read the root selection
+      (c.menu.Frames[0].SelectedAddress, length-guarded), which is what reduceParkHotkey
+      already collapses to. ARCH-PURPOSE.
+  - id: new
+    severity: Important
+    family: declared-source-hand-maintained-consumers
+    title: |
+      this plan's Core concepts table is enforced by no contract test, and two of its rows name symbols that exist nowhere
+    detail: |
+      TestCoreConceptsContract exists to turn a drifting architecture table into an
+      executable contract, but it reads conceptPlans (core_concepts_contract_test.go:206-214),
+      a literal list of two filenames; couchcore/plan_contract_test.go pins 000149 and 000151
+      the same way. 000182-relaunch-an-actor-plan.md is in neither, so its table is prose.
+      Live: the M2 table declares paneState (console.go, "new") and RenderHoldingPane
+      (cmd/internal/couchtty/holding.go, "new"); grep -rn 'paneState|RenderHoldingPane' cmd/
+      returns nothing and holding.go does not exist. The Revisions entry disclaims them in
+      prose, which is why this is Important and not Critical. 10th in this family, so the
+      rule: a guard whose input is a hand-maintained list is a guard the next addition can
+      skip. The enumeration is "every plan under workshop/plans/ carrying a Core concepts
+      table", discovered by scanning the directory, with the existing planned-status skip
+      carrying rows whose work has moved to pair#186. ARCH-DRY.
+```

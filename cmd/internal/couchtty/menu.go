@@ -1555,6 +1555,29 @@ func appendMenuFrame(state *MenuState, frame MenuFrame) bool {
 	return true
 }
 
+// SelectedThreadAddress is the thread the operator is pointing at, from ANY
+// depth in the hierarchy.
+//
+// Only the ROOT frame carries SelectedAddress; a frame the operator has drilled
+// into (actions, confirmation, text) carries Thread instead. Reading
+// CurrentFrame().SelectedAddress therefore answers correctly only at the root
+// and returns the zero address everywhere else -- so Alt+n in the switcher
+// refused with "no thread selected" whenever the operator had opened a row's
+// actions first, which is the ordinary way to be looking at a thread.
+//
+// One method rather than each chord handler picking a frame: "which thread is
+// the operator pointing at" has one answer, and a second copy of it would be a
+// second chance to pick the wrong frame.
+func (s MenuState) SelectedThreadAddress() couchcore.ThreadAddress {
+	if len(s.Frames) == 0 {
+		return couchcore.ThreadAddress{}
+	}
+	if frame := s.CurrentFrame(); menuFrameBindsThread(frame) && frame.Thread != (couchcore.ThreadAddress{}) {
+		return frame.Thread
+	}
+	return s.Frames[0].SelectedAddress
+}
+
 func selectedMenuThread(state MenuState) (couchcore.ActionableThreadSummary, bool) {
 	return findMenuThread(state.Inventory, state.CurrentFrame().SelectedAddress)
 }

@@ -1376,7 +1376,7 @@ func (c *Console) onRelaunchHotkey() {
 	target := couchcore.ThreadAddress{}
 	switch {
 	case isPanel:
-		target = c.menu.CurrentFrame().SelectedAddress
+		target = c.menu.SelectedThreadAddress()
 	case p != nil:
 		target = p.thread
 		// An actor relaunch shows its progress on the panel, as park does, until

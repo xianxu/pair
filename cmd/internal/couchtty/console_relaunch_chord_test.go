@@ -339,3 +339,45 @@ func TestEveryInterceptedChordHasAHandler(t *testing.T) {
 		}
 	}
 }
+
+// Alt+n in the switcher must find the thread the operator is LOOKING AT, which
+// is not always the root list's selection: opening a row's actions (Tab) pushes
+// a frame that carries Thread rather than SelectedAddress, so reading
+// CurrentFrame().SelectedAddress refused with "no thread selected" for the
+// ordinary way of being pointed at a thread.
+func TestSwitcherRelaunchFindsTheThreadFromAnyDepth(t *testing.T) {
+	address := menuAddress("brain")
+	inventory := []couchcore.ActionableThreadSummary{{
+		Address: address, WorkingPath: "/w/brain", Name: "brain", State: couchcore.ThreadLive,
+	}}
+	for _, depth := range []struct {
+		name string
+		open func(MenuState) MenuState
+	}{
+		{"at the root list", func(s MenuState) MenuState { return s }},
+		{"drilled into the row's actions", func(s MenuState) MenuState {
+			next, _ := reduceRootKey(s, PanelKey{Kind: KeyTab})
+			return next
+		}},
+	} {
+		t.Run(depth.name, func(t *testing.T) {
+			con := New(hostty.NewFakeHost(ptychild.Size{Rows: 24, Cols: 80}), nil)
+			t.Cleanup(con.Stop)
+			con.SetOperationDispatcher(func(couchcore.OperationCall) (any, error) { return nil, nil })
+			con.mu.Lock()
+			con.focus = FocusPanel()
+			con.menu = depth.open(NewMenuState(inventory, address))
+			con.menuReady = true
+			con.mu.Unlock()
+
+			con.onRelaunchHotkey()
+
+			snapshot := con.menuSnapshot()
+			if frame := snapshot.CurrentFrame(); frame.Kind != MenuFrameConfirmation ||
+				frame.Action != "relaunch" || frame.Thread != address {
+				t.Fatalf("alt+n %s did not open a relaunch confirmation: frame = %v/%q thread %+v, notice %q",
+					depth.name, frame.Kind, frame.Action, frame.Thread, snapshot.Notice.Text)
+			}
+		})
+	}
+}

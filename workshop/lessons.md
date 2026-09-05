@@ -3354,3 +3354,10 @@ that a key token appears cannot detect a contradictory behavioral sentence
   guard passed while the docs told the operator something false. Scope a guard
   to the region that must change, and make it fail loudly if it can no longer
   find that region.
+- "Which thing is the operator pointing at" has one answer, and reading it off
+  the top frame gets it wrong from any depth. couch's root frame carries
+  `SelectedAddress`; a drilled-into frame carries `Thread`. `onRelaunchHotkey`
+  read `CurrentFrame().SelectedAddress`, so Alt+n in the switcher refused with
+  "no thread selected" whenever the operator had opened a row's actions first —
+  the ordinary way of being pointed at a thread. Give the question one method;
+  a second copy is a second chance to pick the wrong frame.
