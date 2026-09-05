@@ -128,6 +128,19 @@ func (c ScopedThreadArtifactCollisionChecker) Quiesce(address ThreadAddress) err
 	return launcher.QuiesceThreadSession(c.GlobalDataDir, address.RepoScope, string(address.Tag), c.Sessions)
 }
 
+// lookupSessionName finds the zellij session name bound to one address,
+// scanning the index backwards so the newest binding wins. One implementation
+// for PairSession and DetachedSessions, which asked the same question twice.
+func lookupSessionName(index launcher.SessionNameIndex, address ThreadAddress) string {
+	for i := len(index.Entries) - 1; i >= 0; i-- {
+		entry := index.Entries[i]
+		if entry.ScopeKey == address.RepoScope && entry.Tag == string(address.Tag) {
+			return entry.SessionName
+		}
+	}
+	return ""
+}
+
 func (c ScopedThreadArtifactCollisionChecker) PairSession(address ThreadAddress) (PairSessionBinding, error) {
 	if err := validateThreadAddress(address); err != nil {
 		return PairSessionBinding{}, err
@@ -143,14 +156,7 @@ func (c ScopedThreadArtifactCollisionChecker) PairSession(address ThreadAddress)
 	if err != nil {
 		return PairSessionBinding{}, fmt.Errorf("read exact Pair session index: %w", err)
 	}
-	name := ""
-	for i := len(index.Entries) - 1; i >= 0; i-- {
-		entry := index.Entries[i]
-		if entry.ScopeKey == address.RepoScope && entry.Tag == string(address.Tag) {
-			name = entry.SessionName
-			break
-		}
-	}
+	name := lookupSessionName(index, address)
 	if name == "" {
 		return PairSessionBinding{}, fmt.Errorf("exact Pair session binding is absent for %+v", address)
 	}
@@ -166,6 +172,102 @@ func (c ScopedThreadArtifactCollisionChecker) PairSession(address ThreadAddress)
 		}
 	}
 	return PairSessionBinding{Name: name, Present: present}, nil
+}
+
+// DetachedSessionResolver observes which of the supplied threads currently have
+// a live zellij session with no client attached.
+//
+// It takes addresses rather than returning the whole set because the
+// session-name index is PER REPO SCOPE (`<dataDir>/repos/<scope>/session-names.jsonl`):
+// a whole-set method would need a `repos/*` enumeration this checker does not
+// have. Taking addresses mirrors PairSession(address) and ResolveEstablished.
+type DetachedSessionResolver interface {
+	DetachedSessions(ctx context.Context, candidates []DetachedCandidate) ([]DetachedSessionObservation, error)
+}
+
+// DetachedCandidate is one address worth asking about, carrying the resume proof
+// its caller already resolved. Passing the proof in rather than patching it onto
+// the answer keeps the observation complete at every layer.
+type DetachedCandidate struct {
+	Address  ThreadAddress
+	Agent    string
+	NativeID string
+}
+
+// DetachedSessions reads each requested scope's session-name index once and
+// takes ONE zellij snapshot for all of them -- the snapshot ignores scope, so a
+// snapshot per scope would be the same query repeated.
+//
+// Cost, stated honestly: the snapshot is two `list-sessions` runs plus one
+// `action list-clients` per non-exited session ON THE HOST. Passing candidates
+// bounds WHETHER the snapshot runs -- a couch with nothing detachable pays
+// nothing -- but it does not bound N once it does. Each query carries
+// SnapshotContext's timeout so a hung zellij cannot wedge the refresh worker.
+//
+// Index reads fail closed per scope: a scope whose index cannot be read
+// contributes no bindings rather than an empty answer that would silently hide
+// its detached threads. A snapshot failure is returned, because that one IS the
+// whole answer.
+func (c ScopedThreadArtifactCollisionChecker) DetachedSessions(ctx context.Context, candidates []DetachedCandidate) ([]DetachedSessionObservation, error) {
+	addresses := make([]ThreadAddress, 0, len(candidates))
+	proof := make(map[ThreadAddress]DetachedCandidate, len(candidates))
+	for _, candidate := range candidates {
+		addresses = append(addresses, candidate.Address)
+		proof[candidate.Address] = candidate
+	}
+	if len(addresses) == 0 {
+		return nil, nil
+	}
+	if err := ctx.Err(); err != nil {
+		return nil, err
+	}
+	byScope := make(map[string][]ThreadAddress, len(addresses))
+	var scopes []string
+	for _, address := range addresses {
+		if err := validateThreadAddress(address); err != nil {
+			return nil, err
+		}
+		if _, seen := byScope[address.RepoScope]; !seen {
+			scopes = append(scopes, address.RepoScope)
+		}
+		byScope[address.RepoScope] = append(byScope[address.RepoScope], address)
+	}
+
+	var bindings []SessionNameBinding
+	for _, scope := range scopes {
+		if err := ctx.Err(); err != nil {
+			return nil, err
+		}
+		scoped := byScope[scope]
+		paths, err := artifactpath.Resolve(artifactpath.Address{
+			DataDir: c.GlobalDataDir, RepoScope: scope, Tag: string(scoped[0].Tag),
+		})
+		if err != nil {
+			return nil, err
+		}
+		index, err := launcher.NewScopedOSRuntime(c.GlobalDataDir, paths.ScopeDir(), "").ReadSessionNameIndex()
+		if err != nil {
+			continue
+		}
+		for _, address := range scoped {
+			name := lookupSessionName(index, address)
+			if name != "" {
+				candidate := proof[address]
+				bindings = append(bindings, SessionNameBinding{
+					Address: address, SessionName: name,
+					Agent: candidate.Agent, NativeID: candidate.NativeID,
+				})
+			}
+		}
+	}
+	if len(bindings) == 0 {
+		return nil, nil
+	}
+	sessions, err := (launcher.ZellijSource{}).SnapshotContext(ctx)
+	if err != nil {
+		return nil, fmt.Errorf("observe zellij sessions: %w", err)
+	}
+	return ProjectDetachedSessions(bindings, sessions), nil
 }
 
 func (c ScopedThreadArtifactCollisionChecker) TriggerQuit(session string, intent launcher.QuitIntent) error {
@@ -202,4 +304,7 @@ func (c ScopedThreadArtifactCollisionChecker) ResolveEstablished(ctx context.Con
 	}).ResolveEstablished(ctx, repoScope, tag, agent)
 }
 
-var _ NativeBindingResolver = ScopedThreadArtifactCollisionChecker{}
+var (
+	_ NativeBindingResolver   = ScopedThreadArtifactCollisionChecker{}
+	_ DetachedSessionResolver = ScopedThreadArtifactCollisionChecker{}
+)

@@ -65,11 +65,6 @@ type Console struct {
 	order  []string
 	active string
 
-	// root is the actor `ctrl-space` goes home to: the FIRST child attached,
-	// which is "whatever session couch launched in" delivered by convention
-	// (Decision 1). Nothing here knows what brain is.
-	root string
-
 	// focus is what the terminal is pointed at. It is not the same as `active`:
 	// the switcher is a focus with no actor behind it.
 	focus Focus
@@ -77,6 +72,10 @@ type Console struct {
 	actionable ActionableThreadProvider
 	menu       MenuState
 	menuReady  bool
+
+	// tracker is where ctrl+backspace goes. Ephemeral by design: `previous` is
+	// a property of this sitting, not of the durable thread store.
+	tracker SwitchTracker
 
 	// menuHeld carries a partial escape sequence across reads.
 	menuHeld []byte
@@ -123,10 +122,16 @@ type Console struct {
 	// the writer singular removes the class rather than the two instances:
 	// there is no longer a way to reach the screen except through the loop that
 	// tracks where the stream is.
-	chunks             chan chunk
-	resized            chan struct{}
-	switching          chan string
-	input              chan []byte
+	chunks    chan chunk
+	resized   chan struct{}
+	switching chan string
+	input     chan []byte
+	// trace is nil unless COUCH_INPUT_TRACE names a file; see inputtrace.go.
+	trace *inputTracer
+	// started reports that Run owns the terminal, so a notice may paint itself.
+	// Its own field rather than something inferred from another: "is it safe to
+	// write to the operator's screen yet" is its own question.
+	started            bool
 	exited             chan childExit
 	operationQueue     *operationQueue
 	refreshRequests    chan struct{}
@@ -178,12 +183,33 @@ func New(host hostty.Host, stdin io.Reader) *Console {
 		lifetime:          lifetime,
 		cancelLifetime:    cancelLifetime,
 		stop:              make(chan struct{}),
-		feed:              NewFeed(8),
+		feed:              NewFeed(8, time.Now, NoticeLifetime),
 	}
 	if s, err := host.Size(); err == nil {
 		c.size = s
 	}
 	return c
+}
+
+// SetInputTrace opens the operator-keystroke probe at path, or turns it off when
+// path is empty. Called by the composition root with the environment's value, so
+// that a constructor never reaches for ambient env and a test never opens a real
+// file it did not ask for.
+//
+// A failed open is REPORTED, at control priority, rather than silently tracing
+// nothing: an empty trace would otherwise read as "no bytes arrived", the exact
+// ambiguity the probe exists to remove.
+func (c *Console) SetInputTrace(path string) error {
+	tracer, err := newInputTracer(path)
+	c.mu.Lock()
+	previous := c.trace
+	c.trace = tracer
+	c.mu.Unlock()
+	_ = previous.Close()
+	if err != nil {
+		c.publishNotice(Notice{Kind: "trace", Control: true, Body: err.Error()})
+	}
+	return err
 }
 
 // SetForget injects registry removal. Production passes Couch.Forget; keeping
@@ -334,8 +360,12 @@ func (c *Console) installObservedThreadActor(ctx context.Context, handleID strin
 	c.order = append(c.order, handleID)
 	if c.active == "" {
 		c.active = handleID
-		c.root = handleID
 		c.focus = FocusActor(handleID)
+		// The first attach lands the operator on an actor WITHOUT going through
+		// switchTo, so the tracker has to be seeded here or the actor they
+		// started in is never recorded -- and the first notification hop would
+		// then pin nothing instead of pinning it.
+		c.tracker.Switch(thread, false)
 	}
 	if !c.menuReady {
 		c.menu = NewMenuState(nil, thread)
@@ -388,14 +418,49 @@ func (c *Console) Switch(id string) {
 //
 // Order is the whole contract: clear, replay the child's own screen, THEN the
 // status row. Painting the row first means the landing paints over it.
-func (c *Console) onSwitch(id string) { c.switchTo(id, false) }
+func (c *Console) onSwitch(id string) { c.switchTo(id, false, arrivalOrdinary) }
 
 // forceSwitch repaints even when the actor is already active -- which is the
 // case when returning from the panel, where the SCREEN changed but the active
 // actor did not.
-func (c *Console) forceSwitch(id string) { c.switchTo(id, true) }
+func (c *Console) forceSwitch(id string) { c.switchTo(id, true, arrivalOrdinary) }
 
-func (c *Console) switchTo(id string, force bool) {
+// arrival says HOW the operator landed on an actor. It is not decoration: the
+// switch rule keys off it (only a notification hop is non-pinning), while the
+// notification-acknowledgement rule deliberately does not (every landing clears
+// the bell). Separating them is what keeps ctrl+backspace home from leaving the
+// actor the operator is sitting in marked as still paging.
+type arrival uint8
+
+const (
+	// arrivalOrdinary is a switch that is not a notification hop: the switcher's
+	// Enter on an unpaged row, a post-start attach, a programmatic Switch.
+	arrivalOrdinary arrival = iota
+	// arrivalNotification is ctrl-space + Return on an actor that HAD a pending
+	// notification. Only this one is non-pinning.
+	arrivalNotification
+	// arrivalPrevious is ctrl+backspace. Never a notification hop even when the
+	// actor happens to be paging, because the operator is going home.
+	arrivalPrevious
+)
+
+func (a arrival) viaNotification() bool { return a == arrivalNotification }
+
+// switchTo is the funnel every landing on an actor goes through, and it owes
+// two rules on each one:
+//
+//  1. record the landing in the switch tracker, so ctrl+backspace knows where
+//     home is; and
+//  2. acknowledge the landed actor's pending notifications, because the Spec's
+//     rule is that an actor does not notify while the operator is attached to
+//     it.
+//
+// Rule 2 used to live in the ctrl-space home-landing path, which #170 deleted.
+// Leaving it there would have meant ctrl+backspace home to A lands on an A that
+// is still lit, NewestActor() then names the actor the operator is SITTING IN,
+// and the next ctrl-space opens the switcher on it instead of on whoever paged
+// -- the headline behaviour, inverted.
+func (c *Console) switchTo(id string, force bool, how arrival) {
 	c.mu.Lock()
 	p, known := c.panes[id]
 	already := c.active == id && !force
@@ -404,6 +469,13 @@ func (c *Console) switchTo(id string, force bool) {
 		c.focus = FocusActor(id)
 		c.menu.ActiveAddress = p.thread
 		p.rowDirty = false
+		// Unconditional: SwitchTracker itself ignores a landing on the actor
+		// already current, so the rule stays in one place rather than being
+		// half-enforced by whichever caller remembered.
+		c.tracker.Switch(p.thread, how.viaNotification())
+		// Whatever brought the operator here, they are here now.
+		c.attention.Acknowledge(c.attention.Capture(p.thread))
+		c.syncAttentionLocked()
 	}
 	c.mu.Unlock()
 	if !known || already {
@@ -441,6 +513,9 @@ func (c *Console) Run() int {
 		return 1
 	}
 	defer c.teardown(restore)
+	c.mu.Lock()
+	c.started = true
+	c.mu.Unlock()
 
 	c.applyLayout()
 	c.paintNow()
@@ -458,6 +533,9 @@ func (c *Console) Run() int {
 	var inputEscapeTimer, panelEscapeTimer *time.Timer
 	var inputEscapeC, panelEscapeC <-chan time.Time
 	var spinnerTimer *time.Timer
+	var noticeTimer *time.Timer
+	var noticeC <-chan time.Time
+	var noticeExpiry time.Time
 	var spinnerC <-chan time.Time
 	var spinnerOwner MenuProgressOwner
 	stopTimer := func(timer *time.Timer) {
@@ -550,14 +628,59 @@ func (c *Console) Run() int {
 			if hit == HitNone {
 				return
 			}
-			if hit == HitPark {
-				c.onParkHotkey()
+			// One table, walked by a test against AllInterceptorHits, rather
+			// than a switch whose exhaustiveness is a promise. A `default:
+			// c.onHotkey()` would turn an unhandled hit into "open the
+			// switcher"; a switch with no default drops it silently, which is
+			// what alt+n did on its first ship. Neither can report the case it
+			// is missing -- the table can.
+			if handle := c.hitHandlers()[hit]; handle != nil {
+				handle()
 			} else {
-				c.onHotkey()
+				// The bytes are already consumed, so silence here is a chord
+				// that does nothing with no way to tell. The test catches this
+				// at build time; this makes it observable to an operator in a
+				// build where it did not.
+				c.setNotice(fmt.Sprintf("chord %d is intercepted but has no handler", hit))
 			}
 			raw = rest
 		}
 	}
+
+	// A transient notice stops being true on its own, and nothing else is
+	// guaranteed to happen when it does -- an idle console would keep painting a
+	// stale sentence forever. syncNoticeExpiry arms one repaint for the moment
+	// the row changes, the same shape syncSpinner uses for its animation.
+	syncNoticeExpiry := func() {
+		c.mu.Lock()
+		row := c.feed.Row()
+		c.mu.Unlock()
+		if row.Expires.IsZero() {
+			stopTimer(noticeTimer)
+			noticeC = nil
+			noticeExpiry = time.Time{}
+			return
+		}
+		// Same deadline, same timer: an OPTIMISATION, not a correctness rule.
+		// Re-arming every iteration would still fire at the right moment, since
+		// Standing shrinks as the deadline approaches -- it would only churn the
+		// timer. Said plainly because the first version of this comment claimed
+		// the notice "would never actually go" without it, which is false, and a
+		// false rationale is worse than none: it invites the next reader to
+		// preserve a line for a reason that was never true.
+		if noticeC != nil && row.Expires.Equal(noticeExpiry) {
+			return
+		}
+		stopTimer(noticeTimer)
+		noticeExpiry = row.Expires
+		if noticeTimer == nil {
+			noticeTimer = time.NewTimer(row.Standing)
+		} else {
+			noticeTimer.Reset(row.Standing)
+		}
+		noticeC = noticeTimer.C
+	}
+	syncNoticeExpiry()
 
 	for {
 		select {
@@ -587,6 +710,16 @@ func (c *Console) Run() int {
 			panelEscapeC = nil
 			c.menuHeld = nil
 			c.onMenuKey(PanelKey{Kind: KeyEscape})
+		case <-noticeC:
+			// The row's own deadline: repaint so the expired sentence goes.
+			// Clearing the remembered deadline too, so the dedup above compares
+			// against nothing stale. Correct without it today -- an expired row
+			// reports a zero Expires -- but only by a coincidence two files
+			// apart, and an invariant that holds by coincidence is one edit from
+			// not holding.
+			noticeC = nil
+			noticeExpiry = time.Time{}
+			c.repaint()
 		case <-spinnerC:
 			owner := spinnerOwner
 			spinnerC = nil
@@ -621,6 +754,7 @@ func (c *Console) Run() int {
 			return 0
 		}
 		syncSpinner()
+		syncNoticeExpiry()
 	}
 }
 
@@ -640,6 +774,20 @@ func (c *Console) drainChunks() {
 // and join every worker before Run returns.
 func (c *Console) teardown(restore func() error) {
 	c.release()
+	c.mu.Lock()
+	tracer := c.trace
+	c.trace = nil
+	// The terminal is being handed back, so a publish must stop painting into
+	// it. This CLOSES the window rather than sealing it: publishNotice reads
+	// started under the lock and paints after releasing it, so a publish that
+	// passed the check a moment before teardown can still land. Nothing does
+	// today -- every publisher is the Run goroutine that also runs teardown --
+	// and the honest statement is "no live instance", not "cannot happen".
+	c.started = false
+	c.mu.Unlock()
+	if err := tracer.Close(); err != nil {
+		fmt.Fprintf(c.errw(), "couch: close input trace: %v\n", err)
+	}
 	if err := restore(); err != nil {
 		fmt.Fprintf(c.errw(), "couch: restore terminal: %v\n", err)
 	}
@@ -676,6 +824,10 @@ func (c *Console) onExit(event childExit) bool {
 	panelFocused := c.focus.IsPanel()
 	wasActive := c.active == event.id
 	delete(c.panes, event.id)
+	// Not a landing: on exit the operator goes to the panel, so recording one
+	// would make the dead thread the return target -- the single place
+	// ctrl+backspace can never usefully go.
+	c.tracker.Drop(p.thread)
 	c.attention.DropActor(p.thread)
 	c.syncAttentionLocked()
 	for i, id := range c.order {
@@ -684,29 +836,31 @@ func (c *Console) onExit(event childExit) bool {
 			break
 		}
 	}
-	if event.id == c.root {
-		c.root = ""
-		if len(c.order) > 0 {
-			c.root = c.order[0]
-		}
-	}
 	if wasActive {
 		// Panel actions address the active actor, not merely the highlighted
-		// durable row. Preserve that invariant after either the root or a
-		// non-root active actor exits by falling back to the current root.
-		c.active = c.root
+		// durable row, so the active slot has to keep naming a live actor after
+		// one exits. c.order is attach order and has already had the dead id
+		// removed, so its head is the surviving actor to fall back to; empty
+		// order correctly leaves no active actor at all.
+		c.active = ""
+		if len(c.order) > 0 {
+			c.active = c.order[0]
+		}
 	}
 	if wasFocused {
 		c.focus = FocusPanel()
 	}
 	expected := c.consumeExpectedParkExitLocked(event.id, p.thread)
-	if !expected {
-		exitNotice := ExitNotice(p.actorID, p.label, event.code)
-		c.feed.Push(exitNotice)
-	}
 	forget := c.forget
 	last := len(c.panes) == 0
 	c.mu.Unlock()
+
+	if !expected {
+		// Through publishNotice like every other notice, rather than a bare
+		// push: one path decides that a notice is shown, and this one is the
+		// operator's only explanation for a pane that just vanished.
+		c.publishNotice(ExitNotice(p.actorID, p.label, event.code))
+	}
 
 	if forget != nil {
 		if err := forget(p.tree, p.actorID); err != nil {
@@ -838,7 +992,7 @@ func (c *Console) paintNow() {
 	c.paintPending = false
 	rows := c.size.Rows
 	cols := int(c.size.Cols)
-	model := StatusModel{Notice: c.feed.Latest()}
+	model := StatusModel{Notice: c.feed.Row().Body}
 	for _, id := range c.order {
 		p := c.panes[id]
 		model.Actors = append(model.Actors, StatusActor{
@@ -1035,6 +1189,14 @@ func (c *Console) pumpStdin() {
 		n, err := c.stdin.Read(buf)
 		if n > 0 {
 			chunk := append([]byte(nil), buf[:n]...)
+			// Under the mutex the field is WRITTEN under. record is nil- and
+			// closed-safe, so the hazard is the unsynchronised field read
+			// itself: teardown nils c.trace before the workers are joined, so
+			// this can still be in flight. Latent today, a data race under -race.
+			c.mu.Lock()
+			tracer := c.trace
+			c.mu.Unlock()
+			tracer.record(chunk)
 			select {
 			case c.input <- chunk:
 			case <-c.stop:
@@ -1047,49 +1209,188 @@ func (c *Console) pumpStdin() {
 	}
 }
 
-// onHotkey handles ctrl-space: up one level.
+// onHotkey handles ctrl-space: OPEN THE SWITCHER, and nothing else.
 //
-// Runs on the Run goroutine. Liveness is passed to Up rather than assumed --
-// landing on a dead root actor gives the operator a frozen screen with no way
-// to tell it is frozen.
+// It used to mean "up one level" -- child to root actor, root actor to panel.
+// That ladder is gone (#170), and with it the root-actor/home concept: one key
+// now has one meaning wherever it is pressed from an actor. The panel keeps its
+// own ctrl-space (the global start form), which is not a rung of the deleted
+// ladder but the panel's own binding, and remains the only route to starting a
+// thread.
+//
+// Runs on the Run goroutine.
 func (c *Console) onHotkey() {
 	c.mu.Lock()
-	cur, root := c.focus, c.root
+	cur := c.focus
 	c.mu.Unlock()
 	if cur.IsPanel() {
 		c.onMenuKey(PanelKey{Kind: KeyCtrlSpace})
 		return
 	}
 
-	next := Up(cur, root, c.actorAlive)
-	if next == cur {
-		return // already at the top
-	}
-
 	c.mu.Lock()
-	c.focus = next
-	if next.IsPanel() {
-		if newest := c.attention.NewestActor(); newest != (couchcore.ThreadAddress{}) && len(c.menu.Frames) > 0 {
-			c.menu.Frames = c.menu.Frames[:1]
-			c.menu.Frames[0].Filter = ""
-			c.menu.Frames[0].SelectedAddress = newest
+	c.focus = FocusPanel()
+	// Open focused on whoever paged. This used to run only when the ladder
+	// happened to land on the panel; now it is the point of the key, so it runs
+	// on every ctrl-space from an actor.
+	if len(c.menu.Frames) > 0 {
+		focus := c.attention.NewestActor()
+		if focus == (couchcore.ThreadAddress{}) {
+			// The defined default with nothing paging: the thread being left.
+			// Routed through reconcileRootSelection rather than assigned, because
+			// ActiveAddress can name a thread that is no longer in the inventory
+			// -- and that reconciler already means "preferred if present, else
+			// the first visible row".
+			focus = c.menu.ActiveAddress
 		}
+		c.menu.Frames = c.menu.Frames[:1]
+		c.menu.Frames[0].Filter = ""
+		reconcileRootSelection(&c.menu, focus)
 	}
 	c.mu.Unlock()
 
-	if next.IsPanel() {
-		c.requestMenuRefresh()
-		c.showMenu()
+	c.requestMenuRefresh()
+	c.showMenu()
+}
+
+// onPreviousHotkey handles ctrl+backspace: return to the actor the operator was
+// working in before they were paged away.
+//
+// Runs on the Run goroutine. Resolving through the durable address rather than a
+// remembered pane id is what lets `previous` survive a park/resume or
+// detach/reattach cycle, which mints a new pane for the same thread.
+func (c *Console) onPreviousHotkey() {
+	c.mu.Lock()
+	address, ok := c.tracker.Previous()
+	target := ""
+	if ok {
+		target = c.switchTargetForAddressLocked(address)
+	}
+	c.mu.Unlock()
+
+	if !ok {
+		c.reportPrevious("previous: nowhere to return to")
 		return
 	}
+	if target == "" {
+		// The thread is durable but has no live pane here -- parked, detached,
+		// or exited. Saying so beats blanking the screen or silently doing
+		// nothing.
+		c.reportPrevious("previous: that thread is no longer attached")
+		return
+	}
+	c.switchTo(target, true, arrivalPrevious)
+}
+
+// reportPrevious puts a ctrl+backspace refusal where the operator is actually
+// looking. The status row is behind the panel while the switcher owns the
+// screen, so a setNotice there would make the key silently do nothing -- which
+// is exactly what the operator would report as the bug.
+func (c *Console) reportPrevious(text string) {
 	c.mu.Lock()
-	if p := c.panes[next.Actor()]; p != nil {
-		capture := c.attention.Capture(p.thread)
-		c.attention.Acknowledge(capture)
-		c.syncAttentionLocked()
+	panel := c.focus.IsPanel()
+	c.mu.Unlock()
+	if panel {
+		c.reduceMenu(MenuEvent{Kind: MenuEventNotice, Error: text})
+		return
+	}
+	c.setNotice(text)
+}
+
+// reportLeave writes a final line to the operator's terminal on the way out.
+//
+// The console is being torn down, so this goes to stderr rather than through
+// the menu: by the time it runs, the surface that would have rendered a notice
+// is about to stop existing.
+func (c *Console) reportLeave(result couchcore.LeaveResult) {
+	if c.stderr == nil {
+		return
+	}
+	if len(result.Detached) > 0 {
+		fmt.Fprintf(c.stderr, "couch: detached %d thread(s); their agents keep running\n", len(result.Detached))
+	}
+	if len(result.Parked) > 0 {
+		if result.Disposition == couchcore.LeavePark {
+			fmt.Fprintf(c.stderr, "couch: parked %d thread(s); their agents were stopped\n", len(result.Parked))
+		} else {
+			fmt.Fprintf(c.stderr, "couch: parked %d thread(s) that were already shutting down\n", len(result.Parked))
+		}
+	}
+	for _, address := range result.Skipped {
+		fmt.Fprintf(c.stderr, "couch: left %s occupied — its state could not be proved detachable\n", address.Tag)
+	}
+}
+
+// onDetachHotkey handles Pair's Alt+d chord at the Couch ownership boundary.
+//
+// No confirmation at either scope, unlike park: detach destroys nothing -- the
+// agent keeps running behind its zellij session and only the client goes.
+// Making the safe gesture cheap and the destructive one deliberate is the whole
+// point of having both.
+func (c *Console) onDetachHotkey() {
+	c.mu.Lock()
+	isPanel := c.focus.IsPanel()
+	p := c.panes[c.active]
+	if !isPanel && p != nil {
+		// Detaching an actor lands the operator in the switcher, exactly as
+		// park does. That is also what keeps couch alive when the LAST actor
+		// detaches: an actor-focused console exits with its final child, and
+		// the safe gesture must never be the one that ends the session by
+		// accident.
+		c.focus = FocusPanel()
+		c.menu.ActiveAddress = p.thread
 	}
 	c.mu.Unlock()
-	c.onSwitch(next.Actor())
+
+	if isPanel {
+		// The switcher IS couch, so the key applies to every live thread and
+		// then leaves. Unconditional: a switcher with nothing live must still
+		// have a way out, which is the trap this replaced (#170).
+		c.reduceMenu(MenuEvent{
+			Kind: MenuEventParkHotkey, Operation: "leave", Mode: string(couchcore.LeaveDetach),
+		})
+		return
+	}
+	if p == nil {
+		c.setNotice("detach: no attached thread")
+		return
+	}
+	c.reduceMenu(MenuEvent{Kind: MenuEventParkHotkey, Operation: "detach", Address: p.thread})
+}
+
+// onRelaunchHotkey handles Alt+n and Ctrl+Alt+n: replace this thread's Pair
+// process with the current binary, keeping the agent conversation.
+//
+// Scope follows focus, WITH one deviation that is the point rather than an
+// oversight. Alt+x and Alt+d mean "what you are looking at": one actor from an
+// actor, every live thread from the switcher. Relaunch has no whole-couch form
+// -- that is alt+d, rebuild, re-run couch, the symmetry this completes -- so
+// from the panel it relaunches the HIGHLIGHTED ROW and leaves the operator in
+// the switcher, and from an actor it relaunches that actor.
+//
+// Runs on the Run goroutine.
+func (c *Console) onRelaunchHotkey() {
+	c.mu.Lock()
+	isPanel := c.focus.IsPanel()
+	p := c.panes[c.active]
+	target := couchcore.ThreadAddress{}
+	switch {
+	case isPanel:
+		target = c.menu.SelectedThreadAddress()
+	case p != nil:
+		target = p.thread
+		// An actor relaunch shows its progress on the panel, as park does, until
+		// the holding surface exists to keep the operator in place.
+		c.focus = FocusPanel()
+		c.menu.ActiveAddress = p.thread
+	}
+	c.mu.Unlock()
+
+	if target == (couchcore.ThreadAddress{}) {
+		c.setNotice("relaunch: no thread selected")
+		return
+	}
+	c.reduceMenu(MenuEvent{Kind: MenuEventParkHotkey, Operation: "relaunch", Address: target})
 }
 
 // onParkHotkey handles Pair's Alt+x chord at the Couch ownership boundary.
@@ -1097,30 +1398,33 @@ func (c *Console) onHotkey() {
 // confirmation and runs off the terminal event loop.
 func (c *Console) onParkHotkey() {
 	c.mu.Lock()
+	// Alt+x parks what you are looking at: one actor from an actor, every live
+	// thread from couch's own switcher. Scope comes from the focus we already
+	// have rather than being special-cased per key.
+	isPanel := c.focus.IsPanel()
 	p := c.panes[c.active]
-	isRoot := c.active != "" && c.active == c.root
-	if p != nil {
+	if !isPanel && p != nil {
 		c.focus = FocusPanel()
 		c.menu.ActiveAddress = p.thread
 	}
 	c.mu.Unlock()
+
+	if isPanel {
+		// Deliberately BEFORE the no-active-thread check: leaving couch needs
+		// no live actor, and an all-detached couch is the normal state to quit
+		// from. Park's whole-couch form stops every agent, so it keeps the
+		// confirmation its per-thread form has -- the disposition carries the
+		// confirmation, not the scope.
+		c.reduceMenu(MenuEvent{
+			Kind: MenuEventParkHotkey, Operation: "leave", Mode: string(couchcore.LeavePark),
+		})
+		return
+	}
 	if p == nil {
 		c.setNotice("park: no active thread")
 		return
 	}
-	operation := "park"
-	if isRoot {
-		operation = "leave"
-	}
-	c.reduceMenu(MenuEvent{Kind: MenuEventParkHotkey, Operation: operation, Address: p.thread})
-}
-
-// actorAlive is the liveness predicate Up consults.
-func (c *Console) actorAlive(id string) bool {
-	c.mu.Lock()
-	defer c.mu.Unlock()
-	p, ok := c.panes[id]
-	return ok && !p.child.Done()
+	c.reduceMenu(MenuEvent{Kind: MenuEventParkHotkey, Operation: "park", Address: p.thread})
 }
 
 func (c *Console) runMenuOperation(effect MenuEffect) {
@@ -1153,6 +1457,21 @@ func (c *Console) runMenuOperation(effect MenuEffect) {
 	}
 }
 
+// hitHandlers maps every intercepted chord to what the console does about it.
+//
+// A method rather than a package var because the handlers are bound to this
+// Console; the point is that the mapping is DATA a test can walk, not control
+// flow it can only execute.
+func (c *Console) hitHandlers() map[InterceptorHit]func() {
+	return map[InterceptorHit]func(){
+		HitSwitch:   c.onHotkey,
+		HitPark:     c.onParkHotkey,
+		HitPrevious: c.onPreviousHotkey,
+		HitDetach:   c.onDetachHotkey,
+		HitRelaunch: c.onRelaunchHotkey,
+	}
+}
+
 // finishOperation returns true when the completion requested Console exit.
 func (c *Console) finishOperation(completed operationCompletion) bool {
 	err := completed.err
@@ -1161,22 +1480,27 @@ func (c *Console) finishOperation(completed operationCompletion) bool {
 		address = parked.Thread.Address
 	}
 	startedHandleID := ""
-	if started, ok := completed.value.(couchcore.StartResult); ok {
-		address = started.Record.Thread
-		if started.Handle != nil {
-			startedHandleID = started.Handle.ID()
-		}
-		if err == nil {
-			c.mu.Lock()
-			fn := c.ops
-			c.mu.Unlock()
-			if fn == nil {
-				err = errors.New("no action dispatcher wired")
-			} else {
-				_, err = fn(couchcore.OperationCall{
-					Name: "attach", Context: c.lifetime, Implicit: true, TypedPayload: started,
-					Args: map[string]string{"repo-scope": address.RepoScope, "tag": string(address.Tag)},
-				})
+	// StartedChild, not a StartResult type assertion: relaunch returns its own
+	// result struct around the same child, and asserting the concrete type left
+	// that child spawned but never adopted.
+	if child, ok := completed.value.(couchcore.StartedChild); ok {
+		if started, hasChild := child.Started(); hasChild {
+			address = started.Record.Thread
+			if started.Handle != nil {
+				startedHandleID = started.Handle.ID()
+			}
+			if err == nil {
+				c.mu.Lock()
+				fn := c.ops
+				c.mu.Unlock()
+				if fn == nil {
+					err = errors.New("no action dispatcher wired")
+				} else {
+					_, err = fn(couchcore.OperationCall{
+						Name: "attach", Context: c.lifetime, Implicit: true, TypedPayload: started,
+						Args: map[string]string{"repo-scope": address.RepoScope, "tag": string(address.Tag)},
+					})
+				}
 			}
 		}
 	}
@@ -1189,19 +1513,34 @@ func (c *Console) finishOperation(completed operationCompletion) bool {
 	}
 	c.mu.Lock()
 	if completed.origin.Operation == "switch" {
-		if event.Success {
-			c.attention.Acknowledge(completed.origin.AttentionCapture)
-		} else {
+		// Success is acknowledged by switchTo, which is the only place that
+		// knows a landing actually happened -- two authorities for one rule is
+		// how they drift. Failure still has to release the capture here,
+		// because no landing occurred to do it.
+		if !event.Success {
 			c.attention.Cancel(completed.origin.AttentionCapture)
+			c.syncAttentionLocked()
 		}
-		c.syncAttentionLocked()
 	}
 	if event.Success && operationNeedsProjectionRefresh(event.Operation) {
 		event.ProjectionAfterGeneration = c.refreshSchedule.Sequence
 	}
-	if completed.origin.Operation == "park" && err == nil {
+	// A lifecycle operation's child exit is expected in EITHER event order.
+	// c.exited and c.operationQueue.results are separate select cases and Go
+	// picks uniformly among ready ones, so roughly half the time the completion
+	// wins the race, ReduceMenu clears InFlight, and the exit falls through to
+	// consumeExpectedParkExitLocked's InFlight arm with nothing to match. This
+	// bridge is the other half of that rule, and detach needs it as much as
+	// park does -- both end their child deliberately.
+	if err == nil && endsItsOwnChild(completed.origin.Operation) {
 		for id, p := range c.panes {
-			if p.thread == address {
+			// Excluding the child this operation just STARTED. A relaunch has
+			// already adopted its replacement by the time it gets here, so
+			// marking every pane on the address marked the new one -- and its
+			// first real death would then be swallowed as expected, which is the
+			// exact spurious-notice bug this bridge exists to prevent, inverted.
+			// The child a relaunch expects to exit is the one it replaced.
+			if p.thread == address && id != startedHandleID {
 				c.expectedExits[id] = true
 			}
 		}
@@ -1212,6 +1551,14 @@ func (c *Console) finishOperation(completed operationCompletion) bool {
 	panelFocused := c.focus.IsPanel()
 	c.mu.Unlock()
 	if completed.origin.Operation == "leave" && err == nil {
+		// Report what leave actually did before the terminal goes. Skipped
+		// threads are the ones that matter: Couch could not prove them
+		// detachable, so it deliberately did NOT park them, and they stay
+		// occupied. Told here, that is a fact; discovered later, it is a
+		// mystery occupied thread.
+		if result, ok := completed.value.(couchcore.LeaveResult); ok {
+			c.reportLeave(result)
+		}
 		c.Stop()
 		return true
 	}
@@ -1237,7 +1584,21 @@ func (c *Console) consumeExpectedParkExitLocked(id string, address couchcore.Thr
 		return true
 	}
 	origin := c.menu.InFlight
-	return origin.Operation == "park" && origin.Attempt != 0 && origin.Address == address
+	if origin.Attempt == 0 {
+		return false
+	}
+	if endsItsOwnChild(origin.Operation) {
+		return origin.Address == address
+	}
+	switch origin.Operation {
+	case "leave":
+		// Leave detaches every thread, so every child exit it causes is
+		// expected. Without this the operator gets a burst of exit notices on
+		// the way out -- exactly the noise the notification design exists to
+		// keep meaningful.
+		return true
+	}
+	return false
 }
 
 func cloneOperationArgs(args map[string]string) map[string]string {
@@ -1256,11 +1617,21 @@ func (c *Console) ExecuteConsoleOperation(call couchcore.OperationCall) (any, er
 	case "switch":
 		c.mu.Lock()
 		target := c.switchTargetForAddressLocked(address)
+		// A notification hop is ctrl-space + Return on an actor that HAD a
+		// pending notification. runMenuOperation captured that set before
+		// dispatch, so a nonzero capture is exactly "the target was paging when
+		// the operator chose it" -- the value that was true when they chose,
+		// not after.
+		how := arrivalOrdinary
+		if c.menu.InFlight.Operation == "switch" && c.menu.InFlight.Address == address &&
+			c.menu.InFlight.AttentionCapture != 0 {
+			how = arrivalNotification
+		}
 		c.mu.Unlock()
 		if target == "" {
 			return nil, fmt.Errorf("thread %s/%s is not attached to this console", address.RepoScope, address.Tag)
 		}
-		c.forceSwitch(target)
+		c.switchTo(target, true, how)
 		return address, nil
 	case "attach":
 		start, ok := call.TypedPayload.(couchcore.StartResult)
@@ -1303,7 +1674,36 @@ func (c *Console) switchTargetForAddressLocked(address couchcore.ThreadAddress) 
 }
 
 func (c *Console) setNotice(text string) {
+	c.publishNotice(Notice{Kind: "status", Body: text})
+}
+
+// publishNotice is the one way a notice is PUBLISHED: it pushes to the feed and
+// repaints the row that shows it.
+//
+// Not the one way a notice reaches the operator's eye, which would be a stronger
+// claim than the code supports: writeOwn declines while the child's stream is
+// mid-sequence and defers the paint to the next child chunk, and an idle console
+// -- the case this exists for -- has none. Pathological today, and
+// takeOverScreen resets the scanner, so there is no live instance; the point is
+// that the sentence says what is true rather than what is nearly true.
+//
+// Pushing without repainting used to be merely late -- the sentence appeared
+// whenever something else next painted, and stayed forever once it did. Giving
+// transients a lifetime (pair#185) turned that into a correctness bug: on an
+// idle console with no child producing output, nothing repaints, so a refusal
+// could expire entirely UNSEEN. A message the operator never saw is worse than
+// one that overstayed. Push and paint are therefore one operation rather than
+// two things to remember in the right order.
+//
+// The repaint waits for Run: before it, the terminal is not in raw mode or the
+// alt screen, and painting a status row into the operator's shell is not a
+// message, it is damage. Whatever is queued by then is shown by the first paint.
+func (c *Console) publishNotice(n Notice) {
 	c.mu.Lock()
-	c.feed.Push(Notice{Kind: "status", Body: text})
+	c.feed.Push(n)
+	started := c.started
 	c.mu.Unlock()
+	if started {
+		c.repaint()
+	}
 }

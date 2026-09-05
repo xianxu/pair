@@ -31,6 +31,49 @@ type testEnv struct {
 	Now       time.Time
 }
 
+// nameTree gives a worktree an operator label the way the data would actually
+// arrive: persisted, then read back by Store.Load. Couch.SetName and
+// Couch.SetDescription were the only writers of this table and had no
+// production caller, so pair#170 M4 deleted them -- but ResolveRef still
+// resolves by label, so the behaviour still needs pinning.
+//
+// Worth recording: the operator's live registry has "names": {}, and no
+// production code path writes one. This naming layer predates the thread
+// store, which carries its own Name/Description with a real setter
+// (ApplyThreadMetadata). The table below is very likely dead too; that is a
+// wider cut than M4's deletion sweep and is left to a follow-up.
+func (e *testEnv) nameTree(t *testing.T, tree Worktree, name, description string) {
+	t.Helper()
+	store := NewStore(e.Dir)
+	registry, names, err := store.Load()
+	if err != nil {
+		t.Fatalf("load store: %v", err)
+	}
+	if name != "" {
+		names = names.SetName(tree, name)
+	}
+	if description != "" {
+		names = names.SetDescription(tree, description)
+	}
+	if err := store.Save(registry, names); err != nil {
+		t.Fatalf("save store: %v", err)
+	}
+	e.Couch.names = names
+}
+
+// treeRecords reads the persisted registry directly. Couch.Get was a one-line
+// wrapper over it with no production caller (deleted in pair#170 M4), and
+// going to the store is the more honest assertion anyway: it proves what
+// SURVIVED the write, not what a live Couch happens to hold in memory.
+func (e *testEnv) treeRecords(t *testing.T, tree Worktree) []ActorRecord {
+	t.Helper()
+	registry, _, err := NewStore(e.Dir).Load()
+	if err != nil {
+		t.Fatalf("load registry: %v", err)
+	}
+	return registry.Get(tree)
+}
+
 type realDescendantRunner struct {
 	marker         string
 	acknowledgeErr error
@@ -114,26 +157,10 @@ func TestStoreNamespaceMustMatchCouchNamespace(t *testing.T) {
 	_, err := New(
 		ns,
 		NewFakeRunner(), NewFakePathOps(nil), NewFakeGit(nil), NewFakeProcOps(),
-		NewStore(other), FixedClock{}, NewFixedIDGen("id"), NewFakePolicyResolver(), bytes.NewReader(make([]byte, 8)), NoThreadArtifactCollisions{},
+		NewStore(other), FixedClock{}, NewFixedIDGen("id"), bytes.NewReader(make([]byte, 8)), NoThreadArtifactCollisions{},
 	)
 	if err == nil || !strings.Contains(err.Error(), "does not match") {
 		t.Fatalf("New mismatched store err = %v", err)
-	}
-}
-
-func TestCouchRetainsInjectedPolicyResolver(t *testing.T) {
-	ns := testCouchNamespace(t)
-	resolver := NewFakePolicyResolver()
-	c, err := New(
-		ns,
-		NewFakeRunner(), NewFakePathOps(nil), NewFakeGit(nil), NewFakeProcOps(),
-		NewStore(ns.Dir()), FixedClock{}, NewFixedIDGen("id"), resolver, bytes.NewReader(make([]byte, 8)), NoThreadArtifactCollisions{},
-	)
-	if err != nil {
-		t.Fatalf("New: %v", err)
-	}
-	if c.PolicyResolver != resolver {
-		t.Fatal("Couch did not retain the injected policy resolver")
 	}
 }
 
@@ -144,6 +171,9 @@ func newTestEnv(t *testing.T, trees ...string) *testEnv {
 	replies := map[GitCall]string{}
 	for _, tr := range trees {
 		replies[GitCall{Dir: tr, Args: "rev-parse --show-toplevel"}] = tr
+		// The repository identity couch now derives locally, in the shape real
+		// git answers it: relative in a main checkout.
+		replies[GitCall{Dir: tr, Args: "rev-parse --git-common-dir"}] = ".git"
 	}
 	g := NewFakeGit(replies)
 	r := NewFakeRunner()
@@ -157,7 +187,7 @@ func newTestEnv(t *testing.T, trees ...string) *testEnv {
 	now := time.Date(2026, 8, 21, 12, 0, 0, 0, time.UTC)
 	artifacts := NewFakeThreadArtifactCollisionChecker()
 	artifacts.AutoEstablish(true)
-	c, err := New(ns, r, NewFakePathOps(nil), g, proc, NewStore(dir), FixedClock{T: now}, NewFixedIDGen("ah8d", "b2c1"), NewFakePolicyResolver(), newIncrementingEntropy(), artifacts)
+	c, err := New(ns, r, NewFakePathOps(nil), g, proc, NewStore(dir), FixedClock{T: now}, NewFixedIDGen("ah8d", "b2c1"), newIncrementingEntropy(), artifacts)
 	if err != nil {
 		t.Fatalf("New: %v", err)
 	}
@@ -180,71 +210,7 @@ func (e *testEnv) spawn(t *testing.T, args StartArgs) (ActorRecord, Handle) {
 
 func (e *testEnv) cannedTree(tree, cwd string) {
 	e.Git.replies[GitCall{Dir: cwd, Args: "rev-parse --show-toplevel"}] = tree
-}
-
-func (e *testEnv) boundedOne(path string) {
-	e.Couch.PolicyResolver.(*FakePolicyResolver).SetDefault(PolicyResult{
-		PolicyVersion: 1,
-		PolicyDigest:  strings.Repeat("a", 64),
-		RepoIdentity:  "fake-repo",
-		AdmissionKey:  path,
-		Capacity:      PolicyCapacity{Kind: CapacityBounded, Limit: 1},
-		OnCapacity:    CapacityReject,
-	}, nil)
-}
-
-func TestPrepareStartHasNoLaunchEffectsAndSpawnPreparedReusesAcceptedAuthority(t *testing.T) {
-	env := newTestEnv(t, "/repo")
-	prepared, err := env.Couch.PrepareStart(context.Background(), StartArgs{Worktree: "/repo", Stack: "codex"})
-	if err != nil {
-		t.Fatal(err)
-	}
-	if prepared.Token == "" || prepared.Resolution.Profile.Agent != "codex" || len(env.Runner.Ops) != 0 {
-		t.Fatalf("preparation = %+v, runner ops = %q", prepared, env.Runner.Ops)
-	}
-	before, err := env.Couch.Threads.Snapshot()
-	if err != nil || len(before.Records) != 0 {
-		t.Fatalf("prepare allocated durable state: %+v, %v", before.Records, err)
-	}
-
-	record, _, err := env.Couch.SpawnPrepared(context.Background(), prepared.Token)
-	if err != nil {
-		t.Fatal(err)
-	}
-	if record.Args.Stack != "codex" || len(env.Runner.Ops) == 0 {
-		t.Fatalf("prepared spawn = %+v, runner ops = %q", record, env.Runner.Ops)
-	}
-	resolver := env.Couch.PolicyResolver.(*FakePolicyResolver)
-	if calls := resolver.Calls(); !reflect.DeepEqual(calls, []string{"/repo", "/repo"}) {
-		t.Fatalf("candidate policy calls = %q, want prepare and revalidation only", calls)
-	}
-}
-
-func TestSpawnPreparedRefusesChangedEvidenceBeforeAllocationOrFork(t *testing.T) {
-	env := newTestEnv(t, "/repo")
-	resolver := env.Couch.PolicyResolver.(*FakePolicyResolver)
-	first := admissionPolicy(CapacityUnbounded, 0, CapacityActionUnknown)
-	second := first
-	second.PolicyDigest = strings.Repeat("b", 64)
-	resolver.Queue("/repo", first, nil)
-	resolver.Queue("/repo", second, nil)
-	prepared, err := env.Couch.PrepareStart(context.Background(), StartArgs{Worktree: "/repo"})
-	if err != nil {
-		t.Fatal(err)
-	}
-	if _, _, err := env.Couch.SpawnPrepared(context.Background(), prepared.Token); !errors.Is(err, ErrStartResolutionChanged) {
-		t.Fatalf("changed evidence err = %v", err)
-	}
-	if len(env.Runner.Ops) != 0 {
-		t.Fatalf("changed evidence forked: %q", env.Runner.Ops)
-	}
-	snapshot, err := env.Couch.Threads.Snapshot()
-	if err != nil || len(snapshot.Records) != 0 {
-		t.Fatalf("changed evidence allocated: %+v, %v", snapshot.Records, err)
-	}
-	if _, _, err := env.Couch.SpawnPrepared(context.Background(), prepared.Token); !errors.Is(err, ErrStartGrantUnavailable) {
-		t.Fatalf("failed attempt replay err = %v", err)
-	}
+	e.Git.replies[GitCall{Dir: cwd, Args: "rev-parse --git-common-dir"}] = ".git"
 }
 
 func TestSpawnPreparedRefusesPreferenceAndDefaultDriftBeforeEffects(t *testing.T) {
@@ -256,13 +222,13 @@ func TestSpawnPreparedRefusesPreferenceAndDefaultDriftBeforeEffects(t *testing.T
 		}
 		preference := PathLaunchPreference{
 			SchemaVersion: PathLaunchPreferenceSchemaVersion,
-			RepoIdentity:  "fake-repo", PhysicalPath: "/repo", LastAgent: "claude",
+			RepoIdentity:  "/repo/.git", PhysicalPath: "/repo", LastAgent: "claude",
 			ArgvByAgent: map[string][]string{"claude": {"--model", "opus"}}, Revision: 1,
 		}
 		if err := writePathLaunchPreferenceForTest(env.Couch.Threads, preference); err != nil {
 			t.Fatal(err)
 		}
-		if _, _, err := env.Couch.SpawnPrepared(context.Background(), prepared.Token); !errors.Is(err, ErrStartResolutionChanged) {
+		if _, _, err := env.Couch.SpawnPrepared(context.Background(), StartArgs{Worktree: "/repo"}, prepared.Resolution.Fingerprint); !errors.Is(err, ErrStartResolutionChanged) {
 			t.Fatalf("preference drift err = %v", err)
 		}
 		assertPreparedStartHadNoEffects(t, env)
@@ -279,7 +245,7 @@ func TestSpawnPreparedRefusesPreferenceAndDefaultDriftBeforeEffects(t *testing.T
 		if err != nil {
 			t.Fatal(err)
 		}
-		if _, _, err := env.Couch.SpawnPrepared(context.Background(), prepared.Token); !errors.Is(err, ErrStartResolutionChanged) {
+		if _, _, err := env.Couch.SpawnPrepared(context.Background(), StartArgs{Worktree: "/repo"}, prepared.Resolution.Fingerprint); !errors.Is(err, ErrStartResolutionChanged) {
 			t.Fatalf("default drift err = %v", err)
 		}
 		if calls != 2 {
@@ -438,9 +404,12 @@ exit 0
 	checker := NewScopedThreadArtifactCollisionChecker(pairData)
 	couch, err := New(
 		ns, runner, NewFakePathOps(nil),
-		NewFakeGit(map[GitCall]string{{Dir: repo, Args: "rev-parse --show-toplevel"}: repo}),
+		NewFakeGit(map[GitCall]string{
+			{Dir: repo, Args: "rev-parse --show-toplevel"}:  repo,
+			{Dir: repo, Args: "rev-parse --git-common-dir"}: ".git",
+		}),
 		proc, NewStore(ns.Dir()), FixedClock{T: time.Date(2026, 8, 27, 12, 0, 0, 0, time.UTC)},
-		NewFixedIDGen("composed"), NewFakePolicyResolver(), newIncrementingEntropy(), checker,
+		NewFixedIDGen("composed"), newIncrementingEntropy(), checker,
 	)
 	if err != nil {
 		t.Fatal(err)
@@ -1151,7 +1120,7 @@ func TestNewReconcilesDeadUnregisteredHelperByExactNonce(t *testing.T) {
 	}
 	artifacts := NewFakeThreadArtifactCollisionChecker()
 	artifacts.SetRegistration(record.Address, RegistrationAbsent, nil)
-	_, err := New(ns, NewFakeRunner(), NewFakePathOps(nil), NewFakeGit(nil), NewFakeProcOps(), NewStore(ns.Dir()), FixedClock{}, NewFixedIDGen("id"), NewFakePolicyResolver(), newIncrementingEntropy(), artifacts)
+	_, err := New(ns, NewFakeRunner(), NewFakePathOps(nil), NewFakeGit(nil), NewFakeProcOps(), NewStore(ns.Dir()), FixedClock{}, NewFixedIDGen("id"), newIncrementingEntropy(), artifacts)
 	if err != nil {
 		t.Fatalf("New: %v", err)
 	}
@@ -1181,7 +1150,7 @@ func TestNewPromotesEstablishedSurvivingHelper(t *testing.T) {
 	proc.Set(42, "helper-token")
 	artifacts := NewFakeThreadArtifactCollisionChecker()
 	artifacts.SetRegistration(record.Address, RegistrationEstablished, nil)
-	_, err = New(ns, NewFakeRunner(), NewFakePathOps(nil), NewFakeGit(nil), proc, NewStore(ns.Dir()), FixedClock{}, NewFixedIDGen("id"), NewFakePolicyResolver(), newIncrementingEntropy(), artifacts)
+	_, err = New(ns, NewFakeRunner(), NewFakePathOps(nil), NewFakeGit(nil), proc, NewStore(ns.Dir()), FixedClock{}, NewFixedIDGen("id"), newIncrementingEntropy(), artifacts)
 	if err != nil {
 		t.Fatalf("New: %v", err)
 	}
@@ -1204,21 +1173,6 @@ func TestSpawnStartsInASubdirectoryButRegistersTheTree(t *testing.T) {
 	}
 	if got := env.Runner.Child(env.Runner.order[0]).Dir; got != "/w/kbench/competition/arc-agi-3" {
 		t.Fatalf("child started in %q, want the requested subdirectory", got)
-	}
-}
-
-func TestRefusedSpawnStartsNoProcess(t *testing.T) {
-	env := newTestEnv(t, "/repo")
-	env.boundedOne("/repo")
-	env.spawn(t, StartArgs{Worktree: "/repo"})
-	before := len(env.Runner.Ops)
-	_, _, err := env.Couch.Spawn(StartArgs{Worktree: "/repo"})
-	var occ *CapacityExceededError
-	if !errors.As(err, &occ) {
-		t.Fatalf("err = %v, want *CapacityExceededError", err)
-	}
-	if len(env.Runner.Ops) != before {
-		t.Fatal("a refused spawn must not fork a child")
 	}
 }
 
@@ -1272,58 +1226,6 @@ func TestSpawnFailureDoesNotCommitLaunchPreferences(t *testing.T) {
 	}
 }
 
-func TestRestartedCouchUsesLastSuccessfulPathAgentAndArgsWithNegativeRepoDefaultPolicy(t *testing.T) {
-	env := newTestEnv(t, "/repo")
-	env.Couch.RootAgent = "codex"
-	env.Couch.RepoAgentDefault = func(_, agent string) (LaunchProfile, bool, error) {
-		defaults := map[string][]string{
-			"codex":  {"--sandbox", "workspace-write"},
-			"claude": {"--model", "opus"},
-		}
-		return LaunchProfile{Agent: agent, Argv: defaults[agent]}, true, nil
-	}
-	if _, _, err := env.Couch.Spawn(StartArgs{Worktree: "/repo"}); err != nil {
-		t.Fatal(err)
-	}
-	restarted, err := New(
-		env.Couch.Namespace, env.Runner, env.Couch.Path, env.Git, env.Proc, env.Couch.Store,
-		env.Couch.Clock, NewFixedIDGen("restart"), env.Couch.PolicyResolver,
-		newIncrementingEntropy(), env.Artifacts,
-	)
-	if err != nil {
-		t.Fatal(err)
-	}
-	restarted.RootAgent = "claude"
-	restarted.RepoAgentDefault = env.Couch.RepoAgentDefault
-	if _, _, err := restarted.Spawn(StartArgs{Worktree: "/repo"}); err != nil {
-		t.Fatal(err)
-	}
-	child := env.Runner.Child(env.Runner.order[1])
-	if got := childEnvValue(child.Env, "PAIR_USE_REPO_DEFAULT"); got != "" {
-		t.Fatalf("path argv emitted repo-default marker %q", got)
-	}
-	policyEntries := 0
-	for _, item := range child.Env {
-		if item == "PAIR_USE_REPO_DEFAULT=" {
-			policyEntries++
-		}
-	}
-	if policyEntries != 1 {
-		t.Fatalf("path argv policy entries = %q, want one authoritative empty value", child.Env)
-	}
-	parsed, err := launcher.ParseArgs([]string{"resume", child.Argv[2], "--layout2"})
-	if err != nil {
-		t.Fatal(err)
-	}
-	profileArgs, source, err := launcher.ApplyCouchLaunchProfile(parsed, childEnvValue(child.Env, launcher.CouchLaunchProfileEnv))
-	if err != nil {
-		t.Fatal(err)
-	}
-	if profileArgs.Agent != "codex" || !reflect.DeepEqual(profileArgs.AgentArgs, []string{"--sandbox", "workspace-write"}) || source != "path" {
-		t.Fatalf("second launch profile = %+v source=%q", profileArgs, source)
-	}
-}
-
 func childEnvValue(env []string, key string) string {
 	prefix := key + "="
 	for _, item := range env {
@@ -1334,103 +1236,30 @@ func childEnvValue(env []string, key string) string {
 	return ""
 }
 
-func TestSpawnCapacityRefusalDoesNotForkAndRollsBackOpaqueReservation(t *testing.T) {
-	env := newTestEnv(t, "/repo")
-	bounded := PolicyResult{
-		PolicyVersion: 1, PolicyDigest: strings.Repeat("a", 64),
-		RepoIdentity: "repo", AdmissionKey: "/repo",
-		Capacity: PolicyCapacity{Kind: CapacityBounded, Limit: 1}, OnCapacity: CapacityReject,
-	}
-	env.Couch.PolicyResolver.(*FakePolicyResolver).SetDefault(bounded, nil)
-	first, _ := env.spawn(t, StartArgs{Worktree: "/repo"})
-	before := len(env.Runner.Ops)
-	if _, _, err := env.Couch.Spawn(StartArgs{Worktree: "/repo"}); err == nil {
-		t.Fatal("second bounded spawn was admitted")
-	}
-	if len(env.Runner.Ops) != before {
-		t.Fatal("capacity refusal forked a child")
-	}
-	snapshot, err := env.Couch.Threads.Snapshot()
-	if err != nil {
-		t.Fatal(err)
-	}
-	if len(snapshot.Records) != 1 || snapshot.Records[0].Address != first.Thread {
-		t.Fatalf("refused reservation leaked: %+v", snapshot.Records)
-	}
-	if got := env.Artifacts.Releases(); len(got) != 1 {
-		t.Fatalf("capacity refusal released claims = %+v", got)
-	}
-}
-
-func TestSpawnPolicyInstabilityDoesNotForkAndRollsBackOpaqueReservation(t *testing.T) {
-	env := newTestEnv(t, "/repo")
-	scope, err := launcher.ResolveRepoScope("/repo")
-	if err != nil {
-		t.Fatal(err)
-	}
-	incumbent, err := env.Couch.Threads.AllocateThreadTag(scope.Key, "/repo", env.Now, bytes.NewReader(bytes.Repeat([]byte{9}, 8)), NoThreadArtifactCollisions{})
-	if err != nil {
-		t.Fatal(err)
-	}
-	if _, err := env.Couch.Threads.UpdateExistingThread(incumbent.Address, incumbent.Revision, func(next *ThreadRecord) error {
-		next.Reservation = false
-		next.Incarnations = []ThreadIncarnation{{State: IncarnationCreating, StartedAt: env.Now}}
-		return nil
-	}); err != nil {
-		t.Fatal(err)
-	}
-	epochA := PolicyResult{
-		PolicyVersion: 1, PolicyDigest: strings.Repeat("a", 64), RepoIdentity: "repo", AdmissionKey: "/repo",
-		Capacity: PolicyCapacity{Kind: CapacityBounded, Limit: 2}, OnCapacity: CapacityReject,
-	}
-	epochB := epochA
-	epochB.PolicyDigest = strings.Repeat("b", 64)
-	resolver := env.Couch.PolicyResolver.(*FakePolicyResolver)
-	for range 3 {
-		resolver.Queue("/repo", epochA, nil)
-		resolver.Queue("/repo", epochB, nil)
-	}
-	before := len(env.Runner.Ops)
-	_, _, err = env.Couch.Spawn(StartArgs{Worktree: "/repo"})
-	var unstable *PolicyUnstableError
-	if !errors.As(err, &unstable) {
-		t.Fatalf("err = %T %v, want *PolicyUnstableError", err, err)
-	}
-	if len(env.Runner.Ops) != before {
-		t.Fatal("unstable policy forked a child")
-	}
-	snapshot, err := env.Couch.Threads.Snapshot()
-	if err != nil || len(snapshot.Records) != 1 || snapshot.Records[0].Address != incumbent.Address {
-		t.Fatalf("unstable reservation leaked: %+v, %v", snapshot.Records, err)
-	}
-	if got := env.Artifacts.Releases(); len(got) != 1 {
-		t.Fatalf("unstable policy released claims = %+v", got)
-	}
-}
-
-func TestIsLiveRejectsARecycledPID(t *testing.T) {
+// Asserted through Liveness rather than the deleted IsLive wrapper, which
+// folded Unknown into false -- so this now pins the exact state, not just
+// "not live" (pair#170 M4).
+func TestLivenessRejectsARecycledPID(t *testing.T) {
 	env := newTestEnv(t, "/repo")
 	rec, _ := env.spawn(t, StartArgs{Worktree: "/repo"})
-	if !env.Couch.IsLive(rec) {
-		t.Fatal("a running actor must read as live")
+	if got := env.Couch.Liveness(rec); got != Live {
+		t.Fatalf("a running actor reads as %v, want Live", got)
 	}
 	// Same PID, different process: the kernel start token differs.
 	env.Proc.Set(rec.PID, "some-other-process")
-	if env.Couch.IsLive(rec) {
-		t.Fatal("a recycled PID must not read as the original actor")
+	if got := env.Couch.Liveness(rec); got != Dead {
+		t.Fatalf("a recycled PID reads as %v, want Dead", got)
 	}
 	env.Proc.Kill(rec.PID)
-	if env.Couch.IsLive(rec) {
-		t.Fatal("a dead PID must not read as live")
+	if got := env.Couch.Liveness(rec); got != Dead {
+		t.Fatalf("a dead PID reads as %v, want Dead", got)
 	}
 }
 
 func TestResolveRefFindsActorsByOperatorName(t *testing.T) {
 	env := newTestEnv(t, "/repo")
 	rec, _ := env.spawn(t, StartArgs{Worktree: "/repo"})
-	if err := env.Couch.SetName("/repo", "refactor thing"); err != nil {
-		t.Fatalf("SetName: %v", err)
-	}
+	env.nameTree(t, "/repo", "refactor thing", "")
 	got, _, err := env.Couch.ResolveRef("refactor")
 	if err != nil {
 		t.Fatalf("ResolveRef: %v", err)
@@ -1456,15 +1285,15 @@ func TestLookupTreesMatchesTheDisplayedRepoFallback(t *testing.T) {
 func TestNameAndDescriptionChangeMidSession(t *testing.T) {
 	env := newTestEnv(t, "/repo")
 	env.spawn(t, StartArgs{Worktree: "/repo"})
-	_ = env.Couch.SetName("/repo", "first")
-	_ = env.Couch.SetName("/repo", "second")
+	env.nameTree(t, "/repo", "first", "")
+	env.nameTree(t, "/repo", "second", "")
 	if got, _, err := env.Couch.ResolveRef("second"); err != nil || len(got) != 1 {
 		t.Fatalf("rename did not take effect: %v %v", got, err)
 	}
 	if got, _, err := env.Couch.ResolveRef("first"); err == nil && len(got) > 0 {
 		t.Fatal("the old name must stop resolving")
 	}
-	_ = env.Couch.SetDescription("/repo", "reworking the composer gate")
+	env.nameTree(t, "/repo", "", "reworking the composer gate")
 	if got, _, err := env.Couch.ResolveRef("composer"); err != nil || len(got) != 1 {
 		t.Fatalf("description did not take effect: %v %v", got, err)
 	}
@@ -1476,7 +1305,7 @@ func TestNameSurvivesActorReplacement(t *testing.T) {
 	// the tree rather than the incarnation.
 	env := newTestEnv(t, "/repo")
 	first, h := env.spawn(t, StartArgs{Worktree: "/repo"})
-	_ = env.Couch.SetName("/repo", "long lived")
+	env.nameTree(t, "/repo", "long lived", "")
 
 	env.Runner.SetExited(h.ID(), 0)
 	env.Proc.Kill(first.PID)
@@ -1496,34 +1325,41 @@ func TestNameSurvivesActorReplacement(t *testing.T) {
 
 // --- close-review regressions: each of these fails against the shipped code ---
 
-func TestDeadPairClientDoesNotFreeWholeIncarnationCapacity(t *testing.T) {
-	// A Pair client can die while its detached zellij session and workspace-
-	// writing panes survive. Client death is not whole-incarnation quiescence.
+// This test asserted the OPPOSITE until pair#170 M4, and the reversal is the
+// deletion sweep's most visible behavioural consequence, so it is inverted
+// rather than removed.
+//
+// A live actor used to refuse its own tree: admission enforced fleet capacity,
+// and one thread per path was the common bound. couch-lite has no capacity to
+// enforce -- the path is a start attribute, not the thread's identity, and
+// running several threads in one directory is a thing the operator does on
+// purpose (brain-style repositories were the motivating case). What still keeps
+// two agents off one workspace is Pair's own address claim, not couch's.
+// #181 REVERSES this again, and the operator made the call: several threads at
+// one PATH without separate worktrees is confusing, and the accumulation it
+// produced -- six threads in one repo -- was the concrete cost. couch keeps one
+// thread per path until per-repo policy is modelled.
+//
+// The tree is still not the bound: two threads in one TREE at different
+// subdirectories remain legal, which is what TestCoTenantsAreAddressableByActorID
+// now exercises. Only the exact path is one-at-a-time.
+func TestASecondThreadAtOnePathIsRefused(t *testing.T) {
 	env := newTestEnv(t, "/repo")
-	env.boundedOne("/repo")
-	first, h := env.spawn(t, StartArgs{Worktree: "/repo"})
-
-	env.Runner.SetExited(h.ID(), 0)
-	env.Proc.Kill(first.PID) // the process is gone; the record is not
-
+	first, _ := env.spawn(t, StartArgs{Worktree: "/repo"})
 	_, _, err := env.Couch.Spawn(StartArgs{Worktree: "/repo"})
-	var full *CapacityExceededError
-	if !errors.As(err, &full) {
-		t.Fatalf("dead client err = %T %v, want occupied capacity", err, err)
+	if err == nil {
+		t.Fatal("a second thread started at a path that already had one")
 	}
-	thread, err := env.Couch.Threads.GetThread(first.Thread)
-	if err != nil || len(thread.Incarnations) != 1 {
-		t.Fatalf("whole incarnation was freed with its client: %+v, %v", thread, err)
-	}
-}
-
-func TestLiveActorStillBlocksItsTree(t *testing.T) {
-	// The complement of BR-1: pruning must not weaken the guard.
-	env := newTestEnv(t, "/repo")
-	env.boundedOne("/repo")
-	env.spawn(t, StartArgs{Worktree: "/repo"})
-	if _, _, err := env.Couch.Spawn(StartArgs{Worktree: "/repo"}); err == nil {
-		t.Fatal("a live actor must still refuse its tree")
+	// The refusal has to be navigable: which thread holds the path, and what to
+	// do about it. A bare "refused" leaves the operator with no next step.
+	// Every named next step must be one the operator can actually take from
+	// where this fires. The first version named `couch <path>` (the command
+	// that just refused) and `couch --show` as a way to retire (it is
+	// read-only) -- advice that fails at the moment someone is already stuck.
+	for _, want := range []string{string(first.Thread.Tag), "ctrl-space", "Tab → archive", "couch --show"} {
+		if !strings.Contains(err.Error(), want) {
+			t.Fatalf("refusal %q does not mention %q", err, want)
+		}
 	}
 }
 
@@ -1544,7 +1380,7 @@ func TestStopSignalsTheChildBeforeForgettingIt(t *testing.T) {
 	if len(got) != 1 || got[0] != TermSignal {
 		t.Fatalf("signals = %v, want one SIGTERM", got)
 	}
-	if len(env.Couch.Get("/repo")) != 0 {
+	if len(env.treeRecords(t, "/repo")) != 0 {
 		t.Fatal("the record should be gone after Stop")
 	}
 }
@@ -1561,30 +1397,6 @@ func TestStopOnADeadActorForgetsWithoutSignalling(t *testing.T) {
 	}
 	if signalled {
 		t.Fatal("a dead actor must not be reported as signalled -- that implies a running agent was terminated")
-	}
-}
-
-func TestShowFilterRestrictsRatherThanAdds(t *testing.T) {
-	// BR-3. Summarize took a filter and then folded in every registry record,
-	// so `show <ref>` printed exactly what `list` printed. The old test passed
-	// only because its fixture had a single tree.
-	env := newTestEnv(t, "/repo", "/other")
-	env.spawn(t, StartArgs{Worktree: "/repo"})
-	env.spawn(t, StartArgs{Worktree: "/other"})
-
-	got := env.Couch.Summarize([]Worktree{"/repo"})
-	if len(got) != 1 {
-		var trees []Worktree
-		for _, s := range got {
-			trees = append(trees, s.Tree)
-		}
-		t.Fatalf("Summarize([/repo]) returned %v; a filter must restrict, not add", trees)
-	}
-	if got[0].Tree != "/repo" {
-		t.Fatalf("returned %q", got[0].Tree)
-	}
-	if len(env.Couch.Summarize(nil)) != 2 {
-		t.Fatal("an empty filter must still list everything")
 	}
 }
 
@@ -1680,9 +1492,7 @@ func TestSpawnTellsTheChildWhichTreeItIs(t *testing.T) {
 func TestDescribePrefersTheAgentsPublishedLineOverTheOperators(t *testing.T) {
 	env := newTestEnv(t, "/repo")
 	env.spawn(t, StartArgs{Worktree: "/repo"})
-	if err := env.Couch.SetDescription("/repo", "what the operator typed"); err != nil {
-		t.Fatalf("SetDescription: %v", err)
-	}
+	env.nameTree(t, "/repo", "", "what the operator typed")
 	if err := env.Couch.PublishDescription("/repo", "what the agent is doing"); err != nil {
 		t.Fatalf("PublishDescription: %v", err)
 	}
@@ -1696,7 +1506,6 @@ func TestPruneKeepsRecordsWhoseLivenessIsUnknown(t *testing.T) {
 	// record was pruned, and a second agent was let onto a tree that already
 	// had a running one. Unknown must fail CLOSED.
 	env := newTestEnv(t, "/repo")
-	env.boundedOne("/repo")
 	rec, _ := env.spawn(t, StartArgs{Worktree: "/repo"})
 	env.Proc.SetUnknown(rec.PID)
 
@@ -1706,12 +1515,15 @@ func TestPruneKeepsRecordsWhoseLivenessIsUnknown(t *testing.T) {
 	if err := env.Couch.PruneDead(); err != nil {
 		t.Fatalf("PruneDead: %v", err)
 	}
-	if len(env.Couch.Get("/repo")) != 1 {
+	if len(env.treeRecords(t, "/repo")) != 1 {
 		t.Fatal("an unknown-liveness record was pruned; the guard now protects nothing")
 	}
-	if _, _, err := env.Couch.Spawn(StartArgs{Worktree: "/repo"}); err == nil {
-		t.Fatal("a second agent was admitted while the incumbent's state was unknown")
-	}
+	// The second half of this test used to assert that ADMISSION refused a
+	// second agent at the same path while the incumbent was unknown. Capacity
+	// went with admission (pair#170 M4): couch-lite admits multiple threads per
+	// path deliberately. What survives -- and is what the test is named for --
+	// is that pruning does not DELETE a record whose liveness is unknown, which
+	// is the fail-closed half and is asserted above.
 }
 
 func TestUnreadableIdentityIsUnknownNotDead(t *testing.T) {
@@ -1760,11 +1572,17 @@ func TestAgentPublishedDescriptionResolvesNotJustDisplays(t *testing.T) {
 }
 
 func TestCoTenantsAreAddressableByActorID(t *testing.T) {
-	// BR-24. --same-tree co-tenants share a path and a label, so without an
-	// ActorID branch the escape hatch creates a state couch cannot exit.
+	// BR-24. Co-tenants share a tree and a label, so without an ActorID branch
+	// the escape hatch creates a state couch cannot exit.
+	//
+	// They now differ by PATH: one thread per repo path is enforced (#181), so
+	// two threads in one tree live in different subdirectories. The state this
+	// test protects is unchanged -- both still resolve from the tree ref, and
+	// only an ActorID separates them.
 	env := newTestEnv(t, "/repo")
+	env.cannedTree("/repo", "/repo/sub")
 	first, _ := env.spawn(t, StartArgs{Worktree: "/repo"})
-	second, _ := env.spawn(t, StartArgs{Worktree: "/repo", SameTree: true})
+	second, _ := env.spawn(t, StartArgs{Worktree: "/repo", Cwd: "/repo/sub"})
 	if first.ID == second.ID {
 		t.Fatal("expected two distinct actors")
 	}
@@ -1782,7 +1600,7 @@ func TestCoTenantsAreAddressableByActorID(t *testing.T) {
 	if _, err := env.Couch.Stop(got[0]); err != nil {
 		t.Fatalf("Stop by id: %v", err)
 	}
-	if len(env.Couch.Get("/repo")) != 1 {
+	if len(env.treeRecords(t, "/repo")) != 1 {
 		t.Fatal("stopping one co-tenant must leave the other")
 	}
 }
@@ -1860,6 +1678,7 @@ func TestSpawnResumesAnOpaqueThreadTag(t *testing.T) {
 func TestSpawnUsesRepoScopeButKeepsRequestedSubdirectoryAsWorkingPath(t *testing.T) {
 	env := newTestEnv(t)
 	env.Git.replies[GitCall{Dir: "/repo/sub/dir", Args: "rev-parse --show-toplevel"}] = "/repo"
+	env.Git.replies[GitCall{Dir: "/repo/sub/dir", Args: "rev-parse --git-common-dir"}] = ".git"
 
 	if _, _, err := env.Couch.Spawn(StartArgs{Cwd: "/repo/sub/dir"}); err != nil {
 		t.Fatalf("Spawn: %v", err)

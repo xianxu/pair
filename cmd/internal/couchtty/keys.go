@@ -17,6 +17,17 @@ import (
 // hotkeyByte is ctrl-space in the LEGACY encoding: ctrl-@ is NUL.
 const hotkeyByte = 0x00
 
+// previousByte is ctrl+backspace in the LEGACY encoding. Unlike every other
+// chord couch intercepts it is a bare byte, not an escape sequence, so it needs
+// a branch beside hotkeyByte rather than a knownSequences row.
+//
+// Accepted cost, deliberate and not a discovery: in legacy encoding 0x08 IS
+// ^H, so intercepting ctrl+backspace also takes ctrl-h from the child (readline
+// and nvim insert-mode treat it as backspace). Under the Kitty protocol the two
+// separate cleanly -- \x1b[104;5u vs \x1b[127;5u -- and zellij pushes the
+// protocol, so this only bites with the protocol off.
+const previousByte = 0x08
+
 // escapeAmbiguity is the one deadline used by both terminal-input framers to
 // distinguish an ESC key from the first byte of a split escape sequence.
 const escapeAmbiguity = 35 * time.Millisecond
@@ -30,8 +41,38 @@ const (
 	seqPasteEnd
 	seqSwitch
 	seqPark
+	seqPrevious
+	seqDetach
+	seqRelaunch
 	seqHotkey = seqSwitch // compatibility name for the switch-sequence tests
 )
+
+// hit maps a sequence to what the console should do about it, and is the ONE
+// place that knows. HitNone means the sequence is not couch's.
+//
+// intercepts() used to be a second switch over the same enum, so a new chord had
+// to join both or be silently forwarded -- the failure the Kitty encoding
+// already caused once, and the shape that let alt+n ship consumed-and-dropped.
+// Two switches over one enum agree until someone edits one.
+func (k seqKind) hit() InterceptorHit {
+	switch k {
+	case seqSwitch:
+		return HitSwitch
+	case seqPark:
+		return HitPark
+	case seqPrevious:
+		return HitPrevious
+	case seqDetach:
+		return HitDetach
+	case seqRelaunch:
+		return HitRelaunch
+	}
+	return HitNone
+}
+
+// intercepts reports whether a sequence is CONSUMED by couch rather than
+// forwarded to the child. Derived from hit(), so the two cannot disagree.
+func (k seqKind) intercepts() bool { return k.hit() != HitNone }
 
 type InterceptorHit uint8
 
@@ -39,7 +80,32 @@ const (
 	HitNone InterceptorHit = iota
 	HitSwitch
 	HitPark
+	// HitPrevious is ctrl+backspace: return to the actor recorded by
+	// SwitchTracker. The key labelled `delete` on an Apple keyboard, not
+	// forward-delete -- no fn in the chord.
+	HitPrevious
+	// HitDetach is alt+d: stop this thread's pair client without tearing down
+	// its zellij session.
+	HitDetach
+	// HitRelaunch is alt+n (or ctrl+alt+n): replace this thread's Pair process
+	// with the current binary, keeping the agent conversation.
+	HitRelaunch
 )
+
+// AllInterceptorHits is every hit the console must be able to act on.
+//
+// It exists so "the dispatch switch is exhaustive" can be CHECKED rather than
+// remembered. alt+n shipped once intercepted with no arm in that switch: the
+// bytes were consumed and the operation never ran, silently, and every
+// interceptor test stayed green because the Interceptor's half was correct. A
+// hand-written switch cannot report the case it forgot; this list is what a test
+// walks to prove one exists for each.
+//
+// HitNone is deliberately absent: it is the ABSENCE of a hit, and giving it a
+// handler would be inventing an action for "nothing happened".
+func AllInterceptorHits() []InterceptorHit {
+	return []InterceptorHit{HitSwitch, HitPark, HitPrevious, HitDetach, HitRelaunch}
+}
 
 // knownSequences is every multi-byte sequence the console must recognise in the
 // operator's input. Everything else is forwarded untouched -- couch does not
@@ -67,12 +133,62 @@ var knownSequences = func() []struct {
 		{[]byte("\x1b[200~"), seqPasteStart},
 		{[]byte("\x1b[201~"), seqPasteEnd},
 		{[]byte("\x1b[32;5u"), seqSwitch},
+		// ctrl+backspace under the Kitty protocol: codepoint 127 with modifier
+		// bitmask 4 encoded as 4+1. Its legacy form is the bare byte handled
+		// above, not a sequence.
+		{[]byte("\x1b[127;5u"), seqPrevious},
 	}
-	for _, encoding := range workbenchshortcut.ChordEncodings(workbenchshortcut.ChordAltX) {
-		sequences = append(sequences, struct {
-			bytes []byte
-			kind  seqKind
-		}{encoding, seqPark})
+	for _, chord := range []struct {
+		chord workbenchshortcut.Chord
+		kind  seqKind
+	}{
+		{workbenchshortcut.ChordAltX, seqPark},
+		// alt+d is Pair's own detach chord, intercepted for the same reason
+		// alt+x is: un-intercepted, PairConfirmDetach runs `zellij action
+		// detach` from inside the session, leaving couch with a dead child and
+		// a stale live incarnation -- which the fail-closed projector hides. The
+		// operator's safest gesture would make the thread vanish from the
+		// switcher. Intercepting costs the hosted Pair its own chord and buys
+		// the durable retirement that makes the thread reattachable.
+		//
+		// ChordAltD has exactly one encoding: the table declares no legacy
+		// "\x1bd", so with the Kitty protocol off alt+d passes through to the
+		// child. zellij pushes the protocol, so this is a documented edge.
+		{workbenchshortcut.ChordAltD, seqDetach},
+		// alt+n and ctrl+alt+n are Pair's own reload chords, intercepted for a
+		// reason that is sharper than alt+d's. Un-intercepted, Pair handles them
+		// INSIDE the process couch spawned: `pair restart` writes a marker and
+		// execs kill-session, the outer process unblocks, and createflow's loop
+		// re-enters runOnce in the same process image. There is no re-exec, so
+		// the binary in memory is the old one -- a rebuilt Pair is not what
+		// comes back. For pair development that is worse than not working,
+		// because it looks like it worked.
+		//
+		// BOTH aliases, and the second is not a nicety: on newer macOS
+		// Option+n is a dead-tilde composer, which is why Pair carries
+		// ctrl+alt+n at all. Taking only one would leave the operator's actual
+		// keystroke reaching the child.
+		//
+		// alt+SHIFT+n is deliberately NOT taken (\x1b[78;4u, a distinct
+		// sequence). It restarts only the agent conversation, and it is the
+		// cheap in-session escape hatch that has to survive couch claiming the
+		// heavier chord: alt+n means new code, same conversation;
+		// alt+shift+n means same code, new conversation.
+		//
+		// Kitty-protocol edge, inherited from ChordAltD: neither declares a
+		// legacy encoding, so with the protocol off both pass through to Pair
+		// and do its old in-place reload. zellij pushes the protocol, so this is
+		// a documented degradation -- but it means the behaviour differs
+		// silently by protocol state, which is why it is written here.
+		{workbenchshortcut.ChordAltN, seqRelaunch},
+		{workbenchshortcut.ChordCtrlAltN, seqRelaunch},
+	} {
+		for _, encoding := range workbenchshortcut.ChordEncodings(chord.chord) {
+			sequences = append(sequences, struct {
+				bytes []byte
+				kind  seqKind
+			}{encoding, chord.kind})
+		}
 	}
 	return sequences
 }()
@@ -84,8 +200,8 @@ var knownSequences = func() []struct {
 // to the child being left and y to the one landed on. The shape is
 // workbenchshortcut.FindChord's, deliberately -- that is the repo's existing
 // answer to "find a key in a stream and split around it". The chord TABLE is
-// not shared: couch has one key, the workbench has a dozen, and merging opposed
-// tables is the bug rather than the cleanup.
+// not shared: couch claims a handful of keys, the workbench has a dozen, and
+// merging opposed tables is the bug rather than the cleanup.
 //
 // One piece of state, and it earns its place: a bracketed paste can carry
 // arbitrary bytes, and a pasted NUL that silently switches actors while eating a
@@ -130,6 +246,9 @@ func (i *Interceptor) FeedHit(in []byte) (before []byte, hit InterceptorHit, res
 		if !i.inPaste && buf[idx] == hotkeyByte {
 			return out, HitSwitch, buf[idx+1:]
 		}
+		if !i.inPaste && buf[idx] == previousByte {
+			return out, HitPrevious, buf[idx+1:]
+		}
 		if buf[idx] == 0x1b {
 			n, kind := sequenceAt(buf[idx:])
 			switch kind {
@@ -146,13 +265,16 @@ func (i *Interceptor) FeedHit(in []byte) (before []byte, hit InterceptorHit, res
 				out = append(out, buf[idx:idx+n]...)
 				idx += n
 				continue
-			case seqSwitch, seqPark:
+			}
+			// intercepts(), not a hand-written list of kinds. This site used to
+			// enumerate them, which is the precise failure intercepts() exists
+			// to prevent -- its own comment says so: "a new chord that forgot to
+			// update a hand-written list would be silently forwarded". Adding
+			// seqRelaunch updated intercepts() and hit() and was still silently
+			// forwarded here, which is the third copy proving the point.
+			if kind.intercepts() {
 				if !i.inPaste {
-					hit := HitSwitch
-					if kind == seqPark {
-						hit = HitPark
-					}
-					return out, hit, buf[idx+n:]
+					return out, kind.hit(), buf[idx+n:]
 				}
 				// Inside a paste it is content, like any other byte.
 				out = append(out, buf[idx:idx+n]...)

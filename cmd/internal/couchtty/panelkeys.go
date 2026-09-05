@@ -196,7 +196,15 @@ func decodeCSIu(seq []byte) (PanelKey, bool) {
 	case 13:
 		return PanelKey{Kind: KeyEnter}, true
 	case 127, 8:
-		return PanelKey{Kind: KeyBackspace}, true
+		// Respect `modified`, which this branch used to ignore: \x1b[127;5u is
+		// ctrl+backspace, not backspace, and decoding it as backspace deletes a
+		// filter character instead of going home. The interceptor claims both
+		// encodings before the panel sees them, so this is defence in depth --
+		// but it matters inside a bracketed paste, where the interceptor
+		// forwards content verbatim.
+		if !modified {
+			return PanelKey{Kind: KeyBackspace}, true
+		}
 	case 9:
 		if !modified {
 			return PanelKey{Kind: KeyTab}, true

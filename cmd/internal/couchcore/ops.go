@@ -100,6 +100,14 @@ type Operation struct {
 	Confirmation OperationConfirmation
 	Result       OperationResult
 	Presentation OperationPresentation
+	// RowAction declares that the switcher offers this operation on a thread
+	// row. It is membership only -- WHICH row states offer it stays in
+	// menuActionItems, because that is real UI policy a bool cannot carry --
+	// but membership now has one source instead of two.
+	//
+	// PresentationTUI is not the same question: switch, attach, leave and start
+	// are all TUI operations that no row offers.
+	RowAction bool
 }
 
 // StartResult is what `start` returns before the caller waits on the child.
@@ -107,6 +115,23 @@ type StartResult struct {
 	Record ActorRecord
 	Handle Handle
 }
+
+// StartedChild is implemented by any operation result that hands the console a
+// newly started child to adopt.
+//
+// Adoption is a PROPERTY of the result, not a closed list of concrete types.
+// finishOperation used to assert on StartResult alone, so relaunch -- which
+// returns its own struct around the same Record and Handle -- spawned a child
+// that was never adopted. It ran as couch's orphan: the record said live, the
+// switcher rendered "live", the status bar had no pane, and Return could not
+// reach it. A second operation that starts a child is exactly the case a type
+// switch cannot be trusted to remember.
+type StartedChild interface {
+	Started() (StartResult, bool)
+}
+
+// Started makes a StartResult its own adoption payload.
+func (s StartResult) Started() (StartResult, bool) { return s, true }
 
 // StopResult reports what stopping actually did: a record for an already-dead
 // actor is forgotten without a signal, and saying so avoids implying a running
@@ -116,20 +141,10 @@ type StopResult struct {
 	Signalled bool
 }
 
-// ActorView is a record plus the state that must be computed rather than
-// stored -- liveness, and whatever the operator or the agent has called it.
-type ActorView struct {
-	Record ActorRecord `json:"record"`
-	Live   bool        `json:"live"`
-	State  Liveness    `json:"state"`
-	Name   string      `json:"name,omitempty"`
-	Desc   string      `json:"description,omitempty"`
-}
-
 func Operations() []Operation {
 	return []Operation{
 		{
-			Name: "prepare-start", Summary: "Resolve a start request and issue one owner-local authorization token",
+			Name: "prepare-start", Summary: "Resolve a start request without starting anything",
 			Execution: ExecuteLiveOwner, Effect: EffectAuthority, Confirmation: ConfirmNone, Result: ResultStartResolution,
 			Presentation: PresentationTUI,
 			Args: []ArgSpec{
@@ -142,7 +157,10 @@ func Operations() []Operation {
 			Execution: ExecuteLiveOwner, Effect: EffectProcess, Confirmation: ConfirmNone, Result: ResultStart,
 			Presentation: PresentationTUI,
 			Args: []ArgSpec{
-				{Name: "token", Summary: "accepted start resolution from the live owner", Required: true, Implicit: true},
+				{Name: "path", Summary: "canonical path the preview resolved", Required: true, Implicit: true},
+				{Name: "agent", Summary: "agent the operator explicitly requested, if any", Required: false, Implicit: true},
+				{Name: "issue", Summary: "issue the preview resolved, if any", Required: false, Implicit: true},
+				{Name: "fingerprint", Summary: "fingerprint of the resolution the preview accepted", Required: true, Implicit: true},
 			},
 		},
 		{
@@ -168,9 +186,10 @@ func Operations() []Operation {
 		{
 			Name: "name", Summary: "Give a work thread a short human name",
 			Execution: ExecuteDirectStore, Effect: EffectMetadata, Confirmation: ConfirmNone, Result: ResultThread,
-			Presentation: PresentationTUI,
+			Presentation: PresentationTUI, RowAction: true,
 			Args: []ArgSpec{
-				{Name: "ref", Summary: "thread tag, path, or existing name", Required: true},
+				{Name: "ref", Summary: "thread tag, path, or existing name", Required: false},
+				{Name: "tag", Summary: "exact thread tag from trusted owner context", Implicit: true},
 				{Name: "name", Summary: "the new short name", Required: true},
 				{Name: "repo-scope", Summary: "repository scope derived from caller context", Required: true, Implicit: true},
 			},
@@ -178,9 +197,10 @@ func Operations() []Operation {
 		{
 			Name: "describe", Summary: "Read or set a work thread's operator description",
 			Execution: ExecuteDirectStore, Effect: EffectMetadata, Confirmation: ConfirmNone, Result: ResultDescription,
-			Presentation: PresentationTUI,
+			Presentation: PresentationTUI, RowAction: true,
 			Args: []ArgSpec{
-				{Name: "ref", Summary: "thread tag, path, or name", Required: true},
+				{Name: "ref", Summary: "thread tag, path, or name", Required: false},
+				{Name: "tag", Summary: "exact thread tag from trusted owner context", Implicit: true},
 				{Name: "description", Summary: "omit to read the cached value", Required: false},
 				{Name: "repo-scope", Summary: "repository scope derived from caller context", Required: true, Implicit: true},
 			},
@@ -216,7 +236,7 @@ func Operations() []Operation {
 		{
 			Name: "park", Summary: "Fully quit a work thread after verified Pair cleanup",
 			Execution: ExecuteLiveOwner, Effect: EffectProcess, Confirmation: ConfirmRequired, Result: ResultThread,
-			Presentation: PresentationTUI,
+			Presentation: PresentationTUI, RowAction: true,
 			Args: []ArgSpec{
 				{Name: "ref", Summary: "thread tag, path, or name", Required: false},
 				{Name: "tag", Summary: "exact thread tag from trusted owner context", Implicit: true},
@@ -225,14 +245,69 @@ func Operations() []Operation {
 			},
 		},
 		{
-			Name: "leave", Summary: "Park every active work thread and leave Couch",
+			// Detach is the warm counterpart to park: the agent keeps running
+			// behind its zellij session and only the client goes. Nothing is
+			// destroyed, so unlike park it needs no confirmation.
+			Name: "detach", Summary: "Stop a work thread's Pair client and leave its session running",
+			Execution: ExecuteLiveOwner, Effect: EffectProcess, Confirmation: ConfirmNone, Result: ResultThread,
+			Presentation: PresentationTUI, RowAction: true,
+			Args: []ArgSpec{
+				{Name: "ref", Summary: "thread tag, path, or name", Required: false},
+				{Name: "tag", Summary: "exact thread tag from trusted owner context", Implicit: true},
+				{Name: "repo-scope", Summary: "repository scope derived from caller context", Required: true, Implicit: true},
+			},
+		},
+		{
+			// The archive is inspectable on purpose: retiring a thread is a
+			// decision the operator can undo, and an undo they cannot see is
+			// not one they will trust.
+			Name: "archived", Summary: "List work threads removed from Couch",
+			Execution: ExecuteDirectStore, Effect: EffectRead, Confirmation: ConfirmNone,
+			Result: ResultThreadInventory, Presentation: PresentationList,
+		},
+		{
+			// Relaunch replaces a thread's Pair process with the current binary
+			// and keeps the agent conversation. Confirmed because it stops a
+			// running agent; live-owner because both halves it composes are.
+			Name: "relaunch", Summary: "Restart a work thread's Pair, keeping its agent conversation",
+			// ResultStart, like resume: a completed relaunch hands back a child
+			// the console must adopt. Declaring ResultThread said otherwise and
+			// the declaration was simply false.
+			Execution: ExecuteLiveOwner, Effect: EffectProcess, Confirmation: ConfirmRequired, Result: ResultStart,
+			Presentation: PresentationTUI, RowAction: true,
+			Args: []ArgSpec{
+				{Name: "ref", Summary: "thread tag, path, or name", Required: false},
+				{Name: "tag", Summary: "exact thread tag from trusted owner context", Implicit: true},
+				{Name: "repo-scope", Summary: "repository scope derived from caller context", Required: true, Implicit: true},
+			},
+		},
+		{
+			// Archiving is the operator's "delete": remove a thread from the
+			// switcher so they can start anew. It is reversible by design --
+			// the record moves rather than being destroyed -- but it is still
+			// confirmed, because a row leaving the working set is exactly the
+			// kind of change that should not happen by a mistyped keystroke.
+			Name: "archive", Summary: "Remove a work thread from Couch, keeping its record in the archive",
+			Execution: ExecuteDirectStore, Effect: EffectMetadata, Confirmation: ConfirmRequired, Result: ResultThread,
+			Presentation: PresentationTUI, RowAction: true,
+			Args: []ArgSpec{
+				{Name: "ref", Summary: "thread tag, path, or name", Required: false},
+				{Name: "tag", Summary: "exact thread tag from trusted owner context", Implicit: true},
+				{Name: "repo-scope", Summary: "repository scope derived from caller context", Required: true, Implicit: true},
+			},
+		},
+		{
+			Name: "leave", Summary: "Apply one disposition to every live work thread and leave Couch",
 			Execution: ExecuteLiveOwner, Effect: EffectProcess, Confirmation: ConfirmRequired, Result: ResultConsole,
 			Presentation: PresentationTUI,
+			Args: []ArgSpec{
+				{Name: "mode", Summary: "detach (default) or park every live thread (--mode=<mode>)", FlagOnly: true, ValueRequired: true},
+			},
 		},
 		{
 			Name: "resume", Summary: "Resume an exact verified-parked work thread",
 			Execution: ExecuteLiveOwner, Effect: EffectProcess, Confirmation: ConfirmNone, Result: ResultStart,
-			Presentation: PresentationTUI,
+			Presentation: PresentationTUI, RowAction: true,
 			Args: []ArgSpec{
 				{Name: "ref", Summary: "thread tag, path, or name", Required: false},
 				{Name: "tag", Summary: "exact thread tag from trusted owner context", Implicit: true},

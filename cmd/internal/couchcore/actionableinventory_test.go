@@ -20,12 +20,12 @@ func TestProjectActionableThreadsRequiresExactLifecycleProof(t *testing.T) {
 	parked.LatestLaunchProfile = &LaunchProfile{Agent: "claude", Argv: []string{}}
 	markActionableParked(&parked, now.Add(-time.Hour))
 
-	rows := ProjectActionableThreads(
+	rows := actionableRows(
 		[]ThreadRecord{live, parked},
 		[]LiveTTYObservation{{
 			Address: live.Address,
 			Process: ProcessIdentity{PID: 42, Identity: "live-process"},
-		}}, []ParkedResumeObservation{{Address: parked.Address, Agent: "claude", NativeID: "native-root-1"}},
+		}}, []ParkedResumeObservation{{Address: parked.Address, Agent: "claude", NativeID: "native-root-1"}}, nil,
 	)
 
 	want := []ActionableThreadSummary{
@@ -43,7 +43,7 @@ func TestProjectActionableThreadsOmitsVerifiedParkWithoutResumeAuthority(t *test
 	parked.LatestLaunchProfile = &LaunchProfile{Agent: "claude", Argv: []string{}}
 	markActionableParked(&parked, now)
 
-	if rows := ProjectActionableThreads([]ThreadRecord{parked}, nil, nil); len(rows) != 0 {
+	if rows := actionableRows([]ThreadRecord{parked}, nil, nil, nil); len(rows) != 0 {
 		t.Fatalf("unbound verified park projected as actionable: %+v", rows)
 	}
 }
@@ -79,7 +79,7 @@ func TestProjectActionableThreadsRequiresOneMatchingSupportedResumeProof(t *test
 			if tc.mutate != nil {
 				tc.mutate(&record)
 			}
-			if rows := ProjectActionableThreads([]ThreadRecord{record}, nil, tc.proofs); len(rows) != tc.want {
+			if rows := actionableRows([]ThreadRecord{record}, nil, tc.proofs, nil); len(rows) != tc.want {
 				t.Fatalf("rows = %+v, want %d", rows, tc.want)
 			}
 		})
@@ -160,7 +160,7 @@ func TestProjectActionableThreadsFailsClosedOnContradictoryEvidence(t *testing.T
 				observation.Address = record.Address
 				observations = append(observations, observation)
 			}
-			if rows := ProjectActionableThreads([]ThreadRecord{record}, observations, nil); len(rows) != 0 {
+			if rows := actionableRows([]ThreadRecord{record}, observations, nil, nil); len(rows) != 0 {
 				t.Fatalf("contradictory row projected as actionable: %+v", rows)
 			}
 		})
@@ -248,7 +248,11 @@ func TestActionableThreadInventoryProjectsPhysicalParkedWorkingPath(t *testing.T
 	}
 }
 
-func TestActionableThreadInventoryOmitsParkedThreadWithUnavailableWorkingPath(t *testing.T) {
+// A parked thread whose working path cannot be physicalized is NOT offered --
+// the startup selector compares paths by exact string, so an unphysicalized row
+// could be auto-selected. Since #181 it is still not offered, but it is no
+// longer invisible: it is a row that says path-missing.
+func TestActionableThreadInventoryRefusesParkedThreadWithUnavailableWorkingPath(t *testing.T) {
 	store, _ := newTestThreadStore(t)
 	record := actionableTestThread("couch-0000000000000001", time.Unix(100, 0).UTC())
 	record.LatestLaunchProfile = &LaunchProfile{Agent: "claude", Argv: []string{}}
@@ -264,8 +268,11 @@ func TestActionableThreadInventoryOmitsParkedThreadWithUnavailableWorkingPath(t 
 	couch := &Couch{Threads: store, Artifacts: artifacts, Path: paths}
 
 	rows, err := couch.ActionableThreadInventory(nil)
-	if err != nil || len(rows) != 0 {
+	if err != nil || len(rows) != 1 {
 		t.Fatalf("missing-path parked inventory = %+v, %v", rows, err)
+	}
+	if rows[0].State != ThreadUnusable || rows[0].Reason != ReasonPathMissing {
+		t.Fatalf("row = %+v, want unusable/path-missing", rows[0])
 	}
 }
 
@@ -342,14 +349,13 @@ func TestActionableThreadInventoryDistinguishesSnapshotFailureFromEmpty(t *testi
 
 func actionableTestThread(tag ThreadTag, active time.Time) ThreadRecord {
 	return ThreadRecord{
-		SchemaVersion:   ThreadSchemaVersion,
-		Address:         ThreadAddress{RepoScope: "816fc349d3faebf8", Tag: tag},
-		StartingPath:    "/repo",
-		WorkingPath:     "/repo",
-		CreatedAt:       time.Unix(1, 0).UTC(),
-		Revision:        1,
-		ClaimGeneration: 1,
-		LastActiveAt:    active,
+		SchemaVersion: ThreadSchemaVersion,
+		Address:       ThreadAddress{RepoScope: "816fc349d3faebf8", Tag: tag},
+		StartingPath:  "/repo",
+		WorkingPath:   "/repo",
+		CreatedAt:     time.Unix(1, 0).UTC(),
+		Revision:      1,
+		LastActiveAt:  active,
 	}
 }
 
@@ -366,4 +372,245 @@ func markActionableParked(record *ThreadRecord, parkedAt time.Time) {
 		Closed: true, SuccessfulAttempt: 1,
 	}}
 	record.VerifiedPark = &VerifiedPark{Identity: identity, Attempt: 1, ParkedAt: parkedAt}
+}
+
+// ThreadDetached is the third actionable state. Its fail-closed property is the
+// point: a record still carrying an incarnation stays HIDDEN even when a
+// detached session matches it, so a couch that died without detaching cannot
+// masquerade as a clean detach.
+func TestProjectActionableThreadsDetached(t *testing.T) {
+	address := ThreadAddress{RepoScope: "scope-a", Tag: "couch-0000000000000001"}
+	profile := &LaunchProfile{Agent: "claude", Argv: []string{}}
+	detached := []DetachedSessionObservation{{Address: address, SessionName: "pair-one", Agent: "claude", NativeID: "native-root-1"}}
+
+	base := func() ThreadRecord {
+		return ThreadRecord{
+			SchemaVersion: ThreadSchemaVersion, Address: address,
+			StartingPath: "/repo", WorkingPath: "/repo", CreatedAt: time.Unix(1, 0).UTC(), Revision: 1,
+			LatestLaunchProfile: profile,
+		}
+	}
+
+	tests := []struct {
+		name     string
+		mutate   func(*ThreadRecord)
+		observed []DetachedSessionObservation
+		want     ActionableThreadState
+		wantRow  bool
+	}{
+		{
+			name:     "zero incarnations plus a matching detached session",
+			observed: detached, want: ThreadDetached, wantRow: true,
+		},
+		{
+			name:     "no detached observation means no row",
+			observed: nil,
+		},
+		{
+			// The regression that matters: a crashed couch leaves this shape.
+			name: "a stale live incarnation stays hidden",
+			mutate: func(r *ThreadRecord) {
+				r.Incarnations = []ThreadIncarnation{{State: IncarnationLive, PID: 4242, Identity: "gone", StartedAt: time.Unix(1, 0).UTC()}}
+			},
+			observed: detached,
+		},
+		{
+			name: "an unknown incarnation stays hidden",
+			mutate: func(r *ThreadRecord) {
+				r.Incarnations = []ThreadIncarnation{{State: IncarnationUnknown, PID: 4242, Identity: "gone", StartedAt: time.Unix(1, 0).UTC()}}
+			},
+			observed: detached,
+		},
+		{
+			name:     "no launch profile means nothing to reattach with",
+			mutate:   func(r *ThreadRecord) { r.LatestLaunchProfile = nil },
+			observed: detached,
+		},
+		{
+			name:     "a reserved record is never actionable",
+			mutate:   func(r *ThreadRecord) { r.Reservation = true },
+			observed: detached,
+		},
+		{
+			name:     "an observation for another address does not match",
+			observed: []DetachedSessionObservation{{Address: ThreadAddress{RepoScope: "scope-a", Tag: "couch-0000000000000009"}, SessionName: "pair-other", Agent: "claude", NativeID: "native-root-1"}},
+		},
+		{
+			name: "two observations for one address are ambiguous",
+			observed: []DetachedSessionObservation{
+				{Address: address, SessionName: "pair-one", Agent: "claude", NativeID: "native-root-1"},
+				{Address: address, SessionName: "pair-two", Agent: "claude", NativeID: "native-root-1"},
+			},
+		},
+	}
+
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			record := base()
+			if test.mutate != nil {
+				test.mutate(&record)
+			}
+			rows := actionableRows([]ThreadRecord{record}, nil, nil, test.observed)
+			if !test.wantRow {
+				if len(rows) != 0 {
+					t.Fatalf("rows = %+v, want none", rows)
+				}
+				return
+			}
+			if len(rows) != 1 || rows[0].State != test.want {
+				t.Fatalf("rows = %+v, want one %s row", rows, test.want)
+			}
+			if rows[0].Detached() != (test.want == ThreadDetached) {
+				t.Fatalf("Detached() disagrees with State %q", rows[0].State)
+			}
+		})
+	}
+}
+
+// A detached observation must not disturb the live or parked verdicts.
+func TestProjectActionableThreadsDetachedDoesNotDisturbOtherStates(t *testing.T) {
+	address := ThreadAddress{RepoScope: "scope-a", Tag: "couch-0000000000000001"}
+	live := ThreadRecord{
+		SchemaVersion: ThreadSchemaVersion, Address: address,
+		StartingPath: "/repo", WorkingPath: "/repo", CreatedAt: time.Unix(1, 0).UTC(), Revision: 1,
+		Incarnations: []ThreadIncarnation{{State: IncarnationLive, PID: 10, Identity: "id-10", StartedAt: time.Unix(1, 0).UTC()}},
+	}
+	ttys := []LiveTTYObservation{{Address: address, Process: ProcessIdentity{PID: 10, Identity: "id-10"}}}
+	stray := []DetachedSessionObservation{{Address: address, SessionName: "pair-one", Agent: "claude", NativeID: "native-root-1"}}
+
+	withStray := actionableRows([]ThreadRecord{live}, ttys, nil, stray)
+	if len(withStray) != 1 || withStray[0].State != ThreadLive {
+		t.Fatalf("rows = %+v, want the live verdict unchanged", withStray)
+	}
+}
+
+// The detached branch must fail closed on its own, not because the caller
+// happened to filter candidates: a row whose saved agent is unsupported, or
+// whose argv was never recorded, offers an Enter that cannot work.
+func TestProjectActionableThreadsDetachedRequiresAUsableProfile(t *testing.T) {
+	address := ThreadAddress{RepoScope: "scope-a", Tag: "couch-0000000000000001"}
+	detached := []DetachedSessionObservation{{Address: address, SessionName: "pair-one", Agent: "claude", NativeID: "native-root-1"}}
+
+	for _, test := range []struct {
+		name    string
+		profile *LaunchProfile
+		wantRow bool
+	}{
+		{name: "supported agent with argv", profile: &LaunchProfile{Agent: "claude", Argv: []string{}}, wantRow: true},
+		{name: "unsupported agent", profile: &LaunchProfile{Agent: "not-an-agent", Argv: []string{}}},
+		{name: "nil argv was never recorded", profile: &LaunchProfile{Agent: "claude"}},
+	} {
+		t.Run(test.name, func(t *testing.T) {
+			record := ThreadRecord{
+				SchemaVersion: ThreadSchemaVersion, Address: address,
+				StartingPath: "/repo", WorkingPath: "/repo",
+				CreatedAt: time.Unix(1, 0).UTC(), Revision: 1,
+				LatestLaunchProfile: test.profile,
+			}
+			rows := actionableRows([]ThreadRecord{record}, nil, nil, detached)
+			if (len(rows) == 1) != test.wantRow {
+				t.Fatalf("rows = %+v, wantRow = %v", rows, test.wantRow)
+			}
+		})
+	}
+}
+
+// Parked and detached rows must carry the SAME kind of path, or the startup
+// selector -- which compares by exact string -- matches one and misses the
+// other for the same tree. Only visible on a symlinked checkout, which is
+// exactly why it needs a test rather than a reading.
+func TestActionableInventoryPhysicalizesDetachedRowsLikeParkedOnes(t *testing.T) {
+	ns := testCouchNamespace(t)
+	store := NewThreadStore(ns)
+	profile := &LaunchProfile{Agent: "claude", Argv: []string{}}
+
+	seed := validThreadRecord(t)
+	seed.StartingPath, seed.WorkingPath = "/link/repo", "/link/repo"
+	created, err := store.CreateThread(seed)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := store.UpdateExistingThread(created.Address, created.Revision, func(next *ThreadRecord) error {
+		next.Reservation = false
+		next.LatestLaunchProfile = profile
+		return nil
+	}); err != nil {
+		t.Fatal(err)
+	}
+
+	artifacts := NewFakeThreadArtifactCollisionChecker()
+	artifacts.SetDetachedSession(created.Address, "pair-one")
+	// A detached row must clear the same native-binding gate a parked one does,
+	// or startup would offer a row resume cannot take.
+	artifacts.SetNativeBinding(created.Address, "claude", sessioninventory.BindingEstablished, "native-root-1")
+	couch := &Couch{
+		Threads:   store,
+		Artifacts: artifacts,
+		Path:      NewFakePathOps(map[string]string{"/link/repo": "/real/repo"}),
+	}
+
+	rows, err := couch.ActionableThreadInventoryContext(context.Background(), nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(rows) != 1 || rows[0].State != ThreadDetached {
+		t.Fatalf("rows = %+v, want one detached row", rows)
+	}
+	if rows[0].WorkingPath != "/real/repo" {
+		t.Fatalf("detached WorkingPath = %q, want the physical path -- the startup selector compares by exact string",
+			rows[0].WorkingPath)
+	}
+	// And the selector actually finds it at the physical path.
+	if _, ok := SelectResumableRoot(rows, created.Address.RepoScope, "/real/repo"); !ok {
+		t.Fatal("the detached row was not selectable at its physical path")
+	}
+}
+
+// The PURE projector enforces the resume proof; it does not trust the IO shell
+// to have filtered its candidates.
+//
+// The binding requirement used to live only in ActionableThreadInventoryContext,
+// which made actionableThreadState's own "fails closed on its own" comment
+// false: a caller that forgot to gate would have got rows resume cannot take,
+// and startup has no fallback, so that is `couch` refusing to start rather than
+// a merely cosmetic row.
+func TestProjectActionableThreadsDetachedRequiresTheResumeProof(t *testing.T) {
+	address := ThreadAddress{RepoScope: "scope-a", Tag: "couch-0000000000000001"}
+	record := ThreadRecord{
+		SchemaVersion: ThreadSchemaVersion, Address: address,
+		StartingPath: "/repo", WorkingPath: "/repo",
+		CreatedAt: time.Unix(1, 0).UTC(), Revision: 1,
+		LatestLaunchProfile: &LaunchProfile{Agent: "claude", Argv: []string{}},
+	}
+
+	for _, test := range []struct {
+		name    string
+		observe DetachedSessionObservation
+		wantRow bool
+	}{
+		{
+			name:    "full proof",
+			observe: DetachedSessionObservation{Address: address, SessionName: "pair-one", Agent: "claude", NativeID: "native-root-1"},
+			wantRow: true,
+		},
+		{
+			name:    "no native id -- the shell resolved no established binding",
+			observe: DetachedSessionObservation{Address: address, SessionName: "pair-one", Agent: "claude"},
+		},
+		{
+			name:    "agent disagrees with the saved launch profile",
+			observe: DetachedSessionObservation{Address: address, SessionName: "pair-one", Agent: "codex", NativeID: "native-root-1"},
+		},
+		{
+			name:    "no session name is a session that is not there",
+			observe: DetachedSessionObservation{Address: address, Agent: "claude", NativeID: "native-root-1"},
+		},
+	} {
+		t.Run(test.name, func(t *testing.T) {
+			rows := actionableRows([]ThreadRecord{record}, nil, nil, []DetachedSessionObservation{test.observe})
+			if (len(rows) == 1) != test.wantRow {
+				t.Fatalf("rows = %+v, wantRow = %v", rows, test.wantRow)
+			}
+		})
+	}
 }

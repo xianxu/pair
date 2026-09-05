@@ -13,20 +13,20 @@ func TestBusyboxSubcommand(t *testing.T) {
 		wantSub string
 		wantOK  bool
 	}{
-		{"pair-slug", "slug", true},        // the one surviving external symlink
-		{"pair-title", "title", true},      // any flat pair-<x> resolves
+		{"pair-slug", "slug", true},   // the one surviving external symlink
+		{"pair-title", "title", true}, // any flat pair-<x> resolves
 		{"pair-context", "context", true},
-		{"pair", "", false},                // launcher, its own entrypoint
-		{"pair-go", "", false},             // launch handoff
-		{"pair-dev", "", false},            // dev wrapper shell shim
-		{"pair-scribe", "", false},         // folds to `pair scribe`, not a busybox alias
-		{"pair-help", "", false},           // shell shim
-		{"pair-notify", "", false},         // shell shim
-		{"pair-review-open", "", false},    // nested family — never a busybox name
-		{"pair-frob", "", false},           // pair-<x> but x not implemented
-		{"randomtool", "", false},          // arbitrary PATH tool never resolves
-		{"slug", "", false},                // bare token without pair- prefix never resolves
-		{"title", "", false},               // ditto
+		{"pair", "", false},             // launcher, its own entrypoint
+		{"pair-go", "", false},          // launch handoff
+		{"pair-dev", "", false},         // dev wrapper shell shim
+		{"pair-scribe", "", false},      // folds to `pair scribe`, not a busybox alias
+		{"pair-help", "", false},        // shell shim
+		{"pair-notify", "", false},      // shell shim
+		{"pair-review-open", "", false}, // nested family — never a busybox name
+		{"pair-frob", "", false},        // pair-<x> but x not implemented
+		{"randomtool", "", false},       // arbitrary PATH tool never resolves
+		{"slug", "", false},             // bare token without pair- prefix never resolves
+		{"title", "", false},            // ditto
 	}
 	for _, c := range cases {
 		sub, ok := busyboxSubcommand(c.base, valid)

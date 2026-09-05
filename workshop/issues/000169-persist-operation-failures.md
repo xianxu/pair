@@ -1,10 +1,10 @@
 ---
 id: 000169
-status: open
+status: punt
 deps: []
 github_issue:
 created: 2026-09-01
-updated: 2026-09-01
+updated: 2026-09-03
 estimate_hours:
 ---
 
@@ -51,6 +51,24 @@ session; the original subprocess error was unrecoverable.
 - [ ] Add UI lifecycle and restart-level regression tests.
 
 ## Log
+
+### 2026-09-03 — punted: the disappearance is fixed, the error text is not
+
+pair#181 M1 fixed the half that actually bit. The observed failure left "a
+rolled-back thread reservation and a partially launched Pair/Zellij session",
+and the operator "saw the action silently fail" -- because a record couch could
+not prove simply produced no row. The projection is total now: a rolled-back
+reservation reads `never started`, a half-launched thread reads its own reason,
+and `Enter` on either explains rather than doing nothing. Nothing vanishes.
+
+What is NOT fixed is the second half: the original subprocess error is still
+transient, so the operator can see WHAT is wrong but not WHY the launch failed.
+That is real and unaddressed. It is punted rather than closed because the
+remaining value is much lower -- the state is inspectable, which is what made
+the original incident unrecoverable -- and because a durable operation journal
+is a larger mechanism than the residue justifies today.
+
+Reopen when a start or resume failure needs its error text after the fact.
 
 ### 2026-09-01
 

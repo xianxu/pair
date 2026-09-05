@@ -6,6 +6,7 @@ import (
 	"time"
 
 	"github.com/xianxu/pair/cmd/internal/ansi"
+	"github.com/xianxu/pair/cmd/internal/couchcore"
 	"github.com/xianxu/pair/cmd/internal/textwidth"
 )
 
@@ -169,6 +170,10 @@ func menuBreadcrumb(state MenuState, frame MenuFrame) string {
 	if frame.Kind == MenuFrameStart {
 		return "start thread"
 	}
+	if frame.Kind == MenuFrameConfirmation && frame.Action == "leave" {
+		// A global frame: it names couch, not a thread.
+		return "threads › leave couch"
+	}
 	thread, ok := findMenuThread(state.Inventory, frame.Thread)
 	if !ok {
 		return "threads"
@@ -178,11 +183,8 @@ func menuBreadcrumb(state MenuState, frame MenuFrame) string {
 	case MenuFrameActions:
 		parts = append(parts, "actions")
 	case MenuFrameConfirmation:
-		leaf := frame.Action
-		if leaf == "leave" {
-			leaf = "leave couch"
-		}
-		parts = append(parts, leaf)
+		// `leave` never reaches here -- it returns early above as a global frame.
+		parts = append(parts, frame.Action)
 	case MenuFrameText:
 		parts = append(parts, menuItemLabel(frame.Action))
 	}
@@ -197,12 +199,15 @@ func renderMenuFrame(state MenuState, frame MenuFrame, width, height int, now ti
 		thread, _ := findMenuThread(state.Inventory, frame.Thread)
 		return renderItemMenuFrame("actions · "+thread.Label(), filterMenuItems(menuActionItems(thread), frame.Filter), frame.SelectedItem, frame.Filter, width, height)
 	case MenuFrameConfirmation:
+		// The title argument is vestigial at every call site: RenderMenuView
+		// overwrites line 0 with the breadcrumb. What the operator reads is the
+		// ITEM, which is why the item names the action's cost.
 		thread, _ := findMenuThread(state.Inventory, frame.Thread)
 		title := "park " + thread.Label() + "?"
-		if frame.Action == "leave" {
-			title = "leave couch?"
+		if frame.Action == "archive" {
+			title = "archive " + thread.Label() + "?"
 		}
-		return renderItemMenuFrame(title, filterMenuItems(confirmationMenuItems(frame.Action, thread), frame.Filter), confirmationDisplaySelection(frame), frame.Filter, width, height)
+		return renderItemMenuFrame(title, filterMenuItems(confirmationMenuItems(state, frame), frame.Filter), confirmationDisplaySelection(frame), frame.Filter, width, height)
 	case MenuFrameText:
 		return []string{clipMenuLine(menuItemLabel(frame.Action), width), "", clipMenuLine("> "+frame.Input, width)}
 	case MenuFrameStart:
@@ -222,7 +227,7 @@ func renderStartMenuFrame(state MenuState, frame MenuFrame, width, height int) [
 		selectedMenuLine(pathMarker+"path  "+frame.Path, frame.FormField == MenuFieldPath, width),
 	}
 	fixedRows := 4
-	if frame.PreviewArgvSource != "" {
+	if frame.PreviewResolution.ArgvSource != "" {
 		fixedRows++
 	}
 	if frame.CompletionTruncated {
@@ -256,15 +261,44 @@ func renderStartMenuFrame(state MenuState, frame MenuFrame, width, height int) [
 	if frame.CompletionTruncated {
 		lines = append(lines, clipMenuLine("  … more matching directories", width))
 	}
-	lines = append(lines, selectedMenuLine(agentMarker+"agent "+frame.Agent+menuSourceSuffix(string(frame.PreviewAgentSource)), frame.FormField == MenuFieldAgent, width))
-	if frame.PreviewArgvSource != "" {
-		lines = append(lines, clipMenuLine("  args  "+string(frame.PreviewArgvSource), width))
+	lines = append(lines, selectedMenuLine(agentMarker+"agent "+frame.Agent+menuSourceSuffix(string(frame.PreviewResolution.AgentSource)), frame.FormField == MenuFieldAgent, width))
+	if frame.PreviewResolution.ArgvSource != "" {
+		lines = append(lines, clipMenuLine("  args  "+string(frame.PreviewResolution.ArgvSource), width))
 	}
 	return lines
 }
 
+// rootStateText is the right-hand column of one switcher row.
+//
+// It used to be two cases -- live, or "parked" for everything else -- which
+// made the operator's one detached thread claim to be parked, and gave the nine
+// unusable ones no way to appear at all. Every state and every reason has a
+// label, and the guard that keeps it that way iterates the vocabulary rather
+// than listing cases here (Go has no exhaustive-switch check).
+func rootStateText(thread couchcore.ActionableThreadSummary, now time.Time) string {
+	switch thread.State {
+	case couchcore.ThreadLive:
+		return "live"
+	case couchcore.ThreadDetached:
+		return "detached · " + relativeMenuAge(now, thread.LastActiveAt)
+	case couchcore.ThreadParked:
+		return "parked · " + relativeMenuAge(now, thread.LastActiveAt)
+	case couchcore.ThreadBusy:
+		return "parking…"
+	case couchcore.ThreadArchived:
+		return "archived"
+	}
+	return thread.Reason.Label()
+}
+
 func renderRootMenuFrame(state MenuState, frame MenuFrame, width, height int, now time.Time, color256 bool) []string {
 	visible := visibleRootThreads(state.Inventory, frame)
+	// Labels are disambiguated against the WHOLE inventory, not the filtered
+	// view: a name that is unique only because the filter hid its twin would
+	// change as the operator types.
+	labels := couchcore.LabelsFor(state.Inventory,
+		func(t couchcore.ActionableThreadSummary) couchcore.ThreadAddress { return t.Address },
+		func(t couchcore.ActionableThreadSummary) string { return t.Label() })
 	lines := []string{"threads", ""}
 	rowBudget := height - len(lines)
 	if frame.Filter != "" {
@@ -292,16 +326,12 @@ func renderRootMenuFrame(state MenuState, frame MenuFrame, width, height int, no
 		if selectedRow {
 			marker = "▸ "
 		}
-		stateText := "live"
-		if !thread.Live() {
-			stateText = "parked · " + relativeMenuAge(now, thread.LastActiveAt)
-		}
-		suffix := "  " + stateText
+		suffix := "  " + rootStateText(thread, now)
 		prefixWidth := width - textwidth.Width(suffix)
 		if prefixWidth < 0 {
 			prefixWidth = 0
 		}
-		plain := clipMenuLine(fmt.Sprintf("%s%s  %s", marker, thread.Label(), thread.WorkingPath), prefixWidth) + suffix
+		plain := clipMenuLine(fmt.Sprintf("%s%s  %s", marker, labels[thread.Address], thread.WorkingPath), prefixWidth) + suffix
 		if selectedRow {
 			plain = selectedMenuLine(plain, true, width)
 		} else if !thread.Live() && color256 {

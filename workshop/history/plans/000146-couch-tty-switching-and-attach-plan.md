@@ -80,7 +80,7 @@ Terminal code has its own standing moves, all of them lessons already paid for i
 | `StripQueries` + query deny-list | `cmd/internal/ptychild/replay.go` | new (moved from `termcmd/queries.go`) |
 | `Screen` | `cmd/internal/ptychild/screen.go` | new |
 | `updateMouseMode` | `cmd/internal/termcmd/run.go` | deleted (folded into `Screen`) |
-| `Focus` / `Up` | `cmd/internal/couchtty/focus.go` | new |
+| `Focus` | `cmd/internal/couchtty/focus.go` | new |
 | `PanelModel` / `Filter` / `SelectTree` / target join | `cmd/internal/couchtty/panel.go` | new |
 | `PanelKey` / `DecodePanelKeys` | `cmd/internal/couchtty/panelkeys.go` | new |
 | `StatusModel` / `RenderStatusRow` | `cmd/internal/couchtty/reserve.go` | new |
@@ -1170,3 +1170,19 @@ link with a real PTY, make operation-doc matching token-exact, and resolve the
 review's low-risk lifecycle/contract findings for synchronized fake sinks,
 zero-row sizing, queued final output, startup replay duplication, and stale
 comments. The shipped interaction contract is otherwise unchanged.
+
+### 2026-09-02 — `Up` retired by pair#170
+
+`Focus` / `Up` becomes `Focus`. The couch-lite rescope deleted the focus ladder
+(child -> root actor -> panel) and with it the root-actor/home concept, so
+`Up` has no caller and no meaning: `ctrl-space` now opens the switcher from any
+actor, full stop.
+
+Edited here rather than loosening `couchtty/core_concepts_contract_test.go`,
+which derives its inventory from this table. A pinned architectural contract
+that a later milestone legitimately supersedes is revised at the source with the
+reason recorded; weakening the test instead would leave the contract asserting
+something false and quietly stop defending the rows that are still true.
+
+`Focus` itself survives unchanged — it is still what the console points the
+terminal at, and still distinguishes the panel from an actor.

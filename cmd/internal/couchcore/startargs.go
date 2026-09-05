@@ -26,10 +26,3 @@ func (a StartArgs) WorkingDir() string {
 	}
 	return string(a.Worktree)
 }
-
-func (a StartArgs) AgentStack() string {
-	if a.Stack != "" {
-		return a.Stack
-	}
-	return "claude"
-}

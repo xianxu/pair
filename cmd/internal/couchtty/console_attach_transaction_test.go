@@ -36,18 +36,18 @@ func TestConsoleAttachRollbackRejectsExitedChildWithoutChangingRouting(t *testin
 	runner.SetExited(start.Handle.ID(), 7)
 	f.con.mu.Lock()
 	wantOrder := append([]string(nil), f.con.order...)
-	wantActive, wantRoot := f.con.active, f.con.root
+	wantActive := f.con.active
 	f.con.mu.Unlock()
 
 	if _, err := f.con.ExecuteConsoleOperation(attachCall(context.Background(), start)); err == nil {
 		t.Fatal("attach accepted an already-exited child")
 	}
 	f.con.mu.Lock()
-	gotOrder, gotActive, gotRoot := append([]string(nil), f.con.order...), f.con.active, f.con.root
+	gotOrder, gotActive := append([]string(nil), f.con.order...), f.con.active
 	_, installed := f.con.panes[start.Handle.ID()]
 	f.con.mu.Unlock()
-	if installed || !reflect.DeepEqual(gotOrder, wantOrder) || gotActive != wantActive || gotRoot != wantRoot {
-		t.Fatalf("failed attach changed routing: installed=%t order=%v active=%q root=%q", installed, gotOrder, gotActive, gotRoot)
+	if installed || !reflect.DeepEqual(gotOrder, wantOrder) || gotActive != wantActive {
+		t.Fatalf("failed attach changed routing: installed=%t order=%v active=%q", installed, gotOrder, gotActive)
 	}
 }
 

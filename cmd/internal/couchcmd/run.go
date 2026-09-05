@@ -92,7 +92,7 @@ func (r OSRuntime) NewCouchWith(runner couchcore.Runner, namespace couchcore.Cou
 	c, err := couchcore.New(
 		namespace, runner, couchcore.OSPathOps{}, couchcore.ExecGit{},
 		couchcore.OSProcOps{}, couchcore.NewStore(namespace.Dir()),
-		couchcore.SystemClock{}, couchcore.NewRandomIDGen(), couchcore.NewExecPolicyResolver("sdlc"), rand.Reader,
+		couchcore.SystemClock{}, couchcore.NewRandomIDGen(), rand.Reader,
 		couchcore.NewScopedThreadArtifactCollisionChecker(dataDir),
 	)
 	if err != nil {
@@ -171,6 +171,8 @@ func RunWithRuntime(args []string, stdin io.Reader, stdout, stderr io.Writer, rt
 	switch invocation.kind {
 	case cliList:
 		op, _ = Resolve("list")
+	case cliArchived:
+		op, _ = Resolve("archived")
 	case cliShow:
 		op, _ = Resolve("show")
 		argv = []string{invocation.ref}
@@ -277,7 +279,7 @@ func runTypedOperationWithConsole(op couchcore.Operation, parsed, prepareArgs ma
 				fmt.Fprintf(stderr, "couch: prepare-start returned %T\n", preparedValue)
 				return 1
 			}
-			callArgs = map[string]string{"token": string(prepared.Token)}
+			callArgs = prepared.Resolution.CommitArgs()
 		}
 		result, err = couchcore.DispatchOperation(executors, couchcore.OperationCall{
 			Name: op.Name, Args: callArgs, Implicit: true, Context: context.Background(),
@@ -365,6 +367,10 @@ func consoleRunnerFor(name string, stdin io.Reader, hasTerminal bool, inFile, ou
 
 	host := hostty.NewOSHost(inFile, outFile)
 	console := couchtty.New(host, stdin)
+	// The composition root owns the environment read. A failed open reports
+	// itself on the status row; it must never take the console down, and it must
+	// never be mistaken for "the terminal sent nothing".
+	_ = console.SetInputTrace(os.Getenv("COUCH_INPUT_TRACE"))
 	return console, &couchcore.PtyRunner{
 		Size: console.ChildSize,
 		Sink: console.Deliver,
@@ -527,8 +533,6 @@ func render(w io.Writer, op couchcore.Operation, result any) int {
 			return v.Handle.Wait()
 		}
 		return 0
-	case []couchcore.TreeSummary:
-		renderTrees(w, v)
 	case []couchcore.ThreadSummary:
 		if op.Name == "show" {
 			renderThreadDetails(w, v)
@@ -537,6 +541,11 @@ func render(w io.Writer, op couchcore.Operation, result any) int {
 		}
 	case couchcore.Worktree:
 		fmt.Fprintf(w, "%s\n", v)
+	case couchcore.ArchiveResult:
+		fmt.Fprintf(w, "archived %s\n", v.Record.Address.Tag)
+		if warning := v.Warning(); warning != "" {
+			fmt.Fprintf(w, "%s\n", warning)
+		}
 	case couchcore.StopResult:
 		if v.Signalled {
 			fmt.Fprintf(w, "signalled %s on %s (pid %d)\n", v.Record.ID, v.Record.Args.Worktree, v.Record.PID)
@@ -575,63 +584,60 @@ func renderThreadRows(w io.Writer, threads []couchcore.ThreadSummary, includeAdd
 		return
 	}
 	dim, reset := dimCodes(w)
+	labels := couchcore.LabelsFor(threads,
+		func(t couchcore.ThreadSummary) couchcore.ThreadAddress { return t.Address },
+		func(t couchcore.ThreadSummary) string { return t.Label() })
 	for _, thread := range threads {
+		// Dim by the CLASSIFIED state. Reading liveness from the incarnations
+		// here while the label came from the classifier printed a stale row
+		// undimmed above the words "stale — couch exited unexpectedly".
 		open, close := dim, reset
-		if thread.Live() {
+		if thread.State == couchcore.ThreadLive {
 			open, close = "", ""
 		}
-		fmt.Fprintf(w, "%s%-22s %s%s\n", open, thread.Label(), thread.WorkingPath, close)
+		fmt.Fprintf(w, "%s%-22s %s%s\n", open, labels[thread.Address], thread.WorkingPath, close)
 		if includeAddress {
 			fmt.Fprintf(w, "%s  address: %s/%s%s\n", open, thread.Address.RepoScope, thread.Address.Tag, close)
 		}
 		if summary := thread.DisplaySummary(); summary != "" {
 			fmt.Fprintf(w, "%s  %s%s\n", open, summary, close)
 		}
+		// The RECORDED lifecycle, labelled as such. Beside the classified state
+		// below it, the pair is the diagnostic: "recorded live / stale" is a
+		// couch that exited without detaching, and reading the two lines
+		// together is how the operator sees that at a glance.
 		for _, incarnation := range thread.Incarnations {
 			if incarnation.PID > 0 {
-				fmt.Fprintf(w, "%s  %-14s pid %d%s\n", open, incarnation.State, incarnation.PID, close)
+				fmt.Fprintf(w, "%s  recorded: %-8s pid %d%s\n", open, incarnation.State, incarnation.PID, close)
 			} else {
-				fmt.Fprintf(w, "%s  %s%s\n", open, incarnation.State, close)
+				fmt.Fprintf(w, "%s  recorded: %s%s\n", open, incarnation.State, close)
 			}
 		}
-		if len(thread.Incarnations) == 0 {
-			fmt.Fprintf(w, "%s  (no agent running)%s\n", open, close)
-		}
+		// The classified state, from the same rule the switcher uses. This used
+		// to be a local two-case guess over a `Parked` bool, which is how one
+		// store produced two different stories about the same thread.
+		fmt.Fprintf(w, "%s  %s%s\n", open, threadStateText(thread), close)
 	}
 }
 
-// renderTrees prints one block per worktree. A tree with no live actor is
-// dimmed rather than omitted: a named tree nobody is running is exactly the
-// parked thread this project exists to stop losing, so it must stay visible.
-func renderTrees(w io.Writer, trees []couchcore.TreeSummary) {
-	if len(trees) == 0 {
-		fmt.Fprintln(w, "no trees")
-		return
+// threadStateText is the diagnostic wording for a classified state. It says
+// more than the switcher's column has room for, and the two cannot disagree
+// about WHICH state a thread is in -- only about how much room they have to
+// describe it.
+func threadStateText(thread couchcore.ThreadSummary) string {
+	switch thread.State {
+	case couchcore.ThreadLive:
+		return "live"
+	case couchcore.ThreadDetached:
+		return "detached (no client attached; the agent is still running)"
+	case couchcore.ThreadParked:
+		return "parked (no agent running; resumable)"
+	case couchcore.ThreadBusy:
+		return "parking in progress"
+	case couchcore.ThreadArchived:
+		return "archived (restore by moving it back and re-adding the address)"
 	}
-	dim, reset := dimCodes(w)
-	for _, t := range trees {
-		label := t.Name
-		if label == "" {
-			label = t.Tree.Repo()
-		}
-		open, close := dim, reset
-		if t.Live() {
-			open, close = "", ""
-		}
-		fmt.Fprintf(w, "%s%-22s %s%s\n", open, label, t.Tree, close)
-		if t.Desc != "" {
-			fmt.Fprintf(w, "%s  %s%s\n", open, t.Desc, close)
-		}
-		for _, a := range t.Actors {
-			// "unknown" is rendered distinctly: it means the probe could not
-			// answer, not that the agent is gone.
-			state := a.State.String()
-			fmt.Fprintf(w, "%s  %-14s %s  pid %d%s\n", open, a.Record.ID, state, a.Record.PID, close)
-		}
-		if len(t.Actors) == 0 {
-			fmt.Fprintf(w, "%s  (no agent running)%s\n", open, close)
-		}
-	}
+	return "unusable: " + thread.Reason.Label()
 }
 
 // dimCodes returns ANSI dim/reset only when the destination is a real
@@ -644,23 +650,11 @@ func dimCodes(w io.Writer) (string, string) {
 	return "\x1b[2m", "\x1b[0m"
 }
 
-// renderError gives normalized capacity refusal a next-action shape without
-// inventing local policy or mutating paths on the provider's behalf.
+// renderError prints one error. Its capacity-refusal shape went with admission
+// (pair#170 M4): couch-lite has no capacity to exceed, so there is no refusal to
+// give a next action to.
 func renderError(w io.Writer, err error) {
-	var full *couchcore.CapacityExceededError
-	if !asCapacityExceeded(err, &full) {
-		fmt.Fprintf(w, "couch: %v\n", err)
-		return
-	}
-	fmt.Fprintf(w, "couch: %s is at capacity %d for admission key %q\n", full.RepoIdentity, full.Limit, full.AdmissionKey)
-	for _, address := range full.Incumbents {
-		fmt.Fprintf(w, "  %s/%s\n", address.RepoScope, address.Tag)
-	}
-	if full.Action == couchcore.CapacityProvisionWorktree {
-		fmt.Fprintln(w, "  -> managed worktree provisioning is tracked by pair#153; no path was created")
-	} else {
-		fmt.Fprintln(w, "  -> couch --list   inspect the existing thread")
-	}
+	fmt.Fprintf(w, "couch: %v\n", err)
 }
 
 func usage(w io.Writer) {
@@ -669,5 +663,6 @@ func usage(w io.Writer) {
 	fmt.Fprintln(w, "usage: couch [path]")
 	fmt.Fprintln(w, "       couch --list")
 	fmt.Fprintln(w, "       couch --show <thread>")
+	fmt.Fprintln(w, "       couch --archived")
 	fmt.Fprintln(w, "       couch --help")
 }

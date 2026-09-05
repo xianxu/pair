@@ -6,7 +6,6 @@ import (
 	"reflect"
 	"slices"
 	"strings"
-	"sync"
 	"testing"
 	"time"
 
@@ -32,75 +31,15 @@ func createVerifiedResumeRecord(t *testing.T) (*ThreadStore, CouchNamespace, Thr
 	return store, ns, parked
 }
 
-func TestResumeAdmissionPreservesVerifiedParkUntilRegistration(t *testing.T) {
-	store, _, parked := createVerifiedResumeRecord(t)
-	beforeProfile := cloneLaunchProfile(*parked.LatestLaunchProfile)
-	policy := admissionPolicy(CapacityUnbounded, 0, CapacityActionUnknown)
-	resolver := NewFakePolicyResolver()
-	resolver.Queue(parked.WorkingPath, policy, nil)
-
-	admitted, err := ReconcileResumeAdmission(context.Background(), store, resolver, ResumeAdmissionInput{
-		Address: parked.Address, StartedAt: time.Unix(710, 0).UTC(),
-		Owner: SupervisorOwner{PID: 7, Identity: "supervisor"}, Nonce: "start-resume", Profile: beforeProfile,
-	})
-	if err != nil {
-		t.Fatalf("ReconcileResumeAdmission: %v", err)
-	}
-	if admitted.Address != parked.Address || admitted.VerifiedPark == nil || len(admitted.Incarnations) != 1 ||
-		admitted.Incarnations[0].State != IncarnationCreating || admitted.Incarnations[0].Policy == nil ||
-		admitted.Incarnations[0].Start == nil || admitted.Incarnations[0].Start.Nonce != "start-resume" ||
-		admitted.Incarnations[0].Start.OwnerPID != 7 || admitted.Incarnations[0].Start.OwnerIdentity != "supervisor" ||
-		admitted.Incarnations[0].Start.LaunchProfile == nil ||
-		!reflect.DeepEqual(*admitted.Incarnations[0].Start.LaunchProfile, beforeProfile) ||
-		!reflect.DeepEqual(*admitted.LatestLaunchProfile, beforeProfile) {
-		t.Fatalf("admitted resume = %+v", admitted)
-	}
-}
-
-func TestResumeAdmissionRefusalLeavesParkedRecordUntouched(t *testing.T) {
-	store, ns, parked := createVerifiedResumeRecord(t)
-	policy := admissionPolicy(CapacityBounded, 1, CapacityReject)
-	incumbent := validThreadRecord(t)
-	incumbent.Address.Tag = "couch-fedcba9876543210"
-	incumbent.StartingPath, incumbent.WorkingPath = ns.Dir(), ns.Dir()
-	incumbent.Reservation = false
-	incumbent.Incarnations = []ThreadIncarnation{{State: IncarnationLive, PID: 99, Identity: "incumbent", Policy: &policy}}
-	if _, err := store.CreateThread(incumbent); err != nil {
-		t.Fatal(err)
-	}
-	resolver := NewFakePolicyResolver()
-	resolver.Queue(parked.WorkingPath, policy, nil)
-
-	_, err := ReconcileResumeAdmission(context.Background(), store, resolver, ResumeAdmissionInput{
-		Address: parked.Address, StartedAt: time.Unix(720, 0).UTC(),
-		Owner: SupervisorOwner{PID: 8, Identity: "supervisor"}, Nonce: "start-refused",
-		Profile: cloneLaunchProfile(*parked.LatestLaunchProfile),
-	})
-	var full *CapacityExceededError
-	if !errors.As(err, &full) {
-		t.Fatalf("error = %T %v", err, err)
-	}
-	kept, err := store.GetThread(parked.Address)
-	if err != nil {
-		t.Fatal(err)
-	}
-	if !reflect.DeepEqual(kept, parked) {
-		t.Fatalf("refused parked record changed:\n got %+v\nwant %+v", kept, parked)
-	}
-}
-
 func createParkedThreadInCouch(t *testing.T, env *testEnv, profile LaunchProfile) ThreadRecord {
 	t.Helper()
-	policy, err := env.Couch.PolicyResolver.ResolvePolicy(context.Background(), "/repo/sub")
-	if err != nil {
-		t.Fatal(err)
-	}
 	record := validThreadRecord(t)
 	record.StartingPath, record.WorkingPath = "/repo", "/repo/sub"
+	env.Git.replies[GitCall{Dir: "/repo/sub", Args: "rev-parse --git-common-dir"}] = ".git"
 	record.Reservation = false
 	record.Incarnations = []ThreadIncarnation{{
 		PID: 42, Identity: "pair-helper", State: IncarnationLive,
-		Policy: &policy, LaunchProfile: &profile,
+		RepoIdentity: "/repo/.git", LaunchProfile: &profile,
 	}}
 	record.LatestLaunchProfile = &profile
 	created, err := env.Couch.Threads.CreateThread(record)
@@ -215,64 +154,6 @@ func TestResumeAmbiguousAckKeepsUnknownOccupied(t *testing.T) {
 	}
 }
 
-func TestResumeAdmissionAndRollbackMatrix(t *testing.T) {
-	t.Run("acknowledgement definitely undelivered with proven absence", func(t *testing.T) {
-		env := newTestEnv(t, "/repo")
-		parked := createParkedThreadInCouch(t, env, LaunchProfile{Agent: "claude", Argv: []string{}})
-		env.Artifacts.SetNativeBinding(parked.Address, "claude", sessioninventory.BindingEstablished, "native-root-1")
-		env.Artifacts.SetPairSession(parked.Address, "pair-"+string(parked.Address.Tag), false)
-		env.Runner.BeforeAcknowledge = func(string) error { return errors.New("ack not delivered") }
-
-		_, _, err := env.Couch.Resume(parked.Address)
-		if err == nil || !strings.Contains(err.Error(), "ack not delivered") {
-			t.Fatalf("Resume error = %v", err)
-		}
-		assertVerifiedParkRestored(t, env.Couch.Threads, parked)
-	})
-
-	t.Run("missing registration without absence proof", func(t *testing.T) {
-		env := newTestEnv(t, "/repo")
-		env.Couch.resumeRegistrationTimeout = 5 * time.Millisecond
-		parked := createParkedThreadInCouch(t, env, LaunchProfile{Agent: "agy", Argv: []string{}})
-		env.Artifacts.SetNativeBinding(parked.Address, "agy", sessioninventory.BindingEstablished, "native-root-1")
-
-		_, _, err := env.Couch.Resume(parked.Address)
-		if err == nil || !strings.Contains(err.Error(), "deadline exceeded") {
-			t.Fatalf("Resume error = %v", err)
-		}
-		assertResumeUnknown(t, env.Couch.Threads, parked.Address, "")
-	})
-
-	t.Run("live promotion CAS failure", func(t *testing.T) {
-		env := newTestEnv(t, "/repo")
-		parked := createParkedThreadInCouch(t, env, LaunchProfile{Agent: "muse", Argv: []string{}})
-		env.Artifacts.SetNativeBinding(parked.Address, "muse", sessioninventory.BindingEstablished, "native-root-1")
-		env.Artifacts.SetPairSession(parked.Address, "pair-"+string(parked.Address.Tag), true)
-		var once sync.Once
-		env.Artifacts.BeforePairSession = func(address ThreadAddress) error {
-			var hookErr error
-			once.Do(func() {
-				current, err := env.Couch.Threads.GetThread(address)
-				if err != nil {
-					hookErr = err
-					return
-				}
-				_, hookErr = env.Couch.Threads.UpdateExistingThread(address, current.Revision, func(next *ThreadRecord) error {
-					next.Description = "concurrent description"
-					return nil
-				})
-			})
-			return hookErr
-		}
-
-		_, _, err := env.Couch.Resume(parked.Address)
-		if err == nil || !strings.Contains(err.Error(), "promote registered thread") {
-			t.Fatalf("Resume error = %v", err)
-		}
-		assertResumeUnknown(t, env.Couch.Threads, parked.Address, "concurrent description")
-	})
-}
-
 func assertResumeUnknown(t *testing.T, store *ThreadStore, address ThreadAddress, description string) {
 	t.Helper()
 	got, err := store.GetThread(address)
@@ -293,5 +174,58 @@ func assertVerifiedParkRestored(t *testing.T, store *ThreadStore, parked ThreadR
 	if got.VerifiedPark == nil || !reflect.DeepEqual(got.VerifiedPark, parked.VerifiedPark) ||
 		len(got.Incarnations) != 0 || !reflect.DeepEqual(got.LatestLaunchProfile, parked.LatestLaunchProfile) {
 		t.Fatalf("resume rollback = %+v, want verified park %+v", got, parked)
+	}
+}
+
+// The milestone's headline capability, pinned at the SEAM rather than at the
+// pure functions beneath it.
+//
+// DecideResume and ProjectActionableThreads are tested with `Detached` hand-fed,
+// which proves the rules and nothing about the code that DERIVES the value.
+// Mutating ResumeContext's observation to `if false && …` left the whole suite
+// green -- exactly the trap workshop/lessons.md gained an entry for this round.
+// Here the ONLY difference between admissible and refused is
+// SetDetachedSession, so that mutation reddens.
+func TestResumeContextDerivesTheDetachedProofItself(t *testing.T) {
+	for _, test := range []struct {
+		name     string
+		detached bool
+	}{
+		{name: "no detached session refuses for want of a verified park"},
+		{name: "a detached session makes the same record admissible", detached: true},
+	} {
+		t.Run(test.name, func(t *testing.T) {
+			env := newTestEnv(t, "/repo")
+			profile := LaunchProfile{Agent: "claude", Argv: []string{}}
+			// A record with no verified park and no incarnation: the shape an
+			// alt+d detach leaves behind.
+			record := validThreadRecord(t)
+			record.StartingPath, record.WorkingPath = "/repo", "/repo/sub"
+			env.Git.replies[GitCall{Dir: "/repo/sub", Args: "rev-parse --git-common-dir"}] = ".git"
+			record.Reservation = false
+			record.LatestLaunchProfile = &profile
+			created, err := env.Couch.Threads.CreateThread(record)
+			if err != nil {
+				t.Fatal(err)
+			}
+			env.Artifacts.SetNativeBinding(created.Address, "claude", sessioninventory.BindingEstablished, "native-root-1")
+			env.Artifacts.SetPairSession(created.Address, "pair-"+string(created.Address.Tag), true)
+			if test.detached {
+				env.Artifacts.SetDetachedSession(created.Address, "pair-"+string(created.Address.Tag))
+			}
+
+			_, _, err = env.Couch.ResumeContext(context.Background(), created.Address)
+
+			got := ResumeDiagnosticOf(err)
+			if test.detached {
+				if got == ResumeLegacyUnverified {
+					t.Fatalf("a proved-detached thread was refused for want of a verified park: %v", err)
+				}
+				return
+			}
+			if got != ResumeLegacyUnverified {
+				t.Fatalf("diagnostic = %q (err %v), want %q", got, err, ResumeLegacyUnverified)
+			}
+		})
 	}
 }

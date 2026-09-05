@@ -1,6 +1,9 @@
 package couchcore
 
-import "fmt"
+import (
+	"context"
+	"fmt"
+)
 
 // GitCall is the fake's canned-reply key. It includes Dir deliberately:
 // keying on argv alone makes "was git run in the right directory" -- the only
@@ -26,6 +29,16 @@ func NewFakeGit(replies map[GitCall]string) *FakeGit {
 }
 
 func (f *FakeGit) Run(dir string, args ...string) (string, error) {
+	return f.RunContext(context.Background(), dir, args...)
+}
+
+// RunContext honours cancellation before answering, so a test can prove the
+// caller's context actually reaches the subprocess seam rather than being
+// carried and dropped.
+func (f *FakeGit) RunContext(ctx context.Context, dir string, args ...string) (string, error) {
+	if err := ctx.Err(); err != nil {
+		return "", err
+	}
 	key := GitCall{Dir: dir, Args: joinArgs(args)}
 	f.Ops = append(f.Ops, dir+": "+key.Args)
 	out, ok := f.replies[key]

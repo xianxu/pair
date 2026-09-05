@@ -2911,3 +2911,475 @@ that a key token appears cannot detect a contradictory behavioral sentence
   nothing produces. Check the ends at the boundary, not the diff
   (`ARCH-PURPOSE`); `deadcode` catches the unreferenced-symbol case and none of
   the other three.
+- A rule delivered as a pure model is not delivered until the code that DERIVES
+  its inputs is driven through production. Tests that hand-feed the derived
+  value into the funnel prove the rule and nothing about the decision; inverting
+  the derivation then ships the behavior backwards with a green suite. Enumerate
+  the seams that compute the inputs, drive raw input through them, and
+  mutation-check that each seam's inversion reddens a test (`ARCH-PURPOSE`).
+- When a behavior must hold "on every X, whatever the mechanism", find every
+  site that performs X before choosing where to put it. A funnel that handles
+  the common path is not the only path: initialization and teardown routinely
+  land the same state without passing through it, and the rule is then true for
+  the paths that remembered (`ARCH-DRY`).
+- Moving a rule to a new owner means DELETING it from the old one. Leaving both
+  is two authorities for one fact; idempotence makes it harmless today and
+  invisible when they drift. If the old site retains a half (a failure path, a
+  cleanup), say in the comment which half it keeps and why.
+- A `default:` arm in a dispatch over a closed enum silently absorbs the values
+  added next. Make the switch exhaustive and give not-yet-wired cases an empty
+  branch with the milestone that claims them; the alternative is a new key that
+  does something plausible and wrong.
+- Deleting a concept is not license to delete its test file. Trim it: the file
+  usually also pins invariants of the type that survives, and their loss is
+  invisible because nothing fails. Check what a whole-file deletion took with it
+  before staging it.
+- An executable architectural contract that reads ONE pinned source has a hole
+  at every source added later. Widening it to read all sources is the right fix
+  and may surface a backlog of drifted historical rows — that backlog is a
+  finding, not a reason to loosen the assertions. Bound the widening explicitly
+  and record what the general fix would cost, rather than silently reverting to
+  the single-row repair (`ARCH-PURPOSE`).
+- A milestone that claims a key without wiring it is a regression: the chord is
+  taken from the child and returns nothing for a whole milestone. Claim the
+  encoding and its handler in the same boundary, and document the deferral where
+  the plan promised otherwise.
+- Before treating a `make test` failure as yours, run the same target at
+  `$(git merge-base HEAD origin/main)`. A suite that stops at the first failure
+  gives a change no coverage at all beyond that point, so also run the targets
+  AFTER the pre-existing failure explicitly.
+- A field the schema marks optional (`omitempty`) must never become required
+  identity downstream. Before depending on one, check what each platform's
+  producer actually writes: `GenerationToken` was read as mandatory while Linux
+  never populated it and APFS reports `st_gen` as 0, so the consumer rejected
+  every artifact on every supported platform and the feature was dead from the
+  day it shipped. When a required identity is wanted, DERIVE it from what the
+  platform provides rather than requiring what it might (`ARCH-PURPOSE`).
+- A green suite over invented fixtures proves nothing about production. The
+  Codex lifecycle tests passed because they hardcoded `GenerationToken: "gen:1"`
+  — a value no platform ever emits. When a fixture supplies an optional field,
+  ask whether production ever does; if the answer is "not on any platform we
+  run on", the realistic fixture is the empty one (`ARCH-MOCK`).
+- A shell/CLI test that outlives a refactor of the code beneath it will assert
+  the OLD contract in a way no compiler catches. When a migration commit says
+  it touched "every consumer", the shell tests are consumers too — and when one
+  fails long enough to be labelled 'pre-existing', suspect a stale assertion
+  before suspecting the environment.
+- A boundary or code review that mutation-checks by editing the tree can LEAVE
+  its mutation behind. After any review that reports "reverting X produced no
+  failure", diff the working tree before staging: an `if false &&` guard left in
+  a reviewed file is one `git add -A` from shipping the capability disabled.
+- A cost bound must name the variable it bounds. "Proportional to candidates"
+  was wrong because the underlying query fans out over every session on the
+  host; passing candidates bounded only WHETHER the query ran. State which
+  quantity the filter reduces, and read the callee before claiming its shape.
+- A subprocess query that moves onto a periodic worker needs a timeout it did
+  not need on a one-shot path. A hung child there is silent: the UI keeps
+  rendering its last-good projection and simply never learns anything again.
+- When a rule spans two event orders, fix both halves. A guard keyed on
+  in-flight state and a guard keyed on a recorded expectation are the same rule
+  seen from either side of a race; fixing the one a test happened to exercise
+  leaves the other failing about half the time (`ARCH-PURPOSE`).
+- A result struct nobody reads is documentation, not behavior. If the design
+  says a value exists "so the operator learns X", find the site that tells
+  them — or say in the doc comment that it is for tests.
+- Mutation-check the ACTUAL pre-fix shape, not an approximation of it. Removing
+  a retry's `continue` while leaving its re-read in place proves nothing; the
+  real predecessor used a stale revision, and only that mutation exercises the
+  path. A green mutation run means the mutation was wrong at least as often as
+  it means the test is weak.
+- A widening is not only the code that widens. Adding a second admissible state
+  means re-asking every gate the first state already passed: the selector was
+  the visible change, but the native-binding gate one layer down was the
+  Critical one, and it appeared in no task step because the plan was written as
+  a pure-function widening. When a milestone admits a new case, enumerate what
+  the old case had to satisfy and check the new one against all of it.
+- "No fallback" turns a merely-wrong row into a dead end. Where a path
+  deliberately refuses rather than degrading — startup here — an entity that is
+  OFFERED must be one the refusing step accepts, or the refusal fires on the
+  happy path. State that invariant next to the no-fallback decision, because the
+  offering code and the refusing code are usually in different files.
+- An invariant claimed by a pure function must be enforced by it. Enforcing in
+  the IO shell and asserting "fails closed on its own" in the pure layer means
+  the next caller of that pure function gets neither. If the shell resolved a
+  proof, pass it in rather than patching it onto the answer — otherwise the pure
+  function emits a shape its own downstream rejects, and its tests assert
+  nothing.
+- Compose pure functions in a test when one feeds another. Each passing alone is
+  compatible with them disagreeing about the shape they exchange.
+- A gate that stops blocking has not stopped being right. When a review demotes
+  findings past a round cap and says no later gate picks them up, that is a
+  statement about enforcement, not about correctness — read them and decide on
+  the merits.
+- Before deleting a field from a type that IS an on-disk schema, enumerate the
+  keys in the live store. Strict decoding turns a removed field into an
+  undecodable artifact, and reasoning from the Go types cannot tell you which
+  fields real data still carries. Measure, then leave a decode-only tombstone
+  for anything present. Rank the blast radius too: a bad record loses one row,
+  a bad *manifest* or index loses everything at once, so an envelope deserves
+  its own guard, not a shared one.
+- "Absent from the one store I measured" is not "absent". When the cost of
+  being wrong is total and the cost of the guard is one line, keep the guard.
+- After retargeting a test off deleted surface, mutate the thing it now claims
+  to pin and confirm it reddens. A retarget that compiles and passes has proved
+  only that it compiles: three of this sweep's needed a second attempt, and one
+  was still satisfiable by a file the crashed run had already written.
+- A hardcoded fixture identity can make an assertion vacuous without ever
+  failing. A test that looked up a hardcoded address got ErrThreadNotFound
+  because that address was never allocated — so it "passed" while asserting the
+  exact opposite of the real behaviour, for as long as the identity stayed
+  stale. Assert over the collection when you can; a whole-snapshot assertion
+  cannot miss its own subject.
+- Deleting dead code is a good way to find live bugs. The redundant thing is
+  often the only thing holding several call sites to one contract; when it
+  goes, notice whether they were each restating that contract by hand, and give
+  it one owner instead (ARCH-DRY).
+- Deleting a subsystem is not done when the code compiles. Grep the Makefile,
+  CI workflows, and the atlas for the target and the vocabulary — a workflow
+  invoking a make target you removed fails on its next run, not on yours.
+- When deleting a subsystem, enumerate the **invariants** it enforced, not only
+  the symbols it defined. A deleted guarantee leaves no compile error: removing
+  admission also removed the rollback of a pristine reservation, and the call
+  left in its place returned success unconditionally — protection that could
+  never fire, leaking a record the switcher hides and the reconciler skips.
+- Tolerating a legacy field is not the same as carrying its value forward. A
+  decode-only tombstone keeps old artifacts *loadable*; if a downstream reader
+  needs the value that field held, the tombstone must be READ or the artifact
+  fails later and further from the cause.
+- A guard's file set and matching unit must be derived, not listed. A per-row
+  file list reintroduces the exact recall step the guard exists to remove — one
+  written here omitted Go sources and missed two stale comments in the very
+  commit that installed it. And prose WRAPS: a line-oriented text guard silently
+  cannot fire on any multi-word term, which was true of a guard that passed its
+  own mutation test because the test wrote the term on one line.
+- Mutate against the real artifact, not a convenient reconstruction. A guard
+  checked against hand-written sample text proves less than the same guard
+  checked against the actual file from git history.
+- "Carries a context" is not a time bound. Cancellation bounds nothing when the
+  caller passes `context.Background()`; only a deadline does. An
+  operating-envelope claim in a comment, commit message or plan must name the
+  mechanism that enforces it and be pinned by a test that reddens when that
+  mechanism is removed.
+- When a milestone replaces a bounded external call with a cheaper one, check
+  that the *bound* came along. The envelope is part of what you are replacing.
+- Record a boundary round's lessons in `lessons.md` in the same commit that
+  fixes the findings. The issue `## Log` is archived to `workshop/history/`,
+  which the next agent is told not to read.
+- Mutation-check a guard against the artifact that MOTIVATED it, not an
+  arbitrary member of the set it covers. A guard written to stop a stray
+  `couchstartrecovery` binary detected main packages by a literal
+  `package main\n` prefix — which 5 of 8 packages fail because they open with a
+  doc comment, including that one. It reported green with its own motivating
+  entry deleted from `.gitignore`.
+- Every axis of a mechanical guard's input must come from an oracle that already
+  owns the answer. `go list` knows which packages are `main`; a byte-prefix test
+  only knows what it was shown. The same applies to the *term* axis of a
+  vocabulary guard: hand-picked strings check what you remembered, not what the
+  diff deleted.
+- A deferral whose ticket does not exist is not a deferral, it is a permanent
+  exemption. File the issue in the same commit that cites it.
+- State what the code does, not what you assumed it does. Two tombstone comments
+  claimed the fields are "never written"; the record ones shed (rebuilt from a
+  domain type without them) but the manifest ones persist (decoded and
+  re-marshalled through the same struct). The behaviour was right — keeping the
+  cutover flag stops a rolled-back binary re-running the migration — and only
+  the description was wrong, which is the kind of error that survives review
+  until someone measures.
+- A milestone that reverses a documented rule sweeps every prose restatement of
+  it in the SAME commit, enumerated mechanically rather than from memory: grep
+  the superseded symbol name and the rule's distinctive phrases before crossing
+  the boundary. pair#181 reversed the startup selector and the label rule and
+  left seven restatements standing across README and atlas — including "it does
+  not refuse a start because a tree is already busy", which the same window made
+  false. Two earlier rounds had fixed individual instances of this family, which
+  is how a finding becomes a rule.
+- One fact, one predicate, shared by every consumer. "Is this thread occupied"
+  was decided in five places with four definitions, and the gap was reachable:
+  the store's archive guard refused a LIVE incarnation but admitted `creating`,
+  so archiving a thread mid-start killed the session being created while the
+  spawn was still in flight. Deriving the same fact per call site is not
+  duplication of code, it is duplication of a DECISION, and the copies drift
+  toward whichever cases their author happened to think about.
+- Test the seam, not both sides of it. `Tab → archive` never worked: the
+  switcher dispatched `{repo-scope, tag}` and the direct-store executor read
+  `ref`. A store-level test and a menu-level test both passed — one asserted the
+  effect was emitted, the other that the store call worked — and nothing
+  dispatched a menu-originated operation through the real executor. Two green
+  halves are not evidence of a working whole, and the milestone's headline
+  action shipped broken.
+- An error message's suggested next steps must work from where the error fires.
+  A one-thread-per-path refusal offered "return to it: couch <path>" (the
+  command that just refused, and one that cannot take the supervisor lease from
+  inside couch) and "retire it: couch --show <tag>" (a read-only listing). Both
+  were dead ends printed at the moment someone was already stuck. Check each
+  suggestion against the state the error describes, not against the general case.
+- A failure path that degrades INVISIBLY is the one to look for when the feature
+  is about visibility. `couch` promised "every record gets a row"; one
+  undecodable record failed the entire inventory, so `--list` exited 1 and the
+  switcher showed nothing — and `invalid`, a reason with a label, an Enter
+  notice and a documented archive exit, could not be produced by any real store.
+  The fixture had six shapes and no invalid one, because the constructor cannot
+  build that shape: if a state is unreachable through your test helpers, it is
+  probably untested in production too.
+- A number a gate produces is written BY that gate. Hand-writing `closed:` and
+  `actual:` into a project detail block ahead of `sdlc milestone-close` shipped
+  a red contract test and recorded a close for a milestone that never ran one —
+  in the same commit that claimed the milestone was reviewed. `**actual:**`
+  feeds velocity calibration, which is exactly what AGENTS.md §5 forbids
+  hand-typing. If a value was judged rather than measured, say so where it is
+  read, not only in the issue Log.
+- "I could not read it" is not the verdict "it is invalid". A decode failure can
+  mean the record is corrupt OR that this binary is older than the store that
+  wrote it — and conflating them means an older couch calls every thread debris
+  and offers to archive the operator's live work. Same shape as `ProofStatus`
+  one layer up: a total classifier that cannot say "unknown" converts a failed
+  read into an assertion. Unknown must also stay CONSERVATIVE — an unreadable
+  record blocks its path rather than freeing it, because absence of evidence is
+  not evidence the path is free.
+- A new required input must not be optional at the call site. Passing the
+  malformed-record set as a trailing variadic meant omitting it compiled cleanly
+  and silently restored "some records get no row" — the exact regression the
+  work existed to prevent, with no compile error and no failing test. Evidence
+  and the records it describes travel as one value — which does not make
+  omission impossible, but makes it NAMED at each construction site instead of
+  invisible. Claiming "compile error" when a struct literal can still omit the
+  field is the same unbacked-claim habit the reviews keep finding.
+- Fixing a finding below the seam is not fixing it. "An undecodable record can
+  be archived" was made true of `couch.ArchiveThread` and left false through the
+  real dispatcher, because resolving a thread by tag decodes it first — so the
+  operator still could not remove the row they could see. The commit that landed
+  that fix had *written the lesson* "test the seam, not both sides of it" three
+  hours earlier.
+- A refusal that names a command or gesture is pinned by a test that EXECUTES it
+  against the fixture which produced the refusal. Writing a good message is not
+  the fix: the second unnavigable refusal in couch was written three lines below
+  the comment explaining why the first one was wrong, and it named `couch --show
+  <tag>` for a record whose defining property is that reading it fails. The test
+  is what makes the claim checkable, and it is cheap — grep for error strings
+  with indented next-step lines and cover each one.
+- When a state is SPLIT, re-word every renderer of the old state in the same
+  commit, and make the vocabulary guard check meaning rather than string
+  equality. Splitting `unreadable` out of `invalid` left `invalid` labelled
+  "unreadable record", so both printed side by side in one listing with one
+  wearing the other's defining word — and the distinctness test passed, because
+  the strings differed.
+- A safety rule that can lock the operator out needs its escape stated IN the
+  refusal and reachable from where the refusal fires. Blocking starts on an
+  unreadable record is right — couch cannot tell which path it holds — but in
+  version skew every record is unreadable, so every repository refuses and the
+  in-switcher recovery is unreachable by construction. The escape (another
+  repository's switcher, and failing that the record's own file path) existed
+  and was unstated, which is the same as not existing.
+- Guard before effect, always — and test that a REFUSED operation had no
+  effects. Archive quiesced the session and then let the store refuse, so a
+  park-in-flight thread ended with its agent killed and its record still listed.
+  "It refuses" is not the property worth asserting; "it refuses and nothing
+  happened" is.
+- The escape hatch for an unknown state must be conservative in what it
+  DESTROYS, not just in what it claims. Archiving an unreadable record has to
+  work — otherwise a corrupt record locks its repository — but it must not stop
+  the session, because the guard proving the thread is not live needs the record
+  that could not be read. Filing the row and leaving the session alone, with a
+  warning, is the only combination that is both usable and honest.
+- Testing the message a guard prints is not testing the guard. The
+  unreadable-record refusal had its wording fixed and every command it names
+  pinned by an executing test — and deleting the entire guard still changed no
+  test outcome, because nothing drove the path that produces it. Mutation-check
+  new guards by removing them.
+- An operation that mutated is a SUCCESS; what it could not do belongs in the
+  result, not on the error channel. Archiving an unreadable record returned its
+  "I left the session running" warning as an error, so the CLI exited 1 with the
+  row already gone and the switcher took its failure branch — red notice,
+  confirmation frame left open, no refresh — making the recovery path a refusal
+  elsewhere names appear to fail. Warnings ride the value.
+- Predicates that answer different questions should stay separate; what must not
+  drift is their OVERLAP. Three occupancy checks in couch ask genuinely
+  different things (is something acting on this thread / does this path hold
+  work / does this scope hold something unreadable), and collapsing them forces
+  one answer onto three questions. Pin the agreement instead: anything counted
+  as holding a path must be something the operator can actually reach, or couch
+  refuses a start for a thread it will not offer.
+- A helper that exists to stop a list being hand-written only works if every
+  site uses it. `seqKind.intercepts()` in couch carries a comment saying exactly
+  why it exists — "a new chord that forgot to update a hand-written list would
+  be silently forwarded, which is exactly the failure the Kitty encoding already
+  caused once" — and the input loop twenty lines below it still enumerated the
+  kinds by hand. Adding a chord updated the two derived sites and was silently
+  forwarded anyway. When you write the helper, grep for the shape it replaces
+  and convert every instance in the same commit; a helper with one caller and
+  three copies is worse than no helper, because it reads as solved.
+- "Declared" is not "reachable". A plan that says an operation is available "the
+  moment it is declared" is asserting something about six hand-maintained
+  per-operation sites — the action list, the confirmation wording, the frame
+  restore, the projection-refresh predicate, and both halves of the exit race —
+  none of which read the declaration. Check the claim by asking which code would
+  have to change for the operator to press it.
+- An IO failure is not a verdict about the thing being queried. A resolver that
+  returns a ZERO value alongside its error lets the caller read "could not look"
+  as "not established", and the branch meant to catch it becomes dead code
+  because the fabricated value is checked first. Raise the real cause before
+  interpreting a value the error already invalidated.
+- A value is not stale for reflecting the side effect of the operation still in
+  flight over it. Couch's relaunch parks before it resumes, so between the two
+  the thread it is acting on is not live BY ITS OWN DOING; the refresh judged
+  the operation's own confirmation frame by that liveness and discarded it under
+  "thread action is no longer applicable" over a relaunch that succeeded. When a
+  validity rule reads state an in-flight operation is itself changing, the
+  operation's RESULT is the authority for the window it owns — and scope the
+  exemption to that window, with a test that the rule still fires outside it.
+- An operator-facing refusal must name the cause the operator can act on, and one
+  message for N causes guarantees it does not. Four distinct binding statuses in
+  couch shared "native session binding is not one exact established root"; the
+  commonest was not a fault at all — a thread whose agent had not yet completed a
+  turn, which is the ORDINARY state of a session you just started and the refusal
+  the operation meets most. Derive the sentence from the same code that chose the
+  refusal, so a status cannot inherit another's explanation.
+- Before "fixing" a branch, run it and read what it does. The park/leave failure
+  branch named `restoreMenuPrefixPreservingStart` and looked like it restored a
+  confirmation; it truncates to the frame BELOW one, and relaunch's absence from
+  the list was deliberate. Deleting the list as a redundant hand-written case
+  would have shipped a regression as a cleanup. Probe first when a name and an
+  intent disagree.
+- Bookkeeping must not overwrite an operation's own result. A refresh discarding
+  a stale frame wants to say "no longer applicable"; the operation that just
+  failed wants to say "it is parked, Enter resumes it". The second is the only
+  one the operator can act on, and couch's relaunch collided them exactly —
+  its park makes the thread non-live, invalidating the very frame whose
+  operation failed, so the next refresh erased the recovery instructions on the
+  one outcome that most needs them. Give the acting notice an owner and let the
+  bookkeeping one defer to it.
+- A "this is expected" marker applied by ADDRESS marks whatever currently holds
+  that address, which after a replace-in-place operation is the REPLACEMENT.
+  couch marked every pane on the relaunched thread as an expected exit, but
+  relaunch had already adopted its new child, so that child's first real death
+  would have been swallowed — the spurious-notice bug the marker exists to
+  prevent, inverted. Mark the thing you ended, identified by its own handle,
+  never by the slot it occupied.
+- Test at the seam the PRODUCTION path goes through, or a guard can be correct
+  and unreachable. couch's fix for "a failed relaunch loses its recovery
+  message" was a guard inside `reconcileMenuFrames`, and a test that called
+  `reconcileMenuFrames` directly proved it worked. It never ran: `ReduceMenu`
+  zeroes the notice near the top of every transition, so the guarded code saw an
+  already-empty notice and the operator still lost the message. The reviewer
+  found it by reproducing the symptom through `ReduceMenu`. If a fix is a guard,
+  the test must enter through whatever the operator's keystroke enters through.
+- A message answers the last thing the OPERATOR did, so only what they do should
+  retire it. Clearing on every event kind meant a background inventory refresh
+  wiped an operation's own result about a second after it appeared.
+- Ambient env read from a constructor is a test-pollution hazard with a file
+  attached. `newInputTracer` called `os.Getenv` inside `Console.New`, so every
+  Console any test built opened a real append-mode file — one leaked fd each,
+  and fixture bytes written into a real operator artifact — for any developer
+  whose shell exported the variable. Take the path as a parameter from the
+  composition root and close it in teardown. (Same family as the
+  PAIR_SESSION_ID/PAIR_TAG leak already recorded here.)
+- A message helper with one consumer while the old wording survives elsewhere is
+  a fix that only looks applied. `bindingRefusalDiagnostic` gave each binding
+  status an actionable sentence, and the real resolver AND its stateful fake both
+  still passed the developer's catch-all by hand — so the path an operator
+  actually travels never improved, and the fake would have kept tests green on
+  wording production could not produce. Route every construction through one
+  constructor, fake included, and assert through the fake.
+- A message with no expiry is a claim about the present that outlives its
+  subject. couch's status row had two producers and nothing that ever retired
+  anything, so "previous: nowhere to return to" — an answer to one keystroke —
+  read as current state minutes later. When adding a surface that displays
+  events, decide at that moment which are OBLIGATIONS (stand until displaced)
+  and which are EVENTS (retire themselves); the distinction usually already
+  exists in the data.
+- Inject every seam a test level actually needs, not the first one that comes to
+  mind. couch's notice expiry took a clock, which made pure tests trivial and
+  the console test a lie: it advanced fake time while the console sat on a real
+  twelve-second timer, so the arming looked exercised and was not. The lifetime
+  had to be injectable too. If a test passes without the production mechanism
+  running, the seam is in the wrong place.
+- A test step that works AROUND the code is usually reporting a defect, not
+  accommodating one. couch's notice test called `repaint()` by hand so the
+  expiry could be tested past the fact that pushing a notice paints nothing —
+  and that hand-call was the Critical the close review found: with a lifetime,
+  a notice nothing repaints is one the operator never sees. When a test needs a
+  step the operator has no way to perform, ask what that step is compensating
+  for.
+- An open question raised about your own change is not neutral. Flagging
+  "whether X should also happen is a real question, deliberately not answered"
+  and shipping is only safe if the change does not itself make the answer
+  load-bearing. Here it did: giving notices a lifetime is exactly what turned
+  "the paint is late" into "the message is never seen".
+- Never document a line as correctness-critical without testing the claim.
+  couch's timer dedup was justified in code, Spec, atlas AND commit message as
+  the thing stopping a notice from never retiring; re-arming every iteration
+  fires at the same moment, so it is an optimisation. A false rationale outlives
+  the line it justifies and teaches the next reader to preserve it for a reason
+  that was never true.
+- Wait for the state the KEYSTROKE produces, not for state that may already
+  hold. `TestConsoleRunOrdinarySwitchAdvancesPrevious` waited on
+  `len(Frames) > 0` after ctrl-space, which the fixture's inventory refresh had
+  already made true, so the test wrote its selection BEFORE the chord was
+  processed and `onHotkey` overwrote it — 2-3 failures in 10 under `-race`.
+  Panel focus happens only in `onHotkey`, so it is the signal that the chord
+  landed. When a wait predicate can be satisfied by setup, it is not a wait.
+- "`-race` passes" from one run is not evidence. A flake at 3-in-10 reads as
+  green most times you look, and quoting it as verification puts a false claim
+  in the permanent close record. Run a flaky-looking suite in a loop and report
+  the ratio.
+- Write "no live instance", not "cannot happen". Both round-1 BR-2 and round-3's
+  advisory in pair#185 were the same habit: a comment stating an absolute the
+  code does not enforce. `started = false` at teardown CLOSES a window rather
+  than sealing it (publishNotice reads the flag under the lock and paints after
+  releasing it), and publishNotice is the one way a notice is PUBLISHED, not the
+  one way it reaches the operator's eye (writeOwn can defer the paint). Neither
+  had a live instance — which is exactly the sentence to write, because a
+  stronger claim tells the next reader not to look.
+- A guard proves the direction you wrote, not the direction you meant. couch's
+  sweep walked `menuActionItems` asserting every OFFERED action is reachable,
+  where the plan asked it to walk `Operations()` asserting every declared
+  operation is OFFERED. Those are converses: offered-implies-reachable is blind
+  to declared-but-unreachable, the exact failure the guard existed for. When a
+  guard is meant to close a class, write both directions and name which failure
+  each catches.
+- A scope change is not recorded until every artifact that RESTATES the scope
+  cites the entry that changed it. Splitting pair#182's holding surface into
+  pair#186 landed in the issue's `## Revisions` and nowhere else: the plan doc
+  still declared entities in a file that does not exist, the project file still
+  described the old milestone, and a `## Done when` bullet still claimed
+  behaviour the code contradicted. Enumerate the consumers — plan, project,
+  roadmap, Done-when, estimate note — as part of making the change, not after a
+  reviewer finds them.
+- Do not hand-tick an `Mx` row. An `Mx` is a review boundary that owes a
+  `Review-Verdict:` trailer and a `closed Mx` log line; ticking it without one
+  puts a boundary marker where no boundary happened. If the work no longer has
+  its own boundary, drop the tag — that is the honest edit, not a retroactive
+  milestone-close.
+- A guard must be able to FAIL, and production must not coerce its input into
+  agreeing with it. Filtering `menuActionItems` through the declared row-action
+  set made the sweep's offered-implies-declared direction unfalsifiable —
+  offered became a subset of declared by construction — and turned the mistake
+  it was meant to catch into an item silently vanishing from the switcher. I
+  added the filter to satisfy a dead-symbol guard, which is the tell: when a
+  helper needs a production caller invented for it, delete the helper and let
+  the test read the declaration directly.
+- Two switches over one enum agree until someone edits one. `intercepts()` and
+  `hit()` both enumerated `seqKind`, so a new chord had to join both or be
+  silently forwarded. Derive one from the other (`intercepts() = hit() != None`)
+  so there is a single place that knows.
+- A documentation guard scoped to the whole file is satisfied by the wrong
+  section. couch newly intercepted `Alt+n`, and README's Pair keybinding table
+  already contained the string "Alt+n" describing what it used to do — so the
+  guard passed while the docs told the operator something false. Scope a guard
+  to the region that must change, and make it fail loudly if it can no longer
+  find that region.
+- "Which thing is the operator pointing at" has one answer, and reading it off
+  the top frame gets it wrong from any depth. couch's root frame carries
+  `SelectedAddress`; a drilled-into frame carries `Thread`. `onRelaunchHotkey`
+  read `CurrentFrame().SelectedAddress`, so Alt+n in the switcher refused with
+  "no thread selected" whenever the operator had opened a row's actions first —
+  the ordinary way of being pointed at a thread. Give the question one method;
+  a second copy is a second chance to pick the wrong frame.
+- A comment that points ("the switch below", "see above") breaks silently when
+  the code moves. Moving `endsItsOwnChild` to a pure file left its comment aimed
+  at whatever happened to follow it. Name the thing and its file; a relocation
+  cannot carry a positional claim.
+- Two measurements of the same deferred work, written a milestone apart, read as
+  a contradiction rather than as history. When re-deferring something, supersede
+  the old number explicitly and say which is current — otherwise the next reader
+  cannot tell whether the scope changed or the count was wrong.

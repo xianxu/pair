@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"errors"
 	"sort"
+	"strconv"
 	"time"
 )
 
@@ -28,6 +29,37 @@ type ArtifactFingerprint struct {
 	Size            int64           `json:"size"`
 	BirthTime       *time.Time      `json:"birth_time,omitempty"`
 	ModTime         *time.Time      `json:"mod_time,omitempty"`
+}
+
+// GenerationID names WHICH INCARNATION of an artifact path this fingerprint
+// describes -- the question a lifecycle record's ArtifactGeneration exists to
+// answer, so that a record from a replaced transcript never dedupes against one
+// from its predecessor.
+//
+// GenerationToken is the ideal answer and is almost never available:
+// filemeta_linux.go never populates it, filemeta_other.go never populates it,
+// and filemeta_darwin.go populates it only from st_gen, which APFS reports as 0
+// for unprivileged callers. The field is `omitempty` precisely because it is
+// optional -- so a consumer that requires it rejects every artifact on every
+// platform pair supports.
+//
+// The fallback is the identity the platform DOES provide: dev:ino, plus birth
+// time when the filesystem records one. A file replaced at a new inode differs;
+// a file recreated at a reused inode differs by birth time. The token still
+// wins when present, because it additionally distinguishes inode reuse that
+// birth time cannot.
+func (f ArtifactFingerprint) GenerationID() string {
+	if f.GenerationToken != "" {
+		return string(f.GenerationToken)
+	}
+	if f.StableFileID == "" {
+		return ""
+	}
+	id := "file:" + string(f.StableFileID)
+	if f.BirthTime != nil {
+		id += ":btime:" + strconv.FormatInt(f.BirthTime.UnixNano(), 10)
+	}
+	return id
 }
 
 // CatalogEntry owns the last scanner classification and accepted offsets for

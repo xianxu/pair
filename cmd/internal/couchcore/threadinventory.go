@@ -1,6 +1,9 @@
 package couchcore
 
-import "sort"
+import (
+	"context"
+	"sort"
+)
 
 // ThreadSummary is the diagnostic CLI/advisor row. It preserves the composite
 // address and every incarnation state; ordinary switchers use
@@ -13,13 +16,16 @@ type ThreadSummary struct {
 	Description      string              `json:"description,omitempty"`
 	PublishedSummary string              `json:"published_summary,omitempty"`
 	Incarnations     []ThreadIncarnation `json:"incarnations,omitempty"`
+	// State and Reason come from the SAME classifier the switcher uses. The
+	// diagnostic view used to derive its own two-case answer from a `Parked`
+	// bool, which is how one store could produce two different stories --
+	// exactly what #181 exists to stop.
+	State  ActionableThreadState `json:"state"`
+	Reason ThreadReason          `json:"reason,omitempty"`
 }
 
 func (s ThreadSummary) Label() string {
-	if s.Name != "" {
-		return s.Name
-	}
-	return string(s.Address.Tag)
+	return threadLabel(s.Name, s.WorkingPath, s.Address.Tag)
 }
 
 func (s ThreadSummary) DisplaySummary() string {
@@ -38,10 +44,19 @@ func (s ThreadSummary) Live() bool {
 	return false
 }
 
-func BuildThreadInventory(records []ThreadRecord) []ThreadSummary {
+// BuildThreadInventory is the diagnostic projection: every record, with its
+// lifecycle detail, classified by the one shared rule.
+func BuildThreadInventory(input ThreadProjectionInput) []ThreadSummary {
+	records, evidence := input.Records, input.Evidence
 	rows := make([]ThreadSummary, 0, len(records))
+	for _, address := range input.Unreadable {
+		rows = append(rows, ThreadSummary{
+			Address: address, State: ThreadUnusable, Reason: ReasonUnreadable,
+		})
+	}
 	for _, record := range records {
 		cloned := cloneThreadRecord(record)
+		state, reason := ClassifyThread(cloned, evidence[cloned.Address])
 		rows = append(rows, ThreadSummary{
 			Address:          cloned.Address,
 			StartingPath:     cloned.StartingPath,
@@ -50,6 +65,8 @@ func BuildThreadInventory(records []ThreadRecord) []ThreadSummary {
 			Description:      cloned.Description,
 			PublishedSummary: cloned.PublishedSummary,
 			Incarnations:     cloned.Incarnations,
+			State:            state,
+			Reason:           reason,
 		})
 	}
 	sort.Slice(rows, func(i, j int) bool {
@@ -62,9 +79,41 @@ func BuildThreadInventory(records []ThreadRecord) []ThreadSummary {
 }
 
 func (c *Couch) ThreadInventory() ([]ThreadSummary, error) {
-	snapshot, err := c.Threads.Snapshot()
+	return c.ThreadInventoryContext(context.Background())
+}
+
+// ThreadInventoryContext resolves the same evidence the switcher does.
+//
+// A CLI has no console, so its live proof comes from the OS: the recorded
+// process must still be alive AND carry the kernel start token recorded at
+// launch. Without that a running thread would read as a stale incarnation here
+// while the switcher called it live -- one store, two stories.
+func (c *Couch) ThreadInventoryContext(ctx context.Context) ([]ThreadSummary, error) {
+	if ctx == nil {
+		ctx = context.Background()
+	}
+	// No observations to pass: gatherThreadEvidence derives OS liveness for
+	// every caller now, so the CLI and the console read the same proof and this
+	// no longer needs its own snapshot to build one from.
+	snapshot, evidence, err := c.gatherThreadEvidence(ctx, nil)
 	if err != nil {
 		return nil, err
 	}
-	return BuildThreadInventory(snapshot.Records), nil
+	return BuildThreadInventory(FromSnapshot(snapshot, evidence)), nil
+}
+
+// BuildArchivedInventory projects retired records WITHOUT classifying them.
+//
+// Running the classifier over an archived record asks whether its session is
+// alive, which is a question about a thread couch no longer tracks -- and with
+// no evidence gathered the honest answer is "unknown", so every archived row
+// rendered as "checking...". They are not being checked. They are archived.
+func BuildArchivedInventory(records []ThreadRecord) []ThreadSummary {
+	// Unreadable is deliberately empty: an archived record is out of the
+	// working set, so there is no manifest entry that failed to become one.
+	rows := BuildThreadInventory(ThreadProjectionInput{Records: records, Unreadable: nil})
+	for i := range rows {
+		rows[i].State, rows[i].Reason = ThreadArchived, ""
+	}
+	return rows
 }

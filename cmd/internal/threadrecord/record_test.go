@@ -29,13 +29,12 @@ func (e errText) Error() string { return string(e) }
 
 func validRecord() Record {
 	return Record{
-		SchemaVersion:   SchemaVersion,
-		Address:         Address{RepoScope: "816fc349d3faebf8", Tag: "couch-0102030405060708"},
-		StartingPath:    "/repo",
-		WorkingPath:     "/repo",
-		CreatedAt:       time.Unix(1, 0).UTC(),
-		Revision:        1,
-		ClaimGeneration: 1,
+		SchemaVersion: SchemaVersion,
+		Address:       Address{RepoScope: "816fc349d3faebf8", Tag: "couch-0102030405060708"},
+		StartingPath:  "/repo",
+		WorkingPath:   "/repo",
+		CreatedAt:     time.Unix(1, 0).UTC(),
+		Revision:      1,
 		Incarnations: []Incarnation{{
 			PID: 42, Identity: "helper", State: "creating",
 			Start: &StartClaim{
@@ -114,15 +113,14 @@ func TestValidateCommittedLaunchProfileRequiresRegistrationAndCompleteProfile(t 
 	}
 }
 
-func TestValidatePersistedAddsGenerationAndAddressInvariants(t *testing.T) {
+// The claim-generation invariant went with admission (pair#170 M4): it was
+// admission's tie-break for competing reservations, and couch-lite has no
+// competition to break. The address invariant is unrelated and survives.
+func TestValidatePersistedAddsAddressInvariants(t *testing.T) {
 	record := validRecord()
 	expected := record.Address
 	if err := ValidatePersisted(record, expected, testValidators); err != nil {
 		t.Fatal(err)
-	}
-	record.ClaimGeneration = 0
-	if err := ValidatePersisted(record, expected, testValidators); err == nil {
-		t.Fatal("zero claim generation accepted")
 	}
 	record = validRecord()
 	expected.Tag = "couch-1112131415161718"

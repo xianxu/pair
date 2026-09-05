@@ -27,7 +27,7 @@ func TestDispatchOperationRoutesOnlyThroughDeclaredExecutor(t *testing.T) {
 	if err != nil || got != "stored" {
 		t.Fatalf("list dispatch = %#v, %v", got, err)
 	}
-	got, err = DispatchOperation(executors, OperationCall{Name: "start", Args: map[string]string{"token": "grant"}, Implicit: true})
+	got, err = DispatchOperation(executors, OperationCall{Name: "start", Args: map[string]string{"path": "/repo", "fingerprint": "grant"}, Implicit: true})
 	if err != nil || got != "owned" {
 		t.Fatalf("start dispatch = %#v, %v", got, err)
 	}
@@ -185,26 +185,43 @@ func TestDispatchOperationRejectsEmptyValueRequiredArgumentBeforeExecutor(t *tes
 	}
 }
 
-func TestPreparedStartOperationsIssueThenConsumeImplicitToken(t *testing.T) {
+// prepare-start resolves and starts nothing; start commits the resolution the
+// preview accepted, identified by its fingerprint.
+//
+// This test used to assert that a REPLAY was refused with
+// ErrStartGrantUnavailable -- the grant table's at-most-one-consumption. That
+// table is gone (pair#170 M4), and its absence is deliberate rather than
+// overlooked: a fingerprint says "this resolution still holds", not "this
+// resolution has not been used", and couch-lite has one owner, so there is no
+// second party to race for a claim. At-most-once is a property of the SUBMIT,
+// and it lives where the submit is -- couchtty's armed start form, pinned by
+// TestStartFormArmedSubmitDispatchesOnce.
+//
+// What the fingerprint must still do is refuse a resolution that drifted, and
+// that is TestSpawnPreparedRefusesDriftByFingerprint.
+func TestPreparedStartResolvesThenCommitsByFingerprint(t *testing.T) {
 	env := newTestEnv(t, "/repo")
 	executor := CouchLiveOwnerExecutor(env.Couch)
 	preparedValue, err := DispatchOperation(OperationExecutors{LiveOwner: executor}, OperationCall{
 		Name: "prepare-start", Args: map[string]string{"path": "/repo", "agent": "codex"},
 	})
 	prepared, ok := preparedValue.(PreparedStart)
-	if err != nil || !ok || prepared.Token == "" || len(env.Runner.Ops) != 0 {
+	if err != nil || !ok || prepared.Resolution.Fingerprint == "" || len(env.Runner.Ops) != 0 {
 		t.Fatalf("prepare operation = %#v, %v, runner=%q", preparedValue, err, env.Runner.Ops)
 	}
+	startArgs := prepared.Resolution.CommitArgs()
 	startedValue, err := DispatchOperation(OperationExecutors{LiveOwner: executor}, OperationCall{
-		Name: "start", Args: map[string]string{"token": string(prepared.Token)}, Implicit: true,
+		Name: "start", Args: startArgs, Implicit: true,
 	})
 	if _, ok := startedValue.(StartResult); err != nil || !ok {
 		t.Fatalf("start operation = %#v, %v", startedValue, err)
 	}
 	if _, err := DispatchOperation(OperationExecutors{LiveOwner: executor}, OperationCall{
-		Name: "start", Args: map[string]string{"token": string(prepared.Token)}, Implicit: true,
-	}); !errors.Is(err, ErrStartGrantUnavailable) {
-		t.Fatalf("token replay err = %v", err)
+		Name: "start", Args: map[string]string{
+			"path": "/repo", "agent": "codex", "fingerprint": "stale-fingerprint",
+		}, Implicit: true,
+	}); !errors.Is(err, ErrStartResolutionChanged) {
+		t.Fatalf("stale fingerprint err = %v, want ErrStartResolutionChanged", err)
 	}
 }
 

@@ -7,6 +7,7 @@ import (
 	"os"
 	"path/filepath"
 	"regexp"
+	"sort"
 	"strings"
 	"testing"
 )
@@ -28,7 +29,15 @@ var conceptInventory = []struct{ kind, name string }{
 	{"PURE", "`StripQueries` + query deny-list"},
 	{"PURE", "`Screen`"},
 	{"PURE", "`updateMouseMode`"},
-	{"PURE", "`Focus` / `Up`"},
+	{"PURE", "`Focus`"},
+	// pair#170 M1 — the switch rule and the key layer that reaches it.
+	{"PURE", "`SwitchTracker`"},
+	{"PURE", "`Up`"},
+	{"PURE", "`sequenceAt` / `knownSequences`"},
+	{"PURE", "`DecodePanelKeys` CSI-u branch"},
+	// pair#170 M2 — detach reaches the switcher.
+	{"PURE", "`menuActionItems` / `reduceRootKey`"},
+	{"INTEGRATION", "`Console.onDetachHotkey`"},
 	{"PURE", "`PanelModel` / `Filter` / `SelectTree` / target join"},
 	{"PURE", "`PanelKey` / `DecodePanelKeys`"},
 	{"PURE", "`StatusModel` / `RenderStatusRow`"},
@@ -49,6 +58,15 @@ var conceptInventory = []struct{ kind, name string }{
 	{"INTEGRATION", "`termcmd.restoreTerminal`"},
 	{"INTEGRATION", "`consoleRunner` / `consoleRunnerFor`"},
 	{"INTEGRATION", "`TestTerminalConformance_LifecyclePredicates`"},
+	// pair#182 — relaunch. paneState and RenderHoldingPane are deliberately
+	// absent: their rows carry status `planned — pair#186`, so the
+	// planned-status skip keeps them out until that work ships.
+	{"PURE", "`seqRelaunch` / `HitRelaunch`"},
+	{"PURE", "`endsItsOwnChild`"},
+	{"PURE", "`menuActionItems`"},
+	{"INTEGRATION", "`onRelaunchHotkey`"},
+	{"INTEGRATION", "`onExit`"},
+	{"INTEGRATION", "`finishOperation`"},
 }
 
 // TestCoreConceptsContract turns pair#146's repeatedly drifting architecture
@@ -57,8 +75,7 @@ var conceptInventory = []struct{ kind, name string }{
 // seams and must have direct unit coverage. Future rows are explicit and skipped.
 func TestCoreConceptsContract(t *testing.T) {
 	root := filepath.Join("..", "..", "..")
-	plan := findConceptPlan(t, root)
-	rows := parseConceptRows(t, plan)
+	rows := conceptRowsForPackage(t, root)
 	if len(rows) == 0 {
 		t.Fatal("Core concepts contract has no rows")
 	}
@@ -176,24 +193,121 @@ func conceptInventoryProblems(rows []conceptContractRow) []string {
 	return problems
 }
 
-func findConceptPlan(t *testing.T, root string) string {
+// conceptPlans are the plans whose Core concepts tables this contract pins.
+//
+// It used to be #146 alone, which left a hole exactly where each later
+// milestone added an entity: #170 declared `SwitchTracker` new/PURE and nothing
+// asserted it, because the only plan being read predated it.
+//
+// The by-construction fix -- scan every plan and filter by declared path -- has
+// now been tried and backed out TWICE, and the second measurement supersedes the
+// first: at pair#182's HEAD it surfaces 14 unpinned rows across pair#121,
+// pair#181 and pair#182, plus PURE rows whose source imports os, a declared
+// symbol absent from its file, and rows carrying no backticked symbol to check.
+// (The first attempt, during a pair#170 milestone, counted ~10 rows across
+// #151/#160 -- the same drift, measured before two more plans existed.) Those
+// are real findings but a separate piece of work: pair#188.
+//
+// Until then this list is additive and explicit: a plan that declares a
+// couchtty entity joins it. Rows for milestones that have not shipped carry a
+// `planned` status, which the row loop skips -- so the status column doubles as
+// the build tracker, and flipping a row to `new` at its milestone is what turns
+// the assertion on.
+// conceptPlans is the hand-maintained set of plans this contract defends, and
+// it is KNOWN to be the wrong shape -- a guard whose input is a hand-written
+// list is one the next addition skips, which is exactly how pair#182's table
+// went unenforced and shipped two rows naming symbols that exist nowhere.
+//
+// Discovery (scan workshop/plans + history for a Core concepts table) is the
+// right instrument and was measured before being deferred: it brings 14
+// unpinned rows across pair#121, pair#181 and pair#182 into scope, plus real
+// assertion failures -- PURE rows whose source imports os, a declared symbol
+// that is absent. That is a genuine fleet cleanup spanning three other issues'
+// plans, so it is pair#188 rather than a widening of the relaunch close.
+var conceptPlans = []conceptPlan{
+	// #146's table IS this package's architecture table: its INTEGRATION rows
+	// deliberately reach outside couchtty (ptychild, hostty, termcmd) because
+	// those are the seams couchtty consumes. All of its rows are pinned here.
+	{name: "000146-couch-tty-switching-and-attach-plan.md", allRows: true},
+	// A later plan spans several packages and contributes only the rows whose
+	// declared path lives here; its couchcore entities are couchcore's to pin.
+	{name: "000170-rescope-couch-to-couch-lite-plan.md"},
+	{name: "000182-relaunch-an-actor-plan.md"},
+}
+
+type conceptPlan struct {
+	name    string
+	allRows bool
+}
+
+// conceptPackage is the package this contract defends.
+const conceptPackage = "cmd/internal/couchtty/"
+
+func findConceptPlans(t *testing.T, root string) []conceptPlan {
 	t.Helper()
-	name := "000146-couch-tty-switching-and-attach-plan.md"
-	active := filepath.Join(root, "workshop", "plans", name)
-	if _, err := os.Stat(active); err == nil {
-		return active
-	}
-	var found string
-	_ = filepath.WalkDir(filepath.Join(root, "workshop", "history"), func(path string, d os.DirEntry, err error) error {
-		if err == nil && !d.IsDir() && d.Name() == name {
-			found = path
+	var found []conceptPlan
+	for _, plan := range conceptPlans {
+		name := plan.name
+		active := filepath.Join(root, "workshop", "plans", name)
+		if _, err := os.Stat(active); err == nil {
+			found = append(found, conceptPlan{name: active, allRows: plan.allRows})
+			continue
 		}
-		return nil
-	})
-	if found == "" {
-		t.Fatalf("find %s in active or archived plans", name)
+		var archived string
+		_ = filepath.WalkDir(filepath.Join(root, "workshop", "history"), func(path string, d os.DirEntry, err error) error {
+			if err == nil && !d.IsDir() && d.Name() == name {
+				archived = path
+			}
+			return nil
+		})
+		if archived == "" {
+			t.Fatalf("find %s in active or archived plans", name)
+		}
+		found = append(found, conceptPlan{name: archived, allRows: plan.allRows})
 	}
+	sort.Slice(found, func(i, j int) bool { return found[i].name < found[j].name })
 	return found
+}
+
+// conceptRowsForPackage unions every declared plan's rows and keeps only those
+// whose declared paths are inside this package.
+func conceptRowsForPackage(t *testing.T, root string) []conceptContractRow {
+	t.Helper()
+	seen := map[string]bool{}
+	var rows []conceptContractRow
+	for _, plan := range findConceptPlans(t, root) {
+		for _, row := range parseConceptRows(t, plan.name) {
+			if !plan.allRows {
+				// A multi-package plan contributes only the rows that live
+				// here; its other packages' entities are theirs to pin.
+				owned := false
+				for _, path := range row.paths {
+					if strings.HasPrefix(path, conceptPackage) {
+						owned = true
+					}
+				}
+				if !owned {
+					continue
+				}
+			}
+			if strings.Contains(strings.ToLower(row.status), "planned") {
+				// Declared for a milestone that has not shipped. Invisible to
+				// both the inventory and the assertions until its status flips
+				// -- at which point the inventory reports it as an unexpected
+				// row until someone adds it, which is the signal we want.
+				continue
+			}
+			key := row.kind + "\x00" + row.name
+			if seen[key] {
+				// A later plan restating an entity is not a second entity; the
+				// first declaration owns its contract.
+				continue
+			}
+			seen[key] = true
+			rows = append(rows, row)
+		}
+	}
+	return rows
 }
 
 func parseConceptRows(t *testing.T, path string) []conceptContractRow {
@@ -208,14 +322,18 @@ func parseConceptRows(t *testing.T, path string) []conceptContractRow {
 	s := bufio.NewScanner(f)
 	for s.Scan() {
 		line := s.Text()
-		switch line {
-		case "### Pure entities":
+		switch {
+		case line == "### Pure entities":
 			kind = "PURE"
 			continue
-		case "### Integration points":
+		case line == "### Integration points":
 			kind = "INTEGRATION"
 			continue
-		case "## Milestones":
+		case strings.HasPrefix(line, "#"):
+			// Any other heading ENDS the table. Without this the section
+			// leaks: #170's M4 chunk has a `### Deleted` table of deletion
+			// groups, which inherited INTEGRATION from the Integration points
+			// table above it and was asserted as if its rows named symbols.
 			kind = ""
 		}
 		if kind == "" || !strings.HasPrefix(line, "|") || strings.Contains(line, "|---") || strings.HasPrefix(line, "| Name |") {

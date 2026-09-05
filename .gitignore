@@ -35,3 +35,21 @@ cache/
 /.agents/skills/
 /construct/generated/
 /cmd/internal/runtimebundle/assets/
+
+# Go writes `go build ./cmd/foo` output into the CURRENT directory, so a stray
+# build from the repo root drops a multi-megabyte binary next to the source --
+# and `git add -A` sweeps it in. Happened once (pair#170 M4 committed a 4.5 MB
+# couchstartrecovery), and this repo is the ariadne base layer, so such a blob
+# propagates to every dependent repo and is permanent once merged.
+#
+# Root-anchored and named after the main packages, so it cannot shadow a real
+# source directory the way a bare `couch` pattern would. Kept in step with the
+# tree by TestEveryMainPackageIsIgnoredAtTheRepoRoot -- the first hand-written
+# version of this list already missed two entries the day it was added.
+/couch
+/pair-go
+/pair-launch-helper
+/couchstartrecovery
+/generatecmd
+/termsmoke
+/zellijpark

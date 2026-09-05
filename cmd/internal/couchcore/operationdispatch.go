@@ -66,6 +66,23 @@ func DispatchOperation(executors OperationExecutors, call OperationCall) (any, e
 	return executors.LiveOwner(call)
 }
 
+// OperationConfirms reports whether a named operation DECLARES that it needs an
+// operator confirmation, and whether it is declared at all.
+//
+// The switcher carried three separate hand-written lists of "which actions
+// confirm" -- the action list's Enter, the confirmation's own dispatch guard,
+// and the refresh's frame-validity check -- none of which read the declaration
+// they were transcribing. relaunch joined the action list and none of the three,
+// so Enter on it did nothing whatsoever, silently. Confirmation is declared
+// exactly once, in Operations(); this is how the terminal asks.
+func OperationConfirms(name string) (confirms bool, declared bool) {
+	op, ok := operationByName(name)
+	if !ok {
+		return false, false
+	}
+	return op.Confirmation == ConfirmRequired, true
+}
+
 func operationByName(name string) (Operation, bool) {
 	for _, op := range Operations() {
 		if op.Name == name {
@@ -92,6 +109,11 @@ func validateOperationCall(op Operation, call OperationCall) error {
 			return fmt.Errorf("%s: argument %q requires a non-empty value", op.Name, name)
 		}
 	}
+	// Presence, not non-emptiness: an empty value is MEANINGFUL for some
+	// required arguments -- `set-name` clears a name with one and
+	// `publish-description` clears a description. Arguments whose emptiness is
+	// nonsense guard themselves at the layer that knows (see SpawnPrepared's
+	// empty-fingerprint refusal).
 	for _, arg := range op.Args {
 		if _, supplied := call.Args[arg.Name]; arg.Required && !supplied {
 			return fmt.Errorf("%s: missing required argument %q", op.Name, arg.Name)
@@ -119,7 +141,7 @@ func DirectStoreExecutor(c *Couch) OperationExecutor {
 		a := call.Args
 		switch call.Operation.Name {
 		case "list":
-			return c.ThreadInventory()
+			return c.ThreadInventoryContext(call.Context)
 		case "show":
 			if err := requireOperationRepoScope(a); err != nil {
 				return nil, err
@@ -128,29 +150,74 @@ func DirectStoreExecutor(c *Couch) OperationExecutor {
 			if err != nil {
 				return nil, err
 			}
-			return BuildThreadInventory(matches), nil
-		case "name":
-			if err := requireOperationRepoScope(a); err != nil {
+			// Show reads the same classified inventory list does and then
+			// narrows, rather than running its own evidence pass: a full-store
+			// pass to display one thread pays a zellij snapshot per --show, and
+			// projecting `matches` directly would skip the path
+			// physicalization list does -- the same field printed two ways by
+			// the two views this milestone unified.
+			rows, err := c.ThreadInventoryContext(call.Context)
+			if err != nil {
 				return nil, err
 			}
-			matches, err := c.ResolveThreadReference(a["repo-scope"], a["ref"])
+			wanted := make(map[ThreadAddress]bool, len(matches))
+			for _, match := range matches {
+				wanted[match.Address] = true
+			}
+			narrowed := make([]ThreadSummary, 0, len(matches))
+			for _, row := range rows {
+				if wanted[row.Address] {
+					narrowed = append(narrowed, row)
+				}
+			}
+			return narrowed, nil
+		case "archived":
+			records, err := c.Threads.ArchivedThreads()
+			if err != nil {
+				return nil, err
+			}
+			return BuildArchivedInventory(records), nil
+		case "archive":
+			// resolveOperationThread, NOT ResolveThreadReference: the switcher
+			// dispatches through threadEffect, which sends {repo-scope, tag}
+			// and no ref. Reading only `ref` made every Tab -> archive fail
+			// with "empty reference" -- the milestone's headline action,
+			// unreachable from the only surface offering it. The two dialects
+			// are the bug; this is the one that accepts both (ARCH-DRY).
+			// resolveThreadForArchive, not resolveOperationThread: resolving by
+			// tag calls GetThread, which DECODES -- so archiving an unreadable
+			// record failed with the decode error at exactly the moment the
+			// operator was trying to get rid of it. An archive target is
+			// addressed, not read.
+			address, err := resolveThreadForArchive(c, a)
+			if err != nil {
+				return nil, err
+			}
+			ctx := call.Context
+			if ctx == nil {
+				ctx = context.Background()
+			}
+			return c.ArchiveThread(ctx, address)
+		case "name":
+			address, err := resolveOperationThread(c, a)
 			if err != nil {
 				return nil, err
 			}
 			name := a["name"]
-			return c.ApplyThreadMetadata(matches[0].Address, ThreadMetadataPatch{Name: &name})
+			return c.ApplyThreadMetadata(address, ThreadMetadataPatch{Name: &name})
 		case "describe":
-			if err := requireOperationRepoScope(a); err != nil {
-				return nil, err
-			}
-			matches, err := c.ResolveThreadReference(a["repo-scope"], a["ref"])
+			address, err := resolveOperationThread(c, a)
 			if err != nil {
 				return nil, err
 			}
 			if d, supplied := a["description"]; supplied {
-				return c.ApplyThreadMetadata(matches[0].Address, ThreadMetadataPatch{Description: &d})
+				return c.ApplyThreadMetadata(address, ThreadMetadataPatch{Description: &d})
 			}
-			return matches[0].Description, nil
+			record, err := c.Threads.GetThread(address)
+			if err != nil {
+				return nil, err
+			}
+			return record.Description, nil
 		case "publish-description":
 			if a["repo-scope"] == "" || a["tag"] == "" {
 				return nil, fmt.Errorf("thread scope/tag are unavailable -- run this inside a couch-spawned session")
@@ -188,7 +255,12 @@ func CouchLiveOwnerExecutor(c *Couch) OperationExecutor {
 			}
 			return c.PrepareStart(ctx, StartArgs{Cwd: path, Stack: a["agent"]})
 		case "start":
-			rec, h, err := c.SpawnPrepared(ctx, StartGrantToken(a["token"]))
+			// The SAME inputs the preview resolved from, so re-resolution is
+			// comparable. Passing the RESOLVED agent where the operator gave
+			// none would change AgentSource and therefore the fingerprint.
+			rec, h, err := c.SpawnPrepared(ctx, StartArgs{
+				Cwd: a["path"], Stack: a["agent"], Issue: a["issue"],
+			}, StartResolutionFingerprint(a["fingerprint"]))
 			if err != nil {
 				return nil, err
 			}
@@ -234,8 +306,32 @@ func CouchLiveOwnerExecutor(c *Couch) OperationExecutor {
 			default:
 				return nil, fmt.Errorf("park: invalid mode %q (want normal, retry, recover, or abandon)", a["mode"])
 			}
+		case "detach":
+			address, err := resolveOperationThread(c, a)
+			if err != nil {
+				return nil, err
+			}
+			return c.Detach(ctx, address)
+		case "relaunch":
+			// resolveOperationThread: the ONE thread-addressing dialect. The
+			// switcher sends {repo-scope, tag}, and reading only `ref` is how
+			// Tab -> archive shipped broken (pair#181 M3).
+			address, err := resolveOperationThread(c, a)
+			if err != nil {
+				return nil, err
+			}
+			return c.Relaunch(ctx, address)
 		case "leave":
-			return c.Leave(ctx)
+			// Mirrors park's mode argument rather than minting a second verb:
+			// leaving is one operation whose disposition the pressed key picks.
+			switch a["mode"] {
+			case "", "detach":
+				return c.Leave(ctx, LeaveDetach)
+			case "park":
+				return c.Leave(ctx, LeavePark)
+			default:
+				return nil, fmt.Errorf("leave: invalid mode %q (want detach or park)", a["mode"])
+			}
 		case "resume":
 			address, err := resolveOperationThread(c, a)
 			if err != nil {
@@ -252,6 +348,27 @@ func CouchLiveOwnerExecutor(c *Couch) OperationExecutor {
 			return nil, fmt.Errorf("%s is not a live-owner operation", call.Operation.Name)
 		}
 	}
+}
+
+// resolveThreadForArchive addresses a thread without requiring it to be
+// readable.
+//
+// Every other resolver proves the thread exists by decoding it, which is right
+// for an operation that will act ON the record. Archive acts on the FILE: an
+// unreadable record is the case it most needs to reach, and the store's own
+// journal refuses an address that is not in the manifest, so existence is still
+// checked -- just not by a decoder that the corrupt case fails by definition.
+func resolveThreadForArchive(c *Couch, args map[string]string) (ThreadAddress, error) {
+	if err := requireOperationRepoScope(args); err != nil {
+		return ThreadAddress{}, err
+	}
+	if tag := args["tag"]; tag != "" {
+		if args["ref"] != "" {
+			return ThreadAddress{}, fmt.Errorf("thread ref and exact tag cannot both be supplied")
+		}
+		return ThreadAddress{RepoScope: args["repo-scope"], Tag: ThreadTag(tag)}, nil
+	}
+	return resolveOperationThread(c, args)
 }
 
 func resolveOperationThread(c *Couch, args map[string]string) (ThreadAddress, error) {

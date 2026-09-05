@@ -34,7 +34,6 @@ type testRT struct {
 	proc       *couchcore.FakeProcOps
 	git        *couchcore.FakeGit
 	supervisor *fakeSupervisor
-	policy     *couchcore.FakePolicyResolver
 	artifacts  *couchcore.FakeThreadArtifactCollisionChecker
 	env        map[string]string
 	// ids is shared across invocations. Minting a fresh generator per
@@ -43,6 +42,17 @@ type testRT struct {
 	ids              couchcore.IDGen
 	currentRepoScope string
 	agentDefaults    map[string]launcher.AgentDefault
+}
+
+// registryRecords reads the persisted registry directly. Couch.List was a
+// one-line wrapper over it with no production caller (deleted in pair#170 M4).
+func (t testRT) registryRecords(tb *testing.T) []couchcore.ActorRecord {
+	tb.Helper()
+	registry, _, err := couchcore.NewStore(t.dir).Load()
+	if err != nil {
+		tb.Fatalf("load registry: %v", err)
+	}
+	return registry.Records()
 }
 
 func (t testRT) Getenv(key string) string { return t.env[key] }
@@ -86,7 +96,7 @@ func (t testRT) NewCouch() (*couchcore.Couch, error) {
 func (t testRT) NewCouchWith(couchcore.Runner, couchcore.CouchNamespace) (*couchcore.Couch, error) {
 	c, err := couchcore.New(
 		t.namespace, t.runner, couchcore.NewFakePathOps(nil), t.git, t.proc,
-		couchcore.NewStore(t.dir), couchcore.FixedClock{T: time.Unix(1, 0)}, t.ids, t.policy,
+		couchcore.NewStore(t.dir), couchcore.FixedClock{T: time.Unix(1, 0)}, t.ids,
 		rand.Reader, t.artifacts,
 	)
 	if err != nil {
@@ -111,6 +121,9 @@ func newRT(t *testing.T, trees ...string) testRT {
 	replies := map[couchcore.GitCall]string{}
 	for _, tr := range trees {
 		replies[couchcore.GitCall{Dir: tr, Args: "rev-parse --show-toplevel"}] = tr
+		// The repository identity couch derives locally since pair#170 M4, in
+		// the shape real git answers it from a main checkout.
+		replies[couchcore.GitCall{Dir: tr, Args: "rev-parse --git-common-dir"}] = ".git"
 	}
 	ns, err := couchcore.ResolveCouchNamespace(t.TempDir(), "/unused")
 	if err != nil {
@@ -133,7 +146,6 @@ func newRT(t *testing.T, trees ...string) testRT {
 		proc:             couchcore.NewFakeProcOps(),
 		git:              couchcore.NewFakeGit(replies),
 		supervisor:       &fakeSupervisor{},
-		policy:           couchcore.NewFakePolicyResolver(),
 		artifacts:        artifacts,
 		env:              map[string]string{},
 		ids:              couchcore.NewFixedIDGen("ah8d", "b2c1", "c3d2", "e4f5"),
@@ -146,7 +158,6 @@ func TestStartComposesRootAgentAndMatchingRepoDefaultThroughSharedLauncherProfil
 	rt := newRT(t, "/repo")
 	rt.env["PAIR_AGENT"] = "codex"
 	rt.agentDefaults["/repo\x00codex"] = launcher.AgentDefault{Agent: "codex", Args: []string{"--sandbox", "workspace-write"}}
-	rt.boundedOne("/repo")
 
 	if _, stderr, code := runLaunchRT(rt, "/repo", ""); code != 0 {
 		t.Fatalf("start: code=%d stderr=%q", code, stderr)
@@ -217,11 +228,6 @@ func seedThreadAtAddress(t *testing.T, rt testRT, scope, tag, path string) couch
 
 func seedVerifiedPark(t *testing.T, rt testRT, path string) couchcore.ThreadRecord {
 	t.Helper()
-	rt.boundedOne(path)
-	policy, err := rt.policy.ResolvePolicy(context.Background(), path)
-	if err != nil {
-		t.Fatal(err)
-	}
 	scope, err := launcher.ResolveRepoScope(path)
 	if err != nil {
 		t.Fatal(err)
@@ -237,7 +243,7 @@ func seedVerifiedPark(t *testing.T, rt testRT, path string) couchcore.ThreadReco
 		StartingPath:  path, WorkingPath: path, CreatedAt: time.Unix(1, 0).UTC(), Revision: 1,
 		Incarnations: []couchcore.ThreadIncarnation{{
 			PID: 42, Identity: "pair-helper", State: couchcore.IncarnationLive,
-			Policy: &policy, LaunchProfile: &profile,
+			RepoIdentity: "/repo/.git", LaunchProfile: &profile,
 		}},
 		LatestLaunchProfile: &profile,
 	}
@@ -280,7 +286,6 @@ func TestResumeAcquiresAndReleasesSupervisorLease(t *testing.T) {
 
 func TestResumeRunsAsTheNewLiveOwner(t *testing.T) {
 	rt := newRT(t, "/repo")
-	rt.boundedOne("/repo")
 	parked := seedVerifiedPark(t, rt, "/repo")
 	rt.artifacts.SetNativeBinding(parked.Address, "claude", sessioninventory.BindingEstablished, "native-root-1")
 	rt.runner.AfterAcknowledge = func(string) error {
@@ -300,9 +305,131 @@ func TestResumeRunsAsTheNewLiveOwner(t *testing.T) {
 	}
 }
 
+// seedDetachedThread leaves a record in the shape an alt+d detach produces:
+// no incarnation, NO verified park, a saved launch profile, and a live zellij
+// session with no client.
+func seedDetachedThread(t *testing.T, rt testRT, path string) couchcore.ThreadRecord {
+	t.Helper()
+	scope, err := launcher.ResolveRepoScope(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	profile := couchcore.LaunchProfile{Agent: "claude", Argv: []string{}}
+	c, err := rt.NewCouch()
+	if err != nil {
+		t.Fatal(err)
+	}
+	created, err := c.Threads.CreateThread(couchcore.ThreadRecord{
+		SchemaVersion: couchcore.ThreadSchemaVersion,
+		Address:       couchcore.ThreadAddress{RepoScope: scope.Key, Tag: "couch-0102030405060708"},
+		StartingPath:  path, WorkingPath: path, CreatedAt: time.Unix(1, 0).UTC(), Revision: 1,
+		LatestLaunchProfile: &profile,
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	updated, err := c.Threads.UpdateExistingThread(created.Address, created.Revision, func(next *couchcore.ThreadRecord) error {
+		next.Reservation = false
+		return nil
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	return updated
+}
+
+// The M3 acceptance case, across a RESTART: a couch that detached a thread and
+// went away, then `couch` again in that tree. Driven through production
+// interactive routing all the way to initial Console attach -- not below it,
+// because reducer support is not user reachability.
+func TestInteractiveLaunchReattachesUniqueDetachedRoot(t *testing.T) {
+	rt := newRT(t, "/repo")
+	detached := seedDetachedThread(t, rt, "/repo")
+	rt.artifacts.SetNativeBinding(detached.Address, "claude", sessioninventory.BindingEstablished, "native-root-1")
+	// The surviving session IS the resume authority for a detached thread.
+	rt.artifacts.SetDetachedSession(detached.Address, "pair-"+string(detached.Address.Tag))
+	rt.runner = couchcore.NewFakeRunner()
+	rt.runner.AfterAcknowledge = func(string) error {
+		rt.artifacts.SetPairSession(detached.Address, "pair-"+string(detached.Address.Tag), true)
+		return nil
+	}
+	master, slave, err := pty.Open()
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer master.Close()
+	defer slave.Close()
+
+	var attached couchcore.StartResult
+	finish := func(console *couchtty.Console, c *couchcore.Couch, start couchcore.StartResult, _ io.Writer) int {
+		wireResolver(console, c)
+		if err := dispatchInitialAttach(console, start); err != nil {
+			t.Fatalf("initial attach: %v", err)
+		}
+		attached = start
+		return 0
+	}
+	op, _ := Resolve("start")
+	var stdout, stderr bytes.Buffer
+	code := runTypedOperationWithConsole(op, map[string]string{}, map[string]string{"path": "/repo"}, true, slave, slave, slave, &stdout, &stderr, rt, finish)
+	if code != 0 {
+		t.Fatalf("interactive launch: code=%d stdout=%q stderr=%q", code, stdout.String(), stderr.String())
+	}
+	defer rt.runner.SetExited(attached.Handle.ID(), 0)
+
+	if attached.Record.Thread != detached.Address {
+		t.Fatalf("interactive root = %+v, want the detached thread %+v", attached.Record.Thread, detached.Address)
+	}
+	// A WARM reattach, so no `--layout2`: the running session already has its
+	// layout, and asking for a different one sends Pair down a conflict path
+	// that offers to delete the live session (#179).
+	if len(rt.runner.Ops) == 0 || !strings.Contains(rt.runner.Ops[0], "pair resume "+string(detached.Address.Tag)) {
+		t.Fatalf("child operations = %v, want the detached thread reattached", rt.runner.Ops)
+	}
+	if strings.Contains(rt.runner.Ops[0], "--layout2") {
+		t.Fatalf("warm reattach asked for a layout: %v", rt.runner.Ops)
+	}
+}
+
+// Without the surviving session there is no resume authority, so startup must
+// create a NEW thread rather than reattach one it cannot prove.
+func TestInteractiveLaunchStartsNewWhenNoSessionSurvives(t *testing.T) {
+	rt := newRT(t, "/repo")
+	stale := seedDetachedThread(t, rt, "/repo")
+	rt.artifacts.SetNativeBinding(stale.Address, "claude", sessioninventory.BindingEstablished, "native-root-1")
+	// Deliberately NO SetDetachedSession: the session did not survive.
+	rt.runner = couchcore.NewFakeRunner()
+	master, slave, err := pty.Open()
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer master.Close()
+	defer slave.Close()
+
+	var attached couchcore.StartResult
+	finish := func(console *couchtty.Console, c *couchcore.Couch, start couchcore.StartResult, _ io.Writer) int {
+		wireResolver(console, c)
+		if err := dispatchInitialAttach(console, start); err != nil {
+			t.Fatalf("initial attach: %v", err)
+		}
+		attached = start
+		return 0
+	}
+	op, _ := Resolve("start")
+	var stdout, stderr bytes.Buffer
+	code := runTypedOperationWithConsole(op, map[string]string{}, map[string]string{"path": "/repo"}, true, slave, slave, slave, &stdout, &stderr, rt, finish)
+	if code != 0 {
+		t.Fatalf("interactive launch: code=%d stdout=%q stderr=%q", code, stdout.String(), stderr.String())
+	}
+	defer rt.runner.SetExited(attached.Handle.ID(), 0)
+
+	if attached.Record.Thread == stale.Address {
+		t.Fatalf("startup reattached %+v with no surviving session", stale.Address)
+	}
+}
+
 func TestInteractiveLaunchResumesUniqueParkedRoot(t *testing.T) {
 	rt := newRT(t, "/repo")
-	rt.boundedOne("/repo")
 	parked := seedVerifiedPark(t, rt, "/repo")
 	rt.artifacts.SetNativeBinding(parked.Address, "claude", sessioninventory.BindingEstablished, "native-root-1")
 	rt.runner = couchcore.NewFakeRunner()
@@ -371,24 +498,9 @@ func TestHeldSupervisorRefusesBeforeStartingActor(t *testing.T) {
 // spawned child would be.
 func (rt testRT) markLive(t *testing.T) {
 	t.Helper()
-	c, err := rt.NewCouch()
-	if err != nil {
-		t.Fatalf("NewCouch: %v", err)
-	}
-	for _, r := range c.List() {
+	for _, r := range rt.registryRecords(t) {
 		rt.proc.Set(r.PID, r.Identity)
 	}
-}
-
-func (rt testRT) boundedOne(path string) {
-	rt.policy.SetDefault(couchcore.PolicyResult{
-		PolicyVersion: 1,
-		PolicyDigest:  strings.Repeat("a", 64),
-		RepoIdentity:  "repo",
-		AdmissionKey:  path,
-		Capacity:      couchcore.PolicyCapacity{Kind: couchcore.CapacityBounded, Limit: 1},
-		OnCapacity:    couchcore.CapacityReject,
-	}, nil)
 }
 
 func runTypedRT(rt testRT, call couchcore.OperationCall) (string, string, int) {
@@ -469,7 +581,7 @@ func TestEveryOperationHasASummaryAndDescribedArgs(t *testing.T) {
 func TestOperationArityMatchesExpectation(t *testing.T) {
 	// Declared in the test rather than read from the operation itself, so
 	// this cannot degrade into asserting X == X.
-	want := map[string]int{"prepare-start": 2, "start": 1, "list": 0, "show": 2, "stop": 1, "name": 3, "describe": 3, "publish-description": 3, "switch": 2, "attach": 2, "park": 4, "resume": 3}
+	want := map[string]int{"prepare-start": 2, "start": 4, "list": 0, "show": 2, "stop": 1, "name": 4, "describe": 4, "publish-description": 3, "switch": 2, "attach": 2, "park": 4, "detach": 3, "leave": 1, "resume": 3, "archive": 3, "archived": 0, "relaunch": 3}
 	for _, op := range couchcore.Operations() {
 		if got := len(op.Args); got != want[op.Name] {
 			t.Errorf("%s has %d args, want %d", op.Name, got, want[op.Name])
@@ -687,7 +799,6 @@ func TestCLIRejectsMissingOrEmptyExplicitAgentBeforeSpawn(t *testing.T) {
 	for _, argv := range [][]string{{"--agent"}, {"--agent="}} {
 		t.Run(strings.Join(argv, "_"), func(t *testing.T) {
 			rt := newRT(t, "/repo")
-			rt.boundedOne("/repo")
 			_, stderr, code := runPublicRT(rt, argv...)
 			if code == 0 || !strings.Contains(stderr, "unknown option") {
 				t.Fatalf("runPublicRT(%q): code=%d stderr=%q", argv, code, stderr)
@@ -700,9 +811,14 @@ func TestCLIRejectsMissingOrEmptyExplicitAgentBeforeSpawn(t *testing.T) {
 }
 
 func TestListShowsANamedTreeWithNoAgent(t *testing.T) {
-	// The forgetting case: a tree that was named and then parked has no actor,
-	// but it is exactly the thread the operator loses track of. It must be a
-	// visible row, not filtered out.
+	// The forgetting case: a tree with no running client has no actor, but it
+	// is exactly the thread the operator loses track of. It must be a visible
+	// row, not filtered out.
+	//
+	// This fixture carries no verified park, so it is the DETACHED-shaped case:
+	// its agent may well still be running behind a live zellij session, and the
+	// row must not claim otherwise. The parked wording is covered by
+	// TestRenderThreadRowsDistinguishesParkedFromDetached.
 	rt := newRT(t, "/repo")
 	seedThread(t, rt, "/repo")
 	if _, errw, code := runTypedRT(rt, couchcore.OperationCall{Name: "name", Args: map[string]string{"ref": "/repo", "name": "the pair tree"}}); code != 0 {
@@ -715,8 +831,44 @@ func TestListShowsANamedTreeWithNoAgent(t *testing.T) {
 	if !strings.Contains(out, "the pair tree") {
 		t.Fatalf("out = %q; a named tree must appear even with no agent", out)
 	}
-	if !strings.Contains(out, "(no agent running)") {
-		t.Fatalf("out = %q; the absence of an agent must be stated", out)
+	// The fixture carries no launch profile, so the classifier says exactly
+	// that rather than guessing at the session. What matters here is that the
+	// row appears WITH a stated reason: a named tree the operator cannot enter
+	// must still say why, which is the whole of #181. The parked/detached
+	// wording has its own test below.
+	if !strings.Contains(out, "unusable: no saved launch") {
+		t.Fatalf("out = %q; a row that cannot be entered must state why", out)
+	}
+}
+
+// A thread with no incarnation is not necessarily idle. Parked means the
+// session was torn down and the agent is gone; detached means only the client
+// left. Reporting both as "no agent running" contradicts the switcher, which
+// offers the detached row for reattach.
+func TestRenderThreadRowsDistinguishesParkedFromDetached(t *testing.T) {
+	address := couchcore.ThreadAddress{RepoScope: "816fc349d3faebf8", Tag: "couch-0001020304050607"}
+	for _, test := range []struct {
+		name   string
+		state  couchcore.ActionableThreadState
+		want   string
+		unwant string
+	}{
+		{name: "parked", state: couchcore.ThreadParked, want: "no agent running", unwant: "still running"},
+		{name: "detached", state: couchcore.ThreadDetached, want: "still running", unwant: "parked"},
+	} {
+		t.Run(test.name, func(t *testing.T) {
+			var buf bytes.Buffer
+			renderThreadRows(&buf, []couchcore.ThreadSummary{{
+				Address: address, WorkingPath: "/repo", Name: "compiler", State: test.state,
+			}}, false)
+			out := buf.String()
+			if !strings.Contains(out, test.want) {
+				t.Fatalf("out = %q, want it to mention %q", out, test.want)
+			}
+			if strings.Contains(out, test.unwant) {
+				t.Fatalf("out = %q, must not mention %q", out, test.unwant)
+			}
+		})
 	}
 }
 
@@ -845,8 +997,28 @@ func TestRenderThreadsIsNameFirstAndKeepsSamePathThreadsDistinct(t *testing.T) {
 	if !strings.Contains(text, "compiler") || strings.Contains(strings.Split(text, "\n")[0], "couch-0000000000000001") {
 		t.Fatalf("named row leads with opaque id: %q", text)
 	}
-	if !strings.Contains(text, "couch-0000000000000002") || strings.Count(text, "/repo") != 2 {
+	// The unnamed row now reads as its DIRECTORY rather than its tag. Here it
+	// does not collide -- the other row is named -- so it stays plain `repo`.
+	if !strings.Contains(text, "repo") || strings.Count(text, "/repo") != 2 {
 		t.Fatalf("same-path thread rows collapsed: %q", text)
+	}
+}
+
+// The collision this guard exists for, now that labels come from directories:
+// two UNNAMED rows at one path would both read `repo`. Readable and useless is
+// worse than opaque, so the tag's tail comes back for exactly those rows.
+func TestRenderThreadsQualifiesCollidingDirectoryLabels(t *testing.T) {
+	rows := []couchcore.ThreadSummary{
+		{Address: couchcore.ThreadAddress{RepoScope: "816fc349d3faebf8", Tag: "couch-0000000000000001"}, WorkingPath: "/repo"},
+		{Address: couchcore.ThreadAddress{RepoScope: "816fc349d3faebf8", Tag: "couch-0000000000000002"}, WorkingPath: "/repo"},
+	}
+	var out bytes.Buffer
+	renderThreads(&out, rows)
+	text := out.String()
+	for _, want := range []string{"repo·00000001", "repo·00000002"} {
+		if !strings.Contains(text, want) {
+			t.Fatalf("colliding rows = %q, want %q to distinguish them", text, want)
+		}
 	}
 }
 
@@ -870,41 +1042,6 @@ func TestTypedRegistryResolvesExactlyDeclaredOperations(t *testing.T) {
 		if _, ok := Resolve(name); ok {
 			t.Errorf("typed registry resolves undeclared operation %q", name)
 		}
-	}
-}
-
-func TestStartRendersTheRefusalWithThePolicyShapedOffer(t *testing.T) {
-	// Done-when 2's rendering had no reachable test before the Runtime seam.
-	rt := newRT(t, "/repo")
-	rt.boundedOne("/repo")
-	if out, errw, code := runLaunchRT(rt, "/repo", ""); code != 0 {
-		t.Fatalf("first start: code=%d out=%q err=%q", code, out, errw)
-	}
-	// Mark the child live so the guard has something real to refuse for.
-	rt.markLive(t)
-	_, errw, code := runLaunchRT(rt, "/repo", "")
-	if code == 0 {
-		t.Fatal("a second start on an occupied tree must fail")
-	}
-	for _, want := range []string{"at capacity 1", `admission key "/repo"`, "couch --list"} {
-		if !strings.Contains(errw, want) {
-			t.Errorf("refusal missing %q; got %q", want, errw)
-		}
-	}
-}
-
-func TestProvisionWorktreeRefusalNames153WithoutInventingAPath(t *testing.T) {
-	var out bytes.Buffer
-	renderError(&out, &couchcore.CapacityExceededError{
-		RepoIdentity: "web", AdmissionKey: "/repo", Limit: 1,
-		Action: couchcore.CapacityProvisionWorktree,
-	})
-	got := out.String()
-	if !strings.Contains(got, "pair#153") || !strings.Contains(got, "no path was created") {
-		t.Fatalf("provision refusal = %q", got)
-	}
-	if strings.Contains(got, "couch start ") { // obsolete-argv-rejection
-		t.Fatalf("provision refusal invented a runnable path: %q", got)
 	}
 }
 
@@ -1073,12 +1210,22 @@ func TestConsoleGetsCouchsActionableProvider(t *testing.T) {
 	if provider == nil {
 		t.Fatal("the run path left the actionable provider nil")
 	}
-	if got, err := provider(context.Background(), nil); err != nil || len(got) != 0 {
-		t.Fatalf("provider returned %v, %v for an empty registry", got, err)
+	// The child exited, so its record carries an incarnation nothing hosts.
+	// Since #181 that is a row rather than a silence -- but still not one the
+	// operator can act on.
+	got, err := provider(context.Background(), nil)
+	if err != nil || len(got) != 1 {
+		t.Fatalf("provider returned %v, %v", got, err)
+	}
+	if got[0].State != couchcore.ThreadUnusable || got[0].Reason != couchcore.ReasonStaleIncarnation {
+		t.Fatalf("row = %+v, want unusable/stale-incarnation after the child exited", got[0])
 	}
 }
 
-func TestWireResolverOmitsUnboundParkButRetainsDiagnosticInventory(t *testing.T) {
+// An unbound verified park is not resumable, and both views now say so rather
+// than one of them silently omitting it (#181): the switcher shows it as
+// binding-lost, the diagnostic view keeps its lifecycle detail.
+func TestWireResolverReportsUnboundParkInBothViews(t *testing.T) {
 	rt := newRT(t, "/repo")
 	parked := seedVerifiedPark(t, rt, "/repo")
 	c, err := rt.NewCouch()
@@ -1092,8 +1239,11 @@ func TestWireResolverOmitsUnboundParkButRetainsDiagnosticInventory(t *testing.T)
 		t.Fatal("production wiring left actionable provider nil")
 	}
 	rows, err := provider(context.Background(), nil)
-	if err != nil || len(rows) != 0 {
+	if err != nil || len(rows) != 1 {
 		t.Fatalf("unbound actionable rows = %+v, %v", rows, err)
+	}
+	if rows[0].State != couchcore.ThreadUnusable || rows[0].Reason != couchcore.ReasonBindingLost {
+		t.Fatalf("row = %+v, want unusable/binding-lost", rows[0])
 	}
 	diagnostic, err := c.ThreadInventory()
 	if err != nil || len(diagnostic) != 1 || diagnostic[0].Address != parked.Address {
@@ -1253,7 +1403,7 @@ func TestWireAttachAbortCleansStartedActorAfterConsoleRefusal(t *testing.T) {
 	if handle.Alive() {
 		t.Fatal("failed wired attach left started handle alive")
 	}
-	if got := c.List(); len(got) != 0 {
+	if got := rt.registryRecords(t); len(got) != 0 {
 		t.Fatalf("failed wired attach left actor registered: %+v", got)
 	}
 }
@@ -1269,53 +1419,174 @@ func TestConsoleExitForgetsThroughCouchRegistry(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Spawn: %v", err)
 	}
-	if len(c.List()) != 1 {
+	if len(rt.registryRecords(t)) != 1 {
 		t.Fatal("test setup has no registered actor")
 	}
 
 	runConsole(console, c, couchcore.StartResult{Record: rec, Handle: h}, &bytes.Buffer{})
 
-	if got := c.List(); len(got) != 0 {
+	if got := rt.registryRecords(t); len(got) != 0 {
 		t.Fatalf("registry after terminal child exit = %+v, want empty", got)
 	}
 }
 
 // A refusal is a next-action spec: every remedy it names must be a command the
 // operator can run.
-func TestCapacityRefusalNamesOnlyRunnableCommands(t *testing.T) {
-	rt := newRT(t, "/repo")
-	rt.boundedOne("/repo")
-	if _, errw, code := runLaunchRT(rt, "/repo", ""); code != 0 {
-		t.Fatalf("first start failed: %d %q", code, errw)
+
+// The seam that shipped a broken headline action: the switcher dispatches
+// thread operations through threadEffect, which sends {repo-scope, tag} and no
+// `ref`. The direct-store executor read only `ref`, so every Tab -> archive
+// failed with "empty reference" -- while a store-level test and a menu-level
+// test both passed, because neither crosses the boundary.
+//
+// One case per TUI-dispatched direct-store operation, in the argument dialect
+// the SWITCHER actually sends.
+func TestSwitcherDialectReachesEveryDirectStoreOperation(t *testing.T) {
+	for _, tc := range []struct {
+		name string
+		args map[string]string
+	}{
+		{name: "archive", args: map[string]string{}},
+		{name: "name", args: map[string]string{"name": "renamed"}},
+		{name: "describe", args: map[string]string{"description": "a description"}},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			rt := newRT(t, "/repo")
+			thread := seedThread(t, rt, "/repo")
+			args := map[string]string{
+				"repo-scope": thread.Address.RepoScope,
+				// tag, not ref: this is exactly what threadEffect sends.
+				"tag": string(thread.Address.Tag),
+			}
+			for k, v := range tc.args {
+				args[k] = v
+			}
+			_, errw, code := runTypedRT(rt, couchcore.OperationCall{
+				Name: tc.name, Args: args, Implicit: true,
+			})
+			if code != 0 {
+				t.Fatalf("%s from the switcher's dialect failed: code=%d err=%q", tc.name, code, errw)
+			}
+		})
 	}
-	rt.markLive(t) // the guard needs a live incumbent to refuse for
-	_, errw, code := runLaunchRT(rt, "/repo", "")
-	if code == 0 {
-		t.Fatal("a second start on an occupied tree was allowed")
+}
+
+// Archiving through the real runtime removes the thread from the working set
+// and puts it in the archive listing -- the operator's whole gesture, end to
+// end, rather than its halves.
+func TestArchiveThroughTheRuntimeMovesTheThreadToTheArchive(t *testing.T) {
+	rt := newRT(t, "/repo")
+	thread := seedThread(t, rt, "/repo")
+
+	_, errw, code := runTypedRT(rt, couchcore.OperationCall{
+		Name: "archive", Implicit: true,
+		Args: map[string]string{"repo-scope": thread.Address.RepoScope, "tag": string(thread.Address.Tag)},
+	})
+	if code != 0 {
+		t.Fatalf("archive failed: code=%d err=%q", code, errw)
 	}
 
-	if strings.Contains(errw, "switch to it") {
-		t.Errorf("the refusal still offers an action couch cannot perform: %q", errw)
+	listOut, _, code := runTypedRT(rt, couchcore.OperationCall{Name: "list"})
+	if code != 0 || strings.Contains(listOut, string(thread.Address.Tag)) {
+		t.Fatalf("archived thread still in the working set: %q", listOut)
 	}
-	// Every suggested Couch argv must be accepted by the public parser.
-	// Only the SUGGESTION lines (`  -> couch <args> ...`) are commands; the
-	// rest is prose and may legitimately mention couch.
-	found := 0
-	for _, line := range strings.Split(errw, "\n") {
-		line = strings.TrimSpace(line)
-		if !strings.HasPrefix(line, "-> couch ") {
-			continue
-		}
-		fields := strings.Fields(strings.TrimPrefix(line, "-> couch "))
-		if len(fields) == 0 {
-			continue
-		}
-		found++
-		if _, err := ParseCLI(fields[:1], couchcore.Operations()); err != nil {
-			t.Errorf("the refusal suggests unrunnable `couch %s`: %v", fields[0], err)
-		}
+	archivedOut, _, code := runTypedRT(rt, couchcore.OperationCall{Name: "archived"})
+	if code != 0 || !strings.Contains(archivedOut, "archived") {
+		t.Fatalf("archive listing = %q (code %d)", archivedOut, code)
 	}
-	if found == 0 {
-		t.Errorf("the refusal names no runnable command at all: %q", errw)
+}
+
+// The residue of a "fixed" finding, caught by the rule its own commit wrote:
+// archiving an undecodable record worked when couchcore was called directly and
+// failed through the real dispatcher, because resolving a thread by tag or ref
+// reads the record first. A row the operator can see and cannot remove is worse
+// than one they cannot use.
+func TestAnUnreadableRecordCanBeArchivedThroughTheRuntime(t *testing.T) {
+	rt := newRT(t, "/repo")
+	thread := seedThread(t, rt, "/repo")
+
+	c, err := rt.NewCouch()
+	if err != nil {
+		t.Fatal(err)
+	}
+	// Corrupt it on disk, as a truncated write or a rolled-back schema would.
+	path := filepath.Join(rt.StoreDir(), "threadstore", "records",
+		thread.Address.RepoScope, string(thread.Address.Tag)+".json")
+	if err := os.WriteFile(path, []byte(`{"schema_version":99,"nope":`), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	_ = c
+
+	// It is listed, because a record couch cannot read is still a thread.
+	listOut, _, code := runTypedRT(rt, couchcore.OperationCall{Name: "list"})
+	if code != 0 {
+		t.Fatalf("list failed with an unreadable record: %q", listOut)
+	}
+	if !strings.Contains(listOut, "could not be read") {
+		t.Fatalf("list = %q, want the unreadable row", listOut)
+	}
+
+	// And it can leave, through the operator's actual gesture.
+	out, errw, code := runTypedRT(rt, couchcore.OperationCall{
+		Name: "archive", Implicit: true,
+		Args: map[string]string{"repo-scope": thread.Address.RepoScope, "tag": string(thread.Address.Tag)},
+	})
+	// It SUCCEEDS -- the archive happened -- and says on stdout what it did not
+	// do. Reporting this on the error channel made every consumer read a
+	// completed archive as a failed one.
+	if code != 0 {
+		t.Fatalf("archiving an unreadable record exited %d: %q", code, errw)
+	}
+	if !strings.Contains(out, "without stopping its session") {
+		t.Fatalf("archive output = %q, want the session warning", out)
+	}
+	after, _, _ := runTypedRT(rt, couchcore.OperationCall{Name: "list"})
+	if strings.Contains(after, "could not be read") {
+		t.Fatalf("the unreadable row survived its archive: %q", after)
+	}
+}
+
+// The rule this test exists to enforce: a refusal that names a command is
+// pinned by a test that EXECUTES that command against the fixture which
+// produced the refusal, and asserts it works.
+//
+// Two refusals in couchcore have named dead ends. The one-thread-per-path
+// message offered `couch <path>` (the command that just refused) and
+// `couch --show` as a way to retire (it is read-only). Its replacement was
+// written three lines below a comment explaining that mistake, and repeated it:
+// it named `couch --show <tag>`, which answered "not found" for the very row
+// that caused the refusal.
+func TestARefusalsNamedCommandsActuallyWork(t *testing.T) {
+	rt := newRT(t, "/repo")
+	thread := seedThread(t, rt, "/repo")
+	path := filepath.Join(rt.StoreDir(), "threadstore", "records",
+		thread.Address.RepoScope, string(thread.Address.Tag)+".json")
+	if err := os.WriteFile(path, []byte(`{"schema_version":99,"nope":`), 0o600); err != nil {
+		t.Fatal(err)
+	}
+
+	// `couch --show <tag>`, exactly as the refusal spells it.
+	showOut, showErr, code := runTypedRT(rt, couchcore.OperationCall{
+		Name: "show", Implicit: true,
+		Args: map[string]string{"repo-scope": thread.Address.RepoScope, "ref": string(thread.Address.Tag)},
+	})
+	if code != 0 {
+		t.Fatalf("the refusal's `couch --show %s` failed: code=%d err=%q", thread.Address.Tag, code, showErr)
+	}
+	if !strings.Contains(showOut, string(thread.Address.Tag)) {
+		t.Fatalf("`couch --show` did not report the thread the refusal names: %q", showOut)
+	}
+
+	// And the retire gesture the refusal names, which is `archive` reached from
+	// a repository couch will start in.
+	_, archiveErr, archiveCode := runTypedRT(rt, couchcore.OperationCall{
+		Name: "archive", Implicit: true,
+		Args: map[string]string{"repo-scope": thread.Address.RepoScope, "tag": string(thread.Address.Tag)},
+	})
+	if archiveCode != 0 {
+		t.Fatalf("the refusal's retire gesture failed: code=%d err=%q", archiveCode, archiveErr)
+	}
+	if listOut, _, _ := runTypedRT(rt, couchcore.OperationCall{Name: "list"}); strings.Contains(listOut, "could not be read") {
+		t.Fatalf("the retire gesture left the row in place: %q", listOut)
 	}
 }

@@ -4,9 +4,9 @@ name: couch
 goal: Let the operator run a group of live coding sessions from one terminal — enumerate them, switch between them, and be paged by them — instead of tracking them across tabs.
 done_when: The operator runs a group of live coding sessions in one terminal window — starting, resuming, detaching, reattaching, and following notifications between them — and prefers it to tabs.
 status: executing
-mvp_scope: [pair#145, pair#146, pair#149, pair#151, pair#152, pair#155, pair#170, ariadne#200]
+mvp_scope: [pair#145, pair#146, pair#149, pair#151, pair#152, pair#155, pair#170, pair#181, pair#182, ariadne#200]
 created: 2026-08-21
-updated: 2026-09-02
+updated: 2026-09-03
 sources: [brain/workshop/pensive/2026-08-20-01-pensive-couch-agent-switcher.md]
 ---
 
@@ -188,11 +188,185 @@ gate `#147` and `#148` respectively; `#145` and `#146` do not depend on them.
 - [-] cluster transport and queries [pair#147]
 - [-] brain advisor role [pair#148]
 - [ ] rescope to couch-lite [pair#170]
+- [x] switch rule and key layer [pair#170 M1]
+- [x] detach, and detached threads that reattach [pair#170 M2]
+- [x] start or resume in a folder [pair#170 M3]
+- [x] delete the machinery the rescope orphans [pair#170 M4]
+- [x] one honest inventory: every thread gets a row and a reason [pair#181]
+- [x] total classification, no shell-side filtering [pair#181 M1]
+- [x] warm reattach: get back into a detached session [pair#181 M2]
+- [x] archive as the only exit, plus the startup and path rules [pair#181 M3]
+- [x] relaunch an actor: restart Pair, keep the conversation [pair#182]
+- [x] relaunch as one operation [pair#182 M1]
+- [x] the alt+n gesture and the reachability sweep [pair#182 — not a milestone;
+      the Mx tag was dropped when the holding surface left, see the issue's
+      ## Revisions]
+- [ ] a surface that outlives its child [pair#186 — split from pair#182 M2]
+- [-] reattach a detached thread without the cold binding [pair#179 — absorbed by pair#181 M2]
+- [-] retire finished threads into an archive [pair#180 — absorbed by pair#181 M3]
+- [-] preserve parked binding after failed resume [pair#168]
+- [-] persist operation failure diagnostics [pair#169]
+- [-] reconcile stale incarnations after a crash [pair#171]
+
+<a id="pair-181"></a>
+### pair#181 — one honest inventory: every thread gets a row and a reason
+
+**est:** 8.64
+**status:** M1-M3 closed; plan at `workshop/plans/000181-one-honest-inventory-every-thread-gets-a-row-and-a-reason-plan.md`
+**started:** 2026-09-03
+
+The switcher showed 4 rows over a store of 13, and `couch --list` showed all 13,
+with nothing reconciling them. Nine threads were invisible with no notice and no
+way to ask why, because "should this row exist" was fused with "can this row be
+acted on" and computed half in an IO loop -- where `continue` was the only
+vocabulary for "no" -- and half in a pure projector.
+
+M1 made classification total: one pure rule over `(record, evidence)` returning a
+state and, when unusable, a reason from a closed vocabulary. The evidence type
+carries a `ProofStatus` per question, because a total classifier that cannot say
+"we could not ask" turns one failed zellij query into an assertion that every
+detached session is gone -- and `session-gone` is a reason retirement acts on.
+
+M2 got the operator back into a detached session, which needed three sites to
+agree that reattaching is not resuming: the native binding is the COLD path's
+proof, and a warm reattach relaunches nothing. It also stopped sending Pair a
+resume profile it honours only at a create boundary, and `--layout2` to a session
+that already has its layout -- which sent Pair down a path offering to DELETE the
+live session.
+
+M3 replaced the planned retirement predicate with an `archive` action on the
+operator's instruction, made it a complete delete (stop the session, then file
+the record), ordered startup selection `detached -> parked -> recent`, enforced
+one thread per repo path, and labelled rows by directory rather than opaque tag.
+
+Absorbs `pair#179` (M2) and `pair#180` (M3).
+
+<a id="pair-181-m1"></a>
+### pair#181 M1 — total classification, no shell-side filtering
+
+**est:** 8.64 (whole issue)
+**closed:** 2026-09-03
+**actual:** 0.85h *(labeled judgment estimate, not measured: `sdlc actual --issue
+181` reports no measurable activity for this issue though it works for #170;
+bounded by commit timestamps. Excluded from calibration on that basis.)*
+
+The switcher showed 4 rows over a store of 13 and `couch --list` showed all 13,
+with nothing reconciling them. `ClassifyThread` is now one total rule over
+`(record, evidence)`: every record gets a state, and an unusable one always
+carries a reason from a closed vocabulary. The accepting branches are a
+byte-for-byte transcription of the projector they replace, pinned by a
+characterization test, so the milestone provably changed only the refusals. The
+surprise worth preserving is `ProofStatus`: a total classifier that cannot say
+"we could not ask" converts one failed zellij query into an assertion that every
+detached session is gone — and `session-gone` is a reason retirement acts on, so
+a transient subprocess failure would have become a path to archiving live
+sessions. Measured on the operator store: 13 rows, 2 live, 1 stale incarnation,
+1 detached, 1 parked, 8 binding-lost.
+
+<a id="pair-181-m2"></a>
+### pair#181 M2 — warm reattach: get back into a detached session
+
+**est:** 8.64 (whole issue)
+**actual:** 0.9h
+**closed:** 2026-09-04
+
+**Process deviation, recorded rather than papered over.** M2's code went straight
+into M3's work without its own boundary close. The bookkeeping was closed
+afterwards with `--no-judge` and `Review-Verdict: not-run`, which is the honest
+record: M2's code HAD been reviewed -- the M3 window starts at M1's close, so all
+five M3 rounds contained it, and rounds 2 and 3 examined the warm-reattach code
+directly -- but a judge dispatched at close time would have reviewed
+`5be12bb9..HEAD`, an empty window, and produced a real-looking verdict over
+nothing.
+
+Reattaching a running agent needed three sites to agree that reattaching is not
+resuming: the native session id is the COLD path's proof, and a warm reattach
+relaunches nothing. The decisive correction came from the operator asking why it
+was not just a zellij command. It is — `AttachExistingSession` is env, a title
+poller and `zellij attach` — and couch was blocked only because it SENT
+`ResumeRequired`, an authority Pair honours at a create boundary. An earlier
+design threaded a `ResumeMode` through Pair's launch profile and had to defend
+two hazards inside its attach branch; both were artifacts of that design, and
+the shipped fix touches `launcher/` not at all. Also load-bearing: relaxing
+`DecideResume` alone would not have worked, because `ResolveEstablished` refuses
+a provisional binding earlier. Absorbs `pair#179`.
+
+<a id="pair-181-m3"></a>
+### pair#181 M3 — archive as the only exit, plus the startup and path rules
+
+**est:** 8.64 (whole issue)
+**closed:** 2026-09-04
+**actual:** 4.2h
+
+Replaced the planned retirement predicate with an `archive` action on the
+operator's instruction — an operator action beats a rule guessing what is
+finished — and made it a complete delete: stop the session, then move the record
+in one journal entry. Park cannot do the stopping (it needs a live incarnation,
+which the debris this exists for does not have), so the mechanism is `Quiesce` a
+layer down. Also landed: startup ranks `detached → parked → recent`, reversing a
+selector that documented its refusal to rank and was a ratchet — two resumable
+rows at one path created a third, which is how one repo reached six threads; one
+thread per path is enforced at the single site every creation entry funnels
+through; rows read as their directory rather than an opaque tag. The one-time
+cleanup archived 10 threads and left three live, one per repo.
+
+The milestone is also the clearest instance of a review earning its cost. It
+returned REWORK because the headline action never worked: `Tab → archive`
+dispatched `{repo-scope, tag}` while the executor read `ref`, and a green test
+sat on each side of that seam without one crossing it. Behind it, an undecodable
+record failed the WHOLE inventory while `invalid` was a documented, labelled,
+archive-exit reason no real store could produce — the fixture had six shapes and
+no invalid one because `CreateThread` cannot build that shape. Three of the five
+findings were rules rather than sites and are in `workshop/lessons.md`. Absorbs
+`pair#180`, which shipped as an action rather than the predicate it specified.
+
+<a id="pair-182"></a>
+### pair#182 — relaunch an actor: restart Pair, keep the conversation
+
+**status:** open; the last issue between couch-lite and usable
+
+Developing Pair while working inside it has no clean restart: rebuild the binary
+and the running actor keeps the old code. couch has the symmetric move one level
+up -- `alt+d` leaves, rebuild, re-run `couch` -- but nothing at the actor level.
+Pair's own `Alt+n` restarts the workbench INSIDE the session couch already handed
+off to, so the process couch spawned is not replaced.
+
+Relaunch is park-then-resume as one action. The design question is failure
+semantics, not mechanism: park is destructive and resume can refuse, so a
+relaunch that parks and then fails to resume has destroyed a working session.
+The resume's preconditions therefore run BEFORE the park.
+
+<a id="pair-182-m1"></a>
+### pair#182 M1 — relaunch as one operation
+
+**est:** 6.20 (whole issue)
+**closed:** 2026-09-04
+**actual:** 6.57h
+
+Relaunch is park-then-resume, and the whole design is the ORDER: park is
+destructive and resume can refuse, so a relaunch that parks and then finds the
+resume cannot run has traded a working session for a cold one. Every refusal a
+check can see is raised before anything is destroyed, and the two that cannot be
+seen early are named rather than hoped over. Four outcomes, each pinned by a test
+that asserts the STATE left behind rather than the error text — including that a
+failed park never attempts the resume and names park's own recovery modes, since
+`Enter` refuses `ResumeParking` on an open transaction.
+
+Three things the tests corrected that reading had not. A Pair *cleanup* failure
+is not a park failure — `CleanupAttempt` runs after the durable completion and
+the final CAS, so its error lands in `ParkResult.CleanupError` while the park
+returns nil; found by asserting the opposite and watching the relaunch succeed.
+`cloneArgv` normalizes a nil Argv to empty, so a test helper that cloned was
+silently repairing the very shape it was meant to compare. And the first seam
+test passed for a reason unrelated to what it claimed: relaunch is
+`ExecuteLiveOwner`, so `couchcmd`'s runtime refuses routing before any dialect
+code runs, and only the mutation check exposed it. "Test the seam" is not
+satisfied by testing at the layer that seems closest to it.
 
 <a id="pair-170"></a>
 ### pair#170 — rescope to couch-lite
-**est:** tbd — derived after the plan clears plan-quality
-**status:** in progress — spec written, plan not yet designed
+**est:** 10.69
+**status:** in progress — M1–M4 closed; plan at `workshop/plans/000170-rescope-couch-to-couch-lite-plan.md`
 **started:** 2026-09-02
 
 Narrows couch to a switcher over a group of live coding sessions whose unit is a
@@ -493,6 +667,44 @@ resume, Leave Couch, and terminal restoration. Raw lifecycle detail remains in
 ARCH-PURE, ARCH-PURPOSE).
 
 ## Log
+
+### 2026-09-03 — scope event: couch-lite narrows to one remaining issue
+
+**Dropped from couch-lite, still open as standalone papercuts:** `pair#163`
+switcher description search, `pair#164` prefill edit values, `pair#165` alt+delete
+in editors. Not important enough to gate the project; they are switcher polish,
+not the difference between usable and not.
+
+**Punted, each with its reasoning in the issue Log:** `pair#168` (the eight
+threads its recovery would restore were archived as corrupted data, so it now
+recovers a population of zero -- and the honest fix widens Pair's binding
+authority, which is not worth it for nothing), `pair#169` (the half that bit --
+a failed action leaving no visible trace -- is fixed by pair#181 M1's total
+projection; the residue is the subprocess error text), `pair#171` (the crash
+shape is now visible as `stale-incarnation` and clearable by hand with archive;
+only the automatic reconciler is unbuilt).
+
+**Absorbed rather than closed separately:** `pair#179` shipped as pair#181 M2,
+`pair#180` as pair#181 M3 -- though #180 shipped as an *action* rather than the
+retirement predicate it specified, on the operator's instruction that an
+operator action beats a rule guessing what is finished.
+
+**Added:** `pair#182` relaunch an actor. It is the one remaining thing between
+couch-lite and usable: rebuilding Pair while working inside it currently has no
+clean restart, and couch has the symmetric move one level up (`alt+d`, rebuild,
+re-run `couch`) but nothing at the actor level, which is where Pair development
+happens.
+
+**Why the project moved this fast today.** pair#181 came from the operator
+looking at a switcher showing four rows over a store of thirteen. Making the
+inventory honest turned out to be the precondition for every other decision:
+once every thread had a row and a reason, "six threads in one repo" became
+visible as a ratchet in the startup selector, "I cannot reattach" became a
+one-line diagnosis, and "just delete the old ones" became an action rather than
+a predicate that had to guess. The measurements that redirected the work --
+1-of-8 recovery for pair#168, 19-of-21 ledgers agreeing on a session id, six
+resumable rows at one path -- were all taken against the operator's real store
+rather than fixtures.
 
 ### 2026-09-02 — scope event: rescoped to couch-lite
 
@@ -814,6 +1026,185 @@ repository default when that path has no history for the selected agent. The
 durable thread separately records its latest incarnation profile, and neither a
 cancelled selection nor a failed start changes the remembered preference.
 
+<a id="pair-170-m1"></a>
+### pair#170 M1 — switch rule and key layer
+
+**est:** 10.69
+**actual:** 0.36h
+**closed:** 2026-09-02
+
+`ctrl-space` now means one thing — open the switcher, focused on whoever paged —
+and the child → root-actor → panel ladder is gone with the root-actor/home
+concept. `ctrl+backspace` returns to `previous`, one slot governed by one boolean
+carried on the *current* actor, so a notification hop never spends it.
+
+Three things were more entangled than the plan expected, and each is the kind of
+thing that ships silently broken. **`switchTo` owes two rules per landing, not
+one:** record the landing, *and* acknowledge the landed actor's notifications.
+Rule 2 had been living in the ctrl-space home-landing path this milestone
+deleted, so `ctrl+backspace` home would have landed on a still-lit actor —
+`NewestActor()` would then name the actor the operator is sitting in, and the
+next `ctrl-space` would open on the wrong row. `previous` itself would have
+worked perfectly; a test that only checked `previous` would have passed.
+**Three landing sites, not one:** `installObservedThreadActor` lands the first
+actor without passing through `switchTo` (so the tracker is seeded there, or the
+starting actor is never recorded), and `onExit` must *drop* rather than record,
+since the operator lands on the panel and a dead thread must never become the
+return target. **`leave`'s confirmation was thread-bound by accident:** it rode
+the root actor's live address, so five separate thread lookups passed — one of
+them asynchronously, on the next inventory refresh. It became a global frame,
+the shape the start form already used. That matters more once `leave` detaches
+rather than parks: an all-detached couch is then the *normal* state to quit from.
+
+Two smaller notes worth keeping. `alt+d` was deliberately deferred to M2 rather
+than claimed here: intercepting it without wiring it would take Pair's own
+detach chord from the child and give nothing back, leaving M1 less operable than
+its predecessor. And #146's Core-concepts contract pinned `Focus` / `Up`; it was
+revised at its source with a Revisions note rather than by loosening the test,
+so the contract keeps defending the rows that are still true.
+
+<a id="pair-170-m2"></a>
+### pair#170 M2 — detach, and detached threads that reattach
+
+**est:** 10.69
+**actual:** 1.6h
+**closed:** 2026-09-02
+
+`alt+d` detaches: the Pair client and its sidecars go, the zellij server session
+and the agent inside it stay, and the row remains in the switcher where `Enter`
+reattaches it. `leave` detaches every thread instead of parking them, so quitting
+couch no longer kills a running agent — which is what turns *detached* from an
+edge case into the normal resting state.
+
+**Detached is derived, not persisted**, and that was the design win: `launcher`
+already classifies a zero-client live session as `SessionDetached` and
+`pair resume` already reattaches onto one, so couch adds no `ThreadRecord` field
+— it asks. The projector's detached branch requires **zero** incarnations, which
+is the fail-closed property that keeps a crashed couch's stale `IncarnationLive`
+from masquerading as a clean detach.
+
+**What the plan got wrong and review caught, in order.** The first draft claimed
+detach needed no durable transition at all; in fact `FinalizePark` is the only
+path that removes a live incarnation, so detach would have left a dead-PID
+incarnation forever — hiding the row *and* tripping `DecideResume`'s
+occupied-incarnation gate. Hence `RetireIncarnation`. Then round two found that
+reattach was blocked by a **second** verified-park refusal in
+`ReconcileResumeAdmission`, reached after `DecideResume` returns, so widening one
+gate would have listed a row whose Enter failed. And that a detached resume's
+rollback would **delete the record** — the verified park had been the only
+rollback authority, and an unnamed detached thread has none, so a post-claim
+failure took the agent and argv needed to reattach while the session kept
+running.
+
+Two smaller things worth keeping. `reduceParkHotkey` returned no effects, so
+`alt+d` decoded, reduced, and silently did nothing — caught only because the
+test drove raw bytes through the production path rather than the reducer.
+And the ordering decision (detach leads park in the action list: safe before
+destructive) broke a dozen fixtures that navigated by counting `Down` presses;
+they now select by name, because a fixture that silently retargets to a
+different operation when a list is reordered is worse than the reorder.
+
+The crashed-couch case is explicitly **not** solved here — `pair#171` owns it.
+Conflating a crash with a clean exit is the exact fail-closed weakening the
+projector refused to make.
+
+<a id="pair-170-m4"></a>
+### pair#170 M4 — delete the machinery the rescope orphans
+
+**est:** 10.69
+**actual:** 8.95h
+**closed:** 2026-09-02
+
+Fleet admission and its cross-repo `sdlc fleet policy` provider, the start-grant
+capability table, the legacy registry cutover, the never-instantiated actor
+loop, and the registry-era dead surface. The razor was the issue's own:
+machinery that exists only to defend multi-owner or multi-host cases. Applied
+honestly it deleted less than the framing suggested — the supervisor lease, park
+transaction, write-ahead journal and start transaction all defend *single-host*
+failures and stayed, each with its reason written down.
+
+The sweep's real content was not the deletions. Three things it surfaced:
+
+**Two persisted schemas would have been bricked.** `threadrecord.Record` and the
+store manifest ARE the on-disk format and are decoded with
+`DisallowUnknownFields`, so removing a field makes every artifact still carrying
+it undecodable. Measured against the operator's live store rather than reasoned
+from the Go types: `claim_generation` in 17/17 records, `policy` in 5/5
+incarnations, `legacy_cutover` and `legacy_migration_version` in the manifest.
+The manifest is the worse half — a bad record loses one thread, a bad manifest
+loses the whole store, because nothing can be listed, resumed or reattached at
+all. All became decode-only tombstones with fixtures copied from real data, and
+both guards were mutation-checked.
+
+**A dead-code deletion exposed a live bug.** The start-grant token was genuinely
+redundant, but removing it revealed that three call sites each rebuilt "the
+arguments that reproduce this resolution" by hand. Getting it wrong is silent:
+passing the resolved agent where the operator requested none changes
+`AgentSource`, so the commit re-resolves to a different fingerprint and refuses a
+drift that never happened. `StartResolution.CommitArgs` owns it now.
+
+**Two tests were passing vacuously.** The post-acknowledgement cancellation test
+asserted a hardcoded address that was never the one allocated, and asserted the
+*opposite* of the correct behaviour — registration is established, so
+occupied-or-proven-free keeps the record rather than deleting it. The entropy
+shift from another deletion is what exposed it. A retargeted journal test had the
+same defect and needed a second attempt before it reddened under mutation.
+
+Tests were retargeted rather than deleted wherever they pinned surviving
+behaviour; `IsLive` folded Unknown into false, so asserting `Liveness` directly
+made the recycled-PID test stronger on its way out. One finding was recorded and
+deliberately not acted on: the worktree `NamingTable` looks dead too, but cutting
+it is wider than this sweep.
+
+<a id="pair-170-m3"></a>
+### pair#170 M3 — start or resume in a folder
+
+**est:** 10.69
+**actual:** 1.0h
+**closed:** 2026-09-02
+
+`couch` in a directory now reattaches a **detached** thread as readily as a
+parked one. `SelectUniqueParkedRoot` becomes `SelectUniqueResumableRoot`, and the
+rename is the deliverable rather than a side effect: a selector still called
+`Parked` while selecting detached rows is a lie the next reader pays for.
+
+The Spec asked for "live or parked", which needed interpreting rather than
+implementing literally. couch holds its supervisor lease for the whole run, so at
+*startup* there is no other couch hosting anything — a thread whose zellij
+session is up with no client is exactly what M2 calls detached. "Live" therefore
+means detached, and a genuinely live row is now never selected, because it would
+be one this couch already hosts.
+
+Exactness survived the widening, deliberately. A parked row and a detached row at
+one path are TWO matches and start a new thread, exactly as two parked rows do.
+Preferring warm over cold is a ranking policy, and #167 established that this
+selector has none; #170 did not quietly add one. Recorded as a Revisions note on
+#167's archived plan rather than by editing what it said it delivered.
+
+The subtle part was proof, not code. The path physicalization M3's commit first
+narrated as its own discovery had actually shipped at M2, where that review asked
+for it; what M3 added is the alias-path test that pins it. Corrected here after
+the M3 review caught the misattribution — a record that credits the wrong
+milestone makes the next reader look for a change that is not in the window.
+
+What M3 got genuinely wrong was the binding gate. Startup has no fallback by
+design, so a row the inventory OFFERS must be one resume can take — and the
+detached branch appended candidates before resolving the native binding that
+parked rows were already gated on. A thread whose agent session data had been
+pruned or raced was auto-selected and `couch` exited 1 with no way through, in
+the tree the operator was standing in, for what M2 had just made the normal
+resting state. Caught at the boundary as Critical, fixed as one gate for both
+kinds, and pinned by the couchcore-level test whose absence was the reason
+nothing caught it.
+
+Both acceptance tests run through production interactive routing to initial
+Console attach, and the reattach one is mutation-verified: narrowing the selector
+back to parked-only reddens it.
+
+[pair#170 M4]: #pair-170-m4
+[pair#170 M3]: #pair-170-m3
+[pair#170 M2]: #pair-170-m2
+[pair#170 M1]: #pair-170-m1
 [pair#146 M1]: #pair-146-m1
 [pair#146 M2]: #pair-146-m2
 [pair#146 M3]: #pair-146-m3
@@ -997,5 +1388,9 @@ a typed operation cannot accidentally grow the public CLI (`ARCH-PURPOSE`,
 
 [pair#155 M1]: #pair-155-m1
 [pair#155 M2]: #pair-155-m2
+[pair#182 M1]: #pair-182-m1
+[pair#181 M1]: #pair-181-m1
+[pair#181 M2]: #pair-181-m2
+[pair#181 M3]: #pair-181-m3
 [pair#151 M1]: #pair-151-m1
 [pair#151 M2]: #pair-151-m2

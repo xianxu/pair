@@ -122,3 +122,23 @@ The first acceptance test stopped at `dispatchInteractiveStart`, below the produ
 ### 2026-09-01 — Close review BR-2 round 2
 
 The first README correction updated the Leave Couch sentence but left the adjacent always-allocate statement contradictory. Swept the complete README startup description and qualified durable allocation/admission as new-root behavior; unique automatic resume reuses the parked thread.
+
+### 2026-09-02 — `SelectUniqueParkedRoot` renamed by pair#170 M3
+
+The selector is now `SelectUniqueResumableRoot` and admits detached rows as well
+as parked ones. Its rule is otherwise unchanged: exact scope, exact physical
+path, exact cardinality one, no ranking and no prompt.
+
+The rename is the point rather than a side effect. #170 M2 added a second
+resumable state — a thread whose zellij session survived its client — and
+`couch` in a directory means the same thing for both: reattach what is already
+there. A selector still called `Parked` while selecting detached rows would be a
+lie the next reader pays for.
+
+The exactness this plan established is *preserved*, not relaxed: a parked row
+and a detached row at one path are two matches and create a new thread, exactly
+as two parked rows do here. Preferring warm over cold would be a ranking policy,
+which this plan deliberately excluded and #170 did not add.
+
+Recorded here rather than by editing the body above, so this plan keeps saying
+what it actually delivered.

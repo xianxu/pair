@@ -5,12 +5,13 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"io/fs"
 	"os"
 	"path/filepath"
 	"sort"
+	"strings"
 	"time"
 
-	"github.com/xianxu/pair/cmd/internal/launcher"
 	"github.com/xianxu/pair/cmd/internal/threadrecord"
 )
 
@@ -28,17 +29,22 @@ type ThreadRevisionError struct {
 	Got     uint64
 }
 
-type ThreadSnapshotConflictError struct{ Detail string }
-
-func (e *ThreadSnapshotConflictError) Error() string {
-	return "thread store snapshot changed: " + e.Detail
-}
-
+// ThreadSnapshot is a read-only view. It used to carry the manifest and each
+// record's exact bytes as compare-and-swap evidence for
+// CommitThreadReplacements, which pair#170 M4 deleted -- so copying them was
+// per-call work for no consumer.
 type ThreadSnapshot struct {
 	Generation uint64
 	Records    []ThreadRecord
-	manifest   []byte
-	raw        map[ThreadAddress][]byte
+	// Unreadable are manifest-listed addresses whose record could not be read
+	// or decoded. They are carried rather than raised, because one unreadable
+	// record must not remove every other row: a store with 13 threads and one
+	// corrupt file has 13 threads, one of which needs attention (#181).
+	//
+	// "Unreadable" is deliberately not "invalid". A decode failure can mean the
+	// record is corrupt, or that this binary is older than the store that wrote
+	// it -- and the second case would otherwise classify every thread as debris.
+	Unreadable []ThreadAddress
 }
 
 func (e *ThreadRevisionError) Error() string {
@@ -49,10 +55,23 @@ type threadManifest struct {
 	SchemaVersion int             `json:"schema_version"`
 	Generation    uint64          `json:"generation"`
 	Threads       []ThreadAddress `json:"threads"`
-	LegacyCutover bool            `json:"legacy_cutover,omitempty"`
-	// LegacyMigrationVersion records enrichment of M1 cutover records without
-	// rewriting or deleting the preserved registry snapshot.
-	LegacyMigrationVersion int `json:"legacy_migration_version,omitempty"`
+	// DeprecatedLegacyCutover and DeprecatedLegacyMigrationVersion are
+	// TOMBSTONES, not fields. The one-time import of the old tree-keyed
+	// registry went with pair#170 M4, but these keys are in the operator's
+	// live manifest, and this envelope is decoded with DisallowUnknownFields:
+	// removing them outright makes the manifest undecodable, which takes the
+	// WHOLE STORE down rather than one record.
+	//
+	// Unlike the record tombstones, these PERSIST: a record is rebuilt from a
+	// domain type that has no such field, so it sheds them, while the manifest
+	// is decoded and re-marshalled through this struct and carries them
+	// forward verbatim. That asymmetry is deliberate rather than tolerated --
+	// clearing `legacy_cutover` would tell a rolled-back pre-M4 binary that the
+	// registry cutover had never run, and it would run it again. Measured, and
+	// guarded by TestPreM4ManifestStillLoads plus
+	// TestManifestTombstonesSurviveAWrite.
+	DeprecatedLegacyCutover          json.RawMessage `json:"legacy_cutover,omitempty"`
+	DeprecatedLegacyMigrationVersion json.RawMessage `json:"legacy_migration_version,omitempty"`
 }
 
 // pair:m5-concept integration
@@ -78,6 +97,18 @@ func newThreadStoreWithHooks(namespace CouchNamespace, hooks threadStoreHooks) *
 }
 
 func (s *ThreadStore) manifestPath() string { return filepath.Join(s.root, "manifest.json") }
+
+// RecordPath is where a thread's record lives on disk.
+//
+// Exported for one purpose: a refusal the operator cannot act on through couch
+// must still tell them where to look. In total version skew -- an older binary
+// against a newer store -- EVERY record is unreadable, so every repository
+// refuses and no switcher gesture is reachable anywhere. Naming the file is the
+// only honest next step left, and a refusal with no next step at all is what
+// this whole class of finding is about.
+func (s *ThreadStore) RecordPath(address ThreadAddress) string {
+	return s.recordPath(address)
+}
 
 func (s *ThreadStore) recordPath(address ThreadAddress) string {
 	return filepath.Join(s.root, "records", address.RepoScope, string(address.Tag)+".json")
@@ -131,7 +162,6 @@ func (s *ThreadStore) CreateThread(record ThreadRecord) (ThreadRecord, error) {
 		} else if exists || manifestContains(manifest, record.Address) {
 			return &ThreadExistsError{Address: record.Address}
 		}
-		record.ClaimGeneration = manifest.Generation + 1
 		if err := ValidateThreadRecord(record); err != nil {
 			return err
 		}
@@ -243,7 +273,7 @@ func (s *ThreadStore) UpdateExistingThread(address ThreadAddress, expectedRevisi
 		if err := mutate(&next); err != nil {
 			return err
 		}
-		if next.Address != current.Address || next.SchemaVersion != current.SchemaVersion || next.StartingPath != current.StartingPath || next.CreatedAt != current.CreatedAt || next.ClaimGeneration != current.ClaimGeneration {
+		if next.Address != current.Address || next.SchemaVersion != current.SchemaVersion || next.StartingPath != current.StartingPath || next.CreatedAt != current.CreatedAt {
 			return errors.New("thread update changed immutable identity or origin fields")
 		}
 		next.Revision++
@@ -397,6 +427,83 @@ func (s *ThreadStore) FinalizePark(address ThreadAddress, expectedRevision uint6
 	})
 }
 
+// CommitStartClaim is the durable transition that admission used to perform
+// around its capacity decision (pair#170 M4 deleted the decision, not the
+// transition): clear the pristine reservation, append the first creating
+// incarnation carrying the repository identity, and apply the start claim --
+// all in ONE revision-checked write.
+//
+// It is one commit rather than three because a crash between them leaves a
+// reserved record with a live incarnation, which is the state
+// ProjectActionableThreads hides: an invisible thread. Naming the transition is
+// what makes that atomicity checkable.
+//
+// It does NOT decide whether the start is allowed. Its callers have already
+// decided -- a new thread by allocating the tag, a resume by proving a verified
+// park or a surviving detached session -- and the revision CAS is what makes
+// the decision still true at the moment of the write.
+func (s *ThreadStore) CommitStartClaim(address ThreadAddress, expectedRevision uint64, repoIdentity string, startedAt time.Time, event StartEvent) (ThreadRecord, error) {
+	if repoIdentity == "" {
+		return ThreadRecord{}, errors.New("start claim has no repository identity")
+	}
+	return s.UpdateExistingThread(address, expectedRevision, func(next *ThreadRecord) error {
+		if len(next.Incarnations) != 0 {
+			return fmt.Errorf("thread %+v already has %d incarnation(s)", address, len(next.Incarnations))
+		}
+		if next.Park != nil {
+			return fmt.Errorf("thread %+v has an open park transaction", address)
+		}
+		next.Reservation = false
+		next.Incarnations = []ThreadIncarnation{{
+			State: IncarnationCreating, StartedAt: startedAt, RepoIdentity: repoIdentity,
+		}}
+		advanced, err := AdvanceStartTransaction(*next, event)
+		if err != nil {
+			return err
+		}
+		*next = advanced
+		return nil
+	})
+}
+
+// RetireIncarnation removes the one live incarnation whose exact process
+// identity matches, leaving the record with no incarnation and NO verified park.
+//
+// It is FinalizePark's removal half without the park transaction, and that is
+// the whole difference between detach and park: park tears the zellij session
+// down and records a verified park as the resume authority, while detach leaves
+// the session alive and lets its survival BE the authority. Writing a verified
+// park here would claim a teardown that never happened.
+//
+// Exact {PID, Identity} is the authorization -- the same rule observeExactProcess
+// and MarkIncarnationUnknown use -- so a recycled PID cannot retire a thread
+// that is genuinely live. It refuses an `unknown` incarnation deliberately:
+// unknown is precisely the state the fail-closed projector exists to keep out of
+// the switcher, and retiring one would let an unproven thread present as cleanly
+// detached.
+func (s *ThreadStore) RetireIncarnation(address ThreadAddress, expectedRevision uint64, identity ProcessIdentity) (ThreadRecord, error) {
+	return s.UpdateExistingThread(address, expectedRevision, func(next *ThreadRecord) error {
+		if next.Park != nil {
+			return errors.New("cannot retire an incarnation while a park transaction is open")
+		}
+		if len(next.Incarnations) != 1 {
+			return fmt.Errorf("retire needs exactly one incarnation, found %d", len(next.Incarnations))
+		}
+		incarnation := next.Incarnations[0]
+		if incarnation.State != IncarnationLive {
+			return fmt.Errorf("retire needs a live incarnation, found %q", incarnation.State)
+		}
+		if incarnation.Start != nil {
+			return errors.New("cannot retire an incarnation with an open start transaction")
+		}
+		if incarnation.PID != identity.PID || incarnation.Identity != identity.Identity {
+			return errors.New("retire does not match the recorded incarnation process identity")
+		}
+		next.Incarnations = nil
+		return nil
+	})
+}
+
 func (s *ThreadStore) AbandonPark(address ThreadAddress, expectedRevision uint64, identity ParkIdentity) (ThreadRecord, error) {
 	return s.UpdateExistingThread(address, expectedRevision, func(next *ThreadRecord) error {
 		if next.Park == nil || next.Park.Identity != identity {
@@ -417,130 +524,43 @@ func (s *ThreadStore) AbandonPark(address ThreadAddress, expectedRevision uint64
 	})
 }
 
-func (s *ThreadStore) ManifestGeneration() (uint64, error) {
-	var generation uint64
+func (s *ThreadStore) Snapshot() (ThreadSnapshot, error) {
+	var snapshot ThreadSnapshot
 	err := s.withLock(func() error {
 		manifest, _, _, err := s.loadManifestLocked()
 		if err != nil {
 			return err
 		}
-		generation = manifest.Generation
-		return nil
-	})
-	return generation, err
-}
-
-func (s *ThreadStore) Snapshot() (ThreadSnapshot, error) {
-	var snapshot ThreadSnapshot
-	err := s.withLock(func() error {
-		manifest, manifestRaw, _, err := s.loadManifestLocked()
-		if err != nil {
-			return err
-		}
-		snapshot = ThreadSnapshot{Generation: manifest.Generation, manifest: append([]byte{}, manifestRaw...), raw: map[ThreadAddress][]byte{}}
+		snapshot = ThreadSnapshot{Generation: manifest.Generation}
 		for _, address := range manifest.Threads {
+			// A record that cannot be read or decoded is REPORTED, not raised.
+			// Raising made one corrupt file fail the whole inventory: `couch
+			// --list` exited 1 and the switcher showed nothing, which is the
+			// opposite of what a total projection promises. It also made
+			// ReasonInvalid unreachable in production -- a documented state
+			// with a label, an Enter notice and an archive exit that no store
+			// could ever produce.
 			raw, err := os.ReadFile(s.recordPath(address))
 			if err != nil {
-				return fmt.Errorf("read manifest thread %+v: %w", address, err)
+				snapshot.Unreadable = append(snapshot.Unreadable, address)
+				continue
 			}
 			record, err := s.decodeThreadRaw(address, raw)
 			if err != nil {
-				return err
+				snapshot.Unreadable = append(snapshot.Unreadable, address)
+				continue
 			}
 			snapshot.Records = append(snapshot.Records, cloneThreadRecord(record))
-			snapshot.raw[address] = append([]byte{}, raw...)
 		}
 		return nil
 	})
 	return snapshot, err
 }
 
-func (s *ThreadStore) CommitThreadReplacements(snapshot ThreadSnapshot, replacements []ThreadRecord) error {
-	return s.withLock(func() error {
-		manifest, manifestRaw, _, err := s.loadManifestLocked()
-		if err != nil {
-			return err
-		}
-		if manifest.Generation != snapshot.Generation || !reflectBytesEqual(manifestRaw, snapshot.manifest) {
-			return &ThreadSnapshotConflictError{Detail: "manifest generation or image"}
-		}
-		for address, expected := range snapshot.raw {
-			current, exists, err := readOptionalFile(s.recordPath(address))
-			if err != nil {
-				return err
-			}
-			if !exists || !reflectBytesEqual(current, expected) {
-				return &ThreadSnapshotConflictError{Detail: fmt.Sprintf("record %+v", address)}
-			}
-		}
-		if len(replacements) == 0 {
-			return nil
-		}
-		entries := make([]storeJournalEntry, 0, len(replacements)+1)
-		seen := map[ThreadAddress]bool{}
-		for _, replacement := range replacements {
-			if seen[replacement.Address] {
-				return fmt.Errorf("duplicate replacement %+v", replacement.Address)
-			}
-			seen[replacement.Address] = true
-			expected, ok := snapshot.raw[replacement.Address]
-			if !ok {
-				return fmt.Errorf("replacement %+v absent from snapshot", replacement.Address)
-			}
-			previous, err := s.decodeThreadRaw(replacement.Address, expected)
-			if err != nil {
-				return err
-			}
-			if replacement.Revision != previous.Revision+1 || replacement.Address != previous.Address || replacement.SchemaVersion != previous.SchemaVersion || replacement.StartingPath != previous.StartingPath || replacement.CreatedAt != previous.CreatedAt || replacement.ClaimGeneration != previous.ClaimGeneration {
-				return fmt.Errorf("replacement %+v violates revision or immutable fields", replacement.Address)
-			}
-			if err := ValidateThreadRecord(replacement); err != nil {
-				return err
-			}
-			raw, err := json.MarshalIndent(toPersistedThreadRecord(replacement), "", "  ")
-			if err != nil {
-				return err
-			}
-			after := append(raw, '\n')
-			expectedCopy := append([]byte{}, expected...)
-			entries = append(entries, storeJournalEntry{Path: relativeStorePath(s.root, s.recordPath(replacement.Address)), Expected: &expectedCopy, After: &after})
-		}
-		if len(entries) == 1 {
-			return s.applyJournalEntry(entries[0])
-		}
-		nextManifest := manifest
-		nextManifest.Generation++
-		nextRaw, err := json.MarshalIndent(nextManifest, "", "  ")
-		if err != nil {
-			return err
-		}
-		afterManifest := append(nextRaw, '\n')
-		expectedManifest := append([]byte{}, manifestRaw...)
-		entries = append(entries, storeJournalEntry{Path: relativeStorePath(s.root, s.manifestPath()), Expected: &expectedManifest, After: &afterManifest})
-		return s.commitJournalLocked(storeJournal{SchemaVersion: 1, Entries: entries})
-	})
-}
-
 func (s *ThreadStore) DeletePristineThread(address ThreadAddress) error {
 	return s.deleteThreadIf(address, func(record ThreadRecord) error {
 		if !record.Reservation || len(record.Incarnations) != 0 {
 			return fmt.Errorf("thread %+v is no longer a pristine reservation", address)
-		}
-		return nil
-	})
-}
-
-// DeleteUnstartedThread rolls back only the exact creating claim that reached
-// admission but never forked. Any concurrent metadata or state change leaves
-// the record occupied for later reconciliation.
-func (s *ThreadStore) DeleteUnstartedThread(address ThreadAddress, expectedRevision uint64) error {
-	return s.deleteThreadIf(address, func(record ThreadRecord) error {
-		if record.Revision != expectedRevision || record.Reservation || threadHasMetadata(record) || len(record.Incarnations) != 1 {
-			return fmt.Errorf("thread %+v is no longer the expected unstarted claim", address)
-		}
-		incarnation := record.Incarnations[0]
-		if incarnation.State != IncarnationCreating || incarnation.Start != nil || incarnation.PID != 0 || incarnation.Identity != "" {
-			return fmt.Errorf("thread %+v is no longer the expected unstarted claim", address)
 		}
 		return nil
 	})
@@ -610,10 +630,10 @@ func (s *ThreadStore) advanceSuccessfulStart(address ThreadAddress, expectedRevi
 			result = cloneThreadRecord(next)
 			return nil
 		}
-		if incarnation.Policy == nil || incarnation.Policy.RepoIdentity == "" {
+		if incarnation.RepoIdentity == "" {
 			return errors.New("successful start has no repository identity")
 		}
-		repoIdentity := incarnation.Policy.RepoIdentity
+		repoIdentity := incarnation.RepoIdentity
 		physicalPath := current.StartingPath
 		preferencePath := s.pathLaunchPreferencePath(repoIdentity, physicalPath)
 		preferenceRaw, preferenceExists, err := readOptionalFile(preferencePath)
@@ -743,6 +763,33 @@ func (s *ThreadStore) DeleteStart(address ThreadAddress, expectedRevision uint64
 		})
 		return err
 	}
+	if current.LatestLaunchProfile != nil {
+		// A record that has ever started successfully is durable history and is
+		// never deleted -- roll the start claim back instead.
+		//
+		// The verified park used to be the only rollback authority (see
+		// starttransaction.go's "Until this transition the verified park remains
+		// the rollback authority"), which was fine while every resumable thread
+		// had one. A DETACHED thread has none: its authority is the surviving
+		// zellij session. Without this branch, any post-claim failure on a
+		// detached resume deletes the record -- and with it the agent and argv
+		// needed to reattach -- while the session it names keeps running.
+		//
+		// threadHasMetadata already protects a NAMED record; this protects the
+		// unnamed one, whose LatestLaunchProfile nothing else guards.
+		_, err := s.UpdateExistingThread(address, expectedRevision, func(record *ThreadRecord) error {
+			if record.Reservation || len(record.Incarnations) != 1 {
+				return fmt.Errorf("thread %+v is no longer start %q at revision %d", address, nonce, expectedRevision)
+			}
+			incarnation := record.Incarnations[0]
+			if incarnation.State != IncarnationCreating || incarnation.Start == nil || incarnation.Start.Nonce != nonce {
+				return fmt.Errorf("thread %+v is no longer start %q at revision %d", address, nonce, expectedRevision)
+			}
+			record.Incarnations = nil
+			return nil
+		})
+		return err
+	}
 	return s.deleteThreadIf(address, func(record ThreadRecord) error {
 		if record.Revision != expectedRevision || record.Reservation || threadHasMetadata(record) || len(record.Incarnations) != 1 {
 			return fmt.Errorf("thread %+v is no longer start %q at revision %d", address, nonce, expectedRevision)
@@ -796,109 +843,6 @@ func (s *ThreadStore) deleteThreadIf(address ThreadAddress, accept func(ThreadRe
 			{Path: relativeStorePath(s.root, s.manifestPath()), Expected: &expectedManifest, After: &afterManifest},
 		}})
 	})
-}
-
-// CutoverLegacyActors imports the old tree-keyed registry as one journaled
-// membership mutation. Co-tenants remain conservative unknown incarnations of
-// one legacy thread; identical display tags in different repo scopes remain
-// separate composite records.
-func (s *ThreadStore) CutoverLegacyActors(actors []ActorRecord) error {
-	return s.withLock(func() error {
-		manifest, manifestRaw, manifestExists, err := s.loadManifestLocked()
-		if err != nil {
-			return err
-		}
-		if manifest.LegacyCutover {
-			return nil
-		}
-		grouped := map[ThreadAddress]ThreadRecord{}
-		for _, actor := range actors {
-			address, err := legacyThreadAddress(actor)
-			if err != nil {
-				return err
-			}
-			if actor.StartedAt.IsZero() {
-				return fmt.Errorf("legacy actor %q has no start time", actor.ID)
-			}
-			record, ok := grouped[address]
-			if !ok {
-				path := string(actor.Args.Worktree)
-				record = ThreadRecord{
-					SchemaVersion:   ThreadSchemaVersion,
-					Address:         address,
-					StartingPath:    path,
-					WorkingPath:     path,
-					CreatedAt:       actor.StartedAt,
-					Revision:        1,
-					ClaimGeneration: manifest.Generation + 1,
-				}
-			}
-			if actor.StartedAt.Before(record.CreatedAt) {
-				record.CreatedAt = actor.StartedAt
-			}
-			record.Incarnations = append(record.Incarnations, ThreadIncarnation{
-				LegacyActorID: actor.ID,
-				PID:           actor.PID,
-				Identity:      actor.Identity,
-				State:         IncarnationUnknown,
-				StartedAt:     actor.StartedAt,
-			})
-			grouped[address] = record
-		}
-
-		addresses := make([]ThreadAddress, 0, len(grouped))
-		for address := range grouped {
-			addresses = append(addresses, address)
-		}
-		sortThreadAddresses(addresses)
-		entries := make([]storeJournalEntry, 0, len(addresses)+1)
-		for _, address := range addresses {
-			record := grouped[address]
-			if err := ValidateThreadRecord(record); err != nil {
-				return fmt.Errorf("legacy thread %+v: %w", address, err)
-			}
-			if _, exists, err := readOptionalFile(s.recordPath(address)); err != nil {
-				return err
-			} else if exists || manifestContains(manifest, address) {
-				return fmt.Errorf("legacy cutover collides with existing thread %+v", address)
-			}
-			raw, err := json.MarshalIndent(toPersistedThreadRecord(record), "", "  ")
-			if err != nil {
-				return err
-			}
-			after := append(raw, '\n')
-			entries = append(entries, storeJournalEntry{Path: relativeStorePath(s.root, s.recordPath(address)), After: &after})
-		}
-		nextManifest := manifest
-		nextManifest.SchemaVersion = 1
-		nextManifest.Generation++
-		nextManifest.LegacyCutover = true
-		nextManifest.Threads = append(nextManifest.Threads, addresses...)
-		sortThreadAddresses(nextManifest.Threads)
-		nextRaw, err := json.MarshalIndent(nextManifest, "", "  ")
-		if err != nil {
-			return err
-		}
-		afterManifest := append(nextRaw, '\n')
-		var expectedManifest *[]byte
-		if manifestExists {
-			copy := append([]byte{}, manifestRaw...)
-			expectedManifest = &copy
-		}
-		entries = append(entries, storeJournalEntry{Path: relativeStorePath(s.root, s.manifestPath()), Expected: expectedManifest, After: &afterManifest})
-		return s.commitJournalLocked(storeJournal{SchemaVersion: 1, Entries: entries})
-	})
-}
-
-func legacyThreadAddress(actor ActorRecord) (ThreadAddress, error) {
-	if actor.Args.Worktree == "" {
-		return ThreadAddress{}, errors.New("legacy actor has no worktree")
-	}
-	scope, err := launcher.ResolveRepoScope(string(actor.Args.Worktree))
-	if err != nil {
-		return ThreadAddress{}, fmt.Errorf("resolve legacy repo scope: %w", err)
-	}
-	return ThreadAddress{RepoScope: scope.Key, Tag: ThreadTag(launcher.DefaultTag(string(actor.Args.Worktree)))}, nil
 }
 
 func sortThreadAddresses(addresses []ThreadAddress) {
@@ -976,18 +920,6 @@ func removeThreadAddress(addresses []ThreadAddress, remove ThreadAddress) []Thre
 	return out
 }
 
-func reflectBytesEqual(left, right []byte) bool {
-	if len(left) != len(right) {
-		return false
-	}
-	for i := range left {
-		if left[i] != right[i] {
-			return false
-		}
-	}
-	return true
-}
-
 func relativeStorePath(root, path string) string {
 	rel, err := filepath.Rel(root, path)
 	if err != nil {
@@ -1027,4 +959,123 @@ func (s *ThreadStore) commitJournalLocked(journal storeJournal) error {
 		return err
 	}
 	return syncDirectory(s.root)
+}
+
+// archivePath is where a retired record goes: the same layout under a
+// different root, so the same reader inspects it and restoring is a file move
+// plus a manifest re-add.
+func (s *ThreadStore) archivePath(address ThreadAddress) string {
+	return filepath.Join(s.root, "archive", address.RepoScope, string(address.Tag)+".json")
+}
+
+// ArchiveThread removes a thread from the working set and keeps its record.
+//
+// The operator's word for this is "delete" -- get it out of my switcher so I
+// can start anew -- and archiving is how that is done without being
+// irreversible. A record moves, it is not destroyed: the same decoder reads
+// `threadstore/archive/<scope>/<tag>.json`, and a mistake is undone by moving
+// the file back and re-adding the address to the manifest.
+//
+// It refuses a thread that is still LIVE or mid-park. Archiving a record while
+// couch hosts its child would leave the console owning a thread the store no
+// longer lists -- the same shape as the stale incarnations #181 exists to stop
+// producing. Everything else goes: parked, detached and every unusable reason,
+// because the operator is the one who decides a thread is finished.
+func (s *ThreadStore) ArchiveThread(address ThreadAddress) error {
+	if err := validateThreadAddress(address); err != nil {
+		return err
+	}
+	return s.withLock(func() error {
+		manifest, manifestRaw, _, err := s.loadManifestLocked()
+		if err != nil {
+			return err
+		}
+		raw, exists, err := readOptionalFile(s.recordPath(address))
+		if err != nil {
+			return err
+		}
+		if !exists {
+			return fmt.Errorf("%w: %+v", ErrThreadNotFound, address)
+		}
+		// Decode to CHECK, not to gate the move: an undecodable record is
+		// exactly what the operator most wants gone, and refusing to archive it
+		// would leave a row that can neither be used nor removed. Its bytes are
+		// moved as they are.
+		//
+		// Second line of defence: Couch.ArchiveThread runs the same guard
+		// before any effect, because by the time the store refuses, a quiesce
+		// would already have happened.
+		record, decodeErr := s.decodeThreadRaw(address, raw)
+		if decodeErr == nil {
+			if err := archivableRecord(record); err != nil {
+				return err
+			}
+		}
+		nextManifest := manifest
+		nextManifest.Generation++
+		nextManifest.Threads = removeThreadAddress(nextManifest.Threads, address)
+		nextRaw, err := json.MarshalIndent(nextManifest, "", "  ")
+		if err != nil {
+			return err
+		}
+		// One journal, three effects: the archive copy appears, the record
+		// disappears, the manifest stops listing it. A crash between them would
+		// otherwise leave a record in no set or in both.
+		archived := append([]byte{}, raw...)
+		expectedRecord := append([]byte{}, raw...)
+		expectedManifest := append([]byte{}, manifestRaw...)
+		afterManifest := append(nextRaw, '\n')
+		return s.commitJournalLocked(storeJournal{SchemaVersion: 1, Entries: []storeJournalEntry{
+			{Path: relativeStorePath(s.root, s.archivePath(address)), After: &archived},
+			{Path: relativeStorePath(s.root, s.recordPath(address)), Expected: &expectedRecord},
+			{Path: relativeStorePath(s.root, s.manifestPath()), Expected: &expectedManifest, After: &afterManifest},
+		}})
+	})
+}
+
+// ArchivedThreads lists what has been retired, without loading any of it into
+// the working set. It is how the operator inspects a decision they can undo.
+func (s *ThreadStore) ArchivedThreads() ([]ThreadRecord, error) {
+	root := filepath.Join(s.root, "archive")
+	var records []ThreadRecord
+	err := filepath.WalkDir(root, func(path string, entry fs.DirEntry, err error) error {
+		if err != nil {
+			if errors.Is(err, os.ErrNotExist) {
+				return nil
+			}
+			return err
+		}
+		if entry.IsDir() || filepath.Ext(path) != ".json" {
+			return nil
+		}
+		raw, readErr := os.ReadFile(path)
+		if readErr != nil {
+			return readErr
+		}
+		address := ThreadAddress{
+			RepoScope: filepath.Base(filepath.Dir(path)),
+			Tag:       ThreadTag(strings.TrimSuffix(filepath.Base(path), ".json")),
+		}
+		record, decodeErr := s.decodeThreadRaw(address, raw)
+		if decodeErr != nil {
+			// Its address is what could be read, so its address is what is
+			// listed. The previous comment said such a record "is still
+			// evidence the operator may want" and then dropped it, which is
+			// the invisible degradation this issue exists to remove.
+			records = append(records, ThreadRecord{Address: address})
+			return nil
+		}
+		records = append(records, record)
+		return nil
+	})
+	if err != nil {
+		return nil, err
+	}
+	sort.Slice(records, func(i, j int) bool {
+		if records[i].Address.RepoScope != records[j].Address.RepoScope {
+			return records[i].Address.RepoScope < records[j].Address.RepoScope
+		}
+		return records[i].Address.Tag < records[j].Address.Tag
+	})
+	return records, nil
 }

@@ -14,6 +14,7 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"slices"
 	"sort"
 	"strings"
 	"testing"
@@ -35,7 +36,7 @@ const (
 )
 
 const issue151M3DeclarationDigest = "8a193b51373583eec2f7b9c25e4a8df6fdc2bb6b8113adf0005d6f1cc878344f"
-const issue151M3ArchitecturalLedgerDigest = "632927f3012589a88f61b150c82dcafbe01a7882b2d2bf76aeb1690614ddf5bd"
+const issue151M3ArchitecturalLedgerDigest = "8479667e5cf9baa728790c77669332b94a082817aea907ab2adbc12d2244dbd0"
 
 // issue151M3GoSources is the exhaustive net set of Go sources changed by M3.
 // The declaration digest gives every declaration a closed-set disposition from
@@ -142,9 +143,9 @@ var issue151M3ArchitecturalDeclarations = map[string]issue151ArchitecturalDeclar
 	"Couch.ActionableThreadInventory":       {"integration", "M1/M3", "present", "cmd/internal/couchcore/actionableinventory.go", []string{"cmd/internal/couchcore/actionableinventory.go", "cmd/internal/couchcore/artifactcollision.go", "cmd/internal/couchcore/couch.go", "cmd/internal/couchcore/parktransaction.go", "cmd/internal/couchcore/pathops.go", "cmd/internal/couchcore/resume.go", "cmd/internal/couchcore/threadstore.go", "cmd/internal/launcher/agent_defaults.go"}, nil},
 	"NativeBindingResolver":                 {"integration", "M3", "context-bearing exact parked-resume binding resolution present", "cmd/internal/couchcore/resume.go", []string{"cmd/internal/couchcore/resume.go"}, nil},
 	"SessionInventoryNativeBindingResolver": {"integration", "M3", "context-bearing exact parked-resume binding resolution present", "cmd/internal/couchcore/resume.go", []string{"cmd/internal/couchcore/resume.go", "cmd/internal/couchcore/couch.go", "cmd/internal/sessioninventory/model.go", "cmd/internal/sessioninventory/query.go", "cmd/internal/sessioninventory/runtime.go"}, nil},
-	"Couch.PrepareStart":                    {"integration", "M1", "present", "cmd/internal/couchcore/couch.go", []string{"cmd/internal/couchcore/couch.go", "cmd/internal/couchcore/startargs.go", "cmd/internal/couchcore/startgrant.go"}, nil},
-	"Couch.SpawnPrepared":                   {"integration", "M1", "present", "cmd/internal/couchcore/couch.go", []string{"cmd/internal/couchcore/couch.go", "cmd/internal/couchcore/registry.go", "cmd/internal/couchcore/runner.go", "cmd/internal/couchcore/startargs.go", "cmd/internal/couchcore/startgrant.go", "cmd/internal/couchcore/worktree.go"}, nil},
-	"StartGrantStore":                       {"integration", "M1", "present", "cmd/internal/couchcore/startgrant.go", []string{"cmd/internal/couchcore/startgrant.go", "cmd/internal/couchcore/clock.go"}, nil},
+	"Couch.PrepareStart":                    {"integration", "M1", "present", "cmd/internal/couchcore/couch.go", []string{"cmd/internal/couchcore/couch.go", "cmd/internal/couchcore/startargs.go"}, []string{"cmd/internal/couchcore/startgrant.go"}},
+	"Couch.SpawnPrepared":                   {"integration", "M1", "present", "cmd/internal/couchcore/couch.go", []string{"cmd/internal/couchcore/couch.go", "cmd/internal/couchcore/registry.go", "cmd/internal/couchcore/runner.go", "cmd/internal/couchcore/startargs.go", "cmd/internal/couchcore/worktree.go"}, []string{"cmd/internal/couchcore/startgrant.go"}},
+	"StartGrantStore":                       {"integration", "M1", "deleted by pair#170 M4", "cmd/internal/couchcore/startgrant.go", []string{"cmd/internal/couchcore/clock.go"}, []string{"cmd/internal/couchcore/startgrant.go"}},
 	"OperationCall":                         {"integration", "M1", "context dispatch present", "cmd/internal/couchcore/operationdispatch.go", []string{"cmd/internal/couchcore/operationdispatch.go", "cmd/internal/couchcore/ops.go"}, nil},
 	"DispatchOperation":                     {"integration", "M1", "context dispatch present", "cmd/internal/couchcore/operationdispatch.go", []string{"cmd/internal/couchcore/operationdispatch.go", "cmd/internal/couchcore/ops.go"}, nil},
 	"Couch.AbortStarted":                    {"integration", "M1", "exact started-actor abort present", "cmd/internal/couchcore/couch.go", []string{"cmd/internal/couchcore/couch.go", "cmd/internal/couchcore/naming.go", "cmd/internal/couchcore/ops.go", "cmd/internal/couchcore/registry.go", "cmd/internal/couchcore/runner.go", "cmd/internal/couchcore/store.go", "cmd/internal/couchcore/worktree.go"}, nil},
@@ -683,6 +684,11 @@ func TestIssue149CurrentCoreConceptKinds(t *testing.T) {
 		t.Fatal(err)
 	}
 	defer f.Close()
+	// This is #149's ledger, frozen at ITS boundary: the kinds these entities
+	// had when that milestone delivered them. Several were later deleted --
+	// PolicyResult and AdmissionDecision went with admission in pair#170 M4 --
+	// and that is fine here, because the assertion is about what #149's plan
+	// said, not about what the tree contains now.
 	want := map[string]string{
 		"CouchNamespace":      "integration",
 		"PolicyResult":        "pure",
@@ -770,7 +776,11 @@ func TestOpaqueIdentityCommentDoesNotReintroducePathDerivedContract(t *testing.T
 
 func TestIssue149PureCoreTestsStayAtPureBoundary(t *testing.T) {
 	for _, name := range []string{
-		"thread_test.go", "starttransaction_test.go", "admission_test.go",
+		// admission_test.go was in this set until pair#170 M4 deleted admission.
+		// The rule it was here to enforce -- #149's PURE direct tests do not
+		// cross the integration boundary -- is unchanged for the files that
+		// remain.
+		"thread_test.go", "starttransaction_test.go",
 		"threadmetadata_model_test.go", "ops_declarations_test.go",
 		filepath.Join("..", "threadrecord", "record_test.go"),
 		filepath.Join("..", "strictjson", "decode_test.go"),
@@ -980,8 +990,16 @@ func TestIssue151M3IntegrationDependenciesMatchPinnedSource(t *testing.T) {
 			t.Errorf("%s: %v", name, err)
 			continue
 		}
-		want := make([]string, 0, len(declaration.present))
-		for _, path := range declaration.present {
+		// The dependency set is present PLUS absent. This index resolves
+		// declarations at issue151M3Head -- a frozen commit -- so it reports
+		// what M3's boundary actually depended on, which is not the same
+		// question as what still exists. The two lists split exactly that:
+		// `present` must exist in the worktree today, `absent` must not, and
+		// both were real dependencies at the pinned commit. Before pair#170 M4
+		// deleted startgrant.go no dependency had ever been retired, so the
+		// distinction had not come up.
+		want := make([]string, 0, len(declaration.present)+len(declaration.absent))
+		for _, path := range append(append([]string(nil), declaration.present...), declaration.absent...) {
 			if path != declaration.source {
 				want = append(want, path)
 			}
@@ -1467,7 +1485,13 @@ func validateIssue151M3SourceConcepts(root, plan string) error {
 		return err
 	}
 	for name, declaration := range issue151M3ArchitecturalDeclarations {
-		if len(declaration.absent) == 0 {
+		// Skip only an entity whose OWN source file is gone -- there is nothing
+		// left to look the declaration up in. A DEPENDENCY being absent says
+		// nothing about whether the entity is declared where the ledger claims,
+		// and gating on `len(absent) != 0` conflated the two: when pair#170 M4
+		// recorded startgrant.go as a retired dependency of Couch.PrepareStart
+		// and Couch.SpawnPrepared, both silently stopped being checked at all.
+		if !slices.Contains(declaration.absent, declaration.source) {
 			found, err := issue151M3PinnedDeclarationExists(root, name, declaration.source)
 			if err != nil {
 				return err

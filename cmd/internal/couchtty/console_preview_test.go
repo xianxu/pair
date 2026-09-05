@@ -33,7 +33,7 @@ func previewFormState(t *testing.T, submit bool) (MenuState, []MenuEffect) {
 func TestConsoleStartPreviewFeedsPreparedResultToReducer(t *testing.T) {
 	f := newFixture(t, 24, 80)
 	state, effects := previewFormState(t, false)
-	want := couchcore.PreparedStart{Token: "accepted", Resolution: couchcore.StartResolution{
+	want := couchcore.PreparedStart{Resolution: couchcore.StartResolution{Fingerprint: "accepted",
 		CanonicalPath: "/repo", Profile: couchcore.LaunchProfile{Agent: "claude"},
 	}}
 	f.con.SetOperationDispatcher(func(call couchcore.OperationCall) (any, error) {
@@ -49,7 +49,7 @@ func TestConsoleStartPreviewFeedsPreparedResultToReducer(t *testing.T) {
 
 	waitUpTo(t, 250*time.Millisecond, "prepared preview to enter reducer", func() bool {
 		got := f.con.menuSnapshot().CurrentFrame()
-		return got.PreviewAccepted == got.Generation && got.PreviewToken == want.Token
+		return got.PreviewAccepted == got.Generation && got.PreviewResolution.Fingerprint == want.Resolution.Fingerprint
 	})
 }
 
@@ -67,7 +67,7 @@ func TestConsolePreviewCancellationRunsLatestPendingAndJoins(t *testing.T) {
 			return nil, call.Context.Err()
 		case "/two":
 			close(secondStarted)
-			return couchcore.PreparedStart{Token: "two", Resolution: couchcore.StartResolution{CanonicalPath: "/two"}}, nil
+			return couchcore.PreparedStart{Resolution: couchcore.StartResolution{Fingerprint: "two", CanonicalPath: "/two"}}, nil
 		default:
 			return nil, errors.New("unexpected preview")
 		}
@@ -105,7 +105,7 @@ func TestConsolePendingSubmitDispatchesAcceptedTokenOnce(t *testing.T) {
 	f.con.SetOperationDispatcher(func(call couchcore.OperationCall) (any, error) {
 		calls <- call
 		if call.Name == "prepare-start" {
-			return couchcore.PreparedStart{Token: "accepted", Resolution: couchcore.StartResolution{
+			return couchcore.PreparedStart{Resolution: couchcore.StartResolution{Fingerprint: "accepted",
 				CanonicalPath: "/repo", Profile: couchcore.LaunchProfile{Agent: "claude"},
 			}}, nil
 		}
@@ -123,9 +123,9 @@ func TestConsolePendingSubmitDispatchesAcceptedTokenOnce(t *testing.T) {
 			if call.Context == nil {
 				t.Fatal("menu effect dispatched without Console context")
 			}
-			got = append(got, call.Name+":"+call.Args["token"])
-			if call.Name == "start" && !reflect.DeepEqual(call.Args, map[string]string{"token": "accepted"}) {
-				t.Fatalf("start args = %#v, want accepted token only", call.Args)
+			got = append(got, call.Name+":"+call.Args["fingerprint"])
+			if call.Name == "start" && !reflect.DeepEqual(call.Args, startCommitArgs("accepted")) {
+				t.Fatalf("start args = %#v, want the accepted resolution's commit args", call.Args)
 			}
 		case <-time.After(250 * time.Millisecond):
 			t.Fatalf("operation sequence = %v, want prepare-start then start", got)
@@ -167,4 +167,15 @@ func TestConsolePreviewCancellationOnStop(t *testing.T) {
 	case <-time.After(250 * time.Millisecond):
 		t.Fatal("Stop did not join preview worker")
 	}
+}
+
+// startCommitArgs is the commit-argument shape a start effect carries, built
+// from the ONE owner of that contract rather than restated per test. A test
+// that hand-wrote the map would keep passing while production drifted away
+// from it -- which is how a start could commit a resolution the operator never
+// previewed (pair#170 M4).
+func startCommitArgs(fingerprint couchcore.StartResolutionFingerprint) map[string]string {
+	return couchcore.StartResolution{
+		CanonicalPath: "/repo", Fingerprint: fingerprint,
+	}.CommitArgs()
 }

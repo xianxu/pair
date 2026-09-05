@@ -246,7 +246,7 @@ Pair and Couch deliberately have two independent durable authorities:
   to `established`; the marker is exact registration evidence, not metadata.
 - Couch owns `threadstore/manifest.json` and the addressed records under
   `threadstore/records/<scope>/<tag>.json`. ThreadStore alone owns lifecycle,
-  admission, mutable human names, descriptions, working paths, and recovery.
+  mutable human names, descriptions, working paths, and recovery.
 
 The composed boundary preserves both owners: Pair establishes its marker before
 the zellij handoff without touching Couch files; Couch observes that evidence

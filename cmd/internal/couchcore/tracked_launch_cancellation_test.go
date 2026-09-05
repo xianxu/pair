@@ -17,7 +17,7 @@ func TestTrackedLaunchCancellationBeforeAcknowledgementReapsAndRollsBack(t *test
 	ctx, cancel := context.WithCancel(context.Background())
 	env.Runner.AfterBlockedStart = func(string) { cancel() }
 
-	_, handle, err := env.Couch.SpawnPrepared(ctx, prepared.Token)
+	_, handle, err := env.Couch.SpawnPrepared(ctx, StartArgs{Worktree: "/repo"}, prepared.Resolution.Fingerprint)
 	if !errors.Is(err, context.Canceled) || handle == nil {
 		t.Fatalf("SpawnPrepared handle/error = %T, %v", handle, err)
 	}
@@ -60,7 +60,19 @@ func TestTrackedLaunchCancellationRestoresVerifiedParkOnResume(t *testing.T) {
 	}
 }
 
-func TestTrackedLaunchCancellationAfterAcknowledgementReapsAndRollsBack(t *testing.T) {
+// After the helper has ACKNOWLEDGED, the target has already executed and Pair
+// has registered. Cancellation then reaps the helper but must NOT delete the
+// record: registration is established, so the thread cannot be proven free, and
+// occupied-or-proven-free (starttransaction.go) keeps it as an `unknown`
+// incarnation for the crash reconciler.
+//
+// This test previously claimed the opposite -- "ReapsAndRollsBack" -- and
+// asserted ErrThreadNotFound at a HARDCODED address. It passed only because
+// that address was never the one allocated (the real record sat at a different
+// tag), so the assertion proved nothing. pair#170 M4 shifted the entropy the
+// tag derives from, the address collided with the real record, and the vacuum
+// showed. Asserting over the whole snapshot is what keeps it honest.
+func TestTrackedLaunchCancellationAfterAcknowledgementReapsAndKeepsRecordOccupied(t *testing.T) {
 	env := newTestEnv(t, "/repo")
 	prepared, err := env.Couch.PrepareStart(context.Background(), StartArgs{Worktree: "/repo"})
 	if err != nil {
@@ -72,7 +84,7 @@ func TestTrackedLaunchCancellationAfterAcknowledgementReapsAndRollsBack(t *testi
 		return nil
 	}
 
-	_, handle, err := env.Couch.SpawnPrepared(ctx, prepared.Token)
+	_, handle, err := env.Couch.SpawnPrepared(ctx, StartArgs{Worktree: "/repo"}, prepared.Resolution.Fingerprint)
 	if !errors.Is(err, context.Canceled) || handle == nil {
 		t.Fatalf("SpawnPrepared handle/error = %T, %v", handle, err)
 	}
@@ -80,8 +92,18 @@ func TestTrackedLaunchCancellationAfterAcknowledgementReapsAndRollsBack(t *testi
 	if handle.Alive() || child.ExecCount != 1 {
 		t.Fatalf("post-ack canceled child = %+v", child)
 	}
-	address := ThreadAddress{RepoScope: "816fc349d3faebf8", Tag: "couch-0102030405060708"}
-	if _, err := env.Couch.Threads.GetThread(address); !errors.Is(err, ErrThreadNotFound) {
-		t.Fatalf("post-ack canceled thread remained: %v", err)
+	snapshot, err := env.Couch.Threads.Snapshot()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(snapshot.Records) != 1 {
+		t.Fatalf("post-ack cancel left %d records, want the one it could not prove free", len(snapshot.Records))
+	}
+	record := snapshot.Records[0]
+	if len(record.Incarnations) != 1 {
+		t.Fatalf("retained record incarnations = %+v, want exactly one", record.Incarnations)
+	}
+	if incarnation := record.Incarnations[0]; incarnation.State != IncarnationUnknown || incarnation.Start != nil {
+		t.Fatalf("retained incarnation = %+v, want unknown state with the start claim resolved", incarnation)
 	}
 }

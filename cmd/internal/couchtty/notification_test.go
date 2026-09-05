@@ -30,7 +30,7 @@ func observedBatch(screen *ptychild.Screen, raw []byte) ptychild.OutputBatch {
 
 func TestOutputBatchFocusOrder(t *testing.T) {
 	con, host := notificationConsole(t)
-	con.switchTo("c2", false)
+	con.switchTo("c2", false, arrivalOrdinary)
 	host.Reset()
 
 	// Delivery happened while c1 was inactive, but processing happens after
@@ -39,7 +39,7 @@ func TestOutputBatchFocusOrder(t *testing.T) {
 		Raw: []byte("queued"), Parts: []ptychild.OutputPart{{Bytes: []byte("queued")}},
 		RingEnd: 6, ReplaySafeEnd: 6,
 	}}
-	con.switchTo("c1", false)
+	con.switchTo("c1", false, arrivalOrdinary)
 	host.Reset()
 	con.onChunk(queued)
 	if got := host.Written(); !stringsContains(got, "queued") {
@@ -47,7 +47,7 @@ func TestOutputBatchFocusOrder(t *testing.T) {
 	}
 
 	host.Reset()
-	con.switchTo("c2", false)
+	con.switchTo("c2", false, arrivalOrdinary)
 	host.Reset()
 	con.onChunk(chunk{id: "c1", batch: queued.batch})
 	if got := host.Written(); stringsContains(got, "queued") {
@@ -66,7 +66,7 @@ func TestSplitNotificationAcrossTakeover(t *testing.T) {
 		t.Fatalf("partial canonical envelope reached host: %q", got)
 	}
 
-	con.switchTo("c2", false)
+	con.switchTo("c2", false, arrivalOrdinary)
 	host.Reset()
 	con.onChunk(chunk{id: "c1", batch: observedBatch(&screen, envelope[cut:])})
 	if got := []byte(host.Written()); !bytes.Contains(got, envelope) {
@@ -110,7 +110,7 @@ func TestConsoleInactiveNotificationCreatesAttentionAndFocusedDoesNot(t *testing
 	con.attention.Acknowledge(con.attention.Capture(c2))
 	con.syncAttentionLocked()
 	con.mu.Unlock()
-	con.switchTo("c2", false)
+	con.switchTo("c2", false, arrivalOrdinary)
 	var focusedScreen ptychild.Screen
 	con.onChunk(chunk{id: "c2", batch: observedBatch(&focusedScreen, notifyosc.Encode("already seen")), focusedAtDelivery: true})
 	con.mu.Lock()
@@ -121,33 +121,50 @@ func TestConsoleInactiveNotificationCreatesAttentionAndFocusedDoesNot(t *testing
 	}
 }
 
-func TestSwitchAttentionAcknowledgesCapturedMessagesOnlyOnSuccess(t *testing.T) {
-	con, _ := notificationConsole(t)
-	con.mu.Lock()
-	address := con.panes["c2"].thread
-	con.attention.Mark(address, "captured")
-	capture := con.attention.Capture(address)
-	con.attention.Mark(address, "later")
-	con.mu.Unlock()
+// Acknowledgement has ONE authority: switchTo, which is the only place that
+// knows a landing actually happened. finishOperation keeps just the failure
+// half, because a switch that failed never landed and its capture still has to
+// be released.
+func TestSwitchAttentionAcknowledgesOnLandingAndReleasesOnFailure(t *testing.T) {
+	t.Run("a failed switch keeps the notifications", func(t *testing.T) {
+		con, _ := notificationConsole(t)
+		con.mu.Lock()
+		address := con.panes["c2"].thread
+		con.attention.Mark(address, "captured")
+		capture := con.attention.Capture(address)
+		con.attention.Mark(address, "later")
+		con.mu.Unlock()
 
-	origin := MenuOperationOrigin{Operation: "switch", Attempt: 1, Address: address, AttentionCapture: capture}
-	con.finishOperation(operationCompletion{origin: origin, err: errOperationQueueOverloaded})
-	con.mu.Lock()
-	got := attentionTexts(con.attention.Projection(address))
-	retry := con.attention.Capture(address)
-	con.mu.Unlock()
-	if len(got) != 2 {
-		t.Fatalf("failed switch cleared attention: %v", got)
-	}
+		con.finishOperation(operationCompletion{
+			origin: MenuOperationOrigin{Operation: "switch", Attempt: 1, Address: address, AttentionCapture: capture},
+			err:    errOperationQueueOverloaded,
+		})
 
-	origin.AttentionCapture = retry
-	con.finishOperation(operationCompletion{origin: origin})
-	con.mu.Lock()
-	got = attentionTexts(con.attention.Projection(address))
-	con.mu.Unlock()
-	if len(got) != 0 {
-		t.Fatalf("successful switch retained captured attention: %v", got)
-	}
+		con.mu.Lock()
+		got := attentionTexts(con.attention.Projection(address))
+		con.mu.Unlock()
+		if len(got) != 2 {
+			t.Fatalf("failed switch cleared attention: %v", got)
+		}
+	})
+
+	t.Run("landing clears them", func(t *testing.T) {
+		con, _ := notificationConsole(t)
+		con.mu.Lock()
+		address := con.panes["c2"].thread
+		con.attention.Mark(address, "captured")
+		con.attention.Mark(address, "later")
+		con.mu.Unlock()
+
+		con.switchTo("c2", true, arrivalNotification)
+
+		con.mu.Lock()
+		got := attentionTexts(con.attention.Projection(address))
+		con.mu.Unlock()
+		if len(got) != 0 {
+			t.Fatalf("landing retained attention: %v", got)
+		}
+	})
 }
 
 func TestExpectedParkExitDropsOnlyExitedActorAttention(t *testing.T) {
@@ -206,4 +223,171 @@ func TestConsoleMenuAttentionSelectsNewestUnreadWithoutReordering(t *testing.T) 
 
 func stringsContains(haystack, needle string) bool {
 	return bytes.Contains([]byte(haystack), []byte(needle))
+}
+
+// Rule 2 of every landing, asserted independently of rule 1: arriving on an
+// actor clears its bell whatever brought the operator there. A test that only
+// checks `previous` passes while the bell stays lit -- and a lit bell on the
+// actor the operator is SITTING IN makes NewestActor() name it, so the next
+// ctrl-space opens the switcher on the wrong row.
+func TestEveryArrivalAcknowledgesTheLandedActor(t *testing.T) {
+	for _, how := range []arrival{arrivalOrdinary, arrivalNotification, arrivalPrevious} {
+		con, _ := notificationConsole(t)
+		con.mu.Lock()
+		two := con.panes["c2"].thread
+		con.attention.Mark(two, "paged")
+		con.mu.Unlock()
+
+		con.switchTo("c2", true, how)
+
+		con.mu.Lock()
+		got := attentionTexts(con.attention.Projection(two))
+		newest := con.attention.NewestActor()
+		con.mu.Unlock()
+		if len(got) != 0 {
+			t.Fatalf("arrival %d left the landed actor notifying: %v", how, got)
+		}
+		if newest == two {
+			t.Fatalf("arrival %d left NewestActor naming the actor the operator is attached to", how)
+		}
+	}
+}
+
+// The counterpart: a landing that never happens must not clear the bell.
+func TestSwitchToAnUnknownActorDoesNotAcknowledge(t *testing.T) {
+	con, _ := notificationConsole(t)
+	con.mu.Lock()
+	two := con.panes["c2"].thread
+	con.attention.Mark(two, "paged")
+	con.mu.Unlock()
+
+	con.switchTo("no-such-actor", true, arrivalOrdinary)
+
+	con.mu.Lock()
+	got := attentionTexts(con.attention.Projection(two))
+	con.mu.Unlock()
+	if len(got) != 1 {
+		t.Fatalf("a switch that did not land cleared attention: %v", got)
+	}
+}
+
+// The Spec's headline sequence, driven through the console rather than the pure
+// model: N1 -> N2 -> manual detour still leaves ctrl+backspace pointing at the
+// actor the operator was actually working in.
+func TestConsolePreviousSurvivesNotificationHops(t *testing.T) {
+	con, _ := notificationConsole(t)
+	con.Attach("c3", "three", ptychild.NewFakeChild(nil))
+	con.mu.Lock()
+	one, two, three := con.panes["c1"].thread, con.panes["c2"].thread, con.panes["c3"].thread
+	con.mu.Unlock()
+
+	con.switchTo("c1", true, arrivalOrdinary)     // working in one
+	con.switchTo("c2", true, arrivalNotification) // paged to two
+	con.switchTo("c3", true, arrivalNotification) // paged to three
+	con.switchTo("c2", true, arrivalOrdinary)     // manual detour
+
+	con.mu.Lock()
+	previous, ok := con.tracker.Previous()
+	con.mu.Unlock()
+	if !ok || previous != one {
+		t.Fatalf("previous = (%+v, %v), want %+v -- notification hops must not spend the slot",
+			previous, ok, one)
+	}
+	_ = two
+	_ = three
+}
+
+// ctrl+backspace is routed by the production input path in both encodings, not
+// by calling the handler: reducer support is not user reachability.
+func TestConsolePreviousKeyRoutesInBothEncodings(t *testing.T) {
+	for _, chord := range []string{"\x08", "\x1b[127;5u"} {
+		var it Interceptor
+		_, hit, _ := it.FeedHit([]byte(chord))
+		if hit != HitPrevious {
+			t.Fatalf("chord %q decoded as %v, want HitPrevious", chord, hit)
+		}
+	}
+}
+
+// With no previous, and with a previous that is no longer attached, the key
+// says so on the status row rather than blanking the screen or doing nothing.
+func TestConsolePreviousWithNowhereToGoSaysSo(t *testing.T) {
+	t.Run("no previous recorded", func(t *testing.T) {
+		con, _ := notificationConsole(t)
+		con.onPreviousHotkey()
+		if got := con.feed.Row().Body; !stringsContains(got, "previous") {
+			t.Fatalf("status = %q, want a previous-related notice", got)
+		}
+	})
+
+	t.Run("previous is no longer attached", func(t *testing.T) {
+		con, _ := notificationConsole(t)
+		con.mu.Lock()
+		one := con.panes["c1"].thread
+		con.mu.Unlock()
+		con.switchTo("c1", true, arrivalOrdinary)
+		con.switchTo("c2", true, arrivalOrdinary)
+		con.mu.Lock()
+		// The thread stays durable, but its pane goes away -- park, detach, exit.
+		delete(con.panes, "c1")
+		con.mu.Unlock()
+
+		con.onPreviousHotkey()
+
+		if got := con.feed.Row().Body; !stringsContains(got, "no longer attached") {
+			t.Fatalf("status = %q, want the not-attached notice", got)
+		}
+		con.mu.Lock()
+		active := con.active
+		con.mu.Unlock()
+		if active != "c2" {
+			t.Fatalf("active = %q, want the operator left where they were", active)
+		}
+		_ = one
+	})
+}
+
+// A lifecycle operation's child exit is expected whichever way the race goes.
+// The exit channel and the operation-result channel are separate select cases,
+// so roughly half the time the completion lands first and clears InFlight --
+// leaving consumeExpectedParkExitLocked's InFlight arm nothing to match. Both
+// halves must know about both operations, or every other alt+d prints an exit
+// notice for a child the operator deliberately stopped.
+func TestDeliberateChildExitsAreExpectedInEitherEventOrder(t *testing.T) {
+	for _, operation := range []string{"park", "detach"} {
+		for _, completionFirst := range []bool{false, true} {
+			name := operation
+			if completionFirst {
+				name += "/completion-first"
+			} else {
+				name += "/exit-first"
+			}
+			t.Run(name, func(t *testing.T) {
+				con, _ := notificationConsole(t)
+				con.mu.Lock()
+				address := con.panes["c2"].thread
+				origin := MenuOperationOrigin{Operation: operation, Attempt: 1, Address: address}
+				con.menu.InFlight = origin
+				con.mu.Unlock()
+
+				if completionFirst {
+					con.finishOperation(operationCompletion{origin: origin})
+					con.mu.Lock()
+					con.menu.InFlight = MenuOperationOrigin{} // ReduceMenu clears it
+					expected := con.consumeExpectedParkExitLocked("c2", address)
+					con.mu.Unlock()
+					if !expected {
+						t.Fatalf("%s exit after its completion was reported as unexpected", operation)
+					}
+					return
+				}
+				con.mu.Lock()
+				expected := con.consumeExpectedParkExitLocked("c2", address)
+				con.mu.Unlock()
+				if !expected {
+					t.Fatalf("%s exit before its completion was reported as unexpected", operation)
+				}
+			})
+		}
+	}
 }

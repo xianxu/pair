@@ -20,7 +20,11 @@ type StartResolutionInput struct {
 	Worktree            Worktree
 	Issue               string
 	LaunchProfileInputs LaunchProfileInputs
-	CandidatePolicy     PolicyResult
+	// RepoIdentity is the Git common directory. It replaces the fleet-policy
+	// record this input used to carry (pair#170 M4): the only value anything
+	// downstream still wanted from that record was this string, which keys the
+	// path's saved launch preference.
+	RepoIdentity string
 }
 
 // StartResolution is the immutable authority shared by preview and launch.
@@ -32,7 +36,7 @@ type StartResolution struct {
 	Profile            LaunchProfile              `json:"profile"`
 	AgentSource        AgentSource                `json:"agent_source"`
 	ArgvSource         ArgvSource                 `json:"argv_source"`
-	CandidatePolicy    PolicyResult               `json:"candidate_policy"`
+	RepoIdentity       string                     `json:"repo_identity"`
 	PreferenceRevision uint64                     `json:"preference_revision,omitempty"`
 	DefaultDigest      string                     `json:"default_digest,omitempty"`
 	Fingerprint        StartResolutionFingerprint `json:"fingerprint"`
@@ -42,15 +46,15 @@ func ResolveStartResolution(input StartResolutionInput) (StartResolution, error)
 	if !filepath.IsAbs(input.CanonicalPath) || !filepath.IsAbs(string(input.Worktree)) {
 		return StartResolution{}, errors.New("start resolution paths must be absolute")
 	}
-	if err := ValidatePolicyResult(input.CandidatePolicy); err != nil {
-		return StartResolution{}, err
+	if input.RepoIdentity == "" {
+		return StartResolution{}, errors.New("start resolution has no repository identity")
 	}
 	var preferenceRevision uint64
 	if preference := input.LaunchProfileInputs.Path; preference != nil {
 		if err := validatePathLaunchPreference(*preference); err != nil {
 			return StartResolution{}, err
 		}
-		if preference.RepoIdentity != input.CandidatePolicy.RepoIdentity || preference.PhysicalPath != input.CanonicalPath {
+		if preference.RepoIdentity != input.RepoIdentity || preference.PhysicalPath != input.CanonicalPath {
 			return StartResolution{}, errors.New("start resolution preference does not match candidate")
 		}
 		preferenceRevision = preference.Revision
@@ -77,7 +81,7 @@ func ResolveStartResolution(input StartResolutionInput) (StartResolution, error)
 		Profile:            cloneLaunchProfile(selected.Profile),
 		AgentSource:        selected.AgentSource,
 		ArgvSource:         selected.ArgvSource,
-		CandidatePolicy:    input.CandidatePolicy,
+		RepoIdentity:       input.RepoIdentity,
 		PreferenceRevision: preferenceRevision,
 		DefaultDigest:      defaultDigest,
 	}
@@ -115,13 +119,7 @@ func fingerprintStartResolution(resolution StartResolution) StartResolutionFinge
 	}
 	writeFingerprintField(digest, string(resolution.AgentSource))
 	writeFingerprintField(digest, string(resolution.ArgvSource))
-	writeFingerprintUint(digest, uint64(resolution.CandidatePolicy.PolicyVersion))
-	writeFingerprintField(digest, resolution.CandidatePolicy.PolicyDigest)
-	writeFingerprintField(digest, resolution.CandidatePolicy.RepoIdentity)
-	writeFingerprintField(digest, resolution.CandidatePolicy.AdmissionKey)
-	writeFingerprintField(digest, string(resolution.CandidatePolicy.Capacity.Kind))
-	writeFingerprintUint(digest, uint64(resolution.CandidatePolicy.Capacity.Limit))
-	writeFingerprintField(digest, string(resolution.CandidatePolicy.OnCapacity))
+	writeFingerprintField(digest, resolution.RepoIdentity)
 	writeFingerprintUint(digest, resolution.PreferenceRevision)
 	writeFingerprintField(digest, resolution.DefaultDigest)
 	return StartResolutionFingerprint(hex.EncodeToString(digest.Sum(nil)))
@@ -136,4 +134,25 @@ func writeFingerprintUint(digest hash.Hash, value uint64) {
 	var raw [8]byte
 	binary.BigEndian.PutUint64(raw[:], value)
 	_, _ = digest.Write(raw[:])
+}
+
+// CommitArgs renders the operation arguments that commit this preview: the
+// SAME inputs it resolved from, plus the fingerprint the operator accepted.
+//
+// It exists because "the args that reproduce this resolution" was being
+// rebuilt by hand at every call site (CLI, console menu, tests), and a call
+// site that guessed wrong -- passing the RESOLVED agent where the operator
+// gave none, say -- changes AgentSource and so re-resolves to a different
+// fingerprint, failing the start with a drift error nobody drifted into.
+// One owner, one contract (ARCH-DRY).
+func (r StartResolution) CommitArgs() map[string]string {
+	// No worktree: StartArgs.WorkingDir prefers Cwd, which `path` supplies, so
+	// re-resolution never reads it. An argument nothing reads is one more thing
+	// a caller can get subtly wrong for no benefit.
+	return map[string]string{
+		"path":        r.CanonicalPath,
+		"agent":       r.RequestedAgent,
+		"issue":       r.Issue,
+		"fingerprint": string(r.Fingerprint),
+	}
 }

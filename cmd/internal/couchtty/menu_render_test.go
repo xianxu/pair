@@ -45,14 +45,18 @@ func TestChooseMenuLayoutUsesOneLeftAnchoredSurfaceAtEverySupportedSize(t *testi
 func TestRenderMenuUsesSingleSurfaceBreadcrumbs(t *testing.T) {
 	root := NewMenuState(menuThreads(), menuAddress("couch-one"))
 	actions, _ := reduceKey(root, PanelKey{Kind: KeyTab})
-	park, _ := reduceKey(actions, PanelKey{Kind: KeyEnter})
+	// Detach leads the action list for a live row (safe before destructive), so
+	// the park frame is selected explicitly rather than by taking the default.
+	parkSelected := cloneMenuState(actions)
+	parkSelected.Frames[len(parkSelected.Frames)-1].SelectedItem = "park"
+	park, _ := reduceKey(parkSelected, PanelKey{Kind: KeyEnter})
 	rename := cloneMenuState(actions)
 	rename.Frames[len(rename.Frames)-1].SelectedItem = "name"
 	rename, _ = reduceKey(rename, PanelKey{Kind: KeyEnter})
 	describe := cloneMenuState(actions)
 	describe.Frames[len(describe.Frames)-1].SelectedItem = "describe"
 	describe, _ = reduceKey(describe, PanelKey{Kind: KeyEnter})
-	leave, _ := ReduceMenu(root, MenuEvent{Kind: MenuEventParkHotkey, Operation: "leave", Address: menuAddress("couch-one")})
+	leave, _ := ReduceMenu(root, MenuEvent{Kind: MenuEventParkHotkey, Operation: "leave", Mode: string(couchcore.LeavePark)})
 	startFromConfirmation, _ := reduceKey(park, PanelKey{Kind: KeyCtrlSpace})
 
 	for _, tc := range []struct {
@@ -66,7 +70,10 @@ func TestRenderMenuUsesSingleSurfaceBreadcrumbs(t *testing.T) {
 		{name: "park", state: park, breadcrumb: "threads › compiler › park", absent: []string{"/repo/one", "rename"}},
 		{name: "rename", state: rename, breadcrumb: "threads › compiler › rename", absent: []string{"/repo/one", "park"}},
 		{name: "describe", state: describe, breadcrumb: "threads › compiler › describe", absent: []string{"/repo/one", "park"}},
-		{name: "leave", state: leave, breadcrumb: "threads › compiler › leave couch", absent: []string{"actions", "/repo/one"}},
+		// Leave is a GLOBAL frame since #170: it names couch, not a thread, so
+		// its breadcrumb no longer borrows an actor's label -- and "compiler"
+		// is now asserted ABSENT, because borrowing one is the bug.
+		{name: "leave", state: leave, breadcrumb: "threads › leave couch", absent: []string{"actions", "/repo/one", "compiler"}},
 		{name: "global start", state: startFromConfirmation, breadcrumb: "start thread", absent: []string{"threads", "compiler", "park"}},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
@@ -257,7 +264,7 @@ func TestRenderMenuPlacesTypedBannerBelowEveryBreadcrumb(t *testing.T) {
 		banner     string
 		control    string
 	}{
-		{name: "nested error", state: errorState, breadcrumb: "threads › compiler › actions", banner: "error: thread inventory unavailable: store unavailable", control: "park"},
+		{name: "nested error", state: errorState, breadcrumb: "threads › compiler › actions", banner: "error: thread inventory unavailable: store unavailable", control: "detach"},
 		{name: "start progress", state: progressState, breadcrumb: "start thread", banner: "resolving", control: "▸ path"},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
@@ -368,5 +375,53 @@ func assertRenderedBounds(t *testing.T, rendered string, width, height int) {
 		if got := textwidth.Width(string(ansi.Strip([]byte(line)))); got > width {
 			t.Fatalf("line %d is %d columns into width %d: %q", i, got, width, line)
 		}
+	}
+}
+
+func stateTextRow(state couchcore.ActionableThreadState, reason couchcore.ThreadReason, active time.Time) couchcore.ActionableThreadSummary {
+	return couchcore.ActionableThreadSummary{
+		Address: menuAddress("couch-one"), Name: "one", State: state, Reason: reason, LastActiveAt: active,
+	}
+}
+
+// The operator's own switcher labelled a DETACHED thread "parked", because
+// everything that was not live took the parked branch. Each state says what it
+// is now, and the two that carry an age keep it.
+func TestRootStateTextNamesEveryState(t *testing.T) {
+	now := time.Date(2026, 9, 3, 12, 0, 0, 0, time.UTC)
+	active := now.Add(-4 * time.Hour)
+	for _, tc := range []struct {
+		state  couchcore.ActionableThreadState
+		reason couchcore.ThreadReason
+		want   string
+	}{
+		{couchcore.ThreadLive, "", "live"},
+		{couchcore.ThreadDetached, "", "detached · 4h ago"},
+		{couchcore.ThreadParked, "", "parked · 4h ago"},
+		{couchcore.ThreadBusy, "", "parking…"},
+		{couchcore.ThreadUnusable, couchcore.ReasonBindingLost, "binding lost — repairable"},
+		{couchcore.ThreadUnusable, couchcore.ReasonStaleIncarnation, "stale — couch exited unexpectedly"},
+	} {
+		if got := rootStateText(stateTextRow(tc.state, tc.reason, active), now); got != tc.want {
+			t.Fatalf("%s/%s = %q, want %q", tc.state, tc.reason, got, tc.want)
+		}
+	}
+}
+
+// Go cannot check a switch for exhaustiveness, so the vocabulary checks itself:
+// every reason renders something, and no two render the same thing.
+func TestEveryReasonRendersADistinctLabel(t *testing.T) {
+	now := time.Date(2026, 9, 3, 12, 0, 0, 0, time.UTC)
+	seen := map[string]couchcore.ThreadReason{}
+	for _, reason := range couchcore.AllThreadReasons() {
+		label := rootStateText(stateTextRow(couchcore.ThreadUnusable, reason, now), now)
+		if label == "" || label == string(reason) {
+			t.Errorf("reason %q has no label of its own (rendered %q)", reason, label)
+			continue
+		}
+		if other, clash := seen[label]; clash {
+			t.Errorf("reasons %q and %q both render %q", reason, other, label)
+		}
+		seen[label] = reason
 	}
 }

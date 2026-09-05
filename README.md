@@ -138,7 +138,7 @@ one-line description can't carry.
 | **Shift+Alt+Backspace** | nvim (normal/insert) | Erase history, draft, and queue for this session to "start anew". |
 | **Alt+d** | any pane | Detach from the current session (re-attach later via `pair`). |
 | **Alt+x** | any pane | Full quit — kill the session and everything in it. The agent's session id is saved, so it's resumable via `pair resume <tag>`; before discarding the scrollback pair offers to **park** it for a later `pair continue`. |
-| **Alt+n** (or **Ctrl+Alt+n**) | any pane | Reload pair — re-launch with the same tag, agent, args, AND agent session. Ctrl+Alt+n is the macOS alias (Option+n is a dead-tilde composer on newer macOS); pressing Alt+n twice also works. |
+| **Alt+n** (or **Ctrl+Alt+n**) | any pane | Reload pair — re-launch with the same tag, agent, args, AND agent session. Ctrl+Alt+n is the macOS alias (Option+n is a dead-tilde composer on newer macOS); pressing Alt+n twice also works. **Inside couch this chord belongs to couch**, which relaunches the thread instead: same conversation, but a genuinely new Pair process running the current binary, which the in-place reload cannot give you (it re-enters the loop in the same process image, so a rebuilt Pair is not what comes back). |
 | **Shift+Alt+N** | any pane | Restart only the coding agent, with a new conversation. Pair, Zellij, the draft, and terminal tabs stay alive. |
 | **Alt+Shift+C** (or **Ctrl+Alt+c**) | any pane | Compact in place: distill this session into a `continuation` doc (folding in the parked draft), then reincarnate the tag with a clean conversation seeded from it. Scrollback is parked first as a recovery net. |
 
@@ -267,6 +267,7 @@ still works. See [atlas/couch.md](atlas/couch.md).
 couch [<repo>]           open the Couch TUI (default: .)
 couch --list             every durable work thread across all repositories
 couch --show <ref>       one current-repository thread by tag, path, or name
+couch --archived         threads removed from couch, with their records kept
 ```
 
 `<ref>` resolution for `--show` is scoped to the Git
@@ -274,7 +275,9 @@ repository containing the current directory. An exact opaque tag wins; human
 name and canonical working path are also accepted, and an ambiguous match
 refuses instead of choosing. `list` is intentionally global. It renders one
 row per `{repository scope, opaque tag}` even when several threads share one
-path. A human name leads when present; otherwise the opaque tag is the label.
+path. A human name leads when present; otherwise the label is the working
+directory's last segment (`brain`, `pair`, `arc-agi-3`), with the tag's tail
+appended only when two rows would otherwise read the same.
 The agent-published summary is displayed ahead of the operator description,
 without overwriting it.
 
@@ -294,30 +297,48 @@ interaction path. On the target M2 Max under ordinary development co-tenancy,
 the contract is feedback and requested-commit P95 below 100 ms and commit max
 below 1 second; adversarial OS starvation is outside that claim. Pair cleanup
 retains its 10-second outer deadline and 5-second exact-Zellij inner wait.
-Leave Couch parks every active actor and returns to the shell. A later bare
-`couch` automatically resumes the sole exact verified parked thread for that
-physical repository path and restores it as home. With zero or multiple exact
-candidates, Couch creates a new root instead; it does not rank, prompt, or guess.
+Leave Couch applies one disposition to every live actor and returns to the
+shell: `Alt+d` **detaches** them, so quitting never kills a running agent, and
+`Alt+x` **parks** them behind the same confirmation a single park needs. A later bare `couch` returns to the work already in
+that physical repository path: **detached first, then parked, most recently
+active within each class**. It starts a new thread only when there is nothing to
+return to. Ranking replaced an exactness rule that was a ratchet -- two
+resumable rows at one path created a third, guaranteeing the next startup
+created a fourth -- and wanting a fresh agent instead costs one chord inside
+Pair (`Alt+Shift+N` restarts the conversation, keeping the workbench).
 Resume does not allocate a temporary actor first or add a full native inventory
-scan. Alt+d remains Pair-local detach; Couch exposes no detach operation.
+scan. Alt+d is intercepted by Couch as its own detach operation: un-intercepted
+it would leave Couch with a dead child and a stale incarnation, and the thread
+would vanish from the switcher. Detaching an actor moves focus to the switcher,
+which is also what keeps Couch alive when the last actor detaches.
+Messages on the reserved status row retire themselves: a momentary refusal
+("previous: nowhere to return to") goes after about twelve seconds, while an
+actor's exit stands until something replaces it -- one answers the keystroke you
+just pressed, the other explains why a pane disappeared.
 
 A TUI startup that creates a new root allocates a distinct opaque durable
-thread; automatic unique resume reuses the parked thread instead. New-thread
-admission comes from the repository's normalized Ariadne fleet policy (`sdlc
-fleet policy`): a bounded key refuses when occupied, while an unbounded path
-admits concurrent threads. A `provision-worktree` policy returns a typed
-refusal and nothing creates the worktree for you — managed worktree lifecycle
-(Pair #153) is punted, so provision it by hand. There is no local admission
-override.
+thread; automatic resume reuses the thread already there instead. **Couch keeps
+one thread per repository path**, and refuses a start at a path that already
+holds a live, detached or parked one -- several threads at one path without
+separate worktrees is confusing, and per-repo policy is a design space of its
+own. Debris does not block: a path whose only rows are unusable is still
+startable — with one exception, a record couch cannot READ at all, which blocks
+its whole repository because reading it is what would have said which path it
+holds. That refusal names the record's file, since in total version skew it is
+the only next step left. Two threads in one TREE at different subdirectories
+remain legal; only the exact path is one-at-a-time.
+Capacity limits used to come from Ariadne's fleet policy (`sdlc fleet policy`);
+that was a defence of the multi-owner case and went with the couch-lite rescope
+(Pair #170), along with its `provision-worktree` refusal.
 
 Launching Couch allocates a pty for the session and **reserves the bottom row of
 your screen** for a status line. The path argument is optional and defaults to
-`.`, so `cd <repo> && couch` is the usual form — the first session is "home".
+`.`, so `cd <repo> && couch` is the usual form.
 
 For a new thread, the TUI's agent field resolves explicitly selected agents,
 then the last agent
-successfully used at that exact physical path, then the root actor's
-`$PAIR_AGENT` (or Claude when Couch was started outside Pair). Arguments resolve
+successfully used at that exact physical path, then couch's own `$PAIR_AGENT`
+(or Claude when Couch was started outside Pair). Arguments resolve
 independently: Couch reuses the selected agent's last successful arguments at
 that path, never another agent's; otherwise it uses that agent's repository
 default. Thus switching Claude → Codex → Claude restores each harness's own
@@ -333,21 +354,53 @@ selection, cancellation, fork failure, and registration failure do not. For
 now, change a repository default by launching Pair directly in that repo with
 `pair -- <agent-arguments>` before returning to Couch.
 
-**`Ctrl-Space` belongs to couch while a session is hosted.** It is intercepted
-before the child sees it, in both encodings a terminal may send it (the legacy
-NUL and the Kitty protocol's `CSI 32;5u`), so it will not reach your editor or
-agent inside a couch-hosted session. Every other chord — `Alt+j`, `Alt+k`,
+**`Ctrl-Space` and `Ctrl-Backspace` belong to couch while a session is hosted.**
+Both are intercepted before the child sees them, in both encodings a terminal
+may send them (the legacy bytes and the Kitty protocol's `CSI 32;5u` and
+`CSI 127;5u`), so they will not reach your editor or agent inside a
+couch-hosted session. In legacy encoding `Ctrl-Backspace` is `^H`, so that
+chord is taken from the child too; under the Kitty protocol, which zellij
+enables, the two separate cleanly. Every other chord — `Alt+j`, `Alt+k`,
 `Alt+t` and the rest — passes through untouched.
 
-Focus has three levels. From a non-home actor, `ctrl-space` returns to the first
-actor couch hosted (home); from home it opens the thread switcher. Printable
-input filters the current list from memory. Use `↑↓` and `Enter` to select and
-switch/resume; `Tab` or `Right` opens the selected thread's actions, while
-`Left` or `Escape` restores its parent. Rows expose only proven `live` and exact
-verified `parked` states. `Alt+x` on a non-home actor
-parks only that actor; `Alt+x` on the home actor confirms **Leave Couch**, parks
-every active actor sequentially, and returns to the parent shell only after all
-parks are verified. `Escape` clears the filter or returns to an attached actor;
+`Ctrl-Space` means one thing: **open the switcher**, from any actor, focused on
+the actor with the most recent notification (or on the thread you are leaving
+when nothing is paging). There is no focus ladder and no home actor — following
+a page is one key plus `Enter`.
+
+`Ctrl-Backspace` means **previous**: return to the actor you were working in.
+One slot, not a stack, and a notification hop never spends it — so chasing two
+pages, or detouring manually to check a third thread, still brings you back to
+where you actually were. Returning home twice is deliberately a no-op: you are
+home, and there is nowhere to bounce to.
+
+Printable input filters the current list from memory (typeahead). Use `↑↓` and `Enter` to
+select and switch/resume; `Tab` or `Right` opens the selected thread's actions,
+while `Left` or `Escape` restores its parent. Rows expose only proven `live`, exact
+verified `parked`, and proved `detached` states — and a row is offered only when
+it can actually be acted on, so an offered detached row is one `Enter`
+reattaches. The two lifecycle chords read as a grid: the **key** picks what
+happens (`Alt+x` parks — the agent stops; `Alt+d` detaches — the agent keeps
+running behind its zellij session and only the client goes) and **where you
+press it** picks the scope (in an actor it means that thread; in the switcher it
+means every live thread, and then leaves couch). So `Alt+d` in the switcher is
+how you quit: everything keeps running, you land back in your shell, and a later
+`couch` reattaches. `Alt+x` there parks every live thread first, behind a
+confirmation that names how many agents it stops. Confirmation follows the key,
+not the surface — park is confirmed at both scopes and detach at neither.
+`Alt+n` (or `Ctrl+Alt+n`) is couch's third intercepted chord and does not follow
+that grid: it **relaunches** — a genuinely new Pair process running the current
+binary, keeping the agent conversation — which is how you pick up a rebuilt Pair
+without losing the session you are developing inside. Pair's own in-place reload
+cannot do it, because it re-enters its loop in the same process image. In the
+switcher it relaunches the highlighted row; in an actor it relaunches that actor
+and leaves you in the switcher while the new Pair boots. Leaving
+never depends on there being something live to act on, so an empty switcher is
+never a dead end. `Tab → archive` removes a thread from couch and keeps its record: it is the
+operator's delete, offered on every row couch is not hosting, and undone by
+moving the file back from `threadstore/archive/` and re-adding its address to
+the manifest. `couch --archived` lists what has been retired. `Escape` clears
+the filter or returns to an attached actor;
 with no live actor, the switcher stays open and reports why. Press `ctrl-space` again from the
 switcher to open the path/agent start form; an empty path uses the existing `.`
 default. In the path field, `Tab` asynchronously completes directories only:
@@ -357,9 +410,13 @@ cycle that menu, `Enter` accepts, and `Escape` closes it. With the menu closed,
 appear only after a leading dot; directory symlinks remain navigable. Colons and digits are
 ordinary filter text—there is no command namespace or numbered jump mode.
 Slow start/park/resume actions show local progress, and validation or operation
-failures remain in the switcher banner. Unsupported or ambiguous lifecycle
-records stay available through `couch --list` / `couch --show` diagnostics rather than being
-mislabeled in the ordinary switcher.
+failures remain in the switcher banner. Every thread in the store gets a row
+and says what it is: `live`, `detached`, `parked`, `parking…`, or a reason it
+cannot be entered — `binding lost — repairable`, `stale — couch exited
+unexpectedly`, `session gone`, and so on. Nothing is hidden for want of proof;
+`Enter` on a row it cannot act on explains instead of doing nothing, and
+`couch --list` / `couch --show` report the same population and the same states
+with more room to describe them.
 
 ## Command Usage
 

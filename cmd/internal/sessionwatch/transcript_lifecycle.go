@@ -67,7 +67,11 @@ func publishAuthorizedLifecycle(opts Options, rt Runtime, journalPath string, tr
 		}
 		transcriptPath = validation.Observations[0].Entry.Artifact.RelativePath
 		for _, result := range validation.Results {
-			generation = string(result.Fingerprint.GenerationToken)
+			// GenerationID, not GenerationToken: the raw token is optional and
+			// in practice never present -- Linux never populates it and APFS
+			// reports st_gen as 0 -- so requiring it rejected every artifact on
+			// every platform, and no lifecycle record was ever written.
+			generation = result.Fingerprint.GenerationID()
 			break
 		}
 		break

@@ -55,8 +55,8 @@ func TestStartTransactionIntegratesWithThreadStoreCAS(t *testing.T) {
 	if err != nil || claimed.Revision != created.Revision+1 {
 		t.Fatalf("claim = %+v, %v", claimed, err)
 	}
-	if err := store.DeleteUnstartedThread(created.Address, claimed.Revision); err == nil {
-		t.Fatal("legacy unstarted rollback removed a nonce-tracked start")
+	if err := store.DeletePristineThread(created.Address); err == nil {
+		t.Fatal("pristine rollback removed a nonce-tracked start")
 	}
 	helper, err := store.AdvanceStart(created.Address, claimed.Revision, StartEvent{
 		Kind: StartHelperRecorded, Nonce: "start-0123456789abcdef",

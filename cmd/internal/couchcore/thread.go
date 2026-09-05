@@ -1,6 +1,8 @@
 package couchcore
 
 import (
+	"encoding/json"
+	"fmt"
 	"time"
 
 	"github.com/xianxu/pair/cmd/internal/launcher"
@@ -37,12 +39,14 @@ type ThreadStartClaim struct {
 }
 
 type ThreadIncarnation struct {
-	LegacyActorID ActorID           `json:"legacy_actor_id,omitempty"`
-	PID           int               `json:"pid,omitempty"`
-	Identity      string            `json:"identity,omitempty"`
-	State         IncarnationState  `json:"state"`
-	StartedAt     time.Time         `json:"started_at,omitempty"`
-	Policy        *PolicyResult     `json:"policy,omitempty"`
+	PID       int              `json:"pid,omitempty"`
+	Identity  string           `json:"identity,omitempty"`
+	State     IncarnationState `json:"state"`
+	StartedAt time.Time        `json:"started_at,omitempty"`
+	// RepoIdentity is the Git common directory: the key under which this path's
+	// successful launch profile is remembered. It used to be read out of the
+	// fleet-policy record that admission attached here (pair#170 M4).
+	RepoIdentity  string            `json:"repo_identity,omitempty"`
 	Start         *ThreadStartClaim `json:"start,omitempty"`
 	LaunchProfile *LaunchProfile    `json:"launch_profile,omitempty"`
 }
@@ -54,7 +58,6 @@ type ThreadRecord struct {
 	WorkingPath         string              `json:"working_path"`
 	CreatedAt           time.Time           `json:"created_at"`
 	Revision            uint64              `json:"revision"`
-	ClaimGeneration     uint64              `json:"claim_generation"`
 	Reservation         bool                `json:"reservation,omitempty"`
 	Name                string              `json:"name,omitempty"`
 	Description         string              `json:"description,omitempty"`
@@ -88,7 +91,7 @@ func toPersistedThreadRecord(record ThreadRecord) threadrecord.Record {
 	out := threadrecord.Record{
 		SchemaVersion: record.SchemaVersion, Address: toPersistedThreadAddress(record.Address),
 		StartingPath: record.StartingPath, WorkingPath: record.WorkingPath, CreatedAt: record.CreatedAt,
-		Revision: record.Revision, ClaimGeneration: record.ClaimGeneration, Reservation: record.Reservation,
+		Revision: record.Revision, Reservation: record.Reservation,
 		Name: record.Name, Description: record.Description, PublishedSummary: record.PublishedSummary,
 		Incarnations: make([]threadrecord.Incarnation, len(record.Incarnations)),
 	}
@@ -115,7 +118,7 @@ func toPersistedThreadRecord(record ThreadRecord) threadrecord.Record {
 	}
 	for i, incarnation := range record.Incarnations {
 		out.Incarnations[i] = threadrecord.Incarnation{
-			LegacyActorID: string(incarnation.LegacyActorID), PID: incarnation.PID,
+			PID:      incarnation.PID,
 			Identity: incarnation.Identity, State: string(incarnation.State), StartedAt: incarnation.StartedAt,
 		}
 		if incarnation.Start != nil {
@@ -127,14 +130,7 @@ func toPersistedThreadRecord(record ThreadRecord) threadrecord.Record {
 				out.Incarnations[i].Start.LaunchProfile = &threadrecord.LaunchProfile{Agent: profile.Agent, Argv: profile.Argv}
 			}
 		}
-		if incarnation.Policy != nil {
-			out.Incarnations[i].Policy = &threadrecord.Policy{
-				PolicyVersion: incarnation.Policy.PolicyVersion, PolicyDigest: incarnation.Policy.PolicyDigest,
-				RepoIdentity: incarnation.Policy.RepoIdentity, AdmissionKey: incarnation.Policy.AdmissionKey,
-				Capacity:   threadrecord.PolicyCapacity{Kind: string(incarnation.Policy.Capacity.Kind), Limit: incarnation.Policy.Capacity.Limit},
-				OnCapacity: string(incarnation.Policy.OnCapacity),
-			}
-		}
+		out.Incarnations[i].RepoIdentity = incarnation.RepoIdentity
 		if incarnation.LaunchProfile != nil {
 			profile := cloneLaunchProfile(*incarnation.LaunchProfile)
 			out.Incarnations[i].LaunchProfile = &threadrecord.LaunchProfile{Agent: profile.Agent, Argv: profile.Argv}
@@ -148,7 +144,7 @@ func fromPersistedThreadRecord(record threadrecord.Record) ThreadRecord {
 		SchemaVersion: record.SchemaVersion,
 		Address:       ThreadAddress{RepoScope: record.Address.RepoScope, Tag: ThreadTag(record.Address.Tag)},
 		StartingPath:  record.StartingPath, WorkingPath: record.WorkingPath, CreatedAt: record.CreatedAt,
-		Revision: record.Revision, ClaimGeneration: record.ClaimGeneration, Reservation: record.Reservation,
+		Revision: record.Revision, Reservation: record.Reservation,
 		Name: record.Name, Description: record.Description, PublishedSummary: record.PublishedSummary,
 		Incarnations: make([]ThreadIncarnation, len(record.Incarnations)),
 	}
@@ -175,7 +171,7 @@ func fromPersistedThreadRecord(record threadrecord.Record) ThreadRecord {
 	}
 	for i, incarnation := range record.Incarnations {
 		out.Incarnations[i] = ThreadIncarnation{
-			LegacyActorID: ActorID(incarnation.LegacyActorID), PID: incarnation.PID,
+			PID:      incarnation.PID,
 			Identity: incarnation.Identity, State: IncarnationState(incarnation.State), StartedAt: incarnation.StartedAt,
 		}
 		if incarnation.Start != nil {
@@ -187,13 +183,18 @@ func fromPersistedThreadRecord(record threadrecord.Record) ThreadRecord {
 				out.Incarnations[i].Start.LaunchProfile = &profile
 			}
 		}
-		if incarnation.Policy != nil {
-			out.Incarnations[i].Policy = &PolicyResult{
-				PolicyVersion: incarnation.Policy.PolicyVersion, PolicyDigest: incarnation.Policy.PolicyDigest,
-				RepoIdentity: incarnation.Policy.RepoIdentity, AdmissionKey: incarnation.Policy.AdmissionKey,
-				Capacity:   PolicyCapacity{Kind: PolicyCapacityKind(incarnation.Policy.Capacity.Kind), Limit: incarnation.Policy.Capacity.Limit},
-				OnCapacity: CapacityAction(incarnation.Policy.OnCapacity),
-			}
+		// The tombstone has to be READ, not merely tolerated. A pre-M4
+		// incarnation carries its repository identity inside `policy` and has
+		// no top-level `repo_identity`, so ignoring the tombstone loads it as
+		// "" -- and advanceSuccessfulStart refuses an empty identity. That
+		// fires whenever an interrupted start written by the old binary is
+		// promoted after the upgrade: reconcileInterruptedStarts runs inside
+		// New(), so couch would refuse to START AT ALL. Decoding without
+		// carrying the value forward is the same whole-store blast radius the
+		// tombstone exists to prevent.
+		out.Incarnations[i].RepoIdentity = incarnation.RepoIdentity
+		if out.Incarnations[i].RepoIdentity == "" {
+			out.Incarnations[i].RepoIdentity = deprecatedPolicyRepoIdentity(incarnation.DeprecatedPolicy)
 		}
 		if incarnation.LaunchProfile != nil {
 			profile := LaunchProfile{Agent: incarnation.LaunchProfile.Agent, Argv: cloneArgv(incarnation.LaunchProfile.Argv)}
@@ -207,10 +208,6 @@ func cloneThreadRecord(record ThreadRecord) ThreadRecord {
 	copy := record
 	copy.Incarnations = append([]ThreadIncarnation{}, record.Incarnations...)
 	for i := range copy.Incarnations {
-		if record.Incarnations[i].Policy != nil {
-			policy := *record.Incarnations[i].Policy
-			copy.Incarnations[i].Policy = &policy
-		}
 		if record.Incarnations[i].Start != nil {
 			start := *record.Incarnations[i].Start
 			if start.LaunchProfile != nil {
@@ -292,4 +289,64 @@ func fromPersistedParkTransaction(transaction threadrecord.ParkTransaction) Park
 		}
 	}
 	return out
+}
+
+// deprecatedPolicyRepoIdentity recovers the one field anything still wants from
+// the pre-pair#170 `policy` object. Best-effort by design: a malformed or
+// absent tombstone yields "", which is exactly the state the caller already
+// handles. It never resurrects the rest of the record -- capacity, provider
+// version and declaration digest went with admission and have no reader.
+func deprecatedPolicyRepoIdentity(raw json.RawMessage) string {
+	if len(raw) == 0 {
+		return ""
+	}
+	var legacy struct {
+		RepoIdentity string `json:"repo_identity"`
+	}
+	if err := json.Unmarshal(raw, &legacy); err != nil {
+		return ""
+	}
+	return legacy.RepoIdentity
+}
+
+// archivableRecord is the ONE occupancy rule archiving asks about.
+//
+// It used to be inlined in the store with a narrower set than DecideResume's --
+// it refused a live incarnation and an open park, but admitted `creating` and
+// `unknown`. That gap is reachable: archiving a thread mid-start passed the
+// guard, so Quiesce killed the session being created while the spawn was still
+// in flight, leaving the console owning a thread the store no longer lists --
+// precisely the state the guard exists to prevent.
+//
+// Occupancy is now one predicate over incarnation states, shared, and it
+// matches what resume refuses for the same reason: an occupied thread is one
+// something else is still doing something to.
+func archivableRecord(record ThreadRecord) error {
+	if record.Park != nil {
+		return fmt.Errorf("thread %s has a park in flight; let it finish before archiving", record.Address.Tag)
+	}
+	if occupied, state := occupiedIncarnation(record); occupied {
+		return fmt.Errorf("thread %s is %s; park or detach it before archiving", record.Address.Tag, state)
+	}
+	return nil
+}
+
+// hasOccupiedIncarnation is occupiedIncarnation's boolean form, for callers that
+// need the fact rather than which state produced it.
+func hasOccupiedIncarnation(record ThreadRecord) bool {
+	occupied, _ := occupiedIncarnation(record)
+	return occupied
+}
+
+// occupiedIncarnation reports whether any incarnation is still doing something:
+// running, starting, or in a state couch cannot vouch for.
+func occupiedIncarnation(record ThreadRecord) (bool, IncarnationState) {
+	for _, state := range []IncarnationState{IncarnationLive, IncarnationCreating, IncarnationUnknown} {
+		for _, incarnation := range record.Incarnations {
+			if incarnation.State == state {
+				return true, state
+			}
+		}
+	}
+	return false, ""
 }

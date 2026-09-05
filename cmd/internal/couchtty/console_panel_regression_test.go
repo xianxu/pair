@@ -98,14 +98,14 @@ func TestExpectedParkExitDoesNotPublishActorExitNotice(t *testing.T) {
 			if !completionFirst {
 				con.finishOperation(completion)
 			}
-			if latest := con.feed.Latest(); strings.Contains(latest, "exited (0)") {
+			if latest := con.feed.Row().Body; strings.Contains(latest, "exited (0)") {
 				t.Fatalf("expected park shutdown leaked actor exit notice: %q", latest)
 			}
 		})
 	}
 }
 
-func TestActiveNonRootExitFallsBackToRootForMenuActions(t *testing.T) {
+func TestActiveExitFallsBackToASurvivingActorForMenuActions(t *testing.T) {
 	con := New(hostty.NewFakeHost(ptychild.Size{Rows: 24, Cols: 80}), nil)
 	t.Cleanup(con.Stop)
 	root := ptychild.NewFakeChild(nil)

@@ -18,12 +18,32 @@ func (s *ThreadStore) ApplyThreadMetadata(address ThreadAddress, expectedRevisio
 	})
 }
 
+// ResolveThreadReference answers "which thread is this", and it sees the
+// UNREADABLE set too.
+//
+// The rule the projections established -- a record the decoder rejects still
+// produces a visible row -- has to hold for every consumer that answers whether
+// a thread exists, or the surfaces disagree: `couch --list` printed a row and
+// `couch --show <tag>` said "thread reference not found" about the very same
+// thread. Archive was fixed once by adding a second resolver that bypasses
+// decoding, which is a per-consumer patch where a shared rule belongs.
+//
+// An unreadable record participates by ADDRESS only. Its tag can be matched;
+// its path and name cannot, because reading them is what failed.
 func (c *Couch) ResolveThreadReference(repoScope, ref string) ([]ThreadRecord, error) {
 	snapshot, err := c.Threads.Snapshot()
 	if err != nil {
 		return nil, err
 	}
-	return ResolveThreadReference(snapshot.Records, repoScope, ref)
+	records := snapshot.Records
+	for _, address := range snapshot.Unreadable {
+		// Address ONLY. Not Reservation: ClassifyThread reads that flag as
+		// `never-started`, so a consumer projecting this output would relabel an
+		// unreadable record as a known state -- the exact conflation the split
+		// exists to prevent.
+		records = append(records, ThreadRecord{Address: address})
+	}
+	return ResolveThreadReference(records, repoScope, ref)
 }
 
 func (c *Couch) ApplyThreadMetadata(address ThreadAddress, patch ThreadMetadataPatch) (ThreadRecord, error) {

@@ -117,6 +117,24 @@ func TestSessionQuiescenceLive(t *testing.T) {
 	}
 }
 
+// controlledZellijFixture re-starts the session under a handle the caller can
+// manipulate. startControlledZellijSession keeps its fixture private, and the
+// detach case needs to kill the client specifically.
+func controlledZellijFixture(t *testing.T, session string) *pairlifecycletest.ControlledZellij {
+	t.Helper()
+	if os.Getenv("PAIR_LIVE_COUCH") != "1" {
+		t.Skip("set PAIR_LIVE_COUCH=1")
+	}
+	ctx, cancel := context.WithTimeout(t.Context(), 10*time.Second)
+	defer cancel()
+	fixture, err := pairlifecycletest.StartControlledZellij(ctx, session)
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() { _ = fixture.Close() })
+	return fixture
+}
+
 func startControlledZellijSession(t *testing.T) string {
 	t.Helper()
 	if os.Getenv("PAIR_LIVE_COUCH") != "1" {
@@ -132,4 +150,54 @@ func startControlledZellijSession(t *testing.T) string {
 	t.Cleanup(func() { _ = fixture.Close() })
 
 	return session
+}
+
+// TestSessionDetachLive is the conformance counterpart for Couch's detach
+// (`pair#170` M2), and the inverse assertion to TestSessionQuiescenceLive: that
+// one proves a session can be made to GO, this one proves it STAYS when only
+// its client dies.
+//
+// Everything detach rests on is this one external behaviour -- kill the client,
+// keep the agent -- and it is modelled by a fake everywhere else in the suite.
+// Without this, the fake models a state nothing confirms.
+func TestSessionDetachLive(t *testing.T) {
+	fixture := controlledZellijFixture(t, fmt.Sprintf("pair-detach-live-%d", os.Getpid()))
+	session := fixture.Session
+
+	state := func() (SessionState, bool) {
+		t.Helper()
+		sessions, err := (ZellijSource{}).Snapshot()
+		if err != nil {
+			t.Fatalf("snapshot zellij sessions: %v", err)
+		}
+		for _, candidate := range sessions {
+			if candidate.Name == session {
+				return candidate.State, true
+			}
+		}
+		return "", false
+	}
+
+	if got, ok := state(); !ok || got != SessionAttached {
+		t.Fatalf("before detach: state = %q present = %v, want attached", got, ok)
+	}
+
+	if err := fixture.KillClient(); err != nil {
+		t.Fatalf("kill the zellij client: %v", err)
+	}
+
+	deadline := time.Now().Add(10 * time.Second)
+	for {
+		got, ok := state()
+		if ok && got == SessionDetached {
+			return
+		}
+		if !ok {
+			t.Fatal("the session vanished with its client -- detach would have nothing to reattach to")
+		}
+		if time.Now().After(deadline) {
+			t.Fatalf("session state = %q after the client died, want detached", got)
+		}
+		time.Sleep(100 * time.Millisecond)
+	}
 }
