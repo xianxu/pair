@@ -334,6 +334,45 @@ the same declared operation surface. Each accepted slow action paints an
 identity-owned spinner before dispatch, and stale completions cannot mutate a
 replacement frame.
 
+**Mouse ownership is the hard half, because the mode is terminal-GLOBAL**
+(`pair#172`). couch asks the terminal for click reporting in SGR encoding
+(`?1000;1006`, never `?1002`/`?1003` — motion arrives at pointer rates for a
+feature that wants click rates), so a child that never asked starts receiving
+reports unless something withholds them. `RouteMouseReport` is that decision, and
+it is three-way rather than a bool: "the child asked for this" and "the child
+must never see this" are the two cases the feature exists to separate.
+
+- couch's own row (the last, held by reservation): a button-0 press acts;
+  anything else forwards if the child has mouse mode, else is swallowed.
+- With the SWITCHER up couch owns the whole screen, because no child is
+  displayed and a forward would deliver the click somewhere invisible.
+- Everywhere else: forward verbatim if the child enabled tracking, else swallow.
+
+The release rule is deliberately NARROWER than `termcmd`'s, which forwards every
+release unconditionally — correct where the child is already receiving presses,
+wrong here, where a child with no tracking must receive nothing and a release it
+never saw a press for is an unpaired event.
+
+couch owns only its OWN mode. `ptychild` replay re-asserts the child's across a
+switch, and a second writer would be two authorities for one terminal state. But
+couch RE-ASSERTS its own on every paint: a child writing DECRST `?1000l` turns
+couch's clicks off globally, and without the re-assert the feature would simply
+stop with no signal. DECSET is additive and idempotent, so this cannot clobber a
+mode the child set for itself.
+
+A click dispatches the SAME declared `switch` (or `resume`) operation Enter
+dispatches, chosen by the same `enterOperationFor` rule — one authority, because
+a restatement had already diverged on its first day. The one difference is that a
+click is always MANUAL: it suppresses the attention capture, so the landing is
+`arrivalOrdinary` and `ctrl+backspace` undoes it even on a paging actor, where
+Enter would be a non-pinning notification hop.
+
+The `Interceptor` had to learn the SGR shape for any of this to be possible: it
+forwards whatever it does not recognise, so couch could not WITHHOLD a report
+until it could see one. The hold is bounded (`mouseinput.MaxReport`) — an
+unterminated introducer held forever parks every following keystroke, which is
+`#127` and has shipped once.
+
 **A click maps to an ACTOR, and the geometry comes from the render** (`pair#172`
 M1). `RenderStatusRow` returns `RenderedStatusRow{Body, Chips}`: each chip's
 column span is recorded by the same pass that CLIPS chips to width, so a chip the

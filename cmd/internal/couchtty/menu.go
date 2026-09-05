@@ -27,6 +27,7 @@ var menuControls = []MenuControl{
 	{Keys: "Ctrl-Backspace", Action: "previous"},
 	{Keys: "Alt+d", Action: "detach this thread · all + leave couch here"},
 	{Keys: "Alt+x", Action: "park this thread · all + leave couch here"},
+	{Keys: "click", Action: "an actor's chip or row switches to it · empty space does nothing"},
 	{Keys: "Alt+n", Action: "relaunch: new Pair binary, same conversation (Ctrl+Alt+n aliases it)"},
 	{Keys: "Escape", Action: "clear/back"},
 	{Keys: "Tab → archive", Action: "remove a thread from couch, keeping its record"},
@@ -351,16 +352,15 @@ func ReduceMenu(state MenuState, event MenuEvent) (MenuState, []MenuEffect) {
 		if !ok || !menuThreadActionable(thread) {
 			return next, nil
 		}
-		// Live rows switch; parked and detached rows resume -- the same rule
-		// Enter uses, asked the same way.
-		operation := "switch"
-		if thread.Resumable() {
-			operation = "resume"
-		}
 		next.Frames = next.Frames[:1]
 		next.Frames[0].SelectedAddress = event.Address
-		state, effects := dispatchThreadOperation(next, operation, event.Address)
-		state.InFlight.Manual = true
+		state, effects := dispatchThreadOperation(next, enterOperationFor(thread), event.Address)
+		// Only mark a dispatch that HAPPENED. dispatchThreadOperation refuses
+		// when another operation is in flight and returns the state unchanged;
+		// marking that would leave Manual set on someone else's operation.
+		if len(effects) > 0 {
+			state.InFlight.Manual = true
+		}
 		return state, effects
 	}
 	if event.Kind == MenuEventRefreshStarted {
@@ -469,14 +469,7 @@ func reduceRootKey(state MenuState, key PanelKey) (MenuState, []MenuEffect) {
 			state.Notice = errorMenuNotice(thread.Label() + ": " + unusableThreadNotice(thread))
 			return state, nil
 		}
-		// Live rows switch; parked and detached rows both resume. Parked is
-		// cold and detached is warm, but the effect is one `pair resume` either
-		// way, so this asks Resumable() rather than enumerating states.
-		operation := "switch"
-		if thread.Resumable() {
-			operation = "resume"
-		}
-		return dispatchThreadOperation(state, operation, thread.Address)
+		return dispatchThreadOperation(state, enterOperationFor(thread), thread.Address)
 	case KeyTab:
 		thread, ok := selectedMenuThread(state)
 		if !ok {
@@ -599,6 +592,20 @@ func pastParticiple(operation string) string {
 		return "relaunched"
 	}
 	return operation + "ed"
+}
+
+// enterOperationFor is what landing on a row DOES: live rows switch, parked and
+// detached rows both resume. Parked is cold and detached is warm, but the effect
+// is one `pair resume` either way, so this asks Resumable() rather than
+// enumerating states.
+//
+// One authority, because a click must take Enter's rule rather than a restatement
+// of it -- the restatement had already diverged on its first day (pair#172).
+func enterOperationFor(thread couchcore.ActionableThreadSummary) string {
+	if thread.Resumable() {
+		return "resume"
+	}
+	return "switch"
 }
 
 func reduceActionKey(state MenuState, key PanelKey) (MenuState, []MenuEffect) {

@@ -198,14 +198,14 @@ middle one is hard.
       of the render pass that already clips them, actor extents out of the menu
       renderer, point-to-**actor** hit-testing for actors that occupy a variable
       number of lines, and SGR report parsing.
-- [ ] M2 — mode ownership, which the Spec calls the deliverable. Mouse reporting
+- [ ] M2 — routing, ownership AND wiring. Merged with what was M3; see
+      `## Revisions`. Mouse reporting is a terminal-GLOBAL mode, Mouse reporting
       is a terminal-GLOBAL mode, so couch cannot enable it for itself without
       deciding what the child sees: scan the child's DECSET/DECRST to learn which
-      modes it enabled, hold that per PANE, and decide couch / forward / swallow
-      from it. The chunk-boundary case is the first test, not an afterthought.
-- [ ] M3 — wiring: the click routed into the switch path `ctrl-space`+Return
-      already takes, recorded as a MANUAL switch so `ctrl+backspace` undoes it,
-      plus the `pair#166` re-evaluation the Done-when requires.
+      modes it enabled (from `ptychild.Screen`, which already tracks them), and
+      decide couch / forward / swallow from it — plus the click routed into the
+      switch path `ctrl-space`+Return already takes, recorded as a MANUAL switch
+      so `ctrl+backspace` undoes it, and the `pair#166` re-evaluation.
 
 ## Log
 
@@ -273,4 +273,25 @@ tree, and this Spec is where that instruction came from.
   geometry.
 
 Design: `workshop/plans/000172-mouse-support-status-bar-and-switcher-plan.md`.
+
+### 2026-09-05 — M2 and M3 are one boundary, because they shipped as one
+
+**Reason.** The routing, the ownership and the wiring landed in a single commit
+(`f95da992`), so there was one boundary in fact. Closing them separately would
+review the combined window once and then review an empty range — the redundant
+double-log AGENTS.md §3 warns about, and `pair#182`'s review already caught me
+hand-ticking a milestone with no verdict behind it.
+
+The boundary review found this before I acted on it (BR-15): "M2 and M3
+production code landed inside the M1 window, so their own boundary reviews open
+on an empty range."
+
+**Delta.** M3's scope folds into M2. The issue keeps two milestones — the pure
+layer, and everything that touches the terminal — which is the split the work
+actually had. I over-split at plan time: three milestones assumed mode ownership
+was large, and it was not, because `ptychild.Screen` already owned the child's
+half.
+
+**Not done:** faking a second close. A tick without a `Review-Verdict` is a
+boundary marker where no boundary happened.
 

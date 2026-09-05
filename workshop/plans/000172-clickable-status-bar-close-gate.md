@@ -172,6 +172,161 @@ rounds:
           round: 2
       boundary: M1
       blocked: true
+    - "n": 3
+      timestamp: "2026-09-05T13:44:27-07:00"
+      agent: claude
+      dispose:
+        - id: BR-1
+          disposition: addressed
+          note: Disposition table is in the plan and in RouteMouseReport; release-to-a-no-mouse-child swallows, MaxReport bounds the hold, MouseHit.Raw carries the wire bytes.
+          round: 3
+        - id: BR-2
+          disposition: addressed
+          note: Task 12 now names menu.go:19, README.md, atlas/couch.md and the readme_test guard.
+          round: 3
+        - id: BR-3
+          disposition: not-addressed
+          note: Status flipped to `planned — M2`, but the symbol hostty.MouseClickTracking still exists nowhere and M2 shipped EnableMouseClicks/DisableMouseClicks in this same window; no Revisions entry was appended.
+          round: 3
+        - id: BR-4
+          disposition: not-addressed
+          note: The named mutation reddens only because the fixture's `beta` is Active; `(a.Active || used-start >= textwidth.Width(label))` still leaves the whole suite green. Neither ask landed.
+          round: 3
+        - id: BR-5
+          disposition: not-addressed
+          note: 'Verified: clampExtents -> `return extents` is green, and `index := len(lines) + start` is green. Neither the clipped nor the scrolled path is reachable.'
+          round: 3
+        - id: BR-6
+          disposition: addressed
+          note: mouseinput_test.go exists and covers Parse/ParsePrefix/Find/IsPrefix/MaxReport directly; the out-of-scope row remains pair#188's structural issue.
+          round: 3
+        - id: BR-7
+          disposition: addressed
+          note: ChipSpan, ColumnToActor, ActorExtent and PointToActor all state ZERO-BASED and name the 1-based conversion; onMouse does it once.
+          round: 3
+        - id: BR-8
+          disposition: addressed
+          note: 000173 -> 000192 in the comment and all six entries; workshop/issues/000192-... exists.
+          round: 3
+        - id: BR-9
+          disposition: not-addressed
+          note: reserve.go:93-94 still runs the RenderStatusRow doc block straight into ChipSpan's; RenderStatusRow (:133) has no doc comment. A second instance now exists at menu.go:199-208.
+          round: 3
+        - id: BR-10
+          disposition: not-addressed
+          note: termcmd/run.go:453,459 still switch on the literals 64 and 65 while mouseinput.WheelUp/WheelDown exist.
+          round: 3
+        - id: BR-11
+          disposition: not-addressed
+          note: mousePressEvent (run.go:579) and parseSGRMousePressPrefix (:585) still have zero callers.
+          round: 3
+        - id: BR-12
+          disposition: addressed
+          note: keys.go:301 enforces MaxReport and TestAnUnterminatedMousePrefixDoesNotParkTheKeyboard pins it.
+          round: 3
+        - id: BR-13
+          disposition: not-addressed
+          note: 'Verified: deleting the run-merge at menu_render.go:463-467 leaves the suite green.'
+          round: 3
+      findings:
+        - id: BR-14
+          severity: Critical
+          title: Three shipped M2/M3 behaviours are unpinned - removing each leaves the whole couchtty suite green
+          detail: |-
+            This is the 2nd finding in family `unpinned-exported-shape`. Do NOT patch the three
+            sites. State the rule: every behaviour this issue introduces is pinned by a test that
+            reddens when the behaviour is removed, and the enumeration is already written - the
+            plan's "Done-when to Task map". The check is the mutation, not the green run.
+            Measured prevalence, all verified in the working tree and restored: deleting
+            c.writeOwn(hostty.EnableMouseClicks) (console.go:528) - green; discarding
+            child.child.Write(hit.Raw) (console.go:1503) - green; deleting `&& !origin.Manual`
+            (console.go:1455) - green, which is the marker the commit message headlines and the
+            one Plan Task 11 Step 2 calls not optional. Four map rows have no test at all:
+            TestClickInTheSwitcherTakesTheReturnPath, TestClickIsAManualSwitch,
+            TestForwardPreservesRawBytes, TestTeardownDisablesMouseTracking.
+          family: unpinned-exported-shape
+          round: 3
+        - id: BR-15
+          severity: Important
+          title: M2 and M3 production code landed inside the M1 window, so their own boundary reviews open on an empty range
+          detail: |-
+            f95da992 ships routing, the Interceptor's SGR arm, couch's mode enable, onMouse and the
+            manual-switch marker - all tagged M2/M3 in the plan - inside the window this M1 gate
+            reviews. Once M1 closes at f95da992, BASE_SHA for M2 and M3 is that commit, so the
+            mandatory fresh-eyes review for the milestone the plan calls "the work" sees nothing.
+            That is the gate that was supposed to catch the Critical above. Either split so M2/M3
+            land after M1 closes, or close all three against this window and pay their tests now.
+          family: milestone-scope-overrun
+          round: 3
+        - id: BR-16
+          severity: Important
+          title: couch's own mouse mode is written once and never re-asserted, so a child's DECRST silently ends the feature
+          detail: |-
+            This is the 3rd finding in family `unspecified-event-policy`. Do NOT add a re-assert
+            and stop. The rule the family keeps asking for: the disposition table must be crossed
+            with the CHILD's mode-transition events, not only the operator's report events.
+            console.go:528 is the only write of EnableMouseClicks; ?1000 is terminal-global, so a
+            child emitting \x1b[?1000l - nvim does this on exit - turns couch's clicks off for the
+            whole terminal with nothing to restore them. ptychild.Screen.Mouse() already observes
+            the transition, so couch has the signal and no policy. Enumeration: child enables;
+            child disables; child exits with mouse on; switch between two children with different
+            modes; replay re-asserting the child's modes over couch's.
+          family: unspecified-event-policy
+          round: 3
+        - id: BR-17
+          severity: Important
+          title: The click reducer restates Enter's switch/resume rule and diverges from it, and sets Manual on a refused dispatch
+          detail: |-
+            menu.go:349-365 duplicates reduceRootKey's operation choice (menu.go:475-479); a
+            non-actionable row gets a notice from Enter and silence from a click; and
+            state.InFlight.Manual = true (menu.go:363) runs unconditionally, including when
+            dispatchMenuOperation refused because another operation was in flight
+            (menu.go:1542-1544) - writing the flag onto a different operation's origin. The
+            Done-when requires the same handler, not a parallel one (ARCH-DRY). Extract the
+            actionable-thread to operation decision into one function both arms call, and set
+            Manual only when the dispatch produced effects.
+          family: parallel-handler-restates-decision
+          round: 3
+        - id: BR-18
+          severity: Important
+          title: atlas and README cover M1's geometry but not the routing, ownership and click gesture that shipped in the same window
+          detail: |-
+            atlas/couch.md gained the M1 geometry in 1c895d4f and nothing for f95da992: the
+            four-way disposition table, the narrowed release rule, couch's ownership of
+            ?1000;?1006, and the manual-switch classification. menuControls (menu.go:19-33) has no
+            mouse row, so TestREADMEDocumentsEveryPanelControl cannot fire and README never
+            mentions that a click in the switcher selects and enters - a user-facing gesture that
+            is live in the binary today. Task 12 defers this to M3's close, which only works if
+            the code also waits for M3.
+          family: docs-lag-shipped-surface
+          round: 3
+        - id: BR-19
+          severity: Minor
+          title: MenuEventNotice's doc block is now attached to MenuEventMouseSwitch, a second instance in the commit that left the first
+          detail: |-
+            This is the 2nd finding in family `orphaned-doc-comment`; BR-9 is the first and is
+            re-raised not-addressed. Do NOT fix this instance alone. The rule: a symbol inserted
+            into an existing file must go after the symbol an adjacent doc block documents, or the
+            block must be re-anchored. Enumeration for this issue: reserve.go:93-94 (RenderStatusRow's
+            block now reads as ChipSpan's) and menu.go:199-208 (MenuEventNotice's block now reads as
+            MenuEventMouseSwitch's). Both are checkable with `go doc`.
+          family: orphaned-doc-comment
+          round: 3
+        - id: BR-20
+          severity: Minor
+          title: hostty.DisableMouseClicks joins two other zero-call-site symbols left by the promotion
+          detail: |-
+            This is the 2nd finding in family `move-residue`; BR-11 is the first and is re-raised
+            not-addressed. Do NOT delete this one symbol. The rule: a symbol this issue introduces
+            or leaves behind has a production call site by the milestone that introduces it, or it
+            is deleted. Enumeration: termcmd/run.go:579 (mousePressEvent alias), :585
+            (parseSGRMousePressPrefix), hostty/control.go:62 (DisableMouseClicks), and
+            mouseinput.WheelUp/WheelDown which exist only in tests while run.go:453,459 keep the
+            literals. deadSymbolScope is cmd/internal/couchcore, so no guard sees any of them.
+          family: move-residue
+          round: 3
+      boundary: M1
+      blocked: true
 ---
 
 # Gate ledger — pair#172 (boundary-review)
@@ -280,18 +435,101 @@ later rounds disposed of them. Generated — edit the gate, not this file.
   documented shape ("where each actor was DRAWN") is therefore unpinned for any
   consumer that reads it directly rather than through PointToActor.
 
+## Round 3 — 2026-09-05T13:44:27-07:00 (claude) — BLOCKED
+
+### Disposed
+
+- BR-1 — addressed — Disposition table is in the plan and in RouteMouseReport; release-to-a-no-mouse-child swallows, MaxReport bounds the hold, MouseHit.Raw carries the wire bytes.
+- BR-2 — addressed — Task 12 now names menu.go:19, README.md, atlas/couch.md and the readme_test guard.
+- BR-3 — not-addressed — Status flipped to `planned — M2`, but the symbol hostty.MouseClickTracking still exists nowhere and M2 shipped EnableMouseClicks/DisableMouseClicks in this same window; no Revisions entry was appended.
+- BR-4 — not-addressed — The named mutation reddens only because the fixture's `beta` is Active; `(a.Active || used-start >= textwidth.Width(label))` still leaves the whole suite green. Neither ask landed.
+- BR-5 — not-addressed — Verified: clampExtents -> `return extents` is green, and `index := len(lines) + start` is green. Neither the clipped nor the scrolled path is reachable.
+- BR-6 — addressed — mouseinput_test.go exists and covers Parse/ParsePrefix/Find/IsPrefix/MaxReport directly; the out-of-scope row remains pair#188's structural issue.
+- BR-7 — addressed — ChipSpan, ColumnToActor, ActorExtent and PointToActor all state ZERO-BASED and name the 1-based conversion; onMouse does it once.
+- BR-8 — addressed — 000173 -> 000192 in the comment and all six entries; workshop/issues/000192-... exists.
+- BR-9 — not-addressed — reserve.go:93-94 still runs the RenderStatusRow doc block straight into ChipSpan's; RenderStatusRow (:133) has no doc comment. A second instance now exists at menu.go:199-208.
+- BR-10 — not-addressed — termcmd/run.go:453,459 still switch on the literals 64 and 65 while mouseinput.WheelUp/WheelDown exist.
+- BR-11 — not-addressed — mousePressEvent (run.go:579) and parseSGRMousePressPrefix (:585) still have zero callers.
+- BR-12 — addressed — keys.go:301 enforces MaxReport and TestAnUnterminatedMousePrefixDoesNotParkTheKeyboard pins it.
+- BR-13 — not-addressed — Verified: deleting the run-merge at menu_render.go:463-467 leaves the suite green.
+
+### Raised
+
+- **BR-14** [Critical] `unpinned-exported-shape` Three shipped M2/M3 behaviours are unpinned - removing each leaves the whole couchtty suite green
+  This is the 2nd finding in family `unpinned-exported-shape`. Do NOT patch the three
+  sites. State the rule: every behaviour this issue introduces is pinned by a test that
+  reddens when the behaviour is removed, and the enumeration is already written - the
+  plan's "Done-when to Task map". The check is the mutation, not the green run.
+  Measured prevalence, all verified in the working tree and restored: deleting
+  c.writeOwn(hostty.EnableMouseClicks) (console.go:528) - green; discarding
+  child.child.Write(hit.Raw) (console.go:1503) - green; deleting `&& !origin.Manual`
+  (console.go:1455) - green, which is the marker the commit message headlines and the
+  one Plan Task 11 Step 2 calls not optional. Four map rows have no test at all:
+  TestClickInTheSwitcherTakesTheReturnPath, TestClickIsAManualSwitch,
+  TestForwardPreservesRawBytes, TestTeardownDisablesMouseTracking.
+- **BR-15** [Important] `milestone-scope-overrun` M2 and M3 production code landed inside the M1 window, so their own boundary reviews open on an empty range
+  f95da992 ships routing, the Interceptor's SGR arm, couch's mode enable, onMouse and the
+  manual-switch marker - all tagged M2/M3 in the plan - inside the window this M1 gate
+  reviews. Once M1 closes at f95da992, BASE_SHA for M2 and M3 is that commit, so the
+  mandatory fresh-eyes review for the milestone the plan calls "the work" sees nothing.
+  That is the gate that was supposed to catch the Critical above. Either split so M2/M3
+  land after M1 closes, or close all three against this window and pay their tests now.
+- **BR-16** [Important] `unspecified-event-policy` couch's own mouse mode is written once and never re-asserted, so a child's DECRST silently ends the feature
+  This is the 3rd finding in family `unspecified-event-policy`. Do NOT add a re-assert
+  and stop. The rule the family keeps asking for: the disposition table must be crossed
+  with the CHILD's mode-transition events, not only the operator's report events.
+  console.go:528 is the only write of EnableMouseClicks; ?1000 is terminal-global, so a
+  child emitting \x1b[?1000l - nvim does this on exit - turns couch's clicks off for the
+  whole terminal with nothing to restore them. ptychild.Screen.Mouse() already observes
+  the transition, so couch has the signal and no policy. Enumeration: child enables;
+  child disables; child exits with mouse on; switch between two children with different
+  modes; replay re-asserting the child's modes over couch's.
+- **BR-17** [Important] `parallel-handler-restates-decision` The click reducer restates Enter's switch/resume rule and diverges from it, and sets Manual on a refused dispatch
+  menu.go:349-365 duplicates reduceRootKey's operation choice (menu.go:475-479); a
+  non-actionable row gets a notice from Enter and silence from a click; and
+  state.InFlight.Manual = true (menu.go:363) runs unconditionally, including when
+  dispatchMenuOperation refused because another operation was in flight
+  (menu.go:1542-1544) - writing the flag onto a different operation's origin. The
+  Done-when requires the same handler, not a parallel one (ARCH-DRY). Extract the
+  actionable-thread to operation decision into one function both arms call, and set
+  Manual only when the dispatch produced effects.
+- **BR-18** [Important] `docs-lag-shipped-surface` atlas and README cover M1's geometry but not the routing, ownership and click gesture that shipped in the same window
+  atlas/couch.md gained the M1 geometry in 1c895d4f and nothing for f95da992: the
+  four-way disposition table, the narrowed release rule, couch's ownership of
+  ?1000;?1006, and the manual-switch classification. menuControls (menu.go:19-33) has no
+  mouse row, so TestREADMEDocumentsEveryPanelControl cannot fire and README never
+  mentions that a click in the switcher selects and enters - a user-facing gesture that
+  is live in the binary today. Task 12 defers this to M3's close, which only works if
+  the code also waits for M3.
+- **BR-19** [Minor] `orphaned-doc-comment` MenuEventNotice's doc block is now attached to MenuEventMouseSwitch, a second instance in the commit that left the first
+  This is the 2nd finding in family `orphaned-doc-comment`; BR-9 is the first and is
+  re-raised not-addressed. Do NOT fix this instance alone. The rule: a symbol inserted
+  into an existing file must go after the symbol an adjacent doc block documents, or the
+  block must be re-anchored. Enumeration for this issue: reserve.go:93-94 (RenderStatusRow's
+  block now reads as ChipSpan's) and menu.go:199-208 (MenuEventNotice's block now reads as
+  MenuEventMouseSwitch's). Both are checkable with `go doc`.
+- **BR-20** [Minor] `move-residue` hostty.DisableMouseClicks joins two other zero-call-site symbols left by the promotion
+  This is the 2nd finding in family `move-residue`; BR-11 is the first and is re-raised
+  not-addressed. Do NOT delete this one symbol. The rule: a symbol this issue introduces
+  or leaves behind has a production call site by the milestone that introduces it, or it
+  is deleted. Enumeration: termcmd/run.go:579 (mousePressEvent alias), :585
+  (parseSGRMousePressPrefix), hostty/control.go:62 (DisableMouseClicks), and
+  mouseinput.WheelUp/WheelDown which exist only in tests while run.go:453,459 keep the
+  literals. deadSymbolScope is cmd/internal/couchcore, so no guard sees any of them.
+
 ## Open findings
 
-- **BR-1** [Important] `unspecified-event-policy` No complete disposition table: release contradicts the zero-bytes Done-when, and an unterminated SGR prefix has no bound
-- **BR-2** [Minor] `unnamed-seam-change` Task 12 names neither the menuControls file nor the atlas file its steps change
 - **BR-3** [Critical] `plan-table-claims-unshipped-code` Core-concepts row declares hostty.MouseClickTracking `new` when it exists nowhere
 - **BR-4** [Important] `onedirectional-geometry-assertion` The clipped-chip case is asserted only from above, so a lost span passes
 - **BR-5** [Important] `onedirectional-geometry-assertion` clampExtents and the scrolled list are unreachable from any test
-- **BR-6** [Important] `guard-not-registered` mouseinput ships with no test file, and its Core-concepts row is out of the guard's scope
-- **BR-7** [Important] `coordinate-base-unstated-at-seam` ChipSpan and ActorExtent state no coordinate base, on a struct that already carries a 1-based one
-- **BR-8** [Important] `stale-issue-reference` The 173-to-192 renumber left the issue path in the same comment block stale
 - **BR-9** [Minor] `orphaned-doc-comment` RenderStatusRow's doc block is now attached to ChipSpan
 - **BR-10** [Minor] `promoted-constant-with-surviving-literal` WheelUp/WheelDown have zero call sites while termcmd keeps the 64/65 literals
 - **BR-11** [Minor] `move-residue` mousePressEvent alias and parseSGRMousePressPrefix have no callers after the move
-- **BR-12** [Minor] `doc-ahead-of-enforcement` MaxReport and the atlas both state a bound that no code enforces yet
 - **BR-13** [Minor] `unpinned-exported-shape` The one-extent-per-actor run shape is unobservable through PointToActor
+- **BR-14** [Critical] `unpinned-exported-shape` Three shipped M2/M3 behaviours are unpinned - removing each leaves the whole couchtty suite green
+- **BR-15** [Important] `milestone-scope-overrun` M2 and M3 production code landed inside the M1 window, so their own boundary reviews open on an empty range
+- **BR-16** [Important] `unspecified-event-policy` couch's own mouse mode is written once and never re-asserted, so a child's DECRST silently ends the feature
+- **BR-17** [Important] `parallel-handler-restates-decision` The click reducer restates Enter's switch/resume rule and diverges from it, and sets Manual on a refused dispatch
+- **BR-18** [Important] `docs-lag-shipped-surface` atlas and README cover M1's geometry but not the routing, ownership and click gesture that shipped in the same window
+- **BR-19** [Minor] `orphaned-doc-comment` MenuEventNotice's doc block is now attached to MenuEventMouseSwitch, a second instance in the commit that left the first
+- **BR-20** [Minor] `move-residue` hostty.DisableMouseClicks joins two other zero-call-site symbols left by the promotion

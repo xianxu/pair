@@ -424,7 +424,7 @@ func TestMouseReportsAreNotForwardedAsOrdinaryBytes(t *testing.T) {
 
 - [ ] `sdlc milestone-close --issue 172 --milestone M2`.
 
-## Chunk 3: M3 — wiring and the manual-switch rule
+## Chunk 3: M3 — wiring and the manual-switch rule (MERGED INTO M2, 2026-09-05: it shipped in the same commit; see the issue's ## Revisions)
 
 ### Task 10: Click routes into the existing switch
 

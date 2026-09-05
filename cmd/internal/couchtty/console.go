@@ -1020,6 +1020,12 @@ func (c *Console) paintNow() {
 	}
 	c.mu.Unlock()
 
+	// Re-asserted on every paint. Mouse reporting is a terminal-GLOBAL mode, so
+	// a child writing DECRST ?1000l turns couch's clicks off with no signal --
+	// the feature would simply stop, and the operator would have no way to know
+	// why. DECSET is additive and idempotent, so this cannot clobber a mode the
+	// child enabled for itself.
+	c.writeOwn(hostty.EnableMouseClicks)
 	row := RenderStatusRow(cols, model)
 	c.mu.Lock()
 	c.statusChips = row.Chips
@@ -1496,7 +1502,7 @@ func (c *Console) onMouse(hit MouseHit) {
 	c.mu.Unlock()
 
 	childWantsMouse := child != nil && child.child.Mouse()
-	switch RouteMouseReport(hit.Event, rows, childWantsMouse) {
+	switch RouteMouseReport(hit.Event, rows, childWantsMouse, panel) {
 	case MouseForward:
 		if child != nil {
 			// The RAW bytes: the child gets exactly what the terminal sent.
