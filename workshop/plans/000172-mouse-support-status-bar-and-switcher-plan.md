@@ -194,6 +194,40 @@ required, since the legacy X10 encoding caps at 223 and fails *silently*.
   `ResetInteractiveModes` which already lists every mouse mode and remains the
   teardown authority.
 
+## "Same path as Return" — what Return decides that a click must not
+
+The Done-when says a click takes Return's path AND that a click is always a
+manual switch. Those contradict on exactly one input, and the gate found it
+(PQ-13, Critical): **a click on an actor that is currently paging.**
+
+The mechanism, site by site:
+
+- `reduceActionKey`/`reduceRootKey` dispatch the declared `switch` operation
+  (`menu.go:445-449`).
+- `runMenuOperation` captures pending attention for a `switch`
+  (`console.go:1434-1436` → `attention.Capture`, `attention.go:75-79`).
+- `ExecuteConsoleOperation` reads that capture and sets
+  `how = arrivalNotification` when it is nonzero (`console.go:1625-1628`).
+- `#170`'s rule: only `arrivalNotification` is NON-pinning.
+
+So a click reusing Return's path unmodified is classified as a notification hop
+whenever the clicked actor was paging — which is the one thing the Done-when
+forbids.
+
+**Resolution: same OPERATION, one declared difference.** The click dispatches the
+same `switch` through the same declared surface — no private verb — and marks its
+origin manual so the capture at `console.go:1434` is skipped. `arrivalOrdinary`
+then falls out of the existing derivation at `:1625` with no second rule.
+
+Rejected: calling `switchTo(id, true, arrivalOrdinary)` directly. It would be a
+parallel path that skips the operation queue, the projection refresh and the
+notice bookkeeping — the "reuse the path" requirement exists to prevent exactly
+that drift, and satisfying it by bypassing the path is not satisfying it.
+
+**And the rule the finding actually asks for, applied to every task below:** each
+task's Files list names every production site its steps assert, and any "reuse
+what X does" claim states what X decides where the new caller differs.
+
 ## Done-when → Task map
 
 PQ-11 asked for the RULE, not the instance: every Done-when bullet maps to a
@@ -310,7 +344,14 @@ func TestChipSpansMatchTheDrawnRowWhenClipped(t *testing.T) {
 
 ### Task 6: The routing decision
 
-**Files:** Create `cmd/internal/couchtty/mouse.go`, `mouse_test.go`.
+**Files:**
+- Create: `cmd/internal/couchtty/mouse.go`, `mouse_test.go`
+- Register: `cmd/internal/artifactpath/manifest.go` — `NonArtifactSources`
+  (`:482-560`) lists every `couchtty/*.go`, and `make test` fails on an
+  unregistered one. **The rule, not the instance:** every task that creates a
+  production file registers it in the same task, because a guard whose input is
+  a hand-maintained list is one the next addition skips. Task 1 does this for
+  `mouseinput`; this is the second instance.
 
 - [ ] **Step 1:** Test EVERY row of the disposition table above, including the
       two that contradict a naive reading: a release to a child with NO mouse
@@ -387,24 +428,40 @@ func TestMouseReportsAreNotForwardedAsOrdinaryBytes(t *testing.T) {
 
 ### Task 10: Click routes into the existing switch
 
-**Files:** Modify `console.go`; test `console_mouse_test.go`.
+**Files:**
+- Modify: `cmd/internal/couchtty/console.go` — `onMouse` (new),
+  `processInput`'s `HitMouse` arm, `runMenuOperation:1434` (skip the capture for
+  a manual origin), `MenuOperationOrigin` in `menu.go` (the manual marker)
+- Test: `cmd/internal/couchtty/console_mouse_test.go`
 
-- [ ] **Step 1:** Test that a click on a chip takes the SAME path as
-      `ctrl-space`+Return — asserted against the same handler, not a parallel one.
-- [ ] **Step 2: Run — FAIL.**  **Step 3: Implement** `onMouse`.
+**What Return decides that this caller differs on:** the attention capture. See
+the section above; everything else — the declared `switch` operation, the
+operation queue, the projection refresh, the notice bookkeeping — is identical
+and must stay identical.
+
+- [ ] **Step 1:** Test that a click on a chip dispatches the same declared
+      `switch` operation `ctrl-space`+Return dispatches, asserted through the
+      operation dispatcher rather than a parallel handler.
+- [ ] **Step 2: Run — FAIL.**  **Step 3: Implement** `onMouse` and the manual
+      marker.
 - [ ] **Step 4: Run — PASS.**  **Step 5: Commit.**
 
 ### Task 11: A click is a MANUAL switch
 
-**Files:** Test `console_mouse_test.go`.
+**Files:**
+- Assert against: `cmd/internal/couchtty/console.go:1434` (capture skipped),
+  `:1625` (arrival derived), `cmd/internal/couchtty/attention.go:75`
+  (`Capture`), `SwitchTracker` (`previous` pinning)
+- Test: `cmd/internal/couchtty/console_mouse_test.go`
 
 - [ ] **Step 1:** Test that clicking re-pins `previous` so `ctrl+backspace`
-      undoes it — INCLUDING a click on an actor showing a notification, which
-      must NOT count as notification handling (`arrivalOrdinary`, not
-      `arrivalNotification`).
-- [ ] **Step 2:** If it passes unchanged, mutate the call to
-      `arrivalNotification` and confirm it reddens. A test that passes because it
-      asserts the default is not asserting the rule.
+      undoes it — with the clicked actor **PAGING**, which is the only input
+      where click and Return legitimately differ. Assert BOTH halves: the arrival
+      is ordinary, and the bell is still cleared (every landing clears it; only
+      the pinning differs).
+- [ ] **Step 2:** Mutate the manual marker off and confirm it reddens. A test
+      that passes because it asserts the default is not asserting the rule — and
+      here the default is the wrong answer, so this step is not optional.
 - [ ] **Step 3: Commit.**
 
 ### Task 12: Close M3
