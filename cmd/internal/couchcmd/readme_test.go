@@ -215,9 +215,17 @@ func TestNoCurrentSourcesAdvertiseObsoleteCouchArgv(t *testing.T) {
 	root := filepath.Join("..", "..", "..")
 	paths := []string{
 		"README.md", "atlas/couch.md",
-		"workshop/issues/000153-couch-managed-worktree-lifecycle.md",
 		"probes/zellijpark/main.go",
 	}
+	// No issue file in this list, and that is the fix rather than a narrowing.
+	// It used to name `workshop/issues/000153-...md`; closing that issue moved it
+	// to workshop/history/ and this test failed on main for a reason unrelated to
+	// argv. Widening to every current issue is worse, not better: it immediately
+	// flags pair#170 and pair#172 for prose naming couch's resume OPERATION,
+	// which mentions it rather than advertising the retired argv. (This comment
+	// cannot quote the offending form: the walk below reads this file too, and
+	// the quote would flag itself -- which it did.) An issue Log is working notes; what this guard defends is
+	// what the OPERATOR reads -- README, the atlas, shipped code and probes.
 	err := filepath.Walk(filepath.Join(root, "cmd"), func(path string, info os.FileInfo, err error) error {
 		if err != nil {
 			return err
