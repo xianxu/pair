@@ -265,6 +265,38 @@ rounds:
           family: guard-not-registered
           round: 3
       blocked: true
+    - "n": 4
+      timestamp: "2026-09-05T12:46:13-07:00"
+      agent: claude
+      dispose:
+        - id: PQ-12
+          disposition: not-addressed
+          note: The three instances are fixed; the enumeration PQ-12 asked for was written on the child-mode axis only.
+          round: 4
+        - id: PQ-13
+          disposition: addressed
+          note: Resolution names the site (console.go:1434 capture skipped for a manual origin); Task 10/11 Files lists now carry it.
+          round: 4
+        - id: PQ-14
+          disposition: addressed
+          note: Task 6 registers couchtty/mouse.go in NonArtifactSources and states the rule for every future production file.
+          round: 4
+      findings:
+        - id: PQ-15
+          severity: Minor
+          title: Task 12 names neither the menuControls file nor the atlas file its steps change
+          detail: |-
+            This is the 4th finding in family `unnamed-seam-change`. Do NOT fix this instance alone —
+            the rule is already written in the plan at the end of the "Same path as Return" section
+            ("each task's Files list names every production site its steps assert"); Task 12 is the
+            one task that does not apply it. It has no Files block at all, and its Step 1 changes
+            `menuControls` (`cmd/internal/couchtty/menu.go:19`), the README guard's scoped couch
+            section, and an atlas file. Apply the already-stated rule to Task 12 rather than
+            re-deriving it.
+          family: unnamed-seam-change
+          round: 4
+      blocked: false
+content_hash: cbb46be433aa8d23567a820ea22642124c66f770e26f958cd9f2f6b89cc4836f
 ---
 
 # Gate ledger — pair#172 (plan-quality)
@@ -426,8 +458,26 @@ state PQ-12 named, and RouteMouseReport's signature still cannot express it.
   (artifactpath/manifest.go:482-560) lists every couchtty/*.go file; Task 1 registers
   mouseinput but Task 6 creates couchtty/mouse.go with no entry. make test catches it.
 
+## Round 4 — 2026-09-05T12:46:13-07:00 (claude) — passed
+
+### Disposed
+
+- PQ-12 — not-addressed — The three instances are fixed; the enumeration PQ-12 asked for was written on the child-mode axis only.
+- PQ-13 — addressed — Resolution names the site (console.go:1434 capture skipped for a manual origin); Task 10/11 Files lists now carry it.
+- PQ-14 — addressed — Task 6 registers couchtty/mouse.go in NonArtifactSources and states the rule for every future production file.
+
+### Raised
+
+- **PQ-15** [Minor] `unnamed-seam-change` Task 12 names neither the menuControls file nor the atlas file its steps change
+  This is the 4th finding in family `unnamed-seam-change`. Do NOT fix this instance alone —
+  the rule is already written in the plan at the end of the "Same path as Return" section
+  ("each task's Files list names every production site its steps assert"); Task 12 is the
+  one task that does not apply it. It has no Files block at all, and its Step 1 changes
+  `menuControls` (`cmd/internal/couchtty/menu.go:19`), the README guard's scoped couch
+  section, and an atlas file. Apply the already-stated rule to Task 12 rather than
+  re-deriving it.
+
 ## Open findings
 
 - **PQ-12** [Important] `unspecified-event-policy` No complete disposition table: release contradicts the zero-bytes Done-when, and an unterminated SGR prefix has no bound
-- **PQ-13** [Critical] `unnamed-seam-change` A switcher click cannot both take Return's path and be an unconditional manual switch
-- **PQ-14** [Minor] `guard-not-registered` New production file couchtty/mouse.go has no NonArtifactSources registration step
+- **PQ-15** [Minor] `unnamed-seam-change` Task 12 names neither the menuControls file nor the atlas file its steps change

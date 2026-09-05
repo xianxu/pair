@@ -5,7 +5,7 @@ deps: []
 github_issue:
 created: 2026-09-02
 updated: 2026-09-05
-estimate_hours:
+estimate_hours: 2.42
 started: 2026-09-05T12:13:46-07:00
 ---
 
@@ -137,6 +137,55 @@ by default.
 - Teardown leaves the host terminal with mouse reporting off.
 - `pair#166` is re-evaluated against the new mode tracking and either closed,
   fixed, or re-punted with a reason.
+
+## Estimate
+
+```estimate
+model: estimate-logic-v3.1
+familiarity: 1.0
+item: cross-cutting-refactor     design=0.04 impl=0.20
+item: smaller-go-module          design=0.04 impl=0.16
+item: smaller-go-module          design=0.02 impl=0.12
+item: smaller-go-module          design=0.06 impl=0.20
+item: milestone-review           design=0.00 impl=0.20
+item: smaller-go-module          design=0.04 impl=0.16
+item: smaller-go-module          design=0.06 impl=0.20
+item: smaller-go-module          design=0.04 impl=0.16
+item: milestone-review           design=0.00 impl=0.20
+item: smaller-go-module          design=0.04 impl=0.16
+item: smaller-go-module          design=0.02 impl=0.12
+item: atlas-docs                 design=0.02 impl=0.05
+item: real-api-discovery         design=0.00 impl=0.12
+item: milestone-review           design=0.00 impl=0.20
+design-buffer: 0.15
+total: 2.42
+```
+
+*Produced via `brain/data/life/42shots/velocity/estimate-logic-v3.1.md` against
+`baseline-v3.1.md`. Method A only.*
+
+**One line per instance**, so a close-time miss is attributed to a primitive
+rather than to the issue. In order:
+
+| Slug | Instances |
+| --- | --- |
+| `cross-cutting-refactor` | promoting the SGR parser out of `termcmd` into `mouseinput`, with `termcmd`'s own suite as the regression |
+| `smaller-go-module` | chip spans; `ColumnToActor`; actor extents + `PointToActor`; `RouteMouseReport`; the `Interceptor`'s `seqMouse` + bound; couch's own enable/teardown; `onMouse` + the manual marker; the manual-switch test |
+| `milestone-review` | one per boundary, M1/M2/M3 |
+| `atlas-docs` | `menuControls`, the README couch section, the atlas routing rule |
+| `real-api-discovery` | the manual terminal verification (nvim selection and scroll), which needs a real terminal, a real nvim and a real pointer |
+
+Design hours carry the ×0.2 spec-quality discount: the plan names every function,
+its file, its test and its production sites, so the estimator is reading rather
+than deciding.
+
+**Known risk this number does NOT price.** `pair#187` came in at 1.64h against
+0.87 — roughly 2×, and the overrun was review rounds, not code. This issue has
+three boundaries and its plan alone took four plan-quality rounds. If the same
+pattern holds the actual will be nearer 4h, and that gap is a calibration signal
+worth keeping rather than an estimate to pad: the primitive table prices
+`milestone-review` at 0.2 impl, and this repo's boundaries have been costing
+several times that.
 
 ## Plan
 

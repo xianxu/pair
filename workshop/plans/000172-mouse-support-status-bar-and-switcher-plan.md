@@ -466,6 +466,12 @@ and must stay identical.
 
 ### Task 12: Close M3
 
+**Files:**
+- Modify: `cmd/internal/couchtty/menu.go:19` (`menuControls`), `README.md`
+  (the couch section the guard is scoped to), `atlas/couch.md`
+- Assert against: `cmd/internal/couchcmd/readme_test.go`
+  (`TestREADMEDocumentsEveryPanelControl`, scoped to the couch section)
+
 - [ ] **Step 1:** `menuControls` gains the mouse row so the README guard fires
       (scoped to the couch section); atlas gets the routing rule and the
       point-to-actor invariant.
