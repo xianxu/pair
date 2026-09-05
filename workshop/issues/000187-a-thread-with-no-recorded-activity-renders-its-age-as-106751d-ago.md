@@ -1,11 +1,12 @@
 ---
 id: 000187
-status: open
+status: working
 deps: []
 github_issue:
 created: 2026-09-04
 updated: 2026-09-04
 estimate_hours:
+started: 2026-09-04T21:48:27-07:00
 ---
 
 # A thread with no recorded activity renders its age as 106751d ago
