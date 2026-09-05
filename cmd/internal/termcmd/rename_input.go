@@ -3,6 +3,7 @@ package termcmd
 import (
 	"bytes"
 	"github.com/xianxu/pair/cmd/internal/ansi"
+	"github.com/xianxu/pair/cmd/internal/mouseinput"
 	"unicode/utf8"
 
 	"github.com/xianxu/pair/cmd/internal/workbenchshortcut"
@@ -178,7 +179,7 @@ func sgrMouseSize(input []byte) (int, bool) {
 	}
 	// Same 'M' press / 'm' release terminator pair the pump uses — driven by the
 	// one constant so the sites can't drift apart (they did: #127).
-	idx := bytes.IndexAny(input[3:], sgrMouseTerminators)
+	idx := bytes.IndexAny(input[3:], mouseinput.Terminators)
 	if idx < 0 {
 		return 0, false
 	}

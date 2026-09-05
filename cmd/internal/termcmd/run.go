@@ -3,7 +3,6 @@
 package termcmd
 
 import (
-	"bytes"
 	"flag"
 	"fmt"
 	"io"
@@ -16,6 +15,7 @@ import (
 	"github.com/xianxu/pair/cmd/internal/draftroute"
 	"github.com/xianxu/pair/cmd/internal/hostty"
 	"github.com/xianxu/pair/cmd/internal/layoutcmd"
+	"github.com/xianxu/pair/cmd/internal/mouseinput"
 	"github.com/xianxu/pair/cmd/internal/procutil"
 	"github.com/xianxu/pair/cmd/internal/ptychild"
 	"github.com/xianxu/pair/cmd/internal/workbenchshortcut"
@@ -448,15 +448,15 @@ func pumpStdinWithTimer(stdin io.Reader, mux ptyWriter, rt Runtime, stdout io.Wr
 						// A release is never a wheel tick (the wheel reports
 						// press-only), so it always passes straight through —
 						// the child needs it to close its drag.
-						case event.release:
+						case event.Release:
 							mux.writeActive(rawMouse)
-						case event.button == 64:
+						case event.Button == 64:
 							if mux.appMouseMode() {
 								mux.writeActive(rawMouse)
 							} else {
 								_ = rt.RunZellijAction("scroll-up")
 							}
-						case event.button == 65:
+						case event.Button == 65:
 							if mux.appMouseMode() {
 								mux.writeActive(rawMouse)
 							} else {
@@ -572,70 +572,25 @@ func currentRightTerminalPane(rt Runtime) (zellijpane.Pane, bool, error) {
 	return zellijpane.Pane{}, false, nil
 }
 
-// An SGR (1006) mouse event is "\x1b[<button;col;rowT" where T is 'M' for a
-// press and 'm' for a RELEASE. Both terminators must be recognized: treating
-// 'm' as "sequence not finished yet" parks the release — and then every
-// keystroke behind it — in pumpStdin's `held` buffer, which reads as a dead
-// keyboard, and leaves the child app holding an unmatched button-press (nvim
-// stays in a mouse drag, i.e. stuck in visual selection).
-const sgrMouseTerminators = "Mm"
+// The SGR mouse parser moved to cmd/internal/mouseinput (pair#172): couch needs
+// the identical decode, and a second copy would be a second wire format. These
+// aliases keep this file's call sites unchanged, so the move is provably
+// behaviour-preserving -- termcmd's own suite is the regression for it.
+type mousePressEvent = mouseinput.Event
 
-type mousePressEvent struct {
-	button  int
-	x       int
-	y       int
-	release bool
+func parseSGRMousePress(data []byte) (mouseinput.Event, bool) {
+	return mouseinput.Parse(data)
 }
 
-func parseSGRMousePress(data []byte) (mousePressEvent, bool) {
-	s := string(data)
-	if !strings.HasPrefix(s, "\x1b[<") || s == "" {
-		return mousePressEvent{}, false
-	}
-	term := s[len(s)-1:]
-	if !strings.Contains(sgrMouseTerminators, term) {
-		return mousePressEvent{}, false
-	}
-	var event mousePressEvent
-	if _, err := fmt.Sscanf(s, "\x1b[<%d;%d;%d"+term, &event.button, &event.x, &event.y); err != nil {
-		return mousePressEvent{}, false
-	}
-	event.release = term == "m"
-	return event, true
+func parseSGRMousePressPrefix(data []byte) (mouseinput.Event, []byte, []byte, bool) {
+	return mouseinput.ParsePrefix(data)
 }
 
-func parseSGRMousePressPrefix(data []byte) (mousePressEvent, []byte, []byte, bool) {
-	if !bytes.HasPrefix(data, []byte("\x1b[<")) {
-		return mousePressEvent{}, nil, data, false
-	}
-	end := bytes.IndexAny(data, sgrMouseTerminators)
-	if end < 0 {
-		return mousePressEvent{}, nil, data, false
-	}
-	raw := data[:end+1]
-	event, ok := parseSGRMousePress(raw)
-	if !ok {
-		return mousePressEvent{}, nil, data, false
-	}
-	return event, raw, data[end+1:], true
+func findSGRMousePress(data []byte) ([]byte, mouseinput.Event, []byte, []byte, bool) {
+	return mouseinput.Find(data)
 }
 
-func findSGRMousePress(data []byte) ([]byte, mousePressEvent, []byte, []byte, bool) {
-	start := bytes.Index(data, []byte("\x1b[<"))
-	if start < 0 {
-		return data, mousePressEvent{}, nil, nil, false
-	}
-	event, raw, rest, ok := parseSGRMousePressPrefix(data[start:])
-	if !ok {
-		return data, mousePressEvent{}, nil, nil, false
-	}
-	return data[:start], event, raw, rest, true
-}
-
-func isSGRMousePrefix(data []byte) bool {
-	return bytes.HasPrefix([]byte("\x1b[<"), data) ||
-		(bytes.HasPrefix(data, []byte("\x1b[<")) && bytes.IndexAny(data, sgrMouseTerminators) < 0)
-}
+func isSGRMousePrefix(data []byte) bool { return mouseinput.IsPrefix(data) }
 
 type OSRuntime struct{}
 
