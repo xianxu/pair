@@ -361,3 +361,15 @@ it is verified by `TestAReattachedChildKeepsItsTrackingMode`, which reproduces
 `pair#196`'s path and reddens when the belief is treated as "no" rather than
 "unknown".
 
+### 2026-09-06 — a flake seen once, measured rather than dismissed
+
+`TestActiveChildExitFocusesPanelRecordsCauseAndForgetsActor` failed once during a
+full `./cmd/...` run (`forgot ("", ""), want (c1, c1)`), immediately after the
+`couchMayOwnTheMouse` change touched `onExit`'s path — the shape of a regression.
+
+Measured instead of assumed: 0/12 isolated, 0/5 whole-package, 0/3 full
+`./cmd/...`. It is a load-sensitive flake in a `waitFor`, not a regression. Left
+unfixed and recorded rather than silently dismissed, because "it passed when I
+ran it again" is the reasoning that hid the `-race` flake in `pair#187` until a
+reviewer measured it at 3-in-10.
+

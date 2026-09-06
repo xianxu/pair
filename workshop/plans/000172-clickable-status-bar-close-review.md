@@ -301,3 +301,24 @@ findings:
     detail: |
       This is the 2nd finding in family `parallel-handler-restates-decision`. Do NOT fix this instance alone. The rule: where the click arm and the key arm diverge, the divergence is DECLARED -- as the Manual flag is, with its reason in a comment -- rather than left as an omission. menu.go:352 returns `next, nil` for both `!ok` and `!menuThreadActionable`, while reduceRootKey:468-470 sets an errorMenuNotice whose own comment says "Silence is what the operator reports as a bug". The inventory-miss case is reachable only from a chip click, since the switcher can only select rows the inventory already holds.
 ```
+
+---
+
+## Re-review — 2026-09-06T08:22:39-07:00 (unknown)
+
+| field | value |
+|-------|-------|
+| issue | 172 — Mouse support: click the status bar and the switcher |
+| repo | pair |
+| issue file | workshop/issues/000172-clickable-status-bar.md |
+| boundary | whole-issue close |
+| milestone | — |
+| window | c15030df41c64086f1e669576034d22bcbb0ea28..647d069071fa8c302c30db8f369fb8a844bbe0a1 |
+| command | sdlc close --issue 172 |
+| reviewer | claude |
+| timestamp | 2026-09-06T08:22:39-07:00 |
+| verdict | unknown |
+
+## Review
+
+Failed to authenticate. API Error: 401 OAuth access token has been revoked.

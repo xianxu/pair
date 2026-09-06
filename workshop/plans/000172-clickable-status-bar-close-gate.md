@@ -863,6 +863,11 @@ rounds:
           family: parallel-handler-restates-decision
           round: 10
       blocked: true
+    - "n": 11
+      timestamp: "2026-09-06T08:22:39-07:00"
+      agent: claude
+      blocked: true
+      protocol_error: no valid findings block
 ---
 
 # Gate ledger — pair#172 (boundary-review)
@@ -1327,6 +1332,10 @@ and there is still no Revisions entry.
   This is the 2nd finding in family `unnamed-seam-change`. Do NOT fix this instance alone. The rule: changing the semantics of an exported observation requires enumerating its call sites in the same commit and stating the effect at each. termcmd.appMouseMode (run.go:819) reads Child.Mouse(), so a child that had emitted `?1006h` alone now sends the wheel to `zellij scroll-up` instead of forwarding it. Measured prevalence: 2 consumers, 1 named; no termcmd test pins either direction. No live defect -- such a child receives no reports either way -- but the change was landed as a couchtty fix.
 - **BR-36** [Minor] `parallel-handler-restates-decision` A click on a non-actionable row, or on a chip not yet in the inventory, is silent where Enter explains
   This is the 2nd finding in family `parallel-handler-restates-decision`. Do NOT fix this instance alone. The rule: where the click arm and the key arm diverge, the divergence is DECLARED -- as the Manual flag is, with its reason in a comment -- rather than left as an omission. menu.go:352 returns `next, nil` for both `!ok` and `!menuThreadActionable`, while reduceRootKey:468-470 sets an errorMenuNotice whose own comment says "Silence is what the operator reports as a bug". The inventory-miss case is reachable only from a chip click, since the switcher can only select rows the inventory already holds.
+
+## Round 11 — 2026-09-06T08:22:39-07:00 (claude) — BLOCKED
+
+**Protocol error:** no valid findings block — this round contributed no findings.
 
 ## Open findings
 
