@@ -1,5 +1,5 @@
 ---
-id: 000179
+id: 000194
 status: open
 deps: []
 github_issue:
@@ -182,3 +182,37 @@ thinking about before any code.
 Sizing settled the same day: `alt+h`'s geometry is already right
 (`100%`x`70%` at `y 15%`), so the terminal is not full-screen after all — the
 strip of workbench left visible is the point of a quick check.
+
+## Revisions
+
+### 2026-09-05 — renumbered from `#179` to `#194`
+
+**Reason.** Two files carried `id: 000179`: this one, and
+`000179-reattach-a-detached-thread-without-the-cold-resume-native-binding.md`,
+which is DONE and archived to `workshop/history/issues/`. `sdlc claim --issue
+179` refuses a duplicate ("multiple issue files match"), so the collision blocked
+this issue from being worked at all.
+
+Third instance in this repo (`#172`, `#173`, and now this), all from the same
+cause: `sdlc`'s ID-reservation broadcast fails in this checkout — "could not find
+a worktree on branch 'main'" — so concurrent sessions each allocate what they see
+as the next free ID. Reproduced again on 2026-09-05, so it is not yet fixed.
+
+**Why THIS file moved, when the earlier two calls went the other way.** For
+`#172`/`#173` the rule was that commit messages are immutable while prose and
+code references are editable, so the number followed the commits. Here BOTH
+sides have commits, so that rule does not break the tie. What does: the archived
+issue is FINISHED. Nothing will claim it, close it, or run `sdlc` against it
+again, and its `git log --grep` remains a historical record either way. This one
+has a future, and a future is what the tooling has to address.
+
+**Accepted cost, stated rather than hidden.** Three commits say `#179` in their
+subjects — `1b06c28e` (toggle a terminal pane in layout2), `410aad81` (make it a
+floating pane, following alt+c) and `15587dcc` (pin the geometry to alt+h's).
+They are not rewritten. `git log --grep "^#179"` therefore returns this issue's
+work alongside the archived one's, and that ambiguity is permanent; searching
+`--grep "layout2"` separates them.
+
+No inbound references needed updating: every `#179` mention in `workshop/`,
+`atlas/` and `cmd/` refers to the archived reattach issue.
+

@@ -4,6 +4,7 @@ import (
 	"strings"
 
 	"github.com/xianxu/pair/cmd/internal/ansi"
+	"github.com/xianxu/pair/cmd/internal/couchcore"
 
 	"github.com/xianxu/pair/cmd/internal/hostty"
 	"github.com/xianxu/pair/cmd/internal/textwidth"
@@ -63,7 +64,12 @@ func PaintRow(hostRows uint16, text string) string {
 
 // StatusActor is one chip on the row.
 type StatusActor struct {
-	Label  string
+	Label string
+	// Thread is who a click on this chip lands on. The THREAD address, not the
+	// pane handle or the actor id: the declared `switch` operation is addressed
+	// by thread, so carrying anything else here would mean translating at the
+	// call site and having two answers to "which actor is this" (pair#172).
+	Thread couchcore.ThreadAddress
 	Active bool
 	// Bell means this actor has asked for attention since the operator last
 	// looked at it. Before #147's transport it is the only real activity
@@ -77,6 +83,11 @@ type StatusModel struct {
 	Notice string
 }
 
+// The untrusted-text rationale below belongs to RenderStatusRow, and sat above
+// ChipSpan until a review pointed out that `go doc ChipSpan` printed it: a
+// comment separated from its subject by an intervening declaration documents the
+// wrong thing to every reader who arrives through the tool rather than the file.
+//
 // RenderStatusRow lays the model out in width columns.
 //
 // Labels and notices carry UNTRUSTED text: couchcore.Describe prefers a sidecar
@@ -85,9 +96,48 @@ type StatusModel struct {
 // hazard is not a mangled row -- it is `\x1b[2J` from a description clearing the
 // operator's screen. Stripping also makes truncation honest, since after it
 // every remaining byte occupies the columns textwidth says it does.
-func RenderStatusRow(width int, m StatusModel) string {
+// ChipSpan is the column range one actor occupies on the drawn row, and the
+// actor a click there lands on. Half-open: [Start, End).
+//
+// ZERO-BASED, like the string it indexes. An SGR mouse report is ONE-based, so a
+// caller converts once at the boundary -- see RenderedStatusRow.ColumnToActor's
+// contract. Stated because the two bases meet in this feature and an unstated
+// one is an off-by-one waiting for a narrow terminal.
+type ChipSpan struct {
+	Thread couchcore.ThreadAddress
+	Start  int
+	End    int
+}
+
+// RenderedStatusRow is the drawn row and where its chips are.
+//
+// One value, because the spans must come from the pass that already CLIPS chips
+// to width. A caller re-deriving them from StatusModel would agree at
+// comfortable widths and disagree at exactly the narrow ones where clipping
+// happens -- the case a mis-mapped click is least catchable by eye (ARCH-DRY).
+type RenderedStatusRow struct {
+	Body  string
+	Chips []ChipSpan
+}
+
+// ColumnToActor maps a ZERO-BASED column on the drawn row to the actor whose
+// chip covers it. Total: a column in a gap, past the last chip, or negative is
+// nobody, which is how "clicking bare row does nothing" is expressed as a value
+// rather than as a branch at the call site.
+//
+// The caller converts from the report's 1-based X.
+func (r RenderedStatusRow) ColumnToActor(column int) (couchcore.ThreadAddress, bool) {
+	for _, chip := range r.Chips {
+		if column >= chip.Start && column < chip.End {
+			return chip.Thread, true
+		}
+	}
+	return couchcore.ThreadAddress{}, false
+}
+
+func RenderStatusRow(width int, m StatusModel) RenderedStatusRow {
 	if width <= 0 {
-		return ""
+		return RenderedStatusRow{}
 	}
 	var row strings.Builder
 	used := 0
@@ -108,6 +158,7 @@ func RenderStatusRow(width int, m StatusModel) string {
 		}
 		used += textwidth.Width(clipped)
 	}
+	var chips []ChipSpan
 	for _, a := range m.Actors {
 		label := sanitize(a.Label)
 		if a.Active {
@@ -116,7 +167,14 @@ func RenderStatusRow(width int, m StatusModel) string {
 		if used > 0 {
 			appendText("  ", false)
 		}
+		// Recorded from the SAME appendText that clips, so a chip the width
+		// dropped contributes no span and a chip the width truncated contributes
+		// the columns it actually drew.
+		start := used
 		appendText(label, a.Bell && !a.Active)
+		if used > start && a.Thread != (couchcore.ThreadAddress{}) {
+			chips = append(chips, ChipSpan{Thread: a.Thread, Start: start, End: used})
+		}
 	}
 	if n := sanitize(m.Notice); n != "" {
 		if used > 0 {
@@ -124,7 +182,7 @@ func RenderStatusRow(width int, m StatusModel) string {
 		}
 		appendText(n, false)
 	}
-	return row.String()
+	return RenderedStatusRow{Body: row.String(), Chips: chips}
 }
 
 // sanitize removes escape SEQUENCES first, then any remaining C0 control or

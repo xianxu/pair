@@ -388,6 +388,13 @@ how you quit: everything keeps running, you land back in your shell, and a later
 `couch` reattaches. `Alt+x` there parks every live thread first, behind a
 confirmation that names how many agents it stops. Confirmation follows the key,
 not the surface — park is confirmed at both scopes and detach at neither.
+The status row and the switcher are **clickable**: a click on an actor's chip, or
+anywhere in its rows in the switcher, switches to it, and empty space does
+nothing. A click is always a manual switch, so `Ctrl-Backspace` undoes it even
+when the actor was paging. couch enables click reporting for itself and withholds
+every report from a child that never asked for one, so mouse selection and scroll
+inside an attached Pair session are unaffected.
+
 `Alt+n` (or `Ctrl+Alt+n`) is couch's third intercepted chord and does not follow
 that grid: it **relaunches** — a genuinely new Pair process running the current
 binary, keeping the agent conversation — which is how you pick up a rebuilt Pair

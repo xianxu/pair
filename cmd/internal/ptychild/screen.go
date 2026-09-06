@@ -37,6 +37,14 @@ type Screen struct {
 
 	altScreen bool
 	mouse     bool
+	sgrMouse  bool
+	// mouseObserved records that this Screen has SEEN a mouse DECSET or DECRST
+	// at all. Without it, `mouse == false` conflates "the child asked for no
+	// tracking" with "this Screen has never been in a position to know" -- and a
+	// reattach mints a fresh Screen for a still-running child that will not
+	// re-emit its startup DECSET, so the second case is common rather than
+	// theoretical (pair#196).
+	mouseObserved bool
 
 	// Latched edge events, cleared by their Take* reader. The console acts
 	// once per event, not once per poll.
@@ -101,8 +109,21 @@ const (
 // AltScreen reports whether the child is currently on the alternate screen.
 func (s *Screen) AltScreen() bool { return s.altScreen }
 
-// Mouse reports whether the child has asked for mouse reporting.
+// Mouse reports whether the child has asked for mouse TRACKING (1000/1002/1003).
+// It deliberately excludes 1006, which is an encoding rather than a request for
+// events -- see the DECSET switch for what collapsing them cost.
 func (s *Screen) Mouse() bool { return s.mouse }
+
+// MouseObserved reports whether this Screen has seen the child say anything
+// about mouse mode. False means UNKNOWN, not "no": a supervisor that writes a
+// terminal-global mode on the strength of Mouse() being false must check this
+// first, or it will overwrite a mode it simply never witnessed.
+func (s *Screen) MouseObserved() bool { return s.mouseObserved }
+
+// SGRMouse reports whether the child asked for SGR-encoded coordinates (1006).
+// A supervisor forwarding reports to this child must send the encoding the child
+// asked for: a child holding 1000 without 1006 cannot parse an SGR report.
+func (s *Screen) SGRMouse() bool { return s.sgrMouse }
 
 // TakeRowDirty reports and clears whether the child did something that may have
 // destroyed a reserved row: dropped the scrolling region (DECSTBM, RIS, an
@@ -412,8 +433,26 @@ func (s *Screen) classify(seq []byte) {
 				// An alt-screen transition is exactly when a child redraws
 				// from scratch and the region can go with it.
 				s.rowDirty = true
-			case "1000", "1002", "1003", "1006":
+			// TRACKING and ENCODING are different facts and must not share a
+			// bool. 1000/1002/1003 say the child wants mouse events at all;
+			// 1006 says only how coordinates are encoded. Collapsed, a child
+			// doing `?1002h` then `?1006l` read as "no mouse" -- so a supervisor
+			// asking "does the child hold tracking" got false and asserted its
+			// own mode over a child that was still tracking (pair#172 BR-26).
+			case "1000", "1002", "1003":
 				s.mouse = on
+				s.mouseObserved = true
+				// A mouse-mode change is an EVENT, not just a fact to read
+				// later. Mouse reporting is terminal-global, so a supervisor
+				// deciding whether to hold its own mode has to re-evaluate when
+				// this changes -- and without a latch nothing tells it: a bare
+				// `?1000l` left couch's clicks off until some unrelated paint
+				// happened to run (pair#172 I1).
+				s.rowDirty = true
+			case "1006":
+				s.sgrMouse = on
+				s.mouseObserved = true
+				s.rowDirty = true
 			}
 		}
 		return

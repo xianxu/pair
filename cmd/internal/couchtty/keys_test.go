@@ -548,3 +548,54 @@ func TestRelaunchChordSurvivesReadSplitsAndIsInertInAPaste(t *testing.T) {
 		t.Fatal("a pasted relaunch chord fired -- inside a paste it is content")
 	}
 }
+
+// couch cannot WITHHOLD a report it does not recognise: the Interceptor forwards
+// anything it does not know, so before this a mouse report reached the child as
+// ordinary bytes and the zero-bytes rule was unenforceable.
+//
+// Split at every boundary, because a report arriving in two reads must not leak
+// its prefix to the child -- that prefix is `\x1b[<`, which a child would render
+// as garbage.
+func TestMouseReportsAreWithheldAndSurviveEverySplit(t *testing.T) {
+	const report = "\x1b[<0;10;24M"
+	for split := 1; split < len(report); split++ {
+		var it Interceptor
+		before, hit, _ := it.FeedHit([]byte(report[:split]))
+		if len(before) != 0 {
+			t.Fatalf("split %d leaked %q to the child", split, before)
+		}
+		if hit != HitNone {
+			t.Fatalf("split %d fired on a partial report", split)
+		}
+		before, hit, _ = it.FeedHit([]byte(report[split:]))
+		if hit != HitMouse {
+			t.Fatalf("split %d: hit = %v, want HitMouse", split, hit)
+		}
+		if len(before) != 0 {
+			t.Fatalf("split %d: leaked %q alongside the hit", split, before)
+		}
+		if got := string(it.Mouse().Raw); got != report {
+			t.Fatalf("split %d: raw = %q, want the wire bytes %q", split, got, report)
+		}
+	}
+}
+
+// The bound is what releases the hold. Without it a stray or pasted `\x1b[<`
+// with no terminator parks every following keystroke -- #127's dead keyboard,
+// which run.go:575-580 records having shipped once already.
+func TestAnUnterminatedMousePrefixDoesNotParkTheKeyboard(t *testing.T) {
+	var it Interceptor
+	junk := "\x1b[<" + strings.Repeat("9", 200)
+	before, hit, _ := it.FeedHit([]byte(junk))
+	if hit != HitNone {
+		t.Fatalf("hit = %v on junk", hit)
+	}
+	if len(before) == 0 {
+		t.Fatal("an over-long mouse prefix was held; the keyboard is parked")
+	}
+	// And ordinary typing behind it still arrives.
+	before, _, _ = it.FeedHit([]byte("hello"))
+	if !strings.Contains(string(before), "hello") {
+		t.Fatalf("keystrokes behind the junk did not reach the child: %q", before)
+	}
+}

@@ -58,6 +58,20 @@ var conceptInventory = []struct{ kind, name string }{
 	{"INTEGRATION", "`termcmd.restoreTerminal`"},
 	{"INTEGRATION", "`consoleRunner` / `consoleRunnerFor`"},
 	{"INTEGRATION", "`TestTerminalConformance_LifecyclePredicates`"},
+	// pair#172 M1 -- click geometry. The M2/M3 rows carry status `planned` and
+	// are invisible here until their milestone flips them, which is what makes
+	// the status column double as the build tracker.
+	{"PURE", "`ChipSpan`"},
+	{"PURE", "`RenderedStatusRow`"},
+	{"PURE", "`ColumnToActor`"},
+	{"PURE", "`ActorExtent`"},
+	{"PURE", "`PointToActor`"},
+	{"PURE", "`RenderStatusRow`"},
+	// pair#172 M2 -- routing, ownership and the gesture.
+	{"PURE", "`MouseDisposition`"},
+	{"PURE", "`RouteMouseReport`"},
+	{"PURE", "`Interceptor.FeedHit`"},
+	{"INTEGRATION", "`Console.onMouse`"},
 	// pair#182 — relaunch. paneState and RenderHoldingPane are deliberately
 	// absent: their rows carry status `planned — pair#186`, so the
 	// planned-status skip keeps them out until that work ships.
@@ -233,6 +247,7 @@ var conceptPlans = []conceptPlan{
 	// declared path lives here; its couchcore entities are couchcore's to pin.
 	{name: "000170-rescope-couch-to-couch-lite-plan.md"},
 	{name: "000182-relaunch-an-actor-plan.md"},
+	{name: "000172-mouse-support-status-bar-and-switcher-plan.md"},
 }
 
 type conceptPlan struct {
@@ -399,6 +414,14 @@ func assertDirectTest(t *testing.T, paths []string, symbols []string) {
 	for _, source := range paths {
 		matches, _ := filepath.Glob(filepath.Join(filepath.Dir(source), "*_test.go"))
 		for _, testPath := range matches {
+			// SKIP THIS FILE. conceptInventory lists every symbol verbatim, and
+			// this file is in its own glob, so the grep below matched itself and
+			// every PURE row's coverage assertion was vacuous. seqMouse was the
+			// demonstration: dead code whose only occurrence in any _test.go was
+			// the inventory literal, asserted as covered (pair#172 BR-23).
+			if filepath.Base(testPath) == "core_concepts_contract_test.go" {
+				continue
+			}
 			raw, err := os.ReadFile(testPath)
 			if err != nil {
 				continue

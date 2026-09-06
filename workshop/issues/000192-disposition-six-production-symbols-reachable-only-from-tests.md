@@ -1,5 +1,5 @@
 ---
-id: 000173
+id: 000192
 status: open
 deps: [pair#170]
 github_issue:
@@ -72,3 +72,22 @@ leaves the tree.
 Filed from `pair#170` M4's close. The boundary review found that the allowlist
 cited `pair#173` while `workshop/issues/` stopped at `000172` — six permanent
 exemptions pointing at nothing. Filing it is the fix; the citation is now real.
+
+## Revisions
+
+### 2026-09-05 — renumbered from `#173` to `#192`
+
+Two files carried `id: 000173`: this one and its namesake. Both were created on
+2026-09-02 by concurrent sessions, each allocating what it saw as the next free
+ID — one through `issue-sync: update issues`, one through `sdlc issue new`, and
+neither could see the other's reservation because the broadcast to `main` fails
+in this checkout ("could not find a worktree on branch 'main'"). `sdlc claim
+--issue 173` refused with "multiple issue files match", which is
+the right failure but a blocking one.
+
+**Why this file moved and the other did not.** The namesake owns commit messages
+referencing `#173`, and AGENTS.md §12 makes `git log --grep
+"^#173"` the way an agent finds an issue's work. A commit message
+cannot be rewritten; prose references and code allowlists can. So the number
+follows the immutable claim, and the editable references were updated instead.
+

@@ -41,6 +41,44 @@ type MenuCursorIntent struct {
 type RenderedMenu struct {
 	Body   string
 	Cursor *MenuCursorIntent
+	// Extents is where each actor was DRAWN, in rows of Body. Empty for frames
+	// that are not the root list -- an action menu has no actors to click.
+	Extents []ActorExtent
+}
+
+// ActorExtent is the row range one actor occupies in the drawn menu, half-open
+// as [Start, End).
+//
+// ZERO-BASED, indexing the lines of Body. An SGR mouse report is ONE-based, so a
+// caller converts once at the boundary. Stated because both bases appear in this
+// feature and leaving it implicit is an off-by-one waiting to happen.
+//
+// An actor occupies a VARIABLE number of rows -- its own line plus one per
+// pending attention message, plus a description line once pair#173 lands -- so
+// a click maps to an ACTOR, never to a line. Derived from the rootLine
+// actorStart boundary the scroll window already uses, rather than recomputed.
+type ActorExtent struct {
+	Thread couchcore.ThreadAddress
+	Start  int
+	End    int
+}
+
+// PointToActor maps a ZERO-BASED drawn row to the actor covering it. Total: the
+// breadcrumb, the notice, a gap and anything past the last actor are nobody.
+//
+// The caller converts from the report's 1-based Y.
+//
+// The column is accepted and ignored TODAY, because every drawn column of an
+// actor's rows belongs to it. It is in the signature because the hit-test is
+// point-to-actor by contract, and a caller passing only a row would have to be
+// changed the day a row grows a second target.
+func (r RenderedMenu) PointToActor(row, column int) (couchcore.ThreadAddress, bool) {
+	for _, extent := range r.Extents {
+		if row >= extent.Start && row < extent.End {
+			return extent.Thread, true
+		}
+	}
+	return couchcore.ThreadAddress{}, false
 }
 
 // ChooseMenuLayout is pure geometry. Every emitted rectangle is contained by
@@ -107,7 +145,7 @@ func RenderMenuView(state MenuState, width, height int, now time.Time, color256 
 		frames = []MenuFrame{{Kind: MenuFrameRoot}}
 	}
 	frame := frames[len(frames)-1]
-	lines := renderMenuFrame(state, frame, width, height, now, color256)
+	lines, extents := renderMenuFrame(state, frame, width, height, now, color256)
 	if len(lines) > 0 {
 		breadcrumb := clipMenuLine(menuBreadcrumb(state, frame), width)
 		if color256 {
@@ -119,12 +157,53 @@ func RenderMenuView(state MenuState, width, height int, now time.Time, color256 
 		lines = append(lines, "")
 		copy(lines[2:], lines[1:])
 		lines[1] = clipMenuLine(notice, width)
+		// Every actor row moved down one. Re-based HERE rather than in
+		// renderRootMenuFrame, which cannot know what its caller inserts above
+		// it -- an extent computed before this shift is right by one line and
+		// wrong by one, the least visible way to be wrong.
+		for i := range extents {
+			extents[i].Start++
+			extents[i].End++
+		}
 	}
 	lines = fitMenuBlock(lines, width, height)
 	if len(lines) > height {
 		lines = lines[:height]
 	}
-	return RenderedMenu{Body: strings.Join(lines, "\r\n"), Cursor: menuCursorIntent(frame, lines, width)}
+	// A row clamped off the bottom is not drawn, so it is not clickable.
+	extents = clampExtents(extents, len(lines))
+	return RenderedMenu{
+		Body: strings.Join(lines, "\r\n"), Cursor: menuCursorIntent(frame, lines, width),
+		Extents: extents,
+	}
+}
+
+// clampExtents drops what the height clamp cut and truncates what it split. A
+// row the operator cannot see is a row they cannot click.
+//
+// UNREACHABLE TODAY, and kept deliberately. renderRootMenuFrame's own rowBudget
+// already subtracts the breadcrumb, the notice and the filter before choosing
+// its window, so RenderMenuView's `lines[:height]` truncation never fires while
+// extents exist -- measured across heights 3..16, where maxEnd never exceeds the
+// drawn count. It is a guard against the two bounds drifting apart, not live
+// behaviour, which is why no test can redden it: a test would have to construct
+// a state the renderer cannot produce.
+//
+// Said here rather than deleted because the invariant it protects is real, and
+// said explicitly rather than left as apparently-tested code, which is how a
+// boundary review reads it (pair#172 BR-5).
+func clampExtents(extents []ActorExtent, drawn int) []ActorExtent {
+	out := extents[:0]
+	for _, extent := range extents {
+		if extent.Start >= drawn {
+			continue
+		}
+		if extent.End > drawn {
+			extent.End = drawn
+		}
+		out = append(out, extent)
+	}
+	return out
 }
 
 func renderedMenuNotice(state MenuState) string {
@@ -208,13 +287,17 @@ func menuBreadcrumb(state MenuState, frame MenuFrame) string {
 	return strings.Join(parts, " › ")
 }
 
-func renderMenuFrame(state MenuState, frame MenuFrame, width, height int, now time.Time, color256 bool) []string {
+// renderMenuFrame returns the frame's lines and, for the root list only, where
+// each actor was drawn. Every other frame returns no extents: an action menu or
+// a confirmation has no actors to click, and returning some would make a click
+// there mean something.
+func renderMenuFrame(state MenuState, frame MenuFrame, width, height int, now time.Time, color256 bool) ([]string, []ActorExtent) {
 	switch frame.Kind {
 	case MenuFrameRoot:
 		return renderRootMenuFrame(state, frame, width, height, now, color256)
 	case MenuFrameActions:
 		thread, _ := findMenuThread(state.Inventory, frame.Thread)
-		return renderItemMenuFrame("actions · "+thread.Label(), filterMenuItems(menuActionItems(thread), frame.Filter), frame.SelectedItem, frame.Filter, width, height)
+		return renderItemMenuFrame("actions · "+thread.Label(), filterMenuItems(menuActionItems(thread), frame.Filter), frame.SelectedItem, frame.Filter, width, height), nil
 	case MenuFrameConfirmation:
 		// The title argument is vestigial at every call site: RenderMenuView
 		// overwrites line 0 with the breadcrumb. What the operator reads is the
@@ -224,13 +307,13 @@ func renderMenuFrame(state MenuState, frame MenuFrame, width, height int, now ti
 		if frame.Action == "archive" {
 			title = "archive " + thread.Label() + "?"
 		}
-		return renderItemMenuFrame(title, filterMenuItems(confirmationMenuItems(state, frame), frame.Filter), confirmationDisplaySelection(frame), frame.Filter, width, height)
+		return renderItemMenuFrame(title, filterMenuItems(confirmationMenuItems(state, frame), frame.Filter), confirmationDisplaySelection(frame), frame.Filter, width, height), nil
 	case MenuFrameText:
-		return []string{clipMenuLine(menuItemLabel(frame.Action), width), "", clipMenuLine("> "+frame.Input, width)}
+		return []string{clipMenuLine(menuItemLabel(frame.Action), width), "", clipMenuLine("> "+frame.Input, width)}, nil
 	case MenuFrameStart:
-		return renderStartMenuFrame(state, frame, width, height)
+		return renderStartMenuFrame(state, frame, width, height), nil
 	default:
-		return []string{"menu unavailable"}
+		return []string{"menu unavailable"}, nil
 	}
 }
 
@@ -308,7 +391,10 @@ func rootStateText(thread couchcore.ActionableThreadSummary, now time.Time) stri
 	return thread.Reason.Label()
 }
 
-func renderRootMenuFrame(state MenuState, frame MenuFrame, width, height int, now time.Time, color256 bool) []string {
+// renderRootMenuFrame returns the drawn lines and, for the root list, where each
+// actor was drawn WITHIN those lines. The caller re-bases the extents, because
+// only the caller knows what it inserts above them.
+func renderRootMenuFrame(state MenuState, frame MenuFrame, width, height int, now time.Time, color256 bool) ([]string, []ActorExtent) {
 	visible := visibleRootThreads(state.Inventory, frame)
 	// Labels are disambiguated against the WHOLE inventory, not the filtered
 	// view: a name that is unique only because the filter hid its twin would
@@ -334,6 +420,7 @@ func renderRootMenuFrame(state MenuState, frame MenuFrame, width, height int, no
 		text       string
 		selected   bool
 		actorStart bool
+		thread     couchcore.ThreadAddress
 	}
 	var rows []rootLine
 	selectedStart, selectedEnd := 0, 0
@@ -357,10 +444,10 @@ func renderRootMenuFrame(state MenuState, frame MenuFrame, width, height int, no
 		if selectedRow {
 			selectedStart = len(rows)
 		}
-		rows = append(rows, rootLine{text: plain, selected: selectedRow, actorStart: true})
+		rows = append(rows, rootLine{text: plain, selected: selectedRow, actorStart: true, thread: thread.Address})
 		for _, message := range state.Attention[thread.Address] {
 			if message.Text != "" {
-				rows = append(rows, rootLine{text: clipMenuLine("    "+message.Text, width)})
+				rows = append(rows, rootLine{text: clipMenuLine("    "+message.Text, width), thread: thread.Address})
 			}
 		}
 		if selectedRow {
@@ -375,16 +462,29 @@ func renderRootMenuFrame(state MenuState, frame MenuFrame, width, height int, no
 		start++
 	}
 	end := min(start+rowBudget, len(rows))
+	var extents []ActorExtent
 	for _, row := range rows[start:end] {
+		index := len(lines)
 		if row.selected {
 			row.text = selectedMenuLine(string(ansi.Strip([]byte(row.text))), true, width)
 		}
 		lines = append(lines, row.text)
+		if row.thread == (couchcore.ThreadAddress{}) {
+			continue
+		}
+		// Extend the actor's run rather than starting a new one: its attention
+		// lines carry the same thread, which is what makes the extent cover
+		// every line the actor drew.
+		if n := len(extents); n > 0 && extents[n-1].Thread == row.thread {
+			extents[n-1].End = index + 1
+			continue
+		}
+		extents = append(extents, ActorExtent{Thread: row.thread, Start: index, End: index + 1})
 	}
 	if frame.Filter != "" {
 		lines = append(lines, clipMenuLine("filter: "+frame.Filter, width))
 	}
-	return lines
+	return lines, extents
 }
 
 func renderItemMenuFrame(title string, items []string, selected, filter string, width, height int) []string {

@@ -11,6 +11,7 @@ import (
 	"bytes"
 	"time"
 
+	"github.com/xianxu/pair/cmd/internal/mouseinput"
 	"github.com/xianxu/pair/cmd/internal/workbenchshortcut"
 )
 
@@ -90,7 +91,28 @@ const (
 	// HitRelaunch is alt+n (or ctrl+alt+n): replace this thread's Pair process
 	// with the current binary, keeping the agent conversation.
 	HitRelaunch
+	// HitMouse is an SGR mouse report. It has NO seqKind: a report's shape is
+	// `\x1b[<button;col;rowM|m` with variable digits, so knownSequences -- which
+	// holds fixed strings -- cannot express it, and FeedHit matches it against
+	// mouseinput's predicate BEFORE consulting that table. A seqKind for it
+	// existed briefly and was dead: sequenceAt can only return kinds the table
+	// carries.
+	//
+	// Unlike every other hit it carries a
+	// PAYLOAD -- the decoded event and the raw wire bytes, read with Mouse() --
+	// because a coordinate cannot be recovered from the hit alone and a
+	// forwarded report must be the bytes the terminal sent, not a re-encoding.
+	HitMouse
 )
+
+// MouseHit is the payload of a HitMouse.
+type MouseHit struct {
+	Event mouseinput.Event
+	// Raw is the wire form, kept because the forward disposition writes the
+	// child exactly what the terminal sent. Re-encoding from Event would be a
+	// second source of truth for the format (ARCH-DRY).
+	Raw []byte
+}
 
 // AllInterceptorHits is every hit the console must be able to act on.
 //
@@ -104,7 +126,7 @@ const (
 // HitNone is deliberately absent: it is the ABSENCE of a hit, and giving it a
 // handler would be inventing an action for "nothing happened".
 func AllInterceptorHits() []InterceptorHit {
-	return []InterceptorHit{HitSwitch, HitPark, HitPrevious, HitDetach, HitRelaunch}
+	return []InterceptorHit{HitSwitch, HitPark, HitPrevious, HitDetach, HitRelaunch, HitMouse}
 }
 
 // knownSequences is every multi-byte sequence the console must recognise in the
@@ -209,10 +231,17 @@ var knownSequences = func() []struct {
 type Interceptor struct {
 	inPaste bool
 
+	// mouse is the payload of the hit just returned. Read with Mouse()
+	// immediately after a HitMouse; overwritten by the next one.
+	mouse MouseHit
+
 	// held is a partial paste marker straddling a read boundary. Bounded by
 	// construction: a marker is six bytes.
 	held []byte
 }
+
+// Mouse is the payload of the HitMouse just returned.
+func (i *Interceptor) Mouse() MouseHit { return i.mouse }
 
 // Flush resolves an ambiguous partial as literal child input. The IO owner
 // calls it only after its short escape-key timeout expires.
@@ -250,6 +279,29 @@ func (i *Interceptor) FeedHit(in []byte) (before []byte, hit InterceptorHit, res
 			return out, HitPrevious, buf[idx+1:]
 		}
 		if buf[idx] == 0x1b {
+			// A mouse report BEFORE the fixed-string table: its shape is
+			// variable so knownSequences cannot hold it, and couch cannot
+			// WITHHOLD a report it does not recognise -- the interceptor
+			// forwards anything unknown, which is why a child that never
+			// enabled tracking used to receive reports anyway.
+			if event, raw, rest, ok := mouseinput.ParsePrefix(buf[idx:]); ok {
+				if !i.inPaste {
+					i.mouse = MouseHit{Event: event, Raw: append([]byte(nil), raw...)}
+					return out, HitMouse, rest
+				}
+				// Inside a paste it is content, like any other byte.
+				out = append(out, raw...)
+				idx += len(raw)
+				continue
+			}
+			if mouseinput.IsPrefix(buf[idx:]) && len(buf)-idx <= mouseinput.MaxReport {
+				// Bounded: an unterminated introducer held forever parks every
+				// following keystroke -- #127's dead keyboard, which shipped
+				// once already. Past the bound this is not a report, so it
+				// falls through and becomes ordinary input.
+				i.held = append([]byte(nil), buf[idx:]...)
+				return out, HitNone, nil
+			}
 			n, kind := sequenceAt(buf[idx:])
 			switch kind {
 			case seqPartial:

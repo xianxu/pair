@@ -145,7 +145,13 @@ func TestConsoleRunMenuOwnsInputAndBackgroundPainting(t *testing.T) {
 	waitUpTo(t, 250*time.Millisecond, "background output drain", func() bool {
 		return f.con.PaneRowDirty("c1")
 	})
-	_, _ = f.stdin.Write([]byte("\x1b[<0;12;4M\x1b[<0;13;4Mz"))
+	// Row 1 is the BREADCRUMB, which is nobody. These reports were chosen as
+	// bytes couch swallows rather than forwards, and that is still what they
+	// test -- but since pair#172 a click on an ACTOR row switches, so aiming
+	// them at row 4 would exercise the switch and repaint the actor this test
+	// asserts stays hidden. The subject here is ownership and painting, not
+	// mouse, so the target moves rather than the assertion.
+	_, _ = f.stdin.Write([]byte("\x1b[<0;12;1M\x1b[<0;13;1Mz"))
 	waitUpTo(t, 250*time.Millisecond, "local filter input", func() bool {
 		return f.con.menuSnapshot().CurrentFrame().Filter == "z"
 	})

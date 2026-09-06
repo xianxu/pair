@@ -285,6 +285,21 @@ func (c *Child) Mouse() bool {
 	return c.screen.Mouse()
 }
 
+// MouseObserved reports whether this child's output has said anything about
+// mouse mode. False means unknown rather than "no" -- see Screen.MouseObserved.
+func (c *Child) MouseObserved() bool {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	return c.screen.MouseObserved()
+}
+
+// SGRMouse reports whether the child asked for SGR-encoded mouse coordinates.
+func (c *Child) SGRMouse() bool {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	return c.screen.SGRMouse()
+}
+
 // TakeRowDirty reports and clears whether this child did something that may
 // have destroyed a reserved row -- dropping the scrolling region, or erasing
 // the display.

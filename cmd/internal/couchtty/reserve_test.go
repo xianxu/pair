@@ -64,7 +64,7 @@ func TestRenderStatusRowMarksActiveAndPendingDistinctly(t *testing.T) {
 		{Label: "brain", Active: true},
 		{Label: "pair", Bell: true},
 		{Label: "ariadne"},
-	}})
+	}}).Body
 
 	if !strings.Contains(got, "[brain]") {
 		t.Fatalf("the active actor is not marked: %q", got)
@@ -82,7 +82,7 @@ func TestRenderStatusRowMarksActiveAndPendingDistinctly(t *testing.T) {
 }
 
 func TestRenderStatusAttentionDoesNotRestyleFocusedActor(t *testing.T) {
-	got := RenderStatusRow(80, StatusModel{Actors: []StatusActor{{Label: "pair", Active: true, Bell: true}}})
+	got := RenderStatusRow(80, StatusModel{Actors: []StatusActor{{Label: "pair", Active: true, Bell: true}}}).Body
 	if got != "[pair]" {
 		t.Fatalf("focused attention treatment = %q, want ordinary focused chip", got)
 	}
@@ -94,7 +94,7 @@ func TestRenderStatusRowFitsTheWidth(t *testing.T) {
 		Notice: "a notice long enough to need cutting off somewhere sensible",
 	}
 	for _, w := range []int{10, 20, 40, 80} {
-		got := RenderStatusRow(w, m)
+		got := RenderStatusRow(w, m).Body
 		if textwidth.Width(got) > w {
 			t.Fatalf("width %d: rendered %d columns: %q", w, textwidth.Width(got), got)
 		}
@@ -108,7 +108,7 @@ func TestRenderStatusRowStripsControlBytesFromUntrustedText(t *testing.T) {
 	got := RenderStatusRow(80, StatusModel{
 		Actors: []StatusActor{{Label: "ev\x1b[2Jil", Active: true}},
 		Notice: "also \x07 bad \x1b[31m",
-	})
+	}).Body
 	for _, bad := range []string{"\x1b", "\x07"} {
 		if strings.Contains(got, bad) {
 			t.Fatalf("control byte %q survived into the status row: %q", bad, got)
@@ -120,7 +120,7 @@ func TestRenderStatusRowStripsControlBytesFromUntrustedText(t *testing.T) {
 }
 
 func TestRenderStatusRowWithNoActors(t *testing.T) {
-	got := RenderStatusRow(40, StatusModel{Notice: "nothing running"})
+	got := RenderStatusRow(40, StatusModel{Notice: "nothing running"}).Body
 	if !strings.Contains(got, "nothing running") {
 		t.Fatalf("the notice was dropped: %q", got)
 	}

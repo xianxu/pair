@@ -106,3 +106,46 @@ func TestRowActionDeclarationsAndTheMenuAgreeInBothDirections(t *testing.T) {
 		}
 	}
 }
+
+// endsItsOwnChild names the operations whose child exit is EXPECTED, so the two
+// sites that need the answer cannot disagree. It shipped in pair#182 with its
+// only _test.go occurrence being the concept inventory's own literal, which is
+// why the coverage assertion was passing vacuously.
+func TestEndsItsOwnChildNamesTheDeliberateOnes(t *testing.T) {
+	for _, operation := range []string{"park", "detach", "relaunch"} {
+		if !endsItsOwnChild(operation) {
+			t.Errorf("%q deliberately ends its child but is not named, so its exit raises a spurious notice", operation)
+		}
+	}
+	for _, operation := range []string{"switch", "resume", "archive", "name", "describe", "leave", ""} {
+		if endsItsOwnChild(operation) {
+			t.Errorf("%q does not end its own child, so marking its exit expected would SWALLOW a real one", operation)
+		}
+	}
+}
+
+// Manual marks a dispatch that HAPPENED. dispatchThreadOperation refuses while
+// another operation is in flight and returns the state unchanged, so marking
+// unconditionally would set Manual on somebody else's operation -- and that
+// operation would then skip its attention capture and be misclassified as an
+// ordinary landing.
+func TestAClickRefusedMidOperationDoesNotMarkSomeoneElsesWork(t *testing.T) {
+	address := menuAddress("one")
+	state := NewMenuState([]couchcore.ActionableThreadSummary{{
+		Address: address, WorkingPath: "/w/one", Name: "one", State: couchcore.ThreadLive,
+	}}, address)
+
+	// Something else is already in flight, so the click's dispatch is refused.
+	state.InFlight = MenuOperationOrigin{Operation: "park", Attempt: 7, Address: address}
+	next, effects := ReduceMenu(state, MenuEvent{Kind: MenuEventMouseSwitch, Address: address})
+
+	if len(effects) != 0 {
+		t.Fatalf("the click dispatched %d effect(s) while park was in flight", len(effects))
+	}
+	if next.InFlight.Operation != "park" || next.InFlight.Attempt != 7 {
+		t.Fatalf("the click displaced the in-flight operation: %+v", next.InFlight)
+	}
+	if next.InFlight.Manual {
+		t.Error("the refused click marked the in-flight park as manual, so it will skip its attention capture")
+	}
+}

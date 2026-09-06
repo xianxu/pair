@@ -165,7 +165,7 @@ func TestCodexWorkingNotificationReachesCouchStatusAndSwitcher(t *testing.T) {
 	two.Feed(wrapperBytes)
 	wantStatus := couchtty.RenderStatusRow(80, couchtty.StatusModel{Actors: []couchtty.StatusActor{
 		{Label: "one", Active: true}, {Label: "two", Bell: true},
-	}})
+	}}).Body
 	waitForCodexCouch(t, func() bool { return strings.Contains(host.Written(), wantStatus) }, "pending status chip")
 	if _, err := writer.Write([]byte{0}); err != nil {
 		t.Fatal(err)

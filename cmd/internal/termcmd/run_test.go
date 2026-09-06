@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"errors"
 	"fmt"
+	"github.com/xianxu/pair/cmd/internal/mouseinput"
 	"io"
 	"os"
 	"os/exec"
@@ -623,16 +624,16 @@ func TestRightTerminalPaneShellMatchesLayout3(t *testing.T) {
 }
 
 func TestParseSGRMousePress(t *testing.T) {
-	event, ok := parseSGRMousePress([]byte("\x1b[<64;12;1M"))
-	if !ok || event.button != 64 || event.x != 12 || event.y != 1 {
+	event, ok := mouseinput.Parse([]byte("\x1b[<64;12;1M"))
+	if !ok || event.Button != 64 || event.X != 12 || event.Y != 1 {
 		t.Fatalf("mouse = (%+v,%v), want ({button:64 x:12 y:1},true)", event, ok)
 	}
-	if event.release {
+	if event.Release {
 		t.Fatal("M terminator is a press, not a release")
 	}
 	// 'm' is the RELEASE terminator — a complete event, not a partial press.
-	release, ok := parseSGRMousePress([]byte("\x1b[<0;12;1m"))
-	if !ok || !release.release || release.button != 0 || release.x != 12 || release.y != 1 {
+	release, ok := mouseinput.Parse([]byte("\x1b[<0;12;1m"))
+	if !ok || !release.Release || release.Button != 0 || release.X != 12 || release.Y != 1 {
 		t.Fatalf("release = (%+v,%v), want ({button:0 x:12 y:1 release:true},true)", release, ok)
 	}
 }

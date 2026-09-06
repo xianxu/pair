@@ -3427,3 +3427,103 @@ that a key token appears cannot detect a contradictory behavioral sentence
   A red check that produces NO output is not a pass — it means the mutation was
   not observed, and the next question is whether the test can see the property
   at all.
+- I made the `git checkout <file>` mistake AGAIN, one day after writing the
+  lesson about it, and lost an hour of uncommitted work in `console.go`. Writing
+  a lesson does not install it. The durable fix is not "remember harder" — it is
+  never to reach for `git checkout` during a mutation check at all: copy the
+  file aside first and copy it back, which every other red-check in these
+  sessions did correctly. If a habit has failed twice, change the tool, not the
+  intention.
+- A test that SWEEPS a parameter and asserts whatever it finds cannot pin a rule
+  about what must EXIST. My chip-span test walked eight widths checking every
+  span it found was valid — so a change dropping spans for narrow chips passed
+  it, because nothing required a span at any particular width. Same shape for
+  actor extents: nothing asserted an actor's second line joins its first extent
+  rather than starting a new one, so deleting the run-merge stayed green.
+  Construct the case (a width where a chip draws exactly one column) instead of
+  sweeping and hoping the interesting one is in range.
+- Unreachable defensive code cannot be pinned, and saying so is the honest
+  answer. `clampExtents` guards against the renderer's row budget disagreeing
+  with the height clamp; measured across heights 3..16 the budget always wins,
+  so no test can redden it without constructing a state the renderer cannot
+  produce. Keep the guard, say in its comment that it is unreachable and why,
+  and do not manufacture a test that only tests the test.
+- A guard that greps the package's test files must EXCLUDE itself. couch's
+  core-concepts contract asserted every PURE row has a direct test by globbing
+  `*_test.go` and searching for the symbol — and the contract file is in its own
+  glob, listing every symbol verbatim in its inventory. So the match always
+  succeeded and the assertion was vacuous. Unmasking it immediately found three
+  types with no test at all, one of them shipped two issues ago. When a check
+  reads a directory, ask whether the check is IN that directory.
+- Terminal modes 1000/1002/1003 are ONE mutually-exclusive tracking state, not
+  additive flags. I "fixed" a silent-disable bug by re-asserting `?1000h` on
+  every paint, which demotes a child holding `?1002h` to press/release — so it
+  never receives the motion that closes a drag, and nvim wedges in visual
+  selection. Before re-asserting any terminal mode, check whether the protocol
+  unions or replaces; the fix for one silent failure introduced a worse one.
+- A per-paint or per-tick invariant is not pinned by a test of its FIRST
+  occurrence. couch re-asserts its mouse mode on every paint; the only test
+  checked the startup write, so deleting the per-paint call left the whole suite
+  green. The reviewer measured it as "1 of 6 cells implemented, 0 of 6 pinned"
+  and was right. When behaviour is a rule over repeated events, enumerate the
+  events and assert one case each — the transition table IS the test list.
+- A promotion is finished when every consumer derives the RULE, not just the
+  constant the diff touched. Moving the SGR parser out of `termcmd` left
+  `sgrMouseSize` computing the report's length itself from the shared terminator
+  constant — same answer for well-formed input, different for malformed, since
+  `ParsePrefix` validates the numbers and the local scan did not. Two answers to
+  "where does this sequence end" is the exact condition the move was made to end.
+- Inserting a constant or type between a comment and its subject silently
+  re-attributes the comment. I did it twice in one commit — `ChipSpan` inherited
+  `RenderStatusRow`'s untrusted-text rationale, and `MenuEventMouseSwitch`
+  inherited `MenuEventNotice`'s. The file reads fine; `go doc` shows the wrong
+  thing, which is how most readers arrive. After inserting into a const block or
+  above a declaration, run `go doc <the neighbour>` and check it still describes
+  itself.
+- Two facts in one bool is a bug waiting for its second half. `ptychild.Screen`
+  folded mouse TRACKING (1000/1002/1003) and mouse ENCODING (1006) into one
+  `mouse` flag, so a child doing `?1002h` then `?1006l` read as "no mouse" — and
+  a supervisor asking "is this child tracking?" got false and asserted its own
+  mode over a child that was still tracking. I had already fixed that demotion
+  once at the WRITE; the same bug came back through the OBSERVATION, because the
+  fix guarded one side of a two-sided defect. When a predicate answers two
+  questions, split it before guarding either.
+- A guard is blind to what lies outside its scope, so it cannot be the only
+  check. couch's core-concepts contract only reads rows whose declared path is
+  inside its own package, so a row naming `hostty` was never checked and drifted
+  twice. A passing guard licenses only what it can see; the artifact still has
+  to be re-read against the tree at the boundary.
+- A belief you can only have OBSERVED needs a third state: yes, no, and "not
+  seen". couch read `Screen.Mouse() == false` as "the child wants no mouse", but
+  a reattach mints a fresh Screen for a still-running child that will never
+  re-announce its startup DECSET — so false meant "unknown" and couch wrote a
+  terminal-global mode over a child that was still tracking. Silence is not
+  consent. The same defect escaped three separate fixes (the missing re-assert,
+  the write, the observation) because each guarded one path into a belief that
+  was never modelled.
+- Record a manual verification as WHAT WAS RUN and WHAT WAS OBSERVED, including
+  the configuration, or it cannot tell you what it failed to cover. "Smoke-tested
+  twice, works fine" hid that both runs used children announcing `?1006`, so the
+  mainstream case passed while the configuration the operator later reported
+  broken was never exercised. The value of the record is mostly in its negative
+  space.
+- A test fixture that never wires the child's output to the console cannot test
+  a TRIGGER, only a hand-called effect. My mouse fixture omitted `SetSink`, so
+  every mode test called `repaint()` itself — and the missing re-evaluation (a
+  child dropping its mode leaving couch's clicks off until some unrelated paint)
+  was invisible by construction. When a test drives an effect by hand, ask what
+  drives it in production and whether the fixture even carries that path.
+- If removing your fix leaves every test green, the fix is not the mechanism.
+  I added a `paintNow` for a re-evaluation that an existing `paintPending`
+  branch already performed; deleting mine changed nothing, which was the signal
+  — not a gap in coverage. Delete it and keep the real path, with a note saying
+  why the obvious-looking addition is absent.
+- Eleven review rounds on ~450 lines of new logic, and the distribution is the
+  lesson: roughly a third were real defects (two of which a keyboard smoke test
+  structurally could not reach), a third were my tests not testing — sweeps that
+  asserted whatever they found, a coverage guard matching its own file, a
+  fixture that never wired the production path — and a third were regressions
+  introduced by the previous round's fix. The single highest-leverage habit is
+  the mutation check: after writing a test, break the thing it covers and
+  confirm the test fails. Every vacuous test in this issue would have been
+  caught in seconds by that, and each one instead cost a full review round.

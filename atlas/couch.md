@@ -334,6 +334,86 @@ the same declared operation surface. Each accepted slow action paints an
 identity-owned spinner before dispatch, and stale completions cannot mutate a
 replacement frame.
 
+**Mouse ownership is the hard half, because the mode is terminal-GLOBAL**
+(`pair#172`). couch asks the terminal for click reporting in SGR encoding
+(`?1000;1006`, never `?1002`/`?1003` — motion arrives at pointer rates for a
+feature that wants click rates), so a child that never asked starts receiving
+reports unless something withholds them. `RouteMouseReport` is that decision, and
+it is three-way rather than a bool: "the child asked for this" and "the child
+must never see this" are the two cases the feature exists to separate.
+
+- couch's own row (the last, held by reservation): a button-0 press acts;
+  anything else forwards if the child has mouse mode, else is swallowed.
+- With the SWITCHER up couch owns the whole screen, because no child is
+  displayed and a forward would deliver the click somewhere invisible.
+- Everywhere else: forward verbatim if the child enabled tracking, else swallow.
+
+The release rule is deliberately NARROWER than `termcmd`'s, which forwards every
+release unconditionally — correct where the child is already receiving presses,
+wrong here, where a child with no tracking must receive nothing and a release it
+never saw a press for is an unpaired event.
+
+couch owns only its OWN mode. `ptychild` replay re-asserts the child's across a
+switch, and a second writer would be two authorities for one terminal state.
+couch re-asserts its own on every paint — a child writing DECRST `?1000l` turns
+couch's clicks off globally, and without the re-assert the feature would stop
+with no signal — but ONLY while no child holds tracking.
+
+That caveat is the whole rule, and this paragraph used to deny it: "DECSET is
+additive and idempotent, so this cannot clobber a mode the child set for itself"
+is **false**. Modes 1000/1002/1003 are one mutually-exclusive tracking state
+(xterm's `send_mouse_pos`; Alacritty, kitty, Ghostty and iTerm2 all replace
+rather than union), so asserting 1000 under a child holding 1002 demotes it to
+press/release and its drag never closes — nvim wedged in visual selection. The
+transition table, one rule: **the child's mode wins whenever it has one, and
+couch takes the terminal back the moment it does not.**
+
+TRACKING and ENCODING are separate facts, and collapsing them cost the same bug
+twice. `?1000`/`?1002`/`?1003` say the child wants events; `?1006` says only how
+coordinates are encoded. `ptychild.Screen` tracks them apart (`Mouse()` and
+`SGRMouse()`) because a child doing `?1002h` then `?1006l` otherwise reads as
+"no mouse" — reaching the demotion through the OBSERVATION instead of the write —
+and because couch must forward SGR only to a child that asked for SGR: one
+holding `?1000h` alone requested the legacy form and cannot parse what the
+terminal now sends.
+
+A click dispatches the SAME declared `switch` (or `resume`) operation Enter
+dispatches, chosen by the same `enterOperationFor` rule — one authority, because
+a restatement had already diverged on its first day. The one difference is that a
+click is always MANUAL: it suppresses the attention capture, so the landing is
+`arrivalOrdinary` and `ctrl+backspace` undoes it even on a paging actor, where
+Enter would be a non-pinning notification hop.
+
+The `Interceptor` had to learn the SGR shape for any of this to be possible: it
+forwards whatever it does not recognise, so couch could not WITHHOLD a report
+until it could see one. The hold is bounded (`mouseinput.MaxReport`) — an
+unterminated introducer held forever parks every following keystroke, which is
+`#127` and has shipped once.
+
+**A click maps to an ACTOR, and the geometry comes from the render** (`pair#172`
+M1). `RenderStatusRow` returns `RenderedStatusRow{Body, Chips}`: each chip's
+column span is recorded by the same pass that CLIPS chips to width, so a chip the
+width dropped contributes no span and a clipped one contributes the columns it
+actually drew. A caller re-deriving spans from `StatusModel` would agree at
+comfortable widths and disagree at exactly the narrow ones, which is where a
+mis-mapped click is least catchable by eye.
+
+In the switcher the unit is the ACTOR, never the line: an actor occupies its own
+row plus one per pending attention message, so `RenderMenuView` returns
+`ActorExtent` runs derived from the `actorStart` boundary the scroll window
+already uses. They are re-based there rather than in `renderRootMenuFrame`,
+because the notice is inserted at index 1 and shifts every actor row down — an
+extent computed before that shift is right by one line and wrong by one. Both
+maps are TOTAL: a gap between chips, the breadcrumb, the notice, and anything
+past the drawn rows are nobody, which is how "clicking bare space does nothing"
+is a value rather than a branch at each call site.
+
+The SGR decoder lives in `cmd/internal/mouseinput`, moved out of `termcmd` rather
+than copied: one parser means one answer to "where does this sequence end", which
+is the decision `#127`'s dead keyboard came from making twice. A caller that holds
+on `IsPrefix` must bound the wait (`MaxReport`) — an unbounded hold parks every
+following keystroke.
+
 **A row states an age only when it has one** (`pair#187`). `LastActiveAt` was
 written by park alone, so a thread that was DETACHED had never recorded activity
 — and `now.Sub(time.Time{})` does not compute a large age, it overflows int64

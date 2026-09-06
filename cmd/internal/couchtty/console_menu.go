@@ -184,6 +184,12 @@ func (c *Console) showMenu() {
 		height = 1
 	}
 	view := RenderMenuView(state, int(size.Cols), height, time.Now(), true)
+	// Kept so a click can be mapped against what is ON SCREEN rather than
+	// against a re-render: the operator clicked the rows they could see, and a
+	// second render could differ (a refresh, a notice) between paint and click.
+	c.mu.Lock()
+	c.menuExtents = view.Extents
+	c.mu.Unlock()
 	_, _ = c.host.Write([]byte(hostty.HideCursor))
 	c.takeOverScreen([]byte(view.Body))
 	c.paintNow()

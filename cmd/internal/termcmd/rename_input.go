@@ -3,6 +3,7 @@ package termcmd
 import (
 	"bytes"
 	"github.com/xianxu/pair/cmd/internal/ansi"
+	"github.com/xianxu/pair/cmd/internal/mouseinput"
 	"unicode/utf8"
 
 	"github.com/xianxu/pair/cmd/internal/workbenchshortcut"
@@ -172,17 +173,20 @@ func renameControlPrefix(input []byte) bool {
 	return false
 }
 
+// sgrMouseSize answers "how long is the report at the head of input" by asking
+// mouseinput, rather than restating its framing rule.
+//
+// The two used to differ on malformed input: this returned a length for
+// `\x1b[<abc M` because it only searched for a terminator, while ParsePrefix
+// validates the numbers. ParsePrefix wins -- a caller that consumes bytes it
+// cannot decode is guessing, and one parser exists so there is one answer to
+// "where does this sequence end" (pair#172).
 func sgrMouseSize(input []byte) (int, bool) {
-	if !bytes.HasPrefix(input, []byte("\x1b[<")) {
+	_, raw, _, ok := mouseinput.ParsePrefix(input)
+	if !ok {
 		return 0, false
 	}
-	// Same 'M' press / 'm' release terminator pair the pump uses — driven by the
-	// one constant so the sites can't drift apart (they did: #127).
-	idx := bytes.IndexAny(input[3:], sgrMouseTerminators)
-	if idx < 0 {
-		return 0, false
-	}
-	return idx + 3 + 1, true
+	return len(raw), true
 }
 
 func escapeSequenceIncomplete(input []byte) bool {

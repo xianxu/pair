@@ -27,6 +27,7 @@ var menuControls = []MenuControl{
 	{Keys: "Ctrl-Backspace", Action: "previous"},
 	{Keys: "Alt+d", Action: "detach this thread · all + leave couch here"},
 	{Keys: "Alt+x", Action: "park this thread · all + leave couch here"},
+	{Keys: "click", Action: "an actor's chip or row switches to it · empty space does nothing"},
 	{Keys: "Alt+n", Action: "relaunch: new Pair binary, same conversation (Ctrl+Alt+n aliases it)"},
 	{Keys: "Escape", Action: "clear/back"},
 	{Keys: "Tab → archive", Action: "remove a thread from couch, keeping its record"},
@@ -170,6 +171,11 @@ type MenuState struct {
 // MenuOperationOrigin captures the exact frame that emitted asynchronous
 // work, so completion does not depend on whichever frame is visible later.
 type MenuOperationOrigin struct {
+	// Manual suppresses the attention capture, so the landing is classified
+	// arrivalOrdinary even on a paging actor. A click is always a manual switch;
+	// Enter on a paging actor is not.
+	Manual bool
+
 	Operation        string
 	Attempt          uint64
 	Address          couchcore.ThreadAddress
@@ -191,6 +197,14 @@ const (
 	MenuEventCompletionResult
 	MenuEventParkHotkey
 	MenuEventTick
+	// MenuEventMouseSwitch is a click on an actor. It dispatches the SAME
+	// declared `switch` operation Enter dispatches; the only difference is that
+	// it is always MANUAL, so ctrl+backspace undoes it even when the clicked
+	// actor was paging. Enter on a paging actor is a notification hop and
+	// therefore non-pinning, which is the one input where the two legitimately
+	// differ (pair#172).
+	MenuEventMouseSwitch
+
 	// MenuEventNotice reports a console-side refusal on the menu's own surface.
 	// The status row is behind the panel while the switcher owns the screen, so
 	// a refusal sent there would read to the operator as the key doing nothing.
@@ -333,6 +347,22 @@ func ReduceMenu(state MenuState, event MenuEvent) (MenuState, []MenuEffect) {
 	if event.Kind == MenuEventParkHotkey {
 		return reduceParkHotkey(next, event)
 	}
+	if event.Kind == MenuEventMouseSwitch {
+		thread, ok := findMenuThread(next.Inventory, event.Address)
+		if !ok || !menuThreadActionable(thread) {
+			return next, nil
+		}
+		next.Frames = next.Frames[:1]
+		next.Frames[0].SelectedAddress = event.Address
+		state, effects := dispatchThreadOperation(next, enterOperationFor(thread), event.Address)
+		// Only mark a dispatch that HAPPENED. dispatchThreadOperation refuses
+		// when another operation is in flight and returns the state unchanged;
+		// marking that would leave Manual set on someone else's operation.
+		if len(effects) > 0 {
+			state.InFlight.Manual = true
+		}
+		return state, effects
+	}
 	if event.Kind == MenuEventRefreshStarted {
 		next.RefreshPending = true
 		if !next.InventoryReady && next.Notice.Level != MenuNoticeProgress {
@@ -439,14 +469,7 @@ func reduceRootKey(state MenuState, key PanelKey) (MenuState, []MenuEffect) {
 			state.Notice = errorMenuNotice(thread.Label() + ": " + unusableThreadNotice(thread))
 			return state, nil
 		}
-		// Live rows switch; parked and detached rows both resume. Parked is
-		// cold and detached is warm, but the effect is one `pair resume` either
-		// way, so this asks Resumable() rather than enumerating states.
-		operation := "switch"
-		if thread.Resumable() {
-			operation = "resume"
-		}
-		return dispatchThreadOperation(state, operation, thread.Address)
+		return dispatchThreadOperation(state, enterOperationFor(thread), thread.Address)
 	case KeyTab:
 		thread, ok := selectedMenuThread(state)
 		if !ok {
@@ -569,6 +592,20 @@ func pastParticiple(operation string) string {
 		return "relaunched"
 	}
 	return operation + "ed"
+}
+
+// enterOperationFor is what landing on a row DOES: live rows switch, parked and
+// detached rows both resume. Parked is cold and detached is warm, but the effect
+// is one `pair resume` either way, so this asks Resumable() rather than
+// enumerating states.
+//
+// One authority, because a click must take Enter's rule rather than a restatement
+// of it -- the restatement had already diverged on its first day (pair#172).
+func enterOperationFor(thread couchcore.ActionableThreadSummary) string {
+	if thread.Resumable() {
+		return "resume"
+	}
+	return "switch"
 }
 
 func reduceActionKey(state MenuState, key PanelKey) (MenuState, []MenuEffect) {
