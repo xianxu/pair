@@ -5,7 +5,7 @@ deps: []
 github_issue:
 created: 2026-09-06
 updated: 2026-09-06
-estimate_hours: 3.73
+estimate_hours: 3.81
 started: 2026-09-06T12:06:08-07:00
 ---
 
@@ -197,6 +197,30 @@ sittings — but whoever picks up the second of the two should check whether the
 first changed the want. Recorded rather than resolved: that is the operator's
 call.
 
+### Planning, and a measurement caveat for the close
+
+Planned on 2026-09-06. `sdlc start-plan` → durable plan at
+`workshop/plans/000198-couch-let-the-operator-choose-layout3-plan.md` → three
+plan-quality rounds. Round 1 blocked on a Critical worth recording, because it
+was a real design defect and not a wording problem: the guard compared the **raw**
+persisted layout, so a pre-change record's `Layout("")` would not equal
+`Layout2` and **every existing thread would have blocked a default `couch`
+startup**. `ParseLayout("") -> Layout2` was defined and then never wired in. The
+fix was the class, not the site: an enumeration of the two places a raw layout
+string becomes a decision input, each with its normalizer, plus `NormalizeLayout`
+and the `LayoutUnknown` sentinel for the projection that has no error return
+(ARCH-SECURE).
+
+**Measurement caveat (from the estimate-quality check).** At planning time
+`sdlc actual --issue 198` reads ~0.29h for the window, against 1.97h of buffered
+design — because the planning artifacts were still untracked and had not crossed
+a commit boundary. Today's spans are also being split across seven issues
+(`#112, #172, #196, #197, #198, #199, #200`) by mention fallback, several flagged
+"100% mention fallback without issue commit boundary". So if this closes well
+under 3.81, check attribution before reading it as estimate drift — the layout3
+trio (#198/#199/#200) shares session time by mention. Recorded now so the ledger
+row is not mistaken for calibration evidence (ariadne#117/#127).
+
 ## Estimate
 
 ```estimate
@@ -204,16 +228,18 @@ model: estimate-logic-v3.1
 familiarity: 1.0
 item: issue-spec                 design=1.10 impl=0.10
 item: greenfield-go-module       design=0.20 impl=0.20
-item: smaller-go-module          design=0.06 impl=0.20
-item: smaller-go-module          design=0.06 impl=0.20
-item: smaller-go-module          design=0.06 impl=0.20
+item: smaller-go-module          design=0.05 impl=0.14
+item: smaller-go-module          design=0.08 impl=0.20
 item: smaller-go-module          design=0.06 impl=0.18
+item: smaller-go-module          design=0.06 impl=0.16
 item: smaller-go-module          design=0.06 impl=0.20
 item: cross-cutting-refactor     design=0.08 impl=0.16
 item: atlas-docs                 design=0.03 impl=0.08
-item: milestone-review           design=0.00 impl=0.24
+item: smaller-go-module          design=0.01 impl=0.04
+item: milestone-review           design=0.00 impl=0.20
+item: milestone-review           design=0.00 impl=0.16
 design-buffer: 0.15
-total: 3.73
+total: 3.81
 ```
 
 *Produced via `brain/data/life/42shots/velocity/estimate-logic-v3.1.md` against
@@ -224,6 +250,37 @@ provisional.
 Design is dominated by `issue-spec`, and that is not front-loading credit taken
 twice: the Problem section's archaeology was written before this session, and
 today added the `## Revisions` (an operator fork plus a correction to the Spec's
+mechanism), a ~750-line plan, and **three plan-quality rounds** — round 1 refused
+with a Critical (`PQ-1`) whose fix changed the design, adding
+`NormalizeLayout`/`LayoutUnknown` and the normalization table; round 2 passed but
+raised `PQ-8`; round 3 disposed of it. The remaining design is small because the
+plan resolved the open questions: the six-state disposition, the guard's
+placement, and the witness's transaction are decided in prose, so each Go item is
+transcription against a named anchor rather than a choice.
+
+The `+15%` design buffer (not `+30%`) is v2.1's thorough-plan-doc rule.
+
+**Revised after the estimate-quality check (3.73 → 3.81).** Four of its five
+observations said the first block ran low, and all four are accepted:
+Task 9 had no line item at all; `milestone-review impl=0.24` was above the
+primitive's scaled ceiling (0.08–0.20) *and* was blending a fresh-eyes review
+with Task 10's six-step manual park/resume cycle, so those are now two items;
+the five `smaller-go-module` rows sat uniformly at the scaled maximum and now
+differ by actual scope (Task 3's three files and schema-2 fixture above Task 2's
+single pure predicate); and the prose said two gate rounds where the ledger
+records three. The fifth observation is about measurement, not the estimate, and
+is recorded in `## Log`.
+
+| Slug | Instances |
+| --- | --- |
+| `issue-spec` | the issue's Problem/Spec, the `## Revisions` entry, the durable plan, and three plan-quality gate rounds |
+| `greenfield-go-module` | Task 1 — `layout.go`: a new type with two normalizers and the `LayoutUnknown` sentinel |
+| `smaller-go-module` | Task 2 the guard predicate; Task 3 the `ThreadRecord`/`threadrecord` field plus the projection's normalization point and old-record fixture; Task 4 the argv emission and `StartEvent.Layout`; Task 5 the `StartInteractive` guard and its refusal text; Task 6 the CLI flag and its typed plumbing; Task 9 the backfill check |
+| `cross-cutting-refactor` | Task 7 — correcting ~19 test premises across six files, one of which (`warmresume_test.go`) must verifiably not change |
+| `atlas-docs` | Task 8 — the `couch.go:427` rationale plus four `atlas/couch.md` sites |
+| `milestone-review` | ×2 — Task 10's six-step manual verification, and the single close boundary review (this is single-pass work: one `sdlc close`, no `Mx` tags) |
+
+## Revisions` (an operator fork plus a correction to the Spec's
 mechanism), a ~700-line plan, and **two plan-quality rounds** — the first
 refused with a Critical (`PQ-1`) whose fix changed the design, adding
 `NormalizeLayout`/`LayoutUnknown` and the normalization table. The remaining
