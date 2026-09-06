@@ -197,9 +197,6 @@ const (
 	MenuEventCompletionResult
 	MenuEventParkHotkey
 	MenuEventTick
-	// MenuEventNotice reports a console-side refusal on the menu's own surface.
-	// The status row is behind the panel while the switcher owns the screen, so
-	// a refusal sent there would read to the operator as the key doing nothing.
 	// MenuEventMouseSwitch is a click on an actor. It dispatches the SAME
 	// declared `switch` operation Enter dispatches; the only difference is that
 	// it is always MANUAL, so ctrl+backspace undoes it even when the clicked
@@ -208,6 +205,9 @@ const (
 	// differ (pair#172).
 	MenuEventMouseSwitch
 
+	// MenuEventNotice reports a console-side refusal on the menu's own surface.
+	// The status row is behind the panel while the switcher owns the screen, so
+	// a refusal sent there would read to the operator as the key doing nothing.
 	MenuEventNotice
 )
 

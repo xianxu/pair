@@ -3473,3 +3473,10 @@ that a key token appears cannot detect a contradictory behavioral sentence
   constant — same answer for well-formed input, different for malformed, since
   `ParsePrefix` validates the numbers and the local scan did not. Two answers to
   "where does this sequence end" is the exact condition the move was made to end.
+- Inserting a constant or type between a comment and its subject silently
+  re-attributes the comment. I did it twice in one commit — `ChipSpan` inherited
+  `RenderStatusRow`'s untrusted-text rationale, and `MenuEventMouseSwitch`
+  inherited `MenuEventNotice`'s. The file reads fine; `go doc` shows the wrong
+  thing, which is how most readers arrive. After inserting into a const block or
+  above a declaration, run `go doc <the neighbour>` and check it still describes
+  itself.
