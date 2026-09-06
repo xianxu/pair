@@ -5,7 +5,7 @@ deps: []
 github_issue:
 created: 2026-09-06
 updated: 2026-09-06
-estimate_hours:
+estimate_hours: 3.73
 started: 2026-09-06T12:06:08-07:00
 ---
 
@@ -196,6 +196,52 @@ available under couch. Not contradictory — different postures for different
 sittings — but whoever picks up the second of the two should check whether the
 first changed the want. Recorded rather than resolved: that is the operator's
 call.
+
+## Estimate
+
+```estimate
+model: estimate-logic-v3.1
+familiarity: 1.0
+item: issue-spec                 design=1.10 impl=0.10
+item: greenfield-go-module       design=0.20 impl=0.20
+item: smaller-go-module          design=0.06 impl=0.20
+item: smaller-go-module          design=0.06 impl=0.20
+item: smaller-go-module          design=0.06 impl=0.20
+item: smaller-go-module          design=0.06 impl=0.18
+item: smaller-go-module          design=0.06 impl=0.20
+item: cross-cutting-refactor     design=0.08 impl=0.16
+item: atlas-docs                 design=0.03 impl=0.08
+item: milestone-review           design=0.00 impl=0.24
+design-buffer: 0.15
+total: 3.73
+```
+
+*Produced via `brain/data/life/42shots/velocity/estimate-logic-v3.1.md` against
+`baseline-v3.1.md`. Method A only.* The calibration source reports `stale` (the
+ledger is newer than the doc, ariadne#127), so the per-primitive hours are
+provisional.
+
+Design is dominated by `issue-spec`, and that is not front-loading credit taken
+twice: the Problem section's archaeology was written before this session, and
+today added the `## Revisions` (an operator fork plus a correction to the Spec's
+mechanism), a ~700-line plan, and **two plan-quality rounds** — the first
+refused with a Critical (`PQ-1`) whose fix changed the design, adding
+`NormalizeLayout`/`LayoutUnknown` and the normalization table. The remaining
+design is small because the plan resolved the open questions: the six-state
+disposition, the guard's placement, and the witness's transaction are decided in
+prose, so each Go item is transcription against a named anchor rather than a
+choice.
+
+The `+15%` design buffer (not `+30%`) is v2.1's thorough-plan-doc rule.
+
+| Slug | Instances |
+| --- | --- |
+| `issue-spec` | the issue's Problem/Spec, the `## Revisions` entry, the durable plan, and two plan-quality gate rounds |
+| `greenfield-go-module` | Task 1 — `layout.go`: a new type with two normalizers and the `LayoutUnknown` sentinel |
+| `smaller-go-module` | Tasks 2–6 — the guard predicate; the `ThreadRecord`/`threadrecord` field plus the projection's normalization point; the argv emission and `StartEvent.Layout`; the `StartInteractive` guard and its refusal; the CLI flag and its typed plumbing |
+| `cross-cutting-refactor` | Task 7 — correcting ~18 test premises across six files, one of which (`warmresume_test.go`) must verifiably not change |
+| `atlas-docs` | Task 8 — the `couch.go:427` rationale plus four `atlas/couch.md` sites |
+| `milestone-review` | Task 10's manual verification and the single close boundary (this is single-pass work: one `sdlc close`, no `Mx` tags) |
 
 ## Revisions
 
