@@ -152,6 +152,41 @@ than a swap is the destructive warm-reattach neighbour (#179), the persistence
 fork, and eighteen test references plus five doc sites that encode the old pin
 as policy.
 
+**The three connected pieces.** This issue is the flag; `#199` builds the tab
+strip `pair term` draws in its own pane; `#200` makes that strip clickable on
+one shared mouse arbitration. Only this one touches couch — `#199`/`#200` are
+`termcmd` + `hostty` work — so **neither gates couch-lite's close**.
+
+### The reversal, on the record
+
+`#198`'s Spec asked for the reason rather than letting the code imply it. Two
+independent reasons, and they point the same way.
+
+**1. The pin's rationale did not survive the rescope.** The 2026-08-22 pin reads
+"couch owns terminal switching now, so layout3's third pane — pair's own user
+terminal — is the layer couch replaces". That was an actor-cluster-era claim,
+made when couch was specified to own everything on the host
+(`workshop/projects/couch.md`, 2026-08-21). `#170` rescoped couch to
+**couch-lite** on 2026-09-02: a switcher over live coding sessions, with
+Admission — fleet capacity and incumbency, its cross-repo provider dependency,
+its stateful fake and its live conformance target — deleted whole. couch-lite
+switches *agent sessions*; it does not hand the operator a shell at their cwd.
+So the layer couch was said to replace is one couch-lite never took over. The
+reversal is a correction the rescope already implied, not a change of taste.
+
+**2. The operator's three original reasons have each moved** (2026-09-06):
+
+| original reason for layout2 | what changed |
+|---|---|
+| keep it simple initially | couch-lite works well and is close to done (2026-09-03 scope event: one remaining issue) |
+| unsure whether the right pane should host a web browser too, cmux-style | dropped — the pane is terminal-only, and constant access to a terminal at the same cwd is wanted |
+| reservations about the right pane's quality: zellij tabs, the title mechanism, mouse | `#199`/`#200` — couch's status bar generalizes into a tab bar the pane manages itself |
+
+The third reason is the one that was a genuine blocker, and `#172` is why it is
+cheap to answer now: it turned a reserved interactive row from an idea into
+working code, with its mouse-mode hazards found and fixed across four rounds
+(BR-16 → BR-22 → BR-26 → BR-33/`#196`).
+
 **Relationship to #194** (`open`, "Toggle a terminal pane in layout2"): both
 answer "the operator wants a terminal", from opposite directions. #194 argues
 layout3's permanent 50%-width third pane is the wrong posture and adds an
