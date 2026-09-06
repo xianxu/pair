@@ -1,12 +1,13 @@
 ---
 id: 000172
-status: working
+status: codecomplete
 deps: []
 github_issue:
 created: 2026-09-02
-updated: 2026-09-05
+updated: 2026-09-06
 estimate_hours: 2.69
 started: 2026-09-05T12:13:46-07:00
+actual_hours: 5.62
 ---
 
 # Mouse support: click the status bar and the switcher
@@ -218,6 +219,8 @@ Done-when asked for an answer rather than a default.
 ## Log
 
 
+
+- 2026-09-06: closed — Clicking an actor switches to it from the status row and from the switcher, smoke-tested on the real stack; the operator confirmed pair#196 fixed on the rebuilt binary. BR-33 and its unswept sibling I1 are both addressed as the state model the finding asked for rather than a fifth site: Screen now records whether it has OBSERVED a mouse DECSET at all (so a reattached child, whose fresh Screen has seen nothing, is UNKNOWN rather than "wants none" — silence is not consent), AND latches a repaint on a mode change, so a child dropping its tracking makes couch reclaim the terminal without waiting for an unrelated paint. Both red-verified. Three things that gap exposed are worth more than the fix and are recorded: the mouse fixture never called SetSink, so no child output reached the console and every mode test could only assert a hand-called effect — the missing trigger was invisible by construction; a paintNow I added on the RowDirty branch turned out not to be the mechanism, since removing it left every test green and an existing paintPending branch already paints once the stream is whole, so it was deleted with a comment saying why; and a third orphaned doc block from the childWantsMouse rename. Earlier rounds: tracking and encoding no longer share a bool, couch forwards SGR only to a child that asked for that encoding, the atlas sentence that PRODUCED the demotion is replaced, chip spans are pinned as display columns, the Manual-on-refusal guard is pinned, and the plan is reconciled with the tree. Full ./cmd/... suite green; go test -race green on couchtty and ptychild.; review verdict: FIX-THEN-SHIP
 - 2026-09-05: closed M1 — M1 ships the click geometry; BR-22 is addressed and its own measurements now falsify it. It measured "deleting the paintNow re-assert leaves the whole couchtty suite green" and "1 of 6 cells implemented, 0 of 6 pinned" — re-measured at HEAD, deleting the re-assert reddens 5 tests and making it unconditional reddens 6, because the mode-transition table is now the test list: child enables 1000/1002/1003, child disables, child exits with mouse on, a switch between two children with different modes, and the no-child baseline, one case each. One rule produces every row: the child mode wins whenever it has one and couch takes the terminal back the moment it does not. The previous round produced a verdict with no disposition block, so BR-22 carried forward from round 5 by default rather than being re-judged against the fix. Also fixed since: BR-21 HitMouse now has a real handler rather than an empty func the dispatcher skipped, BR-20/BR-24 dead aliases deleted and sgrMouseSize derives its length from ParsePrefix instead of restating the framing rule, BR-19/BR-9 two comments I detached from their subjects by inserting declarations between them, BR-25 the plan prose renamed. Operator smoke-tested twice on the real stack. Full ./cmd/... suite green.; review verdict: FIX-THEN-SHIP
 ### 2026-09-02
 

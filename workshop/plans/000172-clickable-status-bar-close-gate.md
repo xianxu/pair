@@ -873,6 +873,84 @@ rounds:
       agent: claude
       blocked: true
       protocol_error: no valid findings block
+    - "n": 13
+      timestamp: "2026-09-06T10:14:05-07:00"
+      agent: claude
+      dispose:
+        - id: BR-5
+          disposition: not-addressed
+          note: clampExtents half is honestly declared; the SCROLLED half is still unreachable — every fixture leaves SelectedAddress at inventory[0], and `index := 2+start+i` leaves the whole couchtty suite green.
+          round: 13
+        - id: BR-9
+          disposition: not-addressed
+          note: '`go doc ChipSpan` still prints RenderStatusRow''s rationale and `go doc RenderStatusRow` is bare; the edit added a meta-comment inside the misattributed block instead of moving it.'
+          round: 13
+        - id: BR-26
+          disposition: not-addressed
+          note: Observation split, SGR-forwarding rule and trigger are done and pinned; the two write-side halves it named are not — console.go:530 is still ungated and ?1006 is still never stood back from.
+          round: 13
+        - id: BR-28
+          disposition: not-addressed
+          note: Three of six sites fixed by the Revisions entry; the disposition table (no couchOwnsScreen), the 3-arg signature at :160, and 40 unticked checkboxes remain.
+          round: 13
+        - id: BR-29
+          disposition: not-addressed
+          note: mouseinput.go:50 still carries the unreachable `|| s == ""`.
+          round: 13
+        - id: BR-30
+          disposition: not-addressed
+          note: console_mouse_test.go:145-149 and :475-479 both still assert only w[0] == 0x1b; BR-32's enumeration named this row and did not sweep it.
+          round: 13
+        - id: BR-31
+          disposition: not-addressed
+          note: manifest.go:549 and :557 still break NonArtifactSources' ordering.
+          round: 13
+        - id: BR-32
+          disposition: addressed
+          note: TestChipSpansAreDisplayColumnsNotRunes discriminates the column unit — verified by mutation (rune count reddens it).
+          round: 13
+        - id: BR-33
+          disposition: addressed
+          note: 'Verified by two mutations: dropping MouseObserved() reddens 3 tests, removing the tracking rowDirty latch reddens the no-repaint trigger test.'
+          round: 13
+        - id: BR-34
+          disposition: addressed
+          note: The 2026-09-06 Revisions entry records both runs, what each observed, and the negative space (both children announced ?1006).
+          round: 13
+        - id: BR-35
+          disposition: not-addressed
+          note: Mouse() was narrowed again this round with no enumeration of its consumers; termcmd's appMouseMode is unnamed and untested in either direction.
+          round: 13
+        - id: BR-36
+          disposition: not-addressed
+          note: menu.go:352 still returns silently for a non-actionable or unknown target where reduceRootKey raises a notice; the divergence is still undeclared.
+          round: 13
+      findings:
+        - id: BR-37
+          severity: Important
+          title: The atlas and three other docs still teach the two-state mouse rule this round refuted
+          detail: |-
+            This is the 4th finding in family docs-lag-shipped-surface. Do NOT fix only
+            the atlas paragraph. The rule that covers all of them: at a boundary, every
+            doc claim about a symbol whose semantics the window changed is re-derived
+            from the code, and the enumeration is a grep for that symbol across atlas/,
+            README, contract-test comments and code comments. Sites measured at the
+            pinned head: atlas/couch.md:358-365 states "the child's mode wins whenever
+            it has one, and couch takes the terminal back the moment it does not" as
+            "the transition table, one rule" — the two-state model whose false==no
+            reading produced pair#196; MouseObserved, "unknown" and "silence is not
+            consent" appear nowhere in atlas/. console.go:1140-1145 attributes the
+            re-evaluating paint to the paintPending/owed branch, but paintPending is
+            set only by a writeOwn refused mid-sequence (console.go:997) and the real
+            trigger is the `dirty := p.rowDirty && isActive` branch at :1158, which is
+            skipped while the panel is up. core_concepts_contract_test.go:61-63 says
+            the M2/M3 rows are "planned" and invisible directly above the M2 rows it
+            lists as shipped. README:391-396 says couch enables click reporting for
+            itself with no standing-back caveat. Measured prevalence: 4 doc sites
+            restating the changed model, 0 re-derived from the code this round.
+          family: docs-lag-shipped-surface
+          round: 13
+      blocked: false
 ---
 
 # Gate ledger — pair#172 (boundary-review)
@@ -1346,6 +1424,45 @@ and there is still no Revisions entry.
 
 **Protocol error:** no valid findings block — this round contributed no findings.
 
+## Round 13 — 2026-09-06T10:14:05-07:00 (claude) — passed
+
+### Disposed
+
+- BR-5 — not-addressed — clampExtents half is honestly declared; the SCROLLED half is still unreachable — every fixture leaves SelectedAddress at inventory[0], and `index := 2+start+i` leaves the whole couchtty suite green.
+- BR-9 — not-addressed — `go doc ChipSpan` still prints RenderStatusRow's rationale and `go doc RenderStatusRow` is bare; the edit added a meta-comment inside the misattributed block instead of moving it.
+- BR-26 — not-addressed — Observation split, SGR-forwarding rule and trigger are done and pinned; the two write-side halves it named are not — console.go:530 is still ungated and ?1006 is still never stood back from.
+- BR-28 — not-addressed — Three of six sites fixed by the Revisions entry; the disposition table (no couchOwnsScreen), the 3-arg signature at :160, and 40 unticked checkboxes remain.
+- BR-29 — not-addressed — mouseinput.go:50 still carries the unreachable `|| s == ""`.
+- BR-30 — not-addressed — console_mouse_test.go:145-149 and :475-479 both still assert only w[0] == 0x1b; BR-32's enumeration named this row and did not sweep it.
+- BR-31 — not-addressed — manifest.go:549 and :557 still break NonArtifactSources' ordering.
+- BR-32 — addressed — TestChipSpansAreDisplayColumnsNotRunes discriminates the column unit — verified by mutation (rune count reddens it).
+- BR-33 — addressed — Verified by two mutations: dropping MouseObserved() reddens 3 tests, removing the tracking rowDirty latch reddens the no-repaint trigger test.
+- BR-34 — addressed — The 2026-09-06 Revisions entry records both runs, what each observed, and the negative space (both children announced ?1006).
+- BR-35 — not-addressed — Mouse() was narrowed again this round with no enumeration of its consumers; termcmd's appMouseMode is unnamed and untested in either direction.
+- BR-36 — not-addressed — menu.go:352 still returns silently for a non-actionable or unknown target where reduceRootKey raises a notice; the divergence is still undeclared.
+
+### Raised
+
+- **BR-37** [Important] `docs-lag-shipped-surface` The atlas and three other docs still teach the two-state mouse rule this round refuted
+  This is the 4th finding in family docs-lag-shipped-surface. Do NOT fix only
+  the atlas paragraph. The rule that covers all of them: at a boundary, every
+  doc claim about a symbol whose semantics the window changed is re-derived
+  from the code, and the enumeration is a grep for that symbol across atlas/,
+  README, contract-test comments and code comments. Sites measured at the
+  pinned head: atlas/couch.md:358-365 states "the child's mode wins whenever
+  it has one, and couch takes the terminal back the moment it does not" as
+  "the transition table, one rule" — the two-state model whose false==no
+  reading produced pair#196; MouseObserved, "unknown" and "silence is not
+  consent" appear nowhere in atlas/. console.go:1140-1145 attributes the
+  re-evaluating paint to the paintPending/owed branch, but paintPending is
+  set only by a writeOwn refused mid-sequence (console.go:997) and the real
+  trigger is the `dirty := p.rowDirty && isActive` branch at :1158, which is
+  skipped while the panel is up. core_concepts_contract_test.go:61-63 says
+  the M2/M3 rows are "planned" and invisible directly above the M2 rows it
+  lists as shipped. README:391-396 says couch enables click reporting for
+  itself with no standing-back caveat. Measured prevalence: 4 doc sites
+  restating the changed model, 0 re-derived from the code this round.
+
 ## Open findings
 
 - **BR-5** [Important] `onedirectional-geometry-assertion` clampExtents and the scrolled list are unreachable from any test
@@ -1355,8 +1472,6 @@ and there is still no Revisions entry.
 - **BR-29** [Minor] `move-residue` mouseinput.go:50's `s == ""` is unreachable after the HasPrefix check succeeds
 - **BR-30** [Minor] `unpinned-exported-shape` TestChildWithoutTrackingReceivesNoMouseBytes only inspects the first byte of each write
 - **BR-31** [Minor] `docs-lag-shipped-surface` artifactpath/manifest.go:549,557 break NonArtifactSources' alphabetical order
-- **BR-32** [Important] `unpinned-exported-shape` ChipSpan's documented column unit is unpinned -- swapping textwidth.Width for a rune count leaves the whole couchtty suite green
-- **BR-33** [Critical] `unspecified-event-policy` couch overwrites a still-tracking child's mouse mode whenever its per-Child observation is empty, and nothing re-evaluates the belief
-- **BR-34** [Important] `manual-verification-unrecorded` The one Done-when with no automatic test is recorded as "it worked", which the plan's own step forbade
 - **BR-35** [Minor] `unnamed-seam-change` Narrowing Screen.Mouse() to tracking-only silently changes termcmd's wheel policy, and the diff names only couchtty
 - **BR-36** [Minor] `parallel-handler-restates-decision` A click on a non-actionable row, or on a chip not yet in the inventory, is silent where Enter explains
+- **BR-37** [Important] `docs-lag-shipped-surface` The atlas and three other docs still teach the two-state mouse rule this round refuted

@@ -3518,3 +3518,12 @@ that a key token appears cannot detect a contradictory behavioral sentence
   branch already performed; deleting mine changed nothing, which was the signal
   — not a gap in coverage. Delete it and keep the real path, with a note saying
   why the obvious-looking addition is absent.
+- Eleven review rounds on ~450 lines of new logic, and the distribution is the
+  lesson: roughly a third were real defects (two of which a keyboard smoke test
+  structurally could not reach), a third were my tests not testing — sweeps that
+  asserted whatever they found, a coverage guard matching its own file, a
+  fixture that never wired the production path — and a third were regressions
+  introduced by the previous round's fix. The single highest-leverage habit is
+  the mutation check: after writing a test, break the thing it covers and
+  confirm the test fails. Every vacuous test in this issue would have been
+  caught in seconds by that, and each one instead cost a full review round.

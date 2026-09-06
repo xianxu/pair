@@ -415,3 +415,156 @@ Add a `## Revisions` entry to `000172-mouse-support-status-bar-and-switcher-plan
 - **The `FeedHit` payload.** State that the decoded event travels through `Interceptor.Mouse()` and `Console.mouseHit`, not as a return value, and why.
 - **Checkbox state.** All 41 boxes are unticked against work the tree carries; tick what shipped or say in the entry that the plan is archived as-designed.
 - **The mouse-belief state model.** The plan has no `(state, event) -> (state, effects)` enumeration for the belief, which is what C1/C2/I1 all fall out of. Write the states (`tracking` / `none` / `unknown`), the writers (`Run`, `paintNow`), the consumers (write, forward, encoding), and the events that re-evaluate it — the enumeration pair#196's own Done-when asked for and which is still the missing artifact.
+
+---
+
+## Re-review — 2026-09-06T10:14:04-07:00 (FIX-THEN-SHIP)
+
+| field | value |
+|-------|-------|
+| issue | 172 — Mouse support: click the status bar and the switcher |
+| repo | pair |
+| issue file | workshop/issues/000172-clickable-status-bar.md |
+| boundary | whole-issue close |
+| milestone | — |
+| window | c15030df41c64086f1e669576034d22bcbb0ea28..2efa19be55b62c5789e6f57cea0a589f6cd6051a |
+| command | sdlc close --issue 172 |
+| reviewer | claude |
+| timestamp | 2026-09-06T10:14:04-07:00 |
+| verdict | FIX-THEN-SHIP |
+
+## Review
+
+```verdict
+verdict: FIX-THEN-SHIP
+confidence: high
+```
+
+The headline fix of this round — the three-state mouse belief (`MouseObserved`) plus a trigger (`rowDirty` on a mouse DECSET) — is real, reachable, and mutation-verified: dropping `MouseObserved()` from `couchMayOwnTheMouse` reddens 3 tests, and removing the tracking-case `rowDirty` latch reddens `TestAChildDroppingItsModeMakesCouchReclaimTheTerminalWithoutAPaintCall`. BR-33 is genuinely closed, not claimed closed. Nothing Critical survives. What blocks a clean SHIP is a set of Important leftovers from prior rounds that the round-13 commits did not reach: couch's **startup** write of the terminal-global mode (`console.go:530`) still ignores the very gate this round introduced — the write it makes in the `unknown` state is the exact write `TestMouseModeTransitions`' "nothing observed yet: couch stands back" row forbids, and the fixture hides it behind a `host.Reset()` (verified: a scratch assertion on the pre-reset buffer fails); the scrolled switcher list is still unreachable from any test (a mutation computing the extent index from the row's position in the full row list leaves the whole `couchtty` suite green); `go doc ChipSpan` still prints `RenderStatusRow`'s rationale; and the plan artifact still contradicts the tree in three places.
+
+## 1. Strengths
+
+- **The belief is modelled, not patched.** `ptychild/screen.go:433-456` splits tracking from encoding *and* records observation, and `console.go:1510-1538` states the three cells in the doc comment with the production incident that produced each. `TestAReattachedChildKeepsItsTrackingMode` reproduces pair#196 through the real `onExit`/`attachThreadActor` path rather than by mutating the pane map.
+- **The trigger is pinned by a test that does not call the effect.** `console_mouse_test.go:508-537` deliberately withholds `repaint()`, and the fixture finally wires `SetSink` (`:48-53`) so the child's output actually reaches the console — the missing seam that made every earlier mode test a sample of size one.
+- **Mutation-verified geometry and gesture.** Swapping `textwidth.Width` for a rune count reddens `TestChipSpansAreDisplayColumnsNotRunes`; removing `&& !origin.Manual` at `console.go:1484` reddens `TestClickIsAManualSwitch`; removing the `SGRMouse()` gate at `console.go:1561` reddens `TestAChildThatDidNotAskForSGRIsNotSentSGR`. Three shipped rules, three discriminating fixtures.
+- **`enterOperationFor` (menu.go:604) is the right ARCH-DRY answer**: the click arm no longer restates Enter's live-vs-resumable rule, it calls it.
+- **`assertDirectTest` now excludes its own file** (`core_concepts_contract_test.go:414-422`) — the self-satisfying guard is gone, and the lessons entry generalises it correctly ("when a check reads a directory, ask whether the check is IN that directory").
+
+## 2. Critical findings
+
+None.
+
+## 3. Important findings
+
+**BR-26 re-raised (not-addressed) — the startup write is ungated, and the encoding half is never stood back from.** `console.go:530` writes `hostty.EnableMouseClicks` unconditionally, two lines before `paintNow()` (`:532`) writes the same string *through* `couchMayOwnTheMouse`. So the startup write has an effect only in exactly the state the gate refuses. Production reaches it with a pane already attached: `couchcmd/run.go:397` dispatches the initial attach *before* `:401` calls `Run()`. Measured: with the mouse fixture's unobserved children attached, `host.Written()` contains `EnableMouseClicks` before any reset — the assertion `TestMouseModeTransitions/"nothing observed yet: couch stands back"` makes is contradicted by the same process one function earlier; the tests only pass because each resets the host first. It survives today on an ordering nobody wrote down (`applyLayout`'s resize provokes the child to re-announce *after* the write), which is precisely the ARCH-ORDER hazard: the `(unknown, process start)` cell is absent from the enumeration. Second half, also unchanged: `?1006` is written as part of the same string and never rescinded, so a child holding `?1002` without `?1006` has its reports swallowed at `console.go:1561` — tracking enabled, zero events delivered, against the "receives its own events unchanged" Done-when. **The rule, not the site:** couch's mouse ownership is ONE gated writer over every mode it touches; each write site consults `couchMayOwnTheMouse`, and the enumeration is `(belief state × write site)` — currently 2 enable sites, 1 gated; 2 modes written, 1 governed.
+
+**BR-5 re-raised (not-addressed) — the scrolled switcher list is still unreachable.** The `clampExtents` half is legitimately disposed (declared unreachable at `menu_render.go:186-199` with the heights 3..16 measurement, and `menu_extent_test.go` says so instead of faking a test). The scrolled half is not. Every extent fixture leaves `frame.SelectedAddress` at `inventory[0]` (`NewMenuState`, menu.go:248), so `start` is always 0 and the scroll window is never entered — including `TestExtentsNeverPointPastTheDrawnMenu`, whose 12-actor fixture reads as the scrolled case and is not one. Measured: replacing `index := len(lines)` (menu_render.go:466) with `index := 2 + start + i` leaves the entire `couchtty` package green; a scratch test that sets `state.Frames[0].SelectedAddress = inventory[11].Address` at height 10 reddens with all 8 drawn rows mapping to nobody, and passes at HEAD. Fix: three lines in `extentFixture`/`TestExtentsNeverPointPastTheDrawnMenu`. The Done-when names "a scrolled or clipped list" explicitly.
+
+**BR-28 re-raised (not-addressed) — three of six plan sites remain.** The 2026-09-06 Revisions entry fixed `DisableMouseClicks`, `seqMouse`, and the `IsPrefix`/`Find` naming. Still wrong: plan `:41-56` "The complete disposition table" has no `couchOwnsScreen` dimension and its row "anything, elsewhere | yes | forward verbatim" is contradicted by `mouse.go:66-72` (switcher up ⇒ press is couch's, everything else swallowed, regardless of the child); plan `:160` states `(event, hostRows, childWantsMouse)` where a four-argument function shipped; and all 40 checkboxes are unticked including the M1 tasks that demonstrably landed. `mouse.go`'s own doc table *is* correct — this is documentation drift, not a coverage hole.
+
+**New — the atlas and the surrounding docs teach the model this round refuted.** *This is the 4th finding in family `docs-lag-shipped-surface`.* Do not fix only the atlas paragraph; the rule is: at the boundary, every doc claim about a symbol whose semantics changed in the window is re-derived from the code, and the enumeration is "grep for the symbol across atlas/, README, contract comments, and code comments". The sites: (1) `atlas/couch.md:358-365` states "the child's mode wins whenever it has one, and **couch takes the terminal back the moment it does not**" as "the transition table, one rule" — that is the two-state model whose `false == no` reading produced pair#196; `MouseObserved`, "unknown", and "silence is not consent" appear nowhere in the atlas. (2) `console.go:1140-1145` says the re-evaluating paint "already happens above: a chunk carrying a DECSET leaves `paintPending` set" — false; `paintPending` is set only by a `writeOwn` refused mid-sequence (`console.go:997`), and the actual trigger is `dirty := p.rowDirty && isActive` at `:1158-1164`, which is skipped while the panel is up or the child is inactive. A reader debugging a missed re-evaluation is sent to the wrong branch. (3) `core_concepts_contract_test.go:61-63` says "the M2/M3 rows carry status `planned` and are invisible here" immediately above the M2 rows it lists as shipped. (4) README:391-396 says "couch enables click reporting for itself" without the standing-back caveat that is now the dominant behaviour.
+
+## 4. Minor findings
+
+- **BR-9 not-addressed.** `go doc ChipSpan` still prints the untrusted-text rationale, and `go doc RenderStatusRow` prints a bare signature — verified by running both. The edit added a meta-comment *inside* the misattributed block rather than moving it below `type ChipSpan struct{}`. The lessons entry written this round prescribes exactly the check (`run go doc <the neighbour>`) that would have caught it.
+- **BR-29 not-addressed.** `mouseinput.go:50`'s `|| s == ""` is still unreachable after `HasPrefix` succeeds.
+- **BR-30 not-addressed, and the BR-32 sweep skipped it.** `console_mouse_test.go:145-149` and `:475-479` both assert `w[0] == 0x1b`; a report concatenated behind other bytes passes either. BR-32's own enumeration named this as a row to sweep.
+- **BR-31 not-addressed.** `manifest.go:549` and `:557` still break `NonArtifactSources`' ordering.
+- **BR-35 not-addressed.** `Mouse()` was narrowed *again* this round (1006 no longer counts); `termcmd/run.go:819`'s `appMouseMode` is still unnamed in the change and still untested in either direction.
+- **BR-36 not-addressed.** `menu.go:352` still returns silently for `!ok || !menuThreadActionable`, where `reduceRootKey:468-470` raises a notice whose own comment says silence is what the operator reports as a bug.
+- README's new paragraph is appended without a blank line, so it joins the preceding paragraph.
+
+## 5. Test coverage notes
+
+Everything in `./cmd/internal/couchtty` and `./cmd/internal/mouseinput` passes except `TestNotificationPTYConformance`, which fails with `ptychild: start sh: operation not permitted` — an environment restriction on pty allocation, not a regression (the same error hits `couchcmd`, `termcmd`, `hostty` and `ptychild` on tests untouched by this window). Coverage is strong where it was mutation-checked (belief, trigger, manual flag, SGR forwarding, column unit) and has exactly one live hole: the scrolled root list (BR-5). One test I could not falsify but would not trust as-is: `TestExtentsNeverPointPastTheDrawnMenu` reads as the scrolled case and never scrolls.
+
+## 6. Architectural notes
+
+- **ARCH-DRY** — pass. One parser (`mouseinput`), one span source (the clipping pass), one Enter rule (`enterOperationFor`), `sgrMouseSize` now derives its length rather than restating the framing.
+- **ARCH-PURE** — pass. `ColumnToActor`/`PointToActor`/`RouteMouseReport`/`FeedHit` are total pure functions tested with no IO; the console is the thin shell.
+- **ARCH-PURPOSE** — flag (minor). The Done-when's "scrolled or clipped list" is delivered in code but not in tests; BR-32's enumeration was swept for one of its three named rows.
+- **ARCH-MOCK** — pass, and unusually well: `NewFakeChild` returns the same `*Child` with the same `Screen`, so production and test share the boundary, and `TestFakeChildConformsToRealChildLifecycle` exists as the conformance check.
+- **ARCH-CONSTRAINTS** — pass. `?1000` over `?1002/?1003` is justified at `hostty/control.go:51-57`; the Interceptor's hold is bounded by `MaxReport` and the bound is tested.
+- **ARCH-SECURE** — pass. Reports are parsed to a typed value at the boundary and refused rather than clamped; labels are sanitized before they reach the row; out-of-range coordinates map to nobody.
+- **ARCH-ORDER** — flag, per the BR-26 re-raise. `(mouse, sgrMouse, mouseObserved)` is 8 representable states for 5 legal ones, held legal only because every setter also sets `mouseObserved`; a tagged `MouseBelief{Unknown|None|Tracking}` carrying the specific mode would make it unrepresentable and is also what pair#196's Spec asks for next. The `(unknown, process start)` cell is the one the enumeration does not answer.
+
+## 7. Plan revision recommendations
+
+A `## Revisions` entry in `workshop/plans/000172-mouse-support-status-bar-and-switcher-plan.md` covering, in one pass: the disposition table gains the `couchOwnsScreen` dimension and its "anything, elsewhere | yes | forward verbatim" row is qualified with the switcher case; `:160`'s `(event, hostRows, childWantsMouse)` becomes the shipped four-argument signature; the M1 task checkboxes are ticked to match what landed (and Tasks 6-12 reconciled against the M2/M3 collapse the issue already recorded); and Task 4 Step 4's scrolled case is either delivered or explicitly deferred with the reason, since the Done-when still names it.
+
+```findings
+dispose:
+  - id: BR-5
+    disposition: not-addressed
+    note: |
+      clampExtents half is honestly declared; the SCROLLED half is still unreachable — every fixture leaves SelectedAddress at inventory[0], and `index := 2+start+i` leaves the whole couchtty suite green.
+  - id: BR-9
+    disposition: not-addressed
+    note: |
+      `go doc ChipSpan` still prints RenderStatusRow's rationale and `go doc RenderStatusRow` is bare; the edit added a meta-comment inside the misattributed block instead of moving it.
+  - id: BR-26
+    disposition: not-addressed
+    note: |
+      Observation split, SGR-forwarding rule and trigger are done and pinned; the two write-side halves it named are not — console.go:530 is still ungated and ?1006 is still never stood back from.
+  - id: BR-28
+    disposition: not-addressed
+    note: |
+      Three of six sites fixed by the Revisions entry; the disposition table (no couchOwnsScreen), the 3-arg signature at :160, and 40 unticked checkboxes remain.
+  - id: BR-29
+    disposition: not-addressed
+    note: |
+      mouseinput.go:50 still carries the unreachable `|| s == ""`.
+  - id: BR-30
+    disposition: not-addressed
+    note: |
+      console_mouse_test.go:145-149 and :475-479 both still assert only w[0] == 0x1b; BR-32's enumeration named this row and did not sweep it.
+  - id: BR-31
+    disposition: not-addressed
+    note: |
+      manifest.go:549 and :557 still break NonArtifactSources' ordering.
+  - id: BR-32
+    disposition: addressed
+    note: |
+      TestChipSpansAreDisplayColumnsNotRunes discriminates the column unit — verified by mutation (rune count reddens it).
+  - id: BR-33
+    disposition: addressed
+    note: |
+      Verified by two mutations: dropping MouseObserved() reddens 3 tests, removing the tracking rowDirty latch reddens the no-repaint trigger test.
+  - id: BR-34
+    disposition: addressed
+    note: |
+      The 2026-09-06 Revisions entry records both runs, what each observed, and the negative space (both children announced ?1006).
+  - id: BR-35
+    disposition: not-addressed
+    note: |
+      Mouse() was narrowed again this round with no enumeration of its consumers; termcmd's appMouseMode is unnamed and untested in either direction.
+  - id: BR-36
+    disposition: not-addressed
+    note: |
+      menu.go:352 still returns silently for a non-actionable or unknown target where reduceRootKey raises a notice; the divergence is still undeclared.
+findings:
+  - id: new
+    severity: Important
+    family: docs-lag-shipped-surface
+    title: |
+      The atlas and three other docs still teach the two-state mouse rule this round refuted
+    detail: |
+      This is the 4th finding in family docs-lag-shipped-surface. Do NOT fix only
+      the atlas paragraph. The rule that covers all of them: at a boundary, every
+      doc claim about a symbol whose semantics the window changed is re-derived
+      from the code, and the enumeration is a grep for that symbol across atlas/,
+      README, contract-test comments and code comments. Sites measured at the
+      pinned head: atlas/couch.md:358-365 states "the child's mode wins whenever
+      it has one, and couch takes the terminal back the moment it does not" as
+      "the transition table, one rule" — the two-state model whose false==no
+      reading produced pair#196; MouseObserved, "unknown" and "silence is not
+      consent" appear nowhere in atlas/. console.go:1140-1145 attributes the
+      re-evaluating paint to the paintPending/owed branch, but paintPending is
+      set only by a writeOwn refused mid-sequence (console.go:997) and the real
+      trigger is the `dirty := p.rowDirty && isActive` branch at :1158, which is
+      skipped while the panel is up. core_concepts_contract_test.go:61-63 says
+      the M2/M3 rows are "planned" and invisible directly above the M2 rows it
+      lists as shipped. README:391-396 says couch enables click reporting for
+      itself with no standing-back caveat. Measured prevalence: 4 doc sites
+      restating the changed model, 0 re-derived from the code this round.
+```
