@@ -3527,3 +3527,22 @@ that a key token appears cannot detect a contradictory behavioral sentence
   the mutation check: after writing a test, break the thing it covers and
   confirm the test fails. Every vacuous test in this issue would have been
   caught in seconds by that, and each one instead cost a full review round.
+- Anchor programmatic section edits to a line start, never a bare substring. I
+  spliced an issue's `## Estimate` block with
+  `s[:s.index("## Estimate")] + new + s[s.index("## Revisions"):]`, and the
+  second index matched a backticked ``` `## Revisions` ``` *inside my own new
+  prose* — silently truncating the replacement and leaving a broken
+  ``## Revisions` `` heading plus a stale duplicate of the whole section, which
+  a gate then had to find for me. Prose about a document routinely quotes that
+  document's headings, so the substring is ambiguous by construction. Use a
+  `^## Heading$` regex with `MULTILINE`, or match on the line list; and after
+  any scripted edit to a structured artifact, re-print `grep -n "^## "` and
+  check the section list is what you intended.
+- A gate verdict of INFO is still evidence. #198's estimate-quality check passed
+  advisory-only, and four of its five observations independently said the
+  estimate ran LOW — a missing line item, a primitive above its scaled ceiling,
+  five rows uniformly at maximum carrying no scope information. Banking the pass
+  would have shipped a knowingly-low number into velocity calibration, which is
+  the exact input the estimate gates exist to protect. Fix what a non-blocking
+  finding correctly identifies when the fix is cheap; "it didn't block" is a
+  statement about severity, not about correctness.

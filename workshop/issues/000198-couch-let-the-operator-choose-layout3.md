@@ -280,26 +280,6 @@ is recorded in `## Log`.
 | `atlas-docs` | Task 8 — the `couch.go:427` rationale plus four `atlas/couch.md` sites |
 | `milestone-review` | ×2 — Task 10's six-step manual verification, and the single close boundary review (this is single-pass work: one `sdlc close`, no `Mx` tags) |
 
-## Revisions` (an operator fork plus a correction to the Spec's
-mechanism), a ~700-line plan, and **two plan-quality rounds** — the first
-refused with a Critical (`PQ-1`) whose fix changed the design, adding
-`NormalizeLayout`/`LayoutUnknown` and the normalization table. The remaining
-design is small because the plan resolved the open questions: the six-state
-disposition, the guard's placement, and the witness's transaction are decided in
-prose, so each Go item is transcription against a named anchor rather than a
-choice.
-
-The `+15%` design buffer (not `+30%`) is v2.1's thorough-plan-doc rule.
-
-| Slug | Instances |
-| --- | --- |
-| `issue-spec` | the issue's Problem/Spec, the `## Revisions` entry, the durable plan, and two plan-quality gate rounds |
-| `greenfield-go-module` | Task 1 — `layout.go`: a new type with two normalizers and the `LayoutUnknown` sentinel |
-| `smaller-go-module` | Tasks 2–6 — the guard predicate; the `ThreadRecord`/`threadrecord` field plus the projection's normalization point; the argv emission and `StartEvent.Layout`; the `StartInteractive` guard and its refusal; the CLI flag and its typed plumbing |
-| `cross-cutting-refactor` | Task 7 — correcting ~18 test premises across six files, one of which (`warmresume_test.go`) must verifiably not change |
-| `atlas-docs` | Task 8 — the `couch.go:427` rationale plus four `atlas/couch.md` sites |
-| `milestone-review` | Task 10's manual verification and the single close boundary (this is single-pass work: one `sdlc close`, no `Mx` tags) |
-
 ## Revisions
 
 ### 2026-09-06 — layout is couch-global, not per-thread; and StartArgs cannot carry it
