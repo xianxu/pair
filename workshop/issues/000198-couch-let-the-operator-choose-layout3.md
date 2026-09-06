@@ -196,3 +196,50 @@ available under couch. Not contradictory — different postures for different
 sittings — but whoever picks up the second of the two should check whether the
 first changed the want. Recorded rather than resolved: that is the operator's
 call.
+
+## Revisions
+
+### 2026-09-06 — layout is couch-global, not per-thread; and StartArgs cannot carry it
+
+Two changes to the Spec, one from an operator decision and one from a fact in
+the tree that the Spec got wrong.
+
+**1. Operator decision: couch-global, no mixed layouts.** The Spec proposed
+per-thread layout ("carried in `StartArgs` alongside agent and argv"). The
+operator chose the other fork: *"it should be a couch global setting, either
+whole thing is `--layout2` or whole thing is `--layout3`"*, and on being offered
+the mixed-state option, *"I like the layout to be predictable, so no don't mix
+layout."*
+
+So the flag is `couch --layout3`, applying to every thread that couch starts or
+cold-resumes, and a **startup guard refuses to start in a layout that conflicts
+with a thread already holding a session in the other one**. The operator
+proposed this guard and answered its obvious objection: refusing is not a dead
+end, because *"if `couch --layout3` is refused, user can start with
+`couch --layout2`, park, and try again"* — the remedy is reachable through the
+tool itself. (I had argued the refusal stranded the operator; that was simply
+wrong, and conceded.)
+
+**2. Correction: `StartArgs` is not persisted, so it cannot carry the layout.**
+The Spec's mechanism does not exist. `StartArgs` is documented as persisted, but
+what persists is `ActorRecord.Args` in the **Registry**, which is explicitly *"a
+transitional display/handle cache. It decides nothing: ThreadStore is the
+durable authority"* (`registry.go:17-23`). A parked thread has no ActorRecord at
+all. On resume, `StartArgs` is **rebuilt from scratch** out of `ThreadRecord` +
+`LatestLaunchProfile` (`resume.go:445-448`) — agent and argv survive a park via
+`LatestLaunchProfile`, *not* via StartArgs.
+
+A `StartArgs.Layout` field would therefore be silently discarded by exactly the
+park/resume cycle the Spec's second Done-when requires it to survive. The layout
+witness goes on `ThreadRecord` instead.
+
+**Delta to `## Done when`:** the second bullet ("that thread comes back as
+layout3 ... a thread started without the flag is layout2") is replaced by: every
+thread couch starts or cold-resumes takes couch's process-wide layout, and couch
+refuses to start when a session-holding thread disagrees with the requested one.
+The warm-reattach bullet, the old-record bullet, the test-premise bullet and the
+atlas bullet are unchanged.
+
+**Delta to `## Plan`:** step 1 ("decide the operator surface ... confirm
+per-thread persistence") is answered by this revision; the remaining steps are
+superseded by `workshop/plans/000198-couch-let-the-operator-choose-layout3-plan.md`.

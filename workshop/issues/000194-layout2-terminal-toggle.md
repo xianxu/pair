@@ -1,10 +1,10 @@
 ---
 id: 000194
-status: open
+status: wontfix
 deps: []
 github_issue:
 created: 2026-09-03
-updated: 2026-09-03
+updated: 2026-09-06
 estimate_hours:
 ---
 
@@ -216,3 +216,60 @@ work alongside the archived one's, and that ambiguity is permanent; searching
 No inbound references needed updating: every `#179` mention in `workshop/`,
 `atlas/` and `cmd/` refers to the archived reattach issue.
 
+
+### 2026-09-06 — superseded by #198; closing wontfix
+
+**Operator decision.** This issue is superseded by `#198` (couch: let the
+operator choose layout3) and closed `wontfix`.
+
+**Why it is superseded rather than merely deprioritized.** This issue's Problem
+rests on a premise the operator has since reversed. It argued:
+
+> `layout3` already provides a terminal, but as a **permanent third pane** taking
+> 50% of the width. That is a different working posture, not a quick check: the
+> operator wants the terminal *when they want it* and the full-width agent the
+> rest of the time.
+
+On 2026-09-06 the operator stated the opposite: constant access to a terminal at
+the same cwd is important, having dropped the idea of hosting a web browser in
+that pane (cmux-style) which was part of what made a permanent pane feel
+expensive. So the want this issue serves — a terminal *sometimes* — is not the
+want any more. A toggle is the wrong answer to "I want it always".
+
+The three original reasons for pinning couch to layout2 (simplicity while
+couch-lite was young; uncertainty about hosting a browser as well as a terminal;
+reservations about the right pane's quality) have each moved. `#198` reverses
+the pin, and `#199`/`#200` answer the quality reservation directly by giving
+`pair term` its own tab strip and making it clickable. That trio delivers a
+permanent, good right pane, which is a superset of what this issue offered.
+
+**What is deliberately NOT lost.** The design work here is about floating panes,
+not about the terminal, and it stays valid if the want ever returns in another
+form. Preserved in this file:
+
+- **The `alt+c` pattern, and why not `alt+h`/`alt+l`.** Create once and flip
+  visibility via `are-floating-panes-visible` + explicit `show-floating-panes` /
+  `hide-floating-panes` — never `toggle-floating-panes`, which opens a pane when
+  none exists and so cannot express "show the one I already have"
+  (`config.kdl:178-180`). `alt+h`/`alt+l` use `Run … close_on_exit true`, which
+  spawns a fresh pane per press — right for a pager, wrong for anything whose
+  state must survive dismissal.
+- **Hazard 1: floating visibility is tab-wide.** Showing one floating pane shows
+  every floating pane in the tab, so any second floating toggle collides with
+  `alt+c`'s review pane. Unresolved here; whoever adds a second floating toggle
+  inherits it.
+- **Hazard 2: floating panes can be dragged off position by their frame**
+  (zellij 0.44.3, no config gate) — the recorded reason `#123` moved the right
+  terminal *into* the tiled tree (`main-3.kdl:18-24`). Worth knowing that the
+  permanence `#198` restores rests on that decision. Open question left here:
+  whether a frameless floating pane is drag-immune, since the cause is the frame.
+- **`alt+t` is role-scoped** (`workbenchshortcut/shortcut.go:156`, handled at
+  `:206` as `ActionNewTab`): free in the agent and draft panes, taken in the
+  terminal pane. `ChordAltT` already carries both encodings (`:297`). Relevant to
+  `#199`/`#200` if the tab strip ever wants a chord.
+- **Geometry, operator-confirmed:** `alt+h`'s `100%`x`70%` at `y 15%` — leaving a
+  strip of workbench visible is what makes an overlay a quick check rather than a
+  context switch.
+
+**Not actioned:** nothing in `#199`/`#200` depends on this issue, and no code was
+written for it, so there is nothing to revert.

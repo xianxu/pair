@@ -176,6 +176,9 @@ right pane can manage itself.
 **Note on `#194`** ("Toggle a terminal pane in layout2", `open`): it argues
 layout3's permanent third pane is the wrong posture and proposes an on-demand
 terminal in layout2 instead. The operator's second reason above takes the
-opposite position — constant access at the same cwd is the point. `#194` looks
-superseded by `#198` + this issue, but that is the operator's call and is not
-actioned here.
+opposite position — constant access at the same cwd is the point. `#194` is
+**superseded and closed `wontfix`** by operator decision the same day; its
+floating-pane design work (the `alt+c` create-once/show-hide pattern, the
+tab-wide floating-visibility hazard, the frame-drag hazard behind `#123`'s move
+into the tiled tree, and the role-scoped `alt+t` analysis) is preserved in that
+file and stays valid if the want returns in another form.
