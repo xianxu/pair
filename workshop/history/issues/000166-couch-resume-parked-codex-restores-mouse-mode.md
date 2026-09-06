@@ -51,3 +51,32 @@ scrolling region, whereas ordinary output advanced from line 181 to 179. Claude
 resume working and the operator's uncertainty about recurrence mean the
 Codex/Couch interaction is suggestive, not yet sufficient authority for a
 production change. Parked pending another natural reproduction (`ARCH-PURPOSE`).
+
+### 2026-09-06 — re-evaluated against `pair#172`, and it stays punted
+
+`pair#172`'s Done-when required this issue to be re-evaluated once mouse
+ownership landed, rather than left punted by default. The answer is that #172
+does not touch it, and the reason is worth recording so the next reader does not
+re-open the question.
+
+**What #172 changed:** couch enables click reporting (`?1000;?1006`) for ITSELF,
+re-asserts it on every paint while no child holds tracking, and stands back the
+moment a child enables `?1000`/`?1002`/`?1003`. It never writes the child's
+modes — `ptychild` replay already owns that across a park/resume.
+
+**Why that is orthogonal to this failure.** The symptom here is that Zellij's
+`scroll-up` stays pinned at the bottom after a resumed Codex redraw, with the
+scrollback count still growing. The 2026-09-01 probe reproduced it with a
+disposable Zellij 0.44.3 and a **reduced scrolling region** (`DECSTBM`) — no
+mouse mode involved, and `scroll-up` is a Zellij action rather than a terminal
+mouse report. #172's tracking policy cannot reach it.
+
+The connection assumed when this was punted — "explicit mode ownership should
+subsume it" — was wrong: mouse MODE and scrolling REGION are different terminal
+state, and only the first is now owned.
+
+**Still punted**, unchanged: the reproduction is Codex-specific, the operator has
+a working alternative, and the remaining suspect (`DECSTBM` interacting with
+Zellij's history navigation) is a Zellij-behaviour investigation rather than a
+couch one.
+

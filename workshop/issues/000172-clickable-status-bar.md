@@ -194,21 +194,31 @@ Design landed at
 review boundaries, because the work is three different problems and only the
 middle one is hard.
 
-- [ ] M1 — the pure layer, testable with no terminal and no child: chip spans out
-      of the render pass that already clips them, actor extents out of the menu
-      renderer, point-to-**actor** hit-testing for actors that occupy a variable
-      number of lines, and SGR report parsing.
-- [ ] M2 — routing, ownership AND wiring. Merged with what was M3; see
-      `## Revisions`. Mouse reporting is a terminal-GLOBAL mode, Mouse reporting
-      is a terminal-GLOBAL mode, so couch cannot enable it for itself without
-      deciding what the child sees: scan the child's DECSET/DECRST to learn which
-      modes it enabled (from `ptychild.Screen`, which already tracks them), and
-      decide couch / forward / swallow from it — plus the click routed into the
-      switch path `ctrl-space`+Return already takes, recorded as a MANUAL switch
-      so `ctrl+backspace` undoes it, and the `pair#166` re-evaluation.
+**One milestone, M1, covering all of it** — see `## Revisions` for why the
+original three collapsed into one.
+
+- [x] M1 — the whole feature. The pure layer: chip spans out of the render pass
+      that already clips them, actor extents out of the menu renderer,
+      point-to-**actor** hit-testing for actors occupying a variable number of
+      lines, and SGR report parsing promoted out of `termcmd`. The terminal half:
+      mouse reporting is a terminal-GLOBAL mode, so couch cannot enable it for
+      itself without deciding what the child sees — it reads the child's modes
+      from `ptychild.Screen`, which already tracks them, and decides couch /
+      forward / swallow. And the gesture: the click routed into the switch path
+      `ctrl-space`+Return already takes, recorded as a MANUAL switch so
+      `ctrl+backspace` undoes it.
+
+`pair#166` is re-evaluated and stays punted, with the answer written into that
+issue's Log: #172 owns the mouse MODE, while #166's symptom is Zellij's
+`scroll-up` pinned after a reduced scrolling region (`DECSTBM`) — different
+terminal state, reproduced with no mouse mode involved. The assumption behind the
+punt ("explicit mode ownership should subsume it") was wrong, which is why the
+Done-when asked for an answer rather than a default.
 
 ## Log
 
+
+- 2026-09-05: closed M1 — M1 ships the click geometry; BR-22 is addressed and its own measurements now falsify it. It measured "deleting the paintNow re-assert leaves the whole couchtty suite green" and "1 of 6 cells implemented, 0 of 6 pinned" — re-measured at HEAD, deleting the re-assert reddens 5 tests and making it unconditional reddens 6, because the mode-transition table is now the test list: child enables 1000/1002/1003, child disables, child exits with mouse on, a switch between two children with different modes, and the no-child baseline, one case each. One rule produces every row: the child mode wins whenever it has one and couch takes the terminal back the moment it does not. The previous round produced a verdict with no disposition block, so BR-22 carried forward from round 5 by default rather than being re-judged against the fix. Also fixed since: BR-21 HitMouse now has a real handler rather than an empty func the dispatcher skipped, BR-20/BR-24 dead aliases deleted and sgrMouseSize derives its length from ParsePrefix instead of restating the framing rule, BR-19/BR-9 two comments I detached from their subjects by inserting declarations between them, BR-25 the plan prose renamed. Operator smoke-tested twice on the real stack. Full ./cmd/... suite green.; review verdict: FIX-THEN-SHIP
 ### 2026-09-02
 
 Raised while working through what the status row should carry. Depends on
@@ -294,4 +304,30 @@ half.
 
 **Not done:** faking a second close. A tick without a `Review-Verdict` is a
 boundary marker where no boundary happened.
+
+### 2026-09-06 — three milestones collapse to one, because there was one boundary
+
+**Reason.** M2's production code all landed inside M1's review window. The
+routing, the mode ownership and the wiring shipped in `f95da992`, before any M1
+boundary existed, so M1's close reviewed them — which is why six of its findings
+(BR-16, BR-17, BR-20, BR-21, BR-22, BR-24) are about mouse routing rather than
+geometry. Closing M2 afterwards would open on fix-ups only: a review of patches
+to code whose own milestone never got reviewed as a unit.
+
+**Delta.** M1 is the whole feature. M2's row is gone.
+
+**This is the THIRD correction to the same over-split**, which is the finding
+worth keeping. M3 merged into M2 on 2026-09-05 for the same reason, and now both
+merge into M1. The split came from a plan-time guess that mode ownership was
+large; it was not, because `ptychild.Screen` already owned the child's half and
+`termcmd` already had the parser. The lesson is not "merge milestones when they
+collide" — it is that a milestone boundary is a claim about what will ship
+SEPARATELY, and a plan that cannot yet tell how much of the work already exists
+cannot make that claim honestly. AGENTS.md §3's rule ("tag `Mx` only for work
+with ≥2 boundaries you will genuinely close separately") is the same instruction
+read forward.
+
+**Cost, stated.** Seven review rounds on ~450 lines of new logic, because one
+boundary was reviewed seven times while the round counter attributed all of it
+to "M1".
 
