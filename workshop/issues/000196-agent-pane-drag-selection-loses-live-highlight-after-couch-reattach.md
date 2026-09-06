@@ -6,6 +6,7 @@ github_issue:
 created: 2026-09-06
 updated: 2026-09-06
 estimate_hours:
+actual_hours: 0.40
 ---
 
 # agent-pane drag selection loses live highlight after couch reattach
