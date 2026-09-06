@@ -1,11 +1,12 @@
 ---
 id: 000198
-status: open
+status: working
 deps: []
 github_issue:
 created: 2026-09-06
 updated: 2026-09-06
 estimate_hours:
+started: 2026-09-06T12:06:08-07:00
 ---
 
 # couch: let the operator choose layout3
