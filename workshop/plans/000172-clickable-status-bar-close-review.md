@@ -322,3 +322,96 @@ findings:
 ## Review
 
 Failed to authenticate. API Error: 401 OAuth access token has been revoked.
+
+---
+
+## Re-review — 2026-09-06T09:04:17-07:00 (REWORK)
+
+| field | value |
+|-------|-------|
+| issue | 172 — Mouse support: click the status bar and the switcher |
+| repo | pair |
+| issue file | workshop/issues/000172-clickable-status-bar.md |
+| boundary | whole-issue close |
+| milestone | — |
+| window | c15030df41c64086f1e669576034d22bcbb0ea28..43ba894cde939eee949944f30e35884ec1f9abe5 |
+| command | sdlc close --issue 172 |
+| reviewer | claude |
+| timestamp | 2026-09-06T09:04:17-07:00 |
+| verdict | REWORK |
+
+## Review
+
+```verdict
+verdict: REWORK
+confidence: high
+```
+
+The geometry half of this issue is genuinely good — chip spans come out of the clipping pass, extents come out of the drawn rows after the notice shift, both maps are total, and the click reaches Enter's own `enterOperationFor` rule rather than a restatement. What blocks the boundary is the terminal half, and specifically the finding this round was supposed to close. BR-33's fix gave `Screen` a third state and gated **one** of couch's two writers: `console.go:530` still writes `?1000;1006h` unconditionally at `Run()` start, on the exact production ordering (`dispatchInitialAttach` runs *before* `console.Run()`, `couchcmd/run.go:399-401`), and `TestCouchEnablesItsOwnMouseTracking` + `TestTeardownDisablesMouseTracking` **assert** that write happens under two children whose mode is unknown — I verified by mutation that gating it reddens exactly those two tests, while `TestMouseModeTransitions`' "nothing observed yet: couch stands back" row passes only because it calls `host.Reset()` first. Worse, the belief is read with three states by the write (`couchMayOwnTheMouse`, `:1527`) and two by the forward (`wantsMouse := child.child.Mouse()`, `:1555`), so an unknown-mode child — the reattach case the fix exists for — now receives **zero** mouse bytes rather than a demoted stream (measured through the real input path). Two Done-when bullets are unmet, and BR-5's scrolled case is still unpinned (adding the scroll offset `start` to the extent base leaves the whole `couchtty` suite green; the only test that reaches `start > 0` never looks at extents).
+
+## 1. Strengths
+
+- `reserve.go:161-177` — spans recorded inside the same `appendText` that clips, so a dropped chip contributes no span and a clipped one contributes the columns it drew. `TestAChipClippedToOneColumnIsStillClickable` and `TestChipSpansAreDisplayColumnsNotRunes` construct the cases rather than sweeping; I confirmed the CJK fixture discriminates the column unit, which closes BR-32 properly.
+- `menu_render.go:157-165` — extents re-based in `RenderMenuView` after the notice insert, with the reason stated. Mutating the base to the row index reddens `TestPointToActorSpansEveryLineOfAnActor`, so the drawn-row base is load-bearing.
+- `menu.go:597-607` — `enterOperationFor` extracted so the click and Enter share one authority instead of a restatement. This is the right shape for the "same path as Return" requirement.
+- `core_concepts_contract_test.go:414-422` — excluding the contract file from its own glob (BR-23) is a real fix: the guard now asserts something, and it immediately found three untested types.
+- `keys.go:283-308` — the bounded hold (`MaxReport`) is directly pinned by `TestAnUnterminatedMousePrefixDoesNotParkTheKeyboard`, which is the #127 hazard the plan flagged.
+- `workshop/lessons.md` — eleven substantive entries, including "a belief you can only have OBSERVED needs a third state". AGENTS.md §4 is satisfied.
+
+## 2. Critical findings
+
+**C1 — `console.go:530`: the startup writer is ungated, and two tests pin the ungated behaviour.** (BR-33/BR-26 remaining half; family `unspecified-event-policy`.)
+`Run()` writes `hostty.EnableMouseClicks` before `applyLayout`/`paintNow`, with panes already installed by `dispatchInitialAttach`. Measured at head: a probe through `newMouseFixture` reports `startup wrote EnableMouseClicks under an UNKNOWN child: true`. Gating it with `couchMayOwnTheMouse()` reddens `TestCouchEnablesItsOwnMouseTracking` (`console_mouse_test.go:250`) and `TestTeardownDisablesMouseTracking` (`:236`) — i.e. the suite currently asserts the write the fix's own doc comment forbids. Fix sketch: gate `:530` on the same predicate, and give both tests a fixture whose active child has *declared* it holds no tracking (`\x1b[?1000h\x1b[?1000l`, the pattern `TestSwitchingToAChildWithoutTrackingReturnsTheTerminalToCouch` already uses) so they pin the rule instead of its violation.
+
+**C2 — `console.go:1555`: the forward decision reads a two-state belief, so an unknown-mode child receives zero mouse bytes.** (family `unspecified-event-policy`.)
+`wantsMouse := child.child.Mouse()` is false for both "declared none" and "never observed". With C1 leaving the terminal in `?1000;1006`, a reattached agent that really holds `?1002` gets **nothing** — strictly worse than the press-only demotion pair#196 reported, and a direct contradiction of "a child that did enable tracking still receives its own events unchanged". Verified: a click at `(7,9)` with an unknown-mode child leaves the child's writes as `"x"` alone. The same two-state read makes an *observed* `?1002h`-without-`?1006h` child (plain vim with `ttymouse=xterm2`, older TUIs) receive nothing at all, permanently — `onMouse:1558` swallows it because couch's own ungated `?1006` write changed the encoding underneath it. Fix sketch: the belief needs one accessor with three values consumed by every site — write, forward, and encoding — and the unknown case has to answer "forward, because couch never took the terminal" rather than "swallow".
+
+## 3. Important findings
+
+**I1 — no event re-evaluates the belief.** (BR-26's fourth half.) `classify` sets `rowDirty` for alt-screen only (`screen.go:433-448`), and `onChunk` repaints on `RowDirty`/`Bell`/attention (`console.go:1119-1140`). A child's bare `?1000l` therefore leaves couch's own clicks off until some unrelated paint. `TestMouseModeTransitions` cannot see this because it calls `con.repaint()` by hand — a test that observes one interleaving the author chose (`ARCH-ORDER`). The transition table needs a trigger column, and `Screen` needs a latched edge for a mouse DECSET the way it has one for the row.
+
+**I2 — the plan artifact still disagrees with the tree in three of BR-28's six places, with no further `## Revisions` entry.** `plan:160` states `(event, hostRows, childWantsMouse)` where four parameters shipped; the "complete disposition table" (`plan:41-56`) still has no `couchOwnsScreen` dimension, still omits the two switcher rows the code carries, and its "anything, elsewhere | yes | forward verbatim" row is now contradicted *twice* (by the switcher case and by the `SGRMouse()` gate); all 41 checkboxes are unticked, none ticked. A fourth site has appeared since: the plan promises `FeedHit` "returns the decoded event alongside the hit", while the code carries it through `Interceptor.mouse` → `Console.mouseHit` mutable fields (`keys.go:236`, `console.go:136`).
+
+**I3 — `console.go:1504-1506` carries a doc block for `childWantsMouse`, a method that does not exist in `couchtty`, glued to the front of `couchMayOwnTheMouse`'s doc.** Third instance of the `orphaned-doc-comment` family; see §7 for the rule rather than the instance.
+
+## 4. Minor findings
+
+- `atlas/couch.md:360` says couch re-asserts "ONLY while no child holds tracking", omitting the unknown state that is the whole point of `7f68fecd`; the same wording is in `workshop/history/issues/000166-*.md`'s new entry.
+- `mouseinput.go:51` — `s == ""` is unreachable after the `HasPrefix` check (BR-29, carried over verbatim from `termcmd`).
+- `console_mouse_test.go:146` and now `:442` both check only `w[0] == 0x1b`; the weak assertion has been copied into the new encoding test rather than strengthened (BR-30).
+- `artifactpath/manifest.go:549,557` — `mouseinput/mouseinput.go` sits inside the `couchcore` block and `couchtty/mouse.go` before `couchtty/menu.go` (BR-31).
+- `termcmd/run.go:815-819` — `appMouseMode` still reads `Child.Mouse()` after its semantics narrowed to tracking-only; neither direction is pinned (BR-35).
+- `README.md:391` — the new clickable paragraph is inserted mid-thought between the Alt+x sentence and the `Alt+n` paragraph it belongs after.
+
+## 5. Test coverage notes
+
+Mutation results at the pinned head (`./cmd/internal/couchtty/`, only the sandbox-blocked `TestNotificationPTYConformance` failing at baseline):
+
+| mutation | result |
+|---|---|
+| gate `console.go:530` on `couchMayOwnTheMouse()` | **2 tests red** — they pin the ungated write |
+| `index := len(lines) + start` (scroll offset) in `renderRootMenuFrame` | **green** — no extent fixture scrolls |
+| `clampExtents` → `return extents` | **green** — documented as unreachable, honestly |
+| `index := start + mi` (row-index base) | red ✓ |
+| `panic` when `start > 0` | only `TestRenderMenuKeepsSelectedRowVisibleAndBounded` trips it, and it never reads extents |
+
+`TestExtentsNeverPointPastTheDrawnMenu` clips but does not scroll, because its selection is `inventory[0]`. Selecting the *last* actor in that fixture gives `start > 0` for free and closes BR-5's remaining half.
+
+## 6. Architectural notes
+
+- **ARCH-DRY** — pass on the parser promotion and `enterOperationFor`; flag on dispositions: `RouteMouseReport` is documented as the complete table, but the encoding gate at `console.go:1558` is a fourth disposition decided outside it, so the table is no longer the single source it claims to be.
+- **ARCH-PURE** — pass on the geometry; flag on the payload path (I2): the decoded event crosses two mutable fields instead of being a return value.
+- **ARCH-PURPOSE** — **flag.** BR-33 named the class ("the belief needs a state model — what invalidates it, what re-evaluates it") and the round fixed the site the finding pointed at. C1, C2 and I1 are the unswept siblings of that same enumeration.
+- **ARCH-MOCK** — pass. `FakeChild`/`FakeHost` sit at the same seam production uses, and `TestFakeChildConformsToRealChildLifecycle` is the conformance check.
+- **ARCH-CONSTRAINTS** — pass. `?1000` not `?1002` for couch's own use is justified by report rate; the hold is bounded by `MaxReport`.
+- **ARCH-SECURE** — pass. Reports are parsed into a typed `Event` at the boundary and refused rather than clamped; labels are sanitised before they reach the row.
+- **ARCH-ORDER** — **flag**, and it is the through-line: `(mouse, sgrMouse, mouseObserved)` is 3 bools for what the atlas says is one mutually-exclusive tracking state plus an encoding, with no written enumeration of legal combinations; no event re-evaluates it (I1); and `TestMouseModeTransitions` drives the transition by calling `repaint()` itself, so a green run is a sample of size one that cannot report the missing trigger.
+
+## 7. Plan revision recommendations
+
+Add a `## Revisions` entry to `000172-mouse-support-status-bar-and-switcher-plan.md` covering, in one pass rather than site by site:
+
+- **`RouteMouseReport`'s shipped signature and table.** Rewrite "The complete disposition table" (`:41-56`) with the `couchOwnsScreen` dimension and the two switcher rows, correct the "anything, elsewhere | yes | forward verbatim" row for both the switcher case and the `SGRMouse()` gate, and fix `:160`'s three-argument signature to the four that shipped.
+- **The `FeedHit` payload.** State that the decoded event travels through `Interceptor.Mouse()` and `Console.mouseHit`, not as a return value, and why.
+- **Checkbox state.** All 41 boxes are unticked against work the tree carries; tick what shipped or say in the entry that the plan is archived as-designed.
+- **The mouse-belief state model.** The plan has no `(state, event) -> (state, effects)` enumeration for the belief, which is what C1/C2/I1 all fall out of. Write the states (`tracking` / `none` / `unknown`), the writers (`Run`, `paintNow`), the consumers (write, forward, encoding), and the events that re-evaluate it — the enumeration pair#196's own Done-when asked for and which is still the missing artifact.

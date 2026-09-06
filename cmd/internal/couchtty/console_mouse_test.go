@@ -43,8 +43,16 @@ func newMouseFixture(t *testing.T) (*Console, *io.PipeWriter, *hostty.FakeHost, 
 		return nil, nil
 	})
 	one, two := menuAddress("one"), menuAddress("two")
-	con.attachThreadActor("c1", "one", one, "/w/one", "one", ptychild.NewFakeChild(nil))
-	con.attachThreadActor("c2", "two", two, "/w/two", "two", ptychild.NewFakeChild(nil))
+	// SetSink is what carries a child's output into the console. Without it
+	// Feed updates the child's Screen and the console never hears about it --
+	// so any test of a TRIGGER passes or fails for the wrong reason. This
+	// fixture lacked it, which is why every mode test had to call repaint() by
+	// hand and why the missing re-evaluation stayed invisible.
+	first, second := ptychild.NewFakeChild(nil), ptychild.NewFakeChild(nil)
+	first.SetSink(func(batch ptychild.OutputBatch) { con.Deliver("c1", batch) })
+	second.SetSink(func(batch ptychild.OutputBatch) { con.Deliver("c2", batch) })
+	con.attachThreadActor("c1", "one", one, "/w/one", "one", first)
+	con.attachThreadActor("c2", "two", two, "/w/two", "two", second)
 	con.mu.Lock()
 	con.active = "c1"
 	con.focus = FocusActor("c1")
@@ -496,4 +504,36 @@ func TestAReattachedChildKeepsItsTrackingMode(t *testing.T) {
 	if strings.Contains(host.Written(), hostty.EnableMouseClicks) {
 		t.Fatal("couch wrote ?1000 over a reattached child whose mode it never observed, demoting a still-tracking agent")
 	}
+}
+
+// The TRIGGER, which every other mode test misses because they call repaint()
+// by hand -- a test that observes one interleaving the author chose.
+//
+// A child dropping its tracking must cause couch to take the terminal back on
+// its own. Before the latch, `?1002l` left couch's clicks off until some
+// unrelated paint happened to run, so the feature silently stopped and nothing
+// said why.
+func TestAChildDroppingItsModeMakesCouchReclaimTheTerminalWithoutAPaintCall(t *testing.T) {
+	con, _, host, _ := newMouseFixture(t)
+	child := con.activeChild()
+	child.Feed([]byte("\x1b[?1002h"))
+	waitFor(t, "the child's tracking to register", func() bool { return child.Mouse() })
+	// Reset AFTER the mode has registered. The latch means the DECSET itself
+	// triggers a paint, and that paint races the registration -- it can run
+	// while Screen still reports unobserved, which is correct behaviour (couch
+	// stands back when it does not know) but writes EnableMouseClicks into the
+	// buffer. Asserting on bytes written before the fact is asserting the race.
+	host.Reset()
+	con.repaint()
+	waitFor(t, "a paint under the tracking child", func() bool { return host.Written() != "" })
+	if strings.Contains(host.Written(), hostty.EnableMouseClicks) {
+		t.Fatal("couch asserted over a child holding ?1002")
+	}
+
+	// No repaint() here. The child's DECRST alone must get couch's mode back.
+	host.Reset()
+	child.Feed([]byte("\x1b[?1002l"))
+	waitFor(t, "couch to reclaim the terminal on its own", func() bool {
+		return strings.Contains(host.Written(), hostty.EnableMouseClicks)
+	})
 }

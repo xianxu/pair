@@ -442,9 +442,17 @@ func (s *Screen) classify(seq []byte) {
 			case "1000", "1002", "1003":
 				s.mouse = on
 				s.mouseObserved = true
+				// A mouse-mode change is an EVENT, not just a fact to read
+				// later. Mouse reporting is terminal-global, so a supervisor
+				// deciding whether to hold its own mode has to re-evaluate when
+				// this changes -- and without a latch nothing tells it: a bare
+				// `?1000l` left couch's clicks off until some unrelated paint
+				// happened to run (pair#172 I1).
+				s.rowDirty = true
 			case "1006":
 				s.sgrMouse = on
 				s.mouseObserved = true
+				s.rowDirty = true
 			}
 		}
 		return

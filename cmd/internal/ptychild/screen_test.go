@@ -445,3 +445,25 @@ func TestScreenTreatsAnEraseAsRowDirty(t *testing.T) {
 		t.Fatal("erase-in-line marked the row dirty; it repaints on every line a child clears")
 	}
 }
+
+// A mouse-mode change latches the same edge an alt-screen transition does.
+//
+// Without it nothing TRIGGERS a supervisor to re-evaluate: mouse reporting is
+// terminal-global, so a child's bare `?1000l` left couch's own clicks off until
+// some unrelated paint happened to run. The row-dirty latch is how this package
+// already says "the console needs to look again".
+func TestMouseModeChangeLatchesRowDirty(t *testing.T) {
+	for _, data := range []string{
+		"\x1b[?1000h", "\x1b[?1002h", "\x1b[?1003h", "\x1b[?1006h",
+		"\x1b[?1000l", "\x1b[?1002l",
+	} {
+		screen := feedWhole(data)
+		if !screen.TakeRowDirty() {
+			t.Errorf("%q did not latch rowDirty, so nothing re-evaluates the mode", data)
+		}
+	}
+	// And an unrelated private mode still does not.
+	if feedWhole("\x1b[?25l").TakeRowDirty() {
+		t.Error("hiding the cursor latched rowDirty")
+	}
+}

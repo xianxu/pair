@@ -1136,6 +1136,12 @@ func (c *Console) onChunk(ch chunk) {
 		c.mu.Lock()
 		p.rowDirty = true
 		c.mu.Unlock()
+		// NOT a paint here, and the reason is worth writing down because I added
+		// one and could not tell it apart. The paint that re-evaluates the mode
+		// already happens above: a chunk carrying a DECSET leaves paintPending
+		// set, and the `owed` branch paints as soon as the stream is whole. A
+		// second paintNow here is unreachable-by-difference -- removing it left
+		// every test green, which is the signal that it was not the mechanism.
 	}
 	if ch.batch.Bell {
 		c.mu.Lock()
@@ -1501,9 +1507,6 @@ func (c *Console) runMenuOperation(effect MenuEffect) {
 	}
 }
 
-// childWantsMouse reports whether the ACTIVE child holds mouse tracking of its
-// own. Read from ptychild.Screen, which already scans the child's DECSETs --
-// couch adds no second tracker.
 // couchMayOwnTheMouse reports whether couch may write its own terminal-global
 // mouse mode right now.
 //

@@ -3507,3 +3507,14 @@ that a key token appears cannot detect a contradictory behavioral sentence
   mainstream case passed while the configuration the operator later reported
   broken was never exercised. The value of the record is mostly in its negative
   space.
+- A test fixture that never wires the child's output to the console cannot test
+  a TRIGGER, only a hand-called effect. My mouse fixture omitted `SetSink`, so
+  every mode test called `repaint()` itself — and the missing re-evaluation (a
+  child dropping its mode leaving couch's clicks off until some unrelated paint)
+  was invisible by construction. When a test drives an effect by hand, ask what
+  drives it in production and whether the fixture even carries that path.
+- If removing your fix leaves every test green, the fix is not the mechanism.
+  I added a `paintNow` for a re-evaluation that an existing `paintPending`
+  branch already performed; deleting mine changed nothing, which was the signal
+  — not a gap in coverage. Delete it and keep the real path, with a note saying
+  why the obvious-looking addition is absent.

@@ -868,6 +868,11 @@ rounds:
       agent: claude
       blocked: true
       protocol_error: no valid findings block
+    - "n": 12
+      timestamp: "2026-09-06T09:04:17-07:00"
+      agent: claude
+      blocked: true
+      protocol_error: no valid findings block
 ---
 
 # Gate ledger — pair#172 (boundary-review)
@@ -1334,6 +1339,10 @@ and there is still no Revisions entry.
   This is the 2nd finding in family `parallel-handler-restates-decision`. Do NOT fix this instance alone. The rule: where the click arm and the key arm diverge, the divergence is DECLARED -- as the Manual flag is, with its reason in a comment -- rather than left as an omission. menu.go:352 returns `next, nil` for both `!ok` and `!menuThreadActionable`, while reduceRootKey:468-470 sets an errorMenuNotice whose own comment says "Silence is what the operator reports as a bug". The inventory-miss case is reachable only from a chip click, since the switcher can only select rows the inventory already holds.
 
 ## Round 11 — 2026-09-06T08:22:39-07:00 (claude) — BLOCKED
+
+**Protocol error:** no valid findings block — this round contributed no findings.
+
+## Round 12 — 2026-09-06T09:04:17-07:00 (claude) — BLOCKED
 
 **Protocol error:** no valid findings block — this round contributed no findings.
 
