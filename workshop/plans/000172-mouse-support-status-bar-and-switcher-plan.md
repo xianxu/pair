@@ -190,7 +190,7 @@ required, since the legacy X10 encoding caps at 223 and fails *silently*.
     so the table keeps its "every hit has a handler" guarantee while one hit
     carries a payload.
 
-- **hostty.MouseClickTracking** — `?1000;?1006` on, and off, beside
+- **hostty.EnableMouseClicks** — `?1000;?1006` on, beside
   `ResetInteractiveModes` which already lists every mouse mode and remains the
   teardown authority.
 

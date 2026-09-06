@@ -56,10 +56,6 @@ const (
 	// it caps coordinates at 223 and fails SILENTLY on a wide or tall terminal,
 	// which is a wrong answer rather than a refused one.
 	EnableMouseClicks = "\x1b[?1000;1006h"
-	// DisableMouseClicks turns off exactly what EnableMouseClicks turned on.
-	// Teardown still uses ResetInteractiveModes, which remains the authority for
-	// returning the terminal to a shell-safe baseline.
-	DisableMouseClicks = "\x1b[?1000;1006l"
 )
 
 // SetRegion pins the scrolling region to rows top..bottom (1-based, inclusive).

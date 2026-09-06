@@ -573,12 +573,9 @@ func currentRightTerminalPane(rt Runtime) (zellijpane.Pane, bool, error) {
 }
 
 // The SGR mouse parser moved to cmd/internal/mouseinput (pair#172): couch needs
-// the identical decode, and a second copy would be a second wire format.
-//
-// What remains here is what this file still CALLS. The move-time aliases that
-// kept the diff small are gone: an alias with no caller is dead surface, and
-// leaving them made the move look bigger than it was.
-type mousePressEvent = mouseinput.Event
+// the identical decode, and a second copy would be a second wire format. Every
+// move-time alias is gone -- an alias with no caller is dead surface that makes
+// a move look bigger than it was.
 
 func findSGRMousePress(data []byte) ([]byte, mouseinput.Event, []byte, []byte, bool) {
 	return mouseinput.Find(data)

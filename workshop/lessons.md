@@ -3461,3 +3461,15 @@ that a key token appears cannot detect a contradictory behavioral sentence
   never receives the motion that closes a drag, and nvim wedges in visual
   selection. Before re-asserting any terminal mode, check whether the protocol
   unions or replaces; the fix for one silent failure introduced a worse one.
+- A per-paint or per-tick invariant is not pinned by a test of its FIRST
+  occurrence. couch re-asserts its mouse mode on every paint; the only test
+  checked the startup write, so deleting the per-paint call left the whole suite
+  green. The reviewer measured it as "1 of 6 cells implemented, 0 of 6 pinned"
+  and was right. When behaviour is a rule over repeated events, enumerate the
+  events and assert one case each — the transition table IS the test list.
+- A promotion is finished when every consumer derives the RULE, not just the
+  constant the diff touched. Moving the SGR parser out of `termcmd` left
+  `sgrMouseSize` computing the report's length itself from the shared terminator
+  constant — same answer for well-formed input, different for malformed, since
+  `ParsePrefix` validates the numbers and the local scan did not. Two answers to
+  "where does this sequence end" is the exact condition the move was made to end.

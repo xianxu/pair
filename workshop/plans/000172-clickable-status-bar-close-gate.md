@@ -545,6 +545,12 @@ rounds:
           round: 5
       boundary: M1
       blocked: true
+    - "n": 6
+      timestamp: "2026-09-05T20:53:23-07:00"
+      agent: claude
+      boundary: M1
+      blocked: true
+      protocol_error: no valid findings block
 ---
 
 # Gate ledger — pair#172 (boundary-review)
@@ -845,6 +851,10 @@ later rounds disposed of them. Generated — edit the gate, not this file.
   grep <old-name> over the artifact returns zero, not when the machine-parsed row
   is fixed -- the contract test reads the table, so the table is the only part the
   last fix was forced to get right.
+
+## Round 6 — 2026-09-05T20:53:23-07:00 (claude) — BLOCKED
+
+**Protocol error:** no valid findings block — this round contributed no findings.
 
 ## Open findings
 

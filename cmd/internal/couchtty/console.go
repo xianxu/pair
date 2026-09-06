@@ -134,6 +134,8 @@ type Console struct {
 	menuExtents []ActorExtent
 	// statusChips is the same for the reserved row.
 	statusChips []ChipSpan
+	// mouseHit is the payload of the hit currently being dispatched.
+	mouseHit MouseHit
 	// started reports that Run owns the terminal, so a notice may paint itself.
 	// Its own field rather than something inferred from another: "is it safe to
 	// write to the operator's screen yet" is its own question.
@@ -645,12 +647,14 @@ func (c *Console) Run() int {
 			// what alt+n did on its first ship. Neither can report the case it
 			// is missing -- the table can.
 			if hit == HitMouse {
-				// The one hit with a payload: read it from the same Interceptor
-				// that produced it, before the next Feed overwrites it. The
-				// handler table still lists HitMouse so the enumeration guard
-				// proves every hit has somewhere to go.
-				c.onMouse(it.Mouse())
-			} else if handle := c.hitHandlers()[hit]; handle != nil {
+				// Read from the same Interceptor that produced it, before the
+				// next Feed overwrites it, then dispatched through the table
+				// like every other hit.
+				c.mu.Lock()
+				c.mouseHit = it.Mouse()
+				c.mu.Unlock()
+			}
+			if handle := c.hitHandlers()[hit]; handle != nil {
 				handle()
 			} else {
 				// The bytes are already consumed, so silence here is a chord
@@ -1574,11 +1578,21 @@ func (c *Console) hitHandlers() map[InterceptorHit]func() {
 		HitPrevious: c.onPreviousHotkey,
 		HitDetach:   c.onDetachHotkey,
 		HitRelaunch: c.onRelaunchHotkey,
-		// HitMouse carries a payload the table's func() cannot; processInput
-		// reads it from the Interceptor. Registered so the enumeration guard
-		// still proves every hit has somewhere to go.
-		HitMouse: func() {},
+		// HitMouse carries coordinates, which func() cannot, so it is dispatched
+		// from processInput with the payload rather than through this table. The
+		// entry is the CONSOLE's handler for it -- a real call, not a placeholder
+		// the dispatcher skips, which is what an empty func() here would be.
+		HitMouse: func() { c.onMouse(c.pendingMouse()) },
 	}
+}
+
+// pendingMouse is the payload of the HitMouse being dispatched. Stored by
+// processInput immediately after the Interceptor returns it, so the handler
+// table can carry a real function for HitMouse like every other hit.
+func (c *Console) pendingMouse() MouseHit {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	return c.mouseHit
 }
 
 // finishOperation returns true when the completion requested Console exit.

@@ -308,3 +308,79 @@ func TestCouchDoesNotDemoteAChildsTrackingMode(t *testing.T) {
 		t.Fatal("couch re-asserted ?1000h under a child holding ?1002h, demoting it to press/release")
 	}
 }
+
+// The mode-transition table, one case per row. couch's own tracking was
+// implemented for one of these and pinned for none -- deleting the per-paint
+// re-assert left the whole suite green, because the only existing test checked
+// the STARTUP write.
+//
+// The rule under every row: the child's mode wins whenever it has one, and couch
+// takes the terminal back the moment it does not.
+func TestMouseModeTransitions(t *testing.T) {
+	for _, tc := range []struct {
+		name      string
+		childMode string
+		gone      bool
+		wantCouch bool
+	}{
+		{"child enables click tracking: couch stands back", "\x1b[?1000h", false, false},
+		{"child enables button-event tracking: couch stands back", "\x1b[?1002h", false, false},
+		{"child enables any-event tracking: couch stands back", "\x1b[?1003h", false, false},
+		{"child disables: couch takes the terminal back", "\x1b[?1002h\x1b[?1002l", false, true},
+		{"no child mode at all: couch owns it", "", false, true},
+		{"child exits with mouse on: couch takes it back", "\x1b[?1002h", true, true},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			con, _, host, _ := newMouseFixture(t)
+			child := con.activeChild()
+			if tc.childMode != "" {
+				child.Feed([]byte(tc.childMode))
+				waitFor(t, "the child's mode to settle", func() bool {
+					return child.Mouse() == !strings.HasSuffix(tc.childMode, "l")
+				})
+			}
+			if tc.gone {
+				// Through the real exit path, not by deleting the map entry:
+				// onExit is what production runs, and it is where the active
+				// slot moves to a surviving actor. Reaching into panes would
+				// test a state the console never reaches.
+				child.Close()
+				waitFor(t, "the child to finish", func() bool { return child.Done() })
+				con.onExit(childExit{id: "c1", code: 0})
+			}
+
+			host.Reset()
+			con.repaint()
+			waitFor(t, "a repaint", func() bool { return host.Written() != "" })
+
+			got := strings.Contains(host.Written(), hostty.EnableMouseClicks)
+			if got != tc.wantCouch {
+				if tc.wantCouch {
+					t.Fatalf("couch did not re-assert its tracking, so a child's DECRST silently ends the feature")
+				}
+				t.Fatalf("couch asserted ?1000h over the child's mode, demoting it and wedging its drag")
+			}
+		})
+	}
+}
+
+// Switching between children with different modes is the sixth cell, and the one
+// most likely to be got wrong: the mode is terminal-global while the state is
+// per-pane, so the ARRIVING actor's mode has to win.
+func TestSwitchingToAChildWithoutTrackingReturnsTheTerminalToCouch(t *testing.T) {
+	con, _, host, _ := newMouseFixture(t)
+	// c1 holds motion tracking; c2 holds nothing.
+	con.activeChild().Feed([]byte("\x1b[?1002h"))
+	waitFor(t, "c1's mode to register", func() bool { return con.activeChild().Mouse() })
+	host.Reset()
+	con.repaint()
+	waitFor(t, "a paint under c1", func() bool { return host.Written() != "" })
+	if strings.Contains(host.Written(), hostty.EnableMouseClicks) {
+		t.Fatal("couch asserted over c1's motion tracking")
+	}
+
+	con.forceSwitch("c2")
+	waitFor(t, "couch to take the terminal back under c2", func() bool {
+		return strings.Contains(host.Written(), hostty.EnableMouseClicks)
+	})
+}
