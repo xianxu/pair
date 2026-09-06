@@ -3493,3 +3493,17 @@ that a key token appears cannot detect a contradictory behavioral sentence
   inside its own package, so a row naming `hostty` was never checked and drifted
   twice. A passing guard licenses only what it can see; the artifact still has
   to be re-read against the tree at the boundary.
+- A belief you can only have OBSERVED needs a third state: yes, no, and "not
+  seen". couch read `Screen.Mouse() == false` as "the child wants no mouse", but
+  a reattach mints a fresh Screen for a still-running child that will never
+  re-announce its startup DECSET — so false meant "unknown" and couch wrote a
+  terminal-global mode over a child that was still tracking. Silence is not
+  consent. The same defect escaped three separate fixes (the missing re-assert,
+  the write, the observation) because each guarded one path into a belief that
+  was never modelled.
+- Record a manual verification as WHAT WAS RUN and WHAT WAS OBSERVED, including
+  the configuration, or it cannot tell you what it failed to cover. "Smoke-tested
+  twice, works fine" hid that both runs used children announcing `?1006`, so the
+  mainstream case passed while the configuration the operator later reported
+  broken was never exercised. The value of the record is mostly in its negative
+  space.

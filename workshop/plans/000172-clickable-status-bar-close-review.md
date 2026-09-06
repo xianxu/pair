@@ -154,3 +154,150 @@ findings:
       for the zero-bytes rule (BR-30). Measured prevalence: 3 of 3 geometry
       properties I mutated are unpinned by the shipped fixtures.
 ```
+
+---
+
+## Re-review — 2026-09-06T08:03:15-07:00 (REWORK)
+
+| field | value |
+|-------|-------|
+| issue | 172 — Mouse support: click the status bar and the switcher |
+| repo | pair |
+| issue file | workshop/issues/000172-clickable-status-bar.md |
+| boundary | whole-issue close |
+| milestone | — |
+| window | c15030df41c64086f1e669576034d22bcbb0ea28..511bf9cac38b82151465358a324acee08eb400c1 |
+| command | sdlc close --issue 172 |
+| reviewer | claude |
+| timestamp | 2026-09-06T08:03:15-07:00 |
+| verdict | REWORK |
+
+## Review
+
+```verdict
+verdict: REWORK
+confidence: high
+```
+
+The pure layer of this feature is in good shape — chip spans come out of the clipping pass, extents come off the `actorStart` boundary the scroll window already uses, the SGR parser is one package with a bound, and three of the fixes this round claims are pinned by tests I confirmed go red under mutation. What blocks SHIP is the mode-ownership half. The per-paint `?1000;1006h` re-assert introduced in this window (nothing wrote mouse modes before `c15030df`) decides whether to overwrite the child's tracking from a per-`Child` observation that starts empty and is never re-derived — and the operator has already filed `pair#196` (`deps: ["#172"]`) against exactly that: drag selection in the agent pane loses its live highlight under couch after some reattachments, the demotion symptom `console.go:1035-1042` documents in its own comment. That falsifies the Done-when this issue wrote for itself, from code this window added, and it is deferred to a follow-up rather than fixed. Separately, the Done-when's "on a scrolled or clipped list" extent case is still unpinned — I added `+ start` to the extent base at `menu_render.go:467` and the whole `couchtty` suite stayed green, which is BR-5's second half surviving its fix round.
+
+## 1. Strengths
+
+- **The transition table became the test list, and it discriminates.** `console_mouse_test.go:321-388` enumerates child-enables-1000/1002/1003, child-disables, child-exits, no-child, plus the two-child switch at `:372`. `TestCouchDoesNotDemoteAChildsTrackingMode` (`:298`) covers the case a keyboard smoke test cannot reach. Driving the exit through `onExit` rather than deleting the map entry (`:349-351`) is the right instinct — it tests a state production reaches.
+- **Chip spans are pinned as display columns.** `reserve_mouse_test.go:170` with a CJK label; I replaced `textwidth.Width(clipped)` with `len([]rune(clipped))` at `reserve.go:159` and it went red. `TestAChipClippedToOneColumnIsStillClickable` (`:109`) constructs the width instead of sweeping and hoping.
+- **`enterOperationFor` (`menu.go:604`) is one authority**, consumed by both `reduceRootKey:471` and the click arm — and the Manual-on-refusal guard is real: removing `if len(effects) > 0` at `menu.go:361` reddens `TestAClickRefusedMidOperationDoesNotMarkSomeoneElsesWork`.
+- **`assertDirectTest` now excludes itself** (`core_concepts_contract_test.go:417-422`). A guard that greps its own directory and lists every symbol verbatim was asserting nothing; unmasking it is worth more than the rows it added.
+- **The parser promotion is finished on the DRY axis.** `sgrMouseSize` (`rename_input.go:184`) derives the report length from `ParsePrefix` rather than restating the framing rule, and `MaxReport` bounds the Interceptor's hold (`keys.go:296`) with `TestAnUnterminatedMousePrefixDoesNotParkTheKeyboard` behind it — #127's dead keyboard cannot come back through this path.
+
+## 2. Critical findings
+
+**`console.go:1043` — couch overwrites a still-tracking child whenever its per-`Child` observation is empty, and nothing re-derives it.** *This is the 5th finding in family `unspecified-event-policy`.* Per the escalation protocol I am not asking for another site fix. The rule that covers BR-16, BR-22, BR-26 and this one: **couch decides whether to write a terminal-global mode from a value it can only ever have observed, so the decision needs a state model — what the child is believed to hold, what invalidates that belief, and what event re-evaluates it — not a bool read at paint time.** Today `Screen.mouse` is set only by `classify` seeing a DECSET in that `Child`'s output (`screen.go:428-431`), it is never queried, and a new pane for a still-running thread starts from `Screen{}` with `mouse=false` while `replay` can only re-derive it if the original DECSET is still inside `DefaultRingBytes`. `paintNow` then writes `?1000;1006h` over a child holding `?1002`, permanently, because nothing re-evaluates. Measured prevalence: 3 write sites (`console.go:530` startup, `:1044` per-paint, and the `MouseForward` path's encoding gate at `:1534`), 1 governed by the observation; 0 events that re-evaluate the belief — `onChunk` repaints only on `RowDirty`/`Bell`/attention and `classify` sets `rowDirty` for alt-screen alone, so a bare `?1000l` leaves couch's own clicks off until an unrelated repaint; and `TestMouseModeTransitions` cannot see any of this because it calls `con.repaint()` by hand. `pair#196`, filed by the operator with `deps: ["#172"]`, is this reaching production: "Standalone `pair`: correct … under `couch`, after some reattachment: broken", which is the Done-when "a child that did enable tracking still receives its own events unchanged" failing on code this window added.
+
+## 3. Important findings
+
+**`workshop/issues/000172-clickable-status-bar.md` `## Log` — the one Done-when with no automatic test is recorded as an assertion, not a measurement.** The plan's Task 12 Step 2 says in terms: "Record the result in `## Log` as a measurement, not as 'it worked'." The Log says "Operator smoke-tested twice on the real stack." It does not say which of the named steps ran (drag-select in the draft, wheel-scroll the agent pane, click a chip) or what each did, so the record cannot distinguish "nvim scroll verified" from "clicking worked". That matters concretely here: the case it was meant to cover is the one `pair#196` reports broken, and nvim/zellij set `?1006` so the mainstream child passes while the failing configuration is invisible. Fix: write the three steps and their observed results into `## Log`, and state which child was attached (whether it held `?1002` and whether it held `?1006`).
+
+## 4. Minor findings
+
+- `screen.go:107` — narrowing `Mouse()` to tracking-only also changes `termcmd.appMouseMode()` (`run.go:819`), which now sends the wheel to `zellij scroll-up` for a child that had emitted `?1006h` alone. *This is the 2nd finding in family `unnamed-seam-change`* — the rule: changing the semantics of an exported observation requires enumerating its call sites in the same commit and stating the effect at each. Measured prevalence: 2 consumers, 1 named. No live defect (a child holding `1006` without tracking receives nothing either way), and no termcmd test pins either direction.
+- `menu.go:352` — a click on a non-actionable row, or on a chip whose thread is not yet in `state.Inventory`, returns silently; Enter sets `errorMenuNotice` at `:468-470` with the comment "Silence is what the operator reports as a bug". *This is the 2nd finding in family `parallel-handler-restates-decision`* — the rule: where the click arm and the key arm diverge, the divergence is declared (as the Manual flag is), not left as an omission.
+- `menu_render.go:180-196` — `clampExtents` is documented unreachable and kept. The disposition is honest and I am not asking for a manufactured test; noting it so the next reader does not read it as covered behaviour.
+
+## 5. Test coverage notes
+
+- **Mutation-verified red** (so these fixes are real): the Manual-on-refusal guard, the display-column unit, the SGR-encoding forward gate. All three reddened exactly one test each.
+- **Mutation-verified green** (so this is not covered): `index := len(lines) + start` at `menu_render.go:467` leaves `./cmd/internal/couchtty/` fully green. I instrumented `renderRootMenuFrame` and confirmed `start > 0` is entered by exactly one test in the package (`TestRenderMenuKeepsSelectedRowVisibleAndBounded`), which asserts nothing about extents. `TestExtentsNeverPointPastTheDrawnMenu` exercises the row-budget *clip* (`end < len(rows)`) but never the *scroll*, because its selected actor is `inventory[0]`. Constructing it is one line: select a late actor so the window starts below zero.
+- No test can observe the ordering in the Critical above: `TestMouseModeTransitions` drives `repaint()` directly, so it samples one interleaving and reports no coverage of "what event re-evaluates the belief". A seam that lets a test drive a child DECRST and assert a repaint followed is what would close it.
+- The suite is otherwise green in this checkout; the only failures are the pty-spawn ones this environment cannot run (`TestNotificationPTYConformance`, `ptychild/child_test.go`, `hostty`, `wrapcmd` TTY capture) — environmental, not this diff.
+
+## 6. Architectural notes
+
+- **ARCH-DRY — flag.** `enterOperationFor` and the single parser are correct. But the disposition is now decided in two places: `RouteMouseReport` (`mouse.go:53`) returns `MouseForward` and its doc comment presents itself as the complete table, while `onMouse` (`console.go:1534`) can turn that into a drop. The encoding dimension belongs in the router's signature and table, not in the shell.
+- **ARCH-PURE — pass.** `ChipSpan`/`ColumnToActor`/`ActorExtent`/`PointToActor`/`RouteMouseReport` are all pure and tested with no IO; `onMouse` is the thin seam. The one leak is the encoding policy above.
+- **ARCH-PURPOSE — flag.** Deferring `pair#196` to a follow-up defers the mode-ownership half that Spec §4 and the Done-when made the point of the issue, not a separable extension.
+- **ARCH-MOCK — pass.** `ptychild.NewFakeChild` and `hostty.FakeHost` sit on the same seam production uses, `TestFakeChildConformsToRealChildLifecycle` is the conformance check, and the mouse path is driven through real bytes rather than by calling `onMouse`. The real-terminal half is manual, which is declared — see the Important above about how it was recorded.
+- **ARCH-CONSTRAINTS — pass.** `?1000` and never `?1002`/`?1003` is the right envelope choice and the reason is written down at `control.go:51-58`. Nothing unbounded: the Interceptor's hold has `MaxReport`, the extents loop is O(rows).
+- **ARCH-SECURE — pass.** Reports are parsed into a typed `Event` at the boundary and refused rather than clamped; `ColumnToActor`/`PointToActor` are total, so negative and oversized coordinates map to nobody; labels are sanitised before they reach a span; the bounded hold means a pasted `\x1b[<` cannot park the keyboard.
+- **ARCH-ORDER — flag.** This is where the Critical lives. `Screen` now carries two independent bools (`mouse`, `sgrMouse`) and couch carries no state at all for "do I currently hold the terminal's mouse mode" — it is recomputed per paint. The legal states and the events that move between them are not written anywhere a test can drive: process still running behind a new pane, ring eviction of the original DECSET, a bare `?1000l` with no repaint following. Naming which of cancel/queue/preempt/ignore governs each is the missing enumeration.
+
+## 7. Plan revision recommendations
+
+- `## Revisions` entry: **"The disposition table is not complete."** `:47-56` still has no `couchOwnsScreen` dimension, so the two switcher rows the code carries are absent and the `anything, elsewhere | yes | forward verbatim` row is contradicted by both the switcher branch (`mouse.go:63-68`) and the encoding gate (`console.go:1534`). Re-derive the table from `RouteMouseReport` plus `onMouse`.
+- Same entry: `:159-160` states `RouteMouseReport` takes `(event, hostRows, childWantsMouse)`; four parameters shipped.
+- Same entry: all 41 checkboxes are unticked, including Tasks 1-5 and 10-12 whose work demonstrably landed. A plan ticked nowhere cannot be the record of what shipped.
+- Consider recording BR-28's own rule as delivered-or-not: three named-symbol sites were corrected and the three structural ones (table, signature, checkboxes) were not, which is the instance rather than the class the rule asked for.
+
+```findings
+dispose:
+  - id: BR-5
+    disposition: not-addressed
+    note: |
+      Clamp half honestly dispositioned; the SCROLLED half is still unpinned -- `index := len(lines) + start` at menu_render.go:467 leaves the whole couchtty suite green, and start>0 is entered by no extent test.
+  - id: BR-9
+    disposition: not-addressed
+    note: |
+      `go doc ChipSpan` still prints RenderStatusRow's untrusted-text rationale; the fix added a paragraph explaining the misattribution instead of moving it, and RenderStatusRow (reserve.go:138) now has no doc comment at all.
+  - id: BR-17
+    disposition: addressed
+    note: |
+      enterOperationFor consolidates the rule and the Manual-on-refusal guard is mutation-verified red; the notice divergence named in the detail is re-raised separately as a Minor under its family.
+  - id: BR-26
+    disposition: not-addressed
+    note: |
+      Tracking/encoding split shipped and pinned; the encoding is still never stood back from (the child is silently sent nothing instead), the startup write at console.go:530 is still ungated, and no event re-evaluates the belief -- see the new Critical for the class.
+  - id: BR-27
+    disposition: addressed
+    note: |
+      atlas/couch.md:358-368 rewrites the refuted paragraph and quotes it only to deny it; grep confirms no surviving assertion of the additive/idempotent model.
+  - id: BR-28
+    disposition: not-addressed
+    note: |
+      Three named-symbol sites fixed (DisableMouseClicks, seqMouse, IsSGRPrefix/FindSGR); the disposition table's missing couchOwnsScreen dimension, the three-argument RouteMouseReport signature at :159, and all 41 unticked checkboxes remain.
+  - id: BR-29
+    disposition: not-addressed
+    note: |
+      mouseinput.go:51 still reads `!strings.HasPrefix(s, "\x1b[<") || s == ""`.
+  - id: BR-30
+    disposition: not-addressed
+    note: |
+      console_mouse_test.go:145-149 unchanged, and the same first-byte-only assertion was copied into the new TestAChildThatDidNotAskForSGRIsNotSentSGR at :420-424.
+  - id: BR-31
+    disposition: not-addressed
+    note: |
+      manifest.go:549 and :557 unchanged -- mouseinput.go still sits inside the couchcore block and couchtty/mouse.go still precedes couchtty/menu.go.
+  - id: BR-32
+    disposition: not-addressed
+    note: |
+      The column-unit instance is fixed and mutation-verified, but the enumeration the finding itself wrote was not swept: the scrolled-window drawn-row base (BR-5) and the report-behind-other-bytes rule (BR-30) are both still unpinned.
+findings:
+  - id: new
+    severity: Critical
+    family: unspecified-event-policy
+    title: |
+      couch overwrites a still-tracking child's mouse mode whenever its per-Child observation is empty, and nothing re-evaluates the belief
+    detail: |
+      This is the 5th finding in family `unspecified-event-policy`. Earlier rounds fixed instances (BR-16 the missing re-assert, BR-22 the write, BR-26 the observation). Do NOT fix a fifth site. The rule that covers all of them: couch decides whether to write a terminal-GLOBAL mode from a value it can only ever have observed, so that decision needs a state model -- what the child is believed to hold, what invalidates the belief, and what event re-evaluates it -- not a bool read at paint time.
+      Verified at the pinned head: `Screen.mouse` is set only by classify seeing a DECSET in that Child's output (screen.go:428-431), is never queried, and a new pane for a still-running thread starts from `Screen{}` with mouse=false while replay can only re-derive it if the original DECSET is still inside DefaultRingBytes. paintNow (console.go:1043) then writes `?1000;1006h` over a child holding `?1002`, permanently, because nothing re-evaluates: onChunk repaints only on RowDirty/Bell/attention and classify sets rowDirty for alt-screen alone, so a bare `?1000l` also leaves couch's own clicks off indefinitely. The operator filed pair#196 (deps ["#172"]) reporting exactly this in production -- agent-pane drag selection loses its live highlight under couch after some reattachments, correct in standalone pair -- which is the Done-when "a child that did enable tracking still receives its own events unchanged" failing on code this window introduced (EnableMouseClicks does not exist before the base commit).
+      Measured prevalence: 3 write sites, 1 governed by the observation; 0 events that re-evaluate it; 6 transition cells pinned, 0 pinning the trigger, because TestMouseModeTransitions calls repaint() by hand.
+  - id: new
+    severity: Important
+    family: manual-verification-unrecorded
+    title: |
+      The one Done-when with no automatic test is recorded as "it worked", which the plan's own step forbade
+    detail: |
+      Plan Task 12 Step 2 says "Record the result in `## Log` as a measurement, not as 'it worked'." The Log records "Operator smoke-tested twice on the real stack" -- it does not say which of the three named steps ran (drag-select in the draft, wheel-scroll the agent pane, click a chip) or what each observed, so the record cannot distinguish a verified nvim scroll from a verified chip click. That is load-bearing here: nvim and zellij both set ?1006, so the mainstream child passes while the configuration pair#196 reports broken is invisible to the smoke test. Write the steps, their observed results, and which modes the attached child was holding.
+  - id: new
+    severity: Minor
+    family: unnamed-seam-change
+    title: |
+      Narrowing Screen.Mouse() to tracking-only silently changes termcmd's wheel policy, and the diff names only couchtty
+    detail: |
+      This is the 2nd finding in family `unnamed-seam-change`. Do NOT fix this instance alone. The rule: changing the semantics of an exported observation requires enumerating its call sites in the same commit and stating the effect at each. termcmd.appMouseMode (run.go:819) reads Child.Mouse(), so a child that had emitted `?1006h` alone now sends the wheel to `zellij scroll-up` instead of forwarding it. Measured prevalence: 2 consumers, 1 named; no termcmd test pins either direction. No live defect -- such a child receives no reports either way -- but the change was landed as a couchtty fix.
+  - id: new
+    severity: Minor
+    family: parallel-handler-restates-decision
+    title: |
+      A click on a non-actionable row, or on a chip not yet in the inventory, is silent where Enter explains
+    detail: |
+      This is the 2nd finding in family `parallel-handler-restates-decision`. Do NOT fix this instance alone. The rule: where the click arm and the key arm diverge, the divergence is DECLARED -- as the Manual flag is, with its reason in a comment -- rather than left as an omission. menu.go:352 returns `next, nil` for both `!ok` and `!menuThreadActionable`, while reduceRootKey:468-470 sets an errorMenuNotice whose own comment says "Silence is what the operator reports as a bug". The inventory-miss case is reachable only from a chip click, since the switcher can only select rows the inventory already holds.
+```

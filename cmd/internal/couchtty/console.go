@@ -1040,7 +1040,7 @@ func (c *Console) paintNow() {
 	// for as long as that child is attached, which is the correct trade: the
 	// operator can still reach every actor by keyboard, and a wedged drag inside
 	// their editor is not recoverable by any keystroke.
-	if !c.childWantsMouse() {
+	if c.couchMayOwnTheMouse() {
 		c.writeOwn(hostty.EnableMouseClicks)
 	}
 	row := RenderStatusRow(cols, model)
@@ -1504,11 +1504,35 @@ func (c *Console) runMenuOperation(effect MenuEffect) {
 // childWantsMouse reports whether the ACTIVE child holds mouse tracking of its
 // own. Read from ptychild.Screen, which already scans the child's DECSETs --
 // couch adds no second tracker.
-func (c *Console) childWantsMouse() bool {
+// couchMayOwnTheMouse reports whether couch may write its own terminal-global
+// mouse mode right now.
+//
+// It is deliberately NOT "the child does not want mouse". couch is deciding a
+// GLOBAL write from a belief it can only have observed, so the three states have
+// to be distinguished:
+//
+//	child observed holding tracking -> no  (writing demotes it)
+//	child observed holding none     -> yes (couch owns the terminal)
+//	nothing observed at all         -> NO  (couch does not know)
+//
+// The third is the one that shipped broken and the operator found in production
+// (pair#196): a detach/reattach mints a fresh Child with an empty Screen for a
+// still-running agent that will not re-emit its startup DECSET, so `Mouse()`
+// reads false for a child holding ?1002 and every paint wrote ?1000 over it --
+// drag selection losing its live highlight, exactly as reported.
+//
+// Silence is not consent. couch forgoes its own clicks in the unknown case,
+// which costs a keyboard-reachable convenience; the alternative costs the
+// operator their editor's drag, which no keystroke recovers.
+func (c *Console) couchMayOwnTheMouse() bool {
 	c.mu.Lock()
 	pane := c.panes[c.active]
 	c.mu.Unlock()
-	return pane != nil && pane.child.Mouse()
+	if pane == nil {
+		// No child at all: nothing to overwrite.
+		return true
+	}
+	return pane.child.MouseObserved() && !pane.child.Mouse()
 }
 
 // onMouse routes one decoded mouse report.

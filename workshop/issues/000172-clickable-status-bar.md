@@ -331,3 +331,33 @@ read forward.
 boundary was reviewed seven times while the round counter attributed all of it
 to "M1".
 
+### 2026-09-06 — manual verification, recorded as a measurement
+
+Plan Task 12 Step 2 required this written as a measurement rather than "it
+worked", and the first version ("operator smoke-tested twice on the real stack")
+failed that (BR-34). What was actually run, and what it can and cannot tell us:
+
+**Run 1, after the first wiring.** Clicked a chip on the reserved row: switched
+to that thread. Clicked empty space right of the last chip: nothing happened.
+Did NOT exercise the switcher, which is why a routing bug survived it — every
+switcher click was being swallowed before reaching the panel branch, and the
+report was "works fine".
+
+**Run 2, after the routing fix.** Clicked a row in the switcher: switched.
+Operator's words: "tested again, mouse click to switch works fine."
+
+**What neither run covered, and this is the load-bearing part.** Neither run
+recorded which mouse modes the attached child held, and both attached children
+were Pair sessions, whose nvim and zellij announce `?1006`. So the mainstream
+configuration passed while the one the operator later reported broken —
+`pair#196`, an agent pane holding `?1002` after a reattach, losing its live drag
+highlight — was invisible to both runs. The smoke test could not have caught it:
+the failure needs a child whose mode couch never observed, which is what a
+reattach produces.
+
+That is the measurement's real result. The Done-when "a child that did enable
+tracking still receives its own events unchanged" was NOT verified by these runs;
+it is verified by `TestAReattachedChildKeepsItsTrackingMode`, which reproduces
+`pair#196`'s path and reddens when the belief is treated as "no" rather than
+"unknown".
+

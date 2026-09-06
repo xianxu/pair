@@ -38,6 +38,13 @@ type Screen struct {
 	altScreen bool
 	mouse     bool
 	sgrMouse  bool
+	// mouseObserved records that this Screen has SEEN a mouse DECSET or DECRST
+	// at all. Without it, `mouse == false` conflates "the child asked for no
+	// tracking" with "this Screen has never been in a position to know" -- and a
+	// reattach mints a fresh Screen for a still-running child that will not
+	// re-emit its startup DECSET, so the second case is common rather than
+	// theoretical (pair#196).
+	mouseObserved bool
 
 	// Latched edge events, cleared by their Take* reader. The console acts
 	// once per event, not once per poll.
@@ -106,6 +113,12 @@ func (s *Screen) AltScreen() bool { return s.altScreen }
 // It deliberately excludes 1006, which is an encoding rather than a request for
 // events -- see the DECSET switch for what collapsing them cost.
 func (s *Screen) Mouse() bool { return s.mouse }
+
+// MouseObserved reports whether this Screen has seen the child say anything
+// about mouse mode. False means UNKNOWN, not "no": a supervisor that writes a
+// terminal-global mode on the strength of Mouse() being false must check this
+// first, or it will overwrite a mode it simply never witnessed.
+func (s *Screen) MouseObserved() bool { return s.mouseObserved }
 
 // SGRMouse reports whether the child asked for SGR-encoded coordinates (1006).
 // A supervisor forwarding reports to this child must send the encoding the child
@@ -428,8 +441,10 @@ func (s *Screen) classify(seq []byte) {
 			// own mode over a child that was still tracking (pair#172 BR-26).
 			case "1000", "1002", "1003":
 				s.mouse = on
+				s.mouseObserved = true
 			case "1006":
 				s.sgrMouse = on
+				s.mouseObserved = true
 			}
 		}
 		return

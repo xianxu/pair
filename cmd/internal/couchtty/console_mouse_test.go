@@ -329,8 +329,17 @@ func TestMouseModeTransitions(t *testing.T) {
 		{"child enables button-event tracking: couch stands back", "\x1b[?1002h", false, false},
 		{"child enables any-event tracking: couch stands back", "\x1b[?1003h", false, false},
 		{"child disables: couch takes the terminal back", "\x1b[?1002h\x1b[?1002l", false, true},
-		{"no child mode at all: couch owns it", "", false, true},
-		{"child exits with mouse on: couch takes it back", "\x1b[?1002h", true, true},
+		// UNKNOWN is not "no". A fresh Screen for a still-running child -- what
+		// a reattach mints -- has observed nothing, and writing on the strength
+		// of that overwrites a mode couch never witnessed (pair#196).
+		{"nothing observed yet: couch stands back", "", false, false},
+		// The surviving actor decides, not the departed one: onExit falls the
+		// active slot back to c2, which has observed nothing, so couch stands
+		// back for the same reason as the row above. Asserting "couch takes it
+		// back" here would have been asserting the fixture's shape rather than
+		// the rule -- what the exit itself changes is that c1's mode stops
+		// being the answer.
+		{"child exits with mouse on: the SURVIVOR decides", "\x1b[?1002h", true, false},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			con, _, host, _ := newMouseFixture(t)
@@ -381,6 +390,18 @@ func TestSwitchingToAChildWithoutTrackingReturnsTheTerminalToCouch(t *testing.T)
 		t.Fatal("couch asserted over c1's motion tracking")
 	}
 
+	// c2 must have SAID it holds none. A child that has announced nothing is
+	// unknown, not "no", and couch stands back for it -- so switching to a
+	// silent c2 would leave the terminal on c1's mode and this test would be
+	// asserting the fixture rather than the rule.
+	con.mu.Lock()
+	other := con.panes["c2"]
+	con.mu.Unlock()
+	other.child.Feed([]byte("\x1b[?1000h\x1b[?1000l"))
+	waitFor(t, "c2 to declare it holds no tracking", func() bool {
+		return other.child.MouseObserved() && !other.child.Mouse()
+	})
+
 	con.forceSwitch("c2")
 	waitFor(t, "couch to take the terminal back under c2", func() bool {
 		return strings.Contains(host.Written(), hostty.EnableMouseClicks)
@@ -421,5 +442,58 @@ func TestAChildThatDidNotAskForSGRIsNotSentSGR(t *testing.T) {
 		if len(w) > 0 && w[0] == 0x1b {
 			t.Fatalf("an SGR report was forwarded to a child that asked for the legacy encoding: %q", w)
 		}
+	}
+}
+
+// The operator's pair#196, as a test: agent-pane drag selection loses its live
+// highlight after some couch reattachments.
+//
+// A detach/reattach mints a NEW Child for a still-running agent, and its Screen
+// starts empty. The agent will not re-emit the startup DECSET it sent long ago,
+// and replay can only re-derive it while that sequence is still inside the ring.
+// So couch's belief is not "the child wants no mouse" — it is "couch has not
+// seen the child say anything", and writing ?1000 on the strength of that
+// demoted a child holding ?1002 to press/release: selection still works, but the
+// during-drag feedback is gone, because motion reports stop.
+//
+// Silence is not consent. This is the case a keyboard smoke test cannot reach
+// and mainstream children hide: nvim and zellij both announce ?1006, so the
+// common configuration looks fine.
+func TestAReattachedChildKeepsItsTrackingMode(t *testing.T) {
+	con, _, host, _ := newMouseFixture(t)
+	address := menuAddress("one")
+
+	// The agent announced motion tracking long ago, on a Child that is gone.
+	// What couch has NOW is a fresh pane for the same running thread, which is
+	// what a detach/reattach mints -- reached through the real exit path rather
+	// than by deleting from the map, which no production path does and which
+	// leaves the console painting a pane it still believes in.
+	original := con.activeChild()
+	original.Feed([]byte("\x1b[?1002h"))
+	waitFor(t, "the original child's tracking to register", func() bool { return original.Mouse() })
+	_ = original.Close()
+	waitFor(t, "the original child to finish", func() bool { return original.Done() })
+	con.onExit(childExit{id: "c1", code: 0})
+
+	con.attachThreadActor("c1b", "one", address, "/w/one", "one", ptychild.NewFakeChild(nil))
+	con.mu.Lock()
+	con.active = "c1b"
+	fresh := con.panes["c1b"].child
+	con.mu.Unlock()
+
+	if fresh.MouseObserved() {
+		t.Fatal("a fresh Child claims to have observed a mode, so this test cannot reproduce the reattach")
+	}
+	if fresh.Mouse() {
+		t.Fatal("a fresh Child claims tracking, so the false-negative this test exists for cannot occur")
+	}
+
+	host.Reset()
+	con.repaint()
+	con.repaint()
+	waitFor(t, "a repaint", func() bool { return host.Written() != "" })
+
+	if strings.Contains(host.Written(), hostty.EnableMouseClicks) {
+		t.Fatal("couch wrote ?1000 over a reattached child whose mode it never observed, demoting a still-tracking agent")
 	}
 }
