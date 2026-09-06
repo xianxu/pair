@@ -1,6 +1,6 @@
 ---
 id: 000196
-status: open
+status: codecomplete
 deps: ["#172"]
 github_issue:
 created: 2026-09-06
@@ -196,3 +196,40 @@ bounded replay, and the smoke test — a human dragging a mouse — cannot
 distinguish "restored" from "happened to still be in the ring". The defect has
 now recurred three times in one component precisely because the state's
 reconstruction path was never enumerated against the events that can reach it.
+
+## Log
+
+### 2026-09-06 — fixed by `pair#172`, confirmed by the operator
+
+The hypothesis in this issue was correct through all six steps, and the fix
+landed in `pair#172` as `7f68fecd`.
+
+**Root cause, stated as the general defect rather than the path.** `Mouse()`
+returning false conflated two different facts: "the child asked for no tracking"
+and "this Screen has never seen the child say anything". A reattach mints a new
+`Child` with an empty `Screen` for a still-running agent that will not re-emit
+its startup DECSET, and replay can only re-derive it while that sequence is still
+inside the ring — so false meant UNKNOWN, and couch wrote `?1000` over a child
+holding `?1002`. Since 1000/1002/1003 are one mutually-exclusive tracking state,
+that demotes it to press/release: motion reports stop, selection still works and
+copy-on-select still fires, and only the during-drag feedback is lost. The
+intermittency ("not every reattach") is the ring: whether the original DECSET is
+still in it.
+
+**Fix.** `Screen` records whether it has observed a mouse DECSET at all
+(`MouseObserved`), and couch writes its own mode only when it has observed the
+child holding NONE. Unknown means stand back — couch forgoes its own clicks,
+which are keyboard-reachable, rather than cost the operator a drag that no
+keystroke recovers.
+
+Pinned by `TestAReattachedChildKeepsItsTrackingMode`, which reproduces this
+path through the real exit and attach calls and reddens if the belief is treated
+as "no" again.
+
+**Confirmed by the operator on the rebuilt binary, 2026-09-06: fixed.**
+
+**Worth keeping: this was the FOURTH appearance of one defect** in `pair#172` —
+the missing re-assert, the write, the observation, and finally the belief. Each
+earlier fix guarded one path into a belief that was never modelled, which is why
+the same symptom kept returning through a different door.
+
