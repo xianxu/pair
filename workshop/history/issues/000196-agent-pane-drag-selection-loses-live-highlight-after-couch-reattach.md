@@ -1,6 +1,6 @@
 ---
 id: 000196
-status: codecomplete
+status: done
 deps: ["#172"]
 github_issue:
 created: 2026-09-06
