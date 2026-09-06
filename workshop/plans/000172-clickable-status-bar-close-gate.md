@@ -703,6 +703,93 @@ rounds:
           round: 8
       boundary: M1
       blocked: false
+    - "n": 9
+      timestamp: "2026-09-06T00:42:26-07:00"
+      agent: claude
+      dispose:
+        - id: BR-5
+          disposition: not-addressed
+          note: |-
+            Clamp half answered honestly (probe confirms unreachable); the scrolled
+            case is still entered by no extent test -- panic probe on start>0.
+          round: 9
+        - id: BR-9
+          disposition: not-addressed
+          note: |-
+            go doc ChipSpan still prints the RenderStatusRow rationale; go doc
+            RenderStatusRow prints nothing. Verified by running go doc.
+          round: 9
+        - id: BR-17
+          disposition: not-addressed
+          note: |-
+            enterOperationFor is shared (good), but both the resume branch and the
+            len(effects)>0 guard survive reversion green; the notice divergence remains.
+          round: 9
+        - id: BR-25
+          disposition: addressed
+          note: |-
+            The named bullet and every rename residue are gone; the only remaining
+            MouseClickTracking hits are the Revisions entries recording the rename.
+            The class is carried by BR-28.
+          round: 9
+        - id: BR-26
+          disposition: not-addressed
+          note: |-
+            Untouched since round 8 (only a docs commit landed after). Both mechanisms
+            reproduced at head; see the detail on the re-raise rule below.
+          round: 9
+        - id: BR-27
+          disposition: not-addressed
+          note: |-
+            atlas/couch.md:358-361 unchanged, and the diff shows the same commit ADDED
+            that paragraph -- it is not stale prose, it is a new wrong claim.
+          round: 9
+        - id: BR-28
+          disposition: not-addressed
+          note: |-
+            Only :118 (seqMouse deleted) changed; five named sites plus two more remain
+            and there is still no Revisions entry.
+          round: 9
+        - id: BR-29
+          disposition: not-addressed
+          note: mouseinput.go:51 unchanged.
+          round: 9
+        - id: BR-30
+          disposition: not-addressed
+          note: console_mouse_test.go:146 still w[0] == 0x1b.
+          round: 9
+        - id: BR-31
+          disposition: not-addressed
+          note: manifest.go:549,557 unchanged.
+          round: 9
+      findings:
+        - id: BR-32
+          severity: Important
+          title: ChipSpan's documented column unit is unpinned -- swapping textwidth.Width for a rune count leaves the whole couchtty suite green
+          detail: |-
+            This is the 4th finding in family `unpinned-exported-shape`. Earlier rounds
+            fixed instances (BR-6 a missing test file, BR-13 a run shape, BR-30 a weak
+            assertion). Do NOT fix this instance alone.
+
+            The rule that covers all of them: a documented property of an exported shape
+            is pinned only by a fixture that can DISCRIMINATE it. reserve.go:159
+            accumulates `used += textwidth.Width(clipped)`, and ChipSpan's own doc calls
+            Start/End "the column range" -- correct, because an SGR X is a terminal
+            column. But every chip fixture is ASCII, where columns, runes and bytes all
+            coincide, so replacing that line with `len([]rune(clipped))` leaves
+            `./cmd/internal/couchtty/` fully green (verified by mutation). The same
+            fixture-cannot-discriminate shape is why BR-30's first-byte check passes and
+            why BR-5's clipped case needed constructing rather than sweeping. The
+            enumeration this implies, and which should be swept in one round: for each
+            exported geometry contract on this feature, name the property, then name the
+            fixture value that violates it -- a CJK or emoji label for the column unit
+            (labels are UNTRUSTED text and truncate()'s own doc calls out emoji), a
+            scrolled window for the drawn-row base (BR-5), a report behind other bytes
+            for the zero-bytes rule (BR-30). Measured prevalence: 3 of 3 geometry
+            properties I mutated are unpinned by the shipped fixtures.
+          family: unpinned-exported-shape
+          round: 9
+      blocked: true
 ---
 
 # Gate ledger — pair#172 (boundary-review)
@@ -1093,15 +1180,62 @@ later rounds disposed of them. Generated — edit the gate, not this file.
   cmd/internal/couchtty/mouse.go sits before couchtty/menu.go. Nothing enforces the
   order, which is why it drifted.
 
+## Round 9 — 2026-09-06T00:42:26-07:00 (claude) — BLOCKED
+
+### Disposed
+
+- BR-5 — not-addressed — Clamp half answered honestly (probe confirms unreachable); the scrolled
+case is still entered by no extent test -- panic probe on start>0.
+- BR-9 — not-addressed — go doc ChipSpan still prints the RenderStatusRow rationale; go doc
+RenderStatusRow prints nothing. Verified by running go doc.
+- BR-17 — not-addressed — enterOperationFor is shared (good), but both the resume branch and the
+len(effects)>0 guard survive reversion green; the notice divergence remains.
+- BR-25 — addressed — The named bullet and every rename residue are gone; the only remaining
+MouseClickTracking hits are the Revisions entries recording the rename.
+The class is carried by BR-28.
+- BR-26 — not-addressed — Untouched since round 8 (only a docs commit landed after). Both mechanisms
+reproduced at head; see the detail on the re-raise rule below.
+- BR-27 — not-addressed — atlas/couch.md:358-361 unchanged, and the diff shows the same commit ADDED
+that paragraph -- it is not stale prose, it is a new wrong claim.
+- BR-28 — not-addressed — Only :118 (seqMouse deleted) changed; five named sites plus two more remain
+and there is still no Revisions entry.
+- BR-29 — not-addressed — mouseinput.go:51 unchanged.
+- BR-30 — not-addressed — console_mouse_test.go:146 still w[0] == 0x1b.
+- BR-31 — not-addressed — manifest.go:549,557 unchanged.
+
+### Raised
+
+- **BR-32** [Important] `unpinned-exported-shape` ChipSpan's documented column unit is unpinned -- swapping textwidth.Width for a rune count leaves the whole couchtty suite green
+  This is the 4th finding in family `unpinned-exported-shape`. Earlier rounds
+  fixed instances (BR-6 a missing test file, BR-13 a run shape, BR-30 a weak
+  assertion). Do NOT fix this instance alone.
+  
+  The rule that covers all of them: a documented property of an exported shape
+  is pinned only by a fixture that can DISCRIMINATE it. reserve.go:159
+  accumulates `used += textwidth.Width(clipped)`, and ChipSpan's own doc calls
+  Start/End "the column range" -- correct, because an SGR X is a terminal
+  column. But every chip fixture is ASCII, where columns, runes and bytes all
+  coincide, so replacing that line with `len([]rune(clipped))` leaves
+  `./cmd/internal/couchtty/` fully green (verified by mutation). The same
+  fixture-cannot-discriminate shape is why BR-30's first-byte check passes and
+  why BR-5's clipped case needed constructing rather than sweeping. The
+  enumeration this implies, and which should be swept in one round: for each
+  exported geometry contract on this feature, name the property, then name the
+  fixture value that violates it -- a CJK or emoji label for the column unit
+  (labels are UNTRUSTED text and truncate()'s own doc calls out emoji), a
+  scrolled window for the drawn-row base (BR-5), a report behind other bytes
+  for the zero-bytes rule (BR-30). Measured prevalence: 3 of 3 geometry
+  properties I mutated are unpinned by the shipped fixtures.
+
 ## Open findings
 
 - **BR-5** [Important] `onedirectional-geometry-assertion` clampExtents and the scrolled list are unreachable from any test
 - **BR-9** [Minor] `orphaned-doc-comment` RenderStatusRow's doc block is now attached to ChipSpan
 - **BR-17** [Important] `parallel-handler-restates-decision` The click reducer restates Enter's switch/resume rule and diverges from it, and sets Manual on a refused dispatch
-- **BR-25** [Minor] `plan-table-claims-unshipped-code` The plan's Integration-points prose bullet still names hostty.MouseClickTracking after the Revisions entry renamed it
 - **BR-26** [Important] `unspecified-event-policy` couch writes two mouse modes and governs one, and the state it reads collapses tracking and encoding into a single bool
 - **BR-27** [Important] `docs-lag-shipped-surface` atlas/couch.md:356-361 still teaches the refuted model that produced BR-22
 - **BR-28** [Important] `plan-table-claims-unshipped-code` The plan artifact disagrees with the tree in six places, with no Revisions entry
 - **BR-29** [Minor] `move-residue` mouseinput.go:50's `s == ""` is unreachable after the HasPrefix check succeeds
 - **BR-30** [Minor] `unpinned-exported-shape` TestChildWithoutTrackingReceivesNoMouseBytes only inspects the first byte of each write
 - **BR-31** [Minor] `docs-lag-shipped-surface` artifactpath/manifest.go:549,557 break NonArtifactSources' alphabetical order
+- **BR-32** [Important] `unpinned-exported-shape` ChipSpan's documented column unit is unpinned -- swapping textwidth.Width for a rune count leaves the whole couchtty suite green

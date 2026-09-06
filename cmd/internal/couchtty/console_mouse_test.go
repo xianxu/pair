@@ -210,10 +210,12 @@ func TestClickIsAManualSwitch(t *testing.T) {
 func TestForwardPreservesRawBytes(t *testing.T) {
 	con, writer, _, _ := newMouseFixture(t)
 	child := con.activeChild()
-	// The child ASKS for mouse reporting -- fed through the same path the real
-	// pump uses, so its Screen sees the DECSET exactly as it would in
-	// production. That is what makes forwarding the right answer for it.
-	child.Feed([]byte("\x1b[?1000h"))
+	// The child asks for tracking AND for the SGR encoding -- fed through the
+	// same path the real pump uses. Both matter: tracking is what makes
+	// forwarding right, and the encoding is what makes an SGR report parseable
+	// by this child. A test asking only for tracking would expect bytes the
+	// child could not read.
+	child.Feed([]byte("\x1b[?1000;1006h"))
 	waitFor(t, "the child's mouse mode to register", func() bool { return child.Mouse() })
 
 	const report = "\x1b[<0;7;9M"
@@ -383,4 +385,41 @@ func TestSwitchingToAChildWithoutTrackingReturnsTheTerminalToCouch(t *testing.T)
 	waitFor(t, "couch to take the terminal back under c2", func() bool {
 		return strings.Contains(host.Written(), hostty.EnableMouseClicks)
 	})
+}
+
+// couch requests ?1006 for itself, so the terminal emits SGR regardless of what
+// the child wanted. A child holding ?1000h WITHOUT ?1006h asked for the legacy
+// encoding and cannot parse an SGR report -- forwarding one puts unparseable
+// bytes in its input, which is "receives its own events unchanged" read
+// backwards.
+func TestAChildThatDidNotAskForSGRIsNotSentSGR(t *testing.T) {
+	con, writer, _, _ := newMouseFixture(t)
+	child := con.activeChild()
+	// Tracking, but the LEGACY encoding.
+	child.Feed([]byte("\x1b[?1000h"))
+	waitFor(t, "the child's tracking to register", func() bool { return child.Mouse() })
+	if child.SGRMouse() {
+		t.Fatal("the fixture child asked for SGR, so this test cannot distinguish the encodings")
+	}
+	before := len(child.Writes())
+
+	if _, err := writer.Write([]byte("\x1b[<0;7;9M")); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := writer.Write([]byte("x")); err != nil {
+		t.Fatal(err)
+	}
+	waitFor(t, "the ordinary keystroke to arrive", func() bool {
+		for _, w := range child.Writes() {
+			if string(w) == "x" {
+				return true
+			}
+		}
+		return false
+	})
+	for _, w := range child.Writes()[before:] {
+		if len(w) > 0 && w[0] == 0x1b {
+			t.Fatalf("an SGR report was forwarded to a child that asked for the legacy encoding: %q", w)
+		}
+	}
 }

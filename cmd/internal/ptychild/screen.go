@@ -37,6 +37,7 @@ type Screen struct {
 
 	altScreen bool
 	mouse     bool
+	sgrMouse  bool
 
 	// Latched edge events, cleared by their Take* reader. The console acts
 	// once per event, not once per poll.
@@ -101,8 +102,15 @@ const (
 // AltScreen reports whether the child is currently on the alternate screen.
 func (s *Screen) AltScreen() bool { return s.altScreen }
 
-// Mouse reports whether the child has asked for mouse reporting.
+// Mouse reports whether the child has asked for mouse TRACKING (1000/1002/1003).
+// It deliberately excludes 1006, which is an encoding rather than a request for
+// events -- see the DECSET switch for what collapsing them cost.
 func (s *Screen) Mouse() bool { return s.mouse }
+
+// SGRMouse reports whether the child asked for SGR-encoded coordinates (1006).
+// A supervisor forwarding reports to this child must send the encoding the child
+// asked for: a child holding 1000 without 1006 cannot parse an SGR report.
+func (s *Screen) SGRMouse() bool { return s.sgrMouse }
 
 // TakeRowDirty reports and clears whether the child did something that may have
 // destroyed a reserved row: dropped the scrolling region (DECSTBM, RIS, an
@@ -412,8 +420,16 @@ func (s *Screen) classify(seq []byte) {
 				// An alt-screen transition is exactly when a child redraws
 				// from scratch and the region can go with it.
 				s.rowDirty = true
-			case "1000", "1002", "1003", "1006":
+			// TRACKING and ENCODING are different facts and must not share a
+			// bool. 1000/1002/1003 say the child wants mouse events at all;
+			// 1006 says only how coordinates are encoded. Collapsed, a child
+			// doing `?1002h` then `?1006l` read as "no mouse" -- so a supervisor
+			// asking "does the child hold tracking" got false and asserted its
+			// own mode over a child that was still tracking (pair#172 BR-26).
+			case "1000", "1002", "1003":
 				s.mouse = on
+			case "1006":
+				s.sgrMouse = on
 			}
 		}
 		return

@@ -160,3 +160,32 @@ func TestRenderedStatusRowIsSelfConsistent(t *testing.T) {
 		}
 	}
 }
+
+// Spans are DISPLAY COLUMNS, not runes or bytes. A wide glyph occupies two
+// columns, so a rune count would put every span after it one column left of what
+// was drawn -- and the click would land on the neighbouring chip.
+//
+// Unpinned, swapping textwidth.Width for a rune count left the whole suite green,
+// because every other test uses ASCII labels.
+func TestChipSpansAreDisplayColumnsNotRunes(t *testing.T) {
+	m := StatusModel{Actors: []StatusActor{
+		{Label: "日本", Thread: menuAddress("wide")},
+		{Label: "beta", Thread: menuAddress("b")},
+	}}
+	row := RenderStatusRow(40, m)
+	if len(row.Chips) != 2 {
+		t.Fatalf("chips = %+v, want 2", row.Chips)
+	}
+	// "日本" is 2 runes and 4 display columns.
+	if got := row.Chips[0].End - row.Chips[0].Start; got != 4 {
+		t.Errorf("the wide label spans %d columns, want 4 -- a rune count would say 2", got)
+	}
+	// So the next chip starts after 4 columns plus the 2-column separator.
+	if got := row.Chips[1].Start; got != 6 {
+		t.Errorf("the following chip starts at column %d, want 6 -- a rune count would say 4", got)
+	}
+	// And the click lands where the operator sees it.
+	if thread, ok := row.ColumnToActor(6); !ok || thread != menuAddress("b") {
+		t.Errorf("column 6 = (%+v,%v), want the second chip", thread, ok)
+	}
+}

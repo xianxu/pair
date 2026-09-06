@@ -1531,8 +1531,19 @@ func (c *Console) onMouse(hit MouseHit) {
 	wantsMouse := child != nil && child.child.Mouse()
 	switch RouteMouseReport(hit.Event, rows, wantsMouse, panel) {
 	case MouseForward:
-		if child != nil {
-			// The RAW bytes: the child gets exactly what the terminal sent.
+		if child != nil && child.child.SGRMouse() {
+			// The RAW bytes, and only to a child that asked for THIS ENCODING.
+			// couch requests ?1006 for itself, so the terminal sends SGR whether
+			// or not the child wanted it; a child holding ?1000h without ?1006h
+			// asked for the legacy form and cannot parse what would arrive.
+			// Forwarding anyway would put unparseable bytes in its input, which
+			// is the "receives its own events unchanged" Done-when read
+			// backwards (pair#172 BR-26).
+			//
+			// Not re-encoded to legacy: that is a translation couch has no
+			// business inventing, and the legacy form cannot express coordinates
+			// past 223 anyway. Swallowed instead, which is what the child would
+			// have received before couch enabled anything.
 			_, _ = child.child.Write(hit.Raw)
 		}
 		return

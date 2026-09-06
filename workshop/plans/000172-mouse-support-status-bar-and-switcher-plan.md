@@ -115,7 +115,6 @@ required, since the legacy X10 encoding caps at 223 and fails *silently*.
 | `MouseDisposition` | `cmd/internal/couchtty/mouse.go` | new |
 | `RouteMouseReport` | `cmd/internal/couchtty/mouse.go` | new |
 | `mouseinput.Event` / `mouseinput.Find` | `cmd/internal/mouseinput/mouseinput.go` | new |
-| ~~`seqMouse`~~ | — | deleted — it was dead; FeedHit matches mouseinput predicate before the fixed-string table |
 | `RenderStatusRow` | `cmd/internal/couchtty/reserve.go` | modified |
 | `Interceptor.FeedHit` | `cmd/internal/couchtty/keys.go` | modified |
 
@@ -152,7 +151,7 @@ required, since the legacy X10 encoding caps at 223 and fails *silently*.
   forwards or swallows. Named explicitly because "no change needed" is a claim
   that has to be checked, not an omission.
 
-- **mouseinput.Event / FindSGR** — `termcmd`'s parser, promoted to a package both
+- **mouseinput.Event / Find** — `termcmd`'s parser, promoted to a package both
   callers import. Moved rather than copied: `termcmd` keeps working through the
   new package, so there is one parser and one prefix rule
   (`ARCH-DRY`). The wheel/release policy moves with it as documented behaviour.
@@ -162,7 +161,7 @@ required, since the legacy X10 encoding caps at 223 and fails *silently*.
   this" and "the child must never see this" are the two cases this issue exists
   to separate; a bool collapses them.
 
-- **seqMouse + `Interceptor.FeedHit`** — carries the RAW bytes alongside the
+- **`Interceptor.FeedHit`** — carries the RAW bytes alongside the
   decoded event, never the event alone. The `forward` disposition writes the
   child the exact bytes the terminal sent; re-encoding them from the parsed
   fields would be a second source of truth for the wire format and would differ on any
@@ -179,7 +178,7 @@ required, since the legacy X10 encoding caps at 223 and fails *silently*.
 | Name | Lives in | Status | Wraps |
 |------|----------|--------|-------|
 | `Console.onMouse` | `cmd/internal/couchtty/console.go` | new | routing a decoded event to a switch |
-| `hostty.EnableMouseClicks` / `DisableMouseClicks` | `cmd/internal/hostty/control.go` | new | couch's own DECSET/DECRST |
+| `hostty.EnableMouseClicks` | `cmd/internal/hostty/control.go` | new | couch's own DECSET |
 
 - **Console.onMouse** — reads the child's mode from `Screen.Mouse()` (not from a
   new tracker), calls `RouteMouseReport`, and on `couch` maps the coordinate to an
@@ -190,7 +189,7 @@ required, since the legacy X10 encoding caps at 223 and fails *silently*.
     so the table keeps its "every hit has a handler" guarantee while one hit
     carries a payload.
 
-- **hostty.EnableMouseClicks** — `?1000;?1006` on, beside
+- **hostty.EnableMouseClicks** — `?1000;?1006` on. There is no Disable counterpart: teardown uses `ResetInteractiveModes`, which was already the authority and already lists every mouse mode, so a second string would be a second place to keep in step. Beside
   `ResetInteractiveModes` which already lists every mouse mode and remains the
   teardown authority.
 
@@ -391,9 +390,7 @@ func TestMouseReportsAreNotForwardedAsOrdinaryBytes(t *testing.T) {
 }
 ```
 
-- [ ] **Step 2: Run — FAIL** (`seqMouse` and `HitMouse` do not exist; the bytes
       are copied through).
-- [ ] **Step 3: Implement** `seqMouse` via `mouseinput.IsSGRPrefix`, and widen
       `FeedHit` to return the decoded event AND the raw bytes — `forward` writes
       the wire form, never a re-encoding.
 - [ ] **Step 3b: Bound the hold.** A held mouse prefix longer than
@@ -498,11 +495,33 @@ name.
 
 **Delta.** The six rows flip to `new`/`modified` and are pinned in
 `conceptInventory`. `hostty.MouseClickTracking` becomes
-`hostty.EnableMouseClicks` / `DisableMouseClicks`, which is what shipped.
+`hostty.EnableMouseClicks`, which is what shipped.
 
 **Why it mattered rather than being bookkeeping.** The status column is what the
 contract test reads: a row marked `planned` is SKIPPED, so six shipped entities
 were asserting nothing while appearing to be covered. That is the same shape as
 the registration that silently did nothing (`pair#193`) — a guard that looks
 applied and is not.
+
+### 2026-09-06 — the plan is reconciled with what shipped
+
+The close review found six places where this document described a tree that does
+not exist (BR-28), which is the third finding in that family for this issue. The
+sites and their corrections:
+
+- `hostty.DisableMouseClicks` was declared `new` and exists nowhere. It was
+  written, found to have no caller, and deleted: teardown uses
+  `ResetInteractiveModes`, which was already the authority and already lists
+  every mouse mode. The row now names only `EnableMouseClicks`.
+- `seqMouse` is gone from the tables and the prose. It was dead on arrival —
+  `sequenceAt` can only return kinds `knownSequences` carries, and a mouse report
+  is matched before that table — so `FeedHit` never produced it.
+- `mouseinput.IsSGRPrefix` and `mouseinput.FindSGR` shipped as `IsPrefix` and
+  `Find`; the package name already says SGR.
+
+**Why this kept happening, which is more useful than the list.** Rows whose
+declared path lies OUTSIDE `conceptPackage` are invisible to the contract test —
+`hostty` here, the same blind spot BR-3 used. So the guard cannot be the only
+check on this table, and a plan edited during implementation has to be re-read
+against the tree at the boundary rather than trusted because a test passed.
 

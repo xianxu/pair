@@ -3480,3 +3480,16 @@ that a key token appears cannot detect a contradictory behavioral sentence
   thing, which is how most readers arrive. After inserting into a const block or
   above a declaration, run `go doc <the neighbour>` and check it still describes
   itself.
+- Two facts in one bool is a bug waiting for its second half. `ptychild.Screen`
+  folded mouse TRACKING (1000/1002/1003) and mouse ENCODING (1006) into one
+  `mouse` flag, so a child doing `?1002h` then `?1006l` read as "no mouse" — and
+  a supervisor asking "is this child tracking?" got false and asserted its own
+  mode over a child that was still tracking. I had already fixed that demotion
+  once at the WRITE; the same bug came back through the OBSERVATION, because the
+  fix guarded one side of a two-sided defect. When a predicate answers two
+  questions, split it before guarding either.
+- A guard is blind to what lies outside its scope, so it cannot be the only
+  check. couch's core-concepts contract only reads rows whose declared path is
+  inside its own package, so a row naming `hostty` was never checked and drifted
+  twice. A passing guard licenses only what it can see; the artifact still has
+  to be re-read against the tree at the boundary.

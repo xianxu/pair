@@ -354,11 +354,28 @@ wrong here, where a child with no tracking must receive nothing and a release it
 never saw a press for is an unpaired event.
 
 couch owns only its OWN mode. `ptychild` replay re-asserts the child's across a
-switch, and a second writer would be two authorities for one terminal state. But
-couch RE-ASSERTS its own on every paint: a child writing DECRST `?1000l` turns
-couch's clicks off globally, and without the re-assert the feature would simply
-stop with no signal. DECSET is additive and idempotent, so this cannot clobber a
-mode the child set for itself.
+switch, and a second writer would be two authorities for one terminal state.
+couch re-asserts its own on every paint — a child writing DECRST `?1000l` turns
+couch's clicks off globally, and without the re-assert the feature would stop
+with no signal — but ONLY while no child holds tracking.
+
+That caveat is the whole rule, and this paragraph used to deny it: "DECSET is
+additive and idempotent, so this cannot clobber a mode the child set for itself"
+is **false**. Modes 1000/1002/1003 are one mutually-exclusive tracking state
+(xterm's `send_mouse_pos`; Alacritty, kitty, Ghostty and iTerm2 all replace
+rather than union), so asserting 1000 under a child holding 1002 demotes it to
+press/release and its drag never closes — nvim wedged in visual selection. The
+transition table, one rule: **the child's mode wins whenever it has one, and
+couch takes the terminal back the moment it does not.**
+
+TRACKING and ENCODING are separate facts, and collapsing them cost the same bug
+twice. `?1000`/`?1002`/`?1003` say the child wants events; `?1006` says only how
+coordinates are encoded. `ptychild.Screen` tracks them apart (`Mouse()` and
+`SGRMouse()`) because a child doing `?1002h` then `?1006l` otherwise reads as
+"no mouse" — reaching the demotion through the OBSERVATION instead of the write —
+and because couch must forward SGR only to a child that asked for SGR: one
+holding `?1000h` alone requested the legacy form and cannot parse what the
+terminal now sends.
 
 A click dispatches the SAME declared `switch` (or `resume`) operation Enter
 dispatches, chosen by the same `enterOperationFor` rule — one authority, because

@@ -28,9 +28,18 @@ func TestScreenMouseMode(t *testing.T) {
 		want bool
 	}{
 		{"enable basic mouse", "\x1b[?1000h", true},
-		{"enable sgr mouse", "\x1b[?1006h", true},
+		// 1006 alone is an ENCODING request, not a request for events. This row
+		// used to expect true, which is the conflation pair#172 BR-26 named: a
+		// supervisor asking "is this child tracking" got yes for a child that
+		// had asked for nothing. Its parsing is still asserted, by SGRMouse
+		// below.
+		{"sgr encoding alone is not tracking", "\x1b[?1006h", false},
 		{"enable multiple modes", "\x1b[?1000;1006h", true},
 		{"disable mouse", "\x1b[?1000h\x1b[?1000l", false},
+		// And the inverse, which is how BR-22's demotion was reached through
+		// the observation: dropping the ENCODING must not read as dropping the
+		// tracking.
+		{"dropping the encoding leaves tracking on", "\x1b[?1002h\x1b[?1006l", true},
 		{"unrelated private mode preserves state", "\x1b[?1000h\x1b[?25l", true},
 		{"colon-separated params", "\x1b[?1000:1006h", true},
 	}
@@ -38,6 +47,34 @@ func TestScreenMouseMode(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			if got := feedWhole(tt.data).Mouse(); got != tt.want {
 				t.Fatalf("Mouse() = %v, want %v", got, tt.want)
+			}
+		})
+	}
+}
+
+// The encoding is tracked separately, so a supervisor can send a child the form
+// it asked for: a child holding 1000 without 1006 cannot parse an SGR report.
+func TestScreenSGRMouseIsSeparateFromTracking(t *testing.T) {
+	for _, tt := range []struct {
+		name     string
+		data     string
+		tracking bool
+		sgr      bool
+	}{
+		{"neither", "", false, false},
+		{"tracking only", "\x1b[?1000h", true, false},
+		{"encoding only", "\x1b[?1006h", false, true},
+		{"both", "\x1b[?1002;1006h", true, true},
+		{"drop the encoding, keep tracking", "\x1b[?1002;1006h\x1b[?1006l", true, false},
+		{"drop the tracking, keep the encoding", "\x1b[?1002;1006h\x1b[?1002l", false, true},
+	} {
+		t.Run(tt.name, func(t *testing.T) {
+			screen := feedWhole(tt.data)
+			if got := screen.Mouse(); got != tt.tracking {
+				t.Errorf("Mouse() = %v, want %v", got, tt.tracking)
+			}
+			if got := screen.SGRMouse(); got != tt.sgr {
+				t.Errorf("SGRMouse() = %v, want %v", got, tt.sgr)
 			}
 		})
 	}
