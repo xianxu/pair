@@ -5,7 +5,7 @@ deps: []
 github_issue:
 created: 2026-09-06
 updated: 2026-09-07
-estimate_hours: 7.0
+estimate_hours: 7.05
 started: 2026-09-06T19:24:15-07:00
 ---
 
@@ -323,41 +323,55 @@ strip, not a redesign. Recorded so the option is not lost.
 
 ## Estimate
 
-**7.0 hr** (range 5.1–8.9), of which **3.98 is already measured and spent** on
-M1 — so the forward-looking figure is **1.1–5.0 hr for M2–M4**.
+**7.05 hr**, of which **3.98 is already measured and spent** on M1 — so the
+forward-looking figure is **~3.1 hr for M2–M4**.
 
-| primitive | design | impl (40%) |
+```estimate
+model: estimate-logic-v3.1
+familiarity: 1.0
+item: cross-cutting-refactor design=0.30 impl=3.68
+item: tui-screen design=0.25 impl=0.26
+item: cross-cutting-refactor design=0.12 impl=0.14
+item: smaller-go-module design=0.15 impl=0.14
+item: cross-cutting-refactor design=0.12 impl=0.14
+item: tui-screen design=0.25 impl=0.26
+item: smaller-go-module design=0.15 impl=0.14
+item: atlas-docs design=0.12 impl=0.12
+item: milestone-review design=0.10 impl=0.42
+design-buffer: 0.15
+total: 7.05
+```
+
+| item | milestone | what it covers |
 |---|---|---|
-| M2 gate + writer envelope (TUI state machine + tests) | 0.10–0.40 | 0.12–0.40 |
-| M2 subprocess routing (cross-cutting refactor, 5 sites) | 0.04–0.20 | 0.08–0.20 |
-| M3 strip render (smaller Go module; mirrors `RenderStatusRow`) | 0.00–0.30 | 0.08–0.20 |
-| M3 `rowtext` extraction (cross-cutting refactor) | 0.04–0.20 | 0.08–0.20 |
-| M3 wire the strip into `termcmd` (TUI screen + tests) | 0.10–0.40 | 0.12–0.40 |
-| M4 borderless + layout assertion (smaller Go + docs) | 0.00–0.30 | 0.08–0.20 |
-| process overhead — 3 boundary reviews (M2/M3/M4) | 0.00–0.60 | 0.24–0.60 |
-| **subtotal** | **0.28–2.40** | **0.80–2.20** |
-| +15% design buffer (thorough plan) | +0.04–0.36 | |
-| **M2–M4** | **1.12–4.96** | |
-| M1 (measured) | **3.98** | |
+| cross-cutting-refactor (3.98) | **M1, MEASURED** | the `hostty.Reservation` lift — see below |
+| tui-screen | M2 | the gate + single-writer envelope, all three rules |
+| cross-cutting-refactor | M2 | subprocess routing, five `RunZellijAction` sites |
+| smaller-go-module | M3 | `RenderStrip`, mirroring `RenderStatusRow` |
+| cross-cutting-refactor | M3 | `rowtext` extraction from `couchtty`'s unexported pair |
+| tui-screen | M3 | wiring the strip into `termcmd`, repaint on `batch.RowDirty` |
+| smaller-go-module | M4 | `borderless=true` + the layout-enumeration assertion |
+| atlas-docs | M4 | atlas entry + `config.kdl`'s now-wrong scroll rationale |
+| milestone-review | M2–M4 | three boundary reviews |
 
-**Design discount ×0.2** applied to every primitive the plan already settles —
-which after five plan-quality rounds is most of them: all three gate rules are
-named, all five writers are enumerated with their derivation, the repaint
-trigger is corrected to `batch.RowDirty`, and `rowtext`'s shared home is chosen.
-No discount on the two "smaller Go module" rows, whose design hours are already
-near zero.
+**Design discount ×0.2** applied to every primitive the plan already settles,
+which after six plan-quality rounds is most of them: all three gate rules named,
+all five writers derived, the repaint trigger corrected to `batch.RowDirty`, and
+`rowtext`'s shared home chosen. No discount on the `smaller-go-module` rows,
+whose design hours are already near zero.
 
-**Why M1 ran to 3.98 h against a ~0.6 h primitive.** Not the lift, which was
-small; the cost was three hand-maintained consumer lists the plan did not list
-(`conceptPlans`/`conceptInventory`, `#146`'s core-concepts row, `artifactpath`'s
-inventory) plus a real deadlock. That is the `consumer-set-not-derived` family
-the plan now carries a rule for, and the M2–M4 figure assumes the rule holds —
-if a fourth hidden list appears, expect the high end.
+**The M1 row is measured, not estimated, and it is 6× its primitive.** The lift
+itself was small; the cost was three hand-maintained consumer lists the plan did
+not name (`conceptPlans`/`conceptInventory`, `#146`'s core-concepts row,
+`artifactpath`'s inventory) plus a deadlock the suite caught. It is itemized at
+its measured value rather than its predicted one so the total reconciles against
+reality — and it is exactly the `consumer-set-not-derived` family the plan now
+carries a rule for. **M2–M4 assume that rule holds.** If a fourth hidden list
+appears, this estimate is low.
 
 *Produced via `brain/data/life/42shots/velocity/estimate-logic-v3.1.md` against
 `baseline-v3.1.md`. Method A only.* The calibration doc is flagged `[stale]`
-(recalibration tracked in `#127`), so treat the per-primitive hours as
-provisional.
+(recalibration tracked in `#127`), so the per-primitive hours are provisional.
 
 ## Revisions
 

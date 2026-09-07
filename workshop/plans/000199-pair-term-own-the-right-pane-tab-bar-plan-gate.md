@@ -250,7 +250,20 @@ rounds:
           note: TestPaintDefersMidSequenceAndIsOwed still splits one hand-chosen index rather than every index of a sequence set; Minor, carried to the close review.
           round: 5
       blocked: false
-content_hash: 1000e6d8917e5da78fde5fe59cc4eb828fc617d2c8db06b4f232d1ba8e0a5f30
+    - "n": 6
+      timestamp: "2026-09-07T16:47:44-07:00"
+      agent: claude
+      dispose:
+        - id: PQ-8
+          disposition: not-addressed
+          note: M4.3 still has no Alt+Shift+d step; main-3.kdl :138/:139, :165/:166, :191/:192 confirmed as exact_panes=4 split rungs.
+          round: 6
+        - id: PQ-9
+          disposition: not-addressed
+          note: TestPaintDefersMidSequenceAndIsOwed still splits at one hand-picked index inside "\x1b[3".
+          round: 6
+      blocked: false
+content_hash: a5fe9c0cce74ad877ee6b620a7b45f78b5c27d65fd30df4e0ee992c5cf488c50
 ---
 
 # Gate ledger — pair#199 (plan-quality)
@@ -389,6 +402,13 @@ later rounds disposed of them. Generated — edit the gate, not this file.
 - PQ-10 — addressed — The rule is stated as its own section and applied to both consumer sets, each carrying its command; M4.1 already enumerates by parsing main-3.kdl rather than from the nine line numbers.
 - PQ-8 — not-addressed — M4.3 still never presses Alt+Shift+d, so the six *-split rungs stay unverified; Minor, carried to the close review.
 - PQ-9 — not-addressed — TestPaintDefersMidSequenceAndIsOwed still splits one hand-chosen index rather than every index of a sequence set; Minor, carried to the close review.
+
+## Round 6 — 2026-09-07T16:47:44-07:00 (claude) — passed
+
+### Disposed
+
+- PQ-8 — not-addressed — M4.3 still has no Alt+Shift+d step; main-3.kdl :138/:139, :165/:166, :191/:192 confirmed as exact_panes=4 split rungs.
+- PQ-9 — not-addressed — TestPaintDefersMidSequenceAndIsOwed still splits at one hand-picked index inside "\x1b[3".
 
 ## Open findings
 
