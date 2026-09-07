@@ -215,10 +215,17 @@ end
 --
 -- The drift instruction is embedded VERBATIM (M.payload), so #48's procedure
 -- cannot drift by being paraphrased here.
-function M.perf_payload(pair_home, note, editor, env)
+function M.perf_payload(pair_home, note, editor, env, sidecar)
   local drift = M.payload(pair_home)
   if not drift then return nil end
   local out = { 'Diagnose a performance slowdown on this workbench.', '' }
+  if sidecar and sidecar ~= '' then
+    -- FIRST, deliberately. The send path drops interior chunks (see headline),
+    -- and the head is what survives -- so a truncated message must still carry
+    -- the path to everything.
+    out[#out + 1] = 'FULL capture (read this if anything below looks cut off): ' .. sidecar
+    out[#out + 1] = ''
+  end
   if note and note ~= '' then
     out[#out + 1] = 'What the operator reported, in their words:'
     out[#out + 1] = ''
@@ -234,7 +241,13 @@ function M.perf_payload(pair_home, note, editor, env)
   out[#out + 1] = ''
   out[#out + 1] = editor or 'editor: n/a (self-timing did not run)'
   out[#out + 1] = ''
-  out[#out + 1] = 'Environment snapshot (doctor/perf.sh):'
+  if sidecar and sidecar ~= '' then
+    out[#out + 1] = 'Environment headline (the full snapshot is in the file named above):'
+  else
+    -- No file was written, so there is nothing to point at; saying otherwise
+    -- would send a reader hunting for a path that does not exist.
+    out[#out + 1] = 'Environment headline (the full snapshot could not be saved):'
+  end
   out[#out + 1] = ''
   out[#out + 1] = env or 'n/a (capture did not run)'
   out[#out + 1] = ''
@@ -283,6 +296,17 @@ end
 -- format_delta renders the join as the handful of lines a reader needs: who is
 -- actually burning CPU over the window, and the accounting that says whether the
 -- picture is trustworthy.
+-- A process name reaches this report straight from `ps` and is attacker- and
+-- accident-controlled: any app can be named with control bytes in it. Observed
+-- 2026-09-07, WhatsApp's argv rendered as `\040^NWhatsApp` -- and ^N is SO,
+-- which switches a terminal to the alternate character set and garbles every
+-- line after it. The report is written INTO a terminal, so escapes get stripped
+-- rather than passed through.
+local function safe_comm(c)
+  if not c or c == '' then return '?' end
+  return (c:gsub('%c', '?'):gsub('\\%d%d%d', '?'))
+end
+
 function M.format_delta(d, limit)
   if not d then return 'per-process rates: n/a (samples could not be joined)' end
   limit = limit or 10
@@ -296,7 +320,7 @@ function M.format_delta(d, limit)
     -- Below 1% is noise on a 12-core host and would push the interesting rows
     -- off the list.
     if r.cpu_pct >= 1.0 then
-      out[#out + 1] = string.format('  %7.1f%%  %-6s  %s', r.cpu_pct, tostring(r.pid), r.comm or '?')
+      out[#out + 1] = string.format('  %7.1f%%  %-6s  %s', r.cpu_pct, tostring(r.pid), safe_comm(r.comm))
       shown = shown + 1
     end
   end
@@ -307,6 +331,43 @@ function M.format_delta(d, limit)
   -- signature #203 cares about and which no single-sample view can show.
   out[#out + 1] = string.format('churn: %d started, %d vanished, %d reused-pid, %d unmeasured',
     d.started, d.vanished, d.reused, d.unmeasured)
+  return table.concat(out, '\n')
+end
+
+-- headline pulls the handful of numbers worth carrying in the prompt itself.
+--
+-- Everything else lives in the sidecar. This is not only about size: the send
+-- path drops chunks intermittently (measured 2026-09-07 -- exactly 1,025 bytes
+-- vanished from the middle of a 2,447-byte payload while head and tail arrived,
+-- and a 180KB payload had succeeded minutes earlier, so size does not predict
+-- it). A short prompt is a smaller target, and pairing it with a path near the
+-- TOP -- the part that survives -- means a truncated message still tells the
+-- reader where the full capture is.
+function M.headline(compact, delta_text)
+  local want = {
+    load = true, cpu_idle_pct = true, windowserver_cpu_pct = true,
+    pair_family_procs = true, build_procs = true,
+    pipe_hop_ms = true, fork_exec_ms = true, zellij_action_ms = true,
+    swapins_per_s = true, elapsed_seconds = true,
+  }
+  local out = {}
+  for line in ((compact or '') .. '\n'):gmatch('([^\n]*)\n') do
+    local key = line:match('^([%w_]+)=')
+    if key and want[key] then out[#out + 1] = line end
+  end
+  -- The rates and churn are the point of the capture; keep the top few.
+  if delta_text and delta_text ~= '' then
+    local kept, n = {}, 0
+    for line in (delta_text .. '\n'):gmatch('([^\n]*)\n') do
+      if line:match('^churn:') or line:match('^per%-process') then
+        kept[#kept + 1] = line
+      elseif line:match('^%s+%d') and n < 5 then
+        kept[#kept + 1] = line; n = n + 1
+      end
+    end
+    out[#out + 1] = ''
+    out[#out + 1] = table.concat(kept, '\n')
+  end
   return table.concat(out, '\n')
 end
 

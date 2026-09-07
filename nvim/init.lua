@@ -4031,27 +4031,10 @@ do
       vim.schedule(function()
         capture_running = false
         local raw = (res.code == 0 and res.stdout ~= '' and res.stdout) or nil
-        local env
+        local env, sidecar
         if not raw then
           env = 'n/a (perf.sh exited ' .. tostring(res.code) .. ')'
         else
-          -- The raw samples are ~3,500 lines of cumulative ps output. They go to
-          -- a SIDECAR the agent can open on demand; the prompt carries the
-          -- compact half plus the joined rates, which is what a reader uses.
-          -- Same shape doctor.sh uses for the flight recorder: hand over a path,
-          -- not the contents.
-          local sidecar
-          pcall(function()
-            local dir = pair_data_dir()
-            vim.fn.mkdir(dir, 'p')
-            local path = dir .. '/perf-capture-latest.txt'
-            local fh = io.open(path, 'w')
-            if fh then
-              fh:write(raw)
-              fh:close()
-              sidecar = path
-            end
-          end)
           -- THE JOIN. Without this the payload carried raw cumulative counters
           -- and doctor.delta -- the whole reason the pid join lives in tested
           -- Lua -- was dead code in production.
@@ -4060,11 +4043,29 @@ do
           if a and b then
             rates = doctor.format_delta(doctor.delta(a, b, window or 2))
           end
-          env = doctor.strip_samples(raw) .. '\n' .. rates
-            .. '\n\nfull raw capture (both samples, every process): '
-            .. (sidecar or 'n/a (could not be written)')
+          local compact = doctor.strip_samples(raw)
+
+          -- EVERYTHING goes to the sidecar -- compact report, joined rates, and
+          -- the ~3,500 raw sample lines. An earlier version wrote only the raw
+          -- samples and put the rates solely in the prompt, so a truncated send
+          -- destroyed the most valuable half of the capture with no copy left
+          -- anywhere. The file is the record; the prompt is a pointer to it.
+          pcall(function()
+            local dir = pair_data_dir()
+            vim.fn.mkdir(dir, 'p')
+            local path = dir .. '/perf-capture-latest.txt'
+            local fh = io.open(path, 'w')
+            if fh then
+              fh:write(compact .. '\n' .. rates .. '\n\n## raw samples\n' .. raw)
+              fh:close()
+              sidecar = path
+            end
+          end)
+          -- The prompt carries only the headline. See doctor.headline for why
+          -- this is a pointer rather than the report.
+          env = doctor.headline(compact, rates)
         end
-        local body = doctor.perf_payload(vim.env.PAIR_HOME, note, editor, env)
+        local body = doctor.perf_payload(vim.env.PAIR_HOME, note, editor, env, sidecar)
         if not body then return end
         send_generated_prompt(body)
 
@@ -4075,7 +4076,7 @@ do
         -- operator actually asked for, so it is pcall'd and silent.
         pcall(function()
           local probes = {}
-          for k, v in env:gmatch('(%w+_ms)=([%d%.]+)') do probes[k] = tonumber(v) end
+          for k, v in (raw or ''):gmatch('(%w+_ms)=([%d%.]+)') do probes[k] = tonumber(v) end
           local row = doctor.capture_record(os.time(), note, verdict, probes)
           local dir = pair_data_dir()
           vim.fn.mkdir(dir, 'p')

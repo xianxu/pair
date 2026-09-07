@@ -272,6 +272,72 @@ do
   ok(idle:find('idle across the window', 1, true) ~= nil, 'an idle window says so rather than showing nothing')
 end
 
+-- headline + the sidecar's position in the payload.
+--
+-- These pin the truncation-survival design (#211): the send path drops interior
+-- chunks, so the path to the full capture must sit in the HEAD -- ahead of the
+-- note -- and the prompt must stay small enough that little of it is exposed.
+do
+  local compact = table.concat({
+    '# pair perf capture',
+    'captured_at=2026-09-07T10:00:00-0700',
+    'window_seconds=2',
+    'budget_seconds=6',
+    'host_cores=12',
+    'load=9.51/8.10/7.44',
+    'memory_pressure_level=1',
+    'process_count=812',
+    'cpu_idle_pct=71.2',
+    'windowserver_cpu_pct=7.0',
+    'pair_family_procs=14',
+    'build_procs=0',
+    'swapins_per_s=0.0',
+    'pipe_hop_ms=0.007',
+    'pipe_hop_p90=0.009',
+    'zellij_action_ms=13.5',
+    'elapsed_seconds=6',
+  }, '\n')
+  local rates = table.concat({
+    'per-process CPU over the 2s window:',
+    '   55.0%  go',
+    '    4.0%  nvim',
+    'churn: 9 started, 2 vanished',
+  }, '\n')
+  local h = M.headline(compact, rates)
+
+  ok(h:find('windowserver_cpu_pct=7.0', 1, true) ~= nil, 'the headline keeps the numbers that matter')
+  ok(h:find('load=9.51', 1, true) ~= nil, 'load survives')
+  ok(h:find('zellij_action_ms=13.5', 1, true) ~= nil, 'the probes survive -- they are the point of the capture')
+  ok(h:find('churn: 9 started', 1, true) ~= nil, 'churn survives; a spawn storm is visible without opening the file')
+  ok(h:find('55.0%%') ~= nil, 'the top CPU consumer survives')
+  ok(h:find('budget_seconds', 1, true) == nil, 'bookkeeping keys are dropped')
+  ok(h:find('memory_pressure_level', 1, true) == nil, 'second-tier keys are dropped -- they are in the file')
+  ok(#h < #compact, 'the headline is smaller than the compact report it summarizes')
+
+  local body = M.perf_payload('/tmp/home', 'typing went slow', 'fast (12.0ms)', h, '/tmp/cap.txt')
+  local at = body:find('/tmp/cap.txt', 1, true)
+  ok(at ~= nil, 'the sidecar path is in the payload')
+  ok(at < body:find('typing went slow', 1, true),
+    'the path precedes even the note: the head is what survives a truncated send')
+  ok(at < 400, 'the path is in the first few hundred bytes, well inside any surviving head')
+  ok(#body < 1800, 'the whole payload stays small: ' .. #body .. ' bytes')
+
+  local nofile = M.perf_payload('/tmp/home', 'the note', 'fast', h, nil)
+  ok(nofile:find('the note', 1, true) ~= nil, 'a payload without a sidecar still renders')
+  ok(nofile:find('named above', 1, true) == nil,
+    'with no sidecar the prompt does not point at a file that was never written')
+end
+
+-- A process name comes from ps and can hold anything. ^N is SO: it switches the
+-- terminal to the alternate character set and garbles every following line.
+do
+  local text = M.format_delta({ rates = {
+      { pid = '1', comm = '/Applications/\014WhatsApp.app/x', cpu_pct = 3.0 },
+    }, started = 0, vanished = 0, reused = 0, unmeasured = 0, rows_a = 5, rows_b = 5 })
+  ok(text:find('\014') == nil, 'a control byte in a process name never reaches the terminal')
+  ok(text:find('WhatsApp', 1, true) ~= nil, 'the readable part of the name survives')
+end
+
 if fails > 0 then
   io.stderr:write(string.format('\n%d failure(s)\n', fails))
   os.exit(1)

@@ -108,5 +108,27 @@ if [ "$proc_rows" -lt 10 ]; then
 fi
 printf '%s\n' "$out" | grep -q '^### cputime$' || bad "no ### cputime section for delta to parse"
 
+# A DENIED ps must render n/a, not an empty section. `ps | awk` exits with awk's
+# status, so a failed ps used to exit 0 with no output: `cputimes || say n/a`
+# never fired and both sample sections came out blank -- which a reader parses
+# as "no processes ran", a fabricated claim. Caught by a sandboxed `make test`
+# where ps is denied outright.
+fake_bin="${TMPDIR:-/tmp}/perf_test_fakeps.$$"
+mkdir -p "$fake_bin"
+cat > "$fake_bin/ps" <<'FAKE'
+#!/bin/sh
+exit 1
+FAKE
+chmod +x "$fake_bin/ps"
+out=$(PATH="$fake_bin:$PATH" PAIR_PERF_WINDOW=0 sh "$here/perf.sh" 2>/dev/null)
+for section in cputime procs; do
+	body=$(printf '%s\n' "$out" | awk -v s="### $section" '$0==s{f=1;next} /^###|^##/{f=0} f')
+	case "$body" in
+		*n/a*) ;;
+		*) bad "a failed ps left ### $section rendering as '$body' instead of n/a" ;;
+	esac
+done
+rm -rf "$fake_bin"
+
 if [ "$fails" -gt 0 ]; then echo "$fails failure(s)" >&2; exit 1; fi
 echo "perf.sh shape tests passed"

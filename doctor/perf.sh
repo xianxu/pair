@@ -127,8 +127,22 @@ collect "build_procs" ps _builds
 # --- the two samples. Raw; doctor.delta joins them. -------------------------
 # `etime` is carried so the join can detect a REUSED pid: a pid whose etime went
 # DOWN between samples is a different process that inherited the number.
-sample()   { ps -Ao pid=,etime=,rss=,comm= | awk '{printf "%s\t%s\t%s\t%s\n", $1, $2, $3, $4}'; }
-cputimes() { ps -Ao pid=,time= | awk '{printf "%s\t%s\n", $1, $2}'; }
+# ps is captured BEFORE the pipe, not piped straight into awk. In a pipeline the
+# exit status is awk's, so a denied or failed ps exits 0 with no output -- and
+# `cputimes || say n/a` never fires, emitting an EMPTY section that reads as "no
+# processes" rather than "not measured". That is rule 1's defect class, and it
+# was live here until a sandboxed `make test` (where ps is denied outright)
+# rendered both sections blank.
+sample() {
+	_p=$(ps -Ao pid=,etime=,rss=,comm=) || return 1
+	[ -n "$_p" ] || return 1
+	printf '%s\n' "$_p" | awk '{printf "%s\t%s\t%s\t%s\n", $1, $2, $3, $4}'
+}
+cputimes() {
+	_p=$(ps -Ao pid=,time=) || return 1
+	[ -n "$_p" ] || return 1
+	printf '%s\n' "$_p" | awk '{printf "%s\t%s\n", $1, $2}'
+}
 
 _swapnow() {
 	_vm=$(vm_stat 2>/dev/null) || return 1
@@ -143,9 +157,9 @@ emit_sample() {
 	say "## $1"
 	collect "at_s" date "date_epoch"
 	say "### cputime"
-	cputimes 2>/dev/null || say "n/a (ps unavailable)"
+	cputimes 2>/dev/null || say "n/a (ps failed or is unavailable)"
 	say "### procs"
-	sample 2>/dev/null || say "n/a (ps unavailable)"
+	sample 2>/dev/null || say "n/a (ps failed or is unavailable)"
 }
 date_epoch() { date +%s; }
 

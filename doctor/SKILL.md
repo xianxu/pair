@@ -68,10 +68,21 @@ skill is durable while performance is not. A 2026-09-06 investigation produced
 three issues and no theory precisely because every measurement was taken on a
 healthy machine.
 
+**The prompt is a pointer, not the report.** `:PairDoctor` sends a headline of
+about a dozen lines and a path; the complete capture — compact report, joined
+per-process rates, and both raw `ps` samples — is written to
+`$PAIR_DATA_DIR/perf-capture-latest.txt`. **Open that file.** The headline is
+enough to form a first suspicion and never enough to confirm one.
+
+The path is placed *ahead of the operator's note*, in the first ~60 bytes,
+because the send path from the draft editor to the agent drops interior chunks
+(`#211`) — the head survives, so the head is where the path has to be. If the
+prompt you received looks cut off, that is the known bug: read the file.
+
 **Read the report in this order. The order is the method.**
 
-**1. The operator's note.** It leads the payload deliberately. Without it you
-will explain whatever number is largest instead of what was actually reported —
+**1. The operator's note.** First thing after the path. Without it you will
+explain whatever number is largest instead of what was actually reported —
 "typing is slow" and "the build is slow" have different suspects.
 
 **2. `editor:` — the discriminator, and the single most valuable line.**
@@ -88,7 +99,27 @@ spawn+link+connect+round-trip. They degrade *together* under a process-spawn
 storm; a hop staying near 7 µs while typing feels slow points away from
 scheduling entirely.
 
-**4. Everything else is context, not verdict.** In particular:
+**4. The per-process rates and the churn line.** Computed from two `ps` samples
+by joining on pid — never from `ps %cpu`, which is a **lifetime average** and
+lies by orders of magnitude (measured 2026-09-06: `contactsd` read ~0% in `ps`
+while actually burning 42.6%). Read them as:
+
+- **A single process above ~50%** — you have your answer; go look at it.
+- **`churn: N started`** — this is the **spawn-storm signature** (`#203`), and no
+  single-sample view can show it. A large `started` count over a 2-second window
+  means the machine is paying process-creation cost continuously; expect
+  `fork_exec` and `zellij_action` to be degraded together while `pipe_hop` may
+  not be.
+- **`reused-pid` and `unmeasured`** — bookkeeping for the join's honesty. A
+  process whose `etime` went *down* between samples is a different process that
+  inherited the number, so its rate is dropped rather than fabricated.
+- **Nothing above 1%** — says so explicitly. That is a real finding: it excludes
+  every CPU-bound explanation, which is exactly the case that keeps recurring on
+  this host.
+
+Only the top few rows reach the prompt. The full ordered list is in the file.
+
+**5. Everything else is context, not verdict.** In particular:
 
 - **`load` does not predict this.** Measured 2026-09-06: degradation at load 9.5
   and none at load 15.5. What correlated was the workload's *phase* — many
@@ -99,7 +130,7 @@ scheduling entirely.
   with 66% idle CPU, and its units (tens of ms per frame) are the right order of
   magnitude for visible lag, unlike scheduling's microseconds.
 
-**5. `n/a` means NOT MEASURED. Never read it as zero.** Every collector degrades
+**6. `n/a` means NOT MEASURED. Never read it as zero.** Every collector degrades
 to `n/a` with a reason rather than emitting a value, because a fabricated `0` is
 indistinguishable from a real reading — the defect class this capture was
 hardened against across seven review rounds.
