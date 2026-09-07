@@ -86,6 +86,23 @@ func TestPaintBracketsWithCursorSaveRestore(t *testing.T) {
 	}
 }
 
+// Reserve and Paint must agree about whether the row exists. The couchtty
+// PaintRow this replaced guarded only rows == 0, so on a ONE-row terminal it
+// painted a row it had not reserved -- over content the child owns, since
+// ChildRows(1) gives the child the whole screen. Pinned because it is a
+// behaviour change from the moved function, not an accident of the rewrite.
+func TestNothingIsPaintedOnARowThatWasNeverReserved(t *testing.T) {
+	for _, rows := range []uint16{0, 1} {
+		r := hostty.Reservation{Rows: rows, Edge: hostty.EdgeBottom}
+		if r.Reserve() != "" {
+			t.Fatalf("rows=%d: reserved a row on a terminal with no room", rows)
+		}
+		if got := r.Paint("x"); got != "" {
+			t.Fatalf("rows=%d: painted %q on a row that was never reserved", rows, got)
+		}
+	}
+}
+
 func TestReleaseResetsTheRegion(t *testing.T) {
 	r := hostty.Reservation{Rows: 24, Edge: hostty.EdgeBottom}
 	if !strings.Contains(r.Release(), "\x1b[r") {

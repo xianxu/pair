@@ -111,10 +111,10 @@ its milestones touch no tab-lifecycle code.
 |------|----------|--------|
 | `Edge` | `cmd/internal/hostty/reserve.go` | new |
 | `Reservation` | `cmd/internal/hostty/reserve.go` | new |
-| `TabChip` | `cmd/internal/termcmd/strip.go` | new |
-| `StripModel` | `cmd/internal/termcmd/strip.go` | new |
-| `RenderedStrip` | `cmd/internal/termcmd/strip.go` | new |
-| `RenderStrip` | `cmd/internal/termcmd/strip.go` | new |
+| `TabChip` | `cmd/internal/termcmd/strip.go` | planned — M3 |
+| `StripModel` | `cmd/internal/termcmd/strip.go` | planned — M3 |
+| `RenderedStrip` | `cmd/internal/termcmd/strip.go` | planned — M3 |
+| `RenderStrip` | `cmd/internal/termcmd/strip.go` | planned — M3 |
 | `couchtty.ChildRows` / `Reserve` / `Release` / `PaintRow` | `cmd/internal/couchtty/reserve.go` | deleted |
 | `couchtty.RenderStatusRow` (+ `StatusModel`, `ChipSpan`) | `cmd/internal/couchtty/reserve.go` | unchanged |
 

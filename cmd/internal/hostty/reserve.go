@@ -99,6 +99,13 @@ func (r Reservation) Release() string { return ResetRegion }
 // Save and restore BRACKET the paint. Without them the child's cursor is left
 // on the reserved row, which the operator sees as the caret jumping to the
 // bottom line every time anything is drawn.
+//
+// DELIBERATE CHANGE from the couchtty.PaintRow this replaces: on a ONE-ROW
+// terminal the old function still painted, because it guarded only rows == 0.
+// But a one-row terminal cannot be reserved from -- ChildRows gives the child
+// all of it -- so that paint landed on a row the child fully owns, overwriting
+// its content and leaving no strip anyway. Reserve and Paint now agree: if the
+// row was never reserved, nothing is drawn on it.
 func (r Reservation) Paint(text string) string {
 	if !r.usable() {
 		return ""
