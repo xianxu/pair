@@ -5,7 +5,7 @@ deps: []
 github_issue:
 created: 2026-09-06
 updated: 2026-09-07
-estimate_hours:
+estimate_hours: 7.0
 started: 2026-09-06T19:24:15-07:00
 ---
 
@@ -320,6 +320,44 @@ is unchanged in behavior — a regression there means it was a rewrite").
 
 Top remains reachable later as an additive DECOM arbitration over a working
 strip, not a redesign. Recorded so the option is not lost.
+
+## Estimate
+
+**7.0 hr** (range 5.1–8.9), of which **3.98 is already measured and spent** on
+M1 — so the forward-looking figure is **1.1–5.0 hr for M2–M4**.
+
+| primitive | design | impl (40%) |
+|---|---|---|
+| M2 gate + writer envelope (TUI state machine + tests) | 0.10–0.40 | 0.12–0.40 |
+| M2 subprocess routing (cross-cutting refactor, 5 sites) | 0.04–0.20 | 0.08–0.20 |
+| M3 strip render (smaller Go module; mirrors `RenderStatusRow`) | 0.00–0.30 | 0.08–0.20 |
+| M3 `rowtext` extraction (cross-cutting refactor) | 0.04–0.20 | 0.08–0.20 |
+| M3 wire the strip into `termcmd` (TUI screen + tests) | 0.10–0.40 | 0.12–0.40 |
+| M4 borderless + layout assertion (smaller Go + docs) | 0.00–0.30 | 0.08–0.20 |
+| process overhead — 3 boundary reviews (M2/M3/M4) | 0.00–0.60 | 0.24–0.60 |
+| **subtotal** | **0.28–2.40** | **0.80–2.20** |
+| +15% design buffer (thorough plan) | +0.04–0.36 | |
+| **M2–M4** | **1.12–4.96** | |
+| M1 (measured) | **3.98** | |
+
+**Design discount ×0.2** applied to every primitive the plan already settles —
+which after five plan-quality rounds is most of them: all three gate rules are
+named, all five writers are enumerated with their derivation, the repaint
+trigger is corrected to `batch.RowDirty`, and `rowtext`'s shared home is chosen.
+No discount on the two "smaller Go module" rows, whose design hours are already
+near zero.
+
+**Why M1 ran to 3.98 h against a ~0.6 h primitive.** Not the lift, which was
+small; the cost was three hand-maintained consumer lists the plan did not list
+(`conceptPlans`/`conceptInventory`, `#146`'s core-concepts row, `artifactpath`'s
+inventory) plus a real deadlock. That is the `consumer-set-not-derived` family
+the plan now carries a rule for, and the M2–M4 figure assumes the rule holds —
+if a fourth hidden list appears, expect the high end.
+
+*Produced via `brain/data/life/42shots/velocity/estimate-logic-v3.1.md` against
+`baseline-v3.1.md`. Method A only.* The calibration doc is flagged `[stale]`
+(recalibration tracked in `#127`), so treat the per-primitive hours as
+provisional.
 
 ## Revisions
 

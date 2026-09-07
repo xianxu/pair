@@ -220,6 +220,37 @@ rounds:
           family: consumer-set-not-derived
           round: 3
       blocked: true
+    - "n": 4
+      timestamp: "2026-09-07T16:42:31-07:00"
+      agent: claude
+      blocked: true
+      protocol_error: no valid findings block
+    - "n": 5
+      timestamp: "2026-09-07T16:45:52-07:00"
+      agent: claude
+      dispose:
+        - id: PQ-1
+          disposition: addressed
+          note: 'Finding 9 derives the set by grep and names all three matcher forms correctly (verified at layoutflow.go:62 and shortcut.go:186); residual — the M3.6 row and ARCH-PURPOSE still print the superseded "run.go:229, #118, #123" list.'
+          round: 5
+        - id: PQ-4
+          disposition: addressed
+          note: Finding 8 derives all five writers, routes the subprocess through RunZellijActionQuiet and admits a goroutine-id test cannot see it; residual — M2.3's implement step does not yet name that routing.
+          round: 5
+        - id: PQ-10
+          disposition: addressed
+          note: The rule is stated as its own section and applied to both consumer sets, each carrying its command; M4.1 already enumerates by parsing main-3.kdl rather than from the nine line numbers.
+          round: 5
+        - id: PQ-8
+          disposition: not-addressed
+          note: M4.3 still never presses Alt+Shift+d, so the six *-split rungs stay unverified; Minor, carried to the close review.
+          round: 5
+        - id: PQ-9
+          disposition: not-addressed
+          note: TestPaintDefersMidSequenceAndIsOwed still splits one hand-chosen index rather than every index of a sequence set; Minor, carried to the close review.
+          round: 5
+      blocked: false
+content_hash: 1000e6d8917e5da78fde5fe59cc4eb828fc617d2c8db06b4f232d1ba8e0a5f30
 ---
 
 # Gate ledger — pair#199 (plan-quality)
@@ -345,10 +376,21 @@ later rounds disposed of them. Generated — edit the gate, not this file.
   RunZellijActionQuiet or records it as a named exception, since
   TestOnlyOneGoroutineWritesTheHost cannot observe a subprocess write.
 
+## Round 4 — 2026-09-07T16:42:31-07:00 (claude) — BLOCKED
+
+**Protocol error:** no valid findings block — this round contributed no findings.
+
+## Round 5 — 2026-09-07T16:45:52-07:00 (claude) — passed
+
+### Disposed
+
+- PQ-1 — addressed — Finding 9 derives the set by grep and names all three matcher forms correctly (verified at layoutflow.go:62 and shortcut.go:186); residual — the M3.6 row and ARCH-PURPOSE still print the superseded "run.go:229, #118, #123" list.
+- PQ-4 — addressed — Finding 8 derives all five writers, routes the subprocess through RunZellijActionQuiet and admits a goroutine-id test cannot see it; residual — M2.3's implement step does not yet name that routing.
+- PQ-10 — addressed — The rule is stated as its own section and applied to both consumer sets, each carrying its command; M4.1 already enumerates by parsing main-3.kdl rather than from the nine line numbers.
+- PQ-8 — not-addressed — M4.3 still never presses Alt+Shift+d, so the six *-split rungs stay unverified; Minor, carried to the close review.
+- PQ-9 — not-addressed — TestPaintDefersMidSequenceAndIsOwed still splits one hand-chosen index rather than every index of a sequence set; Minor, carried to the close review.
+
 ## Open findings
 
-- **PQ-1** [Important] `consumer-set-not-derived` The rename-pane consumer set is asserted from memory; the two real title matchers are never named
-- **PQ-4** [Important] `envelope-claim-unenforced` Two writers to the pane's tty sit outside the single-writer envelope, and the M2 test cannot see them
 - **PQ-8** [Minor] `acceptance-misses-changed-sites` M4's manual acceptance never splits the pane, leaving six of nine borderless sites unverified
 - **PQ-9** [Minor] `single-interleaving-oracle` The mid-sequence gate test picks one hand-chosen split point over an arbitrary byte stream
-- **PQ-10** [Important] `consumer-set-not-derived` This is the 3rd finding in family consumer-set-not-derived — fix the rule, not the instance

@@ -494,7 +494,29 @@ func TestGateIsNotFedOurOwnWrites(t *testing.T) {
 ```
 
 - [ ] **M2.2: Run to verify they fail.**
-- [ ] **M2.3: Implement.** Route `redrawTab`'s replay through the writer loop as an event. Add the gate: a `ptychild.Screen` fed child chunks before they are written, consulted before any console-originated write, with a deferred-paint slot flushed on the next boundary-ending chunk.
+- [ ] **M2.3: Implement.** Four pieces, one per writer class from finding 8:
+      1. Route `redrawTab`'s replay through the writer loop as an event, and
+         reset `hostScan` + the deferred slot there — it is `termcmd`'s wholesale
+         takeover, so it needs couch's third gate rule (see above), not just the
+         first two.
+      2. Add the gate: a `ptychild.Screen` fed child chunks before they are
+         written, consulted before any console-originated write, with a
+         deferred-paint slot flushed on the next boundary-ending chunk.
+      3. **Route every `RunZellijAction` call in `termcmd` through
+         `RunZellijActionQuiet`** (`run.go:1091`, which already passes
+         `io.Discard`). The five sites are `focus-pane-id` (`:191`),
+         `scroll-up`/`scroll-down` (`:457,463`) and `rename-pane` (`:961,963`).
+         Today they hand `os.Stdout` to a subprocess, so a wheel tick writes
+         into the pane from outside the process — the writer no goroutine-id
+         test can observe. **Named exception:** none. If a later action needs its
+         output, it is captured and logged, never written to the pane's fd.
+      4. `stderr`: route `term:` diagnostics through the same writer loop, since
+         it is the same terminal and after M4 there is no frame to absorb a
+         stray line.
+- [ ] **M2.3b: Prove the subprocess routing.** A `Runtime` fake recording which
+      of the two methods each call site used; assert no `termcmd` site calls
+      `RunZellijAction`. This is the assertion that replaces what
+      `TestOnlyOneGoroutineWritesTheHost` structurally cannot see.
 - [ ] **M2.4:** `go test ./cmd/internal/termcmd/ -count=1 -race` — the race detector is the point, not decoration.
 - [ ] **M2.5: Manual** — switch tabs rapidly under load (`yes` in one tab) and confirm no corruption. Record what was observed in `## Log`, not "it worked".
 - [ ] **M2.6: Commit**, `sdlc milestone-close --issue 199 --milestone M2`.
