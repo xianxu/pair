@@ -107,7 +107,7 @@ vim.wait(2000, function() return not _G.PairDoctorTest.is_running() end)
 local kept = table.concat(vim.api.nvim_buf_get_lines(0, 0, -1, false), '\n')
 check(kept:find('must survive', 1, true) ~= nil, 'a failed capture preserves the note', kept)
 
--- 3. The editor legs. C1 shipped twice because nothing asserted that the timed
+-- 4. The editor legs. C1 shipped twice because nothing asserted that the timed
 --    completion chain did any work: it bailed at the insert-mode gate, then at
 --    `col == 0`, while the report said `fast` and SKILL.md told the reader to
 --    exclude #201/#203 on it.
@@ -123,7 +123,22 @@ check(_G.PairDoctorCompleteProbe.work_count() > before_work,
 check(#vim.api.nvim_list_bufs() <= bufs_before,
   'time_editor leaves no scratch buffer behind', #vim.api.nvim_list_bufs())
 
--- 4. The in-flight guard must reset even when the runner throws, or :PairDoctor
+-- 5. A failed SEND must keep the note too. A successful capture says nothing
+--    about whether the agent received it, and a cleared draft is what tells the
+--    operator it went through -- so this is the path where the note is lost
+--    while they believe it was delivered.
+local real_send = _G.send_generated_prompt
+_G.send_generated_prompt = function() return false end
+_G.PairDoctorTest.set_runner(function(cb) cb({ code = 0, stdout = capture }) end)
+set_note('note that outlives a failed send')
+_G.PairDoctorTest.run()
+vim.wait(2000, function() return not _G.PairDoctorTest.is_running() end)
+local after_send = table.concat(vim.api.nvim_buf_get_lines(0, 0, -1, false), '\n')
+check(after_send:find('outlives a failed send', 1, true) ~= nil,
+  'a failed send preserves the note', after_send)
+_G.send_generated_prompt = real_send
+
+-- 6. The in-flight guard must reset even when the runner throws, or :PairDoctor
 --    is dead for the session on exactly the struggling machine it exists for.
 _G.PairDoctorTest.set_runner(function() error('spawn exploded') end)
 set_note('x')

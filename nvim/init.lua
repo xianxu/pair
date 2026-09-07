@@ -4184,7 +4184,7 @@ do
         end
         local body = doctor.perf_payload(vim.env.PAIR_HOME, note, editor, env, sidecar)
         if not body then return end
-        send_generated_prompt(body)
+        local sent = send_generated_prompt(body)
 
         -- Append one row to the rolling log. This is what makes the NEXT
         -- investigation comparative rather than absolute -- the 2026-09-06
@@ -4211,8 +4211,12 @@ do
         -- operator's next move is to re-run -- so clearing the buffer would
         -- make them retype the one input that cannot be re-measured. Keeping
         -- it costs nothing: worst case they clear it themselves.
-        if not raw and note then
-          vim.notify('PairDoctor: capture failed; your note was kept so you can retry.',
+        -- Gated on the SEND, not just the capture. A send that failed means the
+        -- agent never got the note, so clearing the buffer would destroy it
+        -- while the cleared draft told the operator it had gone through.
+        if (not raw or not sent) and note then
+          vim.notify(('PairDoctor: %s; your note was kept so you can retry.'):format(
+            not raw and 'capture failed' or 'the send did not reach the agent'),
             vim.log.levels.WARN)
         elseif note and vim.api.nvim_buf_is_valid(buf) then
           local now_lines = vim.api.nvim_buf_get_lines(buf, 0, -1, false)

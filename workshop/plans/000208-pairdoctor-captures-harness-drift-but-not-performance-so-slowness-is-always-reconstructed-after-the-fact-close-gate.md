@@ -1175,6 +1175,85 @@ rounds:
           round: 11
       boundary: M2
       blocked: true
+    - "n": 12
+      timestamp: "2026-09-07T14:17:21-07:00"
+      agent: claude
+      dispose:
+        - id: BR-44
+          disposition: not-addressed
+          note: Completion leg verified fixed and pinned; the redraw/input legs named in the same rule still have no precondition or proof-of-work.
+          round: 12
+        - id: BR-45
+          disposition: addressed
+          note: Verified by renaming swapins_per_s in a scratch copy — perf-key-conformance-test fails exactly one assertion.
+          round: 12
+        - id: BR-46
+          disposition: addressed
+          note: 'Both members verified by revert: the awk redaction and the buffer-equality guard each take a suite red.'
+          round: 12
+        - id: BR-47
+          disposition: addressed
+          note: SKILL.md:74 and atlas/index.md:40 now name perf-capture-<epoch>.txt; no perf-capture-latest remains in the tree.
+          round: 12
+        - id: BR-48
+          disposition: addressed
+          note: Verified by removing the nvim_buf_delete — the buffer-count assertion goes red.
+          round: 12
+        - id: BR-49
+          disposition: not-addressed
+          note: Issue 210 is unchanged since b57cd08a (outside this window) and records neither the missing window-length field nor the uncapped perf-captures.jsonl.
+          round: 12
+      findings:
+        - id: BR-50
+          severity: Critical
+          title: send_generated_prompt discards send_to_agent's failure, so :PairDoctor clears the operator's note on a failed send and reports nothing
+          detail: |-
+            nvim/draft_send.lua:43 returns `false, phase, '<label> exited N'` when a zellij
+            action fails, and nvim/init.lua:794 returns false with 'no attached UI'.
+            nvim/submission.lua:66-69 throws all three away and returns true
+            unconditionally. In on_capture (nvim/init.lua:4187) the consume branch keys
+            off `raw` alone, so a successful capture plus a failed send reaches
+            nvim/init.lua:4223 and clears the buffer with no notify — the operator sees an
+            emptied draft and concludes it was sent. The trigger is a failing zellij
+            action, which is the degraded machine this capture exists for. The plan (M2.4),
+            the code comment at :4218-4222, and plan Revisions #8 all claim "consume only
+            on a successful send"; none of the three is implemented, and the repo's own
+            draft path already states and honours the rule at nvim/init.lua:1519-1521
+            ("Durability is the submission gate … any failure leaves all authored state
+            intact"). Same underlying rule as BR-2 in `failure-reported-as-measurement` — a
+            discarded error becomes a fabricated success — but in the send domain rather
+            than the measurement domain, and here the fabricated success authorises a
+            destructive step. Fix: return send_low_level's ok from send_generated_prompt
+            (its two other callers ignore the result, so this is additive), gate the
+            consume on it, notify on failure, and drive the interleaving with a
+            _G.PairTestSendToAgent stub returning false.
+          family: discarded-failure-signal
+          round: 12
+        - id: BR-51
+          severity: Important
+          title: README.md and doctor/README.md still describe :PairDoctor as a drift-only pointer and never mention that it now consumes the draft buffer
+          detail: |-
+            This is the 4th finding in family `docs-gate`, so the deliverable is the rule
+            and its enumeration, not these two files. Rule: a change to a user-facing
+            surface updates every doc that describes that surface, and the enumeration is
+            mechanical — `grep -rl '<surface>' --include='*.md'` minus
+            workshop/{history,plans,issues}. For `:PairDoctor` that is README.md,
+            doctor/README.md, doctor/SKILL.md, atlas/index.md; the last two were updated
+            and the first two were not. README.md:605 still says it reads "the session's
+            adaptation flight recorder"; doctor/README.md:63-69 still says it hands the
+            agent "an instruction to run doctor.sh", and doctor/ 's own README never
+            mentions perf.sh. Neither states the user-visible behaviour change that the
+            draft buffer is consumed as the note. Measured prevalence of the class: three
+            members survived to this round — BR-20 (this same doctor/README.md gap,
+            disposed not-addressed twice then demoted), BR-30 (nvim/doctor.lua:180 still
+            says the fixture is in nvim/fixtures/ when it is doctor/fixtures/, and :75-76
+            still omits `unmeasured` from delta's documented return shape), and this. Each
+            round fixed the site named instead of writing the enumeration, which is why the
+            class keeps returning.
+          family: docs-gate
+          round: 12
+      boundary: M2
+      blocked: true
 ---
 
 # Gate ledger — pair#208 (boundary-review)
@@ -1760,6 +1839,58 @@ later rounds disposed of them. Generated — edit the gate, not this file.
   time-bounding plus three re-surfaced M1 findings. A deferral must land in the
   artifact that survives the archive.
 
+## Round 12 — 2026-09-07T14:17:21-07:00 (claude) — BLOCKED
+
+### Disposed
+
+- BR-44 — not-addressed — Completion leg verified fixed and pinned; the redraw/input legs named in the same rule still have no precondition or proof-of-work.
+- BR-45 — addressed — Verified by renaming swapins_per_s in a scratch copy — perf-key-conformance-test fails exactly one assertion.
+- BR-46 — addressed — Both members verified by revert: the awk redaction and the buffer-equality guard each take a suite red.
+- BR-47 — addressed — SKILL.md:74 and atlas/index.md:40 now name perf-capture-<epoch>.txt; no perf-capture-latest remains in the tree.
+- BR-48 — addressed — Verified by removing the nvim_buf_delete — the buffer-count assertion goes red.
+- BR-49 — not-addressed — Issue 210 is unchanged since b57cd08a (outside this window) and records neither the missing window-length field nor the uncapped perf-captures.jsonl.
+
+### Raised
+
+- **BR-50** [Critical] `discarded-failure-signal` send_generated_prompt discards send_to_agent's failure, so :PairDoctor clears the operator's note on a failed send and reports nothing
+  nvim/draft_send.lua:43 returns `false, phase, '<label> exited N'` when a zellij
+  action fails, and nvim/init.lua:794 returns false with 'no attached UI'.
+  nvim/submission.lua:66-69 throws all three away and returns true
+  unconditionally. In on_capture (nvim/init.lua:4187) the consume branch keys
+  off `raw` alone, so a successful capture plus a failed send reaches
+  nvim/init.lua:4223 and clears the buffer with no notify — the operator sees an
+  emptied draft and concludes it was sent. The trigger is a failing zellij
+  action, which is the degraded machine this capture exists for. The plan (M2.4),
+  the code comment at :4218-4222, and plan Revisions #8 all claim "consume only
+  on a successful send"; none of the three is implemented, and the repo's own
+  draft path already states and honours the rule at nvim/init.lua:1519-1521
+  ("Durability is the submission gate … any failure leaves all authored state
+  intact"). Same underlying rule as BR-2 in `failure-reported-as-measurement` — a
+  discarded error becomes a fabricated success — but in the send domain rather
+  than the measurement domain, and here the fabricated success authorises a
+  destructive step. Fix: return send_low_level's ok from send_generated_prompt
+  (its two other callers ignore the result, so this is additive), gate the
+  consume on it, notify on failure, and drive the interleaving with a
+  _G.PairTestSendToAgent stub returning false.
+- **BR-51** [Important] `docs-gate` README.md and doctor/README.md still describe :PairDoctor as a drift-only pointer and never mention that it now consumes the draft buffer
+  This is the 4th finding in family `docs-gate`, so the deliverable is the rule
+  and its enumeration, not these two files. Rule: a change to a user-facing
+  surface updates every doc that describes that surface, and the enumeration is
+  mechanical — `grep -rl '<surface>' --include='*.md'` minus
+  workshop/{history,plans,issues}. For `:PairDoctor` that is README.md,
+  doctor/README.md, doctor/SKILL.md, atlas/index.md; the last two were updated
+  and the first two were not. README.md:605 still says it reads "the session's
+  adaptation flight recorder"; doctor/README.md:63-69 still says it hands the
+  agent "an instruction to run doctor.sh", and doctor/ 's own README never
+  mentions perf.sh. Neither states the user-visible behaviour change that the
+  draft buffer is consumed as the note. Measured prevalence of the class: three
+  members survived to this round — BR-20 (this same doctor/README.md gap,
+  disposed not-addressed twice then demoted), BR-30 (nvim/doctor.lua:180 still
+  says the fixture is in nvim/fixtures/ when it is doctor/fixtures/, and :75-76
+  still omits `unmeasured` from delta's documented return shape), and this. Each
+  round fixed the site named instead of writing the enumeration, which is why the
+  class keeps returning.
+
 ## Open findings
 
 - **BR-5** [Important] `failure-reported-as-measurement` perf.sh collector failures render as values, not n/a, contradicting the file's own stated rule
@@ -1783,8 +1914,6 @@ later rounds disposed of them. Generated — edit the gate, not this file.
 - **BR-42** [Minor] `traceability` Three pure entities shipped in M1 have no row in the plan's Core concepts table
 - **BR-43** [Minor] `injected-io-seam-bypassed` hoprttcmd.Run takes injected writers but child() reads os.Stdin and writes os.Stdout, and the package is registered as a streaming subcommand with no stdin
 - **BR-44** [Critical] `failure-reported-as-measurement` The completion leg still measures nothing — the gate moved from mode to cursor column, and `editor: fast` is still emitted as grounds for exclusion
-- **BR-45** [Important] `duplicated-logic` The single-sourced key set stops at the Lua boundary — perf.sh and perf_test.sh restate it, and a producer rename breaks nothing
-- **BR-46** [Important] `untested-shell-surface` The ps-content filter and the buffer-changed interleaving are both unexecuted, though the seams to control each now exist
-- **BR-47** [Important] `docs-gate` SKILL.md and atlas name perf-capture-latest.txt, which the rework stopped writing
-- **BR-48** [Important] `unreleased-resource` time_editor leaks a scratch buffer per invocation while its comment claims a guaranteed delete
 - **BR-49** [Minor] `traceability` The M2.6 deferrals are recorded only in the plan, which archives at close — issue 210 records neither
+- **BR-50** [Critical] `discarded-failure-signal` send_generated_prompt discards send_to_agent's failure, so :PairDoctor clears the operator's note on a failed send and reports nothing
+- **BR-51** [Important] `docs-gate` README.md and doctor/README.md still describe :PairDoctor as a drift-only pointer and never mention that it now consumes the draft buffer
