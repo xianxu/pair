@@ -53,8 +53,20 @@ eq(M.verdict(0, 40), 'slow', 'redraw alone can be slow')
 -- healthy on no evidence would send a reader hunting the environment on the
 -- strength of a measurement that never happened.
 eq(M.verdict(nil, nil), 'unknown', 'no timings yields unknown, not fast')
-eq(M.verdict(nil, 2), 'fast', 'one timing is still a verdict')
-eq(M.verdict(nil, 99), 'slow', 'one slow timing is enough')
+-- Asymmetric: partial evidence can prove slow, never fast.
+eq(M.verdict(nil, 2), 'unknown', 'half a measurement cannot clear the editor')
+eq(M.verdict(2, nil), 'unknown', 'the same at the other arity')
+eq(M.verdict(nil, 99), 'slow', 'one slow timing IS positive evidence')
+eq(M.verdict(99, nil), 'slow', 'positive evidence at either arity')
+
+-- parse_samples must not turn absent input into empty samples that delta would
+-- join into a confident "nothing is running".
+do
+  local a, b = M.parse_samples('')
+  ok(a == nil and b == nil, 'empty capture yields no samples')
+  local c = M.parse_samples('# unrelated text\nkey=value')
+  ok(c == nil, 'a capture with no sample blocks yields no samples')
+end
 
 -- note_from_lines: blank must be nil, not '' -- an empty note is a CLAIM that
 -- the operator reported nothing.

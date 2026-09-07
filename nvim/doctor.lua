@@ -130,11 +130,17 @@ M.FRAME_MS = 16
 -- error as a probe reporting a failed command as excellent latency, and it
 -- would send a reader hunting the environment on the strength of a measurement
 -- that never happened.
+-- Asymmetric on purpose: a PARTIAL measurement can prove 'slow' but cannot
+-- clear the editor. One timing over the frame budget is positive evidence of
+-- slowness; one timing under it says nothing about the measurement that is
+-- missing, so it yields 'unknown' rather than a confident 'fast'. Rendering a
+-- half-absent measurement as a full in-domain verdict is the same defect as a
+-- probe reporting a failed command as excellent latency, at a different arity.
 function M.verdict(insert_ms, redraw_ms)
   local a, b = tonumber(insert_ms), tonumber(redraw_ms)
   if not a and not b then return 'unknown' end
-  local worst = math.max(a or 0, b or 0)
-  if worst >= M.FRAME_MS then return 'slow' end
+  if (a or 0) >= M.FRAME_MS or (b or 0) >= M.FRAME_MS then return 'slow' end
+  if not a or not b then return 'unknown' end
   return 'fast'
 end
 
@@ -156,7 +162,7 @@ end
 -- delta expects -- so a change to either could pass every test and break the
 -- capture. The fixture in nvim/fixtures/ is real captured output.
 function M.parse_samples(text)
-  if type(text) ~= 'string' then return nil, nil end
+  if type(text) ~= 'string' or text == '' then return nil, nil end
   local samples, current, section = {}, nil, nil
   for line in (text .. '\n'):gmatch('([^\n]*)\n') do
     local head = line:match('^## (sample_%a+)$')
