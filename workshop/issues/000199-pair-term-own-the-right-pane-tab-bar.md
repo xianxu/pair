@@ -1,6 +1,6 @@
 ---
 id: 000199
-status: working
+status: punt
 deps: []
 github_issue:
 created: 2026-09-06
@@ -173,14 +173,21 @@ carries a constraint of its own.
 
 ## Plan
 
-- [ ] Decide plan items 1-3 (rename-pane survival, row budget, placement).
-- [ ] Lift `Reserve`/`PaintRow` into `hostty`; repoint couch at them and verify
-      couch's row behavior is byte-identical.
-- [ ] Render the strip in `termcmd` from its existing tab model; wire
-      `TakeRowDirty` repaint.
-- [ ] Implement the `rename-pane` decision; check the named consumers.
-- [ ] Verify in a real layout3 workbench, including a split right pane and a
-      full-screen child (`nvim`, a pager) clearing the display.
+Four milestones, each its own review boundary — detail in
+`workshop/plans/000199-pair-term-own-the-right-pane-tab-bar-plan.md`.
+
+- [ ] M1 — Lift `Reserve`/`PaintRow`/`ChildRows` into `hostty` as a
+      `Reservation` carrying its edge; repoint couch. Proven a MOVE by couch's
+      tests passing **unedited**.
+- [ ] M2 — Make `termcmd` single-writer and add the mid-sequence paint gate.
+      A prerequisite, not cleanup: two writers is how a paint lands inside a
+      child's escape sequence (`atlas/couch.md`).
+- [ ] M3 — Render the strip from the existing tab model, with display-column
+      spans; repaint on `TakeRowDirty`, re-`Reserve` before repainting;
+      degrade `rename-pane` to a short title for the `#118`/`#123` consumers.
+- [ ] M4 — `borderless=true` on the terminal pane at all **nine** sites in
+      `main-3.kdl`; update `atlas/architecture.md` and `config.kdl`'s now-wrong
+      scroll-indicator rationale.
 
 ## Log
 
@@ -243,3 +250,184 @@ floating-pane design work (the `alt+c` create-once/show-hide pattern, the
 tab-wide floating-visibility hazard, the frame-drag hazard behind `#123`'s move
 into the tiled tree, and the role-scoped `alt+t` analysis) is preserved in that
 file and stays valid if the want returns in another form.
+
+### 2026-09-06 — measured: the pane frame is unreachable, and two scope decisions
+
+**Probe, not reasoning.** A shell in the right pane enabled SGR mouse reporting
+(`?1000` + `?1006`) and printed every byte the terminal sent, with clicks inside
+the text area bracketing the frame clicks so silence could not be confused with
+"reporting was never on". Operator-run, layout3, real workbench:
+
+| click target | report |
+|---|---|
+| inside the pane's text area | `^[[<0;COL;ROWM` — arrives |
+| pane frame, **top** border/title | **nothing** |
+| pane frame, **bottom** border | **nothing** |
+| inside the text area again | arrives |
+
+So the rule `#172` established holds one level down: **a process can only
+receive mouse events on a surface it owns.** couch's row is clickable because
+couch owns the host terminal; `pair term`'s strip will be clickable because
+`pair term` owns its pane content. zellij draws the frame outside that content
+and forwards nothing, so the frame cannot be made interactive by us at all.
+
+Two consequences:
+
+1. **The strip is the only route to `#200`.** Clickable tabs are not reachable
+   by improving the frame — there is no channel. This raises the strip from
+   "nicer title mechanism" to "the only surface that can carry the interaction".
+2. **Frameless costs nothing we could otherwise have had.** The frame's
+   remaining value was display-only, and the operator confirmed they do not
+   split the right pane (below), which retires the divider job.
+
+**Scope decision — no splits; tabs are the mechanism.** Operator: *"I don't
+split really. if I need multiple window, I use tab, that's why getting tab
+experience well is important."* This retires the divider job that caused the
+2026-07-27 frameless revert, and it reframes the strip: it is not chrome, it is
+the primary navigation surface for the pane. Plan item 0 is answered.
+
+**Scope decision — frameless is in scope**, with the operator's own caveat that
+it walks back if a frame job turns out to be load-bearing (*"if for example
+SCROLL: 0/1000 means having frame, so be it"*). The strip must therefore carry
+scroll position from `ptychild` before `borderless` flips, which the Done-when
+already requires.
+
+### Placement: bottom, and why not top
+
+The strip goes at the **bottom** of the pane. This reverses an earlier operator
+preference for top, on a mechanism finding rather than taste.
+
+The reservation is **not symmetric between edges**, because the child is handed
+a terminal one row shorter and never told (`atlas/couch.md`, "a reservation, not
+compositing"). The child therefore addresses rows `1..N-1`:
+
+- **Bottom** — the child's `1..N-1` lands on host `1..N-1` and the reserved row
+  is `N`. The child cannot address the strip at all; only a display *clear*
+  disturbs it, which is exactly what `TakeRowDirty` already handles.
+- **Top** — the child's `1..N-1` still lands on host `1..N-1`, but the strip
+  would need the child at `2..N`. **The child's row 1 IS the strip.** A plain
+  shell would be fine (it only scrolls, and DECSTBM confines that), but every
+  full-screen app — `nvim`, a pager — draws over the strip continuously rather
+  than once.
+
+Top is achievable with origin mode (`\x1b[?6h`), which makes the child's cursor
+addressing region-relative. But nothing tracks `?6` today (`ptychild.Screen`
+handles `1049/1047/47`, `1000/1002/1003`, `1006`), children reset it in teardown
+sequences, and that is precisely the mode-arbitration class that cost `#172`
+four consecutive review rounds ending in the operator-filed `#196`. Bottom keeps
+the lift a genuine *move*, which the Done-when demands ("couch's own status row
+is unchanged in behavior — a regression there means it was a rewrite").
+
+Top remains reachable later as an additive DECOM arbitration over a working
+strip, not a redesign. Recorded so the option is not lost.
+
+## Revisions
+
+### 2026-09-06 — the scroll-position Done-when is struck; frameless is in scope
+
+**Struck:** *"The strip displays scroll position for its own pane, sourced from
+`ptychild` rather than from zellij — the fact that makes the frameless follow-on
+possible is demonstrated, not merely argued."*
+
+The Spec's premise for that bullet is false, and it was checked rather than
+reasoned about. The Spec argued `pair term` "owns the pty and the ring, so it
+already holds its own scroll position without asking zellij anything." It does
+not:
+
+- `termcmd/run.go:453-463` forwards every wheel tick to zellij —
+  `RunZellijAction("scroll-up")` / `("scroll-down")`. Scrolling the right pane
+  is zellij's scrollback, driven by us.
+- `ptychild` exposes `Snapshot`, `Replay`, `ReplaySafeEnd`, `ReplayThrough` — a
+  **replay ring for tab switching**. There is no viewport and no scroll offset
+  anywhere in our code.
+
+So the strip cannot *source* a scroll position; making one would mean building a
+scrollback viewport inside `pair term` (intercept the wheel, own an offset into
+the ring, render the scrolled view). That is a feature, not a readout, and it is
+not this issue.
+
+**Operator decision (2026-09-06):** the readout is not worth it — *"we don't
+need the text SCROLL: 0/1000, I don't think that's a deal breaker actually."*
+So the third frame job is **dropped**, not replaced.
+
+**Consequence: frameless moves INTO this issue** rather than being a follow-on,
+because all three jobs are now accounted for:
+
+| frame job | disposition |
+|---|---|
+| divider between split halves | retired — the operator does not split (`Log`, 2026-09-06) |
+| `#118` tab title | replaced by the strip — this issue |
+| scroll-position indicator | dropped by operator decision, above |
+
+**Added to `## Done when`:** the right pane in layout3 takes `borderless=true`,
+and the strip carries the pane's identity in its place.
+
+### Also added: a prerequisite the Spec did not name
+
+`termcmd` writes to stdout from **two goroutines** — `copyActiveOutput`
+(`run.go:702`) and `redrawTab` (`run.go:1023`, called from three tab-switch
+sites). `atlas/couch.md` records why that cannot survive a reserved row: *"a pty
+read boundary falls wherever the kernel puts it, so a paint written between two
+chunks can land inside one of the child's escape sequences"*, which is why
+couch made `Console.Run` the only writer. Painting a strip into a two-writer
+stream reproduces the bug couch already paid for, so single-writer discipline in
+`termcmd` is a milestone of this issue, not cleanup after it.
+
+### 2026-09-06 — deprioritized; the cost/benefit as it actually stands
+
+Planned to `workshop/plans/000199-…-plan.md` (four milestones, seven open
+plan-gate findings), then **punted before implementation** on the operator's
+call. The design work is preserved; what follows is why it was not worth
+starting now, so the decision does not have to be re-derived.
+
+**The operator's own accounting of the payoff**, and what each is actually
+worth:
+
+| wanted | delivered by | status |
+|---|---|---|
+| 1. switch tab with the mouse | `#200` | **real** — and the frame probe proved the strip is the *only* possible route |
+| 2. stop inadvertent pane resizing | disputed — see below | **undetermined** |
+| 3. robust tab rename; colorizable tabs later | `#199` M3 | **real**, and the cheapest of the three |
+
+**Benefit 2 is the one that decides this, and it is not yet settled.** There are
+two resize paths in zellij with different dependencies:
+
+- **ctrl+wheel** → `ResizeScrollUp/Down`, resizing the FOCUSED pane regardless
+  of pointer position, needing no frame. Investigated 2026-07-28 (see the
+  operator's memory note): `advanced_mouse_actions false` does not gate it
+  despite zellij's docs, and *"pair cannot fix this itself — zellij consumes
+  wheel events before the pane's process sees them."* Frameless does nothing
+  here.
+- **dragging a pane border**, which needs a grabbable border. The operator's
+  evidence: the draft pane is `borderless=true` and its height **cannot** be
+  mouse-resized. So frameless does block this path.
+
+Both are real; which one the operator actually triggers is unmeasured. An
+earlier claim in this discussion that benefit 2 was simply not deliverable was
+**too broad** — it reasoned from the ctrl+wheel path alone and the operator
+correctly pushed back from the draft-pane evidence.
+
+**The cheap experiment that should precede any of this work:** set
+`borderless=true` on the terminal pane in `main-3.kdl` (nine sites) and restart.
+No strip, no lift, no refactor. It answers three questions at once — whether the
+resize stops, whether losing the tab title is painful enough to justify the
+strip, and how the pane reads frameless. **Do this before reopening the issue.**
+
+**What made the program expensive**, beyond the filed scope:
+
+- `termcmd` writes the host from two goroutines, so single-writer discipline is
+  a prerequisite milestone (`atlas/couch.md` records why a reserved row cannot
+  survive two writers).
+- The Spec's scroll-position premise was false (see `## Revisions`), so
+  frameless costs the indicator outright rather than relocating it.
+- `#200` is not "add a click handler": it consolidates a mouse-mode belief that
+  has been wrong four times, and a fifth face surfaced the same day — see
+  `#200`'s Log, where an accidental probe broke agent-pane copy-on-select and
+  **no in-session gesture recovered it**, only a couch restart.
+
+**Priority instead:** the performance issues `#201`/`#202`/`#203`, which affect
+every keystroke rather than one pane's chrome.
+
+**If reopened, start here:** run the borderless experiment; if benefit 2
+survives it, the four-milestone plan is written and its seven plan-gate findings
+are the first work item.

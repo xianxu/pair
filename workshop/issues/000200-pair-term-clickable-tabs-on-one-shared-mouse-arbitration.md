@@ -1,6 +1,6 @@
 ---
 id: 000200
-status: open
+status: punt
 deps: ["#199"]
 github_issue:
 created: 2026-09-06
@@ -135,3 +135,60 @@ The `#196` round also produced the reason to distrust manual verification here
 `?1006`, so the mainstream configuration passed while the reported one was never
 exercised. Any manual check on this issue must state which mode the child
 actually held, or it is evidence of nothing.
+
+## Log
+
+### 2026-09-06 — a reproducible break, and the recovery that did NOT work
+
+Found accidentally while probing `#199`, and worth more than the four
+historical rounds because it reproduces on demand.
+
+**The break.** A throwaway shell script ran in the right pane with mouse
+reporting on (`?1006h` + `?1000h`) and, on exit, restored what it assumed was
+the prior state by writing `?1000l` + `?1006l`. Those bytes travel up through
+zellij into couch's child stream, where `ptychild.Screen` scans DECSETs. couch
+observed a well-formed "the child turned mouse OFF" and — correctly, by the
+tri-state rule `#196` landed — moved from *unknown* to *observed-none*, which is
+exactly the state in which a supervisor may assert its own mouse mode. It did,
+and **copy-on-select highlighting in the AGENT pane stopped**.
+
+Nothing malfunctioned. The tri-state answered the question it was asked. The
+question is the problem:
+
+> **`Screen` reports what the child's byte stream said, which is not the same as
+> what the child INTENDS.** A transient borrower of the terminal — a script, a
+> pager, anything that tidies up after itself — emits mode changes
+> indistinguishable from the long-lived child's own.
+
+That is a fifth face of the same class, and unlike the previous four it is not
+a coding error: BR-16/22/26/33 were each a wrong answer to "what does the child
+hold". This one is a right answer to the wrong question.
+
+**The recovery finding, which is the actionable half.** Switching couch actors
+(`alt+n`, then back) did **NOT** restore the highlight — the operator tried it
+first. Only exiting couch and starting it again did.
+
+That matters because an actor switch is precisely the re-evaluation path
+`#172`'s BR-33 fix added. So either the re-assert does not run on that path, or
+it runs and re-derives the same stale belief because nothing re-observes the
+child's intent — the child is not going to re-announce `?1000h` merely because
+couch switched panes. A full restart works because it mints a fresh `Screen`,
+returning the belief to *unknown*, where the rule says **stand back**.
+
+So the practical shape of the defect today: **couch can enter a wrong belief
+that survives every in-session recovery gesture.** A supervisor whose only exit
+from a bad state is a restart is the thing to fix, and it is a stronger
+motivation for this issue than "clicking a tab would be nice".
+
+**For the plan, when this is picked up:**
+
+1. Reproduce with the script above rather than by hand-waving about children.
+2. The enumeration `#196` asked for must include this row: *a transient
+   in-pane process changes modes and exits.* It is not in the fresh-launch /
+   pane-switch / reattach / exit / mid-session list.
+3. Decide whether an observation should DECAY — a mode change seen once and
+   never reaffirmed is weaker evidence than a mode the child re-asserts on
+   every repaint. "Stand back on unknown" is the right rule; the gap is that
+   nothing ever returns the belief TO unknown short of a restart.
+4. Whatever is built, `alt+n` must recover it. That is the cheap acceptance
+   test and today it fails.
