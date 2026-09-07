@@ -20,7 +20,7 @@ deliberate spawn storm reached 1.9× where the fleet reportedly produces 8×).
 operator stands when typing feels slow. It just captures nothing. See `#208`'s
 Problem for the five hypotheses that session settled and the one it could not.
 
-## The two design decisions that shape everything
+## The four design decisions that shape everything
 
 **1. Capture at invocation, do not instruct.** Today `doctor.lua` builds a
 *pointer* — an instruction for the agent to run `doctor.sh` later. That is right
@@ -36,6 +36,37 @@ missed the one process that mattered. Every per-process number here comes from a
 **delta between two samples**, which is what the operator's phrase "resource
 usage in previous various windows" requires anyway.
 
+**3. `:PairDoctor` always does both — there is no perf mode.** Spec open
+question 2, settled here. The operator's use case is *"next time there's a
+slowdown, I'll run it"*: one command, at a bad moment, with no flag to remember.
+A mode would also split the buffer-note convention in two. The drift half is a
+pointer and costs nothing; the perf half is bounded at 6 s. The drift
+*instruction text* stays byte-identical (pinned by a test) — what changes is
+that the message now carries perf data alongside it, which is additive.
+
+**4. Captures accumulate.** Spec open question 4, settled here: **build the
+rolling file.** One snapshot answers "what is happening now"; a series answers
+"what changed", and the absence of any prior reading is precisely why the
+2026-09-06 investigation had nothing to compare against. A hand-pasted number in
+an issue Log does not survive — issues archive to `workshop/history/`. Each
+capture appends one line to a rolling JSONL under the session's data dir, so the
+*next* investigation starts comparative instead of absolute. It is an append,
+not a subsystem.
+
+## Non-goals
+
+- **Continuous or background monitoring.** This fires only when the operator
+  invokes it. A sampler running always is a different tool with a different
+  budget, and it would perturb the thing it watches.
+- **Fixing anything.** This issue captures; `#201`/`#203` remediate. A capture
+  that also tuned parallelism would make its own readings uninterpretable.
+- **Replacing `doctor.sh`'s drift analysis.** That path is untouched, and
+  proving so is a task.
+- **Cross-machine comparison or any upload.** The rolling file is local. The
+  report goes only where the operator sends it.
+- **Diagnosing the render path.** The snapshot *captures* WindowServer CPU
+  because that is the untested candidate; interpreting it is downstream work.
+
 ## Core concepts
 
 ### Pure entities
@@ -46,6 +77,7 @@ usage in previous various windows" requires anyway.
 | `perf_payload` | `nvim/doctor.lua` | new |
 | `note_from_lines` | `nvim/doctor.lua` | new |
 | `hoprtt` (pipe probe) | `cmd/hoprtt/main.go` | new |
+| `CaptureRecord` (one rolling row) | `nvim/doctor.lua` | new |
 
 - **`perf_payload(pair_home, note, nvim_timings, env_report)`** — formats the
   message handed to the agent: the operator's note first, then what nvim
@@ -252,15 +284,22 @@ assert(doctor.payload('/h') == <the existing string>)
       does. **Settle in review:** whether a *failed* capture should still consume
       the buffer — losing the operator's note to a failed probe would be the
       worst outcome here.
-- [ ] **M2.5:** Drift path untouched: `:PairDoctor` with no perf argument still
-      produces byte-identical behaviour to today. Whether perf is a mode or
-      always-on is decided here and recorded.
-- [ ] **M2.6:** `doctor/SKILL.md` gains the perf procedure — how to read the
+- [ ] **M2.5: Drift text pinned byte-identical.** There is no perf argument —
+      `:PairDoctor` always does both (design decision 3). The test asserts the
+      existing `payload()` string is unchanged and that it still appears verbatim
+      inside the combined message, so `#48`'s procedure cannot silently drift.
+- [ ] **M2.6: Append the capture to the rolling file** (design decision 4): one
+      JSONL row per invocation under the session's data dir, via
+      `artifactpath` rather than a hand-built path. Include the window length and
+      the probe baselines in the row, so a row is interpretable years later
+      without this plan. Test the pure `CaptureRecord` shaping; cap the file so
+      it cannot grow without bound.
+- [ ] **M2.7:** `doctor/SKILL.md` gains the perf procedure — how to read the
       report, and explicitly how to use the discriminator to exclude a whole
       family of causes.
-- [ ] **M2.7: Capture a real baseline** on the healthy workbench and record it in
+- [ ] **M2.8: Capture a real baseline** on the healthy workbench and record it in
       `## Log`. That reading is what makes the next degraded one legible.
-- [ ] **M2.8:** `make test` + `make test-lua`; commit; `sdlc close`.
+- [ ] **M2.9:** `make test` + `make test-lua`; commit; `sdlc close`.
 
 ## Rollback
 
