@@ -47,38 +47,68 @@ full-screen child's startup clear -- the one failure mode M3 exists to survive.
 **M3 reads `batch.RowDirty` inside the Sink callback**, which is where the
 signal actually arrives.
 
-**8. Every writer to the pane's tty, enumerated** (PQ-4). The Spec named two;
-there are four across two file descriptors, and a test that wraps only `stdout`
-cannot see half of them:
+**8. Every writer to the pane's tty, DERIVED** (PQ-4, PQ-10). The Spec named
+two; there are four in-process across two descriptors, plus a fifth that is a
+**different process entirely**. Derivation:
+
+```sh
+grep -n "stdout\|stderr" cmd/internal/termcmd/run.go | grep -i "write\|fprint"
+grep -n "RunZellijAction" cmd/internal/termcmd/run.go   # subprocess writers
+```
 
 | writer | fd | goroutine |
 |---|---|---|
 | `copyActiveOutput` (`run.go:702`) | stdout | pty pump |
 | `redrawTab` (`run.go:1022-1023`) | stdout | Run, from three tab-switch sites |
 | `restoreTerminal` (`run.go:1036`) | stdout | Run, via `defer` |
-| `fmt.Fprintf(stderr, "term: ...")` (`run.go:53,62,66,232,242`) | stderr | Run |
+| `fmt.Fprintf(stderr, "term: …")` (`run.go:53,62,66,232,242`) | stderr | Run |
+| **`RunZellijAction`** (`run.go:1086`) | **`os.Stdout`, from a SUBPROCESS** | `zellij action` |
 
-stderr is the SAME terminal. A `term:` error printed while the strip is up lands
-wherever the cursor happens to be, and after M4 there is no frame to absorb it.
-M2's envelope covers both descriptors and its test wraps both.
+The fifth is the one that matters and the one a goroutine-id test can never see:
+`RunZellijAction` hands `os.Stdout` to the child process (`runZellij(cmdArgs,
+os.Stdout)`), so **every wheel tick** (`scroll-up`/`scroll-down`, `run.go:457,463`)
+and **every tab rename** (`run.go:961,963`) spawns a process writing straight
+into the pane, outside any in-process envelope. `RunZellijActionQuiet` already
+exists and passes `io.Discard` (`run.go:1091`).
 
-**9. The `rename-pane` consumer set, READ rather than remembered** (PQ-1).
-The Spec asserted consumers from memory (`run.go:229`, `#118`, `#123`). The
-actual matchers on the zellij pane title are two lines in one file:
+**M2's envelope covers all five.** The in-process four are serialised through
+one writer; the subprocess one is routed through `RunZellijActionQuiet` — and
+where an action genuinely needs its output, it is recorded as a NAMED exception
+in the plan rather than left for the strip to discover. stderr is the same
+terminal: a `term:` error printed while the strip is up lands wherever the
+cursor is, and after M4 there is no frame to absorb it.
 
-```go
-// launcher/layoutflow.go:59,62
-if pane.Title == "terminal-filler" || strings.Contains(command, "tail -f /dev/null")
-if pane.Title == "terminal" || strings.HasPrefix(pane.Title, "[terminal") ||
-   strings.Contains(command, "pair term")
+**9. The `rename-pane` consumer set, DERIVED** (PQ-1, PQ-10). The Spec asserted
+it from memory; my first answer grepped one file and still missed a consumer.
+The set is derived, and **the derivation is recorded so it can be re-run** rather
+than re-remembered — that is the rule PQ-10 names, and the reason this entry
+carries a command instead of a list:
+
+```sh
+grep -rn "\.Title" cmd --include="*.go" | grep -v _test.go   # every read of a pane title
 ```
 
-Two things follow. The `HasPrefix(pane.Title, "[terminal")` arm exists *because*
-`paneTitleLocked` packs the tab set with the active one in brackets -- it is a
-consumer of the very format this issue replaces. And **every arm has a
-`command`-based fallback**, so layout detection does not actually depend on the
-title: a degraded title cannot break it. That is what makes M3's decision safe,
-and it is a measurement rather than the Spec's assumption.
+Three matcher forms in two files, and they do NOT agree:
+
+| site | patterns | command fallback |
+|---|---|---|
+| `launcher/layoutflow.go:62` | `Title == "terminal"`, `HasPrefix(Title, "[terminal")` | `Contains(command, "pair term")` |
+| `workbenchshortcut/shortcut.go:189` | `title == "terminal"`, `HasPrefix(title, "terminal ")` — **lowercased** | `Contains(cmd, "pair term")` |
+| `launcher/layoutflow.go:56,59` | `draft`, `terminal-filler` | nvim / `tail -f` |
+
+The disagreement is the finding. `paneTitleLocked` emits `[tab1] tab2`, which
+matches layoutflow's `"[terminal"` arm only when the first tab happens to be
+named `terminal…`, and matches shortcut.go's `"terminal "` arm **never** — it
+starts with `[`. So today `RoleForPane` classifies the right pane by its
+COMMAND, not its title, and the title arm is already dead for the packed format.
+
+That is what makes M3's degraded title safe, and it is now a derivation rather
+than a hope: **every** arm has a `pair term` command fallback, so no consumer
+depends on the title alone. M3.6 asserts exactly this — `RoleForPane` and
+`ClassifyLiveLayout` fed the degraded title, including the
+`TerminalCommand == ""` case `zellijpane.paneFrom` admits
+(`zellijpane.go:79-84`), where the fallback is unavailable and the title is all
+there is.
 
 **4. `termcmd` writes to the host from two goroutines** (not in the Spec).
 `copyActiveOutput` (`run.go:702`) and `redrawTab` (`run.go:1023`, from three
@@ -130,6 +160,23 @@ shipping**; the only missing piece is the display, whose sole surface today is
 `setPaneTitle` -> `rename-pane` packing the whole tab set into one string. This
 issue is therefore a rendering change, not an architecture change, which is why
 its milestones touch no tab-lifecycle code.
+
+### The rule behind findings 8 and 9 (PQ-10, family `consumer-set-not-derived`)
+
+Three findings in this issue have been the same mistake: **a consumer set stated
+from memory instead of derived from the code.** The Spec did it for
+`rename-pane`, the plan did it for the writers, and my first correction did it
+again — grepping one file and calling the result exhaustive.
+
+**The rule:** a plan that names a consumer set records the COMMAND that produces
+it, not the answer. A list is a snapshot that rots silently as consumers are
+added; a derivation can be re-run by the next reader and by the review. Where a
+milestone asserts on a consumer set, its test enumerates by the same derivation
+rather than by a hand-copied list.
+
+Applied here: findings 8 and 9 each carry their `grep`, and both turned up a
+member the hand-written version had missed — a subprocess writing to the pane's
+stdout, and a third title matcher that disagrees with the other two.
 
 ## Non-goals
 

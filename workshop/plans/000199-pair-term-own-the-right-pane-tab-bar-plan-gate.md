@@ -159,6 +159,67 @@ rounds:
           note: TestPaintDefersMidSequenceAndIsOwed still splits one hand-chosen index.
           round: 2
       blocked: true
+    - "n": 3
+      timestamp: "2026-09-07T16:39:27-07:00"
+      agent: claude
+      dispose:
+        - id: PQ-1
+          disposition: not-addressed
+          note: Finding 9 reads layoutflow.go but asserts "two lines in one file"; workbenchshortcut/shortcut.go:190 is a third title arm the gate had already named, and M3.6's assertion is verbatim unchanged.
+          round: 3
+        - id: PQ-3
+          disposition: addressed
+          note: Finding 7 is correct against child.go:176 and run.go:661; the residual "TakeRowDirty" wording in the integration table and M3.4 is shorthand, not a wrong seam.
+          round: 3
+        - id: PQ-4
+          disposition: not-addressed
+          note: 'Finding 8 covers stderr but omits the subprocess: run.go:1088/1104 hands zellij both of the pane''s descriptors on the wheel and rename paths.'
+          round: 3
+        - id: PQ-5
+          disposition: addressed
+          note: M2's preamble now names the takeover reset as the third rule and maps it to redrawTab; console.go:992-995 confirmed.
+          round: 3
+        - id: PQ-6
+          disposition: addressed
+          note: M4 edits the source and regenerates; the "make test runs runtimebundle-generate first" claim checks out at Makefile.local:120.
+          round: 3
+        - id: PQ-7
+          disposition: addressed
+          note: rowtext.Sanitize/Fit is named as the shared home with rationale; M3.3's "same helpers couchtty uses" prose is stale against it.
+          round: 3
+        - id: PQ-8
+          disposition: not-addressed
+          note: Minor, carried forward — M4.3 still never splits, and the issue's Done-when still requires two halves each drawing a strip.
+          round: 3
+        - id: PQ-9
+          disposition: not-addressed
+          note: Minor, carried forward — one hand-chosen split point remains, against the plan's own "any index" note.
+          round: 3
+      findings:
+        - id: PQ-10
+          severity: Important
+          title: This is the 3rd finding in family consumer-set-not-derived — fix the rule, not the instance
+          detail: |-
+            Do NOT fix only the two sites named above. The rule: every consumer set
+            this plan enumerates must be produced by a command the plan writes down,
+            and its acceptance must assert against the consumer's own decision
+            function rather than against the plan's list. Measured prevalence in this
+            plan, three instances across two families: title consumers (PQ-1, wrong
+            twice — from memory, then a one-file read that missed
+            workbenchshortcut/shortcut.go:190); tty writers (PQ-4 — Spec named two,
+            finding 8 named four, the actual count is five once run.go:1088's
+            subprocess-inherited stdout+stderr is included); and M1's own Revisions,
+            which records "three consumer sets needed the move, none of them in the
+            plan's file list". Concretely: M3.6 asserts on
+            workbenchshortcut.RoleForPane and launcher.ClassifyLiveLayout fed the
+            degraded title, including the TerminalCommand=="" case that
+            zellijpane.paneFrom admits at zellijpane.go:79-84; M2 states which paths
+            may reach the pane's fds and either routes RunZellijAction through
+            RunZellijActionQuiet or records it as a named exception, since
+            TestOnlyOneGoroutineWritesTheHost cannot observe a subprocess write.
+          family: consumer-set-not-derived
+          round: 3
+      blocked: true
 ---
 
 # Gate ledger — pair#199 (plan-quality)
@@ -250,13 +311,44 @@ later rounds disposed of them. Generated — edit the gate, not this file.
 - PQ-8 — not-addressed — M4.3 still has no Alt+Shift+d step; the six split-rung sites stay unverified.
 - PQ-9 — not-addressed — TestPaintDefersMidSequenceAndIsOwed still splits one hand-chosen index.
 
+## Round 3 — 2026-09-07T16:39:27-07:00 (claude) — BLOCKED
+
+### Disposed
+
+- PQ-1 — not-addressed — Finding 9 reads layoutflow.go but asserts "two lines in one file"; workbenchshortcut/shortcut.go:190 is a third title arm the gate had already named, and M3.6's assertion is verbatim unchanged.
+- PQ-3 — addressed — Finding 7 is correct against child.go:176 and run.go:661; the residual "TakeRowDirty" wording in the integration table and M3.4 is shorthand, not a wrong seam.
+- PQ-4 — not-addressed — Finding 8 covers stderr but omits the subprocess: run.go:1088/1104 hands zellij both of the pane's descriptors on the wheel and rename paths.
+- PQ-5 — addressed — M2's preamble now names the takeover reset as the third rule and maps it to redrawTab; console.go:992-995 confirmed.
+- PQ-6 — addressed — M4 edits the source and regenerates; the "make test runs runtimebundle-generate first" claim checks out at Makefile.local:120.
+- PQ-7 — addressed — rowtext.Sanitize/Fit is named as the shared home with rationale; M3.3's "same helpers couchtty uses" prose is stale against it.
+- PQ-8 — not-addressed — Minor, carried forward — M4.3 still never splits, and the issue's Done-when still requires two halves each drawing a strip.
+- PQ-9 — not-addressed — Minor, carried forward — one hand-chosen split point remains, against the plan's own "any index" note.
+
+### Raised
+
+- **PQ-10** [Important] `consumer-set-not-derived` This is the 3rd finding in family consumer-set-not-derived — fix the rule, not the instance
+  Do NOT fix only the two sites named above. The rule: every consumer set
+  this plan enumerates must be produced by a command the plan writes down,
+  and its acceptance must assert against the consumer's own decision
+  function rather than against the plan's list. Measured prevalence in this
+  plan, three instances across two families: title consumers (PQ-1, wrong
+  twice — from memory, then a one-file read that missed
+  workbenchshortcut/shortcut.go:190); tty writers (PQ-4 — Spec named two,
+  finding 8 named four, the actual count is five once run.go:1088's
+  subprocess-inherited stdout+stderr is included); and M1's own Revisions,
+  which records "three consumer sets needed the move, none of them in the
+  plan's file list". Concretely: M3.6 asserts on
+  workbenchshortcut.RoleForPane and launcher.ClassifyLiveLayout fed the
+  degraded title, including the TerminalCommand=="" case that
+  zellijpane.paneFrom admits at zellijpane.go:79-84; M2 states which paths
+  may reach the pane's fds and either routes RunZellijAction through
+  RunZellijActionQuiet or records it as a named exception, since
+  TestOnlyOneGoroutineWritesTheHost cannot observe a subprocess write.
+
 ## Open findings
 
 - **PQ-1** [Important] `consumer-set-not-derived` The rename-pane consumer set is asserted from memory; the two real title matchers are never named
-- **PQ-3** [Important] `wrong-seam-named` The strip repaint trigger names ptychild.Child.TakeRowDirty, which is always false in termcmd
 - **PQ-4** [Important] `envelope-claim-unenforced` Two writers to the pane's tty sit outside the single-writer envelope, and the M2 test cannot see them
-- **PQ-5** [Important] `takeover-resets-framing` M2 restates two of couch's three gate rules; the takeover reset is the missing one
-- **PQ-6** [Important] `edit-source-not-mirror` M4 modifies the generated mirror of main-3.kdl and config.kdl rather than their source
-- **PQ-7** [Important] `shared-helper-not-reachable` RenderStrip cannot reuse couchtty's sanitize/truncate — they are unexported in another package
 - **PQ-8** [Minor] `acceptance-misses-changed-sites` M4's manual acceptance never splits the pane, leaving six of nine borderless sites unverified
 - **PQ-9** [Minor] `single-interleaving-oracle` The mid-sequence gate test picks one hand-chosen split point over an arbitrary byte stream
+- **PQ-10** [Important] `consumer-set-not-derived` This is the 3rd finding in family consumer-set-not-derived — fix the rule, not the instance
