@@ -3635,3 +3635,24 @@ that a key token appears cannot detect a contradictory behavioral sentence
   assert the shape — `wc -c` in the expected order of magnitude and the heading
   list — because a corrupted write looks like success until something else
   reads it.
+- Adding a file to this repo means adding it to N hand-maintained lists, and the
+  review found **three** in one milestone: `GO_BINS` (or the binary never
+  builds), `artifactpath`'s inventory *and* its generated-mirror classification,
+  and `runtimebundlegen.explicitAssetPaths` (or the file is missing from a
+  shipped session). Each has a guard, but the guards fire at different times —
+  one at `make build`, one in `go test`, one only when a session is extracted —
+  so fixing them one failure at a time takes several rounds. Before committing a
+  new production file, grep for a sibling file's basename across `Makefile*` and
+  `cmd/internal/{artifactpath,runtimebundlegen}` and add yourself everywhere it
+  appears. Note that `*_test.sh` is deliberately excluded from the artifactpath
+  inventory — listing one there fails the guard from the other direction.
+- `.gitignore` prevents the NEXT stray binary, not the one already staged. I
+  added `/pair-hoprtt` to `.gitignore` in the same commit that had already
+  swept the 2.9 MB binary in via `git add -A`, and a boundary review had to find
+  it. When a guard tells you a build artifact could be committed, run
+  `git ls-files | grep <name>` before assuming the rule was enough.
+- A probe that discards its subprocess's exit status reports a BROKEN dependency
+  as excellent latency. `zellij action` failing instantly reads as
+  `zellij_action_ms=2.1` — the fastest number in the report, and completely
+  wrong. Any timing harness must count failures and degrade to `n/a`, because
+  "fast" and "not running" are indistinguishable from the clock alone.
