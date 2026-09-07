@@ -47,7 +47,7 @@ func (c *Couch) launchTrackedThread(in trackedThreadLaunch) (ActorRecord, Handle
 	// its layout, and asking for a different one sends Pair down a conflict
 	// path that offers to DELETE the live session -- destroying the agent this
 	// exists to preserve.
-	argv := []string{"pair", "resume", string(thread.Address.Tag), "--layout2"}
+	argv := []string{"pair", "resume", string(thread.Address.Tag), c.Layout.Flag()}
 	if in.Warm {
 		argv = []string{"pair", "resume", string(thread.Address.Tag)}
 	}
@@ -121,7 +121,16 @@ func (c *Couch) launchTrackedThread(in trackedThreadLaunch) (ActorRecord, Handle
 		cause := fmt.Errorf("await Pair registration %+v: %w", thread.Address, err)
 		return ActorRecord{}, h, c.failTrackedPostAckStart(in.Resume, thread, in.Nonce, h, cause)
 	}
-	registeredThread, err := c.Threads.AdvanceStart(thread.Address, thread.Revision, StartEvent{Kind: StartRegistered, Nonce: in.Nonce})
+	// The layout witness rides this transaction, and only at a cold boundary:
+	// `in.Warm` chose no layout (see the argv above), so it records none and
+	// the existing witness survives.
+	registeredLayout := c.Layout
+	if in.Warm {
+		registeredLayout = ""
+	}
+	registeredThread, err := c.Threads.AdvanceStart(thread.Address, thread.Revision, StartEvent{
+		Kind: StartRegistered, Nonce: in.Nonce, Layout: registeredLayout,
+	})
 	if err != nil {
 		cause := fmt.Errorf("promote registered thread %+v: %w", thread.Address, err)
 		return ActorRecord{}, h, c.failTrackedPostAckStart(in.Resume, thread, in.Nonce, h, cause)

@@ -33,6 +33,10 @@ type StartEvent struct {
 	Owner   SupervisorOwner
 	Helper  ProcessIdentity
 	Profile *LaunchProfile
+	// Layout is the couch-wide layout this start was launched in, recorded on
+	// the thread as a witness. Set only at a COLD boundary: a warm reattach
+	// chose no layout and must leave the existing witness alone.
+	Layout Layout
 }
 
 // AdvanceStartTransaction is the pure transition authority for one persisted
@@ -84,6 +88,15 @@ func AdvanceStartTransaction(record ThreadRecord, event StartEvent) (ThreadRecor
 			// Pair registration is the commit point for a resume. Until this
 			// transition the verified park remains the rollback authority.
 			next.VerifiedPark = nil
+			// Record the layout witness in the SAME transaction that commits
+			// the start, so there is no second write and no expectedRevision to
+			// reconcile against a revision this CAS has just moved. Empty means
+			// a warm reattach, which chose no layout: leave the existing
+			// witness, because the session it attached to still has the layout
+			// it was created with.
+			if event.Layout != "" {
+				next.Layout = event.Layout
+			}
 		} else {
 			incarnation.State = IncarnationUnknown
 		}

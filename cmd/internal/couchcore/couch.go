@@ -34,6 +34,12 @@ type Couch struct {
 	PairLifecycle    *PairLifecycleController
 	RootAgent        string
 	RepoAgentDefault func(repoRoot, agent string) (LaunchProfile, bool, error)
+	// Layout is which pair layout this couch launches its threads in, chosen
+	// once at construction and IMMUTABLE for the process lifetime -- there is
+	// no mid-session layout change, which is what keeps the mixed-state
+	// question to a single startup-time check. Always a value ParseLayout
+	// returned, so it is never LayoutUnknown and Flag() is always well formed.
+	Layout Layout
 
 	reg                       Registry
 	names                     NamingTable
@@ -98,6 +104,7 @@ func New(namespace CouchNamespace, r Runner, p PathOps, g GitRunner, proc ProcOp
 	threads := NewThreadStore(namespace)
 	result := &Couch{
 		Namespace: namespace,
+		Layout:    Layout2,
 		Runner:    r, Path: p, Git: g, Proc: proc, Store: s, Clock: c, IDs: ids,
 		Threads: threads, Entropy: entropy,
 		Artifacts: artifacts,
