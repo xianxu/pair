@@ -347,3 +347,134 @@ findings:
       ProjectActionableThreads, 1 unnormalized. Harmless today because ThreadUnusable
       never holds a session, but pair#199/#200 consume this struct.
 ```
+
+---
+
+## Re-review — 2026-09-06T18:34:09-07:00 (FIX-THEN-SHIP)
+
+| field | value |
+|-------|-------|
+| issue | 198 — couch: let the operator choose layout3 |
+| repo | pair |
+| issue file | workshop/issues/000198-couch-let-the-operator-choose-layout3.md |
+| boundary | whole-issue close |
+| milestone | — |
+| window | 13e0f0f52e080495a0b88184d71bc5345614e826..fba6b350ab543badc15dfc38e5f0f026cf824192 |
+| command | sdlc close --issue 198 |
+| reviewer | claude |
+| timestamp | 2026-09-06T18:34:09-07:00 |
+| verdict | FIX-THEN-SHIP |
+
+## Review
+
+```verdict
+verdict: FIX-THEN-SHIP
+confidence: high
+```
+
+Round 2's three Importants are all genuinely closed, and I verified each by reverting the fix in a scratch tree at HEAD rather than reading the commit message: deleting the couch block from `README.md` turns `TestREADMEDocumentsTheOperatorFacingSurface` red on all three new want-strings, and collapsing `layoutRemedy`'s two early-return branches turns all three refusal tests red with the exact defect BR-3/BR-12 named printed in the failure output. That is the property BR-11 was about, and it now holds. The feature itself is sound: the destructive `pair` path (`createflow.go:250` → `ConfirmLayoutChange` → `DeleteSession`) is unreachable from couch by two independent mechanisms — a warm reattach sends no flag at all, so `LayoutResolution.Conflict` cannot be set (it is only set in the `Explicit` arm), and a cold resume carries `ResumeRequired`, which `createflow.go:238` refuses before the `ActionAttach` conflict branch is reached. 67 layout-related tests pass; `gofmt` and `go vet` are clean; the remaining `couchcore`/`couchcmd`/`cmd/couch` failures are the known `ptychild: operation not permitted` environmental class, which unfortunately includes this diff's own `TestLayoutFlagReachesTheCouch`. What keeps this off SHIP is three Minors: BR-13 was not disposed at all, and two new ones (refusal text asserted at only one cardinality; the plan still describes a `hostLayoutFor` the tree no longer has). None blocks the gate.
+
+## 1. Strengths
+
+- **The mutation discipline was actually applied this round, and it worked.** `layout_test.go:167-172` documents *why* the assertion is negative — "these assert the NEGATIVE direction … which is the half that goes red when the remedy logic is removed" — and it does. The three `lessons.md` entries on the three ways a mutation check lies (cached results, a non-compiling mutation, mutating the wrong thing) are the class-level deliverable BR-11 asked for, not the two edits.
+- **`readme_test.go:141-150` fixed the guard, not just the document.** The comment states the rule ("COMMAND-PREFIXED … a bare `--layout3` is satisfied by those and this guard would pass with the couch block deleted") and the assertion follows the sibling convention. This is the finding answered at the class.
+- **`layoutRemedy` (`layout.go:112-155`) answers three cases separately with a stated reason for not collapsing them.** The unreadable branch leaves the tool entirely (`couch --show <tag>` + `zellij kill-session`) because `park` is a TUI row action that needs a running couch — the reachability analysis BR-12 asked for, encoded in the code's own doc comment.
+- **`TestGuardAddsNoSessionEnumeration` (`layout_guard_test.go:110-122`) counts an IO budget rather than asserting a result**, and explains why it must measure the *refusing* run. A declared envelope that nothing counts is a rule that cannot fail.
+- **`TestCouchLayoutFlagsAreWhatPairParses` (`layout_test.go:126-138`) turned a prose "measured, not reasoned" claim into a round trip through `launcher.ParseArgs`.** The whole feature rests on that contract and it was previously evidenced only by a comment.
+
+## 2. Critical findings
+
+None.
+
+## 3. Important findings
+
+None.
+
+## 4. Minor findings
+
+- `cmd/internal/couchcore/layout.go:172-176` — the refusal reads "1 thread already **hold** a session"; `noun` is pluralized but the verb is not, and the unreadable remedy says "**this thread's** layout cannot be read" while naming only `conflicts[0]`'s tag when the list above may show several. Every refusal test happens to use a cardinality that hides both.
+- `workshop/plans/000198-…-plan.md:780` describes `hostLayoutFor`, which `d6a32638` deleted; the Core-concepts pure-entities table (`:56-62`) still omits `KnownLayout`, `layoutRemedy`, `layoutConflictRefusal`, and `holdsSession`.
+- `holdsSession` lives in `layout.go:84` while its siblings `Live()`/`Detached()`/`Resumable()` live in `actionableinventory.go:128-139`. Justified by the doc comment; noting only for discoverability.
+- `README.md:274-276` says couch "refuses to start when a thread is already running or detached" — `ThreadBusy` also blocks (`layout.go:84-86`).
+
+## 5. Test coverage notes
+
+- **Mutation-verified, in a scratch tree at `fba6b350`:** deleting `README.md:268-269` + the paragraph → 3 assertions red; replacing `layoutRemedy`'s unreadable and `!single` branches with a fallthrough → `TestRefusalOffersNoHostRemedyWhenNoCouchCanHostThemAll/{unreadable_mixed_in,blocking_set_that_disagrees_with_itself}`, `TestRefusalNamesAnOutOfToolRemedyWhenNoCouchCanStart`, and `TestRefusalExplainsThePerThreadRouteWhenLayoutsDisagree` all red, printing exactly the `park them first: couch --layout2` advice BR-3 described.
+- `TestLayoutFlagReachesTheCouch` — the only end-to-end pin that the CLI flag reaches `Couch.Layout` — **could not be run here** (`pty.Open`: operation not permitted). It is new in this diff. The issue's Log records `go test ./cmd/...` green on the implementor's machine and the operator ran the full manual cycle; worth one confirming local run before merge since it is the seam every `ParseCLI` test above it depends on.
+- `TestLayoutWitnessPersistsUnderItsOnDiskKey` and `TestPre198RecordDecodesThroughTheProductionPath` close BR-1/BR-8 at the byte level, including the negative direction (a pre-#198 record emits no `layout` key at all, which is the contract strictjson enforces).
+- Still uncovered, and correctly dispositioned as "ignore, self-correcting" in the plan: process death between launch and the witness CAS. Its *consequence* (a mixed blocking set) is now rendered by a test even though the event that produces it is not simulated.
+
+## 6. Architectural notes for upcoming work
+
+- **ARCH-DRY — pass.** BR-5's alias landed: `type Layout = launcher.LayoutMode`, `Flag()` beside the parser, and `extractLayoutRequest` now parses against `Flag()` (`args.go:156-158`). `grep '"--layout2"\|"--layout3"'` over non-test `cmd/` returns exactly two hits, both inside `Flag()`.
+- **ARCH-PURE — pass.** `ParseLayout`, `NormalizeLayout`, `KnownLayout`, `ResolveLayoutConflicts`, `holdsSession`, `layoutRemedy`, `layoutConflictRefusal` are pure and unit-tested with hand-built values and no fake; the guard consumes rows `StartInteractive` already read.
+- **ARCH-PURPOSE — pass, with one residual.** Shadow sweep is clean: `pinned to layout2` / `operator decision 2026-08-22` appear nowhere in `cmd/`, `atlas/`, or `README.md`; the atlas gained a "Layout is couch-wide and never mixed" section recording the reversed pin's reasoning rather than deleting it. The residual is BR-13's class rule (below), which was never stated.
+- **ARCH-MOCK — pass.** `pair` stays behind the `Runner` seam; the detached-query counter extends `FakeThreadArtifactCollisionChecker` rather than adding a parallel double; the in-module conformance test replaces the hand measurement. No fake models pair's durable workbench-layout record, but I traced the only branch that would need one (`createflow.go:250`) and it is unreachable from couch — noting, not flagging.
+- **ARCH-CONSTRAINTS — pass.** Budget declared (zero added enumeration), placement chosen because of it, budget counted in a test. This remains the model for the envelope.
+- **ARCH-SECURE — pass.** Both raw-string boundaries normalize with distinct failure modes (projection → `LayoutUnknown`, CLI → error/exit 2); `LayoutUnknown` refuses visibly rather than fabricating a value the guard trusts; forward-only compatibility documented at `thread.go:74-83` and pinned.
+- **ARCH-ORDER — pass.** `Couch.Layout` immutable after construction collapses the ordering space; the witness rides the existing `StartRegistered` CAS so there is no second write and no revision to reconcile; `StartEvent.Layout *Layout` gives "no layout chosen" its own value. `Layout("")` on the Unreadable projection row is the one untagged-empty state left — see BR-13.
+- **For #199/#200:** they consume `ActionableThreadSummary`. Landing BR-13's rule (normalize at every construction site) before those two exist is cheaper than after.
+
+## 7. Plan revision recommendations
+
+One entry, covering the class rather than the instance (see the second finding):
+
+- **Re-verify the plan against the tree at the round's final commit.** Revisions §3 ("The refusal needed a `hostLayoutFor`") describes `70dd36c7`'s intermediate shape; `d6a32638` replaced `hostLayoutFor` with `layoutRemedy` and the message no longer "drops the concrete remedy" — it names three. Rewrite §3 to the as-built three-case remedy, and add `KnownLayout`, `layoutRemedy`, `layoutConflictRefusal`, `holdsSession` to the pure-entities table so it is again the greppable enumeration it claims to be. The checkable form: `grep '^func ' cmd/internal/couchcore/layout.go` must be a subset of the table, and every backticked identifier in Revisions must resolve in the tree.
+
+```findings
+dispose:
+  - id: BR-3
+    disposition: addressed
+    note: |
+      Mutation-verified: collapsing layoutRemedy's two early returns reprints the exact `park them first: couch --layout2` advice and turns three tests red.
+  - id: BR-4
+    disposition: addressed
+    note: |
+      Mutation-verified: deleting the README couch block turns all three new want-strings red; they are command-prefixed, so pair's own flag docs no longer satisfy them.
+  - id: BR-11
+    disposition: addressed
+    note: |
+      Both previously-vacuous tests now go red under revert, and the rule landed as three lessons.md entries on how a mutation check lies.
+  - id: BR-12
+    disposition: addressed
+    note: |
+      layoutRemedy's unreadable branch names the out-of-tool remedy (couch --show + zellij kill-session); TestRefusalNamesAnOutOfToolRemedyWhenNoCouchCanStart goes red without it.
+  - id: BR-13
+    disposition: not-addressed
+    note: |
+      No code change, no rule statement, no plan entry -- actionableinventory.go:209-211 still builds the Unreadable rows with a raw Layout("").
+findings:
+  - id: new
+    severity: Minor
+    family: count-varying-text-unasserted
+    title: |
+      The refusal's count-varying text is only ever rendered at one cardinality
+    detail: |
+      layout.go:172-176 pluralizes the noun but not the verb, so a single conflict reads
+      "1 thread already hold a session in another layout" -- I saw this rendered verbatim
+      while mutation-checking. layout.go:130-135 has the mirrored gap: the unreadable
+      remedy says "this thread's layout cannot be read" and names only conflicts[0]'s tag,
+      while the list printed above it can show several unreadable rows. The rule is that
+      operator text whose wording depends on a count must be asserted at each cardinality
+      it can render, not only at the one the fixture happens to use; every refusal test
+      currently picks a cardinality that hides both. Not a reachability defect -- the
+      remedy still terminates, iterating once per unreadable thread -- which is why this
+      is not another instance of refusal-must-name-a-runnable-remedy.
+  - id: new
+    severity: Minor
+    family: plan-names-files-that-do-not-exist
+    title: |
+      Plan Revisions still describes hostLayoutFor, which this window deleted, and the entity table omits four functions
+    detail: |
+      This is the 2nd finding in family plan-names-files-that-do-not-exist. Do NOT fix this
+      instance alone -- the covering rule is that the plan's Core-concepts table and
+      Revisions must be re-verified against the tree at the FINAL commit of the round they
+      describe, not written from the mid-round state. Measured prevalence: 2 rounds. Round 3
+      named thread_test.go and startup_test.go, which never existed; round 4's Revisions
+      section 3 (plan.md:780) describes `hostLayoutFor` and "the message now drops the
+      concrete remedy", both of which d6a32638 replaced with layoutRemedy's three-case
+      answer, and the pure-entities table (plan.md:56-62) omits KnownLayout, layoutRemedy,
+      layoutConflictRefusal and holdsSession. The enumeration the rule implies is checkable:
+      `grep '^func ' cmd/internal/couchcore/layout.go` must be a subset of the table, and
+      every backticked identifier in Revisions must resolve in the tree.
+```

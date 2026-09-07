@@ -59,6 +59,10 @@ Deliberately not built, though each is reachable from this design:
 | `ParseLayout` / `NormalizeLayout` | `cmd/internal/couchcore/layout.go` | new |
 | `LayoutConflict` | `cmd/internal/couchcore/layout.go` | new |
 | `ResolveLayoutConflicts` | `cmd/internal/couchcore/layout.go` | new |
+| `KnownLayout` | `cmd/internal/couchcore/layout.go` | new |
+| `holdsSession` | `cmd/internal/couchcore/layout.go` | new |
+| `layoutRemedy` | `cmd/internal/couchcore/layout.go` | new |
+| `layoutConflictRefusal` | `cmd/internal/couchcore/layout.go` | new |
 | `ThreadRecord.Layout` | `cmd/internal/couchcore/thread.go` | modified |
 | `ActionableThreadSummary.Layout` | `cmd/internal/couchcore/actionableinventory.go` | modified |
 | `StartEvent.Layout` | `cmd/internal/couchcore/starttransaction.go` | modified |
@@ -777,12 +781,19 @@ different things across the diff — pre-#198-therefore-layout2 on
 untagged empty string), and `Flag()` is now total so the third case is
 unreachable by construction rather than by comment.
 
-**3. The refusal needed a `hostLayoutFor`.** The plan's message interpolated a
-single "other" layout, which the review found could render `couch --unknown` on
-exactly the paths the design justified as *visible* failure: a lone
-`LayoutUnknown` witness, or a blocking set disagreeing with itself. Advice the
-operator cannot follow is worse than none, so the message now drops the
-concrete remedy when no single couch can host every conflicting thread.
+**3. The refusal grew a `layoutRemedy` with three cases.** The plan's message
+interpolated a single "other" layout, which could render `couch --unknown`. The
+first fix added a "hostLayoutFor" helper (since deleted) that dropped the
+concrete remedy when no
+single host existed — but a later round found *that* insufficient too: dropping
+the remedy left an operator with an unreadable witness no reachable action at
+all, because `park` is a TUI row action and no couch would start for them.
+
+As built, `layoutRemedy` answers three cases separately, because one sentence is
+wrong for two of them: one known layout parks in a single pass; several known
+layouts park per-thread from each matching couch; and any unreadable layout
+closes every in-tool route, so the remedy leaves the tool and names
+`couch --show <tag>` for each plus the session to kill.
 
 **4. Task 3's compatibility claim was wrong.** The plan said "an older binary
 ignores it". `threadrecord` decodes with `strictjson`, which rejects unknown
@@ -801,3 +812,26 @@ added back afterwards — renaming the `layout` tag would otherwise have kept th
 suite green while dropping every witness on disk.
 
 **Cosmetic.** The plan's fixtures used `PairTag`; the type is `ThreadTag`.
+
+### 2026-09-06 — the plan is verified against the tree at the round's FINAL commit
+
+`BR-15` named a rule, not the two drifts it found: **the Core-concepts table and
+every Revisions entry must be re-checked against the tree at the last commit of
+the round they describe, not written from the mid-round state.** Both drifts came
+from writing the entry while the work was still moving — round 3 named test files
+that never existed, and round 4's entry described a "hostLayoutFor" a later
+commit had already replaced.
+
+The rule is checkable, so it should be checked rather than remembered:
+
+```
+# every function in the file must appear in the entity table
+grep '^func ' cmd/internal/couchcore/layout.go
+# every backticked identifier in Revisions must resolve in the tree
+```
+
+Run at the final commit of the round, both now pass: the table gained
+`KnownLayout`, `holdsSession`, `layoutRemedy` and `layoutConflictRefusal`, and
+no deleted identifier is presented as a live one -- the two historical
+mentions of "hostLayoutFor" above are deliberately unticked, because a backticked
+name is a claim that it resolves.

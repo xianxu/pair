@@ -3602,3 +3602,24 @@ that a key token appears cannot detect a contradictory behavioral sentence
   command-prefixed form (`"couch --list"`) — the convention was right there.
   Before adding a want-string to a document guard, delete the thing it is meant
   to protect and confirm the guard fails.
+- Text whose wording varies with a count must be asserted at every cardinality
+  it can render. "1 thread already hold a session in another layout" shipped
+  because every refusal fixture happened to use two conflicts. The mirrored bug
+  sat three lines away: the remedy said "this thread's layout cannot be read"
+  and named only the first tag, while the list above it could show several — so
+  an operator who cleared the named one would be stuck again. Both are invisible
+  to a test suite that picks one cardinality; pick 1 and N deliberately.
+- A struct field documented as normalized must be normalized at every
+  construction site, or the documentation is the only thing enforcing it. My row
+  projection normalized the layout on the readable branch and built the
+  unreadable branch without touching the field at all — two sites, one honest.
+  The check is mechanical: grep the struct literal's type name and confirm each
+  site sets the invariant field.
+- Verify a plan's Core-concepts table and Revisions against the tree at the
+  round's FINAL commit, not while the work is still moving. Two rounds drifted
+  the same way here: one named test files that were never created, the next
+  described a helper a later commit in the same round had already replaced. The
+  rule is checkable, so check it — `grep '^func '` on the entity's file must be
+  a subset of the table, and every backticked identifier must resolve in the
+  tree. A backticked name is a claim that it exists; historical mentions of
+  deleted code should not be ticked.

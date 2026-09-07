@@ -119,12 +119,10 @@ func ResolveLayoutConflicts(requested Layout, rows []ActionableThreadSummary) []
 //     leaves the tool: inspect the thread and end its session directly.
 func layoutRemedy(requested Layout, conflicts []LayoutConflict) string {
 	host, single := Layout(""), true
-	unreadable := ""
+	var unreadable []string
 	for i, conflict := range conflicts {
 		if !KnownLayout(conflict.Layout) {
-			if unreadable == "" {
-				unreadable = string(conflict.Address.Tag)
-			}
+			unreadable = append(unreadable, string(conflict.Address.Tag))
 			continue
 		}
 		if i == 0 || host == "" {
@@ -135,13 +133,23 @@ func layoutRemedy(requested Layout, conflicts []LayoutConflict) string {
 			single = false
 		}
 	}
-	if unreadable != "" {
-		// No `couch --layoutN` will start while this thread holds its session,
-		// so every in-tool route is closed. Say what is left.
-		return "this thread's layout cannot be read, so no couch can host it and\n" +
-			"  `park` is out of reach. Inspect it and end its session directly:\n" +
-			"    couch --show " + unreadable + "\n" +
-			"    zellij kill-session <the session it names>"
+	if len(unreadable) > 0 {
+		// No `couch --layoutN` will start while these threads hold their
+		// sessions, so every in-tool route is closed. Say what is left -- for
+		// EACH of them, not just the first: the list printed above can show
+		// several, and a remedy naming one leaves the operator stuck after
+		// clearing it.
+		subject := "this thread's layout cannot be read, so no couch can host it"
+		if len(unreadable) > 1 {
+			subject = "these threads' layouts cannot be read, so no couch can host them"
+		}
+		steps := ""
+		for _, tag := range unreadable {
+			steps += "\n    couch --show " + tag
+		}
+		return subject + " and\n" +
+			"  parking is out of reach. Inspect each and end its session directly:" +
+			steps + "\n    zellij kill-session <the session each names>"
 	}
 	if !single {
 		return "these threads are in DIFFERENT layouts, so no single couch can park\n" +
@@ -179,13 +187,15 @@ func layoutConflictRefusal(requested Layout, conflicts []LayoutConflict) error {
 		}
 		fmt.Fprintf(&rows, "\n  %-*s  (%s, %s)", width, conflict.Address.Tag, layout, conflict.State)
 	}
-	noun := "thread"
+	// Both halves vary with the count, and both are rendered: "1 thread already
+	// hold" shipped once because every test used a cardinality that hid it.
+	noun, verb := "thread", "holds"
 	if len(conflicts) > 1 {
-		noun = "threads"
+		noun, verb = "threads", "hold"
 	}
 	return fmt.Errorf(
-		"cannot start in %s: %d %s already hold a session in another layout:%s\n\n"+
+		"cannot start in %s: %d %s already %s a session in another layout:%s\n\n"+
 			"couch keeps one layout across every thread, so it will not mix them.\n"+
 			"  %s",
-		requested, len(conflicts), noun, rows.String(), layoutRemedy(requested, conflicts))
+		requested, len(conflicts), noun, verb, rows.String(), layoutRemedy(requested, conflicts))
 }

@@ -1,12 +1,13 @@
 ---
 id: 000198
-status: working
+status: codecomplete
 deps: []
 github_issue:
 created: 2026-09-06
 updated: 2026-09-06
 estimate_hours: 3.81
 started: 2026-09-06T12:06:08-07:00
+actual_hours: 2.23
 ---
 
 # couch: let the operator choose layout3
@@ -165,6 +166,7 @@ tasks); kept here as the outcome ledger.
 ## Log
 
 ### 2026-09-06
+- 2026-09-06: closed — go test ./... green (full repo, env-scrubbed). Three boundary rounds. Round 3 found the fix that mattered: BR-11 -- two of the nine tests I added in round 2 passed with their own fix reverted. Both asserted only a positive. The refusal test checked well-formedness, which the total Flag() satisfies while still naming a couch that would itself refuse; it now asserts the NEGATIVE (no layout flag but the requested one when no couch can host them all) and goes red when the agreement logic is removed. The README guard used bare --layout3, which pairs own flag docs elsewhere satisfy; it now uses the command-prefixed form and goes red when the couch block is deleted. BR-12s covering rule drove a message rewrite: a refusal must end in an action the operator can take, so the three cases are answered separately -- one known layout parks in one pass, several park per-thread from each matching couch, and an unreadable layout closes every in-tool route (park is a TUI row action, no couch will start) so the remedy names couch --show plus the session to kill. Every fix mutation-verified with -count=1, a compiling mutation, and the mutation chosen to re-create the specific finding. Operator smoke test on the real six-thread store: --layout3 refused naming live threads; after parking all six it started in layout3; brain cold-resumed from parked into layout3; detach works; no session-deletion prompt (the #179 failure mode).; review verdict: FIX-THEN-SHIP
 
 Filed from an operator request, with the question "I think it's just one line
 change?" — the honest answer is that the literal is one line and the change is

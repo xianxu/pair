@@ -208,6 +208,13 @@ func ProjectActionableThreads(input ThreadProjectionInput) []ActionableThreadSum
 	for _, address := range input.Unreadable {
 		rows = append(rows, ActionableThreadSummary{
 			Address: address, State: ThreadUnusable, Reason: ReasonUnreadable,
+			// Normalized here too, not just on the readable branch: the field
+			// documents itself as always normalized, and a struct with a
+			// documented invariant must satisfy it at EVERY construction site
+			// or the invariant is only a comment. The record could not be read,
+			// so its layout is unknown by definition -- which is exactly what
+			// NormalizeLayout says about an unreadable value.
+			Layout: NormalizeLayout("unreadable"),
 		})
 	}
 	for _, record := range records {

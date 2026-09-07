@@ -149,3 +149,24 @@ func TestPre198RecordDecodesThroughTheProductionPath(t *testing.T) {
 		t.Fatalf("pre-#198 record normalized to %q; want Layout2", got)
 	}
 }
+
+// BR-13's rule: a field documented as normalized must be normalized at EVERY
+// construction site of its struct, or the invariant is only a comment. The
+// unreadable branch builds rows without touching the record at all.
+func TestEveryProjectedRowCarriesANormalizedLayout(t *testing.T) {
+	record, evidence := detachedLayoutRecord(t, Layout3)
+	rows := ProjectActionableThreads(ThreadProjectionInput{
+		Records:    []ThreadRecord{record},
+		Evidence:   evidence,
+		Unreadable: []ThreadAddress{{RepoScope: "scope", Tag: "couch-000000000000000a"}},
+	})
+	if len(rows) != 2 {
+		t.Fatalf("rows = %+v; want a readable row and an unreadable one", rows)
+	}
+	for _, row := range rows {
+		if row.Layout == "" {
+			t.Fatalf("row %s carries a raw empty layout; the field promises a normalized value: %+v",
+				row.Address.Tag, row)
+		}
+	}
+}

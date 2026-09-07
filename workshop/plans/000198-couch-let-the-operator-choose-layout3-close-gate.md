@@ -232,6 +232,65 @@ rounds:
           family: untagged-empty-sentinel
           round: 3
       blocked: true
+    - "n": 4
+      timestamp: "2026-09-06T18:34:09-07:00"
+      agent: claude
+      dispose:
+        - id: BR-3
+          disposition: addressed
+          note: 'Mutation-verified: collapsing layoutRemedy''s two early returns reprints the exact `park them first: couch --layout2` advice and turns three tests red.'
+          round: 4
+        - id: BR-4
+          disposition: addressed
+          note: 'Mutation-verified: deleting the README couch block turns all three new want-strings red; they are command-prefixed, so pair''s own flag docs no longer satisfy them.'
+          round: 4
+        - id: BR-11
+          disposition: addressed
+          note: Both previously-vacuous tests now go red under revert, and the rule landed as three lessons.md entries on how a mutation check lies.
+          round: 4
+        - id: BR-12
+          disposition: addressed
+          note: layoutRemedy's unreadable branch names the out-of-tool remedy (couch --show + zellij kill-session); TestRefusalNamesAnOutOfToolRemedyWhenNoCouchCanStart goes red without it.
+          round: 4
+        - id: BR-13
+          disposition: not-addressed
+          note: No code change, no rule statement, no plan entry -- actionableinventory.go:209-211 still builds the Unreadable rows with a raw Layout("").
+          round: 4
+      findings:
+        - id: BR-14
+          severity: Minor
+          title: The refusal's count-varying text is only ever rendered at one cardinality
+          detail: |-
+            layout.go:172-176 pluralizes the noun but not the verb, so a single conflict reads
+            "1 thread already hold a session in another layout" -- I saw this rendered verbatim
+            while mutation-checking. layout.go:130-135 has the mirrored gap: the unreadable
+            remedy says "this thread's layout cannot be read" and names only conflicts[0]'s tag,
+            while the list printed above it can show several unreadable rows. The rule is that
+            operator text whose wording depends on a count must be asserted at each cardinality
+            it can render, not only at the one the fixture happens to use; every refusal test
+            currently picks a cardinality that hides both. Not a reachability defect -- the
+            remedy still terminates, iterating once per unreadable thread -- which is why this
+            is not another instance of refusal-must-name-a-runnable-remedy.
+          family: count-varying-text-unasserted
+          round: 4
+        - id: BR-15
+          severity: Minor
+          title: Plan Revisions still describes hostLayoutFor, which this window deleted, and the entity table omits four functions
+          detail: |-
+            This is the 2nd finding in family plan-names-files-that-do-not-exist. Do NOT fix this
+            instance alone -- the covering rule is that the plan's Core-concepts table and
+            Revisions must be re-verified against the tree at the FINAL commit of the round they
+            describe, not written from the mid-round state. Measured prevalence: 2 rounds. Round 3
+            named thread_test.go and startup_test.go, which never existed; round 4's Revisions
+            section 3 (plan.md:780) describes `hostLayoutFor` and "the message now drops the
+            concrete remedy", both of which d6a32638 replaced with layoutRemedy's three-case
+            answer, and the pure-entities table (plan.md:56-62) omits KnownLayout, layoutRemedy,
+            layoutConflictRefusal and holdsSession. The enumeration the rule implies is checkable:
+            `grep '^func ' cmd/internal/couchcore/layout.go` must be a subset of the table, and
+            every backticked identifier in Revisions must resolve in the tree.
+          family: plan-names-files-that-do-not-exist
+          round: 4
+      blocked: false
 ---
 
 # Gate ledger — pair#198 (boundary-review)
@@ -373,10 +432,44 @@ later rounds disposed of them. Generated — edit the gate, not this file.
   ProjectActionableThreads, 1 unnormalized. Harmless today because ThreadUnusable
   never holds a session, but pair#199/#200 consume this struct.
 
+## Round 4 — 2026-09-06T18:34:09-07:00 (claude) — passed
+
+### Disposed
+
+- BR-3 — addressed — Mutation-verified: collapsing layoutRemedy's two early returns reprints the exact `park them first: couch --layout2` advice and turns three tests red.
+- BR-4 — addressed — Mutation-verified: deleting the README couch block turns all three new want-strings red; they are command-prefixed, so pair's own flag docs no longer satisfy them.
+- BR-11 — addressed — Both previously-vacuous tests now go red under revert, and the rule landed as three lessons.md entries on how a mutation check lies.
+- BR-12 — addressed — layoutRemedy's unreadable branch names the out-of-tool remedy (couch --show + zellij kill-session); TestRefusalNamesAnOutOfToolRemedyWhenNoCouchCanStart goes red without it.
+- BR-13 — not-addressed — No code change, no rule statement, no plan entry -- actionableinventory.go:209-211 still builds the Unreadable rows with a raw Layout("").
+
+### Raised
+
+- **BR-14** [Minor] `count-varying-text-unasserted` The refusal's count-varying text is only ever rendered at one cardinality
+  layout.go:172-176 pluralizes the noun but not the verb, so a single conflict reads
+  "1 thread already hold a session in another layout" -- I saw this rendered verbatim
+  while mutation-checking. layout.go:130-135 has the mirrored gap: the unreadable
+  remedy says "this thread's layout cannot be read" and names only conflicts[0]'s tag,
+  while the list printed above it can show several unreadable rows. The rule is that
+  operator text whose wording depends on a count must be asserted at each cardinality
+  it can render, not only at the one the fixture happens to use; every refusal test
+  currently picks a cardinality that hides both. Not a reachability defect -- the
+  remedy still terminates, iterating once per unreadable thread -- which is why this
+  is not another instance of refusal-must-name-a-runnable-remedy.
+- **BR-15** [Minor] `plan-names-files-that-do-not-exist` Plan Revisions still describes hostLayoutFor, which this window deleted, and the entity table omits four functions
+  This is the 2nd finding in family plan-names-files-that-do-not-exist. Do NOT fix this
+  instance alone -- the covering rule is that the plan's Core-concepts table and
+  Revisions must be re-verified against the tree at the FINAL commit of the round they
+  describe, not written from the mid-round state. Measured prevalence: 2 rounds. Round 3
+  named thread_test.go and startup_test.go, which never existed; round 4's Revisions
+  section 3 (plan.md:780) describes `hostLayoutFor` and "the message now drops the
+  concrete remedy", both of which d6a32638 replaced with layoutRemedy's three-case
+  answer, and the pure-entities table (plan.md:56-62) omits KnownLayout, layoutRemedy,
+  layoutConflictRefusal and holdsSession. The enumeration the rule implies is checkable:
+  `grep '^func ' cmd/internal/couchcore/layout.go` must be a subset of the table, and
+  every backticked identifier in Revisions must resolve in the tree.
+
 ## Open findings
 
-- **BR-3** [Important] `refusal-must-name-a-runnable-remedy` layoutConflictRefusal prints `couch --unknown` when conflicts disagree or carry LayoutUnknown
-- **BR-4** [Important] `operator-surface-undocumented` README update missing for the new `--layout2|--layout3` flag
-- **BR-11** [Important] `guard-passes-without-the-fix` Two of the nine tests added to close round 2's findings pass with their fix reverted
-- **BR-12** [Minor] `refusal-must-name-a-runnable-remedy` A blocking set that is entirely LayoutUnknown leaves the operator with no reachable remedy at all
 - **BR-13** [Minor] `untagged-empty-sentinel` ActionableThreadSummary.Layout is documented as normalized but the Unreadable branch never normalizes
+- **BR-14** [Minor] `count-varying-text-unasserted` The refusal's count-varying text is only ever rendered at one cardinality
+- **BR-15** [Minor] `plan-names-files-that-do-not-exist` Plan Revisions still describes hostLayoutFor, which this window deleted, and the entity table omits four functions

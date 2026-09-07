@@ -255,3 +255,41 @@ func TestRefusalDoesNotDoubleTheProgramPrefix(t *testing.T) {
 		t.Fatalf("refusal prefixes the program name itself:\n%s", message)
 	}
 }
+
+// BR-14's rule: text whose wording varies with a count must be asserted at
+// EVERY cardinality it can render. "1 thread already hold a session" shipped
+// because every fixture happened to use the plural.
+func TestRefusalReadsCorrectlyAtEveryCardinality(t *testing.T) {
+	one := []LayoutConflict{{Address: ThreadAddress{Tag: "brain"}, Layout: Layout2, State: ThreadLive}}
+	many := append(append([]LayoutConflict{}, one...),
+		LayoutConflict{Address: ThreadAddress{Tag: "pair"}, Layout: Layout2, State: ThreadDetached})
+
+	singular := layoutConflictRefusal(Layout3, one).Error()
+	if !strings.Contains(singular, "1 thread already holds a session") {
+		t.Fatalf("singular refusal does not agree in number:\n%s", singular)
+	}
+	plural := layoutConflictRefusal(Layout3, many).Error()
+	if !strings.Contains(plural, "2 threads already hold a session") {
+		t.Fatalf("plural refusal does not agree in number:\n%s", plural)
+	}
+}
+
+// The mirrored gap: the unreadable remedy must name every unreadable thread,
+// not just the first, or the operator is stuck again after clearing one.
+func TestUnreadableRemedyNamesEveryUnreadableThread(t *testing.T) {
+	conflicts := []LayoutConflict{
+		{Address: ThreadAddress{Tag: "brain"}, Layout: LayoutUnknown, State: ThreadDetached},
+		{Address: ThreadAddress{Tag: "tools"}, Layout: LayoutUnknown, State: ThreadLive},
+	}
+	message := layoutConflictRefusal(Layout3, conflicts).Error()
+	for _, want := range []string{"couch --show brain", "couch --show tools", "these threads' layouts"} {
+		if !strings.Contains(message, want) {
+			t.Fatalf("remedy omits %q:\n%s", want, message)
+		}
+	}
+	// And the singular still reads as singular.
+	lone := layoutConflictRefusal(Layout3, conflicts[:1]).Error()
+	if !strings.Contains(lone, "this thread's layout") {
+		t.Fatalf("lone unreadable remedy does not read as singular:\n%s", lone)
+	}
+}
