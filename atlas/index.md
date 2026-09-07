@@ -22,5 +22,14 @@
   list here that would drift.
 
 - `doctor/README.md` — `pair-doctor`: read the adaptation flight recorder to diagnose harness integration drift (see the bring-up guide §3 for the signal registry). Primary entry is the agent-agnostic `:PairDoctor` nvim command (`nvim/doctor.lua`); the procedure is single-sourced in `doctor/SKILL.md`, optionally registerable as a Claude skill.
+- `doctor/perf.sh` — the performance half of the same entry (`#208`): a snapshot
+  of load, per-process resource **rates**, the render path (WindowServer), and
+  three latency probes, taken at the moment slowness is felt. Two rules give it
+  its shape: it emits **raw two-sample output and does no arithmetic** (the pid
+  join is error-prone, so it lives in tested Lua, not shell), and it never uses
+  `ps %cpu`, which is a lifetime average that hid a 42.6% spinner during the
+  investigation that motivated the issue. `cmd/pair-hoprtt` is its probe —
+  pipe round-trip and fork+exec timing, in-process because a hop is ~7 µs and
+  timing that from shell measures the clock process instead.
 - `README.md` (repo root) — install and usage.
 - Design pensive (sibling repo): `~/workspace/brain/docs/vision/2026-05-02-01-pensive-nvim-as-input-field-for-tui-coding-agents.md`
