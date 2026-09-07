@@ -198,8 +198,8 @@ the reducer.
 Acquisition of owner authority remains separate from the Console/PTY decision.
 
 **couch hosts `pair` whole.** The stack is couch → pair → zellij → agent+nvim.
-couch starts `pair resume <tag> --layout2` inside a child pty and owns the
-operator tty until the console exits. Verified by operator smoke; the
+couch starts `pair resume <tag> --<couch's layout>` inside a child pty and owns
+the operator tty until the console exits. Verified by operator smoke; the
 alternative (couch absorbing zellij's role) was considered and rejected because
 the agent child is never spawned by Go — zellij spawns it from a KDL layout, and
 `entrypoint.ValidRootMarkers` *defines* a valid pair install as having those
@@ -812,7 +812,7 @@ types SGR reports into the returned shell.
 `hostty.TerminationHost` is optional because couch consumes process termination
 while the other `hostty.Host` consumer, `pair term`, owns lifecycle elsewhere.
 
-## Spawning: `pair resume <opaque-tag> --layout2`
+## Spawning: `pair resume <opaque-tag> --<couch's layout>`
 
 Every new start first atomically claims a final composite address
 `{repo_scope, couch-<16 lowercase hex>}`. `CommitStartClaim` then performs, in
@@ -877,7 +877,8 @@ merge the former global file for upgrade compatibility, and malformed or
 unreadable present state fails closed.
 
 The child receives `COUCH_TREE`, `COUCH_STORE_DIR`, `COUCH_THREAD_SCOPE`, and
-`COUCH_THREAD_TAG`, and launches as `pair resume <opaque-tag> --layout2`.
+`COUCH_THREAD_TAG`, and launches as `pair resume <opaque-tag> --<couch's
+layout>`.
 
 `COUCH_INPUT_TRACE=<path>` (`pair#182`) is the one env var couch reads for
 ITSELF rather than passing down: it appends every operator keystroke couch
@@ -900,8 +901,35 @@ Pair treats these Couch-owned values as opaque pass-through context for the
 hosted child: it does not resolve Couch names or paths and never reads or
 mutates Couch's manifest or records.
 Distinct starts at one path therefore use distinct Pair
-sessions and artifacts. Layout stays pinned to layout2: couch owns terminal
-switching, so layout3's third pane is the layer couch replaces.
+sessions and artifacts.
+
+**Layout is couch-wide and never mixed** (`pair#198`, reversing the 2026-08-22
+pin). `couch --layout3` gives every thread pair's own right-hand terminal;
+`--layout2` (the default) does not. It is a property of the couch PROCESS,
+chosen at startup and immutable for its lifetime -- not a per-thread setting.
+
+Two rules carry it:
+
+- **The flag reaches argv only at a COLD boundary.** A warm reattach sends no
+  layout flag at all, because a running session already has its layout and
+  asking for a different one sends pair down a path that offers to DELETE it
+  (`pair#179`). This is the safety property; the guard below is not.
+- **A startup guard refuses to mix.** `ThreadRecord.Layout` witnesses what each
+  thread's session is, and couch refuses to start when a thread already holds a
+  session in the other layout. The blocking set is the states that hold a
+  session -- live, detached, busy. A *parked* thread never blocks: park ends its
+  session, so its next cold resume takes couch's layout freely, which is what
+  makes "park them first" a reachable remedy rather than a dead end.
+
+A record written before `#198` has no layout field, and those are layout2 with
+certainty; `ProjectActionableThreads` normalizes them. An unreadable value
+becomes `LayoutUnknown`, which conflicts with every request rather than
+defaulting to something the guard would trust.
+
+The pin this reverses read "couch owns terminal switching, so layout3's third
+pane is the layer couch replaces" -- an actor-cluster-era claim that `#170`'s
+rescope to couch-lite invalidated: couch-lite switches agent sessions and never
+took over handing the operator a shell at their cwd.
 
 `ResolveLaunchProfile` keeps two provenance axes independent. Agent precedence
 is explicit start selection → the path preference's `last_agent` → the root
