@@ -3584,3 +3584,21 @@ that a key token appears cannot detect a contradictory behavioral sentence
   conflict, so the shapes with no valid suggestion were never rendered at all.
   If a message tells the operator to run something, assert that the something is
   runnable.
+- A mutation check has three ways to lie, and I hit all three in one issue.
+  (1) **Cached results**: `go test` printed `ok (cached)` for a mutated tree, so
+  the "failure" never ran — always pass `-count=1`. (2) **A mutation that does
+  not compile**: breaking `layoutRemedy` left a variable unused, so the package
+  failed to build and the grep for `FAIL` matched nothing that resembled a
+  passing test; read the FULL output, and treat a build error as "not yet
+  checked", never as "checked". (3) **Mutating the wrong thing**: I broke the
+  string interpolation when the fix under test was the agreement loop above it,
+  so a genuinely vacuous test looked verified. The mutation must be the smallest
+  edit that RESTORES the original defect — if you cannot state which finding the
+  mutation re-creates, you are not checking that finding.
+- A whole-document substring guard must anchor on a string unique to the surface
+  it guards. My README test asserted `"--layout3"`; README documents pair's own
+  `--layout3` in three other places, so deleting couch's entire block left the
+  guard green. The sibling assertions in the same test already used the
+  command-prefixed form (`"couch --list"`) — the convention was right there.
+  Before adding a want-string to a document guard, delete the thing it is meant
+  to protect and confirm the guard fails.
