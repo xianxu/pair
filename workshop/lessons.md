@@ -3673,3 +3673,46 @@ that a key token appears cannot detect a contradictory behavioral sentence
   `./cmd/pair-go` and the runtime bundle carries no helper binaries. The right
   home was a subcommand of the one binary that always exists. A build-system
   question answered correctly can still be the wrong question.
+
+## 2026-09-07 — A pipeline's exit status belongs to the LAST command, so `cmd | awk` swallows cmd's failure
+
+`doctor/perf.sh` opens with a rule: a collector that fails renders `n/a (<why>)`,
+never a value, because a fabricated reading is indistinguishable from a real one.
+Two sample collectors violated that rule inside the very file that states it:
+
+```sh
+cputimes() { ps -Ao pid=,time= | awk '{...}'; }
+...
+cputimes 2>/dev/null || say "n/a (ps unavailable)"
+```
+
+A denied `ps` makes the pipeline exit **0** — awk's status — with no output. The
+`||` never fires, and the section renders **empty**, which a reader parses as "no
+processes ran." Capture `cmd` into a variable first, check it, then pipe.
+
+Two things about how it surfaced are the actual lesson. It was invisible on a
+healthy machine, where `ps` always works — the failure mode only exists in the
+condition the tool is *for*. And it was found not by the seven review rounds that
+hardened this exact rule, but by running `make test` **inside the sandbox**, where
+`ps` is denied outright. A restricted environment is a free fault injector; when a
+test suite behaves differently sandboxed, read the difference instead of reaching
+for `dangerouslyDisableSandbox`.
+
+## 2026-09-07 — Put what matters where the transport is reliable, and keep a copy off the wire
+
+`:PairDoctor`'s payload arrived with 1,025 bytes gone from the **middle** of a
+2,447-byte send, head and tail intact (pair#211). The design mistake was not the
+size — a 180 KB send had succeeded minutes earlier — it was that the joined
+per-process rates existed **only in the prompt**. A lossy transport therefore
+destroyed the most valuable half of the capture with no copy anywhere.
+
+Two rules, both cheap, both applicable to any unreliable channel:
+
+- **Nothing of value exists only in the message.** Write the record to disk and
+  send a pointer. The prompt becomes a view, not the carrier.
+- **Put the pointer where the transport is reliable.** Here the head survives, so
+  the path goes in the first ~60 bytes — ahead of even the operator's note.
+  Truncation then degrades the message instead of destroying it.
+
+The general form: when a channel fails *partially*, don't only make the payload
+smaller. Find which region survives and put the recovery handle there.
