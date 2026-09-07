@@ -102,10 +102,16 @@ func ResolveLayoutConflicts(requested Layout, rows []ActionableThreadSummary) []
 // parking every conflicting thread empties the set, so the operator reaches the
 // layout they asked for through the tool rather than by hand-editing records.
 func layoutConflictRefusal(requested Layout, conflicts []LayoutConflict) error {
+	width := 0
+	for _, conflict := range conflicts {
+		if n := len(conflict.Address.Tag); n > width {
+			width = n
+		}
+	}
 	var rows strings.Builder
 	other := conflicts[0].Layout
 	for _, conflict := range conflicts {
-		fmt.Fprintf(&rows, "\n  %s  (%s, %s)", conflict.Address.Tag, conflict.Layout, conflict.State)
+		fmt.Fprintf(&rows, "\n  %-*s  (%s, %s)", width, conflict.Address.Tag, conflict.Layout, conflict.State)
 		if conflict.Layout != other {
 			other = LayoutUnknown
 		}
