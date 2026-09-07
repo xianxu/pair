@@ -4027,7 +4027,7 @@ do
   --
   -- It runs on a SCRATCH buffer, never the draft: the draft holds the
   -- operator's note, and firing a synthetic keystroke there would type into it.
-  local function time_editor()
+  local function time_editor(draft_buf)
     local hr = vim.loop.hrtime
     local scratch = vim.api.nvim_create_buf(false, true)
     local insert_ms, redraw_ms, complete_ms, complete_note
@@ -4037,7 +4037,14 @@ do
     pcall(function()
       vim.bo[scratch].filetype = vim.bo.filetype
       local t0 = hr()
-      vim.api.nvim_buf_set_lines(scratch, 0, -1, false, { 'pairdoctor timing probe' })
+      -- Seeded from the operator's ACTUAL draft, not a one-line stand-in: the
+      -- word completer scans the buffer, so timing it against one line measures
+      -- a workload the operator never has. The probe line is appended so there
+      -- is always a completable token at the cursor even on an empty draft.
+      local seed = (draft_buf and vim.api.nvim_buf_is_valid(draft_buf))
+        and vim.api.nvim_buf_get_lines(draft_buf, 0, -1, false) or {}
+      seed[#seed + 1] = 'pairdoctor timing probe'
+      vim.api.nvim_buf_set_lines(scratch, 0, -1, false, seed)
       vim.api.nvim_exec_autocmds('TextChangedI', { buffer = scratch })
       insert_ms = (hr() - t0) / 1e6
       local t1 = hr()
@@ -4063,8 +4070,9 @@ do
       local before_work = probe.work_count()
       local ok, err = pcall(function()
         vim.api.nvim_buf_call(scratch, function()
-          local line = vim.api.nvim_buf_get_lines(scratch, 0, 1, false)[1] or ''
-          vim.api.nvim_win_set_cursor(0, { 1, #line })
+          local n = vim.api.nvim_buf_line_count(scratch)
+          local line = vim.api.nvim_buf_get_lines(scratch, n - 1, n, false)[1] or ''
+          vim.api.nvim_win_set_cursor(0, { n, #line })
           local t2 = hr()
           completer()
           complete_ms = (hr() - t2) / 1e6
@@ -4125,7 +4133,7 @@ do
     local buf = vim.api.nvim_get_current_buf()
     local lines = vim.api.nvim_buf_get_lines(buf, 0, -1, false)
     local note = doctor.note_from_lines(lines)
-    local editor, verdict = time_editor()
+    local editor, verdict = time_editor(buf)
 
     local script = vim.env.PAIR_HOME .. '/doctor/perf.sh'
     if vim.fn.filereadable(script) == 0 then

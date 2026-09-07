@@ -409,6 +409,43 @@ to revert — a truncated report is still better than none.
 
 ## Revisions
 
+### 2026-09-07 — M2 boundary review round 11 (REWORK → addressed)
+
+15. **A failed SEND destroyed the note.** `submit.send_generated_prompt`
+    discarded `send_low_level`'s result and returned an unconditional `true`, so
+    a failed send was indistinguishable from a successful one — and the consume
+    branch keyed only on capture success. A failing `zellij action`, which is
+    the degraded machine this whole capture exists for, therefore left a cleared
+    draft, no notification, and the operator believing their note had gone
+    through. The send now returns its real result, the consume is gated on
+    `raw and sent`, and `tests/pair-doctor-test.sh` stubs a failing send —
+    mutation-verified: reverting the gate fails it.
+16. **The docs-gate deliverable is the enumeration.** Three members of this
+    class had survived nine rounds because each round fixed the site named.
+    Swept in one pass: `README.md` and `doctor/README.md` (both described a
+    drift-only pointer and neither mentioned that the draft buffer is read as
+    the note and cleared on a successful send — a user-visible behaviour change
+    a reader could not anticipate), `atlas/go-migration-inventory.md`'s
+    `doctor.lua` row, and three stale comments (`nvim/fixtures/` →
+    `doctor/fixtures/`, `delta`'s documented return shape omitting
+    `unmeasured`, and `complete_sink`/`complete_work` naming locals that became
+    `_G.PairCompleteProbe` when Lua's 200-local ceiling forced the change).
+17. **`comm` names containing a space were truncated to the first word**, so
+    "Google Chrome" was reported as "Google" — a wrong name attributed to a real
+    pid, which is worse than an ugly one.
+18. **The completion leg is now timed against the operator's real draft**, seeded
+    into the scratch buffer with the probe line appended. Timing the word
+    completer's buffer scan over one line measured a workload the operator never
+    has. `time_editor` takes the draft buffer as a parameter — it is defined
+    above `pair_doctor`, so the buffer was not in its scope.
+
+**Process note.** Two failure modes recurred in this rework and are worth
+carrying into `workshop/lessons.md`: a string replacement that silently did not
+apply (an anchor that had been renumbered) nearly shipped as "done", and
+`git checkout <file>` to undo a mutation check twice discarded uncommitted
+fixes in the same file. Commit before mutating; verify the replacement landed.
+
+
 ### 2026-09-07 — M2 boundary review round 10 (REWORK → addressed)
 
 Round 10 found that round 9's fixes were *instances*, not classes. Recorded
