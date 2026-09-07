@@ -1,0 +1,646 @@
+# Boundary Review — pair#208 (milestone M2)
+
+| field | value |
+|-------|-------|
+| issue | 208 — PairDoctor captures harness drift but not performance, so slowness is always reconstructed after the fact |
+| repo | pair |
+| issue file | workshop/issues/000208-pairdoctor-captures-harness-drift-but-not-performance-so-slowness-is-always-reconstructed-after-the-fact.md |
+| boundary | milestone M2 |
+| milestone | M2 |
+| window | 2fb5a79e7dbf3ef4ab63d72e01989e86a6e056f9..4b4b7563fde05d2087abe573a8f9bb1c9f3d4624 |
+| command | sdlc milestone-close --issue 208 --milestone M2 |
+| reviewer | claude |
+| timestamp | 2026-09-07T13:26:16-07:00 |
+| verdict | REWORK |
+
+## Review
+
+```verdict
+verdict: REWORK
+confidence: high
+```
+
+M2 delivers the shape the issue asked for — `:PairDoctor` now captures at invocation, runs asynchronously so the editor stays live, writes the full capture to a sidecar and sends a short head-first pointer, and the SKILL.md procedure is genuinely good. The async wiring, the buffer-preservation compare, and the `#211` response are all sound. What blocks SHIP is that the **editor-vs-environment discriminator does not measure the chain it names**: `time_editor()` fires a synthetic `TextChangedI` from a `:` command, so `run_completers()` hits its insert-mode guard (`nvim/init.lua:3801`) and returns before doing any work — I verified this under headless nvim (mode is `n`, and the handlers see `current_buf` = the draft, not the scratch). The Spec calls this "the single most valuable bit", and `doctor/SKILL.md` instructs the reader to exclude `#201`/`#203` on the strength of `editor: fast`. An exclusion drawn from a measurement that never ran the named chain is precisely the defect class this issue was opened to eliminate. Two further verified defects sit in the untested `init.lua` glue: the rolling-log probe keys come out as `hop_ms`/`exec_ms`/`action_ms` (they don't match perf.sh or the row's own `baselines`), and the sidecar has a fixed filename so the pointer in an earlier prompt silently resolves to a later capture.
+
+## 1. Strengths
+
+- **`nvim/init.lua:4028` — the async shell-out is done right.** First `vim.system` in `nvim/`, `vim.schedule`-wrapped callback, in-flight guard, and the note read at t0. The plan's named data-loss path is genuinely closed at `:4093-4101`: the buffer is consumed only when its content still equals what was read, with a notify otherwise.
+- **`doctor/perf.sh:136-145` — a real fix with a real pin.** Capturing `ps` into a variable before the pipe fixes BR-5's residual (a pipeline exits with awk's status), and `doctor/perf_test.sh:111-131` puts a failing `ps` on PATH and asserts `n/a`. Reverting to `ps | awk` makes that test go red. I could not execute it (ps is denied in this shell — BR-38, demoted), but the mechanism is correct by inspection.
+- **`nvim/doctor.lua:305 safe_comm` + the `\014` test** — a mutation-checked fix for an observed defect (WhatsApp's argv carrying SO), not a speculative one.
+- **`nvim/doctor.lua:310-338 format_delta`** honors the n/a-is-not-zero rule where it is easiest to skip: churn is printed unconditionally, and an idle window says so explicitly instead of rendering nothing.
+- **`nvim/doctor_test.lua:270-300`** pins the `#211` response as a *property* (path precedes the note, path within the first 400 bytes, payload under 1800 bytes) rather than as a golden string. That is the right instrument for a truncation-survival design.
+
+## 2. Critical findings
+
+**C1 — `nvim/init.lua:3970-3987`: the discriminator's `input` timing cannot observe the completion chain, and the report sells it as grounds for exclusion.**
+
+This is the **10th finding in family `failure-reported-as-measurement`.** Earlier rounds fixed instances (BR-2, BR-5, BR-8, BR-14, BR-16, BR-23, BR-29, BR-35, BR-39). Do not fix this instance alone. **The rule, stated once:** *every emitted reading names the precondition its measurement required and asserts it at the point of measurement; when the precondition does not hold the reading is `n/a (<unmet precondition>)` and every verdict derived from it degrades to `unknown`.* Failure-of-the-tool was only one shape of the family; failure-of-the-*preconditions* is the same rule at a new arity, and it is what round 10 found.
+
+Enumeration to sweep in one pass, both live in this window:
+
+1. **`time_editor` (init.lua:3970).** `:PairDoctor` is a `:` command with no keymap (grepped), so mode is `n` when the timing runs. `run_completers` (init.lua:3798-3802) returns at `if mode:sub(1,1) ~= 'i' then return end`. Verified under `nvim --clean -l`: the synthetic event fires with `mode="n"` and `current_buf` = the draft, not the scratch. So the number measures `nvim_buf_set_lines` plus autocmd dispatch, not `#202`'s completion chain — which is the entity the Spec, the plan's Core concepts row, and `doctor/SKILL.md`'s exclusion table all name. Secondary: because handlers read the *current* buffer rather than `args.buf`, the plan's "runs on a SCRATCH buffer, never the draft" holds only for the text insertion — the slug-mirror autocmd (init.lua:4201) still schedules against the draft.
+2. **`headline`'s allowlist (doctor.lua:346-352).** perf.sh renders a failed collector under a *different key* than its success form (`swap=n/a` vs `swapins_per_s=`, `probes=n/a` vs `pipe_hop_ms=`, `disk=n/a` vs `tps=`), so the hand-maintained `want` set drops them and the prompt omits the row with no explanation. Reproduced under `nvim -l`: a capture with `probes=n/a (pair not on PATH)` and `swap=n/a (vm_stat unavailable)` produced a headline with **no probe line and no swap line at all** — indistinguishable from a tool that has no such section. The shed path is the common trigger: a squeezed budget always renders `swap=n/a (sample window was shed…)`.
+
+Fix sketch: (a) drive the timing with the scratch buffer current and in insert mode so the chain actually runs, or relabel the number and the `verdict` contract to what it covers and drop the `#202` claim from the plan, SKILL.md and the payload text — either is acceptable, silently keeping the claim is not; (b) make a collector's failure rendering reuse its success key (`swapins_per_s=n/a (…)`, `pipe_hop_ms=n/a (…)`), which removes the need for `headline` to know about failure keys at all, and add one test asserting that for each headline key a degraded capture still produces a line.
+
+## 3. Important findings
+
+**I1 — `nvim/init.lua:4079`: the rolling row's probe keys are wrong, which is exactly what BR-40's rule predicted.**
+
+This is the **2nd finding in family `incomplete-parse-contract`.** BR-40 stated the rule: *`parse_samples` is the perf.sh→`doctor.lua` contract, so a caller that re-parses the capture with its own pattern is a second untested copy of that contract.* The prediction landed. `for k, v in (raw or ''):gmatch('(%w+_ms)=([%d%.]+)')` — Lua's `%w` excludes `_`, so the capture backtracks past the prefix. Verified under `nvim -l`: `pipe_hop_ms=0.007` → `hop_ms`, `fork_exec_ms=1.578` → `exec_ms`, `zellij_action_ms=14.385` → `action_ms`. Every row in `perf-captures.jsonl` therefore carries probe keys that match neither `perf.sh`'s emitted names nor the `baselines` table written into the same row (`doctor.lua:270`, which uses the full names). The row's stated purpose — "the baselines travel WITH the row … legible on its own" — is defeated: nothing joins `hop_ms` to `pipe_hop_ms` except a human guess. `doctor_test.lua:236` asserts `r.probes.pipe_hop_ms`, i.e. the intended key, so the test passes while the only production caller produces different ones.
+
+Fix per the rule, not the site: no pattern in `init.lua` may read `perf.sh` output. Add `doctor.probes_from(text)` (pure, driven by `doctor/fixtures/perf_capture.txt` so the producer pins the consumer) and have `capture_record` take its result. Grep-enumeration for the sweep: every `:match`/`:gmatch` over `raw`/`compact` in `nvim/init.lua` — today exactly this one.
+
+**I2 — no test drives the `:PairDoctor` wiring at all, and M2.4 promised one.**
+
+This is the **5th finding in family `untested-shell-surface`.** BR-38 stated the rule for shell (*a test must CONTROL the environment its subject reads*); the same rule is unapplied one language over. Plan M2.4 says the failed-capture note-preservation "is the one behaviour a test pins" — nothing pins it. `make test-lua` covers `doctor.lua`'s pure functions only; `pair_doctor()`, `time_editor()`, the sidecar write, the JSONL append, the in-flight guard and the buffer-consume compare are all unexecuted by any suite. I1 is the proof: the one defect that shipped lives in exactly the untested wrapper, and the pure test asserting the *intended* key passed throughout. The repo already has the pattern — `tests/draft-complete-mode-test.sh` drives a headless nvim through `_G.PairDraftCompleteTest`. Enumeration to sweep: expose a `_G.PairDoctorTest` seam with an injectable capture runner, then pin (a) note preserved when the buffer changed mid-flight, (b) note preserved when the capture failed, (c) probe keys round-tripping from a recorded perf.sh capture into the JSONL row, (d) the guard resetting.
+
+**I3 — `nvim/init.lua:4056`: the sidecar has one fixed filename, so the prompt's pointer goes stale silently.**
+
+`perf-capture-latest.txt` is overwritten by every capture, and `pair_data_dir()` is not tag-scoped, so concurrent sessions share it. The atlas entry added in this window states the invariant as "nothing of value exists only in the prompt" — with a fixed name, after a second capture the first capture's rates and samples exist nowhere, and prompt #1 now points at capture #2's contents with nothing marking the substitution. The design's own documented recovery path makes this likely rather than exotic: SKILL.md says "If the prompt you received looks cut off, that is the known bug: read the file" — and the operator's natural response to a truncated send is to re-run `:PairDoctor`, which destroys the file the earlier prompt points at. Fix: name the file by capture (`perf-capture-<epoch>.txt`, or tag+epoch), point at that, and keep a `-latest` symlink if a stable name is wanted for humans. While there, the two `pair_data_dir()` + `mkdir` + `io.open` blocks (`:4053-4062`, `:4076-4087`) should be one small writer helper (ARCH-DRY).
+
+**I4 — `ps`-derived text reaches the sidecar and the agent unfiltered.**
+
+This is the **2nd finding in family `recorded-fixture-redaction`.** The slug names the site rather than the rule; **the rule that covers both:** *`ps`-derived text is filtered — basename plus control-byte strip — at the single point it is emitted, before it reaches any consumer: fixture, prompt, file, or terminal.* `safe_comm` (doctor.lua:305) applies that filter to exactly one egress (`format_delta`). The sidecar written at `init.lua:4059` concatenates `compact` and the full `raw` samples verbatim, and `doctor/SKILL.md` instructs the agent to **open that file** — so the `^N` byte the round-7 fix was written for reaches the terminal again by the new path, one file over. A newline in a `comm` path is worse: it splits a sample row and can forge a `key=value` line inside the reader's evidence. `perf.sh`'s own standalone stdout (advertised in SKILL.md) has the same gap. Fix: filter in `sample()` at the point of emission (which also makes the committed fixture safe by construction rather than by BR-32's truncation accident) — I am not re-raising BR-17 or BR-32; this is the control-byte/egress axis, and one filter closes all three.
+
+## 4. Minor findings
+
+- **`nvim/init.lua:3991/4025` — `capture_running` has no reset on any path but the callback.** If `vim.system` throws at spawn, or if `perf.sh` hangs (the `#210` gap, which covers only the shell side), the flag stays `true` and `:PairDoctor` is dead for the session — on exactly the struggling machine it exists for. One `pcall` around the spawn plus a `timeout` in the `vim.system` opts. Family: `inflight-guard-without-reset` (new).
+- **`nvim/init.lua:4013` — the destructive consume targets `nvim_get_current_buf()`, not the draft.** 5th in family `unguarded-edge-case`; BR-41's rule already covers it (*a value read from outside is rejected at the point it is read when it is not one of the forms the code understands*). The repo has the resolver: `pair_slug_draft_buf()` / `draft_path_for_tag()` at `init.lua:4112`. Low likelihood (the review and scrollback panes are separate nvim processes), but the operation is an unconditional whole-buffer wipe.
+- **Plan checkboxes: every box, M1.1 through M2.9, is unticked at HEAD.** 4th in family `traceability`; BR-42's rule stands. It matters concretely here rather than as bookkeeping: two M2.6 sub-requirements were genuinely *not* delivered — the row carries no window length (`doctor.lua:263`), and `perf-captures.jsonl` has no cap despite "cap the file so it cannot grow without bound" — and with nothing ticked they are indistinguishable from the items that were.
+- `nvim/doctor.lua:164` still says "The fixture in `nvim/fixtures/`" (it is `doctor/fixtures/`) — BR-30, demoted, noted only because the same window's Revisions entry records the correct location.
+- `init.lua:4069` `if not body then return end` is unreachable (PAIR_HOME is checked at `:3997`) but skips the JSONL append and the consume if it ever fires.
+
+## 5. Test coverage notes
+
+The pure layer is well covered and the new assertions test properties rather than strings. The gap is structural: **the boundary between `doctor.lua` and `init.lua` has no test**, and both verified defects (C1's mode gate, I1's probe keys) live there. Note the pattern the review brief warns about — `doctor_test.lua:236` asserts `probes.pipe_hop_ms`, which is what the author *meant* the caller to produce; the caller produces `hop_ms` and the suite stays green. A fixture-driven `probes_from` plus a headless `:PairDoctor` harness closes both. Separately, `verdict`'s asymmetry is well tested at the function level but nothing tests that a `verdict` derived from a *precondition-violating* measurement degrades — which is C1's rule expressed as a test.
+
+## 6. Architectural notes
+
+- **ARCH-DRY — flag.** The probe key set is restated in four hand-maintained places: `perf.sh`'s `kv` calls, `headline`'s `want` (doctor.lua:347), `capture_record`'s `baselines` (doctor.lua:270), and `init.lua:4079`'s regex. Three of the four are already inconsistent with each other. One declared key table in `doctor.lua`, consumed by all three Lua sites and asserted against a live `perf.sh` run, collapses it.
+- **ARCH-PURE — flag.** The new `doctor.lua` functions are correctly pure and run under `nvim -l` with no IO. The violation is I1: capture parsing — business logic — sits in the IO shell.
+- **ARCH-PURPOSE — flag.** The shadow-sweep over the single-sourced key set finds the four restatements above. More seriously, the issue's stated purpose ("the single most valuable bit" is the discriminator) is under-delivered by C1 while the docs claim it in full.
+- **ARCH-MOCK — flag.** `perf.sh`'s system tools have no stateful fake; the seam is the join against a recorded fixture, which is a reasonable choice and was argued in the plan. But M2 added a second external dependency (`vim.system` spawning `perf.sh`) with no seam and no fake, so no test can run the capture end to end. `perf_test.sh`'s stateless `exit 1` stubs are the right idea at the wrong fidelity (BR-38's rule, still unapplied).
+- **ARCH-CONSTRAINTS — flag.** The binding constraint (don't block the UI) is honored correctly and is the best decision in the diff. The unbounded side remains: `vim.system` gets no `timeout`, so the nvim-side half of `#210` is unguarded (see Minor).
+- **ARCH-SECURE — flag.** I4. Also worth naming for future work: `perf-captures.jsonl` persists the operator's free-text draft content, uncapped, in a shared non-tag-scoped directory. The draft is where prompts are typed, so "whatever was in the buffer" is the threat surface, not just symptom prose.
+- **ARCH-ORDER — flag.** The plan's states×events table is the strongest artifact in this issue and the implementation follows it for the events it lists. Two gaps: the table has no row for *the capture never completes*, which is the one event the caller cannot block (Minor above); and the at-review lens on test oracles applies at full force — with zero tests over the wiring, every interleaving the table enumerates is unobserved, so a green suite reports no coverage of the ordering at all.
+
+## 7. Plan revision recommendations
+
+Append to `workshop/plans/000208-pairdoctor-perf-capture-plan.md` `## Revisions`:
+
+1. **M2.6 landed via `pair_data_dir()`, not `artifactpath`** — closes BR-1's plan half, which is still open at HEAD. Record in the same entry that the row carries **no window length** and `perf-captures.jsonl` is **uncapped**, both contrary to M2.6 as written, or deliver them.
+2. **M2.3's discriminator as built does not exercise the completion chain** — state the reduced scope (or the fix), because `doctor/SKILL.md`'s exclusion table and the payload text at `doctor.lua:230-233` both rest on the plan's stronger claim.
+3. **Core concepts table**: add rows for the entities that shipped without one — `strip_samples`, `headline`, `format_delta`, `parse_samples`, `parse_duration`, `verdict`/`FRAME_MS` — and rename the `CaptureRecord` row to `capture_record` to match the code. This is BR-42's rule applied at the M2 boundary.
+4. **Tick M1.1–M2.9** or mark the ones that were not done, so the archived plan does not read as "nothing was executed".
+
+---
+
+## Re-review — 2026-09-07T13:50:40-07:00 (REWORK)
+
+| field | value |
+|-------|-------|
+| issue | 208 — PairDoctor captures harness drift but not performance, so slowness is always reconstructed after the fact |
+| repo | pair |
+| issue file | workshop/issues/000208-pairdoctor-captures-harness-drift-but-not-performance-so-slowness-is-always-reconstructed-after-the-fact.md |
+| boundary | milestone M2 |
+| milestone | M2 |
+| window | 2fb5a79e7dbf3ef4ab63d72e01989e86a6e056f9..a8b5fd388252343a16d064ae6d33ac5038626cf4 |
+| command | sdlc milestone-close --issue 208 --milestone M2 |
+| reviewer | claude |
+| timestamp | 2026-09-07T13:50:40-07:00 |
+| verdict | REWORK |
+
+## Review
+
+```verdict
+verdict: REWORK
+confidence: high
+```
+
+The rework commit lands four of the five things it claims — `probes_from` is revert-verified (I patched the old `(%w+_ms)` pattern back into a scratch copy of `nvim/` and the row came out `{"exec_ms":1.5,"hop_ms":0.007}`, which `tests/pair-doctor-test.sh` catches), the degraded-capture headline now renders every key (I ran the real `perf.sh` under a sandbox with `ps`/`top`/`sysctl` denied and got all ten `HEADLINE_KEYS` as `n/a (<why>)`), the sidecar is per-capture, and the wiring finally has a headless test that pins the note-preservation rule and the in-flight guard. What blocks SHIP is that the **Critical from round 10 is not fixed in substance**: splitting `complete_now` off the insert-mode gate moved the early return one guard down rather than removing it. `nvim_buf_call` runs the completers in the autocmd window with the cursor at (1,0), so `path_complete`/`word_complete`/`spell_complete` all return at their `if col == 0 then return end` guard. Measured under the real `init.lua`: the completion leg takes **0.0040 ms** and the JSONL row records `"editor":"fast"` — the exact reading `doctor/SKILL.md` tells the agent to exclude `#201`/`#203` on, still drawn from a chain that did no work.
+
+## 1. Strengths
+
+- **`nvim/doctor.lua:415-434` `probes_from` + `tests/pair-doctor-test.sh:71-84`** — the fix and the instrument that catches it, and the instrument genuinely goes red without the fix (revert-verified above). The test drives the *real* `init.lua` headlessly through an injected runner, which is the structural gap round 10 named.
+- **`doctor/perf.sh:198-200`** — a failed collector now renders under its success key. Verified end to end: a fully denied environment still produces `load=n/a (…)`, `swapins_per_s=…`, `pipe_hop_ms=…` and a complete headline, so no consumer needs a second list of failure key names.
+- **`nvim/init.lua:4041-4046`** — `verdict` variadic over legs, with `n/a` on a leg that could not run, is the right shape. The asymmetry (one slow leg proves slow; `fast` requires every leg measured) is correct and well tested at `nvim/doctor_test.lua:381-385`.
+- **`nvim/init.lua:4183-4190`** — `pcall` around the spawn plus `timeout = 30000` closes the "guard never resets" path, and `tests/pair-doctor-test.sh:97-100` pins it with a throwing runner.
+- **`nvim/init.lua:4006-4020` / `pair_write_data_file`** — one writer for both artifacts, never throwing, returning `nil` so the payload can say "could not be saved" instead of pointing at a file that isn't there.
+
+## 2. Critical findings
+
+**C1 — `nvim/init.lua:4024-4038`: the completion leg still does not run the chain it names, and the report still sells `fast` as grounds for exclusion.**
+
+This is the **11th finding in family `failure-reported-as-measurement`.** Round 10 already stated the rule — *every emitted reading names the precondition its measurement required and asserts it at the point of measurement; when the precondition does not hold the reading is `n/a (<unmet precondition>)` and every verdict derived from it degrades to `unknown`* — and the rework fixed the one precondition the finding happened to name (mode) without writing the enumeration the rule implies. That is the instance, not the class.
+
+Measured, not inferred. Booting the real `nvim/init.lua` headless and wrapping `_G.PairDoctorCompleteNow`:
+
+```
+called buf=2 col=1 line="pairdoctor timing probe" mode=n
+complete_now took 0.0040 ms
+ROW: {"editor":"fast", …}
+```
+
+`vim.api.nvim_buf_call(scratch, …)` cannot reuse a window (the scratch buffer is never displayed), so it uses the autocmd window with the cursor at line 1, col 0. `path_complete` (`:1644`), `word_complete` (`:1817`) and `spell_complete` (`:1949`) each return at `if col == 0 then return end`. The expensive work `#202` is about — `picks_load`, reading `agent_output_path()`, scoring and sorting the span pool, scanning the buffer (`:1825-1877`) — never executes. `doctor/SKILL.md:79` still tells the reader that `editor: fast` means "**every** leg — buffer insert, redraw, and the `#202` completion chain — completed inside one frame", and to exclude `#201`/`#203` on it.
+
+The enumeration the rule demands, written once: the precondition of *every* leg must be asserted where the leg is timed.
+- **completion** — precondition is "the cursor sits after a completable token in the timed buffer". Today unasserted and false. Fix: set the cursor to end-of-line inside the `nvim_buf_call` (`WORD_TRIGGER_MIN` is 1, so the probe line qualifies), and — because `vim.fn.complete()` raises `E785` outside Insert mode — split the candidate build off the `complete()` call the same way `complete_now` was split off the gate, so the expensive half is timeable. Then assert the precondition (`vim.fn.col('.') > 1`, and a signal that the chain got past its token gate); if it does not hold, render `completion n/a (<why>)`, which already forces `unknown`.
+- **input** — `nvim_buf_set_lines` + `nvim_exec_autocmds('TextChangedI')`; the autocmd debounces onto a timer, so this leg measures a buffer write plus a timer schedule. That is defensible if the payload says so; "buffer insert" in SKILL.md is close enough, but do not let it read as keystroke handling.
+- **redraw** — `vim.cmd('redraw')` is a no-op headless; name the precondition (a real UI attached) rather than reporting `0.0ms`.
+
+And the test half: nothing in `tests/pair-doctor-test.sh` asserts anything about the editor legs, which is why round 10's fix could ship without measuring. One assertion that the timed chain reached its candidate build closes the class.
+
+## 3. Important findings
+
+**I1 — `doctor/perf.sh:198-200` + `doctor/perf_test.sh:28`: the "single-sourced key set" is not enforced across the shell boundary, so the C1(b) defect can return silently.**
+
+This is the **3rd finding in family `duplicated-logic`.** The rule: *one declaration per fact, and where a second language cannot import the declaration, a test asserts the two agree — a hand-maintained restatement is a deferred consumer, not a finished one* (ARCH-DRY, ARCH-PURPOSE's shadow-sweep). The rework collapsed the three *Lua* restatements into `doctor.PROBE_KEYS`/`HEADLINE_KEYS`/`BASELINES` (`nvim/doctor.lua:398-413`) and the plan's Revision 4 plus the commit message both claim the set is now one declaration. It is not: `swap_na`/`disk_na`/`probes_na` restate it in shell, and `perf_test.sh:28-31` restates a fourth, different subset.
+
+Verified: I copied `doctor/` to a scratch dir, renamed `swapins_per_s` → `swap_in_rate` throughout `perf.sh`, and re-ran `perf_test.sh` — the failure count was unchanged (the same two pre-existing sandbox `ps` failures, no new one). `doctor_test.lua`'s degraded test builds its input *from* `HEADLINE_KEYS`, so it cannot see a producer rename either. The prompt would silently lose the swap row — indistinguishable from a tool with no such section, which is precisely what C1(b) was about.
+
+Fix per the rule: `perf_test.sh` runs the real `perf.sh` (which emits every key even fully degraded, as shown above) and asserts that every key in `doctor.HEADLINE_KEYS` and `doctor.PROBE_KEYS` appears — reading that list from `doctor.lua` via `nvim -l`, not retyping it. That makes the shell a derived consumer instead of a fourth copy.
+
+**I2 — the tests still accept the ambient input where the seam to control it already exists.**
+
+This is the **5th finding in family `untested-shell-surface`.** BR-38's rule generalises to cover both live members: *a test controls the inputs its subject reads — subprocess output and event ordering alike — rather than accepting whatever the ambient environment supplies.* The machinery for both now exists in-tree and was applied to exactly one behaviour each.
+
+1. **`doctor/perf.sh:143-152`** — the ps-redaction (basename + control-byte strip) is the round-10 I4 fix, and no test fails without it. `perf_test.sh:117-133` puts a fake `ps` on PATH but it only `exit 1`s, so it pins the pipeline-exit-status half and nothing about content. Reverting the awk body to `$4` leaves every suite green. Related: `doctor/fixtures/perf_capture.txt:82` still carries full paths (`/System/Library/…/com.apple.geod`), i.e. the recorded fixture is output the current producer no longer emits — so the fixture's stated job (`nvim/doctor.lua:174-180`, "the CONTRACT between perf.sh and delta") is no longer being done. Sweep: promote the fake `ps` to recorded output including a control byte and a long path, assert basename + `?`, and regenerate the fixture from the current producer.
+2. **`nvim/init.lua:4157-4168`** — the buffer-changed-mid-flight branch, which the plan calls "the only **data-loss** path in the design", is unexecuted. The new test pins the failed-capture branch and the guard reset but not this one, and not the successful consume either. The seam makes it trivial: the injected runner receives `cb`, so it can rewrite the buffer before invoking it. Without that, a green suite reports one interleaving out of three (ARCH-ORDER at-review).
+
+**I3 — `doctor/SKILL.md:74` and `atlas/index.md:40` name `perf-capture-latest.txt`, which the code no longer writes.**
+
+This is the **3rd finding in family `docs-gate`.** The rule: *a doc that names a runtime artifact names the one the code produces, and the naming is checked in the same window that changes it* — enumerable by grepping docs for `$PAIR_DATA_DIR/<name>` and matching each against the writers in `init.lua`. The rework renamed the sidecar to `perf-capture-<epoch>.txt` (`nvim/init.lua:4128`, verified: the run produced `perf-capture-1788813769.txt`) but left both docs pointing at the old fixed name. SKILL.md's instruction is literally "**Open that file**", and it is the file an agent reads when the prompt arrives truncated — the recovery path `#211` exists for. Fix the two lines to describe the pattern (and, since the pattern is now a fact the docs restate, the same rule as I1 applies: state it once, in `doctor.lua`, and have the payload carry the path — which it already does).
+
+**I4 — `nvim/init.lua:3999-4002`: `time_editor` leaks a scratch buffer on every invocation, and the comment claims a delete that does not exist.**
+
+Family `unreleased-resource` (new): *a resource acquired inside a function is released on every exit path, and a comment claiming teardown is a claim a test should hold.* Measured: three `:PairDoctor` runs under headless nvim took the valid-buffer count from 1 to 4. `grep nvim_buf_delete nvim/init.lua` returns nothing. The plan's ARCH-ORDER table has a row requiring exactly this ("tear it down in a `pcall`-protected finally"), so the plan currently claims delivered behaviour the code does not have. One `pcall(vim.api.nvim_buf_delete, scratch, {force=true})` after the last use, plus a count assertion in `tests/pair-doctor-test.sh` (which already runs `:PairDoctor` three times' worth of paths).
+
+## 4. Minor findings
+
+- **`workshop/plans/…-perf-capture-plan.md:420-424`** claims the missing window-length field and the uncapped `perf-captures.jsonl` are "deferred to `#210`", but `workshop/issues/000210-*.md` records neither — it covers only time-bounding plus the three re-surfaced M1 findings. 4th in family `traceability`; the rule is that a deferral lands in the artifact that survives, and this plan archives to `workshop/history/` at close. Add both to `#210`'s table.
+- `nvim/init.lua:3829` adds `_G.PairDoctorCompleteNow` beside `_G.PairDraftCompleteTest.complete_now` (`:3827`) — two globals for one function; the timing site can read the existing table (ARCH-DRY).
+- `nvim/init.lua:4128` uses `os.time()`, so two captures in the same second collide on the sidecar name — the failure mode the per-capture rename exists to prevent, at one second's granularity. Sidecars also accumulate one file per invocation forever in a non-tag-scoped dir alongside the uncapped JSONL, both carrying the operator's raw draft text (ARCH-SECURE).
+- `nvim/doctor.lua:180` still says "The fixture in `nvim/fixtures/`" (it is `doctor/fixtures/`) — BR-30, previously demoted, noted only because I2 touches that fixture.
+- `vim.system` gets `timeout = 30000` against a declared 6 s envelope, so the in-flight guard can hold `:PairDoctor` closed for 30 s on a struggling machine. Defensible as an outer bound; worth naming in the plan's ARCH-CONSTRAINTS rather than leaving the 5× gap implicit.
+
+## 5. Test coverage notes
+
+`nvim -l nvim/doctor_test.lua` and `bash tests/pair-doctor-test.sh` are both green here (9/9 on the latter). `sh doctor/perf_test.sh` fails with 2 grammar-row failures in this shell because `ps` is denied — that is BR-38, already disposed and demoted, not a new defect, but it does mean `make test` is red in a sandboxed agent shell and I could not use `perf_test.sh` as a clean oracle for the I1 revert check (I compared failure counts instead). The pure layer is strong. The gaps are all "the test asserts what the author meant, not what the caller does": no assertion touches the editor legs (C1), the degraded-headline test builds its input from the very constant it validates (I1), the ps-content filter has no test at all (I2.1), and two of the three in-flight interleavings are unexecuted (I2.2).
+
+## 6. Architectural notes
+
+- **ARCH-DRY — flag** (I1). The Lua side is genuinely collapsed; the shell side is three restatements and a test that is a fourth.
+- **ARCH-PURE — pass.** Moving the capture parsing out of `init.lua` into `probes_from` removes the last business logic from the IO shell, and `pair_write_data_file` collapses the duplicated write blocks. `init.lua` is now orchestration only.
+- **ARCH-PURPOSE — flag** (C1). The Spec names the discriminator "the single most valuable bit"; the shadow-sweep over the single-source key set finds two deferred consumers (I1) and the discriminator still under-delivers while three artifacts claim it in full.
+- **ARCH-MOCK — partial pass.** `capture_runner` is a real seam and the wiring can now be driven end to end — the biggest structural improvement in the diff. The `ps`/`top`/`vm_stat` doubles are still stateless `exit 1` stubs, so no test can run the collection path against controlled output (I2.1).
+- **ARCH-CONSTRAINTS — pass with a note.** The budget is enforced and pinned (`elapsed ≤ budget` in `perf_test.sh`), shedding is reverse-value-order, and the UI-blocking constraint is honored. Unbounded: the scratch buffers (I4) and the sidecar/JSONL growth.
+- **ARCH-SECURE — flag** (I2.1). Filtering at the point of emission is the correct design; it is unpinned, and the committed fixture predates it.
+- **ARCH-ORDER — improved, flag.** The guard now resets on a throwing spawn and the spawn is time-bounded, both pinned. The remaining at-review lens applies: the buffer-consume compare — the plan's named data-loss path — is observed in exactly one interleaving (I2.2).
+
+## 7. Plan revision recommendations
+
+Append to `workshop/plans/000208-pairdoctor-perf-capture-plan.md` `## Revisions`:
+
+1. **M2.3 / Revision entry 2 is not yet true.** It states the timing "calls the chain directly against the scratch buffer"; it does, but through `nvim_buf_call`'s autocmd window at col 0, where all three completers return at their column guard (measured: 0.004 ms, verdict `fast`). Either record the reduced scope or, preferably, record the fix — and in the same entry state the rule the enumeration follows, so leg #4 is not the next round's finding.
+2. **Revision entry 4's "the key set is now single-sourced" overstates the delivery.** Three shell restatements (`perf.sh:198-200`) and a fourth in `perf_test.sh:28` remain, unenforced; a producer rename is invisible to every suite (verified). Either scope the claim to the Lua consumers or add the producer↔consumer assertion.
+3. **The M2.6 deferrals need a home that outlives this plan.** The entry says window-length and the JSONL cap are "deferred to `#210`"; `#210` records neither. Add them there, or drop the claim.
+4. **The ARCH-ORDER row "tear it down in a `pcall`-protected finally"** is unimplemented — `time_editor` never deletes the scratch buffer. Fix the code rather than the plan.
+
+```findings
+dispose:
+  - id: BR-1
+    disposition: addressed
+    note: |
+      Plan Revisions record M2.6 landing via pair_data_dir() not artifactpath, and the probe as the `pair hoprtt` subcommand; both mechanisms verified reachable in the tree.
+findings:
+  - id: new
+    severity: Critical
+    family: failure-reported-as-measurement
+    title: |
+      The completion leg still measures nothing — the gate moved from mode to cursor column, and `editor: fast` is still emitted as grounds for exclusion
+    detail: |
+      11th in this family. The rule was stated in round 10 and applied only to the
+      precondition that round named. nvim_buf_call runs complete_now in the autocmd
+      window at col 0, so path/word/spell_complete all return at `if col == 0 then
+      return end` (init.lua:1644, :1817, :1949). Measured under the real init.lua:
+      complete_now takes 0.0040 ms and the row records "editor":"fast", while
+      doctor/SKILL.md:79 tells the reader that `fast` means the #202 chain ran inside
+      a frame and that #201/#203 are excluded on it. Fix the class: assert each leg's
+      precondition where it is timed (completion needs a completable token at the
+      cursor; redraw needs a real UI), render n/a with the unmet precondition
+      otherwise, and add one wiring assertion that the timed chain reached its
+      candidate build. Note vim.fn.complete() raises E785 outside Insert mode, so the
+      candidate build must be split off the complete() call the way complete_now was
+      split off the gate.
+  - id: new
+    severity: Important
+    family: duplicated-logic
+    title: |
+      The single-sourced key set stops at the Lua boundary — perf.sh and perf_test.sh restate it, and a producer rename breaks nothing
+    detail: |
+      3rd in this family. Rule: one declaration per fact, and where a second language
+      cannot import it, a test asserts the two agree. doctor.lua:398-413 collapsed the
+      three Lua sites, but perf.sh:198-200 restates the set in shell and
+      perf_test.sh:28 restates a different subset. Verified by renaming
+      swapins_per_s to swap_in_rate in a scratch copy of doctor/ — perf_test.sh's
+      failure count was unchanged, and doctor_test.lua cannot see it because it builds
+      its degraded input from HEADLINE_KEYS itself. The prompt would silently drop the
+      swap row, which is the C1(b) defect returning. Fix: perf_test.sh runs the real
+      perf.sh and asserts every key read out of doctor.HEADLINE_KEYS/PROBE_KEYS via
+      `nvim -l` appears in the output.
+  - id: new
+    severity: Important
+    family: untested-shell-surface
+    title: |
+      The ps-content filter and the buffer-changed interleaving are both unexecuted, though the seams to control each now exist
+    detail: |
+      5th in this family. BR-38's rule generalised: a test controls the inputs its
+      subject reads — subprocess output and event ordering alike. Two live members.
+      (1) perf.sh:143-152's basename + control-byte strip has no test; perf_test.sh's
+      fake ps only `exit 1`s, so reverting the awk body to `$4` leaves every suite
+      green, and doctor/fixtures/perf_capture.txt:82 still carries full paths the
+      current producer no longer emits. (2) init.lua:4157-4168's buffer-changed
+      branch — the plan's only data-loss path — is unexecuted; the injected runner
+      receives cb, so the test can rewrite the buffer before invoking it. Sweep both:
+      recorded-output ps fake plus a regenerated fixture, and the two missing
+      interleavings in tests/pair-doctor-test.sh.
+  - id: new
+    severity: Important
+    family: docs-gate
+    title: |
+      SKILL.md and atlas name perf-capture-latest.txt, which the rework stopped writing
+    detail: |
+      3rd in this family. Rule: a doc naming a runtime artifact names the one the code
+      produces, checked in the window that changes it — enumerable by grepping docs
+      for $PAIR_DATA_DIR/<name> against the writers in init.lua. init.lua:4128 now
+      writes perf-capture-<epoch>.txt (verified: perf-capture-1788813769.txt), while
+      doctor/SKILL.md:74 and atlas/index.md:40 still name the fixed file and SKILL.md
+      instructs the agent to open it — the truncated-send recovery path #211 exists
+      for.
+  - id: new
+    severity: Important
+    family: unreleased-resource
+    title: |
+      time_editor leaks a scratch buffer per invocation while its comment claims a guaranteed delete
+    detail: |
+      New family. Rule: a resource acquired inside a function is released on every
+      exit path, and a comment claiming teardown is a claim a test should hold.
+      init.lua:3999 creates the buffer; nothing deletes it (grep nvim_buf_delete
+      returns nothing) and :4001 asserts otherwise. Measured: three :PairDoctor runs
+      took the valid-buffer count from 1 to 4. The plan's ARCH-ORDER table has a row
+      requiring the teardown, so the plan claims delivered behaviour the code lacks.
+  - id: new
+    severity: Minor
+    family: traceability
+    title: |
+      The M2.6 deferrals are recorded only in the plan, which archives at close — issue 210 records neither
+    detail: |
+      4th in this family. The plan's Revisions say the missing window-length field and
+      the uncapped perf-captures.jsonl are "deferred to #210"; #210 covers only
+      time-bounding plus three re-surfaced M1 findings. A deferral must land in the
+      artifact that survives the archive.
+```
+
+---
+
+## Re-review — 2026-09-07T14:17:21-07:00 (REWORK)
+
+| field | value |
+|-------|-------|
+| issue | 208 — PairDoctor captures harness drift but not performance, so slowness is always reconstructed after the fact |
+| repo | pair |
+| issue file | workshop/issues/000208-pairdoctor-captures-harness-drift-but-not-performance-so-slowness-is-always-reconstructed-after-the-fact.md |
+| boundary | milestone M2 |
+| milestone | M2 |
+| window | 2fb5a79e7dbf3ef4ab63d72e01989e86a6e056f9..51d807c3dfa106cd93cae9e51a2fb184dcab93b6 |
+| command | sdlc milestone-close --issue 208 --milestone M2 |
+| reviewer | claude |
+| timestamp | 2026-09-07T14:17:21-07:00 |
+| verdict | REWORK |
+
+## Review
+
+```verdict
+verdict: REWORK
+confidence: high
+```
+
+Round 10's five dispositions largely hold up under mutation testing: I reverted each claimed fix in a scratch copy and four of the five went red exactly where they should (cursor placement → the work-counter assertion fails; producer key rename → one conformance assertion fails; `ps` awk redaction → three assertions fail; `nvim_buf_delete` removal → the buffer-count assertion fails; buffer-equality guard → the data-loss assertion fails). `make test` is green end to end outside the agent sandbox. What blocks SHIP is one new Critical and one class rule that was again applied only to the leg the finding happened to name: `send_generated_prompt` (`nvim/submission.lua:66`) discards the `(ok, phase, err)` triple that `draft_send.M.send` returns on a failed `zellij action` and returns `true` unconditionally, so `:PairDoctor` clears the operator's note on a *failed* send while the plan, the code comment, and plan Revisions #8 all claim "consume only on a successful send" — and the repo's own draft path (`nvim/init.lua:1521`, "Durability is the submission gate… any failure leaves all authored state intact") already implements the rule this path skips. BR-44's class rule named the redraw leg explicitly and only the completion leg was fixed.
+
+## 1. Strengths
+
+- **The completion leg's fix is the right shape and is genuinely pinned.** `nvim/init.lua:4057-4083` proves the expensive half ran (`probe.work_count()`) rather than asserting a precondition that the next gate can slip past, and `tests/pair-doctor-test.sh:106` fails when the cursor placement is reverted (verified). Swapping `vim.fn.complete` for a no-op sink to dodge E785 outside Insert mode is the correct way to time the chain without side effects.
+- **`tests/perf-key-conformance-test.sh` is the right instrument for the Lua↔shell boundary.** It reads the declaration out of `doctor.lua` via `nvim -l` and checks it against a *real* `perf.sh` run; renaming `swapins_per_s` → `swap_in_rate` in the producer fails exactly one assertion (verified). The `io.stdout` note at :29-31 and the `CAPOUT`-to-file note at :46-49 are both real traps correctly avoided.
+- **Filtering `comm` at the single point of emission** (`doctor/perf.sh:143-152`) rather than at `format_delta` closes the sidecar and fixture egresses at once, and `perf_test.sh:145-161` now drives it with a fake `ps` carrying a real `^N` and a long path.
+- **`doctor.verdict`'s asymmetry** (`nvim/doctor.lua:146-162`) using `select('#', ...)` rather than `{...}` is correct for the leading-nil case and is the kind of detail that usually ships broken.
+- **`doctor/SKILL.md`'s "read the report in this order" section** is genuinely usable — the `editor: unknown` row explicitly forbids the exclusion, which is the failure mode the last three rounds were about.
+
+## 2. Critical findings
+
+**`nvim/init.lua:4187` + `nvim/submission.lua:66-69` — a failed send is indistinguishable from a successful one, and the note is destroyed on it.**
+
+`send_to_agent` → `draft_send.M.send` returns `false, phase, '<label> exited N'` when a `zellij action` fails (`nvim/draft_send.lua:43`) or when no UI is attached (`nvim/init.lua:794`). `submit.send_generated_prompt` throws all three away and returns `true`. In `on_capture`, the consume branch keys off `raw` (capture success) only, so when the capture succeeds and the *send* fails, `nvim/init.lua:4223` clears the buffer and no notify fires. The operator sees a cleared draft, concludes it was sent, and their symptom description — the one input this feature says cannot be re-measured — is gone from the buffer. The trigger condition is a failing `zellij action`, which is precisely the degraded machine this whole capture exists for.
+
+Fix sketch: have `submit.send_generated_prompt` return `send_low_level`'s `ok` (its two other callers at `:906`/`:3271` ignore the result today, so this is additive), gate the consume on `raw and sent`, and notify on `not sent`. Then extend `tests/pair-doctor-test.sh` with a `_G.PairTestSendToAgent` stub that returns `false` and assert the note survives — the same shape as the existing failed-capture check at :95-101.
+
+## 3. Important findings
+
+**Docs gate — `README.md` and `doctor/README.md` still describe `:PairDoctor` as a drift-only pointer, and neither mentions that the draft buffer is now consumed.**
+
+`README.md:605` says `:PairDoctor` reads "the session's adaptation flight recorder"; `doctor/README.md:63-69` says it "hands whatever agent is running … an instruction to run `doctor.sh`". Both are now under-descriptions of a command that also takes a ~5 s performance capture and **clears the draft buffer as the operator's note** — a user-visible behavior change a reader has no way to anticipate. Neither file is in this window's diff, and `doctor/README.md` has no mention of `perf.sh` at all.
+
+This is the 4th finding in family `docs-gate`, so the deliverable is the enumeration, not the two files. See §7 for the rule and the sweep list; note that `BR-20` (this same `doctor/README.md` gap) was disposed `not-addressed` twice before being demoted past the round cap, and `BR-30`'s comment drift is still live at `nvim/doctor.lua:180` ("The fixture in `nvim/fixtures/`" — it is `doctor/fixtures/`) and `:75-76` (the documented return shape still omits `unmeasured`). Three members of one enumerable class survived nine rounds because each round fixed the site named rather than writing the enumeration.
+
+## 4. Minor findings
+
+- `nvim/init.lua:1641-1643` — the header comment names `complete_sink` and `complete_work`; the code has `_G.PairCompleteProbe.sink` / `.work`. Same comment-drift class as `BR-30`.
+- `nvim/init.lua:4181` — if the sidecar write fails, `sidecar` is `nil` and the raw samples and full rate list exist nowhere; the prompt says so honestly, but the atlas invariant "nothing of value exists only in the prompt" silently doesn't hold on that path.
+- `nvim/init.lua:4062` — the completion chain is timed against a one-line scratch buffer, so `word_complete`'s draft-buffer word scan runs over 1 line instead of the operator's real draft. The agent-output half (the expensive part) still runs; copying the draft's lines into the scratch would raise fidelity at no cost.
+- `doctor/perf.sh:147` — `$4` still truncates a `comm` containing a space, so "Google Chrome" basenames to `Google` (the residue of `BR-17`).
+
+## 5. Test coverage notes
+
+- Mutation-verified this round: cursor placement, producer key rename, `ps` redaction, `nvim_buf_delete`, buffer-equality guard. All five go red when reverted. That is the standard the earlier rounds lacked.
+- Not covered: the failed-**send** interleaving (§2). `tests/pair-doctor-test.sh` covers failed capture, changed buffer, throwing spawn, and the work counter, but every path assumes the send succeeded.
+- Not covered: any assertion on the `editor:` line's own grammar. That format string lives in `nvim/init.lua:4095-4099` — the only report line built in the IO shell rather than in `doctor.lua` — so the pure suite cannot see it, and `n/a (<why>)` rendering is unpinned.
+- Environment note for whoever re-runs: `make test-perf-capture` fails inside the agent sandbox because `ps` is denied, so `perf_test.sh:111`'s "≥10 sample rows" assertion sees the two `n/a` lines instead. It passes with the sandbox off (confirmed), and the full `make test` is green there. This is pre-existing at the window base and already recorded in `workshop/lessons.md`, so I have not raised it as a finding — but `BR-24`'s own rule ("checked in EVERY environment … including the sandboxed agent shell that runs `make test` before every close") is not actually enforced by anything, and the recorded fixture at `doctor/fixtures/perf_capture.txt` would let the grammar pin run environment-independently.
+
+## 6. Architectural notes
+
+- **ARCH-DRY — pass.** `PROBE_KEYS`/`HEADLINE_KEYS`/`BASELINES` is now one declaration with a cross-language conformance test; `swap_na`/`disk_na`/`probes_na` collapse the failure ladder; `pair_write_data_file` is one writer for both artifacts.
+- **ARCH-PURE — pass with a note.** `doctor.lua` stays vim-API-free and runs under `nvim -l`; the IO shell is thin. The exception is the `editor:` line assembly in `time_editor`, which is report formatting in the IO layer (see §5).
+- **ARCH-PURPOSE — flag.** Two enumerable classes were answered at the site the finding named: the leg-precondition rule (BR-44, completion only) and the doc-enumeration rule (`docs-gate`, SKILL.md + atlas only). Both enumerations are cheap to write and neither was.
+- **ARCH-MOCK — pass.** `perf.sh`'s external tools are faked by PATH-shadowed stubs, the join is tested against a recorded fixture, `pair hoprtt` is invoked through the real built binary, and `capture_runner` is the injected seam for the wiring. `perf-key-conformance-test.sh` is the live conformance check.
+- **ARCH-CONSTRAINTS — flag.** The `editor: fast` claim rests on three legs, only one of which can now demonstrate it did the work it names (see BR-44 disposition). The nvim-side `timeout = 30000` is 5× the plan's declared 6 s hard budget; that is deliberate and documented as the nvim half of `#210`, but the ceiling the operator experiences is 30 s, not 6 s.
+- **ARCH-SECURE — pass.** `comm` filtered at emission, no `env` dump, the regenerated fixture carries basenames only and no paths, usernames or tokens (checked). The operator's note is their own text by design.
+- **ARCH-ORDER — flag.** The plan's table is good and five of its rows are now driven by tests. The row that is *not* in the table is the one in §2: `(capture succeeded, send failed) -> consume`. That is the missing cell, and it is the one that loses data.
+
+## 7. Plan revision recommendations
+
+1. **Retract Revisions #8's claim.** It states the wiring test "pins plan M2.4's stated rule, **consume only on a successful send**". It does not — it pins consume-only-on-a-successful-*capture*, and the send's success is not observable at that seam. Add a `## Revisions` entry saying so, and either implement the rule or restate M2.4 to match what ships.
+2. **State the `docs-gate` rule and its enumeration.** Proposed rule: *a change to a user-facing surface updates every doc that describes that surface, where the enumeration is `grep -rl '<surface>' --include='*.md'` minus `workshop/history|plans|issues`.* For `:PairDoctor` that is `README.md`, `doctor/README.md`, `doctor/SKILL.md`, `atlas/index.md`; for artifact names it is the grep of `$PAIR_DATA_DIR/<name>` against the writers in `init.lua`. Record that the class has three surviving members (`BR-20`, `BR-30`, this) as measured prevalence.
+3. **Correct the Core concepts table itself, not only the Revisions prose.** The table still carries `pair-hoprtt | cmd/pair-hoprtt/main.go | new` (reversed in round 3) and `CaptureRecord | nvim/doctor.lua` (the code has `capture_record`), and the eleven entities listed in Revisions #3 have no rows. A reader greps the table, not the revision log.
+4. **Note M2.6's ticked box.** It reads `- [x]` while Revisions #1 concedes the window-length field and the file cap were not delivered; a ticked box that Revisions retracts is the same drift in miniature.
+
+```findings
+dispose:
+  - id: BR-44
+    disposition: not-addressed
+    note: |
+      Completion leg verified fixed and pinned; the redraw/input legs named in the same rule still have no precondition or proof-of-work.
+  - id: BR-45
+    disposition: addressed
+    note: |
+      Verified by renaming swapins_per_s in a scratch copy — perf-key-conformance-test fails exactly one assertion.
+  - id: BR-46
+    disposition: addressed
+    note: |
+      Both members verified by revert: the awk redaction and the buffer-equality guard each take a suite red.
+  - id: BR-47
+    disposition: addressed
+    note: |
+      SKILL.md:74 and atlas/index.md:40 now name perf-capture-<epoch>.txt; no perf-capture-latest remains in the tree.
+  - id: BR-48
+    disposition: addressed
+    note: |
+      Verified by removing the nvim_buf_delete — the buffer-count assertion goes red.
+  - id: BR-49
+    disposition: not-addressed
+    note: |
+      Issue 210 is unchanged since b57cd08a (outside this window) and records neither the missing window-length field nor the uncapped perf-captures.jsonl.
+findings:
+  - id: new
+    severity: Critical
+    family: discarded-failure-signal
+    title: |
+      send_generated_prompt discards send_to_agent's failure, so :PairDoctor clears the operator's note on a failed send and reports nothing
+    detail: |
+      nvim/draft_send.lua:43 returns `false, phase, '<label> exited N'` when a zellij
+      action fails, and nvim/init.lua:794 returns false with 'no attached UI'.
+      nvim/submission.lua:66-69 throws all three away and returns true
+      unconditionally. In on_capture (nvim/init.lua:4187) the consume branch keys
+      off `raw` alone, so a successful capture plus a failed send reaches
+      nvim/init.lua:4223 and clears the buffer with no notify — the operator sees an
+      emptied draft and concludes it was sent. The trigger is a failing zellij
+      action, which is the degraded machine this capture exists for. The plan (M2.4),
+      the code comment at :4218-4222, and plan Revisions #8 all claim "consume only
+      on a successful send"; none of the three is implemented, and the repo's own
+      draft path already states and honours the rule at nvim/init.lua:1519-1521
+      ("Durability is the submission gate … any failure leaves all authored state
+      intact"). Same underlying rule as BR-2 in `failure-reported-as-measurement` — a
+      discarded error becomes a fabricated success — but in the send domain rather
+      than the measurement domain, and here the fabricated success authorises a
+      destructive step. Fix: return send_low_level's ok from send_generated_prompt
+      (its two other callers ignore the result, so this is additive), gate the
+      consume on it, notify on failure, and drive the interleaving with a
+      _G.PairTestSendToAgent stub returning false.
+  - id: new
+    severity: Important
+    family: docs-gate
+    title: |
+      README.md and doctor/README.md still describe :PairDoctor as a drift-only pointer and never mention that it now consumes the draft buffer
+    detail: |
+      This is the 4th finding in family `docs-gate`, so the deliverable is the rule
+      and its enumeration, not these two files. Rule: a change to a user-facing
+      surface updates every doc that describes that surface, and the enumeration is
+      mechanical — `grep -rl '<surface>' --include='*.md'` minus
+      workshop/{history,plans,issues}. For `:PairDoctor` that is README.md,
+      doctor/README.md, doctor/SKILL.md, atlas/index.md; the last two were updated
+      and the first two were not. README.md:605 still says it reads "the session's
+      adaptation flight recorder"; doctor/README.md:63-69 still says it hands the
+      agent "an instruction to run doctor.sh", and doctor/ 's own README never
+      mentions perf.sh. Neither states the user-visible behaviour change that the
+      draft buffer is consumed as the note. Measured prevalence of the class: three
+      members survived to this round — BR-20 (this same doctor/README.md gap,
+      disposed not-addressed twice then demoted), BR-30 (nvim/doctor.lua:180 still
+      says the fixture is in nvim/fixtures/ when it is doctor/fixtures/, and :75-76
+      still omits `unmeasured` from delta's documented return shape), and this. Each
+      round fixed the site named instead of writing the enumeration, which is why the
+      class keeps returning.
+```
+
+---
+
+## Re-review — 2026-09-07T14:38:33-07:00 (FIX-THEN-SHIP)
+
+| field | value |
+|-------|-------|
+| issue | 208 — PairDoctor captures harness drift but not performance, so slowness is always reconstructed after the fact |
+| repo | pair |
+| issue file | workshop/issues/000208-pairdoctor-captures-harness-drift-but-not-performance-so-slowness-is-always-reconstructed-after-the-fact.md |
+| boundary | milestone M2 |
+| milestone | M2 |
+| window | 2fb5a79e7dbf3ef4ab63d72e01989e86a6e056f9..1d6dc2161254317da23508f185625ea89c724efc |
+| command | sdlc milestone-close --issue 208 --milestone M2 |
+| reviewer | claude |
+| timestamp | 2026-09-07T14:38:33-07:00 |
+| verdict | FIX-THEN-SHIP |
+
+## Review
+
+```verdict
+verdict: FIX-THEN-SHIP
+confidence: high
+```
+
+Round 12. The two open Criticals are genuinely fixed and I verified both by mutation rather than by reading the commit messages: reverting the cursor placement in `time_editor` turns the work-counter assertion red, and reverting the consume gate to `not raw` turns the failed-send assertion red. Live-rendered under the real `init.lua`, the discriminator now reads `editor: fast (input 0.1ms, redraw 0.4ms, completion 0.8ms; slow at >=16ms…)` — a completion figure that matches `#202`'s independently benchmarked 0.97 ms, so the leg is measuring the chain rather than a gate. The docs-gate enumeration was swept and the sites are now accurate. What blocks SHIP is not a defect in the shipped behaviour but its instrumentation: **every test in the suite runs with the send failing**, so the consume-on-success branch, the wired `parse_samples → delta → format_delta` join, and `submission.lua`'s new real-result return are all unexecuted — I confirmed the last by reverting it to `return true` and watching both `pair-doctor-test.sh` and `submission_test.lua` stay green. Plus one unswept member of the enumeration round 11 named (the redraw leg's precondition) and the operator's note living only on the lossy channel.
+
+## 1. Strengths
+
+- **`tests/pair-doctor-test.sh:104-116`** — the work counter is the right instrument for a defect that had shipped twice under two different preconditions. It is not a restatement of the fix: removing the cursor placement makes it fail with `work counter did not move`. This is the assertion the previous eleven rounds lacked.
+- **`tests/perf-key-conformance-test.sh`** — reads the key set out of `doctor.lua` and checks it against a **real** `perf.sh` run. It also passes in the sandbox where `ps` is denied, because a failed collector renders under its success key — the degraded path is what makes the test meaningful rather than skipped. This is the clean ARCH-MOCK shape: fake for the unit tests, live conformance in `make test`.
+- **`doctor/perf.sh:145-155`** — filtering `comm` at the single point of emission rather than at one consumer, with the space-preserving basename (`Google Chrome`, not `Google`). The regenerated fixture is clean: no control bytes, no `/Users/` paths.
+- **`nvim/init.lua:4004-4022`** — `pair_write_data_file` collapses two writers into one with a single failure policy, and its `nil` return is actually consumed for the sidecar so the payload says "could not be saved" instead of naming a file that isn't there.
+- **`nvim/doctor.lua:145-160`** — `verdict` made variadic with `select('#', ...)` rather than `{...}`, with the reason written down: a table constructor with a leading `nil` has an unreliable length, and the dropped-leg case is exactly what the function exists to notice.
+
+## 2. Critical findings
+
+None.
+
+## 3. Important findings
+
+**a. Every test drives the send as failing, so the destructive branch and the wired join are unexecuted** — `tests/pair-doctor-test.sh`
+`send_to_agent` returns `false, 'start', 'no attached UI'` (`nvim/init.lua:741`) in headless, so in tests 1–4 the real send already fails and the buffer is never cleared. Test 5's stub is therefore redundant for its own premise, and no test ever reaches `nvim/init.lua:4229` — the clear. I mutation-verified the second half: reverting `submission.lua:75` to `return true` leaves both `pair-doctor-test.sh` and `submission_test.lua` green. Third member: the test fixture `capture.txt` contains no `## sample_a`/`## sample_b` sections, so `if a and b then` at `nvim/init.lua:4180` is never entered — the wired join is exactly the code a prior round found dead in production, and it is still unexecuted. Fix: set `_G.PairTestZellijExecutor` for one case and assert the buffer *is* cleared; give the fixture real sample blocks; add `ok(not submit.send_generated_prompt('x'), …)` to `submission_test.lua`.
+
+**b. The redraw leg still asserts no precondition** — `nvim/init.lua:4051-4053`
+Round 11 named two members of the class ("completion needs a completable token at the cursor; redraw needs a real UI"). Only the completion member was swept. `vim.cmd('redraw')` is timed unconditionally, and `has_ui()` already exists at `nvim/init.lua:689` (ARCH-DRY). Not reachable in production today — `:PairDoctor` always runs with a TUI attached — which is why this is Important and not Critical, but it is the last unswept row of the enumeration the finding itself wrote.
+
+**c. The operator's note exists only on the channel that is known to drop its middle** — `nvim/init.lua:4189-4193`
+The sidecar carries `compact .. rates .. raw` and no note; I confirmed this against a produced file. The buffer is cleared on a successful send, and `perf-captures.jsonl` (the only other copy) is never named in the payload. The note is also uncapped, so a pasted log becomes an arbitrarily long prompt whose middle is the drop zone `#211` measured. This contradicts the invariant this milestone recorded in `atlas/index.md` and `workshop/lessons.md`: *nothing of value exists only in the prompt*. One-line fix: prepend `## operator note` to the sidecar body.
+
+## 4. Minor findings
+
+- `nvim/init.lua:4200` — the JSONL append's failure is discarded and silent; the comparative series can stop accumulating with no signal. `pair_write_data_file` already returns `nil` on failure.
+- `perf-captures.jsonl` schema: an empty `probes` encodes as `[]`, not `{}` (verified), so `jq '.probes.pipe_hop_ms'` breaks on degraded rows; and the row carries no schema version despite being designed to be read "years later".
+- `doctor/perf.sh:203-205` — `swap_na`/`disk_na`/`probes_na` are three copies of one loop differing only in the key list (ARCH-DRY); one `na_for reason key…` would do.
+- `nvim/init.lua:4046` — `nvim_exec_autocmds('TextChangedI')` fires the live debouncer, cancelling any pending completion and resetting `complete_last_fire`. The diagnostic perturbs the editor it is measuring.
+
+## 5. Test coverage notes
+
+Measured, not asserted: `make test-lua` green; `perf-key-conformance-test.sh` 10/10; `pair-doctor-test.sh` 13/13; `doctor/perf_test.sh` green **outside** the sandbox and failing inside it on the ≥10-row grammar pin, because the sandbox denies `ps` — an environment restriction (manageable via `/sandbox`), and already recorded as `BR-38` in `#210`. Unexecuted branches beyond finding (a): `doctor` load failure, `PAIR_HOME` unset, the double-invocation `capture is already running` guard, `perf.sh` not readable, sidecar-write failure, and both `n/a` notes on the completion leg.
+
+## 6. Architectural notes
+
+ARCH-DRY flag (minor d, and `has_ui()` in b); ARCH-PURE pass — `doctor.lua` runs under `nvim -l` with no IO and the glue has an injected runner; ARCH-PURPOSE flag (b, and BR-49); ARCH-MOCK **pass, and the strongest part of this diff** — PATH-based `ps` fakes, an injected capture runner, a recorded real capture, and a live conformance check wired into `make test`; ARCH-CONSTRAINTS pass — 6 s script budget plus a 30 s `vim.system` timeout, capture async; I benchmarked the synchronous `time_editor` seed at 2.11 ms for 20 000 lines, so it cannot fabricate a `slow` verdict; ARCH-SECURE pass, with one item for later: `ps`-derived process names now reach the agent's context in a file it is instructed to open, so a locally-crafted process name is a prompt-injection surface — control bytes are stripped, text is not; ARCH-ORDER pass on the guard (both reset paths reasoned, the buffer-changed interleaving driven), flagged only by finding (a) — the send-success interleaving has a seam and nothing drives it.
+
+## 7. Plan revision recommendations
+
+None for the plan — its `## Revisions` already correct every statement the code contradicts. The gap is in `#210`: it needs the two M2.6 sub-requirements (no window-length field in the row; `perf-captures.jsonl` uncapped) added to its Problem/Done-when, since the plan that currently records them archives at close.
+
+```findings
+dispose:
+  - id: BR-44
+    disposition: addressed
+    note: |
+      Mutation-verified: removing the cursor placement turns the work-counter assertion red; live render shows completion 0.8ms, matching #202's benchmark. Redraw's precondition re-raised separately as the unswept member.
+  - id: BR-49
+    disposition: not-addressed
+    note: |
+      No commit in the window touched issue 210; it still records only time-bounding plus the three M1 findings, and #208's Log names only "no stage is time-bounded".
+  - id: BR-50
+    disposition: addressed
+    note: |
+      Production behaviour fixed and the init.lua gate is mutation-pinned; the submission.lua half is unpinned, rolled into the new coverage finding.
+  - id: BR-51
+    disposition: addressed
+    note: |
+      Enumeration swept and verified — grep over *.md leaves only CHANGELOG (release-scoped) and gitignored runtimebundle copies, which are in sync.
+findings:
+  - id: new
+    severity: Important
+    family: untested-shell-surface
+    title: |
+      Every test drives the send as failing, so the consume-on-success clear, the wired join, and submission.lua's real-result return are all unexecuted
+    detail: |
+      This is the 6th finding in family `untested-shell-surface` — first in Lua rather
+      than shell, same rule. The rule that covers all six: a new surface is covered
+      only when EVERY reachable branch is executed; a suite that drives one side of a
+      gate reports coverage it does not have. Enumeration for this diff, and it is
+      mechanical — list the branches on_capture introduces and check each. Unexecuted:
+      (1) the clear at nvim/init.lua:4229, because send_to_agent returns false with
+      'no attached UI' (nvim/init.lua:741) in headless, so tests 1-4 never reach it and
+      test 5's stub is redundant for its own premise; (2) the join at
+      nvim/init.lua:4180-4184, because the fixture capture.txt has no `## sample_a`
+      section, so `if a and b then` is never entered — this is the same wiring a prior
+      round found dead in production; (3) submission.lua:75 — reverting it to
+      `return true` leaves pair-doctor-test.sh AND submission_test.lua green
+      (mutation-verified). Also unexecuted: the doctor-load failure, PAIR_HOME unset,
+      the `capture is already running` guard, perf.sh-not-readable, sidecar-write
+      failure, and both n/a notes on the completion leg. Fix the class: set
+      _G.PairTestZellijExecutor for one case and assert the buffer IS cleared, give the
+      fixture real sample blocks, and add a failing-send_low_level case to
+      submission_test.lua.
+  - id: new
+    severity: Important
+    family: failure-reported-as-measurement
+    title: |
+      The redraw leg is still timed with no precondition asserted — the second member of the enumeration round 11 named
+    detail: |
+      12th in this family. Round 11 stated the class and named both members
+      ("completion needs a completable token at the cursor; redraw needs a real UI");
+      only the completion member was swept. nvim/init.lua:4051-4053 times
+      vim.cmd('redraw') unconditionally and feeds the result to a verdict that
+      doctor/SKILL.md tells the reader to exclude pair#201/#203 on. Not reachable in
+      production today — :PairDoctor always runs with a TUI attached — which is why
+      this is Important rather than Critical; it is a regression guard on the last row
+      of the enumeration. has_ui() already exists at nvim/init.lua:689, so the fix
+      reuses it rather than adding a second UI check (ARCH-DRY).
+  - id: new
+    severity: Important
+    family: sole-copy-on-lossy-channel
+    title: |
+      The operator's note is written only into the prompt, and the buffer is cleared on send
+    detail: |
+      nvim/init.lua:4189-4193 writes compact + rates + raw to the sidecar and omits the
+      note; verified against a produced sidecar file. The buffer is then cleared on a
+      successful send, and perf-captures.jsonl — the only other copy, and itself
+      pcall'd and silent — is never named in the payload. The note is also uncapped, so
+      a pasted log produces an arbitrarily long prompt whose middle is precisely the
+      region pair#211 measured as dropped (1,025 bytes gone from a 2,447-byte send).
+      This contradicts the invariant this milestone recorded in atlas/index.md and
+      workshop/lessons.md: nothing of value exists only in the prompt — applied to the
+      report but not to the operator's own input, which the same docs call the one
+      thing that cannot be re-measured. Fix: prepend the note to the sidecar body.
+  - id: new
+    severity: Minor
+    family: discarded-failure-signal
+    title: |
+      The rolling-log append discards pair_write_data_file's nil return, so the comparative series can stop accumulating silently
+    detail: |
+      2nd in family. The rule: a function whose contract is "returns whether the effect
+      happened" must have that signal consumed, or surfaced to the operator where the
+      caller cannot act on it. Enumeration over the new code: the sidecar write consumes
+      it (payload degrades), send_generated_prompt now consumes it, the JSONL write at
+      nvim/init.lua:4200 does not. M2.6's whole purpose is making the next investigation
+      comparative; a permanently failing append is invisible.
+  - id: new
+    severity: Minor
+    family: incomplete-parse-contract
+    title: |
+      The JSONL row has no schema version and encodes an empty probes table as [] rather than {}
+    detail: |
+      2nd in family. Verified on a real row: {"probes":[],...}. A degraded capture
+      therefore changes the type of `probes` from object to array, breaking any external
+      reader doing .probes.pipe_hop_ms — on a file whose stated purpose is to stay
+      legible years later. The same row carries no version field.
+  - id: new
+    severity: Minor
+    family: duplicated-logic
+    title: |
+      swap_na / disk_na / probes_na are three copies of one loop differing only in the key list
+    detail: |
+      4th in family. doctor/perf.sh:203-205. One `na_for <reason> <key>...` helper covers
+      all three (ARCH-DRY).
+  - id: new
+    severity: Minor
+    family: unguarded-edge-case
+    title: |
+      time_editor's synthetic TextChangedI mutates the live completion debounce state
+    detail: |
+      5th in family. nvim/init.lua:4046 fires the real autocmd, which cancels any
+      pending completion timer and resets complete_last_fire — so invoking the
+      diagnostic can drop a popup the operator was about to get. The comment above
+      time_editor argues it cannot touch the draft because it uses a scratch buffer;
+      that holds for buffer text but not for the shared debounce state.
+```

@@ -3635,3 +3635,116 @@ that a key token appears cannot detect a contradictory behavioral sentence
   assert the shape — `wc -c` in the expected order of magnitude and the heading
   list — because a corrupted write looks like success until something else
   reads it.
+- Adding a file to this repo means adding it to N hand-maintained lists, and the
+  review found **three** in one milestone: `GO_BINS` (or the binary never
+  builds), `artifactpath`'s inventory *and* its generated-mirror classification,
+  and `runtimebundlegen.explicitAssetPaths` (or the file is missing from a
+  shipped session). Each has a guard, but the guards fire at different times —
+  one at `make build`, one in `go test`, one only when a session is extracted —
+  so fixing them one failure at a time takes several rounds. Before committing a
+  new production file, grep for a sibling file's basename across `Makefile*` and
+  `cmd/internal/{artifactpath,runtimebundlegen}` and add yourself everywhere it
+  appears. Note that `*_test.sh` is deliberately excluded from the artifactpath
+  inventory — listing one there fails the guard from the other direction.
+- `.gitignore` prevents the NEXT stray binary, not the one already staged. I
+  added `/pair-hoprtt` to `.gitignore` in the same commit that had already
+  swept the 2.9 MB binary in via `git add -A`, and a boundary review had to find
+  it. When a guard tells you a build artifact could be committed, run
+  `git ls-files | grep <name>` before assuming the rule was enough.
+- A probe that discards its subprocess's exit status reports a BROKEN dependency
+  as excellent latency. `zellij action` failing instantly reads as
+  `zellij_action_ms=2.1` — the fastest number in the report, and completely
+  wrong. Any timing harness must count failures and degrade to `n/a`, because
+  "fast" and "not running" are indistinguishable from the clock alone.
+- A degraded path must be tested as hard as the healthy one, because a tool
+  built for bad conditions is only ever used in them. `doctor/perf.sh` took six
+  review rounds and nearly every finding was in the same place: what happens
+  when a collector fails, a probe fails, or the budget sheds a stage. Each
+  produced a *fabricated* reading rather than an honest gap — a `0` from a
+  failed `ps`, a `0.0` swap rate from an awk over empty input, a rate divided by
+  a window that never elapsed, and an empty-but-present sample that made the
+  join report every process on the machine as vanished. All four look like data.
+  When writing a diagnostic, enumerate its failure modes first and assert each
+  renders as `n/a` with a reason; the happy path is the easy half.
+- Ask "which distributions ship this?" before "how does the build find it?".
+  I put a probe binary in `GO_BINS` because the plan gate correctly showed
+  `make build` would otherwise miss it — and shipped a tool that was permanently
+  unavailable to every installed pair, since the Homebrew formula builds only
+  `./cmd/pair-go` and the runtime bundle carries no helper binaries. The right
+  home was a subcommand of the one binary that always exists. A build-system
+  question answered correctly can still be the wrong question.
+
+## 2026-09-07 — A pipeline's exit status belongs to the LAST command, so `cmd | awk` swallows cmd's failure
+
+`doctor/perf.sh` opens with a rule: a collector that fails renders `n/a (<why>)`,
+never a value, because a fabricated reading is indistinguishable from a real one.
+Two sample collectors violated that rule inside the very file that states it:
+
+```sh
+cputimes() { ps -Ao pid=,time= | awk '{...}'; }
+...
+cputimes 2>/dev/null || say "n/a (ps unavailable)"
+```
+
+A denied `ps` makes the pipeline exit **0** — awk's status — with no output. The
+`||` never fires, and the section renders **empty**, which a reader parses as "no
+processes ran." Capture `cmd` into a variable first, check it, then pipe.
+
+Two things about how it surfaced are the actual lesson. It was invisible on a
+healthy machine, where `ps` always works — the failure mode only exists in the
+condition the tool is *for*. And it was found not by the seven review rounds that
+hardened this exact rule, but by running `make test` **inside the sandbox**, where
+`ps` is denied outright. A restricted environment is a free fault injector; when a
+test suite behaves differently sandboxed, read the difference instead of reaching
+for `dangerouslyDisableSandbox`.
+
+## 2026-09-07 — Put what matters where the transport is reliable, and keep a copy off the wire
+
+`:PairDoctor`'s payload arrived with 1,025 bytes gone from the **middle** of a
+2,447-byte send, head and tail intact (pair#211). The design mistake was not the
+size — a 180 KB send had succeeded minutes earlier — it was that the joined
+per-process rates existed **only in the prompt**. A lossy transport therefore
+destroyed the most valuable half of the capture with no copy anywhere.
+
+Two rules, both cheap, both applicable to any unreliable channel:
+
+- **Nothing of value exists only in the message.** Write the record to disk and
+  send a pointer. The prompt becomes a view, not the carrier.
+- **Put the pointer where the transport is reliable.** Here the head survives, so
+  the path goes in the first ~60 bytes — ahead of even the operator's note.
+  Truncation then degrades the message instead of destroying it.
+
+The general form: when a channel fails *partially*, don't only make the payload
+smaller. Find which region survives and put the recovery handle there.
+
+## 2026-09-07 — A string replacement that silently didn't apply is indistinguishable from a passing edit
+
+Adding a test to `tests/pair-doctor-test.sh`, the anchor I matched on had been
+renumbered by an earlier edit in the same session. The replacement matched
+nothing, wrote the file unchanged, and exited 0. The suite then printed **all
+passed** — because the new test was not in it. I nearly reported it as done.
+
+The tell was cheap and I only caught it by habit: the new assertion's label was
+absent from the output. Rules:
+
+- After a scripted edit, **grep for the text you just inserted**, or assert the
+  count (`assert s.count(old) == 1`) before replacing. An `assert` on the anchor
+  turns a silent no-op into a loud failure — use it every time.
+- A test suite going green after you add a test proves nothing until you have
+  seen **the new test's own line** in the output.
+- The same class: an `sed -i ''` whose pattern doesn't match. One in this
+  session targeted `` `nvim/fixtures/` `` while the source had no backticks, so
+  the comment drift it was meant to fix survived two more review rounds.
+
+## 2026-09-07 — `git checkout <file>` after a mutation check discards the fix you were testing
+
+Twice in one session I mutated a file to confirm a new test catches a defect,
+then ran `git checkout <file>` to restore — which reverts to **HEAD**, not to my
+uncommitted state, silently deleting the fix under test. Both times the test
+then passed for the wrong reason and I had to re-apply from memory.
+
+This is already recorded as "commit before mutation-checking" and it still
+happened, so the sharper form: **the restore step is the dangerous one, not the
+mutation.** Either commit first (so `checkout` is a real undo), or restore from
+a copy you made yourself rather than from git. After any `git checkout` during a
+mutation check, grep for the fix to confirm it survived.

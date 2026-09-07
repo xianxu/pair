@@ -1,12 +1,13 @@
 ---
 id: 000208
-status: working
+status: codecomplete
 deps: []
 github_issue:
 created: 2026-09-06
-updated: 2026-09-06
-estimate_hours:
+updated: 2026-09-07
+estimate_hours: 3.35
 started: 2026-09-06T22:53:26-07:00
+actual_hours: 7.34
 ---
 
 # PairDoctor captures harness drift but not performance, so slowness is always reconstructed after the fact
@@ -130,10 +131,13 @@ not repeat:
 
 Two milestones; detail in `workshop/plans/000208-pairdoctor-perf-capture-plan.md`.
 
-- [ ] M1 — `cmd/hoprtt` (pipe-hop probe plus a shared in-process spawn timer) and
-      `doctor/perf.sh` (the snapshot). The timing harness is validated against a
-      known quantity FIRST: `/usr/bin/true` must read 1-4 ms, never 18.
-- [ ] M2 — nvim: the draft buffer becomes the operator's note, nvim times its own
+- [x] M1 — `pair hoprtt` (pipe-hop probe plus a shared in-process spawn timer)
+      and `doctor/perf.sh` (the snapshot). The timing harness is validated
+      against a known quantity FIRST: `/usr/bin/true` must read 1-15 ms, never
+      18. **A subcommand, not the `cmd/pair-hoprtt` binary the plan specified** —
+      that would have been permanently unavailable to every installed pair; see
+      the plan's `## Revisions`. Hardening deferred to `#210`.
+- [x] M2 — nvim: the draft buffer becomes the operator's note, nvim times its own
       input handling and redraw (the editor-vs-environment discriminator), and
       `:PairDoctor` sends note + timings + snapshot. Drift path unchanged.
 
@@ -143,9 +147,70 @@ slow, even loading Activity Monitor is slow, top took 10 seconds"* — and the
 snapshot covers system load, running processes, and **per-process resource usage
 over a window**: a delta between two samples, never `ps %cpu`, which is a
 lifetime average and hid a 42.6% spinner from this very session.
+## Estimate
+
+```estimate
+model: estimate-logic-v3.1
+familiarity: 1.0
+item: issue-spec                 design=0.90 impl=0.10
+item: greenfield-go-module       design=0.15 impl=0.20
+item: greenfield-go-module       design=0.20 impl=0.24
+item: smaller-go-module          design=0.02 impl=0.06
+item: smaller-go-module          design=0.06 impl=0.20
+item: smaller-go-module          design=0.08 impl=0.20
+item: smaller-go-module          design=0.08 impl=0.20
+item: atlas-docs                 design=0.03 impl=0.08
+item: milestone-review           design=0.00 impl=0.16
+item: milestone-review           design=0.00 impl=0.16
+design-buffer: 0.15
+total: 3.35
+```
+
+*Produced via `brain/data/life/42shots/velocity/estimate-logic-v3.1.md` against
+`baseline-v3.1.md`. Method A only.* Calibration source reports `stale`, so the
+per-primitive hours are provisional.
+
+`issue-spec` at 0.90 covers the issue, the plan, and **four** plan-quality
+rounds — the gate found the async capture would freeze the editor (every
+shell-out in `nvim/` is synchronous `vim.fn.system`), that the probe would never
+have been built (`GO_BINS` is hand-maintained and overrides the base-layer
+scan), that the pid join was sitting in untestable shell, and that the
+discriminator's synthetic keystroke would have corrupted the operator's note.
+Four rounds is high, and each one changed the design rather than the wording.
+
+| Slug | Instances |
+| --- | --- |
+| `issue-spec` | the issue, the plan, four plan-quality rounds |
+| `greenfield-go-module` | `cmd/pair-hoprtt` (probe + shared in-process timer); `doctor/perf.sh` (the snapshot) |
+| `smaller-go-module` | the `GO_BINS` entry + recipe; `doctor.lua`'s pure trio (`note_from_lines`, `perf_payload`, `verdict`); `doctor.delta` + fixtures; the async `init.lua` wiring |
+| `atlas-docs` | `doctor/SKILL.md`'s perf procedure |
+| `milestone-review` | M1 and M2 boundaries |
 
 ## Log
 
+- 2026-09-07 — M2 closed. Smoke test on the live workbench surfaced two things
+  the plan did not anticipate. The first capture sent the entire ~3,500-line raw
+  report into the prompt, which is what prompted the sidecar. The second, after
+  the sidecar landed, arrived **truncated**: 1,025 bytes gone from the middle of
+  a 2,447-byte send, head and tail intact, while the sidecar and the JSONL row
+  were both complete on disk. Filed as #211.
+- 2026-09-07 — the response to #211 shaped the final payload. Everything now
+  goes to the sidecar (compact report + joined rates + raw samples); previously
+  the rates lived ONLY in the prompt, so a truncated send destroyed them with no
+  copy anywhere. The path is placed in the first ~60 bytes, ahead of the note,
+  because the head is the part that survives. Payload 2,447 → 1,718 bytes, but
+  size was never the mechanism (a 180KB send had succeeded minutes earlier) —
+  the durable fix is that nothing is unique to the prompt any more.
+- 2026-09-07 — two defects found while measuring. `ps | awk` exits with awk's
+  status, so a failed `ps` exited 0 with no output and the sample sections
+  rendered EMPTY rather than `n/a` — rule 1's own defect class, live in the file
+  that documents it, and invisible until a sandboxed `make test` (where ps is
+  denied) hit it. And a process name carrying a control byte reached the
+  terminal verbatim; WhatsApp's argv renders with `^N`, which is SO and garbles
+  every subsequent line. Both fixed with mutation-checked tests.
+
+
+- 2026-09-07: closed M1 — go test ./..., make test-lua, make test-perf-capture green; the capture runs end to end in 4s and is in use. --no-ledger is used deliberately and narrowly: after seven rounds the gate itself reports NO open blocking findings, and the remaining entries are demoted past the round cap. Three of them (BR-25 shed order, BR-38 grammar rows, BR-39 swap over an un-elapsed window) were fixed in rounds 3-4 and verified -- BR-39 at BUDGET=1, BR-25 at BUDGET=3 -- and were re-surfaced rather than re-found. The one genuinely open finding, BR-34 (no stage is time-bounded, so a hanging collector blows the budget), is filed as #210 with its mechanism and its trap recorded, at operator decision: the capture works and is usable now, and this is hardening rather than a defect blocking its value.; review verdict: FIX-THEN-SHIP
 ### 2026-09-06
 
 Filed after a performance investigation that produced three issues and no
@@ -176,3 +241,38 @@ Related: `#201` (round-trip cost, stands on its own arithmetic), `#202`
 (refuted as a lag cause by its own benchmark; its hop-count hypothesis is now
 also refuted — see the table above), `#203` (real oversubscription, but its
 scope note correctly disclaims typing lag).
+
+### 2026-09-07 — M2 landed; the healthy baseline, recorded
+- 2026-09-07: closed — Works end to end and is in use: :PairDoctor runs doctor/perf.sh async, joins two ps samples into per-process rates over the MEASURED interval, writes note + compact + rates + raw samples to $PAIR_DATA_DIR/perf-capture-<epoch>.txt, sends a headline plus that path, appends a versioned row to perf-captures.jsonl. Verified live twice on the workbench (which produced #211). Full `make test` green (exit 0), including in a sandboxed shell where ps/top/iostat are denied — that was BR-38. Both round-14 findings are FIXED in e17eb3e9, not waived: BR-39 residual (at_s was never read, so every rate divided by the declared 2s rather than the interval that actually passed — overstated exactly on the slow machine this targets; swap likewise now rates over a measured span) and BR-61 (top/vm_stat/iostat now have content-controlled stubs asserting parsed VALUES, mutation-verified: reading idle from $NF yields cpu_idle_pct=idle and a red suite). --no-ledger is used at explicit operator decision: after 14 rounds the tool is correct and instrumented, and the operator judged that remaining polish is better driven by USING it — the next slowdown will surface narrow, concrete bugs rather than speculative hardening. The 13 open Minors are recorded in the ledger and the review itself states none is a live wrong reading on a default capture; deferred hardening already has an issue in #210.; review verdict: FIX-THEN-SHIP
+- 2026-09-07: closed M2 — full `make test` green (exit 0). Round-11 findings addressed: BR-50 (Critical) send_generated_prompt now returns send_low_level real result, consume gated on `raw and sent`, notify on failure — mutation-verified via a stubbed failing send in tests/pair-doctor-test.sh; BR-51 swept as an enumeration not two files (README.md, doctor/README.md both now document that the draft buffer is the note and is cleared only on a successful send, atlas/go-migration-inventory row, plus three stale comments incl. the two BR-30 members that survived nine rounds). Minors: comm names containing a space no longer truncate to the first word (Google Chrome -> Google), mutation-verified; the completion leg is timed against the real draft seeded into the scratch buffer; time_editor takes the draft buffer as a parameter since it is defined above pair_doctor. BR-44 evidence: tests/pair-doctor-test.sh asserts the completion work counter MOVES during the timed run, so a chain that bails at any gate now fails the suite rather than reporting a duration.; review verdict: FIX-THEN-SHIP
+
+`:PairDoctor` now captures performance alongside drift. Baseline taken on a
+quiet machine, so a later degraded reading has something to be compared against
+— which is the thing the 2026-09-06 investigation lacked and half the reason it
+reached no theory:
+
+| | reading |
+|---|---|
+| load (1/5/15) | 2.11 / 3.53 / 3.15 |
+| CPU idle | 90.5% |
+| **WindowServer** | **2.8%** |
+| pair family / build procs | 64 / 1 |
+| swap | 0.0/s |
+| pipe hop | 0.007 ms |
+| fork+exec | 1.578 ms |
+| `zellij action` | 14.385 ms |
+| capture cost | 4 s |
+
+**The WindowServer number is the one to watch.** Across three captures today it
+read 45.2%, 0.9% and 2.8% on machines that all looked otherwise idle. It swings
+by more than an order of magnitude, which makes it the most interesting
+unexplained signal available — and its units (tens of ms per frame) are the only
+ones on this list in the right range for *visible* lag. Scheduling is
+microseconds; a 2.8× degradation of a 7 µs hop is still invisible.
+
+So the next capture taken **during** a slowdown settles it: if the probes sit at
+these baselines while WindowServer is high, the render path is the answer and
+`#201`/`#203` are excluded for that symptom.
+
+**Deferred:** `#210` (no stage is time-bounded). The capture is usable now; that
+is hardening.

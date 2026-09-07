@@ -25,6 +25,7 @@ func TestEmbeddedManifestIsConfigAndShimsOnly(t *testing.T) {
 		"zellij/layouts/main-3.kdl",
 		"doctor/SKILL.md",
 		"doctor/doctor.sh",
+		"doctor/perf.sh",
 	} {
 		if !paths[want] {
 			t.Fatalf("EmbeddedManifest missing %q", want)

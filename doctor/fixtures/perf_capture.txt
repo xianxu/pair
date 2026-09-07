@@ -1,0 +1,286 @@
+# pair perf capture
+captured_at=2026-09-07T13:55:10-0700
+window_seconds=2
+budget_seconds=6
+host_cores=12
+
+## conditions
+load=6.29/4.93/3.62
+memory_pressure_level=1
+process_count=920
+cpu_idle_pct=72.20
+windowserver_cpu_pct=29.9
+
+## fleet
+pair_family_procs=71
+build_procs=0
+
+## sample_a
+at_s=1788814512
+### cputime
+1	195:35.99
+134	0:20.89
+135	0:00.07
+136	0:01.82
+137	0:01.99
+138	0:00.11
+360	114:44.89
+361	0:00.61
+362	33:18.71
+364	85:50.28
+365	2:26.96
+368	1:15.79
+370	0:06.37
+371	0:00.07
+372	7:08.85
+373	0:00.11
+374	13:33.31
+375	0:00.09
+377	0:05.26
+379	0:00.49
+381	0:01.02
+382	0:01.59
+383	0:00.03
+385	0:29.92
+389	81:36.66
+390	0:02.72
+391	0:01.17
+392	4:06.50
+395	36:01.56
+396	0:34.36
+398	2:02.63
+399	5:07.57
+400	0:33.91
+401	71:29.39
+402	3:55.72
+403	79:41.48
+404	0:24.53
+405	0:01.69
+406	46:00.31
+408	81:26.19
+409	0:04.57
+411	0:00.09
+412	18:53.16
+413	0:00.06
+415	3:59.19
+416	0:00.34
+418	0:00.15
+419	0:02.17
+420	0:01.11
+421	0:00.04
+423	0:08.11
+425	89:43.63
+426	120:20.37
+427	1:20.70
+428	33:59.88
+429	7:21.30
+430	5:06.37
+431	0:00.32
+432	0:01.99
+433	2201:46.75
+### procs
+1	10-20:16:59	29360	launchd
+134	08-20:18:43	17824	com.apple.geod
+135	08-20:18:43	3952	secinitd
+136	08-20:18:42	3744	cfprefsd
+137	08-20:18:42	12144	trustd
+138	08-20:18:42	4032	containermanagerd
+360	10-20:13:55	95248	logd
+361	10-20:13:55	6320	smd
+362	10-20:13:55	24992	UserEventAgent
+364	10-20:13:55	18880	fseventsd
+365	10-20:13:55	34144	mediaremoted
+368	10-20:13:55	45904	systemstats
+370	10-20:13:55	18032	accessoryupdaterd
+371	10-20:13:55	2656	uarpassetmanagerd
+372	10-20:13:55	25776	configd
+373	10-20:13:55	4288	endpointsecurityd
+374	10-20:13:55	13760	powerd
+375	10-20:13:55	3744	IOMFB_bics_daemon
+377	10-20:13:55	36128	amfid
+379	10-20:13:55	5392	remoted
+381	10-20:13:55	13728	keybagd
+382	10-20:13:55	7200	softwareupdated
+383	10-20:13:55	2192	corespeechd_system
+385	10-20:13:55	3536	watchdogd
+389	10-20:13:55	168832	mds
+390	10-20:13:55	6144	iconservicesd
+391	10-20:13:55	9216	kernelmanagerd
+392	10-20:13:55	8464	diskarbitrationd
+395	10-20:13:55	51792	coreduetd
+396	10-20:13:55	3120	syslogd
+398	10-20:13:55	5520	thermalmonitord
+399	10-20:13:55	18624	contextstored
+400	10-20:13:55	18256	xprotectd
+401	10-20:13:55	27824	opendirectoryd
+402	10-20:13:55	32880	apsd
+403	10-20:13:55	17728	launchservicesd
+404	10-20:13:55	7488	timed
+405	10-20:13:55	5136	usbmuxd
+406	10-20:13:55	11536	securityd
+408	10-20:13:55	56800	locationd
+409	10-20:13:55	10032	nesessionmanager
+411	10-20:13:55	2912	autofsd
+412	10-20:13:55	31744	dasd
+413	10-20:13:55	5632	corerepaird
+415	10-20:13:55	4480	distnoted
+416	10-20:13:55	4224	AppleCredentialManagerDaemon
+418	10-20:13:55	1408	dirhelper
+419	10-20:13:55	5536	logind
+420	10-20:13:55	10176	revisiond
+421	10-20:13:55	2176	KernelEventAgent
+423	10-20:13:55	4960	usermanagerd
+425	10-20:13:55	55280	bluetoothd
+426	10-20:13:55	8000	notifyd
+427	10-20:13:55	23776	sandboxd
+428	10-20:13:55	14704	corebrightnessd
+429	10-20:13:55	12736	AirPlayXPCHelper
+430	10-20:13:55	33552	com.apple.cmio.registerassistantservice
+431	10-20:13:55	2192	aslmanager
+432	10-20:13:55	2640	logd_helper
+433	10-20:13:55	377440	WindowServer
+## sample_b
+at_s=1788814514
+### cputime
+1	195:36.00
+134	0:20.89
+135	0:00.07
+136	0:01.82
+137	0:01.99
+138	0:00.11
+360	114:44.90
+361	0:00.61
+362	33:18.71
+364	85:50.28
+365	2:26.96
+368	1:15.79
+370	0:06.37
+371	0:00.07
+372	7:08.85
+373	0:00.11
+374	13:33.31
+375	0:00.09
+377	0:05.26
+379	0:00.49
+381	0:01.02
+382	0:01.59
+383	0:00.03
+385	0:29.92
+389	81:36.66
+390	0:02.72
+391	0:01.17
+392	4:06.50
+395	36:01.56
+396	0:34.36
+398	2:02.63
+399	5:07.57
+400	0:33.91
+401	71:29.39
+402	3:55.72
+403	79:41.48
+404	0:24.53
+405	0:01.69
+406	46:00.31
+408	81:26.19
+409	0:04.57
+411	0:00.09
+412	18:53.16
+413	0:00.06
+415	3:59.19
+416	0:00.34
+418	0:00.15
+419	0:02.17
+420	0:01.11
+421	0:00.04
+423	0:08.11
+425	89:43.65
+426	120:20.37
+427	1:20.70
+428	33:59.89
+429	7:21.30
+430	5:06.37
+431	0:00.32
+432	0:01.99
+433	2201:47.47
+### procs
+1	10-20:17:01	29408	launchd
+134	08-20:18:45	17824	com.apple.geod
+135	08-20:18:45	3952	secinitd
+136	08-20:18:44	3744	cfprefsd
+137	08-20:18:44	12144	trustd
+138	08-20:18:44	4032	containermanagerd
+360	10-20:13:57	94928	logd
+361	10-20:13:57	6320	smd
+362	10-20:13:57	24992	UserEventAgent
+364	10-20:13:57	18880	fseventsd
+365	10-20:13:57	34144	mediaremoted
+368	10-20:13:57	45904	systemstats
+370	10-20:13:57	18032	accessoryupdaterd
+371	10-20:13:57	2656	uarpassetmanagerd
+372	10-20:13:57	25776	configd
+373	10-20:13:57	4288	endpointsecurityd
+374	10-20:13:57	13760	powerd
+375	10-20:13:57	3744	IOMFB_bics_daemon
+377	10-20:13:57	36128	amfid
+379	10-20:13:57	5392	remoted
+381	10-20:13:57	13728	keybagd
+382	10-20:13:57	7200	softwareupdated
+383	10-20:13:57	2192	corespeechd_system
+385	10-20:13:57	3536	watchdogd
+389	10-20:13:57	168832	mds
+390	10-20:13:57	6144	iconservicesd
+391	10-20:13:57	9216	kernelmanagerd
+392	10-20:13:57	8464	diskarbitrationd
+395	10-20:13:57	51792	coreduetd
+396	10-20:13:57	3120	syslogd
+398	10-20:13:57	5520	thermalmonitord
+399	10-20:13:57	18624	contextstored
+400	10-20:13:57	18256	xprotectd
+401	10-20:13:57	27824	opendirectoryd
+402	10-20:13:57	32880	apsd
+403	10-20:13:57	17728	launchservicesd
+404	10-20:13:57	7488	timed
+405	10-20:13:57	5136	usbmuxd
+406	10-20:13:57	11536	securityd
+408	10-20:13:57	56800	locationd
+409	10-20:13:57	10032	nesessionmanager
+411	10-20:13:57	2912	autofsd
+412	10-20:13:57	31744	dasd
+413	10-20:13:57	5632	corerepaird
+415	10-20:13:57	4480	distnoted
+416	10-20:13:57	4224	AppleCredentialManagerDaemon
+418	10-20:13:57	1408	dirhelper
+419	10-20:13:57	5536	logind
+420	10-20:13:57	10176	revisiond
+421	10-20:13:57	2176	KernelEventAgent
+423	10-20:13:57	4960	usermanagerd
+425	10-20:13:57	55280	bluetoothd
+426	10-20:13:57	8000	notifyd
+427	10-20:13:57	23776	sandboxd
+428	10-20:13:57	14704	corebrightnessd
+429	10-20:13:57	12736	AirPlayXPCHelper
+430	10-20:13:57	33552	com.apple.cmio.registerassistantservice
+431	10-20:13:57	2192	aslmanager
+432	10-20:13:57	2640	logd_helper
+433	10-20:13:57	377456	WindowServer
+## swap_rate
+swapins_per_s=0.0
+swapouts_per_s=0.0
+pageins_per_s=19.0
+
+## disk
+kb_per_transfer=n/a (budget reserved for probes; iostat skipped)
+tps=n/a (budget reserved for probes; iostat skipped)
+mb_per_s=n/a (budget reserved for probes; iostat skipped)
+
+## probes
+# baselines on a healthy host: pipe_hop ~0.007ms, fork_exec ~1.5ms, zellij ~13ms
+pipe_hop_ms=0.009
+pipe_hop_p90=0.018
+fork_exec_ms=1.788
+fork_exec_p90=2.003
+zellij_action_ms=16.464
+zellij_action_p90=16.559
+elapsed_seconds=4
+
+# end

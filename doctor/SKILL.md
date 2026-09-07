@@ -59,3 +59,97 @@ edit matcher code silently — surface the finding and the proposed edit first.
   current run. To diagnose a past session, point the script at a saved copy.
 - `detail` is capped at 200 bytes and stays local under `$PAIR_DATA_DIR`; it can
   contain a snippet of agent output, so treat findings as session-private.
+
+## Performance capture (`#208`)
+
+`:PairDoctor` also captures machine state, because the question "why is this
+slow?" is only answerable **while it is slow** — and the drift half of this
+skill is durable while performance is not. A 2026-09-06 investigation produced
+three issues and no theory precisely because every measurement was taken on a
+healthy machine.
+
+**The prompt is a pointer, not the report.** `:PairDoctor` sends a headline of
+about a dozen lines and a path; the complete capture — compact report, joined
+per-process rates, and both raw `ps` samples — is written to
+`$PAIR_DATA_DIR/perf-capture-<epoch>.txt` — **the payload names the exact path;
+open the one it names**, not the newest, since a later capture does not replace
+an earlier prompt's file. The headline is
+enough to form a first suspicion and never enough to confirm one.
+
+The path is placed *ahead of the operator's note*, in the first ~60 bytes,
+because the send path from the draft editor to the agent drops interior chunks
+(`#211`) — the head survives, so the head is where the path has to be. If the
+prompt you received looks cut off, that is the known bug: read the file.
+
+**Read the report in this order. The order is the method.**
+
+**1. The operator's note.** First thing after the path. Without it you will
+explain whatever number is largest instead of what was actually reported —
+"typing is slow" and "the build is slow" have different suspects.
+
+**2. `editor:` — the discriminator, and the single most valuable line.**
+
+| reading | what it excludes |
+|---|---|
+| `editor: fast` | **every** leg — buffer insert, redraw, and the `#202` completion chain — completed inside one frame (16 ms at 60 Hz). If typing still *feels* slow, the cause is **at or above the terminal** — transport, rendering, compositing — and the scheduling family (`#201`, `#203`) is excluded for this symptom. |
+| `editor: slow` | the cause is **inside nvim**. The line names which leg was slow. Look at autocmds and plugins; the environment numbers below are probably noise. |
+| `editor: unknown` | at least one leg did not run — the line renders it as `n/a (<why>)`. It is **not** a synonym for fast: partial evidence can prove slow and never proves fast, so **no exclusion may be drawn from it**. |
+
+The exclusion above rests on the completion leg specifically, so it is timed by
+calling the chain directly rather than by firing a synthetic `TextChangedI`.
+`:PairDoctor` runs from a `:` command, where mode is Normal, and the completers
+gate on Insert — so the synthetic event measured the gate returning while the
+report named the chain. A reading that never ran the thing it names is the exact
+defect class this capture was built to eliminate.
+
+**3. The probes, against the baselines printed beside them.** `pipe_hop` is one
+scheduler wake-up, `fork_exec` is process creation, `zellij_action` is
+spawn+link+connect+round-trip. They degrade *together* under a process-spawn
+storm; a hop staying near 7 µs while typing feels slow points away from
+scheduling entirely.
+
+**4. The per-process rates and the churn line.** Computed from two `ps` samples
+by joining on pid — never from `ps %cpu`, which is a **lifetime average** and
+lies by orders of magnitude (measured 2026-09-06: `contactsd` read ~0% in `ps`
+while actually burning 42.6%). Read them as:
+
+- **A single process above ~50%** — you have your answer; go look at it.
+- **`churn: N started`** — this is the **spawn-storm signature** (`#203`), and no
+  single-sample view can show it. A large `started` count over a 2-second window
+  means the machine is paying process-creation cost continuously; expect
+  `fork_exec` and `zellij_action` to be degraded together while `pipe_hop` may
+  not be.
+- **`reused-pid` and `unmeasured`** — bookkeeping for the join's honesty. A
+  process whose `etime` went *down* between samples is a different process that
+  inherited the number, so its rate is dropped rather than fabricated.
+- **Nothing above 1%** — says so explicitly. That is a real finding: it excludes
+  every CPU-bound explanation, which is exactly the case that keeps recurring on
+  this host.
+
+Only the top few rows reach the prompt. The full ordered list is in the file.
+
+**5. Everything else is context, not verdict.** In particular:
+
+- **`load` does not predict this.** Measured 2026-09-06: degradation at load 9.5
+  and none at load 15.5. What correlated was the workload's *phase* — many
+  short-lived processes — not its size.
+- **`cpu_idle_pct` is routinely high while the machine feels terrible.** Every
+  slowdown investigated on this host has had idle CPU.
+- **`windowserver_cpu_pct` is the untested candidate.** It has been seen at 45%
+  with 66% idle CPU, and its units (tens of ms per frame) are the right order of
+  magnitude for visible lag, unlike scheduling's microseconds.
+
+**6. `n/a` means NOT MEASURED. Never read it as zero.** Every collector degrades
+to `n/a` with a reason rather than emitting a value, because a fabricated `0` is
+indistinguishable from a real reading — the defect class this capture was
+hardened against across seven review rounds.
+
+**Comparing readings.** Each capture appends a row to
+`$PAIR_DATA_DIR/perf-captures.jsonl` carrying its probes, the verdict, and the
+baselines. A single row answers "what is happening now"; the series answers
+"what changed", which is what the original investigation lacked.
+
+**Re-running standalone:** `sh $PAIR_HOME/doctor/perf.sh`. It needs no editor.
+
+**Known gap:** no stage is time-bounded, so a hanging collector can exceed the
+budget (`#210`).

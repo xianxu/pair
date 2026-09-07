@@ -63,9 +63,20 @@ function M.new(append_authored, commit_authored, send_low_level, notify_error, m
     return true
   end
 
+  -- Returns whether the send actually reached the agent. It used to discard
+  -- send_low_level's result and return an unconditional `true`, which made a
+  -- failed send indistinguishable from a successful one -- and :PairDoctor
+  -- consumed the operator's note on the strength of that `true`, so a failing
+  -- `zellij action` (exactly the degraded machine the capture exists for) left
+  -- a cleared draft, no notify, and the one input that cannot be re-measured
+  -- gone. The other two callers ignore the result, so returning it is additive.
   function submit.send_generated_prompt(body)
-    send_low_level(body)
-    return true
+    local ok, phase, err = send_low_level(body)
+    if not ok then
+      notify_error('Pair generated-prompt send failed — ' ..
+        tostring(err or 'unknown error') .. ' (phase ' .. tostring(phase or '?') .. ')')
+    end
+    return ok and true or false
   end
 
   return submit
