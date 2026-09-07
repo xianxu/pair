@@ -3,20 +3,28 @@ package couchcore
 import (
 	"fmt"
 	"strings"
+
+	"github.com/xianxu/pair/cmd/internal/launcher"
 )
 
 // Layout is which pair layout couch launches its threads in. It is chosen once
 // per couch process (Couch.Layout) and recorded per thread
 // (ThreadRecord.Layout) as a witness of what that thread's session actually is.
-type Layout string
+//
+// It is an ALIAS for launcher.LayoutMode, not a second type: launcher already
+// owns this vocabulary, its parse, and the argv spellings that `pair` accepts.
+// couch's whole feature rests on pair parsing the flag couch emits, so the two
+// must not be able to drift -- see TestCouchLayoutFlagsAreWhatPairParses.
+type Layout = launcher.LayoutMode
 
 const (
-	Layout2 Layout = "layout2"
-	Layout3 Layout = "layout3"
+	Layout2 = launcher.Layout2
+	Layout3 = launcher.Layout3
 	// LayoutUnknown is a persisted value this binary does not recognise. It is
 	// never chosen and never formatted: it exists so a row can carry "we cannot
 	// prove this session's layout" instead of a fabricated layout2 the guard
-	// would go on to trust. It conflicts with every requested layout.
+	// would go on to trust. It conflicts with every requested layout, and
+	// KnownLayout reports false for it.
 	LayoutUnknown Layout = "unknown"
 )
 
@@ -25,15 +33,14 @@ const (
 // those are layout2 with certainty: couch pinned layout2 from 2026-08-22 until
 // #198. An unrecognised value is refused rather than defaulted.
 func ParseLayout(raw string) (Layout, error) {
-	switch Layout(raw) {
-	case "":
+	if strings.TrimSpace(raw) == "" {
 		return Layout2, nil
-	case Layout2:
-		return Layout2, nil
-	case Layout3:
-		return Layout3, nil
 	}
-	return "", fmt.Errorf("unknown layout %q", raw)
+	layout, ok := launcher.ParseLayoutMode(raw)
+	if !ok {
+		return "", fmt.Errorf("unknown layout %q", raw)
+	}
+	return layout, nil
 }
 
 // NormalizeLayout is ParseLayout for the one caller that cannot return an
@@ -48,10 +55,13 @@ func NormalizeLayout(raw string) Layout {
 	return layout
 }
 
-// Flag is the sole place a Layout becomes argv. LayoutUnknown never reaches it:
-// Couch.Layout is only ever set from ParseLayout, which errors instead of
-// returning it.
-func (l Layout) Flag() string { return "--" + string(l) }
+// KnownLayout reports whether a Layout is one couch can actually launch, and so
+// whether it can appear in a command suggested to the operator. LayoutUnknown
+// and any unrecognised value are not.
+func KnownLayout(layout Layout) bool {
+	_, ok := launcher.ParseLayoutMode(string(layout))
+	return ok
+}
 
 // LayoutConflict is one thread whose existing session disagrees with the layout
 // couch was asked to start in.
@@ -94,6 +104,28 @@ func ResolveLayoutConflicts(requested Layout, rows []ActionableThreadSummary) []
 	return conflicts
 }
 
+// hostLayoutFor reports the single layout that can host every conflicting
+// thread, and whether one exists at all.
+//
+// It often does not, and both cases are reachable rather than theoretical: a
+// lone conflict whose witness is LayoutUnknown (a hand-edited or newer-version
+// record -- exactly what LayoutUnknown exists to surface), and a blocking set
+// whose members disagree with each other (reachable when a process dies between
+// a launch and its witness CAS). In neither case is there a couch the operator
+// could start to park them all, so the refusal must not name one.
+func hostLayoutFor(conflicts []LayoutConflict) (Layout, bool) {
+	if len(conflicts) == 0 {
+		return "", false
+	}
+	host := conflicts[0].Layout
+	for _, conflict := range conflicts {
+		if conflict.Layout != host {
+			return "", false
+		}
+	}
+	return host, KnownLayout(host)
+}
+
 // layoutConflictRefusal makes a mixed-layout refusal actionable, in the shape
 // startupResumeRefusal established: what happened, which threads, and the way
 // forward.
@@ -101,7 +133,12 @@ func ResolveLayoutConflicts(requested Layout, rows []ActionableThreadSummary) []
 // The way forward exists BECAUSE the blocking set excludes parked threads:
 // parking every conflicting thread empties the set, so the operator reaches the
 // layout they asked for through the tool rather than by hand-editing records.
+// When no single couch can host them all it says so instead of naming a command
+// that would not run -- advice the operator cannot follow is worse than none.
 func layoutConflictRefusal(requested Layout, conflicts []LayoutConflict) error {
+	if len(conflicts) == 0 {
+		return nil
+	}
 	width := 0
 	for _, conflict := range conflicts {
 		if n := len(conflict.Address.Tag); n > width {
@@ -109,21 +146,27 @@ func layoutConflictRefusal(requested Layout, conflicts []LayoutConflict) error {
 		}
 	}
 	var rows strings.Builder
-	other := conflicts[0].Layout
 	for _, conflict := range conflicts {
-		fmt.Fprintf(&rows, "\n  %-*s  (%s, %s)", width, conflict.Address.Tag, conflict.Layout, conflict.State)
-		if conflict.Layout != other {
-			other = LayoutUnknown
+		layout := string(conflict.Layout)
+		if !KnownLayout(conflict.Layout) {
+			layout = "unreadable layout"
 		}
+		fmt.Fprintf(&rows, "\n  %-*s  (%s, %s)", width, conflict.Address.Tag, layout, conflict.State)
 	}
 	noun := "thread"
 	if len(conflicts) > 1 {
 		noun = "threads"
 	}
+	remedy := "park every thread listed above -- from whichever couch can host it -- then:\n" +
+		"  couch " + requested.Flag()
+	if host, ok := hostLayoutFor(conflicts); ok {
+		remedy = "park them first:  couch " + host.Flag() +
+			"   then park each thread from the switcher and quit\n" +
+			"  then:             couch " + requested.Flag()
+	}
 	return fmt.Errorf(
-		"couch cannot start in %s: %d %s already hold a session in another layout:%s\n\n"+
+		"cannot start in %s: %d %s already hold a session in another layout:%s\n\n"+
 			"couch keeps one layout across every thread, so it will not mix them.\n"+
-			"  park them first:  couch --%s   then park each thread from the switcher and quit\n"+
-			"  then:             couch --%s",
-		requested, len(conflicts), noun, rows.String(), other, requested)
+			"  %s",
+		requested, len(conflicts), noun, rows.String(), remedy)
 }

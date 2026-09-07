@@ -70,6 +70,13 @@ type ThreadRecord struct {
 	// every record written before #198, and those are layout2: couch pinned
 	// layout2 from 2026-08-22 until then. Read it through NormalizeLayout --
 	// the raw value is untrusted and "" is not Layout2 by string comparison.
+	//
+	// Adding it is FORWARD compatible, not backward: threadrecord decodes with
+	// strictjson, which rejects unknown fields, so a binary predating #198 will
+	// REFUSE a record this one has written. New records stay readable by new
+	// binaries and old records by both; downgrading across this field does not
+	// work, and no schema bump would have made it work -- a bump refuses every
+	// existing record instead (record.go:108-109).
 	Layout       Layout            `json:"layout,omitempty"`
 	Park         *ParkTransaction  `json:"park,omitempty"`
 	VerifiedPark *VerifiedPark     `json:"verified_park,omitempty"`

@@ -24,7 +24,9 @@ const detachExitTimeout = 15 * time.Second
 // the zellij client it hosts go, the session-watcher and title-poller sidecars
 // sharing its process group go with them, and the zellij SERVER session plus the
 // agent running inside it survive. Reattaching is a fresh
-// `pair resume <tag> --layout2` onto that surviving session.
+// `pair resume <tag>` -- with NO layout flag -- onto that surviving session:
+// the session already has its layout, and asking for a different one is the
+// path that offers to DELETE it (#179).
 //
 // It deliberately does not reuse handleCleanup, whose own comment says "this
 // path is rollback, not graceful actor shutdown": that path escalates to an

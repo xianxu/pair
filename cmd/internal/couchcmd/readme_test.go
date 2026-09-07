@@ -137,6 +137,13 @@ func TestREADMEDocumentsTheOperatorFacingSurface(t *testing.T) {
 		"ctrl-space", // the key couch takes from every child
 		"default: .", // the path default, which is how "home" is chosen
 		"reserves the bottom row",
+		// The layout flags change what couch does with the operator's terminal
+		// -- --layout3 adds a whole pane -- so they belong to this class. The
+		// refusal is documented too: an operator whose couch will not start
+		// needs to find out why without reading the source.
+		"--layout3",
+		"--layout2",
+		"refuses to start",
 	} {
 		if !strings.Contains(doc, want) {
 			t.Errorf("README does not mention %q", want)

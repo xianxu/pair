@@ -32,7 +32,7 @@ func (c *Couch) launchTrackedThread(in trackedThreadLaunch) (ActorRecord, Handle
 		ctx = context.Background()
 	}
 	thread := in.Thread
-	// A warm reattach sends NEITHER `--layout2` NOR a trusted resume profile,
+	// A warm reattach sends NEITHER a layout flag NOR a trusted resume profile,
 	// and both omissions are the fix rather than an oversight (#179).
 	//
 	// The profile carries ResumeRequired, which Pair honours only at a CREATE
@@ -43,10 +43,12 @@ func (c *Couch) launchTrackedThread(in trackedThreadLaunch) (ActorRecord, Handle
 	// what the operator's own `pair resume <tag>` does, which is the behaviour
 	// they already rely on.
 	//
-	// `--layout2` is dropped for the same reason: a running session already has
-	// its layout, and asking for a different one sends Pair down a conflict
+	// The layout flag is dropped for the same reason: a running session already
+	// has its layout, and asking for a different one sends Pair down a conflict
 	// path that offers to DELETE the live session -- destroying the agent this
-	// exists to preserve.
+	// exists to preserve. Since #198 couch has a layout of its own, so this
+	// omission is load-bearing rather than incidental: `c.Layout` must NOT
+	// reach a warm argv.
 	argv := []string{"pair", "resume", string(thread.Address.Tag), c.Layout.Flag()}
 	if in.Warm {
 		argv = []string{"pair", "resume", string(thread.Address.Tag)}
@@ -122,11 +124,12 @@ func (c *Couch) launchTrackedThread(in trackedThreadLaunch) (ActorRecord, Handle
 		return ActorRecord{}, h, c.failTrackedPostAckStart(in.Resume, thread, in.Nonce, h, cause)
 	}
 	// The layout witness rides this transaction, and only at a cold boundary:
-	// `in.Warm` chose no layout (see the argv above), so it records none and
-	// the existing witness survives.
-	registeredLayout := c.Layout
-	if in.Warm {
-		registeredLayout = ""
+	// `in.Warm` chose no layout (see the argv above), so it records none -- nil,
+	// not an empty Layout -- and the existing witness survives.
+	var registeredLayout *Layout
+	if !in.Warm {
+		chosen := c.Layout
+		registeredLayout = &chosen
 	}
 	registeredThread, err := c.Threads.AdvanceStart(thread.Address, thread.Revision, StartEvent{
 		Kind: StartRegistered, Nonce: in.Nonce, Layout: registeredLayout,

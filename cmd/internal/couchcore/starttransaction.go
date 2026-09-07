@@ -34,9 +34,12 @@ type StartEvent struct {
 	Helper  ProcessIdentity
 	Profile *LaunchProfile
 	// Layout is the couch-wide layout this start was launched in, recorded on
-	// the thread as a witness. Set only at a COLD boundary: a warm reattach
-	// chose no layout and must leave the existing witness alone.
-	Layout Layout
+	// the thread as a witness. A POINTER because "no layout was chosen" is a
+	// real state distinct from any layout value: a warm reattach sends no
+	// layout flag, so it must leave the existing witness alone rather than
+	// overwrite it. nil says that; an empty Layout would collide with the
+	// pre-#198 "" that means layout2.
+	Layout *Layout
 }
 
 // AdvanceStartTransaction is the pure transition authority for one persisted
@@ -90,12 +93,12 @@ func AdvanceStartTransaction(record ThreadRecord, event StartEvent) (ThreadRecor
 			next.VerifiedPark = nil
 			// Record the layout witness in the SAME transaction that commits
 			// the start, so there is no second write and no expectedRevision to
-			// reconcile against a revision this CAS has just moved. Empty means
-			// a warm reattach, which chose no layout: leave the existing
-			// witness, because the session it attached to still has the layout
-			// it was created with.
-			if event.Layout != "" {
-				next.Layout = event.Layout
+			// reconcile against a revision this CAS has just moved. nil means a
+			// warm reattach, which chose no layout: leave the existing witness,
+			// because the session it attached to still has the layout it was
+			// created with.
+			if event.Layout != nil {
+				next.Layout = *event.Layout
 			}
 		} else {
 			incarnation.State = IncarnationUnknown

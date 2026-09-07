@@ -153,9 +153,9 @@ func extractLayoutRequest(argv []string) ([]string, LayoutRequest, error) {
 		}
 		var mode LayoutMode
 		switch arg {
-		case "--layout2":
+		case Layout2.Flag():
 			mode = Layout2
-		case "--layout3":
+		case Layout3.Flag():
 			mode = Layout3
 		default:
 			clean = append(clean, arg)

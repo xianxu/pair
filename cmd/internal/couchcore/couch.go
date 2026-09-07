@@ -421,7 +421,7 @@ func (c *Couch) spawnResolved(ctx context.Context, resolution StartResolution, r
 		return ActorRecord{}, nil, errors.Join(fmt.Errorf("record start transaction: %w", err), c.rollbackPristineStart(threadAddress))
 	}
 
-	// `pair resume <tag> --layout2` rather than a bare `pair`.
+	// `pair resume <tag> --<layout>` rather than a bare `pair`.
 	//
 	// The tag: with none, launcher.DecideLaunch returns ActionPick as soon as a
 	// detached session exists (decision.go:47), which inside couch's own pty is
@@ -453,7 +453,11 @@ func (c *Couch) spawnResolved(ctx context.Context, resolution StartResolution, r
 	// impossible. Only POSITIONALS are refused -- `ParseArgs` runs
 	// `extractLayoutRequest` first (args.go:51), which strips layout flags
 	// before the guard ever sees them, and `launchArgsAcceptLayout` admits them
-	// for resume because its Command is "". Measured, not reasoned:
+	// for resume because its Command is "". This used to say "measured, not
+	// reasoned" and rest on a hand check; it is now CHECKED, by
+	// TestCouchLayoutFlagsAreWhatPairParses, which round-trips every layout
+	// couch can emit through launcher.ParseArgs. The whole feature depends on
+	// pair parsing what couch sends, so that claim should not have been prose.
 	// `resume mytag --layout2` parses to {tag, layout2}; `resume mytag stray`
 	// is the thing that errors.
 	//

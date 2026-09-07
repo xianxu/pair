@@ -1,8 +1,11 @@
 package couchcore
 
 import (
+	"encoding/json"
 	"testing"
 	"time"
+
+	"github.com/xianxu/pair/cmd/internal/threadrecord"
 )
 
 // detachedLayoutRecord is a thread with a live client-less session -- the
@@ -89,5 +92,60 @@ func TestAbsentLayoutSurvivesPersistenceAsEmpty(t *testing.T) {
 	record := actionableTestThread("couch-0000000000000006", active)
 	if got := fromPersistedThreadRecord(toPersistedThreadRecord(record)); got.Layout != "" {
 		t.Fatalf("layout after round trip = %q; want empty", got.Layout)
+	}
+}
+
+// Persistence was tested at the Go-struct level only, which cannot see the
+// on-disk key: renaming the `layout` json tag in threadrecord would have kept
+// the round-trip green while silently dropping every witness on disk. This
+// decodes real bytes.
+func TestLayoutWitnessPersistsUnderItsOnDiskKey(t *testing.T) {
+	active := time.Unix(1000, 0).UTC()
+	record := actionableTestThread("couch-0000000000000007", active)
+	record.Layout = Layout3
+
+	raw, err := json.Marshal(toPersistedThreadRecord(record))
+	if err != nil {
+		t.Fatal(err)
+	}
+	var onDisk map[string]any
+	if err := json.Unmarshal(raw, &onDisk); err != nil {
+		t.Fatal(err)
+	}
+	if got := onDisk["layout"]; got != "layout3" {
+		t.Fatalf("on-disk key \"layout\" = %v; want \"layout3\" (a renamed tag drops every witness)", got)
+	}
+
+	// And a record written before #198 carries no such key at all, rather than
+	// an empty one -- strictjson is unforgiving, so the absence is the contract.
+	old := actionableTestThread("couch-0000000000000008", active)
+	rawOld, err := json.Marshal(toPersistedThreadRecord(old))
+	if err != nil {
+		t.Fatal(err)
+	}
+	var onDiskOld map[string]any
+	if err := json.Unmarshal(rawOld, &onDiskOld); err != nil {
+		t.Fatal(err)
+	}
+	if _, present := onDiskOld["layout"]; present {
+		t.Fatalf("a record with no layout emitted the key anyway: %s", rawOld)
+	}
+}
+
+// A real pre-#198 record, decoded through the production path, must load
+// cleanly and read as layout2.
+func TestPre198RecordDecodesThroughTheProductionPath(t *testing.T) {
+	active := time.Unix(1000, 0).UTC()
+	record := actionableTestThread("couch-0000000000000009", active)
+	raw, err := json.Marshal(toPersistedThreadRecord(record))
+	if err != nil {
+		t.Fatal(err)
+	}
+	decoded, err := threadrecord.DecodePersisted(raw, toPersistedThreadAddress(record.Address), threadRecordValidators)
+	if err != nil {
+		t.Fatalf("a pre-#198 record no longer decodes: %v", err)
+	}
+	if got := NormalizeLayout(decoded.Layout); got != Layout2 {
+		t.Fatalf("pre-#198 record normalized to %q; want Layout2", got)
 	}
 }
