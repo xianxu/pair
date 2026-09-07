@@ -371,7 +371,7 @@ func TestInteractiveLaunchReattachesUniqueDetachedRoot(t *testing.T) {
 	}
 	op, _ := Resolve("start")
 	var stdout, stderr bytes.Buffer
-	code := runTypedOperationWithConsole(op, map[string]string{}, map[string]string{"path": "/repo"}, true, slave, slave, slave, &stdout, &stderr, rt, finish)
+	code := runTypedOperationWithConsole(op, map[string]string{}, map[string]string{"path": "/repo"}, true, "", slave, slave, slave, &stdout, &stderr, rt, finish)
 	if code != 0 {
 		t.Fatalf("interactive launch: code=%d stdout=%q stderr=%q", code, stdout.String(), stderr.String())
 	}
@@ -417,7 +417,7 @@ func TestInteractiveLaunchStartsNewWhenNoSessionSurvives(t *testing.T) {
 	}
 	op, _ := Resolve("start")
 	var stdout, stderr bytes.Buffer
-	code := runTypedOperationWithConsole(op, map[string]string{}, map[string]string{"path": "/repo"}, true, slave, slave, slave, &stdout, &stderr, rt, finish)
+	code := runTypedOperationWithConsole(op, map[string]string{}, map[string]string{"path": "/repo"}, true, "", slave, slave, slave, &stdout, &stderr, rt, finish)
 	if code != 0 {
 		t.Fatalf("interactive launch: code=%d stdout=%q stderr=%q", code, stdout.String(), stderr.String())
 	}
@@ -455,7 +455,7 @@ func TestInteractiveLaunchResumesUniqueParkedRoot(t *testing.T) {
 	}
 	op, _ := Resolve("start")
 	var stdout, stderr bytes.Buffer
-	code := runTypedOperationWithConsole(op, map[string]string{}, map[string]string{"path": "/repo"}, true, slave, slave, slave, &stdout, &stderr, rt, finish)
+	code := runTypedOperationWithConsole(op, map[string]string{}, map[string]string{"path": "/repo"}, true, "", slave, slave, slave, &stdout, &stderr, rt, finish)
 	if code != 0 {
 		t.Fatalf("interactive launch: code=%d stdout=%q stderr=%q", code, stdout.String(), stderr.String())
 	}
@@ -519,7 +519,7 @@ func runTypedRT(rt testRT, call couchcore.OperationCall) (string, string, int) {
 		args["repo-scope"] = rt.Getenv("COUCH_THREAD_SCOPE")
 		args["tag"] = rt.Getenv("COUCH_THREAD_TAG")
 	}
-	code := runTypedOperation(op, args, nil, false, nil, nil, strings.NewReader(""), &out, &errw, rt)
+	code := runTypedOperation(op, args, nil, false, "", nil, nil, strings.NewReader(""), &out, &errw, rt)
 	return out.String(), errw.String(), code
 }
 
@@ -533,7 +533,7 @@ func runLaunchRT(rt testRT, path, agent string) (string, string, int) {
 		prepare["agent"] = agent
 	}
 	op, _ := Resolve("start")
-	code := runTypedOperation(op, map[string]string{}, prepare, false, nil, nil, strings.NewReader(""), &out, &errw, rt)
+	code := runTypedOperation(op, map[string]string{}, prepare, false, "", nil, nil, strings.NewReader(""), &out, &errw, rt)
 	return out.String(), errw.String(), code
 }
 
