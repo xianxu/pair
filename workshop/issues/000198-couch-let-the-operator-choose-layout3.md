@@ -1,12 +1,13 @@
 ---
 id: 000198
-status: working
+status: codecomplete
 deps: []
 github_issue:
 created: 2026-09-06
 updated: 2026-09-06
-estimate_hours: 3.73
+estimate_hours: 3.81
 started: 2026-09-06T12:06:08-07:00
+actual_hours: 2.23
 ---
 
 # couch: let the operator choose layout3
@@ -130,20 +131,42 @@ so record the answer in the issue rather than letting the code imply it.
 
 ## Plan
 
-- [ ] Decide the operator surface (CLI flag / menu / both) and confirm
+Superseded in shape by
+`workshop/plans/000198-couch-let-the-operator-choose-layout3-plan.md` (ten
+tasks); kept here as the outcome ledger.
+
+- [x] Decide the operator surface (CLI flag / menu / both) and confirm
       per-thread persistence.
-- [ ] Add the layout field to `StartArgs` with a layout2-default read for
-      records that predate it; test the old-record path.
-- [ ] Thread it to `launchTrackedThread`'s cold-boundary argv, leaving the
+      → **CLI flag only, and NOT per-thread.** The operator chose a couch-global
+      setting with no mixing; a menu affordance would have implied the
+      per-thread fork they rejected. See `## Revisions`.
+- [x] ~~Add the layout field to `StartArgs`~~ **→ `ThreadRecord.Layout`**, with a
+      layout2 read for records that predate it; test the old-record path.
+      → **The Spec's mechanism did not exist.** `StartArgs` is rebuilt at resume
+      from `ThreadRecord` + `LatestLaunchProfile`, so a field there would have
+      been dropped by the very park/resume cycle it had to survive. The witness
+      is normalized at `ProjectActionableThreads`, pinned by
+      `TestProjectionNormalizesAbsentLayoutAndDoesNotBlockDefaultStartup`.
+- [x] Thread it to `launchTrackedThread`'s cold-boundary argv, leaving the
       `in.Warm` branch untouched.
-- [ ] Correct the test premises; verify `warmresume_test.go` passes unmodified.
-- [ ] Sweep `couch.go:427` and the four `atlas/couch.md` sites.
-- [ ] Manual: start a layout3 thread under couch, park it, resume it, confirm
+      → argv takes `c.Layout.Flag()`; the warm branch is byte-identical and now
+      records no witness either.
+- [x] **Added by the Revisions:** the couch-global flag and the startup guard
+      refusing a layout that would mix with a session-holding thread.
+- [x] Correct the test premises; verify `warmresume_test.go` passes unmodified.
+      → `warmresume_test.go` untouched (`git diff --stat` empty). One assertion
+      strengthened rather than reworded: run_test.go checked only `--layout2`,
+      which would now miss couch leaking `--layout3` onto a warm path.
+- [x] Sweep `couch.go:427` and the four `atlas/couch.md` sites.
+- [x] Manual: start a layout3 thread under couch, park it, resume it, confirm
       the layout survives and the live session is never offered for deletion.
+      → Operator-run on the real six-thread store; see the verification Log
+      entry. No deletion prompt at any point.
 
 ## Log
 
 ### 2026-09-06
+- 2026-09-06: closed — go test ./... green (full repo, env-scrubbed). Three boundary rounds. Round 3 found the fix that mattered: BR-11 -- two of the nine tests I added in round 2 passed with their own fix reverted. Both asserted only a positive. The refusal test checked well-formedness, which the total Flag() satisfies while still naming a couch that would itself refuse; it now asserts the NEGATIVE (no layout flag but the requested one when no couch can host them all) and goes red when the agreement logic is removed. The README guard used bare --layout3, which pairs own flag docs elsewhere satisfy; it now uses the command-prefixed form and goes red when the couch block is deleted. BR-12s covering rule drove a message rewrite: a refusal must end in an action the operator can take, so the three cases are answered separately -- one known layout parks in one pass, several park per-thread from each matching couch, and an unreadable layout closes every in-tool route (park is a TUI row action, no couch will start) so the remedy names couch --show plus the session to kill. Every fix mutation-verified with -count=1, a compiling mutation, and the mutation chosen to re-create the specific finding. Operator smoke test on the real six-thread store: --layout3 refused naming live threads; after parking all six it started in layout3; brain cold-resumed from parked into layout3; detach works; no session-deletion prompt (the #179 failure mode).; review verdict: FIX-THEN-SHIP
 
 Filed from an operator request, with the question "I think it's just one line
 change?" — the honest answer is that the literal is one line and the change is
@@ -197,6 +220,99 @@ sittings — but whoever picks up the second of the two should check whether the
 first changed the want. Recorded rather than resolved: that is the operator's
 call.
 
+### Planning, and a measurement caveat for the close
+
+Planned on 2026-09-06. `sdlc start-plan` → durable plan at
+`workshop/plans/000198-couch-let-the-operator-choose-layout3-plan.md` → three
+plan-quality rounds. Round 1 blocked on a Critical worth recording, because it
+was a real design defect and not a wording problem: the guard compared the **raw**
+persisted layout, so a pre-change record's `Layout("")` would not equal
+`Layout2` and **every existing thread would have blocked a default `couch`
+startup**. `ParseLayout("") -> Layout2` was defined and then never wired in. The
+fix was the class, not the site: an enumeration of the two places a raw layout
+string becomes a decision input, each with its normalizer, plus `NormalizeLayout`
+and the `LayoutUnknown` sentinel for the projection that has no error return
+(ARCH-SECURE).
+
+**Measurement caveat (from the estimate-quality check).** At planning time
+`sdlc actual --issue 198` reads ~0.29h for the window, against 1.97h of buffered
+design — because the planning artifacts were still untracked and had not crossed
+a commit boundary. Today's spans are also being split across seven issues
+(`#112, #172, #196, #197, #198, #199, #200`) by mention fallback, several flagged
+"100% mention fallback without issue commit boundary". So if this closes well
+under 3.81, check attribution before reading it as estimate drift — the layout3
+trio (#198/#199/#200) shares session time by mention. Recorded now so the ledger
+row is not mistaken for calibration evidence (ariadne#117/#127).
+
+### 2026-09-06 — implemented; the backfill, measured
+
+Tasks 1-9 landed. `couch --list` against the real store, with the new binary:
+
+| thread | path | state |
+|---|---|---|
+| brain | `~/workspace/brain` | live (pid 7821) |
+| tools | `~/workspace/tools` | live (pid 43964) |
+| parley.nvim | `~/workspace/parley.nvim` | live (pid 8396) |
+| ariadne | `~/workspace/ariadne` | detached |
+| pair | `~/workspace/pair` | live (pid 7314) |
+| arc-agi-3 | `~/workspace/kbench/.../arc-agi-3` | live (pid 89296) |
+
+Six, as the issue estimated. **Every one holds a session** (five live, one
+detached), and none carries a `layout` field — they all predate #198, so they
+normalize to layout2, which is true: couch pinned layout2 for their whole
+lifetime.
+
+**No migration script is needed, and this is why.** A default `couch` requests
+layout2, every row normalizes to layout2, so the guard finds zero conflicts and
+startup is unaffected. Each thread's witness is then written on its next cold
+resume. The absent-field path is pinned by
+`TestProjectionNormalizesAbsentLayoutAndDoesNotBlockDefaultStartup`.
+
+**The consequence worth stating plainly:** because all six hold sessions,
+`couch --layout3` **refuses today until all six are parked**. That is the
+no-mixing rule working as specified rather than a defect — but it makes the
+first use of `--layout3` a deliberate act, not a quick experiment. The refusal
+names every conflicting thread and the remedy.
+
+**A guard that is not the safety mechanism.** Worth keeping straight for anyone
+reading this later: #179 (a warm reattach sends no layout flag) is what prevents
+the destructive outcome, and it holds whether or not the guard runs. The guard
+only buys predictability. So a race between the guard's snapshot and a session
+appearing is cosmetic, which is why a plain startup check was the right
+strength and nothing here is transactional with the store.
+
+**Verification so far.** `go test ./cmd/...` green. Mutation checks run on the
+four load-bearing invariants — the empty-layout normalization, the blocking
+predicate (swapped for `Resumable()`), the warm-reattach argv and witness, and
+the guard's IO budget — each confirmed failing before being restored. Task 10
+(the manual park/resume cycle) is outstanding and needs the operator.
+
+### 2026-09-06 — manual verification, by the operator
+
+Task 10 run on the real store, against the six-thread inventory recorded above.
+What was observed, in order:
+
+1. **`couch --layout3` refused** while all six threads still held sessions,
+   naming them. This is the guard's whole point, and it was exercised against
+   the live store rather than a fixture.
+2. **Every thread parked, then `couch --layout3` started.** The refusal is a
+   reachable state, not a trap: parking empties the blocking set, which is
+   exactly why parked threads are excluded from it.
+3. **`brain` resumed from parked and came back in layout3** — the three-pane
+   right side present. This is the cold-resume migration: `brain` was parked
+   from a layout2 world and revived into layout3, so its witness followed its
+   session rather than the store keeping a stale claim.
+4. **Detach tested under layout3** and behaves.
+
+No deletion prompt appeared at any point in the cycle — the #179 failure mode
+(pair offering to DELETE a live session when asked for a different layout) did
+not surface, which is what the cold/warm split exists to prevent.
+
+Recovery snapshot taken before the switch and kept at
+`~/couch-recovery-2026-09-06/` (store backup + per-thread zellij session and
+transcript id). Not needed, but the switch was one-way for six live agents and
+was worth insuring.
+
 ## Estimate
 
 ```estimate
@@ -204,16 +320,18 @@ model: estimate-logic-v3.1
 familiarity: 1.0
 item: issue-spec                 design=1.10 impl=0.10
 item: greenfield-go-module       design=0.20 impl=0.20
-item: smaller-go-module          design=0.06 impl=0.20
-item: smaller-go-module          design=0.06 impl=0.20
-item: smaller-go-module          design=0.06 impl=0.20
+item: smaller-go-module          design=0.05 impl=0.14
+item: smaller-go-module          design=0.08 impl=0.20
 item: smaller-go-module          design=0.06 impl=0.18
+item: smaller-go-module          design=0.06 impl=0.16
 item: smaller-go-module          design=0.06 impl=0.20
 item: cross-cutting-refactor     design=0.08 impl=0.16
 item: atlas-docs                 design=0.03 impl=0.08
-item: milestone-review           design=0.00 impl=0.24
+item: smaller-go-module          design=0.01 impl=0.04
+item: milestone-review           design=0.00 impl=0.20
+item: milestone-review           design=0.00 impl=0.16
 design-buffer: 0.15
-total: 3.73
+total: 3.81
 ```
 
 *Produced via `brain/data/life/42shots/velocity/estimate-logic-v3.1.md` against
@@ -224,24 +342,35 @@ provisional.
 Design is dominated by `issue-spec`, and that is not front-loading credit taken
 twice: the Problem section's archaeology was written before this session, and
 today added the `## Revisions` (an operator fork plus a correction to the Spec's
-mechanism), a ~700-line plan, and **two plan-quality rounds** — the first
-refused with a Critical (`PQ-1`) whose fix changed the design, adding
-`NormalizeLayout`/`LayoutUnknown` and the normalization table. The remaining
-design is small because the plan resolved the open questions: the six-state
-disposition, the guard's placement, and the witness's transaction are decided in
-prose, so each Go item is transcription against a named anchor rather than a
-choice.
+mechanism), a ~750-line plan, and **three plan-quality rounds** — round 1 refused
+with a Critical (`PQ-1`) whose fix changed the design, adding
+`NormalizeLayout`/`LayoutUnknown` and the normalization table; round 2 passed but
+raised `PQ-8`; round 3 disposed of it. The remaining design is small because the
+plan resolved the open questions: the six-state disposition, the guard's
+placement, and the witness's transaction are decided in prose, so each Go item is
+transcription against a named anchor rather than a choice.
 
 The `+15%` design buffer (not `+30%`) is v2.1's thorough-plan-doc rule.
 
+**Revised after the estimate-quality check (3.73 → 3.81).** Four of its five
+observations said the first block ran low, and all four are accepted:
+Task 9 had no line item at all; `milestone-review impl=0.24` was above the
+primitive's scaled ceiling (0.08–0.20) *and* was blending a fresh-eyes review
+with Task 10's six-step manual park/resume cycle, so those are now two items;
+the five `smaller-go-module` rows sat uniformly at the scaled maximum and now
+differ by actual scope (Task 3's three files and schema-2 fixture above Task 2's
+single pure predicate); and the prose said two gate rounds where the ledger
+records three. The fifth observation is about measurement, not the estimate, and
+is recorded in `## Log`.
+
 | Slug | Instances |
 | --- | --- |
-| `issue-spec` | the issue's Problem/Spec, the `## Revisions` entry, the durable plan, and two plan-quality gate rounds |
+| `issue-spec` | the issue's Problem/Spec, the `## Revisions` entry, the durable plan, and three plan-quality gate rounds |
 | `greenfield-go-module` | Task 1 — `layout.go`: a new type with two normalizers and the `LayoutUnknown` sentinel |
-| `smaller-go-module` | Tasks 2–6 — the guard predicate; the `ThreadRecord`/`threadrecord` field plus the projection's normalization point; the argv emission and `StartEvent.Layout`; the `StartInteractive` guard and its refusal; the CLI flag and its typed plumbing |
-| `cross-cutting-refactor` | Task 7 — correcting ~18 test premises across six files, one of which (`warmresume_test.go`) must verifiably not change |
+| `smaller-go-module` | Task 2 the guard predicate; Task 3 the `ThreadRecord`/`threadrecord` field plus the projection's normalization point and old-record fixture; Task 4 the argv emission and `StartEvent.Layout`; Task 5 the `StartInteractive` guard and its refusal text; Task 6 the CLI flag and its typed plumbing; Task 9 the backfill check |
+| `cross-cutting-refactor` | Task 7 — correcting ~19 test premises across six files, one of which (`warmresume_test.go`) must verifiably not change |
 | `atlas-docs` | Task 8 — the `couch.go:427` rationale plus four `atlas/couch.md` sites |
-| `milestone-review` | Task 10's manual verification and the single close boundary (this is single-pass work: one `sdlc close`, no `Mx` tags) |
+| `milestone-review` | ×2 — Task 10's six-step manual verification, and the single close boundary review (this is single-pass work: one `sdlc close`, no `Mx` tags) |
 
 ## Revisions
 

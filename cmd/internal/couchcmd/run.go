@@ -163,7 +163,7 @@ func RunWithRuntime(args []string, stdin io.Reader, stdout, stderr io.Writer, rt
 			return 1
 		}
 		op, _ := Resolve("start")
-		return runTypedOperation(op, map[string]string{}, map[string]string{"path": invocation.path}, true, inFile, outFile, stdin, stdout, stderr, rt)
+		return runTypedOperation(op, map[string]string{}, map[string]string{"path": invocation.path}, true, invocation.layout, inFile, outFile, stdin, stdout, stderr, rt)
 	}
 
 	var op couchcore.Operation
@@ -198,7 +198,9 @@ func RunWithRuntime(args []string, stdin io.Reader, stdout, stderr io.Writer, rt
 		fmt.Fprintf(stderr, "couch: %v\n", err)
 		return 2
 	}
-	return runTypedOperation(op, parsed, nil, false, nil, nil, stdin, stdout, stderr, rt)
+	// The read-only forms reject a layout flag in ParseCLI, so they carry none
+	// and leave the Couch on its constructed default.
+	return runTypedOperation(op, parsed, nil, false, "", nil, nil, stdin, stdout, stderr, rt)
 }
 
 func terminalFiles(stdin io.Reader, stdout io.Writer) (*os.File, *os.File, bool) {
@@ -207,13 +209,13 @@ func terminalFiles(stdin io.Reader, stdout io.Writer) (*os.File, *os.File, bool)
 	return inFile, outFile, inOK && outOK && isTerminal(inFile) && isTerminal(outFile)
 }
 
-func runTypedOperation(op couchcore.Operation, parsed, prepareArgs map[string]string, forceConsole bool, inFile, outFile *os.File, stdin io.Reader, stdout, stderr io.Writer, rt Runtime) int {
-	return runTypedOperationWithConsole(op, parsed, prepareArgs, forceConsole, inFile, outFile, stdin, stdout, stderr, rt, runConsole)
+func runTypedOperation(op couchcore.Operation, parsed, prepareArgs map[string]string, forceConsole bool, layout couchcore.Layout, inFile, outFile *os.File, stdin io.Reader, stdout, stderr io.Writer, rt Runtime) int {
+	return runTypedOperationWithConsole(op, parsed, prepareArgs, forceConsole, layout, inFile, outFile, stdin, stdout, stderr, rt, runConsole)
 }
 
 type consoleFinisher func(*couchtty.Console, *couchcore.Couch, couchcore.StartResult, io.Writer) int
 
-func runTypedOperationWithConsole(op couchcore.Operation, parsed, prepareArgs map[string]string, forceConsole bool, inFile, outFile *os.File, stdin io.Reader, stdout, stderr io.Writer, rt Runtime, finishConsole consoleFinisher) int {
+func runTypedOperationWithConsole(op couchcore.Operation, parsed, prepareArgs map[string]string, forceConsole bool, layout couchcore.Layout, inFile, outFile *os.File, stdin io.Reader, stdout, stderr io.Writer, rt Runtime, finishConsole consoleFinisher) int {
 	if operationUsesCurrentRepoScope(op.Name) {
 		scope, err := rt.CurrentRepoScope()
 		if err != nil {
@@ -253,6 +255,13 @@ func runTypedOperationWithConsole(op couchcore.Operation, parsed, prepareArgs ma
 	if err != nil {
 		fmt.Fprintf(stderr, "couch: %v\n", err)
 		return 1
+	}
+	// The one place the CLI's layout choice reaches the domain. Set here rather
+	// than through NewCouchWith so the Runtime interface -- and every fake
+	// implementing it -- stays unchanged. An empty layout is a non-launch form,
+	// which leaves New's Layout2 default alone.
+	if layout != "" {
+		c.Layout = layout
 	}
 
 	executors := couchcore.OperationExecutors{DirectStore: couchcore.DirectStoreExecutor(c)}
@@ -660,9 +669,16 @@ func renderError(w io.Writer, err error) {
 func usage(w io.Writer) {
 	fmt.Fprintln(w, "couch - supervise agent actors, one per working tree")
 	fmt.Fprintln(w)
-	fmt.Fprintln(w, "usage: couch [path]")
+	fmt.Fprintln(w, "usage: couch [path] [--layout2|--layout3]")
 	fmt.Fprintln(w, "       couch --list")
 	fmt.Fprintln(w, "       couch --show <thread>")
 	fmt.Fprintln(w, "       couch --archived")
 	fmt.Fprintln(w, "       couch --help")
+	fmt.Fprintln(w)
+	// Deliberately free of the words the public-surface test forbids: they are
+	// internal operation names, and the remedy for a refusal belongs in the
+	// refusal itself, where it can name the actual threads.
+	fmt.Fprintln(w, "  --layout3  give every thread pair's right-hand terminal (default: --layout2).")
+	fmt.Fprintln(w, "             One layout per couch: it refuses to run alongside a thread")
+	fmt.Fprintln(w, "             already holding a session in the other layout.")
 }

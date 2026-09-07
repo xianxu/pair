@@ -73,17 +73,21 @@ type Record struct {
 	// Incarnation.DeprecatedPolicy -- and a more urgent one: it appeared in
 	// EVERY record in the operator's store, so deleting it would have made the
 	// whole store unreadable at once.
-	DeprecatedClaimGeneration uint64            `json:"claim_generation,omitempty"`
-	Reservation               bool              `json:"reservation,omitempty"`
-	Name                      string            `json:"name,omitempty"`
-	Description               string            `json:"description,omitempty"`
-	PublishedSummary          string            `json:"published_summary,omitempty"`
-	Incarnations              []Incarnation     `json:"incarnations,omitempty"`
-	LatestLaunchProfile       *LaunchProfile    `json:"latest_launch_profile,omitempty"`
-	LastActiveAt              time.Time         `json:"last_active_at,omitempty"`
-	Park                      *ParkTransaction  `json:"park,omitempty"`
-	VerifiedPark              *VerifiedPark     `json:"verified_park,omitempty"`
-	ParkHistory               []ParkTransaction `json:"park_history,omitempty"`
+	DeprecatedClaimGeneration uint64 `json:"claim_generation,omitempty"`
+	Reservation               bool   `json:"reservation,omitempty"`
+	Name                      string `json:"name,omitempty"`
+	Description               string `json:"description,omitempty"`
+	PublishedSummary          string `json:"published_summary,omitempty"`
+	// Layout is the thread's witnessed pair layout, kept as a raw string here:
+	// this package is the persistence mirror and does not own the vocabulary.
+	// Absent on every record written before pair#198.
+	Layout              string            `json:"layout,omitempty"`
+	Incarnations        []Incarnation     `json:"incarnations,omitempty"`
+	LatestLaunchProfile *LaunchProfile    `json:"latest_launch_profile,omitempty"`
+	LastActiveAt        time.Time         `json:"last_active_at,omitempty"`
+	Park                *ParkTransaction  `json:"park,omitempty"`
+	VerifiedPark        *VerifiedPark     `json:"verified_park,omitempty"`
+	ParkHistory         []ParkTransaction `json:"park_history,omitempty"`
 }
 
 var componentPattern = regexp.MustCompile(`^[A-Za-z0-9_-]+$`)

@@ -371,7 +371,7 @@ func TestInteractiveLaunchReattachesUniqueDetachedRoot(t *testing.T) {
 	}
 	op, _ := Resolve("start")
 	var stdout, stderr bytes.Buffer
-	code := runTypedOperationWithConsole(op, map[string]string{}, map[string]string{"path": "/repo"}, true, slave, slave, slave, &stdout, &stderr, rt, finish)
+	code := runTypedOperationWithConsole(op, map[string]string{}, map[string]string{"path": "/repo"}, true, "", slave, slave, slave, &stdout, &stderr, rt, finish)
 	if code != 0 {
 		t.Fatalf("interactive launch: code=%d stdout=%q stderr=%q", code, stdout.String(), stderr.String())
 	}
@@ -380,13 +380,15 @@ func TestInteractiveLaunchReattachesUniqueDetachedRoot(t *testing.T) {
 	if attached.Record.Thread != detached.Address {
 		t.Fatalf("interactive root = %+v, want the detached thread %+v", attached.Record.Thread, detached.Address)
 	}
-	// A WARM reattach, so no `--layout2`: the running session already has its
-	// layout, and asking for a different one sends Pair down a conflict path
-	// that offers to delete the live session (#179).
+	// A WARM reattach, so NO layout flag at all: the running session already has
+	// its layout, and asking for a different one sends Pair down a conflict path
+	// that offers to delete the live session (#179). Asserted against any
+	// `--layout`, not just `--layout2` -- since #198 couch has a layout of its
+	// own to leak here, and pinning only the old literal would miss it.
 	if len(rt.runner.Ops) == 0 || !strings.Contains(rt.runner.Ops[0], "pair resume "+string(detached.Address.Tag)) {
 		t.Fatalf("child operations = %v, want the detached thread reattached", rt.runner.Ops)
 	}
-	if strings.Contains(rt.runner.Ops[0], "--layout2") {
+	if strings.Contains(rt.runner.Ops[0], "--layout") {
 		t.Fatalf("warm reattach asked for a layout: %v", rt.runner.Ops)
 	}
 }
@@ -417,7 +419,7 @@ func TestInteractiveLaunchStartsNewWhenNoSessionSurvives(t *testing.T) {
 	}
 	op, _ := Resolve("start")
 	var stdout, stderr bytes.Buffer
-	code := runTypedOperationWithConsole(op, map[string]string{}, map[string]string{"path": "/repo"}, true, slave, slave, slave, &stdout, &stderr, rt, finish)
+	code := runTypedOperationWithConsole(op, map[string]string{}, map[string]string{"path": "/repo"}, true, "", slave, slave, slave, &stdout, &stderr, rt, finish)
 	if code != 0 {
 		t.Fatalf("interactive launch: code=%d stdout=%q stderr=%q", code, stdout.String(), stderr.String())
 	}
@@ -455,7 +457,7 @@ func TestInteractiveLaunchResumesUniqueParkedRoot(t *testing.T) {
 	}
 	op, _ := Resolve("start")
 	var stdout, stderr bytes.Buffer
-	code := runTypedOperationWithConsole(op, map[string]string{}, map[string]string{"path": "/repo"}, true, slave, slave, slave, &stdout, &stderr, rt, finish)
+	code := runTypedOperationWithConsole(op, map[string]string{}, map[string]string{"path": "/repo"}, true, "", slave, slave, slave, &stdout, &stderr, rt, finish)
 	if code != 0 {
 		t.Fatalf("interactive launch: code=%d stdout=%q stderr=%q", code, stdout.String(), stderr.String())
 	}
@@ -519,7 +521,7 @@ func runTypedRT(rt testRT, call couchcore.OperationCall) (string, string, int) {
 		args["repo-scope"] = rt.Getenv("COUCH_THREAD_SCOPE")
 		args["tag"] = rt.Getenv("COUCH_THREAD_TAG")
 	}
-	code := runTypedOperation(op, args, nil, false, nil, nil, strings.NewReader(""), &out, &errw, rt)
+	code := runTypedOperation(op, args, nil, false, "", nil, nil, strings.NewReader(""), &out, &errw, rt)
 	return out.String(), errw.String(), code
 }
 
@@ -533,7 +535,7 @@ func runLaunchRT(rt testRT, path, agent string) (string, string, int) {
 		prepare["agent"] = agent
 	}
 	op, _ := Resolve("start")
-	code := runTypedOperation(op, map[string]string{}, prepare, false, nil, nil, strings.NewReader(""), &out, &errw, rt)
+	code := runTypedOperation(op, map[string]string{}, prepare, false, "", nil, nil, strings.NewReader(""), &out, &errw, rt)
 	return out.String(), errw.String(), code
 }
 

@@ -34,6 +34,12 @@ type Couch struct {
 	PairLifecycle    *PairLifecycleController
 	RootAgent        string
 	RepoAgentDefault func(repoRoot, agent string) (LaunchProfile, bool, error)
+	// Layout is which pair layout this couch launches its threads in, chosen
+	// once at construction and IMMUTABLE for the process lifetime -- there is
+	// no mid-session layout change, which is what keeps the mixed-state
+	// question to a single startup-time check. Always a value ParseLayout
+	// returned, so it is never LayoutUnknown and Flag() is always well formed.
+	Layout Layout
 
 	reg                       Registry
 	names                     NamingTable
@@ -98,6 +104,7 @@ func New(namespace CouchNamespace, r Runner, p PathOps, g GitRunner, proc ProcOp
 	threads := NewThreadStore(namespace)
 	result := &Couch{
 		Namespace: namespace,
+		Layout:    Layout2,
 		Runner:    r, Path: p, Git: g, Proc: proc, Store: s, Clock: c, IDs: ids,
 		Threads: threads, Entropy: entropy,
 		Artifacts: artifacts,
@@ -414,7 +421,7 @@ func (c *Couch) spawnResolved(ctx context.Context, resolution StartResolution, r
 		return ActorRecord{}, nil, errors.Join(fmt.Errorf("record start transaction: %w", err), c.rollbackPristineStart(threadAddress))
 	}
 
-	// `pair resume <tag> --layout2` rather than a bare `pair`.
+	// `pair resume <tag> --<layout>` rather than a bare `pair`.
 	//
 	// The tag: with none, launcher.DecideLaunch returns ActionPick as soon as a
 	// detached session exists (decision.go:47), which inside couch's own pty is
@@ -424,17 +431,33 @@ func (c *Couch) spawnResolved(ctx context.Context, resolution StartResolution, r
 	// was claimed in ThreadStore before admission, so each accepted start owns a
 	// distinct durable Pair session even when several threads share one path.
 	//
-	// The layout: pinned to layout2 by operator decision 2026-08-22. couch owns
+	// The layout: whatever `Couch.Layout` holds, chosen once per process from
+	// `couch --layout2` / `--layout3` and immutable for its lifetime.
+	//
+	// This REVERSES the 2026-08-22 pin (#198). That pin read "couch owns
 	// terminal switching now, so layout3's third pane -- pair's own user
-	// terminal -- is the layer couch replaces. Provisional ("for now"), which is
-	// why it is a literal here rather than a knob nobody has asked for.
+	// terminal -- is the layer couch replaces", and it did not survive its own
+	// premise: it was an actor-cluster-era claim, made when couch was specified
+	// to own everything on the host, and #170 rescoped couch to couch-lite on
+	// 2026-09-02. couch-lite switches agent SESSIONS; it never took over
+	// handing the operator a shell at their cwd, so the layer the pin said
+	// couch replaced is one it does not provide.
+	//
+	// One layout per couch, never mixed: a startup guard refuses to run when a
+	// thread already holds a session in the other layout, because a session's
+	// layout cannot be changed without destroying it (see the warm-reattach
+	// note in launch_existing.go).
 	//
 	// A correction worth keeping: an earlier version of this comment claimed
 	// `resume` REFUSES a third argv element and that --layout2 was therefore
 	// impossible. Only POSITIONALS are refused -- `ParseArgs` runs
 	// `extractLayoutRequest` first (args.go:51), which strips layout flags
 	// before the guard ever sees them, and `launchArgsAcceptLayout` admits them
-	// for resume because its Command is "". Measured, not reasoned:
+	// for resume because its Command is "". This used to say "measured, not
+	// reasoned" and rest on a hand check; it is now CHECKED, by
+	// TestCouchLayoutFlagsAreWhatPairParses, which round-trips every layout
+	// couch can emit through launcher.ParseArgs. The whole feature depends on
+	// pair parsing what couch sends, so that claim should not have been prose.
 	// `resume mytag --layout2` parses to {tag, layout2}; `resume mytag stray`
 	// is the thing that errors.
 	//

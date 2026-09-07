@@ -28,9 +28,12 @@ func TestProjectActionableThreadsRequiresExactLifecycleProof(t *testing.T) {
 		}}, []ParkedResumeObservation{{Address: parked.Address, Agent: "claude", NativeID: "native-root-1"}}, nil,
 	)
 
+	// Layout2 rather than empty: since #198 the projection normalizes the layout
+	// witness, and neither record carries one -- which is every record written
+	// before that change, and they are layout2.
 	want := []ActionableThreadSummary{
-		{Address: parked.Address, StartingPath: "/repo", WorkingPath: "/repo", State: ThreadParked, LastActiveAt: parked.LastActiveAt},
-		{Address: live.Address, StartingPath: "/repo", WorkingPath: "/repo", State: ThreadLive, LastActiveAt: live.LastActiveAt},
+		{Address: parked.Address, StartingPath: "/repo", WorkingPath: "/repo", State: ThreadParked, LastActiveAt: parked.LastActiveAt, Layout: Layout2},
+		{Address: live.Address, StartingPath: "/repo", WorkingPath: "/repo", State: ThreadLive, LastActiveAt: live.LastActiveAt, Layout: Layout2},
 	}
 	if !reflect.DeepEqual(rows, want) {
 		t.Fatalf("actionable rows = %+v, want %+v", rows, want)

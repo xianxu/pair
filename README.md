@@ -265,10 +265,18 @@ still works. See [atlas/couch.md](atlas/couch.md).
 
 ```
 couch [<repo>]           open the Couch TUI (default: .)
+couch --layout2          threads get pair's two-pane workbench (the default)
+couch --layout3          threads also get pair's right-hand terminal
 couch --list             every durable work thread across all repositories
 couch --show <ref>       one current-repository thread by tag, path, or name
 couch --archived         threads removed from couch, with their records kept
 ```
+
+The layout belongs to the couch **process**, not to individual threads: every
+thread it starts or revives uses it. couch will not mix the two: it
+refuses to start when a thread is already running or detached in the
+other layout, and names the threads to park first. Parked threads never block — a park ends the
+session, so the next revival simply takes the layout couch is in.
 
 `<ref>` resolution for `--show` is scoped to the Git
 repository containing the current directory. An exact opaque tag wins; human

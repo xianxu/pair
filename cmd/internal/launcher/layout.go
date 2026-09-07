@@ -10,6 +10,18 @@ const (
 	Layout3 LayoutMode = "layout3"
 )
 
+// Flag is the single source for how a LayoutMode is spelled on argv. It is
+// TOTAL: an unset or unrecognised mode yields --layout2, the default topology,
+// so no caller can emit a malformed flag (a bare "--") from a zero value.
+// extractLayoutRequest parses against this, so the spelling cannot drift
+// between what Pair emits and what Pair accepts.
+func (m LayoutMode) Flag() string {
+	if m == Layout3 {
+		return "--layout3"
+	}
+	return "--layout2"
+}
+
 // LayoutRequest preserves whether the operator explicitly selected a topology.
 // An implicit zero request is resolved from the tag record, then defaults to
 // Layout2.

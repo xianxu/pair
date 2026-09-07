@@ -62,6 +62,58 @@ structure; *what the row says* is per-consumer policy (couch renders actors,
 `pair term` renders tabs). `TakeRowDirty` is already in the shared child half,
 so the repaint trigger needs nothing new.
 
+### The strip can retire the pane frame — three jobs, not one
+
+Read out of `#123`'s history on 2026-09-06, because "why is the right pane not
+frameless?" has a documented answer that changes this issue's payoff.
+
+**Frameless was tried and reverted**, 2026-07-27, and *not* over the title:
+
+> post-close rework 2: live testing showed borderless split panes render with
+> **no visible divider between the halves**. Reverted the split panes to bordered
+> (`--borderless false`, still pinned): the frame is the divider and carries the
+> `#118` tab title and scroll indicator.
+> — `workshop/history/issues/000123-…`, Log
+
+So the frame does **three** jobs, and the tab title — this issue's subject — is
+only the middle one:
+
+| job | source | can the strip take it? |
+|---|---|---|
+| **divider** between `Alt+Shift+d` split halves | `#123` Log; the reason the revert happened | **yes** — each pane draws its own strip, so a split shows two strips and the boundary is explicit |
+| **`#118` tab title** | `#118`, `config.kdl:12-14` | **yes** — that is this issue |
+| **scroll indicator** | `config.kdl:16-19`: frames are global *"so the agent pane shows zellij's scroll-position indicator … the only way to surface scrollback position, since zellij doesn't expose pane scroll offset to plugins or the CLI"* | **yes, and only `pair term` can** — see below |
+
+The scroll indicator is the surprising one. `config.kdl` is right that *zellij*
+cannot expose pane scroll offset. But `pair term` **owns the pty and the ring**
+(`ptychild`), so it already holds its own scroll position without asking zellij
+anything. The constraint that forced `pane_frames true` globally is a constraint
+on zellij, not on us.
+
+A fourth job is already dead and should not be re-litigated: the frame used to
+be the drag handle, accepted as "residual frame-drag exposure". The tiled pivot
+in `#123` made drag-immunity architectural — tiled panes have no mouse-move
+operation — so frameless costs nothing in safety today.
+
+**On the divider specifically:** what the revert established is that two stacked
+shells with no boundary are unreadable — same font, same colours, one's output
+running into the next. That argues for *a visual boundary*, not for *a frame*.
+zellij offered frame-or-nothing, so the frame won by default. The strip is the
+third option.
+
+**Consequence for this issue's scope.** This was filed as "replace a bad title
+mechanism". It is really "own the pane's chrome and stop paying zellij's": once
+the strip carries all three jobs, the right pane can take `borderless=true` —
+the per-pane opt-out the draft pane already uses — reclaiming **~2 rows + 2
+columns** of frame chrome per pane (`config.kdl:22`), and the global
+`pane_frames true` becomes a question about the agent pane alone rather than a
+fleet-wide default.
+
+Sequencing note: going borderless is a **follow-on**, not part of this issue.
+Land the strip first, confirm it carries divider + title + scroll position in a
+real split, and only then flip `borderless`. Reverting a strip is easy;
+reverting a chrome change that the layout rungs depend on is not.
+
 ### The boundary — name it now
 
 **`pair term` owns tabs within a pane; zellij keeps panes and splits.** The
@@ -77,6 +129,11 @@ generality; a terminal-only pane can be opinionated.
 
 ### To settle in the plan
 
+0. **Does the operator actually split the right pane?** The divider job is only
+   load-bearing under `Alt+Shift+d`. If splits are rare in practice, the
+   frameless follow-on gets simpler; if they are common, the strip's edge has to
+   be convincing as a boundary before `borderless` is safe. Cheap to answer and
+   it gates the follow-on.
 1. **Whether `rename-pane` survives at all.** The zellij pane title is still the
    only label visible when the pane is *not* focused, and `#118`'s tab-strip
    titles and `#123`'s registry read it. Keeping a degraded title for outside
@@ -109,6 +166,9 @@ carries a constraint of its own.
   their own strip.
 - `atlas/architecture.md` records the row primitive as shared host-half
   structure, alongside the existing `\x1b[r` note.
+- The strip displays scroll position for its own pane, sourced from `ptychild`
+  rather than from zellij — the fact that makes the frameless follow-on possible
+  is demonstrated, not merely argued.
 
 ## Plan
 

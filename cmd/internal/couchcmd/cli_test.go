@@ -7,6 +7,8 @@ import (
 	"github.com/xianxu/pair/cmd/internal/couchcore"
 )
 
+// Since #198 every launch form carries a layout: absent means the default,
+// Layout2, not "unset". The read-only forms carry none and refuse the flag.
 func TestParseCLI(t *testing.T) {
 	operations := couchcore.Operations()
 	tests := []struct {
@@ -14,9 +16,9 @@ func TestParseCLI(t *testing.T) {
 		args []string
 		want cliInvocation
 	}{
-		{name: "bare", want: cliInvocation{kind: cliLaunch, path: "."}},
-		{name: "path", args: []string{"../pair"}, want: cliInvocation{kind: cliLaunch, path: "../pair"}},
-		{name: "dash path", args: []string{"--", "-repo"}, want: cliInvocation{kind: cliLaunch, path: "-repo"}},
+		{name: "bare", want: cliInvocation{kind: cliLaunch, path: ".", layout: couchcore.Layout2}},
+		{name: "path", args: []string{"../pair"}, want: cliInvocation{kind: cliLaunch, path: "../pair", layout: couchcore.Layout2}},
+		{name: "dash path", args: []string{"--", "-repo"}, want: cliInvocation{kind: cliLaunch, path: "-repo", layout: couchcore.Layout2}},
 		{name: "list", args: []string{"--list"}, want: cliInvocation{kind: cliList}},
 		{name: "show", args: []string{"--show", "thread"}, want: cliInvocation{kind: cliShow, ref: "thread"}},
 		{name: "help long", args: []string{"--help"}, want: cliInvocation{kind: cliHelp}},

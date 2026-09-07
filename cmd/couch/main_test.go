@@ -137,6 +137,10 @@ sleep 2
 	})
 }
 
+// The exact shape of the one pair call couch makes. The trailing --layout2 is
+// couch's DEFAULT layout since #198, not a pinned constant: a `couch --layout3`
+// makes the same call with --layout3. What stays exact is the arity and the
+// generated tag -- a stray positional here would be the regression.
 func assertExactPairResumeCall(t *testing.T, calls []byte) {
 	t.Helper()
 	var pairCalls [][]string
@@ -151,12 +155,12 @@ func assertExactPairResumeCall(t *testing.T, calls []byte) {
 	}
 	call := pairCalls[0]
 	if len(call) != 4 {
-		t.Fatalf("pair call = %q, want exactly pair resume <generated-couch-tag> --layout2", call)
+		t.Fatalf("pair call = %q, want exactly pair resume <generated-couch-tag> <couch default layout>", call)
 	}
 	tagHex := strings.TrimPrefix(call[2], "couch-")
 	_, tagErr := hex.DecodeString(tagHex)
 	if call[1] != "resume" || !strings.HasPrefix(call[2], "couch-") || len(tagHex) != 16 || tagErr != nil || call[3] != "--layout2" {
-		t.Fatalf("pair call = %q, want exactly pair resume <generated-couch-tag> --layout2", call)
+		t.Fatalf("pair call = %q, want exactly pair resume <generated-couch-tag> <couch default layout>", call)
 	}
 }
 

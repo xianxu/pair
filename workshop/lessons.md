@@ -3527,3 +3527,99 @@ that a key token appears cannot detect a contradictory behavioral sentence
   the mutation check: after writing a test, break the thing it covers and
   confirm the test fails. Every vacuous test in this issue would have been
   caught in seconds by that, and each one instead cost a full review round.
+- Anchor programmatic section edits to a line start, never a bare substring. I
+  spliced an issue's `## Estimate` block with
+  `s[:s.index("## Estimate")] + new + s[s.index("## Revisions"):]`, and the
+  second index matched a backticked ``` `## Revisions` ``` *inside my own new
+  prose* — silently truncating the replacement and leaving a broken
+  ``## Revisions` `` heading plus a stale duplicate of the whole section, which
+  a gate then had to find for me. Prose about a document routinely quotes that
+  document's headings, so the substring is ambiguous by construction. Use a
+  `^## Heading$` regex with `MULTILINE`, or match on the line list; and after
+  any scripted edit to a structured artifact, re-print `grep -n "^## "` and
+  check the section list is what you intended.
+- A gate verdict of INFO is still evidence. #198's estimate-quality check passed
+  advisory-only, and four of its five observations independently said the
+  estimate ran LOW — a missing line item, a primitive above its scaled ceiling,
+  five rows uniformly at maximum carrying no scope information. Banking the pass
+  would have shipped a knowingly-low number into velocity calibration, which is
+  the exact input the estimate gates exist to protect. Fix what a non-blocking
+  finding correctly identifies when the fix is cheap; "it didn't block" is a
+  statement about severity, not about correctness.
+- Commit BEFORE mutation-checking, because the check's own restore step is the
+  hazard. The loop is "break the code, confirm the test fails, restore" — and
+  the natural restore is `git checkout <file>`, which silently discards every
+  uncommitted change in that file, not just the mutation. I did exactly this to
+  `launch_existing.go` while its task was still unstaged, reverted the real
+  implementation along with the mutation, and only caught it because the full
+  suite failed on tests that had passed a minute earlier. Sequence it as:
+  implement → test green → **commit** → mutate → confirm red → `git checkout`
+  (now safe) → confirm green. Restoring by re-applying the inverse edit is the
+  other safe form; `git checkout` is only safe once the work is committed.
+- Before declaring a new type, grep for the vocabulary it names. I added
+  `couchcore.Layout` with `layout2`/`layout3` constants and a `Flag()`
+  formatter; `launcher.LayoutMode` had all of it already — same constants, a
+  parser, and the argv spellings — in a package `couchcore` already imports in
+  eight files. The plan-quality gate did not catch it either, because a plan
+  reads as coherent whether or not the entity it declares is a duplicate. The
+  cheap check is one grep for the *values* (`grep -rn '"layout2"'`), not the
+  type name, since a duplicate vocabulary rarely reuses the name.
+- When a comment says something was "measured, not reasoned", that is a test
+  waiting to be written. couch's whole feature rested on `pair` parsing the flag
+  couch emits, and the only in-tree evidence was a comment saying it had been
+  checked by hand once. A hand measurement is a fact about one moment; the
+  round-trip test that replaced it (`launcher.ParseArgs(…Flag())`) is a fact
+  about every future edit to either side.
+- A value that means "not set" needs its own representation as soon as it has a
+  second meaning. `Layout("")` accumulated three: pre-#198-therefore-layout2 on
+  the record, do-not-record on the start event, and never-constructed on the
+  Couch — where the formatter turned it into a bare `--` in argv. Each was
+  locally reasonable; together they were an untagged enum. A pointer for
+  "nothing chosen" and a total formatter cost two lines and removed the whole
+  class (ARCH-ORDER).
+- Advice in an error message is a code path, and it needs the same tests. The
+  mixed-layout refusal interpolated a degraded value into `couch --%s` and could
+  print `couch --unknown` — on exactly the paths the design had justified as
+  "fails visibly". Every test rendered the message with one well-formed
+  conflict, so the shapes with no valid suggestion were never rendered at all.
+  If a message tells the operator to run something, assert that the something is
+  runnable.
+- A mutation check has three ways to lie, and I hit all three in one issue.
+  (1) **Cached results**: `go test` printed `ok (cached)` for a mutated tree, so
+  the "failure" never ran — always pass `-count=1`. (2) **A mutation that does
+  not compile**: breaking `layoutRemedy` left a variable unused, so the package
+  failed to build and the grep for `FAIL` matched nothing that resembled a
+  passing test; read the FULL output, and treat a build error as "not yet
+  checked", never as "checked". (3) **Mutating the wrong thing**: I broke the
+  string interpolation when the fix under test was the agreement loop above it,
+  so a genuinely vacuous test looked verified. The mutation must be the smallest
+  edit that RESTORES the original defect — if you cannot state which finding the
+  mutation re-creates, you are not checking that finding.
+- A whole-document substring guard must anchor on a string unique to the surface
+  it guards. My README test asserted `"--layout3"`; README documents pair's own
+  `--layout3` in three other places, so deleting couch's entire block left the
+  guard green. The sibling assertions in the same test already used the
+  command-prefixed form (`"couch --list"`) — the convention was right there.
+  Before adding a want-string to a document guard, delete the thing it is meant
+  to protect and confirm the guard fails.
+- Text whose wording varies with a count must be asserted at every cardinality
+  it can render. "1 thread already hold a session in another layout" shipped
+  because every refusal fixture happened to use two conflicts. The mirrored bug
+  sat three lines away: the remedy said "this thread's layout cannot be read"
+  and named only the first tag, while the list above it could show several — so
+  an operator who cleared the named one would be stuck again. Both are invisible
+  to a test suite that picks one cardinality; pick 1 and N deliberately.
+- A struct field documented as normalized must be normalized at every
+  construction site, or the documentation is the only thing enforcing it. My row
+  projection normalized the layout on the readable branch and built the
+  unreadable branch without touching the field at all — two sites, one honest.
+  The check is mechanical: grep the struct literal's type name and confirm each
+  site sets the invariant field.
+- Verify a plan's Core-concepts table and Revisions against the tree at the
+  round's FINAL commit, not while the work is still moving. Two rounds drifted
+  the same way here: one named test files that were never created, the next
+  described a helper a later commit in the same round had already replaced. The
+  rule is checkable, so check it — `grep '^func '` on the entity's file must be
+  a subset of the table, and every backticked identifier must resolve in the
+  tree. A backticked name is a claim that it exists; historical mentions of
+  deleted code should not be ticked.

@@ -118,6 +118,11 @@ type ActionableThreadSummary struct {
 	// Reason is set exactly when State is ThreadUnusable, and says why.
 	Reason       ThreadReason `json:"reason,omitempty"`
 	LastActiveAt time.Time    `json:"last_active_at,omitempty"`
+	// Layout is the thread's witnessed pair layout, already normalized: the
+	// projection runs NormalizeLayout, so a record predating #198 reads as
+	// Layout2 here and an unreadable one as LayoutUnknown. Consumers compare
+	// it directly and never re-parse.
+	Layout Layout `json:"layout,omitempty"`
 }
 
 func (s ActionableThreadSummary) Live() bool { return s.State == ThreadLive }
@@ -203,6 +208,13 @@ func ProjectActionableThreads(input ThreadProjectionInput) []ActionableThreadSum
 	for _, address := range input.Unreadable {
 		rows = append(rows, ActionableThreadSummary{
 			Address: address, State: ThreadUnusable, Reason: ReasonUnreadable,
+			// Normalized here too, not just on the readable branch: the field
+			// documents itself as always normalized, and a struct with a
+			// documented invariant must satisfy it at EVERY construction site
+			// or the invariant is only a comment. The record could not be read,
+			// so its layout is unknown by definition -- which is exactly what
+			// NormalizeLayout says about an unreadable value.
+			Layout: NormalizeLayout("unreadable"),
 		})
 	}
 	for _, record := range records {
@@ -217,6 +229,11 @@ func ProjectActionableThreads(input ThreadProjectionInput) []ActionableThreadSum
 			State:            state,
 			Reason:           reason,
 			LastActiveAt:     record.LastActiveAt,
+			// THE normalization point for the layout witness: the raw persisted
+			// value is untrusted, and "" (a pre-#198 record) must read as
+			// Layout2 here or every existing thread conflicts with a default
+			// startup.
+			Layout: NormalizeLayout(string(record.Layout)),
 		})
 	}
 	sort.Slice(rows, func(i, j int) bool {
