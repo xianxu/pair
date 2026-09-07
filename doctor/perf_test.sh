@@ -185,5 +185,81 @@ printf '%s\n' "$rows" | grep -q 'Google Chrome' \
 	|| bad "a process name containing a space was truncated (Google Chrome -> Google)"
 rm -rf "$fake2"
 
+# PARSER pins for the other external tools. Until now only `ps` had a
+# content-controlled stub; top / vm_stat / iostat / sysctl were pinned solely by
+# `exit 1` stubs, which prove the n/a path and nothing about the parse. A wrong
+# awk field index there ships as a PLAUSIBLE number -- 71.2 instead of 12.4 --
+# which is the one failure mode this whole capture was built to prevent, since a
+# plausible wrong reading is worse than a missing one.
+tool_bin="${TMPDIR:-/tmp}/perf_test_tools.$$"
+mkdir -p "$tool_bin"
+
+cat > "$tool_bin/top" <<'FAKE'
+#!/bin/sh
+# Two samples, as `top -l 2` produces. The parser must take the SECOND (a delta;
+# the first is a lifetime average) and read idle from $(NF-1), not $NF ("idle").
+cat <<'OUT'
+Processes: 700 total
+CPU usage: 10.00% user, 5.00% sys, 85.00% idle
+PID COMMAND %CPU
+1 WindowServer 3.1
+Processes: 700 total
+CPU usage: 70.00% user, 17.60% sys, 12.40% idle
+COMMAND %CPU
+WindowServer 45.2
+OUT
+FAKE
+
+cat > "$tool_bin/vm_stat" <<'FAKE'
+#!/bin/sh
+cat <<'OUT'
+Mach Virtual Memory Statistics: (page size of 16384 bytes)
+Pageins:                          1000.
+Pageouts:                            5.
+Swapins:                           200.
+Swapouts:                          300.
+OUT
+FAKE
+
+cat > "$tool_bin/iostat" <<'FAKE'
+#!/bin/sh
+cat <<'OUT'
+      disk0
+    KB/t  tps  MB/s
+   19.53   12   0.23
+   31.25   44   1.34
+OUT
+FAKE
+
+chmod +x "$tool_bin"/*
+# WINDOW=1, not 0: the swap rate divides by the MEASURED span between the two
+# vm_stat reads, and with a zero-length window both `date +%s` calls land in the
+# same second -- so perf.sh correctly refuses to rate over an interval of zero.
+tout=$(PATH="$tool_bin:$PATH" PAIR_PERF_WINDOW=1 PAIR_PERF_BUDGET=60 sh "$here/perf.sh" 2>/dev/null)
+
+# top: the SECOND sample's idle, and the number not the word.
+printf '%s\n' "$tout" | grep -q '^cpu_idle_pct=12.40$' \
+	|| bad "cpu_idle_pct parsed wrong: $(printf '%s\n' "$tout" | grep '^cpu_idle_pct=')"
+printf '%s\n' "$tout" | grep -q '^windowserver_cpu_pct=45.2$' \
+	|| bad "windowserver_cpu_pct parsed wrong: $(printf '%s\n' "$tout" | grep '^windowserver_cpu_pct=')"
+
+# iostat: the LAST row, three fields in order.
+printf '%s\n' "$tout" | grep -q '^kb_per_transfer=31.25$' \
+	|| bad "kb_per_transfer parsed wrong: $(printf '%s\n' "$tout" | grep '^kb_per_transfer=')"
+printf '%s\n' "$tout" | grep -q '^tps=44$' \
+	|| bad "tps parsed wrong: $(printf '%s\n' "$tout" | grep '^tps=')"
+printf '%s\n' "$tout" | grep -q '^mb_per_s=1.34$' \
+	|| bad "mb_per_s parsed wrong: $(printf '%s\n' "$tout" | grep '^mb_per_s=')"
+
+# vm_stat: both reads return the same counters here, so every rate is 0.0 --
+# which pins that the parser found the right LABELS. A parser reading the wrong
+# line would produce a non-zero difference or an n/a.
+printf '%s\n' "$tout" | grep -q '^swapins_per_s=0.0$' \
+	|| bad "swapins_per_s parsed wrong: $(printf '%s\n' "$tout" | grep '^swapins_per_s=')"
+printf '%s\n' "$tout" | grep -q '^pageins_per_s=0.0$' \
+	|| bad "pageins_per_s parsed wrong: $(printf '%s\n' "$tout" | grep '^pageins_per_s=')"
+
+rm -rf "$tool_bin"
+
 if [ "$fails" -gt 0 ]; then echo "$fails failure(s)" >&2; exit 1; fi
 echo "perf.sh shape tests passed"

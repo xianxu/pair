@@ -1528,6 +1528,113 @@ rounds:
           family: docs-gate
           round: 14
       blocked: true
+    - "n": 15
+      timestamp: "2026-09-07T15:18:04-07:00"
+      agent: claude
+      dispose:
+        - id: BR-16
+          disposition: not-addressed
+          note: probe_line (perf.sh:262-273) still reads only $1/$2; hoprtt's sample count $4 is discarded.
+          round: 15
+        - id: BR-18
+          disposition: not-addressed
+          note: No validation; grep for PAIR_PERF across README.md, atlas/, doctor/README.md and doctor/SKILL.md returns nothing.
+          round: 15
+        - id: BR-19
+          disposition: not-addressed
+          note: grep 4f9365b3 across workshop/ and atlas/ still hits only the gate ledger's own rounds.
+          round: 15
+        - id: BR-26
+          disposition: not-addressed
+          note: perf_test.sh:23's `*[!0-9]*) continue` arm is unchanged.
+          round: 15
+        - id: BR-27
+          disposition: not-addressed
+          note: The top block, disk block, probe_line and emit_sample each still re-implement collect()'s availability/failure/empty ladder.
+          round: 15
+        - id: BR-28
+          disposition: not-addressed
+          note: 'Reproduced at HEAD - PAIR_PERF_WINDOW=0 prints "awk: division by zero" and all three swap keys vanish; swapins_per_s is a HEADLINE_KEY, so a headline row is dropped, not just a value lost.'
+          round: 15
+        - id: BR-29
+          disposition: not-addressed
+          note: perf.sh:216-217 still says "vm_stat unavailable" when the first read fails.
+          round: 15
+        - id: BR-31
+          disposition: not-addressed
+          note: doctor.lua:91 unchanged; cb < ca at :98 is still unguarded, so an unparseable etime yields a negative cpu_pct.
+          round: 15
+        - id: BR-37
+          disposition: not-addressed
+          note: perf_test.sh:59 unchanged and .gitignore has no .perf-test-stub entry; note the three newer fakes (:98, :141, :165) use $TMPDIR with no worktree fallback, so the file is now inconsistent with itself.
+          round: 15
+        - id: BR-38
+          disposition: addressed
+          note: Mutation-verified - the controlled ps at perf_test.sh:98-111 validates 12 rows in this shell where /bin/ps is denied, and a tab-to-pipe change in sample() takes it red.
+          round: 15
+        - id: BR-39
+          disposition: not-addressed
+          note: The shed member stays fixed. The declared-vs-measured member is live - parse_samples reads window_seconds and discards at_s, so delta divides by the DECLARED window on exactly the machine where sleep 2 does not take 2s.
+          round: 15
+        - id: BR-41
+          disposition: not-addressed
+          note: hoprtt.go:146-152 unchanged; an unrecognised argument still falls through to pipeRTT(500) and exits 0.
+          round: 15
+        - id: BR-43
+          disposition: not-addressed
+          note: hoprtt.go:35-45 still touches os.Stdin/os.Stdout while dispatcher.go:63 registers hoprtt Streaming and main.go:90 passes no stdin.
+          round: 15
+        - id: BR-49
+          disposition: not-addressed
+          note: Re-read issue 210 at HEAD - it records BR-34/25/38/39 and still neither the missing window-length field nor the uncapped perf-captures.jsonl.
+          round: 15
+        - id: BR-53
+          disposition: addressed
+          note: Mutation-verified - replacing has_ui() with `true` at nvim/init.lua:4060 takes pair-doctor-test.sh red on both the n/a render and the unknown verdict.
+          round: 15
+        - id: BR-54
+          disposition: addressed
+          note: Mutation-verified - dropping the note prefix at nvim/init.lua:4210 takes the two sidecar-content assertions red; the test opens the file the payload names.
+          round: 15
+        - id: BR-55
+          disposition: addressed
+          note: Mutation-verified - replacing the `if not pair_write_data_file(...)` guard with a bare call takes the notify assertion red.
+          round: 15
+        - id: BR-59
+          disposition: addressed
+          note: All three members reverted independently in a scratch tree; each took pair-doctor-test.sh red (2, 2 and 1 failures). The rule was applied as a class, not per-site.
+          round: 15
+        - id: BR-60
+          disposition: not-addressed
+          note: nvim/doctor.lua:2 and nvim/doctor_test.lua:3 still claim no vim API while :293 calls vim.empty_dict; atlas/index.md:39 still enumerates the sidecar without the note, and doctor/SKILL.md's "compact report, joined per-process rates, and both raw ps samples" is a third member of the same enumeration.
+          round: 15
+      findings:
+        - id: BR-61
+          severity: Important
+          title: Four of perf.sh's five external-tool parsers are pinned only by exit-1 stubs, so a wrong field index ships as a plausible headline reading
+          detail: |-
+            This is the 8th finding in family `untested-shell-surface`. Do NOT fix this
+            instance. The rule covering it: a shell parser over external-tool output is
+            pinned by a RECORDED-OUTPUT fake of that tool - an `exit 1` stub pins the n/a
+            ladder and asserts nothing about field extraction. The enumeration is
+            mechanical, every awk in perf.sh that indexes a tool's stdout, and it has five
+            members: sample()'s procs row (perf.sh:150, pinned at perf_test.sh:98 and
+            :165), cputimes()'s row (perf.sh:162, unpinned), top's CPU-usage line
+            (perf.sh:115, unpinned), top's WindowServer row (perf.sh:117, unpinned), and
+            iostat's three columns (perf.sh:238, unpinned). Mutation-verified
+            independently, full suite green after each: changing cputimes()'s tab to a
+            space moves the join from rates=5/unmeasured=0 to rates=0/unmeasured=5, so
+            SKILL.md's step 4 and the operator's own Spec addition silently vanish;
+            $(NF-1)->$2 makes cpu_idle_pct carry the USER percentage under the idle key, a
+            HEADLINE_KEY the prompt carries and SKILL.md instructs the reader on; permuting
+            iostat's $1,$2,$3 mislabels all three disk values. The mechanism already exists
+            at perf_test.sh:98-111 - the sweep is a recorded-output fake for top, iostat
+            and vm_stat plus cputime-row assertions on the existing ps fake (ARCH-MOCK,
+            ARCH-PURPOSE). Prevalence 8/8 with BR-9, BR-25, BR-26, BR-36, BR-38, BR-52,
+            BR-59.
+          family: untested-shell-surface
+          round: 15
+      blocked: true
 ---
 
 # Gate ledger — pair#208 (boundary-review)
@@ -2301,6 +2408,53 @@ later rounds disposed of them. Generated — edit the gate, not this file.
   nothing of value exists only in the prompt. Prevalence 5/5 with BR-20, BR-30,
   BR-47, BR-51.
 
+## Round 15 — 2026-09-07T15:18:04-07:00 (claude) — BLOCKED
+
+### Disposed
+
+- BR-16 — not-addressed — probe_line (perf.sh:262-273) still reads only $1/$2; hoprtt's sample count $4 is discarded.
+- BR-18 — not-addressed — No validation; grep for PAIR_PERF across README.md, atlas/, doctor/README.md and doctor/SKILL.md returns nothing.
+- BR-19 — not-addressed — grep 4f9365b3 across workshop/ and atlas/ still hits only the gate ledger's own rounds.
+- BR-26 — not-addressed — perf_test.sh:23's `*[!0-9]*) continue` arm is unchanged.
+- BR-27 — not-addressed — The top block, disk block, probe_line and emit_sample each still re-implement collect()'s availability/failure/empty ladder.
+- BR-28 — not-addressed — Reproduced at HEAD - PAIR_PERF_WINDOW=0 prints "awk: division by zero" and all three swap keys vanish; swapins_per_s is a HEADLINE_KEY, so a headline row is dropped, not just a value lost.
+- BR-29 — not-addressed — perf.sh:216-217 still says "vm_stat unavailable" when the first read fails.
+- BR-31 — not-addressed — doctor.lua:91 unchanged; cb < ca at :98 is still unguarded, so an unparseable etime yields a negative cpu_pct.
+- BR-37 — not-addressed — perf_test.sh:59 unchanged and .gitignore has no .perf-test-stub entry; note the three newer fakes (:98, :141, :165) use $TMPDIR with no worktree fallback, so the file is now inconsistent with itself.
+- BR-38 — addressed — Mutation-verified - the controlled ps at perf_test.sh:98-111 validates 12 rows in this shell where /bin/ps is denied, and a tab-to-pipe change in sample() takes it red.
+- BR-39 — not-addressed — The shed member stays fixed. The declared-vs-measured member is live - parse_samples reads window_seconds and discards at_s, so delta divides by the DECLARED window on exactly the machine where sleep 2 does not take 2s.
+- BR-41 — not-addressed — hoprtt.go:146-152 unchanged; an unrecognised argument still falls through to pipeRTT(500) and exits 0.
+- BR-43 — not-addressed — hoprtt.go:35-45 still touches os.Stdin/os.Stdout while dispatcher.go:63 registers hoprtt Streaming and main.go:90 passes no stdin.
+- BR-49 — not-addressed — Re-read issue 210 at HEAD - it records BR-34/25/38/39 and still neither the missing window-length field nor the uncapped perf-captures.jsonl.
+- BR-53 — addressed — Mutation-verified - replacing has_ui() with `true` at nvim/init.lua:4060 takes pair-doctor-test.sh red on both the n/a render and the unknown verdict.
+- BR-54 — addressed — Mutation-verified - dropping the note prefix at nvim/init.lua:4210 takes the two sidecar-content assertions red; the test opens the file the payload names.
+- BR-55 — addressed — Mutation-verified - replacing the `if not pair_write_data_file(...)` guard with a bare call takes the notify assertion red.
+- BR-59 — addressed — All three members reverted independently in a scratch tree; each took pair-doctor-test.sh red (2, 2 and 1 failures). The rule was applied as a class, not per-site.
+- BR-60 — not-addressed — nvim/doctor.lua:2 and nvim/doctor_test.lua:3 still claim no vim API while :293 calls vim.empty_dict; atlas/index.md:39 still enumerates the sidecar without the note, and doctor/SKILL.md's "compact report, joined per-process rates, and both raw ps samples" is a third member of the same enumeration.
+
+### Raised
+
+- **BR-61** [Important] `untested-shell-surface` Four of perf.sh's five external-tool parsers are pinned only by exit-1 stubs, so a wrong field index ships as a plausible headline reading
+  This is the 8th finding in family `untested-shell-surface`. Do NOT fix this
+  instance. The rule covering it: a shell parser over external-tool output is
+  pinned by a RECORDED-OUTPUT fake of that tool - an `exit 1` stub pins the n/a
+  ladder and asserts nothing about field extraction. The enumeration is
+  mechanical, every awk in perf.sh that indexes a tool's stdout, and it has five
+  members: sample()'s procs row (perf.sh:150, pinned at perf_test.sh:98 and
+  :165), cputimes()'s row (perf.sh:162, unpinned), top's CPU-usage line
+  (perf.sh:115, unpinned), top's WindowServer row (perf.sh:117, unpinned), and
+  iostat's three columns (perf.sh:238, unpinned). Mutation-verified
+  independently, full suite green after each: changing cputimes()'s tab to a
+  space moves the join from rates=5/unmeasured=0 to rates=0/unmeasured=5, so
+  SKILL.md's step 4 and the operator's own Spec addition silently vanish;
+  $(NF-1)->$2 makes cpu_idle_pct carry the USER percentage under the idle key, a
+  HEADLINE_KEY the prompt carries and SKILL.md instructs the reader on; permuting
+  iostat's $1,$2,$3 mislabels all three disk values. The mechanism already exists
+  at perf_test.sh:98-111 - the sweep is a recorded-output fake for top, iostat
+  and vm_stat plus cputime-row assertions on the existing ps fake (ARCH-MOCK,
+  ARCH-PURPOSE). Prevalence 8/8 with BR-9, BR-25, BR-26, BR-36, BR-38, BR-52,
+  BR-59.
+
 ## Open findings
 
 - **BR-16** [Minor] `failure-reported-as-measurement` perf.sh discards hoprtt's sample count, so a truncated pipe run reads identically to a full one
@@ -2312,13 +2466,9 @@ later rounds disposed of them. Generated — edit the gate, not this file.
 - **BR-29** [Minor] `failure-reported-as-measurement` A vm_stat that exists but exits non-zero renders `swap=n/a (vm_stat unavailable)`, misnaming the failure
 - **BR-31** [Minor] `unguarded-edge-case` delta detects a reused pid only through etime, so an unparseable etime lets a reused pid produce a negative cpu_pct
 - **BR-37** [Minor] `build-artifact-committed` perf_test.sh's mktemp fallback writes .perf-test-stub.$$ into the worktree and nothing gitignores it
-- **BR-38** [Important] `untested-shell-surface` perf_test.sh asserts a live run against the ambient system, so the BR-36 grammar pin validates zero rows wherever ps is denied
 - **BR-39** [Important] `failure-reported-as-measurement` swap_rate divides by WINDOW even when sample_b was shed and the sleep never ran, reporting a rate over time that did not pass
 - **BR-41** [Minor] `unguarded-edge-case` pair hoprtt silently ignores unrecognised arguments and runs the 500-sample pipe probe instead
 - **BR-43** [Minor] `injected-io-seam-bypassed` hoprttcmd.Run takes injected writers but child() reads os.Stdin and writes os.Stdout, and the package is registered as a streaming subcommand with no stdin
 - **BR-49** [Minor] `traceability` The M2.6 deferrals are recorded only in the plan, which archives at close — issue 210 records neither
-- **BR-53** [Important] `failure-reported-as-measurement` The redraw leg is still timed with no precondition asserted — the second member of the enumeration round 11 named
-- **BR-54** [Important] `sole-copy-on-lossy-channel` The operator's note is written only into the prompt, and the buffer is cleared on send
-- **BR-55** [Minor] `discarded-failure-signal` The rolling-log append discards pair_write_data_file's nil return, so the comparative series can stop accumulating silently
-- **BR-59** [Important] `untested-shell-surface` Three of the closing commit's six behaviour changes are unpinned — the same rule the commit closed BR-52 on
 - **BR-60** [Minor] `docs-gate` doctor.lua and doctor_test.lua still claim "no vim API", and atlas's sidecar enumeration omits the note added in the same commit
+- **BR-61** [Important] `untested-shell-surface` Four of perf.sh's five external-tool parsers are pinned only by exit-1 stubs, so a wrong field index ships as a plausible headline reading

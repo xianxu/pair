@@ -193,6 +193,8 @@ function M.parse_samples(text)
       section = nil
     elseif current and line:match('^skipped=') then
       current.skipped = true
+    elseif current and line:match('^at_s=') then
+      current.at = tonumber(line:match('^at_s=(%d+)'))
     elseif not current and line:match('^window_seconds=') then
       window = tonumber(line:match('^window_seconds=(%S+)'))
     elseif line:match('^## ') then
@@ -218,7 +220,18 @@ function M.parse_samples(text)
     if next(sample.procs) == nil then return nil end
     return sample
   end
-  return usable(samples.sample_a), usable(samples.sample_b), window
+  local a, b = usable(samples.sample_a), usable(samples.sample_b)
+  -- The window is MEASURED from the samples' own timestamps, not taken from the
+  -- declared window_seconds. perf.sh sleeps for WINDOW but each sample also
+  -- costs a full `ps`, so the real interval always exceeds the declared one --
+  -- and by MORE on a struggling machine, which is the only machine this runs
+  -- on. Dividing by the declared 2s there overstates every per-process rate,
+  -- reporting a rate over an interval that did not pass. Same rule as the shed
+  -- guard in perf.sh, one layer up.
+  if a and b and a.at and b.at and b.at > a.at then
+    window = b.at - a.at
+  end
+  return a, b, window
 end
 
 -- perf_payload assembles what the agent receives: the operator's note, what

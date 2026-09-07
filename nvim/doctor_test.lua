@@ -402,6 +402,35 @@ do
   ok(full.probes.pipe_hop_ms == 0.007, 'a populated probes set is unchanged')
 end
 
+-- The rate divisor must be the MEASURED interval, not the declared one.
+-- perf.sh sleeps WINDOW but each sample also costs a `ps`, so the real interval
+-- always exceeds the declared one -- by more on the struggling machine this
+-- tool exists for, where dividing by the declared value overstates every rate.
+do
+  local cap = table.concat({
+    'window_seconds=2',
+    '',
+    '## sample_a',
+    'at_s=1000',
+    '### procs',
+    '7\t01:00\t100\tgo',
+    '',
+    '## sample_b',
+    'at_s=1005',   -- five seconds actually passed, not the declared two
+    '### procs',
+    '7\t01:05\t100\tgo',
+  }, '\n')
+  local a, b, window = M.parse_samples(cap)
+  ok(a ~= nil and b ~= nil, 'both samples parse')
+  eq(window, 5, 'the window is measured from at_s, not read from window_seconds')
+
+  -- Without at_s the declared value is the only thing available; still no
+  -- fabrication, just the coarser number.
+  local nostamp = cap:gsub('at_s=%d+\n', '')
+  local _, _, w2 = M.parse_samples(nostamp)
+  eq(w2, 2, 'with no timestamps the declared window is the fallback')
+end
+
 if fails > 0 then
   io.stderr:write(string.format('\n%d failure(s)\n', fails))
   os.exit(1)

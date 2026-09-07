@@ -169,6 +169,11 @@ _swapnow() {
 		END{ if (si=="" || so=="" || pi=="") exit 1; print si, so, pi }' | tr -d '.'
 }
 SWAP_A=$(_swapnow 2>/dev/null || true)
+# The counter's own timestamp. SWAP_A is read BEFORE sample_a and the second
+# read happens AFTER sample_b, so the swap interval exceeds WINDOW by two full
+# `ps` runs -- and by more on the degraded machine this tool targets. Dividing
+# by WINDOW there reports a rate over an interval that did not pass.
+SWAP_A_T=$(date +%s 2>/dev/null || echo 0)
 
 emit_sample() {
 	say ""
@@ -220,7 +225,13 @@ else
 	if [ -z "$_b" ]; then
 		swap_na "vm_stat failed on the second read"
 	else
-		echo "$SWAP_A $_b" | awk -v w="$WINDOW" '{printf "swapins_per_s=%.1f\nswapouts_per_s=%.1f\npageins_per_s=%.1f\n", ($4-$1)/w, ($5-$2)/w, ($6-$3)/w}'
+		_bt=$(date +%s 2>/dev/null || echo 0)
+		_span=$(( _bt - SWAP_A_T ))
+		if [ "$SWAP_A_T" = 0 ] || [ "$_span" -le 0 ]; then
+			swap_na "could not measure the interval the counters span"
+		else
+			echo "$SWAP_A $_b" | awk -v w="$_span" '{printf "swapins_per_s=%.1f\nswapouts_per_s=%.1f\npageins_per_s=%.1f\n", ($4-$1)/w, ($5-$2)/w, ($6-$3)/w}'
+		fi
 	fi
 fi
 

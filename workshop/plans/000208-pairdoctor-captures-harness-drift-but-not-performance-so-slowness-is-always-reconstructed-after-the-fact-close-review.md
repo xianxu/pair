@@ -227,3 +227,184 @@ findings:
       nothing of value exists only in the prompt. Prevalence 5/5 with BR-20, BR-30,
       BR-47, BR-51.
 ```
+
+---
+
+## Re-review — 2026-09-07T15:18:04-07:00 (FIX-THEN-SHIP)
+
+| field | value |
+|-------|-------|
+| issue | 208 — PairDoctor captures harness drift but not performance, so slowness is always reconstructed after the fact |
+| repo | pair |
+| issue file | workshop/issues/000208-pairdoctor-captures-harness-drift-but-not-performance-so-slowness-is-always-reconstructed-after-the-fact.md |
+| boundary | whole-issue close |
+| milestone | — |
+| window | df283abefd229b0b81b2f4bfa98a26310f75316a..307b4e74bc56d88dab6296951db72901ef81f619 |
+| command | sdlc close --issue 208 |
+| reviewer | claude |
+| timestamp | 2026-09-07T15:18:04-07:00 |
+| verdict | FIX-THEN-SHIP |
+
+## Review
+
+I've verified the window: ran the full suite, and mutation-tested every claimed fix.
+
+```verdict
+verdict: FIX-THEN-SHIP
+confidence: high
+```
+
+The closing commit's four claims all hold under mechanical check. I reverted each of the three behaviours BR-59 named — the `has_ui()` redraw gate, the operator note prepended to the sidecar, the JSONL-append notify — in a scratch copy of the tree, and each took `tests/pair-doctor-test.sh` red (2, 2 and 1 failures); and the BR-38 grammar pin now supplies its own `ps`, so it validates 12 rows in this sandboxed shell where `/bin/ps` is denied, and goes red when I change `sample()`'s tab separator to a pipe. Full `make test` is green except `cmd/pair-go`'s `TestPublicPairCommandFamiliesIgnoreCouchStore`, which fails on `fork/exec /bin/ps: operation not permitted` — pre-existing, out of window, environmental. What blocks SHIP if anything: `perf.sh` contains five field-extraction parsers over external-tool stdout and the closing commit built a recorded-output fake for exactly one of them, so three separate one-token mutations (cputime row separator, `top`'s `$(NF-1)`→`$2`, `iostat`'s column order) each leave the entire suite green while producing a wrong-but-plausible headline reading — the defect class this issue exists to eliminate, one enumeration row short.
+
+**1. Strengths**
+
+- `doctor/perf_test.sh:91-133` — the right fix for BR-38, not the cheap one. A recorded-output `ps` gives the same assertion the same 12 rows everywhere, which simultaneously un-breaks `make test` for the sandboxed agent `perf.sh` names as its reader and makes the pin non-vacuous. Verified both directions: green here where `ps` is denied, red on a separator mutation.
+- `tests/pair-doctor-test.sh:191-207` — the `has_ui()` gate is driven through `vim.g.pair_test_has_ui`, the seam that already existed at `nvim/init.lua:689`, rather than a second UI check (ARCH-DRY). Both polarities are asserted: `n/a` + `verdict unknown` headless, and actually-timed with the flag set.
+- `tests/pair-doctor-test.sh:212-226` — the sidecar test opens the file the payload names and reads the operator's own note back out of it. That pins the invariant (`nothing of value exists only in the prompt`) rather than the string that implements it.
+- `tests/perf-key-conformance-test.sh` — the shell restatement of the single-sourced key set is enforced against a real `perf.sh` run, and the comment at `:29-31` records why `io.stdout` and not `print` (a vacuous pass). Renaming `window_seconds` in `perf.sh` takes `perf_test.sh:28` red; I checked.
+- `cmd/internal/hoprttcmd/hoprtt_test.go:64-74` — the positive control the issue's Log demanded, with the band's width justified against the suite's own spawn load rather than picked to pass.
+
+**2. Critical findings** — none.
+
+**3. Important findings**
+
+- `doctor/perf_test.sh:61` — **8th in family `untested-shell-surface`.** Per the family rule I am not asking for this instance to be fixed. The rule: *a shell parser over external-tool output is pinned by a recorded-output fake of that tool; an `exit 1` stub pins only the n/a ladder and asserts nothing about field extraction.* The enumeration is mechanical — every `awk` in `perf.sh` that indexes a field of a tool's stdout — and it has five members, of which the closing commit's fake covers one:
+
+  | parser | pinned by a recorded fake? |
+  |---|---|
+  | `sample()` procs row (`perf.sh:150`) | yes — `perf_test.sh:98` and `:165` |
+  | `cputimes()` row (`perf.sh:162`) | no |
+  | `top` CPU-usage line (`perf.sh:115`) | no |
+  | `top` WindowServer row (`perf.sh:117`) | no |
+  | `iostat` columns (`perf.sh:238`) | no |
+
+  Mutation-verified, each independently, full suite green after: changing `cputimes()`'s `\t` to a space takes the join from `rates=5 unmeasured=0` to `rates=0 unmeasured=5` — the per-process rates are SKILL.md's step 4 and the operator's own addition to the Spec, and they silently disappear; `$(NF-1)`→`$2` makes `cpu_idle_pct` report the *user* percentage under the idle key, a HEADLINE_KEY that reaches the prompt and that SKILL.md instructs the reader on; permuting `iostat`'s `$1,$2,$3` mislabels all three disk values. The mechanism is already built at `perf_test.sh:98-111` — the sweep is to add the same recorded-output fake for `top`, `iostat` and `vm_stat`, and to extend the existing `ps` fake's assertions to the `### cputime` rows (ARCH-MOCK, ARCH-PURPOSE).
+
+**4. Minor findings**
+
+- `doctor/perf_test.sh:113` — `grows=0` is dead; it is unconditionally reassigned at `:130`.
+- 13 prior Minors remain open and are disposed `not-addressed` in the block below (BR-16, BR-18, BR-19, BR-26, BR-27, BR-28, BR-29, BR-31, BR-37, BR-41, BR-43, BR-49, BR-60), plus BR-39 at Important. None is a live wrong reading on a default-configured capture.
+
+**5. Test coverage notes**
+
+Coverage is now genuinely strong on the wiring layer — the injected `capture_runner` drives the buffer-changed-mid-flight interleaving, the throwing spawn, the failing send, the successful send, and now the failing JSONL append. The residual gap is entirely on the *producer* side: the tests control `ps` and nothing else, so every field index in `perf.sh` outside `sample()` is unverified. That is the finding above. Secondarily, `PAIR_PERF_WINDOW=0` is driven twice (`:110`, `:148`) and nothing asserts what happens to the swap block there — which is why BR-28's key-vanishing went unobserved by the suite despite the value being exercised.
+
+**6. Architectural notes**
+
+- **ARCH-DRY** — pass. `na_for` collapsed the three n/a loops; `has_ui()` was reused rather than duplicated; the key set is one declaration with a conformance test on the shell restatement. Residual: BR-27 (four re-implementations of `collect()`'s ladder), carried.
+- **ARCH-PURE** — pass with residuals. The pid join lives in `doctor.lua` and runs under `nvim -l`. BR-43 (`child()` bypasses the injected writers) and BR-60 (the `no vim API here` headers are now false — `capture_record` calls `vim.empty_dict`) are both purity drift, carried.
+- **ARCH-PURPOSE** — shadow-sweep on the single-sourced key set: `headline`, `capture_record.baselines` and `probes_from` all derive from `PROBE_KEYS`/`HEADLINE_KEYS`; `perf.sh` restates and is *enforced* by `tests/perf-key-conformance-test.sh`. All four consumers accounted for. Flagged on a different axis: the parse-contract enumeration above.
+- **ARCH-MOCK** — flagged (the finding). `ps` has a recorded-output fake; `top`/`iostat`/`vm_stat` have stateless `exit 1` doubles only, so production flow and test flow share the boundary for one dependency out of four.
+- **ARCH-CONSTRAINTS** — pass. The budget is asserted, not declared (`perf_test.sh:33-36`), the probes are reserved a slice, and the nvim side bounds the child at 30 s. `#210` carries the declared known gap.
+- **ARCH-SECURE** — pass. `comm` is filtered at the single point of emission and pinned for a control byte, a full path and an embedded space (`perf_test.sh:158-186`); the committed fixture is basenamed so no host paths ship.
+- **ARCH-ORDER** — pass. `capture_running` is a two-state flag whose reset has exactly one path, the spawn is `pcall`'d so a throw cannot strand it, and the tests own the ordering through the injected runner rather than observing whichever interleaving the machine produced.
+
+**7. Plan revision recommendations**
+
+One entry, carried forward from round 14's disposition of BR-42 rather than re-raised: the Core concepts table at `workshop/plans/000208-pairdoctor-perf-capture-plan.md:79` still lists `pair-hoprtt (pipe probe) | cmd/pair-hoprtt/main.go | new`, and the bullets at `:98-114` still describe the `GO_BINS` entry and `$PAIR_HOME/bin/pair-hoprtt` resolution. The Revisions entry at `:600` reverses all of it; the table and bullets should be edited in place to name `cmd/internal/hoprttcmd` / `pair hoprtt`, so the table stops claiming what the code does not deliver.
+
+```findings
+dispose:
+  - id: BR-16
+    disposition: not-addressed
+    note: |
+      probe_line (perf.sh:262-273) still reads only $1/$2; hoprtt's sample count $4 is discarded.
+  - id: BR-18
+    disposition: not-addressed
+    note: |
+      No validation; grep for PAIR_PERF across README.md, atlas/, doctor/README.md and doctor/SKILL.md returns nothing.
+  - id: BR-19
+    disposition: not-addressed
+    note: |
+      grep 4f9365b3 across workshop/ and atlas/ still hits only the gate ledger's own rounds.
+  - id: BR-26
+    disposition: not-addressed
+    note: |
+      perf_test.sh:23's `*[!0-9]*) continue` arm is unchanged.
+  - id: BR-27
+    disposition: not-addressed
+    note: |
+      The top block, disk block, probe_line and emit_sample each still re-implement collect()'s availability/failure/empty ladder.
+  - id: BR-28
+    disposition: not-addressed
+    note: |
+      Reproduced at HEAD - PAIR_PERF_WINDOW=0 prints "awk: division by zero" and all three swap keys vanish; swapins_per_s is a HEADLINE_KEY, so a headline row is dropped, not just a value lost.
+  - id: BR-29
+    disposition: not-addressed
+    note: |
+      perf.sh:216-217 still says "vm_stat unavailable" when the first read fails.
+  - id: BR-31
+    disposition: not-addressed
+    note: |
+      doctor.lua:91 unchanged; cb < ca at :98 is still unguarded, so an unparseable etime yields a negative cpu_pct.
+  - id: BR-37
+    disposition: not-addressed
+    note: |
+      perf_test.sh:59 unchanged and .gitignore has no .perf-test-stub entry; note the three newer fakes (:98, :141, :165) use $TMPDIR with no worktree fallback, so the file is now inconsistent with itself.
+  - id: BR-38
+    disposition: addressed
+    note: |
+      Mutation-verified - the controlled ps at perf_test.sh:98-111 validates 12 rows in this shell where /bin/ps is denied, and a tab-to-pipe change in sample() takes it red.
+  - id: BR-39
+    disposition: not-addressed
+    note: |
+      The shed member stays fixed. The declared-vs-measured member is live - parse_samples reads window_seconds and discards at_s, so delta divides by the DECLARED window on exactly the machine where sleep 2 does not take 2s.
+  - id: BR-41
+    disposition: not-addressed
+    note: |
+      hoprtt.go:146-152 unchanged; an unrecognised argument still falls through to pipeRTT(500) and exits 0.
+  - id: BR-43
+    disposition: not-addressed
+    note: |
+      hoprtt.go:35-45 still touches os.Stdin/os.Stdout while dispatcher.go:63 registers hoprtt Streaming and main.go:90 passes no stdin.
+  - id: BR-49
+    disposition: not-addressed
+    note: |
+      Re-read issue 210 at HEAD - it records BR-34/25/38/39 and still neither the missing window-length field nor the uncapped perf-captures.jsonl.
+  - id: BR-53
+    disposition: addressed
+    note: |
+      Mutation-verified - replacing has_ui() with `true` at nvim/init.lua:4060 takes pair-doctor-test.sh red on both the n/a render and the unknown verdict.
+  - id: BR-54
+    disposition: addressed
+    note: |
+      Mutation-verified - dropping the note prefix at nvim/init.lua:4210 takes the two sidecar-content assertions red; the test opens the file the payload names.
+  - id: BR-55
+    disposition: addressed
+    note: |
+      Mutation-verified - replacing the `if not pair_write_data_file(...)` guard with a bare call takes the notify assertion red.
+  - id: BR-59
+    disposition: addressed
+    note: |
+      All three members reverted independently in a scratch tree; each took pair-doctor-test.sh red (2, 2 and 1 failures). The rule was applied as a class, not per-site.
+  - id: BR-60
+    disposition: not-addressed
+    note: |
+      nvim/doctor.lua:2 and nvim/doctor_test.lua:3 still claim no vim API while :293 calls vim.empty_dict; atlas/index.md:39 still enumerates the sidecar without the note, and doctor/SKILL.md's "compact report, joined per-process rates, and both raw ps samples" is a third member of the same enumeration.
+findings:
+  - id: new
+    severity: Important
+    family: untested-shell-surface
+    title: |
+      Four of perf.sh's five external-tool parsers are pinned only by exit-1 stubs, so a wrong field index ships as a plausible headline reading
+    detail: |
+      This is the 8th finding in family `untested-shell-surface`. Do NOT fix this
+      instance. The rule covering it: a shell parser over external-tool output is
+      pinned by a RECORDED-OUTPUT fake of that tool - an `exit 1` stub pins the n/a
+      ladder and asserts nothing about field extraction. The enumeration is
+      mechanical, every awk in perf.sh that indexes a tool's stdout, and it has five
+      members: sample()'s procs row (perf.sh:150, pinned at perf_test.sh:98 and
+      :165), cputimes()'s row (perf.sh:162, unpinned), top's CPU-usage line
+      (perf.sh:115, unpinned), top's WindowServer row (perf.sh:117, unpinned), and
+      iostat's three columns (perf.sh:238, unpinned). Mutation-verified
+      independently, full suite green after each: changing cputimes()'s tab to a
+      space moves the join from rates=5/unmeasured=0 to rates=0/unmeasured=5, so
+      SKILL.md's step 4 and the operator's own Spec addition silently vanish;
+      $(NF-1)->$2 makes cpu_idle_pct carry the USER percentage under the idle key, a
+      HEADLINE_KEY the prompt carries and SKILL.md instructs the reader on; permuting
+      iostat's $1,$2,$3 mislabels all three disk values. The mechanism already exists
+      at perf_test.sh:98-111 - the sweep is a recorded-output fake for top, iostat
+      and vm_stat plus cputime-row assertions on the existing ps fake (ARCH-MOCK,
+      ARCH-PURPOSE). Prevalence 8/8 with BR-9, BR-25, BR-26, BR-36, BR-38, BR-52,
+      BR-59.
+```
