@@ -134,7 +134,16 @@ rounds:
           family: unverified-repo-mechanism
           round: 4
       blocked: false
-content_hash: 6367981e5dc4c02c0d97030d1b9e7007d85f0895c976d7b6a95fb7e2a36a0e2d
+    - "n": 5
+      timestamp: "2026-09-06T23:16:06-07:00"
+      agent: claude
+      dispose:
+        - id: PQ-6
+          disposition: not-addressed
+          note: 'pair-hoprtt rename landed; M2.6 line 389 still routes the Lua write through artifactpath (cmd/internal/*, zero hits in nvim/ or doctor/). Use pair_data_dir() nvim/init.lua:484 + pair_tag() :480. Same rule''s 3rd instance: make test-lua is a hand-maintained recipe (Makefile.local:193-197) and no task adds nvim/doctor_test.lua to it — sweep both in one pass.'
+          round: 5
+      blocked: false
+content_hash: 4a931cfaa02d0054cd9887c87d1feba917835e846f04d3c17dd9c5ff942e375d
 ---
 
 # Gate ledger — pair#208 (plan-quality)
@@ -224,6 +233,12 @@ vim.system+on_exit; ARCH-ORDER adds the re-invoke and buffer-teardown events.
   Makefile.local:5-7 requires the `pair-` prefix on every GO_BINS entry
   because make install (:84-87) puts each on PATH — the collision that
   comment records already fixing once for `scribe`. Name it `pair-hoprtt`.
+
+## Round 5 — 2026-09-06T23:16:06-07:00 (claude) — passed
+
+### Disposed
+
+- PQ-6 — not-addressed — pair-hoprtt rename landed; M2.6 line 389 still routes the Lua write through artifactpath (cmd/internal/*, zero hits in nvim/ or doctor/). Use pair_data_dir() nvim/init.lua:484 + pair_tag() :480. Same rule's 3rd instance: make test-lua is a hand-maintained recipe (Makefile.local:193-197) and no task adds nvim/doctor_test.lua to it — sweep both in one pass.
 
 ## Open findings
 
