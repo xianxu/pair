@@ -1,10 +1,10 @@
 ---
 id: 000195
-status: open
+status: wontfix
 deps: []
 github_issue:
 created: 2026-09-05
-updated: 2026-09-05
+updated: 2026-09-06
 estimate_hours:
 ---
 
@@ -98,3 +98,32 @@ Filed after the third collision. The operator believed this had already been
 fixed; a live `sdlc claim` reproduced it, which is why this issue exists rather
 than the assumption standing. The probe claimed `#190` as a side effect and it
 was reverted to `open` immediately.
+
+## Log
+
+### 2026-09-06 — duplicate of ariadne#207; closing wontfix
+
+Filed in the wrong repo. The failure is `sdlc`'s, and `sdlc` is ariadne's:
+the error originates at `ariadne/cmd/sdlc/claim.go:601`, so per the base-layer
+rule a fix here would be a fix to a vendored consumer of someone else's code.
+
+ariadne already owns this, in two open issues and one shipped:
+
+- **`ariadne#207`** — "Publish issue files without a main worktree." The same
+  bug, same error string, first hit in *this* repo on 2026-09-02. This issue's
+  duplicate.
+- **`ariadne#188`** — the allocation half: `issue.NextID` reads the local
+  working tree with no `git fetch`, so IDs are chosen from a stale view even
+  when the publish succeeds.
+- **`ariadne#213`** — "nextid from origin", already **done**.
+
+**This issue's evidence has been grafted into `ariadne#207`** rather than lost
+with the file: the three real collisions (`000172`, `000173`, `000179`) with
+their renumbering costs, the `#179` archived-duplicate shape that made
+`sdlc claim` refuse outright, the structural cause (`change-code` branches in
+place, so an actively-worked repo has no `main` worktree), and the current
+exposure — now **`#185` through `#204`**, extended by the nine issues filed here
+on 2026-09-06.
+
+Nothing is lost by closing this and nothing here is actionable in `pair`. Track
+the fix at `ariadne#207`.
