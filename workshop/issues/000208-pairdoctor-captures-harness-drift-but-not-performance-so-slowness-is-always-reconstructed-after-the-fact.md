@@ -136,7 +136,7 @@ Two milestones; detail in `workshop/plans/000208-pairdoctor-perf-capture-plan.md
       18. **A subcommand, not the `cmd/pair-hoprtt` binary the plan specified** —
       that would have been permanently unavailable to every installed pair; see
       the plan's `## Revisions`. Hardening deferred to `#210`.
-- [ ] M2 — nvim: the draft buffer becomes the operator's note, nvim times its own
+- [x] M2 — nvim: the draft buffer becomes the operator's note, nvim times its own
       input handling and redraw (the editor-vs-environment discriminator), and
       `:PairDoctor` sends note + timings + snapshot. Drift path unchanged.
 
@@ -186,6 +186,27 @@ Four rounds is high, and each one changed the design rather than the wording.
 | `milestone-review` | M1 and M2 boundaries |
 
 ## Log
+
+- 2026-09-07 — M2 closed. Smoke test on the live workbench surfaced two things
+  the plan did not anticipate. The first capture sent the entire ~3,500-line raw
+  report into the prompt, which is what prompted the sidecar. The second, after
+  the sidecar landed, arrived **truncated**: 1,025 bytes gone from the middle of
+  a 2,447-byte send, head and tail intact, while the sidecar and the JSONL row
+  were both complete on disk. Filed as #211.
+- 2026-09-07 — the response to #211 shaped the final payload. Everything now
+  goes to the sidecar (compact report + joined rates + raw samples); previously
+  the rates lived ONLY in the prompt, so a truncated send destroyed them with no
+  copy anywhere. The path is placed in the first ~60 bytes, ahead of the note,
+  because the head is the part that survives. Payload 2,447 → 1,718 bytes, but
+  size was never the mechanism (a 180KB send had succeeded minutes earlier) —
+  the durable fix is that nothing is unique to the prompt any more.
+- 2026-09-07 — two defects found while measuring. `ps | awk` exits with awk's
+  status, so a failed `ps` exited 0 with no output and the sample sections
+  rendered EMPTY rather than `n/a` — rule 1's own defect class, live in the file
+  that documents it, and invisible until a sandboxed `make test` (where ps is
+  denied) hit it. And a process name carrying a control byte reached the
+  terminal verbatim; WhatsApp's argv renders with `^N`, which is SO and garbles
+  every subsequent line. Both fixed with mutation-checked tests.
 
 
 - 2026-09-07: closed M1 — go test ./..., make test-lua, make test-perf-capture green; the capture runs end to end in 4s and is in use. --no-ledger is used deliberately and narrowly: after seven rounds the gate itself reports NO open blocking findings, and the remaining entries are demoted past the round cap. Three of them (BR-25 shed order, BR-38 grammar rows, BR-39 swap over an un-elapsed window) were fixed in rounds 3-4 and verified -- BR-39 at BUDGET=1, BR-25 at BUDGET=3 -- and were re-surfaced rather than re-found. The one genuinely open finding, BR-34 (no stage is time-bounded, so a hanging collector blows the budget), is filed as #210 with its mechanism and its trap recorded, at operator decision: the capture works and is usable now, and this is hardening rather than a defect blocking its value.; review verdict: FIX-THEN-SHIP
