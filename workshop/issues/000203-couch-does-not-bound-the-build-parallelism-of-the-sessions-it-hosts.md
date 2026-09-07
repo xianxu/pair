@@ -191,3 +191,29 @@ Everything else was ruled out by measurement during the same session: memory
 (95% free, 80 MB swap), disk (251 GB free), thermal (no warnings), Spotlight
 (mds at 0.0%, 32 pageins/sec), couch's own event loop (no timers; title pollers
 at 60 s), and nvim buffer size (drafts are 65–130 bytes).
+
+## Log
+
+### 2026-09-06 (later) — the scope note is right, for a different reason
+
+This issue says *"fixing it will not fix typing lag on its own"*, and that claim
+rested on the CPU-burner table which the same issue retracts two sections
+earlier as unrepresentative. The disclaimer inherited void evidence.
+
+It is nonetheless correct, on measurement taken since. Under a real `go test`
+spawn storm, a pipe hop, `fork+exec`, and `zellij action` all degrade **together**
+by 2-3x — so load does reach the interactive path, contradicting the retracted
+table. But the absolute costs are microseconds: a hop goes 7 µs → 17 µs, and ten
+hops is 0.17 ms. Real, and far below perception.
+
+So: load DOES degrade scheduling (the retracted table was wrong), and this issue
+still does not own typing lag (its conclusion was right). Both halves matter —
+the first restores the case for bounding parallelism, the second keeps this issue
+from being asked to fix a symptom it cannot.
+
+One caveat on this issue's headline figure: the **8x** `zellij action`
+degradation has not been reproduced. A deliberately synthesized storm reached
+**1.9x** at load 15, and the degradation correlated with the workload's phase
+rather than with load average — it appeared at load 9.5 and was absent at 15.5.
+Whatever the fleet does at load 25-108 was not recreated, which is itself the
+argument for capturing rather than synthesizing (`#208`).

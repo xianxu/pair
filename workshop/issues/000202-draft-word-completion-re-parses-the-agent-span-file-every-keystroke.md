@@ -129,3 +129,26 @@ self-justifying) rather than as the fix for a symptom it does not explain.
 The general lesson, worth carrying: a plausible mechanism found by reading code
 is a hypothesis, not a finding. This one survived a code read and died to a
 one-command benchmark.
+
+### 2026-09-06 (later) — the hop-count hypothesis is refuted
+
+The Log above left the leading hypothesis as *"hop count on the input path …
+roughly 8-10 process wake-ups per visible character"*, explicitly unmeasured.
+It has now been measured, and it does not hold.
+
+A pipe round-trip probe (two processes ping-ponging a byte — one hop, isolated)
+reads **7 microseconds**, not the 2.5 ms this Log assumed. That earlier figure
+came from a timer-wake-up probe, which measures something else. Under a real
+`go test` spawn storm the hop degraded to 17 µs — a genuine 2.8x, but ten hops
+is still **0.17 ms**.
+
+For typing to feel dramatically slow, a hop would need to cost ~10 ms: a ~1500x
+degradation. Nothing observed approaches it.
+
+So this issue is refuted twice over as a cause of typing lag — once by its own
+0.97 ms benchmark, and now for the hop-count theory it proposed as the
+replacement. It remains worth fixing on its own terms (redundant work on the
+editor's hot path, small local fix), which is what it always claimed.
+
+The surviving candidate is the render path — WindowServer at 47% with 66% idle
+CPU, whose units are tens of ms — and it is untested. Capturing it is `#208`.
