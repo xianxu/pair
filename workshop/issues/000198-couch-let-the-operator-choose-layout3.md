@@ -221,6 +221,49 @@ under 3.81, check attribution before reading it as estimate drift — the layout
 trio (#198/#199/#200) shares session time by mention. Recorded now so the ledger
 row is not mistaken for calibration evidence (ariadne#117/#127).
 
+### 2026-09-06 — implemented; the backfill, measured
+
+Tasks 1-9 landed. `couch --list` against the real store, with the new binary:
+
+| thread | path | state |
+|---|---|---|
+| brain | `~/workspace/brain` | live (pid 7821) |
+| tools | `~/workspace/tools` | live (pid 43964) |
+| parley.nvim | `~/workspace/parley.nvim` | live (pid 8396) |
+| ariadne | `~/workspace/ariadne` | detached |
+| pair | `~/workspace/pair` | live (pid 7314) |
+| arc-agi-3 | `~/workspace/kbench/.../arc-agi-3` | live (pid 89296) |
+
+Six, as the issue estimated. **Every one holds a session** (five live, one
+detached), and none carries a `layout` field — they all predate #198, so they
+normalize to layout2, which is true: couch pinned layout2 for their whole
+lifetime.
+
+**No migration script is needed, and this is why.** A default `couch` requests
+layout2, every row normalizes to layout2, so the guard finds zero conflicts and
+startup is unaffected. Each thread's witness is then written on its next cold
+resume. The absent-field path is pinned by
+`TestProjectionNormalizesAbsentLayoutAndDoesNotBlockDefaultStartup`.
+
+**The consequence worth stating plainly:** because all six hold sessions,
+`couch --layout3` **refuses today until all six are parked**. That is the
+no-mixing rule working as specified rather than a defect — but it makes the
+first use of `--layout3` a deliberate act, not a quick experiment. The refusal
+names every conflicting thread and the remedy.
+
+**A guard that is not the safety mechanism.** Worth keeping straight for anyone
+reading this later: #179 (a warm reattach sends no layout flag) is what prevents
+the destructive outcome, and it holds whether or not the guard runs. The guard
+only buys predictability. So a race between the guard's snapshot and a session
+appearing is cosmetic, which is why a plain startup check was the right
+strength and nothing here is transactional with the store.
+
+**Verification so far.** `go test ./cmd/...` green. Mutation checks run on the
+four load-bearing invariants — the empty-layout normalization, the blocking
+predicate (swapped for `Resumable()`), the warm-reattach argv and witness, and
+the guard's IO budget — each confirmed failing before being restored. Task 10
+(the manual park/resume cycle) is outstanding and needs the operator.
+
 ## Estimate
 
 ```estimate
