@@ -480,6 +480,195 @@ rounds:
           round: 5
       boundary: M1
       blocked: true
+    - "n": 6
+      timestamp: "2026-09-07T00:37:16-07:00"
+      agent: claude
+      dispose:
+        - id: BR-1
+          disposition: not-addressed
+          note: Plan untouched since the base commit; :389 still routes the Lua write through artifactpath and :79/:98-108/:311 still describe the reversed cmd/pair-hoprtt + GO_BINS design.
+          round: 6
+        - id: BR-5
+          disposition: not-addressed
+          note: Residual is the two sample blocks; reproduced live and under perf_test.sh's own stub PATH — `### cputime`/`### procs` render empty because the pipeline's exit status is awk's, not ps's.
+          round: 6
+        - id: BR-15
+          disposition: addressed
+          note: Guard at hoprtt.go:53 plus TestSummaryOnEmptyInputDoesNotPanic; note the test asserts med==0, an in-domain value, which teaches the wrong contract even though the path is unreachable from Run.
+          round: 6
+        - id: BR-16
+          disposition: not-addressed
+          note: probe_line still prints only $1/$2; the sample count $4 is used solely in the failure branch, so a pipeRTT that broke early still reads as a full run.
+          round: 6
+        - id: BR-17
+          disposition: not-addressed
+          note: sample() at perf.sh:130 still takes awk $4 and comm is still a full path; under ARCH-SECURE this is worth more than Minor because the report is designed to leave the machine.
+          round: 6
+        - id: BR-18
+          disposition: not-addressed
+          note: 'Widened, not fixed — PAIR_PERF_BUDGET=abc emits three `[: integer expression expected` errors and still reports; PAIR_PERF_WINDOW=''1; echo pwned'' yields window_seconds=1; echo pwned. Still undocumented in atlas/README.'
+          round: 6
+        - id: BR-19
+          disposition: not-addressed
+          note: Nothing in the window records that 4f9365b3 (M2.2b, the pure join) landed inside the M1 boundary.
+          round: 6
+        - id: BR-20
+          disposition: not-addressed
+          note: doctor/README.md is untouched in this window and README.md:607 points readers there for the doctor surface.
+          round: 6
+        - id: BR-21
+          disposition: not-addressed
+          note: 'All M1 checkboxes remain `- [ ]` and the Log has no 2026-09-07 entry. Numbers now available to record: pipe 0.006 ms, fork+exec 1.5-1.66 ms, perf.sh 2.26 s of a 6 s budget; zellij unmeasurable in this shell.'
+          round: 6
+        - id: BR-22
+          disposition: addressed
+          note: Subcommand + dispatcher registration, pinned by TestProbeIsReachableThroughTheShippedPairBinary which builds ./cmd/pair-go; verified `./bin/pair hoprtt` returns 0.006 ms.
+          round: 6
+        - id: BR-23
+          disposition: addressed
+          note: verdict is now asymmetric and doctor_test.lua fails without it; the sweep the finding demanded is incomplete — see the new parse_samples finding.
+          round: 6
+        - id: BR-24
+          disposition: addressed
+          note: mktemp fallback at perf_test.sh:54; bare `mktemp -d` still fails in this shell, so the fallback is the live path and `make test-perf-capture` passes.
+          round: 6
+        - id: BR-25
+          disposition: not-addressed
+          note: 'Behaviour verified fixed (PAIR_PERF_BUDGET=2 keeps pipe_hop and fork_exec while shedding top/iostat/sample_b), but NO test exercises a squeeze and the probe keys are absent from perf_test.sh''s required-key list, so reverting the shed order stays green. Also the secondary is untouched: elapsed can still exceed budget because no stage is bounded.'
+          round: 6
+        - id: BR-26
+          disposition: not-addressed
+          note: perf_test.sh:23 still `*[!0-9]*) continue`.
+          round: 6
+        - id: BR-27
+          disposition: not-addressed
+          note: Still four shapes — collect() :51, the top block :101, disk :178, probe_line :211 — with sample()/cputimes() skipping the ladder entirely, which is the structural cause of BR-5's residual.
+          round: 6
+        - id: BR-28
+          disposition: not-addressed
+          note: Still awk arithmetic in perf.sh and still divides by WINDOW unguarded; worse now, because when the budget sheds sample_b the `sleep "$WINDOW"` never runs yet the rate is still divided by WINDOW, so the divisor names a window that did not occur.
+          round: 6
+        - id: BR-29
+          disposition: not-addressed
+          note: perf.sh:165-166 still says "n/a (vm_stat unavailable)" for a vm_stat that exists and failed.
+          round: 6
+        - id: BR-30
+          disposition: not-addressed
+          note: doctor.lua still says "The fixture in nvim/fixtures/" (it is doctor/fixtures/) and delta's Returns list still omits `unmeasured`, which the code sets and the test asserts.
+          round: 6
+        - id: BR-31
+          disposition: not-addressed
+          note: delta still detects reuse only via etime; an unparseable etime drops the pid into the rate branch where cb < ca yields a negative cpu_pct.
+          round: 6
+        - id: BR-32
+          disposition: not-addressed
+          note: No redaction or selection rule recorded next to doctor/fixtures/perf_capture.txt; it is clean of /Users/ paths only by the same truncation accident.
+          round: 6
+      findings:
+        - id: BR-33
+          severity: Critical
+          title: The plan still specifies the cmd/pair-hoprtt + GO_BINS design that round 3 reversed, with no "## Revisions" entry
+          detail: |-
+            This is the 2nd finding in family `traceability`. Rule, not site: a durable
+            artifact that describes the work is updated in the SAME round the work
+            changes it, via an appended "## Revisions" entry — because the plan is what
+            the next milestone is executed from, and a stale one re-introduces the
+            finding the change removed. Prevalence 2/2 (BR-21: the issue Plan and Log
+            do not record what M1 did; this: the plan does not record what M1 became).
+            Evidence: the plan's last commit is df283abe, the review base. Core
+            concepts line 79 says `pair-hoprtt` lives in `cmd/pair-hoprtt/main.go`;
+            the code is `cmd/internal/hoprttcmd/hoprtt.go` and `cmd/pair-hoprtt/` was
+            deleted in c8f2d044. Line 107 still says perf.sh "locates it as
+            $PAIR_HOME/bin/pair-hoprtt" — verbatim the expression BR-22 called
+            Critical. M1.2b (:311-313) still instructs a GO_BINS entry and a
+            `bin/pair-hoprtt` check. M2.6 (:389) still routes the Lua rolling-file
+            write through artifactpath, disposed not-addressed twice by the plan gate.
+            Fix: one Revisions entry plus edits at :79, :98-108, :283, :311-313, :389,
+            :402.
+          family: traceability
+          round: 6
+        - id: BR-34
+          severity: Important
+          title: The budget is checked between stages but no stage is bounded, so a single slow collector blows it without limit
+          detail: |-
+            This is the 3rd finding in family `unenforced-operating-envelope`, so the
+            deliverable is the rule: a wall-clock budget is enforced only when every
+            operation that can exceed it is itself bounded; a check before a stage
+            starts does not bound the stage. Prevalence 3/3 — BR-11 (no deadline at
+            all), BR-25 (wrong shed order), this (no bound once a stage is entered).
+            Evidence: `top -l 2 -n 60` (perf.sh:108), `iostat -d -w 1 -c 2` (:183),
+            `sleep "$WINDOW"` (:158) and each probe_line invocation run to completion
+            once started. The committed fixture reads elapsed_seconds=5 against
+            budget_seconds=6 — one second of slack — and the operator symptom quoted
+            in the issue is "top took 10 seconds". pipeRTT's hardcoded 500 samples
+            (hoprtt.go:178) is 5 s at the ~10 ms/hop the issue says visible lag would
+            require. Because perf_test.sh:36 asserts elapsed <= budget, `make test`
+            goes red under exactly the conditions the capture exists for. Enumeration
+            to sweep in one pass: wrap each external stage in a bounded runner, and
+            derive probe sample counts from remaining budget and the observed first
+            sample rather than from constants.
+          family: unenforced-operating-envelope
+          round: 6
+        - id: BR-35
+          severity: Important
+          title: parse_samples turns a budget-shed sample_b into an empty-but-present sample, so delta reports every process as vanished
+          detail: |-
+            This is the 8th finding in family `failure-reported-as-measurement`. The
+            rule was already stated at BR-23 and its sweep enumeration was written
+            ("every exported function in doctor.lua's 208 block"); this is a member of
+            that enumeration the hand-sweep missed, which is the family reporting that
+            a hand-sweep is the wrong instrument. Reproduced under `nvim -l` with a
+            capture containing `## sample_b` / `skipped=budget reserved for probes`:
+            delta returns rates=0 vanished=2 started=0 rows_a=2 rows_b=0 — on a real
+            host that is vanished=856, a fabricated spawn-storm claim from a
+            measurement that never happened, in exactly the squeezed-capture condition
+            the tool exists for. The same shape arises from BR-5's residual, where a
+            failed ps yields two empty samples that read as "nothing is running".
+            Deliverable at this prevalence is mechanical: one table-driven test in
+            doctor_test.lua iterating the exported functions of the #208 block and
+            asserting each maps absent/failed input to absence, so the next function
+            added is covered by construction. Site fix: parse_samples returns nil for
+            a block carrying `skipped=` or no `###` sections.
+          family: failure-reported-as-measurement
+          round: 6
+        - id: BR-36
+          severity: Important
+          title: Nothing tests perf.sh's sample-row grammar, so the perf.sh-to-delta contract the Lua test claims to pin does not exist
+          detail: |-
+            This is the 3rd finding in family `untested-shell-surface`. Rule: when two
+            components are joined by a recorded fixture, the recording pins only the
+            CONSUMER; the producer needs its own live-run assertion, or drift on the
+            producer side is invisible. Prevalence 3/3 (BR-9 no test for perf.sh at
+            all; BR-25's fix unpinned; this). doctor_test.lua asserts "the perf.sh ->
+            delta contract is pinned. A change to either side that breaks the other
+            now fails here" — that claim is false: it reads the static file
+            doctor/fixtures/perf_capture.txt and never invokes perf.sh. Demonstrated
+            in a scratch copy: changing sample() from tab-separated to pipe-separated
+            output left `sh doctor/perf_test.sh` printing "perf.sh shape tests passed"
+            and exiting 0 (perf_test.sh:23's `*[!0-9]*) continue` swallows the rows,
+            per BR-26). perf_test.sh's required-key list also omits every probe key,
+            which is why BR-25's shed-order fix has no failing test. Fix: assert a live
+            run's `### procs` rows against ^[0-9]+\t\S+\t[0-9]+\t.+$ and `### cputime`
+            against ^[0-9]+\t\S+$, and add pipe_hop_ms/fork_exec_ms to the key list.
+          family: untested-shell-surface
+          round: 6
+        - id: BR-37
+          severity: Minor
+          title: perf_test.sh's mktemp fallback writes .perf-test-stub.$$ into the worktree and nothing gitignores it
+          detail: |-
+            This is the 2nd finding in family `build-artifact-committed`. Rule: any
+            path a build or test writes into the worktree is gitignored in the same
+            change that introduces the write. Prevalence 2/2 (BR-4: the staged
+            pair-hoprtt binary; this). perf_test.sh:54 falls back to
+            "$repo/.perf-test-stub.$$" when mktemp fails — and bare `mktemp -d` fails
+            in the sandboxed agent shell this file's header names as its target
+            reader, so the fallback is the live path there, not the exception. An
+            interrupted run leaves a directory of fake ps/top/sysctl executables
+            untracked at the repo root.
+          family: build-artifact-committed
+          round: 6
+      boundary: M1
+      blocked: true
 ---
 
 # Gate ledger — pair#208 (boundary-review)
@@ -710,20 +899,121 @@ later rounds disposed of them. Generated — edit the gate, not this file.
   home-directory and project paths. Write the redaction/selection rule next
   to the fixture, or filter comm to its basename in sample().
 
+## Round 6 — 2026-09-07T00:37:16-07:00 (claude) — BLOCKED
+
+### Disposed
+
+- BR-1 — not-addressed — Plan untouched since the base commit; :389 still routes the Lua write through artifactpath and :79/:98-108/:311 still describe the reversed cmd/pair-hoprtt + GO_BINS design.
+- BR-5 — not-addressed — Residual is the two sample blocks; reproduced live and under perf_test.sh's own stub PATH — `### cputime`/`### procs` render empty because the pipeline's exit status is awk's, not ps's.
+- BR-15 — addressed — Guard at hoprtt.go:53 plus TestSummaryOnEmptyInputDoesNotPanic; note the test asserts med==0, an in-domain value, which teaches the wrong contract even though the path is unreachable from Run.
+- BR-16 — not-addressed — probe_line still prints only $1/$2; the sample count $4 is used solely in the failure branch, so a pipeRTT that broke early still reads as a full run.
+- BR-17 — not-addressed — sample() at perf.sh:130 still takes awk $4 and comm is still a full path; under ARCH-SECURE this is worth more than Minor because the report is designed to leave the machine.
+- BR-18 — not-addressed — Widened, not fixed — PAIR_PERF_BUDGET=abc emits three `[: integer expression expected` errors and still reports; PAIR_PERF_WINDOW='1; echo pwned' yields window_seconds=1; echo pwned. Still undocumented in atlas/README.
+- BR-19 — not-addressed — Nothing in the window records that 4f9365b3 (M2.2b, the pure join) landed inside the M1 boundary.
+- BR-20 — not-addressed — doctor/README.md is untouched in this window and README.md:607 points readers there for the doctor surface.
+- BR-21 — not-addressed — All M1 checkboxes remain `- [ ]` and the Log has no 2026-09-07 entry. Numbers now available to record: pipe 0.006 ms, fork+exec 1.5-1.66 ms, perf.sh 2.26 s of a 6 s budget; zellij unmeasurable in this shell.
+- BR-22 — addressed — Subcommand + dispatcher registration, pinned by TestProbeIsReachableThroughTheShippedPairBinary which builds ./cmd/pair-go; verified `./bin/pair hoprtt` returns 0.006 ms.
+- BR-23 — addressed — verdict is now asymmetric and doctor_test.lua fails without it; the sweep the finding demanded is incomplete — see the new parse_samples finding.
+- BR-24 — addressed — mktemp fallback at perf_test.sh:54; bare `mktemp -d` still fails in this shell, so the fallback is the live path and `make test-perf-capture` passes.
+- BR-25 — not-addressed — Behaviour verified fixed (PAIR_PERF_BUDGET=2 keeps pipe_hop and fork_exec while shedding top/iostat/sample_b), but NO test exercises a squeeze and the probe keys are absent from perf_test.sh's required-key list, so reverting the shed order stays green. Also the secondary is untouched: elapsed can still exceed budget because no stage is bounded.
+- BR-26 — not-addressed — perf_test.sh:23 still `*[!0-9]*) continue`.
+- BR-27 — not-addressed — Still four shapes — collect() :51, the top block :101, disk :178, probe_line :211 — with sample()/cputimes() skipping the ladder entirely, which is the structural cause of BR-5's residual.
+- BR-28 — not-addressed — Still awk arithmetic in perf.sh and still divides by WINDOW unguarded; worse now, because when the budget sheds sample_b the `sleep "$WINDOW"` never runs yet the rate is still divided by WINDOW, so the divisor names a window that did not occur.
+- BR-29 — not-addressed — perf.sh:165-166 still says "n/a (vm_stat unavailable)" for a vm_stat that exists and failed.
+- BR-30 — not-addressed — doctor.lua still says "The fixture in nvim/fixtures/" (it is doctor/fixtures/) and delta's Returns list still omits `unmeasured`, which the code sets and the test asserts.
+- BR-31 — not-addressed — delta still detects reuse only via etime; an unparseable etime drops the pid into the rate branch where cb < ca yields a negative cpu_pct.
+- BR-32 — not-addressed — No redaction or selection rule recorded next to doctor/fixtures/perf_capture.txt; it is clean of /Users/ paths only by the same truncation accident.
+
+### Raised
+
+- **BR-33** [Critical] `traceability` The plan still specifies the cmd/pair-hoprtt + GO_BINS design that round 3 reversed, with no "## Revisions" entry
+  This is the 2nd finding in family `traceability`. Rule, not site: a durable
+  artifact that describes the work is updated in the SAME round the work
+  changes it, via an appended "## Revisions" entry — because the plan is what
+  the next milestone is executed from, and a stale one re-introduces the
+  finding the change removed. Prevalence 2/2 (BR-21: the issue Plan and Log
+  do not record what M1 did; this: the plan does not record what M1 became).
+  Evidence: the plan's last commit is df283abe, the review base. Core
+  concepts line 79 says `pair-hoprtt` lives in `cmd/pair-hoprtt/main.go`;
+  the code is `cmd/internal/hoprttcmd/hoprtt.go` and `cmd/pair-hoprtt/` was
+  deleted in c8f2d044. Line 107 still says perf.sh "locates it as
+  $PAIR_HOME/bin/pair-hoprtt" — verbatim the expression BR-22 called
+  Critical. M1.2b (:311-313) still instructs a GO_BINS entry and a
+  `bin/pair-hoprtt` check. M2.6 (:389) still routes the Lua rolling-file
+  write through artifactpath, disposed not-addressed twice by the plan gate.
+  Fix: one Revisions entry plus edits at :79, :98-108, :283, :311-313, :389,
+  :402.
+- **BR-34** [Important] `unenforced-operating-envelope` The budget is checked between stages but no stage is bounded, so a single slow collector blows it without limit
+  This is the 3rd finding in family `unenforced-operating-envelope`, so the
+  deliverable is the rule: a wall-clock budget is enforced only when every
+  operation that can exceed it is itself bounded; a check before a stage
+  starts does not bound the stage. Prevalence 3/3 — BR-11 (no deadline at
+  all), BR-25 (wrong shed order), this (no bound once a stage is entered).
+  Evidence: `top -l 2 -n 60` (perf.sh:108), `iostat -d -w 1 -c 2` (:183),
+  `sleep "$WINDOW"` (:158) and each probe_line invocation run to completion
+  once started. The committed fixture reads elapsed_seconds=5 against
+  budget_seconds=6 — one second of slack — and the operator symptom quoted
+  in the issue is "top took 10 seconds". pipeRTT's hardcoded 500 samples
+  (hoprtt.go:178) is 5 s at the ~10 ms/hop the issue says visible lag would
+  require. Because perf_test.sh:36 asserts elapsed <= budget, `make test`
+  goes red under exactly the conditions the capture exists for. Enumeration
+  to sweep in one pass: wrap each external stage in a bounded runner, and
+  derive probe sample counts from remaining budget and the observed first
+  sample rather than from constants.
+- **BR-35** [Important] `failure-reported-as-measurement` parse_samples turns a budget-shed sample_b into an empty-but-present sample, so delta reports every process as vanished
+  This is the 8th finding in family `failure-reported-as-measurement`. The
+  rule was already stated at BR-23 and its sweep enumeration was written
+  ("every exported function in doctor.lua's 208 block"); this is a member of
+  that enumeration the hand-sweep missed, which is the family reporting that
+  a hand-sweep is the wrong instrument. Reproduced under `nvim -l` with a
+  capture containing `## sample_b` / `skipped=budget reserved for probes`:
+  delta returns rates=0 vanished=2 started=0 rows_a=2 rows_b=0 — on a real
+  host that is vanished=856, a fabricated spawn-storm claim from a
+  measurement that never happened, in exactly the squeezed-capture condition
+  the tool exists for. The same shape arises from BR-5's residual, where a
+  failed ps yields two empty samples that read as "nothing is running".
+  Deliverable at this prevalence is mechanical: one table-driven test in
+  doctor_test.lua iterating the exported functions of the #208 block and
+  asserting each maps absent/failed input to absence, so the next function
+  added is covered by construction. Site fix: parse_samples returns nil for
+  a block carrying `skipped=` or no `###` sections.
+- **BR-36** [Important] `untested-shell-surface` Nothing tests perf.sh's sample-row grammar, so the perf.sh-to-delta contract the Lua test claims to pin does not exist
+  This is the 3rd finding in family `untested-shell-surface`. Rule: when two
+  components are joined by a recorded fixture, the recording pins only the
+  CONSUMER; the producer needs its own live-run assertion, or drift on the
+  producer side is invisible. Prevalence 3/3 (BR-9 no test for perf.sh at
+  all; BR-25's fix unpinned; this). doctor_test.lua asserts "the perf.sh ->
+  delta contract is pinned. A change to either side that breaks the other
+  now fails here" — that claim is false: it reads the static file
+  doctor/fixtures/perf_capture.txt and never invokes perf.sh. Demonstrated
+  in a scratch copy: changing sample() from tab-separated to pipe-separated
+  output left `sh doctor/perf_test.sh` printing "perf.sh shape tests passed"
+  and exiting 0 (perf_test.sh:23's `*[!0-9]*) continue` swallows the rows,
+  per BR-26). perf_test.sh's required-key list also omits every probe key,
+  which is why BR-25's shed-order fix has no failing test. Fix: assert a live
+  run's `### procs` rows against ^[0-9]+\t\S+\t[0-9]+\t.+$ and `### cputime`
+  against ^[0-9]+\t\S+$, and add pipe_hop_ms/fork_exec_ms to the key list.
+- **BR-37** [Minor] `build-artifact-committed` perf_test.sh's mktemp fallback writes .perf-test-stub.$$ into the worktree and nothing gitignores it
+  This is the 2nd finding in family `build-artifact-committed`. Rule: any
+  path a build or test writes into the worktree is gitignored in the same
+  change that introduces the write. Prevalence 2/2 (BR-4: the staged
+  pair-hoprtt binary; this). perf_test.sh:54 falls back to
+  "$repo/.perf-test-stub.$$" when mktemp fails — and bare `mktemp -d` fails
+  in the sandboxed agent shell this file's header names as its target
+  reader, so the fallback is the live path there, not the exception. An
+  interrupted run leaves a directory of fake ps/top/sysctl executables
+  untracked at the repo root.
+
 ## Open findings
 
 - **BR-1** [Minor] `unverified-repo-mechanism` M2.6 routes the Lua rolling-file write through artifactpath, a Go internal package Lua cannot call
 - **BR-5** [Important] `failure-reported-as-measurement` perf.sh collector failures render as values, not n/a, contradicting the file's own stated rule
-- **BR-15** [Minor] `unguarded-edge-case` summary() indexes an empty slice; unreachable today but one guard line makes it safe for reuse
 - **BR-16** [Minor] `failure-reported-as-measurement` perf.sh discards hoprtt's sample count, so a truncated pipe run reads identically to a full one
 - **BR-17** [Minor] `report-line-contract` perf.sh:61 awk $4 truncates command paths containing spaces, and comm= emits full paths where the plan said process name
 - **BR-18** [Minor] `unguarded-edge-case` PAIR_PERF_WINDOW flows unvalidated into sleep and awk -v, and is undocumented in atlas/README
 - **BR-19** [Minor] `boundary-hygiene` 4f9365b3 (M2.2b, the pure join) landed inside the M1 boundary; note it so M2's base is not mistaken for the branch point
 - **BR-20** [Minor] `docs-gate` doctor/README.md describes the doctor/ contents and was not updated for perf.sh (atlas/index.md was)
 - **BR-21** [Minor] `traceability` Issue Plan M1 is unticked and the Log records no M1.4/M1.5 evidence; given the zellij finding, M1.4's number must be re-taken before it is logged
-- **BR-22** [Critical] `unverified-repo-mechanism` perf.sh looks for its probe at $PAIR_HOME/bin/pair-hoprtt, a path that never exists in a shipped pair
-- **BR-23** [Important] `failure-reported-as-measurement` verdict() turns absent timings into 'fast', and its test asserts that direction
-- **BR-24** [Critical] `unverified-repo-mechanism` doctor/perf_test.sh:51's bare `mktemp -d` makes `make test-perf-capture`, and therefore `make test`, fail in a sandboxed agent shell
 - **BR-25** [Important] `unenforced-operating-envelope` The budget sheds the three probes first, so a degraded machine — the only condition this tool targets — yields a capture with no probe rows
 - **BR-26** [Minor] `untested-shell-surface` perf_test.sh:23's stray-line check only fires for all-digit lines, so any other unattributable line passes
 - **BR-27** [Minor] `duplicated-logic` Four shapes of collect()'s availability/failure/empty ladder in one file, which is how the sample blocks escaped the rule
@@ -732,3 +1022,8 @@ later rounds disposed of them. Generated — edit the gate, not this file.
 - **BR-30** [Minor] `docs-gate` Comment drift in nvim/doctor.lua — the fixture path and delta's documented return shape are both wrong
 - **BR-31** [Minor] `unguarded-edge-case` delta detects a reused pid only through etime, so an unparseable etime lets a reused pid produce a negative cpu_pct
 - **BR-32** [Minor] `recorded-fixture-redaction` doctor/fixtures/perf_capture.txt is a real host capture in a public repo, safe only by an unrecorded truncation accident
+- **BR-33** [Critical] `traceability` The plan still specifies the cmd/pair-hoprtt + GO_BINS design that round 3 reversed, with no "## Revisions" entry
+- **BR-34** [Important] `unenforced-operating-envelope` The budget is checked between stages but no stage is bounded, so a single slow collector blows it without limit
+- **BR-35** [Important] `failure-reported-as-measurement` parse_samples turns a budget-shed sample_b into an empty-but-present sample, so delta reports every process as vanished
+- **BR-36** [Important] `untested-shell-surface` Nothing tests perf.sh's sample-row grammar, so the perf.sh-to-delta contract the Lua test claims to pin does not exist
+- **BR-37** [Minor] `build-artifact-committed` perf_test.sh's mktemp fallback writes .perf-test-stub.$$ into the worktree and nothing gitignores it

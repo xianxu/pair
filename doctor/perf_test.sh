@@ -78,5 +78,28 @@ if [ -x "$repo/bin/pair" ]; then
 	fi
 fi
 
+# BR-36: the Lua side parses a RECORDED capture, which pins delta against a
+# snapshot but not against what perf.sh emits TODAY. This asserts the live
+# grammar, so a change here fails immediately instead of at the next slowdown.
+in_sample=0
+rows=0
+printf '%s\n' "$out" | while IFS= read -r line; do
+	case "$line" in
+		"### procs") in_sample=1; continue ;;
+		"##"*|"#"*)  in_sample=0; continue ;;
+	esac
+	[ "$in_sample" = 1 ] || continue
+	[ -n "$line" ] || continue
+	# pid<TAB>etime<TAB>rss<TAB>comm — the exact shape doctor.parse_samples reads.
+	printf '%s' "$line" | awk -F'\t' '
+		NF != 4          { print "SHAPE wrong field count: " $0; exit }
+		$1 !~ /^[0-9]+$/ { print "SHAPE pid not numeric: " $0; exit }
+		$3 !~ /^[0-9]+$/ { print "SHAPE rss not numeric: " $0; exit }'
+	rows=$((rows + 1))
+done | grep -q SHAPE && bad "perf.sh sample rows no longer match the grammar doctor.parse_samples reads"
+
+printf '%s\n' "$out" | grep -q '^### procs$' || bad "no ### procs section for delta to parse"
+printf '%s\n' "$out" | grep -q '^### cputime$' || bad "no ### cputime section for delta to parse"
+
 if [ "$fails" -gt 0 ]; then echo "$fails failure(s)" >&2; exit 1; fi
 echo "perf.sh shape tests passed"

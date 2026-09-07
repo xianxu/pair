@@ -404,3 +404,55 @@ so M1 cannot regress anything. M2's only risk to existing behaviour is the
 `:PairDoctor` drift path, pinned byte-identical by M2.1's test. If the capture
 misbehaves on a struggling machine, the fix is to make the budget smaller, not
 to revert — a truncated report is still better than none.
+
+---
+
+## Revisions
+
+### 2026-09-07 — the probe is a `pair` subcommand, not a binary
+
+**What the plan says above is wrong from M1 round 3 onward.** Every reference to
+`cmd/pair-hoprtt`, `bin/pair-hoprtt`, a `GO_BINS` entry, or a per-binary recipe
+describes a design the boundary review reversed. As built:
+`cmd/internal/hoprttcmd`, invoked as **`pair hoprtt`**, dispatched from
+`cmd/pair-go/main.go` beside `term`/`wrap`/`clip`.
+
+**Why the plan's version was wrong, and why the plan-quality gate missed it.**
+The gate correctly forced `GO_BINS` (PQ-1: `make build` is driven by a
+hand-maintained list that overrides the base-layer scan, so a bare
+`cmd/hoprtt/main.go` would never have been built). That fix was right about the
+checkout and wrong about everything else: `make install` is only one of the ways
+pair ships. The Homebrew formula builds solely `./cmd/pair-go`, and `PAIR_HOME`
+at runtime is the extracted bundle root, which has carried no helper binaries
+since `#104` M3. So a standalone probe binary would have been permanently
+`n/a` for every installed pair — the operator this whole capture exists for.
+
+`pair` is the only binary guaranteed to exist in every distribution, which makes
+a subcommand the sole correct home. The plan should have asked "which
+distributions ship this?" rather than "how does `make build` find it".
+
+**The review's method is worth recording too**: it reverted the PATH-first fix
+in a scratch copy, found the suite still green, and concluded nothing pinned it.
+The replacement test builds the *real* `pair` binary and invokes the subcommand
+through it, so the wiring cannot silently regress.
+
+### Also reversed in the same round
+
+- **Budget shedding order.** The plan's ARCH-CONSTRAINTS implied guarding the
+  probes. That sheds exactly the wrong thing: the probes are the cheapest and
+  most valuable rows, so a degraded machine — the only condition this tool
+  targets — would have produced a capture with no probe data. Shedding is now
+  reverse-value-order (iostat → top → sample window) with a reserved probe
+  slice.
+- **`verdict` is asymmetric.** The plan specified a single 16 ms threshold. As
+  built, partial evidence can prove `slow` but never `fast`: one timing over
+  budget is positive evidence, one timing under it says nothing about the
+  measurement that is missing.
+- **The delta fixture lives in `doctor/fixtures/`,** not `nvim/`. The runtime
+  bundle walks `nvim/` wholesale, so a fixture there would ship into every
+  user's extracted session.
+
+**The rule this is the second instance of** (the first was `BR-15` on this
+issue's own plan gate): the plan is verified against the tree at the round's
+FINAL commit. Both instances were the same mistake — writing the entry from the
+mid-round state and leaving it describing code a later commit replaced.
