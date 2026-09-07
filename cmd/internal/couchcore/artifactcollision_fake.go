@@ -15,9 +15,14 @@ type fakeArtifactCollision struct {
 }
 
 type FakeThreadArtifactCollisionChecker struct {
-	mu              sync.Mutex
-	values          map[ThreadAddress]fakeArtifactCollision
-	calls           []ThreadAddress
+	mu     sync.Mutex
+	values map[ThreadAddress]fakeArtifactCollision
+	calls  []ThreadAddress
+	// detachedQueries counts DetachedSessions calls, so a test can pin an IO
+	// BUDGET rather than only a result -- #198's guard is required to add no
+	// session enumeration of its own, and a budget nothing measures is a rule
+	// that cannot fail.
+	detachedQueries int
 	released        []ThreadAddress
 	registrations   map[ThreadAddress]fakeRegistration
 	autoEstablish   bool
@@ -83,6 +88,9 @@ func (f *FakeThreadArtifactCollisionChecker) DetachedSessions(ctx context.Contex
 	if err := ctx.Err(); err != nil {
 		return nil, err
 	}
+	f.mu.Lock()
+	f.detachedQueries++
+	f.mu.Unlock()
 	if hook := f.DetachedSessionsHook; hook != nil {
 		addresses := make([]ThreadAddress, 0, len(candidates))
 		for _, candidate := range candidates {
@@ -249,6 +257,13 @@ func (f *FakeThreadArtifactCollisionChecker) Releases() []ThreadAddress {
 	f.mu.Lock()
 	defer f.mu.Unlock()
 	return append([]ThreadAddress{}, f.released...)
+}
+
+// DetachedQueries is how many times the detached-session question was asked.
+func (f *FakeThreadArtifactCollisionChecker) DetachedQueries() int {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	return f.detachedQueries
 }
 
 func (f *FakeThreadArtifactCollisionChecker) Calls() []ThreadAddress {

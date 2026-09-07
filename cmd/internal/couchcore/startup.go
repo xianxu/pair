@@ -133,6 +133,18 @@ func (c *Couch) StartInteractive(ctx context.Context, args StartArgs) (StartResu
 	if err != nil {
 		return StartResult{}, err
 	}
+	// The mixed-layout guard, deliberately placed HERE rather than in couchcmd:
+	// these rows are the only session enumeration startup performs, and the
+	// guard must add none of its own. It runs before any effect, so a refusal
+	// starts no child.
+	//
+	// It is a predictability feature, not a safety one -- #179 keeps a warm
+	// reattach safe on its own by sending no layout flag at all -- so a startup
+	// snapshot is the right strength and nothing here needs to be transactional
+	// with the store.
+	if conflicts := ResolveLayoutConflicts(c.Layout, rows); len(conflicts) > 0 {
+		return StartResult{}, layoutConflictRefusal(c.Layout, conflicts)
+	}
 	if address, ok := SelectResumableRoot(rows, scope.Key, resolution.CanonicalPath); ok {
 		record, handle, resumeErr := c.ResumeContext(ctx, address)
 		return StartResult{Record: record, Handle: handle}, startupResumeRefusal(address, resumeErr)

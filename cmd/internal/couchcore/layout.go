@@ -1,6 +1,9 @@
 package couchcore
 
-import "fmt"
+import (
+	"fmt"
+	"strings"
+)
 
 // Layout is which pair layout couch launches its threads in. It is chosen once
 // per couch process (Couch.Layout) and recorded per thread
@@ -89,4 +92,32 @@ func ResolveLayoutConflicts(requested Layout, rows []ActionableThreadSummary) []
 		})
 	}
 	return conflicts
+}
+
+// layoutConflictRefusal makes a mixed-layout refusal actionable, in the shape
+// startupResumeRefusal established: what happened, which threads, and the way
+// forward.
+//
+// The way forward exists BECAUSE the blocking set excludes parked threads:
+// parking every conflicting thread empties the set, so the operator reaches the
+// layout they asked for through the tool rather than by hand-editing records.
+func layoutConflictRefusal(requested Layout, conflicts []LayoutConflict) error {
+	var rows strings.Builder
+	other := conflicts[0].Layout
+	for _, conflict := range conflicts {
+		fmt.Fprintf(&rows, "\n  %s  (%s, %s)", conflict.Address.Tag, conflict.Layout, conflict.State)
+		if conflict.Layout != other {
+			other = LayoutUnknown
+		}
+	}
+	noun := "thread"
+	if len(conflicts) > 1 {
+		noun = "threads"
+	}
+	return fmt.Errorf(
+		"couch cannot start in %s: %d %s already hold a session in another layout:%s\n\n"+
+			"couch keeps one layout across every thread, so it will not mix them.\n"+
+			"  park them first:  couch --%s   then park each thread from the switcher and quit\n"+
+			"  then:             couch --%s",
+		requested, len(conflicts), noun, rows.String(), other, requested)
 }
