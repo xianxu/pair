@@ -65,9 +65,15 @@ type ThreadRecord struct {
 	Incarnations        []ThreadIncarnation `json:"incarnations,omitempty"`
 	LatestLaunchProfile *LaunchProfile      `json:"latest_launch_profile,omitempty"`
 	LastActiveAt        time.Time           `json:"last_active_at,omitempty"`
-	Park                *ParkTransaction    `json:"park,omitempty"`
-	VerifiedPark        *VerifiedPark       `json:"verified_park,omitempty"`
-	ParkHistory         []ParkTransaction   `json:"park_history,omitempty"`
+	// Layout witnesses what this thread's pair session actually is, so the
+	// startup guard can refuse a couch layout that would mix with it. Absent on
+	// every record written before #198, and those are layout2: couch pinned
+	// layout2 from 2026-08-22 until then. Read it through NormalizeLayout --
+	// the raw value is untrusted and "" is not Layout2 by string comparison.
+	Layout       Layout            `json:"layout,omitempty"`
+	Park         *ParkTransaction  `json:"park,omitempty"`
+	VerifiedPark *VerifiedPark     `json:"verified_park,omitempty"`
+	ParkHistory  []ParkTransaction `json:"park_history,omitempty"`
 }
 
 var threadRecordValidators = threadrecord.Validators{
@@ -93,6 +99,7 @@ func toPersistedThreadRecord(record ThreadRecord) threadrecord.Record {
 		StartingPath: record.StartingPath, WorkingPath: record.WorkingPath, CreatedAt: record.CreatedAt,
 		Revision: record.Revision, Reservation: record.Reservation,
 		Name: record.Name, Description: record.Description, PublishedSummary: record.PublishedSummary,
+		Layout:       string(record.Layout),
 		Incarnations: make([]threadrecord.Incarnation, len(record.Incarnations)),
 	}
 	if record.LatestLaunchProfile != nil {
@@ -146,6 +153,7 @@ func fromPersistedThreadRecord(record threadrecord.Record) ThreadRecord {
 		StartingPath:  record.StartingPath, WorkingPath: record.WorkingPath, CreatedAt: record.CreatedAt,
 		Revision: record.Revision, Reservation: record.Reservation,
 		Name: record.Name, Description: record.Description, PublishedSummary: record.PublishedSummary,
+		Layout:       Layout(record.Layout),
 		Incarnations: make([]ThreadIncarnation, len(record.Incarnations)),
 	}
 	if record.LatestLaunchProfile != nil {
