@@ -104,37 +104,63 @@ func ResolveLayoutConflicts(requested Layout, rows []ActionableThreadSummary) []
 	return conflicts
 }
 
-// hostLayoutFor reports the single layout that can host every conflicting
-// thread, and whether one exists at all.
+// layoutRemedy is the way forward a refusal ends with. A refusal that does not
+// terminate in an action the operator can actually take is not actionable, so
+// the three cases are answered separately rather than collapsed into one
+// sentence that is wrong for two of them.
 //
-// It often does not, and both cases are reachable rather than theoretical: a
-// lone conflict whose witness is LayoutUnknown (a hand-edited or newer-version
-// record -- exactly what LayoutUnknown exists to surface), and a blocking set
-// whose members disagree with each other (reachable when a process dies between
-// a launch and its witness CAS). In neither case is there a couch the operator
-// could start to park them all, so the refusal must not name one.
-func hostLayoutFor(conflicts []LayoutConflict) (Layout, bool) {
-	if len(conflicts) == 0 {
-		return "", false
-	}
-	host := conflicts[0].Layout
-	for _, conflict := range conflicts {
+//   - every conflict in ONE known layout: park them from a couch that can host
+//     them, then start the one that was asked for.
+//   - conflicts in DIFFERENT known layouts: still reachable, but not in one
+//     pass -- each thread parks from the couch matching its own layout.
+//     Reachable when a process dies between a launch and its witness CAS.
+//   - any conflict whose layout is UNREADABLE: no couch can host it, so `park`
+//     (a TUI row action, ops.go) cannot be reached for it at all. The remedy
+//     leaves the tool: inspect the thread and end its session directly.
+func layoutRemedy(requested Layout, conflicts []LayoutConflict) string {
+	host, single := Layout(""), true
+	unreadable := ""
+	for i, conflict := range conflicts {
+		if !KnownLayout(conflict.Layout) {
+			if unreadable == "" {
+				unreadable = string(conflict.Address.Tag)
+			}
+			continue
+		}
+		if i == 0 || host == "" {
+			host = conflict.Layout
+			continue
+		}
 		if conflict.Layout != host {
-			return "", false
+			single = false
 		}
 	}
-	return host, KnownLayout(host)
+	if unreadable != "" {
+		// No `couch --layoutN` will start while this thread holds its session,
+		// so every in-tool route is closed. Say what is left.
+		return "this thread's layout cannot be read, so no couch can host it and\n" +
+			"  `park` is out of reach. Inspect it and end its session directly:\n" +
+			"    couch --show " + unreadable + "\n" +
+			"    zellij kill-session <the session it names>"
+	}
+	if !single {
+		return "these threads are in DIFFERENT layouts, so no single couch can park\n" +
+			"  them all. Park each from the couch matching its own layout, then:\n" +
+			"    couch " + requested.Flag()
+	}
+	return "park them first:  couch " + host.Flag() +
+		"   then park each thread from the switcher and quit\n" +
+		"  then:             couch " + requested.Flag()
 }
 
 // layoutConflictRefusal makes a mixed-layout refusal actionable, in the shape
 // startupResumeRefusal established: what happened, which threads, and the way
 // forward.
 //
-// The way forward exists BECAUSE the blocking set excludes parked threads:
-// parking every conflicting thread empties the set, so the operator reaches the
-// layout they asked for through the tool rather than by hand-editing records.
-// When no single couch can host them all it says so instead of naming a command
-// that would not run -- advice the operator cannot follow is worse than none.
+// The way forward normally exists BECAUSE the blocking set excludes parked
+// threads: parking every conflicting thread empties the set, so the operator
+// reaches the layout they asked for through the tool rather than by hand-editing
+// records. layoutRemedy handles the cases where that route is not available.
 func layoutConflictRefusal(requested Layout, conflicts []LayoutConflict) error {
 	if len(conflicts) == 0 {
 		return nil
@@ -157,16 +183,9 @@ func layoutConflictRefusal(requested Layout, conflicts []LayoutConflict) error {
 	if len(conflicts) > 1 {
 		noun = "threads"
 	}
-	remedy := "park every thread listed above -- from whichever couch can host it -- then:\n" +
-		"  couch " + requested.Flag()
-	if host, ok := hostLayoutFor(conflicts); ok {
-		remedy = "park them first:  couch " + host.Flag() +
-			"   then park each thread from the switcher and quit\n" +
-			"  then:             couch " + requested.Flag()
-	}
 	return fmt.Errorf(
 		"cannot start in %s: %d %s already hold a session in another layout:%s\n\n"+
 			"couch keeps one layout across every thread, so it will not mix them.\n"+
 			"  %s",
-		requested, len(conflicts), noun, rows.String(), remedy)
+		requested, len(conflicts), noun, rows.String(), layoutRemedy(requested, conflicts))
 }

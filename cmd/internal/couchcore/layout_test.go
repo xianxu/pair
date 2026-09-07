@@ -164,17 +164,21 @@ func TestKnownLayoutRejectsWhatCouchCannotLaunch(t *testing.T) {
 	}
 }
 
-// The gap that let `couch --unknown` ship: every refusal test used a single
-// known-layout conflict, so the message was never RENDERED for the two shapes
-// that have no single host layout. Both are reachable, not theoretical.
-func TestRefusalNeverNamesACommandThatWouldNotRun(t *testing.T) {
+// The gap that let `couch --unknown` ship, and then the gap that let a VACUOUS
+// fix ship: the first version of this test only asserted the message was
+// well-formed, which a total Flag() satisfies while still telling an operator
+// blocked by a mixed set to run a couch that would itself refuse.
+//
+// So these assert the NEGATIVE direction -- what the message must NOT offer --
+// which is the half that goes red when the remedy logic is removed.
+func TestRefusalOffersNoHostRemedyWhenNoCouchCanHostThemAll(t *testing.T) {
 	cases := map[string][]LayoutConflict{
-		"lone unreadable witness": {
-			{Address: ThreadAddress{Tag: "brain"}, Layout: LayoutUnknown, State: ThreadDetached},
-		},
 		"blocking set that disagrees with itself": {
 			{Address: ThreadAddress{Tag: "brain"}, Layout: Layout2, State: ThreadLive},
 			{Address: ThreadAddress{Tag: "ariadne"}, Layout: Layout3, State: ThreadDetached},
+		},
+		"lone unreadable witness": {
+			{Address: ThreadAddress{Tag: "brain"}, Layout: LayoutUnknown, State: ThreadDetached},
 		},
 		"unreadable mixed in": {
 			{Address: ThreadAddress{Tag: "brain"}, Layout: Layout2, State: ThreadLive},
@@ -184,25 +188,50 @@ func TestRefusalNeverNamesACommandThatWouldNotRun(t *testing.T) {
 	for name, conflicts := range cases {
 		t.Run(name, func(t *testing.T) {
 			message := layoutConflictRefusal(Layout3, conflicts).Error()
-			// Every `couch --x` the message suggests must be a flag pair
-			// actually accepts. This is the assertion that would have caught
-			// `couch --unknown` before it shipped.
+			// The ONLY layout flag allowed here is the one the operator asked
+			// for. Naming any other means suggesting a couch that would refuse
+			// for the same reason -- which is what a total Flag() made look
+			// well-formed.
 			for _, field := range strings.Fields(message) {
 				if !strings.HasPrefix(field, "--layout") {
 					continue
 				}
-				if _, err := ParseLayout(strings.TrimPrefix(field, "--")); err != nil {
-					t.Fatalf("refusal suggests %q, which ParseLayout rejects:\n%s", field, message)
+				if field != Layout3.Flag() {
+					t.Fatalf("refusal offers %q as a host, but no couch can host these threads:\n%s", field, message)
 				}
 			}
-			if strings.Contains(message, "--unknown") {
-				t.Fatalf("refusal names a nonexistent flag:\n%s", message)
-			}
-			// It must still be actionable rather than merely correct.
-			if !strings.Contains(message, "park") {
-				t.Fatalf("refusal gives the operator no way forward:\n%s", message)
+			if strings.Contains(message, "park them first") {
+				t.Fatalf("refusal offers the one-pass park remedy, which does not apply:\n%s", message)
 			}
 		})
+	}
+}
+
+// The unreadable case closes every in-tool route -- `park` is a TUI row action,
+// so it needs a couch, and no couch will start. The refusal must leave the tool
+// rather than dead-end.
+func TestRefusalNamesAnOutOfToolRemedyWhenNoCouchCanStart(t *testing.T) {
+	conflicts := []LayoutConflict{
+		{Address: ThreadAddress{Tag: "brain"}, Layout: LayoutUnknown, State: ThreadDetached},
+	}
+	message := layoutConflictRefusal(Layout3, conflicts).Error()
+	for _, want := range []string{"couch --show brain", "kill-session"} {
+		if !strings.Contains(message, want) {
+			t.Fatalf("refusal gives no reachable way out (missing %q):\n%s", want, message)
+		}
+	}
+}
+
+// Mixed-but-readable is reachable, just not in one pass: the message must say
+// so rather than either offering a single host or giving up.
+func TestRefusalExplainsThePerThreadRouteWhenLayoutsDisagree(t *testing.T) {
+	conflicts := []LayoutConflict{
+		{Address: ThreadAddress{Tag: "brain"}, Layout: Layout2, State: ThreadLive},
+		{Address: ThreadAddress{Tag: "ariadne"}, Layout: Layout3, State: ThreadDetached},
+	}
+	message := layoutConflictRefusal(Layout3, conflicts).Error()
+	if !strings.Contains(message, "DIFFERENT layouts") || !strings.Contains(message, "matching its own layout") {
+		t.Fatalf("refusal does not explain the per-thread route:\n%s", message)
 	}
 }
 

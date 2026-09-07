@@ -173,3 +173,177 @@ findings:
       fixtures use PairTag where the code uses ThreadTag. Worth a "## Revisions" entry so
       the plan stops describing paths the tree does not have.
 ```
+
+---
+
+## Re-review — 2026-09-06T18:20:54-07:00 (FIX-THEN-SHIP)
+
+| field | value |
+|-------|-------|
+| issue | 198 — couch: let the operator choose layout3 |
+| repo | pair |
+| issue file | workshop/issues/000198-couch-let-the-operator-choose-layout3.md |
+| boundary | whole-issue close |
+| milestone | — |
+| window | 13e0f0f52e080495a0b88184d71bc5345614e826..5028f03852bf79cd9b0d7498f346c218438e8ff5 |
+| command | sdlc close --issue 198 |
+| reviewer | claude |
+| timestamp | 2026-09-06T18:20:54-07:00 |
+| verdict | FIX-THEN-SHIP |
+
+## Review
+
+```verdict
+verdict: FIX-THEN-SHIP
+confidence: high
+```
+
+The feature is delivered and correct: layout is a couch-global typed value that reaches argv only at a cold boundary, the witness rides the existing `StartRegistered` CAS, the guard is a pure function over rows startup already read, and the #179 cold/warm split is preserved (`warmresume_test.go` byte-identical) *and* strengthened. Round 2's `hostLayoutFor`, `type Layout = launcher.LayoutMode`, `*Layout`, README content and comment sweep are all genuinely in the tree, and I mutation-checked four of them red. What blocks SHIP is narrower and self-referential: **two of the nine tests round 2 added to close findings pass with their fix reverted** — `TestRefusalNeverNamesACommandThatWouldNotRun` stays green after I delete `hostLayoutFor`'s agreement loop (because the *other* fix, a total `Flag()`, makes `LayoutUnknown` render as `--layout2`), and `readme_test.go`'s new `"--layout3"`/`"--layout2"` entries stay green after I delete README.md:268-269 (because pair's own flag docs at README.md:13,18,441 already contain those substrings). Both fixes are right; neither is pinned, which is exactly the failure this window's own `lessons.md` entry was written about. Two Minors follow, both repeats of families already in play.
+
+## 1. Strengths
+
+- **`hostLayoutFor` (`cmd/internal/couchcore/layout.go:116-136`) is the right shape for BR-3** — it answers "is there one layout that can host every conflicting thread" rather than patching the string, and `KnownLayout` keeps `LayoutUnknown` out of any suggested command. The production behavior is correct; only its test is weak.
+- **The alias consolidation is the better of the two options BR-5 offered.** `type Layout = launcher.LayoutMode` with `Flag()` living in `launcher` beside the parser, and `extractLayoutRequest` now switching on `Layout2.Flag()`/`Layout3.Flag()` (`launcher/args.go:156-158`), means the emitter and the parser cannot drift by construction. `TestCouchLayoutFlagsAreWhatPairParses` is not tautological despite the alias — I reverted `launchArgsAcceptLayout` and it went red on the real contract (`resume` accepting a layout flag at all).
+- **`TestWarmReattachSendsNoLayoutEvenInLayout3` now covers the destructive mode from both angles.** I made the `StartRegistered` arm record the layout unconditionally; it failed with `warm reattach overwrote the witness: "layout3"`. BR-2 is properly closed.
+- **`TestLayoutWitnessPersistsUnderItsOnDiskKey`** — I renamed the `json:"layout"` tag to `layout_mode` and it went red. BR-8 closed at the layer that matters.
+- **`TestGuardAddsNoSessionEnumeration`** counts a declared IO budget instead of asserting prose, and its comment explains why it must measure the *refusing* run. This remains the model for ARCH-CONSTRAINTS.
+- **The atlas section (`atlas/couch.md:901-932`)** states the cold-boundary rule, the blocking set, the parked-never-blocks remedy and the pre-#198 normalization, and records *why* the pin reversed rather than deleting it.
+
+## 2. Critical findings
+
+None. `gofmt -l` and `go vet ./cmd/...` are clean; the whole layout suite passes (33 tests). Remaining `./cmd/...` failures are the known `fork/exec … operation not permitted` / pty class in this environment, including `TestLayoutFlagReachesTheCouch` (fails at `pty.Open()`, `layout_cli_test.go:98`) — not this diff, but it means the CLI→domain end-to-end is unverified here and should be confirmed on the operator's machine.
+
+## 3. Important findings
+
+**Two guards added to close round-2 findings pass with their fix reverted.** Prevalence measured across all nine tests `70dd36c7` added: 2 of 9 vacuous.
+
+- `cmd/internal/couchcore/layout_test.go:170` — I replaced `hostLayoutFor`'s body with `return conflicts[0].Layout, true` and the whole test stayed green, including the "blocking set that disagrees with itself" case. The reason is that its two assertions are *`ParseLayout` accepts every `--layout*` field* and *no `--unknown`* — and since BR-6 made `Flag()` total, `LayoutUnknown.Flag()` is now `--layout2`, so the degraded message is well-formed but **wrong**: it would tell an operator blocked by a mixed layout2/layout3 set to "park them first: couch --layout2", which is itself a startup that refuses. `TestRefusalKeepsTheConcreteRemedyWhenOneHostExists` pins the positive direction only. Fix: assert the negative — in the no-single-host cases require the generic wording (`whichever couch can host it`) and that the only `couch --layout*` in the message is `requested.Flag()`.
+- `cmd/internal/couchcmd/readme_test.go:144-145` — I deleted README.md:268-269 (the two `couch --layout2|3` usage lines) and `TestREADMEDocumentsTheOperatorFacingSurface` stayed green: `--layout3` and `--layout2` already appear at README.md:13, 18-19 and 441 documenting **pair's** flags. Only `"refuses to start"` (:146) is load-bearing. Fix: use `"couch --layout2"` / `"couch --layout3"`, matching the command-prefixed convention its sibling `TestREADMEDocumentsOnlyThePublicProjection` already uses for `"couch --list"`.
+
+The rule behind both: **a test written to close a review finding is not done until the fix is reverted and the test goes red** — and a whole-document substring guard must anchor on a string unique to the surface it guards, or a neighbouring section satisfies it for free. Applying the rule is the deliverable, not the two edits: revert-check every test this round adds before the next close attempt.
+
+## 4. Minor findings
+
+- **2nd in family `refusal-must-name-a-runnable-remedy`** — a blocking set consisting only of `LayoutUnknown` witnesses leaves *no* runnable remedy: `park` is `PresentationTUI, RowAction` (`ops.go:189`), so it needs a running couch, and every `couch --layoutN` refuses. The fallback at `layout.go:160` says "park every thread listed above -- from whichever couch can host it", but in that shape there is none. Don't fix the string; the covering rule is *a refusal must terminate in an action reachable with the tools the operator has, and when no in-tool action exists it must name the out-of-tool one* (kill the zellij session, or the record path to repair). Reachable only via a hand-edited or future-version witness, which is why it is Minor.
+- **2nd in family `untagged-empty-sentinel`** — `ActionableThreadSummary.Layout`'s doc says the value is "already normalized … an unreadable one as `LayoutUnknown`", but the `input.Unreadable` branch (`actionableinventory.go:208-212`) constructs rows without touching `Layout`, so they carry a raw `Layout("")` — a fourth meaning of empty. Harmless today (`ThreadUnusable` never holds a session), but `#199`/`#200` read this struct. Covering rule: *a field documented as normalized must be normalized at every construction site of its struct*; prevalence here is 2 sites in `ProjectActionableThreads`, 1 unnormalized.
+- `cmd/internal/couchcmd/cli.go:48` hand-writes `strings.HasPrefix(arg, "--layout")` as the filter and re-implements `launcher.extractLayoutRequest`'s loop (same `--` sentinel, same one-layout rule). The *value* is derived via `ParseLayout`, so this is not the BR-5 duplication returning — but a layout flag not spelled `--layoutN` would silently not be stripped.
+- `layoutConflictRefusal` returns a nil `error` for an empty conflict slice; the one call site guards on `len > 0`, so the nil-error branch is unreachable — a `panic`/no-op contract would read more honestly than a nil error a caller could accidentally return.
+
+## 5. Test coverage notes
+
+- Revert-verified red (fix genuinely pinned): `TestWarmReattachSendsNoLayoutEvenInLayout3`, `TestLayoutWitnessPersistsUnderItsOnDiskKey`, `TestCouchLayoutFlagsAreWhatPairParses`. Direct-assertion, non-vacuous by inspection: `TestFlagIsTotalOverUnsetAndUnknownLayouts`, `TestKnownLayoutRejectsWhatCouchCannotLaunch`, `TestRefusalDoesNotDoubleTheProgramPrefix`, `TestRefusalKeepsTheConcreteRemedyWhenOneHostExists`.
+- Untestable-here: the CLI→`Couch.Layout` end-to-end (`TestLayoutFlagReachesTheCouch`) needs a real pty. It is the only thing standing between "ParseCLI produced Layout3" and "the domain got it"; confirm it green on the operator's machine.
+- The `extractLayoutFlag` shape matrix is good (flag before/after path, `--` dash-path, contradictory pair, all five non-launch forms). Not covered: a repeated identical flag (`--layout3 --layout3`), which is silently accepted — correct, but unpinned.
+- The process-death-between-launch-and-CAS ordering is dispositioned as "ignore" in the plan and still has no test; acceptable, and the fake can seed it if `#199`/`#200` make it matter.
+
+## 6. Architectural notes for upcoming work
+
+- **ARCH-DRY — pass.** The layout vocabulary now has one owner (`launcher`), one formatter, one parser, and the couch side aliases it. The only residue is the `"--layout"` prefix filter noted above.
+- **ARCH-PURE — pass.** `ParseLayout`, `NormalizeLayout`, `KnownLayout`, `ResolveLayoutConflicts`, `holdsSession`, `hostLayoutFor`, `layoutConflictRefusal` are all pure and unit-tested with hand-built values and no fake; the guard consumes rows the caller already read.
+- **ARCH-PURPOSE — pass on the sweep, flag on the class-vs-instance axis.** `grep -rn "pinned to layout2\|operator decision 2026-08-22" cmd/ atlas/` is empty; atlas, README, usage, `couch.go`'s rationale and the test premises all moved in this window. `workshop/projects/couch.md:233,881` still say `--layout2`, and that is *correct* — both are dated historical narrative the project datatype says to append to, not overwrite. Where it flags: round 2 answered BR-4 by extending an enumeration without checking the extension could fail, which is the instance rather than the class.
+- **ARCH-MOCK — pass.** `pair` stays behind the `Runner` seam; `DetachedQueries()` extends the existing `FakeThreadArtifactCollisionChecker` rather than adding a parallel double; the cross-binary claim is now an in-module round trip through `launcher.ParseArgs` instead of a comment.
+- **ARCH-CONSTRAINTS — pass.** Budget declared, basis stated, placement chosen *because* of the budget, budget counted in a test.
+- **ARCH-SECURE — pass.** Both raw-string boundaries normalize; `ValidateThreadRecord` deliberately does not reject an unknown layout, so a hand-edited record surfaces as `LayoutUnknown` rather than disappearing into `ThreadUnusable`. The forward-only compatibility is now stated correctly at `thread.go:74-79`. The soft spot is that the visible failure still dead-ends (Minor 1).
+- **ARCH-ORDER — pass on the enumeration.** One residual for `#199`/`#200`: `Couch.Layout`'s comment says "IMMUTABLE for the process lifetime", but it is an exported field assigned after `New` at `run.go:264`. The invariant is comment-enforced. The plan's reason (not changing the `Runtime` interface) is sound; if `#199`/`#200` add a second writer, promote it to a constructor parameter then.
+- The destructive path is confirmed to be `ActionAttach`-only (`launcher/createflow.go:244-250`), so a cold resume of a parked thread into the other layout cannot reach `ConfirmLayoutChange`/`DeleteSession`. That is worth stating in the atlas alongside the cold/warm rule — right now the guarantee lives only in `createflow.go`.
+
+## 7. Plan revision recommendations
+
+The Core-concepts table matches the code on every row, and the existing `## Revisions` already records the alias, the `*Layout`, `hostLayoutFor` and the strictjson correction. Two small additions:
+
+- **Add `KnownLayout` and `hostLayoutFor` to the pure-entities table** (`cmd/internal/couchcore/layout.go`, new). They arrived with the round-2 fixes and the Revisions mention `hostLayoutFor` in prose only, so the table is no longer the greppable enumeration it claims to be.
+- **Task 3's body still reads "an older binary ignores it"** (plan line 533). The convention is to append rather than overwrite, and Revisions §4 does correct it — but a one-line pointer at the body site (`→ wrong; see Revisions §4`) stops a reader taking the paragraph at face value.
+
+```findings
+dispose:
+  - id: BR-1
+    disposition: addressed
+    note: |
+      Corrected in plan Revisions section 4 and at thread.go:74-79; forward-only compatibility now stated, with TestPre198RecordDecodesThroughTheProductionPath pinning the old-record direction.
+  - id: BR-2
+    disposition: addressed
+    note: |
+      Verified by reverting: recording the layout unconditionally in the StartRegistered arm turns TestWarmReattachSendsNoLayoutEvenInLayout3 red on the witness assertion.
+  - id: BR-3
+    disposition: not-addressed
+    note: |
+      Code fix is correct and present, but no test fails without it -- deleting hostLayoutFor's agreement loop leaves TestRefusalNeverNamesACommandThatWouldNotRun green, because a total Flag() renders LayoutUnknown as --layout2.
+  - id: BR-4
+    disposition: not-addressed
+    note: |
+      README content added, but the guard's new want strings are satisfied by pair's own flag docs at README.md:13,18,441 -- deleting README.md:268-269 leaves TestREADMEDocumentsTheOperatorFacingSurface green.
+  - id: BR-5
+    disposition: addressed
+    note: |
+      Type aliased to launcher.LayoutMode, Flag() moved beside the parser, and the conformance test goes red when launchArgsAcceptLayout stops admitting resume.
+  - id: BR-6
+    disposition: addressed
+    note: |
+      StartEvent.Layout is a *Layout and Flag() is total; TestFlagIsTotalOverUnsetAndUnknownLayouts plus the warm-reattach witness assertion pin both halves.
+  - id: BR-7
+    disposition: addressed
+    note: |
+      couch.go:424, launch_existing.go:35,46 and detach.go:27 all now name the layout flag generically rather than --layout2.
+  - id: BR-8
+    disposition: addressed
+    note: |
+      TestLayoutWitnessPersistsUnderItsOnDiskKey goes red when the json tag is renamed to layout_mode.
+  - id: BR-9
+    disposition: addressed
+    note: |
+      Message now leads with "cannot start in ..."; TestRefusalDoesNotDoubleTheProgramPrefix pins it.
+  - id: BR-10
+    disposition: addressed
+    note: |
+      Plan Revisions records the test-file grouping decision and the PairTag/ThreadTag fixture naming.
+findings:
+  - id: new
+    severity: Important
+    family: guard-passes-without-the-fix
+    title: |
+      Two of the nine tests added to close round 2's findings pass with their fix reverted
+    detail: |
+      Measured prevalence: 2 of 9 tests added by 70dd36c7. Deleting hostLayoutFor's
+      agreement loop (layout.go:116-136) leaves layout_test.go:170 green, because
+      BR-6's total Flag() renders LayoutUnknown as --layout2, so the message is
+      well-formed but tells an operator blocked by a mixed set to run a couch that
+      would itself refuse. Deleting README.md:268-269 leaves readme_test.go:144-145
+      green, because pair's own flag docs at README.md:13,18,441 already contain
+      those substrings. The rule, not the two edits, is the deliverable: a test
+      written to close a finding is not done until the fix is reverted and it goes
+      red, and a whole-document substring guard must anchor on a string unique to
+      the surface it guards -- README's sibling test already uses the
+      command-prefixed form ("couch --list"). Concretely: assert the NEGATIVE
+      direction of the refusal (no concrete `couch --layoutN` host remedy when no
+      single host exists, only the requested layout), and switch the README want
+      strings to "couch --layout2"/"couch --layout3".
+  - id: new
+    severity: Minor
+    family: refusal-must-name-a-runnable-remedy
+    title: |
+      A blocking set that is entirely LayoutUnknown leaves the operator with no reachable remedy at all
+    detail: |
+      This is the 2nd finding in family refusal-must-name-a-runnable-remedy. Do not
+      fix this instance -- the covering rule is that a refusal must terminate in an
+      action reachable with the tools the operator has, and when no in-tool action
+      exists it must name the out-of-tool one. `park` is PresentationTUI/RowAction
+      (ops.go:189), so it needs a running couch, and with a lone LayoutUnknown
+      session-holder every `couch --layoutN` refuses. The fallback at layout.go:160
+      says "from whichever couch can host it" when there is none; it should name the
+      zellij session to kill or the record to repair. Reachable only via a
+      hand-edited or newer-version witness, hence Minor.
+  - id: new
+    severity: Minor
+    family: untagged-empty-sentinel
+    title: |
+      ActionableThreadSummary.Layout is documented as normalized but the Unreadable branch never normalizes
+    detail: |
+      This is the 2nd finding in family untagged-empty-sentinel. Do not fix this
+      instance -- the covering rule is that a field documented as normalized must be
+      normalized at every construction site of its struct. actionableinventory.go:208-212
+      builds the input.Unreadable rows without touching Layout, so they carry a raw
+      Layout("") while the field comment (actionableinventory.go:121-125) promises
+      Layout2 or LayoutUnknown. Measured prevalence: 2 construction sites in
+      ProjectActionableThreads, 1 unnormalized. Harmless today because ThreadUnusable
+      never holds a session, but pair#199/#200 consume this struct.
+```

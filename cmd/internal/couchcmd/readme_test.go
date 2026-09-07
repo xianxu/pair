@@ -138,12 +138,18 @@ func TestREADMEDocumentsTheOperatorFacingSurface(t *testing.T) {
 		"default: .", // the path default, which is how "home" is chosen
 		"reserves the bottom row",
 		// The layout flags change what couch does with the operator's terminal
-		// -- --layout3 adds a whole pane -- so they belong to this class. The
-		// refusal is documented too: an operator whose couch will not start
-		// needs to find out why without reading the source.
-		"--layout3",
-		"--layout2",
-		"refuses to start",
+		// -- --layout3 adds a whole pane -- so they belong to this class.
+		//
+		// COMMAND-PREFIXED, like "couch --list" above, and not the bare flag:
+		// README documents pair's own --layout2/--layout3 elsewhere, so a bare
+		// "--layout3" is satisfied by those and this guard would pass with the
+		// couch block deleted. The guard must anchor on a string unique to the
+		// surface it guards.
+		"couch --layout3",
+		"couch --layout2",
+		// An operator whose couch will not start needs to find out why without
+		// reading the source.
+		"refuses to start when a thread",
 	} {
 		if !strings.Contains(doc, want) {
 			t.Errorf("README does not mention %q", want)
