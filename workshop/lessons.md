@@ -3716,3 +3716,35 @@ Two rules, both cheap, both applicable to any unreliable channel:
 
 The general form: when a channel fails *partially*, don't only make the payload
 smaller. Find which region survives and put the recovery handle there.
+
+## 2026-09-07 — A string replacement that silently didn't apply is indistinguishable from a passing edit
+
+Adding a test to `tests/pair-doctor-test.sh`, the anchor I matched on had been
+renumbered by an earlier edit in the same session. The replacement matched
+nothing, wrote the file unchanged, and exited 0. The suite then printed **all
+passed** — because the new test was not in it. I nearly reported it as done.
+
+The tell was cheap and I only caught it by habit: the new assertion's label was
+absent from the output. Rules:
+
+- After a scripted edit, **grep for the text you just inserted**, or assert the
+  count (`assert s.count(old) == 1`) before replacing. An `assert` on the anchor
+  turns a silent no-op into a loud failure — use it every time.
+- A test suite going green after you add a test proves nothing until you have
+  seen **the new test's own line** in the output.
+- The same class: an `sed -i ''` whose pattern doesn't match. One in this
+  session targeted `` `nvim/fixtures/` `` while the source had no backticks, so
+  the comment drift it was meant to fix survived two more review rounds.
+
+## 2026-09-07 — `git checkout <file>` after a mutation check discards the fix you were testing
+
+Twice in one session I mutated a file to confirm a new test catches a defect,
+then ran `git checkout <file>` to restore — which reverts to **HEAD**, not to my
+uncommitted state, silently deleting the fix under test. Both times the test
+then passed for the wrong reason and I had to re-apply from memory.
+
+This is already recorded as "commit before mutation-checking" and it still
+happened, so the sharper form: **the restore step is the dangerous one, not the
+mutation.** Either commit first (so `checkout` is a real undo), or restore from
+a copy you made yourself rather than from git. After any `git checkout` during a
+mutation check, grep for the fix to confirm it survived.
