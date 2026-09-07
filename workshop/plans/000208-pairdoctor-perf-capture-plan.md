@@ -78,6 +78,7 @@ not a subsystem.
 | `note_from_lines` | `nvim/doctor.lua` | new |
 | `hoprtt` (pipe probe) | `cmd/hoprtt/main.go` | new |
 | `CaptureRecord` (one rolling row) | `nvim/doctor.lua` | new |
+| `delta` (two-sample join) | `nvim/doctor.lua` | new |
 
 - **`perf_payload(pair_home, note, nvim_timings, env_report)`** — formats the
   message handed to the agent: the operator's note first, then what nvim
@@ -96,6 +97,21 @@ not a subsystem.
 
 - **`hoprtt`** — two processes ping-ponging a byte over a pipe; reports
   median/p90/p99. **One scheduler wake-up, isolated.**
+  - **Where it lives and how it gets built — verified, not assumed.**
+    `make build` is driven by a **hand-maintained** `GO_BINS` list
+    (`Makefile.local:32`, `:80`) which overrides the base layer's `cmd/*/main.go`
+    scan, so dropping a `cmd/hoprtt/main.go` in would produce **no binary and a
+    `perf.sh` with nothing to call**. It goes in `GO_BINS` with its per-binary
+    recipe stanza, which is the mechanism the Makefile's own comment
+    (`:11-14`) documents.
+  - **`perf.sh` locates it as `$PAIR_HOME/bin/hoprtt` and degrades**: probe rows
+    print `n/a (hoprtt not built — run make build)` rather than failing the
+    capture. A diagnostic that dies because a helper is missing is worse than
+    one that reports a gap.
+  - The existing probe homes `probes/` (`termsmoke`, `zellijpark`) and
+    `cmd/probes/` (`couchstartrecovery`) were considered and rejected: neither is
+    on the `make build` path, and `perf.sh` needs a binary that exists after a
+    normal build rather than one requiring `go run` per sample.
   - **Why Go and not shell:** the measurement is microseconds (7 µs baseline).
     Shell cannot time that without spawning a clock process per sample — which
     is the exact bug that made the first attempt read **18.7 ms** for
@@ -161,6 +177,14 @@ hunting: pipe hop ~7 µs, `fork+exec` ~1.5 ms, `zellij action` ~13 ms.
   running long.
 - **`zellij action` sampling is the expensive probe.** At a *degraded* 145 ms it
   is 1.5 s for 10 samples. Cap it at 5 and say so in the output.
+- **The capture must not block the nvim UI. This is the binding constraint, not
+  the 6 s budget.** Everything in this repo shells out with `vim.fn.system`,
+  which is SYNCHRONOUS — a 6 s capture through it would freeze the editor at
+  exactly the moment the operator is already suffering, which is worse than the
+  problem being diagnosed. The capture runs via `vim.system(cmd, opts, on_exit)`
+  (async; nvim 0.11.7 here), the operator keeps typing throughout, and the send
+  happens in the callback. This is the first async shell-out in `nvim/`, so it
+  is called out rather than assumed.
 - **The capture must not itself perturb what it measures.** Sample counts stay
   small; nothing forks in a loop.
 - **Scale:** ~1000 processes on this host. `top -l 2` and two `ps` passes are
@@ -200,12 +224,30 @@ into an issue. So:
 - No environment dump. `env` is where secrets live and it has no diagnostic
   value here.
 
+- **`delta(sample_a, sample_b, window_seconds)`** — the two-sample join: per-process
+  CPU rate, swap rate, and the vanished/started counts. **Pure Lua in
+  `doctor.lua`**, which is where this repo's pure-and-headless-tested code
+  already lives (`make test-lua` runs it under `nvim -l`).
+  - **Why not in the shell:** the plan's own ARCH-ORDER table calls the pid join
+    the thing most likely to be mishandled. Untestable shell is the wrong home
+    for the one piece of logic already identified as error-prone, so `perf.sh`
+    emits **raw samples** and does no arithmetic.
+  - **The three cases it must state and test**, driven from recorded sample
+    pairs: a pid in A but not B (**vanished** — counted, never silently dropped,
+    because under a spawn storm those are exactly the processes that
+    characterise it); a pid in B but not A (**started** — no rate computable,
+    listed separately); and a pid present in both whose start-time differs
+    (**reused pid** — treated as started, not as a process with an absurd rate).
+  - Truncated `top` output is a fourth: the join reports how many rows each
+    sample carried, so a comparison across unequal captures is visible.
+
 ## ARCH-MOCK
 
 `perf.sh` shells out to system tools that cannot be faked meaningfully, so the
-testable seam is the **parsing**, not the collection: `perf.sh` emits a
-line-oriented format, and the pure Lua/Go consumers are tested against recorded
-fixtures. `hoprtt` needs no double — it takes a command and times it.
+testable seam is the **join**, not the collection: `perf.sh` emits raw
+line-oriented samples and `doctor.delta` is tested against recorded fixture
+pairs checked into the repo. `hoprtt` needs no double — it takes a command and
+times it.
 
 ## ARCH-PURPOSE
 
@@ -229,8 +271,12 @@ that prints numbers.
 // The bug this pins: a timing harness that shells out to read a clock measures
 // the clock process. /usr/bin/true is ~1.9ms (#201); a broken harness reads 18ms.
 func TestSpawnTimerMeasuresTheCommandNotTheHarness(t *testing.T) {
+	// Band is deliberately WIDE. This runs inside `make test`'s parallel
+	// `go test ./... -count=1`, where the baseline 1.5ms can reach ~4.5ms under
+	// the suite's own spawn load. A 15ms ceiling still catches the 18.7ms bug
+	// this control exists for, without going red on a busy machine.
 	med := spawnMedian(20, "/usr/bin/true")
-	if med < 0.5 || med > 6.0 {
+	if med < 0.5 || med > 15.0 {
 		t.Fatalf("fork+exec median %.1fms is outside the plausible band; the harness is measuring itself", med)
 	}
 }
@@ -242,9 +288,16 @@ func TestPipeRoundTripIsMicroseconds(t *testing.T) {
 
 - [ ] **M1.2:** Implement `hoprtt` (pipe ping-pong + `-spawn N -- cmd`), one
       in-process timer shared by both modes.
-- [ ] **M1.3:** `doctor/perf.sh` — the snapshot table above, with a deadline, the
-      two-sample delta, the vanished/started counts, and baselines printed
-      alongside. Line-oriented output.
+- [ ] **M1.2b: Add it to `GO_BINS` + its recipe stanza** (`Makefile.local:32,80`)
+      and verify `make build` actually produces `bin/hoprtt`. Without this the
+      binary does not exist — the hand-maintained list overrides the base layer's
+      `cmd/*/main.go` scan.
+- [ ] **M1.3:** `doctor/perf.sh` — the snapshot table above, with a deadline and
+      baselines printed alongside. It emits **raw two-sample output and does no
+      arithmetic**: the join is `doctor.delta` (M2.2b), because the pid join is
+      the piece ARCH-ORDER flags as most likely to be mishandled and shell is the
+      wrong home for it. It degrades per-probe (`n/a` + reason) rather than
+      aborting.
 - [ ] **M1.4:** Verify against today's known values on a quiet machine: pipe ~7 µs,
       fork ~1.5 ms, zellij ~13 ms. A number outside those bands means the probe
       is wrong, not the machine.
@@ -274,16 +327,36 @@ assert(doctor.payload('/h') == <the existing string>)
 ```
 
 - [ ] **M2.2: Implement** `note_from_lines` and `perf_payload`.
-- [ ] **M2.3: nvim self-timing** — the discriminator. Time a synthetic keystroke
-      through the real autocmd chain and a redraw, using `vim.loop.hrtime()`.
-      Report both, and state the conclusion in words (`editor: fast` /
-      `editor: SLOW`), not just numbers.
-- [ ] **M2.4: Wire it.** `:PairDoctor` reads the buffer as the note, runs
-      `perf.sh` with the budget, combines note + nvim timings + env, sends via
-      `send_generated_prompt`, and consumes the buffer the way a normal send
-      does. **Settle in review:** whether a *failed* capture should still consume
-      the buffer — losing the operator's note to a failed probe would be the
-      worst outcome here.
+- [ ] **M2.2b: Implement `doctor.delta`** against checked-in fixture sample
+      pairs, covering vanished / started / reused-pid / truncated-sample.
+- [ ] **M2.3: nvim self-timing** — the discriminator, and the Spec calls it the
+      single most valuable bit, so it is specified rather than sketched.
+
+      **`doctor.verdict(insert_ms, redraw_ms)` → `'fast' | 'slow'`**, pure and
+      tested. Threshold **16 ms**, with a basis: one frame at 60 Hz is the floor
+      of human perceptibility, so an editor that handles a keystroke inside a
+      frame cannot be what the operator is feeling. Stated as a named constant,
+      not a magic number.
+
+      **It runs on a scratch buffer, never the draft.** The draft buffer is the
+      operator's note (read by M2.4) and is also where `#202`'s `TextChangedI`
+      chain lives — timing a synthetic keystroke in place would **insert a
+      character into the note**. The measurement uses a throwaway buffer with the
+      draft's filetype so the same autocmd chain fires, and the note is read
+      **before** any timing runs. That ordering is a test, not a comment.
+
+      Timings come from `vim.loop.hrtime()`; the report states the verdict in
+      words alongside both numbers.
+- [ ] **M2.4: Wire it, asynchronously.** `:PairDoctor` reads the note FIRST,
+      then runs `perf.sh` via `vim.system(..., on_exit)` — **not**
+      `vim.fn.system`, which every other shell-out in `nvim/` uses and which
+      would freeze the editor for the whole capture. The operator keeps typing;
+      the combine-and-send happens in the callback.
+
+      **The buffer is consumed only on a successful send.** A failed capture
+      leaves the note exactly where the operator typed it — losing their
+      description of the symptom to a probe error would be the worst outcome
+      this feature could produce, and it is the one behaviour a test pins.
 - [ ] **M2.5: Drift text pinned byte-identical.** There is no perf argument —
       `:PairDoctor` always does both (design decision 3). The test asserts the
       existing `payload()` string is unchanged and that it still appears verbatim
