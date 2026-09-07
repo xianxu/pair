@@ -4030,8 +4030,40 @@ do
     vim.system({ 'sh', script }, { text = true }, function(res)
       vim.schedule(function()
         capture_running = false
-        local env = (res.code == 0 and res.stdout ~= '' and res.stdout)
-          or ('n/a (perf.sh exited ' .. tostring(res.code) .. ')')
+        local raw = (res.code == 0 and res.stdout ~= '' and res.stdout) or nil
+        local env
+        if not raw then
+          env = 'n/a (perf.sh exited ' .. tostring(res.code) .. ')'
+        else
+          -- The raw samples are ~3,500 lines of cumulative ps output. They go to
+          -- a SIDECAR the agent can open on demand; the prompt carries the
+          -- compact half plus the joined rates, which is what a reader uses.
+          -- Same shape doctor.sh uses for the flight recorder: hand over a path,
+          -- not the contents.
+          local sidecar
+          pcall(function()
+            local dir = pair_data_dir()
+            vim.fn.mkdir(dir, 'p')
+            local path = dir .. '/perf-capture-latest.txt'
+            local fh = io.open(path, 'w')
+            if fh then
+              fh:write(raw)
+              fh:close()
+              sidecar = path
+            end
+          end)
+          -- THE JOIN. Without this the payload carried raw cumulative counters
+          -- and doctor.delta -- the whole reason the pid join lives in tested
+          -- Lua -- was dead code in production.
+          local a, b, window = doctor.parse_samples(raw)
+          local rates = 'per-process rates: n/a (samples were not captured)'
+          if a and b then
+            rates = doctor.format_delta(doctor.delta(a, b, window or 2))
+          end
+          env = doctor.strip_samples(raw) .. '\n' .. rates
+            .. '\n\nfull raw capture (both samples, every process): '
+            .. (sidecar or 'n/a (could not be written)')
+        end
         local body = doctor.perf_payload(vim.env.PAIR_HOME, note, editor, env)
         if not body then return end
         send_generated_prompt(body)

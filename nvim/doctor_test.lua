@@ -237,6 +237,41 @@ do
   eq(M.capture_record(1, nil, 'unknown').note, nil, 'an absent note stays absent')
 end
 
+
+-- The sidecar split: raw samples out of the prompt, everything else kept.
+do
+  local raw = table.concat({
+    '# pair perf capture', 'load=2.0', '',
+    '## conditions', 'cpu_idle_pct=90',
+    '## sample_a', '### procs', '1\t100\t50\tsh', '2\t100\t50\tzsh',
+    '## sample_b', '### procs', '1\t102\t50\tsh',
+    '## probes', 'pipe_hop_ms=0.007',
+  }, '\n')
+  local lean = M.strip_samples(raw)
+  ok(lean:find('cpu_idle_pct=90', 1, true) ~= nil, 'conditions survive the strip')
+  ok(lean:find('pipe_hop_ms', 1, true) ~= nil, 'probes survive the strip')
+  ok(lean:find('## probes', 1, true) ~= nil, 'the section after the samples is not swallowed')
+  ok(lean:find('sh', 1, true) == nil, 'sample rows are gone')
+  ok(#lean < #raw, 'the stripped report is smaller')
+  eq(M.strip_samples(nil), '', 'nil input is empty, not an error')
+end
+
+-- format_delta: the churn counts are the spawn-storm signature, so they are
+-- always printed even when no process clears the 1% floor.
+do
+  local d = { rates = {
+      { pid = '7', comm = 'go', cpu_pct = 55.0 },
+      { pid = '8', comm = 'quiet', cpu_pct = 0.2 },
+    }, started = 9, vanished = 2, reused = 1, unmeasured = 0, rows_a = 800, rows_b = 807 }
+  local text = M.format_delta(d)
+  ok(text:find('55.0%%') ~= nil, 'a busy process is listed')
+  ok(text:find('quiet', 1, true) == nil, 'sub-1%% noise is filtered out')
+  ok(text:find('9 started', 1, true) ~= nil, 'churn is reported -- a large started count IS a spawn storm')
+  ok(M.format_delta(nil):find('n/a', 1, true) ~= nil, 'an unjoinable capture says so')
+  local idle = M.format_delta({ rates = {}, started = 0, vanished = 0, reused = 0, unmeasured = 0, rows_a = 5, rows_b = 5 })
+  ok(idle:find('idle across the window', 1, true) ~= nil, 'an idle window says so rather than showing nothing')
+end
+
 if fails > 0 then
   io.stderr:write(string.format('\n%d failure(s)\n', fails))
   os.exit(1)

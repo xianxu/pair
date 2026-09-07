@@ -257,4 +257,57 @@ function M.capture_record(now, note, editor, probes)
   }
 end
 
+-- strip_samples returns the report WITHOUT the two raw sample blocks.
+--
+-- The blocks are ~3,500 lines of cumulative ps output. Embedding them in the
+-- agent's prompt (which the first version did) buries the twenty lines that
+-- matter and costs a fortune in context for data nobody reads linearly. The
+-- conditions, fleet, swap, disk and probe lines are compact and are what a
+-- reader actually uses, so they stay inline; the raw goes to a sidecar file the
+-- agent can open if it needs to drill in -- the same shape `doctor.sh` uses for
+-- the flight recorder.
+function M.strip_samples(text)
+  if type(text) ~= 'string' then return '' end
+  local out, skipping = {}, false
+  for line in (text .. '\n'):gmatch('([^\n]*)\n') do
+    if line:match('^## sample_%a+$') then
+      skipping = true
+    elseif skipping and line:match('^## ') then
+      skipping = false
+    end
+    if not skipping then out[#out + 1] = line end
+  end
+  return table.concat(out, '\n')
+end
+
+-- format_delta renders the join as the handful of lines a reader needs: who is
+-- actually burning CPU over the window, and the accounting that says whether the
+-- picture is trustworthy.
+function M.format_delta(d, limit)
+  if not d then return 'per-process rates: n/a (samples could not be joined)' end
+  limit = limit or 10
+  local out = {
+    string.format('per-process CPU over the window (%d rows sampled, %d compared):',
+      d.rows_a, #d.rates),
+  }
+  local shown = 0
+  for _, r in ipairs(d.rates) do
+    if shown >= limit then break end
+    -- Below 1% is noise on a 12-core host and would push the interesting rows
+    -- off the list.
+    if r.cpu_pct >= 1.0 then
+      out[#out + 1] = string.format('  %7.1f%%  %-6s  %s', r.cpu_pct, tostring(r.pid), r.comm or '?')
+      shown = shown + 1
+    end
+  end
+  if shown == 0 then
+    out[#out + 1] = '  (nothing above 1% -- the machine was idle across the window)'
+  end
+  -- These are not bookkeeping: a large `started` IS a spawn storm, which is the
+  -- signature #203 cares about and which no single-sample view can show.
+  out[#out + 1] = string.format('churn: %d started, %d vanished, %d reused-pid, %d unmeasured',
+    d.started, d.vanished, d.reused, d.unmeasured)
+  return table.concat(out, '\n')
+end
+
 return M
