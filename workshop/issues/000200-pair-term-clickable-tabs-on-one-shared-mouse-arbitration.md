@@ -192,3 +192,10 @@ motivation for this issue than "clicking a tab would be nice".
    nothing ever returns the belief TO unknown short of a restart.
 4. Whatever is built, `alt+n` must recover it. That is the cheap acceptance
    test and today it fails.
+
+**Split out as `#207`** (2026-09-06, operator request): the specific production
+defect — an asserted mouse mode with no release path short of restarting couch —
+is now its own open issue so it is findable while this one is punted. `#207`
+also carries the sharper diagnosis: an `alt+n` **relaunch** (`#182`, a new child
+and therefore a fresh `Screen`) did not recover it either, which points at the
+assertion being permanent rather than the belief being stale.
