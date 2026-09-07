@@ -112,6 +112,23 @@ do -- degenerate windows must not divide by zero or invent rates
   eq(#M.delta(nil, nil, 2).rates, 0, 'nil samples yield no rates')
 end
 
+
+do -- BR-3: alive in both samples but a cputime row is missing. Every pid must
+   -- land in exactly one bucket; one that reaches none is invisible.
+  local a = { procs = { ['5'] = { etime = 10, comm = 'x' } }, cpu = {} }
+  local b = { procs = { ['5'] = { etime = 12, comm = 'x' } }, cpu = { ['5'] = 3 } }
+  local d = M.delta(a, b, 2)
+  eq(#d.rates, 0, 'no rate without both cputime rows')
+  eq(d.unmeasured, 1, 'unmeasured counted, not dropped')
+  eq(d.vanished + d.started + d.reused, 0, 'and not miscounted as something else')
+end
+
+-- BR-8: the validity guard must actually run. Malformed input returns nil
+-- rather than erroring or fabricating a number.
+eq(M.parse_duration('1:xx:00'), nil, 'non-numeric field rejected')
+eq(M.parse_duration('::'), nil, 'empty fields rejected')
+eq(M.parse_duration('12-'), nil, 'days with no time rejected')
+
 if fails > 0 then
   io.stderr:write(string.format('\n%d failure(s)\n', fails))
   os.exit(1)

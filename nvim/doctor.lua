@@ -39,16 +39,21 @@ function M.parse_duration(text)
   if type(text) ~= 'string' then return nil end
   local days, rest = text:match('^(%d+)%-(.+)$')
   if days then text = rest end
+  -- Validate BEFORE accumulating. The previous version pushed tonumber()'s nil
+  -- into the table and checked for it inside the arithmetic loop, where Lua
+  -- errors on nil*60 before any guard runs -- the guard was unreachable and
+  -- malformed input either crashed or produced a fabricated number.
   local parts = {}
-  for piece in text:gmatch('[^:]+') do parts[#parts + 1] = tonumber(piece) end
+  for piece in text:gmatch('[^:]+') do
+    local n = tonumber(piece)
+    if not n then return nil end
+    parts[#parts + 1] = n
+  end
   if #parts == 0 then return nil end
   -- The h:m:s accumulator must stay SEPARATE from the day count: seeding it
   -- with days*86400 makes the *60 below multiply the days too.
   local hms = 0
-  for _, v in ipairs(parts) do
-    if not v then return nil end
-    hms = hms * 60 + v
-  end
+  for _, v in ipairs(parts) do hms = hms * 60 + v end
   return hms + (days and tonumber(days) * 86400 or 0)
 end
 
@@ -71,7 +76,7 @@ end
 --           vanished, started, reused, rows_a, rows_b }.
 function M.delta(a, b, window)
   local out = { rates = {}, vanished = 0, started = 0, reused = 0,
-                rows_a = 0, rows_b = 0 }
+                unmeasured = 0, rows_a = 0, rows_b = 0 }
   if type(a) ~= 'table' or type(b) ~= 'table' or not window or window <= 0 then
     return out
   end
@@ -92,6 +97,12 @@ function M.delta(a, b, window)
           cpu_pct = ((cb - ca) / window) * 100,
           rss_kb = pb.rss,
         }
+      else
+        -- Alive in both samples but one cputime row is missing (a truncated or
+        -- racing `ps`). Counted, never silently dropped: the contract is that
+        -- every pid lands in exactly one bucket, and a pid that reaches none is
+        -- invisible to the reader.
+        out.unmeasured = out.unmeasured + 1
       end
     end
   end

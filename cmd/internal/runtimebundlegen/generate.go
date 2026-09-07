@@ -28,6 +28,7 @@ var explicitAssetPaths = []string{
 	"doctor/README.md",
 	"doctor/SKILL.md",
 	"doctor/doctor.sh",
+	"doctor/perf.sh",
 	"doctor/emitter-health.sh",
 }
 

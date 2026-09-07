@@ -1,7 +1,7 @@
 # Repo-specific Makefile targets.
 # This file is included by Makefile — add your own targets here.
 
-.PHONY: build install pair runtimebundle-generate runtimebundle-drift-check test-runtimebundle test-clean-bootstrap test test-race test-run-headless test-lua test-queue test-autopair test-draft-complete test-cr test-statusline test-doctor test-adapt-schema test-dev-rebuild test-pair-go-install-layout test-pair-embedded-runtime test-pair-restart-quit test-emitter-health test-session-watch test-changelog test-copy-on-select test-term-pane-shortcuts test-pair-title test-zellij-trace test-review
+.PHONY: build install pair runtimebundle-generate runtimebundle-drift-check test-runtimebundle test-clean-bootstrap test test-race test-run-headless test-lua test-queue test-autopair test-draft-complete test-cr test-statusline test-doctor test-perf-capture test-adapt-schema test-dev-rebuild test-pair-go-install-layout test-pair-embedded-runtime test-pair-restart-quit test-emitter-health test-session-watch test-changelog test-copy-on-select test-term-pane-shortcuts test-pair-title test-zellij-trace test-review
 
 # Cross-cutting Go-binary targets. Every Go binary lives under cmd/<name>/
 # and ships with the `pair-` prefix so it doesn't collide with anything
@@ -73,6 +73,13 @@ test-couch-zellij-live:
 	PAIR_LIVE_COUCH=1 go test -p 20 ./cmd/internal/launcher -run '^(TestSessionQuiescenceLive|TestSessionDetachLive|TestQuitLifecycleLive)$$' -count=1 -v
 	PAIR_LIVE_COUCH=1 go test -p 20 ./cmd/internal/couchcore -run '^(TestParkLifecycleLive|TestParkLifecycleLiveIntentOnlyMutation)$$' -count=1 -v
 
+.PHONY: test-perf-capture
+# Shape tests for the #208 capture. perf.sh's VALUES are whatever the machine is
+# doing, so this pins the report's shape -- which is what consumers parse and
+# what the collector bugs corrupted.
+test-perf-capture: $(BIN_DIR)/pair-hoprtt
+	sh doctor/perf_test.sh
+
 .PHONY: test-couch-start-recovery
 test-couch-start-recovery: $(BIN_DIR)/pair-launch-helper
 	go run ./cmd/probes/couchstartrecovery $(CURDIR)/$(BIN_DIR)/pair-launch-helper
@@ -110,7 +117,7 @@ pair: $(BIN_DIR)/pair
 #                     inside the vt.Emulator library API itself, which is
 #                     outside our scope to fix — exclude that package
 #                     here rather than chase a library-level race.
-test: runtimebundle-generate test-run-headless test-lua test-queue test-submission-transaction test-autopair test-draft-complete test-cr test-statusline test-doctor test-adapt-schema test-dev-rebuild test-pair-go-install-layout test-pair-embedded-runtime test-pair-restart-quit test-emitter-health test-session-watch test-changelog test-copy-on-select test-term-pane-shortcuts test-pair-title test-zellij-trace test-review
+test: runtimebundle-generate test-run-headless test-lua test-perf-capture test-queue test-submission-transaction test-autopair test-draft-complete test-cr test-statusline test-doctor test-adapt-schema test-dev-rebuild test-pair-go-install-layout test-pair-embedded-runtime test-pair-restart-quit test-emitter-health test-session-watch test-changelog test-copy-on-select test-term-pane-shortcuts test-pair-title test-zellij-trace test-review
 	go test ./... -count=1
 
 # Expensive, explicit boundary regression: prove make test from a no-.git

@@ -26,6 +26,30 @@ ZJ_SAMPLES=5                        # capped: at a degraded 145ms this is 0.7s
 say() { printf '%s\n' "$*"; }
 kv()  { printf '%s=%s\n' "$1" "$2"; }
 
+# A collector that fails must render as n/a, not as a value. The file's own rule
+# said so; without this helper an empty or failed command printed `key=` and a
+# reader could not tell "zero" from "we could not measure".
+collect() {
+	_key=$1; shift
+	_val=$("$@" 2>/dev/null) || _val=""
+	case "$_val" in
+		"") kv "$_key" "n/a (collector failed)" ;;
+		*)  kv "$_key" "$_val" ;;
+	esac
+}
+
+# comm on macOS is a FULL PATH (/usr/local/bin/go), so `^go$` never matched and
+# the loose `pair` pattern matched anything with pair in its path. Count on the
+# basename.
+count_comm() { ps -Ao comm= 2>/dev/null | awk -F/ '{print $NF}' | grep -cE "$1"; }
+
+# The 6s budget, ENFORCED rather than declared. Probes are the tail of the run,
+# so anything past the deadline is skipped and SAID -- a truncated honest report
+# beats a capture that outlives the operator's patience.
+BUDGET="${PAIR_PERF_BUDGET:-6}"
+STARTED=$(date +%s)
+over_budget() { [ $(( $(date +%s) - STARTED )) -ge "$BUDGET" ]; }
+
 say "# pair perf capture"
 kv  "captured_at" "$(date '+%Y-%m-%dT%H:%M:%S%z')"
 kv  "window_seconds" "$WINDOW"
@@ -47,8 +71,8 @@ kv "cpu_idle_pct" "$(printf '%s' "$TOP_OUT" | awk '/^CPU usage/{v=$(NF-1)} END{p
 
 say ""
 say "## fleet"
-kv "pair_family_procs" "$(ps -Ao comm= 2>/dev/null | grep -cE 'pair|couch|nvim|zellij' || echo 0)"
-kv "build_procs" "$(ps -Ao comm= 2>/dev/null | grep -cE 'compile$|link$|^go$' || echo 0)"
+kv "pair_family_procs" "$(count_comm '^(pair|pair-.*|couch|nvim|zellij)$')"
+kv "build_procs" "$(count_comm '^(compile|link|go|vet|asm|cgo)$')"
 kv "windowserver_cpu_pct" "$(printf '%s' "$TOP_OUT" | awk '/WindowServer/{v=$NF} END{print (v==""?"n/a":v)}')"
 
 # --- the two samples. Raw; doctor.delta joins them. -------------------------
@@ -111,18 +135,33 @@ fi
 say ""
 say "## probes"
 say "# baselines on a healthy host: pipe_hop ~0.007ms, fork_exec ~1.5ms, zellij ~13ms"
+# A probe line carrying a 5th field means invocations FAILED: the command
+# errored fast, which would otherwise read as excellent latency.
+probe_line() {
+	_name=$1; shift
+	if over_budget; then kv "${_name}_ms" "n/a (budget exceeded, probe skipped)"; return; fi
+	_out=$("$@" 2>/dev/null) || { kv "${_name}_ms" "n/a (probe failed)"; return; }
+	printf '%s' "$_out" | awk -v n="$_name" '{
+		if (NF >= 5 && $5 > 0)
+			printf "%s_ms=n/a (%s of %s invocations failed)\n", n, $5, $4;
+		else
+			printf "%s_ms=%s\n%s_p90=%s\n", n, $1, n, $2;
+	}'
+}
+
 if [ -x "$PROBE" ]; then
-	"$PROBE" | awk '{printf "pipe_hop_ms=%s\npipe_hop_p90=%s\n", $1, $2}'
-	"$PROBE" -spawn 30 -- /usr/bin/true | awk '{printf "fork_exec_ms=%s\nfork_exec_p90=%s\n", $1, $2}'
+	probe_line pipe_hop "$PROBE"
+	probe_line fork_exec "$PROBE" -spawn 30 -- /usr/bin/true
 	if command -v zellij >/dev/null 2>&1; then
-		"$PROBE" -spawn "$ZJ_SAMPLES" -- zellij action query-tab-names \
-			| awk '{printf "zellij_action_ms=%s\nzellij_action_p90=%s\n", $1, $2}'
+		probe_line zellij_action "$PROBE" -spawn "$ZJ_SAMPLES" -- zellij action query-tab-names
 	else
 		kv "zellij_action_ms" "n/a (zellij not on PATH)"
 	fi
 else
 	kv "probes" "n/a (pair-hoprtt not built — run make build)"
 fi
+kv "elapsed_seconds" "$(( $(date +%s) - STARTED ))"
+kv "budget_seconds" "$BUDGET"
 
 say ""
 say "# end"

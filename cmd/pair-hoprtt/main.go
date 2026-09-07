@@ -90,22 +90,38 @@ func pipeRTT(n int) ([]float64, error) {
 	return samples, nil
 }
 
-// spawnRTT times n full fork+exec+run cycles of argv.
-func spawnRTT(n int, argv []string) []float64 {
-	samples := make([]float64, 0, n)
+// spawnRTT times n full fork+exec+run cycles of argv, and reports how many of
+// them FAILED.
+//
+// The failure count is not bookkeeping. A command that exits immediately with an
+// error is fast, so discarding the error reports a broken dependency as healthy
+// latency -- `zellij_action_ms=2.1` reads as "zellij is quick" when it actually
+// means "zellij is gone". The caller degrades to n/a instead.
+func spawnRTT(n int, argv []string) (samples []float64, failed int) {
+	samples = make([]float64, 0, n)
 	for i := 0; i < n; i++ {
 		c := exec.Command(argv[0], argv[1:]...)
 		start := time.Now()
-		_ = c.Run()
+		err := c.Run()
 		samples = append(samples, msSince(start))
+		if err != nil {
+			failed++
+		}
 	}
-	return samples
+	return samples, failed
 }
 
 func msSince(t time.Time) float64 { return float64(time.Since(t).Microseconds()) / 1000.0 }
 
-func report(samples []float64) {
+// report prints "median p90 p99 samples [failed]". The trailing count appears
+// only when something failed, so a healthy line keeps its four-field shape and
+// a caller that ignores the field cannot mistake a broken probe for a fast one.
+func report(samples []float64, failed int) {
 	med, p90, p99 := summary(samples)
+	if failed > 0 {
+		fmt.Printf("%.3f %.3f %.3f %d %d\n", med, p90, p99, len(samples), failed)
+		return
+	}
 	fmt.Printf("%.3f %.3f %.3f %d\n", med, p90, p99, len(samples))
 }
 
@@ -133,7 +149,12 @@ func main() {
 			fmt.Fprintln(os.Stderr, "pair-hoprtt: -spawn needs a command")
 			os.Exit(2)
 		}
-		report(spawnRTT(n, rest))
+		samples, failed := spawnRTT(n, rest)
+		if failed == len(samples) {
+			fmt.Fprintf(os.Stderr, "pair-hoprtt: every invocation of %v failed\n", rest)
+			os.Exit(1)
+		}
+		report(samples, failed)
 		return
 	}
 	n := 500
@@ -142,5 +163,5 @@ func main() {
 		fmt.Fprintln(os.Stderr, "pair-hoprtt:", err)
 		os.Exit(1)
 	}
-	report(samples)
+	report(samples, 0)
 }
