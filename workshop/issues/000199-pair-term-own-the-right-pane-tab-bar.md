@@ -5,7 +5,7 @@ deps: []
 github_issue:
 created: 2026-09-06
 updated: 2026-09-07
-estimate_hours: 7.05
+estimate_hours: 7.52
 started: 2026-09-06T19:24:15-07:00
 ---
 
@@ -323,8 +323,8 @@ strip, not a redesign. Recorded so the option is not lost.
 
 ## Estimate
 
-**7.05 hr**, of which **3.98 is already measured and spent** on M1 — so the
-forward-looking figure is **~3.1 hr for M2–M4**.
+**7.52 hr**, of which **3.98 is already measured and spent** on M1 — so the
+forward-looking figure is **~3.5 hr for M2–M4**.
 
 ```estimate
 model: estimate-logic-v3.1
@@ -338,8 +338,9 @@ item: tui-screen design=0.25 impl=0.26
 item: smaller-go-module design=0.15 impl=0.14
 item: atlas-docs design=0.12 impl=0.12
 item: milestone-review design=0.10 impl=0.42
+item: ux-iteration design=0.30 impl=0.12
 design-buffer: 0.15
-total: 7.05
+total: 7.52
 ```
 
 | item | milestone | what it covers |
@@ -353,6 +354,7 @@ total: 7.05
 | smaller-go-module | M4 | `borderless=true` + the layout-enumeration assertion |
 | atlas-docs | M4 | atlas entry + `config.kdl`'s now-wrong scroll rationale |
 | milestone-review | M2–M4 | three boundary reviews |
+| ux-iteration | M3–M4 | one appearance round on the strip (see below) |
 
 **Design discount ×0.2** applied to every primitive the plan already settles,
 which after six plan-quality rounds is most of them: all three gate rules named,
@@ -368,6 +370,14 @@ its measured value rather than its predicted one so the total reconciles against
 reality — and it is exactly the `consumer-set-not-derived` family the plan now
 carries a rule for. **M2–M4 assume that rule holds.** If a fourth hidden list
 appears, this estimate is low.
+
+**One `ux-iteration` round is budgeted** (estimate-quality F6). This issue
+exists because of operator taste — its origin is *"the way we change tab title
+is not great"* — the deliverable is a visible surface, and three steps are live
+manual acceptance (M2.5, M3.7, M4.3). The operator also pre-reserved a walk-back
+on frameless (*"if SCROLL: 0/1000 means having frame, so be it"*). One
+appearance round on a bespoke tab strip is the expected case, not the
+exceptional one, so it is budgeted rather than absorbed silently.
 
 *Produced via `brain/data/life/42shots/velocity/estimate-logic-v3.1.md` against
 `baseline-v3.1.md`. Method A only.* The calibration doc is flagged `[stale]`
