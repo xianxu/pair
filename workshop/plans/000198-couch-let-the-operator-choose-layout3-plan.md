@@ -743,3 +743,61 @@ func TestLayoutReachesTheCouch(t *testing.T)             { /* "--layout3" -> c.L
       appears, stop and re-plan.
 - [ ] **Step 6:** Record in `## Log` what was actually observed, with the argv and
       the refusal text — not "it worked" (a prior round was flagged for exactly that).
+
+---
+
+## Revisions
+
+### 2026-09-06 — as-built corrections after the close boundary review
+
+The plan matched the code on every Core-concepts row, but four things moved.
+Recorded so the plan stops describing a tree that does not exist.
+
+**1. `Layout` is an alias, not a new type.** The plan declared
+`couchcore.Layout` as a new pure entity. `launcher` already owned that
+vocabulary — `LayoutMode`, `ParseLayoutMode`, and the argv spellings in
+`extractLayoutRequest` — and `couchcore` already imports `launcher` in ~8 files,
+so declaring a second one was ARCH-DRY drift the plan should have caught at
+design time. As built: `type Layout = launcher.LayoutMode`, and `Flag()` lives
+in `launcher` beside the parser, which lets `extractLayoutRequest` parse against
+`Flag()` rather than repeating `"--layout2"`/`"--layout3"`.
+
+The consequence the review named is the important half: couch's entire feature
+rests on `pair` parsing the flag couch emits, and the only in-tree evidence was
+a comment at `couch.go` saying it had been measured by hand.
+`TestCouchLayoutFlagsAreWhatPairParses` now round-trips every emittable layout
+through `launcher.ParseArgs`.
+
+**2. `StartEvent.Layout` is a `*Layout`.** The plan gave it a plain `Layout` and
+used `""` for "warm reattach chose no layout". That made empty mean three
+different things across the diff — pre-#198-therefore-layout2 on
+`ThreadRecord`, do-not-record on `StartEvent`, and constructed-without-`New` on
+`Couch`, where `Flag()` would have emitted a bare `--`. The pointer gives
+"no layout chosen" its own value (ARCH-ORDER: legal states should not be an
+untagged empty string), and `Flag()` is now total so the third case is
+unreachable by construction rather than by comment.
+
+**3. The refusal needed a `hostLayoutFor`.** The plan's message interpolated a
+single "other" layout, which the review found could render `couch --unknown` on
+exactly the paths the design justified as *visible* failure: a lone
+`LayoutUnknown` witness, or a blocking set disagreeing with itself. Advice the
+operator cannot follow is worse than none, so the message now drops the
+concrete remedy when no single couch can host every conflicting thread.
+
+**4. Task 3's compatibility claim was wrong.** The plan said "an older binary
+ignores it". `threadrecord` decodes with `strictjson`, which rejects unknown
+fields, so an older binary *refuses* a record this one wrote. The decision not
+to bump the schema still stands and for the stated reason (a bump refuses every
+existing record), but the compatibility is forward-only and the comment now says
+so.
+
+**Test locations.** Tasks 3 and 5 named `thread_test.go` and `startup_test.go`;
+the tests landed in `layout_projection_test.go` and `layout_guard_test.go`,
+grouping by feature rather than by file under test — a better grouping, recorded
+as a decision rather than a drift. Task 3's old-record test also changed shape:
+the plan unmarshalled raw JSON, the first implementation round-tripped Go
+structs (which cannot see the on-disk key at all), and the JSON-level test was
+added back afterwards — renaming the `layout` tag would otherwise have kept the
+suite green while dropping every witness on disk.
+
+**Cosmetic.** The plan's fixtures used `PairTag`; the type is `ThreadTag`.

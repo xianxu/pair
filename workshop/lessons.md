@@ -3556,3 +3556,31 @@ that a key token appears cannot detect a contradictory behavioral sentence
   implement → test green → **commit** → mutate → confirm red → `git checkout`
   (now safe) → confirm green. Restoring by re-applying the inverse edit is the
   other safe form; `git checkout` is only safe once the work is committed.
+- Before declaring a new type, grep for the vocabulary it names. I added
+  `couchcore.Layout` with `layout2`/`layout3` constants and a `Flag()`
+  formatter; `launcher.LayoutMode` had all of it already — same constants, a
+  parser, and the argv spellings — in a package `couchcore` already imports in
+  eight files. The plan-quality gate did not catch it either, because a plan
+  reads as coherent whether or not the entity it declares is a duplicate. The
+  cheap check is one grep for the *values* (`grep -rn '"layout2"'`), not the
+  type name, since a duplicate vocabulary rarely reuses the name.
+- When a comment says something was "measured, not reasoned", that is a test
+  waiting to be written. couch's whole feature rested on `pair` parsing the flag
+  couch emits, and the only in-tree evidence was a comment saying it had been
+  checked by hand once. A hand measurement is a fact about one moment; the
+  round-trip test that replaced it (`launcher.ParseArgs(…Flag())`) is a fact
+  about every future edit to either side.
+- A value that means "not set" needs its own representation as soon as it has a
+  second meaning. `Layout("")` accumulated three: pre-#198-therefore-layout2 on
+  the record, do-not-record on the start event, and never-constructed on the
+  Couch — where the formatter turned it into a bare `--` in argv. Each was
+  locally reasonable; together they were an untagged enum. A pointer for
+  "nothing chosen" and a total formatter cost two lines and removed the whole
+  class (ARCH-ORDER).
+- Advice in an error message is a code path, and it needs the same tests. The
+  mixed-layout refusal interpolated a degraded value into `couch --%s` and could
+  print `couch --unknown` — on exactly the paths the design had justified as
+  "fails visibly". Every test rendered the message with one well-formed
+  conflict, so the shapes with no valid suggestion were never rendered at all.
+  If a message tells the operator to run something, assert that the something is
+  runnable.
