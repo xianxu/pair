@@ -128,12 +128,21 @@ not repeat:
 
 ## Plan
 
-- [ ] Settle the four plan items above.
-- [ ] Add nvim-side self-timing (input handling, redraw, autocmd chain cost).
-- [ ] Add the environment probes with a verified timing harness.
-- [ ] Format a report that names the discriminator conclusion, not just numbers.
-- [ ] Extend `doctor/SKILL.md`; keep the drift procedure untouched.
-- [ ] Capture one baseline and one degraded reading on the real workbench.
+Two milestones; detail in `workshop/plans/000208-pairdoctor-perf-capture-plan.md`.
+
+- [ ] M1 — `cmd/hoprtt` (pipe-hop probe plus a shared in-process spawn timer) and
+      `doctor/perf.sh` (the snapshot). The timing harness is validated against a
+      known quantity FIRST: `/usr/bin/true` must read 1-4 ms, never 18.
+- [ ] M2 — nvim: the draft buffer becomes the operator's note, nvim times its own
+      input handling and redraw (the editor-vs-environment discriminator), and
+      `:PairDoctor` sends note + timings + snapshot. Drift path unchanged.
+
+**Operator additions folded in (2026-09-06):** the buffer is consumed as a
+free-text note — *"the system slowed down about 5 minutes ago, typing became very
+slow, even loading Activity Monitor is slow, top took 10 seconds"* — and the
+snapshot covers system load, running processes, and **per-process resource usage
+over a window**: a delta between two samples, never `ps %cpu`, which is a
+lifetime average and hid a 42.6% spinner from this very session.
 
 ## Log
 

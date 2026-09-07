@@ -3623,3 +3623,15 @@ that a key token appears cannot detect a contradictory behavioral sentence
   a subset of the table, and every backticked identifier must resolve in the
   tree. A backticked name is a claim that it exists; historical mentions of
   deleted code should not be ticked.
+- `str.replace(old, new)` where `old` came from a slice is a landmine: if the
+  slice is empty, Python inserts `new` between **every character** of the file.
+  I did this to an issue file and it went from 8 KB to **8.9 MB** in one call,
+  losing the frontmatter and failing the next gate with a confusing error. The
+  slice was empty because I computed its bounds with `s.index("## Heading")` on
+  bare substrings — the same careless-anchor mistake I had recorded a lesson
+  about hours earlier in the same session. Two rules, and the second is the one
+  I keep skipping: (1) split to lines and match `line == "## Heading"`, never
+  substring-index prose; (2) after any scripted edit to a structured file,
+  assert the shape — `wc -c` in the expected order of magnitude and the heading
+  list — because a corrupted write looks like success until something else
+  reads it.
