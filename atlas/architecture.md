@@ -468,6 +468,32 @@ mechanism sits in two packages that both drive:
   `FakeHost`, and the terminal-control constants. `\x1b[r` lives here and only
   here; it was about to exist in two packages.
 
+  Since `#199` it also owns **`Reservation`** — the row-reservation primitive:
+  `Reservation{Rows, Edge}` answering `ChildRows` / `Reserve` / `Release` /
+  `Paint`. This is the same argument as `\x1b[r`, one level up. Reserving a row
+  is host-half *mechanism* with two consumers — couch holds the host's bottom
+  row for its actor strip, and `pair term` holds its pane's bottom row for a tab
+  strip — while *what the row says* stays with each consumer as policy
+  (`couchtty.RenderStatusRow` renders actors; `termcmd` renders tabs). It is a
+  RESERVATION rather than compositing: the scrolling region stops one row short,
+  so a child scrolling at the bottom of its own screen cannot walk onto the row,
+  and is never told — from its side the terminal is simply one row shorter.
+
+  **`Edge` is asymmetric, and that is why it is named rather than assumed.**
+  `EdgeBottom` is the only implemented edge and the zero value. `EdgeTop` is
+  representable and refused: with the region at 2..N the child still addresses
+  absolute rows, so its row 1 *is* the strip, and any absolute positioning it
+  does lands on top. Correct only under origin mode (DECOM, `\x1b[?6h`)
+  arbitrated against children that set it themselves, which nothing tracks.
+  `NewReservation` refuses it and the methods fail closed if a caller bypasses
+  the constructor — emitting a region computed for an unimplemented edge is a
+  silently corrupted screen, whereas drawing nothing costs only the strip.
+
+  That `pair term` can reserve at all is **measured, not assumed**: couch writes
+  straight to the host tty, but a pane's writes pass through zellij's emulator.
+  zellij honors DECSTBM from a pane process — 200 lines scrolled inside the
+  region while the reserved row held its paint (`#199` finding 5).
+
 **What is shared is structure; what stays is policy.** `termcmd` keeps numbered
 tabs, rename, the zellij pane title, and exit-when-empty; `couch` switches named
 actors and falls back to a panel. That is the same split `cmd/internal/ansi`
