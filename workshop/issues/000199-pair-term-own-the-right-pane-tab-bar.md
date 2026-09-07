@@ -323,6 +323,35 @@ strip, not a redesign. Recorded so the option is not lost.
 
 ## Revisions
 
+### 2026-09-07 — reopened; the design question is settled by measurement
+
+Punted 2026-09-06 to do the performance work first (`#208`, now merged).
+Reopened at operator request.
+
+**What changed since the punt.** The one thing that could have killed this
+design is now measured: **zellij honors a pane process's DECSTBM**. couch's
+reserved row works on the *host* terminal; the right pane's writes go through
+zellij's emulator, and nothing had tested whether the scroll region survives
+that. It does — 200 lines scrolled in rows 1..21 while the reserved bottom row
+held its paint. So `couchtty.Reserve`/`PaintRow` transfer to the pane unchanged,
+which is exactly what M1 assumes. Detail and method in the plan, finding 5.
+
+**What the issue turns out NOT to be.** `Alt+t` is already not a zellij tab —
+`config.kdl:114` forwards raw `ESC t` to the focused pane and
+`handleTerminalChord` catches it into `mux.newTab()`. `terminalMux` already
+carries the tab list, the active index, switching and closing. **Multiple
+terminals in the right pane, switched on demand, is built and shipping.** The
+missing piece is only the display, whose sole surface today is `rename-pane`
+packing every tab into one string. This is a rendering change over a working
+multiplexer, not new tab machinery.
+
+**Ownership decided.** The strip belongs to `pair term`, not couch. couch's
+child is the whole zellij session, so it cannot render into a pane zellij owns;
+and a tab bar living in couch would leave standalone pair without one, which
+`couch must not degrade pair` forbids. The plan's existing design already
+assumed this and is unchanged.
+
+
 ### 2026-09-06 — the scroll-position Done-when is struck; frameless is in scope
 
 **Struck:** *"The strip displays scroll position for its own pane, sourced from

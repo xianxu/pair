@@ -12,8 +12,10 @@
 
 ## What the probes established, and what each one changed
 
-Every scope decision below rests on a measurement or an operator decision made
-2026-09-06, not on the Spec's assumptions. Three of the four contradict it.
+Every scope decision below rests on a measurement or an operator decision, not
+on the Spec's assumptions. Findings 1-4 are from 2026-09-06; 5 and 6 are from
+the 2026-09-07 feasibility probe that reopened this issue. Four of the six
+contradict the Spec.
 
 **1. The pane frame is mouse-dead** (measured; `## Log`). A shell in the right
 pane with `?1000`+`?1006` on reported clicks inside the text area and **nothing**
@@ -40,6 +42,50 @@ tab-switch sites). `atlas/couch.md` records why a reserved row cannot survive
 that: *"a pty read boundary falls wherever the kernel puts it, so a paint
 written between two chunks can land inside one of the child's escape
 sequences."* M2 exists because of this.
+
+**5. zellij HONORS a pane process's DECSTBM** (measured 2026-09-07; the probe
+that reopened this issue). This is the load-bearing fact and it had never been
+tested: couch's reserved row works on the HOST terminal, where couch writes
+straight to the tty, but the right pane's writes pass through zellij's emulator
+instead. If zellij ignored the scroll region, the strip would have needed full
+compositing -- a different and far larger project -- and this plan's M1/M3 would
+have been built on sand.
+
+Method and result: a throwaway zellij session (`--layout`, repo config, so no
+startup-tips pane steals focus) ran a pane process that set
+`ESC[1;<rows-1>r`, painted the bottom row, then printed 200 lines to force
+scrolling. Read from the pty -- what zellij actually rendered to the host:
+
+```
+marker last painted at row 23
+last scroll line at row 21
+earliest scroll line still on screen: false
+RESULT: DECSTBM HONORED — 200 lines scrolled in rows 1..21
+        while the reserved row 23 held its paint.
+```
+
+So `couchtty.Reserve`/`PaintRow` transfer to the pane unchanged, which is
+exactly what M1 assumes. Probe kept at `scratchpad/199-probe/`.
+
+Two cautions carried forward from running it. Three earlier runs printed
+"NOT HONORED" and every one was the probe's own session failing to start
+(zellij refuses to nest, and `--session` with `--layout` means *attach*, not
+create) -- the probe now refuses to emit a verdict when its session is absent,
+per `#208`'s rule that a reading whose precondition failed is `n/a` and not a
+result. And `dump-screen` proved useless here: it returns pane content without
+saying where zellij placed it, so the verdict reads cursor positions out of the
+pty frame instead.
+
+**6. The tab MODEL already exists** (verified 2026-09-07; corrects the operator's
+and the Spec's framing). `Alt+t` is already not a zellij tab: `config.kdl:114`
+unbinds it and forwards raw `ESC t` to the focused pane, and
+`handleTerminalChord` (`run.go:491`) catches `ChordAltT` into `mux.newTab()`.
+`terminalMux` carries `tabs []*terminalTab`, `active`, `previousTab`/`nextTab`
+and `closeActive`. Multiple terminals switched on demand is **built and
+shipping**; the only missing piece is the display, whose sole surface today is
+`setPaneTitle` -> `rename-pane` packing the whole tab set into one string. This
+issue is therefore a rendering change, not an architecture change, which is why
+its milestones touch no tab-lifecycle code.
 
 ## Non-goals
 
@@ -414,3 +460,28 @@ sites — reverting is a single commit and costs nothing. M2 is the risky one: i
 changes how output reaches the terminal. If corruption appears after M2 and the
 cause is not obvious, revert M2 and stop, because M3 depends on it and building
 the strip over a suspected-broken writer would confuse both.
+
+
+## Revisions
+
+### 2026-09-07 — reopened from `punt`; feasibility established
+
+The issue was punted 2026-09-06 to prioritise the performance work (`#208`),
+with the cost/benefit recorded in the issue Log. Reopened at operator request
+after a probe answered the one question that made the whole design speculative.
+
+**Delta to the plan:**
+
+1. **Findings 5 and 6 added** to `## What the probes established`. Finding 5
+   (zellij honors a pane's DECSTBM, measured) is the fact M1 and M3 rest on and
+   was previously untested. Finding 6 (the tab model already exists) narrows
+   what this issue is: a rendering change over a shipped multiplexer, not new
+   tab machinery.
+2. **The strip's owner was re-confirmed as `pair term`, not couch.** The
+   operator initially framed this as couch owning the tab bar. Two reasons it
+   cannot: couch's child is the whole zellij session, so it has no way to render
+   into a pane zellij owns; and `couch must not degrade pair` -- a tab bar
+   living in couch would leave standalone pair without one. Decided in
+   discussion 2026-09-07; the plan's existing design is unchanged by it.
+3. **No milestone content changed.** M1-M4 stand as written and as previously
+   plan-gated.
