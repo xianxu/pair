@@ -1,11 +1,12 @@
 ---
 id: 000208
-status: open
+status: working
 deps: []
 github_issue:
 created: 2026-09-06
 updated: 2026-09-06
 estimate_hours:
+started: 2026-09-06T22:53:26-07:00
 ---
 
 # PairDoctor captures harness drift but not performance, so slowness is always reconstructed after the fact
