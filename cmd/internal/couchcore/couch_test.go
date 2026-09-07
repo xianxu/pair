@@ -1663,12 +1663,13 @@ func TestSpawnResumesAnOpaqueThreadTag(t *testing.T) {
 	if !strings.Contains(got, "pair resume ") {
 		t.Fatalf("argv = %q, want `pair resume <tag>`", got)
 	}
-	// Layout pinned to layout2 (operator decision 2026-08-22): couch owns
-	// terminal switching, so layout3's third pane is the layer couch replaces.
-	// This is accepted BECAUSE ParseArgs strips layout flags before the
-	// positional guard -- only a stray positional errors.
+	// A cold start sends couch's OWN layout, and this env is a default couch,
+	// so that is --layout2. Not a pin: #198 reversed the 2026-08-22 decision
+	// and made it `couch --layout3`'s to choose. What has not changed is why a
+	// layout flag is accepted here at all -- ParseArgs strips layout flags
+	// before the positional guard, so only a stray positional errors.
 	if !strings.Contains(got, "--layout2") {
-		t.Fatalf("argv does not pin layout2: %q", got)
+		t.Fatalf("a default couch did not send its layout: %q", got)
 	}
 }
 

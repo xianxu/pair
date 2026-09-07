@@ -380,13 +380,15 @@ func TestInteractiveLaunchReattachesUniqueDetachedRoot(t *testing.T) {
 	if attached.Record.Thread != detached.Address {
 		t.Fatalf("interactive root = %+v, want the detached thread %+v", attached.Record.Thread, detached.Address)
 	}
-	// A WARM reattach, so no `--layout2`: the running session already has its
-	// layout, and asking for a different one sends Pair down a conflict path
-	// that offers to delete the live session (#179).
+	// A WARM reattach, so NO layout flag at all: the running session already has
+	// its layout, and asking for a different one sends Pair down a conflict path
+	// that offers to delete the live session (#179). Asserted against any
+	// `--layout`, not just `--layout2` -- since #198 couch has a layout of its
+	// own to leak here, and pinning only the old literal would miss it.
 	if len(rt.runner.Ops) == 0 || !strings.Contains(rt.runner.Ops[0], "pair resume "+string(detached.Address.Tag)) {
 		t.Fatalf("child operations = %v, want the detached thread reattached", rt.runner.Ops)
 	}
-	if strings.Contains(rt.runner.Ops[0], "--layout2") {
+	if strings.Contains(rt.runner.Ops[0], "--layout") {
 		t.Fatalf("warm reattach asked for a layout: %v", rt.runner.Ops)
 	}
 }
