@@ -1,8 +1,8 @@
-// Command pair-hoprtt measures the two latencies a performance capture needs and
+// Package hoprttcmd measures the two latencies a performance capture needs and
 // shell cannot time honestly.
 //
-//	pair-hoprtt              # pipe round-trip: ONE scheduler wake-up, isolated
-//	pair-hoprtt -spawn N -- cmd args...   # fork+exec+run of cmd, N times
+//	pair hoprtt              # pipe round-trip: ONE scheduler wake-up, isolated
+//	pair hoprtt -spawn N -- cmd args...   # fork+exec+run of cmd, N times
 //
 // Both print "median p90 p99 samples" in milliseconds.
 //
@@ -12,10 +12,18 @@
 // /usr/bin/true against a known 1.9 ms -- it was timing python startup. One
 // in-process timer serves both modes so there is no second implementation to
 // drift (ARCH-DRY).
-package main
+//
+// It is a SUBCOMMAND OF pair rather than its own binary, and that is the whole
+// point: `pair` is the one binary that always exists. A separate pair-hoprtt
+// shipped only via `make install` -- the Homebrew formula builds just
+// ./cmd/pair-go, and PAIR_HOME at runtime is the extracted bundle root, which
+// carries no helper binaries. So the probe would have been permanently n/a for
+// every installed pair, which is exactly the operator this capture is for.
+package hoprttcmd
 
 import (
 	"fmt"
+	"io"
 	"os"
 	"os/exec"
 	"sort"
@@ -39,6 +47,12 @@ func child() {
 // summary reduces samples to median/p90/p99. Sorting in place is fine; the
 // caller has no further use for the order.
 func summary(samples []float64) (med, p90, p99 float64) {
+	// Empty input returns zeros rather than indexing into nothing. A probe whose
+	// samples all failed reaches here, and panicking would take the whole
+	// capture down at the one moment it is needed.
+	if len(samples) == 0 {
+		return 0, 0, 0
+	}
 	sort.Float64s(samples)
 	at := func(q float64) float64 { return samples[int(q*float64(len(samples)-1))] }
 	return at(0.5), at(0.9), at(0.99)
@@ -50,7 +64,10 @@ func summary(samples []float64) (med, p90, p99 float64) {
 // dynamic linking, which are startup costs rather than the scheduling cost this
 // probe exists to report.
 func pipeRTT(n int) ([]float64, error) {
-	cmd := exec.Command(os.Args[0], "-child")
+	// Re-exec THIS binary as `pair hoprtt -child`. os.Args[0] is pair, so the
+	// subcommand token has to be replayed -- a bare "-child" would land in
+	// pair's own dispatcher.
+	cmd := exec.Command(os.Args[0], "hoprtt", "-child")
 	in, err := cmd.StdinPipe()
 	if err != nil {
 		return nil, err
@@ -116,52 +133,53 @@ func msSince(t time.Time) float64 { return float64(time.Since(t).Microseconds())
 // report prints "median p90 p99 samples [failed]". The trailing count appears
 // only when something failed, so a healthy line keeps its four-field shape and
 // a caller that ignores the field cannot mistake a broken probe for a fast one.
-func report(samples []float64, failed int) {
+func report(w io.Writer, samples []float64, failed int) {
 	med, p90, p99 := summary(samples)
 	if failed > 0 {
-		fmt.Printf("%.3f %.3f %.3f %d %d\n", med, p90, p99, len(samples), failed)
+		fmt.Fprintf(w, "%.3f %.3f %.3f %d %d\n", med, p90, p99, len(samples), failed)
 		return
 	}
-	fmt.Printf("%.3f %.3f %.3f %d\n", med, p90, p99, len(samples))
+	fmt.Fprintf(w, "%.3f %.3f %.3f %d\n", med, p90, p99, len(samples))
 }
 
-func main() {
-	args := os.Args[1:]
+// Run is the subcommand entrypoint. `rest` excludes the "hoprtt" token.
+func Run(rest []string, stdout, stderr io.Writer) int {
+	args := rest
 	if len(args) > 0 && args[0] == "-child" {
 		child()
-		return
+		return 0
 	}
 	if len(args) > 0 && args[0] == "-spawn" {
 		var n int
 		if len(args) < 3 {
-			fmt.Fprintln(os.Stderr, "usage: pair-hoprtt -spawn N -- cmd [args...]")
-			os.Exit(2)
+			fmt.Fprintln(stderr, "usage: pair hoprtt -spawn N -- cmd [args...]")
+			return 2
 		}
 		if _, err := fmt.Sscanf(args[1], "%d", &n); err != nil || n < 1 {
-			fmt.Fprintln(os.Stderr, "pair-hoprtt: -spawn needs a positive count")
-			os.Exit(2)
+			fmt.Fprintln(stderr, "pair hoprtt: -spawn needs a positive count")
+			return 2
 		}
-		rest := args[2:]
-		if len(rest) > 0 && rest[0] == "--" {
-			rest = rest[1:]
+		argv := args[2:]
+		if len(argv) > 0 && argv[0] == "--" {
+			argv = argv[1:]
 		}
-		if len(rest) == 0 {
-			fmt.Fprintln(os.Stderr, "pair-hoprtt: -spawn needs a command")
-			os.Exit(2)
+		if len(argv) == 0 {
+			fmt.Fprintln(stderr, "pair hoprtt: -spawn needs a command")
+			return 2
 		}
-		samples, failed := spawnRTT(n, rest)
+		samples, failed := spawnRTT(n, argv)
 		if failed == len(samples) {
-			fmt.Fprintf(os.Stderr, "pair-hoprtt: every invocation of %v failed\n", rest)
-			os.Exit(1)
+			fmt.Fprintf(stderr, "pair hoprtt: every invocation of %v failed\n", argv)
+			return 1
 		}
-		report(samples, failed)
-		return
+		report(stdout, samples, failed)
+		return 0
 	}
-	n := 500
-	samples, err := pipeRTT(n)
+	samples, err := pipeRTT(500)
 	if err != nil {
-		fmt.Fprintln(os.Stderr, "pair-hoprtt:", err)
-		os.Exit(1)
+		fmt.Fprintln(stderr, "pair hoprtt:", err)
+		return 1
 	}
-	report(samples, 0)
+	report(stdout, samples, 0)
+	return 0
 }

@@ -48,7 +48,11 @@ printf '%s\n' "$missing" | grep -q 'probes=n/a' \
 # BR-9: nothing pinned a failing COLLECTOR or a failing PROBE, which is the
 # whole point of the n/a rule. Both are exercised here, because "renders as n/a"
 # is a claim that only a broken environment can test.
-stub=$(mktemp -d)
+# A bare `mktemp -d` targets TMPDIR, which sandboxed agent shells deny -- that
+# made `make test-perf-capture`, and therefore `make test`, fail for exactly the
+# readers most likely to run it. Fall back to a repo-local dir.
+stub=$(mktemp -d 2>/dev/null) || stub="$repo/.perf-test-stub.$$"
+mkdir -p "$stub"
 for t in ps top sysctl vm_stat iostat; do
 	printf '#!/bin/sh\nexit 1\n' > "$stub/$t"; chmod +x "$stub/$t"
 done
@@ -68,8 +72,8 @@ done
 
 # A probe whose command always fails must render n/a, not a fast-looking number.
 # `false` exits instantly, so timing it alone would report excellent latency.
-if [ -x "$repo/bin/pair-hoprtt" ]; then
-	if "$repo/bin/pair-hoprtt" -spawn 3 -- /usr/bin/false >/dev/null 2>&1; then
+if [ -x "$repo/bin/pair" ]; then
+	if "$repo/bin/pair" hoprtt -spawn 3 -- /usr/bin/false >/dev/null 2>&1; then
 		bad "a probe whose command always fails exited 0"
 	fi
 fi

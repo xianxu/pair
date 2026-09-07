@@ -60,6 +60,7 @@ func Families() []CommandFamily {
 		{Name: "notify", Summary: "emit a normalized notification to Pair's outer TTY", Status: "implemented"},
 		{Name: "wrap", Summary: "PTY proxy around a TUI agent", Status: "implemented", Streaming: true},
 		{Name: "term", Summary: "right workbench terminal with pane-local shortcuts", Status: "implemented", Streaming: true},
+		{Name: "hoprtt", Summary: "latency probe for doctor/perf.sh (pipe round-trip, fork+exec)", Status: "implemented", Streaming: true},
 		{Name: "scribe", Summary: "PTY logging wrapper", Status: "implemented", Streaming: true},
 		{Name: "session-inventory", Summary: "deterministic native session forests and Pair bindings", Status: "implemented"},
 		{Name: "session-watch", Summary: "round-gated native session establishment", Status: "implemented", Streaming: true},

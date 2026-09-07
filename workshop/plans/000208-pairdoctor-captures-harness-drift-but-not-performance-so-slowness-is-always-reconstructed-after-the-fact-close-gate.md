@@ -283,6 +283,203 @@ rounds:
           round: 4
       boundary: M1
       blocked: true
+    - "n": 5
+      timestamp: "2026-09-07T00:17:26-07:00"
+      agent: claude
+      dispose:
+        - id: BR-1
+          disposition: not-addressed
+          note: The naming half landed pre-window (df283abe); the plan file was not touched in this window and M2.6:389 still names artifactpath, which has no CLI surface — every caller is Go under cmd/.
+          round: 5
+        - id: BR-5
+          disposition: not-addressed
+          note: The kv collectors are fixed and revert-verified, but sample()/cputimes() (perf.sh:121-122) bypass collect() and their `|| say "n/a (ps unavailable)"` at :137/:139 is dead — the pipeline exits with awk's status, so a failed ps yields silently empty blocks.
+          round: 5
+        - id: BR-9
+          disposition: addressed
+          note: perf_test.sh + test-perf-capture wired into `make test`, and parse_samples now pins the perf.sh -> delta contract against a real recorded capture.
+          round: 5
+        - id: BR-10
+          disposition: addressed
+          note: generate.go, embed_test.go and the artifactpath manifest all carry doctor/perf.sh; the regenerated manifest.json contains it and the bundle tests pass.
+          round: 5
+        - id: BR-11
+          disposition: addressed
+          note: A stage-level deadline with skip reasons and an emitted elapsed_seconds now exists; the shed ORDER it produces is raised separately.
+          round: 5
+        - id: BR-12
+          disposition: addressed
+          round: 5
+        - id: BR-13
+          disposition: addressed
+          round: 5
+        - id: BR-14
+          disposition: addressed
+          round: 5
+        - id: BR-15
+          disposition: not-addressed
+          note: cmd/pair-hoprtt/main.go:41 summary() still indexes samples[0] with no length guard; still unreachable from main, still one line from being safe.
+          round: 5
+        - id: BR-16
+          disposition: not-addressed
+          note: probe_line's awk (perf.sh:206) still prints only $1 and $2; the sample count $4 is discarded, so a pipeRTT that broke out early reads identically to a full 500-sample run.
+          round: 5
+        - id: BR-17
+          disposition: not-addressed
+          note: perf.sh:121 still takes awk $4 of `comm=`, truncating any executable path containing a space, and still emits full paths where the plan said process name.
+          round: 5
+        - id: BR-18
+          disposition: not-addressed
+          note: PAIR_PERF_WINDOW and PAIR_PERF_BUDGET still flow unvalidated into sleep, `[ -ge ]` and `awk -v`, and neither appears in atlas/index.md or doctor/README.md.
+          round: 5
+        - id: BR-19
+          disposition: not-addressed
+          note: 4f9365b3 is still inside the M1 window along with verdict/note_from_lines; no Log entry or plan note records that M2's base is not the branch point.
+          round: 5
+        - id: BR-20
+          disposition: not-addressed
+          note: doctor/README.md is not in this window's diff and still describes only the drift half; the atlas entry landed but the README a reader of doctor/ opens did not.
+          round: 5
+        - id: BR-21
+          disposition: not-addressed
+          note: Plan M1 is still unticked and the Log still ends at 2026-09-06; the M1.4/M1.5 numbers now exist in the fixture (pipe 0.006ms, fork 1.588ms, zellij 13.323ms, elapsed 5) but are not recorded in the issue.
+          round: 5
+        - id: BR-22
+          disposition: not-addressed
+          note: PATH-first fixes `make install` only. ../homebrew-pair/Formula/pair.rb builds solely ./cmd/pair-go and installs bin/nvim/zellij, and PAIR_HOME at runtime is the extracted bundle root, which carries no helper binaries — so a shipped pair still prints probes=n/a with advice that does not apply to its layout. I reverted the PATH-first block in a scratch copy and the whole suite stayed green, so no test pins the fix.
+          round: 5
+        - id: BR-23
+          disposition: not-addressed
+          note: 'verdict(nil,nil) is fixed, but verdict(nil, 2) still returns ''fast'' and doctor_test.lua:56 asserts that direction — a half-absent measurement rendered as a full in-domain verdict is the same defect at a different arity. Of the enumeration BR-23 named, only doctor.lua''s exports were swept: perf.sh''s sample blocks still fabricate absence (see BR-5), parse_samples has no absent-input case, and summary/report in cmd/pair-hoprtt still panic on empty input.'
+          round: 5
+      findings:
+        - id: BR-24
+          severity: Critical
+          title: doctor/perf_test.sh:51's bare `mktemp -d` makes `make test-perf-capture`, and therefore `make test`, fail in a sandboxed agent shell
+          detail: |-
+            This is the 4th finding in family `unverified-repo-mechanism`, so the rule
+            is the deliverable, not the site. Rule: a mechanism this repo names must be
+            checked in EVERY environment and layout it will run in, enumerated in one
+            place — dev checkout, `make install` PATH, extracted runtime bundle,
+            Homebrew formula install, and the sandboxed agent shell that runs `make
+            test` before every close. Prevalence 4/4 rounds that named a mechanism:
+            PQ-1 failed the build path, BR-1 the language path, BR-22 the install-layout
+            path, this the execution-environment path.
+            Reproduced: `make test-perf-capture` exits 1 with `mktemp: mkdtemp failed
+            on /var/folders/...: Operation not permitted`, before any assertion runs,
+            because macOS mktemp with no template reads confstr(_CS_DARWIN_USER_TEMP_DIR)
+            and cannot be redirected with TMPDIR. Verified fix and green suite with
+            `mktemp -d "${TMPDIR:-/tmp}/perfstub.XXXXXX"`. Note this is the same file
+            whose header advertises that it is "routinely run by sandboxed agents".
+          family: unverified-repo-mechanism
+          round: 5
+        - id: BR-25
+          severity: Important
+          title: The budget sheds the three probes first, so a degraded machine — the only condition this tool targets — yields a capture with no probe rows
+          detail: |-
+            This is the 2nd finding in family `unenforced-operating-envelope`. Rule,
+            not site: a capture's budget must reserve capacity for the measurements the
+            issue exists to take and shed contextual collectors before diagnostic ones;
+            sequential position in the script is not a priority order. Reproduced with
+            `PAIR_PERF_BUDGET=2 sh doctor/perf.sh`: disk, pipe_hop, fork_exec and
+            zellij_action all render `n/a (budget exceeded...)` while `top -l 2 -n 60`
+            — the single most expensive collector, and unbounded on a loaded host — is
+            checked before it starts and therefore always runs. The healthy fixture
+            already reports elapsed_seconds=5 of 6. The probes are the only rows with
+            published baselines and are Done-when item 1. Fix: order the probes ahead
+            of top/iostat, or reserve a probe slice of the budget. Secondary: this makes
+            perf_test.sh:36's `[ elapsed -le budget ]` load-dependent, so `make test`
+            goes red under exactly the conditions the capture is for.
+          family: unenforced-operating-envelope
+          round: 5
+        - id: BR-26
+          severity: Minor
+          title: perf_test.sh:23's stray-line check only fires for all-digit lines, so any other unattributable line passes
+          detail: |-
+            The `*[!0-9]*) continue` arm (there to skip tab-separated ps rows) swallows
+            every stray line containing a non-digit. Verified: injecting `say "an
+            unattributable stray line"` into a scratch perf.sh left the suite green; a
+            bare `0` is correctly caught. Match the ps rows positively (a line with a
+            tab, inside a `### ` block) instead of negatively by character class.
+          family: untested-shell-surface
+          round: 5
+        - id: BR-27
+          severity: Minor
+          title: Four shapes of collect()'s availability/failure/empty ladder in one file, which is how the sample blocks escaped the rule
+          detail: |-
+            collect() (perf.sh:43) exists to be that ladder, but it can only emit one
+            key, so the top block (~:88), the disk block (:171) and probe_line (:202)
+            each re-implement it and sample()/cputimes() (:121-122) skip it entirely.
+            A `stage()` variant that takes a multi-key emitter would collapse all four
+            and is the structural fix behind the BR-5 residual.
+          family: duplicated-logic
+          round: 5
+        - id: BR-28
+          severity: Minor
+          title: perf.sh:163's swap_rate is shell arithmetic, contradicting the file's own rule 2, and divides by WINDOW unguarded
+          detail: |-
+            This is the 5th finding in family `report-line-contract`. Rule: every value
+            the report emits either comes from a tool verbatim or is computed in tested
+            Lua; perf.sh's header rule 2 (line 13) states this and the swap block
+            violates it. Same block yields inf at WINDOW=0 and negative rates if a
+            counter goes backwards. Either move it into doctor.delta with the pid join
+            or amend rule 2 to say "no per-process arithmetic".
+          family: report-line-contract
+          round: 5
+        - id: BR-29
+          severity: Minor
+          title: A vm_stat that exists but exits non-zero renders `swap=n/a (vm_stat unavailable)`, misnaming the failure
+          detail: |-
+            This is the 7th finding in family `failure-reported-as-measurement`. The
+            rule the family needs, stated once: every emitter distinguishes THREE
+            outcomes — tool absent, tool failed, tool returned nothing — and names which
+            one it hit, because "unavailable" sends a reader to install something that
+            is already installed. collect() already does this correctly; the hand-rolled
+            swap block at perf.sh:155-157 does not. Reproduced with a `vm_stat` stub
+            that exits 1.
+          family: failure-reported-as-measurement
+          round: 5
+        - id: BR-30
+          severity: Minor
+          title: Comment drift in nvim/doctor.lua — the fixture path and delta's documented return shape are both wrong
+          detail: |-
+            This is the 2nd finding in family `docs-gate`. Rule: a comment that names a
+            path or a return shape is a claim a test can check; when it names a
+            filesystem path, assert it, and when it enumerates fields, enumerate all of
+            them. doctor.lua:157 says "The fixture in nvim/fixtures/" (it is in
+            doctor/fixtures/, and doctor_test.lua explains why it must not be under
+            nvim/); doctor.lua:75's "Returns { rates, vanished, started, reused, rows_a,
+            rows_b }" omits `unmeasured`, which the code sets and the test asserts.
+          family: docs-gate
+          round: 5
+        - id: BR-31
+          severity: Minor
+          title: delta detects a reused pid only through etime, so an unparseable etime lets a reused pid produce a negative cpu_pct
+          detail: |-
+            This is the 3rd finding in family `unguarded-edge-case`. Rule: a derived
+            value with a known-impossible range must be rejected at the point of
+            derivation, not only by the proxy signal that usually implies it. At
+            doctor.lua:95, if pa.etime or pb.etime is nil the reuse branch is skipped
+            and the pid falls into the rate branch, where cb < ca yields a negative
+            rate. `cb < ca` is itself sufficient evidence of reuse and is cheaper than
+            the etime comparison; the fixture test's `r.cpu_pct >= 0` assertion would
+            then be enforced by the code rather than by the fixture's luck.
+          family: unguarded-edge-case
+          round: 5
+        - id: BR-32
+          severity: Minor
+          title: doctor/fixtures/perf_capture.txt is a real host capture in a public repo, safe only by an unrecorded truncation accident
+          detail: |-
+            The fixture carries zero `/Users/` paths only because it was cut to the
+            first 60 pids, which on this host are all system daemons. Nothing records
+            that as the selection rule, and perf.sh emits full executable paths, so the
+            next re-capture (a wider window, a busier machine) will commit
+            home-directory and project paths. Write the redaction/selection rule next
+            to the fixture, or filter comm to its basename in sample().
+          family: recorded-fixture-redaction
+          round: 5
+      boundary: M1
+      blocked: true
 ---
 
 # Gate ledger — pair#208 (boundary-review)
@@ -408,16 +605,115 @@ later rounds disposed of them. Generated — edit the gate, not this file.
   every exported function in doctor.lua's 208 block, and report/summary in
   cmd/pair-hoprtt/main.go - each gets one absent-input case.
 
+## Round 5 — 2026-09-07T00:17:26-07:00 (claude) — BLOCKED
+
+### Disposed
+
+- BR-1 — not-addressed — The naming half landed pre-window (df283abe); the plan file was not touched in this window and M2.6:389 still names artifactpath, which has no CLI surface — every caller is Go under cmd/.
+- BR-5 — not-addressed — The kv collectors are fixed and revert-verified, but sample()/cputimes() (perf.sh:121-122) bypass collect() and their `|| say "n/a (ps unavailable)"` at :137/:139 is dead — the pipeline exits with awk's status, so a failed ps yields silently empty blocks.
+- BR-9 — addressed — perf_test.sh + test-perf-capture wired into `make test`, and parse_samples now pins the perf.sh -> delta contract against a real recorded capture.
+- BR-10 — addressed — generate.go, embed_test.go and the artifactpath manifest all carry doctor/perf.sh; the regenerated manifest.json contains it and the bundle tests pass.
+- BR-11 — addressed — A stage-level deadline with skip reasons and an emitted elapsed_seconds now exists; the shed ORDER it produces is raised separately.
+- BR-12 — addressed
+- BR-13 — addressed
+- BR-14 — addressed
+- BR-15 — not-addressed — cmd/pair-hoprtt/main.go:41 summary() still indexes samples[0] with no length guard; still unreachable from main, still one line from being safe.
+- BR-16 — not-addressed — probe_line's awk (perf.sh:206) still prints only $1 and $2; the sample count $4 is discarded, so a pipeRTT that broke out early reads identically to a full 500-sample run.
+- BR-17 — not-addressed — perf.sh:121 still takes awk $4 of `comm=`, truncating any executable path containing a space, and still emits full paths where the plan said process name.
+- BR-18 — not-addressed — PAIR_PERF_WINDOW and PAIR_PERF_BUDGET still flow unvalidated into sleep, `[ -ge ]` and `awk -v`, and neither appears in atlas/index.md or doctor/README.md.
+- BR-19 — not-addressed — 4f9365b3 is still inside the M1 window along with verdict/note_from_lines; no Log entry or plan note records that M2's base is not the branch point.
+- BR-20 — not-addressed — doctor/README.md is not in this window's diff and still describes only the drift half; the atlas entry landed but the README a reader of doctor/ opens did not.
+- BR-21 — not-addressed — Plan M1 is still unticked and the Log still ends at 2026-09-06; the M1.4/M1.5 numbers now exist in the fixture (pipe 0.006ms, fork 1.588ms, zellij 13.323ms, elapsed 5) but are not recorded in the issue.
+- BR-22 — not-addressed — PATH-first fixes `make install` only. ../homebrew-pair/Formula/pair.rb builds solely ./cmd/pair-go and installs bin/nvim/zellij, and PAIR_HOME at runtime is the extracted bundle root, which carries no helper binaries — so a shipped pair still prints probes=n/a with advice that does not apply to its layout. I reverted the PATH-first block in a scratch copy and the whole suite stayed green, so no test pins the fix.
+- BR-23 — not-addressed — verdict(nil,nil) is fixed, but verdict(nil, 2) still returns 'fast' and doctor_test.lua:56 asserts that direction — a half-absent measurement rendered as a full in-domain verdict is the same defect at a different arity. Of the enumeration BR-23 named, only doctor.lua's exports were swept: perf.sh's sample blocks still fabricate absence (see BR-5), parse_samples has no absent-input case, and summary/report in cmd/pair-hoprtt still panic on empty input.
+
+### Raised
+
+- **BR-24** [Critical] `unverified-repo-mechanism` doctor/perf_test.sh:51's bare `mktemp -d` makes `make test-perf-capture`, and therefore `make test`, fail in a sandboxed agent shell
+  This is the 4th finding in family `unverified-repo-mechanism`, so the rule
+  is the deliverable, not the site. Rule: a mechanism this repo names must be
+  checked in EVERY environment and layout it will run in, enumerated in one
+  place — dev checkout, `make install` PATH, extracted runtime bundle,
+  Homebrew formula install, and the sandboxed agent shell that runs `make
+  test` before every close. Prevalence 4/4 rounds that named a mechanism:
+  PQ-1 failed the build path, BR-1 the language path, BR-22 the install-layout
+  path, this the execution-environment path.
+  Reproduced: `make test-perf-capture` exits 1 with `mktemp: mkdtemp failed
+  on /var/folders/...: Operation not permitted`, before any assertion runs,
+  because macOS mktemp with no template reads confstr(_CS_DARWIN_USER_TEMP_DIR)
+  and cannot be redirected with TMPDIR. Verified fix and green suite with
+  `mktemp -d "${TMPDIR:-/tmp}/perfstub.XXXXXX"`. Note this is the same file
+  whose header advertises that it is "routinely run by sandboxed agents".
+- **BR-25** [Important] `unenforced-operating-envelope` The budget sheds the three probes first, so a degraded machine — the only condition this tool targets — yields a capture with no probe rows
+  This is the 2nd finding in family `unenforced-operating-envelope`. Rule,
+  not site: a capture's budget must reserve capacity for the measurements the
+  issue exists to take and shed contextual collectors before diagnostic ones;
+  sequential position in the script is not a priority order. Reproduced with
+  `PAIR_PERF_BUDGET=2 sh doctor/perf.sh`: disk, pipe_hop, fork_exec and
+  zellij_action all render `n/a (budget exceeded...)` while `top -l 2 -n 60`
+  — the single most expensive collector, and unbounded on a loaded host — is
+  checked before it starts and therefore always runs. The healthy fixture
+  already reports elapsed_seconds=5 of 6. The probes are the only rows with
+  published baselines and are Done-when item 1. Fix: order the probes ahead
+  of top/iostat, or reserve a probe slice of the budget. Secondary: this makes
+  perf_test.sh:36's `[ elapsed -le budget ]` load-dependent, so `make test`
+  goes red under exactly the conditions the capture is for.
+- **BR-26** [Minor] `untested-shell-surface` perf_test.sh:23's stray-line check only fires for all-digit lines, so any other unattributable line passes
+  The `*[!0-9]*) continue` arm (there to skip tab-separated ps rows) swallows
+  every stray line containing a non-digit. Verified: injecting `say "an
+  unattributable stray line"` into a scratch perf.sh left the suite green; a
+  bare `0` is correctly caught. Match the ps rows positively (a line with a
+  tab, inside a `### ` block) instead of negatively by character class.
+- **BR-27** [Minor] `duplicated-logic` Four shapes of collect()'s availability/failure/empty ladder in one file, which is how the sample blocks escaped the rule
+  collect() (perf.sh:43) exists to be that ladder, but it can only emit one
+  key, so the top block (~:88), the disk block (:171) and probe_line (:202)
+  each re-implement it and sample()/cputimes() (:121-122) skip it entirely.
+  A `stage()` variant that takes a multi-key emitter would collapse all four
+  and is the structural fix behind the BR-5 residual.
+- **BR-28** [Minor] `report-line-contract` perf.sh:163's swap_rate is shell arithmetic, contradicting the file's own rule 2, and divides by WINDOW unguarded
+  This is the 5th finding in family `report-line-contract`. Rule: every value
+  the report emits either comes from a tool verbatim or is computed in tested
+  Lua; perf.sh's header rule 2 (line 13) states this and the swap block
+  violates it. Same block yields inf at WINDOW=0 and negative rates if a
+  counter goes backwards. Either move it into doctor.delta with the pid join
+  or amend rule 2 to say "no per-process arithmetic".
+- **BR-29** [Minor] `failure-reported-as-measurement` A vm_stat that exists but exits non-zero renders `swap=n/a (vm_stat unavailable)`, misnaming the failure
+  This is the 7th finding in family `failure-reported-as-measurement`. The
+  rule the family needs, stated once: every emitter distinguishes THREE
+  outcomes — tool absent, tool failed, tool returned nothing — and names which
+  one it hit, because "unavailable" sends a reader to install something that
+  is already installed. collect() already does this correctly; the hand-rolled
+  swap block at perf.sh:155-157 does not. Reproduced with a `vm_stat` stub
+  that exits 1.
+- **BR-30** [Minor] `docs-gate` Comment drift in nvim/doctor.lua — the fixture path and delta's documented return shape are both wrong
+  This is the 2nd finding in family `docs-gate`. Rule: a comment that names a
+  path or a return shape is a claim a test can check; when it names a
+  filesystem path, assert it, and when it enumerates fields, enumerate all of
+  them. doctor.lua:157 says "The fixture in nvim/fixtures/" (it is in
+  doctor/fixtures/, and doctor_test.lua explains why it must not be under
+  nvim/); doctor.lua:75's "Returns { rates, vanished, started, reused, rows_a,
+  rows_b }" omits `unmeasured`, which the code sets and the test asserts.
+- **BR-31** [Minor] `unguarded-edge-case` delta detects a reused pid only through etime, so an unparseable etime lets a reused pid produce a negative cpu_pct
+  This is the 3rd finding in family `unguarded-edge-case`. Rule: a derived
+  value with a known-impossible range must be rejected at the point of
+  derivation, not only by the proxy signal that usually implies it. At
+  doctor.lua:95, if pa.etime or pb.etime is nil the reuse branch is skipped
+  and the pid falls into the rate branch, where cb < ca yields a negative
+  rate. `cb < ca` is itself sufficient evidence of reuse and is cheaper than
+  the etime comparison; the fixture test's `r.cpu_pct >= 0` assertion would
+  then be enforced by the code rather than by the fixture's luck.
+- **BR-32** [Minor] `recorded-fixture-redaction` doctor/fixtures/perf_capture.txt is a real host capture in a public repo, safe only by an unrecorded truncation accident
+  The fixture carries zero `/Users/` paths only because it was cut to the
+  first 60 pids, which on this host are all system daemons. Nothing records
+  that as the selection rule, and perf.sh emits full executable paths, so the
+  next re-capture (a wider window, a busier machine) will commit
+  home-directory and project paths. Write the redaction/selection rule next
+  to the fixture, or filter comm to its basename in sample().
+
 ## Open findings
 
 - **BR-1** [Minor] `unverified-repo-mechanism` M2.6 routes the Lua rolling-file write through artifactpath, a Go internal package Lua cannot call
 - **BR-5** [Important] `failure-reported-as-measurement` perf.sh collector failures render as values, not n/a, contradicting the file's own stated rule
-- **BR-9** [Important] `untested-shell-surface` doctor/perf.sh has no test and no make recipe, and delta's tests use literals rather than the promised recorded fixtures
-- **BR-10** [Important] `unverified-repo-mechanism` doctor/perf.sh is missing from runtimebundlegen.explicitAssetPaths — third instance of the hand-maintained-list family
-- **BR-11** [Important] `unenforced-operating-envelope` The 6s budget is declared "enforced, not hoped" but perf.sh has no deadline or skip path
-- **BR-12** [Minor] `report-line-contract` at_ns holds `date +%s` seconds, a live trap for M2's unwritten parser
-- **BR-13** [Minor] `duplicated-logic` The vm_stat awk pipeline is duplicated verbatim at perf.sh:69 and :95; extract swapstat()
-- **BR-14** [Minor] `failure-reported-as-measurement` PAIR_HOME unset yields PROBE=/bin/pair-hoprtt and the degradation text misdiagnoses it as "not built"
 - **BR-15** [Minor] `unguarded-edge-case` summary() indexes an empty slice; unreachable today but one guard line makes it safe for reuse
 - **BR-16** [Minor] `failure-reported-as-measurement` perf.sh discards hoprtt's sample count, so a truncated pipe run reads identically to a full one
 - **BR-17** [Minor] `report-line-contract` perf.sh:61 awk $4 truncates command paths containing spaces, and comm= emits full paths where the plan said process name
@@ -427,3 +723,12 @@ later rounds disposed of them. Generated — edit the gate, not this file.
 - **BR-21** [Minor] `traceability` Issue Plan M1 is unticked and the Log records no M1.4/M1.5 evidence; given the zellij finding, M1.4's number must be re-taken before it is logged
 - **BR-22** [Critical] `unverified-repo-mechanism` perf.sh looks for its probe at $PAIR_HOME/bin/pair-hoprtt, a path that never exists in a shipped pair
 - **BR-23** [Important] `failure-reported-as-measurement` verdict() turns absent timings into 'fast', and its test asserts that direction
+- **BR-24** [Critical] `unverified-repo-mechanism` doctor/perf_test.sh:51's bare `mktemp -d` makes `make test-perf-capture`, and therefore `make test`, fail in a sandboxed agent shell
+- **BR-25** [Important] `unenforced-operating-envelope` The budget sheds the three probes first, so a degraded machine — the only condition this tool targets — yields a capture with no probe rows
+- **BR-26** [Minor] `untested-shell-surface` perf_test.sh:23's stray-line check only fires for all-digit lines, so any other unattributable line passes
+- **BR-27** [Minor] `duplicated-logic` Four shapes of collect()'s availability/failure/empty ladder in one file, which is how the sample blocks escaped the rule
+- **BR-28** [Minor] `report-line-contract` perf.sh:163's swap_rate is shell arithmetic, contradicting the file's own rule 2, and divides by WINDOW unguarded
+- **BR-29** [Minor] `failure-reported-as-measurement` A vm_stat that exists but exits non-zero renders `swap=n/a (vm_stat unavailable)`, misnaming the failure
+- **BR-30** [Minor] `docs-gate` Comment drift in nvim/doctor.lua — the fixture path and delta's documented return shape are both wrong
+- **BR-31** [Minor] `unguarded-edge-case` delta detects a reused pid only through etime, so an unparseable etime lets a reused pid produce a negative cpu_pct
+- **BR-32** [Minor] `recorded-fixture-redaction` doctor/fixtures/perf_capture.txt is a real host capture in a public repo, safe only by an unrecorded truncation accident

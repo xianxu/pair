@@ -28,8 +28,11 @@
   its shape: it emits **raw two-sample output and does no arithmetic** (the pid
   join is error-prone, so it lives in tested Lua, not shell), and it never uses
   `ps %cpu`, which is a lifetime average that hid a 42.6% spinner during the
-  investigation that motivated the issue. `cmd/pair-hoprtt` is its probe —
+  investigation that motivated the issue. `pair hoprtt` is its probe —
   pipe round-trip and fork+exec timing, in-process because a hop is ~7 µs and
-  timing that from shell measures the clock process instead.
+  timing that from shell measures the clock process instead. It is a SUBCOMMAND
+  rather than a binary because `pair` is the only thing that always ships: the
+  Homebrew formula builds just `./cmd/pair-go`, and `PAIR_HOME` at runtime is
+  the extracted bundle root, which carries no helper binaries.
 - `README.md` (repo root) — install and usage.
 - Design pensive (sibling repo): `~/workspace/brain/docs/vision/2026-05-02-01-pensive-nvim-as-input-field-for-tui-coding-agents.md`

@@ -487,7 +487,7 @@ var NonArtifactSources = []string{
 	"bin/pair-help",
 	"bin/pair-notify",
 	"cmd/couch/main.go",
-	"cmd/pair-hoprtt/main.go",
+	"cmd/internal/hoprttcmd/hoprtt.go",
 	"cmd/internal/ansi/ansi.go",
 	"cmd/internal/changelogcmd/changelogcmd.go",
 	"cmd/internal/changelogcmd/distill.go",

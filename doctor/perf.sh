@@ -20,10 +20,15 @@
 #    contactsd read ~0% in ps (60 min of CPU over 9 days uptime) while actually
 #    burning 42.6%. Everything per-process comes from two samples.
 #
-# The budget is enforced against the EXPENSIVE COLLECTORS, not only the probes:
-# `top -l 2`, the sample window and `iostat` are most of the wall clock, so
-# guarding the probes alone would let the capture run long while skipping the
-# cheap part. Each stage checks the deadline and says when it skipped.
+# The budget sheds work in REVERSE VALUE ORDER, and the ordering is the design.
+# `top -l 2` and `iostat` are most of the wall clock but are the LEAST valuable
+# rows on a slow machine; the three probes are the most valuable and the
+# cheapest, so they must survive a squeeze. An earlier version guarded only the
+# probes -- which shed exactly the wrong thing, yielding a capture with no probe
+# rows in the one condition this tool exists for.
+#
+# Shed order: iostat, then top, then the sample window. The probes are reserved
+# a slice of the budget and are never skipped while any budget remains.
 
 WINDOW="${PAIR_PERF_WINDOW:-2}"
 BUDGET="${PAIR_PERF_BUDGET:-6}"
@@ -35,6 +40,10 @@ kv()  { printf '%s=%s\n' "$1" "$2"; }
 
 elapsed()     { echo $(( $(date +%s) - STARTED )); }
 over_budget() { [ "$(elapsed)" -ge "$BUDGET" ]; }
+# Collectors stop early enough to leave PROBE_RESERVE seconds for the probes,
+# which are the rows that actually distinguish a slow machine from a busy one.
+PROBE_RESERVE="${PAIR_PERF_PROBE_RESERVE:-2}"
+collectors_done() { [ "$(elapsed)" -ge $(( BUDGET - PROBE_RESERVE )) ]; }
 
 # collect KEY TOOL FUNC — run FUNC; render `n/a (<why>)` on a missing tool, a
 # failure, or an empty result. TOOL is named in the reason so a reader knows
@@ -89,9 +98,9 @@ collect "process_count" ps _proccount
 # ONE top invocation feeds both cpu-idle and WindowServer: `top -l 2` costs ~2s
 # and calling it twice was an early budget overrun. The SECOND sample is a delta;
 # the first is a lifetime average (rule 3), which is why -l 2 is required.
-if over_budget; then
-	kv "cpu_idle_pct" "n/a (budget exceeded before top)"
-	kv "windowserver_cpu_pct" "n/a (budget exceeded before top)"
+if collectors_done; then
+	kv "cpu_idle_pct" "n/a (budget reserved for probes; top skipped)"
+	kv "windowserver_cpu_pct" "n/a (budget reserved for probes; top skipped)"
 elif ! command -v top >/dev/null 2>&1; then
 	kv "cpu_idle_pct" "n/a (top unavailable)"
 	kv "windowserver_cpu_pct" "n/a (top unavailable)"
@@ -141,10 +150,10 @@ emit_sample() {
 date_epoch() { date +%s; }
 
 emit_sample sample_a
-if over_budget; then
+if collectors_done; then
 	say ""
 	say "## sample_b"
-	kv "skipped" "budget exceeded before the sample window; no rates computable"
+	kv "skipped" "budget reserved for probes; no rates computable"
 else
 	sleep "$WINDOW"
 	emit_sample sample_b
@@ -166,8 +175,8 @@ fi
 
 say ""
 say "## disk"
-if over_budget; then
-	kv "disk" "n/a (budget exceeded before iostat)"
+if collectors_done; then
+	kv "disk" "n/a (budget reserved for probes; iostat skipped)"
 elif ! command -v iostat >/dev/null 2>&1; then
 	kv "disk" "n/a (iostat unavailable)"
 else
@@ -180,16 +189,17 @@ else
 fi
 
 # --- probes -----------------------------------------------------------------
-# The probe is found on PATH FIRST. `make install` puts every GO_BINS entry on
-# PATH, and the runtime bundle deliberately carries no helper binaries (since
-# #104 M3) -- so $PAIR_HOME/bin exists only in a SOURCE CHECKOUT, and a shipped
-# pair would never have found the probe there. The checkout path stays as a
-# fallback so `make test-perf-capture` works before an install.
+# The probe is a SUBCOMMAND of pair, not a separate binary, and that is what
+# makes it work in a shipped pair at all. A standalone pair-hoprtt existed only
+# after `make install`: the Homebrew formula builds just ./cmd/pair-go, and
+# PAIR_HOME at runtime is the extracted bundle root, which carries no helper
+# binaries (since #104 M3). So the probes would have been permanently n/a for
+# every installed pair -- the operator this capture exists for.
 PROBE=""
-if command -v pair-hoprtt >/dev/null 2>&1; then
-	PROBE=$(command -v pair-hoprtt)
-elif [ -n "${PAIR_HOME:-}" ] && [ -x "${PAIR_HOME}/bin/pair-hoprtt" ]; then
-	PROBE="${PAIR_HOME}/bin/pair-hoprtt"
+if command -v pair >/dev/null 2>&1; then
+	PROBE="pair"
+elif [ -n "${PAIR_HOME:-}" ] && [ -x "${PAIR_HOME}/bin/pair" ]; then
+	PROBE="${PAIR_HOME}/bin/pair"
 fi
 
 say ""
@@ -212,15 +222,15 @@ probe_line() {
 }
 
 if [ -n "$PROBE" ]; then
-	probe_line pipe_hop "$PROBE"
-	probe_line fork_exec "$PROBE" -spawn 30 -- /usr/bin/true
+	probe_line pipe_hop "$PROBE" hoprtt
+	probe_line fork_exec "$PROBE" hoprtt -spawn 30 -- /usr/bin/true
 	if command -v zellij >/dev/null 2>&1; then
-		probe_line zellij_action "$PROBE" -spawn "$ZJ_SAMPLES" -- zellij action query-tab-names
+		probe_line zellij_action "$PROBE" hoprtt -spawn "$ZJ_SAMPLES" -- zellij action query-tab-names
 	else
 		kv "zellij_action_ms" "n/a (zellij not on PATH)"
 	fi
 else
-	kv "probes" "n/a (pair-hoprtt not on PATH — run make install, or make build in a checkout)"
+	kv "probes" "n/a (pair not on PATH)"
 fi
 
 kv "elapsed_seconds" "$(elapsed)"

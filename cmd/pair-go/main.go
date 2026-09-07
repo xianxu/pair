@@ -14,6 +14,7 @@ import (
 	"github.com/xianxu/pair/cmd/internal/continuationcmd"
 	"github.com/xianxu/pair/cmd/internal/dispatcher"
 	"github.com/xianxu/pair/cmd/internal/entrypoint"
+	"github.com/xianxu/pair/cmd/internal/hoprttcmd"
 	"github.com/xianxu/pair/cmd/internal/launcher"
 	"github.com/xianxu/pair/cmd/internal/pairlog"
 	"github.com/xianxu/pair/cmd/internal/runtimebundle"
@@ -86,6 +87,8 @@ func runStreamingSubcommand(name string, rest []string, stdin io.Reader, stdout,
 		return wrapcmd.Run(rest, stdin, stdout, stderr)
 	case "term":
 		return termcmd.Run(rest, stdin, stdout, stderr)
+	case "hoprtt":
+		return hoprttcmd.Run(rest, stdout, stderr)
 	case "scribe":
 		return scribecmd.Run(rest, stdin, stdout, stderr)
 	case "changelog render":

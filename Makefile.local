@@ -29,7 +29,7 @@ INSTALL_DIR := $(HOME)/.local/bin
 # Pair remains the single user-facing toolbox binary (#104). Couch's internal
 # pre-exec helper is installed beside couch because it must exist as a separate
 # blocked process before Pair can safely exec.
-GO_BINS     := pair couch pair-launch-helper pair-hoprtt
+GO_BINS     := pair couch pair-launch-helper
 # BUSYBOX_LINKS: pair invoked under one of these names routes to the matching
 # subcommand (entrypoint busybox dispatch). Only pair-slug survives — the
 # external Claude Stop hook may still call it by bare name. Emitted as symlinks
@@ -77,7 +77,7 @@ test-couch-zellij-live:
 # Shape tests for the #208 capture. perf.sh's VALUES are whatever the machine is
 # doing, so this pins the report's shape -- which is what consumers parse and
 # what the collector bugs corrupted.
-test-perf-capture: $(BIN_DIR)/pair-hoprtt
+test-perf-capture: $(BIN_DIR)/pair
 	sh doctor/perf_test.sh
 
 .PHONY: test-couch-start-recovery
@@ -352,12 +352,6 @@ $(BIN_DIR)/couch: $(PAIR_GO_SRCS)
 
 $(BIN_DIR)/pair-launch-helper: $(PAIR_GO_SRCS)
 	go build -o $@ ./cmd/pair-launch-helper
-
-# The latency probe doctor/perf.sh calls (#208). It must be in GO_BINS rather
-# than relying on the base layer's cmd/*/main.go scan, which GO_BINS overrides --
-# otherwise the binary never exists and perf.sh has nothing to call.
-$(BIN_DIR)/pair-hoprtt: $(PAIR_GO_SRCS)
-	go build -o $@ ./cmd/pair-hoprtt
 
 # Busybox symlinks (pair-slug → pair): a real target each, so `build` restores a
 # deleted symlink even when bin/pair is already up-to-date (not only when the pair
