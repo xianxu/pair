@@ -338,6 +338,55 @@ do
   ok(text:find('WhatsApp', 1, true) ~= nil, 'the readable part of the name survives')
 end
 
+-- C1's second half: a DEGRADED capture must still render every headline key.
+-- perf.sh used to report a failed collector under a different key than its
+-- success form (`swap=n/a` vs `swapins_per_s=`, `probes=n/a` vs
+-- `pipe_hop_ms=`), so the allowlist dropped those rows and the prompt simply
+-- had no probe line -- indistinguishable from a tool with no such section, and
+-- the exact opposite of the n/a-is-not-zero rule. perf.sh now renders failures
+-- under the success key; this pins the consumer half.
+do
+  local degraded = {}
+  for _, k in ipairs(M.HEADLINE_KEYS) do
+    degraded[#degraded + 1] = k .. '=n/a (collector failed)'
+  end
+  local h = M.headline(table.concat(degraded, '\n'), '')
+  for _, k in ipairs(M.HEADLINE_KEYS) do
+    ok(h:find(k .. '=n/a', 1, true) ~= nil,
+      'a degraded capture still renders ' .. k .. ' as n/a rather than omitting it')
+  end
+end
+
+-- probes_from is the perf.sh -> rolling-log contract. `(%w+_ms)` looks right
+-- and is not: Lua's %w excludes `_`, so it captured `hop_ms` from
+-- `pipe_hop_ms`. Driven by the key names perf.sh actually emits.
+do
+  local cap = table.concat({
+    '# pair perf capture',
+    'pipe_hop_ms=0.007',
+    'pipe_hop_p90=0.009',
+    'fork_exec_ms=1.506',
+    'zellij_action_ms=n/a (zellij not on PATH)',
+  }, '\n')
+  local p = M.probes_from(cap)
+  ok(p.pipe_hop_ms == 0.007, 'the full key survives; %w would have yielded hop_ms')
+  ok(p.fork_exec_ms == 1.506, 'fork_exec_ms, not exec_ms')
+  ok(p.zellij_action_ms == nil, 'an n/a probe is omitted, never coerced to 0')
+  ok(p.hop_ms == nil and p.exec_ms == nil, 'no truncated key is produced')
+  for k in pairs(p) do
+    ok(M.BASELINES[k] ~= nil, 'every probe key has a baseline: ' .. k)
+  end
+  ok(next(M.probes_from(nil)) == nil, 'nil input yields no probes rather than erroring')
+end
+
+-- The verdict must never say `fast` on a leg it did not measure: `editor: fast`
+-- is what doctor/SKILL.md tells the reader to exclude #201/#203 on.
+do
+  ok(M.verdict(1, 1, nil) == 'unknown', 'an unmeasured leg forbids fast')
+  ok(M.verdict(1, 1, 1) == 'fast', 'all legs measured and quick is fast')
+  ok(M.verdict(nil, nil, 99) == 'slow', 'one slow leg proves slow even alone')
+end
+
 if fails > 0 then
   io.stderr:write(string.format('\n%d failure(s)\n', fails))
   os.exit(1)

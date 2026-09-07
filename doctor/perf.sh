@@ -133,10 +133,22 @@ collect "build_procs" ps _builds
 # processes" rather than "not measured". That is rule 1's defect class, and it
 # was live here until a sandboxed `make test` (where ps is denied outright)
 # rendered both sections blank.
+# comm is filtered HERE, at the single point it is emitted, rather than at each
+# consumer. A process name is attacker- and accident-controlled: any app can be
+# named with control bytes in it, and this text reaches a terminal (the report),
+# a file the agent is told to open (the sidecar), and a committed fixture. A ^N
+# is SO and garbles every following line; a newline would split a sample row and
+# could forge a `key=value` line inside the reader's own evidence. Filtering at
+# one egress and not the others just moves the hazard one file over.
 sample() {
 	_p=$(ps -Ao pid=,etime=,rss=,comm=) || return 1
 	[ -n "$_p" ] || return 1
-	printf '%s\n' "$_p" | awk '{printf "%s\t%s\t%s\t%s\n", $1, $2, $3, $4}'
+	printf '%s\n' "$_p" | awk '{
+		n = split($4, parts, "/"); c = parts[n]
+		gsub(/[^[:print:]]/, "?", c)
+		if (c == "") c = "?"
+		printf "%s\t%s\t%s\t%s\n", $1, $2, $3, c
+	}'
 }
 cputimes() {
 	_p=$(ps -Ao pid=,time=) || return 1
@@ -177,18 +189,27 @@ fi
 
 say ""
 say "## swap_rate"
+# A failed collector renders under the SAME keys as a successful one. Emitting
+# `swap=n/a` instead means every consumer must know both the success key AND the
+# failure key, and any that knows only the first drops the row silently -- which
+# is worse than a wrong value, because an absent line is indistinguishable from a
+# tool that has no such section. Same reason the `## disk` and `## probes`
+# sections below do it too.
+swap_na() { for k in swapins_per_s swapouts_per_s pageins_per_s; do kv "$k" "n/a ($1)"; done; }
+disk_na() { for k in kb_per_transfer tps mb_per_s; do kv "$k" "n/a ($1)"; done; }
+probes_na() { for k in pipe_hop_ms fork_exec_ms zellij_action_ms; do kv "$k" "n/a ($1)"; done; }
 # Rides the MAIN window rather than paying its own sleep.
 if [ "$WINDOW_ELAPSED" != 1 ]; then
 	# The sleep never ran, so there is no interval to divide by. Reporting
 	# (b-a)/WINDOW here would be a rate over time that did not pass -- the same
 	# fabrication the n/a rule exists to prevent, in shell rather than Lua.
-	kv "swap" "n/a (sample window was shed; no interval to rate over)"
+	swap_na "sample window was shed; no interval to rate over"
 elif [ -z "$SWAP_A" ]; then
-	kv "swap" "n/a (vm_stat unavailable)"
+	swap_na "vm_stat unavailable"
 else
 	_b=$(_swapnow 2>/dev/null || true)
 	if [ -z "$_b" ]; then
-		kv "swap" "n/a (vm_stat failed on the second read)"
+		swap_na "vm_stat failed on the second read"
 	else
 		echo "$SWAP_A $_b" | awk -v w="$WINDOW" '{printf "swapins_per_s=%.1f\nswapouts_per_s=%.1f\npageins_per_s=%.1f\n", ($4-$1)/w, ($5-$2)/w, ($6-$3)/w}'
 	fi
@@ -197,13 +218,13 @@ fi
 say ""
 say "## disk"
 if collectors_done; then
-	kv "disk" "n/a (budget reserved for probes; iostat skipped)"
+	disk_na "budget reserved for probes; iostat skipped"
 elif ! command -v iostat >/dev/null 2>&1; then
-	kv "disk" "n/a (iostat unavailable)"
+	disk_na "iostat unavailable"
 else
 	_io=$(iostat -d -w 1 -c 2 2>/dev/null | tail -1)
 	if [ -z "$_io" ]; then
-		kv "disk" "n/a (iostat failed)"
+		disk_na "iostat failed"
 	else
 		printf '%s' "$_io" | awk '{printf "kb_per_transfer=%s\ntps=%s\nmb_per_s=%s\n", $1, $2, $3}'
 	fi
@@ -251,7 +272,7 @@ if [ -n "$PROBE" ]; then
 		kv "zellij_action_ms" "n/a (zellij not on PATH)"
 	fi
 else
-	kv "probes" "n/a (pair not on PATH)"
+	probes_na "pair not on PATH"
 fi
 
 kv "elapsed_seconds" "$(elapsed)"

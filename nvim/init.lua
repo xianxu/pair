@@ -3795,11 +3795,13 @@ end
 -- run 30ms after the last event.
 local complete_last_fire = 0
 local complete_pending = nil
-local function run_completers()
-  do
-    local mode = vim.api.nvim_get_mode().mode or ''
-    if mode:sub(1, 1) ~= 'i' then return end
-  end
+-- complete_now is the completion chain WITHOUT the insert-mode gate, so a
+-- caller that already knows the mode is right can time it. Splitting these is
+-- what makes :PairDoctor's discriminator honest: it runs from a `:` command,
+-- where mode is `n`, so calling run_completers measured the gate returning
+-- rather than #202's chain -- while the report claimed the chain and told the
+-- reader to EXCLUDE #202 on the strength of it.
+local function complete_now()
   -- The explicit z= gesture (spell_suggest_popup) owns the popup while it's
   -- active, so the as-you-type completers must stay out of its way. Without
   -- this guard, startinsert's TextChangedI drives spell_complete to pop its own
@@ -3812,12 +3814,19 @@ local function run_completers()
   if word_complete() then return end
   spell_complete()
 end
+local function run_completers()
+  local mode = vim.api.nvim_get_mode().mode or ''
+  if mode:sub(1, 1) ~= 'i' then return end
+  complete_now()
+end
 -- Exposed for tests/draft-complete-mode-test.sh. The live path reaches this
 -- runner through TextChangedI/P; the regression drives Normal, Visual, and
 -- scheduled post-Insert executions deterministically under headless nvim.
 _G.PairDraftCompleteTest = {
   run_completers = run_completers,
+  complete_now = complete_now,
 }
+_G.PairDoctorCompleteNow = complete_now
 vim.api.nvim_create_autocmd({ 'TextChangedI', 'TextChangedP' }, {
   group = pair_aug,
   callback = function()
@@ -3958,6 +3967,27 @@ do
     local ok, mod = pcall(dofile, dir .. 'doctor.lua')
     if ok then doctor = mod end
   end
+  -- One writer for both capture artifacts: same mkdir, same open, same failure
+  -- policy. Returns the path on success and nil on any failure, so a caller can
+  -- say `n/a (could not be written)` rather than pointing at a file that is not
+  -- there. Never throws -- a failed write must not break the capture the operator
+  -- actually asked for.
+  local function pair_write_data_file(name, content, mode)
+    local path
+    pcall(function()
+      local dir = pair_data_dir()
+      vim.fn.mkdir(dir, 'p')
+      local p = dir .. '/' .. name
+      local fh = io.open(p, mode or 'w')
+      if fh then
+        fh:write(content)
+        fh:close()
+        path = p
+      end
+    end)
+    return path
+  end
+
   -- Self-timing: the editor-vs-environment discriminator (#208), and the one
   -- measurement no external probe can make. If nvim handles a keystroke inside
   -- a frame while typing FEELS slow, the cause is at or above the terminal.
@@ -3967,7 +3997,7 @@ do
   local function time_editor()
     local hr = vim.loop.hrtime
     local scratch = vim.api.nvim_create_buf(false, true)
-    local insert_ms, redraw_ms
+    local insert_ms, redraw_ms, complete_ms, complete_note
     -- pcall + a guaranteed delete: a leaked scratch buffer is a visible bug in
     -- the operator's buffer list, and timing is exactly where a throw is
     -- plausible.
@@ -3981,14 +4011,45 @@ do
       vim.cmd('redraw')
       redraw_ms = (hr() - t1) / 1e6
     end)
-    pcall(vim.api.nvim_buf_delete, scratch, { force = true })
-    local verdict = doctor.verdict(insert_ms, redraw_ms)
+
+    -- The completion chain, timed DIRECTLY rather than through the autocmd.
+    --
+    -- :PairDoctor is a `:` command, so mode is `n` and the TextChangedI above
+    -- reaches run_completers' insert-mode gate and returns without doing any
+    -- work. Timing that measured the gate, not the chain -- while the report
+    -- named the chain and instructed the reader to exclude #202 on it. So this
+    -- calls the un-gated chain against the scratch buffer, and if that cannot
+    -- run, it renders n/a with the reason rather than letting the input number
+    -- stand in for a measurement it never made.
+    local completer = _G.PairDoctorCompleteNow
+    if not completer then
+      complete_note = 'n/a (completion chain unavailable in this build)'
+    else
+      local ok, err = pcall(function()
+        vim.api.nvim_buf_call(scratch, function()
+          local t2 = hr()
+          completer()
+          complete_ms = (hr() - t2) / 1e6
+        end)
+      end)
+      if not ok then
+        complete_ms = nil
+        complete_note = 'n/a (' .. tostring(err):gsub('%s+', ' '):sub(1, 60) .. ')'
+      end
+    end
+    -- The verdict spans every leg that was actually measured. A leg that did
+    -- not run contributes nothing and forces `unknown` -- partial evidence can
+    -- prove slow but never fast.
+    local verdict = doctor.verdict(insert_ms, redraw_ms, complete_ms)
     local fmt = function(v) return v and string.format('%.1fms', v) or 'n/a' end
-    return string.format('editor: %s (input %s, redraw %s; slow at >=%dms, one frame at 60Hz)',
-      verdict, fmt(insert_ms), fmt(redraw_ms), doctor.FRAME_MS), verdict
+    return string.format(
+      'editor: %s (input %s, redraw %s, completion %s; slow at >=%dms, one frame at 60Hz)',
+      verdict, fmt(insert_ms), fmt(redraw_ms), complete_note or fmt(complete_ms),
+      doctor.FRAME_MS), verdict
   end
 
   local capture_running = false
+  local capture_runner = nil -- tests inject a fake; nil means spawn perf.sh
 
   local function pair_doctor()
     if not doctor then
@@ -4027,7 +4088,13 @@ do
     -- ASYNC. Every other shell-out in this file is vim.fn.system, which is
     -- synchronous -- a 5s capture through it would freeze the editor at exactly
     -- the moment the operator is already suffering.
-    vim.system({ 'sh', script }, { text = true }, function(res)
+    -- The spawn is pcall'd and time-bounded, because the guard above has
+    -- exactly one reset path: this callback. A throw at spawn, or a collector
+    -- that hangs (the nvim half of #210 -- perf.sh's own budget cannot bound a
+    -- stuck syscall), would leave capture_running true and :PairDoctor dead for
+    -- the rest of the session -- on precisely the struggling machine it exists
+    -- for. `timeout` makes vim.system kill the child and still invoke us.
+    local function on_capture(res)
       vim.schedule(function()
         capture_running = false
         local raw = (res.code == 0 and res.stdout ~= '' and res.stdout) or nil
@@ -4050,17 +4117,16 @@ do
           -- samples and put the rates solely in the prompt, so a truncated send
           -- destroyed the most valuable half of the capture with no copy left
           -- anywhere. The file is the record; the prompt is a pointer to it.
-          pcall(function()
-            local dir = pair_data_dir()
-            vim.fn.mkdir(dir, 'p')
-            local path = dir .. '/perf-capture-latest.txt'
-            local fh = io.open(path, 'w')
-            if fh then
-              fh:write(compact .. '\n' .. rates .. '\n\n## raw samples\n' .. raw)
-              fh:close()
-              sidecar = path
-            end
-          end)
+          --
+          -- Named by capture, NOT a fixed `-latest`. The prompt hands out this
+          -- path and the operator's documented response to a truncated send is
+          -- to re-run :PairDoctor -- which under a fixed name overwrites the
+          -- file the earlier prompt points at, so prompt #1 silently resolves
+          -- to capture #2's contents. pair_data_dir() is not tag-scoped either,
+          -- so concurrent sessions collide on it too.
+          sidecar = pair_write_data_file(
+            string.format('perf-capture-%d.txt', os.time()),
+            compact .. '\n' .. rates .. '\n\n## raw samples\n' .. raw)
           -- The prompt carries only the headline. See doctor.headline for why
           -- this is a pointer rather than the report.
           env = doctor.headline(compact, rates)
@@ -4075,23 +4141,29 @@ do
         -- it reached no theory. A failure here must never break the capture the
         -- operator actually asked for, so it is pcall'd and silent.
         pcall(function()
-          local probes = {}
-          for k, v in (raw or ''):gmatch('(%w+_ms)=([%d%.]+)') do probes[k] = tonumber(v) end
-          local row = doctor.capture_record(os.time(), note, verdict, probes)
-          local dir = pair_data_dir()
-          vim.fn.mkdir(dir, 'p')
-          local fh = io.open(dir .. '/perf-captures.jsonl', 'a')
-          if fh then
-            fh:write(vim.json.encode(row) .. '\n')
-            fh:close()
-          end
+          -- The perf.sh -> row contract is doctor.probes_from, not a pattern
+          -- here: the pattern this replaced produced `hop_ms` for
+          -- `pipe_hop_ms` and no test could see it, because no test ran this
+          -- file. No reader of perf.sh output belongs in init.lua.
+          local row = doctor.capture_record(os.time(), note, verdict,
+            doctor.probes_from(raw or ''))
+          pair_write_data_file('perf-captures.jsonl',
+            vim.json.encode(row) .. '\n', 'a')
         end)
 
         -- Consume the buffer ONLY if it still holds what was read. The operator
         -- keeps typing during the capture; clearing unconditionally would
         -- delete text written after invocation, and their description of the
         -- symptom is the one thing here that cannot be re-measured.
-        if note and vim.api.nvim_buf_is_valid(buf) then
+        -- Consume ONLY on a successful capture (plan M2.4's rule). A capture
+        -- that failed yields a payload with no measurements in it, and the
+        -- operator's next move is to re-run -- so clearing the buffer would
+        -- make them retype the one input that cannot be re-measured. Keeping
+        -- it costs nothing: worst case they clear it themselves.
+        if not raw and note then
+          vim.notify('PairDoctor: capture failed; your note was kept so you can retry.',
+            vim.log.levels.WARN)
+        elseif note and vim.api.nvim_buf_is_valid(buf) then
           local now_lines = vim.api.nvim_buf_get_lines(buf, 0, -1, false)
           if table.concat(now_lines, '\n') == table.concat(lines, '\n') then
             vim.api.nvim_buf_set_lines(buf, 0, -1, false, { '' })
@@ -4101,11 +4173,32 @@ do
           end
         end
       end)
+    end
+    -- capture_runner is the test seam. Both defects that shipped in this
+    -- milestone (probe keys read with the wrong pattern; the discriminator
+    -- timing a mode gate instead of the completion chain) lived in this
+    -- wrapper, where no test could reach them -- while the pure tests asserting
+    -- the INTENDED behaviour stayed green throughout. A seam here is the
+    -- instrument that would have caught both.
+    local spawned = pcall(function()
+      if capture_runner then return capture_runner(on_capture) end
+      return vim.system({ 'sh', script }, { text = true, timeout = 30000 }, on_capture)
     end)
+    if not spawned then
+      capture_running = false
+      vim.notify('PairDoctor: could not start the capture; your note was kept.',
+        vim.log.levels.ERROR)
+    end
   end
   vim.api.nvim_create_user_command('PairDoctor', pair_doctor,
     { desc = 'Capture performance + harness state and hand it to the agent' })
   _G.PairDoctor = pair_doctor
+  -- Seam for tests/pair-doctor-test.sh.
+  _G.PairDoctorTest = {
+    run = pair_doctor,
+    set_runner = function(fn) capture_runner = fn end,
+    is_running = function() return capture_running end,
+  }
 end
 
 local slug_pending = false -- a proposal arrived mid-insert; apply on InsertLeave

@@ -137,11 +137,27 @@ M.FRAME_MS = 16
 -- missing, so it yields 'unknown' rather than a confident 'fast'. Rendering a
 -- half-absent measurement as a full in-domain verdict is the same defect as a
 -- probe reporting a failed command as excellent latency, at a different arity.
-function M.verdict(insert_ms, redraw_ms)
-  local a, b = tonumber(insert_ms), tonumber(redraw_ms)
-  if not a and not b then return 'unknown' end
-  if (a or 0) >= M.FRAME_MS or (b or 0) >= M.FRAME_MS then return 'slow' end
-  if not a or not b then return 'unknown' end
+-- Variadic over the legs that were timed, because the leg set grew: input,
+-- redraw, and the completion chain. The asymmetry is the whole point and holds
+-- at any arity -- ONE slow leg proves slow, but `fast` requires EVERY leg to
+-- have been measured. A missing leg yields `unknown`, never `fast`: partial
+-- evidence can prove slow and never proves fast, and `editor: fast` is what
+-- doctor/SKILL.md tells the reader to exclude #201/#203 on.
+function M.verdict(...)
+  -- select, not `{...}`: a table constructor with a leading nil has an
+  -- unreliable length and ipairs stops at the first hole -- which is precisely
+  -- the dropped-leg case this function exists to notice.
+  local total = select('#', ...)
+  if total == 0 then return 'unknown' end
+  local measured = 0
+  for i = 1, total do
+    local n = tonumber((select(i, ...)))
+    if n then
+      measured = measured + 1
+      if n >= M.FRAME_MS then return 'slow' end
+    end
+  end
+  if measured < total then return 'unknown' end
   return 'fast'
 end
 
@@ -235,9 +251,12 @@ function M.perf_payload(pair_home, note, editor, env, sidecar)
   end
   out[#out + 1] = ''
   out[#out + 1] = 'What nvim measured about ITSELF (the editor-vs-environment'
-  out[#out + 1] = 'discriminator -- if the editor is fast while typing feels slow,'
-  out[#out + 1] = 'the cause is at or above the terminal and the scheduling family'
-  out[#out + 1] = '(pair#201/#203) is excluded for this symptom):'
+  out[#out + 1] = 'discriminator). `fast` requires EVERY leg below to have been'
+  out[#out + 1] = 'measured and to be inside one frame; a leg rendered n/a forces'
+  out[#out + 1] = '`unknown`, and NO exclusion may be drawn from `unknown`. On a'
+  out[#out + 1] = 'genuine `fast` while typing feels slow, the cause is at or above'
+  out[#out + 1] = 'the terminal and the scheduling family (pair#201/#203) is'
+  out[#out + 1] = 'excluded for this symptom:'
   out[#out + 1] = ''
   out[#out + 1] = editor or 'editor: n/a (self-timing did not run)'
   out[#out + 1] = ''
@@ -266,7 +285,9 @@ function M.capture_record(now, note, editor, probes)
     note = note,               -- nil when the operator left none
     editor = editor,           -- 'fast' | 'slow' | 'unknown'
     probes = probes or {},
-    baselines = { pipe_hop_ms = 0.007, fork_exec_ms = 1.5, zellij_action_ms = 13 },
+    -- Keyed off PROBE_KEYS so a row's baselines can never name a probe the
+    -- reading half does not, which is how `hop_ms` vs `pipe_hop_ms` went unseen.
+    baselines = M.BASELINES,
   }
 end
 
@@ -344,12 +365,8 @@ end
 -- TOP -- the part that survives -- means a truncated message still tells the
 -- reader where the full capture is.
 function M.headline(compact, delta_text)
-  local want = {
-    load = true, cpu_idle_pct = true, windowserver_cpu_pct = true,
-    pair_family_procs = true, build_procs = true,
-    pipe_hop_ms = true, fork_exec_ms = true, zellij_action_ms = true,
-    swapins_per_s = true, elapsed_seconds = true,
-  }
+  local want = {}
+  for _, k in ipairs(M.HEADLINE_KEYS) do want[k] = true end
   local out = {}
   for line in ((compact or '') .. '\n'):gmatch('([^\n]*)\n') do
     local key = line:match('^([%w_]+)=')
@@ -369,6 +386,51 @@ function M.headline(compact, delta_text)
     out[#out + 1] = table.concat(kept, '\n')
   end
   return table.concat(out, '\n')
+end
+
+-- ONE declaration of the keys perf.sh emits, consumed by every reader.
+--
+-- These were restated in four hand-maintained places -- perf.sh's kv calls,
+-- headline's allowlist, capture_record's baselines, and a regex in init.lua --
+-- and three of the four had already drifted out of agreement. The regex was
+-- silently wrong (see probes_from). A key set that lives in one place cannot
+-- drift; one that lives in four always has.
+M.PROBE_KEYS = { 'pipe_hop_ms', 'fork_exec_ms', 'zellij_action_ms' }
+
+-- Measured on a healthy host, and written into every row so a row stays legible
+-- on its own -- a number means nothing without what it is being compared to.
+M.BASELINES = { pipe_hop_ms = 0.007, fork_exec_ms = 1.5, zellij_action_ms = 13 }
+
+-- What the prompt carries. Everything else is in the sidecar. perf.sh renders a
+-- FAILED collector under these same keys (`swapins_per_s=n/a (...)`), so this
+-- list needs no knowledge of failure key names -- an earlier version needed
+-- exactly that and silently dropped the probe and swap lines from every
+-- degraded capture, which reads as "this tool has no such section".
+M.HEADLINE_KEYS = {
+  'load', 'cpu_idle_pct', 'windowserver_cpu_pct',
+  'pair_family_procs', 'build_procs', 'swapins_per_s',
+  'pipe_hop_ms', 'fork_exec_ms', 'zellij_action_ms', 'elapsed_seconds',
+}
+
+-- probes_from is the perf.sh -> rolling-log contract, and it lives HERE because
+-- the caller that had its own copy got it wrong: `(%w+_ms)=` looks right and is
+-- not -- Lua's %w excludes `_`, so the capture backtracks past the prefix and
+-- `pipe_hop_ms` is recorded as `hop_ms`. Every row written that way carried
+-- probe keys matching neither perf.sh's names nor the row's own baselines
+-- table, and the unit test asserting the INTENDED key passed the whole time
+-- because it never ran the caller.
+--
+-- A numeric reading is returned as a number; a collector that rendered `n/a` is
+-- omitted, never coerced to 0.
+function M.probes_from(text)
+  local out = {}
+  for _, key in ipairs(M.PROBE_KEYS) do
+    local v = (text or ''):match('\n' .. key .. '=([^\n]*)')
+      or (text or ''):match('^' .. key .. '=([^\n]*)')
+    local n = v and tonumber(v)
+    if n then out[key] = n end
+  end
+  return out
 end
 
 return M

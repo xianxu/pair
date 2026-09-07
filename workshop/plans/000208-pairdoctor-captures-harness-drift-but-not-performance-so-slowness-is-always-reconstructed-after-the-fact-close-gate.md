@@ -1072,6 +1072,12 @@ rounds:
           round: 9
       boundary: M1
       blocked: false
+    - "n": 10
+      timestamp: "2026-09-07T13:26:16-07:00"
+      agent: claude
+      boundary: M2
+      blocked: false
+      protocol_error: no valid findings block
 ---
 
 # Gate ledger — pair#208 (boundary-review)
@@ -1587,6 +1593,10 @@ later rounds disposed of them. Generated — edit the gate, not this file.
   because the child is always a re-exec'd process. Take a stdin io.Reader
   like every sibling Run, or document that -child is process-level only and
   keep it out of the injected-writer path (ARCH-PURE).
+
+## Round 10 — 2026-09-07T13:26:16-07:00 (claude) — passed
+
+**Protocol error:** no valid findings block — this round contributed no findings.
 
 ## Open findings
 

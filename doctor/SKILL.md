@@ -89,9 +89,16 @@ explain whatever number is largest instead of what was actually reported —
 
 | reading | what it excludes |
 |---|---|
-| `editor: fast` | nvim handled a keystroke inside one frame (16 ms at 60 Hz). If typing still *feels* slow, the cause is **at or above the terminal** — transport, rendering, compositing — and the scheduling family (`#201`, `#203`) is excluded for this symptom. |
-| `editor: slow` | the cause is **inside nvim**. Look at autocmds and plugins; the environment numbers below are probably noise. |
-| `editor: unknown` | timing did not run, or only half of it did. It is **not** a synonym for fast — partial evidence can prove slow but never fast. |
+| `editor: fast` | **every** leg — buffer insert, redraw, and the `#202` completion chain — completed inside one frame (16 ms at 60 Hz). If typing still *feels* slow, the cause is **at or above the terminal** — transport, rendering, compositing — and the scheduling family (`#201`, `#203`) is excluded for this symptom. |
+| `editor: slow` | the cause is **inside nvim**. The line names which leg was slow. Look at autocmds and plugins; the environment numbers below are probably noise. |
+| `editor: unknown` | at least one leg did not run — the line renders it as `n/a (<why>)`. It is **not** a synonym for fast: partial evidence can prove slow and never proves fast, so **no exclusion may be drawn from it**. |
+
+The exclusion above rests on the completion leg specifically, so it is timed by
+calling the chain directly rather than by firing a synthetic `TextChangedI`.
+`:PairDoctor` runs from a `:` command, where mode is Normal, and the completers
+gate on Insert — so the synthetic event measured the gate returning while the
+report named the chain. A reading that never ran the thing it names is the exact
+defect class this capture was built to eliminate.
 
 **3. The probes, against the baselines printed beside them.** `pipe_hop` is one
 scheduler wake-up, `fork_exec` is process creation, `zellij_action` is

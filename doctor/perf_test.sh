@@ -42,8 +42,13 @@ budget=$(printf '%s\n' "$out" | sed -n 's/^budget_seconds=//p')
 # is resolved on PATH first (a shipped pair has no $PAIR_HOME/bin at all), a
 # bogus PAIR_HOME alone no longer hides an installed binary.
 missing=$(PAIR_HOME=/nonexistent PATH=/usr/bin:/bin:/usr/sbin:/sbin sh "$here/perf.sh" 2>/dev/null)
-printf '%s\n' "$missing" | grep -q 'probes=n/a' \
-	|| bad "absent probe binary did not degrade to n/a"
+# Under the SUCCESS key, not a `probes=n/a` of its own: a consumer that knows
+# only the success key would otherwise drop the row entirely, and an absent line
+# reads as "this tool has no probes" rather than "the probes were not measured".
+for k in pipe_hop_ms fork_exec_ms zellij_action_ms; do
+	printf '%s\n' "$missing" | grep -q "^$k=n/a" \
+		|| bad "absent probe binary: $k did not degrade to n/a under its own key"
+done
 
 # BR-9: nothing pinned a failing COLLECTOR or a failing PROBE, which is the
 # whole point of the n/a rule. Both are exercised here, because "renders as n/a"

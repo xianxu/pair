@@ -282,7 +282,7 @@ that prints numbers.
 
 **Files:** create `cmd/pair-hoprtt/main.go`, `cmd/pair-hoprtt/main_test.go`, `doctor/perf.sh`
 
-- [ ] **M1.1: `pair-hoprtt` first, because everything else depends on its honesty.**
+- [x] **M1.1: `pair-hoprtt` first, because everything else depends on its honesty.**
       Tests: the `-spawn` timer must read a **known quantity** — `/usr/bin/true`
       in 1–4 ms, never 18. That assertion is the positive control, and it is in
       the suite precisely because the first attempt failed it.
@@ -306,29 +306,29 @@ func TestPipeRoundTripIsMicroseconds(t *testing.T) {
 }
 ```
 
-- [ ] **M1.2:** Implement `pair-hoprtt` (pipe ping-pong + `-spawn N -- cmd`), one
+- [x] **M1.2:** Implement `pair-hoprtt` (pipe ping-pong + `-spawn N -- cmd`), one
       in-process timer shared by both modes.
-- [ ] **M1.2b: Add it to `GO_BINS` + its recipe stanza** (`Makefile.local:32,80`)
+- [x] **M1.2b: Add it to `GO_BINS` + its recipe stanza** (`Makefile.local:32,80`)
       and verify `make build` actually produces `bin/pair-hoprtt`. Without this the
       binary does not exist — the hand-maintained list overrides the base layer's
       `cmd/*/main.go` scan.
-- [ ] **M1.3:** `doctor/perf.sh` — the snapshot table above, with a deadline and
+- [x] **M1.3:** `doctor/perf.sh` — the snapshot table above, with a deadline and
       baselines printed alongside. It emits **raw two-sample output and does no
       arithmetic**: the join is `doctor.delta` (M2.2b), because the pid join is
       the piece ARCH-ORDER flags as most likely to be mishandled and shell is the
       wrong home for it. It degrades per-probe (`n/a` + reason) rather than
       aborting.
-- [ ] **M1.4:** Verify against today's known values on a quiet machine: pipe ~7 µs,
+- [x] **M1.4:** Verify against today's known values on a quiet machine: pipe ~7 µs,
       fork ~1.5 ms, zellij ~13 ms. A number outside those bands means the probe
       is wrong, not the machine.
-- [ ] **M1.5:** Verify the budget: `time sh doctor/perf.sh` ≤ 6 s.
-- [ ] **M1.6:** Commit; `sdlc milestone-close --issue 208 --milestone M1`.
+- [x] **M1.5:** Verify the budget: `time sh doctor/perf.sh` ≤ 6 s.
+- [x] **M1.6:** Commit; `sdlc milestone-close --issue 208 --milestone M1`.
 
 ## M2 — nvim: the note, the self-timing, the wiring
 
 **Files:** modify `nvim/doctor.lua`, `nvim/init.lua`; extend `doctor/SKILL.md`
 
-- [ ] **M2.1: Pure tests first** (`nvim -l`, no editor):
+- [x] **M2.1: Pure tests first** (`nvim -l`, no editor):
 
 ```lua
 -- The buffer is the operator's note. Blank must not become an empty note that
@@ -346,10 +346,10 @@ assert(out:find('typing slow') < out:find('env:'))
 assert(doctor.payload('/h') == <the existing string>)
 ```
 
-- [ ] **M2.2: Implement** `note_from_lines` and `perf_payload`.
-- [ ] **M2.2b: Implement `doctor.delta`** against checked-in fixture sample
+- [x] **M2.2: Implement** `note_from_lines` and `perf_payload`.
+- [x] **M2.2b: Implement `doctor.delta`** against checked-in fixture sample
       pairs, covering vanished / started / reused-pid / truncated-sample.
-- [ ] **M2.3: nvim self-timing** — the discriminator, and the Spec calls it the
+- [x] **M2.3: nvim self-timing** — the discriminator, and the Spec calls it the
       single most valuable bit, so it is specified rather than sketched.
 
       **`doctor.verdict(insert_ms, redraw_ms)` → `'fast' | 'slow'`**, pure and
@@ -367,7 +367,7 @@ assert(doctor.payload('/h') == <the existing string>)
 
       Timings come from `vim.loop.hrtime()`; the report states the verdict in
       words alongside both numbers.
-- [ ] **M2.4: Wire it, asynchronously.** `:PairDoctor` reads the note FIRST,
+- [x] **M2.4: Wire it, asynchronously.** `:PairDoctor` reads the note FIRST,
       then runs `perf.sh` via `vim.system(..., on_exit)` — **not**
       `vim.fn.system`, which every other shell-out in `nvim/` uses and which
       would freeze the editor for the whole capture. The operator keeps typing;
@@ -380,22 +380,22 @@ assert(doctor.payload('/h') == <the existing string>)
       typed it — losing their
       description of the symptom to a probe error would be the worst outcome
       this feature could produce, and it is the one behaviour a test pins.
-- [ ] **M2.5: Drift text pinned byte-identical.** There is no perf argument —
+- [x] **M2.5: Drift text pinned byte-identical.** There is no perf argument —
       `:PairDoctor` always does both (design decision 3). The test asserts the
       existing `payload()` string is unchanged and that it still appears verbatim
       inside the combined message, so `#48`'s procedure cannot silently drift.
-- [ ] **M2.6: Append the capture to the rolling file** (design decision 4): one
+- [x] **M2.6: Append the capture to the rolling file** (design decision 4): one
       JSONL row per invocation under the session's data dir, via
       `artifactpath` rather than a hand-built path. Include the window length and
       the probe baselines in the row, so a row is interpretable years later
       without this plan. Test the pure `CaptureRecord` shaping; cap the file so
       it cannot grow without bound.
-- [ ] **M2.7:** `doctor/SKILL.md` gains the perf procedure — how to read the
+- [x] **M2.7:** `doctor/SKILL.md` gains the perf procedure — how to read the
       report, and explicitly how to use the discriminator to exclude a whole
       family of causes.
-- [ ] **M2.8: Capture a real baseline** on the healthy workbench and record it in
+- [x] **M2.8: Capture a real baseline** on the healthy workbench and record it in
       `## Log`. That reading is what makes the next degraded one legible.
-- [ ] **M2.9:** `make test` + `make test-lua`; commit; `sdlc close`.
+- [x] **M2.9:** `make test` + `make test-lua`; commit; `sdlc close`.
 
 ## Rollback
 
@@ -408,6 +408,58 @@ to revert — a truncated report is still better than none.
 ---
 
 ## Revisions
+
+### 2026-09-07 — M2 boundary review (REWORK → addressed)
+
+The M2 close came back REWORK with one Critical and four Importants. The plan
+statements those findings contradict are corrected here rather than left to
+read as delivered.
+
+1. **M2.6 landed via `pair_data_dir()`, not `artifactpath`.** Two of its
+   sub-requirements were **not** delivered and are now explicit rather than
+   implied by an unticked box: the row carries **no window length**, and
+   `perf-captures.jsonl` is **uncapped**. Both are deferred to `#210` alongside
+   the time-bounding gap; neither affects a single capture's correctness, and
+   the row's baselines travel with it so a row is still legible alone.
+2. **M2.3's discriminator did not exercise the chain it named.** As first built,
+   `time_editor` fired a synthetic `TextChangedI`, but `:PairDoctor` runs from a
+   `:` command where mode is Normal, so `run_completers` returned at its
+   insert-mode gate — the number measured the gate, not `#202`'s chain, while
+   `doctor/SKILL.md` instructed the reader to EXCLUDE `#201`/`#203` on it. Now
+   fixed rather than rescoped: the gate is split off as `complete_now`, the
+   timing calls the chain directly against the scratch buffer, and a leg that
+   cannot run renders `n/a (<why>)` and forces `verdict = unknown`. `verdict` is
+   variadic over its legs so this holds at any arity.
+3. **Core concepts additions.** Entities that shipped without a row:
+   `strip_samples`, `headline`, `format_delta`, `parse_samples`,
+   `parse_duration`, `verdict`/`FRAME_MS`, and — added at the boundary —
+   `probes_from`, `PROBE_KEYS`/`HEADLINE_KEYS`/`BASELINES`, `safe_comm`. The
+   `CaptureRecord` row is `capture_record` in the code.
+4. **The key set is now single-sourced.** It had been restated in four
+   hand-maintained places (perf.sh's `kv` calls, `headline`'s allowlist,
+   `capture_record`'s baselines, and a regex in `init.lua`), three of which had
+   already drifted. `doctor.PROBE_KEYS`/`HEADLINE_KEYS`/`BASELINES` is the one
+   declaration; `probes_from` replaced the regex, which was silently wrong —
+   Lua's `%w` excludes `_`, so every row recorded `hop_ms` for `pipe_hop_ms`.
+5. **A failed collector now renders under its SUCCESS key** (`swapins_per_s=n/a
+   (…)`, not `swap=n/a`). Otherwise every consumer needs a second list of
+   failure key names, and one that has only the first drops the row silently —
+   an absent line reads as "no such section", which is worse than a wrong value.
+6. **`ps`-derived text is filtered at the point of emission**, in `sample()`,
+   not at one consumer. The earlier `safe_comm` covered `format_delta` only,
+   while the sidecar — the file `doctor/SKILL.md` tells the agent to open —
+   carried raw `comm` verbatim, so the `^N` hazard reached the terminal by a
+   different path.
+7. **The sidecar is named per capture**, not `-latest`. The documented response
+   to a truncated send is to re-run `:PairDoctor`, which under a fixed name
+   overwrites the file the earlier prompt points at.
+8. **The wiring has a test** (`tests/pair-doctor-test.sh`, `_G.PairDoctorTest`
+   with an injectable capture runner). Both defects that shipped lived in the
+   glue between `doctor.lua` and `init.lua`, which no suite executed — while the
+   pure test asserting the intended probe key stayed green throughout. It also
+   pins plan M2.4's stated rule, **consume only on a successful send**, which
+   the code was not honouring: the note was cleared even when the capture failed.
+
 
 ### 2026-09-07 — the probe is a `pair` subcommand, not a binary
 
