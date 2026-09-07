@@ -1373,6 +1373,161 @@ rounds:
           round: 13
       boundary: M2
       blocked: false
+    - "n": 14
+      timestamp: "2026-09-07T14:54:43-07:00"
+      agent: claude
+      dispose:
+        - id: BR-5
+          disposition: addressed
+          note: Verified live with ps/sysctl/top/iostat all denied — every key renders n/a with a reason; no fabricated process_count=0, no bare load=.
+          round: 14
+        - id: BR-16
+          disposition: not-addressed
+          note: probe_line (perf.sh:262-273) still reads only $1/$2; hoprtt's sample count $4 is discarded.
+          round: 14
+        - id: BR-17
+          disposition: addressed
+          note: sample() strips the first three fields and basenames on '/'; perf_test.sh:164 pins "Google Chrome" surviving and :160 pins no /Applications/ reaching the report.
+          round: 14
+        - id: BR-18
+          disposition: not-addressed
+          note: No validation and no PAIR_PERF mention in README/atlas/SKILL; measured — WINDOW=0 makes the whole swap_rate section vanish with awk "division by zero".
+          round: 14
+        - id: BR-19
+          disposition: not-addressed
+          note: grep for 4f9365b3 across workshop/ and atlas/ hits only prior gate-ledger rounds; neither the issue nor the plan records it.
+          round: 14
+        - id: BR-20
+          disposition: addressed
+          note: doctor/README.md:70-88 now links perf.sh and documents the note/clear semantics.
+          round: 14
+        - id: BR-21
+          disposition: addressed
+          note: Issue Plan M1 is ticked with the design-reversal note; the M1 close line carries evidence and the zellij number (14.385 ms) is in the M2 baseline table.
+          round: 14
+        - id: BR-26
+          disposition: not-addressed
+          note: perf_test.sh:23's `*[!0-9]*) continue` arm is unchanged.
+          round: 14
+        - id: BR-27
+          disposition: not-addressed
+          note: na_for deduped only the key lists; the top block, disk block, probe_line and emit_sample each still re-implement the availability/failure/empty ladder.
+          round: 14
+        - id: BR-28
+          disposition: not-addressed
+          note: Sharper than reported — at WINDOW=0 awk aborts and all three swap keys VANISH rather than yielding inf, and perf_test.sh:128/:156 drive that exact value.
+          round: 14
+        - id: BR-29
+          disposition: not-addressed
+          note: perf.sh:216-217 still says "vm_stat unavailable" when the first read fails; only the second read (:221) distinguishes failure from absence.
+          round: 14
+        - id: BR-30
+          disposition: addressed
+          note: doctor.lua:180 now names doctor/fixtures/ and :75-76 enumerates unmeasured.
+          round: 14
+        - id: BR-31
+          disposition: not-addressed
+          note: doctor.lua:91 unchanged; cb < ca at :98 is still unguarded, so an unparseable etime yields a negative cpu_pct.
+          round: 14
+        - id: BR-32
+          disposition: addressed
+          note: The finding's own alternative was taken — sample() basenames comm at the emitter, so no path can reach a re-capture; fixture verified free of /Users/ and /home/.
+          round: 14
+        - id: BR-37
+          disposition: not-addressed
+          note: perf_test.sh:59 unchanged and .gitignore has no .perf-test-stub entry.
+          round: 14
+        - id: BR-38
+          disposition: not-addressed
+          note: Reproduced — sh doctor/perf_test.sh exits 1 in this sandboxed shell (grammar violation on perf.sh's own n/a line, plus "only 2 sample rows"), and test-perf-capture is in make test.
+          round: 14
+        - id: BR-39
+          disposition: not-addressed
+          note: The shed member is fixed (WINDOW_ELAPSED). The declared-vs-measured member is live — at_s is discarded by parse_samples, and SWAP_A is read before sample_a while _b is read after sample_b.
+          round: 14
+        - id: BR-41
+          disposition: not-addressed
+          note: hoprtt.go:148-177 unchanged; an unrecognised argument still falls through to pipeRTT(500).
+          round: 14
+        - id: BR-42
+          disposition: addressed
+          note: Plan Revisions item 3 enumerates the missing entities and a separate entry reverses every cmd/pair-hoprtt reference; the stale TABLE itself is carried as a plan-revision recommendation rather than re-raised.
+          round: 14
+        - id: BR-43
+          disposition: not-addressed
+          note: hoprtt.go:35-45 still touches os.Stdin/os.Stdout while dispatcher.go:63 registers hoprtt Streaming with no stdin from main.go.
+          round: 14
+        - id: BR-49
+          disposition: not-addressed
+          note: Issue 210 now records BR-34/25/38/39 but still not the missing window-length field or the uncapped perf-captures.jsonl.
+          round: 14
+        - id: BR-52
+          disposition: addressed
+          note: All three prescribed members mutation-verified red — the clear, the join, and submission.lua's return. Residual unexecuted branches roll into the new coverage finding.
+          round: 14
+        - id: BR-53
+          disposition: not-addressed
+          note: Behaviour is correct and reachable (payload renders redraw n/a, verdict unknown), but removing the has_ui() gate in a scratch copy leaves every suite green — and vim.g.pair_test_has_ui already exists as the seam.
+          round: 14
+        - id: BR-54
+          disposition: not-addressed
+          note: The note does reach the sidecar, but no test opens the sidecar — reverting the prepend leaves pair-doctor-test.sh and doctor_test.lua both green.
+          round: 14
+        - id: BR-55
+          disposition: not-addressed
+          note: The notify is present but no test drives a failing pair_write_data_file, so the branch is never executed.
+          round: 14
+        - id: BR-56
+          disposition: addressed
+          note: Mutation-verified — deleting the vim.empty_dict line takes doctor_test.lua red on "an empty probes set encodes as an object, not []".
+          round: 14
+        - id: BR-57
+          disposition: addressed
+          note: na_for at perf.sh:206 collapses the three loops; the n/a key assertions under tool denial still pass.
+          round: 14
+        - id: BR-58
+          disposition: addressed
+          note: Answered as an explicit accepted trade-off with its reasoning recorded at nvim/init.lua:4048-4053, which is a legitimate resolution for this severity.
+          round: 14
+      findings:
+        - id: BR-59
+          severity: Important
+          title: Three of the closing commit's six behaviour changes are unpinned — the same rule the commit closed BR-52 on
+          detail: |-
+            This is the 7th finding in family `untested-shell-surface`. Do NOT fix these three
+            instances. The rule covering all seven: a behaviour change lands with a test that
+            fails without it, and the check is mechanical — revert the hunk in a scratch copy
+            and confirm a suite goes red. The enumeration is the closing commit's own
+            behaviour hunks, and I ran it. Pinned (verified red on revert): capture_record's
+            schema + empty_dict, the consume-on-success clear, the parse_samples->delta join,
+            submission.lua's real return. Unpinned (verified green on revert): the has_ui()
+            redraw gate at nvim/init.lua:4062-4069, the operator note prepended to the sidecar
+            at nvim/init.lua:4209-4211, and the JSONL-append failure notify at
+            nvim/init.lua:4232-4239. The seams to close all three already exist —
+            vim.g.pair_test_has_ui (nvim/init.lua:689), PAIR_DATA_DIR in the test harness, and
+            the injected capture runner. Prevalence 7/7 with BR-9, BR-25, BR-26, BR-36, BR-38,
+            BR-52; the commit that closed BR-52 is itself the newest member, which is the
+            signal that the rule was fixed at the instance level and never as a class.
+          family: untested-shell-surface
+          round: 14
+        - id: BR-60
+          severity: Minor
+          title: doctor.lua and doctor_test.lua still claim "no vim API", and atlas's sidecar enumeration omits the note added in the same commit
+          detail: |-
+            This is the 5th finding in family `docs-gate`. Do NOT fix these instances — the
+            rule: a comment or doc that ENUMERATES something is a claim a grep can check, and
+            it is updated in the same change that invalidates it; the enumeration is
+            mechanical (grep the changed symbol across *.md and the module headers that
+            describe it). Live members: nvim/doctor.lua:2 and nvim/doctor_test.lua:2 both say
+            "no vim API here" while capture_record now calls vim.empty_dict and the new test
+            calls vim.json; atlas/index.md describes the sidecar as "compact half, joined
+            per-process rates, and both raw ps samples" while the same commit prepended the
+            operator note to it — under a paragraph whose own subject is the invariant that
+            nothing of value exists only in the prompt. Prevalence 5/5 with BR-20, BR-30,
+            BR-47, BR-51.
+          family: docs-gate
+          round: 14
+      blocked: true
 ---
 
 # Gate ledger — pair#208 (boundary-review)
@@ -2083,33 +2238,87 @@ later rounds disposed of them. Generated — edit the gate, not this file.
   time_editor argues it cannot touch the draft because it uses a scratch buffer;
   that holds for buffer text but not for the shared debounce state.
 
+## Round 14 — 2026-09-07T14:54:43-07:00 (claude) — BLOCKED
+
+### Disposed
+
+- BR-5 — addressed — Verified live with ps/sysctl/top/iostat all denied — every key renders n/a with a reason; no fabricated process_count=0, no bare load=.
+- BR-16 — not-addressed — probe_line (perf.sh:262-273) still reads only $1/$2; hoprtt's sample count $4 is discarded.
+- BR-17 — addressed — sample() strips the first three fields and basenames on '/'; perf_test.sh:164 pins "Google Chrome" surviving and :160 pins no /Applications/ reaching the report.
+- BR-18 — not-addressed — No validation and no PAIR_PERF mention in README/atlas/SKILL; measured — WINDOW=0 makes the whole swap_rate section vanish with awk "division by zero".
+- BR-19 — not-addressed — grep for 4f9365b3 across workshop/ and atlas/ hits only prior gate-ledger rounds; neither the issue nor the plan records it.
+- BR-20 — addressed — doctor/README.md:70-88 now links perf.sh and documents the note/clear semantics.
+- BR-21 — addressed — Issue Plan M1 is ticked with the design-reversal note; the M1 close line carries evidence and the zellij number (14.385 ms) is in the M2 baseline table.
+- BR-26 — not-addressed — perf_test.sh:23's `*[!0-9]*) continue` arm is unchanged.
+- BR-27 — not-addressed — na_for deduped only the key lists; the top block, disk block, probe_line and emit_sample each still re-implement the availability/failure/empty ladder.
+- BR-28 — not-addressed — Sharper than reported — at WINDOW=0 awk aborts and all three swap keys VANISH rather than yielding inf, and perf_test.sh:128/:156 drive that exact value.
+- BR-29 — not-addressed — perf.sh:216-217 still says "vm_stat unavailable" when the first read fails; only the second read (:221) distinguishes failure from absence.
+- BR-30 — addressed — doctor.lua:180 now names doctor/fixtures/ and :75-76 enumerates unmeasured.
+- BR-31 — not-addressed — doctor.lua:91 unchanged; cb < ca at :98 is still unguarded, so an unparseable etime yields a negative cpu_pct.
+- BR-32 — addressed — The finding's own alternative was taken — sample() basenames comm at the emitter, so no path can reach a re-capture; fixture verified free of /Users/ and /home/.
+- BR-37 — not-addressed — perf_test.sh:59 unchanged and .gitignore has no .perf-test-stub entry.
+- BR-38 — not-addressed — Reproduced — sh doctor/perf_test.sh exits 1 in this sandboxed shell (grammar violation on perf.sh's own n/a line, plus "only 2 sample rows"), and test-perf-capture is in make test.
+- BR-39 — not-addressed — The shed member is fixed (WINDOW_ELAPSED). The declared-vs-measured member is live — at_s is discarded by parse_samples, and SWAP_A is read before sample_a while _b is read after sample_b.
+- BR-41 — not-addressed — hoprtt.go:148-177 unchanged; an unrecognised argument still falls through to pipeRTT(500).
+- BR-42 — addressed — Plan Revisions item 3 enumerates the missing entities and a separate entry reverses every cmd/pair-hoprtt reference; the stale TABLE itself is carried as a plan-revision recommendation rather than re-raised.
+- BR-43 — not-addressed — hoprtt.go:35-45 still touches os.Stdin/os.Stdout while dispatcher.go:63 registers hoprtt Streaming with no stdin from main.go.
+- BR-49 — not-addressed — Issue 210 now records BR-34/25/38/39 but still not the missing window-length field or the uncapped perf-captures.jsonl.
+- BR-52 — addressed — All three prescribed members mutation-verified red — the clear, the join, and submission.lua's return. Residual unexecuted branches roll into the new coverage finding.
+- BR-53 — not-addressed — Behaviour is correct and reachable (payload renders redraw n/a, verdict unknown), but removing the has_ui() gate in a scratch copy leaves every suite green — and vim.g.pair_test_has_ui already exists as the seam.
+- BR-54 — not-addressed — The note does reach the sidecar, but no test opens the sidecar — reverting the prepend leaves pair-doctor-test.sh and doctor_test.lua both green.
+- BR-55 — not-addressed — The notify is present but no test drives a failing pair_write_data_file, so the branch is never executed.
+- BR-56 — addressed — Mutation-verified — deleting the vim.empty_dict line takes doctor_test.lua red on "an empty probes set encodes as an object, not []".
+- BR-57 — addressed — na_for at perf.sh:206 collapses the three loops; the n/a key assertions under tool denial still pass.
+- BR-58 — addressed — Answered as an explicit accepted trade-off with its reasoning recorded at nvim/init.lua:4048-4053, which is a legitimate resolution for this severity.
+
+### Raised
+
+- **BR-59** [Important] `untested-shell-surface` Three of the closing commit's six behaviour changes are unpinned — the same rule the commit closed BR-52 on
+  This is the 7th finding in family `untested-shell-surface`. Do NOT fix these three
+  instances. The rule covering all seven: a behaviour change lands with a test that
+  fails without it, and the check is mechanical — revert the hunk in a scratch copy
+  and confirm a suite goes red. The enumeration is the closing commit's own
+  behaviour hunks, and I ran it. Pinned (verified red on revert): capture_record's
+  schema + empty_dict, the consume-on-success clear, the parse_samples->delta join,
+  submission.lua's real return. Unpinned (verified green on revert): the has_ui()
+  redraw gate at nvim/init.lua:4062-4069, the operator note prepended to the sidecar
+  at nvim/init.lua:4209-4211, and the JSONL-append failure notify at
+  nvim/init.lua:4232-4239. The seams to close all three already exist —
+  vim.g.pair_test_has_ui (nvim/init.lua:689), PAIR_DATA_DIR in the test harness, and
+  the injected capture runner. Prevalence 7/7 with BR-9, BR-25, BR-26, BR-36, BR-38,
+  BR-52; the commit that closed BR-52 is itself the newest member, which is the
+  signal that the rule was fixed at the instance level and never as a class.
+- **BR-60** [Minor] `docs-gate` doctor.lua and doctor_test.lua still claim "no vim API", and atlas's sidecar enumeration omits the note added in the same commit
+  This is the 5th finding in family `docs-gate`. Do NOT fix these instances — the
+  rule: a comment or doc that ENUMERATES something is a claim a grep can check, and
+  it is updated in the same change that invalidates it; the enumeration is
+  mechanical (grep the changed symbol across *.md and the module headers that
+  describe it). Live members: nvim/doctor.lua:2 and nvim/doctor_test.lua:2 both say
+  "no vim API here" while capture_record now calls vim.empty_dict and the new test
+  calls vim.json; atlas/index.md describes the sidecar as "compact half, joined
+  per-process rates, and both raw ps samples" while the same commit prepended the
+  operator note to it — under a paragraph whose own subject is the invariant that
+  nothing of value exists only in the prompt. Prevalence 5/5 with BR-20, BR-30,
+  BR-47, BR-51.
+
 ## Open findings
 
-- **BR-5** [Important] `failure-reported-as-measurement` perf.sh collector failures render as values, not n/a, contradicting the file's own stated rule
 - **BR-16** [Minor] `failure-reported-as-measurement` perf.sh discards hoprtt's sample count, so a truncated pipe run reads identically to a full one
-- **BR-17** [Minor] `report-line-contract` perf.sh:61 awk $4 truncates command paths containing spaces, and comm= emits full paths where the plan said process name
 - **BR-18** [Minor] `unguarded-edge-case` PAIR_PERF_WINDOW flows unvalidated into sleep and awk -v, and is undocumented in atlas/README
 - **BR-19** [Minor] `boundary-hygiene` 4f9365b3 (M2.2b, the pure join) landed inside the M1 boundary; note it so M2's base is not mistaken for the branch point
-- **BR-20** [Minor] `docs-gate` doctor/README.md describes the doctor/ contents and was not updated for perf.sh (atlas/index.md was)
-- **BR-21** [Minor] `traceability` Issue Plan M1 is unticked and the Log records no M1.4/M1.5 evidence; given the zellij finding, M1.4's number must be re-taken before it is logged
 - **BR-26** [Minor] `untested-shell-surface` perf_test.sh:23's stray-line check only fires for all-digit lines, so any other unattributable line passes
 - **BR-27** [Minor] `duplicated-logic` Four shapes of collect()'s availability/failure/empty ladder in one file, which is how the sample blocks escaped the rule
 - **BR-28** [Minor] `report-line-contract` perf.sh:163's swap_rate is shell arithmetic, contradicting the file's own rule 2, and divides by WINDOW unguarded
 - **BR-29** [Minor] `failure-reported-as-measurement` A vm_stat that exists but exits non-zero renders `swap=n/a (vm_stat unavailable)`, misnaming the failure
-- **BR-30** [Minor] `docs-gate` Comment drift in nvim/doctor.lua — the fixture path and delta's documented return shape are both wrong
 - **BR-31** [Minor] `unguarded-edge-case` delta detects a reused pid only through etime, so an unparseable etime lets a reused pid produce a negative cpu_pct
-- **BR-32** [Minor] `recorded-fixture-redaction` doctor/fixtures/perf_capture.txt is a real host capture in a public repo, safe only by an unrecorded truncation accident
 - **BR-37** [Minor] `build-artifact-committed` perf_test.sh's mktemp fallback writes .perf-test-stub.$$ into the worktree and nothing gitignores it
 - **BR-38** [Important] `untested-shell-surface` perf_test.sh asserts a live run against the ambient system, so the BR-36 grammar pin validates zero rows wherever ps is denied
 - **BR-39** [Important] `failure-reported-as-measurement` swap_rate divides by WINDOW even when sample_b was shed and the sleep never ran, reporting a rate over time that did not pass
 - **BR-41** [Minor] `unguarded-edge-case` pair hoprtt silently ignores unrecognised arguments and runs the 500-sample pipe probe instead
-- **BR-42** [Minor] `traceability` Three pure entities shipped in M1 have no row in the plan's Core concepts table
 - **BR-43** [Minor] `injected-io-seam-bypassed` hoprttcmd.Run takes injected writers but child() reads os.Stdin and writes os.Stdout, and the package is registered as a streaming subcommand with no stdin
 - **BR-49** [Minor] `traceability` The M2.6 deferrals are recorded only in the plan, which archives at close — issue 210 records neither
-- **BR-52** [Important] `untested-shell-surface` Every test drives the send as failing, so the consume-on-success clear, the wired join, and submission.lua's real-result return are all unexecuted
 - **BR-53** [Important] `failure-reported-as-measurement` The redraw leg is still timed with no precondition asserted — the second member of the enumeration round 11 named
 - **BR-54** [Important] `sole-copy-on-lossy-channel` The operator's note is written only into the prompt, and the buffer is cleared on send
 - **BR-55** [Minor] `discarded-failure-signal` The rolling-log append discards pair_write_data_file's nil return, so the comparative series can stop accumulating silently
-- **BR-56** [Minor] `incomplete-parse-contract` The JSONL row has no schema version and encodes an empty probes table as [] rather than {}
-- **BR-57** [Minor] `duplicated-logic` swap_na / disk_na / probes_na are three copies of one loop differing only in the key list
-- **BR-58** [Minor] `unguarded-edge-case` time_editor's synthetic TextChangedI mutates the live completion debounce state
+- **BR-59** [Important] `untested-shell-surface` Three of the closing commit's six behaviour changes are unpinned — the same rule the commit closed BR-52 on
+- **BR-60** [Minor] `docs-gate` doctor.lua and doctor_test.lua still claim "no vim API", and atlas's sidecar enumeration omits the note added in the same commit

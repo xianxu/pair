@@ -184,7 +184,67 @@ check(joined ~= nil and joined:find('churn:', 1, true) ~= nil,
   'churn -- the spawn-storm signature -- reaches the payload')
 _G.send_generated_prompt = real_send
 
--- 7. The in-flight guard must reset even when the runner throws, or :PairDoctor
+-- 7. The three behaviours the closing commit landed unpinned. Each was correct
+--    and reachable, and reverting it left every suite green -- which is how
+--    this issue has repeatedly shipped a right answer with no instrument.
+
+-- (a) The redraw leg's precondition. Headless, `redraw` is a no-op that would
+--     report ~0.0ms -- a reading for work that did not happen, feeding a `fast`
+--     the reader is told to exclude #201/#203 on.
+_G.send_generated_prompt = function(body) joined = body; return true end
+_G.PairDoctorTest.set_runner(function(cb) cb({ code = 0, stdout = capture }) end)
+set_note('ui check')
+_G.PairDoctorTest.run()
+vim.wait(2000, function() return not _G.PairDoctorTest.is_running() end)
+check(joined:find('redraw n/a (no UI attached', 1, true) ~= nil,
+  'with no UI the redraw leg renders n/a rather than ~0.0ms',
+  joined:match('editor:[^\n]*'))
+check(joined:find('editor: unknown', 1, true) ~= nil,
+  'an n/a leg forces the verdict to unknown', joined:match('editor:[^\n]*'))
+
+vim.g.pair_test_has_ui = true
+set_note('ui check 2')
+_G.PairDoctorTest.run()
+vim.wait(2000, function() return not _G.PairDoctorTest.is_running() end)
+check(joined:find('redraw n/a', 1, true) == nil,
+  'with a UI the redraw leg is actually timed', joined:match('editor:[^\n]*'))
+vim.g.pair_test_has_ui = nil
+
+-- (b) The operator's note must exist on disk, not only on the channel #211
+--     measured dropping its middle -- the buffer is cleared on a successful
+--     send, so the prompt was the only copy.
+local sidecar_path = joined:match('FULL capture[^:]*: (%S+)')
+check(sidecar_path ~= nil, 'the payload names a sidecar path', joined:sub(1, 200))
+if sidecar_path then
+  local sf = io.open(sidecar_path)
+  check(sf ~= nil, 'the sidecar exists on disk', sidecar_path)
+  if sf then
+    local body = sf:read('a'); sf:close()
+    check(body:find('## operator note', 1, true) ~= nil,
+      'the sidecar carries the operator note, not just the measurements')
+    check(body:find('ui check 2', 1, true) ~= nil,
+      'the note in the sidecar is the one the operator actually wrote')
+  end
+end
+
+-- (c) A failed JSONL append must not be silent: the comparative series would
+--     stop growing with no signal, and being comparative is the row's purpose.
+local notices = {}
+local real_notify = vim.notify
+vim.notify = function(msg, ...) notices[#notices + 1] = tostring(msg); return real_notify(msg, ...) end
+local real_data = vim.env.PAIR_DATA_DIR
+vim.env.PAIR_DATA_DIR = '/proc/nonexistent-and-unwritable'
+set_note('jsonl failure')
+_G.PairDoctorTest.run()
+vim.wait(2000, function() return not _G.PairDoctorTest.is_running() end)
+vim.env.PAIR_DATA_DIR = real_data
+vim.notify = real_notify
+check(table.concat(notices, '|'):find('rolling capture log', 1, true) ~= nil,
+  'a failed rolling-log append notifies rather than failing silently',
+  table.concat(notices, '|'))
+_G.send_generated_prompt = real_send
+
+-- 8. The in-flight guard must reset even when the runner throws, or :PairDoctor
 --    is dead for the session on exactly the struggling machine it exists for.
 _G.PairDoctorTest.set_runner(function() error('spawn exploded') end)
 set_note('x')

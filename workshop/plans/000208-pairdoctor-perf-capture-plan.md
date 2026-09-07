@@ -409,6 +409,31 @@ to revert — a truncated report is still better than none.
 
 ## Revisions
 
+### 2026-09-07 — issue close review, round 13 (FIX-THEN-SHIP)
+
+24. **BR-59: three of the closing commit's six behaviour changes were unpinned.**
+    Each was correct and reachable; reverting it left every suite green. That is
+    this issue's recurring shape — a right answer with no instrument — and the
+    rule is mechanical: *a behaviour change lands with a test that fails without
+    it; verify by reverting the hunk and watching a suite go red.* All three now
+    pinned and mutation-verified: the `has_ui()` redraw gate (via the existing
+    `vim.g.pair_test_has_ui` seam, asserting both the n/a rendering AND that a
+    UI makes the leg real), the operator note in the sidecar (the test opens the
+    file the payload names and reads the note back), and the JSONL-append
+    failure notify (driven by pointing `PAIR_DATA_DIR` at an unwritable path).
+25. **BR-38: `make test` was RED for a sandboxed reader** — the class
+    `doctor/perf.sh` names as its target. The live-grammar pin asserted against
+    the ambient system, so it saw zero rows wherever `ps` is denied; the ≥10-row
+    remedy then converted that vacuous pass into a hard failure without ever
+    controlling the environment. The pin now runs against a fake `ps` emitting
+    12 rows in the exact shape, so it validates the same grammar everywhere and
+    still fails when the emitted shape changes (mutation-verified).
+26. **BR-39 was already fixed** and is a stale ledger entry: `perf.sh` guards the
+    shed-window case with `WINDOW_ELAPSED != 1 → swap_na "sample window was
+    shed; no interval to rate over"`, so no rate is reported over time that did
+    not pass. Recorded here rather than re-fixed.
+
+
 ### 2026-09-07 — M2 boundary review round 12 (FIX-THEN-SHIP, fixed before the close commit)
 
 19. **Every test drove the SEND as failing**, so the destructive branch was

@@ -83,33 +83,53 @@ if [ -x "$repo/bin/pair" ]; then
 	fi
 fi
 
-# BR-36: the Lua side parses a RECORDED capture, which pins delta against a
-# snapshot but not against what perf.sh emits TODAY. This asserts the live
-# grammar, so a change here fails immediately instead of at the next slowdown.
-in_sample=0
-rows=0
-printf '%s\n' "$out" | while IFS= read -r line; do
-	case "$line" in
-		"### procs") in_sample=1; continue ;;
-		"##"*|"#"*)  in_sample=0; continue ;;
-	esac
-	[ "$in_sample" = 1 ] || continue
-	[ -n "$line" ] || continue
-	# pid<TAB>etime<TAB>rss<TAB>comm — the exact shape doctor.parse_samples reads.
-	printf '%s' "$line" | awk -F'\t' '
-		NF != 4          { print "SHAPE wrong field count: " $0; exit }
-		$1 !~ /^[0-9]+$/ { print "SHAPE pid not numeric: " $0; exit }
-		$3 !~ /^[0-9]+$/ { print "SHAPE rss not numeric: " $0; exit }'
-	rows=$((rows + 1))
-done | grep -q SHAPE && bad "perf.sh sample rows no longer match the grammar doctor.parse_samples reads"
-
+# BR-36 + BR-38: the live-grammar assertion moved BELOW, onto a controlled ps.
+# It used to run against this ambient `$out`, which validates whatever rows the
+# machine happens to have -- zero of them wherever ps is denied.
 printf '%s\n' "$out" | grep -q '^### procs$' || bad "no ### procs section for delta to parse"
 
-# BR-38: the grammar assertion above validates whatever rows exist -- ZERO of
-# them wherever ps is denied, which is a pass that proves nothing. Require rows.
-proc_rows=$(printf '%s\n' "$out" | awk '/^### procs$/{p=1;next} /^#/{p=0} p&&NF{n++} END{print n+0}')
-if [ "$proc_rows" -lt 10 ]; then
-	bad "only $proc_rows sample rows; the grammar pin validated almost nothing"
+# BR-38: the grammar pin must CONTROL the rows it validates.
+#
+# It used to assert against a live run, so wherever `ps` is denied (any
+# sandboxed agent shell -- and `test-perf-capture` is in `make test`) it saw
+# ZERO rows. The first version was a vacuous pass; requiring >=10 rows then
+# turned that into a hard failure for the same reader. Neither validated the
+# grammar. A controlled `ps` gives the same assertion the same rows everywhere.
+fake_ps="${TMPDIR:-/tmp}/perf_test_grammar_ps.$$"
+mkdir -p "$fake_ps"
+cat > "$fake_ps/ps" <<'FAKE'
+#!/bin/sh
+# 12 rows in the exact shape `ps -Ao pid=,etime=,rss=,comm=` produces.
+i=1
+while [ "$i" -le 12 ]; do
+	printf '%5d %s %6d %s\n' "$i" "01:0$((i % 10))" "$((1000 + i))" "/usr/bin/proc$i"
+	i=$((i + 1))
+done
+FAKE
+chmod +x "$fake_ps/ps"
+gout=$(PATH="$fake_ps:$PATH" PAIR_PERF_WINDOW=0 sh "$here/perf.sh" 2>/dev/null)
+rm -rf "$fake_ps"
+
+grows=0
+printf '%s\n' "$gout" | {
+	in_sample=0
+	while IFS= read -r line; do
+		case "$line" in
+			"### procs") in_sample=1; continue ;;
+			"##"*|"#"*)  in_sample=0; continue ;;
+		esac
+		[ "$in_sample" = 1 ] || continue
+		[ -n "$line" ] || continue
+		printf '%s' "$line" | awk -F'\t' '
+			NF != 4          { print "SHAPE wrong field count: " $0; exit }
+			$1 !~ /^[0-9]+$/ { print "SHAPE pid not numeric: " $0; exit }
+			$3 !~ /^[0-9]+$/ { print "SHAPE rss not numeric: " $0; exit }'
+	done
+} | grep -q SHAPE && bad "perf.sh sample rows no longer match the grammar doctor.parse_samples reads"
+
+grows=$(printf '%s\n' "$gout" | awk '/^### procs$/{p=1;next} /^#/{p=0} p&&NF{n++} END{print n+0}')
+if [ "$grows" -lt 10 ]; then
+	bad "the controlled ps produced $grows rows; the grammar pin validated almost nothing"
 fi
 printf '%s\n' "$out" | grep -q '^### cputime$' || bad "no ### cputime section for delta to parse"
 
