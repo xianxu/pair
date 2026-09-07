@@ -1,11 +1,12 @@
 ---
 id: 000201
-status: open
+status: working
 deps: []
 github_issue:
 created: 2026-09-06
 updated: 2026-09-06
 estimate_hours:
+started: 2026-09-06T22:06:07-07:00
 ---
 
 # alt+Return pays two zellij action subprocess round-trips
