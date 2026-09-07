@@ -219,3 +219,36 @@ Related: `#201` (round-trip cost, stands on its own arithmetic), `#202`
 (refuted as a lag cause by its own benchmark; its hop-count hypothesis is now
 also refuted — see the table above), `#203` (real oversubscription, but its
 scope note correctly disclaims typing lag).
+
+### 2026-09-07 — M2 landed; the healthy baseline, recorded
+
+`:PairDoctor` now captures performance alongside drift. Baseline taken on a
+quiet machine, so a later degraded reading has something to be compared against
+— which is the thing the 2026-09-06 investigation lacked and half the reason it
+reached no theory:
+
+| | reading |
+|---|---|
+| load (1/5/15) | 2.11 / 3.53 / 3.15 |
+| CPU idle | 90.5% |
+| **WindowServer** | **2.8%** |
+| pair family / build procs | 64 / 1 |
+| swap | 0.0/s |
+| pipe hop | 0.007 ms |
+| fork+exec | 1.578 ms |
+| `zellij action` | 14.385 ms |
+| capture cost | 4 s |
+
+**The WindowServer number is the one to watch.** Across three captures today it
+read 45.2%, 0.9% and 2.8% on machines that all looked otherwise idle. It swings
+by more than an order of magnitude, which makes it the most interesting
+unexplained signal available — and its units (tens of ms per frame) are the only
+ones on this list in the right range for *visible* lag. Scheduling is
+microseconds; a 2.8× degradation of a 7 µs hop is still invisible.
+
+So the next capture taken **during** a slowdown settles it: if the probes sit at
+these baselines while WindowServer is high, the render path is the answer and
+`#201`/`#203` are excluded for that symptom.
+
+**Deferred:** `#210` (no stage is time-bounded). The capture is usable now; that
+is hardening.
