@@ -959,6 +959,119 @@ rounds:
           round: 8
       boundary: M1
       blocked: false
+    - "n": 9
+      timestamp: "2026-09-07T11:05:44-07:00"
+      agent: claude
+      dispose:
+        - id: BR-1
+          disposition: not-addressed
+          note: Plan M2.6:389 still says "via artifactpath"; that package has no CLI surface Lua can reach. The GO_BINS/pair- prefix half is overtaken by the subcommand reversal.
+          round: 9
+        - id: BR-5
+          disposition: not-addressed
+          note: 'Reproduced with ps denied: ''### cputime'' and ''### procs'' render as empty sections; the ''|| say n/a'' arms at perf.sh:146,148 are unreachable because the pipeline exits with awk''s status.'
+          round: 9
+        - id: BR-16
+          disposition: not-addressed
+          note: probe_line's awk at perf.sh:227 still prints only $1/$2; the sample count is discarded.
+          round: 9
+        - id: BR-17
+          disposition: not-addressed
+          note: sample() at perf.sh:130 still takes $4 of a full comm path; the report carries home-directory paths against the plan's own ARCH-SECURE contract.
+          round: 9
+        - id: BR-18
+          disposition: not-addressed
+          note: 'Sharper evidence: PAIR_PERF_WINDOW=0 and =abc both render the entire ''## swap_rate'' section as nothing at all -- no key, no n/a, no reason. No shell injection; quoting is correct.'
+          round: 9
+        - id: BR-19
+          disposition: not-addressed
+          note: Still no record that 4f9365b3 landed inside the M1 window.
+          round: 9
+        - id: BR-20
+          disposition: not-addressed
+          note: grep -c perf doctor/README.md = 0; it still describes doctor/ as the drift tool only.
+          round: 9
+        - id: BR-21
+          disposition: not-addressed
+          note: Issue Plan M1 row unticked and still naming cmd/hoprtt; no 2026-09-07 Log entry, no M1.4/M1.5 evidence.
+          round: 9
+        - id: BR-25
+          disposition: addressed
+          note: 'Verified live: PAIR_PERF_BUDGET=2 sheds top, iostat and sample_b while pipe_hop_ms and fork_exec_ms survive. Behaviour correct but pinned by no test; that residual is tracked in issue 210.'
+          round: 9
+        - id: BR-26
+          disposition: not-addressed
+          note: perf_test.sh:23's negative character-class arm is unchanged.
+          round: 9
+        - id: BR-27
+          disposition: not-addressed
+          note: collect() is still re-implemented at perf.sh:101-120, :185-196, :218-229 and skipped by sample()/cputimes() -- structurally why BR-5's residual survives.
+          round: 9
+        - id: BR-28
+          disposition: not-addressed
+          note: perf.sh:179 is still shell arithmetic against the file's own rule 2, and WINDOW=0 now silently erases the whole section instead of printing inf.
+          round: 9
+        - id: BR-29
+          disposition: not-addressed
+          note: perf.sh:172-173 still reports a vm_stat that exists but fails as "vm_stat unavailable".
+          round: 9
+        - id: BR-30
+          disposition: not-addressed
+          note: doctor.lua:157 still says nvim/fixtures/; doctor.lua:75's return-shape list still omits unmeasured.
+          round: 9
+        - id: BR-31
+          disposition: not-addressed
+          note: doctor.lua:95 still gates reuse on etime alone; cb < ca is not rejected at the point of derivation.
+          round: 9
+        - id: BR-32
+          disposition: not-addressed
+          note: Fixture still carries 0 /Users/ paths only by the truncation accident; no selection or redaction rule recorded beside it.
+          round: 9
+        - id: BR-34
+          disposition: addressed
+          note: Split to issue 210 by explicit operator decision and filed with a Spec, a mechanism and a Done-when. Treated as settled, not re-litigated at this gate.
+          round: 9
+        - id: BR-37
+          disposition: not-addressed
+          note: Confirmed the fallback is the LIVE path here -- mktemp -d fails with "Operation not permitted" in this shell -- and .perf-test-stub.* is still absent from .gitignore.
+          round: 9
+        - id: BR-38
+          disposition: not-addressed
+          note: 'The >=10-row guard swapped a vacuous pass for a hard failure: sh doctor/perf_test.sh exits 1 here, and test-perf-capture is in the make test chain. The rule (control the environment) is still unapplied.'
+          round: 9
+        - id: BR-39
+          disposition: not-addressed
+          note: 'swap_rate is fixed and verified, but 2 of the 4 sites the finding''s own enumeration named are live: the sample blocks'' silence, and delta dividing by the declared window while the measured at_s delta is emitted and discarded.'
+          round: 9
+        - id: BR-41
+          disposition: not-addressed
+          note: hoprttcmd.go:148-152 unchanged; an unrecognised argv token still falls through to pipeRTT(500) and exits 0.
+          round: 9
+        - id: BR-42
+          disposition: not-addressed
+          note: 'Core concepts table unchanged: pair-hoprtt still points at cmd/pair-hoprtt/main.go, and parse_samples / parse_duration / verdict still have no rows.'
+          round: 9
+      findings:
+        - id: BR-43
+          severity: Minor
+          title: hoprttcmd.Run takes injected writers but child() reads os.Stdin and writes os.Stdout, and the package is registered as a streaming subcommand with no stdin
+          detail: |-
+            Run (hoprtt.go:146) accepts stdout/stderr and report() honours them, but
+            child() (hoprtt.go:35-45) touches os.Stdin/os.Stdout directly. The
+            dispatcher registers hoprtt with Streaming: true (dispatcher.go:63) while
+            cmd/pair-go/main.go:91 passes no stdin, so the signature says "reads no
+            stdin" and the code contradicts it. This is a newly-introduced internal
+            package that downstream M2 work will call, so the surface is worth
+            settling now: a future test adding {"-child"} to
+            TestUsageErrorsRatherThanSilentlyMeasuringNothing's table would block on
+            the real terminal rather than the injected buffer. It works today only
+            because the child is always a re-exec'd process. Take a stdin io.Reader
+            like every sibling Run, or document that -child is process-level only and
+            keep it out of the injected-writer path (ARCH-PURE).
+          family: injected-io-seam-bypassed
+          round: 9
+      boundary: M1
+      blocked: false
 ---
 
 # Gate ledger — pair#208 (boundary-review)
@@ -1432,6 +1545,49 @@ later rounds disposed of them. Generated — edit the gate, not this file.
   `## Revisions` entry adding the rows and correcting the two stale
   references.
 
+## Round 9 — 2026-09-07T11:05:44-07:00 (claude) — passed
+
+### Disposed
+
+- BR-1 — not-addressed — Plan M2.6:389 still says "via artifactpath"; that package has no CLI surface Lua can reach. The GO_BINS/pair- prefix half is overtaken by the subcommand reversal.
+- BR-5 — not-addressed — Reproduced with ps denied: '### cputime' and '### procs' render as empty sections; the '|| say n/a' arms at perf.sh:146,148 are unreachable because the pipeline exits with awk's status.
+- BR-16 — not-addressed — probe_line's awk at perf.sh:227 still prints only $1/$2; the sample count is discarded.
+- BR-17 — not-addressed — sample() at perf.sh:130 still takes $4 of a full comm path; the report carries home-directory paths against the plan's own ARCH-SECURE contract.
+- BR-18 — not-addressed — Sharper evidence: PAIR_PERF_WINDOW=0 and =abc both render the entire '## swap_rate' section as nothing at all -- no key, no n/a, no reason. No shell injection; quoting is correct.
+- BR-19 — not-addressed — Still no record that 4f9365b3 landed inside the M1 window.
+- BR-20 — not-addressed — grep -c perf doctor/README.md = 0; it still describes doctor/ as the drift tool only.
+- BR-21 — not-addressed — Issue Plan M1 row unticked and still naming cmd/hoprtt; no 2026-09-07 Log entry, no M1.4/M1.5 evidence.
+- BR-25 — addressed — Verified live: PAIR_PERF_BUDGET=2 sheds top, iostat and sample_b while pipe_hop_ms and fork_exec_ms survive. Behaviour correct but pinned by no test; that residual is tracked in issue 210.
+- BR-26 — not-addressed — perf_test.sh:23's negative character-class arm is unchanged.
+- BR-27 — not-addressed — collect() is still re-implemented at perf.sh:101-120, :185-196, :218-229 and skipped by sample()/cputimes() -- structurally why BR-5's residual survives.
+- BR-28 — not-addressed — perf.sh:179 is still shell arithmetic against the file's own rule 2, and WINDOW=0 now silently erases the whole section instead of printing inf.
+- BR-29 — not-addressed — perf.sh:172-173 still reports a vm_stat that exists but fails as "vm_stat unavailable".
+- BR-30 — not-addressed — doctor.lua:157 still says nvim/fixtures/; doctor.lua:75's return-shape list still omits unmeasured.
+- BR-31 — not-addressed — doctor.lua:95 still gates reuse on etime alone; cb < ca is not rejected at the point of derivation.
+- BR-32 — not-addressed — Fixture still carries 0 /Users/ paths only by the truncation accident; no selection or redaction rule recorded beside it.
+- BR-34 — addressed — Split to issue 210 by explicit operator decision and filed with a Spec, a mechanism and a Done-when. Treated as settled, not re-litigated at this gate.
+- BR-37 — not-addressed — Confirmed the fallback is the LIVE path here -- mktemp -d fails with "Operation not permitted" in this shell -- and .perf-test-stub.* is still absent from .gitignore.
+- BR-38 — not-addressed — The >=10-row guard swapped a vacuous pass for a hard failure: sh doctor/perf_test.sh exits 1 here, and test-perf-capture is in the make test chain. The rule (control the environment) is still unapplied.
+- BR-39 — not-addressed — swap_rate is fixed and verified, but 2 of the 4 sites the finding's own enumeration named are live: the sample blocks' silence, and delta dividing by the declared window while the measured at_s delta is emitted and discarded.
+- BR-41 — not-addressed — hoprttcmd.go:148-152 unchanged; an unrecognised argv token still falls through to pipeRTT(500) and exits 0.
+- BR-42 — not-addressed — Core concepts table unchanged: pair-hoprtt still points at cmd/pair-hoprtt/main.go, and parse_samples / parse_duration / verdict still have no rows.
+
+### Raised
+
+- **BR-43** [Minor] `injected-io-seam-bypassed` hoprttcmd.Run takes injected writers but child() reads os.Stdin and writes os.Stdout, and the package is registered as a streaming subcommand with no stdin
+  Run (hoprtt.go:146) accepts stdout/stderr and report() honours them, but
+  child() (hoprtt.go:35-45) touches os.Stdin/os.Stdout directly. The
+  dispatcher registers hoprtt with Streaming: true (dispatcher.go:63) while
+  cmd/pair-go/main.go:91 passes no stdin, so the signature says "reads no
+  stdin" and the code contradicts it. This is a newly-introduced internal
+  package that downstream M2 work will call, so the surface is worth
+  settling now: a future test adding {"-child"} to
+  TestUsageErrorsRatherThanSilentlyMeasuringNothing's table would block on
+  the real terminal rather than the injected buffer. It works today only
+  because the child is always a re-exec'd process. Take a stdin io.Reader
+  like every sibling Run, or document that -child is process-level only and
+  keep it out of the injected-writer path (ARCH-PURE).
+
 ## Open findings
 
 - **BR-1** [Minor] `unverified-repo-mechanism` M2.6 routes the Lua rolling-file write through artifactpath, a Go internal package Lua cannot call
@@ -1442,7 +1598,6 @@ later rounds disposed of them. Generated — edit the gate, not this file.
 - **BR-19** [Minor] `boundary-hygiene` 4f9365b3 (M2.2b, the pure join) landed inside the M1 boundary; note it so M2's base is not mistaken for the branch point
 - **BR-20** [Minor] `docs-gate` doctor/README.md describes the doctor/ contents and was not updated for perf.sh (atlas/index.md was)
 - **BR-21** [Minor] `traceability` Issue Plan M1 is unticked and the Log records no M1.4/M1.5 evidence; given the zellij finding, M1.4's number must be re-taken before it is logged
-- **BR-25** [Important] `unenforced-operating-envelope` The budget sheds the three probes first, so a degraded machine — the only condition this tool targets — yields a capture with no probe rows
 - **BR-26** [Minor] `untested-shell-surface` perf_test.sh:23's stray-line check only fires for all-digit lines, so any other unattributable line passes
 - **BR-27** [Minor] `duplicated-logic` Four shapes of collect()'s availability/failure/empty ladder in one file, which is how the sample blocks escaped the rule
 - **BR-28** [Minor] `report-line-contract` perf.sh:163's swap_rate is shell arithmetic, contradicting the file's own rule 2, and divides by WINDOW unguarded
@@ -1450,9 +1605,9 @@ later rounds disposed of them. Generated — edit the gate, not this file.
 - **BR-30** [Minor] `docs-gate` Comment drift in nvim/doctor.lua — the fixture path and delta's documented return shape are both wrong
 - **BR-31** [Minor] `unguarded-edge-case` delta detects a reused pid only through etime, so an unparseable etime lets a reused pid produce a negative cpu_pct
 - **BR-32** [Minor] `recorded-fixture-redaction` doctor/fixtures/perf_capture.txt is a real host capture in a public repo, safe only by an unrecorded truncation accident
-- **BR-34** [Important] `unenforced-operating-envelope` The budget is checked between stages but no stage is bounded, so a single slow collector blows it without limit
 - **BR-37** [Minor] `build-artifact-committed` perf_test.sh's mktemp fallback writes .perf-test-stub.$$ into the worktree and nothing gitignores it
 - **BR-38** [Important] `untested-shell-surface` perf_test.sh asserts a live run against the ambient system, so the BR-36 grammar pin validates zero rows wherever ps is denied
 - **BR-39** [Important] `failure-reported-as-measurement` swap_rate divides by WINDOW even when sample_b was shed and the sleep never ran, reporting a rate over time that did not pass
 - **BR-41** [Minor] `unguarded-edge-case` pair hoprtt silently ignores unrecognised arguments and runs the 500-sample pipe probe instead
 - **BR-42** [Minor] `traceability` Three pure entities shipped in M1 have no row in the plan's Core concepts table
+- **BR-43** [Minor] `injected-io-seam-bypassed` hoprttcmd.Run takes injected writers but child() reads os.Stdin and writes os.Stdout, and the package is registered as a streaming subcommand with no stdin

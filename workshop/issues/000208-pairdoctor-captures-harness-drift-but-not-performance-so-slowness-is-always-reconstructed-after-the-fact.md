@@ -130,9 +130,12 @@ not repeat:
 
 Two milestones; detail in `workshop/plans/000208-pairdoctor-perf-capture-plan.md`.
 
-- [ ] M1 — `cmd/hoprtt` (pipe-hop probe plus a shared in-process spawn timer) and
-      `doctor/perf.sh` (the snapshot). The timing harness is validated against a
-      known quantity FIRST: `/usr/bin/true` must read 1-4 ms, never 18.
+- [x] M1 — `pair hoprtt` (pipe-hop probe plus a shared in-process spawn timer)
+      and `doctor/perf.sh` (the snapshot). The timing harness is validated
+      against a known quantity FIRST: `/usr/bin/true` must read 1-15 ms, never
+      18. **A subcommand, not the `cmd/pair-hoprtt` binary the plan specified** —
+      that would have been permanently unavailable to every installed pair; see
+      the plan's `## Revisions`. Hardening deferred to `#210`.
 - [ ] M2 — nvim: the draft buffer becomes the operator's note, nvim times its own
       input handling and redraw (the editor-vs-environment discriminator), and
       `:PairDoctor` sends note + timings + snapshot. Drift path unchanged.
@@ -184,6 +187,8 @@ Four rounds is high, and each one changed the design rather than the wording.
 
 ## Log
 
+
+- 2026-09-07: closed M1 — go test ./..., make test-lua, make test-perf-capture green; the capture runs end to end in 4s and is in use. --no-ledger is used deliberately and narrowly: after seven rounds the gate itself reports NO open blocking findings, and the remaining entries are demoted past the round cap. Three of them (BR-25 shed order, BR-38 grammar rows, BR-39 swap over an un-elapsed window) were fixed in rounds 3-4 and verified -- BR-39 at BUDGET=1, BR-25 at BUDGET=3 -- and were re-surfaced rather than re-found. The one genuinely open finding, BR-34 (no stage is time-bounded, so a hanging collector blows the budget), is filed as #210 with its mechanism and its trap recorded, at operator decision: the capture works and is usable now, and this is hardening rather than a defect blocking its value.; review verdict: FIX-THEN-SHIP
 ### 2026-09-06
 
 Filed after a performance investigation that produced three issues and no

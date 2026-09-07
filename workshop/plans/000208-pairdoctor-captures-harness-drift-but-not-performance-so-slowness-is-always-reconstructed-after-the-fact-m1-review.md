@@ -1555,3 +1555,206 @@ findings:
       `## Revisions` entry adding the rows and correcting the two stale
       references.
 ```
+
+---
+
+## Re-review — 2026-09-07T11:05:44-07:00 (FIX-THEN-SHIP)
+
+| field | value |
+|-------|-------|
+| issue | 208 — PairDoctor captures harness drift but not performance, so slowness is always reconstructed after the fact |
+| repo | pair |
+| issue file | workshop/issues/000208-pairdoctor-captures-harness-drift-but-not-performance-so-slowness-is-always-reconstructed-after-the-fact.md |
+| boundary | milestone M1 |
+| milestone | M1 |
+| window | df283abefd229b0b81b2f4bfa98a26310f75316a..b57cd08a0acfd3003aab61a147c39eb5fe666c40 |
+| command | sdlc milestone-close --issue 208 --milestone M1 |
+| reviewer | claude |
+| timestamp | 2026-09-07T11:05:44-07:00 |
+| verdict | FIX-THEN-SHIP |
+
+## Review
+
+```verdict
+verdict: FIX-THEN-SHIP
+confidence: high
+```
+
+The M1 surface is real and the pure core is genuinely good: `doctor.lua`'s five pure functions run headless under `nvim -l`, `delta` enumerates its four buckets with a "every pid lands in exactly one bucket" assertion driven from a recorded capture, `verdict` is correctly asymmetric, and `pair hoprtt` is reachable through the *shipped* binary with a positive control that would have caught the 18.7 ms harness bug. Tests pass: `go test ./cmd/internal/hoprttcmd` ok, `make test-lua` ok (`all doctor.lua tests passed`), `artifactpath`/`runtimebundle` ok. What blocks a clean SHIP is one thing that is cheap and one thing that is not: **`make test` is red right now in this shell** (`sh doctor/perf_test.sh` → `FAIL only 0 sample rows`) because BR-38's fix asserts against the ambient system, and `ps`/`top`/`sysctl`/`iostat` are denied in the agent shell that `perf.sh:10-12` names as its own target reader — so the repo's close-gate evidence path is unrunnable for one class of reader. Alongside it, BR-39's rule ("a shed stage must propagate through the dependency graph") was applied to the site it named and not to the class: two of the four sites its own enumeration listed are still live, including `delta` dividing by the *declared* `window_seconds` while the *measured* `at_s` delta is emitted and discarded — which overstates every `cpu_pct` on exactly the slow machine this tool exists for. The BR-34 hardening split into `#210` is an explicit operator decision and I treat it as settled, not as an open gate item.
+
+## 1. Strengths
+
+- **`nvim/doctor.lua:75-125` — `delta` is the right code in the right place.** The plan argued the pid join belongs in tested Lua rather than shell and the code delivers exactly that: vanished / started / reused / unmeasured are four named buckets, and `doctor_test.lua`'s fixture block asserts `#rates + vanished + reused + unmeasured == rows_a`. That closure assertion is stronger than the per-case tests around it and is what makes BR-3's class unrepeatable.
+- **`cmd/internal/hoprttcmd/hoprtt_test.go:47-54` — the reachability test builds the real `pair` binary.** This is the fix for the design reversal actually being pinned, not asserted. Reverting the `cmd/pair-go/main.go:90-91` dispatch case makes this go red, which is what the previous PATH-first attempt lacked entirely.
+- **`hoprtt.go:117-129` + `:171-174` — the failure count.** Timing a command that fails instantly reports a dead dependency as the fastest number in the report; counting failures and refusing to print a median when all of them failed is the correct shape, and `probe_line` (`perf.sh:223-228`) consumes the 5th field rather than ignoring it. Verified live: `zellij_action_ms=n/a (probe failed)`.
+- **Shed order verified behaviorally.** `PAIR_PERF_BUDGET=2 sh doctor/perf.sh` sheds `top`, `iostat` and `sample_b` while `pipe_hop_ms` and `fork_exec_ms` both survive. The reverse-value ordering the round-3 reversal introduced does hold under a squeeze.
+- **`workshop/lessons.md:3638-3675`** — five rules, each traceable to a specific finding, including the one worth the most ("ask which distributions ship this before asking how the build finds it"). AGENTS.md §4 satisfied properly rather than ceremonially.
+
+## 2. Critical findings
+
+None.
+
+## 3. Important findings
+
+**`doctor/perf_test.sh:103-108` — BR-38 not-addressed: the fix swapped a vacuous pass for a hard failure, without controlling the environment.**
+The `proc_rows -lt 10` guard removes the false green, but `test-perf-capture` is in the `test` chain (`Makefile.local:120`), so `make test` now fails outright wherever `ps` is denied. Reproduced: `sh doctor/perf_test.sh` → `FAIL only 0 sample rows; the grammar pin validated almost nothing`, exit 1; `ps -Ao pid=` → `operation not permitted`. The rule is unchanged and still unapplied — *a shell test must control the environment its subject reads*; both failure modes are the same defect wearing different clothes. The sweep is still the one BR-38 named: promote the stub dir (`perf_test.sh:54-58`) from stateless `exit 1` doubles to recorded-output `ps`/`top`/`vm_stat`/`iostat` fakes, and assert against those. (ARCH-MOCK, ARCH-ORDER — this test can observe exactly one interleaving, the ambient one.)
+
+**`doctor/perf.sh:141-149` — BR-5 not-addressed: the two sample blocks still degrade to silence.**
+Reproduced with `ps` denied: `### cputime` and `### procs` render as **empty sections**, while every neighbouring collector correctly reads `n/a (ps failed)`. `cputimes()` and `sample()` are `ps | awk` pipelines, so the pipeline exit status is awk's (0) and the `|| say "n/a (ps unavailable)"` arm at `:146`/`:148` is unreachable. The Lua side degrades safely (`usable()` returns nil on an empty `procs`), so this is a reporting-honesty gap rather than a fabrication — but it is the one collector class still outside the rule the file's own header states at `:9-12`.
+
+**`nvim/doctor.lua:97` + `doctor/perf.sh:144` — BR-39 not-addressed: the class was not swept, and the remaining member produces a wrong number.**
+The `swap_rate` instance is fixed and verified (`PAIR_PERF_BUDGET=1` → `swap=n/a (sample window was shed; no interval to rate over)`). But BR-39's own enumeration named four sites and two are live. The material one: `perf.sh` emits `at_s=<epoch>` per sample — the *measured* interval — and `parse_samples` discards it (no branch matches `at_s=` inside a sample block), so `delta` divides by the *declared* `window_seconds`. On a machine where `sleep 2` takes 5 s — the only condition this capture is for — every `cpu_pct` reads ~2.5× truth, rendered identically to a correct one. Fix: parse `at_s` per sample and have `delta` prefer `b.at_s - a.at_s` when both are present, falling back to the declared window.
+
+## 4. Minor findings
+
+- **BR-1** not-addressed (residual): plan M2.6 (`:387-392`) still routes the Lua rolling-file write "via `artifactpath`" — `cmd/internal/artifactpath` has no CLI surface (`grep artifactpath cmd/pair-go/main.go` → nothing), so Lua cannot reach it. Use `pair_data_dir()` / `pair_tag()`. The `GO_BINS` / `pair-` prefix half is overtaken by the subcommand reversal.
+- **BR-16** not-addressed: `probe_line`'s awk (`perf.sh:227`) prints `$1`/`$2` only; the sample count `$4` is discarded, so a truncated pipe run reads identically to a full one.
+- **BR-17** not-addressed: `sample()` (`:130`) still takes `$4`, and `comm=` on macOS is a full executable path — so the report carries `/Users/…/workspace/…/bin/pair` where the plan's own ARCH-SECURE section promised "process name and pid, not full argv", for a report that by design leaves the machine.
+- **BR-18** not-addressed, with sharper evidence: `PAIR_PERF_WINDOW=0` **and** `PAIR_PERF_WINDOW=abc` both render the entire `## swap_rate` section as *nothing at all* — no key, no `n/a`, no reason (awk divide-by-zero / non-numeric `-v w`). With `abc`, `sleep` errors but `WINDOW_ELAPSED=1` is still set. No shell injection (quoting is correct). Still undocumented in atlas/README.
+- **BR-19** not-addressed: `4f9365b3` ("#208 M2: the pure join") is still inside the M1 window with no record; M2's base will be mis-read as the branch point.
+- **BR-20** not-addressed: `doctor/README.md` has zero occurrences of "perf" and still describes `doctor/` as the drift tool only. `atlas/index.md` was updated; its sibling was not. (`doctor/SKILL.md` is correctly M2.7's job.)
+- **BR-21** not-addressed: the issue's `## Plan` M1 row is unticked and still names `cmd/hoprtt`; `## Log` has no 2026-09-07 entry and no M1.4/M1.5 evidence.
+- **BR-26** not-addressed: `perf_test.sh:23`'s `*[!0-9]*) continue` still swallows every stray line containing a non-digit.
+- **BR-27** not-addressed: `collect()` (`:51`) is still re-implemented at `:101-120`, `:185-196` and `:218-229`, and skipped entirely by `sample()`/`cputimes()` — which is structurally why BR-5's residual exists (ARCH-DRY).
+- **BR-28** not-addressed: `:179` is still shell arithmetic against the file's own rule 2 (`:14-17`), and `WINDOW=0` now silently erases the section rather than printing `inf`.
+- **BR-29** not-addressed: `:172-173` still renders a `vm_stat` that exists-but-exits-non-zero as `n/a (vm_stat unavailable)`.
+- **BR-30** not-addressed: `doctor.lua:157` still says "The fixture in nvim/fixtures/" (it is `doctor/fixtures/`), and `:75`'s return-shape comment still omits `unmeasured`.
+- **BR-31** not-addressed: `doctor.lua:95` still detects reuse only via `etime`; `cb < ca` is not itself rejected.
+- **BR-32** not-addressed: `doctor/fixtures/perf_capture.txt` still carries 0 `/Users/` paths only by the truncation accident; no selection/redaction rule is recorded next to it.
+- **BR-37** not-addressed: `perf_test.sh:54`'s fallback is the **live** path here — `mktemp -d` fails in this shell (`mkdtemp failed … Operation not permitted`), so `stub="$repo/.perf-test-stub.$$"`, and `.perf-test-stub.*` is absent from `.gitignore`.
+- **BR-41** not-addressed: `hoprttcmd.go:148-152` still tests `args[0]` against exactly two tokens; `pair hoprtt --spawn 5 -- x` runs `pipeRTT(500)` and exits 0.
+- **BR-42** not-addressed: the plan's Core concepts table is unchanged — `pair-hoprtt` still points at `cmd/pair-hoprtt/main.go`, and `parse_samples` / `parse_duration` / `verdict`+`FRAME_MS` have no rows.
+- **NEW** `hoprtt.go:35-45` vs `:146`: `Run` receives injected `stdout`/`stderr` but `child()` reads `os.Stdin` and writes `os.Stdout` directly, and the dispatcher registers `hoprtt` as `Streaming: true` while `main.go:91` passes no stdin. See findings block.
+
+## 5. Test coverage notes
+
+The Lua side is well covered and driven from a recorded fixture rather than literals — that is the right shape and it holds. The Go side has a real positive control and a real reachability test. The gap is entirely in shell: `perf_test.sh` has **no** `PAIR_PERF_BUDGET` run, so the shed order I verified by hand is pinned by nothing (`#210` records this as BR-25's residual), and no `PAIR_PERF_WINDOW` case, so the empty-`## swap_rate` section above is invisible to the suite. Both fall out for free once the stub dir becomes a recorded-output fake per BR-38's rule — one fake unlocks the budget assertion, the grammar assertion, the degraded-collector assertion, and mutation-detection, in one pass.
+
+## 6. Architectural notes
+
+- **ARCH-DRY** — flag, BR-27: four re-implementations of the `collect()` ladder plus the `n/a (budget reserved for probes; … skipped)` string at four sites.
+- **ARCH-PURE** — pass, and this is the milestone's strongest axis. Five pure functions in `doctor.lua`, tested with no IO but a fixture read; the shell shell stays orchestration. One nit is the new finding below.
+- **ARCH-PURPOSE** — flag, BR-39: the enumeration was written and then half-swept. A finding that names its own class and gets its named instance fixed is the exact pattern this principle exists to catch.
+- **ARCH-MOCK** — flag, BR-38: `perf.sh` shells out to five system tools and the only doubles are stateless `exit 1` stubs. The recorded fixture is a stateful fake for the *join* but nothing fakes the *collection*, which is why the suite cannot run at all when the tools are denied.
+- **ARCH-CONSTRAINTS** — flag, BR-34, disposed to `#210` by operator decision. Noted, not re-litigated.
+- **ARCH-SECURE** — flag, BR-17 + BR-32: the report leaves the machine carrying full executable paths, against the plan's own stated contract, and the committed fixture is a real host capture with no recorded redaction rule.
+- **ARCH-ORDER** — flag, BR-38 again at its highest-leverage lens: `perf_test.sh` can observe exactly one interleaving (whatever the ambient host is doing) with no seam to inject another. `delta`'s bucket enumeration and the budget's shed-state machine both read cleanly off the code and pass.
+
+## 7. Plan revision recommendations
+
+One `## Revisions` entry, dated 2026-09-07, covering all of:
+1. **Core concepts table rows** for `parse_samples`, `parse_duration`, `verdict`/`FRAME_MS` (all PURE, `nvim/doctor.lua`, new), and correct the `pair-hoprtt` row's path from `cmd/pair-hoprtt/main.go` to `cmd/internal/hoprttcmd/hoprtt.go` — the prose reversal landed but the table still claims the reversed design.
+2. **M2.6's mechanism**: strike "via `artifactpath`" and name `pair_data_dir()` + `pair_tag()`, with the file:line and the reachability check the rule now demands.
+3. **M2.3's `verdict` prose**: it still describes the symmetric 16 ms threshold the code replaced with the asymmetric one.
+4. **A boundary note** that `4f9365b3` (M2.2b, the pure join) landed inside the M1 window, so M2's base is the M1 close and not the branch point.
+
+```findings
+dispose:
+  - id: BR-1
+    disposition: not-addressed
+    note: |
+      Plan M2.6:389 still says "via artifactpath"; that package has no CLI surface Lua can reach. The GO_BINS/pair- prefix half is overtaken by the subcommand reversal.
+  - id: BR-5
+    disposition: not-addressed
+    note: |
+      Reproduced with ps denied: '### cputime' and '### procs' render as empty sections; the '|| say n/a' arms at perf.sh:146,148 are unreachable because the pipeline exits with awk's status.
+  - id: BR-16
+    disposition: not-addressed
+    note: |
+      probe_line's awk at perf.sh:227 still prints only $1/$2; the sample count is discarded.
+  - id: BR-17
+    disposition: not-addressed
+    note: |
+      sample() at perf.sh:130 still takes $4 of a full comm path; the report carries home-directory paths against the plan's own ARCH-SECURE contract.
+  - id: BR-18
+    disposition: not-addressed
+    note: |
+      Sharper evidence: PAIR_PERF_WINDOW=0 and =abc both render the entire '## swap_rate' section as nothing at all -- no key, no n/a, no reason. No shell injection; quoting is correct.
+  - id: BR-19
+    disposition: not-addressed
+    note: |
+      Still no record that 4f9365b3 landed inside the M1 window.
+  - id: BR-20
+    disposition: not-addressed
+    note: |
+      grep -c perf doctor/README.md = 0; it still describes doctor/ as the drift tool only.
+  - id: BR-21
+    disposition: not-addressed
+    note: |
+      Issue Plan M1 row unticked and still naming cmd/hoprtt; no 2026-09-07 Log entry, no M1.4/M1.5 evidence.
+  - id: BR-25
+    disposition: addressed
+    note: |
+      Verified live: PAIR_PERF_BUDGET=2 sheds top, iostat and sample_b while pipe_hop_ms and fork_exec_ms survive. Behaviour correct but pinned by no test; that residual is tracked in issue 210.
+  - id: BR-26
+    disposition: not-addressed
+    note: |
+      perf_test.sh:23's negative character-class arm is unchanged.
+  - id: BR-27
+    disposition: not-addressed
+    note: |
+      collect() is still re-implemented at perf.sh:101-120, :185-196, :218-229 and skipped by sample()/cputimes() -- structurally why BR-5's residual survives.
+  - id: BR-28
+    disposition: not-addressed
+    note: |
+      perf.sh:179 is still shell arithmetic against the file's own rule 2, and WINDOW=0 now silently erases the whole section instead of printing inf.
+  - id: BR-29
+    disposition: not-addressed
+    note: |
+      perf.sh:172-173 still reports a vm_stat that exists but fails as "vm_stat unavailable".
+  - id: BR-30
+    disposition: not-addressed
+    note: |
+      doctor.lua:157 still says nvim/fixtures/; doctor.lua:75's return-shape list still omits unmeasured.
+  - id: BR-31
+    disposition: not-addressed
+    note: |
+      doctor.lua:95 still gates reuse on etime alone; cb < ca is not rejected at the point of derivation.
+  - id: BR-32
+    disposition: not-addressed
+    note: |
+      Fixture still carries 0 /Users/ paths only by the truncation accident; no selection or redaction rule recorded beside it.
+  - id: BR-34
+    disposition: addressed
+    note: |
+      Split to issue 210 by explicit operator decision and filed with a Spec, a mechanism and a Done-when. Treated as settled, not re-litigated at this gate.
+  - id: BR-37
+    disposition: not-addressed
+    note: |
+      Confirmed the fallback is the LIVE path here -- mktemp -d fails with "Operation not permitted" in this shell -- and .perf-test-stub.* is still absent from .gitignore.
+  - id: BR-38
+    disposition: not-addressed
+    note: |
+      The >=10-row guard swapped a vacuous pass for a hard failure: sh doctor/perf_test.sh exits 1 here, and test-perf-capture is in the make test chain. The rule (control the environment) is still unapplied.
+  - id: BR-39
+    disposition: not-addressed
+    note: |
+      swap_rate is fixed and verified, but 2 of the 4 sites the finding's own enumeration named are live: the sample blocks' silence, and delta dividing by the declared window while the measured at_s delta is emitted and discarded.
+  - id: BR-41
+    disposition: not-addressed
+    note: |
+      hoprttcmd.go:148-152 unchanged; an unrecognised argv token still falls through to pipeRTT(500) and exits 0.
+  - id: BR-42
+    disposition: not-addressed
+    note: |
+      Core concepts table unchanged: pair-hoprtt still points at cmd/pair-hoprtt/main.go, and parse_samples / parse_duration / verdict still have no rows.
+findings:
+  - id: new
+    severity: Minor
+    family: injected-io-seam-bypassed
+    title: |
+      hoprttcmd.Run takes injected writers but child() reads os.Stdin and writes os.Stdout, and the package is registered as a streaming subcommand with no stdin
+    detail: |
+      Run (hoprtt.go:146) accepts stdout/stderr and report() honours them, but
+      child() (hoprtt.go:35-45) touches os.Stdin/os.Stdout directly. The
+      dispatcher registers hoprtt with Streaming: true (dispatcher.go:63) while
+      cmd/pair-go/main.go:91 passes no stdin, so the signature says "reads no
+      stdin" and the code contradicts it. This is a newly-introduced internal
+      package that downstream M2 work will call, so the surface is worth
+      settling now: a future test adding {"-child"} to
+      TestUsageErrorsRatherThanSilentlyMeasuringNothing's table would block on
+      the real terminal rather than the injected buffer. It works today only
+      because the child is always a re-exec'd process. Take a stdin io.Reader
+      like every sibling Run, or document that -child is process-level only and
+      keep it out of the injected-writer path (ARCH-PURE).
+```
