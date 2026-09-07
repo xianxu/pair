@@ -37,6 +37,50 @@ not have to hand-tune a global. `grep` confirms couch sets no resource env
 today: `launch_existing.go` builds a per-session env (`COUCH_TREE`,
 `COUCH_STORE_DIR`, `COUCH_THREAD_SCOPE`, `COUCH_THREAD_TAG`) and nothing else.
 
+### The controlled measurement: activity, not population
+
+On 2026-09-06 the operator left the machine for four hours without using couch.
+Nothing was torn down — the session population *grew* — and the lag vanished.
+Same probes, same host:
+
+| | during lag | after 4h unused | change |
+|---|---|---|---|
+| zellij servers | 10 | **11** | grew |
+| pair nvim | 10 | **11** | grew |
+| **running agents** | 8 | **2** | ↓ 4× |
+| load (1/5/15) | 25 / 43 / 108 | **2.3 / 1.9 / 1.4** | ↓ 20× |
+| `zellij action` round-trip | 145 ms (max 467) | **17.6 ms** | ↓ 8× |
+| `alt+Return` (2 calls) | ~290–930 ms | **35 ms** | ↓ 8–26× |
+
+**Idle sessions are free; concurrently *working* agents are not.** Population is
+not the variable and never was — which is why the operator's "I ran more pair
+sessions under cmux without this" was correct, and is the sharpest available
+statement of this issue's scope.
+
+### A retracted experiment, kept as a warning
+
+An earlier probe in the same session concluded that load does **not** affect
+latency, from this:
+
+| condition | wake-up delay (median / p90) |
+|---|---|
+| baseline, load ~6 | 2.51 / 2.52 ms |
+| + 12 CPU burners, normal priority | 2.21 / 2.74 ms |
+| + 12 CPU burners, `taskpolicy -c background` | 1.72 / 2.58 ms |
+
+**That conclusion is withdrawn — the experiment was unrepresentative.** Python
+busy-loops are steady pure CPU: no syscalls, no file IO, no forking. A real
+`go test ./...` spawns hundreds of short-lived compile processes with heavy IO.
+A *process-spawn storm* is exactly what degrades a spawn→dynamic-link→connect→
+round-trip path; steady CPU burn is exactly what does not. The probe tested the
+one load shape that could not show the effect, and the real workload then showed
+an 8× hit on the same call.
+
+**Consequence for this issue: the preference for QoS over a parallelism cap rests
+on that void evidence and must be re-derived.** QoS may still win; it is no
+longer evidenced. Re-run against concurrent real `go test ./...` invocations —
+never synthetic CPU burn — before choosing (see Plan).
+
 ### What this does and does not cause — measured, not assumed
 
 This issue was opened while debugging reported workbench sluggishness, and the
@@ -67,11 +111,11 @@ typing lag on its own.
 **couch bounds the resource appetite of the sessions it hosts.** Two candidate
 mechanisms; the measurement above already argues for the first.
 
-**1. Deprioritise rather than cap (preferred).** Launch session work at a lower
-QoS tier so builds absorb idle capacity but yield to interactive work. The probe
-above shows `taskpolicy -c background` is not merely neutral but *better* than
-baseline (1.72 ms vs 2.51 ms median). It is self-balancing: a lone session still
-gets all 12 cores, where a static cap would leave 9 idle.
+**1. Deprioritise rather than cap.** Launch session work at a lower QoS tier so
+builds absorb idle capacity but yield to interactive work. Self-balancing in
+principle: a lone session still gets all 12 cores, where a static cap would
+leave 9 idle. **Its supporting measurement was withdrawn (see above) — treat
+this as the hypothesis to test first, not the preferred answer.**
 
 Caveats to settle: `-c background` also throttles **I/O**, which may slow builds
 more than intended — check `-c utility` as the middle tier. And whether the tier
@@ -114,9 +158,13 @@ removed the heavy answer without leaving a light one.
 
 ## Plan
 
-- [ ] Measure `-c background` vs `-c utility` against a real `go test ./...`:
-      interactive latency **and** build wall-clock, so the I/O throttle cost is
-      visible.
+- [ ] **Rebuild the experiment first.** Drive it with N concurrent real
+      `go test ./...` runs across repos — never synthetic CPU burn — and measure
+      `zellij action` round-trip (the metric that actually moved 8×), not just
+      wake-up delay (which moved 2×, and 0× under the invalid probe).
+- [ ] Then compare `-c background` vs `-c utility` vs a parallelism cap on that
+      harness: interactive latency **and** build wall-clock, so the IO throttle
+      cost is visible.
 - [ ] Verify QoS tier inheritance to grandchildren.
 - [ ] Apply the tier at couch's launch path (`launchTrackedThread`), preserving
       the `#179` warm-reattach invariant — no new argv or env on a warm path.

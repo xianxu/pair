@@ -33,6 +33,12 @@ Decomposed by differencing three timings:
 | `zellij --session S action query-tab-names` | 36.2 ms | + connect & server round-trip (**26.7 ms**) |
 
 So on a **calm** machine `alt+Return` costs **≥72 ms** before any useful work.
+
+**Corrected 2026-09-06:** re-measured on a genuinely quiet host (2 agents, load
+2.3) the round-trip is **17.6 ms**, so the true floor is **~35 ms**, not 72 —
+the earlier 36 ms reading was itself taken under residual load. The floor is
+lower than first filed and still worth removing; the numbers below stand as the
+loaded case.
 Under the load this fleet actually runs at (concurrent `go test` across sessions,
 load 25–100 on 12 cores) the same call measured **145 ms median, 467 ms max** —
 putting `alt+Return` at **290 ms typical and ~930 ms at the tail**, which is the
@@ -85,6 +91,9 @@ about the 72 ms floor that exists on an idle machine.
 ## Done when
 
 - `alt+Return` is a single round-trip, or none.
+- Benchmarks are taken on a quiet host with the agent population recorded
+  alongside — an ambient-load number is not a floor (this issue's own first
+  measurement was 2× off for exactly that reason).
 - Measured before/after on a calm machine, reported as medians with the same
   method as above — the floor must actually move, not just feel better.
 - The `rename-pane`-per-title-change path (`termcmd/run.go:959`) is addressed or
