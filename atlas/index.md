@@ -34,5 +34,19 @@
   rather than a binary because `pair` is the only thing that always ships: the
   Homebrew formula builds just `./cmd/pair-go`, and `PAIR_HOME` at runtime is
   the extracted bundle root, which carries no helper binaries.
+
+  **The capture writes a file and sends a pointer.** The complete report —
+  compact half, joined per-process rates, and both raw `ps` samples — lands in
+  `$PAIR_DATA_DIR/perf-capture-latest.txt`; the prompt carries a ~12-line
+  headline plus that path, and the path is placed in the **first ~60 bytes,
+  ahead of the operator's note**. That placement is load-bearing, not
+  cosmetic: the draft-editor→agent send path drops a contiguous chunk from the
+  MIDDLE of a payload (`#211`, measured — 1,025 bytes gone from a 2,447-byte
+  send with head and tail intact), so the head is the only region that can be
+  relied on. The invariant to preserve is that **nothing of value exists only
+  in the prompt**; an earlier shape kept the rates there alone, where a
+  truncated send destroyed them with no copy on disk. Each capture also appends
+  a row to `perf-captures.jsonl`, which is what makes the next reading
+  comparative rather than absolute.
 - `README.md` (repo root) — install and usage.
 - Design pensive (sibling repo): `~/workspace/brain/docs/vision/2026-05-02-01-pensive-nvim-as-input-field-for-tui-coding-agents.md`
