@@ -104,6 +104,37 @@ rounds:
           note: Band is now 0.5-15.0 ms with the reasoning inline.
           round: 3
       blocked: true
+    - "n": 4
+      timestamp: "2026-09-06T23:13:56-07:00"
+      agent: claude
+      dispose:
+        - id: PQ-4
+          disposition: addressed
+          note: |-
+            ARCH-CONSTRAINTS names UI-blocking as the binding constraint and commits to
+            vim.system+on_exit; ARCH-ORDER adds the re-invoke and buffer-teardown events.
+          round: 4
+      findings:
+        - id: PQ-6
+          severity: Minor
+          title: M2.6 routes the Lua rolling-file write through artifactpath, a Go internal package Lua cannot call
+          detail: |-
+            2nd finding in this family, so the rule is the deliverable, not the site: a
+            plan may name a repo mechanism only with a file:line AND a check that it is
+            reachable from the language and layer the calling code sits in. Prevalence
+            2/2 rounds that named a mechanism — PQ-1 failed build-path reachability,
+            this fails language reachability. artifactpath is cmd/internal/artifactpath
+            with no CLI surface; CaptureRecord lives in nvim/doctor.lua. Use the
+            existing idiom, pair_data_dir() at nvim/init.lua:484 plus pair_tag()
+            (nvim/init.lua:4012). Sweeping the plan's other named mechanisms under the
+            same rule found one more: the binary is named `hoprtt`, but
+            Makefile.local:5-7 requires the `pair-` prefix on every GO_BINS entry
+            because make install (:84-87) puts each on PATH — the collision that
+            comment records already fixing once for `scribe`. Name it `pair-hoprtt`.
+          family: unverified-repo-mechanism
+          round: 4
+      blocked: false
+content_hash: 6367981e5dc4c02c0d97030d1b9e7007d85f0895c976d7b6a95fb7e2a36a0e2d
 ---
 
 # Gate ledger — pair#208 (plan-quality)
@@ -171,6 +202,29 @@ later rounds disposed of them. Generated — edit the gate, not this file.
 - PQ-4 — not-addressed — Async stated, but the ARCH-ORDER table is unchanged and still claims the only carried state is the sample window — second-invocation and buffer teardown are absent.
 - PQ-5 — addressed — Band is now 0.5-15.0 ms with the reasoning inline.
 
+## Round 4 — 2026-09-06T23:13:56-07:00 (claude) — passed
+
+### Disposed
+
+- PQ-4 — addressed — ARCH-CONSTRAINTS names UI-blocking as the binding constraint and commits to
+vim.system+on_exit; ARCH-ORDER adds the re-invoke and buffer-teardown events.
+
+### Raised
+
+- **PQ-6** [Minor] `unverified-repo-mechanism` M2.6 routes the Lua rolling-file write through artifactpath, a Go internal package Lua cannot call
+  2nd finding in this family, so the rule is the deliverable, not the site: a
+  plan may name a repo mechanism only with a file:line AND a check that it is
+  reachable from the language and layer the calling code sits in. Prevalence
+  2/2 rounds that named a mechanism — PQ-1 failed build-path reachability,
+  this fails language reachability. artifactpath is cmd/internal/artifactpath
+  with no CLI surface; CaptureRecord lives in nvim/doctor.lua. Use the
+  existing idiom, pair_data_dir() at nvim/init.lua:484 plus pair_tag()
+  (nvim/init.lua:4012). Sweeping the plan's other named mechanisms under the
+  same rule found one more: the binary is named `hoprtt`, but
+  Makefile.local:5-7 requires the `pair-` prefix on every GO_BINS entry
+  because make install (:84-87) puts each on PATH — the collision that
+  comment records already fixing once for `scribe`. Name it `pair-hoprtt`.
+
 ## Open findings
 
-- **PQ-4** [Important] `ui-path-blocking` Envelope never says whether the 6 s capture blocks the nvim UI
+- **PQ-6** [Minor] `unverified-repo-mechanism` M2.6 routes the Lua rolling-file write through artifactpath, a Go internal package Lua cannot call

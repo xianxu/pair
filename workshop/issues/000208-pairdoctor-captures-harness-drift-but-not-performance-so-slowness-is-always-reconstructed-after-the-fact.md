@@ -5,7 +5,7 @@ deps: []
 github_issue:
 created: 2026-09-06
 updated: 2026-09-06
-estimate_hours:
+estimate_hours: 3.35
 started: 2026-09-06T22:53:26-07:00
 ---
 
@@ -143,6 +143,44 @@ slow, even loading Activity Monitor is slow, top took 10 seconds"* — and the
 snapshot covers system load, running processes, and **per-process resource usage
 over a window**: a delta between two samples, never `ps %cpu`, which is a
 lifetime average and hid a 42.6% spinner from this very session.
+## Estimate
+
+```estimate
+model: estimate-logic-v3.1
+familiarity: 1.0
+item: issue-spec                 design=0.90 impl=0.10
+item: greenfield-go-module       design=0.15 impl=0.20
+item: greenfield-go-module       design=0.20 impl=0.24
+item: smaller-go-module          design=0.02 impl=0.06
+item: smaller-go-module          design=0.06 impl=0.20
+item: smaller-go-module          design=0.08 impl=0.20
+item: smaller-go-module          design=0.08 impl=0.20
+item: atlas-docs                 design=0.03 impl=0.08
+item: milestone-review           design=0.00 impl=0.16
+item: milestone-review           design=0.00 impl=0.16
+design-buffer: 0.15
+total: 3.35
+```
+
+*Produced via `brain/data/life/42shots/velocity/estimate-logic-v3.1.md` against
+`baseline-v3.1.md`. Method A only.* Calibration source reports `stale`, so the
+per-primitive hours are provisional.
+
+`issue-spec` at 0.90 covers the issue, the plan, and **four** plan-quality
+rounds — the gate found the async capture would freeze the editor (every
+shell-out in `nvim/` is synchronous `vim.fn.system`), that the probe would never
+have been built (`GO_BINS` is hand-maintained and overrides the base-layer
+scan), that the pid join was sitting in untestable shell, and that the
+discriminator's synthetic keystroke would have corrupted the operator's note.
+Four rounds is high, and each one changed the design rather than the wording.
+
+| Slug | Instances |
+| --- | --- |
+| `issue-spec` | the issue, the plan, four plan-quality rounds |
+| `greenfield-go-module` | `cmd/pair-hoprtt` (probe + shared in-process timer); `doctor/perf.sh` (the snapshot) |
+| `smaller-go-module` | the `GO_BINS` entry + recipe; `doctor.lua`'s pure trio (`note_from_lines`, `perf_payload`, `verdict`); `doctor.delta` + fixtures; the async `init.lua` wiring |
+| `atlas-docs` | `doctor/SKILL.md`'s perf procedure |
+| `milestone-review` | M1 and M2 boundaries |
 
 ## Log
 

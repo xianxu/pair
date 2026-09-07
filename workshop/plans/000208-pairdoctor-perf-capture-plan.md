@@ -76,7 +76,7 @@ not a subsystem.
 | `payload` (drift) | `nvim/doctor.lua` | unchanged |
 | `perf_payload` | `nvim/doctor.lua` | new |
 | `note_from_lines` | `nvim/doctor.lua` | new |
-| `hoprtt` (pipe probe) | `cmd/hoprtt/main.go` | new |
+| `pair-hoprtt` (pipe probe) | `cmd/pair-hoprtt/main.go` | new |
 | `CaptureRecord` (one rolling row) | `nvim/doctor.lua` | new |
 | `delta` (two-sample join) | `nvim/doctor.lua` | new |
 
@@ -95,16 +95,16 @@ not a subsystem.
   - **Why pure and separate:** "what counts as a note" is a decision worth
     testing (blank buffer, whitespace-only, very long) without a running editor.
 
-- **`hoprtt`** — two processes ping-ponging a byte over a pipe; reports
+- **`pair-hoprtt`** — two processes ping-ponging a byte over a pipe; reports
   median/p90/p99. **One scheduler wake-up, isolated.**
   - **Where it lives and how it gets built — verified, not assumed.**
     `make build` is driven by a **hand-maintained** `GO_BINS` list
     (`Makefile.local:32`, `:80`) which overrides the base layer's `cmd/*/main.go`
-    scan, so dropping a `cmd/hoprtt/main.go` in would produce **no binary and a
+    scan, so dropping a `cmd/pair-hoprtt/main.go` in would produce **no binary and a
     `perf.sh` with nothing to call**. It goes in `GO_BINS` with its per-binary
     recipe stanza, which is the mechanism the Makefile's own comment
     (`:11-14`) documents.
-  - **`perf.sh` locates it as `$PAIR_HOME/bin/hoprtt` and degrades**: probe rows
+  - **`perf.sh` locates it as `$PAIR_HOME/bin/pair-hoprtt` and degrades**: probe rows
     print `n/a (hoprtt not built — run make build)` rather than failing the
     capture. A diagnostic that dies because a helper is missing is worse than
     one that reports a gap.
@@ -266,7 +266,7 @@ into an issue. So:
 `perf.sh` shells out to system tools that cannot be faked meaningfully, so the
 testable seam is the **join**, not the collection: `perf.sh` emits raw
 line-oriented samples and `doctor.delta` is tested against recorded fixture
-pairs checked into the repo. `hoprtt` needs no double — it takes a command and
+pairs checked into the repo. `pair-hoprtt` needs no double — it takes a command and
 times it.
 
 ## ARCH-PURPOSE
@@ -280,9 +280,9 @@ that prints numbers.
 
 ## M1 — the snapshot, with a validated timing harness
 
-**Files:** create `cmd/hoprtt/main.go`, `cmd/hoprtt/main_test.go`, `doctor/perf.sh`
+**Files:** create `cmd/pair-hoprtt/main.go`, `cmd/pair-hoprtt/main_test.go`, `doctor/perf.sh`
 
-- [ ] **M1.1: `hoprtt` first, because everything else depends on its honesty.**
+- [ ] **M1.1: `pair-hoprtt` first, because everything else depends on its honesty.**
       Tests: the `-spawn` timer must read a **known quantity** — `/usr/bin/true`
       in 1–4 ms, never 18. That assertion is the positive control, and it is in
       the suite precisely because the first attempt failed it.
@@ -306,10 +306,10 @@ func TestPipeRoundTripIsMicroseconds(t *testing.T) {
 }
 ```
 
-- [ ] **M1.2:** Implement `hoprtt` (pipe ping-pong + `-spawn N -- cmd`), one
+- [ ] **M1.2:** Implement `pair-hoprtt` (pipe ping-pong + `-spawn N -- cmd`), one
       in-process timer shared by both modes.
 - [ ] **M1.2b: Add it to `GO_BINS` + its recipe stanza** (`Makefile.local:32,80`)
-      and verify `make build` actually produces `bin/hoprtt`. Without this the
+      and verify `make build` actually produces `bin/pair-hoprtt`. Without this the
       binary does not exist — the hand-maintained list overrides the base layer's
       `cmd/*/main.go` scan.
 - [ ] **M1.3:** `doctor/perf.sh` — the snapshot table above, with a deadline and
@@ -399,7 +399,7 @@ assert(doctor.payload('/h') == <the existing string>)
 
 ## Rollback
 
-`perf.sh` and `hoprtt` are additive — nothing reads them until M2 wires them in,
+`perf.sh` and `pair-hoprtt` are additive — nothing reads them until M2 wires them in,
 so M1 cannot regress anything. M2's only risk to existing behaviour is the
 `:PairDoctor` drift path, pinned byte-identical by M2.1's test. If the capture
 misbehaves on a struggling machine, the fix is to make the budget smaller, not
