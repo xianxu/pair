@@ -130,16 +130,37 @@ so record the answer in the issue rather than letting the code imply it.
 
 ## Plan
 
-- [ ] Decide the operator surface (CLI flag / menu / both) and confirm
+Superseded in shape by
+`workshop/plans/000198-couch-let-the-operator-choose-layout3-plan.md` (ten
+tasks); kept here as the outcome ledger.
+
+- [x] Decide the operator surface (CLI flag / menu / both) and confirm
       per-thread persistence.
-- [ ] Add the layout field to `StartArgs` with a layout2-default read for
-      records that predate it; test the old-record path.
-- [ ] Thread it to `launchTrackedThread`'s cold-boundary argv, leaving the
+      → **CLI flag only, and NOT per-thread.** The operator chose a couch-global
+      setting with no mixing; a menu affordance would have implied the
+      per-thread fork they rejected. See `## Revisions`.
+- [x] ~~Add the layout field to `StartArgs`~~ **→ `ThreadRecord.Layout`**, with a
+      layout2 read for records that predate it; test the old-record path.
+      → **The Spec's mechanism did not exist.** `StartArgs` is rebuilt at resume
+      from `ThreadRecord` + `LatestLaunchProfile`, so a field there would have
+      been dropped by the very park/resume cycle it had to survive. The witness
+      is normalized at `ProjectActionableThreads`, pinned by
+      `TestProjectionNormalizesAbsentLayoutAndDoesNotBlockDefaultStartup`.
+- [x] Thread it to `launchTrackedThread`'s cold-boundary argv, leaving the
       `in.Warm` branch untouched.
-- [ ] Correct the test premises; verify `warmresume_test.go` passes unmodified.
-- [ ] Sweep `couch.go:427` and the four `atlas/couch.md` sites.
-- [ ] Manual: start a layout3 thread under couch, park it, resume it, confirm
+      → argv takes `c.Layout.Flag()`; the warm branch is byte-identical and now
+      records no witness either.
+- [x] **Added by the Revisions:** the couch-global flag and the startup guard
+      refusing a layout that would mix with a session-holding thread.
+- [x] Correct the test premises; verify `warmresume_test.go` passes unmodified.
+      → `warmresume_test.go` untouched (`git diff --stat` empty). One assertion
+      strengthened rather than reworded: run_test.go checked only `--layout2`,
+      which would now miss couch leaking `--layout3` onto a warm path.
+- [x] Sweep `couch.go:427` and the four `atlas/couch.md` sites.
+- [x] Manual: start a layout3 thread under couch, park it, resume it, confirm
       the layout survives and the live session is never offered for deletion.
+      → Operator-run on the real six-thread store; see the verification Log
+      entry. No deletion prompt at any point.
 
 ## Log
 
@@ -263,6 +284,32 @@ four load-bearing invariants — the empty-layout normalization, the blocking
 predicate (swapped for `Resumable()`), the warm-reattach argv and witness, and
 the guard's IO budget — each confirmed failing before being restored. Task 10
 (the manual park/resume cycle) is outstanding and needs the operator.
+
+### 2026-09-06 — manual verification, by the operator
+
+Task 10 run on the real store, against the six-thread inventory recorded above.
+What was observed, in order:
+
+1. **`couch --layout3` refused** while all six threads still held sessions,
+   naming them. This is the guard's whole point, and it was exercised against
+   the live store rather than a fixture.
+2. **Every thread parked, then `couch --layout3` started.** The refusal is a
+   reachable state, not a trap: parking empties the blocking set, which is
+   exactly why parked threads are excluded from it.
+3. **`brain` resumed from parked and came back in layout3** — the three-pane
+   right side present. This is the cold-resume migration: `brain` was parked
+   from a layout2 world and revived into layout3, so its witness followed its
+   session rather than the store keeping a stale claim.
+4. **Detach tested under layout3** and behaves.
+
+No deletion prompt appeared at any point in the cycle — the #179 failure mode
+(pair offering to DELETE a live session when asked for a different layout) did
+not surface, which is what the cold/warm split exists to prevent.
+
+Recovery snapshot taken before the switch and kept at
+`~/couch-recovery-2026-09-06/` (store backup + per-thread zellij session and
+transcript id). Not needed, but the switch was one-way for six live agents and
+was worth insuring.
 
 ## Estimate
 
