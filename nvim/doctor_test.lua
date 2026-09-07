@@ -176,6 +176,34 @@ do
   end
 end
 
+
+-- BR-35/BR-40: the budget-shed path must not fabricate a reading. A shed
+-- sample_b still emits its header with `skipped=`, and an empty-but-present
+-- sample made delta report EVERY process as vanished.
+do
+  local shed = table.concat({
+    'window_seconds=2',
+    '## sample_a', '### cputime', '1\t0:01.00', '### procs', '1\t100\t50\tsh',
+    '## sample_b', 'skipped=budget reserved for probes; no rates computable',
+  }, '\n')
+  local a, b, w = M.parse_samples(shed)
+  ok(a ~= nil, 'sample_a still parsed')
+  eq(b, nil, 'a SHED sample_b is nil, not an empty sample')
+  eq(w, 2, 'window_seconds parsed for delta to divide by')
+  local d = M.delta(a, b, w)
+  eq(d.vanished, 0, 'a shed sample must not report every process as vanished')
+  eq(#d.rates, 0, 'and yields no rates')
+end
+
+-- window arriving as a string (which is what a parsed report gives) must not
+-- crash the join.
+do
+  local a = { procs = { ['1'] = { etime = 1 } }, cpu = { ['1'] = 1 } }
+  local b = { procs = { ['1'] = { etime = 3 } }, cpu = { ['1'] = 2 } }
+  eq(#M.delta(a, b, '2').rates, 1, 'a string window is coerced, not fatal')
+  eq(#M.delta(a, b, 'garbage').rates, 0, 'an unparseable window yields no rates')
+end
+
 if fails > 0 then
   io.stderr:write(string.format('\n%d failure(s)\n', fails))
   os.exit(1)

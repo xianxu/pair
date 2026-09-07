@@ -77,6 +77,7 @@ end
 function M.delta(a, b, window)
   local out = { rates = {}, vanished = 0, started = 0, reused = 0,
                 unmeasured = 0, rows_a = 0, rows_b = 0 }
+  window = tonumber(window)
   if type(a) ~= 'table' or type(b) ~= 'table' or not window or window <= 0 then
     return out
   end
@@ -161,15 +162,23 @@ end
 -- model that wrote the code, and nothing pinned that perf.sh actually emits what
 -- delta expects -- so a change to either could pass every test and break the
 -- capture. The fixture in nvim/fixtures/ is real captured output.
+-- Returns sample_a, sample_b, window_seconds. A sample the capture SHED is
+-- returned as nil, never as an empty-but-present table: delta joining against
+-- an empty sample reports every process as vanished, which is a catastrophic
+-- reading invented by the budget path rather than observed.
 function M.parse_samples(text)
-  if type(text) ~= 'string' or text == '' then return nil, nil end
-  local samples, current, section = {}, nil, nil
+  if type(text) ~= 'string' or text == '' then return nil, nil, nil end
+  local samples, current, section, window = {}, nil, nil, nil
   for line in (text .. '\n'):gmatch('([^\n]*)\n') do
     local head = line:match('^## (sample_%a+)$')
     if head then
-      current = { procs = {}, cpu = {} }
+      current = { procs = {}, cpu = {}, skipped = false }
       samples[head] = current
       section = nil
+    elseif current and line:match('^skipped=') then
+      current.skipped = true
+    elseif not current and line:match('^window_seconds=') then
+      window = tonumber(line:match('^window_seconds=(%S+)'))
     elseif line:match('^## ') then
       current, section = nil, nil
     elseif current and line == '### cputime' then
@@ -188,7 +197,12 @@ function M.parse_samples(text)
       end
     end
   end
-  return samples.sample_a, samples.sample_b
+  local function usable(sample)
+    if not sample or sample.skipped then return nil end
+    if next(sample.procs) == nil then return nil end
+    return sample
+  end
+  return usable(samples.sample_a), usable(samples.sample_b), window
 end
 
 return M

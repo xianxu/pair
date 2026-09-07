@@ -99,6 +99,13 @@ printf '%s\n' "$out" | while IFS= read -r line; do
 done | grep -q SHAPE && bad "perf.sh sample rows no longer match the grammar doctor.parse_samples reads"
 
 printf '%s\n' "$out" | grep -q '^### procs$' || bad "no ### procs section for delta to parse"
+
+# BR-38: the grammar assertion above validates whatever rows exist -- ZERO of
+# them wherever ps is denied, which is a pass that proves nothing. Require rows.
+proc_rows=$(printf '%s\n' "$out" | awk '/^### procs$/{p=1;next} /^#/{p=0} p&&NF{n++} END{print n+0}')
+if [ "$proc_rows" -lt 10 ]; then
+	bad "only $proc_rows sample rows; the grammar pin validated almost nothing"
+fi
 printf '%s\n' "$out" | grep -q '^### cputime$' || bad "no ### cputime section for delta to parse"
 
 if [ "$fails" -gt 0 ]; then echo "$fails failure(s)" >&2; exit 1; fi

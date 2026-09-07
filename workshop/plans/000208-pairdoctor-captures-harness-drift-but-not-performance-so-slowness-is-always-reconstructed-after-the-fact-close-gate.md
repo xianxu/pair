@@ -669,6 +669,160 @@ rounds:
           round: 6
       boundary: M1
       blocked: true
+    - "n": 7
+      timestamp: "2026-09-07T00:50:44-07:00"
+      agent: claude
+      dispose:
+        - id: BR-1
+          disposition: not-addressed
+          note: Plan :389 still routes M2.6's rolling-file write through artifactpath; verified no CLI surface exists and pair_data_dir() (nvim/init.lua:484) remains the idiom. The GO_BINS/pair- prefix half is moot now the probe is a subcommand.
+          round: 7
+        - id: BR-5
+          disposition: not-addressed
+          note: collect() is right for the named collectors, but emit_sample's `cputimes 2>/dev/null || say "n/a (ps unavailable)"` is a pipeline whose status is awk's, so the fallback is unreachable; with ps denied here both sample blocks render empty and delta reads rows_a=0/rows_b=0 as "nothing is running".
+          round: 7
+        - id: BR-16
+          disposition: not-addressed
+          note: probe_line's awk (perf.sh:216-221) still emits only $1/$2; the sample count $4 survives only inside the failure message.
+          round: 7
+        - id: BR-17
+          disposition: not-addressed
+          note: 'perf.sh:130 unchanged. Also: the plan''s ARCH-SECURE allowlist (name+pid for all, argv for go/compile/link/zellij/pair*/nvim) is not implemented at all.'
+          round: 7
+        - id: BR-18
+          disposition: not-addressed
+          note: WINDOW, BUDGET and the newly added PROBE_RESERVE are all unvalidated and undocumented; PROBE_RESERVE > BUDGET makes collectors_done true immediately.
+          round: 7
+        - id: BR-19
+          disposition: not-addressed
+          note: No mention of 4f9365b3 or M2.2b landing inside M1's window in the issue or the plan.
+          round: 7
+        - id: BR-20
+          disposition: not-addressed
+          note: grep for "perf" in doctor/README.md returns nothing. Root README also unchanged for `pair hoprtt` / `make test-perf-capture`, though its subcommand list is explicitly non-exhaustive.
+          round: 7
+        - id: BR-21
+          disposition: not-addressed
+          note: Issue Plan M1 still unticked; Log has only the 2026-09-06 entry. M1.4's zellij ~13ms baseline is still unmeasured — the probe renders `n/a (probe failed)` in this shell.
+          round: 7
+        - id: BR-25
+          disposition: not-addressed
+          note: 'Behavior IS fixed and I reproduced it (PAIR_PERF_BUDGET=2 sheds top/iostat/sample_b, probes survive), but nothing pins it: perf_test.sh''s key list carries no probe key and there is no squeezed-budget run, so reverting the shed order leaves make test green.'
+          round: 7
+        - id: BR-26
+          disposition: not-addressed
+          note: perf_test.sh:23's `*[!0-9]*) continue` arm is unchanged; the new grammar loop is a separate pass and does not replace it.
+          round: 7
+        - id: BR-27
+          disposition: not-addressed
+          note: 'Four ladders still present: top (:101-120), disk (:178-189), probe_line (:211), and sample()/cputimes() (:130-131) bypassing collect() entirely.'
+          round: 7
+        - id: BR-28
+          disposition: not-addressed
+          note: perf.sh:172's swap arithmetic is unchanged and still divides by WINDOW unguarded.
+          round: 7
+        - id: BR-29
+          disposition: not-addressed
+          note: perf.sh:166 still reports a vm_stat that exists but exits non-zero as "(vm_stat unavailable)".
+          round: 7
+        - id: BR-30
+          disposition: not-addressed
+          note: doctor.lua:163 still says "The fixture in nvim/fixtures/"; :75 still omits `unmeasured` from the documented return shape.
+          round: 7
+        - id: BR-31
+          disposition: not-addressed
+          note: doctor.lua:90 unchanged; no `cb < ca` guard in the rate branch, so an unparseable etime still lets a reused pid produce a negative rate.
+          round: 7
+        - id: BR-32
+          disposition: not-addressed
+          note: No redaction or selection rule recorded; doctor/fixtures/ contains only perf_capture.txt, and sample() still emits full executable paths.
+          round: 7
+        - id: BR-33
+          disposition: addressed
+          note: Revisions entry appended recording the reversal, the shed order, verdict asymmetry and the fixture location; per AGENTS.md the append-don't-overwrite convention makes the body edits optional. The M2.6/artifactpath item it also named stays open as BR-1.
+          round: 7
+        - id: BR-34
+          disposition: not-addressed
+          note: top -l 2 -n 60 (:108), iostat -d -w 1 -c 2 (:183), sleep "$WINDOW" (:158), probe_line, and pipeRTT's hardcoded 500 samples (hoprtt.go:178) all still run to completion once entered.
+          round: 7
+        - id: BR-35
+          disposition: not-addressed
+          note: 'Reproduced verbatim under nvim -l: a capture with `## sample_b` / `skipped=budget reserved for probes` still yields rates=0 vanished=2 started=0 rows_a=2 rows_b=0. dc5a3d03 covers only '''' and "no sample block at all"; the table-driven test the finding asked for was not written.'
+          round: 7
+        - id: BR-36
+          disposition: addressed
+          note: Verified by mutation — pipe-separated sample() output fails the new grammar loop once ps produces rows. Its vacuity in a ps-denied shell is raised separately.
+          round: 7
+        - id: BR-37
+          disposition: not-addressed
+          note: .gitignore carries no .perf-test-stub pattern; perf_test.sh:54's fallback is unchanged.
+          round: 7
+      findings:
+        - id: BR-38
+          severity: Important
+          title: perf_test.sh asserts a live run against the ambient system, so the BR-36 grammar pin validates zero rows wherever ps is denied
+          detail: |-
+            This is the 4th finding in family `untested-shell-surface`. Do NOT fix this
+            instance — the rule is: a shell test must CONTROL the environment its
+            subject reads; a live run against the ambient system asserts nothing when
+            the system denies the tool, and a green run is then a sample of size zero
+            reporting as coverage. Prevalence 4/4 (BR-9 no test at all; BR-25's fix
+            unpinned; BR-36 the recorded fixture pinning only the consumer; this).
+            Evidence: `ps` is denied in this agent shell (`/bin/ps: Operation not
+            permitted`), so `### procs` and `### cputime` render as empty sections;
+            the loop at perf_test.sh:84-99 iterates zero times, `rows` (:98) is
+            computed and never read, and :101-102 assert only that the headers exist.
+            I mutated sample() to pipe separators in a scratch copy and
+            `sh doctor/perf_test.sh` printed "perf.sh shape tests passed" exit 0;
+            the same mutation fails correctly once I put a recorded-output ps stub on
+            PATH. Sweep in one pass: promote the existing stub dir (:54-58) from
+            stateless `exit 1` doubles to a recorded-output ps/top/vm_stat/iostat
+            fake, assert rows > 0, and add a PAIR_PERF_BUDGET=2 run asserting
+            pipe_hop_ms/fork_exec_ms survive and cpu_idle_pct sheds — which also
+            closes BR-25's missing pin (ARCH-MOCK, ARCH-ORDER).
+          family: untested-shell-surface
+          round: 7
+        - id: BR-39
+          severity: Important
+          title: swap_rate divides by WINDOW even when sample_b was shed and the sleep never ran, reporting a rate over time that did not pass
+          detail: |-
+            This is the 9th finding in family `failure-reported-as-measurement`. Do
+            NOT fix this instance. The rule this round's instances need, stated once:
+            when a stage is SHED or FAILS, every value derived from that stage must
+            shed with it — the shed has to propagate through the dependency graph, not
+            stop at the stage that was skipped. Evidence: perf.sh:153-160 skips
+            `sleep "$WINDOW"` under a squeezed budget, but :162-174 unconditionally
+            divides the vm_stat counter difference by WINDOW. Reproduced: the full run
+            reports pageins_per_s=40.0; `PAIR_PERF_BUDGET=2` reports
+            pageins_per_s=3.5 from two reads microseconds apart, rendered
+            identically. The enumeration this rule implies, all live: swap_rate
+            (here); parse_samples/delta reading a shed sample_b as a real one (BR-35);
+            the sample blocks degrading to silence rather than n/a (BR-5's residual);
+            and, on the same axis, delta's cpu_pct dividing by the DECLARED window
+            while the measured one (`at_s`, emitted per sample) is discarded.
+          family: failure-reported-as-measurement
+          round: 7
+        - id: BR-40
+          severity: Important
+          title: parse_samples is billed as the perf.sh-to-delta contract but omits window_seconds, which delta needs and which crashes it as a string
+          detail: |-
+            doctor.lua:164 returns only sample_a and sample_b, while
+            `delta(a, b, window)` also needs the window — which lives in the capture
+            as the text `window_seconds=2`. M2's caller must therefore re-parse the
+            capture with its own pattern, a second untested copy of the contract this
+            function exists to own (ARCH-PURPOSE's hand-maintained restatement), and
+            if it forwards the string unconverted doctor.lua:80 raises "attempt to
+            compare string with number" — verified under nvim -l. That is a crash on
+            the primary path, at the moment the operator invoked the tool because the
+            machine was already struggling. Fix: return a third `meta` value carrying
+            window_seconds and both at_s values as numbers (which also supplies the
+            measured window the preceding finding needs), and coerce with
+            tonumber(window) at delta's guard so a bad value degrades to the existing
+            empty result rather than throwing.
+          family: incomplete-parse-contract
+          round: 7
+      boundary: M1
+      blocked: false
 ---
 
 # Gate ledger — pair#208 (boundary-review)
@@ -1004,6 +1158,83 @@ later rounds disposed of them. Generated — edit the gate, not this file.
   interrupted run leaves a directory of fake ps/top/sysctl executables
   untracked at the repo root.
 
+## Round 7 — 2026-09-07T00:50:44-07:00 (claude) — passed
+
+### Disposed
+
+- BR-1 — not-addressed — Plan :389 still routes M2.6's rolling-file write through artifactpath; verified no CLI surface exists and pair_data_dir() (nvim/init.lua:484) remains the idiom. The GO_BINS/pair- prefix half is moot now the probe is a subcommand.
+- BR-5 — not-addressed — collect() is right for the named collectors, but emit_sample's `cputimes 2>/dev/null || say "n/a (ps unavailable)"` is a pipeline whose status is awk's, so the fallback is unreachable; with ps denied here both sample blocks render empty and delta reads rows_a=0/rows_b=0 as "nothing is running".
+- BR-16 — not-addressed — probe_line's awk (perf.sh:216-221) still emits only $1/$2; the sample count $4 survives only inside the failure message.
+- BR-17 — not-addressed — perf.sh:130 unchanged. Also: the plan's ARCH-SECURE allowlist (name+pid for all, argv for go/compile/link/zellij/pair*/nvim) is not implemented at all.
+- BR-18 — not-addressed — WINDOW, BUDGET and the newly added PROBE_RESERVE are all unvalidated and undocumented; PROBE_RESERVE > BUDGET makes collectors_done true immediately.
+- BR-19 — not-addressed — No mention of 4f9365b3 or M2.2b landing inside M1's window in the issue or the plan.
+- BR-20 — not-addressed — grep for "perf" in doctor/README.md returns nothing. Root README also unchanged for `pair hoprtt` / `make test-perf-capture`, though its subcommand list is explicitly non-exhaustive.
+- BR-21 — not-addressed — Issue Plan M1 still unticked; Log has only the 2026-09-06 entry. M1.4's zellij ~13ms baseline is still unmeasured — the probe renders `n/a (probe failed)` in this shell.
+- BR-25 — not-addressed — Behavior IS fixed and I reproduced it (PAIR_PERF_BUDGET=2 sheds top/iostat/sample_b, probes survive), but nothing pins it: perf_test.sh's key list carries no probe key and there is no squeezed-budget run, so reverting the shed order leaves make test green.
+- BR-26 — not-addressed — perf_test.sh:23's `*[!0-9]*) continue` arm is unchanged; the new grammar loop is a separate pass and does not replace it.
+- BR-27 — not-addressed — Four ladders still present: top (:101-120), disk (:178-189), probe_line (:211), and sample()/cputimes() (:130-131) bypassing collect() entirely.
+- BR-28 — not-addressed — perf.sh:172's swap arithmetic is unchanged and still divides by WINDOW unguarded.
+- BR-29 — not-addressed — perf.sh:166 still reports a vm_stat that exists but exits non-zero as "(vm_stat unavailable)".
+- BR-30 — not-addressed — doctor.lua:163 still says "The fixture in nvim/fixtures/"; :75 still omits `unmeasured` from the documented return shape.
+- BR-31 — not-addressed — doctor.lua:90 unchanged; no `cb < ca` guard in the rate branch, so an unparseable etime still lets a reused pid produce a negative rate.
+- BR-32 — not-addressed — No redaction or selection rule recorded; doctor/fixtures/ contains only perf_capture.txt, and sample() still emits full executable paths.
+- BR-33 — addressed — Revisions entry appended recording the reversal, the shed order, verdict asymmetry and the fixture location; per AGENTS.md the append-don't-overwrite convention makes the body edits optional. The M2.6/artifactpath item it also named stays open as BR-1.
+- BR-34 — not-addressed — top -l 2 -n 60 (:108), iostat -d -w 1 -c 2 (:183), sleep "$WINDOW" (:158), probe_line, and pipeRTT's hardcoded 500 samples (hoprtt.go:178) all still run to completion once entered.
+- BR-35 — not-addressed — Reproduced verbatim under nvim -l: a capture with `## sample_b` / `skipped=budget reserved for probes` still yields rates=0 vanished=2 started=0 rows_a=2 rows_b=0. dc5a3d03 covers only '' and "no sample block at all"; the table-driven test the finding asked for was not written.
+- BR-36 — addressed — Verified by mutation — pipe-separated sample() output fails the new grammar loop once ps produces rows. Its vacuity in a ps-denied shell is raised separately.
+- BR-37 — not-addressed — .gitignore carries no .perf-test-stub pattern; perf_test.sh:54's fallback is unchanged.
+
+### Raised
+
+- **BR-38** [Important] `untested-shell-surface` perf_test.sh asserts a live run against the ambient system, so the BR-36 grammar pin validates zero rows wherever ps is denied
+  This is the 4th finding in family `untested-shell-surface`. Do NOT fix this
+  instance — the rule is: a shell test must CONTROL the environment its
+  subject reads; a live run against the ambient system asserts nothing when
+  the system denies the tool, and a green run is then a sample of size zero
+  reporting as coverage. Prevalence 4/4 (BR-9 no test at all; BR-25's fix
+  unpinned; BR-36 the recorded fixture pinning only the consumer; this).
+  Evidence: `ps` is denied in this agent shell (`/bin/ps: Operation not
+  permitted`), so `### procs` and `### cputime` render as empty sections;
+  the loop at perf_test.sh:84-99 iterates zero times, `rows` (:98) is
+  computed and never read, and :101-102 assert only that the headers exist.
+  I mutated sample() to pipe separators in a scratch copy and
+  `sh doctor/perf_test.sh` printed "perf.sh shape tests passed" exit 0;
+  the same mutation fails correctly once I put a recorded-output ps stub on
+  PATH. Sweep in one pass: promote the existing stub dir (:54-58) from
+  stateless `exit 1` doubles to a recorded-output ps/top/vm_stat/iostat
+  fake, assert rows > 0, and add a PAIR_PERF_BUDGET=2 run asserting
+  pipe_hop_ms/fork_exec_ms survive and cpu_idle_pct sheds — which also
+  closes BR-25's missing pin (ARCH-MOCK, ARCH-ORDER).
+- **BR-39** [Important] `failure-reported-as-measurement` swap_rate divides by WINDOW even when sample_b was shed and the sleep never ran, reporting a rate over time that did not pass
+  This is the 9th finding in family `failure-reported-as-measurement`. Do
+  NOT fix this instance. The rule this round's instances need, stated once:
+  when a stage is SHED or FAILS, every value derived from that stage must
+  shed with it — the shed has to propagate through the dependency graph, not
+  stop at the stage that was skipped. Evidence: perf.sh:153-160 skips
+  `sleep "$WINDOW"` under a squeezed budget, but :162-174 unconditionally
+  divides the vm_stat counter difference by WINDOW. Reproduced: the full run
+  reports pageins_per_s=40.0; `PAIR_PERF_BUDGET=2` reports
+  pageins_per_s=3.5 from two reads microseconds apart, rendered
+  identically. The enumeration this rule implies, all live: swap_rate
+  (here); parse_samples/delta reading a shed sample_b as a real one (BR-35);
+  the sample blocks degrading to silence rather than n/a (BR-5's residual);
+  and, on the same axis, delta's cpu_pct dividing by the DECLARED window
+  while the measured one (`at_s`, emitted per sample) is discarded.
+- **BR-40** [Important] `incomplete-parse-contract` parse_samples is billed as the perf.sh-to-delta contract but omits window_seconds, which delta needs and which crashes it as a string
+  doctor.lua:164 returns only sample_a and sample_b, while
+  `delta(a, b, window)` also needs the window — which lives in the capture
+  as the text `window_seconds=2`. M2's caller must therefore re-parse the
+  capture with its own pattern, a second untested copy of the contract this
+  function exists to own (ARCH-PURPOSE's hand-maintained restatement), and
+  if it forwards the string unconverted doctor.lua:80 raises "attempt to
+  compare string with number" — verified under nvim -l. That is a crash on
+  the primary path, at the moment the operator invoked the tool because the
+  machine was already struggling. Fix: return a third `meta` value carrying
+  window_seconds and both at_s values as numbers (which also supplies the
+  measured window the preceding finding needs), and coerce with
+  tonumber(window) at delta's guard so a bad value degrades to the existing
+  empty result rather than throwing.
+
 ## Open findings
 
 - **BR-1** [Minor] `unverified-repo-mechanism` M2.6 routes the Lua rolling-file write through artifactpath, a Go internal package Lua cannot call
@@ -1022,8 +1253,9 @@ later rounds disposed of them. Generated — edit the gate, not this file.
 - **BR-30** [Minor] `docs-gate` Comment drift in nvim/doctor.lua — the fixture path and delta's documented return shape are both wrong
 - **BR-31** [Minor] `unguarded-edge-case` delta detects a reused pid only through etime, so an unparseable etime lets a reused pid produce a negative cpu_pct
 - **BR-32** [Minor] `recorded-fixture-redaction` doctor/fixtures/perf_capture.txt is a real host capture in a public repo, safe only by an unrecorded truncation accident
-- **BR-33** [Critical] `traceability` The plan still specifies the cmd/pair-hoprtt + GO_BINS design that round 3 reversed, with no "## Revisions" entry
 - **BR-34** [Important] `unenforced-operating-envelope` The budget is checked between stages but no stage is bounded, so a single slow collector blows it without limit
 - **BR-35** [Important] `failure-reported-as-measurement` parse_samples turns a budget-shed sample_b into an empty-but-present sample, so delta reports every process as vanished
-- **BR-36** [Important] `untested-shell-surface` Nothing tests perf.sh's sample-row grammar, so the perf.sh-to-delta contract the Lua test claims to pin does not exist
 - **BR-37** [Minor] `build-artifact-committed` perf_test.sh's mktemp fallback writes .perf-test-stub.$$ into the worktree and nothing gitignores it
+- **BR-38** [Important] `untested-shell-surface` perf_test.sh asserts a live run against the ambient system, so the BR-36 grammar pin validates zero rows wherever ps is denied
+- **BR-39** [Important] `failure-reported-as-measurement` swap_rate divides by WINDOW even when sample_b was shed and the sleep never ran, reporting a rate over time that did not pass
+- **BR-40** [Important] `incomplete-parse-contract` parse_samples is billed as the perf.sh-to-delta contract but omits window_seconds, which delta needs and which crashes it as a string

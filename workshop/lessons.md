@@ -3656,3 +3656,20 @@ that a key token appears cannot detect a contradictory behavioral sentence
   `zellij_action_ms=2.1` — the fastest number in the report, and completely
   wrong. Any timing harness must count failures and degrade to `n/a`, because
   "fast" and "not running" are indistinguishable from the clock alone.
+- A degraded path must be tested as hard as the healthy one, because a tool
+  built for bad conditions is only ever used in them. `doctor/perf.sh` took six
+  review rounds and nearly every finding was in the same place: what happens
+  when a collector fails, a probe fails, or the budget sheds a stage. Each
+  produced a *fabricated* reading rather than an honest gap — a `0` from a
+  failed `ps`, a `0.0` swap rate from an awk over empty input, a rate divided by
+  a window that never elapsed, and an empty-but-present sample that made the
+  join report every process on the machine as vanished. All four look like data.
+  When writing a diagnostic, enumerate its failure modes first and assert each
+  renders as `n/a` with a reason; the happy path is the easy half.
+- Ask "which distributions ship this?" before "how does the build find it?".
+  I put a probe binary in `GO_BINS` because the plan gate correctly showed
+  `make build` would otherwise miss it — and shipped a tool that was permanently
+  unavailable to every installed pair, since the Homebrew formula builds only
+  `./cmd/pair-go` and the runtime bundle carries no helper binaries. The right
+  home was a subcommand of the one binary that always exists. A build-system
+  question answered correctly can still be the wrong question.

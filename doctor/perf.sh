@@ -150,19 +150,26 @@ emit_sample() {
 date_epoch() { date +%s; }
 
 emit_sample sample_a
+WINDOW_ELAPSED=0
 if collectors_done; then
 	say ""
 	say "## sample_b"
 	kv "skipped" "budget reserved for probes; no rates computable"
 else
 	sleep "$WINDOW"
+	WINDOW_ELAPSED=1
 	emit_sample sample_b
 fi
 
 say ""
 say "## swap_rate"
 # Rides the MAIN window rather than paying its own sleep.
-if [ -z "$SWAP_A" ]; then
+if [ "$WINDOW_ELAPSED" != 1 ]; then
+	# The sleep never ran, so there is no interval to divide by. Reporting
+	# (b-a)/WINDOW here would be a rate over time that did not pass -- the same
+	# fabrication the n/a rule exists to prevent, in shell rather than Lua.
+	kv "swap" "n/a (sample window was shed; no interval to rate over)"
+elif [ -z "$SWAP_A" ]; then
 	kv "swap" "n/a (vm_stat unavailable)"
 else
 	_b=$(_swapnow 2>/dev/null || true)
