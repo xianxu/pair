@@ -49,3 +49,44 @@ func NormalizeLayout(raw string) Layout {
 // Couch.Layout is only ever set from ParseLayout, which errors instead of
 // returning it.
 func (l Layout) Flag() string { return "--" + string(l) }
+
+// LayoutConflict is one thread whose existing session disagrees with the layout
+// couch was asked to start in.
+type LayoutConflict struct {
+	Address ThreadAddress
+	Layout  Layout
+	State   ActionableThreadState
+}
+
+// holdsSession reports the states whose zellij session is alive right now, and
+// whose layout couch therefore cannot change: asking a live session for a
+// different layout sends pair down the conflict path that offers to DELETE it
+// (#179). Busy is included because a park in flight can still fail, leaving the
+// session alive in its old layout.
+//
+// Parked is excluded deliberately -- park ends the session via the lifecycle
+// quit protocol, so a parked thread's next cold resume takes couch's layout
+// freely. That exclusion is what makes "park them first" the reachable remedy
+// for a refusal rather than a dead end.
+func (s ActionableThreadSummary) holdsSession() bool {
+	return s.State == ThreadLive || s.State == ThreadDetached || s.State == ThreadBusy
+}
+
+// ResolveLayoutConflicts reports the threads that stop couch starting in
+// `requested`. LayoutUnknown conflicts with everything: it means the record
+// carried a value this binary cannot read, so agreement cannot be proved.
+//
+// This is deliberately NOT Resumable() (Parked||Detached), which would refuse
+// startups that are safe.
+func ResolveLayoutConflicts(requested Layout, rows []ActionableThreadSummary) []LayoutConflict {
+	var conflicts []LayoutConflict
+	for _, row := range rows {
+		if !row.holdsSession() || row.Layout == requested {
+			continue
+		}
+		conflicts = append(conflicts, LayoutConflict{
+			Address: row.Address, Layout: row.Layout, State: row.State,
+		})
+	}
+	return conflicts
+}

@@ -118,6 +118,11 @@ type ActionableThreadSummary struct {
 	// Reason is set exactly when State is ThreadUnusable, and says why.
 	Reason       ThreadReason `json:"reason,omitempty"`
 	LastActiveAt time.Time    `json:"last_active_at,omitempty"`
+	// Layout is the thread's witnessed pair layout, already normalized: the
+	// projection runs NormalizeLayout, so a record predating #198 reads as
+	// Layout2 here and an unreadable one as LayoutUnknown. Consumers compare
+	// it directly and never re-parse.
+	Layout Layout `json:"layout,omitempty"`
 }
 
 func (s ActionableThreadSummary) Live() bool { return s.State == ThreadLive }

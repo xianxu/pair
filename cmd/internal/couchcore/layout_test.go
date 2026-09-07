@@ -50,3 +50,68 @@ func TestLayoutFlagIsTheOnlyFormatter(t *testing.T) {
 		t.Fatalf("flags = %q, %q; want --layout2, --layout3", Layout2.Flag(), Layout3.Flag())
 	}
 }
+
+func layoutRow(tag string, state ActionableThreadState, layout Layout) ActionableThreadSummary {
+	return ActionableThreadSummary{
+		Address: ThreadAddress{RepoScope: "scope", Tag: ThreadTag(tag)},
+		State:   state, Layout: layout,
+	}
+}
+
+// The blocking set is the states that hold a zellij session, not Resumable().
+// Every one of the six ActionableThreadState values is pinned here, so adding a
+// seventh without deciding its disposition fails.
+func TestBlockingSetIsExactlyTheSessionHoldingStates(t *testing.T) {
+	for _, tc := range []struct {
+		state ActionableThreadState
+		block bool
+	}{
+		{ThreadLive, true}, {ThreadDetached, true}, {ThreadBusy, true},
+		{ThreadParked, false}, {ThreadUnusable, false}, {ThreadArchived, false},
+	} {
+		rows := []ActionableThreadSummary{layoutRow("a", tc.state, Layout2)}
+		got := ResolveLayoutConflicts(Layout3, rows)
+		if (len(got) == 1) != tc.block {
+			t.Fatalf("state %s: conflicts %+v; want block=%v", tc.state, got, tc.block)
+		}
+	}
+}
+
+func TestMatchingLayoutDoesNotConflict(t *testing.T) {
+	rows := []ActionableThreadSummary{layoutRow("a", ThreadDetached, Layout3)}
+	if got := ResolveLayoutConflicts(Layout3, rows); len(got) != 0 {
+		t.Fatalf("same layout blocked startup: %+v", got)
+	}
+}
+
+// LayoutUnknown cannot be proved to agree, so it conflicts with both requests.
+func TestUnknownLayoutConflictsWithEveryRequest(t *testing.T) {
+	for _, requested := range []Layout{Layout2, Layout3} {
+		rows := []ActionableThreadSummary{layoutRow("a", ThreadDetached, LayoutUnknown)}
+		if got := ResolveLayoutConflicts(requested, rows); len(got) != 1 {
+			t.Fatalf("requested %v: got %+v; want one conflict", requested, got)
+		}
+	}
+}
+
+// Pins the predicate against the wrong-but-tempting Resumable()
+// (Parked||Detached): swapping to it makes the parked row block and this fails.
+func TestBlockingSetIsNotResumable(t *testing.T) {
+	rows := []ActionableThreadSummary{
+		layoutRow("parked", ThreadParked, Layout2),
+		layoutRow("detached", ThreadDetached, Layout2),
+	}
+	got := ResolveLayoutConflicts(Layout3, rows)
+	if len(got) != 1 || got[0].Address.Tag != ThreadTag("detached") {
+		t.Fatalf("got %+v; want exactly the detached thread", got)
+	}
+}
+
+// The conflict carries what the refusal message has to print.
+func TestConflictCarriesLayoutAndState(t *testing.T) {
+	rows := []ActionableThreadSummary{layoutRow("brain", ThreadDetached, Layout2)}
+	got := ResolveLayoutConflicts(Layout3, rows)
+	if len(got) != 1 || got[0].Layout != Layout2 || got[0].State != ThreadDetached {
+		t.Fatalf("got %+v; want one {layout2, detached} conflict", got)
+	}
+}
