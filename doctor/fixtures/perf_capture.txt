@@ -1,0 +1,288 @@
+# pair perf capture
+captured_at=2026-09-06T23:59:33-0700
+window_seconds=2
+budget_seconds=6
+host_cores=12
+
+## conditions
+load=6.49/6.39/4.34
+memory_pressure_level=1
+process_count=856
+cpu_idle_pct=78.87
+windowserver_cpu_pct=0.4
+
+## fleet
+pair_family_procs=53
+build_procs=1
+
+## sample_a
+at_s=1788764375
+### cputime
+1	186:12.99
+134	0:19.16
+135	0:00.07
+136	0:01.62
+137	0:01.91
+138	0:00.11
+360	111:25.20
+361	0:00.59
+362	33:12.08
+364	83:32.87
+365	2:23.94
+368	1:12.08
+370	0:05.94
+371	0:00.07
+372	6:58.26
+373	0:00.11
+374	13:07.78
+375	0:00.09
+377	0:05.11
+379	0:00.46
+381	0:00.92
+382	0:01.45
+383	0:00.03
+385	0:27.77
+389	78:41.20
+390	0:02.72
+391	0:01.16
+392	4:01.81
+395	35:58.74
+396	0:32.97
+398	1:53.94
+399	4:56.37
+400	0:33.61
+401	69:01.83
+402	3:43.93
+403	79:22.13
+404	0:23.98
+405	0:01.65
+406	43:04.24
+408	76:22.30
+409	0:04.55
+411	0:00.09
+412	17:49.29
+413	0:00.06
+415	3:43.91
+416	0:00.32
+418	0:00.15
+419	0:02.04
+420	0:01.09
+421	0:00.04
+423	0:07.62
+425	84:13.11
+426	118:08.13
+427	1:14.96
+428	33:15.86
+429	7:20.78
+430	4:47.44
+431	0:00.29
+432	0:01.93
+433	2180:47.80
+### procs
+1	10-06:21:22	29504	/sbin/launchd
+134	08-06:23:06	21888	/System/Library/PrivateFrameworks/GeoServices.framework/Versions/A/XPCServices/com.apple.geod.xpc/Contents/MacOS/com.apple.geod
+135	08-06:23:06	4928	/usr/libexec/secinitd
+136	08-06:23:05	3728	/usr/sbin/cfprefsd
+137	08-06:23:05	14000	/usr/libexec/trustd
+138	08-06:23:05	4144	/usr/libexec/containermanagerd
+360	10-06:18:18	96880	/usr/libexec/logd
+361	10-06:18:18	6352	/usr/libexec/smd
+362	10-06:18:18	25952	/usr/libexec/UserEventAgent
+364	10-06:18:18	21056	/System/Library/Frameworks/CoreServices.framework/Versions/A/Frameworks/FSEvents.framework/Versions/A/Support/fseventsd
+365	10-06:18:18	50704	/System/Library/PrivateFrameworks/MediaRemote.framework/Support/mediaremoted
+368	10-06:18:18	45888	/usr/sbin/systemstats
+370	10-06:18:18	18224	/System/Library/PrivateFrameworks/MobileAccessoryUpdater.framework/Support/accessoryupdaterd
+371	10-06:18:18	4000	/usr/libexec/uarpassetmanagerd
+372	10-06:18:18	27696	/usr/libexec/configd
+373	10-06:18:18	4416	endpointsecurityd
+374	10-06:18:18	14080	/System/Library/CoreServices/powerd.bundle/powerd
+375	10-06:18:18	4448	/usr/libexec/IOMFB_bics_daemon
+377	10-06:18:18	42224	/usr/libexec/amfid
+379	10-06:18:18	5360	/usr/libexec/remoted
+381	10-06:18:18	13824	/usr/libexec/keybagd
+382	10-06:18:18	7696	/System/Library/PrivateFrameworks/MobileSoftwareUpdate.framework/Support/softwareupdated
+383	10-06:18:18	2192	/System/Library/PrivateFrameworks/CoreSpeech.framework/corespeechd_system
+385	10-06:18:18	3536	/usr/libexec/watchdogd
+389	10-06:18:18	170688	/System/Library/Frameworks/CoreServices.framework/Versions/A/Frameworks/Metadata.framework/Versions/A/Support/mds
+390	10-06:18:18	6704	/System/Library/CoreServices/iconservicesd
+391	10-06:18:18	9232	/usr/libexec/kernelmanagerd
+392	10-06:18:18	8656	/usr/libexec/diskarbitrationd
+395	10-06:18:18	58960	/usr/libexec/coreduetd
+396	10-06:18:18	3152	/usr/sbin/syslogd
+398	10-06:18:18	5488	/usr/libexec/thermalmonitord
+399	10-06:18:18	21552	/System/Library/PrivateFrameworks/CoreDuetContext.framework/Resources/contextstored
+400	10-06:18:18	18960	/usr/libexec/xprotectd
+401	10-06:18:18	28112	/usr/libexec/opendirectoryd
+402	10-06:18:18	34144	/System/Library/PrivateFrameworks/ApplePushService.framework/apsd
+403	10-06:18:18	18144	/System/Library/CoreServices/launchservicesd
+404	10-06:18:18	7536	/usr/libexec/timed
+405	10-06:18:18	5136	/System/Library/PrivateFrameworks/MobileDevice.framework/Versions/A/Resources/usbmuxd
+406	10-06:18:18	12048	/usr/sbin/securityd
+408	10-06:18:18	57552	/usr/libexec/locationd
+409	10-06:18:18	10496	/usr/libexec/nesessionmanager
+411	10-06:18:18	2912	autofsd
+412	10-06:18:18	32752	/usr/libexec/dasd
+413	10-06:18:18	5632	/usr/libexec/corerepaird
+415	10-06:18:18	4512	/usr/sbin/distnoted
+416	10-06:18:18	4224	/System/Library/PrivateFrameworks/AppleCredentialManager.framework/AppleCredentialManagerDaemon
+418	10-06:18:18	1424	/usr/libexec/dirhelper
+419	10-06:18:18	5584	/System/Library/CoreServices/logind
+420	10-06:18:18	12240	/System/Library/PrivateFrameworks/GenerationalStorage.framework/Versions/A/Support/revisiond
+421	10-06:18:18	2176	/usr/sbin/KernelEventAgent
+423	10-06:18:18	5328	/usr/libexec/usermanagerd
+425	10-06:18:18	59968	/usr/sbin/bluetoothd
+426	10-06:18:18	8064	/usr/sbin/notifyd
+427	10-06:18:18	25504	/usr/libexec/sandboxd
+428	10-06:18:18	14848	/usr/libexec/corebrightnessd
+429	10-06:18:18	13088	/usr/libexec/AirPlayXPCHelper
+430	10-06:18:18	33680	/System/Library/Frameworks/CoreMediaIO.framework/Versions/A/Resources/com.apple.cmio.registerassistantservice
+431	10-06:18:18	2192	aslmanager
+432	10-06:18:18	2608	/usr/libexec/logd_helper
+433	10-06:18:18	395456	/System/Library/PrivateFrameworks/SkyLight.framework/Resources/WindowServer
+
+## sample_b
+at_s=1788764377
+### cputime
+1	186:12.99
+134	0:19.16
+135	0:00.07
+136	0:01.62
+137	0:01.91
+138	0:00.11
+360	111:25.21
+361	0:00.59
+362	33:12.08
+364	83:32.87
+365	2:23.94
+368	1:12.08
+370	0:05.94
+371	0:00.07
+372	6:58.26
+373	0:00.11
+374	13:07.78
+375	0:00.09
+377	0:05.11
+379	0:00.46
+381	0:00.92
+382	0:01.45
+383	0:00.03
+385	0:27.77
+389	78:41.20
+390	0:02.72
+391	0:01.16
+392	4:01.81
+395	35:58.74
+396	0:32.97
+398	1:53.94
+399	4:56.38
+400	0:33.61
+401	69:01.83
+402	3:43.93
+403	79:22.13
+404	0:23.98
+405	0:01.65
+406	43:04.26
+408	76:22.31
+409	0:04.55
+411	0:00.09
+412	17:49.30
+413	0:00.06
+415	3:43.91
+416	0:00.32
+418	0:00.15
+419	0:02.04
+420	0:01.09
+421	0:00.04
+423	0:07.62
+425	84:13.13
+426	118:08.14
+427	1:14.96
+428	33:15.86
+429	7:20.78
+430	4:47.44
+431	0:00.29
+432	0:01.93
+433	2180:47.80
+### procs
+1	10-06:21:24	29504	/sbin/launchd
+134	08-06:23:08	21888	/System/Library/PrivateFrameworks/GeoServices.framework/Versions/A/XPCServices/com.apple.geod.xpc/Contents/MacOS/com.apple.geod
+135	08-06:23:08	4928	/usr/libexec/secinitd
+136	08-06:23:07	3728	/usr/sbin/cfprefsd
+137	08-06:23:07	14000	/usr/libexec/trustd
+138	08-06:23:07	4144	/usr/libexec/containermanagerd
+360	10-06:18:20	96912	/usr/libexec/logd
+361	10-06:18:20	6352	/usr/libexec/smd
+362	10-06:18:20	25952	/usr/libexec/UserEventAgent
+364	10-06:18:20	21056	/System/Library/Frameworks/CoreServices.framework/Versions/A/Frameworks/FSEvents.framework/Versions/A/Support/fseventsd
+365	10-06:18:20	50704	/System/Library/PrivateFrameworks/MediaRemote.framework/Support/mediaremoted
+368	10-06:18:20	45888	/usr/sbin/systemstats
+370	10-06:18:20	18224	/System/Library/PrivateFrameworks/MobileAccessoryUpdater.framework/Support/accessoryupdaterd
+371	10-06:18:20	4000	/usr/libexec/uarpassetmanagerd
+372	10-06:18:20	27760	/usr/libexec/configd
+373	10-06:18:20	4416	endpointsecurityd
+374	10-06:18:20	14080	/System/Library/CoreServices/powerd.bundle/powerd
+375	10-06:18:20	4448	/usr/libexec/IOMFB_bics_daemon
+377	10-06:18:20	42224	/usr/libexec/amfid
+379	10-06:18:20	5360	/usr/libexec/remoted
+381	10-06:18:20	13824	/usr/libexec/keybagd
+382	10-06:18:20	7696	/System/Library/PrivateFrameworks/MobileSoftwareUpdate.framework/Support/softwareupdated
+383	10-06:18:20	2192	/System/Library/PrivateFrameworks/CoreSpeech.framework/corespeechd_system
+385	10-06:18:20	3536	/usr/libexec/watchdogd
+389	10-06:18:20	170688	/System/Library/Frameworks/CoreServices.framework/Versions/A/Frameworks/Metadata.framework/Versions/A/Support/mds
+390	10-06:18:20	6704	/System/Library/CoreServices/iconservicesd
+391	10-06:18:20	9232	/usr/libexec/kernelmanagerd
+392	10-06:18:20	8656	/usr/libexec/diskarbitrationd
+395	10-06:18:20	58960	/usr/libexec/coreduetd
+396	10-06:18:20	3152	/usr/sbin/syslogd
+398	10-06:18:20	5488	/usr/libexec/thermalmonitord
+399	10-06:18:20	21600	/System/Library/PrivateFrameworks/CoreDuetContext.framework/Resources/contextstored
+400	10-06:18:20	18960	/usr/libexec/xprotectd
+401	10-06:18:20	28032	/usr/libexec/opendirectoryd
+402	10-06:18:20	34144	/System/Library/PrivateFrameworks/ApplePushService.framework/apsd
+403	10-06:18:20	18144	/System/Library/CoreServices/launchservicesd
+404	10-06:18:20	7536	/usr/libexec/timed
+405	10-06:18:20	5136	/System/Library/PrivateFrameworks/MobileDevice.framework/Versions/A/Resources/usbmuxd
+406	10-06:18:20	12048	/usr/sbin/securityd
+408	10-06:18:20	57552	/usr/libexec/locationd
+409	10-06:18:20	10496	/usr/libexec/nesessionmanager
+411	10-06:18:20	2912	autofsd
+412	10-06:18:20	32752	/usr/libexec/dasd
+413	10-06:18:20	5632	/usr/libexec/corerepaird
+415	10-06:18:20	4512	/usr/sbin/distnoted
+416	10-06:18:20	4224	/System/Library/PrivateFrameworks/AppleCredentialManager.framework/AppleCredentialManagerDaemon
+418	10-06:18:20	1424	/usr/libexec/dirhelper
+419	10-06:18:20	5584	/System/Library/CoreServices/logind
+420	10-06:18:20	12240	/System/Library/PrivateFrameworks/GenerationalStorage.framework/Versions/A/Support/revisiond
+421	10-06:18:20	2176	/usr/sbin/KernelEventAgent
+423	10-06:18:20	5328	/usr/libexec/usermanagerd
+425	10-06:18:20	59968	/usr/sbin/bluetoothd
+426	10-06:18:20	8064	/usr/sbin/notifyd
+427	10-06:18:20	25504	/usr/libexec/sandboxd
+428	10-06:18:20	14848	/usr/libexec/corebrightnessd
+429	10-06:18:20	13088	/usr/libexec/AirPlayXPCHelper
+430	10-06:18:20	33680	/System/Library/Frameworks/CoreMediaIO.framework/Versions/A/Resources/com.apple.cmio.registerassistantservice
+431	10-06:18:20	2192	aslmanager
+432	10-06:18:20	2608	/usr/libexec/logd_helper
+433	10-06:18:20	395456	/System/Library/PrivateFrameworks/SkyLight.framework/Resources/WindowServer
+
+## swap_rate
+swapins_per_s=0.0
+swapouts_per_s=0.0
+pageins_per_s=44.5
+
+## disk
+kb_per_transfer=4.00
+tps=3
+mb_per_s=0.01
+
+## probes
+# baselines on a healthy host: pipe_hop ~0.007ms, fork_exec ~1.5ms, zellij ~13ms
+pipe_hop_ms=0.006
+pipe_hop_p90=0.009
+fork_exec_ms=1.588
+fork_exec_p90=1.843
+zellij_action_ms=13.323
+zellij_action_p90=13.560
+elapsed_seconds=5
+
+# end

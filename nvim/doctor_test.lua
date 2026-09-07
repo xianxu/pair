@@ -49,7 +49,12 @@ eq(M.verdict(1, 2), 'fast', 'well inside a frame')
 eq(M.verdict(15.9, 0), 'fast', 'just inside a frame')
 eq(M.verdict(16, 0), 'slow', 'at the frame boundary')
 eq(M.verdict(0, 40), 'slow', 'redraw alone can be slow')
-eq(M.verdict(nil, nil), 'fast', 'missing timings do not fabricate a slow verdict')
+-- BR-23: absent timings must NOT read as 'fast'. Claiming the editor is
+-- healthy on no evidence would send a reader hunting the environment on the
+-- strength of a measurement that never happened.
+eq(M.verdict(nil, nil), 'unknown', 'no timings yields unknown, not fast')
+eq(M.verdict(nil, 2), 'fast', 'one timing is still a verdict')
+eq(M.verdict(nil, 99), 'slow', 'one slow timing is enough')
 
 -- note_from_lines: blank must be nil, not '' -- an empty note is a CLAIM that
 -- the operator reported nothing.
@@ -128,6 +133,36 @@ end
 eq(M.parse_duration('1:xx:00'), nil, 'non-numeric field rejected')
 eq(M.parse_duration('::'), nil, 'empty fields rejected')
 eq(M.parse_duration('12-'), nil, 'days with no time rejected')
+
+
+-- BR-9: delta driven from a REAL recorded capture rather than literals, so the
+-- perf.sh -> delta contract is pinned. A change to either side that breaks the
+-- other now fails here instead of at the operator's next slowdown.
+do
+  -- The fixture lives under doctor/, NOT nvim/: the runtime bundle walks nvim/
+  -- wholesale, so a fixture there would ship to every user's extracted session.
+  local fh = io.open(here .. '../doctor/fixtures/perf_capture.txt', 'r')
+  ok(fh ~= nil, 'recorded perf capture fixture exists')
+  if fh then
+    local raw = fh:read('*a'); fh:close()
+    local a, b = M.parse_samples(raw)
+    ok(a ~= nil and b ~= nil, 'both samples parsed from the real capture')
+    if a and b then
+      local n = 0
+      for _ in pairs(a.procs) do n = n + 1 end
+      ok(n > 20, 'the fixture carries a realistic process count, got ' .. n)
+      local d = M.delta(a, b, 2)
+      ok(#d.rates > 0, 'real samples yield rates')
+      ok(d.rows_a > 0 and d.rows_b > 0, 'row counts reported')
+      -- Every pid lands in exactly one bucket: the contract delta promises.
+      local accounted = #d.rates + d.vanished + d.reused + d.unmeasured
+      eq(accounted, d.rows_a, 'every pid in sample_a is accounted for')
+      for _, r in ipairs(d.rates) do
+        ok(r.cpu_pct >= 0, 'no negative cpu rate for pid ' .. tostring(r.pid))
+      end
+    end
+  end
+end
 
 if fails > 0 then
   io.stderr:write(string.format('\n%d failure(s)\n', fails))

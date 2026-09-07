@@ -125,8 +125,15 @@ end
 -- family is excluded for that symptom.
 M.FRAME_MS = 16
 
+-- Returns 'fast', 'slow', or 'unknown'. Absent timings are 'unknown', NOT
+-- 'fast': claiming the editor is healthy on no evidence is the same class of
+-- error as a probe reporting a failed command as excellent latency, and it
+-- would send a reader hunting the environment on the strength of a measurement
+-- that never happened.
 function M.verdict(insert_ms, redraw_ms)
-  local worst = math.max(tonumber(insert_ms) or 0, tonumber(redraw_ms) or 0)
+  local a, b = tonumber(insert_ms), tonumber(redraw_ms)
+  if not a and not b then return 'unknown' end
+  local worst = math.max(a or 0, b or 0)
   if worst >= M.FRAME_MS then return 'slow' end
   return 'fast'
 end
@@ -139,6 +146,43 @@ function M.note_from_lines(lines)
   local text = table.concat(lines, '\n')
   if text:match('^%s*$') then return nil end
   return (text:gsub('^%s+', ''):gsub('%s+$', ''))
+end
+
+-- parse_samples turns perf.sh's raw report into the two structures delta joins.
+--
+-- This function is the CONTRACT between perf.sh and delta. Before it existed,
+-- delta was tested against hand-written literals asserted by the same mental
+-- model that wrote the code, and nothing pinned that perf.sh actually emits what
+-- delta expects -- so a change to either could pass every test and break the
+-- capture. The fixture in nvim/fixtures/ is real captured output.
+function M.parse_samples(text)
+  if type(text) ~= 'string' then return nil, nil end
+  local samples, current, section = {}, nil, nil
+  for line in (text .. '\n'):gmatch('([^\n]*)\n') do
+    local head = line:match('^## (sample_%a+)$')
+    if head then
+      current = { procs = {}, cpu = {} }
+      samples[head] = current
+      section = nil
+    elseif line:match('^## ') then
+      current, section = nil, nil
+    elseif current and line == '### cputime' then
+      section = 'cpu'
+    elseif current and line == '### procs' then
+      section = 'procs'
+    elseif current and section == 'cpu' then
+      local pid, t = line:match('^(%d+)\t(%S+)$')
+      if pid then current.cpu[pid] = M.parse_duration(t) end
+    elseif current and section == 'procs' then
+      local pid, et, rss, comm = line:match('^(%d+)\t(%S+)\t(%d+)\t(.*)$')
+      if pid then
+        current.procs[pid] = {
+          etime = M.parse_duration(et), rss = tonumber(rss), comm = comm,
+        }
+      end
+    end
+  end
+  return samples.sample_a, samples.sample_b
 end
 
 return M

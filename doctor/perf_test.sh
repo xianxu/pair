@@ -37,9 +37,42 @@ budget=$(printf '%s\n' "$out" | sed -n 's/^budget_seconds=//p')
 
 # A missing probe degrades to n/a rather than vanishing or printing an empty
 # value a reader would mistake for zero.
-missing=$(PAIR_HOME=/nonexistent sh "$here/perf.sh" 2>/dev/null)
+#
+# Hiding it takes BOTH a bogus PAIR_HOME and a PATH without it: since the probe
+# is resolved on PATH first (a shipped pair has no $PAIR_HOME/bin at all), a
+# bogus PAIR_HOME alone no longer hides an installed binary.
+missing=$(PAIR_HOME=/nonexistent PATH=/usr/bin:/bin:/usr/sbin:/sbin sh "$here/perf.sh" 2>/dev/null)
 printf '%s\n' "$missing" | grep -q 'probes=n/a' \
 	|| bad "absent probe binary did not degrade to n/a"
+
+# BR-9: nothing pinned a failing COLLECTOR or a failing PROBE, which is the
+# whole point of the n/a rule. Both are exercised here, because "renders as n/a"
+# is a claim that only a broken environment can test.
+stub=$(mktemp -d)
+for t in ps top sysctl vm_stat iostat; do
+	printf '#!/bin/sh\nexit 1\n' > "$stub/$t"; chmod +x "$stub/$t"
+done
+denied=$(PAIR_HOME="$repo" PATH="$stub:$PATH" sh "$here/perf.sh" 2>/dev/null)
+rm -rf "$stub"
+
+# Not one fabricated value. A bare `key=` or a `0` from a failed tool is
+# indistinguishable from a real reading, which is the bug this rule exists for.
+for key in load process_count cpu_idle_pct pair_family_procs build_procs; do
+	val=$(printf '%s\n' "$denied" | sed -n "s/^$key=//p")
+	case "$val" in
+		"n/a"*) ;;
+		"")     bad "$key vanished entirely under tool denial" ;;
+		*)      bad "$key=$val is a fabricated value; a failed collector must render n/a" ;;
+	esac
+done
+
+# A probe whose command always fails must render n/a, not a fast-looking number.
+# `false` exits instantly, so timing it alone would report excellent latency.
+if [ -x "$repo/bin/pair-hoprtt" ]; then
+	if "$repo/bin/pair-hoprtt" -spawn 3 -- /usr/bin/false >/dev/null 2>&1; then
+		bad "a probe whose command always fails exited 0"
+	fi
+fi
 
 if [ "$fails" -gt 0 ]; then echo "$fails failure(s)" >&2; exit 1; fi
 echo "perf.sh shape tests passed"

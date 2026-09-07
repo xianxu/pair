@@ -151,6 +151,138 @@ rounds:
           round: 3
       boundary: M1
       blocked: true
+    - "n": 4
+      timestamp: "2026-09-06T23:55:44-07:00"
+      agent: claude
+      dispose:
+        - id: BR-1
+          disposition: not-addressed
+          note: Rename to pair-hoprtt landed and GO_BINS is correct; plan M2.6 line 387-391 still routes the Lua rolling-file write through artifactpath.
+          round: 4
+        - id: BR-2
+          disposition: addressed
+          note: 'Verified live, not from the diff: zellij probe now renders n/a (probe failed) instead of a fabricated 10.183; partial failure emits the 5-field line. No regression test pins it — folded into BR-9.'
+          round: 4
+        - id: BR-3
+          disposition: addressed
+          note: 'Revert-verified red (unmeasured counted, not dropped). Residual: perf.sh still runs two separate ps passes (:84,:87), so storm pids land in unmeasured rather than being measured; one ps -Ao pid=,etime=,time=,rss=,comm= pass removes the bucket.'
+          round: 4
+        - id: BR-4
+          disposition: addressed
+          note: pair-hoprtt is untracked at HEAD (removed in 0a7e6e27). The 2.9MB blob remains in c290191c; the branch is still unpushed, so dropping it by rebase is cheap now and permanent after merge.
+          round: 4
+        - id: BR-5
+          disposition: not-addressed
+          note: 'collect() is defined at perf.sh:32 with ZERO call sites. Re-ran the capture: load=, cpu_idle_pct=, process_count=0, host_cores=?, empty ## disk block. The fix reads as protection while doing nothing.'
+          round: 4
+        - id: BR-6
+          disposition: addressed
+          note: 'Revert-verified: re-adding `|| echo 0` to count_comm makes perf_test.sh fail with "report contains a bare value line with no key".'
+          round: 4
+        - id: BR-7
+          disposition: addressed
+          note: count_comm now takes the basename via awk -F/ and anchors the pattern. Not executable here (ps denied), reasoned from the comm= path format the fix itself documents.
+          round: 4
+        - id: BR-8
+          disposition: addressed
+          note: 'Revert-verified red. Residual (Minor, not re-raised): no field-count or sign bound, so 1:2:3:4:5 -> 13403045, 0x10 -> 16, -1:00 -> -60.'
+          round: 4
+        - id: BR-9
+          disposition: not-addressed
+          note: perf_test.sh + make test-perf-capture exist and are wired into make test, but pin only line shape and the missing-binary path; nothing pins a failing probe or a failing collector, and delta is still literals rather than recorded fixture pairs.
+          round: 4
+        - id: BR-10
+          disposition: not-addressed
+          note: explicitAssetPaths, both artifactpath lists, GO_BINS and the recipe are done and doctor/perf.sh is in the generated manifest. embed_test.go:25-26 was named and skipped, and the pair-hoprtt bundling decision was never made - see the new Critical.
+          round: 4
+        - id: BR-11
+          disposition: not-addressed
+          note: over_budget() guards only probe_line (:142). top -l 2, sleep WINDOW and iostat -c 2 are unconditional and are the budget; the total is still unbounded and the skip drops the probes rather than the expensive collectors.
+          round: 4
+        - id: BR-12
+          disposition: not-addressed
+          note: perf.sh:97,107 still emit at_ns from date +%s.
+          round: 4
+        - id: BR-13
+          disposition: not-addressed
+          note: vm_stat awk pipeline still duplicated verbatim at perf.sh:93 and :119.
+          round: 4
+        - id: BR-14
+          disposition: not-addressed
+          note: perf.sh:23 still yields /bin/pair-hoprtt when PAIR_HOME is unset; :161's reason still says "not built".
+          round: 4
+        - id: BR-15
+          disposition: not-addressed
+          note: summary (main.go:41-45) still indexes an empty slice with no guard.
+          round: 4
+        - id: BR-16
+          disposition: not-addressed
+          note: probe_line's awk still discards $4 on the success path.
+          round: 4
+        - id: BR-17
+          disposition: not-addressed
+          note: sample() at perf.sh:85 still uses awk $4; comm= still emits full paths.
+          round: 4
+        - id: BR-18
+          disposition: not-addressed
+          note: Now wider - PAIR_PERF_BUDGET joins PAIR_PERF_WINDOW, both unvalidated into sleep/awk -v/$(( )) and undocumented in atlas and README.
+          round: 4
+        - id: BR-19
+          disposition: not-addressed
+          note: '4f9365b3 is still in the window, and verdict/note_from_lines landed with it; no ## Log entry records the boundary.'
+          round: 4
+        - id: BR-20
+          disposition: not-addressed
+          note: doctor/README.md still does not mention perf.sh.
+          round: 4
+        - id: BR-21
+          disposition: not-addressed
+          note: 'Issue Plan M1 (line 133) unticked; ## Log has no M1.4 or M1.5 evidence.'
+          round: 4
+      findings:
+        - id: BR-22
+          severity: Critical
+          title: perf.sh looks for its probe at $PAIR_HOME/bin/pair-hoprtt, a path that never exists in a shipped pair
+          detail: |-
+            3rd finding in this family, so the deliverable is the RULE, not the site.
+            Rule: a plan or diff may name a repo path or mechanism only alongside a
+            check that it resolves in every layout the artifact ships to (dev
+            checkout, make install, extracted runtime bundle) AND from the language
+            and layer the calling code sits in. Prevalence 3/3 rounds that named a
+            mechanism: PQ-1 failed the build path, BR-1 failed the language path,
+            this fails the install-layout path. Evidence: the generated
+            manifest.json's bin/ entries are exactly bin/lib/adapt-log.sh,
+            bin/lib/dev-rebuild.sh, bin/pair-help, bin/pair-notify - no Go binaries
+            since 104 M3. This window added doctor/perf.sh to the bundle, so the
+            shell ships and its payload does not; every installed pair prints
+            probes=n/a and is told to run make build, which does not apply to its
+            layout. Sweep the enumeration the rule implies for every new runtime
+            file: builds, in the bundle manifest, callers' path expressions resolve
+            under all three layouts, a test pins each.
+          family: unverified-repo-mechanism
+          round: 4
+        - id: BR-23
+          severity: Important
+          title: verdict() turns absent timings into 'fast', and its test asserts that direction
+          detail: |-
+            6th finding in this family, so state the rule rather than patching the
+            site. Rule: every value-producing function in the capture, shell and Lua
+            alike, must render an absent or failed measurement as absence (nil, or
+            n/a with a reason), never as an in-domain value. Prevalence 6/6: BR-2,
+            BR-5, BR-14, BR-16, the dead collect() helper, and this. At
+            doctor.lua:129 `tonumber(x) or 0` makes verdict(nil,nil)=='fast', and per
+            the Spec (issue lines 77-81) 'fast' is what excludes the whole scheduling
+            family (201/203) - so a report where nvim was never timed excludes two
+            issues on a measurement that did not happen. doctor.lua:118-124 states
+            the correct rule three functions above. doctor_test.lua:52 asserts the
+            wrong direction, which is the same-mental-model test the gate warns
+            about. Enumeration to sweep in one pass: every kv call site in perf.sh,
+            every exported function in doctor.lua's 208 block, and report/summary in
+            cmd/pair-hoprtt/main.go - each gets one absent-input case.
+          family: failure-reported-as-measurement
+          round: 4
+      boundary: M1
+      blocked: true
 ---
 
 # Gate ledger — pair#208 (boundary-review)
@@ -216,16 +348,70 @@ later rounds disposed of them. Generated — edit the gate, not this file.
 - **BR-20** [Minor] `docs-gate` doctor/README.md describes the doctor/ contents and was not updated for perf.sh (atlas/index.md was)
 - **BR-21** [Minor] `traceability` Issue Plan M1 is unticked and the Log records no M1.4/M1.5 evidence; given the zellij finding, M1.4's number must be re-taken before it is logged
 
+## Round 4 — 2026-09-06T23:55:44-07:00 (claude) — BLOCKED
+
+### Disposed
+
+- BR-1 — not-addressed — Rename to pair-hoprtt landed and GO_BINS is correct; plan M2.6 line 387-391 still routes the Lua rolling-file write through artifactpath.
+- BR-2 — addressed — Verified live, not from the diff: zellij probe now renders n/a (probe failed) instead of a fabricated 10.183; partial failure emits the 5-field line. No regression test pins it — folded into BR-9.
+- BR-3 — addressed — Revert-verified red (unmeasured counted, not dropped). Residual: perf.sh still runs two separate ps passes (:84,:87), so storm pids land in unmeasured rather than being measured; one ps -Ao pid=,etime=,time=,rss=,comm= pass removes the bucket.
+- BR-4 — addressed — pair-hoprtt is untracked at HEAD (removed in 0a7e6e27). The 2.9MB blob remains in c290191c; the branch is still unpushed, so dropping it by rebase is cheap now and permanent after merge.
+- BR-5 — not-addressed — collect() is defined at perf.sh:32 with ZERO call sites. Re-ran the capture: load=, cpu_idle_pct=, process_count=0, host_cores=?, empty ## disk block. The fix reads as protection while doing nothing.
+- BR-6 — addressed — Revert-verified: re-adding `|| echo 0` to count_comm makes perf_test.sh fail with "report contains a bare value line with no key".
+- BR-7 — addressed — count_comm now takes the basename via awk -F/ and anchors the pattern. Not executable here (ps denied), reasoned from the comm= path format the fix itself documents.
+- BR-8 — addressed — Revert-verified red. Residual (Minor, not re-raised): no field-count or sign bound, so 1:2:3:4:5 -> 13403045, 0x10 -> 16, -1:00 -> -60.
+- BR-9 — not-addressed — perf_test.sh + make test-perf-capture exist and are wired into make test, but pin only line shape and the missing-binary path; nothing pins a failing probe or a failing collector, and delta is still literals rather than recorded fixture pairs.
+- BR-10 — not-addressed — explicitAssetPaths, both artifactpath lists, GO_BINS and the recipe are done and doctor/perf.sh is in the generated manifest. embed_test.go:25-26 was named and skipped, and the pair-hoprtt bundling decision was never made - see the new Critical.
+- BR-11 — not-addressed — over_budget() guards only probe_line (:142). top -l 2, sleep WINDOW and iostat -c 2 are unconditional and are the budget; the total is still unbounded and the skip drops the probes rather than the expensive collectors.
+- BR-12 — not-addressed — perf.sh:97,107 still emit at_ns from date +%s.
+- BR-13 — not-addressed — vm_stat awk pipeline still duplicated verbatim at perf.sh:93 and :119.
+- BR-14 — not-addressed — perf.sh:23 still yields /bin/pair-hoprtt when PAIR_HOME is unset; :161's reason still says "not built".
+- BR-15 — not-addressed — summary (main.go:41-45) still indexes an empty slice with no guard.
+- BR-16 — not-addressed — probe_line's awk still discards $4 on the success path.
+- BR-17 — not-addressed — sample() at perf.sh:85 still uses awk $4; comm= still emits full paths.
+- BR-18 — not-addressed — Now wider - PAIR_PERF_BUDGET joins PAIR_PERF_WINDOW, both unvalidated into sleep/awk -v/$(( )) and undocumented in atlas and README.
+- BR-19 — not-addressed — 4f9365b3 is still in the window, and verdict/note_from_lines landed with it; no ## Log entry records the boundary.
+- BR-20 — not-addressed — doctor/README.md still does not mention perf.sh.
+- BR-21 — not-addressed — Issue Plan M1 (line 133) unticked; ## Log has no M1.4 or M1.5 evidence.
+
+### Raised
+
+- **BR-22** [Critical] `unverified-repo-mechanism` perf.sh looks for its probe at $PAIR_HOME/bin/pair-hoprtt, a path that never exists in a shipped pair
+  3rd finding in this family, so the deliverable is the RULE, not the site.
+  Rule: a plan or diff may name a repo path or mechanism only alongside a
+  check that it resolves in every layout the artifact ships to (dev
+  checkout, make install, extracted runtime bundle) AND from the language
+  and layer the calling code sits in. Prevalence 3/3 rounds that named a
+  mechanism: PQ-1 failed the build path, BR-1 failed the language path,
+  this fails the install-layout path. Evidence: the generated
+  manifest.json's bin/ entries are exactly bin/lib/adapt-log.sh,
+  bin/lib/dev-rebuild.sh, bin/pair-help, bin/pair-notify - no Go binaries
+  since 104 M3. This window added doctor/perf.sh to the bundle, so the
+  shell ships and its payload does not; every installed pair prints
+  probes=n/a and is told to run make build, which does not apply to its
+  layout. Sweep the enumeration the rule implies for every new runtime
+  file: builds, in the bundle manifest, callers' path expressions resolve
+  under all three layouts, a test pins each.
+- **BR-23** [Important] `failure-reported-as-measurement` verdict() turns absent timings into 'fast', and its test asserts that direction
+  6th finding in this family, so state the rule rather than patching the
+  site. Rule: every value-producing function in the capture, shell and Lua
+  alike, must render an absent or failed measurement as absence (nil, or
+  n/a with a reason), never as an in-domain value. Prevalence 6/6: BR-2,
+  BR-5, BR-14, BR-16, the dead collect() helper, and this. At
+  doctor.lua:129 `tonumber(x) or 0` makes verdict(nil,nil)=='fast', and per
+  the Spec (issue lines 77-81) 'fast' is what excludes the whole scheduling
+  family (201/203) - so a report where nvim was never timed excludes two
+  issues on a measurement that did not happen. doctor.lua:118-124 states
+  the correct rule three functions above. doctor_test.lua:52 asserts the
+  wrong direction, which is the same-mental-model test the gate warns
+  about. Enumeration to sweep in one pass: every kv call site in perf.sh,
+  every exported function in doctor.lua's 208 block, and report/summary in
+  cmd/pair-hoprtt/main.go - each gets one absent-input case.
+
 ## Open findings
 
 - **BR-1** [Minor] `unverified-repo-mechanism` M2.6 routes the Lua rolling-file write through artifactpath, a Go internal package Lua cannot call
-- **BR-2** [Critical] `failure-reported-as-measurement` spawnRTT discards c.Run()'s error, so a failing command is reported as a healthy latency
-- **BR-3** [Critical] `silent-drop-in-join` delta silently drops a pid alive in both samples but missing one cputime row, contradicting its own contract
-- **BR-4** [Critical] `build-artifact-committed` A 2.9MB Mach-O arm64 binary is committed at the repo root, against this window's own gitignore rule
 - **BR-5** [Important] `failure-reported-as-measurement` perf.sh collector failures render as values, not n/a, contradicting the file's own stated rule
-- **BR-6** [Important] `report-line-contract` grep -c with `|| echo 0` emits a stray bare 0 line, corrupting the report on any quiet machine
-- **BR-7** [Important] `report-line-contract` macOS `ps -o comm=` is a path, so `^go$` never matches and the pair pattern over-matches
-- **BR-8** [Important] `failure-reported-as-measurement` parse_duration's validity guard is unreachable dead code, so malformed input yields a fabricated number
 - **BR-9** [Important] `untested-shell-surface` doctor/perf.sh has no test and no make recipe, and delta's tests use literals rather than the promised recorded fixtures
 - **BR-10** [Important] `unverified-repo-mechanism` doctor/perf.sh is missing from runtimebundlegen.explicitAssetPaths — third instance of the hand-maintained-list family
 - **BR-11** [Important] `unenforced-operating-envelope` The 6s budget is declared "enforced, not hoped" but perf.sh has no deadline or skip path
@@ -239,3 +425,5 @@ later rounds disposed of them. Generated — edit the gate, not this file.
 - **BR-19** [Minor] `boundary-hygiene` 4f9365b3 (M2.2b, the pure join) landed inside the M1 boundary; note it so M2's base is not mistaken for the branch point
 - **BR-20** [Minor] `docs-gate` doctor/README.md describes the doctor/ contents and was not updated for perf.sh (atlas/index.md was)
 - **BR-21** [Minor] `traceability` Issue Plan M1 is unticked and the Log records no M1.4/M1.5 evidence; given the zellij finding, M1.4's number must be re-taken before it is logged
+- **BR-22** [Critical] `unverified-repo-mechanism` perf.sh looks for its probe at $PAIR_HOME/bin/pair-hoprtt, a path that never exists in a shipped pair
+- **BR-23** [Important] `failure-reported-as-measurement` verdict() turns absent timings into 'fast', and its test asserts that direction
