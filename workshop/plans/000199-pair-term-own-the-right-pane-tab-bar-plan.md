@@ -36,6 +36,50 @@ ring** (`Snapshot`/`Replay`/`ReplayThrough`) with no viewport or offset
 anywhere. The operator dropped the readout rather than build one, which is what
 moved frameless into this issue — see `## Revisions`.
 
+**7. `Child.TakeRowDirty()` is the WRONG repaint trigger for `termcmd`, and would
+have read false forever** (PQ-3, verified 2026-09-07). `Child.readLoop` already
+DRAINS it into `batch.RowDirty` on every batch whenever a `Sink` is set
+(`ptychild/child.go:174-177`), and `Screen.TakeRowDirty` clears the flag as it
+reads (`screen.go:138-142`). `termcmd` sets a Sink (`run.go:660`), so a separate
+`child.TakeRowDirty()` call in the strip's repaint path is consuming an
+already-drained flag: always false, and a strip that never repaints after a
+full-screen child's startup clear -- the one failure mode M3 exists to survive.
+**M3 reads `batch.RowDirty` inside the Sink callback**, which is where the
+signal actually arrives.
+
+**8. Every writer to the pane's tty, enumerated** (PQ-4). The Spec named two;
+there are four across two file descriptors, and a test that wraps only `stdout`
+cannot see half of them:
+
+| writer | fd | goroutine |
+|---|---|---|
+| `copyActiveOutput` (`run.go:702`) | stdout | pty pump |
+| `redrawTab` (`run.go:1022-1023`) | stdout | Run, from three tab-switch sites |
+| `restoreTerminal` (`run.go:1036`) | stdout | Run, via `defer` |
+| `fmt.Fprintf(stderr, "term: ...")` (`run.go:53,62,66,232,242`) | stderr | Run |
+
+stderr is the SAME terminal. A `term:` error printed while the strip is up lands
+wherever the cursor happens to be, and after M4 there is no frame to absorb it.
+M2's envelope covers both descriptors and its test wraps both.
+
+**9. The `rename-pane` consumer set, READ rather than remembered** (PQ-1).
+The Spec asserted consumers from memory (`run.go:229`, `#118`, `#123`). The
+actual matchers on the zellij pane title are two lines in one file:
+
+```go
+// launcher/layoutflow.go:59,62
+if pane.Title == "terminal-filler" || strings.Contains(command, "tail -f /dev/null")
+if pane.Title == "terminal" || strings.HasPrefix(pane.Title, "[terminal") ||
+   strings.Contains(command, "pair term")
+```
+
+Two things follow. The `HasPrefix(pane.Title, "[terminal")` arm exists *because*
+`paneTitleLocked` packs the tab set with the active one in brackets -- it is a
+consumer of the very format this issue replaces. And **every arm has a
+`command`-based fallback**, so layout detection does not actually depend on the
+title: a degraded title cannot break it. That is what makes M3's decision safe,
+and it is a measurement rather than the Spec's assumption.
+
 **4. `termcmd` writes to the host from two goroutines** (not in the Spec).
 `copyActiveOutput` (`run.go:702`) and `redrawTab` (`run.go:1023`, from three
 tab-switch sites). `atlas/couch.md` records why a reserved row cannot survive
@@ -109,6 +153,7 @@ its milestones touch no tab-lifecycle code.
 
 | Name | Lives in | Status |
 |------|----------|--------|
+| `rowtext.Sanitize` / `rowtext.Fit` | `cmd/internal/rowtext/rowtext.go` | planned — M3 |
 | `Edge` | `cmd/internal/hostty/reserve.go` | new |
 | `Reservation` | `cmd/internal/hostty/reserve.go` | new |
 | `TabChip` | `cmd/internal/termcmd/strip.go` | planned — M3 |
@@ -117,6 +162,21 @@ its milestones touch no tab-lifecycle code.
 | `RenderStrip` | `cmd/internal/termcmd/strip.go` | planned — M3 |
 | `couchtty.ChildRows` / `Reserve` / `Release` / `PaintRow` | `cmd/internal/couchtty/reserve.go` | deleted |
 | `couchtty.RenderStatusRow` (+ `StatusModel`, `ChipSpan`) | `cmd/internal/couchtty/reserve.go` | unchanged |
+
+- **`rowtext.Sanitize` / `rowtext.Fit`** (`cmd/internal/rowtext/rowtext.go`, new
+  — PQ-7) — make untrusted text safe and fitted for a one-row strip.
+  - **Why a package and not a copy:** `couchtty`'s `sanitize` and `truncate`
+    (`reserve.go:148,161`) are exactly this, and they are **unexported in
+    another package** — `RenderStrip` cannot call them, so the plan's "reuse
+    them" was not implementable. Both consumers put agent-published text on a
+    reserved row: a label containing `\x1b[2J` clears the operator's screen from
+    the strip, and a double-width rune must not wrap onto the child's area.
+  - **Relationships:** N:1 — every reserved-row renderer depends on it;
+    `couchtty.RenderStatusRow` and `termcmd.RenderStrip` are the two today.
+  - **DRY rationale:** the alternative is a second copy of a security-relevant
+    strip, in a package whose tests do not cover it.
+  - **Future extensions:** a right-truncating variant if a strip ever needs the
+    tail rather than the head.
 
 - **Edge / Reservation** — which edge of a terminal is reserved, and how tall
   the terminal is. `Reservation{Rows, Edge}` answers `ChildRows()`,
@@ -347,6 +407,16 @@ func TestPaintBracketsWithCursorSaveRestore(t *testing.T) {
 - Modify: `cmd/internal/termcmd/run.go`
 - Test: `cmd/internal/termcmd/writer_test.go` (new)
 
+**Couch's gate has THREE rules, not two** (PQ-5). M2 restates the first two --
+one writer, and defer-plus-owe while the child's stream is mid-sequence. The
+third is the takeover reset (`couchtty/console.go:992-995`): when the screen is
+taken over wholesale, `hostScan` is reset to a zero `ptychild.Screen{}` and
+`paintPending` cleared, because whatever partial sequence the old child left is
+no longer on screen to be corrupted -- without it the gate stays stuck owing a
+paint against a stream that no longer exists. `termcmd`'s equivalent moment is
+`redrawTab`, which issues `HomeAndClear` and replays: the same wholesale
+takeover, and it must reset the same two pieces of state.
+
 - [ ] **M2.1: Write the failing tests**
 
 ```go
@@ -428,8 +498,15 @@ func TestNarrowPaneTruncatesWithoutLosingTheActiveTab(t *testing.T) {}
 ## M4 — take the frame off
 
 **Files:**
-- Modify: `cmd/internal/runtimebundle/assets/runtime/files/zellij/layouts/main-3.kdl`
-- Test: `cmd/internal/runtimebundle/` layout assertion
+- Modify: `zellij/layouts/main-3.kdl` — **the SOURCE**. The path under
+  `cmd/internal/runtimebundle/assets/runtime/files/` is a GENERATED MIRROR
+  (`artifactpath.GeneratedMirror`), regenerated by `runtimebundle-generate`,
+  which `make test` runs FIRST — so an edit there is silently reverted before a
+  single test observes it (PQ-6).
+- Modify: `zellij/config.kdl` — source, same reason; its scroll-indicator
+  rationale is the comment M4.4 corrects.
+- Regenerate: `make runtimebundle-generate`, and commit the mirror it produces.
+- Test: `cmd/internal/runtimebundle/` layout assertion, reading the SOURCE.
 
 - [ ] **M4.1: Write the failing test.** Every `name="terminal"` pane in
       `main-3.kdl` carries `borderless=true` — the enumeration, so a rung added

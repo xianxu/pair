@@ -118,6 +118,47 @@ rounds:
           family: single-interleaving-oracle
           round: 1
       blocked: true
+    - "n": 2
+      timestamp: "2026-09-07T16:32:56-07:00"
+      agent: claude
+      dispose:
+        - id: PQ-1
+          disposition: not-addressed
+          note: Plan text unchanged; run.go:229 is still RegisterTerminalPane, and layoutflow.go:62 / shortcut.go:190 are still the real matchers.
+          round: 2
+        - id: PQ-2
+          disposition: addressed
+          note: M1 landed with the restated behavioural-tests acceptance and swept three consumer lists, one the gate had not named.
+          round: 2
+        - id: PQ-3
+          disposition: not-addressed
+          note: child.go:174-177 still clears RowDirty into the batch whenever a sink is set, and run.go:660 always sets one.
+          round: 2
+        - id: PQ-4
+          disposition: not-addressed
+          note: run.go:1086/1100-1104 still gives the zellij subprocess os.Stdout; wheel path at :457/:462, resize goroutine at :261.
+          round: 2
+        - id: PQ-5
+          disposition: not-addressed
+          note: console.go:992-994's hostScan/paintPending reset is still absent from M2.3's restatement of couch's gate rules.
+          round: 2
+        - id: PQ-6
+          disposition: not-addressed
+          note: M4 Files still names the GeneratedMirror (manifest.go:476), not zellij/layouts/main-3.kdl.
+          round: 2
+        - id: PQ-7
+          disposition: not-addressed
+          note: sanitize/truncate still unexported at couchtty/reserve.go:148,161; no shared home named.
+          round: 2
+        - id: PQ-8
+          disposition: not-addressed
+          note: M4.3 still has no Alt+Shift+d step; the six split-rung sites stay unverified.
+          round: 2
+        - id: PQ-9
+          disposition: not-addressed
+          note: TestPaintDefersMidSequenceAndIsOwed still splits one hand-chosen index.
+          round: 2
+      blocked: true
 ---
 
 # Gate ledger — pair#199 (plan-quality)
@@ -195,10 +236,23 @@ later rounds disposed of them. Generated — edit the gate, not this file.
   index of a representative sequence set — the hand-picked case is by construction
   blind to the boundary the author did not think of.
 
+## Round 2 — 2026-09-07T16:32:56-07:00 (claude) — BLOCKED
+
+### Disposed
+
+- PQ-1 — not-addressed — Plan text unchanged; run.go:229 is still RegisterTerminalPane, and layoutflow.go:62 / shortcut.go:190 are still the real matchers.
+- PQ-2 — addressed — M1 landed with the restated behavioural-tests acceptance and swept three consumer lists, one the gate had not named.
+- PQ-3 — not-addressed — child.go:174-177 still clears RowDirty into the batch whenever a sink is set, and run.go:660 always sets one.
+- PQ-4 — not-addressed — run.go:1086/1100-1104 still gives the zellij subprocess os.Stdout; wheel path at :457/:462, resize goroutine at :261.
+- PQ-5 — not-addressed — console.go:992-994's hostScan/paintPending reset is still absent from M2.3's restatement of couch's gate rules.
+- PQ-6 — not-addressed — M4 Files still names the GeneratedMirror (manifest.go:476), not zellij/layouts/main-3.kdl.
+- PQ-7 — not-addressed — sanitize/truncate still unexported at couchtty/reserve.go:148,161; no shared home named.
+- PQ-8 — not-addressed — M4.3 still has no Alt+Shift+d step; the six split-rung sites stay unverified.
+- PQ-9 — not-addressed — TestPaintDefersMidSequenceAndIsOwed still splits one hand-chosen index.
+
 ## Open findings
 
 - **PQ-1** [Important] `consumer-set-not-derived` The rename-pane consumer set is asserted from memory; the two real title matchers are never named
-- **PQ-2** [Important] `consumer-set-not-derived` M1.5's "no couch test edited" is unsatisfiable, and the concept contract binds the moved symbols
 - **PQ-3** [Important] `wrong-seam-named` The strip repaint trigger names ptychild.Child.TakeRowDirty, which is always false in termcmd
 - **PQ-4** [Important] `envelope-claim-unenforced` Two writers to the pane's tty sit outside the single-writer envelope, and the M2 test cannot see them
 - **PQ-5** [Important] `takeover-resets-framing` M2 restates two of couch's three gate rules; the takeover reset is the missing one
