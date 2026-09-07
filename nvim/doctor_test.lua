@@ -204,6 +204,39 @@ do
   eq(#M.delta(a, b, 'garbage').rates, 0, 'an unparseable window yields no rates')
 end
 
+
+-- perf_payload: the note LEADS, and the drift instruction survives verbatim.
+do
+  local drift = M.payload('/h')
+  local out = M.perf_payload('/h', 'typing slow, top took 10s', 'editor: fast', 'load=9')
+  ok(out ~= nil, 'perf_payload built')
+  ok(out:find('typing slow', 1, true) < out:find('load=9', 1, true),
+     'the operator note precedes the numbers')
+  ok(out:find(drift, 1, true) ~= nil, "#48's drift instruction is embedded verbatim")
+  ok(out:find('n/a', 1, true) ~= nil, 'the report tells the reader how to read n/a')
+
+  -- A blank note must not silently look like "nothing was wrong".
+  local none = M.perf_payload('/h', nil, 'editor: fast', 'load=9')
+  ok(none:find('left no note', 1, true) ~= nil, 'an absent note is stated, not omitted')
+
+  -- Missing halves degrade rather than vanishing.
+  local bare = M.perf_payload('/h', nil, nil, nil)
+  ok(bare:find('self%-timing did not run') ~= nil, 'absent editor timing is named')
+  ok(bare:find('capture did not run', 1, true) ~= nil, 'absent env capture is named')
+
+  eq(M.perf_payload(nil, 'x', 'y', 'z'), nil, 'no PAIR_HOME yields no payload')
+end
+
+-- capture_record carries its baselines so a row stays legible on its own.
+do
+  local r = M.capture_record(1757000000, 'slow', 'fast', { pipe_hop_ms = 0.9 })
+  eq(r.at, 1757000000, 'timestamp recorded')
+  eq(r.editor, 'fast', 'verdict recorded')
+  eq(r.probes.pipe_hop_ms, 0.9, 'probes recorded')
+  ok(r.baselines.pipe_hop_ms ~= nil, 'baselines travel with the row')
+  eq(M.capture_record(1, nil, 'unknown').note, nil, 'an absent note stays absent')
+end
+
 if fails > 0 then
   io.stderr:write(string.format('\n%d failure(s)\n', fails))
   os.exit(1)

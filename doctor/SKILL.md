@@ -59,3 +59,57 @@ edit matcher code silently — surface the finding and the proposed edit first.
   current run. To diagnose a past session, point the script at a saved copy.
 - `detail` is capped at 200 bytes and stays local under `$PAIR_DATA_DIR`; it can
   contain a snippet of agent output, so treat findings as session-private.
+
+## Performance capture (`#208`)
+
+`:PairDoctor` also captures machine state, because the question "why is this
+slow?" is only answerable **while it is slow** — and the drift half of this
+skill is durable while performance is not. A 2026-09-06 investigation produced
+three issues and no theory precisely because every measurement was taken on a
+healthy machine.
+
+**Read the report in this order. The order is the method.**
+
+**1. The operator's note.** It leads the payload deliberately. Without it you
+will explain whatever number is largest instead of what was actually reported —
+"typing is slow" and "the build is slow" have different suspects.
+
+**2. `editor:` — the discriminator, and the single most valuable line.**
+
+| reading | what it excludes |
+|---|---|
+| `editor: fast` | nvim handled a keystroke inside one frame (16 ms at 60 Hz). If typing still *feels* slow, the cause is **at or above the terminal** — transport, rendering, compositing — and the scheduling family (`#201`, `#203`) is excluded for this symptom. |
+| `editor: slow` | the cause is **inside nvim**. Look at autocmds and plugins; the environment numbers below are probably noise. |
+| `editor: unknown` | timing did not run, or only half of it did. It is **not** a synonym for fast — partial evidence can prove slow but never fast. |
+
+**3. The probes, against the baselines printed beside them.** `pipe_hop` is one
+scheduler wake-up, `fork_exec` is process creation, `zellij_action` is
+spawn+link+connect+round-trip. They degrade *together* under a process-spawn
+storm; a hop staying near 7 µs while typing feels slow points away from
+scheduling entirely.
+
+**4. Everything else is context, not verdict.** In particular:
+
+- **`load` does not predict this.** Measured 2026-09-06: degradation at load 9.5
+  and none at load 15.5. What correlated was the workload's *phase* — many
+  short-lived processes — not its size.
+- **`cpu_idle_pct` is routinely high while the machine feels terrible.** Every
+  slowdown investigated on this host has had idle CPU.
+- **`windowserver_cpu_pct` is the untested candidate.** It has been seen at 45%
+  with 66% idle CPU, and its units (tens of ms per frame) are the right order of
+  magnitude for visible lag, unlike scheduling's microseconds.
+
+**5. `n/a` means NOT MEASURED. Never read it as zero.** Every collector degrades
+to `n/a` with a reason rather than emitting a value, because a fabricated `0` is
+indistinguishable from a real reading — the defect class this capture was
+hardened against across seven review rounds.
+
+**Comparing readings.** Each capture appends a row to
+`$PAIR_DATA_DIR/perf-captures.jsonl` carrying its probes, the verdict, and the
+baselines. A single row answers "what is happening now"; the series answers
+"what changed", which is what the original investigation lacked.
+
+**Re-running standalone:** `sh $PAIR_HOME/doctor/perf.sh`. It needs no editor.
+
+**Known gap:** no stage is time-bounded, so a hanging collector can exceed the
+budget (`#210`).

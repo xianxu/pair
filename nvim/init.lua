@@ -3958,21 +3958,120 @@ do
     local ok, mod = pcall(dofile, dir .. 'doctor.lua')
     if ok then doctor = mod end
   end
+  -- Self-timing: the editor-vs-environment discriminator (#208), and the one
+  -- measurement no external probe can make. If nvim handles a keystroke inside
+  -- a frame while typing FEELS slow, the cause is at or above the terminal.
+  --
+  -- It runs on a SCRATCH buffer, never the draft: the draft holds the
+  -- operator's note, and firing a synthetic keystroke there would type into it.
+  local function time_editor()
+    local hr = vim.loop.hrtime
+    local scratch = vim.api.nvim_create_buf(false, true)
+    local insert_ms, redraw_ms
+    -- pcall + a guaranteed delete: a leaked scratch buffer is a visible bug in
+    -- the operator's buffer list, and timing is exactly where a throw is
+    -- plausible.
+    pcall(function()
+      vim.bo[scratch].filetype = vim.bo.filetype
+      local t0 = hr()
+      vim.api.nvim_buf_set_lines(scratch, 0, -1, false, { 'pairdoctor timing probe' })
+      vim.api.nvim_exec_autocmds('TextChangedI', { buffer = scratch })
+      insert_ms = (hr() - t0) / 1e6
+      local t1 = hr()
+      vim.cmd('redraw')
+      redraw_ms = (hr() - t1) / 1e6
+    end)
+    pcall(vim.api.nvim_buf_delete, scratch, { force = true })
+    local verdict = doctor.verdict(insert_ms, redraw_ms)
+    local fmt = function(v) return v and string.format('%.1fms', v) or 'n/a' end
+    return string.format('editor: %s (input %s, redraw %s; slow at >=%dms, one frame at 60Hz)',
+      verdict, fmt(insert_ms), fmt(redraw_ms), doctor.FRAME_MS), verdict
+  end
+
+  local capture_running = false
+
   local function pair_doctor()
     if not doctor then
       vim.notify('PairDoctor: nvim/doctor.lua failed to load.', vim.log.levels.ERROR)
       return
     end
-    local body = doctor.payload(vim.env.PAIR_HOME)
-    if not body then
+    if not vim.env.PAIR_HOME or vim.env.PAIR_HOME == '' then
       vim.notify('PairDoctor: PAIR_HOME unset (run inside a pair session).',
         vim.log.levels.ERROR)
       return
     end
-    send_generated_prompt(body)
+    -- A second capture would perturb the first's numbers AND race it for the
+    -- buffer. Refuse and say so; queueing is wrong for the same reason -- the
+    -- operator wants THIS moment measured, not a later one.
+    if capture_running then
+      vim.notify('PairDoctor: a capture is already running.', vim.log.levels.WARN)
+      return
+    end
+
+    -- The note is read FIRST, before any timing, so the synthetic keystroke
+    -- cannot land in it and so a slow capture cannot lose it.
+    local buf = vim.api.nvim_get_current_buf()
+    local lines = vim.api.nvim_buf_get_lines(buf, 0, -1, false)
+    local note = doctor.note_from_lines(lines)
+    local editor, verdict = time_editor()
+
+    local script = vim.env.PAIR_HOME .. '/doctor/perf.sh'
+    if vim.fn.filereadable(script) == 0 then
+      send_generated_prompt(doctor.perf_payload(vim.env.PAIR_HOME, note, editor,
+        'n/a (doctor/perf.sh not found at ' .. script .. ')'))
+      return
+    end
+
+    capture_running = true
+    vim.notify('PairDoctor: capturing (~5s, keep typing)…', vim.log.levels.INFO)
+    -- ASYNC. Every other shell-out in this file is vim.fn.system, which is
+    -- synchronous -- a 5s capture through it would freeze the editor at exactly
+    -- the moment the operator is already suffering.
+    vim.system({ 'sh', script }, { text = true }, function(res)
+      vim.schedule(function()
+        capture_running = false
+        local env = (res.code == 0 and res.stdout ~= '' and res.stdout)
+          or ('n/a (perf.sh exited ' .. tostring(res.code) .. ')')
+        local body = doctor.perf_payload(vim.env.PAIR_HOME, note, editor, env)
+        if not body then return end
+        send_generated_prompt(body)
+
+        -- Append one row to the rolling log. This is what makes the NEXT
+        -- investigation comparative rather than absolute -- the 2026-09-06
+        -- session had no prior reading to compare against, which is half of why
+        -- it reached no theory. A failure here must never break the capture the
+        -- operator actually asked for, so it is pcall'd and silent.
+        pcall(function()
+          local probes = {}
+          for k, v in env:gmatch('(%w+_ms)=([%d%.]+)') do probes[k] = tonumber(v) end
+          local row = doctor.capture_record(os.time(), note, verdict, probes)
+          local dir = pair_data_dir()
+          vim.fn.mkdir(dir, 'p')
+          local fh = io.open(dir .. '/perf-captures.jsonl', 'a')
+          if fh then
+            fh:write(vim.json.encode(row) .. '\n')
+            fh:close()
+          end
+        end)
+
+        -- Consume the buffer ONLY if it still holds what was read. The operator
+        -- keeps typing during the capture; clearing unconditionally would
+        -- delete text written after invocation, and their description of the
+        -- symptom is the one thing here that cannot be re-measured.
+        if note and vim.api.nvim_buf_is_valid(buf) then
+          local now_lines = vim.api.nvim_buf_get_lines(buf, 0, -1, false)
+          if table.concat(now_lines, '\n') == table.concat(lines, '\n') then
+            vim.api.nvim_buf_set_lines(buf, 0, -1, false, { '' })
+          else
+            vim.notify('PairDoctor: buffer changed during capture; your note was kept.',
+              vim.log.levels.INFO)
+          end
+        end
+      end)
+    end)
   end
   vim.api.nvim_create_user_command('PairDoctor', pair_doctor,
-    { desc = 'Ask the agent to run pair-doctor and propose harness-drift fixes' })
+    { desc = 'Capture performance + harness state and hand it to the agent' })
   _G.PairDoctor = pair_doctor
 end
 

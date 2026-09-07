@@ -205,4 +205,56 @@ function M.parse_samples(text)
   return usable(samples.sample_a), usable(samples.sample_b), window
 end
 
+-- perf_payload assembles what the agent receives: the operator's note, what
+-- nvim measured about ITSELF, the environment snapshot, and the drift pointer.
+--
+-- The note LEADS, deliberately. An agent reading this needs the operator's
+-- symptom before the numbers, or it explains whatever is largest in the report
+-- rather than what was actually reported -- which is how the 2026-09-06
+-- investigation spent a session on a machine that was fine.
+--
+-- The drift instruction is embedded VERBATIM (M.payload), so #48's procedure
+-- cannot drift by being paraphrased here.
+function M.perf_payload(pair_home, note, editor, env)
+  local drift = M.payload(pair_home)
+  if not drift then return nil end
+  local out = { 'Diagnose a performance slowdown on this workbench.', '' }
+  if note and note ~= '' then
+    out[#out + 1] = 'What the operator reported, in their words:'
+    out[#out + 1] = ''
+    out[#out + 1] = note
+  else
+    out[#out + 1] = 'The operator left no note; go on the measurements alone.'
+  end
+  out[#out + 1] = ''
+  out[#out + 1] = 'What nvim measured about ITSELF (the editor-vs-environment'
+  out[#out + 1] = 'discriminator -- if the editor is fast while typing feels slow,'
+  out[#out + 1] = 'the cause is at or above the terminal and the scheduling family'
+  out[#out + 1] = '(pair#201/#203) is excluded for this symptom):'
+  out[#out + 1] = ''
+  out[#out + 1] = editor or 'editor: n/a (self-timing did not run)'
+  out[#out + 1] = ''
+  out[#out + 1] = 'Environment snapshot (doctor/perf.sh):'
+  out[#out + 1] = ''
+  out[#out + 1] = env or 'n/a (capture did not run)'
+  out[#out + 1] = ''
+  out[#out + 1] = 'Read `n/a` as "not measured", never as zero. Then, for harness'
+  out[#out + 1] = 'drift specifically: ' .. drift
+  return table.concat(out, '\n')
+end
+
+-- capture_record is one row of the rolling log: enough to compare a later
+-- reading against, without needing this file to interpret it. The baselines
+-- travel WITH the row for that reason -- a row read a year from now must be
+-- legible on its own.
+function M.capture_record(now, note, editor, probes)
+  return {
+    at = now,
+    note = note,               -- nil when the operator left none
+    editor = editor,           -- 'fast' | 'slow' | 'unknown'
+    probes = probes or {},
+    baselines = { pipe_hop_ms = 0.007, fork_exec_ms = 1.5, zellij_action_ms = 13 },
+  }
+end
+
 return M
