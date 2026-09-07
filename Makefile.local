@@ -1,7 +1,7 @@
 # Repo-specific Makefile targets.
 # This file is included by Makefile — add your own targets here.
 
-.PHONY: build install pair runtimebundle-generate runtimebundle-drift-check test-runtimebundle test-clean-bootstrap test test-race test-run-headless test-lua test-queue test-autopair test-draft-complete test-pair-doctor test-cr test-statusline test-doctor test-perf-capture test-adapt-schema test-dev-rebuild test-pair-go-install-layout test-pair-embedded-runtime test-pair-restart-quit test-emitter-health test-session-watch test-changelog test-copy-on-select test-term-pane-shortcuts test-pair-title test-zellij-trace test-review
+.PHONY: build install pair runtimebundle-generate runtimebundle-drift-check test-runtimebundle test-clean-bootstrap test test-race test-run-headless test-lua test-queue test-autopair test-draft-complete test-pair-doctor test-perf-key-conformance test-cr test-statusline test-doctor test-perf-capture test-adapt-schema test-dev-rebuild test-pair-go-install-layout test-pair-embedded-runtime test-pair-restart-quit test-emitter-health test-session-watch test-changelog test-copy-on-select test-term-pane-shortcuts test-pair-title test-zellij-trace test-review
 
 # Cross-cutting Go-binary targets. Every Go binary lives under cmd/<name>/
 # and ships with the `pair-` prefix so it doesn't collide with anything
@@ -117,7 +117,7 @@ pair: $(BIN_DIR)/pair
 #                     inside the vt.Emulator library API itself, which is
 #                     outside our scope to fix — exclude that package
 #                     here rather than chase a library-level race.
-test: runtimebundle-generate test-run-headless test-lua test-perf-capture test-queue test-submission-transaction test-autopair test-draft-complete test-pair-doctor test-cr test-statusline test-doctor test-adapt-schema test-dev-rebuild test-pair-go-install-layout test-pair-embedded-runtime test-pair-restart-quit test-emitter-health test-session-watch test-changelog test-copy-on-select test-term-pane-shortcuts test-pair-title test-zellij-trace test-review
+test: runtimebundle-generate test-run-headless test-lua test-perf-capture test-queue test-submission-transaction test-autopair test-draft-complete test-pair-doctor test-perf-key-conformance test-cr test-statusline test-doctor test-adapt-schema test-dev-rebuild test-pair-go-install-layout test-pair-embedded-runtime test-pair-restart-quit test-emitter-health test-session-watch test-changelog test-copy-on-select test-term-pane-shortcuts test-pair-title test-zellij-trace test-review
 	go test ./... -count=1
 
 # Expensive, explicit boundary regression: prove make test from a no-.git
@@ -259,6 +259,13 @@ test-draft-complete:
 # suite does not execute. See tests/pair-doctor-test.sh.
 test-pair-doctor:
 	bash tests/pair-doctor-test.sh
+
+# Conformance between doctor.lua's key declaration and what perf.sh actually
+# emits. perf.sh is shell and cannot import the Lua table, so its restatement
+# needs a test or a producer rename drops rows from the prompt silently. See
+# tests/perf-key-conformance-test.sh.
+test-perf-key-conformance:
+	bash tests/perf-key-conformance-test.sh
 
 # Regression test for the insert-mode <CR> decision (nvim/init.lua, cr_keys /
 # _G.PairCRKeys, #65): Return must always insert a newline when no completion

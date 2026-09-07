@@ -1638,6 +1638,28 @@ local function token_is_path(token)
   return token:match('^[/~]') ~= nil or token:match('^%.+/') ~= nil
 end
 
+
+-- complete_sink is vim.fn.complete with a seam in front of it, and
+-- complete_work is a counter of how often the chain reached its EXPENSIVE half
+-- (picks_load + reading agent_output_path + scoring the span pool + scanning
+-- the buffer). Both exist for :PairDoctor's completion leg.
+--
+-- The leg has now bailed twice before doing any work while the report called it
+-- measured: first at the insert-mode gate, then -- after that was split off --
+-- at `col == 0`, because nvim_buf_call on an undisplayed buffer uses the
+-- autocmd window with the cursor at line 1 col 0. Timing it needs the cursor
+-- placed AND vim.fn.complete kept from raising E785 outside Insert mode, and a
+-- reading is only honest if it can show the work happened. Hence a counter
+-- rather than a duration alone: `n/a` is the correct output when the chain
+-- bailed, and a duration for work that did not run is the defect this whole
+-- issue exists to eliminate.
+-- One table, not two locals: nvim/init.lua's main chunk is at Lua's 200-local
+-- ceiling, and a new `local` here fails the whole file to load.
+_G.PairCompleteProbe = {
+  sink = function(...) return vim.fn.complete(...) end,
+  work = 0,
+}
+
 local function path_complete()
   local line = vim.api.nvim_get_current_line()
   local col = vim.fn.col('.') - 1  -- 0-indexed cursor byte position
@@ -1662,7 +1684,7 @@ local function path_complete()
   -- to replace any spell popup with a typed-token menu, so bare digits go back
   -- to being literal (see spell_popup_active).
   spell_popup_active = false
-  vim.fn.complete(token_start, plain_items(matches))
+  _G.PairCompleteProbe.sink(token_start, plain_items(matches))
   return true
 end
 
@@ -1822,6 +1844,8 @@ local function word_complete()
   -- clobber its popup. Mirrors path_complete's trigger condition.
   if token_is_path(prefix) then return end
 
+  -- Past every gate: everything below is the work #202 is about.
+  _G.PairCompleteProbe.work = _G.PairCompleteProbe.work + 1
   picks_load()
 
   -- Build agent-span pool with scores. File order = LRU recency
@@ -1874,7 +1898,7 @@ local function word_complete()
   for i, m in ipairs(matches) do words[i] = m.word end
   -- Replacing any spell popup with a typed-token menu → bare digits literal.
   spell_popup_active = false
-  vim.fn.complete(token_start, plain_items(words))
+  _G.PairCompleteProbe.sink(token_start, plain_items(words))
   return true
 end
 
@@ -1963,7 +1987,7 @@ local function spell_complete()
   local suggestions = vim.fn.spellsuggest(word, SPELL_MAX_SUGGEST)
   if not suggestions or #suggestions == 0 then return end
 
-  vim.fn.complete(s, plain_items(suggestions))
+  _G.PairCompleteProbe.sink(s, plain_items(suggestions))
   return true
 end
 
@@ -3827,6 +3851,15 @@ _G.PairDraftCompleteTest = {
   complete_now = complete_now,
 }
 _G.PairDoctorCompleteNow = complete_now
+-- The probe seam for :PairDoctor's completion leg (see complete_sink).
+_G.PairDoctorCompleteProbe = {
+  work_count = function() return _G.PairCompleteProbe.work end,
+  set_sink = function(fn)
+    local prev = _G.PairCompleteProbe.sink
+    _G.PairCompleteProbe.sink = fn or function(...) return vim.fn.complete(...) end
+    return prev
+  end,
+}
 vim.api.nvim_create_autocmd({ 'TextChangedI', 'TextChangedP' }, {
   group = pair_aug,
   callback = function()
@@ -4012,31 +4045,49 @@ do
       redraw_ms = (hr() - t1) / 1e6
     end)
 
-    -- The completion chain, timed DIRECTLY rather than through the autocmd.
+    -- The completion chain, timed DIRECTLY, with its preconditions asserted.
     --
-    -- :PairDoctor is a `:` command, so mode is `n` and the TextChangedI above
-    -- reaches run_completers' insert-mode gate and returns without doing any
-    -- work. Timing that measured the gate, not the chain -- while the report
-    -- named the chain and instructed the reader to exclude #202 on it. So this
-    -- calls the un-gated chain against the scratch buffer, and if that cannot
-    -- run, it renders n/a with the reason rather than letting the input number
-    -- stand in for a measurement it never made.
+    -- This leg has bailed silently twice while the report called it measured:
+    -- at the insert-mode gate, and then at `col == 0` -- nvim_buf_call on an
+    -- undisplayed buffer borrows the autocmd window, whose cursor sits at line
+    -- 1 col 0, so every completer returned before doing any work. So: put the
+    -- cursor after a completable token, keep vim.fn.complete from raising E785
+    -- outside Insert mode, and CHECK that the expensive half actually ran.
+    -- A duration is emitted only when the counter moved.
+    local probe = _G.PairDoctorCompleteProbe
     local completer = _G.PairDoctorCompleteNow
-    if not completer then
+    if not (completer and probe) then
       complete_note = 'n/a (completion chain unavailable in this build)'
     else
+      local restore = probe.set_sink(function() end) -- no popup, no E785
+      local before_work = probe.work_count()
       local ok, err = pcall(function()
         vim.api.nvim_buf_call(scratch, function()
+          local line = vim.api.nvim_buf_get_lines(scratch, 0, 1, false)[1] or ''
+          vim.api.nvim_win_set_cursor(0, { 1, #line })
           local t2 = hr()
           completer()
           complete_ms = (hr() - t2) / 1e6
         end)
       end)
+      probe.set_sink(restore)
       if not ok then
         complete_ms = nil
         complete_note = 'n/a (' .. tostring(err):gsub('%s+', ' '):sub(1, 60) .. ')'
+      elseif probe.work_count() == before_work then
+        -- Timed, but the chain returned at one of its gates, so the number
+        -- covers the gates and not the work. Reporting it would be a reading
+        -- for something that did not run.
+        complete_ms = nil
+        complete_note = 'n/a (chain bailed at a gate; no candidate work ran)'
       end
     end
+
+    -- Guaranteed teardown. A leaked scratch buffer per invocation is a visible
+    -- bug in the operator's buffer list, and this delete was lost once already
+    -- while the comment above it went on claiming it.
+    pcall(vim.api.nvim_buf_delete, scratch, { force = true })
+
     -- The verdict spans every leg that was actually measured. A leg that did
     -- not run contributes nothing and forces `unknown` -- partial evidence can
     -- prove slow but never fast.

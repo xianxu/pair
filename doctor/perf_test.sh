@@ -135,5 +135,30 @@ for section in cputime procs; do
 done
 rm -rf "$fake_bin"
 
+# The ps CONTENT filter. The stub above only exits 1, so it pins the
+# pipeline-exit-status half and nothing about what a process NAME may contain --
+# reverting the awk redaction left every suite green. A comm is
+# attacker-controlled text that reaches a terminal, a file the agent is told to
+# open, and a committed fixture: ^N is SO and garbles every following line, and
+# a newline would split a sample row and could forge a `key=value` line inside
+# the reader's own evidence.
+fake2="${TMPDIR:-/tmp}/perf_test_fakeps2.$$"
+mkdir -p "$fake2"
+cat > "$fake2/ps" <<'FAKE'
+#!/bin/sh
+# One row with a long path AND a control byte, mimicking WhatsApp's real argv.
+printf '%s\n' "  501 01:02.03 12345 /Applications/$(printf '\016')Evil.app/Contents/MacOS/EvilName"
+FAKE
+chmod +x "$fake2/ps"
+out2=$(PATH="$fake2:$PATH" PAIR_PERF_WINDOW=0 sh "$here/perf.sh" 2>/dev/null)
+rows=$(printf '%s\n' "$out2" | awk '/^### procs/{f=1;next} /^###|^##/{f=0} f')
+printf '%s\n' "$rows" | grep -q "$(printf '\016')" \
+	&& bad "a control byte in a process name reached the report"
+printf '%s\n' "$rows" | grep -q '/Applications/' \
+	&& bad "a full path reached the report; comm must be reduced to its basename"
+printf '%s\n' "$rows" | grep -q 'EvilName' \
+	|| bad "the readable part of the process name did not survive redaction"
+rm -rf "$fake2"
+
 if [ "$fails" -gt 0 ]; then echo "$fails failure(s)" >&2; exit 1; fi
 echo "perf.sh shape tests passed"

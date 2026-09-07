@@ -409,6 +409,45 @@ to revert — a truncated report is still better than none.
 
 ## Revisions
 
+### 2026-09-07 — M2 boundary review round 10 (REWORK → addressed)
+
+Round 10 found that round 9's fixes were *instances*, not classes. Recorded
+because the pattern matters more than the individual defects.
+
+9. **The completion leg bailed a SECOND time, at a different gate.** Round 9
+   split the insert-mode gate off as `complete_now` — and the chain then
+   returned at `col == 0`, because `nvim_buf_call` on an undisplayed buffer
+   borrows the autocmd window, whose cursor is at line 1 col 0. So the leg still
+   measured nothing while `editor: fast` was still offered as grounds for
+   excluding `#201`/`#203`. Fixing the named precondition without enumerating
+   the rest is what let the same finding return. Now: the cursor is placed after
+   a completable token, `vim.fn.complete` is swapped for a no-op sink so the
+   chain can run outside Insert mode without `E785`, and a **work counter**
+   proves the expensive half executed — `n/a (chain bailed at a gate)` when it
+   did not.
+10. **The "single-sourced" key set stopped at the Lua boundary.** perf.sh
+    restates it in shell and cannot import the table, and `doctor_test.lua`'s
+    degraded test built its input *from* `HEADLINE_KEYS` — so it agreed with
+    itself by construction and could not see a producer rename.
+    `tests/perf-key-conformance-test.sh` reads the keys from `doctor.lua` and
+    checks them against a real `perf.sh` run. Verified: renaming one producer
+    key fails exactly one assertion.
+11. **The round-9 ps redaction had no test**; reverting it left every suite
+    green. `perf_test.sh` now feeds a fake `ps` a row with a long path and a
+    `^N`, and asserts basename + `?`. The committed fixture was also output the
+    current producer no longer emits, and is regenerated.
+12. **Two docs named `perf-capture-latest.txt`**, which round 9 stopped writing
+    — including the one line that tells an agent which file to open on a
+    truncated send. Both now describe the per-capture name.
+13. **`time_editor` leaked a scratch buffer per invocation.** Round 9's edit
+    removed the `nvim_buf_delete` while leaving the comment claiming it. Restored,
+    and `tests/pair-doctor-test.sh` now asserts the buffer count does not grow.
+14. **The data-loss interleaving is now driven.** The buffer-changed-mid-flight
+    branch — which the plan calls the only data-loss path in the design — was
+    unexecuted; the injected runner owns the ordering, so the test rewrites the
+    buffer before handing back the capture.
+
+
 ### 2026-09-07 — M2 boundary review (REWORK → addressed)
 
 The M2 close came back REWORK with one Critical and four Importants. The plan

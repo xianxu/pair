@@ -71,7 +71,9 @@ healthy machine.
 **The prompt is a pointer, not the report.** `:PairDoctor` sends a headline of
 about a dozen lines and a path; the complete capture — compact report, joined
 per-process rates, and both raw `ps` samples — is written to
-`$PAIR_DATA_DIR/perf-capture-latest.txt`. **Open that file.** The headline is
+`$PAIR_DATA_DIR/perf-capture-<epoch>.txt` — **the payload names the exact path;
+open the one it names**, not the newest, since a later capture does not replace
+an earlier prompt's file. The headline is
 enough to form a first suspicion and never enough to confirm one.
 
 The path is placed *ahead of the operator's note*, in the first ~60 bytes,

@@ -83,7 +83,22 @@ for k in pairs(p) do
   check(rows[1].baselines[k] ~= nil, 'every probe key has a matching baseline: ' .. k)
 end
 
--- 2. A FAILED capture must keep the operator's note: the symptom description is
+-- 2. The buffer-changed-mid-flight branch: the plan calls this the only
+--    DATA-LOSS path in the design, and it was the one interleaving no test
+--    drove. The injected runner owns the ordering, so it can rewrite the
+--    buffer before handing back the capture.
+_G.PairDoctorTest.set_runner(function(cb)
+  vim.api.nvim_buf_set_lines(0, 0, -1, false, { 'typed AFTER invocation' })
+  cb({ code = 0, stdout = capture })
+end)
+set_note('the original note')
+_G.PairDoctorTest.run()
+vim.wait(2000, function() return not _G.PairDoctorTest.is_running() end)
+local mid = table.concat(vim.api.nvim_buf_get_lines(0, 0, -1, false), '\n')
+check(mid:find('AFTER invocation', 1, true) ~= nil,
+  'text typed during the capture is never destroyed', mid)
+
+-- 3. A FAILED capture must keep the operator's note: the symptom description is
 --    the one thing in this flow that cannot be re-measured.
 _G.PairDoctorTest.set_runner(function(cb) cb({ code = 1, stdout = '' }) end)
 set_note('the note that must survive')
@@ -92,7 +107,23 @@ vim.wait(2000, function() return not _G.PairDoctorTest.is_running() end)
 local kept = table.concat(vim.api.nvim_buf_get_lines(0, 0, -1, false), '\n')
 check(kept:find('must survive', 1, true) ~= nil, 'a failed capture preserves the note', kept)
 
--- 3. The in-flight guard must reset even when the runner throws, or :PairDoctor
+-- 3. The editor legs. C1 shipped twice because nothing asserted that the timed
+--    completion chain did any work: it bailed at the insert-mode gate, then at
+--    `col == 0`, while the report said `fast` and SKILL.md told the reader to
+--    exclude #201/#203 on it.
+_G.PairDoctorTest.set_runner(function(cb) cb({ code = 0, stdout = capture }) end)
+local before_work = _G.PairDoctorCompleteProbe.work_count()
+local bufs_before = #vim.api.nvim_list_bufs()
+set_note('leg check')
+_G.PairDoctorTest.run()
+vim.wait(2000, function() return not _G.PairDoctorTest.is_running() end)
+check(_G.PairDoctorCompleteProbe.work_count() > before_work,
+  'the timed completion chain reaches its candidate build, not just its gates',
+  'work counter did not move')
+check(#vim.api.nvim_list_bufs() <= bufs_before,
+  'time_editor leaves no scratch buffer behind', #vim.api.nvim_list_bufs())
+
+-- 4. The in-flight guard must reset even when the runner throws, or :PairDoctor
 --    is dead for the session on exactly the struggling machine it exists for.
 _G.PairDoctorTest.set_runner(function() error('spawn exploded') end)
 set_note('x')

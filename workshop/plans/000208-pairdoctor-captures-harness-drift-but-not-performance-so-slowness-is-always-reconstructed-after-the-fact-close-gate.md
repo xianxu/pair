@@ -1078,6 +1078,103 @@ rounds:
       boundary: M2
       blocked: false
       protocol_error: no valid findings block
+    - "n": 11
+      timestamp: "2026-09-07T13:50:40-07:00"
+      agent: claude
+      dispose:
+        - id: BR-1
+          disposition: addressed
+          note: Plan Revisions record M2.6 landing via pair_data_dir() not artifactpath, and the probe as the `pair hoprtt` subcommand; both mechanisms verified reachable in the tree.
+          round: 11
+      findings:
+        - id: BR-44
+          severity: Critical
+          title: 'The completion leg still measures nothing — the gate moved from mode to cursor column, and `editor: fast` is still emitted as grounds for exclusion'
+          detail: |-
+            11th in this family. The rule was stated in round 10 and applied only to the
+            precondition that round named. nvim_buf_call runs complete_now in the autocmd
+            window at col 0, so path/word/spell_complete all return at `if col == 0 then
+            return end` (init.lua:1644, :1817, :1949). Measured under the real init.lua:
+            complete_now takes 0.0040 ms and the row records "editor":"fast", while
+            doctor/SKILL.md:79 tells the reader that `fast` means the #202 chain ran inside
+            a frame and that #201/#203 are excluded on it. Fix the class: assert each leg's
+            precondition where it is timed (completion needs a completable token at the
+            cursor; redraw needs a real UI), render n/a with the unmet precondition
+            otherwise, and add one wiring assertion that the timed chain reached its
+            candidate build. Note vim.fn.complete() raises E785 outside Insert mode, so the
+            candidate build must be split off the complete() call the way complete_now was
+            split off the gate.
+          family: failure-reported-as-measurement
+          round: 11
+        - id: BR-45
+          severity: Important
+          title: The single-sourced key set stops at the Lua boundary — perf.sh and perf_test.sh restate it, and a producer rename breaks nothing
+          detail: |-
+            3rd in this family. Rule: one declaration per fact, and where a second language
+            cannot import it, a test asserts the two agree. doctor.lua:398-413 collapsed the
+            three Lua sites, but perf.sh:198-200 restates the set in shell and
+            perf_test.sh:28 restates a different subset. Verified by renaming
+            swapins_per_s to swap_in_rate in a scratch copy of doctor/ — perf_test.sh's
+            failure count was unchanged, and doctor_test.lua cannot see it because it builds
+            its degraded input from HEADLINE_KEYS itself. The prompt would silently drop the
+            swap row, which is the C1(b) defect returning. Fix: perf_test.sh runs the real
+            perf.sh and asserts every key read out of doctor.HEADLINE_KEYS/PROBE_KEYS via
+            `nvim -l` appears in the output.
+          family: duplicated-logic
+          round: 11
+        - id: BR-46
+          severity: Important
+          title: The ps-content filter and the buffer-changed interleaving are both unexecuted, though the seams to control each now exist
+          detail: |-
+            5th in this family. BR-38's rule generalised: a test controls the inputs its
+            subject reads — subprocess output and event ordering alike. Two live members.
+            (1) perf.sh:143-152's basename + control-byte strip has no test; perf_test.sh's
+            fake ps only `exit 1`s, so reverting the awk body to `$4` leaves every suite
+            green, and doctor/fixtures/perf_capture.txt:82 still carries full paths the
+            current producer no longer emits. (2) init.lua:4157-4168's buffer-changed
+            branch — the plan's only data-loss path — is unexecuted; the injected runner
+            receives cb, so the test can rewrite the buffer before invoking it. Sweep both:
+            recorded-output ps fake plus a regenerated fixture, and the two missing
+            interleavings in tests/pair-doctor-test.sh.
+          family: untested-shell-surface
+          round: 11
+        - id: BR-47
+          severity: Important
+          title: SKILL.md and atlas name perf-capture-latest.txt, which the rework stopped writing
+          detail: |-
+            3rd in this family. Rule: a doc naming a runtime artifact names the one the code
+            produces, checked in the window that changes it — enumerable by grepping docs
+            for $PAIR_DATA_DIR/<name> against the writers in init.lua. init.lua:4128 now
+            writes perf-capture-<epoch>.txt (verified: perf-capture-1788813769.txt), while
+            doctor/SKILL.md:74 and atlas/index.md:40 still name the fixed file and SKILL.md
+            instructs the agent to open it — the truncated-send recovery path #211 exists
+            for.
+          family: docs-gate
+          round: 11
+        - id: BR-48
+          severity: Important
+          title: time_editor leaks a scratch buffer per invocation while its comment claims a guaranteed delete
+          detail: |-
+            New family. Rule: a resource acquired inside a function is released on every
+            exit path, and a comment claiming teardown is a claim a test should hold.
+            init.lua:3999 creates the buffer; nothing deletes it (grep nvim_buf_delete
+            returns nothing) and :4001 asserts otherwise. Measured: three :PairDoctor runs
+            took the valid-buffer count from 1 to 4. The plan's ARCH-ORDER table has a row
+            requiring the teardown, so the plan claims delivered behaviour the code lacks.
+          family: unreleased-resource
+          round: 11
+        - id: BR-49
+          severity: Minor
+          title: The M2.6 deferrals are recorded only in the plan, which archives at close — issue 210 records neither
+          detail: |-
+            4th in this family. The plan's Revisions say the missing window-length field and
+            the uncapped perf-captures.jsonl are "deferred to #210"; #210 covers only
+            time-bounding plus three re-surfaced M1 findings. A deferral must land in the
+            artifact that survives the archive.
+          family: traceability
+          round: 11
+      boundary: M2
+      blocked: true
 ---
 
 # Gate ledger — pair#208 (boundary-review)
@@ -1598,9 +1695,73 @@ later rounds disposed of them. Generated — edit the gate, not this file.
 
 **Protocol error:** no valid findings block — this round contributed no findings.
 
+## Round 11 — 2026-09-07T13:50:40-07:00 (claude) — BLOCKED
+
+### Disposed
+
+- BR-1 — addressed — Plan Revisions record M2.6 landing via pair_data_dir() not artifactpath, and the probe as the `pair hoprtt` subcommand; both mechanisms verified reachable in the tree.
+
+### Raised
+
+- **BR-44** [Critical] `failure-reported-as-measurement` The completion leg still measures nothing — the gate moved from mode to cursor column, and `editor: fast` is still emitted as grounds for exclusion
+  11th in this family. The rule was stated in round 10 and applied only to the
+  precondition that round named. nvim_buf_call runs complete_now in the autocmd
+  window at col 0, so path/word/spell_complete all return at `if col == 0 then
+  return end` (init.lua:1644, :1817, :1949). Measured under the real init.lua:
+  complete_now takes 0.0040 ms and the row records "editor":"fast", while
+  doctor/SKILL.md:79 tells the reader that `fast` means the #202 chain ran inside
+  a frame and that #201/#203 are excluded on it. Fix the class: assert each leg's
+  precondition where it is timed (completion needs a completable token at the
+  cursor; redraw needs a real UI), render n/a with the unmet precondition
+  otherwise, and add one wiring assertion that the timed chain reached its
+  candidate build. Note vim.fn.complete() raises E785 outside Insert mode, so the
+  candidate build must be split off the complete() call the way complete_now was
+  split off the gate.
+- **BR-45** [Important] `duplicated-logic` The single-sourced key set stops at the Lua boundary — perf.sh and perf_test.sh restate it, and a producer rename breaks nothing
+  3rd in this family. Rule: one declaration per fact, and where a second language
+  cannot import it, a test asserts the two agree. doctor.lua:398-413 collapsed the
+  three Lua sites, but perf.sh:198-200 restates the set in shell and
+  perf_test.sh:28 restates a different subset. Verified by renaming
+  swapins_per_s to swap_in_rate in a scratch copy of doctor/ — perf_test.sh's
+  failure count was unchanged, and doctor_test.lua cannot see it because it builds
+  its degraded input from HEADLINE_KEYS itself. The prompt would silently drop the
+  swap row, which is the C1(b) defect returning. Fix: perf_test.sh runs the real
+  perf.sh and asserts every key read out of doctor.HEADLINE_KEYS/PROBE_KEYS via
+  `nvim -l` appears in the output.
+- **BR-46** [Important] `untested-shell-surface` The ps-content filter and the buffer-changed interleaving are both unexecuted, though the seams to control each now exist
+  5th in this family. BR-38's rule generalised: a test controls the inputs its
+  subject reads — subprocess output and event ordering alike. Two live members.
+  (1) perf.sh:143-152's basename + control-byte strip has no test; perf_test.sh's
+  fake ps only `exit 1`s, so reverting the awk body to `$4` leaves every suite
+  green, and doctor/fixtures/perf_capture.txt:82 still carries full paths the
+  current producer no longer emits. (2) init.lua:4157-4168's buffer-changed
+  branch — the plan's only data-loss path — is unexecuted; the injected runner
+  receives cb, so the test can rewrite the buffer before invoking it. Sweep both:
+  recorded-output ps fake plus a regenerated fixture, and the two missing
+  interleavings in tests/pair-doctor-test.sh.
+- **BR-47** [Important] `docs-gate` SKILL.md and atlas name perf-capture-latest.txt, which the rework stopped writing
+  3rd in this family. Rule: a doc naming a runtime artifact names the one the code
+  produces, checked in the window that changes it — enumerable by grepping docs
+  for $PAIR_DATA_DIR/<name> against the writers in init.lua. init.lua:4128 now
+  writes perf-capture-<epoch>.txt (verified: perf-capture-1788813769.txt), while
+  doctor/SKILL.md:74 and atlas/index.md:40 still name the fixed file and SKILL.md
+  instructs the agent to open it — the truncated-send recovery path #211 exists
+  for.
+- **BR-48** [Important] `unreleased-resource` time_editor leaks a scratch buffer per invocation while its comment claims a guaranteed delete
+  New family. Rule: a resource acquired inside a function is released on every
+  exit path, and a comment claiming teardown is a claim a test should hold.
+  init.lua:3999 creates the buffer; nothing deletes it (grep nvim_buf_delete
+  returns nothing) and :4001 asserts otherwise. Measured: three :PairDoctor runs
+  took the valid-buffer count from 1 to 4. The plan's ARCH-ORDER table has a row
+  requiring the teardown, so the plan claims delivered behaviour the code lacks.
+- **BR-49** [Minor] `traceability` The M2.6 deferrals are recorded only in the plan, which archives at close — issue 210 records neither
+  4th in this family. The plan's Revisions say the missing window-length field and
+  the uncapped perf-captures.jsonl are "deferred to #210"; #210 covers only
+  time-bounding plus three re-surfaced M1 findings. A deferral must land in the
+  artifact that survives the archive.
+
 ## Open findings
 
-- **BR-1** [Minor] `unverified-repo-mechanism` M2.6 routes the Lua rolling-file write through artifactpath, a Go internal package Lua cannot call
 - **BR-5** [Important] `failure-reported-as-measurement` perf.sh collector failures render as values, not n/a, contradicting the file's own stated rule
 - **BR-16** [Minor] `failure-reported-as-measurement` perf.sh discards hoprtt's sample count, so a truncated pipe run reads identically to a full one
 - **BR-17** [Minor] `report-line-contract` perf.sh:61 awk $4 truncates command paths containing spaces, and comm= emits full paths where the plan said process name
@@ -1621,3 +1782,9 @@ later rounds disposed of them. Generated — edit the gate, not this file.
 - **BR-41** [Minor] `unguarded-edge-case` pair hoprtt silently ignores unrecognised arguments and runs the 500-sample pipe probe instead
 - **BR-42** [Minor] `traceability` Three pure entities shipped in M1 have no row in the plan's Core concepts table
 - **BR-43** [Minor] `injected-io-seam-bypassed` hoprttcmd.Run takes injected writers but child() reads os.Stdin and writes os.Stdout, and the package is registered as a streaming subcommand with no stdin
+- **BR-44** [Critical] `failure-reported-as-measurement` The completion leg still measures nothing — the gate moved from mode to cursor column, and `editor: fast` is still emitted as grounds for exclusion
+- **BR-45** [Important] `duplicated-logic` The single-sourced key set stops at the Lua boundary — perf.sh and perf_test.sh restate it, and a producer rename breaks nothing
+- **BR-46** [Important] `untested-shell-surface` The ps-content filter and the buffer-changed interleaving are both unexecuted, though the seams to control each now exist
+- **BR-47** [Important] `docs-gate` SKILL.md and atlas name perf-capture-latest.txt, which the rework stopped writing
+- **BR-48** [Important] `unreleased-resource` time_editor leaks a scratch buffer per invocation while its comment claims a guaranteed delete
+- **BR-49** [Minor] `traceability` The M2.6 deferrals are recorded only in the plan, which archives at close — issue 210 records neither

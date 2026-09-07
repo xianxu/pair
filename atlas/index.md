@@ -37,7 +37,8 @@
 
   **The capture writes a file and sends a pointer.** The complete report —
   compact half, joined per-process rates, and both raw `ps` samples — lands in
-  `$PAIR_DATA_DIR/perf-capture-latest.txt`; the prompt carries a ~12-line
+  `$PAIR_DATA_DIR/perf-capture-<epoch>.txt` — named per capture, so re-running
+  never overwrites the file an earlier prompt points at; the prompt carries a ~12-line
   headline plus that path, and the path is placed in the **first ~60 bytes,
   ahead of the operator's note**. That placement is load-bearing, not
   cosmetic: the draft-editor→agent send path drops a contiguous chunk from the
