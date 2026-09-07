@@ -79,6 +79,31 @@ rounds:
           family: wallclock-assertion-in-default-suite
           round: 2
       blocked: true
+    - "n": 3
+      timestamp: "2026-09-06T23:11:19-07:00"
+      agent: claude
+      dispose:
+        - id: PQ-1
+          disposition: addressed
+          note: Build half verified against Makefile.local:32,80,336; the artifactpath half of my prior finding was mistaken — artifactpath is the authority for non-Go consumers (paths.go:558).
+          round: 3
+        - id: PQ-2
+          disposition: addressed
+          note: doctor.delta named, pure, fixture-driven at M2.2b; perf.sh explicitly does no arithmetic.
+          round: 3
+        - id: PQ-3
+          disposition: addressed
+          note: doctor.verdict named with a 16 ms threshold and basis; scratch-buffer and note-before-timing ordering both stated as tests.
+          round: 3
+        - id: PQ-4
+          disposition: not-addressed
+          note: Async stated, but the ARCH-ORDER table is unchanged and still claims the only carried state is the sample window — second-invocation and buffer teardown are absent.
+          round: 3
+        - id: PQ-5
+          disposition: addressed
+          note: Band is now 0.5-15.0 ms with the reasoning inline.
+          round: 3
+      blocked: true
 ---
 
 # Gate ledger — pair#208 (plan-quality)
@@ -136,10 +161,16 @@ later rounds disposed of them. Generated — edit the gate, not this file.
   under a spawn storm) that reaches 4.5 ms against a 6 ms ceiling. A ceiling
   near 15 ms still fails the 18.7 ms bug the control was written to catch.
 
+## Round 3 — 2026-09-06T23:11:19-07:00 (claude) — BLOCKED
+
+### Disposed
+
+- PQ-1 — addressed — Build half verified against Makefile.local:32,80,336; the artifactpath half of my prior finding was mistaken — artifactpath is the authority for non-Go consumers (paths.go:558).
+- PQ-2 — addressed — doctor.delta named, pure, fixture-driven at M2.2b; perf.sh explicitly does no arithmetic.
+- PQ-3 — addressed — doctor.verdict named with a 16 ms threshold and basis; scratch-buffer and note-before-timing ordering both stated as tests.
+- PQ-4 — not-addressed — Async stated, but the ARCH-ORDER table is unchanged and still claims the only carried state is the sample window — second-invocation and buffer teardown are absent.
+- PQ-5 — addressed — Band is now 0.5-15.0 ms with the reasoning inline.
+
 ## Open findings
 
-- **PQ-1** [Important] `unverified-repo-mechanism` Plan names build and path mechanisms that do not work where it puts them
-- **PQ-2** [Important] `pure-logic-in-untested-shell` Two-sample delta is untested shell; ARCH-MOCK claims a seam no task builds
-- **PQ-3** [Important] `discriminator-underspecified` M2.3 self-timing names no function, no threshold, and no target buffer
 - **PQ-4** [Important] `ui-path-blocking` Envelope never says whether the 6 s capture blocks the nvim UI
-- **PQ-5** [Minor] `wallclock-assertion-in-default-suite` Positive-control timing band will flake under the load it exists to study

@@ -192,8 +192,12 @@ hunting: pipe hop ~7 µs, `fork+exec` ~1.5 ms, `zellij action` ~13 ms.
 
 ## ARCH-ORDER — states, events, and the ones the caller cannot block
 
-The capture holds state across one event: **two samples separated by a window.**
-Everything else is a single-shot read.
+The capture holds state across **two** spans, and the second only exists because
+the capture is async (see ARCH-CONSTRAINTS): the **two-sample window** inside
+`perf.sh`, and the **in-flight capture** between `:PairDoctor` returning and its
+`on_exit` callback firing. The editor stays live for that whole second span, so
+the operator can do anything during it — which is where the interesting events
+are.
 
 | event | state | -> effect |
 |---|---|---|
@@ -203,10 +207,26 @@ Everything else is a single-shot read.
 | a process starts between samples | absent in S1 | no delta computable; listed separately as "started during window" |
 | the machine is so slow the budget is exceeded | partial capture | report the probes that completed and name the ones skipped — a truncated honest report beats a hung editor |
 | `zellij` is absent or the session is gone | probe fails | record `n/a` with the reason; never abort the whole capture |
+| **`:PairDoctor` invoked again while one is in flight** | capture pending | **ignore, and say so.** A second capture would both perturb the first's numbers and race it to consume the buffer. Queueing is wrong for the same reason — the operator wants *this* moment measured, not a later one |
+| **the operator keeps typing during the capture** | note read at t0, buffer now differs | **do not consume.** Send the note as read, and leave the buffer alone — see below |
+| **the draft buffer is gone at callback time** (closed, or nvim exiting) | no buffer to consume | send anyway if possible, skip the consume, never error into the operator's face |
+| **timing fails or throws** | scratch buffer may survive | tear it down in a `pcall`-protected finally; a leaked scratch buffer is a visible bug in the operator's buffer list |
 
-The event most likely to be mishandled: **a process exiting mid-window**. The
-naive delta joins on pid and silently drops it, which under a spawn storm loses
-exactly the processes that characterise the storm. Hence the explicit counts.
+Two events are most likely to be mishandled, one per span.
+
+**In the sample window: a process exiting mid-window.** The naive delta joins on
+pid and silently drops it, which under a spawn storm loses exactly the processes
+that characterise the storm. Hence the explicit vanished/started counts.
+
+**In the in-flight span: consuming a buffer the operator has since edited.**
+This is the only **data-loss** path in the design. The note is read at t0; the
+callback fires seconds later; if it clears the buffer unconditionally it deletes
+whatever the operator typed in between. The rule: **consume only if the buffer
+still matches what was read**, otherwise leave it untouched and note in the sent
+message that the buffer was preserved. Combined with the failure rule in M2.4
+(consume only on a successful send), the operator's text survives every path —
+which matters more than tidiness, because their description of the symptom is
+the one thing here that cannot be re-measured.
 
 Nondeterminism enters through sampling; it is bounded by reporting the window
 length alongside the numbers so a reader can re-derive the rates.
@@ -353,8 +373,11 @@ assert(doctor.payload('/h') == <the existing string>)
       would freeze the editor for the whole capture. The operator keeps typing;
       the combine-and-send happens in the callback.
 
-      **The buffer is consumed only on a successful send.** A failed capture
-      leaves the note exactly where the operator typed it — losing their
+      **The buffer is consumed only on a successful send, and only if it still
+      matches what was read** (ARCH-ORDER: the operator keeps typing during the
+      async window; clearing unconditionally would delete text written after
+      invocation). A failed capture leaves the note exactly where the operator
+      typed it — losing their
       description of the symptom to a probe error would be the worst outcome
       this feature could produce, and it is the one behaviour a test pins.
 - [ ] **M2.5: Drift text pinned byte-identical.** There is no perf argument —
