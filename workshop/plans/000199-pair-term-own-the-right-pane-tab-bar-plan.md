@@ -291,7 +291,7 @@ enumerations are written out rather than left as "sweep": the **nine**
 - Create: `cmd/internal/hostty/reserve.go`, `cmd/internal/hostty/reserve_test.go`
 - Modify: `cmd/internal/couchtty/reserve.go` (delete the four functions), `cmd/internal/couchtty/console.go` (repoint)
 
-- [ ] **M1.1: Write the failing tests** — including the asymmetry:
+- [x] **M1.1: Write the failing tests** — including the asymmetry:
 
 ```go
 func TestBottomReservationKeepsTheChildOffTheRow(t *testing.T) {
@@ -334,12 +334,12 @@ func TestPaintBracketsWithCursorSaveRestore(t *testing.T) {
 }
 ```
 
-- [ ] **M1.2: Run to verify they fail.** `go test ./cmd/internal/hostty/ -run Reserv -count=1`
-- [ ] **M1.3: Implement** `Edge`, `Reservation`, `NewReservation`, and the four methods, composing from `hostty`'s existing `SetRegion`/`MoveTo`/`ClearLine`/`Save`/`RestoreCursor` constants. Do not spell an escape twice.
-- [ ] **M1.4: Repoint couch** — delete `couchtty.ChildRows/Reserve/Release/PaintRow`, construct `Reservation{Edge: EdgeBottom}` in `console.go`. `RenderStatusRow` and friends stay put: what the row *says* is policy.
-- [ ] **M1.5: Prove it was a MOVE, not a rewrite.** `go test ./cmd/internal/couchtty/ -count=1` green with **no couch test edited** — `git diff --stat cmd/internal/couchtty/*_test.go` must be empty. This is the Done-when's "a regression there means it was a rewrite", made checkable.
-- [ ] **M1.6:** `grep -rn "SetRegion\|\\\\x1b\\[.*r\"" cmd/ --include=*.go | grep -v hostty/` returns nothing — one implementation, per the atlas.
-- [ ] **M1.7: Commit**, then `sdlc milestone-close --issue 199 --milestone M1`.
+- [x] **M1.2: Run to verify they fail.** `go test ./cmd/internal/hostty/ -run Reserv -count=1`
+- [x] **M1.3: Implement** `Edge`, `Reservation`, `NewReservation`, and the four methods, composing from `hostty`'s existing `SetRegion`/`MoveTo`/`ClearLine`/`Save`/`RestoreCursor` constants. Do not spell an escape twice.
+- [x] **M1.4: Repoint couch** — delete `couchtty.ChildRows/Reserve/Release/PaintRow`, construct `Reservation{Edge: EdgeBottom}` in `console.go`. `RenderStatusRow` and friends stay put: what the row *says* is policy.
+- [x] **M1.5: Prove it was a MOVE, not a rewrite.** `go test ./cmd/internal/couchtty/ -count=1` green with **no couch test edited** — `git diff --stat cmd/internal/couchtty/*_test.go` must be empty. This is the Done-when's "a regression there means it was a rewrite", made checkable.
+- [x] **M1.6:** `grep -rn "SetRegion\|\\\\x1b\\[.*r\"" cmd/ --include=*.go | grep -v hostty/` returns nothing — one implementation, per the atlas.
+- [x] **M1.7: Commit**, then `sdlc milestone-close --issue 199 --milestone M1`.
 
 ## M2 — one writer, one gate
 
@@ -463,6 +463,31 @@ the strip over a suspected-broken writer would confuse both.
 
 
 ## Revisions
+
+### 2026-09-07 — M1 landed, with two deviations worth recording
+
+**M1.5's acceptance was restated, as the plan gate (PQ-2) predicted.** "No couch
+test edited" is unsatisfiable: `couchtty/reserve_test.go` calls the four moved
+functions directly, so the package cannot compile until those tests move with
+them. The invariant that actually carries the meaning -- *this was a move, not a
+rewrite* -- is that the BEHAVIOURAL couch tests are untouched, and they are:
+`git diff --stat cmd/internal/couchtty/{console_live,vtscreen}_test.go` is
+empty, and those are the tests that exercise the reserved row end to end.
+
+**Three consumer sets needed the move**, none of them in the plan's file list:
+`core_concepts_contract_test.go`'s `conceptPlans` and `conceptInventory` (the
+gate named the first, not the second), `#146`'s Core concepts row (now marked
+deleted so the contract asserts the symbols are ABSENT from couchtty), and
+`artifactpath`'s exhaustive production inventory. All three are hand-maintained
+lists that a new or moved file silently falls out of -- the class `#188` tracks.
+
+**One real bug, caught by the suite.** The first lift gave `Console` a
+`reservation()` method that read `c.size` under `c.mu`. Two call sites --
+`ChildSize` and `applyLayout` -- already hold that lock, so the package
+deadlocked and the suite hung for four minutes rather than failing. Replaced
+with a plain `bottomReservation(rows uint16)`: taking rows as an argument makes
+every call site obviously safe and leaves reading `c.size` where the locking
+discipline already lives.
 
 ### 2026-09-07 — reopened from `punt`; feasibility established
 

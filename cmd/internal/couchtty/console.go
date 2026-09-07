@@ -256,7 +256,7 @@ func (c *Console) SetErrorWriter(w io.Writer) { c.stderr = w }
 func (c *Console) ChildSize() ptychild.Size {
 	c.mu.Lock()
 	defer c.mu.Unlock()
-	return ptychild.Size{Rows: ChildRows(c.size.Rows), Cols: c.size.Cols}
+	return ptychild.Size{Rows: bottomReservation(c.size.Rows).ChildRows(), Cols: c.size.Cols}
 }
 
 // Deliver is the sink handed to the runner: it hands a child's output to the
@@ -903,12 +903,23 @@ func (c *Console) onExit(event childExit) bool {
 // so the operator's shell does not inherit a pinned region or a stale row.
 func (c *Console) release() {
 	c.mu.Lock()
-	rows := c.size.Rows
+	res := bottomReservation(c.size.Rows)
 	c.mu.Unlock()
 	// Teardown writes UNCONDITIONALLY: a half-restored terminal is worse than a
 	// spliced sequence, and the child is finished with the screen by now.
 	_, _ = io.WriteString(c.host,
-		Release()+PaintRow(rows, "")+hostty.ResetInteractiveModes+hostty.LeaveAltScreen+hostty.ResetRegion+hostty.ShowCursor)
+		res.Release()+res.Paint("")+hostty.ResetInteractiveModes+hostty.LeaveAltScreen+hostty.ResetRegion+hostty.ShowCursor)
+}
+
+// bottomReservation is couch's row: always the host's bottom one.
+//
+// A plain function of rows, NOT a method that reads c.size under the lock. Most
+// callers here already hold c.mu, so a locking accessor deadlocks -- which it
+// did, in ChildSize and applyLayout, on the first version of this lift. Taking
+// rows as an argument makes every call site obviously safe and leaves reading
+// c.size where the locking discipline already is.
+func bottomReservation(rows uint16) hostty.Reservation {
+	return hostty.Reservation{Rows: rows, Edge: hostty.EdgeBottom}
 }
 
 func (c *Console) activeChild() *ptychild.Child {
@@ -925,7 +936,7 @@ func (c *Console) activeChild() *ptychild.Child {
 // two.
 func (c *Console) applyLayout() {
 	c.mu.Lock()
-	size := ptychild.Size{Rows: ChildRows(c.size.Rows), Cols: c.size.Cols}
+	size := ptychild.Size{Rows: bottomReservation(c.size.Rows).ChildRows(), Cols: c.size.Cols}
 	children := make([]*ptychild.Child, 0, len(c.panes))
 	for _, p := range c.panes {
 		children = append(children, p.child)
@@ -1047,7 +1058,8 @@ func (c *Console) paintNow() {
 	c.mu.Lock()
 	c.statusChips = row.Chips
 	c.mu.Unlock()
-	c.writeOwn(Reserve(rows) + PaintRow(rows, row.Body))
+	res := bottomReservation(rows)
+	c.writeOwn(res.Reserve() + res.Paint(row.Body))
 }
 
 func (c *Console) syncAttentionLocked() {

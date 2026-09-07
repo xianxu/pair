@@ -6,61 +6,16 @@ import (
 	"github.com/xianxu/pair/cmd/internal/ansi"
 	"github.com/xianxu/pair/cmd/internal/couchcore"
 
-	"github.com/xianxu/pair/cmd/internal/hostty"
 	"github.com/xianxu/pair/cmd/internal/textwidth"
 )
 
-// This file COMPOSES sequences from hostty's constants; it does not spell them.
-// One escape, one definition, per the paired-terminator lesson.
-
-// ChildRows is how tall a child is on a host of that many rows: one shorter,
-// because couch owns the last row.
+// This file is the POLICY half of the reserved row: what the row SAYS.
 //
-// It never returns zero. A terminal too short to reserve from gives the child
-// the whole thing and the row is simply not drawn -- a zero-row pty is not a
-// thing, and clamping here keeps every caller from re-deciding it.
-func ChildRows(hostRows uint16) uint16 {
-	if hostRows == 0 {
-		return 1
-	}
-	if hostRows == 1 {
-		return hostRows
-	}
-	return hostRows - 1
-}
-
-// Reserve pins the scrolling region above the reserved row.
-//
-// This is what makes the row a RESERVATION rather than compositing: a child
-// scrolling at the bottom of its own screen scrolls inside the region and
-// cannot walk onto the row below it. The child is never told; from its side
-// this is just a smaller terminal (Decision 4).
-func Reserve(hostRows uint16) string {
-	if hostRows <= 1 {
-		return ""
-	}
-	return hostty.SetRegion(1, int(hostRows)-1)
-}
-
-// Release resets the region. Written on teardown, or a child that set margins
-// and died would leave the operator's shell scrolling inside a box.
-func Release() string { return hostty.ResetRegion }
-
-// PaintRow draws the reserved row without disturbing the child.
-//
-// Save and restore BRACKET the paint. Without them the child's cursor is left
-// on the status row, which the operator sees as the caret jumping to the bottom
-// line every time anything is notified.
-func PaintRow(hostRows uint16, text string) string {
-	if hostRows == 0 {
-		return ""
-	}
-	return hostty.SaveCursor +
-		hostty.MoveTo(int(hostRows), 1) +
-		hostty.ClearLine +
-		text +
-		hostty.RestoreCursor
-}
+// The mechanism -- reserving the row, painting it without moving the child's
+// cursor, releasing it -- moved to hostty.Reservation in pair#199, because
+// `pair term` needs the same primitive for its tab strip and the atlas is
+// explicit that `\x1b[r` lives in one package only. What each consumer draws
+// there stays with the consumer: couch renders actors, termcmd renders tabs.
 
 // StatusActor is one chip on the row.
 type StatusActor struct {

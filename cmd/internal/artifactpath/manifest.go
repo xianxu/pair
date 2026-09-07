@@ -577,6 +577,7 @@ var NonArtifactSources = []string{
 	"cmd/internal/hostty/fake.go",
 	"cmd/internal/hostty/host.go",
 	"cmd/internal/hostty/os.go",
+	"cmd/internal/hostty/reserve.go",
 	"cmd/internal/keyhelp/catalog.go",
 	"cmd/internal/keyhelp/keyhelp.go",
 	"cmd/internal/keyhelp/parse.go",
