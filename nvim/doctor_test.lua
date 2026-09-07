@@ -387,6 +387,21 @@ do
   ok(M.verdict(nil, nil, 99) == 'slow', 'one slow leg proves slow even alone')
 end
 
+-- A degraded row must encode `probes` as a JSON OBJECT. vim.json.encode renders
+-- an empty Lua table as `[]`, so `.probes.pipe_hop_ms` becomes a type error
+-- rather than null -- breaking the jq a reader of the series would write.
+do
+  local row = M.capture_record(1, 'n', 'unknown', {})
+  ok(row.schema == M.SCHEMA_VERSION, 'every row carries a schema version')
+  if vim and vim.json then
+    local encoded = vim.json.encode(row)
+    ok(encoded:find('"probes":{}', 1, true) ~= nil,
+      'an empty probes set encodes as an object, not []', encoded)
+  end
+  local full = M.capture_record(1, 'n', 'fast', { pipe_hop_ms = 0.007 })
+  ok(full.probes.pipe_hop_ms == 0.007, 'a populated probes set is unchanged')
+end
+
 if fails > 0 then
   io.stderr:write(string.format('\n%d failure(s)\n', fails))
   os.exit(1)

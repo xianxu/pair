@@ -201,9 +201,12 @@ say "## swap_rate"
 # is worse than a wrong value, because an absent line is indistinguishable from a
 # tool that has no such section. Same reason the `## disk` and `## probes`
 # sections below do it too.
-swap_na() { for k in swapins_per_s swapouts_per_s pageins_per_s; do kv "$k" "n/a ($1)"; done; }
-disk_na() { for k in kb_per_transfer tps mb_per_s; do kv "$k" "n/a ($1)"; done; }
-probes_na() { for k in pipe_hop_ms fork_exec_ms zellij_action_ms; do kv "$k" "n/a ($1)"; done; }
+# na_for REASON KEY... — one loop, three call sites. The three used to be three
+# copies differing only in their key list.
+na_for() { _r=$1; shift; for k in "$@"; do kv "$k" "n/a ($_r)"; done; }
+swap_na()   { na_for "$1" swapins_per_s swapouts_per_s pageins_per_s; }
+disk_na()   { na_for "$1" kb_per_transfer tps mb_per_s; }
+probes_na() { na_for "$1" pipe_hop_ms fork_exec_ms zellij_action_ms; }
 # Rides the MAIN window rather than paying its own sleep.
 if [ "$WINDOW_ELAPSED" != 1 ]; then
 	# The sleep never ran, so there is no interval to divide by. Reporting

@@ -279,12 +279,24 @@ end
 -- reading against, without needing this file to interpret it. The baselines
 -- travel WITH the row for that reason -- a row read a year from now must be
 -- legible on its own.
+-- SCHEMA_VERSION rides every row. The series is meant to be read years later,
+-- against a shape that will have changed; a row that cannot say which shape it
+-- is written in is only readable by guesswork.
+M.SCHEMA_VERSION = 1
+
 function M.capture_record(now, note, editor, probes)
+  probes = probes or {}
+  -- vim.json.encode renders an EMPTY Lua table as `[]`, not `{}`, so a degraded
+  -- capture with no numeric probes produced a row where `.probes.pipe_hop_ms`
+  -- is a type error rather than null -- breaking exactly the jq a reader of the
+  -- series would write. vim.empty_dict() pins the object encoding.
+  if next(probes) == nil and vim.empty_dict then probes = vim.empty_dict() end
   return {
+    schema = M.SCHEMA_VERSION,
     at = now,
     note = note,               -- nil when the operator left none
     editor = editor,           -- 'fast' | 'slow' | 'unknown'
-    probes = probes or {},
+    probes = probes,
     -- Keyed off PROBE_KEYS so a row's baselines can never name a probe the
     -- reading half does not, which is how `hop_ms` vs `pipe_hop_ms` went unseen.
     baselines = M.BASELINES,

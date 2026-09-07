@@ -242,6 +242,7 @@ also refuted — see the table above), `#203` (real oversubscription, but its
 scope note correctly disclaims typing lag).
 
 ### 2026-09-07 — M2 landed; the healthy baseline, recorded
+- 2026-09-07: closed M2 — full `make test` green (exit 0). Round-11 findings addressed: BR-50 (Critical) send_generated_prompt now returns send_low_level real result, consume gated on `raw and sent`, notify on failure — mutation-verified via a stubbed failing send in tests/pair-doctor-test.sh; BR-51 swept as an enumeration not two files (README.md, doctor/README.md both now document that the draft buffer is the note and is cleared only on a successful send, atlas/go-migration-inventory row, plus three stale comments incl. the two BR-30 members that survived nine rounds). Minors: comm names containing a space no longer truncate to the first word (Google Chrome -> Google), mutation-verified; the completion leg is timed against the real draft seeded into the scratch buffer; time_editor takes the draft buffer as a parameter since it is defined above pair_doctor. BR-44 evidence: tests/pair-doctor-test.sh asserts the completion work counter MOVES during the timed run, so a chain that bails at any gate now fails the suite rather than reporting a duration.; review verdict: FIX-THEN-SHIP
 
 `:PairDoctor` now captures performance alongside drift. Baseline taken on a
 quiet machine, so a later degraded reading has something to be compared against

@@ -4030,7 +4030,7 @@ do
   local function time_editor(draft_buf)
     local hr = vim.loop.hrtime
     local scratch = vim.api.nvim_create_buf(false, true)
-    local insert_ms, redraw_ms, complete_ms, complete_note
+    local insert_ms, redraw_ms, complete_ms, complete_note, redraw_note
     -- pcall + a guaranteed delete: a leaked scratch buffer is a visible bug in
     -- the operator's buffer list, and timing is exactly where a throw is
     -- plausible.
@@ -4045,11 +4045,25 @@ do
         and vim.api.nvim_buf_get_lines(draft_buf, 0, -1, false) or {}
       seed[#seed + 1] = 'pairdoctor timing probe'
       vim.api.nvim_buf_set_lines(scratch, 0, -1, false, seed)
+      -- NOTE: this fires the live debouncer, cancelling any pending completion
+      -- and resetting complete_last_fire -- the diagnostic perturbs the editor
+      -- it measures. Accepted deliberately: the operator invoked :PairDoctor
+      -- rather than typing, so there is no in-flight completion of theirs to
+      -- lose, and dispatching the real autocmd is what makes the input leg
+      -- measure the real handler chain rather than a bare buffer write.
       vim.api.nvim_exec_autocmds('TextChangedI', { buffer = scratch })
       insert_ms = (hr() - t0) / 1e6
-      local t1 = hr()
-      vim.cmd('redraw')
-      redraw_ms = (hr() - t1) / 1e6
+      -- The redraw leg's precondition is a real UI. Headless, `redraw` is a
+      -- no-op and would report ~0.0ms -- a reading for work that did not
+      -- happen, and `fast` is what SKILL.md tells the reader to exclude on.
+      -- This is the last unswept row of the enumeration round 11 wrote.
+      if has_ui() then
+        local t1 = hr()
+        vim.cmd('redraw')
+        redraw_ms = (hr() - t1) / 1e6
+      else
+        redraw_note = 'n/a (no UI attached; redraw is a no-op)'
+      end
     end)
 
     -- The completion chain, timed DIRECTLY, with its preconditions asserted.
@@ -4103,7 +4117,8 @@ do
     local fmt = function(v) return v and string.format('%.1fms', v) or 'n/a' end
     return string.format(
       'editor: %s (input %s, redraw %s, completion %s; slow at >=%dms, one frame at 60Hz)',
-      verdict, fmt(insert_ms), fmt(redraw_ms), complete_note or fmt(complete_ms),
+      verdict, fmt(insert_ms), redraw_note or fmt(redraw_ms),
+      complete_note or fmt(complete_ms),
       doctor.FRAME_MS), verdict
   end
 
@@ -4183,9 +4198,17 @@ do
           -- file the earlier prompt points at, so prompt #1 silently resolves
           -- to capture #2's contents. pair_data_dir() is not tag-scoped either,
           -- so concurrent sessions collide on it too.
+          -- The NOTE goes in the file too. It was living only on the channel
+          -- known to drop its middle (#211) -- the buffer is cleared on a
+          -- successful send, and perf-captures.jsonl is never named in the
+          -- payload -- so the operator's description of the symptom, the one
+          -- input that cannot be re-measured, had no copy on disk. That
+          -- contradicts this milestone's own recorded invariant: nothing of
+          -- value exists only in the prompt.
           sidecar = pair_write_data_file(
             string.format('perf-capture-%d.txt', os.time()),
-            compact .. '\n' .. rates .. '\n\n## raw samples\n' .. raw)
+            '## operator note\n' .. (note or '(none)') .. '\n\n'
+              .. compact .. '\n' .. rates .. '\n\n## raw samples\n' .. raw)
           -- The prompt carries only the headline. See doctor.headline for why
           -- this is a pointer rather than the report.
           env = doctor.headline(compact, rates)
@@ -4206,8 +4229,14 @@ do
           -- file. No reader of perf.sh output belongs in init.lua.
           local row = doctor.capture_record(os.time(), note, verdict,
             doctor.probes_from(raw or ''))
-          pair_write_data_file('perf-captures.jsonl',
-            vim.json.encode(row) .. '\n', 'a')
+          if not pair_write_data_file('perf-captures.jsonl',
+            vim.json.encode(row) .. '\n', 'a') then
+            -- Silent here means the comparative series quietly stops growing,
+            -- and the whole point of the row is that the NEXT investigation is
+            -- comparative rather than absolute.
+            vim.notify('PairDoctor: could not append to the rolling capture log; '
+              .. 'this reading will not be in the series.', vim.log.levels.WARN)
+          end
         end)
 
         -- Consume the buffer ONLY if it still holds what was read. The operator

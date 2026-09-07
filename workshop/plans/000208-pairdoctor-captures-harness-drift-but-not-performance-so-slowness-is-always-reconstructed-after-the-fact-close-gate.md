@@ -1254,6 +1254,125 @@ rounds:
           round: 12
       boundary: M2
       blocked: true
+    - "n": 13
+      timestamp: "2026-09-07T14:38:33-07:00"
+      agent: claude
+      dispose:
+        - id: BR-44
+          disposition: addressed
+          note: 'Mutation-verified: removing the cursor placement turns the work-counter assertion red; live render shows completion 0.8ms, matching #202''s benchmark. Redraw''s precondition re-raised separately as the unswept member.'
+          round: 13
+        - id: BR-49
+          disposition: not-addressed
+          note: 'No commit in the window touched issue 210; it still records only time-bounding plus the three M1 findings, and #208''s Log names only "no stage is time-bounded".'
+          round: 13
+        - id: BR-50
+          disposition: addressed
+          note: Production behaviour fixed and the init.lua gate is mutation-pinned; the submission.lua half is unpinned, rolled into the new coverage finding.
+          round: 13
+        - id: BR-51
+          disposition: addressed
+          note: Enumeration swept and verified — grep over *.md leaves only CHANGELOG (release-scoped) and gitignored runtimebundle copies, which are in sync.
+          round: 13
+      findings:
+        - id: BR-52
+          severity: Important
+          title: Every test drives the send as failing, so the consume-on-success clear, the wired join, and submission.lua's real-result return are all unexecuted
+          detail: |-
+            This is the 6th finding in family `untested-shell-surface` — first in Lua rather
+            than shell, same rule. The rule that covers all six: a new surface is covered
+            only when EVERY reachable branch is executed; a suite that drives one side of a
+            gate reports coverage it does not have. Enumeration for this diff, and it is
+            mechanical — list the branches on_capture introduces and check each. Unexecuted:
+            (1) the clear at nvim/init.lua:4229, because send_to_agent returns false with
+            'no attached UI' (nvim/init.lua:741) in headless, so tests 1-4 never reach it and
+            test 5's stub is redundant for its own premise; (2) the join at
+            nvim/init.lua:4180-4184, because the fixture capture.txt has no `## sample_a`
+            section, so `if a and b then` is never entered — this is the same wiring a prior
+            round found dead in production; (3) submission.lua:75 — reverting it to
+            `return true` leaves pair-doctor-test.sh AND submission_test.lua green
+            (mutation-verified). Also unexecuted: the doctor-load failure, PAIR_HOME unset,
+            the `capture is already running` guard, perf.sh-not-readable, sidecar-write
+            failure, and both n/a notes on the completion leg. Fix the class: set
+            _G.PairTestZellijExecutor for one case and assert the buffer IS cleared, give the
+            fixture real sample blocks, and add a failing-send_low_level case to
+            submission_test.lua.
+          family: untested-shell-surface
+          round: 13
+        - id: BR-53
+          severity: Important
+          title: The redraw leg is still timed with no precondition asserted — the second member of the enumeration round 11 named
+          detail: |-
+            12th in this family. Round 11 stated the class and named both members
+            ("completion needs a completable token at the cursor; redraw needs a real UI");
+            only the completion member was swept. nvim/init.lua:4051-4053 times
+            vim.cmd('redraw') unconditionally and feeds the result to a verdict that
+            doctor/SKILL.md tells the reader to exclude pair#201/#203 on. Not reachable in
+            production today — :PairDoctor always runs with a TUI attached — which is why
+            this is Important rather than Critical; it is a regression guard on the last row
+            of the enumeration. has_ui() already exists at nvim/init.lua:689, so the fix
+            reuses it rather than adding a second UI check (ARCH-DRY).
+          family: failure-reported-as-measurement
+          round: 13
+        - id: BR-54
+          severity: Important
+          title: The operator's note is written only into the prompt, and the buffer is cleared on send
+          detail: |-
+            nvim/init.lua:4189-4193 writes compact + rates + raw to the sidecar and omits the
+            note; verified against a produced sidecar file. The buffer is then cleared on a
+            successful send, and perf-captures.jsonl — the only other copy, and itself
+            pcall'd and silent — is never named in the payload. The note is also uncapped, so
+            a pasted log produces an arbitrarily long prompt whose middle is precisely the
+            region pair#211 measured as dropped (1,025 bytes gone from a 2,447-byte send).
+            This contradicts the invariant this milestone recorded in atlas/index.md and
+            workshop/lessons.md: nothing of value exists only in the prompt — applied to the
+            report but not to the operator's own input, which the same docs call the one
+            thing that cannot be re-measured. Fix: prepend the note to the sidecar body.
+          family: sole-copy-on-lossy-channel
+          round: 13
+        - id: BR-55
+          severity: Minor
+          title: The rolling-log append discards pair_write_data_file's nil return, so the comparative series can stop accumulating silently
+          detail: |-
+            2nd in family. The rule: a function whose contract is "returns whether the effect
+            happened" must have that signal consumed, or surfaced to the operator where the
+            caller cannot act on it. Enumeration over the new code: the sidecar write consumes
+            it (payload degrades), send_generated_prompt now consumes it, the JSONL write at
+            nvim/init.lua:4200 does not. M2.6's whole purpose is making the next investigation
+            comparative; a permanently failing append is invisible.
+          family: discarded-failure-signal
+          round: 13
+        - id: BR-56
+          severity: Minor
+          title: The JSONL row has no schema version and encodes an empty probes table as [] rather than {}
+          detail: |-
+            2nd in family. Verified on a real row: {"probes":[],...}. A degraded capture
+            therefore changes the type of `probes` from object to array, breaking any external
+            reader doing .probes.pipe_hop_ms — on a file whose stated purpose is to stay
+            legible years later. The same row carries no version field.
+          family: incomplete-parse-contract
+          round: 13
+        - id: BR-57
+          severity: Minor
+          title: swap_na / disk_na / probes_na are three copies of one loop differing only in the key list
+          detail: |-
+            4th in family. doctor/perf.sh:203-205. One `na_for <reason> <key>...` helper covers
+            all three (ARCH-DRY).
+          family: duplicated-logic
+          round: 13
+        - id: BR-58
+          severity: Minor
+          title: time_editor's synthetic TextChangedI mutates the live completion debounce state
+          detail: |-
+            5th in family. nvim/init.lua:4046 fires the real autocmd, which cancels any
+            pending completion timer and resets complete_last_fire — so invoking the
+            diagnostic can drop a popup the operator was about to get. The comment above
+            time_editor argues it cannot touch the draft because it uses a scratch buffer;
+            that holds for buffer text but not for the shared debounce state.
+          family: unguarded-edge-case
+          round: 13
+      boundary: M2
+      blocked: false
 ---
 
 # Gate ledger — pair#208 (boundary-review)
@@ -1891,6 +2010,79 @@ later rounds disposed of them. Generated — edit the gate, not this file.
   round fixed the site named instead of writing the enumeration, which is why the
   class keeps returning.
 
+## Round 13 — 2026-09-07T14:38:33-07:00 (claude) — passed
+
+### Disposed
+
+- BR-44 — addressed — Mutation-verified: removing the cursor placement turns the work-counter assertion red; live render shows completion 0.8ms, matching #202's benchmark. Redraw's precondition re-raised separately as the unswept member.
+- BR-49 — not-addressed — No commit in the window touched issue 210; it still records only time-bounding plus the three M1 findings, and #208's Log names only "no stage is time-bounded".
+- BR-50 — addressed — Production behaviour fixed and the init.lua gate is mutation-pinned; the submission.lua half is unpinned, rolled into the new coverage finding.
+- BR-51 — addressed — Enumeration swept and verified — grep over *.md leaves only CHANGELOG (release-scoped) and gitignored runtimebundle copies, which are in sync.
+
+### Raised
+
+- **BR-52** [Important] `untested-shell-surface` Every test drives the send as failing, so the consume-on-success clear, the wired join, and submission.lua's real-result return are all unexecuted
+  This is the 6th finding in family `untested-shell-surface` — first in Lua rather
+  than shell, same rule. The rule that covers all six: a new surface is covered
+  only when EVERY reachable branch is executed; a suite that drives one side of a
+  gate reports coverage it does not have. Enumeration for this diff, and it is
+  mechanical — list the branches on_capture introduces and check each. Unexecuted:
+  (1) the clear at nvim/init.lua:4229, because send_to_agent returns false with
+  'no attached UI' (nvim/init.lua:741) in headless, so tests 1-4 never reach it and
+  test 5's stub is redundant for its own premise; (2) the join at
+  nvim/init.lua:4180-4184, because the fixture capture.txt has no `## sample_a`
+  section, so `if a and b then` is never entered — this is the same wiring a prior
+  round found dead in production; (3) submission.lua:75 — reverting it to
+  `return true` leaves pair-doctor-test.sh AND submission_test.lua green
+  (mutation-verified). Also unexecuted: the doctor-load failure, PAIR_HOME unset,
+  the `capture is already running` guard, perf.sh-not-readable, sidecar-write
+  failure, and both n/a notes on the completion leg. Fix the class: set
+  _G.PairTestZellijExecutor for one case and assert the buffer IS cleared, give the
+  fixture real sample blocks, and add a failing-send_low_level case to
+  submission_test.lua.
+- **BR-53** [Important] `failure-reported-as-measurement` The redraw leg is still timed with no precondition asserted — the second member of the enumeration round 11 named
+  12th in this family. Round 11 stated the class and named both members
+  ("completion needs a completable token at the cursor; redraw needs a real UI");
+  only the completion member was swept. nvim/init.lua:4051-4053 times
+  vim.cmd('redraw') unconditionally and feeds the result to a verdict that
+  doctor/SKILL.md tells the reader to exclude pair#201/#203 on. Not reachable in
+  production today — :PairDoctor always runs with a TUI attached — which is why
+  this is Important rather than Critical; it is a regression guard on the last row
+  of the enumeration. has_ui() already exists at nvim/init.lua:689, so the fix
+  reuses it rather than adding a second UI check (ARCH-DRY).
+- **BR-54** [Important] `sole-copy-on-lossy-channel` The operator's note is written only into the prompt, and the buffer is cleared on send
+  nvim/init.lua:4189-4193 writes compact + rates + raw to the sidecar and omits the
+  note; verified against a produced sidecar file. The buffer is then cleared on a
+  successful send, and perf-captures.jsonl — the only other copy, and itself
+  pcall'd and silent — is never named in the payload. The note is also uncapped, so
+  a pasted log produces an arbitrarily long prompt whose middle is precisely the
+  region pair#211 measured as dropped (1,025 bytes gone from a 2,447-byte send).
+  This contradicts the invariant this milestone recorded in atlas/index.md and
+  workshop/lessons.md: nothing of value exists only in the prompt — applied to the
+  report but not to the operator's own input, which the same docs call the one
+  thing that cannot be re-measured. Fix: prepend the note to the sidecar body.
+- **BR-55** [Minor] `discarded-failure-signal` The rolling-log append discards pair_write_data_file's nil return, so the comparative series can stop accumulating silently
+  2nd in family. The rule: a function whose contract is "returns whether the effect
+  happened" must have that signal consumed, or surfaced to the operator where the
+  caller cannot act on it. Enumeration over the new code: the sidecar write consumes
+  it (payload degrades), send_generated_prompt now consumes it, the JSONL write at
+  nvim/init.lua:4200 does not. M2.6's whole purpose is making the next investigation
+  comparative; a permanently failing append is invisible.
+- **BR-56** [Minor] `incomplete-parse-contract` The JSONL row has no schema version and encodes an empty probes table as [] rather than {}
+  2nd in family. Verified on a real row: {"probes":[],...}. A degraded capture
+  therefore changes the type of `probes` from object to array, breaking any external
+  reader doing .probes.pipe_hop_ms — on a file whose stated purpose is to stay
+  legible years later. The same row carries no version field.
+- **BR-57** [Minor] `duplicated-logic` swap_na / disk_na / probes_na are three copies of one loop differing only in the key list
+  4th in family. doctor/perf.sh:203-205. One `na_for <reason> <key>...` helper covers
+  all three (ARCH-DRY).
+- **BR-58** [Minor] `unguarded-edge-case` time_editor's synthetic TextChangedI mutates the live completion debounce state
+  5th in family. nvim/init.lua:4046 fires the real autocmd, which cancels any
+  pending completion timer and resets complete_last_fire — so invoking the
+  diagnostic can drop a popup the operator was about to get. The comment above
+  time_editor argues it cannot touch the draft because it uses a scratch buffer;
+  that holds for buffer text but not for the shared debounce state.
+
 ## Open findings
 
 - **BR-5** [Important] `failure-reported-as-measurement` perf.sh collector failures render as values, not n/a, contradicting the file's own stated rule
@@ -1913,7 +2105,11 @@ later rounds disposed of them. Generated — edit the gate, not this file.
 - **BR-41** [Minor] `unguarded-edge-case` pair hoprtt silently ignores unrecognised arguments and runs the 500-sample pipe probe instead
 - **BR-42** [Minor] `traceability` Three pure entities shipped in M1 have no row in the plan's Core concepts table
 - **BR-43** [Minor] `injected-io-seam-bypassed` hoprttcmd.Run takes injected writers but child() reads os.Stdin and writes os.Stdout, and the package is registered as a streaming subcommand with no stdin
-- **BR-44** [Critical] `failure-reported-as-measurement` The completion leg still measures nothing — the gate moved from mode to cursor column, and `editor: fast` is still emitted as grounds for exclusion
 - **BR-49** [Minor] `traceability` The M2.6 deferrals are recorded only in the plan, which archives at close — issue 210 records neither
-- **BR-50** [Critical] `discarded-failure-signal` send_generated_prompt discards send_to_agent's failure, so :PairDoctor clears the operator's note on a failed send and reports nothing
-- **BR-51** [Important] `docs-gate` README.md and doctor/README.md still describe :PairDoctor as a drift-only pointer and never mention that it now consumes the draft buffer
+- **BR-52** [Important] `untested-shell-surface` Every test drives the send as failing, so the consume-on-success clear, the wired join, and submission.lua's real-result return are all unexecuted
+- **BR-53** [Important] `failure-reported-as-measurement` The redraw leg is still timed with no precondition asserted — the second member of the enumeration round 11 named
+- **BR-54** [Important] `sole-copy-on-lossy-channel` The operator's note is written only into the prompt, and the buffer is cleared on send
+- **BR-55** [Minor] `discarded-failure-signal` The rolling-log append discards pair_write_data_file's nil return, so the comparative series can stop accumulating silently
+- **BR-56** [Minor] `incomplete-parse-contract` The JSONL row has no schema version and encodes an empty probes table as [] rather than {}
+- **BR-57** [Minor] `duplicated-logic` swap_na / disk_na / probes_na are three copies of one loop differing only in the key list
+- **BR-58** [Minor] `unguarded-edge-case` time_editor's synthetic TextChangedI mutates the live completion debounce state

@@ -459,3 +459,188 @@ findings:
       round fixed the site named instead of writing the enumeration, which is why the
       class keeps returning.
 ```
+
+---
+
+## Re-review — 2026-09-07T14:38:33-07:00 (FIX-THEN-SHIP)
+
+| field | value |
+|-------|-------|
+| issue | 208 — PairDoctor captures harness drift but not performance, so slowness is always reconstructed after the fact |
+| repo | pair |
+| issue file | workshop/issues/000208-pairdoctor-captures-harness-drift-but-not-performance-so-slowness-is-always-reconstructed-after-the-fact.md |
+| boundary | milestone M2 |
+| milestone | M2 |
+| window | 2fb5a79e7dbf3ef4ab63d72e01989e86a6e056f9..1d6dc2161254317da23508f185625ea89c724efc |
+| command | sdlc milestone-close --issue 208 --milestone M2 |
+| reviewer | claude |
+| timestamp | 2026-09-07T14:38:33-07:00 |
+| verdict | FIX-THEN-SHIP |
+
+## Review
+
+```verdict
+verdict: FIX-THEN-SHIP
+confidence: high
+```
+
+Round 12. The two open Criticals are genuinely fixed and I verified both by mutation rather than by reading the commit messages: reverting the cursor placement in `time_editor` turns the work-counter assertion red, and reverting the consume gate to `not raw` turns the failed-send assertion red. Live-rendered under the real `init.lua`, the discriminator now reads `editor: fast (input 0.1ms, redraw 0.4ms, completion 0.8ms; slow at >=16ms…)` — a completion figure that matches `#202`'s independently benchmarked 0.97 ms, so the leg is measuring the chain rather than a gate. The docs-gate enumeration was swept and the sites are now accurate. What blocks SHIP is not a defect in the shipped behaviour but its instrumentation: **every test in the suite runs with the send failing**, so the consume-on-success branch, the wired `parse_samples → delta → format_delta` join, and `submission.lua`'s new real-result return are all unexecuted — I confirmed the last by reverting it to `return true` and watching both `pair-doctor-test.sh` and `submission_test.lua` stay green. Plus one unswept member of the enumeration round 11 named (the redraw leg's precondition) and the operator's note living only on the lossy channel.
+
+## 1. Strengths
+
+- **`tests/pair-doctor-test.sh:104-116`** — the work counter is the right instrument for a defect that had shipped twice under two different preconditions. It is not a restatement of the fix: removing the cursor placement makes it fail with `work counter did not move`. This is the assertion the previous eleven rounds lacked.
+- **`tests/perf-key-conformance-test.sh`** — reads the key set out of `doctor.lua` and checks it against a **real** `perf.sh` run. It also passes in the sandbox where `ps` is denied, because a failed collector renders under its success key — the degraded path is what makes the test meaningful rather than skipped. This is the clean ARCH-MOCK shape: fake for the unit tests, live conformance in `make test`.
+- **`doctor/perf.sh:145-155`** — filtering `comm` at the single point of emission rather than at one consumer, with the space-preserving basename (`Google Chrome`, not `Google`). The regenerated fixture is clean: no control bytes, no `/Users/` paths.
+- **`nvim/init.lua:4004-4022`** — `pair_write_data_file` collapses two writers into one with a single failure policy, and its `nil` return is actually consumed for the sidecar so the payload says "could not be saved" instead of naming a file that isn't there.
+- **`nvim/doctor.lua:145-160`** — `verdict` made variadic with `select('#', ...)` rather than `{...}`, with the reason written down: a table constructor with a leading `nil` has an unreliable length, and the dropped-leg case is exactly what the function exists to notice.
+
+## 2. Critical findings
+
+None.
+
+## 3. Important findings
+
+**a. Every test drives the send as failing, so the destructive branch and the wired join are unexecuted** — `tests/pair-doctor-test.sh`
+`send_to_agent` returns `false, 'start', 'no attached UI'` (`nvim/init.lua:741`) in headless, so in tests 1–4 the real send already fails and the buffer is never cleared. Test 5's stub is therefore redundant for its own premise, and no test ever reaches `nvim/init.lua:4229` — the clear. I mutation-verified the second half: reverting `submission.lua:75` to `return true` leaves both `pair-doctor-test.sh` and `submission_test.lua` green. Third member: the test fixture `capture.txt` contains no `## sample_a`/`## sample_b` sections, so `if a and b then` at `nvim/init.lua:4180` is never entered — the wired join is exactly the code a prior round found dead in production, and it is still unexecuted. Fix: set `_G.PairTestZellijExecutor` for one case and assert the buffer *is* cleared; give the fixture real sample blocks; add `ok(not submit.send_generated_prompt('x'), …)` to `submission_test.lua`.
+
+**b. The redraw leg still asserts no precondition** — `nvim/init.lua:4051-4053`
+Round 11 named two members of the class ("completion needs a completable token at the cursor; redraw needs a real UI"). Only the completion member was swept. `vim.cmd('redraw')` is timed unconditionally, and `has_ui()` already exists at `nvim/init.lua:689` (ARCH-DRY). Not reachable in production today — `:PairDoctor` always runs with a TUI attached — which is why this is Important and not Critical, but it is the last unswept row of the enumeration the finding itself wrote.
+
+**c. The operator's note exists only on the channel that is known to drop its middle** — `nvim/init.lua:4189-4193`
+The sidecar carries `compact .. rates .. raw` and no note; I confirmed this against a produced file. The buffer is cleared on a successful send, and `perf-captures.jsonl` (the only other copy) is never named in the payload. The note is also uncapped, so a pasted log becomes an arbitrarily long prompt whose middle is the drop zone `#211` measured. This contradicts the invariant this milestone recorded in `atlas/index.md` and `workshop/lessons.md`: *nothing of value exists only in the prompt*. One-line fix: prepend `## operator note` to the sidecar body.
+
+## 4. Minor findings
+
+- `nvim/init.lua:4200` — the JSONL append's failure is discarded and silent; the comparative series can stop accumulating with no signal. `pair_write_data_file` already returns `nil` on failure.
+- `perf-captures.jsonl` schema: an empty `probes` encodes as `[]`, not `{}` (verified), so `jq '.probes.pipe_hop_ms'` breaks on degraded rows; and the row carries no schema version despite being designed to be read "years later".
+- `doctor/perf.sh:203-205` — `swap_na`/`disk_na`/`probes_na` are three copies of one loop differing only in the key list (ARCH-DRY); one `na_for reason key…` would do.
+- `nvim/init.lua:4046` — `nvim_exec_autocmds('TextChangedI')` fires the live debouncer, cancelling any pending completion and resetting `complete_last_fire`. The diagnostic perturbs the editor it is measuring.
+
+## 5. Test coverage notes
+
+Measured, not asserted: `make test-lua` green; `perf-key-conformance-test.sh` 10/10; `pair-doctor-test.sh` 13/13; `doctor/perf_test.sh` green **outside** the sandbox and failing inside it on the ≥10-row grammar pin, because the sandbox denies `ps` — an environment restriction (manageable via `/sandbox`), and already recorded as `BR-38` in `#210`. Unexecuted branches beyond finding (a): `doctor` load failure, `PAIR_HOME` unset, the double-invocation `capture is already running` guard, `perf.sh` not readable, sidecar-write failure, and both `n/a` notes on the completion leg.
+
+## 6. Architectural notes
+
+ARCH-DRY flag (minor d, and `has_ui()` in b); ARCH-PURE pass — `doctor.lua` runs under `nvim -l` with no IO and the glue has an injected runner; ARCH-PURPOSE flag (b, and BR-49); ARCH-MOCK **pass, and the strongest part of this diff** — PATH-based `ps` fakes, an injected capture runner, a recorded real capture, and a live conformance check wired into `make test`; ARCH-CONSTRAINTS pass — 6 s script budget plus a 30 s `vim.system` timeout, capture async; I benchmarked the synchronous `time_editor` seed at 2.11 ms for 20 000 lines, so it cannot fabricate a `slow` verdict; ARCH-SECURE pass, with one item for later: `ps`-derived process names now reach the agent's context in a file it is instructed to open, so a locally-crafted process name is a prompt-injection surface — control bytes are stripped, text is not; ARCH-ORDER pass on the guard (both reset paths reasoned, the buffer-changed interleaving driven), flagged only by finding (a) — the send-success interleaving has a seam and nothing drives it.
+
+## 7. Plan revision recommendations
+
+None for the plan — its `## Revisions` already correct every statement the code contradicts. The gap is in `#210`: it needs the two M2.6 sub-requirements (no window-length field in the row; `perf-captures.jsonl` uncapped) added to its Problem/Done-when, since the plan that currently records them archives at close.
+
+```findings
+dispose:
+  - id: BR-44
+    disposition: addressed
+    note: |
+      Mutation-verified: removing the cursor placement turns the work-counter assertion red; live render shows completion 0.8ms, matching #202's benchmark. Redraw's precondition re-raised separately as the unswept member.
+  - id: BR-49
+    disposition: not-addressed
+    note: |
+      No commit in the window touched issue 210; it still records only time-bounding plus the three M1 findings, and #208's Log names only "no stage is time-bounded".
+  - id: BR-50
+    disposition: addressed
+    note: |
+      Production behaviour fixed and the init.lua gate is mutation-pinned; the submission.lua half is unpinned, rolled into the new coverage finding.
+  - id: BR-51
+    disposition: addressed
+    note: |
+      Enumeration swept and verified — grep over *.md leaves only CHANGELOG (release-scoped) and gitignored runtimebundle copies, which are in sync.
+findings:
+  - id: new
+    severity: Important
+    family: untested-shell-surface
+    title: |
+      Every test drives the send as failing, so the consume-on-success clear, the wired join, and submission.lua's real-result return are all unexecuted
+    detail: |
+      This is the 6th finding in family `untested-shell-surface` — first in Lua rather
+      than shell, same rule. The rule that covers all six: a new surface is covered
+      only when EVERY reachable branch is executed; a suite that drives one side of a
+      gate reports coverage it does not have. Enumeration for this diff, and it is
+      mechanical — list the branches on_capture introduces and check each. Unexecuted:
+      (1) the clear at nvim/init.lua:4229, because send_to_agent returns false with
+      'no attached UI' (nvim/init.lua:741) in headless, so tests 1-4 never reach it and
+      test 5's stub is redundant for its own premise; (2) the join at
+      nvim/init.lua:4180-4184, because the fixture capture.txt has no `## sample_a`
+      section, so `if a and b then` is never entered — this is the same wiring a prior
+      round found dead in production; (3) submission.lua:75 — reverting it to
+      `return true` leaves pair-doctor-test.sh AND submission_test.lua green
+      (mutation-verified). Also unexecuted: the doctor-load failure, PAIR_HOME unset,
+      the `capture is already running` guard, perf.sh-not-readable, sidecar-write
+      failure, and both n/a notes on the completion leg. Fix the class: set
+      _G.PairTestZellijExecutor for one case and assert the buffer IS cleared, give the
+      fixture real sample blocks, and add a failing-send_low_level case to
+      submission_test.lua.
+  - id: new
+    severity: Important
+    family: failure-reported-as-measurement
+    title: |
+      The redraw leg is still timed with no precondition asserted — the second member of the enumeration round 11 named
+    detail: |
+      12th in this family. Round 11 stated the class and named both members
+      ("completion needs a completable token at the cursor; redraw needs a real UI");
+      only the completion member was swept. nvim/init.lua:4051-4053 times
+      vim.cmd('redraw') unconditionally and feeds the result to a verdict that
+      doctor/SKILL.md tells the reader to exclude pair#201/#203 on. Not reachable in
+      production today — :PairDoctor always runs with a TUI attached — which is why
+      this is Important rather than Critical; it is a regression guard on the last row
+      of the enumeration. has_ui() already exists at nvim/init.lua:689, so the fix
+      reuses it rather than adding a second UI check (ARCH-DRY).
+  - id: new
+    severity: Important
+    family: sole-copy-on-lossy-channel
+    title: |
+      The operator's note is written only into the prompt, and the buffer is cleared on send
+    detail: |
+      nvim/init.lua:4189-4193 writes compact + rates + raw to the sidecar and omits the
+      note; verified against a produced sidecar file. The buffer is then cleared on a
+      successful send, and perf-captures.jsonl — the only other copy, and itself
+      pcall'd and silent — is never named in the payload. The note is also uncapped, so
+      a pasted log produces an arbitrarily long prompt whose middle is precisely the
+      region pair#211 measured as dropped (1,025 bytes gone from a 2,447-byte send).
+      This contradicts the invariant this milestone recorded in atlas/index.md and
+      workshop/lessons.md: nothing of value exists only in the prompt — applied to the
+      report but not to the operator's own input, which the same docs call the one
+      thing that cannot be re-measured. Fix: prepend the note to the sidecar body.
+  - id: new
+    severity: Minor
+    family: discarded-failure-signal
+    title: |
+      The rolling-log append discards pair_write_data_file's nil return, so the comparative series can stop accumulating silently
+    detail: |
+      2nd in family. The rule: a function whose contract is "returns whether the effect
+      happened" must have that signal consumed, or surfaced to the operator where the
+      caller cannot act on it. Enumeration over the new code: the sidecar write consumes
+      it (payload degrades), send_generated_prompt now consumes it, the JSONL write at
+      nvim/init.lua:4200 does not. M2.6's whole purpose is making the next investigation
+      comparative; a permanently failing append is invisible.
+  - id: new
+    severity: Minor
+    family: incomplete-parse-contract
+    title: |
+      The JSONL row has no schema version and encodes an empty probes table as [] rather than {}
+    detail: |
+      2nd in family. Verified on a real row: {"probes":[],...}. A degraded capture
+      therefore changes the type of `probes` from object to array, breaking any external
+      reader doing .probes.pipe_hop_ms — on a file whose stated purpose is to stay
+      legible years later. The same row carries no version field.
+  - id: new
+    severity: Minor
+    family: duplicated-logic
+    title: |
+      swap_na / disk_na / probes_na are three copies of one loop differing only in the key list
+    detail: |
+      4th in family. doctor/perf.sh:203-205. One `na_for <reason> <key>...` helper covers
+      all three (ARCH-DRY).
+  - id: new
+    severity: Minor
+    family: unguarded-edge-case
+    title: |
+      time_editor's synthetic TextChangedI mutates the live completion debounce state
+    detail: |
+      5th in family. nvim/init.lua:4046 fires the real autocmd, which cancels any
+      pending completion timer and resets complete_last_fire — so invoking the
+      diagnostic can drop a popup the operator was about to get. The comment above
+      time_editor argues it cannot touch the draft because it uses a scratch buffer;
+      that holds for buffer text but not for the shared debounce state.
+```

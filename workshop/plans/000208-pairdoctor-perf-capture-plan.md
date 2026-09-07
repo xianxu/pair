@@ -409,6 +409,38 @@ to revert — a truncated report is still better than none.
 
 ## Revisions
 
+### 2026-09-07 — M2 boundary review round 12 (FIX-THEN-SHIP, fixed before the close commit)
+
+19. **Every test drove the SEND as failing**, so the destructive branch was
+    never executed. `send_to_agent` returns false headless (no attached UI), so
+    tests 1–5 all took the failure path; test 5's stub was redundant for its own
+    premise. Worse, the *fixture* had no `## sample_a`/`## sample_b` blocks, so
+    `parse_samples → delta → format_delta` — the join a previous round had
+    already caught being dead in production — was still unexecuted. Both fixed:
+    the fixture carries real sample blocks, and a success case asserts the
+    buffer IS cleared and that rates and churn reach the payload.
+20. **`submission.lua`'s new real-result return had no test.** Reverting it to
+    `return true` left both suites green, so the round-11 fix was pinned only
+    through init.lua's gate, not at its own seam. `submission_test.lua` now
+    asserts a failing send returns false and notifies — mutation-verified.
+21. **The redraw leg asserted no precondition** — the last unswept row of the
+    enumeration round 11 wrote. Headless, `redraw` is a no-op that would report
+    ~0.0 ms, a reading for work that did not happen. Now gated on the existing
+    `has_ui()`.
+22. **The operator's note existed only on the lossy channel.** The sidecar
+    carried the measurements but not the note, the buffer is cleared on a
+    successful send, and the JSONL row is never named in the payload — so the
+    one input that cannot be re-measured had no copy on disk, contradicting this
+    milestone's own recorded invariant. The sidecar now leads with
+    `## operator note`.
+23. Minors swept: a silent JSONL append failure now notifies (the comparative
+    series was stopping with no signal); `probes` encodes as `{}` not `[]` so
+    `jq '.probes.pipe_hop_ms'` works on degraded rows; rows carry a schema
+    version; `swap_na`/`disk_na`/`probes_na` collapse into one `na_for`; and the
+    `TextChangedI` perturbation is documented as deliberate rather than left as
+    an unremarked side effect.
+
+
 ### 2026-09-07 — M2 boundary review round 11 (REWORK → addressed)
 
 15. **A failed SEND destroyed the note.** `submit.send_generated_prompt`

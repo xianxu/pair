@@ -28,6 +28,28 @@ do
   ok(table.concat(calls, '|') == 'send:control:nil', 'generated prompt bypasses Pair log')
 end
 
+-- send_generated_prompt must report a FAILED send, not swallow it.
+--
+-- It used to discard send_low_level's result and return an unconditional true,
+-- which made a failed send indistinguishable from a successful one --
+-- :PairDoctor consumed the operator's note on the strength of that true, so a
+-- failing `zellij action` (the degraded machine the capture exists for) left a
+-- cleared draft and no notification. Nothing here covered it: reverting the fix
+-- left this file AND tests/pair-doctor-test.sh green.
+do
+  local calls = {}
+  local submit = M.new(
+    function() return true end,
+    function() return true end,
+    function(body) calls[#calls + 1] = 'send:' .. body; return false, 'start', 'no attached UI' end,
+    function(message) calls[#calls + 1] = 'notify:' .. message end,
+    function() return 'id-x' end)
+  ok(submit.send_generated_prompt('doomed') == false,
+    'a failed generated send returns false rather than an unconditional true')
+  ok(table.concat(calls, '|'):find('notify:', 1, true) ~= nil,
+    'a failed generated send notifies the operator')
+end
+
 do
   local calls = {}
   local submit = M.new(

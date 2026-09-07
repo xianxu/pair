@@ -37,6 +37,29 @@ swapins_per_s=n/a (vm_stat unavailable)
 pipe_hop_ms=0.007
 fork_exec_ms=1.506
 zellij_action_ms=n/a (zellij not on PATH)
+
+## sample_a
+at_s=1000
+### cputime
+1	0:10.00
+433	5:00.00
+900	0:01.00
+### procs
+1	10-20:16:59	29360	launchd
+433	08-20:18:43	17824	WindowServer
+900	01:00	4096	go
+
+## sample_b
+at_s=1002
+### cputime
+1	0:10.00
+433	5:00.20
+900	0:03.00
+### procs
+1	10-20:17:01	29360	launchd
+433	08-20:18:45	17824	WindowServer
+900	01:02	4096	go
+
 elapsed_seconds=4
 
 # end
@@ -138,7 +161,30 @@ check(after_send:find('outlives a failed send', 1, true) ~= nil,
   'a failed send preserves the note', after_send)
 _G.send_generated_prompt = real_send
 
--- 6. The in-flight guard must reset even when the runner throws, or :PairDoctor
+-- 6. A SUCCESSFUL send: the buffer IS cleared, and the join actually ran.
+--
+--    This case is the reason the others are not enough. `send_to_agent` returns
+--    false in headless (no attached UI), so every test above drives the FAILING
+--    path -- the destructive branch was unexecuted, and so was the
+--    parse_samples -> delta -> format_delta join, which a previous round had
+--    already caught being dead in production.
+local joined = nil
+_G.send_generated_prompt = function(body) joined = body; return true end
+_G.PairDoctorTest.set_runner(function(cb) cb({ code = 0, stdout = capture }) end)
+set_note('note that should be consumed')
+_G.PairDoctorTest.run()
+vim.wait(2000, function() return not _G.PairDoctorTest.is_running() end)
+local cleared = table.concat(vim.api.nvim_buf_get_lines(0, 0, -1, false), '\n')
+check(cleared:find('should be consumed', 1, true) == nil,
+  'a successful send consumes the note', cleared)
+check(joined ~= nil and joined:find('per%-process CPU over the window') ~= nil,
+  'the pid join runs and its rates reach the payload',
+  tostring(joined and joined:sub(1, 200)))
+check(joined ~= nil and joined:find('churn:', 1, true) ~= nil,
+  'churn -- the spawn-storm signature -- reaches the payload')
+_G.send_generated_prompt = real_send
+
+-- 7. The in-flight guard must reset even when the runner throws, or :PairDoctor
 --    is dead for the session on exactly the struggling machine it exists for.
 _G.PairDoctorTest.set_runner(function() error('spawn exploded') end)
 set_note('x')
