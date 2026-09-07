@@ -22,9 +22,20 @@ when it fires.
 binding (font zoom is `super+=` / `super+-`), so it is not consuming the
 gesture — it encodes the ctrl modifier bit into the SGR report and forwards,
 which is correct terminal behaviour for an app that requested mouse reporting.
-And wheel events are **not bindable triggers**: `keybind = ctrl+scroll_up=ignore`
-is rejected with `error.InvalidFormat`. There is no gesture to suppress and no
-way to add a suppressor.
+And wheel events are **not bindable triggers at all**, so there is nothing to
+bind to `ignore`. Six spellings were tested and every one is rejected:
+`ctrl+scroll_up`, `ctrl+wheel_up`, `ctrl+scroll-up`, `ctrl+mouse_scroll_up`,
+`ctrl+wheel`, `ctrl+scroll`. This is not a naming problem — Ghostty's own docs
+define the syntax as *"Trigger: `+`-separated list of **keys and modifiers**"*,
+i.e. the keybind system is keyboard-only by design.
+
+The only Ghostty lever that does exist is `mouse-reporting = false` (also
+reachable at runtime via the `toggle_mouse_reporting` action), which stops **all**
+mouse forwarding — selection, click-to-focus, copy-on-select, scroll. That is the
+same trade `#123` already rejected on the zellij side when `mouse_mode false` was
+tried and reverted, and it is far too broad for one modifier bit.
+
+So there is no gesture to suppress and no way to add a suppressor.
 
 **zellij does it, and 0.44.3 has no option to turn it off.** Newer zellij carries
 `mouse_scroll_resize`, which when false passes such scroll events through to the
@@ -116,7 +127,11 @@ deserves its own risk assessment rather than riding in as a fix for this.
 ### 2026-09-07
 
 Operator report. Filed after ruling out the two layers above couch by test rather
-than by reading: Ghostty rejects wheel keybind triggers outright, and zellij
+than by reading — and the Ghostty half was re-tested on 2026-09-07 across six
+trigger spellings rather than left on a single negative, because one rejected
+spelling is indistinguishable from a wrong guess at the name. It is not the name:
+the syntax is documented as keys and modifiers only. Recorded at that strength so
+nobody re-runs it: Ghostty rejects wheel keybind triggers outright, and zellij
 0.44.3's config parser accepts unknown keys silently — the control test with a
 bogus key is what showed that `mouse_scroll_resize` is unsupported here rather
 than merely unset. Without the control, "config file well defined" would have
