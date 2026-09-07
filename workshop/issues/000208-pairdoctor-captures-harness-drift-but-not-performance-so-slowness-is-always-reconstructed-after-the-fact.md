@@ -1,12 +1,13 @@
 ---
 id: 000208
-status: working
+status: codecomplete
 deps: []
 github_issue:
 created: 2026-09-06
-updated: 2026-09-06
+updated: 2026-09-07
 estimate_hours: 3.35
 started: 2026-09-06T22:53:26-07:00
+actual_hours: 7.34
 ---
 
 # PairDoctor captures harness drift but not performance, so slowness is always reconstructed after the fact
@@ -242,6 +243,7 @@ also refuted — see the table above), `#203` (real oversubscription, but its
 scope note correctly disclaims typing lag).
 
 ### 2026-09-07 — M2 landed; the healthy baseline, recorded
+- 2026-09-07: closed — Works end to end and is in use: :PairDoctor runs doctor/perf.sh async, joins two ps samples into per-process rates over the MEASURED interval, writes note + compact + rates + raw samples to $PAIR_DATA_DIR/perf-capture-<epoch>.txt, sends a headline plus that path, appends a versioned row to perf-captures.jsonl. Verified live twice on the workbench (which produced #211). Full `make test` green (exit 0), including in a sandboxed shell where ps/top/iostat are denied — that was BR-38. Both round-14 findings are FIXED in e17eb3e9, not waived: BR-39 residual (at_s was never read, so every rate divided by the declared 2s rather than the interval that actually passed — overstated exactly on the slow machine this targets; swap likewise now rates over a measured span) and BR-61 (top/vm_stat/iostat now have content-controlled stubs asserting parsed VALUES, mutation-verified: reading idle from $NF yields cpu_idle_pct=idle and a red suite). --no-ledger is used at explicit operator decision: after 14 rounds the tool is correct and instrumented, and the operator judged that remaining polish is better driven by USING it — the next slowdown will surface narrow, concrete bugs rather than speculative hardening. The 13 open Minors are recorded in the ledger and the review itself states none is a live wrong reading on a default capture; deferred hardening already has an issue in #210.; review verdict: FIX-THEN-SHIP
 - 2026-09-07: closed M2 — full `make test` green (exit 0). Round-11 findings addressed: BR-50 (Critical) send_generated_prompt now returns send_low_level real result, consume gated on `raw and sent`, notify on failure — mutation-verified via a stubbed failing send in tests/pair-doctor-test.sh; BR-51 swept as an enumeration not two files (README.md, doctor/README.md both now document that the draft buffer is the note and is cleared only on a successful send, atlas/go-migration-inventory row, plus three stale comments incl. the two BR-30 members that survived nine rounds). Minors: comm names containing a space no longer truncate to the first word (Google Chrome -> Google), mutation-verified; the completion leg is timed against the real draft seeded into the scratch buffer; time_editor takes the draft buffer as a parameter since it is defined above pair_doctor. BR-44 evidence: tests/pair-doctor-test.sh asserts the completion work counter MOVES during the timed run, so a chain that bails at any gate now fails the suite rather than reporting a duration.; review verdict: FIX-THEN-SHIP
 
 `:PairDoctor` now captures performance alongside drift. Baseline taken on a

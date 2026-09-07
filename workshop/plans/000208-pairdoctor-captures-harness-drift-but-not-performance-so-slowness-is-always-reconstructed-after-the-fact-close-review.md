@@ -408,3 +408,214 @@ findings:
       ARCH-PURPOSE). Prevalence 8/8 with BR-9, BR-25, BR-26, BR-36, BR-38, BR-52,
       BR-59.
 ```
+
+---
+
+## Re-review — 2026-09-07T15:38:53-07:00 (FIX-THEN-SHIP)
+
+| field | value |
+|-------|-------|
+| issue | 208 — PairDoctor captures harness drift but not performance, so slowness is always reconstructed after the fact |
+| repo | pair |
+| issue file | workshop/issues/000208-pairdoctor-captures-harness-drift-but-not-performance-so-slowness-is-always-reconstructed-after-the-fact.md |
+| boundary | whole-issue close |
+| milestone | — |
+| window | df283abefd229b0b81b2f4bfa98a26310f75316a..e17eb3e96e20634fb8a48514091f346ef8bf87f4 |
+| command | sdlc close --issue 208 |
+| reviewer | claude |
+| timestamp | 2026-09-07T15:38:53-07:00 |
+| verdict | FIX-THEN-SHIP |
+
+## Review
+
+```verdict
+verdict: FIX-THEN-SHIP
+confidence: high
+```
+
+The two fixes the closing commit claims are real and mutation-verified: reverting `parse_samples`' measured-window block turns `doctor_test.lua` red (`got 2 want 5`), and reading `top`'s idle from `$NF` instead of `$(NF-1)` turns `perf_test.sh` red (`cpu_idle_pct=idle`). All issue-relevant suites are green here (`test-lua`, `test-perf-capture`, `test-pair-doctor` 24/24, `test-perf-key-conformance` 10/10, `go test ./cmd/internal/hoprttcmd`); the only `make test` failures are `fork/exec /bin/ps: operation not permitted` in `cmd/pair-go`, a sandbox denial unrelated to this diff. What stops SHIP is that both headline fixes are partial in the same shape this issue keeps repeating: BR-61's enumeration named five parsers and two are still unpinned (I reverted each and the suite stayed green — `cputimes()`'s tab separator, and a permutation of `vm_stat`'s three labels, which the new stub cannot see because both of its reads return identical counters so every rate is `0.0` regardless), and the shell half of the BR-39 fix — `_span=$(( _bt - SWAP_A_T ))` — is itself unpinned: reverting it to `_span=$WINDOW` leaves everything green, one commit after 307b4e74 made "a behaviour change lands with a test that fails without it" the round's headline rule. Thirteen prior Minors remain untouched and are re-raised as `not-addressed` rather than re-filed.
+
+### 1. Strengths
+
+- `doctor/perf_test.sh:197-262` is the right instrument shape: recorded-output stubs for `top` and `iostat`, with the `top` stub carrying **two** samples so the parser is pinned to take the second (the delta) and not the first (a lifetime average). Mutation-verified both directions — permuting `iostat`'s `$1,$2,$3` produces two red assertions.
+- `doctor/perf_test.sh:98-133` is a genuine improvement over the previous grammar pin: supplying its own 12-row `ps` makes the assertion identical in a sandbox and on a live host, which is what turned `make test` green again for the reader `perf.sh` names in its own header.
+- `nvim/doctor.lua:224-233` fixes a live wrong reading, not a hypothetical: `at_s` was emitted in both samples and read by nobody, so every per-process rate divided by the declared 2 s. The fallback-to-declared path is tested too (`doctor_test.lua`, `w2 == 2`).
+- `tests/pair-doctor-test.sh:187-245` pins the three previously-unpinned behaviours through real seams (`vim.g.pair_test_has_ui`, opening the sidecar the payload names, `PAIR_DATA_DIR` pointed at an unwritable path) rather than through assertions that restate the implementation.
+- `perf.sh:216-236` correctly propagates the shed: when the sleep never ran there is no interval, and the block says so under the success keys instead of inventing a rate.
+
+### 2. Critical findings
+
+None.
+
+### 3. Important findings
+
+**BR-61 residual — two of the five enumerated parsers are still unpinned** (`doctor/perf.sh:162`, `doctor/perf.sh:168`). Mutation-verified independently, suite green after each: changing `cputimes()`'s `%s\t%s` to `%s %s` leaves `perf_test.sh`, `perf-key-conformance-test.sh` and `pair-doctor-test.sh` all passing (the last consumes a hand-written fixture, not the producer), yet it moves the join from rates to `unmeasured` for every pid — silently deleting SKILL.md's step 4. And permuting `/Swapins/{si=$2} … /Pageins/{pi=$2}` to `/Pageins/{si=$2} … /Swapins/{pi=$2}` also leaves the suite green, because the `vm_stat` stub returns the same counters on both reads so every rate is `0.0` whichever label feeds which key. The stub pins "a label was found", not "the right label feeds the right key".
+
+**The closing commit's own shell behaviour change is unpinned** (`doctor/perf.sh:229`). `_span=$(( _bt - SWAP_A_T ))` reverted to `_span=$WINDOW` leaves the full suite green. This is the rule 307b4e74 was written to institutionalize, violated by the next commit.
+
+**The plan states things the tree does not deliver** — four enumerable members, listed in §7.
+
+### 4. Minor findings
+
+- The measured window has 1-second resolution (`perf.sh:181` emits `date +%s`), so a real ~2.2 s interval is divided by 2 or 3 depending on second-boundary phase — a ~33% step between otherwise identical captures, in the series whose whole purpose is comparative.
+- `delta`'s `rss_kb` (`doctor.lua:99`) is computed and rendered by no consumer.
+- Thirteen prior Minors re-raised unchanged: BR-16, BR-18, BR-19, BR-26, BR-27, BR-28 (division guard fixed; the rule-2 contradiction at `perf.sh:14` remains), BR-29, BR-31, BR-37, BR-41, BR-43, BR-49, BR-60.
+
+### 5. Test coverage notes
+
+The mutation discipline is applied unevenly rather than absently — where a stub controls the input, the assertion is sharp (`top`, `iostat`, `ps` content and grammar); where it does not, the pin is decorative (`vm_stat`'s constant counters, `cputimes`'s absent stub, `_span`'s absent case). The mechanical rule that closes all three: a stub must make its two reads **differ**, and every value the report emits must have one assertion that fails when its producer is perturbed. `pair-doctor-test.sh` test 6 asserts the join *ran* (`per-process CPU over the window`, `churn:`) but not its *counts*, so `rates=0 / unmeasured=3` passes it — asserting `churn: … 0 unmeasured` there would pin the producer-consumer contract that the cputimes separator lives on.
+
+### 6. Architectural notes
+
+- **ARCH-DRY** — flag (BR-27, open): `collect()` exists to be the availability/failure/empty ladder but can emit only one key, so the top block, the disk block and `probe_line` each re-implement it and `sample()`/`cputimes()` skip it. `na_for` was the right consolidation for the n/a half; a `stage()` taking a multi-key emitter is the remaining one.
+- **ARCH-PURE** — flag (BR-28, BR-43, open): the pid join is correctly in tested Lua, but swap arithmetic stayed in shell under a header that still claims "does no arithmetic", and `hoprttcmd.child()` reads `os.Stdin` while `Run` takes injected writers.
+- **ARCH-PURPOSE** — flag: BR-61 named its class *and wrote the enumeration* (five sites, mechanically derivable as "every awk in perf.sh that indexes a tool's stdout"). Three were swept, two were not. The enumeration existing and being partly executed is the strongest available evidence that this is the instance/class failure the principle describes, not an oversight.
+- **ARCH-MOCK** — pass with a note: recorded-output fakes now exist for `ps`, `top`, `iostat`, `vm_stat` behind the same PATH seam production uses, and the Go probe is exercised through the real built `pair` binary. No live-conformance cadence is scheduled against the real tools' output shapes — acceptable for macOS system tools, worth naming in `#210`.
+- **ARCH-CONSTRAINTS** — pass with the known gap: the 6 s budget is enforced by reverse-value shedding and asserted (`elapsed <= budget`), the nvim side is bounded by `vim.system` `timeout = 30000`, per-stage bounding is deferred to `#210` at operator decision. The divisor-resolution point above is the one unsupported precision claim.
+- **ARCH-SECURE** — pass: `comm` is filtered at the single egress in `sample()` and pinned by a fake `ps` carrying a `^N` and an embedded space; the fixture was regenerated. Residual is BR-18 (`PAIR_PERF_*` unvalidated into `sleep`, undocumented), Minor — the value is quoted, so it errors rather than splitting.
+- **ARCH-ORDER** — pass: `capture_running` has exactly one reset path and the throwing-spawn case is driven (test 8); the buffer-changed-mid-flight interleaving is driven through the injected runner, which owns the ordering; consume is gated on `raw and sent` and both failure legs are executed.
+
+### 7. Plan revision recommendations
+
+One `## Revisions` entry covering the whole enumeration:
+
+1. **Entry 26 is falsified and must be corrected in place.** It records "BR-39 was already fixed and is a stale ledger entry"; `e17eb3e9`'s own message retracts that — the `at_s` residual was live and every per-process rate divided by the declared window.
+2. **Rounds 14 (`307b4e74`) and 15 (`e17eb3e9`) have no entry.** The plan's own stated rule is that it is verified against the tree at the round's final commit; two code-changing rounds are unrecorded.
+3. **The snapshot-content table over-claims.** `per-process memory | top ~10 by RSS` and `the fleet | … and aggregate RSS` are emitted by nothing — `rss` reaches `parse_samples` and `delta.rates[].rss_kb` and stops there. Either render it or strike the rows.
+4. **`per-process CPU | top ~20 by CPU`** vs. `format_delta`'s default limit of 10 and `headline`'s 5.
+
+```findings
+dispose:
+  - id: BR-16
+    disposition: not-addressed
+    note: |
+      probe_line still emits only $1 and $2; the sample count in $4 is read only to name the failure count.
+  - id: BR-18
+    disposition: not-addressed
+    note: |
+      The awk -v half is gone (it takes _span now), but sleep "$WINDOW" is still unvalidated and no doc names PAIR_PERF_WINDOW / _BUDGET / _PROBE_RESERVE.
+  - id: BR-19
+    disposition: not-addressed
+    note: |
+      No note anywhere records 4f9365b3 landing inside the M1 boundary.
+  - id: BR-26
+    disposition: not-addressed
+    note: |
+      perf_test.sh:23 is unchanged; the `*[!0-9]*) continue` arm still swallows every stray line containing a non-digit.
+  - id: BR-27
+    disposition: not-addressed
+    note: |
+      Four shapes of the ladder remain (perf.sh:101, :240, :273, and sample()/cputimes() bypassing collect entirely).
+  - id: BR-29
+    disposition: not-addressed
+    note: |
+      perf.sh:222 still renders `vm_stat unavailable` for a vm_stat that exists and exits non-zero.
+  - id: BR-31
+    disposition: not-addressed
+    note: |
+      doctor.lua:91 still detects reuse only via etime; there is no `cb < ca` guard at the point of derivation.
+  - id: BR-37
+    disposition: not-addressed
+    note: |
+      perf_test.sh:59 still falls back to "$repo/.perf-test-stub.$$" and .gitignore has no matching entry.
+  - id: BR-39
+    disposition: addressed
+    note: |
+      Both halves fixed; mutation-verified — removing parse_samples' measured-window block turns doctor_test.lua red. The shell half is unpinned, raised separately.
+  - id: BR-41
+    disposition: not-addressed
+    note: |
+      hoprtt.go:148-152 still tests only "-child"/"-spawn"; any other token falls through to pipeRTT(500) and exits 0.
+  - id: BR-43
+    disposition: not-addressed
+    note: |
+      child() still reads os.Stdin/os.Stdout while Run takes injected writers and main.go:90 passes no stdin to a Streaming:true family.
+  - id: BR-49
+    disposition: not-addressed
+    note: |
+      workshop/issues/000210 is unchanged; it records neither the missing window-length field nor the uncapped perf-captures.jsonl.
+  - id: BR-60
+    disposition: not-addressed
+    note: |
+      All three members unchanged: doctor.lua:2 and doctor_test.lua:2 still claim no vim API while capture_record calls vim.empty_dict, and atlas/index.md's sidecar enumeration still omits the operator note.
+  - id: BR-28
+    disposition: not-addressed
+    note: |
+      The divide-by-WINDOW half is fixed and guarded. The rule-2 contradiction is not — perf.sh:14 still says the file does no arithmetic while :233 computes three rates in awk.
+  - id: BR-61
+    disposition: not-addressed
+    note: |
+      Three of the five enumerated sites swept (top idle, top WindowServer, iostat, all mutation-verified). cputimes' row is still unpinned and the vm_stat stub's two reads are identical, so a label permutation stays green.
+findings:
+  - id: new
+    severity: Important
+    family: untested-shell-surface
+    title: |
+      The swap block's measured-span fix is itself unpinned — reverting `_span` to `$WINDOW` leaves the whole suite green
+    detail: |
+      This is the 9th finding in family `untested-shell-surface`. Do NOT fix this
+      instance. The rule covering it and BR-61's two residuals, stated once: a
+      value perf.sh emits is pinned by a test that goes RED when its producer is
+      perturbed, and a stub pins a mapping only when its inputs DIFFER along the
+      axis being mapped. Verified by reverting, full suite green after each:
+      perf.sh:229 `_span=$(( _bt - SWAP_A_T ))` -> `_span=$WINDOW`; perf.sh:162
+      `%s\t%s` -> `%s %s` (moves the join from rates to unmeasured for every
+      pid); perf.sh:168 permuting the Swapins/Pageins labels (invisible because
+      perf_test.sh:213-222's stub returns identical counters on both reads, so
+      every rate is 0.0 under any mapping). The sweep is one pass: give the
+      vm_stat stub a second read with different counters and assert a non-zero
+      rate under each key, add a cputime-row assertion to the existing controlled
+      ps, and drive the swap span with a stub whose reads straddle a known
+      interval. Prevalence 9/9 with BR-9, BR-25, BR-26, BR-36, BR-38, BR-52,
+      BR-59, BR-61 — and the immediately preceding commit (307b4e74) closed BR-59
+      on exactly this rule.
+  - id: new
+    severity: Important
+    family: traceability
+    title: |
+      The plan carries a falsified revision entry, no entry for the last two rounds, and two snapshot rows the report never emits
+    detail: |
+      This is the 5th finding in family `traceability`. Do NOT fix only the
+      entry that is wrong. The rule: the plan is re-verified against the tree at
+      each round's FINAL commit, every code-changing round appends its own entry,
+      and an entry a later round falsifies is corrected in place. The plan states
+      this rule itself, at the end of its own Revisions section. Enumeration, all
+      live: (1) entry 26 says BR-39 "was already fixed... a stale ledger entry"
+      while e17eb3e9's message retracts exactly that; (2) rounds 14 (307b4e74)
+      and 15 (e17eb3e9) have no entry at all; (3) the snapshot-content table's
+      `per-process memory | top ~10 by RSS` and `the fleet | ... aggregate RSS`
+      rows are emitted by nothing — rss reaches delta.rates[].rss_kb and no
+      consumer renders it; (4) `per-process CPU | top ~20 by CPU` vs
+      format_delta's limit of 10 and headline's 5. The plan archives at close, so
+      it becomes the permanent record of what was built.
+  - id: new
+    severity: Minor
+    family: unstated-measurement-resolution
+    title: |
+      The measured window is whole-second `date +%s`, so a ~2.2s interval divides by 2 or 3 and the rates step ~33% between identical captures
+    detail: |
+      perf.sh:181 emits at_s from `date +%s` (floor to the second) and
+      doctor.lua:231 divides by `b.at - a.at`. The true interval is the 2s sleep
+      plus two full `ps` runs, so it lands between 2.0 and ~2.5s on a healthy
+      host and further out on the degraded one this targets — and the integer
+      difference reads 2 or 3 depending only on where the sleep falls relative to
+      a second boundary. Net still better than the declared-window bias it
+      replaced, but it converts a systematic overstatement into phase-dependent
+      jitter of up to ~33%, in the JSONL series whose stated purpose is making
+      the next reading comparative rather than absolute. Either emit a sub-second
+      timestamp (the fork cost is already paid by ps) or state the divisor's
+      resolution beside the rates, so a reader does not read a quantization step
+      as a change in the machine.
+  - id: new
+    severity: Minor
+    family: report-line-contract
+    title: |
+      delta computes rss_kb for every joined pid and no consumer renders it
+    detail: |
+      doctor.lua:99 sets rss_kb from the later sample; format_delta prints only
+      cpu_pct/pid/comm, headline filters on HEADLINE_KEYS, and the sidecar
+      carries format_delta's output. The field is dead in every consumer while
+      the plan's snapshot table promises per-process memory — so this is both a
+      dead field and the code half of the plan gap above. Either render a
+      top-by-RSS line or drop the field and the plan rows together.
+```
