@@ -73,7 +73,7 @@ end
 --             treated as started.
 --
 -- Returns { rates = {{pid, comm, cpu_pct, rss_kb}, ...} sorted desc,
---           vanished, started, reused, rows_a, rows_b }.
+--           vanished, started, reused, unmeasured, rows_a, rows_b }.
 function M.delta(a, b, window)
   local out = { rates = {}, vanished = 0, started = 0, reused = 0,
                 unmeasured = 0, rows_a = 0, rows_b = 0 }
@@ -177,7 +177,7 @@ end
 -- delta was tested against hand-written literals asserted by the same mental
 -- model that wrote the code, and nothing pinned that perf.sh actually emits what
 -- delta expects -- so a change to either could pass every test and break the
--- capture. The fixture in nvim/fixtures/ is real captured output.
+-- capture. The fixture in doctor/fixtures/ is real captured output.
 -- Returns sample_a, sample_b, window_seconds. A sample the capture SHED is
 -- returned as nil, never as an empty-but-present table: delta joining against
 -- an empty sample reports every process as vanished, which is a catastrophic

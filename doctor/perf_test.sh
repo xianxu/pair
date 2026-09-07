@@ -148,6 +148,9 @@ cat > "$fake2/ps" <<'FAKE'
 #!/bin/sh
 # One row with a long path AND a control byte, mimicking WhatsApp's real argv.
 printf '%s\n' "  501 01:02.03 12345 /Applications/$(printf '\016')Evil.app/Contents/MacOS/EvilName"
+# A real comm can contain SPACES; taking one awk field basenames "Google Chrome"
+# to "Google" -- a wrong name on a real pid.
+printf '%s\n' "  502 01:02.03 12345 /Applications/Google Chrome.app/Contents/MacOS/Google Chrome"
 FAKE
 chmod +x "$fake2/ps"
 out2=$(PATH="$fake2:$PATH" PAIR_PERF_WINDOW=0 sh "$here/perf.sh" 2>/dev/null)
@@ -158,6 +161,8 @@ printf '%s\n' "$rows" | grep -q '/Applications/' \
 	&& bad "a full path reached the report; comm must be reduced to its basename"
 printf '%s\n' "$rows" | grep -q 'EvilName' \
 	|| bad "the readable part of the process name did not survive redaction"
+printf '%s\n' "$rows" | grep -q 'Google Chrome' \
+	|| bad "a process name containing a space was truncated (Google Chrome -> Google)"
 rm -rf "$fake2"
 
 if [ "$fails" -gt 0 ]; then echo "$fails failure(s)" >&2; exit 1; fi

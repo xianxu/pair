@@ -143,8 +143,14 @@ collect "build_procs" ps _builds
 sample() {
 	_p=$(ps -Ao pid=,etime=,rss=,comm=) || return 1
 	[ -n "$_p" ] || return 1
+	# Everything from field 4 onward, not $4 alone: a comm may contain SPACES
+	# ("/Applications/Google Chrome.app/.../Google Chrome"), and taking one field
+	# basenames it to "Google" -- a wrong name attributed to a real pid, which is
+	# worse than an ugly one.
 	printf '%s\n' "$_p" | awk '{
-		n = split($4, parts, "/"); c = parts[n]
+		c = $0
+		sub(/^[[:space:]]*[0-9]+[[:space:]]+[^[:space:]]+[[:space:]]+[0-9]+[[:space:]]+/, "", c)
+		n = split(c, parts, "/"); c = parts[n]
 		gsub(/[^[:print:]]/, "?", c)
 		if (c == "") c = "?"
 		printf "%s\t%s\t%s\t%s\n", $1, $2, $3, c

@@ -1639,8 +1639,8 @@ local function token_is_path(token)
 end
 
 
--- complete_sink is vim.fn.complete with a seam in front of it, and
--- complete_work is a counter of how often the chain reached its EXPENSIVE half
+-- _G.PairCompleteProbe.sink is vim.fn.complete with a seam in front of it, and
+-- .work counts how often the chain reached its EXPENSIVE half
 -- (picks_load + reading agent_output_path + scoring the span pool + scanning
 -- the buffer). Both exist for :PairDoctor's completion leg.
 --
@@ -3851,7 +3851,7 @@ _G.PairDraftCompleteTest = {
   complete_now = complete_now,
 }
 _G.PairDoctorCompleteNow = complete_now
--- The probe seam for :PairDoctor's completion leg (see complete_sink).
+-- The probe seam for :PairDoctor's completion leg (see _G.PairCompleteProbe).
 _G.PairDoctorCompleteProbe = {
   work_count = function() return _G.PairCompleteProbe.work end,
   set_sink = function(fn)

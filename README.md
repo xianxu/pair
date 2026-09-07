@@ -606,6 +606,15 @@ silently rather than erroring. Run `:PairDoctor` inside the draft pane to read
 the session's adaptation flight recorder and see which integration drifted; see
 [`doctor/README.md`](doctor/README.md).
 
+`:PairDoctor` also takes a ~5 s **performance** capture (`#208`) for the other
+question a slow session raises — why the machine feels slow when CPU looks
+fine. Two things to know before you run it: whatever is **in the draft buffer
+becomes your note** ("typing went slow about five minutes ago, and `top` took
+ten seconds"), and on a successful send that buffer is **cleared**, because the
+note has been handed over. If the capture or the send fails, your text is kept
+and you are told so. The full capture goes to a file and the prompt carries a
+headline plus that file's path.
+
 ---
 
 Release notes: [`CHANGELOG.md`](CHANGELOG.md). For design rationale and

@@ -67,6 +67,26 @@ works under any agent and from any cwd, unlike a `.claude/skills/` entry (claude
 only) or a bare `doctor/doctor.sh` (resolves only in the pair repo). The
 procedure it points at is single-sourced in [`SKILL.md`](SKILL.md).
 
+Since `#208` the same command also runs [`perf.sh`](perf.sh) — a ~5 s snapshot
+of load, per-process CPU **rates**, the render path, and three latency probes —
+because "why is this slow?" is only answerable while it is slow. Two operator-
+visible consequences:
+
+- **The draft buffer is your note.** Whatever is in it when you invoke the
+  command is read as your description of the symptom and travels with the
+  measurements. That description is the one input that cannot be re-measured
+  later, so it leads the payload.
+- **A successful send clears that buffer.** The note has been handed over. If
+  the capture fails, or the send does not reach the agent, the text is kept and
+  you get a notification saying which — the buffer is never cleared on a path
+  where the note did not arrive.
+
+The capture runs asynchronously (`vim.system`), so the editor stays live while
+it runs; that matters because the machine is already struggling. The full
+report is written to `$PAIR_DATA_DIR/perf-capture-<epoch>.txt` and the prompt
+carries a headline plus that path — see [`SKILL.md`](SKILL.md) for how to read
+one, and `#211` for why the path leads.
+
 [`SKILL.md`](SKILL.md) also makes `doctor/` a self-contained Agent Skill
 (AGENTS.md §11) over the one `doctor.sh` here (no bundled copy). Registering it
 as a Claude skill — by linking `doctor/` into `.claude/skills/` — is an optional
