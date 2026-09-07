@@ -3546,3 +3546,13 @@ that a key token appears cannot detect a contradictory behavioral sentence
   the exact input the estimate gates exist to protect. Fix what a non-blocking
   finding correctly identifies when the fix is cheap; "it didn't block" is a
   statement about severity, not about correctness.
+- Commit BEFORE mutation-checking, because the check's own restore step is the
+  hazard. The loop is "break the code, confirm the test fails, restore" — and
+  the natural restore is `git checkout <file>`, which silently discards every
+  uncommitted change in that file, not just the mutation. I did exactly this to
+  `launch_existing.go` while its task was still unstaged, reverted the real
+  implementation along with the mutation, and only caught it because the full
+  suite failed on tests that had passed a minute earlier. Sequence it as:
+  implement → test green → **commit** → mutate → confirm red → `git checkout`
+  (now safe) → confirm green. Restoring by re-applying the inverse edit is the
+  other safe form; `git checkout` is only safe once the work is committed.
