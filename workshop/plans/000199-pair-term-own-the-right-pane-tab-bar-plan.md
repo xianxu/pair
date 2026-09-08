@@ -229,7 +229,8 @@ stdout, and a third title matcher that disagrees with the other two.
 | `TabSpan` | `cmd/internal/termcmd/strip.go` | new |
 | `RenameField` | `cmd/internal/termcmd/strip.go` | new |
 | `RenameEditor.Field` | `cmd/internal/termcmd/rename.go` | new |
-| `ResetSGR` / `ReserveAndPaint` | `cmd/internal/hostty/reserve.go` | new |
+| `ReserveAndPaint` | `cmd/internal/hostty/reserve.go` | new |
+| `ResetSGR` | `cmd/internal/hostty/control.go` | new — the control constants live here, not with the reservation |
 | `Screen.HoldsCursorSave` | `cmd/internal/ptychild/screen.go` | new |
 | `renamePaneTitleLocked` | `cmd/internal/termcmd/run.go` | deleted — the rename field moved to the strip (M3) |
 | `couchtty.ChildRows` / `Reserve` / `Release` / `PaintRow` | `cmd/internal/couchtty/reserve.go` | deleted |
@@ -296,7 +297,7 @@ stdout, and a third title matcher that disagrees with the other two.
 | strip repaint trigger | `cmd/internal/termcmd/run.go` | new | `ptychild.OutputBatch.RowDirty` (read in the Sink — see finding 7; `Child.TakeRowDirty` is already drained there) |
 | paint debt (`stripOwed`) | `cmd/internal/termcmd/run.go` | new | a row-dirty batch RECORDS a debt rather than painting (couch's policy, `couchtty/console.go:1147`); paid by the first chunk that leaves the stream safe. A shell erases on every prompt redraw, so painting per batch means painting constantly, and constantly while the child is mid-prompt |
 | degraded `rename-pane` | `cmd/internal/termcmd/run.go` | modified | `zellij action` |
-| right pane chrome | `.../zellij/layouts/main-3.kdl` | modified | zellij layout |
+| right pane chrome | `.../zellij/layouts/main-3.kdl` | planned — M4 | zellij layout |
 
 - **single host writer** — one goroutine owns `m.stdout`; `redrawTab` becomes an
   event on that loop rather than a direct write from the tab-switch path.
@@ -1148,3 +1149,48 @@ was fixed as the RULE it names rather than at the site, per ARCH-PURPOSE.
 **BR-8 and BR-9 remain open**, disposed `not-addressed` by the review: M4.3
 still has no `Alt+Shift+d` step, and `TestPaintDefersMidSequenceAndIsOwed` still
 splits one hand-chosen sequence at one index. Both belong to M4.
+
+### 2026-09-08 — M3 boundary re-review (round 12): three findings, and the shape of all three
+
+Round 12 disposed thirteen findings and raised three. All three are the same
+mistake in different places: **a fix that stopped one level short of the class it
+claimed.**
+
+1. **BR-56 — the producer restated the consumer's predicate.** BR-48's fix made
+   `ClassifyLiveLayout` ASK `RoleForPane` instead of restating it, and then left
+   `paneTitleLocked` deciding "does this name already classify?" with
+   `HasPrefix(name, "terminal")` — an approximation that disagrees on every name
+   starting with `terminal` and CONTINUING. Measured: a tab renamed `terminals`
+   produced the title `terminals`, which classifies as `PaneRoleOther`, i.e. the
+   exact failure the prefix exists to prevent. Fixed by exporting
+   `workbenchshortcut.TitleIdentifiesRightTerminal` and having `RoleForPane`,
+   `ClassifyLiveLayout` and the producer all ask it. The producer×consumer
+   table's producer axis is now generated over the predicate's BOUNDARY CASES
+   rather than three hand-picked names — three fixtures could not see this.
+
+2. **BR-57 — a background tab's `rowDirty` repainted the strip.** The condition
+   sat outside `if m.isActive(chunk.id)`, so any background child erasing its own
+   screen drove a full re-`Reserve` + repaint of a screen the terminal never saw:
+   against the declared paint budget, on the keystroke path, and stamping
+   `\x1b[1;Nr` over the ACTIVE child's margins. This is M2's BR-35 rule — the
+   gate models the terminal, so feed it exactly what the terminal is shown —
+   applied to the repaint trigger rather than the gate. The new test COUNTS
+   paints, which is the thing the suite could not do: every other test asks "did
+   a repaint happen", never "did one happen that should not have".
+
+3. **BR-58 — the Core-concepts table's own claim was unchecked.** It declared
+   `ResetSGR` at `hostty/reserve.go`; it is defined in `control.go`. couchtty's
+   contract filters #199's rows to couchtty paths, so not one of M3's twelve
+   rows was read by anything. `TestEveryCoreConceptRowNamesASymbolThatExists`
+   now checks them — and checks for a DEFINITION, not a mention, because a
+   substring match passes on a USE, which is exactly how the wrong path
+   survived (`ReserveAndPaint` calls `ResetSGR`, so the word is in that file).
+
+**Minors also fixed:** the detached rename field (when the renamed tab itself
+exits, the editor is still live and its field is now drawn as a trailing chip —
+a branch the deleted title producer had and the move dropped); dead test
+scaffolding removed; `newTab`'s case fails rather than skips, matching its
+siblings; the superseded godoc sentences REWRITTEN rather than corrected below,
+with `TestNoDeclarationCarriesTwoStackedGodocs` as the class guard the review
+asked for (a doc comment that opens with its declaration's name twice has been
+restarted).

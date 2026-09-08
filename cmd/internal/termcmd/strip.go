@@ -29,9 +29,15 @@ type TabChip struct {
 // It sits on the model rather than on TabChip because it is a MODE the row is
 // in: at most one tab is being renamed, and the row says so in that tab's place.
 type RenameField struct {
-	// Tab indexes Tabs, with the same out-of-range contract Active carries and
-	// for the same reason -- a background tab exiting reindexes the slice while
-	// a rename is open.
+	// Tab indexes Tabs. OUT OF RANGE means DETACHED: the tab being renamed has
+	// exited while its editor is still open, and the operator is still typing
+	// into it. The field is then drawn as a trailing chip rather than in a tab's
+	// place, so the row still shows what is being typed.
+	//
+	// That branch is carried over from the pane title this replaced, which had
+	// an explicit `if !found` case for it; dropping it in the move left the
+	// operator typing blind for as long as the editor stayed open (found by the
+	// M3 re-review, which is what "a move should be a move" costs when it isn't).
 	Tab int
 	// Text is the field with its caret already composed, by RenameEditor.Field.
 	// OPERATOR-SUPPLIED, so it goes through rowtext exactly as a name does.
@@ -93,6 +99,7 @@ func RenderStrip(width int, m StripModel) RenderedStrip {
 			order = append(order, i)
 		}
 	}
+	detached := m.Rename != nil && (m.Rename.Tab < 0 || m.Rename.Tab >= len(m.Tabs))
 	if m.Rename != nil {
 		first(m.Rename.Tab)
 	}
@@ -105,6 +112,18 @@ func RenderStrip(width int, m StripModel) RenderedStrip {
 
 	drawn := make(map[int]string, len(m.Tabs))
 	used := 0
+	// A detached field is budgeted FIRST and drawn LAST: it belongs to no tab,
+	// so it cannot take a tab's place, but it is the thing the operator is
+	// looking at and must not be the chip a narrow pane drops.
+	detachedLabel := ""
+	if detached {
+		detachedLabel = rowtext.Fit(renameChip(m.Rename.Text), width)
+		// +1 for the separator it will need if any tab is drawn. Reserving it
+		// here rather than checking at emit time keeps the budget and the
+		// drawing from disagreeing by one column at exactly the width where the
+		// row would wrap onto the child's area.
+		used = textwidth.Width(detachedLabel) + 1
+	}
 	for _, i := range order {
 		label := chipLabel(m, i)
 		sep := 0
@@ -146,6 +165,12 @@ func RenderStrip(width int, m StripModel) RenderedStrip {
 		col += textwidth.Width(label)
 		spans = append(spans, TabSpan{Index: i, Start: start, End: col})
 	}
+	if detachedLabel != "" {
+		if col > 0 {
+			row.WriteString(" ")
+		}
+		row.WriteString(detachedLabel)
+	}
 	return RenderedStrip{Body: row.String(), Spans: spans}
 }
 
@@ -157,11 +182,18 @@ func RenderStrip(width int, m StripModel) RenderedStrip {
 // point of the row.
 func chipLabel(m StripModel, i int) string {
 	if m.Rename != nil && m.Rename.Tab == i {
-		return "[rename: " + rowtext.Sanitize(m.Rename.Text) + "]"
+		return renameChip(m.Rename.Text)
 	}
 	name := rowtext.Sanitize(m.Tabs[i].Name)
 	if i == m.Active {
 		return "[" + name + "]"
 	}
 	return name
+}
+
+// renameChip is the drawn form of the live rename field, in one place because
+// it appears in two: in a tab's position, and detached at the end of the row
+// when that tab has exited under the editor.
+func renameChip(text string) string {
+	return "[rename: " + rowtext.Sanitize(text) + "]"
 }

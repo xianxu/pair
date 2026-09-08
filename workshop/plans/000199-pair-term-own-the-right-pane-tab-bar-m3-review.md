@@ -332,3 +332,232 @@ findings:
       anything the operator runs in the pane. M4 is the natural place to land both, but it should be
       listed there rather than left to be noticed.
 ```
+
+---
+
+## Re-review — 2026-09-08T14:02:38-07:00 (FIX-THEN-SHIP)
+
+| field | value |
+|-------|-------|
+| issue | 199 — pair term: own the right pane tab bar |
+| repo | pair |
+| issue file | workshop/issues/000199-pair-term-own-the-right-pane-tab-bar.md |
+| boundary | milestone M3 |
+| milestone | M3 |
+| window | 244a72a5594155bfda2d980f0e84c591648a76a8..61e58395914ebb2c7c1f6c07ebcd6062d0f3d358 |
+| command | sdlc milestone-close --issue 199 --milestone M3 |
+| reviewer | claude |
+| timestamp | 2026-09-08T14:02:38-07:00 |
+| verdict | FIX-THEN-SHIP |
+
+## Review
+
+```verdict
+verdict: FIX-THEN-SHIP
+confidence: high
+```
+
+Eight of the eleven open findings are genuinely closed, and several are closed *structurally* rather than at the site — `renamePaneTitleLocked` deleted outright (one title producer, zero subprocesses per keystroke), `probes/zellijprobe` making "a probe can only destroy a session it named" unrepresentable, and a go/ast pass that makes a new strip-model mutator announce itself. I mutation-verified BR-45, BR-46 and BR-48's consumer half by reverting each in a scratch copy and watching the named test go red. What keeps this off SHIP is that two of the fixes stopped one level short of the class they claim, and both are measured, not argued: `paneTitleLocked` still decides "does this name already classify?" with a *restatement* of `RoleForPane`'s predicate rather than by asking it, so a tab renamed `terminals` produces a title that classifies as `PaneRoleOther` — the exact operator-visible consequence BR-48 described; and a **background** tab's `batch.RowDirty` repaints the strip and re-asserts DECSTBM over the active child's margins, against the plan's own declared paint budget, for a screen the terminal never saw. BR-53 is not addressed: the superseded sentence was left standing in `paneTitleLocked`'s godoc with a correction appended twenty lines below, which is precisely what that finding's rule forbids. Everything else — full `go test ./cmd/... ./probes/...` — is green apart from the documented pty-sandbox class.
+
+## 1. Strengths
+
+- **The largest fix is a deletion.** `renamePaneTitleLocked` (was `run.go:1533`) is gone rather than patched, which closes BR-48 and BR-50 with one change: one title producer, and `TestARenameCostsExactlyOneZellijSubprocess` (`run_test.go:461`) drives three keystrokes and asserts `rt.ops == "rename-pane terminal work"` — a budget with a test instead of a sentence in a plan.
+- **BR-45's class fix needs both halves and says so.** `stripmutation_test.go:174` (go/ast over `run.go`, `m.tabs`/`m.active`/`m.rename`) plus `:147` (a table driving each mutator). I reverted `removeTab`'s `paintStripInline()` and only the table row went red — the static half really would have passed the defect, exactly as the file's own comment claims.
+- **`probes/zellijprobe` makes the safety property structural.** `Start` names the session, `Close` deletes *that* name; there is no path to `delete-session` a name the probe did not choose. I swept the tree: every `delete-session` under `probes/` and `cmd/probes/` now targets a self-chosen name (`zellijpark`'s constant, `couchnestedrows-<pid>`). 287→172 and 281→165 lines, as claimed.
+- **`hostty.ReserveAndPaint` (`reserve.go:117`) fixes a latent couch bug at the shared primitive**, with the ordering argument (DECSTBM homes the cursor, so save must precede it) written where the next reader will hit it.
+- **Atlas and README both updated in-range** — the nested-reservation measurement, the two-condition gate, the row-dirty debt, and the "your pane is one row shorter" note a reader running `stty size` will want.
+
+## 2. Critical findings
+
+None.
+
+## 3. Important findings
+
+**(a) `cmd/internal/termcmd/run.go:1557` — the producer restates the consumer's predicate instead of asking it.**
+`paneTitleLocked` prefixes with `terminal ` only when `!strings.HasPrefix(name, "terminal")`. That is an approximation of `RoleForPane`'s `title == "terminal" || HasPrefix(title, "terminal ")`. Measured against the real consumer:
+
+```
+tab "terminalwork" -> title "terminalwork"  -> PaneRoleOther
+tab "terminal-2"   -> title "terminal-2"    -> PaneRoleOther
+tab "terminals"    -> title "terminals"     -> PaneRoleOther
+```
+
+So a tab renamed `terminals` costs the pane its global shortcuts whenever `TerminalCommand == ""` — the `zellijpane.go:79-84` case the plan names as the whole reason the prefix is load-bearing. `TestEveryPaneTitleProducerSatisfiesEveryConsumer` cannot see it: it enumerates *consumers* but its three producer rows are hand-picked names. Fix: export the predicate from `workbenchshortcut` and have `paneTitleLocked` prefix iff the bare name does not already classify, and generate the table's producer rows over the predicate's boundary cases.
+
+**(b) `cmd/internal/termcmd/run.go:850-871` — a background tab's `rowDirty` repaints the strip.**
+`if chunk.rowDirty { m.stripOwed = true }` sits *outside* `if m.isActive(chunk.id)`. Measured with the repo's own harness (background tab id 1, active id 2):
+
+```
+m.output <- ptyChunk{id: 1, data: []byte("\x1b[2J"), rowDirty: true}
+→ "\x1b7\x1b[1;23r\x1b[24;1H\x1b[0m\x1b[2Kone [two]\x1b[0m\x1b8"
+```
+
+A tab the terminal never saw drove a full re-`Reserve` + repaint. Two costs: the plan's ARCH-CONSTRAINTS budget ("a repaint happens on tab change, resize, and `batch.RowDirty`; **not** per output chunk") is violated by any background child that erases, on the keystroke path; and re-asserting `\x1b[1;23r` clobbers the *active* child's own margins for no reason. This is M2's BR-35 lesson ("the gate models the terminal — feed it exactly what the terminal is shown") applied to the repaint trigger rather than the gate.
+
+**(c) `workshop/plans/…-plan.md:239` — the Core concepts table declares `ResetSGR` at `cmd/internal/hostty/reserve.go`; it is defined at `cmd/internal/hostty/control.go:41`.**
+Same table, `right pane chrome` carries status `modified` while `main-3.kdl` has no terminal-pane `borderless=true` yet (M4). Not Critical — the symbol exists and is exported from the declared package, so no consumer is misled about behaviour; what is unchecked is the table's own claim. `TestNoPlannedRowSurvivesItsTickedMilestone` cannot catch either, because it only regexes `planned — Mx`, and `couchtty`'s contract filters #199's rows to `cmd/internal/couchtty/` paths — so no test reads a single one of M3's twelve new rows.
+
+## 4. Minor findings
+
+- `run.go:1536` / `run.go:1551` — BR-53's named site is unchanged in substance: the godoc still asserts "the packed title matched shortcut.go's arm NEVER" and the body's parenthetical says it was measured false. `run.go:1566-1579` (`redrawTab`) carries three stacked doc paragraphs, two of them contradicting opening sentences; the proposed vet-style guard for two comment blocks on one declaration was not added.
+- `strip.go` / `run.go:1428` — when the renamed tab itself exits, `RenameField.Tab` resolves to `-1` and the in-progress field vanishes from the row. The deleted `renamePaneTitleLocked` had an explicit `if !found { append("[rename: …]") }` branch for exactly this; the move to the strip dropped it. Measured: after the renamed tab's EOF the row is `[one]`.
+- `stripmutation_test.go:53` — `stripRepaintCase.needsPty` is set at one site and read at zero (`mustNewTab`'s `t.Skipf` does the work). `:325-326` — `var _ = io.Discard` / `var _ ptychild.Size` keep two otherwise-unused imports alive.
+- `strip.go:141` — `rowtext.Fit` truncating a `[rename: …]` label drops the closing bracket; cosmetic only.
+
+## 5. Test coverage notes
+
+The new suite is strong where it counts: `strip_test.go` drives ≥2 tabs everywhere (the standing BR-35 rule), pins spans as display columns with a non-ASCII fixture, and covers escape injection from both the tab name and the rename field. `TestNoPaintLandsInsideTheChildsCursorSave` and `TestARowDirtyBatchDefersWhileTheChildHoldsASave` pin the widened gate deterministically. Gaps: nothing counts paints, which is why (b) is invisible; the producer × consumer table's producer axis is three fixtures rather than a corpus, which is why (a) is invisible; and `TestEveryStripModelMutationRepaintsTheRow/newTab` silently `Skip`s without a pty while two sibling tests hard-fail in the same environment.
+
+## 6. Architectural notes
+
+ARCH-DRY **pass** (196 duplicated probe lines extracted; `ResetSGR` folded into `HomeAndClear` so both callers get it; `ClassifyLiveLayout` derives from `RoleForPane`). ARCH-PURE **pass** — `RenderStrip` is a pure `(width, model) → (row, spans)` and its hard cases are unit tests. ARCH-PURPOSE **flag (a)** — the single-source sweep reached the consumers but not the producer's own copy of the predicate. ARCH-MOCK **pass** — zellij behind `Runtime`/`fakeRuntime`, the tty behind the recorder, live conformance in `make test-smoke` and `make test-couch-nested-rows`. ARCH-CONSTRAINTS **flag (b)** — one declared budget is now enforced by a test, the other is violated in the tree. ARCH-SECURE **pass** — operator text sanitized at the row for both surfaces, and BR-51's blast-radius hole closed structurally. ARCH-ORDER **flag** — `applyTakeover`'s reset ordering and the `owed`/`stripOwed` interaction are now coherent and pinned, but `TestPaintDefersMidSequenceAndIsOwed` still samples one interleaving at one hand-chosen split index (BR-9).
+
+For M4: the `main-3.kdl` nine-site enumeration test is the right shape; carry (a) with you, because taking the frame off removes the last non-strip surface that could hint the pane lost its role.
+
+## 7. Plan revision recommendations
+
+- `## Revisions` entry correcting the Core concepts table: `ResetSGR` lives in `cmd/internal/hostty/control.go`, not `reserve.go`; and either give `right pane chrome` a `planned — M4` status (which the new guard then polices) or say what `modified` means before its milestone ships.
+- `## Revisions` entry against ARCH-CONSTRAINTS: the "no paint on the common path" budget is currently false for background-tab output; state the corrected rule (row-dirty is a signal about the *active* tab only) and name the test that will enforce it.
+- M4.3 still has no `Alt+Shift+d` step (BR-8) and `TestPaintDefersMidSequenceAndIsOwed` is still one split index (BR-9); both are recorded as deferred to M4 in the 2026-09-08 revision, which is fine — leaving them named there is the ask.
+
+```findings
+dispose:
+  - id: BR-8
+    disposition: not-addressed
+    note: |
+      M4.3 still has no Alt+Shift+d step; the plan records it as deferred to M4.
+  - id: BR-9
+    disposition: not-addressed
+    note: |
+      TestPaintDefersMidSequenceAndIsOwed is byte-identical and still splits one sequence at one index.
+  - id: BR-45
+    disposition: addressed
+    note: |
+      Mutation-verified: removing removeTab's paintStripInline turns the rename-branch table row red.
+  - id: BR-46
+    disposition: addressed
+    note: |
+      Mutation-verified: removing writeOwn's `m.owed = nil` makes the stale row land after the fresh one.
+  - id: BR-47
+    disposition: addressed
+    note: |
+      Automated in couchnestedrows with an SGR-per-line flood plus tab switches; could not re-run here (needs zellij + a real pty).
+  - id: BR-48
+    disposition: addressed
+    note: |
+      Second producer deleted, ClassifyLiveLayout derives from RoleForPane, table mutation-verified; see the new finding for the producer's own restatement of the predicate.
+  - id: BR-49
+    disposition: addressed
+    note: |
+      Decided per payload; owedDiag capped at maxOwedDiag with a test, unbounded paint deferral argued and pinned.
+  - id: BR-50
+    disposition: addressed
+    note: |
+      TestARenameCostsExactlyOneZellijSubprocess asserts exactly one recorded op across three keystrokes.
+  - id: BR-51
+    disposition: addressed
+    note: |
+      zellijprobe.Start names and Close deletes that name; swept the tree, every delete-session under probes/ and cmd/probes/ targets a self-chosen name.
+  - id: BR-52
+    disposition: addressed
+    note: |
+      Verified by line count -- cursorsaveslots 172, zellijscrollregion 165, shared harness 219.
+  - id: BR-53
+    disposition: not-addressed
+    note: |
+      paneTitleLocked's godoc still carries the measured-false claim with a correction appended below it, and redrawTab still stacks three doc paragraphs; no class guard added.
+  - id: BR-54
+    disposition: addressed
+    note: |
+      Table flipped and extended and the planned-Mx rot guarded; residual noted in the new plan-table-drift finding.
+  - id: BR-55
+    disposition: addressed
+    note: |
+      README now documents the strip and the row the pane gives up.
+findings:
+  - id: new
+    severity: Important
+    family: consumer-set-not-derived
+    title: |
+      paneTitleLocked restates RoleForPane's predicate instead of asking it, so a tab named `terminals` classifies as PaneRoleOther
+    detail: |
+      This is the 4th finding in family `consumer-set-not-derived`, so state the rule rather than
+      patching the prefix. Measured against the real consumer at run.go:1557 --
+      tab `terminalwork` -> title `terminalwork` -> PaneRoleOther; same for `terminal-2` and
+      `terminals`. The guard is `HasPrefix(name, "terminal")`, an approximation of
+      `title == "terminal" || HasPrefix(title, "terminal ")`, so the pane loses the classification
+      that routes global shortcuts whenever TerminalCommand is unavailable -- the exact consequence
+      BR-48 described, one level upstream of where BR-48 was fixed.
+      THE RULE: a producer must never restate the predicate its consumer applies; it ASKS the
+      consumer. Export the predicate from workbenchshortcut and have paneTitleLocked add the prefix
+      iff the bare name does not already classify -- then the disagreement is unrepresentable.
+      And the producer x consumer table needs its PRODUCER axis derived too: three hand-picked names
+      cannot see a boundary case, which is why this survived a table written specifically for BR-48.
+  - id: new
+    severity: Important
+    family: envelope-claim-unenforced
+    title: |
+      A background tab's rowDirty batch repaints the strip and re-asserts DECSTBM over the active child's margins
+    detail: |
+      This is the 5th finding in family `envelope-claim-unenforced`, so state the rule rather than
+      moving the one `if`. run.go:850 sets `m.stripOwed = true` outside the `m.isActive(chunk.id)`
+      guard, so a tab whose bytes never reached the terminal drives a full re-Reserve plus repaint.
+      Measured with the repo's own harness: `ptyChunk{id: 1, data: "\x1b[2J", rowDirty: true}` on the
+      BACKGROUND tab wrote `\x1b7\x1b[1;23r\x1b[24;1H\x1b[0m\x1b[2Kone [two]\x1b[0m\x1b8`. That
+      violates the plan's declared budget ("a repaint happens on tab change, resize, and
+      batch.RowDirty; NOT per output chunk") on the keystroke path, and clobbers the ACTIVE child's
+      own scroll region for a screen the terminal never saw -- M2's BR-35 lesson (the gate models the
+      terminal, so feed it exactly what the terminal is shown) applied to the repaint trigger rather
+      than to the gate.
+      THE RULE: every budget bullet in the plan's ARCH-CONSTRAINTS block is an enumeration, and each
+      entry owes a test that trips when it is exceeded. Two of the four have one now
+      (TestARenameCostsExactlyOneZellijSubprocess, TestOnlyOneGoroutineWritesTheHost); the paint-
+      frequency budget is the one with no test, and it is the one the tree violates. Count paints
+      across a scripted background-tab flood and assert the bound, rather than asserting the bound in
+      prose next to a mechanism that does not honour it.
+  - id: new
+    severity: Important
+    family: plan-table-drift
+    title: |
+      The Core concepts table declares ResetSGR at hostty/reserve.go; it is defined at hostty/control.go:41
+    detail: |
+      This is the 7th finding in family `plan-table-drift`. Do NOT fix the row -- the rule is what is
+      missing. plan.md:239 states `ResetSGR / ReserveAndPaint | cmd/internal/hostty/reserve.go`;
+      ReserveAndPaint is there, ResetSGR is at control.go:41. Same table, `right pane chrome` carries
+      status `modified` while main-3.kdl still has no terminal-pane borderless=true (M4 unshipped).
+      Rated Important, not Critical: the symbol exists and is exported from the declared package, so
+      no consumer is misled about behaviour -- what is unchecked is the table's own claim.
+      THE RULE, and it is the half of BR-54 that was not delivered: the new guard
+      (TestNoPlannedRowSurvivesItsTickedMilestone) only regexes `planned - Mx` after Mx is ticked,
+      and couchtty's contract filters #199's rows to `cmd/internal/couchtty/` paths -- so NO test
+      reads a single one of M3's twelve new rows. Either grep each row's stated path for its stated
+      symbol (which is what BR-54 asked for and what would have caught this in the same commit that
+      wrote it), or drop the path and status columns so the table stops making claims nothing checks.
+  - id: new
+    severity: Minor
+    family: moved-surface-drops-a-case
+    title: |
+      When the renamed tab itself exits, the in-progress rename field vanishes from the row
+    detail: |
+      Measured: with a rename open on the active tab, driving removeTab on that tab's id leaves the
+      row as `[one]` -- no field at all -- while the stdin pump goes on routing keystrokes into the
+      editor. stripModelLocked (run.go:1428) resolves the missing tab to `Tab: -1` and the renderer
+      treats that as "mark nothing". The deleted renamePaneTitleLocked had an explicit
+      `if !found { append("[rename: "+field+"]") }` branch for exactly this case; the move from the
+      title to the strip did not carry it. The commit is a no-op afterwards, so the cost is brief
+      blind typing rather than data loss -- but it is a branch lost in a move that was presented as a
+      move.
+  - id: new
+    severity: Minor
+    family: dead-test-scaffolding
+    title: |
+      stripRepaintCase.needsPty is set at one site and read at zero, and two imports are kept alive by blank vars
+    detail: |
+      This is the 2nd finding in family `dead-test-scaffolding`, so state the rule: a test-harness
+      field or declaration that no assertion reads is scaffolding that reads as protection.
+      stripmutation_test.go:53 declares `needsPty`, :80 sets it, nothing reads it -- mustNewTab's
+      t.Skipf does the work. :325-326 carry `var _ = io.Discard` and `var _ ptychild.Size`, which
+      exist only to keep two otherwise-unused imports compiling. Delete the field and the imports;
+      a struct field with no reader is the same shape as the "field set at zero call sites" the
+      claimed-fix check exists to catch.
+```

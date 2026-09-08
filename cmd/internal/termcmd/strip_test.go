@@ -302,22 +302,43 @@ func TestTheDegradedTitleStillClassifiesThePane(t *testing.T) {
 // true. A new producer is a new row; a new consumer is a new column; either one
 // added without the other fails here rather than in a workbench.
 func TestEveryPaneTitleProducerSatisfiesEveryConsumer(t *testing.T) {
-	// The producers, derived by driving the mux rather than by writing titles
-	// out by hand -- a hand-written fixture is how layoutflow_test.go ended up
-	// asserting "[terminal 1]", a form no producer can emit any more.
-	producers := []struct {
+	// The producer axis is the PREDICATE'S BOUNDARY, not three hand-picked
+	// names. Three fixtures could not see BR-56 -- `paneTitleLocked` restated
+	// `RoleForPane`'s predicate as `HasPrefix(name, "terminal")`, which agrees
+	// with it on `work` and `terminal 1` and disagrees on every name that starts
+	// with `terminal` and then CONTINUES. So the corpus is exactly those cases:
+	// names on either side of the boundary, plus the ones that straddle it.
+	names := []string{
+		"terminal 1",   // the default: already classifies
+		"work",         // plainly does not: must be prefixed
+		"terminals",    // starts with "terminal", does NOT classify -- BR-56
+		"terminal-2",   // ditto, punctuation instead of a space
+		"terminalwork", // ditto, no separator at all
+		"terminal",     // the bare word: classifies on the equality arm
+		"Terminal 1",   // case: RoleForPane folds, so the producer must not care
+		"日本語",          // wide, non-ASCII, nowhere near the boundary
+		"a b c",        // spaces, but not the prefix
+	}
+	producers := make([]struct {
 		name  string
 		title func(t *testing.T) string
-	}{
-		{"default tab", func(t *testing.T) string {
-			return titleOf(t, []*terminalTab{{id: 1, name: "terminal 1"}, {id: 2, name: "terminal 2"}}, 0, false)
-		}},
-		{"renamed active tab", func(t *testing.T) string {
-			return titleOf(t, []*terminalTab{{id: 1, name: "terminal 1"}, {id: 2, name: "work"}}, 1, false)
-		}},
-		{"while a rename is open", func(t *testing.T) string {
-			return titleOf(t, []*terminalTab{{id: 1, name: "terminal 1"}, {id: 2, name: "work"}}, 1, true)
-		}},
+	}, 0, len(names)*2)
+	for _, n := range names {
+		n := n
+		producers = append(producers,
+			struct {
+				name  string
+				title func(t *testing.T) string
+			}{"active tab named " + n, func(t *testing.T) string {
+				return titleOf(t, []*terminalTab{{id: 1, name: "terminal 1"}, {id: 2, name: n}}, 1, false)
+			}},
+			struct {
+				name  string
+				title func(t *testing.T) string
+			}{"rename open over " + n, func(t *testing.T) string {
+				return titleOf(t, []*terminalTab{{id: 1, name: "terminal 1"}, {id: 2, name: n}}, 1, true)
+			}},
+		)
 	}
 	// The consumers, from the derivation the plan records:
 	//   grep -rn "\.Title" cmd --include=*.go | grep -v _test.go
@@ -498,24 +519,30 @@ func TestANarrowPaneKeepsTheRenameFieldVisible(t *testing.T) {
 	}
 }
 
-// An out-of-range rename index marks nothing, the same contract Active carries:
-// a tab can close while its rename is open, and a renderer that panics there
-// takes the pane down with it.
+// A rename whose tab EXITED stays on the row, detached.
 //
-// NARROW on purpose. At a comfortable width an unguarded index is invisible --
-// the phantom chip is laid out and then never emitted, because the drawing pass
-// walks Tabs. What it costs is BUDGET, so the damage only shows where the budget
-// binds: a real tab dropped to make room for a chip that is not drawn
-// (mutation-checked; the roomy fixture this replaced caught nothing).
-func TestAnOutOfRangeRenameIndexMarksNothing(t *testing.T) {
+// Out of range means the tab being renamed is gone while its editor is still
+// open and still receiving keystrokes. The pane title this replaced had an
+// explicit branch for that (`if !found { append("[rename: …]") }`); the move to
+// the strip dropped it, and the operator typed blind until the editor closed.
+// So out-of-range is not "mark nothing" — it is "draw it in nobody's place".
+func TestARenameWhoseTabExitedStaysOnTheRow(t *testing.T) {
 	m := StripModel{
 		Tabs:   []TabChip{{Name: "aaaa"}, {Name: "bbbb"}},
 		Active: 1,
-		Rename: &RenameField{Tab: 7, Text: "wwwwwwwwww"},
+		Rename: &RenameField{Tab: 7, Text: "zz│"},
 	}
-	if got := RenderStrip(14, m).Body; got != "aaaa [bbbb]" {
-		t.Fatalf("RenderStrip = %q, want the plain strip; an out-of-range rename "+
-			"spent the width budget on a chip it never drew", got)
+	if got := RenderStrip(40, m).Body; got != "aaaa [bbbb] [rename: zz│]" {
+		t.Fatalf("RenderStrip = %q, want the detached field after the tabs", got)
+	}
+	// The spans still describe TABS only: a detached field belongs to no tab, so
+	// a click there must not land on one (#200 reads these).
+	if spans := RenderStrip(40, m).Spans; len(spans) != 2 {
+		t.Fatalf("spans = %#v, want one per tab and none for the detached field", spans)
+	}
+	// Narrow: the field the operator is typing into is what must survive.
+	if got := RenderStrip(14, m).Body; !strings.Contains(got, "zz│") {
+		t.Fatalf("RenderStrip(14) = %q, dropped the field being typed into", got)
 	}
 }
 

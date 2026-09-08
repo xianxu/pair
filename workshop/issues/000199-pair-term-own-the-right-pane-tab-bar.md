@@ -191,6 +191,45 @@ Four milestones, each its own review boundary — detail in
 
 ## Log
 
+- 2026-09-08 **M3 boundary re-review (round 12): thirteen disposed, three
+  raised — and all three were the same mistake.** Each was a fix that stopped
+  one level short of the class it claimed, which is worth naming because the
+  previous round's write-up asserted the class was covered.
+
+  **BR-56.** BR-48's fix made the CONSUMER ask the shared predicate and left the
+  PRODUCER restating it: `paneTitleLocked` still tested
+  `HasPrefix(name, "terminal")`, an approximation that disagrees with
+  `RoleForPane` on every name starting with `terminal` and continuing. Measured:
+  a tab renamed `terminals` produced a title classifying as `PaneRoleOther` —
+  the exact failure the prefix exists to prevent, delivered by the code
+  preventing it. `TitleIdentifiesRightTerminal` is now exported and all three
+  sites ask it, and the producer × consumer table generates its producer axis
+  over the predicate's BOUNDARY CASES; three hand-picked fixtures could not see
+  this and did not.
+
+  **BR-57.** `if chunk.rowDirty` sat outside `if m.isActive(chunk.id)`, so a
+  BACKGROUND tab erasing its own screen drove a full re-`Reserve` + repaint of a
+  screen the terminal never saw — over the active child's own margins, on the
+  keystroke path, against the declared budget. The new test COUNTS paints, which
+  is why the defect was invisible: every existing test asks "did a repaint
+  happen", none asks "did one happen that should not have".
+
+  **BR-58.** The Core-concepts table declared `ResetSGR` in `reserve.go`; it
+  lives in `control.go`. Nothing read any of M3's twelve rows — couchtty's
+  contract filters this plan's rows to couchtty paths. There is now a guard, and
+  it checks for a DEFINITION rather than a mention: the first version passed on
+  the wrong path because `ReserveAndPaint` *calls* `ResetSGR`, so the word was in
+  the file. A guard that can be satisfied by a use is not checking the claim.
+
+  Minors: the detached rename field is restored (when the renamed tab itself
+  exits the editor stays live, and the field is now a trailing chip — a branch
+  the deleted title producer had and the move dropped, which is what "a move
+  should be a move" costs when it is not); dead test scaffolding removed;
+  `newTab`'s case fails rather than skips, matching its siblings; and the
+  stacked-godoc family gets the vet-style guard the review asked for, after the
+  previous round "fixed" one by appending a correction below the sentence it
+  contradicted — which is what that finding's rule forbids.
+
 - 2026-09-08 **M3 boundary review: FIX-THEN-SHIP, eight blocking findings, all
   fixed at the class.** The verdict came back FIX-THEN-SHIP but the gate ledger
   held eight open Importants, so the close did not finalize — which is the gate

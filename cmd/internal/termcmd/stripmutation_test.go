@@ -4,12 +4,10 @@ import (
 	"go/ast"
 	"go/parser"
 	"go/token"
-	"io"
 	"strings"
 	"testing"
 
 	"github.com/xianxu/pair/cmd/internal/hostty"
-	"github.com/xianxu/pair/cmd/internal/ptychild"
 )
 
 // EVERY SITE THAT MUTATES THE STRIP'S MODEL OWES A REPAINT, and the set of those
@@ -47,10 +45,6 @@ type stripRepaintCase struct {
 	// absent, when set, must NOT appear in what was written -- the pre-mutation
 	// state that a missing repaint would leave on the row.
 	absent string
-	// needsPty marks a case that starts a real child process. Those fail under
-	// a sandbox that forbids fork/exec, which is the documented class in this
-	// repo, not a defect in the case.
-	needsPty bool
 }
 
 func stripRepaintCases() []stripRepaintCase {
@@ -77,7 +71,6 @@ func stripRepaintCases() []stripRepaintCase {
 			want:    "[terminal 1]",
 			// "one" and "two" are still on the row; the new tab is what must
 			// appear, so there is nothing pre-mutation to assert absent.
-			needsPty: true,
 		},
 		{
 			mutator: "switchRelative",
@@ -99,6 +92,16 @@ func stripRepaintCases() []stripRepaintCase {
 			drive:   func(t *testing.T, m *terminalMux) { onWriterLoop(m, func() { m.removeTab(1) }) },
 			want:    "[rename: twox│]",
 			absent:  "one",
+		},
+		{
+			// The renamed tab ITSELF exits. The editor is still open and still
+			// taking keystrokes, so the field must stay on the row -- detached,
+			// in nobody's place. Losing it left the operator typing blind.
+			mutator: "removeTab",
+			setup:   func(t *testing.T, m *terminalMux) { rename(m, "x") },
+			drive:   func(t *testing.T, m *terminalMux) { onWriterLoop(m, func() { m.removeTab(2) }) },
+			want:    "[rename: twox│]",
+			absent:  "[two]",
 		},
 		{
 			mutator: "beginRename",
@@ -141,10 +144,15 @@ func onWriterLoop(m *terminalMux, fn func()) {
 	<-done
 }
 
+// mustNewTab starts a REAL child, so it fails where fork/exec is forbidden --
+// the documented sandbox class in this repo. It FAILS rather than skipping,
+// deliberately: two sibling tests in this package hard-fail in that same
+// environment, and a case that quietly skips where its neighbours fail reports
+// green for a run that measured less than it looks like.
 func mustNewTab(t *testing.T, m *terminalMux) {
 	t.Helper()
 	if err := m.newTab(); err != nil {
-		t.Skipf("newTab needs a real pty: %v", err)
+		t.Fatalf("newTab: %v (needs a real pty; the documented sandbox class)", err)
 	}
 }
 
@@ -281,6 +289,48 @@ func TestAFreshPaintSupersedesTheOwedOne(t *testing.T) {
 	}
 }
 
+// ONLY THE ACTIVE TAB'S OUTPUT CAN DIRTY THE ROW (BR-57).
+//
+// A background child's bytes never reach the terminal, so they cannot have wiped
+// a row the terminal is showing. Before the fix, any background child erasing
+// its own screen drove a full re-`Reserve` + repaint: against the plan's
+// declared paint budget, on the keystroke path, and re-asserting the scroll
+// region over the ACTIVE child's own margins for a screen nobody saw.
+//
+// This COUNTS PAINTS, which is the thing the suite could not do before -- the
+// defect was invisible precisely because every other test asks "did a repaint
+// happen", never "did one happen that should not have".
+func TestOnlyTheActiveTabsOutputDirtiesTheRow(t *testing.T) {
+	for _, tt := range []struct {
+		name      string
+		id        int
+		wantPaint bool
+	}{
+		{"the active tab erases its screen", 2, true},
+		{"a BACKGROUND tab erases its screen", 1, false},
+	} {
+		t.Run(tt.name, func(t *testing.T) {
+			m, rec := stripMux(t)
+			defer close(m.done)
+			m.drainForTest()
+			rec.reset()
+
+			m.output <- ptyChunk{id: tt.id, data: []byte("\x1b[2J"), rowDirty: true}
+			m.drainForTest()
+
+			painted := strings.Contains(rec.String(), "one [two]")
+			if painted != tt.wantPaint {
+				t.Fatalf("repaint=%v, want %v; wrote %q", painted, tt.wantPaint, rec.String())
+			}
+			// The region is the expensive half: re-asserting it stamps on the
+			// ACTIVE child's margins, so a spurious repaint is not merely wasted.
+			if region := strings.Contains(rec.String(), hostty.SetRegion(1, 23)); region != tt.wantPaint {
+				t.Fatalf("region re-asserted=%v, want %v; wrote %q", region, tt.wantPaint, rec.String())
+			}
+		})
+	}
+}
+
 // The deferred-DIAGNOSTIC queue is bounded (BR-49).
 //
 // It sits behind a condition the child controls: unlike a mid-sequence chunk
@@ -323,6 +373,3 @@ func TestStripMuxRecorderSeesTheStartupState(t *testing.T) {
 		t.Fatalf("the paint did not re-assert the region: %q", rec.String())
 	}
 }
-
-var _ = io.Discard
-var _ ptychild.Size

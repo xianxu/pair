@@ -849,19 +849,30 @@ func (m *terminalMux) handleChunk(chunk ptyChunk) {
 			// against its own stream state deadlocks it against itself. Fed
 			// immediately above, so model and terminal move together.
 			m.pane.raw("child output", chunk.data)
-		}
-		if chunk.rowDirty {
-			// RECORD THE DEBT, do not paint here. couch does the same
-			// (couchtty/console.go:1147, whose comment notes a paint there was
-			// "unreachable-by-difference"), and the reason matters more for a
-			// SHELL than it did for couch's full-screen child: a shell emits
-			// erases on every prompt redraw, so painting per row-dirty batch
-			// means painting constantly, and constantly at exactly the moment
-			// the child is mid-prompt with a cursor save outstanding.
-			//
-			// The debt is paid by flushOwed below, on the first chunk that
-			// leaves the stream safe -- which is the child's own DECRC.
-			m.stripOwed = true
+
+			// ONLY THE ACTIVE TAB CAN DIRTY THE ROW, and the condition belongs
+			// inside this branch for the same reason the scan does: a background
+			// child's bytes never reach the terminal, so they cannot have wiped
+			// a row the terminal is showing. Outside it, any background child
+			// erasing its own screen drove a full re-`Reserve` + repaint of a
+			// screen it had not touched -- against ARCH-CONSTRAINTS' declared
+			// budget, on the keystroke path, and re-asserting `\x1b[1;Nr` over
+			// the ACTIVE child's own margins for nothing (BR-57). This is M2's
+			// BR-35 rule -- the gate models the terminal, so feed it exactly
+			// what the terminal is shown -- applied to the repaint trigger.
+			if chunk.rowDirty {
+				// RECORD THE DEBT, do not paint here. couch does the same
+				// (couchtty/console.go:1147, whose comment notes a paint there
+				// was "unreachable-by-difference"), and the reason matters more
+				// for a SHELL than it did for couch's full-screen child: a shell
+				// emits erases on every prompt redraw, so painting per row-dirty
+				// batch means painting constantly, and constantly at exactly the
+				// moment the child is mid-prompt with a cursor save outstanding.
+				//
+				// The debt is paid by flushOwed below, on the first chunk that
+				// leaves the stream safe -- which is the child's own DECRC.
+				m.stripOwed = true
+			}
 		}
 		if m.stripOwed && !m.unsafeToPaint() {
 			m.stripOwed = false
@@ -1529,14 +1540,21 @@ func (m *terminalMux) setPaneTitle(title string) error {
 //
 //	grep -rn "\.Title" cmd --include=*.go | grep -v _test.go
 //
-//	launcher/layoutflow.go:62         Title == "terminal" | HasPrefix "[terminal"
-//	workbenchshortcut/shortcut.go:189 title == "terminal" | HasPrefix "terminal "
+//	launcher/layoutflow.go            asks RoleForPane
+//	workbenchshortcut/shortcut.go     TitleIdentifiesRightTerminal
 //
-// Both arms also match on the pane's COMMAND (`pair term`), so neither depends
-// on the title alone -- which is what makes degrading it safe, and is a
-// measurement rather than a hope. Note the two disagree about the bracket form,
-// so the packed title matched shortcut.go's arm NEVER: that consumer has always
-// classified this pane by command.
+// ONE predicate, asked by both consumers and by this producer. It was two
+// restatements of the same idea, and they disagreed: the packed title matched
+// shortcut.go's arm only by accident (it began with the first tab's default
+// name), and layoutflow's arm matched the BRACKET form, so degrading the title
+// silently killed that consumer's title-only path. Both are now the same
+// question asked of the same function (BR-48, BR-56).
+//
+// Both consumers also match on the pane's COMMAND (`pair term`), so neither
+// depends on the title alone -- which is what makes degrading it safe, and is a
+// measurement rather than a hope. It is not a licence to let the title stop
+// classifying: `zellijpane.paneFrom` admits panes with `TerminalCommand == ""`,
+// and there the title is all there is.
 func (m *terminalMux) paneTitleLocked() string {
 	if len(m.tabs) == 0 {
 		return ""
@@ -1545,39 +1563,38 @@ func (m *terminalMux) paneTitleLocked() string {
 	if m.active >= 0 && m.active < len(m.tabs) {
 		name = m.tabs[m.active].name
 	}
-	// The `terminal ` prefix is LOAD-BEARING, not decoration.
+	// The `terminal ` prefix is LOAD-BEARING, not decoration. `RoleForPane`
+	// classifies by the title alone when the pane's command is unavailable, and
+	// that classification routes the operator's global shortcuts -- so a bare
+	// active-tab name (`work`) would silently cost the pane its keybindings.
 	//
-	// `RoleForPane` classifies by `HasPrefix(title, "terminal ")` when the
-	// pane's command is unavailable, and that classification is what routes the
-	// operator's global shortcuts. A bare active-tab name -- `work` -- matches
-	// nothing, so renaming a tab would silently cost that pane its keybindings.
-	// The packed form kept classifying only by ACCIDENT -- it began with the
-	// first tab's default name -- so degrading without the prefix would trade one
-	// accident for a worse one. (An earlier version of this comment also claimed
-	// the packed title never matched shortcut.go's arm; that was measured false
-	// and is corrected in the plan's 2026-09-08 revision. Both claims cannot be
-	// true, and this is the one that survived measurement.)
-	if strings.HasPrefix(name, "terminal") {
+	// ASK the consumer's predicate; do not restate it. An earlier version tested
+	// `HasPrefix(name, "terminal")`, which is an approximation that disagrees on
+	// every name starting with `terminal` and continuing: a tab renamed
+	// `terminals` produced the title `terminals`, which classifies as
+	// PaneRoleOther -- the exact failure the prefix exists to prevent, delivered
+	// by the code preventing it (BR-56).
+	if workbenchshortcut.TitleIdentifiesRightTerminal(name) {
 		return name
 	}
 	return "terminal " + name
 }
 
-// redrawTab repaints from a SNAPSHOT taken by the caller under m.mu — it never
-// touches the mutex itself. Callers already hold the lock immediately before
-// calling, so snapshotting there costs nothing and avoids inventing a "no caller
-// may hold m.mu" contract whose violation mode would be a deadlock.
+// redrawTab is the WHOLESALE TAKEOVER: clear the screen, replay the tab.
 //
-// redrawTab repaints from a REPLAY taken by the caller under m.mu.
+// It repaints from a REPLAY taken by the CALLER under m.mu, and never touches
+// the mutex itself. Callers already hold the lock immediately before calling, so
+// snapshotting there costs nothing and avoids inventing a "no caller may hold
+// m.mu" contract whose violation mode would be a deadlock.
+//
+// It goes through the writer loop like everything else -- before M2 it wrote
+// from the Run goroutine while the pump wrote from its own, which is exactly the
+// two writers that milestone removed.
 //
 // The query stripping lives in ptychild.Child.Replay, NOT here. It used to be
 // composed at this site while Replay went uncalled -- two places holding one
 // decision about what a repaint may contain, and couch's attach path in M3
 // would have made it three (BR-20).
-// redrawTab is the WHOLESALE TAKEOVER: clear the screen, replay the tab. It
-// goes through the writer loop like everything else -- before M2 it wrote from
-// the Run goroutine while the pump wrote from its own, which is exactly the two
-// writers this milestone removes.
 func (m *terminalMux) redrawTab(replay []byte) {
 	m.enqueue(ptyChunk{replay: replay, takeover: true})
 }
