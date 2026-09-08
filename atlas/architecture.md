@@ -494,6 +494,30 @@ mechanism sits in two packages that both drive:
   zellij honors DECSTBM from a pane process — 200 lines scrolled inside the
   region while the reserved row held its paint (`#199` finding 5).
 
+**One writer, one gate — in `termcmd` as in `couch` (`#199` M2).** Every byte
+reaching the right pane passes through `terminalMux.copyActiveOutput`: child
+output, redraws, paints, diagnostics. A second writer is how a paint lands
+inside a child's escape sequence, since a pty read boundary falls wherever the
+kernel puts it. The gate is a `ptychild.Screen` fed **child bytes only** and
+consulted before any console-originated write; a write issued mid-sequence is
+deferred into a single **coalescing** slot — a later paint replaces an earlier
+one, correct because the row renders current state and queueing would draw a
+burst of stale rows at the next boundary — and flushed when the stream reaches
+a boundary. A wholesale takeover (`redrawTab`) resets the scan and **drops** the
+owed paint: the screen it was owed against is gone. That third rule is couch's
+(`couchtty/console.go:992-995`) and is easy to miss when restating the first two.
+
+Two consequences worth stating because neither is local to the writer loop.
+`enqueue` posts and does **not** wait: `runShell` redraws (via `newTab`) before
+it starts the loop, so a synchronous post deadlocks `pair term` on startup —
+ordering comes from the channel, which is all the envelope needs. And
+`termcmd.OSRuntime` gives a subprocess **neither** of the pane's descriptors,
+enforced at the Runtime rather than at call sites: that Runtime is handed to
+`layoutcmd` and `draftroute` too, so a call-site rule covers neither their
+sites nor the next one added. `zellij action` output on a full-screen pty lands
+wherever the child's cursor is, outside the loop and outside the gate — and a
+FAILING action did the same on stderr, once per wheel tick.
+
 **What is shared is structure; what stays is policy.** `termcmd` keeps numbered
 tabs, rename, the zellij pane title, and exit-when-empty; `couch` switches named
 actors and falls back to a panel. That is the same split `cmd/internal/ansi`
