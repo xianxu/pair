@@ -138,20 +138,33 @@ func TestGateIsNotFedOurOwnWrites(t *testing.T) {
 	m.tabs = append(m.tabs, &terminalTab{id: 1, name: "one"})
 	m.active = 0
 
+	// DIRECTION 1: our own PARTIAL escape must not leave the gate believing the
+	// CHILD's stream is mid-sequence. The child's stream is clean here, so the
+	// paint is written rather than deferred -- which is the path that actually
+	// reaches the scanner if anyone wires it up wrong.
+	m.output <- ptyChunk{id: 1, data: []byte("complete\x1b[0m")}
+	m.drainForTest()
+	if m.midSequenceForTest() {
+		t.Fatal("setup: the child's stream should be at a boundary")
+	}
+	m.paintOwn([]byte("\x1b[3")) // OUR partial sequence
+	m.drainForTest()
+	if m.midSequenceForTest() {
+		t.Fatal("our own partial escape poisoned the gate; it must see CHILD bytes only")
+	}
+
+	// DIRECTION 2: our own write must not COMPLETE a child's partial sequence.
+	// Feeding both streams into one scanner lets it frame our bytes with the
+	// child's and report safe precisely when it is not.
 	m.output <- ptyChunk{id: 1, data: []byte("x\x1b[3")}
 	m.drainForTest()
-	before := m.midSequenceForTest()
-
-	// Our own write completes a CSI textually. If the gate saw it, it would now
-	// believe the stream is safe.
-	m.paintOwn([]byte("\x1b[0m"))
-	m.drainForTest()
-
-	if !before {
-		t.Fatal("setup failed: the child's partial sequence did not open the gate")
-	}
 	if !m.midSequenceForTest() {
-		t.Fatal("our own write closed the gate; it must see CHILD bytes only")
+		t.Fatal("setup: the child's partial sequence did not open the gate")
+	}
+	m.paintOwn([]byte("m")) // textually completes the child's CSI
+	m.drainForTest()
+	if !m.midSequenceForTest() {
+		t.Fatal("our own write closed the gate on the child's behalf")
 	}
 }
 
@@ -217,12 +230,18 @@ func TestNeitherZellijMethodHandsTheSubprocessThePanesDescriptors(t *testing.T) 
 	// The point is the plumbing: whatever the subprocess emits lands in the
 	// writers it was given. If runZellij ignored them for os.Stdout/os.Stderr,
 	// this test would still pass -- so assert the wiring directly too.
+	// BOTH verbs, because each descriptor is only exercised by one of them:
+	// a succeeding action writes stdout and nothing to stderr, a failing one
+	// the reverse. Testing one verb leaves the other descriptor unchecked --
+	// which is how the stderr wiring survived its first mutation check.
 	for _, tc := range []struct {
 		name string
 		run  func() error
 	}{
-		{"RunZellijAction", func() error { return OSRuntime{}.RunZellijAction("list-clients") }},
-		{"RunZellijActionQuiet", func() error { return OSRuntime{}.RunZellijActionQuiet("list-clients") }},
+		{"Action/succeeds", func() error { return OSRuntime{}.RunZellijAction("list-clients") }},
+		{"Action/fails", func() error { return OSRuntime{}.RunZellijAction("nonexistent-verb") }},
+		{"Quiet/succeeds", func() error { return OSRuntime{}.RunZellijActionQuiet("list-clients") }},
+		{"Quiet/fails", func() error { return OSRuntime{}.RunZellijActionQuiet("nonexistent-verb") }},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			// os.Stdout/os.Stderr are redirected to a pipe; anything the

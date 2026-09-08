@@ -474,7 +474,7 @@ paint against a stream that no longer exists. `termcmd`'s equivalent moment is
 `redrawTab`, which issues `HomeAndClear` and replays: the same wholesale
 takeover, and it must reset the same two pieces of state.
 
-- [ ] **M2.1: Write the failing tests**
+- [x] **M2.1: Write the failing tests**
 
 ```go
 // The envelope, enforced rather than asserted: after this milestone exactly one
@@ -503,8 +503,8 @@ func TestGateIsNotFedOurOwnWrites(t *testing.T) {
 }
 ```
 
-- [ ] **M2.2: Run to verify they fail.**
-- [ ] **M2.3: Implement.** Four pieces, one per writer class from finding 8:
+- [x] **M2.2: Run to verify they fail.**
+- [x] **M2.3: Implement.** Four pieces, one per writer class from finding 8:
       1. Route `redrawTab`'s replay through the writer loop as an event, and
          reset `hostScan` + the deferred slot there — it is `termcmd`'s wholesale
          takeover, so it needs couch's third gate rule (see above), not just the
@@ -532,14 +532,14 @@ func TestGateIsNotFedOurOwnWrites(t *testing.T) {
          becomes a writer in M3. It joins the writer loop here, not in M3 —
          ARCH-ORDER already asserts resize and paint "serialize by construction"
          on that loop, and that claim is false until this piece lands.
-- [ ] **M2.3b: Prove the subprocess routing by the FD, not the method name.** A
+- [x] **M2.3b: Prove the subprocess routing by the FD, not the method name.** A
       `Runtime` fake records which method each call site used — but a
       `Quiet`-only refactor passes that assertion while `cmd.Stderr` still points
       at the pane, which is how BR-4 survived three rounds. So also drive
       `runZellij` directly with recording writers and assert the subprocess's
       stdout AND stderr both land there rather than on the pane's descriptors.
       This is what `TestOnlyOneGoroutineWritesTheHost` structurally cannot see.
-- [ ] **M2.4:** `go test ./cmd/internal/termcmd/ -count=1 -race` — the race detector is the point, not decoration.
+- [x] **M2.4:** `go test ./cmd/internal/termcmd/ -count=1 -race` — the race detector is the point, not decoration.
 - [ ] **M2.5: Manual** — switch tabs rapidly under load (`yes` in one tab) and confirm no corruption. Record what was observed in `## Log`, not "it worked".
 - [ ] **M2.6: Commit**, `sdlc milestone-close --issue 199 --milestone M2`.
 
