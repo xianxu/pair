@@ -579,14 +579,20 @@ func TestATabNameCannotInjectEscapes(t *testing.T) {
 }
 
 func TestNarrowPaneTruncatesWithoutLosingTheActiveTab(t *testing.T) {}
+
+// BR-35's lesson as a standing requirement: every strip test drives at
+// LEAST TWO tabs with a non-active one present. M2's gate defect shipped
+// because every test there drove a single active tab, so the whole
+// active/inactive distinction was unobserved.
+func TestRenderIsCorrectWithABackgroundTabPresent(t *testing.T) {}
 ```
 
 - [ ] **M3.2: Run to verify they fail.**
-- [ ] **M3.3: Implement `RenderStrip`** — pure, returning `RenderedStrip{Body, Spans}`, sanitizing and truncating via `rowtext.Sanitize`/`rowtext.Fit` (the shared package M3 extracts; `couchtty`'s `sanitize`/`truncate` are unexported and unreachable — PQ-7).
-- [ ] **M3.4: Wire it.** `Reservation{Edge: EdgeBottom}` sized from the pane; child pty gets `ChildRows()`; repaint on tab change, resize, and `batch.RowDirty` **read inside the Sink callback** (finding 7).
+- [ ] **M3.3: Implement `RenderStrip`** — pure, returning `RenderedStrip{Body, Spans}`, sanitizing and fitting via `rowtext.SanitizeAndFit` (`cmd/internal/rowtext`, extracted in **M2** when the diagnostic path needed it; `couchtty`'s unexported originals are gone, so there is one implementation with its own tests).
+- [ ] **M3.4: Wire it.** `hostty.NewReservation(rows, hostty.EdgeBottom)` — the VALIDATING door, not a struct literal: it refuses a terminal too short to reserve from, which a literal silently turns into a Reservation whose every method no-ops. Child pty gets `ChildRows()`; repaint on tab change, resize, and `batch.RowDirty` **read inside the Sink callback** (finding 7).
 - [ ] **M3.5: The re-`Reserve` rule** (ARCH-ORDER's most-likely-wrong): on a `batch.RowDirty` batch, re-`Reserve` *before* repainting. Test: simulate a child emitting `\x1b[r` (margin reset), assert the next repaint re-emits the region and not only the row.
-- [ ] **M3.6: Degrade `rename-pane`** to the active tab name; assert `RunZellijAction` still receives a rename on tab switch (the `#118`/`#123` consumers) and that it is no longer the packed multi-tab string.
-- [ ] **M3.7:** `go test ./cmd/... -count=1`, then **manual in a real layout3 pane**: run `nvim`, confirm the strip survives its startup clear and its own margin changes; quit; confirm the shell is not left scrolling in a box.
+- [ ] **M3.6: Degrade `rename-pane`** to the active tab name. Assert against the DERIVED consumer set (finding 9): `RoleForPane` and `ClassifyLiveLayout` fed the degraded title, including the `TerminalCommand == ""` case `zellijpane.paneFrom` admits (`zellijpane.go:79-84`), where the command fallback is unavailable and the title is all there is. Assert a rename still reaches the runtime on tab switch and that it is no longer the packed multi-tab string. NOTE: since M2 both `RunZellijAction` and `RunZellijActionQuiet` are quiet, and `fakeRuntime` records the latter with a `quiet ` prefix — assert the recorded op, not the method name.
+- [ ] **M3.7:** `go test ./cmd/... -count=1`, then **manual in a real layout3 pane**, three things. (a) Run `nvim`: the strip survives its startup clear and its own margin changes; quit, and the shell is not left scrolling in a box. (b) **The gate, which M2.5 could not reach** (BR-36): with the strip repainting, flood one tab (`yes`) and switch tabs repeatedly — now a paint IS requested while the child's stream is mid-sequence, so the defer-and-owe path actually runs. Watch for a strip drawn inside the child's output. (c) A tab whose name is wide (`日本語`) and one that is long, to see truncation and column alignment rather than trusting the unit test's arithmetic.
 - [ ] **M3.8: Commit**, `sdlc milestone-close --issue 199 --milestone M3`.
 
 ## M4 — take the frame off

@@ -64,6 +64,10 @@ check "$PLAN" 'consumers at$' 'the derived set in finding 9' "$REV"
 check "$PLAN" 'Route every `RunZellijAction` call in `termcmd`' 'make the Runtime incapable' "$REV"
 check "$PLAN" 'route only stdout through' 'both descriptors, captured into the error' "$REV"
 
+# pair#199: rowtext was extracted in M2 (the diagnostic path needed it), not M3,
+# and couchtty's unexported originals are gone rather than merely unreachable.
+check "$PLAN" 'the shared package M3 extracts' 'extracted in M2' "$REV"
+
 check "probes/zellijscrollregion/main.go" 'cmd/probes/zellijscrollregion' 'probes/zellijscrollregion'
 
 if [ "$fails" -ne 0 ]; then
