@@ -3,8 +3,8 @@ package couchtty
 import (
 	"strings"
 
-	"github.com/xianxu/pair/cmd/internal/ansi"
 	"github.com/xianxu/pair/cmd/internal/couchcore"
+	"github.com/xianxu/pair/cmd/internal/rowtext"
 
 	"github.com/xianxu/pair/cmd/internal/textwidth"
 )
@@ -100,7 +100,7 @@ func RenderStatusRow(width int, m StatusModel) RenderedStatusRow {
 		if used >= width || text == "" {
 			return
 		}
-		clipped := truncate(text, width-used)
+		clipped := rowtext.Fit(text, width-used)
 		if clipped == "" {
 			return
 		}
@@ -115,7 +115,7 @@ func RenderStatusRow(width int, m StatusModel) RenderedStatusRow {
 	}
 	var chips []ChipSpan
 	for _, a := range m.Actors {
-		label := sanitize(a.Label)
+		label := rowtext.Sanitize(a.Label)
 		if a.Active {
 			label = "[" + label + "]"
 		}
@@ -131,7 +131,7 @@ func RenderStatusRow(width int, m StatusModel) RenderedStatusRow {
 			chips = append(chips, ChipSpan{Thread: a.Thread, Start: start, End: used})
 		}
 	}
-	if n := sanitize(m.Notice); n != "" {
+	if n := rowtext.Sanitize(m.Notice); n != "" {
 		if used > 0 {
 			appendText("  · ", false)
 		}
@@ -145,32 +145,7 @@ func RenderStatusRow(width int, m StatusModel) RenderedStatusRow {
 // leave `[2J` sitting in the row as visible junk -- safe, but garbage the
 // operator cannot explain. ansi.Strip is the repo's existing answer to "remove
 // complete escape sequences", so the sequence framing is not re-decided here.
-func sanitize(s string) string {
-	stripped := string(ansi.Strip([]byte(s)))
-	return strings.Map(func(r rune) rune {
-		if r < 0x20 || r == 0x7f {
-			return -1
-		}
-		return r
-	}, stripped)
-}
 
 // truncate cuts to width in terminal COLUMNS, not bytes or runes -- an emoji in
 // an agent's description is one rune and two columns, and the row must not wrap
 // onto the child's area.
-func truncate(s string, width int) string {
-	if textwidth.Width(s) <= width {
-		return s
-	}
-	var b strings.Builder
-	used := 0
-	for _, r := range s {
-		w := textwidth.Width(string(r))
-		if used+w > width {
-			break
-		}
-		b.WriteRune(r)
-		used += w
-	}
-	return b.String()
-}

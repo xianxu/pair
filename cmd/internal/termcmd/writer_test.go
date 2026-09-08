@@ -355,3 +355,34 @@ func captureFD(t *testing.T, target **os.File) (func() []byte, func()) {
 	}
 	return func() []byte { return captured }, restore
 }
+
+// BR-32: the fix for BR-27 routes an EXTERNAL PROCESS's bytes toward the pane.
+// Keeping the pane clean and then handing it an arbitrary escape would be a
+// worse bug than the silence it replaced -- `\x1b[2J` from a subprocess clears
+// the operator's screen just as effectively as one from an agent's label.
+func TestAZellijErrorCannotPutAnEscapeOrAnUnboundedLineOnThePane(t *testing.T) {
+	rec := newWriterRecorder()
+	m := newTerminalMux("sh", nil, rec, io.Discard, &fakeRuntime{})
+	defer close(m.done)
+	go m.copyActiveOutput()
+
+	hostile := errors.New("boom: \x1b[2Jcleared\x0egarbled\nforged-line " +
+		strings.Repeat("x", 400))
+	m.reportError(hostile)
+	m.drainForTest()
+
+	got := rec.String()
+	// Positive control: the readable part must actually arrive, or the
+	// assertions below pass because nothing was written.
+	if !strings.Contains(got, "boom") {
+		t.Fatalf("the diagnostic never reached the pane: %q", got)
+	}
+	for _, bad := range []string{"\x1b", "\x0e", "\n\x66orged", "\r"} {
+		if strings.Contains(strings.TrimSuffix(got, "\r\n"), bad) {
+			t.Fatalf("control byte %q from an external process reached the pane: %q", bad, got)
+		}
+	}
+	if n := len(got); n > 300 {
+		t.Fatalf("an external process put %d bytes on the pane; it must be bounded", n)
+	}
+}

@@ -572,6 +572,67 @@ rounds:
           round: 6
       boundary: M2
       blocked: true
+    - "n": 7
+      timestamp: "2026-09-07T22:12:24-07:00"
+      agent: claude
+      dispose:
+        - id: BR-8
+          disposition: not-addressed
+          note: M4 is untouched in this window; still no Alt+Shift+d step and the Done-when still requires two right-pane halves each drawing a strip.
+          round: 7
+        - id: BR-9
+          disposition: not-addressed
+          note: TestPaintDefersMidSequenceAndIsOwed (writer_test.go:115) still splits one hand-chosen index.
+          round: 7
+        - id: BR-25
+          disposition: not-addressed
+          note: No code change; reproduced again with an overlay test - 64 slots filled, writer parked past a 3s timeout. run.go:767 -> 1120 -> 1281 -> enqueue.
+          round: 7
+        - id: BR-26
+          disposition: not-addressed
+          note: 'Two sites got controls; the class has five. Measured GREEN under mutation: m.owed = nil, cmd.Stdout = stdout, runZellijCaptured, resizeThroughWriter; plus plan-superseded-facts-test.sh:65 bans a token that never existed in the plan.'
+          round: 7
+        - id: BR-27
+          disposition: not-addressed
+          note: 'Coalescing half closed and mutation-pinned. Discard half: reverting runZellijCaptured to io.Discard leaves the suite green, and run.go:461,467,1118,1210 still drop the error, so a failing wheel tick or rename is still completely silent.'
+          round: 7
+        - id: BR-28
+          disposition: addressed
+          note: M2.3 pieces rewritten to match the code, Revisions delta present, and the piece-3 guard is mutation-live (restoring the wording reddens plan:515). The second guard pair is inert - folded into BR-26.
+          round: 7
+        - id: BR-29
+          disposition: not-addressed
+          note: run_test.go:941 fakeRuntime.reportedUnused still present and still uncalled.
+          round: 7
+        - id: BR-30
+          disposition: not-addressed
+          note: run.go:167 runDecision still takes stdin and stdout and uses neither.
+          round: 7
+        - id: BR-31
+          disposition: not-addressed
+          note: ARCH-CONSTRAINTS unchanged; the second parse and the unterminated-OSC stall are still undeclared.
+          round: 7
+      findings:
+        - id: BR-32
+          severity: Important
+          title: The BR-27 fix routes an external process's bytes onto the pane's tty, unsanitized and unbounded
+          detail: 'This is the 2nd finding in family external-input-assumed-wellformed, so the deliverable is the rule, not the site. runZellijCaptured (run.go:1396-1414) folds the subprocess''s stderr - or its stdout at run.go:1408 - into the error; reportError (run.go:872) writes err.Error() straight to the pane''s pty. Reachable via handleChord -> runDecision -> RunZellijAction (reported at run.go:441) and splitTerminalDown (run.go:511). Before this commit the error was a bare exec.ExitError, so no external bytes reached the pane. Only the newline is bounded (run.go:1411); length and escape bytes are not, and setPaneTitle''s argument is an operator-controlled tab name zellij''s error text can echo back. Measured: current zellij on a pipe emits no escapes, so this is latent rather than observed. The rule - bytes this process did not produce become safe row text at the boundary where they enter, not at the writer that prints them - covers four enumerable sites: runZellijCaptured''s detail, reportError''s err.Error(), run.go:66''s term: %v, and M3''s tab names, all of which the plan already routes through rowtext.Sanitize/Fit.'
+          family: external-input-assumed-wellformed
+          round: 7
+        - id: BR-33
+          severity: Important
+          title: The atlas paragraph added in this window was falsified by the next commit in the same window
+          detail: 'This is the 4th finding in family plan-table-drift, so state the rule rather than patching the paragraph. atlas/architecture.md:501-503 says the gate is consulted before "any console-originated write" and that such a write "is deferred into a single coalescing slot", and :506-508 that a takeover drops it - false for diagnostics since 34918a3c, which gave them a queue (run.go:818) that survives a takeover (run.go:779-786). The paragraph''s own first sentence lists diagnostics among the writes on the loop, so a reader takes from the atlas the opposite of the decision this milestone was about; :519 has the matching gap for where a failing action''s stderr goes now. The rule: an artifact asserting a design is re-checked against the code in the commit that changes the design, and the check is a test. The existing mechanism is scoped to one plan file and to hand-registered tokens - extend tests/plan-superseded-facts-test.sh to atlas/ and register this pair, noting that registering a pair is not evidence unless it fires (see BR-26).'
+          family: plan-table-drift
+          round: 7
+        - id: BR-34
+          severity: Minor
+          title: owedDiag is an unbounded queue on an externally-timed path, one function below a comment rejecting Feed for that reason
+          detail: 'This is the 2nd finding in family hot-path-cost-undeclared, so the rule: every buffer introduced on a path whose fill rate is set by something outside the process gets a declared bound in ARCH-CONSTRAINTS and a cap in code. run.go:818 appends without limit - one entry per failed refreshRename keystroke while the child sits mid-sequence - and flushes them all at once at the next boundary, while run.go:796-799 explains that Feed was rejected precisely because it would be an unbounded buffer growing behind a terminal that never reads it. Same envelope gap as the undeclared second parse.'
+          family: hot-path-cost-undeclared
+          round: 7
+      boundary: M2
+      blocked: true
 ---
 
 # Gate ledger — pair#199 (boundary-review)
@@ -887,6 +948,29 @@ later rounds disposed of them. Generated — edit the gate, not this file.
 - **BR-31** [Minor] `hot-path-cost-undeclared` The gate adds a second full parse of every child byte on the output path, undeclared in the envelope
   handleChunk calls hostScan.FeedFraming on every chunk while ptychild.Child already parses the same bytes into its own Screen. ARCH-CONSTRAINTS budgets paints but not this. Also worth stating there: a long unterminated OSC holds MidSequence true up to maxPending, stalling any owed paint.
 
+## Round 7 — 2026-09-07T22:12:24-07:00 (claude) — BLOCKED
+
+### Disposed
+
+- BR-8 — not-addressed — M4 is untouched in this window; still no Alt+Shift+d step and the Done-when still requires two right-pane halves each drawing a strip.
+- BR-9 — not-addressed — TestPaintDefersMidSequenceAndIsOwed (writer_test.go:115) still splits one hand-chosen index.
+- BR-25 — not-addressed — No code change; reproduced again with an overlay test - 64 slots filled, writer parked past a 3s timeout. run.go:767 -> 1120 -> 1281 -> enqueue.
+- BR-26 — not-addressed — Two sites got controls; the class has five. Measured GREEN under mutation: m.owed = nil, cmd.Stdout = stdout, runZellijCaptured, resizeThroughWriter; plus plan-superseded-facts-test.sh:65 bans a token that never existed in the plan.
+- BR-27 — not-addressed — Coalescing half closed and mutation-pinned. Discard half: reverting runZellijCaptured to io.Discard leaves the suite green, and run.go:461,467,1118,1210 still drop the error, so a failing wheel tick or rename is still completely silent.
+- BR-28 — addressed — M2.3 pieces rewritten to match the code, Revisions delta present, and the piece-3 guard is mutation-live (restoring the wording reddens plan:515). The second guard pair is inert - folded into BR-26.
+- BR-29 — not-addressed — run_test.go:941 fakeRuntime.reportedUnused still present and still uncalled.
+- BR-30 — not-addressed — run.go:167 runDecision still takes stdin and stdout and uses neither.
+- BR-31 — not-addressed — ARCH-CONSTRAINTS unchanged; the second parse and the unterminated-OSC stall are still undeclared.
+
+### Raised
+
+- **BR-32** [Important] `external-input-assumed-wellformed` The BR-27 fix routes an external process's bytes onto the pane's tty, unsanitized and unbounded
+  This is the 2nd finding in family external-input-assumed-wellformed, so the deliverable is the rule, not the site. runZellijCaptured (run.go:1396-1414) folds the subprocess's stderr - or its stdout at run.go:1408 - into the error; reportError (run.go:872) writes err.Error() straight to the pane's pty. Reachable via handleChord -> runDecision -> RunZellijAction (reported at run.go:441) and splitTerminalDown (run.go:511). Before this commit the error was a bare exec.ExitError, so no external bytes reached the pane. Only the newline is bounded (run.go:1411); length and escape bytes are not, and setPaneTitle's argument is an operator-controlled tab name zellij's error text can echo back. Measured: current zellij on a pipe emits no escapes, so this is latent rather than observed. The rule - bytes this process did not produce become safe row text at the boundary where they enter, not at the writer that prints them - covers four enumerable sites: runZellijCaptured's detail, reportError's err.Error(), run.go:66's term: %v, and M3's tab names, all of which the plan already routes through rowtext.Sanitize/Fit.
+- **BR-33** [Important] `plan-table-drift` The atlas paragraph added in this window was falsified by the next commit in the same window
+  This is the 4th finding in family plan-table-drift, so state the rule rather than patching the paragraph. atlas/architecture.md:501-503 says the gate is consulted before "any console-originated write" and that such a write "is deferred into a single coalescing slot", and :506-508 that a takeover drops it - false for diagnostics since 34918a3c, which gave them a queue (run.go:818) that survives a takeover (run.go:779-786). The paragraph's own first sentence lists diagnostics among the writes on the loop, so a reader takes from the atlas the opposite of the decision this milestone was about; :519 has the matching gap for where a failing action's stderr goes now. The rule: an artifact asserting a design is re-checked against the code in the commit that changes the design, and the check is a test. The existing mechanism is scoped to one plan file and to hand-registered tokens - extend tests/plan-superseded-facts-test.sh to atlas/ and register this pair, noting that registering a pair is not evidence unless it fires (see BR-26).
+- **BR-34** [Minor] `hot-path-cost-undeclared` owedDiag is an unbounded queue on an externally-timed path, one function below a comment rejecting Feed for that reason
+  This is the 2nd finding in family hot-path-cost-undeclared, so the rule: every buffer introduced on a path whose fill rate is set by something outside the process gets a declared bound in ARCH-CONSTRAINTS and a cap in code. run.go:818 appends without limit - one entry per failed refreshRename keystroke while the child sits mid-sequence - and flushes them all at once at the next boundary, while run.go:796-799 explains that Feed was rejected precisely because it would be an unbounded buffer growing behind a terminal that never reads it. Same envelope gap as the undeclared second parse.
+
 ## Open findings
 
 - **BR-8** [Minor] `acceptance-misses-changed-sites` M4's manual acceptance never splits the pane, leaving six of nine borderless sites unverified
@@ -903,7 +987,9 @@ later rounds disposed of them. Generated — edit the gate, not this file.
 - **BR-25** [Critical] `handler-posts-to-own-queue` removeTab runs on the writer goroutine and posts to the writer goroutine's own channel, deadlocking the pane
 - **BR-26** [Important] `uncovered-negative-assertion` Two assert-absent tests pass vacuously — the owed-paint drop and the subprocess stdout arm are unpinned
 - **BR-27** [Important] `diagnostic-silently-discarded` The milestone keeps diagnostics off the pane by destroying them — discarded stderr, and a coalescing slot shared with paints
-- **BR-28** [Important] `plan-table-drift` M2.3 steps 3, 4 and 5 describe an implementation the code does not have, with no Revisions entry
 - **BR-29** [Minor] `dead-test-scaffolding` fakeRuntime.reportedUnused and its reported field are unreachable after the interface change
 - **BR-30** [Minor] `handler-posts-to-own-queue` runDecision still receives the pane's stdout, unused, on the input goroutine
 - **BR-31** [Minor] `hot-path-cost-undeclared` The gate adds a second full parse of every child byte on the output path, undeclared in the envelope
+- **BR-32** [Important] `external-input-assumed-wellformed` The BR-27 fix routes an external process's bytes onto the pane's tty, unsanitized and unbounded
+- **BR-33** [Important] `plan-table-drift` The atlas paragraph added in this window was falsified by the next commit in the same window
+- **BR-34** [Minor] `hot-path-cost-undeclared` owedDiag is an unbounded queue on an externally-timed path, one function below a comment rejecting Feed for that reason

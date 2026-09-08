@@ -19,6 +19,7 @@ import (
 	"github.com/xianxu/pair/cmd/internal/mouseinput"
 	"github.com/xianxu/pair/cmd/internal/procutil"
 	"github.com/xianxu/pair/cmd/internal/ptychild"
+	"github.com/xianxu/pair/cmd/internal/rowtext"
 	"github.com/xianxu/pair/cmd/internal/workbenchshortcut"
 	"github.com/xianxu/pair/cmd/internal/zellijpane"
 	"strconv"
@@ -869,7 +870,13 @@ func (m *terminalMux) reportError(err error) {
 	if err == nil {
 		return
 	}
-	m.enqueue(ptyChunk{diag: []byte("pair term: " + err.Error() + "\r\n")})
+	// SANITIZED HERE, at the single point diagnostics reach the pane -- not at
+	// each producer. An error's text can come from anywhere: a subprocess's
+	// stderr, a filesystem path, an operator-typed tab name in a wrapped error.
+	// Filtering one producer moves the hazard to the next one, which is the
+	// mistake #208 made with `ps` output and fixed by filtering at emission.
+	text := rowtext.SanitizeAndFit("pair term: "+err.Error(), diagnosticWidth)
+	m.enqueue(ptyChunk{diag: []byte(text + "\r\n")})
 }
 
 // paintOwn queues a console-originated write onto the writer loop.
@@ -1392,6 +1399,14 @@ func runZellij(args []string, stdout, stderr io.Writer) error {
 // a failing action became completely silent -- strictly worse than the noise it
 // replaced. The bytes go into the error, where a caller can report or log them,
 // and never onto the pane's fd.
+// diagnosticWidth bounds what any single diagnostic may put on the pane. Wide
+// enough for a useful message, far short of wrapping onto the child's area.
+const diagnosticWidth = 200
+
+// zellijErrorDetailWidth bounds the subprocess half specifically, so a usage
+// dump cannot crowd out the part of the message we wrote.
+const zellijErrorDetailWidth = 120
+
 func runZellijCaptured(args []string) error {
 	var out, errb bytes.Buffer
 	err := runZellij(args, &out, &errb)
@@ -1405,10 +1420,16 @@ func runZellijCaptured(args []string) error {
 	if detail == "" {
 		return err
 	}
-	// One line: this may be reported onto the pane, and zellij's usage dumps
-	// run to a dozen.
-	if i := strings.IndexByte(detail, '\n'); i >= 0 {
-		detail = detail[:i]
+	// SANITIZED AND BOUNDED. This text comes from an external process and is
+	// on its way to a live terminal, so it gets the same treatment as any other
+	// untrusted row content: escape sequences and control bytes stripped, width
+	// capped. The first version of this fix took only the first line, which
+	// stops a usage dump but not a `\x1b[2J` -- keeping the pane clean and then
+	// handing it an arbitrary escape would have been a worse bug than the
+	// silence it replaced.
+	detail = rowtext.SanitizeAndFit(detail, zellijErrorDetailWidth)
+	if detail == "" {
+		return err
 	}
 	return fmt.Errorf("%w: %s", err, detail)
 }
