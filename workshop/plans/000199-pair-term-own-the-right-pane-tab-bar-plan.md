@@ -222,10 +222,16 @@ stdout, and a third title matcher that disagrees with the other two.
 | `rowtext.Sanitize` / `rowtext.Fit` / `SanitizeAndFit` | `cmd/internal/rowtext/rowtext.go` | new — pulled forward to M2 |
 | `Edge` | `cmd/internal/hostty/reserve.go` | new |
 | `Reservation` | `cmd/internal/hostty/reserve.go` | new |
-| `TabChip` | `cmd/internal/termcmd/strip.go` | planned — M3 |
-| `StripModel` | `cmd/internal/termcmd/strip.go` | planned — M3 |
-| `RenderedStrip` | `cmd/internal/termcmd/strip.go` | planned — M3 |
-| `RenderStrip` | `cmd/internal/termcmd/strip.go` | planned — M3 |
+| `TabChip` | `cmd/internal/termcmd/strip.go` | new |
+| `StripModel` | `cmd/internal/termcmd/strip.go` | new |
+| `RenderedStrip` | `cmd/internal/termcmd/strip.go` | new |
+| `RenderStrip` | `cmd/internal/termcmd/strip.go` | new |
+| `TabSpan` | `cmd/internal/termcmd/strip.go` | new |
+| `RenameField` | `cmd/internal/termcmd/strip.go` | new |
+| `RenameEditor.Field` | `cmd/internal/termcmd/rename.go` | new |
+| `ResetSGR` / `ReserveAndPaint` | `cmd/internal/hostty/reserve.go` | new |
+| `Screen.HoldsCursorSave` | `cmd/internal/ptychild/screen.go` | new |
+| `renamePaneTitleLocked` | `cmd/internal/termcmd/run.go` | deleted — the rename field moved to the strip (M3) |
 | `couchtty.ChildRows` / `Reserve` / `Release` / `PaintRow` | `cmd/internal/couchtty/reserve.go` | deleted |
 | `couchtty.RenderStatusRow` (+ `StatusModel`, `ChipSpan`) | `cmd/internal/couchtty/reserve.go` | modified — body now calls `rowtext` (M2) |
 
@@ -286,8 +292,9 @@ stdout, and a third title matcher that disagrees with the other two.
 | Name | Lives in | Status | Wraps |
 |------|----------|--------|-------|
 | single host writer | `cmd/internal/termcmd/run.go` | modified | the operator's tty |
-| paint gate | `cmd/internal/termcmd/run.go` | new | `ptychild.Screen.MidSequence` |
+| paint gate | `cmd/internal/termcmd/run.go` | new | `ptychild.Screen.MidSequence` **and** `ptychild.Screen.HoldsCursorSave` — TWO conditions, widened in M3 when the shared save slot turned out to be the operator-visible one |
 | strip repaint trigger | `cmd/internal/termcmd/run.go` | new | `ptychild.OutputBatch.RowDirty` (read in the Sink — see finding 7; `Child.TakeRowDirty` is already drained there) |
+| paint debt (`stripOwed`) | `cmd/internal/termcmd/run.go` | new | a row-dirty batch RECORDS a debt rather than painting (couch's policy, `couchtty/console.go:1147`); paid by the first chunk that leaves the stream safe. A shell erases on every prompt redraw, so painting per batch means painting constantly, and constantly while the child is mid-prompt |
 | degraded `rename-pane` | `cmd/internal/termcmd/run.go` | modified | `zellij action` |
 | right pane chrome | `.../zellij/layouts/main-3.kdl` | modified | zellij layout |
 
@@ -343,7 +350,11 @@ stdout, and a third title matcher that disagrees with the other two.
   the failure the operator already reported once for other reasons (`#201`).
 - **Budget: no subprocess per tab change.** Replacing `rename-pane`-per-title
   with a strip paint should *reduce* process spawns; the degraded title keeps
-  one spawn on tab switch only, not on every render.
+  one spawn on tab switch only, not on every render. **Enforced, not asserted**
+  (`TestARenameCostsExactlyOneZellijSubprocess`) — the line was false for the
+  whole of M3's first pass, because the rename field was still packed into the
+  pane title and forked `zellij action` once per KEYSTROKE (BR-50). A budget
+  with no test is a sentence in a plan.
 - **Scale:** tab counts are single digit. Linear rendering is correct.
 - **Concurrency:** exactly one goroutine writes the host after M2 — that is the
   envelope, and `TestOnlyOneGoroutineWritesTheHost` is how it is enforced rather
@@ -1060,3 +1071,80 @@ instrument instead of by reasoning about it.
    off — because that is the case M4 would otherwise regress silently.
 
 5. **No other milestone content changed.** M4 stands as written.
+
+### 2026-09-08 — M3 boundary review (FIX-THEN-SHIP): eight findings, fixed at the class
+
+The review's verdict was FIX-THEN-SHIP with eight open blocking findings. Each
+was fixed as the RULE it names rather than at the site, per ARCH-PURPOSE.
+
+**Delta to the plan:**
+
+1. **BR-45 `exit-path-drops-cleanup` — every strip-model mutation owes a
+   repaint, and the SET is read out of the source.** `removeTab`'s
+   `preserveRename` branch skipped `applyTakeover`, which was the only thing
+   repainting the row there, so a tab exiting mid-rename left the strip listing
+   a tab that no longer existed. The instance is fixed; the class is
+   `cmd/internal/termcmd/stripmutation_test.go` — a table driving every mutator,
+   plus a go/ast pass over `run.go` that fails when a method assigns
+   `m.tabs`/`m.active`/`m.rename` without a case. Both halves are needed: a
+   static "does it call paintStrip" check would have PASSED this very defect,
+   because `removeTab` did call it, just not on the branch that mattered.
+
+2. **BR-46 `superseded-write-not-dropped` — the fresh row supersedes the owed
+   one.** `writeOwn` now clears `m.owed` when a paint lands directly, stating
+   the invariant where the invariant lives rather than asking each drain site to
+   order itself.
+
+3. **BR-47 `acceptance-command-does-not-hold` — M3.7(b) is now AUTOMATED rather
+   than ticked.** The step needs a load generator that emits ESCAPES; `yes` and
+   `seq` emit none, so neither earlier attempt reached the defer-and-owe path.
+   `cmd/probes/couchnestedrows` now floods a tab with an SGR pair per line and
+   switches tabs against it, asserting the strip survives and that no strip
+   fragment landed in the child's area. An automated step cannot be ticked ahead
+   of its evidence, which is the durable form of the rule.
+
+4. **BR-48 `consumer-set-not-derived` + BR-50 `envelope-claim-unenforced` — one
+   fix.** `renamePaneTitleLocked` is DELETED: the rename field lives on the
+   strip, so the pane title has exactly one producer and is written only when
+   the tab set or active tab changes. That removes the unswept producer (which
+   packed the tab set and dropped the classifier prefix, costing the pane its
+   global shortcuts for the duration of every rename) and the per-keystroke
+   subprocess at once. `ClassifyLiveLayout` now asks `RoleForPane` instead of
+   restating the predicate — one derivation for both consumers — and
+   `TestEveryPaneTitleProducerSatisfiesEveryConsumer` is the producer × consumer
+   table that keeps it true.
+
+5. **BR-49 `deferred-work-lacks-own-trigger` — decided per payload, not
+   deferred again.** M2 assigned M3 a flush deadline; M3 instead WIDENED the
+   condition to one the child can hold indefinitely, so a deadline is the wrong
+   shape. The paint defers unboundedly on purpose (stale beats wrong, already
+   tested); the diagnostic queue is capped at `maxOwedDiag`, dropping oldest.
+
+6. **BR-51 `test-can-touch-real-state` + BR-52 `copy-instead-of-extract` — one
+   fix.** `probes/cursorsaveslots` discovered its session by diffing
+   `zellij list-sessions` and force-deleted an arbitrary new name — from
+   `make test-smoke`, so any session appearing in that window was a candidate.
+   The new `probes/zellijprobe` package makes the safety property STRUCTURAL:
+   `Start` names the session, `Close` deletes that name, and no path can delete
+   one it did not create. It also removes the 196 duplicated lines between the
+   two harnesses (287→172 and 281→165 lines), which is what let the fix exist in
+   one copy and not the other in the first place.
+
+   **And the extraction broke `make test-smoke`, which running it caught.** The
+   loop is `for p in probes/*/; do go run ./$p || exit 1; done` -- deliberately
+   listless -- and a shared LIBRARY under `probes/` is not a main package, so
+   `go run` failed and aborted the suite before the last probe. The loop now
+   skips a directory with no `package main`; a skip rather than an exclusion
+   list, so the next shared package needs no remembering either.
+
+7. **Minors:** the Core-concepts table is flipped and extended, and the
+   `planned — Mx` rot is now guarded
+   (`TestNoPlannedRowSurvivesItsTickedMilestone`) — couchtty's contract SKIPS
+   rows marked planned, which is correct before the milestone and silently wrong
+   after it. Three self-contradicting doc comments corrected; `layoutflow_test`'s
+   `"[terminal 1]"` fixture replaced with a title a producer can actually emit;
+   the README now documents the strip and the row the pane gives up.
+
+**BR-8 and BR-9 remain open**, disposed `not-addressed` by the review: M4.3
+still has no `Alt+Shift+d` step, and `TestPaintDefersMidSequenceAndIsOwed` still
+splits one hand-chosen sequence at one index. Both belong to M4.

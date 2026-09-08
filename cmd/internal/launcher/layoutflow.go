@@ -5,6 +5,7 @@ import (
 	"strings"
 
 	"github.com/xianxu/pair/cmd/internal/artifactpath"
+	"github.com/xianxu/pair/cmd/internal/workbenchshortcut"
 	"github.com/xianxu/pair/cmd/internal/zellijpane"
 )
 
@@ -59,7 +60,16 @@ func ClassifyLiveLayout(panes []zellijpane.Pane) (LayoutMode, bool) {
 		if pane.Title == "terminal-filler" || strings.Contains(command, "tail -f /dev/null") {
 			filler = true
 		}
-		if pane.Title == "terminal" || strings.HasPrefix(pane.Title, "[terminal") || strings.Contains(command, "pair term") {
+		// ONE derivation of "this is the right terminal", shared with the other
+		// consumer rather than restated here. The title-only arm used to be
+		// `Title == "terminal" || HasPrefix(Title, "[terminal")`, which matched
+		// the PACKED title `[terminal 1] work`. #199 M3 degraded that producer to
+		// `terminal 1`, which matches neither arm -- so this consumer's
+		// command-less path went from "classifies" to "never classifies", and
+		// nothing failed, because the shipped caller passes --command and the
+		// fallback masked it (BR-48). RoleForPane is where the predicate lives;
+		// asking it is what keeps the two consumers from drifting apart again.
+		if workbenchshortcut.RoleForPane(pane) == workbenchshortcut.PaneRoleRightTerminal {
 			if pane.IsFloating {
 				floatingTerminal = true
 			} else {

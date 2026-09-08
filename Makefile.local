@@ -48,9 +48,20 @@ RUNTIMEBUNDLE_ASSETS := cmd/internal/runtimebundle/assets/runtime/manifest.json
 # evidence has to be re-runnable by anyone, which means a target, not a
 # remembered `go run` line (#146 M1 BR-16). Not in `test`: it drives a real
 # terminal child and takes ~20s.
+#
+# It runs every directory under probes/ WITHOUT a list, which is the point --
+# but "every directory" now includes probes/zellijprobe, the harness the probes
+# share (#199 BR-52). `go run` on a library package fails, and with `|| exit 1`
+# that aborted the whole suite, so the loop skips a directory with no `package
+# main`. A skip, not an entry in a second list: the next shared package must not
+# need remembering either.
 .PHONY: test-smoke
 test-smoke: $(BIN_DIR)/pair $(BIN_DIR)/pair-launch-helper
 	@for p in probes/*/; do \
+	    if ! grep -qs '^package main$$' $$p*.go; then \
+	        echo "==> $$p (shared harness, not a probe)"; \
+	        continue; \
+	    fi; \
 	    echo "==> $$p"; \
 	    go run ./$$p || exit 1; \
 	done

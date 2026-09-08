@@ -503,7 +503,11 @@ mechanism sits in two packages that both drive:
   argued: `cmd/probes/couchnestedrows` (`make test-couch-nested-rows`) reserves
   a row on a real 40-row pty, runs a real zellij in the 39 that remain, and runs
   a real `pair term` in the pane — the shell reports `38 100`, a 400-line flood
-  reaches neither row, and neither row eats the other.
+  reaches neither row, and neither row eats the other. It also carries the one
+  acceptance step no unit test reaches: a flood that emits ESCAPES (an SGR pair
+  per line) with tab switches against it, which is the only way to request a
+  paint while the child's stream is genuinely mid-sequence. `yes` and `seq` emit
+  none, which is why two earlier attempts at that step exercised nothing.
 
 **One writer, one gate — in `termcmd` as in `couch` (`#199` M2).** Every byte
 reaching the right pane passes through `terminalMux.copyActiveOutput`: child
@@ -550,17 +554,34 @@ producer. Filtering one producer only moves the hazard to the next.
   `couchtty`'s originals were unexported and so unreachable from `termcmd`, and
   a second copy of a security-relevant strip is exactly the outcome to avoid.
 
-**The strip carries the rename FIELD, not only the tab names** (`#199` M3).
-`Alt+R` used to draw its editor into the pane TITLE alone, via `zellij action
-rename-pane` — which is to say into the pane FRAME, the thing M4 removes at all
-nine `name="terminal"` sites. So the field moved onto the row that already
-carries tab state, and `RenameEditor.Field` composes the caret once for both
-surfaces rather than each drawing its own. The same change fixed a defect the
-strip had independently of M4: a rename that COMMITTED updated the tab and the
-title and left the row showing the old name until some unrelated event happened
-to repaint it. Found end to end by `cmd/probes/couchnestedrows`, which is the
-argument for owning a surface rather than borrowing one — a borrowed surface
-disappears when its owner does.
+**The strip carries the rename FIELD, and the pane title no longer does**
+(`#199` M3). `Alt+R` used to draw its editor into the pane TITLE, via `zellij
+action rename-pane` — which is to say into the pane FRAME, the thing M4 removes
+at all nine `name="terminal"` sites. The field moved onto the row that already
+carries tab state, and `RenameEditor.Field` composes the caret once rather than
+each surface drawing its own.
+
+Then the title's copy was **deleted**, and that is the part worth recording,
+because leaving it cost three separate things. A `zellij action` subprocess
+forked **per keystroke** on the interaction path — the cost this feature exists
+to retire, reintroduced by the feature retiring it. A SECOND producer of the
+pane title that the degradation never swept, packing the whole tab set and
+dropping the `terminal ` prefix, so for the duration of every rename the pane
+lost the classification that routes global shortcuts. And a strip that showed a
+stale name after a commit, because the repaint sweep stopped at the methods a
+probe had happened to catch. One deletion closed all three: the title now has
+**one** producer and changes only when the tab set or the active tab does.
+
+Two guards keep it that way — `TestARenameCostsExactlyOneZellijSubprocess` (a
+declared budget with a test is a budget; without one it is a sentence in a plan)
+and `TestEveryPaneTitleProducerSatisfiesEveryConsumer`, a producer × consumer
+table. `launcher.ClassifyLiveLayout` asks `workbenchshortcut.RoleForPane`
+instead of restating the predicate, which is what let its title-only arm go
+dead unnoticed: the shipped caller passes `--command`, so the fallback masked it.
+
+The general lesson, and it generalises past this feature: **a feature drawing on
+another component's chrome has a dependency it never declared.** If you own the
+row, draw on the row.
 
 **A console write waits on TWO conditions, not one** (`#199` M3). Mid-sequence
 is the familiar one. The second is that **the child holds a cursor save**: the
@@ -573,6 +594,14 @@ ended up inside the tab strip. There is no second slot to move to:
 was told while `DECSC` succeeded under the identical harness. So the only fix is
 not to write while a save is held, and `ptychild.Screen.HoldsCursorSave` is the
 bit that says so.
+
+**Every mutation of the strip's model owes a repaint, and the set is read out
+of the source** (`cmd/internal/termcmd/stripmutation_test.go`). A go/ast pass
+over `run.go` fails when a method assigns `m.tabs`/`m.active`/`m.rename` without
+a driving case, and the cases assert a repaint carrying POST-mutation state.
+Both halves earn their place: the defect that prompted them (`removeTab` skipping
+its only repaint on the rename branch) would have passed a static "does this
+method call `paintStrip`" check, because it did call it — on the other branch.
 
 **And a row-dirty batch records a DEBT rather than painting.** couch has always
 done this (`couchtty/console.go:1147`, whose comment records that a paint there

@@ -284,7 +284,7 @@ type ptyWriter interface {
 	newTab() error
 	closeActive()
 	beginRename() (int, RenameEditor, error)
-	refreshRename(int, RenameEditor) error
+	refreshRename(int, RenameEditor)
 	finishRename(int, RenameOutcome) error
 	previousTab()
 	nextTab()
@@ -387,9 +387,7 @@ func pumpStdinWithTimer(stdin io.Reader, mux ptyWriter, rt Runtime, stdout io.Wr
 				rename = nil
 				return
 			}
-			if err := mux.refreshRename(rename.tabID, rename.editor); err != nil {
-				mux.reportError(err)
-			}
+			mux.refreshRename(rename.tabID, rename.editor)
 		}
 		if exited {
 			timer.StopAndDrain()
@@ -940,11 +938,23 @@ func (m *terminalMux) unsafeToPaint() bool {
 	return m.hostScan.MidSequence() || m.hostScan.HoldsCursorSave()
 }
 
+// maxOwedDiag bounds the deferred-diagnostic queue. Sized for "a wheel tick
+// firing zellij actions at a shell that is holding a save": enough that a real
+// burst is reported in full, small enough that an indefinitely-held save cannot
+// grow the slice without limit.
+const maxOwedDiag = 64
+
 // writeDiag writes a diagnostic, or QUEUES it if the stream is mid-sequence.
 // Queued, not coalesced -- see owedDiag.
 func (m *terminalMux) writeDiag(b []byte) {
 	if m.unsafeToPaint() {
 		m.owedDiag = append(m.owedDiag, b)
+		if over := len(m.owedDiag) - maxOwedDiag; over > 0 {
+			// Drop the OLDEST. See flushOwed's per-payload argument: the queue
+			// sits behind a condition the child controls, so it needs a ceiling
+			// here rather than a deadline there.
+			m.owedDiag = append(m.owedDiag[:0], m.owedDiag[over:]...)
+		}
 		return
 	}
 	m.pane.raw("diagnostic, gate consulted", b)
@@ -965,6 +975,14 @@ func (m *terminalMux) writeOwn(b []byte) {
 		m.owed = b
 		return
 	}
+	// THE FRESH ROW SUPERSEDES THE OWED ONE. Without this the two pending-paint
+	// slots (`owed` and `stripOwed`) drain in the wrong order: the row-dirty
+	// debt paints current state inline, and flushOwed then writes whatever the
+	// coalescing slot was holding, which is older -- the exact inversion of this
+	// function's own rule that "the freshest paint is the only one worth
+	// landing". Clearing here states the invariant where the invariant lives,
+	// rather than asking every drain site to order itself correctly.
+	m.owed = nil
 	m.pane.raw("paint, gate consulted", b)
 }
 
@@ -976,10 +994,23 @@ func (m *terminalMux) writeOwn(b []byte) {
 // and a takeover resets rather than flushes. Adding a call to the console
 // branches looks like defence and is provably dead.
 //
-// KNOWN GAP, deferred to M3 with the strip: a child that goes silent while
-// mid-sequence strands the owed write indefinitely. Nothing paints in M2 so it
-// is unreachable here; M3 owes it a flush deadline, since "the child stopped
-// mid-escape" is indistinguishable from "the child is slow".
+// DEFERRAL IS UNBOUNDED, AND THAT IS DECIDED PER PAYLOAD rather than left as a
+// gap. M2 recorded a KNOWN GAP here and assigned M3 a flush deadline; M3 instead
+// WIDENED the condition -- `unsafeToPaint` now also defers while the child holds
+// a cursor save, which unlike a mid-sequence chunk boundary can persist for as
+// long as the child chooses not to restore. So a deadline is the wrong shape,
+// and the two payloads want opposite answers:
+//
+//   - PAINT: unbounded deferral is CORRECT. The row renders current state, so a
+//     late paint is a stale paint, and the alternative -- writing while the save
+//     is held -- puts the operator's cursor in the strip.
+//     TestAHeldSaveLeavesTheRowStaleRatherThanCorruptingTheChild pins that
+//     "stale beats wrong" is the deliberate call.
+//   - DIAGNOSTIC: an error is an EVENT, so deferral must not lose it, and the
+//     queue must not grow without a ceiling behind a condition nothing here
+//     controls. It is capped at maxOwedDiag and drops the OLDEST, because a
+//     `zellij action` failure repeating N times is one fact, and the most recent
+//     report is the one that describes the pane's current state.
 func (m *terminalMux) flushOwed() {
 	if m.unsafeToPaint() {
 		return
@@ -1146,40 +1177,34 @@ func (m *terminalMux) beginRename() (int, RenameEditor, error) {
 	editor := NewRenameEditor(tab.name)
 	tabID := tab.id
 	m.rename = &activeRename{tabID: tabID, editor: editor}
-	title := m.renamePaneTitleLocked(tabID, editor)
 	m.mu.Unlock()
-	// The ROW first, the pane title second -- in all three rename steps. The row
-	// is the surface the operator reads (and after M4 takes the frame off, the
-	// only one), while the title costs a `zellij action` subprocess round-trip;
-	// painting behind that would make the field lag the keystroke that caused
-	// it. POSTED, not inline: rename runs on the stdin pump goroutine, and a
-	// direct write there is the second writer to the pane that M2 exists to
-	// prevent.
+	// THE ROW IS THE ONLY SURFACE THE RENAME DRAWS ON, and that is what makes
+	// opening and typing free. The field used to be packed into the zellij pane
+	// TITLE -- one `zellij action rename-pane` subprocess PER KEYSTROKE, on the
+	// interaction path ARCH-CONSTRAINTS names as the one that matters, and cost
+	// #1 in this issue's own Problem statement. The strip retires it: the title
+	// is now written only when the tab SET or the active tab changes, which
+	// during a rename is never.
+	//
+	// Dropping it also removes a second producer of the pane title that M3.6's
+	// degradation never swept -- the rename title packed every tab and lost the
+	// `terminal ` prefix RoleForPane classifies on, so for the duration of every
+	// rename the pane lost the classification that routes global shortcuts.
+	//
+	// POSTED, not inline: rename runs on the stdin pump goroutine, and a direct
+	// write there is the second writer to the pane that M2 exists to prevent.
 	m.paintStrip()
-	if err := m.setPaneTitle(title); err != nil {
-		m.mu.Lock()
-		if m.rename != nil && m.rename.tabID == tabID {
-			m.rename = nil
-		}
-		m.mu.Unlock()
-		// The rename never started, so the field just painted is wrong; this is
-		// the correction, not a second opinion.
-		m.paintStrip()
-		return 0, RenameEditor{}, fmt.Errorf("start terminal tab rename: %w", err)
-	}
 	return tabID, editor, nil
 }
 
-func (m *terminalMux) refreshRename(tabID int, editor RenameEditor) error {
+// refreshRename cannot fail, and says so in its signature: a keystroke changes
+// the model and repaints the row, and nothing on that path talks to a
+// subprocess (see beginRename).
+func (m *terminalMux) refreshRename(tabID int, editor RenameEditor) {
 	m.mu.Lock()
 	m.rename = &activeRename{tabID: tabID, editor: editor}
-	title := m.renamePaneTitleLocked(tabID, editor)
 	m.mu.Unlock()
 	m.paintStrip()
-	if err := m.setPaneTitle(title); err != nil {
-		return fmt.Errorf("refresh terminal tab rename: %w", err)
-	}
-	return nil
 }
 
 func (m *terminalMux) finishRename(tabID int, outcome RenameOutcome) error {
@@ -1273,12 +1298,8 @@ func (m *terminalMux) removeTab(id int) {
 		}
 		active = m.activeTabLocked()
 		activeSnapshot = replaySnapshotLocked(active)
-		if m.rename != nil {
-			title = m.renamePaneTitleLocked(m.rename.tabID, m.rename.editor)
-			preserveRename = true
-		} else {
-			title = m.paneTitleLocked()
-		}
+		title = m.paneTitleLocked()
+		preserveRename = m.rename != nil
 		break
 	}
 	m.mu.Unlock()
@@ -1295,7 +1316,15 @@ func (m *terminalMux) removeTab(id int) {
 	_ = m.setPaneTitle(title)
 	if !preserveRename {
 		m.applyTakeover(activeSnapshot)
+		return
 	}
+	// A rename is open, so the screen is NOT taken over -- the operator is mid
+	// edit and a wholesale clear+replay would throw their viewport away. But the
+	// tab set just changed, and applyTakeover was the only thing repainting the
+	// row on this path: without this the strip goes on listing a tab that no
+	// longer exists until the rename ends. Inline, because removeTab already
+	// runs on the writer goroutine.
+	m.paintStripInline()
 }
 
 func (m *terminalMux) activeTabLocked() *terminalTab {
@@ -1358,10 +1387,11 @@ func (m *terminalMux) captureSize(host hostty.Host) {
 	m.mu.Unlock()
 }
 
-// childSizeLocked is the size a tab gets. `pair term` gives its children the
-// whole terminal; couch subtracts a row here. That difference is the policy
-// each caller keeps.
 // childSizeLocked is the pane MINUS the row the strip occupies.
+//
+// It used to be the whole terminal -- that was the pre-M3 policy, and the
+// sentence saying so outlived the change stacked on top of the sentence
+// replacing it, which is how godoc ends up printing a function's own opposite.
 //
 // NewReservation is the validating door: it refuses a pane too short to reserve
 // from, and the child then gets the whole thing with no strip drawn -- a
@@ -1521,34 +1551,16 @@ func (m *terminalMux) paneTitleLocked() string {
 	// pane's command is unavailable, and that classification is what routes the
 	// operator's global shortcuts. A bare active-tab name -- `work` -- matches
 	// nothing, so renaming a tab would silently cost that pane its keybindings.
-	// The packed form happened to keep classifying only because it began with
-	// the FIRST tab's default name; degrading without the prefix trades one
-	// accident for a worse one.
+	// The packed form kept classifying only by ACCIDENT -- it began with the
+	// first tab's default name -- so degrading without the prefix would trade one
+	// accident for a worse one. (An earlier version of this comment also claimed
+	// the packed title never matched shortcut.go's arm; that was measured false
+	// and is corrected in the plan's 2026-09-08 revision. Both claims cannot be
+	// true, and this is the one that survived measurement.)
 	if strings.HasPrefix(name, "terminal") {
 		return name
 	}
 	return "terminal " + name
-}
-
-func (m *terminalMux) renamePaneTitleLocked(tabID int, editor RenameEditor) string {
-	if len(m.tabs) == 0 {
-		return ""
-	}
-	field := editor.Field()
-	parts := make([]string, 0, len(m.tabs))
-	found := false
-	for _, tab := range m.tabs {
-		if tab.id == tabID {
-			found = true
-			parts = append(parts, "[rename: "+field+"]")
-		} else {
-			parts = append(parts, tab.name)
-		}
-	}
-	if !found {
-		parts = append(parts, "[rename: "+field+"]")
-	}
-	return strings.Join(parts, " ")
 }
 
 // redrawTab repaints from a SNAPSHOT taken by the caller under m.mu — it never

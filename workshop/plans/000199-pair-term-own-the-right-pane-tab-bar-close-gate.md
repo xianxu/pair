@@ -933,6 +933,163 @@ rounds:
           round: 11
       boundary: M2
       blocked: false
+    - "n": 12
+      timestamp: "2026-09-08T13:28:35-07:00"
+      agent: claude
+      dispose:
+        - id: BR-8
+          disposition: not-addressed
+          note: M4.3's acceptance still has no Alt+Shift+d step, so :138/:139, :165/:166, :191/:192 remain unverified.
+          round: 12
+        - id: BR-9
+          disposition: not-addressed
+          note: TestPaintDefersMidSequenceAndIsOwed is unchanged and still splits one hand-chosen sequence at one index.
+          round: 12
+      findings:
+        - id: BR-45
+          severity: Important
+          title: A tab exiting during a rename repaints nothing, so the strip keeps listing the closed tab
+          detail: |-
+            run.go:1296 -- removeTab's `if !preserveRename { m.applyTakeover(...) }` skips the only
+            thing that repaints the strip on that path. Reproduced: zero bytes written after tab 1's
+            child EOFs while a rename is open. 2nd in this family: do NOT patch removeTab alone.
+            The rule is that every site mutating the strip model owes a repaint, and the site set is
+            enumerated by a test -- a table over {newTab, switchRelative, closeActive, removeTab (both
+            branches), beginRename, refreshRename, finishRename, inheritSize, rowDirty} that drives
+            each and asserts a repaint carrying the post-mutation model. It fails on exactly one row today.
+          family: exit-path-drops-cleanup
+          round: 12
+        - id: BR-46
+          severity: Important
+          title: flushOwed writes the coalesced older row after the fresh inline repaint already landed
+          detail: |-
+            run.go:866-872 -- the row-dirty debt repaints inline with the current model, then flushOwed
+            writes m.owed, which is older. Reproduced: the recorder's last write is "one [two]" after
+            "one [built]". This contradicts writeOwn's own stated invariant that the freshest paint is
+            the only one worth landing. Reachable via removeTab's preserveRename branch, which mutates
+            the model on the writer goroutine without posting a paint or clearing m.owed. Fix: clear
+            m.owed when paintStripInline writes directly, or flushOwed before the inline repaint.
+          family: superseded-write-not-dropped
+          round: 12
+        - id: BR-47
+          severity: Important
+          title: M3.7 is ticked but (b) -- the escape-carrying flood that reaches the defer-and-owe path -- was never run
+          detail: |-
+            4th in this family, so do NOT just run the step. Every load generator in the record emits no
+            escapes: the smoke pass predates the current gate, the Ctrl-C probe used `yes aaa`, and
+            couchnestedrows floods with `seq 1 400`. So the defer-and-owe path has no manual evidence in
+            the milestone that WIDENED the defer condition to include HoldsCursorSave. The rule: a manual
+            acceptance step is ticked only against a Log line quoting the command run and what was seen,
+            and milestone-close refuses a ticked manual step with no such line. Until then un-tick M3.7.
+          family: acceptance-command-does-not-hold
+          round: 12
+        - id: BR-48
+          severity: Important
+          title: The degraded title asserts one of two derived consumers, and the sibling producer was never swept
+          detail: |-
+            3rd in this family. Two measured instances of one rule. (1) M3.6 required asserting
+            ClassifyLiveLayout as well as RoleForPane; only RoleForPane is asserted, and measured,
+            Title="terminal 1" with no command now classifies layout3 as layout2 where the packed
+            "[terminal 1] work" classified layout3 -- layoutflow_test.go:143 still fixtures the retired
+            "[terminal 1]" form. (2) renamePaneTitleLocked (run.go:1533) was not degraded at all: it still
+            packs the tab set and drops the load-bearing prefix, measured as
+            "[rename: work-bar] other" -> PaneRoleOther. The rule: where a milestone changes a value a
+            derived consumer set reads, the test is a table over every producer x every consumer,
+            generated from the derivation the plan already records -- not one hand-picked pair.
+          family: consumer-set-not-derived
+          round: 12
+        - id: BR-49
+          severity: Important
+          title: The defer condition was widened to one that can persist indefinitely, and M3's assigned flush deadline was not delivered
+          detail: |-
+            2nd in this family. run.go:981 states "M3 owes it a flush deadline"; no deadline exists.
+            Meanwhile unsafeToPaint (run.go:939) now also defers on HoldsCursorSave, which unlike
+            MidSequence can be held for as long as a child chooses, and owedDiag is an unbounded append
+            with no cap. The rule: a write deferred on a condition the deferrer does not control needs a
+            trigger the deferrer does control -- a deadline, a bound, or a written argument that unbounded
+            deferral is correct for that payload class. State it per class: unbounded is right for the
+            paint (stale beats wrong, already tested); it is not right for a diagnostic.
+          family: deferred-work-lacks-own-trigger
+          round: 12
+        - id: BR-50
+          severity: Important
+          title: A zellij subprocess forks per rename keystroke, against the plan's declared "not on every render" budget
+          detail: |-
+            4th in this family. refreshRename (run.go:1173), called once per rename event from the stdin
+            pump (run.go:390), calls setPaneTitle -> RunZellijAction -> a process fork, on the interaction
+            path ARCH-CONSTRAINTS names as the one that matters, and M3 now adds a strip paint alongside
+            it. The issue's Problem opens with "a subprocess per title change" as cost #1. The rule: an
+            ARCH-CONSTRAINTS budget must be enforced by something a change trips over, not asserted in
+            prose -- count fakeRuntime ops across a scripted rename and assert the bound, or rewrite the
+            budget to state the real cost. Cheapest true fix: refresh the title on commit only, since the
+            strip now renders the field and the pane is focused throughout a rename.
+          family: envelope-claim-unenforced
+          round: 12
+        - id: BR-51
+          severity: Important
+          title: probes/cursorsaveslots force-deletes a zellij session it did not create, from make test-smoke
+          detail: |-
+            It diffs `zellij list-sessions` before/after, picks an arbitrary new name by ranging a map,
+            and defers `zellij delete-session <name> --force`. Any session appearing in that 8-second
+            window -- the operator's own workbench -- is destroyed. It lives in probes/, which test-smoke
+            runs wholesale. The fix was found in this same milestone and not applied: couchnestedrows
+            (main.go:112) uses --new-session-with-layout with a deterministic couchnestedrows-<pid> name,
+            which is exactly the flag the session-diff dance exists to work around.
+          family: test-can-touch-real-state
+          round: 12
+        - id: BR-52
+          severity: Important
+          title: 196 identical lines duplicated between the two probes/ zellij harnesses
+          detail: |-
+            probes/cursorsaveslots/main.go (287 lines) and probes/zellijscrollregion/main.go (281 lines)
+            share 196 identical lines: sessionSet, syncBuffer, tailOf, writeLayout, the ZELLIJ* scrub, the
+            pty reader goroutine, lastCursorRowBefore, and the session discovery/cleanup. couchnestedrows
+            repeats 83, termctrlc 49, termrows 45. Nothing blocks extraction -- a plain probes/zellijprobe/
+            package is importable by every probes/* main, unlike BR-7's unexported-in-another-package case.
+            The cost is already realised: the finding above is a bug present in the copy and fixed only in
+            the copy's successor.
+          family: copy-instead-of-extract
+          round: 12
+        - id: BR-53
+          severity: Minor
+          title: Three superseded doc comments left standing beside their corrections
+          detail: |-
+            2nd in this family, so state the rule rather than editing three sites: when a comment is
+            superseded, DELETE it -- do not prepend the correction, and never leave two doc comments on
+            one declaration. Sites: run.go:1508 (paneTitleLocked claims the packed title matched
+            shortcut.go's arm NEVER, twenty lines above the paragraph saying it did, and the plan records
+            the first as measured-false); run.go:1368-1370 (childSizeLocked has two stacked doc comments,
+            the first now the opposite of the behaviour); ptychild/screen.go:141-156 (HoldsCursorSave's
+            doc was inserted mid-comment, so godoc attaches TakeRowDirty's whole rationale to it and
+            TakeRowDirty has none). A vet-style check for two comment blocks on one declaration catches
+            the class.
+          family: doc-states-planned-as-current
+          round: 12
+        - id: BR-54
+          severity: Minor
+          title: The Core concepts table still says "planned — M3" and omits five entities M3 introduced
+          detail: |-
+            6th in this family. plan.md:225-228 still marks TabChip/StripModel/RenderedStrip/RenderStrip as
+            planned; RenameField, TabSpan, RenameEditor.Field, hostty.ResetSGR/ReserveAndPaint and
+            Screen.HoldsCursorSave are absent, as is the stripOwed debt from the integration table. The
+            rule, since instance-fixing has not held five times: a hand-maintained table restating the
+            tree drifts every milestone. Either derive it -- a test that greps each row's stated path for
+            its stated symbol and fails on a status that disagrees with the diff -- or drop the status
+            column so the table stops making a claim nothing checks.
+          family: plan-table-drift
+          round: 12
+        - id: BR-55
+          severity: Minor
+          title: README does not mention that the right pane loses a row to the strip or gains a tab bar
+          detail: |-
+            README.md:15 describes the pane's tabs but not the strip. probes/termsmoke changed its
+            assertion from "40 100" to "39 100": the child is now one row shorter, which is observable to
+            anything the operator runs in the pane. M4 is the natural place to land both, but it should be
+            listed there rather than left to be noticed.
+          family: user-facing-change-undocumented
+          round: 12
+      boundary: M3
+      blocked: true
 ---
 
 # Gate ledger — pair#199 (boundary-review)
@@ -1376,6 +1533,103 @@ later rounds disposed of them. Generated — edit the gate, not this file.
 - **BR-44** [Minor] `deferred-work-lacks-own-trigger` flushOwed has one call site, in the child-data branch, so an owed write is stranded for as long as the child is silent
   run.go:813 is the only call to flushOwed, inside handleChunk's default (child data) branch. Nothing else pays the debt - not a bare event, not a takeover, not resize, and there is no timer. So while the child's stream is mid-sequence and the child produces nothing further (a prefix written before the child blocks, or Screen.skipping latched by a sequence over maxPending that is never terminated), an owed paint and every queued diagnostic sit invisible indefinitely. That is the same stale row that nothing repaints that run.go:866-874 gives as the reason for owing rather than dropping. Latent at M2 because nothing paints; at M3 it means a strip that stops updating with no path back. couch shares the shape (console.go:1137), so the answer belongs in the shared design - a bounded wait after which the write goes out, or paying the debt from every event rather than only from child output.
 
+## Round 12 — 2026-09-08T13:28:35-07:00 (claude) — BLOCKED
+
+### Disposed
+
+- BR-8 — not-addressed — M4.3's acceptance still has no Alt+Shift+d step, so :138/:139, :165/:166, :191/:192 remain unverified.
+- BR-9 — not-addressed — TestPaintDefersMidSequenceAndIsOwed is unchanged and still splits one hand-chosen sequence at one index.
+
+### Raised
+
+- **BR-45** [Important] `exit-path-drops-cleanup` A tab exiting during a rename repaints nothing, so the strip keeps listing the closed tab
+  run.go:1296 -- removeTab's `if !preserveRename { m.applyTakeover(...) }` skips the only
+  thing that repaints the strip on that path. Reproduced: zero bytes written after tab 1's
+  child EOFs while a rename is open. 2nd in this family: do NOT patch removeTab alone.
+  The rule is that every site mutating the strip model owes a repaint, and the site set is
+  enumerated by a test -- a table over {newTab, switchRelative, closeActive, removeTab (both
+  branches), beginRename, refreshRename, finishRename, inheritSize, rowDirty} that drives
+  each and asserts a repaint carrying the post-mutation model. It fails on exactly one row today.
+- **BR-46** [Important] `superseded-write-not-dropped` flushOwed writes the coalesced older row after the fresh inline repaint already landed
+  run.go:866-872 -- the row-dirty debt repaints inline with the current model, then flushOwed
+  writes m.owed, which is older. Reproduced: the recorder's last write is "one [two]" after
+  "one [built]". This contradicts writeOwn's own stated invariant that the freshest paint is
+  the only one worth landing. Reachable via removeTab's preserveRename branch, which mutates
+  the model on the writer goroutine without posting a paint or clearing m.owed. Fix: clear
+  m.owed when paintStripInline writes directly, or flushOwed before the inline repaint.
+- **BR-47** [Important] `acceptance-command-does-not-hold` M3.7 is ticked but (b) -- the escape-carrying flood that reaches the defer-and-owe path -- was never run
+  4th in this family, so do NOT just run the step. Every load generator in the record emits no
+  escapes: the smoke pass predates the current gate, the Ctrl-C probe used `yes aaa`, and
+  couchnestedrows floods with `seq 1 400`. So the defer-and-owe path has no manual evidence in
+  the milestone that WIDENED the defer condition to include HoldsCursorSave. The rule: a manual
+  acceptance step is ticked only against a Log line quoting the command run and what was seen,
+  and milestone-close refuses a ticked manual step with no such line. Until then un-tick M3.7.
+- **BR-48** [Important] `consumer-set-not-derived` The degraded title asserts one of two derived consumers, and the sibling producer was never swept
+  3rd in this family. Two measured instances of one rule. (1) M3.6 required asserting
+  ClassifyLiveLayout as well as RoleForPane; only RoleForPane is asserted, and measured,
+  Title="terminal 1" with no command now classifies layout3 as layout2 where the packed
+  "[terminal 1] work" classified layout3 -- layoutflow_test.go:143 still fixtures the retired
+  "[terminal 1]" form. (2) renamePaneTitleLocked (run.go:1533) was not degraded at all: it still
+  packs the tab set and drops the load-bearing prefix, measured as
+  "[rename: work-bar] other" -> PaneRoleOther. The rule: where a milestone changes a value a
+  derived consumer set reads, the test is a table over every producer x every consumer,
+  generated from the derivation the plan already records -- not one hand-picked pair.
+- **BR-49** [Important] `deferred-work-lacks-own-trigger` The defer condition was widened to one that can persist indefinitely, and M3's assigned flush deadline was not delivered
+  2nd in this family. run.go:981 states "M3 owes it a flush deadline"; no deadline exists.
+  Meanwhile unsafeToPaint (run.go:939) now also defers on HoldsCursorSave, which unlike
+  MidSequence can be held for as long as a child chooses, and owedDiag is an unbounded append
+  with no cap. The rule: a write deferred on a condition the deferrer does not control needs a
+  trigger the deferrer does control -- a deadline, a bound, or a written argument that unbounded
+  deferral is correct for that payload class. State it per class: unbounded is right for the
+  paint (stale beats wrong, already tested); it is not right for a diagnostic.
+- **BR-50** [Important] `envelope-claim-unenforced` A zellij subprocess forks per rename keystroke, against the plan's declared "not on every render" budget
+  4th in this family. refreshRename (run.go:1173), called once per rename event from the stdin
+  pump (run.go:390), calls setPaneTitle -> RunZellijAction -> a process fork, on the interaction
+  path ARCH-CONSTRAINTS names as the one that matters, and M3 now adds a strip paint alongside
+  it. The issue's Problem opens with "a subprocess per title change" as cost #1. The rule: an
+  ARCH-CONSTRAINTS budget must be enforced by something a change trips over, not asserted in
+  prose -- count fakeRuntime ops across a scripted rename and assert the bound, or rewrite the
+  budget to state the real cost. Cheapest true fix: refresh the title on commit only, since the
+  strip now renders the field and the pane is focused throughout a rename.
+- **BR-51** [Important] `test-can-touch-real-state` probes/cursorsaveslots force-deletes a zellij session it did not create, from make test-smoke
+  It diffs `zellij list-sessions` before/after, picks an arbitrary new name by ranging a map,
+  and defers `zellij delete-session <name> --force`. Any session appearing in that 8-second
+  window -- the operator's own workbench -- is destroyed. It lives in probes/, which test-smoke
+  runs wholesale. The fix was found in this same milestone and not applied: couchnestedrows
+  (main.go:112) uses --new-session-with-layout with a deterministic couchnestedrows-<pid> name,
+  which is exactly the flag the session-diff dance exists to work around.
+- **BR-52** [Important] `copy-instead-of-extract` 196 identical lines duplicated between the two probes/ zellij harnesses
+  probes/cursorsaveslots/main.go (287 lines) and probes/zellijscrollregion/main.go (281 lines)
+  share 196 identical lines: sessionSet, syncBuffer, tailOf, writeLayout, the ZELLIJ* scrub, the
+  pty reader goroutine, lastCursorRowBefore, and the session discovery/cleanup. couchnestedrows
+  repeats 83, termctrlc 49, termrows 45. Nothing blocks extraction -- a plain probes/zellijprobe/
+  package is importable by every probes/* main, unlike BR-7's unexported-in-another-package case.
+  The cost is already realised: the finding above is a bug present in the copy and fixed only in
+  the copy's successor.
+- **BR-53** [Minor] `doc-states-planned-as-current` Three superseded doc comments left standing beside their corrections
+  2nd in this family, so state the rule rather than editing three sites: when a comment is
+  superseded, DELETE it -- do not prepend the correction, and never leave two doc comments on
+  one declaration. Sites: run.go:1508 (paneTitleLocked claims the packed title matched
+  shortcut.go's arm NEVER, twenty lines above the paragraph saying it did, and the plan records
+  the first as measured-false); run.go:1368-1370 (childSizeLocked has two stacked doc comments,
+  the first now the opposite of the behaviour); ptychild/screen.go:141-156 (HoldsCursorSave's
+  doc was inserted mid-comment, so godoc attaches TakeRowDirty's whole rationale to it and
+  TakeRowDirty has none). A vet-style check for two comment blocks on one declaration catches
+  the class.
+- **BR-54** [Minor] `plan-table-drift` The Core concepts table still says "planned — M3" and omits five entities M3 introduced
+  6th in this family. plan.md:225-228 still marks TabChip/StripModel/RenderedStrip/RenderStrip as
+  planned; RenameField, TabSpan, RenameEditor.Field, hostty.ResetSGR/ReserveAndPaint and
+  Screen.HoldsCursorSave are absent, as is the stripOwed debt from the integration table. The
+  rule, since instance-fixing has not held five times: a hand-maintained table restating the
+  tree drifts every milestone. Either derive it -- a test that greps each row's stated path for
+  its stated symbol and fails on a status that disagrees with the diff -- or drop the status
+  column so the table stops making a claim nothing checks.
+- **BR-55** [Minor] `user-facing-change-undocumented` README does not mention that the right pane loses a row to the strip or gains a tab bar
+  README.md:15 describes the pane's tabs but not the strip. probes/termsmoke changed its
+  assertion from "40 100" to "39 100": the child is now one row shorter, which is observable to
+  anything the operator runs in the pane. M4 is the natural place to land both, but it should be
+  listed there rather than left to be noticed.
+
 ## Open findings
 
 - **BR-8** [Minor] `acceptance-misses-changed-sites` M4's manual acceptance never splits the pane, leaving six of nine borderless sites unverified
@@ -1402,3 +1656,14 @@ later rounds disposed of them. Generated — edit the gate, not this file.
 - **BR-42** [Minor] `plan-table-drift` The Integration-points table still marks three M3/M4 rows new/modified after BR-11 flipped only the Pure-entities table
 - **BR-43** [Important] `envelope-claim-unenforced` The door-enumeration test enforces a substring, not the claim - an ungated Fprintf, a leaked exemption marker, and every file but run.go all pass
 - **BR-44** [Minor] `deferred-work-lacks-own-trigger` flushOwed has one call site, in the child-data branch, so an owed write is stranded for as long as the child is silent
+- **BR-45** [Important] `exit-path-drops-cleanup` A tab exiting during a rename repaints nothing, so the strip keeps listing the closed tab
+- **BR-46** [Important] `superseded-write-not-dropped` flushOwed writes the coalesced older row after the fresh inline repaint already landed
+- **BR-47** [Important] `acceptance-command-does-not-hold` M3.7 is ticked but (b) -- the escape-carrying flood that reaches the defer-and-owe path -- was never run
+- **BR-48** [Important] `consumer-set-not-derived` The degraded title asserts one of two derived consumers, and the sibling producer was never swept
+- **BR-49** [Important] `deferred-work-lacks-own-trigger` The defer condition was widened to one that can persist indefinitely, and M3's assigned flush deadline was not delivered
+- **BR-50** [Important] `envelope-claim-unenforced` A zellij subprocess forks per rename keystroke, against the plan's declared "not on every render" budget
+- **BR-51** [Important] `test-can-touch-real-state` probes/cursorsaveslots force-deletes a zellij session it did not create, from make test-smoke
+- **BR-52** [Important] `copy-instead-of-extract` 196 identical lines duplicated between the two probes/ zellij harnesses
+- **BR-53** [Minor] `doc-states-planned-as-current` Three superseded doc comments left standing beside their corrections
+- **BR-54** [Minor] `plan-table-drift` The Core concepts table still says "planned — M3" and omits five entities M3 introduced
+- **BR-55** [Minor] `user-facing-change-undocumented` README does not mention that the right pane loses a row to the strip or gains a tab bar

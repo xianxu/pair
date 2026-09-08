@@ -6,6 +6,7 @@ import (
 	"testing"
 
 	"github.com/xianxu/pair/cmd/internal/ansi"
+	"github.com/xianxu/pair/cmd/internal/launcher"
 	"github.com/xianxu/pair/cmd/internal/textwidth"
 	"github.com/xianxu/pair/cmd/internal/workbenchshortcut"
 	"github.com/xianxu/pair/cmd/internal/zellijpane"
@@ -285,6 +286,83 @@ func TestTheDegradedTitleStillClassifiesThePane(t *testing.T) {
 	})
 }
 
+// EVERY PRODUCER OF THE PANE TITLE × EVERY CONSUMER OF IT, as a table.
+//
+// BR-48: M3.6 degraded ONE producer and asserted ONE consumer, and both halves
+// of that turned out to matter. The unswept producer was renamePaneTitleLocked,
+// which packed the whole tab set and dropped the `terminal ` prefix, so for the
+// duration of every rename the pane lost the classification that routes global
+// shortcuts. The unasserted consumer was ClassifyLiveLayout, whose title-only
+// arm matched the PACKED form and therefore stopped matching entirely.
+//
+// Both are fixed at the class rather than the instance: there is now exactly
+// ONE producer (the rename field moved to the strip, so the title has no second
+// form), and the two consumers share one derivation -- ClassifyLiveLayout asks
+// RoleForPane instead of restating the predicate. This table is what keeps that
+// true. A new producer is a new row; a new consumer is a new column; either one
+// added without the other fails here rather than in a workbench.
+func TestEveryPaneTitleProducerSatisfiesEveryConsumer(t *testing.T) {
+	// The producers, derived by driving the mux rather than by writing titles
+	// out by hand -- a hand-written fixture is how layoutflow_test.go ended up
+	// asserting "[terminal 1]", a form no producer can emit any more.
+	producers := []struct {
+		name  string
+		title func(t *testing.T) string
+	}{
+		{"default tab", func(t *testing.T) string {
+			return titleOf(t, []*terminalTab{{id: 1, name: "terminal 1"}, {id: 2, name: "terminal 2"}}, 0, false)
+		}},
+		{"renamed active tab", func(t *testing.T) string {
+			return titleOf(t, []*terminalTab{{id: 1, name: "terminal 1"}, {id: 2, name: "work"}}, 1, false)
+		}},
+		{"while a rename is open", func(t *testing.T) string {
+			return titleOf(t, []*terminalTab{{id: 1, name: "terminal 1"}, {id: 2, name: "work"}}, 1, true)
+		}},
+	}
+	// The consumers, from the derivation the plan records:
+	//   grep -rn "\.Title" cmd --include=*.go | grep -v _test.go
+	consumers := []struct {
+		name string
+		ok   func(title string) bool
+	}{
+		{"workbenchshortcut.RoleForPane (no command)", func(title string) bool {
+			return workbenchshortcut.RoleForPane(zellijpane.Pane{Title: title}) == workbenchshortcut.PaneRoleRightTerminal
+		}},
+		{"launcher.ClassifyLiveLayout (no command)", func(title string) bool {
+			mode, ok := launcher.ClassifyLiveLayout([]zellijpane.Pane{
+				{Title: "claude", TerminalCommand: "pair wrap claude"},
+				{Title: "draft"},
+				{Title: title},
+			})
+			return ok && mode == launcher.Layout3
+		}},
+	}
+
+	for _, p := range producers {
+		title := p.title(t)
+		for _, c := range consumers {
+			if !c.ok(title) {
+				t.Errorf("producer %q emits %q, which %s does not classify as the right terminal",
+					p.name, title, c.name)
+			}
+		}
+	}
+}
+
+// titleOf drives the real producer rather than restating its output.
+func titleOf(t *testing.T, tabs []*terminalTab, active int, renaming bool) string {
+	t.Helper()
+	mux := &terminalMux{rt: &fakeRuntime{}, done: make(chan struct{}), tabs: tabs, active: active}
+	if renaming {
+		if _, _, err := mux.beginRename(); err != nil {
+			t.Fatal(err)
+		}
+	}
+	mux.mu.Lock()
+	defer mux.mu.Unlock()
+	return mux.paneTitleLocked()
+}
+
 // --- (f): never write inside the child's cursor save ------------------------
 
 // THE BUG THIS CLOSES. The cursor save slot is shared, one per terminal. A
@@ -456,7 +534,8 @@ func TestEveryRenameStepRepaintsTheStrip(t *testing.T) {
 		{"typing", func(m *terminalMux) error {
 			editor := NewRenameEditor("two")
 			editor, _ = editor.Apply(RenameEvent{Kind: RenameInsert, Rune: 'x'})
-			return m.refreshRename(2, editor)
+			m.refreshRename(2, editor)
+			return nil
 		}, "[rename: twox│]"},
 		{"committing", func(m *terminalMux) error {
 			return m.finishRename(2, RenameOutcome{Kind: RenameOutcomeCommit, Name: "built"})

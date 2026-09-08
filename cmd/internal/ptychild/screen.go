@@ -138,6 +138,12 @@ func (s *Screen) SGRMouse() bool { return s.sgrMouse }
 // region is still perfectly intact. Naming this "region lost" was the mistake
 // behind missing it: the console does not care WHY the row is gone, only that
 // it is, and one signal for "the row may be gone" is the honest concept.
+func (s *Screen) TakeRowDirty() bool {
+	dirty := s.rowDirty
+	s.rowDirty = false
+	return dirty
+}
+
 // HoldsCursorSave reports whether the child is between its own DECSC and DECRC.
 //
 // A console with a reserved row must not write while this is true. The save slot
@@ -154,12 +160,6 @@ func (s *Screen) SGRMouse() bool { return s.sgrMouse }
 // alt-screen transitions clear it, and a console taking over the screen
 // wholesale resets the whole Screen anyway.
 func (s *Screen) HoldsCursorSave() bool { return s.cursorSaved }
-
-func (s *Screen) TakeRowDirty() bool {
-	dirty := s.rowDirty
-	s.rowDirty = false
-	return dirty
-}
 
 // TakeBell reports and clears whether the child rang the terminal bell. This is
 // the one "the agent wants you" signal available before #147's transport, so a

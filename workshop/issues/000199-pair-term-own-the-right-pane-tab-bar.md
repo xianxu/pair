@@ -191,6 +191,65 @@ Four milestones, each its own review boundary — detail in
 
 ## Log
 
+- 2026-09-08 **M3 boundary review: FIX-THEN-SHIP, eight blocking findings, all
+  fixed at the class.** The verdict came back FIX-THEN-SHIP but the gate ledger
+  held eight open Importants, so the close did not finalize — which is the gate
+  working. Two of the eight were in code written that same day; the rest were
+  places the sweep stopped.
+
+  **The one that mattered most was invisible to every test and to the earlier
+  smoke run: BR-48/BR-50, fixed together by DELETING a producer.** The rename
+  field was still being packed into the zellij pane TITLE as well as the strip,
+  which cost two things at once — a `zellij action rename-pane` subprocess PER
+  KEYSTROKE (against ARCH-CONSTRAINTS' declared budget, and the cost this
+  issue's Problem statement opens with), and a second title producer that M3.6's
+  degradation never swept, so for the duration of every rename the pane lost the
+  `terminal ` prefix `RoleForPane` classifies on and with it the operator's
+  global shortcuts. `renamePaneTitleLocked` is gone: the strip carries the
+  field, the title has ONE producer, and it is written only when the tab set or
+  active tab changes. `TestARenameCostsExactlyOneZellijSubprocess` pins the
+  budget; `TestEveryPaneTitleProducerSatisfiesEveryConsumer` is the producer ×
+  consumer table, and `ClassifyLiveLayout` now asks `RoleForPane` rather than
+  restating the predicate — the drift that made its title-only arm dead.
+
+  **BR-45 — a tab exiting mid-rename repainted nothing.** `removeTab`'s
+  `preserveRename` branch skipped `applyTakeover`, the only repaint on that
+  path, so the strip went on listing a tab that had exited. The class fix is
+  `stripmutation_test.go`: a table driving every strip-model mutator, plus a
+  go/ast pass over `run.go` that fails when a method assigns
+  `m.tabs`/`m.active`/`m.rename` with no case. **Both halves are needed, and
+  that is the lesson** — a static "does this method call paintStrip" check would
+  have passed the defect, because `removeTab` did call it, just not on the
+  branch that mattered.
+
+  **BR-46** — `writeOwn` now clears the coalescing slot when a paint lands, so a
+  stale row cannot follow a fresh one. **BR-49** — the deferral is decided per
+  payload instead of promising a deadline a third time: unbounded for the paint
+  (stale beats wrong, tested), capped at `maxOwedDiag` for diagnostics, because
+  the condition is one the child holds and nothing here controls.
+
+  **BR-47 — M3.7(b) was ticked without ever being run**, twice over: the gate
+  can only be reached by a load generator that emits ESCAPES, and both `yes` and
+  `seq 1 400` emit none. It is now AUTOMATED in `couchnestedrows` — an SGR pair
+  per line, tab switches against it, asserting the strip survives and no strip
+  fragment landed in the child's area. An automated step cannot be ticked ahead
+  of its evidence.
+
+  **BR-51/BR-52 — one fix, and the more alarming one.** `probes/cursorsaveslots`
+  discovered its zellij session by DIFFING `list-sessions` and force-deleted an
+  arbitrary new name — from `make test-smoke`, a routine target, so any session
+  appearing in that 8-second window was a candidate for deletion. The new
+  `probes/zellijprobe` package makes the property structural rather than
+  remembered: `Start` names the session, `Close` deletes that name, and there is
+  no path that can delete one it did not create. Same change removes the 196
+  duplicated lines between the two harnesses (287→172, 281→165) — which is
+  exactly why the fix had existed in one copy and not the other. Both probes
+  re-run to their original verdicts (`NO USABLE SECOND SLOT`, `DECSTBM
+  HONORED`), so the port is a move, not a rewrite.
+
+  Eight mutations run against the new tests; every one caught, including
+  reverting BR-45's fix and adding a new unlisted mutator.
+
 - 2026-09-08 M3 **under couch — the two reserved rows compose**, and the answer
   is measured rather than argued. New instrument:
   `cmd/probes/couchnestedrows` (`make test-couch-nested-rows`). It is its own

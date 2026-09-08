@@ -45,6 +45,7 @@ import (
 	"golang.org/x/term"
 
 	"github.com/xianxu/pair/cmd/internal/hostty"
+	"github.com/xianxu/pair/probes/zellijprobe"
 )
 
 const (
@@ -61,8 +62,10 @@ const (
 	// 39 - 1 (pair term's) = 38 for the shell.
 	wantShellRows = hostRows - 2
 
-	altT = "\x1bt"
-	altR = "\x1br"
+	altT     = "\x1bt"
+	altR     = "\x1br"
+	altLeft  = "\x1b[1;3D"
+	altRight = "\x1b[1;3C"
 )
 
 func main() {
@@ -188,14 +191,7 @@ func fatalOuter(format string, a ...any) {
 // registry files under PAIR_DATA_DIR keyed by PAIR_TAG. Inheriting them would
 // have the probe's throwaway tabs overwrite the operator's live session state.
 func childEnv(dataDir string) []string {
-	env := make([]string, 0, len(os.Environ())+4)
-	for _, kv := range os.Environ() {
-		if strings.HasPrefix(kv, "ZELLIJ") || strings.HasPrefix(kv, "PAIR_") {
-			continue
-		}
-		env = append(env, kv)
-	}
-	return append(env,
+	return zellijprobe.Scrub([]string{"ZELLIJ", "PAIR_"},
 		"TERM=xterm-256color",
 		"SHELL=/bin/sh",
 		"PAIR_DATA_DIR="+dataDir,
@@ -390,7 +386,7 @@ func runProbe() {
 	}
 	defer os.RemoveAll(dataDir)
 
-	layout, err := writeLayout(dir, pairBin)
+	layout, err := zellijprobe.WriteLayout(dir, map[string]string{"PAIR_BIN": pairBin})
 	if err != nil {
 		inconclusive("layout: %v", err)
 	}
@@ -478,6 +474,38 @@ func runProbe() {
 	send(altT)
 	time.Sleep(1500 * time.Millisecond)
 	trace("after alt+t")
+
+	// M3.7(b), THE STEP THAT WAS TICKED WITHOUT BEING RUN (BR-47). The defer-
+	// and-owe gate can only be reached by requesting a paint while the child's
+	// stream is MID-SEQUENCE, which means the load generator has to emit
+	// ESCAPES. `yes` and `seq` emit none, so both earlier attempts at this step
+	// exercised nothing -- the plan's own 2026-09-07 revision records the first
+	// of those as a defect, and the flood above repeats it. This one emits an
+	// SGR pair per line, and tab switches request a paint against it.
+	send("for i in $(seq 1 6000); do printf '\033[31mred\033[0m\n'; done\r")
+	time.Sleep(1500 * time.Millisecond)
+	for i := 0; i < 8; i++ {
+		send(altLeft)
+		time.Sleep(250 * time.Millisecond)
+		send(altRight)
+		time.Sleep(250 * time.Millisecond)
+	}
+	time.Sleep(2500 * time.Millisecond)
+	strip, outer = sc.row(hostRows-1), sc.row(hostRows)
+	// Back on tab 2: the loop switches away and back, so the active tab is the
+	// one the flood is running in -- which is also the harshest case, since a
+	// paint is requested against a stream that is actively mid-sequence.
+	check("the strip survives tab switches under an ESCAPE-carrying flood",
+		strip == "terminal 1 [terminal 2]",
+		fmt.Sprintf("row %d = %q", hostRows-1, strip))
+	check("no paint landed on the outer row under that flood",
+		outer == outerMarker,
+		fmt.Sprintf("row %d = %q", hostRows, outer))
+	// A paint that landed INSIDE one of the child's sequences shows up as strip
+	// text in the child's area rather than on its own row.
+	check("no strip fragment landed in the child's area",
+		!strings.Contains(childArea(sc), "terminal 1]") && !strings.Contains(childArea(sc), "OUTER-COUCH"),
+		fmt.Sprintf("child area tail = %q", tail(childArea(sc), 120)))
 
 	// The rename FIELD has to be on the strip, because M4 takes away the only
 	// other surface it had: the field is drawn into the zellij pane title, and
@@ -608,28 +636,28 @@ func waitForRowMatching(sc *screen, limit time.Duration, ok func(string) bool) s
 	return found
 }
 
+// childArea is everything the child can draw on: every row above the strip.
+func childArea(sc *screen) string {
+	var b strings.Builder
+	for n := 1; n < hostRows-1; n++ {
+		b.WriteString(sc.row(n))
+		b.WriteString("\n")
+	}
+	return b.String()
+}
+
+func tail(s string, n int) string {
+	if len(s) <= n {
+		return s
+	}
+	return s[len(s)-n:]
+}
+
 func describe(row string) string {
 	if row == "" {
 		return "not found"
 	}
 	return fmt.Sprintf("found %q", row)
-}
-
-func writeLayout(dir, pairBin string) (string, error) {
-	src, err := os.ReadFile(filepath.Join(dir, "layout.kdl"))
-	if err != nil {
-		return "", err
-	}
-	body := strings.Replace(string(src), "PAIR_BIN", pairBin, 1)
-	f, err := os.CreateTemp("", "couchnestedrows-*.kdl")
-	if err != nil {
-		return "", err
-	}
-	if _, err := f.WriteString(body); err != nil {
-		f.Close()
-		return "", err
-	}
-	return f.Name(), f.Close()
 }
 
 func executable(path string) bool {

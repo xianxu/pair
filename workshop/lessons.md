@@ -3792,3 +3792,41 @@ smoke run still valid, because both were run while the frame was there.
 - The instrument that found it drove the REAL keystrokes end to end. Neither a
   unit test nor a code read would have: nothing was wrong with the code, only
   with where its output landed.
+
+## 2026-09-08 — A "does it call the cleanup" check passes the bug where the call is on the other branch
+
+`removeTab` skipped the only thing that repainted the tab strip, but only on its
+`preserveRename` branch — so a tab exiting mid-rename left the strip listing a
+tab that no longer existed. The tempting guard is static: scan each mutator for a
+call to `paintStrip`. It would have passed. `removeTab` *does* call it.
+
+- **A guard over "is the call present" cannot see "is the call reachable on this
+  path".** Pair the static enumeration (which catches a method added later) with
+  a behavioural table (which catches a branch that skips it). Neither alone is
+  the rule.
+- The representation had been defended and the transition had not: both
+  `StripModel.Active` and `RenameField.Tab` carried comments about a tab exiting
+  during a rename. Comments about a state say nothing about the event that
+  reaches it.
+- Sweeping "every site that does X" by hand is the failure mode. This sweep hit
+  three of four sites because a probe happened to catch those three end to end —
+  the fourth had no probe, so it had nothing.
+
+## 2026-09-08 — A feature that retires a cost can reintroduce it in its own implementation
+
+pair#199 exists because tab state was carried by `zellij action rename-pane` —
+"a subprocess per title change" is cost #1 in its own Problem statement. The tab
+strip retired that. And then the strip's rename editor was drawn into the pane
+title *as well*, forking a subprocess **per keystroke** — a strictly worse rate
+than the thing the issue was written to remove, shipped inside the fix for it.
+
+- **After building the replacement, grep for the mechanism you replaced.** Not
+  in the old call sites — in the NEW code. The reason it survives there is that
+  it was the obvious way to do the sub-feature nobody re-derived.
+- The plan had already written the budget down (*"one spawn on tab switch only,
+  not on every render"*) and it was false for the whole milestone. A budget with
+  no test is a sentence. `TestARenameCostsExactlyOneZellijSubprocess` is what a
+  budget looks like when it means something.
+- The same deletion fixed an unrelated-looking defect: the retired producer was
+  also the one that had never been swept by the title-format change. Two symptoms
+  with one cause read as two findings until you delete the cause.

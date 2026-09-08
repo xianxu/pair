@@ -21,6 +21,15 @@
   own header what question it answers, which is where to look rather than in a
   list here that would drift.
 
+  **Shared harness:** `probes/zellijprobe` is the one implementation of "start a
+  zellij session under a pty, read what it renders, tear it down". It exists
+  because the two copies diverged in a way that mattered: one discovered its
+  session by DIFFING `zellij list-sessions` and force-deleted an arbitrary new
+  name, from `make test-smoke` — so any session that appeared in that window,
+  including an operator's workbench, was a candidate. `Start` names the session
+  and `Close` deletes that name, which makes "a probe can only destroy a session
+  it created" structural rather than remembered.
+
   **There are exceptions, and they are the whole reason to state the rule.**
   `cmd/probes/` is a second probe home, reachable only through a per-probe
   target, and a probe belongs there for one of two reasons. It needs an

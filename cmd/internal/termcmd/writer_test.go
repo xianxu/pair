@@ -57,6 +57,14 @@ func (w *writerRecorder) distinct() int {
 	return len(w.writers)
 }
 
+// reset clears the recorded body so a test can assert on what happened AFTER a
+// setup step, rather than on everything since the mux started.
+func (w *writerRecorder) reset() {
+	w.mu.Lock()
+	defer w.mu.Unlock()
+	w.body.Reset()
+}
+
 func (w *writerRecorder) String() string {
 	w.mu.Lock()
 	defer w.mu.Unlock()
