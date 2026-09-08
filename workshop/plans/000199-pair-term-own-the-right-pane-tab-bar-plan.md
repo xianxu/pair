@@ -34,7 +34,40 @@ anything". `run.go:453-463` forwards every wheel tick to
 `RunZellijAction("scroll-up"/"scroll-down")`, and `ptychild` exposes a **replay
 ring** (`Snapshot`/`Replay`/`ReplayThrough`) with no viewport or offset
 anywhere. The operator dropped the readout rather than build one, which is what
-moved frameless into this issue — see `## Revisions`.
+moved frameless into this issue — see `## Revisions
+
+### 2026-09-08 — close review: I shipped a RED suite and the guard let me
+
+**BR-70 (Critical) was mine, and it is the plainest possible version of the
+mistake this issue keeps making.** I ran `make test`, saw green, THEN ticked M4
+in the issue file and committed without re-running. The tick is what broke it:
+`TestNoPlannedRowSurvivesItsTickedMilestone` exists precisely to catch a
+Core-concepts row still marked `planned — Mx` after `Mx` is ticked, and the
+plan's `right pane chrome` row still said `planned — M4`. A guard cannot help a
+commit that never runs it.
+
+**BR-71 is the more interesting half: the guard would have gone SILENT at the
+close.** It globbed `workshop/issues/*.md` only, and `sdlc close` archives the
+issue to `workshop/history/issues/`. So closing this issue would have made the
+failure disappear rather than fixing it — the check's coverage ended exactly
+where the work shipped. It reads both homes now, the same way `resolvePlan`
+already did, and no historical debt surfaced when it started looking.
+
+**BR-72: M4 falsified four "the terminal pane is framed" statements and swept
+none.** `config.kdl` was corrected in M4's own commit; `atlas/architecture.md`
+was not, in two places, and kept asserting that the layout-3 terminal renders a
+frame and that the draft is the only opt-out.
+
+**BR-33's rule is what makes that last one not recur**, and it is worth stating
+because it generalises past this issue: *`plan-superseded-facts-test.sh`'s file
+list IS the enumeration of artifact classes that assert the design, and it must
+name every class — not every instance.* Five classes exist here (plan, issue,
+atlas, config/layout, code comments) and only four were represented; the
+config/layout class was added, with a token taken verbatim from the pre-M4 text
+so it is a pair that could actually have fired. That is exactly how M4's atlas
+claims survived while `config.kdl` was fixed in the same commit: a pair
+registered for one class defends no other.
+`.
 
 **7. `Child.TakeRowDirty()` is the WRONG repaint trigger for `termcmd`, and would
 have read false forever** (PQ-3, verified 2026-09-07). `Child.readLoop` already
@@ -311,7 +344,7 @@ of completeness.
 | strip repaint trigger | `cmd/internal/termcmd/run.go` | new | `ptychild.OutputBatch.RowDirty` (read in the Sink — see finding 7; `Child.TakeRowDirty` is already drained there) |
 | paint debt (`stripOwed`) | `cmd/internal/termcmd/run.go` | new | a row-dirty batch RECORDS a debt rather than painting (couch's policy, `couchtty/console.go:1147`); paid by the first chunk that leaves the stream safe. A shell erases on every prompt redraw, so painting per batch means painting constantly, and constantly while the child is mid-prompt |
 | degraded `rename-pane` | `cmd/internal/termcmd/run.go` | modified | `zellij action` |
-| right pane chrome | `.../zellij/layouts/main-3.kdl` | planned — M4 | zellij layout |
+| right pane chrome | `zellij/layouts/main-3.kdl` | modified — M4 (`borderless=true` at all nine `name="terminal"` sites) | zellij layout |
 
 - **single host writer** — one goroutine owns `m.stdout`; `redrawTab` becomes an
   event on that loop rather than a direct write from the tab-switch path.

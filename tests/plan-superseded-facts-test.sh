@@ -117,6 +117,33 @@ check "$PLAN" 'Route every `RunZellijAction` call in `termcmd`' 'make the Runtim
 # and couchtty's unexported originals are gone rather than merely unreachable.
 check "$PLAN" 'the shared package M3 extracts' 'extracted in M2' "$REV"
 
+# pair#199 M4 took the frame off the layout-3 terminal. Four statements
+# asserting it is framed survived the commit that falsified them, two of them in
+# files M4 itself edited -- the same class, one milestone later. These are the
+# ATLAS's copies; config.kdl was corrected in M4.
+# THE ENUMERATION (BR-33's rule): this file list IS the set of artifact classes
+# that assert the design, and it must name EVERY class, not every instance.
+# Five classes exist in this repo and all five are represented below:
+#
+#   plan            $PLAN
+#   issue           $ISSUE
+#   atlas           $ATLAS
+#   config/layout   $CONFIG        <- added after M4 falsified it and nothing objected
+#   code comments   run.go, probes/*/main.go
+#
+# A pair registered for one class does not defend the others; that is how M4's
+# frame claims survived in the atlas while config.kdl was corrected in the same
+# commit.
+ATLAS="atlas/architecture.md"
+CONFIG="zellij/config.kdl"
+check "$ATLAS" 'agent pane and layout-3 terminal.*render frames' 'only the agent pane is framed'
+check "$ATLAS" 'The draft pane opts out via `borderless=true` in both' 'TWO panes opt out'
+
+# The config/layout class. This is the pre-M4 sentence, verbatim: it claimed the
+# DRAFT pane was the only opt-out, which stopped being true when the terminal
+# went borderless at all nine rungs.
+check "$CONFIG" 'scroll offset to plugins or the CLI. The draft pane opts out via' 'TWO panes opt out'
+
 check "probes/zellijscrollregion/main.go" 'cmd/probes/zellijscrollregion' 'probes/zellijscrollregion'
 
 # ---------------------------------------------------------------- the ISSUE

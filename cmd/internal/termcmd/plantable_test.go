@@ -113,9 +113,22 @@ func declaredNames(path string) (map[string]bool, error) {
 // forcing couchtty's machinery to be copied (BR-52's lesson, applied to a test).
 func TestNoPlannedRowSurvivesItsTickedMilestone(t *testing.T) {
 	root := filepath.Join("..", "..", "..")
-	issues, err := filepath.Glob(filepath.Join(root, "workshop", "issues", "*.md"))
-	if err != nil {
-		t.Fatal(err)
+	// BOTH homes, for the same reason resolvePlan reads both: `sdlc close`
+	// ARCHIVES an issue to workshop/history/issues, and a guard that reads only
+	// the active directory goes silent at exactly the moment the work ships.
+	// Closing would then HIDE this failure rather than fix it -- and it did:
+	// the Critical this test catches was found by a reviewer, not by the guard,
+	// because the guard's own coverage ended at the close.
+	var issues []string
+	for _, dir := range [][]string{
+		{"workshop", "issues"},
+		{"workshop", "history", "issues"},
+	} {
+		found, err := filepath.Glob(filepath.Join(append([]string{root}, append(dir, "*.md")...)...))
+		if err != nil {
+			t.Fatal(err)
+		}
+		issues = append(issues, found...)
 	}
 	if len(issues) == 0 {
 		t.Fatal("no issue files found; the guard would pass vacuously")

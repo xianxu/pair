@@ -1456,6 +1456,191 @@ rounds:
           round: 15
       boundary: M3
       blocked: false
+    - "n": 16
+      timestamp: "2026-09-08T15:49:37-07:00"
+      agent: claude
+      dispose:
+        - id: BR-8
+          disposition: not-addressed
+          note: M4.3 (plan:663) still has no Alt+Shift+d step; the Done-when "Splits still work" bullet closes unverified.
+          round: 16
+        - id: BR-9
+          disposition: not-addressed
+          note: writer_test.go:127 still splits one hand-chosen sequence at one index; only ptychild's scanner has byte-at-a-time equivalence.
+          round: 16
+        - id: BR-13
+          disposition: not-addressed
+          note: termcmd now goes through NewReservation (run.go:1412,1422) but couchtty/console.go:922 still builds the struct literally.
+          round: 16
+        - id: BR-14
+          disposition: not-addressed
+          note: atlas/couch.md:228 still presents the reserved row as couch-owned; no mention of hostty.Reservation anywhere in the file.
+          round: 16
+        - id: BR-15
+          disposition: not-addressed
+          note: hostty/reserve.go:138-154 still states no caller obligation to sanitize or clamp the text it writes verbatim.
+          round: 16
+        - id: BR-17
+          disposition: addressed
+          note: The stated grep now returns only correction passages; the tokens are registered in plan-superseded-facts-test.sh and it fires (mutation-checked).
+          round: 16
+        - id: BR-20
+          disposition: addressed
+          note: probes/zellijscrollregion/main.go:134 uses zellijprobe.TailOf and the value is now a checked precondition of the verdict.
+          round: 16
+        - id: BR-21
+          disposition: addressed
+          note: atlas/index.md:17-46 states both probe homes with the two reasons; the per-probe targets exist in Makefile.local:96-108.
+          round: 16
+        - id: BR-22
+          disposition: addressed
+          note: Every probe is func main(){os.Exit(run())}; the go/ast guard goes red when a defer+os.Exit function is injected (verified).
+          round: 16
+        - id: BR-23
+          disposition: addressed
+          note: termcmd is a real second consumer since M3 (run.go:1412), so the atlas and package doc are now true in the present tense.
+          round: 16
+        - id: BR-24
+          disposition: not-addressed
+          note: 'plan:495 still fails in zsh ("no matches found: --include=*.go"); same unquoted form at plan:95 and in run.go''s paneTitleLocked doc.'
+          round: 16
+        - id: BR-26
+          disposition: addressed
+          note: Positive controls precede the assert-absents (writer_test.go:227, :388) and each was mutation-checked.
+          round: 16
+        - id: BR-27
+          disposition: addressed
+          note: runZellijCaptured folds captured stderr into the error; diagnostics have their own capped queue, separate from the paint slot.
+          round: 16
+        - id: BR-29
+          disposition: addressed
+          note: reportedUnused and the dead field are gone.
+          round: 16
+        - id: BR-30
+          disposition: not-addressed
+          note: run.go:168 still takes stdin and stdout; neither is referenced in the body.
+          round: 16
+        - id: BR-31
+          disposition: not-addressed
+          note: ARCH-CONSTRAINTS (plan:357-377) still declares no cost for the per-chunk FeedFraming, nor the unterminated-sequence stall.
+          round: 16
+        - id: BR-33
+          disposition: not-addressed
+          note: atlas/architecture.md:517-519 still says every console-originated write defers into one coalescing slot; diagnostics use a capped queue that survives a takeover. The stderr gap at :519 is filled; the guard was never extended to atlas.
+          round: 16
+        - id: BR-34
+          disposition: addressed
+          note: maxOwedDiag=64 with oldest-dropped (run.go:956-968); the envelope-declaration half rides with BR-31.
+          round: 16
+        - id: BR-36
+          disposition: addressed
+          note: M3.7(b) is automated in couchnestedrows with an escape-emitting flood; M4.3 is recorded at the operator's own granularity with what it does not itemise flagged in the Log.
+          round: 16
+        - id: BR-38
+          disposition: not-addressed
+          note: couchtty/reserve.go:143-151 still carries the sanitize and truncate doc paragraphs for functions that now live in rowtext.
+          round: 16
+        - id: BR-40
+          disposition: addressed
+          note: TestTheTakeoverResetIsLoadBearing uses a pure-digit replay that cannot terminate the stale CSI.
+          round: 16
+        - id: BR-42
+          disposition: addressed
+          note: The status column is now guarded for every row of this plan; the guard is currently RED on the M4 row - see the new Critical.
+          round: 16
+        - id: BR-43
+          disposition: addressed
+          note: The substring scan is gone; paneWriter has no Write method and the mux holds no other io.Writer to the pane.
+          round: 16
+        - id: BR-44
+          disposition: addressed
+          note: 'Decided per payload and documented at flushOwed (run.go:1000-1024): unbounded for the paint by choice, capped for diagnostics.'
+          round: 16
+        - id: BR-61
+          disposition: addressed
+          note: Verified by archiving the plan in a scratch copy - both Go guards and the shell script resolve it from workshop/history.
+          round: 16
+        - id: BR-67
+          disposition: addressed
+          note: 'Mutation-verified: reintroducing the struck Done-when bullet fails plan-superseded-facts-test.sh.'
+          round: 16
+        - id: BR-68
+          disposition: addressed
+          note: 'Mutation-verified: naming a deleted symbol in the Core-concepts prose fails TestEveryCoreConceptRowNamesASymbolThatExists.'
+          round: 16
+        - id: BR-69
+          disposition: addressed
+          note: 'Mutation-verified: a function with a defer that calls os.Exit fails TestNoProbeExitsPastItsOwnCleanup.'
+          round: 16
+      findings:
+        - id: BR-70
+          severity: Critical
+          title: make test is RED at HEAD - the ticked M4 collides with the plan's `planned — M4` row, and the commit that ticked it ran nothing
+          detail: |-
+            go test ./... at 316bc86c fails TestNoPlannedRowSurvivesItsTickedMilestone
+            (plantable_test.go:153): plan:314 still reads `planned — M4` while issue:191
+            ticks M4. `git log -S'- [x] M4 —'` shows the tick landed only in 316bc86c,
+            whose message records no test run; 5edb47cf's "make test exit 0 (195 ok)" was
+            green precisely because the tick was not yet there. This is the 10th finding
+            in family plan-table-drift, so do NOT just edit the row. THE RULE - an edit to
+            a tracked artifact is an input to a guard, so the commit that ticks a
+            milestone runs the suite exactly like a code commit, and the tick plus its
+            table-status flip are ONE edit. Everything else failing in that run is the
+            documented sandbox pty class; this one is pure file reads.
+          family: plan-table-drift
+          round: 16
+        - id: BR-71
+          severity: Important
+          title: The guard that catches the Critical goes silent when sdlc close archives the issue, so closing hides the failure instead of fixing it
+          detail: |-
+            plantable_test.go:40 resolves the PLAN active-or-archived (BR-61's fix) but
+            :116 enumerates issues with a bare Glob over workshop/issues/*.md. Measured in
+            a scratch copy - move issue and plan to workshop/history and the currently-RED
+            TestNoPlannedRowSurvivesItsTickedMilestone reports ok with `planned — M4`
+            still in the table. sdlc close performs exactly that move, so the close would
+            record green over the drift and archive a plan that contradicts the code. This
+            is the 3rd finding in family moved-surface-drops-a-case. THE RULE - one shared
+            active-or-archived resolver for EVERY workshop artifact a guard reads, issues
+            included; a guard whose coverage can be removed by archiving is asserting the
+            issue will never close.
+          family: moved-surface-drops-a-case
+          round: 16
+        - id: BR-72
+          severity: Important
+          title: M4 falsified four "the terminal pane is framed" statements and swept none, two of them in the files it edited
+          detail: |-
+            This is the 11th finding in family plan-table-drift, so state the rule rather
+            than patching four sentences. Measured prevalence, all live at HEAD:
+            atlas/architecture.md:401 ("Pane frame asymmetry ... the agent pane and
+            layout-3 terminal render frames ... the draft pane opts out") - the section a
+            reader lands on for this subject, now the opposite of the paragraph M4 added
+            at :556; atlas/architecture.md:381 ("while keeping frames");
+            zellij/config.kdl:12-14 ("Split terminal panes stay pinned and keep their
+            frames (the frame is the only visible divider between the split halves and
+            carries the tab title)") - two lines above the bullet M4 rewrote;
+            zellij/layouts/main-3.kdl:22 ("keeping frames (divider, tab title, scroll
+            indicator)") - in the file M4 edited nine times. BR-33 asked for the mechanism
+            and BR-67 extended tests/plan-superseded-facts-test.sh to the issue plus one
+            run.go comment. THE RULE - that script's file list IS the enumeration of
+            artifacts asserting this design, and it must name every artifact class: plan,
+            issue, atlas, layout/config comments, code comments. A pair registered for one
+            file while the same superseded fact lives in four others is coverage that
+            cannot fire.
+          family: plan-table-drift
+          round: 16
+        - id: BR-73
+          severity: Minor
+          title: 'Two cosmetic slips in the M2 extraction: redundant parens and an out-of-order manifest entry'
+          detail: |-
+            cmd/internal/couchtty/menu_render.go:625 reads
+            `rowtext.SanitizeAndFit((line), width)`, and the rowtext import at :5 sits
+            inside the stdlib group unlike every other file in the package.
+            cmd/internal/artifactpath/manifest.go:631 inserts
+            cmd/internal/rowtext/rowtext.go between procutil and ptychild, breaking the
+            list's sort order.
+          family: formatting-drift
+          round: 16
+      blocked: true
 ---
 
 # Gate ledger — pair#199 (boundary-review)
@@ -2208,6 +2393,89 @@ later rounds disposed of them. Generated — edit the gate, not this file.
   already uses: fail when a function containing a defer also calls os.Exit. Measured
   prevalence: 3 probes, 11 such exit sites.
 
+## Round 16 — 2026-09-08T15:49:37-07:00 (claude) — BLOCKED
+
+### Disposed
+
+- BR-8 — not-addressed — M4.3 (plan:663) still has no Alt+Shift+d step; the Done-when "Splits still work" bullet closes unverified.
+- BR-9 — not-addressed — writer_test.go:127 still splits one hand-chosen sequence at one index; only ptychild's scanner has byte-at-a-time equivalence.
+- BR-13 — not-addressed — termcmd now goes through NewReservation (run.go:1412,1422) but couchtty/console.go:922 still builds the struct literally.
+- BR-14 — not-addressed — atlas/couch.md:228 still presents the reserved row as couch-owned; no mention of hostty.Reservation anywhere in the file.
+- BR-15 — not-addressed — hostty/reserve.go:138-154 still states no caller obligation to sanitize or clamp the text it writes verbatim.
+- BR-17 — addressed — The stated grep now returns only correction passages; the tokens are registered in plan-superseded-facts-test.sh and it fires (mutation-checked).
+- BR-20 — addressed — probes/zellijscrollregion/main.go:134 uses zellijprobe.TailOf and the value is now a checked precondition of the verdict.
+- BR-21 — addressed — atlas/index.md:17-46 states both probe homes with the two reasons; the per-probe targets exist in Makefile.local:96-108.
+- BR-22 — addressed — Every probe is func main(){os.Exit(run())}; the go/ast guard goes red when a defer+os.Exit function is injected (verified).
+- BR-23 — addressed — termcmd is a real second consumer since M3 (run.go:1412), so the atlas and package doc are now true in the present tense.
+- BR-24 — not-addressed — plan:495 still fails in zsh ("no matches found: --include=*.go"); same unquoted form at plan:95 and in run.go's paneTitleLocked doc.
+- BR-26 — addressed — Positive controls precede the assert-absents (writer_test.go:227, :388) and each was mutation-checked.
+- BR-27 — addressed — runZellijCaptured folds captured stderr into the error; diagnostics have their own capped queue, separate from the paint slot.
+- BR-29 — addressed — reportedUnused and the dead field are gone.
+- BR-30 — not-addressed — run.go:168 still takes stdin and stdout; neither is referenced in the body.
+- BR-31 — not-addressed — ARCH-CONSTRAINTS (plan:357-377) still declares no cost for the per-chunk FeedFraming, nor the unterminated-sequence stall.
+- BR-33 — not-addressed — atlas/architecture.md:517-519 still says every console-originated write defers into one coalescing slot; diagnostics use a capped queue that survives a takeover. The stderr gap at :519 is filled; the guard was never extended to atlas.
+- BR-34 — addressed — maxOwedDiag=64 with oldest-dropped (run.go:956-968); the envelope-declaration half rides with BR-31.
+- BR-36 — addressed — M3.7(b) is automated in couchnestedrows with an escape-emitting flood; M4.3 is recorded at the operator's own granularity with what it does not itemise flagged in the Log.
+- BR-38 — not-addressed — couchtty/reserve.go:143-151 still carries the sanitize and truncate doc paragraphs for functions that now live in rowtext.
+- BR-40 — addressed — TestTheTakeoverResetIsLoadBearing uses a pure-digit replay that cannot terminate the stale CSI.
+- BR-42 — addressed — The status column is now guarded for every row of this plan; the guard is currently RED on the M4 row - see the new Critical.
+- BR-43 — addressed — The substring scan is gone; paneWriter has no Write method and the mux holds no other io.Writer to the pane.
+- BR-44 — addressed — Decided per payload and documented at flushOwed (run.go:1000-1024): unbounded for the paint by choice, capped for diagnostics.
+- BR-61 — addressed — Verified by archiving the plan in a scratch copy - both Go guards and the shell script resolve it from workshop/history.
+- BR-67 — addressed — Mutation-verified: reintroducing the struck Done-when bullet fails plan-superseded-facts-test.sh.
+- BR-68 — addressed — Mutation-verified: naming a deleted symbol in the Core-concepts prose fails TestEveryCoreConceptRowNamesASymbolThatExists.
+- BR-69 — addressed — Mutation-verified: a function with a defer that calls os.Exit fails TestNoProbeExitsPastItsOwnCleanup.
+
+### Raised
+
+- **BR-70** [Critical] `plan-table-drift` make test is RED at HEAD - the ticked M4 collides with the plan's `planned — M4` row, and the commit that ticked it ran nothing
+  go test ./... at 316bc86c fails TestNoPlannedRowSurvivesItsTickedMilestone
+  (plantable_test.go:153): plan:314 still reads `planned — M4` while issue:191
+  ticks M4. `git log -S'- [x] M4 —'` shows the tick landed only in 316bc86c,
+  whose message records no test run; 5edb47cf's "make test exit 0 (195 ok)" was
+  green precisely because the tick was not yet there. This is the 10th finding
+  in family plan-table-drift, so do NOT just edit the row. THE RULE - an edit to
+  a tracked artifact is an input to a guard, so the commit that ticks a
+  milestone runs the suite exactly like a code commit, and the tick plus its
+  table-status flip are ONE edit. Everything else failing in that run is the
+  documented sandbox pty class; this one is pure file reads.
+- **BR-71** [Important] `moved-surface-drops-a-case` The guard that catches the Critical goes silent when sdlc close archives the issue, so closing hides the failure instead of fixing it
+  plantable_test.go:40 resolves the PLAN active-or-archived (BR-61's fix) but
+  :116 enumerates issues with a bare Glob over workshop/issues/*.md. Measured in
+  a scratch copy - move issue and plan to workshop/history and the currently-RED
+  TestNoPlannedRowSurvivesItsTickedMilestone reports ok with `planned — M4`
+  still in the table. sdlc close performs exactly that move, so the close would
+  record green over the drift and archive a plan that contradicts the code. This
+  is the 3rd finding in family moved-surface-drops-a-case. THE RULE - one shared
+  active-or-archived resolver for EVERY workshop artifact a guard reads, issues
+  included; a guard whose coverage can be removed by archiving is asserting the
+  issue will never close.
+- **BR-72** [Important] `plan-table-drift` M4 falsified four "the terminal pane is framed" statements and swept none, two of them in the files it edited
+  This is the 11th finding in family plan-table-drift, so state the rule rather
+  than patching four sentences. Measured prevalence, all live at HEAD:
+  atlas/architecture.md:401 ("Pane frame asymmetry ... the agent pane and
+  layout-3 terminal render frames ... the draft pane opts out") - the section a
+  reader lands on for this subject, now the opposite of the paragraph M4 added
+  at :556; atlas/architecture.md:381 ("while keeping frames");
+  zellij/config.kdl:12-14 ("Split terminal panes stay pinned and keep their
+  frames (the frame is the only visible divider between the split halves and
+  carries the tab title)") - two lines above the bullet M4 rewrote;
+  zellij/layouts/main-3.kdl:22 ("keeping frames (divider, tab title, scroll
+  indicator)") - in the file M4 edited nine times. BR-33 asked for the mechanism
+  and BR-67 extended tests/plan-superseded-facts-test.sh to the issue plus one
+  run.go comment. THE RULE - that script's file list IS the enumeration of
+  artifacts asserting this design, and it must name every artifact class: plan,
+  issue, atlas, layout/config comments, code comments. A pair registered for one
+  file while the same superseded fact lives in four others is coverage that
+  cannot fire.
+- **BR-73** [Minor] `formatting-drift` Two cosmetic slips in the M2 extraction: redundant parens and an out-of-order manifest entry
+  cmd/internal/couchtty/menu_render.go:625 reads
+  `rowtext.SanitizeAndFit((line), width)`, and the rowtext import at :5 sits
+  inside the stdlib group unlike every other file in the package.
+  cmd/internal/artifactpath/manifest.go:631 inserts
+  cmd/internal/rowtext/rowtext.go between procutil and ptychild, breaking the
+  list's sort order.
+
 ## Open findings
 
 - **BR-8** [Minor] `acceptance-misses-changed-sites` M4's manual acceptance never splits the pane, leaving six of nine borderless sites unverified
@@ -2215,26 +2483,12 @@ later rounds disposed of them. Generated — edit the gate, not this file.
 - **BR-13** [Minor] `validating-door-bypassed` NewReservation has zero production callers; couch constructs the struct directly
 - **BR-14** [Minor] `atlas-points-at-old-home` atlas/couch.md's "The reserved row" section still reads as couch-owned mechanism
 - **BR-15** [Minor] `caller-obligation-undocumented` Paint's doc does not state the caller's obligation to sanitize and clamp its text
-- **BR-17** [Important] `plan-table-drift` Three gate corrections landed at one site each and left seven restatements of the superseded facts in the same file
-- **BR-20** [Important] `external-input-assumed-wellformed` An unused diagnostic slices the pty stream without a bounds check and can panic before the verdict prints
-- **BR-21** [Important] `atlas-points-at-old-home` This is the 2nd finding in family atlas-points-at-old-home -- the atlas names one probe home and the code now has two
-- **BR-22** [Minor] `exit-path-drops-cleanup` Every os.Exit path in the probe skips its deferred session and temp-file cleanup
-- **BR-23** [Minor] `doc-states-planned-as-current` The atlas and the new package doc state two consumers of Reservation; production has one
 - **BR-24** [Minor] `acceptance-command-does-not-hold` M1.6's acceptance command aborts in the repo's shell before it checks anything
-- **BR-26** [Important] `uncovered-negative-assertion` Two assert-absent tests pass vacuously — the owed-paint drop and the subprocess stdout arm are unpinned
-- **BR-27** [Important] `diagnostic-silently-discarded` The milestone keeps diagnostics off the pane by destroying them — discarded stderr, and a coalescing slot shared with paints
-- **BR-29** [Minor] `dead-test-scaffolding` fakeRuntime.reportedUnused and its reported field are unreachable after the interface change
 - **BR-30** [Minor] `handler-posts-to-own-queue` runDecision still receives the pane's stdout, unused, on the input goroutine
 - **BR-31** [Minor] `hot-path-cost-undeclared` The gate adds a second full parse of every child byte on the output path, undeclared in the envelope
 - **BR-33** [Important] `plan-table-drift` The atlas paragraph added in this window was falsified by the next commit in the same window
-- **BR-34** [Minor] `hot-path-cost-undeclared` owedDiag is an unbounded queue on an externally-timed path, one function below a comment rejecting Feed for that reason
-- **BR-36** [Important] `acceptance-command-does-not-hold` M2.5's manual acceptance cannot enter the gate path it is recorded as accepting
 - **BR-38** [Minor] `atlas-points-at-old-home` couchtty/reserve.go keeps the doc comments for the sanitize and truncate it no longer has
-- **BR-40** [Important] `uncovered-negative-assertion` The takeover's scan reset -- couch's third gate rule, M2.3 step 1's headline -- can be deleted with the whole suite green
-- **BR-42** [Minor] `plan-table-drift` The Integration-points table still marks three M3/M4 rows new/modified after BR-11 flipped only the Pure-entities table
-- **BR-43** [Important] `envelope-claim-unenforced` The door-enumeration test enforces a substring, not the claim - an ungated Fprintf, a leaked exemption marker, and every file but run.go all pass
-- **BR-44** [Minor] `deferred-work-lacks-own-trigger` flushOwed has one call site, in the child-data branch, so an owed write is stranded for as long as the child is silent
-- **BR-61** [Important] `moved-surface-drops-a-case` The Core-concepts guard hardcodes the ACTIVE plan path, so make test breaks the moment this plan is archived
-- **BR-67** [Important] `doc-states-planned-as-current` The issue's Done-when still carries a bullet its own Revisions marks struck, and omits the one that entry says replaced it
-- **BR-68** [Important] `plan-table-drift` The Core-concepts guard reads only pipe rows, so the bullets under the table are unchecked and one names a method this commit deleted
-- **BR-69** [Minor] `exit-path-drops-cleanup` Every probe registers teardown as a defer and then leaves through os.Exit, so a failed test-smoke leaks the session it created
+- **BR-70** [Critical] `plan-table-drift` make test is RED at HEAD - the ticked M4 collides with the plan's `planned — M4` row, and the commit that ticked it ran nothing
+- **BR-71** [Important] `moved-surface-drops-a-case` The guard that catches the Critical goes silent when sdlc close archives the issue, so closing hides the failure instead of fixing it
+- **BR-72** [Important] `plan-table-drift` M4 falsified four "the terminal pane is framed" statements and swept none, two of them in the files it edited
+- **BR-73** [Minor] `formatting-drift` Two cosmetic slips in the M2 extraction: redundant parens and an out-of-order manifest entry
