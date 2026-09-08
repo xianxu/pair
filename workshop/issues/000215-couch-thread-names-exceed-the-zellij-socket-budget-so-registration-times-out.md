@@ -18,62 +18,83 @@ Starting a thread on `../pair/` from couch fails with:
 error: await Pair registration {RepoScope:e108517d46ab4575 Tag:couch-675d94857e70ca61}: context deadline exceeded
 ```
 
-**The session name does not fit zellij's socket path.** Verified against zellij's own validator,
-which is the oracle `ProbeSessionName` already uses:
+**Assigning the session name costs one zellij subprocess per candidate, and the candidate count
+grows with every couch thread the repo has ever had.** Measured by running the real
+`AssignSessionName` against the real index:
 
 ```
-$ zellij --session "📁pair-couch-675d94857e70ca61" action list-clients
-error: Invalid value "📁pair-couch-675d94857e70ca61" for '--session <SESSION>':
-       session name must be less than 0 characters
+index entries: 91
+RESULT name="📁pair-couch-26" err=<nil>
+PROBES=52  probe-time=1.087s  total=1.088s
 ```
 
-| name | bytes | zellij |
+It **succeeds** — and spends **52 zellij invocations** doing it, against a registration budget of
+**5 seconds** (`couchcore/launch_existing.go:111`).
+
+### Why 52, and why it grows
+
+`AssignSessionName` walks `for suffix := 1; suffix <= 100`, and for each suffix probes
+`BuildSessionNameCandidates` in order. For this repo:
+
+| suffix | cand[0] | cand[1] |
 |---|---|---|
-| `📁pair-couch-25` | 17 | accepted |
-| `📁brain-couch-23` | 18 | accepted |
-| **`📁pair-couch-675d94857e70ca61`** | **31** | **rejected** |
+| 1 | `📁pair-couch-675d94857e70ca61` (31 B) | `📁pair-couch` (14 B) |
+| 26 | `📁pair-couch-675d94857e70ca61-26` (34 B) | `📁pair-couch-26` (17 B) |
 
-The budget is small because the socket directory is macOS's long temp path —
-`/var/folders/07/…/T/zellij-501/contract_version_1/` at **78 characters**, against a 104-byte
-`sun_path` limit, leaving ~25 bytes for the whole name. `📁` alone costs 4 (it is one rune and four
-UTF-8 bytes), so the usable remainder is ~21. Note zellij's own arithmetic underflows and reports
-the remaining budget as *"less than 0 characters"*, which is why the message is useless as a clue.
+**Two probes per suffix**: the long candidate is rejected by zellij (over the socket budget), the
+short one is accepted and then found owned, so the ladder breaks and bumps the suffix. The repo owns
+suffixes 1–25, so reaching the free 26 costs `26 × 2 = 52` probes.
 
-**Why the live threads work and a new one cannot.** Every currently-live thread carries a short
-public name — `couch-25`, `couch-23`, `couch-13` — 17–18 bytes, already at the edge. The failing
-path composes the name from the **full 16-hex opaque tag** (`couch-675d94857e70ca61`), which is 31
-bytes and cannot fit under any `$TMPDIR` this machine will produce.
+**That count is the number of couch threads this repo has ever had.** At thread 1 it was 2 probes
+(~35 ms). It is now 52. Nothing resets it — the index rows are permanent, and archiving a thread
+does not release its suffix.
 
-### The failure chain, and why it is invisible
+### Why it broke now rather than earlier
 
-1. couch mints `couch-<16 hex>`.
-2. `ComposeSessionName` produces `📁pair-couch-<16 hex>` — 31 bytes.
-3. `LaunchSession` (`launcher/osruntime.go:117-122`) passes it as `--session`; zellij refuses.
-4. No `📁` session is ever created, so pair never writes `thread-claim-<tag>.json` with
-   `state:"established"`.
-5. `awaitThreadRegistration` (`couchcore/couch.go:672-693`) polls `Artifacts.Registration(address)`
-   every 10ms for evidence that can never appear, and reports
-   `context deadline exceeded` — naming neither zellij, nor the session, nor a length.
+Two independent trends crossing one fixed deadline:
 
-Debris observed: **six orphan zellij servers with random names** (`hopeful-tiger`,
-`judicious-lemur`, `jumping-pepper`, `zippy-galaxy`, …), created 09:54–11:07 across the failed
-attempts, each with **no children and `ppid=1`**, and an empty screen. They accumulate per attempt
-and nothing reaps them.
+1. **The cost grows linearly with threads created.** 2 probes each, forever.
+2. **Each probe got ~8× more expensive.** `#203` measured a `zellij action` round-trip going from
+   **17.6 ms calm to 145 ms median / 467 ms max** under concurrent agent load — which is the load
+   this operator normally runs.
 
-### The guard exists and did not fire
+| condition | 52 probes | vs 5 s budget |
+|---|---|---|
+| calm (measured) | **1.09 s** | fits, using 22% of it before pair does anything |
+| loaded, median | ~7.5 s | **over** |
+| loaded, tail | ~24 s | **far over** |
 
-This is the defect, more than the length itself. `ProbeSessionName`
-(`launcher/osruntime.go:105-113`) exists to ask zellij whether a name is acceptable, and
-`sessionNameFits` / `defaultSessionNameBudget` exist to explain a refusal. The budget constant even
-documents its own role:
+So it did not break; it has been creeping toward the line for 26 threads, and the load regression
+pushed it across. On a quiet machine it still works, which is exactly why it looks intermittent.
 
-> a MESSAGE default only — never an acceptance test. zellij's real allowance is its socket path's,
-> which varies with username and is a different path entirely on Linux, so the probe stays the
-> oracle and this number only makes the refusal quotable.
+**Corrected 2026-09-08.** This issue was first filed claiming the session name was simply too long
+for the socket path. That is wrong: the ladder handles length correctly, shortening the 31-byte
+name to `📁pair-couch-N` at 16–17 bytes. The length only matters because **rejecting the long
+candidate costs a subprocess round-trip every time**, which is what makes the walk expensive. The
+original diagnosis verified a string composed by hand rather than the one the code produces —
+`BuildSessionNameCandidates` and `AssignSessionName` are both exported and answer this directly.
 
-The probe is the oracle and **the couch launch path does not consult it**. So a check that would
-have refused in milliseconds with an accurate message is bypassed, and the operator instead waits
-out a registration timeout that names nothing useful.
+### Two aggravating properties
+
+**The over-long candidate is probed at all.** Its length is knowable without asking zellij — the
+socket directory is a fixed local fact (`/var/folders/…/contract_version_1/`, 78 chars against a
+104-byte `sun_path`, leaving ~25, of which `📁` costs 4). Probing it is a subprocess spent to
+rediscover arithmetic, and it is **half of all probes**.
+
+**The walk restarts at suffix 1 every time.** Nothing remembers that 1–25 are taken, so each new
+thread re-walks the whole prefix.
+
+### Debris
+
+Six orphan zellij servers with random names (`hopeful-tiger`, `judicious-lemur`, `jumping-pepper`,
+`zippy-galaxy`, …) created 09:54–11:07 across the failed attempts, each with **no children and
+`ppid=1`** and an empty screen. They accumulate per failed attempt and nothing reaps them.
+
+### Diagnosis cost
+
+The operator's error named a timeout. The cause was a subprocess count. Nothing in
+`await Pair registration … context deadline exceeded` names zellij, the session name, the probe
+count, or which of "pair never started" and "pair started and never registered" occurred.
 
 ## Spec
 
@@ -81,45 +102,49 @@ out a registration timeout that names nothing useful.
 
 Two halves; the second is the fix and the first is the guard that should have caught it.
 
-**1. Probe before launching.** The couch launch path calls `ProbeSessionName` (or the same
-`sessionNameFits` decision against a probed budget) before `LaunchSession`, and refuses with a
-message naming the composed name, its byte length, and the measured budget. A refusal in
-milliseconds beats a 30-second timeout that names nothing.
+**1. Stop spending a subprocess to learn a length.** Measure the socket budget once — the directory
+is a local fact — and reject over-long candidates arithmetically. That halves the probes
+immediately and removes the only reason the 16-hex candidate costs anything.
 
-**2. Give couch threads a short public name.** The live threads already demonstrate the scheme —
-`couch-25`, `couch-23` — so the composer must use that short public form rather than the opaque
-16-hex tag. Where that short name is allocated, and why the new-thread path is not getting one, is
-the thing to find; the tag stays the durable identity (`#149`), and the public name is a display
-mapping (`atlas/session-identity.md`).
+**2. Do not re-walk the suffix prefix.** Remember the highest suffix assigned per (scope, family) so
+a new thread starts near the free end instead of re-probing 1..N. The index already holds every
+prior name; the information is present and unused.
 
-Budget the name against the **measured** socket path, not a constant. `$TMPDIR` differs per user and
-per OS, and this machine leaves ~21 usable bytes after the `📁` prefix.
+**3. Do not put an unbounded, load-sensitive loop inside a fixed 5-second deadline.** Either assign
+the name **before** starting the registration clock, or budget the clock against the work — a
+fixed constant in front of an O(threads) loop whose per-iteration cost varies 8× with machine load
+is a deadline that will keep failing intermittently as the fleet grows (`ARCH-CONSTRAINTS`: the
+envelope is unstated, and this is the second time it has bitten — see `#203`).
 
-**3. Reap the debris.** A refused or failed launch should not leave an unnamed zellij server running
-with `ppid=1`. Six accumulated in one session of retries.
+**4. Reap the debris.** A failed launch should not leave an unnamed zellij server with `ppid=1`.
+Six accumulated across one session of retries.
+
+**5. Say what failed.** The registration timeout must distinguish "pair never started" from "pair
+started and did not register", and name the session it waited for.
 
 ## Done when
 
-- Starting a thread on a repo whose composed name would exceed the budget **refuses immediately**,
-  naming the name, its length, and the budget — asserted by a test at a Linux-sized and a
-  macOS-sized budget, since `sessionNameFits` already takes the limit as a parameter for exactly
-  this.
-- couch can start a thread on `../pair/`; the created session carries a short public name that fits.
-- The budget is derived from the actual socket directory, not from `defaultSessionNameBudget`.
-- A failed launch leaves no orphan zellij server; existing orphans are reaped or documented as
+- Assigning a name for a repo at suffix N costs **O(1) zellij probes, not O(N)** — asserted by a
+  test that counts probes at a seeded index of 25 owned suffixes and requires a small constant.
+  The current count is 52 and the test should fail against today's code.
+- couch starts a thread on `../pair/` on a loaded machine, not only a quiet one.
+- Over-long candidates are rejected without a subprocess.
+- A failed launch leaves no orphan zellij server; the six existing ones are reaped or documented as
   manual cleanup.
 - The registration timeout's message distinguishes "pair never started" from "pair started and did
-  not register" — the current text cannot, which is what made this cost hours.
+  not register", and names the session — the current text does neither, which is what made this
+  cost hours.
 
 ## Plan
 
-- [ ] Find where the short `couch-<N>` public name is allocated and why the new-thread path misses
-      it.
-- [ ] Call the probe before `LaunchSession` on the couch path; refuse with the diagnostic triple.
-- [ ] Derive the budget from the measured socket dir.
+- [ ] Reject over-long candidates arithmetically against a once-measured socket budget; keep the
+      zellij probe as the oracle for the *budget*, not per candidate.
+- [ ] Start the suffix walk from the highest known assigned suffix.
+- [ ] Move name assignment outside the registration deadline, or budget the deadline against the
+      work; state the envelope.
 - [ ] Reap orphaned unnamed servers on failed launch.
-- [ ] Improve the registration-timeout message to name the session it waited for.
-- [ ] Verify: start a pair thread from couch on this machine.
+- [ ] Improve the registration-timeout message.
+- [ ] Verify with the probe-count test, then start a pair thread from couch under load.
 
 ## Log
 
@@ -136,3 +161,16 @@ Worth recording as method: the operator's error named a timeout, and the cause w
 Nothing in the message pointed at zellij, the session name, or a budget — the six orphan
 random-named servers were the only visible clue, and they only became meaningful after noticing they
 had no children. A probe the codebase already owns would have said it in one line.
+
+### 2026-09-08 — root cause corrected
+
+First filed against the wrong cause: "the session name is too long". Measuring the real code
+refuted it — `AssignSessionName` **succeeds**, returning `📁pair-couch-26`, and the ladder shortens
+correctly. The defect is its **cost**: 52 zellij subprocesses against a 5-second deadline.
+
+The error I made is worth recording, because it is the same one twice in one investigation: I
+composed the session name by hand, verified *that string* was rejected, and filed. Both
+`BuildSessionNameCandidates` and `AssignSessionName` are exported and answer the question in a
+six-line test. Verifying a hypothesis I authored, rather than the artifact the code produces, is
+what put a wrong root cause in the tracker — the same shape as the earlier `pair resume … -- --resume`
+suggestion, which was reasoned about instead of read.
