@@ -512,22 +512,25 @@ func TestGateIsNotFedOurOwnWrites(t *testing.T) {
       2. Add the gate: a `ptychild.Screen` fed child chunks before they are
          written, consulted before any console-originated write, with a
          deferred-paint slot flushed on the next boundary-ending chunk.
-      3. **Route every `RunZellijAction` call in `termcmd` through
-         `RunZellijActionQuiet`** (`run.go:1091`, which already passes
-         `io.Discard`). The five sites are `focus-pane-id` (`:191`),
-         `scroll-up`/`scroll-down` (`:457,463`) and `rename-pane` (`:961,963`).
-         Today they hand `os.Stdout` to a subprocess, so a wheel tick writes
-         into the pane from outside the process — the writer no goroutine-id
-         test can observe. **Named exception:** none. If a later action needs its
-         output, it is captured and logged, never written to the pane's fd.
-      4. `stderr`: route `term:` diagnostics through the same writer loop, since
-         it is the same terminal and after M4 there is no frame to absorb a
-         stray line.
-      5. **`runZellij(args []string, stdout, stderr io.Writer)`**
-         (`run.go:1100-1105`). It hardwires `cmd.Stderr = os.Stderr` today, for
-         BOTH methods — so piece 3 alone leaves a failing `zellij action
-         scroll-up` writing the pane per wheel tick. Capture stderr and log it;
-         the pane's fd is not a diagnostic channel.
+      3. **Make the RUNTIME incapable, rather than fixing call sites.** The
+         first form of this step routed `termcmd`'s five `RunZellijAction` calls
+         through `Quiet`. Wrong altitude: `termcmd` hands its Runtime to
+         `layoutcmd` and `draftroute` (`run.go:181,194,198,514`), which hold five
+         more sites between them, and a call-site rule covers neither those nor
+         the next one added. So **neither** `OSRuntime` method gives a
+         subprocess the pane's descriptors, and the call sites are left alone.
+      4. **Diagnostics reach the operator without touching the pane's fd.**
+         `runZellijCaptured` folds the subprocess's stderr into the returned
+         error, and `terminalMux.reportError` puts it on the pane through the
+         writer loop. Keeping the pane clean must not mean DESTROYING the
+         report: discarding both descriptors while the wheel-tick callers also
+         drop the error (`_ = rt.RunZellijAction("scroll-up")`) makes a failure
+         completely silent, which is worse than the noise it replaced.
+      5. **Diagnostics queue; paints coalesce.** Same gate, different deferral
+         policy. A paint renders current state, so a later one supersedes an
+         earlier one and only the freshest should land. An error is an EVENT:
+         every one lands, and it survives a takeover, because unlike a paint it
+         is not made obsolete by the screen being replaced.
       6. **The resize goroutine** (`run.go:261-266`) calls `inheritSize`, which
          becomes a writer in M3. It joins the writer loop here, not in M3 —
          ARCH-ORDER already asserts resize and paint "serialize by construction"
@@ -631,6 +634,40 @@ the strip over a suspected-broken writer would confuse both.
 
 
 ## Revisions
+
+### 2026-09-07 — M2 boundary review (REWORK → addressed)
+
+**BR-27 is the one that mattered: I kept the pane clean by destroying the
+report.** Sending both subprocess descriptors to `io.Discard` looked like the
+clean answer, but the wheel-tick callers also drop the error
+(`_ = rt.RunZellijAction("scroll-up")`), so a failing action became
+*completely silent* — strictly worse than the noise it replaced, and exactly
+the failure-reported-as-nothing shape `#208` spent fourteen rounds on.
+`runZellijCaptured` now folds the subprocess's stderr into the returned error,
+where a caller can report it; the pane's fd is still never handed over.
+
+The same finding's second half: `reportError` shared the coalescing `owed` slot
+with paints, so a routine repaint could swallow an error. They share the gate
+but not the deferral policy now — a paint renders current state and the freshest
+wins; a diagnostic is an EVENT, so every one lands and it survives a takeover,
+which a paint deliberately does not.
+
+**BR-26: two assert-absent tests could not fail.** The takeover test asserted
+only that `STALE` was absent, which passes if nothing was written at all — a
+broken writer, a dropped event, a recorder on the wrong stream. It now checks
+the takeover's own replay arrived first. The subprocess test had the same hole
+at a different layer: if `captureFD` silently failed, every arm passed. It now
+writes a control string through the captured descriptor and fails if the capture
+cannot see it. Both are positive controls, and the rule generalises: *an
+assertion that something is ABSENT is worthless without an assertion that the
+apparatus can see it PRESENT.*
+
+**BR-28 was the superseded-facts class again — and the test I added at M1 caught
+it.** M2.3's steps 3-5 still described routing call sites through `Quiet`, an
+implementation the code stopped having when I moved the fix to the Runtime. The
+guard did not know those tokens; adding them made it red immediately, and
+mutation-checking confirmed it. That is the first time this class was caught by
+something other than a reviewer.
 
 ### 2026-09-07 — M1 close (FIX-THEN-SHIP), and the sweep becomes a test
 

@@ -3,6 +3,7 @@
 package termcmd
 
 import (
+	"bytes"
 	"flag"
 	"fmt"
 	"io"
@@ -614,6 +615,9 @@ type ptyChunk struct {
 	// own is a console-originated write. Never fed to the gate's scanner --
 	// see gate below.
 	own []byte
+	// diag is a console-originated DIAGNOSTIC: same gate, different deferral
+	// policy (queued rather than coalesced -- see owedDiag).
+	diag []byte
 	// takeover means this write replaces the whole screen (redrawTab), so the
 	// scan resets and any owed paint is dropped rather than flushed against a
 	// screen that no longer exists. couch's third gate rule.
@@ -651,9 +655,14 @@ type terminalMux struct {
 	// frame our bytes with the child's partial and report safe precisely when
 	// it is not -- the half couch got wrong first (atlas/couch.md).
 	hostScan ptychild.Screen
-	// owed is a paint deferred because the child's stream was mid-sequence.
+	// owed is a PAINT deferred because the child's stream was mid-sequence.
 	// Deferred and OWED: dropping it leaves a stale row nothing repaints.
 	owed []byte
+	// owedDiag are DIAGNOSTICS deferred the same way, kept separately because
+	// they coalesce differently. A paint is a rendering of current state, so a
+	// later one supersedes an earlier one; an error is an EVENT, and letting a
+	// routine repaint swallow it loses the only report the operator gets.
+	owedDiag [][]byte
 }
 
 type activeRename struct {
@@ -764,7 +773,18 @@ func (m *terminalMux) handleChunk(chunk ptyChunk) {
 		// owed paint rather than flushing it against a screen that is gone.
 		m.hostScan = ptychild.Screen{}
 		m.owed = nil
+		// Diagnostics survive a takeover: unlike a paint, an error is not made
+		// obsolete by the screen being replaced -- it still happened, and this
+		// may be the operator's only report of it.
+		pendingDiag := m.owedDiag
+		m.owedDiag = nil
 		_, _ = m.stdout.Write(chunk.own)
+		for _, d := range pendingDiag {
+			_, _ = m.stdout.Write(d)
+		}
+
+	case chunk.diag != nil:
+		m.writeDiag(chunk.diag)
 
 	case chunk.own != nil:
 		m.writeOwn(chunk.own)
@@ -791,6 +811,16 @@ func (m *terminalMux) handleChunk(chunk ptyChunk) {
 	}
 }
 
+// writeDiag writes a diagnostic, or QUEUES it if the stream is mid-sequence.
+// Queued, not coalesced -- see owedDiag.
+func (m *terminalMux) writeDiag(b []byte) {
+	if m.hostScan.MidSequence() {
+		m.owedDiag = append(m.owedDiag, b)
+		return
+	}
+	_, _ = m.stdout.Write(b)
+}
+
 // writeOwn writes console-originated bytes, or defers them if the child's stream
 // is mid-sequence.
 func (m *terminalMux) writeOwn(b []byte) {
@@ -811,7 +841,16 @@ func (m *terminalMux) writeOwn(b []byte) {
 
 // flushOwed writes a deferred paint once the child's stream reaches a boundary.
 func (m *terminalMux) flushOwed() {
-	if m.owed == nil || m.hostScan.MidSequence() {
+	if m.hostScan.MidSequence() {
+		return
+	}
+	// Diagnostics first: they were queued before the paint that may describe a
+	// state they explain, and every one of them lands.
+	for _, d := range m.owedDiag {
+		_, _ = m.stdout.Write(d)
+	}
+	m.owedDiag = nil
+	if m.owed == nil {
 		return
 	}
 	b := m.owed
@@ -830,7 +869,7 @@ func (m *terminalMux) reportError(err error) {
 	if err == nil {
 		return
 	}
-	m.paintOwn([]byte("pair term: " + err.Error() + "\r\n"))
+	m.enqueue(ptyChunk{diag: []byte("pair term: " + err.Error() + "\r\n")})
 }
 
 // paintOwn queues a console-originated write onto the writer loop.
@@ -1328,7 +1367,7 @@ func (OSRuntime) RunZellijAction(args ...string) error {
 
 func (OSRuntime) RunZellijActionQuiet(args ...string) error {
 	cmdArgs := append([]string{"action"}, args...)
-	return runZellij(cmdArgs, io.Discard, io.Discard)
+	return runZellijCaptured(cmdArgs)
 }
 
 // runZellij takes BOTH descriptors. It hardwired cmd.Stderr = os.Stderr for
@@ -1342,6 +1381,36 @@ func runZellij(args []string, stdout, stderr io.Writer) error {
 	cmd.Stdout = stdout
 	cmd.Stderr = stderr
 	return cmd.Run()
+}
+
+// runZellijCaptured runs the action with BOTH descriptors captured, and folds
+// what the subprocess said into the returned error.
+//
+// Keeping the pane clean must not mean destroying the diagnostic. The first
+// version of this milestone sent both descriptors to io.Discard, and since the
+// wheel-tick callers also drop the error (`_ = rt.RunZellijAction("scroll-up")`),
+// a failing action became completely silent -- strictly worse than the noise it
+// replaced. The bytes go into the error, where a caller can report or log them,
+// and never onto the pane's fd.
+func runZellijCaptured(args []string) error {
+	var out, errb bytes.Buffer
+	err := runZellij(args, &out, &errb)
+	if err == nil {
+		return nil
+	}
+	detail := strings.TrimSpace(errb.String())
+	if detail == "" {
+		detail = strings.TrimSpace(out.String())
+	}
+	if detail == "" {
+		return err
+	}
+	// One line: this may be reported onto the pane, and zellij's usage dumps
+	// run to a dozen.
+	if i := strings.IndexByte(detail, '\n'); i >= 0 {
+		detail = detail[:i]
+	}
+	return fmt.Errorf("%w: %s", err, detail)
 }
 
 func (OSRuntime) ShellCommand() (string, []string) {

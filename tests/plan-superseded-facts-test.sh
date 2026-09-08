@@ -58,6 +58,12 @@ check "$PLAN" 'repaint on tab change, resize, and `TakeRowDirty`' 'batch.RowDirt
 # pair#199 finding 9: the rename-pane consumers are derived, not run.go:229.
 check "$PLAN" 'consumers at$' 'the derived set in finding 9' "$REV"
 
+# pair#199 BR-28: M2 fixed the subprocess writers at the RUNTIME, not by routing
+# termcmd's call sites through Quiet -- the first form of the step, which the
+# plan kept describing after the code stopped doing it.
+check "$PLAN" 'Route every `RunZellijAction` call in `termcmd`' 'make the Runtime incapable' "$REV"
+check "$PLAN" 'route only stdout through' 'both descriptors, captured into the error' "$REV"
+
 check "probes/zellijscrollregion/main.go" 'cmd/probes/zellijscrollregion' 'probes/zellijscrollregion'
 
 if [ "$fails" -ne 0 ]; then

@@ -2,6 +2,8 @@ package termcmd
 
 import (
 	"bytes"
+	"errors"
+	"fmt"
 	"io"
 	"os"
 	"runtime"
@@ -194,8 +196,62 @@ func TestTakeoverResetsTheGateAndDropsTheOwedPaint(t *testing.T) {
 	if m.midSequenceForTest() {
 		t.Fatal("a wholesale takeover left the gate mid-sequence against a screen that is gone")
 	}
+	// POSITIVE CONTROL FIRST. Without it this test passes when nothing is
+	// written at all -- a broken writer, a dropped event, a recorder wired to
+	// the wrong stream -- and an assert-absent that cannot fail proves nothing.
+	if !strings.Contains(rec.String(), "fresh") {
+		t.Fatalf("the takeover's own replay never reached the pane: %q", rec.String())
+	}
 	if strings.Contains(rec.String(), "STALE") {
 		t.Fatalf("a paint owed against the OLD screen landed after the takeover: %q", rec.String())
+	}
+}
+
+// A DIAGNOSTIC is not a paint: it is an event, so it survives both a coalescing
+// repaint and a wholesale takeover. Losing it means losing the operator's only
+// report that something failed.
+func TestDiagnosticsAreQueuedNotCoalescedAndSurviveATakeover(t *testing.T) {
+	rec := newWriterRecorder()
+	m := newTerminalMux("sh", nil, rec, io.Discard, &fakeRuntime{})
+	defer close(m.done)
+	go m.copyActiveOutput()
+	m.tabs = append(m.tabs, &terminalTab{id: 1, name: "one"})
+	m.active = 0
+
+	m.output <- ptyChunk{id: 1, data: []byte("x\x1b[3")}
+	m.reportError(errors.New("first failure"))
+	m.reportError(errors.New("second failure"))
+	m.paintOwn([]byte("PAINT"))
+	m.drainForTest()
+
+	// Nothing lands while the child is mid-sequence.
+	if strings.Contains(rec.String(), "failure") {
+		t.Fatalf("a diagnostic landed inside the child's escape sequence: %q", rec.String())
+	}
+
+	m.output <- ptyChunk{id: 1, data: []byte("m")}
+	m.drainForTest()
+	got := rec.String()
+	for _, want := range []string{"first failure", "second failure"} {
+		if !strings.Contains(got, want) {
+			t.Fatalf("%q was coalesced away; diagnostics queue, they do not replace: %q", want, got)
+		}
+	}
+
+	// And a takeover drops the owed PAINT but not the diagnostics.
+	m.output <- ptyChunk{id: 1, data: []byte("y\x1b[3")}
+	m.reportError(errors.New("third failure"))
+	m.paintOwn([]byte("DOOMED"))
+	m.drainForTest()
+	m.redrawTab([]byte("replaced"))
+	m.drainForTest()
+
+	got = rec.String()
+	if !strings.Contains(got, "third failure") {
+		t.Fatalf("a takeover swallowed a diagnostic: %q", got)
+	}
+	if strings.Contains(got, "DOOMED") {
+		t.Fatalf("a paint owed against the old screen survived the takeover: %q", got)
 	}
 }
 
@@ -248,14 +304,26 @@ func TestNeitherZellijMethodHandsTheSubprocessThePanesDescriptors(t *testing.T) 
 			// subprocess writes there is a byte on the operator's pane.
 			out, restoreOut := captureFD(t, &os.Stdout)
 			errOut, restoreErr := captureFD(t, &os.Stderr)
+			// POSITIVE CONTROL: prove the capture can SEE a write before
+			// concluding from its silence. Without this, a captureFD that
+			// silently failed would make every arm below pass.
+			fmt.Fprint(os.Stdout, "control-out")
+			fmt.Fprint(os.Stderr, "control-err")
 			_ = tc.run()
 			restoreOut()
 			restoreErr()
-			if n := len(out()); n != 0 {
-				t.Fatalf("%s wrote %d bytes to the pane's stdout", tc.name, n)
+			if !bytes.Contains(out(), []byte("control-out")) {
+				t.Fatal("captureFD did not observe a direct stdout write; the assertions below are vacuous")
 			}
-			if n := len(errOut()); n != 0 {
-				t.Fatalf("%s wrote %d bytes to the pane's stderr", tc.name, n)
+			if !bytes.Contains(errOut(), []byte("control-err")) {
+				t.Fatal("captureFD did not observe a direct stderr write; the assertions below are vacuous")
+			}
+			// Minus the control bytes, the subprocess must have written NOTHING.
+			if got := bytes.ReplaceAll(out(), []byte("control-out"), nil); len(got) != 0 {
+				t.Fatalf("%s wrote %d bytes to the pane's stdout: %q", tc.name, len(got), got)
+			}
+			if got := bytes.ReplaceAll(errOut(), []byte("control-err"), nil); len(got) != 0 {
+				t.Fatalf("%s wrote %d bytes to the pane's stderr: %q", tc.name, len(got), got)
 			}
 		})
 	}
