@@ -3830,3 +3830,35 @@ than the thing the issue was written to remove, shipped inside the fix for it.
 - The same deletion fixed an unrelated-looking defect: the retired producer was
   also the one that had never been swept by the title-format change. Two symptoms
   with one cause read as two findings until you delete the cause.
+
+## 2026-09-08 — A guard you write to close a class needs the same adversarial check as the code it guards
+
+Three review rounds on one milestone. Round 12 closed eight findings; round 13
+raised three, and **all three were about the guards round 12 had written**, not
+about the feature:
+
+- The Core-concepts guard hardcoded `workshop/plans/…`. `sdlc close` *moves*
+  plans to `workshop/history/`, so it would have broken `make test` for the whole
+  repo at the very next gate — and the repo already had a resolver that handles
+  both, in the machinery I had deliberately not copied.
+- The "every budget bullet owes a test" rule was stated and then delivered for
+  one of three bullets. Deleting the other two behaviours left the suite green.
+- The go/ast pass claiming "every mutator announces itself" read one of the
+  package's five source files; the stacked-godoc guard skipped grouped `const`
+  blocks — including the exact file where that milestone had rewritten doc
+  comments.
+
+Rules:
+
+- **Mutation-check the guard, not just the fix.** For a guard, the mutation is
+  "add the thing it is supposed to catch, somewhere it is supposed to look" —
+  a new mutator in a *different file*, a stacked comment in a *grouped*
+  declaration, the artifact in its *archived* location.
+- **When you re-implement rather than reuse, enumerate what the original
+  handled.** "Deliberately not a copy of that machinery" is a reasonable call and
+  it silently drops the cases the original had learned. Read the original for its
+  CASES even when you reject its code.
+- **A budget is a bound on the negative direction.** A suite that asks "did X
+  happen" everywhere and "did X happen when it should not" nowhere cannot see a
+  budget violation. Tests that COUNT are a different shape from tests that
+  ASSERT, and a declared constraint needs the counting kind.

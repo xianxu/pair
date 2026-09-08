@@ -39,6 +39,12 @@ const (
 )
 
 // Reservation is a terminal of Rows rows with one row held at Edge.
+//
+// It answers ChildRows, ReserveAndPaint, Paint and Release. There is no bare
+// `Reserve()`: both consumers assert the region and draw the row together, in
+// that order, because DECSTBM homes the cursor -- so a caller that could reserve
+// WITHOUT painting is a caller that can compose the two in the order that was
+// the bug.
 type Reservation struct {
 	Rows uint16
 	Edge Edge
@@ -90,14 +96,6 @@ func (r Reservation) ChildRows() uint16 {
 	return r.Rows - 1
 }
 
-// Reserve pins the scrolling region above the reserved row.
-func (r Reservation) Reserve() string {
-	if !r.usable() {
-		return ""
-	}
-	return SetRegion(1, int(r.Rows)-1)
-}
-
 // Release resets the region. Written on teardown, or a child that set margins
 // and died would leave the operator's shell scrolling inside a box.
 func (r Reservation) Release() string { return ResetRegion }
@@ -118,18 +116,23 @@ func (r Reservation) ReserveAndPaint(text string) string {
 	if !r.usable() {
 		return ""
 	}
-	return SaveCursor +
-		SetRegion(1, int(r.Rows)-1) +
-		MoveTo(int(r.Rows), 1) +
-		// Reset BEFORE the erase: ClearLine paints with the CURRENT background,
-		// so without this the row is erased in the child's colour and the text
-		// drawn in its foreground. RestoreCursor (DECRC) puts the child's
-		// attributes back afterwards, so this costs the child nothing.
-		ResetSGR +
-		ClearLine +
-		text +
-		ResetSGR +
-		RestoreCursor
+	return SaveCursor + SetRegion(1, int(r.Rows)-1) + r.drawRow(text) + RestoreCursor
+}
+
+// drawRow is the shared tail of both painters: position, reset, erase, draw,
+// reset. ONE spelling, so the two differ only in what they say they differ in --
+// whether the region is re-asserted first.
+//
+// They were two copies of these five sequences, and the test comparing them
+// checked only that the region substring was present, so a change to one (a
+// different erase, a hide-cursor) would not have reached the other.
+//
+// Reset BEFORE the erase: ClearLine paints with the CURRENT background, so
+// without this the row is erased in the child's colour and the text drawn in its
+// foreground. RestoreCursor (DECRC) puts the child's attributes back afterwards,
+// so this costs the child nothing.
+func (r Reservation) drawRow(text string) string {
+	return MoveTo(int(r.Rows), 1) + ResetSGR + ClearLine + text + ResetSGR
 }
 
 // Paint draws the reserved row without disturbing the child.
@@ -148,11 +151,5 @@ func (r Reservation) Paint(text string) string {
 	if !r.usable() {
 		return ""
 	}
-	return SaveCursor +
-		MoveTo(int(r.Rows), 1) +
-		ResetSGR +
-		ClearLine +
-		text +
-		ResetSGR +
-		RestoreCursor
+	return SaveCursor + r.drawRow(text) + RestoreCursor
 }

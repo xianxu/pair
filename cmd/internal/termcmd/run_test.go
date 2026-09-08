@@ -701,7 +701,7 @@ func TestTerminalMuxChildStopsOneRowShortOfThePane(t *testing.T) {
 			t.Fatalf("rows=%d: child got %d; a pane with no room to reserve keeps it all",
 				rows, got.Rows)
 		}
-		if res := short.reservationLocked(); res.Reserve() != "" {
+		if res := short.reservationLocked(); res.ReserveAndPaint("x") != "" {
 			t.Fatalf("rows=%d: reserved a row on a pane with no room", rows)
 		}
 	}

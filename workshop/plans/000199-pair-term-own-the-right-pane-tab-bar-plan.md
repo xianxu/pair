@@ -217,6 +217,16 @@ stdout, and a third title matcher that disagrees with the other two.
 
 ### Pure entities
 
+**What this table is checked against, and what it is not.**
+`TestEveryCoreConceptRowNamesASymbolThatExists` reads every row below and fails
+when a declared symbol is not DEFINED at its declared path. That is the
+table→code direction only. Nothing checks code→table — a new exported symbol in
+a shared package can be added with no row here, which is how
+`TitleIdentifiesRightTerminal` was nearly left out. The machinery for the other
+direction exists (`couchtty`'s `conceptInventory`) but is scoped to one package;
+widening it fleet-wide is `#188`. Stated rather than left as an unchecked claim
+of completeness.
+
 | Name | Lives in | Status |
 |------|----------|--------|
 | `rowtext.Sanitize` / `rowtext.Fit` / `SanitizeAndFit` | `cmd/internal/rowtext/rowtext.go` | new — pulled forward to M2 |
@@ -232,6 +242,7 @@ stdout, and a third title matcher that disagrees with the other two.
 | `ReserveAndPaint` | `cmd/internal/hostty/reserve.go` | new |
 | `ResetSGR` | `cmd/internal/hostty/control.go` | new — the control constants live here, not with the reservation |
 | `Screen.HoldsCursorSave` | `cmd/internal/ptychild/screen.go` | new |
+| `TitleIdentifiesRightTerminal` | `cmd/internal/workbenchshortcut/shortcut.go` | new — the ONE title predicate, asked by both consumers and by the producer |
 | `renamePaneTitleLocked` | `cmd/internal/termcmd/run.go` | deleted — the rename field moved to the strip (M3) |
 | `couchtty.ChildRows` / `Reserve` / `Release` / `PaintRow` | `cmd/internal/couchtty/reserve.go` | deleted |
 | `couchtty.RenderStatusRow` (+ `StatusModel`, `ChipSpan`) | `cmd/internal/couchtty/reserve.go` | modified — body now calls `rowtext` (M2) |
@@ -1194,3 +1205,47 @@ siblings; the superseded godoc sentences REWRITTEN rather than corrected below,
 with `TestNoDeclarationCarriesTwoStackedGodocs` as the class guard the review
 asked for (a doc comment that opens with its declaration's name twice has been
 restarted).
+
+### 2026-09-08 — M3 boundary re-review (round 13): the guards themselves were under-delivering
+
+Eight more findings disposed; three raised, and all three were about **the class
+fixes written in round 12**, not about the feature. Worth recording as its own
+lesson: a guard is code, and "I added a guard for that class" is a claim that
+needs the same adversarial check as any other.
+
+1. **BR-61 — the Core-concepts guard hardcoded the ACTIVE plan path.** `sdlc
+   close` MOVES plans to `workshop/history/plans/`, so `make test` would have
+   broken for the whole repo at M4.5 — the very next gate. The repo had already
+   solved this in `couchtty`'s contract (`findConceptPlans` looks in
+   `workshop/plans`, then walks `workshop/history`); re-implementing the guard
+   without re-implementing the resolution is how the case got dropped. Both
+   plan-reading guards now share one `resolvePlan`, and the archived case is
+   verified by moving the plan and re-running.
+
+2. **BR-62 — the budget was still a sentence for two of its three entries.**
+   Round 12 stated the rule ("every budget bullet owes a test that trips when it
+   is exceeded") and delivered only the background-tab entry. Measured by the
+   review: making EVERY active chunk paint was green; deleting the resize
+   repaint was green; dropping teardown's region release was green.
+   `TestTheDeclaredPaintBudgetHoldsPerEvent` now enumerates them, and each row
+   was checked by deleting the behaviour it pins. The shape that was missing is
+   worth naming: the suite asked "did a repaint happen" nearly everywhere, and a
+   BUDGET is a bound on the other direction — it needs tests that COUNT.
+
+3. **BR-63 — both new structural guards checked less than they claimed.** The
+   go/ast mutator pass read `run.go` alone, one of five non-test files in the
+   package; the stacked-godoc guard returned nothing for a `GenDecl` with more
+   than one spec, so `hostty/control.go`'s single grouped `const (…)` block —
+   the file where this milestone rewrote two doc comments — was entirely unread
+   by the guard written for that exact class. Both now cover what they say, and
+   both were mutation-checked against the case they had been missing.
+
+**Minors:** `Reservation.Reserve()` is DELETED (zero production callers, and a
+caller able to reserve without painting is a caller able to compose them in the
+order that was the original bug); `Paint` and `ReserveAndPaint` now share
+`drawRow`, with a test asserting one is the other plus the region rather than
+merely containing it; `RenameEditor.Field`'s doc no longer justifies itself by a
+second surface that this milestone deleted; `TitleIdentifiesRightTerminal` gains
+a Core-concepts row and an atlas mention; and the table now STATES that it is
+checked table→code only, with the missing direction attributed to `#188` rather
+than left as an unstated claim of completeness.

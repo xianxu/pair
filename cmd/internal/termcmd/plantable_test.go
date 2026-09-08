@@ -1,6 +1,7 @@
 package termcmd
 
 import (
+	"fmt"
 	"go/ast"
 	"go/parser"
 	"go/token"
@@ -10,6 +11,34 @@ import (
 	"strings"
 	"testing"
 )
+
+// resolvePlan finds a plan whether it is ACTIVE or ARCHIVED.
+//
+// Every guard that reads a plan file needs this, and the reason is a dated
+// hazard rather than a nicety: `sdlc close` MOVES plans to
+// `workshop/history/plans/` (39 are there already), so a guard that names the
+// active path hard-fails `make test` for the whole repo at the next close --
+// including the close of the very issue whose plan it reads. This repo already
+// solved it once, in `couchtty/core_concepts_contract_test.go`; re-implementing
+// the guard without re-implementing the resolution is how the case got dropped
+// (BR-61).
+func resolvePlan(root, name string) (string, error) {
+	active := filepath.Join(root, "workshop", "plans", name)
+	if _, err := os.Stat(active); err == nil {
+		return active, nil
+	}
+	var archived string
+	_ = filepath.WalkDir(filepath.Join(root, "workshop", "history"), func(path string, d os.DirEntry, err error) error {
+		if err == nil && !d.IsDir() && d.Name() == name {
+			archived = path
+		}
+		return nil
+	})
+	if archived == "" {
+		return "", fmt.Errorf("plan %s is in neither workshop/plans nor workshop/history", name)
+	}
+	return archived, nil
+}
 
 // goIdentifier is what a Go symbol can look like; anything else in a backtick is
 // prose, an escape sequence, or a zellij action name.
@@ -90,10 +119,13 @@ func TestNoPlannedRowSurvivesItsTickedMilestone(t *testing.T) {
 		}
 		// The plan sits beside the issue, same stem plus -plan.
 		stem := strings.TrimSuffix(filepath.Base(issue), ".md")
-		plan := filepath.Join(root, "workshop", "plans", stem+"-plan.md")
-		planRaw, err := os.ReadFile(plan)
+		plan, err := resolvePlan(root, stem+"-plan.md")
 		if err != nil {
 			continue // simple work has no durable plan; that is allowed
+		}
+		planRaw, err := os.ReadFile(plan)
+		if err != nil {
+			continue
 		}
 		checked++
 		for _, m := range done {
@@ -128,8 +160,10 @@ func TestNoPlannedRowSurvivesItsTickedMilestone(t *testing.T) {
 // mistake BR-52 was about.
 func TestEveryCoreConceptRowNamesASymbolThatExists(t *testing.T) {
 	root := filepath.Join("..", "..", "..")
-	plan := filepath.Join(root, "workshop", "plans",
-		"000199-pair-term-own-the-right-pane-tab-bar-plan.md")
+	plan, err := resolvePlan(root, "000199-pair-term-own-the-right-pane-tab-bar-plan.md")
+	if err != nil {
+		t.Fatal(err)
+	}
 	raw, err := os.ReadFile(plan)
 	if err != nil {
 		t.Fatal(err)

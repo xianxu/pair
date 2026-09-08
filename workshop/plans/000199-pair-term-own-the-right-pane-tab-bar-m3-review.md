@@ -561,3 +561,202 @@ findings:
       a struct field with no reader is the same shape as the "field set at zero call sites" the
       claimed-fix check exists to catch.
 ```
+
+---
+
+## Re-review — 2026-09-08T14:26:24-07:00 (FIX-THEN-SHIP)
+
+| field | value |
+|-------|-------|
+| issue | 199 — pair term: own the right pane tab bar |
+| repo | pair |
+| issue file | workshop/issues/000199-pair-term-own-the-right-pane-tab-bar.md |
+| boundary | milestone M3 |
+| milestone | M3 |
+| window | 244a72a5594155bfda2d980f0e84c591648a76a8..07f8160c107f8f9aff828181bb05f59c5c94c65d |
+| command | sdlc milestone-close --issue 199 --milestone M3 |
+| reviewer | claude |
+| timestamp | 2026-09-08T14:26:24-07:00 |
+| verdict | FIX-THEN-SHIP |
+
+## Review
+
+```verdict
+verdict: FIX-THEN-SHIP
+confidence: high
+```
+
+M3 delivers the strip, and the round-13 fixes hold up under adversarial checking: I reverted BR-56, BR-57 and BR-59 in a compiler overlay and each turned its test red, so those are genuinely pinned rather than plausibly-fixed. `make test` is green apart from the documented pty/fork-exec sandbox class (`TestTerminalMuxNewTab*`, `stripmutation` `newTab`, `ptychild/child_test.go`, `hostty` OS-host conformance), and `-race` is clean. No Critical: I found no correctness defect in the strip renderer, the two-condition gate, the debt machinery or the degraded title. What blocks a clean SHIP is three things the round's *class* fixes stopped short of — a guard that hard-fails the whole suite the moment this plan is archived at close, and two enumerations (the ARCH-CONSTRAINTS budget, the ARCH-ORDER transitions) where I measured that deleting a live behaviour leaves the suite green.
+
+**1. Strengths**
+
+- `hostty/reserve.go:117` `ReserveAndPaint` fixes the DECSTBM-homes-the-cursor bug at the *shared* primitive, and `TestSaveComesBeforeTheRegionChangeThatHomesTheCursor` asserts the **order** rather than the presence of the bytes — the only assertion shape that could have caught it. Folding `ResetSGR` into `HomeAndClear` (`control.go:41`) rather than asking two callers to remember it is the right altitude.
+- `ptychild/screen.go:161` `HoldsCursorSave` is one bit, not a stack, with the alt-screen/RIS abandonment cases tested. I additionally checked a case the suite does not: `\x1b` at the end of one chunk and `7` at the start of the next is still observed as a save — the framer handles it, so the gate does not go blind on a pty read boundary.
+- `strip_test.go:301` `TestEveryPaneTitleProducerSatisfiesEveryConsumer` generating its producer axis over the predicate's *boundary cases* is the fix that actually retires BR-48/BR-56. Mutation-verified: restoring `HasPrefix(name, "terminal")` fails on `terminals`, `terminal-2` and `terminalwork` against **both** consumers.
+- `stripmutation_test.go:299` `TestOnlyTheActiveTabsOutputDirtiesTheRow` asserts the region is *not* re-asserted as well as that no row was drawn — a spurious repaint stamps on the active child's margins, and the test says so. Mutation-verified red.
+- `probes/zellijprobe` makes "a probe can only delete a session it created" structural (`Start` names it, `Close` deletes that name), and `cmd/probes/couchnestedrows:396` independently honours the same property with a pid-derived name and a temp `PAIR_DATA_DIR`.
+
+**2. Critical findings** — none.
+
+**3. Important findings**
+
+- **`cmd/internal/termcmd/plantable_test.go:133`** — `TestEveryCoreConceptRowNamesASymbolThatExists` hardcodes `workshop/plans/000199-…-plan.md` and `t.Fatal(err)`s if it cannot read it. `sdlc close` archives plans to `workshop/history/plans/` (39 already there), so `make test` breaks for the whole repo at M4.5, the very next gate. The repo already resolves this — `couchtty/core_concepts_contract_test.go:272` `findConceptPlans` looks in `workshop/plans` then walks `workshop/history`. 2nd in `moved-surface-drops-a-case`: the new guard is a deliberate re-implementation ("NOT a copy of that machinery") that dropped a case the original had. The rule, not the path: one shared plan resolver, or every artifact-reading guard states active-or-archived.
+- **`cmd/internal/termcmd/run.go:863` and `run.go:1387`** — 6th in `envelope-claim-unenforced`. BR-57's rule ("every budget bullet is an enumeration, and each entry owes a test that trips when it is exceeded") was stated but only the background-tab entry was delivered. Measured, both with the whole `termcmd` suite: changing `if chunk.rowDirty` to `if true` — a repaint on **every** active-tab output chunk, the literal violation of ARCH-CONSTRAINTS bullet 1 — is green; deleting `m.paintStripInline()` from `inheritSize` — the ARCH-ORDER row "host resize → re-`Reserve`, re-`Paint`" — is green. (For the enumeration's sake: replacing `restoreTerminal`'s `ResetRegion` write, ARCH-ORDER's "`Release` on every exit path", is green too; that one predates the window.) The bound is a *count over a stream*, and no test counts one.
+- **`cmd/internal/termcmd/stripmutation_test.go:199` and `doccomment_test.go:86`** — 5th in `acceptance-command-does-not-hold`. Two guards written this round to close classes both check less than they claim. `parser.ParseFile(fset, "run.go", …)` enforces "every mutator announces itself" over one of the package's five non-test files. `declDoc` returns nothing when a `GenDecl` has more than one Spec, so `hostty/control.go:19-80` — a single grouped `const (…)` block, and the file where M3 rewrote `ResetSGR` and `HomeAndClear`'s doc comments — is entirely unread by the guard written for that exact class.
+
+**4. Minor findings**
+
+- `cmd/internal/termcmd/rename.go:64` — `Field`'s doc justifies itself by "there are now two surfaces … the tab strip and the degraded pane title"; the title's copy was deleted in this same window and `Field()` has one production caller (`run.go:1441`).
+- `cmd/internal/hostty/reserve.go:117,147` — `ReserveAndPaint` and `Paint` duplicate the save/move/reset/clear/text/reset/restore body; `TestReserveAndPaintAgreesWithItsParts` only checks the region substring, so a change to one will not propagate. `Reservation.Reserve()` now has zero production callers.
+- `cmd/internal/workbenchshortcut/shortcut.go:198` — `TitleIdentifiesRightTerminal` is new exported surface in a shared package with no Core-concepts row and no atlas mention; nothing checks the code→table direction.
+
+**5. Test coverage notes**
+
+Behavioural coverage of the new strip is strong where it was attacked (rename steps, detached field, narrow-width priority, gate deferral, takeover, row-dirty debt, supersession) and I confirmed four of them fail on revert. The gap is uniformly on the *negative* side: the suite asks "did a repaint happen" almost everywhere and "did one happen that should not have" in exactly one place. The two green mutations in Important 2 are both negative assertions nothing makes. Separately, `TestEveryStripModelMutationRepaintsTheRow/newTab` is the only case in the new table that needs a real pty, so in a sandboxed run that row measures nothing — the hard-fail is the right call, but it means the `newTab` repaint is unverified wherever fork/exec is denied.
+
+**6. Architectural notes**
+
+- ARCH-DRY — flag (Minor, `reserve.go:117/147`). Otherwise good: `rowtext` is the one row-safety strip, `TitleIdentifiesRightTerminal` is the one title predicate, `zellijprobe` retired 196 duplicated lines.
+- ARCH-PURE — pass. `RenderStrip` is a pure `(width, model) → (row, spans)` tested with hand-built models; `stripBytes`/`paintStrip*` are the thin seam.
+- ARCH-PURPOSE — pass for M3. The deletion of `renamePaneTitleLocked` is the class fix, not the instance, and M4 (the frame coming off) is still the declared deliverable rather than a follow-up.
+- ARCH-MOCK — pass. zellij behind `Runtime`, the tty behind `writerRecorder`; `couchnestedrows` and `termsmoke` are the live conformance checks, and `termsmoke`'s `40 100 → 39 100` edit is that conformance actually catching the change.
+- ARCH-CONSTRAINTS — flag (Important 2). The declared keystroke-path budget is not enforced.
+- ARCH-SECURE — pass. Operator text reaches the row only through `rowtext`; diagnostics sanitize at the single egress; the probe's session deletion can no longer touch a session it did not create.
+- ARCH-ORDER — flag (Important 2, resize row). The state carried between events is small and lives on one goroutine; `-race` is clean. The pre-existing single-interleaving weakness in `TestPaintDefersMidSequenceAndIsOwed` is BR-9, still open.
+
+**7. Plan revision recommendations**
+
+- A `## Revisions` entry recording that the ARCH-CONSTRAINTS budget block and the ARCH-ORDER transition table are now **enumerations with an owed test each**, naming which entries have one (subprocess budget, single-writer, row-dirty trigger, defer-and-owe) and which do not (paint frequency per chunk, resize, release-on-exit) — so the gap is a tracked list rather than a prose claim.
+- The Core concepts table needs no row edits (the new guard passes), but it is missing `unsafeToPaint`, `maxOwedDiag` and `workbenchshortcut.TitleIdentifiesRightTerminal`; add them or record in the same Revisions entry that code→table completeness is pair#188's.
+
+```findings
+dispose:
+  - id: BR-8
+    disposition: not-addressed
+    note: |
+      M4.3 still has no Alt+Shift+d step; the plan's own revision defers it to M4.
+  - id: BR-9
+    disposition: not-addressed
+    note: |
+      writer_test.go:117 still splits one hand-chosen sequence at one index.
+  - id: BR-53
+    disposition: addressed
+    note: |
+      Three sites rewritten and TestNoDeclarationCarriesTwoStackedGodocs added; its scope is Important 3.
+  - id: BR-56
+    disposition: addressed
+    note: |
+      Mutation-verified: restoring HasPrefix(name,"terminal") fails on terminals/terminal-2/terminalwork for both consumers.
+  - id: BR-57
+    disposition: addressed
+    note: |
+      Instance fixed and mutation-verified; the rule it stated is only half delivered, raised anew below.
+  - id: BR-58
+    disposition: addressed
+    note: |
+      Row corrected to control.go and the guard checks a DEFINITION, not a mention.
+  - id: BR-59
+    disposition: addressed
+    note: |
+      Mutation-verified: forcing detached=false reddens TestARenameWhoseTabExitedStaysOnTheRow and a stripRepaintCase.
+  - id: BR-60
+    disposition: addressed
+    note: |
+      needsPty and both blank vars are gone; no `var _` remains in the package's tests.
+findings:
+  - id: new
+    severity: Important
+    family: moved-surface-drops-a-case
+    title: |
+      The Core-concepts guard hardcodes the ACTIVE plan path, so make test breaks the moment this plan is archived
+    detail: |
+      plantable_test.go:133 reads workshop/plans/000199-...-plan.md and t.Fatal(err)s on failure.
+      sdlc close archives plans to workshop/history/plans/ (39 are already there), so the whole
+      repo's suite goes red at M4.5, the next gate. This is the 2nd finding in family
+      moved-surface-drops-a-case, so state the rule rather than editing the path: the repo
+      ALREADY resolves a plan active-or-archived (couchtty/core_concepts_contract_test.go:272,
+      findConceptPlans walks workshop/history when workshop/plans misses), and this guard is a
+      deliberate re-implementation that dropped that case. THE RULE - a guard that reads a
+      workshop artifact resolves it through one shared active-or-archived resolver; a guard that
+      hardcodes a path under workshop/plans is asserting the issue will never close.
+  - id: new
+    severity: Important
+    family: envelope-claim-unenforced
+    title: |
+      The paint-frequency budget and the resize transition still have no test that trips when exceeded
+    detail: |
+      This is the 6th finding in family envelope-claim-unenforced. BR-57 stated the rule -- every
+      budget bullet is an enumeration and each entry owes a test that trips when exceeded -- and
+      the round delivered the test for exactly the entry the finding named. Measured against the
+      full termcmd suite with a compiler overlay - (a) run.go:863, changing `if chunk.rowDirty` to
+      `if true`, i.e. a repaint on EVERY active-tab output chunk, which is the literal violation of
+      ARCH-CONSTRAINTS bullet 1 ("a repaint happens on tab change, resize, and batch.RowDirty; NOT
+      per output chunk"), leaves the suite green; (b) deleting m.paintStripInline() from
+      inheritSize (run.go:1387), the ARCH-ORDER row "host resize -> re-Reserve, re-Paint", also
+      green -- after which a resized pane keeps a scroll region computed from the OLD row count.
+      For the enumeration's sake, replacing restoreTerminal's ResetRegion write (ARCH-ORDER's
+      "Release on every exit path", pre-dating this window) is green too. THE RULE - write the
+      enumeration itself as a table in the test file, one row per ARCH-CONSTRAINTS bullet and per
+      ARCH-ORDER transition, each owning an assertion that fails when its bound is exceeded. The
+      paint bound is a COUNT over a scripted chunk stream, not a boolean "did a paint happen":
+      TestOnlyTheActiveTabsOutputDirtiesTheRow is the only test in the package that asks the
+      negative question, and it asks it about one chunk.
+  - id: new
+    severity: Important
+    family: acceptance-command-does-not-hold
+    title: |
+      Both new structural guards check less than they claim - one file of five, and no grouped declaration
+    detail: |
+      This is the 5th finding in family acceptance-command-does-not-hold, so state the rule rather
+      than widening two globs. stripmutation_test.go:199 does parser.ParseFile(fset, "run.go", nil, 0)
+      while its own doc says it "is what makes a method added later announce itself" -- the package
+      has five non-test .go files, and a terminalMux method added in strip.go, rename.go or a new
+      file assigns m.tabs/m.active/m.rename invisibly. doccomment_test.go:86 returns no name for a
+      GenDecl with more than one Spec, so cmd/internal/hostty/control.go:19-80 -- ONE grouped
+      const block, and the file where M3 rewrote ResetSGR's and HomeAndClear's doc comments -- is
+      not inspected at all by the guard written for exactly that class; its `checked == 0` floor
+      still passes because the file's two funcs are counted. The plan's own 2026-09-07 revision
+      already records this shape ("it read run.go only, while M3 adds strip.go to the same
+      package") as one of three gaps that made M2's scan insufficient. THE RULE - a structural
+      guard enumerates the package's non-test files and descends into grouped declarations, or its
+      doc names the narrower scope it actually has, so nobody reads it as covering the class.
+  - id: new
+    severity: Minor
+    family: doc-states-planned-as-current
+    title: |
+      RenameEditor.Field's doc justifies itself by two surfaces; the second was deleted in the same window
+    detail: |
+      rename.go:64 says "One function, because there are now two surfaces -- the tab strip and the
+      degraded pane title -- and a caret drawn two ways is a caret that disagrees with itself".
+      renamePaneTitleLocked is gone and Field() has exactly one production caller (run.go:1441).
+      3rd in family doc-states-planned-as-current. The rule cannot be mechanised the way the
+      stacked-godoc one was -- TestNoDeclarationCarriesTwoStackedGodocs catches a doc RESTARTED,
+      not a single opener whose stated fact died -- so record the prevalence instead: when a
+      commit deletes a producer, every doc that cited it as a live reason is part of that commit.
+  - id: new
+    severity: Minor
+    family: copy-instead-of-extract
+    title: |
+      ReserveAndPaint copies Paint's body rather than composing it, and Reserve() now has no production caller
+    detail: |
+      2nd in family copy-instead-of-extract. reserve.go:117 and :147 differ only by the SetRegion
+      insertion; TestReserveAndPaintAgreesWithItsParts checks only that the region substring is
+      present, so a change to Paint (a hide-cursor, a different erase) silently will not reach
+      ReserveAndPaint. THE RULE - extract the shared tail (MoveTo + ResetSGR + ClearLine + text +
+      ResetSGR) and let both spell only what differs. Separately, Reservation.Reserve() has zero
+      production callers now that couch and termcmd both use ReserveAndPaint.
+  - id: new
+    severity: Minor
+    family: plan-table-drift
+    title: |
+      A new exported symbol in a shared package has no Core-concepts row, and nothing checks that direction
+    detail: |
+      This is the 8th finding in family plan-table-drift. workbenchshortcut.TitleIdentifiesRightTerminal
+      (shortcut.go:198) is new exported surface in a package two other components consume, with no
+      row in the plan's table and no mention in atlas/architecture.md's paragraph about the
+      predicate. The round-12 fix built the table->code direction
+      (TestEveryCoreConceptRowNamesASymbolThatExists); nothing checks code->table. THE RULE - the
+      table needs both directions, the machinery exists (couchtty's conceptInventory), and it is
+      scoped to one package; widening it is pair#188. Until then, say so in the plan rather than
+      leaving the table's completeness as an unstated claim.
+```

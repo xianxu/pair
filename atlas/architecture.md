@@ -579,6 +579,14 @@ table. `launcher.ClassifyLiveLayout` asks `workbenchshortcut.RoleForPane`
 instead of restating the predicate, which is what let its title-only arm go
 dead unnoticed: the shipped caller passes `--command`, so the fallback masked it.
 
+The predicate itself is `workbenchshortcut.TitleIdentifiesRightTerminal`, and
+**the producer asks it too**. That is the part that took two rounds to get
+right: making the consumers agree while `paneTitleLocked` still decided "does
+this name already classify?" with its own `HasPrefix(name, "terminal")` left a
+tab renamed `terminals` producing a title that classifies as `PaneRoleOther` —
+the exact failure the prefix exists to prevent, delivered by the code preventing
+it. One predicate, three askers.
+
 The general lesson, and it generalises past this feature: **a feature drawing on
 another component's chrome has a dependency it never declared.** If you own the
 row, draw on the row.

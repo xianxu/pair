@@ -18,8 +18,8 @@ func TestBottomReservationKeepsTheChildOffTheRow(t *testing.T) {
 	if got := r.ChildRows(); got != 23 {
 		t.Fatalf("ChildRows = %d; want 23", got)
 	}
-	if got := r.Reserve(); got != "\x1b[1;23r" {
-		t.Fatalf("Reserve = %q; want the region to stop at row 23", got)
+	if got := r.ReserveAndPaint("x"); !strings.Contains(got, "\x1b[1;23r") {
+		t.Fatalf("ReserveAndPaint = %q; want the region to stop at row 23", got)
 	}
 }
 
@@ -32,7 +32,7 @@ func TestDegenerateHeightsNeverProduceAZeroRowChild(t *testing.T) {
 		if r.ChildRows() == 0 {
 			t.Fatalf("rows=%d produced a zero-row child", rows)
 		}
-		if r.Reserve() != "" {
+		if r.ReserveAndPaint("x") != "" {
 			t.Fatalf("rows=%d reserved from a terminal with no room", rows)
 		}
 	}
@@ -56,8 +56,8 @@ func TestTopEdgeIsRefusedUntilOriginModeExists(t *testing.T) {
 // silently corrupted screen, where no region is merely no strip.
 func TestAnUnvalidatedTopEdgeFailsClosed(t *testing.T) {
 	r := hostty.Reservation{Rows: 24, Edge: hostty.EdgeTop}
-	if got := r.Reserve(); got != "" {
-		t.Fatalf("Reserve on an unsupported edge = %q; want no region at all", got)
+	if got := r.ReserveAndPaint("x"); got != "" {
+		t.Fatalf("ReserveAndPaint on an unsupported edge = %q; want no region at all", got)
 	}
 	if got := r.ChildRows(); got != 24 {
 		t.Fatalf("ChildRows = %d; an unreserved terminal gives the child all %d", got, 24)
@@ -108,7 +108,7 @@ func TestNewReservationRefusesATerminalWithNoRoom(t *testing.T) {
 func TestNothingIsPaintedOnARowThatWasNeverReserved(t *testing.T) {
 	for _, rows := range []uint16{0, 1} {
 		r := hostty.Reservation{Rows: rows, Edge: hostty.EdgeBottom}
-		if r.Reserve() != "" {
+		if r.ReserveAndPaint("x") != "" {
 			t.Fatalf("rows=%d: reserved a row on a terminal with no room", rows)
 		}
 		if got := r.Paint("x"); got != "" {
@@ -152,13 +152,20 @@ func TestSaveComesBeforeTheRegionChangeThatHomesTheCursor(t *testing.T) {
 	}
 }
 
-// The composed form must agree with the pieces, or a caller mixing them gets a
-// different region than the one the reservation describes.
-func TestReserveAndPaintAgreesWithItsParts(t *testing.T) {
+// The two painters must differ in EXACTLY one thing: whether the region is
+// re-asserted first. They were two copies of the same five sequences, and this
+// test checked only that the region substring was present -- so a change to one
+// (a different erase, a hide-cursor) would not have propagated (BR-64). Now they
+// share drawRow, and this pins that they still do.
+func TestReserveAndPaintIsPaintPlusTheRegion(t *testing.T) {
 	r := hostty.Reservation{Rows: 24, Edge: hostty.EdgeBottom}
 	both := r.ReserveAndPaint("x")
-	if !strings.Contains(both, r.Reserve()) {
-		t.Fatalf("composed form does not contain Reserve()'s region: %q", both)
+	paint := r.Paint("x")
+	want := hostty.SaveCursor + hostty.SetRegion(1, 23) +
+		strings.TrimPrefix(paint, hostty.SaveCursor)
+	if both != want {
+		t.Fatalf("ReserveAndPaint = %q, want Paint with the region spliced in after "+
+			"the save: %q", both, want)
 	}
 	for _, rows := range []uint16{0, 1} {
 		degenerate := hostty.Reservation{Rows: rows, Edge: hostty.EdgeBottom}

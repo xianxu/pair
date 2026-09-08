@@ -45,16 +45,14 @@ func TestNoDeclarationCarriesTwoStackedGodocs(t *testing.T) {
 				t.Fatalf("parse %s: %v", path, err)
 			}
 			for _, decl := range file.Decls {
-				name, doc := declDoc(decl)
-				if name == "" || doc == nil {
-					continue
-				}
-				checked++
-				if n := countOpeners(doc, name); n > 1 {
-					t.Errorf("%s: %s's doc comment opens %d times — a superseded paragraph was "+
-						"left above its replacement, so godoc prints both. Rewrite the sentence "+
-						"that is now wrong; do not append a correction below it.",
-						fset.Position(doc.Pos()), name, n)
+				for _, d := range documented(decl) {
+					checked++
+					if n := countOpeners(d.doc, d.name); n > 1 {
+						t.Errorf("%s: %s's doc comment opens %d times — a superseded paragraph was "+
+							"left above its replacement, so godoc prints both. Rewrite the sentence "+
+							"that is now wrong; do not append a correction below it.",
+							fset.Position(d.doc.Pos()), d.name, n)
+					}
 				}
 			}
 		}
@@ -78,22 +76,52 @@ func countOpeners(doc *ast.CommentGroup, name string) int {
 	return n
 }
 
-func declDoc(decl ast.Decl) (string, *ast.CommentGroup) {
+// documented is every (name, doc comment) pair a declaration carries.
+//
+// GROUPED declarations count, and that is the whole point of this shape. The
+// first version returned nothing when a GenDecl had more than one Spec, which
+// silently excluded `hostty/control.go`'s single `const (…)` block -- the file
+// where this very milestone rewrote two doc comments, and therefore the most
+// likely place for the defect the guard is named after.
+func documented(decl ast.Decl) []struct {
+	name string
+	doc  *ast.CommentGroup
+} {
+	type pair = struct {
+		name string
+		doc  *ast.CommentGroup
+	}
+	var out []pair
 	switch d := decl.(type) {
 	case *ast.FuncDecl:
-		return d.Name.Name, d.Doc
-	case *ast.GenDecl:
-		if len(d.Specs) != 1 {
-			return "", nil
+		if d.Doc != nil {
+			out = append(out, pair{d.Name.Name, d.Doc})
 		}
-		switch sp := d.Specs[0].(type) {
-		case *ast.TypeSpec:
-			return sp.Name.Name, d.Doc
-		case *ast.ValueSpec:
-			if len(sp.Names) == 1 {
-				return sp.Names[0].Name, d.Doc
+	case *ast.GenDecl:
+		for _, spec := range d.Specs {
+			var name string
+			var doc *ast.CommentGroup
+			switch sp := spec.(type) {
+			case *ast.TypeSpec:
+				name, doc = sp.Name.Name, sp.Doc
+			case *ast.ValueSpec:
+				if len(sp.Names) == 0 {
+					continue
+				}
+				name, doc = sp.Names[0].Name, sp.Doc
+			default:
+				continue
+			}
+			// An ungrouped declaration carries its doc on the GenDecl, a
+			// grouped one on each Spec. Both reach a reader as that
+			// declaration's godoc, so both are checked.
+			if doc == nil && len(d.Specs) == 1 {
+				doc = d.Doc
+			}
+			if doc != nil {
+				out = append(out, pair{name, doc})
 			}
 		}
 	}
-	return "", nil
+	return out
 }

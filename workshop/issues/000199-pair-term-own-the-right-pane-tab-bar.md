@@ -191,6 +191,40 @@ Four milestones, each its own review boundary — detail in
 
 ## Log
 
+- 2026-09-08 **M3 boundary re-review (round 13): the guards themselves were
+  under-delivering.** Eight more disposed, three raised — and all three were
+  about the CLASS FIXES written in round 12 rather than the feature. That is the
+  lesson of the round: a guard is code, and "I added a guard for that class" is a
+  claim needing the same adversarial check as any other.
+
+  **BR-61** — the Core-concepts guard hardcoded the ACTIVE plan path, and `sdlc
+  close` MOVES plans to `workshop/history/plans/`. It would have broken `make
+  test` for the whole repo at M4.5, the very next gate. The repo had already
+  solved this in couchtty's contract; re-implementing the guard without
+  re-implementing the resolution is how the case was dropped. One shared
+  `resolvePlan` now, verified by actually moving the plan to history and
+  re-running.
+
+  **BR-62** — round 12 stated the rule "every budget bullet owes a test that
+  trips when exceeded" and delivered one of three. The review measured the other
+  two green: painting on EVERY active chunk, and deleting the resize repaint,
+  both left the suite passing. The missing shape is the point — the suite asked
+  "did a repaint happen" nearly everywhere, and a budget is a bound on the other
+  direction, so it needs tests that COUNT. All three now go red when deleted.
+
+  **BR-63** — both round-12 guards checked less than they claimed: the go/ast
+  mutator pass read `run.go` alone (one of five non-test files), and the
+  stacked-godoc guard skipped grouped declarations, so `hostty/control.go`'s
+  single `const (…)` block — the file where this milestone rewrote two doc
+  comments — was unread by the guard written for that class.
+
+  Minors: `Reservation.Reserve()` deleted (zero production callers, and a caller
+  able to reserve without painting can compose them in the order that was the
+  original bug); `Paint`/`ReserveAndPaint` share one `drawRow`; `Field`'s doc no
+  longer cites a second surface this milestone deleted; the predicate gains a
+  table row and an atlas mention; and the table now states it is checked
+  table→code only, attributing the other direction to `#188`.
+
 - 2026-09-08 **M3 boundary re-review (round 12): thirteen disposed, three
   raised — and all three were the same mistake.** Each was a fix that stopped
   one level short of the class it claimed, which is worth naming because the

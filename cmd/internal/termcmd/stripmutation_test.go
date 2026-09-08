@@ -4,6 +4,7 @@ import (
 	"go/ast"
 	"go/parser"
 	"go/token"
+	"path/filepath"
 	"strings"
 	"testing"
 
@@ -195,10 +196,31 @@ func TestEveryStripModelMutatorHasARepaintCase(t *testing.T) {
 		covered[c.mutator] = true
 	}
 
-	fset := token.NewFileSet()
-	file, err := parser.ParseFile(fset, "run.go", nil, 0)
+	// EVERY non-test file in the package, not just run.go. Scanning one file of
+	// five enforced "a new mutator announces itself" only for mutators that
+	// happen to be added where the existing ones live -- which is the assumption
+	// this guard exists to remove.
+	sources, err := filepath.Glob("*.go")
 	if err != nil {
-		t.Fatalf("parse run.go: %v", err)
+		t.Fatal(err)
+	}
+	var decls []ast.Decl
+	fset := token.NewFileSet()
+	scanned := 0
+	for _, path := range sources {
+		if strings.HasSuffix(path, "_test.go") {
+			continue
+		}
+		file, err := parser.ParseFile(fset, path, nil, 0)
+		if err != nil {
+			t.Fatalf("parse %s: %v", path, err)
+		}
+		scanned++
+		decls = append(decls, file.Decls...)
+	}
+	if scanned < 2 {
+		t.Fatalf("scanned %d source files; the package has more, so the guard is "+
+			"reading less than it claims", scanned)
 	}
 
 	// The fields the strip's model is built from (stripModelLocked). tab.name is
@@ -206,7 +228,7 @@ func TestEveryStripModelMutatorHasARepaintCase(t *testing.T) {
 	modelFields := map[string]bool{"tabs": true, "active": true, "rename": true}
 
 	var missing []string
-	for _, decl := range file.Decls {
+	for _, decl := range decls {
 		fn, ok := decl.(*ast.FuncDecl)
 		if !ok || fn.Recv == nil || fn.Body == nil {
 			continue
