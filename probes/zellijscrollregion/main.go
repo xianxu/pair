@@ -16,7 +16,7 @@ package main
 // pty -- what zellij actually rendered -- and asks whether the marker is still
 // painted BELOW the last scrolled line.
 //
-//	go run ./cmd/probes/zellijscrollregion
+//	go run ./probes/zellijscrollregion     # or: make test-smoke
 //
 // Result on zellij 0.44.3 / macOS, 2026-09-07:
 //
@@ -48,6 +48,7 @@ import (
 	"runtime"
 	"strconv"
 	"strings"
+	"sync"
 	"time"
 
 	"github.com/creack/pty"
@@ -81,6 +82,33 @@ func sessionSet() map[string]bool {
 		}
 	}
 	return set
+}
+
+// syncBuffer is an append-only buffer safe across the reader goroutine and the
+// verdict. sync.Mutex rather than a channel because the reader never stops and
+// nothing needs to observe individual writes.
+type syncBuffer struct {
+	mu  sync.Mutex
+	buf []byte
+}
+
+func (b *syncBuffer) Write(p []byte) (int, error) {
+	b.mu.Lock()
+	defer b.mu.Unlock()
+	b.buf = append(b.buf, p...)
+	return len(p), nil
+}
+
+func (b *syncBuffer) String() string {
+	b.mu.Lock()
+	defer b.mu.Unlock()
+	return string(b.buf)
+}
+
+func (b *syncBuffer) Len() int {
+	b.mu.Lock()
+	defer b.mu.Unlock()
+	return len(b.buf)
 }
 
 func tailOf(s string, n int) string {
@@ -120,7 +148,7 @@ func main() {
 	defer os.Remove(layout)
 
 	cmd := exec.Command("zellij",
-		"--config", filepath.Join(dir, "..", "..", "..", "zellij", "config.kdl"),
+		"--config", filepath.Join(dir, "..", "..", "zellij", "config.kdl"),
 		"--layout", layout)
 	// ZELLIJ* must be scrubbed: this probe runs INSIDE the pair workbench, and
 	// zellij refuses to nest -- it printed a session list and exited, which the
@@ -140,7 +168,12 @@ func main() {
 		os.Exit(1)
 	}
 	defer f.Close()
-	var seen strings.Builder
+	// The reader goroutine runs for the probe's whole life and is still running
+	// when the verdict reads what it collected -- a pty read only ends when the
+	// session dies. An unsynchronised strings.Builder across that boundary is a
+	// data race: `go run -race` flags it, and a torn read would corrupt the one
+	// artifact the verdict is computed from.
+	seen := &syncBuffer{}
 	go func() {
 		buf := make([]byte, 4096)
 		for {
@@ -197,7 +230,11 @@ func main() {
 	frame := seen.String()
 	markerRow, markerOK := lastCursorRowBefore(frame, marker)
 	line199Row, line199OK := lastCursorRowBefore(frame, "scroll line 199")
-	line000 := strings.Contains(frame[len(frame)-3000:], "scroll line 0 ")
+	// tailOf, not frame[len(frame)-3000:]: a bare slice panics whenever the pty
+	// produced fewer than 3000 bytes, which is precisely the failed-session
+	// case this probe must survive to report. A crash there replaces a
+	// diagnosis with a stack trace.
+	line000 := strings.Contains(tailOf(frame, 3000), "scroll line 0 ")
 
 	fmt.Printf("marker last painted at row %d (found=%v)\n", markerRow, markerOK)
 	fmt.Printf("last scroll line at row %d (found=%v)\n", line199Row, line199OK)

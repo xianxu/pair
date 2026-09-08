@@ -327,6 +327,108 @@ rounds:
           round: 3
       boundary: M1
       blocked: true
+    - "n": 4
+      timestamp: "2026-09-07T17:21:53-07:00"
+      agent: claude
+      dispose:
+        - id: BR-4
+          disposition: not-addressed
+          note: Finding 8 now derives six writers, but M2.3's four pieces and M2.3b still cover stdout only; run.go:1103 still hardwires cmd.Stderr = os.Stderr for both methods.
+          round: 4
+        - id: BR-8
+          disposition: not-addressed
+          note: M4.3 (plan :601-605) is verbatim unchanged; still no Alt+Shift+d step, and the issue Done-when still requires two halves each drawing a strip.
+          round: 4
+        - id: BR-9
+          disposition: not-addressed
+          note: M2.1's TestPaintDefersMidSequenceAndIsOwed still splits one hand-picked index inside "\x1b[3".
+          round: 4
+        - id: BR-13
+          disposition: not-addressed
+          note: console.go:922 still builds Reservation{} literally; the round instead added rows validation to NewReservation, so the door and the production path now carry different contracts for the same type.
+          round: 4
+        - id: BR-14
+          disposition: not-addressed
+          note: atlas/couch.md:228 is unchanged; only atlas/architecture.md was touched in this window.
+          round: 4
+        - id: BR-15
+          disposition: not-addressed
+          note: hostty/reserve.go:107-124 Paint still documents save/restore and the one-row deviation but names no caller obligation to sanitize or clamp.
+          round: 4
+        - id: BR-16
+          disposition: addressed
+          note: Probe landed at cmd/probes/zellijscrollregion, self-locating, with artifactpath and .gitignore updated; see N1/N2 for defects in the landed apparatus.
+          round: 4
+        - id: BR-17
+          disposition: not-addressed
+          note: The finding's own acceptance grep still returns M3.3 (:568); seven superseded facts remain, including the scratchpad path at :149 in the commit that landed the probe.
+          round: 4
+        - id: BR-18
+          disposition: addressed
+          note: M1.6 now carries "| grep -v _test.go | grep -v hostty/"; I ran it and it returns nothing.
+          round: 4
+      findings:
+        - id: BR-19
+          severity: Important
+          title: The probe's reader goroutine and its verdict share a strings.Builder with no synchronization
+          detail: |-
+            cmd/probes/zellijscrollregion/main.go:143-153 writes `seen` from a reader
+            goroutine while main reads it at :177, :180-181 and :197.
+            strings.Builder is not safe for concurrent use; String() exposes the
+            backing slice while Write may be growing it, so `go run -race` flags this
+            and a torn read yields a confident wrong verdict -- the exact failure class
+            the probe's own doc comment says it hit three times. The goroutine also has
+            no cancellation path, so its extent is not bounded by main. Guard with a
+            mutex, or have the goroutine own the buffer and hand the final string over
+            a channel at EOF.
+          family: shared-state-unsynchronized
+          round: 4
+        - id: BR-20
+          severity: Important
+          title: An unused diagnostic slices the pty stream without a bounds check and can panic before the verdict prints
+          detail: |-
+            cmd/probes/zellijscrollregion/main.go:200 evaluates
+            frame[len(frame)-3000:] with no length guard, so a pty yielding fewer than
+            3000 bytes panics on the line before the landmarks are checked. tailOf
+            (:86-91) is the safe helper this same file already defines (ARCH-DRY). The
+            value is never used in the verdict, and it matches "scroll line 0 " with a
+            trailing space against a stream where probe.sh emits "scroll line 0\n" --
+            yet its `false` output is quoted as evidence in the plan (:143) behind an
+            atlas claim. Delete it or make it a checked assertion.
+          family: external-input-assumed-wellformed
+          round: 4
+        - id: BR-21
+          severity: Important
+          title: This is the 2nd finding in family atlas-points-at-old-home -- the atlas names one probe home and the code now has two
+          detail: |-
+            Do NOT fix these sites one at a time; BR-14 is still open from the last
+            round, which is the family reporting that the enumeration was never
+            written. The rule: an atlas statement about where a class of thing lives
+            and what runs it must be re-derived whenever the code adds or moves a home,
+            and the atlas records the derivation rather than the answer. Measured
+            prevalence, three sites: atlas/index.md:17-22 says probes live in probes/
+            and "make test-smoke runs every directory under probes/, so a new probe is
+            covered by existing" -- the new probe is under cmd/probes/, which that
+            sentence does not reach, and grep -n "smoke\|probes" Makefile returns
+            nothing, so the target it rests on does not exist; atlas/couch.md:228
+            (BR-14) still presents the reserved row as couch-owned mechanism with no
+            pointer to hostty.Reservation.
+          family: atlas-points-at-old-home
+          round: 4
+        - id: BR-22
+          severity: Minor
+          title: Every os.Exit path in the probe skips its deferred session and temp-file cleanup
+          detail: |-
+            cmd/probes/zellijscrollregion/main.go registers cleanup at :120, :142 and
+            :156, then exits via os.Exit at :178, :190 and :209 -- so an inconclusive
+            or errored run leaks a live zellij session with a `sleep 30` pane and a
+            temp KDL. Wrap the body in `run() int` and call os.Exit(run()). Same file,
+            :186-192: dump-screen's output is discarded (`_ = out`) yet its failure
+            aborts the probe, letting an irrelevant call kill a good measurement.
+          family: exit-path-drops-cleanup
+          round: 4
+      boundary: M1
+      blocked: true
 ---
 
 # Gate ledger — pair#199 (boundary-review)
@@ -521,6 +623,62 @@ later rounds disposed of them. Generated — edit the gate, not this file.
   but the stated command contradicts the tick, and the next reader to re-run it
   gets output. Corrected form: append "| grep -v _test.go".
 
+## Round 4 — 2026-09-07T17:21:53-07:00 (claude) — BLOCKED
+
+### Disposed
+
+- BR-4 — not-addressed — Finding 8 now derives six writers, but M2.3's four pieces and M2.3b still cover stdout only; run.go:1103 still hardwires cmd.Stderr = os.Stderr for both methods.
+- BR-8 — not-addressed — M4.3 (plan :601-605) is verbatim unchanged; still no Alt+Shift+d step, and the issue Done-when still requires two halves each drawing a strip.
+- BR-9 — not-addressed — M2.1's TestPaintDefersMidSequenceAndIsOwed still splits one hand-picked index inside "\x1b[3".
+- BR-13 — not-addressed — console.go:922 still builds Reservation{} literally; the round instead added rows validation to NewReservation, so the door and the production path now carry different contracts for the same type.
+- BR-14 — not-addressed — atlas/couch.md:228 is unchanged; only atlas/architecture.md was touched in this window.
+- BR-15 — not-addressed — hostty/reserve.go:107-124 Paint still documents save/restore and the one-row deviation but names no caller obligation to sanitize or clamp.
+- BR-16 — addressed — Probe landed at cmd/probes/zellijscrollregion, self-locating, with artifactpath and .gitignore updated; see N1/N2 for defects in the landed apparatus.
+- BR-17 — not-addressed — The finding's own acceptance grep still returns M3.3 (:568); seven superseded facts remain, including the scratchpad path at :149 in the commit that landed the probe.
+- BR-18 — addressed — M1.6 now carries "| grep -v _test.go | grep -v hostty/"; I ran it and it returns nothing.
+
+### Raised
+
+- **BR-19** [Important] `shared-state-unsynchronized` The probe's reader goroutine and its verdict share a strings.Builder with no synchronization
+  cmd/probes/zellijscrollregion/main.go:143-153 writes `seen` from a reader
+  goroutine while main reads it at :177, :180-181 and :197.
+  strings.Builder is not safe for concurrent use; String() exposes the
+  backing slice while Write may be growing it, so `go run -race` flags this
+  and a torn read yields a confident wrong verdict -- the exact failure class
+  the probe's own doc comment says it hit three times. The goroutine also has
+  no cancellation path, so its extent is not bounded by main. Guard with a
+  mutex, or have the goroutine own the buffer and hand the final string over
+  a channel at EOF.
+- **BR-20** [Important] `external-input-assumed-wellformed` An unused diagnostic slices the pty stream without a bounds check and can panic before the verdict prints
+  cmd/probes/zellijscrollregion/main.go:200 evaluates
+  frame[len(frame)-3000:] with no length guard, so a pty yielding fewer than
+  3000 bytes panics on the line before the landmarks are checked. tailOf
+  (:86-91) is the safe helper this same file already defines (ARCH-DRY). The
+  value is never used in the verdict, and it matches "scroll line 0 " with a
+  trailing space against a stream where probe.sh emits "scroll line 0\n" --
+  yet its `false` output is quoted as evidence in the plan (:143) behind an
+  atlas claim. Delete it or make it a checked assertion.
+- **BR-21** [Important] `atlas-points-at-old-home` This is the 2nd finding in family atlas-points-at-old-home -- the atlas names one probe home and the code now has two
+  Do NOT fix these sites one at a time; BR-14 is still open from the last
+  round, which is the family reporting that the enumeration was never
+  written. The rule: an atlas statement about where a class of thing lives
+  and what runs it must be re-derived whenever the code adds or moves a home,
+  and the atlas records the derivation rather than the answer. Measured
+  prevalence, three sites: atlas/index.md:17-22 says probes live in probes/
+  and "make test-smoke runs every directory under probes/, so a new probe is
+  covered by existing" -- the new probe is under cmd/probes/, which that
+  sentence does not reach, and grep -n "smoke\|probes" Makefile returns
+  nothing, so the target it rests on does not exist; atlas/couch.md:228
+  (BR-14) still presents the reserved row as couch-owned mechanism with no
+  pointer to hostty.Reservation.
+- **BR-22** [Minor] `exit-path-drops-cleanup` Every os.Exit path in the probe skips its deferred session and temp-file cleanup
+  cmd/probes/zellijscrollregion/main.go registers cleanup at :120, :142 and
+  :156, then exits via os.Exit at :178, :190 and :209 -- so an inconclusive
+  or errored run leaks a live zellij session with a `sleep 30` pane and a
+  temp KDL. Wrap the body in `run() int` and call os.Exit(run()). Same file,
+  :186-192: dump-screen's output is discarded (`_ = out`) yet its failure
+  aborts the probe, letting an irrelevant call kill a good measurement.
+
 ## Open findings
 
 - **BR-4** [Important] `envelope-claim-unenforced` Two writers to the pane's tty sit outside the single-writer envelope, and the M2 test cannot see them
@@ -529,6 +687,8 @@ later rounds disposed of them. Generated — edit the gate, not this file.
 - **BR-13** [Minor] `validating-door-bypassed` NewReservation has zero production callers; couch constructs the struct directly
 - **BR-14** [Minor] `atlas-points-at-old-home` atlas/couch.md's "The reserved row" section still reads as couch-owned mechanism
 - **BR-15** [Minor] `caller-obligation-undocumented` Paint's doc does not state the caller's obligation to sanitize and clamp its text
-- **BR-16** [Important] `unreproducible-measurement` The probe behind finding 5 -- the design's load-bearing measurement -- does not exist anywhere in the repo
 - **BR-17** [Important] `plan-table-drift` Three gate corrections landed at one site each and left seven restatements of the superseded facts in the same file
-- **BR-18** [Minor] `acceptance-command-does-not-hold` M1.6 is ticked claiming its grep returns nothing; run as written it returns 27 lines
+- **BR-19** [Important] `shared-state-unsynchronized` The probe's reader goroutine and its verdict share a strings.Builder with no synchronization
+- **BR-20** [Important] `external-input-assumed-wellformed` An unused diagnostic slices the pty stream without a bounds check and can panic before the verdict prints
+- **BR-21** [Important] `atlas-points-at-old-home` This is the 2nd finding in family atlas-points-at-old-home -- the atlas names one probe home and the code now has two
+- **BR-22** [Minor] `exit-path-drops-cleanup` Every os.Exit path in the probe skips its deferred session and temp-file cleanup

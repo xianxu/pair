@@ -626,14 +626,35 @@ with *"Probe kept at `scratchpad/199-probe/`"*, a path that exists on no one
 else's machine and in no commit, while `atlas/architecture.md` states the result
 as settled fact for every future reader. A one-time manual reading with no
 reproducible apparatus is not evidence anyone can re-check. The probe is now
-`cmd/probes/zellijscrollregion` (the repo's own precedent is
-`cmd/probes/couchstartrecovery`), self-locating so it runs from anywhere, and it
+`probes/zellijscrollregion` (the repo's probe home is
+`probes/`, which `make test-smoke` runs wholesale), self-locating so it runs from anywhere, and it
 reproduces: `DECSTBM HONORED — 200 lines scrolled in rows 1..21 while the
 reserved row 23 held its paint`. Its doc comment records the three ways it
 produced a CONFIDENT WRONG ANSWER before being fixed — zellij refusing to nest,
 `--session`+`--layout` meaning attach rather than create, and `dump-screen`
 being unable to answer a positional question — because each of those looked
 exactly like "not honored".
+
+**BR-21: I put the probe in the wrong home, and the atlas already said where.**
+`atlas/index.md:17` states it plainly — `probes/` at the repo root, where
+`make test-smoke` runs **every** directory *"so a new probe is covered by
+existing it rather than by remembering to add a line."* I created
+`cmd/probes/zellijscrollregion` instead, next to the one probe that lives there
+for its own reasons, and then hand-added it to two lists to compensate — the
+exact remembering the convention exists to abolish. Moved to
+`probes/zellijscrollregion`; `make test-smoke` picks it up with no list at all,
+verified. The Makefile comment on that target cites `#146 M1 BR-16`, which is
+this same finding at its first occurrence: a probe quoted as evidence must be
+re-runnable by anyone, which means a target rather than a remembered `go run`.
+
+**BR-19 and BR-20 were live bugs in the probe I had just landed as evidence.**
+Its reader goroutine wrote a `strings.Builder` that the verdict read with no
+synchronisation — a data race across a goroutine that never stops, on the single
+artifact the verdict is computed from. And `frame[len(frame)-3000:]` panics
+whenever the pty produced under 3000 bytes, which is exactly the failed-session
+path the probe must survive to report: a crash there replaces a diagnosis with a
+stack trace. Both fixed; `go run -race ./probes/zellijscrollregion` is clean and
+still reproduces.
 
 **BR-17 is this issue's recurring defect, applied to the plan itself.** The six
 plan-quality corrections each landed at one site and left the superseded facts

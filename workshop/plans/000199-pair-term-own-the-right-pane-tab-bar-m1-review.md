@@ -372,3 +372,195 @@ findings:
       but the stated command contradicts the tick, and the next reader to re-run it
       gets output. Corrected form: append "| grep -v _test.go".
 ```
+
+---
+
+## Re-review — 2026-09-07T17:21:53-07:00 (REWORK)
+
+| field | value |
+|-------|-------|
+| issue | 199 — pair term: own the right pane tab bar |
+| repo | pair |
+| issue file | workshop/issues/000199-pair-term-own-the-right-pane-tab-bar.md |
+| boundary | milestone M1 |
+| milestone | M1 |
+| window | c61f5ca0619d59e3ba795b77d6e12ad18e5517f5..76397937614321b2f3a5cc44266cead61301b3a8 |
+| command | sdlc milestone-close --issue 199 --milestone M1 |
+| reviewer | claude |
+| timestamp | 2026-09-07T17:21:53-07:00 |
+| verdict | REWORK |
+
+## Review
+
+```verdict
+verdict: REWORK
+confidence: high
+```
+
+The Go code in this window is genuinely good: the lift to `hostty.Reservation` is faithful, the one deliberate behaviour change is now declared *and* pinned by a test that fails without it, the deadlock fix is at the right level, the `\x1b[r`-lives-in-one-package invariant holds when I run M1.6's corrected grep (0 lines), and `go test ./cmd/...` is clean apart from the known sandbox pty refusals. What blocks the boundary is not the code — it is that BR-17 was raised with a *runnable acceptance command* and the commit named for sweeping it leaves that command returning violations, including the exact `scratchpad/199-probe/` string BR-16 quoted, still standing at line 149 of the plan in the same commit that landed the probe at `cmd/probes/zellijscrollregion`. BR-4 landed the same way: six writers derived in the prose, but M2.3/M2.3b — the steps an implementer executes — still carry only the stdout routing. And the probe that BR-16 asked for, now the sole apparatus behind this design's load-bearing fact, ships a data race on the buffer its verdict reads and an unguarded slice that can panic before the verdict prints. M2/M3 read the plan and re-run the probe; both are wrong in ways their own gate findings already named.
+
+## 1. Strengths
+
+- **The deliberate deviation is declared and mutation-proof.** `hostty/reserve.go:107-116` documents the `Rows == 1` change from `PaintRow`, and `TestNothingIsPaintedOnARowThatWasNeverReserved` (`reserve_test.go:108-118`) reddens the instant the guard is reverted to `r.Rows == 0` — last round's I1 is a real fix with a real failing test behind it, not a plausible-looking diff.
+- **The move is proved by an oracle the implementor could not tune.** `git diff --stat c61f5ca0 76397937 -- cmd/internal/couchtty/{console_live,vtscreen}_test.go` is empty, and those are the end-to-end reserved-row tests. That is the Done-when's "a regression there means it was a rewrite", made checkable.
+- **M1.6's invariant now actually checks itself.** I ran the corrected form: zero production `SetRegion`/DECSTBM sites outside `hostty`. BR-18 addressed, and the plan records *why* the filter is load-bearing rather than just adding it.
+- **The consumer-set sweep for the moved symbols is complete** — `console.go` ×4, `conceptInventory`, `conceptPlans`, `#146`'s row flipped `deleted` (I confirmed the `deleted` branch is live: `\bReserve\b`/`\bPaintRow\b` are genuinely absent from `couchtty/reserve.go`), `artifactpath.NonArtifactSources`, `.gitignore`. `TestEveryMainPackageIsIgnoredAtTheRepoRoot` passes with the new probe in the tree.
+- **`hostty/reserve.go` imports only `fmt`** and its tests need no fake, no fixture, no IO. ARCH-PURE: pass.
+
+## 2. Critical findings
+
+None.
+
+## 3. Important findings
+
+**BR-17 re-raised — the sweep swept the sentences the finding quoted, not the facts.** BR-17's own stated acceptance was `grep -n 'TakeRowDirty\|run\.go:229\|same helpers' workshop/plans/000199-*-plan.md` returning only the correction passage. It returns `:568` — M3.3, still "sanitizing and truncating via the same helpers `couchtty` uses", the exact prose PQ-7 established is unimplementable. Measured prevalence, all in `workshop/plans/000199-…-plan.md`, seven live sites:
+
+1. `:149` — finding 5 still ends "Probe kept at `scratchpad/199-probe/`", in the commit that landed the probe at `cmd/probes/zellijscrollregion`.
+2. `:59-64` — finding 8's writer table has **five** rows while `:67` and `:83` say "six writers"; the sixth (subprocess stderr) exists only in prose.
+3. `:380` — ARCH-SECURE still says `RenderStrip` sanitizes "exactly as `couchtty.RenderStatusRow` does (`sanitize`, `truncate`)".
+4. `:568` — M3.3, as above.
+5. `:571` — M3.6's assertion is still the weak "a rename still fires and is not the packed string" that PQ-1 said passes while the format stops matching; `:114` claims "M3.6 asserts exactly this" about `RoleForPane`/`ClassifyLiveLayout` and the `TerminalCommand == ""` case.
+6. `:505-523` — M2.3's four pieces never mention giving `runZellij` a `stderr io.Writer`, although `:650` claims they do.
+7. `:210` + `:216` — the Core-concepts table keeps `couchtty/reserve.go` `unchanged` while the `rowtext` entry says both renderers depend on the new package.
+
+Fix the rule, not the sites: before disposing a correction, run the superseded token across the artifact and require the grep to return only the passage that documents the correction — and treat "the narrative says X, the numbered step says Y" as the drift, because the step is what gets executed.
+
+**BR-4 re-raised — the envelope claim is still carried by prose, not by a step.** `runZellij` (`cmd/internal/termcmd/run.go:1099-1105`) hardwires `cmd.Stderr = os.Stderr` for both methods; I confirmed it. Finding 8 now names this correctly, but M2.3's four implement pieces route only stdout through `Quiet`, and M2.3b asserts only "no `termcmd` site calls `RunZellijAction`" — an assertion a `Quiet`-only refactor passes while the noisiest failure path stays open. Add the fifth piece to M2.3 (`runZellij(args, stdout, stderr io.Writer)`, captured and logged) and extend M2.3b to assert the fd handed to the subprocess, not just the method name.
+
+**N1 — the probe races on the buffer its verdict reads** (`cmd/probes/zellijscrollregion/main.go:143-153, 177-197`). `var seen strings.Builder` is written by the reader goroutine (`:149`) and read by main at `:177`, `:180-181` and `:197` with no synchronization. `strings.Builder` is explicitly not safe for concurrent use; `String()` hands out the backing slice while `Write` may be growing it. `go run -race` would flag this, and a torn read produces exactly the failure mode the probe's own doc comment says it was fixed for three times: a confident wrong verdict. Guard with a `sync.Mutex` (or have the goroutine own a `bytes.Buffer` and hand the final string over a channel on EOF), and give the goroutine a cancellation path so its extent is bounded by `main`.
+
+**N2 — an unused diagnostic can panic before the verdict prints** (`main.go:200`). `frame[len(frame)-3000:]` has no length guard; a pty that yields fewer than 3000 bytes panics. `tailOf` (`:86-91`) is the safe helper this file already has, forty lines up (ARCH-DRY). Two further problems in the same line: the value is only printed, never used in the verdict, and it searches for `"scroll line 0 "` with a trailing space against a stream where `probe.sh` emits `scroll line 0\n` — so whether it can ever be true depends on zellij's row padding. It reported `false` in the recorded run, and the plan (`:143`) quotes that `false` as part of finding 5's evidence. Either make it a real check or delete it; do not leave an unverified line in the output block the atlas cites.
+
+**N3 — the atlas describes one probe home and the code now has two** (`atlas/index.md:17-22`, family `atlas-points-at-old-home`, 2nd in family). **This is the 2nd finding in family `atlas-points-at-old-home`.** Earlier rounds have not fixed instances — BR-14 is still open — so do NOT fix these two sites one by one; state the rule and sweep it. The rule: an atlas statement about *where a class of thing lives and what runs it* must be re-derived whenever the code adds or moves a home, and the derivation belongs in the atlas rather than the answer. Measured prevalence, three sites: `atlas/index.md:17-22` says probes live in `probes/` and "`make test-smoke` runs **every** directory under `probes/`, so a new probe is covered by existing" — the new probe is under `cmd/probes/`, which that sentence does not reach, and `grep -n "smoke\|probes" Makefile` returns nothing at all, so the target the sentence rests on does not exist; and `atlas/couch.md:228` (BR-14) still presents the reserved row as couch-owned mechanism with no pointer to `hostty.Reservation`.
+
+## 4. Minor findings
+
+- `main.go:120,142,156` — every `os.Exit` path (`:178`, `:190`, `:209`) skips the deferred `zellij delete-session` and `os.Remove(layout)`, so an inconclusive run leaks a live zellij session with a `sleep 30` pane plus a temp KDL. Wrap the body in a `run() int` and `os.Exit(run())`.
+- `main.go:186-192` — `dump-screen`'s output is discarded (`_ = out`) but its failure aborts the probe with `PROBE-ERROR`; a call that contributes nothing to the verdict should not be able to kill a good measurement.
+- `plan.md:596-601` — M4.4 asks for the `atlas/architecture.md` row-primitive entry that M1 already landed in `0aa2b6af`; only the `config.kdl` half remains.
+- Line references in finding 8 drift by 1-2 (`run.go:1086` → 1085/1087, `:1091` → 1090, `:1100-1105` → 1099-1105). The five `RunZellijAction` call sites (191, 457, 463, 961, 963) are exactly right.
+
+## 5. Test coverage notes
+
+`./cmd/internal/hostty/` reservation tests: 8 tests, all IO-free, all green. The fail-closed path (`TestAnUnvalidatedTopEdgeFailsClosed`) and the one-row deviation (`TestNothingIsPaintedOnARowThatWasNeverReserved`) are both real oracles — reverting either guard reddens them. `TestCoreConceptsContract` enumerates both new `#199` rows and its `deleted` branch is reachable. Full `go test ./cmd/...`: every failure is "operation not permitted" (sandbox pty), plus `pairhelp_shim_test.go:51` and `agent_restart_test.go:84`, both process-spawn dependent and untouched by this diff.
+
+Gaps: the new probe has no test and nothing runs it; `Edge`/`Reservation` are declared PURE in the plan's Core-concepts table but `conceptRowsForPackage` filters to `couchtty` paths, so no contract pins them — the same silent-guard shape last round's I2 found, now applying to the rows this milestone shipped. M3's `termcmd` rows will land in the same hole (`#188`).
+
+## 6. Architectural notes for upcoming work
+
+- **ARCH-DRY:** pass on the lift (M1.6 verified). Flagged on the probe (N2, `tailOf`).
+- **ARCH-PURE:** pass. `reserve.go` is `fmt`-only; the `Reservation` value replaces four functions that each re-decided the edge.
+- **ARCH-PURPOSE:** the shadow-sweep over the moved symbols is complete. Flagged on the plan (BR-17) — the class was named and the instances were fixed one at a time again.
+- **ARCH-MOCK:** improved. The apparatus is tracked and self-locating (BR-16 addressed), but nothing re-runs it and there is no conformance cadence; N1/N2 mean the apparatus itself can now be the source of a wrong reading. Before M3 leans on finding 5 again, run it under `-race`.
+- **ARCH-CONSTRAINTS:** pass for M1 (pure string composition, no runtime path changed). The probe's fixed 8-second window fails safe (`PROBE-INCONCLUSIVE`, exit 2) — good.
+- **ARCH-SECURE:** flagged, BR-15 still open. `Paint` (`hostty/reserve.go:107-124`) writes caller text verbatim between `SaveCursor` and `RestoreCursor` and its doc names no sanitize/clamp obligation. That obligation just crossed a package boundary away from `couchtty.RenderStatusRow`, and M3's consumer takes operator-supplied tab names. One doc line at the new door.
+- **ARCH-ORDER:** pass on the lift — `bottomReservation(rows uint16)` (`console.go:914-922`) makes the deadlocking call-site state unrepresentable rather than merely avoided, which is the right shape. Flagged on the probe: unsynchronized shared state (N1), a reader goroutine with no cancellation, and cleanup that `os.Exit` bypasses.
+
+## 7. Plan revision recommendations
+
+1. **A `## Revisions` entry stating the BR-17 rule as an executable check**, not another site-list: name the superseded tokens (`scratchpad/199-probe`, `same helpers`, `run.go:229`, `TakeRowDirty`, "five writers"), record the grep, and require it to return only correction passages before any round disposes a fact-correcting finding. Then sweep the seven sites above.
+2. **Correct finding 5's closing line** (`:149`) to `cmd/probes/zellijscrollregion`, and either drop `earliest scroll line still on screen` from the quoted output or make it a checked assertion.
+3. **Extend M2.3 with a fifth piece** — `runZellij` takes `stderr io.Writer`; captured output is logged, never written to the pane fd — and extend M2.3b to assert the descriptor handed to the subprocess. Update finding 8's table to six rows so the table and the prose agree.
+4. **Rewrite M3.6's assertion** to the one finding 9 already claims it makes: `RoleForPane` and `ClassifyLiveLayout` fed the degraded title, including the `TerminalCommand == ""` case at `zellijpane.go:79-84`.
+5. **M4.4:** drop the `atlas/architecture.md` half (landed in M1); keep the `config.kdl` scroll-indicator correction.
+6. **Add an `atlas/` step for the probe home** — one sentence reconciling `probes/` and `cmd/probes/`, and either restore `make test-smoke` or delete the claim that it covers new probes automatically.
+
+```findings
+dispose:
+  - id: BR-4
+    disposition: not-addressed
+    note: |
+      Finding 8 now derives six writers, but M2.3's four pieces and M2.3b still cover stdout only; run.go:1103 still hardwires cmd.Stderr = os.Stderr for both methods.
+  - id: BR-8
+    disposition: not-addressed
+    note: |
+      M4.3 (plan :601-605) is verbatim unchanged; still no Alt+Shift+d step, and the issue Done-when still requires two halves each drawing a strip.
+  - id: BR-9
+    disposition: not-addressed
+    note: |
+      M2.1's TestPaintDefersMidSequenceAndIsOwed still splits one hand-picked index inside "\x1b[3".
+  - id: BR-13
+    disposition: not-addressed
+    note: |
+      console.go:922 still builds Reservation{} literally; the round instead added rows validation to NewReservation, so the door and the production path now carry different contracts for the same type.
+  - id: BR-14
+    disposition: not-addressed
+    note: |
+      atlas/couch.md:228 is unchanged; only atlas/architecture.md was touched in this window.
+  - id: BR-15
+    disposition: not-addressed
+    note: |
+      hostty/reserve.go:107-124 Paint still documents save/restore and the one-row deviation but names no caller obligation to sanitize or clamp.
+  - id: BR-16
+    disposition: addressed
+    note: |
+      Probe landed at cmd/probes/zellijscrollregion, self-locating, with artifactpath and .gitignore updated; see N1/N2 for defects in the landed apparatus.
+  - id: BR-17
+    disposition: not-addressed
+    note: |
+      The finding's own acceptance grep still returns M3.3 (:568); seven superseded facts remain, including the scratchpad path at :149 in the commit that landed the probe.
+  - id: BR-18
+    disposition: addressed
+    note: |
+      M1.6 now carries "| grep -v _test.go | grep -v hostty/"; I ran it and it returns nothing.
+findings:
+  - id: new
+    severity: Important
+    family: shared-state-unsynchronized
+    title: |
+      The probe's reader goroutine and its verdict share a strings.Builder with no synchronization
+    detail: |
+      cmd/probes/zellijscrollregion/main.go:143-153 writes `seen` from a reader
+      goroutine while main reads it at :177, :180-181 and :197.
+      strings.Builder is not safe for concurrent use; String() exposes the
+      backing slice while Write may be growing it, so `go run -race` flags this
+      and a torn read yields a confident wrong verdict -- the exact failure class
+      the probe's own doc comment says it hit three times. The goroutine also has
+      no cancellation path, so its extent is not bounded by main. Guard with a
+      mutex, or have the goroutine own the buffer and hand the final string over
+      a channel at EOF.
+  - id: new
+    severity: Important
+    family: external-input-assumed-wellformed
+    title: |
+      An unused diagnostic slices the pty stream without a bounds check and can panic before the verdict prints
+    detail: |
+      cmd/probes/zellijscrollregion/main.go:200 evaluates
+      frame[len(frame)-3000:] with no length guard, so a pty yielding fewer than
+      3000 bytes panics on the line before the landmarks are checked. tailOf
+      (:86-91) is the safe helper this same file already defines (ARCH-DRY). The
+      value is never used in the verdict, and it matches "scroll line 0 " with a
+      trailing space against a stream where probe.sh emits "scroll line 0\n" --
+      yet its `false` output is quoted as evidence in the plan (:143) behind an
+      atlas claim. Delete it or make it a checked assertion.
+  - id: new
+    severity: Important
+    family: atlas-points-at-old-home
+    title: |
+      This is the 2nd finding in family atlas-points-at-old-home -- the atlas names one probe home and the code now has two
+    detail: |
+      Do NOT fix these sites one at a time; BR-14 is still open from the last
+      round, which is the family reporting that the enumeration was never
+      written. The rule: an atlas statement about where a class of thing lives
+      and what runs it must be re-derived whenever the code adds or moves a home,
+      and the atlas records the derivation rather than the answer. Measured
+      prevalence, three sites: atlas/index.md:17-22 says probes live in probes/
+      and "make test-smoke runs every directory under probes/, so a new probe is
+      covered by existing" -- the new probe is under cmd/probes/, which that
+      sentence does not reach, and grep -n "smoke\|probes" Makefile returns
+      nothing, so the target it rests on does not exist; atlas/couch.md:228
+      (BR-14) still presents the reserved row as couch-owned mechanism with no
+      pointer to hostty.Reservation.
+  - id: new
+    severity: Minor
+    family: exit-path-drops-cleanup
+    title: |
+      Every os.Exit path in the probe skips its deferred session and temp-file cleanup
+    detail: |
+      cmd/probes/zellijscrollregion/main.go registers cleanup at :120, :142 and
+      :156, then exits via os.Exit at :178, :190 and :209 -- so an inconclusive
+      or errored run leaks a live zellij session with a `sleep 30` pane and a
+      temp KDL. Wrap the body in `run() int` and call os.Exit(run()). Same file,
+      :186-192: dump-screen's output is discarded (`_ = out`) yet its failure
+      aborts the probe, letting an irrelevant call kill a good measurement.
+```
