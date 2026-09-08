@@ -38,13 +38,24 @@ const (
 	decrcMark = "DECRC_MARK"
 )
 
-func main() {
+// main is two lines on purpose: os.Exit SKIPS DEFERS, so any cleanup registered
+// in a function that also exits is cleanup that does not run on the paths that
+// matter most. This probe's defers delete the zellij session it created and
+// remove its temp layout -- and the likeliest exit of all,
+// PROBE-INCONCLUSIVE, is exactly where a leaked session hurts, because the next
+// run then finds a stale `cursorsaveslots-<pid>` in the way.
+//
+// So: every path RETURNS a code, and the defers live in run.
+// TestNoProbeExitsPastItsOwnCleanup enforces the shape (pair#199 BR-69).
+func main() { os.Exit(run()) }
+
+func run() int {
 	// Assets resolve against THIS file, not the cwd, so the probe runs from
 	// anywhere -- `go run ./probes/cursorsaveslots` from the repo root included.
 	_, self, _, ok := runtime.Caller(0)
 	if !ok {
 		fmt.Println("PROBE-ERROR: cannot locate probe assets")
-		os.Exit(1)
+		return 1
 	}
 	dir := filepath.Dir(self)
 
@@ -53,7 +64,7 @@ func main() {
 	})
 	if err != nil {
 		fmt.Println("PROBE-ERROR layout:", err)
-		os.Exit(1)
+		return 1
 	}
 	defer os.Remove(layout)
 
@@ -67,7 +78,7 @@ func main() {
 	})
 	if err != nil {
 		fmt.Println("PROBE-ERROR start:", err)
-		os.Exit(1)
+		return 1
 	}
 	defer session.Close()
 
@@ -77,7 +88,7 @@ func main() {
 		// exact defect class #208 spent fourteen rounds on.
 		fmt.Println("PROBE-INCONCLUSIVE: the probe's zellij session never appeared; nothing was measured.")
 		fmt.Printf("--- pty tail:\n%s\n", zellijprobe.TailOf(session.Seen.String(), 600))
-		os.Exit(2)
+		return 2
 	}
 	// The pane script paints, saves, restores and marks; give it time to finish
 	// before reading the frame.
@@ -90,7 +101,7 @@ func main() {
 	out, err := session.Action(env, "dump-screen", "--pane-id", "terminal_1")
 	if err != nil {
 		fmt.Println("PROBE-ERROR dump:", err, string(out))
-		os.Exit(1)
+		return 1
 	}
 	frame := session.Seen.String()
 	scorcRow, scorcOK := lastCursorRowBefore(frame, scorcMark)
@@ -121,7 +132,7 @@ func main() {
 		// The control. Without a working DECSC the probe has measured nothing.
 		fmt.Println("\nPROBE-INCONCLUSIVE: DECSC/DECRC did not work either, so " +
 			"the harness is not measuring what it thinks.")
-		os.Exit(2)
+		return 2
 	}
 	if !scorcOK {
 		// This IS the result, not a failure to measure: DECSC restored to the
@@ -133,7 +144,7 @@ func main() {
 			"does not appear on screen at all.")
 		fmt.Println("A cursor restore cannot be built on a sequence whose behaviour " +
 			"is not even characterisable. The paint must track the cursor instead.")
-		return
+		return 0
 	}
 	// The rows are pane-relative plus zellij's frame offset, so compare the
 	// DIFFERENCE rather than absolute numbers: 5 apart means two slots, 0 apart
@@ -147,8 +158,9 @@ func main() {
 	default:
 		fmt.Printf("\nRESULT: UNEXPECTED (%d rows apart) — neither reading is safe to act on.\n",
 			decrcRow-scorcRow)
-		os.Exit(2)
+		return 2
 	}
+	return 0
 }
 
 // lastCursorRowBefore finds the row of the most recent CUP (ESC[row;colH) that

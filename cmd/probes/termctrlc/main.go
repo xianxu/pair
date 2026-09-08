@@ -55,7 +55,13 @@ func (c *counter) snap() (int, time.Time) {
 	return c.n, c.at
 }
 
-func main() {
+// main is two lines on purpose: os.Exit SKIPS DEFERS, and this probe's cleanup
+// (which tears down the child and its pty) is registered as one. Every path RETURNS a
+// code so the defers unwind. TestNoProbeExitsPastItsOwnCleanup enforces the
+// shape across every probe (pair#199 BR-69).
+func main() { os.Exit(run()) }
+
+func run() int {
 	bin := os.Args[1]
 	cmd := exec.Command(bin, "term")
 	env := []string{}
@@ -70,7 +76,7 @@ func main() {
 	f, err := pty.StartWithSize(cmd, &pty.Winsize{Rows: 24, Cols: 80})
 	if err != nil {
 		fmt.Println("PROBE-ERROR start:", err)
-		os.Exit(1)
+		return 1
 	}
 	defer func() { _ = cmd.Process.Kill(); f.Close() }()
 
@@ -99,7 +105,7 @@ func main() {
 	before, _ := c.snap()
 	if before == 0 {
 		fmt.Println("PROBE-INCONCLUSIVE: pair term produced no output; nothing was measured")
-		os.Exit(2)
+		return 2
 	}
 
 	_, _ = f.Write([]byte("yes aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\n"))
@@ -107,7 +113,7 @@ func main() {
 	flooded, _ := c.snap()
 	if flooded-before < 100000 {
 		fmt.Printf("PROBE-INCONCLUSIVE: only %d bytes flowed; the flood did not start\n", flooded-before)
-		os.Exit(2)
+		return 2
 	}
 	fmt.Printf("flood produced %.1f MB in 3s\n", float64(flooded-before)/1e6)
 
@@ -124,11 +130,11 @@ func main() {
 			fmt.Printf("QUIET after Ctrl-C: %.2fs (drained %.1f MB of backlog)\n",
 				last.Sub(sent).Seconds(), float64(total-flooded)/1e6)
 			fmt.Println("RESULT: Ctrl-C STOPPED the child.")
-			return
+			return 0
 		}
 	}
 	total, _ := c.snap()
 	fmt.Printf("RESULT: STILL FLOODING 30s after Ctrl-C (%.1f MB since)\n",
 		float64(total-flooded)/1e6)
-	os.Exit(1)
+	return 1
 }

@@ -3862,3 +3862,48 @@ Rules:
   happen" everywhere and "did X happen when it should not" nowhere cannot see a
   budget violation. Tests that COUNT are a different shape from tests that
   ASSERT, and a declared constraint needs the counting kind.
+
+## 2026-09-08 — Stating a class rule is not closing it; the enumeration is
+
+pair#199 M3 took four review rounds. The family `guard-hardcodes-an-active-path`
+appeared in round 13, was "fixed" with a shared resolver applied to the two
+guards the finding pointed at, and reappeared in round 14 — because the round
+that stated the rule never ran the one command the rule implies:
+
+```
+grep -rn "workshop/plans" cmd tests scripts
+```
+
+Seconds. It returns a third site, a shell script wired into `make test`, whose
+failure mode is the whole repo's suite breaking at the next `sdlc close`.
+
+- **When you name a class, run its enumeration before writing the fix.** The
+  rule tells you what to grep for. Not grepping means you fixed instances and
+  described a class.
+- **A family that repeats across review rounds is the ledger telling you the
+  enumeration was never written.** Treat a repeat as evidence about your process,
+  not about the reviewer being thorough.
+- The same round has a second example: the class guard for superseded prose
+  already existed and read only the PLAN, never the ISSUE — which is the artifact
+  the close gate checks. A guard bounded to one artifact of a family is the same
+  gap in a different shape.
+
+## 2026-09-08 — os.Exit skips defers, so a probe's cleanup runs only on the happy path
+
+Every probe in this repo registered its cleanup as a `defer` — delete the zellij
+session it created, remove the temp dir — and then left through `os.Exit` on its
+diagnostic paths. Including the likeliest one: "the session never appeared".
+
+Measured: six live `couchnestedrows-<pid>` sessions left behind by *failing* runs
+during one milestone, each name carrying a pid nothing later reclaims — so a
+recycled pid then makes the next run fail at startup for an unrelated-looking
+reason.
+
+- **`func main() { os.Exit(run()) }`.** Every path returns a code; the defers
+  live in `run`. Two lines, and cleanup becomes unconditional.
+- **The failure path is the one that needs the cleanup most**, and it is the path
+  least likely to be exercised while you are developing the happy one.
+- Making one half structural invites the assumption that the other half is:
+  "a probe can only delete a session it created" was enforced by construction,
+  which read as "sessions are handled" — while "a probe always deletes the session
+  it created" was still just a defer in the wrong place.

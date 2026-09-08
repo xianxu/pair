@@ -264,7 +264,10 @@ of completeness.
 
 - **Edge / Reservation** — which edge of a terminal is reserved, and how tall
   the terminal is. `Reservation{Rows, Edge}` answers `ChildRows()`,
-  `Reserve()`, `Release()`, `Paint(text)`.
+  `ReserveAndPaint(text)`, `Paint(text)`, `Release()`. There is deliberately no
+  bare reserve-without-painting: DECSTBM homes the cursor, so a caller able to
+  compose the region and the row separately is a caller able to compose them in
+  the order that WAS the bug (M3, round 13).
   - **DRY rationale:** today three `couchtty` functions each hardcode the bottom
     row. `hostty` already owns `SetRegion`/`MoveTo`/`ResetRegion` and the atlas
     states the split this follows: *"`\x1b[r` lives here and only here; it was
@@ -1249,3 +1252,49 @@ second surface that this milestone deleted; `TitleIdentifiesRightTerminal` gains
 a Core-concepts row and an atlas mention; and the table now STATES that it is
 checked table→code only, with the missing direction attributed to `#188` rather
 than left as an unstated claim of completeness.
+
+### 2026-09-08 — M3 CLOSED (round 14, FIX-THEN-SHIP): the last three, fixed before the close commit
+
+Round 14 finalized the boundary — no open blocking findings after four rounds —
+and recorded three past the round cap. Per the FIX-THEN-SHIP protocol (`#174`)
+they are fixed here, in the close commit, and the milestone is NOT re-reviewed.
+
+1. **BR-61, third instance — and the one that proves the rule.** Round 13 stated
+   "a guard that reads a workshop artifact resolves it active-or-archived",
+   swept the two Go guards, and never ran the enumeration the class implies:
+   `grep -rn "workshop/plans" cmd tests scripts` returns
+   `tests/plan-superseded-facts-test.sh:45` in seconds. That script is wired
+   into `make test`, so with the plan archived it fails the whole repo — BR-61's
+   own failure mode, at BR-61's own gate, inside the round that claimed to close
+   it. It now has the same `resolve_plan`, and the enumeration is recorded here
+   rather than left implied. (`sessioninventory`'s pinned path is NOT an
+   instance: it reads through `git show <commit>:<path>`, archive-proof by
+   construction.)
+
+2. **BR-67 — the guard was bounded to the wrong artifact.**
+   `plan-superseded-facts-test.sh` existed as this family's class guard and
+   never read the ISSUE, which is what `sdlc close --verified` is checked
+   against. It now covers both, plus the code comment in the same family, and
+   the three live instances it immediately caught are corrected: `## Done when`
+   carried the STRUCK scroll-position bullet and omitted the `borderless` one
+   that replaced it; the Spec still called borderless a follow-on after the same
+   revision made it M4; and `run.go` still described `inheritSize` as becoming a
+   writer "in M3", the milestone closing here.
+
+3. **BR-68 — the table guard read only pipe rows.** The bullets under the table
+   make the same claims about the same symbols, and one went on naming
+   `Reservation.Reserve()` after round 13 deleted it. The guard now reads the
+   whole `## Core concepts` section, with "deleted" meaning *defined in none of
+   the paths this table declares* — otherwise `ChildRows` and `Release`, which
+   left `couchtty` and live on `hostty.Reservation`, read as deleted.
+
+**Minor, and it had teeth: `os.Exit` skips defers.** Every probe registered its
+cleanup as a defer and then left through `os.Exit` on its diagnostic paths —
+including the likeliest one, "the session never appeared". Measured: six live
+`couchnestedrows-<pid>` sessions left by failing runs during this milestone,
+each pid-named so nothing later reclaims it. `#199` BR-51 made "a probe can only
+destroy a session it made" structural; this is the other half. Every probe is now
+`func main() { os.Exit(run()) }` with the defers in `run`, and
+`TestNoProbeExitsPastItsOwnCleanup` (a go/ast pass over `probes/` and
+`cmd/probes/`) fails when a function containing a defer calls `os.Exit`. It found
+three probes beyond the three the review named.

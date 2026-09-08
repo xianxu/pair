@@ -148,6 +148,12 @@ func Start(opts Options) (*Session, error) {
 	if opts.Cols == 0 {
 		opts.Cols = 80
 	}
+	// <prefix>-<pid>. Deterministic so Close can delete exactly what Start made
+	// -- and note the failure mode if a previous run ever LEAKS one: a recycled
+	// pid makes `--new-session-with-layout --session <name>` fail, and the probe
+	// reports that as a start error rather than as "an old session is in the
+	// way". TestNoProbeExitsPastItsOwnCleanup is what keeps that from happening,
+	// by making every probe unwind its defers instead of exiting past them.
 	name := fmt.Sprintf("%s-%d", opts.NamePrefix, os.Getpid())
 	cmd := exec.Command("zellij",
 		"--config", opts.ConfigFile,

@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# A plan must not keep asserting a fact its own Revisions says was superseded.
+# A plan OR ITS ISSUE must not keep asserting a fact its own Revisions superseded.
 #
 # WHY THIS IS A TEST AND NOT A RULE IN THE PLAN. pair#199 wrote the rule
 # ("correct the class, not the site"), then failed its own acceptance grep in
@@ -16,12 +16,45 @@
 # same commit that corrects the prose. A `# note:` line says what replaced it,
 # so a reader hitting a failure knows the correction rather than just the ban.
 #
+# BOTH ARTIFACTS, not just the plan. The close gate checks `--verified` against
+# the ISSUE's `## Done when`, so a retired deliverable left standing there is the
+# more expensive half — and this script was bounded to the plan for three rounds
+# while exactly that drifted (pair#199 BR-67).
+#
 # Run: bash tests/plan-superseded-facts-test.sh   (wired into `make test`)
 set -uo pipefail
 
 ROOT="$(cd "$(dirname "$0")/.." && pwd)"
 fails=0
 bad() { echo "  FAIL $*"; fails=$((fails + 1)); }
+
+# resolve_plan NAME -> a repo-relative path, ACTIVE OR ARCHIVED.
+#
+# `sdlc close` MOVES plans to workshop/history/plans/, so a hardcoded
+# workshop/plans path asserts the issue will never close -- and this script,
+# wired into `make test`, would then fail the whole repo at that close
+# (pair#199 BR-61, third instance of the class: the round that stated the rule
+# swept the two Go guards and never ran `grep -rn workshop/plans`).
+resolve_plan() {
+	name="$1"
+	if [ -f "$ROOT/workshop/plans/$name" ]; then
+		echo "workshop/plans/$name"
+		return
+	fi
+	found=$(cd "$ROOT" && find workshop/history -name "$name" -type f 2>/dev/null | head -1)
+	echo "$found"
+}
+
+# resolve_issue is the same rule for the other artifact this script reads.
+resolve_issue() {
+	name="$1"
+	if [ -f "$ROOT/workshop/issues/$name" ]; then
+		echo "workshop/issues/$name"
+		return
+	fi
+	found=$(cd "$ROOT" && find workshop/history -name "$name" -type f 2>/dev/null | head -1)
+	echo "$found"
+}
 
 # check FILE TOKEN REPLACEMENT [MAX_LINE]
 #   MAX_LINE bounds the check to the body, so a Revisions entry may quote the
@@ -42,10 +75,22 @@ check() {
 
 echo "plan-superseded-facts-test:"
 
-PLAN="workshop/plans/000199-pair-term-own-the-right-pane-tab-bar-plan.md"
+PLAN="$(resolve_plan 000199-pair-term-own-the-right-pane-tab-bar-plan.md)"
+if [ -z "$PLAN" ]; then
+	bad "000199 plan is in neither workshop/plans nor workshop/history"
+	PLAN="workshop/plans/000199-pair-term-own-the-right-pane-tab-bar-plan.md"
+fi
 # The Revisions section narrates these corrections and may quote them.
-REV=$(grep -n "^## Revisions" "$ROOT/$PLAN" | cut -d: -f1)
+REV=$(grep -n "^## Revisions" "$ROOT/$PLAN" 2>/dev/null | cut -d: -f1)
 REV=${REV:-0}
+
+ISSUE="$(resolve_issue 000199-pair-term-own-the-right-pane-tab-bar.md)"
+if [ -z "$ISSUE" ]; then
+	bad "000199 issue is in neither workshop/issues nor workshop/history"
+	ISSUE="workshop/issues/000199-pair-term-own-the-right-pane-tab-bar.md"
+fi
+IREV=$(grep -n "^## Revisions" "$ROOT/$ISSUE" 2>/dev/null | cut -d: -f1)
+IREV=${IREV:-0}
 
 # pair#199 BR-16: the probe is tracked, not in a scratchpad.
 check "$PLAN" 'scratchpad/199-probe' 'probes/zellijscrollregion' "$REV"
@@ -73,6 +118,25 @@ check "$PLAN" 'Route every `RunZellijAction` call in `termcmd`' 'make the Runtim
 check "$PLAN" 'the shared package M3 extracts' 'extracted in M2' "$REV"
 
 check "probes/zellijscrollregion/main.go" 'cmd/probes/zellijscrollregion' 'probes/zellijscrollregion'
+
+# ---------------------------------------------------------------- the ISSUE
+#
+# The close gate reads `## Done when`, so a retired deliverable standing there is
+# the expensive half of this family (pair#199 BR-67). These pairs are the
+# 2026-09-06 Revisions entry, checked instead of trusted.
+
+# The scroll-position deliverable was STRUCK: ptychild carries no scroll offset,
+# and the frameless follow-on it was meant to justify is M4 in this issue.
+check "$ISSUE" 'displays scroll position for its own pane' 'struck 2026-09-06 — see ## Revisions' "$IREV"
+# Its replacement -- borderless -- moved INTO this issue as M4, so the Spec must
+# not still call it a follow-on.
+check "$ISSUE" 'going borderless is a \*\*follow-on\*\*' 'M4 of this issue' "$IREV"
+
+# ------------------------------------------------------------------ the CODE
+#
+# Same family, same window: a comment describing a milestone in the future tense
+# after that milestone has landed. BR-67 names this instance explicitly.
+check "cmd/internal/termcmd/run.go" 'becomes a writer in M3' 'writes the row on every resize (M3, tested)'
 
 if [ "$fails" -ne 0 ]; then
 	echo "plan-superseded-facts-test: $fails failure(s)"

@@ -12,6 +12,21 @@ import (
 	"testing"
 )
 
+// definedSomewhere reports whether a symbol is declared in any of the paths the
+// table still claims are live.
+func definedSomewhere(root string, paths map[string]bool, symbol string) bool {
+	for path := range paths {
+		names, err := declaredNames(filepath.Join(root, path))
+		if err != nil {
+			continue
+		}
+		if names[symbol] {
+			return true
+		}
+	}
+	return false
+}
+
 // resolvePlan finds a plan whether it is ACTIVE or ARCHIVED.
 //
 // Every guard that reads a plan file needs this, and the reason is a dated
@@ -171,6 +186,14 @@ func TestEveryCoreConceptRowNamesASymbolThatExists(t *testing.T) {
 
 	backticked := regexp.MustCompile("`([^`]+)`")
 	checked := 0
+	// A row's declared symbols, so the BULLETS under the table can be checked
+	// against the same claim the row made. The bullets say the same kind of
+	// thing about the same symbols -- one of them went on naming
+	// `Reservation.Reserve()` after it was deleted, and the pipe-rows-only guard
+	// could not see it (BR-68).
+	declaredAt := map[string]string{}
+	deletedSymbols := map[string]bool{}
+	livePaths := map[string]bool{}
 	for _, line := range strings.Split(string(raw), "\n") {
 		if !strings.HasPrefix(strings.TrimSpace(line), "|") {
 			continue
@@ -218,6 +241,12 @@ func TestEveryCoreConceptRowNamesASymbolThatExists(t *testing.T) {
 				// declared.
 				present := declared[symbol]
 				deleted := strings.Contains(status, "deleted")
+				if deleted {
+					deletedSymbols[symbol] = true
+				} else {
+					declaredAt[symbol] = path
+					livePaths[strings.Trim(path, "`")] = true
+				}
 				if deleted && present {
 					t.Errorf("row %q is marked deleted, but %s still exists in %s", strings.TrimSpace(names), symbol, path)
 				}
@@ -229,5 +258,44 @@ func TestEveryCoreConceptRowNamesASymbolThatExists(t *testing.T) {
 	}
 	if checked == 0 {
 		t.Fatal("no Core-concepts row was checked; the guard proved nothing")
+	}
+
+	// THE PROSE UNDER THE TABLE MAKES THE SAME CLAIMS, so it is read the same
+	// way. A bullet naming a symbol the table marked DELETED is the table
+	// describing code that is gone -- which is what the guard is for, and what
+	// reading only pipe rows could not catch.
+	inSection := false
+	for i, line := range strings.Split(string(raw), "\n") {
+		trimmed := strings.TrimSpace(line)
+		switch {
+		case strings.HasPrefix(trimmed, "## Core concepts"):
+			inSection = true
+			continue
+		case inSection && strings.HasPrefix(trimmed, "## "):
+			inSection = false
+		}
+		if !inSection || strings.HasPrefix(trimmed, "|") {
+			continue
+		}
+		for _, m := range backticked.FindAllStringSubmatch(line, -1) {
+			for _, qualified := range strings.Split(m[1], " / ") {
+				symbol := strings.TrimSpace(qualified)
+				symbol = strings.TrimSuffix(symbol, "()")
+				symbol = symbol[strings.LastIndex(symbol, ".")+1:]
+				if !goIdentifier.MatchString(symbol) || !deletedSymbols[symbol] {
+					continue
+				}
+				// A row may mark a symbol deleted from ONE package while a
+				// same-named one lives in another -- `ChildRows` and `Release`
+				// left couchtty and are hostty.Reservation methods now. So
+				// "deleted" here means "declared dead and defined in none of the
+				// paths this table declares".
+				if definedSomewhere(root, livePaths, symbol) {
+					continue
+				}
+				t.Errorf("%s:%d — the prose still names %s, which this table marks deleted",
+					filepath.Base(plan), i+1, symbol)
+			}
+		}
 	}
 }

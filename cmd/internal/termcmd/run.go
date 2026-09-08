@@ -1356,10 +1356,10 @@ func (m *terminalMux) tabByIDLocked(id int) *terminalTab {
 
 // resizeThroughWriter runs the resize ON the writer goroutine.
 //
-// inheritSize does not write the pane today, but it becomes a writer in M3 (the
-// strip is repainted on resize), and ARCH-ORDER already asserts that resize and
-// paint "serialize by construction" on the writer loop. Routing it here makes
-// that claim true now rather than at the milestone that depends on it -- and a
+// inheritSize writes the pane -- it repaints the strip on every resize, which
+// TestTheDeclaredPaintBudgetHoldsPerEvent pins -- and ARCH-ORDER asserts that
+// resize and paint "serialize by construction" on the writer loop. Routing it
+// here is what makes that claim true rather than aspirational -- and a
 // resize racing a paint is precisely the interleaving that produces a strip
 // drawn at the old width.
 func (m *terminalMux) resizeThroughWriter(host hostty.Host) {

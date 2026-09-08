@@ -68,12 +68,21 @@ const (
 	altRight = "\x1b[1;3C"
 )
 
-func main() {
+// main is two lines on purpose: os.Exit SKIPS DEFERS, and this probe's defers
+// delete the zellij session it created, kill the outer host and remove a temp
+// PAIR_DATA_DIR. Exiting from inside runProbe leaked all three on the very paths
+// that matter most -- a failed or inconclusive run.
+//
+// Every path RETURNS a code. TestNoProbeExitsPastItsOwnCleanup enforces the
+// shape across every probe (pair#199 BR-69).
+func main() { os.Exit(run()) }
+
+func run() int {
 	if len(os.Args) > 1 && os.Args[1] == "outer" {
 		runOuter(os.Args[2:])
-		return
+		return 0
 	}
-	runProbe()
+	return runProbe()
 }
 
 // ---------------------------------------------------------------- outer host
@@ -356,10 +365,10 @@ func (s *screen) all() string {
 	return b.String()
 }
 
-func runProbe() {
+func runProbe() int {
 	_, self, _, ok := runtime.Caller(0)
 	if !ok {
-		inconclusive("cannot locate probe assets")
+		return inconclusive("cannot locate probe assets")
 	}
 	dir := filepath.Dir(self)
 	repo := filepath.Join(dir, "..", "..", "..") // cmd/probes/couchnestedrows -> repo root
@@ -370,25 +379,25 @@ func runProbe() {
 	}
 	pairBin, err := filepath.Abs(pairBin)
 	if err != nil || !executable(pairBin) {
-		inconclusive("no built pair at %s (make bin/pair)", pairBin)
+		return inconclusive("no built pair at %s (make bin/pair)", pairBin)
 	}
 	if _, err := exec.LookPath("zellij"); err != nil {
-		inconclusive("zellij is not on PATH")
+		return inconclusive("zellij is not on PATH")
 	}
 	exe, err := os.Executable()
 	if err != nil {
-		inconclusive("cannot re-exec self as the outer host: %v", err)
+		return inconclusive("cannot re-exec self as the outer host: %v", err)
 	}
 
 	dataDir, err := os.MkdirTemp("", "couchnestedrows-data-*")
 	if err != nil {
-		inconclusive("temp data dir: %v", err)
+		return inconclusive("temp data dir: %v", err)
 	}
 	defer os.RemoveAll(dataDir)
 
 	layout, err := zellijprobe.WriteLayout(dir, map[string]string{"PAIR_BIN": pairBin})
 	if err != nil {
-		inconclusive("layout: %v", err)
+		return inconclusive("layout: %v", err)
 	}
 	defer os.Remove(layout)
 
@@ -400,7 +409,7 @@ func runProbe() {
 	cmd.Env = childEnv(dataDir)
 	host, err := pty.StartWithSize(cmd, &pty.Winsize{Rows: hostRows, Cols: hostCols})
 	if err != nil {
-		inconclusive("start the outer host: %v", err)
+		return inconclusive("start the outer host: %v", err)
 	}
 	stop := func() { _ = host.Close(); _ = cmd.Process.Kill() }
 	defer stop()
@@ -428,8 +437,7 @@ func runProbe() {
 		return strings.Contains(sc.row(hostRows-1), "[terminal 1]")
 	}) {
 		fmt.Print(sc.all())
-		stop()
-		inconclusive("the tab strip never appeared; the session did not come up")
+		return inconclusive("the tab strip never appeared; the session did not come up")
 	}
 
 	fails := 0
@@ -550,10 +558,10 @@ func runProbe() {
 	if fails > 0 {
 		fmt.Printf("raw tail:\n%s\n\n", sc.rawTail(3000))
 		fmt.Printf("RESULT: %d check(s) failed -- the two rows do NOT compose as designed\n", fails)
-		stop()
-		os.Exit(1)
+		return 1
 	}
 	fmt.Println("RESULT: TWO RESERVED ROWS COMPOSE")
+	return 0
 }
 
 // rename drives the real Alt+R rename: the editor opens PREFILLED with the
@@ -665,7 +673,10 @@ func executable(path string) bool {
 	return err == nil && !fi.IsDir() && fi.Mode()&0o111 != 0
 }
 
-func inconclusive(format string, a ...any) {
+// inconclusive RETURNS the code rather than exiting: a caller with defers
+// registered must be allowed to unwind them, which is the whole point of the
+// shape (see main).
+func inconclusive(format string, a ...any) int {
 	fmt.Printf("PROBE-INCONCLUSIVE: "+format+"\n", a...)
-	os.Exit(1)
+	return 1
 }

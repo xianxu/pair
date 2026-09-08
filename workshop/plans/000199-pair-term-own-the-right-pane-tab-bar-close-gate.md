@@ -1368,6 +1368,94 @@ rounds:
           round: 14
       boundary: M3
       blocked: true
+    - "n": 15
+      timestamp: "2026-09-08T14:46:06-07:00"
+      agent: claude
+      dispose:
+        - id: BR-8
+          disposition: not-addressed
+          note: M4.3 still has no Alt+Shift+d step; six of nine borderless rungs stay unverified.
+          round: 15
+        - id: BR-9
+          disposition: not-addressed
+          note: writer_test.go:117 still splits one hand-chosen sequence at one index.
+          round: 15
+        - id: BR-61
+          disposition: not-addressed
+          note: tests/plan-superseded-facts-test.sh:45 still hardcodes workshop/plans/000199-…-plan.md and is wired into make test; measured 7 failures with the plan archived.
+          round: 15
+        - id: BR-62
+          disposition: addressed
+          note: All three mutations re-run in a scratch clone and all three now go red.
+          round: 15
+        - id: BR-63
+          disposition: addressed
+          note: 'Verified by mutation: a mutator in strip.go and a stacked godoc in control.go''s grouped const are both caught.'
+          round: 15
+        - id: BR-64
+          disposition: addressed
+          note: rename.go:64 now states one surface and explains the second was deleted.
+          round: 15
+        - id: BR-65
+          disposition: addressed
+          note: drawRow extracted; TestReserveAndPaintIsPaintPlusTheRegion asserts equality, not substring presence; Reserve() deleted.
+          round: 15
+        - id: BR-66
+          disposition: addressed
+          note: Table row and atlas paragraph added; the table now states it is checked table→code only, attributing the other direction to pair#188.
+          round: 15
+      findings:
+        - id: BR-67
+          severity: Important
+          title: The issue's Done-when still carries a bullet its own Revisions marks struck, and omits the one that entry says replaced it
+          detail: |-
+            workshop/issues/000199-…md:170 still lists the scroll-position deliverable that :701
+            records as "Struck"; the borderless=true bullet the same entry says was "Added to
+            Done when" is absent; and the Spec at :113 still calls borderless a follow-on that
+            the same entry moved into scope. This is the artifact sdlc close verifies against.
+            Fourth in family, so state the rule rather than editing three bullets: this family's
+            class guard already exists as tests/plan-superseded-facts-test.sh and is bounded to
+            $PLAN, never reading the issue. Widen it to take (file, token, replacement, max_line)
+            over both artifacts. The same enumeration catches the code-side instance in this
+            window, run.go:1359 ("inheritSize does not write the pane today, but it becomes a
+            writer in M3"), which paintbudget_test.go:71 now asserts the opposite of.
+          family: doc-states-planned-as-current
+          round: 15
+        - id: BR-68
+          severity: Important
+          title: The Core-concepts guard reads only pipe rows, so the bullets under the table are unchecked and one names a method this commit deleted
+          detail: |-
+            Plan :266-267 says Reservation "answers ChildRows(), Reserve(), Release(),
+            Paint(text)"; Reservation.Reserve() was deleted in fc318eb9, and reserve.go's own
+            godoc now says "There is no bare Reserve()". plantable_test.go:175 skips every line
+            not starting with "|", so the descriptive bullets immediately beneath the table --
+            which name the same symbols at the same declared paths -- are invisible to the guard
+            written for exactly that claim. Ninth in family: do not edit the bullet. The guard
+            reads the whole "## Core concepts" section's backticked identifiers; goIdentifier
+            already filters the non-symbols (escapes, zellij action names, issue refs), so the
+            widening is close to free.
+          family: plan-table-drift
+          round: 15
+        - id: BR-69
+          severity: Minor
+          title: Every probe registers teardown as a defer and then leaves through os.Exit, so a failed test-smoke leaks the session it created
+          detail: |-
+            probes/cursorsaveslots/main.go:72 defers session.Close() and then os.Exit(2)s at :80,
+            :124 and :150; probes/zellijscrollregion/main.go:89 has the same shape at :97/:135/:138;
+            cmd/probes/couchnestedrows/main.go defers delete-session (:396), os.RemoveAll(dataDir)
+            (:387) and os.Remove(layout) (:392) then calls inconclusive(), which os.Exit(1)s -- and
+            the path most likely to fire is "the session never came up". os.Exit skips defers, so a
+            live zellij session named <prefix>-<pid> plus a temp data dir survive each failure, from
+            make test-smoke. BR-51 made "a probe can only destroy a session it made" structural;
+            nothing made "a probe always destroys the session it made" structural. THE RULE - a
+            probe's main is func main() { os.Exit(run()) } and every diagnostic path returns a code,
+            so cleanup is a defer in run. Mechanisable with the go/ast machinery this package
+            already uses: fail when a function containing a defer also calls os.Exit. Measured
+            prevalence: 3 probes, 11 such exit sites.
+          family: exit-path-drops-cleanup
+          round: 15
+      boundary: M3
+      blocked: false
 ---
 
 # Gate ledger — pair#199 (boundary-review)
@@ -2070,6 +2158,56 @@ later rounds disposed of them. Generated — edit the gate, not this file.
   scoped to one package; widening it is pair#188. Until then, say so in the plan rather than
   leaving the table's completeness as an unstated claim.
 
+## Round 15 — 2026-09-08T14:46:06-07:00 (claude) — passed
+
+### Disposed
+
+- BR-8 — not-addressed — M4.3 still has no Alt+Shift+d step; six of nine borderless rungs stay unverified.
+- BR-9 — not-addressed — writer_test.go:117 still splits one hand-chosen sequence at one index.
+- BR-61 — not-addressed — tests/plan-superseded-facts-test.sh:45 still hardcodes workshop/plans/000199-…-plan.md and is wired into make test; measured 7 failures with the plan archived.
+- BR-62 — addressed — All three mutations re-run in a scratch clone and all three now go red.
+- BR-63 — addressed — Verified by mutation: a mutator in strip.go and a stacked godoc in control.go's grouped const are both caught.
+- BR-64 — addressed — rename.go:64 now states one surface and explains the second was deleted.
+- BR-65 — addressed — drawRow extracted; TestReserveAndPaintIsPaintPlusTheRegion asserts equality, not substring presence; Reserve() deleted.
+- BR-66 — addressed — Table row and atlas paragraph added; the table now states it is checked table→code only, attributing the other direction to pair#188.
+
+### Raised
+
+- **BR-67** [Important] `doc-states-planned-as-current` The issue's Done-when still carries a bullet its own Revisions marks struck, and omits the one that entry says replaced it
+  workshop/issues/000199-…md:170 still lists the scroll-position deliverable that :701
+  records as "Struck"; the borderless=true bullet the same entry says was "Added to
+  Done when" is absent; and the Spec at :113 still calls borderless a follow-on that
+  the same entry moved into scope. This is the artifact sdlc close verifies against.
+  Fourth in family, so state the rule rather than editing three bullets: this family's
+  class guard already exists as tests/plan-superseded-facts-test.sh and is bounded to
+  $PLAN, never reading the issue. Widen it to take (file, token, replacement, max_line)
+  over both artifacts. The same enumeration catches the code-side instance in this
+  window, run.go:1359 ("inheritSize does not write the pane today, but it becomes a
+  writer in M3"), which paintbudget_test.go:71 now asserts the opposite of.
+- **BR-68** [Important] `plan-table-drift` The Core-concepts guard reads only pipe rows, so the bullets under the table are unchecked and one names a method this commit deleted
+  Plan :266-267 says Reservation "answers ChildRows(), Reserve(), Release(),
+  Paint(text)"; Reservation.Reserve() was deleted in fc318eb9, and reserve.go's own
+  godoc now says "There is no bare Reserve()". plantable_test.go:175 skips every line
+  not starting with "|", so the descriptive bullets immediately beneath the table --
+  which name the same symbols at the same declared paths -- are invisible to the guard
+  written for exactly that claim. Ninth in family: do not edit the bullet. The guard
+  reads the whole "## Core concepts" section's backticked identifiers; goIdentifier
+  already filters the non-symbols (escapes, zellij action names, issue refs), so the
+  widening is close to free.
+- **BR-69** [Minor] `exit-path-drops-cleanup` Every probe registers teardown as a defer and then leaves through os.Exit, so a failed test-smoke leaks the session it created
+  probes/cursorsaveslots/main.go:72 defers session.Close() and then os.Exit(2)s at :80,
+  :124 and :150; probes/zellijscrollregion/main.go:89 has the same shape at :97/:135/:138;
+  cmd/probes/couchnestedrows/main.go defers delete-session (:396), os.RemoveAll(dataDir)
+  (:387) and os.Remove(layout) (:392) then calls inconclusive(), which os.Exit(1)s -- and
+  the path most likely to fire is "the session never came up". os.Exit skips defers, so a
+  live zellij session named <prefix>-<pid> plus a temp data dir survive each failure, from
+  make test-smoke. BR-51 made "a probe can only destroy a session it made" structural;
+  nothing made "a probe always destroys the session it made" structural. THE RULE - a
+  probe's main is func main() { os.Exit(run()) } and every diagnostic path returns a code,
+  so cleanup is a defer in run. Mechanisable with the go/ast machinery this package
+  already uses: fail when a function containing a defer also calls os.Exit. Measured
+  prevalence: 3 probes, 11 such exit sites.
+
 ## Open findings
 
 - **BR-8** [Minor] `acceptance-misses-changed-sites` M4's manual acceptance never splits the pane, leaving six of nine borderless sites unverified
@@ -2097,8 +2235,6 @@ later rounds disposed of them. Generated — edit the gate, not this file.
 - **BR-43** [Important] `envelope-claim-unenforced` The door-enumeration test enforces a substring, not the claim - an ungated Fprintf, a leaked exemption marker, and every file but run.go all pass
 - **BR-44** [Minor] `deferred-work-lacks-own-trigger` flushOwed has one call site, in the child-data branch, so an owed write is stranded for as long as the child is silent
 - **BR-61** [Important] `moved-surface-drops-a-case` The Core-concepts guard hardcodes the ACTIVE plan path, so make test breaks the moment this plan is archived
-- **BR-62** [Important] `envelope-claim-unenforced` The paint-frequency budget and the resize transition still have no test that trips when exceeded
-- **BR-63** [Important] `acceptance-command-does-not-hold` Both new structural guards check less than they claim - one file of five, and no grouped declaration
-- **BR-64** [Minor] `doc-states-planned-as-current` RenameEditor.Field's doc justifies itself by two surfaces; the second was deleted in the same window
-- **BR-65** [Minor] `copy-instead-of-extract` ReserveAndPaint copies Paint's body rather than composing it, and Reserve() now has no production caller
-- **BR-66** [Minor] `plan-table-drift` A new exported symbol in a shared package has no Core-concepts row, and nothing checks that direction
+- **BR-67** [Important] `doc-states-planned-as-current` The issue's Done-when still carries a bullet its own Revisions marks struck, and omits the one that entry says replaced it
+- **BR-68** [Important] `plan-table-drift` The Core-concepts guard reads only pipe rows, so the bullets under the table are unchecked and one names a method this commit deleted
+- **BR-69** [Minor] `exit-path-drops-cleanup` Every probe registers teardown as a defer and then leaves through os.Exit, so a failed test-smoke leaks the session it created

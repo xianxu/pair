@@ -110,10 +110,11 @@ columns** of frame chrome per pane (`config.kdl:22`), and the global
 `pane_frames true` becomes a question about the agent pane alone rather than a
 fleet-wide default.
 
-Sequencing note: going borderless is a **follow-on**, not part of this issue.
-Land the strip first, confirm it carries divider + title + scroll position in a
-real split, and only then flip `borderless`. Reverting a strip is easy;
-reverting a chrome change that the layout rungs depend on is not.
+Sequencing note: `borderless` is **M4 of this issue**, not a follow-on (moved in
+2026-09-06's revision). The ordering still holds within the issue: land the strip
+first, confirm it identifies the pane in a real split, and only then flip the
+attribute. Reverting a strip is easy; reverting a chrome change that the layout
+rungs depend on is not.
 
 ### The boundary — name it now
 
@@ -167,9 +168,11 @@ carries a constraint of its own.
   their own strip.
 - `atlas/architecture.md` records the row primitive as shared host-half
   structure, alongside the existing `\x1b[r` note.
-- The strip displays scroll position for its own pane, sourced from `ptychild`
-  rather than from zellij — the fact that makes the frameless follow-on possible
-  is demonstrated, not merely argued.
+- The right pane in layout3 takes `borderless=true` at all nine `name="terminal"`
+  sites, and the strip is what identifies the pane once the frame is gone.
+  (This bullet REPLACES the struck scroll-position deliverable — see
+  `## Revisions`, 2026-09-06: `ptychild` carries no scroll offset, and the
+  frameless change it was meant to justify is M4 of this issue.)
 
 ## Plan
 
@@ -182,7 +185,7 @@ Four milestones, each its own review boundary — detail in
 - [x] M2 — Make `termcmd` single-writer and add the mid-sequence paint gate.
       A prerequisite, not cleanup: two writers is how a paint lands inside a
       child's escape sequence (`atlas/couch.md`).
-- [ ] M3 — Render the strip from the existing tab model, with display-column
+- [x] M3 — Render the strip from the existing tab model, with display-column
       spans; repaint on `TakeRowDirty`, re-`Reserve` before repainting;
       degrade `rename-pane` to a short title for the `#118`/`#123` consumers.
 - [ ] M4 — `borderless=true` on the terminal pane at all **nine** sites in
@@ -190,6 +193,43 @@ Four milestones, each its own review boundary — detail in
       scroll-indicator rationale.
 
 ## Log
+
+
+- 2026-09-08: closed M3 — make test exit 0 (194 ok), -race clean on termcmd/hostty/couchtty, make test-smoke green, couchnestedrows 15/15 (TWO RESERVED ROWS COMPOSE). Round 13s three findings were all about the round-12 GUARDS rather than the feature, and are fixed at the class. BR-61: both plan-reading guards now share one resolvePlan that looks in workshop/plans then walks workshop/history -- verified by actually moving the plan to history and re-running, since sdlc close archives it at M4.5 and the hardcoded path would have broken make test repo-wide at the next gate. BR-62: the declared paint budget is now an enumeration with a test per entry that COUNTS paints -- ordinary output paints zero times over 50 chunks, a row-dirty batch pays exactly once, a resize repaints once AND re-asserts the region for the new height, teardown releases it; all three mutations the review measured GREEN (paint on every active chunk, delete the resize repaint, drop teardowns release) now go red. BR-63: the go/ast mutator pass reads every non-test file in the package rather than run.go alone, and the stacked-godoc guard reads grouped declarations, so hostty/control.gos const block is covered -- both mutation-checked against the case they had been missing. Minors: Reservation.Reserve() deleted as dead surface, Paint/ReserveAndPaint share one drawRow with a stronger equality test, Fields doc corrected, TitleIdentifiesRightTerminal added to the table and atlas, and the tables completeness claim is now stated as table-to-code only with the other direction attributed to #188.; review verdict: FIX-THEN-SHIP
+- 2026-09-08 **M3 CLOSED — round 14 finalized the boundary** (no open blocking
+  findings after four rounds). Three findings recorded past the round cap, fixed
+  here in the close commit per the FIX-THEN-SHIP protocol.
+
+  **BR-61's third instance is the one worth remembering.** Round 13 stated the
+  rule — "a guard reading a workshop artifact resolves it active-or-archived" —
+  swept the two Go guards, and never ran the enumeration the rule implies.
+  `grep -rn "workshop/plans" cmd tests scripts` takes seconds and returns
+  `tests/plan-superseded-facts-test.sh`, which is wired into `make test`: with
+  the plan archived it fails the whole repo. BR-61's own failure mode, at its own
+  gate, inside the round that claimed to close it. **A family that repeats across
+  rounds is the ledger reporting that the enumeration was never written.**
+
+  **BR-67** — that same script existed as this family's class guard and was
+  bounded to the PLAN, never reading the ISSUE, which is the artifact
+  `sdlc close --verified` is checked against. Extended to both plus the code
+  comment, and it immediately caught three live instances: `## Done when` still
+  carried the STRUCK scroll-position bullet and omitted the `borderless` one that
+  replaced it; the Spec still called borderless a follow-on; `run.go` still said
+  `inheritSize` "becomes a writer in M3".
+
+  **BR-68** — the Core-concepts guard read only pipe rows, so the bullets under
+  the table were unchecked and one still named `Reservation.Reserve()` after
+  round 13 deleted it. Now reads the whole section, with "deleted" meaning
+  defined in none of the paths the table declares.
+
+  **And the Minor with teeth: `os.Exit` skips defers.** Every probe registered
+  cleanup as a defer and then exited past it on its diagnostic paths — including
+  the likeliest, "the session never appeared". Six live `couchnestedrows-<pid>`
+  sessions were left behind by failing runs during this milestone, each pid-named
+  so nothing reclaims it. BR-51 made "a probe can only destroy a session it made"
+  structural; this is the other half. Every probe is now
+  `func main() { os.Exit(run()) }`, enforced by a go/ast guard that found three
+  more probes than the review had named.
 
 - 2026-09-08 **M3 boundary re-review (round 13): the guards themselves were
   under-delivering.** Eight more disposed, three raised — and all three were

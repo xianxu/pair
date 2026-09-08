@@ -54,14 +54,23 @@ import (
 
 const marker = "RESERVED_ROW_MARKER"
 
-func main() {
+// main is two lines on purpose: os.Exit SKIPS DEFERS, so cleanup registered in a
+// function that also exits does not run on the paths that matter most -- and the
+// likeliest exit here, PROBE-INCONCLUSIVE, is exactly where a leaked
+// `zellijscrollregion-<pid>` session gets in the next run's way.
+//
+// Every path RETURNS a code; the defers live in run.
+// TestNoProbeExitsPastItsOwnCleanup enforces the shape (pair#199 BR-69).
+func main() { os.Exit(run()) }
+
+func run() int {
 	// Assets resolve against THIS file, not the cwd, so the probe runs from
 	// anywhere -- `go run ./probes/zellijscrollregion` from the repo root
 	// included.
 	_, self, _, ok := runtime.Caller(0)
 	if !ok {
 		fmt.Println("PROBE-ERROR: cannot locate probe assets")
-		os.Exit(1)
+		return 1
 	}
 	dir := filepath.Dir(self)
 
@@ -70,7 +79,7 @@ func main() {
 	})
 	if err != nil {
 		fmt.Println("PROBE-ERROR layout:", err)
-		os.Exit(1)
+		return 1
 	}
 	defer os.Remove(layout)
 
@@ -84,7 +93,7 @@ func main() {
 	})
 	if err != nil {
 		fmt.Println("PROBE-ERROR start:", err)
-		os.Exit(1)
+		return 1
 	}
 	defer session.Close()
 
@@ -94,7 +103,7 @@ func main() {
 		// exact defect class #208 spent fourteen rounds on.
 		fmt.Println("PROBE-INCONCLUSIVE: the probe's zellij session never appeared; nothing was measured.")
 		fmt.Printf("--- pty tail:\n%s\n", zellijprobe.TailOf(session.Seen.String(), 600))
-		os.Exit(2)
+		return 2
 	}
 	// 200 lines have to actually scroll before the frame answers anything.
 	time.Sleep(8 * time.Second)
@@ -105,7 +114,7 @@ func main() {
 	// terminal_1 explicitly: never "whatever is focused".
 	if out, err := session.Action(env, "dump-screen", "--pane-id", "terminal_1"); err != nil {
 		fmt.Println("PROBE-ERROR dump:", err, string(out))
-		os.Exit(1)
+		return 1
 	}
 	// The VERDICT comes from the pty -- what zellij actually rendered to the
 	// host terminal -- not from dump-screen, which reports pane content without
@@ -132,16 +141,17 @@ func main() {
 	case !scrolled:
 		fmt.Println("\nPROBE-INCONCLUSIVE: the region never scrolled, so a marker " +
 			"below the last line proves nothing.")
-		os.Exit(2)
+		return 2
 	case !markerOK || !line199OK:
 		fmt.Println("\nPROBE-INCONCLUSIVE: could not locate both landmarks in the frame.")
-		os.Exit(2)
+		return 2
 	case markerRow > line199Row:
 		fmt.Printf("\nRESULT: DECSTBM HONORED — 200 lines scrolled in rows 1..%d "+
 			"while the reserved row %d held its paint.\n", line199Row, markerRow)
 	default:
 		fmt.Println("\nRESULT: NOT HONORED — the marker did not stay below the scrolling text.")
 	}
+	return 0
 }
 
 // lastCursorRowBefore finds the row of the most recent CUP (ESC[row;colH) that

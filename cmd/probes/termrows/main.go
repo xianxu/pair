@@ -42,7 +42,13 @@ func (x *buf) Write(p []byte) (int, error) {
 }
 func (x *buf) String() string { x.mu.Lock(); defer x.mu.Unlock(); return x.b.String() }
 
-func main() {
+// main is two lines on purpose: os.Exit SKIPS DEFERS, and this probe's cleanup
+// (which tears down the child and its pty) is registered as one. Every path RETURNS a
+// code so the defers unwind. TestNoProbeExitsPastItsOwnCleanup enforces the
+// shape across every probe (pair#199 BR-69).
+func main() { os.Exit(run()) }
+
+func run() int {
 	cmd := exec.Command(os.Args[1], "term")
 	env := []string{}
 	for _, kv := range os.Environ() {
@@ -57,7 +63,7 @@ func main() {
 	f, err := pty.StartWithSize(cmd, &pty.Winsize{Rows: paneRows, Cols: paneCols})
 	if err != nil {
 		fmt.Println("PROBE-ERROR:", err)
-		os.Exit(1)
+		return 1
 	}
 	defer func() { _ = cmd.Process.Kill(); f.Close() }()
 
@@ -106,6 +112,7 @@ func main() {
 	}
 	if len(seen) == 0 {
 		fmt.Println("PROBE-INCONCLUSIVE: no child answered; nothing was measured")
-		os.Exit(2)
+		return 2
 	}
+	return 0
 }

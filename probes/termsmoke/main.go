@@ -28,7 +28,13 @@ const (
 	altRight = "\x1b[1;3C"
 )
 
-func main() {
+// main is two lines on purpose: os.Exit SKIPS DEFERS, and this probe's cleanup
+// (which kills the spawned `pair term` and closes its pty) is registered as one. Every path RETURNS a
+// code so the defers unwind. TestNoProbeExitsPastItsOwnCleanup enforces the
+// shape across every probe (pair#199 BR-69).
+func main() { os.Exit(run()) }
+
+func run() int {
 	bin := "./bin/pair"
 	if len(os.Args) > 1 {
 		bin = os.Args[1]
@@ -39,7 +45,7 @@ func main() {
 	ptmx, err := pty.StartWithSize(cmd, &pty.Winsize{Rows: 24, Cols: 80})
 	if err != nil {
 		fmt.Fprintf(os.Stderr, "pty.StartWithSize: %v\n", err)
-		os.Exit(1)
+		return 1
 	}
 	// Not a defer: the failure path below calls os.Exit, which skips defers and
 	// would leave the spawned pair process alive.
@@ -121,9 +127,10 @@ func main() {
 	if failures > 0 {
 		fmt.Printf("%d step(s) failed\n", failures)
 		cleanup()
-		os.Exit(1)
+		return 1
 	}
 	fmt.Println("all steps passed")
+	return 0
 }
 
 func trim(s string) string {

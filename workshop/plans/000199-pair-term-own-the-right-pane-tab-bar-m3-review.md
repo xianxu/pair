@@ -760,3 +760,192 @@ findings:
       scoped to one package; widening it is pair#188. Until then, say so in the plan rather than
       leaving the table's completeness as an unstated claim.
 ```
+
+---
+
+## Re-review — 2026-09-08T14:46:06-07:00 (FIX-THEN-SHIP)
+
+| field | value |
+|-------|-------|
+| issue | 199 — pair term: own the right pane tab bar |
+| repo | pair |
+| issue file | workshop/issues/000199-pair-term-own-the-right-pane-tab-bar.md |
+| boundary | milestone M3 |
+| milestone | M3 |
+| window | 244a72a5594155bfda2d980f0e84c591648a76a8..fc318eb9ef4d50eeba1e6c4e273364af3b6b7c13 |
+| command | sdlc milestone-close --issue 199 --milestone M3 |
+| reviewer | claude |
+| timestamp | 2026-09-08T14:46:06-07:00 |
+| verdict | FIX-THEN-SHIP |
+
+## Review
+
+```verdict
+verdict: FIX-THEN-SHIP
+confidence: high
+```
+
+Round 13's three claimed fixes were checked by mutation rather than by reading the commit message, and two of the three hold up completely: BR-62's paint-budget enumeration goes red on all three mutations the previous round measured green, and BR-63's two structural guards now catch the cases they were missing (a mutator added to `strip.go`, a stacked godoc inside `hostty/control.go`'s grouped `const` block). BR-61 does **not** hold: the round stated the rule — "a guard that hardcodes a path under `workshop/plans` is asserting the issue will never close" — swept the two Go guards, and left `tests/plan-superseded-facts-test.sh:45`, which is wired into `make test` and hardcodes that exact path. I moved the plan to `workshop/history/plans/` in a scratch clone: the two fixed guards stay green and the shell script exits 1 with seven failures. That is BR-61's own failure mode, at BR-61's own gate (M4.5), in the third instance of the class the round claimed to close. Fixing it is one `resolvePlan`-shaped change to a shell script, so this is FIX-THEN-SHIP rather than REWORK — the M3 feature code itself is in good shape, `-race` clean, and everything that fails locally is the documented pty sandbox class.
+
+## 1. Strengths
+
+- **`paintbudget_test.go:29` turns three sentences into three executable bounds.** I re-ran the review's own mutations in a scratch clone: `if chunk.rowDirty` → `if true` (run.go:863) now fails two subtests; deleting `m.paintStripInline()` from `inheritSize` fails the resize subtest; replacing `restoreTerminal`'s `hostty.ResetRegion` fails the teardown subtest. The "a budget is a bound on the *negative* direction, so it needs tests that COUNT" framing is correct and is what was missing.
+- **BR-63's fixes were verified against the case they had been missing, not just widened.** Appending `func (m *terminalMux) sneakyMutator() { m.active = 0 }` to `strip.go` (not `run.go`) fails `TestEveryStripModelMutatorHasARepaintCase`; stacking a second opener on `ClearLine` inside `control.go`'s single grouped `const (…)` fails `TestNoDeclarationCarriesTwoStackedGodocs`. The `scanned < 2` floor (stripmutation_test.go:246) is the right kind of self-check — it fails the guard rather than passing vacuously.
+- **`hostty/reserve.go:135` `drawRow` + `TestReserveAndPaintIsPaintPlusTheRegion` (reserve_test.go:196)** is the correct answer to `copy-instead-of-extract`: the test asserts `ReserveAndPaint == Paint with the region spliced in`, an equality, not a substring presence. A future change to one painter cannot now miss the other.
+- **`workbenchshortcut.TitleIdentifiesRightTerminal` (shortcut.go:199) with the producer×consumer table generated over the predicate's boundary cases** (strip_test.go:304) — `terminals`, `terminal-2`, `terminalwork`, `Terminal 1` — is the right corpus. Three hand-picked fixtures provably could not see BR-56; this one can.
+- **`resolvePlan` (plantable_test.go:26)** is correct and I verified the archived branch by actually moving the plan: both Go guards stayed green.
+
+## 2. Critical findings
+
+None.
+
+## 3. Important findings
+
+**BR-61 is not addressed — `tests/plan-superseded-facts-test.sh:45`**
+
+```sh
+PLAN="workshop/plans/000199-pair-term-own-the-right-pane-tab-bar-plan.md"
+```
+
+`check()` does `[ -f "$path" ] || { bad "$file does not exist"; return; }`, so with the plan archived the script prints seven `does not exist` failures plus a `grep: … No such file or directory` and exits 1. It is wired into `make test` (the plan's own M1 revision says so). Measured in a scratch clone at `fc318eb9` with the plan moved to `workshop/history/plans/`. Fix: give the script the same active-or-archived resolution the two Go guards got — a `resolve_plan()` that checks `workshop/plans/` then `find workshop/history -name "$1"` — and keep the `REV` computation reading whichever path it found. `cmd/internal/sessioninventory/concept_contract_test.go:30` is *not* an instance: it reads through `git show <pinned-commit>:<path>`, which is archive-proof by construction.
+
+**New — `doc-states-planned-as-current` (4th in family): the issue's `## Done when` contradicts the issue's own `## Revisions`, in both directions**
+
+`workshop/issues/000199-…md:170` still carries, verbatim and unmarked, the bullet that `:701` explicitly records as **Struck**:
+
+> The strip displays scroll position for its own pane, sourced from `ptychild` …
+
+and the bullet the same revision entry says was **"Added to `## Done when`"** — "the right pane in layout3 takes `borderless=true`" — is absent from the list (`grep -n borderless` finds it only in the Spec, the Plan and the Revisions). The Spec at `:113` also still reads "going borderless is a **follow-on**, not part of this issue", which the same entry inverted and M4 implements. So the artifact `sdlc close --verified` is checked against declares one deliverable that was retired and omits the one that replaced it.
+
+Earlier rounds fixed instances of this family in Go doc comments. **Do not fix these three instances — state the rule.** The rule is already half-built: `tests/plan-superseded-facts-test.sh` exists as this family's class guard and is bounded to `$PLAN`, never reading the issue, which is the artifact the close gate reads. Extend it to take a list of `(file, token, replacement, max_line)` over *both* the plan and the issue body, and add the pairs this window creates. The same enumeration catches the code-side instance in this window: `cmd/internal/termcmd/run.go:1359` still says "inheritSize does not write the pane today, but it becomes a writer in M3" — M3 is the milestone closing here, and `paintbudget_test.go:71` now asserts the opposite.
+
+**New — `plan-table-drift` (9th in family): the Core-concepts guard reads only the pipe rows, so the bullets under the table are unchecked, and one now names a method this commit deleted**
+
+`workshop/plans/000199-…-plan.md:266-267`:
+
+> `Reservation{Rows, Edge}` answers `ChildRows()`, `Reserve()`, `Release()`, `Paint(text)`.
+
+`Reservation.Reserve()` was deleted in `fc318eb9` (reserve.go's own godoc now says "There is no bare `Reserve()`"). `TestEveryCoreConceptRowNamesASymbolThatExists` cannot see this: plantable_test.go:175 skips every line that does not start with `|`, and the descriptive bullets immediately beneath the table make exactly the same kind of claim about exactly the same symbols.
+
+**Do not fix this instance — state the rule.** The guard reads the whole `## Core concepts` *section*'s backticked identifiers, not just its pipe rows, resolving each against the path its row declared; `goIdentifier` already filters out `\x1b[r`, `rename-pane` and `#200`, so the widening is mostly free. If a bullet legitimately names a symbol from another package, it should carry that package qualifier and the guard should skip unqualified misses only with a stated reason — not by not looking. (Note also: M1.1's illustrative snippets at `:455` and `:468` still call `r.Reserve()`; those are inside a milestone block that predates the deletion, so they are historical rather than live claims — the bullet is not.)
+
+## 4. Minor findings
+
+- **`exit-path-drops-cleanup` (3rd in family) — `probes/cursorsaveslots/main.go:72`, `probes/zellijscrollregion/main.go:89`, `cmd/probes/couchnestedrows/main.go:396`.** Each registers cleanup as a `defer` (`session.Close()`, `delete-session --force`, `os.RemoveAll(dataDir)`, `os.Remove(layout)`) and then leaves through `os.Exit` on 3–4 paths each — including the *most likely* one, `PROBE-INCONCLUSIVE: the session never appeared`. `os.Exit` skips defers, so a failed `make test-smoke` leaves a live `cursorsaveslots-<pid>` / `zellijscrollregion-<pid>` session and a temp data dir behind, and the name embeds the pid so nothing later reclaims it. BR-51 made "a probe can only destroy a session it made" structural; nothing made "a probe always destroys the session it made" structural. **State the rule rather than patching nine call sites:** a probe's `main` is a two-line `func main() { os.Exit(run()) }` and every diagnostic path *returns* a code, so cleanup is a `defer` in `run`. This is mechanisable with the go/ast machinery the package already uses — a guard over `probes/` and `cmd/probes/` that fails when a function containing a `defer` also calls `os.Exit`. Prevalence measured: 3 probes, 11 `os.Exit` sites downstream of a `defer`. (Shape is pre-existing — the pre-window `zellijscrollregion` had it too — but BR-51's fix re-landed it in new code.)
+- `reserve_test.go:191` cites `(BR-64)` where it means BR-65; cosmetic.
+- `zellijprobe.Start` names the session `<prefix>-<pid>`; a leaked session from the previous bullet with a recycled pid will make `--new-session-with-layout --session <name>` fail in a way the probe reports as a start error rather than as "clean this up". One sentence in `Start`'s doc would close the loop.
+
+## 5. Test coverage notes
+
+- `go test ./cmd/internal/termcmd/ -count=1 -race` is clean apart from the tests that need `fork/exec` (`TestTerminalMuxNewTab*`, `TestEveryStripModelMutationRepaintsTheRow/newTab`); same for `hostty` and `ptychild`. That is the documented sandbox class, not a regression — and `mustNewTab` failing rather than skipping (stripmutation_test.go:143) is the right call.
+- `tests/plan-superseded-facts-test.sh` passes at HEAD and fails only under the archived-plan condition described above.
+- Coverage shape is good where it matters: the strip's integration tests (`stripMux`, strip_test.go:144) run on a real writer loop with an injected recorder and no pty, so the row-dirty → re-`Reserve` → repaint ordering, the takeover repaint, the held-save deferral and the eight strip-model mutators are all deterministic.
+- The remaining gap is BR-9's: `TestPaintDefersMidSequenceAndIsOwed` (writer_test.go:117) splits one sequence at one index. The plan's own ARCH-ORDER note says "a test can split an escape sequence at any index"; parameterising over every index of a small representative sequence set is the difference between a sample of size one and coverage.
+
+## 6. Architectural notes
+
+Working through each marker on this diff:
+
+- **ARCH-DRY — pass.** `drawRow` collapses the two painters; `zellijprobe` removes 196 duplicated lines; `TitleIdentifiesRightTerminal` is one predicate with three askers; `rowtext` is the single row-safety strip. The only residual is documentation (the `plan-table-drift` finding).
+- **ARCH-PURE — pass.** `RenderStrip` is `(width, StripModel) → RenderedStrip`, no clock, no mux, no terminal, and its tests need no double. The mux is the thin shell; `stripBytes` is the one place the pure renderer meets the reservation.
+- **ARCH-PURPOSE — flag (BR-61).** This is the entry's exact failure mode, stated in its own words: the round named the class ("a guard that reads a workshop artifact resolves it active-or-archived"), fixed the two instances the finding pointed at, and never wrote the enumeration the class implies — `grep -rn "workshop/plans" cmd tests scripts`, which takes seconds and returns the third site. A family that repeats across rounds is the ledger reporting the enumeration was never written; this one repeated *inside* the round that claimed to close it.
+- **ARCH-MOCK — pass.** zellij sits behind `Runtime`/`fakeRuntime`, the tty behind `writerRecorder`/`hostty.FakeHost`, and production and test share the `paneWriter` boundary. Live conformance is real and re-runnable (`make test-smoke`, `make test-couch-nested-rows`, 15/15 per the Log). The Minor above is the only blemish.
+- **ARCH-CONSTRAINTS — pass, newly.** Each declared budget bullet now owns a counting assertion, verified red by mutation. The keystroke path is honestly cheap: a rename costs zero subprocesses and one posted paint per keystroke.
+- **ARCH-SECURE — pass.** Untrusted input is enumerated and typed at the boundary: operator tab names and the live rename field both go through `rowtext.Sanitize`/`Fit` before reaching the row (`strip.go:170,185`), diagnostics sanitize at the single egress (`reportError`), and the child's byte stream is parsed by `ptychild.Screen` rather than trusted. No credentials. The probes only ever name and delete their own session.
+- **ARCH-ORDER — pass with one open gap.** The `(state, event) → (state, effects)` table is real and each transition now has a test that fails when its behaviour is removed. `stripOwed` / `owed` / `owedDiag` are three pieces of pending state with a written ordering (`writeOwn` clearing `owed` states the invariant where it lives), and `unsafeToPaint` collapses two defer conditions into one predicate rather than a flag constellation. Extent is bounded — no goroutine outlives `Run`. The gap is BR-9: the interleaving space is describable but only one point in it is sampled.
+
+**For M4.** BR-8 remains the one worth acting on before M4.3 is ticked: six of the nine `borderless=true` rungs only take effect after `Alt+Shift+d`, and losing the divider in a split is the precise failure that caused the 2026-07-27 revert. One keystroke in the acceptance step. Also note the M4.4 atlas/`config.kdl` correction is now partly pre-done — `atlas/architecture.md` already carries the nested-reservation and strip-ownership paragraphs — so M4.4 should be narrowed to `config.kdl`'s scroll-indicator rationale rather than re-asserting what this window already landed.
+
+## 7. Plan revision recommendations
+
+1. **`## Revisions` — "round 14: the class guard was scoped to one artifact, twice."** BR-61 disposed `not-addressed`: `tests/plan-superseded-facts-test.sh` still hardcodes the active plan path and breaks `make test` repo-wide at M4.5. Record the enumeration command (`grep -rn "workshop/plans" cmd tests scripts Makefile*`) alongside the fix, since the rule's whole point was that the site set is derivable.
+2. **Core concepts, `Edge / Reservation` bullet (`:266-267`)** — drop `Reserve()` from the method list (it is deleted; `ReserveAndPaint` is what both consumers call), and record that `TestEveryCoreConceptRowNamesASymbolThatExists` is being widened from pipe-rows to the whole section, so the bullets stop being an unchecked claim.
+3. **M4.4** — narrow to `zellij/config.kdl`'s scroll-indicator comment; note that the `atlas/architecture.md` half landed in M3.
+4. **M4.3** — add the `Alt+Shift+d` split step (BR-8) and the "each half draws its own strip / the boundary between them is legible" observation, so the Done-when bullet about splits has a step that produces it.
+5. **Issue file, not the plan:** `## Done when` needs the struck scroll-position bullet removed and the `borderless=true` bullet added, and the Spec's `:113` "going borderless is a follow-on" sentence rewritten — the 2026-09-06 revision already decided all three and none were applied.
+
+```findings
+dispose:
+  - id: BR-8
+    disposition: not-addressed
+    note: |
+      M4.3 still has no Alt+Shift+d step; six of nine borderless rungs stay unverified.
+  - id: BR-9
+    disposition: not-addressed
+    note: |
+      writer_test.go:117 still splits one hand-chosen sequence at one index.
+  - id: BR-61
+    disposition: not-addressed
+    note: |
+      tests/plan-superseded-facts-test.sh:45 still hardcodes workshop/plans/000199-…-plan.md and is wired into make test; measured 7 failures with the plan archived.
+  - id: BR-62
+    disposition: addressed
+    note: |
+      All three mutations re-run in a scratch clone and all three now go red.
+  - id: BR-63
+    disposition: addressed
+    note: |
+      Verified by mutation: a mutator in strip.go and a stacked godoc in control.go's grouped const are both caught.
+  - id: BR-64
+    disposition: addressed
+    note: |
+      rename.go:64 now states one surface and explains the second was deleted.
+  - id: BR-65
+    disposition: addressed
+    note: |
+      drawRow extracted; TestReserveAndPaintIsPaintPlusTheRegion asserts equality, not substring presence; Reserve() deleted.
+  - id: BR-66
+    disposition: addressed
+    note: |
+      Table row and atlas paragraph added; the table now states it is checked table→code only, attributing the other direction to pair#188.
+findings:
+  - id: new
+    severity: Important
+    family: doc-states-planned-as-current
+    title: |
+      The issue's Done-when still carries a bullet its own Revisions marks struck, and omits the one that entry says replaced it
+    detail: |
+      workshop/issues/000199-…md:170 still lists the scroll-position deliverable that :701
+      records as "Struck"; the borderless=true bullet the same entry says was "Added to
+      Done when" is absent; and the Spec at :113 still calls borderless a follow-on that
+      the same entry moved into scope. This is the artifact sdlc close verifies against.
+      Fourth in family, so state the rule rather than editing three bullets: this family's
+      class guard already exists as tests/plan-superseded-facts-test.sh and is bounded to
+      $PLAN, never reading the issue. Widen it to take (file, token, replacement, max_line)
+      over both artifacts. The same enumeration catches the code-side instance in this
+      window, run.go:1359 ("inheritSize does not write the pane today, but it becomes a
+      writer in M3"), which paintbudget_test.go:71 now asserts the opposite of.
+  - id: new
+    severity: Important
+    family: plan-table-drift
+    title: |
+      The Core-concepts guard reads only pipe rows, so the bullets under the table are unchecked and one names a method this commit deleted
+    detail: |
+      Plan :266-267 says Reservation "answers ChildRows(), Reserve(), Release(),
+      Paint(text)"; Reservation.Reserve() was deleted in fc318eb9, and reserve.go's own
+      godoc now says "There is no bare Reserve()". plantable_test.go:175 skips every line
+      not starting with "|", so the descriptive bullets immediately beneath the table --
+      which name the same symbols at the same declared paths -- are invisible to the guard
+      written for exactly that claim. Ninth in family: do not edit the bullet. The guard
+      reads the whole "## Core concepts" section's backticked identifiers; goIdentifier
+      already filters the non-symbols (escapes, zellij action names, issue refs), so the
+      widening is close to free.
+  - id: new
+    severity: Minor
+    family: exit-path-drops-cleanup
+    title: |
+      Every probe registers teardown as a defer and then leaves through os.Exit, so a failed test-smoke leaks the session it created
+    detail: |
+      probes/cursorsaveslots/main.go:72 defers session.Close() and then os.Exit(2)s at :80,
+      :124 and :150; probes/zellijscrollregion/main.go:89 has the same shape at :97/:135/:138;
+      cmd/probes/couchnestedrows/main.go defers delete-session (:396), os.RemoveAll(dataDir)
+      (:387) and os.Remove(layout) (:392) then calls inconclusive(), which os.Exit(1)s -- and
+      the path most likely to fire is "the session never came up". os.Exit skips defers, so a
+      live zellij session named <prefix>-<pid> plus a temp data dir survive each failure, from
+      make test-smoke. BR-51 made "a probe can only destroy a session it made" structural;
+      nothing made "a probe always destroys the session it made" structural. THE RULE - a
+      probe's main is func main() { os.Exit(run()) } and every diagnostic path returns a code,
+      so cleanup is a defer in run. Mechanisable with the go/ast machinery this package
+      already uses: fail when a function containing a defer also calls os.Exit. Measured
+      prevalence: 3 probes, 11 such exit sites.
+```

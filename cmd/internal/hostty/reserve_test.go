@@ -155,7 +155,7 @@ func TestSaveComesBeforeTheRegionChangeThatHomesTheCursor(t *testing.T) {
 // The two painters must differ in EXACTLY one thing: whether the region is
 // re-asserted first. They were two copies of the same five sequences, and this
 // test checked only that the region substring was present -- so a change to one
-// (a different erase, a hide-cursor) would not have propagated (BR-64). Now they
+// (a different erase, a hide-cursor) would not have propagated (BR-65). Now they
 // share drawRow, and this pins that they still do.
 func TestReserveAndPaintIsPaintPlusTheRegion(t *testing.T) {
 	r := hostty.Reservation{Rows: 24, Edge: hostty.EdgeBottom}
