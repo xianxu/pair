@@ -102,6 +102,36 @@ func (r Reservation) Reserve() string {
 // and died would leave the operator's shell scrolling inside a box.
 func (r Reservation) Release() string { return ResetRegion }
 
+// ReserveAndPaint asserts the region AND draws the row, in the one order that
+// leaves the child's cursor where it was.
+//
+// ORDER IS THE WHOLE POINT. `SetRegion` (DECSTBM) HOMES THE CURSOR as a
+// documented side effect, so `Reserve() + Paint(text)` saves a cursor that is
+// already at 1,1 and faithfully restores it there. Measured 2026-09-08: the
+// operator's shell prompt sat at the bottom of the pane while the caret blinked
+// on row 1. Save first, then set the region, then draw.
+//
+// couch had the same latent bug at console.go and never saw it: its child is a
+// full-screen TUI that repositions the cursor on every frame, so the damage was
+// overwritten before anyone could look at it. A shell does not.
+func (r Reservation) ReserveAndPaint(text string) string {
+	if !r.usable() {
+		return ""
+	}
+	return SaveCursor +
+		SetRegion(1, int(r.Rows)-1) +
+		MoveTo(int(r.Rows), 1) +
+		// Reset BEFORE the erase: ClearLine paints with the CURRENT background,
+		// so without this the row is erased in the child's colour and the text
+		// drawn in its foreground. RestoreCursor (DECRC) puts the child's
+		// attributes back afterwards, so this costs the child nothing.
+		ResetSGR +
+		ClearLine +
+		text +
+		ResetSGR +
+		RestoreCursor
+}
+
 // Paint draws the reserved row without disturbing the child.
 //
 // Save and restore BRACKET the paint. Without them the child's cursor is left
@@ -120,7 +150,9 @@ func (r Reservation) Paint(text string) string {
 	}
 	return SaveCursor +
 		MoveTo(int(r.Rows), 1) +
+		ResetSGR +
 		ClearLine +
 		text +
+		ResetSGR +
 		RestoreCursor
 }

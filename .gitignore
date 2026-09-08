@@ -50,6 +50,7 @@ cache/
 /pair-go
 /pair-launch-helper
 /couchstartrecovery
+/termctrlc
 /generatecmd
 /termsmoke
 /zellijpark

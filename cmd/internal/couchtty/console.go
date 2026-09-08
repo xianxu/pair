@@ -1059,7 +1059,7 @@ func (c *Console) paintNow() {
 	c.statusChips = row.Chips
 	c.mu.Unlock()
 	res := bottomReservation(rows)
-	c.writeOwn(res.Reserve() + res.Paint(row.Body))
+	c.writeOwn(res.ReserveAndPaint(row.Body))
 }
 
 func (c *Console) syncAttentionLocked() {

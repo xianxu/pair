@@ -123,3 +123,80 @@ func TestReleaseResetsTheRegion(t *testing.T) {
 		t.Fatalf("Release = %q; want a region reset", r.Release())
 	}
 }
+
+// The cursor must survive a repaint, and the ORDER is what decides it.
+//
+// SetRegion (DECSTBM) homes the cursor as a documented side effect, so
+// Reserve() + Paint() saves a cursor already moved to 1,1 and restores it
+// there. The operator sees their shell prompt at the bottom of the pane and the
+// caret blinking on row 1 — measured, not theorised.
+func TestSaveComesBeforeTheRegionChangeThatHomesTheCursor(t *testing.T) {
+	r := hostty.Reservation{Rows: 24, Edge: hostty.EdgeBottom}
+	got := r.ReserveAndPaint("strip")
+
+	save := strings.Index(got, "\x1b7")
+	region := strings.Index(got, "\x1b[1;23r")
+	restore := strings.Index(got, "\x1b8")
+	if save < 0 || region < 0 || restore < 0 {
+		t.Fatalf("missing save, region or restore: %q", got)
+	}
+	if !(save < region) {
+		t.Fatalf("the region is set BEFORE the cursor is saved, so the saved "+
+			"position is the home DECSTBM moved it to: %q", got)
+	}
+	if !(region < restore) {
+		t.Fatalf("restore precedes the region change: %q", got)
+	}
+	if !strings.Contains(got, "\x1b[24;1H") {
+		t.Fatalf("the row was not addressed: %q", got)
+	}
+}
+
+// The composed form must agree with the pieces, or a caller mixing them gets a
+// different region than the one the reservation describes.
+func TestReserveAndPaintAgreesWithItsParts(t *testing.T) {
+	r := hostty.Reservation{Rows: 24, Edge: hostty.EdgeBottom}
+	both := r.ReserveAndPaint("x")
+	if !strings.Contains(both, r.Reserve()) {
+		t.Fatalf("composed form does not contain Reserve()'s region: %q", both)
+	}
+	for _, rows := range []uint16{0, 1} {
+		degenerate := hostty.Reservation{Rows: rows, Edge: hostty.EdgeBottom}
+		if got := degenerate.ReserveAndPaint("x"); got != "" {
+			t.Fatalf("rows=%d drew %q on a pane with no room", rows, got)
+		}
+	}
+}
+
+// The row must not wear the child's colours.
+//
+// ERASE paints with the CURRENT background and text inherits the current
+// foreground, so a row drawn right after a child's output comes out in whatever
+// SGR that child last set. Measured 2026-09-08: `pair term`'s tab strip
+// rendered in nvim's lualine colours, lualine being the last thing to set SGR
+// before the paint.
+func TestTheRowResetsColourBeforeErasingAndDrawing(t *testing.T) {
+	r := hostty.Reservation{Rows: 24, Edge: hostty.EdgeBottom}
+	for name, got := range map[string]string{
+		"ReserveAndPaint": r.ReserveAndPaint("strip"),
+		"Paint":           r.Paint("strip"),
+	} {
+		reset := strings.Index(got, hostty.ResetSGR)
+		clear := strings.Index(got, hostty.ClearLine)
+		text := strings.Index(got, "strip")
+		if reset < 0 {
+			t.Fatalf("%s never resets SGR, so the row wears the child's colours: %q", name, got)
+		}
+		if !(reset < clear) {
+			t.Fatalf("%s erases BEFORE resetting, so the row is cleared in the "+
+				"child's background colour: %q", name, got)
+		}
+		if !(clear < text) {
+			t.Fatalf("%s draws before erasing: %q", name, got)
+		}
+		// And it must not leak its own attributes back to the child.
+		if last := strings.LastIndex(got, hostty.ResetSGR); last < text {
+			t.Fatalf("%s leaves the strip's attributes active after the text: %q", name, got)
+		}
+	}
+}

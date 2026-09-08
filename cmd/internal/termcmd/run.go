@@ -1366,7 +1366,7 @@ func (m *terminalMux) stripBytes() []byte {
 	if res.Rows == 0 || cols <= 0 {
 		return nil
 	}
-	return []byte(res.Reserve() + res.Paint(RenderStrip(cols, model).Body))
+	return []byte(res.ReserveAndPaint(RenderStrip(cols, model).Body))
 }
 
 func (m *terminalMux) resizeAll(size ptychild.Size) {

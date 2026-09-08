@@ -30,6 +30,16 @@ const (
 	// ClearLine erases the row the cursor is on.
 	ClearLine = "\x1b[2K"
 
+	// ResetSGR clears colour and attributes.
+	//
+	// A reserved row MUST emit this before it erases and draws. An ERASE paints
+	// with the CURRENT background, and text inherits the current foreground, so
+	// a row drawn straight after a child's output wears whatever colour that
+	// child last set -- measured 2026-09-08: `pair term`'s tab strip came out
+	// in nvim's lualine colours, because lualine is the last thing that sets
+	// SGR before the row is painted.
+	ResetSGR = "\x1b[0m"
+
 	// HomeAndClear is the prelude to a repaint.
 	HomeAndClear = "\x1b[1;1H\x1b[J"
 
