@@ -641,6 +641,36 @@ the strip over a suspected-broken writer would confuse both.
 
 ## Revisions
 
+### 2026-09-07 — M2 boundary review, round 5: stop patching doors, enumerate them
+
+Round 5 disposed BR-39's instance as fixed and mutation-verified, and kept it
+open on the half that matters: *"`applyTakeover`'s own ungated write carries no
+written exemption, and no test enumerates the console-originated doors."* That
+is the correct diagnosis of the whole milestone. Rounds 2-4 each fixed the
+ungated or mis-gated write the reviewer happened to name, and each time the next
+round found another — because the fix was a patch to one door rather than an
+account of all of them.
+
+**So the doors are enumerated by a test.** A write to the pane either passes the
+gate (`writeOwn`/`writeDiag`/`flushOwed`) or carries a `gate-exempt: <reason>`
+marker; `TestEveryConsoleWriteIsGatedOrExplicitlyExempt` reads the source and
+fails on anything else. It found a door I had not classified on its very first
+run — the child's own output — which is the instrument working, not a defect: it
+turns out there are exactly three exemptions and each is a *different kind*.
+
+| door | why it is exempt |
+|---|---|
+| child output | not a USER of the gate but the thing it MODELS; gating a child against its own stream state deadlocks it against itself |
+| takeover | `HomeAndClear` discards the screen the old scan described, and the reset runs first — that ordering is what earns it |
+| teardown | the loop may already be gone, and a half-restored terminal is worse than an ungated write |
+
+**BR-41 was demoted past the round cap with the note that no later gate picks it
+up, so it is fixed here rather than lost:** `runZellij` handed the subprocess
+`cmd.Stdin = os.Stdin` — the pane's RAW-MODE stdin, carrying the operator's
+keystrokes — while both the code comment and `atlas/architecture.md` said it
+gives "neither descriptor" and counted only two. None of termcmd's verbs read
+stdin. Now `nil`, with a test on the source and the atlas corrected to "none".
+
 ### 2026-09-07 — M2 boundary review, round 4 (REWORK → addressed)
 
 Two Criticals, and **both were introduced by the fixes for earlier findings in

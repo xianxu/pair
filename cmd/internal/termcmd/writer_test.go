@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"io"
 	"os"
+	"regexp"
 	"runtime"
 	"strconv"
 	"strings"
@@ -508,5 +509,87 @@ func TestADiagnosticNeverLandsInsideTheReplaysOpenSequence(t *testing.T) {
 	m.drainForTest()
 	if !strings.Contains(rec.String(), "owed failure") {
 		t.Fatalf("the diagnostic was dropped rather than deferred: %q", rec.String())
+	}
+}
+
+// BR-39's CLASS half: enumerate every door through which console-originated
+// bytes reach the pane, and require each to be gated or explicitly exempt.
+//
+// Fixing the one instance the reviewer named leaves the next one to be found by
+// the next reviewer. This reads the source and fails on any write to m.stdout
+// that neither goes through the gate (writeOwn / writeDiag / flushOwed) nor
+// carries a `gate-exempt: <reason>` marker. A new ungated write is then a red
+// test rather than a review round -- the same instrument as
+// tests/plan-superseded-facts-test.sh, one layer down.
+func TestEveryConsoleWriteIsGatedOrExplicitlyExempt(t *testing.T) {
+	src, err := os.ReadFile("run.go")
+	if err != nil {
+		t.Fatalf("read run.go: %v", err)
+	}
+	// The gated writers themselves: these ARE the gate, so their own writes are
+	// the implementation of it rather than users of it.
+	gateInternals := map[string]bool{
+		"writeOwn": true, "writeDiag": true, "flushOwed": true,
+	}
+
+	lines := strings.Split(string(src), "\n")
+	// The marker may sit on the write line OR in the comment block just above
+	// it: a real reason is usually a sentence or three, and forcing it onto the
+	// line would buy a one-line marker at the cost of the explanation.
+	exempted := func(i int) bool {
+		for j := i; j >= 0 && j > i-8; j-- {
+			if strings.Contains(lines[j], "gate-exempt:") {
+				return true
+			}
+			// Stop at a blank line or a statement, so a marker cannot leak
+			// across an unrelated block onto a write it does not describe.
+			t := strings.TrimSpace(lines[j])
+			if j < i && t != "" && !strings.HasPrefix(t, "//") {
+				return false
+			}
+		}
+		return false
+	}
+
+	var fn string
+	var offenders []string
+	for i, line := range lines {
+		if m := regexp.MustCompile(`^func \(m \*terminalMux\) (\w+)`).FindStringSubmatch(line); m != nil {
+			fn = m[1]
+		}
+		if !strings.Contains(line, "m.stdout") {
+			continue
+		}
+		if !strings.Contains(line, ".Write") && !strings.Contains(line, "WriteString") {
+			continue
+		}
+		if gateInternals[fn] || exempted(i) {
+			continue
+		}
+		offenders = append(offenders,
+			"run.go:"+strconv.Itoa(i+1)+" in "+fn+"(): "+strings.TrimSpace(line))
+	}
+	if len(offenders) > 0 {
+		t.Fatalf("console writes that neither pass the gate nor carry a "+
+			"`gate-exempt: <reason>` marker:\n  %s", strings.Join(offenders, "\n  "))
+	}
+
+	// POSITIVE CONTROL: the scan must actually find the writes it is checking,
+	// or an empty result would pass for the wrong reason.
+	if n := strings.Count(string(src), "gate-exempt:"); n < 2 {
+		t.Fatalf("found %d exemption markers; the scan is not seeing the file it thinks it is", n)
+	}
+}
+
+// The subprocess gets NO descriptor -- including stdin, which is in raw mode and
+// carries the operator's keystrokes. Code and atlas both claimed "neither
+// descriptor" while a third one was being handed over (BR-41).
+func TestTheZellijSubprocessGetsNoStdinEither(t *testing.T) {
+	src, err := os.ReadFile("run.go")
+	if err != nil {
+		t.Fatalf("read run.go: %v", err)
+	}
+	if strings.Contains(string(src), "cmd.Stdin = os.Stdin") {
+		t.Fatal("runZellij hands the subprocess the pane's raw-mode stdin; it can eat keystrokes")
 	}
 }

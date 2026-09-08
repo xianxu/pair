@@ -511,7 +511,10 @@ Two consequences worth stating because neither is local to the writer loop.
 `enqueue` posts and does **not** wait: `runShell` redraws (via `newTab`) before
 it starts the loop, so a synchronous post deadlocks `pair term` on startup —
 ordering comes from the channel, which is all the envelope needs. And
-`termcmd.OSRuntime` gives a subprocess **neither** of the pane's descriptors,
+`termcmd.OSRuntime` gives a subprocess **none** of the pane's descriptors —
+including **stdin**, which is in raw mode and carries the operator's keystrokes,
+and which an earlier version handed over while the code and this paragraph both
+said "neither" and counted only two —
 enforced at the Runtime rather than at call sites: that Runtime is handed to
 `layoutcmd` and `draftroute` too, so a call-site rule covers neither their
 sites nor the next one added. `zellij action` output on a full-screen pty lands
@@ -535,6 +538,19 @@ producer. Filtering one producer only moves the hazard to the next.
   diagnostic path above. It is a package rather than a helper because
   `couchtty`'s originals were unexported and so unreachable from `termcmd`, and
   a second copy of a security-relevant strip is exactly the outcome to avoid.
+
+**Every door to the pane is enumerated, not remembered.** A write to the pane
+either passes the gate (`writeOwn` / `writeDiag` / `flushOwed`) or carries a
+`gate-exempt: <reason>` marker, and `TestEveryConsoleWriteIsGatedOrExplicitlyExempt`
+reads the source and fails on anything else. There are exactly three exemptions
+and each is a different kind: the **child's own output** (not a user of the gate
+but the thing it models — gating a child against its own stream state would
+deadlock it against itself), the **takeover** (`HomeAndClear` discards the
+screen the old scan described, and the reset happens first, which is what earns
+it), and **teardown** (the loop may already be gone, and a half-restored
+terminal is worse than an ungated write). The instrument exists because fixing
+each ungated write the reviewer happened to name left the next one for the next
+reviewer — twice.
 
 **What is shared is structure; what stays is policy.** `termcmd` keeps numbered
 tabs, rename, the zellij pane title, and exit-when-empty; `couch` switches named

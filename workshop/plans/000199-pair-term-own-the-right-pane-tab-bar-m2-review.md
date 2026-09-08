@@ -709,3 +709,168 @@ findings:
     detail: |
       This is the 2nd finding in family validating-door-bypassed, so the deliverable is the rule, not the site. run.go:792-793 writes each queued diagnostic with m.stdout.Write, immediately after run.go:791 feeds chunk.replay to hostScan - so when the replay ends mid-sequence (the case run.go:787-790 exists to handle, and which writer_test.go:419 asserts is real), MidSequence is true and the write goes out anyway. Reproduced with an overlay test - a diagnostic queued while the child was mid-sequence, then redrawTab("restored\x1b[3"), yields "x\x1b[3\x1b[1;1H\x1b[Jrestored\x1b[3pair term: queued failure\r\n" on the pane, the diagnostic's leading bytes swallowed as CSI parameters. Reachable: a failed rename or a failed zellij action while the child is mid-escape, then any tab switch. The takeover's own write at :786 is NOT the same case and must stay exempt - it begins with ESC, which cancels a pending CSI in xterm-class terminals, which is why couch's takeover writes ungated; that exemption should be stated rather than re-derived. The rule - every byte reaching m.stdout from the writer loop passes through the gate-consulting door (writeOwn / writeDiag), or carries a written exemption naming why the gate does not apply - covers the enumerable set `grep -n 'm\.stdout' cmd/internal/termcmd/run.go`: today :786 (exempt, takeover), :793 (the defect), :826 (the child stream itself), :839/:857/:868/:876 (inside the doors), :1321 (teardown, exempt). The test that pins the rule enumerates the console-originated write paths and asserts each defers while the gate is mid-sequence, which is what the current suite does for paints and not for the takeover-carried diagnostics.
 ```
+
+---
+
+## Re-review — 2026-09-07T23:27:09-07:00 (REWORK)
+
+| field | value |
+|-------|-------|
+| issue | 199 — pair term: own the right pane tab bar |
+| repo | pair |
+| issue file | workshop/issues/000199-pair-term-own-the-right-pane-tab-bar.md |
+| boundary | milestone M2 |
+| milestone | M2 |
+| window | 96f780da661b35aef301b612b14ee8399bd9a6cf..54f2273a63246ab97da220ab259b2c7f55b12ac9 |
+| command | sdlc milestone-close --issue 199 --milestone M2 |
+| reviewer | claude |
+| timestamp | 2026-09-07T23:27:09-07:00 |
+| verdict | REWORK |
+
+## Review
+
+```verdict
+verdict: REWORK
+confidence: high
+```
+
+Both round-9 Criticals are genuinely fixed and I verified each by reverting it in a scratch copy: dropping `applyTakeover` back to `redrawTab` in `removeTab` reddens `TestAChildExitingWithAFullBufferDoesNotWedgeThePane` (BR-25), and putting `m.stdout.Write` back in the takeover's diagnostic loop reddens `TestADiagnosticNeverLandsInsideTheReplaysOpenSequence` with the exact corrupt byte string the finding predicted (BR-39). The full `go test ./cmd/...` is green (unsandboxed; the sandbox's pty failures are the known `ptychild: start: operation not permitted` class, not defects). What blocks SHIP is not a new crash: it is that the milestone's *stated* contract is still violated in two places that the diff's own prose describes as fixed. `runZellijCaptured`'s comment says the capture exists because "the wheel-tick callers also drop the error … a failing action became completely silent", and four callers (`run.go:462,468,1165,1257`) still drop it — pre-M2 those bytes reached the operator on `os.Stderr`, so the window is a net loss of a diagnostic the plan explicitly forbade losing, and there is no log sink anywhere (BR-27, open since round 5). And couch's third gate rule — the reset this milestone was written to import — turns out to be completely unpinned: deleting `m.hostScan = ptychild.Screen{}` (run.go:822) leaves the entire termcmd suite green, because both takeover fixtures (`"fresh"`, `"restored…"`) begin with a byte in the CSI final range that terminates the pending sequence by accident. That is measured, not argued, and it is the headline deliverable of M2.3 step 1.
+
+## 1. Strengths
+
+- **The writer envelope is genuinely swept, not asserted.** All six writers from plan finding 8 are accounted for at HEAD: `grep -rn "os.Stdout\|os.Stderr" cmd/internal/termcmd/*.go` (non-test) returns exactly one hit, and that is a comment. `ReportShortcutError` is gone from the whole tree with no stale implementer. The startup `fmt.Fprintf(stderr, …)` sites are all provably before `copyActiveOutput` starts (run.go:233,243,255 vs :271).
+- **`reportError`'s routing is pinned by a failing test.** Mutating it to write `m.stdout` directly reddens two tests with real corrupt output — this is not a comment defending a fix.
+- **`owedDiag`'s queue-not-coalesce policy is pinned.** Collapsing it to a single slot reddens `TestDiagnosticsAreQueuedNotCoalescedAndSurviveATakeover` at the right assertion.
+- **`ptyChunk` as one type over one channel** (run.go:604-613) with the rationale written down — "two channels would let a select choose between them in an order nothing pins" — is the correct ARCH-ORDER call, and `drainForTest`/`midSequenceForTest` give tests a real seam to inject ordering rather than sleeping. That is the opposite of the single-interleaving oracle the principle warns about.
+- **`rowtext` is a clean ARCH-DRY win**: two unexported copies became one package with its own tests, and the C1 clause is mutation-verified (reverting it reddens four subtests).
+
+## 2. Critical findings
+
+None new. The two Criticals from round 9 are fixed in code and mutation-verified; BR-39 remains disposed `not-addressed` only for its *class* half (below), not for the corruption itself.
+
+## 3. Important findings
+
+**N1 — `cmd/internal/termcmd/run.go:822` / `writer_test.go:194`: couch's third gate rule is unobservable.** `m.hostScan = ptychild.Screen{}` can be deleted with the whole `./cmd/internal/termcmd` suite still green. Both takeover fixtures start with `f` (0x66) and `r` (0x72), both legal CSI final bytes, so `FeedFraming(replay)` closes the pending sequence by itself and `midSequenceForTest()` reads false either way. Discriminating fixture, verified in a scratch copy: feed `"x\x1b[3"`, then `redrawTab([]byte("0000"))` — parameter bytes only, no final. Green with the reset, red without it.
+
+**N2 — `cmd/internal/termcmd/run.go:1426`: the descriptor claim is false for stdin.** `cmd.Stdin = os.Stdin` hands the subprocess the pane's stdin — which `host.MakeRaw()` has put in raw mode — while run.go:1394 states "NEITHER method gives a subprocess the pane's descriptors, and that is the point" and `atlas/architecture.md:514` repeats it. `TestNeitherZellijMethodHandsTheSubprocessThePanesDescriptors` is named for all the pane's descriptors and asserts two of three. Whether any `zellij action` verb reads stdin is unmeasured, which is the reason to close it off rather than reason about it.
+
+**BR-27 (still open) is the one that decides the verdict** — see the disposition note. The fix has an interaction worth flagging before it is attempted: `run.go:1165` sits inside `removeTab`, which BR-25 just established runs *on* the writer goroutine, so routing it through `reportError` → `enqueue` re-creates the deadlock. It needs the inline `writeDiag` door, same as `applyTakeover` uses.
+
+## 4. Minor findings
+
+- Plan `:279-281`: the Integration-points table still marks three M3/M4 rows `new`/`modified` while BR-11 flipped only the Pure-entities table to `planned — M3`. `plan-table-drift`, 5th.
+- `couchtty/menu_render.go:625` open-codes `rowtext.Fit(rowtext.Sanitize(line), width)` where `SanitizeAndFit` exists. Round 9 recorded this as a residual and declined to raise it; noting it so it is not lost.
+- `TestAChildExitingWithAFullBufferDoesNotWedgeThePane` never closes `m.done`, unlike every other test in the file.
+
+## 5. Test coverage notes
+
+Mutation results at HEAD, measured rather than read:
+
+| mutation | suite |
+|---|---|
+| `applyTakeover` → `redrawTab` in `removeTab` | **red** (BR-25 pinned) |
+| takeover diagnostics → `m.stdout.Write` | **red** (BR-39 pinned) |
+| `owedDiag` append → single slot | **red** |
+| `reportError` writes stdout directly | **red** |
+| `m.owed = nil` deleted from `applyTakeover` | *green* (BR-26) |
+| `m.hostScan = ptychild.Screen{}` deleted | *green* (N1) |
+| `runZellijCaptured`'s `SanitizeAndFit` deleted | *green* (BR-26) |
+| `resizeThroughWriter` → direct `inheritSize` | *green* (BR-26) |
+
+Also: `tests/plan-superseded-facts-test.sh:65` bans `'route only stdout through'`, a string `git log -S` finds in **no** revision of the plan — the registered pair has never fired and cannot. That is BR-33's own rule ("registering a pair is not evidence unless it fires") failing inside the mechanism BR-33 asked to extend.
+
+## 6. Architectural notes
+
+- **ARCH-DRY — pass.** `rowtext` removes the duplicate strip; `applyTakeover` is one implementation reachable both inline and by event, which is the right answer to BR-25 rather than a second copy.
+- **ARCH-PURE — pass with a note.** The gate is a value fed bytes by the test, no pty needed. The deferral *policy* (`writeOwn`/`writeDiag`/`flushOwed`) is still interleaved with `m.stdout.Write`; a pure `(state, event) -> (state, []effect)` would make N1 unfalsifiable-by-fixture. Not worth doing for M2; worth considering before M3 adds paints.
+- **ARCH-PURPOSE — flag.** The shadow-sweep on writers is complete and that is real. The sweep on *diagnostics* is not: capture was built and four consumers still discard (BR-27). A capture no consumer reads is the deferred purpose, not a follow-up.
+- **ARCH-MOCK — flag (folded into BR-26).** `TestNeitherZellijMethod…` execs the real `zellij`; there is no stateful fake at the `runZellij` seam, so the `succeeds` arms assert nothing on a box with no live session. `fakeRuntime` sits one layer above and cannot see descriptors.
+- **ARCH-CONSTRAINTS — flag (BR-31, BR-34).** Undeclared: a second full byte-scan of every active chunk (`Screen.feedFraming` is a per-byte loop); an unbounded `owedDiag`; `diagnosticWidth = 200` on a pane that is usually 80 columns while `m.cols` is on the receiver. Add: `removeTab` now spawns a `zellij action` subprocess **on the sole writer goroutine** (run.go:1165), so a child exit stalls all pane output for one exec. Not a regression — it was already there — but M2 made that goroutine the only path for every byte, which changes what the stall costs.
+- **ARCH-SECURE — pass.** Sanitizing at the single egress rather than per producer is the right seam, and the hostile-error test drives escape, SO, newline, CR and length together.
+- **ARCH-ORDER — flag.** The `(event) -> effect` dispatch in `handleChunk` is explicit and readable, and the channel gives tests a real ordering seam — good. Two gaps: `owed`/`owedDiag`/`hostScan` carry an unwritten invariant (`owed != nil` implies `MidSequence()`), held by construction and enforced nowhere; and nothing flushes either slot if the child stops emitting while mid-sequence, which BR-27 named and which `preserveRename` in `removeTab` can also reach.
+
+## 7. Plan revision recommendations
+
+- **`## Revisions` — "the third gate rule was never observable".** Record N1 with the measurement (which byte in each fixture closed the sequence) and the discriminating fixture, so the next reader does not re-derive why `"fresh"` was a bad choice.
+- **`## Revisions` — the descriptor claim's scope.** Either narrow the claim in plan finding 8, run.go:1394 and `atlas/architecture.md:514` to *output* descriptors, or close stdin; do not leave three artifacts asserting all three.
+- **`## Core concepts` → Integration points.** Flip `strip repaint trigger`, `degraded rename-pane` and `right pane chrome` to `planned — M3` / `planned — M4`, and state the rule that the status column is the build tracker in **both** tables — BR-11 fixed one table and this is the other.
+- **`## ARCH-CONSTRAINTS`.** Declare the second parse, bound `owedDiag`, derive `diagnosticWidth` from `m.cols`, and name the subprocess-on-the-writer-goroutine stall.
+- **M3.7(b) and M4.3.** `yes` emits no ESC byte, so M3.7(b) as written still cannot enter the defer path — name the observable (an escape-emitting child, a second tab, a counted deferral) rather than the command.
+
+```findings
+dispose:
+  - id: BR-25
+    disposition: addressed
+    note: |
+      Verified by revert, not by the commit message: restoring redrawTab in removeTab reddens TestAChildExitingWithAFullBufferDoesNotWedgeThePane at the 3s timeout. The rewritten test is deterministic (buffer saturated, no loop running).
+  - id: BR-39
+    disposition: not-addressed
+    note: |
+      Instance fixed and mutation-verified (reverting writeDiag to m.stdout.Write reproduces the exact predicted bytes). Class half absent: applyTakeover's own ungated write at run.go:826-827 carries no written exemption, and no test enumerates the console-originated doors.
+  - id: BR-26
+    disposition: not-addressed
+    note: |
+      Re-measured at HEAD. Green under all three mutations: m.owed = nil (run.go:822), runZellijCaptured's SanitizeAndFit, resizeThroughWriter. plan-superseded-facts-test.sh:65 bans a string git log -S finds in no revision of the plan, so that registered pair can never fire.
+  - id: BR-27
+    disposition: not-addressed
+    note: |
+      Log half absent. run.go:462,468,1165,1257 still discard the error; there is no log sink, so a failing wheel tick or rename is completely silent where pre-M2 it printed. run.go:1437's own comment states this as the reason capture exists. Note run.go:1165 is on the writer goroutine, so its fix needs inline writeDiag, not reportError.
+  - id: BR-33
+    disposition: not-addressed
+    note: |
+      atlas:502-503 still describes every console-originated write as one coalescing slot, false for diagnostics; atlas:532-534 lists pair term's strip as a current rowtext consumer when it is M3. tests/plan-superseded-facts-test.sh still covers only the plan file.
+  - id: BR-34
+    disposition: not-addressed
+    note: |
+      run.go:848 still appends to owedDiag with no cap; ARCH-CONSTRAINTS declares no budget. diagnosticWidth = 200 claims to be far short of wrapping while m.cols is on the receiver.
+  - id: BR-31
+    disposition: not-addressed
+    note: |
+      ARCH-CONSTRAINTS unchanged. Screen.feedFraming is a per-byte loop run over every active chunk in addition to ptychild's own parse; the BR-35 fix narrowed it to the active tab, which is the fact to declare. Same gap covers the zellij exec now running on the sole writer goroutine in removeTab.
+  - id: BR-36
+    disposition: not-addressed
+    note: |
+      M2.5 and the Log are corrected honestly, but M3.7(b) still specifies yes, which emits no ESC, so the deferral path still cannot be entered; no observable is named and no deferral is counted. M4.3 unchanged.
+  - id: BR-38
+    disposition: not-addressed
+    note: |
+      couchtty/reserve.go:143-152 still ends in doc comments for sanitize and truncate, which live in rowtext now. This window added the same shape at run.go:1431-1441, where two consts sit between runZellijCaptured's prose and runZellijCaptured.
+  - id: BR-29
+    disposition: not-addressed
+    note: |
+      run_test.go:941 fakeRuntime.reportedUnused still present and uncalled. terminalMux.stderr is set at run.go:683 and read nowhere (grep for m.stderr returns nothing).
+  - id: BR-30
+    disposition: not-addressed
+    note: |
+      run.go:168 runDecision still takes stdin and stdout and uses neither; panes is likewise unused in the body.
+  - id: BR-8
+    disposition: not-addressed
+    note: |
+      M4 untouched in this window; M4.3 still has no Alt+Shift+d step while the Done-when still requires two right-pane halves each drawing a strip.
+  - id: BR-9
+    disposition: not-addressed
+    note: |
+      writer_test.go:115-116 still splits one hand-chosen index of one sequence.
+findings:
+  - id: new
+    severity: Important
+    family: uncovered-negative-assertion
+    title: |
+      The takeover's scan reset -- couch's third gate rule, M2.3 step 1's headline -- can be deleted with the whole suite green
+    detail: |
+      This is the 3rd finding in family uncovered-negative-assertion, so the deliverable is the rule, not the site; it also shows BR-26's stated sweep list ("the four sites in writer_test.go plus run_test.go:910") was an enumeration written from memory, since this site is not on it. Measured in a scratch copy: deleting m.hostScan = ptychild.Screen{} (run.go:822) leaves ./cmd/internal/termcmd fully green. The reason is the fixtures, not the assertion -- both takeovers replay bytes beginning with f (0x66) and r (0x72), and both are legal CSI final bytes, so FeedFraming(replay) closes the child's pending sequence on its own and midSequenceForTest() reads false with or without the reset. A discriminating fixture is one line: feed "x\x1b[3", then redrawTab([]byte("0000")) -- parameter bytes with no final. Green with the reset, red without it (verified both directions). The rule: an assertion that a state was CLEARED is evidence only when the fixture cannot reach that state by any path other than the clearing. In practice that means a fixture chosen to be inert with respect to the mechanism under test, and the check that makes it stick is the mutation, not the read -- which is the same rule BR-26 states for assert-absent writes, now shown to govern assert-absent STATE as well.
+  - id: new
+    severity: Important
+    family: envelope-claim-unenforced
+    title: |
+      runZellij hands the subprocess the pane's raw-mode stdin, while code and atlas both claim it gives neither descriptor
+    detail: |
+      This is the 2nd finding in family envelope-claim-unenforced, so state the rule rather than patching the line. run.go:1426 sets cmd.Stdin = os.Stdin -- the pane's own descriptor, put in raw mode by host.MakeRaw() at run.go:242 -- while run.go:1394 asserts "NEITHER method gives a subprocess the pane's descriptors, and that is the point" and atlas/architecture.md:514 repeats it. The enforcement test is named TestNeitherZellijMethodHandsTheSubprocessThePanesDescriptors and captures two of the three, so the claim's third case is unasserted by construction. Whether any zellij action verb reads stdin is unmeasured; a verb that reads one byte eats an operator keystroke silently, which is exactly the class the milestone exists to close. The rule: an envelope claim about a RESOURCE enumerates every handle of that resource and the test asserts each one -- "descriptors" means the three the process was started with, not the two the finding that prompted the work happened to name. The enumerable set here is the three fields of exec.Cmd set in runZellij; either close stdin or narrow the claim in all three artifacts (plan finding 8, run.go:1394, atlas:514) in the same commit.
+  - id: new
+    severity: Minor
+    family: plan-table-drift
+    title: |
+      The Integration-points table still marks three M3/M4 rows new/modified after BR-11 flipped only the Pure-entities table
+    detail: |
+      This is the 5th finding in family plan-table-drift, so do not patch the three rows -- state the rule. plan:279-281 declare "strip repaint trigger" new, "degraded rename-pane" modified and "right pane chrome" modified; none exists at HEAD, all three are M3/M4. BR-11 raised exactly this for plan:114-117 and those rows now read "planned -- M3", which is the instance fixed and the class left standing in the table directly below it. The guard cannot catch it: core_concepts_contract_test.go filters on conceptPackage = cmd/internal/couchtty/, so every #199 row declaring termcmd, hostty, rowtext or main-3.kdl is unchecked, and the status column that "doubles as the build tracker" is only a tracker for one package. The rule: the status column is the build tracker for EVERY row of EVERY table in a Core concepts section, and the check that enforces it is scoped to the plan, not to a package -- which is the same gap BR-33 names for atlas, and the reason both should be answered by one mechanism rather than two hand-maintained lists.
+```

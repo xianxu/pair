@@ -804,6 +804,10 @@ func (m *terminalMux) handleChunk(chunk ptyChunk) {
 		// current screen.
 		if m.isActive(chunk.id) {
 			m.hostScan.FeedFraming(chunk.data)
+			// gate-exempt: child output. This is not a USER of the gate, it is
+			// what the gate MODELS -- gating the child against its own stream
+			// state would deadlock it against itself. Fed immediately above, so
+			// the model and the terminal move together.
 			_, _ = m.stdout.Write(chunk.data)
 		}
 		m.flushOwed()
@@ -823,8 +827,17 @@ func (m *terminalMux) applyTakeover(replay []byte) {
 	m.owed = nil
 	m.owedDiag = nil
 
-	_, _ = io.WriteString(m.stdout, hostty.HomeAndClear)
-	_, _ = m.stdout.Write(replay)
+	// THE ONE EXEMPTION from the gate, and it is deliberate rather than
+	// overlooked. Every other console-originated write consults hostScan; this
+	// one cannot, because it is what makes the gate's state meaningful again:
+	// HomeAndClear discards the screen the old scan described, so consulting
+	// that scan first would defer a write against a screen about to cease
+	// existing. The reset above is what earns the exemption -- it happens
+	// BEFORE these writes, so nothing downstream reads a stale mid-sequence.
+	//
+	// Enumerated and enforced by TestEveryConsoleWriteIsGatedOrExplicitlyExempt.
+	_, _ = io.WriteString(m.stdout, hostty.HomeAndClear) // gate-exempt: takeover
+	_, _ = m.stdout.Write(replay)                        // gate-exempt: takeover
 	// The replay is CHILD bytes and the terminal has now seen them, so the gate
 	// must too -- it is replay-safe (ptychild strips queries and cuts at
 	// ReplaySafeEnd) but "usually ends at a boundary" is an assumption, and the
@@ -1340,7 +1353,7 @@ func (m *terminalMux) restoreTerminal() {
 	// Teardown writes DIRECTLY: the loop may already be gone, and a
 	// half-restored terminal is worse than an un-gated write when the child is
 	// finished with the screen anyway. Same reasoning as couch's release().
-	_, _ = io.WriteString(m.stdout, hostty.ResetRegion)
+	_, _ = io.WriteString(m.stdout, hostty.ResetRegion) // gate-exempt: teardown
 }
 
 func (OSRuntime) ListPanesJSON() ([]byte, error) {
@@ -1423,7 +1436,13 @@ func (OSRuntime) RunZellijActionQuiet(args ...string) error {
 // after #199 M4 there is no frame to absorb it.
 func runZellij(args []string, stdout, stderr io.Writer) error {
 	cmd := exec.Command("zellij", args...)
-	cmd.Stdin = os.Stdin
+	// NO STDIN EITHER. The pane's stdin is in RAW MODE and carries the
+	// operator's keystrokes; handing it to a subprocess lets that process
+	// consume them, and none of termcmd's verbs (focus-pane-id, scroll-up,
+	// scroll-down, rename-pane) read stdin at all. Both this file and
+	// atlas/architecture.md claimed "neither descriptor" while this line gave
+	// away a third one.
+	cmd.Stdin = nil
 	cmd.Stdout = stdout
 	cmd.Stderr = stderr
 	return cmd.Run()
