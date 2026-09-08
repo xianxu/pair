@@ -42,12 +42,15 @@ func TestEveryTerminalPaneRungIsBorderless(t *testing.T) {
 				continue
 			}
 			rungs++
-			// borderless may sit on the same line as the pane, or on the
-			// following line for the multi-line rungs.
-			window := line
-			if i+1 < len(lines) {
-				window += "\n" + lines[i+1]
-			}
+			// THE PANE'S OWN BLOCK, delimited by brace depth -- not a
+			// fixed two-line window.
+			//
+			// The window version let a NEIGHBOUR satisfy the check: a rung
+			// missing borderless passed whenever the pane declared right after
+			// it had the attribute, which made 3 of these 9 rungs incapable of
+			// failing. A guard that cannot fail on a third of its enumeration
+			// is worse than none, because the count still reads as coverage.
+			window := paneBlock(lines, i)
 			if !strings.Contains(window, "borderless=true") {
 				t.Errorf("%s:%d — a terminal pane rung without borderless=true:\n  %s",
 					filepath.Base(path), i+1, strings.TrimSpace(line))
@@ -58,4 +61,32 @@ func TestEveryTerminalPaneRungIsBorderless(t *testing.T) {
 				"removed without updating this enumeration", filepath.Base(path), rungs, wantRungs)
 		}
 	}
+}
+
+// paneBlock returns the lines belonging to the pane declared at `start`, and
+// nothing after it.
+//
+// A pane is either self-contained on one line (`pane ... }` or no brace at all)
+// or opens a block that closes when brace depth returns to where it began.
+// Either way the span stops before the next sibling, which is the whole point:
+// an attribute on a neighbour must never satisfy this pane.
+func paneBlock(lines []string, start int) string {
+	depth := 0
+	var b strings.Builder
+	for i := start; i < len(lines); i++ {
+		line := lines[i]
+		b.WriteString(line)
+		b.WriteString("\n")
+		depth += strings.Count(line, "{") - strings.Count(line, "}")
+		if i > start && depth <= 0 {
+			break
+		}
+		if depth <= 0 && strings.Contains(line, "}") {
+			break // self-closed on the declaring line
+		}
+		if depth == 0 && i == start {
+			break // no block at all: a one-line pane with no braces
+		}
+	}
+	return b.String()
 }

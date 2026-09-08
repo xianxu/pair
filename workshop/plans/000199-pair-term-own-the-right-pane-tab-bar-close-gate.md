@@ -1641,6 +1641,120 @@ rounds:
           family: formatting-drift
           round: 16
       blocked: true
+    - "n": 17
+      timestamp: "2026-09-08T16:41:27-07:00"
+      agent: claude
+      dispose:
+        - id: BR-8
+          disposition: not-addressed
+          note: M4.3 still has no Alt+Shift+d step and the operator record does not mention the split; now load-bearing because finding (a) shows the guard is blind on those same rungs and 78f8c046 restored frames there for a divider.
+          round: 17
+        - id: BR-9
+          disposition: not-addressed
+          note: writer_test.go:117 still splits one hand-chosen sequence at one index.
+          round: 17
+        - id: BR-13
+          disposition: not-addressed
+          note: Premise partly overtaken - run.go:1412/1422 are production callers now - but couchtty/console.go:922 still bypasses the door via bottomReservation.
+          round: 17
+        - id: BR-14
+          disposition: not-addressed
+          note: atlas/couch.md:228 unchanged; still no pointer to hostty.Reservation from the section a reader lands on.
+          round: 17
+        - id: BR-15
+          disposition: not-addressed
+          note: No caller-obligation line anywhere in cmd/internal/hostty; grep for sanitiz/rowtext in that package returns nothing.
+          round: 17
+        - id: BR-24
+          disposition: not-addressed
+          note: 'plan:528 unchanged. Measured this round in the repo''s zsh - "(eval):1: no matches found: --include=*.go", exit 1, pipeline never runs.'
+          round: 17
+        - id: BR-30
+          disposition: not-addressed
+          note: run.go:168 still takes stdin and stdout; neither is referenced in the body.
+          round: 17
+        - id: BR-31
+          disposition: not-addressed
+          note: The envelope at plan:390-410 still budgets paints only; no entry for the second full parse per chunk or the unterminated-OSC stall.
+          round: 17
+        - id: BR-33
+          disposition: not-addressed
+          note: The mechanism half landed and fires, but BR-33's own paragraph is unchanged - atlas/architecture.md:517-519 still says a mid-sequence write goes into a single coalescing slot, false for diagnostics since 34918a3c gave them owedDiag.
+          round: 17
+        - id: BR-38
+          disposition: not-addressed
+          note: couchtty/reserve.go:143-151 still ends in two paragraphs documenting sanitize/truncate; doccomment_test.go's roots exclude couchtty and it checks stacked godocs, not orphaned ones.
+          round: 17
+        - id: BR-70
+          disposition: addressed
+          note: Verified at HEAD - the row reads "modified - M4", the guard passes, and go test ./... is green apart from the documented sandbox pty class.
+          round: 17
+        - id: BR-71
+          disposition: addressed
+          note: Verified by construction - archived issue and plan to workshop/history in a scratch tree, reintroduced the drift, guard still fired.
+          round: 17
+        - id: BR-72
+          disposition: not-addressed
+          note: One of four sites fixed. Live at HEAD - atlas/architecture.md:381 "while keeping frames", zellij/config.kdl:11-14 "keep their frames (the frame is the only visible divider between the split halves)", zellij/layouts/main-3.kdl:22 "keeping frames (divider, tab title, scroll indicator)". The registered config/layout token covers a different sentence in the same file.
+          round: 17
+        - id: BR-73
+          disposition: not-addressed
+          note: All three present - menu_render.go:625 parens, its rowtext import in the stdlib group, manifest.go:631 out of order.
+          round: 17
+      findings:
+        - id: BR-74
+          severity: Important
+          title: The borderless guard's two-line window lets a neighbour satisfy the check, so 3 of its 9 rungs cannot fail
+          detail: |-
+            This is the 4th finding in family `uncovered-negative-assertion`, so state the
+            rule rather than patching the window. THE RULE - a per-item guard must bind its
+            evidence to the item; matching inside a window that spans the next item lets a
+            neighbour satisfy the assertion, and the mutation check must cover every
+            position class (sole, first-of-pair, last-of-pair) rather than one
+            representative. Measured: terminalborderless_test.go:47-51 builds
+            `window := line + "\n" + lines[i+1]`, and the split rungs are adjacent
+            `pane name="terminal"` lines; deleting ` borderless=true` from main-3.kdl:138 in
+            both source and mirror leaves the test ok. Same shape at :165 and :191, which
+            are exactly the rungs BR-8 says were never exercised by hand. All nine sites
+            carry the attribute on their own line, so the window is unnecessary - delete it.
+            Greppable form of the class: a guard that constructs evidence from
+            `lines[i]+lines[i+1]` and then asserts on the concatenation.
+          family: uncovered-negative-assertion
+          round: 17
+        - id: BR-75
+          severity: Important
+          title: The cursor-save gate tracks DECSC only; the aliasing SCOSC form the repo's own probe names is untracked
+          detail: |-
+            This is the 4th finding in family `external-input-assumed-wellformed`, so the
+            rule, not the site. THE RULE - when this code models a terminal control by its
+            byte form, it must enumerate EVERY byte form the terminal accepts for that
+            control, and the enumeration is greppable because the repo already writes both
+            forms down. BR-37 was the same rule for C0 versus C1 in rowtext.Sanitize; this
+            is DECSC (ESC 7 / ESC 8) versus SCOSC (CSI s / CSI u) in
+            ptychild/screen.go:439-455, where the CSI switch at :503 handles only 'r' and
+            'J'. probes/cursorsaveslots/main.go:3 names both forms in its first sentence, so
+            the sibling was enumerated before the fix was written and then not covered. A
+            child using CSI s holds the same one slot the code's own comment says terminals
+            keep, HoldsCursorSave stays false, and the paint lands inside the pair - the
+            exact operator symptom M3 exists to remove. Fix at the class: classify every
+            save/restore spelling, or extend the probe to answer the child-side question and
+            record the negative where the gate is defined.
+          family: external-input-assumed-wellformed
+          round: 17
+        - id: BR-76
+          severity: Minor
+          title: BR-70's rule is recorded only in a commit message, so nothing will read it next time
+          detail: |-
+            This is the 12th finding in family `plan-table-drift`. The round's own commit
+            states the rule well - a tracked-artifact edit is an input to a guard, so the
+            commit that ticks a milestone runs the suite, and the tick plus its table-status
+            flip are one edit - but states it in `git log` only. workshop/lessons.md took 159
+            lines in this window and none of them is that rule, which AGENTS.md section 4
+            makes an obligation of running a review. A rule that lives only in a commit
+            message is the same defect as a sweep that depends on remembering to sweep.
+          family: plan-table-drift
+          round: 17
+      blocked: true
 ---
 
 # Gate ledger — pair#199 (boundary-review)
@@ -2476,6 +2590,65 @@ later rounds disposed of them. Generated — edit the gate, not this file.
   cmd/internal/rowtext/rowtext.go between procutil and ptychild, breaking the
   list's sort order.
 
+## Round 17 — 2026-09-08T16:41:27-07:00 (claude) — BLOCKED
+
+### Disposed
+
+- BR-8 — not-addressed — M4.3 still has no Alt+Shift+d step and the operator record does not mention the split; now load-bearing because finding (a) shows the guard is blind on those same rungs and 78f8c046 restored frames there for a divider.
+- BR-9 — not-addressed — writer_test.go:117 still splits one hand-chosen sequence at one index.
+- BR-13 — not-addressed — Premise partly overtaken - run.go:1412/1422 are production callers now - but couchtty/console.go:922 still bypasses the door via bottomReservation.
+- BR-14 — not-addressed — atlas/couch.md:228 unchanged; still no pointer to hostty.Reservation from the section a reader lands on.
+- BR-15 — not-addressed — No caller-obligation line anywhere in cmd/internal/hostty; grep for sanitiz/rowtext in that package returns nothing.
+- BR-24 — not-addressed — plan:528 unchanged. Measured this round in the repo's zsh - "(eval):1: no matches found: --include=*.go", exit 1, pipeline never runs.
+- BR-30 — not-addressed — run.go:168 still takes stdin and stdout; neither is referenced in the body.
+- BR-31 — not-addressed — The envelope at plan:390-410 still budgets paints only; no entry for the second full parse per chunk or the unterminated-OSC stall.
+- BR-33 — not-addressed — The mechanism half landed and fires, but BR-33's own paragraph is unchanged - atlas/architecture.md:517-519 still says a mid-sequence write goes into a single coalescing slot, false for diagnostics since 34918a3c gave them owedDiag.
+- BR-38 — not-addressed — couchtty/reserve.go:143-151 still ends in two paragraphs documenting sanitize/truncate; doccomment_test.go's roots exclude couchtty and it checks stacked godocs, not orphaned ones.
+- BR-70 — addressed — Verified at HEAD - the row reads "modified - M4", the guard passes, and go test ./... is green apart from the documented sandbox pty class.
+- BR-71 — addressed — Verified by construction - archived issue and plan to workshop/history in a scratch tree, reintroduced the drift, guard still fired.
+- BR-72 — not-addressed — One of four sites fixed. Live at HEAD - atlas/architecture.md:381 "while keeping frames", zellij/config.kdl:11-14 "keep their frames (the frame is the only visible divider between the split halves)", zellij/layouts/main-3.kdl:22 "keeping frames (divider, tab title, scroll indicator)". The registered config/layout token covers a different sentence in the same file.
+- BR-73 — not-addressed — All three present - menu_render.go:625 parens, its rowtext import in the stdlib group, manifest.go:631 out of order.
+
+### Raised
+
+- **BR-74** [Important] `uncovered-negative-assertion` The borderless guard's two-line window lets a neighbour satisfy the check, so 3 of its 9 rungs cannot fail
+  This is the 4th finding in family `uncovered-negative-assertion`, so state the
+  rule rather than patching the window. THE RULE - a per-item guard must bind its
+  evidence to the item; matching inside a window that spans the next item lets a
+  neighbour satisfy the assertion, and the mutation check must cover every
+  position class (sole, first-of-pair, last-of-pair) rather than one
+  representative. Measured: terminalborderless_test.go:47-51 builds
+  `window := line + "\n" + lines[i+1]`, and the split rungs are adjacent
+  `pane name="terminal"` lines; deleting ` borderless=true` from main-3.kdl:138 in
+  both source and mirror leaves the test ok. Same shape at :165 and :191, which
+  are exactly the rungs BR-8 says were never exercised by hand. All nine sites
+  carry the attribute on their own line, so the window is unnecessary - delete it.
+  Greppable form of the class: a guard that constructs evidence from
+  `lines[i]+lines[i+1]` and then asserts on the concatenation.
+- **BR-75** [Important] `external-input-assumed-wellformed` The cursor-save gate tracks DECSC only; the aliasing SCOSC form the repo's own probe names is untracked
+  This is the 4th finding in family `external-input-assumed-wellformed`, so the
+  rule, not the site. THE RULE - when this code models a terminal control by its
+  byte form, it must enumerate EVERY byte form the terminal accepts for that
+  control, and the enumeration is greppable because the repo already writes both
+  forms down. BR-37 was the same rule for C0 versus C1 in rowtext.Sanitize; this
+  is DECSC (ESC 7 / ESC 8) versus SCOSC (CSI s / CSI u) in
+  ptychild/screen.go:439-455, where the CSI switch at :503 handles only 'r' and
+  'J'. probes/cursorsaveslots/main.go:3 names both forms in its first sentence, so
+  the sibling was enumerated before the fix was written and then not covered. A
+  child using CSI s holds the same one slot the code's own comment says terminals
+  keep, HoldsCursorSave stays false, and the paint lands inside the pair - the
+  exact operator symptom M3 exists to remove. Fix at the class: classify every
+  save/restore spelling, or extend the probe to answer the child-side question and
+  record the negative where the gate is defined.
+- **BR-76** [Minor] `plan-table-drift` BR-70's rule is recorded only in a commit message, so nothing will read it next time
+  This is the 12th finding in family `plan-table-drift`. The round's own commit
+  states the rule well - a tracked-artifact edit is an input to a guard, so the
+  commit that ticks a milestone runs the suite, and the tick plus its table-status
+  flip are one edit - but states it in `git log` only. workshop/lessons.md took 159
+  lines in this window and none of them is that rule, which AGENTS.md section 4
+  makes an obligation of running a review. A rule that lives only in a commit
+  message is the same defect as a sweep that depends on remembering to sweep.
+
 ## Open findings
 
 - **BR-8** [Minor] `acceptance-misses-changed-sites` M4's manual acceptance never splits the pane, leaving six of nine borderless sites unverified
@@ -2488,7 +2661,8 @@ later rounds disposed of them. Generated — edit the gate, not this file.
 - **BR-31** [Minor] `hot-path-cost-undeclared` The gate adds a second full parse of every child byte on the output path, undeclared in the envelope
 - **BR-33** [Important] `plan-table-drift` The atlas paragraph added in this window was falsified by the next commit in the same window
 - **BR-38** [Minor] `atlas-points-at-old-home` couchtty/reserve.go keeps the doc comments for the sanitize and truncate it no longer has
-- **BR-70** [Critical] `plan-table-drift` make test is RED at HEAD - the ticked M4 collides with the plan's `planned — M4` row, and the commit that ticked it ran nothing
-- **BR-71** [Important] `moved-surface-drops-a-case` The guard that catches the Critical goes silent when sdlc close archives the issue, so closing hides the failure instead of fixing it
 - **BR-72** [Important] `plan-table-drift` M4 falsified four "the terminal pane is framed" statements and swept none, two of them in the files it edited
 - **BR-73** [Minor] `formatting-drift` Two cosmetic slips in the M2 extraction: redundant parens and an out-of-order manifest entry
+- **BR-74** [Important] `uncovered-negative-assertion` The borderless guard's two-line window lets a neighbour satisfy the check, so 3 of its 9 rungs cannot fail
+- **BR-75** [Important] `external-input-assumed-wellformed` The cursor-save gate tracks DECSC only; the aliasing SCOSC form the repo's own probe names is untracked
+- **BR-76** [Minor] `plan-table-drift` BR-70's rule is recorded only in a commit message, so nothing will read it next time

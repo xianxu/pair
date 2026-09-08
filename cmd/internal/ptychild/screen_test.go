@@ -547,3 +547,49 @@ func TestMidSequenceAndHeldSaveAreSeparateConditions(t *testing.T) {
 		t.Fatal("a partial CSI must not disturb the save debt, or vice versa")
 	}
 }
+
+// SCOSC/SCORC is the CSI spelling of the SAME slot, and this repo's own probe
+// (probes/cursorsaveslots) established zellij gives it no second storage. A
+// gate watching only ESC 7 lets the collision straight back in for any child
+// that uses the CSI form.
+func TestTheCSISpellingOfSaveRestoreHoldsTheSameSlot(t *testing.T) {
+	var s Screen
+	s.FeedFraming([]byte("\x1b[s"))
+	if !s.HoldsCursorSave() {
+		t.Fatal("CSI s did not register as a save; a child using it would be unguarded")
+	}
+	s.FeedFraming([]byte("\x1b[u"))
+	if s.HoldsCursorSave() {
+		t.Fatal("CSI u did not clear the save")
+	}
+}
+
+// The two spellings share ONE slot, so they must settle each other -- a child
+// is free to save with one and restore with the other, and terminals honour it.
+func TestTheTwoSpellingsSettleEachOther(t *testing.T) {
+	var s Screen
+	s.FeedFraming([]byte("\x1b7"))
+	s.FeedFraming([]byte("\x1b[u"))
+	if s.HoldsCursorSave() {
+		t.Fatal("CSI u did not clear a save made with ESC 7; they are one slot")
+	}
+	s.FeedFraming([]byte("\x1b[s"))
+	s.FeedFraming([]byte("\x1b8"))
+	if s.HoldsCursorSave() {
+		t.Fatal("ESC 8 did not clear a save made with CSI s")
+	}
+}
+
+// `CSI <n> s` is DECSLRM (set left/right margins), NOT a save. Treating it as
+// one would defer every paint forever against a child that sets margins and
+// never issues a restore -- a permanently stale row from a sequence that had
+// nothing to do with the cursor.
+func TestParameterisedCSIsIsMarginsNotASave(t *testing.T) {
+	for _, seq := range []string{"\x1b[1;80s", "\x1b[5s", "\x1b[?69h\x1b[1;40s"} {
+		var s Screen
+		s.FeedFraming([]byte(seq))
+		if s.HoldsCursorSave() {
+			t.Fatalf("%q was treated as a cursor save; it is DECSLRM", seq)
+		}
+	}
+}

@@ -460,6 +460,30 @@ func (s *Screen) classify(seq []byte) {
 	final := seq[len(seq)-1]
 	params := seq[2 : len(seq)-1]
 
+	// SCOSC / SCORC -- the CSI spelling of the same save slot, `CSI s` and
+	// `CSI u` with NO parameters.
+	//
+	// Tracked alongside DECSC because this repo's own probe
+	// (probes/cursorsaveslots) established that zellij does not give them a
+	// SECOND slot: `CSI u` failed to restore where it was told while `ESC 8`
+	// succeeded under the identical harness. So a child using the CSI form is
+	// holding the SAME slot our paint would clobber, and a gate that watched
+	// only `ESC 7` would let the collision straight back in for that child.
+	//
+	// Parameter-free is load-bearing: `CSI <n> s` is DECSLRM (set left/right
+	// margins), a different operation entirely, and treating it as a save would
+	// defer paints forever against a child that never restores.
+	if len(params) == 0 {
+		switch final {
+		case 's':
+			s.cursorSaved = true
+			return
+		case 'u':
+			s.cursorSaved = false
+			return
+		}
+	}
+
 	if len(params) > 0 && params[0] == '?' {
 		if final != 'h' && final != 'l' {
 			return
