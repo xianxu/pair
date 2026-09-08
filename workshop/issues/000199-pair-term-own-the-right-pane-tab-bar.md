@@ -176,7 +176,7 @@ carries a constraint of its own.
 Four milestones, each its own review boundary — detail in
 `workshop/plans/000199-pair-term-own-the-right-pane-tab-bar-plan.md`.
 
-- [ ] M1 — Lift `Reserve`/`PaintRow`/`ChildRows` into `hostty` as a
+- [x] M1 — Lift `Reserve`/`PaintRow`/`ChildRows` into `hostty` as a
       `Reservation` carrying its edge; repoint couch. Proven a MOVE by couch's
       tests passing **unedited**.
 - [ ] M2 — Make `termcmd` single-writer and add the mid-sequence paint gate.
@@ -191,6 +191,8 @@ Four milestones, each its own review boundary — detail in
 
 ## Log
 
+
+- 2026-09-07: closed M1 — Full `make test` green (exit 0) and `make test-smoke` green (exit 0, all three probes). BR-21 fixed at the class: the probe moved to probes/zellijscrollregion, the home atlas/index.md already names, where make test-smoke runs every directory -- so it is covered by existing rather than by the two hand-maintained lists I had added to compensate; verified test-smoke picks it up. BR-19 fixed: the probe reader goroutine shared an unsynchronised strings.Builder with the verdict, now a mutex-guarded buffer, `go run -race` clean and still reproducing DECSTBM HONORED. BR-20 fixed: frame[len(frame)-3000:] panicked whenever the pty produced under 3000 bytes -- exactly the failed-session path the probe must survive to report -- now tailOf. BR-16 remains fixed (tracked reproducible apparatus). BR-17 swept (every superseded restatement, not just the named site). BR-4 stderr half closed in the plan (runZellij gains a stderr io.Writer; M2.3b asserts it). Both Minors fixed. M1 core evidence unchanged: the lift is proven a MOVE by the behavioural couch tests passing UNEDITED, and no second implementation of the region escape exists outside hostty.; review verdict: FIX-THEN-SHIP
 ### 2026-09-06
 
 Third of three connected pieces — see `#198` for the layout3 flag that makes

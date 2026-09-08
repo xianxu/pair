@@ -429,6 +429,88 @@ rounds:
           round: 4
       boundary: M1
       blocked: true
+    - "n": 5
+      timestamp: "2026-09-07T17:36:01-07:00"
+      agent: claude
+      dispose:
+        - id: BR-4
+          disposition: not-addressed
+          note: Finding 8 derives six writers, but M2.3 at HEAD still routes stdout only; run.go:1104 hardwires cmd.Stderr for both methods and the resize goroutine (run.go:261-266) is in no routing step.
+          round: 5
+        - id: BR-8
+          disposition: not-addressed
+          note: M4.3 unchanged; no split step anywhere in the plan.
+          round: 5
+        - id: BR-9
+          disposition: not-addressed
+          note: M2.1's TestPaintDefersMidSequenceAndIsOwed still splits one hand-chosen index.
+          round: 5
+        - id: BR-13
+          disposition: not-addressed
+          note: console.go:921-922 still builds the literal; NewReservation has zero production callers and now carries a stricter contract than the path production takes.
+          round: 5
+        - id: BR-14
+          disposition: not-addressed
+          note: atlas/couch.md is not in the review window at all; :228 unchanged.
+          round: 5
+        - id: BR-15
+          disposition: not-addressed
+          note: hostty/reserve.go:105-116 still names no sanitize/clamp obligation at the new door.
+          round: 5
+        - id: BR-17
+          disposition: not-addressed
+          note: 3rd round. Its own acceptance grep still returns :568; :149 and :380 also stand, plus the old probe home at probes/zellijscrollregion/main.go:124.
+          round: 5
+        - id: BR-19
+          disposition: addressed
+          note: syncBuffer guards Write/String/Len with a mutex and the verdict reads one snapshot at main.go:233; the unbounded goroutine extent survives only as BR-22's leak.
+          round: 5
+        - id: BR-20
+          disposition: not-addressed
+          note: 'The panic is fixed via tailOf, but the stated remedy was not applied: line000 (main.go:237) is still unused, still trailing-space-matched, still quoted as evidence at plan :143.'
+          round: 5
+        - id: BR-21
+          disposition: not-addressed
+          note: 'The probe moved and make test-smoke picks it up, but the enumeration was never written: atlas/index.md:16-22 still records the answer, cmd/probes/couchstartrecovery is still a second home, and BR-14 is untouched. (make test-smoke does exist, at Makefile.local:52.)'
+          round: 5
+        - id: BR-22
+          disposition: not-addressed
+          note: os.Exit at main.go:211/223/246 still skips the defers at :148/:170/:189; `_ = out` at :225 unchanged.
+          round: 5
+      findings:
+        - id: BR-23
+          severity: Minor
+          title: The atlas and the new package doc state two consumers of Reservation; production has one
+          detail: |-
+            atlas/architecture.md:474-475 says the primitive "is host-half mechanism
+            with two consumers -- couch holds the host's bottom row ... and `pair term`
+            holds its pane's bottom row for a tab strip", and hostty/reserve.go:13-16
+            says the same. `grep -rn "hostty.Reservation" cmd --include='*.go'` finds
+            one production consumer, couchtty/console.go; termcmd acquires its row in
+            M3. The atlas is defined in AGENTS.md as the current state of the codebase,
+            so a planned consumer stated in the present tense is the same drift class
+            this issue keeps paying for. Mark it planned-M3 in both places.
+          family: doc-states-planned-as-current
+          round: 5
+        - id: BR-24
+          severity: Minor
+          title: M1.6's acceptance command aborts in the repo's shell before it checks anything
+          detail: |-
+            This is the 2nd finding in family `acceptance-command-does-not-hold`
+            (BR-18 was the first, same step). Do NOT just re-quote the command --
+            state the rule. The rule: an acceptance command recorded in a plan must be
+            recorded in a form that runs UNMODIFIED in the repo's default shell, and
+            the round that ticks the step pastes the command's actual output rather
+            than its expected outcome. Measured: plan :456 writes
+            `grep -rn "SetRegion\|\\x1b\[.*r\"" cmd --include=*.go | ...`; under zsh
+            the unquoted `--include=*.go` fails with "no matches found" and the
+            pipeline never runs. Quoted, it returns 0 lines and the invariant holds --
+            which is exactly BR-18's shape again: the invariant was fine, the recorded
+            command was not.
+          family: acceptance-command-does-not-hold
+          round: 5
+      boundary: M1
+      blocked: false
 ---
 
 # Gate ledger — pair#199 (boundary-review)
@@ -679,6 +761,46 @@ later rounds disposed of them. Generated — edit the gate, not this file.
   :186-192: dump-screen's output is discarded (`_ = out`) yet its failure
   aborts the probe, letting an irrelevant call kill a good measurement.
 
+## Round 5 — 2026-09-07T17:36:01-07:00 (claude) — passed
+
+### Disposed
+
+- BR-4 — not-addressed — Finding 8 derives six writers, but M2.3 at HEAD still routes stdout only; run.go:1104 hardwires cmd.Stderr for both methods and the resize goroutine (run.go:261-266) is in no routing step.
+- BR-8 — not-addressed — M4.3 unchanged; no split step anywhere in the plan.
+- BR-9 — not-addressed — M2.1's TestPaintDefersMidSequenceAndIsOwed still splits one hand-chosen index.
+- BR-13 — not-addressed — console.go:921-922 still builds the literal; NewReservation has zero production callers and now carries a stricter contract than the path production takes.
+- BR-14 — not-addressed — atlas/couch.md is not in the review window at all; :228 unchanged.
+- BR-15 — not-addressed — hostty/reserve.go:105-116 still names no sanitize/clamp obligation at the new door.
+- BR-17 — not-addressed — 3rd round. Its own acceptance grep still returns :568; :149 and :380 also stand, plus the old probe home at probes/zellijscrollregion/main.go:124.
+- BR-19 — addressed — syncBuffer guards Write/String/Len with a mutex and the verdict reads one snapshot at main.go:233; the unbounded goroutine extent survives only as BR-22's leak.
+- BR-20 — not-addressed — The panic is fixed via tailOf, but the stated remedy was not applied: line000 (main.go:237) is still unused, still trailing-space-matched, still quoted as evidence at plan :143.
+- BR-21 — not-addressed — The probe moved and make test-smoke picks it up, but the enumeration was never written: atlas/index.md:16-22 still records the answer, cmd/probes/couchstartrecovery is still a second home, and BR-14 is untouched. (make test-smoke does exist, at Makefile.local:52.)
+- BR-22 — not-addressed — os.Exit at main.go:211/223/246 still skips the defers at :148/:170/:189; `_ = out` at :225 unchanged.
+
+### Raised
+
+- **BR-23** [Minor] `doc-states-planned-as-current` The atlas and the new package doc state two consumers of Reservation; production has one
+  atlas/architecture.md:474-475 says the primitive "is host-half mechanism
+  with two consumers -- couch holds the host's bottom row ... and `pair term`
+  holds its pane's bottom row for a tab strip", and hostty/reserve.go:13-16
+  says the same. `grep -rn "hostty.Reservation" cmd --include='*.go'` finds
+  one production consumer, couchtty/console.go; termcmd acquires its row in
+  M3. The atlas is defined in AGENTS.md as the current state of the codebase,
+  so a planned consumer stated in the present tense is the same drift class
+  this issue keeps paying for. Mark it planned-M3 in both places.
+- **BR-24** [Minor] `acceptance-command-does-not-hold` M1.6's acceptance command aborts in the repo's shell before it checks anything
+  This is the 2nd finding in family `acceptance-command-does-not-hold`
+  (BR-18 was the first, same step). Do NOT just re-quote the command --
+  state the rule. The rule: an acceptance command recorded in a plan must be
+  recorded in a form that runs UNMODIFIED in the repo's default shell, and
+  the round that ticks the step pastes the command's actual output rather
+  than its expected outcome. Measured: plan :456 writes
+  `grep -rn "SetRegion\|\\x1b\[.*r\"" cmd --include=*.go | ...`; under zsh
+  the unquoted `--include=*.go` fails with "no matches found" and the
+  pipeline never runs. Quoted, it returns 0 lines and the invariant holds --
+  which is exactly BR-18's shape again: the invariant was fine, the recorded
+  command was not.
+
 ## Open findings
 
 - **BR-4** [Important] `envelope-claim-unenforced` Two writers to the pane's tty sit outside the single-writer envelope, and the M2 test cannot see them
@@ -688,7 +810,8 @@ later rounds disposed of them. Generated — edit the gate, not this file.
 - **BR-14** [Minor] `atlas-points-at-old-home` atlas/couch.md's "The reserved row" section still reads as couch-owned mechanism
 - **BR-15** [Minor] `caller-obligation-undocumented` Paint's doc does not state the caller's obligation to sanitize and clamp its text
 - **BR-17** [Important] `plan-table-drift` Three gate corrections landed at one site each and left seven restatements of the superseded facts in the same file
-- **BR-19** [Important] `shared-state-unsynchronized` The probe's reader goroutine and its verdict share a strings.Builder with no synchronization
 - **BR-20** [Important] `external-input-assumed-wellformed` An unused diagnostic slices the pty stream without a bounds check and can panic before the verdict prints
 - **BR-21** [Important] `atlas-points-at-old-home` This is the 2nd finding in family atlas-points-at-old-home -- the atlas names one probe home and the code now has two
 - **BR-22** [Minor] `exit-path-drops-cleanup` Every os.Exit path in the probe skips its deferred session and temp-file cleanup
+- **BR-23** [Minor] `doc-states-planned-as-current` The atlas and the new package doc state two consumers of Reservation; production has one
+- **BR-24** [Minor] `acceptance-command-does-not-hold` M1.6's acceptance command aborts in the repo's shell before it checks anything

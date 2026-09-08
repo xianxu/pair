@@ -146,7 +146,8 @@ RESULT: DECSTBM HONORED — 200 lines scrolled in rows 1..21
 ```
 
 So `couchtty.Reserve`/`PaintRow` transfer to the pane unchanged, which is
-exactly what M1 assumes. Probe kept at `scratchpad/199-probe/`.
+exactly what M1 assumes. Probe: `probes/zellijscrollregion`, run by `make
+test-smoke`.
 
 Two cautions carried forward from running it. Three earlier runs printed
 "NOT HONORED" and every one was the probe's own session failing to start
@@ -377,8 +378,9 @@ sequence at any index and assert the paint deferred.
 `N/A for secrets` — this issue touches no credential. It does read one untrusted
 input: **the child's byte stream**, which `ptychild.Screen` already parses and
 which this issue does not extend. Tab *names* reach the row and come from the
-operator (`rename`), so `RenderStrip` sanitizes and truncates exactly as
-`couchtty.RenderStatusRow` does (`sanitize`, `truncate`) rather than growing a
+operator (`rename`), so `RenderStrip` sanitizes and truncates via the shared
+`rowtext.Sanitize`/`rowtext.Fit` (PQ-7: `couchtty`'s own `sanitize`/`truncate`
+are unexported and unreachable from `termcmd`) rather than growing a
 second policy — a name containing `\x1b` must not become an escape in our row.
 
 ## ARCH-MOCK
@@ -521,6 +523,15 @@ func TestGateIsNotFedOurOwnWrites(t *testing.T) {
       4. `stderr`: route `term:` diagnostics through the same writer loop, since
          it is the same terminal and after M4 there is no frame to absorb a
          stray line.
+      5. **`runZellij(args []string, stdout, stderr io.Writer)`**
+         (`run.go:1100-1105`). It hardwires `cmd.Stderr = os.Stderr` today, for
+         BOTH methods — so piece 3 alone leaves a failing `zellij action
+         scroll-up` writing the pane per wheel tick. Capture stderr and log it;
+         the pane's fd is not a diagnostic channel.
+      6. **The resize goroutine** (`run.go:261-266`) calls `inheritSize`, which
+         becomes a writer in M3. It joins the writer loop here, not in M3 —
+         ARCH-ORDER already asserts resize and paint "serialize by construction"
+         on that loop, and that claim is false until this piece lands.
 - [ ] **M2.3b: Prove the subprocess routing.** A `Runtime` fake recording which
       of the two methods each call site used; assert no `termcmd` site calls
       `RunZellijAction`. This is the assertion that replaces what
@@ -565,7 +576,7 @@ func TestNarrowPaneTruncatesWithoutLosingTheActiveTab(t *testing.T) {}
 ```
 
 - [ ] **M3.2: Run to verify they fail.**
-- [ ] **M3.3: Implement `RenderStrip`** — pure, returning `RenderedStrip{Body, Spans}`, sanitizing and truncating via the same helpers `couchtty` uses.
+- [ ] **M3.3: Implement `RenderStrip`** — pure, returning `RenderedStrip{Body, Spans}`, sanitizing and truncating via `rowtext.Sanitize`/`rowtext.Fit` (the shared package M3 extracts; `couchtty`'s `sanitize`/`truncate` are unexported and unreachable — PQ-7).
 - [ ] **M3.4: Wire it.** `Reservation{Edge: EdgeBottom}` sized from the pane; child pty gets `ChildRows()`; repaint on tab change, resize, and `batch.RowDirty` **read inside the Sink callback** (finding 7).
 - [ ] **M3.5: The re-`Reserve` rule** (ARCH-ORDER's most-likely-wrong): on a `batch.RowDirty` batch, re-`Reserve` *before* repainting. Test: simulate a child emitting `\x1b[r` (margin reset), assert the next repaint re-emits the region and not only the row.
 - [ ] **M3.6: Degrade `rename-pane`** to the active tab name; assert `RunZellijAction` still receives a rename on tab switch (the `#118`/`#123` consumers) and that it is no longer the packed multi-tab string.
@@ -617,6 +628,52 @@ the strip over a suspected-broken writer would confuse both.
 
 
 ## Revisions
+
+### 2026-09-07 — M1 close (FIX-THEN-SHIP), and the sweep becomes a test
+
+**BR-17 was raised three rounds running, and the third round's point was not
+"three more instances".** It was that I wrote the rule — correct the class, not
+the site — shipped an acceptance grep with it, recorded *"All swept."*, and then
+did not run the grep. Each round found live superseded prose in this file, once
+in the very commit that moved the probe. A sweep that depends on remembering to
+sweep is the same defect as a consumer set that depends on remembering to update
+it, which is the family this issue has now hit six times.
+
+So it is a test: `tests/plan-superseded-facts-test.sh`, wired into `make test`.
+It pairs each superseded token with its replacement and bounds the check to the
+plan body, so `## Revisions` may still quote a dead fact while narrating the
+correction. What stays hand-written is *what counts as superseded* — a judgement
+made when a finding lands. What is no longer hand-run is the CHECKING.
+Mutation-verified: restoring "the same helpers `couchtty` uses" turns it red.
+
+Live sites it caught and fixed: finding 5 still said `scratchpad/199-probe/`
+(after the probe moved), M3.3 and ARCH-SECURE still promised `couchtty`'s
+unexported `sanitize`/`truncate` that PQ-7 established are unreachable, and the
+probe's own doc comment still printed the old `cmd/probes/` path.
+
+**BR-4, third raise, and the diagnosis was right both times.** Finding 8 named
+the stderr hole correctly while M2.3's steps routed only stdout — so the plan
+*described* a closed envelope and *specified* an open one, and M2.3b's assertion
+("no site calls `RunZellijAction`") would pass a `Quiet`-only refactor with
+`cmd.Stderr` still pointing at the pane. M2.3 now has pieces 5 and 6:
+`runZellij(args, stdout, stderr io.Writer)`, and the resize goroutine
+(`run.go:261-266`) joining the writer loop — ARCH-ORDER already claims resize
+and paint serialize on that loop, which is false until it does. M2.3b asserts
+the fd handed to the subprocess, not the method name.
+
+**BR-21's class: the atlas stated the rule without its exception.**
+`atlas/index.md` said probes live in `probes/`; `cmd/probes/couchstartrecovery`
+is a second home, reachable only through its own target because it takes an
+argument the wholesale loop cannot supply. A rule with an unstated exception is
+one a reader can follow into the wrong place — which is what I did. The atlas
+now carries both, and the test for which home applies: *does it run with no
+arguments?*
+
+**BR-20's residual.** The panic was fixed but `line000` stayed an unused printed
+aside. It is now a checked precondition: if the earliest line is still on screen
+the region never scrolled, and "the marker sits below the last line" would be
+true for a reason that proves nothing — the probe would report HONORED without
+having tested anything. That case now exits PROBE-INCONCLUSIVE.
 
 ### 2026-09-07 — M1 boundary review (FIX-THEN-SHIP)
 

@@ -21,6 +21,17 @@
   own header what question it answers, which is where to look rather than in a
   list here that would drift.
 
+  **There is one exception, and it is the whole reason to state the rule.**
+  `cmd/probes/couchstartrecovery` is a second probe home, reachable only through
+  its own `make test-couch-start-recovery` target because it needs an argument
+  (`bin/pair-launch-helper`) that the wholesale loop cannot supply. So "probes
+  live in `probes/`" is true of every probe that can be run with no arguments,
+  and a new probe belongs there unless it needs a parameter — in which case it
+  goes under `cmd/probes/` **with its own target in the same commit**, since
+  nothing will run it otherwise. Recorded because the rule without its exception
+  is how `#199`'s probe landed in the wrong home and was then hand-added to two
+  lists to compensate — the exact remembering `test-smoke` exists to abolish.
+
 - `doctor/README.md` — `pair-doctor`: read the adaptation flight recorder to diagnose harness integration drift (see the bring-up guide §3 for the signal registry). Primary entry is the agent-agnostic `:PairDoctor` nvim command (`nvim/doctor.lua`); the procedure is single-sourced in `doctor/SKILL.md`, optionally registerable as a Claude skill.
 - `doctor/perf.sh` — the performance half of the same entry (`#208`): a snapshot
   of load, per-process resource **rates**, the render path (WindowServer), and

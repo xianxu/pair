@@ -121,7 +121,7 @@ func tailOf(s string, n int) string {
 func main() {
 	var session string
 	// Assets resolve against THIS file, not the cwd, so the probe runs from
-	// anywhere -- `go run ./cmd/probes/zellijscrollregion` from the repo root
+	// anywhere -- `go run ./probes/zellijscrollregion` from the repo root
 	// included.
 	_, self, _, ok := runtime.Caller(0)
 	if !ok {
@@ -234,13 +234,21 @@ func main() {
 	// produced fewer than 3000 bytes, which is precisely the failed-session
 	// case this probe must survive to report. A crash there replaces a
 	// diagnosis with a stack trace.
-	line000 := strings.Contains(tailOf(frame, 3000), "scroll line 0 ")
+	// A CHECKED precondition, not a printed aside. If the earliest line is
+	// still on screen the region never scrolled at all, and "the marker is
+	// below the last line" would be true for a reason that proves nothing --
+	// the probe would report HONORED without having tested anything.
+	scrolled := !strings.Contains(tailOf(frame, 3000), "scroll line 0\r")
 
 	fmt.Printf("marker last painted at row %d (found=%v)\n", markerRow, markerOK)
 	fmt.Printf("last scroll line at row %d (found=%v)\n", line199Row, line199OK)
-	fmt.Printf("earliest scroll line still on screen: %v\n", line000)
+	fmt.Printf("region actually scrolled (line 0 gone): %v\n", scrolled)
 
 	switch {
+	case !scrolled:
+		fmt.Println("\nPROBE-INCONCLUSIVE: the region never scrolled, so a marker " +
+			"below the last line proves nothing.")
+		os.Exit(2)
 	case !markerOK || !line199OK:
 		fmt.Println("\nPROBE-INCONCLUSIVE: could not locate both landmarks in the frame.")
 		os.Exit(2)
