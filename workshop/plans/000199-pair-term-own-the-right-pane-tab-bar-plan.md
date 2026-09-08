@@ -648,7 +648,7 @@ func TestRenderIsCorrectWithABackgroundTabPresent(t *testing.T) {}
 - Regenerate: `make runtimebundle-generate`, and commit the mirror it produces.
 - Test: `cmd/internal/runtimebundle/` layout assertion, reading the SOURCE.
 
-- [ ] **M4.1: Write the failing test.** Every `name="terminal"` pane in
+- [x] **M4.1: Write the failing test.** Every `name="terminal"` pane in
       `main-3.kdl` carries `borderless=true` — the enumeration, so a rung added
       later cannot quietly reframe the pane:
 
@@ -659,7 +659,7 @@ func TestEveryTerminalPaneRungIsBorderless(t *testing.T) {
 }
 ```
 
-- [ ] **M4.2:** Add `borderless=true` at all nine sites.
+- [x] **M4.2:** Add `borderless=true` at all nine sites.
 - [ ] **M4.3: Manual, and this is the acceptance** — a real layout3 workbench:
       the pane has no frame; the strip is legible and identifies the pane; the
       layout rungs (`Alt+Up`/`Alt+Down`) do not reframe it; `nvim` in the pane
@@ -667,7 +667,7 @@ func TestEveryTerminalPaneRungIsBorderless(t *testing.T) {
       is the one thing taking the frame off would otherwise silently break (the
       field used to live in the frame — see the 2026-09-08 revision). Record
       what was seen.
-- [ ] **M4.4:** Update `atlas/architecture.md` — the row primitive is shared
+- [x] **M4.4:** Update `atlas/architecture.md` — the row primitive is shared
       host-half structure (alongside the existing `\x1b[r` note), and
       `config.kdl`'s comment that frames are global *for the scroll indicator*
       is now wrong for the right pane; correct it there too.

@@ -554,6 +554,16 @@ producer. Filtering one producer only moves the hazard to the next.
   `couchtty`'s originals were unexported and so unreachable from `termcmd`, and
   a second copy of a security-relevant strip is exactly the outcome to avoid.
 
+**The right terminal pane has NO FRAME** (`#199` M4). `borderless=true` at all
+nine `name="terminal"` rungs in `zellij/layouts/main-3.kdl` — the layout ladder
+plus both split halves — enumerated by
+`TestEveryTerminalPaneRungIsBorderless`, which asserts the count as well as the
+attribute so a rung added later cannot quietly reframe the pane. The frame's
+title was that pane's only label; the strip replaces it and says more. `pane_frames`
+stays global for the AGENT pane's scroll indicator, which is the one thing no
+other surface can report — zellij exposes pane scroll offset to neither plugins
+nor the CLI.
+
 **The strip carries the rename FIELD, and the pane title no longer does**
 (`#199` M3). `Alt+R` used to draw its editor into the pane TITLE, via `zellij
 action rename-pane` — which is to say into the pane FRAME, the thing M4 removes

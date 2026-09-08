@@ -183,9 +183,17 @@ fi
 # #123 tiled pivot: the right terminal lives in the tiled tree. Floating
 # panes are frame-draggable with no zellij 0.44.3 config gate; tiled panes
 # have no mouse-move operation at all, so drag-immunity is architectural.
+#
+# The third grep is a REGEX, not a fixed string, and that is the point: it used
+# to be `pane name="terminal" {`, which pinned the pane's exact SPELLING as a
+# proxy for its POSITION in the tree. #199 M4 added `borderless=true` to that
+# declaration -- a change to chrome, not to tiling -- and the assertion failed
+# for a property it does not test. What "tiled" actually means here is the two
+# negations above plus a terminal pane declared with a command block; attributes
+# between the name and the brace are none of this check's business.
 ! grep -Fq 'floating_panes' "$ROOT/zellij/layouts/main-3.kdl" \
   && ! grep -Fq 'terminal-filler' "$ROOT/zellij/layouts/main-3.kdl" \
-  && grep -Fq 'pane name="terminal" {' "$ROOT/zellij/layouts/main-3.kdl" \
+  && grep -Eq 'pane name="terminal"[^{]*\{' "$ROOT/zellij/layouts/main-3.kdl" \
   && pass "right terminal is a tiled pane (no floating layer, no filler)" \
   || { printf 'FAIL right terminal is not tiled (floating layer or filler remains)\n'; fail=1; }
 

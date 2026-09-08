@@ -13,13 +13,22 @@
 //   divider between the split halves and carries the tab title); the residual
 //   frame-drag exposure is the accepted trade-off.
 // - Suppress "what's new" release-notes popup on version bumps.
-// - Enable pane frames globally so the agent pane shows zellij's
+// - Enable pane frames globally so the AGENT pane shows zellij's
 //   scroll-position indicator (top-right) when scrolled — the only way
 //   to surface scrollback position, since zellij doesn't expose pane
-//   scroll offset to plugins or the CLI. The draft pane opts out via
-//   `borderless=true` in both zellij/layouts/main-{2,3}.kdl so the "minimized"
-//   layout rung can still collapse to 1 row (framed minimum is ~3
-//   rows). Cost on the agent pane: ~2 rows + 2 cols of frame chrome.
+//   scroll offset to plugins or the CLI. Cost on that pane: ~2 rows + 2
+//   cols of frame chrome.
+//
+//   TWO panes opt out via `borderless=true`, for different reasons:
+//   the DRAFT pane, so the "minimized" layout rung can collapse to 1 row
+//   (framed minimum is ~3 rows); and, since pair#199 M4, the RIGHT
+//   TERMINAL in main-3.kdl at all nine of its rungs, because `pair term`
+//   now draws its own tab strip in a row it reserves for itself. The
+//   frame's title was that pane's only label; the strip replaces it, and
+//   says more (every tab, which one is active, the live rename field).
+//   So "frames are global for the scroll indicator" is true of the agent
+//   pane only — it was never true of the draft, and it stopped being true
+//   of the terminal.
 mouse_hover_effects false
 advanced_mouse_actions false
 focus_follows_mouse false

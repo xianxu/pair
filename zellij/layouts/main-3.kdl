@@ -80,7 +80,7 @@ layout {
         // terminals (see the *-split swap variants below); Alt+Shift+Enter
         // re-tiles the column boundary between 50% and 2/3 width via
         // `pair layout toggle-focused`.
-        pane name="terminal" {
+        pane name="terminal" borderless=true {
             command "sh"
             args "-c" "zellij action rename-pane --pane-id \"$ZELLIJ_PANE_ID\" terminal 2>/dev/null; exec pair term"
         }
@@ -122,7 +122,7 @@ layout {
                     pane name="agent"
                     pane size=1 name="draft" borderless=true
                 }
-                pane name="terminal"
+                pane name="terminal" borderless=true
             }
         }
     }
@@ -135,8 +135,8 @@ layout {
                     pane size=1 name="draft" borderless=true
                 }
                 pane split_direction="horizontal" {
-                    pane name="terminal"
-                    pane name="terminal"
+                    pane name="terminal" borderless=true
+                    pane name="terminal" borderless=true
                 }
             }
         }
@@ -149,7 +149,7 @@ layout {
                     pane name="agent"
                     pane size="33%" name="draft" borderless=true
                 }
-                pane name="terminal"
+                pane name="terminal" borderless=true
             }
         }
     }
@@ -162,8 +162,8 @@ layout {
                     pane size="33%" name="draft" borderless=true
                 }
                 pane split_direction="horizontal" {
-                    pane name="terminal"
-                    pane name="terminal"
+                    pane name="terminal" borderless=true
+                    pane name="terminal" borderless=true
                 }
             }
         }
@@ -188,8 +188,8 @@ layout {
                     pane size=12 name="draft" borderless=true
                 }
                 pane split_direction="horizontal" {
-                    pane name="terminal"
-                    pane name="terminal"
+                    pane name="terminal" borderless=true
+                    pane name="terminal" borderless=true
                 }
             }
         }
