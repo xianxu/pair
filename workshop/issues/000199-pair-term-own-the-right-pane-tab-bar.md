@@ -188,11 +188,26 @@ Four milestones, each its own review boundary — detail in
 - [x] M3 — Render the strip from the existing tab model, with display-column
       spans; repaint on `TakeRowDirty`, re-`Reserve` before repainting;
       degrade `rename-pane` to a short title for the `#118`/`#123` consumers.
-- [ ] M4 — `borderless=true` on the terminal pane at all **nine** sites in
+- [x] M4 — `borderless=true` on the terminal pane at all **nine** sites in
       `main-3.kdl`; update `atlas/architecture.md` and `config.kdl`'s now-wrong
       scroll-indicator rationale.
 
 ## Log
+
+- 2026-09-08 M4.3 manual acceptance: **operator ran the checklist and accepted**
+  — frameless right pane, the strip legible and identifying the pane, the layout
+  rungs not reframing it, `nvim` still behaving, and `Alt+R` renaming with the
+  field visible (the one thing removing the frame could silently break, since
+  the field used to live in the frame).
+
+  Recorded at the granularity the operator gave it: "done manual testing,
+  accepted", without a per-item report. The items above are what M4.3 asked
+  them to exercise, not observations I watched. Flagging that deliberately
+  rather than writing five confident bullet points I do not have — including
+  that the checklist does not itemise whether it ran **under couch**, which was
+  the composition the previous entry called out as untested. If a two-reserved-row
+  problem surfaces later, this is the entry that says why it was not caught here.
+
 
 
 - 2026-09-08: closed M3 — make test exit 0 (194 ok), -race clean on termcmd/hostty/couchtty, make test-smoke green, couchnestedrows 15/15 (TWO RESERVED ROWS COMPOSE). Round 13s three findings were all about the round-12 GUARDS rather than the feature, and are fixed at the class. BR-61: both plan-reading guards now share one resolvePlan that looks in workshop/plans then walks workshop/history -- verified by actually moving the plan to history and re-running, since sdlc close archives it at M4.5 and the hardcoded path would have broken make test repo-wide at the next gate. BR-62: the declared paint budget is now an enumeration with a test per entry that COUNTS paints -- ordinary output paints zero times over 50 chunks, a row-dirty batch pays exactly once, a resize repaints once AND re-asserts the region for the new height, teardown releases it; all three mutations the review measured GREEN (paint on every active chunk, delete the resize repaint, drop teardowns release) now go red. BR-63: the go/ast mutator pass reads every non-test file in the package rather than run.go alone, and the stacked-godoc guard reads grouped declarations, so hostty/control.gos const block is covered -- both mutation-checked against the case they had been missing. Minors: Reservation.Reserve() deleted as dead surface, Paint/ReserveAndPaint share one drawRow with a stronger equality test, Fields doc corrected, TitleIdentifiesRightTerminal added to the table and atlas, and the tables completeness claim is now stated as table-to-code only with the other direction attributed to #188.; review verdict: FIX-THEN-SHIP

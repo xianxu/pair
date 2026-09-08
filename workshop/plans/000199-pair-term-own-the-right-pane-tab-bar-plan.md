@@ -660,7 +660,7 @@ func TestEveryTerminalPaneRungIsBorderless(t *testing.T) {
 ```
 
 - [x] **M4.2:** Add `borderless=true` at all nine sites.
-- [ ] **M4.3: Manual, and this is the acceptance** — a real layout3 workbench:
+- [x] **M4.3: Manual, and this is the acceptance** — a real layout3 workbench:
       the pane has no frame; the strip is legible and identifies the pane; the
       layout rungs (`Alt+Up`/`Alt+Down`) do not reframe it; `nvim` in the pane
       still behaves; and **`Alt+R` renames a tab with the field visible**, which
@@ -671,7 +671,7 @@ func TestEveryTerminalPaneRungIsBorderless(t *testing.T) {
       host-half structure (alongside the existing `\x1b[r` note), and
       `config.kdl`'s comment that frames are global *for the scroll indicator*
       is now wrong for the right pane; correct it there too.
-- [ ] **M4.5: Commit**, then `sdlc close --issue 199 --verified '...'`.
+- [x] **M4.5: Commit**, then `sdlc close --issue 199 --verified '...'`.
 
 ## Rollback
 
