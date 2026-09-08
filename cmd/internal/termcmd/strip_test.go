@@ -284,3 +284,86 @@ func TestTheDegradedTitleStillClassifiesThePane(t *testing.T) {
 		}
 	})
 }
+
+// --- (f): never write inside the child's cursor save ------------------------
+
+// THE BUG THIS CLOSES. The cursor save slot is shared, one per terminal. A
+// paint that saves and restores inside the child's DECSC..DECRC pair leaves the
+// slot holding OUR position, and the child's restore lands there -- the
+// operator's `l` finishing with the cursor in the tab strip, and zsh's
+// right-prompt drawn on the strip's row (zsh uses terminfo sc/rc, which ARE
+// these bytes).
+//
+// Option (a), moving our paint to CSI s/u, is dead: probes/cursorsaveslots
+// measured that there is no usable second slot. So the fix is not to write at
+// all while the child holds one.
+func TestNoPaintLandsInsideTheChildsCursorSave(t *testing.T) {
+	m, rec := stripMux(t)
+	defer close(m.done)
+
+	// The child saves the cursor and keeps writing -- zsh drawing a prompt.
+	m.output <- ptyChunk{id: 2, data: []byte("prompt\x1b7")}
+	m.drainForTest()
+
+	m.paintStrip()
+	m.drainForTest()
+	if strings.Contains(rec.String(), "[two]") {
+		t.Fatalf("a paint landed inside the child's cursor save; its restore will "+
+			"now recover OUR position: %q", rec.String())
+	}
+
+	// The child restores. The debt is paid on that very chunk.
+	m.output <- ptyChunk{id: 2, data: []byte("\x1b8rest")}
+	m.drainForTest()
+	if !strings.Contains(rec.String(), "[two]") {
+		t.Fatalf("the paint was dropped rather than deferred: %q", rec.String())
+	}
+}
+
+// A row-dirty batch records a DEBT and does not paint immediately -- couch's
+// pattern (couchtty/console.go:1147). It matters far more here than it did
+// there: a shell emits erases on every prompt redraw, so painting per row-dirty
+// batch means painting constantly, and constantly at the moment the child is
+// mid-prompt with a save outstanding.
+func TestARowDirtyBatchDefersWhileTheChildHoldsASave(t *testing.T) {
+	m, rec := stripMux(t)
+	defer close(m.done)
+
+	// Row-dirty AND a held save in one batch: the row is owed, but paying it
+	// now is exactly the collision.
+	m.output <- ptyChunk{id: 2, data: []byte("\x1b[2J\x1b7"), rowDirty: true}
+	m.drainForTest()
+	if strings.Contains(rec.String(), "[two]") {
+		t.Fatalf("row-dirty painted while the child held a save: %q", rec.String())
+	}
+	if !m.stripOwedForTest() {
+		t.Fatal("the row-dirty debt was dropped rather than recorded")
+	}
+
+	m.output <- ptyChunk{id: 2, data: []byte("\x1b8")}
+	m.drainForTest()
+	if !strings.Contains(rec.String(), "[two]") {
+		t.Fatalf("the owed repaint never landed after the child restored: %q", rec.String())
+	}
+	if m.stripOwedForTest() {
+		t.Fatal("the debt survived being paid")
+	}
+}
+
+// Stale beats wrong. A child holding a save indefinitely must leave the row
+// UNCHANGED, never repainted at the cost of the child's cursor.
+func TestAHeldSaveLeavesTheRowStaleRatherThanCorruptingTheChild(t *testing.T) {
+	m, rec := stripMux(t)
+	defer close(m.done)
+
+	m.output <- ptyChunk{id: 2, data: []byte("\x1b7")}
+	m.drainForTest()
+	for i := 0; i < 5; i++ {
+		m.paintStrip()
+		m.output <- ptyChunk{id: 2, data: []byte("more output")}
+		m.drainForTest()
+	}
+	if strings.Contains(rec.String(), "[two]") {
+		t.Fatalf("a paint escaped while the child held a save: %q", rec.String())
+	}
+}

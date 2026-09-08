@@ -698,6 +698,10 @@ type terminalMux struct {
 	owed []byte
 	// captureIDForTest, when set, runs on the writer goroutine inside a resize.
 	captureIDForTest func()
+	// stripOwed is a row-dirty debt: the child may have wiped the strip's row
+	// and we have not repainted it yet. Recorded rather than paid immediately --
+	// see the row-dirty branch in handleChunk.
+	stripOwed bool
 	// owedDiag are DIAGNOSTICS deferred the same way, kept separately because
 	// they coalesce differently. A paint is a rendering of current state, so a
 	// later one supersedes an earlier one; an error is an EVENT, and letting a
@@ -848,10 +852,24 @@ func (m *terminalMux) handleChunk(chunk ptyChunk) {
 			// immediately above, so model and terminal move together.
 			m.pane.raw("child output", chunk.data)
 		}
-		m.flushOwed()
 		if chunk.rowDirty {
+			// RECORD THE DEBT, do not paint here. couch does the same
+			// (couchtty/console.go:1147, whose comment notes a paint there was
+			// "unreachable-by-difference"), and the reason matters more for a
+			// SHELL than it did for couch's full-screen child: a shell emits
+			// erases on every prompt redraw, so painting per row-dirty batch
+			// means painting constantly, and constantly at exactly the moment
+			// the child is mid-prompt with a cursor save outstanding.
+			//
+			// The debt is paid by flushOwed below, on the first chunk that
+			// leaves the stream safe -- which is the child's own DECRC.
+			m.stripOwed = true
+		}
+		if m.stripOwed && !m.unsafeToPaint() {
+			m.stripOwed = false
 			m.paintStripInline()
 		}
+		m.flushOwed()
 	}
 }
 
@@ -895,14 +913,37 @@ func (m *terminalMux) applyTakeover(replay []byte) {
 	}
 
 	// The takeover just cleared the screen, so the row it cleared is ours to
-	// put back. Inline, not posted: this runs on the writer goroutine.
+	// put back. Inline, not posted: this runs on the writer goroutine. It also
+	// settles any row-dirty debt -- the screen this repaints is the one that
+	// debt was against.
+	m.stripOwed = false
 	m.paintStripInline()
+}
+
+// unsafeToPaint reports whether a console write would damage the child.
+//
+// TWO conditions, and they clear on different bytes.
+//
+//  1. MID-SEQUENCE — a write between two of the child's escape bytes lands
+//     inside its sequence.
+//  2. THE CHILD HOLDS A CURSOR SAVE — the save slot is SHARED, one per
+//     terminal, so our save/restore inside the child's DECSC..DECRC pair leaves
+//     the slot holding OUR position and the child's restore lands there. That
+//     is the operator's "`l` ends with the cursor in the tab bar" and the
+//     right-prompt drawn on the strip's row: zsh uses terminfo sc/rc, which are
+//     exactly these bytes.
+//
+// The second is why option (a) died: there is no second save slot to move to
+// (probes/cursorsaveslots), so the only way not to clobber the child's is to not
+// write while it is held.
+func (m *terminalMux) unsafeToPaint() bool {
+	return m.hostScan.MidSequence() || m.hostScan.HoldsCursorSave()
 }
 
 // writeDiag writes a diagnostic, or QUEUES it if the stream is mid-sequence.
 // Queued, not coalesced -- see owedDiag.
 func (m *terminalMux) writeDiag(b []byte) {
-	if m.hostScan.MidSequence() {
+	if m.unsafeToPaint() {
 		m.owedDiag = append(m.owedDiag, b)
 		return
 	}
@@ -912,7 +953,7 @@ func (m *terminalMux) writeDiag(b []byte) {
 // writeOwn writes console-originated bytes, or defers them if the child's stream
 // is mid-sequence.
 func (m *terminalMux) writeOwn(b []byte) {
-	if m.hostScan.MidSequence() {
+	if m.unsafeToPaint() {
 		// DEFERRED AND OWED. Dropping it would leave a stale row that nothing
 		// repaints -- the failure couch names explicitly.
 		//
@@ -940,7 +981,7 @@ func (m *terminalMux) writeOwn(b []byte) {
 // is unreachable here; M3 owes it a flush deadline, since "the child stopped
 // mid-escape" is indistinguishable from "the child is slow".
 func (m *terminalMux) flushOwed() {
-	if m.hostScan.MidSequence() {
+	if m.unsafeToPaint() {
 		return
 	}
 	// Diagnostics first: they were queued before the paint that may describe a
@@ -1029,6 +1070,13 @@ func (m *terminalMux) enqueueAndWait(chunk ptyChunk) {
 	case <-done:
 	case <-m.done:
 	}
+}
+
+// stripOwedForTest reports the row-dirty debt, read on the writer goroutine.
+func (m *terminalMux) stripOwedForTest() bool {
+	var owed bool
+	m.enqueueAndWait(ptyChunk{onWriter: func() { owed = m.stripOwed }})
+	return owed
 }
 
 // drainForTest waits until every event queued so far has been handled.

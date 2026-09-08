@@ -467,3 +467,77 @@ func TestMouseModeChangeLatchesRowDirty(t *testing.T) {
 		t.Error("hiding the cursor latched rowDirty")
 	}
 }
+
+// The cursor save slot is SHARED: one per terminal. A console with a reserved
+// row that paints between the child's DECSC and DECRC clobbers what the child
+// saved, and the child's restore then recovers the CONSOLE's position.
+//
+// Measured in pair#199: zsh draws its right-hand prompt with terminfo sc/rc
+// (ESC 7 / ESC 8), so the operator's cursor ended up inside the tab strip and
+// the right-prompt was drawn on the strip's row.
+func TestHoldsCursorSaveTracksTheChildsOwnSaveRestore(t *testing.T) {
+	var s Screen
+	if s.HoldsCursorSave() {
+		t.Fatal("a fresh screen reports a held save")
+	}
+	s.FeedFraming([]byte("text\x1b7more"))
+	if !s.HoldsCursorSave() {
+		t.Fatal("the child's DECSC was not observed")
+	}
+	s.FeedFraming([]byte("still held\x1b8done"))
+	if s.HoldsCursorSave() {
+		t.Fatal("the child's DECRC did not clear the debt")
+	}
+}
+
+// One slot, not a stack: terminals keep a single save, so a second DECSC
+// overwrites the first and ONE DECRC settles it. Counting depth instead would
+// leave a console deferring forever after any unbalanced pair.
+func TestASecondSaveDoesNotDeepenTheDebt(t *testing.T) {
+	var s Screen
+	s.FeedFraming([]byte("\x1b7\x1b7"))
+	s.FeedFraming([]byte("\x1b8"))
+	if s.HoldsCursorSave() {
+		t.Fatal("two saves needed two restores; the slot is one deep, not a stack")
+	}
+}
+
+// A held save must not outlive the events that abandon it, or the row goes
+// permanently stale instead of briefly so.
+func TestEventsThatAbandonASaveClearTheDebt(t *testing.T) {
+	for name, seq := range map[string]string{
+		"RIS":              "\x1bc",
+		"enter alt screen": "\x1b[?1049h",
+		"leave alt screen": "\x1b[?1049l",
+	} {
+		t.Run(name, func(t *testing.T) {
+			var s Screen
+			s.FeedFraming([]byte("\x1b7"))
+			if !s.HoldsCursorSave() {
+				t.Fatal("setup: the save was not observed")
+			}
+			s.FeedFraming([]byte(seq))
+			if s.HoldsCursorSave() {
+				t.Fatalf("%s left the child's save outstanding", name)
+			}
+		})
+	}
+}
+
+// The two gates are INDEPENDENT. A console must defer on either, and an earlier
+// design that folded them into one flag could not tell "mid-escape" from
+// "inside the child's save" -- they clear on different bytes.
+func TestMidSequenceAndHeldSaveAreSeparateConditions(t *testing.T) {
+	var s Screen
+	s.FeedFraming([]byte("\x1b7"))
+	if s.MidSequence() {
+		t.Fatal("a COMPLETE DECSC left the framer mid-sequence")
+	}
+	if !s.HoldsCursorSave() {
+		t.Fatal("the save was not recorded")
+	}
+	s.FeedFraming([]byte("\x1b[3"))
+	if !s.MidSequence() || !s.HoldsCursorSave() {
+		t.Fatal("a partial CSI must not disturb the save debt, or vice versa")
+	}
+}

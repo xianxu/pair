@@ -49,7 +49,10 @@ type Screen struct {
 	// Latched edge events, cleared by their Take* reader. The console acts
 	// once per event, not once per poll.
 	rowDirty bool
-	bell     bool
+	// cursorSaved is whether the CHILD is currently holding a cursor save it has
+	// not restored. See classify, and HoldsCursorSave.
+	cursorSaved bool
+	bell        bool
 
 	// skipping says we are inside a sequence too long to buffer, and what
 	// terminator ends it. Bytes are consumed and discarded until then.
@@ -135,6 +138,23 @@ func (s *Screen) SGRMouse() bool { return s.sgrMouse }
 // region is still perfectly intact. Naming this "region lost" was the mistake
 // behind missing it: the console does not care WHY the row is gone, only that
 // it is, and one signal for "the row may be gone" is the honest concept.
+// HoldsCursorSave reports whether the child is between its own DECSC and DECRC.
+//
+// A console with a reserved row must not write while this is true. The save slot
+// is SHARED -- one per terminal -- so a paint that saves and restores inside the
+// child's pair leaves the slot holding the CONSOLE's position, and the child's
+// restore lands there instead of where it meant to go.
+//
+// It is a defer condition exactly like MidSequence, and pairs with the same
+// owe-and-flush machinery: the debt is paid on the chunk that carries the
+// child's DECRC.
+//
+// A child that saves and never restores holds this forever, and the row then
+// goes STALE rather than wrong -- the correct direction to fail. RIS and the
+// alt-screen transitions clear it, and a console taking over the screen
+// wholesale resets the whole Screen anyway.
+func (s *Screen) HoldsCursorSave() bool { return s.cursorSaved }
+
 func (s *Screen) TakeRowDirty() bool {
 	dirty := s.rowDirty
 	s.rowDirty = false
@@ -410,9 +430,28 @@ func (s *Screen) classify(seq []byte) {
 	if len(seq) < 2 {
 		return
 	}
-	// RIS resets everything the console set, margins included.
+	// RIS resets everything the console set, margins included -- including any
+	// cursor save the child was holding.
 	if seq[1] == 'c' {
 		s.rowDirty = true
+		s.cursorSaved = false
+		return
+	}
+	// DECSC / DECRC. Tracked because the cursor save slot is SHARED: a console
+	// that paints between the child's ESC 7 and its ESC 8 clobbers what the
+	// child saved, and the child's restore then recovers the CONSOLE's position.
+	// Measured 2026-09-08 in pair#199: zsh draws its right-hand prompt with
+	// terminfo sc/rc (which are these), so the operator's cursor ended up in the
+	// tab strip and the right-prompt was drawn on the strip's row.
+	//
+	// One bit, not a stack: terminals keep ONE slot, so a second DECSC simply
+	// overwrites the first and a DECRC clears the debt either way.
+	if seq[1] == '7' {
+		s.cursorSaved = true
+		return
+	}
+	if seq[1] == '8' {
+		s.cursorSaved = false
 		return
 	}
 	if seq[1] != '[' || len(seq) < 3 {
@@ -430,6 +469,10 @@ func (s *Screen) classify(seq []byte) {
 			switch mode {
 			case "1049", "1047", "47":
 				s.altScreen = on
+				// Entering or leaving the alt screen abandons whatever the
+				// child had saved, so the debt this creates for a console's
+				// paint must not outlive it.
+				s.cursorSaved = false
 				// An alt-screen transition is exactly when a child redraws
 				// from scratch and the region can go with it.
 				s.rowDirty = true
