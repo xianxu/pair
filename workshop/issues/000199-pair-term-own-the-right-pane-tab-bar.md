@@ -229,9 +229,19 @@ Four milestones, each its own review boundary — detail in
   without. `cmd/probes/termrows` separately ruled out the obvious explanation
   for (4) — both tabs believe 23 rows in a 24-row pane, so the sizing is right.
 
-  **Not yet exercised:** M3.7(c), a wide (`日本語`) and a long tab name, to see
-  truncation and column alignment against a real terminal rather than the unit
-  test's arithmetic.
+  **Not yet exercised**, and both belong to the next test pass:
+
+  - M3.7(c) — a wide (`日本語`) and a long tab name, to see truncation and column
+    alignment against a real terminal rather than the unit test's arithmetic.
+  - **The whole smoke test ran in `pair` ALONE, not under couch.** That leaves
+    the plan's open item 2 ("Row budget") unanswered: under couch there are TWO
+    reserved rows — couch holds the HOST terminal's bottom row, `pair term`
+    holds its PANE's bottom row. They are different terminals, so they should
+    compose, and each `Reservation` is computed from its own `Host.Size()`
+    rather than a shared number. But "should" is the word that has cost this
+    milestone four defects, and the composition is exactly the kind of thing a
+    unit test cannot see. It is the first thing to check when the operator next
+    runs under couch.
 
 - 2026-09-07: closed M2 — one writer, one gate, and a pane fd a new door cannot
   reach without a compile error. Six review rounds; every one found something
