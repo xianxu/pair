@@ -209,6 +209,124 @@ rounds:
           round: 2
       boundary: M1
       blocked: true
+    - "n": 3
+      timestamp: "2026-09-07T17:03:57-07:00"
+      agent: claude
+      dispose:
+        - id: BR-1
+          disposition: addressed
+          note: Finding 9 records the grep and all three matcher forms; I re-ran it and it reproduces layoutflow.go:56,59,62 and shortcut.go:184-189. Residual restatements at :304 and :391 folded into the new plan-table-drift finding.
+          round: 3
+        - id: BR-2
+          disposition: addressed
+          note: 'M1.5 restated in Revisions to behavioural tests; console_live_test.go and vtscreen_test.go diff empty; conceptPlans, conceptInventory and #146''s row all landed and the contract is green.'
+          round: 3
+        - id: BR-3
+          disposition: addressed
+          note: Finding 7 names batch.RowDirty in the Sink callback and checks out against child.go:176 and run.go:661. Residual at the Integration-points table (:271) and M3.4/M3.5 folded into the new plan-table-drift finding.
+          round: 3
+        - id: BR-4
+          disposition: not-addressed
+          note: The stdout half is derived and routed via RunZellijActionQuiet, but runZellij hardwires cmd.Stderr = os.Stderr at run.go:1104 for BOTH methods, so the subprocess's second descriptor is still unrouted and "M2's envelope covers all five" is still false.
+          round: 3
+        - id: BR-5
+          disposition: addressed
+          note: M2's preamble names the takeover reset as couch's third rule and maps it to redrawTab; M2.3 step 1 resets hostScan plus the deferred slot. Verified against console.go:992-995.
+          round: 3
+        - id: BR-6
+          disposition: addressed
+          note: M4's Files block now names zellij/layouts/main-3.kdl and zellij/config.kdl as the SOURCE, explains the GeneratedMirror, and adds the regenerate step.
+          round: 3
+        - id: BR-7
+          disposition: addressed
+          note: rowtext.Sanitize/Fit is named as the shared home with the "unexported in another package" rationale. Residual at ARCH-SECURE (:372-373) and M3.3 (:560) folded into the new plan-table-drift finding.
+          round: 3
+        - id: BR-8
+          disposition: not-addressed
+          note: M4.3 still has no Alt+Shift+d step; the six *-split rungs stay unverified. Minor, carried.
+          round: 3
+        - id: BR-9
+          disposition: not-addressed
+          note: TestPaintDefersMidSequenceAndIsOwed still splits at one hand-picked index inside "\x1b[3". Minor, carried.
+          round: 3
+        - id: BR-10
+          disposition: addressed
+          note: 'Mutation-verified: reverting Paint''s guard to r.Rows == 0 turns reserve_test.go:66 and :101 red. The plan-Revisions half of the ask is still missing and is listed as a plan revision recommendation.'
+          round: 3
+        - id: BR-11
+          disposition: addressed
+          note: All four strip.go rows flipped to "planned — M3" in 692aa11e; the rowtext row carries the same status.
+          round: 3
+        - id: BR-12
+          disposition: addressed
+          note: Plan-gate rounds 5 and 6 are blocked:false, PQ-2 disposed addressed in round 2, and estimate_hours 7.52 plus an itemized Estimate block landed. Only PQ-8/PQ-9 remain open, consistent with BR-8/BR-9.
+          round: 3
+        - id: BR-13
+          disposition: not-addressed
+          note: NewReservation still has zero production callers; console.go:922 still builds the struct literal. It also validates only the edge, not rows. Minor, carried.
+          round: 3
+        - id: BR-14
+          disposition: not-addressed
+          note: atlas/couch.md:228 "The reserved row" still describes the mechanism with no pointer to hostty.Reservation. Minor, carried.
+          round: 3
+        - id: BR-15
+          disposition: not-addressed
+          note: hostty/reserve.go:97-108 documents save/restore and the one-row deviation but still states no caller obligation to sanitize or clamp. Minor, carried.
+          round: 3
+      findings:
+        - id: BR-16
+          severity: Important
+          title: The probe behind finding 5 -- the design's load-bearing measurement -- does not exist anywhere in the repo
+          detail: |-
+            The plan closes finding 5 with "Probe kept at scratchpad/199-probe/", but there
+            is no scratchpad/ on disk, nothing matching *199*probe*, no such path ever added
+            in git log --all --diff-filter=A, and no .gitignore entry hiding one. The plan
+            calls this "the load-bearing fact" without which M1/M3 "would have been built on
+            sand", and atlas/architecture.md:490-493 now states the result as settled fact.
+            ARCH-MOCK at-review: behavior we depend on has a one-time manual reading and no
+            retained apparatus or conformance check. Land the probe as a tracked package
+            (cmd/probes/couchstartrecovery is the repo's own precedent) or correct the plan
+            and atlas to say the method is recorded but the apparatus was not kept.
+          family: unreproducible-measurement
+          round: 3
+        - id: BR-17
+          severity: Important
+          title: Three gate corrections landed at one site each and left seven restatements of the superseded facts in the same file
+          detail: |-
+            This is the 2nd finding in family plan-table-drift. Do NOT fix these seven sites
+            one by one -- the deliverable is the rule and the sweep. Measured prevalence, all
+            in workshop/plans/000199-...-plan.md: (1) finding 7 corrects the repaint seam to
+            batch.RowDirty, but :271's Integration-points row still names
+            ptychild.Child.TakeRowDirty as the wrapped seam and M3.4/M3.5 (:561,:562) still
+            say "repaint on TakeRowDirty" -- :271 is what an M3 implementer reads to learn
+            which seam to wrap; (2) finding 9 establishes run.go:229 is RegisterTerminalPane
+            and not a title reader (confirmed at termcmd/run.go:226-231), but :304 still says
+            the #118/#123 consumers "read it (run.go:229)" and :391's ARCH-PURPOSE still
+            prints the superseded list AND calls it an enumeration "written out rather than
+            left as sweep", which is exactly the shape the plan's own PQ-10 rule forbids;
+            (3) the rowtext entry establishes couchtty's sanitize/truncate are unreachable,
+            but ARCH-SECURE (:372-373) and M3.3 (:560) still say "exactly as
+            couchtty.RenderStatusRow does" / "the same helpers couchtty uses".
+            The rule: when a gate finding corrects a fact, the unit of repair is the fact,
+            not the sentence the finding quoted -- grep the superseded token across the
+            artifact and replace every occurrence in the same round. Checkable form, runnable
+            before the next disposition:
+            grep -n 'TakeRowDirty\|run\.go:229\|same helpers' workshop/plans/000199-*-plan.md
+            must return only the passage documenting the correction itself.
+          family: plan-table-drift
+          round: 3
+        - id: BR-18
+          severity: Minor
+          title: M1.6 is ticked claiming its grep returns nothing; run as written it returns 27 lines
+          detail: |-
+            plan :452. Every hit is a _test.go fixture and no production file outside hostty
+            emits SetRegion or a DECSTBM sequence, so the invariant M1.6 defends does hold --
+            but the stated command contradicts the tick, and the next reader to re-run it
+            gets output. Corrected form: append "| grep -v _test.go".
+          family: acceptance-command-does-not-hold
+          round: 3
+      boundary: M1
+      blocked: true
 ---
 
 # Gate ledger — pair#199 (boundary-review)
@@ -344,20 +462,73 @@ later rounds disposed of them. Generated — edit the gate, not this file.
   a package boundary and M3 adds a consumer whose input is operator-supplied
   tab names. One doc line at the new door (ARCH-SECURE).
 
+## Round 3 — 2026-09-07T17:03:57-07:00 (claude) — BLOCKED
+
+### Disposed
+
+- BR-1 — addressed — Finding 9 records the grep and all three matcher forms; I re-ran it and it reproduces layoutflow.go:56,59,62 and shortcut.go:184-189. Residual restatements at :304 and :391 folded into the new plan-table-drift finding.
+- BR-2 — addressed — M1.5 restated in Revisions to behavioural tests; console_live_test.go and vtscreen_test.go diff empty; conceptPlans, conceptInventory and #146's row all landed and the contract is green.
+- BR-3 — addressed — Finding 7 names batch.RowDirty in the Sink callback and checks out against child.go:176 and run.go:661. Residual at the Integration-points table (:271) and M3.4/M3.5 folded into the new plan-table-drift finding.
+- BR-4 — not-addressed — The stdout half is derived and routed via RunZellijActionQuiet, but runZellij hardwires cmd.Stderr = os.Stderr at run.go:1104 for BOTH methods, so the subprocess's second descriptor is still unrouted and "M2's envelope covers all five" is still false.
+- BR-5 — addressed — M2's preamble names the takeover reset as couch's third rule and maps it to redrawTab; M2.3 step 1 resets hostScan plus the deferred slot. Verified against console.go:992-995.
+- BR-6 — addressed — M4's Files block now names zellij/layouts/main-3.kdl and zellij/config.kdl as the SOURCE, explains the GeneratedMirror, and adds the regenerate step.
+- BR-7 — addressed — rowtext.Sanitize/Fit is named as the shared home with the "unexported in another package" rationale. Residual at ARCH-SECURE (:372-373) and M3.3 (:560) folded into the new plan-table-drift finding.
+- BR-8 — not-addressed — M4.3 still has no Alt+Shift+d step; the six *-split rungs stay unverified. Minor, carried.
+- BR-9 — not-addressed — TestPaintDefersMidSequenceAndIsOwed still splits at one hand-picked index inside "\x1b[3". Minor, carried.
+- BR-10 — addressed — Mutation-verified: reverting Paint's guard to r.Rows == 0 turns reserve_test.go:66 and :101 red. The plan-Revisions half of the ask is still missing and is listed as a plan revision recommendation.
+- BR-11 — addressed — All four strip.go rows flipped to "planned — M3" in 692aa11e; the rowtext row carries the same status.
+- BR-12 — addressed — Plan-gate rounds 5 and 6 are blocked:false, PQ-2 disposed addressed in round 2, and estimate_hours 7.52 plus an itemized Estimate block landed. Only PQ-8/PQ-9 remain open, consistent with BR-8/BR-9.
+- BR-13 — not-addressed — NewReservation still has zero production callers; console.go:922 still builds the struct literal. It also validates only the edge, not rows. Minor, carried.
+- BR-14 — not-addressed — atlas/couch.md:228 "The reserved row" still describes the mechanism with no pointer to hostty.Reservation. Minor, carried.
+- BR-15 — not-addressed — hostty/reserve.go:97-108 documents save/restore and the one-row deviation but still states no caller obligation to sanitize or clamp. Minor, carried.
+
+### Raised
+
+- **BR-16** [Important] `unreproducible-measurement` The probe behind finding 5 -- the design's load-bearing measurement -- does not exist anywhere in the repo
+  The plan closes finding 5 with "Probe kept at scratchpad/199-probe/", but there
+  is no scratchpad/ on disk, nothing matching *199*probe*, no such path ever added
+  in git log --all --diff-filter=A, and no .gitignore entry hiding one. The plan
+  calls this "the load-bearing fact" without which M1/M3 "would have been built on
+  sand", and atlas/architecture.md:490-493 now states the result as settled fact.
+  ARCH-MOCK at-review: behavior we depend on has a one-time manual reading and no
+  retained apparatus or conformance check. Land the probe as a tracked package
+  (cmd/probes/couchstartrecovery is the repo's own precedent) or correct the plan
+  and atlas to say the method is recorded but the apparatus was not kept.
+- **BR-17** [Important] `plan-table-drift` Three gate corrections landed at one site each and left seven restatements of the superseded facts in the same file
+  This is the 2nd finding in family plan-table-drift. Do NOT fix these seven sites
+  one by one -- the deliverable is the rule and the sweep. Measured prevalence, all
+  in workshop/plans/000199-...-plan.md: (1) finding 7 corrects the repaint seam to
+  batch.RowDirty, but :271's Integration-points row still names
+  ptychild.Child.TakeRowDirty as the wrapped seam and M3.4/M3.5 (:561,:562) still
+  say "repaint on TakeRowDirty" -- :271 is what an M3 implementer reads to learn
+  which seam to wrap; (2) finding 9 establishes run.go:229 is RegisterTerminalPane
+  and not a title reader (confirmed at termcmd/run.go:226-231), but :304 still says
+  the #118/#123 consumers "read it (run.go:229)" and :391's ARCH-PURPOSE still
+  prints the superseded list AND calls it an enumeration "written out rather than
+  left as sweep", which is exactly the shape the plan's own PQ-10 rule forbids;
+  (3) the rowtext entry establishes couchtty's sanitize/truncate are unreachable,
+  but ARCH-SECURE (:372-373) and M3.3 (:560) still say "exactly as
+  couchtty.RenderStatusRow does" / "the same helpers couchtty uses".
+  The rule: when a gate finding corrects a fact, the unit of repair is the fact,
+  not the sentence the finding quoted -- grep the superseded token across the
+  artifact and replace every occurrence in the same round. Checkable form, runnable
+  before the next disposition:
+  grep -n 'TakeRowDirty\|run\.go:229\|same helpers' workshop/plans/000199-*-plan.md
+  must return only the passage documenting the correction itself.
+- **BR-18** [Minor] `acceptance-command-does-not-hold` M1.6 is ticked claiming its grep returns nothing; run as written it returns 27 lines
+  plan :452. Every hit is a _test.go fixture and no production file outside hostty
+  emits SetRegion or a DECSTBM sequence, so the invariant M1.6 defends does hold --
+  but the stated command contradicts the tick, and the next reader to re-run it
+  gets output. Corrected form: append "| grep -v _test.go".
+
 ## Open findings
 
-- **BR-1** [Important] `consumer-set-not-derived` The rename-pane consumer set is asserted from memory; the two real title matchers are never named
-- **BR-2** [Important] `consumer-set-not-derived` M1.5's "no couch test edited" is unsatisfiable, and the concept contract binds the moved symbols
-- **BR-3** [Important] `wrong-seam-named` The strip repaint trigger names ptychild.Child.TakeRowDirty, which is always false in termcmd
 - **BR-4** [Important] `envelope-claim-unenforced` Two writers to the pane's tty sit outside the single-writer envelope, and the M2 test cannot see them
-- **BR-5** [Important] `takeover-resets-framing` M2 restates two of couch's three gate rules; the takeover reset is the missing one
-- **BR-6** [Important] `edit-source-not-mirror` M4 modifies the generated mirror of main-3.kdl and config.kdl rather than their source
-- **BR-7** [Important] `shared-helper-not-reachable` RenderStrip cannot reuse couchtty's sanitize/truncate — they are unexported in another package
 - **BR-8** [Minor] `acceptance-misses-changed-sites` M4's manual acceptance never splits the pane, leaving six of nine borderless sites unverified
 - **BR-9** [Minor] `single-interleaving-oracle` The mid-sequence gate test picks one hand-chosen split point over an arbitrary byte stream
-- **BR-10** [Important] `uncovered-negative-assertion` Paint's new 1-row behaviour is an undeclared, unpinned change from the moved PaintRow
-- **BR-11** [Important] `plan-table-drift` Four Core-concepts rows claim `new` at cmd/internal/termcmd/strip.go, which does not exist
-- **BR-12** [Important] `gate-not-cleared-before-code` M1 code landed with the plan-quality gate still blocked and no estimate recorded
 - **BR-13** [Minor] `validating-door-bypassed` NewReservation has zero production callers; couch constructs the struct directly
 - **BR-14** [Minor] `atlas-points-at-old-home` atlas/couch.md's "The reserved row" section still reads as couch-owned mechanism
 - **BR-15** [Minor] `caller-obligation-undocumented` Paint's doc does not state the caller's obligation to sanitize and clamp its text
+- **BR-16** [Important] `unreproducible-measurement` The probe behind finding 5 -- the design's load-bearing measurement -- does not exist anywhere in the repo
+- **BR-17** [Important] `plan-table-drift` Three gate corrections landed at one site each and left seven restatements of the superseded facts in the same file
+- **BR-18** [Minor] `acceptance-command-does-not-hold` M1.6 is ticked claiming its grep returns nothing; run as written it returns 27 lines

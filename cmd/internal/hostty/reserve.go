@@ -47,6 +47,14 @@ type Reservation struct {
 // NewReservation is the validating constructor: it refuses an edge that is not
 // implemented rather than letting a caller find out by seeing a corrupt screen.
 func NewReservation(rows uint16, edge Edge) (Reservation, error) {
+	// rows too, not just the edge: a "validating door" that admits rows: 0
+	// hands back a Reservation whose every method silently no-ops, which reads
+	// to the caller as a working reservation that never draws.
+	if rows <= 1 {
+		return Reservation{}, fmt.Errorf(
+			"hostty: %d rows cannot be reserved from; a terminal needs at least 2 "+
+				"so the child keeps one", rows)
+	}
 	if edge != EdgeBottom {
 		return Reservation{}, fmt.Errorf(
 			"hostty: edge %d is not implemented; only EdgeBottom reserves correctly "+

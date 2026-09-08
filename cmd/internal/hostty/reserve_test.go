@@ -91,6 +91,20 @@ func TestPaintBracketsWithCursorSaveRestore(t *testing.T) {
 // painted a row it had not reserved -- over content the child owns, since
 // ChildRows(1) gives the child the whole screen. Pinned because it is a
 // behaviour change from the moved function, not an accident of the rewrite.
+// The validating door validates ROWS too. Admitting rows: 0 returns a
+// Reservation whose every method no-ops, which reads to the caller as a working
+// reservation that simply never draws.
+func TestNewReservationRefusesATerminalWithNoRoom(t *testing.T) {
+	for _, rows := range []uint16{0, 1} {
+		if _, err := hostty.NewReservation(rows, hostty.EdgeBottom); err == nil {
+			t.Fatalf("rows=%d accepted; there is no room to reserve from", rows)
+		}
+	}
+	if _, err := hostty.NewReservation(2, hostty.EdgeBottom); err != nil {
+		t.Fatalf("rows=2 refused: %v", err)
+	}
+}
+
 func TestNothingIsPaintedOnARowThatWasNeverReserved(t *testing.T) {
 	for _, rows := range []uint16{0, 1} {
 		r := hostty.Reservation{Rows: rows, Edge: hostty.EdgeBottom}

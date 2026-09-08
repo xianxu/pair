@@ -71,12 +71,19 @@ and **every tab rename** (`run.go:961,963`) spawns a process writing straight
 into the pane, outside any in-process envelope. `RunZellijActionQuiet` already
 exists and passes `io.Discard` (`run.go:1091`).
 
-**M2's envelope covers all five.** The in-process four are serialised through
-one writer; the subprocess one is routed through `RunZellijActionQuiet` — and
-where an action genuinely needs its output, it is recorded as a NAMED exception
-in the plan rather than left for the strip to discover. stderr is the same
-terminal: a `term:` error printed while the strip is up lands wherever the
-cursor is, and after M4 there is no frame to absorb it.
+**Six writers, and `Quiet` closes only one of the two subprocess ones.**
+`RunZellijActionQuiet` swaps stdout for `io.Discard`, but `runZellij` hardwires
+`cmd.Stderr = os.Stderr` for BOTH methods (`run.go:1100-1105`) — so a *failing*
+`zellij action scroll-up` writes into the pane on every wheel tick, outside the
+writer loop and outside the paint gate, and after M4 there is no frame to
+absorb it. Routing stdout alone would have left the noisiest failure path open,
+which is exactly this issue's recurring defect: a correction applied at the site
+the finding named rather than to the class.
+
+**M2's envelope covers all six.** The in-process four are serialised through one
+writer. Both subprocess descriptors are captured — `runZellij` takes a
+`stderr io.Writer` alongside its `stdout`, and the captured text is logged,
+never written to the pane's fd. **Named exceptions: none.**
 
 **9. The `rename-pane` consumer set, DERIVED** (PQ-1, PQ-10). The Spec asserted
 it from memory; my first answer grepped one file and still missed a consumer.
@@ -110,7 +117,7 @@ depends on the title alone. M3.6 asserts exactly this — `RoleForPane` and
 (`zellijpane.go:79-84`), where the fallback is unavailable and the title is all
 there is.
 
-**4. `termcmd` writes to the host from two goroutines** (not in the Spec).
+**4. `termcmd` writes to the host from two goroutines** (superseded by finding 8, which derives FIVE writers across two descriptors plus a subprocess; kept because it is the fact the Spec was missing).
 `copyActiveOutput` (`run.go:702`) and `redrawTab` (`run.go:1023`, from three
 tab-switch sites). `atlas/couch.md` records why a reserved row cannot survive
 that: *"a pty read boundary falls wherever the kernel puts it, so a paint
@@ -268,13 +275,13 @@ stdout, and a third title matcher that disagrees with the other two.
 |------|----------|--------|-------|
 | single host writer | `cmd/internal/termcmd/run.go` | modified | the operator's tty |
 | paint gate | `cmd/internal/termcmd/run.go` | new | `ptychild.Screen.MidSequence` |
-| strip repaint trigger | `cmd/internal/termcmd/run.go` | new | `ptychild.Child.TakeRowDirty` |
+| strip repaint trigger | `cmd/internal/termcmd/run.go` | new | `ptychild.OutputBatch.RowDirty` (read in the Sink — see finding 7; `Child.TakeRowDirty` is already drained there) |
 | degraded `rename-pane` | `cmd/internal/termcmd/run.go` | modified | `zellij action` |
 | right pane chrome | `.../zellij/layouts/main-3.kdl` | modified | zellij layout |
 
 - **single host writer** — one goroutine owns `m.stdout`; `redrawTab` becomes an
   event on that loop rather than a direct write from the tab-switch path.
-  - **Why this is a prerequisite and not a follow-up:** with two writers, a
+  - **Why this is a prerequisite and not a follow-up:** with five writers (finding 8), a
     strip paint can land between two chunks of the child's output — inside an
     escape sequence. couch names this as learned the expensive way and answered
     it by making `Console.Run` the only writer. Building the strip first would
@@ -301,7 +308,8 @@ stdout, and a third title matcher that disagrees with the other two.
   short title (active tab name) rather than the packed multi-tab string.
   - The zellij pane title is still the only label visible when the pane is not
     focused, and `#118`'s tab-strip titles and `#123`'s registry read it
-    (`run.go:229`). Dropping it silently breaks consumers this issue never
+    (`layoutflow.go:56-62` and `workbenchshortcut/shortcut.go:189` — the derived
+    set, finding 9). Dropping it silently breaks consumers this issue never
     looked at. What goes away is `paneTitleLocked` packing the whole tab set
     into one rename argument — the strip carries that now.
 
@@ -317,7 +325,7 @@ stdout, and a third title matcher that disagrees with the other two.
 - **Interaction path: keystroke.** This is the one that matters — the strip
   repaints on the same loop that echoes the operator's typing.
 - **Budget: no paint on the common path.** A repaint happens on tab change,
-  resize, and `TakeRowDirty`; **not** per output chunk. Basis: couch's row works
+  resize, and `batch.RowDirty`; **not** per output chunk. Basis: couch's row works
   this way today and typing in a couch-hosted pane is not laggy. Exceeded → the
   strip is repainting per chunk and the operator feels it as input lag, which is
   the failure the operator already reported once for other reasons (`#201`).
@@ -339,14 +347,14 @@ not control. Three transitions, and the third is the one that bites.
 |---|---|---|
 | tab created / closed / switched | strip model changes | repaint (gated) |
 | host resize | rows change | re-`Reserve`, re-`Paint` |
-| child clears display / resets margins / RIS / alt-screen | row wiped, region may be gone | `TakeRowDirty` → re-`Reserve` **and** repaint |
+| child clears display / resets margins / RIS / alt-screen | row wiped, region may be gone | `batch.RowDirty` → re-`Reserve` **and** repaint |
 | child writes mid-sequence | paint would corrupt | defer, owe, flush on the next boundary |
 | child exits | tab removed | repaint; last tab exit tears down the reservation |
 
 Events the caller cannot block, named rather than swept:
 
 - **A child that sets its own DECSTBM.** `nvim` does. It clobbers our region,
-  and only `TakeRowDirty` (which counts margin reset) brings it back. The
+  and only `batch.RowDirty` (which counts margin reset) brings it back. The
   repaint must therefore **re-`Reserve`, not just re-`Paint`** — repainting into
   a region the child replaced puts the strip inside the child's scroll area,
   where the next scroll eats it. This is the single most likely thing to get
@@ -387,8 +395,8 @@ The purpose is that tab state reaches the operator without the zellij frame.
 The deliverable therefore includes the frame coming off (M4) and the
 `rename-pane` consumers still working — not just a row being drawn. Two
 enumerations are written out rather than left as "sweep": the **nine**
-`name="terminal"` sites in `main-3.kdl`, and the `rename-pane` consumers at
-`run.go:229`, `#118`, `#123`.
+`name="terminal"` sites in `main-3.kdl`, and the `rename-pane` consumers derived
+in finding 9 (`layoutflow.go:56,59,62` + `workbenchshortcut/shortcut.go:189`).
 
 ---
 
@@ -445,7 +453,7 @@ func TestPaintBracketsWithCursorSaveRestore(t *testing.T) {
 - [x] **M1.3: Implement** `Edge`, `Reservation`, `NewReservation`, and the four methods, composing from `hostty`'s existing `SetRegion`/`MoveTo`/`ClearLine`/`Save`/`RestoreCursor` constants. Do not spell an escape twice.
 - [x] **M1.4: Repoint couch** — delete `couchtty.ChildRows/Reserve/Release/PaintRow`, construct `Reservation{Edge: EdgeBottom}` in `console.go`. `RenderStatusRow` and friends stay put: what the row *says* is policy.
 - [x] **M1.5: Prove it was a MOVE, not a rewrite.** `go test ./cmd/internal/couchtty/ -count=1` green with **no couch test edited** — `git diff --stat cmd/internal/couchtty/*_test.go` must be empty. This is the Done-when's "a regression there means it was a rewrite", made checkable.
-- [x] **M1.6:** `grep -rn "SetRegion\|\\\\x1b\\[.*r\"" cmd/ --include=*.go | grep -v hostty/` returns nothing — one implementation, per the atlas.
+- [x] **M1.6:** `grep -rn "SetRegion\|\\\\x1b\\[.*r\"" cmd --include=*.go | grep -v _test.go | grep -v hostty/` returns nothing — one implementation, per the atlas. (The `_test.go` filter is load-bearing and was missing when this was first ticked: without it the command returns 35 lines, every one a test fixture. The invariant held; the stated command did not check it.)
 - [x] **M1.7: Commit**, then `sdlc milestone-close --issue 199 --milestone M1`.
 
 ## M2 — one writer, one gate
@@ -558,8 +566,8 @@ func TestNarrowPaneTruncatesWithoutLosingTheActiveTab(t *testing.T) {}
 
 - [ ] **M3.2: Run to verify they fail.**
 - [ ] **M3.3: Implement `RenderStrip`** — pure, returning `RenderedStrip{Body, Spans}`, sanitizing and truncating via the same helpers `couchtty` uses.
-- [ ] **M3.4: Wire it.** `Reservation{Edge: EdgeBottom}` sized from the pane; child pty gets `ChildRows()`; repaint on tab change, resize, and `TakeRowDirty`.
-- [ ] **M3.5: The re-`Reserve` rule** (ARCH-ORDER's most-likely-wrong): on `TakeRowDirty`, re-`Reserve` *before* repainting. Test: simulate a child emitting `\x1b[r` (margin reset), assert the next repaint re-emits the region and not only the row.
+- [ ] **M3.4: Wire it.** `Reservation{Edge: EdgeBottom}` sized from the pane; child pty gets `ChildRows()`; repaint on tab change, resize, and `batch.RowDirty` **read inside the Sink callback** (finding 7).
+- [ ] **M3.5: The re-`Reserve` rule** (ARCH-ORDER's most-likely-wrong): on a `batch.RowDirty` batch, re-`Reserve` *before* repainting. Test: simulate a child emitting `\x1b[r` (margin reset), assert the next repaint re-emits the region and not only the row.
 - [ ] **M3.6: Degrade `rename-pane`** to the active tab name; assert `RunZellijAction` still receives a rename on tab switch (the `#118`/`#123` consumers) and that it is no longer the packed multi-tab string.
 - [ ] **M3.7:** `go test ./cmd/... -count=1`, then **manual in a real layout3 pane**: run `nvim`, confirm the strip survives its startup clear and its own margin changes; quit; confirm the shell is not left scrolling in a box.
 - [ ] **M3.8: Commit**, `sdlc milestone-close --issue 199 --milestone M3`.
@@ -609,6 +617,47 @@ the strip over a suspected-broken writer would confuse both.
 
 
 ## Revisions
+
+### 2026-09-07 — M1 boundary review (FIX-THEN-SHIP)
+
+**BR-16 was the sharp one, and it was mine.** Finding 5 is this plan's
+load-bearing measurement — "M1/M3 would have been built on sand" — and it closed
+with *"Probe kept at `scratchpad/199-probe/`"*, a path that exists on no one
+else's machine and in no commit, while `atlas/architecture.md` states the result
+as settled fact for every future reader. A one-time manual reading with no
+reproducible apparatus is not evidence anyone can re-check. The probe is now
+`cmd/probes/zellijscrollregion` (the repo's own precedent is
+`cmd/probes/couchstartrecovery`), self-locating so it runs from anywhere, and it
+reproduces: `DECSTBM HONORED — 200 lines scrolled in rows 1..21 while the
+reserved row 23 held its paint`. Its doc comment records the three ways it
+produced a CONFIDENT WRONG ANSWER before being fixed — zellij refusing to nest,
+`--session`+`--layout` meaning attach rather than create, and `dump-screen`
+being unable to answer a positional question — because each of those looked
+exactly like "not honored".
+
+**BR-17 is this issue's recurring defect, applied to the plan itself.** The six
+plan-quality corrections each landed at one site and left the superseded facts
+standing everywhere else: `TakeRowDirty` still named as the repaint trigger in
+five places after finding 7 replaced it, "two writers" after finding 8 derived
+six, `run.go:229` as the rename-pane consumer after finding 9 derived the real
+set. All swept.
+
+**BR-4 was half-fixed, which is worse than not fixed.** Routing every
+`RunZellijAction` through `RunZellijActionQuiet` closes stdout — but `runZellij`
+hardwires `cmd.Stderr = os.Stderr` for *both* methods, so a failing `zellij
+action scroll-up` still writes into the pane per wheel tick. I had written "M2's
+envelope covers all five" while the noisiest failure path stayed open. Six
+writers now, and M2.3 gives `runZellij` a `stderr io.Writer`.
+
+Two Minors, both real: M1.6's grep was ticked as "returns nothing" when as
+written it returns 35 lines (the invariant held; the command didn't check it —
+it needed `| grep -v _test.go`), and `NewReservation` validated only the edge,
+so the "validating door" admitted `rows: 0` and handed back a Reservation whose
+every method silently no-ops.
+
+**And landing the probe hit the same class again**: two more hand-maintained
+lists (`artifactpath`'s inventory, `.gitignore`'s main-package binaries) that a
+new file falls out of silently. That is five such lists in one milestone.
 
 ### 2026-09-07 — M1 landed, with two deviations worth recording
 
