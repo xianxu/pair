@@ -11,6 +11,7 @@ import (
 	"strings"
 	"sync"
 	"testing"
+	"time"
 
 	"github.com/xianxu/pair/cmd/internal/ptychild"
 )
@@ -438,4 +439,70 @@ func TestTheGateSeesExactlyWhatTheTerminalSees(t *testing.T) {
 			t.Fatalf("a paint landed inside the replay's own escape sequence: %q", rec.String())
 		}
 	})
+}
+
+// BR-25 (Critical): a handler running ON the writer goroutine must not post to
+// the channel that goroutine drains.
+//
+// removeTab's only caller is handleChunk, on a child's EOF, and it ended with
+// redrawTab -> enqueue. With the buffer full -- a child exiting while its
+// output is backed up, which is precisely when children exit under load -- the
+// send blocks forever, because the only goroutine that could drain it is the
+// one blocked in the send. The pane wedges permanently.
+//
+// The test fills the buffer first, so a reentrant post cannot succeed by luck.
+func TestAChildExitingWithAFullBufferDoesNotWedgeThePane(t *testing.T) {
+	rec := newWriterRecorder()
+	m := newTerminalMux("sh", nil, rec, io.Discard, &fakeRuntime{})
+	go m.copyActiveOutput()
+	m.tabs = append(m.tabs,
+		&terminalTab{id: 1, name: "one"},
+		&terminalTab{id: 2, name: "two"})
+	m.active = 0
+
+	// Saturate the channel, then deliver the EOF that triggers removeTab.
+	for i := 0; i < cap(m.output); i++ {
+		m.output <- ptyChunk{id: 1, data: []byte("x")}
+	}
+	m.output <- ptyChunk{id: 2, err: io.EOF}
+
+	done := make(chan struct{})
+	go func() { m.drainForTest(); close(done) }()
+	select {
+	case <-done:
+	case <-time.After(5 * time.Second):
+		t.Fatal("the writer loop wedged: a handler on the loop posted to its own channel")
+	}
+	close(m.done)
+}
+
+// BR-39: the takeover feeds the replay to the gate, so anything written AFTER
+// it must consult the gate too. Writing owed diagnostics straight to the pane
+// put them inside the replay's own open sequence -- the corruption this
+// milestone exists to prevent, reintroduced by the fix for BR-35.
+func TestADiagnosticNeverLandsInsideTheReplaysOpenSequence(t *testing.T) {
+	rec := newWriterRecorder()
+	m := newTerminalMux("sh", nil, rec, io.Discard, &fakeRuntime{})
+	defer close(m.done)
+	go m.copyActiveOutput()
+	m.tabs = append(m.tabs, &terminalTab{id: 1, name: "one"})
+	m.active = 0
+
+	// Owe a diagnostic, then take over with a replay that ends mid-sequence.
+	m.output <- ptyChunk{id: 1, data: []byte("x\x1b[3")}
+	m.reportError(errors.New("owed failure"))
+	m.drainForTest()
+	m.redrawTab([]byte("restored\x1b[3"))
+	m.drainForTest()
+
+	if strings.Contains(rec.String(), "owed failure") {
+		t.Fatalf("a diagnostic landed inside the replay's open sequence: %q", rec.String())
+	}
+
+	// It is OWED, not dropped: the next boundary must deliver it.
+	m.output <- ptyChunk{id: 1, data: []byte("m")}
+	m.drainForTest()
+	if !strings.Contains(rec.String(), "owed failure") {
+		t.Fatalf("the diagnostic was dropped rather than deferred: %q", rec.String())
+	}
 }

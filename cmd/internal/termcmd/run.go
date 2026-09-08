@@ -772,26 +772,7 @@ func (m *terminalMux) handleChunk(chunk ptyChunk) {
 		m.removeTab(chunk.id)
 
 	case chunk.takeover:
-		// couch's THIRD gate rule (console.go:992-995). The screen is being
-		// replaced wholesale, so whatever partial sequence the old content left
-		// is no longer on screen to be corrupted: reset the scan, and DROP the
-		// owed paint rather than flushing it against a screen that is gone.
-		m.hostScan = ptychild.Screen{}
-		m.owed = nil
-		// Diagnostics survive a takeover: unlike a paint, an error is not made
-		// obsolete by the screen being replaced -- it still happened, and this
-		// may be the operator's only report of it.
-		pendingDiag := m.owedDiag
-		m.owedDiag = nil
-		_, _ = m.stdout.Write(chunk.own)
-		// The replay is CHILD bytes and the terminal has now seen them, so the
-		// gate must too -- it is replay-safe (ptychild strips queries and cuts
-		// at ReplaySafeEnd) but "usually ends at a boundary" is an assumption,
-		// and the gate exists precisely so nothing has to assume.
-		m.hostScan.FeedFraming(chunk.replay)
-		for _, d := range pendingDiag {
-			_, _ = m.stdout.Write(d)
-		}
+		m.applyTakeover(chunk.replay)
 
 	case chunk.diag != nil:
 		m.writeDiag(chunk.diag)
@@ -826,6 +807,37 @@ func (m *terminalMux) handleChunk(chunk ptyChunk) {
 			_, _ = m.stdout.Write(chunk.data)
 		}
 		m.flushOwed()
+	}
+}
+
+// applyTakeover replaces the whole screen: clear, replay, then settle the gate.
+// Runs on the writer goroutine, whether reached through the channel or called
+// inline by another handler already on it (see removeTab).
+func (m *terminalMux) applyTakeover(replay []byte) {
+	// couch's THIRD gate rule (console.go:992-995): the screen is being replaced
+	// wholesale, so whatever partial sequence the old content left is no longer
+	// on screen to be corrupted. Reset the scan, and DROP the owed paint rather
+	// than flushing it against a screen that is gone.
+	pendingDiag := m.owedDiag
+	m.hostScan = ptychild.Screen{}
+	m.owed = nil
+	m.owedDiag = nil
+
+	_, _ = io.WriteString(m.stdout, hostty.HomeAndClear)
+	_, _ = m.stdout.Write(replay)
+	// The replay is CHILD bytes and the terminal has now seen them, so the gate
+	// must too -- it is replay-safe (ptychild strips queries and cuts at
+	// ReplaySafeEnd) but "usually ends at a boundary" is an assumption, and the
+	// gate exists so nothing has to assume.
+	m.hostScan.FeedFraming(replay)
+
+	// Diagnostics survive a takeover -- unlike a paint, an error is not made
+	// obsolete by the screen being replaced. But they go through writeDiag, NOT
+	// straight to the pane: the replay we just fed may have ended mid-sequence,
+	// and writing into it is the exact corruption this milestone exists to
+	// prevent. Re-queued if so, and flushed at the next boundary.
+	for _, d := range pendingDiag {
+		m.writeDiag(d)
 	}
 }
 
@@ -1085,6 +1097,17 @@ func (m *terminalMux) appMouseMode() bool {
 	return tab != nil && tab.child != nil && tab.child.Mouse()
 }
 
+// removeTab runs ON THE WRITER GOROUTINE -- its only caller is handleChunk, on
+// a child's EOF -- so it must never post to the channel that goroutine drains.
+//
+// It did, via redrawTab, and that is a deadlock rather than a slow path: with
+// the buffer full (a child exiting while its output is backed up, which is
+// exactly when a child exits under load) the send blocks forever, because the
+// only goroutine that could drain it is the one blocked in the send. The pane
+// wedges permanently.
+//
+// THE RULE: a handler running on the writer goroutine applies its own writes
+// INLINE. Anything that posts belongs to a caller that is not the loop.
 func (m *terminalMux) removeTab(id int) {
 	m.mu.Lock()
 	var removed *terminalTab
@@ -1141,7 +1164,7 @@ func (m *terminalMux) removeTab(id int) {
 	}
 	_ = m.setPaneTitle(title)
 	if !preserveRename {
-		m.redrawTab(activeSnapshot)
+		m.applyTakeover(activeSnapshot)
 	}
 }
 
@@ -1301,8 +1324,7 @@ func (m *terminalMux) renamePaneTitleLocked(tabID int, editor RenameEditor) stri
 // the Run goroutine while the pump wrote from its own, which is exactly the two
 // writers this milestone removes.
 func (m *terminalMux) redrawTab(replay []byte) {
-	body := append([]byte(hostty.HomeAndClear), replay...)
-	m.enqueue(ptyChunk{own: body, replay: replay, takeover: true})
+	m.enqueue(ptyChunk{replay: replay, takeover: true})
 }
 
 // replaySnapshotLocked is what a repaint of this tab should write. Caller must

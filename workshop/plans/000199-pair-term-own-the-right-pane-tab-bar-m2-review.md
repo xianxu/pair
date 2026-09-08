@@ -556,3 +556,156 @@ findings:
     detail: |
       This is the 3rd finding in family atlas-points-at-old-home, so the rule - an extraction moves the prose with the symbol and leaves neither comment nor stub at the old home. reserve.go:143-152 ends in two paragraphs describing functions now in rowtext, so a reader greps couchtty for sanitize and finds documentation for a function that is not there. Greppable form of the check - a doc comment whose subject identifier no longer resolves in its own file.
 ```
+
+---
+
+## Re-review — 2026-09-07T23:06:21-07:00 (REWORK)
+
+| field | value |
+|-------|-------|
+| issue | 199 — pair term: own the right pane tab bar |
+| repo | pair |
+| issue file | workshop/issues/000199-pair-term-own-the-right-pane-tab-bar.md |
+| boundary | milestone M2 |
+| milestone | M2 |
+| window | 96f780da661b35aef301b612b14ee8399bd9a6cf..4f5bc0ea724ad2b50c8f45a6eb22bf7bba2ff4a3 |
+| command | sdlc milestone-close --issue 199 --milestone M2 |
+| reviewer | claude |
+| timestamp | 2026-09-07T23:06:21-07:00 |
+| verdict | REWORK |
+
+## Review
+
+I've completed the inspection. Verdict and findings follow.
+
+```verdict
+verdict: REWORK
+confidence: high
+```
+
+The two head commits do what they claim: BR-35's gate fix is real and mutation-pinned in both directions (moving `FeedFraming` back outside the `isActive` branch reddens the background-tab subtest; deleting the replay feed reddens the replay subtest), and BR-37's C1 strip is pinned by a class-shaped table plus an over-stripping guard. Full `make test` is green (exit 0) and `go test -race ./cmd/internal/termcmd/` is clean. What blocks the boundary is that the milestone's oldest Critical is still live — **BR-25 reproduced again at HEAD**, deterministically and under load: `handleChunk`'s EOF branch runs `removeTab` on the writer goroutine, which posts to the channel that goroutine is the only drainer of, parking the pane permanently — and the head commit's own fix introduced a second one: the takeover now feeds the replay to the gate (correct) and then writes the owed diagnostics **without consulting it** (run.go:791-793), so a queued `pair term:` line lands inside the replay's open CSI. I reproduced that too: `"x\x1b[3\x1b[1;1H\x1b[Jrestored\x1b[3pair term: queued failure\r\n"` — the exact failure M2 exists to prevent, in the one write path the milestone added last.
+
+## 1. Strengths
+
+- **BR-35's fix is genuinely defended, not asserted.** Mutation-checked both directions: `run.go:826` (feed inside `isActive`) → `TestTheGateSeesExactlyWhatTheTerminalSees/a_background_tab_cannot_pin_the_gate` red; `run.go:791` (replay feed) → `/a_takeover's_replay_is_fed` red. The rule it states — the gate models the terminal, so it is fed exactly what the terminal is shown — is the right generalization and is now visible in the code's own comments.
+- **BR-37 is fixed at the class, and the over-stripping direction is covered too.** `rowtext.go:44` strips C0/DEL/C1; reverting the C1 clause reddens four subtests. `TestSanitizeKeepsPrintableTextAroundTheC1Block` guards the opposite error. I also measured the raw 8-bit spelling: `"a\x9b31mred"` → `"a\uFFFD31mred"`, so the one-byte introducer degrades to a printable replacement rather than reaching the terminal as CSI.
+- **The extraction left no second implementation.** `couchtty`'s `sanitize`/`truncate` are gone, both call sites repointed, and `artifactpath.NonArtifactSources` was updated in the same commit — the hand-maintained-list class that cost M1 three lists was remembered this time.
+- **The test apparatus does not perturb what it observes.** `drainForTest`'s bare event (`run.go:958`) and `midSequenceForTest`'s `onWriter` probe (`run.go:961`) read gate state on the goroutine that owns it, with the earlier empty-`own` mistake recorded in the comment.
+
+## 2. Critical findings
+
+**C1 — `removeTab` still posts to the writer goroutine's own channel (BR-25, third raise).** `run.go:772` → `removeTab` (`:1088`) → `redrawTab` (`:1303`) → `enqueue` (`:922`).
+
+Reproduced twice at HEAD with an overlay test (since deleted; tree verified clean):
+
+```
+TestOverlayBR25RemoveTabPostsToItsOwnQueue  — writer goroutine parked > 3s
+TestOverlayBR25CloseUnderLoad               — writer never drained again after a tab closed under load
+```
+
+`enqueue`'s only escape is `<-m.done`, which nothing closes on this path. Two tabs, one flooding, operator closes the other → the pane renders nothing ever again, and the children then block on the Sink's unguarded send (`run.go:712`). Fix sketch unchanged from round 6: extract the takeover body into a writer-goroutine-only helper shared by `handleChunk`'s `takeover` case and `removeTab`, so `removeTab` applies it inline; regression test = two tabs, one flooding, close the other, assert the loop drains within a timeout. While you are there, `setPaneTitle` (`run.go:1142`) spawns a `zellij action` subprocess *on the writer goroutine* — tens of ms during which no byte reaches the pane; that is what widens the deadlock window and it is worth moving off the loop in the same edit.
+
+**C2 (new) — the takeover flushes owed diagnostics without consulting the gate it just fed.** `run.go:791-793`.
+
+Reproduced: a diagnostic queued while the child was mid-sequence, then a tab switch whose replay ends mid-sequence, yields `restored\x1b[3pair term: queued failure` on the pane — the diagnostic's leading bytes are swallowed as parameters of the open CSI. Note the asymmetry that makes this specifically the *diagnostic* write: `chunk.own` at `:786` begins with `\x1b[1;1H`, and an ESC inside a CSI parameter string cancels it in xterm-class terminals, so couch's "a takeover ends the stream's relevance" exemption survives; the diagnostic is plain text and does not. Full detail and the rule are in the findings block below.
+
+## 3. Important findings
+
+- **BR-26 (not-addressed, fourth raise).** Four mutations still leave the whole suite green, measured this round: deleting `m.owed = nil` (`run.go:780`), deleting `detail = rowtext.SanitizeAndFit(...)` (`run.go:1447`), and swapping `resizeThroughWriter` back to `inheritSize` (`run.go:264`). `tests/plan-superseded-facts-test.sh:65` still bans `route only stdout through`, a string `git log -S` finds in **no** revision of the plan — a guard that cannot fire. The rule the family asks for still is not written anywhere.
+- **BR-27 (not-addressed).** The capture half landed; the *log* half did not. `run.go:462,468` (wheel ticks), `:1142` and `:1234` (`setPaneTitle`) still discard the error, so the failure mode the finding named — a failing action that is completely silent — is unchanged for the highest-frequency callers. `reportError` exists and is one line away from each of them.
+- **BR-33 (not-addressed).** `atlas/architecture.md:501-508` still says a console-originated write is deferred into a *single coalescing slot* and dropped by a takeover, which has been false for diagnostics since 34918a3c; `:527` says a diagnostic "is gated like any other write", which C2 shows is false in the takeover path; `:532` still lists `pair term`'s strip as a current `rowtext` consumer, which M3 has not built. The rule the finding asked for (extend the superseded-facts test to `atlas/`) is not implemented.
+- **BR-36 (not-addressed).** The evidence half is genuinely corrected — the issue Log and M2.5 now say the flood run accepts the single-writer envelope and not the gate, which is honest and is the right shape. But the correction promises the gate's manual acceptance lands in M3.7, and M3.7 (`plan:589`) has no step that enters the gate path: no second tab, no escape-emitting child under load, no deferral counted. The gate therefore still has no manual acceptance anywhere in the plan.
+
+## 4. Minor findings
+
+- BR-8, BR-9, BR-29, BR-30, BR-31, BR-34, BR-38: all unchanged at HEAD — see the dispositions below.
+- The `runZellijCaptured` doc comment (`run.go:1410-1418`) now documents `diagnosticWidth`: two consts were inserted between the prose and its function, so `runZellijCaptured` has no doc comment and `diagnosticWidth` has a wrong one. Same shape as BR-38, in this window.
+- `diagnosticWidth = 200` is justified as "far short of wrapping onto the child's area"; the pane is ~80 columns and `m.cols` is a field of the receiver, so the claim is false and the derived bound is available.
+- `couchtty/menu_render.go:625` still open-codes `rowtext.Fit(rowtext.Sanitize(line), width)` where `SanitizeAndFit` exists — BR-37's "same edit" clause, half-applied.
+
+## 5. Test coverage notes
+
+The suite's *shape* is right — positive controls before assert-absents, a bare drain event, gate state read on the owning goroutine. The gaps are all "the kind of bug this diff shipped":
+
+1. No test drives `removeTab` through the loop with a full queue (C1), and none can: the three existing `removeTab` tests call it from the test goroutine.
+2. No test asserts the owed-diag flush is gated (C2). `TestDiagnosticsAreQueuedNotCoalescedAndSurviveATakeover:242-255` uses a replay (`"replaced"`) that ends on a boundary, so it passes either way.
+3. `TestNeitherZellijMethodHandsTheSubprocessThePanesDescriptors` executes the real `zellij`; its mutation-sensitivity for the stdout arm depends on the machine having a live session (measured in round 8). On a machine without `zellij` all four arms are vacuous — ARCH-MOCK's "tests that cannot run the stack against the fake".
+4. BR-9's parameterization is still one hand-chosen split index.
+
+## 6. Architectural notes for upcoming work
+
+Working through the markers: **ARCH-PURE** passes (rowtext is pure and IO-free; the writer suite needs no pty). **ARCH-SECURE** passes (single sanitizing egress, pinned by mutation; both C1 spellings closed). **ARCH-DRY** — nit only (the `SanitizeAndFit` open-coding; the takeover re-implementing `writeDiag`'s write, which *is* C2). **ARCH-PURPOSE** — flag: BR-27's class is half-swept, the four dropping call sites are enumerable and one line each. **ARCH-MOCK** — flag: the zellij FD test is a live-binary test wearing a unit test's clothes. **ARCH-CONSTRAINTS** — flag: BR-31/BR-34 still undeclared (the second parse is now narrowed to the active tab by the BR-35 fix, which is worth recording when you declare it). **ARCH-ORDER** — flag, and it is where both Criticals live: a handler posting to the queue it drains, and an owed effect flushed at a point where the ordering predicate is not consulted. Before M3 multiplies the paint sites, write the `(state, event) → (state, effects)` table for the writer loop — `{clean, mid-sequence} × {child chunk, paint, diag, takeover, resize, EOF}` — because M3 adds a repaint on every `batch.RowDirty` and every one of those cells will be hot.
+
+## 7. Plan revision recommendations
+
+- `## Revisions` entry for C2: the takeover's third gate rule has a fourth clause — *a write the takeover carries forward is re-gated against the replay it just fed*, and the exemption for the takeover's own `HomeAndClear` is written down (it begins with ESC, which cancels a pending CSI) rather than left as something a reader must re-derive.
+- `## Revisions` entry for M3.7: name the observable that proves the gate path was entered (a child emitting escapes, a second tab, the deferral counted), per BR-36's rule, since M2.5's correction points there.
+- ARCH-CONSTRAINTS: add the two declared bounds (BR-31's second parse, now active-tab-only; BR-34's `owedDiag` cap) and correct `diagnosticWidth`'s basis.
+
+```findings
+dispose:
+  - id: BR-8
+    disposition: not-addressed
+    note: |
+      M4 untouched in this window; M4.3 still has no Alt+Shift+d step while the Done-when still requires two right-pane halves each drawing a strip.
+  - id: BR-9
+    disposition: not-addressed
+    note: |
+      writer_test.go:115 still splits one hand-chosen index of one sequence.
+  - id: BR-25
+    disposition: not-addressed
+    note: |
+      No code change. Reproduced twice at HEAD with overlay tests - deterministic (full queue, handleChunk parked >3s) and under load (writer never drained again). run.go:772 -> 1088 -> 1303 -> 922.
+  - id: BR-26
+    disposition: not-addressed
+    note: |
+      Measured green under mutation at HEAD - m.owed = nil (run.go:780), runZellijCaptured's SanitizeAndFit (:1447), resizeThroughWriter (:264); plan-superseded-facts-test.sh:65 still bans a string git log -S finds in no revision of the plan.
+  - id: BR-27
+    disposition: not-addressed
+    note: |
+      Log half still absent - run.go:462,468,1142,1234 discard the error, so a failing wheel tick or rename is still completely silent while reportError sits one line away.
+  - id: BR-29
+    disposition: not-addressed
+    note: |
+      run_test.go:941 fakeRuntime.reportedUnused still present and uncalled; terminalMux.stderr is still set at run.go:683 and read by nothing.
+  - id: BR-30
+    disposition: not-addressed
+    note: |
+      run.go:168 runDecision still takes stdin and stdout and uses neither.
+  - id: BR-31
+    disposition: not-addressed
+    note: |
+      ARCH-CONSTRAINTS unchanged. The BR-35 fix narrowed the second parse to the active tab, which is the fact to declare.
+  - id: BR-33
+    disposition: not-addressed
+    note: |
+      atlas:501-508 still says a single coalescing slot dropped by a takeover; :527 says diagnostics are gated like any other write, which C2 falsifies; :532 still lists M3's strip as a current consumer. The superseded-facts test still covers only the plan.
+  - id: BR-34
+    disposition: not-addressed
+    note: |
+      run.go:819 still appends to owedDiag unbounded; ARCH-CONSTRAINTS declares no budget. Same gap covers diagnosticWidth = 200, whose stated basis (far short of wrapping) is false for an 80-column pane while m.cols is on the receiver.
+  - id: BR-35
+    disposition: addressed
+    note: |
+      Mutation-verified both directions rather than taken from the commit - moving FeedFraming out of the isActive branch and deleting the replay feed each redden their own subtest.
+  - id: BR-36
+    disposition: not-addressed
+    note: |
+      Evidence half corrected honestly (Log + M2.5), but the correction defers the gate's manual acceptance to M3.7 and plan:589 has no step that enters the gate path - no second tab, no escape-emitting child, no deferral counted.
+  - id: BR-37
+    disposition: addressed
+    note: |
+      Reverting the C1 clause at rowtext.go:44 reddens four subtests; raw 8-bit spellings degrade to U+FFFD (measured). Residual, not re-raised - menu_render.go:625 still open-codes Fit(Sanitize(...)).
+  - id: BR-38
+    disposition: not-addressed
+    note: |
+      couchtty/reserve.go:143-152 still ends in doc comments for functions that moved to rowtext, and this window added the same shape at run.go:1410-1418, where two consts now sit between runZellijCaptured's prose and runZellijCaptured.
+findings:
+  - id: new
+    severity: Critical
+    family: validating-door-bypassed
+    title: |
+      The takeover writes owed diagnostics straight to the pane after feeding the replay to the gate, so a diagnostic lands inside the replay's open sequence
+    detail: |
+      This is the 2nd finding in family validating-door-bypassed, so the deliverable is the rule, not the site. run.go:792-793 writes each queued diagnostic with m.stdout.Write, immediately after run.go:791 feeds chunk.replay to hostScan - so when the replay ends mid-sequence (the case run.go:787-790 exists to handle, and which writer_test.go:419 asserts is real), MidSequence is true and the write goes out anyway. Reproduced with an overlay test - a diagnostic queued while the child was mid-sequence, then redrawTab("restored\x1b[3"), yields "x\x1b[3\x1b[1;1H\x1b[Jrestored\x1b[3pair term: queued failure\r\n" on the pane, the diagnostic's leading bytes swallowed as CSI parameters. Reachable: a failed rename or a failed zellij action while the child is mid-escape, then any tab switch. The takeover's own write at :786 is NOT the same case and must stay exempt - it begins with ESC, which cancels a pending CSI in xterm-class terminals, which is why couch's takeover writes ungated; that exemption should be stated rather than re-derived. The rule - every byte reaching m.stdout from the writer loop passes through the gate-consulting door (writeOwn / writeDiag), or carries a written exemption naming why the gate does not apply - covers the enumerable set `grep -n 'm\.stdout' cmd/internal/termcmd/run.go`: today :786 (exempt, takeover), :793 (the defect), :826 (the child stream itself), :839/:857/:868/:876 (inside the doors), :1321 (teardown, exempt). The test that pins the rule enumerates the console-originated write paths and asserts each defers while the gate is mid-sequence, which is what the current suite does for paints and not for the takeover-carried diagnostics.
+```
