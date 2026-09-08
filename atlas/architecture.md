@@ -539,6 +539,35 @@ producer. Filtering one producer only moves the hazard to the next.
   `couchtty`'s originals were unexported and so unreachable from `termcmd`, and
   a second copy of a security-relevant strip is exactly the outcome to avoid.
 
+**A console write waits on TWO conditions, not one** (`#199` M3). Mid-sequence
+is the familiar one. The second is that **the child holds a cursor save**: the
+save slot is SHARED, one per terminal, so a paint that saves and restores inside
+the child's `DECSC`…`DECRC` pair leaves the slot holding the CONSOLE's position
+and the child's restore lands there. Measured — zsh draws its right-hand prompt
+with terminfo `sc`/`rc`, which are exactly those bytes, so the operator's cursor
+ended up inside the tab strip. There is no second slot to move to:
+`probes/cursorsaveslots` measured `CSI s`/`CSI u` failing to restore where it
+was told while `DECSC` succeeded under the identical harness. So the only fix is
+not to write while a save is held, and `ptychild.Screen.HoldsCursorSave` is the
+bit that says so.
+
+**And a row-dirty batch records a DEBT rather than painting.** couch has always
+done this (`couchtty/console.go:1147`, whose comment records that a paint there
+was "unreachable-by-difference"), and it matters far more for a line-oriented
+child than it did there: a shell emits erases on every prompt redraw, so
+painting per row-dirty batch means painting constantly — and constantly at the
+moment the child is mid-prompt with a save outstanding. The debt is paid by the
+same owe-and-flush machinery, on the first chunk that leaves the stream safe.
+
+This is the general shape of the difference, and it is worth stating because it
+was learned the expensive way: **couch's reserved row is not easier by design,
+it is easier by CHILD.** couch's child is zellij — a full-screen emulator that
+repaints from its own model and addresses every cell absolutely, so it never
+relies on the terminal remembering a cursor, and any damage a paint does is
+overwritten within a frame. A shell relies on all of it and repairs none of it.
+Two bugs latent in this primitive since `#146` (the cursor-homing `SetRegion`
+and the colour-inheriting erase) were invisible for exactly that reason.
+
 **A new door to the pane is a COMPILE ERROR.** `paneWriter` holds the pane's fd
 and is deliberately not an `io.Writer`: with no `Write` method,
 `fmt.Fprintf(m.pane, …)`, `io.WriteString(m.pane, …)` and `m.pane.Write(…)` do

@@ -496,6 +496,12 @@ func TestHoldsCursorSaveTracksTheChildsOwnSaveRestore(t *testing.T) {
 func TestASecondSaveDoesNotDeepenTheDebt(t *testing.T) {
 	var s Screen
 	s.FeedFraming([]byte("\x1b7\x1b7"))
+	// The state AFTER the second save is what distinguishes "set" from
+	// "toggle". Checking only the end state passes for both, which is how a
+	// toggling implementation survived this test's first version.
+	if !s.HoldsCursorSave() {
+		t.Fatal("a second DECSC cleared the debt; it must SET, not toggle")
+	}
 	s.FeedFraming([]byte("\x1b8"))
 	if s.HoldsCursorSave() {
 		t.Fatal("two saves needed two restores; the slot is one deep, not a stack")
