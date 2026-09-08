@@ -454,26 +454,30 @@ func TestTheGateSeesExactlyWhatTheTerminalSees(t *testing.T) {
 func TestAChildExitingWithAFullBufferDoesNotWedgeThePane(t *testing.T) {
 	rec := newWriterRecorder()
 	m := newTerminalMux("sh", nil, rec, io.Discard, &fakeRuntime{})
-	go m.copyActiveOutput()
 	m.tabs = append(m.tabs,
 		&terminalTab{id: 1, name: "one"},
 		&terminalTab{id: 2, name: "two"})
 	m.active = 0
 
-	// Saturate the channel, then deliver the EOF that triggers removeTab.
+	// NO LOOP RUNNING, and the buffer saturated. This is the writer
+	// goroutine's own situation at the moment it handles an EOF while output is
+	// backed up: nothing is draining, because the drainer is the caller.
+	//
+	// Deliberately not staged by racing a real loop -- an earlier version did
+	// that and passed against the reverted fix, because the loop drained the
+	// buffer before removeTab ever posted. A hazard that only reproduces
+	// sometimes is not pinned by a test that only reproduces it sometimes.
 	for i := 0; i < cap(m.output); i++ {
 		m.output <- ptyChunk{id: 1, data: []byte("x")}
 	}
-	m.output <- ptyChunk{id: 2, err: io.EOF}
 
 	done := make(chan struct{})
-	go func() { m.drainForTest(); close(done) }()
+	go func() { m.removeTab(2); close(done) }()
 	select {
 	case <-done:
-	case <-time.After(5 * time.Second):
-		t.Fatal("the writer loop wedged: a handler on the loop posted to its own channel")
+	case <-time.After(3 * time.Second):
+		t.Fatal("removeTab blocked: a handler on the writer goroutine posted to its own channel")
 	}
-	close(m.done)
 }
 
 // BR-39: the takeover feeds the replay to the gate, so anything written AFTER

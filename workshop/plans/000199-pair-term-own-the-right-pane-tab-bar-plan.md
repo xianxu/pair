@@ -641,6 +641,35 @@ the strip over a suspected-broken writer would confuse both.
 
 ## Revisions
 
+### 2026-09-07 — M2 boundary review, round 4 (REWORK → addressed)
+
+Two Criticals, and **both were introduced by the fixes for earlier findings in
+this same milestone.** That is the pattern worth recording, more than either bug.
+
+**BR-25: a handler running ON the writer goroutine posted to the channel that
+goroutine drains.** `removeTab`'s only caller is `handleChunk`, on a child's
+EOF, and it ended with `redrawTab` → `enqueue`. With the buffer full — a child
+exiting while its output is backed up, which is exactly when children exit under
+load — the send blocks forever, because the only goroutine that could drain it
+is the one blocked in the send. The pane wedges permanently. **The rule: a
+handler on the writer goroutine applies its own writes INLINE; posting belongs
+to callers that are not the loop.** `applyTakeover` is now one implementation
+reachable both ways.
+
+**BR-39: the BR-35 fix created it.** Feeding the replay to the gate was right,
+but the takeover then wrote owed diagnostics straight to the pane — *after*
+telling the gate the terminal was inside a sequence. So a diagnostic landed
+inside the replay's open sequence: the exact corruption this milestone exists to
+prevent, reintroduced by a fix for a different finding. They go through
+`writeDiag` now, so they re-queue and flush at the next boundary.
+
+**And the first BR-25 test was worthless.** It staged the deadlock by racing a
+real loop, and passed against the reverted fix — the loop drained the buffer
+before `removeTab` ever posted. A hazard that reproduces only sometimes is not
+pinned by a test that reproduces it only sometimes. Rewritten to call
+`removeTab` directly with the buffer saturated and nothing draining, which is
+the writer goroutine's own situation, deterministically.
+
 ### 2026-09-07 — M2 boundary review, round 3 (REWORK → addressed)
 
 **BR-35 (Critical) was a real defect in the gate, and the shape of it is worth
