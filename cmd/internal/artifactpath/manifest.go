@@ -696,6 +696,7 @@ var NonArtifactSources = []string{
 	"cmd/internal/termcmd/rename.go",
 	"cmd/internal/termcmd/rename_input.go",
 	"cmd/internal/termcmd/run.go",
+	"cmd/internal/termcmd/strip.go",
 	"cmd/internal/textwidth/textwidth.go",
 	"cmd/internal/threadrecord/lifecycle.go",
 	"cmd/internal/threadrecord/record.go",

@@ -626,6 +626,11 @@ type ptyChunk struct {
 	// scan resets and any owed paint is dropped rather than flushed against a
 	// screen that no longer exists. couch's third gate rule.
 	takeover bool
+	// rowDirty means the child may have destroyed the reserved row -- a margin
+	// reset, RIS, an alt-screen transition, or an ERASE. DECSTBM restricts
+	// scrolling, not erasing, so a full-screen app's startup clear takes the row
+	// while the region is still perfectly intact.
+	rowDirty bool
 	// replay is the CHILD-originated half of a takeover's bytes, tracked apart
 	// from the console-originated prefix so the gate can be fed the former and
 	// not the latter.
@@ -739,7 +744,11 @@ func (m *terminalMux) newTab() error {
 		// is active.
 		Sink: func(batch ptychild.OutputBatch) {
 			<-ready
-			m.output <- ptyChunk{id: id, data: batch.Raw}
+			// batch.RowDirty, NOT Child.TakeRowDirty(): readLoop already
+			// DRAINED the flag into this batch whenever a Sink is set, so a
+			// separate call would read false forever and the strip would never
+			// come back after a full-screen child's startup clear (finding 7).
+			m.output <- ptyChunk{id: id, data: batch.Raw, rowDirty: batch.RowDirty}
 		},
 	})
 	if err != nil {
@@ -840,6 +849,9 @@ func (m *terminalMux) handleChunk(chunk ptyChunk) {
 			m.pane.raw("child output", chunk.data)
 		}
 		m.flushOwed()
+		if chunk.rowDirty {
+			m.paintStripInline()
+		}
 	}
 }
 
@@ -881,6 +893,10 @@ func (m *terminalMux) applyTakeover(replay []byte) {
 	for _, d := range pendingDiag {
 		m.writeDiag(d)
 	}
+
+	// The takeover just cleared the screen, so the row it cleared is ours to
+	// put back. Inline, not posted: this runs on the writer goroutine.
+	m.paintStripInline()
 }
 
 // writeDiag writes a diagnostic, or QUEUES it if the stream is mid-sequence.
@@ -1264,6 +1280,10 @@ func (m *terminalMux) inheritSize(host hostty.Host) {
 	childSize := m.childSizeLocked()
 	m.mu.Unlock()
 	m.resizeAll(childSize)
+	// The region and the row's width both changed. Inline: every caller of this
+	// is either pre-loop (the initial sizing) or already on it (the resize
+	// posts through resizeThroughWriter).
+	m.paintStripInline()
 }
 
 func (m *terminalMux) captureSize(host hostty.Host) {
@@ -1280,8 +1300,73 @@ func (m *terminalMux) captureSize(host hostty.Host) {
 // childSizeLocked is the size a tab gets. `pair term` gives its children the
 // whole terminal; couch subtracts a row here. That difference is the policy
 // each caller keeps.
+// childSizeLocked is the pane MINUS the row the strip occupies.
+//
+// NewReservation is the validating door: it refuses a pane too short to reserve
+// from, and the child then gets the whole thing with no strip drawn -- a
+// zero-row pty is not a thing, and a pane that short has no room for chrome
+// anyway.
 func (m *terminalMux) childSizeLocked() ptychild.Size {
-	return ptychild.Size{Rows: m.rows, Cols: m.cols}
+	res, err := hostty.NewReservation(m.rows, hostty.EdgeBottom)
+	if err != nil {
+		return ptychild.Size{Rows: m.rows, Cols: m.cols}
+	}
+	return ptychild.Size{Rows: res.ChildRows(), Cols: m.cols}
+}
+
+// reservationLocked is the strip's row. Same validating door; the zero value
+// draws nothing, which is what a too-short pane should do.
+func (m *terminalMux) reservationLocked() hostty.Reservation {
+	res, err := hostty.NewReservation(m.rows, hostty.EdgeBottom)
+	if err != nil {
+		return hostty.Reservation{}
+	}
+	return res
+}
+
+// stripModelLocked snapshots what the row should say.
+func (m *terminalMux) stripModelLocked() StripModel {
+	tabs := make([]TabChip, 0, len(m.tabs))
+	for _, t := range m.tabs {
+		tabs = append(tabs, TabChip{Name: t.name})
+	}
+	return StripModel{Tabs: tabs, Active: m.active}
+}
+
+// paintStrip renders the row and posts it through the writer loop.
+//
+// Re-Reserve BEFORE painting, every time. Not belt-and-braces: a child that
+// reset margins (nvim does, on startup and on quit) dropped the region a moment
+// ago, and painting into an unreserved screen puts the row where the child's
+// content belongs. couch learned this the same way.
+func (m *terminalMux) paintStrip() {
+	if b := m.stripBytes(); b != nil {
+		m.paintOwn(b)
+	}
+}
+
+// paintStripInline is the same paint for a caller ALREADY on the writer
+// goroutine. A handler on the loop applies its writes inline rather than
+// posting to the channel it drains -- the rule BR-25 cost this milestone a
+// wedged pane to learn.
+func (m *terminalMux) paintStripInline() {
+	if b := m.stripBytes(); b != nil {
+		m.writeOwn(b)
+	}
+}
+
+// stripBytes renders the row, region first. Nil when there is no room.
+func (m *terminalMux) stripBytes() []byte {
+	m.mu.Lock()
+	res := m.reservationLocked()
+	model := m.stripModelLocked()
+	cols := int(m.cols)
+	m.mu.Unlock()
+
+	if res.Rows == 0 || cols <= 0 {
+		return nil
+	}
+	return []byte(res.Reserve() + res.Paint(RenderStrip(cols, model).Body))
 }
 
 func (m *terminalMux) resizeAll(size ptychild.Size) {
@@ -1326,19 +1411,47 @@ func (m *terminalMux) setPaneTitle(title string) error {
 	return m.rt.RunZellijAction("rename-pane", title)
 }
 
+// paneTitleLocked is the DEGRADED title: the active tab's name, nothing else.
+//
+// It used to pack every tab into one rename argument -- `one [work] three` --
+// because a rename was the only channel tab state had. The strip is that channel
+// now (#199 M3), so the title goes back to being a label.
+//
+// It still exists, and is still kept current, because the zellij pane title is
+// the only label visible when the pane is NOT focused, and two consumers read
+// it. Derived rather than remembered (finding 9):
+//
+//	grep -rn "\.Title" cmd --include=*.go | grep -v _test.go
+//
+//	launcher/layoutflow.go:62         Title == "terminal" | HasPrefix "[terminal"
+//	workbenchshortcut/shortcut.go:189 title == "terminal" | HasPrefix "terminal "
+//
+// Both arms also match on the pane's COMMAND (`pair term`), so neither depends
+// on the title alone -- which is what makes degrading it safe, and is a
+// measurement rather than a hope. Note the two disagree about the bracket form,
+// so the packed title matched shortcut.go's arm NEVER: that consumer has always
+// classified this pane by command.
 func (m *terminalMux) paneTitleLocked() string {
 	if len(m.tabs) == 0 {
 		return ""
 	}
-	parts := make([]string, 0, len(m.tabs))
-	for i, tab := range m.tabs {
-		if i == m.active {
-			parts = append(parts, "["+tab.name+"]")
-		} else {
-			parts = append(parts, tab.name)
-		}
+	name := m.tabs[0].name
+	if m.active >= 0 && m.active < len(m.tabs) {
+		name = m.tabs[m.active].name
 	}
-	return strings.Join(parts, " ")
+	// The `terminal ` prefix is LOAD-BEARING, not decoration.
+	//
+	// `RoleForPane` classifies by `HasPrefix(title, "terminal ")` when the
+	// pane's command is unavailable, and that classification is what routes the
+	// operator's global shortcuts. A bare active-tab name -- `work` -- matches
+	// nothing, so renaming a tab would silently cost that pane its keybindings.
+	// The packed form happened to keep classifying only because it began with
+	// the FIRST tab's default name; degrading without the prefix trades one
+	// accident for a worse one.
+	if strings.HasPrefix(name, "terminal") {
+		return name
+	}
+	return "terminal " + name
 }
 
 func (m *terminalMux) renamePaneTitleLocked(tabID int, editor RenameEditor) string {

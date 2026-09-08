@@ -1,11 +1,14 @@
 package termcmd
 
 import (
+	"io"
 	"strings"
 	"testing"
 
 	"github.com/xianxu/pair/cmd/internal/ansi"
 	"github.com/xianxu/pair/cmd/internal/textwidth"
+	"github.com/xianxu/pair/cmd/internal/workbenchshortcut"
+	"github.com/xianxu/pair/cmd/internal/zellijpane"
 )
 
 // EVERY test here drives at least TWO tabs with a non-active one present.
@@ -132,4 +135,152 @@ func TestAnOutOfRangeActiveIndexMarksNothing(t *testing.T) {
 			t.Fatalf("active=%d dropped tabs: %q", active, plain)
 		}
 	}
+}
+
+// --- wiring: the strip on a live mux ----------------------------------------
+//
+// Every case below drives at least TWO tabs with a non-active one present.
+
+func stripMux(t *testing.T) (*terminalMux, *writerRecorder) {
+	t.Helper()
+	rec := newWriterRecorder()
+	m := newTerminalMux("sh", nil, rec, io.Discard, &fakeRuntime{})
+	m.rows, m.cols = 24, 80
+	m.tabs = append(m.tabs,
+		&terminalTab{id: 1, name: "one"},
+		&terminalTab{id: 2, name: "two"})
+	m.active = 1
+	go m.copyActiveOutput()
+	return m, rec
+}
+
+// M3.5, ARCH-ORDER's most-likely-mishandled event: on a row-dirty batch the
+// region is re-Reserved BEFORE the row is repainted.
+//
+// Not belt-and-braces. A child that reset margins dropped the region a moment
+// ago, and painting into an unreserved screen puts the row where the child's
+// content belongs -- so a repaint that emits only the row is worse than none.
+func TestARowDirtyBatchReReservesBeforeRepainting(t *testing.T) {
+	m, rec := stripMux(t)
+	defer close(m.done)
+
+	// A child emitting a margin reset: ptychild.Screen counts that as row-dirty.
+	m.output <- ptyChunk{id: 2, data: []byte("\x1b[r"), rowDirty: true}
+	m.drainForTest()
+
+	got := rec.String()
+	region := strings.Index(got, "\x1b[1;23r") // the region, rows 1..23 of 24
+	row := strings.Index(got, "\x1b[24;1H")    // the reserved row
+	if region < 0 {
+		t.Fatalf("the region was not re-asserted after the child reset margins: %q", got)
+	}
+	if row < 0 {
+		t.Fatalf("the row was not repainted: %q", got)
+	}
+	if region > row {
+		t.Fatalf("the row was painted BEFORE the region was re-asserted: %q", got)
+	}
+	if !strings.Contains(got, "[two]") {
+		t.Fatalf("the repaint did not carry the tab state: %q", got)
+	}
+}
+
+// A takeover clears the screen; the row it cleared is ours to put back.
+func TestATakeoverRepaintsTheStrip(t *testing.T) {
+	m, rec := stripMux(t)
+	defer close(m.done)
+
+	m.redrawTab([]byte("replayed"))
+	m.drainForTest()
+	if !strings.Contains(rec.String(), "[two]") {
+		t.Fatalf("the strip was not restored after a takeover: %q", rec.String())
+	}
+}
+
+// The child is sized to the pane MINUS the row, so it cannot scroll onto it.
+func TestTheChildIsSizedBelowTheStrip(t *testing.T) {
+	m, _ := stripMux(t)
+	defer close(m.done)
+	m.mu.Lock()
+	got := m.childSizeLocked()
+	m.mu.Unlock()
+	if got.Rows != 23 {
+		t.Fatalf("child rows = %d; the pane is 24 and the strip owns one", got.Rows)
+	}
+}
+
+// The strip reflects the ACTIVE tab, which is the one thing it exists to say.
+func TestSwitchingTabsChangesWhichTabIsMarked(t *testing.T) {
+	m, rec := stripMux(t)
+	defer close(m.done)
+
+	m.paintStrip()
+	m.drainForTest()
+	if !strings.Contains(rec.String(), "[two]") {
+		t.Fatalf("initial strip does not mark the active tab: %q", rec.String())
+	}
+
+	m.previousTab()
+	m.drainForTest()
+	tail := rec.String()
+	last := strings.LastIndex(tail, "[one]")
+	prev := strings.LastIndex(tail, "[two]")
+	if last < 0 {
+		t.Fatalf("after switching, the new active tab is not marked: %q", tail)
+	}
+	if last < prev {
+		t.Fatalf("the strip still marks the old tab most recently: %q", tail)
+	}
+}
+
+// M3.6: the DERIVED consumer set still classifies the pane once the title is
+// degraded to the active tab's name.
+//
+// Asserted against the real consumers rather than a remembered list (finding 9),
+// including the TerminalCommand == "" case zellijpane.paneFrom admits, where the
+// command fallback is unavailable and the title is all there is.
+func TestTheDegradedTitleStillClassifiesThePane(t *testing.T) {
+	mux := &terminalMux{
+		tabs: []*terminalTab{
+			{id: 1, name: "terminal 1"},
+			{id: 2, name: "work"},
+		},
+		active: 1,
+	}
+	title := mux.paneTitleLocked()
+
+	t.Run("with the command present, the fallback carries it", func(t *testing.T) {
+		got := workbenchshortcut.RoleForPane(zellijpane.Pane{
+			Title: title, TerminalCommand: "/usr/local/bin/pair term",
+		})
+		if got != workbenchshortcut.PaneRoleRightTerminal {
+			t.Fatalf("RoleForPane = %v, want RightTerminal", got)
+		}
+	})
+
+	// THE CASE THAT FOUND A REAL DEFECT. With no command the title is the only
+	// signal, and RoleForPane's classification routes the operator's global
+	// shortcuts -- so a title that stops matching costs that pane its
+	// keybindings, silently.
+	//
+	// A first version of M3.6 degraded to the bare tab name and this failed:
+	// `work` matches neither arm, while the packed `terminal 1 [work]` DID match
+	// `HasPrefix "terminal "` because it began with the first tab's default
+	// name. That also disproved a claim in the plan's finding 9 (that the packed
+	// form never matched shortcut.go's arm), now corrected. Hence the prefix.
+	t.Run("with no command, the degraded title still classifies", func(t *testing.T) {
+		if got := workbenchshortcut.RoleForPane(zellijpane.Pane{Title: title}); got != workbenchshortcut.PaneRoleRightTerminal {
+			t.Fatalf("RoleForPane(%q) = %v with no command; a renamed tab would "+
+				"silently cost this pane its global shortcuts", title, got)
+		}
+	})
+
+	// The default tab name IS the classifier-friendly one, which is why the
+	// common case keeps working.
+	t.Run("a default tab name still matches by title alone", func(t *testing.T) {
+		got := workbenchshortcut.RoleForPane(zellijpane.Pane{Title: "terminal 1"})
+		if got != workbenchshortcut.PaneRoleRightTerminal {
+			t.Fatalf("RoleForPane(%q) = %v, want RightTerminal", "terminal 1", got)
+		}
+	})
 }

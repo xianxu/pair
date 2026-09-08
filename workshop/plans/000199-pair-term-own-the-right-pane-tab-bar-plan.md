@@ -103,11 +103,22 @@ Three matcher forms in two files, and they do NOT agree:
 | `workbenchshortcut/shortcut.go:189` | `title == "terminal"`, `HasPrefix(title, "terminal ")` — **lowercased** | `Contains(cmd, "pair term")` |
 | `launcher/layoutflow.go:56,59` | `draft`, `terminal-filler` | nvim / `tail -f` |
 
-The disagreement is the finding. `paneTitleLocked` emits `[tab1] tab2`, which
-matches layoutflow's `"[terminal"` arm only when the first tab happens to be
-named `terminal…`, and matches shortcut.go's `"terminal "` arm **never** — it
-starts with `[`. So today `RoleForPane` classifies the right pane by its
-COMMAND, not its title, and the title arm is already dead for the packed format.
+The disagreement is the finding. `paneTitleLocked` emits `[tab1] tab2` …
+
+**Correction (M3.6, measured):** the sentence that stood here — that the packed
+form matched shortcut.go's arm *never* — was **wrong**, and a test written to
+assert it failed. The packed title begins with the FIRST tab's name, which
+defaults to `terminal 1`, so `HasPrefix(title, "terminal ")` **did** match
+whenever tab 1 was unrenamed. Degrading the title to the bare active tab name
+therefore removed a classification that was really there, and `RoleForPane` is
+what routes the operator's global shortcuts — a renamed tab would have silently
+cost that pane its keybindings whenever the pane's command was unavailable
+(`zellijpane.go:79-84` admits `TerminalCommand == ""`).
+
+So the degraded title keeps a `terminal ` prefix. It is load-bearing, not
+decoration, and the lesson is the one this issue keeps re-teaching: the claim
+was reasoned from the code rather than executed against it, and executing it
+took one test.
 
 That is what makes M3's degraded title safe, and it is now a derivation rather
 than a hope: **every** arm has a `pair term` command fallback, so no consumer
@@ -552,7 +563,7 @@ func TestGateIsNotFedOurOwnWrites(t *testing.T) {
 - Create: `cmd/internal/termcmd/strip.go`, `strip_test.go`
 - Modify: `cmd/internal/termcmd/run.go`
 
-- [ ] **M3.1: Write the failing tests**
+- [x] **M3.1: Write the failing tests**
 
 ```go
 func TestActiveTabIsDistinguishable(t *testing.T) { /* not by colour alone */ }
@@ -587,11 +598,11 @@ func TestNarrowPaneTruncatesWithoutLosingTheActiveTab(t *testing.T) {}
 func TestRenderIsCorrectWithABackgroundTabPresent(t *testing.T) {}
 ```
 
-- [ ] **M3.2: Run to verify they fail.**
-- [ ] **M3.3: Implement `RenderStrip`** — pure, returning `RenderedStrip{Body, Spans}`, sanitizing and fitting via `rowtext.SanitizeAndFit` (`cmd/internal/rowtext`, extracted in **M2** when the diagnostic path needed it; `couchtty`'s unexported originals are gone, so there is one implementation with its own tests).
-- [ ] **M3.4: Wire it.** `hostty.NewReservation(rows, hostty.EdgeBottom)` — the VALIDATING door, not a struct literal: it refuses a terminal too short to reserve from, which a literal silently turns into a Reservation whose every method no-ops. Child pty gets `ChildRows()`; repaint on tab change, resize, and `batch.RowDirty` **read inside the Sink callback** (finding 7).
-- [ ] **M3.5: The re-`Reserve` rule** (ARCH-ORDER's most-likely-wrong): on a `batch.RowDirty` batch, re-`Reserve` *before* repainting. Test: simulate a child emitting `\x1b[r` (margin reset), assert the next repaint re-emits the region and not only the row.
-- [ ] **M3.6: Degrade `rename-pane`** to the active tab name. Assert against the DERIVED consumer set (finding 9): `RoleForPane` and `ClassifyLiveLayout` fed the degraded title, including the `TerminalCommand == ""` case `zellijpane.paneFrom` admits (`zellijpane.go:79-84`), where the command fallback is unavailable and the title is all there is. Assert a rename still reaches the runtime on tab switch and that it is no longer the packed multi-tab string. NOTE: since M2 both `RunZellijAction` and `RunZellijActionQuiet` are quiet, and `fakeRuntime` records the latter with a `quiet ` prefix — assert the recorded op, not the method name.
+- [x] **M3.2: Run to verify they fail.**
+- [x] **M3.3: Implement `RenderStrip`** — pure, returning `RenderedStrip{Body, Spans}`, sanitizing and fitting via `rowtext.SanitizeAndFit` (`cmd/internal/rowtext`, extracted in **M2** when the diagnostic path needed it; `couchtty`'s unexported originals are gone, so there is one implementation with its own tests).
+- [x] **M3.4: Wire it.** `hostty.NewReservation(rows, hostty.EdgeBottom)` — the VALIDATING door, not a struct literal: it refuses a terminal too short to reserve from, which a literal silently turns into a Reservation whose every method no-ops. Child pty gets `ChildRows()`; repaint on tab change, resize, and `batch.RowDirty` **read inside the Sink callback** (finding 7).
+- [x] **M3.5: The re-`Reserve` rule** (ARCH-ORDER's most-likely-wrong): on a `batch.RowDirty` batch, re-`Reserve` *before* repainting. Test: simulate a child emitting `\x1b[r` (margin reset), assert the next repaint re-emits the region and not only the row.
+- [x] **M3.6: Degrade `rename-pane`** to the active tab name. Assert against the DERIVED consumer set (finding 9): `RoleForPane` and `ClassifyLiveLayout` fed the degraded title, including the `TerminalCommand == ""` case `zellijpane.paneFrom` admits (`zellijpane.go:79-84`), where the command fallback is unavailable and the title is all there is. Assert a rename still reaches the runtime on tab switch and that it is no longer the packed multi-tab string. NOTE: since M2 both `RunZellijAction` and `RunZellijActionQuiet` are quiet, and `fakeRuntime` records the latter with a `quiet ` prefix — assert the recorded op, not the method name.
 - [ ] **M3.7:** `go test ./cmd/... -count=1`, then **manual in a real layout3 pane**, three things. (a) Run `nvim`: the strip survives its startup clear and its own margin changes; quit, and the shell is not left scrolling in a box. (b) **The gate, which M2.5 could not reach** (BR-36): with the strip repainting, flood one tab with output that CONTAINS
       ESCAPES -- `yes` emits none, so it can never put the gate mid-sequence and
       would repeat M2.5's mistake. Use e.g. `while :; do ls --color=always /usr/bin; done`

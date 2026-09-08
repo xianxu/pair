@@ -493,7 +493,10 @@ func TestTerminalMuxChildOutputDoesNotRestoreTitleDuringRename(t *testing.T) {
 	}
 	close(mux.done)
 	<-copied
-	if got := strings.Join(rt.ops, ","); got != "rename-pane [rename: work│],rename-pane [work]" {
+	// The restored title is the DEGRADED form (#199 M3): the active tab's name,
+	// not the packed tab set. The rename PREVIEW keeps its own bracketed shape --
+	// that is the in-progress editor, not the tab list.
+	if got := strings.Join(rt.ops, ","); got != "rename-pane [rename: work│],rename-pane terminal work" {
 		t.Fatalf("runtime ops after finish = %q, want restore only on finish", got)
 	}
 }
@@ -651,16 +654,44 @@ func TestTerminalMuxPaneTitleShowsTabs(t *testing.T) {
 		},
 		active: 1,
 	}
-	if got := mux.paneTitleLocked(); got != "terminal 1 [work] terminal 3" {
-		t.Fatalf("pane title = %q", got)
+	// DEGRADED since #199 M3: the title is the active tab's name, not the whole
+	// tab set packed into one rename argument. The strip carries tab state now;
+	// the title is back to being a label for the two consumers that read it when
+	// the pane is not focused (layoutflow.go:62, shortcut.go:189), both of which
+	// also match on the pane's command.
+	if got := mux.paneTitleLocked(); got != "terminal work" {
+		t.Fatalf("pane title = %q, want the active tab's name behind the "+
+			"classifier prefix", got)
+	}
+	// And it must not be the packed form any more -- the thing #199 replaced.
+	if strings.Contains(mux.paneTitleLocked(), "[") {
+		t.Fatalf("pane title still packs the tab set: %q", mux.paneTitleLocked())
 	}
 }
 
-func TestTerminalMuxChildUsesFullPaneHeight(t *testing.T) {
+// Was TestTerminalMuxChildUsesFullPaneHeight, which asserted the pre-#199
+// contract: with no strip, the child got the whole pane. M3 reserves the bottom
+// row, so the child gets one less -- the off-by-one the whole reserved-row
+// design IS. Renamed rather than edited in place, because the old name now
+// describes the opposite of the intended behaviour.
+func TestTerminalMuxChildStopsOneRowShortOfThePane(t *testing.T) {
 	mux := &terminalMux{rows: 51, cols: 80}
-	got := mux.childSizeLocked()
-	if got.Rows != 51 || got.Cols != 80 {
-		t.Fatalf("child size = %+v, want full 51x80 pane", got)
+	if got := mux.childSizeLocked(); got.Rows != 50 || got.Cols != 80 {
+		t.Fatalf("child size = %+v, want 50x80 -- the pane minus the strip's row", got)
+	}
+
+	// A pane too short to reserve from gives the child everything and draws no
+	// strip. A zero-row pty is not a thing, and a pane that short has no room
+	// for chrome anyway.
+	for _, rows := range []uint16{0, 1} {
+		short := &terminalMux{rows: rows, cols: 80}
+		if got := short.childSizeLocked(); got.Rows != rows {
+			t.Fatalf("rows=%d: child got %d; a pane with no room to reserve keeps it all",
+				rows, got.Rows)
+		}
+		if res := short.reservationLocked(); res.Reserve() != "" {
+			t.Fatalf("rows=%d: reserved a row on a pane with no room", rows)
+		}
 	}
 }
 
@@ -681,8 +712,10 @@ func TestTerminalMuxSwitchTabAtColumn(t *testing.T) {
 	if mux.active != 1 {
 		t.Fatalf("active = %d, want 1", mux.active)
 	}
-	if !strings.Contains(strings.Join(rt.ops, ","), "rename-pane terminal 1 [work]") {
-		t.Fatalf("ops = %v", rt.ops)
+	// A rename still reaches the runtime on every tab switch -- the consumers
+	// need a current label -- but it is now the active tab's name alone.
+	if !strings.Contains(strings.Join(rt.ops, ","), "rename-pane terminal work") {
+		t.Fatalf("ops = %v, want a rename to the active tab's name", rt.ops)
 	}
 	if !strings.Contains(stdout.String(), "two") {
 		t.Fatalf("stdout = %q, want redraw of second tab", stdout.String())
