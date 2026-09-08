@@ -190,6 +190,49 @@ Four milestones, each its own review boundary — detail in
       scroll-indicator rationale.
 
 ## Log
+
+- 2026-09-08 M3 smoke test, operator-run in a real layout3 pane. **The strip
+  works**: tabs render, the active one is bracketed, and every binding (alt+t,
+  alt+left/right, alt+w, rename) behaves. nvim confirmed working — it survives
+  the startup clear and its own margin changes, and quitting leaves the shell
+  scrolling normally rather than inside a box.
+
+  **Four defects found, three fixed, one not ours.** Recorded individually
+  because each was a different failure and two were latent in couch:
+
+  1. **Cursor stuck on row 1.** `SetRegion` (DECSTBM) HOMES the cursor as a
+     documented side effect, so `Reserve() + Paint()` saved a cursor already at
+     1,1 and faithfully restored it there. `ReserveAndPaint` composes them in
+     the one working order. Latent in couch since `#146`.
+  2. **The strip wore the child's colours** (nvim's lualine). An ERASE paints
+     with the CURRENT background and text takes the current foreground, so a row
+     drawn after a child comes out in whatever SGR it last set. Reset before the
+     erase, and again after the text.
+  3. **A new tab inherited the previous one's background.** Same root as (2),
+     one layer up: `HomeAndClear` is an erase too. The reset is now part of the
+     constant, since both callers want it and neither has a reason to erase in
+     someone else's colour.
+  4. **The cursor landed in the tab strip after `l`, and zsh's right-prompt was
+     drawn on the strip's row.** The cursor save slot is SHARED; our paint
+     inside the child's `DECSC`…`DECRC` pair left the slot holding OUR position.
+     Fixed by (f) — never write while the child holds a save. Operator confirms
+     "works much better".
+
+  **Ctrl-C under a heavy flood (`yes aaa`) is NOT reproduced and is not ours.**
+  The operator notes `watch ls` interrupts fine and `yes aaa` does not, i.e. it
+  is volume-dependent, which fits a rendering backlog rather than lost input.
+  Five measurements agree: `cmd/probes/termctrlc` stops the child in 0.04s with
+  0.1 MB of backlog through a throttled 2 MB/s reader; the scan M2 added to the
+  drain path runs at 30 GB/s; the channel cap is unchanged from before `#199`;
+  input writes straight to the child rather than queueing behind output; and a
+  flood inside a real zellij pane is no slower with a scroll region than
+  without. `cmd/probes/termrows` separately ruled out the obvious explanation
+  for (4) — both tabs believe 23 rows in a 24-row pane, so the sizing is right.
+
+  **Not yet exercised:** M3.7(c), a wide (`日本語`) and a long tab name, to see
+  truncation and column alignment against a real terminal rather than the unit
+  test's arithmetic.
+
 - 2026-09-07: closed M2 — one writer, one gate, and a pane fd a new door cannot
   reach without a compile error. Six review rounds; every one found something
   real, and the arc is the lesson: rounds 2-5 each fixed the ungated or mis-gated

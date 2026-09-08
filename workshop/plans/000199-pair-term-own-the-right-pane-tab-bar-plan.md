@@ -603,7 +603,7 @@ func TestRenderIsCorrectWithABackgroundTabPresent(t *testing.T) {}
 - [x] **M3.4: Wire it.** `hostty.NewReservation(rows, hostty.EdgeBottom)` — the VALIDATING door, not a struct literal: it refuses a terminal too short to reserve from, which a literal silently turns into a Reservation whose every method no-ops. Child pty gets `ChildRows()`; repaint on tab change, resize, and `batch.RowDirty` **read inside the Sink callback** (finding 7).
 - [x] **M3.5: The re-`Reserve` rule** (ARCH-ORDER's most-likely-wrong): on a `batch.RowDirty` batch, re-`Reserve` *before* repainting. Test: simulate a child emitting `\x1b[r` (margin reset), assert the next repaint re-emits the region and not only the row.
 - [x] **M3.6: Degrade `rename-pane`** to the active tab name. Assert against the DERIVED consumer set (finding 9): `RoleForPane` and `ClassifyLiveLayout` fed the degraded title, including the `TerminalCommand == ""` case `zellijpane.paneFrom` admits (`zellijpane.go:79-84`), where the command fallback is unavailable and the title is all there is. Assert a rename still reaches the runtime on tab switch and that it is no longer the packed multi-tab string. NOTE: since M2 both `RunZellijAction` and `RunZellijActionQuiet` are quiet, and `fakeRuntime` records the latter with a `quiet ` prefix — assert the recorded op, not the method name.
-- [ ] **M3.7:** `go test ./cmd/... -count=1`, then **manual in a real layout3 pane**, three things. (a) Run `nvim`: the strip survives its startup clear and its own margin changes; quit, and the shell is not left scrolling in a box. (b) **The gate, which M2.5 could not reach** (BR-36): with the strip repainting, flood one tab with output that CONTAINS
+- [x] **M3.7:** `go test ./cmd/... -count=1`, then **manual in a real layout3 pane**, three things. (a) Run `nvim`: the strip survives its startup clear and its own margin changes; quit, and the shell is not left scrolling in a box. (b) **The gate, which M2.5 could not reach** (BR-36): with the strip repainting, flood one tab with output that CONTAINS
       ESCAPES -- `yes` emits none, so it can never put the gate mid-sequence and
       would repeat M2.5's mistake. Use e.g. `while :; do ls --color=always /usr/bin; done`
       or `while :; do tput setaf 1; echo red; tput sgr0; done`. Then switch tabs repeatedly — now a paint IS requested while the child's stream is mid-sequence, so the defer-and-owe path actually runs. Watch for a strip drawn inside the child's output. (c) A tab whose name is wide (`日本語`) and one that is long, to see truncation and column alignment rather than trusting the unit test's arithmetic.
@@ -695,6 +695,33 @@ token `git log -S` finds in no revision of the plan: an entry that can never
 fire, reading as coverage while providing none. And M3.7(b) specified `yes` as
 the load generator — which emits no escapes, so it could never put the gate
 mid-sequence and would have repeated exactly the M2.5 mistake BR-36 caught.
+
+### 2026-09-08 — M3 smoke test: four defects, and where the design was wrong
+
+Three of the four were in `hostty.Reservation` and its constants — the SHARED
+primitive — so two had been latent in couch since `#146` and were invisible
+there. That is the milestone's real lesson and it is now in
+`atlas/architecture.md`: **couch's reserved row is not easier by design, it is
+easier by CHILD.** couch's child is zellij, a full-screen emulator that repaints
+from its own model and addresses every cell absolutely; it never relies on the
+terminal remembering a cursor, and any damage a paint does is overwritten within
+a frame. A shell relies on all of it and repairs none of it.
+
+The fourth defect is where the design itself was wrong, and the operator's
+question is what found it: *"why is the tab in couch seems to be easy to
+set up?"* I had copied couch's MECHANISM faithfully and never read it for
+POLICY. couch does not paint on row-dirty at all — it records a debt
+(`console.go:1147`, whose comment says a paint there was
+"unreachable-by-difference") — while M3 painted on every row-dirty batch. For a
+shell that means painting constantly, and constantly at the moment the child is
+mid-prompt with a cursor save outstanding.
+
+**Option (a) was measured dead before (f) was designed.** There is no usable
+second save slot to move the paint to: `probes/cursorsaveslots` shows `CSI s`/
+`CSI u` failing to restore where it was told while `DECSC` succeeded under the
+identical harness. That ruled out the cheap fix and, briefly, pointed at full
+cursor tracking — a far larger project — until reading couch for policy produced
+(f), which is a single bit and reuses machinery that was already hardened.
 
 ### 2026-09-07 — M2 boundary review, round 5: stop patching doors, enumerate them
 
