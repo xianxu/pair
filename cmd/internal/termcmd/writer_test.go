@@ -386,3 +386,56 @@ func TestAZellijErrorCannotPutAnEscapeOrAnUnboundedLineOnThePane(t *testing.T) {
 		t.Fatalf("an external process put %d bytes on the pane; it must be bounded", n)
 	}
 }
+
+// BR-35: the gate MODELS the terminal, so it must be fed exactly what the
+// terminal is shown. Two directions, and the first shipped broken.
+func TestTheGateSeesExactlyWhatTheTerminalSees(t *testing.T) {
+	t.Run("a background tab cannot pin the gate", func(t *testing.T) {
+		rec := newWriterRecorder()
+		m := newTerminalMux("sh", nil, rec, io.Discard, &fakeRuntime{})
+		defer close(m.done)
+		go m.copyActiveOutput()
+		m.tabs = append(m.tabs,
+			&terminalTab{id: 1, name: "front"},
+			&terminalTab{id: 2, name: "back"})
+		m.active = 0
+
+		// Tab 2 is NOT active: its bytes are never written, so the terminal
+		// never enters that sequence and the gate must not think it did.
+		m.output <- ptyChunk{id: 2, data: []byte("noise\x1b[3")}
+		m.drainForTest()
+		if m.midSequenceForTest() {
+			t.Fatal("a background tab's partial escape pinned the gate; paints would defer forever")
+		}
+
+		// And a paint must therefore land immediately.
+		m.paintOwn([]byte("PAINT"))
+		m.drainForTest()
+		if !strings.Contains(rec.String(), "PAINT") {
+			t.Fatalf("the paint was deferred against a sequence the terminal never saw: %q", rec.String())
+		}
+	})
+
+	t.Run("a takeover's replay is fed", func(t *testing.T) {
+		rec := newWriterRecorder()
+		m := newTerminalMux("sh", nil, rec, io.Discard, &fakeRuntime{})
+		defer close(m.done)
+		go m.copyActiveOutput()
+		m.tabs = append(m.tabs, &terminalTab{id: 1, name: "one"})
+		m.active = 0
+
+		// The replay ends mid-sequence. Those bytes ARE written, so the gate
+		// must know the terminal is inside a sequence -- otherwise the next
+		// paint lands in the middle of it.
+		m.redrawTab([]byte("restored\x1b[3"))
+		m.drainForTest()
+		if !m.midSequenceForTest() {
+			t.Fatal("the gate is blind to a sequence the terminal was shown by the replay")
+		}
+		m.paintOwn([]byte("PAINT"))
+		m.drainForTest()
+		if strings.Contains(rec.String(), "PAINT") {
+			t.Fatalf("a paint landed inside the replay's own escape sequence: %q", rec.String())
+		}
+	})
+}

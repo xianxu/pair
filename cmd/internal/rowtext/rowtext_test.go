@@ -17,6 +17,13 @@ func TestSanitizeRemovesEveryControlPath(t *testing.T) {
 		{"carriage return overwrites the row", "a\rb", "\r", "ab"},
 		{"DEL", "a\x7fb", "\x7f", "ab"},
 		{"BEL", "a\x07b", "\x07", "ab"},
+		// C1: the same controls spelled in ONE byte. 0x9b is CSI in 8-bit mode,
+		// so a terminal in that mode swallows the rest of the row as its
+		// parameters; 0x84/0x85/0x8d move the cursor off the row.
+		{"C1 CSI (0x9b)", "a\u009b2Jb", "\u009b", "a"},
+		{"C1 IND (0x84)", "a\u0084b", "\u0084", "ab"},
+		{"C1 NEL (0x85)", "a\u0085b", "\u0085", "ab"},
+		{"C1 RI (0x8d)", "a\u008db", "\u008d", "ab"},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			got := rowtext.Sanitize(tc.in)
@@ -32,6 +39,16 @@ func TestSanitizeRemovesEveryControlPath(t *testing.T) {
 
 // Width, not length: an emoji is one rune and two columns, and a row that
 // overflows wraps onto the child's area.
+// Printable text either side of the C1 block must survive: over-stripping a
+// row is a different bug from under-stripping it, and \u00e9 sits just above.
+func TestSanitizeKeepsPrintableTextAroundTheC1Block(t *testing.T) {
+	for _, s := range []string{"café", "naïve", "日本語", "~", " "} {
+		if got := rowtext.Sanitize(s); got != s {
+			t.Fatalf("Sanitize(%q) = %q; printable text was stripped", s, got)
+		}
+	}
+}
+
 func TestFitBoundsDisplayWidthNotRuneCount(t *testing.T) {
 	if got := rowtext.Fit("😀😀😀", 4); got != "😀😀" {
 		t.Fatalf("Fit = %q; want two double-width runes in four columns", got)

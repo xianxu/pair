@@ -623,6 +623,10 @@ type ptyChunk struct {
 	// scan resets and any owed paint is dropped rather than flushed against a
 	// screen that no longer exists. couch's third gate rule.
 	takeover bool
+	// replay is the CHILD-originated half of a takeover's bytes, tracked apart
+	// from the console-originated prefix so the gate can be fed the former and
+	// not the latter.
+	replay []byte
 	// drained is closed after this event is fully handled; tests wait on it
 	// instead of sleeping.
 	drained chan struct{}
@@ -780,6 +784,11 @@ func (m *terminalMux) handleChunk(chunk ptyChunk) {
 		pendingDiag := m.owedDiag
 		m.owedDiag = nil
 		_, _ = m.stdout.Write(chunk.own)
+		// The replay is CHILD bytes and the terminal has now seen them, so the
+		// gate must too -- it is replay-safe (ptychild strips queries and cuts
+		// at ReplaySafeEnd) but "usually ends at a boundary" is an assumption,
+		// and the gate exists precisely so nothing has to assume.
+		m.hostScan.FeedFraming(chunk.replay)
 		for _, d := range pendingDiag {
 			_, _ = m.stdout.Write(d)
 		}
@@ -795,17 +804,25 @@ func (m *terminalMux) handleChunk(chunk ptyChunk) {
 		// direction, so it must touch neither the gate nor the owed slot.
 
 	default:
-		// The gate is fed CHILD bytes only, and BEFORE they are written, so the
-		// next own-write sees the stream state the child actually left.
+		// THE GATE MODELS THE TERMINAL, so it is fed exactly what the terminal
+		// is shown -- no more, no less.
+		//
+		// An earlier version fed EVERY chunk and wrote only the active tab's.
+		// A background tab emitting a partial escape then pinned the gate
+		// mid-sequence against a terminal that had seen none of it, deferring
+		// paints indefinitely; and any byte written without being fed left the
+		// gate blind to a sequence the terminal really was inside.
+		//
 		// FeedFraming, not Feed: the gate needs sequence boundaries and nothing
 		// else, and Feed additionally RETAINS output for notification
 		// observers -- which this consumer has none of, so it would be an
 		// unbounded buffer growing behind a terminal that never reads it.
-		m.hostScan.FeedFraming(chunk.data)
+		//
 		// No buffering here any more: ptychild.Child appends to its own ring
 		// BEFORE the sink runs, so a switch racing a chunk still repaints a
 		// current screen.
 		if m.isActive(chunk.id) {
+			m.hostScan.FeedFraming(chunk.data)
 			_, _ = m.stdout.Write(chunk.data)
 		}
 		m.flushOwed()
@@ -1285,7 +1302,7 @@ func (m *terminalMux) renamePaneTitleLocked(tabID int, editor RenameEditor) stri
 // writers this milestone removes.
 func (m *terminalMux) redrawTab(replay []byte) {
 	body := append([]byte(hostty.HomeAndClear), replay...)
-	m.enqueue(ptyChunk{own: body, takeover: true})
+	m.enqueue(ptyChunk{own: body, replay: replay, takeover: true})
 }
 
 // replaySnapshotLocked is what a repaint of this tab should write. Caller must

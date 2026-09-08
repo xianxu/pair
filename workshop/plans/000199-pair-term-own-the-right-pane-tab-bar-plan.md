@@ -543,7 +543,7 @@ func TestGateIsNotFedOurOwnWrites(t *testing.T) {
       stdout AND stderr both land there rather than on the pane's descriptors.
       This is what `TestOnlyOneGoroutineWritesTheHost` structurally cannot see.
 - [x] **M2.4:** `go test ./cmd/internal/termcmd/ -count=1 -race` — the race detector is the point, not decoration.
-- [x] **M2.5: Manual** — switch tabs rapidly under load (`yes` in one tab) and confirm no corruption. Record what was observed in `## Log`, not "it worked".
+- [x] **M2.5: Manual** — switch tabs rapidly under load (`yes` in one tab) and confirm no corruption. Record what was observed in `## Log`, not "it worked". **Scope, corrected at review (BR-36):** this accepts the single-writer ENVELOPE, not the gate. Nothing paints in M2, so no write is ever requested while the stream is mid-sequence and there is nothing to defer; the gate is covered deterministically and becomes manually reachable in **M3.7**, where a repaint under load is something the operator can cause.
 - [x] **M2.6: Commit**, `sdlc milestone-close --issue 199 --milestone M2`.
 
 ## M3 — the strip
@@ -634,6 +634,33 @@ the strip over a suspected-broken writer would confuse both.
 
 
 ## Revisions
+
+### 2026-09-07 — M2 boundary review, round 3 (REWORK → addressed)
+
+**BR-35 (Critical) was a real defect in the gate, and the shape of it is worth
+keeping: the gate MODELS the terminal, so it must be fed exactly what the
+terminal is shown — no more, no less.** It was fed every chunk while only the
+active tab's were written, so a background tab emitting a partial escape pinned
+it mid-sequence against a terminal that had seen none of those bytes, deferring
+paints indefinitely. And the takeover's replay was written without being fed, so
+the gate went blind to a sequence the terminal really was inside. Both
+directions now have tests; neither had one before, because the tests all drove a
+single active tab.
+
+**BR-36 corrected the EVIDENCE, not the code.** M2.5 was recorded as accepting
+the gate; it cannot. Nothing paints in M2, so no console write is ever requested
+mid-sequence and there is nothing to defer — what the flood run accepts is the
+single-writer envelope, which is real and is the part `redrawTab` racing the
+pump actually exercises. The Log entry now says so, and the manual gate check
+moves to M3.7 where a repaint under load is causable.
+
+**BR-37: `rowtext.Sanitize` passed the C1 controls**, in the commit that made it
+the repo's single row-safety strip. `0x9b` IS CSI in 8-bit mode, so a bare
+`0x9b` starts a control sequence and swallows the row's remaining text as
+parameters; `0x84`/`0x85`/`0x8d` move the cursor off the row. `ansi.Strip`
+frames the 7-bit ESC-introduced forms and nothing removed the one-byte
+spellings. Fixed with tests either side of the block, since over-stripping a row
+is its own bug.
 
 ### 2026-09-07 — M2 boundary review, round 2 (REWORK → addressed)
 

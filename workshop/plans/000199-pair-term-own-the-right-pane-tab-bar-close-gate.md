@@ -633,6 +633,81 @@ rounds:
           round: 7
       boundary: M2
       blocked: true
+    - "n": 8
+      timestamp: "2026-09-07T22:34:06-07:00"
+      agent: claude
+      dispose:
+        - id: BR-8
+          disposition: not-addressed
+          note: M4 untouched in this window; M4.3 still has no Alt+Shift+d step while the Done-when still requires two right-pane halves each drawing a strip.
+          round: 8
+        - id: BR-9
+          disposition: not-addressed
+          note: writer_test.go:115 still splits one hand-chosen index of one sequence.
+          round: 8
+        - id: BR-25
+          disposition: not-addressed
+          note: No code change. Reproduced again at HEAD with an overlay test - 64 slots filled, writer parked past a 3s timeout. run.go:768 -> removeTab:1127 -> redrawTab:1287 -> enqueue:905.
+          round: 8
+        - id: BR-26
+          disposition: not-addressed
+          note: Four sites still GREEN under mutation at HEAD - m.owed = nil (run.go:776), runZellijCaptured's detail (:1430 and :1434), resizeThroughWriter (:1156). The stdout arm flipped RED here only because this machine has a live zellij session, which is the ambient-dependence the finding named. plan-superseded-facts-test.sh:65 still registers a token absent from every historical revision of the plan.
+          round: 8
+        - id: BR-27
+          disposition: not-addressed
+          note: Capture half landed but is unpinned - returning the bare error leaves the suite green. Log half still absent - run.go:462,468,1125,1217 discard the error, so a failing wheel tick or rename is still completely silent.
+          round: 8
+        - id: BR-29
+          disposition: not-addressed
+          note: run_test.go:941 fakeRuntime.reportedUnused still present and uncalled. Production sibling of the same class - terminalMux.stderr is set by newTerminalMux and read by nothing after the reportError change.
+          round: 8
+        - id: BR-30
+          disposition: not-addressed
+          note: run.go:168 runDecision still takes stdin and stdout and uses neither.
+          round: 8
+        - id: BR-31
+          disposition: not-addressed
+          note: ARCH-CONSTRAINTS unchanged. The gap is wider than stated - the second parse covers every tab's output, not the active tab's.
+          round: 8
+        - id: BR-32
+          disposition: addressed
+          note: Mutation-verified rather than taken from the commit - removing rowtext.SanitizeAndFit at run.go:878 fails TestAZellijErrorCannotPutAnEscapeOrAnUnboundedLineOnThePane. The duplicate strip inside runZellijCaptured is unpinned, but the egress covers the pane path.
+          round: 8
+        - id: BR-33
+          disposition: not-addressed
+          note: atlas/architecture.md:501-508 still says a console-originated write is deferred into a single coalescing slot and dropped by a takeover, which is false for diagnostics since 34918a3c. The head commit added a further inaccuracy to the same block - :532 states pair term's strip as a current rowtext consumer, which M3 has not built.
+          round: 8
+        - id: BR-34
+          disposition: not-addressed
+          note: run.go:819 still appends to owedDiag without a bound, and ARCH-CONSTRAINTS still declares no budget for it.
+          round: 8
+      findings:
+        - id: BR-35
+          severity: Critical
+          title: The paint gate is fed bytes the terminal never saw, and not fed bytes it did
+          detail: This is the 2nd finding in family wrong-seam-named, so the deliverable is the rule, not the two sites. run.go:804 calls hostScan.FeedFraming on EVERY chunk while run.go:808 writes only the active tab's, so a background tab releases or stalls the gate for the foreground stream; run.go:775 resets the scanner to a zero Screen and then writes the takeover's replay unscanned, and ptychild/replay.go:64-68 documents that a replay can end mid-sequence because Ring bisects it. Both reproduced with overlay tests - "visible\x1b[3PAINT" and "\x1b[1;1H\x1b[Jrestored screen\x1b[3PAINT", a paint inside a live CSI, which is the one failure M2 exists to prevent. Unreachable by the existing suite (one tab) and by M2.5 (yes emits no ESC). The rule - a predicate that guards a stream is computed from exactly the bytes that reach that stream, at the point they are written - covers three enumerable sites - FeedFraming moved inside the isActive branch; the takeover carrying its child half separately and feeding it as it writes it; and M3's batch.RowDirty read, which must likewise be scoped to the active tab because a background child's clear never touched the terminal.
+          family: wrong-seam-named
+          round: 8
+        - id: BR-36
+          severity: Important
+          title: M2.5's manual acceptance cannot enter the gate path it is recorded as accepting
+          detail: This is the 3rd finding in family acceptance-command-does-not-hold, so state the rule rather than rewriting one step. plan:546 specifies `yes "aaaa…"` flooding one tab; yes emits no ESC byte, so MidSequence is false for the whole run and the defer/owe path never executes, yet the issue Log reasons that "a redraw issued while yes is mid-escape is precisely the interleaving M2 exists to make safe". The run is real evidence for the single-writer half and none for the gate. The rule - an acceptance step names the observable that proves it entered the path under test, and the observation records that observable rather than that the command ran - applies to M2.5 (needs a child emitting escapes plus a second tab, with the deferral counted), M3.7 and M4.3.
+          family: acceptance-command-does-not-hold
+          round: 8
+        - id: BR-37
+          severity: Important
+          title: rowtext.Sanitize passes the C1 controls, and it is now the repo's single row-safety strip
+          detail: This is the 3rd finding in family external-input-assumed-wellformed, so the rule rather than the site. rowtext.go:37 drops only r < 0x20 and 0x7f; measured, "a\u009b31mred" and "a\u009d0;titlex" survive unchanged, and U+009B/U+009D are the 8-bit CSI and OSC introducers a UTF-8 terminal with C1 handling will act on. ansi.Strip does not frame them either. Inherited from couchtty, but the package doc and atlas/architecture.md:532 now make this the one implementation, and M3 routes operator-typed tab names through it. The rule - the sanitizer's notion of "control" is derived from what a terminal treats as a control (C0, DEL, C1 U+0080-U+009F, and the introducers in both 7- and 8-bit forms) and its test table enumerates those classes rather than the ones a past incident produced. Same edit - couchtty/menu_render.go:625 open-codes Fit(Sanitize(...)) where SanitizeAndFit exists.
+          family: external-input-assumed-wellformed
+          round: 8
+        - id: BR-38
+          severity: Minor
+          title: couchtty/reserve.go keeps the doc comments for the sanitize and truncate it no longer has
+          detail: This is the 3rd finding in family atlas-points-at-old-home, so the rule - an extraction moves the prose with the symbol and leaves neither comment nor stub at the old home. reserve.go:143-152 ends in two paragraphs describing functions now in rowtext, so a reader greps couchtty for sanitize and finds documentation for a function that is not there. Greppable form of the check - a doc comment whose subject identifier no longer resolves in its own file.
+          family: atlas-points-at-old-home
+          round: 8
+      boundary: M2
+      blocked: true
 ---
 
 # Gate ledger — pair#199 (boundary-review)
@@ -971,6 +1046,33 @@ later rounds disposed of them. Generated — edit the gate, not this file.
 - **BR-34** [Minor] `hot-path-cost-undeclared` owedDiag is an unbounded queue on an externally-timed path, one function below a comment rejecting Feed for that reason
   This is the 2nd finding in family hot-path-cost-undeclared, so the rule: every buffer introduced on a path whose fill rate is set by something outside the process gets a declared bound in ARCH-CONSTRAINTS and a cap in code. run.go:818 appends without limit - one entry per failed refreshRename keystroke while the child sits mid-sequence - and flushes them all at once at the next boundary, while run.go:796-799 explains that Feed was rejected precisely because it would be an unbounded buffer growing behind a terminal that never reads it. Same envelope gap as the undeclared second parse.
 
+## Round 8 — 2026-09-07T22:34:06-07:00 (claude) — BLOCKED
+
+### Disposed
+
+- BR-8 — not-addressed — M4 untouched in this window; M4.3 still has no Alt+Shift+d step while the Done-when still requires two right-pane halves each drawing a strip.
+- BR-9 — not-addressed — writer_test.go:115 still splits one hand-chosen index of one sequence.
+- BR-25 — not-addressed — No code change. Reproduced again at HEAD with an overlay test - 64 slots filled, writer parked past a 3s timeout. run.go:768 -> removeTab:1127 -> redrawTab:1287 -> enqueue:905.
+- BR-26 — not-addressed — Four sites still GREEN under mutation at HEAD - m.owed = nil (run.go:776), runZellijCaptured's detail (:1430 and :1434), resizeThroughWriter (:1156). The stdout arm flipped RED here only because this machine has a live zellij session, which is the ambient-dependence the finding named. plan-superseded-facts-test.sh:65 still registers a token absent from every historical revision of the plan.
+- BR-27 — not-addressed — Capture half landed but is unpinned - returning the bare error leaves the suite green. Log half still absent - run.go:462,468,1125,1217 discard the error, so a failing wheel tick or rename is still completely silent.
+- BR-29 — not-addressed — run_test.go:941 fakeRuntime.reportedUnused still present and uncalled. Production sibling of the same class - terminalMux.stderr is set by newTerminalMux and read by nothing after the reportError change.
+- BR-30 — not-addressed — run.go:168 runDecision still takes stdin and stdout and uses neither.
+- BR-31 — not-addressed — ARCH-CONSTRAINTS unchanged. The gap is wider than stated - the second parse covers every tab's output, not the active tab's.
+- BR-32 — addressed — Mutation-verified rather than taken from the commit - removing rowtext.SanitizeAndFit at run.go:878 fails TestAZellijErrorCannotPutAnEscapeOrAnUnboundedLineOnThePane. The duplicate strip inside runZellijCaptured is unpinned, but the egress covers the pane path.
+- BR-33 — not-addressed — atlas/architecture.md:501-508 still says a console-originated write is deferred into a single coalescing slot and dropped by a takeover, which is false for diagnostics since 34918a3c. The head commit added a further inaccuracy to the same block - :532 states pair term's strip as a current rowtext consumer, which M3 has not built.
+- BR-34 — not-addressed — run.go:819 still appends to owedDiag without a bound, and ARCH-CONSTRAINTS still declares no budget for it.
+
+### Raised
+
+- **BR-35** [Critical] `wrong-seam-named` The paint gate is fed bytes the terminal never saw, and not fed bytes it did
+  This is the 2nd finding in family wrong-seam-named, so the deliverable is the rule, not the two sites. run.go:804 calls hostScan.FeedFraming on EVERY chunk while run.go:808 writes only the active tab's, so a background tab releases or stalls the gate for the foreground stream; run.go:775 resets the scanner to a zero Screen and then writes the takeover's replay unscanned, and ptychild/replay.go:64-68 documents that a replay can end mid-sequence because Ring bisects it. Both reproduced with overlay tests - "visible\x1b[3PAINT" and "\x1b[1;1H\x1b[Jrestored screen\x1b[3PAINT", a paint inside a live CSI, which is the one failure M2 exists to prevent. Unreachable by the existing suite (one tab) and by M2.5 (yes emits no ESC). The rule - a predicate that guards a stream is computed from exactly the bytes that reach that stream, at the point they are written - covers three enumerable sites - FeedFraming moved inside the isActive branch; the takeover carrying its child half separately and feeding it as it writes it; and M3's batch.RowDirty read, which must likewise be scoped to the active tab because a background child's clear never touched the terminal.
+- **BR-36** [Important] `acceptance-command-does-not-hold` M2.5's manual acceptance cannot enter the gate path it is recorded as accepting
+  This is the 3rd finding in family acceptance-command-does-not-hold, so state the rule rather than rewriting one step. plan:546 specifies `yes "aaaa…"` flooding one tab; yes emits no ESC byte, so MidSequence is false for the whole run and the defer/owe path never executes, yet the issue Log reasons that "a redraw issued while yes is mid-escape is precisely the interleaving M2 exists to make safe". The run is real evidence for the single-writer half and none for the gate. The rule - an acceptance step names the observable that proves it entered the path under test, and the observation records that observable rather than that the command ran - applies to M2.5 (needs a child emitting escapes plus a second tab, with the deferral counted), M3.7 and M4.3.
+- **BR-37** [Important] `external-input-assumed-wellformed` rowtext.Sanitize passes the C1 controls, and it is now the repo's single row-safety strip
+  This is the 3rd finding in family external-input-assumed-wellformed, so the rule rather than the site. rowtext.go:37 drops only r < 0x20 and 0x7f; measured, "a\u009b31mred" and "a\u009d0;titlex" survive unchanged, and U+009B/U+009D are the 8-bit CSI and OSC introducers a UTF-8 terminal with C1 handling will act on. ansi.Strip does not frame them either. Inherited from couchtty, but the package doc and atlas/architecture.md:532 now make this the one implementation, and M3 routes operator-typed tab names through it. The rule - the sanitizer's notion of "control" is derived from what a terminal treats as a control (C0, DEL, C1 U+0080-U+009F, and the introducers in both 7- and 8-bit forms) and its test table enumerates those classes rather than the ones a past incident produced. Same edit - couchtty/menu_render.go:625 open-codes Fit(Sanitize(...)) where SanitizeAndFit exists.
+- **BR-38** [Minor] `atlas-points-at-old-home` couchtty/reserve.go keeps the doc comments for the sanitize and truncate it no longer has
+  This is the 3rd finding in family atlas-points-at-old-home, so the rule - an extraction moves the prose with the symbol and leaves neither comment nor stub at the old home. reserve.go:143-152 ends in two paragraphs describing functions now in rowtext, so a reader greps couchtty for sanitize and finds documentation for a function that is not there. Greppable form of the check - a doc comment whose subject identifier no longer resolves in its own file.
+
 ## Open findings
 
 - **BR-8** [Minor] `acceptance-misses-changed-sites` M4's manual acceptance never splits the pane, leaving six of nine borderless sites unverified
@@ -990,6 +1092,9 @@ later rounds disposed of them. Generated — edit the gate, not this file.
 - **BR-29** [Minor] `dead-test-scaffolding` fakeRuntime.reportedUnused and its reported field are unreachable after the interface change
 - **BR-30** [Minor] `handler-posts-to-own-queue` runDecision still receives the pane's stdout, unused, on the input goroutine
 - **BR-31** [Minor] `hot-path-cost-undeclared` The gate adds a second full parse of every child byte on the output path, undeclared in the envelope
-- **BR-32** [Important] `external-input-assumed-wellformed` The BR-27 fix routes an external process's bytes onto the pane's tty, unsanitized and unbounded
 - **BR-33** [Important] `plan-table-drift` The atlas paragraph added in this window was falsified by the next commit in the same window
 - **BR-34** [Minor] `hot-path-cost-undeclared` owedDiag is an unbounded queue on an externally-timed path, one function below a comment rejecting Feed for that reason
+- **BR-35** [Critical] `wrong-seam-named` The paint gate is fed bytes the terminal never saw, and not fed bytes it did
+- **BR-36** [Important] `acceptance-command-does-not-hold` M2.5's manual acceptance cannot enter the gate path it is recorded as accepting
+- **BR-37** [Important] `external-input-assumed-wellformed` rowtext.Sanitize passes the C1 controls, and it is now the repo's single row-safety strip
+- **BR-38** [Minor] `atlas-points-at-old-home` couchtty/reserve.go keeps the doc comments for the sanitize and truncate it no longer has

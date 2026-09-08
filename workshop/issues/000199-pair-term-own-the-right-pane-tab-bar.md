@@ -199,13 +199,22 @@ Four milestones, each its own review boundary — detail in
   assumed; the other eleven `pair term` processes on the box are older couch
   actors still on the previous binary).
 
-  Recorded in two parts because they are different strengths of evidence. A
-  first pass on an IDLE pane showed no visible change, which is the expected
-  outcome — M2 is pure plumbing and a visible difference would have meant a
-  regression — but it proves little: an idle child never leaves the stream
-  mid-sequence, so the gate never defers and the path under test never runs. The
-  flood run is the one that exercises it, because a redraw issued while `yes` is
-  mid-escape is precisely the interleaving M2 exists to make safe.
+  **What this does and does not accept (corrected 2026-09-07, BR-36).** It
+  accepts the SINGLE-WRITER ENVELOPE: `redrawTab` racing the output pump under
+  load is exactly the two-writer interleaving M2 removes, and no corruption
+  appeared. It does **not** exercise the gate's defer-and-owe path, and an
+  earlier version of this entry wrongly implied it did. Nothing paints in M2 —
+  the strip arrives in M3 — so the only console-originated write is
+  `reportError`, and no action failed during the run. With no paint requested
+  while the stream is mid-sequence, there is nothing to defer.
+
+  The gate is covered deterministically instead
+  (`TestPaintDefersMidSequenceAndIsOwed`, `TestGateIsNotFedOurOwnWrites`,
+  `TestTakeoverResetsTheGateAndDropsTheOwedPaint`,
+  `TestTheGateSeesExactlyWhatTheTerminalSees`), and becomes manually reachable
+  at M3, when a repaint under load is a thing the operator can actually cause.
+  The first, idle-pane pass is weaker still: an idle child never leaves the
+  stream mid-sequence at all.
 
 
 - 2026-09-07: closed M1 — Full `make test` green (exit 0) and `make test-smoke` green (exit 0, all three probes). BR-21 fixed at the class: the probe moved to probes/zellijscrollregion, the home atlas/index.md already names, where make test-smoke runs every directory -- so it is covered by existing rather than by the two hand-maintained lists I had added to compensate; verified test-smoke picks it up. BR-19 fixed: the probe reader goroutine shared an unsynchronised strings.Builder with the verdict, now a mutex-guarded buffer, `go run -race` clean and still reproducing DECSTBM HONORED. BR-20 fixed: frame[len(frame)-3000:] panicked whenever the pty produced under 3000 bytes -- exactly the failed-session path the probe must survive to report -- now tailOf. BR-16 remains fixed (tracked reproducible apparatus). BR-17 swept (every superseded restatement, not just the named site). BR-4 stderr half closed in the plan (runZellij gains a stderr io.Writer; M2.3b asserts it). Both Minors fixed. M1 core evidence unchanged: the lift is proven a MOVE by the behavioural couch tests passing UNEDITED, and no second implementation of the region escape exists outside hostty.; review verdict: FIX-THEN-SHIP

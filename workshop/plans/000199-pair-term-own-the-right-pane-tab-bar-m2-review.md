@@ -340,3 +340,219 @@ findings:
     detail: |
       This is the 2nd finding in family hot-path-cost-undeclared, so the rule: every buffer introduced on a path whose fill rate is set by something outside the process gets a declared bound in ARCH-CONSTRAINTS and a cap in code. run.go:818 appends without limit - one entry per failed refreshRename keystroke while the child sits mid-sequence - and flushes them all at once at the next boundary, while run.go:796-799 explains that Feed was rejected precisely because it would be an unbounded buffer growing behind a terminal that never reads it. Same envelope gap as the undeclared second parse.
 ```
+
+---
+
+## Re-review — 2026-09-07T22:34:06-07:00 (REWORK)
+
+| field | value |
+|-------|-------|
+| issue | 199 — pair term: own the right pane tab bar |
+| repo | pair |
+| issue file | workshop/issues/000199-pair-term-own-the-right-pane-tab-bar.md |
+| boundary | milestone M2 |
+| milestone | M2 |
+| window | 96f780da661b35aef301b612b14ee8399bd9a6cf..e9a988cec2f2a5afbe5c1aa4d8e5e6c92883275f |
+| command | sdlc milestone-close --issue 199 --milestone M2 |
+| reviewer | claude |
+| timestamp | 2026-09-07T22:34:06-07:00 |
+| verdict | REWORK |
+
+## Review
+
+```verdict
+verdict: REWORK
+confidence: high
+```
+
+The window's shape is right and much of it is genuinely pinned — I re-verified by mutation that `redrawTab` writing directly reddens the one-writer test, that removing the `MidSequence()` check reddens the defer/owe test, that feeding our own bytes into `hostScan` reddens `TestGateIsNotFedOurOwnWrites`, that `cmd.Stderr = os.Stderr` reddens the FD test, and that BR-32's new egress sanitizer is real (deleting `rowtext.SanitizeAndFit` at `run.go:878` fails `TestAZellijErrorCannotPutAnEscapeOrAnUnboundedLineOnThePane`). What blocks the boundary is that the gate itself models the wrong stream: `handleChunk` feeds `hostScan` from **every** tab including ones whose bytes never reach the terminal, and resets it to zero on a takeover whose replay it then writes **without** scanning. I reproduced both directions — `"visible\x1b[3PAINT"` and `"\x1b[1;1H\x1b[Jrestored screen\x1b[3PAINT"` — a paint landing inside a live CSI, which is the single failure M2 exists to prevent, reachable with the two-tab workflow the issue is premised on. BR-25 (Critical, third round) is still live and I reproduced the deadlock again; BR-26/27/29/30/31/33/34 are untouched since round 7, which only landed the BR-32 fix.
+
+## 1. Strengths
+
+- **`rowtext` is a real extraction, not a copy** (`cmd/internal/rowtext/rowtext.go`). `couchtty`'s unexported `sanitize`/`truncate` are *deleted*, both consumers repointed, and the whole `couchtty` suite passes with **no couchtty test edited** — the same "prove it was a move" discipline M1 used. The package now has tests of its own where neither original did.
+- **The egress choice is the right one and it is mutation-pinned.** Sanitizing at `reportError` (`run.go:878`) rather than at each producer is the correct answer to BR-32, and the Revisions entry argues it from `#208`'s `ps` precedent rather than asserting it. Removing it fails a test.
+- **The subprocess envelope closed at the `Runtime`, not the call sites** (`run.go:1360-1372`), which covers `layoutcmd`/`draftroute` and the next site anyone adds.
+- **`drainForTest`'s bare-event design** (`run.go:941`) and the `chunk.data == nil` branch: a probe that does not perturb what it observes, with the earlier self-inflicted failure recorded in the comment.
+- **`TestTakeoverResetsTheGateAndDropsTheOwedPaint` gained a real positive control** (`writer_test.go:202`) — the takeover's own replay must arrive before absence means anything.
+
+## 2. Critical findings
+
+**C1 — the gate is fed bytes the terminal never saw, and not fed bytes it did.** `cmd/internal/termcmd/run.go:804` and `:775`.
+
+`handleChunk`'s default branch scans **every** chunk, but writes only the active tab's:
+
+```go
+m.hostScan.FeedFraming(chunk.data)   // :804 — every tab
+if m.isActive(chunk.id) {            // :808 — only the active one
+    _, _ = m.stdout.Write(chunk.data)
+}
+```
+
+Every tab's `Sink` posts to `m.output` unconditionally (`run.go:707`), so a background `yes`/build/`tail -f` drives the gate for a stream it is not part of. Reproduced with an overlay test, two tabs, tab 1 active:
+
+```
+a background tab's byte released the gate; the paint landed inside the
+FOREGROUND child's escape sequence: "visible\x1b[3PAINT"
+```
+
+and the mirror — a background tab's unterminated OSC defers a paint the foreground stream was ready for.
+
+The same rule is broken in the other direction on the takeover path. `run.go:775` resets `hostScan` to a zero `Screen{}` and then writes `chunk.own` — which contains the child's replay — without scanning it. `ptychild/replay.go:64-68` states in its own doc comment that a replay "can legitimately begin or end mid-sequence" because `Ring` bisects whatever spans its boundary. So after a takeover the gate reports *boundary* while the terminal is mid-CSI:
+
+```
+a paint landed inside the replay's bisected sequence:
+"\x1b[1;1H\x1b[Jrestored screen\x1b[3PAINT"
+```
+
+Both are `PAINT` inside a live CSI (`\x1b[3P` is DCH — the terminal eats characters and prints `AINT`). Neither M2's tests nor M2.5's manual run could see it: every test uses one tab and `yes` emits no escapes.
+
+**This is the 2nd finding in family `wrong-seam-named`** (BR-3 was the repaint trigger named at a seam that is always false in `termcmd`). Do not fix the two sites — state and apply the rule: **a predicate that guards a stream is computed from exactly the bytes that reach that stream, at the point they are written.** The enumeration that follows from it, all three of which the code gets wrong or will:
+
+1. `run.go:804` — move `FeedFraming` inside the `isActive` branch, so scan and write are one statement pair.
+2. `run.go:775-782` — the takeover must carry its child half separately from our `HomeAndClear` (e.g. `ptyChunk{own: HomeAndClear, data: replay, takeover: true}`) and feed the replay to the fresh scanner as it writes it. The gate is still "child bytes only": a replay *is* child bytes.
+3. M3's `batch.RowDirty` read (plan finding 7) has the identical shape — a background `nvim`'s startup clear never touched the terminal and must not trigger a re-`Reserve`. Write the rule into the plan's M3.4 now, not after the next review finds it.
+
+Regression tests: the two above, plus the takeover-replay one. All three are five-liners against the existing `writerRecorder`.
+
+## 3. Important findings
+
+**I1 — M2.5's acceptance command cannot exercise the thing it is recorded as accepting.** `plan:546`, issue `## Log` 2026-09-07.
+
+The step is `yes "aaaa…"` flooding one tab while switching tabs, and the Log reasons that "a redraw issued while `yes` is mid-escape is precisely the interleaving M2 exists to make safe". `yes` emits no ESC byte at all, so `MidSequence()` is false for the entire run and the defer/owe path — the half of M2 that is new — never executes once. What the run did exercise is the single-writer envelope, which is real evidence for that half and should be recorded as such.
+
+**This is the 3rd finding in family `acceptance-command-does-not-hold`** (BR-24, and the M1.6 grep before it). The rule: **an acceptance step names the observable that proves it entered the path under test, and the observation records that observable — not that the command ran.** For a gate that means a child which actually emits escape sequences (`vim`, `htop`, or a loop of `printf '\033[31m%s' …` split across writes) **and a second tab**, with the deferral visibly counted or logged. Sweep the remaining acceptance steps under the same rule: M2.5 (rewrite), M3.7 (`nvim`'s startup clear — names its observable, holds), M4.3 (BR-8's missing split — same defect, already open).
+
+**I2 — `rowtext.Sanitize` passes the C1 controls, and it is now the repo's single security-relevant strip.** `cmd/internal/rowtext/rowtext.go:37`.
+
+The rune pass drops `r < 0x20 || r == 0x7f`. Measured:
+
+```
+"a\u009b31mred"    -> "a\u009b31mred"
+"a\u009d0;titlex"  -> "a\u009d0;titlex"
+```
+
+U+009B is CSI and U+009D is OSC in 8-bit form; a terminal decoding UTF-8 with C1 handling on takes those as sequence introducers, so a "sanitized" diagnostic can still open a control sequence. `ansi.Strip` does not frame them either. The behavior is inherited from `couchtty`, but the package doc and `atlas/architecture.md:532` now promote it to *the* implementation of "make untrusted text safe for a row", and M3 routes operator-typed tab names through it.
+
+**This is the 3rd finding in family `external-input-assumed-wellformed`.** The rule, since the previous two were fixed as sites: **the sanitizer's notion of "control" is derived from what a terminal treats as a control — C0, DEL, C1 (U+0080–U+009F), and the sequence introducers in both 7- and 8-bit forms — and its test table enumerates those classes, not the ones a past incident happened to produce.** One predicate change plus a table row per class. Co-located nit for the same edit: `couchtty/menu_render.go:625` open-codes `rowtext.Fit(rowtext.Sanitize(line), width)` where `SanitizeAndFit` exists and is documented as "the pair, in the order that matters".
+
+## 4. Minor findings
+
+- `cmd/internal/couchtty/reserve.go:143-152` — the doc comments for `sanitize` and `truncate` survived the functions; the file now ends in two paragraphs describing symbols that are not in it. **This is the 3rd finding in family `atlas-points-at-old-home`** — rule: an extraction moves the prose with the symbol and leaves neither comment nor stub at the old home; the greppable form is "a doc comment whose subject identifier no longer resolves in its file".
+- `terminalMux.stderr` is now written by `newTerminalMux` and read by nothing (production sibling of BR-29 — see the disposition note).
+
+## 5. Test coverage notes
+
+Mutation results at HEAD, overlay only, repo untouched (`-overlay`, no edits):
+
+| mutation | result |
+|---|---|
+| `redrawTab` writes directly | RED |
+| gate check removed from `writeOwn` | RED |
+| own bytes fed to `hostScan` | RED |
+| `cmd.Stderr = os.Stderr` | RED |
+| `rowtext.SanitizeAndFit` removed from `reportError` (`:878`) | **RED** — BR-32 is really pinned |
+| `m.owed = nil` deleted from the takeover (`:776`) | **GREEN** |
+| `rowtext.SanitizeAndFit` removed from `runZellijCaptured` (`:1430`) | **GREEN** |
+| `return err` instead of folding the detail (`:1434`) | **GREEN** |
+| `inheritSize` off the writer loop (`:1156`) | **GREEN** |
+| `cmd.Stdout = os.Stdout` (`:1388`) | RED **here**, GREEN in round 7 — ambient |
+
+That last row is the ARCH-MOCK point made concrete: the test drives the real `zellij` below the `Runtime` seam, so its stdout arm is red on a machine inside a live session and vacuous everywhere else. Baseline `go test ./cmd/... -count=1` and `./cmd/internal/termcmd -race` are green outside the sandbox; inside it the two `TerminalMux…` pty tests fail on `operation not permitted` (environmental).
+
+No test exercises `removeTab` with the writer loop running (BR-25), `terminalMux.reportError`'s real path outside the two new tests, `runZellijCaptured`'s capture, or `resizeThroughWriter`. The `TestPaintDefersMidSequenceAndIsOwed` split point is still one hand-chosen index (BR-9).
+
+## 6. Architectural notes for upcoming work
+
+- **ARCH-DRY** — pass, one nit. The `rowtext` extraction is the right shape (one implementation, tests, both consumers repointed). Nit: `clipMenuLine` recomposes the pair; dangling comments at the old home.
+- **ARCH-PURE** — flag, and C1 is the bill. `handleChunk` is a state machine whose transitions interleave with `m.stdout.Write`, so "scan what you write" is a convention rather than a structure. A pure `step(state, event) -> (state, []effect)` with the caller performing effects makes both C1 halves and BR-25 unrepresentable: a handler that returns effects cannot desynchronise its scanner from its writes, and cannot post to its own queue. Do this **before** M3 adds resize-repaint and `RowDirty` to the same switch — that is three more transitions on a shape that has now produced two Criticals.
+- **ARCH-PURPOSE** — flag. M2's purpose is "no paint lands inside a child's escape sequence"; with C1 open it is not delivered for the multi-tab case that is the issue's own premise. Separately, BR-27's capture landed but nothing reports it at the four dropping call sites (`:462, :468, :1125, :1217`), so "capture **and log**" is still the easy half.
+- **ARCH-MOCK** — flag. The FD test drives the real binary; a stub command (`/bin/sh -c 'echo out; echo err >&2'`) makes it deterministic and machine-independent, and would have made the round-6/round-8 disagreement impossible.
+- **ARCH-CONSTRAINTS** — flag (BR-31, BR-34 open). Worth noting the envelope gap is *larger* than BR-31 stated: the second parse is of **every tab's** output, not the active one's — which C1's fix incidentally repairs.
+- **ARCH-SECURE** — flag (I2). The child stream itself is still behind `ptychild`'s `maxPending`-bounded parser and the diff does not extend it; no credentials anywhere.
+- **ARCH-ORDER** — flag. BR-25 remains the canonical instance (a handler generating an event on its own queue). The takeover's `hostScan = Screen{}` is a second: a transition that *asserts* a terminal state which the very next write in the same branch contradicts. Both belong in the plan's ARCH-ORDER table, which today lists the events but not "an event handler emitting an event" or "our own write changes the stream the gate models".
+
+## 7. Plan revision recommendations
+
+- **`## Revisions` entry for C1**, naming the rule for M3: *the gate is fed exactly the bytes written to the terminal, at the point they are written.* Amend M2.3 piece 2 ("a `ptychild.Screen` fed child chunks before they are written") — it is the sentence the code implements literally and wrongly; it must say **active-tab** chunks, and must say the takeover's replay is fed as it is written. Amend M3.4 in the same edit: `batch.RowDirty` is read only for the active tab.
+- **`## Revisions` entry for BR-25**, unchanged from round 6's recommendation and still not written: nothing running on the writer goroutine may call `enqueue`; the takeover needs an inline form and a queued form sharing one implementation. M3's repaint-on-resize is written against that rule or it reproduces it.
+- **Rewrite M2.5** per I1, and un-tick it. Ticking it asserts the gate was accepted; the command named cannot reach the gate.
+- **M2.6 is ticked** (`plan:547`) for a `milestone-close` that has not passed — three rounds now. Either untick it or add "ticked at commit, close pending" so the plan stops asserting a boundary that has not been crossed.
+- **ARCH-CONSTRAINTS**: add the second-parse cost (per tab, not per pane), the `owedDiag` bound (BR-34), and the unterminated-OSC stall (BR-31), with a cap in code for the queue.
+- **`tests/plan-superseded-facts-test.sh:65`** registers `'route only stdout through'`, a phrase that appears in no revision of the plan — I checked every historical blob. An inert guard reads as protection and is not; drop it or replace it with the token the plan actually carried.
+
+```findings
+dispose:
+  - id: BR-8
+    disposition: not-addressed
+    note: |
+      M4 untouched in this window; M4.3 still has no Alt+Shift+d step while the Done-when still requires two right-pane halves each drawing a strip.
+  - id: BR-9
+    disposition: not-addressed
+    note: |
+      writer_test.go:115 still splits one hand-chosen index of one sequence.
+  - id: BR-25
+    disposition: not-addressed
+    note: |
+      No code change. Reproduced again at HEAD with an overlay test - 64 slots filled, writer parked past a 3s timeout. run.go:768 -> removeTab:1127 -> redrawTab:1287 -> enqueue:905.
+  - id: BR-26
+    disposition: not-addressed
+    note: |
+      Four sites still GREEN under mutation at HEAD - m.owed = nil (run.go:776), runZellijCaptured's detail (:1430 and :1434), resizeThroughWriter (:1156). The stdout arm flipped RED here only because this machine has a live zellij session, which is the ambient-dependence the finding named. plan-superseded-facts-test.sh:65 still registers a token absent from every historical revision of the plan.
+  - id: BR-27
+    disposition: not-addressed
+    note: |
+      Capture half landed but is unpinned - returning the bare error leaves the suite green. Log half still absent - run.go:462,468,1125,1217 discard the error, so a failing wheel tick or rename is still completely silent.
+  - id: BR-29
+    disposition: not-addressed
+    note: |
+      run_test.go:941 fakeRuntime.reportedUnused still present and uncalled. Production sibling of the same class - terminalMux.stderr is set by newTerminalMux and read by nothing after the reportError change.
+  - id: BR-30
+    disposition: not-addressed
+    note: |
+      run.go:168 runDecision still takes stdin and stdout and uses neither.
+  - id: BR-31
+    disposition: not-addressed
+    note: |
+      ARCH-CONSTRAINTS unchanged. The gap is wider than stated - the second parse covers every tab's output, not the active tab's.
+  - id: BR-32
+    disposition: addressed
+    note: |
+      Mutation-verified rather than taken from the commit - removing rowtext.SanitizeAndFit at run.go:878 fails TestAZellijErrorCannotPutAnEscapeOrAnUnboundedLineOnThePane. The duplicate strip inside runZellijCaptured is unpinned, but the egress covers the pane path.
+  - id: BR-33
+    disposition: not-addressed
+    note: |
+      atlas/architecture.md:501-508 still says a console-originated write is deferred into a single coalescing slot and dropped by a takeover, which is false for diagnostics since 34918a3c. The head commit added a further inaccuracy to the same block - :532 states pair term's strip as a current rowtext consumer, which M3 has not built.
+  - id: BR-34
+    disposition: not-addressed
+    note: |
+      run.go:819 still appends to owedDiag without a bound, and ARCH-CONSTRAINTS still declares no budget for it.
+findings:
+  - id: new
+    severity: Critical
+    family: wrong-seam-named
+    title: |
+      The paint gate is fed bytes the terminal never saw, and not fed bytes it did
+    detail: |
+      This is the 2nd finding in family wrong-seam-named, so the deliverable is the rule, not the two sites. run.go:804 calls hostScan.FeedFraming on EVERY chunk while run.go:808 writes only the active tab's, so a background tab releases or stalls the gate for the foreground stream; run.go:775 resets the scanner to a zero Screen and then writes the takeover's replay unscanned, and ptychild/replay.go:64-68 documents that a replay can end mid-sequence because Ring bisects it. Both reproduced with overlay tests - "visible\x1b[3PAINT" and "\x1b[1;1H\x1b[Jrestored screen\x1b[3PAINT", a paint inside a live CSI, which is the one failure M2 exists to prevent. Unreachable by the existing suite (one tab) and by M2.5 (yes emits no ESC). The rule - a predicate that guards a stream is computed from exactly the bytes that reach that stream, at the point they are written - covers three enumerable sites - FeedFraming moved inside the isActive branch; the takeover carrying its child half separately and feeding it as it writes it; and M3's batch.RowDirty read, which must likewise be scoped to the active tab because a background child's clear never touched the terminal.
+  - id: new
+    severity: Important
+    family: acceptance-command-does-not-hold
+    title: |
+      M2.5's manual acceptance cannot enter the gate path it is recorded as accepting
+    detail: |
+      This is the 3rd finding in family acceptance-command-does-not-hold, so state the rule rather than rewriting one step. plan:546 specifies `yes "aaaa…"` flooding one tab; yes emits no ESC byte, so MidSequence is false for the whole run and the defer/owe path never executes, yet the issue Log reasons that "a redraw issued while yes is mid-escape is precisely the interleaving M2 exists to make safe". The run is real evidence for the single-writer half and none for the gate. The rule - an acceptance step names the observable that proves it entered the path under test, and the observation records that observable rather than that the command ran - applies to M2.5 (needs a child emitting escapes plus a second tab, with the deferral counted), M3.7 and M4.3.
+  - id: new
+    severity: Important
+    family: external-input-assumed-wellformed
+    title: |
+      rowtext.Sanitize passes the C1 controls, and it is now the repo's single row-safety strip
+    detail: |
+      This is the 3rd finding in family external-input-assumed-wellformed, so the rule rather than the site. rowtext.go:37 drops only r < 0x20 and 0x7f; measured, "a\u009b31mred" and "a\u009d0;titlex" survive unchanged, and U+009B/U+009D are the 8-bit CSI and OSC introducers a UTF-8 terminal with C1 handling will act on. ansi.Strip does not frame them either. Inherited from couchtty, but the package doc and atlas/architecture.md:532 now make this the one implementation, and M3 routes operator-typed tab names through it. The rule - the sanitizer's notion of "control" is derived from what a terminal treats as a control (C0, DEL, C1 U+0080-U+009F, and the introducers in both 7- and 8-bit forms) and its test table enumerates those classes rather than the ones a past incident produced. Same edit - couchtty/menu_render.go:625 open-codes Fit(Sanitize(...)) where SanitizeAndFit exists.
+  - id: new
+    severity: Minor
+    family: atlas-points-at-old-home
+    title: |
+      couchtty/reserve.go keeps the doc comments for the sanitize and truncate it no longer has
+    detail: |
+      This is the 3rd finding in family atlas-points-at-old-home, so the rule - an extraction moves the prose with the symbol and leaves neither comment nor stub at the old home. reserve.go:143-152 ends in two paragraphs describing functions now in rowtext, so a reader greps couchtty for sanitize and finds documentation for a function that is not there. Greppable form of the check - a doc comment whose subject identifier no longer resolves in its own file.
+```

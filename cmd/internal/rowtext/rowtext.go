@@ -34,7 +34,14 @@ import (
 func Sanitize(s string) string {
 	stripped := string(ansi.Strip([]byte(s)))
 	return strings.Map(func(r rune) rune {
-		if r < 0x20 || r == 0x7f {
+		// C0 (below 0x20) and DEL, plus C1 (0x80-0x9f). C1 is the one that
+		// looks safe and is not: 0x9b IS CSI in 8-bit mode, so a terminal in
+		// that mode reads a bare 0x9b as the start of a control sequence and
+		// swallows the row's remaining text as its parameters. 0x84 (IND),
+		// 0x85 (NEL) and 0x8d (RI) move the cursor off the row outright.
+		// ansi.Strip frames the 7-bit ESC-introduced forms; these are the same
+		// controls spelled in one byte, and nothing upstream removes them.
+		if r < 0x20 || r == 0x7f || (r >= 0x80 && r <= 0x9f) {
 			return -1
 		}
 		return r
