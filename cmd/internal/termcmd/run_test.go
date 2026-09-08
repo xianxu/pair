@@ -223,8 +223,8 @@ func TestPumpStdinReportsFocusFailureWithoutWriting(t *testing.T) {
 	if got := strings.Join(rt.ops, ","); got != "focus-pane-id 2" {
 		t.Fatalf("runtime ops = %q, want focus only", got)
 	}
-	if len(rt.reported) != 1 || !strings.Contains(rt.reported[0], "focus") {
-		t.Fatalf("reported = %v, want focus error", rt.reported)
+	if len(mux.reported) != 1 || !strings.Contains(mux.reported[0], "focus") {
+		t.Fatalf("reported = %v, want focus error", mux.reported)
 	}
 }
 
@@ -338,8 +338,8 @@ func TestPumpStdinConsumesGlobalChordWhenDraftMissing(t *testing.T) {
 	if len(mux.ops) != 0 {
 		t.Fatalf("mux ops = %v, want recognized chord consumed", mux.ops)
 	}
-	if len(rt.reported) != 1 || !strings.Contains(rt.reported[0], "draft pane") {
-		t.Fatalf("reported = %v, want missing draft pane error", rt.reported)
+	if len(mux.reported) != 1 || !strings.Contains(mux.reported[0], "draft pane") {
+		t.Fatalf("reported = %v, want missing draft pane error", mux.reported)
 	}
 }
 
@@ -411,8 +411,8 @@ func TestPumpStdinRenameEntryFailureConsumesInput(t *testing.T) {
 	if got := strings.Join(mux.ops, ","); got != "rename-begin:work" {
 		t.Fatalf("ops = %q, want failed begin only", got)
 	}
-	if len(rt.reported) != 1 {
-		t.Fatalf("reported = %v, want one rename error", rt.reported)
+	if len(mux.reported) != 1 {
+		t.Fatalf("reported = %v, want one rename error", mux.reported)
 	}
 }
 
@@ -429,8 +429,8 @@ func TestPumpStdinRenameRefreshAndFinishFailuresPreserveOutcome(t *testing.T) {
 	if mux.activeName != "workx" {
 		t.Fatalf("active name = %q, want committed workx", mux.activeName)
 	}
-	if len(rt.reported) != 2 {
-		t.Fatalf("reported = %v, want refresh and finish errors", rt.reported)
+	if len(mux.reported) != 2 {
+		t.Fatalf("reported = %v, want refresh and finish errors", mux.reported)
 	}
 }
 
@@ -695,9 +695,13 @@ func TestTerminalMuxSwitchTabAtColumn(t *testing.T) {
 func TestTerminalMuxNewTabClearsPreviousTabViewport(t *testing.T) {
 	var stdout bytes.Buffer
 	mux := newTerminalMux("/bin/sh", []string{"-c", "sleep 1"}, &stdout, io.Discard, &fakeRuntime{})
+	// The loop is the only writer since #199 M2, so a mux without one writes
+	// nothing -- the assertion below is about what reaches the pane.
+	go mux.copyActiveOutput()
 	if err := mux.newTab(); err != nil {
 		t.Fatal(err)
 	}
+	mux.drainForTest()
 	mux.closeAll()
 
 	if got := stdout.String(); !strings.HasPrefix(got, "\x1b[1;1H\x1b[J") {
@@ -903,8 +907,8 @@ func TestPumpStdinRoutesCachedGlobalWithoutPaneInventory(t *testing.T) {
 	if rt.listCalls != 0 {
 		t.Fatalf("list calls = %d, want 0 for global chord", rt.listCalls)
 	}
-	if len(rt.reported) != 0 {
-		t.Fatalf("reported = %v, want successful cached route", rt.reported)
+	if len(mux.reported) != 0 {
+		t.Fatalf("reported = %v, want successful cached route", mux.reported)
 	}
 	want := "focus-pane-id 2,write --pane-id 2 28,write --pane-id 2 14,write-chars --pane-id 2 :lua PairConfirmRestart(),write --pane-id 2 13"
 	if got := strings.Join(rt.ops, ","); got != want {
@@ -934,7 +938,7 @@ func (f *fakeRuntime) RunZellijActionQuiet(args ...string) error {
 	return nil
 }
 
-func (f *fakeRuntime) ReportShortcutError(err error) {
+func (f *fakeRuntime) reportedUnused(err error) {
 	f.reported = append(f.reported, err.Error())
 }
 
@@ -943,6 +947,7 @@ func (f *fakeRuntime) ShellCommand() (string, []string) {
 }
 
 type fakeMux struct {
+	reported         []string
 	ops              []string
 	appMouse         bool
 	activeName       string
@@ -996,6 +1001,14 @@ func (f *fakeMux) nextTab() {
 
 func (f *fakeMux) appMouseMode() bool {
 	return f.appMouse
+}
+
+// Recorded rather than printed: these used to reach os.Stderr -- the pane's own
+// terminal -- from the input goroutine, outside the writer loop (#199 M2).
+func (f *fakeMux) reportError(err error) {
+	if err != nil {
+		f.reported = append(f.reported, err.Error())
+	}
 }
 
 type splitReader struct {

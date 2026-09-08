@@ -532,10 +532,13 @@ func TestGateIsNotFedOurOwnWrites(t *testing.T) {
          becomes a writer in M3. It joins the writer loop here, not in M3 —
          ARCH-ORDER already asserts resize and paint "serialize by construction"
          on that loop, and that claim is false until this piece lands.
-- [ ] **M2.3b: Prove the subprocess routing.** A `Runtime` fake recording which
-      of the two methods each call site used; assert no `termcmd` site calls
-      `RunZellijAction`. This is the assertion that replaces what
-      `TestOnlyOneGoroutineWritesTheHost` structurally cannot see.
+- [ ] **M2.3b: Prove the subprocess routing by the FD, not the method name.** A
+      `Runtime` fake records which method each call site used — but a
+      `Quiet`-only refactor passes that assertion while `cmd.Stderr` still points
+      at the pane, which is how BR-4 survived three rounds. So also drive
+      `runZellij` directly with recording writers and assert the subprocess's
+      stdout AND stderr both land there rather than on the pane's descriptors.
+      This is what `TestOnlyOneGoroutineWritesTheHost` structurally cannot see.
 - [ ] **M2.4:** `go test ./cmd/internal/termcmd/ -count=1 -race` — the race detector is the point, not decoration.
 - [ ] **M2.5: Manual** — switch tabs rapidly under load (`yes` in one tab) and confirm no corruption. Record what was observed in `## Log`, not "it worked".
 - [ ] **M2.6: Commit**, `sdlc milestone-close --issue 199 --milestone M2`.
