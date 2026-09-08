@@ -877,7 +877,7 @@ func (m *terminalMux) applyTakeover(replay []byte) {
 	// BEFORE these writes, so nothing downstream reads a stale mid-sequence.
 	//
 	// Enumerated and enforced by TestEveryConsoleWriteIsGatedOrExplicitlyExempt.
-	m.pane.rawString("takeover: clears the screen the old scan described", hostty.HomeAndClear)
+	m.pane.rawString("takeover: resets colour and clears the screen the old scan described", hostty.HomeAndClear)
 	m.pane.raw("takeover: replay, fed to the gate immediately below", replay)
 	// The replay is CHILD bytes and the terminal has now seen them, so the gate
 	// must too -- it is replay-safe (ptychild strips queries and cuts at

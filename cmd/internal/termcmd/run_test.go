@@ -13,6 +13,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/xianxu/pair/cmd/internal/hostty"
 	"github.com/xianxu/pair/cmd/internal/ptychild"
 	"github.com/xianxu/pair/cmd/internal/workbenchshortcut"
 )
@@ -737,7 +738,10 @@ func TestTerminalMuxNewTabClearsPreviousTabViewport(t *testing.T) {
 	mux.drainForTest()
 	mux.closeAll()
 
-	if got := stdout.String(); !strings.HasPrefix(got, "\x1b[1;1H\x1b[J") {
+	// The reset is part of the erase since 2026-09-08: \x1b[J paints with the
+	// CURRENT background, so clearing while a child's colour is active tints the
+	// new tab's screen -- measured with nvim's lualine blue.
+	if got := stdout.String(); !strings.HasPrefix(got, hostty.HomeAndClear) {
 		t.Fatalf("stdout = %q, want new active tab to clear stale viewport", got)
 	}
 }
