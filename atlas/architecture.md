@@ -378,7 +378,7 @@ right pane at 50% width (#123 pivot). It was floating for most of its life —
 covering an invisible tiled filler — but zellij 0.44.3 lets any floating pane
 be dragged off position by its frame with no config gate, so the terminal
 moved into the tiled tree: tiled panes have no mouse-move operation at all,
-making the workbench drag-immune while keeping frames and full mouse support.
+making the workbench drag-immune while keeping the agent pane's frame and full mouse support. (Since `#199` M4 the layout-3 terminal is borderless; drag-immunity comes from the tiled pivot, not from the frame.)
 The filler (and its key-swallowing focus trap) is gone. `Alt+Shift+Enter`
 re-tiles the column boundary between 50% and ~2/3 width via
 `pair layout toggle-focused` — the left stack genuinely narrows and reflows
@@ -515,8 +515,9 @@ output, redraws, paints, diagnostics. A second writer is how a paint lands
 inside a child's escape sequence, since a pty read boundary falls wherever the
 kernel puts it. The gate is a `ptychild.Screen` fed **child bytes only** and
 consulted before any console-originated write; a write issued mid-sequence is
-deferred into a single **coalescing** slot — a later paint replaces an earlier
-one, correct because the row renders current state and queueing would draw a
+deferred. A **paint** goes into a single **coalescing** slot — a later paint
+replaces an earlier one, correct because the row renders current state and
+queueing would draw a
 burst of stale rows at the next boundary — and flushed when the stream reaches
 a boundary. A wholesale takeover (`redrawTab`) resets the scan and **drops** the
 owed paint: the screen it was owed against is gone. That third rule is couch's

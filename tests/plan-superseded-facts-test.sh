@@ -136,6 +136,7 @@ check "$PLAN" 'the shared package M3 extracts' 'extracted in M2' "$REV"
 # commit.
 ATLAS="atlas/architecture.md"
 CONFIG="zellij/config.kdl"
+LAYOUT="zellij/layouts/main-3.kdl"
 check "$ATLAS" 'agent pane and layout-3 terminal.*render frames' 'only the agent pane is framed'
 check "$ATLAS" 'The draft pane opts out via `borderless=true` in both' 'TWO panes opt out'
 
@@ -143,6 +144,16 @@ check "$ATLAS" 'The draft pane opts out via `borderless=true` in both' 'TWO pane
 # DRAFT pane was the only opt-out, which stopped being true when the terminal
 # went borderless at all nine rungs.
 check "$CONFIG" 'scroll offset to plugins or the CLI. The draft pane opts out via' 'TWO panes opt out'
+# BR-72's residual: three more sites asserted the terminal is framed, and the
+# token registered above covered a DIFFERENT sentence in the same file. One
+# token per file is not one token per claim.
+check "$CONFIG" 'keep their frames' 'they are borderless since M4'
+check "$LAYOUT" 'while keeping frames' 'the terminal panes are borderless'
+check "$ATLAS" 'drag-immune while keeping frames and full mouse support' 'keeping the agent pane s frame'
+# BR-33's own paragraph: diagnostics stopped sharing the coalescing slot when
+# they got owedDiag, and the paragraph that described one slot for every
+# console write outlived that by two commits.
+check "$ATLAS" 'deferred into a single \*\*coalescing\*\* slot' 'a PAINT coalesces; diagnostics queue'
 
 check "probes/zellijscrollregion/main.go" 'cmd/probes/zellijscrollregion' 'probes/zellijscrollregion'
 

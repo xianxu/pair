@@ -9,9 +9,11 @@
 //   freeze pane drag/resize) also kills click-to-focus, text selection, the
 //   copy_command clipboard mirror, and scroll — and click-to-focus is the last-resort
 //   escape when keyboard focus lands somewhere unexpected. Split terminal
-//   panes stay pinned and keep their frames (the frame is the only visible
-//   divider between the split halves and carries the tab title); the residual
-//   frame-drag exposure is the accepted trade-off.
+//   panes stay pinned. They are BORDERLESS since pair#199 M4 -- `pair term`
+//   draws its own strip in a reserved row, which carries the tab title the
+//   frame used to and doubles as the divider between split halves, each half
+//   drawing its own. Drag-immunity comes from the tiled pivot (#123), not from
+//   the frame, so removing it costs nothing there.
 // - Suppress "what's new" release-notes popup on version bumps.
 // - Enable pane frames globally so the AGENT pane shows zellij's
 //   scroll-position indicator (top-right) when scrolled — the only way
