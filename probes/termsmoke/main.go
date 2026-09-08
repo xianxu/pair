@@ -86,7 +86,11 @@ func main() {
 	step("Alt+t opens a second tab", "MARKER-TWO", func() { send(altT); send("echo MARKER-TWO\r") })
 	step("Alt+Left repaints tab 1 from its ring", "MARKER-ONE", func() { send(altLeft) })
 	step("Alt+Right repaints tab 2 from its ring", "MARKER-TWO", func() { send(altRight) })
-	step("resize reaches the child", "40 100", func() {
+	// 39, not 40: since pair#199 M3 the bottom row is the tab strip's, and the
+	// child is sized to the pane MINUS that row so it cannot scroll onto it.
+	// This probe asserted 40 and caught the change on the first smoke run after
+	// the strip landed -- which is the point of it running against a real pty.
+	step("resize reaches the child, minus the strip's row", "39 100", func() {
 		_ = pty.Setsize(ptmx, &pty.Winsize{Rows: 40, Cols: 100})
 		send("stty size\r")
 	})
