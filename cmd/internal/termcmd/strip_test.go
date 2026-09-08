@@ -367,3 +367,114 @@ func TestAHeldSaveLeavesTheRowStaleRatherThanCorruptingTheChild(t *testing.T) {
 		t.Fatalf("a paint escaped while the child held a save: %q", rec.String())
 	}
 }
+
+// The rename FIELD is tab state, so it belongs on the strip.
+//
+// Found by cmd/probes/couchnestedrows, not by reasoning: the field was drawn
+// only into the zellij pane TITLE, which lives in the pane FRAME -- and M4
+// takes the frame off at all nine sites. Renaming would have become blind
+// typing the moment M4 landed, with nothing failing to say so.
+func TestTheRenameFieldIsDrawnOnTheStrip(t *testing.T) {
+	m := StripModel{
+		Tabs:   []TabChip{{Name: "one"}, {Name: "two"}},
+		Active: 1,
+		Rename: &RenameField{Tab: 1, Text: "bu│ilt"},
+	}
+	got := RenderStrip(40, m).Body
+	if want := "one [rename: bu│ilt]"; got != want {
+		t.Fatalf("RenderStrip = %q, want %q", got, want)
+	}
+}
+
+// A rename field is OPERATOR text on the same row as everything else, and a
+// paste can carry an escape into it. Same policy as a tab name, not a second
+// one.
+func TestARenameFieldCannotInjectEscapes(t *testing.T) {
+	m := StripModel{
+		Tabs:   []TabChip{{Name: "one"}, {Name: "two"}},
+		Active: 1,
+		Rename: &RenameField{Tab: 1, Text: "a\x1b[31mred"},
+	}
+	if got := RenderStrip(40, m).Body; strings.Contains(got, "\x1b") {
+		t.Fatalf("a rename field reached the row as an escape sequence: %q", got)
+	}
+}
+
+// A narrow pane must not drop the tab the operator is TYPING INTO -- the same
+// rule the active tab already has, for the same reason.
+//
+// The renamed tab is NOT the active one here, and that is the whole test: they
+// are the same tab at the moment a rename opens, so a fixture where they agree
+// passes on the ACTIVE tab's priority alone and says nothing about the rename's
+// (mutation-checked -- it did). They come apart when a background tab exits
+// while a rename is open, which is exactly the case
+// TestTerminalMuxRenameCommitDoesNotRenameReplacementActiveTab covers.
+func TestANarrowPaneKeepsTheRenameFieldVisible(t *testing.T) {
+	m := StripModel{
+		Tabs:   []TabChip{{Name: "aaaaaaaaaa"}, {Name: "bbbbbbbbbb"}, {Name: "cccccccccc"}},
+		Active: 0,
+		Rename: &RenameField{Tab: 2, Text: "zz│"},
+	}
+	if got := RenderStrip(18, m).Body; !strings.Contains(got, "zz│") {
+		t.Fatalf("the rename field was dropped by the width budget: %q", got)
+	}
+}
+
+// An out-of-range rename index marks nothing, the same contract Active carries:
+// a tab can close while its rename is open, and a renderer that panics there
+// takes the pane down with it.
+//
+// NARROW on purpose. At a comfortable width an unguarded index is invisible --
+// the phantom chip is laid out and then never emitted, because the drawing pass
+// walks Tabs. What it costs is BUDGET, so the damage only shows where the budget
+// binds: a real tab dropped to make room for a chip that is not drawn
+// (mutation-checked; the roomy fixture this replaced caught nothing).
+func TestAnOutOfRangeRenameIndexMarksNothing(t *testing.T) {
+	m := StripModel{
+		Tabs:   []TabChip{{Name: "aaaa"}, {Name: "bbbb"}},
+		Active: 1,
+		Rename: &RenameField{Tab: 7, Text: "wwwwwwwwww"},
+	}
+	if got := RenderStrip(14, m).Body; got != "aaaa [bbbb]" {
+		t.Fatalf("RenderStrip = %q, want the plain strip; an out-of-range rename "+
+			"spent the width budget on a chip it never drew", got)
+	}
+}
+
+// Opening, typing into, and committing a rename each repaint the row.
+//
+// The COMMIT case is the defect cmd/probes/couchnestedrows caught end to end:
+// the tab's name changed and the pane title followed it, while the strip went
+// on showing the old name until some unrelated event happened to repaint it.
+func TestEveryRenameStepRepaintsTheStrip(t *testing.T) {
+	for _, tt := range []struct {
+		name string
+		do   func(*terminalMux) error
+		want string
+	}{
+		{"opening", func(m *terminalMux) error { _, _, err := m.beginRename(); return err }, "[rename: two│]"},
+		{"typing", func(m *terminalMux) error {
+			editor := NewRenameEditor("two")
+			editor, _ = editor.Apply(RenameEvent{Kind: RenameInsert, Rune: 'x'})
+			return m.refreshRename(2, editor)
+		}, "[rename: twox│]"},
+		{"committing", func(m *terminalMux) error {
+			return m.finishRename(2, RenameOutcome{Kind: RenameOutcomeCommit, Name: "built"})
+		}, "[built]"},
+	} {
+		t.Run(tt.name, func(t *testing.T) {
+			m, rec := stripMux(t)
+			defer close(m.done)
+			if err := tt.do(m); err != nil {
+				t.Fatalf("%s the rename: %v", tt.name, err)
+			}
+			m.drainForTest()
+			if !strings.Contains(rec.String(), tt.want) {
+				t.Fatalf("%s a rename did not repaint the strip with %q: %q", tt.name, tt.want, rec.String())
+			}
+			if !strings.Contains(rec.String(), "one") {
+				t.Fatalf("%s a rename lost the background tab from the row: %q", tt.name, rec.String())
+			}
+		})
+	}
+}

@@ -3748,3 +3748,47 @@ happened, so the sharper form: **the restore step is the dangerous one, not the
 mutation.** Either commit first (so `checkout` is a real undo), or restore from
 a copy you made yourself rather than from git. After any `git checkout` during a
 mutation check, grep for the fix to confirm it survived.
+
+## 2026-09-08 — A probe's first surprising result is a claim about the INSTRUMENT
+
+`cmd/probes/couchnestedrows` reported, on its first clean run, that `pair term`'s
+tab strip rendered `日本語` as `語` — a wide-character rendering defect, in the
+exact place a wide-character defect was plausible, in a milestone that had
+already produced four real positional bugs. Every prior would have said believe
+it.
+
+It was the harness. `charmbracelet/x/vt` leaks non-ASCII bytes out of an OSC
+payload onto the screen, reproduced standalone in six lines:
+
+```go
+vt.NewEmulator(40, 5) <- "AB\x1b]0;terminal 日本語\aCD"   // renders "AB語CD"
+```
+
+zellij sets the pane title on every rename keystroke, so the row the probe read
+was the tail of the TITLE. Rules:
+
+- **Before believing a new instrument's first failure, write the six-line
+  reproducer for the instrument itself.** It cost five minutes; acting on the
+  reading would have cost a redesign of a renderer that was already correct.
+- The tell is a result too *convenient*: the failure landed precisely on the
+  feature under test, in the one run where the harness itself was also new.
+- Corollary for building probes: a probe that models a terminal must be checked
+  against the sequences its subject actually emits — here OSC, which draws
+  nothing and so must be filtered rather than rendered.
+
+## 2026-09-08 — A feature that borrows another component's surface breaks when that component is removed
+
+`pair term`'s Alt+R rename drew its editor into the zellij pane TITLE. That was
+free and it worked — and it made the rename's UI a property of the pane FRAME,
+which the very next milestone (M4) removes at all nine layout sites. Renaming
+would have become blind typing, with every unit test still green and the earlier
+smoke run still valid, because both were run while the frame was there.
+
+- **When a milestone removes a surface, enumerate everything drawn on it** — not
+  just the thing the milestone is about. The frame carried the pane title; the
+  pane title carried a live editor nobody had listed as a consumer.
+- A feature whose only output goes through another component's chrome has a
+  dependency it never declared. If you own the row, draw on the row.
+- The instrument that found it drove the REAL keystrokes end to end. Neither a
+  unit test nor a code read would have: nothing was wrong with the code, only
+  with where its output landed.

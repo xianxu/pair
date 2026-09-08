@@ -191,6 +191,67 @@ Four milestones, each its own review boundary — detail in
 
 ## Log
 
+- 2026-09-08 M3 **under couch — the two reserved rows compose**, and the answer
+  is measured rather than argued. New instrument:
+  `cmd/probes/couchnestedrows` (`make test-couch-nested-rows`). It is its own
+  outer host — it reserves the bottom row of a real 40-row pty with the real
+  `hostty.Reservation`, runs a real zellij in the 39 that remain, and runs a
+  real `pair term` in the pane — and the verdict reads ROWS off a terminal
+  emulator, because every defect this milestone has produced was positional and
+  raw bytes cannot answer a positional question.
+
+  What it establishes, all green:
+
+  - **The arithmetic composes end to end.** The shell in the pane reports
+    `38 100` in a 40-row host: 40 − 1 (couch's row) − 1 (the strip's). Nothing
+    has to agree about a shared number, because each `Reservation` is computed
+    from its own `Host.Size()` and zellij interprets the pane's DECSTBM into its
+    own grid, so the inner region never reaches the physical terminal.
+  - **Neither row eats the other.** A 400-line flood in the pane reaches
+    neither; the outer row and the strip both hold.
+  - **M3.7(c), finally exercised.** A wide name (`日本語`) renders intact on the
+    strip and a 168-column name truncates to exactly the 100-column pane without
+    wrapping onto couch's row below it.
+
+  **Two defects, one root: the strip did not know about rename.**
+
+  1. **A committed rename did not repaint the strip.** The tab's name changed
+     and the pane title followed it while the row went on showing the old name
+     until some unrelated event happened to repaint it. `finishRename` (and
+     `beginRename`/`refreshRename`) never asked for a paint.
+  2. **The rename FIELD was drawn only into the pane title — i.e. into the pane
+     FRAME, which M4 removes at all nine sites.** Renaming would have become
+     blind typing the moment M4 landed, with nothing failing to say so. This is
+     the one that justifies the probe: it is invisible to every unit test and
+     invisible to a smoke run done before M4.
+
+  Fixed together, because they are the same fact: `StripModel.Rename` carries
+  the live field, `RenameEditor.Field` composes the caret ONCE for both surfaces
+  (the strip and the degraded title, which used to compose it themselves), and
+  each rename step posts a paint through the writer loop — posted, not inline,
+  since the rename runs on the stdin pump goroutine and an inline write there is
+  the second writer M2 exists to prevent. The renamed tab also joins the ACTIVE
+  tab at the head of the width budget: a narrow pane must not drop the field the
+  operator is typing into.
+
+  **An instrument defect, found before it was believed.** The first run reported
+  the strip rendering as `語` and `語│]` — a rendering bug that does not exist.
+  `charmbracelet/x/vt` leaks NON-ASCII bytes out of an OSC payload onto the
+  screen: `vt.NewEmulator(40,5) <- "AB\x1b]0;terminal 日本語\aCD"` renders
+  `AB語CD`, reproduced standalone. zellij sets the pane title on every rename
+  keystroke, so the row read as the tail of the TITLE. The probe now strips OSC
+  before the model (an OSC draws nothing, so dropping it models a terminal that
+  parses it correctly). Worth stating as a rule: **a probe's first surprising
+  result is a claim about the instrument until the instrument is checked.**
+
+  Eight mutations run against the five new tests; **two passed for accidental
+  reasons** and were rewritten. `TestANarrowPaneKeepsTheRenameFieldVisible` had
+  the renamed tab and the active tab as the same tab, so it passed on the active
+  tab's priority alone and said nothing about the rename's.
+  `TestAnOutOfRangeRenameIndexMarksNothing` was roomy, and an unguarded index
+  costs BUDGET rather than correctness — invisible until the width binds. Both
+  now fail when their guard is removed.
+
 - 2026-09-08 M3 smoke test, operator-run in a real layout3 pane. **The strip
   works**: tabs render, the active one is bracketed, and every binding (alt+t,
   alt+left/right, alt+w, rename) behaves. nvim confirmed working — it survives

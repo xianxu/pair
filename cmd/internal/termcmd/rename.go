@@ -59,6 +59,23 @@ func (e RenameEditor) Original() string {
 	return e.original
 }
 
+// Field is the editor as a SURFACE draws it: the text with the caret in it.
+//
+// One function, because there are now two surfaces -- the tab strip and the
+// degraded pane title -- and a caret drawn two ways is a caret that disagrees
+// with itself at exactly the moments the operator is looking at it. It also
+// clamps the cursor once here rather than at each drawing site.
+func (e RenameEditor) Field() string {
+	cursor := e.cursor
+	if cursor < 0 {
+		cursor = 0
+	}
+	if cursor > len(e.text) {
+		cursor = len(e.text)
+	}
+	return string(e.text[:cursor]) + "│" + string(e.text[cursor:])
+}
+
 func (e RenameEditor) Apply(event RenameEvent) (RenameEditor, RenameOutcome) {
 	e.text = append([]rune(nil), e.text...)
 	switch event.Kind {

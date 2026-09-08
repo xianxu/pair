@@ -24,6 +24,20 @@ type TabChip struct {
 	Name string
 }
 
+// RenameField is a rename in progress as the strip draws it.
+//
+// It sits on the model rather than on TabChip because it is a MODE the row is
+// in: at most one tab is being renamed, and the row says so in that tab's place.
+type RenameField struct {
+	// Tab indexes Tabs, with the same out-of-range contract Active carries and
+	// for the same reason -- a background tab exiting reindexes the slice while
+	// a rename is open.
+	Tab int
+	// Text is the field with its caret already composed, by RenameEditor.Field.
+	// OPERATOR-SUPPLIED, so it goes through rowtext exactly as a name does.
+	Text string
+}
+
 // StripModel is everything the row shows.
 type StripModel struct {
 	Tabs []TabChip
@@ -31,6 +45,13 @@ type StripModel struct {
 	// between building this model and drawing it, and a renderer that panics
 	// there takes the pane down with it. Out of range marks nothing.
 	Active int
+	// Rename is the tab being renamed and what the operator has typed, or nil.
+	//
+	// The strip owns this because the row is where tab state lives now. It used
+	// to be drawn ONLY into the zellij pane title -- i.e. into the pane FRAME,
+	// which M4 removes -- so the field had no surface at all once the frame came
+	// off (found by cmd/probes/couchnestedrows).
+	Rename *RenameField
 }
 
 // TabSpan is where a tab was drawn, in DISPLAY COLUMNS.
@@ -59,16 +80,25 @@ func RenderStrip(width int, m StripModel) RenderedStrip {
 		return RenderedStrip{}
 	}
 
-	// The ACTIVE tab is placed first in the budget, then the others fill what
-	// remains. A narrow pane must never drop the tab the operator is looking at
-	// -- that is the one piece of information the strip exists to carry, and
-	// left-to-right truncation loses it precisely when tabs are numerous.
+	// The tab being RENAMED and then the ACTIVE tab are placed first in the
+	// budget, and the others fill what remains. A narrow pane must never drop
+	// the tab the operator is looking at, still less the field they are typing
+	// into -- and left-to-right truncation loses them precisely when tabs are
+	// numerous.
 	order := make([]int, 0, len(m.Tabs))
-	if m.Active >= 0 && m.Active < len(m.Tabs) {
-		order = append(order, m.Active)
+	placed := make(map[int]bool, 2)
+	first := func(i int) {
+		if i >= 0 && i < len(m.Tabs) && !placed[i] {
+			placed[i] = true
+			order = append(order, i)
+		}
 	}
+	if m.Rename != nil {
+		first(m.Rename.Tab)
+	}
+	first(m.Active)
 	for i := range m.Tabs {
-		if i != m.Active {
+		if !placed[i] {
 			order = append(order, i)
 		}
 	}
@@ -126,6 +156,9 @@ func RenderStrip(width int, m StripModel) RenderedStrip {
 // log, and to a colour-blind operator, and "which tab am I in" is the whole
 // point of the row.
 func chipLabel(m StripModel, i int) string {
+	if m.Rename != nil && m.Rename.Tab == i {
+		return "[rename: " + rowtext.Sanitize(m.Rename.Text) + "]"
+	}
 	name := rowtext.Sanitize(m.Tabs[i].Name)
 	if i == m.Active {
 		return "[" + name + "]"

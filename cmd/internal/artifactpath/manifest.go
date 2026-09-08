@@ -714,6 +714,8 @@ var NonArtifactSources = []string{
 	"cmd/internal/zellijpane/zellijpane.go",
 	"cmd/pair-go/main.go",
 	"cmd/pair-launch-helper/main.go",
+	"cmd/probes/couchnestedrows/layout.kdl",
+	"cmd/probes/couchnestedrows/main.go",
 	"cmd/probes/couchstartrecovery/main.go",
 	"cmd/probes/termctrlc/main.go",
 	"cmd/probes/termrows/main.go",

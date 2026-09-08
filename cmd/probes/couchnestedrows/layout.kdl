@@ -1,0 +1,11 @@
+layout {
+    // One pane, the whole session, running the real `pair term`.
+    //
+    // borderless: a frame would put zellij's own border on the pane's last row
+    // and push the tab strip up one, which makes the geometry this probe
+    // measures a fact about frames rather than about the two reservations.
+    // It is also where M4 lands the production layout anyway.
+    pane command="PAIR_BIN" borderless=true {
+        args "term"
+    }
+}

@@ -80,9 +80,15 @@ test-couch-zellij-live:
 test-perf-capture: $(BIN_DIR)/pair
 	sh doctor/perf_test.sh
 
-.PHONY: test-couch-start-recovery test-term-ctrlc test-term-rows
+.PHONY: test-couch-start-recovery test-term-ctrlc test-term-rows test-couch-nested-rows
 test-term-ctrlc: $(BIN_DIR)/pair
 	go run ./cmd/probes/termctrlc $(CURDIR)/$(BIN_DIR)/pair
+
+# Two reserved rows, one above the other: couch holds the HOST terminal's bottom
+# row and `pair term` holds its PANE's. Its own target rather than test-smoke
+# because it starts a real zellij session and takes ~40s (#199 M3).
+test-couch-nested-rows: $(BIN_DIR)/pair
+	go run ./cmd/probes/couchnestedrows $(CURDIR)/$(BIN_DIR)/pair
 
 test-term-rows: $(BIN_DIR)/pair
 	go run ./cmd/probes/termrows $(CURDIR)/$(BIN_DIR)/pair

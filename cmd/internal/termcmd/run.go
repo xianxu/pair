@@ -1148,12 +1148,23 @@ func (m *terminalMux) beginRename() (int, RenameEditor, error) {
 	m.rename = &activeRename{tabID: tabID, editor: editor}
 	title := m.renamePaneTitleLocked(tabID, editor)
 	m.mu.Unlock()
+	// The ROW first, the pane title second -- in all three rename steps. The row
+	// is the surface the operator reads (and after M4 takes the frame off, the
+	// only one), while the title costs a `zellij action` subprocess round-trip;
+	// painting behind that would make the field lag the keystroke that caused
+	// it. POSTED, not inline: rename runs on the stdin pump goroutine, and a
+	// direct write there is the second writer to the pane that M2 exists to
+	// prevent.
+	m.paintStrip()
 	if err := m.setPaneTitle(title); err != nil {
 		m.mu.Lock()
 		if m.rename != nil && m.rename.tabID == tabID {
 			m.rename = nil
 		}
 		m.mu.Unlock()
+		// The rename never started, so the field just painted is wrong; this is
+		// the correction, not a second opinion.
+		m.paintStrip()
 		return 0, RenameEditor{}, fmt.Errorf("start terminal tab rename: %w", err)
 	}
 	return tabID, editor, nil
@@ -1164,6 +1175,7 @@ func (m *terminalMux) refreshRename(tabID int, editor RenameEditor) error {
 	m.rename = &activeRename{tabID: tabID, editor: editor}
 	title := m.renamePaneTitleLocked(tabID, editor)
 	m.mu.Unlock()
+	m.paintStrip()
 	if err := m.setPaneTitle(title); err != nil {
 		return fmt.Errorf("refresh terminal tab rename: %w", err)
 	}
@@ -1180,6 +1192,7 @@ func (m *terminalMux) finishRename(tabID int, outcome RenameOutcome) error {
 	m.rename = nil
 	title := m.paneTitleLocked()
 	m.mu.Unlock()
+	m.paintStrip()
 	if err := m.setPaneTitle(title); err != nil {
 		return fmt.Errorf("finish terminal tab rename: %w", err)
 	}
@@ -1372,13 +1385,28 @@ func (m *terminalMux) reservationLocked() hostty.Reservation {
 	return res
 }
 
-// stripModelLocked snapshots what the row should say.
+// stripModelLocked snapshots what the row should say, INCLUDING a rename in
+// progress. The index is resolved here, from the tab ID the rename holds,
+// because a background tab exiting reindexes the slice while a rename is open.
 func (m *terminalMux) stripModelLocked() StripModel {
 	tabs := make([]TabChip, 0, len(m.tabs))
 	for _, t := range m.tabs {
 		tabs = append(tabs, TabChip{Name: t.name})
 	}
-	return StripModel{Tabs: tabs, Active: m.active}
+	model := StripModel{Tabs: tabs, Active: m.active}
+	if m.rename != nil {
+		// Not found leaves Tab at -1, which the renderer treats as marking
+		// nothing -- the same contract as an out-of-range Active.
+		field := RenameField{Tab: -1, Text: m.rename.editor.Field()}
+		for i, t := range m.tabs {
+			if t.id == m.rename.tabID {
+				field.Tab = i
+				break
+			}
+		}
+		model.Rename = &field
+	}
+	return model
 }
 
 // paintStrip renders the row and posts it through the writer loop.
@@ -1506,15 +1534,7 @@ func (m *terminalMux) renamePaneTitleLocked(tabID int, editor RenameEditor) stri
 	if len(m.tabs) == 0 {
 		return ""
 	}
-	text := []rune(editor.Text())
-	cursor := editor.Cursor()
-	if cursor < 0 {
-		cursor = 0
-	}
-	if cursor > len(text) {
-		cursor = len(text)
-	}
-	field := string(text[:cursor]) + "│" + string(text[cursor:])
+	field := editor.Field()
 	parts := make([]string, 0, len(m.tabs))
 	found := false
 	for _, tab := range m.tabs {

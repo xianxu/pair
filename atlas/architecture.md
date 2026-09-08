@@ -494,6 +494,17 @@ mechanism sits in two packages that both drive:
   zellij honors DECSTBM from a pane process — 200 lines scrolled inside the
   region while the reserved row held its paint (`#199` finding 5).
 
+  **And two reservations NEST**, which is the arrangement couch actually
+  produces: couch holds the HOST terminal's bottom row, `pair term` holds its
+  PANE's, and they compose because each is computed from its own `Host.Size()`
+  rather than from a number the two would have to agree on. zellij is what makes
+  them independent — it interprets the pane's DECSTBM into its own grid, so the
+  inner region never reaches the physical terminal. Measured, again, rather than
+  argued: `cmd/probes/couchnestedrows` (`make test-couch-nested-rows`) reserves
+  a row on a real 40-row pty, runs a real zellij in the 39 that remain, and runs
+  a real `pair term` in the pane — the shell reports `38 100`, a 400-line flood
+  reaches neither row, and neither row eats the other.
+
 **One writer, one gate — in `termcmd` as in `couch` (`#199` M2).** Every byte
 reaching the right pane passes through `terminalMux.copyActiveOutput`: child
 output, redraws, paints, diagnostics. A second writer is how a paint lands
@@ -538,6 +549,18 @@ producer. Filtering one producer only moves the hazard to the next.
   diagnostic path above. It is a package rather than a helper because
   `couchtty`'s originals were unexported and so unreachable from `termcmd`, and
   a second copy of a security-relevant strip is exactly the outcome to avoid.
+
+**The strip carries the rename FIELD, not only the tab names** (`#199` M3).
+`Alt+R` used to draw its editor into the pane TITLE alone, via `zellij action
+rename-pane` — which is to say into the pane FRAME, the thing M4 removes at all
+nine `name="terminal"` sites. So the field moved onto the row that already
+carries tab state, and `RenameEditor.Field` composes the caret once for both
+surfaces rather than each drawing its own. The same change fixed a defect the
+strip had independently of M4: a rename that COMMITTED updated the tab and the
+title and left the row showing the old name until some unrelated event happened
+to repaint it. Found end to end by `cmd/probes/couchnestedrows`, which is the
+argument for owning a surface rather than borrowing one — a borrowed surface
+disappears when its owner does.
 
 **A console write waits on TWO conditions, not one** (`#199` M3). Mid-sequence
 is the familiar one. The second is that **the child holds a cursor save**: the

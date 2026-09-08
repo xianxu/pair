@@ -637,7 +637,10 @@ func TestEveryTerminalPaneRungIsBorderless(t *testing.T) {
 - [ ] **M4.3: Manual, and this is the acceptance** — a real layout3 workbench:
       the pane has no frame; the strip is legible and identifies the pane; the
       layout rungs (`Alt+Up`/`Alt+Down`) do not reframe it; `nvim` in the pane
-      still behaves. Record what was seen.
+      still behaves; and **`Alt+R` renames a tab with the field visible**, which
+      is the one thing taking the frame off would otherwise silently break (the
+      field used to live in the frame — see the 2026-09-08 revision). Record
+      what was seen.
 - [ ] **M4.4:** Update `atlas/architecture.md` — the row primitive is shared
       host-half structure (alongside the existing `\x1b[r` note), and
       `config.kdl`'s comment that frames are global *for the scroll indicator*
@@ -1021,3 +1024,39 @@ after a probe answered the one question that made the whole design speculative.
    discussion 2026-09-07; the plan's existing design is unchanged by it.
 3. **No milestone content changed.** M1-M4 stand as written and as previously
    plan-gated.
+
+### 2026-09-08 — M3 under couch: the composition is measured, and the strip takes the rename field
+
+**Reason.** M3's open item was the only one no unit test could reach: under
+couch there are TWO reserved rows, on two different terminals. The standalone
+smoke run could not see it, so the question was answered by building the
+instrument instead of by reasoning about it.
+
+**Delta to the plan:**
+
+1. **M3.7(c) and the couch composition are both closed by
+   `cmd/probes/couchnestedrows`** (`make test-couch-nested-rows`), a new probe
+   under `cmd/probes/` — it must import `hostty` to reserve with the REAL
+   primitive, which Go forbids from `probes/`, and it takes `bin/pair` as an
+   argument. `atlas/index.md`'s "one exception" note is corrected to state both
+   reasons a probe lives there.
+
+2. **The verdict reads a terminal EMULATOR, not bytes.** Every defect this
+   milestone produced was positional, and raw bytes cannot answer a positional
+   question. Result: the shell reports `38 100` in a 40-row host, a 400-line
+   flood reaches neither reserved row, `日本語` renders intact, and a
+   168-column name truncates to the pane without wrapping onto couch's row.
+
+3. **M3 gains the rename field on the strip** — the probe's finding, and it is
+   a PREREQUISITE FOR M4 rather than polish. The field was drawn only into the
+   zellij pane TITLE, which is the pane FRAME, which M4 removes at all nine
+   sites: shipping M4 as written would have made renaming blind typing with
+   nothing failing to say so. `StripModel.Rename` carries it,
+   `RenameEditor.Field` composes the caret once for both surfaces, and each
+   rename step posts a paint. The same change fixes a defect M4 had nothing to
+   do with: a COMMITTED rename left the row showing the old name.
+
+4. **M4.3's manual acceptance gains one line** — rename a tab with the frame
+   off — because that is the case M4 would otherwise regress silently.
+
+5. **No other milestone content changed.** M4 stands as written.
