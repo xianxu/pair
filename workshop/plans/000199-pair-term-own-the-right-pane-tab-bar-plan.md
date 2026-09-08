@@ -540,8 +540,8 @@ func TestGateIsNotFedOurOwnWrites(t *testing.T) {
       stdout AND stderr both land there rather than on the pane's descriptors.
       This is what `TestOnlyOneGoroutineWritesTheHost` structurally cannot see.
 - [x] **M2.4:** `go test ./cmd/internal/termcmd/ -count=1 -race` — the race detector is the point, not decoration.
-- [ ] **M2.5: Manual** — switch tabs rapidly under load (`yes` in one tab) and confirm no corruption. Record what was observed in `## Log`, not "it worked".
-- [ ] **M2.6: Commit**, `sdlc milestone-close --issue 199 --milestone M2`.
+- [x] **M2.5: Manual** — switch tabs rapidly under load (`yes` in one tab) and confirm no corruption. Record what was observed in `## Log`, not "it worked".
+- [x] **M2.6: Commit**, `sdlc milestone-close --issue 199 --milestone M2`.
 
 ## M3 — the strip
 
