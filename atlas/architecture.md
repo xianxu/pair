@@ -539,18 +539,25 @@ producer. Filtering one producer only moves the hazard to the next.
   `couchtty`'s originals were unexported and so unreachable from `termcmd`, and
   a second copy of a security-relevant strip is exactly the outcome to avoid.
 
-**Every door to the pane is enumerated, not remembered.** A write to the pane
-either passes the gate (`writeOwn` / `writeDiag` / `flushOwed`) or carries a
-`gate-exempt: <reason>` marker, and `TestEveryConsoleWriteIsGatedOrExplicitlyExempt`
-reads the source and fails on anything else. There are exactly three exemptions
-and each is a different kind: the **child's own output** (not a user of the gate
-but the thing it models — gating a child against its own stream state would
-deadlock it against itself), the **takeover** (`HomeAndClear` discards the
-screen the old scan described, and the reset happens first, which is what earns
+**A new door to the pane is a COMPILE ERROR.** `paneWriter` holds the pane's fd
+and is deliberately not an `io.Writer`: with no `Write` method,
+`fmt.Fprintf(m.pane, …)`, `io.WriteString(m.pane, …)` and `m.pane.Write(…)` do
+not compile. Every write states a reason at the call site — the gated writers
+(`writeOwn`/`writeDiag`/`flushOwed`) pass their own, and there are exactly three
+exemptions, each a different kind: the **child's own output** (not a user of the
+gate but the thing it *models* — gating a child against its own stream state
+deadlocks it against itself), the **takeover** (`HomeAndClear` discards the
+screen the old scan described, and the reset runs first, which is what earns
 it), and **teardown** (the loop may already be gone, and a half-restored
-terminal is worse than an ungated write). The instrument exists because fixing
-each ungated write the reviewer happened to name left the next one for the next
-reviewer — twice.
+terminal beats an ungated write).
+
+This replaced a test that SCANNED the source for `m.stdout`, and the reason is
+worth keeping: the scan missed `fmt.Fprintf` — the most idiomatic spelling, and
+the one this file used before the milestone — read only one file while the
+package was about to gain another, and could be satisfied by an unrelated
+comment. **Scanning for violations is weaker than making them unrepresentable.**
+Both instruments exist because fixing each ungated write a reviewer happened to
+name left the next one for the next reviewer, three rounds running.
 
 **What is shared is structure; what stays is policy.** `termcmd` keeps numbered
 tabs, rename, the zellij pane title, and exit-when-empty; `couch` switches named

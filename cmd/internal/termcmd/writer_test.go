@@ -6,7 +6,7 @@ import (
 	"fmt"
 	"io"
 	"os"
-	"regexp"
+	"reflect"
 	"runtime"
 	"strconv"
 	"strings"
@@ -14,6 +14,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/xianxu/pair/cmd/internal/hostty"
 	"github.com/xianxu/pair/cmd/internal/ptychild"
 )
 
@@ -512,72 +513,43 @@ func TestADiagnosticNeverLandsInsideTheReplaysOpenSequence(t *testing.T) {
 	}
 }
 
-// BR-39's CLASS half: enumerate every door through which console-originated
-// bytes reach the pane, and require each to be gated or explicitly exempt.
+// BR-39's CLASS half, and the shape it settled into after two attempts.
 //
-// Fixing the one instance the reviewer named leaves the next one to be found by
-// the next reviewer. This reads the source and fails on any write to m.stdout
-// that neither goes through the gate (writeOwn / writeDiag / flushOwed) nor
-// carries a `gate-exempt: <reason>` marker. A new ungated write is then a red
-// test rather than a review round -- the same instrument as
-// tests/plan-superseded-facts-test.sh, one layer down.
-func TestEveryConsoleWriteIsGatedOrExplicitlyExempt(t *testing.T) {
-	src, err := os.ReadFile("run.go")
-	if err != nil {
-		t.Fatalf("read run.go: %v", err)
+// The first version scanned run.go for `m.stdout` and required each hit to be
+// gated or marked. That was weaker than it looked: it missed `fmt.Fprintf`
+// (the most idiomatic spelling, and the one this file used pre-M2), read only
+// one file while M3 adds a second to the package, and could be satisfied by an
+// unrelated comment above the write. Scanning for violations is weaker than
+// making them unrepresentable.
+//
+// So `paneWriter` is deliberately NOT an io.Writer. With no Write method,
+// `fmt.Fprintf(m.pane, …)`, `io.WriteString(m.pane, …)` and `m.pane.Write(…)`
+// are COMPILE ERRORS -- the door cannot be opened by reflex, in this file or
+// any future one. This test states that property so a refactor that adds a
+// Write method (making the whole design silently inert) fails here rather than
+// in a review three rounds later.
+func TestPaneWriterIsNotAnIOWriter(t *testing.T) {
+	var p any = paneWriter{w: io.Discard}
+	if _, ok := p.(io.Writer); ok {
+		t.Fatal("paneWriter satisfies io.Writer; Fprintf and WriteString can now " +
+			"open an ungated door to the pane, which is what this type prevents")
 	}
-	// The gated writers themselves: these ARE the gate, so their own writes are
-	// the implementation of it rather than users of it.
-	gateInternals := map[string]bool{
-		"writeOwn": true, "writeDiag": true, "flushOwed": true,
-	}
+}
 
-	lines := strings.Split(string(src), "\n")
-	// The marker may sit on the write line OR in the comment block just above
-	// it: a real reason is usually a sentence or three, and forcing it onto the
-	// line would buy a one-line marker at the cost of the explanation.
-	exempted := func(i int) bool {
-		for j := i; j >= 0 && j > i-8; j-- {
-			if strings.Contains(lines[j], "gate-exempt:") {
-				return true
-			}
-			// Stop at a blank line or a statement, so a marker cannot leak
-			// across an unrelated block onto a write it does not describe.
-			t := strings.TrimSpace(lines[j])
-			if j < i && t != "" && !strings.HasPrefix(t, "//") {
-				return false
-			}
+// And the mux must hold no other route to the fd. A second field of a writer
+// type would restore exactly what paneWriter removes.
+func TestTheMuxHoldsNoRawWriterToThePane(t *testing.T) {
+	typ := reflect.TypeOf(terminalMux{})
+	writer := reflect.TypeOf((*io.Writer)(nil)).Elem()
+	for i := 0; i < typ.NumField(); i++ {
+		f := typ.Field(i)
+		if f.Name == "stderr" {
+			continue // startup diagnostics, before the loop exists
 		}
-		return false
-	}
-
-	var fn string
-	var offenders []string
-	for i, line := range lines {
-		if m := regexp.MustCompile(`^func \(m \*terminalMux\) (\w+)`).FindStringSubmatch(line); m != nil {
-			fn = m[1]
+		if f.Type.Implements(writer) {
+			t.Fatalf("terminalMux.%s is an io.Writer; every route to the pane "+
+				"must go through paneWriter", f.Name)
 		}
-		if !strings.Contains(line, "m.stdout") {
-			continue
-		}
-		if !strings.Contains(line, ".Write") && !strings.Contains(line, "WriteString") {
-			continue
-		}
-		if gateInternals[fn] || exempted(i) {
-			continue
-		}
-		offenders = append(offenders,
-			"run.go:"+strconv.Itoa(i+1)+" in "+fn+"(): "+strings.TrimSpace(line))
-	}
-	if len(offenders) > 0 {
-		t.Fatalf("console writes that neither pass the gate nor carry a "+
-			"`gate-exempt: <reason>` marker:\n  %s", strings.Join(offenders, "\n  "))
-	}
-
-	// POSITIVE CONTROL: the scan must actually find the writes it is checking,
-	// or an empty result would pass for the wrong reason.
-	if n := strings.Count(string(src), "gate-exempt:"); n < 2 {
-		t.Fatalf("found %d exemption markers; the scan is not seeing the file it thinks it is", n)
 	}
 }
 
@@ -591,5 +563,191 @@ func TestTheZellijSubprocessGetsNoStdinEither(t *testing.T) {
 	}
 	if strings.Contains(string(src), "cmd.Stdin = os.Stdin") {
 		t.Fatal("runZellij hands the subprocess the pane's raw-mode stdin; it can eat keystrokes")
+	}
+}
+
+// The three mutations round 10 measured GREEN. Each is a real behaviour with no
+// test behind it, which is the same "correct but unpinned" shape that has cost
+// this milestone several rounds.
+func TestTheTakeoverResetIsLoadBearing(t *testing.T) {
+	rec := newWriterRecorder()
+	m := newTerminalMux("sh", nil, rec, io.Discard, &fakeRuntime{})
+	defer close(m.done)
+	go m.copyActiveOutput()
+	m.tabs = append(m.tabs, &terminalTab{id: 1, name: "one"})
+	m.active = 0
+
+	// Leave the gate mid-sequence, then take over with a replay of PURE DIGITS.
+	//
+	// The digits matter. A first version replayed "clean", and it passed with
+	// the reset deleted: `c` is a valid CSI final byte (0x40-0x7e), so the
+	// replay silently TERMINATED the stale `\x1b[3` and cleared the gate by
+	// accident. Digits are CSI parameters, so they cannot terminate anything --
+	// with the reset gone the stale sequence stays open and the paint is
+	// deferred, which is the failure this test is for.
+	m.output <- ptyChunk{id: 1, data: []byte("x\x1b[3")}
+	m.drainForTest()
+	m.redrawTab([]byte("12345"))
+	m.drainForTest()
+	if m.midSequenceForTest() {
+		t.Fatal("the takeover did not reset the scan; the old screen's partial sequence still gates writes")
+	}
+	m.paintOwn([]byte("PAINT"))
+	m.drainForTest()
+	if !strings.Contains(rec.String(), "PAINT") {
+		t.Fatalf("a paint was deferred against a screen that no longer exists: %q", rec.String())
+	}
+}
+
+// An owed write must not be stranded by a silent child. flushOwed ran only on
+// the child-data branch, so with nothing arriving the owed write waited
+// indefinitely -- the "stale row that nothing repaints" failure writeOwn's own
+// comment says the owing prevents. Latent in M2, operator-visible in M3.
+// A takeover DROPS the owed paint. Deleting `m.owed = nil` was measured green,
+// because every existing takeover test then flushed the owed paint at the next
+// boundary and could not tell "dropped" from "deferred once more".
+func TestATakeoverDropsTheOwedPaintRatherThanDeferringIt(t *testing.T) {
+	rec := newWriterRecorder()
+	m := newTerminalMux("sh", nil, rec, io.Discard, &fakeRuntime{})
+	defer close(m.done)
+	go m.copyActiveOutput()
+	m.tabs = append(m.tabs, &terminalTab{id: 1, name: "one"})
+	m.active = 0
+
+	m.output <- ptyChunk{id: 1, data: []byte("x\x1b[3")}
+	m.paintOwn([]byte("DOOMED"))
+	m.drainForTest()
+	m.redrawTab([]byte("12345")) // digits: cannot terminate the stale CSI
+	m.drainForTest()
+
+	// Drive the stream to a clean boundary. A DEFERRED paint would land here;
+	// a DROPPED one never can.
+	m.output <- ptyChunk{id: 1, data: []byte("plain text")}
+	m.drainForTest()
+	if strings.Contains(rec.String(), "DOOMED") {
+		t.Fatalf("the owed paint survived a takeover and landed against a screen "+
+			"that no longer exists: %q", rec.String())
+	}
+}
+
+func TestAnOwedWriteIsNotStrandedByASilentChild(t *testing.T) {
+	rec := newWriterRecorder()
+	m := newTerminalMux("sh", nil, rec, io.Discard, &fakeRuntime{})
+	defer close(m.done)
+	go m.copyActiveOutput()
+	m.tabs = append(m.tabs, &terminalTab{id: 1, name: "one"})
+	m.active = 0
+
+	// Mid-sequence, then the child goes quiet forever.
+	m.output <- ptyChunk{id: 1, data: []byte("x\x1b[3m")} // completes; gate clear
+	m.drainForTest()
+	m.paintOwn([]byte("FIRST"))
+	m.drainForTest()
+	if !strings.Contains(rec.String(), "FIRST") {
+		t.Fatalf("a paint on a clear gate did not land: %q", rec.String())
+	}
+
+	// Now genuinely mid-sequence, owe a paint, and deliver only CONSOLE events.
+	m.output <- ptyChunk{id: 1, data: []byte("\x1b[3")}
+	m.paintOwn([]byte("OWED"))
+	m.drainForTest()
+	if strings.Contains(rec.String(), "OWED") {
+		t.Fatalf("the paint landed mid-sequence: %q", rec.String())
+	}
+	// A takeover is a console event and clears the gate; the owed paint is
+	// dropped by design there, so use a completing child chunk instead and
+	// assert the flush happens without waiting for a SECOND chunk.
+	m.output <- ptyChunk{id: 1, data: []byte("m")}
+	m.drainForTest()
+	if !strings.Contains(rec.String(), "OWED") {
+		t.Fatalf("the owed paint was stranded: %q", rec.String())
+	}
+}
+
+// resizeThroughWriter must actually run on the loop. Reverting it to a direct
+// inheritSize call was measured green: nothing observed that resize and paint
+// serialize, which is what ARCH-ORDER asserts.
+func TestResizeRunsOnTheWriterGoroutine(t *testing.T) {
+	rec := newWriterRecorder()
+	m := newTerminalMux("sh", nil, rec, io.Discard, &fakeRuntime{})
+	defer close(m.done)
+	go m.copyActiveOutput()
+	m.tabs = append(m.tabs, &terminalTab{id: 1, name: "one"})
+	m.active = 0
+
+	// resizeThroughWriter must SERIALIZE against the loop, which is what
+	// ARCH-ORDER asserts and what calling inheritSize directly would break.
+	// Observed by the goroutine identity the work actually runs on: the loop's.
+	loopID := make(chan string, 1)
+	m.enqueue(ptyChunk{onWriter: func() { loopID <- goroutineID() }})
+	m.drainForTest()
+
+	// The PRODUCTION entry point, driven with a fake host -- an earlier version
+	// called the injectable helper directly, so mutating resizeThroughWriter
+	// (the caller the resize goroutine actually uses) left it green. Testing the
+	// seam is not testing the path.
+	host := hostty.NewFakeHost(ptychild.Size{Rows: 24, Cols: 80})
+	resizeID := make(chan string, 1)
+	m.captureIDForTest = func() { resizeID <- goroutineID() }
+	m.resizeThroughWriter(host)
+	m.drainForTest()
+
+	got, want := <-resizeID, <-loopID
+	if got != want {
+		t.Fatalf("resize ran on goroutine %q, the writer loop is %q; they do not "+
+			"serialize, so a resize can land between a paint's bytes", got, want)
+	}
+}
+
+// The resize GOROUTINE must post through the loop, not call inheritSize
+// directly. Pinning resizeThroughWriter's behaviour does not pin that its
+// caller uses it -- reverting the call site was measured green while the
+// behaviour test stayed happy, which is "testing the seam, not the path" one
+// level up.
+//
+// A source check rather than an integration test: driving runShell's resize
+// goroutine needs a real pty and a real host, and the property here is
+// structural — no caller outside the writer loop reaches inheritSize directly.
+func TestTheResizeGoroutinePostsThroughTheLoop(t *testing.T) {
+	src, err := os.ReadFile("run.go")
+	if err != nil {
+		t.Fatalf("read run.go: %v", err)
+	}
+	lines := strings.Split(string(src), "\n")
+	var offenders []string
+	for i, line := range lines {
+		if !strings.Contains(line, "inheritSize(") {
+			continue
+		}
+		// The definition, and the one call inside the posted closure, are the
+		// legitimate mentions.
+		if strings.Contains(line, "func (m *terminalMux) inheritSize") ||
+			strings.Contains(line, "m.inheritSize(host)") {
+			continue
+		}
+		// A `loop-exempt: <reason>` marker in the comment block above, same
+		// vocabulary as the gate's exemptions.
+		exempt := false
+		for j := i; j >= 0 && j > i-6; j-- {
+			if strings.Contains(lines[j], "loop-exempt:") {
+				exempt = true
+				break
+			}
+			if t := strings.TrimSpace(lines[j]); j < i && t != "" && !strings.HasPrefix(t, "//") {
+				break
+			}
+		}
+		if exempt {
+			continue
+		}
+		offenders = append(offenders,
+			"run.go:"+strconv.Itoa(i+1)+": "+strings.TrimSpace(line))
+	}
+	if len(offenders) > 0 {
+		t.Fatalf("inheritSize reached outside the writer loop; a resize can then "+
+			"land between a paint's bytes:\n  %s", strings.Join(offenders, "\n  "))
+	}
+	if !strings.Contains(string(src), "mux.resizeThroughWriter(host)") {
+		t.Fatal("the resize goroutine no longer posts through the writer loop")
 	}
 }

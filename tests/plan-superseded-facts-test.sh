@@ -61,8 +61,12 @@ check "$PLAN" 'consumers at$' 'the derived set in finding 9' "$REV"
 # pair#199 BR-28: M2 fixed the subprocess writers at the RUNTIME, not by routing
 # termcmd's call sites through Quiet -- the first form of the step, which the
 # plan kept describing after the code stopped doing it.
+#
+# NB: a token that never appeared in any revision of the file is worse than no
+# entry -- it reads as coverage while being unable to fire. One such entry
+# ('route only stdout through') was removed after `git log -S` found it in no
+# revision. Add a pair only for prose the plan ACTUALLY carried.
 check "$PLAN" 'Route every `RunZellijAction` call in `termcmd`' 'make the Runtime incapable' "$REV"
-check "$PLAN" 'route only stdout through' 'both descriptors, captured into the error' "$REV"
 
 # pair#199: rowtext was extracted in M2 (the diagnostic path needed it), not M3,
 # and couchtty's unexported originals are gone rather than merely unreachable.

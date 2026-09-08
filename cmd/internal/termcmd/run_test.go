@@ -455,7 +455,7 @@ func TestTerminalMuxChildOutputDoesNotRestoreTitleDuringRename(t *testing.T) {
 	stdout := &lockedWriter{}
 	rt := &fakeRuntime{}
 	mux := &terminalMux{
-		stdout: stdout,
+		pane:   paneWriter{w: stdout},
 		rt:     rt,
 		output: make(chan ptyChunk, 1),
 		done:   make(chan struct{}),
@@ -668,8 +668,8 @@ func TestTerminalMuxSwitchTabAtColumn(t *testing.T) {
 	var stdout bytes.Buffer
 	rt := &fakeRuntime{}
 	mux := &terminalMux{
-		stdout: stdoutWriter{&stdout},
-		rt:     rt,
+		pane: paneWriter{w: stdoutWriter{&stdout}},
+		rt:   rt,
 		tabs: []*terminalTab{
 			{id: 1, name: "terminal 1", child: ptychild.NewFakeChild([]byte("one"))},
 			{id: 2, name: "work", child: ptychild.NewFakeChild([]byte("two"))},
@@ -740,9 +740,9 @@ func TestTerminalMuxNewTabPrintsStartupOutputOnce(t *testing.T) {
 func TestTerminalMuxBackgroundExitPreservesActiveTab(t *testing.T) {
 
 	mux := &terminalMux{
-		stdout: io.Discard,
-		rt:     &fakeRuntime{},
-		done:   make(chan struct{}),
+		pane: paneWriter{w: io.Discard},
+		rt:   &fakeRuntime{},
+		done: make(chan struct{}),
 		tabs: []*terminalTab{
 			{id: 1, name: "one"},
 			{id: 2, name: "two"},
@@ -762,9 +762,9 @@ func TestTerminalMuxRenameCommitDoesNotRenameReplacementActiveTab(t *testing.T) 
 
 	rt := &fakeRuntime{}
 	mux := &terminalMux{
-		stdout: io.Discard,
-		rt:     rt,
-		done:   make(chan struct{}),
+		pane: paneWriter{w: io.Discard},
+		rt:   rt,
+		done: make(chan struct{}),
 		tabs: []*terminalTab{
 			{id: 1, name: "one"},
 			{id: 2, name: "two"},
@@ -803,9 +803,9 @@ func TestTerminalMuxBackgroundExitPreservesRenameTitleAndViewport(t *testing.T) 
 	var stdout bytes.Buffer
 	rt := &fakeRuntime{}
 	mux := &terminalMux{
-		stdout: stdoutWriter{&stdout},
-		rt:     rt,
-		done:   make(chan struct{}),
+		pane: paneWriter{w: stdoutWriter{&stdout}},
+		rt:   rt,
+		done: make(chan struct{}),
 		tabs: []*terminalTab{
 			{id: 1, name: "one"},
 			{id: 2, name: "two", child: ptychild.NewFakeChild([]byte("active output"))},

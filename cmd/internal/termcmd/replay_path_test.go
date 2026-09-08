@@ -24,7 +24,7 @@ import (
 // would assert a composition production no longer performs.
 func TestRedrawTabEmitsNoQueries(t *testing.T) {
 	var out bytes.Buffer
-	m := &terminalMux{stdout: &out}
+	m := &terminalMux{pane: paneWriter{w: &out}}
 	tab := &terminalTab{
 		id:    1,
 		child: ptychild.NewFakeChild([]byte("prompt $ \x1b[c\x1b[?2026$p\x1b[?1006h done")),

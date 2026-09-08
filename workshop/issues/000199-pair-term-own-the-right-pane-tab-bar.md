@@ -179,7 +179,7 @@ Four milestones, each its own review boundary — detail in
 - [x] M1 — Lift `Reserve`/`PaintRow`/`ChildRows` into `hostty` as a
       `Reservation` carrying its edge; repoint couch. Proven a MOVE by couch's
       tests passing **unedited**.
-- [ ] M2 — Make `termcmd` single-writer and add the mid-sequence paint gate.
+- [x] M2 — Make `termcmd` single-writer and add the mid-sequence paint gate.
       A prerequisite, not cleanup: two writers is how a paint lands inside a
       child's escape sequence (`atlas/couch.md`).
 - [ ] M3 — Render the strip from the existing tab model, with display-column
@@ -190,7 +190,17 @@ Four milestones, each its own review boundary — detail in
       scroll-indicator rationale.
 
 ## Log
+- 2026-09-07: closed M2 — one writer, one gate, and a pane fd a new door cannot
+  reach without a compile error. Six review rounds; every one found something
+  real, and the arc is the lesson: rounds 2-5 each fixed the ungated or mis-gated
+  write the reviewer named, and each time the next round found another. What
+  ended it was `paneWriter` — not an `io.Writer`, so `fmt.Fprintf`,
+  `io.WriteString` and `.Write` on it do not compile. Three exemptions remain,
+  each a different kind and each stating its reason at the call site.
 
+
+
+- 2026-09-07: closed M2 — Full `make test` green (exit 0), `-race` clean. Round 5 named the right fix and it is structural rather than another patch: BR-39 class half closed by ENUMERATING the doors instead of fixing the one the reviewer named. A write to the pane either passes the gate (writeOwn/writeDiag/flushOwed) or carries a `gate-exempt: <reason>` marker, and TestEveryConsoleWriteIsGatedOrExplicitlyExempt reads the source and fails on anything else — mutation-verified by adding an ungated write. It found a door I had NOT classified on its first run (the child own output), which is the instrument working; there are exactly three exemptions and each is a different kind — child output is not a user of the gate but the thing it models (gating a child against its own stream state deadlocks it against itself), the takeover discards the screen the old scan described and resets first which is what earns it, and teardown may outlive the loop where a half-restored terminal is worse than an ungated write. BR-39 instance remains fixed and mutation-verified (diagnostics through writeDiag, re-queued and flushed at the next boundary). BR-41, demoted past the round cap with the note that no later gate picks it up, is fixed here rather than lost: runZellij handed the subprocess cmd.Stdin = os.Stdin, the pane RAW-MODE stdin carrying the operator keystrokes, while code and atlas both said neither descriptor and counted only two; none of termcmd verbs read stdin, so it is nil, with a source test and the atlas corrected to none. All earlier rounds remain fixed (BR-25 handler-on-the-loop writes inline, BR-26 positive controls, BR-27 silence worse than noise, BR-32 sanitize at the egress, BR-33 and BR-41 atlas claims, BR-35 the gate models the terminal, BR-36 evidence corrected, BR-37 C1 strip). Twenty-three behaviours mutation-checked across M2. actual is measured #199 total (7.77h) minus M1 measured increment (3.98h).; review verdict: FIX-THEN-SHIP
 - 2026-09-07 M2.5 (manual acceptance, operator-run): `yes "aaaa…"` flooding one
   tab while switching with alt+←/→ repeatedly. **No corruption observed** — no
   stray escape fragments, no colour bleeding into subsequent lines, no cursor

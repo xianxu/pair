@@ -854,6 +854,85 @@ rounds:
           round: 10
       boundary: M2
       blocked: true
+    - "n": 11
+      timestamp: "2026-09-07T23:47:27-07:00"
+      agent: claude
+      dispose:
+        - id: BR-8
+          disposition: not-addressed
+          note: M4.3 (plan:601-605) verbatim unchanged; no Alt+Shift+d step anywhere, while the issue Done-when still requires two right-pane halves each drawing a strip.
+          round: 11
+        - id: BR-9
+          disposition: not-addressed
+          note: writer_test.go:116-117 still splits one hand-chosen index of one sequence; the gate now exists, so parameterizing is cheap.
+          round: 11
+        - id: BR-26
+          disposition: not-addressed
+          note: Re-measured at HEAD in a scratch copy - green under mutation at three sites - m.owed = nil (run.go:827), runZellijCaptured's SanitizeAndFit (run.go:1488), resizeThroughWriter (run.go:264). plan-superseded-facts-test.sh:65 still bans 'route only stdout through', which git log -S finds in no revision of the plan, so that registered pair can never fire.
+          round: 11
+        - id: BR-27
+          disposition: not-addressed
+          note: Capture half landed; log half still absent. run.go:462, 468, 1178, 1270 discard the error and there is no log sink, so a failing wheel tick or rename is completely silent where pre-M2 it printed. run.go:1178 is on the writer goroutine, so its fix needs an inline writeDiag rather than reportError.
+          round: 11
+        - id: BR-29
+          disposition: not-addressed
+          note: run_test.go:941 fakeRuntime.reportedUnused still present and called from nowhere; terminalMux.stderr (run.go:643) is set by newTerminalMux and read by nothing - grep for m.stderr returns no hits.
+          round: 11
+        - id: BR-30
+          disposition: not-addressed
+          note: run.go:168 runDecision still takes stdin and stdout and uses neither; nothing in the handleChord path writes stdout.
+          round: 11
+        - id: BR-31
+          disposition: not-addressed
+          note: ARCH-CONSTRAINTS is unchanged in this window - the plan diff touches only Revisions. The second parse, the unterminated-OSC stall, and the synchronous zellij exec on the sole writer goroutine in removeTab are all still undeclared.
+          round: 11
+        - id: BR-33
+          disposition: not-addressed
+          note: atlas/architecture.md:502-505 still says a write issued mid-sequence is deferred into a single coalescing slot with a later paint replacing an earlier one - false for diagnostics, which queue in owedDiag and survive a takeover. atlas:537 still lists pair term's strip as a current rowtext consumer when it is M3. tests/plan-superseded-facts-test.sh still covers only the plan file and one probe.
+          round: 11
+        - id: BR-34
+          disposition: not-addressed
+          note: run.go:861 still appends to owedDiag with no cap and ARCH-CONSTRAINTS declares no budget; diagnosticWidth = 200 still claims to be far short of wrapping while m.cols is on the receiver.
+          round: 11
+        - id: BR-36
+          disposition: not-addressed
+          note: M3.7(b) landed (plan:595) but still specifies flooding with yes, which emits no ESC, so MidSequence is false for the whole run and the defer path still cannot be entered. No observable is named and no deferral is counted. M4.3 unchanged.
+          round: 11
+        - id: BR-38
+          disposition: not-addressed
+          note: couchtty/reserve.go:143-152 still ends in doc paragraphs for sanitize and truncate, which now live in rowtext. This window also left run.go:1454-1466, where two consts sit between runZellijCaptured's doc prose and runZellijCaptured, so go doc attaches that prose to diagnosticWidth.
+          round: 11
+        - id: BR-39
+          disposition: addressed
+          note: Instance fixed in round 4 and class instrument added here - verified by mutation, an ungated m.stdout.Write in reportError reddens TestEveryConsoleWriteIsGatedOrExplicitlyExempt. Two residuals raised as a new finding - the predicate's blind spots - and the takeover exemption's stated reason still omits the mechanism that actually earns it (a leading ESC cancels a pending CSI), which round 9 asked to be written rather than re-derived.
+          round: 11
+        - id: BR-40
+          disposition: not-addressed
+          note: Re-measured in a scratch copy of HEAD - replacing m.hostScan = ptychild.Screen{} (run.go:826) with a no-op leaves ./cmd/internal/termcmd fully green. The one-line discriminating fixture round 10 supplied (feed "x\x1b[3", then redrawTab([]byte("0000"))) was not added; both takeover fixtures still replay bytes beginning with legal CSI final bytes.
+          round: 11
+        - id: BR-41
+          disposition: addressed
+          note: Verified by revert - restoring cmd.Stdin = os.Stdin reddens TestTheZellijSubprocessGetsNoStdinEither. atlas:517-520 now says none of the pane's descriptors, including stdin. The stdin arm is still asserted by a source substring rather than behaviorally, which is folded into the new envelope-claim-unenforced finding.
+          round: 11
+        - id: BR-42
+          disposition: not-addressed
+          note: plan:277-281 unchanged - strip repaint trigger still new, degraded rename-pane and right pane chrome still modified, none existing at HEAD. The same table marks couchtty.RenderStatusRow unchanged after this window changed its body to call rowtext.
+          round: 11
+      findings:
+        - id: BR-43
+          severity: Important
+          title: The door-enumeration test enforces a substring, not the claim - an ungated Fprintf, a leaked exemption marker, and every file but run.go all pass
+          detail: This is the 3rd finding in family envelope-claim-unenforced, so the deliverable is the rule, not the three sites. writer_test.go:563 requires a door line to contain ".Write" or "WriteString", so fmt.Fprintf(m.stdout, ...) is invisible - measured, adding one to inheritSize leaves the entire termcmd suite green, and Fprintf is the spelling the pre-M2 code used for exactly these diagnostics. writer_test.go:539-552 stops the exemption walk only on a non-empty non-comment line, so a blank line does not stop it - measured, an unrelated "gate-exempt:" comment two lines above an added ungated write exempts it, which is what writer_test.go:544's own comment claims to prevent. And writer_test.go:525 reads run.go alone, while the plan's M3 file list creates cmd/internal/termcmd/strip.go in the same package. The rule - an enforcement test for a claim of the form "every X does Y" derives X from the language, not from the spellings the author happened to write, and the instrument is mutation-checked against each spelling and each file before it is trusted. The milestone already made the stronger choice once, in M2.3 step 3 - make the RUNTIME incapable rather than fix call sites - and the same move applies here - put m.stdout behind a paneWriter whose only methods are own / diag / exempt(reason), so a new door is a compile error rather than a grep.
+          family: envelope-claim-unenforced
+          round: 11
+        - id: BR-44
+          severity: Minor
+          title: flushOwed has one call site, in the child-data branch, so an owed write is stranded for as long as the child is silent
+          detail: run.go:813 is the only call to flushOwed, inside handleChunk's default (child data) branch. Nothing else pays the debt - not a bare event, not a takeover, not resize, and there is no timer. So while the child's stream is mid-sequence and the child produces nothing further (a prefix written before the child blocks, or Screen.skipping latched by a sequence over maxPending that is never terminated), an owed paint and every queued diagnostic sit invisible indefinitely. That is the same stale row that nothing repaints that run.go:866-874 gives as the reason for owing rather than dropping. Latent at M2 because nothing paints; at M3 it means a strip that stops updating with no path back. couch shares the shape (console.go:1137), so the answer belongs in the shared design - a bounded wait after which the write goes out, or paying the debt from every event rather than only from child output.
+          family: deferred-work-lacks-own-trigger
+          round: 11
+      boundary: M2
+      blocked: false
 ---
 
 # Gate ledger — pair#199 (boundary-review)
@@ -1270,6 +1349,33 @@ later rounds disposed of them. Generated — edit the gate, not this file.
 - **BR-42** [Minor] `plan-table-drift` The Integration-points table still marks three M3/M4 rows new/modified after BR-11 flipped only the Pure-entities table
   This is the 5th finding in family plan-table-drift, so do not patch the three rows -- state the rule. plan:279-281 declare "strip repaint trigger" new, "degraded rename-pane" modified and "right pane chrome" modified; none exists at HEAD, all three are M3/M4. BR-11 raised exactly this for plan:114-117 and those rows now read "planned -- M3", which is the instance fixed and the class left standing in the table directly below it. The guard cannot catch it: core_concepts_contract_test.go filters on conceptPackage = cmd/internal/couchtty/, so every #199 row declaring termcmd, hostty, rowtext or main-3.kdl is unchecked, and the status column that "doubles as the build tracker" is only a tracker for one package. The rule: the status column is the build tracker for EVERY row of EVERY table in a Core concepts section, and the check that enforces it is scoped to the plan, not to a package -- which is the same gap BR-33 names for atlas, and the reason both should be answered by one mechanism rather than two hand-maintained lists.
 
+## Round 11 — 2026-09-07T23:47:27-07:00 (claude) — passed
+
+### Disposed
+
+- BR-8 — not-addressed — M4.3 (plan:601-605) verbatim unchanged; no Alt+Shift+d step anywhere, while the issue Done-when still requires two right-pane halves each drawing a strip.
+- BR-9 — not-addressed — writer_test.go:116-117 still splits one hand-chosen index of one sequence; the gate now exists, so parameterizing is cheap.
+- BR-26 — not-addressed — Re-measured at HEAD in a scratch copy - green under mutation at three sites - m.owed = nil (run.go:827), runZellijCaptured's SanitizeAndFit (run.go:1488), resizeThroughWriter (run.go:264). plan-superseded-facts-test.sh:65 still bans 'route only stdout through', which git log -S finds in no revision of the plan, so that registered pair can never fire.
+- BR-27 — not-addressed — Capture half landed; log half still absent. run.go:462, 468, 1178, 1270 discard the error and there is no log sink, so a failing wheel tick or rename is completely silent where pre-M2 it printed. run.go:1178 is on the writer goroutine, so its fix needs an inline writeDiag rather than reportError.
+- BR-29 — not-addressed — run_test.go:941 fakeRuntime.reportedUnused still present and called from nowhere; terminalMux.stderr (run.go:643) is set by newTerminalMux and read by nothing - grep for m.stderr returns no hits.
+- BR-30 — not-addressed — run.go:168 runDecision still takes stdin and stdout and uses neither; nothing in the handleChord path writes stdout.
+- BR-31 — not-addressed — ARCH-CONSTRAINTS is unchanged in this window - the plan diff touches only Revisions. The second parse, the unterminated-OSC stall, and the synchronous zellij exec on the sole writer goroutine in removeTab are all still undeclared.
+- BR-33 — not-addressed — atlas/architecture.md:502-505 still says a write issued mid-sequence is deferred into a single coalescing slot with a later paint replacing an earlier one - false for diagnostics, which queue in owedDiag and survive a takeover. atlas:537 still lists pair term's strip as a current rowtext consumer when it is M3. tests/plan-superseded-facts-test.sh still covers only the plan file and one probe.
+- BR-34 — not-addressed — run.go:861 still appends to owedDiag with no cap and ARCH-CONSTRAINTS declares no budget; diagnosticWidth = 200 still claims to be far short of wrapping while m.cols is on the receiver.
+- BR-36 — not-addressed — M3.7(b) landed (plan:595) but still specifies flooding with yes, which emits no ESC, so MidSequence is false for the whole run and the defer path still cannot be entered. No observable is named and no deferral is counted. M4.3 unchanged.
+- BR-38 — not-addressed — couchtty/reserve.go:143-152 still ends in doc paragraphs for sanitize and truncate, which now live in rowtext. This window also left run.go:1454-1466, where two consts sit between runZellijCaptured's doc prose and runZellijCaptured, so go doc attaches that prose to diagnosticWidth.
+- BR-39 — addressed — Instance fixed in round 4 and class instrument added here - verified by mutation, an ungated m.stdout.Write in reportError reddens TestEveryConsoleWriteIsGatedOrExplicitlyExempt. Two residuals raised as a new finding - the predicate's blind spots - and the takeover exemption's stated reason still omits the mechanism that actually earns it (a leading ESC cancels a pending CSI), which round 9 asked to be written rather than re-derived.
+- BR-40 — not-addressed — Re-measured in a scratch copy of HEAD - replacing m.hostScan = ptychild.Screen{} (run.go:826) with a no-op leaves ./cmd/internal/termcmd fully green. The one-line discriminating fixture round 10 supplied (feed "x\x1b[3", then redrawTab([]byte("0000"))) was not added; both takeover fixtures still replay bytes beginning with legal CSI final bytes.
+- BR-41 — addressed — Verified by revert - restoring cmd.Stdin = os.Stdin reddens TestTheZellijSubprocessGetsNoStdinEither. atlas:517-520 now says none of the pane's descriptors, including stdin. The stdin arm is still asserted by a source substring rather than behaviorally, which is folded into the new envelope-claim-unenforced finding.
+- BR-42 — not-addressed — plan:277-281 unchanged - strip repaint trigger still new, degraded rename-pane and right pane chrome still modified, none existing at HEAD. The same table marks couchtty.RenderStatusRow unchanged after this window changed its body to call rowtext.
+
+### Raised
+
+- **BR-43** [Important] `envelope-claim-unenforced` The door-enumeration test enforces a substring, not the claim - an ungated Fprintf, a leaked exemption marker, and every file but run.go all pass
+  This is the 3rd finding in family envelope-claim-unenforced, so the deliverable is the rule, not the three sites. writer_test.go:563 requires a door line to contain ".Write" or "WriteString", so fmt.Fprintf(m.stdout, ...) is invisible - measured, adding one to inheritSize leaves the entire termcmd suite green, and Fprintf is the spelling the pre-M2 code used for exactly these diagnostics. writer_test.go:539-552 stops the exemption walk only on a non-empty non-comment line, so a blank line does not stop it - measured, an unrelated "gate-exempt:" comment two lines above an added ungated write exempts it, which is what writer_test.go:544's own comment claims to prevent. And writer_test.go:525 reads run.go alone, while the plan's M3 file list creates cmd/internal/termcmd/strip.go in the same package. The rule - an enforcement test for a claim of the form "every X does Y" derives X from the language, not from the spellings the author happened to write, and the instrument is mutation-checked against each spelling and each file before it is trusted. The milestone already made the stronger choice once, in M2.3 step 3 - make the RUNTIME incapable rather than fix call sites - and the same move applies here - put m.stdout behind a paneWriter whose only methods are own / diag / exempt(reason), so a new door is a compile error rather than a grep.
+- **BR-44** [Minor] `deferred-work-lacks-own-trigger` flushOwed has one call site, in the child-data branch, so an owed write is stranded for as long as the child is silent
+  run.go:813 is the only call to flushOwed, inside handleChunk's default (child data) branch. Nothing else pays the debt - not a bare event, not a takeover, not resize, and there is no timer. So while the child's stream is mid-sequence and the child produces nothing further (a prefix written before the child blocks, or Screen.skipping latched by a sequence over maxPending that is never terminated), an owed paint and every queued diagnostic sit invisible indefinitely. That is the same stale row that nothing repaints that run.go:866-874 gives as the reason for owing rather than dropping. Latent at M2 because nothing paints; at M3 it means a strip that stops updating with no path back. couch shares the shape (console.go:1137), so the answer belongs in the shared design - a bounded wait after which the write goes out, or paying the debt from every event rather than only from child output.
+
 ## Open findings
 
 - **BR-8** [Minor] `acceptance-misses-changed-sites` M4's manual acceptance never splits the pane, leaving six of nine borderless sites unverified
@@ -1292,7 +1398,7 @@ later rounds disposed of them. Generated — edit the gate, not this file.
 - **BR-34** [Minor] `hot-path-cost-undeclared` owedDiag is an unbounded queue on an externally-timed path, one function below a comment rejecting Feed for that reason
 - **BR-36** [Important] `acceptance-command-does-not-hold` M2.5's manual acceptance cannot enter the gate path it is recorded as accepting
 - **BR-38** [Minor] `atlas-points-at-old-home` couchtty/reserve.go keeps the doc comments for the sanitize and truncate it no longer has
-- **BR-39** [Critical] `validating-door-bypassed` The takeover writes owed diagnostics straight to the pane after feeding the replay to the gate, so a diagnostic lands inside the replay's open sequence
 - **BR-40** [Important] `uncovered-negative-assertion` The takeover's scan reset -- couch's third gate rule, M2.3 step 1's headline -- can be deleted with the whole suite green
-- **BR-41** [Important] `envelope-claim-unenforced` runZellij hands the subprocess the pane's raw-mode stdin, while code and atlas both claim it gives neither descriptor
 - **BR-42** [Minor] `plan-table-drift` The Integration-points table still marks three M3/M4 rows new/modified after BR-11 flipped only the Pure-entities table
+- **BR-43** [Important] `envelope-claim-unenforced` The door-enumeration test enforces a substring, not the claim - an ungated Fprintf, a leaked exemption marker, and every file but run.go all pass
+- **BR-44** [Minor] `deferred-work-lacks-own-trigger` flushOwed has one call site, in the child-data branch, so an owed write is stranded for as long as the child is silent

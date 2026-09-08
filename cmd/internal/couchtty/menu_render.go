@@ -622,7 +622,7 @@ func fitMenuBlock(block []string, width, height int) []string {
 }
 
 func clipMenuLine(line string, width int) string {
-	return rowtext.Fit(rowtext.Sanitize(line), width)
+	return rowtext.SanitizeAndFit((line), width)
 }
 
 func clipStyledMenuLine(line string, width int) string {

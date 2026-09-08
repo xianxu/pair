@@ -264,6 +264,9 @@ func runShell(stdin io.Reader, stdout, stderr io.Writer, rt Runtime) int {
 				mux.resizeThroughWriter(host)
 			}
 		}()
+		// loop-exempt: the initial sizing runs BEFORE copyActiveOutput starts
+		// (below), so there is no loop to serialize against and nothing else
+		// writing. Every later resize goes through resizeThroughWriter.
 		mux.inheritSize(host)
 	}
 
@@ -636,11 +639,36 @@ type ptyChunk struct {
 	onWriter func()
 }
 
+// paneWriter is the ONLY way to reach the pane's file descriptor, and it is
+// deliberately NOT an io.Writer.
+//
+// That is the whole design: with no Write method, `fmt.Fprintf(m.pane, …)`,
+// `io.WriteString(m.pane, …)` and `m.pane.Write(…)` are all COMPILE ERRORS, so
+// a new door cannot be opened by reflex. The predecessor was a test that
+// scanned run.go for `m.stdout` -- which missed Fprintf (the most idiomatic
+// spelling, and the one this file used pre-M2), missed a second file in the
+// same package, and could be fooled by an unrelated comment. Scanning for
+// violations is weaker than making them unrepresentable.
+//
+// Every write states a reason at the call site. The gated writers pass their
+// own; the three exemptions pass theirs.
+type paneWriter struct{ w io.Writer }
+
+func (p paneWriter) raw(reason string, b []byte) {
+	_ = reason // documentation at the call site, not a runtime value
+	if len(b) == 0 {
+		return
+	}
+	_, _ = p.w.Write(b)
+}
+
+func (p paneWriter) rawString(reason, s string) { p.raw(reason, []byte(s)) }
+
 type terminalMux struct {
 	mu        sync.Mutex
 	shellName string
 	shellArgs []string
-	stdout    io.Writer
+	pane      paneWriter
 	stderr    io.Writer
 	rt        Runtime
 	paneID    string
@@ -663,6 +691,8 @@ type terminalMux struct {
 	// owed is a PAINT deferred because the child's stream was mid-sequence.
 	// Deferred and OWED: dropping it leaves a stale row nothing repaints.
 	owed []byte
+	// captureIDForTest, when set, runs on the writer goroutine inside a resize.
+	captureIDForTest func()
 	// owedDiag are DIAGNOSTICS deferred the same way, kept separately because
 	// they coalesce differently. A paint is a rendering of current state, so a
 	// later one supersedes an earlier one; an error is an EVENT, and letting a
@@ -679,7 +709,7 @@ func newTerminalMux(shellName string, shellArgs []string, stdout, stderr io.Writ
 	return &terminalMux{
 		shellName: shellName,
 		shellArgs: shellArgs,
-		stdout:    stdout,
+		pane:      paneWriter{w: stdout},
 		stderr:    stderr,
 		rt:        rt,
 		paneID:    os.Getenv("ZELLIJ_PANE_ID"),
@@ -804,11 +834,10 @@ func (m *terminalMux) handleChunk(chunk ptyChunk) {
 		// current screen.
 		if m.isActive(chunk.id) {
 			m.hostScan.FeedFraming(chunk.data)
-			// gate-exempt: child output. This is not a USER of the gate, it is
-			// what the gate MODELS -- gating the child against its own stream
-			// state would deadlock it against itself. Fed immediately above, so
-			// the model and the terminal move together.
-			_, _ = m.stdout.Write(chunk.data)
+			// Not a USER of the gate but the thing it MODELS: gating a child
+			// against its own stream state deadlocks it against itself. Fed
+			// immediately above, so model and terminal move together.
+			m.pane.raw("child output", chunk.data)
 		}
 		m.flushOwed()
 	}
@@ -836,8 +865,8 @@ func (m *terminalMux) applyTakeover(replay []byte) {
 	// BEFORE these writes, so nothing downstream reads a stale mid-sequence.
 	//
 	// Enumerated and enforced by TestEveryConsoleWriteIsGatedOrExplicitlyExempt.
-	_, _ = io.WriteString(m.stdout, hostty.HomeAndClear) // gate-exempt: takeover
-	_, _ = m.stdout.Write(replay)                        // gate-exempt: takeover
+	m.pane.rawString("takeover: clears the screen the old scan described", hostty.HomeAndClear)
+	m.pane.raw("takeover: replay, fed to the gate immediately below", replay)
 	// The replay is CHILD bytes and the terminal has now seen them, so the gate
 	// must too -- it is replay-safe (ptychild strips queries and cuts at
 	// ReplaySafeEnd) but "usually ends at a boundary" is an assumption, and the
@@ -861,7 +890,7 @@ func (m *terminalMux) writeDiag(b []byte) {
 		m.owedDiag = append(m.owedDiag, b)
 		return
 	}
-	_, _ = m.stdout.Write(b)
+	m.pane.raw("diagnostic, gate consulted", b)
 }
 
 // writeOwn writes console-originated bytes, or defers them if the child's stream
@@ -879,10 +908,21 @@ func (m *terminalMux) writeOwn(b []byte) {
 		m.owed = b
 		return
 	}
-	_, _ = m.stdout.Write(b)
+	m.pane.raw("paint, gate consulted", b)
 }
 
-// flushOwed writes a deferred paint once the child's stream reaches a boundary.
+// flushOwed writes deferred work once the child's stream reaches a boundary.
+//
+// Called from the CHILD-DATA branch only, and that is correct rather than an
+// oversight: nothing else can clear the gate. A console write cannot -- if we
+// owed, we were mid-sequence, and our own bytes are never fed to the scanner --
+// and a takeover resets rather than flushes. Adding a call to the console
+// branches looks like defence and is provably dead.
+//
+// KNOWN GAP, deferred to M3 with the strip: a child that goes silent while
+// mid-sequence strands the owed write indefinitely. Nothing paints in M2 so it
+// is unreachable here; M3 owes it a flush deadline, since "the child stopped
+// mid-escape" is indistinguishable from "the child is slow".
 func (m *terminalMux) flushOwed() {
 	if m.hostScan.MidSequence() {
 		return
@@ -890,7 +930,7 @@ func (m *terminalMux) flushOwed() {
 	// Diagnostics first: they were queued before the paint that may describe a
 	// state they explain, and every one of them lands.
 	for _, d := range m.owedDiag {
-		_, _ = m.stdout.Write(d)
+		m.pane.raw("owed diagnostic, boundary reached", d)
 	}
 	m.owedDiag = nil
 	if m.owed == nil {
@@ -898,7 +938,7 @@ func (m *terminalMux) flushOwed() {
 	}
 	b := m.owed
 	m.owed = nil
-	_, _ = m.stdout.Write(b)
+	m.pane.raw("owed paint, boundary reached", b)
 }
 
 // reportError puts a diagnostic on the pane through the writer loop.
@@ -1206,7 +1246,16 @@ func (m *terminalMux) tabByIDLocked(id int) *terminalTab {
 // resize racing a paint is precisely the interleaving that produces a strip
 // drawn at the old width.
 func (m *terminalMux) resizeThroughWriter(host hostty.Host) {
-	m.enqueue(ptyChunk{onWriter: func() { m.inheritSize(host) }})
+	m.enqueue(ptyChunk{onWriter: func() {
+		// captureIDForTest lets a test observe WHICH goroutine this runs on,
+		// through the PRODUCTION entry point. Reverting this method to a direct
+		// inheritSize call was measured green while the test drove an
+		// injectable helper instead -- testing the seam is not testing the path.
+		if m.captureIDForTest != nil {
+			m.captureIDForTest()
+		}
+		m.inheritSize(host)
+	}})
 }
 
 func (m *terminalMux) inheritSize(host hostty.Host) {
@@ -1353,7 +1402,7 @@ func (m *terminalMux) restoreTerminal() {
 	// Teardown writes DIRECTLY: the loop may already be gone, and a
 	// half-restored terminal is worse than an un-gated write when the child is
 	// finished with the screen anyway. Same reasoning as couch's release().
-	_, _ = io.WriteString(m.stdout, hostty.ResetRegion) // gate-exempt: teardown
+	m.pane.rawString("teardown: the loop may already be gone", hostty.ResetRegion)
 }
 
 func (OSRuntime) ListPanesJSON() ([]byte, error) {
@@ -1478,14 +1527,16 @@ func runZellijCaptured(args []string) error {
 	if detail == "" {
 		return err
 	}
-	// SANITIZED AND BOUNDED. This text comes from an external process and is
-	// on its way to a live terminal, so it gets the same treatment as any other
-	// untrusted row content: escape sequences and control bytes stripped, width
-	// capped. The first version of this fix took only the first line, which
-	// stops a usage dump but not a `\x1b[2J` -- keeping the pane clean and then
-	// handing it an arbitrary escape would have been a worse bug than the
-	// silence it replaced.
-	detail = rowtext.SanitizeAndFit(detail, zellijErrorDetailWidth)
+	// NOT sanitized here. That is deliberate: `reportError` sanitizes at the
+	// EGRESS, the single point every diagnostic reaches the pane, and a second
+	// strip at this producer would be two places holding one safety decision --
+	// the shape that has cost this issue several rounds. A mutation deleting a
+	// strip here is correctly GREEN, because the safety boundary is elsewhere.
+	//
+	// The bound stays, as a SIZE guard rather than a safety one: an unbounded
+	// usage dump wrapped into an error is carried around by every caller, and
+	// the egress would trim it to nothing useful anyway.
+	detail = rowtext.Fit(detail, zellijErrorDetailWidth)
 	if detail == "" {
 		return err
 	}

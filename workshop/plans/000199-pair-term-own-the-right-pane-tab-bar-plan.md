@@ -216,7 +216,7 @@ stdout, and a third title matcher that disagrees with the other two.
 | `RenderedStrip` | `cmd/internal/termcmd/strip.go` | planned — M3 |
 | `RenderStrip` | `cmd/internal/termcmd/strip.go` | planned — M3 |
 | `couchtty.ChildRows` / `Reserve` / `Release` / `PaintRow` | `cmd/internal/couchtty/reserve.go` | deleted |
-| `couchtty.RenderStatusRow` (+ `StatusModel`, `ChipSpan`) | `cmd/internal/couchtty/reserve.go` | unchanged |
+| `couchtty.RenderStatusRow` (+ `StatusModel`, `ChipSpan`) | `cmd/internal/couchtty/reserve.go` | modified — body now calls `rowtext` (M2) |
 
 - **`rowtext.Sanitize` / `rowtext.Fit`** (`cmd/internal/rowtext/rowtext.go`, new
   — PQ-7) — make untrusted text safe and fitted for a one-row strip.
@@ -592,7 +592,10 @@ func TestRenderIsCorrectWithABackgroundTabPresent(t *testing.T) {}
 - [ ] **M3.4: Wire it.** `hostty.NewReservation(rows, hostty.EdgeBottom)` — the VALIDATING door, not a struct literal: it refuses a terminal too short to reserve from, which a literal silently turns into a Reservation whose every method no-ops. Child pty gets `ChildRows()`; repaint on tab change, resize, and `batch.RowDirty` **read inside the Sink callback** (finding 7).
 - [ ] **M3.5: The re-`Reserve` rule** (ARCH-ORDER's most-likely-wrong): on a `batch.RowDirty` batch, re-`Reserve` *before* repainting. Test: simulate a child emitting `\x1b[r` (margin reset), assert the next repaint re-emits the region and not only the row.
 - [ ] **M3.6: Degrade `rename-pane`** to the active tab name. Assert against the DERIVED consumer set (finding 9): `RoleForPane` and `ClassifyLiveLayout` fed the degraded title, including the `TerminalCommand == ""` case `zellijpane.paneFrom` admits (`zellijpane.go:79-84`), where the command fallback is unavailable and the title is all there is. Assert a rename still reaches the runtime on tab switch and that it is no longer the packed multi-tab string. NOTE: since M2 both `RunZellijAction` and `RunZellijActionQuiet` are quiet, and `fakeRuntime` records the latter with a `quiet ` prefix — assert the recorded op, not the method name.
-- [ ] **M3.7:** `go test ./cmd/... -count=1`, then **manual in a real layout3 pane**, three things. (a) Run `nvim`: the strip survives its startup clear and its own margin changes; quit, and the shell is not left scrolling in a box. (b) **The gate, which M2.5 could not reach** (BR-36): with the strip repainting, flood one tab (`yes`) and switch tabs repeatedly — now a paint IS requested while the child's stream is mid-sequence, so the defer-and-owe path actually runs. Watch for a strip drawn inside the child's output. (c) A tab whose name is wide (`日本語`) and one that is long, to see truncation and column alignment rather than trusting the unit test's arithmetic.
+- [ ] **M3.7:** `go test ./cmd/... -count=1`, then **manual in a real layout3 pane**, three things. (a) Run `nvim`: the strip survives its startup clear and its own margin changes; quit, and the shell is not left scrolling in a box. (b) **The gate, which M2.5 could not reach** (BR-36): with the strip repainting, flood one tab with output that CONTAINS
+      ESCAPES -- `yes` emits none, so it can never put the gate mid-sequence and
+      would repeat M2.5's mistake. Use e.g. `while :; do ls --color=always /usr/bin; done`
+      or `while :; do tput setaf 1; echo red; tput sgr0; done`. Then switch tabs repeatedly — now a paint IS requested while the child's stream is mid-sequence, so the defer-and-owe path actually runs. Watch for a strip drawn inside the child's output. (c) A tab whose name is wide (`日本語`) and one that is long, to see truncation and column alignment rather than trusting the unit test's arithmetic.
 - [ ] **M3.8: Commit**, `sdlc milestone-close --issue 199 --milestone M3`.
 
 ## M4 — take the frame off
@@ -640,6 +643,47 @@ the strip over a suspected-broken writer would confuse both.
 
 
 ## Revisions
+
+### 2026-09-07 — M2 close (FIX-THEN-SHIP): make the door unrepresentable
+
+Round 6 sanctioned shipping and named the flaw in round 5's own fix. The
+door-enumeration TEST was narrower than the claim it enforced, measurably:
+`fmt.Fprintf(m.stdout, …)` left the suite green (it contains `m.stdout` but
+neither `.Write` nor `WriteString`, and is the spelling this file used before
+M2); a `gate-exempt:` comment separated by a blank line exempted an unrelated
+write; and it read `run.go` only, while M3 adds `strip.go` to the same package.
+
+The reviewer's own suggestion is the fix, and it is better than the test:
+**`paneWriter` is not an `io.Writer`**, so a new door does not compile. That
+retires all three gaps at once, and it is the argument M2.3 step 3 already made
+about the Runtime — *make it incapable rather than scanned* — applied one layer
+down. The scan is gone; what remains is a test that `paneWriter` has no `Write`
+method and that the mux holds no other writer field, so a refactor that
+reintroduces one fails here rather than in a review.
+
+**Four mutations the reviewer measured GREEN, resolved three different ways.**
+Two were missing tests (the takeover's scan reset, the owed-paint drop) — and
+the first test I wrote for the reset *also* passed, because its replay `"clean"`
+starts with `c`, a valid CSI final byte, so it terminated the stale sequence by
+accident; digits are parameters and cannot. One was a test aimed at the seam
+instead of the path (resize: mutating the call site left a behaviour test on the
+helper happy). And one was **dead defence**: the producer-side sanitize in
+`runZellijCaptured` is redundant now that `reportError` sanitizes at the egress,
+so a mutation deleting it is *correctly* green — two places holding one safety
+decision is the shape this issue keeps paying for. It is now a size guard, and
+says so.
+
+**The `flushOwed` Minor was real but my first fix was not.** Adding calls on the
+console branches is provably dead: only child bytes and takeovers change the
+gate, so if we owed we are still mid-sequence. Reverted, and the actual gap — a
+child that goes silent mid-escape strands the owed write — is recorded against
+M3, which is where anything paints.
+
+**Two more from the same family.** `plan-superseded-facts-test.sh` carried a
+token `git log -S` finds in no revision of the plan: an entry that can never
+fire, reading as coverage while providing none. And M3.7(b) specified `yes` as
+the load generator — which emits no escapes, so it could never put the gate
+mid-sequence and would have repeated exactly the M2.5 mistake BR-36 caught.
 
 ### 2026-09-07 — M2 boundary review, round 5: stop patching doors, enumerate them
 
