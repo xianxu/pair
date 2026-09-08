@@ -716,6 +716,7 @@ var NonArtifactSources = []string{
 	"cmd/pair-launch-helper/main.go",
 	"cmd/probes/couchstartrecovery/main.go",
 	"cmd/probes/termctrlc/main.go",
+	"cmd/probes/termrows/main.go",
 	"doctor/doctor.sh",
 	"doctor/emitter-health.sh",
 	"doctor/perf.sh",

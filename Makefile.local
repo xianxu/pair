@@ -80,9 +80,12 @@ test-couch-zellij-live:
 test-perf-capture: $(BIN_DIR)/pair
 	sh doctor/perf_test.sh
 
-.PHONY: test-couch-start-recovery test-term-ctrlc
+.PHONY: test-couch-start-recovery test-term-ctrlc test-term-rows
 test-term-ctrlc: $(BIN_DIR)/pair
 	go run ./cmd/probes/termctrlc $(CURDIR)/$(BIN_DIR)/pair
+
+test-term-rows: $(BIN_DIR)/pair
+	go run ./cmd/probes/termrows $(CURDIR)/$(BIN_DIR)/pair
 
 test-couch-start-recovery: $(BIN_DIR)/pair-launch-helper
 	go run ./cmd/probes/couchstartrecovery $(CURDIR)/$(BIN_DIR)/pair-launch-helper
