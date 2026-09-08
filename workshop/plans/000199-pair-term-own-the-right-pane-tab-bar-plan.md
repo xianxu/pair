@@ -208,7 +208,7 @@ stdout, and a third title matcher that disagrees with the other two.
 
 | Name | Lives in | Status |
 |------|----------|--------|
-| `rowtext.Sanitize` / `rowtext.Fit` | `cmd/internal/rowtext/rowtext.go` | planned — M3 |
+| `rowtext.Sanitize` / `rowtext.Fit` / `SanitizeAndFit` | `cmd/internal/rowtext/rowtext.go` | new — pulled forward to M2 |
 | `Edge` | `cmd/internal/hostty/reserve.go` | new |
 | `Reservation` | `cmd/internal/hostty/reserve.go` | new |
 | `TabChip` | `cmd/internal/termcmd/strip.go` | planned — M3 |
@@ -634,6 +634,30 @@ the strip over a suspected-broken writer would confuse both.
 
 
 ## Revisions
+
+### 2026-09-07 — M2 boundary review, round 2 (REWORK → addressed)
+
+**BR-32: my BR-27 fix routed an external process's bytes at the pane,
+unsanitized.** Having just argued that keeping the pane clean must not destroy
+the diagnostic, I handed the pane a subprocess's stderr with escapes intact —
+`\x1b[2J` from `zellij` clears the operator's screen exactly as well as one from
+an agent's label. Worse, my first attempt sanitized inside
+`runZellijCaptured`, i.e. at ONE producer, which is the mistake `#208` made with
+`ps` output: an error's text can also come from a filesystem path or a wrapped
+operator-typed tab name. The strip now happens at `reportError`, the single
+egress every diagnostic passes.
+
+**`rowtext` is pulled forward from M3.** M2 needed exactly what M3 planned to
+extract, and writing a second ad-hoc sanitizer in `termcmd` while a package for
+it sat one milestone away is the duplication the package exists to prevent. It
+also removed `couchtty`'s unexported originals, so there is now one
+implementation with tests of its own rather than two with tests over neither.
+
+**BR-33: the atlas paragraph I added was falsified by my next commit in the same
+window.** It said `termcmd.OSRuntime` hands a subprocess neither descriptor —
+still true — but read as though subprocess bytes therefore never reach the pane,
+which stopped being true when I started folding stderr into the error. Corrected
+to state the controlled path and the sanitizing egress.
 
 ### 2026-09-07 — M2 boundary review (REWORK → addressed)
 

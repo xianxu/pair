@@ -628,6 +628,7 @@ var NonArtifactSources = []string{
 	"cmd/internal/procutil/identity_linux.go",
 	"cmd/internal/procutil/identity_other.go",
 	"cmd/internal/procutil/procutil.go",
+	"cmd/internal/rowtext/rowtext.go",
 	"cmd/internal/ptychild/child.go",
 	"cmd/internal/ptychild/fake.go",
 	"cmd/internal/ptychild/replay.go",

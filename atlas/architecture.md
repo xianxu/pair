@@ -518,6 +518,24 @@ sites nor the next one added. `zellij action` output on a full-screen pty lands
 wherever the child's cursor is, outside the loop and outside the gate — and a
 FAILING action did the same on stderr, once per wheel tick.
 
+Not handing over the descriptors is **not** the same as discarding the output,
+and the difference is worth stating because the first version got it wrong.
+Sending both to `io.Discard` made a failing action *completely silent*, since
+the wheel-tick callers drop the error too — silence is not an improvement on
+noise. The subprocess's stderr is captured and folded into the returned error;
+`terminalMux.reportError` then puts it on the pane **through the writer loop**,
+so it is gated like any other write. Which means external bytes DO reach the
+pane, by a controlled path — and therefore go through `rowtext.SanitizeAndFit`
+at that egress, the single point every diagnostic passes, rather than at each
+producer. Filtering one producer only moves the hazard to the next.
+
+- **`cmd/internal/rowtext`** — `Sanitize` / `Fit` / `SanitizeAndFit`: the one
+  implementation of "make untrusted text safe for a row". Both reserved-row
+  renderers use it (couch's status row, `pair term`'s strip), as does the
+  diagnostic path above. It is a package rather than a helper because
+  `couchtty`'s originals were unexported and so unreachable from `termcmd`, and
+  a second copy of a security-relevant strip is exactly the outcome to avoid.
+
 **What is shared is structure; what stays is policy.** `termcmd` keeps numbered
 tabs, rename, the zellij pane title, and exit-when-empty; `couch` switches named
 actors and falls back to a panel. That is the same split `cmd/internal/ansi`
