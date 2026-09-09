@@ -35,13 +35,33 @@ type Runtime interface {
 // to target a specific half. When no right terminal exists (layout2), fall
 // back to the relative move so two-pane layouts keep their old behavior.
 func FocusRightTerminal(rt Runtime) error {
-	panesJSON, err := rt.ListPanesJSON()
+	terminal, ok, err := resolveRightTerminal(rt)
 	if err != nil {
 		return err
 	}
-	// Sidecar reads degrade gracefully by design: a missing/corrupt record or
-	// registry must never break the focus jump — the picker just loses its
-	// preference signal and falls back to zellij focus / pane order.
+	if !ok {
+		return rt.RunZellijAction("move-focus", "right")
+	}
+	return rt.RunZellijAction("focus-pane-id", terminal.ID)
+}
+
+// resolveRightTerminal answers "which right terminal does a workbench action
+// mean?" — the pane list, the two sidecar preference signals, and the picker.
+//
+// Extracted because sharing only the PICKER left its inputs re-derived at each
+// caller (#216 BR-10): the guarantee that Alt+k and Alt+Shift+arrow cannot
+// disagree about a split half holds only while both feed it the same signals,
+// and a fourth preference signal or a change of degradation policy would
+// otherwise land at one site and miss the other.
+//
+// Sidecar reads degrade gracefully by design: a missing or corrupt record or
+// registry must never break the action — the picker just loses its preference
+// signal and falls back to zellij focus, then pane order.
+func resolveRightTerminal(rt Runtime) (zellijpane.Pane, bool, error) {
+	panesJSON, err := rt.ListPanesJSON()
+	if err != nil {
+		return zellijpane.Pane{}, false, err
+	}
 	lastTerminal, err := rt.LastTerminalPaneID()
 	if err != nil {
 		lastTerminal = ""
@@ -51,10 +71,7 @@ func FocusRightTerminal(rt Runtime) error {
 		terminalIDs = nil
 	}
 	terminal, ok := pickRightTerminal(zellijpane.Parse(panesJSON), lastTerminal, terminalIDs)
-	if !ok {
-		return rt.RunZellijAction("move-focus", "right")
-	}
-	return rt.RunZellijAction("focus-pane-id", terminal.ID)
+	return terminal, ok, nil
 }
 
 // pickRightTerminal chooses among the tiled right terminals — after an
@@ -100,21 +117,10 @@ func pickRightTerminal(panes []zellijpane.Pane, lastTerminalID string, terminalP
 // yields a stale id and the write fails. That is the right trade — the
 // alternative is an error for a pane the operator just closed.
 func SwitchRightTerminalTab(rt Runtime, chord workbenchshortcut.Chord) error {
-	panesJSON, err := rt.ListPanesJSON()
+	terminal, ok, err := resolveRightTerminal(rt)
 	if err != nil {
 		return err
 	}
-	// Sidecar reads degrade gracefully, exactly as in FocusRightTerminal: a
-	// missing record costs the picker its preference signal, not the switch.
-	lastTerminal, err := rt.LastTerminalPaneID()
-	if err != nil {
-		lastTerminal = ""
-	}
-	terminalIDs, err := rt.TerminalPaneIDs()
-	if err != nil {
-		terminalIDs = nil
-	}
-	terminal, ok := pickRightTerminal(zellijpane.Parse(panesJSON), lastTerminal, terminalIDs)
 	if !ok {
 		// layout2, or a layout3 whose right pane exited: nothing to switch, and
 		// nothing to report — the chord is simply inert.

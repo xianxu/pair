@@ -1,8 +1,11 @@
 package workbenchshortcut
 
 import (
+	"fmt"
 	"os"
 	"path/filepath"
+	"regexp"
+	"strconv"
 	"strings"
 	"testing"
 
@@ -580,6 +583,45 @@ func TestChordMaxFollowsEveryEncodedChord(t *testing.T) {
 		if !covered[candidate.chord] {
 			t.Errorf("chord %v (%q) sits at or past ChordMax() — every enumeration over the chord space silently skips it",
 				candidate.chord, candidate.sequence)
+		}
+	}
+}
+
+// The RULE behind BR-2, not the four rows that prompted it: terminals disagree
+// about how to report Alt — bit 2 gives modifier 3, bit 8 ("meta") gives 9, and
+// adding shift gives 4 and 10. So for every arrow chord encoded as
+// \x1b[1;<m><letter>, the meta sibling \x1b[1;<m+6><letter> must be registered
+// too, or that chord is silently dead on a meta-style terminal in every pane
+// that decodes bytes itself. Checked mechanically so the NEXT arrow chord
+// cannot repeat it — four hand-added rows would have pinned nothing.
+func TestEveryArrowChordRegistersBothModifierFamilies(t *testing.T) {
+	const metaOffset = 6
+	arrow := regexp.MustCompile(`^\x1b\[1;(\d+)([A-D])$`)
+	registered := map[string]Chord{}
+	for _, candidate := range chordSequences {
+		registered[candidate.sequence] = candidate.chord
+	}
+	for _, candidate := range chordSequences {
+		match := arrow.FindStringSubmatch(candidate.sequence)
+		if match == nil {
+			continue
+		}
+		modifier, err := strconv.Atoi(match[1])
+		if err != nil {
+			t.Fatalf("unparseable modifier in %q", candidate.sequence)
+		}
+		if modifier >= 9 {
+			continue // already the meta form; its bit-2 sibling is the other row
+		}
+		sibling := fmt.Sprintf("\x1b[1;%d%s", modifier+metaOffset, match[2])
+		got, ok := registered[sibling]
+		if !ok {
+			t.Errorf("%q (%v) has no meta sibling %q — the chord is dead on a meta-style terminal",
+				candidate.sequence, candidate.chord, sibling)
+			continue
+		}
+		if got != candidate.chord {
+			t.Errorf("meta sibling %q maps to %v, want %v", sibling, got, candidate.chord)
 		}
 	}
 }

@@ -76,6 +76,138 @@ rounds:
           family: action-to-chord-mapping-restated
           round: 1
       blocked: true
+    - "n": 2
+      timestamp: "2026-09-09T12:19:10-07:00"
+      agent: claude
+      dispose:
+        - id: BR-1
+          disposition: addressed
+          note: README.md:131 nav_boundary row deleted; new "any pane / without moving focus" row at README.md:123.
+          round: 2
+        - id: BR-2
+          disposition: not-addressed
+          note: Rows added but nothing pins them; deleting all four leaves the suite green (measured).
+          round: 2
+        - id: BR-3
+          disposition: withdrawn
+          note: ChordEncodings returns [][]byte (shortcut.go:393), so the loop variable is already a byte.
+          round: 2
+        - id: BR-4
+          disposition: addressed
+          note: pos_rank is gone tree-wide; sibling orphans of the same deletion raised separately.
+          round: 2
+        - id: BR-5
+          disposition: addressed
+          note: Verified Context.String() has zero callers; the corrected comment is accurate.
+          round: 2
+        - id: BR-6
+          disposition: addressed
+          note: TabChordFor owns the mapping; all three executors route through it and two tests redden on it.
+          round: 2
+      findings:
+        - id: BR-7
+          severity: Important
+          title: The BR-2 meta-family rows are unpinned — deleting all four leaves the full suite green
+          detail: |-
+            This is the 2nd finding in family `chord-encoding-family-coverage`. Round 1
+            fixed instances (\x1b[1;10D, \x1b[1;10C, \x1b[1;9A, \x1b[1;9B added at
+            shortcut.go:367-368,378-379). Do NOT re-add or re-check those rows. The rule
+            that covers all of them: for every arrow chord encoded as \x1b[1;<m><letter>,
+            the meta sibling \x1b[1;<m+6><letter> must also be registered (alt 3 -> meta 9,
+            shift+alt 4 -> shift+meta 10). That rule is mechanically checkable over
+            chordSequences and is what should be written, not four more table rows.
+            Measured: the four new encodings appear nowhere in the tree but the source
+            table; removing all four from a scratch checkout of 813a3e17 left
+            `go test ./cmd/internal/workbenchshortcut/ ./cmd/internal/layoutcmd/` green and
+            `-run 'Chord|PumpStdin|Documented'` on termcmd green. TestDecodeAltArrowChords
+            (shortcut_test.go:320-334) still lists only the four original rows, and
+            TestDecodeGlobalChord:258-259 only the bit-2 Up/Down forms.
+          family: chord-encoding-family-coverage
+          round: 2
+        - id: BR-8
+          severity: Important
+          title: Two nav_boundary orphans survive BR-4 — a stale init.lua comment and an atlas helper list
+          detail: |-
+            This is the 2nd finding in family `dead-code-after-removal`. Round 1 fixed the
+            instance BR-4 named (pos_rank — verified gone tree-wide). Do NOT fix these two
+            sites individually. The rule: a deletion is complete only when the deleted
+            thing's full reference set is swept — bodies, callers, comments that describe
+            the behaviour, and atlas/ — via an explicit enumeration that is run and recorded
+            in the Log, not by chasing the sites a reviewer names. No compiler and no
+            `make test` step sees any of these.
+            Measured prevalence for this deletion: nvim/init.lua:2441-2445 is a comment block
+            still describing "Shift+Alt+arrows steps between exactly three landmarks … the
+            coarse jump to the far end / back to draft", now a false description of a live
+            chord (plus a stray double blank line at 2446-2447); atlas/architecture.md:955
+            still lists "`nav_boundary` (Shift+Alt jumps)" among the nvim helpers a reader
+            should go read. The other three hits (catalog.go:91, init.lua:3396, atlas:715)
+            are deliberate historical references and are correct.
+          family: dead-code-after-removal
+          round: 2
+        - id: BR-9
+          severity: Important
+          title: termcmd/run.go:197-202 has no test — deleting the whole case leaves the suite green
+          detail: |-
+            handleTerminalChord returns true for ChordAltShiftLeft/Right (run.go:522-531), so
+            the stdin pump never reaches runDecision for these chords (run.go:452). The case's
+            only reachable caller is `pair term --test-shortcut`, which is what
+            tests/term-pane-shortcuts-test.sh drives — the repo's fake-zellij harness that
+            covers every other terminal chord, and which was not extended. No Go test
+            references ActionTerminalPrevTab/NextTab outside shortcut_test.go:550.
+            Measured: removing the entire case from a scratch checkout of 813a3e17 left
+            `go test ./cmd/internal/termcmd/ ./cmd/internal/layoutcmd/
+            ./cmd/internal/workbenchshortcut/` reporting only the pre-existing
+            `ptychild: operation not permitted` sandbox failures. Fix: add the two rows to
+            term-pane-shortcuts-test.sh asserting `write --pane-id 4 27 91 49 59 51 68` /
+            `… 67`, or delete the case because the pump owns this pane. wrap.go:1648 states
+            this exact risk for the agent pane; it just wasn't applied here.
+          family: untested-executor-branch
+          round: 2
+        - id: BR-10
+          severity: Important
+          title: SwitchRightTerminalTab re-types FocusRightTerminal's four-step pane-resolution preamble
+          detail: |-
+            layoutcmd.go:103-117 duplicates layoutcmd.go:38-53 step for step — ListPanesJSON,
+            LastTerminalPaneID degrading to "", TerminalPaneIDs degrading to nil,
+            pickRightTerminal — including a reworded copy of the graceful-degradation
+            comment. The diff's stated ARCH-DRY guarantee ("reuses pickRightTerminal … so
+            Alt+k and Alt+Shift+arrow cannot land on different halves") is only half
+            delivered: the picker is shared, its inputs are re-derived. Adding a fourth
+            preference signal, or changing the degradation policy, will land at one site and
+            miss the other. Extract resolveRightTerminal(rt) (zellijpane.Pane, bool, error);
+            FocusRightTerminal keeps its `move-focus right` fallback on !ok, and
+            SwitchRightTerminalTab keeps its inert `return nil`.
+          family: resolution-sequence-restated
+          round: 2
+        - id: BR-11
+          severity: Minor
+          title: atlas:715 "can never disagree about which split half" holds only for the delivery path
+          detail: |-
+            This is the 2nd finding in family `docs-restate-chord-surface` and is Minor, so it
+            does not block. Same rule as the I-1 sweep: hand-maintained restatements need the
+            enumeration that derived surfaces get for free. From inside a split half the pump
+            switches THAT half (run.go:522), regardless of the recorded last-terminal id, so
+            Alt+k and Alt+Shift+arrow can point at different halves. Scope the sentence to the
+            draft/agent delivery path.
+          family: docs-restate-chord-surface
+          round: 2
+        - id: BR-12
+          severity: Minor
+          title: init.lua:3402-3404 copies the PAIR_HOME/bin/pair resolution idiom a fifth time
+          detail: |-
+            Also at 755, 767, 892, 950. Pre-existing pattern, not introduced by this issue; a
+            pair_bin() helper would end it.
+          family: dead-code-after-removal
+          round: 2
+        - id: BR-13
+          severity: Minor
+          title: _G.PairTermPrevTab / PairTermNextTab bodies are untested
+          detail: |-
+            workbench_route_test.lua pins the key -> function-name mapping; nothing pins the
+            jobstart argv at init.lua:3407-3408.
+          family: untested-executor-branch
+          round: 2
+      blocked: true
 ---
 
 # Gate ledger — pair#216 (boundary-review)
@@ -126,11 +258,94 @@ later rounds disposed of them. Generated — edit the gate, not this file.
   would make it one fact, matching the diff's own "one implementation of tab switching"
   framing (ARCH-DRY).
 
+## Round 2 — 2026-09-09T12:19:10-07:00 (claude) — BLOCKED
+
+### Disposed
+
+- BR-1 — addressed — README.md:131 nav_boundary row deleted; new "any pane / without moving focus" row at README.md:123.
+- BR-2 — not-addressed — Rows added but nothing pins them; deleting all four leaves the suite green (measured).
+- BR-3 — withdrawn — ChordEncodings returns [][]byte (shortcut.go:393), so the loop variable is already a byte.
+- BR-4 — addressed — pos_rank is gone tree-wide; sibling orphans of the same deletion raised separately.
+- BR-5 — addressed — Verified Context.String() has zero callers; the corrected comment is accurate.
+- BR-6 — addressed — TabChordFor owns the mapping; all three executors route through it and two tests redden on it.
+
+### Raised
+
+- **BR-7** [Important] `chord-encoding-family-coverage` The BR-2 meta-family rows are unpinned — deleting all four leaves the full suite green
+  This is the 2nd finding in family `chord-encoding-family-coverage`. Round 1
+  fixed instances (\x1b[1;10D, \x1b[1;10C, \x1b[1;9A, \x1b[1;9B added at
+  shortcut.go:367-368,378-379). Do NOT re-add or re-check those rows. The rule
+  that covers all of them: for every arrow chord encoded as \x1b[1;<m><letter>,
+  the meta sibling \x1b[1;<m+6><letter> must also be registered (alt 3 -> meta 9,
+  shift+alt 4 -> shift+meta 10). That rule is mechanically checkable over
+  chordSequences and is what should be written, not four more table rows.
+  Measured: the four new encodings appear nowhere in the tree but the source
+  table; removing all four from a scratch checkout of 813a3e17 left
+  `go test ./cmd/internal/workbenchshortcut/ ./cmd/internal/layoutcmd/` green and
+  `-run 'Chord|PumpStdin|Documented'` on termcmd green. TestDecodeAltArrowChords
+  (shortcut_test.go:320-334) still lists only the four original rows, and
+  TestDecodeGlobalChord:258-259 only the bit-2 Up/Down forms.
+- **BR-8** [Important] `dead-code-after-removal` Two nav_boundary orphans survive BR-4 — a stale init.lua comment and an atlas helper list
+  This is the 2nd finding in family `dead-code-after-removal`. Round 1 fixed the
+  instance BR-4 named (pos_rank — verified gone tree-wide). Do NOT fix these two
+  sites individually. The rule: a deletion is complete only when the deleted
+  thing's full reference set is swept — bodies, callers, comments that describe
+  the behaviour, and atlas/ — via an explicit enumeration that is run and recorded
+  in the Log, not by chasing the sites a reviewer names. No compiler and no
+  `make test` step sees any of these.
+  Measured prevalence for this deletion: nvim/init.lua:2441-2445 is a comment block
+  still describing "Shift+Alt+arrows steps between exactly three landmarks … the
+  coarse jump to the far end / back to draft", now a false description of a live
+  chord (plus a stray double blank line at 2446-2447); atlas/architecture.md:955
+  still lists "`nav_boundary` (Shift+Alt jumps)" among the nvim helpers a reader
+  should go read. The other three hits (catalog.go:91, init.lua:3396, atlas:715)
+  are deliberate historical references and are correct.
+- **BR-9** [Important] `untested-executor-branch` termcmd/run.go:197-202 has no test — deleting the whole case leaves the suite green
+  handleTerminalChord returns true for ChordAltShiftLeft/Right (run.go:522-531), so
+  the stdin pump never reaches runDecision for these chords (run.go:452). The case's
+  only reachable caller is `pair term --test-shortcut`, which is what
+  tests/term-pane-shortcuts-test.sh drives — the repo's fake-zellij harness that
+  covers every other terminal chord, and which was not extended. No Go test
+  references ActionTerminalPrevTab/NextTab outside shortcut_test.go:550.
+  Measured: removing the entire case from a scratch checkout of 813a3e17 left
+  `go test ./cmd/internal/termcmd/ ./cmd/internal/layoutcmd/
+  ./cmd/internal/workbenchshortcut/` reporting only the pre-existing
+  `ptychild: operation not permitted` sandbox failures. Fix: add the two rows to
+  term-pane-shortcuts-test.sh asserting `write --pane-id 4 27 91 49 59 51 68` /
+  `… 67`, or delete the case because the pump owns this pane. wrap.go:1648 states
+  this exact risk for the agent pane; it just wasn't applied here.
+- **BR-10** [Important] `resolution-sequence-restated` SwitchRightTerminalTab re-types FocusRightTerminal's four-step pane-resolution preamble
+  layoutcmd.go:103-117 duplicates layoutcmd.go:38-53 step for step — ListPanesJSON,
+  LastTerminalPaneID degrading to "", TerminalPaneIDs degrading to nil,
+  pickRightTerminal — including a reworded copy of the graceful-degradation
+  comment. The diff's stated ARCH-DRY guarantee ("reuses pickRightTerminal … so
+  Alt+k and Alt+Shift+arrow cannot land on different halves") is only half
+  delivered: the picker is shared, its inputs are re-derived. Adding a fourth
+  preference signal, or changing the degradation policy, will land at one site and
+  miss the other. Extract resolveRightTerminal(rt) (zellijpane.Pane, bool, error);
+  FocusRightTerminal keeps its `move-focus right` fallback on !ok, and
+  SwitchRightTerminalTab keeps its inert `return nil`.
+- **BR-11** [Minor] `docs-restate-chord-surface` atlas:715 "can never disagree about which split half" holds only for the delivery path
+  This is the 2nd finding in family `docs-restate-chord-surface` and is Minor, so it
+  does not block. Same rule as the I-1 sweep: hand-maintained restatements need the
+  enumeration that derived surfaces get for free. From inside a split half the pump
+  switches THAT half (run.go:522), regardless of the recorded last-terminal id, so
+  Alt+k and Alt+Shift+arrow can point at different halves. Scope the sentence to the
+  draft/agent delivery path.
+- **BR-12** [Minor] `dead-code-after-removal` init.lua:3402-3404 copies the PAIR_HOME/bin/pair resolution idiom a fifth time
+  Also at 755, 767, 892, 950. Pre-existing pattern, not introduced by this issue; a
+  pair_bin() helper would end it.
+- **BR-13** [Minor] `untested-executor-branch` _G.PairTermPrevTab / PairTermNextTab bodies are untested
+  workbench_route_test.lua pins the key -> function-name mapping; nothing pins the
+  jobstart argv at init.lua:3407-3408.
+
 ## Open findings
 
-- **BR-1** [Important] `docs-restate-chord-surface` README.md:131 still documents the deleted nav_boundary as Shift+Alt+arrows, and no row describes the new tab switching
 - **BR-2** [Important] `chord-encoding-family-coverage` Only the modifier-4 spelling is registered; the meta-family \x1b[1;10D / \x1b[1;10C analog is missing
-- **BR-3** [Minor] `bytes-vs-runes` DeliverChordArgs ranges a string, yielding runes rather than bytes
-- **BR-4** [Minor] `dead-code-after-removal` pos_rank is orphaned by the nav_boundary deletion
-- **BR-5** [Minor] `comment-claims-unrendered-surface` catalog.go comment credits a "context column" that pair keys does not render
-- **BR-6** [Minor] `action-to-chord-mapping-restated` The Action to delivered-chord mapping is restated at three call sites
+- **BR-7** [Important] `chord-encoding-family-coverage` The BR-2 meta-family rows are unpinned — deleting all four leaves the full suite green
+- **BR-8** [Important] `dead-code-after-removal` Two nav_boundary orphans survive BR-4 — a stale init.lua comment and an atlas helper list
+- **BR-9** [Important] `untested-executor-branch` termcmd/run.go:197-202 has no test — deleting the whole case leaves the suite green
+- **BR-10** [Important] `resolution-sequence-restated` SwitchRightTerminalTab re-types FocusRightTerminal's four-step pane-resolution preamble
+- **BR-11** [Minor] `docs-restate-chord-surface` atlas:715 "can never disagree about which split half" holds only for the delivery path
+- **BR-12** [Minor] `dead-code-after-removal` init.lua:3402-3404 copies the PAIR_HOME/bin/pair resolution idiom a fifth time
+- **BR-13** [Minor] `untested-executor-branch` _G.PairTermPrevTab / PairTermNextTab bodies are untested
