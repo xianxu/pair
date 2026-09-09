@@ -194,10 +194,12 @@ func runDecision(decision workbenchshortcut.ShortcutDecision, panes workbenchPan
 			return nil
 		}
 		return rt.RunZellijAction("focus-pane-id", decision.TargetPaneID)
-	case workbenchshortcut.ActionTerminalPrevTab:
-		return layoutcmd.SwitchRightTerminalTab(rt, workbenchshortcut.ChordAltLeft)
-	case workbenchshortcut.ActionTerminalNextTab:
-		return layoutcmd.SwitchRightTerminalTab(rt, workbenchshortcut.ChordAltRight)
+	case workbenchshortcut.ActionTerminalPrevTab, workbenchshortcut.ActionTerminalNextTab:
+		chord, ok := workbenchshortcut.TabChordFor(decision.Action)
+		if !ok {
+			return nil
+		}
+		return layoutcmd.SwitchRightTerminalTab(rt, chord)
 	case workbenchshortcut.ActionFocusRightTerminal:
 		// One picker for the right-terminal jump (shared with draft nvim and
 		// pair wrap): id-based, preferring the recorded last-used split half.

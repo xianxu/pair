@@ -2443,12 +2443,6 @@ end
 -- (-1) and queue-front (+1) edges are deliberately *not* stops: Alt+←/→
 -- already walks one slot at a time, so Shift+Alt is the coarse "jump to the
 -- far end / back to draft" gesture. An empty region contributes no landmark.
-local function pos_rank(p)
-  if p == '*' then return 0 end
-  if p.kind == 'history' then return -p.n end   -- -1 ranks -1, -h ranks -h
-  if p.kind == 'queue'   then return  p.n end   -- +1 ranks 1,  +q ranks q
-  return 0
-end
 
 
 -- Alt+BS — delete the current +N queue item without sending it. "Stay near":

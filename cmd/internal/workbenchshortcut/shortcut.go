@@ -358,8 +358,14 @@ var chordSequences = []struct {
 	{"\x1b[110;3u", ChordAltN},
 	{"\x1b[110;7u", ChordCtrlAltN},
 	{"\x1b[78;4u", ChordAltShiftN},
-	{"\x1b[1;3A", ChordAltUp},
-	{"\x1b[1;3B", ChordAltDown},
+	// Two modifier families, because terminals disagree about how to report
+	// Alt: bit 2 ("alt") gives modifier 3, bit 8 ("meta") gives 9, and adding
+	// shift gives 4 and 10 respectively. ChordAltLeft/Right have carried both
+	// since e6eee5a3; Up/Down had only the bit-2 form, so on a meta-style
+	// terminal they were silently dead. Registering both everywhere makes the
+	// family the rule rather than a per-chord accident (#216 BR-2).
+	{"\x1b[1;3A", ChordAltUp}, {"\x1b[1;9A", ChordAltUp},
+	{"\x1b[1;3B", ChordAltDown}, {"\x1b[1;9B", ChordAltDown},
 	{"\x1b[99;3u", ChordAltC},
 	{"\x1b/", ChordAltSlash}, {"\x1b[47;3u", ChordAltSlash},
 	{"\x1bC", ChordAltShiftC}, {"\x1b[67;3u", ChordAltShiftC},
@@ -369,8 +375,8 @@ var chordSequences = []struct {
 	{"\x1b[13;4u", ChordAltShiftEnter},
 	// Modifier 4 = shift+alt, the same family as ChordAltShiftEnter above and
 	// ChordAltUp's \x1b[1;3A (alt) — both of which are proven live.
-	{"\x1b[1;4D", ChordAltShiftLeft},
-	{"\x1b[1;4C", ChordAltShiftRight},
+	{"\x1b[1;4D", ChordAltShiftLeft}, {"\x1b[1;10D", ChordAltShiftLeft},
+	{"\x1b[1;4C", ChordAltShiftRight}, {"\x1b[1;10C", ChordAltShiftRight},
 }
 
 func ChordSequences() []string {
@@ -696,4 +702,18 @@ func DeliverChordArgs(paneID string, chord Chord) ([]string, bool) {
 		args = append(args, strconv.Itoa(int(b)))
 	}
 	return args, true
+}
+
+// TabChordFor maps a tab-switching action to the chord whose bytes deliver it.
+// One fact: the mapping was restated at each executor, which is the shape that
+// lets two of them drift (#216 BR-6).
+func TabChordFor(action ShortcutAction) (Chord, bool) {
+	switch action {
+	case ActionTerminalPrevTab:
+		return ChordAltLeft, true
+	case ActionTerminalNextTab:
+		return ChordAltRight, true
+	default:
+		return ChordUnknown, false
+	}
 }

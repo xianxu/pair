@@ -336,3 +336,49 @@ already proves live (`ChordAltShiftEnter` = `\x1b[13;4u`, `ChordAltUp` =
 `\x1b[1;3A`), and nvim's own `<S-M-Left>` mapping resolved from the same bytes
 before this change — but derived is not measured, and only a real keypress
 confirms it.
+
+### 2026-09-09 — boundary review round 1: FIX-THEN-SHIP, addressed
+
+**BR-1 — the README was the one consumer of the chord surface that does not
+derive, and it was not swept.** `keyhelp` derives its wording from
+`GlobalBinding.Help`, so the catalog moved with the code; README's chord table
+is a hand-maintained narrative restatement, and it still documented the deleted
+`nav_boundary`. Removed that row and added one for the new chords beside the
+existing terminal-tab row. Same class as `#171`'s BR-17/BR-20: when a surface
+changes, the non-deriving restatements are the ones that go stale silently.
+
+**BR-2 — the modifier FAMILY, not just the two new rows.** Terminals disagree
+about how to report Alt: bit 2 gives modifier 3, bit 8 ("meta") gives 9, and
+adding shift gives 4 and 10. `ChordAltLeft`/`Right` have carried both spellings
+since e6eee5a3; the new chords had only modifier 4, so on a meta-style terminal
+they would work from the draft (nvim resolves `<S-M-Left>` itself) while being
+silently dead in the agent and terminal panes — a partial failure of "from any
+pane" that a single-terminal manual test cannot rule out. Added `\x1b[1;10D` /
+`\x1b[1;10C`, **and** the missing `\x1b[1;9A` / `\x1b[1;9B` for `ChordAltUp` /
+`ChordAltDown`, which had the same gap for the same reason. That is the class:
+both modifier families for every arrow chord, rather than per-chord accident.
+`TestNoChordSequenceIsAProperPrefixOfAnother` guards the shadowing risk.
+
+**BR-6 — one fact for "prev means Alt+Left".** The Action→chord mapping was
+restated in three executors. `workbenchshortcut.TabChordFor` now owns it and all
+three route through it, including the CLI's `prev|next` parsing.
+
+**BR-4 — `pos_rank` was orphaned** by the `nav_boundary` deletion; the plan's
+deletion step named `nav_boundary`/`ordered_landmarks` but not it. Removed; no
+mentions remain. No Lua linter runs in `make test`, so nothing would have caught
+this — worth remembering that Lua dead code is unguarded here.
+
+**BR-5 — my comment credited a column that does not exist.** `catalog.go`
+justified grouping the two globals under the terminal-tab heading by claiming
+"the per-row context column is what distinguishes them". `pair keys` renders no
+context column: `Context.String()` exists but nothing displays it, so `Context`
+feeds classification only. The distinction really comes from the Help wording,
+which does hold. Comment corrected to say that instead. I asserted the column
+from the existence of a `String()` method without checking a renderer used it.
+
+**BR-3 — not a defect; recorded rather than "fixed".** The finding says
+`DeliverChordArgs` ranges a string and yields runes. It does not:
+`ChordEncodings` returns `[][]byte` (`shortcut.go:387`), so `encodings[0]` is
+`[]byte` and the loop variable is already a `byte`. `range []byte(encodings[0])`
+would be a redundant conversion. Left as is deliberately — making a no-op edit
+to close a finding would misreport what happened.

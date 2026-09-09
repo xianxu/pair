@@ -1671,11 +1671,10 @@ func (p *proxy) executeWorkbenchDecision(decision workbenchshortcut.ShortcutDeci
 		return true
 	}
 	switch decision.Action {
-	case workbenchshortcut.ActionTerminalPrevTab:
-		_ = switchTerminalTab(layoutcmd.OSRuntime{}, workbenchshortcut.ChordAltLeft)
-		return true
-	case workbenchshortcut.ActionTerminalNextTab:
-		_ = switchTerminalTab(layoutcmd.OSRuntime{}, workbenchshortcut.ChordAltRight)
+	case workbenchshortcut.ActionTerminalPrevTab, workbenchshortcut.ActionTerminalNextTab:
+		if chord, ok := workbenchshortcut.TabChordFor(decision.Action); ok {
+			_ = switchTerminalTab(layoutcmd.OSRuntime{}, chord)
+		}
 		return true
 	case workbenchshortcut.ActionFocusLeftDraft:
 		_ = runZellijAction("move-focus", "down")

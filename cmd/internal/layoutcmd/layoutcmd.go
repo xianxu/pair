@@ -135,15 +135,22 @@ func RunSwitchTerminalTab(args []string, rt Runtime, stderr io.Writer) int {
 		fmt.Fprintln(stderr, "usage: pair layout switch-terminal-tab prev|next")
 		return 2
 	}
-	var chord workbenchshortcut.Chord
+	var action workbenchshortcut.ShortcutAction
 	switch args[0] {
 	case "prev":
-		chord = workbenchshortcut.ChordAltLeft
+		action = workbenchshortcut.ActionTerminalPrevTab
 	case "next":
-		chord = workbenchshortcut.ChordAltRight
+		action = workbenchshortcut.ActionTerminalNextTab
 	default:
 		fmt.Fprintf(stderr, "pair layout switch-terminal-tab: unknown direction %q (want prev|next)\n", args[0])
 		return 2
+	}
+	// Through the same mapping the pane executors use, so the CLI cannot drift
+	// from them about what "prev" delivers.
+	chord, ok := workbenchshortcut.TabChordFor(action)
+	if !ok {
+		fmt.Fprintf(stderr, "pair layout switch-terminal-tab: no chord for %v\n", action)
+		return 1
 	}
 	if err := SwitchRightTerminalTab(rt, chord); err != nil {
 		fmt.Fprintf(stderr, "pair layout switch-terminal-tab: %v\n", err)

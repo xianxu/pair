@@ -82,11 +82,13 @@ var Catalog = catalog{
 		{Key: "Alt+→ (terminal)", Display: "Alt+→", Group: groupTerminal, Order: 6, Context: ContextTerminal, Source: SourceRole},
 		// Global, not role-local: these switch the right pane's tabs from
 		// anywhere and leave focus alone (#216). Grouped with the terminal tab
-		// chords because that is where a reader looks for tab switching; the
-		// per-row context column is what distinguishes them from the
-		// terminal-only rows above, which is what that column is for. They
-		// replaced this row's former Draft/history occupants (nav_boundary),
-		// deleted by operator decision.
+		// chords because that is where a reader looks for tab switching. What
+		// distinguishes them from the terminal-ONLY rows above is their Help
+		// wording ("from any pane, without moving focus") — `pair keys` renders
+		// no context column, so Context here feeds classification, not display,
+		// and the group heading's "(in the right terminal)" is corrected by the
+		// row text rather than by the heading. They replaced this group's former
+		// Draft/history occupants (nav_boundary), deleted by operator decision.
 		{Key: "<S-M-Left>", Display: "Shift+Alt+←", Group: groupTerminal, Order: 7, Context: ContextGlobal, Source: SourceGlobal},
 		{Key: "<S-M-Right>", Display: "Shift+Alt+→", Group: groupTerminal, Order: 8, Context: ContextGlobal, Source: SourceGlobal},
 
