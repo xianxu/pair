@@ -60,10 +60,8 @@ func resolveFromSidecars(liveIDs []string, lastTerminal string) (string, bool) {
 		return "", false // absence proves nothing about what exists
 	}
 	if lastTerminal != "" {
-		for _, id := range liveIDs {
-			if id == lastTerminal {
-				return id, true
-			}
+		if workbenchshortcut.Registered(liveIDs, lastTerminal) {
+			return lastTerminal, true
 		}
 		// Recorded half is dead, or alive but unregistered. Either way the
 		// registry cannot confirm it; let the pane list decide.

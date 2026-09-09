@@ -309,3 +309,24 @@ session: a guard that reports on its own inputs rather than on the behaviour it
 exists to pin. `#216`'s route scan asserted its premise instead of the routing;
 its first cut mis-scanned and called eight families unroutable; and this one
 counted a fixture shape instead of an execution.
+
+### 2026-09-09 — boundary review round 3
+
+**BR-13 — the rule: a fast path is pinned by its ANSWER, not by its saving.**
+Asserting `listCalls == 0` and that the gate declines pins the speed-up and the
+guard while leaving the actual result unchecked. Only one of three fast paths
+had a differential oracle (`resolveFromSidecars`, 360 cases). Both `termcmd`
+fast paths now run against the SAME fixture as the slow path — gate on, gate off
+— and assert the two answers are identical.
+
+The finding also caught a hole I had built in: my fixture set `cachedDraft: "2"`
+while its draft pane was also id 2, so "reads the cache" and "agrees with the
+report" were indistinguishable, and a fast path reading the wrong sidecar would
+have passed. The draft is now id 7, distinct from every other id in the fixture.
+Verified by mutation: returning `draftID + "9"` fails with *fast = draft "79";
+slow = draft "7" — the two paths disagree*.
+
+**BR-14 (Minor)** — registry membership was open-coded a third time.
+`workbenchshortcut.Registered(ids, paneID)` now owns it, and `RoleForPaneWith`,
+`resolveFromSidecars` and `termcmd.registered` all call it. The registry owns
+its own predicate, so a normalisation rule or a second field has one home.

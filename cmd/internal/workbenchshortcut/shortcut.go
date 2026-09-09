@@ -597,6 +597,22 @@ func (r TerminalPaneRegistry) LiveIDs(alive func(pid int) bool) ([]string, error
 	return ids, nil
 }
 
+// Registered reports whether paneID names a live self-registered `pair term`
+// pane. The membership test lives with the registry rather than at each caller
+// (#220 BR-14) — it was open-coded three times, and a registry that grows a
+// second field or a normalisation rule would have to be chased to all of them.
+func Registered(terminalPaneIDs []string, paneID string) bool {
+	if paneID == "" {
+		return false
+	}
+	for _, id := range terminalPaneIDs {
+		if id == paneID {
+			return true
+		}
+	}
+	return false
+}
+
 // RoleForPaneWith is RoleForPane with the terminal-pane registry overlaid:
 // a pane whose id is registered as a live `pair term` is a right terminal
 // even when zellij's pane report carries no usable command or title.
@@ -605,10 +621,8 @@ func RoleForPaneWith(p zellijpane.Pane, terminalPaneIDs []string) PaneRole {
 	if role != PaneRoleOther || p.IsPlugin || p.ID == "" {
 		return role
 	}
-	for _, id := range terminalPaneIDs {
-		if id == p.ID {
-			return PaneRoleRightTerminal
-		}
+	if Registered(terminalPaneIDs, p.ID) {
+		return PaneRoleRightTerminal
 	}
 	return role
 }

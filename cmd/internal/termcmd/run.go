@@ -161,12 +161,7 @@ func registered(rt Runtime, paneID string) bool {
 	if err != nil {
 		return false
 	}
-	for _, id := range ids {
-		if id == paneID {
-			return true
-		}
-	}
-	return false
+	return workbenchshortcut.Registered(ids, paneID)
 }
 
 func focusedWorkbenchPanes(rt Runtime) (workbenchPanes, error) {

@@ -321,3 +321,141 @@ findings:
       sites). Fix the rule: return which branch answered and count on that, so the guard
       cannot drift from the code; and skip the kindB loop when size==1.
 ```
+
+---
+
+## Re-review — 2026-09-09T15:40:34-07:00 (FIX-THEN-SHIP)
+
+| field | value |
+|-------|-------|
+| issue | 220 — zellij list-panes --json costs 590ms, so every pane-resolving chord pays it |
+| repo | pair |
+| issue file | workshop/issues/000220-zellij-list-panes-json-costs-590ms-so-every-pane-resolving-chord-pays-it.md |
+| boundary | whole-issue close |
+| milestone | — |
+| window | 21cc7f7791587351601a8274043f62493d0edd98..67f47b6afe012d9d6ab8a2eaabdff0d3d44772d5 |
+| command | sdlc close --issue 220 |
+| reviewer | claude |
+| timestamp | 2026-09-09T15:40:34-07:00 |
+| verdict | FIX-THEN-SHIP |
+
+## Review
+
+```verdict
+verdict: FIX-THEN-SHIP
+confidence: high
+```
+
+The one Important finding carried into this round (BR-12) is genuinely closed, and I confirmed it the way the rule demands rather than by reading the commit message: deleting the `len(liveIDs)==1` branch from `resolveFromSidecars` in a scratch worktree now fails the guard by name (`"no generated case was answered with NO recorded half … the single-live-id branch is unreached"`), where before it passed while still logging branch coverage. I also mutation-tested the record branch (dropping its membership loop reddens 108 generated cases) and confirmed by coverage profile that both `termcmd` fast paths now execute (`run.go:188`, `run.go:625`, count 1 each — they were 0 two rounds ago). `go build`, `go vet`, `gofmt` are clean; the affected packages pass; the only failures in `go test ./...` are the documented pty class (`ptychild: … operation not permitted`), which I reproduced at the base commit too. What keeps this off SHIP is one new Important — of the three fast paths this issue ships, only the `layoutcmd` one has a differential oracle against the slow path it replaces, and the Spec's third bullet applies to all three — plus five Minors that have now survived two rounds unaddressed. None blocks the gate.
+
+## 1. Strengths
+
+- `resolveFromSidecars` (`layoutcmd.go:58-79`) is the right shape and its purity is real, not claimed: the whole generated space runs with zero IO. ARCH-PURE passes cleanly.
+- The reachability guard now discriminates. `layoutcmd_test.go:349` counts `lastTerminal == ""`, which under the current branch structure is an exact characterisation of the single-live-id branch — and the fix was proved by deletion, which is what `workshop/lessons.md` now requires of this class. I reproduced the proof independently.
+- The oracle catches real divergence, not just its own shape. Replacing the record branch's membership loop with `return lastTerminal, true` reddens 108 cases with a message that names the actual hazard ("the two paths would land on different halves").
+- `procutil.Alive`'s two declared behaviour changes are both pinned, and the test names the reason the `positivePID` guard exists (false positive from a `1 0` registry line, not a delivered signal) — a correction the implementor made against their own earlier comment.
+- ARCH-PURPOSE shadow-sweep holds. I enumerated `list-panes --json` invocations across Go *and* the bundled Lua independently of the Plan: `launcher.ProbeLiveLayout` needs the full pane set, `opener.AgentPaneID` and `nvim/pair_poke.lua` resolve an id no sidecar carries, and `nvim/workbench_route.lua:91` is already cache-first. The Plan's five is the complete sweepable class; nothing that could derive from a sidecar was left as a "follow-up".
+
+## 2. Critical findings
+
+None.
+
+## 3. Important findings
+
+**N1 — two of the three fast paths pin their *saving* and their *gate*, but never their *answer*** (`cmd/internal/termcmd/run_test.go:1243`, `:1288`).
+
+**This is the 2nd finding in family `fastpath-untested`.** BR-3 fixed the instance ("both `termcmd` fast paths execute in zero tests"), so the deliverable here is the rule, not the site:
+
+> A fast path introduced as a substitute for an existing slow path is not tested by asserting that it skipped the expensive call (`listCalls == 0`) and that it declines when gated. It is tested when its **answer** is differentially pinned against the slow path's answer on a shared fixture. Asserting a hardcoded literal instead re-asserts the implementation.
+
+Measured prevalence in this diff: 3 fast paths, 1 differentially pinned. `layoutcmd`'s has a 360-case generated agreement oracle. `focusedWorkbenchPanes` (`run.go:188`) and `currentRightTerminalPane` (`run.go:625`) have none — the new tests assert `listCalls`, the gate's three decline cases, and hardcoded IDs.
+
+Concrete gap it leaves: `TestFocusedWorkbenchPanesSkipsThePaneListWhenRegistered` sets `cachedDraft: "2"` and the fall-back fixture's draft pane is *also* id 2, so `panes.draft.ID != "2"` cannot distinguish "reads the cache" from "agrees with the report". Set `cachedDraft: "7"` against the same report and the fast path returns 7 with the suite still green. That value is live: `Decide`'s right-terminal `Alt+K` targets `DraftPaneID` whenever `LastLeftPaneID` is empty (`shortcut.go:265-267`) — the first `Alt+k` of a session started in the terminal. Fix that implements the rule: for each fast path, run the *same* fixture twice — once with the gate satisfied, once with `terminalPaneIDs` nil — and assert the two results are equal, instead of comparing against a literal.
+
+## 4. Minor findings
+
+- ARCH-DRY: `registered` (`run.go:159`) is the third open-coded "is this pane id in the live registry" loop, alongside the one inside `resolveFromSidecars` (`layoutcmd.go:66`) and `RoleForPaneWith` (`shortcut.go:606`). `workbenchshortcut` owns the registry; a `Registered(ids []string, paneID string) bool` there would give all three one source.
+- `currentRightTerminalPane`'s comment cites its caller as `run.go:545`; `splitTerminalDown` is at `run.go:595`.
+- `if len(liveIDs) == 0 { return "", false }` (`layoutcmd.go:59`) is behaviourally redundant — both downstream branches already decline on an empty slice. Harmless as documentation; worth knowing no test can pin it.
+- The `kindB` axis is dead when `size == 1`, so the 18 single-live-id cases the guard reports are 6 distinct worlds repeated three times. Cosmetic now that the guard itself discriminates, but the logged number still overstates coverage 3x. (Part of BR-12's ask; see its disposition.)
+
+## 5. Test coverage notes
+
+Coverage of the new surface is now real where it was absent: both `termcmd` fast paths execute, `procutil.Alive`'s two behaviour changes each redden under mutation, and the generated space reaches the branch it claims. The remaining hole is the one N1 names. Two structural observations for later: `TestSidecarFastPathNeverInventsAnID` is a hand-enumerated 25-tuple space, not a generated one, and it survives only because `resolveFromSidecars` returns elements of `liveIDs` — it is the weakest oracle in the file, though I confirmed it is not tautological. And the residual pty failures (`ptychild`, `hostty`, `couchcore`) are environmental and reproduce at the base commit; they are not evidence about this diff either way.
+
+## 6. Architectural notes
+
+Marker by marker, at-review lens:
+
+- **ARCH-DRY** — flag (Minor above). `resolveRightTerminalID` correctly collapses both `layoutcmd` callers onto one shell, and `resolveFromSidecars` mirrors `ValidateCachedDraftPane` rather than inventing a shape. The membership predicate is the one duplication.
+- **ARCH-PURE** — pass. The pure decision is genuinely pure; the IO shell is thin and named as such.
+- **ARCH-PURPOSE** — pass. Shadow-sweep above; no consumer left as a hand-maintained restatement.
+- **ARCH-MOCK** — pass. zellij stays behind the `Runtime` seam in both packages, both fakes count `listCalls` so production and test flow share the boundary, and `Alive`'s tests exercise real pids rather than a stub. Note for later: the 590ms figure that justifies the whole design is a `## Log` measurement, not a conformance check — a zellij upgrade that fixes `--json` would leave the fast path as pure complexity with nothing reporting it.
+- **ARCH-CONSTRAINTS** — pass. Keystroke workload, budget stated, before/after measured on the same host (631→55ms, 671→27ms), and the regression guard is structural (`listCalls == 0`) rather than a timing assertion. The `termcmd` fast paths were not measured end to end, which the Log states honestly and the Done-when does not require.
+- **ARCH-SECURE** — flag, and it is BR-10, still open: the registry's pid is parsed, its pane id is not, and the fast path now hands `fields[0]` (`shortcut.go:595`) straight to `focus-pane-id` / `write --pane-id` without the pane-report intersection that used to constrain it.
+- **ARCH-ORDER** — pass with a note. `resolveFromSidecars` holds no state between events; the ordering event that matters is the registration race, and it is generated as an input class with the decline behaviour asserted. The interleaving *not* covered anywhere is a half closing between resolution and delivery — the atlas records it as fire-and-forget, which is a policy, not a test.
+
+## 7. Plan revision recommendations
+
+The issue file still has no `## Revisions` section. Three deltas belong in one entry:
+
+1. **Spec, third bullet** — "The fast path must produce the SAME id the slow path would in the cases it handles" is unscoped; the delivered guarantee holds over registry-*consistent* states, and over inconsistent ones only the weaker "never returns an id the registry did not list". The Log says this; the Spec still promises the stronger thing.
+2. **Plan, caller table, `termcmd:568` row** — "sidecar-first, **same resolver**" is wrong: `currentRightTerminalPane` uses an inline registry-membership check, correctly, because its question ("am *I* a right terminal?") differs from `resolveRightTerminal`'s.
+3. **Plan, caller table, `termcmd:144` row** — the justification "falls back to the pane list when `CurrentPaneID()` is empty (the `--test-shortcut` path, which has no live pane)" was shown false by BR-5 and superseded by the registry gate. The row should say what the code does: gate on registry membership, fall back on any of the three misses.
+
+```findings
+dispose:
+  - id: BR-12
+    disposition: addressed
+    note: |
+      Verified by mutation in a scratch worktree — deleting the single-live-id branch now fails the guard by name; residue: the kindB axis is still dead when size==1, so the reported 18 is 6 distinct worlds.
+  - id: BR-1
+    disposition: not-addressed
+    note: |
+      Re-confirmed: termcmd's ListPanesJSON (run.go:1684) omits --geometry, layoutcmd's (layoutcmd.go:305) has it, so Alt+Shift+Enter from the terminal is inert — pre-existing, close it by filing its own issue rather than by more work in 220.
+  - id: BR-8
+    disposition: not-addressed
+    note: |
+      layoutcmd.go:95 unchanged; the class is 4 sites now (run.go:190, :191, :626).
+  - id: BR-9
+    disposition: not-addressed
+    note: |
+      Re-measured on this host: /bin/kill -0 1 exits 1, so the old code called an EPERM process dead; procutil.go:37 and procutil_test.go:129 both still claim otherwise.
+  - id: BR-10
+    disposition: not-addressed
+    note: |
+      shortcut.go:587-595 unchanged — fields[1] is parsed as an int, fields[0] is taken verbatim and now reaches focus-pane-id unintersected.
+  - id: BR-11
+    disposition: not-addressed
+    note: |
+      No "## Revisions" section exists; and a third instance has accumulated — the Plan's termcmd:144 row still carries the "--test-shortcut path has no live pane" justification BR-5 falsified.
+findings:
+  - id: new
+    severity: Important
+    family: fastpath-untested
+    title: |
+      Two of the three fast paths pin their saving and their gate but never their answer
+    detail: |
+      2nd in this family, so the deliverable is the RULE: a fast path substituting for an
+      existing slow path is not tested by asserting listCalls==0 and that it declines when
+      gated; it is tested when its ANSWER is differentially pinned against the slow path on
+      a shared fixture. Measured prevalence in this diff: 3 fast paths, 1 pinned —
+      layoutcmd's resolveFromSidecars has a 360-case agreement oracle, focusedWorkbenchPanes
+      (run.go:188) and currentRightTerminalPane (run.go:625) have none. Concrete gap:
+      run_test.go:1243 sets cachedDraft "2" while the fall-back fixture's draft is also id 2,
+      so the assertion cannot distinguish "reads the cache" from "agrees with the report" —
+      set cachedDraft to "7" and the fast path returns 7 with the suite green. DraftPaneID is
+      live via shortcut.go:265-267 (right-terminal Alt+K with an empty LastLeftPaneID). Fix
+      the rule: run each fixture twice, gate satisfied and gate unsatisfied, and assert the
+      two results are equal instead of comparing to a literal.
+  - id: new
+    severity: Minor
+    family: shared-predicate-not-extracted
+    title: |
+      Registry membership is open-coded a third time instead of living with the registry
+    detail: |
+      run.go:159 `registered` duplicates the same "is this pane id in the live registry" loop
+      that resolveFromSidecars carries at layoutcmd.go:66 and RoleForPaneWith at
+      shortcut.go:606. workbenchshortcut owns the registry; export
+      Registered(ids []string, paneID string) bool there and have all three call it (ARCH-DRY).
+```

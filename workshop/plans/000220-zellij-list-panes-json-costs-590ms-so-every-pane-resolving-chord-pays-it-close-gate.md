@@ -204,6 +204,64 @@ rounds:
           family: agreement-oracle-strength
           round: 3
       blocked: true
+    - "n": 4
+      timestamp: "2026-09-09T15:40:34-07:00"
+      agent: claude
+      dispose:
+        - id: BR-12
+          disposition: addressed
+          note: 'Verified by mutation in a scratch worktree — deleting the single-live-id branch now fails the guard by name; residue: the kindB axis is still dead when size==1, so the reported 18 is 6 distinct worlds.'
+          round: 4
+        - id: BR-1
+          disposition: not-addressed
+          note: 'Re-confirmed: termcmd''s ListPanesJSON (run.go:1684) omits --geometry, layoutcmd''s (layoutcmd.go:305) has it, so Alt+Shift+Enter from the terminal is inert — pre-existing, close it by filing its own issue rather than by more work in 220.'
+          round: 4
+        - id: BR-8
+          disposition: not-addressed
+          note: layoutcmd.go:95 unchanged; the class is 4 sites now (run.go:190, :191, :626).
+          round: 4
+        - id: BR-9
+          disposition: not-addressed
+          note: 'Re-measured on this host: /bin/kill -0 1 exits 1, so the old code called an EPERM process dead; procutil.go:37 and procutil_test.go:129 both still claim otherwise.'
+          round: 4
+        - id: BR-10
+          disposition: not-addressed
+          note: shortcut.go:587-595 unchanged — fields[1] is parsed as an int, fields[0] is taken verbatim and now reaches focus-pane-id unintersected.
+          round: 4
+        - id: BR-11
+          disposition: not-addressed
+          note: No "## Revisions" section exists; and a third instance has accumulated — the Plan's termcmd:144 row still carries the "--test-shortcut path has no live pane" justification BR-5 falsified.
+          round: 4
+      findings:
+        - id: BR-13
+          severity: Important
+          title: Two of the three fast paths pin their saving and their gate but never their answer
+          detail: |-
+            2nd in this family, so the deliverable is the RULE: a fast path substituting for an
+            existing slow path is not tested by asserting listCalls==0 and that it declines when
+            gated; it is tested when its ANSWER is differentially pinned against the slow path on
+            a shared fixture. Measured prevalence in this diff: 3 fast paths, 1 pinned —
+            layoutcmd's resolveFromSidecars has a 360-case agreement oracle, focusedWorkbenchPanes
+            (run.go:188) and currentRightTerminalPane (run.go:625) have none. Concrete gap:
+            run_test.go:1243 sets cachedDraft "2" while the fall-back fixture's draft is also id 2,
+            so the assertion cannot distinguish "reads the cache" from "agrees with the report" —
+            set cachedDraft to "7" and the fast path returns 7 with the suite green. DraftPaneID is
+            live via shortcut.go:265-267 (right-terminal Alt+K with an empty LastLeftPaneID). Fix
+            the rule: run each fixture twice, gate satisfied and gate unsatisfied, and assert the
+            two results are equal instead of comparing to a literal.
+          family: fastpath-untested
+          round: 4
+        - id: BR-14
+          severity: Minor
+          title: Registry membership is open-coded a third time instead of living with the registry
+          detail: |-
+            run.go:159 `registered` duplicates the same "is this pane id in the live registry" loop
+            that resolveFromSidecars carries at layoutcmd.go:66 and RoleForPaneWith at
+            shortcut.go:606. workbenchshortcut owns the registry; export
+            Registered(ids []string, paneID string) bool there and have all three call it (ARCH-DRY).
+          family: shared-predicate-not-extracted
+          round: 4
+      blocked: true
 ---
 
 # Gate ledger — pair#220 (boundary-review)
@@ -319,6 +377,38 @@ later rounds disposed of them. Generated — edit the gate, not this file.
   sites). Fix the rule: return which branch answered and count on that, so the guard
   cannot drift from the code; and skip the kindB loop when size==1.
 
+## Round 4 — 2026-09-09T15:40:34-07:00 (claude) — BLOCKED
+
+### Disposed
+
+- BR-12 — addressed — Verified by mutation in a scratch worktree — deleting the single-live-id branch now fails the guard by name; residue: the kindB axis is still dead when size==1, so the reported 18 is 6 distinct worlds.
+- BR-1 — not-addressed — Re-confirmed: termcmd's ListPanesJSON (run.go:1684) omits --geometry, layoutcmd's (layoutcmd.go:305) has it, so Alt+Shift+Enter from the terminal is inert — pre-existing, close it by filing its own issue rather than by more work in 220.
+- BR-8 — not-addressed — layoutcmd.go:95 unchanged; the class is 4 sites now (run.go:190, :191, :626).
+- BR-9 — not-addressed — Re-measured on this host: /bin/kill -0 1 exits 1, so the old code called an EPERM process dead; procutil.go:37 and procutil_test.go:129 both still claim otherwise.
+- BR-10 — not-addressed — shortcut.go:587-595 unchanged — fields[1] is parsed as an int, fields[0] is taken verbatim and now reaches focus-pane-id unintersected.
+- BR-11 — not-addressed — No "## Revisions" section exists; and a third instance has accumulated — the Plan's termcmd:144 row still carries the "--test-shortcut path has no live pane" justification BR-5 falsified.
+
+### Raised
+
+- **BR-13** [Important] `fastpath-untested` Two of the three fast paths pin their saving and their gate but never their answer
+  2nd in this family, so the deliverable is the RULE: a fast path substituting for an
+  existing slow path is not tested by asserting listCalls==0 and that it declines when
+  gated; it is tested when its ANSWER is differentially pinned against the slow path on
+  a shared fixture. Measured prevalence in this diff: 3 fast paths, 1 pinned —
+  layoutcmd's resolveFromSidecars has a 360-case agreement oracle, focusedWorkbenchPanes
+  (run.go:188) and currentRightTerminalPane (run.go:625) have none. Concrete gap:
+  run_test.go:1243 sets cachedDraft "2" while the fall-back fixture's draft is also id 2,
+  so the assertion cannot distinguish "reads the cache" from "agrees with the report" —
+  set cachedDraft to "7" and the fast path returns 7 with the suite green. DraftPaneID is
+  live via shortcut.go:265-267 (right-terminal Alt+K with an empty LastLeftPaneID). Fix
+  the rule: run each fixture twice, gate satisfied and gate unsatisfied, and assert the
+  two results are equal instead of comparing to a literal.
+- **BR-14** [Minor] `shared-predicate-not-extracted` Registry membership is open-coded a third time instead of living with the registry
+  run.go:159 `registered` duplicates the same "is this pane id in the live registry" loop
+  that resolveFromSidecars carries at layoutcmd.go:66 and RoleForPaneWith at
+  shortcut.go:606. workbenchshortcut owns the registry; export
+  Registered(ids []string, paneID string) bool there and have all three call it (ARCH-DRY).
+
 ## Open findings
 
 - **BR-1** [Minor] `divergent-runtime-impls` Toggle-focused's geometry justification holds for only one of its two entry points
@@ -326,4 +416,5 @@ later rounds disposed of them. Generated — edit the gate, not this file.
 - **BR-9** [Minor] `comment-vs-measured-behavior` Alive's doc comment misstates the old EPERM behavior
 - **BR-10** [Minor] `untrusted-sidecar-parse` Registry pane id is never validated as a pane id, only the pid is
 - **BR-11** [Minor] `plan-code-drift` Spec's unscoped agreement claim and the Plan's "same resolver" row no longer match the code
-- **BR-12** [Important] `agreement-oracle-strength` The single-live-id reachability guard counts an input predicate, so it survives the branch's deletion
+- **BR-13** [Important] `fastpath-untested` Two of the three fast paths pin their saving and their gate but never their answer
+- **BR-14** [Minor] `shared-predicate-not-extracted` Registry membership is open-coded a third time instead of living with the registry
