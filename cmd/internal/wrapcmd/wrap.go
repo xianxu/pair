@@ -607,10 +607,14 @@ func (p *proxy) traceWrap(label string, fields map[string]any) {
 // and is non-fatal, so this is fire-and-forget. PAIR_AGENT tells it which
 // session-file format to parse; cwd is inherited (the agent's repo → branch).
 //
-// Cost note: this runs once per turn-end, and pair-slug must call the small
-// model before it can know the answer is KEEP — so steady-state cost is ~one
-// haiku call per agent turn. The 1s debounce only collapses bursts, not the
-// per-turn baseline; that's the accepted price of an always-current slug.
+// Cost note: this runs on each notification, and pair-slug must call the small
+// model before it can know the answer is KEEP. The baseline is ~one haiku call
+// per agent turn-end; the idle floor (#171) adds one per quiet stretch that
+// goes unreported — usually zero, since a turn that ends normally is reported
+// and a working pane is never byte-quiet, but a turn the operator answers
+// repeatedly can re-arm and alert more than once. The 1s debounce only
+// collapses bursts, not the baseline; that's the accepted price of an
+// always-current slug.
 func (p *proxy) maybeSpawnSlug() {
 	now := p.clock()
 	if !p.lastSlug.IsZero() && now.Sub(p.lastSlug) < slugDebounceS {
@@ -1488,8 +1492,7 @@ func (p *proxy) translateStdinFrom(stdin io.Reader, out io.Writer, flushAfter ti
 				if p.hasReturnRemap() {
 					outBytes, leftover, inPaste = p.translateChunk(segment, inPaste)
 				} else {
-					outBytes, leftover = p.passThroughChunk(segment)
-					inPaste = false
+					outBytes, leftover, inPaste = p.passThroughChunk(segment, inPaste)
 				}
 				if len(outBytes) > 0 {
 					wn, werr := out.Write(outBytes)
@@ -1580,22 +1583,51 @@ func (p *proxy) closeTerminal() error {
 	return p.terminal.Close()
 }
 
-func (p *proxy) passThroughChunk(data []byte) ([]byte, []byte) {
+func (p *proxy) passThroughChunk(data []byte, inPaste bool) ([]byte, []byte, bool) {
 	if workbenchshortcut.IsChordPrefix(data) {
-		return nil, append([]byte(nil), data...)
+		return nil, append([]byte(nil), data...), inPaste
 	}
 	if len(data) == 1 && data[0] == 0x1b {
-		return nil, append([]byte(nil), data...)
+		return nil, append([]byte(nil), data...), inPaste
 	}
-	// These bytes reach the agent verbatim, so a CR here IS a submission —
-	// and it is the only turn-opening signal this configuration has. Without
-	// it the floor never arms under PAIR_WRAP_REMAP_RETURN=0, nor for any
-	// agent outside harnessTTYProfiles, which would make the "arms for every
-	// agent" claim false for two whole populations (BR-14).
-	if bytes.IndexByte(data, '\r') >= 0 {
+	// These bytes reach the agent verbatim, so a CR here IS a submission — and
+	// it is the only turn-opening signal this configuration has. Without it the
+	// floor never arms under PAIR_WRAP_REMAP_RETURN=0, nor for any agent
+	// outside harnessTTYProfiles (BR-14). The predicate is decided by
+	// submittingReturn rather than re-derived here, because a bare CR scan
+	// misses bracketed paste: a pasted multi-line prompt carries CRs that
+	// submit nothing, and would otherwise open a turn the operator never
+	// started and earn a spurious "no agent output" alert (BR-21).
+	submits, nextPaste := submittingReturn(data, inPaste)
+	if submits {
 		p.publishLifecycleObservation(TurnObservation{Kind: ObservationBareReturn})
 	}
-	return data, nil
+	return data, nil, nextPaste
+}
+
+// submittingReturn reports whether `data` carries a CR that the agent will see
+// as a submission, and the bracketed-paste state to carry into the next chunk.
+// A CR between ESC[200~ and ESC[201~ is pasted content, not a send — the remap
+// path gets this for free because translateChunk never reaches emitPlainCR
+// inside a paste, and this is the pass-through path's equivalent. Pure.
+func submittingReturn(data []byte, inPaste bool) (bool, bool) {
+	submits := false
+	for i := 0; i < len(data); {
+		switch {
+		case startsWith(data[i:], bpStart):
+			inPaste = true
+			i += len(bpStart)
+		case startsWith(data[i:], bpEnd):
+			inPaste = false
+			i += len(bpEnd)
+		default:
+			if data[i] == '\r' && !inPaste {
+				submits = true
+			}
+			i++
+		}
+	}
+	return submits, inPaste
 }
 
 func (p *proxy) handleWorkbenchChord(chord workbenchshortcut.Chord) bool {

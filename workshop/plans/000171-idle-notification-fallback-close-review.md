@@ -570,3 +570,176 @@ findings:
       by resolveNotifyConfig, enforced by a source-scanning test — or the residue accepted
       explicitly in the issue Log.
 ```
+
+---
+
+## Re-review — 2026-09-09T03:45:57-07:00 (FIX-THEN-SHIP)
+
+| field | value |
+|-------|-------|
+| issue | 171 — Always-on idle notification fallback |
+| repo | pair |
+| issue file | workshop/issues/000171-idle-notification-fallback.md |
+| boundary | whole-issue close |
+| milestone | — |
+| window | 9edc8a9772321eed8999dd5cacef28cdd4d0fd31..f18befa52d3a59d00385d83b9459ae515a376530 |
+| command | sdlc close --issue 171 |
+| reviewer | claude |
+| timestamp | 2026-09-09T03:45:57-07:00 |
+| verdict | FIX-THEN-SHIP |
+
+## Review
+
+```verdict
+verdict: FIX-THEN-SHIP
+confidence: high
+```
+
+Round 3's two blocking findings are genuinely fixed, and I verified both by mutation rather than by reading the commit message: re-inserting `if p.notifyModeActive != "idle" { p.idleS = 0 }` at its original call site now reddens `TestNotifyWiringHasASingleAssignmentSiteFedByTheResolver` (BR-19), and the duplicate-producing mutation fails the master-loop count assertion with `notifications = 9` under the injected clock while the *identical* mutation with `now: time.Now` still passes (BR-18) — the clock injection, not a wider sleep, is what made the oracle able to fail. A 10-mutation sweep at head came back RED on 9/10 (the tenth was my own contrived call-site variant, not a realistic regression; the faithful BR-2 mutation is RED). Fuzz: 3.5M execs, clean. `go build ./...` + `go vet` clean; the 11 package failures are the pre-existing pty-child/sandbox set, identical at head. What keeps this from SHIP is that both new findings are *repeats of families already in play*, and in both cases the enumeration the family demands was taken from the prior finding's list rather than derived: BR-17 swept the three restatements it named and left five more in the source file itself, and BR-14's pass-through opener planted a second, paste-blind copy of the "does this CR submit?" predicate that `decidePlainReturn` owns — I reproduced a bracketed paste publishing `ObservationBareReturn` on one path and nothing on the other.
+
+## 1. Strengths
+
+- **`applyIdleExpiry(token)` as a parameter, not a field read** (`notification_lifecycle.go:287`). Making the epoch an argument means the call site's evaluation order pins it structurally; mutating the final observation to read `p.idleTimerToken` instead of `token` reddens `TestIdleExpiryDoesNotAlertAgainstATurnOpenedByItsOwnDrain`. This is the right shape for the BR-2 class, not a comment asking the next reader to preserve ordering.
+- **The clock injection is the correct fix for BR-18** (`wrap.go:648-653`, `idle_floor_test.go:44-53`). `clock()` routes both `emitOuter`'s limiter and `maybeSpawnSlug`'s debounce through the proxy's *already existing* `now` seam rather than adding a new one, and the counterfactual holds: same mutation, real clock → green; injected clock → `notifications = 9`.
+- **`resolveNotifyConfig`** (`wrap.go:117-125`) turns an unfalsifiable startup-path property into a pure one. `TestResolveNotifyConfigNeverZeroesTheIdleInterval` asserts the interval survives every mode, which is exactly the invariant the deleted gate violated.
+- **The reducer's alert-vs-completion decision** (`notification_lifecycle.go:188-205`) is argued in the code, pinned by `TestIdleFloorIsAnAlertSoARealCompletionStillNotifies`, and the mutation "idle alert becomes a completion" reddens two tests.
+- **`TestReducePreservesTheGenerationInvariantForEveryObservationKind`** walks `observationKindCount` instead of asserting equality against the last kind — it absorbs a new kind rather than failing on the change the sentinel exists to tolerate.
+
+## 2. Critical findings
+
+None.
+
+## 3. Important findings
+
+### I-1 — Five in-source restatements of the superseded "once per turn" invariant survived the sweep
+
+`notification_lifecycle.go:37, 77, 80, 320, 351`. **This is the 3rd finding in family `atlas-overstates-guarantee`.** Do not fix these five lines and call it done — the rule is that when an invariant changes, the enumeration of its restatements must be **derived mechanically** (grep the invariant's phrasing across the tree), not inherited from the prior finding's bullet list. BR-17 named three sites (fuzz, README, atlas) and all three were swept correctly — verified by grep — but the enumeration itself was the prior reviewer's, and the class it belonged to (every place that states the once-per rule, source comments included) was never written down. Measured prevalence at head, `grep -n "once per turn\|no-op\|one alert\|minted once"`:
+
+- `:37` — `ObservationBareReturn` "inside an open turn (answering a menu) it is a **no-op**" — false; BR-14 made it re-arm the floor.
+- `:77` — `IdleNotified` "the alert fires **at most once per turn** … `open()` clears it, so each new turn is armed again" — false on both clauses.
+- `:80` — `IdleToken` "It is **minted once per turn** (not once per chunk)" — false; a bare return mints a second within the same turn.
+- `:320` — `syncIdleTimer` "has not already raised its **one alert** … a new turn re-arms it because `open()` clears `IdleNotified`" — incomplete for the same reason.
+- `:351` — `resetIdleTimer` "`IdleToken` is **minted once per turn** by the reducer" — false.
+
+3 swept, 5 stale. The live invariant, per the issue's own round-3 entry, is *one completion per generation, one alert per idle epoch*. The fix is the derivation: run the grep, sweep the result, and record the grep in the Log so the next invariant change reuses it rather than a hand-list. ARCH-PURPOSE (the class, not the instance).
+
+### I-2 — `passThroughChunk`'s inline CR test is a second, divergent home for the submission predicate: a bracketed paste opens a turn and earns a spurious alert
+
+`wrap.go:1595`. **This is the 2nd finding in family `submits-rule-second-home`.** BR-7 established the rule — "does this input submit?" is decided once, in `decidePlainReturn`, and carried on `returnDecision.submits`; the nil-profile branch was folded back in precisely so the rule would not have a second home. BR-14's fix then opened a third path that re-derives the predicate inline as `bytes.IndexByte(data, '\r') >= 0`, and it has already diverged: `translateChunk` tracks bracketed-paste state and never calls `emitPlainCR` inside a paste (`wrap.go:1868-1882`), while `passThroughChunk` has no paste awareness at all — its caller hard-sets `inPaste = false` (`wrap.go:1492`).
+
+Measured, with a scratch probe on both paths given the identical byte string `\x1b[200~line one\rline two\r\x1b[201~`:
+
+```
+pass-through published: [12]   // ObservationBareReturn
+remap path published:   []
+```
+
+Failure scenario: under `PAIR_WRAP_REMAP_RETURN=0`, or for any agent outside the four `harnessTTYProfiles` entries, the operator pastes a multi-line prompt into the agent pane (terminals normalise pasted newlines to CR) and then steps away to think without submitting. `Reduce` opens a turn on the paste, `syncIdleTimer` arms the floor, and `PAIR_WRAP_IDLE_S` later the operator is notified "no agent output for 60s" about a pane where they typed something and the agent was never asked anything. That is the untrustworthy-notification failure the Spec names as the reason not to emit in parallel.
+
+Don't patch `passThroughChunk` with its own paste tracker — that would be a third divergence waiting. State and apply the rule: the submission predicate has one pure home, and both stdin paths consult it. The narrow shape is to give the no-remap path the same paste-state parameter `translateChunk` already carries and route its CR through the same decision function (`decidePlainReturn` with the zero profile already fails closed to `submits: true`, which is the correct answer for a *non*-paste CR there). Prevalence: 2 divergences from the single predicate in as many rounds. ARCH-DRY, ARCH-PURPOSE.
+
+## 4. Minor findings
+
+- **BR-15 remains open, unchanged.** `wrap.go:2705` and `notification_lifecycle.go:304` still write the lifecycle-expiry application twice; the `dir/outer` + `dir/outer-path` sidecar fixture still stands at 7 test sites (`codex_working_test.go`, `idle_floor_test.go`, `lifecycle_journal_test.go`, `notification_rewriter_test.go`, `update_agent_output_test.go`). Re-measured this round, not re-derived from the prior text.
+- **BR-16 remains open, unchanged.** `notification_lifecycle.go:310-311` still emits `p.debug("IDLE", …)` and `traceWrap("idle", …)` before the reducer decides, so a token-rejected expiry — including one the drain or the precedence branch just invalidated — records a completed idle expiry in the two places an operator reconstructs the decision from.
+- **The expiry drain's test fixture is not reachable in production** (`idle_floor_test.go:205`, comment at `notification_lifecycle.go:285`). `publishLifecycleObservation` has exactly four call sites (`wrap.go:1596, 1850, 1900, 1919`) and they publish only `ObservationBareReturn` and `ObservationUserSubmission`; marker/native/transcript completions are reduced directly on the master goroutine. So `TestIdleExpiryDrainAppliesAQueuedCompletionFirst` queues a kind that channel never carries, and the doc comment's "a submission **or completion** already published but not yet reduced" is false for the completion half. The drain is still pinned — the "delete the expiry drain" mutation also reddens the BR-2 test, which uses a reachable kind — so this is a comment + fixture-realism issue, not a coverage hole.
+- `p.now` now serves two unrelated concerns (the `#59` scrollback time-event debounce at `wrap.go:2077` and the emit limiter/slug debounce). Fine in production where both are `time.Now`, but a future test injecting a clock for one gets the other for free; worth a line in the field doc.
+
+## 5. Test coverage notes
+
+- Mutation sweep at head, baseline 11 failures (all pre-existing sandbox/pty), 10 mutations: **9 RED**. RED on — idle alert becomes a completion; delete the expiry drain; delete lifecycle-deadline precedence; delete the bare-CR publish (remap); delete the bare-CR publish (pass-through); drop the re-arm on a spent floor; message loses sub-second honesty; unconditional re-arm; drop the once-per-epoch reducer guard. Plus the faithful BR-2 mutation (`Token: p.idleTimerToken` inside `applyIdleExpiry`) → RED, and re-inserting the mode gate → RED.
+- The one GREEN was a call-site variant (draining before `p.applyIdleExpiry(p.idleTimerToken)` in the master loop) that no test crosses, because the BR-2 test calls `applyIdleExpiry` directly. I don't think this needs a test: passing the token as an argument makes Go's evaluation order the guarantee, and the realistic regression (the function ignoring its parameter) is caught. Noting it so it isn't rediscovered as a gap.
+- `go test -race -count=2` over the idle/lifecycle/master-pump set: clean. Fuzz 20s, 3.5M execs, 177 corpus entries: clean.
+- `TestIdleExpiryDrainAppliesAQueuedCompletionFirst:210` and `TestIdleExpiryGivesTheLifecycleDeadlinePrecedenceWhenBothAreReady:236` still assert `len(got) != 1` through `newIdleExpiryProxy`, which wires `now: time.Now` — so those two count clauses sit inside the 500ms limiter. Both rows survive on their content assertions (`"finished working"` / `"stopped working"`), which is why I'm not raising this as a 4th `unfalsifiable-race-test` finding, but the rule BR-18 established applies to every count assertion, not just the harness one: `newIdleExpiryProxy` should take the same advancing clock so the `len(got)` clause means something. One-line change, worth doing while I-1 and I-2 are open.
+
+## 6. Architectural notes
+
+- **ARCH-DRY — flag.** BR-15's two duplications plus I-2's second submission predicate. The pattern across this issue is that each fix lands correctly and then *plants* the next duplicate; the `drainStop` extraction (BR-8) is the model to follow for `applyLifecycleExpiry`.
+- **ARCH-PURE — pass.** `Reduce`, `idleAlertMessage`, `decidePlainReturn`, `resolveNotifyConfig` are pure and tested with no IO, no exec, no clock. The IO shell (`syncIdleTimer`, `bumpIdleDeadline`, `applyIdleExpiry`, `emitOuter`) is thin and every external effect it reaches is injected — `writeTTY`, `spawnSlug`, `now`. No "pure" entity here needs a mock to run.
+- **ARCH-PURPOSE — pass, with I-1's flag.** Shadow-sweep of the turn-opener population: Alt+Enter KKP (`wrap.go:1900`), legacy Alt+Enter (`:1919`), composer-inactive/unknown bare CR (`:1850` via `decidePlainReturn`), no-remap pass-through CR (`:1596`). The draft pane submits via `zellij action send-keys 'Alt Enter'` (`draft_send.lua:17`), so it lands on the Alt+Enter opener rather than needing a fifth. All seven Done-when bullets are delivered and each has a reddening test. The flag is the enumeration discipline in I-1.
+- **ARCH-MOCK — pass.** `spawnSlug` (`wrap.go:301`) replaces the wall-clock debounce that could spawn a real model call from a test, and production and test share `maybeSpawnSlug` as the boundary. A void fire-and-forget call is faithfully modelled by a no-op, so no stateful fake or conformance cadence is owed here.
+- **ARCH-CONSTRAINTS — pass.** The envelope is declared (Plan step 8) and the code enforces it: `syncIdleTimer:327` returns before touching the timer when `idleS <= 0`, keeping the opt-out at literally zero per-chunk cost, and the armed path is one `Stop`+`Reset` per read event (not per byte) against a measured 1.7 chunks/s. The alert's `pair slug` spawn is bounded at one per idle epoch.
+- **ARCH-SECURE — pass / largely N/A.** No credentials, no cross-process parsing added. `PAIR_WRAP_IDLE_S` is the one external input and `TestIdleIntervalKnobParsesAnExplicitZeroAsDisabled` pins all four cases including unparseable → default, so a hand-edited value degrades to the documented behavior rather than to a fabricated interval.
+- **ARCH-ORDER — pass, with the known flag.** The strongest thing in this diff is the answer to BR-3: extracting `applyIdleExpiry` converts a raced interleaving into an injected one, so the tests observe the ordering they name instead of sampling whichever the scheduler gave. Precedence between co-ready deadlines is written down and tested. The open flag is BR-9's five-boolean constellation, correctly separated into pair#219 (which restates the class faithfully, including the three disagreeing guards). One asymmetry to keep in view: the `<-lifecycleTimer.C` branch (`wrap.go:2704`) does *not* drain `lifecycleEvents` while the idle branch does — I checked and it isn't a bug (that queue carries only openers, and completing the old turn before opening the new one is the better order), but the two branches now differ for reasons no comment states.
+
+## 7. Plan revision recommendations
+
+None required for the code — the `## Plan` checklist matches what shipped, and round 3's Log entry already records that the Plan's "one alert per turn" wording is superseded rather than rewriting it, per the append-only convention. If I-2 is taken, add a `## Revisions` entry noting that the bare-CR opener's covered population excludes bracketed-paste content and where that predicate now lives, so the pass-through opener isn't re-derived a third time.
+
+```findings
+dispose:
+  - id: BR-9
+    disposition: addressed
+    note: |
+      Deferred to pair#219, which states the class (32 states, ~4 meanings, the three disagreeing guards) faithfully; not re-raising on this issue.
+  - id: BR-15
+    disposition: not-addressed
+    note: |
+      Re-measured at head: lifecycle-expiry application still at wrap.go:2705 + notification_lifecycle.go:304; outer-path fixture still at 7 test sites.
+  - id: BR-16
+    disposition: not-addressed
+    note: |
+      notification_lifecycle.go:310-311 still logs IDLE and traces the expiry unconditionally, before the reducer decides.
+  - id: BR-17
+    disposition: addressed
+    note: |
+      The three sites it named are swept and verified by grep; the un-enumerated source-comment class is raised separately below.
+  - id: BR-18
+    disposition: addressed
+    note: |
+      Verified both ways: duplicate mutation fails with notifications = 9 under the injected clock, passes with now = time.Now.
+  - id: BR-19
+    disposition: addressed
+    note: |
+      Verified by revert: re-inserting the mode gate at its original call site reddens the source-scanning test with "assigned at 2 sites".
+findings:
+  - id: new
+    severity: Important
+    family: atlas-overstates-guarantee
+    title: |
+      Five in-source restatements of the superseded once-per-turn invariant survived the sweep
+    detail: |
+      This is the 3rd finding in this family. The rule, not the instance: the enumeration
+      of an invariant's restatements must be DERIVED mechanically (grep the phrasing across
+      the tree) rather than inherited from the prior finding's bullet list. BR-17's three
+      named sites are correctly swept; its enumeration was incomplete. Measured at head:
+      notification_lifecycle.go:37 ("inside an open turn it is a no-op" - false, it re-arms),
+      :77 ("at most once per turn ... open() clears it"), :80 ("minted once per turn"),
+      :320 ("has not already raised its one alert ... a new turn re-arms it"), :351
+      ("minted once per turn by the reducer"). 3 swept, 5 stale. Record the grep in the Log
+      so the next invariant change reuses the derivation rather than a hand-list.
+  - id: new
+    severity: Important
+    family: submits-rule-second-home
+    title: |
+      passThroughChunk re-derives the submission predicate inline and has already diverged - a bracketed paste opens a turn and earns a spurious alert
+    detail: |
+      This is the 2nd finding in this family. BR-7 established that "does this input submit?"
+      is decided once in decidePlainReturn and carried on returnDecision.submits. BR-14's fix
+      planted a third home at wrap.go:1595 as a bare `bytes.IndexByte(data, '\r') >= 0`, with
+      no bracketed-paste awareness - its caller hard-sets inPaste = false at wrap.go:1492,
+      while translateChunk never reaches emitPlainCR inside a paste. Measured with a probe on
+      both paths given the same bytes "ESC[200~line one CR line two CR ESC[201~":
+      pass-through published [ObservationBareReturn], remap path published nothing.
+      Failure scenario: under PAIR_WRAP_REMAP_RETURN=0, or for any agent outside the four
+      harnessTTYProfiles entries, the operator pastes a multi-line prompt and steps away
+      without submitting; a turn opens on the paste and PAIR_WRAP_IDLE_S later they are told
+      "no agent output for 60s" about a pane the agent was never asked anything. Do not add a
+      paste tracker to passThroughChunk - that is a third divergence. One pure predicate, both
+      stdin paths consult it. Prevalence: 2 divergences from the single predicate in 2 rounds.
+  - id: new
+    severity: Minor
+    family: fixture-not-production-reachable
+    title: |
+      The expiry-drain test queues an observation kind that channel never carries in production
+    detail: |
+      publishLifecycleObservation has exactly four call sites (wrap.go:1596, 1850, 1900, 1919)
+      and they publish only ObservationBareReturn and ObservationUserSubmission; marker,
+      native and transcript completions are reduced directly on the master goroutine.
+      TestIdleExpiryDrainAppliesAQueuedCompletionFirst (idle_floor_test.go:205) queues an
+      ObservationMarkerCompletion on p.lifecycleEvents, and applyIdleExpiry's doc comment
+      (notification_lifecycle.go:285) says "a submission or completion already published but
+      not yet reduced" - the completion half is unreachable. The drain itself stays pinned by
+      the BR-2 test, which uses a reachable kind, so this is fixture realism and a false
+      comment rather than a coverage hole.
+```

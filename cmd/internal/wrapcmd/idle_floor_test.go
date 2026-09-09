@@ -202,24 +202,26 @@ func TestIdleExpiryDoesNotAlertAgainstATurnOpenedByItsOwnDrain(t *testing.T) {
 	}
 }
 
-func TestIdleExpiryDrainAppliesAQueuedCompletionFirst(t *testing.T) {
-	// BR-3. Pins the drain itself: with it removed, the idle alert wins and the
-	// completion is never reduced, so this row fails.
+func TestIdleExpiryDrainAppliesAQueuedSubmissionBeforeTheExpiry(t *testing.T) {
+	// BR-3 pins the drain; BR-22 corrected the fixture. Only turn-OPENING
+	// observations travel p.lifecycleEvents in production — completions are
+	// reduced directly on the master goroutine — so the queued boundary here is
+	// a submission, the kind this channel actually carries.
 	p, emitted := newIdleExpiryProxy(t)
 	p.processLifecycleObservation(TurnObservation{Kind: ObservationUserSubmission})
 	expired := p.idleTimerToken
+	first := p.notificationLifecycle.Generation
 
-	p.publishLifecycleObservation(TurnObservation{
-		Kind: ObservationMarkerCompletion, Message: "agent finished working",
-	})
+	p.publishLifecycleObservation(TurnObservation{Kind: ObservationBareReturn})
+	p.processLifecycleObservation(TurnObservation{Kind: ObservationMarkerCompletion, Message: "agent finished working"})
 	p.applyIdleExpiry(expired)
 
-	got := emitted()
-	if len(got) != 1 {
-		t.Fatalf("notifications = %d (%q), want exactly 1", len(got), got)
+	if p.notificationLifecycle.Generation == first {
+		t.Fatal("the drain never applied the queued submission")
 	}
-	if !strings.Contains(got[0], "finished working") {
-		t.Fatalf("notification = %q, want the completion, not the idle alert", got[0])
+	got := emitted()
+	if len(got) != 1 || !strings.Contains(got[0], "finished working") {
+		t.Fatalf("notifications = %q, want just the completion — the expiry must not alert", got)
 	}
 }
 
@@ -367,10 +369,13 @@ func TestEmitPlainCRPublishesOnlyWhenTheReturnReachesTheAgent(t *testing.T) {
 	}
 }
 
-func TestPassThroughChunkOpensATurnOnACarriageReturn(t *testing.T) {
+func TestPassThroughChunkOpensATurnOnlyOnASubmittingReturn(t *testing.T) {
 	// BR-14: without a remap profile this is the ONLY turn-opening signal, so
 	// PAIR_WRAP_REMAP_RETURN=0 and any agent outside harnessTTYProfiles would
 	// otherwise have no floor at all.
+	// BR-21: and a bare CR scan is the wrong predicate — a pasted multi-line
+	// prompt carries CRs that submit nothing.
+	paste := "\x1b[200~line one\r line two\r\x1b[201~"
 	for _, test := range []struct {
 		name string
 		data string
@@ -379,10 +384,12 @@ func TestPassThroughChunkOpensATurnOnACarriageReturn(t *testing.T) {
 		{"carriage return submits", "answer\r", []ObservationKind{ObservationBareReturn}},
 		{"ordinary keystrokes do not", "answer", nil},
 		{"newline alone does not", "answer\n", nil},
+		{"a bracketed paste submits nothing", paste, nil},
+		{"the return after a paste does submit", paste + "\r", []ObservationKind{ObservationBareReturn}},
 	} {
 		t.Run(test.name, func(t *testing.T) {
 			p := &proxy{lifecycleEvents: make(chan TurnObservation, 8)}
-			out, leftover := p.passThroughChunk([]byte(test.data))
+			out, leftover, _ := p.passThroughChunk([]byte(test.data), false)
 			if string(out) != test.data || leftover != nil {
 				t.Fatalf("pass-through altered the stream: out=%q leftover=%q", out, leftover)
 			}
@@ -390,6 +397,26 @@ func TestPassThroughChunkOpensATurnOnACarriageReturn(t *testing.T) {
 				t.Fatalf("published %v, want %v", got, test.want)
 			}
 		})
+	}
+}
+
+func TestSubmittingReturnTracksPasteAcrossChunkBoundaries(t *testing.T) {
+	// The paste markers can straddle reads, so the state must be carried, not
+	// recomputed per chunk — the caller previously hard-reset it to false.
+	submits, inPaste := submittingReturn([]byte("\x1b[200~line one\r"), false)
+	if submits || !inPaste {
+		t.Fatalf("open paste chunk: submits=%v inPaste=%v, want false/true", submits, inPaste)
+	}
+	submits, inPaste = submittingReturn([]byte("line two\r"), inPaste)
+	if submits || !inPaste {
+		t.Fatalf("continuation chunk: submits=%v inPaste=%v, want false/true", submits, inPaste)
+	}
+	submits, inPaste = submittingReturn([]byte("\x1b[201~"), inPaste)
+	if submits || inPaste {
+		t.Fatalf("closing chunk: submits=%v inPaste=%v, want false/false", submits, inPaste)
+	}
+	if submits, _ = submittingReturn([]byte("\r"), inPaste); !submits {
+		t.Fatal("the operator's own return after the paste did not submit")
 	}
 }
 

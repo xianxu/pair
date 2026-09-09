@@ -1,12 +1,13 @@
 ---
 id: 000171
-status: working
+status: codecomplete
 deps: []
 github_issue:
 created: 2026-09-02
 updated: 2026-09-09
 estimate_hours: 1.86
 started: 2026-09-09T01:08:11-07:00
+actual_hours: 4.45
 ---
 
 # Always-on idle notification fallback
@@ -224,6 +225,7 @@ past moment. That blocks a "working 4m / idle 31m" display in the switcher and
 wants its own issue if that display is ever built.
 
 ### 2026-09-09
+- 2026-09-09: closed — Full `make test` passes unsandboxed: EXIT=0, zero FAIL lines. Round-3 findings addressed as rules — see ## Log 2026-09-09 round 3. BR-17: the bare-CR re-arm changed the invariant and only the fuzz had been swept; README, atlas x2 clauses now all state the live invariant (one completion per generation, one alert per idle epoch), and the superseded "one alert per turn" wording in this issue own Plan/earlier Log is corrected in the round-3 entry per the append-only convention. BR-18: fixed by the rule the finding names, not a wider sleep — emitOuter and maybeSpawnSlug now read the proxy already-injectable `now` via clock(), and the harness injects a clock advancing 1s per read. Proven by mutation: with the once-per-epoch guards and the epoch check removed the count test fails with "notifications = 9"; the identical mutation with the clock left at time.Now still passes, i.e. the limiter was the only thing previously asserted. BR-19: Run terminates in pty.Start so the startup path cannot be driven end-to-end here; pinned the shape that allowed the gate instead — a source-scanning test asserts p.idleS and p.notifyModeActive each have exactly one assignment site fed by resolveNotifyConfig, and it reddens when the gate is re-inserted at its original call site ("p.idleS = " assigned at 2 sites). BR-9 remains deferred to pair#219.; review verdict: FIX-THEN-SHIP
 
 **Measurement done first, as the Spec required — and it refutes the hypothesis
 the Spec was built on.** Three measurements, all from live/recorded dogfood
@@ -513,3 +515,46 @@ checkable is the shape that allowed the gate: `p.idleS` and `p.notifyModeActive`
 each having exactly one assignment site, fed by `resolveNotifyConfig`. A
 source-scanning test asserts that, and reddens when the gate is re-inserted
 ("p.idleS = " assigned at 2 sites).
+
+### 2026-09-09 — boundary review round 4: findings addressed, close finalized
+
+Close finalized at round 4 (`status: codecomplete`, `actual_hours: 4.45`
+measured). Three findings arrived with it; all three fixed before this commit
+per the FIX-THEN-SHIP protocol, and none re-opened the boundary.
+
+**BR-20 — derive the enumeration, don't inherit it.** Round 3 swept the three
+sites the previous finding happened to name; five more in-source restatements of
+the superseded once-per-turn invariant survived, because the enumeration was a
+hand-list rather than a derivation. The derivation, recorded so the next
+invariant change reuses it rather than re-listing by hand:
+
+```
+for f in cmd/internal/wrapcmd/notification_lifecycle.go cmd/internal/wrapcmd/wrap.go \
+         atlas/architecture.md README.md; do
+  grep -niE "once per turn|at most once|one alert|its one alert|a no-op|per generation|minted once" "$f"
+done
+```
+
+That found all five (`notification_lifecycle.go:37, 77, 80, 323, 354`) plus one
+the reviewer's own list had missed: `wrap.go:610`'s slug cost note, which still
+said "runs once per turn-end". It now states the floor's added cost. That also
+corrects this issue's earlier Log claim of "no new steady-state slug cost" — true
+when the alert was once-per-turn, weaker now that a bare return can re-arm.
+Re-running the grep at head returns nothing stale.
+
+**BR-21 — a real bug, and a third home for a predicate that has one.** BR-14's
+fix planted a bare `bytes.IndexByte(data, '\r')` in `passThroughChunk`, with no
+bracketed-paste awareness, while its caller hard-reset `inPaste = false` every
+chunk. Under `PAIR_WRAP_REMAP_RETURN=0` — or for any agent outside
+`harnessTTYProfiles` — an operator pasting a multi-line prompt and stepping away
+without submitting would open a turn on the paste and be told "no agent output
+for 60s" about a turn they never started: precisely the untrustworthy
+notification the Spec exists to avoid. The predicate is now the pure
+`submittingReturn(data, inPaste)`, and the caller carries paste state across
+chunks. The remap path already got this for free (`translateChunk` never reaches
+`emitPlainCR` inside a paste), which is why the two had diverged.
+
+**BR-22 — fixture realism.** `p.lifecycleEvents` only ever carries turn-opening
+observations; completions are reduced directly on the master goroutine. The
+drain test queued an `ObservationMarkerCompletion` that channel never sees, and
+`applyIdleExpiry`'s comment claimed the same. Both corrected to a submission.

@@ -34,7 +34,8 @@ const (
 	// ObservationBareReturn is a plain Enter that reached the agent as a bare
 	// CR because the composer gate reported inactive or unknown (#171). It is
 	// the only submission signal on that path, so it opens a turn when none is
-	// open; inside an open turn (answering a menu) it is a no-op.
+	// open; inside an open turn (answering a menu) it re-arms a spent floor
+	// without disturbing the turn's identity.
 	ObservationBareReturn
 	// observationKindCount is one past the last kind. Enumerations over the
 	// kind space derive their bound from it, so a kind added above is covered
@@ -73,13 +74,16 @@ type NotificationLifecycle struct {
 	GracePending  bool
 	WatchdogToken uint64
 	GraceToken    uint64
-	// IdleNotified records that this turn already raised the idle floor, so
-	// the alert fires at most once per turn rather than every interval while
-	// the operator is away. open() clears it, so each new turn is armed again.
+	// IdleNotified records that the current idle EPOCH already raised the
+	// floor, so the alert fires once per quiet stretch rather than every
+	// interval while the operator is away. open() clears it for a new turn,
+	// and a bare return clears it mid-turn — answering a menu starts a fresh
+	// quiet stretch. So a turn may alert more than once; an epoch never does.
 	IdleNotified bool
-	// IdleToken identifies the turn's idle epoch. It is minted once per turn
-	// (not once per chunk): output resets the deadline's duration but not its
-	// epoch, so a timer expiry that raced a completion is rejected by token.
+	// IdleToken identifies the current idle epoch. It is minted when a turn
+	// opens and again when a bare return re-arms a spent floor — never per
+	// chunk: output resets the deadline's duration but not its epoch, so a
+	// timer expiry that raced a completion is rejected by token.
 	IdleToken uint64
 	nextToken uint64
 }
@@ -282,8 +286,11 @@ func (p *proxy) syncLifecycleTimer() {
 // token after the drain would match that brand-new turn and alert against it
 // microseconds after it opened, consuming its floor (BR-2).
 //
-// The drain itself mirrors the chunk branch: a submission or completion already
-// published but not yet reduced must be applied before the expiry is.
+// The drain itself mirrors the chunk branch. Only turn-OPENING observations
+// travel this channel — publishLifecycleObservation's call sites publish
+// ObservationUserSubmission and ObservationBareReturn; completions are reduced
+// directly on the master goroutine — so what must be applied before the expiry
+// is a submission that has been published but not yet reduced.
 func (p *proxy) applyIdleExpiry(token uint64) {
 	for {
 		select {
@@ -316,8 +323,9 @@ func (p *proxy) applyIdleExpiry(token uint64) {
 
 // syncIdleTimer ties the idle floor's arming to lifecycle state, exactly as
 // syncLifecycleTimer does for the watchdog and grace deadlines. The floor is
-// armed only while a turn is open, unreported, and has not already raised its
-// one alert; anything that closes or reports the turn disarms it. This is why
+// armed only while a turn is open, unreported, and has not already alerted on
+// the current epoch; anything that closes or reports the turn disarms it, and a
+// bare return re-arms it on a fresh epoch. This is why
 // the floor no longer depends on a `idleFired` latch in the master loop: a new
 // turn re-arms it because open() clears IdleNotified and mints a fresh epoch.
 func (p *proxy) syncIdleTimer() {
@@ -348,8 +356,8 @@ func (p *proxy) bumpIdleDeadline() {
 }
 
 // resetIdleTimer restarts the deadline without changing the epoch: IdleToken is
-// minted once per turn by the reducer, so output pushes the deadline out but
-// cannot make a racing expiry from this same turn look stale.
+// minted by the reducer (on open, and on a re-arm), never here, so output pushes
+// the deadline out but cannot make a racing expiry from this epoch look stale.
 func (p *proxy) resetIdleTimer() {
 	if p.idleTimer == nil {
 		return

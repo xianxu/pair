@@ -358,6 +358,85 @@ rounds:
           family: test-avoids-seam-not-injects-it
           round: 4
       blocked: true
+    - "n": 5
+      timestamp: "2026-09-09T03:45:57-07:00"
+      agent: claude
+      dispose:
+        - id: BR-9
+          disposition: addressed
+          note: Deferred to pair#219, which states the class (32 states, ~4 meanings, the three disagreeing guards) faithfully; not re-raising on this issue.
+          round: 5
+        - id: BR-15
+          disposition: not-addressed
+          note: 'Re-measured at head: lifecycle-expiry application still at wrap.go:2705 + notification_lifecycle.go:304; outer-path fixture still at 7 test sites.'
+          round: 5
+        - id: BR-16
+          disposition: not-addressed
+          note: notification_lifecycle.go:310-311 still logs IDLE and traces the expiry unconditionally, before the reducer decides.
+          round: 5
+        - id: BR-17
+          disposition: addressed
+          note: The three sites it named are swept and verified by grep; the un-enumerated source-comment class is raised separately below.
+          round: 5
+        - id: BR-18
+          disposition: addressed
+          note: 'Verified both ways: duplicate mutation fails with notifications = 9 under the injected clock, passes with now = time.Now.'
+          round: 5
+        - id: BR-19
+          disposition: addressed
+          note: 'Verified by revert: re-inserting the mode gate at its original call site reddens the source-scanning test with "assigned at 2 sites".'
+          round: 5
+      findings:
+        - id: BR-20
+          severity: Important
+          title: Five in-source restatements of the superseded once-per-turn invariant survived the sweep
+          detail: |-
+            This is the 3rd finding in this family. The rule, not the instance: the enumeration
+            of an invariant's restatements must be DERIVED mechanically (grep the phrasing across
+            the tree) rather than inherited from the prior finding's bullet list. BR-17's three
+            named sites are correctly swept; its enumeration was incomplete. Measured at head:
+            notification_lifecycle.go:37 ("inside an open turn it is a no-op" - false, it re-arms),
+            :77 ("at most once per turn ... open() clears it"), :80 ("minted once per turn"),
+            :320 ("has not already raised its one alert ... a new turn re-arms it"), :351
+            ("minted once per turn by the reducer"). 3 swept, 5 stale. Record the grep in the Log
+            so the next invariant change reuses the derivation rather than a hand-list.
+          family: atlas-overstates-guarantee
+          round: 5
+        - id: BR-21
+          severity: Important
+          title: passThroughChunk re-derives the submission predicate inline and has already diverged - a bracketed paste opens a turn and earns a spurious alert
+          detail: |-
+            This is the 2nd finding in this family. BR-7 established that "does this input submit?"
+            is decided once in decidePlainReturn and carried on returnDecision.submits. BR-14's fix
+            planted a third home at wrap.go:1595 as a bare `bytes.IndexByte(data, '\r') >= 0`, with
+            no bracketed-paste awareness - its caller hard-sets inPaste = false at wrap.go:1492,
+            while translateChunk never reaches emitPlainCR inside a paste. Measured with a probe on
+            both paths given the same bytes "ESC[200~line one CR line two CR ESC[201~":
+            pass-through published [ObservationBareReturn], remap path published nothing.
+            Failure scenario: under PAIR_WRAP_REMAP_RETURN=0, or for any agent outside the four
+            harnessTTYProfiles entries, the operator pastes a multi-line prompt and steps away
+            without submitting; a turn opens on the paste and PAIR_WRAP_IDLE_S later they are told
+            "no agent output for 60s" about a pane the agent was never asked anything. Do not add a
+            paste tracker to passThroughChunk - that is a third divergence. One pure predicate, both
+            stdin paths consult it. Prevalence: 2 divergences from the single predicate in 2 rounds.
+          family: submits-rule-second-home
+          round: 5
+        - id: BR-22
+          severity: Minor
+          title: The expiry-drain test queues an observation kind that channel never carries in production
+          detail: |-
+            publishLifecycleObservation has exactly four call sites (wrap.go:1596, 1850, 1900, 1919)
+            and they publish only ObservationBareReturn and ObservationUserSubmission; marker,
+            native and transcript completions are reduced directly on the master goroutine.
+            TestIdleExpiryDrainAppliesAQueuedCompletionFirst (idle_floor_test.go:205) queues an
+            ObservationMarkerCompletion on p.lifecycleEvents, and applyIdleExpiry's doc comment
+            (notification_lifecycle.go:285) says "a submission or completion already published but
+            not yet reduced" - the completion half is unreachable. The drain itself stays pinned by
+            the BR-2 test, which uses a reachable kind, so this is fixture realism and a false
+            comment rather than a coverage hole.
+          family: fixture-not-production-reachable
+          round: 5
+      blocked: false
 ---
 
 # Gate ledger — pair#171 (boundary-review)
@@ -570,11 +649,58 @@ later rounds disposed of them. Generated — edit the gate, not this file.
   by resolveNotifyConfig, enforced by a source-scanning test — or the residue accepted
   explicitly in the issue Log.
 
+## Round 5 — 2026-09-09T03:45:57-07:00 (claude) — passed
+
+### Disposed
+
+- BR-9 — addressed — Deferred to pair#219, which states the class (32 states, ~4 meanings, the three disagreeing guards) faithfully; not re-raising on this issue.
+- BR-15 — not-addressed — Re-measured at head: lifecycle-expiry application still at wrap.go:2705 + notification_lifecycle.go:304; outer-path fixture still at 7 test sites.
+- BR-16 — not-addressed — notification_lifecycle.go:310-311 still logs IDLE and traces the expiry unconditionally, before the reducer decides.
+- BR-17 — addressed — The three sites it named are swept and verified by grep; the un-enumerated source-comment class is raised separately below.
+- BR-18 — addressed — Verified both ways: duplicate mutation fails with notifications = 9 under the injected clock, passes with now = time.Now.
+- BR-19 — addressed — Verified by revert: re-inserting the mode gate at its original call site reddens the source-scanning test with "assigned at 2 sites".
+
+### Raised
+
+- **BR-20** [Important] `atlas-overstates-guarantee` Five in-source restatements of the superseded once-per-turn invariant survived the sweep
+  This is the 3rd finding in this family. The rule, not the instance: the enumeration
+  of an invariant's restatements must be DERIVED mechanically (grep the phrasing across
+  the tree) rather than inherited from the prior finding's bullet list. BR-17's three
+  named sites are correctly swept; its enumeration was incomplete. Measured at head:
+  notification_lifecycle.go:37 ("inside an open turn it is a no-op" - false, it re-arms),
+  :77 ("at most once per turn ... open() clears it"), :80 ("minted once per turn"),
+  :320 ("has not already raised its one alert ... a new turn re-arms it"), :351
+  ("minted once per turn by the reducer"). 3 swept, 5 stale. Record the grep in the Log
+  so the next invariant change reuses the derivation rather than a hand-list.
+- **BR-21** [Important] `submits-rule-second-home` passThroughChunk re-derives the submission predicate inline and has already diverged - a bracketed paste opens a turn and earns a spurious alert
+  This is the 2nd finding in this family. BR-7 established that "does this input submit?"
+  is decided once in decidePlainReturn and carried on returnDecision.submits. BR-14's fix
+  planted a third home at wrap.go:1595 as a bare `bytes.IndexByte(data, '\r') >= 0`, with
+  no bracketed-paste awareness - its caller hard-sets inPaste = false at wrap.go:1492,
+  while translateChunk never reaches emitPlainCR inside a paste. Measured with a probe on
+  both paths given the same bytes "ESC[200~line one CR line two CR ESC[201~":
+  pass-through published [ObservationBareReturn], remap path published nothing.
+  Failure scenario: under PAIR_WRAP_REMAP_RETURN=0, or for any agent outside the four
+  harnessTTYProfiles entries, the operator pastes a multi-line prompt and steps away
+  without submitting; a turn opens on the paste and PAIR_WRAP_IDLE_S later they are told
+  "no agent output for 60s" about a pane the agent was never asked anything. Do not add a
+  paste tracker to passThroughChunk - that is a third divergence. One pure predicate, both
+  stdin paths consult it. Prevalence: 2 divergences from the single predicate in 2 rounds.
+- **BR-22** [Minor] `fixture-not-production-reachable` The expiry-drain test queues an observation kind that channel never carries in production
+  publishLifecycleObservation has exactly four call sites (wrap.go:1596, 1850, 1900, 1919)
+  and they publish only ObservationBareReturn and ObservationUserSubmission; marker,
+  native and transcript completions are reduced directly on the master goroutine.
+  TestIdleExpiryDrainAppliesAQueuedCompletionFirst (idle_floor_test.go:205) queues an
+  ObservationMarkerCompletion on p.lifecycleEvents, and applyIdleExpiry's doc comment
+  (notification_lifecycle.go:285) says "a submission or completion already published but
+  not yet reduced" - the completion half is unreachable. The drain itself stays pinned by
+  the BR-2 test, which uses a reachable kind, so this is fixture realism and a false
+  comment rather than a coverage hole.
+
 ## Open findings
 
-- **BR-9** [Minor] `boolean-constellation-needs-tagged-enum` NotificationLifecycle now carries five booleans whose legal combinations are unwritten
 - **BR-15** [Minor] `duplicated-idiom` The lifecycle-expiry application is now written twice, and the outer-TTY sidecar test fixture is at seven sites
 - **BR-16** [Minor] `message-overstates-measurement` applyIdleExpiry logs IDLE and traces the expiry before the reducer decides whether the alert applies
-- **BR-17** [Important] `atlas-overstates-guarantee` README and atlas still promise "at most once per turn", which this round's bare-CR re-arm made false
-- **BR-18** [Important] `unfalsifiable-race-test` The master-loop exactly-once oracle cannot fail — the 500ms emit limiter masks duplicates inside its 400ms window
-- **BR-19** [Minor] `test-avoids-seam-not-injects-it` No test crosses the startup wiring seam, so the mode gate can be re-added at its original call site with the package green
+- **BR-20** [Important] `atlas-overstates-guarantee` Five in-source restatements of the superseded once-per-turn invariant survived the sweep
+- **BR-21** [Important] `submits-rule-second-home` passThroughChunk re-derives the submission predicate inline and has already diverged - a bracketed paste opens a turn and earns a spurious alert
+- **BR-22** [Minor] `fixture-not-production-reachable` The expiry-drain test queues an observation kind that channel never carries in production
