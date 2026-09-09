@@ -51,6 +51,12 @@ const (
 // termcmd's job in termcmd's context, and a second translator would be two
 // policies for one gesture.
 func RouteMouseReport(event mouseinput.Event, hostRows int, childWantsMouse, couchOwnsScreen bool) MouseDisposition {
+	// The RAW button here, deliberately, unlike the wheel predicate below and in
+	// termcmd. A MODIFIED click is not couch's gesture: #213 narrowed its change
+	// to the wheel precisely because ctrl+click may mean something to a child,
+	// and shift/ctrl+click on couch's row therefore forwards or swallows like
+	// any other report rather than switching threads. Modifier bits live in the
+	// button field, so this is a real distinction, not an oversight.
 	press := !event.Release && event.Button == 0
 	if hostRows > 0 && event.Y == hostRows && press {
 		return MouseCouch
@@ -70,4 +76,54 @@ func RouteMouseReport(event mouseinput.Event, hostRows int, childWantsMouse, cou
 		return MouseForward
 	}
 	return MouseSwallow
+}
+
+// stripWheelResizeModifier clears the ctrl bit from a WHEEL report, returning
+// the rewritten event and bytes. Every other report passes through untouched.
+//
+// Why couch has to do this at all: zellij 0.44.3 maps ctrl+wheel to a pane
+// resize and offers no way to turn it off — its config parser silently ignores
+// unknown keys, so setting the newer `mouse_scroll_resize` there is a no-op that
+// LOOKS accepted. Ghostty cannot suppress it either: wheel events are not
+// bindable triggers, only keys and modifiers are. couch owns the host tty and
+// sees these bytes before zellij does, which makes it the only interception
+// point above the resize. pair#213 records how each layer was ruled out.
+//
+// DELETE THIS once zellij is upgraded to a version carrying
+// `mouse_scroll_resize`: that option supersedes the filter for both couch and
+// standalone pair, and this function should go with it. Without the name here it
+// calcifies into a workaround nobody can date or justify.
+//
+// Strip rather than swallow. Swallowing makes ctrl+scroll do nothing; stripping
+// makes it scroll, which is what the operator wants when their hand happens to
+// be resting on ctrl.
+//
+// Narrow deliberately, on three axes:
+//   - Wheel only. Ctrl+click may mean something to a child (nvim, a TUI), and
+//     taking a modifier away from every button is a far larger behavioural
+//     change than this issue asks for.
+//   - VERTICAL wheel only. Horizontal wheel (66/67) is left alone because
+//     zellij's resize is mapped off the vertical wheel; stripping ctrl there
+//     would alter a gesture that is not causing harm.
+//   - Ctrl only, so ctrl+shift+wheel still arrives as shift+wheel.
+//
+// The predicate is the modifier-MASKED button. Modifier bits live in the button
+// field, so ctrl+wheel-up is 80 and a `Button == WheelUp` test would match
+// nothing at all — the change would compile and silently do nothing.
+func stripWheelResizeModifier(event mouseinput.Event, raw []byte) (mouseinput.Event, []byte) {
+	base := mouseinput.BaseButton(event.Button)
+	if base != mouseinput.WheelUp && base != mouseinput.WheelDown {
+		return event, raw
+	}
+	if event.Button&mouseinput.ModCtrl == 0 {
+		return event, raw
+	}
+	stripped, ok := mouseinput.WithButton(raw, event.Button&^mouseinput.ModCtrl)
+	if !ok {
+		// raw reached us through Parse, so this cannot fail. If it ever did,
+		// forwarding the original beats dropping the report on the floor.
+		return event, raw
+	}
+	event.Button &^= mouseinput.ModCtrl
+	return event, stripped
 }

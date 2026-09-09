@@ -450,19 +450,26 @@ func pumpStdinWithTimer(stdin io.Reader, mux ptyWriter, rt Runtime, stdout io.Wr
 						if len(mouseBefore) > 0 {
 							mux.writeActive(mouseBefore)
 						}
+						// Modifier bits live IN the button field, so a raw
+						// comparison misses every modified wheel tick:
+						// shift+wheel (68) and ctrl+wheel (80) fell to the
+						// default arm and wrote SGR bytes into a child that
+						// never asked for them. A modified wheel is still a
+						// wheel (#213).
+						wheel := mouseinput.BaseButton(event.Button)
 						switch {
 						// A release is never a wheel tick (the wheel reports
 						// press-only), so it always passes straight through —
 						// the child needs it to close its drag.
 						case event.Release:
 							mux.writeActive(rawMouse)
-						case event.Button == mouseinput.WheelUp:
+						case wheel == mouseinput.WheelUp:
 							if mux.appMouseMode() {
 								mux.writeActive(rawMouse)
 							} else {
 								_ = rt.RunZellijAction("scroll-up")
 							}
-						case event.Button == mouseinput.WheelDown:
+						case wheel == mouseinput.WheelDown:
 							if mux.appMouseMode() {
 								mux.writeActive(rawMouse)
 							} else {

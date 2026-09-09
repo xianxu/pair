@@ -1,12 +1,13 @@
 ---
 id: 000213
-status: working
+status: codecomplete
 deps: []
 github_issue:
 created: 2026-09-07
 updated: 2026-09-09
 estimate_hours: 0.71
 started: 2026-09-09T07:49:18-07:00
+actual_hours: 0.70
 ---
 
 # couch strips ctrl from wheel events so scroll does not resize panes
@@ -146,7 +147,7 @@ forward path writes `hit.Raw`, the exact bytes the terminal sent, and both
 produce *different bytes*, which a disposition cannot express. So the work
 splits by ownership rather than living in one function:
 
-- [ ] **Format knowledge → `mouseinput`.** Two additions, both wire-format
+- [x] **Format knowledge → `mouseinput`.** Two additions, both wire-format
       facts that belong to the one package that owns the format (`ARCH-DRY`):
       the modifier bits (`ModShift 4`, `ModAlt 8`, `ModCtrl 16`, `ModMask`)
       beside the existing `WheelUp`/`WheelDown`, with `BaseButton(button int)`
@@ -157,7 +158,7 @@ splits by ownership rather than living in one function:
       the parts it does not touch — and returns false on anything `Parse` would
       reject, so a caller can never splice a malformed report into a
       well-formed-looking one.
-- [ ] **Policy → `couchtty`.** A pure `stripWheelResizeModifier(event
+- [x] **Policy → `couchtty`.** A pure `stripWheelResizeModifier(event
       mouseinput.Event, raw []byte) (mouseinput.Event, []byte)`. **The predicate
       is on the modifier-masked base button**, not on the raw value:
       ctrl+wheel-up is `80`, so a `Button == WheelUp` test would never fire and
@@ -168,20 +169,20 @@ splits by ownership rather than living in one function:
       so, so the narrowing reads as a choice. The comment also names
       `mouse_scroll_resize` as the zellij option that retires this function,
       per the Spec's "record that this is deletable".
-- [ ] **Apply it once, at the top of `onMouse`,** before `RouteMouseReport`, so
+- [x] **Apply it once, at the top of `onMouse`,** before `RouteMouseReport`, so
       routing and forwarding see one canonical event rather than two. Routing is
       provably unaffected either way — its only button test is `Button == 0`,
       and ctrl+wheel (`80`/`81`) and plain wheel (`64`/`65`) are all non-zero —
       which is why applying it early is safe and is the reason to prefer one
       event over branching.
-- [ ] **Wiring test — the strip must be proven to be CALLED.** Both new
+- [x] **Wiring test — the strip must be proven to be CALLED.** Both new
       functions are pure and unit-testable, but a call whose result is discarded
       or placed in the wrong branch compiles and leaves every unit test green.
       Model on `console_mouse_test.go`'s `TestForwardPreservesRawBytes`: through
       `newMouseFixture`, have the child enable `\x1b[?1000;1006h`, write
       `\x1b[<80;7;9M` to the host pipe, and assert the child receives
       `\x1b[<64;7;9M`. Without this the Done-when rests on the manual step alone.
-- [ ] **Unit-test strategy, one line per risky function.** For `WithButton` the
+- [x] **Unit-test strategy, one line per risky function.** For `WithButton` the
       risky class is arbitrary bytes rather than the shapes an enumeration would
       list: a fuzz seeded with malformed and truncated forms, property =
       `Parse(WithButton(raw, b))` equals `Parse(raw)` with only `Button`
@@ -193,16 +194,21 @@ splits by ownership rather than living in one function:
       wheel rows and every other byte is untouched. Assert on the RAW bytes as
       well as the `Event` — the bytes are what the child receives, and an
       `Event`-only assertion passes with the splice broken.
-- [ ] **Regression.** Existing `couchtty` routing tests and `#196`'s reattach
+- [x] **Regression.** Existing `couchtty` routing tests and `#196`'s reattach
       test run unmodified — no edits to either, which is the evidence that the
       mode-belief behaviour did not shift.
-- [ ] **Atlas.** Note the strip and its deletion trigger on the couch mouse
+- [x] **Atlas.** Note the strip and its deletion trigger on the couch mouse
       surface.
-- [ ] **Manual.** Ctrl+scroll in a live couch session scrolls and pane sizes
-      hold; plain scroll still scrolls.
+- [ ] **Manual — OPERATOR-PENDING, not done.** Ctrl+scroll in a live couch
+      session scrolls and pane sizes hold; plain scroll still scrolls. Needs a
+      couch restart (a running couch is on the old binary) and a physical
+      gesture, so it cannot be run from here. Left unticked deliberately: the
+      automated evidence covers the bytes couch emits, not the gesture.
 
 ## Log
 
+
+- 2026-09-09: closed — Full `make test` green unsandboxed (EXIT=0, zero FAIL lines). --no-plan-check is for ONE deliberately-unticked row: the Manual live-gesture check needs a couch restart (a running couch is on the old binary) and a physical ctrl+scroll, so it cannot be run from this session. It is left unticked and labelled OPERATOR-PENDING rather than bulk-ticked — which is precisely what BR-2 caught last round — and is explicitly NOT claimed as verified. Every other row is done. BR-1 addressed as the CLASS: enumerated by grep for `.Button ==|.Button !=` against a constant, three sites total. Two (termcmd wheel arms) were LIVE bugs — modified wheel ticks fell to the pass-through arm and leaked SGR bytes to a child that never enabled tracking — now compare BaseButton, pinned by four table rows verified to redden on revert. The third (couchtty `event.Button == 0`) stays raw deliberately, since a modified click is not couch gesture, and now documents that. The rule is pinned cross-package by TestNoConsumerComparesARawButtonAgainstAWheelConstant, which with the termcmd bug reintroduced names both offending lines by file:line. Minor addressed: WithButton sep guard documented as an invariant, not a reachable branch. Prior evidence stands — wiring test through the real onMouse path (deleting the call reddens it), 7.7M-exec splice fuzz, full modifier cross-product table, #196 reattach and existing routing tests unmodified.; review verdict: FIX-THEN-SHIP
 ### 2026-09-07
 
 Operator report. Filed after ruling out the two layers above couch by test rather
@@ -249,3 +255,82 @@ on the existing `TestForwardPreservesRawBytes` fixture.
 **PQ-3:** replaced the prose enumeration of test cases with a strategy line per
 risky function — a fuzz property for the splice, a modifier cross-product table
 for the policy.
+
+### 2026-09-09 — implementation
+
+**The plan gate caught the bug this issue was most likely to ship.** The Spec
+says "apply only to wheel buttons (`64`/`65`)", and written literally that is a
+predicate that never fires: modifier bits live *in* the button field, so
+ctrl+wheel-up is `80`. `Button == WheelUp` matches nothing, and the change would
+have compiled, passed a careless test, and left the resize exactly as it was.
+The predicate reads `mouseinput.BaseButton(event.Button)` instead. Reproduced
+after the fact by mutation — reverting to the raw-button predicate gives
+`button 80 -> 80, want 64`.
+
+**The strip could not live where the Spec put it.** `RouteMouseReport` returns a
+`MouseDisposition`; the forward path writes `hit.Raw`, the terminal's own bytes,
+because re-encoding from `Event` would be a second source of truth for the wire
+format (`keys.go`, `console.go` both say so). Changing bytes is not something a
+disposition can express, so the work split along the ownership line the codebase
+already draws: `mouseinput.WithButton` splices the button field and leaves every
+other byte alone (format knowledge, in the package that owns the format), and
+`couchtty.stripWheelResizeModifier` decides wheel-only/ctrl-only (policy, and
+the part deleted on the zellij upgrade). Applied once at the top of `onMouse`,
+which is safe because routing's only button test is `Button == 0` and every
+wheel code is non-zero.
+
+**Both halves are pure, so the wiring needed its own test.** A discarded result
+or a call in the wrong branch compiles and leaves every unit test green.
+`TestForwardStripsCtrlFromWheelReports` drives real bytes through `newMouseFixture`'s
+input loop and asserts the child receives `\x1b[<64;7;9M` and never
+`\x1b[<80;7;9M`. Deleting the call from `onMouse` reddens it.
+
+**Evidence, and the limit of it.** `make test` green unsandboxed (EXIT=0, zero
+FAIL lines). `FuzzWithButtonChangesOnlyTheButton`: 7.7M execs, property =
+`Parse(WithButton(raw,b))` equals `Parse(raw)` with only `Button` differing and
+every later byte identical. The strip is table-tested across the full modifier
+cross-product {plain, shift, alt, ctrl, ctrl+shift} × {wheel-up, wheel-down,
+horizontal wheel, left-press}, asserting raw bytes as well as the decoded event,
+plus a release row.
+
+What automation covers is that the bytes leaving couch are the plain-wheel
+report. What it does not cover is zellij's response to those bytes — but that
+needs no new evidence: a plain wheel report is exactly what an unmodified scroll
+already sends, and unmodified scrolling demonstrably scrolls in these sessions
+today. The gesture itself still wants one operator check after a couch restart,
+since a running couch is on the old binary.
+
+**Standalone pair remains unaffected**, as the Spec accepted: `pair wrap` sits
+inside the pane, downstream of zellij's decision, and putting a second proxy
+layer under standalone pair for one modifier bit is disproportionate. The zellij
+upgrade retires both this filter and that gap.
+
+### 2026-09-09 — boundary review round 1: FIX-THEN-SHIP, addressed
+
+**BR-1 — a live second instance of the very bug the plan gate caught.**
+`termcmd/run.go` compared `event.Button` against `WheelUp`/`WheelDown` directly,
+so every MODIFIED wheel tick — shift+wheel `68`, ctrl+wheel `80`, alt+wheel `72`
+— fell through to the default arm and wrote SGR bytes into a child that never
+enabled tracking. Same class as PQ-1, different package, and it had been there
+all along. Fixed to compare `BaseButton`, with four table rows that redden when
+reverted.
+
+The class has exactly three sites, enumerated by grep (`\.Button ==|\.Button !=`
+against a constant): the two termcmd wheel arms, now fixed, and
+`couchtty`'s `press := !event.Release && event.Button == 0`. That third one is
+**deliberately** raw — a modified click is not couch's gesture, which is the
+narrowing the Spec asked for — so it keeps the raw comparison and now says why,
+rather than reading as a fourth oversight.
+
+Because the rule is what matters and the constants are exported (so the mistake
+can be made in any package), `TestNoConsumerComparesARawButtonAgainstAWheelConstant`
+scans the tree for the pattern. Reintroducing the termcmd bug makes it name both
+offending lines by file and line number.
+
+**BR-2 — the Manual plan row was ticked while the Log said it had not been run.**
+That was a bulk tick, and it is exactly the kind of unearned checkmark the gates
+exist to catch. Unticked and labelled operator-pending, with the reason: it needs
+a couch restart and a physical gesture.
+
+**Minor** — `WithButton`'s `sep < 0` branch is unreachable once `Parse` has
+accepted the report; it now says so, so it does not read as a live failure mode.

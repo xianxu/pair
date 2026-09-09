@@ -1,6 +1,7 @@
 package couchtty
 
 import (
+	"fmt"
 	"testing"
 
 	"github.com/xianxu/pair/cmd/internal/mouseinput"
@@ -62,5 +63,76 @@ func TestNoReportReachesAChildThatNeverAskedForMouse(t *testing.T) {
 				}
 			}
 		}
+	}
+}
+
+// The risky class for the strip is the modifier cross-product, not the four
+// cases the issue happened to list: the predicate reads a masked button, so the
+// way to get it wrong is a modifier combination nobody enumerated. Every cell
+// asserts the RAW bytes as well as the Event — the bytes are what the child
+// receives, and an Event-only assertion passes with the splice broken.
+func TestStripWheelResizeModifierClearsCtrlOnVerticalWheelOnly(t *testing.T) {
+	const wheelHorizontal = 66 // deliberately NOT stripped; see the doc comment
+	modifiers := []struct {
+		name string
+		bits int
+	}{
+		{"plain", 0},
+		{"shift", mouseinput.ModShift},
+		{"alt", mouseinput.ModAlt},
+		{"ctrl", mouseinput.ModCtrl},
+		{"ctrl+shift", mouseinput.ModCtrl | mouseinput.ModShift},
+	}
+	buttons := []struct {
+		name string
+		base int
+	}{
+		{"wheel-up", mouseinput.WheelUp},
+		{"wheel-down", mouseinput.WheelDown},
+		{"wheel-horizontal", wheelHorizontal},
+		{"left-press", 0},
+	}
+	for _, modifier := range modifiers {
+		for _, button := range buttons {
+			t.Run(modifier.name+"/"+button.name, func(t *testing.T) {
+				encoded := button.base | modifier.bits
+				raw := []byte(fmt.Sprintf("\x1b[<%d;7;9M", encoded))
+				event, ok := mouseinput.Parse(raw)
+				if !ok {
+					t.Fatalf("fixture %q does not parse", raw)
+				}
+
+				gotEvent, gotRaw := stripWheelResizeModifier(event, raw)
+
+				want := encoded
+				vertical := button.base == mouseinput.WheelUp || button.base == mouseinput.WheelDown
+				if vertical && modifier.bits&mouseinput.ModCtrl != 0 {
+					want = encoded &^ mouseinput.ModCtrl
+				}
+				if gotEvent.Button != want {
+					t.Errorf("button %d -> %d, want %d", encoded, gotEvent.Button, want)
+				}
+				if wantRaw := fmt.Sprintf("\x1b[<%d;7;9M", want); string(gotRaw) != wantRaw {
+					t.Errorf("raw = %q, want %q", gotRaw, wantRaw)
+				}
+				if gotEvent.X != 7 || gotEvent.Y != 9 || gotEvent.Release {
+					t.Errorf("the strip disturbed coordinates or terminator: %+v", gotEvent)
+				}
+			})
+		}
+	}
+}
+
+// A release cannot be a wheel tick, but the strip must not invent one: the
+// terminator is part of what stays byte-identical.
+func TestStripWheelResizeModifierLeavesReleasesAlone(t *testing.T) {
+	raw := []byte("\x1b[<16;7;9m")
+	event, ok := mouseinput.Parse(raw)
+	if !ok {
+		t.Fatal("fixture does not parse")
+	}
+	gotEvent, gotRaw := stripWheelResizeModifier(event, raw)
+	if gotEvent != event || string(gotRaw) != string(raw) {
+		t.Fatalf("release rewritten: %+v %q", gotEvent, gotRaw)
 	}
 }

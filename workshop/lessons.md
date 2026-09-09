@@ -4144,3 +4144,33 @@ forget to use. Widening the sleep past the limiter window is the fragile fix; it
 trades an unfalsifiable test for a slow flaky one. Prove the result by mutation:
 the same duplicate-producing change must redden with the clock injected and stay
 green without it. Caught in #000171 close review round 3.
+
+## A rule-enforcing test must be run against the evasions it claims to reject
+
+A guard test was added to enforce "never compare a raw SGR button against a wheel
+constant". Its comment said it scanned the tree; `filepath.Walk("../..")` from
+`cmd/internal/mouseinput` resolved to `cmd/`, so `probes/` was never visited. It
+also matched line-locally, so `switch event.Button { case WheelUp:` and a button
+copied into a local first — the same class, one refactor away — walked straight
+past it. It passed, and its passing meant nothing.
+
+**Rule.** When a test exists to enforce a rule rather than to check a behaviour,
+enumerate the ways the rule can be broken and prove the test fails on each one,
+the way you would for any other assertion. Print the walk root rather than
+assuming it. Prefer an AST match over a textual one the moment the rule is about
+code shape: a regex over source encodes one spelling, and the next spelling of
+the same mistake is the one that ships. Caught in #000213 close review round 2.
+
+## Modifier bits ride inside the SGR button field
+
+Two independent sites compared `event.Button` against `WheelUp`/`WheelDown`.
+Ctrl+wheel-up is `64|16 = 80`, so both missed every modified wheel tick: in couch
+a planned ctrl-strip would have been a silent no-op, and in termcmd modified
+wheel already fell to the pass-through arm and wrote SGR bytes into a child that
+never enabled mouse tracking.
+
+**Rule.** An SGR mouse button is a bitfield — shift `4`, alt `8`, ctrl `16` — not
+an enum. Compare `mouseinput.BaseButton(b)` against a button constant; compare
+the raw value only where the modifier is genuinely part of the gesture, and say
+so at that site. Caught in #000213 (plan gate, then a live second instance at
+close).

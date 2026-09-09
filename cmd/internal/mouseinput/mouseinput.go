@@ -12,6 +12,7 @@ package mouseinput
 import (
 	"bytes"
 	"fmt"
+	"strconv"
 	"strings"
 )
 
@@ -36,6 +37,50 @@ const (
 	WheelUp   = 64
 	WheelDown = 65
 )
+
+// Modifier bits carried IN the button field. They are part of the button value,
+// not a separate field: ctrl+wheel-up is 64|16 = 80, which is why comparing a
+// raw Button against WheelUp misses every modified wheel tick.
+const (
+	ModShift = 4
+	ModAlt   = 8
+	ModCtrl  = 16
+	ModMask  = ModShift | ModAlt | ModCtrl
+)
+
+// BaseButton strips the modifier bits, leaving the button a caller means when
+// it asks "is this the wheel?".
+func BaseButton(button int) int { return button &^ ModMask }
+
+// WithButton returns raw with only its button field replaced — separators,
+// coordinates and terminator stay exactly the bytes the terminal sent.
+//
+// Deliberately a splice, not a re-encoder. Rebuilding the report from Event
+// would make this a second source of truth for the wire format, which is the
+// thing this package exists to prevent (see the package doc); a splice cannot
+// drift on the parts it does not touch. It refuses anything Parse refuses, so a
+// caller can never turn a malformed report into a well-formed-looking one, and
+// refuses a negative button, which has no encoding.
+func WithButton(raw []byte, button int) ([]byte, bool) {
+	if button < 0 {
+		return nil, false
+	}
+	if _, ok := Parse(raw); !ok {
+		return nil, false
+	}
+	// Parse has already accepted three ';'-separated numbers, so this cannot be
+	// -1. Kept as an invariant guard rather than an indexing assumption — it is
+	// not a reachable failure mode.
+	sep := bytes.IndexByte(raw, ';')
+	if sep < 0 {
+		return nil, false
+	}
+	out := make([]byte, 0, len(raw)+4)
+	out = append(out, "\x1b[<"...)
+	out = strconv.AppendInt(out, int64(button), 10)
+	out = append(out, raw[sep:]...)
+	return out, true
+}
 
 // Event is one decoded report.
 type Event struct {

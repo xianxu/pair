@@ -350,6 +350,28 @@ must never see this" are the two cases the feature exists to separate.
   displayed and a forward would deliver the click somewhere invisible.
 - Everywhere else: forward verbatim if the child enabled tracking, else swallow.
 
+One report is REWRITTEN rather than merely routed (`pair#213`).
+`stripWheelResizeModifier` clears the ctrl bit from a vertical-wheel report
+before routing, so ctrl+scroll scrolls instead of resizing a zellij pane. It
+strips rather than swallows — swallowing would make the gesture do nothing,
+where the operator wants it to scroll — and it is narrow on three axes: wheel
+buttons only, vertical wheel only (`66`/`67` are left alone; zellij maps the
+resize off the vertical wheel), and the ctrl bit only, so ctrl+shift+wheel still
+arrives as shift+wheel. The predicate reads the modifier-MASKED button, because
+modifier bits live *in* the button field: ctrl+wheel-up is `80`, so a test
+against `WheelUp` would match nothing and the filter would silently do nothing.
+The byte splice itself lives in `mouseinput.WithButton`, which replaces only the
+button field and leaves every other byte as the terminal sent it — the format
+stays owned by the package that owns the format, and this is deliberately not
+the re-encoder that package rejects. **This is deletable:** it exists because
+zellij 0.44.3 maps ctrl+wheel to a pane resize with no way to disable it (its
+config parser silently ignores unknown keys, so setting the newer
+`mouse_scroll_resize` there is a no-op that looks accepted); upgrading zellij to
+a version carrying that option supersedes the filter for couch *and* for
+standalone pair, which this cannot reach. couch is the only interception point
+above the resize because it owns the host tty — `pair wrap` sits inside the
+pane, downstream of zellij's decision.
+
 The release rule is deliberately NARROWER than `termcmd`'s, which forwards every
 release unconditionally — correct where the child is already receiving presses,
 wrong here, where a child with no tracking must receive nothing and a release it
