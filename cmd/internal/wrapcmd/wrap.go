@@ -263,10 +263,16 @@ type proxy struct {
 	lifecycleTimer        *time.Timer
 	lifecycleTimerKind    ObservationKind
 	lifecycleTimerToken   uint64
-	codexWorkingRendered  bool
-	lifecycleJournalPath  string
-	lifecycleJournal      lifecycleJournalAdvancer
-	writeTTY              func(fd int, p []byte) (int, error)
+	// The idle floor's own timer (#171). Separate from lifecycleTimer because
+	// its deadline is reset by every output chunk, while the watchdog/grace
+	// deadlines are set only by reducer transitions. Arming is still owned by
+	// lifecycle state — see syncIdleTimer.
+	idleTimer            *time.Timer
+	idleTimerToken       uint64
+	codexWorkingRendered bool
+	lifecycleJournalPath string
+	lifecycleJournal     lifecycleJournalAdvancer
+	writeTTY             func(fd int, p []byte) (int, error)
 	// pair-slug spawn debounce (#000027)
 	lastSlug time.Time
 
@@ -1767,6 +1773,9 @@ func snippetLine(s string, idx int) string {
 // See the pickerActive field doc for the open/close protocol.
 func (p *proxy) emitPlainCR(out []byte) []byte {
 	if p.ttyProfile == nil {
+		// No remap profile: the CR goes straight to the agent, so it is a
+		// submission for the notification floor's purposes (#171).
+		p.publishLifecycleObservation(TurnObservation{Kind: ObservationBareReturn})
 		return append(out, '\r')
 	}
 	p.overlayMu.Lock()
@@ -1785,6 +1794,9 @@ func (p *proxy) emitPlainCR(out []byte) []byte {
 	}
 	decision := decidePlainReturn(*p.ttyProfile, overlayActive, snapshot)
 	p.adapt.Log(1, "return-remap", decision.outcome, decision.reason)
+	if decision.submits {
+		p.publishLifecycleObservation(TurnObservation{Kind: ObservationBareReturn})
+	}
 	return append(out, decision.bytes...)
 }
 
@@ -2369,9 +2381,6 @@ argsDone:
 			p.debug("MARKER-missing", p.agentBasename+" has no endOfTurnByAgent entry")
 		}
 	}
-	if p.notifyModeActive != "idle" {
-		p.idleS = 0
-	}
 	if p.agentBasename == "codex" && p.lifecycleJournalPath != "" {
 		if ordinal, err := strconv.ParseUint(os.Getenv("PAIR_LAUNCH_ORDINAL"), 10, 64); err == nil && ordinal != 0 {
 			if tailer, err := OpenLifecycleJournalTailer(p.lifecycleJournalPath, ordinal); err != nil {
@@ -2592,16 +2601,18 @@ func (p *proxy) masterPump() {
 		}
 	}()
 
-	// Idle timer is owned by the main goroutine — set up stopped if not in
-	// "idle" notify mode (p.idleS == 0), otherwise armed for p.idleS.
+	// The idle floor's timer is owned by the main goroutine. It starts stopped
+	// and is armed by syncIdleTimer from lifecycle state — no turn is open at
+	// startup, so there is nothing to put a floor under yet (#171).
 	idleTimer := time.NewTimer(time.Hour)
 	if !idleTimer.Stop() {
 		<-idleTimer.C
 	}
-	idleFired := false
-	if p.idleS > 0 {
-		idleTimer.Reset(p.idleS)
-	}
+	p.idleTimer = idleTimer
+	defer func() {
+		p.stopIdleTimer()
+		p.idleTimer = nil
+	}()
 	lifecycleTimer := time.NewTimer(time.Hour)
 	if !lifecycleTimer.Stop() {
 		<-lifecycleTimer.C
@@ -2678,25 +2689,32 @@ func (p *proxy) masterPump() {
 			}
 		lifecycleDrained:
 			p.handleChunk(ev.data, &rolling)
-			if p.idleS > 0 {
-				// Stop+drain+reset is safe here because only this
-				// goroutine ever reads idleTimer.C.
-				if !idleTimer.Stop() {
-					select {
-					case <-idleTimer.C:
-					default:
-					}
-				}
-				idleTimer.Reset(p.idleS)
-				idleFired = false
-			}
+			// Output pushes the floor's deadline out, but only while the floor
+			// is armed for an open, unreported turn. syncIdleTimer owns that
+			// predicate so arming can never drift from lifecycle state.
+			p.syncIdleTimer()
 		case <-idleTimer.C:
-			if p.idleS > 0 && !idleFired {
-				p.debug("IDLE", fmt.Sprintf("no agent output for %.0fs", p.idleS.Seconds()))
-				p.traceWrap("idle", map[string]any{"idle_s": p.idleS.Seconds()})
-				p.emitOuter("agent idle")
-				idleFired = true
+			// Drain queued boundaries first, exactly as the chunk branch does
+			// above: a submission or completion that was already published but
+			// not yet reduced must be applied before the expiry is, or the
+			// floor could alert against a turn that has just been reported.
+			for {
+				select {
+				case observation := <-p.lifecycleEvents:
+					p.processLifecycleObservation(observation)
+				default:
+					goto idleDrained
+				}
 			}
+		idleDrained:
+			idleMessage := fmt.Sprintf("no agent output for %.0fs", p.idleS.Seconds())
+			p.debug("IDLE", idleMessage)
+			p.traceWrap("idle", map[string]any{"idle_s": p.idleS.Seconds()})
+			p.processLifecycleObservation(TurnObservation{
+				Kind:    ObservationIdleExpired,
+				Token:   p.idleTimerToken,
+				Message: idleMessage,
+			})
 		case <-captureTick.C:
 			p.captureMu.Lock()
 			due := p.captureActive && !time.Now().Before(p.captureDeadline)

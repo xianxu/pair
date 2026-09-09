@@ -185,3 +185,129 @@ func FuzzNotificationLifecycleAtMostOncePerGeneration(f *testing.F) {
 		}
 	})
 }
+
+// ----- Idle floor (#171) ------------------------------------------------------
+//
+// The floor's contract lives here, in the pure reducer, rather than in the
+// master loop: whether a timeout reports a turn is a state-machine property,
+// and Reduce is testable without goroutines, a timer, or a terminal.
+
+func TestIdleFloorCoversTurnThatWasNeverRecognizedAsWorking(t *testing.T) {
+	// The dominant real case: no progress OSC ever arrives, so ActivitySeen
+	// stays false and the watchdog is never armed. The floor must still fire.
+	state, _ := Reduce(NotificationLifecycle{}, TurnObservation{Kind: ObservationUserSubmission})
+	if state.ActivitySeen {
+		t.Fatalf("submission should not claim activity: %+v", state)
+	}
+	if state.IdleToken == 0 {
+		t.Fatalf("submission did not mint an idle epoch: %+v", state)
+	}
+	_, decision := Reduce(state, TurnObservation{
+		Kind: ObservationIdleExpired, Token: state.IdleToken, Message: "no agent output for 60s",
+	})
+	if !decision.Notify || decision.Message != "no agent output for 60s" {
+		t.Fatalf("idle expiry on unrecognized turn = %+v", decision)
+	}
+}
+
+func TestIdleFloorIsSilentOnACompletedTurn(t *testing.T) {
+	state, _ := Reduce(NotificationLifecycle{}, TurnObservation{Kind: ObservationUserSubmission})
+	token := state.IdleToken
+	state, done := Reduce(state, TurnObservation{Kind: ObservationMarkerCompletion, Message: "finished"})
+	if !done.Notify {
+		t.Fatalf("completion did not notify: %+v", done)
+	}
+	if state.IdleToken != 0 {
+		t.Fatalf("completion left the idle epoch armed: %+v", state)
+	}
+	_, decision := Reduce(state, TurnObservation{Kind: ObservationIdleExpired, Token: token, Message: "no agent output for 60s"})
+	if decision.Notify {
+		t.Fatalf("idle expiry duplicated a completed turn: %+v", decision)
+	}
+}
+
+func TestIdleFloorIsAnAlertSoARealCompletionStillNotifies(t *testing.T) {
+	// The reason ObservationIdleExpired does not call complete(): a 60s silence
+	// does not know the turn ended. If it set the Completed tombstone, the
+	// agent's genuine end-of-turn would be swallowed and the operator would be
+	// pulled in early and then never told it actually finished.
+	state, _ := Reduce(NotificationLifecycle{}, TurnObservation{Kind: ObservationUserSubmission})
+	state, alert := Reduce(state, TurnObservation{Kind: ObservationIdleExpired, Token: state.IdleToken, Message: "no agent output for 60s"})
+	if !alert.Notify {
+		t.Fatalf("idle alert did not fire: %+v", alert)
+	}
+	if !state.Active || state.Completed {
+		t.Fatalf("idle alert closed the turn: %+v", state)
+	}
+	_, finished := Reduce(state, TurnObservation{Kind: ObservationMarkerCompletion, Message: "agent finished working"})
+	if !finished.Notify || finished.Message != "agent finished working" {
+		t.Fatalf("real completion after an idle alert = %+v", finished)
+	}
+}
+
+func TestIdleFloorRaisesAtMostOneAlertPerTurnAndRearmsOnTheNext(t *testing.T) {
+	state, _ := Reduce(NotificationLifecycle{}, TurnObservation{Kind: ObservationUserSubmission})
+	state, first := Reduce(state, TurnObservation{Kind: ObservationIdleExpired, Token: state.IdleToken, Message: "first"})
+	state, second := Reduce(state, TurnObservation{Kind: ObservationIdleExpired, Token: state.IdleToken, Message: "second"})
+	if !first.Notify || second.Notify {
+		t.Fatalf("alerts per turn = first %+v second %+v", first, second)
+	}
+	// A new turn is a new floor.
+	state, _ = Reduce(state, TurnObservation{Kind: ObservationUserSubmission})
+	if state.IdleNotified {
+		t.Fatalf("new turn inherited the spent floor: %+v", state)
+	}
+	_, next := Reduce(state, TurnObservation{Kind: ObservationIdleExpired, Token: state.IdleToken, Message: "next turn"})
+	if !next.Notify {
+		t.Fatalf("floor did not re-arm for the next turn: %+v", next)
+	}
+}
+
+func TestIdleFloorRejectsExpiryFromAStaleEpoch(t *testing.T) {
+	state, _ := Reduce(NotificationLifecycle{}, TurnObservation{Kind: ObservationUserSubmission})
+	stale := state.IdleToken
+	state, _ = Reduce(state, TurnObservation{Kind: ObservationMarkerCompletion, Message: "finished"})
+	state, _ = Reduce(state, TurnObservation{Kind: ObservationUserSubmission})
+	if state.IdleToken == stale {
+		t.Fatalf("second turn reused the first turn's idle epoch: %+v", state)
+	}
+	for name, token := range map[string]uint64{"stale": stale, "zero": 0} {
+		if _, decision := Reduce(state, TurnObservation{Kind: ObservationIdleExpired, Token: token, Message: "x"}); decision.Notify {
+			t.Fatalf("%s token notified: %+v", name, decision)
+		}
+	}
+}
+
+func TestIdleFloorFallsBackToAMessageThatClaimsOnlySilence(t *testing.T) {
+	state, _ := Reduce(NotificationLifecycle{}, TurnObservation{Kind: ObservationUserSubmission})
+	_, decision := Reduce(state, TurnObservation{Kind: ObservationIdleExpired, Token: state.IdleToken})
+	if decision.Message != defaultIdleMessage {
+		t.Fatalf("default idle message = %q, want %q", decision.Message, defaultIdleMessage)
+	}
+}
+
+func TestBareReturnOpensATurnOnlyWhenNoneIsOpen(t *testing.T) {
+	// A bare CR is the only submission signal when the composer gate reports
+	// inactive, so it must open a turn — but answering a menu inside an open
+	// turn must not reset that turn's identity or clear its tombstone.
+	fresh, _ := Reduce(NotificationLifecycle{}, TurnObservation{Kind: ObservationBareReturn})
+	if !fresh.Active || fresh.IdleToken == 0 {
+		t.Fatalf("bare return did not open a turn: %+v", fresh)
+	}
+
+	open, _ := Reduce(NotificationLifecycle{}, TurnObservation{Kind: ObservationUserSubmission})
+	open, _ = Reduce(open, TurnObservation{Kind: ObservationTranscriptStarted, TurnID: "turn-1"})
+	midTurn, decision := Reduce(open, TurnObservation{Kind: ObservationBareReturn})
+	if decision.Notify {
+		t.Fatalf("bare return mid-turn notified: %+v", decision)
+	}
+	if midTurn.Generation != open.Generation || midTurn.TurnID != "turn-1" || midTurn.IdleToken != open.IdleToken {
+		t.Fatalf("bare return mid-turn disturbed the turn: got %+v want %+v", midTurn, open)
+	}
+
+	closed, _ := Reduce(open, TurnObservation{Kind: ObservationTranscriptCompletion, TurnID: "turn-1", Message: "done"})
+	reopened, _ := Reduce(closed, TurnObservation{Kind: ObservationBareReturn})
+	if !reopened.Active || reopened.Completed {
+		t.Fatalf("bare return after completion did not open a new turn: %+v", reopened)
+	}
+}
