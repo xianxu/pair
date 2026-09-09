@@ -50,6 +50,11 @@ cache/
 /pair-go
 /pair-launch-helper
 /couchstartrecovery
+/couchnestedrows
+/termctrlc
+/termrows
 /generatecmd
 /termsmoke
 /zellijpark
+/zellijscrollregion
+/cursorsaveslots

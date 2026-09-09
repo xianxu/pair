@@ -1,7 +1,7 @@
 # Repo-specific Makefile targets.
 # This file is included by Makefile — add your own targets here.
 
-.PHONY: build install pair runtimebundle-generate runtimebundle-drift-check test-runtimebundle test-clean-bootstrap test test-race test-run-headless test-lua test-queue test-autopair test-draft-complete test-pair-doctor test-perf-key-conformance test-cr test-statusline test-doctor test-perf-capture test-adapt-schema test-dev-rebuild test-pair-go-install-layout test-pair-embedded-runtime test-pair-restart-quit test-emitter-health test-session-watch test-changelog test-copy-on-select test-term-pane-shortcuts test-pair-title test-zellij-trace test-review
+.PHONY: build install pair runtimebundle-generate runtimebundle-drift-check test-runtimebundle test-clean-bootstrap test test-race test-run-headless test-lua test-queue test-autopair test-draft-complete test-pair-doctor test-perf-key-conformance test-plan-superseded test-paint-gate-consumers test-cr test-statusline test-doctor test-perf-capture test-adapt-schema test-dev-rebuild test-pair-go-install-layout test-pair-embedded-runtime test-pair-restart-quit test-emitter-health test-session-watch test-changelog test-copy-on-select test-term-pane-shortcuts test-pair-title test-zellij-trace test-review
 
 # Cross-cutting Go-binary targets. Every Go binary lives under cmd/<name>/
 # and ships with the `pair-` prefix so it doesn't collide with anything
@@ -48,9 +48,20 @@ RUNTIMEBUNDLE_ASSETS := cmd/internal/runtimebundle/assets/runtime/manifest.json
 # evidence has to be re-runnable by anyone, which means a target, not a
 # remembered `go run` line (#146 M1 BR-16). Not in `test`: it drives a real
 # terminal child and takes ~20s.
+#
+# It runs every directory under probes/ WITHOUT a list, which is the point --
+# but "every directory" now includes probes/zellijprobe, the harness the probes
+# share (#199 BR-52). `go run` on a library package fails, and with `|| exit 1`
+# that aborted the whole suite, so the loop skips a directory with no `package
+# main`. A skip, not an entry in a second list: the next shared package must not
+# need remembering either.
 .PHONY: test-smoke
 test-smoke: $(BIN_DIR)/pair $(BIN_DIR)/pair-launch-helper
 	@for p in probes/*/; do \
+	    if ! grep -qs '^package main$$' $$p*.go; then \
+	        echo "==> $$p (shared harness, not a probe)"; \
+	        continue; \
+	    fi; \
 	    echo "==> $$p"; \
 	    go run ./$$p || exit 1; \
 	done
@@ -80,7 +91,19 @@ test-couch-zellij-live:
 test-perf-capture: $(BIN_DIR)/pair
 	sh doctor/perf_test.sh
 
-.PHONY: test-couch-start-recovery
+.PHONY: test-couch-start-recovery test-term-ctrlc test-term-rows test-couch-nested-rows
+test-term-ctrlc: $(BIN_DIR)/pair
+	go run ./cmd/probes/termctrlc $(CURDIR)/$(BIN_DIR)/pair
+
+# Two reserved rows, one above the other: couch holds the HOST terminal's bottom
+# row and `pair term` holds its PANE's. Its own target rather than test-smoke
+# because it starts a real zellij session and takes ~40s (#199 M3).
+test-couch-nested-rows: $(BIN_DIR)/pair
+	go run ./cmd/probes/couchnestedrows $(CURDIR)/$(BIN_DIR)/pair
+
+test-term-rows: $(BIN_DIR)/pair
+	go run ./cmd/probes/termrows $(CURDIR)/$(BIN_DIR)/pair
+
 test-couch-start-recovery: $(BIN_DIR)/pair-launch-helper
 	go run ./cmd/probes/couchstartrecovery $(CURDIR)/$(BIN_DIR)/pair-launch-helper
 
@@ -117,7 +140,7 @@ pair: $(BIN_DIR)/pair
 #                     inside the vt.Emulator library API itself, which is
 #                     outside our scope to fix — exclude that package
 #                     here rather than chase a library-level race.
-test: runtimebundle-generate test-run-headless test-lua test-perf-capture test-queue test-submission-transaction test-autopair test-draft-complete test-pair-doctor test-perf-key-conformance test-cr test-statusline test-doctor test-adapt-schema test-dev-rebuild test-pair-go-install-layout test-pair-embedded-runtime test-pair-restart-quit test-emitter-health test-session-watch test-changelog test-copy-on-select test-term-pane-shortcuts test-pair-title test-zellij-trace test-review
+test: runtimebundle-generate test-run-headless test-lua test-perf-capture test-queue test-submission-transaction test-autopair test-draft-complete test-pair-doctor test-perf-key-conformance test-plan-superseded test-paint-gate-consumers test-cr test-statusline test-doctor test-adapt-schema test-dev-rebuild test-pair-go-install-layout test-pair-embedded-runtime test-pair-restart-quit test-emitter-health test-session-watch test-changelog test-copy-on-select test-term-pane-shortcuts test-pair-title test-zellij-trace test-review
 	go test ./... -count=1
 
 # Expensive, explicit boundary regression: prove make test from a no-.git
@@ -266,6 +289,16 @@ test-pair-doctor:
 # tests/perf-key-conformance-test.sh.
 test-perf-key-conformance:
 	bash tests/perf-key-conformance-test.sh
+
+# A plan must not keep asserting a fact its own Revisions says was superseded.
+# pair#199 wrote that rule and then failed its own acceptance grep three rounds
+# running, each time recording "All swept." A sweep that depends on remembering
+# to sweep is the defect it was meant to fix. See tests/plan-superseded-facts-test.sh.
+test-plan-superseded:
+	bash tests/plan-superseded-facts-test.sh
+
+test-paint-gate-consumers:
+	bash tests/paint-gate-consumers-test.sh
 
 # Regression test for the insert-mode <CR> decision (nvim/init.lua, cr_keys /
 # _G.PairCRKeys, #65): Return must always insert a newline when no completion

@@ -1,6 +1,9 @@
 package ptychild
 
 import (
+	"os"
+	"reflect"
+	"regexp"
 	"strings"
 	"testing"
 )
@@ -465,5 +468,461 @@ func TestMouseModeChangeLatchesRowDirty(t *testing.T) {
 	// And an unrelated private mode still does not.
 	if feedWhole("\x1b[?25l").TakeRowDirty() {
 		t.Error("hiding the cursor latched rowDirty")
+	}
+}
+
+// The cursor save slot is SHARED: one per terminal. A console with a reserved
+// row that paints between the child's DECSC and DECRC clobbers what the child
+// saved, and the child's restore then recovers the CONSOLE's position.
+//
+// Measured in pair#199: zsh draws its right-hand prompt with terminfo sc/rc
+// (ESC 7 / ESC 8), so the operator's cursor ended up inside the tab strip and
+// the right-prompt was drawn on the strip's row.
+func TestHoldsCursorSaveTracksTheChildsOwnSaveRestore(t *testing.T) {
+	var s Screen
+	if s.HoldsCursorSave() {
+		t.Fatal("a fresh screen reports a held save")
+	}
+	s.FeedFraming([]byte("text\x1b7more"))
+	if !s.HoldsCursorSave() {
+		t.Fatal("the child's DECSC was not observed")
+	}
+	s.FeedFraming([]byte("still held\x1b8done"))
+	if s.HoldsCursorSave() {
+		t.Fatal("the child's DECRC did not clear the debt")
+	}
+}
+
+// One slot, not a stack: terminals keep a single save, so a second DECSC
+// overwrites the first and ONE DECRC settles it. Counting depth instead would
+// leave a console deferring forever after any unbalanced pair.
+func TestASecondSaveDoesNotDeepenTheDebt(t *testing.T) {
+	var s Screen
+	s.FeedFraming([]byte("\x1b7\x1b7"))
+	// The state AFTER the second save is what distinguishes "set" from
+	// "toggle". Checking only the end state passes for both, which is how a
+	// toggling implementation survived this test's first version.
+	if !s.HoldsCursorSave() {
+		t.Fatal("a second DECSC cleared the debt; it must SET, not toggle")
+	}
+	s.FeedFraming([]byte("\x1b8"))
+	if s.HoldsCursorSave() {
+		t.Fatal("two saves needed two restores; the slot is one deep, not a stack")
+	}
+}
+
+// THE SAVE-SLOT ENUMERATION, one case per spelling.
+//
+// A missing arm here is a silent hole in the paint gate, not a visible failure,
+// which is why this is a table rather than a handful of examples. The previous
+// version of this test asserted that ENTERING the alt screen clears the save --
+// encoding the bug it was meant to catch. `?1049h` is defined as
+// DECSC-then-switch: it TAKES the slot, and it is how nearly every full-screen
+// child takes it.
+func TestEverySaveSlotSpellingIsAccountedFor(t *testing.T) {
+	const (
+		takes    = "takes the slot"
+		releases = "releases it"
+		inert    = "leaves it alone"
+	)
+	for _, tc := range []struct{ name, seq, effect string }{
+		{"DECSC", "\x1b7", takes},
+		{"DECRC", "\x1b8", releases},
+		{"SCOSC", "\x1b[s", takes},
+		{"SCORC", "\x1b[u", releases},
+		{"save cursor (1048h)", "\x1b[?1048h", takes},
+		{"restore cursor (1048l)", "\x1b[?1048l", releases},
+		{"alt screen WITH save (1049h)", "\x1b[?1049h", takes},
+		{"leave alt screen (1049l)", "\x1b[?1049l", releases},
+		{"alt screen only (1047h)", "\x1b[?1047h", inert},
+		{"alt screen only (1047l)", "\x1b[?1047l", inert},
+		{"alt screen only (47h)", "\x1b[?47h", inert},
+		{"RIS", "\x1bc", releases},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			// From EMPTY: does it take?
+			var empty Screen
+			empty.FeedFraming([]byte(tc.seq))
+			if got := empty.HoldsCursorSave(); got != (tc.effect == takes) {
+				t.Fatalf("from empty, %s left HoldsCursorSave=%v; it %s", tc.name, got, tc.effect)
+			}
+			// From HELD: does it release, or leave it alone?
+			var held Screen
+			held.FeedFraming([]byte("\x1b7"))
+			held.FeedFraming([]byte(tc.seq))
+			want := tc.effect != releases // takes and inert both leave it held
+			if got := held.HoldsCursorSave(); got != want {
+				t.Fatalf("from held, %s left HoldsCursorSave=%v; it %s", tc.name, got, tc.effect)
+			}
+		})
+	}
+}
+
+// 1047/47 switch screens WITHOUT the save half, so clearing the flag there would
+// hand a console permission to paint inside a save the child still holds. This
+// is the arm most likely to be written as "an alt-screen transition abandons the
+// save", which is true of 1049 and false of these.
+func TestAltScreenWithoutTheSaveHalfDoesNotReleaseTheSlot(t *testing.T) {
+	for _, seq := range []string{"\x1b[?1047h", "\x1b[?1047l", "\x1b[?47h", "\x1b[?47l"} {
+		var s Screen
+		s.FeedFraming([]byte("\x1b7"))
+		s.FeedFraming([]byte(seq))
+		if !s.HoldsCursorSave() {
+			t.Fatalf("%q released a save it does not touch", seq)
+		}
+	}
+}
+
+// The two gates are INDEPENDENT. A console must defer on either, and an earlier
+// design that folded them into one flag could not tell "mid-escape" from
+// "inside the child's save" -- they clear on different bytes.
+func TestMidSequenceAndHeldSaveAreSeparateConditions(t *testing.T) {
+	var s Screen
+	s.FeedFraming([]byte("\x1b7"))
+	if s.MidSequence() {
+		t.Fatal("a COMPLETE DECSC left the framer mid-sequence")
+	}
+	if !s.HoldsCursorSave() {
+		t.Fatal("the save was not recorded")
+	}
+	s.FeedFraming([]byte("\x1b[3"))
+	if !s.MidSequence() || !s.HoldsCursorSave() {
+		t.Fatal("a partial CSI must not disturb the save debt, or vice versa")
+	}
+}
+
+// SCOSC/SCORC is the CSI spelling of the SAME slot, and this repo's own probe
+// (probes/cursorsaveslots) established zellij gives it no second storage. A
+// gate watching only ESC 7 lets the collision straight back in for any child
+// that uses the CSI form.
+func TestTheCSISpellingOfSaveRestoreHoldsTheSameSlot(t *testing.T) {
+	var s Screen
+	s.FeedFraming([]byte("\x1b[s"))
+	if !s.HoldsCursorSave() {
+		t.Fatal("CSI s did not register as a save; a child using it would be unguarded")
+	}
+	s.FeedFraming([]byte("\x1b[u"))
+	if s.HoldsCursorSave() {
+		t.Fatal("CSI u did not clear the save")
+	}
+}
+
+// The two spellings share ONE slot, so they must settle each other -- a child
+// is free to save with one and restore with the other, and terminals honour it.
+func TestTheTwoSpellingsSettleEachOther(t *testing.T) {
+	var s Screen
+	s.FeedFraming([]byte("\x1b7"))
+	s.FeedFraming([]byte("\x1b[u"))
+	if s.HoldsCursorSave() {
+		t.Fatal("CSI u did not clear a save made with ESC 7; they are one slot")
+	}
+	s.FeedFraming([]byte("\x1b[s"))
+	s.FeedFraming([]byte("\x1b8"))
+	if s.HoldsCursorSave() {
+		t.Fatal("ESC 8 did not clear a save made with CSI s")
+	}
+}
+
+// `CSI <n> s` is DECSLRM (set left/right margins), NOT a save. Treating it as
+// one would defer every paint forever against a child that sets margins and
+// never issues a restore -- a permanently stale row from a sequence that had
+// nothing to do with the cursor.
+func TestParameterisedCSIsIsMarginsNotASave(t *testing.T) {
+	for _, seq := range []string{"\x1b[1;80s", "\x1b[5s", "\x1b[?69h\x1b[1;40s"} {
+		var s Screen
+		s.FeedFraming([]byte(seq))
+		if s.HoldsCursorSave() {
+			t.Fatalf("%q was treated as a cursor save; it is DECSLRM", seq)
+		}
+	}
+}
+
+// BR-79: gating on a save the child holds for its whole ALT-SCREEN lifetime
+// freezes the console's row for minutes. That is the common case (every nvim
+// session), and it trades a rare one-frame cursor glitch for a permanently
+// stale row -- strictly worse.
+//
+// The hazard the gate exists for is a child that saves and restores SOON: a
+// line-oriented child drawing a prompt. A full-screen child repaints from its
+// own model every frame and repositions absolutely, so a disturbed cursor does
+// not survive to be seen.
+func TestTheSaveGateDoesNotFreezeThroughAnAltScreenSession(t *testing.T) {
+	var s Screen
+	if !s.SafeToPaint() {
+		t.Fatal("a fresh screen refuses paints")
+	}
+
+	// nvim starting: 1049h takes the slot AND enters the alt screen.
+	s.FeedFraming([]byte("\x1b[?1049h"))
+	if !s.HoldsCursorSave() {
+		t.Fatal("1049h did not take the slot; it is DECSC-then-switch")
+	}
+	if !s.SafeToPaint() {
+		t.Fatal("the row is frozen for the child's whole alt-screen session")
+	}
+
+	// Still paintable after the child writes for a while.
+	s.FeedFraming([]byte("lots of nvim output\x1b[1;1H"))
+	if !s.SafeToPaint() {
+		t.Fatal("the row froze partway through the session")
+	}
+
+	// nvim quitting restores and leaves the alt screen.
+	s.FeedFraming([]byte("\x1b[?1049l"))
+	if s.HoldsCursorSave() || !s.SafeToPaint() {
+		t.Fatal("1049l did not release the slot")
+	}
+}
+
+// And the case the gate DOES exist for is unchanged: a line-oriented child
+// holding a save outside the alt screen -- zsh drawing its right-hand prompt.
+func TestTheSaveGateStillClosesOutsideTheAltScreen(t *testing.T) {
+	for _, seq := range []string{"\x1b7", "\x1b[s", "\x1b[?1048h"} {
+		var s Screen
+		s.FeedFraming([]byte(seq))
+		if s.SafeToPaint() {
+			t.Fatalf("%q left the gate open; a paint here corrupts the child's restore", seq)
+		}
+	}
+}
+
+// BR-81: altScreen is a SAFETY input to SafeToPaint, so every path that leaves
+// the alt screen must clear it. RIS resets the terminal to its power-on state,
+// which is the primary screen; leaving the flag set turned a missing reset into
+// a permanently disabled save gate.
+func TestRISLeavesTheAltScreenAndReArmsTheSaveGate(t *testing.T) {
+	var s Screen
+	s.FeedFraming([]byte("\x1b[?1049h")) // in the alt screen, holding the save
+	s.FeedFraming([]byte("\x1bc"))       // RIS
+
+	if s.AltScreen() {
+		t.Fatal("RIS left altScreen set; the terminal's power-on state is the primary screen")
+	}
+	// And the gate must arm again: a save taken after the reset closes it.
+	s.FeedFraming([]byte("\x1b7"))
+	if s.SafeToPaint() {
+		t.Fatal("after RIS the save gate never closes again; altScreen is stuck on")
+	}
+}
+
+// Every field SafeToPaint consults must be cleared by every reset that clears
+// the terminal state it models. Stated as its own test because promoting a
+// field to a safety input is what created the hole: the audit belongs with the
+// promotion.
+func TestEverySafetyInputIsClearedByRIS(t *testing.T) {
+	var s Screen
+	s.FeedFraming([]byte("\x1b[?1049h\x1b[3")) // alt screen, save held, mid-sequence
+	s.FeedFraming([]byte("m"))                 // close the sequence
+	s.FeedFraming([]byte("\x1bc"))             // RIS
+	if !s.SafeToPaint() {
+		t.Fatal("RIS left a safety input set; a reset must return the gate to open")
+	}
+	if s.HoldsCursorSave() || s.AltScreen() || s.MidSequence() {
+		t.Fatalf("after RIS: save=%v alt=%v mid=%v; all must be clear",
+			s.HoldsCursorSave(), s.AltScreen(), s.MidSequence())
+	}
+}
+
+// safetyInputs DERIVES the set of fields SafeToPaint reads, from SafeToPaint's
+// own source, expanding the same-receiver predicates it calls.
+//
+// Hand-listing that set is what failed. BR-81 was a field promoted to a safety
+// input without auditing its resets, and the guard written for it enumerated
+// three fields by hand -- so a fourth input added tomorrow would leave that
+// guard passing while unreset. The set has to come from the code, not memory.
+func safetyInputs(t *testing.T) []string {
+	t.Helper()
+	raw, err := os.ReadFile("screen.go")
+	if err != nil {
+		t.Fatal(err)
+	}
+	src := string(raw)
+
+	body := func(method string) string {
+		i := strings.Index(src, "func (s *Screen) "+method+"(")
+		if i < 0 {
+			t.Fatalf("%s not found in screen.go; this guard is checking nothing", method)
+		}
+		rest := src[i:]
+		if j := strings.Index(rest[1:], "\nfunc "); j >= 0 {
+			rest = rest[:j+1] // +1: j indexes rest[1:], not rest
+		}
+		return rest
+	}
+
+	callRe := regexp.MustCompile(`s\.([A-Za-z][A-Za-z0-9]*)\(`)
+	fieldRe := regexp.MustCompile(`s\.([a-z][A-Za-z0-9]*)\b`)
+
+	text := body("SafeToPaint")
+	for _, m := range callRe.FindAllStringSubmatch(text, -1) {
+		text += body(m[1]) // one level of expansion: SafeToPaint's own predicates
+	}
+
+	calls := map[string]bool{}
+	for _, m := range callRe.FindAllStringSubmatch(text, -1) {
+		calls[m[1]] = true
+	}
+	seen := map[string]bool{}
+	var out []string
+	for _, m := range fieldRe.FindAllStringSubmatch(text, -1) {
+		if calls[m[1]] || seen[m[1]] {
+			continue
+		}
+		seen[m[1]] = true
+		out = append(out, m[1])
+	}
+	if len(out) == 0 {
+		t.Fatal("derived no safety inputs; the parse broke and this guard is blind")
+	}
+	return out
+}
+
+// Every field SafeToPaint reads must be REACHABLE by a sequence this test
+// knows how to write, and must be zero after RIS.
+//
+// The two halves are the two obligations that each cost a Critical in #199:
+//
+//   - reachability is the positive control. Add an input tomorrow without
+//     adding the sequence that sets it, and the RIS half would pass vacuously
+//     -- which is how four tests in this issue passed for the wrong reason.
+//   - the RIS half is BR-81: promoting a field to a safety input obliges an
+//     audit of every path that resets the state it models.
+//
+// Framing fields (pending, skipping) are cleared by COMPLETING the sequence
+// rather than by RIS, which is why the corpus terminates each entry -- classify
+// only ever runs on a whole sequence, so RIS is never read mid-sequence.
+func TestTheSafetyInputSetIsDerivedNotRemembered(t *testing.T) {
+	inputs := safetyInputs(t)
+
+	corpus := []struct {
+		what string
+		seq  string
+	}{
+		{"a held cursor save (DECSC)", "\x1b7"},
+		{"the alt screen (?1047h)", "\x1b[?1047h"},
+		{"a partial sequence held across reads", "\x1b[3"},
+		{"a sequence too long to buffer", "\x1b[" + strings.Repeat("1;", maxPending)},
+	}
+
+	// Reachability: the corpus must be able to set every derived input.
+	reached := map[string]bool{}
+	for _, c := range corpus {
+		var s Screen
+		s.FeedFraming([]byte(c.seq))
+		v := reflect.ValueOf(&s).Elem()
+		for _, name := range inputs {
+			f := v.FieldByName(name)
+			if !f.IsValid() {
+				t.Fatalf("SafeToPaint reads s.%s but Screen has no such field", name)
+			}
+			if !f.IsZero() {
+				reached[name] = true
+			}
+		}
+	}
+	for _, name := range inputs {
+		if !reached[name] {
+			t.Errorf("SafeToPaint reads s.%s but no corpus entry sets it; add the "+
+				"sequence that does, or the RIS check below passes vacuously for it", name)
+		}
+	}
+
+	// RIS closure: with every input the corpus can set actually set, the reset
+	// must return all of them to zero.
+	var s Screen
+	for _, c := range corpus {
+		s.FeedFraming([]byte(c.seq))
+		s.FeedFraming([]byte("m")) // terminate: closes a pending CSI and a skip
+	}
+	v := reflect.ValueOf(&s).Elem()
+	anySet := false
+	for _, name := range inputs {
+		if !v.FieldByName(name).IsZero() {
+			anySet = true
+		}
+	}
+	if !anySet {
+		t.Fatal("the corpus left every safety input clear; the RIS check would prove nothing")
+	}
+
+	s.FeedFraming([]byte("\x1bc")) // RIS
+	for _, name := range inputs {
+		if !v.FieldByName(name).IsZero() {
+			t.Errorf("RIS left s.%s set; a field SafeToPaint reads must be cleared by "+
+				"every reset of the state it models, or the gate stays shut for good", name)
+		}
+	}
+	if !s.SafeToPaint() {
+		t.Error("the gate is still closed after RIS")
+	}
+}
+
+// The OTHER direction of the same obligation: a reset arm's field set is
+// derived from the terminal state that reset clears, not from the fields the
+// currently-load-bearing predicate reads.
+//
+// TestTheSafetyInputSetIsDerivedNotRemembered is scoped to SafeToPaint's inputs
+// BY DESIGN, so it is structurally blind to a mode RIS forgets that the paint
+// gate does not read -- and the mouse modes sat unreset behind exactly that
+// blindness until a review measured them. The derivation here is the DECSET
+// arms: every field classify assigns from a mode's on/off value is a mode the
+// child can turn on, so RIS must turn it off.
+//
+// mouseObserved is correctly absent -- it is assigned `true`, not `on`, because
+// it latches that an expression happened rather than modelling a mode. See the
+// RIS arm for why it must survive the reset.
+func TestRISClearsEveryModeTheChildCanSet(t *testing.T) {
+	raw, err := os.ReadFile("screen.go")
+	if err != nil {
+		t.Fatal(err)
+	}
+	i := strings.Index(string(raw), "func (s *Screen) classify(")
+	if i < 0 {
+		t.Fatal("classify not found in screen.go; this guard is checking nothing")
+	}
+	modes := regexp.MustCompile(`s\.([a-z][A-Za-z0-9]*) = on\b`).
+		FindAllStringSubmatch(string(raw)[i:], -1)
+	seen := map[string]bool{}
+	var derived []string
+	for _, m := range modes {
+		if !seen[m[1]] {
+			seen[m[1]] = true
+			derived = append(derived, m[1])
+		}
+	}
+	if len(derived) < 3 {
+		t.Fatalf("derived only %v as settable modes; the parse broke and this guard is blind", derived)
+	}
+
+	var sc Screen
+	// Every mode arm classify has: alt screen + save slot, and both mouse forms.
+	sc.FeedFraming([]byte("\x1b[?1049h\x1b[?1000h\x1b[?1006h"))
+
+	v := reflect.ValueOf(&sc).Elem()
+	for _, name := range derived {
+		f := v.FieldByName(name)
+		if !f.IsValid() {
+			t.Fatalf("classify assigns s.%s but Screen has no such field", name)
+		}
+		if f.IsZero() {
+			t.Errorf("no corpus sequence turns s.%s on; add the DECSET that does, "+
+				"or the RIS check below passes vacuously for it", name)
+		}
+	}
+
+	sc.FeedFraming([]byte("\x1bc")) // RIS
+	for _, name := range derived {
+		if !v.FieldByName(name).IsZero() {
+			t.Errorf("RIS left mode s.%s on; a real terminal's RIS returns to the "+
+				"power-on state, so every mode the child can set must be cleared", name)
+		}
+	}
+	if sc.Mouse() || sc.SGRMouse() {
+		t.Error("mouse tracking still reads as on after RIS")
+	}
+	if !sc.MouseObserved() {
+		t.Error("mouseObserved must SURVIVE RIS: the reset is itself an observation " +
+			"that tracking is off, and clearing it makes a supervisor refrain from a " +
+			"mouse it may correctly own (pair#172 I1)")
 	}
 }

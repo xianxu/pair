@@ -146,9 +146,8 @@ func DecideResume(input ResumeEligibilityInput) (ResumeEligibility, error) {
 // skipped the call when Path was nil, so a nil Path made relaunch PASS the path
 // precondition and then panic one step later.
 //
-// workingPathExists is the one piece of evidence BOTH resume paths need, and it
-// is cheap. Kept separate from the binding for that reason: a warm reattach must
-// not pay for -- or be failed by -- a resolution it has no use for.
+// It is kept separate from the native binding because a warm reattach must not
+// pay for -- or be failed by -- a resolution it has no use for.
 func (c *Couch) workingPathExists(thread ThreadRecord) bool {
 	if c.Path == nil {
 		return false

@@ -3,64 +3,19 @@ package couchtty
 import (
 	"strings"
 
-	"github.com/xianxu/pair/cmd/internal/ansi"
 	"github.com/xianxu/pair/cmd/internal/couchcore"
+	"github.com/xianxu/pair/cmd/internal/rowtext"
 
-	"github.com/xianxu/pair/cmd/internal/hostty"
 	"github.com/xianxu/pair/cmd/internal/textwidth"
 )
 
-// This file COMPOSES sequences from hostty's constants; it does not spell them.
-// One escape, one definition, per the paired-terminator lesson.
-
-// ChildRows is how tall a child is on a host of that many rows: one shorter,
-// because couch owns the last row.
+// This file is the POLICY half of the reserved row: what the row SAYS.
 //
-// It never returns zero. A terminal too short to reserve from gives the child
-// the whole thing and the row is simply not drawn -- a zero-row pty is not a
-// thing, and clamping here keeps every caller from re-deciding it.
-func ChildRows(hostRows uint16) uint16 {
-	if hostRows == 0 {
-		return 1
-	}
-	if hostRows == 1 {
-		return hostRows
-	}
-	return hostRows - 1
-}
-
-// Reserve pins the scrolling region above the reserved row.
-//
-// This is what makes the row a RESERVATION rather than compositing: a child
-// scrolling at the bottom of its own screen scrolls inside the region and
-// cannot walk onto the row below it. The child is never told; from its side
-// this is just a smaller terminal (Decision 4).
-func Reserve(hostRows uint16) string {
-	if hostRows <= 1 {
-		return ""
-	}
-	return hostty.SetRegion(1, int(hostRows)-1)
-}
-
-// Release resets the region. Written on teardown, or a child that set margins
-// and died would leave the operator's shell scrolling inside a box.
-func Release() string { return hostty.ResetRegion }
-
-// PaintRow draws the reserved row without disturbing the child.
-//
-// Save and restore BRACKET the paint. Without them the child's cursor is left
-// on the status row, which the operator sees as the caret jumping to the bottom
-// line every time anything is notified.
-func PaintRow(hostRows uint16, text string) string {
-	if hostRows == 0 {
-		return ""
-	}
-	return hostty.SaveCursor +
-		hostty.MoveTo(int(hostRows), 1) +
-		hostty.ClearLine +
-		text +
-		hostty.RestoreCursor
-}
+// The mechanism -- reserving the row, painting it without moving the child's
+// cursor, releasing it -- moved to hostty.Reservation in pair#199, because
+// `pair term` needs the same primitive for its tab strip and the atlas is
+// explicit that `\x1b[r` lives in one package only. What each consumer draws
+// there stays with the consumer: couch renders actors, termcmd renders tabs.
 
 // StatusActor is one chip on the row.
 type StatusActor struct {
@@ -83,19 +38,6 @@ type StatusModel struct {
 	Notice string
 }
 
-// The untrusted-text rationale below belongs to RenderStatusRow, and sat above
-// ChipSpan until a review pointed out that `go doc ChipSpan` printed it: a
-// comment separated from its subject by an intervening declaration documents the
-// wrong thing to every reader who arrives through the tool rather than the file.
-//
-// RenderStatusRow lays the model out in width columns.
-//
-// Labels and notices carry UNTRUSTED text: couchcore.Describe prefers a sidecar
-// the agent session writes, so a description is whatever a child chose to put
-// there. Control bytes are stripped rather than escaped-around, because the
-// hazard is not a mangled row -- it is `\x1b[2J` from a description clearing the
-// operator's screen. Stripping also makes truncation honest, since after it
-// every remaining byte occupies the columns textwidth says it does.
 // ChipSpan is the column range one actor occupies on the drawn row, and the
 // actor a click there lands on. Half-open: [Start, End).
 //
@@ -135,6 +77,14 @@ func (r RenderedStatusRow) ColumnToActor(column int) (couchcore.ThreadAddress, b
 	return couchcore.ThreadAddress{}, false
 }
 
+// RenderStatusRow lays the model out in width columns.
+//
+// Labels and notices carry UNTRUSTED text: couchcore.Describe prefers a sidecar
+// the agent session writes, so a description is whatever a child chose to put
+// there. Control bytes are stripped rather than escaped-around, because the
+// hazard is not a mangled row -- it is `\x1b[2J` from a description clearing the
+// operator's screen. Stripping also makes truncation honest, since after it
+// every remaining byte occupies the columns textwidth says it does.
 func RenderStatusRow(width int, m StatusModel) RenderedStatusRow {
 	if width <= 0 {
 		return RenderedStatusRow{}
@@ -145,7 +95,7 @@ func RenderStatusRow(width int, m StatusModel) RenderedStatusRow {
 		if used >= width || text == "" {
 			return
 		}
-		clipped := truncate(text, width-used)
+		clipped := rowtext.Fit(text, width-used)
 		if clipped == "" {
 			return
 		}
@@ -160,7 +110,7 @@ func RenderStatusRow(width int, m StatusModel) RenderedStatusRow {
 	}
 	var chips []ChipSpan
 	for _, a := range m.Actors {
-		label := sanitize(a.Label)
+		label := rowtext.Sanitize(a.Label)
 		if a.Active {
 			label = "[" + label + "]"
 		}
@@ -176,7 +126,7 @@ func RenderStatusRow(width int, m StatusModel) RenderedStatusRow {
 			chips = append(chips, ChipSpan{Thread: a.Thread, Start: start, End: used})
 		}
 	}
-	if n := sanitize(m.Notice); n != "" {
+	if n := rowtext.Sanitize(m.Notice); n != "" {
 		if used > 0 {
 			appendText("  · ", false)
 		}
@@ -190,32 +140,7 @@ func RenderStatusRow(width int, m StatusModel) RenderedStatusRow {
 // leave `[2J` sitting in the row as visible junk -- safe, but garbage the
 // operator cannot explain. ansi.Strip is the repo's existing answer to "remove
 // complete escape sequences", so the sequence framing is not re-decided here.
-func sanitize(s string) string {
-	stripped := string(ansi.Strip([]byte(s)))
-	return strings.Map(func(r rune) rune {
-		if r < 0x20 || r == 0x7f {
-			return -1
-		}
-		return r
-	}, stripped)
-}
 
 // truncate cuts to width in terminal COLUMNS, not bytes or runes -- an emoji in
 // an agent's description is one rune and two columns, and the row must not wrap
 // onto the child's area.
-func truncate(s string, width int) string {
-	if textwidth.Width(s) <= width {
-		return s
-	}
-	var b strings.Builder
-	used := 0
-	for _, r := range s {
-		w := textwidth.Width(string(r))
-		if used+w > width {
-			break
-		}
-		b.WriteRune(r)
-		used += w
-	}
-	return b.String()
-}

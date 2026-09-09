@@ -3,6 +3,7 @@
 package termcmd
 
 import (
+	"bytes"
 	"flag"
 	"fmt"
 	"io"
@@ -18,6 +19,7 @@ import (
 	"github.com/xianxu/pair/cmd/internal/mouseinput"
 	"github.com/xianxu/pair/cmd/internal/procutil"
 	"github.com/xianxu/pair/cmd/internal/ptychild"
+	"github.com/xianxu/pair/cmd/internal/rowtext"
 	"github.com/xianxu/pair/cmd/internal/workbenchshortcut"
 	"github.com/xianxu/pair/cmd/internal/zellijpane"
 	"strconv"
@@ -35,7 +37,6 @@ type Runtime interface {
 	RegisterTerminalPane() error
 	RunZellijAction(args ...string) error
 	RunZellijActionQuiet(args ...string) error
-	ReportShortcutError(error)
 	ShellCommand() (string, []string)
 }
 
@@ -260,9 +261,12 @@ func runShell(stdin io.Reader, stdout, stderr io.Writer, rt Runtime) int {
 	if stdinFile != nil {
 		go func() {
 			for range host.Resized() {
-				mux.inheritSize(host)
+				mux.resizeThroughWriter(host)
 			}
 		}()
+		// loop-exempt: the initial sizing runs BEFORE copyActiveOutput starts
+		// (below), so there is no loop to serialize against and nothing else
+		// writing. Every later resize goes through resizeThroughWriter.
 		mux.inheritSize(host)
 	}
 
@@ -280,11 +284,15 @@ type ptyWriter interface {
 	newTab() error
 	closeActive()
 	beginRename() (int, RenameEditor, error)
-	refreshRename(int, RenameEditor) error
+	refreshRename(int, RenameEditor)
 	finishRename(int, RenameOutcome) error
 	previousTab()
 	nextTab()
 	appMouseMode() bool
+	// reportError puts a diagnostic on the pane THROUGH the writer loop.
+	// On the interface because the input goroutine is where these arise, and
+	// it must not reach the pane's fd directly (#199 M2).
+	reportError(error)
 }
 
 type RenameTimer interface {
@@ -373,15 +381,13 @@ func pumpStdinWithTimer(stdin io.Reader, mux ptyWriter, rt Runtime, stdout io.Wr
 			rename.editor, outcome = rename.editor.Apply(event)
 			if outcome.Kind != RenameOutcomeNone {
 				if err := mux.finishRename(rename.tabID, outcome); err != nil {
-					rt.ReportShortcutError(err)
+					mux.reportError(err)
 				}
 				timer.StopAndDrain()
 				rename = nil
 				return
 			}
-			if err := mux.refreshRename(rename.tabID, rename.editor); err != nil {
-				rt.ReportShortcutError(err)
-			}
+			mux.refreshRename(rename.tabID, rename.editor)
 		}
 		if exited {
 			timer.StopAndDrain()
@@ -423,7 +429,7 @@ func pumpStdinWithTimer(stdin io.Reader, mux ptyWriter, rt Runtime, stdout io.Wr
 						if chord == workbenchshortcut.ChordAltR {
 							tabID, editor, err := mux.beginRename()
 							if err != nil {
-								rt.ReportShortcutError(err)
+								mux.reportError(err)
 								data = nil
 								continue
 							}
@@ -434,7 +440,7 @@ func pumpStdinWithTimer(stdin io.Reader, mux ptyWriter, rt Runtime, stdout io.Wr
 						}
 						if !handleTerminalChord(chord, mux, rt) {
 							if err := handleChord(chord, rt, stdin, stdout); err != nil {
-								rt.ReportShortcutError(err)
+								mux.reportError(err)
 							}
 						}
 						data = chordRest
@@ -504,7 +510,7 @@ func handleTerminalChord(chord workbenchshortcut.Chord, mux ptyWriter, rt Runtim
 		return true
 	case workbenchshortcut.ChordAltShiftD:
 		if err := splitTerminalDown(rt); err != nil {
-			rt.ReportShortcutError(err)
+			mux.reportError(err)
 		}
 		return true
 	case workbenchshortcut.ChordAltShiftEnter:
@@ -596,17 +602,76 @@ type terminalTab struct {
 	child *ptychild.Child
 }
 
+// ptyChunk is anything the writer loop may act on. `data` from a child is
+// SCANNED and forwarded; `own` is a console-originated write (a paint, a
+// redraw, a diagnostic) that is gated instead.
+//
+// One type rather than two channels: the ordering between a child's bytes and
+// our own is the whole subject of this milestone, and two channels would let a
+// select choose between them in an order nothing pins.
 type ptyChunk struct {
 	id   int
 	data []byte
 	err  error
+
+	// own is a console-originated write. Never fed to the gate's scanner --
+	// see gate below.
+	own []byte
+	// diag is a console-originated DIAGNOSTIC: same gate, different deferral
+	// policy (queued rather than coalesced -- see owedDiag).
+	diag []byte
+	// takeover means this write replaces the whole screen (redrawTab), so the
+	// scan resets and any owed paint is dropped rather than flushed against a
+	// screen that no longer exists. couch's third gate rule.
+	takeover bool
+	// rowDirty means the child may have destroyed the reserved row -- a margin
+	// reset, RIS, an alt-screen transition, or an ERASE. DECSTBM restricts
+	// scrolling, not erasing, so a full-screen app's startup clear takes the row
+	// while the region is still perfectly intact.
+	rowDirty bool
+	// replay is the CHILD-originated half of a takeover's bytes, tracked apart
+	// from the console-originated prefix so the gate can be fed the former and
+	// not the latter.
+	replay []byte
+	// drained is closed after this event is fully handled; tests wait on it
+	// instead of sleeping.
+	drained chan struct{}
+	// onWriter runs ON THE WRITER GOROUTINE. Two uses: a resize, which must
+	// serialize against paints (ARCH-ORDER), and a test reading gate state
+	// without racing the loop that owns it.
+	onWriter func()
 }
+
+// paneWriter is the ONLY way to reach the pane's file descriptor, and it is
+// deliberately NOT an io.Writer.
+//
+// That is the whole design: with no Write method, `fmt.Fprintf(m.pane, …)`,
+// `io.WriteString(m.pane, …)` and `m.pane.Write(…)` are all COMPILE ERRORS, so
+// a new door cannot be opened by reflex. The predecessor was a test that
+// scanned run.go for `m.stdout` -- which missed Fprintf (the most idiomatic
+// spelling, and the one this file used pre-M2), missed a second file in the
+// same package, and could be fooled by an unrelated comment. Scanning for
+// violations is weaker than making them unrepresentable.
+//
+// Every write states a reason at the call site. The gated writers pass their
+// own; the three exemptions pass theirs.
+type paneWriter struct{ w io.Writer }
+
+func (p paneWriter) raw(reason string, b []byte) {
+	_ = reason // documentation at the call site, not a runtime value
+	if len(b) == 0 {
+		return
+	}
+	_, _ = p.w.Write(b)
+}
+
+func (p paneWriter) rawString(reason, s string) { p.raw(reason, []byte(s)) }
 
 type terminalMux struct {
 	mu        sync.Mutex
 	shellName string
 	shellArgs []string
-	stdout    io.Writer
+	pane      paneWriter
 	stderr    io.Writer
 	rt        Runtime
 	paneID    string
@@ -618,6 +683,28 @@ type terminalMux struct {
 	rows      uint16
 	cols      uint16
 	rename    *activeRename
+
+	// THE GATE. Owned by the writer loop alone, so it needs no lock: every
+	// mutation happens in copyActiveOutput.
+	//
+	// hostScan is fed CHILD bytes ONLY. Feeding our own escapes in would let it
+	// frame our bytes with the child's partial and report safe precisely when
+	// it is not -- the half couch got wrong first (atlas/couch.md).
+	hostScan ptychild.Screen
+	// owed is a PAINT deferred because the child's stream was mid-sequence.
+	// Deferred and OWED: dropping it leaves a stale row nothing repaints.
+	owed []byte
+	// captureIDForTest, when set, runs on the writer goroutine inside a resize.
+	captureIDForTest func()
+	// stripOwed is a row-dirty debt: the child may have wiped the strip's row
+	// and we have not repainted it yet. Recorded rather than paid immediately --
+	// see the row-dirty branch in handleChunk.
+	stripOwed bool
+	// owedDiag are DIAGNOSTICS deferred the same way, kept separately because
+	// they coalesce differently. A paint is a rendering of current state, so a
+	// later one supersedes an earlier one; an error is an EVENT, and letting a
+	// routine repaint swallow it loses the only report the operator gets.
+	owedDiag [][]byte
 }
 
 type activeRename struct {
@@ -629,7 +716,7 @@ func newTerminalMux(shellName string, shellArgs []string, stdout, stderr io.Writ
 	return &terminalMux{
 		shellName: shellName,
 		shellArgs: shellArgs,
-		stdout:    stdout,
+		pane:      paneWriter{w: stdout},
 		stderr:    stderr,
 		rt:        rt,
 		paneID:    os.Getenv("ZELLIJ_PANE_ID"),
@@ -659,7 +746,11 @@ func (m *terminalMux) newTab() error {
 		// is active.
 		Sink: func(batch ptychild.OutputBatch) {
 			<-ready
-			m.output <- ptyChunk{id: id, data: batch.Raw}
+			// batch.RowDirty, NOT Child.TakeRowDirty(): readLoop already
+			// DRAINED the flag into this batch whenever a Sink is set, so a
+			// separate call would read false forever and the strip would never
+			// come back after a full-screen child's startup clear (finding 7).
+			m.output <- ptyChunk{id: id, data: batch.Raw, rowDirty: batch.RowDirty}
 		},
 	})
 	if err != nil {
@@ -687,24 +778,355 @@ func (m *terminalMux) newTab() error {
 	return nil
 }
 
+// copyActiveOutput is THE writer. Every byte that reaches the pane passes
+// through this one goroutine -- child output, redraws, paints, diagnostics --
+// because a second writer is how a paint lands inside a child's escape
+// sequence. atlas/couch.md states the mechanism: "a pty read boundary falls
+// wherever the kernel puts it, so a paint written between two chunks can land
+// inside one of the child's escape sequences."
 func (m *terminalMux) copyActiveOutput() {
 	for {
 		select {
 		case chunk := <-m.output:
-			if chunk.err != nil {
-				m.removeTab(chunk.id)
-				continue
-			}
-			// No buffering here any more: ptychild.Child appends to its own
-			// ring BEFORE the sink runs, so a switch racing a chunk still
-			// repaints a current screen.
-			if m.isActive(chunk.id) {
-				_, _ = m.stdout.Write(chunk.data)
-			}
+			m.handleChunk(chunk)
 		case <-m.done:
 			return
 		}
 	}
+}
+
+// handleChunk runs on the writer goroutine ONLY, which is what lets hostScan and
+// owed be plain fields with no lock.
+func (m *terminalMux) handleChunk(chunk ptyChunk) {
+	defer func() {
+		if chunk.drained != nil {
+			close(chunk.drained)
+		}
+	}()
+
+	if chunk.onWriter != nil {
+		chunk.onWriter()
+	}
+
+	switch {
+	case chunk.err != nil:
+		m.removeTab(chunk.id)
+
+	case chunk.takeover:
+		m.applyTakeover(chunk.replay)
+
+	case chunk.diag != nil:
+		m.writeDiag(chunk.diag)
+
+	case chunk.own != nil:
+		m.writeOwn(chunk.own)
+
+	case chunk.data == nil:
+		// A bare event (a drain or an inspect). It carries no bytes in either
+		// direction, so it must touch neither the gate nor the owed slot.
+
+	default:
+		// THE GATE MODELS THE TERMINAL, so it is fed exactly what the terminal
+		// is shown -- no more, no less.
+		//
+		// An earlier version fed EVERY chunk and wrote only the active tab's.
+		// A background tab emitting a partial escape then pinned the gate
+		// mid-sequence against a terminal that had seen none of it, deferring
+		// paints indefinitely; and any byte written without being fed left the
+		// gate blind to a sequence the terminal really was inside.
+		//
+		// FeedFraming, not Feed: the gate needs sequence boundaries and nothing
+		// else, and Feed additionally RETAINS output for notification
+		// observers -- which this consumer has none of, so it would be an
+		// unbounded buffer growing behind a terminal that never reads it.
+		//
+		// No buffering here any more: ptychild.Child appends to its own ring
+		// BEFORE the sink runs, so a switch racing a chunk still repaints a
+		// current screen.
+		if m.isActive(chunk.id) {
+			m.hostScan.FeedFraming(chunk.data)
+			// Not a USER of the gate but the thing it MODELS: gating a child
+			// against its own stream state deadlocks it against itself. Fed
+			// immediately above, so model and terminal move together.
+			m.pane.raw("child output", chunk.data)
+
+			// ONLY THE ACTIVE TAB CAN DIRTY THE ROW, and the condition belongs
+			// inside this branch for the same reason the scan does: a background
+			// child's bytes never reach the terminal, so they cannot have wiped
+			// a row the terminal is showing. Outside it, any background child
+			// erasing its own screen drove a full re-`Reserve` + repaint of a
+			// screen it had not touched -- against ARCH-CONSTRAINTS' declared
+			// budget, on the keystroke path, and re-asserting `\x1b[1;Nr` over
+			// the ACTIVE child's own margins for nothing (BR-57). This is M2's
+			// BR-35 rule -- the gate models the terminal, so feed it exactly
+			// what the terminal is shown -- applied to the repaint trigger.
+			if chunk.rowDirty {
+				// RECORD THE DEBT, do not paint here. couch does the same
+				// (couchtty/console.go:1147, whose comment notes a paint there
+				// was "unreachable-by-difference"), and the reason matters more
+				// for a SHELL than it did for couch's full-screen child: a shell
+				// emits erases on every prompt redraw, so painting per row-dirty
+				// batch means painting constantly, and constantly at exactly the
+				// moment the child is mid-prompt with a cursor save outstanding.
+				//
+				// The debt is paid by flushOwed below, on the first chunk that
+				// leaves the stream safe -- which is the child's own DECRC.
+				m.stripOwed = true
+			}
+		}
+		if m.stripOwed && !m.unsafeToPaint() {
+			m.stripOwed = false
+			m.paintStripInline()
+		}
+		m.flushOwed()
+	}
+}
+
+// applyTakeover replaces the whole screen: clear, replay, then settle the gate.
+// Runs on the writer goroutine, whether reached through the channel or called
+// inline by another handler already on it (see removeTab).
+func (m *terminalMux) applyTakeover(replay []byte) {
+	// couch's THIRD gate rule (console.go:992-995): the screen is being replaced
+	// wholesale, so whatever partial sequence the old content left is no longer
+	// on screen to be corrupted. Reset the scan, and DROP the owed paint rather
+	// than flushing it against a screen that is gone.
+	pendingDiag := m.owedDiag
+	m.hostScan = ptychild.Screen{}
+	m.owed = nil
+	m.owedDiag = nil
+
+	// THE ONE EXEMPTION from the gate, and it is deliberate rather than
+	// overlooked. Every other console-originated write consults hostScan; this
+	// one cannot, because it is what makes the gate's state meaningful again:
+	// HomeAndClear discards the screen the old scan described, so consulting
+	// that scan first would defer a write against a screen about to cease
+	// existing. The reset above is what earns the exemption -- it happens
+	// BEFORE these writes, so nothing downstream reads a stale mid-sequence.
+	//
+	// Enumerated and enforced by TestEveryConsoleWriteIsGatedOrExplicitlyExempt.
+	m.pane.rawString("takeover: resets colour and clears the screen the old scan described", hostty.HomeAndClear)
+	m.pane.raw("takeover: replay, fed to the gate immediately below", replay)
+	// The replay is CHILD bytes and the terminal has now seen them, so the gate
+	// must too -- it is replay-safe (ptychild strips queries and cuts at
+	// ReplaySafeEnd) but "usually ends at a boundary" is an assumption, and the
+	// gate exists so nothing has to assume.
+	m.hostScan.FeedFraming(replay)
+
+	// Diagnostics survive a takeover -- unlike a paint, an error is not made
+	// obsolete by the screen being replaced. But they go through writeDiag, NOT
+	// straight to the pane: the replay we just fed may have ended mid-sequence,
+	// and writing into it is the exact corruption this milestone exists to
+	// prevent. Re-queued if so, and flushed at the next boundary.
+	for _, d := range pendingDiag {
+		m.writeDiag(d)
+	}
+
+	// The takeover just cleared the screen, so the row it cleared is ours to
+	// put back. Inline, not posted: this runs on the writer goroutine. It also
+	// settles any row-dirty debt -- the screen this repaints is the one that
+	// debt was against.
+	m.stripOwed = false
+	m.paintStripInline()
+}
+
+// unsafeToPaint asks the SHARED door (ptychild.Screen.SafeToPaint), which both
+// reserved-row consumers use. It lived here as a private predicate first, which
+// left couch -- running the identical primitive -- unguarded.
+func (m *terminalMux) unsafeToPaint() bool { return !m.hostScan.SafeToPaint() }
+
+// maxOwedDiag bounds the deferred-diagnostic queue. Sized for "a wheel tick
+// firing zellij actions at a shell that is holding a save": enough that a real
+// burst is reported in full, small enough that an indefinitely-held save cannot
+// grow the slice without limit.
+const maxOwedDiag = 64
+
+// writeDiag writes a diagnostic, or QUEUES it if the stream is mid-sequence.
+// Queued, not coalesced -- see owedDiag.
+func (m *terminalMux) writeDiag(b []byte) {
+	if m.unsafeToPaint() {
+		m.owedDiag = append(m.owedDiag, b)
+		if over := len(m.owedDiag) - maxOwedDiag; over > 0 {
+			// Drop the OLDEST. See flushOwed's per-payload argument: the queue
+			// sits behind a condition the child controls, so it needs a ceiling
+			// here rather than a deadline there.
+			m.owedDiag = append(m.owedDiag[:0], m.owedDiag[over:]...)
+		}
+		return
+	}
+	m.pane.raw("diagnostic, gate consulted", b)
+}
+
+// writeOwn writes console-originated bytes, or defers them if the child's stream
+// is mid-sequence.
+func (m *terminalMux) writeOwn(b []byte) {
+	if m.unsafeToPaint() {
+		// DEFERRED AND OWED. Dropping it would leave a stale row that nothing
+		// repaints -- the failure couch names explicitly.
+		//
+		// One slot, and a later paint REPLACES an earlier one. That is correct
+		// for this payload and would be wrong for a stream: the row is a
+		// rendering of current state, so the freshest paint is the only one
+		// worth landing, and queueing them would draw a burst of stale rows on
+		// the next boundary. It is a coalescing slot, not a buffer.
+		m.owed = b
+		return
+	}
+	// THE FRESH ROW SUPERSEDES THE OWED ONE. Without this the two pending-paint
+	// slots (`owed` and `stripOwed`) drain in the wrong order: the row-dirty
+	// debt paints current state inline, and flushOwed then writes whatever the
+	// coalescing slot was holding, which is older -- the exact inversion of this
+	// function's own rule that "the freshest paint is the only one worth
+	// landing". Clearing here states the invariant where the invariant lives,
+	// rather than asking every drain site to order itself correctly.
+	m.owed = nil
+	m.pane.raw("paint, gate consulted", b)
+}
+
+// flushOwed writes deferred work once the child's stream reaches a boundary.
+//
+// Called from the CHILD-DATA branch only, and that is correct rather than an
+// oversight: nothing else can clear the gate. A console write cannot -- if we
+// owed, we were mid-sequence, and our own bytes are never fed to the scanner --
+// and a takeover resets rather than flushes. Adding a call to the console
+// branches looks like defence and is provably dead.
+//
+// DEFERRAL IS UNBOUNDED, AND THAT IS DECIDED PER PAYLOAD rather than left as a
+// gap. M2 recorded a KNOWN GAP here and assigned M3 a flush deadline; M3 instead
+// WIDENED the condition -- `unsafeToPaint` now also defers while the child holds
+// a cursor save, which unlike a mid-sequence chunk boundary can persist for as
+// long as the child chooses not to restore. So a deadline is the wrong shape,
+// and the two payloads want opposite answers:
+//
+//   - PAINT: unbounded deferral is CORRECT. The row renders current state, so a
+//     late paint is a stale paint, and the alternative -- writing while the save
+//     is held -- puts the operator's cursor in the strip.
+//     TestAHeldSaveLeavesTheRowStaleRatherThanCorruptingTheChild pins that
+//     "stale beats wrong" is the deliberate call.
+//   - DIAGNOSTIC: an error is an EVENT, so deferral must not lose it, and the
+//     queue must not grow without a ceiling behind a condition nothing here
+//     controls. It is capped at maxOwedDiag and drops the OLDEST, because a
+//     `zellij action` failure repeating N times is one fact, and the most recent
+//     report is the one that describes the pane's current state.
+func (m *terminalMux) flushOwed() {
+	if m.unsafeToPaint() {
+		return
+	}
+	// Diagnostics first: they were queued before the paint that may describe a
+	// state they explain, and every one of them lands.
+	for _, d := range m.owedDiag {
+		m.pane.raw("owed diagnostic, boundary reached", d)
+	}
+	m.owedDiag = nil
+	if m.owed == nil {
+		return
+	}
+	b := m.owed
+	m.owed = nil
+	m.pane.raw("owed paint, boundary reached", b)
+}
+
+// reportError puts a diagnostic on the pane through the writer loop.
+//
+// stderr is the SAME terminal as stdout here, so a `term:` line printed from the
+// input goroutine while a child is mid-sequence corrupts the pane exactly as a
+// stray paint would -- and after #199 M4 there is no frame to absorb it. Startup
+// diagnostics (before copyActiveOutput runs) still write stderr directly: there
+// is no loop yet and no child to corrupt.
+func (m *terminalMux) reportError(err error) {
+	if err == nil {
+		return
+	}
+	// SANITIZED HERE, at the single point diagnostics reach the pane -- not at
+	// each producer. An error's text can come from anywhere: a subprocess's
+	// stderr, a filesystem path, an operator-typed tab name in a wrapped error.
+	// Filtering one producer moves the hazard to the next one, which is the
+	// mistake #208 made with `ps` output and fixed by filtering at emission.
+	text := rowtext.SanitizeAndFit("pair term: "+err.Error(), diagnosticWidth)
+	m.enqueue(ptyChunk{diag: []byte(text + "\r\n")})
+}
+
+// paintOwn queues a console-originated write onto the writer loop.
+func (m *terminalMux) paintOwn(b []byte) {
+	m.enqueue(ptyChunk{own: b})
+}
+
+// enqueue posts an event and returns. It does NOT wait for the loop to handle
+// it, and that is load-bearing rather than a shortcut.
+//
+// Waiting deadlocks: `runShell` calls newTab() -- which redraws -- at run.go:253
+// and only starts copyActiveOutput at :270, so a synchronous enqueue would hang
+// `pair term` on startup, before the loop that would release it exists. The
+// first version did exactly that and hung the suite.
+//
+// Nothing is lost by not waiting. Ordering, which is what this milestone is
+// about, comes from the channel: every write reaches the pane through one loop
+// in the order it was posted. A caller that needed to observe its own write
+// would be a caller reading the terminal, and there is none.
+//
+// NO CHANNEL, NO QUEUE. A mux built by struct literal -- which some tests do to
+// exercise one method -- has a nil output channel, so the event is handled
+// inline. Safe rather than a hole in the envelope, and the condition says why:
+// `output == nil` means copyActiveOutput could never have been started, so
+// there is no other writer to interleave with.
+func (m *terminalMux) enqueue(chunk ptyChunk) {
+	if m.output == nil {
+		m.handleChunk(chunk)
+		return
+	}
+	select {
+	case m.output <- chunk:
+	case <-m.done:
+	}
+}
+
+// enqueueAndWait posts an event and blocks until the loop has handled it. Only
+// for tests, which is why it is not what enqueue does -- see the deadlock above.
+func (m *terminalMux) enqueueAndWait(chunk ptyChunk) {
+	if m.output == nil {
+		m.handleChunk(chunk)
+		return
+	}
+	done := make(chan struct{})
+	chunk.drained = done
+	select {
+	case m.output <- chunk:
+	case <-m.done:
+		return
+	}
+	select {
+	case <-done:
+	case <-m.done:
+	}
+}
+
+// stripOwedForTest reports the row-dirty debt, read on the writer goroutine.
+func (m *terminalMux) stripOwedForTest() bool {
+	var owed bool
+	m.enqueueAndWait(ptyChunk{onWriter: func() { owed = m.stripOwed }})
+	return owed
+}
+
+// drainForTest waits until every event queued so far has been handled.
+//
+// A BARE event, deliberately: an earlier version enqueued `own: []byte{}` and
+// the empty write took the owed slot, so the drain silently destroyed the paint
+// the test was about to assert. A probe must not perturb what it observes.
+func (m *terminalMux) drainForTest() { m.enqueueAndWait(ptyChunk{}) }
+
+// midSequenceForTest reports the gate's state from the writer goroutine.
+func (m *terminalMux) midSequenceForTest() bool {
+	var mid bool
+	if m.output == nil {
+		return m.hostScan.MidSequence()
+	}
+	done := make(chan struct{})
+	select {
+	case m.output <- ptyChunk{drained: done, onWriter: func() { mid = m.hostScan.MidSequence() }}:
+	case <-m.done:
+		return false
+	}
+	<-done
+	return mid
 }
 
 func (m *terminalMux) isActive(id int) bool {
@@ -751,28 +1173,34 @@ func (m *terminalMux) beginRename() (int, RenameEditor, error) {
 	editor := NewRenameEditor(tab.name)
 	tabID := tab.id
 	m.rename = &activeRename{tabID: tabID, editor: editor}
-	title := m.renamePaneTitleLocked(tabID, editor)
 	m.mu.Unlock()
-	if err := m.setPaneTitle(title); err != nil {
-		m.mu.Lock()
-		if m.rename != nil && m.rename.tabID == tabID {
-			m.rename = nil
-		}
-		m.mu.Unlock()
-		return 0, RenameEditor{}, fmt.Errorf("start terminal tab rename: %w", err)
-	}
+	// THE ROW IS THE ONLY SURFACE THE RENAME DRAWS ON, and that is what makes
+	// opening and typing free. The field used to be packed into the zellij pane
+	// TITLE -- one `zellij action rename-pane` subprocess PER KEYSTROKE, on the
+	// interaction path ARCH-CONSTRAINTS names as the one that matters, and cost
+	// #1 in this issue's own Problem statement. The strip retires it: the title
+	// is now written only when the tab SET or the active tab changes, which
+	// during a rename is never.
+	//
+	// Dropping it also removes a second producer of the pane title that M3.6's
+	// degradation never swept -- the rename title packed every tab and lost the
+	// `terminal ` prefix RoleForPane classifies on, so for the duration of every
+	// rename the pane lost the classification that routes global shortcuts.
+	//
+	// POSTED, not inline: rename runs on the stdin pump goroutine, and a direct
+	// write there is the second writer to the pane that M2 exists to prevent.
+	m.paintStrip()
 	return tabID, editor, nil
 }
 
-func (m *terminalMux) refreshRename(tabID int, editor RenameEditor) error {
+// refreshRename cannot fail, and says so in its signature: a keystroke changes
+// the model and repaints the row, and nothing on that path talks to a
+// subprocess (see beginRename).
+func (m *terminalMux) refreshRename(tabID int, editor RenameEditor) {
 	m.mu.Lock()
 	m.rename = &activeRename{tabID: tabID, editor: editor}
-	title := m.renamePaneTitleLocked(tabID, editor)
 	m.mu.Unlock()
-	if err := m.setPaneTitle(title); err != nil {
-		return fmt.Errorf("refresh terminal tab rename: %w", err)
-	}
-	return nil
+	m.paintStrip()
 }
 
 func (m *terminalMux) finishRename(tabID int, outcome RenameOutcome) error {
@@ -785,6 +1213,7 @@ func (m *terminalMux) finishRename(tabID int, outcome RenameOutcome) error {
 	m.rename = nil
 	title := m.paneTitleLocked()
 	m.mu.Unlock()
+	m.paintStrip()
 	if err := m.setPaneTitle(title); err != nil {
 		return fmt.Errorf("finish terminal tab rename: %w", err)
 	}
@@ -819,6 +1248,17 @@ func (m *terminalMux) appMouseMode() bool {
 	return tab != nil && tab.child != nil && tab.child.Mouse()
 }
 
+// removeTab runs ON THE WRITER GOROUTINE -- its only caller is handleChunk, on
+// a child's EOF -- so it must never post to the channel that goroutine drains.
+//
+// It did, via redrawTab, and that is a deadlock rather than a slow path: with
+// the buffer full (a child exiting while its output is backed up, which is
+// exactly when a child exits under load) the send blocks forever, because the
+// only goroutine that could drain it is the one blocked in the send. The pane
+// wedges permanently.
+//
+// THE RULE: a handler running on the writer goroutine applies its own writes
+// INLINE. Anything that posts belongs to a caller that is not the loop.
 func (m *terminalMux) removeTab(id int) {
 	m.mu.Lock()
 	var removed *terminalTab
@@ -854,12 +1294,8 @@ func (m *terminalMux) removeTab(id int) {
 		}
 		active = m.activeTabLocked()
 		activeSnapshot = replaySnapshotLocked(active)
-		if m.rename != nil {
-			title = m.renamePaneTitleLocked(m.rename.tabID, m.rename.editor)
-			preserveRename = true
-		} else {
-			title = m.paneTitleLocked()
-		}
+		title = m.paneTitleLocked()
+		preserveRename = m.rename != nil
 		break
 	}
 	m.mu.Unlock()
@@ -875,8 +1311,16 @@ func (m *terminalMux) removeTab(id int) {
 	}
 	_ = m.setPaneTitle(title)
 	if !preserveRename {
-		m.redrawTab(activeSnapshot)
+		m.applyTakeover(activeSnapshot)
+		return
 	}
+	// A rename is open, so the screen is NOT taken over -- the operator is mid
+	// edit and a wholesale clear+replay would throw their viewport away. But the
+	// tab set just changed, and applyTakeover was the only thing repainting the
+	// row on this path: without this the strip goes on listing a tab that no
+	// longer exists until the rename ends. Inline, because removeTab already
+	// runs on the writer goroutine.
+	m.paintStripInline()
 }
 
 func (m *terminalMux) activeTabLocked() *terminalTab {
@@ -895,12 +1339,37 @@ func (m *terminalMux) tabByIDLocked(id int) *terminalTab {
 	return nil
 }
 
+// resizeThroughWriter runs the resize ON the writer goroutine.
+//
+// inheritSize writes the pane -- it repaints the strip on every resize, which
+// TestTheDeclaredPaintBudgetHoldsPerEvent pins -- and ARCH-ORDER asserts that
+// resize and paint "serialize by construction" on the writer loop. Routing it
+// here is what makes that claim true rather than aspirational -- and a
+// resize racing a paint is precisely the interleaving that produces a strip
+// drawn at the old width.
+func (m *terminalMux) resizeThroughWriter(host hostty.Host) {
+	m.enqueue(ptyChunk{onWriter: func() {
+		// captureIDForTest lets a test observe WHICH goroutine this runs on,
+		// through the PRODUCTION entry point. Reverting this method to a direct
+		// inheritSize call was measured green while the test drove an
+		// injectable helper instead -- testing the seam is not testing the path.
+		if m.captureIDForTest != nil {
+			m.captureIDForTest()
+		}
+		m.inheritSize(host)
+	}})
+}
+
 func (m *terminalMux) inheritSize(host hostty.Host) {
 	m.captureSize(host)
 	m.mu.Lock()
 	childSize := m.childSizeLocked()
 	m.mu.Unlock()
 	m.resizeAll(childSize)
+	// The region and the row's width both changed. Inline: every caller of this
+	// is either pre-loop (the initial sizing) or already on it (the resize
+	// posts through resizeThroughWriter).
+	m.paintStripInline()
 }
 
 func (m *terminalMux) captureSize(host hostty.Host) {
@@ -914,11 +1383,92 @@ func (m *terminalMux) captureSize(host hostty.Host) {
 	m.mu.Unlock()
 }
 
-// childSizeLocked is the size a tab gets. `pair term` gives its children the
-// whole terminal; couch subtracts a row here. That difference is the policy
-// each caller keeps.
+// childSizeLocked is the pane MINUS the row the strip occupies.
+//
+// It used to be the whole terminal -- that was the pre-M3 policy, and the
+// sentence saying so outlived the change stacked on top of the sentence
+// replacing it, which is how godoc ends up printing a function's own opposite.
+//
+// NewReservation is the validating door: it refuses a pane too short to reserve
+// from, and the child then gets the whole thing with no strip drawn -- a
+// zero-row pty is not a thing, and a pane that short has no room for chrome
+// anyway.
 func (m *terminalMux) childSizeLocked() ptychild.Size {
-	return ptychild.Size{Rows: m.rows, Cols: m.cols}
+	res, err := hostty.NewReservation(m.rows, hostty.EdgeBottom)
+	if err != nil {
+		return ptychild.Size{Rows: m.rows, Cols: m.cols}
+	}
+	return ptychild.Size{Rows: res.ChildRows(), Cols: m.cols}
+}
+
+// reservationLocked is the strip's row. Same validating door; the zero value
+// draws nothing, which is what a too-short pane should do.
+func (m *terminalMux) reservationLocked() hostty.Reservation {
+	res, err := hostty.NewReservation(m.rows, hostty.EdgeBottom)
+	if err != nil {
+		return hostty.Reservation{}
+	}
+	return res
+}
+
+// stripModelLocked snapshots what the row should say, INCLUDING a rename in
+// progress. The index is resolved here, from the tab ID the rename holds,
+// because a background tab exiting reindexes the slice while a rename is open.
+func (m *terminalMux) stripModelLocked() StripModel {
+	tabs := make([]TabChip, 0, len(m.tabs))
+	for _, t := range m.tabs {
+		tabs = append(tabs, TabChip{Name: t.name})
+	}
+	model := StripModel{Tabs: tabs, Active: m.active}
+	if m.rename != nil {
+		// Not found leaves Tab at -1, which the renderer treats as marking
+		// nothing -- the same contract as an out-of-range Active.
+		field := RenameField{Tab: -1, Text: m.rename.editor.Field()}
+		for i, t := range m.tabs {
+			if t.id == m.rename.tabID {
+				field.Tab = i
+				break
+			}
+		}
+		model.Rename = &field
+	}
+	return model
+}
+
+// paintStrip renders the row and posts it through the writer loop.
+//
+// Re-Reserve BEFORE painting, every time. Not belt-and-braces: a child that
+// reset margins (nvim does, on startup and on quit) dropped the region a moment
+// ago, and painting into an unreserved screen puts the row where the child's
+// content belongs. couch learned this the same way.
+func (m *terminalMux) paintStrip() {
+	if b := m.stripBytes(); b != nil {
+		m.paintOwn(b)
+	}
+}
+
+// paintStripInline is the same paint for a caller ALREADY on the writer
+// goroutine. A handler on the loop applies its writes inline rather than
+// posting to the channel it drains -- the rule BR-25 cost this milestone a
+// wedged pane to learn.
+func (m *terminalMux) paintStripInline() {
+	if b := m.stripBytes(); b != nil {
+		m.writeOwn(b)
+	}
+}
+
+// stripBytes renders the row, region first. Nil when there is no room.
+func (m *terminalMux) stripBytes() []byte {
+	m.mu.Lock()
+	res := m.reservationLocked()
+	model := m.stripModelLocked()
+	cols := int(m.cols)
+	m.mu.Unlock()
+
+	if res.Rows == 0 || cols <= 0 {
+		return nil
+	}
+	return []byte(res.ReserveAndPaint(RenderStrip(cols, model).Body))
 }
 
 func (m *terminalMux) resizeAll(size ptychild.Size) {
@@ -963,64 +1513,75 @@ func (m *terminalMux) setPaneTitle(title string) error {
 	return m.rt.RunZellijAction("rename-pane", title)
 }
 
+// paneTitleLocked is the DEGRADED title: the active tab's name, nothing else.
+//
+// It used to pack every tab into one rename argument -- `one [work] three` --
+// because a rename was the only channel tab state had. The strip is that channel
+// now (#199 M3), so the title goes back to being a label.
+//
+// It still exists, and is still kept current, because the zellij pane title is
+// the only label visible when the pane is NOT focused, and two consumers read
+// it. Derived rather than remembered (finding 9):
+//
+//	grep -rn "\.Title" cmd --include=*.go | grep -v _test.go
+//
+//	launcher/layoutflow.go            asks RoleForPane
+//	workbenchshortcut/shortcut.go     TitleIdentifiesRightTerminal
+//
+// ONE predicate, asked by both consumers and by this producer. It was two
+// restatements of the same idea, and they disagreed: the packed title matched
+// shortcut.go's arm only by accident (it began with the first tab's default
+// name), and layoutflow's arm matched the BRACKET form, so degrading the title
+// silently killed that consumer's title-only path. Both are now the same
+// question asked of the same function (BR-48, BR-56).
+//
+// Both consumers also match on the pane's COMMAND (`pair term`), so neither
+// depends on the title alone -- which is what makes degrading it safe, and is a
+// measurement rather than a hope. It is not a licence to let the title stop
+// classifying: `zellijpane.paneFrom` admits panes with `TerminalCommand == ""`,
+// and there the title is all there is.
 func (m *terminalMux) paneTitleLocked() string {
 	if len(m.tabs) == 0 {
 		return ""
 	}
-	parts := make([]string, 0, len(m.tabs))
-	for i, tab := range m.tabs {
-		if i == m.active {
-			parts = append(parts, "["+tab.name+"]")
-		} else {
-			parts = append(parts, tab.name)
-		}
+	name := m.tabs[0].name
+	if m.active >= 0 && m.active < len(m.tabs) {
+		name = m.tabs[m.active].name
 	}
-	return strings.Join(parts, " ")
+	// The `terminal ` prefix is LOAD-BEARING, not decoration. `RoleForPane`
+	// classifies by the title alone when the pane's command is unavailable, and
+	// that classification routes the operator's global shortcuts -- so a bare
+	// active-tab name (`work`) would silently cost the pane its keybindings.
+	//
+	// ASK the consumer's predicate; do not restate it. An earlier version tested
+	// `HasPrefix(name, "terminal")`, which is an approximation that disagrees on
+	// every name starting with `terminal` and continuing: a tab renamed
+	// `terminals` produced the title `terminals`, which classifies as
+	// PaneRoleOther -- the exact failure the prefix exists to prevent, delivered
+	// by the code preventing it (BR-56).
+	if workbenchshortcut.TitleIdentifiesRightTerminal(name) {
+		return name
+	}
+	return "terminal " + name
 }
 
-func (m *terminalMux) renamePaneTitleLocked(tabID int, editor RenameEditor) string {
-	if len(m.tabs) == 0 {
-		return ""
-	}
-	text := []rune(editor.Text())
-	cursor := editor.Cursor()
-	if cursor < 0 {
-		cursor = 0
-	}
-	if cursor > len(text) {
-		cursor = len(text)
-	}
-	field := string(text[:cursor]) + "│" + string(text[cursor:])
-	parts := make([]string, 0, len(m.tabs))
-	found := false
-	for _, tab := range m.tabs {
-		if tab.id == tabID {
-			found = true
-			parts = append(parts, "[rename: "+field+"]")
-		} else {
-			parts = append(parts, tab.name)
-		}
-	}
-	if !found {
-		parts = append(parts, "[rename: "+field+"]")
-	}
-	return strings.Join(parts, " ")
-}
-
-// redrawTab repaints from a SNAPSHOT taken by the caller under m.mu — it never
-// touches the mutex itself. Callers already hold the lock immediately before
-// calling, so snapshotting there costs nothing and avoids inventing a "no caller
-// may hold m.mu" contract whose violation mode would be a deadlock.
+// redrawTab is the WHOLESALE TAKEOVER: clear the screen, replay the tab.
 //
-// redrawTab repaints from a REPLAY taken by the caller under m.mu.
+// It repaints from a REPLAY taken by the CALLER under m.mu, and never touches
+// the mutex itself. Callers already hold the lock immediately before calling, so
+// snapshotting there costs nothing and avoids inventing a "no caller may hold
+// m.mu" contract whose violation mode would be a deadlock.
+//
+// It goes through the writer loop like everything else -- before M2 it wrote
+// from the Run goroutine while the pump wrote from its own, which is exactly the
+// two writers that milestone removed.
 //
 // The query stripping lives in ptychild.Child.Replay, NOT here. It used to be
 // composed at this site while Replay went uncalled -- two places holding one
 // decision about what a repaint may contain, and couch's attach path in M3
 // would have made it three (BR-20).
 func (m *terminalMux) redrawTab(replay []byte) {
-	_, _ = io.WriteString(m.stdout, hostty.HomeAndClear)
-	_, _ = m.stdout.Write(replay)
+	m.enqueue(ptyChunk{replay: replay, takeover: true})
 }
 
 // replaySnapshotLocked is what a repaint of this tab should write. Caller must
@@ -1033,7 +1594,10 @@ func replaySnapshotLocked(tab *terminalTab) []byte {
 }
 
 func (m *terminalMux) restoreTerminal() {
-	_, _ = io.WriteString(m.stdout, hostty.ResetRegion)
+	// Teardown writes DIRECTLY: the loop may already be gone, and a
+	// half-restored terminal is worse than an un-gated write when the child is
+	// finished with the screen anyway. Same reasoning as couch's release().
+	m.pane.rawString("teardown: the loop may already be gone", hostty.ResetRegion)
 }
 
 func (OSRuntime) ListPanesJSON() ([]byte, error) {
@@ -1083,26 +1647,95 @@ func (OSRuntime) RecordLastTerminalPaneID(id string) error {
 	return store.Write(id)
 }
 
+// NEITHER method gives a subprocess the pane's descriptors, and that is the
+// point: this Runtime is handed to `layoutcmd` and `draftroute` too
+// (`run.go:181,194,198,514`), so a rule enforced at `termcmd`'s call sites
+// would not cover the five sites in those packages -- and would not cover the
+// next site anyone adds. Making the RUNTIME incapable is the property that
+// holds without an enumeration to maintain.
+//
+// `pair term` is a full-screen process on a shared pty. `zellij action` output
+// on that pty lands wherever the child's cursor happens to be, outside the
+// writer loop and outside the paint gate; a FAILING action does the same on
+// stderr, per wheel tick. There is no `termcmd` context in which that output
+// belongs on the pane, so the failure is returned as an error and reported
+// through the writer loop (`terminalMux.reportError`) instead.
+//
+// The two methods therefore behave identically here. Quiet is kept because the
+// Runtime interface is shared with callers whose descriptors are not a live
+// terminal.
 func (OSRuntime) RunZellijAction(args ...string) error {
-	cmdArgs := append([]string{"action"}, args...)
-	return runZellij(cmdArgs, os.Stdout)
+	return OSRuntime{}.RunZellijActionQuiet(args...)
 }
 
 func (OSRuntime) RunZellijActionQuiet(args ...string) error {
 	cmdArgs := append([]string{"action"}, args...)
-	return runZellij(cmdArgs, io.Discard)
+	return runZellijCaptured(cmdArgs)
 }
 
-func (OSRuntime) ReportShortcutError(err error) {
-	fmt.Fprintf(os.Stderr, "pair term: global shortcut: %v\n", err)
-}
-
-func runZellij(args []string, stdout io.Writer) error {
+// runZellij takes BOTH descriptors. It hardwired cmd.Stderr = os.Stderr for
+// every caller, so routing stdout through Quiet closed the quiet path and left
+// the noisy one open: a FAILING `zellij action scroll-up` wrote the pane on
+// every wheel tick, outside the writer loop and outside the paint gate, and
+// after #199 M4 there is no frame to absorb it.
+func runZellij(args []string, stdout, stderr io.Writer) error {
 	cmd := exec.Command("zellij", args...)
-	cmd.Stdin = os.Stdin
+	// NO STDIN EITHER. The pane's stdin is in RAW MODE and carries the
+	// operator's keystrokes; handing it to a subprocess lets that process
+	// consume them, and none of termcmd's verbs (focus-pane-id, scroll-up,
+	// scroll-down, rename-pane) read stdin at all. Both this file and
+	// atlas/architecture.md claimed "neither descriptor" while this line gave
+	// away a third one.
+	cmd.Stdin = nil
 	cmd.Stdout = stdout
-	cmd.Stderr = os.Stderr
+	cmd.Stderr = stderr
 	return cmd.Run()
+}
+
+// runZellijCaptured runs the action with BOTH descriptors captured, and folds
+// what the subprocess said into the returned error.
+//
+// Keeping the pane clean must not mean destroying the diagnostic. The first
+// version of this milestone sent both descriptors to io.Discard, and since the
+// wheel-tick callers also drop the error (`_ = rt.RunZellijAction("scroll-up")`),
+// a failing action became completely silent -- strictly worse than the noise it
+// replaced. The bytes go into the error, where a caller can report or log them,
+// and never onto the pane's fd.
+// diagnosticWidth bounds what any single diagnostic may put on the pane. Wide
+// enough for a useful message, far short of wrapping onto the child's area.
+const diagnosticWidth = 200
+
+// zellijErrorDetailWidth bounds the subprocess half specifically, so a usage
+// dump cannot crowd out the part of the message we wrote.
+const zellijErrorDetailWidth = 120
+
+func runZellijCaptured(args []string) error {
+	var out, errb bytes.Buffer
+	err := runZellij(args, &out, &errb)
+	if err == nil {
+		return nil
+	}
+	detail := strings.TrimSpace(errb.String())
+	if detail == "" {
+		detail = strings.TrimSpace(out.String())
+	}
+	if detail == "" {
+		return err
+	}
+	// NOT sanitized here. That is deliberate: `reportError` sanitizes at the
+	// EGRESS, the single point every diagnostic reaches the pane, and a second
+	// strip at this producer would be two places holding one safety decision --
+	// the shape that has cost this issue several rounds. A mutation deleting a
+	// strip here is correctly GREEN, because the safety boundary is elsewhere.
+	//
+	// The bound stays, as a SIZE guard rather than a safety one: an unbounded
+	// usage dump wrapped into an error is carried around by every caller, and
+	// the egress would trim it to nothing useful anyway.
+	detail = rowtext.Fit(detail, zellijErrorDetailWidth)
+	if detail == "" {
+		return err
+	}
+	return fmt.Errorf("%w: %s", err, detail)
 }
 
 func (OSRuntime) ShellCommand() (string, []string) {

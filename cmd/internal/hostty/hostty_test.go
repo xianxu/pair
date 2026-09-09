@@ -20,7 +20,7 @@ func TestControlSequences(t *testing.T) {
 		{"set region", SetRegion(1, 23), "\x1b[1;23r"},
 		{"reset region", ResetRegion, "\x1b[r"},
 		{"move to", MoveTo(24, 1), "\x1b[24;1H"},
-		{"home and clear", HomeAndClear, "\x1b[1;1H\x1b[J"},
+		{"home and clear", HomeAndClear, "\x1b[0m\x1b[1;1H\x1b[J"},
 		{"leave alternate screen", LeaveAltScreen, "\x1b[?1049l"},
 		{"show cursor", ShowCursor, "\x1b[?25h"},
 		{"hide cursor", HideCursor, "\x1b[?25l"},
@@ -295,5 +295,21 @@ func TestHostsAgreeAfterClose(t *testing.T) {
 		if err := h.Close(); err != nil {
 			t.Fatalf("%T: second Close returned %v", h, err)
 		}
+	}
+}
+
+// An ERASE paints with the CURRENT background, so a clear issued while a
+// child's colour is active tints everything it clears -- and the next writer
+// inherits it. Measured 2026-09-08: a tab opened after nvim wore lualine's blue
+// behind its first lines.
+func TestHomeAndClearResetsColourBeforeErasing(t *testing.T) {
+	reset := strings.Index(HomeAndClear, ResetSGR)
+	erase := strings.Index(HomeAndClear, "\x1b[J")
+	if reset < 0 {
+		t.Fatalf("HomeAndClear does not reset SGR: %q", HomeAndClear)
+	}
+	if !(reset < erase) {
+		t.Fatalf("HomeAndClear erases before resetting, so the cleared screen "+
+			"keeps the previous colour: %q", HomeAndClear)
 	}
 }

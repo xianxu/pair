@@ -13,6 +13,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/xianxu/pair/cmd/internal/hostty"
 	"github.com/xianxu/pair/cmd/internal/ptychild"
 	"github.com/xianxu/pair/cmd/internal/workbenchshortcut"
 )
@@ -223,8 +224,8 @@ func TestPumpStdinReportsFocusFailureWithoutWriting(t *testing.T) {
 	if got := strings.Join(rt.ops, ","); got != "focus-pane-id 2" {
 		t.Fatalf("runtime ops = %q, want focus only", got)
 	}
-	if len(rt.reported) != 1 || !strings.Contains(rt.reported[0], "focus") {
-		t.Fatalf("reported = %v, want focus error", rt.reported)
+	if len(mux.reported) != 1 || !strings.Contains(mux.reported[0], "focus") {
+		t.Fatalf("reported = %v, want focus error", mux.reported)
 	}
 }
 
@@ -338,8 +339,8 @@ func TestPumpStdinConsumesGlobalChordWhenDraftMissing(t *testing.T) {
 	if len(mux.ops) != 0 {
 		t.Fatalf("mux ops = %v, want recognized chord consumed", mux.ops)
 	}
-	if len(rt.reported) != 1 || !strings.Contains(rt.reported[0], "draft pane") {
-		t.Fatalf("reported = %v, want missing draft pane error", rt.reported)
+	if len(mux.reported) != 1 || !strings.Contains(mux.reported[0], "draft pane") {
+		t.Fatalf("reported = %v, want missing draft pane error", mux.reported)
 	}
 }
 
@@ -411,17 +412,19 @@ func TestPumpStdinRenameEntryFailureConsumesInput(t *testing.T) {
 	if got := strings.Join(mux.ops, ","); got != "rename-begin:work" {
 		t.Fatalf("ops = %q, want failed begin only", got)
 	}
-	if len(rt.reported) != 1 {
-		t.Fatalf("reported = %v, want one rename error", rt.reported)
+	if len(mux.reported) != 1 {
+		t.Fatalf("reported = %v, want one rename error", mux.reported)
 	}
 }
 
-func TestPumpStdinRenameRefreshAndFinishFailuresPreserveOutcome(t *testing.T) {
+// Only FINISH can fail now: a keystroke changes the model and repaints the row,
+// and since #199 M3 nothing on that path talks to a subprocess -- the pane title
+// is written once, on commit. The outcome must survive that one failure.
+func TestPumpStdinRenameFinishFailurePreservesOutcome(t *testing.T) {
 	rt := &fakeRuntime{}
 	mux := &fakeMux{
-		activeName:       "work",
-		refreshRenameErr: exec.ErrNotFound,
-		finishRenameErr:  exec.ErrNotFound,
+		activeName:      "work",
+		finishRenameErr: exec.ErrNotFound,
 	}
 
 	pumpStdin(&splitReader{chunks: [][]byte{[]byte("\x1brx\r")}}, mux, rt, io.Discard)
@@ -429,8 +432,8 @@ func TestPumpStdinRenameRefreshAndFinishFailuresPreserveOutcome(t *testing.T) {
 	if mux.activeName != "workx" {
 		t.Fatalf("active name = %q, want committed workx", mux.activeName)
 	}
-	if len(rt.reported) != 2 {
-		t.Fatalf("reported = %v, want refresh and finish errors", rt.reported)
+	if len(mux.reported) != 1 {
+		t.Fatalf("reported = %v, want the finish error only", mux.reported)
 	}
 }
 
@@ -447,7 +450,15 @@ func TestPumpStdinRenameConsumesShortcutMouseAndPaste(t *testing.T) {
 	}
 }
 
-func TestTerminalMuxChildOutputDoesNotRestoreTitleDuringRename(t *testing.T) {
+// ARCH-CONSTRAINTS enforced rather than asserted (BR-50). The plan declares
+// "the degraded title keeps one spawn on tab switch only, NOT on every render",
+// and until #199 M3 that was false: the rename field was packed into the pane
+// TITLE, so opening a rename and typing into it forked `zellij action
+// rename-pane` once PER KEYSTROKE -- on the interaction path ARCH-CONSTRAINTS
+// names as the one that matters, and the cost this issue's Problem statement
+// opens with. The strip carries the field now, so the whole rename costs one
+// spawn, on commit. A budget with no test is a sentence in a plan.
+func TestARenameCostsExactlyOneZellijSubprocess(t *testing.T) {
 	// lockedWriter, not a bare bytes.Buffer: copyActiveOutput writes from its own
 	// goroutine while this test polls stdout, which -race (correctly) flags on the
 	// double. m.stdout is an *os.File in production, so this is a test-harness
@@ -455,7 +466,7 @@ func TestTerminalMuxChildOutputDoesNotRestoreTitleDuringRename(t *testing.T) {
 	stdout := &lockedWriter{}
 	rt := &fakeRuntime{}
 	mux := &terminalMux{
-		stdout: stdout,
+		pane:   paneWriter{w: stdout},
 		rt:     rt,
 		output: make(chan ptyChunk, 1),
 		done:   make(chan struct{}),
@@ -485,16 +496,24 @@ func TestTerminalMuxChildOutputDoesNotRestoreTitleDuringRename(t *testing.T) {
 			time.Sleep(time.Millisecond)
 		}
 	}
-	if got := strings.Join(rt.ops, ","); got != "rename-pane [rename: work│]" {
-		t.Fatalf("runtime ops after child output = %q, want only rename preview", got)
+	// Three keystrokes into the field, then the child writes again. None of it
+	// may reach a subprocess.
+	for _, r := range "abc" {
+		editor, _ = editor.Apply(RenameEvent{Kind: RenameInsert, Rune: r})
+		mux.refreshRename(tabID, editor)
+	}
+	if got := strings.Join(rt.ops, ","); got != "" {
+		t.Fatalf("runtime ops during the rename = %q, want none", got)
 	}
 	if err := mux.finishRename(tabID, RenameOutcome{Kind: RenameOutcomeCancel, Name: editor.Original()}); err != nil {
 		t.Fatal(err)
 	}
 	close(mux.done)
 	<-copied
-	if got := strings.Join(rt.ops, ","); got != "rename-pane [rename: work│],rename-pane [work]" {
-		t.Fatalf("runtime ops after finish = %q, want restore only on finish", got)
+	// EXACTLY ONE, and it is the degraded title: the active tab's name with the
+	// classifier prefix, written once when the rename ends.
+	if got := strings.Join(rt.ops, ","); got != "rename-pane terminal work" {
+		t.Fatalf("runtime ops for the whole rename = %q, want exactly one on finish", got)
 	}
 }
 
@@ -585,29 +604,25 @@ func TestPumpStdinRenameEscapeContinuationBeatsTimer(t *testing.T) {
 	}
 }
 
-func TestRenamePaneTitlePlacesCursorInActiveFrameField(t *testing.T) {
-	mux := &terminalMux{
-		tabs: []*terminalTab{
-			{id: 1, name: "terminal 1"},
-			{id: 2, name: "work"},
-			{id: 3, name: "terminal 3"},
-		},
-		active: 1,
-	}
+// The caret is composed ONCE, and this is where. It used to be placed
+// independently by the strip and by the pane title; #199 M3 gave both
+// RenameEditor.Field and then retired the title's copy of the field entirely,
+// so this is the only composer left in the tree.
+func TestTheRenameFieldPlacesTheCaretAtTheCursor(t *testing.T) {
 	editor := NewRenameEditor("work")
 	editor, _ = editor.Apply(RenameEvent{Kind: RenameMoveLeft})
-	if got := mux.renamePaneTitleLocked(2, editor); got != "terminal 1 [rename: wor│k] terminal 3" {
-		t.Fatalf("rename title = %q", got)
+	if got := editor.Field(); got != "wor│k" {
+		t.Fatalf("rename field = %q, want the caret before the last rune", got)
 	}
 }
 
 func TestTerminalMuxSetPaneTitleTargetsOwnPane(t *testing.T) {
 	rt := &fakeRuntime{}
 	mux := &terminalMux{rt: rt, paneID: "7"}
-	if err := mux.setPaneTitle("[rename: work│]"); err != nil {
+	if err := mux.setPaneTitle("terminal work"); err != nil {
 		t.Fatal(err)
 	}
-	if got := strings.Join(rt.ops, ","); got != "rename-pane --pane-id 7 [rename: work│]" {
+	if got := strings.Join(rt.ops, ","); got != "rename-pane --pane-id 7 terminal work" {
 		t.Fatalf("runtime ops = %q, want own-pane rename", got)
 	}
 }
@@ -651,16 +666,44 @@ func TestTerminalMuxPaneTitleShowsTabs(t *testing.T) {
 		},
 		active: 1,
 	}
-	if got := mux.paneTitleLocked(); got != "terminal 1 [work] terminal 3" {
-		t.Fatalf("pane title = %q", got)
+	// DEGRADED since #199 M3: the title is the active tab's name, not the whole
+	// tab set packed into one rename argument. The strip carries tab state now;
+	// the title is back to being a label for the two consumers that read it when
+	// the pane is not focused (layoutflow.go:62, shortcut.go:189), both of which
+	// also match on the pane's command.
+	if got := mux.paneTitleLocked(); got != "terminal work" {
+		t.Fatalf("pane title = %q, want the active tab's name behind the "+
+			"classifier prefix", got)
+	}
+	// And it must not be the packed form any more -- the thing #199 replaced.
+	if strings.Contains(mux.paneTitleLocked(), "[") {
+		t.Fatalf("pane title still packs the tab set: %q", mux.paneTitleLocked())
 	}
 }
 
-func TestTerminalMuxChildUsesFullPaneHeight(t *testing.T) {
+// Was TestTerminalMuxChildUsesFullPaneHeight, which asserted the pre-#199
+// contract: with no strip, the child got the whole pane. M3 reserves the bottom
+// row, so the child gets one less -- the off-by-one the whole reserved-row
+// design IS. Renamed rather than edited in place, because the old name now
+// describes the opposite of the intended behaviour.
+func TestTerminalMuxChildStopsOneRowShortOfThePane(t *testing.T) {
 	mux := &terminalMux{rows: 51, cols: 80}
-	got := mux.childSizeLocked()
-	if got.Rows != 51 || got.Cols != 80 {
-		t.Fatalf("child size = %+v, want full 51x80 pane", got)
+	if got := mux.childSizeLocked(); got.Rows != 50 || got.Cols != 80 {
+		t.Fatalf("child size = %+v, want 50x80 -- the pane minus the strip's row", got)
+	}
+
+	// A pane too short to reserve from gives the child everything and draws no
+	// strip. A zero-row pty is not a thing, and a pane that short has no room
+	// for chrome anyway.
+	for _, rows := range []uint16{0, 1} {
+		short := &terminalMux{rows: rows, cols: 80}
+		if got := short.childSizeLocked(); got.Rows != rows {
+			t.Fatalf("rows=%d: child got %d; a pane with no room to reserve keeps it all",
+				rows, got.Rows)
+		}
+		if res := short.reservationLocked(); res.ReserveAndPaint("x") != "" {
+			t.Fatalf("rows=%d: reserved a row on a pane with no room", rows)
+		}
 	}
 }
 
@@ -668,8 +711,8 @@ func TestTerminalMuxSwitchTabAtColumn(t *testing.T) {
 	var stdout bytes.Buffer
 	rt := &fakeRuntime{}
 	mux := &terminalMux{
-		stdout: stdoutWriter{&stdout},
-		rt:     rt,
+		pane: paneWriter{w: stdoutWriter{&stdout}},
+		rt:   rt,
 		tabs: []*terminalTab{
 			{id: 1, name: "terminal 1", child: ptychild.NewFakeChild([]byte("one"))},
 			{id: 2, name: "work", child: ptychild.NewFakeChild([]byte("two"))},
@@ -681,8 +724,10 @@ func TestTerminalMuxSwitchTabAtColumn(t *testing.T) {
 	if mux.active != 1 {
 		t.Fatalf("active = %d, want 1", mux.active)
 	}
-	if !strings.Contains(strings.Join(rt.ops, ","), "rename-pane terminal 1 [work]") {
-		t.Fatalf("ops = %v", rt.ops)
+	// A rename still reaches the runtime on every tab switch -- the consumers
+	// need a current label -- but it is now the active tab's name alone.
+	if !strings.Contains(strings.Join(rt.ops, ","), "rename-pane terminal work") {
+		t.Fatalf("ops = %v, want a rename to the active tab's name", rt.ops)
 	}
 	if !strings.Contains(stdout.String(), "two") {
 		t.Fatalf("stdout = %q, want redraw of second tab", stdout.String())
@@ -695,12 +740,19 @@ func TestTerminalMuxSwitchTabAtColumn(t *testing.T) {
 func TestTerminalMuxNewTabClearsPreviousTabViewport(t *testing.T) {
 	var stdout bytes.Buffer
 	mux := newTerminalMux("/bin/sh", []string{"-c", "sleep 1"}, &stdout, io.Discard, &fakeRuntime{})
+	// The loop is the only writer since #199 M2, so a mux without one writes
+	// nothing -- the assertion below is about what reaches the pane.
+	go mux.copyActiveOutput()
 	if err := mux.newTab(); err != nil {
 		t.Fatal(err)
 	}
+	mux.drainForTest()
 	mux.closeAll()
 
-	if got := stdout.String(); !strings.HasPrefix(got, "\x1b[1;1H\x1b[J") {
+	// The reset is part of the erase since 2026-09-08: \x1b[J paints with the
+	// CURRENT background, so clearing while a child's colour is active tints the
+	// new tab's screen -- measured with nvim's lualine blue.
+	if got := stdout.String(); !strings.HasPrefix(got, hostty.HomeAndClear) {
 		t.Fatalf("stdout = %q, want new active tab to clear stale viewport", got)
 	}
 }
@@ -736,9 +788,9 @@ func TestTerminalMuxNewTabPrintsStartupOutputOnce(t *testing.T) {
 func TestTerminalMuxBackgroundExitPreservesActiveTab(t *testing.T) {
 
 	mux := &terminalMux{
-		stdout: io.Discard,
-		rt:     &fakeRuntime{},
-		done:   make(chan struct{}),
+		pane: paneWriter{w: io.Discard},
+		rt:   &fakeRuntime{},
+		done: make(chan struct{}),
 		tabs: []*terminalTab{
 			{id: 1, name: "one"},
 			{id: 2, name: "two"},
@@ -758,9 +810,9 @@ func TestTerminalMuxRenameCommitDoesNotRenameReplacementActiveTab(t *testing.T) 
 
 	rt := &fakeRuntime{}
 	mux := &terminalMux{
-		stdout: io.Discard,
-		rt:     rt,
-		done:   make(chan struct{}),
+		pane: paneWriter{w: io.Discard},
+		rt:   rt,
+		done: make(chan struct{}),
 		tabs: []*terminalTab{
 			{id: 1, name: "one"},
 			{id: 2, name: "two"},
@@ -775,15 +827,16 @@ func TestTerminalMuxRenameCommitDoesNotRenameReplacementActiveTab(t *testing.T) 
 	if outcome.Kind != RenameOutcomeNone {
 		t.Fatalf("insert outcome = %#v, want none", outcome)
 	}
-	if err := mux.refreshRename(tabID, editor); err != nil {
-		t.Fatal(err)
-	}
+	mux.refreshRename(tabID, editor)
 	_, outcome = editor.Apply(RenameEvent{Kind: RenameCommit})
 	rt.ops = nil
 
 	mux.removeTab(1)
-	if got := strings.Join(rt.ops, ","); got != "rename-pane two [rename: onex│]" {
-		t.Fatalf("runtime ops after target removal = %q, want visible detached rename field", got)
+	// The title is the DEGRADED one even mid-rename: since #199 M3 the rename
+	// field lives on the strip, and the pane title is only ever the active tab's
+	// name with the classifier prefix RoleForPane reads.
+	if got := strings.Join(rt.ops, ","); got != "rename-pane terminal two" {
+		t.Fatalf("runtime ops after target removal = %q, want the degraded title", got)
 	}
 	if err := mux.finishRename(tabID, outcome); err != nil {
 		t.Fatal(err)
@@ -794,19 +847,34 @@ func TestTerminalMuxRenameCommitDoesNotRenameReplacementActiveTab(t *testing.T) 
 	}
 }
 
-func TestTerminalMuxBackgroundExitPreservesRenameTitleAndViewport(t *testing.T) {
+// A background tab exiting mid-rename REPAINTS THE STRIP but does not take over
+// the screen.
+//
+// The distinction is the whole test. A takeover would clear and replay, throwing
+// away the viewport the operator is editing over -- correct to skip. But the tab
+// SET just changed, and the takeover used to be the only thing repainting the
+// row on this path, so skipping it left the strip listing a tab that no longer
+// exists (BR-45, found by the M3 boundary review; reproduced as ZERO bytes
+// written after the exit).
+//
+// rows/cols are set DELIBERATELY: with them at zero stripBytes returns nil and
+// the assertion below passes without a strip existing at all -- which is how
+// this test would have kept passing through the defect it now pins.
+func TestTerminalMuxBackgroundExitDuringRenameRepaintsStripWithoutTakeover(t *testing.T) {
 
 	var stdout bytes.Buffer
 	rt := &fakeRuntime{}
 	mux := &terminalMux{
-		stdout: stdoutWriter{&stdout},
-		rt:     rt,
-		done:   make(chan struct{}),
+		pane: paneWriter{w: stdoutWriter{&stdout}},
+		rt:   rt,
+		done: make(chan struct{}),
 		tabs: []*terminalTab{
 			{id: 1, name: "one"},
 			{id: 2, name: "two", child: ptychild.NewFakeChild([]byte("active output"))},
 		},
 		active: 1,
+		rows:   24,
+		cols:   80,
 	}
 	tabID, editor, err := mux.beginRename()
 	if err != nil {
@@ -816,19 +884,24 @@ func TestTerminalMuxBackgroundExitPreservesRenameTitleAndViewport(t *testing.T) 
 	if outcome.Kind != RenameOutcomeNone {
 		t.Fatalf("insert outcome = %#v, want none", outcome)
 	}
-	if err := mux.refreshRename(tabID, editor); err != nil {
-		t.Fatal(err)
-	}
+	mux.refreshRename(tabID, editor)
 	stdout.Reset()
 	rt.ops = nil
 
 	mux.removeTab(1)
 
-	if got := strings.Join(rt.ops, ","); got != "rename-pane [rename: twox│]" {
-		t.Fatalf("runtime ops = %q, want rename title preserved without removed tab", got)
+	if got := strings.Join(rt.ops, ","); got != "rename-pane terminal two" {
+		t.Fatalf("runtime ops = %q, want the degraded title for the surviving tab", got)
 	}
-	if got := stdout.String(); got != "" {
-		t.Fatalf("stdout = %q, want no active viewport redraw during rename", got)
+	got := stdout.String()
+	if !strings.Contains(got, "[rename: twox│]") {
+		t.Fatalf("stdout = %q, want the strip repainted with the live rename field", got)
+	}
+	if strings.Contains(got, "one") {
+		t.Fatalf("stdout = %q, still lists the tab that exited", got)
+	}
+	if strings.Contains(got, hostty.HomeAndClear) || strings.Contains(got, "active output") {
+		t.Fatalf("stdout = %q, want no wholesale takeover during a rename", got)
 	}
 }
 
@@ -903,8 +976,8 @@ func TestPumpStdinRoutesCachedGlobalWithoutPaneInventory(t *testing.T) {
 	if rt.listCalls != 0 {
 		t.Fatalf("list calls = %d, want 0 for global chord", rt.listCalls)
 	}
-	if len(rt.reported) != 0 {
-		t.Fatalf("reported = %v, want successful cached route", rt.reported)
+	if len(mux.reported) != 0 {
+		t.Fatalf("reported = %v, want successful cached route", mux.reported)
 	}
 	want := "focus-pane-id 2,write --pane-id 2 28,write --pane-id 2 14,write-chars --pane-id 2 :lua PairConfirmRestart(),write --pane-id 2 13"
 	if got := strings.Join(rt.ops, ","); got != want {
@@ -934,7 +1007,7 @@ func (f *fakeRuntime) RunZellijActionQuiet(args ...string) error {
 	return nil
 }
 
-func (f *fakeRuntime) ReportShortcutError(err error) {
+func (f *fakeRuntime) reportedUnused(err error) {
 	f.reported = append(f.reported, err.Error())
 }
 
@@ -943,13 +1016,13 @@ func (f *fakeRuntime) ShellCommand() (string, []string) {
 }
 
 type fakeMux struct {
-	ops              []string
-	appMouse         bool
-	activeName       string
-	beginRenameErr   error
-	refreshRenameErr error
-	finishRenameErr  error
-	renameFinished   chan RenameOutcome
+	reported        []string
+	ops             []string
+	appMouse        bool
+	activeName      string
+	beginRenameErr  error
+	finishRenameErr error
+	renameFinished  chan RenameOutcome
 }
 
 func (f *fakeMux) writeActive(data []byte) {
@@ -970,9 +1043,8 @@ func (f *fakeMux) beginRename() (int, RenameEditor, error) {
 	return 1, NewRenameEditor(f.activeName), f.beginRenameErr
 }
 
-func (f *fakeMux) refreshRename(_ int, editor RenameEditor) error {
+func (f *fakeMux) refreshRename(_ int, editor RenameEditor) {
 	f.ops = append(f.ops, fmt.Sprintf("rename-preview:%s:%d", editor.Text(), editor.Cursor()))
-	return f.refreshRenameErr
 }
 
 func (f *fakeMux) finishRename(_ int, outcome RenameOutcome) error {
@@ -996,6 +1068,14 @@ func (f *fakeMux) nextTab() {
 
 func (f *fakeMux) appMouseMode() bool {
 	return f.appMouse
+}
+
+// Recorded rather than printed: these used to reach os.Stderr -- the pane's own
+// terminal -- from the input goroutine, outside the writer loop (#199 M2).
+func (f *fakeMux) reportError(err error) {
+	if err != nil {
+		f.reported = append(f.reported, err.Error())
+	}
 }
 
 type splitReader struct {

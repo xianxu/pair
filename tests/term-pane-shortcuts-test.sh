@@ -183,9 +183,17 @@ fi
 # #123 tiled pivot: the right terminal lives in the tiled tree. Floating
 # panes are frame-draggable with no zellij 0.44.3 config gate; tiled panes
 # have no mouse-move operation at all, so drag-immunity is architectural.
+#
+# The third grep is a REGEX, not a fixed string, and that is the point: it used
+# to be `pane name="terminal" {`, which pinned the pane's exact SPELLING as a
+# proxy for its POSITION in the tree. #199 M4 added `borderless=true` to that
+# declaration -- a change to chrome, not to tiling -- and the assertion failed
+# for a property it does not test. What "tiled" actually means here is the two
+# negations above plus a terminal pane declared with a command block; attributes
+# between the name and the brace are none of this check's business.
 ! grep -Fq 'floating_panes' "$ROOT/zellij/layouts/main-3.kdl" \
   && ! grep -Fq 'terminal-filler' "$ROOT/zellij/layouts/main-3.kdl" \
-  && grep -Fq 'pane name="terminal" {' "$ROOT/zellij/layouts/main-3.kdl" \
+  && grep -Eq 'pane name="terminal"[^{]*\{' "$ROOT/zellij/layouts/main-3.kdl" \
   && pass "right terminal is a tiled pane (no floating layer, no filler)" \
   || { printf 'FAIL right terminal is not tiled (floating layer or filler remains)\n'; fail=1; }
 
@@ -242,11 +250,21 @@ grep -Fq '"move-focus", "right"' "$ROOT/cmd/internal/wrapcmd/wrap.go" \
   && { printf 'FAIL agent Alt+k still uses relative move-focus right (must target a split half by id)\n'; fail=1; } \
   || pass "agent Alt+k no longer uses relative move-focus right"
 
-# Tiled panes are framed by zellij default (pane_frames true); the split must
-# not opt out — the frame is the divider and carries the #118 tab title.
+# The split must not pass --borderless AT THE CALL SITE. The reason changed with
+# pair#199 M4 and the assertion outlived it, which is why it is restated here
+# rather than left to read as the old rationale:
+#
+#   BEFORE M4 — frames were wanted, so opting out was the bug.
+#   AFTER  M4 — the terminal IS borderless, but the LAYOUT says so, at all nine
+#               `name="terminal"` rungs, where TestEveryTerminalPaneRungIsBorderless
+#               enumerates it. A `--borderless` flag on `new-pane` would be a
+#               SECOND place declaring the same thing, and the two would drift.
+#
+# So the check is unchanged and its meaning is inverted: one declaration, in the
+# layout, not two.
 ! grep -Fq '"--borderless"' "$ROOT/cmd/internal/termcmd/run.go" \
-  && pass "right terminal split panes keep zellij default frames" \
-  || { printf 'FAIL right terminal split passes --borderless (frames are the divider)\n'; fail=1; }
+  && pass "right terminal split leaves borderless to the layout, not the call site" \
+  || { printf 'FAIL right terminal split passes --borderless; the layout already declares it at all nine rungs\n'; fail=1; }
 
 layout_terminal_shell=$(grep 'exec pair term' "$ROOT/zellij/layouts/main-3.kdl" | sed 's/^[[:space:]]*args "-c" "//; s/"$//; s/\\"/"/g')
 grep -Fq "$layout_terminal_shell" "$ROOT/cmd/internal/termcmd/run.go" \

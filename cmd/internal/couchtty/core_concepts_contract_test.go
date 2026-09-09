@@ -81,6 +81,12 @@ var conceptInventory = []struct{ kind, name string }{
 	{"INTEGRATION", "`onRelaunchHotkey`"},
 	{"INTEGRATION", "`onExit`"},
 	{"INTEGRATION", "`finishOperation`"},
+	// pair#199 M1 — the reserved-row mechanism leaves this package for hostty.
+	// Both rows are declared at couchtty paths, so they land in this package's
+	// inventory: the first asserts the moved symbols are ABSENT here, the
+	// second that the policy half stayed.
+	{"PURE", "`couchtty.ChildRows` / `Reserve` / `Release` / `PaintRow`"},
+	{"PURE", "`couchtty.RenderStatusRow` (+ `StatusModel`, `ChipSpan`)"},
 }
 
 // TestCoreConceptsContract turns pair#146's repeatedly drifting architecture
@@ -248,6 +254,11 @@ var conceptPlans = []conceptPlan{
 	{name: "000170-rescope-couch-to-couch-lite-plan.md"},
 	{name: "000182-relaunch-an-actor-plan.md"},
 	{name: "000172-mouse-support-status-bar-and-switcher-plan.md"},
+	// #199 moves the reserved-row mechanism out to hostty. It is registered
+	// here so its `deleted` rows are asserted ABSENT from couchtty -- without
+	// that, the lift would leave #146's table claiming symbols this package no
+	// longer has, which is how a Core concepts table stops describing the code.
+	{name: "000199-pair-term-own-the-right-pane-tab-bar-plan.md"},
 }
 
 type conceptPlan struct {

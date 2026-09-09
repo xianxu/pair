@@ -1,7 +1,7 @@
 ---
 id: 000205
 status: open
-deps: []
+deps: ["#214"]
 github_issue:
 created: 2026-09-06
 updated: 2026-09-06
@@ -31,10 +31,17 @@ incidental rather than load-bearing:
    outright: *"the revision CAS is what makes the decision still true at the
    moment of the write."* Distinct threads are distinct records, so parallel
    per-thread operations do not contend by construction.
-2. **The dedup invariant that actually matters already exists.**
-   `operationQueue.Enqueue` refuses an already-pending request by key
-   (`operation_queue.go:44-50`), so "no two operations in flight on one thread"
-   is enforced today and does not depend on the single worker.
+2. ~~**The dedup invariant that actually matters already exists.**~~
+   **WRONG — corrected 2026-09-08, see `#214`.** The key is
+   `fmt.Sprintf("menu\x00%d\x00%s", effect.Attempt, effect.Operation)`
+   (`console.go:1509`): **attempt + operation name, with no thread address**. So
+   the same operation cannot be double-submitted, but *different* operations on
+   one thread are different keys and both admit. There is no "one operation in
+   flight per thread" invariant — **the single worker is the only thing
+   serialising them**, which is precisely what this issue proposes to remove.
+   `#214` records a real incident where `resume` racing `relaunch` produced three
+   launches in 32 seconds and left the thread unresumable. **Fix `#214` first**;
+   this issue now depends on it.
 3. **Park already has a future seam.** `parkworker.go` carries `parkFuture`,
    `Await`, and an admission limit (`ErrParkWorkerOverloaded`) — the shape this
    issue needs, already built.
@@ -59,9 +66,10 @@ reason this is a nice-to-have rather than a fix.
   an unbounded fan-out over a large batch recreates the load shape that took the
   same call from 17.6 ms to 145 ms. A small pool captures nearly all the
   overlap without the storm.
-- The existing per-key dedup stays the safety invariant. It already guarantees
-  one operation per thread; the pool only removes the *cross*-thread ordering
-  that nothing depends on.
+- The safety invariant must be **established by `#214`**, not inherited: key the
+  queue by thread + operation class so one thread admits one launch-producing
+  operation. Only then does removing the single worker leave the cross-thread
+  ordering as the sole thing given up.
 - Results still land on the console goroutine through `q.results`, so completion
   handling and `c.mu` discipline are unchanged.
 

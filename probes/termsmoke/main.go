@@ -28,7 +28,13 @@ const (
 	altRight = "\x1b[1;3C"
 )
 
-func main() {
+// main is two lines on purpose: os.Exit SKIPS DEFERS, and this probe's cleanup
+// (which kills the spawned `pair term` and closes its pty) is registered as one. Every path RETURNS a
+// code so the defers unwind. TestNoProbeExitsPastItsOwnCleanup enforces the
+// shape across every probe (pair#199 BR-69).
+func main() { os.Exit(run()) }
+
+func run() int {
 	bin := "./bin/pair"
 	if len(os.Args) > 1 {
 		bin = os.Args[1]
@@ -39,7 +45,7 @@ func main() {
 	ptmx, err := pty.StartWithSize(cmd, &pty.Winsize{Rows: 24, Cols: 80})
 	if err != nil {
 		fmt.Fprintf(os.Stderr, "pty.StartWithSize: %v\n", err)
-		os.Exit(1)
+		return 1
 	}
 	// Not a defer: the failure path below calls os.Exit, which skips defers and
 	// would leave the spawned pair process alive.
@@ -86,7 +92,11 @@ func main() {
 	step("Alt+t opens a second tab", "MARKER-TWO", func() { send(altT); send("echo MARKER-TWO\r") })
 	step("Alt+Left repaints tab 1 from its ring", "MARKER-ONE", func() { send(altLeft) })
 	step("Alt+Right repaints tab 2 from its ring", "MARKER-TWO", func() { send(altRight) })
-	step("resize reaches the child", "40 100", func() {
+	// 39, not 40: since pair#199 M3 the bottom row is the tab strip's, and the
+	// child is sized to the pane MINUS that row so it cannot scroll onto it.
+	// This probe asserted 40 and caught the change on the first smoke run after
+	// the strip landed -- which is the point of it running against a real pty.
+	step("resize reaches the child, minus the strip's row", "39 100", func() {
 		_ = pty.Setsize(ptmx, &pty.Winsize{Rows: 40, Cols: 100})
 		send("stty size\r")
 	})
@@ -117,9 +127,10 @@ func main() {
 	if failures > 0 {
 		fmt.Printf("%d step(s) failed\n", failures)
 		cleanup()
-		os.Exit(1)
+		return 1
 	}
 	fmt.Println("all steps passed")
+	return 0
 }
 
 func trim(s string) string {

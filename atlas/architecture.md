@@ -378,7 +378,7 @@ right pane at 50% width (#123 pivot). It was floating for most of its life —
 covering an invisible tiled filler — but zellij 0.44.3 lets any floating pane
 be dragged off position by its frame with no config gate, so the terminal
 moved into the tiled tree: tiled panes have no mouse-move operation at all,
-making the workbench drag-immune while keeping frames and full mouse support.
+making the workbench drag-immune while keeping the agent pane's frame and full mouse support. (Since `#199` M4 the layout-3 terminal is borderless; drag-immunity comes from the tiled pivot, not from the frame.)
 The filler (and its key-swallowing focus trap) is gone. `Alt+Shift+Enter`
 re-tiles the column boundary between 50% and ~2/3 width via
 `pair layout toggle-focused` — the left stack genuinely narrows and reflows
@@ -398,7 +398,7 @@ The panes wrap their command in `sh -c "..."` so the shell expands `$PAIR_AGENT`
 
 The draft pane has `focus=true` (drafting pane gets focus on launch), `borderless=true` (so the `minimized` rung can collapse to 1 row — see "pane frame asymmetry" below), and `name="draft"` — used by zellij in the OSC 0 terminal title (`pair-<tag>: draft`) which propagates to the user's terminal/multiplexer tab title. The draft is borderless so it has no frame title slot; the keybind cheatsheet that used to live in the frame title lives in nvim's statusline (right-aligned, see `nvim/init.lua`).
 
-**Pane frame asymmetry.** `pane_frames true` is set globally in `zellij/config.kdl` so the **agent pane and layout-3 terminal** render frames. The agent frame surfaces the scroll-position indicator zellij draws in the top-right of a framed pane (e.g. `500/540`), which is the only way to see scrollback position (zellij doesn't expose scroll offset to plugins or the CLI). The **draft pane** opts out via `borderless=true` in every layout (default + both swap layouts), because a framed pane has a ~3-row minimum and the `minimized` rung needs `size=1`. Cost: framed panes lose 2 rows + 2 cols to chrome.
+**Pane frame asymmetry.** `pane_frames true` is set globally in `zellij/config.kdl`, but since `#199` M4 **only the agent pane is actually framed**. That frame surfaces the scroll-position indicator zellij draws in the top-right of a framed pane (e.g. `500/540`), which is the only way to see scrollback position (zellij doesn't expose scroll offset to plugins or the CLI). **Two panes opt out via `borderless=true`, for different reasons.** The **draft pane**, in every layout, because a framed pane has a ~3-row minimum and the `minimized` rung needs `size=1`. The **layout-3 terminal**, at all nine of its rungs, because `pair term` draws its own tab strip in a row it reserves — the frame's title was that pane's only label, and the strip replaces it and says more (every tab, which is active, the live rename field). Cost of a frame: 2 rows + 2 cols of chrome.
 
 **Swap layouts.** Each draft rung — `minimized` (draft `size=1`) and `third` (draft `size="33%"`) — sits alongside the default layout. Layout 2 gates its two-pane tiled tree with `exact_panes=2`. Layout 3 carries each rung in two variants: `exact_panes=3` (agent/draft/terminal) and a `-split` twin at `exact_panes=4` (right column split into two stacked terminals by `Alt+Shift+d`); zellij skips swap layouts whose constraint doesn't match the live pane count, so rung adjacency is preserved in both states. `nvim/init.lua` drives them via `zellij action next-swap-layout` / `previous-swap-layout`, which re-tile the existing processes without recreation. Cycle from default(small) is `[minimized, third]`: `next-swap-layout` from small → minimized, from minimized → third, from third → wraps to small. The lua side maps Alt+Down to next-swap (smaller rung) and Alt+Up to prev-swap (bigger rung), with a state-machine clamp at the rung extremes.
 
@@ -411,7 +411,7 @@ Top-level config:
   pinned floating terminal can acquire hover focus from the tiled layer but
   does not symmetrically return it, so explicit click/keys are less surprising.
 - `copy_command "pair clip copy-on-select"` — on every selection finalize (mouse-up after drag), zellij pipes the selected text to this binary. The wrapper mirrors it to the OS clipboard and hands off to the draft — but since #125 only for selections made in the AGENT pane; a selection in the right terminal mirrors to the clipboard and stops. `copy_command` replaces zellij's default OS-clipboard write, so the binary does that part too. Resolved by PATH (which the launcher populated).
-- `pane_frames true` — frames are enabled globally so the agent pane shows zellij's scroll-position indicator (top-right of the frame) when scrolled. The draft pane opts out via `borderless=true` in both `zellij/layouts/main-{2,3}.kdl` assets so the `minimized` rung can still collapse to 1 row (a framed pane's minimum is ~3 rows). The cheatsheet still renders in nvim's statusline rather than a frame title — the draft has no frame to hold one.
+- `pane_frames true` — frames are enabled globally so the agent pane shows zellij's scroll-position indicator (top-right of the frame) when scrolled. TWO panes opt out via `borderless=true`: the draft pane in both `zellij/layouts/main-{2,3}.kdl` so the `minimized` rung can still collapse to 1 row (a framed pane's minimum is ~3 rows), and — since `#199` M4 — the layout-3 terminal at all nine rungs, because `pair term` draws its own strip in a reserved row and the frame's title was that pane's only label. The cheatsheet still renders in nvim's statusline rather than a frame title — the draft has no frame to hold one.
 
 Keybinds added on top of zellij defaults (`clear-defaults=false`):
 
@@ -468,6 +468,201 @@ mechanism sits in two packages that both drive:
   `FakeHost`, and the terminal-control constants. `\x1b[r` lives here and only
   here; it was about to exist in two packages.
 
+  Since `#199` it also owns **`Reservation`** — the row-reservation primitive:
+  `Reservation{Rows, Edge}` answering `ChildRows` / `Reserve` / `Release` /
+  `Paint`. This is the same argument as `\x1b[r`, one level up. Reserving a row
+  is host-half *mechanism* with two consumers — couch holds the host's bottom
+  row for its actor strip, and `pair term` holds its pane's bottom row for a tab
+  strip — while *what the row says* stays with each consumer as policy
+  (`couchtty.RenderStatusRow` renders actors; `termcmd` renders tabs). It is a
+  RESERVATION rather than compositing: the scrolling region stops one row short,
+  so a child scrolling at the bottom of its own screen cannot walk onto the row,
+  and is never told — from its side the terminal is simply one row shorter.
+
+  **`Edge` is asymmetric, and that is why it is named rather than assumed.**
+  `EdgeBottom` is the only implemented edge and the zero value. `EdgeTop` is
+  representable and refused: with the region at 2..N the child still addresses
+  absolute rows, so its row 1 *is* the strip, and any absolute positioning it
+  does lands on top. Correct only under origin mode (DECOM, `\x1b[?6h`)
+  arbitrated against children that set it themselves, which nothing tracks.
+  `NewReservation` refuses it and the methods fail closed if a caller bypasses
+  the constructor — emitting a region computed for an unimplemented edge is a
+  silently corrupted screen, whereas drawing nothing costs only the strip.
+
+  That `pair term` can reserve at all is **measured, not assumed**: couch writes
+  straight to the host tty, but a pane's writes pass through zellij's emulator.
+  zellij honors DECSTBM from a pane process — 200 lines scrolled inside the
+  region while the reserved row held its paint (`#199` finding 5).
+
+  **And two reservations NEST**, which is the arrangement couch actually
+  produces: couch holds the HOST terminal's bottom row, `pair term` holds its
+  PANE's, and they compose because each is computed from its own `Host.Size()`
+  rather than from a number the two would have to agree on. zellij is what makes
+  them independent — it interprets the pane's DECSTBM into its own grid, so the
+  inner region never reaches the physical terminal. Measured, again, rather than
+  argued: `cmd/probes/couchnestedrows` (`make test-couch-nested-rows`) reserves
+  a row on a real 40-row pty, runs a real zellij in the 39 that remain, and runs
+  a real `pair term` in the pane — the shell reports `38 100`, a 400-line flood
+  reaches neither row, and neither row eats the other. It also carries the one
+  acceptance step no unit test reaches: a flood that emits ESCAPES (an SGR pair
+  per line) with tab switches against it, which is the only way to request a
+  paint while the child's stream is genuinely mid-sequence. `yes` and `seq` emit
+  none, which is why two earlier attempts at that step exercised nothing.
+
+**One writer, one gate — in `termcmd` as in `couch` (`#199` M2).** Every byte
+reaching the right pane passes through `terminalMux.copyActiveOutput`: child
+output, redraws, paints, diagnostics. A second writer is how a paint lands
+inside a child's escape sequence, since a pty read boundary falls wherever the
+kernel puts it. The gate is a `ptychild.Screen` fed **child bytes only** and
+consulted before any console-originated write; a write issued mid-sequence is
+deferred. A **paint** goes into a single **coalescing** slot — a later paint
+replaces an earlier one, correct because the row renders current state and
+queueing would draw a
+burst of stale rows at the next boundary — and flushed when the stream reaches
+a boundary. A wholesale takeover (`redrawTab`) resets the scan and **drops** the
+owed paint: the screen it was owed against is gone. That third rule is couch's
+(`couchtty/console.go:992-995`) and is easy to miss when restating the first two.
+
+Two consequences worth stating because neither is local to the writer loop.
+`enqueue` posts and does **not** wait: `runShell` redraws (via `newTab`) before
+it starts the loop, so a synchronous post deadlocks `pair term` on startup —
+ordering comes from the channel, which is all the envelope needs. And
+`termcmd.OSRuntime` gives a subprocess **none** of the pane's descriptors —
+including **stdin**, which is in raw mode and carries the operator's keystrokes,
+and which an earlier version handed over while the code and this paragraph both
+said "neither" and counted only two —
+enforced at the Runtime rather than at call sites: that Runtime is handed to
+`layoutcmd` and `draftroute` too, so a call-site rule covers neither their
+sites nor the next one added. `zellij action` output on a full-screen pty lands
+wherever the child's cursor is, outside the loop and outside the gate — and a
+FAILING action did the same on stderr, once per wheel tick.
+
+Not handing over the descriptors is **not** the same as discarding the output,
+and the difference is worth stating because the first version got it wrong.
+Sending both to `io.Discard` made a failing action *completely silent*, since
+the wheel-tick callers drop the error too — silence is not an improvement on
+noise. The subprocess's stderr is captured and folded into the returned error;
+`terminalMux.reportError` then puts it on the pane **through the writer loop**,
+so it is gated like any other write. Which means external bytes DO reach the
+pane, by a controlled path — and therefore go through `rowtext.SanitizeAndFit`
+at that egress, the single point every diagnostic passes, rather than at each
+producer. Filtering one producer only moves the hazard to the next.
+
+- **`cmd/internal/rowtext`** — `Sanitize` / `Fit` / `SanitizeAndFit`: the one
+  implementation of "make untrusted text safe for a row". Both reserved-row
+  renderers use it (couch's status row, `pair term`'s strip), as does the
+  diagnostic path above. It is a package rather than a helper because
+  `couchtty`'s originals were unexported and so unreachable from `termcmd`, and
+  a second copy of a security-relevant strip is exactly the outcome to avoid.
+
+**The right terminal pane has NO FRAME** (`#199` M4). `borderless=true` at all
+nine `name="terminal"` rungs in `zellij/layouts/main-3.kdl` — the layout ladder
+plus both split halves — enumerated by
+`TestEveryTerminalPaneRungIsBorderless`, which asserts the count as well as the
+attribute so a rung added later cannot quietly reframe the pane. The frame's
+title was that pane's only label; the strip replaces it and says more. `pane_frames`
+stays global for the AGENT pane's scroll indicator, which is the one thing no
+other surface can report — zellij exposes pane scroll offset to neither plugins
+nor the CLI.
+
+**The strip carries the rename FIELD, and the pane title no longer does**
+(`#199` M3). `Alt+R` used to draw its editor into the pane TITLE, via `zellij
+action rename-pane` — which is to say into the pane FRAME, the thing M4 removes
+at all nine `name="terminal"` sites. The field moved onto the row that already
+carries tab state, and `RenameEditor.Field` composes the caret once rather than
+each surface drawing its own.
+
+Then the title's copy was **deleted**, and that is the part worth recording,
+because leaving it cost three separate things. A `zellij action` subprocess
+forked **per keystroke** on the interaction path — the cost this feature exists
+to retire, reintroduced by the feature retiring it. A SECOND producer of the
+pane title that the degradation never swept, packing the whole tab set and
+dropping the `terminal ` prefix, so for the duration of every rename the pane
+lost the classification that routes global shortcuts. And a strip that showed a
+stale name after a commit, because the repaint sweep stopped at the methods a
+probe had happened to catch. One deletion closed all three: the title now has
+**one** producer and changes only when the tab set or the active tab does.
+
+Two guards keep it that way — `TestARenameCostsExactlyOneZellijSubprocess` (a
+declared budget with a test is a budget; without one it is a sentence in a plan)
+and `TestEveryPaneTitleProducerSatisfiesEveryConsumer`, a producer × consumer
+table. `launcher.ClassifyLiveLayout` asks `workbenchshortcut.RoleForPane`
+instead of restating the predicate, which is what let its title-only arm go
+dead unnoticed: the shipped caller passes `--command`, so the fallback masked it.
+
+The predicate itself is `workbenchshortcut.TitleIdentifiesRightTerminal`, and
+**the producer asks it too**. That is the part that took two rounds to get
+right: making the consumers agree while `paneTitleLocked` still decided "does
+this name already classify?" with its own `HasPrefix(name, "terminal")` left a
+tab renamed `terminals` producing a title that classifies as `PaneRoleOther` —
+the exact failure the prefix exists to prevent, delivered by the code preventing
+it. One predicate, three askers.
+
+The general lesson, and it generalises past this feature: **a feature drawing on
+another component's chrome has a dependency it never declared.** If you own the
+row, draw on the row.
+
+**A console write waits on TWO conditions, not one** (`#199` M3). Mid-sequence
+is the familiar one. The second is that **the child holds a cursor save**: the
+save slot is SHARED, one per terminal, so a paint that saves and restores inside
+the child's `DECSC`…`DECRC` pair leaves the slot holding the CONSOLE's position
+and the child's restore lands there. Measured — zsh draws its right-hand prompt
+with terminfo `sc`/`rc`, which are exactly those bytes, so the operator's cursor
+ended up inside the tab strip. There is no second slot to move to:
+`probes/cursorsaveslots` measured `CSI s`/`CSI u` failing to restore where it
+was told while `DECSC` succeeded under the identical harness. So the only fix is
+not to write while a save is held OUTSIDE the alt screen, and
+`ptychild.Screen.SafeToPaint` is the one predicate that says so — the shared
+door both consoles ask, folding this together with mid-sequence.
+`HoldsCursorSave` reports the raw bit and is not the decision: gating on it
+alone freezes the row for a full-screen child's whole session, because `?1049h`
+holds the slot for all of nvim (pair#199 BR-79).
+
+**Every mutation of the strip's model owes a repaint, and the set is read out
+of the source** (`cmd/internal/termcmd/stripmutation_test.go`). A go/ast pass
+over `run.go` fails when a method assigns `m.tabs`/`m.active`/`m.rename` without
+a driving case, and the cases assert a repaint carrying POST-mutation state.
+Both halves earn their place: the defect that prompted them (`removeTab` skipping
+its only repaint on the rename branch) would have passed a static "does this
+method call `paintStrip`" check, because it did call it — on the other branch.
+
+**And a row-dirty batch records a DEBT rather than painting.** couch has always
+done this (`couchtty/console.go:1147`, whose comment records that a paint there
+was "unreachable-by-difference"), and it matters far more for a line-oriented
+child than it did there: a shell emits erases on every prompt redraw, so
+painting per row-dirty batch means painting constantly — and constantly at the
+moment the child is mid-prompt with a save outstanding. The debt is paid by the
+same owe-and-flush machinery, on the first chunk that leaves the stream safe.
+
+This is the general shape of the difference, and it is worth stating because it
+was learned the expensive way: **couch's reserved row is not easier by design,
+it is easier by CHILD.** couch's child is zellij — a full-screen emulator that
+repaints from its own model and addresses every cell absolutely, so it never
+relies on the terminal remembering a cursor, and any damage a paint does is
+overwritten within a frame. A shell relies on all of it and repairs none of it.
+Two bugs latent in this primitive since `#146` (the cursor-homing `SetRegion`
+and the colour-inheriting erase) were invisible for exactly that reason.
+
+**A new door to the pane is a COMPILE ERROR.** `paneWriter` holds the pane's fd
+and is deliberately not an `io.Writer`: with no `Write` method,
+`fmt.Fprintf(m.pane, …)`, `io.WriteString(m.pane, …)` and `m.pane.Write(…)` do
+not compile. Every write states a reason at the call site — the gated writers
+(`writeOwn`/`writeDiag`/`flushOwed`) pass their own, and there are exactly three
+exemptions, each a different kind: the **child's own output** (not a user of the
+gate but the thing it *models* — gating a child against its own stream state
+deadlocks it against itself), the **takeover** (`HomeAndClear` discards the
+screen the old scan described, and the reset runs first, which is what earns
+it), and **teardown** (the loop may already be gone, and a half-restored
+terminal beats an ungated write).
+
+This replaced a test that SCANNED the source for `m.stdout`, and the reason is
+worth keeping: the scan missed `fmt.Fprintf` — the most idiomatic spelling, and
+the one this file used before the milestone — read only one file while the
+package was about to gain another, and could be satisfied by an unrelated
+comment. **Scanning for violations is weaker than making them unrepresentable.**
+Both instruments exist because fixing each ungated write a reviewer happened to
+name left the next one for the next reviewer, three rounds running.
+
 **What is shared is structure; what stays is policy.** `termcmd` keeps numbered
 tabs, rename, the zellij pane title, and exit-when-empty; `couch` switches named
 actors and falls back to a panel. That is the same split `cmd/internal/ansi`
@@ -517,7 +712,7 @@ a `Status`.) The retired `otherEscRe` regex lives on in
 `ansi/oracle_test.go` as a differential fuzz oracle, so "behaves identically" is
 checked against what the code used to run rather than argued.
 
-- Pane-local shortcuts (#116/#123): `Alt+j` toggles vertically only in the left stack; `Alt+k` bridges left/right, returning from the terminal to the last focused left pane via exact `$PAIR_LAST_LEFT_PANE_PATH`; `Alt+t`/`Alt+w` create and close tabs only in the right terminal; `Alt+r` enters the terminal wrapper's frame-title rename editor (#118), whose pure rune editor and streaming decoder consume all edit/control bytes before the child PTY and use `rename-pane` as the sole title IO boundary; `Alt+Shift+d` in the right terminal is a native tiled split — `new-pane --direction down` on the invoking (client-focused) terminal, running the layout-3 `pair term` shell (frames stay by zellij default; the frame is the visible divider between the halves and carries the #118 tab title); `Alt+/` and `Alt+Shift+C` / `Ctrl+Alt+c` work only in the left stack. Every left→right jump is id-based: draft nvim and `pair wrap` call `pair layout focus-terminal` (`layoutcmd.FocusRightTerminal`), which focuses the tiled right terminal via `focus-pane-id` — the recorded last-used half wins (exact `$PAIR_LAST_TERMINAL_PANE_PATH`, written when `Alt+k` leaves the terminal side; zellij's `is_focused` on right-side panes is stale memory while focus sits in the left stack), else a zellij-focused half, else the first. Split halves are recognized through exact `$PAIR_TERMINAL_PANES_PATH` as a **TerminalPaneRegistry** (each `pair term` self-registers pane id + pid at startup; readers filter by pid liveness): zellij 0.44.3 omits `terminal_command` for `--direction`-created panes and the #118 tab-strip title is user-renamable, so neither is a usable signal. Never relative `move-focus right` — the id-based rule that fixed the #123 focus lockout survives the filler's deletion because it also targets a specific split half.
+- Pane-local shortcuts (#116/#123): `Alt+j` toggles vertically only in the left stack; `Alt+k` bridges left/right, returning from the terminal to the last focused left pane via exact `$PAIR_LAST_LEFT_PANE_PATH`; `Alt+t`/`Alt+w` create and close tabs only in the right terminal; `Alt+r` enters the terminal wrapper's rename editor (#118; the field renders in the strip since M4 took the frame off), whose pure rune editor and streaming decoder consume all edit/control bytes before the child PTY and use `rename-pane` as the sole title IO boundary; `Alt+Shift+d` in the right terminal is a native tiled split — `new-pane --direction down` on the invoking (client-focused) terminal, running the layout-3 `pair term` shell (BORDERLESS since `#199` M4 — each half's `pair term` draws its own strip in a reserved row, which carries the tab title the frame used to and is what separates the halves); `Alt+/` and `Alt+Shift+C` / `Ctrl+Alt+c` work only in the left stack. Every left→right jump is id-based: draft nvim and `pair wrap` call `pair layout focus-terminal` (`layoutcmd.FocusRightTerminal`), which focuses the tiled right terminal via `focus-pane-id` — the recorded last-used half wins (exact `$PAIR_LAST_TERMINAL_PANE_PATH`, written when `Alt+k` leaves the terminal side; zellij's `is_focused` on right-side panes is stale memory while focus sits in the left stack), else a zellij-focused half, else the first. Split halves are recognized through exact `$PAIR_TERMINAL_PANES_PATH` as a **TerminalPaneRegistry** (each `pair term` self-registers pane id + pid at startup; readers filter by pid liveness): zellij 0.44.3 omits `terminal_command` for `--direction`-created panes and the #118 tab-strip title is user-renamable, so neither is a usable signal. Never relative `move-focus right` — the id-based rule that fixed the #123 focus lockout survives the filler's deletion because it also targets a specific split half.
 
 The Alt+x/d/n confirms execute in draft Neovim rather than running directly so a single fat-finger doesn't tear the session down (Alt+x in particular is unrecoverable). The lua side also auto-grows out of `minimized` before showing the modal, since otherwise the prompt would land on a 1-row pane where nothing is visible.
 

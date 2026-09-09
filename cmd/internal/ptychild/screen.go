@@ -49,7 +49,10 @@ type Screen struct {
 	// Latched edge events, cleared by their Take* reader. The console acts
 	// once per event, not once per poll.
 	rowDirty bool
-	bell     bool
+	// cursorSaved is whether the CHILD is currently holding a cursor save it has
+	// not restored. See classify, and HoldsCursorSave.
+	cursorSaved bool
+	bell        bool
 
 	// skipping says we are inside a sequence too long to buffer, and what
 	// terminator ends it. Bytes are consumed and discarded until then.
@@ -139,6 +142,63 @@ func (s *Screen) TakeRowDirty() bool {
 	dirty := s.rowDirty
 	s.rowDirty = false
 	return dirty
+}
+
+// HoldsCursorSave reports whether the child is between its own DECSC and DECRC.
+//
+// A console with a reserved row must not write while this is true. The save slot
+// is SHARED -- one per terminal -- so a paint that saves and restores inside the
+// child's pair leaves the slot holding the CONSOLE's position, and the child's
+// restore lands there instead of where it meant to go.
+//
+// It is a defer condition exactly like MidSequence, and pairs with the same
+// owe-and-flush machinery: the debt is paid on the chunk that carries the
+// child's DECRC.
+//
+// A child that saves and never restores holds this forever, and the row then
+// goes STALE rather than wrong -- the correct direction to fail. RIS and the
+// alt-screen transitions clear it, and a console taking over the screen
+// wholesale resets the whole Screen anyway.
+func (s *Screen) HoldsCursorSave() bool { return s.cursorSaved }
+
+// SafeToPaint reports whether a console may write to the terminal right now.
+//
+// THE SHARED DOOR. Both reserved-row consumers must ask the same question, and
+// an earlier version answered it only inside termcmd's private predicate -- so
+// `pair term` was guarded and couch, running the identical primitive, was not.
+// couch's child is a full-screen TUI that repaints continuously, which MASKS
+// the damage rather than preventing it; two bugs latent in this primitive since
+// #146 were invisible for exactly that reason, so masking has already proven
+// not to be safety here.
+//
+// Two conditions, clearing on different bytes:
+//
+//   - MID-SEQUENCE: a write between two of the child's escape bytes lands
+//     inside its sequence.
+//   - THE CHILD HOLDS THE CURSOR SAVE: the slot is shared, one per terminal, so
+//     a console save/restore inside the child's pair leaves the slot holding the
+//     CONSOLE's position and the child's restore lands there.
+//
+// The cursor-save half applies only OUTSIDE the alt screen, and that is not a
+// weakening -- it is what the hazard actually is.
+//
+// The danger is a child that saves, expects the slot intact, and restores
+// SOON: a line-oriented child drawing a prompt, where the window is
+// microseconds and a clobber lands the shell's cursor in the strip. A
+// full-screen child in the alt screen is the opposite case. `?1049h` takes the
+// slot for its ENTIRE lifetime -- minutes of nvim -- and gating on that would
+// freeze the row for the whole session, trading a rare one-frame cursor glitch
+// for a strip that is permanently stale, which is the common case and strictly
+// worse. It is also the couch situation: a full-screen child repaints from its
+// own model every frame and repositions absolutely, so a disturbed cursor does
+// not survive to be seen.
+//
+// The residual is bounded and known: at `?1049l` the terminal restores what was
+// saved, so a clobbered slot puts the shell's cursor one prompt out of place
+// after the child exits. The operator ran exactly this configuration through
+// #199 M3's smoke test with nvim and reported no such symptom.
+func (s *Screen) SafeToPaint() bool {
+	return !s.MidSequence() && !(s.cursorSaved && !s.altScreen)
 }
 
 // TakeBell reports and clears whether the child rang the terminal bell. This is
@@ -410,9 +470,51 @@ func (s *Screen) classify(seq []byte) {
 	if len(seq) < 2 {
 		return
 	}
-	// RIS resets everything the console set, margins included.
+	// RIS resets everything the console set, margins included -- including any
+	// cursor save the child was holding.
 	if seq[1] == 'c' {
 		s.rowDirty = true
+		s.cursorSaved = false
+		// altScreen too. RIS resets the terminal to its power-on state, which
+		// is the PRIMARY screen -- and since SafeToPaint began consulting
+		// altScreen, leaving it set here turned a missing reset into a safety
+		// hole: a child issuing RIS from the alt screen would leave the flag
+		// true forever, and the save half of the paint gate off for good.
+		//
+		// The lesson is not the missing line. It is that promoting a field to a
+		// SAFETY input obliges an audit of every writer and every reset of that
+		// field, and this one was promoted without it.
+		s.altScreen = false
+		// And every other MODE the child can turn on. The reset arm's field set
+		// is derived from the terminal state RIS clears -- not from whichever
+		// predicate is currently load-bearing. BR-81's guard is scoped to
+		// SafeToPaint's inputs by design, so it cannot see this direction, and
+		// the mouse modes sat unreset behind it.
+		s.mouse = false
+		s.sgrMouse = false
+		// mouseObserved DELIBERATELY survives. It is not a mode -- it latches
+		// that the child has expressed a tracking state at all, and RIS IS such
+		// an expression: tracking is off. Keeping it makes RIS behave exactly
+		// like the `?1000l` it is a superset of, so a supervisor may reclaim the
+		// mouse. Clearing it would instead make the supervisor refrain, which is
+		// the pair#172 I1 symptom the latch was added to remove.
+		return
+	}
+	// DECSC / DECRC. Tracked because the cursor save slot is SHARED: a console
+	// that paints between the child's ESC 7 and its ESC 8 clobbers what the
+	// child saved, and the child's restore then recovers the CONSOLE's position.
+	// Measured 2026-09-08 in pair#199: zsh draws its right-hand prompt with
+	// terminfo sc/rc (which are these), so the operator's cursor ended up in the
+	// tab strip and the right-prompt was drawn on the strip's row.
+	//
+	// One bit, not a stack: terminals keep ONE slot, so a second DECSC simply
+	// overwrites the first and a DECRC clears the debt either way.
+	if seq[1] == '7' {
+		s.cursorSaved = true
+		return
+	}
+	if seq[1] == '8' {
+		s.cursorSaved = false
 		return
 	}
 	if seq[1] != '[' || len(seq) < 3 {
@@ -421,6 +523,30 @@ func (s *Screen) classify(seq []byte) {
 	final := seq[len(seq)-1]
 	params := seq[2 : len(seq)-1]
 
+	// SCOSC / SCORC -- the CSI spelling of the same save slot, `CSI s` and
+	// `CSI u` with NO parameters.
+	//
+	// Tracked alongside DECSC because this repo's own probe
+	// (probes/cursorsaveslots) established that zellij does not give them a
+	// SECOND slot: `CSI u` failed to restore where it was told while `ESC 8`
+	// succeeded under the identical harness. So a child using the CSI form is
+	// holding the SAME slot our paint would clobber, and a gate that watched
+	// only `ESC 7` would let the collision straight back in for that child.
+	//
+	// Parameter-free is load-bearing: `CSI <n> s` is DECSLRM (set left/right
+	// margins), a different operation entirely, and treating it as a save would
+	// defer paints forever against a child that never restores.
+	if len(params) == 0 {
+		switch final {
+		case 's':
+			s.cursorSaved = true
+			return
+		case 'u':
+			s.cursorSaved = false
+			return
+		}
+	}
+
 	if len(params) > 0 && params[0] == '?' {
 		if final != 'h' && final != 'l' {
 			return
@@ -428,17 +554,35 @@ func (s *Screen) classify(seq []byte) {
 		on := final == 'h'
 		for _, mode := range splitParams(params[1:]) {
 			switch mode {
-			case "1049", "1047", "47":
+			// THE SAVE-SLOT ENUMERATION, one arm per spelling, because a
+			// missing arm is a silent hole in the paint gate rather than a
+			// visible failure. `?1049h` is DEFINED as DECSC-then-switch: it
+			// SAVES the cursor, and an earlier version cleared the flag here --
+			// exactly backwards for how nearly every full-screen child takes
+			// the slot.
+			//
+			//   ESC 7 / ESC 8          DECSC / DECRC          take / release
+			//   CSI s / CSI u          SCOSC / SCORC          take / release
+			//   CSI ?1048h / ?1048l    save / restore cursor  take / release
+			//   CSI ?1049h / ?1049l    ?1048 + ?1047          take / release
+			//   CSI ?1047h / ?1047l    alt screen ONLY        no effect
+			//   CSI ?47h   / ?47l      alt screen ONLY        no effect
+			//   ESC c                  RIS                    release
+			case "1049":
 				s.altScreen = on
-				// An alt-screen transition is exactly when a child redraws
-				// from scratch and the region can go with it.
+				// 1049 = 1048 + 1047: it saves on entry and restores on exit.
+				s.cursorSaved = on
 				s.rowDirty = true
-			// TRACKING and ENCODING are different facts and must not share a
-			// bool. 1000/1002/1003 say the child wants mouse events at all;
-			// 1006 says only how coordinates are encoded. Collapsed, a child
-			// doing `?1002h` then `?1006l` read as "no mouse" -- so a supervisor
-			// asking "does the child hold tracking" got false and asserted its
-			// own mode over a child that was still tracking (pair#172 BR-26).
+			case "1047", "47":
+				// Screen switch WITHOUT the save half. The slot is untouched,
+				// so the flag must not move in either direction -- clearing it
+				// here would hand a console permission to paint inside a save
+				// the child still holds.
+				s.altScreen = on
+				s.rowDirty = true
+			case "1048":
+				// The save half on its own.
+				s.cursorSaved = on
 			case "1000", "1002", "1003":
 				s.mouse = on
 				s.mouseObserved = true

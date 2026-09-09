@@ -1,10 +1,10 @@
 ---
 id: 000176
-status: open
+status: wontfix
 deps: []
 github_issue:
 created: 2026-09-02
-updated: 2026-09-02
+updated: 2026-09-07
 estimate_hours:
 ---
 
@@ -169,3 +169,36 @@ re-evaluated when this lands: its spec is still right about *what* must be
 proven, but its coordinator lives in the wrong process. Not repointed here —
 that is a call for the operator, since #135 also carries requirements about
 tag-scoped state that this issue inherits rather than replaces.
+
+### 2026-09-07 — superseded by #184; closing
+
+Not fixed — **superseded**. Its restart half is covered (couch's `Alt+n` is
+`#182`'s landed relaunch, "new Pair binary, same conversation"; `Alt+Shift+N` →
+`ActionRestartAgent` is the pre-existing pair-side chord this issue cited as the
+status quo). Its **switch** half was never built, and `#184` is where it now
+lives.
+
+Reconciled rather than deduplicated: the two describe one operation from
+opposite sides, and they were **complementary**, not conflicting. `#184`
+established from the session ledger that a switched-to agent has no native
+binding — `(scope_key, tag, agent)`, so `CheckResumePreconditions` refuses by
+construction on every first switch — and concluded the target "starts with no
+conversation." This issue's context carrier is the answer to exactly that: the
+conversation cannot *resume*, but a carrier can be handed over.
+
+**Everything substantive here was migrated into `#184`'s Spec and Plan**, so
+nothing is lost by closing:
+
+- one operation, restart as the degenerate case (target == current), with the
+  argv axis added to give four cases;
+- the `ops.go` declaration shape — `ExecuteLiveOwner`, `EffectProcess`,
+  `ConfirmRequired` on `stop`'s grounds;
+- quiesce **observed** by couch rather than acknowledged by the dying process;
+- the context carrier chosen by **source health** rather than by trigger, which
+  is this issue's sharpest idea and the one that makes the operation usable in
+  the `#135` cases that motivate it;
+- selection-not-rotation over `parked-scrollback-<tag>-<ts>` via
+  `ParkedScrollbackArtifacts`;
+- the six concrete Plan steps, which were the more developed of the two.
+
+Track the work at `#184`.

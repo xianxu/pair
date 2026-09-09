@@ -19,8 +19,10 @@
 // life; zellij 0.44.3 lets any floating pane be dragged off position by its
 // frame with no config gate, so the terminal moved into the tiled tree —
 // tiled panes have no mouse-move operation at all, making the workbench
-// drag-immune while keeping frames (divider, tab title, scroll indicator)
-// and full mouse support. This also removed the old invisible right-side
+// drag-immune, and keeps full mouse support. The terminal panes are BORDERLESS
+// since pair#199 M4: `pair term` draws its own strip in a reserved row, which
+// carries the tab title the frame used to and is what separates split halves --
+// each half draws its own. This also removed the old invisible right-side
 // filler pane and its focus-trap.
 //
 // LAYOUT RUNGS — the left column's draft pane has three sizes: minimized
@@ -80,7 +82,7 @@ layout {
         // terminals (see the *-split swap variants below); Alt+Shift+Enter
         // re-tiles the column boundary between 50% and 2/3 width via
         // `pair layout toggle-focused`.
-        pane name="terminal" {
+        pane name="terminal" borderless=true {
             command "sh"
             args "-c" "zellij action rename-pane --pane-id \"$ZELLIJ_PANE_ID\" terminal 2>/dev/null; exec pair term"
         }
@@ -122,7 +124,7 @@ layout {
                     pane name="agent"
                     pane size=1 name="draft" borderless=true
                 }
-                pane name="terminal"
+                pane name="terminal" borderless=true
             }
         }
     }
@@ -135,8 +137,8 @@ layout {
                     pane size=1 name="draft" borderless=true
                 }
                 pane split_direction="horizontal" {
-                    pane name="terminal"
-                    pane name="terminal"
+                    pane name="terminal" borderless=true
+                    pane name="terminal" borderless=true
                 }
             }
         }
@@ -149,7 +151,7 @@ layout {
                     pane name="agent"
                     pane size="33%" name="draft" borderless=true
                 }
-                pane name="terminal"
+                pane name="terminal" borderless=true
             }
         }
     }
@@ -162,8 +164,8 @@ layout {
                     pane size="33%" name="draft" borderless=true
                 }
                 pane split_direction="horizontal" {
-                    pane name="terminal"
-                    pane name="terminal"
+                    pane name="terminal" borderless=true
+                    pane name="terminal" borderless=true
                 }
             }
         }
@@ -188,8 +190,8 @@ layout {
                     pane size=12 name="draft" borderless=true
                 }
                 pane split_direction="horizontal" {
-                    pane name="terminal"
-                    pane name="terminal"
+                    pane name="terminal" borderless=true
+                    pane name="terminal" borderless=true
                 }
             }
         }

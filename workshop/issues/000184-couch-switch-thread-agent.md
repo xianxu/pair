@@ -138,13 +138,94 @@ a cold switch that always works, never a precondition for it.
 - Atlas records switch-agent alongside detach/park/relaunch, including what a
   switch keeps and what it drops.
 
+### Absorbed from `#176` (closed as superseded, 2026-09-07)
+
+`#176` approached the same gap from the panel/gesture side. Its design is folded
+in here rather than lost; the two turned out to be **complementary**, not
+duplicative — this issue establishes that the conversation cannot *resume*, and
+`#176`'s carrier is the answer to that.
+
+**One operation, not two.** `switch-agent` takes the target agent as an
+argument, and **restart is the same call with target == current**. Do not build
+two commands that diverge. Combined with the argv axis this gives one action
+with four degenerate cases:
+
+| | agent | argv | conversation |
+|---|---|---|---|
+| `#182` relaunch | current | current | kept (same binding) |
+| restart agent (`Alt+Shift+N`) | current | current | fresh |
+| switch agent | **target** | that agent's `ArgvByAgent` entry | carrier (below) |
+| new params | current | **new** | per the above |
+
+**Declaration.** Beside the others in `couchcore/ops.go` with a row in the
+declaration table (`ops_declarations_test.go`). Shape: `ExecuteLiveOwner`,
+`EffectProcess`, **`ConfirmRequired`** — it destroys a live session, the same
+grounds on which `stop` is the one existing `ConfirmRequired` operation. `#159`
+made the TUI the public CLI, so one declaration yields both surfaces.
+
+**Quiesce is observed, not acknowledged.** couch observes the current driver's
+exit itself rather than trusting an acknowledgment from the process being
+stopped. A source that dies silently is a case the tests must cover.
+
+**The context carrier, chosen by source HEALTH rather than by trigger.** This
+answers this issue's own "the target agent starts with no conversation": the
+conversation cannot be *resumed* (no native binding for the target), but a
+carrier can be handed over, and the rule covers switch and restart alike:
+
+- **Source healthy** — the ordinary restart-to-refresh, and a switch made by
+  choice ⇒ a **continuation**, as `#115` does. Distilled, and the agent is
+  present to write it.
+- **Source degraded or gone** — quota, provider outage, a wedged session ⇒ the
+  **path to the prior transcript**, handed over for the new session to read if
+  it wants. Free, requires nothing of the dying agent, raw rather than
+  distilled: a worse summary and a strictly more available one.
+
+The fallback is what makes the operation usable in the cases that motivate it
+(`#135` lists them: degraded provider, exhausted quota, an agent that can no
+longer produce the continuation document itself). Choosing by *health* rather
+than by which case triggered it is what keeps it one rule.
+
+**The prior transcript is already preserved — the work is selection, not
+rotation.** Per-agent artifacts carry the agent in the filename
+(`scrollback-<tag>-<agent>.raw`), so a claude→codex switch writes a different
+file by construction, while tag-scoped artifacts (draft, log, ledger, queue) are
+deliberately shared — the `#115` model. And pair's quit path already *moves* the
+scrollback to a timestamped `parked-scrollback-<tag>-<ts>` base ("move on quit,
+copy on compaction", `launcher/osruntime.go:841-856`). Those snapshots
+accumulate per tag, so the handover must name **which** one belongs to the
+session just replaced: reuse `ParkedScrollbackArtifacts` rather than adding a
+second snapshot path (`ARCH-DRY`).
+
+### One thing neither issue decided
+
+**The preference store is keyed by path, not by thread.**
+`path-preferences/<digest>.json` digests `RepoIdentity` + `PhysicalPath`, so two
+threads at one path share `LastAgent` and `ArgvByAgent`. Switching agent on one
+thread therefore nudges the default for the next start at that path. That is
+probably wanted — the preference reads as "which agent do I use for this repo" —
+but it is a semantic choice about shared state, not an implementation detail, and
+it should be stated before building rather than discovered afterwards.
+
 ## Plan
 
-Plan lands after `sdlc claim` + `sdlc start-plan`; #182's relaunch machinery
-(status pane, park-then-launch composition, precondition-before-park ordering)
-has to be in the tree before this is designed for real.
+`#182`'s relaunch machinery (status pane, park-then-launch composition,
+precondition-before-park ordering) has **landed**, so this issue's stated
+precondition is cleared. Steps below are `#176`'s, kept because they are the
+concrete ones.
 
-- [ ] Design against the landed #182 relaunch operation
+- [ ] Decide the path-vs-thread keying question above; record the answer in
+      `## Spec`.
+- [ ] Declare `switch-agent` in `ops.go` + the declaration table, with the
+      `ConfirmRequired` shape.
+- [ ] Quiesce-and-observe on couch's side; test a source that dies silently.
+- [ ] Skip `CheckResumePreconditions`' binding rule for the target agent via the
+      existing `isBindingDiagnostic` factoring; assert its absence is not an
+      error.
+- [ ] Carrier selection on source health: continuation when available,
+      `ParkedScrollbackArtifacts` transcript path when not.
+- [ ] Restart = same call, target == current; assert **one** code path, and pin
+      subsystem-identity change (zellij/nvim/pair-wrap), not just agent liveness.
+- [ ] Failure path: assert the thread is still startable after a failed switch.
 
 ## Log
 

@@ -187,11 +187,30 @@ func RoleForPane(p zellijpane.Pane) PaneRole {
 		return PaneRoleLeftAgent
 	case strings.Contains(cmd, "nvim") && strings.Contains(cmd, "/nvim/init.lua"):
 		return PaneRoleLeftDraft
-	case strings.Contains(cmd, "pair term"), title == "terminal", strings.HasPrefix(title, "terminal "):
+	case strings.Contains(cmd, "pair term"), TitleIdentifiesRightTerminal(title):
 		return PaneRoleRightTerminal
 	default:
 		return PaneRoleOther
 	}
+}
+
+// TitleIdentifiesRightTerminal is THE predicate for "this pane title, on its
+// own, says right-terminal". Exported because the PRODUCER of that title has to
+// ask it rather than restate it.
+//
+// Restating it is not hypothetical: `pair term`'s degraded title prefixed with
+// `terminal ` only when the tab name did not already start with `terminal`,
+// which is an approximation of this predicate and disagrees with it on every
+// name that starts with `terminal` and then continues -- measured, a tab renamed
+// `terminals` produced the title `terminals`, which classifies as
+// PaneRoleOther and silently costs the pane its global shortcuts whenever the
+// pane's command is unavailable (pair#199 BR-56).
+//
+// Case-folded here so a caller need not remember to: RoleForPane lower-cases
+// before matching, and a producer asking this question has a raw name.
+func TitleIdentifiesRightTerminal(title string) bool {
+	t := strings.ToLower(strings.TrimSpace(title))
+	return t == "terminal" || strings.HasPrefix(t, "terminal ")
 }
 
 func Decide(in ShortcutInput) ShortcutDecision {

@@ -21,6 +21,32 @@
   own header what question it answers, which is where to look rather than in a
   list here that would drift.
 
+  **Shared harness:** `probes/zellijprobe` is the one implementation of "start a
+  zellij session under a pty, read what it renders, tear it down". It exists
+  because the two copies diverged in a way that mattered: one discovered its
+  session by DIFFING `zellij list-sessions` and force-deleted an arbitrary new
+  name, from `make test-smoke` — so any session that appeared in that window,
+  including an operator's workbench, was a candidate. `Start` names the session
+  and `Close` deletes that name, which makes "a probe can only destroy a session
+  it created" structural rather than remembered.
+
+  **There are exceptions, and they are the whole reason to state the rule.**
+  `cmd/probes/` is a second probe home, reachable only through a per-probe
+  target, and a probe belongs there for one of two reasons. It needs an
+  ARGUMENT the wholesale loop cannot supply — `couchstartrecovery` takes
+  `bin/pair-launch-helper`; `termctrlc` and `termrows` take `bin/pair`. Or it
+  must import a `cmd/internal/…` package, which Go forbids from `probes/`
+  outright: `couchnestedrows` reserves a row with the real
+  `hostty.Reservation`, and a probe that reimplemented the escape it is
+  measuring would be measuring itself.
+
+  So "probes live in `probes/`" is true of every probe that runs with no
+  arguments and needs nothing internal; anything else goes under `cmd/probes/`
+  **with its own target in the same commit**, since nothing will run it
+  otherwise. Recorded because the rule without its exceptions is how `#199`'s
+  first probe landed in the wrong home and was then hand-added to two lists to
+  compensate — the exact remembering `test-smoke` exists to abolish.
+
 - `doctor/README.md` — `pair-doctor`: read the adaptation flight recorder to diagnose harness integration drift (see the bring-up guide §3 for the signal registry). Primary entry is the agent-agnostic `:PairDoctor` nvim command (`nvim/doctor.lua`); the procedure is single-sourced in `doctor/SKILL.md`, optionally registerable as a Claude skill.
 - `doctor/perf.sh` — the performance half of the same entry (`#208`): a snapshot
   of load, per-process resource **rates**, the render path (WindowServer), and

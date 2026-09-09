@@ -256,7 +256,7 @@ func (c *Console) SetErrorWriter(w io.Writer) { c.stderr = w }
 func (c *Console) ChildSize() ptychild.Size {
 	c.mu.Lock()
 	defer c.mu.Unlock()
-	return ptychild.Size{Rows: ChildRows(c.size.Rows), Cols: c.size.Cols}
+	return ptychild.Size{Rows: bottomReservation(c.size.Rows).ChildRows(), Cols: c.size.Cols}
 }
 
 // Deliver is the sink handed to the runner: it hands a child's output to the
@@ -903,12 +903,23 @@ func (c *Console) onExit(event childExit) bool {
 // so the operator's shell does not inherit a pinned region or a stale row.
 func (c *Console) release() {
 	c.mu.Lock()
-	rows := c.size.Rows
+	res := bottomReservation(c.size.Rows)
 	c.mu.Unlock()
 	// Teardown writes UNCONDITIONALLY: a half-restored terminal is worse than a
 	// spliced sequence, and the child is finished with the screen by now.
 	_, _ = io.WriteString(c.host,
-		Release()+PaintRow(rows, "")+hostty.ResetInteractiveModes+hostty.LeaveAltScreen+hostty.ResetRegion+hostty.ShowCursor)
+		res.Release()+res.Paint("")+hostty.ResetInteractiveModes+hostty.LeaveAltScreen+hostty.ResetRegion+hostty.ShowCursor)
+}
+
+// bottomReservation is couch's row: always the host's bottom one.
+//
+// A plain function of rows, NOT a method that reads c.size under the lock. Most
+// callers here already hold c.mu, so a locking accessor deadlocks -- which it
+// did, in ChildSize and applyLayout, on the first version of this lift. Taking
+// rows as an argument makes every call site obviously safe and leaves reading
+// c.size where the locking discipline already is.
+func bottomReservation(rows uint16) hostty.Reservation {
+	return hostty.Reservation{Rows: rows, Edge: hostty.EdgeBottom}
 }
 
 func (c *Console) activeChild() *ptychild.Child {
@@ -925,7 +936,7 @@ func (c *Console) activeChild() *ptychild.Child {
 // two.
 func (c *Console) applyLayout() {
 	c.mu.Lock()
-	size := ptychild.Size{Rows: ChildRows(c.size.Rows), Cols: c.size.Cols}
+	size := ptychild.Size{Rows: bottomReservation(c.size.Rows).ChildRows(), Cols: c.size.Cols}
 	children := make([]*ptychild.Child, 0, len(c.panes))
 	for _, p := range c.panes {
 		children = append(children, p.child)
@@ -986,6 +997,21 @@ func (c *Console) takeOverScreen(body []byte) {
 
 	_, _ = io.WriteString(c.host, hostty.HomeAndClear)
 	_, _ = c.host.Write(body)
+
+	// And FEED it back. The reset above drops the old child's partial sequence,
+	// which is right, but it also drops everything the scanner knew about the
+	// NEW child's modes -- and the body is exactly the bytes that re-establish
+	// them. Without this the scanner believes the primary screen after every
+	// switch, so SafeToPaint's alt-screen carve-out cannot apply: a full-screen
+	// child that then takes the cursor-save slot (nvim's `?1048h`) closes the
+	// paint gate for the rest of its session, which is BR-79's frozen strip
+	// arriving by another road (BR-82).
+	//
+	// termcmd's applyTakeover has done this since M3; couch resetting without
+	// feeding is the same shared-primitive divergence as BR-77.
+	c.mu.Lock()
+	c.hostScan.FeedFraming(body)
+	c.mu.Unlock()
 }
 
 // writeOwn emits the console's OWN bytes, and is the only way they reach the
@@ -993,7 +1019,11 @@ func (c *Console) takeOverScreen(body []byte) {
 // debt; the next chunk that lands on a boundary pays it.
 func (c *Console) writeOwn(p string) {
 	c.mu.Lock()
-	if c.hostScan.MidSequence() {
+	// SafeToPaint, not MidSequence: the shared door adds "the child holds the
+	// cursor save", which couch needs for the same reason termcmd does even
+	// though its full-screen child usually repaints over the damage. Masking is
+	// not safety -- two bugs latent in this primitive since #146 proved that.
+	if !c.hostScan.SafeToPaint() {
 		c.paintPending = true
 		c.mu.Unlock()
 		return
@@ -1047,7 +1077,8 @@ func (c *Console) paintNow() {
 	c.mu.Lock()
 	c.statusChips = row.Chips
 	c.mu.Unlock()
-	c.writeOwn(Reserve(rows) + PaintRow(rows, row.Body))
+	res := bottomReservation(rows)
+	c.writeOwn(res.ReserveAndPaint(row.Body))
 }
 
 func (c *Console) syncAttentionLocked() {
@@ -1092,7 +1123,7 @@ func (c *Console) onChunk(ch chunk) {
 		}
 		if part.Notification != nil {
 			c.mu.Lock()
-			unsafe := c.hostScan.MidSequence()
+			unsafe := !c.hostScan.SafeToPaint()
 			if unsafe {
 				ch.batch.Parts = append([]ptychild.OutputPart(nil), parts[i:]...)
 				c.deferredNotifications = append(c.deferredNotifications, ch)
@@ -1122,7 +1153,7 @@ func (c *Console) onChunk(ch chunk) {
 	// A paint deferred while the stream was mid-sequence is owed as soon as
 	// the stream is whole again.
 	c.mu.Lock()
-	owed := c.paintPending && !c.hostScan.MidSequence()
+	owed := c.paintPending && c.hostScan.SafeToPaint()
 	c.mu.Unlock()
 	if owed {
 		c.paintNow()
@@ -1169,7 +1200,7 @@ func (c *Console) onChunk(ch chunk) {
 // inserting another actor's OSC cannot corrupt a partial host sequence.
 func (c *Console) flushDeferredNotifications() {
 	c.mu.Lock()
-	if c.flushingNotifications || c.hostScan.MidSequence() || len(c.deferredNotifications) == 0 {
+	if c.flushingNotifications || !c.hostScan.SafeToPaint() || len(c.deferredNotifications) == 0 {
 		c.mu.Unlock()
 		return
 	}
@@ -1183,7 +1214,12 @@ func (c *Console) flushDeferredNotifications() {
 
 	for {
 		c.mu.Lock()
-		if c.hostScan.MidSequence() || len(c.deferredNotifications) == 0 {
+		// SafeToPaint, matching the entry guard above. They MUST agree: with the
+		// entry guard stricter than the loop, a chunk that takes the cursor
+		// slot mid-drain leaves onChunk deferring the notification straight
+		// back onto the queue this loop pops from -- and the loop, still asking
+		// the looser question, spins forever.
+		if !c.hostScan.SafeToPaint() || len(c.deferredNotifications) == 0 {
 			c.mu.Unlock()
 			return
 		}

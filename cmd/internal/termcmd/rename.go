@@ -59,6 +59,26 @@ func (e RenameEditor) Original() string {
 	return e.original
 }
 
+// Field is the editor as a SURFACE draws it: the text with the caret in it.
+//
+// ONE surface today -- the tab strip. It was written for two, when the pane
+// TITLE also carried the field, and the caret was being placed independently in
+// each; the title's copy was then deleted outright in the same milestone (#199
+// M3), which is the better fix and leaves this with a single caller. It stays a
+// method rather than folding back into RenderStrip because the clamp belongs
+// with the editor's own invariants, and because the strip renders from a pure
+// model that must not reach into an editor to compose a caret.
+func (e RenameEditor) Field() string {
+	cursor := e.cursor
+	if cursor < 0 {
+		cursor = 0
+	}
+	if cursor > len(e.text) {
+		cursor = len(e.text)
+	}
+	return string(e.text[:cursor]) + "│" + string(e.text[cursor:])
+}
+
 func (e RenameEditor) Apply(event RenameEvent) (RenameEditor, RenameOutcome) {
 	e.text = append([]rune(nil), e.text...)
 	switch event.Kind {

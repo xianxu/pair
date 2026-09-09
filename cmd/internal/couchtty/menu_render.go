@@ -2,6 +2,7 @@ package couchtty
 
 import (
 	"fmt"
+	"github.com/xianxu/pair/cmd/internal/rowtext"
 	"strings"
 	"time"
 
@@ -621,7 +622,7 @@ func fitMenuBlock(block []string, width, height int) []string {
 }
 
 func clipMenuLine(line string, width int) string {
-	return truncate(sanitize(line), width)
+	return rowtext.SanitizeAndFit((line), width)
 }
 
 func clipStyledMenuLine(line string, width int) string {

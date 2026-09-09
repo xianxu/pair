@@ -30,8 +30,29 @@ const (
 	// ClearLine erases the row the cursor is on.
 	ClearLine = "\x1b[2K"
 
-	// HomeAndClear is the prelude to a repaint.
-	HomeAndClear = "\x1b[1;1H\x1b[J"
+	// ResetSGR clears colour and attributes.
+	//
+	// A reserved row MUST emit this before it erases and draws. An ERASE paints
+	// with the CURRENT background, and text inherits the current foreground, so
+	// a row drawn straight after a child's output wears whatever colour that
+	// child last set -- measured 2026-09-08: `pair term`'s tab strip came out
+	// in nvim's lualine colours, because lualine is the last thing that sets
+	// SGR before the row is painted.
+	ResetSGR = "\x1b[0m"
+
+	// HomeAndClear is the prelude to a repaint: reset, home, erase.
+	//
+	// THE RESET IS PART OF THE ERASE, not decoration in front of it. `\x1b[J`
+	// paints the cleared region with the CURRENT background, so a clear issued
+	// while a child's colour is active tints the whole screen -- and the next
+	// child to write inherits it. Measured 2026-09-08: opening a tab after nvim
+	// gave the new shell nvim's lualine blue behind its first lines, because
+	// `pair term`'s tab takeover cleared while lualine's SGR was still set.
+	//
+	// Folded into the constant rather than left to each caller: there are two
+	// (termcmd's takeover, couch's takeOverScreen) and both want the same thing,
+	// which is what makes "remember to reset first" the wrong shape.
+	HomeAndClear = "\x1b[0m\x1b[1;1H\x1b[J"
 
 	// LeaveAltScreen and ShowCursor are unconditional teardown guards. A child
 	// may die or couch may be signalled before it emits its own paired restore.

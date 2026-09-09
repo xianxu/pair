@@ -85,7 +85,7 @@ Terminal code has its own standing moves, all of them lessons already paid for i
 | `PanelKey` / `DecodePanelKeys` | `cmd/internal/couchtty/panelkeys.go` | new |
 | `StatusModel` / `RenderStatusRow` | `cmd/internal/couchtty/reserve.go` | new |
 | `Interceptor` | `cmd/internal/couchtty/keys.go` | new |
-| `Reserve` / `Release` / `PaintRow` | `cmd/internal/couchtty/reserve.go` | new |
+| `Reserve` / `Release` / `PaintRow` | `cmd/internal/couchtty/reserve.go` | deleted (moved to `hostty.Reservation` methods in `#199`; row kept so the contract asserts their ABSENCE here) |
 | `ResetRegion` / `SaveCursor` / `RestoreCursor` / `ClearLine` / `HomeAndClear` / `LeaveAltScreen` / `ShowCursor` / `SetRegion` / `MoveTo` | `cmd/internal/hostty/control.go` | new (`\x1b[r` moved from `termcmd/run.go`) |
 | `Notice` / `Feed` | `cmd/internal/couchtty/notice.go` | new |
 

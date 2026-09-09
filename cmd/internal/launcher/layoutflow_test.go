@@ -144,8 +144,11 @@ func TestClassifyLiveLayout(t *testing.T) {
 			panes: []zellijpane.Pane{
 				{Title: "codex", TerminalCommand: "pair wrap codex"},
 				{Title: "draft", TerminalCommand: "nvim /data/draft-work.md"},
-				{Title: "[terminal 1]", TerminalCommand: "sh -c exec pair term"},
-				{Title: "[terminal 1]", TerminalCommand: "sh -c exec pair term"},
+				// The DEGRADED title (#199 M3). "[terminal 1]" was the packed
+				// form, which no producer emits any more -- a fixture asserting
+				// a shape the tree cannot produce tests nothing (BR-48).
+				{Title: "terminal 1", TerminalCommand: "sh -c exec pair term"},
+				{Title: "terminal 1", TerminalCommand: "sh -c exec pair term"},
 			},
 			want: Layout3,
 			ok:   true,

@@ -3748,3 +3748,254 @@ happened, so the sharper form: **the restore step is the dangerous one, not the
 mutation.** Either commit first (so `checkout` is a real undo), or restore from
 a copy you made yourself rather than from git. After any `git checkout` during a
 mutation check, grep for the fix to confirm it survived.
+
+## 2026-09-08 — A probe's first surprising result is a claim about the INSTRUMENT
+
+`cmd/probes/couchnestedrows` reported, on its first clean run, that `pair term`'s
+tab strip rendered `日本語` as `語` — a wide-character rendering defect, in the
+exact place a wide-character defect was plausible, in a milestone that had
+already produced four real positional bugs. Every prior would have said believe
+it.
+
+It was the harness. `charmbracelet/x/vt` leaks non-ASCII bytes out of an OSC
+payload onto the screen, reproduced standalone in six lines:
+
+```go
+vt.NewEmulator(40, 5) <- "AB\x1b]0;terminal 日本語\aCD"   // renders "AB語CD"
+```
+
+zellij sets the pane title on every rename keystroke, so the row the probe read
+was the tail of the TITLE. Rules:
+
+- **Before believing a new instrument's first failure, write the six-line
+  reproducer for the instrument itself.** It cost five minutes; acting on the
+  reading would have cost a redesign of a renderer that was already correct.
+- The tell is a result too *convenient*: the failure landed precisely on the
+  feature under test, in the one run where the harness itself was also new.
+- Corollary for building probes: a probe that models a terminal must be checked
+  against the sequences its subject actually emits — here OSC, which draws
+  nothing and so must be filtered rather than rendered.
+
+## 2026-09-08 — A feature that borrows another component's surface breaks when that component is removed
+
+`pair term`'s Alt+R rename drew its editor into the zellij pane TITLE. That was
+free and it worked — and it made the rename's UI a property of the pane FRAME,
+which the very next milestone (M4) removes at all nine layout sites. Renaming
+would have become blind typing, with every unit test still green and the earlier
+smoke run still valid, because both were run while the frame was there.
+
+- **When a milestone removes a surface, enumerate everything drawn on it** — not
+  just the thing the milestone is about. The frame carried the pane title; the
+  pane title carried a live editor nobody had listed as a consumer.
+- A feature whose only output goes through another component's chrome has a
+  dependency it never declared. If you own the row, draw on the row.
+- The instrument that found it drove the REAL keystrokes end to end. Neither a
+  unit test nor a code read would have: nothing was wrong with the code, only
+  with where its output landed.
+
+## 2026-09-08 — A "does it call the cleanup" check passes the bug where the call is on the other branch
+
+`removeTab` skipped the only thing that repainted the tab strip, but only on its
+`preserveRename` branch — so a tab exiting mid-rename left the strip listing a
+tab that no longer existed. The tempting guard is static: scan each mutator for a
+call to `paintStrip`. It would have passed. `removeTab` *does* call it.
+
+- **A guard over "is the call present" cannot see "is the call reachable on this
+  path".** Pair the static enumeration (which catches a method added later) with
+  a behavioural table (which catches a branch that skips it). Neither alone is
+  the rule.
+- The representation had been defended and the transition had not: both
+  `StripModel.Active` and `RenameField.Tab` carried comments about a tab exiting
+  during a rename. Comments about a state say nothing about the event that
+  reaches it.
+- Sweeping "every site that does X" by hand is the failure mode. This sweep hit
+  three of four sites because a probe happened to catch those three end to end —
+  the fourth had no probe, so it had nothing.
+
+## 2026-09-08 — A feature that retires a cost can reintroduce it in its own implementation
+
+pair#199 exists because tab state was carried by `zellij action rename-pane` —
+"a subprocess per title change" is cost #1 in its own Problem statement. The tab
+strip retired that. And then the strip's rename editor was drawn into the pane
+title *as well*, forking a subprocess **per keystroke** — a strictly worse rate
+than the thing the issue was written to remove, shipped inside the fix for it.
+
+- **After building the replacement, grep for the mechanism you replaced.** Not
+  in the old call sites — in the NEW code. The reason it survives there is that
+  it was the obvious way to do the sub-feature nobody re-derived.
+- The plan had already written the budget down (*"one spawn on tab switch only,
+  not on every render"*) and it was false for the whole milestone. A budget with
+  no test is a sentence. `TestARenameCostsExactlyOneZellijSubprocess` is what a
+  budget looks like when it means something.
+- The same deletion fixed an unrelated-looking defect: the retired producer was
+  also the one that had never been swept by the title-format change. Two symptoms
+  with one cause read as two findings until you delete the cause.
+
+## 2026-09-08 — A guard you write to close a class needs the same adversarial check as the code it guards
+
+Three review rounds on one milestone. Round 12 closed eight findings; round 13
+raised three, and **all three were about the guards round 12 had written**, not
+about the feature:
+
+- The Core-concepts guard hardcoded `workshop/plans/…`. `sdlc close` *moves*
+  plans to `workshop/history/`, so it would have broken `make test` for the whole
+  repo at the very next gate — and the repo already had a resolver that handles
+  both, in the machinery I had deliberately not copied.
+- The "every budget bullet owes a test" rule was stated and then delivered for
+  one of three bullets. Deleting the other two behaviours left the suite green.
+- The go/ast pass claiming "every mutator announces itself" read one of the
+  package's five source files; the stacked-godoc guard skipped grouped `const`
+  blocks — including the exact file where that milestone had rewritten doc
+  comments.
+
+Rules:
+
+- **Mutation-check the guard, not just the fix.** For a guard, the mutation is
+  "add the thing it is supposed to catch, somewhere it is supposed to look" —
+  a new mutator in a *different file*, a stacked comment in a *grouped*
+  declaration, the artifact in its *archived* location.
+- **When you re-implement rather than reuse, enumerate what the original
+  handled.** "Deliberately not a copy of that machinery" is a reasonable call and
+  it silently drops the cases the original had learned. Read the original for its
+  CASES even when you reject its code.
+- **A budget is a bound on the negative direction.** A suite that asks "did X
+  happen" everywhere and "did X happen when it should not" nowhere cannot see a
+  budget violation. Tests that COUNT are a different shape from tests that
+  ASSERT, and a declared constraint needs the counting kind.
+
+## 2026-09-08 — Stating a class rule is not closing it; the enumeration is
+
+pair#199 M3 took four review rounds. The family `guard-hardcodes-an-active-path`
+appeared in round 13, was "fixed" with a shared resolver applied to the two
+guards the finding pointed at, and reappeared in round 14 — because the round
+that stated the rule never ran the one command the rule implies:
+
+```
+grep -rn "workshop/plans" cmd tests scripts
+```
+
+Seconds. It returns a third site, a shell script wired into `make test`, whose
+failure mode is the whole repo's suite breaking at the next `sdlc close`.
+
+- **When you name a class, run its enumeration before writing the fix.** The
+  rule tells you what to grep for. Not grepping means you fixed instances and
+  described a class.
+- **A family that repeats across review rounds is the ledger telling you the
+  enumeration was never written.** Treat a repeat as evidence about your process,
+  not about the reviewer being thorough.
+- The same round has a second example: the class guard for superseded prose
+  already existed and read only the PLAN, never the ISSUE — which is the artifact
+  the close gate checks. A guard bounded to one artifact of a family is the same
+  gap in a different shape.
+
+## 2026-09-08 — os.Exit skips defers, so a probe's cleanup runs only on the happy path
+
+Every probe in this repo registered its cleanup as a `defer` — delete the zellij
+session it created, remove the temp dir — and then left through `os.Exit` on its
+diagnostic paths. Including the likeliest one: "the session never appeared".
+
+Measured: six live `couchnestedrows-<pid>` sessions left behind by *failing* runs
+during one milestone, each name carrying a pid nothing later reclaims — so a
+recycled pid then makes the next run fail at startup for an unrelated-looking
+reason.
+
+- **`func main() { os.Exit(run()) }`.** Every path returns a code; the defers
+  live in `run`. Two lines, and cleanup becomes unconditional.
+- **The failure path is the one that needs the cleanup most**, and it is the path
+  least likely to be exercised while you are developing the happy one.
+- Making one half structural invites the assumption that the other half is:
+  "a probe can only delete a session it created" was enforced by construction,
+  which read as "sessions are handled" — while "a probe always deletes the session
+  it created" was still just a defer in the wrong place.
+
+## 2026-09-08 — Changing what a shared predicate MEANS is three obligations; discharging one is how you cause the next Critical
+
+pair#199's close ran six review rounds. Rounds 1–3 found defects in the original
+work. **Rounds 4, 5 and 6 each found a Critical introduced by the previous
+round's fix** — and all three were the same predicate, `ptychild.Screen.SafeToPaint`,
+the shared gate that says whether a console may paint the reserved row.
+
+| round | defect | the obligation the previous fix left undischarged |
+|---|---|---|
+| BR-78 | couch's notification drain still gated on the old, narrower question → a spin | **every consumer must ask it** |
+| BR-79 | `?1049h` holds the save slot for nvim's whole session → strip frozen for minutes | **each input's lifetime must match the question being asked** |
+| BR-81 | RIS never cleared `altScreen` → the save half of the gate off for good | **each input must be maintained on every path that resets what it models** |
+
+Each round I fixed the thing the reviewer named and shipped. The reviewer was
+finding one obligation at a time because **I was generalizing one step, not to
+closure.** BR-77 said "couch is unguarded"; I read the class as *the call sites
+that look like the reported one* and updated four of five. BR-79 said "1049
+freezes the strip"; I corrected that input's semantics and never asked what the
+other input's lifecycle looked like.
+
+- **A predicate over shared state has three closures, not one.** Consumers,
+  writers, resets. Enumerate all three the moment you change what the predicate
+  means — mechanically, in the same sitting. `grep -n "cursorSaved = \|altScreen = "`
+  and `grep -rn "hostScan\."` are seconds each, and either one, run in round 4,
+  ends the loop there.
+- **Promoting a field to a safety input is the expensive edit**, not the line
+  that reads it. A field that was advisory (`altScreen`, used to pick a repaint
+  strategy) has no obligation to be reset promptly. The same field consulted for
+  *safety* now must be correct on every path. The promotion is where the audit is
+  owed; that is the sentence now sitting above `s.altScreen = false` in the code.
+- **A conservative-looking gate is not automatically safe.** BR-79's fix made the
+  gate close *more* often, which felt safe and was in fact the worst regression of
+  the three: the strip is a liveness surface, so a permanently-shut gate is a
+  visible product defect where the hazard it prevented was a one-frame glitch.
+  "Fails closed" is only safe when closed is cheap.
+
+**And the guards I wrote had the same defect as the code.** The one for BR-78
+checked a single function — the one the reviewer named — and would have passed if
+the unguarded consumer had been any other. The one for BR-81 hand-listed three
+fields, so a fourth safety input added tomorrow leaves it green. Both are now
+closed over their class instead:
+
+- `tests/paint-gate-consumers-test.sh` walks *every* `hostScan.` reference in both
+  packages and fails any that reads the gate without asking `SafeToPaint()`.
+- `TestTheSafetyInputSetIsDerivedNotRemembered` **parses `SafeToPaint`'s own source**
+  for the fields it reads, then requires each one to be reachable by a test
+  sequence *and* zero after RIS. Add an input without a reset and it fails; add an
+  input without a way to set it and it fails too, so the RIS half can never pass
+  vacuously.
+
+The general rule, and the one countermeasure in this issue that never needed a
+second round: **prefer the check that derives its own scope over the check you
+keep in step by remembering to.** `paneWriter` deliberately not being an
+`io.Writer` — a new door is a compile error — cost one line and has held for the
+whole issue. Every guard here that merely *checked* has itself needed a coverage
+audit. Cf. [Stating a class rule is not closing it] and [A guard you write to
+close a class needs the same adversarial check as the code it guards]: this is
+the same family, one level up — the enumeration must be executed *by the guard*,
+not by me at the moment I write it.
+
+**Round 7 committed this lesson's own error, and the next review measured it.**
+The entry above was written in the same commit as three guards, and all three
+*derived their subject and hand-listed their scope*:
+`tests/paint-gate-consumers-test.sh` hardcoded `FILES=(console.go run.go)` and
+matched the literal identifier `hostScan.`; `doccomment_test.go` hand-listed four
+package roots; `plan-superseded-facts-test.sh` set `ATLAS` to one file directly
+beneath a comment declaring atlas an artifact *class*. Deriving each scope — one
+expression apiece — immediately found live defects the hand-lists could not see:
+**three** stacked godocs in `couchcore`/`couchtty` (one of them a paragraph
+explaining that this exact mistake had been caught before), and a stale atlas
+sentence falsified by this window's own change to the thing it described.
+
+- **A guard has a subject and a scope, and generalizing only the subject is the
+  same defect one level out.** "Which fields does this predicate read" derived
+  from source, "which files do I check" typed from memory — the second half
+  silently bounds the first.
+- **The tell is a list literal in a guard.** `FILES=(...)`, `roots := []string{...}`,
+  `ATLAS="one/file.md"`. Each one is an enumeration that stopped being executed.
+  If a guard exists because remembering failed, a list inside it is the same
+  remembering, relocated.
+- **A guard's scope must fail loudly when it goes blind**, because a derived scope
+  can silently match nothing. Every one of these now asserts a floor (`< 2 files`,
+  `< 3 modes`, "derived no scanner field") and fails rather than passing empty.
+
+And the second family, in the state direction: a **reset** arm's field set is
+derived from the terminal state that reset clears, not from the fields the
+load-bearing predicate happens to read. `TestTheSafetyInputSetIsDerivedNotRemembered`
+is scoped to `SafeToPaint`'s inputs by design, so it is structurally blind to a
+mode RIS forgets that the gate does not consult — and the mouse modes sat unreset
+behind exactly that blindness. Two derivations, two directions, both required:
+one from the predicate, one from the reset.

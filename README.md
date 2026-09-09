@@ -13,6 +13,9 @@ Launches a `zellij` workbench in one of two layouts:
 - **Layout 3 (`--layout3`)** — the same Pair-owned stack on the left plus a
   user-owned terminal on the right, where you can run a shell or full Neovim.
   It has its own tabs (`Alt+t` / `Alt+w` / `Alt+r`) and can split (`Alt+Shift+d`).
+  Those tabs are drawn on a **tab strip in the pane's bottom row**, which the
+  pane reserves for itself — so a shell there sees a terminal one row shorter
+  than the pane, and `Alt+r` edits the tab name in place on that row.
 
 Layout flags are Pair-owned and may appear before or after the agent name but
 before `--`, for example `pair codex --layout3` or

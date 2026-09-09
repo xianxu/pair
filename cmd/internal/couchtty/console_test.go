@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"os"
 	"strings"
 	"syscall"
 	"testing"
@@ -850,5 +851,201 @@ func TestConsoleReportsWhatLeaveDid(t *testing.T) {
 		if !strings.Contains(got, want) {
 			t.Fatalf("leave report = %q, want it to mention %q", got, want)
 		}
+	}
+}
+
+// BR-78: the drain loop's condition must MATCH the entry guard's.
+//
+// With the entry guard stricter (SafeToPaint) than the loop (MidSequence), a
+// chunk that takes the cursor slot mid-drain leaves onChunk re-deferring the
+// notification straight back onto the queue this loop pops from -- and the
+// loop, still asking the looser question, spins forever.
+//
+// This one pins the easy half: with the child ALREADY holding the save, the
+// drain returns. It does not reproduce the spin -- the entry guard
+// short-circuits, so the loop is never entered -- and for two rounds a comment
+// here claimed the spin was unstageable, which was measurably false. The spin
+// needs the gate SAFE at entry and closed DURING the drain, and the drain closes
+// it itself: see the test below.
+func TestTheNotificationDrainTerminatesWhenTheChildHoldsTheCursorSave(t *testing.T) {
+	c := New(hostty.NewFakeHost(ptychild.Size{Rows: 24, Cols: 80}), strings.NewReader(""))
+
+	// A save held, stream at a boundary: SafeToPaint false, MidSequence FALSE.
+	// That gap is exactly where the loop and its entry guard disagreed.
+	c.mu.Lock()
+	c.hostScan.FeedFraming([]byte("\x1b7"))
+	safe, mid := c.hostScan.SafeToPaint(), c.hostScan.MidSequence()
+	// A chunk carrying a NOTIFICATION part. An empty chunk re-defers nothing,
+	// so the loop drains it and returns even with the bug present -- the first
+	// version of this test passed against the reverted fix for exactly that
+	// reason, which is the same "passes for the wrong reason" trap that has
+	// caught several tests in this issue. onChunk only re-defers when it has a
+	// notification to defer.
+	c.deferredNotifications = append(c.deferredNotifications, chunk{
+		id: "probe",
+		batch: ptychild.OutputBatch{
+			Parts: []ptychild.OutputPart{{Notification: &ptychild.NotificationObservation{}}},
+		},
+	})
+	c.mu.Unlock()
+	if safe || mid {
+		t.Fatalf("setup does not reproduce the gap: SafeToPaint=%v MidSequence=%v; "+
+			"the spin needed unsafe-but-not-mid-sequence", safe, mid)
+	}
+
+	done := make(chan struct{})
+	go func() { c.flushDeferredNotifications(); close(done) }()
+	select {
+	case <-done:
+	case <-time.After(5 * time.Second):
+		t.Fatal("flushDeferredNotifications did not return; the drain loop is asking " +
+			"a looser question than its entry guard and spins on a re-deferred chunk")
+	}
+}
+
+// couch defers its OWN paint while the child holds the cursor save (BR-77).
+//
+// The Critical was that couch asked a narrower question than `pair term` while
+// running the identical primitive. That was fixed and then pinned only by a
+// source-text guard -- but the behaviour is one call away, and a source guard
+// cannot show that the deferral actually happens.
+func TestCouchDefersItsOwnPaintWhileTheChildHoldsTheCursorSave(t *testing.T) {
+	host := hostty.NewFakeHost(ptychild.Size{Rows: 24, Cols: 80})
+	c := New(host, strings.NewReader(""))
+
+	c.writeChild([]byte("\x1b7")) // zsh's right-prompt save, outside the alt screen
+	host.Reset()
+	c.writeOwn("STRIP")
+
+	if got := host.Written(); strings.Contains(got, "STRIP") {
+		t.Fatalf("couch painted inside the child's save/restore pair; wrote %q", got)
+	}
+	c.mu.Lock()
+	pending := c.paintPending
+	c.mu.Unlock()
+	if !pending {
+		t.Fatal("the paint was dropped rather than owed; the debt must be paid at the " +
+			"next safe boundary")
+	}
+
+	// And the debt is payable once the child restores.
+	c.writeChild([]byte("\x1b8"))
+	c.writeOwn("STRIP")
+	if got := host.Written(); !strings.Contains(got, "STRIP") {
+		t.Fatalf("the gate never reopened after the child's restore; wrote %q", got)
+	}
+}
+
+// A takeover must leave the scanner knowing what the NEW child's screen says
+// (BR-82).
+//
+// The reset is right -- the old child's partial sequence is gone from the screen
+// -- but resetting alone means the scanner believes the PRIMARY screen after
+// every switch. SafeToPaint's alt-screen carve-out then cannot apply, so a
+// full-screen child taking the cursor-save slot freezes the strip for its whole
+// session: BR-79's symptom reached through the switch path instead of the
+// startup one.
+func TestATakeoverRelearnsTheChildsModesFromTheBodyItDraws(t *testing.T) {
+	c := New(hostty.NewFakeHost(ptychild.Size{Rows: 24, Cols: 80}), strings.NewReader(""))
+
+	// nvim's screen: it entered the alt screen, and that is what the replay says.
+	c.takeOverScreen([]byte("\x1b[?1049hnvim's screen\x1b[1;1H"))
+
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	if !c.hostScan.AltScreen() {
+		t.Fatal("after a takeover the scanner does not know the child is in the alt " +
+			"screen, so the paint gate's carve-out cannot apply")
+	}
+	// The measurement from the finding: a save taken NOW must not close the gate,
+	// because a full-screen child repaints over any disturbance.
+	c.hostScan.FeedFraming([]byte("\x1b[?1048h"))
+	if !c.hostScan.SafeToPaint() {
+		t.Fatal("the gate closed for the rest of the child's alt-screen session; " +
+			"the takeover dropped the alt-screen fact that keeps it open")
+	}
+}
+
+// The spin itself, deterministic and single-goroutine (BR-83).
+//
+// The drain closes its own gate. onChunk writes a part's BYTES through
+// writeChild, which feeds them to hostScan -- so a chunk carrying `\x1b7`
+// followed by a notification part takes the terminal's cursor-save slot
+// mid-drain, and onChunk then re-defers the notification onto the very queue
+// this loop pops from. With the loop asking the looser question (MidSequence is
+// FALSE here: the stream sits on a boundary) it pops the same chunk forever.
+//
+// Two earlier attempts at this test passed against the reverted fix: one queued
+// an empty chunk, which re-defers nothing, and one used an unregistered pane id,
+// so onChunk returned at `if !known` before reaching any of this.
+func TestTheDrainStopsWhenTheDrainItselfTakesTheCursorSave(t *testing.T) {
+	c := New(hostty.NewFakeHost(ptychild.Size{Rows: 24, Cols: 80}), strings.NewReader(""))
+
+	c.mu.Lock()
+	c.panes["probe"] = &pane{}
+	c.active = "probe"
+	// The zero Focus is the PANEL, and onChunk only writes a child's bytes when
+	// the operator is actually looking at it -- without this the gate never
+	// closes and the test proves nothing.
+	c.focus = FocusActor("probe")
+	safe, mid := c.hostScan.SafeToPaint(), c.hostScan.MidSequence()
+	c.deferredNotifications = append(c.deferredNotifications, chunk{
+		id:                "probe",
+		focusedAtDelivery: true, // skip the attention branch; not what is under test
+		batch: ptychild.OutputBatch{Parts: []ptychild.OutputPart{
+			{Bytes: []byte("\x1b7")}, // DECSC: takes the shared save slot
+			{Notification: &ptychild.NotificationObservation{}},
+		}},
+	})
+	c.mu.Unlock()
+	if !safe || mid {
+		t.Fatalf("setup must START safe and not mid-sequence: safe=%v mid=%v", safe, mid)
+	}
+
+	done := make(chan struct{})
+	go func() { c.flushDeferredNotifications(); close(done) }()
+	select {
+	case <-done:
+	case <-time.After(5 * time.Second):
+		t.Fatal("flushDeferredNotifications never returned: the drain loop asks a " +
+			"looser question than its entry guard, so a chunk that closes the gate " +
+			"mid-drain is re-deferred and re-popped forever")
+	}
+
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	if c.hostScan.SafeToPaint() {
+		t.Fatal("the drain did not close its own gate; this test no longer " +
+			"reproduces the condition the spin needed")
+	}
+	if len(c.deferredNotifications) != 1 {
+		t.Fatalf("expected the notification to be left deferred for the next safe "+
+			"chunk, found %d", len(c.deferredNotifications))
+	}
+}
+
+// The invariant behind the spin, checked at the source because it is not
+// reachable behaviourally (see above): the drain loop and its entry guard must
+// ask the SAME predicate. The bug was them disagreeing, not either value.
+func TestTheNotificationDrainAndItsEntryGuardAskOneQuestion(t *testing.T) {
+	raw, err := os.ReadFile("console.go")
+	if err != nil {
+		t.Fatal(err)
+	}
+	src := string(raw)
+	i := strings.Index(src, "func (c *Console) flushDeferredNotifications()")
+	if i < 0 {
+		t.Fatal("flushDeferredNotifications not found; this guard is checking nothing")
+	}
+	body := src[i:]
+	if j := strings.Index(body[1:], "\nfunc "); j >= 0 {
+		body = body[:j]
+	}
+	if strings.Contains(body, "hostScan.MidSequence()") {
+		t.Error("the drain still gates on MidSequence somewhere; entry guard and loop " +
+			"must ask SafeToPaint, or a save taken mid-drain spins the loop forever")
+	}
+	if n := strings.Count(body, "SafeToPaint()"); n < 2 {
+		t.Errorf("expected the entry guard AND the loop to ask SafeToPaint; found %d", n)
 	}
 }
