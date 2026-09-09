@@ -141,12 +141,23 @@ started and did not register", and name the session it waited for.
 
 - [x] Reject over-long candidates arithmetically against a once-measured socket budget; keep the
       zellij probe as the oracle for the *budget*, not per candidate.
-- [ ] Start the suffix walk from the highest known assigned suffix.
+- [x] ~~Start the suffix walk from the highest known assigned suffix.~~ **WON'T DO** — the
+      premise died with the fix. This was on the list because each iteration cost a zellij
+      subprocess. It is now pure in-memory work: **66µs at 25 owned suffixes, 86µs at 60,
+      144µs at 99**, with probes flat at 8. Tracking a highest-suffix-per-base-name would
+      add state to save ~100 microseconds, and would change behaviour (a freed suffix would
+      never be reclaimed). Reopen only if the 100-suffix ceiling is approached.
 - [x] Budget the deadline against the work and state the envelope (15s, named constant with the
       measurement and the bounded-work condition written down). Assignment stays inside the
       window because it is now O(1); the constant says so, and says that raising it is the wrong
       fix if anything unbounded moves back in.
-- [ ] Reap orphaned unnamed servers on failed launch.
+- [x] Reap orphaned unnamed servers on failed launch — **already fixed by #199**, verified
+      here rather than assumed: both leaking probes are now `func main() { os.Exit(run()) }`
+      with `defer session.Close()`, and `zellijprobe.Session.Close` runs
+      `zellij delete-session --force`. `TestNoProbeExitsPastItsOwnCleanup` keeps it that
+      way. The six live orphans predate that fix; they are UNNAMED, and production pair
+      always names sessions `📁…`, so an unnamed server is probe debris by construction.
+      Removing the six is an operator action, not a code change — see below.
 - [x] Improve the registration-timeout message.
 - [x] Verify with the probe-count test. Operator started threads from couch repeatedly and both
       cold start and relaunch now succeed; under sustained *load* is still unverified.
@@ -247,3 +258,26 @@ couch's behaviour is in a binary couch does not build.
 in-memory); orphaned unnamed servers are not reaped — six from #199's probes plus
 a `zellij action rename-pane` stuck 8h are live on the operator's machine and
 awaiting an OK to kill; verification under sustained load.
+
+### 2026-09-08 — the last two plan items, resolved by measurement rather than code
+
+Neither remaining item needed implementing, and both are worth recording because
+the reasoning is the deliverable:
+
+**The suffix walk (won't do).** Its entire justification was that each iteration
+cost a subprocess. With judging made arithmetic, the walk is 66-144µs across
+25-99 owned suffixes and the probe count does not move (8). Optimising it would
+add state and change reclamation behaviour to buy microseconds. A plan item can
+be made obsolete by an earlier item in the same plan; ticking it by writing code
+anyway would be busywork with a behaviour change attached.
+
+**Orphan reaping (already done, by #199).** Verified at the source rather than
+assumed. What remains is six live servers on the operator's machine plus a
+`zellij action rename-pane` stuck 8h14m — historical debris awaiting an operator
+OK to kill, not a code change. `ps` shows all six at ppid=1 and 0.0% CPU, so they
+cost ~430MB RSS and inflate `list-sessions` to 26 entries; they are NOT the
+startup latency (one `list-sessions` is 43ms).
+
+**What actually remains before this can close:** verification under sustained
+load, and the unexplained 8.85s startup — `probes/zellijcalls/` exists to answer
+the second and has not been run against a real couch thread start.
