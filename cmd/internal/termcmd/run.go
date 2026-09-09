@@ -40,6 +40,14 @@ type Runtime interface {
 	ShellCommand() (string, []string)
 }
 
+// rightTerminalClassifier is a terminal_command that RoleForPane classifies as
+// PaneRoleRightTerminal. The fast path in focusedWorkbenchPanes synthesises this
+// pane's own report (#220) — the role is known by construction there, but
+// RoleForPaneWith still wants a pane to read. Pinned by a test so a change to
+// RoleForPane's predicate cannot silently make the synthesised pane classify as
+// PaneRoleOther and route every terminal chord wrong.
+const rightTerminalClassifier = "pair term"
+
 const rightTerminalPaneShell = `zellij action rename-pane --pane-id "$ZELLIJ_PANE_ID" terminal 2>/dev/null; exec pair term`
 
 func Run(args []string, stdin io.Reader, stdout, stderr io.Writer) int {
@@ -140,7 +148,45 @@ type workbenchPanes struct {
 	draft   zellijpane.Pane
 }
 
+// registered reports whether paneID is a live self-registered `pair term` pane.
+//
+// Both fast paths gate on this rather than on ZELLIJ_PANE_ID alone (BR-5): the
+// env var says which pane we are, not what KIND of pane, and synthesising a
+// right-terminal role from it unchecked would misroute every chord in any pane
+// that happens to run this code. The registry is the signal that says
+// "right terminal" — the same one RoleForPaneWith uses to recognise split
+// halves that zellij reports without a terminal_command.
+func registered(rt Runtime, paneID string) bool {
+	ids, err := rt.TerminalPaneIDs()
+	if err != nil {
+		return false
+	}
+	return workbenchshortcut.Registered(ids, paneID)
+}
+
 func focusedWorkbenchPanes(rt Runtime) (workbenchPanes, error) {
+	// Fast path (#220). run.go's own comment below records why this is sound:
+	// bytes on `pair term`'s stdin can only mean its OWN pane is the input, so
+	// on the live path the focused pane IS this right terminal. The caller
+	// needs exactly two things from the result — the focused pane (for
+	// RoleForPaneWith and its ID) and the draft's ID — and both are available
+	// without listing panes: the current id from the env, and the draft id from
+	// the sidecar draftroute already caches and validates.
+	//
+	// Synthesised with the terminal_command that classifies it, rather than a
+	// bare ID, so RoleForPaneWith reaches the same verdict it would from the
+	// real report instead of relying on a registry lookup this path does not do.
+	if currentID := rt.CurrentPaneID(); currentID != "" && registered(rt, currentID) {
+		// rt.CachedDraftPaneID, not draftroute's env reader: the Runtime already
+		// exposes this seam (run.go:29) and reaching past it makes the branch
+		// untestable (BR-4).
+		if draftID, ok := rt.CachedDraftPaneID(); ok {
+			return workbenchPanes{
+				focused: zellijpane.Pane{ID: currentID, TerminalCommand: rightTerminalClassifier},
+				draft:   zellijpane.Pane{ID: draftID},
+			}, nil
+		}
+	}
 	data, err := rt.ListPanesJSON()
 	if err != nil {
 		return workbenchPanes{}, err
@@ -565,6 +611,15 @@ func splitTerminalDown(rt Runtime) error {
 }
 
 func currentRightTerminalPane(rt Runtime) (zellijpane.Pane, bool, error) {
+	// Fast path (#220): this runs INSIDE `pair term`, so CurrentPaneID() is our
+	// own pane, and `pair term` self-registers at startup. A current id present
+	// in the live registry is therefore a right terminal by construction — the
+	// same conclusion the walk below reaches, without the 590ms that
+	// `list-panes --json` costs on zellij 0.44.3. The only caller
+	// (splitTerminalDown, run.go:545) discards the pane and reads `ok`.
+	if currentID := rt.CurrentPaneID(); currentID != "" && registered(rt, currentID) {
+		return zellijpane.Pane{ID: currentID}, true, nil
+	}
 	data, err := rt.ListPanesJSON()
 	if err != nil {
 		return zellijpane.Pane{}, false, err

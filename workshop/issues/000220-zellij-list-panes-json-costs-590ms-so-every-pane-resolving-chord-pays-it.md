@@ -1,12 +1,13 @@
 ---
 id: 000220
-status: working
+status: codecomplete
 deps: []
 github_issue:
 created: 2026-09-09
 updated: 2026-09-09
 estimate_hours: 1.07
 started: 2026-09-09T13:39:07-07:00
+actual_hours: 1.54
 ---
 
 # zellij list-panes --json costs 590ms, so every pane-resolving chord pays it
@@ -124,7 +125,7 @@ the calibration doc `[stale]`, #127.)
 
 ## Plan
 
-- [ ] **The rule (PQ-3), because two of five callers is the easy subset.**
+- [x] **The rule (PQ-3), because two of five callers is the easy subset.**
       Every `ListPanesJSON()` caller is either resolving a pane **ID** — which
       sidecars already answer — or needing **geometry / the full pane set**,
       which only zellij can answer. Enumerated, all five:
@@ -137,13 +138,13 @@ the calibration doc `[stale]`, #127.)
       | `draftroute:81` `RouteLua` | draft ID | **already** sidecar-first — the precedent, see below |
       | `layoutcmd:189` `RunToggleFocused` (`Alt+Shift+Enter`) | pane **geometry** for the resize planner | keeps `list-panes --json`; no sidecar carries geometry |
 
-- [ ] **Reuse `draftroute`'s shape, do not invent one (ARCH-DRY).** `RouteLua`
+- [x] **Reuse `draftroute`'s shape, do not invent one (ARCH-DRY).** `RouteLua`
       already does cache-then-`list-panes`-on-miss (`route.go:60-70`, `:79-87`),
       and the part to copy is the PURE half: `ValidateCachedDraftPane(data, session,
       alive)` takes bytes and an aliveness predicate and returns an id — no
       Runtime, no IO (`ARCH-PURE`). `RouteLua` itself is the IO shell around it.
       The terminal resolver mirrors the validator, not the shell.
-- [ ] **What the registry is, and is not (PQ-1).** `$PAIR_TERMINAL_PANES_PATH`
+- [x] **What the registry is, and is not (PQ-1).** `$PAIR_TERMINAL_PANES_PATH`
       is written by each `pair term` at startup, so it is a **subset** of the
       right terminals — a pane that has not registered yet is absent. The fast
       path is therefore conditional, never assumed:
@@ -158,19 +159,19 @@ the calibration doc `[stale]`, #127.)
       than discovered. Note the slow path **already trusts this registry**:
       `isRightTerminal` / `RoleForPaneWith` take `terminalPaneIDs` to recognise
       split halves at all, so this is not new trust, only earlier trust.
-- [ ] **`procutil.Alive` without a subprocess, guarded (PQ-4).**
+- [x] **`procutil.Alive` without a subprocess, guarded (PQ-4).**
       `syscall.Kill(pid, 0)`, with `EPERM` meaning "exists but not ours" →
       alive. **Route through the existing `positivePID`**, which
       `identity_darwin.go:14` and `identity_other.go:14` already use and `Alive`
       does not: `kill(0, …)` signals the whole process group and `kill(-1, …)`
       every process the user owns, so an unguarded pid is a correctness bug of a
       different order than a slow one.
-- [ ] **The pure decision, named (PQ-2).**
+- [x] **The pure decision, named (PQ-2).**
       `resolveFromSidecars(liveIDs []string, lastTerminal string) (string, bool)`
       — no `Runtime`, no IO, mirroring `ValidateCachedDraftPane`'s shape
       (`ARCH-PURE`). It returns `false` for "sidecars cannot answer", which is
       the only signal the IO shell needs to decide whether to spend the 590ms.
-- [ ] **Agreement by GENERATION, not by hand (PQ-2).** The adversarial class is
+- [x] **Agreement by GENERATION, not by hand (PQ-2).** The adversarial class is
       *the registry disagreeing with the pane report*, and hand-picked cases are
       blind to it by construction — I would only write the disagreements I
       already thought of. So: generate the cross-product of
@@ -184,17 +185,150 @@ the calibration doc `[stale]`, #127.)
       `Alt+Shift+←/→` from disagreeing about a split half (`#216` BR-10), and it
       holds or fails over the whole generated space rather than over my
       imagination.
-- [ ] **Fall-back-still-runs test.** With two live ids and no record, assert the
+- [x] **Fall-back-still-runs test.** With two live ids and no record, assert the
       pane list IS consulted — otherwise the fast path silently eats the
       zellij-focus tie-break.
-- [ ] **Re-measure end to end** on a quiet host, before/after, and record both
+- [x] **Re-measure end to end** on a quiet host, before/after, and record both
       in the `## Log` with the agent population, per `#201`'s Done-when.
 
 ## Log
 
 ### 2026-09-09
+- 2026-09-09: closed — Full `make test` green unsandboxed (EXIT=0, zero FAIL lines). Measured: switch-terminal-tab 631ms -> 55ms, focus-terminal 671ms -> 27ms; cause isolated to `list-panes --json` at 590.7ms vs 22.6ms plain. BR-13 addressed as the RULE — a fast path is pinned by its ANSWER, not by listCalls==0 plus a gate check. Both termcmd fast paths now run against the SAME fixture as the slow path with the gate on and off, asserting identical answers; resolveFromSidecars already had its 360-case oracle. The finding also caught a hole I had built in: the fixture set cachedDraft "2" against a draft pane also id 2, making "reads the cache" and "agrees with the report" the same observation, so a fast path reading the wrong sidecar would have passed; the draft is id 7 now and returning draftID+"9" fails with "fast = draft 79; slow = draft 7". BR-14: workbenchshortcut.Registered now owns registry membership, called by RoleForPaneWith, resolveFromSidecars and termcmd.registered instead of three open-coded loops. Earlier rounds remain addressed: BR-5 (both fast paths gate on the registry rather than trusting ZELLIJ_PANE_ID for KIND), BR-12 (the reachability guard counts the branch signature, not a fixture shape; deleting the branch now fails it by name), BR-3/BR-4/BR-6/BR-7.; review verdict: FIX-THEN-SHIP
 
 Filed from operator report on `#216`. Measured before designing, per `#201`'s
 lesson — the first hypothesis was the process boundary and the subprocess count,
 and the measurement refuted both: the boundary costs ~31ms of the ~631ms, and a
 single zellij flag costs the rest.
+
+### 2026-09-09 — implementation and measurement
+
+**Before/after**, same host, 26 zellij sessions, load 3.3 — median of 6, the
+same method as the `## Problem` table:
+
+| path | before | after |
+|---|---|---|
+| `pair layout switch-terminal-tab` (`Alt+Shift+←/→`) | 631 ms | **55 ms** |
+| `pair layout focus-terminal` (`Alt+k` from draft/agent) | 671 ms | **27 ms** |
+
+The residue is honest and irreducible without a new mechanism: ~9ms `pair`
+binary load + ~22ms for the `zellij action write` that actually delivers the
+chord. Matching the in-pane chord's ~0ms needs a resident control channel in
+`pair term`'s input loop; out of scope, and stated as such in the Spec.
+
+**The generated agreement test earned its keep immediately.** It found two
+divergence classes before the comment describing them existed:
+
+- `registry=subset, record=none` — one right terminal registered, another not:
+  fast answers the registered half, `pickRightTerminal` answers the pane-order
+  first. The startup race.
+- `registry=disjoint` — a registry id naming no pane at all: fast returns an id
+  that does not exist.
+
+Hand-picked cases would have been blind to both, exactly as PQ-2 predicted. So
+the property is **scoped rather than weakened**: agreement is asserted over
+registry-CONSISTENT pane sets (the state the registry invariant maintains —
+`LiveIDs` filters on the registering `pair term` being alive, and that process
+does not outlive its pane), 216 generated cases, 54 of which the fast path
+answers. For the inconsistent classes the weaker invariant that actually holds
+is asserted instead: **the fast path never returns an id the registry did not
+list**. With an incomplete registry and no recorded half both paths are
+guessing, and asserting they guess alike would assert a coincidence, not a
+contract.
+
+**Deployment note, discovered by the operator rather than predicted.** The
+speed-up reached a running session with **no restart**: the draft's chord does
+`jobstart({… '/bin/pair', 'layout', 'switch-terminal-tab', dir})`, a fresh
+process per keypress, so rebuilding `bin/pair` is enough. What does NOT reach a
+running session is anything compiled into a long-lived process — the two
+`termcmd` fast paths (`focusedWorkbenchPanes`, `currentRightTerminalPane`) live
+inside `pair term` and need that pane to restart. Worth stating because it is
+the inverse of `#216`, which needed a restart precisely because its change was
+new Lua held in nvim's memory.
+
+**`procutil.Alive`** is now `syscall.Kill(pid, 0)` routed through the existing
+`positivePID`, with `EPERM` read as alive. The guard is not decoration:
+`kill(0, …)` signals the caller's whole process group and `kill(-1, …)` every
+process the user owns, and `Alive` was the one caller not gating on it — safe
+only because a subprocess `kill` merely failed on those inputs.
+
+### 2026-09-09 — boundary review round 1: FIX-THEN-SHIP, addressed
+
+**BR-7 — the generated space never reached the branch it claimed to cover.**
+The first generator used two-pane worlds only, so a registry of size 1 was
+always *incomplete* and `resolveFromSidecars`' single-live-id branch either went
+unexercised or diverged. The axis that matters is **completeness, not size**:
+rebuilt over one- and two-pane worlds with registries that are empty or
+complete. 360 cases, 108 answered, **54 through the single-live-id branch**, all
+agreeing. A generated space proves nothing about a case it cannot produce, and
+the first one could not produce this.
+
+**BR-3 — both `termcmd` fast paths executed in zero tests.** Written and
+shipped-to-review with a coverage count of 0 on every line. Now: the saving is
+asserted (no `ListPanesJSON` call when registered) and so is the gate (falls
+back when unregistered, when there is no current pane id, and when the draft
+cache misses).
+
+**BR-4 — reached past the injectable seam.** `focusedWorkbenchPanes` called
+`draftroute.CachedDraftPaneIDFromEnv` while `Runtime.CachedDraftPaneID`
+(`run.go:29`) existed for exactly this. That is what made the branch untestable
+in the first place; BR-3 and BR-4 are the same mistake seen from two sides.
+
+**BR-5 — the real defect of the five.** The fast path synthesised a
+right-terminal role from `ZELLIJ_PANE_ID` alone. That env var says *which* pane
+we are, not *what kind* — so any pane running that code would have had every
+chord routed as a right terminal. Both fast paths now gate on a shared
+`registered(rt, paneID)` predicate, which is the signal that actually means
+"right terminal" and the same one `RoleForPaneWith` uses for split halves that
+zellij reports without a `terminal_command`. Verified by mutation: dropping the
+gate reddens.
+
+**BR-6 — and a claim of mine that was wrong.** `Alive`'s two declared behaviours
+were unpinned; both now have tests, and dropping the `positivePID` guard reddens
+with `Alive("0") = true`. While writing the test I had to correct the comment I
+had written with the change: **signal 0 is the null signal**, so the guard does
+not prevent a delivered broadcast — it prevents a *false positive*, since
+`Kill(0, 0)` and `Kill(-1, 0)` both succeed and a registry line reading `1 0`
+would report a live pane that does not exist. The pid-selector danger is why the
+guard exists in the codebase, not what it stops here.
+
+### 2026-09-09 — boundary review round 2: the reachability guard was itself unfalsifiable
+
+**BR-12.** The guard I added for BR-7 — "the generated space must reach the
+single-live-id branch" — counted `len(registry) == 1`, an **input** property. A
+one-entry registry also answers through the *record* branch, so the guard
+survived deleting the single-live-id branch outright: it was asserting something
+about the generator's inputs while claiming something about the code's paths.
+
+Now it counts the branch's own signature — answered **with no recorded half**,
+which only that branch can produce. The count fell from 54 to 18, so 36 of the
+cases I had been reporting as branch coverage were record-hits. Verified by
+mutation: deleting the branch now fails with *"the single-live-id branch is
+unreached, so this space cannot prove what it claims"*.
+
+Worth naming as a class, because it is the third variant of one mistake in this
+session: a guard that reports on its own inputs rather than on the behaviour it
+exists to pin. `#216`'s route scan asserted its premise instead of the routing;
+its first cut mis-scanned and called eight families unroutable; and this one
+counted a fixture shape instead of an execution.
+
+### 2026-09-09 — boundary review round 3
+
+**BR-13 — the rule: a fast path is pinned by its ANSWER, not by its saving.**
+Asserting `listCalls == 0` and that the gate declines pins the speed-up and the
+guard while leaving the actual result unchecked. Only one of three fast paths
+had a differential oracle (`resolveFromSidecars`, 360 cases). Both `termcmd`
+fast paths now run against the SAME fixture as the slow path — gate on, gate off
+— and assert the two answers are identical.
+
+The finding also caught a hole I had built in: my fixture set `cachedDraft: "2"`
+while its draft pane was also id 2, so "reads the cache" and "agrees with the
+report" were indistinguishable, and a fast path reading the wrong sidecar would
+have passed. The draft is now id 7, distinct from every other id in the fixture.
+Verified by mutation: returning `draftID + "9"` fails with *fast = draft "79";
+slow = draft "7" — the two paths disagree*.
+
+**BR-14 (Minor)** — registry membership was open-coded a third time.
+`workbenchshortcut.Registered(ids, paneID)` now owns it, and `RoleForPaneWith`,
+`resolveFromSidecars` and `termcmd.registered` all call it. The registry owns
+its own predicate, so a normalisation rule or a second field has one home.

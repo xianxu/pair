@@ -45,6 +45,34 @@ func FocusRightTerminal(rt Runtime) error {
 	return rt.RunZellijAction("focus-pane-id", terminal.ID)
 }
 
+// resolveFromSidecars answers "which right terminal?" from the two sidecars
+// alone, or declines. Pure — no Runtime, no IO — mirroring the shape of
+// draftroute.ValidateCachedDraftPane, which takes bytes plus an aliveness
+// predicate and returns an id (ARCH-PURE).
+//
+// Declining is not failure. It means the zellij-focus tie-break is genuinely
+// needed, and the caller should go spend the 590ms that `list-panes --json`
+// costs on zellij 0.44.3 (#220). The registry is a SUBSET of the right
+// terminals — a pane that has not self-registered yet is absent — so every
+// branch here is conditional on it actually being able to answer.
+func resolveFromSidecars(liveIDs []string, lastTerminal string) (string, bool) {
+	if len(liveIDs) == 0 {
+		return "", false // absence proves nothing about what exists
+	}
+	if lastTerminal != "" {
+		if workbenchshortcut.Registered(liveIDs, lastTerminal) {
+			return lastTerminal, true
+		}
+		// Recorded half is dead, or alive but unregistered. Either way the
+		// registry cannot confirm it; let the pane list decide.
+		return "", false
+	}
+	if len(liveIDs) == 1 {
+		return liveIDs[0], true // one live half: nothing to tie-break
+	}
+	return "", false // two or more halves and no record: only the pane list chooses
+}
+
 // resolveRightTerminal answers "which right terminal does a workbench action
 // mean?" — the pane list, the two sidecar preference signals, and the picker.
 //
@@ -58,10 +86,20 @@ func FocusRightTerminal(rt Runtime) error {
 // registry must never break the action — the picker just loses its preference
 // signal and falls back to zellij focus, then pane order.
 func resolveRightTerminal(rt Runtime) (zellijpane.Pane, bool, error) {
-	panesJSON, err := rt.ListPanesJSON()
-	if err != nil {
+	id, ok, err := resolveRightTerminalID(rt)
+	if err != nil || !ok {
 		return zellijpane.Pane{}, false, err
 	}
+	return zellijpane.Pane{ID: id}, true, nil
+}
+
+// resolveRightTerminalID is the IO shell: sidecars first, pane list only when
+// they decline. Callers of this need the pane's ID and nothing else — the ones
+// that need geometry (RunToggleFocused) still list panes unconditionally,
+// because no sidecar carries geometry.
+func resolveRightTerminalID(rt Runtime) (string, bool, error) {
+	// Sidecar reads degrade gracefully: a missing record or registry costs the
+	// resolution its fast path, never its correctness.
 	lastTerminal, err := rt.LastTerminalPaneID()
 	if err != nil {
 		lastTerminal = ""
@@ -70,8 +108,18 @@ func resolveRightTerminal(rt Runtime) (zellijpane.Pane, bool, error) {
 	if err != nil {
 		terminalIDs = nil
 	}
+	if id, ok := resolveFromSidecars(terminalIDs, lastTerminal); ok {
+		return id, true, nil
+	}
+	panesJSON, err := rt.ListPanesJSON()
+	if err != nil {
+		return "", false, err
+	}
 	terminal, ok := pickRightTerminal(zellijpane.Parse(panesJSON), lastTerminal, terminalIDs)
-	return terminal, ok, nil
+	if !ok {
+		return "", false, nil
+	}
+	return terminal.ID, true, nil
 }
 
 // pickRightTerminal chooses among the tiled right terminals — after an

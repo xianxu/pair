@@ -16,6 +16,7 @@ import (
 	"github.com/xianxu/pair/cmd/internal/hostty"
 	"github.com/xianxu/pair/cmd/internal/ptychild"
 	"github.com/xianxu/pair/cmd/internal/workbenchshortcut"
+	"github.com/xianxu/pair/cmd/internal/zellijpane"
 )
 
 func TestRunTestShortcutRightTerminalActions(t *testing.T) {
@@ -1212,5 +1213,113 @@ func TestEveryHandledTerminalChordIsDocumented(t *testing.T) {
 		if !documented[chord] {
 			t.Errorf("handleTerminalChord handles chord %v but workbenchshortcut.RoleBindings() does not describe it — `pair keys` would omit it", chord)
 		}
+	}
+}
+
+// The synthesised pane on #220's fast path must classify the way the real
+// report would. If RoleForPane's predicate changes and this constant does not,
+// every chord from the terminal routes as PaneRoleOther — silently.
+func TestRightTerminalClassifierClassifiesAsARightTerminal(t *testing.T) {
+	pane := zellijpane.Pane{ID: "4", TerminalCommand: rightTerminalClassifier}
+	if got := workbenchshortcut.RoleForPaneWith(pane, nil); got != workbenchshortcut.PaneRoleRightTerminal {
+		t.Fatalf("RoleForPaneWith(synthesised) = %v, want PaneRoleRightTerminal", got)
+	}
+}
+
+// #220's fast paths avoid a 590ms `list-panes --json`. Both executed in ZERO
+// tests when they were written (BR-3), so a coverage profile showed count 0 on
+// every line of them. These assert the saving actually happens AND that the
+// registry gate holds — the env var says which pane we are, not what kind
+// (BR-5), so an unregistered pane must fall back rather than synthesise a
+// right-terminal role.
+// The rule (#220 BR-13): a fast path substituting for an existing slow path is
+// not tested by asserting listCalls==0 and that it declines when gated — that
+// pins the SAVING and the GATE while leaving the ANSWER unpinned. It is tested
+// when its answer is differentially compared against the slow path on a SHARED
+// fixture.
+//
+// The first version of this test also could not discriminate: it set
+// cachedDraft "2" against a fixture whose draft was also id 2, so "reads the
+// cache" and "agrees with the report" were the same observation. The draft here
+// is id 7 — distinct from every other id in the fixture — so a fast path
+// reading the wrong sidecar produces a different answer.
+const workbenchFixturePanes = `[
+	{"id":4,"is_focused":true,"is_floating":false,"pane_x":75,"title":"[terminal 1]","terminal_command":"sh -c exec pair term"},
+	{"id":7,"is_focused":false,"is_floating":false,"title":"draft","terminal_command":"nvim -u /pair/nvim/init.lua d.md"}
+]`
+
+func TestFocusedWorkbenchPanesFastPathAnswersWhatTheSlowPathWould(t *testing.T) {
+	fast := &fakeRuntime{currentPaneID: "4", terminalPaneIDs: []string{"4"}, cachedDraft: "7", panesJSON: workbenchFixturePanes}
+	// Same world; the gate fails, so this one walks the pane report.
+	slow := &fakeRuntime{currentPaneID: "4", cachedDraft: "7", panesJSON: workbenchFixturePanes}
+
+	fastPanes, err := focusedWorkbenchPanes(fast)
+	if err != nil {
+		t.Fatal(err)
+	}
+	slowPanes, err := focusedWorkbenchPanes(slow)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	if fast.listCalls != 0 {
+		t.Errorf("fast path called ListPanesJSON %d times, want 0 — the 590ms is the point", fast.listCalls)
+	}
+	if slow.listCalls != 1 {
+		t.Fatalf("slow path called ListPanesJSON %d times, want 1 — the fixture is not exercising it", slow.listCalls)
+	}
+	if fastPanes.focused.ID != slowPanes.focused.ID || fastPanes.draft.ID != slowPanes.draft.ID {
+		t.Fatalf("fast = focused %q draft %q; slow = focused %q draft %q — the two paths disagree",
+			fastPanes.focused.ID, fastPanes.draft.ID, slowPanes.focused.ID, slowPanes.draft.ID)
+	}
+	if fastPanes.draft.ID != "7" {
+		t.Errorf("draft = %q, want 7 — the id that only the cache and the report agree on", fastPanes.draft.ID)
+	}
+	if a, b := workbenchshortcut.RoleForPaneWith(fastPanes.focused, fast.terminalPaneIDs),
+		workbenchshortcut.RoleForPaneWith(slowPanes.focused, slow.terminalPaneIDs); a != b {
+		t.Errorf("role fast=%v slow=%v — the synthesised pane classifies differently", a, b)
+	}
+}
+
+func TestFocusedWorkbenchPanesFallsBackWhenTheGateFails(t *testing.T) {
+	for _, test := range []struct {
+		name string
+		rt   *fakeRuntime
+	}{
+		{"pane is not registered", &fakeRuntime{currentPaneID: "4", terminalPaneIDs: nil, cachedDraft: "7", panesJSON: workbenchFixturePanes}},
+		{"no current pane id", &fakeRuntime{currentPaneID: "", terminalPaneIDs: []string{"4"}, cachedDraft: "7", panesJSON: workbenchFixturePanes}},
+		{"no cached draft", &fakeRuntime{currentPaneID: "4", terminalPaneIDs: []string{"4"}, panesJSON: workbenchFixturePanes}},
+	} {
+		t.Run(test.name, func(t *testing.T) {
+			if _, err := focusedWorkbenchPanes(test.rt); err != nil {
+				t.Fatal(err)
+			}
+			if test.rt.listCalls != 1 {
+				t.Errorf("ListPanesJSON called %d times, want 1 — the fast path must decline here", test.rt.listCalls)
+			}
+		})
+	}
+}
+
+func TestCurrentRightTerminalPaneFastPathAnswersWhatTheSlowPathWould(t *testing.T) {
+	fast := &fakeRuntime{currentPaneID: "4", terminalPaneIDs: []string{"4"}, panesJSON: workbenchFixturePanes}
+	slow := &fakeRuntime{currentPaneID: "4", panesJSON: workbenchFixturePanes}
+
+	fastPane, fastOK, err := currentRightTerminalPane(fast)
+	if err != nil {
+		t.Fatal(err)
+	}
+	slowPane, slowOK, err := currentRightTerminalPane(slow)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if fast.listCalls != 0 || slow.listCalls != 1 {
+		t.Fatalf("list calls fast=%d slow=%d, want 0 and 1", fast.listCalls, slow.listCalls)
+	}
+	if fastOK != slowOK || fastPane.ID != slowPane.ID {
+		t.Fatalf("fast = %q/%v, slow = %q/%v — the two paths disagree", fastPane.ID, fastOK, slowPane.ID, slowOK)
+	}
+	if fastPane.ID != "4" {
+		t.Errorf("id = %q, want 4", fastPane.ID)
 	}
 }

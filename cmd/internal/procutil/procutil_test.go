@@ -105,3 +105,34 @@ func TestDescendantPIDsIncludesNestedChildren(t *testing.T) {
 func psAvailable() bool {
 	return exec.Command("ps", "-p", strconv.Itoa(os.Getpid()), "-o", "command=").Run() == nil
 }
+
+// #220 changed Alive from `kill -0` in a subprocess to a syscall, and declared
+// two behaviours while doing it: a positivePID guard, and EPERM meaning alive.
+// Neither was pinned by a test (BR-6). Signal 0 is the null signal, so what the
+// guard prevents here is a FALSE POSITIVE — Kill(0, 0) and Kill(-1, 0) both
+// succeed — which would report a live pane for a registry line reading `1 0`.
+// It also stops those pid selectors reaching any future call that sends a real
+// signal.
+func TestAliveRefusesPIDsThatWouldBroadcastASignal(t *testing.T) {
+	for _, pid := range []string{"", "0", "-1", "-12345", "abc", "1.5", " 1"} {
+		if Alive(pid) {
+			t.Errorf("Alive(%q) = true; Kill succeeds for these pid SELECTORS, so an unguarded check reports a pane that does not exist", pid)
+		}
+	}
+}
+
+func TestAliveReportsThisProcessAndNotADeadOne(t *testing.T) {
+	if !Alive(strconv.Itoa(os.Getpid())) {
+		t.Error("Alive(self) = false")
+	}
+	// PID 1 (launchd/init) exists and is NOT ours: the EPERM branch. A
+	// subprocess `kill -0` got this right by accident via its exit status; the
+	// syscall has to say so explicitly.
+	if !Alive("1") {
+		t.Error("Alive(1) = false; EPERM means the process exists but is not ours — still alive")
+	}
+	// A pid that cannot exist: above the platform maximum.
+	if Alive("4194305") {
+		t.Error("Alive(4194305) = true for a pid past the platform maximum")
+	}
+}

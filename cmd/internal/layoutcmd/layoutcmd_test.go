@@ -4,6 +4,7 @@ import (
 	"bytes"
 
 	"github.com/xianxu/pair/cmd/internal/workbenchshortcut"
+	"github.com/xianxu/pair/cmd/internal/zellijpane"
 	"strconv"
 	"strings"
 	"testing"
@@ -171,6 +172,7 @@ type fakeRuntime struct {
 	ops             []string
 	lastTerminal    string
 	terminalPaneIDs []string
+	listCalls       int
 }
 
 func (f *fakeRuntime) LastTerminalPaneID() (string, error) {
@@ -182,6 +184,7 @@ func (f *fakeRuntime) TerminalPaneIDs() ([]string, error) {
 }
 
 func (f *fakeRuntime) ListPanesJSON() ([]byte, error) {
+	f.listCalls++
 	return f.panesJSON, nil
 }
 
@@ -256,6 +259,190 @@ func TestRunSwitchTerminalTabParsesItsDirection(t *testing.T) {
 			}
 			if len(rt.ops) != test.ops {
 				t.Errorf("ops = %v, want %d", rt.ops, test.ops)
+			}
+		})
+	}
+}
+
+// The adversarial class for resolveFromSidecars is THE REGISTRY DISAGREEING
+// WITH THE PANE REPORT, and hand-picked cases are blind to it by construction —
+// I would only write the disagreements I already thought of. So generate the
+// space and assert the one property that matters (#220 PQ-2):
+//
+//	resolveFromSidecars answering  =>  its answer equals pickRightTerminal's
+//
+// That is what stops Alt+k and Alt+Shift+arrow from landing on different split
+// halves (#216 BR-10). Where it declines, the caller falls back and correctness
+// is pickRightTerminal's problem, unchanged.
+func TestSidecarFastPathAgreesWithThePaneListWheneverItAnswers(t *testing.T) {
+	// The adversarial class is THE REGISTRY DISAGREEING WITH THE PANE REPORT,
+	// and hand-picked cases are blind to it by construction — I would only write
+	// the disagreements I already thought of. So generate the space and assert
+	// the one property that matters (#220 PQ-2):
+	//
+	//	resolveFromSidecars answering  =>  its answer equals pickRightTerminal's
+	//
+	// That is what stops Alt+k and Alt+Shift+arrow from landing on different
+	// split halves (#216 BR-10).
+	//
+	// The axis that matters is COMPLETENESS, not registry size (BR-7). A
+	// registry naming one of two right terminals is incomplete — the startup
+	// race — and the generator found that the fast path diverges there. A
+	// registry naming the only right terminal is complete, and is the state
+	// that exercises the single-live-id branch. Generating one-pane worlds is
+	// what reaches that branch at all; the first generator had none and left it
+	// unexercised while claiming to cover it.
+	pane := func(id string, kind string, focused bool) zellijpane.Pane {
+		p := zellijpane.Pane{ID: id, IsFocused: focused, X: 75}
+		switch kind {
+		case "command":
+			p.TerminalCommand = "sh -c exec pair term"
+			p.Title = "[terminal 1]"
+		case "title":
+			p.Title = "terminal 1"
+		case "registry": // neither command nor title: only the registry sees it
+			p.Title = "[terminal 1]"
+		}
+		return p
+	}
+	kinds := []string{"command", "title", "registry"}
+	records := []string{"none", "live-registered", "stale", "unregistered-present"}
+
+	checked, answered, single := 0, 0, 0
+	for _, size := range []int{1, 2} {
+		for _, kindA := range kinds {
+			for _, kindB := range kinds {
+				for _, complete := range []bool{false, true} {
+					for _, record := range records {
+						for focus := -1; focus < size; focus++ {
+							panes := []zellijpane.Pane{pane("3", kindA, focus == 0)}
+							if size == 2 {
+								panes = append(panes, pane("4", kindB, focus == 1))
+							}
+							// Complete: the registry names every right terminal
+							// in the world. Otherwise: empty, which is the other
+							// consistent state (it claims nothing).
+							var registry []string
+							if complete {
+								for _, p := range panes {
+									registry = append(registry, p.ID)
+								}
+							}
+							lastTerminal := ""
+							switch record {
+							case "live-registered":
+								if len(registry) > 0 {
+									lastTerminal = registry[0]
+								}
+							case "stale":
+								lastTerminal = "77"
+							case "unregistered-present":
+								lastTerminal = panes[len(panes)-1].ID
+							}
+
+							checked++
+							fastID, ok := resolveFromSidecars(registry, lastTerminal)
+							if !ok {
+								continue
+							}
+							answered++
+							// Count the BRANCH, not an input property (BR-12).
+							// A one-entry registry also answers through the
+							// record branch, so `len(registry) == 1` survives
+							// deleting the single-live-id branch entirely.
+							// Only "answered with no record" is that branch's
+							// own signature.
+							if lastTerminal == "" {
+								single++
+							}
+							slow, found := pickRightTerminal(panes, lastTerminal, registry)
+							if !found {
+								t.Errorf("size=%d kinds=%s/%s complete=%v record=%s focus=%d: fast answered %q but the pane list found none",
+									size, kindA, kindB, complete, record, focus, fastID)
+								continue
+							}
+							if slow.ID != fastID {
+								t.Errorf("size=%d kinds=%s/%s complete=%v record=%s focus=%d: fast=%q slow=%q — the two paths would land on different halves",
+									size, kindA, kindB, complete, record, focus, fastID, slow.ID)
+							}
+						}
+					}
+				}
+			}
+		}
+	}
+	if answered == 0 {
+		t.Fatalf("the fast path answered none of %d generated cases — the generator is broken, not the code", checked)
+	}
+	if single == 0 {
+		t.Fatalf("no generated case was answered with NO recorded half (%d cases) — the single-live-id branch is unreached, so this space cannot prove what it claims", checked)
+	}
+	t.Logf("generated %d complete-or-empty-registry cases; answered %d, of which %d through the single-live-id branch (answered with no record)", checked, answered, single)
+}
+
+// The invariant that survives an INCONSISTENT registry: the fast path never
+// invents an id. It answers with something the registry listed, or it declines
+// — so the worst an unregistered half or a stale entry can cost is a fall back
+// to the pane list, or the wrong half in a no-record case where
+// pickRightTerminal's own answer is pane-order arbitrary anyway.
+//
+// This is deliberately weaker than the agreement property above, and the
+// weakness is the honest one: with an incomplete registry and no recorded half,
+// BOTH paths are guessing, and asserting they guess alike would assert a
+// coincidence rather than a contract (#220).
+func TestSidecarFastPathNeverInventsAnID(t *testing.T) {
+	for _, registry := range [][]string{nil, {}, {"4"}, {"3", "4"}, {"9"}} {
+		for _, record := range []string{"", "3", "4", "9", "77"} {
+			id, ok := resolveFromSidecars(registry, record)
+			if !ok {
+				continue
+			}
+			found := false
+			for _, candidate := range registry {
+				if candidate == id {
+					found = true
+				}
+			}
+			if !found {
+				t.Errorf("registry=%v record=%q: answered %q, which the registry never listed", registry, record, id)
+			}
+		}
+	}
+}
+
+// The fast path must not eat the tie-break. When the registry cannot answer,
+// the pane list has to be consulted — otherwise Alt+k and Alt+Shift+arrow stop
+// agreeing about which split half they mean (#216 BR-10, the property #220's
+// speed-up is not allowed to cost).
+func TestSidecarFastPathFallsBackWhenItCannotAnswer(t *testing.T) {
+	panes := []byte(`[
+		{"id":3,"is_focused":false,"is_floating":false,"pane_x":75,"title":"[terminal 1]","terminal_command":"sh -c exec pair term"},
+		{"id":4,"is_focused":true,"is_floating":false,"pane_x":75,"title":"[terminal 1]","terminal_command":"sh -c exec pair term"}
+	]`)
+	for _, test := range []struct {
+		name         string
+		registry     []string
+		lastTerminal string
+		wantList     int
+		wantID       string
+	}{
+		{"two halves, no record: only the pane list can choose", []string{"3", "4"}, "", 1, "4"},
+		{"empty registry proves nothing", nil, "", 1, "4"},
+		{"record names an unregistered half", []string{"4"}, "3", 1, "3"},
+		{"record hits a registered half: no list call", []string{"3", "4"}, "3", 0, "3"},
+		{"one live half, no record: nothing to tie-break", []string{"4"}, "", 0, "4"},
+	} {
+		t.Run(test.name, func(t *testing.T) {
+			rt := &fakeRuntime{panesJSON: panes, terminalPaneIDs: test.registry, lastTerminal: test.lastTerminal}
+			id, ok, err := resolveRightTerminalID(rt)
+			if err != nil || !ok {
+				t.Fatalf("resolve = %q ok=%v err=%v", id, ok, err)
+			}
+			if id != test.wantID {
+				t.Errorf("id = %q, want %q", id, test.wantID)
+			}
+			if rt.listCalls != test.wantList {
+				t.Errorf("ListPanesJSON called %d times, want %d", rt.listCalls, test.wantList)
 			}
 		})
 	}
