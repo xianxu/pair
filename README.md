@@ -595,6 +595,22 @@ best-effort: outside a Pair session, or when the recorded outer TTY is missing
 or stale, the command warns on stderr and exits successfully so a notification
 failure does not break the agent hook.
 
+**The idle floor.** Attention signals depend on recognizing what the agent is
+doing, and recognition fails — most turns emit no progress signal at all, which
+leaves the ordinary "agent went quiet" watchdog with nothing to arm. So Pair
+puts a floor under it: while a turn is open and nothing has reported its end, 60
+seconds with no output from the agent emits `no agent output for 60s`. It says
+only what was observed — silence — because at that point Pair genuinely does not
+know whether the agent finished, is waiting on you, or never started. It fires once per
+quiet stretch — answering a prompt starts a fresh window, so a turn you
+interact with repeatedly can notify more than once — and if the agent does
+report a real end afterwards you still get that notification too.
+
+A working agent produces output continuously, so the floor does not fire on one;
+it is the quiet cases — a menu waiting for an answer, a turn that silently went
+nowhere — that reach it. Set `PAIR_WRAP_IDLE_S` to change the interval, or
+`PAIR_WRAP_IDLE_S=0` to switch the floor off entirely.
+
 Under Couch, unread events color the source actor's existing status label.
 `Ctrl-Space` opens the switcher with the newest unread actor selected; up to
 three messages appear as indented, display-only rows beneath that actor. Enter

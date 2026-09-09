@@ -1,6 +1,7 @@
 package wrapcmd
 
 import (
+	"fmt"
 	"time"
 
 	"github.com/xianxu/pair/cmd/internal/sessionwatch"
@@ -25,7 +26,37 @@ const (
 	ObservationTranscriptAbort
 	ObservationWatchdogExpired
 	ObservationGraceExpired
+	// ObservationIdleExpired is the always-armed floor under attention (#171):
+	// the agent's byte stream went quiet for the idle interval while a turn was
+	// still open and unreported. It is an ALERT, not a completion — see the
+	// Reduce case for why the turn stays open.
+	ObservationIdleExpired
+	// ObservationBareReturn is a plain Enter that reached the agent as a bare
+	// CR because the composer gate reported inactive or unknown (#171). It is
+	// the only submission signal on that path, so it opens a turn when none is
+	// open; inside an open turn (answering a menu) it re-arms a spent floor
+	// without disturbing the turn's identity.
+	ObservationBareReturn
+	// observationKindCount is one past the last kind. Enumerations over the
+	// kind space derive their bound from it, so a kind added above is covered
+	// without editing the consumer (BR-4).
+	observationKindCount
 )
+
+// defaultIdleMessage is used when the caller supplies no interval-formatted
+// text. It states what was observed — silence — and claims nothing about
+// whether the agent finished, since the floor cannot know that.
+const defaultIdleMessage = "no agent output"
+
+// idleAlertMessage renders the floor's interval honestly at any scale — the
+// production interval is seconds, but tests run it in milliseconds and
+// "%.0fs" reported those as "0s".
+func idleAlertMessage(interval time.Duration) string {
+	if interval < time.Second {
+		return fmt.Sprintf("%s for %dms", defaultIdleMessage, interval.Milliseconds())
+	}
+	return fmt.Sprintf("%s for %.0fs", defaultIdleMessage, interval.Seconds())
+}
 
 type TurnObservation struct {
 	Kind    ObservationKind
@@ -43,7 +74,18 @@ type NotificationLifecycle struct {
 	GracePending  bool
 	WatchdogToken uint64
 	GraceToken    uint64
-	nextToken     uint64
+	// IdleNotified records that the current idle EPOCH already raised the
+	// floor, so the alert fires once per quiet stretch rather than every
+	// interval while the operator is away. open() clears it for a new turn,
+	// and a bare return clears it mid-turn — answering a menu starts a fresh
+	// quiet stretch. So a turn may alert more than once; an epoch never does.
+	IdleNotified bool
+	// IdleToken identifies the current idle epoch. It is minted when a turn
+	// opens and again when a bare return re-arms a spent floor — never per
+	// chunk: output resets the deadline's duration but not its epoch, so a
+	// timer expiry that raced a completion is rejected by token.
+	IdleToken uint64
+	nextToken uint64
 }
 
 type LifecycleDecision struct {
@@ -68,6 +110,8 @@ func Reduce(state NotificationLifecycle, observation TurnObservation) (Notificat
 		state.GracePending = false
 		state.WatchdogToken = 0
 		state.GraceToken = 0
+		state.IdleNotified = false
+		state.IdleToken = nextToken()
 	}
 	complete := func(message string) {
 		state.Active = false
@@ -75,6 +119,7 @@ func Reduce(state NotificationLifecycle, observation TurnObservation) (Notificat
 		state.GracePending = false
 		state.WatchdogToken = 0
 		state.GraceToken = 0
+		state.IdleToken = 0
 		decision.Notify = true
 		decision.Message = message
 	}
@@ -144,6 +189,37 @@ func Reduce(state NotificationLifecycle, observation TurnObservation) (Notificat
 		if state.Active && state.GracePending && observation.Token != 0 && observation.Token == state.GraceToken {
 			complete("agent stopped working")
 		}
+	case ObservationIdleExpired:
+		// Deliberately NOT complete(). A 60s silence does not know the turn
+		// ended; asserting it would set the Completed tombstone and swallow
+		// the agent's real end-of-turn, pulling the operator in early and then
+		// never telling them it actually finished. So the alert fires, the
+		// turn stays open, and a later completion still notifies. This does
+		// not double-notify a healthy turn: a working pane is not byte-quiet
+		// for the interval, so the timer never expires on one (#171 Log).
+		if state.Active && !state.Completed && !state.IdleNotified &&
+			observation.Token != 0 && observation.Token == state.IdleToken {
+			state.IdleNotified = true
+			message := observation.Message
+			if message == "" {
+				message = defaultIdleMessage
+			}
+			decision.Notify = true
+			decision.Message = message
+		}
+	case ObservationBareReturn:
+		// A bare CR that reached the agent is operator activity aimed at it.
+		// With no turn open it opens one. Inside an open turn it must not
+		// reset the turn's identity — but it DOES re-arm a floor that already
+		// fired: answering a menu starts a new attention window, and without
+		// this the turn that alerted is left with no floor at all, while a
+		// mid-turn Alt+Enter (which re-opens) would have re-armed (BR-14).
+		if !state.Active || state.Completed {
+			open("", false)
+		} else if state.IdleNotified {
+			state.IdleNotified = false
+			state.IdleToken = nextToken()
+		}
 	}
 	return state, decision
 }
@@ -169,6 +245,7 @@ func (p *proxy) processLifecycleObservation(observation TurnObservation) {
 		p.emitOuter(decision.Message)
 	}
 	p.syncLifecycleTimer()
+	p.syncIdleTimer()
 }
 
 func (p *proxy) processLifecycleRecord(record sessionwatch.LifecycleRecord) {
@@ -202,6 +279,115 @@ func (p *proxy) syncLifecycleTimer() {
 	}
 }
 
+// applyIdleExpiry handles one idle-timer expiry. `token` is the epoch that
+// actually expired and MUST be read by the caller before this runs: the drain
+// below reduces queued observations, and an opener among them mints a new turn
+// with a new IdleToken (advancing p.idleTimerToken in lockstep). Reading the
+// token after the drain would match that brand-new turn and alert against it
+// microseconds after it opened, consuming its floor (BR-2).
+//
+// The drain itself mirrors the chunk branch. Only turn-OPENING observations
+// travel this channel — publishLifecycleObservation's call sites publish
+// ObservationUserSubmission and ObservationBareReturn; completions are reduced
+// directly on the master goroutine — so what must be applied before the expiry
+// is a submission that has been published but not yet reduced.
+func (p *proxy) applyIdleExpiry(token uint64) {
+	for {
+		select {
+		case observation := <-p.lifecycleEvents:
+			p.processLifecycleObservation(observation)
+			continue
+		default:
+		}
+		break
+	}
+	// BR-6: the watchdog/grace deadline and this one can be co-ready, and Go
+	// picks between select cases at random. Give the lifecycle timer
+	// precedence so "agent stopped working" is not displaced by the less
+	// informative silence alert (the 0.5s emit limiter would drop the second).
+	if p.lifecycleTimer != nil {
+		select {
+		case <-p.lifecycleTimer.C:
+			kind, lifecycleToken := p.lifecycleTimerKind, p.lifecycleTimerToken
+			p.processLifecycleObservation(TurnObservation{Kind: kind, Token: lifecycleToken})
+		default:
+		}
+	}
+	message := idleAlertMessage(p.idleS)
+	p.debug("IDLE", message)
+	p.traceWrap("idle", map[string]any{"idle_s": p.idleS.Seconds()})
+	p.processLifecycleObservation(TurnObservation{
+		Kind: ObservationIdleExpired, Token: token, Message: message,
+	})
+}
+
+// syncIdleTimer ties the idle floor's arming to lifecycle state, exactly as
+// syncLifecycleTimer does for the watchdog and grace deadlines. The floor is
+// armed only while a turn is open, unreported, and has not already alerted on
+// the current epoch; anything that closes or reports the turn disarms it, and a
+// bare return re-arms it on a fresh epoch. This is why
+// the floor no longer depends on a `idleFired` latch in the master loop: a new
+// turn re-arms it because open() clears IdleNotified and mints a fresh epoch.
+func (p *proxy) syncIdleTimer() {
+	// idleS is fixed at startup, so a disabled floor never armed the timer and
+	// has nothing to stop — return before touching it, keeping the per-chunk
+	// cost of the always-on path at zero when the operator has opted out.
+	if p.idleTimer == nil || p.idleS <= 0 {
+		return
+	}
+	state := p.notificationLifecycle
+	if !(state.Active && !state.Completed && !state.IdleNotified && state.IdleToken != 0) {
+		p.stopIdleTimer()
+		return
+	}
+	if p.idleTimerToken != state.IdleToken {
+		p.resetIdleTimer() // a new turn: arm the floor on its epoch
+	}
+}
+
+// bumpIdleDeadline pushes an armed floor's deadline out on agent OUTPUT. Only
+// output moves it: the alert claims byte-silence, so a lifecycle record that
+// arrives with no pane output must not extend the window it describes (BR-10).
+func (p *proxy) bumpIdleDeadline() {
+	if p.idleTimer == nil || p.idleS <= 0 || p.idleTimerToken == 0 {
+		return
+	}
+	p.resetIdleTimer()
+}
+
+// resetIdleTimer restarts the deadline without changing the epoch: IdleToken is
+// minted by the reducer (on open, and on a re-arm), never here, so output pushes
+// the deadline out but cannot make a racing expiry from this epoch look stale.
+func (p *proxy) resetIdleTimer() {
+	if p.idleTimer == nil {
+		return
+	}
+	// Stop+drain+reset is safe here because only the master goroutine reads
+	// idleTimer.C.
+	drainStop(p.idleTimer)
+	p.idleTimerToken = p.notificationLifecycle.IdleToken
+	p.idleTimer.Reset(p.idleS)
+}
+
+func (p *proxy) stopIdleTimer() {
+	if p.idleTimer == nil {
+		return
+	}
+	drainStop(p.idleTimer)
+	p.idleTimerToken = 0
+}
+
+// drainStop stops a timer and clears any expiry already sitting in its channel.
+// Safe only on the master goroutine, the sole reader of these channels.
+func drainStop(t *time.Timer) {
+	if !t.Stop() {
+		select {
+		case <-t.C:
+		default:
+		}
+	}
+}
+
 func (p *proxy) resetLifecycleTimer(kind ObservationKind, token uint64, after time.Duration) {
 	p.stopLifecycleTimer()
 	p.lifecycleTimerKind = kind
@@ -213,12 +399,7 @@ func (p *proxy) stopLifecycleTimer() {
 	if p.lifecycleTimer == nil {
 		return
 	}
-	if !p.lifecycleTimer.Stop() {
-		select {
-		case <-p.lifecycleTimer.C:
-		default:
-		}
-	}
+	drainStop(p.lifecycleTimer)
 	p.lifecycleTimerKind = ObservationUnknown
 	p.lifecycleTimerToken = 0
 }

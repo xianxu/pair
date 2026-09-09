@@ -85,6 +85,14 @@ type returnDecision struct {
 	bytes   []byte
 	outcome adapt.Outcome
 	reason  string
+	// submits reports that these bytes reach the AGENT as a turn-opening
+	// submission, so the notification floor may open a turn on them (#171).
+	// It is not the same as `outcome == adapt.Bypass`: the overlay-active
+	// bypass confirms a pair-local picker and submits nothing to the agent,
+	// and remapping to a composer newline is not a submission either. Keying
+	// the floor on Bypass alone would open a turn on a picker confirm and
+	// then raise a spurious "no agent output" alert against it.
+	submits bool
 }
 
 func decidePlainReturn(profile harnessTTYProfile, overlayActive bool, snapshot *terminalSnapshot) returnDecision {
@@ -95,6 +103,7 @@ func decidePlainReturn(profile harnessTTYProfile, overlayActive bool, snapshot *
 			bytes:   []byte{'\r'},
 			outcome: adapt.Bypass,
 			reason:  "plain Enter → bare CR (overlay active)",
+			submits: false, // pair-local picker confirm; never reaches the agent
 		}
 	}
 	// An empty plainCR would report Fired while emitting nothing, swallowing
@@ -108,6 +117,7 @@ func decidePlainReturn(profile harnessTTYProfile, overlayActive bool, snapshot *
 			bytes:   append([]byte(nil), profile.keymap.plainCR...),
 			outcome: adapt.Fired,
 			reason:  "plain Enter → newline remap",
+			submits: false, // a newline inside the composer, not a send
 		}
 	}
 	switch profile.composerGate {
@@ -122,6 +132,7 @@ func decidePlainReturn(profile harnessTTYProfile, overlayActive bool, snapshot *
 				bytes:   []byte{'\r'},
 				outcome: adapt.Bypass,
 				reason:  "plain Enter → bare CR (composer inactive)",
+				submits: true, // the CR reaches the agent (menu answer)
 			}
 		}
 		return remap()
@@ -137,5 +148,6 @@ func unknownComposerDecision() returnDecision {
 		bytes:   []byte{'\r'},
 		outcome: adapt.Bypass,
 		reason:  "plain Enter → bare CR (composer unknown)",
+		submits: true, // the CR reaches the agent; fail open for the floor
 	}
 }

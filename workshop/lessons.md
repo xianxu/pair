@@ -4085,3 +4085,62 @@ running three of the four things it claimed — including inside a close's
 `--verified` evidence, where I quoted it to the operator as proof. **"Matches
 something" is not the property; "every name resolves" is.** An enumerated
 selector must be checked element-wise, and the guard now does.
+
+## Snapshot a timer's epoch before draining events that can re-mint it
+
+An idle-expiry branch drained queued lifecycle observations and *then* read the
+timer's epoch token. The drain reduces those observations, and an opener among
+them mints a new turn — advancing the very token field the expiry was about to
+read. The stale expiry therefore matched a turn opened microseconds earlier,
+notified against it, and consumed its one-shot floor.
+
+**Rule.** When a handler both (a) drains a queue that can mutate state and (b)
+validates itself against a token from that state, read the token *before* the
+drain and pass it in as a parameter. A field read after the drain is a different
+epoch. Prefer making this structural — the token as a function argument, so the
+call site's evaluation order pins it — over a comment asking the next reader to
+preserve the ordering. Caught in #000171 close review (`ARCH-ORDER`).
+
+## A race test must be shown to enter the branch it names
+
+A test named for "idle expiry racing a queued boundary" never entered the idle
+branch at all: the loop's ordinary event case consumed the queued observation
+well before the deadline, so removing the entire drain the test existed to pin
+left it green.
+
+**Rule.** For a test that claims to exercise an interleaving inside a select or
+scheduler loop, either instrument it to prove the target branch executes, or
+extract that branch into a named function the test calls directly so the
+ordering is injected rather than raced. Then prove falsifiability: reintroduce
+the bug and watch the test fail. A timing-dependent arrangement that merely
+*could* hit the branch pins nothing. Caught in #000171 close review.
+
+## A mutation that fails to apply is indistinguishable from one that survives
+
+A mutation-testing sweep reported one deliverable as unpinned. The substitution
+had silently matched nothing: the search text contained `\r`, which the harness
+interpreted as a literal carriage return rather than the two characters in the
+source. The code was never modified, so the tests passed — reading exactly like
+a test that fails to catch the deletion.
+
+**Rule.** Every mutation in a sweep must assert that it changed the file —
+`assert needle in source` before substituting, or compare the bytes after. A
+sweep whose failure mode is a false "GREEN" reports the opposite of the truth
+and will send you writing tests for code that is already covered, or worse,
+declaring coverage you do not have. Caught in #000171 close review round 2.
+
+## A count assertion under a rate limiter asserts the rate limiter
+
+A test asserted "exactly one notification" over a 400ms window while the emit
+path collapsed anything inside 500ms. The oracle could not fail: with the
+once-per-turn guard removed the code emitted nine notifications and the test
+still passed, because the limiter delivered one.
+
+**Rule.** Before asserting how many times something was produced, find every
+debounce, throttle, and rate limiter between the producer and your observation
+point. Either observe upstream of them, or inject their clock — most already
+have an injectable time source that production wires to `time.Now` and tests
+forget to use. Widening the sleep past the limiter window is the fragile fix; it
+trades an unfalsifiable test for a slow flaky one. Prove the result by mutation:
+the same duplicate-producing change must redden with the clock injected and stay
+green without it. Caught in #000171 close review round 3.

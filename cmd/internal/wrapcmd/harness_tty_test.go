@@ -105,15 +105,20 @@ func TestDecidePlainReturn(t *testing.T) {
 		wantBytes   []byte
 		wantOutcome adapt.Outcome
 		wantReason  string
+		// wantSubmits: does this CR reach the AGENT as a turn-opening
+		// submission (#171)? Enumerated for every exit, not just the bypass
+		// branch the floor was added for — `submits` is deliberately not the
+		// same predicate as `outcome == adapt.Bypass`.
+		wantSubmits bool
 	}{
-		{"overlay wins over active composer", positive, true, &activeSnapshot, []byte{'\r'}, adapt.Bypass, "plain Enter → bare CR (overlay active)"},
-		{"active positive composer", positive, false, &activeSnapshot, []byte{'\n'}, adapt.Fired, "plain Enter → newline remap"},
-		{"inactive positive composer", positive, false, &inactiveSnapshot, []byte{'\r'}, adapt.Bypass, "plain Enter → bare CR (composer inactive)"},
-		{"unknown positive composer state", positive, false, nil, []byte{'\r'}, adapt.Bypass, "plain Enter → bare CR (composer unknown)"},
-		{"positive profile without registered recognizer", withoutRecognizer, false, &activeSnapshot, []byte{'\r'}, adapt.Bypass, "plain Enter → bare CR (composer unknown)"},
-		{"legacy profile preserves remap", legacy, false, nil, []byte{'\\', '\r'}, adapt.Fired, "plain Enter → newline remap"},
-		{"all-zero profile fails closed", harnessTTYProfile{}, false, nil, []byte{'\r'}, adapt.Bypass, "plain Enter → bare CR (composer unknown)"},
-		{"invalid gate policy fails closed", harnessTTYProfile{composerGate: composerGatePolicy(255)}, false, &activeSnapshot, []byte{'\r'}, adapt.Bypass, "plain Enter → bare CR (composer unknown)"},
+		{"overlay wins over active composer", positive, true, &activeSnapshot, []byte{'\r'}, adapt.Bypass, "plain Enter → bare CR (overlay active)", false},
+		{"active positive composer", positive, false, &activeSnapshot, []byte{'\n'}, adapt.Fired, "plain Enter → newline remap", false},
+		{"inactive positive composer", positive, false, &inactiveSnapshot, []byte{'\r'}, adapt.Bypass, "plain Enter → bare CR (composer inactive)", true},
+		{"unknown positive composer state", positive, false, nil, []byte{'\r'}, adapt.Bypass, "plain Enter → bare CR (composer unknown)", true},
+		{"positive profile without registered recognizer", withoutRecognizer, false, &activeSnapshot, []byte{'\r'}, adapt.Bypass, "plain Enter → bare CR (composer unknown)", true},
+		{"legacy profile preserves remap", legacy, false, nil, []byte{'\\', '\r'}, adapt.Fired, "plain Enter → newline remap", false},
+		{"all-zero profile fails closed", harnessTTYProfile{}, false, nil, []byte{'\r'}, adapt.Bypass, "plain Enter → bare CR (composer unknown)", true},
+		{"invalid gate policy fails closed", harnessTTYProfile{composerGate: composerGatePolicy(255)}, false, &activeSnapshot, []byte{'\r'}, adapt.Bypass, "plain Enter → bare CR (composer unknown)", true},
 	}
 
 	for _, test := range tests {
@@ -127,6 +132,9 @@ func TestDecidePlainReturn(t *testing.T) {
 			}
 			if got.reason != test.wantReason {
 				t.Errorf("reason = %q, want %q", got.reason, test.wantReason)
+			}
+			if got.submits != test.wantSubmits {
+				t.Errorf("submits = %v, want %v", got.submits, test.wantSubmits)
 			}
 		})
 	}

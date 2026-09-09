@@ -1,12 +1,13 @@
 ---
 id: 000171
-status: working
+status: codecomplete
 deps: []
 github_issue:
 created: 2026-09-02
 updated: 2026-09-09
 estimate_hours: 1.86
 started: 2026-09-09T01:08:11-07:00
+actual_hours: 4.45
 ---
 
 # Always-on idle notification fallback
@@ -135,7 +136,7 @@ the alert to one per turn rather than every interval while the operator is away.
 
 - [x] Measure byte-quiet duration for an idle claude pane and an idle codex
       pane; record in `## Log`. This decides the trigger, so it comes first.
-- [ ] **Reducer** (`notification_lifecycle.go`, pure — `ARCH-PURE`). Add
+- [x] **Reducer** (`notification_lifecycle.go`, pure — `ARCH-PURE`). Add
       `ObservationIdleExpired` and `ObservationBareReturn`; add `IdleNotified
       bool` + `IdleToken uint64` to `NotificationLifecycle`. `open()` clears
       `IdleNotified` and mints `IdleToken`; `complete()` zeroes `IdleToken`.
@@ -143,7 +144,7 @@ the alert to one per turn rather than every interval while the operator is away.
       !IdleNotified && Token != 0 && Token == IdleToken`, sets `IdleNotified`,
       and does **not** complete. Message from `observation.Message`, defaulting
       to a constant — the reducer stays free of the env knob.
-- [ ] **Timer arming tied to turn state (disposes PQ-2).** The idle deadline's
+- [x] **Timer arming tied to turn state (disposes PQ-2).** The idle deadline's
       epoch is the turn, not the last byte. Add `syncIdleTimer()` beside
       `syncLifecycleTimer()` and call it from `processLifecycleObservation`, so
       arming is owned by lifecycle state exactly as the watchdog/grace timers
@@ -156,11 +157,11 @@ the alert to one per turn rather than every interval while the operator is away.
       `case <-idleTimer.C` drains `p.lifecycleEvents` first, exactly as the
       chunk branch does at `wrap.go:2671-2679`, so a queued submission reduces
       before the expiry is applied.
-- [ ] **Remove the mode gate.** Delete `if p.notifyModeActive != "idle" {
+- [x] **Remove the mode gate.** Delete `if p.notifyModeActive != "idle" {
       p.idleS = 0 }` (`wrap.go:2372`) and the `"idle"` mode value. The timer
       arms for every agent — marker mode (claude) and native mode alike.
       `PAIR_WRAP_IDLE_S` stays the knob, `0` still disables.
-- [ ] **Cover bare-CR submissions (disposes PQ-3).** `ObservationUserSubmission`
+- [x] **Cover bare-CR submissions (disposes PQ-3).** `ObservationUserSubmission`
       is published only on the two Alt+Enter forms (`wrap.go:1836,1855`). Plain
       Enter with the composer *active* is remapped to a newline (correct — not a
       submission), but with the composer inactive/unknown it passes a bare CR
@@ -169,10 +170,10 @@ the alert to one per turn rather than every interval while the operator is away.
       that bypass branch; the reducer opens a turn **only when none is active**,
       so a menu answer inside an open turn stays a no-op and turn identity is
       never reset mid-turn.
-- [ ] **Honest message text.** `no agent output for 60s` (interval formatted
+- [x] **Honest message text.** `no agent output for 60s` (interval formatted
       from `p.idleS`) — not `finished` (unknown) and not `stopped` (may never
       have started). Confirm it survives the OSC 777 envelope into couch.
-- [ ] **Tests (disposes PQ-4).** Pure rows drive `Reduce` directly in
+- [x] **Tests (disposes PQ-4).** Pure rows drive `Reduce` directly in
       `notification_lifecycle_test.go`: (a) unrecognized turn — submission then
       idle expiry notifies; (b) completed turn — submission, marker completion,
       idle expiry is silent; (c) **alert-not-completion** — submission, idle
@@ -187,13 +188,13 @@ the alert to one per turn rather than every interval while the operator is away.
       its adversarial class is **idle expiry racing a queued submission and a
       completion**, with arrival order *injected* (enqueue on `p.lifecycleEvents`
       before firing the timer) rather than sampled.
-- [ ] **Operating envelope (disposes PQ-5).** Always-arming adds one
+- [x] **Operating envelope (disposes PQ-5).** Always-arming adds one
       Stop/drain/Reset per chunk for every agent, where `idleS == 0` previously
       skipped it. Budget: the measured busy pane ran 203 chunks / 123s ≈ 1.7
       chunks/s, and a `time.Timer` Stop+Reset is sub-microsecond, so the added
       cost is <1µs/s on the keystroke-latency path — asserted here rather than
       assumed, and bounded because the reset is O(1) per chunk.
-- [ ] **Atlas (disposes PQ-6).** `atlas/architecture.md:783` enumerates the
+- [x] **Atlas (disposes PQ-6).** `atlas/architecture.md:783` enumerates the
       reducer's openers and terminals and `:965` describes the "idle/native OSC
       for codex/agy" modes; both go stale when `"idle"` is deleted and the two
       observations are added. Update at close.
@@ -224,6 +225,7 @@ past moment. That blocks a "working 4m / idle 31m" display in the switcher and
 wants its own issue if that display is ever built.
 
 ### 2026-09-09
+- 2026-09-09: closed — Full `make test` passes unsandboxed: EXIT=0, zero FAIL lines. Round-3 findings addressed as rules — see ## Log 2026-09-09 round 3. BR-17: the bare-CR re-arm changed the invariant and only the fuzz had been swept; README, atlas x2 clauses now all state the live invariant (one completion per generation, one alert per idle epoch), and the superseded "one alert per turn" wording in this issue own Plan/earlier Log is corrected in the round-3 entry per the append-only convention. BR-18: fixed by the rule the finding names, not a wider sleep — emitOuter and maybeSpawnSlug now read the proxy already-injectable `now` via clock(), and the harness injects a clock advancing 1s per read. Proven by mutation: with the once-per-epoch guards and the epoch check removed the count test fails with "notifications = 9"; the identical mutation with the clock left at time.Now still passes, i.e. the limiter was the only thing previously asserted. BR-19: Run terminates in pty.Start so the startup path cannot be driven end-to-end here; pinned the shape that allowed the gate instead — a source-scanning test asserts p.idleS and p.notifyModeActive each have exactly one assignment site fed by resolveNotifyConfig, and it reddens when the gate is re-inserted at its original call site ("p.idleS = " assigned at 2 sites). BR-9 remains deferred to pair#219.; review verdict: FIX-THEN-SHIP
 
 **Measurement done first, as the Spec required — and it refutes the hypothesis
 the Spec was built on.** Three measurements, all from live/recorded dogfood
@@ -314,3 +316,245 @@ deletes the `idleFired` latch; drains `lifecycleEvents` on expiry; adds
 `Reduce` and the two existing in-process seams for tests plus the injected race
 class; states the per-chunk timer-reset budget; adds the atlas step. Estimate
 derived (1.86h, v3.1) after the plan settled, per #187 ordering.
+
+### 2026-09-09 — implementation
+
+**The reducer's completion contract was the real decision.** Routing the expiry
+through `complete()` (the Spec's literal shape) sets the `Completed` tombstone,
+and every terminal case is guarded by `Active && !Completed` — so the agent's
+genuine end-of-turn would be swallowed after an idle alert. The operator would
+be pulled in early *and then never told it actually finished*. `ObservationIdleExpired`
+therefore sets `IdleNotified` and leaves the turn open. Rows (c) and (d) of
+`notification_lifecycle_test.go` pin both halves: a real completion after an
+alert still notifies, and the alert itself fires at most once per turn.
+
+**Why the two timers stay two.** The watchdog/grace deadlines are set only by
+reducer transitions; the floor's is reset by every output chunk. Folding them
+would mint a token per chunk and clobber grace arming. They share the thing that
+matters instead — arming is owned by a `syncIdleTimer` that sits beside
+`syncLifecycleTimer` and reads the same state (`ARCH-DRY` on the invariant, not
+on the mechanism), so the `idleFired` latch that used to live in the master loop
+is gone: `open()` clearing `IdleNotified` is what re-arms a new turn.
+
+**`submits` is not `adapt.Bypass`.** The plan named one bypass branch;
+`decidePlainReturn` has four exits reaching a bare CR, and one of them — overlay
+active — is a pair-local picker confirm that sends nothing to the agent. Keying
+the floor on `Bypass` would open a turn on a picker confirm and then alert
+against it. So the property is carried on `returnDecision.submits`, decided
+inside the pure function, and `TestDecidePlainReturn` now asserts it on all
+eight rows rather than the one that motivated it (`ARCH-PURPOSE`: the class, not
+the instance).
+
+**Spurious-alert analysis for the bare-CR opener.** A bare return opens a turn
+only when none is open, which needs composer-inactive *and* no open turn. The
+common paths don't reach it: claude working → a turn is already open (no-op);
+claude idle at its composer → plain Enter is remapped to a newline, never a bare
+CR. The residue is a stray Enter into the agent pane between turns, which costs
+one bounded alert.
+
+**No new steady-state slug cost.** `emitOuter` spawns `pair slug`, so the floor
+adds emits that did not happen before. But it fires only on turns that were
+*not* otherwise reported, so it substitutes for a missing turn-end rather than
+adding to an existing one; worst case is one alert per turn, the same ceiling
+`maybeSpawnSlug` already had.
+
+Delivered: `ObservationIdleExpired` + `ObservationBareReturn`, `IdleNotified` +
+`IdleToken`, `syncIdleTimer`/`resetIdleTimer`/`stopIdleTimer`, the
+`notifyModeActive != "idle"` gate and the `"idle"` mode value deleted, the
+expiry branch draining `lifecycleEvents`, and `returnDecision.submits`.
+
+### 2026-09-09 — boundary review round 1: REWORK, addressed
+
+Verdict REWORK on `9edc8a97..4b26298c`; 12 findings. All dispositions below.
+
+**BR-2 (Critical) — real bug, reproduced and fixed.** The expiry read
+`p.idleTimerToken` *after* its drain. The drain runs
+`processLifecycleObservation → syncIdleTimer → resetIdleTimer`, which advances
+that field in lockstep with the reducer's new `IdleToken` — so an opener drained
+at expiry time made the stale expiry match a turn opened microseconds earlier,
+alerting against it *and* consuming its floor. The epoch is now a parameter
+(`applyIdleExpiry(token)`), read at the call site before the drain.
+`TestIdleExpiryDoesNotAlertAgainstATurnOpenedByItsOwnDrain` fails with the old
+ordering restored, emitting exactly the reviewer's `no agent output for 60s`.
+
+**BR-3 (Important) — the race test was unfalsifiable.** Instrumentation showed
+`TestIdleFloorExpiryYieldsToABoundaryQueuedBeforeIt` entered the idle branch
+zero times: the top-level `lifecycleEvents` case consumed the completion 40ms
+early, so deleting the drain kept every test green. Extracting `applyIdleExpiry`
+made the interleaving injectable rather than raced; the replacement row fails
+with the drain removed. Verified both by reintroducing each bug.
+
+**BR-4** — fuzz derived its bound from `ObservationGraceExpired`, a
+hand-maintained restatement of the enum that silently excluded both new kinds.
+Now bounded by an `observationKindCount` sentinel (guarded by its own test),
+feeding `IdleToken`, with the invariant split into one completion **plus at most
+one alert** per generation — the alert path legitimately breaks the old single
+counter. 4.1M execs pass.
+
+**BR-5** — README `## Notifications` now documents the floor, why its message
+claims only silence, and `PAIR_WRAP_IDLE_S` / `=0`.
+
+**BR-6** — idle and watchdog deadlines can be co-ready and Go picks at random,
+so the 0.5s limiter could drop `agent stopped working` in favour of the less
+informative alert. The expiry now gives the lifecycle timer precedence.
+
+**BR-7** — the nil-profile branch was a second home for the `submits` rule and
+skipped the overlay check. It now flows through `decidePlainReturn` as the zero
+profile, which fails closed to the same bare CR (`ARCH-DRY`).
+
+**BR-8** — the Stop+drain idiom, written three times, is now `drainStop`.
+
+**BR-10** — `syncIdleTimer` reset the deadline on *every* reduced observation,
+including journal records with no pane output, so the window could exceed the
+byte-silence the message claims. Arming is now idempotent (only a new epoch
+arms) and output moves the deadline via `bumpIdleDeadline`. `idleAlertMessage`
+also renders sub-second intervals honestly instead of as `for 0s`.
+
+**BR-11** — the harness suppressed the real `pair slug` subprocess with a 1s
+wall-clock debounce that a loaded machine could outlast, spawning a model call
+against the operator's machine. Injected `spawnSlug` seam instead (`ARCH-MOCK`).
+
+**BR-12** — atlas claimed "at most once per generation" unqualified and a drain
+guarantee the code did not provide. Both now carry the accurate clause.
+
+**BR-1 (carried from plan-quality)** — addressed before the review ran: the rule
+lives on `returnDecision.submits`, asserted on all eight `decidePlainReturn`
+exits.
+
+**BR-9 — not addressed here, filed as pair#219.** Collapsing the five-boolean
+state space into a tagged `turnState` rewrites every `Reduce` case and the tests
+that read the flags directly. It is pre-existing (this diff added the fifth
+boolean, not the pattern), and bundling it would mix a representation refactor
+into a behaviour change. Separable work, so it got its own issue rather than a
+silent deferral.
+
+### 2026-09-09 — boundary review round 2: FIX-THEN-SHIP, addressed
+
+12 findings disposed; 3 stayed open, all legitimate.
+
+**BR-13 — the deliverable was the RULE, not the three sites.** The reviewer's
+mutation sweep found three `- [x]` rows whose code could be deleted with the
+package still green, including the mode gate this issue exists to remove: the
+idle tests build `proxy` directly, so they never crossed the arg-parse seam, and
+nothing drove a plain Enter through `emitPlainCR`. Rather than patch the three,
+the whole checklist was swept by deletion. `resolveNotifyConfig` extracts the
+notify wiring as a pure seam so "the floor's interval does not depend on notify
+mode" became assertable at all. Sweep (baseline GREEN; every row with code):
+
+| mutation | result |
+|---|---|
+| idle alert becomes a completion | RED |
+| drop the once-per-turn guard | RED |
+| read the epoch after the drain | RED |
+| delete the drain | RED |
+| unconditional re-arm (idempotent arming) | RED |
+| delete lifecycle-deadline precedence | RED |
+| re-add the `notifyModeActive != "idle"` gate | RED |
+| delete the bare-CR publish (remap path) | RED |
+| delete the bare-CR publish (pass-through path) | RED |
+| drop the re-arm on a spent floor | RED |
+| message loses sub-second honesty | RED |
+
+(The pass-through row first read GREEN from a broken mutation — `\r` in the
+harness was interpreted as a literal CR, so nothing was substituted. Re-run with
+an asserted needle: RED. A mutation that fails to apply looks exactly like a
+surviving one, which is its own small lesson.)
+
+**BR-14 — enumerate the populations, then make the claim true.** Openers were
+reachable only under `hasReturnRemap()`, so `PAIR_WRAP_REMAP_RETURN=0` and any
+agent outside `harnessTTYProfiles` had **zero** turn openers — atlas's "arms for
+every agent" was false for two whole configurations. `passThroughChunk` now
+publishes on a CR, which is correct there precisely because those bytes reach
+the agent verbatim. The third instance was event-shaped: a bare CR inside an
+open turn was a no-op, so once the single alert fired the operator's menu answer
+left that turn with no floor, while a mid-turn Alt+Enter would have re-armed. A
+bare CR now re-arms a spent floor on a fresh epoch without touching turn
+identity.
+
+**BR-4 — the fix had landed but was unreachable, and the guard was inverted.**
+The sentinel and the split invariant were real, but no seed produced either new
+kind, so plain `go test` never exercised them; and the guard asserted
+`observationKindCount == ObservationBareReturn+1`, which fails on exactly the
+change the sentinel exists to absorb. Added a seed reaching both kinds, replaced
+the guard with a walk over every kind the sentinel declares, and the new seed
+immediately caught a real consequence of BR-14: with re-arming, one generation
+*can* alert twice, so the invariant is one completion per generation and one
+alert per **epoch**. Fuzz: 4.4M execs pass.
+
+**BR-9** — still deferred to pair#219, unchanged reasoning.
+
+### 2026-09-09 — boundary review round 3: FIX-THEN-SHIP, addressed
+
+Two blocking findings, both created by round 2's own fixes — the cost of
+changing an invariant late.
+
+**BR-17 — changing an invariant means sweeping every restatement of it.** The
+bare-CR re-arm made "at most once per turn" false, and only the fuzz was
+updated: README still said "It fires at most once per turn", atlas still said a
+generation carries "one alert plus a later real completion", and atlas still
+called `IdleToken` "minted once per turn" two sentences before describing the
+re-arm that mints a second. All three swept. The live invariant is: **one
+completion per generation, one alert per idle epoch.** (This also supersedes the
+"one alert per turn" wording in this issue's own Plan and earlier Log entries —
+recorded here rather than rewritten, per the append-only convention.)
+
+**BR-18 — the exactly-once oracle could not fail.** The master-loop count
+assertion sat inside `rateLimitS` (500ms) with a 400ms window, so the limiter
+delivered one notification no matter how many the floor produced. The fix is the
+rule the finding names, not a wider sleep: `emitOuter` and `maybeSpawnSlug` now
+read the proxy's already-injectable `now` through a `clock()` helper, and the
+harness injects a clock that advances a second per read. Proven by mutation —
+with the once-per-epoch guards and the epoch check all removed, the test now
+fails with **`notifications = 9`**; the identical mutation with the clock left at
+`time.Now` still passes. The limiter was the only thing being asserted.
+
+**BR-19 (Minor) — pinned rather than accepted.** `Run` terminates in
+`pty.Start`, so the startup path cannot be driven end-to-end here and the mode
+gate could be re-added at its original call site with everything green. What is
+checkable is the shape that allowed the gate: `p.idleS` and `p.notifyModeActive`
+each having exactly one assignment site, fed by `resolveNotifyConfig`. A
+source-scanning test asserts that, and reddens when the gate is re-inserted
+("p.idleS = " assigned at 2 sites).
+
+### 2026-09-09 — boundary review round 4: findings addressed, close finalized
+
+Close finalized at round 4 (`status: codecomplete`, `actual_hours: 4.45`
+measured). Three findings arrived with it; all three fixed before this commit
+per the FIX-THEN-SHIP protocol, and none re-opened the boundary.
+
+**BR-20 — derive the enumeration, don't inherit it.** Round 3 swept the three
+sites the previous finding happened to name; five more in-source restatements of
+the superseded once-per-turn invariant survived, because the enumeration was a
+hand-list rather than a derivation. The derivation, recorded so the next
+invariant change reuses it rather than re-listing by hand:
+
+```
+for f in cmd/internal/wrapcmd/notification_lifecycle.go cmd/internal/wrapcmd/wrap.go \
+         atlas/architecture.md README.md; do
+  grep -niE "once per turn|at most once|one alert|its one alert|a no-op|per generation|minted once" "$f"
+done
+```
+
+That found all five (`notification_lifecycle.go:37, 77, 80, 323, 354`) plus one
+the reviewer's own list had missed: `wrap.go:610`'s slug cost note, which still
+said "runs once per turn-end". It now states the floor's added cost. That also
+corrects this issue's earlier Log claim of "no new steady-state slug cost" — true
+when the alert was once-per-turn, weaker now that a bare return can re-arm.
+Re-running the grep at head returns nothing stale.
+
+**BR-21 — a real bug, and a third home for a predicate that has one.** BR-14's
+fix planted a bare `bytes.IndexByte(data, '\r')` in `passThroughChunk`, with no
+bracketed-paste awareness, while its caller hard-reset `inPaste = false` every
+chunk. Under `PAIR_WRAP_REMAP_RETURN=0` — or for any agent outside
+`harnessTTYProfiles` — an operator pasting a multi-line prompt and stepping away
+without submitting would open a turn on the paste and be told "no agent output
+for 60s" about a turn they never started: precisely the untrustworthy
+notification the Spec exists to avoid. The predicate is now the pure
+`submittingReturn(data, inPaste)`, and the caller carries paste state across
+chunks. The remap path already got this for free (`translateChunk` never reaches
+`emitPlainCR` inside a paste), which is why the two had diverged.
+
+**BR-22 — fixture realism.** `p.lifecycleEvents` only ever carries turn-opening
+observations; completions are reduced directly on the master goroutine. The
+drain test queued an `ObservationMarkerCompletion` that channel never sees, and
+`applyIdleExpiry`'s comment claimed the same. Both corrected to a submission.

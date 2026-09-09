@@ -101,6 +101,29 @@ var notifyMode = map[string]string{
 
 const notifyModeDefault = "native"
 
+// notifyConfig is the notification wiring for one agent: the mode that owns
+// emit_outer, the end-of-turn marker regex when that mode uses one, and the
+// idle floor's interval. Pure, so "the floor's interval does not depend on
+// notify mode" is a property a test can assert — the old gate zeroed idleS
+// here for every mode but one that nothing was ever assigned, and its absence
+// is otherwise unfalsifiable from outside the startup path (BR-13).
+type notifyConfig struct {
+	mode        string
+	endOfTurnRe *regexp.Regexp
+	idleS       time.Duration
+}
+
+func resolveNotifyConfig(agent string, idle time.Duration) notifyConfig {
+	config := notifyConfig{mode: notifyModeDefault, idleS: idle}
+	if mode, ok := notifyMode[agent]; ok {
+		config.mode = mode
+	}
+	if config.mode == "marker" {
+		config.endOfTurnRe = endOfTurnByAgent[agent]
+	}
+	return config
+}
+
 // Per-agent end-of-turn pattern, applied only in "marker" notify mode.
 // Matched against finalized colored spans (post-SGR-stripping by the
 // span extractor). The grammar is:
@@ -263,12 +286,22 @@ type proxy struct {
 	lifecycleTimer        *time.Timer
 	lifecycleTimerKind    ObservationKind
 	lifecycleTimerToken   uint64
-	codexWorkingRendered  bool
-	lifecycleJournalPath  string
-	lifecycleJournal      lifecycleJournalAdvancer
-	writeTTY              func(fd int, p []byte) (int, error)
+	// The idle floor's own timer (#171). Separate from lifecycleTimer because
+	// its deadline is reset by every output chunk, while the watchdog/grace
+	// deadlines are set only by reducer transitions. Arming is still owned by
+	// lifecycle state — see syncIdleTimer.
+	idleTimer            *time.Timer
+	idleTimerToken       uint64
+	codexWorkingRendered bool
+	lifecycleJournalPath string
+	lifecycleJournal     lifecycleJournalAdvancer
+	writeTTY             func(fd int, p []byte) (int, error)
 	// pair-slug spawn debounce (#000027)
 	lastSlug time.Time
+	// spawnSlug is the slug side effect, injectable so tests whose emit lands
+	// after a live timer can never race the wall-clock debounce into spawning
+	// a real model call on the operator's machine (BR-11). nil = production.
+	spawnSlug func()
 
 	// Span LRU. spans maps key="<color>\t<text>" → *spanEntry; order keeps
 	// insertion order, oldest at Front, newest at Back. Move-to-back on
@@ -574,17 +607,25 @@ func (p *proxy) traceWrap(label string, fields map[string]any) {
 // and is non-fatal, so this is fire-and-forget. PAIR_AGENT tells it which
 // session-file format to parse; cwd is inherited (the agent's repo → branch).
 //
-// Cost note: this runs once per turn-end, and pair-slug must call the small
-// model before it can know the answer is KEEP — so steady-state cost is ~one
-// haiku call per agent turn. The 1s debounce only collapses bursts, not the
-// per-turn baseline; that's the accepted price of an always-current slug.
+// Cost note: this runs on each notification, and pair-slug must call the small
+// model before it can know the answer is KEEP. The baseline is ~one haiku call
+// per agent turn-end; the idle floor (#171) adds one per quiet stretch that
+// goes unreported — usually zero, since a turn that ends normally is reported
+// and a working pane is never byte-quiet, but a turn the operator answers
+// repeatedly can re-arm and alert more than once. The 1s debounce only
+// collapses bursts, not the baseline; that's the accepted price of an
+// always-current slug.
 func (p *proxy) maybeSpawnSlug() {
-	now := time.Now()
+	now := p.clock()
 	if !p.lastSlug.IsZero() && now.Sub(p.lastSlug) < slugDebounceS {
 		return
 	}
 	p.lastSlug = now
 	p.debug("SLUG-spawn", "agent="+p.agentBasename)
+	if p.spawnSlug != nil {
+		p.spawnSlug()
+		return
+	}
 	go func() { _ = slugSpawnCmd(p.agentBasename).Run() }()
 }
 
@@ -604,6 +645,17 @@ func slugSpawnCmd(agent string) *exec.Cmd {
 
 // Rate-limited: any call within rateLimitS of the last successful emit is
 // silently dropped. All errors are swallowed — never blocks the proxy.
+// clock is the proxy's injectable time source. The emit limiter and the slug
+// debounce read it rather than time.Now() so a test can assert how many
+// notifications were produced without the 500ms limiter silently collapsing
+// duplicates into one and making the assertion unfalsifiable (BR-18).
+func (p *proxy) clock() time.Time {
+	if p.now != nil {
+		return p.now()
+	}
+	return time.Now()
+}
+
 func (p *proxy) emitOuter(msg string) {
 	if msg == "" {
 		msg = "agent attention"
@@ -612,7 +664,7 @@ func (p *proxy) emitOuter(msg string) {
 	// This is pair's agent-agnostic notify sink (marker/idle/native all land
 	// here), so it works for claude/codex/agy alike — no claude Stop hook.
 	p.maybeSpawnSlug()
-	now := time.Now()
+	now := p.clock()
 	if !p.lastEmit.IsZero() && now.Sub(p.lastEmit) < rateLimitS {
 		p.debug("EMIT-skip", fmt.Sprintf("rate-limited (%.2fs since last)", now.Sub(p.lastEmit).Seconds()))
 		return
@@ -1440,8 +1492,7 @@ func (p *proxy) translateStdinFrom(stdin io.Reader, out io.Writer, flushAfter ti
 				if p.hasReturnRemap() {
 					outBytes, leftover, inPaste = p.translateChunk(segment, inPaste)
 				} else {
-					outBytes, leftover = p.passThroughChunk(segment)
-					inPaste = false
+					outBytes, leftover, inPaste = p.passThroughChunk(segment, inPaste)
 				}
 				if len(outBytes) > 0 {
 					wn, werr := out.Write(outBytes)
@@ -1532,14 +1583,51 @@ func (p *proxy) closeTerminal() error {
 	return p.terminal.Close()
 }
 
-func (p *proxy) passThroughChunk(data []byte) ([]byte, []byte) {
+func (p *proxy) passThroughChunk(data []byte, inPaste bool) ([]byte, []byte, bool) {
 	if workbenchshortcut.IsChordPrefix(data) {
-		return nil, append([]byte(nil), data...)
+		return nil, append([]byte(nil), data...), inPaste
 	}
 	if len(data) == 1 && data[0] == 0x1b {
-		return nil, append([]byte(nil), data...)
+		return nil, append([]byte(nil), data...), inPaste
 	}
-	return data, nil
+	// These bytes reach the agent verbatim, so a CR here IS a submission — and
+	// it is the only turn-opening signal this configuration has. Without it the
+	// floor never arms under PAIR_WRAP_REMAP_RETURN=0, nor for any agent
+	// outside harnessTTYProfiles (BR-14). The predicate is decided by
+	// submittingReturn rather than re-derived here, because a bare CR scan
+	// misses bracketed paste: a pasted multi-line prompt carries CRs that
+	// submit nothing, and would otherwise open a turn the operator never
+	// started and earn a spurious "no agent output" alert (BR-21).
+	submits, nextPaste := submittingReturn(data, inPaste)
+	if submits {
+		p.publishLifecycleObservation(TurnObservation{Kind: ObservationBareReturn})
+	}
+	return data, nil, nextPaste
+}
+
+// submittingReturn reports whether `data` carries a CR that the agent will see
+// as a submission, and the bracketed-paste state to carry into the next chunk.
+// A CR between ESC[200~ and ESC[201~ is pasted content, not a send — the remap
+// path gets this for free because translateChunk never reaches emitPlainCR
+// inside a paste, and this is the pass-through path's equivalent. Pure.
+func submittingReturn(data []byte, inPaste bool) (bool, bool) {
+	submits := false
+	for i := 0; i < len(data); {
+		switch {
+		case startsWith(data[i:], bpStart):
+			inPaste = true
+			i += len(bpStart)
+		case startsWith(data[i:], bpEnd):
+			inPaste = false
+			i += len(bpEnd)
+		default:
+			if data[i] == '\r' && !inPaste {
+				submits = true
+			}
+			i++
+		}
+	}
+	return submits, inPaste
 }
 
 func (p *proxy) handleWorkbenchChord(chord workbenchshortcut.Chord) bool {
@@ -1766,8 +1854,13 @@ func snippetLine(s string, idx int) string {
 // restoring the textarea-aware plainCR remap for the next Enter.
 // See the pickerActive field doc for the open/close protocol.
 func (p *proxy) emitPlainCR(out []byte) []byte {
-	if p.ttyProfile == nil {
-		return append(out, '\r')
+	// A nil profile means no remap at all. It still goes through
+	// decidePlainReturn — as the zero profile, which fails closed to the bare
+	// CR it used to hardcode — so the `submits` rule has exactly one home and
+	// the overlay check is not skipped on this defensive path (BR-7).
+	var profile harnessTTYProfile
+	if p.ttyProfile != nil {
+		profile = *p.ttyProfile
 	}
 	p.overlayMu.Lock()
 	overlayActive := p.pickerActive.Swap(false)
@@ -1783,8 +1876,11 @@ func (p *proxy) emitPlainCR(out []byte) []byte {
 		current := p.terminal.Snapshot()
 		snapshot = &current
 	}
-	decision := decidePlainReturn(*p.ttyProfile, overlayActive, snapshot)
+	decision := decidePlainReturn(profile, overlayActive, snapshot)
 	p.adapt.Log(1, "return-remap", decision.outcome, decision.reason)
+	if decision.submits {
+		p.publishLifecycleObservation(TurnObservation{Kind: ObservationBareReturn})
+	}
 	return append(out, decision.bytes...)
 }
 
@@ -2356,21 +2452,13 @@ argsDone:
 	}
 
 	// Pick notify mode + per-agent end-of-turn regex.
-	if m, ok := notifyMode[p.agentBasename]; ok {
-		p.notifyModeActive = m
-	} else {
-		p.notifyModeActive = notifyModeDefault
-	}
+	notify := resolveNotifyConfig(p.agentBasename, p.idleS)
+	p.notifyModeActive = notify.mode
+	p.endOfTurnRe = notify.endOfTurnRe
+	p.idleS = notify.idleS
 	p.debug("NOTIFY-mode", fmt.Sprintf("%s=%s", p.agentBasename, p.notifyModeActive))
-	if p.notifyModeActive == "marker" {
-		if re, ok := endOfTurnByAgent[p.agentBasename]; ok {
-			p.endOfTurnRe = re
-		} else {
-			p.debug("MARKER-missing", p.agentBasename+" has no endOfTurnByAgent entry")
-		}
-	}
-	if p.notifyModeActive != "idle" {
-		p.idleS = 0
+	if notify.mode == "marker" && notify.endOfTurnRe == nil {
+		p.debug("MARKER-missing", p.agentBasename+" has no endOfTurnByAgent entry")
 	}
 	if p.agentBasename == "codex" && p.lifecycleJournalPath != "" {
 		if ordinal, err := strconv.ParseUint(os.Getenv("PAIR_LAUNCH_ORDINAL"), 10, 64); err == nil && ordinal != 0 {
@@ -2592,16 +2680,18 @@ func (p *proxy) masterPump() {
 		}
 	}()
 
-	// Idle timer is owned by the main goroutine — set up stopped if not in
-	// "idle" notify mode (p.idleS == 0), otherwise armed for p.idleS.
+	// The idle floor's timer is owned by the main goroutine. It starts stopped
+	// and is armed by syncIdleTimer from lifecycle state — no turn is open at
+	// startup, so there is nothing to put a floor under yet (#171).
 	idleTimer := time.NewTimer(time.Hour)
 	if !idleTimer.Stop() {
 		<-idleTimer.C
 	}
-	idleFired := false
-	if p.idleS > 0 {
-		idleTimer.Reset(p.idleS)
-	}
+	p.idleTimer = idleTimer
+	defer func() {
+		p.stopIdleTimer()
+		p.idleTimer = nil
+	}()
 	lifecycleTimer := time.NewTimer(time.Hour)
 	if !lifecycleTimer.Stop() {
 		<-lifecycleTimer.C
@@ -2678,25 +2768,13 @@ func (p *proxy) masterPump() {
 			}
 		lifecycleDrained:
 			p.handleChunk(ev.data, &rolling)
-			if p.idleS > 0 {
-				// Stop+drain+reset is safe here because only this
-				// goroutine ever reads idleTimer.C.
-				if !idleTimer.Stop() {
-					select {
-					case <-idleTimer.C:
-					default:
-					}
-				}
-				idleTimer.Reset(p.idleS)
-				idleFired = false
-			}
+			// Output — and only output — pushes the floor's deadline out; the
+			// alert it emits claims byte-silence.
+			p.bumpIdleDeadline()
 		case <-idleTimer.C:
-			if p.idleS > 0 && !idleFired {
-				p.debug("IDLE", fmt.Sprintf("no agent output for %.0fs", p.idleS.Seconds()))
-				p.traceWrap("idle", map[string]any{"idle_s": p.idleS.Seconds()})
-				p.emitOuter("agent idle")
-				idleFired = true
-			}
+			// p.idleTimerToken is read HERE, before applyIdleExpiry's drain can
+			// advance it onto a newly opened turn (BR-2).
+			p.applyIdleExpiry(p.idleTimerToken)
 		case <-captureTick.C:
 			p.captureMu.Lock()
 			due := p.captureActive && !time.Now().Before(p.captureDeadline)
