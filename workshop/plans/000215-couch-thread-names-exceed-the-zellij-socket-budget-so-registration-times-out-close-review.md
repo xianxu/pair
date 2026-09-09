@@ -508,3 +508,183 @@ findings:
       with it silently, which is the one test whose job is to disagree with
       production when production is wrong.
 ```
+
+---
+
+## Re-review — 2026-09-09T00:05:53-07:00 (FIX-THEN-SHIP)
+
+| field | value |
+|-------|-------|
+| issue | 215 — couch spends 52 zellij subprocesses assigning a name inside a 5s registration deadline |
+| repo | pair |
+| issue file | workshop/issues/000215-couch-thread-names-exceed-the-zellij-socket-budget-so-registration-times-out.md |
+| boundary | whole-issue close |
+| milestone | — |
+| window | 9bd5250d9d18588e2e720825ad50fd9f80e8fe1a..55e8e66fe87addb9b809869e203cafd03e8856c0 |
+| command | sdlc close --issue 215 |
+| reviewer | claude |
+| timestamp | 2026-09-09T00:05:53-07:00 |
+| verdict | FIX-THEN-SHIP |
+
+## Review
+
+```verdict
+verdict: FIX-THEN-SHIP
+confidence: high
+```
+
+Round 2's five blocking findings are genuinely closed, and I verified each by the artifact rather than the message: BR-11's high-end guard goes red under mutation (`return hi, true` → `TestTheBudgetSearchReportsEitherBoundAsUNMEASURED/longest_probe_accepted` fails); BR-14's argv[0] guard goes red under deletion, with a positive control that would catch a shim that never forwards; BR-13's `--overhead` now runs a real A/B and re-measures at **2.75 ms/call** here against the 2.9 published in SKILL.md; BR-12's atlas passage now derives from the code; BR-15's lessons.md entry landed. What blocks SHIP is one measured gap: **the O(1) probe count — the issue's headline Done-when, and the load-bearing justification written into `pairRegistrationTimeout`'s comment — holds only when the machine's socket budget is *smaller than the longest candidate*.** Discovery is triggered by a rejection, and on a roomier machine no candidate is ever rejected, so every candidate costs a subprocess again. Measured in this checkout: 26 probes at 25 owned suffixes and 61 at 60 with a roomy budget, and this checkout's *real* zellij budget is 57 bytes against a 34-byte longest candidate. Six Minors from round 1 (BR-5, BR-6, BR-8, BR-10, BR-16, BR-17) were never touched by either fix commit and are re-disposed `not-addressed`.
+
+### 1. Strengths
+
+- `discoverSessionNameBudget` (createflow.go:1000-1032) states the rule rather than patching the end the finding named: "a boundary needs both an acceptance and a refusal" makes both exits fall out of one sentence, and `TestTheBudgetSearchReportsEitherBoundAsUNMEASURED` is a table over both ends so a third exit cannot appear unasserted.
+- `reportOverhead` (probes/zellijcalls/main.go:114-186) refuses to be quoted when `sh <= d`. An instrument that fails loudly on a physically impossible result is the right response to having published a negative overhead — I re-ran it and got a plausible +2.75 ms.
+- `TestTheShimOnlyActsWhenInvokedAsZellij` (probes/zellijcalls/main_test.go) is end-to-end with a positive control. This is the model the other two guards in this window should copy.
+- `TestSessionNameBudgetMatchesRealZellijLive` asserts the *boundary* (budget accepted, budget+1 refused) and separately that `sessionNameRejected` still matches zellij's own raw text — the seam #215 made load-bearing. It correctly parses zellij's output rather than pair's wrapper, and the trap is written down.
+- The `pairRegistrationTimeout` comment (couch.go:273-289) records the measurement, the condition that makes it valid, and that raising it again is the wrong fix. That is the ARCH-CONSTRAINTS envelope stated, not assumed.
+
+### 2. Critical findings
+
+None.
+
+### 3. Important findings
+
+**`cmd/internal/launcher/createflow.go:955-985` — the O(1) probe count is conditional on the machine's socket budget, and every artifact states it unconditionally.**
+
+`sessionNameAcceptor` only reaches `discoverSessionNameBudget` after a probe *refuses* a candidate. A refusal requires the budget to be smaller than the longest candidate (34 bytes for `📁pair-couch-<16hex>-NN`). Where the budget is larger, no candidate is ever refused, discovery never runs, and the ladder pays one subprocess per suffix — the original defect. Measured with the production acceptor:
+
+| budget | 25 owned | 60 owned |
+|---|---|---|
+| 24 (macOS interactive) | 9 probes | 9 probes |
+| 80 (roomy) | 26 probes | **61 probes** |
+
+This is not hypothetical: `TestSessionNameBudgetMatchesRealZellijLive` measures **57 bytes** in this checkout, above every candidate. `atlas/session-identity.md:185` names Linux (`~/.cache/zellij`) as the roomy case, README:29 says "probably on Linux", and `couch.go:283-288` cites "#215 made it O(1)" as the reason a fixed 15 s deadline is safe. **Fix sketch:** trigger discovery on the acceptor's *second question*, not on a refusal — `AssignSessionName`'s ledger short-circuit asks exactly once, the ladder asks more than once, so a call counter keeps resume at 1 probe and makes the ladder 1+search+arithmetic on every machine. `ARCH-PURPOSE` (the purpose is delivered on one environment class), `ARCH-CONSTRAINTS` (the envelope's precondition is unstated). The reason two rounds missed it: every probe-count test uses `fakeRuntime{maxSessionNameBytes: 24}`, so the fake cannot express the case — add a budget dimension to `TestAssignSessionNameCostsABoundedNumberOfProbes`.
+
+### 4. Minor findings
+
+- **`cmd/internal/launcher/session_name_scheme_test.go:317-323` — the acceptor half of the BR-11 test never enters the branch it claims to cover.** Verified by panic-mutation: replacing the `if measured` body with `panic()` leaves the test green, because the acceptor's first call is a direct probe that succeeds at `maxSessionNameBytes: 100`. **This is the 3rd finding in family `fix-not-pinned-at-its-call-site`** (BR-6, BR-14). Do not fix this instance alone — the rule is *a test that pins a guard must be shown to go red when the guard is removed; reachable is not asserted.* The enumeration for this window is three sites: this one, BR-14's argv[0] guard (done, with a positive control — the model to copy), and BR-6's `launch_existing.go:123-124`, still open. Run the mutation on each. For this one the fixture needs a rejection first (`accepts(strings.Repeat("z", 101))`) so discovery actually runs.
+- **`cmd/internal/launcher/createflow.go:714-719` — `promptForTag` can print a blank refusal.** When zellij refuses a candidate but `discoverSessionNameBudget` falls back to 24 and the candidate is ≤ 24 bytes, `sessionNameFits` returns `ok=true, message=""` and the user sees `pair:` followed by `pick a shorter name.` with no numbers — on precisely the machine class BR-1 exists for. **This is the 3rd finding in family `fallback-guess-used-as-oracle`.** The rule covering both use sites: *an unmeasured number may EXPLAIN a refusal but never contradict one — when the arithmetic disagrees with the observation, report the observation.*
+- Both `sessionNameAcceptor` and `promptForTag` still hand-roll `func(n string) bool { return rt.ProbeSessionName(n) == nil }`, and `session_name_budget_live_test.go:41-43` is now a third copy of `pad()`. See BR-5/BR-17 dispositions.
+
+### 5. Test coverage notes
+
+- `diagnoseRegistrationFailure`'s third branch — `Present == false, observeErr == nil`, i.e. the literal "NO Pair session is live. Pair never started" message — has no case. `FakeThreadArtifactCollisionChecker.PairSession` returns an error whenever the name is empty, so the existing two cases exercise the live branch and the unreadable branch only; `SetPairSession(addr, "name", false)` would reach the third.
+- `cmd/internal/couchcore` cannot be run to completion in this environment (`ptychild: operation not permitted` on pty spawn, and `runtimebundle` assets are generated), so I verified the #215 tests individually rather than via `make test`. `./cmd/internal/launcher` and `./probes/...` pass clean.
+
+### 6. Architectural notes
+
+- **ARCH-DRY** — flag, at the three probe-closure copies and the duplicated `pad()`; already carried by BR-5/BR-17.
+- **ARCH-PURE** — pass. `sessionNameFits` and `discoverSessionNameBudget` are pure over an injected `accepts`; the only IO is `rt.ProbeSessionName` behind the Runtime seam.
+- **ARCH-PURPOSE** — flag, the Important above: the purpose ("O(1) probes, not O(N)") is delivered under an environment condition nobody wrote down.
+- **ARCH-MOCK** — pass, and this is the round's best structural gain: `sessionNameRejected` now has a live conformance check wired into `make test-couch-zellij-live`, and the shim's stateful surface is exercised end-to-end by `main_test.go` with a fake zellij on PATH.
+- **ARCH-CONSTRAINTS** — flag (same Important). The 15 s envelope's stated precondition — bounded assignment — is only true on tight-socket machines.
+- **ARCH-SECURE** — pass. `discoverSessionNameBudget` parses only zellij's own refusal substring, the diagnosis degrades visibly on an unreadable index rather than fabricating "never started", and BR-9's fixed `/tmp` trace path is gone.
+- **ARCH-ORDER** — note, not a finding. `sessionNameAcceptor` carries `budget`/`measured`/`attempted` across calls: 8 representable states, 3 legal, and `budget` holds an untrustworthy value in one of them. The Important's fix touches exactly this state — collapse it to `unasked | probing | unmeasurable | measured(int)` while you are in there, so a future reader cannot use `budget` without destructuring its provenance. The lessons.md claim that a caller "must destructure" is not enforced by `(int, bool)`: `limit, _ :=` at createflow.go:717 discards it in one keystroke.
+
+### 7. Plan revision recommendations
+
+The issue has no `## Plan` file; its plan is inline and needs an appended `## Revisions` section (BR-10, still open), which should now carry:
+
+- **2026-09-09 — `Done when` restated to what shipped.** "Assigning a name … costs O(1) zellij probes" is true where the socket budget is below the longest candidate; measured 26/61 probes at 25/60 owned suffixes on a roomy budget, and 57 bytes measured live in a short-`TMPDIR` checkout. Either narrow the criterion to the measured environment or land the call-count trigger.
+- **2026-09-09 — "Over-long candidates are rejected without a subprocess"** is not literally met (one probe plus the discovery search). The trade-off is deliberate and well-argued in the Log; the criterion should say so.
+- **2026-09-09 — the loaded-machine criterion** is asserted by test, not by a live run; the Log already says this, the Done-when does not.
+
+```findings
+dispose:
+  - id: BR-5
+    disposition: not-addressed
+    note: |
+      290c5e8c added a comment explaining why the discard is safe, but the duplication stands; there are now three copies of the probe closure (createflow.go:713, 956, live test:32).
+  - id: BR-6
+    disposition: not-addressed
+    note: |
+      Round 2 fixed BR-14, the sibling this finding's own enumeration named, and left this site untouched; launch_existing.go:123-124 still has no test, and the Present==false/err==nil diagnosis branch is uncovered too.
+  - id: BR-8
+    disposition: not-addressed
+    note: |
+      couch.go:114 still initialises resumeRegistrationTimeout to pairRegistrationTimeout with no comment; launch_existing.go:111-114 still reads as if the paths differ.
+  - id: BR-10
+    disposition: not-addressed
+    note: |
+      The issue file still has no "## Revisions" section, and the two inaccurate Done-when bullets stand; a third is now needed for the conditional O(1) claim.
+  - id: BR-11
+    disposition: addressed
+    note: |
+      Mutation-verified: restoring `return hi, true` turns the longest_probe_accepted subtest red. Stated as the rule over both bounds, not patched at one end.
+  - id: BR-12
+    disposition: addressed
+    note: |
+      atlas/session-identity.md:182-199 now says the budget IS the acceptance oracle and records the measured-vs-fallback fork.
+  - id: BR-13
+    disposition: addressed
+    note: |
+      Real A/B through a binary named zellij; re-ran `trace.sh overhead` here and got +2.753ms/call, matching SKILL.md's 2.9, and it now refuses a non-positive result.
+  - id: BR-14
+    disposition: addressed
+    note: |
+      Mutation-verified: deleting the argv[0] guard turns TestTheShimOnlyActsWhenInvokedAsZellij red, and the positive control rules out a shim that forwards nothing.
+  - id: BR-15
+    disposition: addressed
+    note: |
+      workshop/lessons.md gained the provenance entry with the four-value table and the bounded-vs-cheap rule.
+  - id: BR-16
+    disposition: not-addressed
+    note: |
+      trace.sh:12 still reads `probes/zellijcalls/trace.sh disarm` with no eval, so following the header leaves PATH armed; SKILL.md's block still disagrees.
+  - id: BR-17
+    disposition: not-addressed
+    note: |
+      session_name_budget_live_test.go:41-43 still re-derives pad() from createflow.go:1001-1003.
+findings:
+  - id: new
+    severity: Important
+    family: optimisation-gated-on-unstated-environment
+    title: |
+      the O(1) probe count holds only where the socket budget is smaller than the longest candidate, and code, atlas and Done-when all state it unconditionally
+    detail: |
+      sessionNameAcceptor reaches discoverSessionNameBudget only after a probe REFUSES a
+      candidate, and a refusal requires budget < 34 bytes (the longest candidate,
+      "pair-couch-<16hex>-NN" with the folder glyph). Where the budget is roomier the
+      acceptor never goes arithmetic and the ladder pays one subprocess per suffix again.
+      Measured with the production acceptor against fakeRuntime: budget 24 gives 9 probes at
+      both 25 and 60 owned suffixes; budget 80 gives 26 and 61. Not hypothetical --
+      TestSessionNameBudgetMatchesRealZellijLive measures 57 bytes in this checkout.
+      atlas/session-identity.md:185 names Linux as the roomy case, and couch.go:283-288 uses
+      "#215 made it O(1)" as the ARCH-CONSTRAINTS justification for a fixed 15s deadline.
+      Fix: trigger discovery on the acceptor's SECOND question rather than on a refusal --
+      the ledger short-circuit asks exactly once and the ladder asks more than once, so a
+      call counter keeps resume at 1 probe and makes the ladder bounded on every machine.
+      Both rounds missed it because every probe-count test pins maxSessionNameBytes: 24; the
+      fixture needs a budget dimension.
+  - id: new
+    severity: Minor
+    family: fix-not-pinned-at-its-call-site
+    title: |
+      the acceptor half of TestTheBudgetSearchReportsEitherBoundAsUNMEASURED never enters the branch it claims to cover
+    detail: |
+      This is the 3rd finding in family `fix-not-pinned-at-its-call-site` (BR-6, BR-14).
+      Do NOT fix this instance alone. The rule: a test that pins a guard must be shown to go
+      RED when the guard is removed -- reachable is not asserted. Verified by panic-mutation:
+      replacing the `if measured` body in sessionNameAcceptor with panic() leaves
+      session_name_scheme_test.go:317-323 green, because the acceptor's first call is a direct
+      probe that succeeds at maxSessionNameBytes: 100, so discovery never runs. The
+      enumeration for this window is three sites -- this one, BR-14's argv[0] guard (done,
+      with a positive control, the model to copy) and BR-6's launch_existing.go:123-124, still
+      open. Run the mutation on each. For this site the fixture must take a rejection first,
+      e.g. accepts(strings.Repeat("z", 101)), so the arithmetic path is actually entered.
+  - id: new
+    severity: Minor
+    family: fallback-guess-used-as-oracle
+    title: |
+      promptForTag can print a blank refusal when the fallback budget contradicts zellij's own rejection
+    detail: |
+      This is the 3rd finding in family `fallback-guess-used-as-oracle` (BR-1, BR-11). Do NOT
+      fix this instance alone. The rule covering all three: an unmeasured number may EXPLAIN a
+      refusal but must never contradict one -- when the arithmetic disagrees with the
+      observation, report the observation. At createflow.go:714-719, if zellij refuses a
+      candidate while discoverSessionNameBudget falls back to 24 and the candidate is <= 24
+      bytes, sessionNameFits returns ok=true with an empty message and the operator sees
+      "pair: " then "pick a shorter name." with no numbers -- on exactly the long-socket-dir
+      machine BR-1 exists for. Pre-#215 in origin (#130), but the line was edited in this
+      window and the acceptance half of the same rule was already fixed here.
+```

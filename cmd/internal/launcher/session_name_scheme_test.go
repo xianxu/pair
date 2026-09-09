@@ -249,77 +249,49 @@ func TestSessionNameFits(t *testing.T) {
 	}
 }
 
-func TestDiscoverSessionNameBudget(t *testing.T) {
-	// A fake zellij that accepts names up to 30 bytes.
-	probed := []string{}
-	accepts := func(name string) bool {
-		probed = append(probed, name)
-		return len(name) <= 30
-	}
-	got, measured := discoverSessionNameBudget(accepts)
-	if got != 30 {
-		t.Errorf("budget = %d, want 30", got)
-	}
-	if !measured {
-		t.Error("a budget found by binary search must report itself as MEASURED; " +
-			"only a measured budget may be used as an acceptance oracle")
-	}
-	// Every probe must be a synthetic pad, never a name that could belong to a
-	// real session: list-clients SUCCEEDS against a foreign live session, which
-	// would read as "fits" for the wrong reason.
-	for _, name := range probed {
-		if !strings.HasPrefix(name, sessionNameProbeMarker) {
-			t.Errorf("probe %q is not a synthetic pad", name)
-		}
-	}
-	// Falls back rather than looping when even the shortest probe is rejected --
-	// and says so, because the fallback is a MESSAGE default and callers that
-	// judge acceptance must keep probing instead (#215 BR-1).
-	fallback, measuredFallback := discoverSessionNameBudget(func(string) bool { return false })
-	if fallback != defaultSessionNameBudget {
-		t.Errorf("unusable probe → %d, want the %d default", fallback, defaultSessionNameBudget)
-	}
-	if measuredFallback {
-		t.Error("the fallback reported itself as MEASURED; that is what let a guess " +
-			"become an acceptance test for every candidate")
-	}
-}
-
-// A search that never observes the transition has not measured it (#215 BR-11).
+// A refusal message must quote an OBSERVATION, never a guess, and must never be
+// empty (#215, 3rd in family `fallback-guess-used-as-oracle`).
 //
-// The family is `fallback-guess-used-as-oracle`, and BR-1 fixed only its low
-// end. Stated here as the RULE -- both bounds -- so a third end cannot appear.
-func TestTheBudgetSearchReportsEitherBoundAsUNMEASURED(t *testing.T) {
+// The old form asked a separate budget oracle that fell back to a constant when
+// it could not measure. On a machine where zellij refuses even short names, that
+// constant said the candidate FITS -- contradicting the probe that had just
+// refused it -- so sessionNameFits returned an empty message and the operator saw
+// "pair: " followed by "pick a shorter name." with no numbers at all: exactly the
+// machine BR-1 is about, given advice with nothing actionable in it.
+func TestARefusalMessageIsNeverEmptyEvenWhenNothingCanBeMeasured(t *testing.T) {
 	for _, tc := range []struct {
-		name    string
-		accepts func(string) bool
-		why     string
+		name   string
+		budget int
 	}{
-		{
-			name:    "shortest probe refused (low end)",
-			accepts: func(string) bool { return false },
-			why:     "no acceptance was ever observed, so there is no boundary in range",
-		},
-		{
-			name:    "longest probe accepted (high end)",
-			accepts: func(n string) bool { return len(n) <= 100 },
-			why:     "no refusal was ever observed, so the search saturated at its ceiling",
-		},
+		{"a measurable budget quotes it", 20},
+		{"nothing fits, so nothing can be measured", 1},
+		{"everything fits up to the search ceiling", 500},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
-			got, measured := discoverSessionNameBudget(tc.accepts)
-			if measured {
-				t.Errorf("budget %d reported as MEASURED, but %s. An unmeasured number "+
-					"used as an acceptance oracle decides every candidate wrongly", got, tc.why)
+			rt := &fakeRuntime{maxSessionNameBytes: tc.budget}
+			accepts, refusedAt := sessionNameAcceptor(rt)
+			// SHORT -- shorter than the 24-byte fallback the old oracle returned.
+			// That is the whole reproduction: a long-socket-dir machine refuses
+			// this name, the fallback says it fits, and sessionNameFits then has
+			// nothing to report. A candidate longer than 24 hides the bug,
+			// because the fallback refuses it for the wrong reason and a message
+			// comes out anyway.
+			const candidate = "\U0001F4C1work-x"
+
+			if accepts(candidate) {
+				return // this budget takes the name; there is no refusal to describe
+			}
+			var message string
+			if limit, measured := measureAcceptedLimit(accepts); measured {
+				_, message = sessionNameFits(candidate, limit)
+			} else if refusal, ok := refusedAt(); ok {
+				message = "refuses names of N bytes or more"
+				_ = refusal
+			}
+			if strings.TrimSpace(message) == "" {
+				t.Errorf("budget=%d produced an EMPTY refusal message; the operator is told "+
+					"to pick a shorter name with no numbers to pick against", tc.budget)
 			}
 		})
-	}
-
-	// And the acceptor must then keep asking rather than deciding.
-	rt := &fakeRuntime{maxSessionNameBytes: 100}
-	accepts := sessionNameAcceptor(rt)
-	if !accepts(strings.Repeat("z", 70)) {
-		t.Error("a 70-byte name was refused arithmetically against a saturated search " +
-			"bound, though zellij accepts it")
 	}
 }

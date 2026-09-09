@@ -309,7 +309,7 @@ func assignLaunchSessionNames(rt Runtime, live []Session, repoRoot, globalDataDi
 	newEntries := map[string]SessionNameEntry{}
 	// OUTSIDE the loop: one budget measurement shared by every tag. Built here
 	// rather than per iteration so N tags cost one discovery, not N.
-	accepts := sessionNameAcceptor(rt)
+	accepts, _ := sessionNameAcceptor(rt)
 	for _, tag := range tags {
 		if tag == "" {
 			continue
@@ -676,7 +676,7 @@ func assignSingleSessionName(rt Runtime, live []Session, cwd, tag string, stderr
 		fmt.Fprintf(stderr, "pair: read session-name index: %v\n", err)
 		return "", SessionNameEntry{}, false
 	}
-	name, updated, err := AssignSessionName(index, live, scope, tag, sessionNameAcceptor(rt))
+	name, updated, err := AssignSessionName(index, live, scope, tag, singleUseAcceptor(rt))
 	if err != nil {
 		fmt.Fprintf(stderr, "pair: %v\n", err)
 		return "", SessionNameEntry{}, false
@@ -710,12 +710,22 @@ func promptForTag(rt Runtime, prefill string, compose func(string) string, base 
 	//
 	// The probe is still the oracle: we reach for a NUMBER only once it has
 	// already said no, and only so the refusal can quote something concrete.
-	accepts := func(name string) bool { return rt.ProbeSessionName(name) == nil }
+	accepts, refusedAt := sessionNameAcceptor(rt)
 	if candidate := compose(tag); !accepts(candidate) {
-		// The number is for the MESSAGE, so a fallback value is fine here --
-		// that is what defaultSessionNameBudget is for.
-		limit, _ := discoverSessionNameBudget(accepts)
-		_, message := sessionNameFits(candidate, limit)
+		// Quote the observation that made the decision. The old form asked a
+		// separate budget oracle whose fallback could CONTRADICT the probe --
+		// the candidate fits the guessed 24, sessionNameFits returns ok with an
+		// empty message, and the operator reads "pair: " followed by "pick a
+		// shorter name" with no numbers at all, on exactly the machine BR-1 is
+		// about.
+		message := fmt.Sprintf("name '%s' needs %d bytes, which zellij refused on this "+
+			"machine", candidate, len(candidate))
+		if limit, measured := measureAcceptedLimit(accepts); measured {
+			_, message = sessionNameFits(candidate, limit)
+		} else if refusal, ok := refusedAt(); ok {
+			message = fmt.Sprintf("name '%s' needs %d bytes; zellij refuses names of %d bytes "+
+				"or more on this machine", candidate, len(candidate), refusal)
+		}
 		fmt.Fprintf(stderr, "pair: %s\n      pick a shorter name.\n", message)
 		return "", 1, false
 	}
@@ -912,13 +922,6 @@ func sessionNameComposer(env Env) func(string) string {
 
 // --- Session-name budget (#130) ---------------------------------------------
 
-// defaultSessionNameBudget is what the macOS cache path leaves for a session
-// name on the machine this was measured on. It is a MESSAGE default only —
-// never an acceptance test. zellij's real allowance is its socket path's, which
-// varies with username and is a different path entirely on Linux, so the probe
-// stays the oracle and this number only makes the refusal quotable.
-const defaultSessionNameBudget = 24
-
 // sessionNameFits is the pure refusal decision: does `name` fit in `limit`
 // bytes, and if not, what does the user need to hear? Taking the limit as a
 // PARAMETER rather than reading a package constant is what keeps this testable
@@ -930,96 +933,26 @@ func sessionNameFits(name string, limit int) (ok bool, message string) {
 	return false, fmt.Sprintf("name '%s' needs %d bytes; zellij allows %d on this machine", name, len(name), limit)
 }
 
-// sessionNameAcceptor answers "will zellij take this name" for a whole
-// assignment, paying at most ONE probe per assignment that does not need the
-// ladder, and a bounded handful for one that does.
+// measureAcceptedLimit finds the largest name length zellij accepts, for a
+// refusal MESSAGE.
 //
-// Two questions wear the same signature, and conflating them cost both ways:
+// Through the caller's own acceptor, so there is one encoding of "does this fit"
+// and the answers cannot contradict each other -- the previous form asked a
+// separate oracle whose fallback could say a name fits that the probe had just
+// refused, printing an empty message (3rd finding in family
+// `fallback-guess-used-as-oracle`). The acceptor caches its bracket, so these
+// probes also narrow it, and this runs only on a path that is already failing.
 //
-//   - "is this ONE name still good?" -- what the ledger short-circuit asks on
-//     every resume. A direct probe answers it in one exec.
-//   - "which rung of the ladder fits?" -- asked once per candidate, and the
-//     candidate count grows with every thread the repo has ever had. Probing
-//     each was 52 subprocesses inside couch's registration deadline (#215).
-//
-// So: probe directly until a probe says NO, then measure the budget once and go
-// arithmetic. A rejection is the only evidence that a ladder walk is underway,
-// and it is exactly the moment the budget becomes worth its binary search.
-//
-// The first cut of this discovered the budget eagerly, which made the ladder
-// O(1) and the RESUME path 7x worse -- 1 probe became 7 on the common path,
-// measured, because the short-circuit's single question triggered the whole
-// search. Making one path cheap at another's expense is not a fix; the lazy
-// form is cheaper than both.
-func sessionNameAcceptor(rt Runtime) func(string) bool {
-	probe := func(n string) bool { return rt.ProbeSessionName(n) == nil }
-	var budget int
-	var measured, attempted bool
-	return func(name string) bool {
-		if measured {
-			ok, _ := sessionNameFits(name, budget)
-			return ok
-		}
-		if probe(name) {
-			return true
-		}
-		// A real rejection: the ladder is walking. Try to learn the budget once,
-		// and answer every later candidate from arithmetic -- but ONLY if it was
-		// actually measured.
-		//
-		// If discovery fell back, we keep probing per candidate. The fallback is
-		// defaultSessionNameBudget, which is documented as a MESSAGE default and
-		// never an acceptance test, and trusting it here would break the exact
-		// machine it exists for: where the socket directory is long enough that
-		// zellij refuses even a 13-byte name, every rung under 24 bytes would be
-		// accepted arithmetically though zellij refuses all of them, and pair
-		// would hand back "pick a shorter tag" -- advice the ladder is what
-		// implements. Slow and correct beats fast and wrong on the one machine
-		// that cannot start a session otherwise.
-		if !attempted {
-			attempted = true
-			budget, measured = discoverSessionNameBudget(probe)
-		}
-		return false
-	}
-}
-
-// discoverSessionNameBudget finds how many bytes zellij will actually accept,
-// by binary search over synthetic names.
-//
-// Called at most ONCE per assignment, and only after a name has already been
-// rejected -- so an assignment the ledger answers never reaches it. From that
-// point sessionNameAcceptor judges every remaining candidate arithmetically,
-// which is what makes the ladder walk O(1) probes instead of O(candidates).
-//
-// The probes use a padding alphabet that cannot collide with a real session:
-// ProbeSessionName runs `zellij --session <name> action list-clients`, which
-// SUCCEEDS against a foreign live session and would then read as "fits" for
-// entirely the wrong reason, making the measured budget depend on whatever else
-// happens to be running.
-// The bool is MEASURED, and callers that judge acceptance must honour it: on a
-// machine where even the shortest probe is refused there is nothing to measure,
-// and the returned number is defaultSessionNameBudget -- a message default, not
-// an oracle. Returning it unmarked is what let it become an acceptance test.
-func discoverSessionNameBudget(accepts func(string) bool) (int, bool) {
+// MEASURED is false unless a real acceptance AND a real refusal were observed:
+// a search that saturates at either bound has found a search bound, not a
+// boundary (BR-11). Callers must say something else rather than quote it.
+func measureAcceptedLimit(accepts func(string) bool) (int, bool) {
 	pad := func(n int) string {
 		return sessionNameProbeMarker + strings.Repeat("z", n-len(sessionNameProbeMarker))
 	}
 	lo, hi := len(sessionNameProbeMarker), 64
-	// A BOUNDARY needs both an acceptance and a refusal. Either bound answering
-	// the wrong way means the boundary is outside the search, and the number
-	// returned is a search bound rather than an observation.
-	//
-	// BR-1 added this for the LOW end and stopped there; BR-11 was the same
-	// mistake still standing at the high end, where saturation returned (64,
-	// true) and the acceptor then refused a 70-byte name zellij would take. The
-	// rule, not the end: a search that never observes the transition has not
-	// measured it.
-	if !accepts(pad(lo)) {
-		return defaultSessionNameBudget, false
-	}
-	if accepts(pad(hi)) {
-		return hi, false
+	if !accepts(pad(lo)) || accepts(pad(hi)) {
+		return 0, false
 	}
 	for lo < hi {
 		mid := (lo + hi + 1) / 2
@@ -1030,6 +963,75 @@ func discoverSessionNameBudget(accepts func(string) bool) (int, bool) {
 		}
 	}
 	return lo, true
+}
+
+// singleUseAcceptor is sessionNameAcceptor where the caller needs only the
+// predicate. Named rather than inlined so the discarded second value is a
+// deliberate choice at one site instead of an `_` repeated at several.
+func singleUseAcceptor(rt Runtime) func(string) bool {
+	accepts, _ := sessionNameAcceptor(rt)
+	return accepts
+}
+
+// sessionNameAcceptor answers "will zellij take this name" for a whole
+// assignment, in a number of probes bounded by the candidates' distinct LENGTHS
+// rather than by how many threads the repo has ever had.
+//
+// Acceptance is MONOTONE IN LENGTH -- a session name is a socket filename, so if
+// zellij takes an n-byte name it takes every shorter one -- and that is the whole
+// mechanism. Each probe narrows a bracket:
+//
+//	accepted <= longestOK   ... every name this long or shorter fits
+//	shortestBad <= rejected ... every name this long or longer does not
+//
+// so only a length strictly between the two costs a subprocess, and each such
+// probe closes the gap. The ladder reuses lengths heavily across suffixes (the
+// candidates for suffix 25 and 26 differ by one byte), so the bracket converges
+// in a handful of probes and every later candidate is answered arithmetically.
+//
+// TWO REGIMES, and an earlier cut only handled one (#215 BR-18). That version
+// probed directly until a probe said NO, then measured the budget and went
+// arithmetic -- which is O(1) only where some candidate is actually refused. On a
+// machine whose socket directory is short enough that the LONGEST candidate fits
+// (Linux `~/.cache/zellij` is far shorter than macOS's temp path), nothing is
+// ever refused, nothing is ever measured, and it paid one probe per suffix: the
+// O(threads) cost this issue exists to remove, quietly restored on the machines
+// with the most headroom. A bracket needs no rejection to start saving probes,
+// because an ACCEPTANCE is equally informative.
+//
+// It also keeps the warm path at one probe. The ledger short-circuit asks about a
+// single name; it probes once, and that is the whole cost. An eager
+// budget-measuring version made that 7, and the operator noticed before any test
+// did.
+// The second return reports the tightest REFUSAL this acceptor has actually
+// observed -- the shortest name zellij turned down -- and whether it observed
+// one at all. It exists so a refusal message can quote a real number from the
+// same source that made the decision, instead of a second, hand-rolled
+// "probe, then guess a budget" that can contradict it (ARCH-DRY, and the third
+// finding in the family that produced BR-1 and BR-11: an unmeasured number may
+// EXPLAIN a refusal but must never stand in for the observation).
+func sessionNameAcceptor(rt Runtime) (accepts func(string) bool, refusedAt func() (int, bool)) {
+	probe := func(n string) bool { return rt.ProbeSessionName(n) == nil }
+	longestOK, shortestBad := 0, 0
+	refusedAt = func() (int, bool) { return shortestBad, shortestBad > 0 }
+	accepts = func(name string) bool {
+		n := len(name)
+		if longestOK > 0 && n <= longestOK {
+			return true
+		}
+		if shortestBad > 0 && n >= shortestBad {
+			return false
+		}
+		if probe(name) {
+			longestOK = n
+			return true
+		}
+		if shortestBad == 0 || n < shortestBad {
+			shortestBad = n
+		}
+		return false
+	}
+	return accepts, refusedAt
 }
 
 // sessionNameProbeMarker prefixes every calibration probe so the names cannot

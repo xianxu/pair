@@ -2,6 +2,7 @@ package launcher
 
 import (
 	"errors"
+	"fmt"
 	"strings"
 	"testing"
 )
@@ -230,7 +231,7 @@ func TestAssignSessionNameCostsABoundedNumberOfProbes(t *testing.T) {
 		// ladder iterations instead -- passing or failing for a reason unrelated
 		// to the cost this issue is about.
 		rt := &fakeRuntime{maxSessionNameBytes: 24}
-		name, _, err := AssignSessionName(seedOwned(owned), nil, scope, tag, sessionNameAcceptor(rt))
+		name, _, err := AssignSessionName(seedOwned(owned), nil, scope, tag, singleUseAcceptor(rt))
 		if err != nil {
 			t.Fatalf("AssignSessionName(owned=%d) returned error: %v", owned, err)
 		}
@@ -284,7 +285,7 @@ func TestResumingAKnownThreadCostsOneProbe(t *testing.T) {
 	}}}
 
 	rt := &fakeRuntime{maxSessionNameBytes: 24}
-	name, _, err := AssignSessionName(index, nil, scope, tag, sessionNameAcceptor(rt))
+	name, _, err := AssignSessionName(index, nil, scope, tag, singleUseAcceptor(rt))
 	if err != nil {
 		t.Fatalf("AssignSessionName returned error: %v", err)
 	}
@@ -298,37 +299,113 @@ func TestResumingAKnownThreadCostsOneProbe(t *testing.T) {
 	}
 }
 
-// A machine where the budget cannot be MEASURED must keep probing, not trust the
-// fallback (#215 BR-1).
+// The acceptor must never accept a name zellij would refuse (#215 BR-1).
 //
-// discoverSessionNameBudget returns defaultSessionNameBudget when even its
-// shortest probe is refused -- a socket directory long enough that zellij takes
-// no useful name. That number is documented as a message default and never an
-// acceptance test. Trusting it arithmetically breaks the exact machine it exists
-// for: every rung under 24 bytes reads as acceptable while zellij refuses all of
-// them, so assignment returns the LONGEST remaining rung and pair says "pick a
-// shorter tag" -- which the ladder is what implements. Before #215 the probe
-// judged each rung and could descend to minSessionRepoBytes or exhaust honestly.
-func TestAnUnmeasurableBudgetKeepsProbingInsteadOfTrustingTheFallback(t *testing.T) {
+// BR-1 was a guess used as an oracle: discoverSessionNameBudget falls back to
+// defaultSessionNameBudget when it cannot measure, and judging candidates against
+// that number would accept every rung under 24 bytes on a machine where zellij
+// refuses all of them -- so assignment returned the LONGEST remaining rung and
+// pair advised "pick a shorter tag", which the ladder is what implements. A
+// machine where pair worked could not start a session at all.
+//
+// The bracket removed the guess rather than marking it: every answer now derives
+// from a probe of THIS machine. So the durable assertion is soundness itself --
+// the acceptor must agree with the probe on every name -- which subsumes BR-1 and
+// also pins the monotonicity the bracket rests on (a session name is a socket
+// filename, so if an n-byte name fits, every shorter one does).
+//
+// An earlier version of this test asserted a PROBE COUNT (">= 20, because with no
+// measurable budget every candidate must be probed"). That was a proxy for "does
+// not trust a fallback", and the bracket makes it false while making the property
+// it stood for structural: 2 probes now, both real observations.
+func TestTheAcceptorNeverDisagreesWithTheProbe(t *testing.T) {
 	scope := mustScope(t, "/Users/a/work/pair")
-
-	// Nothing fits: the socket path leaves no room at all.
-	rt := &fakeRuntime{maxSessionNameBytes: 1}
-	_, _, err := AssignSessionName(SessionNameIndex{}, nil, scope, "work", sessionNameAcceptor(rt))
-	if err == nil {
-		t.Fatal("assignment succeeded on a machine where zellij accepts no name; the " +
-			"fallback budget was used as an acceptance oracle")
+	for _, budget := range []int{1, 11, 24, 40, 200} {
+		t.Run(fmt.Sprintf("budget=%d", budget), func(t *testing.T) {
+			oracle := &fakeRuntime{maxSessionNameBytes: budget}
+			accepts := singleUseAcceptor(&fakeRuntime{maxSessionNameBytes: budget})
+			for suffix := 1; suffix <= 30; suffix++ {
+				for _, candidate := range BuildSessionNameCandidates(scope, "couch-e1a31510b7033d08", suffix) {
+					want := oracle.ProbeSessionName(candidate) == nil
+					if got := accepts(candidate); got != want {
+						t.Fatalf("acceptor said %v for a %d-byte name, zellij says %v: %q",
+							got, len(candidate), want, candidate)
+					}
+				}
+			}
+		})
 	}
+}
+
+// And an assignment that cannot succeed must fail HONESTLY rather than hand back
+// a name zellij will refuse.
+func TestAnImpossibleBudgetExhaustsInsteadOfGuessing(t *testing.T) {
+	scope := mustScope(t, "/Users/a/work/pair")
+	rt := &fakeRuntime{maxSessionNameBytes: 1} // nothing fits at all
+	_, _, err := AssignSessionName(SessionNameIndex{}, nil, scope, "work", singleUseAcceptor(rt))
 	var exhausted SessionNameExhausted
 	if !errors.As(err, &exhausted) {
-		t.Fatalf("err = %v (%T), want SessionNameExhausted: an unmeasurable budget must "+
-			"fail honestly, not hand back a name zellij will refuse", err, err)
+		t.Fatalf("err = %v (%T), want SessionNameExhausted: a machine where zellij "+
+			"accepts no name must fail honestly, not return a name it will refuse", err, err)
+	}
+}
+
+// O(1) probes in BOTH budget regimes (#215 BR-18).
+//
+// The first fix went arithmetic only AFTER a rejection, which is O(1) only where
+// some candidate is actually refused. On a machine whose socket directory is
+// short enough that the longest candidate fits -- Linux `~/.cache/zellij` against
+// macOS's temp path -- nothing is ever refused and it paid one probe per suffix:
+// the O(threads) cost this issue exists to remove, quietly restored on the
+// machines with the most headroom. Code, atlas and Done-when all claimed O(1)
+// unconditionally.
+//
+// So both regimes, and invariance rather than a bound in each.
+func TestProbeCountIsInvariantInBothBudgetRegimes(t *testing.T) {
+	scope := mustScope(t, "/Users/a/work/brain")
+	const tag = "couch-e1a31510b7033d08"
+
+	seed := func(owned, budget int) SessionNameIndex {
+		var idx SessionNameIndex
+		for suffix := 1; suffix <= owned; suffix++ {
+			for _, c := range BuildSessionNameCandidates(scope, tag, suffix) {
+				if len(c) <= budget {
+					idx.Entries = append(idx.Entries, SessionNameEntry{
+						SessionName: c, ScopeKey: scope.Key, RepoRoot: scope.Root,
+						RepoName: scope.DisplayName, Tag: "other-" + c,
+					})
+					break
+				}
+			}
+		}
+		return idx
+	}
+	assign := func(owned, budget int) int {
+		rt := &fakeRuntime{maxSessionNameBytes: budget}
+		if _, _, err := AssignSessionName(seed(owned, budget), nil, scope, tag,
+			singleUseAcceptor(rt)); err != nil {
+			t.Fatalf("budget=%d owned=%d: %v", budget, owned, err)
+		}
+		return rt.probeCount
 	}
 
-	// And it must have kept ASKING rather than deciding from the fallback.
-	if rt.probeCount < 20 {
-		t.Errorf("only %d probes: with no measurable budget every candidate must be "+
-			"probed, because arithmetic has nothing trustworthy to judge against",
-			rt.probeCount)
+	for _, tc := range []struct {
+		name   string
+		budget int
+	}{
+		{"tight budget: the longest candidates are refused", 24},
+		{"generous budget: nothing is ever refused", 200},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			few, many := assign(25, tc.budget), assign(60, tc.budget)
+			if few != many {
+				t.Errorf("probe count moved with index size: %d at 25 owned suffixes, %d at "+
+					"60. Assignment must not be O(threads-this-repo-ever-had) in ANY budget "+
+					"regime", few, many)
+			}
+			if few > 12 {
+				t.Errorf("%d probes; want a small constant", few)
+			}
+		})
 	}
 }

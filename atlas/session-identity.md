@@ -183,20 +183,33 @@ the legacy `pair-` (`isPairSessionName`); only `📁` is ever emitted.
 A session name is a **socket filename**. On the machine this was measured on,
 macOS allows **24 bytes** — and that number is the socket path's, so it varies
 with username and is different on Linux (`~/.cache/zellij`). zellij's own
-validator stays the oracle (`ProbeSessionName`), but since `#215` the budget it
-measures is also **an acceptance test, not only a message** — assignment probes
-until one name is refused, measures the budget once, then judges every remaining
-candidate arithmetically. That is what makes naming cost O(1) subprocesses
-instead of one per candidate, which had reached 52 inside couch's registration
-deadline.
+validator stays the oracle (`ProbeSessionName`), but since `#215` assignment does
+not ask it once per candidate. **Acceptance is monotone in length** — a session
+name is a socket filename, so if zellij takes an n-byte name it takes every
+shorter one — and `sessionNameAcceptor` exploits exactly that, keeping a bracket:
 
-Because the number now decides acceptance, it may only be used **when it was
-actually measured**. `discoverSessionNameBudget` returns `(budget, measured)` and
-reports `false` at either end of its search — the shortest probe refused, or the
-longest accepted — since a boundary requires observing both an acceptance and a
-refusal, and a search bound is not an observation. When it is unmeasured, the
-acceptor falls back to probing every candidate: slower, and the only correct
-thing to do on a machine whose socket directory leaves no usable room.
+    accepted   <= longestOK    every name this long or shorter fits
+    shortestBad <= rejected    every name this long or longer does not
+
+Only a length strictly between the two costs a subprocess, and each such probe
+closes the gap. The ladder reuses lengths heavily across suffixes, so the bracket
+converges in a handful of probes and the rest are arithmetic: naming went from 52
+subprocesses to 3-4, flat as the index grows, where it had been O(threads this
+repo ever had) inside couch's registration deadline.
+
+The bracket learns from an **acceptance** as readily as from a refusal, which is
+what makes it O(1) on every machine. An earlier cut went arithmetic only after a
+rejection, so on a host whose socket directory is short enough that the longest
+candidate fits — Linux `~/.cache/zellij` against macOS's temp path — nothing was
+ever refused and it paid one probe per suffix, quietly restoring O(threads) on
+the machines with the most headroom.
+
+Every answer therefore derives from a probe of THIS machine; no constant is ever
+used to decide acceptance. Where a numeric limit is wanted for a refusal
+*message*, `measureAcceptedLimit` narrows one through the same acceptor and
+returns `measured=false` unless it observed both an acceptance and a refusal — a
+search that saturates at either bound has found a search bound, not a boundary,
+and callers must say something else rather than quote it.
 
 Three units are in play and each answers a different question — mixing them was
 the original bug:

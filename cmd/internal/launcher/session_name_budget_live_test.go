@@ -7,68 +7,61 @@ import (
 	"testing"
 )
 
-// The byte budget is measured against REAL zellij, not a fake (#215 BR-2).
+// The acceptor agrees with REAL zellij, not just with fakeRuntime (#215 BR-2).
 //
 // Gated on PAIR_LIVE_COUCH=1 with t.Skip and deliberately no build tag, matching
 // the other live conformance tests.
 //
-// WHY THIS SEAM NEEDS A LIVE CHECK NOW. #215 made a candidate's acceptability an
-// arithmetic question answered from one measured number. Before, a missed
-// rejection mis-accepted ONE candidate and the ladder kept walking; now a wrong
-// budget decides EVERY remaining candidate without asking. The whole chain rests
-// on sessionNameRejected (zellijparse.go) matching one substring of zellij's
-// stderr, and a zellij release that rewords that message would silently disable
-// the oracle with every unit test still green.
+// WHY THIS SEAM NEEDS A LIVE CHECK. #215 made a candidate's acceptability an
+// arithmetic question answered from observations of this machine. Before, every
+// candidate was probed, so a missed rejection mis-accepted ONE name; now one
+// wrong observation decides every candidate of that length or longer. The whole
+// chain rests on sessionNameRejected (zellijparse.go) matching one substring of
+// zellij's stderr, and a zellij release rewording that message would silently
+// turn the oracle into "accept everything" with every unit test still green.
 //
-// So this asserts the BOUNDARY rather than a value: a name at exactly `budget`
-// bytes is accepted and one byte more is refused. The number itself is a
-// property of this machine's socket directory and is not worth pinning.
-func TestSessionNameBudgetMatchesRealZellijLive(t *testing.T) {
+// It drives the PRODUCTION acceptor rather than a helper, so what is pinned is
+// what runs.
+func TestTheAcceptorAgreesWithRealZellijLive(t *testing.T) {
 	if os.Getenv("PAIR_LIVE_COUCH") != "1" {
-		t.Skip("set PAIR_LIVE_COUCH=1 to measure the budget against real zellij")
+		t.Skip("set PAIR_LIVE_COUCH=1 to check the acceptor against real zellij")
 	}
 	rt := OSRuntime{}
-	probe := func(name string) bool { return rt.ProbeSessionName(name) == nil }
+	accepts, refusedAt := sessionNameAcceptor(rt)
 
-	budget, measured := discoverSessionNameBudget(probe)
-	if !measured {
-		t.Skipf("real zellij refuses even a %d-byte name here, so there is no boundary "+
-			"to check; the acceptor correctly falls back to probing per candidate",
-			len(sessionNameProbeMarker))
-	}
-	t.Logf("measured budget on this machine: %d bytes", budget)
+	const marker = "pair-probe-zz"
+	pad := func(n int) string { return marker + strings.Repeat("z", n-len(marker)) }
 
-	pad := func(n int) string {
-		return sessionNameProbeMarker + strings.Repeat("z", n-len(sessionNameProbeMarker))
+	// A name no socket path can hold must be refused. If sessionNameRejected has
+	// stopped recognising zellij's message, ProbeSessionName returns nil and this
+	// is the assertion that catches it.
+	if accepts(pad(200)) {
+		out, _ := exec.Command("zellij", "--session", pad(200), "action", "list-clients").CombinedOutput()
+		t.Fatalf("a 200-byte session name was ACCEPTED, so over-long names now read as "+
+			"usable and the arithmetic oracle accepts everything.\nzellij said: %q",
+			strings.TrimSpace(string(out)))
 	}
-	if !probe(pad(budget)) {
-		t.Errorf("real zellij REFUSED a %d-byte name at the measured budget; the "+
-			"arithmetic oracle would accept every candidate this size", budget)
+	limit, ok := refusedAt()
+	if !ok {
+		t.Fatal("a refusal happened but the acceptor reports none observed")
 	}
-	if probe(pad(budget + 1)) {
-		t.Errorf("real zellij ACCEPTED a %d-byte name, one past the measured budget of "+
-			"%d; the oracle is rejecting names zellij would take, and the ladder will "+
-			"hand back a shorter name than it needed to", budget+1, budget)
+	t.Logf("shortest refusal observed on this machine: %d bytes", limit)
+
+	// A short name must be accepted -- the positive control. Without it, an
+	// acceptor that refused everything would pass the check above.
+	if !accepts(marker) {
+		t.Fatalf("real zellij refused even a %d-byte name; there is no usable budget "+
+			"on this machine at all", len(marker))
 	}
 
-	// And the classifier must still recognise zellij's OWN refusal text.
-	//
-	// Against zellij's raw output, not against ProbeSessionName's error: that
-	// error is pair's wrapper ("session name too long: ..."), and feeding it back
-	// to the classifier tests the wrapper's spelling rather than zellij's. The
-	// first cut of this test did exactly that and reported a defect that was not
-	// there.
-	//
-	// This is the assertion that catches a zellij release rewording its message:
-	// sessionNameRejected matches ONE substring, and if it stops matching, every
-	// over-long candidate reads as acceptable and the arithmetic budget is
-	// measured as 64 -- with every unit test in this package still green.
-	out, _ := exec.Command("zellij", "--session", pad(budget+1),
-		"action", "list-clients").CombinedOutput()
-	if !sessionNameRejected(string(out)) {
-		t.Errorf("zellij refused a %d-byte name but sessionNameRejected did not "+
-			"recognise its message, so over-long candidates now read as ACCEPTABLE.\n"+
-			"zellij said: %q\nthe classifier looks for: %q",
-			budget+1, strings.TrimSpace(string(out)), "session name must be less than")
+	// And the acceptor must agree with a raw probe at every length, which is the
+	// property the bracket rests on (acceptance is monotone in length).
+	fresh, _ := sessionNameAcceptor(rt)
+	for n := len(marker); n <= 60; n++ {
+		want := rt.ProbeSessionName(pad(n)) == nil
+		if got := fresh(pad(n)); got != want {
+			t.Fatalf("acceptor said %v for a %d-byte name, a direct probe says %v",
+				got, n, want)
+		}
 	}
 }
