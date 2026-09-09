@@ -857,13 +857,65 @@ func TestConsoleReportsWhatLeaveDid(t *testing.T) {
 // BR-78: the drain loop's condition must MATCH the entry guard's.
 //
 // With the entry guard stricter (SafeToPaint) than the loop (MidSequence), a
-// chunk taking the cursor slot mid-drain leaves onChunk deferring the
-// notification straight back onto the queue this loop pops from, and the loop
-// -- still asking the looser question -- spins forever. A source check because
-// the two conditions being the same predicate is the invariant; reproducing the
-// spin requires the exact interleaving that made it a Critical rather than a
-// flake.
-func TestTheNotificationDrainAsksTheSameQuestionAsItsEntryGuard(t *testing.T) {
+// chunk that takes the cursor slot mid-drain leaves onChunk re-deferring the
+// notification straight back onto the queue this loop pops from -- and the
+// loop, still asking the looser question, spins forever.
+//
+// TWO tests, because neither alone is honest.
+//
+// This one pins the reachable property: with the child holding the save, the
+// drain RETURNS. It does not reproduce the spin, and the comment that first
+// claimed it might was wrong twice over -- first asserting the spin needed an
+// exact interleaving (offered as a reason not to try), then, when written, the
+// setup could not reach it either. The entry guard short-circuits on an unsafe
+// gate, so the loop is never entered; the spin needs the gate to be SAFE at
+// entry and to go unsafe during the drain, which a test cannot stage without
+// reaching into the read loop that feeds Screen concurrently.
+//
+// So the invariant itself -- that the loop and its entry guard ask the SAME
+// predicate -- is pinned by the source check below. That is the honest division:
+// this test covers what is reachable, the source check covers what is not, and
+// neither pretends to the other's coverage.
+func TestTheNotificationDrainTerminatesWhenTheChildHoldsTheCursorSave(t *testing.T) {
+	c := New(hostty.NewFakeHost(ptychild.Size{Rows: 24, Cols: 80}), strings.NewReader(""))
+
+	// A save held, stream at a boundary: SafeToPaint false, MidSequence FALSE.
+	// That gap is exactly where the loop and its entry guard disagreed.
+	c.mu.Lock()
+	c.hostScan.FeedFraming([]byte("\x1b7"))
+	safe, mid := c.hostScan.SafeToPaint(), c.hostScan.MidSequence()
+	// A chunk carrying a NOTIFICATION part. An empty chunk re-defers nothing,
+	// so the loop drains it and returns even with the bug present -- the first
+	// version of this test passed against the reverted fix for exactly that
+	// reason, which is the same "passes for the wrong reason" trap that has
+	// caught several tests in this issue. onChunk only re-defers when it has a
+	// notification to defer.
+	c.deferredNotifications = append(c.deferredNotifications, chunk{
+		id: "probe",
+		batch: ptychild.OutputBatch{
+			Parts: []ptychild.OutputPart{{Notification: &ptychild.NotificationObservation{}}},
+		},
+	})
+	c.mu.Unlock()
+	if safe || mid {
+		t.Fatalf("setup does not reproduce the gap: SafeToPaint=%v MidSequence=%v; "+
+			"the spin needed unsafe-but-not-mid-sequence", safe, mid)
+	}
+
+	done := make(chan struct{})
+	go func() { c.flushDeferredNotifications(); close(done) }()
+	select {
+	case <-done:
+	case <-time.After(5 * time.Second):
+		t.Fatal("flushDeferredNotifications did not return; the drain loop is asking " +
+			"a looser question than its entry guard and spins on a re-deferred chunk")
+	}
+}
+
+// The invariant behind the spin, checked at the source because it is not
+// reachable behaviourally (see above): the drain loop and its entry guard must
+// ask the SAME predicate. The bug was them disagreeing, not either value.
+func TestTheNotificationDrainAndItsEntryGuardAskOneQuestion(t *testing.T) {
 	raw, err := os.ReadFile("console.go")
 	if err != nil {
 		t.Fatal(err)
@@ -878,12 +930,10 @@ func TestTheNotificationDrainAsksTheSameQuestionAsItsEntryGuard(t *testing.T) {
 		body = body[:j]
 	}
 	if strings.Contains(body, "hostScan.MidSequence()") {
-		t.Error("the notification drain still gates on MidSequence; it must ask " +
-			"SafeToPaint, the same question as its entry guard, or a save taken " +
-			"mid-drain spins the loop forever")
+		t.Error("the drain still gates on MidSequence somewhere; entry guard and loop " +
+			"must ask SafeToPaint, or a save taken mid-drain spins the loop forever")
 	}
-	if strings.Count(body, "SafeToPaint()") < 2 {
-		t.Errorf("expected both the entry guard and the loop to ask SafeToPaint; found %d",
-			strings.Count(body, "SafeToPaint()"))
+	if n := strings.Count(body, "SafeToPaint()"); n < 2 {
+		t.Errorf("expected the entry guard AND the loop to ask SafeToPaint; found %d", n)
 	}
 }

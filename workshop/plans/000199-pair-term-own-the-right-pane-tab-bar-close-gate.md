@@ -1953,6 +1953,128 @@ rounds:
           family: plan-table-drift
           round: 19
       blocked: true
+    - "n": 20
+      timestamp: "2026-09-08T19:15:27-07:00"
+      agent: claude
+      dispose:
+        - id: BR-8
+          disposition: not-addressed
+          note: plan:696-702 still has no Alt+Shift+d step; and the config.kdl comment added this window asserts split halves are borderless, which depends on the exact_panes=4 swap layout applying the attribute to a pane splitTerminalDown creates with no --borderless. Unverified by hand and unasserted by test.
+          round: 20
+        - id: BR-9
+          disposition: not-addressed
+          note: writer_test.go:117 TestPaintDefersMidSequenceAndIsOwed still splits "before\x1b[3" at one hand-chosen index; no parameterisation.
+          round: 20
+        - id: BR-13
+          disposition: not-addressed
+          note: 'couchtty/console.go:921 bottomReservation still returns hostty.Reservation{Rows: rows, Edge: hostty.EdgeBottom} directly.'
+          round: 20
+        - id: BR-14
+          disposition: not-addressed
+          note: grep Reservation in atlas/couch.md returns nothing; hostty appears only at :213 and :812.
+          round: 20
+        - id: BR-15
+          disposition: not-addressed
+          note: grep -rn "sanitiz|rowtext" cmd/internal/hostty returns one unrelated line about row clamping; Paint/ReserveAndPaint still state no caller obligation.
+          round: 20
+        - id: BR-24
+          disposition: not-addressed
+          note: plan:528 unchanged; re-measured in the repo's zsh this round, the unquoted --include=*.go aborts with "no matches found" before the pipeline runs.
+          round: 20
+        - id: BR-30
+          disposition: not-addressed
+          note: run.go:168 runDecision still takes panes, stdin and stdout; none is referenced in the body.
+          round: 20
+        - id: BR-31
+          disposition: not-addressed
+          note: The envelope still budgets paints and subprocesses only; no entry for the per-chunk FeedFraming second parse or the unterminated-OSC stall.
+          round: 20
+        - id: BR-38
+          disposition: not-addressed
+          note: couchtty/reserve.go:143-152 still ends in the two doc paragraphs for sanitize and truncate, which live in rowtext.
+          round: 20
+        - id: BR-73
+          disposition: not-addressed
+          note: All three present at HEAD - menu_render.go:625 redundant parens, its rowtext import inside the stdlib group at :5, manifest.go:631 out of sort order.
+          round: 20
+        - id: BR-76
+          disposition: not-addressed
+          note: lessons.md untouched since 82976ec6; grep for the tick-runs-the-suite rule returns nothing. BR-70's rule still lives only in git log.
+          round: 20
+        - id: BR-77
+          disposition: not-addressed
+          note: One of the three sub-claims cleared (the spin). Measured this round - reverting console.go:1011/1111/1141 to MidSequence leaves the couchtty suite GREEN, and cmd/internal/hostty still states no cursor-save precondition at Paint/ReserveAndPaint.
+          round: 20
+        - id: BR-78
+          disposition: addressed
+          note: console.go:1207 now asks SafeToPaint; I reproduced the spin deterministically and it is gone. The oracle chosen for it is raised separately.
+          round: 20
+        - id: BR-79
+          disposition: addressed
+          note: screen.go:201 carve-out is pinned - reverting it turns TestTheSaveGateDoesNotFreezeThroughAnAltScreenSession red. The new dependency it introduces is raised separately.
+          round: 20
+        - id: BR-80
+          disposition: not-addressed
+          note: Tests now name SafeToPaint, so that third is closed. plan:277/:343 and atlas/architecture.md:614 still name HoldsCursorSave as the bit that decides, which is now a rule the code deliberately does not follow.
+          round: 20
+      findings:
+        - id: BR-81
+          severity: Critical
+          title: altScreen became a safety bit at HEAD; RIS never clears it, so the save gate is off for good after a reset
+          detail: |-
+            SafeToPaint (screen.go:201) now reads !(cursorSaved && !altScreen), promoting altScreen
+            from a bit with zero production consumers to the one that decides whether the paint gate
+            closes. Two classify arms were not re-enumerated for the new role, both measured.
+            (1) The RIS arm (screen.go:475-479) clears cursorSaved and sets rowDirty but not
+            altScreen: "\x1b[?1049h" then "\x1bc" then "\x1b7" leaves altScreen=true and
+            SafeToPaint()=true while the child holds a save on the NORMAL screen -- M3's exact
+            operator-visible symptom, reachable after any reset/tput reset, and persisting until the
+            child next enters and leaves an alt screen. (2) The 1047/47 arm keeps cursorSaved set on
+            purpose, with a comment saying clearing it "would hand a console permission to paint
+            inside a save the child still holds"; measured, "\x1b7" then "\x1b[?1047h" leaves
+            HoldsCursorSave()=true and SafeToPaint()=true, handing exactly that permission for a save
+            taken on, and restored to, the normal screen. THE RULE - when a field becomes
+            safety-load-bearing its full transition set must be re-enumerated, and the enumeration
+            already exists here: TestEverySaveSlotSpellingIsAccountedFor (screen_test.go:519) has one
+            axis (HoldsCursorSave, from empty/held). Add a "from alt screen" starting state and a
+            SafeToPaint column and both instances fail immediately (ARCH-ORDER).
+          family: state-bit-promoted-without-enumeration
+          round: 20
+        - id: BR-82
+          severity: Important
+          title: The takeover mints a fresh Screen, so the alt-screen carve-out's premise is false after every switch
+          detail: |-
+            This is the 2nd finding in family takeover-resets-framing, so the rule, not the site.
+            termcmd/run.go:894 and couchtty/console.go:994 both do hostScan = ptychild.Screen{} on a
+            screen replacement, and the replay only re-establishes ?1049h while it is still inside the
+            bounded ring. Measured - "\x1b[?1049h", then Screen{}, then "\x1b[?1048h" gives
+            SafeToPaint()=false: BR-79's indefinite freeze, reached through the takeover rather than
+            through the predicate. THE RULE - a takeover resets the scanner to "knows nothing", so
+            every bit the gate reads needs a defined meaning under unknown. MidSequence degrades
+            safely because false is the conservative answer; a bit whose false value WIDENS the gate
+            does not, and must be re-established from the replay or excluded from the gate. The
+            enumeration is one grep for `= ptychild.Screen{}` and yields exactly the two sites.
+          family: takeover-resets-framing
+          round: 20
+        - id: BR-83
+          severity: Important
+          title: BR-78's Critical is pinned by grepping console.go, justified by a claim that is measurably false
+          detail: |-
+            console_test.go:864 asserts that flushDeferredNotifications' source text does not contain
+            "hostScan.MidSequence()", with a comment saying "reproducing the spin requires the exact
+            interleaving that made it a Critical rather than a flake". Measured false - a 35-line,
+            single-goroutine, deterministic reproduction exists (feed the active actor a batch of
+            [{Bytes:"\x1b[31"},{Notification},{Bytes:"\x1b7"},{Notification}], let it defer at the
+            mid-sequence, then complete it): it returns instantly at HEAD and hangs the full 3s
+            timeout with only line 1207 reverted. The grep also cannot catch the same defect at the
+            other defer/drain pair (termcmd's owed paint), goes red on an extract-to-helper refactor
+            that changes nothing, and stays green for a differently-spelled wrong condition. THE RULE
+            - a source-text guard is admissible when the property IS textual (plan tables, doc
+            comments, import order); when the defect is reachable in-process, the pin is a test that
+            reaches it, and the fix's own commit message is not where that judgement gets recorded.
+          family: source-text-proxy-oracle
+          round: 20
+      blocked: true
 ---
 
 # Gate ledger — pair#199 (boundary-review)
@@ -2942,6 +3064,70 @@ later rounds disposed of them. Generated — edit the gate, not this file.
   enumeration is producible from the diff's new exported declarations rather than from
   memory.
 
+## Round 20 — 2026-09-08T19:15:27-07:00 (claude) — BLOCKED
+
+### Disposed
+
+- BR-8 — not-addressed — plan:696-702 still has no Alt+Shift+d step; and the config.kdl comment added this window asserts split halves are borderless, which depends on the exact_panes=4 swap layout applying the attribute to a pane splitTerminalDown creates with no --borderless. Unverified by hand and unasserted by test.
+- BR-9 — not-addressed — writer_test.go:117 TestPaintDefersMidSequenceAndIsOwed still splits "before\x1b[3" at one hand-chosen index; no parameterisation.
+- BR-13 — not-addressed — couchtty/console.go:921 bottomReservation still returns hostty.Reservation{Rows: rows, Edge: hostty.EdgeBottom} directly.
+- BR-14 — not-addressed — grep Reservation in atlas/couch.md returns nothing; hostty appears only at :213 and :812.
+- BR-15 — not-addressed — grep -rn "sanitiz|rowtext" cmd/internal/hostty returns one unrelated line about row clamping; Paint/ReserveAndPaint still state no caller obligation.
+- BR-24 — not-addressed — plan:528 unchanged; re-measured in the repo's zsh this round, the unquoted --include=*.go aborts with "no matches found" before the pipeline runs.
+- BR-30 — not-addressed — run.go:168 runDecision still takes panes, stdin and stdout; none is referenced in the body.
+- BR-31 — not-addressed — The envelope still budgets paints and subprocesses only; no entry for the per-chunk FeedFraming second parse or the unterminated-OSC stall.
+- BR-38 — not-addressed — couchtty/reserve.go:143-152 still ends in the two doc paragraphs for sanitize and truncate, which live in rowtext.
+- BR-73 — not-addressed — All three present at HEAD - menu_render.go:625 redundant parens, its rowtext import inside the stdlib group at :5, manifest.go:631 out of sort order.
+- BR-76 — not-addressed — lessons.md untouched since 82976ec6; grep for the tick-runs-the-suite rule returns nothing. BR-70's rule still lives only in git log.
+- BR-77 — not-addressed — One of the three sub-claims cleared (the spin). Measured this round - reverting console.go:1011/1111/1141 to MidSequence leaves the couchtty suite GREEN, and cmd/internal/hostty still states no cursor-save precondition at Paint/ReserveAndPaint.
+- BR-78 — addressed — console.go:1207 now asks SafeToPaint; I reproduced the spin deterministically and it is gone. The oracle chosen for it is raised separately.
+- BR-79 — addressed — screen.go:201 carve-out is pinned - reverting it turns TestTheSaveGateDoesNotFreezeThroughAnAltScreenSession red. The new dependency it introduces is raised separately.
+- BR-80 — not-addressed — Tests now name SafeToPaint, so that third is closed. plan:277/:343 and atlas/architecture.md:614 still name HoldsCursorSave as the bit that decides, which is now a rule the code deliberately does not follow.
+
+### Raised
+
+- **BR-81** [Critical] `state-bit-promoted-without-enumeration` altScreen became a safety bit at HEAD; RIS never clears it, so the save gate is off for good after a reset
+  SafeToPaint (screen.go:201) now reads !(cursorSaved && !altScreen), promoting altScreen
+  from a bit with zero production consumers to the one that decides whether the paint gate
+  closes. Two classify arms were not re-enumerated for the new role, both measured.
+  (1) The RIS arm (screen.go:475-479) clears cursorSaved and sets rowDirty but not
+  altScreen: "\x1b[?1049h" then "\x1bc" then "\x1b7" leaves altScreen=true and
+  SafeToPaint()=true while the child holds a save on the NORMAL screen -- M3's exact
+  operator-visible symptom, reachable after any reset/tput reset, and persisting until the
+  child next enters and leaves an alt screen. (2) The 1047/47 arm keeps cursorSaved set on
+  purpose, with a comment saying clearing it "would hand a console permission to paint
+  inside a save the child still holds"; measured, "\x1b7" then "\x1b[?1047h" leaves
+  HoldsCursorSave()=true and SafeToPaint()=true, handing exactly that permission for a save
+  taken on, and restored to, the normal screen. THE RULE - when a field becomes
+  safety-load-bearing its full transition set must be re-enumerated, and the enumeration
+  already exists here: TestEverySaveSlotSpellingIsAccountedFor (screen_test.go:519) has one
+  axis (HoldsCursorSave, from empty/held). Add a "from alt screen" starting state and a
+  SafeToPaint column and both instances fail immediately (ARCH-ORDER).
+- **BR-82** [Important] `takeover-resets-framing` The takeover mints a fresh Screen, so the alt-screen carve-out's premise is false after every switch
+  This is the 2nd finding in family takeover-resets-framing, so the rule, not the site.
+  termcmd/run.go:894 and couchtty/console.go:994 both do hostScan = ptychild.Screen{} on a
+  screen replacement, and the replay only re-establishes ?1049h while it is still inside the
+  bounded ring. Measured - "\x1b[?1049h", then Screen{}, then "\x1b[?1048h" gives
+  SafeToPaint()=false: BR-79's indefinite freeze, reached through the takeover rather than
+  through the predicate. THE RULE - a takeover resets the scanner to "knows nothing", so
+  every bit the gate reads needs a defined meaning under unknown. MidSequence degrades
+  safely because false is the conservative answer; a bit whose false value WIDENS the gate
+  does not, and must be re-established from the replay or excluded from the gate. The
+  enumeration is one grep for `= ptychild.Screen{}` and yields exactly the two sites.
+- **BR-83** [Important] `source-text-proxy-oracle` BR-78's Critical is pinned by grepping console.go, justified by a claim that is measurably false
+  console_test.go:864 asserts that flushDeferredNotifications' source text does not contain
+  "hostScan.MidSequence()", with a comment saying "reproducing the spin requires the exact
+  interleaving that made it a Critical rather than a flake". Measured false - a 35-line,
+  single-goroutine, deterministic reproduction exists (feed the active actor a batch of
+  [{Bytes:"\x1b[31"},{Notification},{Bytes:"\x1b7"},{Notification}], let it defer at the
+  mid-sequence, then complete it): it returns instantly at HEAD and hangs the full 3s
+  timeout with only line 1207 reverted. The grep also cannot catch the same defect at the
+  other defer/drain pair (termcmd's owed paint), goes red on an extract-to-helper refactor
+  that changes nothing, and stays green for a differently-spelled wrong condition. THE RULE
+  - a source-text guard is admissible when the property IS textual (plan tables, doc
+  comments, import order); when the defect is reachable in-process, the pin is a test that
+  reaches it, and the fix's own commit message is not where that judgement gets recorded.
+
 ## Open findings
 
 - **BR-8** [Minor] `acceptance-misses-changed-sites` M4's manual acceptance never splits the pane, leaving six of nine borderless sites unverified
@@ -2956,6 +3142,7 @@ later rounds disposed of them. Generated — edit the gate, not this file.
 - **BR-73** [Minor] `formatting-drift` Two cosmetic slips in the M2 extraction: redundant parens and an out-of-order manifest entry
 - **BR-76** [Minor] `plan-table-drift` BR-70's rule is recorded only in a commit message, so nothing will read it next time
 - **BR-77** [Important] `wrong-seam-named` The cursor-save precondition landed in termcmd's private predicate, not at the shared Reservation door, so couch paints unguarded
-- **BR-78** [Critical] `moved-surface-drops-a-case` The predicate swap reached four of five sites; the drain loop kept the old one and spins forever
-- **BR-79** [Critical] `deferred-work-lacks-own-trigger` The new 1049 arm holds the paint gate closed for the child's whole alt-screen lifetime, in both consumers
 - **BR-80** [Important] `plan-table-drift` SafeToPaint is the one new exported shared-package symbol with no plan row, no atlas sentence and no test
+- **BR-81** [Critical] `state-bit-promoted-without-enumeration` altScreen became a safety bit at HEAD; RIS never clears it, so the save gate is off for good after a reset
+- **BR-82** [Important] `takeover-resets-framing` The takeover mints a fresh Screen, so the alt-screen carve-out's premise is false after every switch
+- **BR-83** [Important] `source-text-proxy-oracle` BR-78's Critical is pinned by grepping console.go, justified by a claim that is measurably false

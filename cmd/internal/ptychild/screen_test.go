@@ -682,3 +682,40 @@ func TestTheSaveGateStillClosesOutsideTheAltScreen(t *testing.T) {
 		}
 	}
 }
+
+// BR-81: altScreen is a SAFETY input to SafeToPaint, so every path that leaves
+// the alt screen must clear it. RIS resets the terminal to its power-on state,
+// which is the primary screen; leaving the flag set turned a missing reset into
+// a permanently disabled save gate.
+func TestRISLeavesTheAltScreenAndReArmsTheSaveGate(t *testing.T) {
+	var s Screen
+	s.FeedFraming([]byte("\x1b[?1049h")) // in the alt screen, holding the save
+	s.FeedFraming([]byte("\x1bc"))       // RIS
+
+	if s.AltScreen() {
+		t.Fatal("RIS left altScreen set; the terminal's power-on state is the primary screen")
+	}
+	// And the gate must arm again: a save taken after the reset closes it.
+	s.FeedFraming([]byte("\x1b7"))
+	if s.SafeToPaint() {
+		t.Fatal("after RIS the save gate never closes again; altScreen is stuck on")
+	}
+}
+
+// Every field SafeToPaint consults must be cleared by every reset that clears
+// the terminal state it models. Stated as its own test because promoting a
+// field to a safety input is what created the hole: the audit belongs with the
+// promotion.
+func TestEverySafetyInputIsClearedByRIS(t *testing.T) {
+	var s Screen
+	s.FeedFraming([]byte("\x1b[?1049h\x1b[3")) // alt screen, save held, mid-sequence
+	s.FeedFraming([]byte("m"))                 // close the sequence
+	s.FeedFraming([]byte("\x1bc"))             // RIS
+	if !s.SafeToPaint() {
+		t.Fatal("RIS left a safety input set; a reset must return the gate to open")
+	}
+	if s.HoldsCursorSave() || s.AltScreen() || s.MidSequence() {
+		t.Fatalf("after RIS: save=%v alt=%v mid=%v; all must be clear",
+			s.HoldsCursorSave(), s.AltScreen(), s.MidSequence())
+	}
+}

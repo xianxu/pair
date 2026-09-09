@@ -475,6 +475,16 @@ func (s *Screen) classify(seq []byte) {
 	if seq[1] == 'c' {
 		s.rowDirty = true
 		s.cursorSaved = false
+		// altScreen too. RIS resets the terminal to its power-on state, which
+		// is the PRIMARY screen -- and since SafeToPaint began consulting
+		// altScreen, leaving it set here turned a missing reset into a safety
+		// hole: a child issuing RIS from the alt screen would leave the flag
+		// true forever, and the save half of the paint gate off for good.
+		//
+		// The lesson is not the missing line. It is that promoting a field to a
+		// SAFETY input obliges an audit of every writer and every reset of that
+		// field, and this one was promoted without it.
+		s.altScreen = false
 		return
 	}
 	// DECSC / DECRC. Tracked because the cursor save slot is SHARED: a console
