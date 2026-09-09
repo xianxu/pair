@@ -139,14 +139,17 @@ started and did not register", and name the session it waited for.
 
 ## Plan
 
-- [ ] Reject over-long candidates arithmetically against a once-measured socket budget; keep the
+- [x] Reject over-long candidates arithmetically against a once-measured socket budget; keep the
       zellij probe as the oracle for the *budget*, not per candidate.
 - [ ] Start the suffix walk from the highest known assigned suffix.
-- [ ] Move name assignment outside the registration deadline, or budget the deadline against the
-      work; state the envelope.
+- [x] Budget the deadline against the work and state the envelope (15s, named constant with the
+      measurement and the bounded-work condition written down). Assignment stays inside the
+      window because it is now O(1); the constant says so, and says that raising it is the wrong
+      fix if anything unbounded moves back in.
 - [ ] Reap orphaned unnamed servers on failed launch.
-- [ ] Improve the registration-timeout message.
-- [ ] Verify with the probe-count test, then start a pair thread from couch under load.
+- [x] Improve the registration-timeout message.
+- [x] Verify with the probe-count test. Operator started threads from couch repeatedly and both
+      cold start and relaunch now succeed; under sustained *load* is still unverified.
 
 ## Log
 
@@ -176,3 +179,71 @@ composed the session name by hand, verified *that string* was rejected, and file
 six-line test. Verifying a hypothesis I authored, rather than the artifact the code produces, is
 what put a wrong root cause in the tracker — the same shape as the earlier `pair resume … -- --resume`
 suggestion, which was reasoned about instead of read.
+
+### 2026-09-08 — implemented (branch `000215-…`, 4 commits)
+
+**Frontmatter first.** `4663fb70` rewrote this file's body and clobbered its head,
+taking the YAML frontmatter and H1 with it, so every `sdlc` verb refused the issue
+with "no YAML frontmatter" — it could not be claimed, shown or closed. Restored,
+with the H1 stating the corrected root cause since the filename's slug still
+asserts the refuted one.
+
+**The cost (52 → 8 probes).** `sessionNameAcceptor` (createflow.go) judges a
+candidate's length arithmetically against a budget the probe measures once.
+`TestAssignSessionNameCostsABoundedNumberOfProbes` asserts O(1) as **invariance
+across index sizes**, not as a bound — a bound alone still passes something that
+grows slowly, and this index only ever grows. Against the old code it reports 52
+at 25 owned suffixes and 122 at 60.
+
+**A regression I shipped and the operator caught.** The first cut discovered the
+budget *eagerly*, which made the cold path O(1) and the **resume** path 7× worse:
+the ledger short-circuit asks about ONE name — every resume takes it — and it was
+paying for a binary search it had no use for. 1 probe → 7, ~45ms → ~315ms.
+Operator reported "relaunch worked, but it takes a lot longer than before" and the
+measurement confirmed it was mine. Discovery is lazy again — probe directly until
+a probe says NO, then measure once and go arithmetic — which is cheaper than both
+the old code and my first cut:
+
+| path | before #215 | first cut | now |
+|---|---|---|---|
+| resume (ledger hit) | 1 | 7 | **1** |
+| cold (ladder walk, 25 owned) | 52 | 7 | **8** |
+
+`TestResumingAKnownThreadCostsOneProbe` pins the warm path, because nothing did:
+the bounded-cold-path test passed happily while the warm path got 7× worse.
+"Bounded" and "cheap" are different claims, and a fix for either can quietly pay
+for it out of the other.
+
+**The deadline.** 5s → a named `pairRegistrationTimeout = 15s` carrying the 8.85s
+measurement and the condition that makes it valid.
+
+**The message.** `diagnoseRegistrationFailure` reports liveness, and liveness is
+the ONLY discriminator: `PairSession` returns a missing index entry as an *error*
+rather than `Present=false`, and that is the "Pair never recorded a name" case —
+the most diagnostic one there is. Branching on the error first swallowed it; the
+test caught exactly that ordering.
+
+**Startup latency is still unexplained, and two suspects are dead.** #215 raised
+the deadline against a measured 8.85s without measuring where those 8.85s go:
+
+| suspect | measured | verdict |
+|---|---|---|
+| nvim + pair's `init.lua` | 117 ms (`nvim --startuptime`) | not it |
+| `zellij list-sessions` | 43 ms at 26 sessions | not it alone |
+| one `ProbeSessionName` | ~45 ms, creates no session | bounded now |
+
+`probes/zellijcalls/` traces every zellij subprocess via a PATH shim rather than
+instrumented call sites — pair spawns zellij from eight places, so instrumenting
+"the seam" means instrumenting eight and missing the ninth. Not yet run against a
+real couch thread start.
+
+**Note for whoever closes this.** couch's shell function rebuilds `bin/couch` on
+every launch but NOT `bin/pair`, and couch execs `pair` from PATH
+(`launch_existing.go:52`). The deadline fix lives in couch and arrives free; the
+probe fix lives in the launcher and needs `make build`. Half of what looks like
+couch's behaviour is in a binary couch does not build.
+
+**Still open:** the suffix walk still restarts at 1 (cheap now, but still O(N)
+in-memory); orphaned unnamed servers are not reaped — six from #199's probes plus
+a `zellij action rename-pane` stuck 8h are live on the operator's machine and
+awaiting an OK to kill; verification under sustained load.
