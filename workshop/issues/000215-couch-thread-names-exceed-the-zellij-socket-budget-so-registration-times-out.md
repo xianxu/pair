@@ -278,6 +278,14 @@ OK to kill, not a code change. `ps` shows all six at ppid=1 and 0.0% CPU, so the
 cost ~430MB RSS and inflate `list-sessions` to 26 entries; they are NOT the
 startup latency (one `list-sessions` is 43ms).
 
-**What actually remains before this can close:** verification under sustained
-load, and the unexplained 8.85s startup — `probes/zellijcalls/` exists to answer
-the second and has not been run against a real couch thread start.
+**Scope, corrected 2026-09-08 (operator).** *"#215 is about unblock so that I
+can continue to use (and thus dogfood) couch."* That is achieved: cold start and
+relaunch both work, repeatedly, on the operator's machine. The unexplained 8.85s
+startup is **split out as `#218`**, which carries the measurements taken here —
+four suspects already dead — and the `probes/zellijcalls/` tracer built here and
+not yet run. Latency is not a reason to hold this issue open.
+
+Verification under *sustained* load remains unverified, and is noted rather than
+claimed: the operator's repeated successful starts were on an ordinarily-loaded
+machine, not a deliberately loaded one. The O(1) probe count is what makes the
+load case survivable, and that is asserted by test rather than by a live run.
