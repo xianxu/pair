@@ -1,11 +1,12 @@
 ---
 id: 000215
-status: open
+status: working
 deps: []
 github_issue:
 created: 2026-09-08
 updated: 2026-09-08
 estimate_hours:
+started: 2026-09-08T20:56:16-07:00
 ---
 
 # couch spends 52 zellij subprocesses assigning a name inside a 5s registration deadline
