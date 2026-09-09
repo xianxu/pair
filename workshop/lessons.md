@@ -3999,3 +3999,49 @@ is scoped to `SafeToPaint`'s inputs by design, so it is structurally blind to a
 mode RIS forgets that the gate does not consult — and the mouse modes sat unreset
 behind exactly that blindness. Two derivations, two directions, both required:
 one from the predicate, one from the reset.
+
+## 2026-09-08 — A number's PROVENANCE is part of its type; four times in one issue I used a guess as an authority
+
+pair#215 made session-name assignment cost O(1) zellij subprocesses instead of
+one per candidate. Its two close-review rounds produced ten findings, and the
+same mistake is under four of them: **a number was produced as a fallback, a
+bound, or a broken comparison, and then used as though it had been measured.**
+
+| what the number really was | what I used it as | consequence |
+|---|---|---|
+| `defaultSessionNameBudget` — a documented *message* default | the acceptance oracle for every candidate | on a machine with a long socket dir, pair could not start a session **at all** (BR-1) |
+| the binary search's ceiling of 64 | a measured boundary | a 70-byte name refused arithmetically that zellij accepts (BR-11) |
+| a difference of two *identical* operations | the shim's overhead | published "−250µs, below the noise floor" in `SKILL.md` (BR-13) |
+| "8.85s startup" | the basis for a 15s deadline | true, but its instrument was discarded, so it could not be re-checked |
+
+The tell in three of the four was visible in the value itself and I did not look:
+a default that equals a real budget, a result that equals a search bound exactly,
+**a negative overhead for a wrapper that cannot be faster than what it wraps.**
+
+- **Return provenance with the value, not alongside it.** `discoverSessionNameBudget`
+  became `(int, measured bool)`, and the acceptor probes per candidate when
+  `measured` is false. A caller can no longer *forget* — it must destructure. This
+  is the countermeasure that has held all session: make the mistake impossible
+  rather than caught.
+- **Fixing one end of a range is not fixing the class.** BR-1 added `measured` for
+  the search's LOW end. BR-11 was the identical defect still standing at the HIGH
+  end, found by the next review round. The rule is not "check the fallback" — it is
+  **a boundary requires observing both an acceptance and a refusal, and a search
+  bound is not an observation.** Stated that way, both ends fall out.
+- **An instrument must be able to observe what it reports, and should refuse when
+  it cannot.** `--overhead` now compares direct-vs-through-the-shim rather than
+  two identical execs, *and* errors out if the result is not positive — a wrapper
+  cannot be faster than the process it wraps, so a non-positive result is proof
+  the arms are not measuring different things. A broken instrument that looks like
+  a good result is worse than no instrument.
+- **Keep the instrument, not just the reading.** The 8.85s that justified a 15s
+  deadline was measured by a probe nobody committed, so re-checking it meant
+  rebuilding it. A measurement whose instrument is discarded becomes folklore on
+  first doubt.
+
+And the operator caught what the tests did not: making the cold path O(1) made the
+**resume** path 7x worse (1 probe → 7), because the ledger short-circuit asks about
+one name and was paying for a binary search it had no use for. The bounded-cold-path
+test stayed green throughout. **"Bounded" and "cheap" are different claims, and a
+fix for either can quietly pay for it out of the other** — so both paths now have
+their own pin. Cf. [Changing what a shared predicate MEANS is three obligations].

@@ -21,8 +21,26 @@ eval "$(probes/zellijcalls/trace.sh disarm)"
 ## What the instrument costs
 
 A probe must not perturb what it observes. Measured with
-`probes/zellijcalls/trace.sh overhead`: **under 1ms per call**, against zellij
-calls of ~20-45ms — below the noise floor of a 10-call sample.
+`probes/zellijcalls/trace.sh overhead` — a real A/B of direct zellij against
+zellij reached *through* the shim, interleaved over 20 samples:
+
+```
+direct   10.5ms/call
+shimmed  13.4ms/call
+overhead  2.9ms/call
+```
+
+So roughly **+3ms per call**, or 6-14% of a 20-45ms zellij call. It lands
+*outside* each recorded duration and *inside* the wall span, so it inflates the
+`in-zellij time / wall span` ratio slightly — at 100 calls that is ~0.3s of an
+8.85s span. Subtract `3ms x calls` from the span before concluding the time is
+not in zellij.
+
+An earlier version of this section published "**under 1ms**, below the noise
+floor". That number was wrong: the measurement ran `exec.Command(real, ...)` on
+*both* sides, differencing two identical operations, so it could not contain the
+shim's cost at all. It reported a NEGATIVE overhead, which should have been the
+tell.
 
 The first cut was a bash script that read the clock with `python3 -c` twice per
 call: ~25ms per interpreter start, so ~50ms injected per call, against calls

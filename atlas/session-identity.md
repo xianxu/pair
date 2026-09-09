@@ -182,10 +182,21 @@ the legacy `pair-` (`isPairSessionName`); only `📁` is ever emitted.
 
 A session name is a **socket filename**. On the machine this was measured on,
 macOS allows **24 bytes** — and that number is the socket path's, so it varies
-with username and is different on Linux (`~/.cache/zellij`). Pair therefore
-treats zellij's own validator as the acceptance oracle (`ProbeSessionName`); the
-numeric budget is calibrated lazily, only after a rejection, purely so the
-refusal message can quote real numbers.
+with username and is different on Linux (`~/.cache/zellij`). zellij's own
+validator stays the oracle (`ProbeSessionName`), but since `#215` the budget it
+measures is also **an acceptance test, not only a message** — assignment probes
+until one name is refused, measures the budget once, then judges every remaining
+candidate arithmetically. That is what makes naming cost O(1) subprocesses
+instead of one per candidate, which had reached 52 inside couch's registration
+deadline.
+
+Because the number now decides acceptance, it may only be used **when it was
+actually measured**. `discoverSessionNameBudget` returns `(budget, measured)` and
+reports `false` at either end of its search — the shortest probe refused, or the
+longest accepted — since a boundary requires observing both an acceptance and a
+refusal, and a search bound is not an observation. When it is unmeasured, the
+acceptor falls back to probing every candidate: slower, and the only correct
+thing to do on a machine whose socket directory leaves no usable room.
 
 Three units are in play and each answers a different question — mixing them was
 the original bug:

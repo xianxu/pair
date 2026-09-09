@@ -284,3 +284,42 @@ func TestDiscoverSessionNameBudget(t *testing.T) {
 			"become an acceptance test for every candidate")
 	}
 }
+
+// A search that never observes the transition has not measured it (#215 BR-11).
+//
+// The family is `fallback-guess-used-as-oracle`, and BR-1 fixed only its low
+// end. Stated here as the RULE -- both bounds -- so a third end cannot appear.
+func TestTheBudgetSearchReportsEitherBoundAsUNMEASURED(t *testing.T) {
+	for _, tc := range []struct {
+		name    string
+		accepts func(string) bool
+		why     string
+	}{
+		{
+			name:    "shortest probe refused (low end)",
+			accepts: func(string) bool { return false },
+			why:     "no acceptance was ever observed, so there is no boundary in range",
+		},
+		{
+			name:    "longest probe accepted (high end)",
+			accepts: func(n string) bool { return len(n) <= 100 },
+			why:     "no refusal was ever observed, so the search saturated at its ceiling",
+		},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			got, measured := discoverSessionNameBudget(tc.accepts)
+			if measured {
+				t.Errorf("budget %d reported as MEASURED, but %s. An unmeasured number "+
+					"used as an acceptance oracle decides every candidate wrongly", got, tc.why)
+			}
+		})
+	}
+
+	// And the acceptor must then keep asking rather than deciding.
+	rt := &fakeRuntime{maxSessionNameBytes: 100}
+	accepts := sessionNameAcceptor(rt)
+	if !accepts(strings.Repeat("z", 70)) {
+		t.Error("a 70-byte name was refused arithmetically against a saturated search " +
+			"bound, though zellij accepts it")
+	}
+}

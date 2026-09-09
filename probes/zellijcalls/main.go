@@ -118,27 +118,67 @@ func realZellij() (string, error) {
 
 // reportOverhead measures what this shim adds, so the report is read with the
 // residual in view rather than assumed to be zero.
+//
+// A REAL A/B: direct zellij versus zellij REACHED THROUGH this binary. The first
+// cut ran `exec.Command(real, "--version")` on both sides -- two identical
+// operations -- and differenced them, so it measured process-spawn jitter and
+// published a number that could not contain the shim's cost at all. It reported
+// "overhead -250us", a negative figure that should have been the tell, and
+// SKILL.md quoted it. An instrument that cannot observe the thing it reports is
+// worse than no instrument, which is the same defect this shim was rewritten in
+// Go to fix (#215 BR-13).
 func reportOverhead() int {
 	real, err := realZellij()
 	if err != nil {
 		fmt.Fprintf(os.Stderr, "zellijcalls: %v\n", err)
 		return 1
 	}
-	const n = 10
+	self, err := os.Executable()
+	if err != nil {
+		fmt.Fprintf(os.Stderr, "zellijcalls: locate self: %v\n", err)
+		return 1
+	}
+	if filepath.Base(self) != "zellij" {
+		// The shim no-ops unless argv[0] is zellij, so measuring through a
+		// differently-named copy would time the no-op and report ~0 forever.
+		fmt.Fprintf(os.Stderr, "zellijcalls: --overhead must run from a binary NAMED "+
+			"zellij (this one is %q, which no-ops); use `trace.sh overhead`\n",
+			filepath.Base(self))
+		return 2
+	}
+
+	// The child must record nothing: a trace row per calibration call would both
+	// pollute the operator's trace and time a write this measurement is not about.
+	childEnv := append(os.Environ(), "PAIR_ZELLIJ_TRACE=")
+	runQuiet := func(bin string, env []string) time.Duration {
+		s := time.Now()
+		c := exec.Command(bin, "--version")
+		c.Stdin, c.Stdout, c.Stderr = nil, nil, nil
+		c.Env = env
+		_ = c.Run()
+		return time.Since(s)
+	}
+
+	const n = 20
 	var direct, shimmed time.Duration
 	for i := 0; i < n; i++ {
-		s := time.Now()
-		_ = exec.Command(real, "--version").Run()
-		direct += time.Since(s)
-
-		s = time.Now()
-		c := exec.Command(real, "--version")
-		c.Stdin, c.Stdout, c.Stderr = nil, nil, nil
-		_ = c.Run()
-		record(s, time.Since(s), 0, []string{"--version"})
-		shimmed += time.Since(s)
+		// Interleaved, so a drifting machine biases both arms alike.
+		direct += runQuiet(real, os.Environ())
+		shimmed += runQuiet(self, childEnv)
 	}
-	fmt.Printf("direct  %v/call\nshimmed %v/call\noverhead %v/call\n",
-		direct/n, shimmed/n, (shimmed-direct)/n)
+	d, sh := direct/n, shimmed/n
+	fmt.Printf("direct   %v/call   (%s)\n", d.Round(time.Microsecond), real)
+	fmt.Printf("shimmed  %v/call   (%s, which then runs the above)\n", sh.Round(time.Microsecond), self)
+	fmt.Printf("overhead %v/call   (%d samples, interleaved)\n", (sh - d).Round(time.Microsecond), n)
+	// A shim that WRAPS a process cannot be faster than the process. A negative
+	// result is therefore not a small overhead -- it is proof the two arms are
+	// not measuring different things, which is exactly how the first version of
+	// this shipped a published "-250us". Refuse to be quoted rather than let a
+	// broken instrument look like a good result.
+	if sh <= d {
+		fmt.Fprintf(os.Stderr, "\nzellijcalls: INVALID -- overhead is not positive, so the "+
+			"two arms are not measuring different things. Do not quote this number.\n")
+		return 1
+	}
 	return 0
 }

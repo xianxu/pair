@@ -1006,8 +1006,20 @@ func discoverSessionNameBudget(accepts func(string) bool) (int, bool) {
 		return sessionNameProbeMarker + strings.Repeat("z", n-len(sessionNameProbeMarker))
 	}
 	lo, hi := len(sessionNameProbeMarker), 64
+	// A BOUNDARY needs both an acceptance and a refusal. Either bound answering
+	// the wrong way means the boundary is outside the search, and the number
+	// returned is a search bound rather than an observation.
+	//
+	// BR-1 added this for the LOW end and stopped there; BR-11 was the same
+	// mistake still standing at the high end, where saturation returned (64,
+	// true) and the acceptor then refused a 70-byte name zellij would take. The
+	// rule, not the end: a search that never observes the transition has not
+	// measured it.
 	if !accepts(pad(lo)) {
 		return defaultSessionNameBudget, false
+	}
+	if accepts(pad(hi)) {
+		return hi, false
 	}
 	for lo < hi {
 		mid := (lo + hi + 1) / 2
