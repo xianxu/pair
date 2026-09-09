@@ -27,6 +27,11 @@ local expected = {
   ['<M-Up>'] = { fn = 'PairLayoutBigger', focus = false },
   ['<M-Down>'] = { fn = 'PairLayoutSmaller', focus = false },
   ['<M-c>'] = { fn = 'PairReviewToggle', focus = false },
+  -- #216: the draft's half of the from-anywhere tab chords. focus = false is
+  -- the requirement, not a detail — the whole point is that the cursor never
+  -- leaves the draft.
+  ['<S-M-Left>'] = { fn = 'PairTermPrevTab', focus = false },
+  ['<S-M-Right>'] = { fn = 'PairTermNextTab', focus = false },
 }
 for key, binding in pairs(expected) do
   assert(vim.deep_equal(route.global_maps[key], binding), key)

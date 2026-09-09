@@ -86,6 +86,72 @@ func pickRightTerminal(panes []zellijpane.Pane, lastTerminalID string, terminalP
 	return first, found
 }
 
+// SwitchRightTerminalTab delivers a tab-switch chord to the right terminal
+// pane WITHOUT moving focus, so the operator can check another tab from the
+// draft without losing the cursor they are typing at (#216).
+//
+// It reuses pickRightTerminal rather than resolving the pane itself: after an
+// Alt+Shift+d split there are two right terminals with independent tab sets,
+// and if this picked differently from FocusRightTerminal then Alt+k would land
+// in one half while Alt+Shift+arrow switched the other's tabs (ARCH-DRY).
+//
+// Delivery is fire-and-forget by construction: the pane is resolved and then
+// written in a separate zellij action, so a terminal that exits in between
+// yields a stale id and the write fails. That is the right trade — the
+// alternative is an error for a pane the operator just closed.
+func SwitchRightTerminalTab(rt Runtime, chord workbenchshortcut.Chord) error {
+	panesJSON, err := rt.ListPanesJSON()
+	if err != nil {
+		return err
+	}
+	// Sidecar reads degrade gracefully, exactly as in FocusRightTerminal: a
+	// missing record costs the picker its preference signal, not the switch.
+	lastTerminal, err := rt.LastTerminalPaneID()
+	if err != nil {
+		lastTerminal = ""
+	}
+	terminalIDs, err := rt.TerminalPaneIDs()
+	if err != nil {
+		terminalIDs = nil
+	}
+	terminal, ok := pickRightTerminal(zellijpane.Parse(panesJSON), lastTerminal, terminalIDs)
+	if !ok {
+		// layout2, or a layout3 whose right pane exited: nothing to switch, and
+		// nothing to report — the chord is simply inert.
+		return nil
+	}
+	args, ok := workbenchshortcut.DeliverChordArgs(terminal.ID, chord)
+	if !ok {
+		return nil
+	}
+	return rt.RunZellijAction(args...)
+}
+
+// RunSwitchTerminalTab is the CLI entry the draft pane's Lua function calls, so
+// pane resolution and chord encoding stay in Go rather than being restated in
+// Lua (ARCH-DRY).
+func RunSwitchTerminalTab(args []string, rt Runtime, stderr io.Writer) int {
+	if len(args) != 1 {
+		fmt.Fprintln(stderr, "usage: pair layout switch-terminal-tab prev|next")
+		return 2
+	}
+	var chord workbenchshortcut.Chord
+	switch args[0] {
+	case "prev":
+		chord = workbenchshortcut.ChordAltLeft
+	case "next":
+		chord = workbenchshortcut.ChordAltRight
+	default:
+		fmt.Fprintf(stderr, "pair layout switch-terminal-tab: unknown direction %q (want prev|next)\n", args[0])
+		return 2
+	}
+	if err := SwitchRightTerminalTab(rt, chord); err != nil {
+		fmt.Fprintf(stderr, "pair layout switch-terminal-tab: %v\n", err)
+		return 1
+	}
+	return 0
+}
+
 func RunFocusTerminal(args []string, rt Runtime, stderr io.Writer) int {
 	if len(args) > 0 {
 		fmt.Fprintln(stderr, "usage: pair layout focus-terminal")

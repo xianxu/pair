@@ -169,6 +169,15 @@ func TestPumpStdinHandlesTerminalTabActions(t *testing.T) {
 		{name: "mouse wheel up scrolls zellij viewport", chunks: [][]byte{[]byte("\x1b[<64;8;5M")}, wantRTOps: "scroll-up"},
 		{name: "mouse wheel down scrolls zellij viewport", chunks: [][]byte{[]byte("\x1b[<65;8;5M")}, wantRTOps: "scroll-down"},
 		{name: "mouse wheel passes through when app enabled mouse", chunks: [][]byte{[]byte("\x1b[<64;8;5M")}, appMouse: true, wantMux: "write:\x1b[<64;8;5M"},
+		// #216: the from-anywhere tab chord. In THIS pane it needs no delivery —
+		// it is already here — so it must reach the same mux calls Alt+Left/Right
+		// do, and must NOT emit a zellij action (wantRTOps stays empty).
+		{name: "alt shift left switches tab in place", chunks: [][]byte{[]byte("\x1b[1;4D")}, wantMux: "prev-tab"},
+		{name: "alt shift right switches tab in place", chunks: [][]byte{[]byte("\x1b[1;4C")}, wantMux: "next-tab"},
+		// Split arrival: the chord straddles two reads, which is what the `held`
+		// buffer exists for. A sequence lost here reads as a dead key.
+		{name: "alt shift left split across reads", chunks: [][]byte{[]byte("\x1b[1;4"), []byte("D")}, wantMux: "prev-tab"},
+		{name: "alt shift right split across reads", chunks: [][]byte{[]byte("\x1b[1;"), []byte("4C")}, wantMux: "next-tab"},
 		// Modifier bits ride IN the button field, so these used to fall to the
 		// default arm and write SGR bytes into a child that never asked (#213).
 		{name: "ctrl wheel up still scrolls", chunks: [][]byte{[]byte("\x1b[<80;8;5M")}, wantRTOps: "scroll-up"},
@@ -1185,10 +1194,19 @@ func TestEveryHandledTerminalChordIsDocumented(t *testing.T) {
 	for _, rb := range workbenchshortcut.RoleBindings() {
 		documented[rb.Chord] = true
 	}
-	for chord := workbenchshortcut.ChordUnknown + 1; chord <= workbenchshortcut.ChordAltShiftEnter; chord++ {
+	// Bound from the sentinel, not the last-named chord: the previous
+	// `chord <= ChordAltShiftEnter` silently dropped every chord appended after
+	// it (#216 PQ-3).
+	for chord := workbenchshortcut.ChordUnknown + 1; chord < workbenchshortcut.ChordMax(); chord++ {
 		rt := &fakeRuntime{}
 		mux := &terminalMux{}
 		if !handleTerminalChord(chord, mux, rt) {
+			continue
+		}
+		// Same exemption TestRoleBindingsCoverTerminalSwitch already applies:
+		// a global carries its Help on GlobalBinding, so requiring it in
+		// RoleBindings too would duplicate the wording (ARCH-DRY).
+		if _, isGlobal := workbenchshortcut.DecideGlobal(chord); isGlobal {
 			continue
 		}
 		if !documented[chord] {

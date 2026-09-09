@@ -55,8 +55,6 @@ var Catalog = catalog{
 		// --- Draft: history and queue ------------------------------------
 		{Key: "<M-Left>", Display: "Alt+←", Group: groupHistory, Order: 10, Context: ContextDraft, Source: SourceNvim},
 		{Key: "<M-Right>", Display: "Alt+→", Group: groupHistory, Order: 20, Context: ContextDraft, Source: SourceNvim},
-		{Key: "<S-M-Left>", Display: "Shift+Alt+←", Group: groupHistory, Order: 30, Context: ContextDraft, Source: SourceNvim},
-		{Key: "<S-M-Right>", Display: "Shift+Alt+→", Group: groupHistory, Order: 40, Context: ContextDraft, Source: SourceNvim},
 		{Key: "<M-q>", Display: "Alt+q", Group: groupHistory, Order: 50, Context: ContextDraft, Source: SourceNvim},
 		{Key: "<M-BS>", Display: "Alt+⌫", Group: groupHistory, Order: 60, Context: ContextDraft, Source: SourceNvim},
 		{Key: "<S-M-BS>", Display: "Shift+Alt+⌫", Group: groupHistory, Order: 70, Context: ContextDraft, Source: SourceNvim},
@@ -82,6 +80,15 @@ var Catalog = catalog{
 		// document twice with different meanings.
 		{Key: "Alt+← (terminal)", Display: "Alt+←", Group: groupTerminal, Order: 5, Context: ContextTerminal, Source: SourceRole},
 		{Key: "Alt+→ (terminal)", Display: "Alt+→", Group: groupTerminal, Order: 6, Context: ContextTerminal, Source: SourceRole},
+		// Global, not role-local: these switch the right pane's tabs from
+		// anywhere and leave focus alone (#216). Grouped with the terminal tab
+		// chords because that is where a reader looks for tab switching; the
+		// per-row context column is what distinguishes them from the
+		// terminal-only rows above, which is what that column is for. They
+		// replaced this row's former Draft/history occupants (nav_boundary),
+		// deleted by operator decision.
+		{Key: "<S-M-Left>", Display: "Shift+Alt+←", Group: groupTerminal, Order: 7, Context: ContextGlobal, Source: SourceGlobal},
+		{Key: "<S-M-Right>", Display: "Shift+Alt+→", Group: groupTerminal, Order: 8, Context: ContextGlobal, Source: SourceGlobal},
 
 		// --- Session ------------------------------------------------------
 		{Key: "Alt h", Display: "Alt+h", Group: groupSession, Order: 10, Context: ContextGlobal, Source: SourceZellij,

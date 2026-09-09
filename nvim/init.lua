@@ -2450,33 +2450,6 @@ local function pos_rank(p)
   return 0
 end
 
-local function ordered_landmarks()
-  local list = {}
-  local h = #read_history()
-  local q = queue_count()
-  if h >= 1 then
-    table.insert(list, { kind = 'history', n = h })            -- -h (leftmost)
-  end
-  table.insert(list, '*')
-  if q >= 1 then
-    table.insert(list, { kind = 'queue', n = q })             -- +q (rightmost)
-  end
-  return list
-end
-
-local function nav_boundary(direction)
-  local landmarks = ordered_landmarks()
-  local cur = pos_rank(nav.pos)
-  if direction > 0 then
-    for _, lm in ipairs(landmarks) do
-      if pos_rank(lm) > cur then go_to(lm); return end
-    end
-  else
-    for i = #landmarks, 1, -1 do
-      if pos_rank(landmarks[i]) < cur then go_to(landmarks[i]); return end
-    end
-  end
-end
 
 -- Alt+BS — delete the current +N queue item without sending it. "Stay near":
 -- after delete, items at +(N+1)..+M shift down by one, so the same +N slot
@@ -3424,6 +3397,24 @@ function _G.PairLayoutBigger()
   layout_goto(LAYOUT_BY_LEVEL[math.min(cur + 1, #LAYOUT_BY_LEVEL)])
 end
 
+-- Alt+Shift+Left/Right — switch the RIGHT pane's terminal tabs from here,
+-- without moving focus, so the draft stays the cockpit while the operator
+-- checks another tab (#216). These replaced nav_boundary, which used to own
+-- these chords for history/queue Home-End jumps.
+--
+-- Shelled out rather than reimplemented: resolving WHICH right terminal (there
+-- are two after an Alt+Shift+d split) and encoding the chord bytes both live in
+-- Go, and restating either here would be a second source of truth. `pair layout
+-- switch-terminal-tab` is the same code path the agent pane uses.
+local function pair_switch_terminal_tab(direction)
+  local home = vim.env.PAIR_HOME or ''
+  local pair = (home ~= '') and (home .. '/bin/pair') or 'pair'
+  vim.fn.jobstart({ pair, 'layout', 'switch-terminal-tab', direction }, { detach = true })
+end
+
+function _G.PairTermPrevTab() pair_switch_terminal_tab('prev') end
+function _G.PairTermNextTab() pair_switch_terminal_tab('next') end
+
 function _G.PairLayoutSmaller()
   local cur = LAYOUT_LADDER[layout_read()] or 1
   layout_goto(LAYOUT_BY_LEVEL[math.max(cur - 1, 1)])
@@ -3548,11 +3539,6 @@ vim.keymap.set({ 'n', 'i' }, '<M-Left>', nav_left,
 
 vim.keymap.set({ 'n', 'i' }, '<M-Right>', nav_right,
   { silent = true, desc = 'pair: navigate toward draft / queue' })
-
-vim.keymap.set({ 'n', 'i' }, '<S-M-Left>',  function() nav_boundary(-1) end,
-  { silent = true, desc = 'pair: jump to previous region boundary' })
-vim.keymap.set({ 'n', 'i' }, '<S-M-Right>', function() nav_boundary( 1) end,
-  { silent = true, desc = 'pair: jump to next region boundary' })
 
 vim.keymap.set({ 'n', 'i' }, '<M-q>', queue_current,
   { silent = true, desc = 'pair: park the draft on the queue (front, +1)' })

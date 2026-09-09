@@ -2,6 +2,8 @@ package layoutcmd
 
 import (
 	"bytes"
+
+	"github.com/xianxu/pair/cmd/internal/workbenchshortcut"
 	"strconv"
 	"strings"
 	"testing"
@@ -186,4 +188,75 @@ func (f *fakeRuntime) ListPanesJSON() ([]byte, error) {
 func (f *fakeRuntime) RunZellijAction(args ...string) error {
 	f.ops = append(f.ops, strings.Join(args, " "))
 	return nil
+}
+
+// Alt+Left is \x1b[1;3D — 27 91 49 59 51 68 as decimal bytes. Asserted as the
+// COMPLETE argv rather than a prefix: the bytes are the whole payload, and a
+// prefix check would pass with the wrong arrow.
+func TestSwitchRightTerminalTabWritesTheChordToTheRecordedHalf(t *testing.T) {
+	for _, test := range []struct {
+		name  string
+		chord workbenchshortcut.Chord
+		want  string
+	}{
+		{"previous", workbenchshortcut.ChordAltLeft, "write --pane-id 4 27 91 49 59 51 68"},
+		{"next", workbenchshortcut.ChordAltRight, "write --pane-id 4 27 91 49 59 51 67"},
+	} {
+		t.Run(test.name, func(t *testing.T) {
+			// Two split halves; the recorded one must win, exactly as the focus
+			// jump picks it — otherwise Alt+k and Alt+Shift+arrow disagree.
+			rt := &fakeRuntime{lastTerminal: "4", panesJSON: []byte(`[
+				{"id":3,"is_focused":true,"is_floating":false,"pane_x":75,"title":"[terminal 1]","terminal_command":"sh -c exec pair term"},
+				{"id":4,"is_focused":false,"is_floating":false,"pane_x":75,"title":"[terminal 1]","terminal_command":"sh -c exec pair term"}
+			]`)}
+			if err := SwitchRightTerminalTab(rt, test.chord); err != nil {
+				t.Fatal(err)
+			}
+			if len(rt.ops) != 1 || rt.ops[0] != test.want {
+				t.Fatalf("ops = %v, want [%s]", rt.ops, test.want)
+			}
+		})
+	}
+}
+
+func TestSwitchRightTerminalTabIsInertWithoutATerminalPane(t *testing.T) {
+	// layout2, or a layout3 whose right pane exited: nothing to switch, and the
+	// chord must not report or move focus.
+	rt := &fakeRuntime{panesJSON: []byte(`[
+		{"id":0,"is_focused":true,"is_floating":false,"title":"agent","terminal_command":"pair wrap claude"},
+		{"id":2,"is_focused":false,"is_floating":false,"title":"draft","terminal_command":"nvim -u /pair/nvim/init.lua d.md"}
+	]`)}
+	if err := SwitchRightTerminalTab(rt, workbenchshortcut.ChordAltLeft); err != nil {
+		t.Fatalf("inert case returned %v, want nil", err)
+	}
+	if len(rt.ops) != 0 {
+		t.Fatalf("ops = %v, want none", rt.ops)
+	}
+}
+
+func TestRunSwitchTerminalTabParsesItsDirection(t *testing.T) {
+	panes := []byte(`[{"id":3,"is_focused":true,"is_floating":false,"pane_x":75,"title":"[terminal 1]","terminal_command":"sh -c exec pair term"}]`)
+	for _, test := range []struct {
+		name string
+		args []string
+		code int
+		ops  int
+	}{
+		{"prev", []string{"prev"}, 0, 1},
+		{"next", []string{"next"}, 0, 1},
+		{"missing", nil, 2, 0},
+		{"unknown", []string{"sideways"}, 2, 0},
+		{"too many", []string{"prev", "next"}, 2, 0},
+	} {
+		t.Run(test.name, func(t *testing.T) {
+			rt := &fakeRuntime{panesJSON: panes}
+			var stderr bytes.Buffer
+			if code := RunSwitchTerminalTab(test.args, rt, &stderr); code != test.code {
+				t.Errorf("exit = %d, want %d (stderr %q)", code, test.code, stderr.String())
+			}
+			if len(rt.ops) != test.ops {
+				t.Errorf("ops = %v, want %d", rt.ops, test.ops)
+			}
+		})
+	}
 }
