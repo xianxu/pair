@@ -2,6 +2,9 @@ package mouseinput
 
 import (
 	"bytes"
+	"fmt"
+	"os"
+	"path/filepath"
 	"strings"
 	"testing"
 )
@@ -136,4 +139,45 @@ func FuzzWithButtonChangesOnlyTheButton(f *testing.F) {
 			t.Fatalf("bytes after the button field changed: %q, want %q", got, expected)
 		}
 	})
+}
+
+// The rule, not the two instances that motivated it (#213 BR-1): an SGR button
+// field carries modifier bits, so a consumer must compare BaseButton(b) and
+// never the raw value. Comparing raw silently misses every modified variant —
+// in couch it made the ctrl-strip a no-op, and in termcmd it dropped modified
+// wheel ticks into the pass-through arm, leaking SGR bytes to a child that never
+// enabled tracking. Both read as correct code.
+//
+// Scans the tree because this is a cross-package rule: the constants are
+// exported, so the mistake can be made anywhere and nothing local catches it.
+func TestNoConsumerComparesARawButtonAgainstAWheelConstant(t *testing.T) {
+	var offenders []string
+	err := filepath.Walk("../..", func(path string, info os.FileInfo, err error) error {
+		if err != nil {
+			return err
+		}
+		if info.IsDir() || !strings.HasSuffix(path, ".go") || strings.HasSuffix(path, "_test.go") {
+			return nil
+		}
+		source, err := os.ReadFile(path)
+		if err != nil {
+			return err
+		}
+		for n, line := range strings.Split(string(source), "\n") {
+			if !strings.Contains(line, "Wheel") {
+				continue
+			}
+			if strings.Contains(line, ".Button ==") || strings.Contains(line, ".Button !=") {
+				offenders = append(offenders, fmt.Sprintf("%s:%d: %s", path, n+1, strings.TrimSpace(line)))
+			}
+		}
+		return nil
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(offenders) > 0 {
+		t.Errorf("raw button compared against a wheel constant — use mouseinput.BaseButton:\n  %s",
+			strings.Join(offenders, "\n  "))
+	}
 }

@@ -68,6 +68,9 @@ func WithButton(raw []byte, button int) ([]byte, bool) {
 	if _, ok := Parse(raw); !ok {
 		return nil, false
 	}
+	// Parse has already accepted three ';'-separated numbers, so this cannot be
+	// -1. Kept as an invariant guard rather than an indexing assumption — it is
+	// not a reachable failure mode.
 	sep := bytes.IndexByte(raw, ';')
 	if sep < 0 {
 		return nil, false

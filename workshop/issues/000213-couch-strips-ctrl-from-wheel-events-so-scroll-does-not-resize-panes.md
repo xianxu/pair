@@ -198,8 +198,11 @@ splits by ownership rather than living in one function:
       mode-belief behaviour did not shift.
 - [x] **Atlas.** Note the strip and its deletion trigger on the couch mouse
       surface.
-- [x] **Manual.** Ctrl+scroll in a live couch session scrolls and pane sizes
-      hold; plain scroll still scrolls.
+- [ ] **Manual — OPERATOR-PENDING, not done.** Ctrl+scroll in a live couch
+      session scrolls and pane sizes hold; plain scroll still scrolls. Needs a
+      couch restart (a running couch is on the old binary) and a physical
+      gesture, so it cannot be run from here. Left unticked deliberately: the
+      automated evidence covers the bytes couch emits, not the gesture.
 
 ## Log
 
@@ -298,3 +301,33 @@ since a running couch is on the old binary.
 inside the pane, downstream of zellij's decision, and putting a second proxy
 layer under standalone pair for one modifier bit is disproportionate. The zellij
 upgrade retires both this filter and that gap.
+
+### 2026-09-09 — boundary review round 1: FIX-THEN-SHIP, addressed
+
+**BR-1 — a live second instance of the very bug the plan gate caught.**
+`termcmd/run.go` compared `event.Button` against `WheelUp`/`WheelDown` directly,
+so every MODIFIED wheel tick — shift+wheel `68`, ctrl+wheel `80`, alt+wheel `72`
+— fell through to the default arm and wrote SGR bytes into a child that never
+enabled tracking. Same class as PQ-1, different package, and it had been there
+all along. Fixed to compare `BaseButton`, with four table rows that redden when
+reverted.
+
+The class has exactly three sites, enumerated by grep (`\.Button ==|\.Button !=`
+against a constant): the two termcmd wheel arms, now fixed, and
+`couchtty`'s `press := !event.Release && event.Button == 0`. That third one is
+**deliberately** raw — a modified click is not couch's gesture, which is the
+narrowing the Spec asked for — so it keeps the raw comparison and now says why,
+rather than reading as a fourth oversight.
+
+Because the rule is what matters and the constants are exported (so the mistake
+can be made in any package), `TestNoConsumerComparesARawButtonAgainstAWheelConstant`
+scans the tree for the pattern. Reintroducing the termcmd bug makes it name both
+offending lines by file and line number.
+
+**BR-2 — the Manual plan row was ticked while the Log said it had not been run.**
+That was a bulk tick, and it is exactly the kind of unearned checkmark the gates
+exist to catch. Unticked and labelled operator-pending, with the reason: it needs
+a couch restart and a physical gesture.
+
+**Minor** — `WithButton`'s `sep < 0` branch is unreachable once `Parse` has
+accepted the report; it now says so, so it does not read as a live failure mode.

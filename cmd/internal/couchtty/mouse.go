@@ -51,6 +51,12 @@ const (
 // termcmd's job in termcmd's context, and a second translator would be two
 // policies for one gesture.
 func RouteMouseReport(event mouseinput.Event, hostRows int, childWantsMouse, couchOwnsScreen bool) MouseDisposition {
+	// The RAW button here, deliberately, unlike the wheel predicate below and in
+	// termcmd. A MODIFIED click is not couch's gesture: #213 narrowed its change
+	// to the wheel precisely because ctrl+click may mean something to a child,
+	// and shift/ctrl+click on couch's row therefore forwards or swallows like
+	// any other report rather than switching threads. Modifier bits live in the
+	// button field, so this is a real distinction, not an oversight.
 	press := !event.Release && event.Button == 0
 	if hostRows > 0 && event.Y == hostRows && press {
 		return MouseCouch

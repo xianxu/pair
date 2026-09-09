@@ -169,6 +169,15 @@ func TestPumpStdinHandlesTerminalTabActions(t *testing.T) {
 		{name: "mouse wheel up scrolls zellij viewport", chunks: [][]byte{[]byte("\x1b[<64;8;5M")}, wantRTOps: "scroll-up"},
 		{name: "mouse wheel down scrolls zellij viewport", chunks: [][]byte{[]byte("\x1b[<65;8;5M")}, wantRTOps: "scroll-down"},
 		{name: "mouse wheel passes through when app enabled mouse", chunks: [][]byte{[]byte("\x1b[<64;8;5M")}, appMouse: true, wantMux: "write:\x1b[<64;8;5M"},
+		// Modifier bits ride IN the button field, so these used to fall to the
+		// default arm and write SGR bytes into a child that never asked (#213).
+		{name: "ctrl wheel up still scrolls", chunks: [][]byte{[]byte("\x1b[<80;8;5M")}, wantRTOps: "scroll-up"},
+		{name: "ctrl wheel down still scrolls", chunks: [][]byte{[]byte("\x1b[<81;8;5M")}, wantRTOps: "scroll-down"},
+		{name: "shift wheel up still scrolls", chunks: [][]byte{[]byte("\x1b[<68;8;5M")}, wantRTOps: "scroll-up"},
+		{name: "alt wheel down still scrolls", chunks: [][]byte{[]byte("\x1b[<73;8;5M")}, wantRTOps: "scroll-down"},
+		// An app that asked for mouse still receives the modifier verbatim:
+		// translation is for the child that did NOT ask.
+		{name: "ctrl wheel passes through when app enabled mouse", chunks: [][]byte{[]byte("\x1b[<80;8;5M")}, appMouse: true, wantMux: "write:\x1b[<80;8;5M"},
 		{name: "plain bytes", chunks: [][]byte{[]byte("ls\n")}, wantMux: "write:ls\n"},
 		{name: "shortcut then payload in one read", chunks: [][]byte{[]byte("\x1btls\n")}, wantMux: "new-tab,write:ls\n"},
 		{name: "payload then shortcut in one read", chunks: [][]byte{[]byte("ls\n\x1bt")}, wantMux: "write:ls\n,new-tab"},
