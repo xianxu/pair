@@ -1,11 +1,12 @@
 ---
 id: 000171
-status: open
+status: working
 deps: []
 github_issue:
 created: 2026-09-02
-updated: 2026-09-02
+updated: 2026-09-09
 estimate_hours:
+started: 2026-09-09T01:08:11-07:00
 ---
 
 # Always-on idle notification fallback
