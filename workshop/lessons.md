@@ -4237,3 +4237,21 @@ watch the guard fail. A reachability guard that cannot fail is worse than none,
 because it is read as evidence. Caught in #000220 close review round 2, the
 third variant in one session of a guard reporting on its own inputs rather than
 on the behaviour it pins.
+
+## A fast path is pinned by its ANSWER, not by the work it skipped
+
+Three fast paths were added to skip an expensive call. Two were "tested" by
+asserting the expensive call was not made and that the guard declined when it
+should — which pins the saving and the gate while leaving the actual result
+unchecked. One of them was returning a value read from the wrong sidecar and the
+suite stayed green, because the fixture's cached id happened to equal the id in
+the report it was being compared against.
+
+**Rule.** When a fast path substitutes for an existing slow path, the test is a
+DIFFERENTIAL one: run both against the same fixture — gate on, gate off — and
+assert the answers are identical. `listCalls == 0` is a performance assertion,
+not a correctness one. Choose fixture ids that differ everywhere, so "reads the
+right source" and "coincidentally agrees" are distinguishable observations;
+where the two collide, the test cannot fail for the reason it exists. Prove it
+by returning a deliberately wrong value and watching the comparison fail.
+Caught in #000220 close review round 3.

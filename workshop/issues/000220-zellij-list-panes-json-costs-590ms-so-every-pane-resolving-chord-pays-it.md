@@ -1,12 +1,13 @@
 ---
 id: 000220
-status: working
+status: codecomplete
 deps: []
 github_issue:
 created: 2026-09-09
 updated: 2026-09-09
 estimate_hours: 1.07
 started: 2026-09-09T13:39:07-07:00
+actual_hours: 1.54
 ---
 
 # zellij list-panes --json costs 590ms, so every pane-resolving chord pays it
@@ -193,6 +194,7 @@ the calibration doc `[stale]`, #127.)
 ## Log
 
 ### 2026-09-09
+- 2026-09-09: closed — Full `make test` green unsandboxed (EXIT=0, zero FAIL lines). Measured: switch-terminal-tab 631ms -> 55ms, focus-terminal 671ms -> 27ms; cause isolated to `list-panes --json` at 590.7ms vs 22.6ms plain. BR-13 addressed as the RULE — a fast path is pinned by its ANSWER, not by listCalls==0 plus a gate check. Both termcmd fast paths now run against the SAME fixture as the slow path with the gate on and off, asserting identical answers; resolveFromSidecars already had its 360-case oracle. The finding also caught a hole I had built in: the fixture set cachedDraft "2" against a draft pane also id 2, making "reads the cache" and "agrees with the report" the same observation, so a fast path reading the wrong sidecar would have passed; the draft is id 7 now and returning draftID+"9" fails with "fast = draft 79; slow = draft 7". BR-14: workbenchshortcut.Registered now owns registry membership, called by RoleForPaneWith, resolveFromSidecars and termcmd.registered instead of three open-coded loops. Earlier rounds remain addressed: BR-5 (both fast paths gate on the registry rather than trusting ZELLIJ_PANE_ID for KIND), BR-12 (the reachability guard counts the branch signature, not a fixture shape; deleting the branch now fails it by name), BR-3/BR-4/BR-6/BR-7.; review verdict: FIX-THEN-SHIP
 
 Filed from operator report on `#216`. Measured before designing, per `#201`'s
 lesson — the first hypothesis was the process boundary and the subprocess count,

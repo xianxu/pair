@@ -262,6 +262,53 @@ rounds:
           family: shared-predicate-not-extracted
           round: 4
       blocked: true
+    - "n": 5
+      timestamp: "2026-09-09T15:59:35-07:00"
+      agent: claude
+      dispose:
+        - id: BR-13
+          disposition: addressed
+          note: 'Verified by mutation, not by the commit message: draftID+"9" and currentID+"9" each redden the new differential test.'
+          round: 5
+        - id: BR-14
+          disposition: addressed
+          note: workbenchshortcut.Registered has exactly 3 call sites; grep finds no fourth open-coded membership loop.
+          round: 5
+        - id: BR-11
+          disposition: not-addressed
+          note: Still no "## Revisions" section, and a fourth delta has accumulated - the Plan's "not new trust, only earlier trust" claim is falsified by the removed pane-report intersection.
+          round: 5
+        - id: BR-10
+          disposition: not-addressed
+          note: fields[0] still verbatim; sharpened - the registry carries no session field and no incarnation identity though procutil.Identity exists, so a recycled pid now yields an answer.
+          round: 5
+        - id: BR-9
+          disposition: not-addressed
+          note: Comment unchanged at procutil.go:35; I re-measured, kill -0 1 exits 1 here, so the old code reported another user's process dead.
+          round: 5
+        - id: BR-8
+          disposition: not-addressed
+          note: 'layoutcmd.go:90 still returns zellijpane.Pane{ID: id}; both callers read only .ID.'
+          round: 5
+        - id: BR-1
+          disposition: not-addressed
+          note: Confirmed unchanged and pre-existing (run.go:1679 omits --geometry, reached via run.go:256/583); recommend a separate issue rather than this close.
+          round: 5
+      findings:
+        - id: BR-15
+          severity: Minor
+          title: Round 3's review rule reached the issue Log and a test comment but not workshop/lessons.md
+          detail: |-
+            AGENTS.md section 4 makes lessons.md the durable form of a rule found in review, and
+            round 2's rule was recorded there (lessons.md:4225). BR-13's rule - a fast path
+            substituting for an existing slow path is pinned by its ANSWER, not by asserting
+            listCalls==0 and that it declines when gated - exists only in the issue Log and in a
+            comment above run_test.go:1236. grep for "fast path" in lessons.md finds no entry. It
+            is the more generalizable of the two rules and the one most likely to recur in a
+            different file.
+          family: review-rule-not-recorded
+          round: 5
+      blocked: false
 ---
 
 # Gate ledger — pair#220 (boundary-review)
@@ -409,6 +456,29 @@ later rounds disposed of them. Generated — edit the gate, not this file.
   shortcut.go:606. workbenchshortcut owns the registry; export
   Registered(ids []string, paneID string) bool there and have all three call it (ARCH-DRY).
 
+## Round 5 — 2026-09-09T15:59:35-07:00 (claude) — passed
+
+### Disposed
+
+- BR-13 — addressed — Verified by mutation, not by the commit message: draftID+"9" and currentID+"9" each redden the new differential test.
+- BR-14 — addressed — workbenchshortcut.Registered has exactly 3 call sites; grep finds no fourth open-coded membership loop.
+- BR-11 — not-addressed — Still no "## Revisions" section, and a fourth delta has accumulated - the Plan's "not new trust, only earlier trust" claim is falsified by the removed pane-report intersection.
+- BR-10 — not-addressed — fields[0] still verbatim; sharpened - the registry carries no session field and no incarnation identity though procutil.Identity exists, so a recycled pid now yields an answer.
+- BR-9 — not-addressed — Comment unchanged at procutil.go:35; I re-measured, kill -0 1 exits 1 here, so the old code reported another user's process dead.
+- BR-8 — not-addressed — layoutcmd.go:90 still returns zellijpane.Pane{ID: id}; both callers read only .ID.
+- BR-1 — not-addressed — Confirmed unchanged and pre-existing (run.go:1679 omits --geometry, reached via run.go:256/583); recommend a separate issue rather than this close.
+
+### Raised
+
+- **BR-15** [Minor] `review-rule-not-recorded` Round 3's review rule reached the issue Log and a test comment but not workshop/lessons.md
+  AGENTS.md section 4 makes lessons.md the durable form of a rule found in review, and
+  round 2's rule was recorded there (lessons.md:4225). BR-13's rule - a fast path
+  substituting for an existing slow path is pinned by its ANSWER, not by asserting
+  listCalls==0 and that it declines when gated - exists only in the issue Log and in a
+  comment above run_test.go:1236. grep for "fast path" in lessons.md finds no entry. It
+  is the more generalizable of the two rules and the one most likely to recur in a
+  different file.
+
 ## Open findings
 
 - **BR-1** [Minor] `divergent-runtime-impls` Toggle-focused's geometry justification holds for only one of its two entry points
@@ -416,5 +486,4 @@ later rounds disposed of them. Generated — edit the gate, not this file.
 - **BR-9** [Minor] `comment-vs-measured-behavior` Alive's doc comment misstates the old EPERM behavior
 - **BR-10** [Minor] `untrusted-sidecar-parse` Registry pane id is never validated as a pane id, only the pid is
 - **BR-11** [Minor] `plan-code-drift` Spec's unscoped agreement claim and the Plan's "same resolver" row no longer match the code
-- **BR-13** [Important] `fastpath-untested` Two of the three fast paths pin their saving and their gate but never their answer
-- **BR-14** [Minor] `shared-predicate-not-extracted` Registry membership is open-coded a third time instead of living with the registry
+- **BR-15** [Minor] `review-rule-not-recorded` Round 3's review rule reached the issue Log and a test comment but not workshop/lessons.md

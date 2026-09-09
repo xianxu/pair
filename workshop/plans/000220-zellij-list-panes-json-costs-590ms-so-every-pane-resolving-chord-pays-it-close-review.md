@@ -459,3 +459,127 @@ findings:
       shortcut.go:606. workbenchshortcut owns the registry; export
       Registered(ids []string, paneID string) bool there and have all three call it (ARCH-DRY).
 ```
+
+---
+
+## Re-review — 2026-09-09T15:59:35-07:00 (FIX-THEN-SHIP)
+
+| field | value |
+|-------|-------|
+| issue | 220 — zellij list-panes --json costs 590ms, so every pane-resolving chord pays it |
+| repo | pair |
+| issue file | workshop/issues/000220-zellij-list-panes-json-costs-590ms-so-every-pane-resolving-chord-pays-it.md |
+| boundary | whole-issue close |
+| milestone | — |
+| window | 21cc7f7791587351601a8274043f62493d0edd98..51011ee2713e015e34e7dd8e8630011a828791cd |
+| command | sdlc close --issue 220 |
+| reviewer | claude |
+| timestamp | 2026-09-09T15:59:35-07:00 |
+| verdict | FIX-THEN-SHIP |
+
+## Review
+
+```verdict
+verdict: FIX-THEN-SHIP
+confidence: high
+```
+
+The two findings this round had to dispose — BR-13 (fast paths pin their saving, not their answer) and BR-14 (registry membership open-coded three times) — are both genuinely addressed, and I verified them the way the claimed-fix rule demands rather than by reading the commit messages: mutating `focusedWorkbenchPanes`' draft id to `draftID + "9"` reddens with *fast = focused "4" draft "79"; slow = ... draft "7" — the two paths disagree*, and mutating `currentRightTerminalPane` to `currentID + "9"` reddens the same way, so both termcmd fast paths are now differentially pinned against the slow path on a shared fixture with a draft id (7) distinct from every other id. `workbenchshortcut.Registered` has exactly three call sites and no fourth open-coded loop survives. The full suite shows no regression: the failing packages (`termcmd`, `hostty`, `ptychild`, `couch*`, `keyscmd`, `wrapcmd`, `pair-go`) fail identically at the base commit with `fork/exec: operation not permitted` — the documented pty/exec environment class — while `layoutcmd`, `workbenchshortcut`, `procutil` and `draftroute` are green. What keeps this off SHIP is five carried Minors that are all one-liners and keep getting deferred, one of which (BR-9) is a comment stating something I measured to be false, and one of which (BR-11) is now four accumulated Spec/Plan claims the code does not deliver.
+
+## 1. Strengths
+
+- **The generated agreement oracle is the real thing** (`cmd/internal/layoutcmd/layoutcmd_test.go:274-381`). 360 cases, 108 answered, 18 through the single-live-id branch, and the reachability guard now keys on *answered with no recorded half* — a signature only that branch can produce — rather than on `len(registry) == 1`. It logs its own coverage, so a future generator change that stops reaching the branch announces itself.
+- **The scoping of the guarantee is honest rather than convenient.** `TestSidecarFastPathNeverInventsAnID` (layoutcmd_test.go:392) asserts the weaker invariant that actually holds on inconsistent registries instead of asserting a coincidence. That is the right call and the Log says why.
+- **`resolveFromSidecars` (layoutcmd.go:61-73) is a genuinely pure decision** — four branches, each with the reason it declines written next to it, no `Runtime`, no IO, mirroring `draftroute.ValidateCachedDraftPane`'s established shape (ARCH-PURE, ARCH-DRY).
+- **`procutil.Alive`'s EPERM branch is pinned against the real kernel** (`procutil_test.go:126`, `Alive("1")`), not a fake — a live conformance check for the one semantic the syscall port changed.
+- **The atlas paragraph states the rule for the next caller**, not just what happened: *"if you need a pane ID, resolve sidecar-first; if you need geometry or the full pane set, you must list panes."* That is the durable form of the decision.
+
+## 2. Critical findings
+
+None.
+
+## 3. Important findings
+
+None newly raised. Both prior Important-class findings are disposed `addressed` and mutation-verified.
+
+## 4. Minor findings
+
+- **BR-9 not-addressed — and I re-measured it.** `procutil.go:35` still reads *"the distinction the exit-status check silently got right before."* `kill -0 1` on this machine exits 1 (`kill 1 failed: operation not permitted`), so the old code reported another user's process **dead**. The change is a behavior fix; the comment claims preservation. One-line edit.
+- **BR-11 not-addressed — the owed `## Revisions` entry is now four deltas, not two.** No `## Revisions` section exists in `workshop/issues/000220-…md`. Beyond the Spec's unscoped agreement claim and the Plan's `termcmd:568` "same resolver" row, and the `termcmd:144` row's falsified `--test-shortcut` justification, the Plan's *"What the registry is, and is not"* section claims *"the slow path already trusts this registry … so this is not new trust, only earlier trust."* That is false as written: the slow path trusted the registry as a **classifier over panes zellij reported**, so it could never return an id absent from the report; the fast path trusts it as the **source of the id**, with no such intersection. Same sentence, different trust.
+- **BR-10 not-addressed, with a stronger mechanism than the round that raised it had.** `shortcut.go:590` still takes `fields[0]` verbatim. Two facts sharpen it: `TerminalPaneRegistry` carries **no session field** (unlike the draft cache, which `ValidateCachedDraftPane` rejects on `record.Session != session`), the file is append-only and never compacted, and `LiveIDs` filters on **pid liveness alone** — while `procutil.Identity` exists in the same package and its doc comment says *"It changes even when the OS recycles the same numeric PID quickly."* So a stale line from a previous session whose pid has been recycled now yields an id that goes straight to `focus-pane-id`/`write --pane-id`. It degrades visibly (the action errors and exits 1) and self-heals on the next recorded half, which is why it stays Minor — but the cross-check that used to make it unreachable is the one this diff removed.
+- **BR-8 not-addressed.** `layoutcmd.go:90` still returns `zellijpane.Pane{ID: id}`. Both callers read only `.ID`; dropping the wrapper and exporting `resolveRightTerminalID` to them stops a synthetic pane escaping for a later caller to read `.IsFocused` off.
+- **BR-1 not-addressed, and I recommend it become its own issue.** Confirmed unchanged: `layoutcmd.OSRuntime.ListPanesJSON` (layoutcmd.go:303) passes `--geometry`; `termcmd.OSRuntime.ListPanesJSON` (run.go:1679) does not; `runDecision` reaches `RunToggleFocused` with the termcmd runtime at run.go:256 and run.go:583. `tiledScreenSize` reads `X`/`Columns`/`Rows`, so `Alt+Shift+Enter` **from the terminal pane** computes screen size from zeroed geometry. This is pre-existing and untouched by #220's window — it belongs to a separate issue, not to this close.
+- **New (raised below): the round-3 review rule never reached `workshop/lessons.md`.** Round 2's rule is there (`lessons.md:4225`); BR-13's rule — *a fast path is pinned by its answer, not by its saving* — lives only in the issue Log and a test comment. AGENTS.md §4 makes lessons.md the durable form.
+- Not raised, recorded for completeness: on the fast path `handleChord` reads `rt.TerminalPaneIDs()` twice per chord (directly at run.go:132, and via `registered` at run.go:160), and the `currentID != "" && registered(rt, currentID)` gate is open-coded at run.go:178 and run.go:620. Both are microseconds on a path that went 631ms → 55ms; below the bar for action.
+
+## 5. Test coverage notes
+
+- The kind of bug this diff could ship — the two paths landing on different split halves — is now covered at all three fast paths, which was the whole point of BR-13's rule and is the one thing I checked by reverting rather than by reading.
+- `TestFocusedWorkbenchPanesFallsBackWhenTheGateFails` covers all three decline conditions (unregistered, empty current id, cache miss) and asserts the list call actually happens, so the gate cannot silently become a no-op.
+- The one class no test can currently express: an inconsistent registry where the fast path answers. That is deliberate and documented — asserting agreement there would assert a coincidence — but it means the pid-recycling phantom in BR-10 has no fixture, and would need `LiveIDs` to carry an incarnation before one could be written.
+- Environment caveat for whoever re-runs: `termcmd`'s three pty failures are the documented sandbox class and are identical at base; scrub `PAIR_SESSION_ID`/`PAIR_TAG` (`env -u`) or the review-target and changelog tests fail spuriously inside a pair session.
+
+## 6. Architectural notes
+
+- **ARCH-DRY — pass.** BR-14's extraction is real and complete; `Registered` is the registry's own predicate with three callers and no survivor. Residue noted above is below the bar.
+- **ARCH-PURE — pass, with an asymmetry worth knowing.** layoutcmd extracted the decision (`resolveFromSidecars`, pure, generated tests); termcmd left the structurally identical decision inline inside the IO function. The differential tests now cover it, so this is a shape note for the next fast path, not a finding.
+- **ARCH-PURPOSE — pass.** The shadow sweep holds: all five `ListPanesJSON()` call sites are enumerated in the Plan and each is disposed; the two chords that motivated the issue are fast, and the geometry caller is a declared exception with a stated reason. BR-13's class was swept in one round across all three fast paths rather than at the site the finding named.
+- **ARCH-MOCK — pass.** zellij stays behind `Runtime`; no direct external call escapes the seam in this diff; `Alive`'s changed semantics are checked against the real kernel, not a model of it.
+- **ARCH-CONSTRAINTS — pass.** Keystroke workload, budget declared and measured before/after with host conditions (26 sessions, load 3.3, median of 6), residue attributed to its two components. No unbounded work introduced.
+- **ARCH-SECURE — flag, folded into BR-10.** The registry is durable state written by other processes across session boundaries and is now the sole provenance of an id handed to a subprocess. The pid is parsed into a typed value; the pane id is not, and there is no incarnation identity despite `procutil.Identity` existing for exactly this.
+- **ARCH-ORDER — flag, folded into BR-10/BR-11.** The startup race is enumerated and the agreement property explicitly excludes it — good. The event *not* enumerated is process death plus pid reuse across sessions, which the append-only, never-compacted, non-session-scoped registry makes representable and the removed pane-report intersection makes reachable.
+
+## 7. Plan revision recommendations
+
+One `## Revisions` entry in `workshop/issues/000220-…md` (timestamp + reason + delta) covering four items:
+
+1. **Spec** — "The fast path must produce the SAME id the slow path would in the cases it handles" is unscoped; the delivered guarantee holds over registry-**consistent** states, with "never returns an id the registry did not list" as the invariant on inconsistent ones.
+2. **Plan, `termcmd:568` row** — "sidecar-first, same resolver" is wrong; `currentRightTerminalPane` uses an inline `registered()` membership check, correctly, because its question ("am I a right terminal?") is not `resolveRightTerminal`'s ("which right terminal?").
+3. **Plan, `termcmd:144` row** — the "`--test-shortcut` path, which has no live pane" justification was falsified by BR-5; the fast path now also gates on registry membership and on a cache hit.
+4. **Plan, "What the registry is, and is not"** — "not new trust, only earlier trust" is false. The slow path's trust was bounded by the pane report; the fast path's is not, and that is the delta BR-10 turns on.
+
+```findings
+dispose:
+  - id: BR-13
+    disposition: addressed
+    note: |
+      Verified by mutation, not by the commit message: draftID+"9" and currentID+"9" each redden the new differential test.
+  - id: BR-14
+    disposition: addressed
+    note: |
+      workbenchshortcut.Registered has exactly 3 call sites; grep finds no fourth open-coded membership loop.
+  - id: BR-11
+    disposition: not-addressed
+    note: |
+      Still no "## Revisions" section, and a fourth delta has accumulated - the Plan's "not new trust, only earlier trust" claim is falsified by the removed pane-report intersection.
+  - id: BR-10
+    disposition: not-addressed
+    note: |
+      fields[0] still verbatim; sharpened - the registry carries no session field and no incarnation identity though procutil.Identity exists, so a recycled pid now yields an answer.
+  - id: BR-9
+    disposition: not-addressed
+    note: |
+      Comment unchanged at procutil.go:35; I re-measured, kill -0 1 exits 1 here, so the old code reported another user's process dead.
+  - id: BR-8
+    disposition: not-addressed
+    note: |
+      layoutcmd.go:90 still returns zellijpane.Pane{ID: id}; both callers read only .ID.
+  - id: BR-1
+    disposition: not-addressed
+    note: |
+      Confirmed unchanged and pre-existing (run.go:1679 omits --geometry, reached via run.go:256/583); recommend a separate issue rather than this close.
+findings:
+  - id: new
+    severity: Minor
+    family: review-rule-not-recorded
+    title: |
+      Round 3's review rule reached the issue Log and a test comment but not workshop/lessons.md
+    detail: |
+      AGENTS.md section 4 makes lessons.md the durable form of a rule found in review, and
+      round 2's rule was recorded there (lessons.md:4225). BR-13's rule - a fast path
+      substituting for an existing slow path is pinned by its ANSWER, not by asserting
+      listCalls==0 and that it declines when gated - exists only in the issue Log and in a
+      comment above run_test.go:1236. grep for "fast path" in lessons.md finds no entry. It
+      is the more generalizable of the two rules and the one most likely to recur in a
+      different file.
+```
