@@ -4174,3 +4174,20 @@ an enum. Compare `mouseinput.BaseButton(b)` against a button constant; compare
 the raw value only where the modifier is genuinely part of the gesture, and say
 so at that site. Caught in #000213 (plan gate, then a live second instance at
 close).
+
+## Check how often an operation runs before optimizing its latency
+
+An issue proposed a persistent zellij connection, a daemon per session, and a
+private-protocol coupling — to remove ~40ms from an operation the operator
+performs a few dozen times a day by pressing a chord. The latency was real and
+correctly measured. Nobody had written down the frequency.
+
+**Rule.** Before designing for a latency number, state the operation's frequency
+and who waits on it: per keystroke, per turn, per deliberate gesture, per
+startup. A cost per keystroke and the same cost per deliberate action are
+different problems with different budgets, and only one of them justifies
+architecture. Put the frequency in the issue next to the measurement — an issue
+that reports milliseconds without a rate cannot be prioritized against anything.
+Caught when #000201 was punted: 70ms per alt+Return, which nobody perceives, and
+the genuinely felt symptom turned out to be a deliberate 100ms settle plus a
+0.38% server-stall tail that no proposed fix addressed.

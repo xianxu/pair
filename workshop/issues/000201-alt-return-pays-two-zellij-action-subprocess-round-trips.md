@@ -1,10 +1,10 @@
 ---
 id: 000201
-status: working
+status: punt
 deps: []
 github_issue:
 created: 2026-09-06
-updated: 2026-09-06
+updated: 2026-09-09
 estimate_hours:
 started: 2026-09-06T22:06:07-07:00
 ---
@@ -134,3 +134,76 @@ latency 2.51 ms → 2.21 ms, i.e. not at all, because macOS boosts recently-bloc
 threads. Load turned out to matter **specifically** for this multi-stage
 spawn+connect path (36 ms → 145 ms), which is why the two effects are filed as
 separate issues rather than one.
+
+### 2026-09-09 — punted: the cost is real, the frequency makes it not worth paying for
+
+Operator decision: *"the single alt+return send latency doesn't justify the
+complexity."* Measured first, so the punt rests on numbers rather than a shrug.
+
+**Corrections to this issue as filed.** Recorded so a future reader does not
+re-derive them:
+
+1. **It is FOUR zellij calls per send, not two.** `draft_send.lua:4-21` —
+   `move-focus up`, `write-chars <body>`, `send-keys Alt Enter`, `move-focus
+   down`. The per-call figure (~17ms) was right; the multiplier was wrong, so
+   the corrected "~35ms floor" is really ~70ms.
+
+2. **Measured from the recorded action traces, not a synthetic benchmark.**
+   `PairZellijTrace` already writes `duration_ms` per action to
+   `zellij-actions-*.jsonl`. Across 21,243 recorded actions / **5,015 real
+   sends**:
+
+   | | p50 | p90 | p95 | p99 | max |
+   |---|---|---|---|---|---|
+   | per send (4 calls) | **70ms** | 88ms | 100ms | 264ms | 18.2s |
+
+   `>=200ms: 1.40%`, `>=500ms: 0.50%`, `>=1000ms: 0.38%`.
+
+3. **This is per alt+Return, not per keystroke** (per-keystroke draft work is
+   `#202`). At a few dozen deliberate sends a day, a 70ms floor is not worth
+   architecture. That frequency — not the measurement — is what closes this.
+
+4. **Spec item 1 is foreclosed.** "Collapse the two calls into one" cannot work:
+   the submit must be **Alt+Enter**, because pair-wrap's stdin translator
+   rewrites `\r` into the agent's insert-newline sequence
+   (`init.lua:725-729`), and `write-chars` writes literal characters and cannot
+   express a modified chord. Item 1's own precondition — *"check whether the
+   two-step exists for a reason... Settle this first; it may be the whole
+   issue"* — is answered YES in the code, and was never checked.
+
+5. **The "about a second" is two different things, neither of them spawn cost.**
+   `draft_send.lua:48` → `init.lua:745` sleeps a deliberate **100ms** after the
+   write when the body is multi-line or >200 chars — sitting exactly between the
+   paste and the Return, which is where the pause was reported. Its reason is
+   documented: `write-chars` returns when bytes are queued, not delivered, so an
+   immediate submit can land inside the bracketed-paste boundary. A realistic
+   multi-line send is therefore ~170ms. The genuine >=1s cases are the 0.38%
+   tail, which is the zellij **server stalling**, not spawn cost.
+
+6. **Direction 2 (persistent connection) rejected on merit, not just cost.** It
+   removes the ~9.5ms process half of each call (70ms → ~30ms) and touches
+   neither the 100ms settle nor the tail — so it cannot fix the only symptom
+   with an operator-visible effect, while adding a resident daemon per session
+   (the send is issued from nvim, so a held socket needs our own IPC hop), a
+   private-protocol coupling against a zellij version `#213` already records we
+   want to upgrade, and a fallback spawn path we would keep anyway.
+
+**What survives this punt, so it is not lost with it:**
+
+- **The tail is the only part with a symptom.** 0.38% of sends >=1s, max 18.2s,
+  cause unknown and server-side. Nothing tracks it. If it recurs and annoys,
+  that is its own issue and the trace evidence above is its starting point.
+- **The two `move-focus` calls are removable.** Both `write-chars` and
+  `send-keys` accept `--pane-id` in zellij 0.44.3, and
+  `draftroute/route.go:103` already uses that form; the focus dance exists only
+  because the send targets the focused pane. Worth ~34ms of the 70ms — but as
+  tidiness for whoever is next in that file, not as a performance need. Unchecked
+  precondition: whether the agent pane needs focus for anything else.
+- **The blast-radius list is untouched.** `rename-pane` per title change and
+  `clipcmd`'s two-attempt focus (`runtime.go:142,145`) are separate paths;
+  clipcmd's is per-selection, i.e. more frequent than per-send.
+
+**Method note.** This issue measured `query-tab-names` in isolation while the
+real send path was being traced to disk the whole time. Reach for the recorded
+trace before synthesizing a benchmark — the instrument already existed, and it
+disagreed with the model by 2x on call count.
