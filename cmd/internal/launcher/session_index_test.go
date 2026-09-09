@@ -1,6 +1,7 @@
 package launcher
 
 import (
+	"errors"
 	"strings"
 	"testing"
 )
@@ -294,5 +295,40 @@ func TestResumingAKnownThreadCostsOneProbe(t *testing.T) {
 		t.Errorf("resuming a thread whose name is already in the ledger cost %d probes, "+
 			"want exactly 1: it asks about ONE name, so anything more is a budget "+
 			"search it has no use for", rt.probeCount)
+	}
+}
+
+// A machine where the budget cannot be MEASURED must keep probing, not trust the
+// fallback (#215 BR-1).
+//
+// discoverSessionNameBudget returns defaultSessionNameBudget when even its
+// shortest probe is refused -- a socket directory long enough that zellij takes
+// no useful name. That number is documented as a message default and never an
+// acceptance test. Trusting it arithmetically breaks the exact machine it exists
+// for: every rung under 24 bytes reads as acceptable while zellij refuses all of
+// them, so assignment returns the LONGEST remaining rung and pair says "pick a
+// shorter tag" -- which the ladder is what implements. Before #215 the probe
+// judged each rung and could descend to minSessionRepoBytes or exhaust honestly.
+func TestAnUnmeasurableBudgetKeepsProbingInsteadOfTrustingTheFallback(t *testing.T) {
+	scope := mustScope(t, "/Users/a/work/pair")
+
+	// Nothing fits: the socket path leaves no room at all.
+	rt := &fakeRuntime{maxSessionNameBytes: 1}
+	_, _, err := AssignSessionName(SessionNameIndex{}, nil, scope, "work", sessionNameAcceptor(rt))
+	if err == nil {
+		t.Fatal("assignment succeeded on a machine where zellij accepts no name; the " +
+			"fallback budget was used as an acceptance oracle")
+	}
+	var exhausted SessionNameExhausted
+	if !errors.As(err, &exhausted) {
+		t.Fatalf("err = %v (%T), want SessionNameExhausted: an unmeasurable budget must "+
+			"fail honestly, not hand back a name zellij will refuse", err, err)
+	}
+
+	// And it must have kept ASKING rather than deciding from the fallback.
+	if rt.probeCount < 20 {
+		t.Errorf("only %d probes: with no measurable budget every candidate must be "+
+			"probed, because arithmetic has nothing trustworthy to judge against",
+			rt.probeCount)
 	}
 }

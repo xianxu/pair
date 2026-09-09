@@ -712,7 +712,10 @@ func promptForTag(rt Runtime, prefill string, compose func(string) string, base 
 	// already said no, and only so the refusal can quote something concrete.
 	accepts := func(name string) bool { return rt.ProbeSessionName(name) == nil }
 	if candidate := compose(tag); !accepts(candidate) {
-		_, message := sessionNameFits(candidate, discoverSessionNameBudget(accepts))
+		// The number is for the MESSAGE, so a fallback value is fine here --
+		// that is what defaultSessionNameBudget is for.
+		limit, _ := discoverSessionNameBudget(accepts)
+		_, message := sessionNameFits(candidate, limit)
 		fmt.Fprintf(stderr, "pair: %s\n      pick a shorter name.\n", message)
 		return "", 1, false
 	}
@@ -950,18 +953,33 @@ func sessionNameFits(name string, limit int) (ok bool, message string) {
 // form is cheaper than both.
 func sessionNameAcceptor(rt Runtime) func(string) bool {
 	probe := func(n string) bool { return rt.ProbeSessionName(n) == nil }
-	budget := 0
+	var budget int
+	var measured, attempted bool
 	return func(name string) bool {
-		if budget > 0 {
+		if measured {
 			ok, _ := sessionNameFits(name, budget)
 			return ok
 		}
 		if probe(name) {
 			return true
 		}
-		// A real rejection: the ladder is walking. Learn the budget once, and
-		// answer this and every later candidate from arithmetic.
-		budget = discoverSessionNameBudget(probe)
+		// A real rejection: the ladder is walking. Try to learn the budget once,
+		// and answer every later candidate from arithmetic -- but ONLY if it was
+		// actually measured.
+		//
+		// If discovery fell back, we keep probing per candidate. The fallback is
+		// defaultSessionNameBudget, which is documented as a MESSAGE default and
+		// never an acceptance test, and trusting it here would break the exact
+		// machine it exists for: where the socket directory is long enough that
+		// zellij refuses even a 13-byte name, every rung under 24 bytes would be
+		// accepted arithmetically though zellij refuses all of them, and pair
+		// would hand back "pick a shorter tag" -- advice the ladder is what
+		// implements. Slow and correct beats fast and wrong on the one machine
+		// that cannot start a session otherwise.
+		if !attempted {
+			attempted = true
+			budget, measured = discoverSessionNameBudget(probe)
+		}
 		return false
 	}
 }
@@ -979,13 +997,17 @@ func sessionNameAcceptor(rt Runtime) func(string) bool {
 // SUCCEEDS against a foreign live session and would then read as "fits" for
 // entirely the wrong reason, making the measured budget depend on whatever else
 // happens to be running.
-func discoverSessionNameBudget(accepts func(string) bool) int {
+// The bool is MEASURED, and callers that judge acceptance must honour it: on a
+// machine where even the shortest probe is refused there is nothing to measure,
+// and the returned number is defaultSessionNameBudget -- a message default, not
+// an oracle. Returning it unmarked is what let it become an acceptance test.
+func discoverSessionNameBudget(accepts func(string) bool) (int, bool) {
 	pad := func(n int) string {
 		return sessionNameProbeMarker + strings.Repeat("z", n-len(sessionNameProbeMarker))
 	}
 	lo, hi := len(sessionNameProbeMarker), 64
 	if !accepts(pad(lo)) {
-		return defaultSessionNameBudget
+		return defaultSessionNameBudget, false
 	}
 	for lo < hi {
 		mid := (lo + hi + 1) / 2
@@ -995,7 +1017,7 @@ func discoverSessionNameBudget(accepts func(string) bool) int {
 			hi = mid - 1
 		}
 	}
-	return lo
+	return lo, true
 }
 
 // sessionNameProbeMarker prefixes every calibration probe so the names cannot

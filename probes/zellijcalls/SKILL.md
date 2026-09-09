@@ -15,6 +15,22 @@ probes/zellijcalls/trace.sh report
 eval "$(probes/zellijcalls/trace.sh disarm)"
 ```
 
+`arm` prepends a repo directory to the interactive shell's `PATH` and points
+`PAIR_ZELLIJ_TRACE` at a per-invocation file; both persist until `disarm`.
+
+## What the instrument costs
+
+A probe must not perturb what it observes. Measured with
+`probes/zellijcalls/trace.sh overhead`: **under 1ms per call**, against zellij
+calls of ~20-45ms — below the noise floor of a 10-call sample.
+
+The first cut was a bash script that read the clock with `python3 -c` twice per
+call: ~25ms per interpreter start, so ~50ms injected per call, against calls
+taking ~45ms. Worse than merely large — the injected cost landed *outside* each
+recorded duration and *inside* the wall span, inflating exactly the ratio the
+"Reading it" conclusion turns on. macOS ships bash 3.2, so `EPOCHREALTIME` is
+not available to fix it in shell; the shim is Go for that reason.
+
 `report` prints total calls, wall span, time actually spent inside zellij, a
 per-subcommand table, and the ten slowest individual calls.
 

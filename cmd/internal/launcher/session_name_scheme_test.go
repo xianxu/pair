@@ -256,8 +256,13 @@ func TestDiscoverSessionNameBudget(t *testing.T) {
 		probed = append(probed, name)
 		return len(name) <= 30
 	}
-	if got := discoverSessionNameBudget(accepts); got != 30 {
+	got, measured := discoverSessionNameBudget(accepts)
+	if got != 30 {
 		t.Errorf("budget = %d, want 30", got)
+	}
+	if !measured {
+		t.Error("a budget found by binary search must report itself as MEASURED; " +
+			"only a measured budget may be used as an acceptance oracle")
 	}
 	// Every probe must be a synthetic pad, never a name that could belong to a
 	// real session: list-clients SUCCEEDS against a foreign live session, which
@@ -267,8 +272,15 @@ func TestDiscoverSessionNameBudget(t *testing.T) {
 			t.Errorf("probe %q is not a synthetic pad", name)
 		}
 	}
-	// Falls back rather than looping when even the shortest probe is rejected.
-	if got := discoverSessionNameBudget(func(string) bool { return false }); got != defaultSessionNameBudget {
-		t.Errorf("unusable probe → %d, want the %d default", got, defaultSessionNameBudget)
+	// Falls back rather than looping when even the shortest probe is rejected --
+	// and says so, because the fallback is a MESSAGE default and callers that
+	// judge acceptance must keep probing instead (#215 BR-1).
+	fallback, measuredFallback := discoverSessionNameBudget(func(string) bool { return false })
+	if fallback != defaultSessionNameBudget {
+		t.Errorf("unusable probe → %d, want the %d default", fallback, defaultSessionNameBudget)
+	}
+	if measuredFallback {
+		t.Error("the fallback reported itself as MEASURED; that is what let a guess " +
+			"become an acceptance test for every candidate")
 	}
 }

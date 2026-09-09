@@ -47,6 +47,19 @@
   first probe landed in the wrong home and was then hand-added to two lists to
   compensate — the exact remembering `test-smoke` exists to abolish.
 
+  **A third kind: the operator-driven instrument** (`probes/zellijcalls`, `#215`).
+  It measures a workload only a human can start — a real couch thread — so it
+  takes a verb (`arm` / `report` / `disarm` / `overhead`) and needs an
+  interactive shell whose `PATH` it modifies. It cannot be auto-run, so neither
+  branch above fits: `cmd/probes/` is for things a target CAN run, and this has
+  nothing to run unattended. It stays under `probes/` because it is a probe, and
+  it is safe under the wholesale loop **by construction, not by exemption** —
+  the shim refuses to act unless `argv[0]` is `zellij`, so `go run ./probes/…`
+  prints what it is and exits 0. That matters more than it sounds: a bare
+  `zellij` STARTS A SESSION, so a shim that ran when smoke-tested would leak a
+  server on every `make test-smoke`. Such a probe ships a `SKILL.md` instead of
+  a target, since the runbook is the interface.
+
 - `doctor/README.md` — `pair-doctor`: read the adaptation flight recorder to diagnose harness integration drift (see the bring-up guide §3 for the signal registry). Primary entry is the agent-agnostic `:PairDoctor` nvim command (`nvim/doctor.lua`); the procedure is single-sourced in `doctor/SKILL.md`, optionally registerable as a Claude skill.
 - `doctor/perf.sh` — the performance half of the same entry (`#208`): a snapshot
   of load, per-process resource **rates**, the render path (WindowServer), and

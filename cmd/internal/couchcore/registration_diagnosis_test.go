@@ -31,8 +31,12 @@ func TestARegistrationTimeoutSaysWhetherPairStarted(t *testing.T) {
 			absent: "never started",
 		},
 		{
-			name: "pair never started", present: false, session: "",
-			want:   []string{"15s", "NO Pair session", "never started", "the launch"},
+			// The fake reports an absent binding as an ERROR, exactly as
+			// production does -- a missing index entry means Pair never recorded
+			// a name. That is an unreadable observation, so the diagnosis must
+			// stop short of a verdict rather than assert one (ARCH-SECURE).
+			name: "pair's binding cannot be read", present: false, session: "",
+			want:   []string{"15s", "could NOT determine", "not a verdict", "zellij list-sessions"},
 			absent: "IS live",
 		},
 	} {
@@ -53,6 +57,15 @@ func TestARegistrationTimeoutSaysWhetherPairStarted(t *testing.T) {
 				t.Errorf("diagnosis %q claims %q, which is the other case", got, tc.absent)
 			}
 		})
+	}
+
+	// No session observer installed at all -- the branch nothing covered.
+	bare := &Couch{}
+	if got := bare.diagnoseRegistrationFailure(context.DeadlineExceeded, address, budget); got == "" {
+		t.Error("a console with no session observer produced no diagnosis at all; the " +
+			"operator still needs to know the wait happened and why nothing could be said")
+	} else if !strings.Contains(got, "no session observer") {
+		t.Errorf("diagnosis %q does not say WHY it cannot answer", got)
 	}
 
 	// A non-timeout error already says what it is; do not append noise, and do

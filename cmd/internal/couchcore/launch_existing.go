@@ -222,12 +222,17 @@ func (c *Couch) diagnoseRegistrationFailure(err error, address ThreadAddress, bu
 		return fmt.Sprintf(" (waited %s; session %q IS live, so Pair STARTED and did not finish "+
 			"registering -- look at Pair's startup, not the launch)", budget, binding.Name)
 	}
-	why := "no session is live"
+	// An absent binding and an UNREADABLE one are different states, and only the
+	// first supports the conclusion. Saying "Pair never started" because the index
+	// could not be read states an inconclusive observation as a fact -- degrade
+	// visibly instead (ARCH-SECURE).
 	if observeErr != nil {
-		why = fmt.Sprintf("could not confirm one: %v", observeErr)
+		return fmt.Sprintf(" (waited %s; could NOT determine whether Pair started: %v. "+
+			"That is an unreadable observation, not a verdict -- check the session by hand "+
+			"with `zellij list-sessions`)", budget, observeErr)
 	}
-	return fmt.Sprintf(" (waited %s; NO Pair session -- %s. Pair never started, or exited before "+
-		"registering -- look at the launch, not registration)", budget, why)
+	return fmt.Sprintf(" (waited %s; NO Pair session is live. Pair never started, or exited "+
+		"before registering -- look at the launch, not registration)", budget)
 }
 
 func (c *Couch) awaitResumeRegistration(ctx context.Context, address ThreadAddress) error {
