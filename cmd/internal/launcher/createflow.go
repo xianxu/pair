@@ -307,13 +307,14 @@ func assignLaunchSessionNames(rt Runtime, live []Session, repoRoot, globalDataDi
 	}
 	names := map[string]string{}
 	newEntries := map[string]SessionNameEntry{}
+	// OUTSIDE the loop: one budget measurement shared by every tag. Built here
+	// rather than per iteration so N tags cost one discovery, not N.
+	accepts := sessionNameAcceptor(rt)
 	for _, tag := range tags {
 		if tag == "" {
 			continue
 		}
-		name, updated, err := AssignSessionName(index, live, scope, tag, func(session string) bool {
-			return rt.ProbeSessionName(session) == nil
-		})
+		name, updated, err := AssignSessionName(index, live, scope, tag, accepts)
 		if err != nil {
 			fmt.Fprintf(stderr, "pair: %v\n", err)
 			return nil, nil, nil, false
@@ -675,9 +676,7 @@ func assignSingleSessionName(rt Runtime, live []Session, cwd, tag string, stderr
 		fmt.Fprintf(stderr, "pair: read session-name index: %v\n", err)
 		return "", SessionNameEntry{}, false
 	}
-	name, updated, err := AssignSessionName(index, live, scope, tag, func(session string) bool {
-		return rt.ProbeSessionName(session) == nil
-	})
+	name, updated, err := AssignSessionName(index, live, scope, tag, sessionNameAcceptor(rt))
 	if err != nil {
 		fmt.Fprintf(stderr, "pair: %v\n", err)
 		return "", SessionNameEntry{}, false
@@ -928,13 +927,44 @@ func sessionNameFits(name string, limit int) (ok bool, message string) {
 	return false, fmt.Sprintf("name '%s' needs %d bytes; zellij allows %d on this machine", name, len(name), limit)
 }
 
+// sessionNameAcceptor judges a candidate's LENGTH arithmetically, against a
+// budget measured ONCE per process.
+//
+// The ladder offers a candidate per rung and AssignSessionName walks a suffix per
+// collision, so an `accepts` that execs zellij costs a subprocess per candidate
+// and the count grows with every thread the repo has ever had -- nothing releases
+// a suffix on archive, and the walk restarts at 1. Measured at 52 subprocesses
+// for a repo owning suffixes 1..25, inside couch's registration deadline, where
+// one round-trip goes from 17.6ms calm to 467ms under load (#215, #203).
+//
+// The budget is a LOCAL fact -- it falls out of the socket directory's path
+// length -- so only learning it needs zellij. Judging against it is arithmetic.
+// Discovery is lazy and memoized: a caller that short-circuits on a ledger hit
+// pays for it once, a caller that walks the ladder pays for it once, and neither
+// pays per candidate.
+func sessionNameAcceptor(rt Runtime) func(string) bool {
+	budget := 0
+	return func(name string) bool {
+		if budget == 0 {
+			budget = discoverSessionNameBudget(func(n string) bool {
+				return rt.ProbeSessionName(n) == nil
+			})
+		}
+		ok, _ := sessionNameFits(name, budget)
+		return ok
+	}
+}
+
 // discoverSessionNameBudget finds how many bytes zellij will actually accept,
 // by binary search over synthetic names.
 //
-// Called LAZILY — only once a name has already been rejected — so the happy path
-// still costs the single probe it always did. A per-process cache would buy
-// nothing: `pair` create is a one-shot process, so "cached" would just mean
-// paying these execs before every prompt.
+// Called at most ONCE per process, through sessionNameAcceptor, which memoizes
+// the result and then judges every candidate arithmetically. An earlier version
+// of this comment said a per-process cache would buy nothing because `pair`
+// create is one-shot -- true when this was reached only after a name had already
+// been rejected, and false once it fronts every assignment: without the memo the
+// binary search would run per candidate, which is worse than the per-candidate
+// probe it replaces (#215).
 //
 // The probes use a padding alphabet that cannot collide with a real session:
 // ProbeSessionName runs `zellij --session <name> action list-clients`, which

@@ -182,3 +182,81 @@ func mustScope(t *testing.T, root string) RepoScope {
 	}
 	return scope
 }
+
+// Name assignment must cost a BOUNDED number of zellij probes, not one per
+// candidate (#215).
+//
+// Every probe is a subprocess. The candidate count grows with every couch thread
+// the repo has ever had -- nothing releases a suffix on archive -- and the walk
+// restarts at suffix 1 each time, so a repo owning suffixes 1..25 pays two probes
+// per suffix (the over-long 16-hex candidate rejected for length, then the short
+// one found owned). Measured at 52 against the real index, inside couch's 5s
+// registration deadline, on a machine where one `zellij action` round-trip goes
+// from 17.6ms calm to 467ms under load.
+//
+// The fix is arithmetic: the socket budget is a LOCAL fact, so a candidate's
+// length can be judged without asking zellij. The probe stays the oracle for the
+// BUDGET, which is measured once.
+func TestAssignSessionNameCostsABoundedNumberOfProbes(t *testing.T) {
+	scope := mustScope(t, "/Users/a/work/pair")
+	const tag = "couch-7bd0c2986975082c"
+
+	// seedOwned builds the index an aged repo has: suffixes 1..n already taken
+	// by other tags. Nothing releases a suffix on archive, so this only grows.
+	seedOwned := func(n int) SessionNameIndex {
+		var index SessionNameIndex
+		for suffix := 1; suffix <= n; suffix++ {
+			for _, candidate := range BuildSessionNameCandidates(scope, tag, suffix) {
+				if len(candidate) <= 24 { // the macOS budget; the short rung
+					index.Entries = append(index.Entries, SessionNameEntry{
+						SessionName: candidate,
+						ScopeKey:    scope.Key,
+						RepoRoot:    scope.Root,
+						RepoName:    scope.DisplayName,
+						Tag:         "someone-else-" + candidate,
+					})
+					break
+				}
+			}
+		}
+		return index
+	}
+
+	assign := func(t *testing.T, owned int) (string, int) {
+		t.Helper()
+		// The PRODUCTION acceptor, not a hand-rolled one: what must be bounded is
+		// zellij SUBPROCESSES, and a test counting `accepts` calls would measure
+		// ladder iterations instead -- passing or failing for a reason unrelated
+		// to the cost this issue is about.
+		rt := &fakeRuntime{maxSessionNameBytes: 24}
+		name, _, err := AssignSessionName(seedOwned(owned), nil, scope, tag, sessionNameAcceptor(rt))
+		if err != nil {
+			t.Fatalf("AssignSessionName(owned=%d) returned error: %v", owned, err)
+		}
+		if name == "" {
+			t.Fatalf("AssignSessionName(owned=%d) assigned no name", owned)
+		}
+		return name, rt.probeCount
+	}
+
+	name25, probes25 := assign(t, 25)
+	name60, probes60 := assign(t, 60)
+
+	// A small constant. The budget is found by binary search over [13,64];
+	// anything near the candidate count means the per-candidate probe is back.
+	const budget = 12
+	if probes25 > budget {
+		t.Errorf("assigning %q cost %d zellij probes; want <= %d. A subprocess per "+
+			"candidate makes startup O(threads-this-repo-ever-had), which is what "+
+			"blows couch's registration deadline (#215)", name25, probes25, budget)
+	}
+
+	// O(1), stated as invariance rather than as a bound: the cost must not move
+	// with the index at all. A bound alone would still pass an implementation
+	// that grew slowly, and this index only ever grows.
+	if probes25 != probes60 {
+		t.Errorf("probe count moved with index size: %d at 25 owned suffixes, %d at 60 "+
+			"(names %q and %q). Name assignment must not be O(threads)",
+			probes25, probes60, name25, name60)
+	}
+}

@@ -108,7 +108,7 @@ func (c *Couch) launchTrackedThread(in trackedThreadLaunch) (ActorRecord, Handle
 	if err := ctx.Err(); err != nil {
 		return ActorRecord{}, h, c.failTrackedPostAckStart(in.Resume, thread, in.Nonce, h, err)
 	}
-	registrationTimeout := 5 * time.Second
+	registrationTimeout := pairRegistrationTimeout
 	if in.Resume && c.resumeRegistrationTimeout > 0 {
 		registrationTimeout = c.resumeRegistrationTimeout
 	}
@@ -120,7 +120,8 @@ func (c *Couch) launchTrackedThread(in trackedThreadLaunch) (ActorRecord, Handle
 	}
 	cancelRegistration()
 	if err != nil {
-		cause := fmt.Errorf("await Pair registration %+v: %w", thread.Address, err)
+		cause := fmt.Errorf("await Pair registration %+v: %w%s", thread.Address, err,
+			c.diagnoseRegistrationFailure(err, thread.Address, registrationTimeout))
 		return ActorRecord{}, h, c.failTrackedPostAckStart(in.Resume, thread, in.Nonce, h, cause)
 	}
 	// The layout witness rides this transaction, and only at a cold boundary:
@@ -189,6 +190,44 @@ func (c *Couch) markResumeStartUnknown(thread ThreadRecord, nonce string) error 
 		Kind: StartRecoveredUnknown, Nonce: nonce,
 	})
 	return err
+}
+
+// diagnoseRegistrationFailure says WHICH half of startup did not finish, as a
+// suffix on the bare deadline error.
+//
+// #215 cost hours because `await Pair registration {RepoScope:… Tag:…}: context
+// deadline exceeded` names neither what was waited for nor whether Pair started
+// at all -- the only visible clue was a set of orphaned zellij servers, and they
+// only became meaningful after noticing they had no children.
+//
+// The discriminator is one observation couch already has and did not make: the
+// zellij session either appeared or it did not. Taken AFTER the deadline, so it
+// costs nothing on the happy path, and only for a timeout -- any other error
+// already says what it is.
+func (c *Couch) diagnoseRegistrationFailure(err error, address ThreadAddress, budget time.Duration) string {
+	if !errors.Is(err, context.DeadlineExceeded) {
+		return ""
+	}
+	sessions, ok := c.Artifacts.(PairSessionIO)
+	if !ok {
+		return fmt.Sprintf(" (waited %s; no session observer, so whether Pair started is unknown)", budget)
+	}
+	// LIVENESS is the discriminator, and it is the only one. `PairSession`
+	// reports a missing index entry as an ERROR rather than Present=false --
+	// which is the "Pair never got as far as recording a name" case, the most
+	// diagnostic one there is. Branching on the error first would have swallowed
+	// it into "could not observe" and said nothing useful.
+	binding, observeErr := sessions.PairSession(address)
+	if observeErr == nil && binding.Present {
+		return fmt.Sprintf(" (waited %s; session %q IS live, so Pair STARTED and did not finish "+
+			"registering -- look at Pair's startup, not the launch)", budget, binding.Name)
+	}
+	why := "no session is live"
+	if observeErr != nil {
+		why = fmt.Sprintf("could not confirm one: %v", observeErr)
+	}
+	return fmt.Sprintf(" (waited %s; NO Pair session -- %s. Pair never started, or exited before "+
+		"registering -- look at the launch, not registration)", budget, why)
 }
 
 func (c *Couch) awaitResumeRegistration(ctx context.Context, address ThreadAddress) error {

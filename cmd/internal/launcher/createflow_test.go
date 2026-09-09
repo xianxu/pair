@@ -48,6 +48,7 @@ type fakeRuntime struct {
 	promptOK            bool
 	maxSessionNameBytes int
 	probeErr            error
+	probeCount          int
 	appendLedgerErr     error
 	prepareLaunchErr    error
 	preparedLaunches    []string
@@ -163,6 +164,7 @@ func newFakeRuntime() *fakeRuntime {
 func (f *fakeRuntime) Sessions() ([]Session, error)           { return f.sessions, f.sessionsErr }
 func (f *fakeRuntime) SessionBlocksReuse(session string) bool { return f.blocksReuse[session] }
 func (f *fakeRuntime) ProbeSessionName(session string) error {
+	f.probeCount++ // #215: every probe is a subprocess; some tests bound the count
 	if f.probeErr != nil {
 		return f.probeErr
 	}

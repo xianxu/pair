@@ -111,7 +111,7 @@ func New(namespace CouchNamespace, r Runner, p PathOps, g GitRunner, proc ProcOp
 		reg:       reg, names: names,
 		postAckQuiesceTimeout:     500 * time.Millisecond,
 		postAckRetryDelay:         100 * time.Millisecond,
-		resumeRegistrationTimeout: 5 * time.Second,
+		resumeRegistrationTimeout: pairRegistrationTimeout,
 		sleep:                     time.Sleep,
 	}
 	if err := result.reconcileInterruptedStarts(); err != nil {
@@ -270,6 +270,24 @@ func (c *Couch) resolveStartResolution(ctx context.Context, args StartArgs) (Sta
 // repoIdentityTimeout matches the 5s bound the deleted ExecPolicyResolver
 // applied to the subprocess this call replaced, so the envelope did not widen
 // when the provider went (pair#170 M4).
+// pairRegistrationTimeout bounds the wait for a launched pair to write its
+// thread-claim as `established`.
+//
+// MEASURED, not chosen. A calm `pair resume <tag> --layout3` -- zellij, three
+// panes, nvim and a coding agent -- registered in 8.85s (#215). The previous 5s
+// was a bare constant with no stated basis, fronting a full workbench bring-up;
+// it was always marginal, ordinary drift pushed startup past it, and couch
+// reported only "context deadline exceeded" with no way to tell whether pair had
+// even started. 15s is ~1.7x the measured calm latency.
+//
+// It is a fixed constant fronting work that must stay BOUNDED for that to keep
+// being true (ARCH-CONSTRAINTS). Name assignment used to be O(threads this repo
+// had ever had) -- 52 zellij subprocesses, at 17.6ms calm but 467ms under load
+// (#203) -- which would re-cross any constant as the fleet grew. #215 made it
+// O(1); if anything unbounded moves back inside this window, raising the number
+// is the wrong fix.
+const pairRegistrationTimeout = 15 * time.Second
+
 const repoIdentityTimeout = 5 * time.Second
 
 // resolveRepoIdentity returns the Git common directory for a working path.
