@@ -1583,6 +1583,11 @@ func (c *Console) couchMayOwnTheMouse() bool {
 // no new input path was needed: it sees every byte before focus is considered,
 // so the panel needs no PanelKey kind and panelkeys.go is untouched.
 func (c *Console) onMouse(hit MouseHit) {
+	// Before routing, so routing and forwarding see one canonical event rather
+	// than two. Routing is unaffected either way — its only button test is
+	// `Button == 0`, and every wheel code is non-zero — which is what makes
+	// doing it once here safe (#213).
+	hit.Event, hit.Raw = stripWheelResizeModifier(hit.Event, hit.Raw)
 	c.mu.Lock()
 	rows := int(c.size.Rows)
 	panel := c.focus.IsPanel()

@@ -1,6 +1,7 @@
 package mouseinput
 
 import (
+	"bytes"
 	"strings"
 	"testing"
 )
@@ -95,4 +96,44 @@ func TestIsPrefixCoversEveryGenuinePrefixAndNothingElse(t *testing.T) {
 	if len("\x1b[<"+strings.Repeat("9", MaxReport)) <= MaxReport {
 		t.Fatal("MaxReport does not bound anything")
 	}
+}
+
+// The risky class for WithButton is arbitrary bytes, not a list of shapes: it is
+// a splice into a wire format, so the property that matters is that it changes
+// the button and NOTHING else, for any input and any button.
+func FuzzWithButtonChangesOnlyTheButton(f *testing.F) {
+	f.Add([]byte("\x1b[<0;7;9M"), 64)
+	f.Add([]byte("\x1b[<80;120;44m"), 65)
+	f.Add([]byte("\x1b[<84;1;1M"), 68)
+	f.Add([]byte("\x1b[<"), 0)
+	f.Add([]byte("\x1b[<abc;1;1M"), 3)
+	f.Add([]byte("\x1b[<0;7;9M"), -1)
+	f.Add([]byte(""), 0)
+	f.Fuzz(func(t *testing.T, raw []byte, button int) {
+		out, ok := WithButton(raw, button)
+		before, parsed := Parse(raw)
+
+		if !parsed || button < 0 {
+			if ok {
+				t.Fatalf("WithButton(%q, %d) accepted input Parse rejects", raw, button)
+			}
+			return
+		}
+		if !ok {
+			t.Fatalf("WithButton(%q, %d) refused a parseable report", raw, button)
+		}
+		after, ok := Parse(out)
+		if !ok {
+			t.Fatalf("spliced report no longer parses: %q", out)
+		}
+		want := before
+		want.Button = button
+		if after != want {
+			t.Fatalf("WithButton(%q, %d) = %q -> %+v, want %+v", raw, button, out, after, want)
+		}
+		// Everything from the first separator on is the terminal's own bytes.
+		if got, expected := out[bytes.IndexByte(out, ';'):], raw[bytes.IndexByte(raw, ';'):]; !bytes.Equal(got, expected) {
+			t.Fatalf("bytes after the button field changed: %q, want %q", got, expected)
+		}
+	})
 }

@@ -537,3 +537,33 @@ func TestAChildDroppingItsModeMakesCouchReclaimTheTerminalWithoutAPaintCall(t *t
 		return strings.Contains(host.Written(), hostty.EnableMouseClicks)
 	})
 }
+
+// The strip must be CALLED, not merely correct. Both halves of it are pure, so a
+// discarded result or a call placed in the wrong branch compiles and leaves
+// every unit test green — this drives the real onMouse path end to end, which is
+// the only thing that can catch that.
+func TestForwardStripsCtrlFromWheelReports(t *testing.T) {
+	con, writer, _, _ := newMouseFixture(t)
+	child := con.activeChild()
+	child.Feed([]byte("\x1b[?1000;1006h"))
+	waitFor(t, "the child's mouse mode to register", func() bool { return child.Mouse() })
+
+	const ctrlWheelUp = "\x1b[<80;7;9M"
+	const plainWheelUp = "\x1b[<64;7;9M"
+	if _, err := writer.Write([]byte(ctrlWheelUp)); err != nil {
+		t.Fatal(err)
+	}
+	waitFor(t, "the stripped report to reach the child", func() bool {
+		for _, w := range child.Writes() {
+			if string(w) == plainWheelUp {
+				return true
+			}
+		}
+		return false
+	})
+	for _, w := range child.Writes() {
+		if string(w) == ctrlWheelUp {
+			t.Fatal("the child received the ctrl-modified report; zellij would resize the pane instead of scrolling")
+		}
+	}
+}
