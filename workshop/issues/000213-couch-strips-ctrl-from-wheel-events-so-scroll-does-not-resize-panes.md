@@ -1,11 +1,12 @@
 ---
 id: 000213
-status: open
+status: working
 deps: []
 github_issue:
 created: 2026-09-07
-updated: 2026-09-07
+updated: 2026-09-09
 estimate_hours:
+started: 2026-09-09T07:49:18-07:00
 ---
 
 # couch strips ctrl from wheel events so scroll does not resize panes
