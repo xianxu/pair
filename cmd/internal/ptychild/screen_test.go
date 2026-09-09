@@ -1,6 +1,9 @@
 package ptychild
 
 import (
+	"os"
+	"reflect"
+	"regexp"
 	"strings"
 	"testing"
 )
@@ -717,5 +720,139 @@ func TestEverySafetyInputIsClearedByRIS(t *testing.T) {
 	if s.HoldsCursorSave() || s.AltScreen() || s.MidSequence() {
 		t.Fatalf("after RIS: save=%v alt=%v mid=%v; all must be clear",
 			s.HoldsCursorSave(), s.AltScreen(), s.MidSequence())
+	}
+}
+
+// safetyInputs DERIVES the set of fields SafeToPaint reads, from SafeToPaint's
+// own source, expanding the same-receiver predicates it calls.
+//
+// Hand-listing that set is what failed. BR-81 was a field promoted to a safety
+// input without auditing its resets, and the guard written for it enumerated
+// three fields by hand -- so a fourth input added tomorrow would leave that
+// guard passing while unreset. The set has to come from the code, not memory.
+func safetyInputs(t *testing.T) []string {
+	t.Helper()
+	raw, err := os.ReadFile("screen.go")
+	if err != nil {
+		t.Fatal(err)
+	}
+	src := string(raw)
+
+	body := func(method string) string {
+		i := strings.Index(src, "func (s *Screen) "+method+"(")
+		if i < 0 {
+			t.Fatalf("%s not found in screen.go; this guard is checking nothing", method)
+		}
+		rest := src[i:]
+		if j := strings.Index(rest[1:], "\nfunc "); j >= 0 {
+			rest = rest[:j]
+		}
+		return rest
+	}
+
+	callRe := regexp.MustCompile(`s\.([A-Za-z][A-Za-z0-9]*)\(`)
+	fieldRe := regexp.MustCompile(`s\.([a-z][A-Za-z0-9]*)\b`)
+
+	text := body("SafeToPaint")
+	for _, m := range callRe.FindAllStringSubmatch(text, -1) {
+		text += body(m[1]) // one level of expansion: SafeToPaint's own predicates
+	}
+
+	calls := map[string]bool{}
+	for _, m := range callRe.FindAllStringSubmatch(text, -1) {
+		calls[m[1]] = true
+	}
+	seen := map[string]bool{}
+	var out []string
+	for _, m := range fieldRe.FindAllStringSubmatch(text, -1) {
+		if calls[m[1]] || seen[m[1]] {
+			continue
+		}
+		seen[m[1]] = true
+		out = append(out, m[1])
+	}
+	if len(out) == 0 {
+		t.Fatal("derived no safety inputs; the parse broke and this guard is blind")
+	}
+	return out
+}
+
+// Every field SafeToPaint reads must be REACHABLE by a sequence this test
+// knows how to write, and must be zero after RIS.
+//
+// The two halves are the two obligations that each cost a Critical in #199:
+//
+//   - reachability is the positive control. Add an input tomorrow without
+//     adding the sequence that sets it, and the RIS half would pass vacuously
+//     -- which is how four tests in this issue passed for the wrong reason.
+//   - the RIS half is BR-81: promoting a field to a safety input obliges an
+//     audit of every path that resets the state it models.
+//
+// Framing fields (pending, skipping) are cleared by COMPLETING the sequence
+// rather than by RIS, which is why the corpus terminates each entry -- classify
+// only ever runs on a whole sequence, so RIS is never read mid-sequence.
+func TestTheSafetyInputSetIsDerivedNotRemembered(t *testing.T) {
+	inputs := safetyInputs(t)
+
+	corpus := []struct {
+		what string
+		seq  string
+	}{
+		{"a held cursor save (DECSC)", "\x1b7"},
+		{"the alt screen (?1047h)", "\x1b[?1047h"},
+		{"a partial sequence held across reads", "\x1b[3"},
+		{"a sequence too long to buffer", "\x1b[" + strings.Repeat("1;", maxPending)},
+	}
+
+	// Reachability: the corpus must be able to set every derived input.
+	reached := map[string]bool{}
+	for _, c := range corpus {
+		var s Screen
+		s.FeedFraming([]byte(c.seq))
+		v := reflect.ValueOf(&s).Elem()
+		for _, name := range inputs {
+			f := v.FieldByName(name)
+			if !f.IsValid() {
+				t.Fatalf("SafeToPaint reads s.%s but Screen has no such field", name)
+			}
+			if !f.IsZero() {
+				reached[name] = true
+			}
+		}
+	}
+	for _, name := range inputs {
+		if !reached[name] {
+			t.Errorf("SafeToPaint reads s.%s but no corpus entry sets it; add the "+
+				"sequence that does, or the RIS check below passes vacuously for it", name)
+		}
+	}
+
+	// RIS closure: with every input the corpus can set actually set, the reset
+	// must return all of them to zero.
+	var s Screen
+	for _, c := range corpus {
+		s.FeedFraming([]byte(c.seq))
+		s.FeedFraming([]byte("m")) // terminate: closes a pending CSI and a skip
+	}
+	v := reflect.ValueOf(&s).Elem()
+	anySet := false
+	for _, name := range inputs {
+		if !v.FieldByName(name).IsZero() {
+			anySet = true
+		}
+	}
+	if !anySet {
+		t.Fatal("the corpus left every safety input clear; the RIS check would prove nothing")
+	}
+
+	s.FeedFraming([]byte("\x1bc")) // RIS
+	for _, name := range inputs {
+		if !v.FieldByName(name).IsZero() {
+			t.Errorf("RIS left s.%s set; a field SafeToPaint reads must be cleared by "+
+				"every reset of the state it models, or the gate stays shut for good", name)
+		}
+	}
+	if !s.SafeToPaint() {
+		t.Error("the gate is still closed after RIS")
 	}
 }

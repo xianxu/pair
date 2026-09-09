@@ -1331,3 +1331,58 @@ destroy a session it made" structural; this is the other half. Every probe is no
 `TestNoProbeExitsPastItsOwnCleanup` (a go/ast pass over `probes/` and
 `cmd/probes/`) fails when a function containing a defer calls `os.Exit`. It found
 three probes beyond the three the review named.
+
+### 2026-09-08 — Close round 7: the loop's own root cause, closed over the class
+
+The close ran six rounds. Rounds 1–3 found defects in the original work; **rounds
+4, 5 and 6 each found a Critical introduced by the previous round's fix**, and
+all three were the same predicate, `Screen.SafeToPaint` — BR-78 (a consumer left
+on the old question), BR-79 (an input whose lifetime does not match the
+question), BR-81 (an input not reset on every path). Round 7 stops patching the
+named site and discharges the three obligations mechanically instead.
+
+**The audit, run rather than described.**
+
+- *Consumers.* Every `hostScan.` reference in `couchtty/console.go` and
+  `termcmd/run.go`: five production reads in couch (1011, 1111, 1141, 1188,
+  1207), one in `pair term` (`unsafeToPaint`, 935) — all ask `SafeToPaint()`. The
+  two bare `MidSequence()` reads at run.go:1120/1124 are inside
+  `midSequenceForTest`, a probe that deliberately observes one half. **Clean.**
+- *Writers and resets.* `cursorSaved` is written at six sites (RIS, DECSC/DECRC,
+  SCOSC/SCORC, `?1048`, `?1049`), `altScreen` at three (RIS, `?1049`,
+  `?1047`/`?47`) — matching the save-slot enumeration in `classify`. **Clean**,
+  and only since BR-81 added the RIS line.
+- *Child swap.* `m.hostScan = ptychild.Screen{}` (run.go:894) and
+  `c.hostScan = ptychild.Screen{}` (console.go:994) zero the scanner on takeover;
+  `skipNone` is `iota`, so the zero value is `SafeToPaint() == true`. **Clean.**
+- *Known, deliberate gap:* DECSTR (`CSI ! p`) is unclassified. It resets the
+  saved-cursor state, so not clearing the debt leaves the gate closed slightly
+  longer than necessary — a liveness cost, not a safety hole, and self-correcting
+  at the child's next save or reset. Recorded rather than fixed.
+
+**The two guards were themselves scoped to the reported site**, which is the same
+defect one level up, so both are now closed over their class:
+
+- `tests/paint-gate-consumers-test.sh` (new, wired into `make test`) walks every
+  `hostScan.` reference in both packages and fails one that reads the gate
+  without `SafeToPaint()`. It generalizes the half of
+  `TestTheNotificationDrainAndItsEntryGuardAskOneQuestion` that banned a bare
+  `MidSequence()`: that test checked one function — the one BR-78 named — and
+  would have passed had the unguarded consumer been any other. It stays, for the
+  half the shell guard does not cover (the drain must ask the question *twice*,
+  at the entry guard and in the loop). Mutation-verified: rewriting
+  console.go:1141 to `!MidSequence()` fails the new guard.
+- `TestTheSafetyInputSetIsDerivedNotRemembered` (new) **parses `SafeToPaint`'s own
+  source** for the fields it reads — deriving `{cursorSaved, altScreen, pending,
+  skipping}` rather than trusting the hand-written list in
+  `TestEverySafetyInputIsClearedByRIS` — and requires each to be reachable by a
+  corpus sequence *and* zero after RIS. Mutation-verified twice: dropping
+  `s.altScreen = false` fails the RIS half; adding an unreachable input to
+  `SafeToPaint` fails the reachability half, so the RIS half cannot pass
+  vacuously.
+
+The lesson is recorded in `workshop/lessons.md` as *"Changing what a shared
+predicate MEANS is three obligations"*. Its operational half: **prefer the check
+that derives its own scope over the check kept correct by remembering to.**
+`paneWriter` not being an `io.Writer` cost one line and has needed no round;
+every guard here that merely *checked* has itself needed a coverage audit.

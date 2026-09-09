@@ -3907,3 +3907,63 @@ reason.
   "a probe can only delete a session it created" was enforced by construction,
   which read as "sessions are handled" — while "a probe always deletes the session
   it created" was still just a defer in the wrong place.
+
+## 2026-09-08 — Changing what a shared predicate MEANS is three obligations; discharging one is how you cause the next Critical
+
+pair#199's close ran six review rounds. Rounds 1–3 found defects in the original
+work. **Rounds 4, 5 and 6 each found a Critical introduced by the previous
+round's fix** — and all three were the same predicate, `ptychild.Screen.SafeToPaint`,
+the shared gate that says whether a console may paint the reserved row.
+
+| round | defect | the obligation the previous fix left undischarged |
+|---|---|---|
+| BR-78 | couch's notification drain still gated on the old, narrower question → a spin | **every consumer must ask it** |
+| BR-79 | `?1049h` holds the save slot for nvim's whole session → strip frozen for minutes | **each input's lifetime must match the question being asked** |
+| BR-81 | RIS never cleared `altScreen` → the save half of the gate off for good | **each input must be maintained on every path that resets what it models** |
+
+Each round I fixed the thing the reviewer named and shipped. The reviewer was
+finding one obligation at a time because **I was generalizing one step, not to
+closure.** BR-77 said "couch is unguarded"; I read the class as *the call sites
+that look like the reported one* and updated four of five. BR-79 said "1049
+freezes the strip"; I corrected that input's semantics and never asked what the
+other input's lifecycle looked like.
+
+- **A predicate over shared state has three closures, not one.** Consumers,
+  writers, resets. Enumerate all three the moment you change what the predicate
+  means — mechanically, in the same sitting. `grep -n "cursorSaved = \|altScreen = "`
+  and `grep -rn "hostScan\."` are seconds each, and either one, run in round 4,
+  ends the loop there.
+- **Promoting a field to a safety input is the expensive edit**, not the line
+  that reads it. A field that was advisory (`altScreen`, used to pick a repaint
+  strategy) has no obligation to be reset promptly. The same field consulted for
+  *safety* now must be correct on every path. The promotion is where the audit is
+  owed; that is the sentence now sitting above `s.altScreen = false` in the code.
+- **A conservative-looking gate is not automatically safe.** BR-79's fix made the
+  gate close *more* often, which felt safe and was in fact the worst regression of
+  the three: the strip is a liveness surface, so a permanently-shut gate is a
+  visible product defect where the hazard it prevented was a one-frame glitch.
+  "Fails closed" is only safe when closed is cheap.
+
+**And the guards I wrote had the same defect as the code.** The one for BR-78
+checked a single function — the one the reviewer named — and would have passed if
+the unguarded consumer had been any other. The one for BR-81 hand-listed three
+fields, so a fourth safety input added tomorrow leaves it green. Both are now
+closed over their class instead:
+
+- `tests/paint-gate-consumers-test.sh` walks *every* `hostScan.` reference in both
+  packages and fails any that reads the gate without asking `SafeToPaint()`.
+- `TestTheSafetyInputSetIsDerivedNotRemembered` **parses `SafeToPaint`'s own source**
+  for the fields it reads, then requires each one to be reachable by a test
+  sequence *and* zero after RIS. Add an input without a reset and it fails; add an
+  input without a way to set it and it fails too, so the RIS half can never pass
+  vacuously.
+
+The general rule, and the one countermeasure in this issue that never needed a
+second round: **prefer the check that derives its own scope over the check you
+keep in step by remembering to.** `paneWriter` deliberately not being an
+`io.Writer` — a new door is a compile error — cost one line and has held for the
+whole issue. Every guard here that merely *checked* has itself needed a coverage
+audit. Cf. [Stating a class rule is not closing it] and [A guard you write to
+close a class needs the same adversarial check as the code it guards]: this is
+the same family, one level up — the enumeration must be executed *by the guard*,
+not by me at the moment I write it.
