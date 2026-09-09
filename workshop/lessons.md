@@ -4085,3 +4085,32 @@ running three of the four things it claimed — including inside a close's
 `--verified` evidence, where I quoted it to the operator as proof. **"Matches
 something" is not the property; "every name resolves" is.** An enumerated
 selector must be checked element-wise, and the guard now does.
+
+## Snapshot a timer's epoch before draining events that can re-mint it
+
+An idle-expiry branch drained queued lifecycle observations and *then* read the
+timer's epoch token. The drain reduces those observations, and an opener among
+them mints a new turn — advancing the very token field the expiry was about to
+read. The stale expiry therefore matched a turn opened microseconds earlier,
+notified against it, and consumed its one-shot floor.
+
+**Rule.** When a handler both (a) drains a queue that can mutate state and (b)
+validates itself against a token from that state, read the token *before* the
+drain and pass it in as a parameter. A field read after the drain is a different
+epoch. Prefer making this structural — the token as a function argument, so the
+call site's evaluation order pins it — over a comment asking the next reader to
+preserve the ordering. Caught in #000171 close review (`ARCH-ORDER`).
+
+## A race test must be shown to enter the branch it names
+
+A test named for "idle expiry racing a queued boundary" never entered the idle
+branch at all: the loop's ordinary event case consumed the queued observation
+well before the deadline, so removing the entire drain the test existed to pin
+left it green.
+
+**Rule.** For a test that claims to exercise an interleaving inside a select or
+scheduler loop, either instrument it to prove the target branch executes, or
+extract that branch into a named function the test calls directly so the
+ordering is injected rather than raced. Then prove falsifiability: reintroduce
+the bug and watch the test fail. A timing-dependent arrangement that merely
+*could* hit the branch pins nothing. Caught in #000171 close review.

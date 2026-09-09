@@ -275,6 +275,10 @@ type proxy struct {
 	writeTTY             func(fd int, p []byte) (int, error)
 	// pair-slug spawn debounce (#000027)
 	lastSlug time.Time
+	// spawnSlug is the slug side effect, injectable so tests whose emit lands
+	// after a live timer can never race the wall-clock debounce into spawning
+	// a real model call on the operator's machine (BR-11). nil = production.
+	spawnSlug func()
 
 	// Span LRU. spans maps key="<color>\t<text>" → *spanEntry; order keeps
 	// insertion order, oldest at Front, newest at Back. Move-to-back on
@@ -591,6 +595,10 @@ func (p *proxy) maybeSpawnSlug() {
 	}
 	p.lastSlug = now
 	p.debug("SLUG-spawn", "agent="+p.agentBasename)
+	if p.spawnSlug != nil {
+		p.spawnSlug()
+		return
+	}
 	go func() { _ = slugSpawnCmd(p.agentBasename).Run() }()
 }
 
@@ -1772,11 +1780,13 @@ func snippetLine(s string, idx int) string {
 // restoring the textarea-aware plainCR remap for the next Enter.
 // See the pickerActive field doc for the open/close protocol.
 func (p *proxy) emitPlainCR(out []byte) []byte {
-	if p.ttyProfile == nil {
-		// No remap profile: the CR goes straight to the agent, so it is a
-		// submission for the notification floor's purposes (#171).
-		p.publishLifecycleObservation(TurnObservation{Kind: ObservationBareReturn})
-		return append(out, '\r')
+	// A nil profile means no remap at all. It still goes through
+	// decidePlainReturn — as the zero profile, which fails closed to the bare
+	// CR it used to hardcode — so the `submits` rule has exactly one home and
+	// the overlay check is not skipped on this defensive path (BR-7).
+	var profile harnessTTYProfile
+	if p.ttyProfile != nil {
+		profile = *p.ttyProfile
 	}
 	p.overlayMu.Lock()
 	overlayActive := p.pickerActive.Swap(false)
@@ -1792,7 +1802,7 @@ func (p *proxy) emitPlainCR(out []byte) []byte {
 		current := p.terminal.Snapshot()
 		snapshot = &current
 	}
-	decision := decidePlainReturn(*p.ttyProfile, overlayActive, snapshot)
+	decision := decidePlainReturn(profile, overlayActive, snapshot)
 	p.adapt.Log(1, "return-remap", decision.outcome, decision.reason)
 	if decision.submits {
 		p.publishLifecycleObservation(TurnObservation{Kind: ObservationBareReturn})
@@ -2689,32 +2699,13 @@ func (p *proxy) masterPump() {
 			}
 		lifecycleDrained:
 			p.handleChunk(ev.data, &rolling)
-			// Output pushes the floor's deadline out, but only while the floor
-			// is armed for an open, unreported turn. syncIdleTimer owns that
-			// predicate so arming can never drift from lifecycle state.
-			p.syncIdleTimer()
+			// Output — and only output — pushes the floor's deadline out; the
+			// alert it emits claims byte-silence.
+			p.bumpIdleDeadline()
 		case <-idleTimer.C:
-			// Drain queued boundaries first, exactly as the chunk branch does
-			// above: a submission or completion that was already published but
-			// not yet reduced must be applied before the expiry is, or the
-			// floor could alert against a turn that has just been reported.
-			for {
-				select {
-				case observation := <-p.lifecycleEvents:
-					p.processLifecycleObservation(observation)
-				default:
-					goto idleDrained
-				}
-			}
-		idleDrained:
-			idleMessage := fmt.Sprintf("no agent output for %.0fs", p.idleS.Seconds())
-			p.debug("IDLE", idleMessage)
-			p.traceWrap("idle", map[string]any{"idle_s": p.idleS.Seconds()})
-			p.processLifecycleObservation(TurnObservation{
-				Kind:    ObservationIdleExpired,
-				Token:   p.idleTimerToken,
-				Message: idleMessage,
-			})
+			// p.idleTimerToken is read HERE, before applyIdleExpiry's drain can
+			// advance it onto a newly opened turn (BR-2).
+			p.applyIdleExpiry(p.idleTimerToken)
 		case <-captureTick.C:
 			p.captureMu.Lock()
 			due := p.captureActive && !time.Now().Before(p.captureDeadline)

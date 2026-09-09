@@ -154,11 +154,19 @@ func TestProxyLifecycleUsesOneOwnedResettableTimer(t *testing.T) {
 func FuzzNotificationLifecycleAtMostOncePerGeneration(f *testing.F) {
 	f.Add([]byte{0, 2, 3, 4, 5})
 	f.Add([]byte{6, 7, 8, 9, 1, 4})
+	f.Add([]byte{1, 11, 11, 12, 5})
 	f.Fuzz(func(t *testing.T, input []byte) {
 		state := NotificationLifecycle{}
-		notified := make(map[uint64]bool)
+		// One completion per generation, and — since the idle floor is an
+		// alert that deliberately leaves the turn open — at most one alert
+		// alongside it. Tracked separately rather than as a single "notified"
+		// set, which the alert path would otherwise trip legitimately.
+		completed := make(map[uint64]bool)
+		alerted := make(map[uint64]bool)
 		for _, raw := range input {
-			kind := ObservationKind(raw%byte(ObservationGraceExpired) + 1)
+			// Bound derived from the enum sentinel, so a kind added to
+			// ObservationKind is covered here without editing this line.
+			kind := ObservationKind(raw%byte(observationKindCount-1) + 1)
 			turnID := "turn-a"
 			if raw&0x80 != 0 {
 				turnID = "turn-b"
@@ -169,6 +177,8 @@ func FuzzNotificationLifecycleAtMostOncePerGeneration(f *testing.F) {
 				observation.Token = state.WatchdogToken
 			case ObservationGraceExpired:
 				observation.Token = state.GraceToken
+			case ObservationIdleExpired:
+				observation.Token = state.IdleToken
 			}
 			var decision LifecycleDecision
 			state, decision = Reduce(state, observation)
@@ -178,12 +188,27 @@ func FuzzNotificationLifecycleAtMostOncePerGeneration(f *testing.F) {
 			if state.Generation == 0 {
 				t.Fatal("notification emitted without an opened generation")
 			}
-			if notified[state.Generation] {
-				t.Fatalf("generation %d notified more than once", state.Generation)
+			seen := completed
+			label := "completed"
+			if kind == ObservationIdleExpired {
+				seen, label = alerted, "alerted"
 			}
-			notified[state.Generation] = true
+			if seen[state.Generation] {
+				t.Fatalf("generation %d %s more than once", state.Generation, label)
+			}
+			seen[state.Generation] = true
 		}
 	})
+}
+
+// Guards the sentinel the fuzz derives its bound from: if a kind is appended
+// without moving observationKindCount, this fails rather than silently
+// shrinking the fuzz's coverage.
+func TestObservationKindCountIsOnePastTheLastKind(t *testing.T) {
+	if observationKindCount != ObservationBareReturn+1 {
+		t.Fatalf("observationKindCount = %d, want one past ObservationBareReturn (%d)",
+			observationKindCount, ObservationBareReturn+1)
+	}
 }
 
 // ----- Idle floor (#171) ------------------------------------------------------

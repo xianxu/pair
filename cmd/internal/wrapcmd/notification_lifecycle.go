@@ -1,6 +1,7 @@
 package wrapcmd
 
 import (
+	"fmt"
 	"time"
 
 	"github.com/xianxu/pair/cmd/internal/sessionwatch"
@@ -35,12 +36,26 @@ const (
 	// the only submission signal on that path, so it opens a turn when none is
 	// open; inside an open turn (answering a menu) it is a no-op.
 	ObservationBareReturn
+	// observationKindCount is one past the last kind. Enumerations over the
+	// kind space derive their bound from it, so a kind added above is covered
+	// without editing the consumer (BR-4).
+	observationKindCount
 )
 
 // defaultIdleMessage is used when the caller supplies no interval-formatted
 // text. It states what was observed — silence — and claims nothing about
 // whether the agent finished, since the floor cannot know that.
 const defaultIdleMessage = "no agent output"
+
+// idleAlertMessage renders the floor's interval honestly at any scale — the
+// production interval is seconds, but tests run it in milliseconds and
+// "%.0fs" reported those as "0s".
+func idleAlertMessage(interval time.Duration) string {
+	if interval < time.Second {
+		return fmt.Sprintf("%s for %dms", defaultIdleMessage, interval.Milliseconds())
+	}
+	return fmt.Sprintf("%s for %.0fs", defaultIdleMessage, interval.Seconds())
+}
 
 type TurnObservation struct {
 	Kind    ObservationKind
@@ -253,6 +268,45 @@ func (p *proxy) syncLifecycleTimer() {
 	}
 }
 
+// applyIdleExpiry handles one idle-timer expiry. `token` is the epoch that
+// actually expired and MUST be read by the caller before this runs: the drain
+// below reduces queued observations, and an opener among them mints a new turn
+// with a new IdleToken (advancing p.idleTimerToken in lockstep). Reading the
+// token after the drain would match that brand-new turn and alert against it
+// microseconds after it opened, consuming its floor (BR-2).
+//
+// The drain itself mirrors the chunk branch: a submission or completion already
+// published but not yet reduced must be applied before the expiry is.
+func (p *proxy) applyIdleExpiry(token uint64) {
+	for {
+		select {
+		case observation := <-p.lifecycleEvents:
+			p.processLifecycleObservation(observation)
+			continue
+		default:
+		}
+		break
+	}
+	// BR-6: the watchdog/grace deadline and this one can be co-ready, and Go
+	// picks between select cases at random. Give the lifecycle timer
+	// precedence so "agent stopped working" is not displaced by the less
+	// informative silence alert (the 0.5s emit limiter would drop the second).
+	if p.lifecycleTimer != nil {
+		select {
+		case <-p.lifecycleTimer.C:
+			kind, lifecycleToken := p.lifecycleTimerKind, p.lifecycleTimerToken
+			p.processLifecycleObservation(TurnObservation{Kind: kind, Token: lifecycleToken})
+		default:
+		}
+	}
+	message := idleAlertMessage(p.idleS)
+	p.debug("IDLE", message)
+	p.traceWrap("idle", map[string]any{"idle_s": p.idleS.Seconds()})
+	p.processLifecycleObservation(TurnObservation{
+		Kind: ObservationIdleExpired, Token: token, Message: message,
+	})
+}
+
 // syncIdleTimer ties the idle floor's arming to lifecycle state, exactly as
 // syncLifecycleTimer does for the watchdog and grace deadlines. The floor is
 // armed only while a turn is open, unreported, and has not already raised its
@@ -267,11 +321,23 @@ func (p *proxy) syncIdleTimer() {
 		return
 	}
 	state := p.notificationLifecycle
-	if state.Active && !state.Completed && !state.IdleNotified && state.IdleToken != 0 {
-		p.resetIdleTimer()
+	if !(state.Active && !state.Completed && !state.IdleNotified && state.IdleToken != 0) {
+		p.stopIdleTimer()
 		return
 	}
-	p.stopIdleTimer()
+	if p.idleTimerToken != state.IdleToken {
+		p.resetIdleTimer() // a new turn: arm the floor on its epoch
+	}
+}
+
+// bumpIdleDeadline pushes an armed floor's deadline out on agent OUTPUT. Only
+// output moves it: the alert claims byte-silence, so a lifecycle record that
+// arrives with no pane output must not extend the window it describes (BR-10).
+func (p *proxy) bumpIdleDeadline() {
+	if p.idleTimer == nil || p.idleS <= 0 || p.idleTimerToken == 0 {
+		return
+	}
+	p.resetIdleTimer()
 }
 
 // resetIdleTimer restarts the deadline without changing the epoch: IdleToken is
@@ -283,12 +349,7 @@ func (p *proxy) resetIdleTimer() {
 	}
 	// Stop+drain+reset is safe here because only the master goroutine reads
 	// idleTimer.C.
-	if !p.idleTimer.Stop() {
-		select {
-		case <-p.idleTimer.C:
-		default:
-		}
-	}
+	drainStop(p.idleTimer)
 	p.idleTimerToken = p.notificationLifecycle.IdleToken
 	p.idleTimer.Reset(p.idleS)
 }
@@ -297,13 +358,19 @@ func (p *proxy) stopIdleTimer() {
 	if p.idleTimer == nil {
 		return
 	}
-	if !p.idleTimer.Stop() {
+	drainStop(p.idleTimer)
+	p.idleTimerToken = 0
+}
+
+// drainStop stops a timer and clears any expiry already sitting in its channel.
+// Safe only on the master goroutine, the sole reader of these channels.
+func drainStop(t *time.Timer) {
+	if !t.Stop() {
 		select {
-		case <-p.idleTimer.C:
+		case <-t.C:
 		default:
 		}
 	}
-	p.idleTimerToken = 0
 }
 
 func (p *proxy) resetLifecycleTimer(kind ObservationKind, token uint64, after time.Duration) {
@@ -317,12 +384,7 @@ func (p *proxy) stopLifecycleTimer() {
 	if p.lifecycleTimer == nil {
 		return
 	}
-	if !p.lifecycleTimer.Stop() {
-		select {
-		case <-p.lifecycleTimer.C:
-		default:
-		}
-	}
+	drainStop(p.lifecycleTimer)
 	p.lifecycleTimerKind = ObservationUnknown
 	p.lifecycleTimerToken = 0
 }
