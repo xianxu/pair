@@ -217,3 +217,214 @@ findings:
       against", which the Critical finding shows is false for drained openers. Both
       need a clause once the token fix lands.
 ```
+
+---
+
+## Re-review — 2026-09-09T02:57:57-07:00 (FIX-THEN-SHIP)
+
+| field | value |
+|-------|-------|
+| issue | 171 — Always-on idle notification fallback |
+| repo | pair |
+| issue file | workshop/issues/000171-idle-notification-fallback.md |
+| boundary | whole-issue close |
+| milestone | — |
+| window | 9edc8a9772321eed8999dd5cacef28cdd4d0fd31..d483b5606f70ed83149b2364e26b3e3de940ee45 |
+| command | sdlc close --issue 171 |
+| reviewer | claude |
+| timestamp | 2026-09-09T02:57:57-07:00 |
+| verdict | FIX-THEN-SHIP |
+
+## Review
+
+```verdict
+verdict: FIX-THEN-SHIP
+confidence: high
+```
+
+Round 1's Critical is genuinely fixed and I verified it the hard way: restoring the post-drain token read makes `TestIdleExpiryDoesNotAlertAgainstATurnOpenedByItsOwnDrain` emit exactly the false `no agent output for 60s`; deleting the drain reddens `TestIdleExpiryDrainAppliesAQueuedCompletionFirst`; removing the co-ready precedence block reddens the BR-6 row; removing `bumpIdleDeadline` reddens the output-suppression row. `applyIdleExpiry(token)` is the right extraction — the ordering is now injected, not raced, and `-race -count=3` is clean. What stops SHIP is not correctness but pinning and coverage: three deliverables in this round can be deleted outright with the entire `wrapcmd` package still green — including the `notifyModeActive != "idle"` gate deletion, which is *the* bug this issue exists to fix — and the fuzz seed added for BR-4 never actually reaches `ObservationIdleExpired`, so the widened enumeration and the split invariant it required are inert in `go test`. Separately, the floor's covered population is narrower than README and atlas claim: with `PAIR_WRAP_REMAP_RETURN=0`, or for any agent outside the four `harnessTTYProfiles` entries, no turn-opening observation is ever published, so the "always-armed" floor never arms.
+
+## 1. Strengths
+
+- `notification_lifecycle.go:270-283` — `applyIdleExpiry(token uint64)` makes the epoch a parameter so the call site's evaluation order pins it structurally, not by comment. This is the fix BR-2 asked for and the extraction BR-3 asked for, done as one move.
+- `notification_lifecycle.go:296-302` — giving the lifecycle deadline precedence *inside* the expiry, rather than relying on the 0.5s emit limiter to arbitrate, means the completed turn also swallows the idle alert by token. Better than the finding asked for.
+- `notification_lifecycle.go:316-333` + `336-342` — splitting "arm on a new epoch" (`syncIdleTimer`, idempotent) from "push the deadline out on output" (`bumpIdleDeadline`) is exactly the right decomposition for BR-10, and keeps the alert's claim (byte-silence) true.
+- `harness_tty.go:88-95` + `harness_tty_test.go:105-140` — `submits` decided inside the pure function and asserted on all eight exits, with the "not the same predicate as `adapt.Bypass`" reasoning inline. Class, not instance.
+- `workshop/lessons.md:4089-4116` — both rules extracted from round 1 are written generally enough to fire on the next instance.
+
+## 2. Critical findings
+
+None.
+
+## 3. Important findings
+
+**I-1 — Three of this round's deliverables are pinned by no failing test (repeat of BR-3's rule).**
+Measured by deletion against the full `wrapcmd` package (baseline: 11 pre-existing environmental failures, all pty-child `operation not permitted`; identical set in every mutation):
+
+| deliverable | mutation | result |
+|---|---|---|
+| mode-gate deletion (`wrap.go:2381-2386`) | re-add `if p.notifyModeActive != "idle" { p.idleS = 0 }` | **green** |
+| bare-CR publish site (`wrap.go:1807-1809`) | delete the `if decision.submits { … }` block | **green** |
+| idempotent arming (`notification_lifecycle.go:328-330`) | replace with unconditional `p.resetIdleTimer()` | **green** |
+
+The idle tests construct `proxy` directly with `idleS`/`notifyModeActive` set, so they never traverse the arg-parse seam where the gate lived; and no test drives a plain Enter through `emitPlainCR` to observe an `ObservationBareReturn`. The rule (BR-3's, generalised): **the enumeration is the `## Plan` checklist, and each row is complete only when deleting its code turns a test red.** Sweep it by deletion this round rather than fixing the three sites named here.
+
+**I-2 — BR-4's fix is unreachable in deterministic runs: the fuzz corpus never produces `ObservationIdleExpired`.**
+`notification_lifecycle_test.go:169` maps `raw%12 + 1`, so `ObservationIdleExpired` (11) needs `raw ≡ 10 (mod 12)`. The three seeds — `{0,2,3,4,5}`, `{6,7,8,9,1,4}`, `{1,11,11,12,5}` — yield kinds `{1..10, 12}`; the new seed at :157 was written as if the bytes were kind values and lands on `BareReturn`/`Working`, not `IdleExpired`. Instrumented with a `t.Fatal` on `kind == ObservationIdleExpired`, `go test -run Fuzz` passes. Consequently the alert-plus-completion invariant split is never exercised outside `-fuzz`, and reverting the split to a single `notified` map also passes. Related: `TestObservationKindCountIsOnePastTheLastKind` is inverted — appending a kind *before* the sentinel (correct) fails it, appending *after* the sentinel (the failure mode it names) passes it. See dispose `BR-4: not-addressed`.
+
+**I-3 — The floor does not arm for populations the Spec/atlas claim it covers (repeat of BR-1's family).**
+Turn-opening publishers, enumerated: keyboard submission (`wrap.go:1858,1877`), bare CR (`wrap.go:1808`), progress-OSC `Working` (gated `progressOSCAuthorized` → claude only), transcript-started (codex journal only), marker-completion synthesising `Working` (claude only). The first two live in `translateChunk`, reachable only when `hasReturnRemap()` (`wrap.go:1454`, `wrap.go:1502`). Therefore:
+- `PAIR_WRAP_REMAP_RETURN=0` → `ttyProfile == nil` → `passThroughChunk` → **no keyboard observation of any kind**. README:112 documents this env var purely as a keybinding opt-out; it now silently disables the notification floor too.
+- Any agent outside `harnessTTYProfiles` = {claude, codex, agy, muse} (`agentBasename` is just `filepath.Base(argv[0])`, `wrap.go:2334`) → no profile, not claude, not codex → **zero openers, floor never arms**.
+- Third instance, event-shaped: `notification_lifecycle.go:206-210` makes `ObservationBareReturn` a no-op inside an open turn, so after the one alert fires (`IdleNotified=true`, timer disarmed) the operator's menu answer leaves that turn with **no floor at all** — while an Alt+Enter `ObservationUserSubmission` mid-turn re-opens and re-arms. The bare-CR path is precisely the population with no other timer.
+
+Prevalence: 5 openers enumerated, 2 configurations with zero, 1 of 2 keyboard openers with no re-arm path. Rule: enumerate (agent × config × event) populations the floor claims, confirm each has a live opener and a re-arm, and qualify `atlas/architecture.md:785` ("It arms for every agent") and README:598-612 to match what the enumeration actually delivers.
+
+## 4. Minor findings
+
+- **M-1 (family `duplicated-idiom`, 2nd).** The lifecycle-expiry application is now written twice verbatim — `wrap.go:2667-2669` and `notification_lifecycle.go:296-299`; extract `applyLifecycleExpiry()`. Same rule as BR-8: when a block appears a second time *in the same diff*, extract it. Also measured: the outer-TTY sidecar test fixture (`dir/outer` + `dir/outer-path`) is now at 7 sites, 2 added here (`idle_floor_test.go:33-42`, `:143-152`); a `newLifecycleTestProxy` helper would close both.
+- **M-2.** `TestIdleFloorStaysSilentWhileTheAgentIsProducingOutput` writes every 15ms against a 60ms floor — a 4× margin that a loaded machine can eat, producing a flaky false alert. 5-10× would be safer.
+- **M-3.** `applyIdleExpiry` emits `p.debug("IDLE", …)` and `traceWrap("idle", …)` unconditionally, before the reducer decides whether the alert applies; the debug log will claim an idle expiry that was silently rejected by token.
+- **M-4.** `wrap.go:626` still reads "marker/idle/native all land here" — a stale reference to the deleted mode value.
+
+## 5. Test coverage notes
+
+- Reducer rows (a)-(f) from the Plan all exist and all pin real state transitions, not mocks. `TestIdleFloorIsAnAlertSoARealCompletionStillNotifies` is the one that matters most and it is correct.
+- The master-loop rows genuinely enter `masterPump` over an `os.Pipe` ptmx and observe at `writeTTY` — good seam choice, and `spawnSlug` injection (BR-11) is exercised on every idle test, so no real `pair slug` can spawn.
+- Gaps, all in §3: the arg-parse seam, the `emitPlainCR` publish seam, `syncIdleTimer` idempotency, and `ObservationIdleExpired` under the deterministic fuzz corpus.
+- No test asserts the `spawnSlug` seam is actually taken (removing `spawnSlug: func(){}` from a harness would not redden anything, it would just spawn a model call). Cheap to add alongside I-1's sweep.
+
+## 6. Architectural notes
+
+- **ARCH-DRY** — flag, M-1 (lifecycle-expiry block duplicated; sidecar fixture at 7 sites). `drainStop` itself is a clean pass.
+- **ARCH-PURE** — pass. `Reduce` and `idleAlertMessage` are pure and tested without IO; `syncIdleTimer`/`bumpIdleDeadline`/`applyIdleExpiry` are thin glue over them.
+- **ARCH-PURPOSE** — flag, I-3 and I-2. The single-source shadow-sweep on `ObservationKind` finds one consumer (the fuzz bound) that now derives from the sentinel — good — but the *inputs* to that consumer are still hand-picked bytes, so the derivation buys nothing deterministically.
+- **ARCH-MOCK** — pass. `spawnSlug` is the seam the round-1 finding asked for, and production and test flow share it.
+- **ARCH-CONSTRAINTS** — pass. `bumpIdleDeadline` is O(1) per chunk with an early return when `idleS <= 0`, matching the budget the Plan asserted; `envDuration` yields a negative for a negative `PAIR_WRAP_IDLE_S`, which the `<= 0` guard treats as disabled.
+- **ARCH-SECURE** — N/A for secrets. The one untrusted input is `PAIR_WRAP_IDLE_S`, parsed at the boundary with a documented fallback and pinned by `TestIdleIntervalKnobParsesAnExplicitZeroAsDisabled`.
+- **ARCH-ORDER** — mostly pass, one flag. The expiry/boundary interleaving is now injected through `applyIdleExpiry` rather than sampled, which is the strongest thing in this diff. The flag is I-3's third instance: `(open+alerted, BareReturn)` is an unwritten cell that silently drops the floor. BR-9's five-boolean constellation is unchanged and now deferred to pair#219.
+
+## 7. Plan revision recommendations
+
+- `## Revisions` entry — **"floor coverage is bounded by turn-opening publishers."** Record the enumeration from I-3 and state which populations the floor covers: `PAIR_WRAP_REMAP_RETURN=0` and agents outside `harnessTTYProfiles` are not covered. Either widen (publish the submission observation from `passThroughChunk` too) or declare the limit and qualify `atlas/architecture.md:785` and README:598-612, the way the 2026-09-09 revision handled the never-completes limitation.
+- `## Revisions` entry — **"every Plan row is verified by deletion."** The Plan's `- [x]` rows for the mode gate, the bare-CR publish and the arming rule are ticked on code that no test protects. Add the deletion-sweep as the row's own acceptance condition so the next boundary can check it mechanically.
+
+```findings
+dispose:
+  - id: BR-1
+    disposition: addressed
+    note: |
+      submits decided in decidePlainReturn and asserted on all eight exits; publish keyed on it, not on adapt.Bypass.
+  - id: BR-2
+    disposition: addressed
+    note: |
+      Verified by revert — restoring the post-drain read reddens TestIdleExpiryDoesNotAlertAgainstATurnOpenedByItsOwnDrain.
+  - id: BR-3
+    disposition: addressed
+    note: |
+      Verified by revert — deleting the drain reddens TestIdleExpiryDrainAppliesAQueuedCompletionFirst.
+  - id: BR-4
+    disposition: not-addressed
+    note: |
+      Sentinel and invariant split landed but are unreachable in go test — see Important I-2; also the sentinel guard test is inverted.
+  - id: BR-5
+    disposition: addressed
+    note: |
+      README "The idle floor" section documents the message, the once-per-turn bound and PAIR_WRAP_IDLE_S/=0.
+  - id: BR-6
+    disposition: addressed
+    note: |
+      Verified by revert — removing the precedence block reddens TestIdleExpiryGivesTheLifecycleDeadlinePrecedenceWhenBothAreReady.
+  - id: BR-7
+    disposition: addressed
+    note: |
+      Nil profile now flows through decidePlainReturn as the zero profile; overlay check no longer skipped.
+  - id: BR-8
+    disposition: addressed
+    note: |
+      drainStop extracted; a new duplication appeared in the same diff, raised separately.
+  - id: BR-9
+    disposition: not-addressed
+    note: |
+      Deliberately deferred and tracked as pair#219; pre-existing pattern, Minor, non-blocking.
+  - id: BR-10
+    disposition: not-addressed
+    note: |
+      Message half is pinned; the behavioural half (idempotent arming) is pinned by nothing — an unconditional resetIdleTimer keeps the whole package green.
+  - id: BR-11
+    disposition: addressed
+    note: |
+      spawnSlug seam injected and exercised by both idle harnesses; no wall-clock debounce left.
+  - id: BR-12
+    disposition: addressed
+    note: |
+      Atlas now carries the alert-not-terminal exception and the snapshot-before-drain clause.
+findings:
+  - id: new
+    severity: Important
+    family: unfalsifiable-race-test
+    title: |
+      Three of this round's deliverables can be deleted with the whole wrapcmd package still green, including the mode gate this issue exists to remove
+    detail: |
+      This is the 2nd finding in family `unfalsifiable-race-test`. Do not fix the three
+      sites named here — write the enumeration. Rule: every `- [x]` row in the issue's
+      `## Plan` is complete only when deleting its code turns a test red; sweep the
+      checklist by deletion in this round. Measured against the full package (baseline
+      11 environmental pty-child failures, identical in every mutation): re-adding
+      `if p.notifyModeActive != "idle" { p.idleS = 0 }` near wrap.go:2386 stays green;
+      deleting `if decision.submits { publish ObservationBareReturn }` at
+      wrap.go:1807-1809 stays green; replacing the epoch check at
+      notification_lifecycle.go:328-330 with an unconditional resetIdleTimer stays green.
+      Cause: the idle tests build `proxy` directly with idleS/notifyModeActive set, so
+      they never cross the arg-parse seam, and no test drives a plain Enter through
+      emitPlainCR. Prevalence: 3 of the Plan's 8 rows, measured.
+  - id: new
+    severity: Important
+    family: purpose-vs-covered-population
+    title: |
+      The floor never arms under PAIR_WRAP_REMAP_RETURN=0 or for agents outside harnessTTYProfiles, and a bare CR mid-turn cannot re-arm a spent floor
+    detail: |
+      This is the 2nd finding in family `purpose-vs-covered-population`. Do not fix one
+      site — write the enumeration. Rule: enumerate the (agent x configuration x event)
+      populations the floor claims, and confirm each has at least one live turn-opening
+      publisher and a re-arm path; atlas/architecture.md:785 "It arms for every agent"
+      and README:598-612 must be true of that enumeration or be qualified. Openers
+      enumerated: keyboard submission (wrap.go:1858,1877) and bare CR (wrap.go:1808),
+      both inside translateChunk and reachable only when hasReturnRemap() (wrap.go:1454);
+      progress-OSC Working (claude only, progressOSCAuthorized); transcript-started
+      (codex journal only); marker completion synthesising Working (claude only).
+      So PAIR_WRAP_REMAP_RETURN=0 publishes no keyboard observation at all — README:112
+      still documents that var as a keybinding opt-out only — and any agent outside
+      {claude, codex, agy, muse} has zero openers, since agentBasename is just
+      filepath.Base(argv[0]) (wrap.go:2334). Third instance, event-shaped:
+      notification_lifecycle.go:206-210 makes ObservationBareReturn a no-op inside an
+      open turn, so once the single alert has fired (IdleNotified=true, timer disarmed)
+      the operator's menu answer leaves that turn with no floor, while a mid-turn
+      Alt+Enter re-opens and re-arms. Prevalence: 5 openers, 2 configurations with zero,
+      1 of 2 keyboard openers with no re-arm.
+  - id: new
+    severity: Minor
+    family: duplicated-idiom
+    title: |
+      The lifecycle-expiry application is now written twice, and the outer-TTY sidecar test fixture is at seven sites
+    detail: |
+      This is the 2nd finding in family `duplicated-idiom`. Do not fix the instance —
+      the rule is that a block appearing a second time in the SAME diff gets extracted,
+      which is what produced drainStop for BR-8. Instances: the two-line
+      `kind, token := p.lifecycleTimerKind, p.lifecycleTimerToken; processLifecycleObservation(...)`
+      at wrap.go:2667-2669 and notification_lifecycle.go:296-299 should be one
+      applyLifecycleExpiry(); the `dir/outer` + `dir/outer-path` fixture now appears at
+      7 test sites, 2 added here (idle_floor_test.go:33-42 and :143-152), and wants a
+      shared newLifecycleTestProxy helper. Prevalence: 2 sites and 7 sites, measured.
+  - id: new
+    severity: Minor
+    family: message-overstates-measurement
+    title: |
+      applyIdleExpiry logs IDLE and traces the expiry before the reducer decides whether the alert applies
+    detail: |
+      notification_lifecycle.go:303-305 emits p.debug("IDLE", message) and
+      traceWrap("idle", ...) unconditionally, so a token-rejected expiry — including one
+      the drain or the lifecycle-precedence branch just invalidated — still records a
+      completed idle expiry in the debug log and the trace, which is where a future
+      operator will go to reconstruct why an alert did or did not fire.
+```

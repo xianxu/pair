@@ -101,6 +101,29 @@ var notifyMode = map[string]string{
 
 const notifyModeDefault = "native"
 
+// notifyConfig is the notification wiring for one agent: the mode that owns
+// emit_outer, the end-of-turn marker regex when that mode uses one, and the
+// idle floor's interval. Pure, so "the floor's interval does not depend on
+// notify mode" is a property a test can assert — the old gate zeroed idleS
+// here for every mode but one that nothing was ever assigned, and its absence
+// is otherwise unfalsifiable from outside the startup path (BR-13).
+type notifyConfig struct {
+	mode        string
+	endOfTurnRe *regexp.Regexp
+	idleS       time.Duration
+}
+
+func resolveNotifyConfig(agent string, idle time.Duration) notifyConfig {
+	config := notifyConfig{mode: notifyModeDefault, idleS: idle}
+	if mode, ok := notifyMode[agent]; ok {
+		config.mode = mode
+	}
+	if config.mode == "marker" {
+		config.endOfTurnRe = endOfTurnByAgent[agent]
+	}
+	return config
+}
+
 // Per-agent end-of-turn pattern, applied only in "marker" notify mode.
 // Matched against finalized colored spans (post-SGR-stripping by the
 // span extractor). The grammar is:
@@ -1553,6 +1576,14 @@ func (p *proxy) passThroughChunk(data []byte) ([]byte, []byte) {
 	if len(data) == 1 && data[0] == 0x1b {
 		return nil, append([]byte(nil), data...)
 	}
+	// These bytes reach the agent verbatim, so a CR here IS a submission —
+	// and it is the only turn-opening signal this configuration has. Without
+	// it the floor never arms under PAIR_WRAP_REMAP_RETURN=0, nor for any
+	// agent outside harnessTTYProfiles, which would make the "arms for every
+	// agent" claim false for two whole populations (BR-14).
+	if bytes.IndexByte(data, '\r') >= 0 {
+		p.publishLifecycleObservation(TurnObservation{Kind: ObservationBareReturn})
+	}
 	return data, nil
 }
 
@@ -2378,18 +2409,13 @@ argsDone:
 	}
 
 	// Pick notify mode + per-agent end-of-turn regex.
-	if m, ok := notifyMode[p.agentBasename]; ok {
-		p.notifyModeActive = m
-	} else {
-		p.notifyModeActive = notifyModeDefault
-	}
+	notify := resolveNotifyConfig(p.agentBasename, p.idleS)
+	p.notifyModeActive = notify.mode
+	p.endOfTurnRe = notify.endOfTurnRe
+	p.idleS = notify.idleS
 	p.debug("NOTIFY-mode", fmt.Sprintf("%s=%s", p.agentBasename, p.notifyModeActive))
-	if p.notifyModeActive == "marker" {
-		if re, ok := endOfTurnByAgent[p.agentBasename]; ok {
-			p.endOfTurnRe = re
-		} else {
-			p.debug("MARKER-missing", p.agentBasename+" has no endOfTurnByAgent entry")
-		}
+	if notify.mode == "marker" && notify.endOfTurnRe == nil {
+		p.debug("MARKER-missing", p.agentBasename+" has no endOfTurnByAgent entry")
 	}
 	if p.agentBasename == "codex" && p.lifecycleJournalPath != "" {
 		if ordinal, err := strconv.ParseUint(os.Getenv("PAIR_LAUNCH_ORDINAL"), 10, 64); err == nil && ordinal != 0 {

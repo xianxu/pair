@@ -4,6 +4,7 @@ import (
 	"io"
 	"os"
 	"path/filepath"
+	"reflect"
 	"strings"
 	"sync"
 	"testing"
@@ -275,5 +276,142 @@ func TestIdleIntervalKnobParsesAnExplicitZeroAsDisabled(t *testing.T) {
 				t.Fatalf("envDuration = %v, want %v", got, test.want)
 			}
 		})
+	}
+}
+
+// ----- The three deliverables a mutation sweep found unpinned (BR-13) --------
+
+func TestResolveNotifyConfigNeverZeroesTheIdleInterval(t *testing.T) {
+	// The removed gate zeroed idleS for every mode except one nothing was ever
+	// assigned, which is what made the floor dead code. Its absence is only
+	// falsifiable through this seam: re-adding the gate reddens this row.
+	for _, test := range []struct {
+		agent, wantMode string
+		wantMarkerRe    bool
+	}{
+		{"claude", "marker", true},
+		{"codex", notifyModeDefault, false},
+		{"agy", notifyModeDefault, false},
+		{"some-unknown-agent", notifyModeDefault, false},
+	} {
+		t.Run(test.agent, func(t *testing.T) {
+			got := resolveNotifyConfig(test.agent, defaultIdleS)
+			if got.mode != test.wantMode {
+				t.Errorf("mode = %q, want %q", got.mode, test.wantMode)
+			}
+			if got.idleS != defaultIdleS {
+				t.Errorf("idleS = %v, want %v — the floor must not depend on notify mode",
+					got.idleS, defaultIdleS)
+			}
+			if (got.endOfTurnRe != nil) != test.wantMarkerRe {
+				t.Errorf("endOfTurnRe present = %v, want %v", got.endOfTurnRe != nil, test.wantMarkerRe)
+			}
+		})
+	}
+	if got := resolveNotifyConfig("claude", 0); got.idleS != 0 {
+		t.Errorf("an explicitly disabled floor was resurrected: %v", got.idleS)
+	}
+}
+
+func drainObservations(ch chan TurnObservation) []ObservationKind {
+	var kinds []ObservationKind
+	for {
+		select {
+		case observation := <-ch:
+			kinds = append(kinds, observation.Kind)
+		default:
+			return kinds
+		}
+	}
+}
+
+func TestEmitPlainCRPublishesOnlyWhenTheReturnReachesTheAgent(t *testing.T) {
+	// No test drove a plain Enter through emitPlainCR, so deleting the publish
+	// left the package green while the floor lost its bare-CR opener entirely.
+	unknownGate := harnessTTYProfile{
+		keymap: sendKeymap{plainCR: []byte{'\n'}}, composerGate: composerGateUnknown,
+	}
+	activeComposer := harnessTTYProfile{
+		keymap: sendKeymap{plainCR: []byte{'\n'}}, composerGate: composerGateLegacy,
+	}
+	for _, test := range []struct {
+		name    string
+		profile *harnessTTYProfile
+		overlay bool
+		want    []ObservationKind
+	}{
+		{"composer unknown reaches the agent", &unknownGate, false, []ObservationKind{ObservationBareReturn}},
+		{"overlay confirm is pair-local", &unknownGate, true, nil},
+		{"composer newline remap is not a submission", &activeComposer, false, nil},
+		{"nil profile passes the CR straight through", nil, false, []ObservationKind{ObservationBareReturn}},
+	} {
+		t.Run(test.name, func(t *testing.T) {
+			p := &proxy{ttyProfile: test.profile, lifecycleEvents: make(chan TurnObservation, 8)}
+			p.pickerActive.Store(test.overlay)
+			p.emitPlainCR(nil)
+			if got := drainObservations(p.lifecycleEvents); !reflect.DeepEqual(got, test.want) {
+				t.Fatalf("published %v, want %v", got, test.want)
+			}
+		})
+	}
+}
+
+func TestPassThroughChunkOpensATurnOnACarriageReturn(t *testing.T) {
+	// BR-14: without a remap profile this is the ONLY turn-opening signal, so
+	// PAIR_WRAP_REMAP_RETURN=0 and any agent outside harnessTTYProfiles would
+	// otherwise have no floor at all.
+	for _, test := range []struct {
+		name string
+		data string
+		want []ObservationKind
+	}{
+		{"carriage return submits", "answer\r", []ObservationKind{ObservationBareReturn}},
+		{"ordinary keystrokes do not", "answer", nil},
+		{"newline alone does not", "answer\n", nil},
+	} {
+		t.Run(test.name, func(t *testing.T) {
+			p := &proxy{lifecycleEvents: make(chan TurnObservation, 8)}
+			out, leftover := p.passThroughChunk([]byte(test.data))
+			if string(out) != test.data || leftover != nil {
+				t.Fatalf("pass-through altered the stream: out=%q leftover=%q", out, leftover)
+			}
+			if got := drainObservations(p.lifecycleEvents); !reflect.DeepEqual(got, test.want) {
+				t.Fatalf("published %v, want %v", got, test.want)
+			}
+		})
+	}
+}
+
+func TestSyncIdleTimerDoesNotRestartAnArmedDeadlineWithinTheSameEpoch(t *testing.T) {
+	// BR-10's behavioural half. An unconditional resetIdleTimer would restart
+	// the deadline on any reduced observation — including a journal record
+	// carrying no pane output — silently extending a window whose message
+	// claims byte-silence.
+	//
+	// Observed by receiving the pending expiry. Go 1.23 timer channels are
+	// unbuffered, so len(C) is always 0 and Stop() still reports true for an
+	// expiry nothing has received yet — neither can see this. A restart, by
+	// contrast, drains that pending expiry and re-arms, so widening the
+	// interval first makes the difference unambiguous: the original expiry is
+	// still deliverable, a restarted one is an hour away.
+	p, _ := newIdleExpiryProxy(t)
+	p.idleS = time.Millisecond
+	p.processLifecycleObservation(TurnObservation{Kind: ObservationUserSubmission})
+	epoch := p.idleTimerToken
+	if epoch == 0 {
+		t.Fatal("submission did not arm the floor")
+	}
+	time.Sleep(50 * time.Millisecond) // the 1ms deadline has certainly expired
+
+	p.idleS = time.Hour
+	// A non-output observation that keeps the same turn — and so the same epoch.
+	p.processLifecycleObservation(TurnObservation{Kind: ObservationWorking})
+	if p.idleTimerToken != epoch {
+		t.Fatalf("epoch changed: %d -> %d", epoch, p.idleTimerToken)
+	}
+	select {
+	case <-p.idleTimer.C:
+	case <-time.After(500 * time.Millisecond):
+		t.Fatal("a non-output observation restarted an already-expired deadline")
 	}
 }

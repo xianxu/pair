@@ -155,12 +155,14 @@ func FuzzNotificationLifecycleAtMostOncePerGeneration(f *testing.F) {
 	f.Add([]byte{0, 2, 3, 4, 5})
 	f.Add([]byte{6, 7, 8, 9, 1, 4})
 	f.Add([]byte{1, 11, 11, 12, 5})
+	f.Add([]byte{0, 10, 11, 10, 4}) // reaches IdleExpired + BareReturn as seeds
 	f.Fuzz(func(t *testing.T, input []byte) {
 		state := NotificationLifecycle{}
-		// One completion per generation, and — since the idle floor is an
-		// alert that deliberately leaves the turn open — at most one alert
-		// alongside it. Tracked separately rather than as a single "notified"
-		// set, which the alert path would otherwise trip legitimately.
+		// One completion per generation; and, since the idle floor is an alert
+		// that leaves the turn open, at most one alert per idle EPOCH. Not per
+		// generation: a bare return re-arms a spent floor inside the same turn
+		// (BR-14), minting a fresh IdleToken, so the same generation may
+		// legitimately alert again. The seeds caught exactly that.
 		completed := make(map[uint64]bool)
 		alerted := make(map[uint64]bool)
 		for _, raw := range input {
@@ -188,26 +190,56 @@ func FuzzNotificationLifecycleAtMostOncePerGeneration(f *testing.F) {
 			if state.Generation == 0 {
 				t.Fatal("notification emitted without an opened generation")
 			}
-			seen := completed
-			label := "completed"
 			if kind == ObservationIdleExpired {
-				seen, label = alerted, "alerted"
+				// Tokens are monotonic, so the epoch is a unique key.
+				if alerted[observation.Token] {
+					t.Fatalf("idle epoch %d alerted more than once", observation.Token)
+				}
+				alerted[observation.Token] = true
+				continue
 			}
-			if seen[state.Generation] {
-				t.Fatalf("generation %d %s more than once", state.Generation, label)
+			if completed[state.Generation] {
+				t.Fatalf("generation %d completed more than once", state.Generation)
 			}
-			seen[state.Generation] = true
+			completed[state.Generation] = true
 		}
 	})
 }
 
-// Guards the sentinel the fuzz derives its bound from: if a kind is appended
-// without moving observationKindCount, this fails rather than silently
-// shrinking the fuzz's coverage.
-func TestObservationKindCountIsOnePastTheLastKind(t *testing.T) {
-	if observationKindCount != ObservationBareReturn+1 {
-		t.Fatalf("observationKindCount = %d, want one past ObservationBareReturn (%d)",
-			observationKindCount, ObservationBareReturn+1)
+// Walks every kind the sentinel declares, so a kind added to ObservationKind is
+// exercised here without editing this test. Replaces an earlier guard that
+// asserted observationKindCount == ObservationBareReturn+1 — which failed on
+// exactly the change the sentinel exists to absorb (BR-4).
+func TestReducePreservesTheGenerationInvariantForEveryObservationKind(t *testing.T) {
+	if observationKindCount <= ObservationBareReturn {
+		t.Fatalf("sentinel %d does not follow the declared kinds", observationKindCount)
+	}
+	reached := 0
+	for kind := ObservationKind(1); kind < observationKindCount; kind++ {
+		reached++
+		open, _ := Reduce(NotificationLifecycle{}, TurnObservation{Kind: ObservationUserSubmission})
+		open, _ = Reduce(open, TurnObservation{Kind: ObservationTranscriptStarted, TurnID: "turn-a"})
+		observation := TurnObservation{Kind: kind, TurnID: "turn-a", Message: "m"}
+		switch kind {
+		case ObservationWatchdogExpired:
+			observation.Token = open.WatchdogToken
+		case ObservationGraceExpired:
+			observation.Token = open.GraceToken
+		case ObservationIdleExpired:
+			observation.Token = open.IdleToken
+		}
+		for _, from := range []NotificationLifecycle{{}, open} {
+			next, decision := Reduce(from, observation)
+			if decision.Notify && next.Generation == 0 {
+				t.Fatalf("kind %d notified without an opened generation", kind)
+			}
+			if decision.Notify && decision.Message == "" {
+				t.Fatalf("kind %d notified with an empty message", kind)
+			}
+		}
+	}
+	if reached != int(observationKindCount)-1 {
+		t.Fatalf("walked %d kinds, want %d", reached, observationKindCount-1)
 	}
 }
 
@@ -334,5 +366,32 @@ func TestBareReturnOpensATurnOnlyWhenNoneIsOpen(t *testing.T) {
 	reopened, _ := Reduce(closed, TurnObservation{Kind: ObservationBareReturn})
 	if !reopened.Active || reopened.Completed {
 		t.Fatalf("bare return after completion did not open a new turn: %+v", reopened)
+	}
+}
+
+func TestBareReturnRearmsAFloorThatAlreadyFired(t *testing.T) {
+	// BR-14. Answering a menu is a new attention window. Without this the turn
+	// that already alerted is left with no floor at all, while a mid-turn
+	// Alt+Enter — which re-opens the turn — would have re-armed it.
+	state, _ := Reduce(NotificationLifecycle{}, TurnObservation{Kind: ObservationUserSubmission})
+	state, _ = Reduce(state, TurnObservation{Kind: ObservationTranscriptStarted, TurnID: "turn-a"})
+	spent, alert := Reduce(state, TurnObservation{Kind: ObservationIdleExpired, Token: state.IdleToken, Message: "quiet"})
+	if !alert.Notify || !spent.IdleNotified {
+		t.Fatalf("floor did not fire: state %+v decision %+v", spent, alert)
+	}
+
+	rearmed, decision := Reduce(spent, TurnObservation{Kind: ObservationBareReturn})
+	if decision.Notify {
+		t.Fatalf("re-arm notified: %+v", decision)
+	}
+	if rearmed.IdleNotified || rearmed.IdleToken == 0 || rearmed.IdleToken == spent.IdleToken {
+		t.Fatalf("floor not re-armed on a fresh epoch: %+v", rearmed)
+	}
+	if rearmed.Generation != spent.Generation || rearmed.TurnID != "turn-a" {
+		t.Fatalf("re-arm disturbed the turn: got %+v want gen %d turn-a", rearmed, spent.Generation)
+	}
+	_, again := Reduce(rearmed, TurnObservation{Kind: ObservationIdleExpired, Token: rearmed.IdleToken, Message: "quiet again"})
+	if !again.Notify {
+		t.Fatalf("re-armed floor did not fire: %+v", again)
 	}
 }

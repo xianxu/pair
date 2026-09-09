@@ -425,3 +425,58 @@ that read the flags directly. It is pre-existing (this diff added the fifth
 boolean, not the pattern), and bundling it would mix a representation refactor
 into a behaviour change. Separable work, so it got its own issue rather than a
 silent deferral.
+
+### 2026-09-09 — boundary review round 2: FIX-THEN-SHIP, addressed
+
+12 findings disposed; 3 stayed open, all legitimate.
+
+**BR-13 — the deliverable was the RULE, not the three sites.** The reviewer's
+mutation sweep found three `- [x]` rows whose code could be deleted with the
+package still green, including the mode gate this issue exists to remove: the
+idle tests build `proxy` directly, so they never crossed the arg-parse seam, and
+nothing drove a plain Enter through `emitPlainCR`. Rather than patch the three,
+the whole checklist was swept by deletion. `resolveNotifyConfig` extracts the
+notify wiring as a pure seam so "the floor's interval does not depend on notify
+mode" became assertable at all. Sweep (baseline GREEN; every row with code):
+
+| mutation | result |
+|---|---|
+| idle alert becomes a completion | RED |
+| drop the once-per-turn guard | RED |
+| read the epoch after the drain | RED |
+| delete the drain | RED |
+| unconditional re-arm (idempotent arming) | RED |
+| delete lifecycle-deadline precedence | RED |
+| re-add the `notifyModeActive != "idle"` gate | RED |
+| delete the bare-CR publish (remap path) | RED |
+| delete the bare-CR publish (pass-through path) | RED |
+| drop the re-arm on a spent floor | RED |
+| message loses sub-second honesty | RED |
+
+(The pass-through row first read GREEN from a broken mutation — `\r` in the
+harness was interpreted as a literal CR, so nothing was substituted. Re-run with
+an asserted needle: RED. A mutation that fails to apply looks exactly like a
+surviving one, which is its own small lesson.)
+
+**BR-14 — enumerate the populations, then make the claim true.** Openers were
+reachable only under `hasReturnRemap()`, so `PAIR_WRAP_REMAP_RETURN=0` and any
+agent outside `harnessTTYProfiles` had **zero** turn openers — atlas's "arms for
+every agent" was false for two whole configurations. `passThroughChunk` now
+publishes on a CR, which is correct there precisely because those bytes reach
+the agent verbatim. The third instance was event-shaped: a bare CR inside an
+open turn was a no-op, so once the single alert fired the operator's menu answer
+left that turn with no floor, while a mid-turn Alt+Enter would have re-armed. A
+bare CR now re-arms a spent floor on a fresh epoch without touching turn
+identity.
+
+**BR-4 — the fix had landed but was unreachable, and the guard was inverted.**
+The sentinel and the split invariant were real, but no seed produced either new
+kind, so plain `go test` never exercised them; and the guard asserted
+`observationKindCount == ObservationBareReturn+1`, which fails on exactly the
+change the sentinel exists to absorb. Added a seed reaching both kinds, replaced
+the guard with a walk over every kind the sentinel declares, and the new seed
+immediately caught a real consequence of BR-14: with re-arming, one generation
+*can* alert twice, so the invariant is one completion per generation and one
+alert per **epoch**. Fuzz: 4.4M execs pass.
+
+**BR-9** — still deferred to pair#219, unchanged reasoning.

@@ -204,10 +204,17 @@ func Reduce(state NotificationLifecycle, observation TurnObservation) (Notificat
 			decision.Message = message
 		}
 	case ObservationBareReturn:
-		// Opens a turn only when none is open. Answering a menu mid-turn must
-		// not reset the turn's identity or clear its Completed tombstone.
+		// A bare CR that reached the agent is operator activity aimed at it.
+		// With no turn open it opens one. Inside an open turn it must not
+		// reset the turn's identity — but it DOES re-arm a floor that already
+		// fired: answering a menu starts a new attention window, and without
+		// this the turn that alerted is left with no floor at all, while a
+		// mid-turn Alt+Enter (which re-opens) would have re-armed (BR-14).
 		if !state.Active || state.Completed {
 			open("", false)
+		} else if state.IdleNotified {
+			state.IdleNotified = false
+			state.IdleToken = nextToken()
 		}
 	}
 	return state, decision

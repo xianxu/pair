@@ -4114,3 +4114,17 @@ extract that branch into a named function the test calls directly so the
 ordering is injected rather than raced. Then prove falsifiability: reintroduce
 the bug and watch the test fail. A timing-dependent arrangement that merely
 *could* hit the branch pins nothing. Caught in #000171 close review.
+
+## A mutation that fails to apply is indistinguishable from one that survives
+
+A mutation-testing sweep reported one deliverable as unpinned. The substitution
+had silently matched nothing: the search text contained `\r`, which the harness
+interpreted as a literal carriage return rather than the two characters in the
+source. The code was never modified, so the tests passed — reading exactly like
+a test that fails to catch the deletion.
+
+**Rule.** Every mutation in a sweep must assert that it changed the file —
+`assert needle in source` before substituting, or compare the bytes after. A
+sweep whose failure mode is a false "GREEN" reports the opposite of the truth
+and will send you writing tests for code that is already covered, or worse,
+declaring coverage you do not have. Caught in #000171 close review round 2.
