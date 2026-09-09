@@ -9,6 +9,7 @@ import (
 	"os/exec"
 	"strconv"
 	"strings"
+	"syscall"
 )
 
 func positivePID(pid string) (int, bool) {
@@ -16,13 +17,28 @@ func positivePID(pid string) (int, bool) {
 	return n, err == nil && n > 0
 }
 
-// Alive reports whether pid names a live process (kill -0). An empty pid is
-// never alive.
+// Alive reports whether pid names a live process. An empty, non-numeric or
+// non-positive pid is never alive.
+//
+// A syscall, not `kill -0` in a subprocess (#220). The registry filter calls
+// this once per line on an interactive path, and a ~6ms process spawn per line
+// is a strange price for a signal that costs nothing.
+//
+// Routed through positivePID deliberately: signal(0) targets the caller's whole
+// PROCESS GROUP and signal(-1) every process the user owns, so handing an
+// unvalidated pid to Kill is a correctness bug of a different order than a slow
+// one. identity_darwin.go and identity_other.go already gate on it; Alive did
+// not, because a subprocess `kill` merely failed on those inputs.
+//
+// EPERM means the process exists but belongs to another user — alive, and the
+// distinction the exit-status check silently got right before.
 func Alive(pid string) bool {
-	if pid == "" {
+	n, ok := positivePID(pid)
+	if !ok {
 		return false
 	}
-	return exec.Command("kill", "-0", pid).Run() == nil
+	err := syscall.Kill(n, 0)
+	return err == nil || errors.Is(err, syscall.EPERM)
 }
 
 // Command returns pid's full command line via `ps -p <pid> -o command=`, trimmed

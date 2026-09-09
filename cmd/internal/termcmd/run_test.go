@@ -16,6 +16,7 @@ import (
 	"github.com/xianxu/pair/cmd/internal/hostty"
 	"github.com/xianxu/pair/cmd/internal/ptychild"
 	"github.com/xianxu/pair/cmd/internal/workbenchshortcut"
+	"github.com/xianxu/pair/cmd/internal/zellijpane"
 )
 
 func TestRunTestShortcutRightTerminalActions(t *testing.T) {
@@ -1212,5 +1213,15 @@ func TestEveryHandledTerminalChordIsDocumented(t *testing.T) {
 		if !documented[chord] {
 			t.Errorf("handleTerminalChord handles chord %v but workbenchshortcut.RoleBindings() does not describe it — `pair keys` would omit it", chord)
 		}
+	}
+}
+
+// The synthesised pane on #220's fast path must classify the way the real
+// report would. If RoleForPane's predicate changes and this constant does not,
+// every chord from the terminal routes as PaneRoleOther — silently.
+func TestRightTerminalClassifierClassifiesAsARightTerminal(t *testing.T) {
+	pane := zellijpane.Pane{ID: "4", TerminalCommand: rightTerminalClassifier}
+	if got := workbenchshortcut.RoleForPaneWith(pane, nil); got != workbenchshortcut.PaneRoleRightTerminal {
+		t.Fatalf("RoleForPaneWith(synthesised) = %v, want PaneRoleRightTerminal", got)
 	}
 }
