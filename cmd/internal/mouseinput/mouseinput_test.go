@@ -3,6 +3,10 @@ package mouseinput
 import (
 	"bytes"
 	"fmt"
+	"go/ast"
+	"go/parser"
+	"go/printer"
+	"go/token"
 	"os"
 	"path/filepath"
 	"strings"
@@ -148,36 +152,107 @@ func FuzzWithButtonChangesOnlyTheButton(f *testing.F) {
 // wheel ticks into the pass-through arm, leaking SGR bytes to a child that never
 // enabled tracking. Both read as correct code.
 //
-// Scans the tree because this is a cross-package rule: the constants are
-// exported, so the mistake can be made anywhere and nothing local catches it.
+// AST-based and rooted at the MODULE, not this package's parent (BR-7): a
+// grep for ".Button ==" on one line misses `switch event.Button { case WheelUp:`
+// and a button copied into a local first — the same class shape, one refactor
+// away — and a walk from "../.." would never reach probes/.
 func TestNoConsumerComparesARawButtonAgainstAWheelConstant(t *testing.T) {
+	const moduleRoot = "../../.."
 	var offenders []string
-	err := filepath.Walk("../..", func(path string, info os.FileInfo, err error) error {
+
+	err := filepath.Walk(moduleRoot, func(path string, info os.FileInfo, err error) error {
 		if err != nil {
 			return err
 		}
-		if info.IsDir() || !strings.HasSuffix(path, ".go") || strings.HasSuffix(path, "_test.go") {
+		if info.IsDir() {
+			if name := info.Name(); name == ".git" || name == "testdata" || name == "vendor" {
+				return filepath.SkipDir
+			}
 			return nil
 		}
-		source, err := os.ReadFile(path)
+		if !strings.HasSuffix(path, ".go") || strings.HasSuffix(path, "_test.go") {
+			return nil
+		}
+		fset := token.NewFileSet()
+		file, err := parser.ParseFile(fset, path, nil, 0)
 		if err != nil {
-			return err
+			return nil // not our business to fail on unparseable sources
 		}
-		for n, line := range strings.Split(string(source), "\n") {
-			if !strings.Contains(line, "Wheel") {
-				continue
+		text := func(node ast.Node) string {
+			var buf bytes.Buffer
+			if printer.Fprint(&buf, fset, node) != nil {
+				return ""
 			}
-			if strings.Contains(line, ".Button ==") || strings.Contains(line, ".Button !=") {
-				offenders = append(offenders, fmt.Sprintf("%s:%d: %s", path, n+1, strings.TrimSpace(line)))
-			}
+			return buf.String()
 		}
+		// A raw button is `<expr>.Button`, or a local initialised straight from
+		// one — which is the copy-into-a-variable evasion.
+		copies := map[string]bool{}
+		ast.Inspect(file, func(n ast.Node) bool {
+			assign, ok := n.(*ast.AssignStmt)
+			if !ok || len(assign.Lhs) != 1 || len(assign.Rhs) != 1 {
+				return true
+			}
+			if isRawButton(assign.Rhs[0], nil) {
+				if name, ok := assign.Lhs[0].(*ast.Ident); ok {
+					copies[name.Name] = true
+				}
+			}
+			return true
+		})
+		mentionsWheel := func(node ast.Node) bool { return strings.Contains(text(node), "Wheel") }
+		report := func(node ast.Node, form string) {
+			offenders = append(offenders, fmt.Sprintf("%s:%d: %s (%s)",
+				path, fset.Position(node.Pos()).Line, text(node), form))
+		}
+		ast.Inspect(file, func(n ast.Node) bool {
+			switch node := n.(type) {
+			case *ast.BinaryExpr:
+				if node.Op != token.EQL && node.Op != token.NEQ {
+					return true
+				}
+				if isRawButton(node.X, copies) && mentionsWheel(node.Y) ||
+					isRawButton(node.Y, copies) && mentionsWheel(node.X) {
+					report(node, "comparison")
+				}
+			case *ast.SwitchStmt:
+				if node.Tag == nil || !isRawButton(node.Tag, copies) {
+					return true
+				}
+				for _, stmt := range node.Body.List {
+					clause, ok := stmt.(*ast.CaseClause)
+					if !ok {
+						continue
+					}
+					for _, value := range clause.List {
+						if mentionsWheel(value) {
+							report(node.Tag, "switch tag")
+						}
+					}
+				}
+			}
+			return true
+		})
 		return nil
 	})
 	if err != nil {
 		t.Fatal(err)
 	}
 	if len(offenders) > 0 {
-		t.Errorf("raw button compared against a wheel constant — use mouseinput.BaseButton:\n  %s",
+		t.Errorf("raw button reaches a wheel constant — use mouseinput.BaseButton:\n  %s",
 			strings.Join(offenders, "\n  "))
 	}
+}
+
+// isRawButton reports whether expr is `<something>.Button`, or an identifier
+// copied from one. A BaseButton(...) call is a CallExpr, so it never matches --
+// which is the whole point.
+func isRawButton(expr ast.Expr, copies map[string]bool) bool {
+	switch node := expr.(type) {
+	case *ast.SelectorExpr:
+		return node.Sel.Name == "Button"
+	case *ast.Ident:
+		return copies[node.Name]
+	}
+	return false
 }

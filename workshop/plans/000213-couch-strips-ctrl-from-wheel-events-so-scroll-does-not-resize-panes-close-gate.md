@@ -74,6 +74,50 @@ rounds:
           family: unreachable-guard
           round: 1
       blocked: true
+    - "n": 2
+      timestamp: "2026-09-09T08:29:31-07:00"
+      agent: claude
+      dispose:
+        - id: BR-1
+          disposition: addressed
+          note: 'Mutation-verified: reverting to `event.Button ==` reddens 4 run_test.go rows and the new rule test names both lines.'
+          round: 2
+        - id: BR-2
+          disposition: addressed
+          note: Row unticked and labelled OPERATOR-PENDING with the reason; close will need --no-plan-check and the reason in --verified.
+          round: 2
+        - id: BR-3
+          disposition: not-addressed
+          note: README.md is untouched in this window; line 406 still reads "scroll inside an attached Pair session are unaffected" while couch now rewrites one report class, and standalone `pair term` now translates modified wheel ticks too.
+          round: 2
+        - id: BR-4
+          disposition: not-addressed
+          note: 'No pin or conformance check added. Cheaper than round 1 assumed: Makefile.local:69-84 already has test-live / PAIR_LIVE_COUCH as the seam.'
+          round: 2
+        - id: BR-5
+          disposition: not-addressed
+          note: workshop/lessons.md has no entry. The tree-scan test is a stronger oracle for the enumerable shape, but the general rule AGENTS.md section 4 asks for is still uncaptured.
+          round: 2
+        - id: BR-6
+          disposition: addressed
+          note: The `sep < 0` guard now says it is not a reachable failure mode; the same shape was applied preemptively to stripWheelResizeModifier's `!ok` branch.
+          round: 2
+      findings:
+        - id: BR-7
+          severity: Minor
+          title: The raw-button rule test scans cmd/ only and matches one syntactic shape, so it under-enforces the rule its own comment states
+          detail: |-
+            cmd/internal/mouseinput/mouseinput_test.go:153-155. The comment says it "scans the tree because this is a
+            cross-package rule", but filepath.Walk("../..") resolves to cmd/ — probes/ holds real Go programs and is
+            never visited. The match is also line-local: it requires ".Button ==" or ".Button !=" on the same line as
+            "Wheel", so `switch event.Button { case mouseinput.WheelUp:` across two lines, or a raw button assigned to
+            a variable first, evades it entirely. That is the same class shape BR-1 named, one refactor away. Both are
+            cheap: walk from the module root, and match a raw Button reaching a Wheel constant by any route (a
+            go/ast pass over each file, or additionally flagging `switch .*\.Button` blocks). Verified: the current
+            oracle does redden on the exact BR-1 revert, so it pins the regression — it just does not cover the rule.
+          family: oracle-narrower-than-its-rule
+          round: 2
+      blocked: false
 ---
 
 # Gate ledger — pair#213 (boundary-review)
@@ -122,11 +166,32 @@ later rounds disposed of them. Generated — edit the gate, not this file.
   cmd/internal/mouseinput/mouseinput.go:75-78. A report that Parse accepts always contains a ';', so the
   guard can never return false there. Harmless, but it reads as a live failure mode to the next reader.
 
+## Round 2 — 2026-09-09T08:29:31-07:00 (claude) — passed
+
+### Disposed
+
+- BR-1 — addressed — Mutation-verified: reverting to `event.Button ==` reddens 4 run_test.go rows and the new rule test names both lines.
+- BR-2 — addressed — Row unticked and labelled OPERATOR-PENDING with the reason; close will need --no-plan-check and the reason in --verified.
+- BR-3 — not-addressed — README.md is untouched in this window; line 406 still reads "scroll inside an attached Pair session are unaffected" while couch now rewrites one report class, and standalone `pair term` now translates modified wheel ticks too.
+- BR-4 — not-addressed — No pin or conformance check added. Cheaper than round 1 assumed: Makefile.local:69-84 already has test-live / PAIR_LIVE_COUCH as the seam.
+- BR-5 — not-addressed — workshop/lessons.md has no entry. The tree-scan test is a stronger oracle for the enumerable shape, but the general rule AGENTS.md section 4 asks for is still uncaptured.
+- BR-6 — addressed — The `sep < 0` guard now says it is not a reachable failure mode; the same shape was applied preemptively to stripWheelResizeModifier's `!ok` branch.
+
+### Raised
+
+- **BR-7** [Minor] `oracle-narrower-than-its-rule` The raw-button rule test scans cmd/ only and matches one syntactic shape, so it under-enforces the rule its own comment states
+  cmd/internal/mouseinput/mouseinput_test.go:153-155. The comment says it "scans the tree because this is a
+  cross-package rule", but filepath.Walk("../..") resolves to cmd/ — probes/ holds real Go programs and is
+  never visited. The match is also line-local: it requires ".Button ==" or ".Button !=" on the same line as
+  "Wheel", so `switch event.Button { case mouseinput.WheelUp:` across two lines, or a raw button assigned to
+  a variable first, evades it entirely. That is the same class shape BR-1 named, one refactor away. Both are
+  cheap: walk from the module root, and match a raw Button reaching a Wheel constant by any route (a
+  go/ast pass over each file, or additionally flagging `switch .*\.Button` blocks). Verified: the current
+  oracle does redden on the exact BR-1 revert, so it pins the regression — it just does not cover the rule.
+
 ## Open findings
 
-- **BR-1** [Important] `format-knowledge-ownership` termcmd's wheel predicate still compares the RAW button, so every modified wheel tick misses scroll and leaks SGR bytes to the child
-- **BR-2** [Important] `unverified-claim-marked-done` Plan item "Manual" is checked while the Log says the operator gesture check has not been run
 - **BR-3** [Minor] `docs-behavior-drift` README's couch paragraph still says scroll inside an attached session is unaffected
 - **BR-4** [Minor] `deletable-workaround-untriggered` Nothing automated fires when the zellij upgrade makes this filter redundant
 - **BR-5** [Minor] `lessons-not-captured` The raw-button-comparison class produced two instances this round and no lessons.md rule
-- **BR-6** [Minor] `unreachable-guard` WithButton's `sep < 0` branch is unreachable once Parse has succeeded
+- **BR-7** [Minor] `oracle-narrower-than-its-rule` The raw-button rule test scans cmd/ only and matches one syntactic shape, so it under-enforces the rule its own comment states

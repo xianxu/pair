@@ -1,12 +1,13 @@
 ---
 id: 000213
-status: working
+status: codecomplete
 deps: []
 github_issue:
 created: 2026-09-07
 updated: 2026-09-09
 estimate_hours: 0.71
 started: 2026-09-09T07:49:18-07:00
+actual_hours: 0.70
 ---
 
 # couch strips ctrl from wheel events so scroll does not resize panes
@@ -206,6 +207,8 @@ splits by ownership rather than living in one function:
 
 ## Log
 
+
+- 2026-09-09: closed — Full `make test` green unsandboxed (EXIT=0, zero FAIL lines). --no-plan-check is for ONE deliberately-unticked row: the Manual live-gesture check needs a couch restart (a running couch is on the old binary) and a physical ctrl+scroll, so it cannot be run from this session. It is left unticked and labelled OPERATOR-PENDING rather than bulk-ticked — which is precisely what BR-2 caught last round — and is explicitly NOT claimed as verified. Every other row is done. BR-1 addressed as the CLASS: enumerated by grep for `.Button ==|.Button !=` against a constant, three sites total. Two (termcmd wheel arms) were LIVE bugs — modified wheel ticks fell to the pass-through arm and leaked SGR bytes to a child that never enabled tracking — now compare BaseButton, pinned by four table rows verified to redden on revert. The third (couchtty `event.Button == 0`) stays raw deliberately, since a modified click is not couch gesture, and now documents that. The rule is pinned cross-package by TestNoConsumerComparesARawButtonAgainstAWheelConstant, which with the termcmd bug reintroduced names both offending lines by file:line. Minor addressed: WithButton sep guard documented as an invariant, not a reachable branch. Prior evidence stands — wiring test through the real onMouse path (deleting the call reddens it), 7.7M-exec splice fuzz, full modifier cross-product table, #196 reattach and existing routing tests unmodified.; review verdict: FIX-THEN-SHIP
 ### 2026-09-07
 
 Operator report. Filed after ruling out the two layers above couch by test rather

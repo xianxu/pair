@@ -153,3 +153,119 @@ findings:
       cmd/internal/mouseinput/mouseinput.go:75-78. A report that Parse accepts always contains a ';', so the
       guard can never return false there. Harmless, but it reads as a live failure mode to the next reader.
 ```
+
+---
+
+## Re-review — 2026-09-09T08:29:31-07:00 (FIX-THEN-SHIP)
+
+| field | value |
+|-------|-------|
+| issue | 213 — couch strips ctrl from wheel events so scroll does not resize panes |
+| repo | pair |
+| issue file | workshop/issues/000213-couch-strips-ctrl-from-wheel-events-so-scroll-does-not-resize-panes.md |
+| boundary | whole-issue close |
+| milestone | — |
+| window | f6904c48113c0980095f918930966607b8504569..d58c870a3d45e5bee76d4221710a483e7c2e42a5 |
+| command | sdlc close --issue 213 |
+| reviewer | claude |
+| timestamp | 2026-09-09T08:29:31-07:00 |
+| verdict | FIX-THEN-SHIP |
+
+## Review
+
+```verdict
+verdict: FIX-THEN-SHIP
+confidence: high
+```
+
+Both round-1 Important findings are genuinely closed, and I confirmed each by mutation rather than by reading the commit message: reverting `termcmd/run.go:459` to the raw-button comparison reddens four table rows *and* makes the new tree-scan rule test name both offending lines by file:line; deleting the `stripWheelResizeModifier` call from `console.go:1590` makes the wiring test time out; reverting the strip's predicate to the raw button reddens six cells of the cross-product table. I independently re-ran the class enumeration (`grep '\.Button' cmd/ probes/`) and it yields exactly three non-`mouseinput` comparison sites — the two termcmd wheel arms (now derived) and `mouse.go:60`'s deliberately-raw `Button == 0`, which now documents why. `go build ./...` and `go vet` clean; `mouseinput` fully green; `couchtty`'s only failure is `TestNotificationPTYConformance` and every other failing package in `go test ./...` fails on `ptychild: operation not permitted` / `mktemp` EPERM — the documented environment class, none of it in this diff's blast radius. Nothing blocks the boundary: the three findings that remain open (README, zellij conformance, `lessons.md`) are all Minor and two of them are one-line edits.
+
+## 1. Strengths
+
+- **`mouseinput.WithButton` is a splice, not a re-encoder** (`cmd/internal/mouseinput/mouseinput.go:64`). It cannot drift on the bytes it does not touch, which is exactly the property `keys.go` and `console.go` demand of the forward path, and `FuzzWithButtonChangesOnlyTheButton` (`mouseinput_test.go:107`) asserts that property directly rather than restating the implementation.
+- **The wiring test earns its place** (`console_mouse_test.go:545`). Both halves of the change are pure, so a correct-but-uncalled implementation would leave every unit test green. I removed the call and the test timed out — this is a real oracle, not a decorative end-to-end.
+- **The rule test converts a review finding into an executable oracle** (`mouseinput_test.go:153`), and it reports offenders by file:line rather than just failing. That is a better answer to BR-1 than fixing the one site.
+- **The third site of the class says why it stays raw** (`couchtty/mouse.go:54-60`). Documenting the deliberate exception is what stops the next reviewer re-raising it as a fourth oversight.
+- **The workaround is dateable.** `mouse_scroll_resize` is named in the code comment and in `atlas/couch.md:363-371`, along with *why* setting it on 0.44.3 silently does nothing.
+
+## 2. Critical findings
+
+None.
+
+## 3. Important findings
+
+None. BR-1 and BR-2 are both disposed `addressed` below.
+
+One process note for the close, not a finding: the Manual row is correctly left unticked, so `sdlc close` will trip the `plan-unchecked` gate. That wants `--no-plan-check` with the operator-pending reason carried in `--verified`, not `--force`.
+
+## 4. Minor findings
+
+- The rule oracle is narrower than the rule it names (new finding, below).
+- BR-3, BR-4, BR-5 remain open — see dispositions.
+
+## 5. Test coverage notes
+
+- All three claimed fixes are mutation-verified; the working tree was restored and `git status` is clean.
+- `TestAReattachedChildKeepsItsTrackingMode` (#196's reattach test) is untouched by the diff and passes — the evidence the mode-belief behaviour did not shift.
+- The modifier cross-product table covers {plain, shift, alt, ctrl, ctrl+shift} × {wheel-up, wheel-down, horizontal, left-press} and asserts raw bytes *and* the decoded event, plus a release row. That is the right shape: an `Event`-only assertion would pass with the splice broken.
+- `FuzzWithButtonChangesOnlyTheButton` exercises its 7 seeds under a normal `go test`; there is no committed `testdata/fuzz` corpus and no `make` fuzz target, so the Log's "7.7M execs" is a one-off local measurement the repo cannot re-run. Standard Go practice, not a defect — but the standing coverage is the seed set, and the seeds are the enumeration that matters.
+- Full-suite failures (10 packages) are all `ptychild`/`mktemp` permission-class, consistent with the documented sandbox limitation.
+
+## 6. Architectural notes
+
+- **ARCH-DRY — pass.** Modifier bits, `BaseButton` and the byte splice all landed in `mouseinput`, the one package that owns the wire format; both consumers derive from it and there is no second splice.
+- **ARCH-PURE — pass.** `BaseButton`, `WithButton` and `stripWheelResizeModifier` are pure and tested with no IO. The IO seam is exactly one line at `console.go:1590`, and it has its own test.
+- **ARCH-PURPOSE — pass on the class.** The shadow-sweep holds: three comparison sites, all either derived or documented-raw, and no second SGR parser anywhere in `cmd/` or `probes/`. Done-when #1 remains operator-pending, but it is honestly labelled rather than claimed (see BR-2).
+- **ARCH-MOCK — flag,** carried by BR-4. Note for whoever picks it up: the seam already exists — `Makefile.local:69-84` has `test-live` / `PAIR_LIVE_COUCH=1`, so a conformance check here is cheaper than round 1 assumed.
+- **ARCH-CONSTRAINTS — pass.** Keystroke-class path; the strip early-returns without allocating on every non-ctrl report, so the one small allocation and the redundant second `Parse` inside `WithButton` occur only on ctrl+wheel ticks. Negligible at human scroll rates.
+- **ARCH-SECURE — pass.** `WithButton` refuses anything `Parse` refuses and refuses a negative button, so a caller cannot launder a malformed report into a well-formed-looking one; the failure path forwards the original rather than fabricating or dropping a report.
+- **ARCH-ORDER — pass.** `stripWheelResizeModifier` holds no state between events — it is `(event, raw) -> (event, raw)` with no carried fields, so there is no transition set to enumerate. The wiring test observes the real input-loop interleaving through `waitFor` on the child's writes rather than a single hand-picked ordering.
+
+## 7. Plan revision recommendations
+
+One `## Revisions` addition is worth making — the Spec sentence is now narrower than what shipped:
+
+> **Delta.** The Spec's "Known limitation, by construction — this fixes couch only; standalone pair is unaffected" is true of the *ctrl+wheel resize gesture* (zellij consumes it above `pair term`) but no longer true of the diff as a whole: BR-1's fix changed standalone `pair term`'s handling of every modified wheel tick — shift+wheel and alt+wheel now scroll the zellij viewport instead of writing raw SGR bytes into the shell. The termcmd fix also has no `## Plan` row; add a checked one so the Plan is a complete inventory of the boundary's deliverables rather than of its originally-designed ones.
+
+```findings
+dispose:
+  - id: BR-1
+    disposition: addressed
+    note: |
+      Mutation-verified: reverting to `event.Button ==` reddens 4 run_test.go rows and the new rule test names both lines.
+  - id: BR-2
+    disposition: addressed
+    note: |
+      Row unticked and labelled OPERATOR-PENDING with the reason; close will need --no-plan-check and the reason in --verified.
+  - id: BR-3
+    disposition: not-addressed
+    note: |
+      README.md is untouched in this window; line 406 still reads "scroll inside an attached Pair session are unaffected" while couch now rewrites one report class, and standalone `pair term` now translates modified wheel ticks too.
+  - id: BR-4
+    disposition: not-addressed
+    note: |
+      No pin or conformance check added. Cheaper than round 1 assumed: Makefile.local:69-84 already has test-live / PAIR_LIVE_COUCH as the seam.
+  - id: BR-5
+    disposition: not-addressed
+    note: |
+      workshop/lessons.md has no entry. The tree-scan test is a stronger oracle for the enumerable shape, but the general rule AGENTS.md section 4 asks for is still uncaptured.
+  - id: BR-6
+    disposition: addressed
+    note: |
+      The `sep < 0` guard now says it is not a reachable failure mode; the same shape was applied preemptively to stripWheelResizeModifier's `!ok` branch.
+findings:
+  - id: new
+    severity: Minor
+    family: oracle-narrower-than-its-rule
+    title: |
+      The raw-button rule test scans cmd/ only and matches one syntactic shape, so it under-enforces the rule its own comment states
+    detail: |
+      cmd/internal/mouseinput/mouseinput_test.go:153-155. The comment says it "scans the tree because this is a
+      cross-package rule", but filepath.Walk("../..") resolves to cmd/ — probes/ holds real Go programs and is
+      never visited. The match is also line-local: it requires ".Button ==" or ".Button !=" on the same line as
+      "Wheel", so `switch event.Button { case mouseinput.WheelUp:` across two lines, or a raw button assigned to
+      a variable first, evades it entirely. That is the same class shape BR-1 named, one refactor away. Both are
+      cheap: walk from the module root, and match a raw Button reaching a Wheel constant by any route (a
+      go/ast pass over each file, or additionally flagging `switch .*\.Button` blocks). Verified: the current
+      oracle does redden on the exact BR-1 revert, so it pins the regression — it just does not cover the rule.
+```
