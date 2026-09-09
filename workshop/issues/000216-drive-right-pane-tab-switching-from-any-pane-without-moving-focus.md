@@ -382,3 +382,69 @@ from the existence of a `String()` method without checking a renderer used it.
 `[]byte` and the loop variable is already a `byte`. `range []byte(encodings[0])`
 would be a redundant conversion. Left as is deliberately — making a no-op edit
 to close a finding would misreport what happened.
+
+### 2026-09-09 — boundary review round 2: rules, not instances
+
+Round 1's fixes were instances. Round 2 said so, correctly, in three families.
+
+**BR-7 — the four meta encodings were unpinned.** Deleting all four left the
+whole suite green, so BR-2 was "fixed" by four table rows that nothing checked.
+Replaced by the rule they are instances of, checked mechanically over
+`chordSequences`: for every arrow chord encoded `\x1b[1;<m><letter>`, the meta
+sibling `\x1b[1;<m+6><letter>` must also be registered (alt 3 → meta 9,
+shift+alt 4 → shift+meta 10). Verified to redden — removing `\x1b[1;10D` gives
+`"\x1b[1;4D" (21) has no meta sibling "\x1b[1;10D" — the chord is dead on a
+meta-style terminal`.
+
+**BR-8 — the deletion's reference set, enumerated rather than chased.** The rule
+the finding asks for: a deletion is complete only when the full reference set is
+swept — bodies, callers, comments describing the behaviour, `atlas/` — via an
+enumeration that is run and recorded, because no compiler and no `make test`
+step sees any of it. The enumeration:
+
+```
+grep -rniE "nav_boundary|ordered_landmarks|pos_rank|region boundary|landmark" \
+  --include="*.lua" --include="*.md" --include="*.go" . | grep -v '^./workshop/'
+```
+
+It found **four** stale sites, two of which neither review round named:
+`nvim/init.lua` (the Boundary-jump comment block, still describing the deleted
+behaviour as live), `atlas/architecture.md:955` (the helper list), and — missed
+by both the reviewer's enumeration and mine until this run —
+`atlas/architecture.md:886`, a keybinding row still documenting the region-jump.
+Also `CHANGELOG.md:193`.
+
+**The CHANGELOG entry is deliberately NOT swept**, which refines the rule: it is
+a dated record of what shipped in a past release, not a description of current
+behaviour. Rewriting it would falsify history. The enumeration has to
+distinguish current-state docs (sweep) from dated records (leave) — otherwise
+"sweep everything" turns a changelog into fiction. Re-running the grep at head
+returns only deliberate historical references.
+
+**BR-9 — the `runDecision` case had no test.** `handleTerminalChord`
+short-circuits these chords inside the right pane, so `pair term
+--test-shortcut` is the case's only reachable caller, and
+`tests/term-pane-shortcuts-test.sh` — the fake-zellij harness that covers every
+other terminal chord — had not been extended. Three rows added, driven from the
+DRAFT's focus since that is the point: both directions deliver the right bytes,
+and a third asserts **no focus action is emitted at all**.
+
+**BR-10** — `resolveRightTerminal` extracts the four-step preamble both callers
+re-typed. The ARCH-DRY guarantee was only half delivered: the picker was shared,
+its inputs were re-derived, so a fourth preference signal would have landed at
+one site and missed the other.
+
+**BR-11** — my atlas claim was too strong. From inside a split half the pump
+switches THAT half regardless of the recorded id, so `Alt+k` and
+`Alt+Shift+arrow` can point at different halves there. Scoped the guarantee to
+the delivery path, which is where it actually holds.
+
+**BR-12** — `pair_bin()` ends the `PAIR_HOME .. '/bin/pair'` idiom's five
+copies. **BR-13** — the draft's argv is now a pure
+`switch_terminal_tab_command` pinned by `workbench_route_test.lua`; previously
+the key→function mapping was covered and what that function *ran* was not.
+
+**A self-inflicted detour worth recording:** placing `pair_bin()` by script put
+it inside an `if` block, and `make test` reported exit 2 with **zero** FAIL
+lines — which reads as infrastructure, not syntax. `luac -p nvim/init.lua` named
+the file, line and unclosed block instantly. Added to `workshop/lessons.md`.
