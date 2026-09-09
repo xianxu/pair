@@ -148,6 +148,27 @@ type workbenchPanes struct {
 	draft   zellijpane.Pane
 }
 
+// registered reports whether paneID is a live self-registered `pair term` pane.
+//
+// Both fast paths gate on this rather than on ZELLIJ_PANE_ID alone (BR-5): the
+// env var says which pane we are, not what KIND of pane, and synthesising a
+// right-terminal role from it unchecked would misroute every chord in any pane
+// that happens to run this code. The registry is the signal that says
+// "right terminal" — the same one RoleForPaneWith uses to recognise split
+// halves that zellij reports without a terminal_command.
+func registered(rt Runtime, paneID string) bool {
+	ids, err := rt.TerminalPaneIDs()
+	if err != nil {
+		return false
+	}
+	for _, id := range ids {
+		if id == paneID {
+			return true
+		}
+	}
+	return false
+}
+
 func focusedWorkbenchPanes(rt Runtime) (workbenchPanes, error) {
 	// Fast path (#220). run.go's own comment below records why this is sound:
 	// bytes on `pair term`'s stdin can only mean its OWN pane is the input, so
@@ -160,8 +181,11 @@ func focusedWorkbenchPanes(rt Runtime) (workbenchPanes, error) {
 	// Synthesised with the terminal_command that classifies it, rather than a
 	// bare ID, so RoleForPaneWith reaches the same verdict it would from the
 	// real report instead of relying on a registry lookup this path does not do.
-	if currentID := rt.CurrentPaneID(); currentID != "" {
-		if draftID, ok := draftroute.CachedDraftPaneIDFromEnv(); ok {
+	if currentID := rt.CurrentPaneID(); currentID != "" && registered(rt, currentID) {
+		// rt.CachedDraftPaneID, not draftroute's env reader: the Runtime already
+		// exposes this seam (run.go:29) and reaching past it makes the branch
+		// untestable (BR-4).
+		if draftID, ok := rt.CachedDraftPaneID(); ok {
 			return workbenchPanes{
 				focused: zellijpane.Pane{ID: currentID, TerminalCommand: rightTerminalClassifier},
 				draft:   zellijpane.Pane{ID: draftID},
@@ -598,14 +622,8 @@ func currentRightTerminalPane(rt Runtime) (zellijpane.Pane, bool, error) {
 	// same conclusion the walk below reaches, without the 590ms that
 	// `list-panes --json` costs on zellij 0.44.3. The only caller
 	// (splitTerminalDown, run.go:545) discards the pane and reads `ok`.
-	if currentID := rt.CurrentPaneID(); currentID != "" {
-		if ids, err := rt.TerminalPaneIDs(); err == nil {
-			for _, id := range ids {
-				if id == currentID {
-					return zellijpane.Pane{ID: currentID}, true, nil
-				}
-			}
-		}
+	if currentID := rt.CurrentPaneID(); currentID != "" && registered(rt, currentID) {
+		return zellijpane.Pane{ID: currentID}, true, nil
 	}
 	data, err := rt.ListPanesJSON()
 	if err != nil {

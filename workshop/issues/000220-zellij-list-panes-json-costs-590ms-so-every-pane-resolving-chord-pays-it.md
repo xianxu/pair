@@ -249,3 +249,43 @@ new Lua held in nvim's memory.
 `kill(0, …)` signals the caller's whole process group and `kill(-1, …)` every
 process the user owns, and `Alive` was the one caller not gating on it — safe
 only because a subprocess `kill` merely failed on those inputs.
+
+### 2026-09-09 — boundary review round 1: FIX-THEN-SHIP, addressed
+
+**BR-7 — the generated space never reached the branch it claimed to cover.**
+The first generator used two-pane worlds only, so a registry of size 1 was
+always *incomplete* and `resolveFromSidecars`' single-live-id branch either went
+unexercised or diverged. The axis that matters is **completeness, not size**:
+rebuilt over one- and two-pane worlds with registries that are empty or
+complete. 360 cases, 108 answered, **54 through the single-live-id branch**, all
+agreeing. A generated space proves nothing about a case it cannot produce, and
+the first one could not produce this.
+
+**BR-3 — both `termcmd` fast paths executed in zero tests.** Written and
+shipped-to-review with a coverage count of 0 on every line. Now: the saving is
+asserted (no `ListPanesJSON` call when registered) and so is the gate (falls
+back when unregistered, when there is no current pane id, and when the draft
+cache misses).
+
+**BR-4 — reached past the injectable seam.** `focusedWorkbenchPanes` called
+`draftroute.CachedDraftPaneIDFromEnv` while `Runtime.CachedDraftPaneID`
+(`run.go:29`) existed for exactly this. That is what made the branch untestable
+in the first place; BR-3 and BR-4 are the same mistake seen from two sides.
+
+**BR-5 — the real defect of the five.** The fast path synthesised a
+right-terminal role from `ZELLIJ_PANE_ID` alone. That env var says *which* pane
+we are, not *what kind* — so any pane running that code would have had every
+chord routed as a right terminal. Both fast paths now gate on a shared
+`registered(rt, paneID)` predicate, which is the signal that actually means
+"right terminal" and the same one `RoleForPaneWith` uses for split halves that
+zellij reports without a `terminal_command`. Verified by mutation: dropping the
+gate reddens.
+
+**BR-6 — and a claim of mine that was wrong.** `Alive`'s two declared behaviours
+were unpinned; both now have tests, and dropping the `positivePID` guard reddens
+with `Alive("0") = true`. While writing the test I had to correct the comment I
+had written with the change: **signal 0 is the null signal**, so the guard does
+not prevent a delivered broadcast — it prevents a *false positive*, since
+`Kill(0, 0)` and `Kill(-1, 0)` both succeed and a registry line reading `1 0`
+would report a live pane that does not exist. The pid-selector danger is why the
+guard exists in the codebase, not what it stops here.

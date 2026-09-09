@@ -275,8 +275,23 @@ func TestRunSwitchTerminalTabParsesItsDirection(t *testing.T) {
 // halves (#216 BR-10). Where it declines, the caller falls back and correctness
 // is pickRightTerminal's problem, unchanged.
 func TestSidecarFastPathAgreesWithThePaneListWheneverItAnswers(t *testing.T) {
-	// Three ways a right terminal is recognisable, so the generated pane sets
-	// exercise each classification route into isRightTerminal.
+	// The adversarial class is THE REGISTRY DISAGREEING WITH THE PANE REPORT,
+	// and hand-picked cases are blind to it by construction — I would only write
+	// the disagreements I already thought of. So generate the space and assert
+	// the one property that matters (#220 PQ-2):
+	//
+	//	resolveFromSidecars answering  =>  its answer equals pickRightTerminal's
+	//
+	// That is what stops Alt+k and Alt+Shift+arrow from landing on different
+	// split halves (#216 BR-10).
+	//
+	// The axis that matters is COMPLETENESS, not registry size (BR-7). A
+	// registry naming one of two right terminals is incomplete — the startup
+	// race — and the generator found that the fast path diverges there. A
+	// registry naming the only right terminal is complete, and is the state
+	// that exercises the single-live-id branch. Generating one-pane worlds is
+	// what reaches that branch at all; the first generator had none and left it
+	// unexercised while claiming to cover it.
 	pane := func(id string, kind string, focused bool) zellijpane.Pane {
 		p := zellijpane.Pane{ID: id, IsFocused: focused, X: 75}
 		switch kind {
@@ -291,65 +306,59 @@ func TestSidecarFastPathAgreesWithThePaneListWheneverItAnswers(t *testing.T) {
 		return p
 	}
 	kinds := []string{"command", "title", "registry"}
-	// Registry states. The agreement property is asserted over the CONSISTENT
-	// ones — empty, and complete — because those are the states the registry
-	// invariant actually maintains: LiveIDs filters on the registering
-	// `pair term` being alive, and that process does not outlive its pane.
-	//
-	// "subset" (a right terminal that has not registered yet — the startup race)
-	// and "disjoint" (a registry id naming no pane at all) are inconsistent by
-	// construction, and the generator FOUND that the fast path diverges there
-	// before this comment existed. They are asserted separately below, on the
-	// weaker invariant the fast path can actually guarantee.
-	subsets := []string{"empty", "full"}
 	records := []string{"none", "live-registered", "stale", "unregistered-present"}
 
-	checked, answered := 0, 0
-	for _, kindA := range kinds {
-		for _, kindB := range kinds {
-			for _, subset := range subsets {
-				for _, record := range records {
-					for _, focus := range []int{-1, 0, 1} {
-						panes := []zellijpane.Pane{
-							pane("3", kindA, focus == 0),
-							pane("4", kindB, focus == 1),
-						}
-						var registry []string
-						switch subset {
-						case "subset":
-							registry = []string{"4"}
-						case "full":
-							registry = []string{"3", "4"}
-						case "disjoint":
-							registry = []string{"9"}
-						}
-						lastTerminal := ""
-						switch record {
-						case "live-registered":
-							if len(registry) > 0 {
-								lastTerminal = registry[0]
+	checked, answered, single := 0, 0, 0
+	for _, size := range []int{1, 2} {
+		for _, kindA := range kinds {
+			for _, kindB := range kinds {
+				for _, complete := range []bool{false, true} {
+					for _, record := range records {
+						for focus := -1; focus < size; focus++ {
+							panes := []zellijpane.Pane{pane("3", kindA, focus == 0)}
+							if size == 2 {
+								panes = append(panes, pane("4", kindB, focus == 1))
 							}
-						case "stale":
-							lastTerminal = "77"
-						case "unregistered-present":
-							lastTerminal = "3"
-						}
+							// Complete: the registry names every right terminal
+							// in the world. Otherwise: empty, which is the other
+							// consistent state (it claims nothing).
+							var registry []string
+							if complete {
+								for _, p := range panes {
+									registry = append(registry, p.ID)
+								}
+							}
+							lastTerminal := ""
+							switch record {
+							case "live-registered":
+								if len(registry) > 0 {
+									lastTerminal = registry[0]
+								}
+							case "stale":
+								lastTerminal = "77"
+							case "unregistered-present":
+								lastTerminal = panes[len(panes)-1].ID
+							}
 
-						checked++
-						fastID, ok := resolveFromSidecars(registry, lastTerminal)
-						if !ok {
-							continue // declines: the caller falls back, nothing to prove
-						}
-						answered++
-						slow, found := pickRightTerminal(panes, lastTerminal, registry)
-						if !found {
-							t.Errorf("kinds=%s/%s registry=%s record=%s focus=%d: fast answered %q but the pane list found no right terminal",
-								kindA, kindB, subset, record, focus, fastID)
-							continue
-						}
-						if slow.ID != fastID {
-							t.Errorf("kinds=%s/%s registry=%s record=%s focus=%d: fast=%q slow=%q — the two paths would land on different halves",
-								kindA, kindB, subset, record, focus, fastID, slow.ID)
+							checked++
+							fastID, ok := resolveFromSidecars(registry, lastTerminal)
+							if !ok {
+								continue
+							}
+							answered++
+							if len(registry) == 1 {
+								single++
+							}
+							slow, found := pickRightTerminal(panes, lastTerminal, registry)
+							if !found {
+								t.Errorf("size=%d kinds=%s/%s complete=%v record=%s focus=%d: fast answered %q but the pane list found none",
+									size, kindA, kindB, complete, record, focus, fastID)
+								continue
+							}
+							if slow.ID != fastID {
+								t.Errorf("size=%d kinds=%s/%s complete=%v record=%s focus=%d: fast=%q slow=%q — the two paths would land on different halves",
+									size, kindA, kindB, complete, record, focus, fastID, slow.ID)
+							}
 						}
 					}
 				}
@@ -359,7 +368,10 @@ func TestSidecarFastPathAgreesWithThePaneListWheneverItAnswers(t *testing.T) {
 	if answered == 0 {
 		t.Fatalf("the fast path answered none of %d generated cases — the generator is broken, not the code", checked)
 	}
-	t.Logf("generated %d consistent-registry cases; fast path answered %d", checked, answered)
+	if single == 0 {
+		t.Fatalf("the generated space never reached the single-live-id branch (%d cases) — it cannot prove what it claims", checked)
+	}
+	t.Logf("generated %d complete-or-empty-registry cases; answered %d, of which %d via the single-live-id branch", checked, answered, single)
 }
 
 // The invariant that survives an INCONSISTENT registry: the fast path never
