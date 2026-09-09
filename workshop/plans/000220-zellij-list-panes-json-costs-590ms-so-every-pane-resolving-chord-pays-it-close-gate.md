@@ -137,6 +137,73 @@ rounds:
           family: plan-code-drift
           round: 2
       blocked: true
+    - "n": 3
+      timestamp: "2026-09-09T15:24:19-07:00"
+      agent: claude
+      dispose:
+        - id: BR-1
+          disposition: not-addressed
+          note: 'Still true; re-measured the consequence (Alt+Shift+Enter inert from the terminal pane). Pre-existing, outside #220''s window — file as its own issue.'
+          round: 3
+        - id: BR-2
+          disposition: addressed
+          note: Fast path now gates on all three substituted fields; the "no cached draft" case pins the fallback. The general rule is implemented but not written down.
+          round: 3
+        - id: BR-3
+          disposition: addressed
+          note: Coverage profile now reports count 1 on run.go:188 and run.go:625 (was 0), and the saving is asserted via listCalls.
+          round: 3
+        - id: BR-4
+          disposition: addressed
+          note: draftroute.CachedDraftPaneIDFromEnv now appears only at run.go:1688 (the OSRuntime impl); the fast path uses rt.CachedDraftPaneID().
+          round: 3
+        - id: BR-5
+          disposition: addressed
+          note: Verified by mutation — removing "&& registered(rt, currentID)" from both sites reddens two tests.
+          round: 3
+        - id: BR-6
+          disposition: addressed
+          note: Verified by mutation — dropping positivePID reddens Alive("0")/Alive("-1"); dropping the EPERM branch reddens Alive("1").
+          round: 3
+        - id: BR-7
+          disposition: addressed
+          note: Verified by mutation — a bogus return from the single-live-id branch reddens 18 generated cases. The branch is agreement-checked; its reachability GUARD is not (new finding).
+          round: 3
+        - id: BR-8
+          disposition: not-addressed
+          note: layoutcmd.go:95 unchanged, and this diff added three more synthesised panes (run.go:190, :191, :626) — the class is now 4 sites.
+          round: 3
+        - id: BR-9
+          disposition: not-addressed
+          note: 'Re-measured: /bin/kill -0 1 exits 1. procutil.go:37 still claims the exit-status check got it right, and procutil_test.go:129 now repeats the claim.'
+          round: 3
+        - id: BR-10
+          disposition: not-addressed
+          note: 'shortcut.go:588 unchanged. Sibling: the registry line carries no session field, unlike CachedPaneRecord, so a cross-session id can now reach focus-pane-id unintersected.'
+          round: 3
+        - id: BR-11
+          disposition: not-addressed
+          note: No "## Revisions" section exists in the issue file; the Spec's unscoped claim and the Plan's "same resolver" row are both unchanged.
+          round: 3
+      findings:
+        - id: BR-12
+          severity: Important
+          title: The single-live-id reachability guard counts an input predicate, so it survives the branch's deletion
+          detail: |-
+            2nd in this family, so the deliverable is the RULE: a reachability/coverage guard
+            in a generated test must be incremented at the site it names, not derived from an
+            input predicate that correlates with it. layoutcmd_test.go:349 increments `single`
+            on len(registry)==1, which the RECORD branch also satisfies. Measured: deleting
+            the `len(liveIDs)==1` branch from resolveFromSidecars leaves the test PASSING and
+            still logging "36 via the single-live-id branch". The reported 54 is wrong today
+            too — only 18 tuples enter that branch, and since kindB is a dead axis when
+            size==1, those 18 are 2 distinct worlds repeated 9 times. Prevalence in this diff:
+            5 guards, 1 derived (checked/answered/listCalls x2 are all counted at their real
+            sites). Fix the rule: return which branch answered and count on that, so the guard
+            cannot drift from the code; and skip the kindB loop when size==1.
+          family: agreement-oracle-strength
+          round: 3
+      blocked: true
 ---
 
 # Gate ledger — pair#220 (boundary-review)
@@ -221,16 +288,42 @@ later rounds disposed of them. Generated — edit the gate, not this file.
   registry-membership check, correctly, since its question is different. Record both in a
   "## Revisions" entry rather than leaving them only in the Log.
 
+## Round 3 — 2026-09-09T15:24:19-07:00 (claude) — BLOCKED
+
+### Disposed
+
+- BR-1 — not-addressed — Still true; re-measured the consequence (Alt+Shift+Enter inert from the terminal pane). Pre-existing, outside #220's window — file as its own issue.
+- BR-2 — addressed — Fast path now gates on all three substituted fields; the "no cached draft" case pins the fallback. The general rule is implemented but not written down.
+- BR-3 — addressed — Coverage profile now reports count 1 on run.go:188 and run.go:625 (was 0), and the saving is asserted via listCalls.
+- BR-4 — addressed — draftroute.CachedDraftPaneIDFromEnv now appears only at run.go:1688 (the OSRuntime impl); the fast path uses rt.CachedDraftPaneID().
+- BR-5 — addressed — Verified by mutation — removing "&& registered(rt, currentID)" from both sites reddens two tests.
+- BR-6 — addressed — Verified by mutation — dropping positivePID reddens Alive("0")/Alive("-1"); dropping the EPERM branch reddens Alive("1").
+- BR-7 — addressed — Verified by mutation — a bogus return from the single-live-id branch reddens 18 generated cases. The branch is agreement-checked; its reachability GUARD is not (new finding).
+- BR-8 — not-addressed — layoutcmd.go:95 unchanged, and this diff added three more synthesised panes (run.go:190, :191, :626) — the class is now 4 sites.
+- BR-9 — not-addressed — Re-measured: /bin/kill -0 1 exits 1. procutil.go:37 still claims the exit-status check got it right, and procutil_test.go:129 now repeats the claim.
+- BR-10 — not-addressed — shortcut.go:588 unchanged. Sibling: the registry line carries no session field, unlike CachedPaneRecord, so a cross-session id can now reach focus-pane-id unintersected.
+- BR-11 — not-addressed — No "## Revisions" section exists in the issue file; the Spec's unscoped claim and the Plan's "same resolver" row are both unchanged.
+
+### Raised
+
+- **BR-12** [Important] `agreement-oracle-strength` The single-live-id reachability guard counts an input predicate, so it survives the branch's deletion
+  2nd in this family, so the deliverable is the RULE: a reachability/coverage guard
+  in a generated test must be incremented at the site it names, not derived from an
+  input predicate that correlates with it. layoutcmd_test.go:349 increments `single`
+  on len(registry)==1, which the RECORD branch also satisfies. Measured: deleting
+  the `len(liveIDs)==1` branch from resolveFromSidecars leaves the test PASSING and
+  still logging "36 via the single-live-id branch". The reported 54 is wrong today
+  too — only 18 tuples enter that branch, and since kindB is a dead axis when
+  size==1, those 18 are 2 distinct worlds repeated 9 times. Prevalence in this diff:
+  5 guards, 1 derived (checked/answered/listCalls x2 are all counted at their real
+  sites). Fix the rule: return which branch answered and count on that, so the guard
+  cannot drift from the code; and skip the kindB loop when size==1.
+
 ## Open findings
 
 - **BR-1** [Minor] `divergent-runtime-impls` Toggle-focused's geometry justification holds for only one of its two entry points
-- **BR-2** [Minor] `sidecar-fastpath-case-enumeration` Fallback predicate is stated for one substituted field, not for every field the pane list supplied
-- **BR-3** [Important] `fastpath-untested` Both termcmd fast paths execute in zero tests (coverage profile: count 0)
-- **BR-4** [Important] `seam-bypass` focusedWorkbenchPanes calls draftroute.CachedDraftPaneIDFromEnv instead of rt.CachedDraftPaneID
-- **BR-5** [Important] `unchecked-fastpath-premise` Fast path synthesises role RightTerminal from a bare ZELLIJ_PANE_ID with no registry check
-- **BR-6** [Important] `claimed-fix-unpinned` procutil.Alive's two declared behavior changes are pinned by no test
-- **BR-7** [Important] `agreement-oracle-strength` Generated agreement space never exercises the single-live-id branch
 - **BR-8** [Minor] `fabricated-value-escapes-type` resolveRightTerminal fabricates a zellijpane.Pane with only ID populated
 - **BR-9** [Minor] `comment-vs-measured-behavior` Alive's doc comment misstates the old EPERM behavior
 - **BR-10** [Minor] `untrusted-sidecar-parse` Registry pane id is never validated as a pane id, only the pid is
 - **BR-11** [Minor] `plan-code-drift` Spec's unscoped agreement claim and the Plan's "same resolver" row no longer match the code
+- **BR-12** [Important] `agreement-oracle-strength` The single-live-id reachability guard counts an input predicate, so it survives the branch's deletion

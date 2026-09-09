@@ -289,3 +289,23 @@ not prevent a delivered broadcast — it prevents a *false positive*, since
 `Kill(0, 0)` and `Kill(-1, 0)` both succeed and a registry line reading `1 0`
 would report a live pane that does not exist. The pid-selector danger is why the
 guard exists in the codebase, not what it stops here.
+
+### 2026-09-09 — boundary review round 2: the reachability guard was itself unfalsifiable
+
+**BR-12.** The guard I added for BR-7 — "the generated space must reach the
+single-live-id branch" — counted `len(registry) == 1`, an **input** property. A
+one-entry registry also answers through the *record* branch, so the guard
+survived deleting the single-live-id branch outright: it was asserting something
+about the generator's inputs while claiming something about the code's paths.
+
+Now it counts the branch's own signature — answered **with no recorded half**,
+which only that branch can produce. The count fell from 54 to 18, so 36 of the
+cases I had been reporting as branch coverage were record-hits. Verified by
+mutation: deleting the branch now fails with *"the single-live-id branch is
+unreached, so this space cannot prove what it claims"*.
+
+Worth naming as a class, because it is the third variant of one mistake in this
+session: a guard that reports on its own inputs rather than on the behaviour it
+exists to pin. `#216`'s route scan asserted its premise instead of the routing;
+its first cut mis-scanned and called eight families unroutable; and this one
+counted a fixture shape instead of an execution.

@@ -179,3 +179,145 @@ findings:
       registry-membership check, correctly, since its question is different. Record both in a
       "## Revisions" entry rather than leaving them only in the Log.
 ```
+
+---
+
+## Re-review — 2026-09-09T15:24:19-07:00 (FIX-THEN-SHIP)
+
+| field | value |
+|-------|-------|
+| issue | 220 — zellij list-panes --json costs 590ms, so every pane-resolving chord pays it |
+| repo | pair |
+| issue file | workshop/issues/000220-zellij-list-panes-json-costs-590ms-so-every-pane-resolving-chord-pays-it.md |
+| boundary | whole-issue close |
+| milestone | — |
+| window | 21cc7f7791587351601a8274043f62493d0edd98..d9086ee20120ef7bd697014df5a6f30f870ba3fa |
+| command | sdlc close --issue 220 |
+| reviewer | claude |
+| timestamp | 2026-09-09T15:24:19-07:00 |
+| verdict | FIX-THEN-SHIP |
+
+## Review
+
+```verdict
+verdict: FIX-THEN-SHIP
+confidence: high
+```
+
+The core of #220 is sound and round 2 genuinely closed the Important findings — I verified each by mutation in a scratch copy rather than by reading the commit message. `resolveFromSidecars` (`layoutcmd.go:58`) is a real pure decision function; both `termcmd` fast paths now execute (coverage count 1 on `run.go:188` and `run.go:625`, was 0); the BR-5 registry gate reddens two tests when removed; `Alive`'s `positivePID` guard and EPERM branch each redden a test when removed; and the rebuilt generator's single-live-id branch is genuinely agreement-checked — returning a bogus id from it reddens 18 cases. What keeps this off SHIP is one new Important finding and five Minor carry-overs: the reachability guard added to close BR-7 does not measure the branch it names (deleting the branch outright leaves the test green while still logging "36 via the single-live-id branch"), and BR-8/9/10/11 plus BR-1 are all still literally true in the tree. None is a correctness bug on the production path. Verification: `go vet ./cmd/...` clean; `go test ./cmd/...` — every failure is the documented `ptychild`/`operation not permitted` pty-environment class, none in `layoutcmd`/`procutil`/`termcmd`'s non-pty tests.
+
+## 1. Strengths
+
+- **The BR-5 fix is the right one, not the convenient one.** `registered()` (`run.go:159`) gates on registry membership rather than on `ZELLIJ_PANE_ID` alone, and it is shared by both fast paths — one predicate, two callers (ARCH-DRY). Mutation confirms: dropping `&& registered(rt, currentID)` from both sites reddens `TestFocusedWorkbenchPanesFallsBackWhenTheGateFails/pane_is_not_registered` and `TestCurrentRightTerminalPaneSkipsThePaneListWhenRegistered`.
+- **BR-4's seam restoration made BR-3 testable, and the diff says so at the site** (`run.go:186-187`). `draftroute.CachedDraftPaneIDFromEnv` now appears only in `OSRuntime` (`run.go:1688`). Production flow and test flow share the `Runtime` boundary again (ARCH-MOCK).
+- **`procutil.Alive`'s two declared behaviours are pinned by tests that fail without the fix.** Replacing `positivePID` with a bare `strconv.Atoi` reddens with `Alive("0") = true` and `Alive("-1") = true`; dropping `|| errors.Is(err, syscall.EPERM)` reddens with `Alive(1) = false`. That is the standard the claimed-fix check asks for.
+- **The generator rebuild around *completeness* rather than *size* (BR-7) was the correct diagnosis** — `layoutcmd_test.go:311-322`. The `case "subset"` / `case "disjoint"` dead arms are gone, and 360 cases now reach the branch that previously could not be produced.
+- **`TestSidecarFastPathFallsBackWhenItCannotAnswer` asserts `listCalls` in both directions** (`layoutcmd_test.go:409-441`), so it pins the 590ms saving *and* the fact that the tie-break is not eaten.
+
+## 2. Critical findings
+
+None.
+
+## 3. Important findings
+
+**The reachability guard for the single-live-id branch counts an input predicate, not the branch** — `layoutcmd_test.go:349-350`, guard at `:371`, log at `:374`.
+
+> **This is the 2nd finding in family `agreement-oracle-strength`.** Round 1 fixed the instance (the branch was unreachable); do NOT just fix this instance. The rule that covers both: **a reachability/coverage guard in a generated test must be incremented at the site it names, not derived from an input predicate that correlates with it** — otherwise the guard survives the branch's deletion and reports coverage the space no longer has.
+
+Measured prevalence in this diff: 5 such guards, 1 wrong. `checked`, `answered`, and the two `listCalls` assertions are all incremented at their real sites; `single` is incremented on `len(registry) == 1`, which the *record* branch also satisfies. Deleting the `len(liveIDs) == 1` branch from `resolveFromSidecars` entirely leaves `TestSidecarFastPathAgreesWithThePaneListWheneverItAnswers` **PASSING** and still logging `answered 90, of which 36 via the single-live-id branch`. The reported 54 is also wrong today: only 18 generated tuples actually enter that branch (record=`none`, size=1, complete=true), and because `kindB` is a dead axis when `size == 1`, those 18 are 2 distinct worlds repeated 9 times. Fix sketch: make the counter exact (`if lastTerminal == "" && len(registry) == 1`) — or better, per the rule, have `resolveFromSidecars` return which branch answered and count on that, so the guard cannot drift from the code again; and skip the `kindB` loop when `size == 1` so the case count stops overstating the space.
+
+## 4. Minor findings
+
+- **BR-1 not-addressed** (`run.go:1684` vs `layoutcmd.go:305`): termcmd's `OSRuntime.ListPanesJSON` still omits `--geometry`, and `handleTerminalChord` reaches `RunToggleFocused` with it at `run.go:588`. Traced to ground this round: `zellijpane` documents geometry as present only "when callers request `list-panes --geometry`", so `focused.Columns == 0` → `terminalToggleBurst(0, 0)` returns `false` (`resizeplan.go:27`) → `Alt+Shift+Enter` pressed *inside* the right terminal is silently inert. Pre-existing and outside #220's window; my call is that it is a separate issue, and it should be filed rather than carried further on this one.
+- **BR-8 not-addressed, and the class grew** (`layoutcmd.go:95`): `resolveRightTerminal` still wraps the id in a `zellijpane.Pane` whose other fields are zero, not unknown. This diff added three more synthesised panes (`run.go:190`, `:191`, `:626`), so the family is now 4 sites, not 1. Both `layoutcmd` callers read only `.ID`; the `run.go:190` one is the one that matters, since it deliberately populates `TerminalCommand` to survive `RoleForPaneWith` while leaving `X`/`Columns`/`IsFocused` fabricated as zero for any future reader.
+- **BR-9 not-addressed, now at two sites** (`procutil.go:37`, `procutil_test.go:129`): re-measured on this host — `/bin/kill -0 1` exits **1** ("Operation not permitted"), so the old `exec.Command("kill", "-0", ...)` reported PID 1 dead. Both the doc comment ("the distinction the exit-status check silently got right before") and the new test comment ("got this right by accident via its exit status") state the opposite of the measurement. The change is a fix, not a preservation.
+- **BR-10 not-addressed** (`shortcut.go:588-595`): `fields[0]` is still taken verbatim while `fields[1]` is parsed. Sibling worth folding in: the registry line carries **no session field**, unlike `CachedPaneRecord.Session` which `ValidateCachedDraftPane` checks (`route.go:44-46`) — so a registry scoped only by `PAIR_DATA_DIR`+`PAIR_TAG` can name a pane from another zellij session, and the fast path now hands that id to `focus-pane-id`/`write --pane-id` without the pane-report intersection the slow path applied. Argv is an array, so there is no injection surface; the failure mode is a silently wrong or inert target (ARCH-SECURE).
+- **BR-11 not-addressed**: the issue file has no `## Revisions` section (grep confirms), the Spec's unscoped "must produce the SAME id the slow path would in the cases it handles" is unchanged, and the Plan's `termcmd:568` row still says "same resolver" while the code uses the inline `registered()` check.
+- `registered()` reads `rt.TerminalPaneIDs()` and then `handleChord` reads it again at `run.go:131`; two registry reads per fast-path keypress. Negligible against 590ms, noted only because the same list is now scanned by three near-identical membership loops (`layoutcmd.go:63-67`, `run.go:163-167`, `shortcut.go:608-612`).
+
+## 5. Test coverage notes
+
+The bug class this diff could ship — the two paths landing on different split halves — is now covered from both sides, and the coverage claim is checkable rather than asserted: both `termcmd` fast-path blocks report count 1 where round 1 measured 0. The one gap is the guard described in §3. Two environment dependencies in `procutil_test.go` are worth knowing about but not worth fixing: `Alive("1")` assumes PID 1 exists and is not ours (it passes either way — as root it takes the `err == nil` path, so the EPERM branch is only genuinely exercised as non-root), and `Alive("4194305")` assumes the platform pid maximum, which a Linux host with a raised `pid_max` could invalidate. Neither is flaky in this repo's actual environment.
+
+## 6. Architectural notes
+
+- **ARCH-DRY** — flag, Minor only: three copies of the id-membership loop (§4). The shared `registered()` helper across both `termcmd` fast paths is the right consolidation at the level that mattered.
+- **ARCH-PURE** — pass. `resolveFromSidecars` takes two slices and returns `(string, bool)`; its tests run with zero IO, exactly as the plan's Core-concepts row claims. `resolveRightTerminalID` is the thin IO shell around it.
+- **ARCH-PURPOSE** — pass on the shadow-sweep. All five `ListPanesJSON` consumers enumerated in the Plan exist at the stated paths and each derives its disposition from the stated rule; `grep -n list-panes` finds exactly the two `OSRuntime` implementations and no hand-rolled third. Partial flag: BR-2's *rule* ("fall back when ANY substituted field is unavailable") is implemented in code and pinned by the `no cached draft` case, but written down nowhere — the atlas states the ID-vs-geometry rule, not the disjunctive-fallback one.
+- **ARCH-MOCK** — pass. `fakeRuntime` in both packages sits on the same `Runtime` seam production uses; BR-4's bypass is gone. `syscall.Kill` is a syscall, not an external binary, and liveness is still injected into `LiveIDs(alive func(int) bool)`.
+- **ARCH-CONSTRAINTS** — pass. Keystroke-path work with a stated budget and before/after medians in the `## Log` (631→55ms, 671→27ms), and the residue is accounted for rather than hand-waved.
+- **ARCH-SECURE** — flag, covered by BR-10 (§4). Everything else degrades visibly: a registry read error narrows to `nil` and falls back; a partial append-only line fails `len(fields) != 2` and is skipped; the draft cache is session- and pid-validated.
+- **ARCH-ORDER** — pass, with the claim written out rather than left bare: each pane-resolving command is a fresh short-lived process holding no state between events; the only carried state is the two sidecars, read whole per invocation. The one ordering event that matters — a `pair term` that has not self-registered yet — is enumerated in the Plan with its chosen disposition (fall back) and its accepted residual risk.
+
+## 7. Plan revision recommendations
+
+The issue still has no `## Revisions` section. Two entries are owed (this is BR-11, re-raised as still open rather than as new):
+
+- **Spec, agreement scope.** Replace "The fast path must produce the SAME id the slow path would in the cases it handles" with the guarantee the code and the generator actually deliver: agreement holds whenever the registry is *consistent* with the pane report (complete or empty), and the invariant that holds unconditionally is that the fast path never returns an id the registry did not list. Reason: the generator found two divergence classes (incomplete registry with no record; disjoint registry) and the response was to scope the property — that scoping currently lives only in the `## Log`.
+- **Plan, `termcmd:568` caller row.** "sidecar-first, same resolver" → sidecar-first via an inline registry-membership check (`registered()`), not `resolveFromSidecars`. Reason: its question is "is *this* pane a right terminal?", not "which right terminal?", so a different predicate is correct — but the table currently claims a code-sharing that does not exist.
+
+```findings
+dispose:
+  - id: BR-1
+    disposition: not-addressed
+    note: |
+      Still true; re-measured the consequence (Alt+Shift+Enter inert from the terminal pane). Pre-existing, outside #220's window — file as its own issue.
+  - id: BR-2
+    disposition: addressed
+    note: |
+      Fast path now gates on all three substituted fields; the "no cached draft" case pins the fallback. The general rule is implemented but not written down.
+  - id: BR-3
+    disposition: addressed
+    note: |
+      Coverage profile now reports count 1 on run.go:188 and run.go:625 (was 0), and the saving is asserted via listCalls.
+  - id: BR-4
+    disposition: addressed
+    note: |
+      draftroute.CachedDraftPaneIDFromEnv now appears only at run.go:1688 (the OSRuntime impl); the fast path uses rt.CachedDraftPaneID().
+  - id: BR-5
+    disposition: addressed
+    note: |
+      Verified by mutation — removing "&& registered(rt, currentID)" from both sites reddens two tests.
+  - id: BR-6
+    disposition: addressed
+    note: |
+      Verified by mutation — dropping positivePID reddens Alive("0")/Alive("-1"); dropping the EPERM branch reddens Alive("1").
+  - id: BR-7
+    disposition: addressed
+    note: |
+      Verified by mutation — a bogus return from the single-live-id branch reddens 18 generated cases. The branch is agreement-checked; its reachability GUARD is not (new finding).
+  - id: BR-8
+    disposition: not-addressed
+    note: |
+      layoutcmd.go:95 unchanged, and this diff added three more synthesised panes (run.go:190, :191, :626) — the class is now 4 sites.
+  - id: BR-9
+    disposition: not-addressed
+    note: |
+      Re-measured: /bin/kill -0 1 exits 1. procutil.go:37 still claims the exit-status check got it right, and procutil_test.go:129 now repeats the claim.
+  - id: BR-10
+    disposition: not-addressed
+    note: |
+      shortcut.go:588 unchanged. Sibling: the registry line carries no session field, unlike CachedPaneRecord, so a cross-session id can now reach focus-pane-id unintersected.
+  - id: BR-11
+    disposition: not-addressed
+    note: |
+      No "## Revisions" section exists in the issue file; the Spec's unscoped claim and the Plan's "same resolver" row are both unchanged.
+findings:
+  - id: new
+    severity: Important
+    family: agreement-oracle-strength
+    title: |
+      The single-live-id reachability guard counts an input predicate, so it survives the branch's deletion
+    detail: |
+      2nd in this family, so the deliverable is the RULE: a reachability/coverage guard
+      in a generated test must be incremented at the site it names, not derived from an
+      input predicate that correlates with it. layoutcmd_test.go:349 increments `single`
+      on len(registry)==1, which the RECORD branch also satisfies. Measured: deleting
+      the `len(liveIDs)==1` branch from resolveFromSidecars leaves the test PASSING and
+      still logging "36 via the single-live-id branch". The reported 54 is wrong today
+      too — only 18 tuples enter that branch, and since kindB is a dead axis when
+      size==1, those 18 are 2 distinct worlds repeated 9 times. Prevalence in this diff:
+      5 guards, 1 derived (checked/answered/listCalls x2 are all counted at their real
+      sites). Fix the rule: return which branch answered and count on that, so the guard
+      cannot drift from the code; and skip the kindB loop when size==1.
+```

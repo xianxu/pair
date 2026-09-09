@@ -346,7 +346,13 @@ func TestSidecarFastPathAgreesWithThePaneListWheneverItAnswers(t *testing.T) {
 								continue
 							}
 							answered++
-							if len(registry) == 1 {
+							// Count the BRANCH, not an input property (BR-12).
+							// A one-entry registry also answers through the
+							// record branch, so `len(registry) == 1` survives
+							// deleting the single-live-id branch entirely.
+							// Only "answered with no record" is that branch's
+							// own signature.
+							if lastTerminal == "" {
 								single++
 							}
 							slow, found := pickRightTerminal(panes, lastTerminal, registry)
@@ -369,9 +375,9 @@ func TestSidecarFastPathAgreesWithThePaneListWheneverItAnswers(t *testing.T) {
 		t.Fatalf("the fast path answered none of %d generated cases — the generator is broken, not the code", checked)
 	}
 	if single == 0 {
-		t.Fatalf("the generated space never reached the single-live-id branch (%d cases) — it cannot prove what it claims", checked)
+		t.Fatalf("no generated case was answered with NO recorded half (%d cases) — the single-live-id branch is unreached, so this space cannot prove what it claims", checked)
 	}
-	t.Logf("generated %d complete-or-empty-registry cases; answered %d, of which %d via the single-live-id branch", checked, answered, single)
+	t.Logf("generated %d complete-or-empty-registry cases; answered %d, of which %d through the single-live-id branch (answered with no record)", checked, answered, single)
 }
 
 // The invariant that survives an INCONSISTENT registry: the fast path never
