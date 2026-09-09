@@ -326,6 +326,55 @@ rounds:
           family: unbounded-keystroke-fanout
           round: 3
       blocked: true
+    - "n": 4
+      timestamp: "2026-09-09T13:05:11-07:00"
+      agent: claude
+      dispose:
+        - id: BR-14
+          disposition: addressed
+          note: 'Verified by mutation: renaming dispatcher.go:203 reddens 2 tests; renaming workbench_route.lua:130 reddens 2 assertions. Both checks BR-14 specified exist. The chain''s third boundary is tracked under BR-13.'
+          round: 4
+        - id: BR-13
+          disposition: not-addressed
+          note: 'Measured on full make test, mutant vs control identical (84 pre-existing pty FAILs, zero new): mutating ''prev'' to ''previous'' at init.lua:3405 AND deleting _G.PairWorkbenchRoute at init.lua:3515 (which nil-indexes on every press) leaves the suite green. Round 2 pinned the pure helper, not the body that calls it.'
+          round: 4
+        - id: BR-15
+          disposition: not-addressed
+          note: shortcut_test.go:613 still skips modifier >= 9, so the sibling relation stays one-directional; zellij/config.kdl:37 support_kitty_keyboard_protocol is still true, so the bit-8 premise is still Super rather than Meta. No change in this round.
+          round: 4
+        - id: BR-16
+          disposition: not-addressed
+          note: tests/term-pane-shortcuts-test.sh:115 unchanged. The block's comment also still claims "Driven from the DRAFT's focus" although handleChord short-circuits at DecideGlobal before reading pane focus — fix the comment with the row.
+          round: 4
+        - id: BR-17
+          disposition: not-addressed
+          note: 'nvim/scrollback.lua:273 still carries the idiom. One correction to the finding: that site DOES have the empty-PAIR_HOME fallback (if/else at 272-277), so it will not nil-concat; the defect is the duplicated resolution alone.'
+          round: 4
+        - id: BR-18
+          disposition: not-addressed
+          note: nvim/init.lua:3399-3402 unchanged — jobstart(detach = true) per press, no debounce, extent not lexically bounded.
+          round: 4
+      findings:
+        - id: BR-19
+          severity: Minor
+          title: TestDraftLuaSubcommandsAreDeclaredAndRoutable names the class of Lua-to-Go argv boundaries but scans 1 of the 3 Lua files that build one
+          detail: |-
+            This is the 5th finding in family `untested-executor-branch`. Earlier rounds fixed
+            instances (agent pane, termcmd, then the chord chain's dispatcher edge). Do NOT fix
+            this instance. The rule is BR-14's, generalised one notch: the crossing test must
+            enumerate the Lua sites that build a `pair` argv, not the one the finding named.
+            Measured enumeration (`grep -n "pair_bin()\|/bin/pair'" nvim/*.lua` then the argv
+            sites): nvim/init.lua:763 `session-log append`, :774 `session-log commit`, :906
+            `review readiness`, :955 `review open`, nvim/scrollback.lua:279 `scrollback render`,
+            nvim/workbench_route.lua:130 `layout switch-terminal-tab`. 1 of 6 is scanned; a
+            rename of any of the other 5 is invisible to `go test ./...` exactly as the
+            dispatcher rename was. The extraction regex is also shaped for one call site
+            (`return \{...\}` with quoted literals), so widening the scan needs a different
+            extractor for the `vim.fn.system({ pair, 'a', 'b', ... })` form. Either widen the
+            scan or narrow the test's name so it does not read as covering the class.
+          family: untested-executor-branch
+          round: 4
+      blocked: false
 ---
 
 # Gate ledger — pair#216 (boundary-review)
@@ -528,10 +577,39 @@ later rounds disposed of them. Generated — edit the gate, not this file.
   means the extent is not lexically bounded (ARCH-CONSTRAINTS / ARCH-ORDER extent).
   Note for future, not a gate issue -- Alt+k from the draft has the same shape today.
 
+## Round 4 — 2026-09-09T13:05:11-07:00 (claude) — passed
+
+### Disposed
+
+- BR-14 — addressed — Verified by mutation: renaming dispatcher.go:203 reddens 2 tests; renaming workbench_route.lua:130 reddens 2 assertions. Both checks BR-14 specified exist. The chain's third boundary is tracked under BR-13.
+- BR-13 — not-addressed — Measured on full make test, mutant vs control identical (84 pre-existing pty FAILs, zero new): mutating 'prev' to 'previous' at init.lua:3405 AND deleting _G.PairWorkbenchRoute at init.lua:3515 (which nil-indexes on every press) leaves the suite green. Round 2 pinned the pure helper, not the body that calls it.
+- BR-15 — not-addressed — shortcut_test.go:613 still skips modifier >= 9, so the sibling relation stays one-directional; zellij/config.kdl:37 support_kitty_keyboard_protocol is still true, so the bit-8 premise is still Super rather than Meta. No change in this round.
+- BR-16 — not-addressed — tests/term-pane-shortcuts-test.sh:115 unchanged. The block's comment also still claims "Driven from the DRAFT's focus" although handleChord short-circuits at DecideGlobal before reading pane focus — fix the comment with the row.
+- BR-17 — not-addressed — nvim/scrollback.lua:273 still carries the idiom. One correction to the finding: that site DOES have the empty-PAIR_HOME fallback (if/else at 272-277), so it will not nil-concat; the defect is the duplicated resolution alone.
+- BR-18 — not-addressed — nvim/init.lua:3399-3402 unchanged — jobstart(detach = true) per press, no debounce, extent not lexically bounded.
+
+### Raised
+
+- **BR-19** [Minor] `untested-executor-branch` TestDraftLuaSubcommandsAreDeclaredAndRoutable names the class of Lua-to-Go argv boundaries but scans 1 of the 3 Lua files that build one
+  This is the 5th finding in family `untested-executor-branch`. Earlier rounds fixed
+  instances (agent pane, termcmd, then the chord chain's dispatcher edge). Do NOT fix
+  this instance. The rule is BR-14's, generalised one notch: the crossing test must
+  enumerate the Lua sites that build a `pair` argv, not the one the finding named.
+  Measured enumeration (`grep -n "pair_bin()\|/bin/pair'" nvim/*.lua` then the argv
+  sites): nvim/init.lua:763 `session-log append`, :774 `session-log commit`, :906
+  `review readiness`, :955 `review open`, nvim/scrollback.lua:279 `scrollback render`,
+  nvim/workbench_route.lua:130 `layout switch-terminal-tab`. 1 of 6 is scanned; a
+  rename of any of the other 5 is invisible to `go test ./...` exactly as the
+  dispatcher rename was. The extraction regex is also shaped for one call site
+  (`return \{...\}` with quoted literals), so widening the scan needs a different
+  extractor for the `vim.fn.system({ pair, 'a', 'b', ... })` form. Either widen the
+  scan or narrow the test's name so it does not read as covering the class.
+
 ## Open findings
 
-- **BR-14** [Important] `untested-executor-branch` The draft pane's chord chain crosses two seams and no test crosses either; renaming the Dispatch case leaves go test ./... identical to control
+- **BR-13** [Minor] `untested-executor-branch` _G.PairTermPrevTab / PairTermNextTab bodies are untested
 - **BR-15** [Minor] `chord-encoding-family-coverage` The meta-family guard is one-directional, and its bit-8=Meta premise is Super under the kitty protocol zellij enables
 - **BR-16** [Minor] `untested-executor-branch` tests/term-pane-shortcuts-test.sh:115 asserts nothing the two rows above it do not already prove, and passes vacuously
 - **BR-17** [Minor] `dead-code-after-removal` The pair_bin() consolidation swept init.lua but not the idiom's member in nvim/scrollback.lua:273
 - **BR-18** [Minor] `unbounded-keystroke-fanout` Held Alt+Shift+arrow in the draft spawns 3 detached processes per auto-repeat with no debounce
+- **BR-19** [Minor] `untested-executor-branch` TestDraftLuaSubcommandsAreDeclaredAndRoutable names the class of Lua-to-Go argv boundaries but scans 1 of the 3 Lua files that build one

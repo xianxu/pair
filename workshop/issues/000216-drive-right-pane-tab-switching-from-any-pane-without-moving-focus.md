@@ -1,12 +1,13 @@
 ---
 id: 000216
-status: working
+status: codecomplete
 deps: []
 github_issue:
 created: 2026-09-08
 updated: 2026-09-09
 estimate_hours: 1.60
 started: 2026-09-09T10:45:14-07:00
+actual_hours: 1.80
 ---
 
 # drive right-pane tab switching from any pane, without moving focus
@@ -227,6 +228,8 @@ Single pass; no separate review boundaries.
 
 ## Log
 
+
+- 2026-09-09: closed — Full `make test` green unsandboxed (EXIT=0, zero FAIL lines). --no-plan-check covers ONE deliberately-unticked row: the live gesture needs a real keypress and is labelled operator-pending, not claimed. BR-14 addressed as the RULE its family names — a chord is delivered by a CHAIN, and every process- or language-boundary needs a test that CROSSES it. The draft chain (Lua -> pair layout switch-terminal-tab -> dispatcher case -> Go) had two untyped string contracts; both are now crossed. TestEveryImplementedFamilyIsRoutable asserts every Status:"implemented" family has a routing case, read from SOURCE rather than by calling Dispatch, because calling it executes the command and a routability check that launches wrap or term is not a test. TestDraftLuaSubcommandsAreDeclaredAndRoutable extracts the argv nvim/workbench_route.lua actually builds and asserts Go both declares and routes it. Verified by the exact mutant the review measured: renaming the Dispatch case now reddens, and so does renaming the subcommand on the Lua side. Recorded honestly in the Log: the first cut of the routability scan was itself wrong — it scanned only dispatcher.go and reported eight implemented families as unroutable, because the STREAMING commands are routed in cmd/pair-go/main.go and never reach the buffered switch; both routers are scanned now.; review verdict: FIX-THEN-SHIP
 - 2026-09-08 — filed from the operator's request during `#199` M4 acceptance.
   Depends on `#199`'s strip only for the *feedback* (the bracket moving is how
   the operator sees the switch land); the mechanism is independent of it.
@@ -481,3 +484,28 @@ scan's own premise as the code's.
 
 Verified by mutation: renaming the Dispatch case reddens, and so does renaming
 the subcommand on the Lua side.
+
+### 2026-09-09 — boundary review round 4: close finalized
+
+Verdict FIX-THEN-SHIP with one Minor, fixed before this commit per the protocol.
+
+**BR-19** — the crossing test I added for BR-14 covered **one of three** Lua
+files that build a `pair` argv. That is the same shape as the two tests that
+stopped on either side of the boundary: a crossing test covering a third of the
+boundary is not a crossing test. The enumeration —
+`grep -n "pair_bin()\|/bin/pair'" nvim/*.lua` — gives `init.lua` (five sites),
+`scrollback.lua`, and `workbench_route.lua`, all building the same
+`{ <pairbin>, 'word', … }` shape. The test now walks every production
+`nvim/*.lua`, resolves each two- or one-word command name against `Families()`,
+and asserts a router handles it. It also fails loudly if the scan itself
+extracts too few sites, so a refactor cannot make it pass vacuously — the trap
+the first cut of the sibling test fell into.
+
+Verified by mutation on files the finding did NOT name: renaming the subcommand
+in `scrollback.lua` reddens, and so does renaming it in `init.lua`.
+
+**Closed at `actual_hours: 1.80` against a 1.60 estimate (ratio 0.89).** Worth
+noting against the estimate judge's advisory, which predicted 3–4h by peer
+comparison and flagged 1.60 as low: the estimate held. The four review rounds
+were the cost driver it expected, but each round was small because the findings
+named rules that were cheap to write once located.

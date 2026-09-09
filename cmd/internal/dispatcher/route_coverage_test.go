@@ -5,6 +5,7 @@ import (
 	"go/parser"
 	"go/token"
 	"os"
+	"path/filepath"
 	"regexp"
 	"strconv"
 	"strings"
@@ -73,45 +74,68 @@ func TestEveryImplementedFamilyIsRoutable(t *testing.T) {
 	}
 }
 
-// The other half of the chain (#216 BR-14): the draft pane reaches these
-// commands from LUA, so the two sides of that string contract are in different
-// languages and nothing type-checks between them. This crosses the boundary by
-// reading the argv the Lua actually builds and asserting Go declares and routes
-// it. A rename on either side reddens here.
-func TestDraftLuaSubcommandsAreDeclaredAndRoutable(t *testing.T) {
-	source, err := os.ReadFile("../../../nvim/workbench_route.lua")
-	if err != nil {
-		t.Fatal(err)
-	}
-	// `return { pair_bin, 'layout', 'switch-terminal-tab', direction }` — the
-	// quoted literals are the command name; the unquoted ones are variables.
-	command := regexp.MustCompile(`return \{[^}]*?\}`)
-	quoted := regexp.MustCompile(`'([a-z][a-z-]*)'`)
-	var found []string
-	for _, block := range command.FindAllString(string(source), -1) {
-		var parts []string
-		for _, m := range quoted.FindAllStringSubmatch(block, -1) {
-			parts = append(parts, m[1])
-		}
-		if len(parts) >= 2 {
-			found = append(found, strings.Join(parts[:2], " "))
-		}
-	}
-	if len(found) == 0 {
-		t.Fatal("found no Lua-built pair subcommands — the extraction is broken, not the Lua")
-	}
+// The other half of the chain (#216 BR-14, generalised by BR-19): nvim reaches
+// these commands from LUA, so the two sides of that string contract are in
+// different languages and nothing type-checks between them.
+//
+// Scans EVERY production Lua file that builds a `pair` argv, not the one file
+// the finding named — a crossing test that covers one of three boundaries is
+// the same shape as the two tests that stopped on either side. The enumeration
+// is `grep -n "pair_bin()\|/bin/pair'" nvim/*.lua`: init.lua, scrollback.lua and
+// workbench_route.lua all construct one, in the same `{ <pairbin>, 'word', … }`
+// shape.
+func TestLuaBuiltPairSubcommandsAreDeclaredAndRoutable(t *testing.T) {
+	// First element is the pair binary under one of its three local spellings;
+	// the quoted words after it are the command name.
+	argv := regexp.MustCompile(`\{\s*(?:pair|pair_bin|bin)(?:\(\))?\s*,\s*((?:'[a-z][a-z0-9-]*'\s*,\s*)+)`)
+	quoted := regexp.MustCompile(`'([a-z][a-z0-9-]*)'`)
 
 	declared := map[string]bool{}
 	for _, family := range Families() {
 		declared[family.Name] = true
 	}
 	routed := dispatchCaseNames(t)
-	for _, name := range found {
-		if !declared[name] {
-			t.Errorf("nvim/workbench_route.lua runs `pair %s`, which Families() does not declare", name)
+
+	luaFiles, err := filepath.Glob("../../../nvim/*.lua")
+	if err != nil {
+		t.Fatal(err)
+	}
+	found := 0
+	for _, path := range luaFiles {
+		if strings.HasSuffix(path, "_test.lua") {
+			continue
 		}
-		if !routed[name] {
-			t.Errorf("nvim/workbench_route.lua runs `pair %s`, which no Dispatch case routes", name)
+		source, err := os.ReadFile(path)
+		if err != nil {
+			t.Fatal(err)
 		}
+		for _, match := range argv.FindAllStringSubmatch(string(source), -1) {
+			var words []string
+			for _, w := range quoted.FindAllStringSubmatch(match[1], -1) {
+				words = append(words, w[1])
+			}
+			// Families are one or two words ("title", "session-log append").
+			// Prefer the longer reading, since "session-log" alone is not one.
+			name := ""
+			if len(words) >= 2 && declared[words[0]+" "+words[1]] {
+				name = words[0] + " " + words[1]
+			} else if len(words) >= 1 && declared[words[0]] {
+				name = words[0]
+			}
+			if name == "" {
+				t.Errorf("%s runs `pair %s`, which Families() does not declare",
+					filepath.Base(path), strings.Join(words, " "))
+				continue
+			}
+			found++
+			if !routed[name] {
+				t.Errorf("%s runs `pair %s`, which no router case handles", filepath.Base(path), name)
+			}
+		}
+	}
+	// The enumeration found six argv sites across three files; if a refactor
+	// drops the scan to nothing, that must fail rather than pass vacuously.
+	if found < 4 {
+		t.Fatalf("extracted only %d Lua-built pair subcommands — the scan is broken, not the Lua", found)
 	}
 }

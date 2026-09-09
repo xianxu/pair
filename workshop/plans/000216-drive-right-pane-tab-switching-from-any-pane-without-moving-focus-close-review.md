@@ -537,3 +537,121 @@ findings:
       means the extent is not lexically bounded (ARCH-CONSTRAINTS / ARCH-ORDER extent).
       Note for future, not a gate issue -- Alt+k from the draft has the same shape today.
 ```
+
+---
+
+## Re-review — 2026-09-09T13:05:11-07:00 (FIX-THEN-SHIP)
+
+| field | value |
+|-------|-------|
+| issue | 216 — drive right-pane tab switching from any pane, without moving focus |
+| repo | pair |
+| issue file | workshop/issues/000216-drive-right-pane-tab-switching-from-any-pane-without-moving-focus.md |
+| boundary | whole-issue close |
+| milestone | — |
+| window | d15201957318de0b4a7172db0798cf176bc80d82..a7e4dc777eb5e2697813da7fbe11040c81c5e7cf |
+| command | sdlc close --issue 216 |
+| reviewer | claude |
+| timestamp | 2026-09-09T13:05:11-07:00 |
+| verdict | FIX-THEN-SHIP |
+
+## Review
+
+```verdict
+verdict: FIX-THEN-SHIP
+confidence: high
+```
+
+Round 3's deliverable — BR-14's chain rule — is genuinely delivered and I verified it by mutation: renaming `case "layout switch-terminal-tab"` (dispatcher.go:203) and renaming the subcommand in `nvim/workbench_route.lua:130` each redden `TestEveryImplementedFamilyIsRoutable` / `TestDraftLuaSubcommandsAreDeclaredAndRoutable`. The production code reads correct end to end: `handleTerminalChord` short-circuits the chord inside the right pane before `handleChord`, so there is no double-switch; `resolveRightTerminal` preserves `FocusRightTerminal`'s exact degradation ladder; `DeliverChordArgs` emits an argv array (no shell) pinned to the canonical encoding; `pair keys` renders both rows from `GlobalBinding.Help` (verified by running it). What blocks SHIP is one thing, and it is a re-opened claim rather than a new one: **BR-13 ("PairTermPrevTab/NextTab bodies are untested") was disposed `addressed` in round 2 but is measurably still open.** I mutated `pair_switch_terminal_tab('prev')` → `('previous')` *and* deleted the `_G.PairWorkbenchRoute` publication (init.lua:3515) — which alone kills the draft chord with a nil-index at keypress — and ran full `make test` on mutant and control: **identical result sets, 84 `--- FAIL` lines each, all the pre-existing pty/`fork exec /bin/ps: operation not permitted` environment failures, zero new**. The draft pane is the pane this issue exists for, and it is the one executor whose chain still has no crossing test.
+
+## 1. Strengths
+
+- **`resolveRightTerminal` (layoutcmd.go:63-75) is a faithful extraction.** The error-degradation ladder (`ListPanesJSON` → hard error; `LastTerminalPaneID`/`TerminalPaneIDs` → silent preference loss) is byte-for-byte what `FocusRightTerminal` did before, and both callers now feed the picker identical signals. That is BR-10 actually delivered, not restated.
+- **`TestChordMaxFollowsEveryEncodedChord` asserts the sentinel against the encoding table, not against the name of the current last chord.** This is the right shape — it is the exact mistake the old `chord <= ChordAltShiftEnter` bounds made, and pinning it to `chordSequences` means the *next* chord cannot repeat it.
+- **`keyhelp` genuinely derives.** `sections.go:94-98` errors when a `SourceGlobal` row has no matching `GlobalBinding.Help`, so the two new catalog rows cannot drift from the code. I ran `pair keys`: both render with the "from any pane, without moving focus" wording under Terminal tabs.
+- **The routability guard reads from source rather than calling `Dispatch`** (route_coverage_test.go:19-27), with the reasoning recorded — a routability check that launches `wrap` or `term` is not a test. And it `t.Fatal`s when the scan itself finds nothing, so it cannot pass vacuously.
+- **The split-arrival rows** (run_test.go:177-178) deliver `\x1b[1;4` + `D` and `\x1b[1;` + `4C` in separate reads. A chord lost across a chunk boundary reads as a dead key, and this is the only test shape that catches it.
+
+## 2. Critical findings
+
+None.
+
+## 3. Important findings
+
+**BR-13 re-opened — `nvim/init.lua:3399-3406` + `:3515`: the draft's chord chain has a third boundary and nothing crosses it.** Round 2 answered BR-13 by extracting `switch_terminal_tab_command` and pinning it in `workbench_route_test.lua:70-74`. That pins the *pure helper*. It does not pin the caller: the `'prev'`/`'next'` literals at init.lua:3405-3406, and — the fatal one — the `_G.PairWorkbenchRoute = workbench_route` publication at init.lua:3515, which is the only thing that makes the pinned helper reachable from the function that uses it. Measured (full `make test`, mutant vs control, identical): both mutations green. Runtime behaviour of the mutant: `attempt to index a nil value (field 'PairWorkbenchRoute')` on every press, invisible because the keymap callback is silent.
+
+Fix sketch — the seam already exists. `tests/workbench-route-nvim-test.sh:79-108` drives real nvim inits through `maparg(key,'n',false,true).callback()`; the same harness with `-u nvim/init.lua`, a fake `pair` on `PATH` recording argv, and `TEST_KEY='<S-M-Left>'` crosses init.lua → workbench_route → argv → CLI in one row. Cheaper alternative if the headless draft init is too heavy: make `switch_terminal_tab_command` the *only* way to reach the argv by moving `pair_switch_terminal_tab` into the `do` block at init.lua:3510 (deleting the `_G.PairWorkbenchRoute` global entirely), and add an argv row asserting `'prev'`/`'next'` are the strings `RunSwitchTerminalTab` accepts. The global-publication indirection exists solely so a function 110 lines above can reach a local — collapsing it removes the untested link rather than testing it.
+
+## 4. Minor findings
+
+- `TestDraftLuaSubcommandsAreDeclaredAndRoutable` (route_coverage_test.go:77) names the class but scans one of three Lua files that build `pair` argv. Enumeration: `nvim/init.lua:763` (`session-log append`), `:774` (`session-log commit`), `:906` (`review readiness`), `:955` (`review open`), `nvim/scrollback.lua:279` (`scrollback render`), `nvim/workbench_route.lua:130` (`layout switch-terminal-tab` — the only one covered). 1 of 6.
+- Four prior Minors remain open unchanged — see dispositions below.
+
+## 5. Test coverage notes
+
+- Baseline in this environment: `make test` exits 2 with 84 `--- FAIL`, **all** from `operation not permitted` on pty/`fork exec` (the known sandbox restriction on this machine). Shell and Lua suites all pass: `workbench_route_test ok`, `workbench-route-nvim-test ok`, `term-pane-shortcuts-test ok` including all three new `Alt+Shift+←/→` rows. `gofmt -l ./cmd` and `go vet ./cmd/...` clean.
+- Mutations I ran myself: dispatcher case rename → RED (2 tests); Lua subcommand rename → RED (2 assertions); draft body direction + `_G.PairWorkbenchRoute` removal → **GREEN, identical to control**.
+- Coverage that is real: Go executor for the agent pane (via the `switchTerminalTab` var seam), the right pane's in-place mux calls with `wantRTOps` empty (proving no zellij call), `RunSwitchTerminalTab` argument rows including `missing`/`unknown`/`too many`, the inert no-terminal-pane case, and the prefix-shadowing property over the whole `chordSequences` table.
+- Coverage that is absent: the draft executor's own body (above), and the new CLI verb through the fake-zellij harness (only the Go `fakeRuntime` exercises it).
+
+## 6. Architectural notes
+
+- **ARCH-DRY — pass, one residual.** `resolveRightTerminal`, `TabChordFor`, `pair_bin()`, and `keyhelp`'s enforced derivation each collapse a real duplication. Residual: `nvim/scrollback.lua:273` (BR-17).
+- **ARCH-PURE — pass.** `DeliverChordArgs`, `TabChordFor`, `pickRightTerminal`, `switch_terminal_tab_command` are pure; IO is confined to `Runtime.RunZellijAction`. Note for upcoming work: `wrapcmd/wrap.go:1675` hardcodes `layoutcmd.OSRuntime{}` at the call site, which is why the test has to swap the package-level `switchTerminalTab` var. That matches the file's existing pattern (`runZellijAction`, `ActionFocusRightTerminal`), so it is not a regression — but if `executeWorkbenchDecision` grows more runtime-touching cases, injecting a `layoutcmd.Runtime` on `proxy` is the move.
+- **ARCH-PURPOSE — flag.** Shadow-sweep of the single source (`workbenchshortcut`): `keyhelp` derives (enforced), `workbench_actions.lua` is generated, README/atlas are hand-maintained narrative and were swept. The deferred piece is not a consumer but a *verification*: the one executor left uncrossed is the draft, which is the purpose clause of the issue ("keep typing here in the draft pane").
+- **ARCH-MOCK — pass.** zellij is behind `Runtime`; `fakeRuntime` in Go, a fake `zellij` script in `tests/term-pane-shortcuts-test.sh`, and `probes/zellijcalls` as the live conformance check. Production and test flow share the boundary.
+- **ARCH-CONSTRAINTS — flag (BR-18, open).** Keystroke path: one detached process + `list-panes` + `write` per press, no debounce on auto-repeat.
+- **ARCH-SECURE — pass.** `RunSwitchTerminalTab` parses `prev|next` into a typed `ShortcutAction` at the boundary and rejects everything else with exit 2 — parse, don't validate, done right. Argv arrays throughout, no shell interpolation of the direction. Sidecar reads degrade to a lost preference, never a fabricated pane id. No credentials in scope.
+- **ARCH-ORDER — flag (BR-18 extent, open).** Fire-and-forget is stated and correct; a rapid double-press is two independent subprocesses whose only visible effect is arriving one tab off, which is acceptable for an idempotent-per-press action. The `held` partial-chord buffer gained new live prefixes (`\x1b[1;1` via `\x1b[1;10D`), and `TestNoChordSequenceIsAProperPrefixOfAnother` plus the split-arrival rows cover that interleaving. The unbounded piece is `detach = true`: nothing is still scoped when `PairTermPrevTab` returns.
+
+## 7. Plan revision recommendations
+
+None for the code — the issue's `## Plan` and `## Revisions` match what shipped, including the three recorded deviations. One ledger correction: the round-2 Revisions entry states BR-13 was fixed because "the draft's argv is now a pure `switch_terminal_tab_command` pinned by `workbench_route_test.lua`". Append to `## Revisions` that the helper is pinned but its *caller* is not, with the measurement above, so a later reader does not re-derive it.
+
+```findings
+dispose:
+  - id: BR-14
+    disposition: addressed
+    note: |
+      Verified by mutation: renaming dispatcher.go:203 reddens 2 tests; renaming workbench_route.lua:130 reddens 2 assertions. Both checks BR-14 specified exist. The chain's third boundary is tracked under BR-13.
+  - id: BR-13
+    disposition: not-addressed
+    note: |
+      Measured on full make test, mutant vs control identical (84 pre-existing pty FAILs, zero new): mutating 'prev' to 'previous' at init.lua:3405 AND deleting _G.PairWorkbenchRoute at init.lua:3515 (which nil-indexes on every press) leaves the suite green. Round 2 pinned the pure helper, not the body that calls it.
+  - id: BR-15
+    disposition: not-addressed
+    note: |
+      shortcut_test.go:613 still skips modifier >= 9, so the sibling relation stays one-directional; zellij/config.kdl:37 support_kitty_keyboard_protocol is still true, so the bit-8 premise is still Super rather than Meta. No change in this round.
+  - id: BR-16
+    disposition: not-addressed
+    note: |
+      tests/term-pane-shortcuts-test.sh:115 unchanged. The block's comment also still claims "Driven from the DRAFT's focus" although handleChord short-circuits at DecideGlobal before reading pane focus — fix the comment with the row.
+  - id: BR-17
+    disposition: not-addressed
+    note: |
+      nvim/scrollback.lua:273 still carries the idiom. One correction to the finding: that site DOES have the empty-PAIR_HOME fallback (if/else at 272-277), so it will not nil-concat; the defect is the duplicated resolution alone.
+  - id: BR-18
+    disposition: not-addressed
+    note: |
+      nvim/init.lua:3399-3402 unchanged — jobstart(detach = true) per press, no debounce, extent not lexically bounded.
+findings:
+  - id: new
+    severity: Minor
+    family: untested-executor-branch
+    title: |
+      TestDraftLuaSubcommandsAreDeclaredAndRoutable names the class of Lua-to-Go argv boundaries but scans 1 of the 3 Lua files that build one
+    detail: |
+      This is the 5th finding in family `untested-executor-branch`. Earlier rounds fixed
+      instances (agent pane, termcmd, then the chord chain's dispatcher edge). Do NOT fix
+      this instance. The rule is BR-14's, generalised one notch: the crossing test must
+      enumerate the Lua sites that build a `pair` argv, not the one the finding named.
+      Measured enumeration (`grep -n "pair_bin()\|/bin/pair'" nvim/*.lua` then the argv
+      sites): nvim/init.lua:763 `session-log append`, :774 `session-log commit`, :906
+      `review readiness`, :955 `review open`, nvim/scrollback.lua:279 `scrollback render`,
+      nvim/workbench_route.lua:130 `layout switch-terminal-tab`. 1 of 6 is scanned; a
+      rename of any of the other 5 is invisible to `go test ./...` exactly as the
+      dispatcher rename was. The extraction regex is also shaped for one call site
+      (`return \{...\}` with quoted literals), so widening the scan needs a different
+      extractor for the `vim.fn.system({ pair, 'a', 'b', ... })` form. Either widen the
+      scan or narrow the test's name so it does not read as covering the class.
+```
