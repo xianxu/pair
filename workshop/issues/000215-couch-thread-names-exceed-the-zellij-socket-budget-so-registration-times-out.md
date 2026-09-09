@@ -1,3 +1,20 @@
+---
+id: 000215
+status: open
+deps: []
+github_issue:
+created: 2026-09-08
+updated: 2026-09-08
+estimate_hours:
+---
+
+# couch spends 52 zellij subprocesses assigning a name inside a 5s registration deadline
+
+<!-- The filename's slug preserves the ORIGINAL, refuted root cause ("names
+exceed the socket budget"). The name assignment SUCCEEDS; its COST is the defect.
+See "root cause corrected" in the Log. Kept as-is because the id, not the slug,
+is the address. -->
+
 ## Problem
 
 **The registration deadline is too small for the work it fronts. Measured:**
